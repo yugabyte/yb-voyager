@@ -397,13 +397,10 @@ func (a *SqlAnonymizer) literalNodesProcessor(msg protoreflect.Message) error {
 			return fmt.Errorf("expected A_Const, got %T", msg.Interface())
 		}
 
-		if ac.Val != nil && ac.GetSval() != nil {
-			// Anonymize the string literal
-			tok, err := a.registry.GetHash(CONST_KIND_PREFIX, ac.GetSval().Sval)
-			if err != nil {
-				return fmt.Errorf("anon A_Const: %w", err)
-			}
-			ac.GetSval().Sval = tok
+		// Use shared helper function to avoid code duplication
+		err := a.anonymizeAConst(ac, CONST_KIND_PREFIX)
+		if err != nil {
+			return fmt.Errorf("anon A_Const: %w", err)
 		}
 
 	}
@@ -443,11 +440,9 @@ func (a *SqlAnonymizer) miscellaneousNodesProcessor(msg protoreflect.Message) (e
 		defName := defElem.GetDefname()
 		if defName == "table_name" || defName == "schema" {
 			kind := lo.Ternary(defName == "table_name", TABLE_KIND_PREFIX, SCHEMA_KIND_PREFIX)
-			if defElem.Arg != nil && defElem.Arg.GetString_() != nil {
-				defElem.Arg.GetString_().Sval, err = a.registry.GetHash(kind, defElem.Arg.GetString_().Sval)
-				if err != nil {
-					return fmt.Errorf("anon DefElem %q: %w", defName, err)
-				}
+			err = a.anonymizeConstantValue(defElem.Arg, kind)
+			if err != nil {
+				return fmt.Errorf("anon DefElem %q: %w", defName, err)
 			}
 		}
 	}
@@ -702,6 +697,69 @@ func (a *SqlAnonymizer) handleUserDefinedTypeObjectNodes(msg protoreflect.Messag
 		// Anonymize the column names in columndeflist in column_def node
 		// Already covered by ColumnDef processor
 
+	/*
+		SQL:		CREATE TYPE myrange AS RANGE (subtype = int4);
+		ParseTree:	stmt:{create_range_stmt:{type_name:{string:{sval:"myrange"}} params:{def_elem:{defname:"subtype"
+					arg:{type_name:{names:{string:{sval:"int4"}} }} defaction:DEFELEM_UNSPEC }}}}
+
+		SQL: CREATE TYPE timerange AS RANGE (
+				subtype = time,
+				subtype_diff = time_subtype_diff
+			);
+		ParseTree:	stmt:{create_range_stmt:{type_name:{string:{sval:"timerange"}}
+		        	params:{def_elem:{defname:"subtype" arg:{type_name:{names:{string:{sval:"pg_catalog"}} names:{string:{sval:"time"}} }}
+					defaction:DEFELEM_UNSPEC }} params:{def_elem:{defname:"subtype_diff" arg:{type_name:{names:{string:{sval:"time_subtype_diff"}} }}
+					defaction:DEFELEM_UNSPEC }}}} stmt_len:91
+	*/
+	case queryparser.PG_QUERY_CREATE_RANGE_STMT_NODE:
+		crs, ok := queryparser.ProtoAsCreateRangeStmtNode(msg)
+		if !ok {
+			return fmt.Errorf("expected CreateRangeStmt, got %T", msg.Interface())
+		}
+
+		// Anonymize the range type name
+		err = a.anonymizeStringNodes(crs.GetTypeName(), TYPE_KIND_PREFIX)
+		if err != nil {
+			return fmt.Errorf("anon range type name: %w", err)
+		}
+
+		// Anonymize all range type parameters
+		err = a.anonymizeRangeTypeParameters(crs.Params)
+		if err != nil {
+			return fmt.Errorf("anon range type parameters: %w", err)
+		}
+
+	/*
+		CREATE TYPE base_type_examples.base_type (
+				INTERNALLENGTH = variable, -- anonymized as constant
+				INPUT = base_type_examples.base_fn_in, -- anonymized as function
+				OUTPUT = base_type_examples.base_fn_out, -- anonymized as function
+				ALIGNMENT = int4, -- anonymized as constant
+				STORAGE = plain -- anonymized as constant
+		);
+		ParseTree: stmt:{define_stmt:{kind:OBJECT_TYPE defnames:{string:{sval:"base_type_examples"}} defnames:{string:{sval:"base_type"}}
+		definition:{def_elem:{defname:"internallength" arg:{type_name:{names:{string:{sval:"variable"}} }} defaction:DEFELEM_UNSPEC }}
+		definition:{def_elem:{defname:"input" arg:{type_name:{names:{string:{sval:"base_type_examples"}} names:{string:{sval:"base_fn_in"}} }}
+		defaction:DEFELEM_UNSPEC }} definition:{def_elem:{defname:"output" arg:{type_name:{names:{string:{sval:"base_type_examples"}} names:{string:{sval:"base_fn_out"}} }}
+		defaction:DEFELEM_UNSPEC }} definition:{def_elem:{defname:"alignment" arg:{type_name:{names:{string:{sval:"int4"}} }}
+		defaction:DEFELEM_UNSPEC }} definition:{def_elem:{defname:"storage" arg:{type_name:{names:{string:{sval:"plain"}} }}
+		defaction:DEFELEM_UNSPEC }}}}
+	*/
+	case queryparser.PG_QUERY_DEFINE_STMT_NODE:
+		ds, err := a.handleDefineStmtWithReturn(msg, pg_query.ObjectType_OBJECT_TYPE, TYPE_KIND_PREFIX)
+		if err != nil {
+			return fmt.Errorf("anon create type define: %w", err)
+		}
+
+		// If this is not a TYPE DefineStmt, skip
+		if ds == nil {
+			return nil
+		}
+
+		err = a.anonymizeBaseTypeParameters(ds.Definition)
+		if err != nil {
+			return fmt.Errorf("anon base type parameters: %w", err)
+		}
 	}
 	return nil
 }
@@ -783,6 +841,20 @@ func (a *SqlAnonymizer) handleTableObjectNodes(msg protoreflect.Message) (err er
 		// RangeVar node in CREATE TABLE is handled by common anonymizeRangeVarNode() processor
 		// columnDef nodes in CREATE TABLE are handled by common anonymizeColumnDefNode() processor
 
+		// To Handle partitioning specification if present
+		cs, ok := queryparser.ProtoAsCreateStmtNode(msg)
+		if !ok {
+			return fmt.Errorf("expected CreateStmt, got %T", msg.Interface())
+		}
+
+		// Handle partitioning if present
+		if cs.Partspec != nil {
+			err = a.handlePartitionSpec(cs.Partspec)
+			if err != nil {
+				return fmt.Errorf("anon partition spec: %w", err)
+			}
+		}
+
 	/*
 		SQL:		ALTER TABLE sales.orders ADD COLUMN note text;
 		ParseTree:	stmt:{alter_table_stmt:{relation:{schemaname:"sales"  relname:"orders"  inh:true  relpersistence:"p"  location:12}
@@ -849,6 +921,33 @@ func (a *SqlAnonymizer) handleTableObjectNodes(msg protoreflect.Message) (err er
 			// - Constraint definitions handled by CONSTRAINT_NODE processor
 			// - Index definitions handled by IndexStmt processor
 
+		case pg_query.AlterTableType_AT_AddIdentity:
+			// Handle sequence name in identity options if present
+			if atc.Def == nil {
+				break
+			}
+
+			constraint := atc.Def.GetConstraint()
+			if constraint == nil || constraint.Options == nil {
+				break
+			}
+
+			for _, opt := range constraint.Options {
+				if opt == nil || opt.GetDefElem() == nil {
+					continue
+				}
+
+				defElem := opt.GetDefElem()
+				if defElem.Defname != "sequence_name" || defElem.Arg == nil || defElem.Arg.GetList() == nil {
+					continue
+				}
+
+				err = a.anonymizeStringNodes(defElem.Arg.GetList().Items, SEQUENCE_KIND_PREFIX)
+				if err != nil {
+					return fmt.Errorf("anon identity sequence name: %w", err)
+				}
+			}
+
 		case pg_query.AlterTableType_AT_ChangeOwner:
 			// OWNER TO role_name
 			// The role is in atc.Newowner, handled by RoleSpec processor
@@ -863,9 +962,34 @@ func (a *SqlAnonymizer) handleTableObjectNodes(msg protoreflect.Message) (err er
 			// OF type_name
 			// Type name is in atc.Def as TypeName, handled by TypeName processor
 
+		/*
+			SQL: ALTER TABLE ONLY sales.orders ATTACH PARTITION sales.orders_2024 FOR VALUES FROM (55) TO (56)
+			ParseTree: stmt:{alter_table_stmt:{relation:{schemaname:"sales"  relname:"orders"  relpersistence:"p"  }
+						cmds:{alter_table_cmd:{subtype:AT_AttachPartition  def:{partition_cmd:{name:{schemaname:"sales"  relname:"orders_2024"  inh:true  relpersistence:"p"  }
+						bound:{strategy:"r"  lowerdatums:{a_const:{ival:{ival:55}  }}  upperdatums:{a_const:{ival:{ival:56}  }}  }}}  behavior:DROP_RESTRICT}}  objtype:OBJECT_TABLE}}
+		*/
 		case pg_query.AlterTableType_AT_AttachPartition:
 			// ATTACH PARTITION partition_table FOR VALUES ...
 			// Partition table name is in atc.Def as PartitionCmd, which contains RangeVar
+			if atc.Def == nil {
+				break
+			}
+
+			partitionCmd := atc.Def.GetPartitionCmd()
+			if partitionCmd == nil {
+				return fmt.Errorf("expected PartitionCmd for AT_AttachPartition")
+			}
+
+			// Anonymize the partition table name (RangeVar)
+			if partitionCmd.Name != nil {
+				err = a.anonymizeRangeVarNode(partitionCmd.Name, TABLE_KIND_PREFIX)
+				if err != nil {
+					return fmt.Errorf("anon attach partition table name: %w", err)
+				}
+			}
+
+			// Note: Partition bound values (constants) are automatically anonymized
+			// by the enhanced literalNodesProcessor during parse tree traversal
 
 			// All other cases that don't contain sensitive information are intentionally omitted:
 			// - AT_DropCluster, AT_SetLogged, AT_SetUnLogged, AT_DropOids
@@ -875,6 +999,42 @@ func (a *SqlAnonymizer) handleTableObjectNodes(msg protoreflect.Message) (err er
 			// - AT_DropOf, AT_ReAddComment, AT_SetAccessMethod
 		}
 	}
+	return nil
+}
+
+// handlePartitionSpec processes the partitioning specification in CREATE TABLE statements
+/*
+	SQL:		CREATE TABLE sales.orders (id int PRIMARY KEY, amt numeric) PARTITION BY LIST(region);
+	ParseTree:	stmt:{create_stmt:{relation:{schemaname:"sales" relname:"orders" inh:true relpersistence:"p" location:13}
+				table_elts:{column_def:{colname:"id" type_name:{names:{string:{sval:"pg_catalog"}} names:{string:{sval:"int4"}} ...} is_local:true constraints:{constraint:{contype:CONSTR_PRIMARY ...}} }}
+				table_elts:{column_def:{colname:"amt" type_name:{names:{string:{sval:"pg_catalog"}} names:{string:{sval:"numeric"}} ...} is_local:true location:47}}
+				partspec:{partparams:{partelem:{name:"region" ...}} ...}}} oncommit:ONCOMMIT_NOOP}}
+*/
+func (a *SqlAnonymizer) handlePartitionSpec(partspec *pg_query.PartitionSpec) error {
+	if partspec == nil || partspec.PartParams == nil {
+		return nil
+	}
+
+	for _, partParam := range partspec.PartParams {
+		if partParam == nil {
+			continue
+		}
+
+		// Extract the partition element
+		partElem := partParam.GetPartitionElem()
+		if partElem == nil || partElem.Name == "" {
+			continue
+		}
+
+		// Anonymize the column name used in partitioning
+		// Note: it will always be column name, not qualified name here
+		hashedName, err := a.registry.GetHash(COLUMN_KIND_PREFIX, partElem.Name)
+		if err != nil {
+			return fmt.Errorf("anon partition column: %w", err)
+		}
+		partElem.Name = hashedName
+	}
+
 	return nil
 }
 
@@ -939,6 +1099,85 @@ func (a *SqlAnonymizer) handleIndexObjectNodes(msg protoreflect.Message) (err er
 			return fmt.Errorf("anon index column alias: %w", err)
 		}
 
+		// 4) Operator class: (Opclass != nil)
+		//    CREATE INDEX ... ON tbl(col opclass_schema.opclass_name(opts));
+		err = a.anonymizeIndexOpclass(ie.Opclass)
+		if err != nil {
+			return fmt.Errorf("anon index opclass: %w", err)
+		}
+
+		// 5) Operator class options: (Opclassopts != nil)
+		//    CREATE INDEX ... ON tbl(col opclass_name(siglen='32'));
+		err = a.anonymizeIndexOpclassOptions(ie.Opclassopts)
+		if err != nil {
+			return fmt.Errorf("anon index opclass options: %w", err)
+		}
+
+	}
+
+	return nil
+}
+
+// anonymizeIndexOpclass anonymizes operator class names in index definitions
+func (a *SqlAnonymizer) anonymizeIndexOpclass(opclass []*pg_query.Node) (err error) {
+	if opclass == nil {
+		return nil
+	}
+
+	// Handle operator class names (usually 1-2 elements: [schema, opclass_name])
+	for _, op := range opclass {
+		if op == nil {
+			continue
+		}
+
+		// Extract string value from the operator class node
+		strNode := op.GetString_()
+		if strNode == nil {
+			continue
+		}
+		strNode.Sval, err = a.registry.GetHash(OPCLASS_KIND_PREFIX, strNode.Sval)
+		if err != nil {
+			return fmt.Errorf("anon opclass name: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// anonymizeIndexOpclassOptions anonymizes operator class options in index definitions
+/*
+	SQL: CREATE INDEX idx_orders_location ON sales.orders USING gist (location postgis.gist_geometry_ops(siglen='32'))
+	ParseTree: stmt:{index_stmt:{idxname:"idx_orders_location"  relation:{schemaname:"sales"  relname:"orders"  inh:true  relpersistence:"p"  location:36}
+	access_method:"gist"  index_params:{index_elem:{name:"location"  opclass:{string:{sval:"postgis"}}
+	opclass:{string:{sval:"gist_geometry_ops"}}  opclassopts:{def_elem:{defname:"siglen"  arg:{string:{sval:"32"}}  defaction:DEFELEM_UNSPEC  location:96}}
+	ordering:SORTBY_DEFAULT  nulls_ordering:SORTBY_NULLS_DEFAULT}}}}
+*/
+func (a *SqlAnonymizer) anonymizeIndexOpclassOptions(opts []*pg_query.Node) (err error) {
+	if opts == nil {
+		return nil
+	}
+
+	for _, opt := range opts {
+		if opt == nil {
+			continue
+		}
+
+		// Handle DefElem nodes (e.g., siglen='32')
+		defElem := opt.GetDefElem()
+		if defElem == nil {
+			continue
+		}
+
+		defElem.Defname, err = a.registry.GetHash(PARAMETER_KIND_PREFIX, defElem.Defname)
+		if err != nil {
+			return fmt.Errorf("anon opclass option name: %w", err)
+		}
+
+		// Handle the argument value (e.g., '32')
+		err = a.anonymizeConstantValue(defElem.Arg, CONST_KIND_PREFIX)
+		if err != nil {
+			return fmt.Errorf("anon opclass option value: %w", err)
+		}
 	}
 
 	return nil
@@ -1589,6 +1828,47 @@ func (a *SqlAnonymizer) handleOperatorClassAndFamilyObjectNodes(msg protoreflect
 		if err != nil {
 			return fmt.Errorf("anon operator family name: %w", err)
 		}
+
+	/*
+		SQL:		ALTER OPERATOR FAMILY am_examples.box_ops USING gist2 ADD OPERATOR 1 <<(box, box), OPERATOR 2 &<(box, box);
+		ParseTree:	stmt:{alter_op_family_stmt:{opfamilyname:{string:{sval:"am_examples"}} opfamilyname:{string:{sval:"box_ops"}}
+					amname:"gist2" items:{create_op_class_item:{itemtype:1 name:{objname:{string:{sval:"<<"}} objargs:{type_name:{names:{string:{sval:"box"}} }}
+					objargs:{type_name:{names:{string:{sval:"box"}} }}} number:1}}}}
+	*/
+	case queryparser.PG_QUERY_ALTER_OP_FAMILY_STMT_NODE:
+		aofs, ok := queryparser.ProtoAsAlterOpFamilyStmtNode(msg)
+		if !ok {
+			return fmt.Errorf("expected AlterOpFamilyStmt, got %T", msg.Interface())
+		}
+
+		// Anonymize the operator family name (qualified: schema.opfamily_name)
+		err = a.anonymizeStringNodes(aofs.GetOpfamilyname(), OPFAMILY_KIND_PREFIX)
+		if err != nil {
+			return fmt.Errorf("anon alter operator family name: %w", err)
+		}
+
+		// Anonymize operators in the items
+		if aofs.Items == nil {
+			return nil
+		}
+
+		for _, item := range aofs.Items {
+			itemNode := item.GetCreateOpClassItem()
+			if itemNode == nil {
+				continue
+			}
+
+			// Anonymize operator symbol
+			if itemNode.Name != nil && itemNode.Name.Objname != nil {
+				err = a.anonymizeStringNodes(itemNode.Name.Objname, OPERATOR_KIND_PREFIX)
+				if err != nil {
+					return fmt.Errorf("anon alter operator family operator: %w", err)
+				}
+			}
+
+			// TODO: Type arguments in operator family items need to be handled for anonymization.
+			// Skipped for now due to complex logic and not a common case.
+		}
 	}
 
 	return nil
@@ -1706,6 +1986,146 @@ func (a *SqlAnonymizer) anonymizeRangeVarNode(rv *pg_query.RangeVar, finalPrefix
 	return nil
 }
 
+// anonymizeRangeTypeParameters handles all parameters for CREATE TYPE ... AS RANGE statements
+/*
+Refer: https://www.postgresql.org/docs/current/sql-createtype.html
+
+CREATE TYPE name AS RANGE (
+    SUBTYPE = subtype
+    [ , SUBTYPE_OPCLASS = subtype_operator_class ]
+    [ , COLLATION = collation ]
+    [ , CANONICAL = canonical_function ]
+    [ , SUBTYPE_DIFF = subtype_diff_function ]
+    [ , MULTIRANGE_TYPE_NAME = multirange_type_name ]
+)
+*/
+func (a *SqlAnonymizer) anonymizeRangeTypeParameters(params []*pg_query.Node) error {
+	if params == nil {
+		return nil
+	}
+
+	for _, defElem := range params {
+		defElemNode := defElem.GetDefElem()
+		if defElemNode == nil || defElemNode.Defname == "" {
+			continue
+		}
+
+		// Early return if no argument
+		if defElemNode.Arg == nil {
+			continue
+		}
+
+		typeName := defElemNode.Arg.GetTypeName()
+		if typeName == nil {
+			continue
+		}
+
+		var prefix string
+
+		switch defElemNode.Defname {
+		case "subtype":
+			prefix = TYPE_KIND_PREFIX
+		case "subtype_opclass":
+			prefix = OPCLASS_KIND_PREFIX
+		case "collation":
+			prefix = COLLATION_KIND_PREFIX
+		case "canonical":
+			prefix = FUNCTION_KIND_PREFIX
+		case "subtype_diff":
+			prefix = FUNCTION_KIND_PREFIX
+		case "multirange_type_name":
+			prefix = TYPE_KIND_PREFIX
+		default:
+			continue
+		}
+
+		// Skip builtin types if required
+		if prefix == TYPE_KIND_PREFIX && IsBuiltinType(typeName) {
+			continue
+		}
+
+		// Common anonymization logic across all cases
+		if err := a.anonymizeStringNodes(typeName.Names, prefix); err != nil {
+			return fmt.Errorf("anon range %s: %w", defElemNode.Defname, err)
+		}
+	}
+
+	return nil
+}
+
+// anonymizeBaseTypeParameters handles all parameters for CREATE TYPE name (...) statements
+// including input, output, receive, send, typmod functions, analyze, subscript, and other options
+/*
+Refer: https://www.postgresql.org/docs/current/sql-createtype.html
+
+CREATE TYPE name (
+    INPUT = input_function,
+    OUTPUT = output_function
+    [ , RECEIVE = receive_function ]
+    [ , SEND = send_function ]
+    [ , TYPMOD_IN = type_modifier_input_function ]
+    [ , TYPMOD_OUT = type_modifier_output_function ]
+    [ , ANALYZE = analyze_function ]
+    [ , SUBSCRIPT = subscript_function ]
+    [ , INTERNALLENGTH = { internallength | VARIABLE } ]
+    [ , PASSEDBYVALUE ]
+    [ , ALIGNMENT = alignment ]
+    [ , STORAGE = storage ]
+    [ , LIKE = like_type ]
+    [ , CATEGORY = category ]
+    [ , PREFERRED = preferred ]
+    [ , DEFAULT = default ]
+    [ , ELEMENT = element ]
+    [ , DELIMITER = delimiter ]
+    [ , COLLATABLE = collatable ]
+)
+*/
+func (a *SqlAnonymizer) anonymizeBaseTypeParameters(definition []*pg_query.Node) error {
+	if definition == nil {
+		return nil
+	}
+
+	for _, defElem := range definition {
+		defElemNode := defElem.GetDefElem()
+		if defElemNode == nil || defElemNode.Defname == "" {
+			continue
+		}
+
+		switch defElemNode.Defname {
+		case "input", "output", "receive", "send", "typmod_in", "typmod_out", "analyze", "subscript":
+			// These are all function names that should be anonymized as FUNCTION
+			if defElemNode.Arg == nil {
+				continue
+			}
+			typeName := defElemNode.Arg.GetTypeName()
+			if err := a.anonymizeStringNodes(typeName.Names, FUNCTION_KIND_PREFIX); err != nil {
+				return fmt.Errorf("anon base type %s function: %w", defElemNode.Defname, err)
+			}
+
+		case "like", "element":
+			// These are type names that should be anonymized as TYPE
+			if defElemNode.Arg == nil {
+				continue
+			}
+			typeName := defElemNode.Arg.GetTypeName()
+			if typeName == nil || IsBuiltinType(typeName) {
+				continue
+			}
+			if err := a.anonymizeStringNodes(typeName.Names, TYPE_KIND_PREFIX); err != nil {
+				return fmt.Errorf("anon base type %s type: %w", defElemNode.Defname, err)
+			}
+
+		case "internallength", "alignment", "storage", "category", "preferred", "default", "delimiter", "passedbyvalue", "collatable":
+			// These are constant values that should be anonymized as CONST
+			if err := a.anonymizeConstantValue(defElemNode.Arg, CONST_KIND_PREFIX); err != nil {
+				return fmt.Errorf("anon base type %s value: %w", defElemNode.Defname, err)
+			}
+		}
+	}
+
+	return nil
+}
+
 func (a *SqlAnonymizer) anonymizeColumnDefNode(cd *pg_query.ColumnDef) (err error) {
 	if cd == nil {
 		return nil
@@ -1714,5 +2134,141 @@ func (a *SqlAnonymizer) anonymizeColumnDefNode(cd *pg_query.ColumnDef) (err erro
 	if err != nil {
 		return fmt.Errorf("anon coldef: %w", err)
 	}
+
+	// Handle constraints in ColumnDef (like CONSTR_DEFAULT)
+	// Examples of default values for columns:
+	// 1. CREATE TABLE sales.products (id int DEFAULT 1)
+	// 2. CREATE TABLE sales.products (id int DEFAULT 1, name text DEFAULT 'product')
+	// 3. CREATE TABLE sales.products (id int DEFAULT 1, name text DEFAULT 'product', price numeric DEFAULT 0.00, active boolean DEFAULT true)
+	if cd.Constraints == nil {
+		return nil
+	}
+
+	for _, constraintNode := range cd.Constraints {
+		if constraintNode == nil {
+			continue
+		}
+
+		// Get the constraint from the node
+		constraint := constraintNode.GetConstraint()
+		if constraint == nil || constraint.Contype != pg_query.ConstrType_CONSTR_DEFAULT || constraint.RawExpr == nil {
+			continue
+		}
+
+		// Handle constant values in default values using the consolidated function
+		if err := a.anonymizeConstantValue(constraint.RawExpr, CONST_KIND_PREFIX); err != nil {
+			return fmt.Errorf("anon coldef default value: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// anonymizeConstantValue handles anonymization of constant values in SQL statements
+// This function consolidates the logic for handling different types of constant values
+// including TypeName, A_Const (string, int, float, bool), String_, and raw values
+func (a *SqlAnonymizer) anonymizeConstantValue(node *pg_query.Node, prefix string) error {
+	if node == nil {
+		return nil
+	}
+
+	// Handle TypeName nodes (e.g., alignment = int4)
+	if typeName := node.GetTypeName(); typeName != nil {
+		if err := a.anonymizeStringNodes(typeName.Names, prefix); err != nil {
+			return fmt.Errorf("anon constant type value: %w", err)
+		}
+		return nil
+	}
+
+	if aConst := node.GetAConst(); aConst != nil {
+		return a.anonymizeAConst(aConst, prefix)
+	}
+
+	// Handle String_ nodes (e.g., delimiter = ',')
+	if str := node.GetString_(); str != nil {
+		hashedVal, err := a.registry.GetHash(prefix, str.Sval)
+		if err != nil {
+			return fmt.Errorf("anon constant string value: %w", err)
+		}
+		str.Sval = hashedVal
+		return nil
+	}
+
+	// Handle Integer nodes (e.g., internallength = 1548)
+	if integer := node.GetInteger(); integer != nil {
+		hashedVal, err := a.registry.GetHash(prefix, fmt.Sprintf("%d", integer.Ival))
+		if err != nil {
+			return fmt.Errorf("anon constant integer value: %w", err)
+		}
+		// Replace the integer node with a string node to preserve parse tree integrity
+		*node = pg_query.Node{
+			Node: &pg_query.Node_String_{
+				String_: &pg_query.String{Sval: hashedVal},
+			},
+		}
+		return nil
+	}
+
+	return nil
+}
+
+// anonymizeAConst is a shared helper function to anonymize A_Const nodes
+// This eliminates code duplication between literalNodesProcessor and anonymizeConstantValue
+func (a *SqlAnonymizer) anonymizeAConst(ac *pg_query.A_Const, prefix string) error {
+	if ac == nil || ac.Val == nil {
+		return nil
+	}
+
+	// Handle string literals
+	if sval := ac.GetSval(); sval != nil {
+		hashedVal, err := a.registry.GetHash(prefix, sval.Sval)
+		if err != nil {
+			return fmt.Errorf("anon A_Const string: %w", err)
+		}
+		sval.Sval = hashedVal
+		return nil
+	}
+
+	// Handle integer literals
+	if ival := ac.GetIval(); ival != nil {
+		intVal := fmt.Sprintf("%d", ival.Ival)
+		hashedVal, err := a.registry.GetHash(prefix, intVal)
+		if err != nil {
+			return fmt.Errorf("anon A_Const int: %w", err)
+		}
+		// Replace with string value
+		ac.Val = &pg_query.A_Const_Sval{
+			Sval: &pg_query.String{Sval: hashedVal},
+		}
+		return nil
+	}
+
+	// Handle float literals
+	if fval := ac.GetFval(); fval != nil {
+		hashedVal, err := a.registry.GetHash(prefix, fval.Fval)
+		if err != nil {
+			return fmt.Errorf("anon A_Const float: %w", err)
+		}
+		// Replace with string value
+		ac.Val = &pg_query.A_Const_Sval{
+			Sval: &pg_query.String{Sval: hashedVal},
+		}
+		return nil
+	}
+
+	// Handle boolean literals
+	if boolval := ac.GetBoolval(); boolval != nil {
+		boolVal := boolval.String()
+		hashedVal, err := a.registry.GetHash(prefix, boolVal)
+		if err != nil {
+			return fmt.Errorf("anon A_Const bool: %w", err)
+		}
+		// Replace with string value
+		ac.Val = &pg_query.A_Const_Sval{
+			Sval: &pg_query.String{Sval: hashedVal},
+		}
+		return nil
+	}
+
 	return nil
 }

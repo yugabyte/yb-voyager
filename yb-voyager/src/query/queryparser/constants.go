@@ -64,6 +64,7 @@ const (
 	PG_QUERY_CREATE_CONVERSION_STMT_NODE    = "pg_query.CreateConversionStmt"
 	PG_QUERY_CREATE_OP_CLASS_STMT_NODE      = "pg_query.CreateOpClassStmt"
 	PG_QUERY_CREATE_OP_FAMILY_STMT_NODE     = "pg_query.CreateOpFamilyStmt"
+	PG_QUERY_ALTER_OP_FAMILY_STMT_NODE      = "pg_query.AlterOpFamilyStmt"
 	PG_QUERY_RULE_STMT_NODE                 = "pg_query.RuleStmt"
 
 	PG_QUERY_CREATE_SEQ_STMT_NODE = "pg_query.CreateSeqStmt"
@@ -74,6 +75,7 @@ const (
 	PG_QUERY_CREATE_ENUM_TYPE_STMT_NODE      = "pg_query.CreateEnumStmt"
 	PG_QUERY_ALTER_ENUM_TYPE_STMT_NODE       = "pg_query.AlterEnumStmt"
 	PG_QUERY_CREATE_COMPOSITE_TYPE_STMT_NODE = "pg_query.CompositeTypeStmt"
+	PG_QUERY_CREATE_RANGE_STMT_NODE          = "pg_query.CreateRangeStmt"
 
 	PG_QUERY_NODE_NODE           = "pg_query.Node"
 	PG_QUERY_ALIAS_NODE          = "pg_query.Alias"

@@ -30,6 +30,7 @@ const (
 	OPCLASS_KIND_PREFIX       = "opclass_"
 	OPFAMILY_KIND_PREFIX      = "opfamily_"
 	OPERATOR_KIND_PREFIX      = "op_"
+	PARAMETER_KIND_PREFIX     = "param_"
 	DEFAULT_KIND_PREFIX       = "anon_" // fallback for any other identifiers
 )
 
@@ -63,6 +64,7 @@ var AllKindPrefixes = []string{
 	OPCLASS_KIND_PREFIX,
 	OPFAMILY_KIND_PREFIX,
 	OPERATOR_KIND_PREFIX,
+	PARAMETER_KIND_PREFIX,
 	DEFAULT_KIND_PREFIX,
 }
 
