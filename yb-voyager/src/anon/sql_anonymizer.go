@@ -761,56 +761,9 @@ func (a *SqlAnonymizer) handleUserDefinedTypeObjectNodes(msg protoreflect.Messag
 			return nil
 		}
 
-		// Additional processing to anonymize function names in definitions
-		// For base types: input/output functions, for range types: subtype references
-		for _, defElem := range ds.Definition {
-			defElemNode := defElem.GetDefElem()
-			if defElemNode == nil || defElemNode.Defname == "" {
-				continue
-			}
-			switch defElemNode.Defname {
-			case "input", "output":
-				// For base types, input/output functions are stored as TypeName nodes
-				if defElemNode.Arg == nil {
-					continue
-				}
-				typeName := defElemNode.Arg.GetTypeName()
-				if typeName == nil {
-					continue
-				}
-				if err := a.anonymizeStringNodes(typeName.Names, FUNCTION_KIND_PREFIX); err != nil {
-					return fmt.Errorf("anon type %s function: %w", defElemNode.Defname, err)
-				}
-			case "subtype":
-				tn := defElemNode.Arg.GetTypeName()
-				if tn == nil || IsBuiltinType(tn) {
-					continue
-				}
-				for i, node := range tn.Names {
-					str := node.GetString_()
-					if str == nil || str.Sval == "" {
-						continue
-					}
-					hashed, err := a.registry.GetHash(TYPE_KIND_PREFIX, str.Sval)
-					if err != nil {
-						return fmt.Errorf("anon subtype[%d]=%q lookup: %w", i, str.Sval, err)
-					}
-					str.Sval = hashed
-				}
-			case "internallength", "alignment", "storage":
-				// These values should be treated as constants, not types
-				// Even though they're stored as TypeName nodes in the parse tree
-				if defElemNode.Arg == nil {
-					continue
-				}
-				typeName := defElemNode.Arg.GetTypeName()
-				if typeName == nil {
-					continue
-				}
-				if err := a.anonymizeStringNodes(typeName.Names, CONST_KIND_PREFIX); err != nil {
-					return fmt.Errorf("anon type %s value: %w", defElemNode.Defname, err)
-				}
-			}
+		err = a.anonymizeBaseTypeParameters(ds.Definition)
+		if err != nil {
+			return fmt.Errorf("anon base type parameters: %w", err)
 		}
 	}
 	return nil
@@ -2204,6 +2157,79 @@ func (a *SqlAnonymizer) anonymizeRangeTypeParameters(params []*pg_query.Node) er
 	return nil
 }
 
+// anonymizeBaseTypeParameters handles all parameters for CREATE TYPE name (...) statements
+// including input, output, receive, send, typmod functions, analyze, subscript, and other options
+/*
+Refer: https://www.postgresql.org/docs/current/sql-createtype.html
+
+CREATE TYPE name (
+    INPUT = input_function,
+    OUTPUT = output_function
+    [ , RECEIVE = receive_function ]
+    [ , SEND = send_function ]
+    [ , TYPMOD_IN = type_modifier_input_function ]
+    [ , TYPMOD_OUT = type_modifier_output_function ]
+    [ , ANALYZE = analyze_function ]
+    [ , SUBSCRIPT = subscript_function ]
+    [ , INTERNALLENGTH = { internallength | VARIABLE } ]
+    [ , PASSEDBYVALUE ]
+    [ , ALIGNMENT = alignment ]
+    [ , STORAGE = storage ]
+    [ , LIKE = like_type ]
+    [ , CATEGORY = category ]
+    [ , PREFERRED = preferred ]
+    [ , DEFAULT = default ]
+    [ , ELEMENT = element ]
+    [ , DELIMITER = delimiter ]
+    [ , COLLATABLE = collatable ]
+)
+*/
+func (a *SqlAnonymizer) anonymizeBaseTypeParameters(definition []*pg_query.Node) error {
+	if definition == nil {
+		return nil
+	}
+
+	for _, defElem := range definition {
+		defElemNode := defElem.GetDefElem()
+		if defElemNode == nil || defElemNode.Defname == "" {
+			continue
+		}
+
+		switch defElemNode.Defname {
+		case "input", "output", "receive", "send", "typmod_in", "typmod_out", "analyze", "subscript":
+			// These are all function names that should be anonymized as FUNCTION
+			if defElemNode.Arg == nil {
+				continue
+			}
+			typeName := defElemNode.Arg.GetTypeName()
+			if err := a.anonymizeStringNodes(typeName.Names, FUNCTION_KIND_PREFIX); err != nil {
+				return fmt.Errorf("anon base type %s function: %w", defElemNode.Defname, err)
+			}
+
+		case "like", "element":
+			// These are type names that should be anonymized as TYPE
+			if defElemNode.Arg == nil {
+				continue
+			}
+			typeName := defElemNode.Arg.GetTypeName()
+			if typeName == nil || IsBuiltinType(typeName) {
+				continue
+			}
+			if err := a.anonymizeStringNodes(typeName.Names, TYPE_KIND_PREFIX); err != nil {
+				return fmt.Errorf("anon base type %s type: %w", defElemNode.Defname, err)
+			}
+
+		case "internallength", "alignment", "storage", "category", "preferred", "default", "delimiter", "passedbyvalue", "collatable":
+			// These are constant values that should be anonymized as CONST
+			if err := a.anonymizeConstantValue(defElemNode.Arg, CONST_KIND_PREFIX); err != nil {
+				return fmt.Errorf("anon base type %s value: %w", defElemNode.Defname, err)
+			}
+		}
+	}
+
+	return nil
+}
+
 func (a *SqlAnonymizer) anonymizeColumnDefNode(cd *pg_query.ColumnDef) (err error) {
 	if cd == nil {
 		return nil
@@ -2233,65 +2259,112 @@ func (a *SqlAnonymizer) anonymizeColumnDefNode(cd *pg_query.ColumnDef) (err erro
 			continue
 		}
 
-		// Handle A_Const nodes (literal values)
-		aConst := constraint.RawExpr.GetAConst()
-		if aConst == nil || aConst.Val == nil {
-			continue
+		// Handle constant values in default values using the consolidated function
+		if err := a.anonymizeConstantValue(constraint.RawExpr, CONST_KIND_PREFIX); err != nil {
+			return fmt.Errorf("anon coldef default value: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// anonymizeConstantValue handles anonymization of constant values in SQL statements
+// This function consolidates the logic for handling different types of constant values
+// including TypeName, A_Const (string, int, float, bool), String_, and raw values
+func (a *SqlAnonymizer) anonymizeConstantValue(arg *pg_query.Node, prefix string) error {
+	if arg == nil {
+		return nil
+	}
+
+	// Handle TypeName nodes (e.g., alignment = int4)
+	if typeName := arg.GetTypeName(); typeName != nil {
+		if err := a.anonymizeStringNodes(typeName.Names, prefix); err != nil {
+			return fmt.Errorf("anon constant type value: %w", err)
+		}
+		return nil
+	}
+
+	// Handle A_Const nodes (e.g., internallength = 4, category = 'U')
+	if aConst := arg.GetAConst(); aConst != nil {
+		if aConst.Val == nil {
+			return nil
 		}
 
-		// Handle string literals in default values
+		// Handle string literals
 		if sval := aConst.GetSval(); sval != nil {
-			sval.Sval, err = a.registry.GetHash(CONST_KIND_PREFIX, sval.Sval)
+			hashedVal, err := a.registry.GetHash(prefix, sval.Sval)
 			if err != nil {
-				return fmt.Errorf("anon coldef default string value: %w", err)
+				return fmt.Errorf("anon constant string value: %w", err)
 			}
-			continue
+			sval.Sval = hashedVal
+			return nil
 		}
 
-		// Handle integer literals in default values
+		// Handle integer literals
 		if ival := aConst.GetIval(); ival != nil {
-			// Convert integer to string for hashing
 			intVal := fmt.Sprintf("%d", ival.Ival)
-			hashedVal, err := a.registry.GetHash(CONST_KIND_PREFIX, intVal)
+			hashedVal, err := a.registry.GetHash(prefix, intVal)
 			if err != nil {
-				return fmt.Errorf("anon coldef default int value: %w", err)
+				return fmt.Errorf("anon constant int value: %w", err)
 			}
-			// Replace the integer value node with the string node for anonymized value
+			// Replace with string value
 			aConst.Val = &pg_query.A_Const_Sval{
 				Sval: &pg_query.String{Sval: hashedVal},
 			}
-			continue
+			return nil
 		}
 
-		// Handle float literals in default values
+		// Handle float literals
 		if fval := aConst.GetFval(); fval != nil {
-			// Get the float value as string and hash it
-			floatVal := fval.Fval
-			hashedVal, err := a.registry.GetHash(CONST_KIND_PREFIX, floatVal)
+			hashedVal, err := a.registry.GetHash(prefix, fval.Fval)
 			if err != nil {
-				return fmt.Errorf("anon coldef default float value: %w", err)
+				return fmt.Errorf("anon constant float value: %w", err)
 			}
-			// Replace the float value node with the string node for anonymized value
+			// Replace with string value
 			aConst.Val = &pg_query.A_Const_Sval{
 				Sval: &pg_query.String{Sval: hashedVal},
 			}
-			continue
+			return nil
 		}
 
-		// Handle boolean literals in default values
+		// Handle boolean literals
 		if boolval := aConst.GetBoolval(); boolval != nil {
-			// Get the boolean value as string and hash it
 			boolVal := boolval.String()
-			hashedVal, err := a.registry.GetHash(CONST_KIND_PREFIX, boolVal)
+			hashedVal, err := a.registry.GetHash(prefix, boolVal)
 			if err != nil {
-				return fmt.Errorf("anon coldef default boolean value: %w", err)
+				return fmt.Errorf("anon constant bool value: %w", err)
 			}
-			// Replace the boolean value node with the string node for anonymized value
+			// Replace with string value
 			aConst.Val = &pg_query.A_Const_Sval{
 				Sval: &pg_query.String{Sval: hashedVal},
 			}
-			continue
+			return nil
 		}
+	}
+
+	// Handle String_ nodes (e.g., delimiter = ',')
+	if str := arg.GetString_(); str != nil {
+		hashedVal, err := a.registry.GetHash(prefix, str.Sval)
+		if err != nil {
+			return fmt.Errorf("anon constant string value: %w", err)
+		}
+		str.Sval = hashedVal
+		return nil
+	}
+
+	// Handle Integer nodes (e.g., internallength = 1548)
+	if integer := arg.GetInteger(); integer != nil {
+		hashedVal, err := a.registry.GetHash(prefix, fmt.Sprintf("%d", integer.Ival))
+		if err != nil {
+			return fmt.Errorf("anon constant integer value: %w", err)
+		}
+		// Replace the integer node with a string node to preserve parse tree integrity
+		*arg = pg_query.Node{
+			Node: &pg_query.Node_String_{
+				String_: &pg_query.String{Sval: hashedVal},
+			},
+		}
+		return nil
 	}
 
 	return nil
