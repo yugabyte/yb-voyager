@@ -20,8 +20,10 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
+	"github.com/samber/lo"
 	"golang.org/x/exp/slices"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 )
 
 var (
@@ -310,4 +312,56 @@ func IsReservedKeywordPG(word string) bool {
 
 func IsReservedKeywordOracle(word string) bool {
 	return slices.Contains(OracleReservedKeywords, word)
+}
+
+type ObjectNameQualifiedWithTableName struct {
+	SchemaName        string
+	TableName         *ObjectName
+	ObjectName        string
+	FromDefaultSchema bool
+
+	Qualified    identifier
+	Unqualified  identifier
+	MinQualified identifier
+}
+
+func NewObjectNameQualifiedWithTableName(dbType, defaultSchemaName, objectName string, schemaName, tableName string) *ObjectNameQualifiedWithTableName {
+	result := &ObjectNameQualifiedWithTableName{
+		SchemaName:        schemaName,
+		FromDefaultSchema: schemaName == defaultSchemaName,
+		TableName:         NewObjectName(dbType, defaultSchemaName, schemaName, tableName),
+		ObjectName:        objectName,
+		Qualified: identifier{
+			Quoted:    schemaName + "." + quote2(dbType, tableName) + "." + quote2(dbType, objectName),
+			Unquoted:  schemaName + "." + unquote(tableName, dbType) + "." + unquote(objectName, dbType),
+			MinQuoted: schemaName + "." + minQuote2(tableName, dbType) + "." + minQuote2(objectName, dbType),
+		},
+		Unqualified: identifier{
+			Quoted:    schemaName + "." + quote2(dbType, tableName) + "." + quote2(dbType, objectName),
+			Unquoted:  schemaName + "." + unquote(tableName, dbType) + "." + unquote(objectName, dbType),
+			MinQuoted: schemaName + "." + minQuote2(tableName, dbType) + "." + minQuote2(objectName, dbType),
+		},
+	}
+	result.MinQualified = lo.Ternary(result.FromDefaultSchema, result.Unqualified, result.Qualified)
+	return result
+}
+
+func (o *ObjectNameQualifiedWithTableName) CatalogName() string {
+	return o.Qualified.Unquoted
+}
+
+func (o *ObjectNameQualifiedWithTableName) GetObjectONTableFormatString() string {
+	return fmt.Sprintf("%s ON %s", o.ObjectName, o.TableName.Qualified.MinQuoted)
+}
+
+func (o *ObjectNameQualifiedWithTableName) Key() string {
+	return o.CatalogName()
+}
+
+func (o *ObjectNameQualifiedWithTableName) GetQualifiedTableName() string {
+	return o.TableName.Qualified.MinQuoted
+}
+
+func (o *ObjectNameQualifiedWithTableName) GetObjectName() string {
+	return o.ObjectName
 }

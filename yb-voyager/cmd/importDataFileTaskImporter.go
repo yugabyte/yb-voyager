@@ -24,6 +24,7 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	log "github.com/sirupsen/logrus"
 	"github.com/sourcegraph/conc/pool"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"
@@ -58,12 +59,13 @@ type FileTaskImporter struct {
 	currentProgressAmount int64
 	progressReporter      *ImportDataProgressReporter
 
-	errorHandler importdata.ImportDataErrorHandler
+	errorHandler             importdata.ImportDataErrorHandler
+	callhomeMetricsCollector *callhome.ImportDataMetricsCollector
 }
 
 func NewFileTaskImporter(task *ImportFileTask, state *ImportDataState, workerPool *pool.Pool,
 	progressReporter *ImportDataProgressReporter, colocatedImportBatchQueue chan func(), isTableColocated bool,
-	errorHandler importdata.ImportDataErrorHandler) (*FileTaskImporter, error) {
+	errorHandler importdata.ImportDataErrorHandler, callhomeMetricsCollector *callhome.ImportDataMetricsCollector) (*FileTaskImporter, error) {
 	batchProducer, err := NewFileBatchProducer(task, state, errorHandler)
 	if err != nil {
 		return nil, fmt.Errorf("creating file batch producer: %s", err)
@@ -85,6 +87,7 @@ func NewFileTaskImporter(task *ImportFileTask, state *ImportDataState, workerPoo
 		totalProgressAmount:       totalProgressAmount,
 		currentProgressAmount:     currentProgressAmount,
 		errorHandler:              errorHandler,
+		callhomeMetricsCollector:  callhomeMetricsCollector,
 	}
 	state.RegisterFileTaskImporter(fti)
 	return fti, nil
@@ -124,11 +127,7 @@ func (fti *FileTaskImporter) submitBatch(batch *Batch) error {
 		// But the `connPool` will allow only `parallelism` number of connections to be
 		// used at a time. Thus limiting the number of concurrent COPYs to `parallelism`.
 		fti.importBatch(batch)
-		if reportProgressInBytes {
-			fti.updateProgress(batch.ByteCount)
-		} else {
-			fti.updateProgress(batch.RecordCount)
-		}
+		fti.updateProgressForCompletedBatch(batch)
 	}
 	if fti.colocatedImportBatchQueue != nil && fti.isTableColocated {
 		fti.colocatedImportBatchQueue <- importBatchFunc
@@ -230,13 +229,26 @@ func (fti *FileTaskImporter) importBatch(batch *Batch) {
 	}
 }
 
-func (fti *FileTaskImporter) updateProgress(progressAmount int64) {
+func (fti *FileTaskImporter) updateProgressForCompletedBatch(batch *Batch) {
+	// Update basic progress update for progress bar and control plane.
+	var progressAmount int64
+	if reportProgressInBytes {
+		progressAmount = batch.ByteCount
+	} else {
+		progressAmount = batch.RecordCount
+	}
+
 	fti.currentProgressAmount += progressAmount
 	fti.progressReporter.AddProgressAmount(fti.task, progressAmount)
 
 	// The metrics are sent after evry 5 secs in implementation of UpdateImportedRowCount
 	if fti.totalProgressAmount > fti.currentProgressAmount {
 		fti.updateProgressInControlPlane(ROW_UPDATE_STATUS_IN_PROGRESS)
+	}
+
+	// update callhome metrics collector
+	if fti.callhomeMetricsCollector != nil {
+		fti.callhomeMetricsCollector.IncrementSnapshotProgress(batch.RecordCount, batch.ByteCount)
 	}
 }
 
