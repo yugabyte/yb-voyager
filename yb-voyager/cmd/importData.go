@@ -75,6 +75,7 @@ var skipReplicationChecks utils.BoolStr
 var skipNodeHealthChecks utils.BoolStr
 var skipDiskUsageHealthChecks utils.BoolStr
 var progressReporter *ImportDataProgressReporter
+var callhomeMetricsCollector *callhome.ImportDataMetricsCollector
 
 // Error policy
 var errorPolicySnapshotFlag importdata.ErrorPolicy = importdata.AbortErrorPolicy
@@ -574,6 +575,10 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 		}
 	}
 
+	if callhome.SendDiagnostics {
+		callhomeMetricsCollector = callhome.NewImportDataMetricsCollector()
+	}
+
 	exportDirDataDir := filepath.Join(exportDir, "data")
 	errorHandler, err := importdata.GetImportDataErrorHandler(errorPolicy, exportDirDataDir)
 	if err != nil {
@@ -704,7 +709,7 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 				maxColocatedBatchesInProgress := utils.GetEnvAsInt("YBVOYAGER_MAX_COLOCATED_BATCHES_IN_PROGRESS", 3)
 				err := importTasksViaTaskPicker(pendingTasks, state, progressReporter,
 					maxParallelConns, maxParallelConns, maxColocatedBatchesInProgress,
-					errorHandler)
+					errorHandler, callhomeMetricsCollector)
 				if err != nil {
 					utils.ErrExit("Failed to import tasks via task picker. %s", err)
 				}
@@ -716,7 +721,7 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 					batchImportPool = pool.New().WithMaxGoroutines(poolSize)
 					log.Infof("created batch import pool of size: %d", poolSize)
 
-					taskImporter, err := NewFileTaskImporter(task, state, batchImportPool, progressReporter, nil, false, errorHandler)
+					taskImporter, err := NewFileTaskImporter(task, state, batchImportPool, progressReporter, nil, false, errorHandler, callhomeMetricsCollector)
 					if err != nil {
 						utils.ErrExit("Failed to create file task importer: %s", err)
 					}
@@ -913,7 +918,7 @@ func getMaxParallelConnections() (int, error) {
   - If task is done, mark it as done in the task picker.
 */
 func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataState, progressReporter *ImportDataProgressReporter, maxParallelConns int,
-	maxShardedTasksInProgress int, maxColocatedBatchesInProgress int, errorHandler importdata.ImportDataErrorHandler) error {
+	maxShardedTasksInProgress int, maxColocatedBatchesInProgress int, errorHandler importdata.ImportDataErrorHandler, callhomeMetricsCollector *callhome.ImportDataMetricsCollector) error {
 
 	var err error
 
@@ -953,7 +958,7 @@ func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataS
 		var ok bool
 		taskImporter, ok = taskImporters[task.ID]
 		if !ok {
-			taskImporter, err = createFileTaskImporter(task, state, batchImportPool, progressReporter, colocatedBatchImportQueue, tableTypes, errorHandler)
+			taskImporter, err = createFileTaskImporter(task, state, batchImportPool, progressReporter, colocatedBatchImportQueue, tableTypes, errorHandler, callhomeMetricsCollector)
 			if err != nil {
 				return fmt.Errorf("create file task importer: %w", err)
 			}
@@ -1065,7 +1070,7 @@ and colocated table batches to the colocatedBatchImportQueue.
 Otherwise, we simply pass the batchImportPool to the FileTaskImporter.
 */
 func createFileTaskImporter(task *ImportFileTask, state *ImportDataState, batchImportPool *pool.Pool, progressReporter *ImportDataProgressReporter, colocatedBatchImportQueue chan func(),
-	tableTypes *utils.StructMap[sqlname.NameTuple, string], errorHandler importdata.ImportDataErrorHandler) (*FileTaskImporter, error) {
+	tableTypes *utils.StructMap[sqlname.NameTuple, string], errorHandler importdata.ImportDataErrorHandler, callhomeMetricsCollector *callhome.ImportDataMetricsCollector) (*FileTaskImporter, error) {
 	var taskImporter *FileTaskImporter
 	var err error
 	if importerRole == TARGET_DB_IMPORTER_ROLE || importerRole == IMPORT_FILE_ROLE {
@@ -1074,12 +1079,12 @@ func createFileTaskImporter(task *ImportFileTask, state *ImportDataState, batchI
 			return nil, fmt.Errorf("table type not found for table: %s", task.TableNameTup.ForOutput())
 		}
 
-		taskImporter, err = NewFileTaskImporter(task, state, batchImportPool, progressReporter, colocatedBatchImportQueue, tableType == COLOCATED, errorHandler)
+		taskImporter, err = NewFileTaskImporter(task, state, batchImportPool, progressReporter, colocatedBatchImportQueue, tableType == COLOCATED, errorHandler, callhomeMetricsCollector)
 		if err != nil {
 			return nil, fmt.Errorf("create file task importer: %w", err)
 		}
 	} else {
-		taskImporter, err = NewFileTaskImporter(task, state, batchImportPool, progressReporter, nil, false, errorHandler)
+		taskImporter, err = NewFileTaskImporter(task, state, batchImportPool, progressReporter, nil, false, errorHandler, callhomeMetricsCollector)
 		if err != nil {
 			return nil, fmt.Errorf("create file task importer: %w", err)
 		}
@@ -1201,6 +1206,33 @@ func packAndSendImportDataToTargetPayload(status string, errorMsg error) {
 	}
 	payload.TargetDBDetails = callhome.MarshalledJsonString(targetDBDetails)
 	payload.MigrationPhase = IMPORT_DATA_PHASE
+
+	dataMetrics := callhome.ImportDataMetrics{}
+	if callhomeMetricsCollector != nil {
+		dataMetrics.SnapshotTotalRows = callhomeMetricsCollector.GetSnapshotTotalRows()
+		dataMetrics.SnapshotTotalBytes = callhomeMetricsCollector.GetSnapshotTotalBytes()
+	}
+
+	// Get phase-related metrics from existing logic
+	importRowsMap, err := getImportedSnapshotRowsMap("target")
+	if err != nil {
+		log.Infof("callhome: error in getting the import data: %v", err)
+	} else {
+		importRowsMap.IterKV(func(key sqlname.NameTuple, value RowCountPair) (bool, error) {
+			dataMetrics.MigrationSnapshotTotalRows += value.Imported
+			if value.Imported > dataMetrics.MigrationSnapshotLargestTableRows {
+				dataMetrics.MigrationSnapshotLargestTableRows = value.Imported
+			}
+			return true, nil
+		})
+	}
+
+	// Set live migration metrics if applicable
+	if importPhase != dbzm.MODE_SNAPSHOT && statsReporter != nil {
+		dataMetrics.MigrationCdcTotalImportedEvents = statsReporter.TotalEventsImported
+		dataMetrics.CdcEventsImportRate3min = statsReporter.EventsImportRateLast3Min
+	}
+
 	importDataPayload := callhome.ImportDataPhasePayload{
 		PayloadVersion:              callhome.IMPORT_DATA_CALLHOME_PAYLOAD_VERSION,
 		ParallelJobs:                int64(tconf.Parallelism),
@@ -1213,33 +1245,14 @@ func packAndSendImportDataToTargetPayload(status string, errorMsg error) {
 		EnableYBAdaptiveParallelism: bool(tconf.EnableYBAdaptiveParallelism),
 		AdaptiveParallelismMax:      int64(tconf.MaxParallelism),
 		ErrorPolicySnapshot:         errorPolicySnapshotFlag.String(),
+		DataMetrics:                 dataMetrics,
+		Phase:                       importPhase,
 	}
 
-	var err error
-	importDataPayload.YBClusterMetrics, err = BuildCallhomeYBClusterMetrics()
-	if err != nil {
-		log.Infof("callhome: error in getting the YB cluster metrics: %v", err)
-	}
-
-	//Getting the imported snapshot details
-	importRowsMap, err := getImportedSnapshotRowsMap("target")
-	if err != nil {
-		log.Infof("callhome: error in getting the import data: %v", err)
-	} else {
-		importRowsMap.IterKV(func(key sqlname.NameTuple, value RowCountPair) (bool, error) {
-			importDataPayload.TotalRows += value.Imported
-			if value.Imported > importDataPayload.LargestTableRows {
-				importDataPayload.LargestTableRows = value.Imported
-			}
-			return true, nil
-		})
-	}
-
-	importDataPayload.Phase = importPhase
-
-	if importPhase != dbzm.MODE_SNAPSHOT && statsReporter != nil {
-		importDataPayload.EventsImportRate = statsReporter.EventsImportRateLast3Min
-		importDataPayload.TotalImportedEvents = statsReporter.TotalEventsImported
+	var err2 error
+	importDataPayload.YBClusterMetrics, err2 = BuildCallhomeYBClusterMetrics()
+	if err2 != nil {
+		log.Infof("callhome: error in getting the YB cluster metrics: %v", err2)
 	}
 
 	payload.PhasePayload = callhome.MarshalledJsonString(importDataPayload)
