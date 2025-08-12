@@ -30,7 +30,7 @@ import (
 )
 
 const (
-	REMOVED_REDUNDANT_INDEXES_FILE_NAME = "redundant_indexes.sql"
+	REMOVED_REDUNDANT_INDEXES_FILE_NAME            = "redundant_indexes.sql"
 	SUGGESTION_TO_USE_SKIP_PERF_OPTIMIZATIONS_FLAG = "Use --skip-performance-optimizations true flag to skip applying performance optimizations to the index file"
 )
 
@@ -71,6 +71,12 @@ Output:
   - backup index file
 */
 func (t *IndexFileTransformer) Transform(file string) (string, error) {
+	if t.skipPerformanceOptimizations {
+		//TODO: change this logic to handle other type transformations that are not performance optimizations
+		log.Infof("skipping performance optimizations for %s", file)
+		return file, nil
+	}
+
 	var err error
 	var parseTree *pg_query.ParseResult
 	backUpFile := filepath.Join(filepath.Dir(file), fmt.Sprintf("backup_%s", filepath.Base(file)))
@@ -86,22 +92,21 @@ func (t *IndexFileTransformer) Transform(file string) (string, error) {
 	}
 
 	transformer := NewTransformer()
-	if !t.skipPerformanceOptimizations {
 
-		//remove redundant indexes
-		var removedIndexToStmtMap *utils.StructMap[*sqlname.ObjectNameQualifiedWithTableName, *pg_query.RawStmt]
-		parseTree.Stmts, removedIndexToStmtMap, err = transformer.RemoveRedundantIndexes(parseTree.Stmts, t.redundantIndexesToExistingIndexToRemove)
-		if err != nil {
-			return "", fmt.Errorf("failed to remove redundant indexes: %w\n%s", err, SUGGESTION_TO_USE_SKIP_PERF_OPTIMIZATIONS_FLAG)
-		}
-		t.RedundantIndexesFileName = filepath.Join(filepath.Dir(file), REMOVED_REDUNDANT_INDEXES_FILE_NAME)
-		err = t.writeRemovedRedundantIndexesToFile(removedIndexToStmtMap)
-		if err != nil {
-			return "", fmt.Errorf("failed to write removed redundant indexes to file: %w\n%s", err, SUGGESTION_TO_USE_SKIP_PERF_OPTIMIZATIONS_FLAG)
-		}
-
-	} else {
-		log.Infof("skipping performance optimizations for %s", file)
+	//remove redundant indexes
+	var removedIndexToStmtMap *utils.StructMap[*sqlname.ObjectNameQualifiedWithTableName, *pg_query.RawStmt]
+	parseTree.Stmts, removedIndexToStmtMap, err = transformer.RemoveRedundantIndexes(parseTree.Stmts, t.redundantIndexesToExistingIndexToRemove)
+	if err != nil {
+		return "", fmt.Errorf("failed to remove redundant indexes: %w", err)
+	}
+	t.RedundantIndexesFileName = filepath.Join(filepath.Dir(file), REMOVED_REDUNDANT_INDEXES_FILE_NAME)
+	removedIndexToStmtMap.IterKV(func(key *sqlname.ObjectNameQualifiedWithTableName, value *pg_query.RawStmt) (bool, error) {
+		t.RemovedRedundantIndexes = append(t.RemovedRedundantIndexes, key)
+		return true, nil
+	})
+	err = t.writeRemovedRedundantIndexesToFile(removedIndexToStmtMap)
+	if err != nil {
+		return "", fmt.Errorf("failed to write removed redundant indexes to file: %w", err)
 	}
 
 	sqlStmts, err := queryparser.DeparseRawStmts(parseTree.Stmts)
@@ -121,7 +126,6 @@ func (t *IndexFileTransformer) Transform(file string) (string, error) {
 func (t *IndexFileTransformer) writeRemovedRedundantIndexesToFile(removedIndexToStmtMap *utils.StructMap[*sqlname.ObjectNameQualifiedWithTableName, *pg_query.RawStmt]) error {
 	var removedSqlStmts []string
 	var err error
-	var removedIndexes []*sqlname.ObjectNameQualifiedWithTableName
 	removedIndexToStmtMap.IterKV(func(key *sqlname.ObjectNameQualifiedWithTableName, value *pg_query.RawStmt) (bool, error) {
 		//Add the existing index ddl in the comments for the individual redundant index
 		stmtStr, err := queryparser.DeparseRawStmt(value)
@@ -133,10 +137,8 @@ func (t *IndexFileTransformer) writeRemovedRedundantIndexesToFile(removedIndexTo
 				existingIndex, stmtStr)
 		}
 		removedSqlStmts = append(removedSqlStmts, stmtStr)
-		removedIndexes = append(removedIndexes, key)
 		return true, nil
 	})
-	t.RemovedRedundantIndexes = removedIndexes
 
 	if len(removedSqlStmts) > 0 {
 		// Write the removed indexes to a file
