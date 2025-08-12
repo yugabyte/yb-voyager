@@ -1343,6 +1343,24 @@ func getMultiplicationFactorForImportTimeBasedOnNumColumns(table SourceDBMetadat
 getMultiplicationFactorForImportTimeBasedOnNumNodes calculates the multiplication factor for import time based on
 number of nodes in the cluster for SHARDED tables.
 
+This function implements an asymptotic extrapolation approach to ensure multiplication factors never become
+negative or zero, which would be mathematically and practically meaningless. The approach ensures that:
+1. Performance improvements diminish as more nodes are added (realistic behavior)
+2. The factor asymptotically approaches a minimum positive value (never zero/negative)
+3. Experimental data points are accurately reproduced within the known range
+4. Extrapolation beyond experimental data remains reasonable and bounded
+
+Mathematical Model:
+  - For interpolation (within experimental range): Linear interpolation
+  - For extrapolation (beyond experimental range): Asymptotic decay formula:
+    factor = MIN_FACTOR + (BASELINE_FACTOR - MIN_FACTOR) * exp(-k * additionalNodes)
+
+Where:
+- MIN_FACTOR: Minimum multiplication factor (0.1 = 10% of baseline, representing coordination overhead)
+- BASELINE_FACTOR: Factor at baseline nodes (1.0 for 3 nodes)
+- k: Decay constant derived from experimental data to ensure continuity at boundary
+- additionalNodes: Number of nodes beyond the baseline (3 nodes)
+
 NOTE: This function is only called for SHARDED tables. COLOCATED tables always use a multiplication factor of 1.0
 and are handled by the calling code before this function is invoked.
 
@@ -1357,52 +1375,117 @@ Returns:
 */
 func getMultiplicationFactorForImportTimeBasedOnNumNodes(numNodes float64,
 	numNodesImpacts []ExpDataLoadTimeNumNodesImpact) float64 {
-	// numNodesImpacts is guaranteed to contain data points for 3, 6, and 9 nodes
 
+	// Constants for asymptotic extrapolation approach
+	const (
+		// MIN_MULTIPLICATION_FACTOR represents the minimum performance improvement factor.
+		// Set to 0.1 (10% of baseline), representing the point where coordination overhead
+		// and diminishing returns prevent further meaningful performance gains.
+		// This ensures the factor never becomes zero or negative, which would be meaningless.
+		MIN_MULTIPLICATION_FACTOR = 0.1
+
+		// BASELINE_NODES represents the reference point (3 nodes) where factor = 1.0
+		// All experimental data and calculations use this as the baseline for comparison.
+		BASELINE_NODES = 3.0
+
+		// BASELINE_FACTOR is the multiplication factor at the baseline node count (3 nodes).
+		// This represents the "no improvement" point in our scaling model.
+		BASELINE_FACTOR = 1.0
+	)
+
+	// numNodesImpacts is guaranteed to contain data points for 3, 6, and 9 nodes
 	// Sort the experimental data by number of nodes to ensure proper interpolation
 	sort.Slice(numNodesImpacts, func(i, j int) bool {
 		return numNodesImpacts[i].numNodes.Int64 < numNodesImpacts[j].numNodes.Int64
 	})
 
 	// Check if numNodes matches exactly with any experimental data point
+	// If so, return the exact experimental value for maximum accuracy
 	for _, data := range numNodesImpacts {
 		if float64(data.numNodes.Int64) == numNodes {
 			return data.multiplicationFactorSharded.Float64
 		}
 	}
 
-	// Find the appropriate data points for interpolation/extrapolation
-	var lowerData, upperData ExpDataLoadTimeNumNodesImpact
-	var hasUpper bool
+	// Determine the highest experimental data point for boundary detection
+	highestExperimentalNodes := float64(numNodesImpacts[len(numNodesImpacts)-1].numNodes.Int64)
 
-	// Find the ceiling value (next higher experimental data point)
-	for _, data := range numNodesImpacts {
-		if float64(data.numNodes.Int64) > numNodes {
-			upperData = data
-			hasUpper = true
-			break
+	// CASE 1: INTERPOLATION (within experimental data range)
+	// Use linear interpolation for values within the experimental range as it's most accurate
+	if numNodes <= highestExperimentalNodes {
+		// Find the appropriate data points for interpolation
+		var lowerData, upperData ExpDataLoadTimeNumNodesImpact
+
+		// Find the floor and ceiling experimental data points
+		for _, data := range numNodesImpacts {
+			currentNodes := float64(data.numNodes.Int64)
+			if currentNodes < numNodes {
+				lowerData = data
+			} else if currentNodes > numNodes {
+				upperData = data
+				break
+			}
 		}
-		lowerData = data
+
+		// Perform linear interpolation between the two experimental data points
+		lowerNodes := float64(lowerData.numNodes.Int64)
+		upperNodes := float64(upperData.numNodes.Int64)
+		lowerFactor := lowerData.multiplicationFactorSharded.Float64
+		upperFactor := upperData.multiplicationFactorSharded.Float64
+
+		// Linear interpolation formula: y = y1 + (x - x1) * (y2 - y1) / (x2 - x1)
+		ratio := (numNodes - lowerNodes) / (upperNodes - lowerNodes)
+		multiplicationFactor := lowerFactor + ratio*(upperFactor-lowerFactor)
+
+		return multiplicationFactor
 	}
 
-	// If no ceiling found, we need to extrapolate beyond the highest data point
-	// For extrapolation, always use 3 nodes as baseline since experimental data multiplication factors
-	// are calculated with 3 nodes as the baseline in mind
-	if !hasUpper {
-		// Use 3 nodes (baseline) and the highest available data point for extrapolation
-		lowerData = numNodesImpacts[0]                      // First element is 3 nodes (after sorting)
-		upperData = numNodesImpacts[len(numNodesImpacts)-1] // Highest available data point
+	// CASE 2: ASYMPTOTIC EXTRAPOLATION (beyond experimental data range)
+	// Use asymptotic decay to ensure the factor never becomes zero or negative
+	// This models the realistic behavior where performance gains diminish but never disappear entirely
+
+	// Calculate the decay constant (k) to ensure smooth transition at the boundary
+	// We derive k from the highest experimental data point to maintain continuity
+	highestExperimentalFactor := numNodesImpacts[len(numNodesImpacts)-1].multiplicationFactorSharded.Float64
+
+	// Derive decay constant from the boundary condition:
+	// At the highest experimental point: highestExperimentalFactor = MIN_FACTOR + (BASELINE_FACTOR - MIN_FACTOR) * exp(-k * (highestNodes - BASELINE_NODES))
+	// Solving for k: k = -ln((highestExperimentalFactor - MIN_FACTOR) / (BASELINE_FACTOR - MIN_FACTOR)) / (highestNodes - BASELINE_NODES)
+	additionalNodesAtBoundary := highestExperimentalNodes - BASELINE_NODES
+	if additionalNodesAtBoundary <= 0 {
+		// Edge case: if highest experimental point is at or below baseline, use a default decay rate
+		// This should not happen with proper experimental data, but provides graceful fallback
+		additionalNodesAtBoundary = 1.0
 	}
 
-	// Perform linear interpolation/extrapolation between lower and upper data points
-	lowerNodes := float64(lowerData.numNodes.Int64)
-	upperNodes := float64(upperData.numNodes.Int64)
-	lowerFactor := lowerData.multiplicationFactorSharded.Float64
-	upperFactor := upperData.multiplicationFactorSharded.Float64
+	// Calculate decay constant ensuring mathematical validity
+	factorRange := BASELINE_FACTOR - MIN_MULTIPLICATION_FACTOR
+	experimentalRange := highestExperimentalFactor - MIN_MULTIPLICATION_FACTOR
 
-	// Linear interpolation/extrapolation formula: y = y1 + (x - x1) * (y2 - y1) / (x2 - x1)
-	ratio := (numNodes - lowerNodes) / (upperNodes - lowerNodes)
-	multiplicationFactor := lowerFactor + ratio*(upperFactor-lowerFactor)
+	// Ensure we don't take log of zero or negative numbers
+	if experimentalRange <= 0 || factorRange <= 0 {
+		// Fallback to a reasonable default decay rate if experimental data is inconsistent
+		// This represents moderate decay that reaches ~37% of the range after 6 additional nodes
+		experimentalRange = factorRange * 0.5 // Assume halfway point for safety
+	}
+
+	decayConstant := -math.Log(experimentalRange/factorRange) / additionalNodesAtBoundary
+
+	// Apply asymptotic extrapolation formula
+	// factor = MIN_FACTOR + (BASELINE_FACTOR - MIN_FACTOR) * exp(-k * additionalNodes)
+	additionalNodes := numNodes - BASELINE_NODES
+
+	// Asymptotic decay: factor approaches MIN_FACTOR but never reaches it
+	multiplicationFactor := MIN_MULTIPLICATION_FACTOR +
+		(BASELINE_FACTOR-MIN_MULTIPLICATION_FACTOR)*math.Exp(-decayConstant*additionalNodes)
+
+	// Final safety check: ensure the result is within reasonable bounds
+	// This should never trigger with correct implementation, but provides additional safety
+	if multiplicationFactor < MIN_MULTIPLICATION_FACTOR {
+		multiplicationFactor = MIN_MULTIPLICATION_FACTOR
+	} else if multiplicationFactor > BASELINE_FACTOR {
+		multiplicationFactor = BASELINE_FACTOR
+	}
 
 	return multiplicationFactor
 }
