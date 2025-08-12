@@ -119,6 +119,7 @@
 				"public.numeric_multirange_table",
 				"public.child_table",
 				"public.timestamp_multirange_table",
+				"public.spatial_ref_sys",
 				"public.tbl_unlogged",
 				"public.documents",
 				"public.inet_type",
@@ -3411,6 +3412,30 @@
 			"ObjectType": "index",
 			"ParentTableName": "public.inet_type",
 			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "spatial_ref_sys",
+			"RowCount": 8500,
+			"ColumnCount": 5,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "table",
+			"ParentTableName": null,
+			"SizeInBytes": 7061504
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "spatial_ref_sys_pkey",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "primary key",
+			"ParentTableName": "public.spatial_ref_sys",
+			"SizeInBytes": 212992
 		},
 		{
 			"SchemaName": "public",
