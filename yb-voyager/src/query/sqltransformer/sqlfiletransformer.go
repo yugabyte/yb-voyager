@@ -48,14 +48,14 @@ type IndexFileTransformer struct {
 	RedundantIndexesFileName string
 
 	//list of modified secondary indexes to range-sharded indexes
-	ModifiedIndexesToRange []string
+	ModifiedIndexesToRange []*sqlname.ObjectNameQualifiedWithTableName
 }
 
 func NewIndexFileTransformer(redundantIndexesToRemove map[string]string, skipPerformanceOptimizations bool, sourceDBType string) *IndexFileTransformer {
 	return &IndexFileTransformer{
 		redundantIndexesToExistingIndexToRemove: redundantIndexesToRemove,
 		RemovedRedundantIndexes:                 make([]*sqlname.ObjectNameQualifiedWithTableName, 0),
-		ModifiedIndexesToRange:                  make([]string, 0),
+		ModifiedIndexesToRange:                  make([]*sqlname.ObjectNameQualifiedWithTableName, 0),
 		skipPerformanceOptimizations:            skipPerformanceOptimizations,
 		sourceDBType:                            sourceDBType,
 	}
@@ -107,6 +107,11 @@ func (t *IndexFileTransformer) Transform(file string) (string, error) {
 	err = t.writeRemovedRedundantIndexesToFile(removedIndexToStmtMap)
 	if err != nil {
 		return "", fmt.Errorf("failed to write removed redundant indexes to file: %w", err)
+	}
+
+	parseTree.Stmts, t.ModifiedIndexesToRange, err = transformer.ModifySecondaryIndexesToRange(parseTree.Stmts)
+	if err != nil {
+		return "", fmt.Errorf("failed to modify secondary indexes to range: %w", err)
 	}
 
 	sqlStmts, err := queryparser.DeparseRawStmts(parseTree.Stmts)

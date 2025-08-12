@@ -183,8 +183,8 @@ func (t *Transformer) RemoveRedundantIndexes(stmts []*pg_query.RawStmt, redundan
 	return sqlStmts, removedIndexToStmtMap, nil
 }
 
-func (t *Transformer) ModifySecondaryIndexesToRange(stmts []*pg_query.RawStmt) ([]string, error) {
-	var modifiedObjNames []string
+func (t *Transformer) ModifySecondaryIndexesToRange(stmts []*pg_query.RawStmt) ([]*pg_query.RawStmt, []*sqlname.ObjectNameQualifiedWithTableName, error) {
+	var modifiedObjNames []*sqlname.ObjectNameQualifiedWithTableName
 	for idx, stmt := range stmts {
 		stmtType := queryparser.GetStatementType(stmt.Stmt.ProtoReflect())
 		if stmtType != queryparser.PG_QUERY_INDEX_STMT {
@@ -203,6 +203,7 @@ func (t *Transformer) ModifySecondaryIndexesToRange(stmts []*pg_query.RawStmt) (
 		if len(indexStmt.IndexParams) == 0 {
 			continue
 		}
+		//checking only the first param of the key column of the index 
 		if indexStmt.IndexParams[0].GetIndexElem() == nil {
 			continue
 		}
@@ -216,5 +217,5 @@ func (t *Transformer) ModifySecondaryIndexesToRange(stmts []*pg_query.RawStmt) (
 		stmts[idx] = stmt
 		modifiedObjNames = append(modifiedObjNames, queryparser.GetIndexObjectNameFromIndexStmt(indexStmt))
 	}
-	return modifiedObjNames, nil
+	return stmts, modifiedObjNames, nil
 }

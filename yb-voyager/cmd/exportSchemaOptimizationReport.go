@@ -26,6 +26,7 @@ import (
 	"github.com/fatih/color"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/sqltransformer"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
@@ -161,11 +162,17 @@ var optimizationChangesTemplate []byte
 //   - redundantIndexes: list of redundant index names that were removed.
 //   - tables: list of table names to which sharding recommendations were applied.
 //   - mviews: list of materialized view names to which sharding recommendations were applied.
-func generatePerformanceOptimizationReport(redundantIndexes []*sqlname.ObjectNameQualifiedWithTableName, shardedTables []string, shardedMviews []string, colocatedTables []string, colocatedMviews []string) error {
+func generatePerformanceOptimizationReport(indexTransformer *sqltransformer.IndexFileTransformer, shardedTables []string, shardedMviews []string, colocatedTables []string, colocatedMviews []string) error {
 
 	if source.DBType != POSTGRESQL {
 		//NOt generating the report in case other than PG
 		return nil
+	}
+	var redundantIndexes []*sqlname.ObjectNameQualifiedWithTableName
+	var modifiedIndexesToRange []*sqlname.ObjectNameQualifiedWithTableName
+	if indexTransformer != nil {
+		redundantIndexes = indexTransformer.RemovedRedundantIndexes
+		modifiedIndexesToRange = indexTransformer.ModifiedIndexesToRange
 	}
 
 	var err error
@@ -175,13 +182,7 @@ func generatePerformanceOptimizationReport(redundantIndexes []*sqlname.ObjectNam
 		redundantIndexChange.ReferenceFile = filepath.Join(exportDir, "schema", "tables", RedundantIndexesFileName)
 		redundantIndexChange.ReferenceFileDisplayName = RedundantIndexesFileName
 
-		tableToIndexMap := make(map[string][]string)
-		for _, obj := range redundantIndexes {
-			tableName := obj.GetQualifiedTableName()
-			indexName := obj.GetObjectName()
-			tableToIndexMap[tableName] = append(tableToIndexMap[tableName], indexName)
-		}
-		redundantIndexChange.TableToRemovedIndexesMap = tableToIndexMap
+		redundantIndexChange.TableToRemovedIndexesMap = GetTableToIndexMap(redundantIndexes)
 	}
 
 	var appliedRecommendationTable, appliedRecommendationMview *AppliedShardingRecommendationChange
@@ -247,16 +248,11 @@ func generatePerformanceOptimizationReport(redundantIndexes []*sqlname.ObjectNam
 	return nil
 }
 
-func GetTableToIndexMap(indexes []string) map[string][]string {
+func GetTableToIndexMap(indexes []*sqlname.ObjectNameQualifiedWithTableName) map[string][]string {
 	tableToIndexMap := make(map[string][]string)
-	for _, index := range indexes {
-		splits := strings.Split(index, " ON ")
-		if len(splits) != 2 {
-			log.Warnf("Redundant index is not in correct format (idx ON tbl) - %v", index)
-			continue
-		}
-		indexName := splits[0]
-		tableName := splits[1]
+	for _, obj := range indexes {
+		tableName := obj.GetQualifiedTableName()
+		indexName := obj.GetObjectName()
 		tableToIndexMap[tableName] = append(tableToIndexMap[tableName], indexName)
 	}
 	return tableToIndexMap

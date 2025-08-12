@@ -37,10 +37,8 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/sqltransformer"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 var skipRecommendations utils.BoolStr
@@ -204,11 +202,7 @@ func exportSchema(cmd *cobra.Command) error {
 	if err != nil {
 		return fmt.Errorf("failed to apply index file transformations: %w", err)
 	}
-	var redundantIndexes []*sqlname.ObjectNameQualifiedWithTableName
-	if indexTransformer != nil {
-		redundantIndexes = indexTransformer.RemovedRedundantIndexes
-	}
-	err = generatePerformanceOptimizationReport(redundantIndexes, modifiedTables, modifiedMviews, colocatedTables, colocatedMviews)
+	err = generatePerformanceOptimizationReport(indexTransformer, modifiedTables, modifiedMviews, colocatedTables, colocatedMviews)
 	if err != nil {
 		return fmt.Errorf("failed to generate performance optimization %w", err)
 	}
@@ -818,32 +812,4 @@ func fetchRedundantIndexMapFromAssessmentDB() (map[string]string, error) {
 		redundantIndexToResolvedExistingIndex[redundantIndexCatalogName] = resolvedRedundantIndex.ExistingIndexDDL
 	}
 	return redundantIndexToResolvedExistingIndex, nil
-}
-
-func convertSecondaryIndexesToRange(fileName string) ([]string, error) {
-
-	transformer := sqltransformer.NewTransformer()
-
-	rawStmts, err := queryparser.ParseSqlFile(fileName)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse table.sql file: %w", err)
-	}
-
-	modifiedIndexes, err := transformer.ModifySecondaryIndexesToRange(rawStmts.Stmts)
-	if err != nil {
-		return nil, fmt.Errorf("failed to merge constraints: %w", err)
-	}
-
-	sqlStmts, err := queryparser.DeparseRawStmts(rawStmts.Stmts)
-	if err != nil {
-		return nil, fmt.Errorf("failed to deparse transformed raw stmts: %w", err)
-	}
-
-	fileContent := strings.Join(sqlStmts, "\n\n")
-	err = os.WriteFile(fileName, []byte(fileContent), 0644)
-	if err != nil {
-		return nil, fmt.Errorf("failed to write transformed table.sql file: %w", err)
-	}
-
-	return modifiedIndexes, nil
 }
