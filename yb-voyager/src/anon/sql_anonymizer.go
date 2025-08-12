@@ -440,11 +440,9 @@ func (a *SqlAnonymizer) miscellaneousNodesProcessor(msg protoreflect.Message) (e
 		defName := defElem.GetDefname()
 		if defName == "table_name" || defName == "schema" {
 			kind := lo.Ternary(defName == "table_name", TABLE_KIND_PREFIX, SCHEMA_KIND_PREFIX)
-			if defElem.Arg != nil && defElem.Arg.GetString_() != nil {
-				defElem.Arg.GetString_().Sval, err = a.registry.GetHash(kind, defElem.Arg.GetString_().Sval)
-				if err != nil {
-					return fmt.Errorf("anon DefElem %q: %w", defName, err)
-				}
+			err = a.anonymizeConstantValue(defElem.Arg, kind)
+			if err != nil {
+				return fmt.Errorf("anon DefElem %q: %w", defName, err)
 			}
 		}
 	}
@@ -1169,16 +1167,7 @@ func (a *SqlAnonymizer) anonymizeIndexOpclassOptions(opts []*pg_query.Node) (err
 		}
 
 		// Handle the argument value (e.g., '32')
-		if defElem.Arg == nil {
-			continue
-		}
-
-		strNode := defElem.Arg.GetString_()
-		if strNode == nil {
-			continue
-		}
-
-		strNode.Sval, err = a.registry.GetHash(CONST_KIND_PREFIX, strNode.Sval)
+		err = a.anonymizeConstantValue(defElem.Arg, CONST_KIND_PREFIX)
 		if err != nil {
 			return fmt.Errorf("anon opclass option value: %w", err)
 		}
@@ -2014,72 +2003,46 @@ func (a *SqlAnonymizer) anonymizeRangeTypeParameters(params []*pg_query.Node) er
 			continue
 		}
 
+		// Early return if no argument
+		if defElemNode.Arg == nil {
+			continue
+		}
+
+		typeName := defElemNode.Arg.GetTypeName()
+		if typeName == nil {
+			continue
+		}
+
+		var prefix string
+		var skipBuiltin bool // for prefix TYPE_KIND_PREFIX
+
 		switch defElemNode.Defname {
 		case "subtype":
-			// For range types, subtype should be anonymized as TYPE
-			if defElemNode.Arg == nil {
-				continue
-			}
-			typeName := defElemNode.Arg.GetTypeName()
-			if typeName == nil || IsBuiltinType(typeName) {
-				continue
-			}
-			if err := a.anonymizeStringNodes(typeName.Names, TYPE_KIND_PREFIX); err != nil {
-				return fmt.Errorf("anon range subtype: %w", err)
-			}
-
+			prefix = TYPE_KIND_PREFIX
+			skipBuiltin = true
 		case "subtype_opclass":
-			// Handle operator class names
-			if defElemNode.Arg == nil {
-				continue
-			}
-			typeName := defElemNode.Arg.GetTypeName()
-			if err := a.anonymizeStringNodes(typeName.Names, OPCLASS_KIND_PREFIX); err != nil {
-				return fmt.Errorf("anon range subtype_opclass: %w", err)
-			}
-
+			prefix = OPCLASS_KIND_PREFIX
 		case "collation":
-			// Handle collation names
-			if defElemNode.Arg == nil {
-				continue
-			}
-			typeName := defElemNode.Arg.GetTypeName()
-			if err := a.anonymizeStringNodes(typeName.Names, COLLATION_KIND_PREFIX); err != nil {
-				return fmt.Errorf("anon range collation: %w", err)
-			}
-
+			prefix = COLLATION_KIND_PREFIX
 		case "canonical":
-			// Handle canonical function names
-			if defElemNode.Arg == nil {
-				continue
-			}
-			typeName := defElemNode.Arg.GetTypeName()
-			if err := a.anonymizeStringNodes(typeName.Names, FUNCTION_KIND_PREFIX); err != nil {
-				return fmt.Errorf("anon range canonical: %w", err)
-			}
-
+			prefix = FUNCTION_KIND_PREFIX
 		case "subtype_diff":
-			// Handle subtype_diff function names
-			if defElemNode.Arg == nil {
-				continue
-			}
-			typeName := defElemNode.Arg.GetTypeName()
-			if err := a.anonymizeStringNodes(typeName.Names, FUNCTION_KIND_PREFIX); err != nil {
-				return fmt.Errorf("anon range subtype_diff: %w", err)
-			}
-
+			prefix = FUNCTION_KIND_PREFIX
 		case "multirange_type_name":
-			// Handle multirange type names
-			if defElemNode.Arg == nil {
-				continue
-			}
-			typeName := defElemNode.Arg.GetTypeName()
-			if typeName == nil || IsBuiltinType(typeName) {
-				continue
-			}
-			if err := a.anonymizeStringNodes(typeName.Names, TYPE_KIND_PREFIX); err != nil {
-				return fmt.Errorf("anon range multirange_type_name: %w", err)
-			}
+			prefix = TYPE_KIND_PREFIX
+			skipBuiltin = true
+		default:
+			continue
+		}
+
+		// Skip builtin types if required
+		if skipBuiltin && IsBuiltinType(typeName) {
+			continue
+		}
+
+		// Common anonymization logic across all cases
+		if err := a.anonymizeStringNodes(typeName.Names, prefix); err != nil {
+			return fmt.Errorf("anon range %s: %w", defElemNode.Defname, err)
 		}
 	}
 
