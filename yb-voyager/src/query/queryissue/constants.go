@@ -40,6 +40,7 @@ const (
 	EXPRESSION_PARTITION_WITH_PK_UK          = "EXPRESSION_PARTITION_WITH_PK_UK"
 	MULTI_COLUMN_LIST_PARTITION              = "MULTI_COLUMN_LIST_PARTITION"
 	INSUFFICIENT_COLUMNS_IN_PK_FOR_PARTITION = "INSUFFICIENT_COLUMNS_IN_PK_FOR_PARTITION"
+	MISSING_FOREIGN_KEY_INDEX                = "MISSING_FOREIGN_KEY_INDEX"
 
 	UNSUPPORTED_DATATYPE_XML            = "UNSUPPORTED_DATATYPE_XML"
 	UNSUPPORTED_DATATYPE_XID            = "UNSUPPORTED_DATATYPE_XID"
@@ -469,6 +470,9 @@ Note: If the table is created as colocated, this hotspot concern can safely be i
 	FOREIGN_KEY_DATATYPE_MISMATCH_ISSUE_NAME  = "Foreign key datatype mismatch"
 	FOREIGN_KEY_DATATYPE_MISMATCH             = "FOREIGN_KEY_DATATYPE_MISMATCH"
 	FOREIGN_KEY_DATATYPE_MISMATCH_DESCRIPTION = "Foreign key constraint has a datatype mismatch with the referenced column. The foreign key column is of type '%s', while the referenced column is of type '%s'. This can cause performance issues due to implicit casting during foreign key checks. To resolve this, modify the type of one to be the same as the other."
+
+	MISSING_FOREIGN_KEY_INDEX_ISSUE_NAME  = "Missing index on foreign key columns"
+	MISSING_FOREIGN_KEY_INDEX_DESCRIPTION = "Foreign key columns do not have a proper index. The index must include all foreign key columns as leading columns (either in exact order, any permutation, or as a prefix of a composite index). This can cause performance issues during DML operations on the referenced table."
 )
 
 // Object types

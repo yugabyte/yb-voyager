@@ -300,10 +300,48 @@ var NonRetryCopyErrors = []string{
 	SYNTAX_ERROR,
 }
 
+// IsPgErrorCodeNonRetryable checks if an error is a data integrity or constraint violation or syntax error
+// by examining the SQLSTATE code.
+//
+// SQLSTATE Class 22: Data Exception (e.g., 22003=numeric overflow, 22P02=invalid syntax)
+// SQLSTATE Class 23: Integrity Constraint Violation (e.g., 23502=not null, 23505=unique)
+// SQLSTATE Class 42: Syntax Error or Access Rule Violation (e.g., 42601=syntax error, 42501=insufficient privilege, 42P01=undefined table, 42703=undefined column)
+//
+// Postgres Error Codes: https://www.postgresql.org/docs/current/errcodes-appendix.html
+func IsPgErrorCodeNonRetryable(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	// Check pgx v4 errors
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		code := pgErr.Code
+
+		if strings.HasPrefix(code, "22") || strings.HasPrefix(code, "23") || strings.HasPrefix(code, "42") {
+			return true
+		}
+	}
+
+	return false
+}
+
 func (yb *TargetYugabyteDB) IsNonRetryableCopyError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	// SQLSTATE-based filtering for non-retryable errors
+	// This should ideally cover all the non-retryable errors
+	if IsPgErrorCodeNonRetryable(err) {
+		return true
+	}
+
+	// String pattern matching for non-retryable errors
+	// Kept this for safety so that we dont disrupt the already existing checks
 	NonRetryCopyErrorsYB := NonRetryCopyErrors
 	NonRetryCopyErrorsYB = append(NonRetryCopyErrorsYB, RPC_MSG_LIMIT_ERROR)
-	return err != nil && utils.ContainsAnySubstringFromSlice(NonRetryCopyErrorsYB, err.Error())
+	return utils.ContainsAnySubstringFromSlice(NonRetryCopyErrorsYB, err.Error())
 }
 
 func (yb *TargetYugabyteDB) checkIfPrimaryKeyViolationError(err error, pkConstraintNames []string) bool {

@@ -24,7 +24,9 @@ import (
 	pg_query "github.com/pganalyze/pg_query_go/v6"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 func IsPLPGSQLObject(parseTree *pg_query.ParseResult) bool {
@@ -59,13 +61,12 @@ func IsCollationObject(parseTree *pg_query.ParseResult) bool {
 	return ok && collation.Kind == pg_query.ObjectType_OBJECT_COLLATION
 }
 
-func GetIndexObjectNameFromIndexStmt(stmt *pg_query.IndexStmt) string {
+func GetIndexObjectNameFromIndexStmt(stmt *pg_query.IndexStmt) *sqlname.ObjectNameQualifiedWithTableName {
 	indexName := stmt.Idxname
 	schemaName := stmt.Relation.GetSchemaname()
 	tableName := stmt.Relation.GetRelname()
-	fullyQualifiedName := utils.BuildObjectName(schemaName, tableName)
-	displayObjName := fmt.Sprintf("%s ON %s", indexName, fullyQualifiedName)
-	return displayObjName
+	sqlName := sqlname.NewObjectNameQualifiedWithTableName(constants.POSTGRESQL, "", indexName, schemaName, tableName)
+	return sqlName
 }
 
 func GetObjectTypeAndObjectName(parseTree *pg_query.ParseResult) (string, string) {

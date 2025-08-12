@@ -29,19 +29,20 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
+	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/fatih/color"
 	"github.com/google/uuid"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
-	"golang.org/x/exp/slices"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )
@@ -1001,4 +1002,13 @@ func GenerateAnonymisationSalt(n int) (string, error) {
 
 	// convert bytes to hex to make it printable ASCII string
 	return hex.EncodeToString(b), nil
+}
+
+// IsSetEqual checks if two string slices contain the same elements regardless of order.
+// It uses mapset for efficient comparison.
+func IsSetEqual(a, b []string) bool {
+	setA := mapset.NewThreadUnsafeSet(a...)
+	setB := mapset.NewThreadUnsafeSet(b...)
+
+	return setA.Equal(setB)
 }

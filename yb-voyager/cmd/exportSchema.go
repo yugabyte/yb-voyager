@@ -33,13 +33,14 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryissue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/sqltransformer"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 var skipRecommendations utils.BoolStr
@@ -187,18 +188,27 @@ func exportSchema(cmd *cobra.Command) error {
 		return fmt.Errorf("failed to apply migration assessment recommendation to the schema files: %w", err)
 	}
 
-	// continue after logging the error; since this transformation is only for performance improvement
-	err = applyMergeConstraintsTransformations()
+	//TODO: merge the above Sharded/Colocated recommendation changes with this Table file transformation
+	//The challenge right now is that in this transformer we parse the file in a single pass but in above code we use regex parser written to read individual DDL from the file
+	//And then parse it and apply the change
+	//There are challenges with SourceDBType other than PG where it can fail to parse the file for some DDLs and will skip the transformation completely
+	//We can probably use the mix of both regex parser and file parser in the tranformer based on source tpyes
+	//and for that we can move our logic from the cmd package to the queryparser package
+	//Skipping that for now
+	_, err = applyTableFileTransformations()
 	if err != nil {
-		log.Warnf("failed to apply merge constraints transformation to the schema files: %v", err)
+		return fmt.Errorf("failed to apply table file transformations: %w", err)
 	}
 
-	removedRedundantIndexes, modifiedIndexesToRange, err := applyPerformanceOptimizationsAndGenerateReport()
+	indexTransformer, err := applyIndexFileTransformations()
 	if err != nil {
-		return fmt.Errorf("failed to apply performance optimization transformations to the schema files: %w", err)
+		return fmt.Errorf("failed to apply index file transformations: %w", err)
 	}
-
-	err = generatePerformanceOptimizationReport(removedRedundantIndexes, modifiedTables, modifiedMviews, colocatedTables, colocatedMviews, modifiedIndexesToRange)
+	var redundantIndexes []*sqlname.ObjectNameQualifiedWithTableName
+	if indexTransformer != nil {
+		redundantIndexes = indexTransformer.RemovedRedundantIndexes
+	}
+	err = generatePerformanceOptimizationReport(redundantIndexes, modifiedTables, modifiedMviews, colocatedTables, colocatedMviews)
 	if err != nil {
 		return fmt.Errorf("failed to generate performance optimization %w", err)
 	}
@@ -352,7 +362,7 @@ func init() {
 	BoolVar(exportSchemaCmd.Flags(), &skipRecommendations, "skip-recommendations", false,
 		"disable applying recommendations in the exported schema suggested by the migration assessment report")
 
-	BoolVar(exportSchemaCmd.Flags(), &skipPerfOptimizations, "skip-performance-optimizations", true, // TODO: change it to false after QA
+	BoolVar(exportSchemaCmd.Flags(), &skipPerfOptimizations, "skip-performance-optimizations", false,
 		"disable automatically applying performance optimizations in the exported schema.")
 
 	exportSchemaCmd.Flags().StringVar(&assessmentReportPath, "assessment-report-path", "",
@@ -466,55 +476,6 @@ func applyMigrationAssessmentRecommendations() ([]string, []string, []string, []
 
 	utils.PrintAndLog("Applied assessment recommendations.")
 	return modifiedTables, modifiedMviews, colocatedTables, colocatedMviews, nil
-}
-
-// TODO: merge this function with applying sharded/colocated recommendation
-func applyMergeConstraintsTransformations() error {
-	if utils.GetEnvAsBool("YB_VOYAGER_SKIP_MERGE_CONSTRAINTS_TRANSFORMATIONS", false) {
-		log.Infof("skipping applying merge constraints transformation due to env var YB_VOYAGER_SKIP_MERGE_CONSTRAINTS_TRANSFORMATIONS=true")
-		return nil
-	}
-
-	utils.PrintAndLog("Applying merge constraints transformation to the exported schema")
-	transformer := sqltransformer.NewTransformer()
-
-	fileName := utils.GetObjectFilePath(schemaDir, TABLE)
-	if !utils.FileOrFolderExists(fileName) { // there are no tables in exported schema
-		log.Infof("table.sql file doesn't exists, skipping applying merge constraints transformation")
-		return nil
-	}
-
-	rawStmts, err := queryparser.ParseSqlFile(fileName)
-	if err != nil {
-		return fmt.Errorf("failed to parse table.sql file: %w", err)
-	}
-
-	transformedRawStmts, err := transformer.MergeConstraints(rawStmts.Stmts)
-	if err != nil {
-		return fmt.Errorf("failed to merge constraints: %w", err)
-	}
-
-	sqlStmts, err := queryparser.DeparseRawStmts(transformedRawStmts)
-	if err != nil {
-		return fmt.Errorf("failed to deparse transformed raw stmts: %w", err)
-	}
-
-	fileContent := strings.Join(sqlStmts, "\n\n")
-
-	// rename the old file to table_before_merge_constraints.sql
-	// replace filepath base with new name
-	renamedFileName := filepath.Join(filepath.Dir(fileName), "table_before_merge_constraints.sql")
-	err = os.Rename(fileName, renamedFileName)
-	if err != nil {
-		return fmt.Errorf("failed to rename table.sql file to table_before_merge_constraints.sql: %w", err)
-	}
-
-	err = os.WriteFile(fileName, []byte(fileContent), 0644)
-	if err != nil {
-		return fmt.Errorf("failed to write transformed table.sql file: %w", err)
-	}
-
-	return nil
 }
 
 func applyShardedTablesRecommendation(shardedTables []string, objType string) ([]string, []string, error) {
@@ -766,56 +727,75 @@ func clearAssessmentRecommendationsApplied() {
 	}
 }
 
-func applyPerformanceOptimizationsAndGenerateReport() ([]string, []string, error) {
-	if skipPerfOptimizations {
-		log.Infof("not applying performance optimizations due to flag --skip-performance-optimizations=true")
-		return nil, nil, nil
+func applyTableFileTransformations() (*sqltransformer.TableFileTransformer, error) {
+	tableFilePath := utils.GetObjectFilePath(schemaDir, TABLE)
+	if !utils.FileOrFolderExists(tableFilePath) {
+		log.Infof("TABLE file doesn't exists, skipping table file transformations")
+		return nil, nil
 	}
 
-	if source.DBType != POSTGRESQL {
-		return nil, nil, nil
-	}
+	skipMergeConstraints := utils.GetEnvAsBool("YB_VOYAGER_SKIP_MERGE_CONSTRAINTS_TRANSFORMATIONS", false)
 
-	log.Infof("applying performance optimizations to the exported schema")
+	tableTransformer := sqltransformer.NewTableFileTransformer(skipMergeConstraints, source.DBType)
 
-	//order needs to be retained atleast for a particular schema object type like INDEXES
-	//First we change the INDEXES_table.sql to indexes_before_applying_perf_optimizations.sql
-	//Then we first remove the redundant indexes from that file
-	//then will modify rest of the indexes in the file to make them range sharded indexes
-	//in case anything goes wrong, we can always refer to the indexes_before_applying_perf_optimizations.sql file
-
-	//INDEX
-	fileName := utils.GetObjectFilePath(schemaDir, INDEX)
-	if !utils.FileOrFolderExists(fileName) { // there are no indexes
-		log.Infof("INDEXES_table.sql file doesn't exists, skipping applying indexes performance optimizations")
-		return nil, nil, nil
-	}
-
-	// copy the current INDEXES_table.sql file to indexes_before_applying_perf_optimizations.sql
-	copiedFileName := filepath.Join(filepath.Dir(fileName), "indexes_before_applying_perf_optimizations.sql")
-	//copy files
-	err := utils.CopyFile(fileName, copiedFileName)
+	backUpFile, err := tableTransformer.Transform(tableFilePath)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to copy %s to %s: %w", fileName, copiedFileName, err)
+		//Skipping error in the case table file transformation errors out as for other DBTypes then PG it can fail to parse file sometimes
+		//And for PG the error scenario is rare so keeping the behavior same earlier Merge constraints transformation code path
+		//TODO: revisit this once we have more transformations - like PRIMARY KEY HASH performance optimization, sharded/colocated recommendations, etc..
+		log.Infof("skipping error while transforming file %s: %v", tableFilePath, err)
+		return nil, nil
 	}
-
-	redundantIndexes, err := removeRedundantIndexes(fileName)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to remove redundant indexes: %w", err)
-	}
-
-	modifiedIndexesToRange, err := convertSecondaryIndexesToRange(fileName)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to modify the secondary indexes to range: %w", err)
-	}
-
-	return redundantIndexes, modifiedIndexesToRange, nil
+	log.Infof("Schema modifications are applied to TABLE DDLs and the original DDLs are backed up to %s", backUpFile)
+	return tableTransformer, nil
 }
 
-func removeRedundantIndexes(fileName string) ([]string, error) {
+func applyIndexFileTransformations() (*sqltransformer.IndexFileTransformer, error) {
+
+	if source.DBType != POSTGRESQL {
+		log.Infof("skipping index file transformations for source db type %s", source.DBType)
+		return nil, nil
+	}
+
+	indexFilePath := utils.GetObjectFilePath(schemaDir, INDEX)
+	if !utils.FileOrFolderExists(indexFilePath) {
+		log.Infof("INDEX file doesn't exists, skipping index file transformations")
+		return nil, nil
+	}
+
 	//fetching redundanant indexes from assessment db
 	//assuming that assessment is run and fetched the redundant indexes
 	//TODO: see if we need to take care of the scenario where assessment is unable to fetch these
+	var err error
+	var redundantIndexToResolvedExistingIndex map[string]string
+	redundantIndexToResolvedExistingIndex, err = fetchRedundantIndexMapFromAssessmentDB()
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch redundant index map from assessment db: %w\n%s", err, sqltransformer.SUGGESTION_TO_USE_SKIP_PERF_OPTIMIZATIONS_FLAG)
+	}
+	indexTransformer := sqltransformer.NewIndexFileTransformer(redundantIndexToResolvedExistingIndex, bool(skipPerfOptimizations), source.DBType)
+
+	backUpFile, err := indexTransformer.Transform(indexFilePath)
+	if err != nil {
+		//In case of PG we should return error but for other SourceDBTypes we should return nil as the parser can fail
+		//TODO: modify the logic of adding suggestion to use skip-performance-optimizations flag once we have more type of transformations in this
+		errMsg := fmt.Errorf("failed to transform file %s: %w\n%s", indexFilePath, err, sqltransformer.SUGGESTION_TO_USE_SKIP_PERF_OPTIMIZATIONS_FLAG)
+		if source.DBType != constants.POSTGRESQL {
+			log.Infof("skipping error while transforming file %s: %v", indexFilePath, err)
+			errMsg = nil
+		}
+		return nil, errMsg
+	}
+	log.Infof("Schema modifications are applied to INDEX DDLs and the original file is backed up to %s", backUpFile)
+
+	return indexTransformer, nil
+}
+
+func fetchRedundantIndexMapFromAssessmentDB() (map[string]string, error) {
+	if skipPerfOptimizations {
+		log.Infof("skipping fetching redundant index map from assessment db")
+		return nil, nil
+	}
+
 	var err error
 	migassessment.AssessmentDir = filepath.Join(exportDir, "assessment")
 
@@ -824,81 +804,20 @@ func removeRedundantIndexes(fileName string) ([]string, error) {
 		return nil, fmt.Errorf("failed to create assessment db: %w", err)
 	}
 
-	redundantIndexesInfo, err := fetchRedundantIndexInfoFromAssessmentDB()
+	resolvedRedundantIndexes, err := fetchRedundantIndexInfoFromAssessmentDB()
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch redundant index info from assessment db: %w", err)
 	}
-	if len(redundantIndexesInfo) == 0 {
+	if len(resolvedRedundantIndexes) == 0 {
 		log.Infof("no redundant indexes found, skipping applying performance optimizations")
-		return nil, nil
 	}
 
-	redundantIndexToResolvedExistingIndex := make(map[string]string)
-
-	//using issues here as this GetRedundantIndexIssues already resolves the existing index to the correct final one so using it right now
-	//but once we remvoe the reporting of issues we can modify this function to resolve that and give a required map directly
-	//TODO: revisit this index object name check to properly done on each item of index qualified name instead of some formatted string.
-	redundantIssues := queryissue.GetRedundantIndexIssues(redundantIndexesInfo)
-	//Find the resolved Existing index DDL from the redundant issues
-	for _, issue := range redundantIssues {
-		for _, info := range redundantIndexesInfo {
-			if issue.ObjectName == info.GetRedundantIndexObjectName() {
-				redundantIndexToResolvedExistingIndex[info.GetRedundantIndexCatalogObjectName()] = issue.Details[queryissue.EXISTING_INDEX_SQL_STATEMENT].(string)
-				break
-			}
-		}
+	redundantIndexToResolvedExistingIndex := make(map[string]string) //Find the resolved Existing index DDL from the redundant issues
+	for _, resolvedRedundantIndex := range resolvedRedundantIndexes {
+		redundantIndexCatalogName := resolvedRedundantIndex.GetRedundantIndexObjectNameWithTableName().CatalogName()
+		redundantIndexToResolvedExistingIndex[redundantIndexCatalogName] = resolvedRedundantIndex.ExistingIndexDDL
 	}
-
-	transformer := sqltransformer.NewTransformer()
-
-	rawStmts, err := queryparser.ParseSqlFile(fileName)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse table.sql file: %w", err)
-	}
-
-	filteredRawStmts, removedIndexToStmtMap, err := transformer.RemoveRedundantIndexes(rawStmts.Stmts, redundantIndexToResolvedExistingIndex)
-	if err != nil {
-		return nil, fmt.Errorf("failed to merge constraints: %w", err)
-	}
-
-	sqlStmts, err := queryparser.DeparseRawStmts(filteredRawStmts)
-	if err != nil {
-		return nil, fmt.Errorf("failed to deparse transformed raw stmts: %w", err)
-	}
-
-	var removedSqlStmts []string
-	for indexName, stmt := range removedIndexToStmtMap {
-		//Add the existing index ddl in the comments for the individual redundant index
-		stmtStr, err := queryparser.DeparseRawStmt(stmt)
-		if err != nil {
-			return nil, fmt.Errorf("failed to deparse removed index stmt: %w", err)
-		}
-		if existingIndex, ok := redundantIndexToResolvedExistingIndex[indexName]; ok {
-			stmtStr = fmt.Sprintf("/*\n Existing index: %s\n*/\n\n%s",
-				existingIndex, stmtStr)
-		}
-		removedSqlStmts = append(removedSqlStmts, stmtStr)
-	}
-
-	// Write the removed indexes to a file
-	reundantIndexesFileName := filepath.Join(filepath.Dir(fileName), "redundant_indexes.sql")
-	if len(removedSqlStmts) > 0 {
-		redundantIndexContent := strings.Join(removedSqlStmts, "\n\n")
-		err = os.WriteFile(reundantIndexesFileName, []byte(redundantIndexContent), 0644)
-		if err != nil {
-			return nil, fmt.Errorf("failed to write redundant indexes file: %w", err)
-		}
-	} else {
-		log.Infof("no redundant indexes removed, skip making any changes to the file: %s", fileName)
-		return nil, nil
-	}
-
-	fileContent := strings.Join(sqlStmts, "\n\n")
-	err = os.WriteFile(fileName, []byte(fileContent), 0644)
-	if err != nil {
-		return nil, fmt.Errorf("failed to write transformed table.sql file: %w", err)
-	}
-	return lo.Keys(removedIndexToStmtMap), nil
+	return redundantIndexToResolvedExistingIndex, nil
 }
 
 func convertSecondaryIndexesToRange(fileName string) ([]string, error) {

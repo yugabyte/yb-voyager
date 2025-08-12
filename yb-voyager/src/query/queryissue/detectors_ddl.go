@@ -132,6 +132,7 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 					d.columnMetadata,
 					&issues,
 				)
+
 			}
 
 			if c.ConstraintType != queryparser.FOREIGN_CONSTR_TYPE && c.IsDeferrable {
@@ -1056,6 +1057,7 @@ func (aid *AlterTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Q
 				aid.columnMetadata,
 				&issues,
 			)
+
 		}
 
 		if alter.ConstraintType == queryparser.PRIMARY_CONSTR_TYPE &&

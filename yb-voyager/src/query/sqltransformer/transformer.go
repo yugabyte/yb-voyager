@@ -24,6 +24,8 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryissue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 /*
@@ -66,6 +68,7 @@ Note: Need to keep the relative ordering of statements(tables) intact.
 Because there can be cases like Foreign Key constraints that depend on the order of tables.
 */
 func (t *Transformer) MergeConstraints(stmts []*pg_query.RawStmt) ([]*pg_query.RawStmt, error) {
+	utils.PrintAndLog("Applying merge constraints transformation to the exported schema")
 	createStmtMap := make(map[string]*pg_query.RawStmt)
 	for _, stmt := range stmts {
 		stmtType := queryparser.GetStatementType(stmt.Stmt.ProtoReflect())
@@ -157,27 +160,27 @@ func (t *Transformer) MergeConstraints(stmts []*pg_query.RawStmt) ([]*pg_query.R
 	return result, nil
 }
 
-func (t *Transformer) RemoveRedundantIndexes(stmts []*pg_query.RawStmt, redundantIndexesMap map[string]string) ([]*pg_query.RawStmt, map[string]*pg_query.RawStmt, error) {
-
+func (t *Transformer) RemoveRedundantIndexes(stmts []*pg_query.RawStmt, redundantIndexesMap map[string]string) ([]*pg_query.RawStmt, *utils.StructMap[*sqlname.ObjectNameQualifiedWithTableName, *pg_query.RawStmt], error) {
+	log.Infof("removing redundant indexes from the schema")
 	var sqlStmts []*pg_query.RawStmt
-	removedIndexToStmt := make(map[string]*pg_query.RawStmt) // index object name to raw stmt
+	removedIndexToStmtMap := utils.NewStructMap[*sqlname.ObjectNameQualifiedWithTableName, *pg_query.RawStmt]()
 	for _, stmt := range stmts {
 		stmtType := queryparser.GetStatementType(stmt.Stmt.ProtoReflect())
 		if stmtType != queryparser.PG_QUERY_INDEX_STMT {
 			sqlStmts = append(sqlStmts, stmt)
 			continue
 		}
-		objectName := queryparser.GetIndexObjectNameFromIndexStmt(stmt.Stmt.GetIndexStmt())
-		if _, ok := redundantIndexesMap[objectName]; ok {
-			log.Infof("removing redundant index %s from the schema", objectName)
-			removedIndexToStmt[objectName] = stmt
+		objectNameWithTable := queryparser.GetIndexObjectNameFromIndexStmt(stmt.Stmt.GetIndexStmt())
+		if _, ok := redundantIndexesMap[objectNameWithTable.CatalogName()]; ok {
+			log.Infof("removing redundant index %s from the schema", objectNameWithTable.CatalogName())
+			removedIndexToStmtMap.Put(objectNameWithTable, stmt)
 		} else {
 			sqlStmts = append(sqlStmts, stmt)
 		}
 
 	}
 
-	return sqlStmts, removedIndexToStmt, nil
+	return sqlStmts, removedIndexToStmtMap, nil
 }
 
 func (t *Transformer) ModifySecondaryIndexesToRange(stmts []*pg_query.RawStmt) ([]string, error) {

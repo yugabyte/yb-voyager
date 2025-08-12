@@ -27,6 +27,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 // =============================================== schema optimization changes report
@@ -160,7 +161,7 @@ var optimizationChangesTemplate []byte
 //   - redundantIndexes: list of redundant index names that were removed.
 //   - tables: list of table names to which sharding recommendations were applied.
 //   - mviews: list of materialized view names to which sharding recommendations were applied.
-func generatePerformanceOptimizationReport(redundantIndexes []string, shardedTables []string, shardedMviews []string, colocatedTables []string, colocatedMviews []string, modifiedIndexesToRange []string) error {
+func generatePerformanceOptimizationReport(redundantIndexes []*sqlname.ObjectNameQualifiedWithTableName, shardedTables []string, shardedMviews []string, colocatedTables []string, colocatedMviews []string) error {
 
 	if source.DBType != POSTGRESQL {
 		//NOt generating the report in case other than PG
@@ -173,7 +174,14 @@ func generatePerformanceOptimizationReport(redundantIndexes []string, shardedTab
 		redundantIndexChange = NewRedundantIndexChange()
 		redundantIndexChange.ReferenceFile = filepath.Join(exportDir, "schema", "tables", RedundantIndexesFileName)
 		redundantIndexChange.ReferenceFileDisplayName = RedundantIndexesFileName
-		redundantIndexChange.TableToRemovedIndexesMap = GetTableToIndexMap(redundantIndexes)
+
+		tableToIndexMap := make(map[string][]string)
+		for _, obj := range redundantIndexes {
+			tableName := obj.GetQualifiedTableName()
+			indexName := obj.GetObjectName()
+			tableToIndexMap[tableName] = append(tableToIndexMap[tableName], indexName)
+		}
+		redundantIndexChange.TableToRemovedIndexesMap = tableToIndexMap
 	}
 
 	var appliedRecommendationTable, appliedRecommendationMview *AppliedShardingRecommendationChange

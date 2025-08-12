@@ -1119,23 +1119,45 @@ func analyzeSchemaInternal(sourceDBConf *srcdb.Source, detectIssues bool, detect
 		if detectIssues && len(sqlInfoArr) > 0 {
 			filePath := utils.GetObjectFilePath(schemaDir, objType)
 			checker(sqlInfoArr, filePath, objType, detectPerfOptimizationIssues)
-
-			// Ideally all filtering of issues should happen in queryissue pkg layer,
-			// but until we move all issue detection logic to queryissue pkg, we will filter issues here as well.
-			schemaAnalysisReport.Issues = lo.Filter(schemaAnalysisReport.Issues, func(i utils.AnalyzeSchemaIssue, index int) bool {
-				fixed, err := i.IsFixedIn(targetDbVersion)
-				if err != nil {
-					utils.ErrExit("error checking if analyze issue is supported: issue[%v]: %v", i, err)
-				}
-				return !fixed
-			})
 		}
+	}
+
+	// Run misc checks after all DDL has been processed
+	if detectIssues {
+		checkerMisc(detectPerfOptimizationIssues)
+
+		// Filter out issues that are already fixed in the target database version
+		// This should happen once after all issues have been collected
+		// Ideally all filtering of issues should happen in queryissue pkg layer,
+		// but until we move all issue detection logic to queryissue pkg, we will filter issues here as well.
+		schemaAnalysisReport.Issues = lo.Filter(schemaAnalysisReport.Issues, func(i utils.AnalyzeSchemaIssue, index int) bool {
+			fixed, err := i.IsFixedIn(targetDbVersion)
+			if err != nil {
+				utils.ErrExit("error checking if analyze issue is supported: issue[%v]: %v", i, err)
+			}
+			return !fixed
+		})
 	}
 
 	schemaAnalysisReport.SchemaSummary = reportSchemaSummary(sourceDBConf)
 	schemaAnalysisReport.VoyagerVersion = utils.YB_VOYAGER_VERSION
 	schemaAnalysisReport.TargetDBVersion = targetDbVersion
 	return schemaAnalysisReport
+}
+
+// checkerMisc runs miscellaneous checks that require complete schema metadata
+// This function should be called after all DDL has been processed
+func checkerMisc(detectPerfOptimizationIssues bool) {
+	// Detect missing foreign key indexes (only if performance optimization issues are enabled)
+	if detectPerfOptimizationIssues {
+		fkIssues := parserIssueDetector.DetectMissingForeignKeyIndexes()
+
+		// Convert QueryIssues to AnalyzeSchemaIssues and add to report
+		for _, issue := range fkIssues {
+			analyzeIssue := convertIssueInstanceToAnalyzeIssue(issue, "", false, true)
+			schemaAnalysisReport.Issues = append(schemaAnalysisReport.Issues, analyzeIssue)
+		}
+	}
 }
 
 func checkConversions(sqlInfoArr []sqlInfo, filePath string) {
