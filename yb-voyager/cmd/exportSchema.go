@@ -780,7 +780,8 @@ func applyIndexFileTransformations() (*sqltransformer.IndexFileTransformer, erro
 	backUpFile, err := indexTransformer.Transform(indexFilePath)
 	if err != nil {
 		//In case of PG we should return error but for other SourceDBTypes we should return nil as the parser can fail
-		errMsg := fmt.Errorf("failed to transform file %s: %w", indexFilePath, err)
+		//TODO: modify the logic of adding suggestion to use skip-performance-optimizations flag once we have more type of transformations in this
+		errMsg := fmt.Errorf("failed to transform file %s: %w\n%s", indexFilePath, err, sqltransformer.SUGGESTION_TO_USE_SKIP_PERF_OPTIMIZATIONS_FLAG)
 		if source.DBType != constants.POSTGRESQL {
 			log.Infof("skipping error while transforming file %s: %v", indexFilePath, err)
 			errMsg = nil
