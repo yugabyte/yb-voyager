@@ -1145,6 +1145,13 @@ func (a *SqlAnonymizer) anonymizeIndexOpclass(opclass []*pg_query.Node) (err err
 }
 
 // anonymizeIndexOpclassOptions anonymizes operator class options in index definitions
+/*
+	SQL: CREATE INDEX idx_orders_location ON sales.orders USING gist (location postgis.gist_geometry_ops(siglen='32'))
+	ParseTree: stmt:{index_stmt:{idxname:"idx_orders_location"  relation:{schemaname:"sales"  relname:"orders"  inh:true  relpersistence:"p"  location:36}
+	access_method:"gist"  index_params:{index_elem:{name:"location"  opclass:{string:{sval:"postgis"}}
+	opclass:{string:{sval:"gist_geometry_ops"}}  opclassopts:{def_elem:{defname:"siglen"  arg:{string:{sval:"32"}}  defaction:DEFELEM_UNSPEC  location:96}}
+	ordering:SORTBY_DEFAULT  nulls_ordering:SORTBY_NULLS_DEFAULT}}}}
+*/
 func (a *SqlAnonymizer) anonymizeIndexOpclassOptions(opts []*pg_query.Node) (err error) {
 	if opts == nil {
 		return nil
