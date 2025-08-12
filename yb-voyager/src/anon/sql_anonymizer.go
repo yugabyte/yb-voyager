@@ -1103,20 +1103,16 @@ func (a *SqlAnonymizer) handleIndexObjectNodes(msg protoreflect.Message) (err er
 
 		// 4) Operator class: (Opclass != nil)
 		//    CREATE INDEX ... ON tbl(col opclass_schema.opclass_name(opts));
-		if ie.Opclass != nil {
-			err = a.anonymizeIndexOpclass(ie.Opclass)
-			if err != nil {
-				return fmt.Errorf("anon index opclass: %w", err)
-			}
+		err = a.anonymizeIndexOpclass(ie.Opclass)
+		if err != nil {
+			return fmt.Errorf("anon index opclass: %w", err)
 		}
 
 		// 5) Operator class options: (Opclassopts != nil)
 		//    CREATE INDEX ... ON tbl(col opclass_name(siglen='32'));
-		if ie.Opclassopts != nil {
-			err = a.anonymizeIndexOpclassOptions(ie.Opclassopts)
-			if err != nil {
-				return fmt.Errorf("anon index opclass options: %w", err)
-			}
+		err = a.anonymizeIndexOpclassOptions(ie.Opclassopts)
+		if err != nil {
+			return fmt.Errorf("anon index opclass options: %w", err)
 		}
 
 	}

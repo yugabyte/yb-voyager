@@ -154,8 +154,8 @@ func TestPostgresDDLVariants(t *testing.T) {
 			[]string{"mybase", "mybase_in", "mybase_out", "mybase_like", "mybase_element"},
 			[]string{TYPE_KIND_PREFIX, FUNCTION_KIND_PREFIX}},
 		{"TYPE-CREATE-BASE-WITH-CONSTANTS",
-			`CREATE TYPE mybase (input = mybase_in, output = mybase_out, internallength = 1548, alignment = int4, storage = plain, category = 'U', preferred = false, default = 'default_value', delimiter = ',');`,
-			[]string{"mybase", "mybase_in", "mybase_out", "1548", "int4", "plain", "U", "false", "default_value", "false"},
+			`CREATE TYPE mybase (input = mybase_in, output = mybase_out, internallength = 198548, alignment = int4, storage = plain, category = 'U', preferred = false, default = 'default_value', delimiter = ',');`,
+			[]string{"mybase", "mybase_in", "mybase_out", "198548", "int4", "plain", "U", "false", "default_value", "false"},
 			[]string{TYPE_KIND_PREFIX, FUNCTION_KIND_PREFIX, CONST_KIND_PREFIX}},
 		{"TYPE-CREATE-BASE-COMPREHENSIVE",
 			`CREATE TYPE mybase (
@@ -167,7 +167,7 @@ func TestPostgresDDLVariants(t *testing.T) {
 				typmod_out = mybase_typmod_out,
 				analyze = mybase_analyze,
 				subscript = mybase_subscript,
-				internallength = 1548,
+				internallength = 198548,
 				alignment = int4,
 				storage = plain,
 				like = mybase_like,
@@ -180,7 +180,7 @@ func TestPostgresDDLVariants(t *testing.T) {
 				collatable = true
 			);`,
 			[]string{"mybase", "mybase_in", "mybase_out", "mybase_receive", "mybase_send", "mybase_typmod_in", "mybase_typmod_out",
-				"mybase_analyze", "mybase_subscript", "1548", "int4", "plain", "mybase_like", "U", "false", "default_value", "mybase_element",
+				"mybase_analyze", "mybase_subscript", "198548", "int4", "plain", "mybase_like", "U", "false", "default_value", "mybase_element",
 				"true", "false"},
 			[]string{TYPE_KIND_PREFIX, FUNCTION_KIND_PREFIX, CONST_KIND_PREFIX}},
 		{"TYPE-CREATE-RANGE-BASIC",
