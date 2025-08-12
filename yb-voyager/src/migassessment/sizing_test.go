@@ -20,9 +20,10 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 	"math"
 	"testing"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
@@ -992,7 +993,7 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithoutIndex_Colocat
 
 	// Call the function
 	estimatedTime, err := calculateTimeTakenForImport(colocatedTables,
-		sourceIndexMetadata, colocatedLoadTimes, indexImpacts, columnImpacts, COLOCATED)
+		sourceIndexMetadata, colocatedLoadTimes, indexImpacts, columnImpacts, COLOCATED, 1.0)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -1046,7 +1047,7 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithOneIndex_Colocat
 
 	// Call the function
 	estimatedTime, err := calculateTimeTakenForImport(colocatedTables,
-		sourceIndexMetadata, colocatedLoadTimes, indexImpacts, columnImpacts, COLOCATED)
+		sourceIndexMetadata, colocatedLoadTimes, indexImpacts, columnImpacts, COLOCATED, 1.0)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -1100,7 +1101,7 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithFiveIndexes_Colo
 	}
 	// Call the function
 	estimatedTime, err := calculateTimeTakenForImport(colocatedTables,
-		sourceIndexMetadata, colocatedLoadTimes, indexImpacts, columnsImpact, COLOCATED)
+		sourceIndexMetadata, colocatedLoadTimes, indexImpacts, columnsImpact, COLOCATED, 1.0)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -1144,7 +1145,7 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithoutIndex_Sharded
 	}
 	// Call the function
 	estimatedTime, err := calculateTimeTakenForImport(shardedTables, sourceIndexMetadata,
-		shardedLoadTimes, indexImpacts, columnsImpact, SHARDED)
+		shardedLoadTimes, indexImpacts, columnsImpact, SHARDED, 1.0)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -1193,7 +1194,7 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithOneIndex_Sharded
 	// Call the function
 	estimatedTime, err :=
 		calculateTimeTakenForImport(shardedTables, sourceIndexMetadata, shardedLoadTimes,
-			indexImpacts, columnsImpact, SHARDED)
+			indexImpacts, columnsImpact, SHARDED, 1.0)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -1249,7 +1250,7 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithFiveIndexes_Shar
 	// Call the function
 	estimatedTime, err :=
 		calculateTimeTakenForImport(shardedTables, sourceIndexMetadata, shardedLoadTimes,
-			indexImpacts, columnsImpact, SHARDED)
+			indexImpacts, columnsImpact, SHARDED, 1.0)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -1295,7 +1296,7 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithoutIndex5Columns
 
 	// Call the function
 	estimatedTime, err := calculateTimeTakenForImport(colocatedTables,
-		sourceIndexMetadata, colocatedLoadTimes, indexImpacts, columnImpacts, COLOCATED)
+		sourceIndexMetadata, colocatedLoadTimes, indexImpacts, columnImpacts, COLOCATED, 1.0)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -1346,7 +1347,7 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithoutIndex40Column
 
 	// Call the function
 	estimatedTime, err := calculateTimeTakenForImport(colocatedTables,
-		sourceIndexMetadata, colocatedLoadTimes, indexImpacts, columnImpacts, COLOCATED)
+		sourceIndexMetadata, colocatedLoadTimes, indexImpacts, columnImpacts, COLOCATED, 1.0)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -1397,7 +1398,7 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithoutIndex100Colum
 
 	// Call the function
 	estimatedTime, err := calculateTimeTakenForImport(colocatedTables,
-		sourceIndexMetadata, colocatedLoadTimes, indexImpacts, columnImpacts, COLOCATED)
+		sourceIndexMetadata, colocatedLoadTimes, indexImpacts, columnImpacts, COLOCATED, 1.0)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -1449,7 +1450,7 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithoutIndex250Colum
 
 	// Call the function
 	estimatedTime, err := calculateTimeTakenForImport(colocatedTables,
-		sourceIndexMetadata, colocatedLoadTimes, indexImpacts, columnImpacts, COLOCATED)
+		sourceIndexMetadata, colocatedLoadTimes, indexImpacts, columnImpacts, COLOCATED, 1.0)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -1707,6 +1708,143 @@ func TestFindClosestVersion(t *testing.T) {
 		}
 	}
 
+}
+
+/*
+===== 	Test functions to test findNumNodesThroughputScalingImportTimeDivisor function	=====
+*/
+
+// Actual experimental data for throughput scaling with different number of nodes
+// Data sourced from num_nodes_throughput_scaling table for 4 cores, 4GB memory per core configuration
+var numNodesThroughputScalingTestData = []ExpDataLoadTimeNumNodesImpact{
+	{
+		numNodes:             sql.NullInt64{Int64: 3, Valid: true},
+		importThroughputMbps: sql.NullFloat64{Float64: 14.64, Valid: true},
+	},
+	{
+		numNodes:             sql.NullInt64{Int64: 6, Valid: true},
+		importThroughputMbps: sql.NullFloat64{Float64: 21.35, Valid: true},
+	},
+	{
+		numNodes:             sql.NullInt64{Int64: 9, Valid: true},
+		importThroughputMbps: sql.NullFloat64{Float64: 26.55, Valid: true},
+	},
+}
+
+// Experimental data for 8 cores, 4GB memory per core configuration
+var numNodesThroughputScalingTestData8Core = []ExpDataLoadTimeNumNodesImpact{
+	{
+		numNodes:             sql.NullInt64{Int64: 3, Valid: true},
+		importThroughputMbps: sql.NullFloat64{Float64: 29.84, Valid: true},
+	},
+	{
+		numNodes:             sql.NullInt64{Int64: 6, Valid: true},
+		importThroughputMbps: sql.NullFloat64{Float64: 46.64, Valid: true},
+	},
+	{
+		numNodes:             sql.NullInt64{Int64: 9, Valid: true},
+		importThroughputMbps: sql.NullFloat64{Float64: 61.79, Valid: true},
+	},
+}
+
+// Experimental data for 16 cores, 4GB memory per core configuration
+var numNodesThroughputScalingTestData16Core = []ExpDataLoadTimeNumNodesImpact{
+	{
+		numNodes:             sql.NullInt64{Int64: 3, Valid: true},
+		importThroughputMbps: sql.NullFloat64{Float64: 49.31, Valid: true},
+	},
+	{
+		numNodes:             sql.NullInt64{Int64: 6, Valid: true},
+		importThroughputMbps: sql.NullFloat64{Float64: 76.9, Valid: true},
+	},
+	{
+		numNodes:             sql.NullInt64{Int64: 9, Valid: true},
+		importThroughputMbps: sql.NullFloat64{Float64: 124.52, Valid: true},
+	},
+}
+
+// validate that the function returns correct ratio for exact match (3 nodes)
+func TestFindNumNodesThroughputScalingImportTimeDivisor_ExactMatch3Nodes(t *testing.T) {
+	targetNumNodes := 3.0
+	// For exact match with 3-node baseline: estimatedThroughput = 3 * (14.64/3) = 14.64
+	// Ratio = 14.64 / 14.64 = 1.0
+	expectedRatio := 1.0
+
+	actualRatio := findNumNodesThroughputScalingImportTimeDivisor(numNodesThroughputScalingTestData, targetNumNodes)
+	assert.Equal(t, expectedRatio, actualRatio)
+}
+
+// validate unit test covering different number of nodes
+func TestFindNumNodesThroughputScalingImportTimeDivisor_AllRequestedCounts(t *testing.T) {
+	testCases := []struct {
+		targetNodes   float64
+		expectedRatio float64
+		description   string
+	}{
+		{3.0, 1.0, "Exact match for 3 nodes"},
+		{4.0, Round(4.0*(14.64/3.0)/14.64, 3), "4 nodes, closest to 3"},
+		{5.0, Round(5.0*(21.35/6.0)/14.64, 3), "5 nodes, closest to 6"},
+		{6.0, Round(6.0*(21.35/6.0)/14.64, 3), "Exact match for 6 nodes"},
+		{7.0, Round(7.0*(21.35/6.0)/14.64, 3), "7 nodes, closest to 6"},
+		{8.0, Round(8.0*(26.55/9.0)/14.64, 3), "8 nodes, closest to 9"},
+		{9.0, Round(9.0*(26.55/9.0)/14.64, 3), "Exact match for 9 nodes"},
+		{10.0, Round(10.0*(26.55/9.0)/14.64, 3), "10 nodes, closest to 9"},
+		{12.0, Round(12.0*(26.55/9.0)/14.64, 3), "12 nodes, closest to 9"},
+		{18.0, Round(18.0*(26.55/9.0)/14.64, 3), "18 nodes, closest to 9"},
+		{21.0, Round(21.0*(26.55/9.0)/14.64, 3), "21 nodes, closest to 9"},
+		{100.0, Round(100.0*(26.55/9.0)/14.64, 3), "100 nodes, closest to 9"},
+		{1000.0, Round(1000.0*(26.55/9.0)/14.64, 3), "1000 nodes, closest to 9"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.description, func(t *testing.T) {
+			actualRatio := findNumNodesThroughputScalingImportTimeDivisor(numNodesThroughputScalingTestData, tc.targetNodes)
+			assert.Equal(t, tc.expectedRatio, Round(actualRatio, 3),
+				fmt.Sprintf("Failed for %v nodes: expected %v, got %v", tc.targetNodes, tc.expectedRatio, actualRatio))
+		})
+	}
+}
+
+// validate test with 8-core configuration data
+func TestFindNumNodesThroughputScalingImportTimeDivisor_8CoreConfig(t *testing.T) {
+	testCases := []struct {
+		targetNodes   float64
+		expectedRatio float64
+		description   string
+	}{
+		{3.0, 1.0, "Exact match for 3 nodes with 8-core config"},
+		{5.0, Round(5.0*(46.64/6.0)/29.84, 3), "5 nodes, closest to 6 with 8-core config"},
+		{12.0, Round(12.0*(61.79/9.0)/29.84, 3), "12 nodes, closest to 9 with 8-core config"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.description, func(t *testing.T) {
+			actualRatio := findNumNodesThroughputScalingImportTimeDivisor(numNodesThroughputScalingTestData8Core, tc.targetNodes)
+			assert.Equal(t, tc.expectedRatio, Round(actualRatio, 3),
+				fmt.Sprintf("Failed for %v nodes: expected %v, got %v", tc.targetNodes, tc.expectedRatio, actualRatio))
+		})
+	}
+}
+
+// validate test with 16-core configuration data
+func TestFindNumNodesThroughputScalingImportTimeDivisor_16CoreConfig(t *testing.T) {
+	testCases := []struct {
+		targetNodes   float64
+		expectedRatio float64
+		description   string
+	}{
+		{3.0, 1.0, "Exact match for 3 nodes with 16-core config"},
+		{7.0, Round(7.0*(76.9/6.0)/49.31, 3), "7 nodes, closest to 6 with 16-core config"},
+		{21.0, Round(21.0*(124.52/9.0)/49.31, 3), "21 nodes, closest to 9 with 16-core config"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.description, func(t *testing.T) {
+			actualRatio := findNumNodesThroughputScalingImportTimeDivisor(numNodesThroughputScalingTestData16Core, tc.targetNodes)
+			assert.Equal(t, tc.expectedRatio, Round(actualRatio, 3),
+				fmt.Sprintf("Failed for %v nodes: expected %v, got %v", tc.targetNodes, tc.expectedRatio, actualRatio))
+		})
+	}
 }
 
 /*
