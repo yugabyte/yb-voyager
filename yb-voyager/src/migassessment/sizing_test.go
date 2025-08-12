@@ -1,6 +1,5 @@
 //go:build unit
 
-/*
 Copyright (c) YugabyteDB, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,9 +21,10 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 	"math"
 	"testing"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
@@ -994,7 +994,7 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithoutIndex_Colocat
 
 	// Call the function
 	estimatedTime, err := calculateTimeTakenForImport(colocatedTables,
-		sourceIndexMetadata, colocatedLoadTimes, indexImpacts, columnImpacts, COLOCATED)
+		sourceIndexMetadata, colocatedLoadTimes, indexImpacts, columnImpacts, COLOCATED, []ExpDataLoadTimeNumNodesImpact{}, 3.0)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -1048,7 +1048,7 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithOneIndex_Colocat
 
 	// Call the function
 	estimatedTime, err := calculateTimeTakenForImport(colocatedTables,
-		sourceIndexMetadata, colocatedLoadTimes, indexImpacts, columnImpacts, COLOCATED)
+		sourceIndexMetadata, colocatedLoadTimes, indexImpacts, columnImpacts, COLOCATED, []ExpDataLoadTimeNumNodesImpact{}, 3.0)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -1088,11 +1088,13 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithFiveIndexes_Colo
 			rowCount: sql.NullFloat64{Float64: 100000, Valid: true},
 		},
 	}
-	//TODO: modify index impact with actual colocated data when it is available and adjust the calculations
+
 	indexImpacts := []ExpDataLoadTimeIndexImpact{
 		{numIndexes: sql.NullFloat64{Float64: 1}, multiplicationFactorColocated: sql.NullFloat64{Float64: 1.77777}},
 		{numIndexes: sql.NullFloat64{Float64: 5}, multiplicationFactorColocated: sql.NullFloat64{Float64: 4.66666}},
 	}
+	numNodesImpactData := []ExpDataLoadTimeNumNodesImpact{}
+	numNodes := 3.0
 	columnsImpact := []ExpDataLoadTimeColumnsImpact{ // doesn't have any impact because multiplication factor is 1
 		{
 			numColumns:                    sql.NullInt64{Int64: 5, Valid: true},
@@ -1102,7 +1104,7 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithFiveIndexes_Colo
 	}
 	// Call the function
 	estimatedTime, err := calculateTimeTakenForImport(colocatedTables,
-		sourceIndexMetadata, colocatedLoadTimes, indexImpacts, columnsImpact, COLOCATED)
+		sourceIndexMetadata, colocatedLoadTimes, indexImpacts, columnsImpact, COLOCATED, numNodesImpactData, numNodes)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -1137,6 +1139,21 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithoutIndex_Sharded
 		},
 	}
 	var indexImpacts []ExpDataLoadTimeIndexImpact
+	// This uses 16 cores, 4GB per core data
+	numNodesImpactData := []ExpDataLoadTimeNumNodesImpact{
+		{
+			numNodes:             sql.NullInt64{Int64: 3, Valid: true},
+			importThroughputMbps: sql.NullFloat64{Float64: 49.31, Valid: true}, // Actual DB value
+		},
+		{
+			numNodes:             sql.NullInt64{Int64: 6, Valid: true},
+			importThroughputMbps: sql.NullFloat64{Float64: 76.9, Valid: true}, // Actual DB value
+		},
+		{
+			numNodes:             sql.NullInt64{Int64: 9, Valid: true},
+			importThroughputMbps: sql.NullFloat64{Float64: 124.52, Valid: true}, // Actual DB value
+		},
+	}
 	columnsImpact := []ExpDataLoadTimeColumnsImpact{ // doesn't have any impact because multiplication factor is 1
 		{
 			numColumns:                    sql.NullInt64{Int64: 5, Valid: true},
@@ -1146,14 +1163,16 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithoutIndex_Sharded
 	}
 	// Call the function
 	estimatedTime, err := calculateTimeTakenForImport(shardedTables, sourceIndexMetadata,
-		shardedLoadTimes, indexImpacts, columnsImpact, SHARDED)
+		shardedLoadTimes, indexImpacts, columnsImpact, SHARDED, numNodesImpactData, 3.0)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
 
 	// Define expected results
-	// Calculated as table0: 1 * ((1134 * 23) / 19) / 60
-	expectedTime := 23.0
+	// Calculated using new node-based throughput calculation with 3 nodes, 23GB table size
+	// Base time: (23 * 1024 MB) / 49.31 MB/s = 23552 / 49.31 = 477.7 seconds
+	// With no indexes (multiplication factor = 1): 477.7 / 60 = 7.96 ≈ 8 minutes (rounded up)
+	expectedTime := 8.0
 	if estimatedTime != expectedTime {
 		t.Errorf("calculateTimeTakenForImport() = (%v), want (%v)", estimatedTime, expectedTime)
 	}
@@ -1192,17 +1211,30 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithOneIndex_Sharded
 			multiplicationFactorSharded:   sql.NullFloat64{Float64: 1.0},
 		},
 	}
+	// This uses 16 cores, 4GB per core data
+	numNodesImpactData := []ExpDataLoadTimeNumNodesImpact{
+		{
+			numNodes:             sql.NullInt64{Int64: 3, Valid: true},
+			importThroughputMbps: sql.NullFloat64{Float64: 49.31, Valid: true}, // Actual DB value
+		},
+		{
+			numNodes:             sql.NullInt64{Int64: 6, Valid: true},
+			importThroughputMbps: sql.NullFloat64{Float64: 76.9, Valid: true}, // Actual DB value
+		},
+	}
 	// Call the function
 	estimatedTime, err :=
 		calculateTimeTakenForImport(shardedTables, sourceIndexMetadata, shardedLoadTimes,
-			indexImpacts, columnsImpact, SHARDED)
+			indexImpacts, columnsImpact, SHARDED, numNodesImpactData, 3.0)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
 
 	// Define expected results
-	// Calculated as table0: 1.76 * ((1134 * 23) / 19) / 60
-	expectedTime := 41.0 // double the time required when there are no indexes.
+	// Calculated using new node-based throughput calculation with 3 nodes, 23GB table size
+	// Base time: (23 * 1024 MB) / 49.31 MB/s = 23552 / 49.31 = 477.7 seconds
+	// With 1 index (multiplication factor = 1.76): 477.7 * 1.76 / 60 = 14.01 ≈ 15 minutes (rounded up)
+	expectedTime := 15.0
 
 	if estimatedTime != expectedTime {
 		t.Errorf("calculateTimeTakenForImport() = (%v), want (%v)", estimatedTime, expectedTime)
@@ -1248,17 +1280,30 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithFiveIndexes_Shar
 			multiplicationFactorSharded:   sql.NullFloat64{Float64: 1.0},
 		},
 	}
+	// This uses 16 cores, 4GB per core data
+	numNodesImpactData := []ExpDataLoadTimeNumNodesImpact{
+		{
+			numNodes:             sql.NullInt64{Int64: 3, Valid: true},
+			importThroughputMbps: sql.NullFloat64{Float64: 49.31, Valid: true}, // Actual DB value
+		},
+		{
+			numNodes:             sql.NullInt64{Int64: 6, Valid: true},
+			importThroughputMbps: sql.NullFloat64{Float64: 76.9, Valid: true}, // Actual DB value
+		},
+	}
 	// Call the function
 	estimatedTime, err :=
 		calculateTimeTakenForImport(shardedTables, sourceIndexMetadata, shardedLoadTimes,
-			indexImpacts, columnsImpact, SHARDED)
+			indexImpacts, columnsImpact, SHARDED, numNodesImpactData, 3.0)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
 
 	// Define expected results
-	// Calculated as table0: 4.6 * ((1134 * 23) / 19) / 60
-	expectedTime := 106.0
+	// Calculated using new node-based throughput calculation with 3 nodes, 23GB table size
+	// Base time: (23 * 1024 MB) / 49.31 MB/s = 23552 / 49.31 = 477.7 seconds
+	// With 5 indexes (multiplication factor = 4.6): 477.7 * 4.6 / 60 = 36.6 ≈ 37 minutes (rounded up)
+	expectedTime := 37.0
 
 	if estimatedTime != expectedTime {
 		t.Errorf("calculateTimeTakenForImport() = (%v), want (%v)", estimatedTime, expectedTime)
@@ -1297,7 +1342,7 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithoutIndex5Columns
 
 	// Call the function
 	estimatedTime, err := calculateTimeTakenForImport(colocatedTables,
-		sourceIndexMetadata, colocatedLoadTimes, indexImpacts, columnImpacts, COLOCATED)
+		sourceIndexMetadata, colocatedLoadTimes, indexImpacts, columnImpacts, COLOCATED, []ExpDataLoadTimeNumNodesImpact{}, 3.0)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -1348,7 +1393,7 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithoutIndex40Column
 
 	// Call the function
 	estimatedTime, err := calculateTimeTakenForImport(colocatedTables,
-		sourceIndexMetadata, colocatedLoadTimes, indexImpacts, columnImpacts, COLOCATED)
+		sourceIndexMetadata, colocatedLoadTimes, indexImpacts, columnImpacts, COLOCATED, []ExpDataLoadTimeNumNodesImpact{}, 3.0)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -1399,7 +1444,7 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithoutIndex100Colum
 
 	// Call the function
 	estimatedTime, err := calculateTimeTakenForImport(colocatedTables,
-		sourceIndexMetadata, colocatedLoadTimes, indexImpacts, columnImpacts, COLOCATED)
+		sourceIndexMetadata, colocatedLoadTimes, indexImpacts, columnImpacts, COLOCATED, []ExpDataLoadTimeNumNodesImpact{}, 3.0)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -1451,7 +1496,7 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithoutIndex250Colum
 
 	// Call the function
 	estimatedTime, err := calculateTimeTakenForImport(colocatedTables,
-		sourceIndexMetadata, colocatedLoadTimes, indexImpacts, columnImpacts, COLOCATED)
+		sourceIndexMetadata, colocatedLoadTimes, indexImpacts, columnImpacts, COLOCATED, []ExpDataLoadTimeNumNodesImpact{}, 3.0)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -1709,6 +1754,691 @@ func TestFindClosestVersion(t *testing.T) {
 		}
 	}
 
+}
+
+/*
+===== 	Test functions to test calculateImportTimeBasedOnImportThroughputWrtNumNodes function	=====
+*/
+
+// Test calculateImportTimeBasedOnImportThroughputWrtNumNodes with valid data from database
+func TestCalculateImportTimeBasedOnNodesAndThroughput_ValidData(t *testing.T) {
+	numNodes := 3.0
+	sourceDBSizeGB := 100.0 // 100 GB
+	// Using actual data from load_time_num_nodes_impact table for 4 cores, 4GB per core
+	numNodesImpactData := []ExpDataLoadTimeNumNodesImpact{
+		{
+			numNodes:             sql.NullInt64{Int64: 3, Valid: true},
+			importThroughputMbps: sql.NullFloat64{Float64: 14.64, Valid: true}, // Actual DB value
+		},
+		{
+			numNodes:             sql.NullInt64{Int64: 6, Valid: true},
+			importThroughputMbps: sql.NullFloat64{Float64: 21.35, Valid: true}, // Actual DB value
+		},
+	}
+
+	result, err := calculateImportTimeBasedOnImportThroughputWrtNumNodes(numNodes, sourceDBSizeGB, numNodesImpactData)
+
+	assert.NoError(t, err)
+	// Expected calculation with actual data:
+	// - Source DB: 100 GB = 100 * 1024 = 102400 MB
+	// - Total throughput for 3 nodes: 14.64 MB/s
+	// - Import time: 102400 MB / 14.64 MB/s = 6993.4 seconds
+	expectedTime := 6993.4
+	assert.InDelta(t, expectedTime, result, 5.0) // Allow 5 second tolerance for rounding
+}
+
+// Test calculateImportTimeBasedOnImportThroughputWrtNumNodes with closest node matching using actual data
+func TestCalculateImportTimeBasedOnNodesAndThroughput_ClosestNodeMatching(t *testing.T) {
+	numNodes := 4.0 // Should pick closest which is 3 or 6 nodes data from DB
+	sourceDBSizeGB := 50.0
+	// Using actual data from load_time_num_nodes_impact table for 8 cores, 4GB per core
+	numNodesImpactData := []ExpDataLoadTimeNumNodesImpact{
+		{
+			numNodes:             sql.NullInt64{Int64: 3, Valid: true},
+			importThroughputMbps: sql.NullFloat64{Float64: 29.84, Valid: true}, // Actual DB value
+		},
+		{
+			numNodes:             sql.NullInt64{Int64: 6, Valid: true},
+			importThroughputMbps: sql.NullFloat64{Float64: 46.64, Valid: true}, // Actual DB value
+		},
+	}
+
+	result, err := calculateImportTimeBasedOnImportThroughputWrtNumNodes(numNodes, sourceDBSizeGB, numNodesImpactData)
+
+	assert.NoError(t, err)
+	// Should pick 3 nodes (closer to 4 than 6)
+	// Per-node throughput from 3-node data: 29.84/3 = 9.95 MB/s per node
+	// For 4 nodes: 9.95 * 4 = 39.8 MB/s total
+	// Expected: 50 * 1024 MB / 39.8 MB/s = 1286.4 seconds
+	expectedTime := 1287.0
+	assert.Equal(t, expectedTime, math.Ceil(result))
+}
+
+// Test calculateImportTimeBasedOnImportThroughputWrtNumNodes with guaranteed experimental data from DB
+func TestCalculateImportTimeBasedOnNodesAndThroughput_GuaranteedData(t *testing.T) {
+	numNodes := 3.0
+	sourceDBSizeGB := 100.0
+	// Using guaranteed data for (4,8,16) cores and (3,6,9) nodes from actual DB
+	// This uses 16 cores, 4GB per core data
+	numNodesImpactData := []ExpDataLoadTimeNumNodesImpact{
+		{
+			numNodes:             sql.NullInt64{Int64: 3, Valid: true},
+			importThroughputMbps: sql.NullFloat64{Float64: 49.31, Valid: true}, // Actual DB value
+		},
+		{
+			numNodes:             sql.NullInt64{Int64: 6, Valid: true},
+			importThroughputMbps: sql.NullFloat64{Float64: 76.9, Valid: true}, // Actual DB value
+		},
+		{
+			numNodes:             sql.NullInt64{Int64: 9, Valid: true},
+			importThroughputMbps: sql.NullFloat64{Float64: 124.52, Valid: true}, // Actual DB value
+		},
+	}
+
+	result, err := calculateImportTimeBasedOnImportThroughputWrtNumNodes(numNodes, sourceDBSizeGB, numNodesImpactData)
+
+	assert.NoError(t, err)
+	// Expected: 100 * 1024 MB / (49.31 MB/s total for 3 nodes) = 102400 / 49.31 = 2076.1 seconds
+	expectedTime := 2077.0 // rounded up
+	assert.Equal(t, expectedTime, math.Ceil(result))
+}
+
+// Test calculateImportTimeBasedOnImportThroughputWrtNumNodes with different core configurations from DB
+func TestCalculateImportTimeBasedOnNodesAndThroughput_DifferentCoreConfigurations(t *testing.T) {
+	sourceDBSizeGB := 150.0
+
+	// Test data representing actual combinations of (4,8,16) cores and (3,6,9) nodes from DB
+	testCases := []struct {
+		numNodes            float64
+		totalThroughputMbps float64
+		expectedTimeSeconds float64
+		description         string
+	}{
+		{3.0, 14.64, 10494.0, "4 cores"},  // 150*1024/14.64 = 10494.5 seconds
+		{3.0, 29.84, 5147.0, "8 cores"},   // 150*1024/29.84 = 5146.8 seconds
+		{3.0, 49.31, 3114.0, "16 cores"},  // 150*1024/49.31 = 3114.2 seconds
+		{6.0, 21.35, 7201.0, "4 cores"},   // 150*1024/21.35 = 7200.9 seconds
+		{6.0, 46.64, 3295.0, "8 cores"},   // 150*1024/46.64 = 3294.8 seconds
+		{6.0, 76.9, 1998.0, "16 cores"},   // 150*1024/76.9 = 1997.7 seconds
+		{9.0, 26.55, 5787.0, "4 cores"},   // 150*1024/26.55 = 5786.8 seconds
+		{9.0, 61.79, 2486.0, "8 cores"},   // 150*1024/61.79 = 2485.9 seconds
+		{9.0, 124.52, 1234.0, "16 cores"}, // 150*1024/124.52 = 1233.8 seconds
+	}
+
+	for _, tc := range testCases {
+		t.Run(fmt.Sprintf("%s_%.0f_nodes", tc.description, tc.numNodes), func(t *testing.T) {
+			numNodesImpactData := []ExpDataLoadTimeNumNodesImpact{
+				{
+					numNodes:             sql.NullInt64{Int64: int64(tc.numNodes), Valid: true},
+					importThroughputMbps: sql.NullFloat64{Float64: tc.totalThroughputMbps, Valid: true},
+				},
+			}
+
+			result, err := calculateImportTimeBasedOnImportThroughputWrtNumNodes(tc.numNodes, sourceDBSizeGB, numNodesImpactData)
+
+			assert.NoError(t, err)
+			assert.InDelta(t, tc.expectedTimeSeconds, result, 10.0) // Allow 10 second tolerance for rounding differences
+		})
+	}
+}
+
+/*
+===== 	Test functions to test calculateTimeTakenForImport function with node-based calculations	=====
+*/
+
+// Test calculateTimeTakenForImport with valid node data for COLOCATED objects
+func TestCalculateTimeTakenForImport_ValidNodeDataColocated(t *testing.T) {
+	tables := []SourceDBMetadata{
+		{
+			ObjectName:  "table1",
+			SchemaName:  "public",
+			Size:        sql.NullFloat64{Float64: 50.0, Valid: true},
+			RowCount:    sql.NullFloat64{Float64: 100000, Valid: true},
+			ColumnCount: sql.NullInt64{Int64: 5, Valid: true},
+		},
+		{
+			ObjectName:  "table2",
+			SchemaName:  "public",
+			Size:        sql.NullFloat64{Float64: 30.0, Valid: true},
+			RowCount:    sql.NullFloat64{Float64: 50000, Valid: true},
+			ColumnCount: sql.NullInt64{Int64: 8, Valid: true},
+		},
+	}
+
+	var sourceIndexMetadata []SourceDBMetadata
+
+	loadTimes := []ExpDataLoadTime{
+		{
+			csvSizeGB:         sql.NullFloat64{Float64: 25, Valid: true},
+			migrationTimeSecs: sql.NullFloat64{Float64: 1500, Valid: true},
+			rowCount:          sql.NullFloat64{Float64: 100000, Valid: true},
+		},
+	}
+
+	var indexImpacts []ExpDataLoadTimeIndexImpact
+
+	columnsImpacts := []ExpDataLoadTimeColumnsImpact{
+		{
+			numColumns:                    sql.NullInt64{Int64: 5, Valid: true},
+			multiplicationFactorColocated: sql.NullFloat64{Float64: 1.0, Valid: true},
+			multiplicationFactorSharded:   sql.NullFloat64{Float64: 1.0, Valid: true},
+		},
+		{
+			numColumns:                    sql.NullInt64{Int64: 8, Valid: true},
+			multiplicationFactorColocated: sql.NullFloat64{Float64: 1.2, Valid: true},
+			multiplicationFactorSharded:   sql.NullFloat64{Float64: 1.2, Valid: true},
+		},
+	}
+
+	// Use actual database values for more realistic testing
+	numNodesImpactData := []ExpDataLoadTimeNumNodesImpact{
+		{
+			numNodes:             sql.NullInt64{Int64: 3, Valid: true},
+			importThroughputMbps: sql.NullFloat64{Float64: 29.84, Valid: true}, // Actual 8-core data
+		},
+		{
+			numNodes:             sql.NullInt64{Int64: 6, Valid: true},
+			importThroughputMbps: sql.NullFloat64{Float64: 46.64, Valid: true}, // Actual 8-core data
+		},
+	}
+
+	numNodes := 3.0
+
+	result, err := calculateTimeTakenForImport(tables, sourceIndexMetadata, loadTimes,
+		indexImpacts, columnsImpacts, COLOCATED, numNodesImpactData, numNodes)
+
+	assert.NoError(t, err)
+	assert.Greater(t, result, 0.0)
+
+	// With actual data: Total size: 80 GB, throughput: 29.84 MB/s for 3 nodes
+	// Since this is COLOCATED, it will use traditional calculation method (no node-based optimizations)
+	// The result should be reasonable but won't benefit from node scaling for colocated tables
+	assert.Less(t, result, 200.0) // Should be a reasonable time in minutes for 80GB
+}
+
+// Test calculateTimeTakenForImport with guaranteed data for different node configurations (SHARDED)
+func TestCalculateTimeTakenForImport_GuaranteedDataConfigurations(t *testing.T) {
+	tables := []SourceDBMetadata{
+		{
+			ObjectName:  "table1",
+			SchemaName:  "public",
+			Size:        sql.NullFloat64{Float64: 60.0, Valid: true},
+			RowCount:    sql.NullFloat64{Float64: 500000, Valid: true},
+			ColumnCount: sql.NullInt64{Int64: 8, Valid: true},
+		},
+	}
+
+	var sourceIndexMetadata []SourceDBMetadata
+
+	loadTimes := []ExpDataLoadTime{
+		{
+			csvSizeGB:         sql.NullFloat64{Float64: 60, Valid: true},
+			migrationTimeSecs: sql.NullFloat64{Float64: 3600, Valid: true},
+			rowCount:          sql.NullFloat64{Float64: 500000, Valid: true},
+		},
+	}
+
+	var indexImpacts []ExpDataLoadTimeIndexImpact
+
+	columnsImpacts := []ExpDataLoadTimeColumnsImpact{
+		{
+			numColumns:                    sql.NullInt64{Int64: 8, Valid: true},
+			multiplicationFactorColocated: sql.NullFloat64{Float64: 1.2, Valid: true},
+			multiplicationFactorSharded:   sql.NullFloat64{Float64: 1.2, Valid: true},
+		},
+	}
+
+	// Test guaranteed data configurations for (4,8,16) cores and (3,6,9) nodes
+	testConfigs := []struct {
+		numNodes         float64
+		throughputMbps   float64
+		expectedLessTime float64 // Should be less than this time
+	}{
+		{3.0, 500.0, 15.0}, // 3 nodes should give faster import
+		{6.0, 500.0, 8.0},  // 6 nodes should be even faster
+		{9.0, 500.0, 6.0},  // 9 nodes should be fastest
+	}
+
+	for _, config := range testConfigs {
+		numNodesImpactData := []ExpDataLoadTimeNumNodesImpact{
+			{
+				numNodes:             sql.NullInt64{Int64: int64(config.numNodes), Valid: true},
+				importThroughputMbps: sql.NullFloat64{Float64: config.throughputMbps, Valid: true},
+			},
+		}
+
+		result, err := calculateTimeTakenForImport(tables, sourceIndexMetadata, loadTimes,
+			indexImpacts, columnsImpacts, SHARDED, numNodesImpactData, config.numNodes)
+
+		assert.NoError(t, err)
+		assert.Greater(t, result, 0.0)
+		assert.Less(t, result, config.expectedLessTime) // Should benefit from more nodes
+	}
+}
+
+// Test calculateTimeTakenForImport with mixed table sizes and multiplication factors (SHARDED)
+func TestCalculateTimeTakenForImport_MixedTablesAndFactors(t *testing.T) {
+	tables := []SourceDBMetadata{
+		{
+			ObjectName:  "large_table",
+			SchemaName:  "public",
+			Size:        sql.NullFloat64{Float64: 80.0, Valid: true},
+			RowCount:    sql.NullFloat64{Float64: 1000000, Valid: true},
+			ColumnCount: sql.NullInt64{Int64: 20, Valid: true},
+		},
+		{
+			ObjectName:  "small_table",
+			SchemaName:  "public",
+			Size:        sql.NullFloat64{Float64: 20.0, Valid: true},
+			RowCount:    sql.NullFloat64{Float64: 100000, Valid: true},
+			ColumnCount: sql.NullInt64{Int64: 5, Valid: true},
+		},
+	}
+
+	sourceIndexMetadata := []SourceDBMetadata{
+		{
+			ObjectName:      "large_table_idx1",
+			ParentTableName: sql.NullString{String: "public.large_table", Valid: true},
+			Size:            sql.NullFloat64{Float64: 5.0, Valid: true},
+		},
+		{
+			ObjectName:      "large_table_idx2",
+			ParentTableName: sql.NullString{String: "public.large_table", Valid: true},
+			Size:            sql.NullFloat64{Float64: 3.0, Valid: true},
+		},
+	}
+
+	loadTimes := []ExpDataLoadTime{
+		{
+			csvSizeGB:         sql.NullFloat64{Float64: 50, Valid: true},
+			migrationTimeSecs: sql.NullFloat64{Float64: 3000, Valid: true},
+			rowCount:          sql.NullFloat64{Float64: 500000, Valid: true},
+		},
+	}
+
+	indexImpacts := []ExpDataLoadTimeIndexImpact{
+		{
+			numIndexes:                    sql.NullFloat64{Float64: 2, Valid: true},
+			multiplicationFactorColocated: sql.NullFloat64{Float64: 1.8, Valid: true},
+			multiplicationFactorSharded:   sql.NullFloat64{Float64: 1.8, Valid: true},
+		},
+	}
+
+	columnsImpacts := []ExpDataLoadTimeColumnsImpact{
+		{
+			numColumns:                    sql.NullInt64{Int64: 5, Valid: true},
+			multiplicationFactorColocated: sql.NullFloat64{Float64: 1.0, Valid: true},
+			multiplicationFactorSharded:   sql.NullFloat64{Float64: 1.0, Valid: true},
+		},
+		{
+			numColumns:                    sql.NullInt64{Int64: 20, Valid: true},
+			multiplicationFactorColocated: sql.NullFloat64{Float64: 1.5, Valid: true},
+			multiplicationFactorSharded:   sql.NullFloat64{Float64: 1.5, Valid: true},
+		},
+	}
+
+	numNodesImpactData := []ExpDataLoadTimeNumNodesImpact{
+		{
+			numNodes:             sql.NullInt64{Int64: 5, Valid: true},
+			importThroughputMbps: sql.NullFloat64{Float64: 1200.0, Valid: true},
+		},
+	}
+
+	numNodes := 5.0
+
+	result, err := calculateTimeTakenForImport(tables, sourceIndexMetadata, loadTimes,
+		indexImpacts, columnsImpacts, SHARDED, numNodesImpactData, numNodes)
+
+	assert.NoError(t, err)
+	assert.Greater(t, result, 0.0)
+
+	// Should account for weighted multiplication factors based on table sizes
+	// Large table has more weight (80GB vs 20GB) so its factors should dominate
+}
+
+// Test calculateTimeTakenForImport behavior for COLOCATED vs SHARDED tables
+func TestCalculateTimeTakenForImport_ColocatedVsShardedBehavior(t *testing.T) {
+	tables := []SourceDBMetadata{
+		{
+			ObjectName:  "table1",
+			SchemaName:  "public",
+			Size:        sql.NullFloat64{Float64: 25.0, Valid: true},
+			RowCount:    sql.NullFloat64{Float64: 100000, Valid: true},
+			ColumnCount: sql.NullInt64{Int64: 5, Valid: true},
+		},
+	}
+
+	var sourceIndexMetadata []SourceDBMetadata
+
+	loadTimes := []ExpDataLoadTime{
+		{
+			csvSizeGB:         sql.NullFloat64{Float64: 25, Valid: true},
+			migrationTimeSecs: sql.NullFloat64{Float64: 1500, Valid: true},
+			rowCount:          sql.NullFloat64{Float64: 100000, Valid: true},
+		},
+	}
+
+	var indexImpacts []ExpDataLoadTimeIndexImpact
+
+	columnsImpacts := []ExpDataLoadTimeColumnsImpact{
+		{
+			numColumns:                    sql.NullInt64{Int64: 5, Valid: true},
+			multiplicationFactorColocated: sql.NullFloat64{Float64: 1.0, Valid: true},
+			multiplicationFactorSharded:   sql.NullFloat64{Float64: 1.0, Valid: true},
+		},
+	}
+
+	numNodesImpactData := []ExpDataLoadTimeNumNodesImpact{
+		{
+			numNodes:             sql.NullInt64{Int64: 6, Valid: true},
+			importThroughputMbps: sql.NullFloat64{Float64: 1000.0, Valid: true},
+		},
+	}
+
+	numNodes := 6.0
+
+	// Test COLOCATED - should use original calculation (no node-based optimization)
+	resultColocated, err := calculateTimeTakenForImport(tables, sourceIndexMetadata, loadTimes,
+		indexImpacts, columnsImpacts, COLOCATED, numNodesImpactData, numNodes)
+	assert.NoError(t, err)
+
+	// Test SHARDED - should use node-based calculation
+	resultSharded, err := calculateTimeTakenForImport(tables, sourceIndexMetadata, loadTimes,
+		indexImpacts, columnsImpacts, SHARDED, numNodesImpactData, numNodes)
+	assert.NoError(t, err)
+
+	// Get original calculation result for comparison
+	originalResult, err := calculateTimeTakenForImport(tables, sourceIndexMetadata, loadTimes,
+		indexImpacts, columnsImpacts, COLOCATED, numNodesImpactData, numNodes)
+	assert.NoError(t, err)
+
+	// COLOCATED should match original calculation (no node benefits)
+	assert.Equal(t, originalResult, resultColocated)
+
+	// SHARDED should be different (should benefit from more nodes)
+	assert.NotEqual(t, originalResult, resultSharded)
+	assert.Less(t, resultSharded, originalResult) // Should be faster with more nodes
+}
+
+/*
+===== 	Test functions for specific node counts: 3,4,5,6,8,9,12,18,21	=====
+*/
+
+// Helper function to create test data for different node counts using actual DB values
+// This function maps node counts to realistic throughput values based on actual database data
+func createNodeCountTestData(nodeCount int64, coreConfig string) []ExpDataLoadTimeNumNodesImpact {
+	// Mapping based on actual data from load_time_num_nodes_impact table
+	var throughputMbps float64
+	switch fmt.Sprintf("%d_%s", nodeCount, coreConfig) {
+	case "3_4cores":
+		throughputMbps = 14.64
+	case "6_4cores":
+		throughputMbps = 21.35
+	case "9_4cores":
+		throughputMbps = 26.55
+	case "3_8cores":
+		throughputMbps = 29.84
+	case "6_8cores":
+		throughputMbps = 46.64
+	case "9_8cores":
+		throughputMbps = 61.79
+	case "3_16cores":
+		throughputMbps = 49.31
+	case "6_16cores":
+		throughputMbps = 76.9
+	case "9_16cores":
+		throughputMbps = 124.52
+	default:
+		// Fallback to 4-core 3-node data for unknown configurations
+		throughputMbps = 14.64
+	}
+
+	return []ExpDataLoadTimeNumNodesImpact{
+		{
+			numNodes:             sql.NullInt64{Int64: nodeCount, Valid: true},
+			importThroughputMbps: sql.NullFloat64{Float64: throughputMbps, Valid: true},
+		},
+	}
+}
+
+// Test calculateImportTimeBasedOnImportThroughputWrtNumNodes with 3 nodes using actual DB data
+func TestCalculateImportTimeBasedOnNodesAndThroughput_3Nodes(t *testing.T) {
+	numNodes := 3.0
+	sourceDBSizeGB := 120.0
+	numNodesImpactData := createNodeCountTestData(3, "8cores") // Use 8-core config
+
+	result, err := calculateImportTimeBasedOnImportThroughputWrtNumNodes(numNodes, sourceDBSizeGB, numNodesImpactData)
+
+	assert.NoError(t, err)
+	// Expected: 120 * 1024 MB / (29.84 MB/s total for 3 nodes) = 122880 / 29.84 = 4119.2 seconds
+	expectedTime := 4119.2
+	assert.InDelta(t, expectedTime, result, 5.0) // Allow 5 second tolerance
+}
+
+// Test calculateImportTimeBasedOnImportThroughputWrtNumNodes with 4 nodes (interpolated between 3 and 6)
+func TestCalculateImportTimeBasedOnNodesAndThroughput_4Nodes(t *testing.T) {
+	numNodes := 4.0
+	sourceDBSizeGB := 80.0
+	// For 4 nodes, we'll provide 3 and 6 node data and let the function interpolate
+	numNodesImpactData := []ExpDataLoadTimeNumNodesImpact{
+		{
+			numNodes:             sql.NullInt64{Int64: 3, Valid: true},
+			importThroughputMbps: sql.NullFloat64{Float64: 29.84, Valid: true}, // 8-core, 3-node actual data
+		},
+		{
+			numNodes:             sql.NullInt64{Int64: 6, Valid: true},
+			importThroughputMbps: sql.NullFloat64{Float64: 46.64, Valid: true}, // 8-core, 6-node actual data
+		},
+	}
+
+	result, err := calculateImportTimeBasedOnImportThroughputWrtNumNodes(numNodes, sourceDBSizeGB, numNodesImpactData)
+
+	assert.NoError(t, err)
+	// Function should pick 3 nodes (closer to 4 than 6) and scale per-node throughput
+	// Per-node: 29.84/3 = 9.95 MB/s, for 4 nodes: 9.95*4 = 39.8 MB/s total
+	// Expected: 80 * 1024 / 39.8 = 2063.3 seconds
+	expectedTime := 2063.3
+	assert.InDelta(t, expectedTime, result, 10.0) // Allow 10 second tolerance for interpolation
+}
+
+// Test calculateImportTimeBasedOnImportThroughputWrtNumNodes with 5 nodes (interpolated between 3 and 6)
+func TestCalculateImportTimeBasedOnNodesAndThroughput_5Nodes(t *testing.T) {
+	numNodes := 5.0
+	sourceDBSizeGB := 150.0
+	// For 5 nodes, we'll provide 3 and 6 node data and let the function interpolate
+	numNodesImpactData := []ExpDataLoadTimeNumNodesImpact{
+		{
+			numNodes:             sql.NullInt64{Int64: 3, Valid: true},
+			importThroughputMbps: sql.NullFloat64{Float64: 49.31, Valid: true}, // 16-core, 3-node actual data
+		},
+		{
+			numNodes:             sql.NullInt64{Int64: 6, Valid: true},
+			importThroughputMbps: sql.NullFloat64{Float64: 76.9, Valid: true}, // 16-core, 6-node actual data
+		},
+	}
+
+	result, err := calculateImportTimeBasedOnImportThroughputWrtNumNodes(numNodes, sourceDBSizeGB, numNodesImpactData)
+
+	assert.NoError(t, err)
+	// Function should pick 6 nodes (closer to 5 than 3) and scale per-node throughput
+	// Per-node: 76.9/6 = 12.82 MB/s, for 5 nodes: 12.82*5 = 64.1 MB/s total
+	// Expected: 150 * 1024 / 64.1 = 2393.9 seconds
+	expectedTime := 2393.9
+	assert.InDelta(t, expectedTime, result, 10.0) // Allow 10 second tolerance for interpolation
+}
+
+// Test calculateImportTimeBasedOnImportThroughputWrtNumNodes with 6 nodes using actual DB data
+func TestCalculateImportTimeBasedOnNodesAndThroughput_6Nodes(t *testing.T) {
+	numNodes := 6.0
+	sourceDBSizeGB := 200.0
+	numNodesImpactData := createNodeCountTestData(6, "16cores") // Use 16-core config
+
+	result, err := calculateImportTimeBasedOnImportThroughputWrtNumNodes(numNodes, sourceDBSizeGB, numNodesImpactData)
+
+	assert.NoError(t, err)
+	// Expected: 200 * 1024 MB / (76.9 MB/s per 6 nodes) = 204800 / 76.9 = 2663.7 seconds
+	expectedTime := 2663.7
+	assert.InDelta(t, expectedTime, result, 5.0) // Allow 5 second tolerance
+}
+
+// Test calculateImportTimeBasedOnImportThroughputWrtNumNodes with 8 nodes (interpolated between 6 and 9)
+func TestCalculateImportTimeBasedOnNodesAndThroughput_8Nodes(t *testing.T) {
+	numNodes := 8.0
+	sourceDBSizeGB := 320.0
+	// For 8 nodes, we'll provide 6 and 9 node data and let the function interpolate
+	numNodesImpactData := []ExpDataLoadTimeNumNodesImpact{
+		{
+			numNodes:             sql.NullInt64{Int64: 6, Valid: true},
+			importThroughputMbps: sql.NullFloat64{Float64: 76.9, Valid: true}, // 16-core, 6-node actual data
+		},
+		{
+			numNodes:             sql.NullInt64{Int64: 9, Valid: true},
+			importThroughputMbps: sql.NullFloat64{Float64: 124.52, Valid: true}, // 16-core, 9-node actual data
+		},
+	}
+
+	result, err := calculateImportTimeBasedOnImportThroughputWrtNumNodes(numNodes, sourceDBSizeGB, numNodesImpactData)
+
+	assert.NoError(t, err)
+	// Function should pick 9 nodes (closer to 8 than 6) and scale per-node throughput
+	// Per-node: 124.52/9 = 13.84 MB/s, for 8 nodes: 13.84*8 = 110.7 MB/s total
+	// Expected: 320 * 1024 / 110.7 = 2959.8 seconds
+	expectedTime := 2959.8
+	assert.InDelta(t, expectedTime, result, 10.0) // Allow 10 second tolerance for interpolation
+}
+
+// Test calculateImportTimeBasedOnImportThroughputWrtNumNodes with 9 nodes using actual DB data
+func TestCalculateImportTimeBasedOnNodesAndThroughput_9Nodes(t *testing.T) {
+	numNodes := 9.0
+	sourceDBSizeGB := 360.0
+	numNodesImpactData := createNodeCountTestData(9, "16cores") // Use 16-core config
+
+	result, err := calculateImportTimeBasedOnImportThroughputWrtNumNodes(numNodes, sourceDBSizeGB, numNodesImpactData)
+
+	assert.NoError(t, err)
+	// Expected: 360 * 1024 MB / (124.52 MB/s per 9 nodes) = 368640 / 124.52 = 2961.5 seconds
+	expectedTime := 2961.5
+	assert.InDelta(t, expectedTime, result, 5.0) // Allow 5 second tolerance
+}
+
+// Test calculateImportTimeBasedOnImportThroughputWrtNumNodes with 12 nodes (extrapolated from 9 nodes)
+func TestCalculateImportTimeBasedOnNodesAndThroughput_12Nodes(t *testing.T) {
+	numNodes := 12.0
+	sourceDBSizeGB := 480.0
+	// For 12 nodes, we'll use 9-node data and let the function extrapolate
+	numNodesImpactData := []ExpDataLoadTimeNumNodesImpact{
+		{
+			numNodes:             sql.NullInt64{Int64: 9, Valid: true},
+			importThroughputMbps: sql.NullFloat64{Float64: 124.52, Valid: true}, // 16-core, 9-node actual data
+		},
+	}
+
+	result, err := calculateImportTimeBasedOnImportThroughputWrtNumNodes(numNodes, sourceDBSizeGB, numNodesImpactData)
+
+	assert.NoError(t, err)
+	// Function should use 9-node data and scale per-node throughput
+	// Per-node: 124.52/9 = 13.84 MB/s, for 12 nodes: 13.84*12 = 166.0 MB/s total
+	// Expected: 480 * 1024 / 166.0 = 2958.6 seconds
+	expectedTime := 2958.6
+	assert.InDelta(t, expectedTime, result, 10.0) // Allow 10 second tolerance for extrapolation
+}
+
+// Test calculateImportTimeBasedOnImportThroughputWrtNumNodes with 18 nodes (extrapolated from 9 nodes)
+func TestCalculateImportTimeBasedOnNodesAndThroughput_18Nodes(t *testing.T) {
+	numNodes := 18.0
+	sourceDBSizeGB := 720.0
+	// For 18 nodes, we'll use 9-node data and let the function extrapolate
+	numNodesImpactData := []ExpDataLoadTimeNumNodesImpact{
+		{
+			numNodes:             sql.NullInt64{Int64: 9, Valid: true},
+			importThroughputMbps: sql.NullFloat64{Float64: 124.52, Valid: true}, // 16-core, 9-node actual data
+		},
+	}
+
+	result, err := calculateImportTimeBasedOnImportThroughputWrtNumNodes(numNodes, sourceDBSizeGB, numNodesImpactData)
+
+	assert.NoError(t, err)
+	// Function should use 9-node data and scale per-node throughput
+	// Per-node: 124.52/9 = 13.84 MB/s, for 18 nodes: 13.84*18 = 249.1 MB/s total
+	// Expected: 720 * 1024 / 249.1 = 2959.0 seconds
+	expectedTime := 2959.0
+	assert.InDelta(t, expectedTime, result, 10.0) // Allow 10 second tolerance for extrapolation
+}
+
+// Test calculateImportTimeBasedOnImportThroughputWrtNumNodes with 21 nodes (extrapolated from 9 nodes)
+func TestCalculateImportTimeBasedOnNodesAndThroughput_21Nodes(t *testing.T) {
+	numNodes := 21.0
+	sourceDBSizeGB := 840.0
+	// For 21 nodes, we'll use 9-node data and let the function extrapolate
+	numNodesImpactData := []ExpDataLoadTimeNumNodesImpact{
+		{
+			numNodes:             sql.NullInt64{Int64: 9, Valid: true},
+			importThroughputMbps: sql.NullFloat64{Float64: 124.52, Valid: true}, // 16-core, 9-node actual data
+		},
+	}
+
+	result, err := calculateImportTimeBasedOnImportThroughputWrtNumNodes(numNodes, sourceDBSizeGB, numNodesImpactData)
+
+	assert.NoError(t, err)
+	// Function should use 9-node data and scale per-node throughput
+	// Per-node: 124.52/9 = 13.84 MB/s, for 21 nodes: 13.84*21 = 290.6 MB/s total
+	// Expected: 840 * 1024 / 290.6 = 2958.8 seconds
+	expectedTime := 2958.8
+	assert.InDelta(t, expectedTime, result, 10.0) // Allow 10 second tolerance for extrapolation
+}
+
+// Test that demonstrates scaling benefits across different node counts using actual DB data
+func TestCalculateImportTimeBasedOnNodesAndThroughput_ScalingBenefits(t *testing.T) {
+	sourceDBSizeGB := 300.0 // Fixed DB size for comparison
+
+	// Each test case represents actual experimental data from the database
+	testCases := []struct {
+		numNodes            float64
+		totalThroughputMbps float64 // Total throughput from actual DB
+		expectedMaxTime     float64
+		coreConfig          string
+	}{
+		{3.0, 49.31, 6253.0, "16cores"},  // 300*1024/49.31 = 6253.4 seconds
+		{6.0, 76.9, 3996.0, "16cores"},   // 300*1024/76.9 = 3995.8 seconds
+		{9.0, 124.52, 2467.0, "16cores"}, // 300*1024/124.52 = 2467.1 seconds
+		{3.0, 29.84, 10284.0, "8cores"},  // 300*1024/29.84 = 10284.2 seconds
+		{6.0, 46.64, 6589.0, "8cores"},   // 300*1024/46.64 = 6588.7 seconds
+		{9.0, 61.79, 4972.0, "8cores"},   // 300*1024/61.79 = 4971.8 seconds
+	}
+
+	// Test that higher-core configurations provide better throughput
+	for _, tc := range testCases {
+		t.Run(fmt.Sprintf("%s_%.0f_nodes", tc.coreConfig, tc.numNodes), func(t *testing.T) {
+			numNodesImpactData := createNodeCountTestData(int64(tc.numNodes), tc.coreConfig)
+
+			result, err := calculateImportTimeBasedOnImportThroughputWrtNumNodes(tc.numNodes, sourceDBSizeGB, numNodesImpactData)
+
+			assert.NoError(t, err)
+			assert.InDelta(t, tc.expectedMaxTime, result, 30.0) // Allow 30 second tolerance for real data variations
+		})
+	}
+
+	// Test that more nodes within the same configuration reduce time
+	t.Run("scaling_within_16core_config", func(t *testing.T) {
+		var previousTime float64 = math.Inf(1)
+		nodeConfigs := []struct {
+			nodes float64
+			cores string
+		}{
+			{3.0, "16cores"},
+			{6.0, "16cores"},
+			{9.0, "16cores"},
+		}
+
+		for _, config := range nodeConfigs {
+			numNodesImpactData := createNodeCountTestData(int64(config.nodes), config.cores)
+			result, err := calculateImportTimeBasedOnImportThroughputWrtNumNodes(config.nodes, sourceDBSizeGB, numNodesImpactData)
+
+			assert.NoError(t, err)
+			assert.Less(t, result, previousTime) // Each increase in nodes should reduce time
+			previousTime = result
+		}
+	})
 }
 
 /*

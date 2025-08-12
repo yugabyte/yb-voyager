@@ -90,6 +90,11 @@ type ExpDataLoadTimeColumnsImpact struct {
 	multiplicationFactorColocated sql.NullFloat64 `db:"multiplication_factor_colocated,string"`
 }
 
+type ExpDataLoadTimeNumNodesImpact struct {
+	numNodes             sql.NullInt64   `db:"num_nodes,string"`
+	importThroughputMbps sql.NullFloat64 `db:"import_throughput_mbps,string"`
+}
+
 type IntermediateRecommendation struct {
 	ColocatedTables                 []SourceDBMetadata
 	ShardedTables                   []SourceDBMetadata
@@ -112,13 +117,14 @@ type ExperimentDataAvailableYbVersion struct {
 }
 
 const (
-	COLOCATED_LIMITS_TABLE         = "colocated_limits"
-	COLOCATED_SIZING_TABLE         = "colocated_sizing"
-	SHARDED_SIZING_TABLE           = "sharded_sizing"
-	COLOCATED_LOAD_TIME_TABLE      = "colocated_load_time"
-	SHARDED_LOAD_TIME_TABLE        = "sharded_load_time"
-	LOAD_TIME_INDEX_IMPACT_TABLE   = "load_time_index_impact"
-	LOAD_TIME_COLUMNS_IMPACT_TABLE = "load_time_columns_impact"
+	COLOCATED_LIMITS_TABLE           = "colocated_limits"
+	COLOCATED_SIZING_TABLE           = "colocated_sizing"
+	SHARDED_SIZING_TABLE             = "sharded_sizing"
+	COLOCATED_LOAD_TIME_TABLE        = "colocated_load_time"
+	SHARDED_LOAD_TIME_TABLE          = "sharded_load_time"
+	LOAD_TIME_INDEX_IMPACT_TABLE     = "load_time_index_impact"
+	LOAD_TIME_COLUMNS_IMPACT_TABLE   = "load_time_columns_impact"
+	LOAD_TIME_NUM_NODES_IMPACT_TABLE = "load_time_num_nodes_impact"
 	// GITHUB_RAW_LINK use raw github link to fetch the file from repository using the api:
 	// https://raw.githubusercontent.com/{username-or-organization}/{repository}/{branch}/{path-to-file}
 	GITHUB_RAW_LINK                 = "https://raw.githubusercontent.com/yugabyte/yb-voyager/main/yb-voyager/src/migassessment/resources"
@@ -257,10 +263,18 @@ func SizingAssessment(targetDbVersion *ybversion.YBVersion) error {
 		return fmt.Errorf("error while fetching experiment data for impact of number of columns on load time: %w", err)
 	}
 
+	// get experimental data for impact of number of nodes on import time
+	numNodesImpactOnLoadTimeCommon, err := getExpDataNumNodesImpactOnLoadTime(experimentDB,
+		finalSizingRecommendation.VCPUsPerInstance, finalSizingRecommendation.MemoryPerCore, ybVersionIdToUse)
+	if err != nil {
+		return fmt.Errorf("error while fetching experiment data for impact of number of nodes on load time: %w", err)
+	}
+
 	// calculate time taken for colocated import
 	importTimeForColocatedObjects, err := calculateTimeTakenForImport(
 		finalSizingRecommendation.ColocatedTables, sourceIndexMetadata, colocatedLoadTimes,
-		indexImpactOnLoadTimeCommon, columnsImpactOnLoadTimeCommon, COLOCATED)
+		indexImpactOnLoadTimeCommon, columnsImpactOnLoadTimeCommon, COLOCATED,
+		numNodesImpactOnLoadTimeCommon, finalSizingRecommendation.NumNodes)
 	if err != nil {
 		SizingReport.FailureReasoning = fmt.Sprintf("calculate time taken for colocated data import: %v", err)
 		return fmt.Errorf("calculate time taken for colocated data import: %w", err)
@@ -269,7 +283,8 @@ func SizingAssessment(targetDbVersion *ybversion.YBVersion) error {
 	// calculate time taken for sharded import
 	importTimeForShardedObjects, err := calculateTimeTakenForImport(
 		finalSizingRecommendation.ShardedTables, sourceIndexMetadata, shardedLoadTimes,
-		indexImpactOnLoadTimeCommon, columnsImpactOnLoadTimeCommon, SHARDED)
+		indexImpactOnLoadTimeCommon, columnsImpactOnLoadTimeCommon, SHARDED,
+		numNodesImpactOnLoadTimeCommon, finalSizingRecommendation.NumNodes)
 	if err != nil {
 		SizingReport.FailureReasoning = fmt.Sprintf("calculate time taken for sharded data import: %v", err)
 		return fmt.Errorf("calculate time taken for sharded data import: %w", err)
@@ -926,13 +941,21 @@ It queries experimental data to find import time estimates for similar object si
 , it tries to find out how much time it would table for importing that table. The function adjusts the
 import time on that table by multiplying it by factor based on the indexes. The import time is also converted to
 minutes and returned.
+
+For SHARDED objects, it uses enhanced node-based calculations for more accurate import time estimates.
+COLOCATED objects do not benefit from additional nodes, so they use the traditional calculation and ignore
+the node-related parameters.
+
 Parameters:
 
 	tables: A slice containing metadata for the database objects to be migrated.
 	sourceIndexMetadata: A slice containing metadata for the indexes of the database objects to be migrated.
 	loadTimes: Experiment data for impact of load times on tables
 	indexImpacts: Data containing impact of indexes on load time.
+	numColumnImpactData: Data containing impact of number of columns on load time.
 	objectType: COLOCATED or SHARDED
+	numNodesImpactData: Data containing import_throughput_mbps for different node configurations (ignored for COLOCATED).
+	numNodes: Number of nodes in the recommended setup (ignored for COLOCATED).
 
 Returns:
 
@@ -942,27 +965,69 @@ Returns:
 func calculateTimeTakenForImport(tables []SourceDBMetadata,
 	sourceIndexMetadata []SourceDBMetadata, loadTimes []ExpDataLoadTime,
 	indexImpactData []ExpDataLoadTimeIndexImpact, numColumnImpactData []ExpDataLoadTimeColumnsImpact,
-	objectType string) (float64, error) {
+	objectType string, numNodesImpactData []ExpDataLoadTimeNumNodesImpact, numNodes float64) (float64, error) {
 	var importTime float64
 
-	// we need to calculate the time taken for import for every table.
-	// For every index, the time taken for import increases.
-	// find the rows in experiment data about the approx row matching the size
-	for _, table := range tables {
-		// find the closest record from experiment data for the size of the table
-		tableSize := lo.Ternary(table.Size.Valid, table.Size.Float64, 0)
-		rowsInTable := lo.Ternary(table.RowCount.Valid, table.RowCount.Float64, 0)
+	if objectType == SHARDED {
+		// For SHARDED objects, use enhanced node-based calculation
+		// Calculate total size of all tables for node-based throughput calculation
+		var totalSizeGB float64
+		for _, table := range tables {
+			tableSize := lo.Ternary(table.Size.Valid, table.Size.Float64, 0)
+			totalSizeGB += tableSize
+		}
 
-		// get multiplication factor for every table based on the number of indexes
-		loadTimeMultiplicationFactorWrtIndexes := getMultiplicationFactorForImportTimeBasedOnIndexes(table,
-			sourceIndexMetadata, indexImpactData, objectType)
-		// get multiplication factor for every table based on the number of columns in the table
-		loadTimeMultiplicationFactorWrtNumColumns := getMultiplicationFactorForImportTimeBasedOnNumColumns(table,
-			numColumnImpactData, objectType)
+		// Calculate base import time using node-based throughput
+		baseImportTimeSeconds, err := calculateImportTimeBasedOnImportThroughputWrtNumNodes(
+			numNodes, totalSizeGB, numNodesImpactData)
+		if err != nil {
+			return 0, fmt.Errorf("failed to calculate node-based import time: %w", err)
+		}
 
-		tableImportTimeSec := findImportTimeFromExpDataLoadTime(loadTimes, tableSize, rowsInTable)
-		// add maximum import time to total import time by converting it to minutes
-		importTime += (loadTimeMultiplicationFactorWrtIndexes * loadTimeMultiplicationFactorWrtNumColumns * tableImportTimeSec) / 60
+		// Apply table-specific adjustments based on indexes and columns
+		var totalMultiplicationFactor float64 = 0
+		var tableCount float64 = 0
+
+		for _, table := range tables {
+			// Get multiplication factors for indexes and columns
+			loadTimeMultiplicationFactorWrtIndexes := getMultiplicationFactorForImportTimeBasedOnIndexes(table,
+				sourceIndexMetadata, indexImpactData, objectType)
+			loadTimeMultiplicationFactorWrtNumColumns := getMultiplicationFactorForImportTimeBasedOnNumColumns(table,
+				numColumnImpactData, objectType)
+
+			// Calculate weighted average of multiplication factors based on table size
+			tableSize := lo.Ternary(table.Size.Valid, table.Size.Float64, 0)
+			if totalSizeGB > 0 {
+				weight := tableSize / totalSizeGB
+				totalMultiplicationFactor += (loadTimeMultiplicationFactorWrtIndexes * loadTimeMultiplicationFactorWrtNumColumns) * weight
+			}
+			tableCount++
+		}
+
+		// Apply the average multiplication factor to the base import time
+		if tableCount > 0 && totalMultiplicationFactor > 0 {
+			importTime = (baseImportTimeSeconds * totalMultiplicationFactor) / 60 // Convert to minutes
+		} else {
+			importTime = baseImportTimeSeconds / 60
+		}
+	} else {
+		// Traditional calculation for COLOCATED objects (node parameters are ignored)
+		for _, table := range tables {
+			// find the closest record from experiment data for the size of the table
+			tableSize := lo.Ternary(table.Size.Valid, table.Size.Float64, 0)
+			rowsInTable := lo.Ternary(table.RowCount.Valid, table.RowCount.Float64, 0)
+
+			// get multiplication factor for every table based on the number of indexes
+			loadTimeMultiplicationFactorWrtIndexes := getMultiplicationFactorForImportTimeBasedOnIndexes(table,
+				sourceIndexMetadata, indexImpactData, objectType)
+			// get multiplication factor for every table based on the number of columns in the table
+			loadTimeMultiplicationFactorWrtNumColumns := getMultiplicationFactorForImportTimeBasedOnNumColumns(table,
+				numColumnImpactData, objectType)
+
+			tableImportTimeSec := findImportTimeFromExpDataLoadTime(loadTimes, tableSize, rowsInTable)
+			// add maximum import time to total import time by converting it to minutes
+			importTime += (loadTimeMultiplicationFactorWrtIndexes * loadTimeMultiplicationFactorWrtNumColumns * tableImportTimeSec) / 60
+		}
 	}
 
 	return math.Ceil(importTime), nil
@@ -1117,6 +1182,54 @@ func getExpDataNumColumnsImpactOnLoadTime(experimentDB *sql.DB, vCPUPerInstance 
 }
 
 /*
+getExpDataNumNodesImpactOnLoadTime fetches data for impact of number of nodes on load time from the experiment
+data table.
+Parameters:
+
+	experimentDB: Connection to the experiment database
+	vCPUPerInstance: Number of virtual CPUs per instance.
+	memPerCore: Memory per core.
+	ybVersionIdToUse: yb version id to use w.r.t. given target yb version.
+
+Returns:
+
+	[]ExpDataLoadTimeNumNodesImpact: A slice containing the fetched load time information based on number of nodes.
+	error: Error if any.
+*/
+func getExpDataNumNodesImpactOnLoadTime(experimentDB *sql.DB, vCPUPerInstance int,
+	memPerCore int, ybVersionIdToUse int64) ([]ExpDataLoadTimeNumNodesImpact, error) {
+	selectQuery := fmt.Sprintf(`
+		SELECT number_of_nodes, 
+			   import_throughput_mbps
+		FROM %v 
+		WHERE num_cores = ? 
+			AND mem_per_core = ?
+		AND yb_version_id = ? 
+		ORDER BY number_of_nodes;
+	`, LOAD_TIME_NUM_NODES_IMPACT_TABLE)
+	rows, err := experimentDB.Query(selectQuery, vCPUPerInstance, memPerCore, ybVersionIdToUse)
+
+	if err != nil {
+		return nil, fmt.Errorf("error while fetching num nodes impact info with query [%s]: %w", selectQuery, err)
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			log.Warnf("failed to close result set for query: [%s]", selectQuery)
+		}
+	}()
+
+	var loadTimeNumNodesImpacts []ExpDataLoadTimeNumNodesImpact
+	for rows.Next() {
+		var loadTimeNumNodesImpact ExpDataLoadTimeNumNodesImpact
+		if err = rows.Scan(&loadTimeNumNodesImpact.numNodes, &loadTimeNumNodesImpact.importThroughputMbps); err != nil {
+			return nil, fmt.Errorf("cannot fetch data from experiment data table with query [%s]: %w", selectQuery, err)
+		}
+		loadTimeNumNodesImpacts = append(loadTimeNumNodesImpacts, loadTimeNumNodesImpact)
+	}
+	return loadTimeNumNodesImpacts, nil
+}
+
+/*
 findImportTimeFromExpDataLoadTime finds the closest record from the experiment data based on row count or size
 of the table. Out of objects close in terms of size and rows, prefer object having number of rows.
 Parameters:
@@ -1156,6 +1269,58 @@ func findImportTimeFromExpDataLoadTime(loadTimes []ExpDataLoadTime, objectSize f
 
 	// return the load time which is maximum of the two
 	return math.Ceil(math.Max(importTimeWrtSize, importTimeWrtRowCount))
+}
+
+/*
+calculateImportTimeBasedOnImportThroughputWrtNumNodes calculates the improved import time based on the number of nodes
+and import_throughput_mbps data from experimental results. The import_throughput_mbps represents total throughput
+of all nodes in the experimental setup. This function calculates per-node throughput and scales it to the
+recommended number of nodes to determine effective throughput for import time calculation.
+
+Guaranteed data availability: Experimental data for (4,8,16) cores and (3,6,9) nodes is guaranteed to be present.
+
+Parameters:
+
+	numNodes: Number of nodes in the recommended setup
+	sourceDBSizeGB: Total size of source database in GB
+	numNodesImpactData: Experimental data containing import_throughput_mbps (total throughput for all nodes) for different node configurations
+
+Returns:
+
+	float64: Base import time in seconds based on nodes and throughput
+	error: Error if any
+*/
+func calculateImportTimeBasedOnImportThroughputWrtNumNodes(numNodes float64, sourceDBSizeGB float64,
+	numNodesImpactData []ExpDataLoadTimeNumNodesImpact) (float64, error) {
+
+	// Find the closest number of nodes in experimental data
+	// Data for (4,8,16) cores and (3,6,9) nodes is guaranteed to be present
+	closestNodesData := numNodesImpactData[0]
+	minNodesDiff := math.Abs(numNodes - float64(closestNodesData.numNodes.Int64))
+
+	for _, data := range numNodesImpactData {
+		nodesDiff := math.Abs(numNodes - float64(data.numNodes.Int64))
+		if nodesDiff < minNodesDiff {
+			minNodesDiff = nodesDiff
+			closestNodesData = data
+		}
+	}
+
+	// Calculate effective throughput for the recommended setup
+	// import_throughput_mbps represents total throughput of all nodes in experimental setup
+	// So first get per-node throughput, then multiply by actual number of nodes
+	experimentalNumNodes := float64(closestNodesData.numNodes.Int64)
+	perNodeThroughputMbps := closestNodesData.importThroughputMbps.Float64 / experimentalNumNodes
+	effectiveThroughputMbps := perNodeThroughputMbps * numNodes
+
+	// Convert source DB size from GB to MB for calculation
+	sourceDBSizeMB := sourceDBSizeGB * 1024
+
+	// Calculate base import time in seconds
+	// Time = Size / Throughput
+	baseImportTimeSeconds := sourceDBSizeMB / effectiveThroughputMbps
+
+	return baseImportTimeSeconds, nil
 }
 
 /*
