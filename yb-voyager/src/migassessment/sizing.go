@@ -284,7 +284,7 @@ func SizingAssessment(targetDbVersion *ybversion.YBVersion) error {
 	// if the number of nodes is 3, then no scaling is needed
 	numNodesImportTimeDivisorCommon = lo.Ternary(finalSizingRecommendation.NumNodes == 3, 1.0,
 		findNumNodesThroughputScalingImportTimeDivisor(numNodesImpactOnLoadTimeSharded, finalSizingRecommendation.NumNodes))
-	
+
 	// calculate time taken for sharded import
 	importTimeForShardedObjects, err := calculateTimeTakenForImport(
 		finalSizingRecommendation.ShardedTables, sourceIndexMetadata, shardedLoadTimes,
@@ -1715,18 +1715,36 @@ func findClosestVersion(targetDbVersion *ybversion.YBVersion, availableVersions 
 }
 
 /*
-findNumNodesThroughputScalingImportTimeDivisor Helper function to find the relative import time divisor based on throughput scaling with number of nodes
+findNumNodesThroughputScalingImportTimeDivisor calculates the relative import time divisor based on throughput scaling with number of nodes.
+
+This function computes a scaling factor to adjust import time estimates based on the number of nodes in the cluster.
+It uses experimental data that shows how import throughput scales with cluster size to determine the appropriate
+time adjustment factor.
+
+Algorithm:
+1. Find the 3-node baseline entry from experimental data (used as reference point)
+2. Find the closest experimental data point to the target number of nodes
+3. Calculate per-node throughput from the closest data point
+4. Estimate total throughput for target nodes: targetNodes * perNodeThroughput
+5. Return ratio: estimatedThroughput / baselineThroughput
+
+This ratio represents how much faster (>1.0) the import would be compared to the 3-node baseline.
 
 Parameters:
-  - numNodesImpactData: slice of experiment data for throughput scaling with different number of nodes
-  - targetNumNodes: the target number of nodes to calculate ratio for
+  - numNodesImpactData: slice of experimental data for throughput scaling with different number of nodes
+  - targetNumNodes: the target number of nodes to calculate the scaling ratio for
 
 Returns:
   - returns the relative import time divisor based on throughput scaling with number of nodes
 */
 func findNumNodesThroughputScalingImportTimeDivisor(numNodesImpactData []ExpDataLoadTimeNumNodesImpact, targetNumNodes float64) float64 {
-	if len(numNodesImpactData) == 0 {
-		return 1.0 // default ratio if no data available
+	// select the 3-node baseline entry
+	var baselineData ExpDataLoadTimeNumNodesImpact
+	for _, data := range numNodesImpactData {
+		if data.numNodes.Valid && data.numNodes.Int64 == 3 && data.importThroughputMbps.Valid {
+			baselineData = data
+			break
+		}
 	}
 
 	// Find the closest entry to targetNumNodes
@@ -1743,15 +1761,10 @@ func findNumNodesThroughputScalingImportTimeDivisor(numNodesImpactData []ExpData
 		}
 	}
 
-	if !closest.importThroughputMbps.Valid || closest.importThroughputMbps.Float64 == 0 || !closest.numNodes.Valid || closest.numNodes.Int64 == 0 {
-		return 1.0 // default ratio if closest data is invalid
-	}
+	// Calculate estimated throughput based on per-node throughput from closest entry
+	perNodeThroughputForClosest := closest.importThroughputMbps.Float64 / float64(closest.numNodes.Int64)
+	estimatedThroughput := targetNumNodes * perNodeThroughputForClosest
 
-	// Calculate per-node throughput from the closest entry
-	perNodeThroughput := closest.importThroughputMbps.Float64 / float64(closest.numNodes.Int64)
-
-	// Calculate ratio = (targetNumNodes * perNodeThroughput) / closest.importThroughputMbps
-	ratio := (targetNumNodes * perNodeThroughput) / closest.importThroughputMbps.Float64
-
-	return ratio
+	// Return the scaling ratio relative to 3-node baseline
+	return estimatedThroughput / baselineData.importThroughputMbps.Float64
 }

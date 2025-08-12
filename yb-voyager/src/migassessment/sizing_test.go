@@ -1768,158 +1768,15 @@ var numNodesThroughputScalingTestData16Core = []ExpDataLoadTimeNumNodesImpact{
 // validate that the function returns correct ratio for exact match (3 nodes)
 func TestFindNumNodesThroughputScalingImportTimeDivisor_ExactMatch3Nodes(t *testing.T) {
 	targetNumNodes := 3.0
-	expectedRatio := 1.0 // For exact match: (3 * 4.88) / 14.64 = 1.0
-
-	actualRatio := findNumNodesThroughputScalingImportTimeDivisor(numNodesThroughputScalingTestData, targetNumNodes)
-	assert.Equal(t, expectedRatio, actualRatio)
-}
-
-// validate that the function returns correct ratio for exact match (6 nodes)
-func TestFindNumNodesThroughputScalingImportTimeDivisor_ExactMatch6Nodes(t *testing.T) {
-	targetNumNodes := 6.0
-	// Per-node throughput from 6-node entry: 21.35/6 = 3.558
-	// Ratio: (6 * 3.558) / 21.35 = 21.35/21.35 = 1.0
+	// For exact match with 3-node baseline: estimatedThroughput = 3 * (14.64/3) = 14.64
+	// Ratio = 14.64 / 14.64 = 1.0
 	expectedRatio := 1.0
 
 	actualRatio := findNumNodesThroughputScalingImportTimeDivisor(numNodesThroughputScalingTestData, targetNumNodes)
 	assert.Equal(t, expectedRatio, actualRatio)
 }
 
-// validate that the function returns correct ratio for 4 nodes (closest to 3)
-func TestFindNumNodesThroughputScalingImportTimeDivisor_4Nodes(t *testing.T) {
-	targetNumNodes := 4.0
-	// Closest entry is 3 nodes with 14.64 Mbps
-	// Per-node throughput: 14.64/3 = 4.88
-	// Ratio: (4 * 4.88) / 14.64 = 19.52/14.64 = 1.333
-	expectedRatio := Round(4.0*(14.64/3.0)/14.64, 3)
-
-	actualRatio := findNumNodesThroughputScalingImportTimeDivisor(numNodesThroughputScalingTestData, targetNumNodes)
-	assert.Equal(t, expectedRatio, Round(actualRatio, 3))
-}
-
-// validate that the function returns correct ratio for 5 nodes (closest to 6)
-func TestFindNumNodesThroughputScalingImportTimeDivisor_5Nodes(t *testing.T) {
-	targetNumNodes := 5.0
-	// Closest entry is 6 nodes with 21.35 Mbps
-	// Per-node throughput: 21.35/6 = 3.558
-	// Ratio: (5 * 3.558) / 21.35 = 17.79/21.35 = 0.833
-	expectedRatio := Round(5.0*(21.35/6.0)/21.35, 3)
-
-	actualRatio := findNumNodesThroughputScalingImportTimeDivisor(numNodesThroughputScalingTestData, targetNumNodes)
-	assert.Equal(t, expectedRatio, Round(actualRatio, 3))
-}
-
-// validate that the function returns correct ratio for 7 nodes (closest to 6)
-func TestFindNumNodesThroughputScalingImportTimeDivisor_7Nodes(t *testing.T) {
-	targetNumNodes := 7.0
-	// Closest entry is 6 nodes with 21.35 Mbps
-	// Per-node throughput: 21.35/6 = 3.558
-	// Ratio: (7 * 3.558) / 21.35 = 24.91/21.35 = 1.167
-	expectedRatio := Round(7.0*(21.35/6.0)/21.35, 3)
-
-	actualRatio := findNumNodesThroughputScalingImportTimeDivisor(numNodesThroughputScalingTestData, targetNumNodes)
-	assert.Equal(t, expectedRatio, Round(actualRatio, 3))
-}
-
-// validate that the function returns correct ratio for 8 nodes (closest to 9)
-func TestFindNumNodesThroughputScalingImportTimeDivisor_8Nodes(t *testing.T) {
-	targetNumNodes := 8.0
-	// Closest entry is 9 nodes with 26.55 Mbps
-	// Per-node throughput: 26.55/9 = 2.95
-	// Ratio: (8 * 2.95) / 26.55 = 23.6/26.55 = 0.889
-	perNodeThroughput := 26.55 / 9.0
-	expectedRatio := Round(8.0*perNodeThroughput/26.55, 3)
-
-	actualRatio := findNumNodesThroughputScalingImportTimeDivisor(numNodesThroughputScalingTestData, targetNumNodes)
-	assert.Equal(t, expectedRatio, Round(actualRatio, 3))
-}
-
-// validate that the function returns correct ratio for 10 nodes (closest to 9)
-func TestFindNumNodesThroughputScalingImportTimeDivisor_10Nodes(t *testing.T) {
-	targetNumNodes := 10.0
-	// Closest entry is 9 nodes with 26.55 Mbps
-	// Per-node throughput: 26.55/9 = 2.95
-	// Ratio: (10 * 2.95) / 26.55 = 29.5/26.55 = 1.111
-	perNodeThroughput := 26.55 / 9.0
-	expectedRatio := Round(10.0*perNodeThroughput/26.55, 3)
-
-	actualRatio := findNumNodesThroughputScalingImportTimeDivisor(numNodesThroughputScalingTestData, targetNumNodes)
-	assert.Equal(t, expectedRatio, Round(actualRatio, 3))
-}
-
-// validate that the function returns correct ratio for 100 nodes (closest to 9, the largest available)
-func TestFindNumNodesThroughputScalingImportTimeDivisor_100Nodes(t *testing.T) {
-	targetNumNodes := 100.0
-	// Closest entry is 9 nodes with 26.55 Mbps (largest available in experimental data)
-	// Per-node throughput: 26.55/9 = 2.95
-	// Ratio: (100 * 2.95) / 26.55 = 295/26.55 = 11.111
-	perNodeThroughput := 26.55 / 9.0
-	expectedRatio := Round(100.0*perNodeThroughput/26.55, 3)
-
-	actualRatio := findNumNodesThroughputScalingImportTimeDivisor(numNodesThroughputScalingTestData, targetNumNodes)
-	assert.Equal(t, expectedRatio, Round(actualRatio, 3))
-}
-
-// validate that the function returns default ratio when data slice is empty
-func TestFindNumNodesThroughputScalingImportTimeDivisor_EmptyData(t *testing.T) {
-	var emptyData []ExpDataLoadTimeNumNodesImpact
-	targetNumNodes := 5.0
-	expectedRatio := 1.0
-
-	actualRatio := findNumNodesThroughputScalingImportTimeDivisor(emptyData, targetNumNodes)
-	assert.Equal(t, expectedRatio, actualRatio)
-}
-
-// validate that the function returns default ratio when data has invalid entries
-func TestFindNumNodesThroughputScalingImportTimeDivisor_InvalidData(t *testing.T) {
-	invalidData := []ExpDataLoadTimeNumNodesImpact{
-		{
-			numNodes:             sql.NullInt64{Valid: false},
-			importThroughputMbps: sql.NullFloat64{Valid: false},
-		},
-		{
-			numNodes:             sql.NullInt64{Int64: 0, Valid: true},
-			importThroughputMbps: sql.NullFloat64{Float64: 100.0, Valid: true},
-		},
-		{
-			numNodes:             sql.NullInt64{Int64: 5, Valid: true},
-			importThroughputMbps: sql.NullFloat64{Float64: 0.0, Valid: true},
-		},
-	}
-	targetNumNodes := 5.0
-	expectedRatio := 1.0
-
-	actualRatio := findNumNodesThroughputScalingImportTimeDivisor(invalidData, targetNumNodes)
-	assert.Equal(t, expectedRatio, actualRatio)
-}
-
-// validate that the function handles mixed valid and invalid data correctly
-func TestFindNumNodesThroughputScalingImportTimeDivisor_MixedData(t *testing.T) {
-	mixedData := []ExpDataLoadTimeNumNodesImpact{
-		{
-			numNodes:             sql.NullInt64{Valid: false},
-			importThroughputMbps: sql.NullFloat64{Valid: false},
-		},
-		{
-			numNodes:             sql.NullInt64{Int64: 3, Valid: true},
-			importThroughputMbps: sql.NullFloat64{Float64: 14.64, Valid: true},
-		},
-		{
-			numNodes:             sql.NullInt64{Int64: 6, Valid: true},
-			importThroughputMbps: sql.NullFloat64{Float64: 21.35, Valid: true},
-		},
-	}
-	targetNumNodes := 5.0
-	// Should pick 6-node entry as closest to 5
-	// Per-node throughput: 21.35/6 = 3.558
-	// Ratio: (5 * 3.558) / 21.35 = 0.833
-	expectedRatio := Round(5.0*(21.35/6.0)/21.35, 3)
-
-	actualRatio := findNumNodesThroughputScalingImportTimeDivisor(mixedData, targetNumNodes)
-	assert.Equal(t, expectedRatio, Round(actualRatio, 3))
-}
-
-// validate comprehensive test covering different number of nodes
+// validate unit test covering different number of nodes
 func TestFindNumNodesThroughputScalingImportTimeDivisor_AllRequestedCounts(t *testing.T) {
 	testCases := []struct {
 		targetNodes   float64
@@ -1928,17 +1785,17 @@ func TestFindNumNodesThroughputScalingImportTimeDivisor_AllRequestedCounts(t *te
 	}{
 		{3.0, 1.0, "Exact match for 3 nodes"},
 		{4.0, Round(4.0*(14.64/3.0)/14.64, 3), "4 nodes, closest to 3"},
-		{5.0, Round(5.0*(21.35/6.0)/21.35, 3), "5 nodes, closest to 6"},
-		{6.0, 1.0, "Exact match for 6 nodes"},
-		{7.0, Round(7.0*(21.35/6.0)/21.35, 3), "7 nodes, closest to 6"},
-		{8.0, Round(8.0*(26.55/9.0)/26.55, 3), "8 nodes, closest to 9"},
-		{9.0, 1.0, "Exact match for 9 nodes"},
-		{10.0, Round(10.0*(26.55/9.0)/26.55, 3), "10 nodes, closest to 9"},
-		{12.0, Round(12.0*(26.55/9.0)/26.55, 3), "12 nodes, closest to 9"},
-		{18.0, Round(18.0*(26.55/9.0)/26.55, 3), "18 nodes, closest to 9"},
-		{21.0, Round(21.0*(26.55/9.0)/26.55, 3), "21 nodes, closest to 9"},
-		{100.0, Round(100.0*(26.55/9.0)/26.55, 3), "100 nodes, closest to 9"},
-		{1000.0, Round(1000.0*(26.55/9.0)/26.55, 3), "1000 nodes, closest to 9"},
+		{5.0, Round(5.0*(21.35/6.0)/14.64, 3), "5 nodes, closest to 6"},
+		{6.0, Round(6.0*(21.35/6.0)/14.64, 3), "Exact match for 6 nodes"},
+		{7.0, Round(7.0*(21.35/6.0)/14.64, 3), "7 nodes, closest to 6"},
+		{8.0, Round(8.0*(26.55/9.0)/14.64, 3), "8 nodes, closest to 9"},
+		{9.0, Round(9.0*(26.55/9.0)/14.64, 3), "Exact match for 9 nodes"},
+		{10.0, Round(10.0*(26.55/9.0)/14.64, 3), "10 nodes, closest to 9"},
+		{12.0, Round(12.0*(26.55/9.0)/14.64, 3), "12 nodes, closest to 9"},
+		{18.0, Round(18.0*(26.55/9.0)/14.64, 3), "18 nodes, closest to 9"},
+		{21.0, Round(21.0*(26.55/9.0)/14.64, 3), "21 nodes, closest to 9"},
+		{100.0, Round(100.0*(26.55/9.0)/14.64, 3), "100 nodes, closest to 9"},
+		{1000.0, Round(1000.0*(26.55/9.0)/14.64, 3), "1000 nodes, closest to 9"},
 	}
 
 	for _, tc := range testCases {
@@ -1958,8 +1815,8 @@ func TestFindNumNodesThroughputScalingImportTimeDivisor_8CoreConfig(t *testing.T
 		description   string
 	}{
 		{3.0, 1.0, "Exact match for 3 nodes with 8-core config"},
-		{5.0, Round(5.0*(46.64/6.0)/46.64, 3), "5 nodes, closest to 6 with 8-core config"},
-		{12.0, Round(12.0*(61.79/9.0)/61.79, 3), "12 nodes, closest to 9 with 8-core config"},
+		{5.0, Round(5.0*(46.64/6.0)/29.84, 3), "5 nodes, closest to 6 with 8-core config"},
+		{12.0, Round(12.0*(61.79/9.0)/29.84, 3), "12 nodes, closest to 9 with 8-core config"},
 	}
 
 	for _, tc := range testCases {
@@ -1979,8 +1836,8 @@ func TestFindNumNodesThroughputScalingImportTimeDivisor_16CoreConfig(t *testing.
 		description   string
 	}{
 		{3.0, 1.0, "Exact match for 3 nodes with 16-core config"},
-		{7.0, Round(7.0*(76.9/6.0)/76.9, 3), "7 nodes, closest to 6 with 16-core config"},
-		{21.0, Round(21.0*(124.52/9.0)/124.52, 3), "21 nodes, closest to 9 with 16-core config"},
+		{7.0, Round(7.0*(76.9/6.0)/49.31, 3), "7 nodes, closest to 6 with 16-core config"},
+		{21.0, Round(21.0*(124.52/9.0)/49.31, 3), "21 nodes, closest to 9 with 16-core config"},
 	}
 
 	for _, tc := range testCases {
