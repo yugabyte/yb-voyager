@@ -184,7 +184,13 @@ func TestAllAnonymizationProcessorCases(t *testing.T) {
 		},
 		/* ---------- Miscellaneous ---------- */
 		{
-			nodeName: "CreateExtensionStmt",
+			nodeName: "CreateExtensionStmt (no schema)",
+			sql:      `CREATE EXTENSION IF NOT EXISTS pg_partman;`,
+			raw:      []string{},
+			prefixes: []string{},
+		},
+		{
+			nodeName: "CreateExtensionStmt (with schema)",
 			sql:      `CREATE EXTENSION IF NOT EXISTS postgis SCHEMA public`,
 			raw:      []string{"public"},
 			prefixes: []string{SCHEMA_KIND_PREFIX},
