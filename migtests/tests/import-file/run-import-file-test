@@ -11,7 +11,7 @@ export SCRIPTS="${REPO_ROOT}/migtests/scripts"
 export TESTS_DIR="${REPO_ROOT}/migtests/tests"
 export TEST_DIR="${TESTS_DIR}/${TEST_NAME}"
 export EXPORT_DIR=${EXPORT_DIR:-"${TEST_DIR}/export-dir"}
-export EXPECTED_JSON_DIR="${TEST_DIR}/expected_json"
+export EXPECTED_JSON_DIR="${TEST_DIR}/expected_status_json"
 
 export S3_BUCKET="s3://voyager-automation-data"
 export AWS_DEFAULT_REGION="us-west-2"
@@ -23,7 +23,7 @@ source ${SCRIPTS}/functions.sh
 
 export TARGET_DB_NAME="testdb"
 
-compare_reports() {
+compare_status_reports() {
 
 	if [ "${DOCKERISED_INSTALLATION}" == true ] ; then
 		return
@@ -34,10 +34,6 @@ compare_reports() {
 	expected_file="${EXPECTED_JSON_DIR}/$1"
 	actual_file="${EXPORT_DIR}/reports/import-data-status-report.json"
 
-    if [ "${EXPORT_TABLE_LIST}" != "" ]
-	then
-		expected_file="${TEST_DIR}/import-data-status-with-table-list-report.json"
-	fi
 	step "Verify import-data-status report"
 	verify_report ${expected_file} ${actual_file}
 }
@@ -69,7 +65,7 @@ main() {
 			--file-table-map "SMSA.txt:smsa" --start-clean true
 
 	# Verify the expected and actual report
-	compare_reports "smsa.json"
+	compare_status_reports "smsa.json"
 	
 	# clean up the export dir as we will have public schema from this test which should be on fresh export-dir 
 	rm -rf ${EXPORT_DIR}
@@ -81,7 +77,7 @@ main() {
 	import_data_file --data-dir ${TEST_DIR} --format text --delimiter '|' \
 		--file-table-map "OneMRows.text:one_m_rows"
 
-	compare_reports "oneMrows.json"
+	compare_status_reports "oneMrows.json"
 
 	
 	export MAX_BATCH_SIZE_BYTES=345643 #~300KB 
@@ -91,7 +87,7 @@ main() {
 	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter ',' \
 		--file-table-map "FY2021_Survey.csv:survey" --has-header=true 
 
-	compare_reports "FY2021_survey.json"
+	compare_status_reports "FY2021_survey.json"
 
 	# Test for multiple table files import
 	step "Import data file: FY2021_Survey.csv -> survey2 and FY2021_Survey.csv -> survey3"
@@ -99,14 +95,14 @@ main() {
 		--file-table-map "FY2021_Survey.csv:survey2,FY2021_Survey.csv:survey3" \
 		--has-header=true --batch-size 1000 
 
-	compare_reports "multiple_FY2021_survey.json"
+	compare_status_reports "multiple_FY2021_survey.json"
 
 	# Test for --has-header with --batch-size for a table having bigint and varchar columns
 	step "Import data file: accounts_data.csv -> accounts"
 	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '\t' \
 			--file-table-map "accounts_data.csv:accounts" --has-header=true --batch-size 10000 --null-string "\N"
 
-	compare_reports "accounts_data.json"
+	compare_status_reports "accounts_data.json"
 
 	#Test for Large rows and non-default batch size bytes (i.e. 17MB for row sizes of 15MB,11MB,5KB,12MB,9.9MB)
 	step "Import data file: large_rows_test.txt -> large_rows_test" 
@@ -114,7 +110,7 @@ main() {
 	import_data_file --data-dir ${TEST_DIR} --format text --delimiter '\t' \
 			--file-table-map "large_rows_test.txt:large_rows_test"
 
-	compare_reports "large_rows_test.json"
+	compare_status_reports "large_rows_test.json"
 	
 	# import data state metainfo directory for large_rows_test table
 	IMPORT_DATA_STATE_DIR_LARGE_ROWS="$TEST_DIR/export-dir/metainfo/import_data_state/import_file/table::public.\"large_rows_test\"/"
@@ -138,7 +134,7 @@ main() {
 	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '|' \
 			--file-table-map "t1_quote_char.csv:t1_quote_char" --quote-char="'"
 
-	compare_reports "t1_quote_char.json"
+	compare_status_reports "t1_quote_char.json"
 
 	#Test for fileOpts Flags having quote_char as single quote and escape_char as single quote 
 	#file-opts is deprecated just keeping for backward compatibility test
@@ -146,132 +142,133 @@ main() {
 	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '|' \
 			--file-table-map "t1_quote_escape_char1.csv:t1_quote_escape_char1" --file-opts "quote_char=',escape_char='"
 
-	compare_reports "t1_quote_escape_char1.json"
+	compare_status_reports "t1_quote_escape_char1.json"
 
 	#Test for fileOpts Flags having quote_char as single quote and escape_char as backslash
 	step "Import data file: t1_quote_escape_char2.csv -> t1_quote_escape_char2"
 	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '|' \
 			--file-table-map "t1_quote_escape_char2.csv:t1_quote_escape_char2" --quote-char="'" --escape-char="\\"
 	
-	compare_reports "t1_quote_escape_char2.json"
+	compare_status_reports "t1_quote_escape_char2.json"
 
 	#Test in case delimiter is same as escape character
 	step "Import data file: t1_delimiter_escape_same.csv -> t1_delimiter_escape_same"
 	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '|' \
 			--file-table-map "t1_delimiter_escape_same.csv:t1_delimiter_escape_same" --quote-char="'" --escape-char="|"
 
-	compare_reports "t1_delimiter_escape_same.json"
+	compare_status_reports "t1_delimiter_escape_same.json"
 
 	# Test for csv file containing actual newline in it
 	step "Import data file: t1_newline.csv -> t1_newline"
 	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter ',' \
 			--file-table-map "t1_newline.csv:t1_newline"
 
-	compare_reports "t1_newline.json"
+	compare_status_reports "t1_newline.json"
 
 	# Test for text file for default delimiter
 	step "Import data file: test_default_delimiter.csv -> test_default_delimiter"
 	import_data_file --data-dir ${TEST_DIR} --format text  \
 			--file-table-map "test_default_delimiter.txt:test_default_delimiter"
 
-	compare_reports "test_default_delimiter.json"
+	compare_status_reports "test_default_delimiter.json"
 
 	step "Import data file: test_default_delimiter_csv.csv -> test_default_delimiter_csv"
 	import_data_file --data-dir ${TEST_DIR} --format csv  \
 			--file-table-map "test_default_delimiter_csv.csv:test_default_delimiter_csv"
 
-	compare_reports "test_default_delimiter_csv.json"
+	compare_status_reports "test_default_delimiter_csv.json"
 
 	# Test for csv file with default escape and quote character
 	step "Import data file: t1_quote_escape_dq.csv -> t1_quote_escape_dq"
 	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '|' \
 			--file-table-map "t1_quote_escape_dq.csv:t1_quote_escape_dq"
 
-	compare_reports "t1_quote_escape_dq.json"
+	compare_status_reports "t1_quote_escape_dq.json"
 
 	# Test for csv file with backslash as escape and default quote character having multiple double quote strings in varchar field
 	step "Import data file: t1_escape_backslash.csv -> t1_escape_backslash"
 	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter ',' \
 			--file-table-map "t1_escape_backslash.csv:t1_escape_backslash" --escape-char="\\"
 
-	compare_reports "t1_escape_backslash.json"
+	compare_status_reports "t1_escape_backslash.json"
 
 	# Test for csv file with backspace as quote character and escape character in varchar field
 	step "Import data file: test_backspace_char.csv -> test_backspace_char"
 	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '|' \
 			--file-table-map "test_backspace_char.csv:test_backspace_char" --escape-char="\b" --quote-char="\b"
 
-	compare_reports "test_backspace_char.json"
+	compare_status_reports "test_backspace_char.json"
 
 	# Test2 for csv file with backspace as quote character and escape character in varchar field
 	step "Import data file: test_backspace_char2.csv -> test_backspace_char2"
 	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '|' \
 			--file-table-map "test_backspace_char2.csv:test_backspace_char2" --escape-char="\b" --quote-char="\b"
 
-	compare_reports "test_backspace_char2.json"
+	compare_status_reports "test_backspace_char2.json"
 
 	# Test for csv file with backspace as quote character and single quote as escape character
 	step "Import data file: test_backspace_quote_single_quote_escape.csv -> test_backspace_quote_single_quote_escape"
 	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '|' \
 			--file-table-map "test_backspace_quote_single_quote_escape.csv:test_backspace_quote_single_quote_escape" --escape-char="'" --quote-char="\b"
 
-	compare_reports "test_backspace_quote_single_quote_escape.json"
+	compare_status_reports "test_backspace_quote_single_quote_escape.json"
 
 	# Test for csv file with backspace as quote character and double quote as escape character
 	step "Import data file: test_backspace_quote_double_quote_escape.csv -> test_backspace_quote_double_quote_escape"
 	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '|' \
 			--file-table-map "test_backspace_quote_double_quote_escape.csv:test_backspace_quote_double_quote_escape" --escape-char="\"" --quote-char="\b"
 
-	compare_reports "test_backspace_quote_double_quote_escape.json"
+	compare_status_reports "test_backspace_quote_double_quote_escape.json"
 
 	# Test for csv file with backspace as escape character and double quote as quote character
 	step "Import data file: test_backspace_escape_double_quote.csv -> test_backspace_escape_double_quote"
 	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '|' \
 			--file-table-map "test_backspace_escape_double_quote.csv:test_backspace_escape_double_quote" --escape-char="\b" --quote-char="\""
 
-	compare_reports "test_backspace_escape_double_quote.json"
+	compare_status_reports "test_backspace_escape_double_quote.json"
 
 	# Test for csv file with delimiter as backspace char
 	step "Import data file: test_delimiter_backspace.csv -> test_delimiter_backspace"
 	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '\b' \
 			--file-table-map "test_delimiter_backspace.csv:test_delimiter_backspace"  --has-header 1
 
-	compare_reports "test_delimiter_backspace.json"
+	compare_status_reports "test_delimiter_backspace.json"
 
 	# Test for txt file with delimiter as backspace char
 	step "Import data file: test_delimiter_backspace_text.txt -> test_delimiter_backspace_text"
 	import_data_file --data-dir ${TEST_DIR} --format text --delimiter '\b' \
 			--file-table-map "test_delimiter_backspace_text.txt:test_delimiter_backspace_text" 
 
-	compare_reports "test_delimiter_backspace_text.json"
+	compare_status_reports "test_delimiter_backspace_text.json"
 
 	# Test import from s3 (text file)
 	step "Import data file from S3 (text): text_test.text -> s3_text"
 	import_data_file --data-dir ${S3_BUCKET} --format text --delimiter '\t' \
 			--file-table-map "text_test.text:s3_text"
 
-	compare_reports "s3_text.json"
+	compare_status_reports "s3_text.json"
 
 	# Test import from s3 (csv)
 	step "Import data file from S3 (csv): csv_test.csv -> s3_csv"
 	import_data_file --data-dir ${S3_BUCKET} --format csv --delimiter ',' \
 			--file-table-map "csv_test.csv:s3_csv"
 
-	compare_reports "s3_csv.json"
+	# Import Data Status reports incomplete percentage for Import Data File Migrations from Cloud Storage : https://yugabyte.atlassian.net/browse/DB-17914
+	compare_status_reports "s3_csv.json"
 	
 	# Test multi-table import from s3
 	step "Import data file from multitable S3: t1.text-> s3_multitable_t1, t2.text -> s3_multitable_t2"
 	import_data_file --data-dir ${S3_BUCKET} --format text --delimiter '\t' \
 			--file-table-map "t1.text:s3_multitable_t1,t2.text:s3_multitable_t2"
 
-	compare_reports "s3_multitable.json"
+	compare_status_reports "s3_multitable.json"
 
 	# Test csv with header import from s3
 	step "Import data file from S3 (csv): csv_with_header_test.csv -> s3_csv_with_header"
 	import_data_file --data-dir ${S3_BUCKET} --format csv --delimiter ',' \
 			--file-table-map "csv_with_header_test.csv:s3_csv_with_header" --has-header y
 
-	compare_reports "s3_csv_with_header.json"
+	compare_status_reports "s3_csv_with_header.json"
 
 	export MAX_BATCH_SIZE_BYTES=343245
 	# Test larger import from s3
@@ -279,7 +276,7 @@ main() {
 	import_data_file --data-dir ${S3_BUCKET} --format text --delimiter '\t' \
 			--file-table-map "volume_test:s3_volume"
 
-	compare_reports "s3_volume.json"
+	compare_status_reports "s3_volume.json"
 
 	export MAX_BATCH_SIZE_BYTES=3450 #these are smaller files so its better to have smaller here 
 
@@ -288,47 +285,47 @@ main() {
 	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '|' \
 			--file-table-map "t1_null_string_csv.csv:t1_null_string_csv" --null-string "NIL"
 
-	compare_reports "t1_null_string_csv.json"
+	compare_status_reports "t1_null_string_csv.json"
 		
 	# Test import text file with null_string as NONE
 	step "Import data file: t1_null_string_text.txt -> t1_null_string_text"
 	import_data_file --data-dir ${TEST_DIR} --format text --delimiter '\t' \
 			--file-table-map "t1_null_string_text.txt:t1_null_string_text" --null-string "NONE"
 
-	compare_reports "t1_null_string_text.json"
+	compare_status_reports "t1_null_string_text.json"
 
 	# Test import csv file with null_string as \0
 	step "Import data file: t1_null_string_csv2.csv -> t1_null_string_csv2"
 	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '|' \
 			--file-table-map "t1_null_string_csv2.csv:t1_null_string_csv2" --null-string "\0"
 
-	compare_reports "t1_null_string_csv2.json"
+	compare_status_reports "t1_null_string_csv2.json"
 	
 	# Test import text file with null_string as \0
 	step "Import data file: t1_null_string_text2.txt -> t1_null_string_text2"
 	import_data_file --data-dir ${TEST_DIR} --format text --delimiter '\t' \
 			--file-table-map "t1_null_string_text2.txt:t1_null_string_text2" --null-string "\0"
 
-	compare_reports "t1_null_string_text2.json"
+	compare_status_reports "t1_null_string_text2.json"
 
 	# Test importing multiple files to the same table.
 	step "Import data file: foo[123].text --> foo"
 	import_data_file --data-dir ${TEST_DIR} --format text --file-table-map "foo*.text:foo"
 
-	compare_reports "multitable_foo.json"
+	compare_status_reports "multitable_foo.json"
 
 
 	step "Import multiple files to the same table. No regex in the file-table-map."
 	import_data_file --data-dir ${TEST_DIR} --format text \
 		--file-table-map "internal/foo3.text:foo2,foo1.text:foo2,foo2.text:foo2"
 
-	compare_reports "multitable_foo_without_regex.json"
+	compare_status_reports "multitable_foo_without_regex.json"
 
 	step "Import multiple files to the same table. Same filename different path."
 	import_data_file --data-dir ${TEST_DIR} --format text \
 		--file-table-map "internal/foo1.text:foo3,foo1.text:foo3"
 
-	compare_reports "multipath_foo.json"
+	compare_status_reports "multipath_foo.json"
 	
 
 	if [ "${DOCKERISED_INSTALLATION}" != true ] ; then
@@ -338,28 +335,29 @@ main() {
 		import_data_file --data-dir "gs://voyager-automation-data" --format text --delimiter '\t' \
 				--file-table-map "text_test.text:gcs_text"
 
-		compare_reports "gcs_text.json"
+		compare_status_reports "gcs_text.json"
 
 		# Test import from GCS buckets (csv file)
 		step "Import data file from GCS (csv): csv_test.csv -> gcs_csv"
 		import_data_file --data-dir "gs://voyager-automation-data" --format csv --delimiter ',' \
 				--file-table-map "csv_test.csv:gcs_csv"
 		
-		compare_reports "gcs_csv.json"
+		# Import Data Status reports incomplete percentage for Import Data File Migrations from Cloud Storage : https://yugabyte.atlassian.net/browse/DB-17914
+		compare_status_reports "gcs_csv.json"
 
 		# Test multi-table import from GCS buckets
 		step "Import data file from multitable GCS: t1.text-> gcs_multitable_t1, t2.text -> gcs_multitable_t2"
 		import_data_file --data-dir "gs://voyager-automation-data" --format text --delimiter '\t' \
 				--file-table-map "t1.text:gcs_multitable_t1,t2.text:gcs_multitable_t2"
 
-		compare_reports "gcs_multitable.json"
+		compare_status_reports "gcs_multitable.json"
 
 		# Test csv with header import from GCS buckets
 		step "Import data file from GCS (csv): csv_with_header_test.csv -> gcs_csv_with_header"
 		import_data_file --data-dir "gs://voyager-automation-data" --format csv --delimiter ',' \
 				--file-table-map "csv_with_header_test.csv:gcs_csv_with_header" --has-header true
 
-		compare_reports "gcs_csv_with_header.json"
+		compare_status_reports "gcs_csv_with_header.json"
 
 		export MAX_BATCH_SIZE_BYTES=343245
 
@@ -368,7 +366,7 @@ main() {
 		import_data_file --data-dir "gs://voyager-automation-data" --format csv --delimiter '\t' \
 				--file-table-map "volume1.csv:gcs_volume" --has-header yes --batch-size 10000 --null-string "\N"
 
-		compare_reports "gcs_volume.json"
+		compare_status_reports "gcs_volume.json"
 
 		unset MAX_BATCH_SIZE_BYTES #unsetting it here as large import file test should run with defaults
 
@@ -377,7 +375,7 @@ main() {
 		import_data_file --data-dir "gs://voyager-automation-data" --format csv --delimiter '|' \
 				--file-table-map "t1_quote_escape_char1.csv:gcs_quote_escape_char1" --quote-char="'" --escape-char="'"
 
-		compare_reports "gcs_quote_escape_char1.json"
+		compare_status_reports "gcs_quote_escape_char1.json"
 	
 	fi
 	
@@ -386,7 +384,7 @@ main() {
 		step "Run large sized import data file test"
 		import_data_file --data-dir "s3://yb-voyager-test-data" --delimiter "\t" --format "text" --file-table-map "accounts_350m_data.sql:accounts_large" --yes
 
-		compare_reports "accounts_large.json"
+		compare_status_reports "accounts_large.json"
 
 	fi
 
