@@ -71,7 +71,7 @@ grant_user_permission_postgresql() {
 	db_name=$1
 	db_schema=$2
 	conn_string="postgresql://${SOURCE_DB_ADMIN_USER}:${SOURCE_DB_ADMIN_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}"
-	echo "no" | psql "${conn_string}" -v voyager_user="${SOURCE_DB_USER}" \
+	echo "yes" | psql "${conn_string}" -v voyager_user="${SOURCE_DB_USER}" \
                                     -v schema_list="${db_schema}" \
                                     -v is_live_migration=0 \
                                     -f /opt/yb-voyager/guardrails-scripts/yb-voyager-pg-grant-migration-permissions.sql
@@ -184,7 +184,7 @@ grant_permissions_for_live_migration_pg() {
 	db_name=$1
 	db_schema=$2
 	conn_string="postgresql://${SOURCE_DB_ADMIN_USER}:${SOURCE_DB_ADMIN_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}"
-	echo "no" | psql "${conn_string}" -v voyager_user="${SOURCE_DB_USER}" \
+	echo "yes" | psql "${conn_string}" -v voyager_user="${SOURCE_DB_USER}" \
                                     -v schema_list="${db_schema}" \
                                     -v replication_group='replication_group' \
                                     -v is_live_migration=1 \
@@ -764,7 +764,7 @@ setup_fallback_environment() {
 		rm -f $TEMP_SCRIPT
 	    elif [ "${SOURCE_DB_TYPE}" = "postgresql" ]; then
 		conn_string="postgresql://${SOURCE_DB_ADMIN_USER}:${SOURCE_DB_ADMIN_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${SOURCE_DB_NAME}"
-		echo "no" | psql "${conn_string}" -v voyager_user="${SOURCE_DB_USER}" \
+		echo "yes" | psql "${conn_string}" -v voyager_user="${SOURCE_DB_USER}" \
                                     -v schema_list="${SOURCE_DB_SCHEMA}" \
                                     -v replication_group='replication_group' \
                                     -v is_live_migration=1 \
