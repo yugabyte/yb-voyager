@@ -250,7 +250,7 @@ func TestSameTokenForSameObjectName(t *testing.T) {
 				{COLUMN_KIND_PREFIX, "name"},
 			},
 			sql1: "SELECT * FROM users",
-			sql2: "SELECT id, name FROM users WHERE id > 10",
+			sql2: "SELECT id, name FROM users",
 		},
 		{
 			name: "same column",
@@ -261,7 +261,7 @@ func TestSameTokenForSameObjectName(t *testing.T) {
 				{CONST_KIND_PREFIX, "constant1"},
 			},
 			sql1: "SELECT password FROM accounts",
-			sql2: "UPDATE accounts SET password = 'constant1' WHERE id = 1",
+			sql2: "UPDATE accounts SET password = 'constant1'",
 		},
 	}
 

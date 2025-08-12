@@ -397,13 +397,10 @@ func (a *SqlAnonymizer) literalNodesProcessor(msg protoreflect.Message) error {
 			return fmt.Errorf("expected A_Const, got %T", msg.Interface())
 		}
 
-		if ac.Val != nil && ac.GetSval() != nil {
-			// Anonymize the string literal
-			tok, err := a.registry.GetHash(CONST_KIND_PREFIX, ac.GetSval().Sval)
-			if err != nil {
-				return fmt.Errorf("anon A_Const: %w", err)
-			}
-			ac.GetSval().Sval = tok
+		// Use shared helper function to avoid code duplication
+		err := a.anonymizeAConst(ac, CONST_KIND_PREFIX)
+		if err != nil {
+			return fmt.Errorf("anon A_Const: %w", err)
 		}
 
 	}
@@ -993,36 +990,8 @@ func (a *SqlAnonymizer) handleTableObjectNodes(msg protoreflect.Message) (err er
 				}
 			}
 
-			// Anonymize the bound values as constants
-			if partitionCmd.Bound == nil {
-				break
-			}
-
-			// Handle lower bound
-			if partitionCmd.Bound.Lowerdatums != nil {
-				for _, datum := range partitionCmd.Bound.Lowerdatums {
-					if datum == nil {
-						continue
-					}
-					err = a.anonymizePartitionBoundValue(datum)
-					if err != nil {
-						return fmt.Errorf("anon partition lower bound: %w", err)
-					}
-				}
-			}
-
-			// Handle upper bound
-			if partitionCmd.Bound.Upperdatums != nil {
-				for _, datum := range partitionCmd.Bound.Upperdatums {
-					if datum == nil {
-						continue
-					}
-					err = a.anonymizePartitionBoundValue(datum)
-					if err != nil {
-						return fmt.Errorf("anon partition upper bound: %w", err)
-					}
-				}
-			}
+			// Note: Partition bound values (constants) are automatically anonymized
+			// by the enhanced literalNodesProcessor during parse tree traversal
 
 			// All other cases that don't contain sensitive information are intentionally omitted:
 			// - AT_DropCluster, AT_SetLogged, AT_SetUnLogged, AT_DropOids
@@ -1066,46 +1035,6 @@ func (a *SqlAnonymizer) handlePartitionSpec(partspec *pg_query.PartitionSpec) er
 			return fmt.Errorf("anon partition column: %w", err)
 		}
 		partElem.Name = hashedName
-	}
-
-	return nil
-}
-
-// anonymizePartitionBoundValue anonymizes partition bound values (constants) in partition commands
-func (a *SqlAnonymizer) anonymizePartitionBoundValue(datum *pg_query.Node) error {
-	if datum == nil {
-		return nil
-	}
-
-	// Handle constants
-	aConst := datum.GetAConst()
-	if aConst == nil {
-		return nil
-	}
-
-	// Handle integer constants
-	if ival := aConst.GetIval(); ival != nil {
-		// Convert integer to string for hashing
-		intVal := fmt.Sprintf("%d", ival.Ival)
-		hashedVal, err := a.registry.GetHash(CONST_KIND_PREFIX, intVal)
-		if err != nil {
-			return fmt.Errorf("anon partition bound int value: %w", err)
-		}
-		// Replace the integer value node with the string node for anonymized value
-		aConst.Val = &pg_query.A_Const_Sval{
-			Sval: &pg_query.String{Sval: hashedVal},
-		}
-		return nil
-	}
-
-	// Handle string constants
-	if sval := aConst.GetSval(); sval != nil {
-		hashedVal, err := a.registry.GetHash(CONST_KIND_PREFIX, sval.Sval)
-		if err != nil {
-			return fmt.Errorf("anon partition bound string value: %w", err)
-		}
-		sval.Sval = hashedVal
-		return nil
 	}
 
 	return nil
@@ -2284,62 +2213,8 @@ func (a *SqlAnonymizer) anonymizeConstantValue(arg *pg_query.Node, prefix string
 		return nil
 	}
 
-	// Handle A_Const nodes (e.g., internallength = 4, category = 'U')
 	if aConst := arg.GetAConst(); aConst != nil {
-		if aConst.Val == nil {
-			return nil
-		}
-
-		// Handle string literals
-		if sval := aConst.GetSval(); sval != nil {
-			hashedVal, err := a.registry.GetHash(prefix, sval.Sval)
-			if err != nil {
-				return fmt.Errorf("anon constant string value: %w", err)
-			}
-			sval.Sval = hashedVal
-			return nil
-		}
-
-		// Handle integer literals
-		if ival := aConst.GetIval(); ival != nil {
-			intVal := fmt.Sprintf("%d", ival.Ival)
-			hashedVal, err := a.registry.GetHash(prefix, intVal)
-			if err != nil {
-				return fmt.Errorf("anon constant int value: %w", err)
-			}
-			// Replace with string value
-			aConst.Val = &pg_query.A_Const_Sval{
-				Sval: &pg_query.String{Sval: hashedVal},
-			}
-			return nil
-		}
-
-		// Handle float literals
-		if fval := aConst.GetFval(); fval != nil {
-			hashedVal, err := a.registry.GetHash(prefix, fval.Fval)
-			if err != nil {
-				return fmt.Errorf("anon constant float value: %w", err)
-			}
-			// Replace with string value
-			aConst.Val = &pg_query.A_Const_Sval{
-				Sval: &pg_query.String{Sval: hashedVal},
-			}
-			return nil
-		}
-
-		// Handle boolean literals
-		if boolval := aConst.GetBoolval(); boolval != nil {
-			boolVal := boolval.String()
-			hashedVal, err := a.registry.GetHash(prefix, boolVal)
-			if err != nil {
-				return fmt.Errorf("anon constant bool value: %w", err)
-			}
-			// Replace with string value
-			aConst.Val = &pg_query.A_Const_Sval{
-				Sval: &pg_query.String{Sval: hashedVal},
-			}
-			return nil
-		}
+		return a.anonymizeAConst(aConst, prefix)
 	}
 
 	// Handle String_ nodes (e.g., delimiter = ',')
@@ -2363,6 +2238,67 @@ func (a *SqlAnonymizer) anonymizeConstantValue(arg *pg_query.Node, prefix string
 			Node: &pg_query.Node_String_{
 				String_: &pg_query.String{Sval: hashedVal},
 			},
+		}
+		return nil
+	}
+
+	return nil
+}
+
+// anonymizeAConst is a shared helper function to anonymize A_Const nodes
+// This eliminates code duplication between literalNodesProcessor and anonymizeConstantValue
+func (a *SqlAnonymizer) anonymizeAConst(ac *pg_query.A_Const, prefix string) error {
+	if ac == nil || ac.Val == nil {
+		return nil
+	}
+
+	// Handle string literals
+	if sval := ac.GetSval(); sval != nil {
+		hashedVal, err := a.registry.GetHash(prefix, sval.Sval)
+		if err != nil {
+			return fmt.Errorf("anon A_Const string: %w", err)
+		}
+		sval.Sval = hashedVal
+		return nil
+	}
+
+	// Handle integer literals
+	if ival := ac.GetIval(); ival != nil {
+		intVal := fmt.Sprintf("%d", ival.Ival)
+		hashedVal, err := a.registry.GetHash(prefix, intVal)
+		if err != nil {
+			return fmt.Errorf("anon A_Const int: %w", err)
+		}
+		// Replace with string value
+		ac.Val = &pg_query.A_Const_Sval{
+			Sval: &pg_query.String{Sval: hashedVal},
+		}
+		return nil
+	}
+
+	// Handle float literals
+	if fval := ac.GetFval(); fval != nil {
+		hashedVal, err := a.registry.GetHash(prefix, fval.Fval)
+		if err != nil {
+			return fmt.Errorf("anon A_Const float: %w", err)
+		}
+		// Replace with string value
+		ac.Val = &pg_query.A_Const_Sval{
+			Sval: &pg_query.String{Sval: hashedVal},
+		}
+		return nil
+	}
+
+	// Handle boolean literals
+	if boolval := ac.GetBoolval(); boolval != nil {
+		boolVal := boolval.String()
+		hashedVal, err := a.registry.GetHash(prefix, boolVal)
+		if err != nil {
+			return fmt.Errorf("anon A_Const bool: %w", err)
+		}
+		// Replace with string value
+		ac.Val = &pg_query.A_Const_Sval{
+			Sval: &pg_query.String{Sval: hashedVal},
 		}
 		return nil
 	}
