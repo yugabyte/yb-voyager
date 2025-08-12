@@ -184,7 +184,7 @@
             background-color: white !important;
         }
 
-        pre, code {
+        pre {
             width: 100%;          /* Ensure content takes full width of container */
             margin: 0;            /* Remove default margins */
             padding: 8px;         /* Add consistent padding around code blocks */
@@ -194,6 +194,14 @@
             word-break: break-word;     /* Break long words if needed */
             overflow-wrap: break-word;  /* Same as above, for newer browsers */
             box-sizing: border-box;     /* Include padding in element's total width */
+            font-size: 1em; 
+            white-space: pre-wrap; 
+            word-break: break-word; 
+            overflow-wrap: break-word; 
+            margin: 0; 
+            padding: 8px; 
+            color: #000; 
+            font-family: Arial, sans-serif;
         }
 
         /* Highlight Table Styles */
@@ -332,9 +340,9 @@
                      {{if .RedundantIndexChange.IsApplied}}✅ {{else}}⚠️ {{end}}
                      {{.RedundantIndexChange.Title}}
                   </h3>
-                  <p>{{.RedundantIndexChange.Description}}</p>
+                  <pre>{{.RedundantIndexChange.Description}}</pre>
                   {{if .RedundantIndexChange.IsApplied}}
-                     <p> Refer to the <a class="file-link" href="{{.RedundantIndexChange.ReferenceFile}}" target="_blank"> {{.RedundantIndexChange.ReferenceFileDisplayName}} </a></p>
+                     <pre>Refer to the <a class="file-link" href="{{.RedundantIndexChange.ReferenceFile}}" target="_blank"> {{.RedundantIndexChange.ReferenceFileDisplayName}} </a></pre>
                   {{end}}
 
                   <details>
@@ -343,7 +351,7 @@
                         <thead>
                            <tr>
                               <th class="centered-cell">Table</th>
-                              <th class="centered-cell">Removed Indexes</th>
+                              <th class="centered-cell">Indexes</th>
                            </tr>
                         </thead>
                         <tbody>
@@ -372,9 +380,9 @@
                      {{if .TableShardingRecommendation.IsApplied}}✅ {{else}}⚠️ {{end}}
                      {{.TableShardingRecommendation.Title}}
                   </h3>
-                  <p>{{.TableShardingRecommendation.Description}}</p>
+                  <pre>{{.TableShardingRecommendation.Description}}</pre>
                   {{if .TableShardingRecommendation.IsApplied}}
-                     <p> Refer to the <a class="file-link" href="{{.TableShardingRecommendation.ReferenceFile}}" target="_blank"> {{.TableShardingRecommendation.ReferenceFileDisplayName}} </a> for modified DDLs.</p>
+                     <pre>Refer to the <a class="file-link" href="{{.TableShardingRecommendation.ReferenceFile}}" target="_blank"> {{.TableShardingRecommendation.ReferenceFileDisplayName}} </a> for modified DDLs.</pre>
                      <details>
                         <summary>Details</summary>
                         <table>
@@ -406,8 +414,8 @@
    
             {{ if .MviewShardingRecommendation }}
                <h3>{{.MviewShardingRecommendation.Title}}</h3>
-               <p> {{.MviewShardingRecommendation.Description}}</p>
-               <p> Refer to the <a class="file-link" href="{{.MviewShardingRecommendation.ReferenceFile}}" target="_blank"> {{.MviewShardingRecommendation.ReferenceFileDisplayName}} </a> for modified DDLs.</p>
+               <pre>{{.MviewShardingRecommendation.Description}}</pre>
+               <pre>Refer to the <a class="file-link" href="{{.MviewShardingRecommendation.ReferenceFile}}" target="_blank"> {{.MviewShardingRecommendation.ReferenceFileDisplayName}} </a> for modified DDLs.</pre>
                <details>
                   <summary>Details</summary>
                   <table>

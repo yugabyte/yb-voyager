@@ -39,9 +39,9 @@ var schemaOptimizationReport *SchemaOptimizationReport
 const (
 	RedundantIndexesFileName                        = "redundant_indexes.sql"
 	SchemaOptimizationReportFileName                = "schema_optimization_report"
-	REDUNDANT_INDEXES_DESCRIPTION                   = "The following indexes were identified as redundant and removed. These indexes were fully covered by stronger indexes—indexes that share the same leading key columns (in order) and potentially include additional columns, making the redundant ones unnecessary."
-	APPLIED_RECOMMENDATIONS_NOT_APPLIED_DESCRIPTION = "Sharding recommendations were not applied due to the skip-recommendations flag. Modify the schema manually as per the recommendations in assessment report"
-	REDUNDANT_INDEXES_NOT_APPLIED_DESCRIPTION       = REDUNDANT_INDEXES_DESCRIPTION + " These indexes were not remove due to the skip-performance-optimizations flag. Remove the following indexes manually from the schema."
+	REDUNDANT_INDEXES_DESCRIPTION                   = "The following indexes were identified as redundant. These indexes were fully covered by stronger indexes—indexes that share the same leading key columns (in order) and potentially include additional columns, making the redundant ones unnecessary."
+	APPLIED_RECOMMENDATIONS_NOT_APPLIED_DESCRIPTION = "Sharding recommendations were not applied due to the skip-recommendations flag. Modify the schema manually as per the recommendations in assessment report."
+	REDUNDANT_INDEXES_NOT_APPLIED_DESCRIPTION       = REDUNDANT_INDEXES_DESCRIPTION + "\nThese indexes were not removed due to the skip-performance-optimizations flag. Remove them manually from the schema."
 )
 
 // RedundantIndexChange represents the removal of redundant indexes that are fully
@@ -102,7 +102,7 @@ func (s *SchemaOptimizationReport) HasOptimizations() bool {
 // NewRedundantIndexChange creates a new RedundantIndexChange with default values
 func NewRedundantIndexChange() *RedundantIndexChange {
 	return &RedundantIndexChange{
-		Title:                    "Removed Redundant Indexes",
+		Title:                    "Redundant Indexes - Removed",
 		Description:              REDUNDANT_INDEXES_DESCRIPTION,
 		TableToRemovedIndexesMap: make(map[string][]string),
 		IsApplied:                true,
@@ -114,13 +114,13 @@ func NewAppliedShardingRecommendationChange(objectType string) *AppliedShardingR
 	var title, description string
 	switch objectType {
 	case TABLE:
-		title = "Applied Sharding Recommendations to Tables"
+		title = "Sharding Recommendations to Tables - Applied"
 		description = "Sharding recommendations from the assessment have been applied to the tables to optimize data distribution and performance. Tables will be created as colocated automatically according to the target database configuration."
 	case MVIEW:
-		title = "Applied Sharding Recommendations to Materialized Views"
+		title = "Sharding Recommendations to Materialized Views - Applied"
 		description = "Sharding recommendations from the assessment have been applied to the mviews to optimize data distribution and performance. MViews will be created as colocated automatically according to the target database configuration."
 	default:
-		title = "Applied Sharding Recommendations"
+		title = "Sharding Recommendations - Applied"
 		description = "Sharding recommendations from the assessment have been applied to optimize data distribution and performance."
 	}
 
@@ -171,6 +171,7 @@ func buildRedundantIndexChange(indexTransformer *sqltransformer.IndexFileTransfo
 	if skipPerfOptimizations {
 		redundantIndexes = redundantIndexesToRemove
 		redundantIndexChange.Description = REDUNDANT_INDEXES_NOT_APPLIED_DESCRIPTION
+		redundantIndexChange.Title = "Redundant Indexes - Not Removed"
 		redundantIndexChange.IsApplied = false
 	}
 	for _, obj := range redundantIndexes {
@@ -189,6 +190,7 @@ func buildShardingTableRecommendationChange(shardedTables []string, colocatedTab
 			appliedRecommendationTable = NewAppliedShardingRecommendationChange("") // Dummy entry for both table and mview as no need to show two
 			appliedRecommendationTable.IsApplied = false
 			appliedRecommendationTable.Description = APPLIED_RECOMMENDATIONS_NOT_APPLIED_DESCRIPTION
+			appliedRecommendationTable.Title = "Sharding Recommendations - Not Applied"
 		}
 		return appliedRecommendationTable
 	}
