@@ -119,6 +119,7 @@ const (
 
 	TABLE     = "TABLE"
 	MVIEW     = "MVIEW"
+	INDEX     = "INDEX"
 	YUGABYTED = "yugabyted"
 
 	// assess-migration-bulk

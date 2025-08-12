@@ -16,6 +16,7 @@ limitations under the License.
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -23,8 +24,10 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	log "github.com/sirupsen/logrus"
 	"github.com/sourcegraph/conc/pool"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -56,12 +59,13 @@ type FileTaskImporter struct {
 	currentProgressAmount int64
 	progressReporter      *ImportDataProgressReporter
 
-	errorHandler importdata.ImportDataErrorHandler
+	errorHandler             importdata.ImportDataErrorHandler
+	callhomeMetricsCollector *callhome.ImportDataMetricsCollector
 }
 
 func NewFileTaskImporter(task *ImportFileTask, state *ImportDataState, workerPool *pool.Pool,
 	progressReporter *ImportDataProgressReporter, colocatedImportBatchQueue chan func(), isTableColocated bool,
-	errorHandler importdata.ImportDataErrorHandler) (*FileTaskImporter, error) {
+	errorHandler importdata.ImportDataErrorHandler, callhomeMetricsCollector *callhome.ImportDataMetricsCollector) (*FileTaskImporter, error) {
 	batchProducer, err := NewFileBatchProducer(task, state, errorHandler)
 	if err != nil {
 		return nil, fmt.Errorf("creating file batch producer: %s", err)
@@ -83,6 +87,7 @@ func NewFileTaskImporter(task *ImportFileTask, state *ImportDataState, workerPoo
 		totalProgressAmount:       totalProgressAmount,
 		currentProgressAmount:     currentProgressAmount,
 		errorHandler:              errorHandler,
+		callhomeMetricsCollector:  callhomeMetricsCollector,
 	}
 	state.RegisterFileTaskImporter(fti)
 	return fti, nil
@@ -122,11 +127,7 @@ func (fti *FileTaskImporter) submitBatch(batch *Batch) error {
 		// But the `connPool` will allow only `parallelism` number of connections to be
 		// used at a time. Thus limiting the number of concurrent COPYs to `parallelism`.
 		fti.importBatch(batch)
-		if reportProgressInBytes {
-			fti.updateProgress(batch.ByteCount)
-		} else {
-			fti.updateProgress(batch.RecordCount)
-		}
+		fti.updateProgressForCompletedBatch(batch)
 	}
 	if fti.colocatedImportBatchQueue != nil && fti.isTableColocated {
 		fti.colocatedImportBatchQueue <- importBatchFunc
@@ -141,6 +142,7 @@ func (fti *FileTaskImporter) submitBatch(batch *Batch) error {
 func (fti *FileTaskImporter) importBatch(batch *Batch) {
 	var rowsAffected int64
 	var err error // Note: make sure to not define any other err variable in this scope
+	var isPartialBatchIngestionPossibleOnError bool
 
 	if batch.RecordCount == 0 {
 		// an empty batch is possible in case there are errors while reading and procesing rows in the file
@@ -187,7 +189,7 @@ func (fti *FileTaskImporter) importBatch(batch *Batch) {
 	for attempt := 0; attempt < COPY_MAX_RETRY_COUNT; attempt++ {
 		tableSchema, _ := TableNameToSchema.Get(batch.TableNameTup)
 		isRecoveryCandidate := (recoveryBatch || attempt > 0)
-		rowsAffected, err = tdb.ImportBatch(batch, &importBatchArgs, exportDir, tableSchema, isRecoveryCandidate)
+		rowsAffected, err, isPartialBatchIngestionPossibleOnError = tdb.ImportBatch(batch, &importBatchArgs, exportDir, tableSchema, isRecoveryCandidate)
 		if err == nil || tdb.IsNonRetryableCopyError(err) {
 			break
 		}
@@ -203,13 +205,19 @@ func (fti *FileTaskImporter) importBatch(batch *Batch) {
 	log.Infof("%q => %d rows affected", batch.FilePath, rowsAffected)
 	if err != nil {
 		if fti.errorHandler.ShouldAbort() {
-			utils.ErrExit("import batch: %q into %s: %s", batch.FilePath, batch.TableNameTup, err)
+			var ibe errs.ImportBatchError
+			if errors.As(err, &ibe) {
+				// If the error is an ImportBatchError, we abort directly because the string
+				// representation of the error is already formatted with all the details.
+				utils.ErrExit("%w", err)
+			}
+			utils.ErrExit("import batch: %q into %s: %w", batch.FilePath, batch.TableNameTup.ForOutput(), err)
 		}
 
 		// Handle the error
 		log.Errorf("Handling error for batch: %q into %s: %s", batch.FilePath, batch.TableNameTup, err)
 		var err2 error
-		err2 = fti.errorHandler.HandleBatchIngestionError(batch, fti.task.FilePath, err)
+		err2 = fti.errorHandler.HandleBatchIngestionError(batch, fti.task.FilePath, err, isPartialBatchIngestionPossibleOnError)
 		if err2 != nil {
 			utils.ErrExit("handling error for batch: %q into %s: %s", batch.FilePath, batch.TableNameTup, err2)
 		}
@@ -221,13 +229,26 @@ func (fti *FileTaskImporter) importBatch(batch *Batch) {
 	}
 }
 
-func (fti *FileTaskImporter) updateProgress(progressAmount int64) {
+func (fti *FileTaskImporter) updateProgressForCompletedBatch(batch *Batch) {
+	// Update basic progress update for progress bar and control plane.
+	var progressAmount int64
+	if reportProgressInBytes {
+		progressAmount = batch.ByteCount
+	} else {
+		progressAmount = batch.RecordCount
+	}
+
 	fti.currentProgressAmount += progressAmount
 	fti.progressReporter.AddProgressAmount(fti.task, progressAmount)
 
 	// The metrics are sent after evry 5 secs in implementation of UpdateImportedRowCount
 	if fti.totalProgressAmount > fti.currentProgressAmount {
 		fti.updateProgressInControlPlane(ROW_UPDATE_STATUS_IN_PROGRESS)
+	}
+
+	// update callhome metrics collector
+	if fti.callhomeMetricsCollector != nil {
+		fti.callhomeMetricsCollector.IncrementSnapshotProgress(batch.RecordCount, batch.ByteCount)
 	}
 }
 
@@ -309,6 +330,12 @@ func getImportBatchArgsProto(tableNameTup sqlname.NameTuple, filePath string) *t
 		utils.ErrExit("if required quote column names: %s", err)
 	}
 
+	/*
+		How is table partitioning handled here?
+		- For partitioned tables, we import the datafiles of leafs into root
+		  Hence query is made on root tables which will fetch all the constraints names(parent and all children)
+	*/
+	// TODO: Optimize this by fetching the primary key columns and constraint names in one go for all tables
 	pkColumns, err := tdb.GetPrimaryKeyColumns(tableNameTup)
 	if err != nil {
 		utils.ErrExit("getting primary key columns for table %s: %s", tableNameTup.ForMinOutput(), err)
@@ -318,7 +345,7 @@ func getImportBatchArgsProto(tableNameTup sqlname.NameTuple, filePath string) *t
 		utils.ErrExit("if required quote primary key column names: %s", err)
 	}
 
-	pkConstraintName, err := tdb.GetPrimaryKeyConstraintName(tableNameTup)
+	pkConstraintNames, err := tdb.GetPrimaryKeyConstraintNames(tableNameTup)
 	if err != nil {
 		utils.ErrExit("getting primary key constraint name for table %s: %s", tableNameTup.ForMinOutput(), err)
 	}
@@ -336,7 +363,7 @@ func getImportBatchArgsProto(tableNameTup sqlname.NameTuple, filePath string) *t
 		TableNameTup:      tableNameTup,
 		Columns:           columns,
 		PrimaryKeyColumns: pkColumns,
-		PKConstraintName:  pkConstraintName,
+		PKConstraintNames: pkConstraintNames,
 		PKConflictAction:  tconf.OnPrimaryKeyConflictAction,
 		FileFormat:        fileFormat,
 		Delimiter:         dataFileDescriptor.Delimiter,

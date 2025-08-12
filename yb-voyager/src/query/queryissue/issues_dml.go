@@ -33,6 +33,9 @@ var advisoryLocksIssue = issue.Issue{
 	Suggestion:  "",
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/3642",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented",
+	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
+		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
+	},
 }
 
 func NewAdvisoryLocksIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
@@ -136,6 +139,7 @@ var regexFunctionsIssue = issue.Issue{
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
 	},
 }
 
@@ -167,6 +171,7 @@ var rangeAggregateFunctionIssue = issue.Issue{
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
 	},
 }
 
@@ -241,6 +246,7 @@ var jsonbSubscriptingIssue = issue.Issue{
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#jsonb-subscripting",
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
 	},
 }
 
@@ -272,6 +278,7 @@ var copyFromWhereIssue = issue.Issue{
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
 	},
 }
 
@@ -316,6 +323,7 @@ var cteWithMaterializedIssue = issue.Issue{
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2_25: ybversion.V2_25_0_0, //TODO: understand in NOT MATERIALIZED works as expected internally
+		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
 	},
 }
 

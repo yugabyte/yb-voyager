@@ -1,16 +1,16 @@
-name: "MySQL: Migration Tests"
+name: "MySQL: Migration Tests (CLI + Config File Workflows)"
 
 on:
   push:
     branches: ['main', '*.*-dev', '*.*.*-dev']
   pull_request:
-    branches: ['main']
+    branches: [main]
 
 jobs:
   run-mysql-migration-tests:
     strategy:
       matrix:
-        version: [2024.2.2.3-b1, 2.20.9.0-b47, 2024.1.4.0-b108, 2.25.1.0-b381]
+        version: [2024.2.4.0-b89, 2.20.10.0-b29, 2.25.2.0-b359, 2025.1.0.0-b168, 2024.1.6.1-b2]
         BETA_FAST_DATA_EXPORT: [0, 1]
     env:
       BETA_FAST_DATA_EXPORT: ${{ matrix.BETA_FAST_DATA_EXPORT }}
@@ -64,7 +64,7 @@ jobs:
           docker run -d --name yugabytedb --hostname yb-cluster-test\
             -p7000:7000 -p9000:9000 -p15433:15433 -p5433:5433 -p9042:9042 \
             yugabytedb/yugabyte:${{ matrix.version }} \
-            bin/yugabyted start --tserver_flags="ysql_hba_conf_csv={host all yugabyte all trust,host all all all md5}" --background=false --ui=false 
+            bin/yugabyted start --tserver_flags="ysql_hba_conf_csv={host all yugabyte all trust,host all all all md5}" --background=false --ui=false --callhome=false 
           sleep 20
 
       - name: Test YugabyteDB connection
@@ -80,14 +80,13 @@ jobs:
           docker_ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' yugabytedb)
           echo "$docker_ip	yb-cluster-test" | sudo tee -a /etc/hosts
           psql "postgresql://yugabyte@yb-cluster-test:5433/yugabyte" -c "SELECT version();"
-
+      
+      - name: "=== CLI WORKFLOW TESTS ==="
+        run: echo "Starting CLI workflow tests (7 tests)"
+      
       - name: "TEST: mysql-table-list-flags-test (table-list and exclude-table-list)"
         if: ${{ !cancelled() }}
         run: migtests/scripts/run-test.sh mysql/table-list-flags-tests
-
-      - name: "TEST: mysql-table-list-file-path-test (table-list-file-path and exclude-table-list-file-path)"
-        if: ${{ !cancelled() }}
-        run: migtests/scripts/run-test.sh mysql/table-list-flags-tests env-file-path-flags.sh
 
       - name: "TEST: mysql-sakila"
         if: ${{ !cancelled() }}
@@ -108,34 +107,43 @@ jobs:
       - name: "TEST: mysql-functions"
         if: ${{ !cancelled() }}
         run: migtests/scripts/run-test.sh mysql/functions
+      - name: "=== CONFIG FILE WORKFLOW TESTS ==="
+        run: echo "Starting config file workflow tests (8 tests)"
+
+      - name: "TEST: mysql-table-list-file-path-test (table-list-file-path and exclude-table-list-file-path)"
+        if: ${{ !cancelled() }}
+        run: migtests/scripts/run-test.sh mysql/table-list-flags-tests env-file-path-flags.sh --run-via-config-file
 
       - name: "TEST: mysql-case-sequences"
         if: ${{ !cancelled() }}
-        run: migtests/scripts/run-test.sh mysql/sequences
+        run: migtests/scripts/run-test.sh mysql/sequences --run-via-config-file
 
       - name: "TEST: mysql-triggers-procedures"
         if: ${{ !cancelled() }}
-        run: migtests/scripts/run-test.sh mysql/triggers-procedures
+        run: migtests/scripts/run-test.sh mysql/triggers-procedures --run-via-config-file
 
       - name: "TEST: mysql-case-views"
         if: ${{ !cancelled() }}
-        run: migtests/scripts/run-test.sh mysql/views
+        run: migtests/scripts/run-test.sh mysql/views --run-via-config-file
 
       - name: "TEST: mysql-partitions"
         if: ${{ !cancelled() }}
-        run: migtests/scripts/run-test.sh mysql/partitions
+        run: migtests/scripts/run-test.sh mysql/partitions --run-via-config-file
 
       - name: "TEST: mysql-sample-chinook"
         if: ${{ !cancelled() }}
-        run: migtests/scripts/run-test.sh mysql/chinook
+        run: migtests/scripts/run-test.sh mysql/chinook --run-via-config-file
 
       - name: "TEST: mysql-misc-tests"
         if: ${{ !cancelled() }}
-        run: migtests/scripts/run-test.sh mysql/misc-tests
+        run: migtests/scripts/run-test.sh mysql/misc-tests --run-via-config-file
       
       - name: "TEST: mysql-case-sensitivity-reserved-words"
         if: ${{ !cancelled() }}
-        run: migtests/scripts/run-test.sh mysql/case-sensitivity-reserved-words
+        run: migtests/scripts/run-test.sh mysql/case-sensitivity-reserved-words --run-via-config-file
+
+      - name: "=== LIVE MIGRATION TEST ==="
+        run: echo "Starting live migration test (CLI)"
 
       # Placeholder for now so that a basic test can run
       - name: Create the live migration user

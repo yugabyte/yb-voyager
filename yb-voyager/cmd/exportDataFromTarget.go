@@ -41,7 +41,7 @@ var exportDataFromTargetCmd = &cobra.Command{
 		exportType = CHANGES_ONLY
 		msr, err := metaDB.GetMigrationStatusRecord()
 		if err != nil {
-			utils.ErrExit("get migration status record: %v", err)
+			utils.ErrExit("get migration status record: %w", err)
 		}
 		if msr.FallbackEnabled {
 			exporterRole = TARGET_DB_EXPORTER_FB_ROLE
@@ -50,19 +50,19 @@ var exportDataFromTargetCmd = &cobra.Command{
 		}
 		err = verifySSLFlags(cmd, msr)
 		if err != nil {
-			utils.ErrExit("failed to verify SSL flags: %v", err)
+			utils.ErrExit("failed to verify SSL flags: %w", err)
 		}
 		if source.SSLRootCert != "" {
 			err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 				record.TargetDBConf.SSLRootCert = source.SSLRootCert
 			})
 			if err != nil {
-				utils.ErrExit("error updating migration status record: %v", err)
+				utils.ErrExit("error updating migration status record: %w", err)
 			}
 		}
 		err = initSourceConfFromTargetConf(cmd)
 		if err != nil {
-			utils.ErrExit("failed to setup source conf from target conf in MSR: %v", err)
+			utils.ErrExit("failed to setup source conf from target conf in MSR: %w", err)
 		}
 
 		exportDataCmd.PreRun(cmd, args)
@@ -162,7 +162,7 @@ func initSourceConfFromTargetConf(cmd *cobra.Command) error {
 	return nil
 }
 
-func packAndSendExportDataFromTargetPayload(status string, errorMsg string) {
+func packAndSendExportDataFromTargetPayload(status string, errorMsg error) {
 	if !shouldSendCallhome() {
 		return
 	}

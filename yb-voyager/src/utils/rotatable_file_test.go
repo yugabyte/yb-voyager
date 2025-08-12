@@ -22,6 +22,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"gotest.tools/assert"
 )
 
 // getRotatedFiles returns the list of rotated log files for a given log file path.
@@ -79,6 +81,47 @@ func TestFileRotator_Rotation(t *testing.T) {
 
 	// After rotation, the log file should exist and be small (rotated file is kept by lumberjack)
 	assertFileSizeLessThan(t, logFile, maxSize, "rotation")
+
+	// Assert presence of the rotated file (with time suffix)
+	assertRotatedFilesCount(t, logFile, 1, "after rotation")
+}
+
+func TestFileRotator_Rotation_Resumption(t *testing.T) {
+	dir := t.TempDir()
+	logFile := filepath.Join(dir, "test.log")
+	maxSize := int64(1024) // 1KB
+	rotator, err := NewRotatableFile(logFile, maxSize)
+	if err != nil {
+		t.Fatalf("failed to create FileRotator: %v", err)
+	}
+
+	// Write just under the limit
+	data := strings.Repeat("a", int(maxSize-10))
+	_, err = rotator.Write([]byte(data))
+	if err != nil {
+		t.Fatalf("write failed: %v", err)
+	}
+
+	assertFileSizeLessThan(t, logFile, maxSize, "before rotation")
+	assertRotatedFilesCount(t, logFile, 0, "before rotation")
+
+	// Simulate resumption by creating a new RotatableFile with the same log file
+	rotator, err = NewRotatableFile(logFile, maxSize)
+	if err != nil {
+		t.Fatalf("failed to create FileRotator on resumption: %v", err)
+	}
+
+	assert.Equal(t, rotator.curFileSize, int64(len(data)), "curFileSize after resumption should match written data size")
+
+	// Write more to trigger rotation
+	_, err = rotator.Write([]byte(strings.Repeat("b", 20)))
+	if err != nil {
+		t.Fatalf("write failed: %v", err)
+	}
+
+	// After rotation, the log file should exist and be small (rotated file is kept by lumberjack)
+	assertFileSizeLessThan(t, logFile, maxSize, "rotation")
+	assert.Equal(t, rotator.curFileSize, int64(0), "curFileSize should be reset after rotation")
 
 	// Assert presence of the rotated file (with time suffix)
 	assertRotatedFilesCount(t, logFile, 1, "after rotation")

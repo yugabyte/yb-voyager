@@ -25,6 +25,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	testcontainers "github.com/yugabyte/yb-voyager/yb-voyager/test/containers"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
@@ -50,21 +51,21 @@ func TestShardingRecommendations(t *testing.T) {
 		fileName:      "",
 	}
 	source.DBType = POSTGRESQL
-	modifiedSqlStmt, match, _ := applyShardingRecommendationIfMatching(&sqlInfo_mview1, []string{"m1"}, MVIEW)
+	modifiedSqlStmt, match, _, _, _ := applyShardingRecommendationIfMatching(&sqlInfo_mview1, []string{"m1"}, MVIEW)
 	assert.Equal(t, strings.ToLower(modifiedSqlStmt),
 		strings.ToLower("create materialized view m1 with (colocation=false) as select * from t1 where a = 3;"))
 	assert.Equal(t, match, true)
 
-	modifiedSqlStmt, match, _ = applyShardingRecommendationIfMatching(&sqlInfo_mview2, []string{"m1"}, MVIEW)
+	modifiedSqlStmt, match, _, _, _ = applyShardingRecommendationIfMatching(&sqlInfo_mview2, []string{"m1"}, MVIEW)
 	assert.Equal(t, strings.ToLower(modifiedSqlStmt),
 		strings.ToLower("create materialized view m1 with (colocation=false) as select * from t1 where a = 3 with no data;"))
 	assert.Equal(t, match, true)
 
-	modifiedSqlStmt, match, _ = applyShardingRecommendationIfMatching(&sqlInfo_mview2, []string{"m1_notfound"}, MVIEW)
+	modifiedSqlStmt, match, _, _, _ = applyShardingRecommendationIfMatching(&sqlInfo_mview2, []string{"m1_notfound"}, MVIEW)
 	assert.Equal(t, modifiedSqlStmt, sqlInfo_mview2.stmt)
 	assert.Equal(t, match, false)
 
-	modifiedSqlStmt, match, _ = applyShardingRecommendationIfMatching(&sqlInfo_mview3, []string{"m1"}, MVIEW)
+	modifiedSqlStmt, match, _, _, _ = applyShardingRecommendationIfMatching(&sqlInfo_mview3, []string{"m1"}, MVIEW)
 	assert.Equal(t, strings.ToLower(modifiedSqlStmt),
 		strings.ToLower("create materialized view m1 with (fillfactor=70, colocation=false) "+
 			"as select * from t1 where a = 3 with no data;"))
@@ -88,21 +89,21 @@ func TestShardingRecommendations(t *testing.T) {
 		formattedStmt: "alter table a add col text;",
 		fileName:      "",
 	}
-	modifiedTableStmt, matchTable, _ := applyShardingRecommendationIfMatching(&sqlInfo_table1, []string{"a"}, TABLE)
+	modifiedTableStmt, matchTable, _, _, _ := applyShardingRecommendationIfMatching(&sqlInfo_table1, []string{"a"}, TABLE)
 	assert.Equal(t, strings.ToLower(modifiedTableStmt),
 		strings.ToLower("create table a (a int, b int) WITH (colocation=false);"))
 	assert.Equal(t, matchTable, true)
 
-	modifiedTableStmt, matchTable, _ = applyShardingRecommendationIfMatching(&sqlInfo_table2, []string{"a"}, TABLE)
+	modifiedTableStmt, matchTable, _, _, _ = applyShardingRecommendationIfMatching(&sqlInfo_table2, []string{"a"}, TABLE)
 	assert.Equal(t, strings.ToLower(modifiedTableStmt),
 		strings.ToLower("create table a (a int, b int) WITH (fillfactor=70, colocation=false);"))
 	assert.Equal(t, matchTable, true)
 
-	modifiedSqlStmt, matchTable, _ = applyShardingRecommendationIfMatching(&sqlInfo_table2, []string{"m1_notfound"}, TABLE)
+	modifiedSqlStmt, matchTable, _, _, _ = applyShardingRecommendationIfMatching(&sqlInfo_table2, []string{"m1_notfound"}, TABLE)
 	assert.Equal(t, modifiedSqlStmt, sqlInfo_table2.stmt)
 	assert.Equal(t, matchTable, false)
 
-	modifiedTableStmt, matchTable, _ = applyShardingRecommendationIfMatching(&sqlInfo_table3, []string{"a"}, TABLE)
+	modifiedTableStmt, matchTable, _, _, _ = applyShardingRecommendationIfMatching(&sqlInfo_table3, []string{"a"}, TABLE)
 	assert.Equal(t, strings.ToLower(modifiedTableStmt),
 		strings.ToLower(sqlInfo_table3.stmt))
 	assert.Equal(t, matchTable, false)

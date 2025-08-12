@@ -36,6 +36,7 @@ var generatedColumnsIssue = issue.Issue{
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#generated-always-as-stored-type-column-is-not-supported",
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
 	},
 }
 
@@ -56,6 +57,7 @@ var unloggedTableIssue = issue.Issue{
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2024_2: ybversion.V2024_2_0_0,
 		ybversion.SERIES_2_25:   ybversion.V2_25_0_0,
+		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
 	},
 }
 
@@ -64,18 +66,48 @@ func NewUnloggedTableIssue(objectType string, objectName string, sqlStatement st
 	return newQueryIssue(unloggedTableIssue, objectType, objectName, sqlStatement, details)
 }
 
-var unsupportedIndexMethodIssue = issue.Issue{
-	Type:        UNSUPPORTED_INDEX_METHOD,
-	Name:        UNSUPPORTED_INDEX_METHOD_ISSUE_NAME,
+var unsupportedGistIndexMethodIssue = issue.Issue{
+	Type:        UNSUPPORTED_GIST_INDEX_METHOD,
+	Name:        UNSUPPORTED_GIST_INDEX_METHOD_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: UNSUPPORTED_INDEX_METHOD_DESCRIPTION,
 	GH:          "https://github.com/YugaByte/yugabyte-db/issues/1337",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#gist-brin-and-spgist-index-types-are-not-supported",
 }
 
-func NewUnsupportedIndexMethodIssue(objectType string, objectName string, sqlStatement string, indexAccessMethod string) QueryIssue {
-	issue := unsupportedIndexMethodIssue
-	issue.Description = fmt.Sprintf(issue.Description, strings.ToUpper(indexAccessMethod))
+func NewUnsupportedGistIndexMethodIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	issue := unsupportedGistIndexMethodIssue
+	issue.Description = fmt.Sprintf(issue.Description, "GIST")
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var unsupportedBrinIndexMethodIssue = issue.Issue{
+	Type:        UNSUPPORTED_BRIN_INDEX_METHOD,
+	Name:        UNSUPPORTED_BRIN_INDEX_METHOD_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: UNSUPPORTED_INDEX_METHOD_DESCRIPTION,
+	GH:          "https://github.com/YugaByte/yugabyte-db/issues/1337",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#gist-brin-and-spgist-index-types-are-not-supported",
+}
+
+func NewUnsupportedBrinIndexMethodIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	issue := unsupportedBrinIndexMethodIssue
+	issue.Description = fmt.Sprintf(issue.Description, "BRIN")
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var unsupportedSpgistIndexMethodIssue = issue.Issue{
+	Type:        UNSUPPORTED_SPGIST_INDEX_METHOD,
+	Name:        UNSUPPORTED_SPGIST_INDEX_METHOD_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: UNSUPPORTED_INDEX_METHOD_DESCRIPTION,
+	GH:          "https://github.com/YugaByte/yugabyte-db/issues/1337",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#gist-brin-and-spgist-index-types-are-not-supported",
+}
+
+func NewUnsupportedSpgistIndexMethodIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	issue := unsupportedSpgistIndexMethodIssue
+	issue.Description = fmt.Sprintf(issue.Description, "SPGIST")
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
@@ -253,6 +285,7 @@ var beforeRowTriggerOnPartitionTableIssue = issue.Issue{
 	Suggestion:  BEFORE_ROW_TRIGGER_ON_PARTITION_TABLE_ISSUE_SUGGESTION,
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
 	},
 }
 
@@ -271,6 +304,7 @@ var alterTableAddPKOnPartitionIssue = issue.Issue{
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2024_1: ybversion.V2024_1_0_0,
 		ybversion.SERIES_2024_2: ybversion.V2024_2_0_0,
+		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
 		ybversion.SERIES_2_23:   ybversion.V2_23_0_0,
 		ybversion.SERIES_2_25:   ybversion.V2_25_0_0,
 	},
@@ -514,6 +548,7 @@ var int8MultirangeDatatypeIssue = issue.Issue{
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
 	},
 }
 
@@ -533,6 +568,7 @@ var int4MultirangeDatatypeIssue = issue.Issue{
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
 	},
 }
 
@@ -552,6 +588,7 @@ var dateMultirangeDatatypeIssue = issue.Issue{
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
 	},
 }
 
@@ -571,6 +608,7 @@ var numMultirangeDatatypeIssue = issue.Issue{
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
 	},
 }
 
@@ -590,6 +628,7 @@ var tsMultirangeDatatypeIssue = issue.Issue{
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
 	},
 }
 
@@ -609,6 +648,7 @@ var tstzMultirangeDatatypeIssue = issue.Issue{
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
 	},
 }
 
@@ -1824,6 +1864,7 @@ var securityInvokerViewIssue = issue.Issue{
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
 	},
 }
 
@@ -1840,6 +1881,7 @@ var deterministicOptionCollationIssue = issue.Issue{
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
 	},
 }
 
@@ -1869,6 +1911,7 @@ var foreignKeyReferencesPartitionedTableIssue = issue.Issue{
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
 	},
 }
 
@@ -1888,6 +1931,7 @@ var sqlBodyInFunctionIssue = issue.Issue{
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
 	},
 }
 
@@ -1905,6 +1949,7 @@ var uniqueNullsNotDistinctIssue = issue.Issue{
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
 	},
 }
 

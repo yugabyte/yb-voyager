@@ -406,12 +406,44 @@ func ProtoAsSelectStmt(msg protoreflect.Message) (*pg_query.SelectStmt, error) {
 	return selectStmtNode, nil
 }
 
-func ProtoAsAConstNode(msg protoreflect.Message) (*pg_query.A_Const, error) {
+func ProtoAsAConstNode(msg protoreflect.Message) (*pg_query.A_Const, bool) {
 	aConstNode, ok := msg.Interface().(*pg_query.A_Const)
 	if !ok {
-		return nil, fmt.Errorf("failed to cast msg to %s", PG_QUERY_ACONST_NODE)
+		return nil, false
 	}
-	return aConstNode, nil
+	return aConstNode, true
+}
+
+func ProtoAsCreateExtensionStmt(msg protoreflect.Message) (*pg_query.CreateExtensionStmt, bool) {
+	createExtStmtNode, ok := msg.Interface().(*pg_query.CreateExtensionStmt)
+	if !ok {
+		return nil, false
+	}
+	return createExtStmtNode, true
+}
+
+func ProtoAsCreateConversionStmtNode(msg protoreflect.Message) (*pg_query.CreateConversionStmt, bool) {
+	createConvStmtNode, ok := msg.Interface().(*pg_query.CreateConversionStmt)
+	if !ok {
+		return nil, false
+	}
+	return createConvStmtNode, true
+}
+
+func ProtoAsRuleStmtNode(msg protoreflect.Message) (*pg_query.RuleStmt, bool) {
+	ruleStmtNode, ok := msg.Interface().(*pg_query.RuleStmt)
+	if !ok {
+		return nil, false
+	}
+	return ruleStmtNode, true
+}
+
+func ProtoAsCreateForeignTableStmt(msg protoreflect.Message) (*pg_query.CreateForeignTableStmt, bool) {
+	createForeignTableStmtNode, ok := msg.Interface().(*pg_query.CreateForeignTableStmt)
+	if !ok {
+		return nil, false
+	}
+	return createForeignTableStmtNode, true
 }
 
 func ProtoAsCTENode(msg protoreflect.Message) (*pg_query.CommonTableExpr, error) {
@@ -422,30 +454,84 @@ func ProtoAsCTENode(msg protoreflect.Message) (*pg_query.CommonTableExpr, error)
 	return cteNode, nil
 }
 
-func ProtoAsDefElemNode(msg protoreflect.Message) (*pg_query.DefElem, error) {
+func ProtoAsDefElemNode(msg protoreflect.Message) (*pg_query.DefElem, bool) {
 	defElemNode, ok := msg.Interface().(*pg_query.DefElem)
 	if !ok {
-		return nil, fmt.Errorf("failed to cast msg to %s", PG_QUERY_DEFELEM_NODE)
+		return nil, false
 	}
-	return defElemNode, nil
+	return defElemNode, true
 }
 
-func ProtoAsIndexStmt(msg protoreflect.Message) (*pg_query.IndexStmt, error) {
+func ProtoAsIndexStmtNode(msg protoreflect.Message) (*pg_query.IndexStmt, bool) {
 	indexStmtNode, ok := msg.Interface().(*pg_query.IndexStmt)
 	if !ok {
-		return nil, fmt.Errorf("failed to cast msg to %s", PG_QUERY_INDEX_STMT_NODE)
+		return nil, false
 	}
 
-	return indexStmtNode, nil
+	return indexStmtNode, true
 }
 
-func ProtoAsTableConstraint(msg protoreflect.Message) (*pg_query.Constraint, error) {
-	consNode, ok := msg.Interface().(*pg_query.Constraint)
+func ProtoAsIndexElemNode(msg protoreflect.Message) (*pg_query.IndexElem, bool) {
+	indexElemNode, ok := msg.Interface().(*pg_query.IndexElem)
 	if !ok {
-		return nil, fmt.Errorf("failed to cast msg to %s", PG_QUERY_CONSTRAINT_NODE)
+		return nil, false
 	}
 
-	return consNode, nil
+	return indexElemNode, true
+}
+
+func ProtoAsCreatePolicyStmtNode(msg protoreflect.Message) (*pg_query.CreatePolicyStmt, bool) {
+	createPolicyStmtNode, ok := msg.Interface().(*pg_query.CreatePolicyStmt)
+	if !ok {
+		return nil, false
+	}
+
+	return createPolicyStmtNode, true
+}
+
+func ProtoAsCommentStmtNode(msg protoreflect.Message) (*pg_query.CommentStmt, bool) {
+	commentStmtNode, ok := msg.Interface().(*pg_query.CommentStmt)
+	if !ok {
+		return nil, false
+	}
+
+	return commentStmtNode, true
+}
+
+func ProtoAsTableConstraintNode(msg protoreflect.Message) (*pg_query.Constraint, bool) {
+	consNode, ok := msg.Interface().(*pg_query.Constraint)
+	if !ok {
+		return nil, false
+	}
+
+	return consNode, true
+}
+
+func ProtoAsAlterTableStmtNode(msg protoreflect.Message) (*pg_query.AlterTableStmt, bool) {
+	alterTableStmtNode, ok := msg.Interface().(*pg_query.AlterTableStmt)
+	if !ok {
+		return nil, false
+	}
+
+	return alterTableStmtNode, true
+}
+
+func ProtoAsAlterTableCmdNode(msg protoreflect.Message) (*pg_query.AlterTableCmd, bool) {
+	alterTableCmdNode, ok := msg.Interface().(*pg_query.AlterTableCmd)
+	if !ok {
+		return nil, false
+	}
+
+	return alterTableCmdNode, true
+}
+
+func ProtoAsReplicaIdentityStmtNode(msg protoreflect.Message) (*pg_query.ReplicaIdentityStmt, bool) {
+	replicaIdentityStmtNode, ok := msg.Interface().(*pg_query.ReplicaIdentityStmt)
+	if !ok {
+		return nil, false
+	}
+
+	return replicaIdentityStmtNode, true
 }
 
 func ProtoAsTransactionStmt(msg protoreflect.Message) (*pg_query.TransactionStmt, error) {
@@ -457,6 +543,208 @@ func ProtoAsTransactionStmt(msg protoreflect.Message) (*pg_query.TransactionStmt
 	return node, nil
 }
 
+func ProtoAsCreateSchemaStmtNode(msg protoreflect.Message) (*pg_query.CreateSchemaStmt, bool) {
+	createSchemaStmtNode, ok := msg.Interface().(*pg_query.CreateSchemaStmt)
+	if !ok {
+		return nil, false
+	}
+
+	return createSchemaStmtNode, true
+}
+
+func ProtoAsRenameStmtNode(msg protoreflect.Message) (*pg_query.RenameStmt, bool) {
+	alterSchemaStmtNode, ok := msg.Interface().(*pg_query.RenameStmt)
+	if !ok {
+		return nil, false
+	}
+
+	return alterSchemaStmtNode, true
+}
+
+func ProtoAsAlterOwnerStmtNode(msg protoreflect.Message) (*pg_query.AlterOwnerStmt, bool) {
+	alterOwnerStmtNode, ok := msg.Interface().(*pg_query.AlterOwnerStmt)
+	if !ok {
+		return nil, false
+	}
+
+	return alterOwnerStmtNode, true
+}
+
+func ProtoAsDropStmtNode(msg protoreflect.Message) (*pg_query.DropStmt, bool) {
+	dropStmtNode, ok := msg.Interface().(*pg_query.DropStmt)
+	if !ok {
+		return nil, false
+	}
+
+	return dropStmtNode, true
+}
+
+func ProtoAsGrantStmtNode(msg protoreflect.Message) (*pg_query.GrantStmt, bool) {
+	grantStmtNode, ok := msg.Interface().(*pg_query.GrantStmt)
+	if !ok {
+		return nil, false
+	}
+
+	return grantStmtNode, true
+}
+
+func ProtoAsAlterObjectSchemaStmtNode(msg protoreflect.Message) (*pg_query.AlterObjectSchemaStmt, bool) {
+	alterObjectSchemaStmtNode, ok := msg.Interface().(*pg_query.AlterObjectSchemaStmt)
+	if !ok {
+		return nil, false
+	}
+
+	return alterObjectSchemaStmtNode, true
+}
+
+func ProtoAsCreateSeqStmtNode(msg protoreflect.Message) (*pg_query.CreateSeqStmt, bool) {
+	createSeqStmtNode, ok := msg.Interface().(*pg_query.CreateSeqStmt)
+	if !ok {
+		return nil, false
+	}
+
+	return createSeqStmtNode, true
+}
+
+func ProtoAsAlterSeqStmtNode(msg protoreflect.Message) (*pg_query.AlterSeqStmt, bool) {
+	alterSeqStmtNode, ok := msg.Interface().(*pg_query.AlterSeqStmt)
+	if !ok {
+		return nil, false
+	}
+
+	return alterSeqStmtNode, true
+}
+
+func ProtoAsDefineStmtNode(msg protoreflect.Message) (*pg_query.DefineStmt, bool) {
+	defineStmtNode, ok := msg.Interface().(*pg_query.DefineStmt)
+	if !ok {
+		return nil, false
+	}
+
+	return defineStmtNode, true
+}
+
+func ProtoAsCreateEnumStmtNode(msg protoreflect.Message) (*pg_query.CreateEnumStmt, bool) {
+	createEnumStmtNode, ok := msg.Interface().(*pg_query.CreateEnumStmt)
+	if !ok {
+		return nil, false
+	}
+
+	return createEnumStmtNode, true
+}
+
+func ProtoAsAlterEnumStmtNode(msg protoreflect.Message) (*pg_query.AlterEnumStmt, bool) {
+	alterEnumStmtNode, ok := msg.Interface().(*pg_query.AlterEnumStmt)
+	if !ok {
+		return nil, false
+	}
+
+	return alterEnumStmtNode, true
+}
+
+func ProtoAsCompositeTypeStmtNode(msg protoreflect.Message) (*pg_query.CompositeTypeStmt, bool) {
+	compositeTypeStmtNode, ok := msg.Interface().(*pg_query.CompositeTypeStmt)
+	if !ok {
+		return nil, false
+	}
+	return compositeTypeStmtNode, true
+}
+
+func ProtoAsCreateDomainStmtNode(msg protoreflect.Message) (*pg_query.CreateDomainStmt, bool) {
+	createDomainStmtNode, ok := msg.Interface().(*pg_query.CreateDomainStmt)
+	if !ok {
+		return nil, false
+	}
+	return createDomainStmtNode, true
+}
+
+func ProtoAsRangeVarNode(msg protoreflect.Message) (*pg_query.RangeVar, bool) {
+	rangeVarNode, ok := msg.Interface().(*pg_query.RangeVar)
+	if !ok {
+		return nil, false
+	}
+	return rangeVarNode, true
+}
+
+func ProtoAsColumnDef(msg protoreflect.Message) (*pg_query.ColumnDef, bool) {
+	columnDefNode, ok := msg.Interface().(*pg_query.ColumnDef)
+	if !ok {
+		return nil, false
+	}
+	return columnDefNode, true
+}
+
+func ProtoAsColumnRefNode(msg protoreflect.Message) (*pg_query.ColumnRef, bool) {
+	columnRefNode, ok := msg.Interface().(*pg_query.ColumnRef)
+	if !ok {
+		return nil, false
+	}
+	return columnRefNode, true
+}
+
+func ProtoAsColumnRef(msg protoreflect.Message) (*pg_query.ColumnRef, bool) {
+	columnRefNode, ok := msg.Interface().(*pg_query.ColumnRef)
+	if !ok {
+		return nil, false
+	}
+	return columnRefNode, true
+}
+
+func ProtoAsResTargetNode(msg protoreflect.Message) (*pg_query.ResTarget, bool) {
+	resTargetNode, ok := msg.Interface().(*pg_query.ResTarget)
+	if !ok {
+		return nil, false
+	}
+	return resTargetNode, true
+}
+
+func ProtoAsAliasNode(msg protoreflect.Message) (*pg_query.Alias, bool) {
+	aliasNode, ok := msg.Interface().(*pg_query.Alias)
+	if !ok {
+		return nil, false
+	}
+	return aliasNode, true
+}
+
+func ProtoAsTypeNameNode(msg protoreflect.Message) (*pg_query.TypeName, bool) {
+	typeNameNode, ok := msg.Interface().(*pg_query.TypeName)
+	if !ok {
+		return nil, false
+	}
+	return typeNameNode, true
+}
+
+func ProtoAsRoleSpecNode(msg protoreflect.Message) (*pg_query.RoleSpec, bool) {
+	roleSpecNode, ok := msg.Interface().(*pg_query.RoleSpec)
+	if !ok {
+		return nil, false
+	}
+	return roleSpecNode, true
+}
+
+func ProtoAsCreateStmtNode(msg protoreflect.Message) (*pg_query.CreateStmt, bool) {
+	createStmtNode, ok := msg.Interface().(*pg_query.CreateStmt)
+	if !ok {
+		return nil, false
+	}
+	return createStmtNode, true
+}
+
+func ProtoAsCreateOpClassStmtNode(msg protoreflect.Message) (*pg_query.CreateOpClassStmt, bool) {
+	createOpClassStmt, ok := msg.Interface().(*pg_query.CreateOpClassStmt)
+	if !ok {
+		return nil, false
+	}
+	return createOpClassStmt, ok
+}
+
+func ProtoAsCreateOpFamilyStmtNode(msg protoreflect.Message) (*pg_query.CreateOpFamilyStmt, bool) {
+	createOpFamilyStmt, ok := msg.Interface().(*pg_query.CreateOpFamilyStmt)
+	if !ok {
+		return nil, false
+	}
+	return createOpFamilyStmt, ok
+}
 
 /*
 Example:
@@ -471,14 +759,14 @@ func TraverseAndExtractDefNamesFromDefElem(msg protoreflect.Message) (map[string
 			return nil
 		}
 
-		defElemNode, err := ProtoAsDefElemNode(msg)
-		if err != nil {
-			return err
+		defElemNode, ok := ProtoAsDefElemNode(msg)
+		if !ok {
+			return fmt.Errorf("failed to cast msg to %s", PG_QUERY_DEFELEM_NODE)
 		}
 
 		defName := defElemNode.Defname
 		arg := defElemNode.GetArg()
-		if arg != nil && arg.GetString_()!= nil {
+		if arg != nil && arg.GetString_() != nil {
 			defElemVal := arg.GetString_().Sval
 			defNamesWithValues[defName] = defElemVal
 		} else {

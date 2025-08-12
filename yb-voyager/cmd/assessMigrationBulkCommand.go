@@ -61,13 +61,13 @@ var assessMigrationBulkCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		err := assessMigrationBulk()
 		if err != nil {
-			utils.ErrExit("%s", err)
+			utils.ErrExit("%w", err)
 		}
-		packAndSendAssessMigrationBulkPayload(COMPLETE, "")
+		packAndSendAssessMigrationBulkPayload(COMPLETE, nil)
 	},
 }
 
-func packAndSendAssessMigrationBulkPayload(status string, errorMsg string) {
+func packAndSendAssessMigrationBulkPayload(status string, errorMsg error) {
 	if !shouldSendCallhome() {
 		return
 	}
@@ -214,7 +214,7 @@ func executeAssessment(dbConfig AssessMigrationDBConfig) error {
 	log.Infof("executing the cmd: %s", execCmd.String())
 	err := execCmd.Run()
 	if err != nil {
-		return fmt.Errorf("error while assess migration of schema-%s: %v", dbConfig.GetSchemaIdentifier(), err)
+		return fmt.Errorf("error while assess migration of schema-%s: %w", dbConfig.GetSchemaIdentifier(), err)
 	}
 	return nil
 }

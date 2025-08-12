@@ -1,0 +1,2004 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Migration Assessment Report</title>
+    <style>
+        /* General Styles */
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+            color: #333;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        .wrapper {
+            max-width: 70%;
+            margin: 20px auto;
+            padding: 20px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        h1, h2, h3 {
+            color: #333;
+        }
+
+        /* Table Styles */
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-top: 20px;
+            table-layout: fixed;
+            border-spacing: 0;
+        }
+
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+            vertical-align: middle;
+            word-wrap: break-word;
+            white-space: normal;
+            box-sizing: border-box;
+            margin: 0;
+            word-break: break-word;
+            overflow-wrap: break-word;
+        }
+
+        th {
+            background-color: #f2f2f2;
+        }
+
+        .formatted_table tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+
+        /* List Styles */
+        ul {
+            padding-left: 20px;
+        }
+
+        li {
+            margin: 5px 0;
+        }
+
+        .scrollable-div {
+            max-height: 300px;
+            overflow-y: scroll;
+            border: 1px solid #ccc; /* a visual separator from the body */
+            padding: 10px;
+            scrollbar-width: thin; /* Firefox */
+            -ms-overflow-style: auto; /* IE 10+ */
+        }
+
+        .scrollable-div::-webkit-scrollbar {
+            width: 8px;
+            background: #f2f2f2;
+        }
+
+        .scrollable-div::-webkit-scrollbar-thumb {
+            background: #ccc;
+            border-radius: 4px;
+        }
+
+        .no-wrap-list li {
+            white-space: nowrap;
+            margin-right: 15px;
+            list-style-type: disc;
+        }
+
+        /* Text and Alignment Styles */
+        .centered-cell {
+            text-align: center;
+            vertical-align: middle;
+        }
+
+        #refer-p {
+            font-size: 0.8em;
+            color: inherit;
+        }
+
+        #refer-p a {
+            color: inherit;
+        }
+
+        .list_item {
+            margin-bottom: 15px;
+        }
+
+        pre, code {
+            width: 100%;          /* Ensure content takes full width of container */
+            margin: 0;            /* Remove default margins */
+            padding: 8px;         /* Add consistent padding around code blocks */
+            background: none;     /* Remove any background styling */
+            border: none;         /* Remove any borders */
+            white-space: pre-wrap;      /* CSS3: wrap as needed, preserve whitespace */
+            word-break: break-word;     /* Break long words if needed */
+            overflow-wrap: break-word;  /* Same as above, for newer browsers */
+            box-sizing: border-box;     /* Include padding in element's total width */
+        }
+
+        /* Highlight Table Styles */
+        .table-highlight {
+            border-collapse: collapse;
+            border-spacing: 0;
+        }
+
+        .table-highlight tr {
+            height: auto;
+            margin: 0;
+            padding: 0;
+        }
+
+        .table-highlight td, .table-highlight th {
+            height: 100%;
+            min-height: 40px;
+            vertical-align: middle;
+            padding: 8px;
+            box-sizing: border-box;
+            border-bottom: none;
+            margin: 0;
+        }
+
+        .summary-row {
+            cursor: pointer;
+            margin: 0;
+        }
+
+        .details-row {
+            background-color: #fafafa;
+            display: table-row;
+            border-top: 1px solid #ddd;
+            margin: 0;
+        }
+
+        .details-row > td {
+            padding: 0;
+            height: 0;
+            overflow: hidden;
+        }
+
+        /* Details Content Animation */
+        .details-content-wrapper {
+            max-height: 0;
+            overflow: hidden;
+            visibility: hidden;
+            opacity: 0;
+            transition: max-height 0.3s ease-out, opacity 0.3s ease-out, visibility 0s linear 0.3s;
+        }
+
+        .details-row.show .details-content-wrapper {
+            max-height: 1000px;
+            visibility: visible;
+            opacity: 1;
+            transition: max-height 0.3s ease-in, opacity 0.3s ease-in, visibility 0s linear 0s;
+        }
+
+        .details-content {
+            padding: 8px;
+        }
+
+        .table-highlight tbody {
+            border-bottom: 2px solid #000;
+            margin: 0;
+            padding: 0;
+        }
+
+        .table-highlight tbody:last-child {
+            border-bottom: none;
+        }
+        /* Container for the top summary + buttons */
+        /* Header and Button Styles */
+        .assessment-issues-header {
+            display: flex;                /* enable flex layout */
+            justify-content: space-between; /* pushes left content to one side, buttons to the other */
+            align-items: center;            /* vertically center items */
+            margin-bottom: 1rem;            /* space before the table */
+        }
+
+        .assessment-issues-header p {
+            margin: 0;
+            margin-bottom: 4px;
+        }
+
+        /* Container for the buttons on the right */
+        .assessment-issues-header .buttons {
+            display: flex;
+            gap: 5px;
+        }
+
+        .rounded-button {
+            padding: 6px 12px;
+            border-radius: 9999px; /* pill shape */
+            border: 1px solid #ccc;
+            background-color: #f9f9f9;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+
+        .rounded-button:hover {
+            background-color: #eee;
+        }
+
+        .spaced-words {
+            word-spacing: 0.2em;
+        }
+
+        /* Category and Arrow Styles */
+        .category-cell-flex {
+            display: flex;
+            align-items: center;
+            gap: 0.5em;
+            height: 100%;
+            padding-left: 0.5em;
+            box-sizing: border-box;
+            margin: 0;
+        }
+
+        .arrow-container {
+            width: 1.2em;
+            height: 1.2em;
+            flex-shrink: 0;
+            text-align: center;
+            line-height: 1.2em;
+            font-family: monospace;
+        }
+    </style>
+    <script>
+
+        const ISSUES_JS_INFO_IF_PERF_TABLE = {
+            false: {                      // other assessment issues
+                count: 10,
+                details: 'details-',
+                arrow:   'arrow-',
+                expand:  'expandAllButton',
+                collapse:'collapseAllButton'
+            },
+            true: {                       // performance optimisations
+                count: 2,
+                details: 'details-perf-',
+                arrow:   'arrow-perf-',
+                expand:  'expandAllButton-perf',
+                collapse:'collapseAllButton-perf'
+            }
+        };
+
+        // Toggle Details Functionality
+        function toggleDetails(detailsRowId, arrowId, isPerf) {
+            const row = document.getElementById(detailsRowId);
+            const arrow = document.getElementById(arrowId);
+            if (row.classList.contains('show')) {
+                row.classList.remove('show');
+                arrow.innerHTML = "&#x25B6;"; // Right arrow (&#x25B6;) for collapsed
+            } else {
+                row.classList.add('show');
+                arrow.innerHTML = "&#x25BC;"; // Down arrow (&#x25BC;) for expanded
+            }
+            updateButtonVisibility(isPerf);
+        }
+
+        // Expand All Issues
+        function expandAllIssues(isPerf) {
+            // Suppose each details row has an ID pattern "details-i" and an arrow with ID "arrow-i"
+            let issuesJsInfo = ISSUES_JS_INFO_IF_PERF_TABLE[isPerf]
+            for (let i = 0; i < issuesJsInfo.count; i++) {
+               
+                const row = document.getElementById(issuesJsInfo.details + i);
+                const arrowId = document.getElementById(issuesJsInfo.arrow + i);
+                if (!row.classList.contains('show')) {
+                    row.classList.add('show');
+                    arrowId.innerHTML = "&#x25BC;"; // Down triangle (&#9660;)
+                }
+            }
+            updateButtonVisibility(isPerf);
+        }
+
+        // Collapse All Issues
+        function collapseAllIssues(isPerf) {
+            let issuesJsInfo = ISSUES_JS_INFO_IF_PERF_TABLE[isPerf]              
+            for (let i = 0; i < issuesJsInfo.count; i++) {
+                
+                const row = document.getElementById(issuesJsInfo.details + i);
+                const arrowId = document.getElementById(issuesJsInfo.arrow + i);
+                if (row.classList.contains('show')) {
+                    row.classList.remove('show');
+                    arrowId.innerHTML = "&#x25B6;"; // Right triangle (&#x25B6;)
+                }
+            }
+            updateButtonVisibility(isPerf);
+        }
+
+        // Update Button Visibility Based on Row States
+        function updateButtonVisibility(isPerf) {
+            let issuesJsInfo = ISSUES_JS_INFO_IF_PERF_TABLE[isPerf]                      
+            let someExpanded = false;
+            let someCollapsed = false;
+
+            for (let i = 0; i < issuesJsInfo.count; i++) {
+                const row = document.getElementById(issuesJsInfo.details + i);
+                if (row.classList.contains('show')) {
+                    someExpanded = true;
+                } else {
+                    someCollapsed = true;
+                }
+                if (someExpanded && someCollapsed) break;
+            }
+
+            const expandButton = document.getElementById(issuesJsInfo.expand);
+            const collapseButton = document.getElementById(issuesJsInfo.collapse);
+            expandButton.style.display = someCollapsed ? 'inline-block' : 'none';
+            collapseButton.style.display = someExpanded ? 'inline-block' : 'none';
+        }
+
+        // Keep track of the current sort direction per field, so we can toggle it
+        let sortState = {
+            category: 'asc',
+            name: 'asc',
+            impact: 'asc'
+        };
+
+        function sortTableBy(field, isPerf) {
+            // Grab the table element
+            const table = document.querySelector(".table-highlight");
+
+            // Collect all the .issue-pair <tbody> elements
+            const issuePairs = Array.from(table.querySelectorAll("tbody.issue-summary-detail-pair"));
+
+            // Determine the current sort direction and flip it
+            let currentDirection = sortState[field] || 'asc';
+            let newDirection = (currentDirection === 'asc') ? 'desc' : 'asc';
+            sortState[field] = newDirection;
+
+            issuePairs.sort((a, b) => {
+                let aValue = a.dataset[field] || "";
+                let bValue = b.dataset[field] || "";
+                if (aValue < bValue) return newDirection === 'asc' ? -1 : 1;
+                if (aValue > bValue) return newDirection === 'asc' ? 1 : -1;
+                return 0;
+            });
+
+            // Re-append the sorted <tbody> elements to the table
+            issuePairs.forEach(pair => table.appendChild(pair));
+
+            // Update the sort indicator in the table header
+            const sortIndicator = table.querySelector(`th[onclick="sortTableBy('${field}', isPerf)"] .sort-indicator`);
+            if (sortIndicator) {
+                sortIndicator.innerHTML = newDirection === 'asc' ? '&#8593;' : '&#8595;'; // &#8593; is up arrow, &#8595; is down arrow
+            }
+            updateButtonVisibility(isPerf);
+        }
+
+        function updateButtonVisibilities() {
+            updateButtonVisibility(false);
+            updateButtonVisibility(true);
+        }
+        // Initialize Button Visibility on Page Load
+        window.onload = updateButtonVisibilities;
+
+    </script>
+</head>
+<body>
+    <div class="wrapper">
+        <h1>Migration Assessment Report</h1>
+        <p><strong>Voyager Version:</strong> main</p>
+        <p><strong>Database Name:</strong> pg_basic_assessment_report</p>
+        
+        
+            <p><strong>Database Version:</strong> 17.2 (Debian 17.2-1.pgdg120+1)</p>
+        
+
+        <p><strong>Target YB Version:</strong> 2024.2.3.1</p>
+
+        
+            <p><strong>Migration Complexity:</strong> MEDIUM</p>
+        
+
+        <h2>Database Objects</h2>
+        <p>Objects that will be created on the target YugabyteDB.</p>
+        <table>
+            <tr>
+                <th class="centered-cell">Object Type</th>
+                <th class="centered-cell">Total Objects</th>
+                <th>Object Names</th>
+            </tr>
+            
+            <tr>
+                <td class="centered-cell">SCHEMA</td>
+                <td class="centered-cell">2</td>
+                <td>
+                    <div class="scrollable-div no-wrap-list">
+                        <ul style="margin: 0; padding-left: 1.2em;">
+                            
+                                <li>public</li>
+                            
+                                <li>schema1</li>
+                            
+                        </ul>
+                    </div>
+                </td>
+            </tr>
+            
+            <tr>
+                <td class="centered-cell">EXTENSION</td>
+                <td class="centered-cell">1</td>
+                <td>
+                    <div class="scrollable-div no-wrap-list">
+                        <ul style="margin: 0; padding-left: 1.2em;">
+                            
+                                <li>pg_stat_statements</li>
+                            
+                        </ul>
+                    </div>
+                </td>
+            </tr>
+            
+            <tr>
+                <td class="centered-cell">SEQUENCE</td>
+                <td class="centered-cell">2</td>
+                <td>
+                    <div class="scrollable-div no-wrap-list">
+                        <ul style="margin: 0; padding-left: 1.2em;">
+                            
+                                <li>public.parent_table_id_seq</li>
+                            
+                                <li>schema1.employees2_id_seq</li>
+                            
+                        </ul>
+                    </div>
+                </td>
+            </tr>
+            
+            <tr>
+                <td class="centered-cell">TABLE</td>
+                <td class="centered-cell">5</td>
+                <td>
+                    <div class="scrollable-div no-wrap-list">
+                        <ul style="margin: 0; padding-left: 1.2em;">
+                            
+                                <li>public.parent_table</li>
+                            
+                                <li>public.child_table</li>
+                            
+                                <li>public.mixed_data_types_table1</li>
+                            
+                                <li>schema1.employees2</li>
+                            
+                                <li>schema1.test_hotspot_timestamp</li>
+                            
+                        </ul>
+                    </div>
+                </td>
+            </tr>
+            
+            <tr>
+                <td class="centered-cell">INDEX</td>
+                <td class="centered-cell">5</td>
+                <td>
+                    <div class="scrollable-div no-wrap-list">
+                        <ul style="margin: 0; padding-left: 1.2em;">
+                            
+                                <li>idx_employees2_first_name ON schema1.employees2</li>
+                            
+                                <li>idx_employees2_full_name ON schema1.employees2</li>
+                            
+                                <li>idx_employees2_last_name ON schema1.employees2</li>
+                            
+                                <li>idx_test_hotspot_timestamp ON schema1.test_hotspot_timestamp</li>
+                            
+                                <li>idx_test_low_card_employed ON schema1.test_hotspot_timestamp</li>
+                            
+                        </ul>
+                    </div>
+                </td>
+            </tr>
+            
+            <tr>
+                <td class="centered-cell">FUNCTION</td>
+                <td class="centered-cell">1</td>
+                <td>
+                    <div class="scrollable-div no-wrap-list">
+                        <ul style="margin: 0; padding-left: 1.2em;">
+                            
+                                <li>public.manage_large_object</li>
+                            
+                        </ul>
+                    </div>
+                </td>
+            </tr>
+            
+            <tr>
+                <td class="centered-cell">POLICY</td>
+                <td class="centered-cell">1</td>
+                <td>
+                    <div class="scrollable-div no-wrap-list">
+                        <ul style="margin: 0; padding-left: 1.2em;">
+                            
+                                <li>policy_test_report ON public.parent_table</li>
+                            
+                        </ul>
+                    </div>
+                </td>
+            </tr>
+            
+        </table>
+
+        
+            <h2>Sharding Recommendations</h2>
+            
+                
+                    <table>
+                        <tr>
+                            <th class="centered-cell">Colocated Tables</th>
+                            <th class="centered-cell">Sharded Tables</th>
+                        </tr>
+                        <tr>
+                            <td>
+                                <div class="scrollable-div no-wrap-list">
+                                    
+                                        <li>public.mixed_data_types_table1</li>
+                                    
+                                        <li>public.child_table</li>
+                                    
+                                        <li>public.parent_table</li>
+                                    
+                                        <li>schema1.test_hotspot_timestamp</li>
+                                    
+                                </div>
+                            </td>
+                            <td>
+                                <div class="scrollable-div no-wrap-list">
+                                    
+                                        <li>schema1.employees2</li>
+                                    
+                                </div>
+                            </td>
+                        </tr>
+                    </table>
+                    <h2>Sizing Recommendations</h2>
+                    <table>
+                        <tr>
+                            <th class="centered-cell">Parameter</th>
+                            <th class="centered-cell">Recommendation</th>
+                        </tr>
+                        <tr><td class="centered-cell">Num of Nodes</td><td class="centered-cell">3</td></tr>
+                        <tr><td class="centered-cell">vCPU per instance</td><td class="centered-cell">4</td></tr>
+                        <tr><td class="centered-cell">Memory per instance(GiB)</td><td class="centered-cell">16</td></tr>
+                        <tr><td class="centered-cell">Optimal select connections per node</td><td class="centered-cell">8</td></tr>
+                        <tr><td class="centered-cell">Optimal insert connections per node</td><td class="centered-cell">12</td></tr>
+                        <tr><td class="centered-cell">Estimated time taken for data import </td><td class="centered-cell">1 min</td></tr>
+                    </table>
+                    <h3>Reasoning:</h3>
+                    <p class="spaced-words">Recommended instance type with 4 vCPU and 16 GiB memory could fit 6 objects (4 tables/materialized views and 2 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Rest 4 objects (1 tables/materialized views and 3 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec need to be migrated as range partitioned tables. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.</p>
+                
+            
+        
+
+        
+            <h2>Migration Complexity Explanation</h2>
+            
+                <p>Below is a breakdown of the issues detected in different categories for each impact level.</p>
+                <table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse;">
+                    <thead>
+                        <tr>
+                            <th class="centered-cell">Category</th>
+                            <th class="centered-cell">Level 1</th>
+                            <th class="centered-cell">Level 2</th>
+                            <th class="centered-cell">Level 3</th>
+                            <th class="centered-cell">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        
+                            <tr>
+                                <td class="centered-cell">Migration Caveats</td>
+                                <td class="centered-cell">1</td>
+                                <td class="centered-cell">0</td>
+                                <td class="centered-cell">0</td>
+                                <td class="centered-cell">1</td>
+                            </tr>
+                        
+                            <tr>
+                                <td class="centered-cell">Performance Optimizations</td>
+                                <td class="centered-cell">2</td>
+                                <td class="centered-cell">0</td>
+                                <td class="centered-cell">0</td>
+                                <td class="centered-cell">2</td>
+                            </tr>
+                        
+                            <tr>
+                                <td class="centered-cell">Unsupported Datatypes</td>
+                                <td class="centered-cell">0</td>
+                                <td class="centered-cell">0</td>
+                                <td class="centered-cell">1</td>
+                                <td class="centered-cell">1</td>
+                            </tr>
+                        
+                            <tr>
+                                <td class="centered-cell">Unsupported Features</td>
+                                <td class="centered-cell">0</td>
+                                <td class="centered-cell">0</td>
+                                <td class="centered-cell">1</td>
+                                <td class="centered-cell">1</td>
+                            </tr>
+                        
+                            <tr>
+                                <td class="centered-cell">Unsupported Query Constructs</td>
+                                <td class="centered-cell">0</td>
+                                <td class="centered-cell">5</td>
+                                <td class="centered-cell">0</td>
+                                <td class="centered-cell">5</td>
+                            </tr>
+                        
+                            <tr>
+                                <td class="centered-cell">Unsupported Plpgsql Objects</td>
+                                <td class="centered-cell">0</td>
+                                <td class="centered-cell">1</td>
+                                <td class="centered-cell">0</td>
+                                <td class="centered-cell">1</td>
+                            </tr>
+                        
+                    </tbody>
+                </table>
+            
+
+            <p>
+                <strong>Complexity:</strong> MEDIUM<br>
+                <strong>Reasoning:</strong> Found 3 Level 1 issue(s), 6 Level 2 issue(s) and 2 Level 3 issue(s), resulting in MEDIUM migration complexity
+            </p>
+
+            <p>
+                <strong>Impact Levels:</strong><br>
+                Level 1: Resolutions are available with minimal effort.<br>
+                Level 2: Resolutions are available requiring moderate effort.<br>
+                Level 3: Resolutions may not be available or are complex.
+            </p>
+        
+
+        
+  
+  
+
+  
+
+  
+
+  
+  
+
+
+  
+
+        
+            <h2>Assessment Issues</h2>
+            <div class="assessment-issues-header">
+                <!-- Left area: text about total issues -->
+                <div>
+                    <p><strong>Total issues:</strong> 9</p>
+                    <p>Below is a detailed breakdown of each issue.</p>
+                </div>
+                <!-- Right area: buttons -->
+                <div class="buttons" id="controlButtons">
+                    <button class="rounded-button" id=expandAllButton onclick="expandAllIssues(false)">Expand All</button>
+                    <button class="rounded-button" id=collapseAllButton onclick="collapseAllIssues(false)">Collapse All</button>
+                </div>
+            </div>
+            <table class="table-highlight">
+                <!-- Summary Row Header for the issue -->
+                <colgroup>
+                    
+                    
+                        <col style="width: 20%;"> <!-- Category + arrow -->
+                        
+                    
+                    <col style="width: 20%;"> <!-- Issue Name -->
+                    <col style="width: 50%;"> <!-- Object/SQL Preview -->
+                    <col style="width: 10%;"> <!-- Impact -->
+                </colgroup>
+                <thead>
+                    <tr style="background-color: #f2f2f2;">
+                       
+                            <th class="centered-cell" style="cursor: pointer;" onclick="sortTableBy('category', false)">
+                            Category <span class="sort-indicator">&#8597;</span>
+                            </th>
+                       
+                        <th class="centered-cell" style="cursor: pointer;" onclick="sortTableBy('name', false)">
+                            Issue <span class="sort-indicator">&#8597;</span>
+                        </th>
+                        <th class="centered-cell">Object/SQL Preview</th>
+                        <th class="centered-cell" style="cursor: pointer; text-align: center;" onclick="sortTableBy('impact', false)">
+                            Impact <span class="sort-indicator">&#8597;</span>
+                        </th>
+                    </tr>
+                </thead>
+                
+                
+                    
+                    
+                    
+                    <tbody class="issue-summary-detail-pair"
+                        data-category="unsupported_datatypes"
+                        data-name="Unsupported datatype - txid_snapshot"
+                        data-impact="LEVEL_3">
+                        
+                        <!-- Summary Row -->
+                        <tr class="summary-row" onclick="toggleDetails('details-0', 'arrow-0', false)">
+                            
+                                <td class="centered-cell">
+                                    <div class="category-cell-flex">
+                                        <div class="arrow-container">
+                                            <span id="arrow-0">&#9654;</span>
+                                        </div>
+                                        <span style="word-break: break-word;">Unsupported Datatypes</span>
+                                    </div>
+                                </td>
+                            
+                            <td class="centered-cell">
+                                <div class="category-cell-flex">
+                                    
+                                    Unsupported datatype - txid_snapshot
+                                </div>
+                            </td>
+                            <td class="centered-cell">
+                                
+                                    public.mixed_data_types_table1.snapshot_data
+                                
+                            </td>
+                            <td class="centered-cell" style="text-align: center;">Level 3</td>
+                        </tr>
+
+                        <!-- Hidden Details of the Row -->
+                        <tr id="details-0" class="details-row">
+                            <td colspan="4">
+                                <div class="details-content-wrapper">
+                                    <div class="details-content">
+                                        <table class="formatted_table" style="width: 100%; border: 1px solid #ddd; margin-top: 5px;">
+                                            <colgroup>
+                                                <col style="width: 25%;">
+                                                <col style="width: 75%;">
+                                            </colgroup>
+                                            <tbody>
+                                                
+                                                    <tr>
+                                                        <th class="centered-cell">Category Description</th>
+                                                        <td>
+                                                            <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc; padding:5px;">
+                                                                Data types of the source database that are not supported on the target YugabyteDB.
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                
+
+                                                <!-- Only show if ObjectType is present -->
+                                                
+                                                    <tr>
+                                                        <th class="centered-cell">Object Type</th>
+                                                        <td>COLUMN</td>
+                                                    </tr>
+                                                
+                                                
+                                                    <tr>
+                                                        <th class="centered-cell">Object Name</th>
+                                                        <td>public.mixed_data_types_table1.snapshot_data</td>
+                                                    </tr>
+                                                
+                                                <tr>
+                                                    <th class="centered-cell">SQL Statement</th>
+                                                    <td>
+                                                        
+                                                        <!-- display N/A if Sql Statement not present -->
+                                                            N/A
+                                                        
+                                                    </td>
+                                                </tr>
+
+                                                <!-- Only show if there is a supported version -->
+                                                
+                                                
+                                                <tr>
+                                                    <th class="centered-cell">Description</th>
+                                                    <td>
+                                                        
+                                                            <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
+                                                                <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">TXID_SNAPSHOT datatype is not yet supported in YugabyteDB. Affected column: snapshot_data.</pre>
+                                                                
+                                                                    <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Refer to the <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-yugabytedb" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-yugabytedb">docs</a> for more details.</pre>
+                                                                
+                                                            </div>
+                                                        
+                                                    </td>
+                                                </tr>
+                                               
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                
+                    
+                    
+                    
+                    <tbody class="issue-summary-detail-pair"
+                        data-category="unsupported_features"
+                        data-name="Table Inheritance"
+                        data-impact="LEVEL_3">
+                        
+                        <!-- Summary Row -->
+                        <tr class="summary-row" onclick="toggleDetails('details-1', 'arrow-1', false)">
+                            
+                                <td class="centered-cell">
+                                    <div class="category-cell-flex">
+                                        <div class="arrow-container">
+                                            <span id="arrow-1">&#9654;</span>
+                                        </div>
+                                        <span style="word-break: break-word;">Unsupported Features</span>
+                                    </div>
+                                </td>
+                            
+                            <td class="centered-cell">
+                                <div class="category-cell-flex">
+                                    
+                                    Table Inheritance
+                                </div>
+                            </td>
+                            <td class="centered-cell">
+                                
+                                    public.child_table
+                                
+                            </td>
+                            <td class="centered-cell" style="text-align: center;">Level 3</td>
+                        </tr>
+
+                        <!-- Hidden Details of the Row -->
+                        <tr id="details-1" class="details-row">
+                            <td colspan="4">
+                                <div class="details-content-wrapper">
+                                    <div class="details-content">
+                                        <table class="formatted_table" style="width: 100%; border: 1px solid #ddd; margin-top: 5px;">
+                                            <colgroup>
+                                                <col style="width: 25%;">
+                                                <col style="width: 75%;">
+                                            </colgroup>
+                                            <tbody>
+                                                
+                                                    <tr>
+                                                        <th class="centered-cell">Category Description</th>
+                                                        <td>
+                                                            <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc; padding:5px;">
+                                                                Features of the source database that are not supported on the target YugabyteDB.
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                
+
+                                                <!-- Only show if ObjectType is present -->
+                                                
+                                                    <tr>
+                                                        <th class="centered-cell">Object Type</th>
+                                                        <td>TABLE</td>
+                                                    </tr>
+                                                
+                                                
+                                                    <tr>
+                                                        <th class="centered-cell">Object Name</th>
+                                                        <td>public.child_table</td>
+                                                    </tr>
+                                                
+                                                <tr>
+                                                    <th class="centered-cell">SQL Statement</th>
+                                                    <td>
+                                                        
+                                                            <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
+                                                                <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">CREATE TABLE public.child_table (
+    specific_column1 date
+)
+INHERITS (public.parent_table);</pre>
+                                                            </div>
+                                                        
+                                                    </td>
+                                                </tr>
+
+                                                <!-- Only show if there is a supported version -->
+                                                
+                                                
+                                                <tr>
+                                                    <th class="centered-cell">Description</th>
+                                                    <td>
+                                                        
+                                                            <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
+                                                                <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Table inheritance is not yet supported in YugabyteDB.</pre>
+                                                                
+                                                                    <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Refer to the <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported">docs</a> for more details.</pre>
+                                                                
+                                                            </div>
+                                                        
+                                                    </td>
+                                                </tr>
+                                               
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                
+                    
+                    
+                    
+                
+                    
+                    
+                    
+                    <tbody class="issue-summary-detail-pair"
+                        data-category="unsupported_query_constructs"
+                        data-name="System Column - ctid"
+                        data-impact="LEVEL_2">
+                        
+                        <!-- Summary Row -->
+                        <tr class="summary-row" onclick="toggleDetails('details-3', 'arrow-3', false)">
+                            
+                                <td class="centered-cell">
+                                    <div class="category-cell-flex">
+                                        <div class="arrow-container">
+                                            <span id="arrow-3">&#9654;</span>
+                                        </div>
+                                        <span style="word-break: break-word;">Unsupported Query Constructs</span>
+                                    </div>
+                                </td>
+                            
+                            <td class="centered-cell">
+                                <div class="category-cell-flex">
+                                    
+                                    System Column - ctid
+                                </div>
+                            </td>
+                            <td class="centered-cell">
+                                
+                                    SELECT ctid, tableoid, xmin, xmax, cmin, cmax
+FROM schema1.employees2
+                                
+                            </td>
+                            <td class="centered-cell" style="text-align: center;">Level 2</td>
+                        </tr>
+
+                        <!-- Hidden Details of the Row -->
+                        <tr id="details-3" class="details-row">
+                            <td colspan="4">
+                                <div class="details-content-wrapper">
+                                    <div class="details-content">
+                                        <table class="formatted_table" style="width: 100%; border: 1px solid #ddd; margin-top: 5px;">
+                                            <colgroup>
+                                                <col style="width: 25%;">
+                                                <col style="width: 75%;">
+                                            </colgroup>
+                                            <tbody>
+                                                
+                                                    <tr>
+                                                        <th class="centered-cell">Category Description</th>
+                                                        <td>
+                                                            <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc; padding:5px;">
+                                                                Source database queries not supported in YugabyteDB, identified by scanning system tables.
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                
+
+                                                <!-- Only show if ObjectType is present -->
+                                                
+                                                
+                                                <tr>
+                                                    <th class="centered-cell">SQL Statement</th>
+                                                    <td>
+                                                        
+                                                            <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
+                                                                <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">SELECT ctid, tableoid, xmin, xmax, cmin, cmax
+FROM schema1.employees2</pre>
+                                                            </div>
+                                                        
+                                                    </td>
+                                                </tr>
+
+                                                <!-- Only show if there is a supported version -->
+                                                
+                                                
+                                                <tr>
+                                                    <th class="centered-cell">Description</th>
+                                                    <td>
+                                                        
+                                                            <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
+                                                                <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">System column 'ctid' is not yet supported in YugabyteDB.</pre>
+                                                                
+                                                                    <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Refer to the <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported">docs</a> for more details.</pre>
+                                                                
+                                                            </div>
+                                                        
+                                                    </td>
+                                                </tr>
+                                               
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                
+                    
+                    
+                    
+                    <tbody class="issue-summary-detail-pair"
+                        data-category="unsupported_query_constructs"
+                        data-name="System Column - xmin"
+                        data-impact="LEVEL_2">
+                        
+                        <!-- Summary Row -->
+                        <tr class="summary-row" onclick="toggleDetails('details-4', 'arrow-4', false)">
+                            
+                                <td class="centered-cell">
+                                    <div class="category-cell-flex">
+                                        <div class="arrow-container">
+                                            <span id="arrow-4">&#9654;</span>
+                                        </div>
+                                        <span style="word-break: break-word;">Unsupported Query Constructs</span>
+                                    </div>
+                                </td>
+                            
+                            <td class="centered-cell">
+                                <div class="category-cell-flex">
+                                    
+                                    System Column - xmin
+                                </div>
+                            </td>
+                            <td class="centered-cell">
+                                
+                                    SELECT ctid, tableoid, xmin, xmax, cmin, cmax
+FROM schema1.employees2
+                                
+                            </td>
+                            <td class="centered-cell" style="text-align: center;">Level 2</td>
+                        </tr>
+
+                        <!-- Hidden Details of the Row -->
+                        <tr id="details-4" class="details-row">
+                            <td colspan="4">
+                                <div class="details-content-wrapper">
+                                    <div class="details-content">
+                                        <table class="formatted_table" style="width: 100%; border: 1px solid #ddd; margin-top: 5px;">
+                                            <colgroup>
+                                                <col style="width: 25%;">
+                                                <col style="width: 75%;">
+                                            </colgroup>
+                                            <tbody>
+                                                
+                                                    <tr>
+                                                        <th class="centered-cell">Category Description</th>
+                                                        <td>
+                                                            <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc; padding:5px;">
+                                                                Source database queries not supported in YugabyteDB, identified by scanning system tables.
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                
+
+                                                <!-- Only show if ObjectType is present -->
+                                                
+                                                
+                                                <tr>
+                                                    <th class="centered-cell">SQL Statement</th>
+                                                    <td>
+                                                        
+                                                            <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
+                                                                <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">SELECT ctid, tableoid, xmin, xmax, cmin, cmax
+FROM schema1.employees2</pre>
+                                                            </div>
+                                                        
+                                                    </td>
+                                                </tr>
+
+                                                <!-- Only show if there is a supported version -->
+                                                
+                                                
+                                                <tr>
+                                                    <th class="centered-cell">Description</th>
+                                                    <td>
+                                                        
+                                                            <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
+                                                                <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">System column 'xmin' is not yet supported in YugabyteDB.</pre>
+                                                                
+                                                                    <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Refer to the <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported">docs</a> for more details.</pre>
+                                                                
+                                                            </div>
+                                                        
+                                                    </td>
+                                                </tr>
+                                               
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                
+                    
+                    
+                    
+                    <tbody class="issue-summary-detail-pair"
+                        data-category="unsupported_query_constructs"
+                        data-name="System Column - xmax"
+                        data-impact="LEVEL_2">
+                        
+                        <!-- Summary Row -->
+                        <tr class="summary-row" onclick="toggleDetails('details-5', 'arrow-5', false)">
+                            
+                                <td class="centered-cell">
+                                    <div class="category-cell-flex">
+                                        <div class="arrow-container">
+                                            <span id="arrow-5">&#9654;</span>
+                                        </div>
+                                        <span style="word-break: break-word;">Unsupported Query Constructs</span>
+                                    </div>
+                                </td>
+                            
+                            <td class="centered-cell">
+                                <div class="category-cell-flex">
+                                    
+                                    System Column - xmax
+                                </div>
+                            </td>
+                            <td class="centered-cell">
+                                
+                                    SELECT ctid, tableoid, xmin, xmax, cmin, cmax
+FROM schema1.employees2
+                                
+                            </td>
+                            <td class="centered-cell" style="text-align: center;">Level 2</td>
+                        </tr>
+
+                        <!-- Hidden Details of the Row -->
+                        <tr id="details-5" class="details-row">
+                            <td colspan="4">
+                                <div class="details-content-wrapper">
+                                    <div class="details-content">
+                                        <table class="formatted_table" style="width: 100%; border: 1px solid #ddd; margin-top: 5px;">
+                                            <colgroup>
+                                                <col style="width: 25%;">
+                                                <col style="width: 75%;">
+                                            </colgroup>
+                                            <tbody>
+                                                
+                                                    <tr>
+                                                        <th class="centered-cell">Category Description</th>
+                                                        <td>
+                                                            <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc; padding:5px;">
+                                                                Source database queries not supported in YugabyteDB, identified by scanning system tables.
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                
+
+                                                <!-- Only show if ObjectType is present -->
+                                                
+                                                
+                                                <tr>
+                                                    <th class="centered-cell">SQL Statement</th>
+                                                    <td>
+                                                        
+                                                            <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
+                                                                <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">SELECT ctid, tableoid, xmin, xmax, cmin, cmax
+FROM schema1.employees2</pre>
+                                                            </div>
+                                                        
+                                                    </td>
+                                                </tr>
+
+                                                <!-- Only show if there is a supported version -->
+                                                
+                                                
+                                                <tr>
+                                                    <th class="centered-cell">Description</th>
+                                                    <td>
+                                                        
+                                                            <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
+                                                                <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">System column 'xmax' is not yet supported in YugabyteDB.</pre>
+                                                                
+                                                                    <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Refer to the <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported">docs</a> for more details.</pre>
+                                                                
+                                                            </div>
+                                                        
+                                                    </td>
+                                                </tr>
+                                               
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                
+                    
+                    
+                    
+                    <tbody class="issue-summary-detail-pair"
+                        data-category="unsupported_query_constructs"
+                        data-name="System Column - cmin"
+                        data-impact="LEVEL_2">
+                        
+                        <!-- Summary Row -->
+                        <tr class="summary-row" onclick="toggleDetails('details-6', 'arrow-6', false)">
+                            
+                                <td class="centered-cell">
+                                    <div class="category-cell-flex">
+                                        <div class="arrow-container">
+                                            <span id="arrow-6">&#9654;</span>
+                                        </div>
+                                        <span style="word-break: break-word;">Unsupported Query Constructs</span>
+                                    </div>
+                                </td>
+                            
+                            <td class="centered-cell">
+                                <div class="category-cell-flex">
+                                    
+                                    System Column - cmin
+                                </div>
+                            </td>
+                            <td class="centered-cell">
+                                
+                                    SELECT ctid, tableoid, xmin, xmax, cmin, cmax
+FROM schema1.employees2
+                                
+                            </td>
+                            <td class="centered-cell" style="text-align: center;">Level 2</td>
+                        </tr>
+
+                        <!-- Hidden Details of the Row -->
+                        <tr id="details-6" class="details-row">
+                            <td colspan="4">
+                                <div class="details-content-wrapper">
+                                    <div class="details-content">
+                                        <table class="formatted_table" style="width: 100%; border: 1px solid #ddd; margin-top: 5px;">
+                                            <colgroup>
+                                                <col style="width: 25%;">
+                                                <col style="width: 75%;">
+                                            </colgroup>
+                                            <tbody>
+                                                
+                                                    <tr>
+                                                        <th class="centered-cell">Category Description</th>
+                                                        <td>
+                                                            <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc; padding:5px;">
+                                                                Source database queries not supported in YugabyteDB, identified by scanning system tables.
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                
+
+                                                <!-- Only show if ObjectType is present -->
+                                                
+                                                
+                                                <tr>
+                                                    <th class="centered-cell">SQL Statement</th>
+                                                    <td>
+                                                        
+                                                            <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
+                                                                <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">SELECT ctid, tableoid, xmin, xmax, cmin, cmax
+FROM schema1.employees2</pre>
+                                                            </div>
+                                                        
+                                                    </td>
+                                                </tr>
+
+                                                <!-- Only show if there is a supported version -->
+                                                
+                                                
+                                                <tr>
+                                                    <th class="centered-cell">Description</th>
+                                                    <td>
+                                                        
+                                                            <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
+                                                                <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">System column 'cmin' is not yet supported in YugabyteDB.</pre>
+                                                                
+                                                                    <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Refer to the <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported">docs</a> for more details.</pre>
+                                                                
+                                                            </div>
+                                                        
+                                                    </td>
+                                                </tr>
+                                               
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                
+                    
+                    
+                    
+                    <tbody class="issue-summary-detail-pair"
+                        data-category="unsupported_query_constructs"
+                        data-name="System Column - cmax"
+                        data-impact="LEVEL_2">
+                        
+                        <!-- Summary Row -->
+                        <tr class="summary-row" onclick="toggleDetails('details-7', 'arrow-7', false)">
+                            
+                                <td class="centered-cell">
+                                    <div class="category-cell-flex">
+                                        <div class="arrow-container">
+                                            <span id="arrow-7">&#9654;</span>
+                                        </div>
+                                        <span style="word-break: break-word;">Unsupported Query Constructs</span>
+                                    </div>
+                                </td>
+                            
+                            <td class="centered-cell">
+                                <div class="category-cell-flex">
+                                    
+                                    System Column - cmax
+                                </div>
+                            </td>
+                            <td class="centered-cell">
+                                
+                                    SELECT ctid, tableoid, xmin, xmax, cmin, cmax
+FROM schema1.employees2
+                                
+                            </td>
+                            <td class="centered-cell" style="text-align: center;">Level 2</td>
+                        </tr>
+
+                        <!-- Hidden Details of the Row -->
+                        <tr id="details-7" class="details-row">
+                            <td colspan="4">
+                                <div class="details-content-wrapper">
+                                    <div class="details-content">
+                                        <table class="formatted_table" style="width: 100%; border: 1px solid #ddd; margin-top: 5px;">
+                                            <colgroup>
+                                                <col style="width: 25%;">
+                                                <col style="width: 75%;">
+                                            </colgroup>
+                                            <tbody>
+                                                
+                                                    <tr>
+                                                        <th class="centered-cell">Category Description</th>
+                                                        <td>
+                                                            <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc; padding:5px;">
+                                                                Source database queries not supported in YugabyteDB, identified by scanning system tables.
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                
+
+                                                <!-- Only show if ObjectType is present -->
+                                                
+                                                
+                                                <tr>
+                                                    <th class="centered-cell">SQL Statement</th>
+                                                    <td>
+                                                        
+                                                            <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
+                                                                <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">SELECT ctid, tableoid, xmin, xmax, cmin, cmax
+FROM schema1.employees2</pre>
+                                                            </div>
+                                                        
+                                                    </td>
+                                                </tr>
+
+                                                <!-- Only show if there is a supported version -->
+                                                
+                                                
+                                                <tr>
+                                                    <th class="centered-cell">Description</th>
+                                                    <td>
+                                                        
+                                                            <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
+                                                                <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">System column 'cmax' is not yet supported in YugabyteDB.</pre>
+                                                                
+                                                                    <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Refer to the <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported">docs</a> for more details.</pre>
+                                                                
+                                                            </div>
+                                                        
+                                                    </td>
+                                                </tr>
+                                               
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                
+                    
+                    
+                    
+                    <tbody class="issue-summary-detail-pair"
+                        data-category="unsupported_plpgsql_objects"
+                        data-name="Large Object Functions"
+                        data-impact="LEVEL_2">
+                        
+                        <!-- Summary Row -->
+                        <tr class="summary-row" onclick="toggleDetails('details-8', 'arrow-8', false)">
+                            
+                                <td class="centered-cell">
+                                    <div class="category-cell-flex">
+                                        <div class="arrow-container">
+                                            <span id="arrow-8">&#9654;</span>
+                                        </div>
+                                        <span style="word-break: break-word;">Unsupported Plpgsql Objects</span>
+                                    </div>
+                                </td>
+                            
+                            <td class="centered-cell">
+                                <div class="category-cell-flex">
+                                    
+                                    Large Object Functions
+                                </div>
+                            </td>
+                            <td class="centered-cell">
+                                
+                                    public.manage_large_object
+                                
+                            </td>
+                            <td class="centered-cell" style="text-align: center;">Level 2</td>
+                        </tr>
+
+                        <!-- Hidden Details of the Row -->
+                        <tr id="details-8" class="details-row">
+                            <td colspan="4">
+                                <div class="details-content-wrapper">
+                                    <div class="details-content">
+                                        <table class="formatted_table" style="width: 100%; border: 1px solid #ddd; margin-top: 5px;">
+                                            <colgroup>
+                                                <col style="width: 25%;">
+                                                <col style="width: 75%;">
+                                            </colgroup>
+                                            <tbody>
+                                                
+                                                    <tr>
+                                                        <th class="centered-cell">Category Description</th>
+                                                        <td>
+                                                            <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc; padding:5px;">
+                                                                Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                
+
+                                                <!-- Only show if ObjectType is present -->
+                                                
+                                                    <tr>
+                                                        <th class="centered-cell">Object Type</th>
+                                                        <td>FUNCTION</td>
+                                                    </tr>
+                                                
+                                                
+                                                    <tr>
+                                                        <th class="centered-cell">Object Name</th>
+                                                        <td>public.manage_large_object</td>
+                                                    </tr>
+                                                
+                                                <tr>
+                                                    <th class="centered-cell">SQL Statement</th>
+                                                    <td>
+                                                        
+                                                            <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
+                                                                <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">SELECT lo_unlink(loid);</pre>
+                                                            </div>
+                                                        
+                                                    </td>
+                                                </tr>
+
+                                                <!-- Only show if there is a supported version -->
+                                                
+                                                
+                                                <tr>
+                                                    <th class="centered-cell">Description</th>
+                                                    <td>
+                                                        
+                                                            <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
+                                                                <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Large Objects functions are not supported in YugabyteDB.</pre>
+                                                                
+                                                                    <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Refer to the <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#large-objects-and-its-functions-are-currently-not-supported" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#large-objects-and-its-functions-are-currently-not-supported">docs</a> for more details.</pre>
+                                                                
+                                                            </div>
+                                                        
+                                                    </td>
+                                                </tr>
+                                               
+                                                    <tr>
+                                                        <th class="centered-cell">More Information</th>
+                                                        <td>
+                                                            <ul>
+                                                            
+                                                                <li><pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Function Names: [lo_unlink]</pre></li>
+                                                            
+                                                            </ul>
+                                                        </td>
+                                                    </tr>
+                                               
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                
+                    
+                    
+                    
+                    <tbody class="issue-summary-detail-pair"
+                        data-category="migration_caveats"
+                        data-name="Policy with Roles"
+                        data-impact="LEVEL_1">
+                        
+                        <!-- Summary Row -->
+                        <tr class="summary-row" onclick="toggleDetails('details-9', 'arrow-9', false)">
+                            
+                                <td class="centered-cell">
+                                    <div class="category-cell-flex">
+                                        <div class="arrow-container">
+                                            <span id="arrow-9">&#9654;</span>
+                                        </div>
+                                        <span style="word-break: break-word;">Migration Caveats</span>
+                                    </div>
+                                </td>
+                            
+                            <td class="centered-cell">
+                                <div class="category-cell-flex">
+                                    
+                                    Policy with Roles
+                                </div>
+                            </td>
+                            <td class="centered-cell">
+                                
+                                    policy_test_report ON public.parent_table
+                                
+                            </td>
+                            <td class="centered-cell" style="text-align: center;">Level 1</td>
+                        </tr>
+
+                        <!-- Hidden Details of the Row -->
+                        <tr id="details-9" class="details-row">
+                            <td colspan="4">
+                                <div class="details-content-wrapper">
+                                    <div class="details-content">
+                                        <table class="formatted_table" style="width: 100%; border: 1px solid #ddd; margin-top: 5px;">
+                                            <colgroup>
+                                                <col style="width: 25%;">
+                                                <col style="width: 75%;">
+                                            </colgroup>
+                                            <tbody>
+                                                
+                                                    <tr>
+                                                        <th class="centered-cell">Category Description</th>
+                                                        <td>
+                                                            <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc; padding:5px;">
+                                                                Migration Caveats highlights the current limitations with the migration workflow.
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                
+
+                                                <!-- Only show if ObjectType is present -->
+                                                
+                                                    <tr>
+                                                        <th class="centered-cell">Object Type</th>
+                                                        <td>POLICY</td>
+                                                    </tr>
+                                                
+                                                
+                                                    <tr>
+                                                        <th class="centered-cell">Object Name</th>
+                                                        <td>policy_test_report ON public.parent_table</td>
+                                                    </tr>
+                                                
+                                                <tr>
+                                                    <th class="centered-cell">SQL Statement</th>
+                                                    <td>
+                                                        
+                                                            <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
+                                                                <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">CREATE POLICY policy_test_report ON public.parent_table TO test_policy USING (true);</pre>
+                                                            </div>
+                                                        
+                                                    </td>
+                                                </tr>
+
+                                                <!-- Only show if there is a supported version -->
+                                                
+                                                
+                                                <tr>
+                                                    <th class="centered-cell">Description</th>
+                                                    <td>
+                                                        
+                                                            <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
+                                                                <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Policies require specific roles (test_policy) to be created in the target database, as roles are not migrated during schema migration. Create the Users manually to make the policies work.</pre>
+                                                                
+                                                                    <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Refer to the <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#policies-on-users-in-source-require-manual-user-creation" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#policies-on-users-in-source-require-manual-user-creation">docs</a> for more details.</pre>
+                                                                
+                                                            </div>
+                                                        
+                                                    </td>
+                                                </tr>
+                                               
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                
+            </table>
+
+        
+   
+
+ 
+
+        
+        
+  
+  
+
+  
+
+  
+
+  
+  
+
+
+  
+    
+    
+    
+    
+    
+    
+
+  
+
+        
+            <h2>Performance Optimzations</h2>
+            <div class="assessment-issues-header">
+                <!-- Left area: text about total issues -->
+                <div>
+                    <p><strong>Total optimizations:</strong> 2</p>
+                    <p>Below is a detailed breakdown of each issue.</p>
+                </div>
+                <!-- Right area: buttons -->
+                <div class="buttons" id="controlButtons">
+                    <button class="rounded-button" id=expandAllButton-perf onclick="expandAllIssues(true)">Expand All</button>
+                    <button class="rounded-button" id=collapseAllButton-perf onclick="collapseAllIssues(true)">Collapse All</button>
+                </div>
+            </div>
+            <table class="table-highlight">
+                <!-- Summary Row Header for the issue -->
+                <colgroup>
+                    
+                    
+                    <col style="width: 40%;"> <!-- Issue Name -->
+                    <col style="width: 50%;"> <!-- Object/SQL Preview -->
+                    <col style="width: 10%;"> <!-- Impact -->
+                </colgroup>
+                <thead>
+                    <tr style="background-color: #f2f2f2;">
+                       
+                        <th class="centered-cell" style="cursor: pointer;" onclick="sortTableBy('name', true)">
+                            Optimization <span class="sort-indicator">&#8597;</span>
+                        </th>
+                        <th class="centered-cell">Object/SQL Preview</th>
+                        <th class="centered-cell" style="cursor: pointer; text-align: center;" onclick="sortTableBy('impact', true)">
+                            Impact <span class="sort-indicator">&#8597;</span>
+                        </th>
+                    </tr>
+                </thead>
+                
+                
+                    
+                    
+                     
+                        
+                        
+                    
+                    <tbody class="issue-summary-detail-pair"
+                        data-category="performance_optimizations"
+                        data-name="Hotspots with indexes on timestamp as first column"
+                        data-impact="LEVEL_1">
+                        
+                        <!-- Summary Row -->
+                        <tr class="summary-row" onclick="toggleDetails('details-perf-0', 'arrow-perf-0', true)">
+                            
+                            <td class="centered-cell">
+                                <div class="category-cell-flex">
+                                    
+                                        <div class="arrow-container">
+                                            <span id="arrow-perf-0">&#9654;</span>
+                                        </div>
+                                    
+                                    Hotspots with indexes on timestamp as first column
+                                </div>
+                            </td>
+                            <td class="centered-cell">
+                                
+                                    idx_test_hotspot_timestamp ON schema1.test_hotspot_timestamp
+                                
+                            </td>
+                            <td class="centered-cell" style="text-align: center;">Level 1</td>
+                        </tr>
+
+                        <!-- Hidden Details of the Row -->
+                        <tr id="details-perf-0" class="details-row">
+                            <td colspan="4">
+                                <div class="details-content-wrapper">
+                                    <div class="details-content">
+                                        <table class="formatted_table" style="width: 100%; border: 1px solid #ddd; margin-top: 5px;">
+                                            <colgroup>
+                                                <col style="width: 25%;">
+                                                <col style="width: 75%;">
+                                            </colgroup>
+                                            <tbody>
+                                                
+
+                                                <!-- Only show if ObjectType is present -->
+                                                
+                                                    <tr>
+                                                        <th class="centered-cell">Object Type</th>
+                                                        <td>INDEX</td>
+                                                    </tr>
+                                                
+                                                
+                                                    <tr>
+                                                        <th class="centered-cell">Object Name</th>
+                                                        <td>idx_test_hotspot_timestamp ON schema1.test_hotspot_timestamp</td>
+                                                    </tr>
+                                                
+                                                <tr>
+                                                    <th class="centered-cell">SQL Statement</th>
+                                                    <td>
+                                                        
+                                                            <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
+                                                                <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">CREATE INDEX idx_test_hotspot_timestamp ON schema1.test_hotspot_timestamp USING btree (created_at);</pre>
+                                                            </div>
+                                                        
+                                                    </td>
+                                                </tr>
+
+                                                <!-- Only show if there is a supported version -->
+                                                
+                                                
+                                                <tr>
+                                                    <th class="centered-cell">Description</th>
+                                                    <td>
+                                                        
+                                                            <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
+                                                                <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.
+To address this issue and improve query performance, the recommendation is to change the sharding key to a modulo of hash of timestamp column value while keeping the timestamp column value as clustering key. Ensure that the index on the column is configured to be range-sharded on timestamp column.
+Note: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.</pre>
+                                                                
+                                                                    <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Refer to the <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes">docs</a> for more details.</pre>
+                                                                
+                                                            </div>
+                                                        
+                                                    </td>
+                                                </tr>
+                                               
+                                                    <tr>
+                                                        <th class="centered-cell">More Information</th>
+                                                        <td>
+                                                            <ul>
+                                                            
+                                                                <li><pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Column Name: created_at</pre></li>
+                                                            
+                                                            </ul>
+                                                        </td>
+                                                    </tr>
+                                               
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                
+                    
+                    
+                     
+                        
+                        
+                    
+                    <tbody class="issue-summary-detail-pair"
+                        data-category="performance_optimizations"
+                        data-name="Index on low-cardinality column"
+                        data-impact="LEVEL_1">
+                        
+                        <!-- Summary Row -->
+                        <tr class="summary-row" onclick="toggleDetails('details-perf-1', 'arrow-perf-1', true)">
+                            
+                            <td class="centered-cell">
+                                <div class="category-cell-flex">
+                                    
+                                        <div class="arrow-container">
+                                            <span id="arrow-perf-1">&#9654;</span>
+                                        </div>
+                                    
+                                    Index on low-cardinality column
+                                </div>
+                            </td>
+                            <td class="centered-cell">
+                                
+                                    idx_test_low_card_employed ON schema1.test_hotspot_timestamp
+                                
+                            </td>
+                            <td class="centered-cell" style="text-align: center;">Level 1</td>
+                        </tr>
+
+                        <!-- Hidden Details of the Row -->
+                        <tr id="details-perf-1" class="details-row">
+                            <td colspan="4">
+                                <div class="details-content-wrapper">
+                                    <div class="details-content">
+                                        <table class="formatted_table" style="width: 100%; border: 1px solid #ddd; margin-top: 5px;">
+                                            <colgroup>
+                                                <col style="width: 25%;">
+                                                <col style="width: 75%;">
+                                            </colgroup>
+                                            <tbody>
+                                                
+
+                                                <!-- Only show if ObjectType is present -->
+                                                
+                                                    <tr>
+                                                        <th class="centered-cell">Object Type</th>
+                                                        <td>INDEX</td>
+                                                    </tr>
+                                                
+                                                
+                                                    <tr>
+                                                        <th class="centered-cell">Object Name</th>
+                                                        <td>idx_test_low_card_employed ON schema1.test_hotspot_timestamp</td>
+                                                    </tr>
+                                                
+                                                <tr>
+                                                    <th class="centered-cell">SQL Statement</th>
+                                                    <td>
+                                                        
+                                                            <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
+                                                                <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">CREATE INDEX idx_test_low_card_employed ON schema1.test_hotspot_timestamp USING btree (employed);</pre>
+                                                            </div>
+                                                        
+                                                    </td>
+                                                </tr>
+
+                                                <!-- Only show if there is a supported version -->
+                                                
+                                                
+                                                <tr>
+                                                    <th class="centered-cell">Description</th>
+                                                    <td>
+                                                        
+                                                            <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
+                                                                <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">In distributed databases, index design should ensure even data distribution across multiple nodes. Indexes built on low-cardinality columns (e.g., boolean, days of the week) are not optimal, as they may lead to bad data distribution among tablets. This index is built on a low-cardinality column.</pre>
+                                                                
+                                                                    <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Refer to the <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-low-cardinality-column" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-low-cardinality-column">docs</a> for more details.</pre>
+                                                                
+                                                            </div>
+                                                        
+                                                    </td>
+                                                </tr>
+                                               
+                                                    <tr>
+                                                        <th class="centered-cell">More Information</th>
+                                                        <td>
+                                                            <ul>
+                                                            
+                                                                <li><pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Cardinality: 2</pre></li>
+                                                            
+                                                                <li><pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Column Name: employed</pre></li>
+                                                            
+                                                            </ul>
+                                                        </td>
+                                                    </tr>
+                                               
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                
+            </table>
+
+        
+   
+
+ 
+
+        
+
+
+
+        
+            <hr>
+            <div>
+                <h4>Notes</h4>
+                <ul id="notes-list">
+                    
+                        <li>Some features listed in this report may be supported under a preview flag in the specified target-db-version of YugabyteDB. Please refer to the official <a class="highlight-link" target="_blank" href="https://docs.yugabyte.com/preview/releases/ybdb-releases/">release notes</a> for detailed information and usage guidelines.</li>
+                    
+                        <li>If there are any tables that receive disproportionately high load, ensure that they are NOT colocated to avoid the colocated tablet becoming a hotspot.
+For additional considerations related to colocated tables, refer to the documentation at: https://docs.yugabyte.com/preview/explore/colocation/#limitations-and-considerations</li>
+                    
+                        <li>If indexes are created on columns commonly used in range-based queries (e.g. timestamp columns), it is recommended to explicitly configure these indexes with range sharding. This ensures efficient data access for range queries.
+By default, YugabyteDB uses hash sharding for indexes, which distributes data randomly and is not ideal for range-based predicates potentially degrading query performance. Note that range sharding is enabled by default only in <a class="highlight-link" target="_blank" href="https://docs.yugabyte.com/preview/develop/postgresql-compatibility/">PostgreSQL compatibility mode</a> in YugabyteDB.</li>
+                    
+                        <li><a class="highlight-link" target="_blank"  href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/#assessment-and-schema-analysis-limitations">Limitations in assessment</a></li>
+                    
+                </ul>
+            </div>
+        
+    </div>
+</body>
+<!--
+  This script tag is placed at after the end of the body tag to ensure the DOM elements is fully loaded
+  before it runs. This is necessary because placing the script in the head would
+  execute it before elements with id #notes-list are available in the DOM, causing it
+  to miss URLs.
+-->
+<script>
+    const notesListItems = document.querySelectorAll("#notes-list li");
+
+    notesListItems.forEach((li) => {
+        const originalText = li.textContent.trim();
+        const words = originalText.split(' ');
+
+        const hasUrl = words.some(word => word.startsWith('http://') || word.startsWith('https://'));
+        if (!hasUrl) return;
+
+        li.textContent = '';
+
+        words.forEach((word, index) => {
+            let url = word;
+            let charThatWillBeRemoved = '';
+
+            const isUrl = url.startsWith('http://') || url.startsWith('https://');
+
+            if (isUrl) {
+                const lastChar = url[url.length - 1];
+                const urlCantEndWithTheseChars = [',', '.', '!', '?', ';', ':'];
+                if (urlCantEndWithTheseChars.includes(lastChar)) {
+                    charThatWillBeRemoved = lastChar;
+                    url = url.slice(0, -1);
+                }
+
+                const aTag = document.createElement("a");
+                aTag.href = url;
+                aTag.textContent = url;
+                aTag.classList.add("highlight-link");
+                aTag.target = "_blank";
+                li.appendChild(aTag);
+                if (charThatWillBeRemoved) {
+                    li.appendChild(document.createTextNode(charThatWillBeRemoved));
+                }
+            } else {
+                li.appendChild(document.createTextNode(word));
+            }
+            if (index < words.length - 1) {
+                li.appendChild(document.createTextNode(' '));
+            }
+        });
+    });
+</script>
+</html>

@@ -95,8 +95,20 @@ func validateImportFlags(cmd *cobra.Command, importerRole string) error {
 		getSourceDBPassword(cmd)
 	}
 	validateParallelismFlags()
-	validateTruncateTablesFlag()
 
+	return nil
+}
+
+func validateImportDataFlags() error {
+	err := validateOnPrimaryKeyConflictFlag()
+	if err != nil {
+		return fmt.Errorf("error validating --on-primary-key-conflict flag: %w", err)
+	}
+
+	err = validateTruncateTablesFlag()
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -254,7 +266,6 @@ Note that for the cases where a table doesn't have a primary key, this may lead 
 		"The desired behavior when there is an error while processing and importing rows to target YugabyteDB in the snapshot phase. The errors can be while reading from file, transforming rows, or ingesting rows into YugabyteDB.\n"+
 			"\tabort: immediately abort the process. (default)\n"+
 			"\tstash-and-continue: stash the errored rows to a file and continue with the import")
-	cmd.Flags().MarkHidden("error-policy-snapshot")
 }
 
 func registerImportSchemaFlags(cmd *cobra.Command) {
@@ -325,7 +336,7 @@ func getTargetPassword(cmd *cobra.Command) {
 	var err error
 	tconf.Password, err = getPassword(cmd, "target-db-password", "TARGET_DB_PASSWORD")
 	if err != nil {
-		utils.ErrExit("error in getting target-db-password: %v", err)
+		utils.ErrExit("error in getting target-db-password: %w", err)
 	}
 }
 
@@ -391,7 +402,7 @@ func registerFlagsForTarget(cmd *cobra.Command) {
 		"Adapt parallelism based on the resource usage (CPU, memory) of the target YugabyteDB cluster.")
 	cmd.Flags().IntVar(&tconf.MaxParallelism, "adaptive-parallelism-max", 0,
 		"number of max parallel jobs to use while importing data when adaptive parallelism is enabled. "+
-			"By default, voyager will try if it can determine the total number of cores N and use N/2 as the max parallel jobs. ")
+			"By default, voyager will try if it can determine the total number of cores N and use N/2 as the max parallel jobs.")
 	BoolVar(cmd.Flags(), &skipReplicationChecks, "skip-replication-checks", false,
 		"It is NOT recommended to have any form of replication (CDC/xCluster) running on the target YugabyteDB cluster during data import. "+
 			"If detected, data import is aborted. Use this flag to turn off the checks and continue importing data.")
@@ -402,14 +413,11 @@ func registerFlagsForTarget(cmd *cobra.Command) {
 		"Skips the monitoring of the disk usage on the target YugabyteDB cluster. "+
 			"By default, voyager will keep monitoring the disk usage on the nodes to keep the cluster stable.")
 
-	// TODO: restrict changing of flag value after import data has started
-	// TODO: Detailed description of the flag
 	cmd.Flags().StringVar(&tconf.OnPrimaryKeyConflictAction, "on-primary-key-conflict", "ERROR",
 		`Action to take on primary key conflict during data import.
 Supported values:
 ERROR(default): Import in this mode fails if any primary key conflict is encountered, assuming such conflicts are unexpected.
-IGNORE		: Skips rows with existing primary keys and uses fast-path import for better performance with colocated tables.`)
-	cmd.Flags().MarkHidden("on-primary-key-conflict") // Hide until QA is complete
+IGNORE		: Skip rows where the primary key already exists and continue importing remaining data.`)
 
 	cmd.Flags().MarkHidden("skip-disk-usage-health-checks")
 	cmd.Flags().MarkHidden("skip-node-health-checks")
@@ -471,10 +479,11 @@ func validateParallelismFlags() {
 
 }
 
-func validateTruncateTablesFlag() {
+func validateTruncateTablesFlag() error {
 	if truncateTables && !startClean {
-		utils.ErrExit("Error --truncate-tables true can only be specified along with --start-clean true")
+		return fmt.Errorf("Error --truncate-tables true can only be specified along with --start-clean true")
 	}
+	return nil
 }
 
 var onPrimaryKeyConflictActions = []string{
@@ -489,7 +498,7 @@ func validateOnPrimaryKeyConflictFlag() error {
 
 	// flag only applicable for import-data-to-target and import-data-file commands
 	// ignore for import-data-to-source-replica and import-data-to-source commands
-	if importerRole != TARGET_DB_IMPORTER_ROLE && importerRole != IMPORT_FILE_ROLE {
+	if !isPrimaryKeyConflictModeValid() {
 		return nil
 	}
 
@@ -509,7 +518,7 @@ func validateOnPrimaryKeyConflictFlag() error {
 	if !bool(startClean) && metaDBIsCreated(exportDir) {
 		msr, err := metaDB.GetMigrationStatusRecord()
 		if err != nil {
-			return fmt.Errorf("error getting migration status record: %v", err)
+			return fmt.Errorf("error getting migration status record: %w", err)
 		} else if msr == nil {
 			return fmt.Errorf("migration status record is nil, cannot validate --on-primary-key-conflict flag")
 		}
@@ -525,5 +534,8 @@ func validateOnPrimaryKeyConflictFlag() error {
 		return fmt.Errorf("--enable-upsert=true can only be used with --on-primary-key-conflict=ERROR")
 	}
 
+	if tconf.OnPrimaryKeyConflictAction == constants.PRIMARY_KEY_CONFLICT_ACTION_IGNORE {
+		utils.PrintAndLog("Note: --on-primary-key-conflict is set as 'IGNORE'. Rows with existing primary keys will be skipped during import.")
+	}
 	return nil
 }

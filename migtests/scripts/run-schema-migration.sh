@@ -116,7 +116,7 @@ main() {
 		    EXPECTED_FAILED_FILE="${TEST_DIR}/expected_files/expected_failed.sql"
 		fi
         #compare the failed.sql to the expected_failed.sql
-        compare_sql_files "${EXPORT_DIR}/schema/failed.sql" "${EXPECTED_FAILED_FILE}"
+        compare_sql_files "${EXPORT_DIR}/schema/failed.sql" "${EXPECTED_FAILED_FILE}" "$target_major_version"
         #rename failed.sql
         mv "${EXPORT_DIR}/schema/failed.sql" "${EXPORT_DIR}/schema/failed.sql.bak"
         #replace_files

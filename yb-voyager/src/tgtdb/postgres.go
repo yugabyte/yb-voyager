@@ -206,7 +206,7 @@ func (pg *TargetPostgreSQL) disconnect() {
 func (pg *TargetPostgreSQL) EnsureConnected() {
 	err := pg.connect()
 	if err != nil {
-		utils.ErrExit("Failed to connect to the target DB: %s", err)
+		utils.ErrExit("Failed to connect to the target DB: %w", err)
 	}
 }
 
@@ -221,7 +221,7 @@ func (pg *TargetPostgreSQL) GetVersion() string {
 	query := "SELECT setting FROM pg_settings WHERE name = 'server_version'"
 	err := pg.QueryRow(query).Scan(&pg.tconf.DBVersion)
 	if err != nil {
-		utils.ErrExit("get target db version: %s", err)
+		utils.ErrExit("get target db version: %w", err)
 	}
 	return pg.tconf.DBVersion
 }
@@ -360,27 +360,9 @@ func (pg *TargetPostgreSQL) GetPrimaryKeyColumns(table sqlname.NameTuple) ([]str
 	return primaryKeyColumns, nil
 }
 
-// Implementing this for completion but not used in Oracle fall-forward/fall-back
-// This info is only used in fast path import of batches(Target YugabyteDB)
-func (pg *TargetPostgreSQL) GetPrimaryKeyConstraintName(table sqlname.NameTuple) (string, error) {
-	schemaName, tableName := table.ForCatalogQuery()
-	query := fmt.Sprintf(`
-		SELECT constraint_name
-		FROM information_schema.table_constraints
-		WHERE table_schema = '%s'
-			AND table_name = '%s'
-			AND constraint_type = 'PRIMARY KEY';`, schemaName, tableName)
-
-	var constraintName string
-	err := pg.QueryRow(query).Scan(&constraintName)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return "", nil // No primary key constraint found
-		}
-		return "", fmt.Errorf("query PK constraint name for %s.%s: %w", schemaName, tableName, err)
-	}
-
-	return constraintName, nil
+// No need to implement GetPrimaryKeyColumns for Postgres fall-forward/fall-back as fast path is not valid there
+func (pg *TargetPostgreSQL) GetPrimaryKeyConstraintNames(table sqlname.NameTuple) ([]string, error) {
+	return nil, nil
 }
 
 func (pg *TargetPostgreSQL) GetNonEmptyTables(tables []sqlname.NameTuple) []sqlname.NameTuple {
@@ -395,7 +377,7 @@ func (pg *TargetPostgreSQL) GetNonEmptyTables(tables []sqlname.NameTuple) []sqln
 			continue
 		}
 		if err != nil {
-			utils.ErrExit("failed to check whether table is empty: %q: %s", table, err)
+			utils.ErrExit("failed to check whether table is empty: %q: %w", table, err)
 		}
 		result = append(result, table)
 	}
@@ -416,11 +398,7 @@ func (pg *TargetPostgreSQL) TruncateTables(tables []sqlname.NameTuple) error {
 	return nil
 }
 
-func (pg *TargetPostgreSQL) ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string, nonTxnPath bool) (int64, error) {
-	if nonTxnPath {
-		panic("non-transactional path for import batch is not supported in PostgreSQL")
-	}
-
+func (pg *TargetPostgreSQL) ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string, isRecoveryCandidate bool) (int64, error, bool) {
 	var rowsAffected int64
 	var err error
 	copyFn := func(conn *pgx.Conn) (bool, error) {
@@ -428,7 +406,7 @@ func (pg *TargetPostgreSQL) ImportBatch(batch Batch, args *ImportBatchArgs, expo
 		return false, err // Retries are now implemented in the caller.
 	}
 	err = pg.connPool.WithConn(copyFn)
-	return rowsAffected, err
+	return rowsAffected, err, false
 }
 
 func (pg *TargetPostgreSQL) importBatch(conn *pgx.Conn, batch Batch, args *ImportBatchArgs) (rowsAffected int64, err error) {
@@ -484,7 +462,7 @@ func (pg *TargetPostgreSQL) importBatch(conn *pgx.Conn, batch Batch, args *Impor
 	if err != nil {
 		var pgerr *pgconn.PgError
 		if errors.As(err, &pgerr) {
-			err = fmt.Errorf("%s, %s in %s", err.Error(), pgerr.Where, batch.GetFilePath())
+			err = fmt.Errorf("%w, %s in %s", err, pgerr.Where, batch.GetFilePath())
 		}
 		return res.RowsAffected(), err
 	}
@@ -519,7 +497,19 @@ func (pg *TargetPostgreSQL) GetListOfTableAttributes(nt sqlname.NameTuple) ([]st
 }
 
 func (pg *TargetPostgreSQL) IsNonRetryableCopyError(err error) bool {
-	return err != nil && utils.ContainsAnySubstringFromSlice(NonRetryCopyErrors, err.Error()) // not retrying atleast on the syntax errors and unique constraint
+	if err == nil {
+		return false
+	}
+
+	// SQLSTATE-based filtering for non-retryable errors
+	// This should ideally cover all the non-retryable errors
+	if IsPgErrorCodeNonRetryable(err) {
+		return true
+	}
+
+	// String pattern matching for non-retryable errors
+	// Kept this for safety so that we dont disrupt the already existing checks
+	return utils.ContainsAnySubstringFromSlice(NonRetryCopyErrors, err.Error())
 }
 
 func (pg *TargetPostgreSQL) RestoreSequences(sequencesLastVal map[string]int64) error {
@@ -719,7 +709,7 @@ func (pg *TargetPostgreSQL) setTargetSchema(conn *pgx.Conn) {
 	setSchemaQuery := fmt.Sprintf("SET SEARCH_PATH TO %s", pg.tconf.Schema)
 	_, err := conn.Exec(context.Background(), setSchemaQuery)
 	if err != nil {
-		utils.ErrExit("run query: %q on target %q: %s", setSchemaQuery, pg.tconf.Host, err)
+		utils.ErrExit("run query: %q on target %q: %w", setSchemaQuery, pg.tconf.Host, err)
 	}
 }
 
@@ -840,7 +830,7 @@ func (pg *TargetPostgreSQL) isTableExists(tableNameTup sqlname.NameTuple) bool {
 func (pg *TargetPostgreSQL) isQueryResultNonEmpty(query string) bool {
 	rows, err := pg.Query(query)
 	if err != nil {
-		utils.ErrExit("error checking if query is empty: %q: %v", query, err)
+		utils.ErrExit("error checking if query is empty: %q: %w", query, err)
 	}
 	defer rows.Close()
 

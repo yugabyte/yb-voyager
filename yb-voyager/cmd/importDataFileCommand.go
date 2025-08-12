@@ -96,7 +96,7 @@ var importDataFileCmd = &cobra.Command{
 		importFileTasks := getImportFileTasks(fileTableMapping)
 		prepareForImportDataCmd(importFileTasks)
 		importData(importFileTasks, errorPolicySnapshotFlag)
-		packAndSendImportDataFilePayload(COMPLETE, "")
+		packAndSendImportDataFilePayload(COMPLETE, nil)
 
 	},
 	PostRun: func(cmd *cobra.Command, args []string) {
@@ -225,9 +225,9 @@ func checkImportDataFileFlags(cmd *cobra.Command) {
 	validateTargetSchemaFlag()
 	validateParallelismFlags()
 
-	err := validateOnPrimaryKeyConflictFlag()
+	err := validateImportDataFlags()
 	if err != nil {
-		utils.ErrExit("Error validating --on-primary-key-conflict flag: %w", err)
+		utils.ErrExit("Error validating import data flags: %s", err.Error())
 	}
 }
 
@@ -347,7 +347,7 @@ func checkAndParseEscapeAndQuoteChar() {
 
 }
 
-func packAndSendImportDataFilePayload(status string, errorMsg string) {
+func packAndSendImportDataFilePayload(status string, errorMsg error) {
 	if !shouldSendCallhome() {
 		return
 	}
@@ -363,12 +363,34 @@ func packAndSendImportDataFilePayload(status string, errorMsg string) {
 		QuoteChar:  quoteChar,
 		NullString: nullString,
 	}
+	// Create ImportDataFileMetrics struct using the metrics collector
+	dataMetrics := callhome.ImportDataFileMetrics{}
+	if callhomeMetricsCollector != nil {
+		dataMetrics.SnapshotTotalRows = callhomeMetricsCollector.GetSnapshotTotalRows()
+		dataMetrics.SnapshotTotalBytes = callhomeMetricsCollector.GetSnapshotTotalBytes()
+	}
+
+	// Get migration-related metrics from existing logic
+	importSizeMap, err := getImportedSizeMap()
+	if err != nil {
+		log.Infof("callhome: error in getting the import data: %v", err)
+	} else if importSizeMap != nil {
+		importSizeMap.IterKV(func(key sqlname.NameTuple, value int64) (bool, error) {
+			dataMetrics.MigrationSnapshotTotalBytes += value
+			if value > dataMetrics.MigrationSnapshotLargestTableBytes {
+				dataMetrics.MigrationSnapshotLargestTableBytes = value
+			}
+			return true, nil
+		})
+	}
+
 	importDataFilePayload := callhome.ImportDataFilePhasePayload{
 		ParallelJobs:       int64(tconf.Parallelism),
 		StartClean:         bool(startClean),
 		DataFileParameters: callhome.MarshalledJsonString(dataFileParameters),
 		Error:              callhome.SanitizeErrorMsg(errorMsg),
 		ControlPlaneType:   getControlPlaneType(),
+		DataMetrics:        dataMetrics,
 	}
 	switch true {
 	case strings.Contains(dataDir, "s3://"):
@@ -379,18 +401,6 @@ func packAndSendImportDataFilePayload(status string, errorMsg string) {
 		importDataFilePayload.FileStorageType = AZURE_BLOBS
 	default:
 		importDataFilePayload.FileStorageType = LOCAL_DISK
-	}
-	importSizeMap, err := getImportedSizeMap()
-	if err != nil {
-		log.Infof("callhome: error in getting the import data: %v", err)
-	} else if importSizeMap != nil {
-		importSizeMap.IterKV(func(key sqlname.NameTuple, value int64) (bool, error) {
-			importDataFilePayload.TotalSize += value
-			if value > importDataFilePayload.LargestTableSize {
-				importDataFilePayload.LargestTableSize = value
-			}
-			return true, nil
-		})
 	}
 	payload.PhasePayload = callhome.MarshalledJsonString(importDataFilePayload)
 	payload.Status = status
@@ -518,7 +528,6 @@ Note that for the cases where a table doesn't have a primary key, this may lead 
 		"The desired behavior when there is an error while processing and importing rows to target YugabyteDB. The errors can be while reading from file, transforming rows, or ingesting rows into YugabyteDB.\n"+
 			"\tabort: immediately abort the process. (default)\n"+
 			"\tstash-and-continue: stash the errored rows to a file and continue with the import")
-	importDataFileCmd.Flags().MarkHidden("error-policy")
 
 	importDataFileCmd.Flags().MarkHidden("table-list")
 	importDataFileCmd.Flags().MarkHidden("exclude-table-list")

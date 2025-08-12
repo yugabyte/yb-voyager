@@ -21,7 +21,9 @@ const (
 	REFERENCED_TYPE_DECLARATION              = "REFERENCED_TYPE_DECLARATION"
 	STORED_GENERATED_COLUMNS                 = "STORED_GENERATED_COLUMNS"
 	UNLOGGED_TABLES                          = "UNLOGGED_TABLES"
-	UNSUPPORTED_INDEX_METHOD                 = "UNSUPPORTED_INDEX_METHOD"
+	UNSUPPORTED_GIST_INDEX_METHOD            = "UNSUPPORTED_GIST_INDEX_METHOD"
+	UNSUPPORTED_BRIN_INDEX_METHOD            = "UNSUPPORTED_BRIN_INDEX_METHOD"
+	UNSUPPORTED_SPGIST_INDEX_METHOD          = "UNSUPPORTED_SPGIST_INDEX_METHOD"
 	STORAGE_PARAMETERS                       = "STORAGE_PARAMETERS"
 	ALTER_TABLE_SET_COLUMN_ATTRIBUTE         = "ALTER_TABLE_SET_COLUMN_ATTRIBUTE"
 	ALTER_TABLE_CLUSTER_ON                   = "ALTER_TABLE_CLUSTER_ON"
@@ -38,6 +40,7 @@ const (
 	EXPRESSION_PARTITION_WITH_PK_UK          = "EXPRESSION_PARTITION_WITH_PK_UK"
 	MULTI_COLUMN_LIST_PARTITION              = "MULTI_COLUMN_LIST_PARTITION"
 	INSUFFICIENT_COLUMNS_IN_PK_FOR_PARTITION = "INSUFFICIENT_COLUMNS_IN_PK_FOR_PARTITION"
+	MISSING_FOREIGN_KEY_INDEX                = "MISSING_FOREIGN_KEY_INDEX"
 
 	UNSUPPORTED_DATATYPE_XML            = "UNSUPPORTED_DATATYPE_XML"
 	UNSUPPORTED_DATATYPE_XID            = "UNSUPPORTED_DATATYPE_XID"
@@ -202,7 +205,9 @@ const (
 	INDEX_ON_ARRAY_DATATYPE_ISSUE_NAME         = "Index on column with array datatype"
 	INDEX_ON_USER_DEFINED_DATATYPE_ISSUE_NAME  = "Index on column with user defined datatype"
 
-	UNSUPPORTED_INDEX_METHOD_ISSUE_NAME = "Index with access method"
+	UNSUPPORTED_GIST_INDEX_METHOD_ISSUE_NAME   = "Index with GIST access method"
+	UNSUPPORTED_BRIN_INDEX_METHOD_ISSUE_NAME   = "Index with BRIN access method"
+	UNSUPPORTED_SPGIST_INDEX_METHOD_ISSUE_NAME = "Index with SPGIST access method"
 
 	PK_UK_ON_CITEXT_DATATYPE_ISSUE_NAME        = "Primary/Unique key on column with citext datatype"
 	PK_UK_ON_TSVECTOR_DATATYPE_ISSUE_NAME      = "Primary/Unique key on column with tsvector datatype"
@@ -461,6 +466,13 @@ Note: If the table is created as colocated, this hotspot concern can safely be i
 	MOST_FREQUENT_VALUE_INDEX_DESCRIPTION               = `In distributed databases, index design should ensure even data distribution across nodes. Indexes on columns with highly skewed value distributions (e.g., a value appearing in atleast 60% of rows) can cause performance issues in distributed systems due to uneven data placement and lead to Hotspots.`
 	MOST_FREQUENT_VALUE_INDEX_DESCRIPTION_SINGLE_COLUMN = `This index is built on column having a value occuring in large number of rows.`
 	MOST_FREQUENT_VALUE_INDEX_DESCRIPTION_MULTI_COLUMN  = `The first column of this index has value occuring in large number of rows.`
+
+	FOREIGN_KEY_DATATYPE_MISMATCH_ISSUE_NAME  = "Foreign key datatype mismatch"
+	FOREIGN_KEY_DATATYPE_MISMATCH             = "FOREIGN_KEY_DATATYPE_MISMATCH"
+	FOREIGN_KEY_DATATYPE_MISMATCH_DESCRIPTION = "Foreign key constraint has a datatype mismatch with the referenced column. The foreign key column is of type '%s', while the referenced column is of type '%s'. This can cause performance issues due to implicit casting during foreign key checks. To resolve this, modify the type of one to be the same as the other."
+
+	MISSING_FOREIGN_KEY_INDEX_ISSUE_NAME  = "Missing index on foreign key columns"
+	MISSING_FOREIGN_KEY_INDEX_DESCRIPTION = "Foreign key columns do not have a proper index. The index must include all foreign key columns as leading columns (either in exact order, any permutation, or as a prefix of a composite index). This can cause performance issues during DML operations on the referenced table."
 )
 
 // Object types

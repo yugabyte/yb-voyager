@@ -175,6 +175,124 @@ CHECK (xpath_exists('/invoice/customer', data));`
 	);`
 	stmt26 = `ALTER TABLE public.products ADD CONSTRAINT unique_product_name UNIQUE NULLS NOT DISTINCT (product_name);`
 	stmt27 = `CREATE UNIQUE INDEX unique_email_idx ON users (email) NULLS NOT DISTINCT;`
+
+	// Foreign Key Datatype Mismatch Cases
+	// Case 1: BIGINT → INTEGER (Simple mismatch)
+	stmt28 = `CREATE TABLE users (id INTEGER PRIMARY KEY);`
+	stmt29 = `CREATE TABLE orders (order_id SERIAL PRIMARY KEY, user_id BIGINT, FOREIGN KEY (user_id) REFERENCES users(id));`
+
+	// Case 2: UUID → TEXT mismatch
+	stmt30 = `CREATE TABLE payments (payment_id UUID PRIMARY KEY);`
+	stmt31 = `CREATE TABLE invoices (invoice_id SERIAL PRIMARY KEY, payment_id TEXT);`
+	stmt32 = `ALTER TABLE invoices ADD CONSTRAINT fk_payment_id FOREIGN KEY (payment_id) REFERENCES payments(payment_id);`
+
+	// Case 3: Composite FK with partial mismatch (CHAR vs VARCHAR, INT vs TEXT)
+	stmt33 = `CREATE TABLE shipments (shipment_id INTEGER, shipment_code CHAR(5), country_code INTEGER, PRIMARY KEY (shipment_id, shipment_code, country_code));`
+	stmt34 = `CREATE TABLE delivery_tracking (tracking_id SERIAL PRIMARY KEY, shipment_id INTEGER, shipment_code VARCHAR(10), country_code TEXT);`
+	stmt35 = `ALTER TABLE delivery_tracking ADD CONSTRAINT fk_shipment_ref FOREIGN KEY (shipment_id, shipment_code, country_code) REFERENCES shipments (shipment_id, shipment_code, country_code);`
+
+	// Case 4: VARCHAR(10) → VARCHAR(5) mismatch
+	stmt36 = `CREATE TABLE customers2 (customer_code VARCHAR(5) PRIMARY KEY);`
+	stmt37 = `CREATE TABLE orders2 (order_id SERIAL PRIMARY KEY, customer_code VARCHAR(10));`
+	stmt38 = `ALTER TABLE orders2 ADD CONSTRAINT fk_customer_code FOREIGN KEY (customer_code) REFERENCES customers2(customer_code);`
+
+	// Case 5: NUMERIC(10,2) → NUMERIC(8,2) mismatch
+	stmt39 = `CREATE TABLE products2 (product_id SERIAL PRIMARY KEY, price NUMERIC(10,2));`
+	stmt40 = `CREATE TABLE orders3 (order_id SERIAL PRIMARY KEY, product_price NUMERIC(8,2));`
+	stmt41 = `ALTER TABLE orders3 ADD CONSTRAINT fk_price FOREIGN KEY (product_price) REFERENCES products2(price);`
+
+	// Case 6: Case sensitive tables and columns, INTERGER → BIGINT mismatch
+	stmt42 = `CREATE TABLE "Accounts" ("UserID" INTEGER PRIMARY KEY);`
+	stmt43 = `CREATE TABLE "Sessions" ("SessionID" SERIAL PRIMARY KEY, "UserID" BIGINT);`
+	stmt44 = `ALTER TABLE "Sessions" ADD CONSTRAINT fk_userid FOREIGN KEY ("UserID") REFERENCES "Accounts"("UserID");`
+
+	// Case 7: Partitioned table (single level), BIGINT → INTEGER mismatch
+	stmt45 = `CREATE TABLE customers_root (id INTEGER PRIMARY KEY);`
+	stmt46 = `CREATE TABLE orders_partitioned (
+		order_id SERIAL,
+		customer_id BIGINT
+	) PARTITION BY RANGE (order_id);`
+	stmt47 = `CREATE TABLE orders_p1 PARTITION OF orders_partitioned FOR VALUES FROM (1) TO (10000);`
+	stmt48 = `ALTER TABLE orders_partitioned ADD CONSTRAINT fk_customer_id FOREIGN KEY (customer_id) REFERENCES customers_root(id);`
+
+	// Case 8: Multi-level partitioned table, BIGINT → INTEGER mismatch
+	stmt49 = `CREATE TABLE products_root (id INTEGER PRIMARY KEY);`
+	stmt50 = `CREATE TABLE sales (
+		sale_id INT,
+		product_id BIGINT
+	) PARTITION BY RANGE (sale_id);`
+	stmt51 = `CREATE TABLE sales_q1 PARTITION OF sales FOR VALUES FROM (1) TO (1000) PARTITION BY RANGE (sale_id);`
+	stmt52 = `CREATE TABLE sales_q1_jan PARTITION OF sales_q1 FOR VALUES FROM (1) TO (250);`
+	stmt53 = `ALTER TABLE sales ADD CONSTRAINT fk_product_id FOREIGN KEY (product_id) REFERENCES products_root(id);`
+
+	// Case 9: Inherited table (multi-level), BIGINT → INTEGER mismatch
+	stmt54 = `CREATE TABLE base_items (item_id INTEGER PRIMARY KEY);`
+	stmt55 = `CREATE TABLE derived_items_1 (extra_info TEXT) INHERITS (base_items);`
+	stmt56 = `CREATE TABLE derived_items_2 (notes TEXT, item_id BIGINT) INHERITS (derived_items_1);`
+	stmt57 = `ALTER TABLE derived_items_2 ADD CONSTRAINT fk_item_id FOREIGN KEY (item_id) REFERENCES base_items(item_id);`
+
+	// Case 10: Cross-schema foreign key with BIGINT → INTEGER mismatch
+	stmt58 = `CREATE SCHEMA schema1;`
+	stmt59 = `CREATE SCHEMA schema2;`
+	stmt60 = `CREATE TABLE schema2.departments (dept_id INTEGER PRIMARY KEY);`
+	stmt61 = `CREATE TABLE schema1.employees (emp_id SERIAL PRIMARY KEY, dept_id BIGINT);`
+	stmt62 = `ALTER TABLE schema1.employees ADD CONSTRAINT fk_dept FOREIGN KEY (dept_id) REFERENCES schema2.departments(dept_id);`
+
+	// Additional type mapping test cases
+	// Case 11: SMALLINT → INTEGER mismatch (testing int2 mapping)
+	stmt63 = `CREATE TABLE small_users (id SMALLINT PRIMARY KEY);`
+	stmt64 = `CREATE TABLE small_orders (order_id SERIAL PRIMARY KEY, user_id INTEGER);`
+	stmt65 = `ALTER TABLE small_orders ADD CONSTRAINT fk_small_user FOREIGN KEY (user_id) REFERENCES small_users(id);`
+
+	// Case 12: REAL → DOUBLE PRECISION mismatch (testing float4/float8 mapping)
+	stmt66 = `CREATE TABLE measurements (id SERIAL PRIMARY KEY, value REAL);`
+	stmt67 = `CREATE TABLE precise_measurements (id SERIAL PRIMARY KEY, value DOUBLE PRECISION);`
+	stmt68 = `ALTER TABLE precise_measurements ADD CONSTRAINT fk_measurement FOREIGN KEY (value) REFERENCES measurements(value);`
+
+	// Case 13: BOOLEAN → TEXT mismatch (testing bool mapping)
+	stmt69 = `CREATE TABLE flags (id SERIAL PRIMARY KEY, is_active BOOLEAN);`
+	stmt70 = `CREATE TABLE flag_logs (id SERIAL PRIMARY KEY, status TEXT);`
+	stmt71 = `ALTER TABLE flag_logs ADD CONSTRAINT fk_flag_status FOREIGN KEY (status) REFERENCES flags(is_active);`
+
+	// Case 14: SERIAL → BIGSERIAL mismatch (testing serial mapping)
+	stmt72 = `CREATE TABLE simple_items (id SERIAL PRIMARY KEY);`
+	stmt73 = `CREATE TABLE complex_items (id BIGSERIAL PRIMARY KEY);`
+	stmt74 = `ALTER TABLE complex_items ADD CONSTRAINT fk_simple_item FOREIGN KEY (id) REFERENCES simple_items(id);`
+
+	// Case 15: BIT(10) → BIT(8) mismatch
+	stmt75 = `CREATE TABLE bit_flags (id SERIAL PRIMARY KEY, flags BIT(10));`
+	stmt76 = `CREATE TABLE bit_logs (id SERIAL PRIMARY KEY, status_flags BIT(8));`
+	stmt77 = `ALTER TABLE bit_logs ADD CONSTRAINT fk_bit_flags FOREIGN KEY (status_flags) REFERENCES bit_flags(flags);`
+
+	// Case 16: TIMESTAMP(6) → TIMESTAMP(3) mismatch
+	stmt78 = `CREATE TABLE precise_events (id SERIAL PRIMARY KEY, event_time TIMESTAMP(6));`
+	stmt79 = `CREATE TABLE event_logs (id SERIAL PRIMARY KEY, log_time TIMESTAMP(3));`
+	stmt80 = `ALTER TABLE event_logs ADD CONSTRAINT fk_event_time FOREIGN KEY (log_time) REFERENCES precise_events(event_time);`
+
+	// Case 17: TIME(6) → TIME(3) mismatch
+	stmt81 = `CREATE TABLE precise_schedules (id SERIAL PRIMARY KEY, start_time TIME(6));`
+	stmt82 = `CREATE TABLE schedule_logs (id SERIAL PRIMARY KEY, log_time TIME(3));`
+	stmt83 = `ALTER TABLE schedule_logs ADD CONSTRAINT fk_schedule_time FOREIGN KEY (log_time) REFERENCES precise_schedules(start_time);`
+
+	// Case 18: INTERVAL(6) → INTERVAL(3) mismatch
+	stmt84 = `CREATE TABLE precise_durations (id SERIAL PRIMARY KEY, duration INTERVAL(6));`
+	stmt85 = `CREATE TABLE duration_logs (id SERIAL PRIMARY KEY, log_duration INTERVAL(3));`
+	stmt86 = `ALTER TABLE duration_logs ADD CONSTRAINT fk_duration FOREIGN KEY (log_duration) REFERENCES precise_durations(duration);`
+
+	// Case 19: TIMESTAMP WITH TIME ZONE precision mismatch
+	stmt87 = `CREATE TABLE tz_events (id SERIAL PRIMARY KEY, event_time TIMESTAMP(6) WITH TIME ZONE);`
+	stmt88 = `CREATE TABLE tz_logs (id SERIAL PRIMARY KEY, log_time TIMESTAMP(0) WITH TIME ZONE);`
+	stmt89 = `ALTER TABLE tz_logs ADD CONSTRAINT fk_tz_event_time FOREIGN KEY (log_time) REFERENCES tz_events(event_time);`
+
+	// Case 20: TIME WITH TIME ZONE precision mismatch
+	stmt90 = `CREATE TABLE tz_schedules (id SERIAL PRIMARY KEY, start_time TIME(6) WITH TIME ZONE);`
+	stmt91 = `CREATE TABLE tz_schedule_logs (id SERIAL PRIMARY KEY, log_time TIME(0) WITH TIME ZONE);`
+	stmt92 = `ALTER TABLE tz_schedule_logs ADD CONSTRAINT fk_tz_schedule_time FOREIGN KEY (log_time) REFERENCES tz_schedules(start_time);`
+
+	// Case 21: VARBIT(10) → VARBIT(8) mismatch
+	stmt93 = `CREATE TABLE varbit_flags (id SERIAL PRIMARY KEY, flags VARBIT(10));`
+	stmt94 = `CREATE TABLE varbit_logs (id SERIAL PRIMARY KEY, status_flags VARBIT(8));`
+	stmt95 = `ALTER TABLE varbit_logs ADD CONSTRAINT fk_varbit_flags FOREIGN KEY (status_flags) REFERENCES varbit_flags(flags);`
 )
 
 func modifiedIssuesforPLPGSQL(issues []QueryIssue, objType string, objName string) []QueryIssue {
@@ -202,7 +320,7 @@ func TestAllIssues(t *testing.T) {
 			NewPercentTypeSyntaxIssue("FUNCTION", "process_order", "orders.id%TYPE"),
 			NewStorageParameterIssue("TABLE", "public.example", "ALTER TABLE ONLY public.example ADD CONSTRAINT example_email_key UNIQUE (email) WITH (fillfactor=70);"),
 			NewMultiColumnGinIndexIssue("INDEX", "idx_example ON example_table", "CREATE INDEX idx_example ON example_table USING gin(name, name1);"),
-			NewUnsupportedIndexMethodIssue("INDEX", "idx_example ON schema1.example_table", "CREATE INDEX idx_example ON schema1.example_table USING gist(name);", "gist"),
+			NewUnsupportedGistIndexMethodIssue("INDEX", "idx_example ON schema1.example_table", "CREATE INDEX idx_example ON schema1.example_table USING gist(name);"),
 			NewAdvisoryLocksIssue("DML_QUERY", "", "SELECT pg_advisory_unlock(orderid);"),
 		},
 		stmt3: []QueryIssue{
@@ -248,8 +366,11 @@ func TestAllIssues(t *testing.T) {
 		err := parserIssueDetector.ParseAndProcessDDL(stmt)
 		assert.NoError(t, err, "Error parsing required ddl: %s", stmt)
 	}
+
+	parserIssueDetector.FinalizeColumnMetadata()
+
 	for stmt, expectedIssues := range stmtsWithExpectedIssues {
-		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.LatestStable)
+		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.V2024_2_3_1)
 		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
 
 		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
@@ -264,7 +385,7 @@ func TestAllIssues(t *testing.T) {
 }
 
 func TestDDLIssues(t *testing.T) {
-	requiredDDLs := []string{stmt16}
+	requiredDDLs := []string{stmt16, stmt28, stmt29, stmt30, stmt31, stmt32, stmt33, stmt34, stmt35, stmt36, stmt37, stmt38, stmt39, stmt40, stmt41, stmt42, stmt43, stmt44, stmt45, stmt46, stmt47, stmt48, stmt49, stmt50, stmt51, stmt52, stmt53, stmt54, stmt55, stmt56, stmt57, stmt58, stmt59, stmt60, stmt61, stmt62, stmt63, stmt64, stmt65, stmt66, stmt67, stmt68, stmt69, stmt70, stmt71, stmt72, stmt73, stmt74, stmt75, stmt76, stmt77, stmt78, stmt79, stmt80, stmt81, stmt82, stmt83, stmt84, stmt85, stmt86, stmt87, stmt88, stmt89, stmt90, stmt91, stmt92, stmt93, stmt94, stmt95}
 	parserIssueDetector := NewParserIssueDetector()
 	stmtsWithExpectedIssues := map[string][]QueryIssue{
 		stmt14: []QueryIssue{
@@ -319,21 +440,87 @@ func TestDDLIssues(t *testing.T) {
 		stmt27: []QueryIssue{
 			NewUniqueNullsNotDistinctIssue("INDEX", "unique_email_idx ON users", stmt27),
 		},
+		stmt29: []QueryIssue{
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "orders", stmt29, "orders.user_id", "users.id", "bigint", "integer"),
+		},
+		stmt32: []QueryIssue{
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "invoices", stmt32, "invoices.payment_id", "payments.payment_id", "text", "uuid"),
+		},
+		stmt35: []QueryIssue{
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "delivery_tracking", stmt35, "delivery_tracking.shipment_code", "shipments.shipment_code", "varchar(10)", "char(5)"),
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "delivery_tracking", stmt35, "delivery_tracking.country_code", "shipments.country_code", "text", "integer"),
+		},
+		stmt38: []QueryIssue{},
+		stmt41: []QueryIssue{},
+		stmt44: []QueryIssue{
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "Sessions", stmt44, "Sessions.UserID", "Accounts.UserID", "bigint", "integer"),
+		},
+		stmt48: []QueryIssue{
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "orders_partitioned", stmt48, "orders_partitioned.customer_id", "customers_root.id", "bigint", "integer"),
+		},
+		stmt53: []QueryIssue{
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "sales", stmt53, "sales.product_id", "products_root.id", "bigint", "integer"),
+		},
+		stmt57: []QueryIssue{
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "derived_items_2", stmt57, "derived_items_2.item_id", "base_items.item_id", "bigint", "integer"),
+		},
+		stmt62: []QueryIssue{
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "schema1.employees", stmt62, "schema1.employees.dept_id", "schema2.departments.dept_id", "bigint", "integer"),
+		},
+		stmt65: []QueryIssue{
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "small_orders", stmt65, "small_orders.user_id", "small_users.id", "integer", "smallint"),
+		},
+		stmt68: []QueryIssue{
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "precise_measurements", stmt68, "precise_measurements.value", "measurements.value", "double precision", "real"),
+		},
+		stmt71: []QueryIssue{
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "flag_logs", stmt71, "flag_logs.status", "flags.is_active", "text", "boolean"),
+		},
+		stmt74: []QueryIssue{
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "complex_items", stmt74, "complex_items.id", "simple_items.id", "bigserial", "serial"),
+		},
+		stmt77: []QueryIssue{},
+		stmt80: []QueryIssue{},
+		stmt83: []QueryIssue{},
+		stmt86: []QueryIssue{},
+		stmt89: []QueryIssue{},
+		stmt92: []QueryIssue{},
+		stmt95: []QueryIssue{},
 	}
 	for _, stmt := range requiredDDLs {
 		err := parserIssueDetector.ParseAndProcessDDL(stmt)
 		assert.NoError(t, err, "Error parsing required ddl: %s", stmt)
 	}
+
+	parserIssueDetector.FinalizeColumnMetadata()
+
 	for stmt, expectedIssues := range stmtsWithExpectedIssues {
-		issues, err := parserIssueDetector.GetDDLIssues(stmt, ybversion.LatestStable)
+		issues, err := parserIssueDetector.GetDDLIssues(stmt, ybversion.V2024_2_3_1)
 		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
 
-		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
+		// Debug: Print all detected issues
+		fmt.Printf("\n=== Statement: %s ===\n", stmt)
+		fmt.Printf("Expected issues: %d, Actual issues: %d\n", len(expectedIssues), len(issues))
+		for i, issue := range issues {
+			fmt.Printf("Issue %d: %+v\n", i+1, issue)
+		}
+		if len(expectedIssues) > 0 {
+			fmt.Printf("Expected issues:\n")
+			for i, expectedIssue := range expectedIssues {
+				fmt.Printf("Expected %d: %+v\n", i+1, expectedIssue)
+			}
+		}
+
+		assert.Equal(t, len(expectedIssues), len(issues),
+			"Mismatch in issue count for statement: %s", stmt)
+
 		for _, expectedIssue := range expectedIssues {
 			found := slices.ContainsFunc(issues, func(queryIssue QueryIssue) bool {
 				return cmp.Equal(expectedIssue, queryIssue)
 			})
-			assert.True(t, found, "Expected issue not found: %v in statement: %s. \nFound: %v", expectedIssue, stmt, issues)
+			assert.True(t, found,
+				"Expected issue not found: %v in statement: %s. \nFound: %v",
+				expectedIssue, stmt, issues)
 		}
 	}
 }
@@ -343,7 +530,7 @@ func TestUnloggedTableIssueReportedInOlderVersion(t *testing.T) {
 	parserIssueDetector := NewParserIssueDetector()
 
 	// Not reported by default
-	issues, err := parserIssueDetector.GetDDLIssues(stmt, ybversion.LatestStable)
+	issues, err := parserIssueDetector.GetDDLIssues(stmt, ybversion.V2024_2_3_1)
 	testutils.FatalIfError(t, err)
 	assert.Equal(t, 0, len(issues))
 
@@ -494,7 +681,7 @@ $$ LANGUAGE plpgsql;
 	parserIssueDetector := NewParserIssueDetector()
 
 	for stmt, expectedIssues := range expectedSQLsWithIssues {
-		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.LatestStable)
+		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.V2024_2_3_1)
 		fmt.Printf("%v", issues)
 
 		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
@@ -675,7 +862,7 @@ JSON_TABLE(data, '$.skills[*]'
 	}
 	parserIssueDetector := NewParserIssueDetector()
 	for stmt, expectedIssues := range sqlsWithExpectedIssues {
-		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.LatestStable)
+		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.V2024_2_3_1)
 		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
 		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
 		for _, expectedIssue := range expectedIssues {
@@ -789,8 +976,12 @@ FROM test_jsonb1;`,
 		err := parserIssueDetector.ParseAndProcessDDL(stmt)
 		assert.NoError(t, err, "Error parsing required ddl: %s", stmt)
 	}
+
+	// Finalize column metadata after processing all DDLs
+	parserIssueDetector.FinalizeColumnMetadata()
+
 	for stmt, expectedIssues := range stmtsWithExpectedIssues {
-		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.LatestStable)
+		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.V2024_2_3_1)
 		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
 		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
 		for _, expectedIssue := range expectedIssues {
@@ -846,7 +1037,7 @@ $$ LANGUAGE plpgsql;`,
 
 	parserIssueDetector := NewParserIssueDetector()
 	for stmt, expectedIssues := range aggregateSqls {
-		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.LatestStable)
+		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.V2024_2_3_1)
 		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
 		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
 		for _, expectedIssue := range expectedIssues {
@@ -922,7 +1113,7 @@ func TestFetchWithTiesInSelect(t *testing.T) {
 	parserIssueDetector := NewParserIssueDetector()
 
 	for stmt, expectedIssues := range expectedIssues {
-		issues, err := parserIssueDetector.GetDMLIssues(stmt, ybversion.LatestStable)
+		issues, err := parserIssueDetector.GetDMLIssues(stmt, ybversion.V2024_2_3_1)
 
 		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
 
@@ -936,7 +1127,7 @@ func TestFetchWithTiesInSelect(t *testing.T) {
 	}
 
 	for stmt, expectedIssues := range expectedDDLIssues {
-		issues, err := parserIssueDetector.GetDDLIssues(stmt, ybversion.LatestStable)
+		issues, err := parserIssueDetector.GetDDLIssues(stmt, ybversion.V2024_2_3_1)
 
 		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
 
@@ -1029,16 +1220,36 @@ REFERENCES schema1.abc (id);
 		err := parserIssueDetector.ParseAndProcessDDL(stmt)
 		assert.NoError(t, err, "Error parsing required ddl: %s", stmt)
 	}
+
+	parserIssueDetector.FinalizeColumnMetadata()
+
 	for stmt, expectedIssues := range ddlStmtsWithIssues {
-		issues, err := parserIssueDetector.GetDDLIssues(stmt, ybversion.LatestStable)
+		issues, err := parserIssueDetector.GetDDLIssues(stmt, ybversion.V2024_2_3_1)
 		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
 
-		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
+		// Debug: Print all detected issues
+		fmt.Printf("\n=== Statement: %s ===\n", stmt)
+		fmt.Printf("Expected issues: %d, Actual issues: %d\n", len(expectedIssues), len(issues))
+		for i, issue := range issues {
+			fmt.Printf("Issue %d: %+v\n", i+1, issue)
+		}
+		if len(expectedIssues) > 0 {
+			fmt.Printf("Expected issues:\n")
+			for i, expectedIssue := range expectedIssues {
+				fmt.Printf("Expected %d: %+v\n", i+1, expectedIssue)
+			}
+		}
+
+		assert.Equal(t, len(expectedIssues), len(issues),
+			"Mismatch in issue count for statement: %s", stmt)
+
 		for _, expectedIssue := range expectedIssues {
 			found := slices.ContainsFunc(issues, func(queryIssue QueryIssue) bool {
 				return cmp.Equal(expectedIssue, queryIssue)
 			})
-			assert.True(t, found, "Expected issue not found: %v in statement: %s", expectedIssue, stmt)
+			assert.True(t, found,
+				"Expected issue not found: %v in statement: %s. \nFound: %v",
+				expectedIssue, stmt, issues)
 		}
 	}
 }
@@ -1063,7 +1274,7 @@ func TestNonDecimalIntegerLiteralsIssues(t *testing.T) {
 	}
 	parserIssueDetector := NewParserIssueDetector()
 	for sql, expectedIssue := range sqls {
-		issues, err := parserIssueDetector.GetAllIssues(sql, ybversion.LatestStable)
+		issues, err := parserIssueDetector.GetAllIssues(sql, ybversion.V2024_2_3_1)
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(issues))
 		cmp.Equal(issues[0], expectedIssue)
@@ -1086,7 +1297,7 @@ func TestNonDecimalIntegerLiteralsIssues(t *testing.T) {
     VALUES (0b1010, 0o012, 0xA);`,
 	}
 	for _, sql := range sqlsWithoutIssues {
-		issues, err := parserIssueDetector.GetAllIssues(sql, ybversion.LatestStable)
+		issues, err := parserIssueDetector.GetAllIssues(sql, ybversion.V2024_2_3_1)
 		assert.NoError(t, err)
 		assert.Equal(t, 0, len(issues))
 	}
@@ -1153,7 +1364,7 @@ SELECT * FROM data_cte;`,
 
 	parserIssueDetector := NewParserIssueDetector()
 	for stmt, expectedIssues := range stmtsWithExpectedIssues {
-		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.LatestStable)
+		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.V2024_2_3_1)
 		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
 
 		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
@@ -1198,7 +1409,7 @@ $func$;`,
 	}
 	parserIssueDetector := NewParserIssueDetector()
 	for stmt, expectedIssues := range stmtsWithExpectedIssues {
-		issues, err := parserIssueDetector.GetDDLIssues(stmt, ybversion.LatestStable)
+		issues, err := parserIssueDetector.GetDDLIssues(stmt, ybversion.V2024_2_3_1)
 		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
 
 		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
@@ -1256,7 +1467,7 @@ func TestDatabaseOptions(t *testing.T) {
 	}
 	parserIssueDetector := NewParserIssueDetector()
 	for stmt, expectedIssues := range stmtsWithExpectedIssues {
-		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.LatestStable)
+		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.V2024_2_3_1)
 		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
 
 		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
@@ -1318,7 +1529,7 @@ $$ LANGUAGE plpgsql;`,
 	}
 	parserIssueDetector := NewParserIssueDetector()
 	for stmt, expectedIssues := range stmtsWithExpectedIssues {
-		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.LatestStable)
+		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.V2024_2_3_1)
 		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
 
 		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
@@ -1379,7 +1590,7 @@ $$;`,
 	}
 	parserIssueDetector := NewParserIssueDetector()
 	for stmt, expectedIssues := range stmtsWithExpectedIssues {
-		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.LatestStable)
+		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.V2024_2_3_1)
 		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
 
 		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
@@ -1391,7 +1602,7 @@ $$;`,
 		}
 	}
 
-	_, err := parserIssueDetector.GetAllIssues(`PREPARE TRANSACTION $1`, ybversion.LatestStable)
+	_, err := parserIssueDetector.GetAllIssues(`PREPARE TRANSACTION $1`, ybversion.V2024_2_3_1)
 	assert.Error(t, err, `syntax error at or near "$1"`)
 
 }
@@ -1411,7 +1622,7 @@ func TestCompressionClause(t *testing.T) {
 	}
 	parserIssueDetector := NewParserIssueDetector()
 	for stmt, expectedIssues := range sqlsWithExpectedIssues {
-		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.LatestStable)
+		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.V2024_2_3_1)
 		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
 		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
 		for _, expectedIssue := range expectedIssues {
@@ -1485,8 +1696,11 @@ func TestTimestampOrDateHotspotsIssues(t *testing.T) {
 		err := parserIssueDetector.ParseAndProcessDDL(stmt)
 		assert.Nil(t, err)
 	}
+
+	parserIssueDetector.FinalizeColumnMetadata()
+
 	for stmt, expectedIssues := range sqlsWithExpectedIssues {
-		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.LatestStable)
+		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.V2024_2_3_1)
 		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
 		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
 		for _, expectedIssue := range expectedIssues {
@@ -1496,4 +1710,634 @@ func TestTimestampOrDateHotspotsIssues(t *testing.T) {
 			assert.True(t, found, "Expected issue not found: %v in statement: %s", expectedIssue, stmt)
 		}
 	}
+}
+
+// Test missing foreign key index detection
+func TestMissingForeignKeyIndexDetection(t *testing.T) {
+	// Helper function to set up a basic parent-child relationship
+	setupBasicFK := func(parentTable, childTable string) *ParserIssueDetector {
+		detector := NewParserIssueDetector()
+		err := detector.ParseAndProcessDDL(parentTable)
+		assert.NoError(t, err)
+		err = detector.ParseAndProcessDDL(childTable)
+		assert.NoError(t, err)
+		detector.FinalizeColumnMetadata()
+		return detector
+	}
+
+	// Helper function to set up parent-child with index
+	setupBasicFKWithIndex := func(parentTable, childTable, indexStmt string) *ParserIssueDetector {
+		detector := NewParserIssueDetector()
+		err := detector.ParseAndProcessDDL(parentTable)
+		assert.NoError(t, err)
+		err = detector.ParseAndProcessDDL(childTable)
+		assert.NoError(t, err)
+		if indexStmt != "" {
+			err = detector.ParseAndProcessDDL(indexStmt)
+			assert.NoError(t, err)
+		}
+		detector.FinalizeColumnMetadata()
+		return detector
+	}
+
+	// Test Case 1: Basic FK in CREATE TABLE, no index
+	t.Run("Basic FK in CREATE TABLE - No Index", func(t *testing.T) {
+		const (
+			stmt_parent = `CREATE TABLE public.customers_1 (
+				id SERIAL PRIMARY KEY,
+				name VARCHAR(100)
+			);`
+			stmt_child = `CREATE TABLE public.orders_1 (
+				id SERIAL PRIMARY KEY,
+				customer_id SERIAL,
+				order_date DATE,
+				FOREIGN KEY (customer_id) REFERENCES public.customers_1(id)
+			);`
+		)
+
+		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "public.orders_1", "", "public.orders_1.customer_id", "public.customers_1")
+
+		detector := setupBasicFK(stmt_parent, stmt_child)
+		issues := detector.DetectMissingForeignKeyIndexes()
+
+		// Debug: Print expected and actual issues
+		fmt.Printf("\n=== Test Case 1: Basic FK - No Index ===\n")
+		fmt.Printf("Expected issue: %+v\n", expectedIssue)
+		if len(issues) > 0 {
+			fmt.Printf("Actual issue: %+v\n", issues[0])
+		} else {
+			fmt.Printf("No issues detected\n")
+		}
+
+		assert.Equal(t, 1, len(issues))
+		assert.True(t, cmp.Equal(expectedIssue, issues[0]), "Expected issue not found: %v\nFound: %v", expectedIssue, issues[0])
+	})
+
+	// Test Case 2: Basic FK in CREATE TABLE, with proper index
+	t.Run("Basic FK in CREATE TABLE - With Index", func(t *testing.T) {
+		const (
+			stmt_parent = `CREATE TABLE public.customers_2 (
+				id SERIAL PRIMARY KEY,
+				name VARCHAR(100)
+			);`
+			stmt_child = `CREATE TABLE public.orders_2 (
+				id SERIAL PRIMARY KEY,
+				customer_id SERIAL,
+				order_date DATE,
+				FOREIGN KEY (customer_id) REFERENCES public.customers_2(id)
+			);`
+			stmt_index = `CREATE INDEX idx_orders_2_customer ON public.orders_2(customer_id);`
+		)
+
+		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_index)
+		issues := detector.DetectMissingForeignKeyIndexes()
+		assert.Equal(t, 0, len(issues))
+	})
+
+	// Test Case 3: Composite FK in CREATE TABLE, no index
+	t.Run("Composite FK in CREATE TABLE - No Index", func(t *testing.T) {
+		const (
+			stmt_parent = `CREATE TABLE public.orders_3 (
+				id SERIAL,
+				product_id INTEGER,
+				PRIMARY KEY (id, product_id)
+			);`
+			stmt_child = `CREATE TABLE public.order_items_3 (
+				id SERIAL PRIMARY KEY,
+				order_id SERIAL,
+				product_id INTEGER,
+				quantity INTEGER,
+				FOREIGN KEY (order_id, product_id) REFERENCES public.orders_3(id, product_id)
+			);`
+		)
+
+		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "public.order_items_3", "", "public.order_items_3.order_id, public.order_items_3.product_id", "public.orders_3")
+
+		detector := setupBasicFK(stmt_parent, stmt_child)
+		issues := detector.DetectMissingForeignKeyIndexes()
+
+		// Debug: Print expected and actual issues
+		fmt.Printf("\n=== Test Case 3: Composite FK - No Index ===\n")
+		fmt.Printf("Expected issue: %+v\n", expectedIssue)
+		if len(issues) > 0 {
+			fmt.Printf("Actual issue: %+v\n", issues[0])
+		} else {
+			fmt.Printf("No issues detected\n")
+		}
+
+		assert.Equal(t, 1, len(issues))
+		assert.True(t, cmp.Equal(expectedIssue, issues[0]), "Expected issue not found: %v\nFound: %v", expectedIssue, issues[0])
+	})
+
+	// Test Case 4: Composite FK in CREATE TABLE, with proper index
+	t.Run("Composite FK in CREATE TABLE - With Index", func(t *testing.T) {
+		const (
+			stmt_parent = `CREATE TABLE orders_4 (
+				id SERIAL,
+				product_id INTEGER,
+				PRIMARY KEY (id, product_id)
+			);`
+			stmt_child = `CREATE TABLE order_items_4 (
+				id SERIAL PRIMARY KEY,
+				order_id SERIAL,
+				product_id INTEGER,
+				quantity INTEGER,
+				FOREIGN KEY (order_id, product_id) REFERENCES orders_4(id, product_id)
+			);`
+			stmt_index = `CREATE INDEX idx_order_items_4_fk ON order_items_4(order_id, product_id);`
+		)
+
+		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_index)
+		issues := detector.DetectMissingForeignKeyIndexes()
+		assert.Equal(t, 0, len(issues))
+	})
+
+	// Test Case 5: FK via ALTER TABLE, no index
+	t.Run("FK via ALTER TABLE - No Index", func(t *testing.T) {
+		const (
+			stmt_parent = `CREATE TABLE public.customers_5 (
+				id SERIAL PRIMARY KEY,
+				name VARCHAR(100)
+			);`
+			stmt_child = `CREATE TABLE public.orders_5 (
+				id SERIAL PRIMARY KEY,
+				customer_id SERIAL,
+				order_date DATE
+			);`
+			stmt_alter = `ALTER TABLE public.orders_5 ADD CONSTRAINT fk_orders_5_customer 
+				FOREIGN KEY (customer_id) REFERENCES public.customers_5(id);`
+		)
+
+		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "public.orders_5", "", "public.orders_5.customer_id", "public.customers_5")
+
+		detector := NewParserIssueDetector()
+		err := detector.ParseAndProcessDDL(stmt_parent)
+		assert.NoError(t, err)
+		err = detector.ParseAndProcessDDL(stmt_child)
+		assert.NoError(t, err)
+		err = detector.ParseAndProcessDDL(stmt_alter)
+		assert.NoError(t, err)
+		detector.FinalizeColumnMetadata()
+
+		issues := detector.DetectMissingForeignKeyIndexes()
+
+		// Debug: Print expected and actual issues
+		fmt.Printf("\n=== Test Case 5: ALTER TABLE FK - No Index ===\n")
+		fmt.Printf("Expected issue: %+v\n", expectedIssue)
+		if len(issues) > 0 {
+			fmt.Printf("Actual issue: %+v\n", issues[0])
+		} else {
+			fmt.Printf("No issues detected\n")
+		}
+
+		assert.Equal(t, 1, len(issues))
+		assert.True(t, cmp.Equal(expectedIssue, issues[0]), "Expected issue not found: %v\nFound: %v", expectedIssue, issues[0])
+	})
+
+	// Test Case 6: FK via ALTER TABLE, with index
+	t.Run("FK via ALTER TABLE - With Index", func(t *testing.T) {
+		const (
+			stmt_parent = `CREATE TABLE public.customers_6 (
+				id SERIAL PRIMARY KEY,
+				name VARCHAR(100)
+			);`
+			stmt_child = `CREATE TABLE public.orders_6 (
+				id SERIAL PRIMARY KEY,
+				customer_id SERIAL,
+				order_date DATE
+			);`
+			stmt_index = `CREATE INDEX idx_orders_6_customer ON public.orders_6(customer_id);`
+			stmt_alter = `ALTER TABLE public.orders_6 ADD CONSTRAINT fk_orders_6_customer 
+				FOREIGN KEY (customer_id) REFERENCES public.customers_6(id);`
+		)
+
+		detector := NewParserIssueDetector()
+		err := detector.ParseAndProcessDDL(stmt_parent)
+		assert.NoError(t, err)
+		err = detector.ParseAndProcessDDL(stmt_child)
+		assert.NoError(t, err)
+		err = detector.ParseAndProcessDDL(stmt_index)
+		assert.NoError(t, err)
+		err = detector.ParseAndProcessDDL(stmt_alter)
+		assert.NoError(t, err)
+		detector.FinalizeColumnMetadata()
+
+		issues := detector.DetectMissingForeignKeyIndexes()
+		assert.Equal(t, 0, len(issues))
+	})
+
+	// Test Case 7: Index with FK columns in different order (should cover FK)
+	t.Run("Index with FK Columns in Different Order", func(t *testing.T) {
+		const (
+			stmt_parent = `CREATE TABLE public.orders_7 (
+				id SERIAL,
+				product_id INTEGER,
+				PRIMARY KEY (id, product_id)
+			);`
+			stmt_child = `CREATE TABLE public.order_items_7 (
+				id SERIAL PRIMARY KEY,
+				order_id SERIAL,
+				product_id INTEGER,
+				quantity INTEGER,
+				FOREIGN KEY (order_id, product_id) REFERENCES public.orders_7(id, product_id)
+			);`
+			stmt_different_order_index = `CREATE INDEX idx_order_items_7_diff_order ON public.order_items_7(product_id, order_id);`
+		)
+
+		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_different_order_index)
+		issues := detector.DetectMissingForeignKeyIndexes()
+		assert.Equal(t, 0, len(issues))
+	})
+
+	// Test Case 8: Index with FK columns not as prefix (should NOT cover FK)
+	t.Run("Index with FK Columns Not as Prefix", func(t *testing.T) {
+		const (
+			stmt_parent = `CREATE TABLE public.orders_8 (
+				id SERIAL,
+				product_id INTEGER,
+				PRIMARY KEY (id, product_id)
+			);`
+			stmt_child = `CREATE TABLE public.order_items_8 (
+				id SERIAL PRIMARY KEY,
+				order_id SERIAL,
+				product_id INTEGER,
+				quantity INTEGER,
+				FOREIGN KEY (order_id, product_id) REFERENCES public.orders_8(id, product_id)
+			);`
+			stmt_wrong_prefix_index = `CREATE INDEX idx_order_items_8_wrong_prefix ON public.order_items_8(quantity, order_id, product_id);`
+		)
+
+		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "public.order_items_8", "", "public.order_items_8.order_id, public.order_items_8.product_id", "public.orders_8")
+
+		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_wrong_prefix_index)
+		issues := detector.DetectMissingForeignKeyIndexes()
+
+		// Debug: Print expected and actual issues
+		fmt.Printf("\n=== Test Case 8: FK Columns Not as Prefix ===\n")
+		fmt.Printf("Expected issue: %+v\n", expectedIssue)
+		if len(issues) > 0 {
+			fmt.Printf("Actual issue: %+v\n", issues[0])
+		} else {
+			fmt.Printf("No issues detected\n")
+		}
+
+		assert.Equal(t, 1, len(issues))
+		assert.True(t, cmp.Equal(expectedIssue, issues[0]), "Expected issue not found: %v\nFound: %v", expectedIssue, issues[0])
+	})
+
+	// Test Case 9: Index with extra columns (superset index - should cover FK)
+	t.Run("Index with Extra Columns (Superset)", func(t *testing.T) {
+		const (
+			stmt_parent = `CREATE TABLE public.customers_9 (
+				id SERIAL PRIMARY KEY,
+				name VARCHAR(100)
+			);`
+			stmt_child = `CREATE TABLE public.orders_9 (
+				id SERIAL PRIMARY KEY,
+				customer_id SERIAL,
+				order_date DATE,
+				FOREIGN KEY (customer_id) REFERENCES public.customers_9(id)
+			);`
+			stmt_superset_index = `CREATE INDEX idx_orders_9_superset ON public.orders_9(customer_id, order_date);`
+		)
+
+		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_superset_index)
+		issues := detector.DetectMissingForeignKeyIndexes()
+		assert.Equal(t, 0, len(issues))
+	})
+
+	// Test Case 10: Expression index (should not cover FK)
+	t.Run("Expression Index (Should Not Cover FK)", func(t *testing.T) {
+		const (
+			stmt_parent = `CREATE TABLE public.customers_10 (
+				id SERIAL PRIMARY KEY,
+				name VARCHAR(100)
+			);`
+			stmt_child = `CREATE TABLE public.orders_10 (
+				id SERIAL PRIMARY KEY,
+				customer_id SERIAL,
+				order_date DATE,
+				FOREIGN KEY (customer_id) REFERENCES public.customers_10(id)
+			);`
+			stmt_expr_index = `CREATE INDEX idx_orders_10_expr ON public.orders_10((customer_id + 1));`
+		)
+
+		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "public.orders_10", "", "public.orders_10.customer_id", "public.customers_10")
+
+		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_expr_index)
+		issues := detector.DetectMissingForeignKeyIndexes()
+
+		// Debug: Print expected and actual issues
+		fmt.Printf("\n=== Test Case 10: Expression Index ===\n")
+		fmt.Printf("Expected issue: %+v\n", expectedIssue)
+		if len(issues) > 0 {
+			fmt.Printf("Actual issue: %+v\n", issues[0])
+		} else {
+			fmt.Printf("No issues detected\n")
+		}
+
+		assert.Equal(t, 1, len(issues))
+		assert.True(t, cmp.Equal(expectedIssue, issues[0]), "Expected issue not found: %v\nFound: %v", expectedIssue, issues[0])
+	})
+
+	// Test Case 11: Unique index (should cover FK)
+	t.Run("Unique Index (Should Cover FK)", func(t *testing.T) {
+		const (
+			stmt_parent = `CREATE TABLE public.customers_11 (
+				id SERIAL PRIMARY KEY,
+				name VARCHAR(100)
+			);`
+			stmt_child = `CREATE TABLE public.orders_11 (
+				id SERIAL PRIMARY KEY,
+				customer_id SERIAL,
+				order_date DATE,
+				FOREIGN KEY (customer_id) REFERENCES public.customers_11(id)
+			);`
+			stmt_unique_index = `CREATE UNIQUE INDEX idx_orders_11_unique ON public.orders_11(customer_id);`
+		)
+
+		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_unique_index)
+		issues := detector.DetectMissingForeignKeyIndexes()
+		assert.Equal(t, 0, len(issues))
+	})
+
+	// Test Case 12: Index with FK columns in reverse order (should cover FK)
+	t.Run("Index with FK Columns in Reverse Order", func(t *testing.T) {
+		const (
+			stmt_parent = `CREATE TABLE public.orders_12 (
+				id SERIAL,
+				product_id INTEGER,
+				PRIMARY KEY (id, product_id)
+			);`
+			stmt_child = `CREATE TABLE public.order_items_12 (
+				id SERIAL PRIMARY KEY,
+				order_id SERIAL,
+				product_id INTEGER,
+				quantity INTEGER,
+				FOREIGN KEY (order_id, product_id) REFERENCES public.orders_12(id, product_id)
+			);`
+			stmt_reverse_index = `CREATE INDEX idx_order_items_12_reverse ON public.order_items_12(product_id, order_id);`
+		)
+
+		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_reverse_index)
+		issues := detector.DetectMissingForeignKeyIndexes()
+		assert.Equal(t, 0, len(issues))
+	})
+
+	// Test Case 13: Index with FK columns as subset (should cover FK)
+	t.Run("Index with FK Columns as Subset", func(t *testing.T) {
+		const (
+			stmt_parent = `CREATE TABLE public.orders_13 (
+				id SERIAL,
+				product_id INTEGER,
+				PRIMARY KEY (id, product_id)
+			);`
+			stmt_child = `CREATE TABLE public.order_items_13 (
+				id SERIAL PRIMARY KEY,
+				order_id SERIAL,
+				product_id INTEGER,
+				quantity INTEGER,
+				FOREIGN KEY (order_id, product_id) REFERENCES public.orders_13(id, product_id)
+			);`
+			stmt_subset_index = `CREATE INDEX idx_order_items_13_subset ON public.order_items_13(order_id, product_id, quantity);`
+		)
+
+		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_subset_index)
+		issues := detector.DetectMissingForeignKeyIndexes()
+		assert.Equal(t, 0, len(issues))
+	})
+
+	// Test Case 14: Index with FK columns in wrong position (should NOT cover FK)
+	t.Run("Index with FK Columns in Wrong Position", func(t *testing.T) {
+		const (
+			stmt_parent = `CREATE TABLE public.orders_14 (
+				id SERIAL,
+				product_id INTEGER,
+				PRIMARY KEY (id, product_id)
+			);`
+			stmt_child = `CREATE TABLE public.order_items_14 (
+				id SERIAL PRIMARY KEY,
+				order_id SERIAL,
+				product_id INTEGER,
+				quantity INTEGER,
+				FOREIGN KEY (order_id, product_id) REFERENCES public.orders_14(id, product_id)
+			);`
+			stmt_wrong_pos_index = `CREATE INDEX idx_order_items_14_wrong_pos ON public.order_items_14(quantity, order_id, product_id);`
+		)
+
+		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "public.order_items_14", "", "public.order_items_14.order_id, public.order_items_14.product_id", "public.orders_14")
+
+		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_wrong_pos_index)
+		issues := detector.DetectMissingForeignKeyIndexes()
+
+		// Debug: Print expected and actual issues
+		fmt.Printf("\n=== Test Case 14: Wrong Position ===\n")
+		fmt.Printf("Expected issue: %+v\n", expectedIssue)
+		if len(issues) > 0 {
+			fmt.Printf("Actual issue: %+v\n", issues[0])
+		} else {
+			fmt.Printf("No issues detected\n")
+		}
+
+		assert.Equal(t, 1, len(issues))
+		assert.True(t, cmp.Equal(expectedIssue, issues[0]), "Expected issue not found: %v\nFound: %v", expectedIssue, issues[0])
+	})
+
+	// Test Case 15: Index missing one FK column (should NOT cover FK)
+	t.Run("Index Missing One FK Column", func(t *testing.T) {
+		const (
+			stmt_parent = `CREATE TABLE public.orders_15 (
+				id SERIAL,
+				product_id INTEGER,
+				PRIMARY KEY (id, product_id)
+			);`
+			stmt_child = `CREATE TABLE public.order_items_15 (
+				id SERIAL PRIMARY KEY,
+				order_id SERIAL,
+				product_id INTEGER,
+				quantity INTEGER,
+				FOREIGN KEY (order_id, product_id) REFERENCES public.orders_15(id, product_id)
+			);`
+			stmt_missing_col_index = `CREATE INDEX idx_order_items_15_missing ON public.order_items_15(order_id);`
+		)
+
+		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "public.order_items_15", "", "public.order_items_15.order_id, public.order_items_15.product_id", "public.orders_15")
+
+		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_missing_col_index)
+		issues := detector.DetectMissingForeignKeyIndexes()
+
+		// Debug: Print expected and actual issues
+		fmt.Printf("\n=== Test Case 15: Missing Column ===\n")
+		fmt.Printf("Expected issue: %+v\n", expectedIssue)
+		if len(issues) > 0 {
+			fmt.Printf("Actual issue: %+v\n", issues[0])
+		} else {
+			fmt.Printf("No issues detected\n")
+		}
+
+		assert.Equal(t, 1, len(issues))
+		assert.True(t, cmp.Equal(expectedIssue, issues[0]), "Expected issue not found: %v\nFound: %v", expectedIssue, issues[0])
+	})
+
+	// Test Case 16: Expression index with composite FK (expression in prefix - should NOT cover FK)
+	t.Run("Expression Index with Composite FK - Expression in Prefix", func(t *testing.T) {
+		const (
+			stmt_parent = `CREATE TABLE public.orders_16 (
+				id SERIAL,
+				product_id INTEGER,
+				PRIMARY KEY (id, product_id)
+			);`
+			stmt_child = `CREATE TABLE public.order_items_16 (
+				id SERIAL PRIMARY KEY,
+				order_id SERIAL,
+				product_id INTEGER,
+				quantity INTEGER,
+				FOREIGN KEY (order_id, product_id) REFERENCES public.orders_16(id, product_id)
+			);`
+			stmt_expr_prefix_index = `CREATE INDEX idx_order_items_16_expr_prefix ON public.order_items_16((order_id + 1), product_id);`
+		)
+
+		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "public.order_items_16", "", "public.order_items_16.order_id, public.order_items_16.product_id", "public.orders_16")
+
+		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_expr_prefix_index)
+		issues := detector.DetectMissingForeignKeyIndexes()
+
+		// Debug: Print expected and actual issues
+		fmt.Printf("\n=== Test Case 16: Expression in Prefix ===\n")
+		fmt.Printf("Expected issue: %+v\n", expectedIssue)
+		if len(issues) > 0 {
+			fmt.Printf("Actual issue: %+v\n", issues[0])
+		} else {
+			fmt.Printf("No issues detected\n")
+		}
+
+		assert.Equal(t, 1, len(issues))
+		assert.True(t, cmp.Equal(expectedIssue, issues[0]), "Expected issue not found: %v\nFound: %v", expectedIssue, issues[0])
+	})
+
+	// Test Case 17: Expression index with composite FK (expression after prefix - should cover FK)
+	t.Run("Expression Index with Composite FK - Expression After Prefix", func(t *testing.T) {
+		const (
+			stmt_parent = `CREATE TABLE public.orders_17 (
+				id SERIAL,
+				product_id INTEGER,
+				PRIMARY KEY (id, product_id)
+			);`
+			stmt_child = `CREATE TABLE public.order_items_17 (
+				id SERIAL PRIMARY KEY,
+				order_id SERIAL,
+				product_id INTEGER,
+				quantity INTEGER,
+				FOREIGN KEY (order_id, product_id) REFERENCES public.orders_17(id, product_id)
+			);`
+			stmt_expr_after_index = `CREATE INDEX idx_order_items_17_expr_after ON public.order_items_17(order_id, product_id, (quantity + 1));`
+		)
+
+		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_expr_after_index)
+		issues := detector.DetectMissingForeignKeyIndexes()
+		assert.Equal(t, 0, len(issues))
+	})
+
+	// Test Case 18: No index but PK constraint on FK columns (should cover FK)
+	t.Run("No Index but PK Constraint on FK Columns", func(t *testing.T) {
+		const (
+			stmt_parent = `CREATE TABLE public.customers_18 (
+				id SERIAL PRIMARY KEY,
+				name VARCHAR(100)
+			);`
+			stmt_child = `CREATE TABLE public.orders_18 (
+				id SERIAL PRIMARY KEY,
+				customer_id SERIAL,
+				order_date DATE,
+				PRIMARY KEY (customer_id),
+				FOREIGN KEY (customer_id) REFERENCES public.customers_18(id)
+			);`
+		)
+
+		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, "")
+		issues := detector.DetectMissingForeignKeyIndexes()
+		assert.Equal(t, 0, len(issues))
+	})
+
+	// Test Case 19: No index but UK constraint on FK columns (should cover FK)
+	t.Run("No Index but UK Constraint on FK Columns", func(t *testing.T) {
+		const (
+			stmt_parent = `CREATE TABLE public.customers_19 (
+				id SERIAL PRIMARY KEY,
+				name VARCHAR(100)
+			);`
+			stmt_child = `CREATE TABLE public.orders_19 (
+				id SERIAL PRIMARY KEY,
+				customer_id SERIAL,
+				order_date DATE,
+				UNIQUE (customer_id),
+				FOREIGN KEY (customer_id) REFERENCES public.customers_19(id)
+			);`
+		)
+
+		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, "")
+		issues := detector.DetectMissingForeignKeyIndexes()
+		assert.Equal(t, 0, len(issues))
+	})
+
+	// Test Case 20: No index but composite PK constraint on FK columns (should cover FK)
+	t.Run("No Index but Composite PK Constraint on FK Columns", func(t *testing.T) {
+		const (
+			stmt_parent = `CREATE TABLE public.orders_20 (
+				id SERIAL,
+				product_id INTEGER,
+				PRIMARY KEY (id, product_id)
+			);`
+			stmt_child = `CREATE TABLE public.order_items_20 (
+				id SERIAL,
+				order_id SERIAL,
+				product_id INTEGER,
+				quantity INTEGER,
+				PRIMARY KEY (order_id, product_id),
+				FOREIGN KEY (order_id, product_id) REFERENCES public.orders_20(id, product_id)
+			);`
+		)
+
+		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, "")
+		issues := detector.DetectMissingForeignKeyIndexes()
+		assert.Equal(t, 0, len(issues))
+	})
+
+	// Test Case 21: Expression index with expression in middle of prefix (should NOT cover FK)
+	t.Run("Expression Index with Expression in Middle of Prefix", func(t *testing.T) {
+		const (
+			stmt_parent = `CREATE TABLE public.orders_21 (
+				id SERIAL,
+				product_id INTEGER,
+				category_id INTEGER,
+				PRIMARY KEY (id, product_id, category_id)
+			);`
+			stmt_child = `CREATE TABLE public.order_items_21 (
+				id SERIAL PRIMARY KEY,
+				order_id SERIAL,
+				product_id INTEGER,
+				category_id INTEGER,
+				quantity INTEGER,
+				FOREIGN KEY (order_id, product_id, category_id) REFERENCES public.orders_21(id, product_id, category_id)
+			);`
+			stmt_expr_middle_index = `CREATE INDEX idx_order_items_21_expr_middle ON public.order_items_21(order_id, (quantity + 1), product_id, category_id);`
+		)
+
+		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "public.order_items_21", "", "public.order_items_21.order_id, public.order_items_21.product_id, public.order_items_21.category_id", "public.orders_21")
+
+		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_expr_middle_index)
+		issues := detector.DetectMissingForeignKeyIndexes()
+
+		// Debug: Print expected and actual issues
+		fmt.Printf("\n=== Test Case 21: Expression in Middle of Prefix ===\n")
+		fmt.Printf("Expected issue: %+v\n", expectedIssue)
+		if len(issues) > 0 {
+			fmt.Printf("Actual issue: %+v\n", issues[0])
+		} else {
+			fmt.Printf("No issues detected\n")
+		}
+
+		assert.Equal(t, 1, len(issues))
+		assert.True(t, cmp.Equal(expectedIssue, issues[0]), "Expected issue not found: %v\nFound: %v", expectedIssue, issues[0])
+	})
 }

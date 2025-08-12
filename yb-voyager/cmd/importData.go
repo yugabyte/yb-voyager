@@ -36,6 +36,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/adaptiveparallelism"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/config"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
@@ -74,6 +75,7 @@ var skipReplicationChecks utils.BoolStr
 var skipNodeHealthChecks utils.BoolStr
 var skipDiskUsageHealthChecks utils.BoolStr
 var progressReporter *ImportDataProgressReporter
+var callhomeMetricsCollector *callhome.ImportDataMetricsCollector
 
 // Error policy
 var errorPolicySnapshotFlag importdata.ErrorPolicy = importdata.AbortErrorPolicy
@@ -102,9 +104,9 @@ var importDataCmd = &cobra.Command{
 			utils.ErrExit("Error validating import flags: %s", err.Error())
 		}
 
-		err = validateOnPrimaryKeyConflictFlag()
+		err = validateImportDataFlags()
 		if err != nil {
-			utils.ErrExit("Error validating --on-primary-key-conflict flag: %s", err.Error())
+			utils.ErrExit("Error validating import data flags: %s", err.Error())
 		}
 	},
 	Run: importDataCommandFn,
@@ -192,11 +194,11 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	case TARGET_DB_IMPORTER_ROLE:
 		importDataCompletedEvent := createSnapshotImportCompletedEvent()
 		controlPlane.SnapshotImportCompleted(&importDataCompletedEvent)
-		packAndSendImportDataPayload(COMPLETE, "")
+		packAndSendImportDataToTargetPayload(COMPLETE, nil)
 	case SOURCE_REPLICA_DB_IMPORTER_ROLE:
-		packAndSendImportDataToSrcReplicaPayload(COMPLETE, "")
+		packAndSendImportDataToSrcReplicaPayload(COMPLETE, nil)
 	case SOURCE_DB_IMPORTER_ROLE:
-		packAndSendImportDataToSourcePayload(COMPLETE, "")
+		packAndSendImportDataToSourcePayload(COMPLETE, nil)
 	}
 
 	if changeStreamingIsEnabled(importType) {
@@ -573,6 +575,10 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 		}
 	}
 
+	if callhome.SendDiagnostics {
+		callhomeMetricsCollector = callhome.NewImportDataMetricsCollector()
+	}
+
 	exportDirDataDir := filepath.Join(exportDir, "data")
 	errorHandler, err := importdata.GetImportDataErrorHandler(errorPolicy, exportDirDataDir)
 	if err != nil {
@@ -649,13 +655,18 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 		}
 		pendingTasks = importFileTasks
 	} else {
-		pendingTasks, completedTasks, err = classifyTasks(state, importFileTasks)
+		pendingTasks, completedTasks, err = classifyTasksForImport(state, importFileTasks)
 		if err != nil {
 			utils.ErrExit("Failed to classify tasks: %s", err)
 		}
 	}
 	log.Infof("pending tasks: %v", pendingTasks)
 	log.Infof("completed tasks: %v", completedTasks)
+
+	err = runPKConflictModeGuardrails(state, importFileTasks)
+	if err != nil {
+		utils.ErrExit("Error checking PK conflict mode on fresh start: %s", err)
+	}
 
 	//TODO: BUG: we are applying table-list filter on importFileTasks, but here we are considering all tables as per
 	// export-data table-list. Should be fine because we are only disabling and re-enabling, but this is still not ideal.
@@ -698,7 +709,7 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 				maxColocatedBatchesInProgress := utils.GetEnvAsInt("YBVOYAGER_MAX_COLOCATED_BATCHES_IN_PROGRESS", 3)
 				err := importTasksViaTaskPicker(pendingTasks, state, progressReporter,
 					maxParallelConns, maxParallelConns, maxColocatedBatchesInProgress,
-					errorHandler)
+					errorHandler, callhomeMetricsCollector)
 				if err != nil {
 					utils.ErrExit("Failed to import tasks via task picker. %s", err)
 				}
@@ -710,7 +721,7 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 					batchImportPool = pool.New().WithMaxGoroutines(poolSize)
 					log.Infof("created batch import pool of size: %d", poolSize)
 
-					taskImporter, err := NewFileTaskImporter(task, state, batchImportPool, progressReporter, nil, false, errorHandler)
+					taskImporter, err := NewFileTaskImporter(task, state, batchImportPool, progressReporter, nil, false, errorHandler, callhomeMetricsCollector)
 					if err != nil {
 						utils.ErrExit("Failed to create file task importer: %s", err)
 					}
@@ -733,7 +744,7 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 
 	if changeStreamingIsEnabled(importType) {
 		if importerRole != SOURCE_DB_IMPORTER_ROLE {
-			displayImportedRowCountSnapshot(state, importFileTasks)
+			displayImportedRowCountSnapshot(state, importFileTasks, errorHandler)
 		}
 
 		waitForDebeziumStartIfRequired()
@@ -793,9 +804,74 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 		if err != nil {
 			utils.ErrExit("failed to restore generated columns: %s", err)
 		}
-		displayImportedRowCountSnapshot(state, importFileTasks)
+		displayImportedRowCountSnapshot(state, importFileTasks, errorHandler)
 	}
 	fmt.Printf("\nImport data complete.\n")
+}
+
+// For a fresh start but non empty tables in tableList && OnPrimaryKeyConflict is set to IGNORE -> notify user
+func runPKConflictModeGuardrails(state *ImportDataState, allTasks []*ImportFileTask) error {
+	// in case of ERROR mode, no need to check for non-empty tables
+	// but for IGNORE or UPDATE(in future), we need to prompt user
+	if tconf.OnPrimaryKeyConflictAction == constants.PRIMARY_KEY_CONFLICT_ACTION_ERROR {
+		return nil
+	}
+
+	if !isTargetDBImporter(importerRole) {
+		return nil
+	}
+
+	if !isFreshStart(state, allTasks) {
+		log.Info("Not a fresh start, skipping primary key conflict mode check.")
+		return nil
+	}
+
+	pendingTasks := getPendingTasks(state, allTasks)
+	pendingTablesList := importFileTasksToTableNameTuples(pendingTasks)
+	nonEmptyTables := tdb.GetNonEmptyTables(pendingTablesList)
+	if len(nonEmptyTables) == 0 {
+		log.Info("No non-empty tables found in the target DB, skipping primary key conflict mode check.")
+		return nil
+	}
+
+	var nonEmptyTablesWithPK []sqlname.NameTuple
+	for _, table := range nonEmptyTables {
+		colList, err := tdb.GetPrimaryKeyColumns(table)
+		if err != nil {
+			return fmt.Errorf("failed to get primary key columns for table %s: %w", table.ForOutput(), err)
+		}
+		if len(colList) > 0 { // table has PK
+			nonEmptyTablesWithPK = append(nonEmptyTablesWithPK, table)
+		}
+	}
+
+	// all nonEmptyTables have no primary key columns
+	if len(nonEmptyTablesWithPK) == 0 {
+		log.Infof("No non-empty tables with primary key found in %v, skipping primary key conflict mode check.",
+			sqlname.NameTupleListToStrings(nonEmptyTables))
+		return nil
+	}
+
+	utils.PrintAndLog(
+		"\nTarget tables with pre-existing data: %v\n"+
+			"Note that because of the config on-primary-key-conflict as 'IGNORE', rows that have a primary key conflict "+
+			"with an existing row in the above set of tables will be silently ignored.\n",
+		sqlname.NameTupleListToStrings(nonEmptyTablesWithPK),
+	)
+	if !utils.AskPrompt("Please confirm whether to proceed") {
+		utils.ErrExit("Aborting import.")
+	}
+
+	return nil
+}
+
+// A fresh start is when all tasks are pending(non-zero), no started or completed tasks.
+func isFreshStart(state *ImportDataState, allTasks []*ImportFileTask) bool {
+	inProgressTasks := getInProgressTasks(state, allTasks)
+	notStartedTasks := getNotStartedTasks(state, allTasks)
+	completedTasks := getCompletedTasks(state, allTasks)
+
+	return len(inProgressTasks) == 0 && len(completedTasks) == 0 && len(notStartedTasks) == len(allTasks)
 }
 
 func restoreGeneratedIdentityColumns(importTableList []sqlname.NameTuple) error {
@@ -842,7 +918,7 @@ func getMaxParallelConnections() (int, error) {
   - If task is done, mark it as done in the task picker.
 */
 func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataState, progressReporter *ImportDataProgressReporter, maxParallelConns int,
-	maxShardedTasksInProgress int, maxColocatedBatchesInProgress int, errorHandler importdata.ImportDataErrorHandler) error {
+	maxShardedTasksInProgress int, maxColocatedBatchesInProgress int, errorHandler importdata.ImportDataErrorHandler, callhomeMetricsCollector *callhome.ImportDataMetricsCollector) error {
 
 	var err error
 
@@ -882,7 +958,7 @@ func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataS
 		var ok bool
 		taskImporter, ok = taskImporters[task.ID]
 		if !ok {
-			taskImporter, err = createFileTaskImporter(task, state, batchImportPool, progressReporter, colocatedBatchImportQueue, tableTypes, errorHandler)
+			taskImporter, err = createFileTaskImporter(task, state, batchImportPool, progressReporter, colocatedBatchImportQueue, tableTypes, errorHandler, callhomeMetricsCollector)
 			if err != nil {
 				return fmt.Errorf("create file task importer: %w", err)
 			}
@@ -994,7 +1070,7 @@ and colocated table batches to the colocatedBatchImportQueue.
 Otherwise, we simply pass the batchImportPool to the FileTaskImporter.
 */
 func createFileTaskImporter(task *ImportFileTask, state *ImportDataState, batchImportPool *pool.Pool, progressReporter *ImportDataProgressReporter, colocatedBatchImportQueue chan func(),
-	tableTypes *utils.StructMap[sqlname.NameTuple, string], errorHandler importdata.ImportDataErrorHandler) (*FileTaskImporter, error) {
+	tableTypes *utils.StructMap[sqlname.NameTuple, string], errorHandler importdata.ImportDataErrorHandler, callhomeMetricsCollector *callhome.ImportDataMetricsCollector) (*FileTaskImporter, error) {
 	var taskImporter *FileTaskImporter
 	var err error
 	if importerRole == TARGET_DB_IMPORTER_ROLE || importerRole == IMPORT_FILE_ROLE {
@@ -1003,12 +1079,12 @@ func createFileTaskImporter(task *ImportFileTask, state *ImportDataState, batchI
 			return nil, fmt.Errorf("table type not found for table: %s", task.TableNameTup.ForOutput())
 		}
 
-		taskImporter, err = NewFileTaskImporter(task, state, batchImportPool, progressReporter, colocatedBatchImportQueue, tableType == COLOCATED, errorHandler)
+		taskImporter, err = NewFileTaskImporter(task, state, batchImportPool, progressReporter, colocatedBatchImportQueue, tableType == COLOCATED, errorHandler, callhomeMetricsCollector)
 		if err != nil {
 			return nil, fmt.Errorf("create file task importer: %w", err)
 		}
 	} else {
-		taskImporter, err = NewFileTaskImporter(task, state, batchImportPool, progressReporter, nil, false, errorHandler)
+		taskImporter, err = NewFileTaskImporter(task, state, batchImportPool, progressReporter, nil, false, errorHandler, callhomeMetricsCollector)
 		if err != nil {
 			return nil, fmt.Errorf("create file task importer: %w", err)
 		}
@@ -1115,7 +1191,7 @@ func waitForDebeziumStartIfRequired() error {
 	return nil
 }
 
-func packAndSendImportDataPayload(status string, errorMsg string) {
+func packAndSendImportDataToTargetPayload(status string, errorMsg error) {
 
 	if !shouldSendCallhome() {
 		return
@@ -1130,33 +1206,53 @@ func packAndSendImportDataPayload(status string, errorMsg string) {
 	}
 	payload.TargetDBDetails = callhome.MarshalledJsonString(targetDBDetails)
 	payload.MigrationPhase = IMPORT_DATA_PHASE
-	importDataPayload := callhome.ImportDataPhasePayload{
-		ParallelJobs:     int64(tconf.Parallelism),
-		StartClean:       bool(startClean),
-		EnableUpsert:     bool(tconf.EnableUpsert),
-		Error:            callhome.SanitizeErrorMsg(errorMsg),
-		ControlPlaneType: getControlPlaneType(),
+
+	dataMetrics := callhome.ImportDataMetrics{}
+	if callhomeMetricsCollector != nil {
+		dataMetrics.SnapshotTotalRows = callhomeMetricsCollector.GetSnapshotTotalRows()
+		dataMetrics.SnapshotTotalBytes = callhomeMetricsCollector.GetSnapshotTotalBytes()
 	}
 
-	//Getting the imported snapshot details
+	// Get phase-related metrics from existing logic
 	importRowsMap, err := getImportedSnapshotRowsMap("target")
 	if err != nil {
 		log.Infof("callhome: error in getting the import data: %v", err)
 	} else {
 		importRowsMap.IterKV(func(key sqlname.NameTuple, value RowCountPair) (bool, error) {
-			importDataPayload.TotalRows += value.Imported
-			if value.Imported > importDataPayload.LargestTableRows {
-				importDataPayload.LargestTableRows = value.Imported
+			dataMetrics.MigrationSnapshotTotalRows += value.Imported
+			if value.Imported > dataMetrics.MigrationSnapshotLargestTableRows {
+				dataMetrics.MigrationSnapshotLargestTableRows = value.Imported
 			}
 			return true, nil
 		})
 	}
 
-	importDataPayload.Phase = importPhase
-
+	// Set live migration metrics if applicable
 	if importPhase != dbzm.MODE_SNAPSHOT && statsReporter != nil {
-		importDataPayload.EventsImportRate = statsReporter.EventsImportRateLast3Min
-		importDataPayload.TotalImportedEvents = statsReporter.TotalEventsImported
+		dataMetrics.MigrationCdcTotalImportedEvents = statsReporter.TotalEventsImported
+		dataMetrics.CdcEventsImportRate3min = statsReporter.EventsImportRateLast3Min
+	}
+
+	importDataPayload := callhome.ImportDataPhasePayload{
+		PayloadVersion:              callhome.IMPORT_DATA_CALLHOME_PAYLOAD_VERSION,
+		ParallelJobs:                int64(tconf.Parallelism),
+		StartClean:                  bool(startClean),
+		EnableUpsert:                bool(tconf.EnableUpsert),
+		Error:                       callhome.SanitizeErrorMsg(errorMsg),
+		ControlPlaneType:            getControlPlaneType(),
+		BatchSize:                   batchSizeInNumRows,
+		OnPrimaryKeyConflictAction:  tconf.OnPrimaryKeyConflictAction,
+		EnableYBAdaptiveParallelism: bool(tconf.EnableYBAdaptiveParallelism),
+		AdaptiveParallelismMax:      int64(tconf.MaxParallelism),
+		ErrorPolicySnapshot:         errorPolicySnapshotFlag.String(),
+		DataMetrics:                 dataMetrics,
+		Phase:                       importPhase,
+	}
+
+	var err2 error
+	importDataPayload.YBClusterMetrics, err2 = BuildCallhomeYBClusterMetrics()
+	if err2 != nil {
+		log.Infof("callhome: error in getting the YB cluster metrics: %v", err2)
 	}
 
 	payload.PhasePayload = callhome.MarshalledJsonString(importDataPayload)
@@ -1263,7 +1359,7 @@ func importFileTasksToTableNameTuples(tasks []*ImportFileTask) []sqlname.NameTup
 	})
 }
 
-func classifyTasks(state *ImportDataState, tasks []*ImportFileTask) (pendingTasks, completedTasks []*ImportFileTask, err error) {
+func classifyTasksForImport(state *ImportDataState, tasks []*ImportFileTask) (pendingTasks, completedTasks []*ImportFileTask, err error) {
 	inProgressTasks := []*ImportFileTask{}
 	notStartedTasks := []*ImportFileTask{}
 	for _, task := range tasks {
@@ -1284,6 +1380,52 @@ func classifyTasks(state *ImportDataState, tasks []*ImportFileTask) (pendingTask
 	}
 	// Start with in-progress tasks, followed by not-started tasks.
 	return append(inProgressTasks, notStartedTasks...), completedTasks, nil
+}
+
+func getNotStartedTasks(state *ImportDataState, tasks []*ImportFileTask) []*ImportFileTask {
+	notStartedTasks := []*ImportFileTask{}
+	for _, task := range tasks {
+		fileImportState, err := state.GetFileImportState(task.FilePath, task.TableNameTup)
+		if err != nil {
+			utils.ErrExit("get table import state: %s: %s", task.TableNameTup, err)
+		}
+		if fileImportState == FILE_IMPORT_NOT_STARTED {
+			notStartedTasks = append(notStartedTasks, task)
+		}
+	}
+	return notStartedTasks
+}
+
+func getInProgressTasks(state *ImportDataState, tasks []*ImportFileTask) []*ImportFileTask {
+	inProgressTasks := []*ImportFileTask{}
+	for _, task := range tasks {
+		fileImportState, err := state.GetFileImportState(task.FilePath, task.TableNameTup)
+		if err != nil {
+			utils.ErrExit("get table import state: %s: %s", task.TableNameTup, err)
+		}
+		if fileImportState == FILE_IMPORT_IN_PROGRESS {
+			inProgressTasks = append(inProgressTasks, task)
+		}
+	}
+	return inProgressTasks
+}
+
+func getPendingTasks(state *ImportDataState, tasks []*ImportFileTask) []*ImportFileTask {
+	return append(getInProgressTasks(state, tasks), getNotStartedTasks(state, tasks)...)
+}
+
+func getCompletedTasks(state *ImportDataState, tasks []*ImportFileTask) []*ImportFileTask {
+	completedTasks := []*ImportFileTask{}
+	for _, task := range tasks {
+		fileImportState, err := state.GetFileImportState(task.FilePath, task.TableNameTup)
+		if err != nil {
+			utils.ErrExit("get table import state: %s: %s", task.TableNameTup, err)
+		}
+		if fileImportState == FILE_IMPORT_COMPLETED || fileImportState == FILE_IMPORT_COMPLETED_WITH_ERRORS {
+			completedTasks = append(completedTasks, task)
+		}
+	}
+	return completedTasks
 }
 
 func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
@@ -1505,6 +1647,10 @@ func createInitialImportDataTableMetrics(tasks []*ImportFileTask) []*cp.UpdateIm
 }
 
 func saveOnPrimaryKeyConflictActionInMSR() {
+	if !isPrimaryKeyConflictModeValid() {
+		return
+	}
+
 	metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		record.OnPrimaryKeyConflictAction = tconf.OnPrimaryKeyConflictAction
 	})
@@ -1531,6 +1677,10 @@ func cleanMSRForImportDataStartClean() error {
 	return nil
 }
 
+func isPrimaryKeyConflictModeValid() bool {
+	return importerRole == IMPORT_FILE_ROLE || importerRole == TARGET_DB_IMPORTER_ROLE
+}
+
 func cleanStoredErrors(errorHandler importdata.ImportDataErrorHandler, tasks []*ImportFileTask) error {
 	// clean stored errors for all tasks
 	for _, task := range tasks {
@@ -1540,4 +1690,78 @@ func cleanStoredErrors(errorHandler importdata.ImportDataErrorHandler, tasks []*
 		}
 	}
 	return nil
+}
+
+func isTargetDBImporter(importerRole string) bool {
+	return importerRole == TARGET_DB_IMPORTER_ROLE || importerRole == IMPORT_FILE_ROLE
+}
+
+func BuildCallhomeYBClusterMetrics() (callhome.YBClusterMetrics, error) {
+	yb, ok := tdb.(*tgtdb.TargetYugabyteDB)
+	if !ok {
+		return callhome.YBClusterMetrics{}, fmt.Errorf("importData: expected tdb to be of type TargetYugabyteDB, got: %T", tdb)
+	}
+
+	clusterMetrics, err := yb.GetClusterMetrics()
+	if err != nil {
+		return callhome.YBClusterMetrics{}, err
+	}
+
+	now := time.Now().UTC()
+	nodes := make([]callhome.NodeMetric, 0)
+	var totalCpuPct, maxCpuPct float64
+	for _, nodeMetrics := range clusterMetrics {
+		// in case of err value will be -1
+		cpuPct, err := nodeMetrics.GetCPUPercent()
+		if err != nil {
+			// ignore and not error out - getter function can fail for a node but we would still like to collect metrics for other nodes
+			log.Warnf("callhome: error getting CPU percent for node %s: %v", nodeMetrics.UUID, err)
+		}
+		memPct, err := nodeMetrics.GetMemPercent()
+		if err != nil {
+			log.Warnf("callhome: error getting Mem percent for node %s: %v", nodeMetrics.UUID, err)
+		}
+
+		// in case of err value will be -1
+		memoryFree, err := nodeMetrics.GetMemoryFree()
+		if err != nil {
+			log.Warnf("callhome: error getting Memory Free for node %s: %v", nodeMetrics.UUID, err)
+		}
+		memoryAvailable, err := nodeMetrics.GetMemoryAvailable()
+		if err != nil {
+			log.Warnf("callhome: error getting Memory Available for node %s: %v", nodeMetrics.UUID, err)
+		}
+		memoryTotal, err := nodeMetrics.GetMemoryTotal()
+		if err != nil {
+			log.Warnf("callhome: error getting Memory Total for node %s: %v", nodeMetrics.UUID, err)
+		}
+
+		nodes = append(nodes, callhome.NodeMetric{
+			UUID:                   nodeMetrics.UUID,
+			TotalCPUPct:            cpuPct,
+			TserverMemSoftLimitPct: memPct,
+			MemoryFree:             memoryFree,
+			MemoryAvailable:        memoryAvailable,
+			MemoryTotal:            memoryTotal,
+			Status:                 nodeMetrics.Status,
+			Error:                  nodeMetrics.Error,
+		})
+
+		totalCpuPct += cpuPct
+		if cpuPct > maxCpuPct {
+			maxCpuPct = cpuPct
+		}
+	}
+
+	if len(nodes) == 0 {
+		return callhome.YBClusterMetrics{}, fmt.Errorf("no nodes found in cluster metrics")
+	}
+
+	avgCpuPct := totalCpuPct / float64(len(nodes))
+	return callhome.YBClusterMetrics{
+		Timestamp: now,
+		AvgCpuPct: avgCpuPct,
+		MaxCpuPct: maxCpuPct,
+		Nodes:     nodes,
+	}, nil
 }

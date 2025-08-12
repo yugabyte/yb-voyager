@@ -17,7 +17,9 @@ package utils
 
 import (
 	"bufio"
+	crand "crypto/rand"
 	"database/sql"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"math/rand"
@@ -27,19 +29,20 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
+	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/fatih/color"
 	"github.com/google/uuid"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
-	"golang.org/x/exp/slices"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )
@@ -207,6 +210,17 @@ func FileOrFolderExistsWithGlobPattern(path string) bool {
 	return len(files) > 0
 }
 
+func FilePathForAnyFileExistsInGlobPattern(path string) (string, bool) {
+	files, err := filepath.Glob(path)
+	if err != nil {
+		return "", false
+	}
+	if len(files) > 0 {
+		return files[0], true
+	}
+	return "", false
+}
+
 func CleanDir(dir string) {
 	if FileOrFolderExists(dir) {
 		files, _ := filepath.Glob(dir + "/*")
@@ -260,6 +274,25 @@ func GetObjectDirPath(schemaDirPath string, objType string) string {
 		requiredPath = filepath.Join(schemaDirPath, strings.ToLower(objType)+"s")
 	}
 	return requiredPath
+}
+
+func CopyFile(src, dst string) error {
+	srcFile, err := os.Open(src)
+	if err != nil {
+		return fmt.Errorf("failed to open source file %q: %w", src, err)
+	}
+	defer srcFile.Close()
+	dstFile, err := os.Create(dst)
+	if err != nil {
+		return fmt.Errorf("failed to create destination file %q: %w", dst, err)
+	}
+	defer dstFile.Close()
+	_, err = io.Copy(dstFile, srcFile)
+	if err != nil {
+		return fmt.Errorf("failed to copy from %q to %q: %w", src, dst, err)
+	}
+
+	return nil
 }
 
 func GetObjectFilePath(schemaDirPath string, objType string) string {
@@ -930,4 +963,52 @@ func GetCommonFlags(cmdA, cmdB *cobra.Command) []*pflag.Flag {
 	})
 
 	return common
+}
+
+func MapToString(m map[string]string) string {
+	if m == nil {
+		return "[]"
+	}
+	pairs := make([]string, 0, len(m))
+	for k, v := range m {
+		pairs = append(pairs, fmt.Sprintf("%s=%s", k, v))
+	}
+	return "[" + strings.Join(pairs, ",") + "]"
+}
+
+func RetryWorkWithTimeout(sleep time.Duration, timeout time.Duration, work func() bool) bool {
+	start := time.Now()
+	for time.Since(start) < (timeout * time.Second) { // 30 seconds timeout
+		if work() {
+			return true
+		}
+		time.Sleep(sleep * time.Second)
+	}
+	return false
+}
+
+// GenerateAnonymisationSalt returns a hex-encoded salt string of length 2*n characters,
+// where n is the number of random bytes in salt.
+// For example, GenerateAnonymisationSalt(8) gives you a 16-char hex string.
+func GenerateAnonymisationSalt(n int) (string, error) {
+	if n <= 0 {
+		return "", fmt.Errorf("invalid salt length %d; must be > 0", n)
+	}
+
+	b := make([]byte, n)
+	if _, err := crand.Read(b); err != nil {
+		return "", fmt.Errorf("failed to generate salt: %w", err)
+	}
+
+	// convert bytes to hex to make it printable ASCII string
+	return hex.EncodeToString(b), nil
+}
+
+// IsSetEqual checks if two string slices contain the same elements regardless of order.
+// It uses mapset for efficient comparison.
+func IsSetEqual(a, b []string) bool {
+	setA := mapset.NewThreadUnsafeSet(a...)
+	setB := mapset.NewThreadUnsafeSet(b...)
+
+	return setA.Equal(setB)
 }

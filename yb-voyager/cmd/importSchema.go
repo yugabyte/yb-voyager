@@ -17,6 +17,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -30,6 +31,7 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -66,9 +68,9 @@ var importSchemaCmd = &cobra.Command{
 		tconf.ImportMode = true
 		err := importSchema()
 		if err != nil {
-			utils.ErrExit("%s", err)
+			utils.ErrExit("%w", err)
 		}
-		packAndSendImportSchemaPayload(COMPLETE, "")
+		packAndSendImportSchemaPayload(COMPLETE, nil)
 	},
 }
 
@@ -79,6 +81,8 @@ func init() {
 	registerTargetDBConnFlags(importSchemaCmd)
 	registerImportSchemaFlags(importSchemaCmd)
 }
+
+const ANALYZE_REPORT_SUGGESTION_MSG = "Review the schema analysis report (%s) for any incompatibilities or recommendations that must be resolved before proceeding with schema import. Addressing these will help ensure a successful schema import."
 
 var flagPostSnapshotImport utils.BoolStr
 var importObjectsInStraightOrder utils.BoolStr
@@ -98,7 +102,7 @@ func importSchema() error {
 		tdb = tgtdb.NewTargetDB(&tconf)
 		err := tdb.Init()
 		if err != nil {
-			return fmt.Errorf("Failed to initialize the target DB during import schema: %s", err)
+			return fmt.Errorf("Failed to initialize the target DB during import schema: %w", err)
 		}
 		targetDBDetails = tdb.GetCallhomeTargetDBInfo()
 		//Marking tdb as nil back to not allow others to use it as this is just dummy initialisation of tdb
@@ -112,7 +116,7 @@ func importSchema() error {
 		// Check import schema permissions
 		missingPermissions, err := getMissingImportSchemaPermissions()
 		if err != nil {
-			return fmt.Errorf("Failed to get missing import schema permissions: %s", err)
+			return fmt.Errorf("Failed to get missing import schema permissions: %w", err)
 		}
 		if len(missingPermissions) > 0 {
 			output := strings.Join(missingPermissions, "\n")
@@ -135,21 +139,20 @@ func importSchema() error {
 
 	conn, err := pgx.Connect(context.Background(), tconf.GetConnectionUri())
 	if err != nil {
-		return fmt.Errorf("failed to connect to target database: %v", err)
+		return fmt.Errorf("failed to connect to target database: %w", err)
 	}
 	defer conn.Close(context.Background())
-
-	targetDBVersion := ""
+	var importTargetDBVersion string
 	query := "SELECT setting FROM pg_settings WHERE name = 'server_version'"
-	err = conn.QueryRow(context.Background(), query).Scan(&targetDBVersion)
+	err = conn.QueryRow(context.Background(), query).Scan(&importTargetDBVersion)
 	if err != nil {
-		return fmt.Errorf("failed to get target db version: %s", err)
+		return fmt.Errorf("failed to get target db version: %w", err)
 	}
-	utils.PrintAndLog("YugabyteDB version: %s\n", targetDBVersion)
+	utils.PrintAndLog("YugabyteDB version: %s\n", importTargetDBVersion)
 
 	migrationAssessmentDoneAndApplied, err := MigrationAssessmentDoneAndApplied()
 	if err != nil {
-		return fmt.Errorf("failed to check if the migration assessment is completed and applied recommendations on schema in export schema: %s", err)
+		return fmt.Errorf("failed to check if the migration assessment is completed and applied recommendations on schema in export schema: %w", err)
 	}
 
 	if migrationAssessmentDoneAndApplied && !isYBDatabaseIsColocated(conn) && !utils.AskPrompt(fmt.Sprintf("\nWarning: Target DB '%s' is a non-colocated database, colocated tables can't be created in a non-colocated database.\n", tconf.DBName),
@@ -167,7 +170,21 @@ func importSchema() error {
 		installOrafceIfRequired(conn)
 	}
 
+	reportPath, reportErr := generateAnalyzeReport(importTargetDBVersion)
+	if reportErr != nil {
+		log.Errorf("Error generating analyze report: %v", reportErr)
+	}
+	importSchemaErrorSuggestions := []string{
+		CONTINUE_ON_ERROR_IGNORE_EXIST_MSG,
+	}
+	if reportPath != "" {
+		importSchemaErrorSuggestions = append([]string{fmt.Sprintf(ANALYZE_REPORT_SUGGESTION_MSG, reportPath)}, importSchemaErrorSuggestions...)
+	}
+	suggestionStr := color.YellowString("\n\n%s\n", strings.Join(importSchemaErrorSuggestions, "\n"))
+
 	var objectList []string
+	var execDDLError errs.ExecuteDDLError
+
 	// Pre data load.
 	// This list also has defined the order to create object type in target YugabyteDB.
 	// if post snapshot import, no objects should be imported.
@@ -200,9 +217,15 @@ func importSchema() error {
 			return false
 		}
 		skipFn := isSkipStatement
+
 		err = importSchemaInternal(exportDir, objectList, skipFn)
 		if err != nil {
-			return fmt.Errorf("failed to import schema for various objects: %s", err) // object list is the static list of object types
+			if errors.As(err, &execDDLError) {
+				//Add the analysis report message to the error suggestion first in the order and then append the existing suggestions
+				// to the error suggestions.
+				err = fmt.Errorf("%w\n %s", err, suggestionStr)
+			}
+			return fmt.Errorf("failed to import schema for various objects: %w", err)
 		}
 
 		// Import the skipped ALTER TABLE statements from sequence.sql and table.sql if it exists
@@ -212,26 +235,34 @@ func importSchema() error {
 		if slices.Contains(objectList, "SEQUENCE") {
 			err = importSchemaInternal(exportDir, []string{"SEQUENCE"}, skipFn)
 			if err != nil {
-				return fmt.Errorf("failed to import schema for SEQUENCEs: %s", err)
+				if errors.As(err, &execDDLError) {
+					err = fmt.Errorf("%w\n %s", err, suggestionStr)
+				}
+				return fmt.Errorf("failed to import schema for SEQUENCEs: %w", err)
 			}
 		}
 		if slices.Contains(objectList, "TABLE") {
 			err = importSchemaInternal(exportDir, []string{"TABLE"}, skipFn)
 			if err != nil {
-				return fmt.Errorf("failed to import schema for TABLEs: %s", err)
+				if errors.As(err, &execDDLError) {
+					err = fmt.Errorf("%w\n %s", err, suggestionStr)
+				}
+				return fmt.Errorf("failed to import schema for TABLEs: %w", err)
 			}
 		}
 
 		importDeferredStatements()
 		log.Info("Schema import is complete.")
-
-		dumpStatements(finalFailedSqlStmts, filepath.Join(exportDir, "schema", "failed.sql"))
+		dumpStatements(reportPath, finalFailedSqlStmts, filepath.Join(exportDir, "schema", "failed.sql"))
 	}
 
 	if flagPostSnapshotImport {
 		err = importSchemaInternal(exportDir, []string{"TABLE"}, nil)
 		if err != nil {
-			return fmt.Errorf("failed to import schema for TABLEs: %s", err)
+			if errors.As(err, &execDDLError) {
+				err = fmt.Errorf("%w\n %s", err, suggestionStr)
+			}
+			return fmt.Errorf("failed to import schema for TABLEs: %w", err)
 		}
 		if flagRefreshMViews {
 			refreshMViews(conn)
@@ -263,7 +294,7 @@ func getMissingImportSchemaPermissions() ([]string, error) {
 	return missingPermissions, nil
 }
 
-func packAndSendImportSchemaPayload(status string, errMsg string) {
+func packAndSendImportSchemaPayload(status string, errMsg error) {
 	if !shouldSendCallhome() {
 		return
 	}
@@ -299,7 +330,9 @@ func packAndSendImportSchemaPayload(status string, errMsg string) {
 		Error:              callhome.SanitizeErrorMsg(errMsg),
 		ControlPlaneType:   getControlPlaneType(),
 	}
+
 	payload.PhasePayload = callhome.MarshalledJsonString(importSchemaPayload)
+
 	err := callhome.SendPayload(&payload)
 	if err == nil && (status == COMPLETE || status == ERROR) {
 		callHomeErrorOrCompletePayloadSent = true
@@ -311,20 +344,20 @@ func isYBDatabaseIsColocated(conn *pgx.Conn) bool {
 	query := "SELECT yb_is_database_colocated();"
 	err := conn.QueryRow(context.Background(), query).Scan(&isColocated)
 	if err != nil {
-		utils.ErrExit("failed to check if Target DB  is colocated or not: %q: %v", tconf.DBName, err)
+		utils.ErrExit("failed to check if Target DB  is colocated or not: %q: %w", tconf.DBName, err)
 	}
 	log.Infof("target DB '%s' colocoated='%t'", tconf.DBName, isColocated)
 	return isColocated
 }
 
-func dumpStatements(stmts []string, filePath string) {
+func dumpStatements(reportPath string, stmts []string, filePath string) {
 	if len(stmts) == 0 {
 		if flagPostSnapshotImport {
 			// nothing
 		} else if utils.FileOrFolderExists(filePath) {
 			err := os.Remove(filePath)
 			if err != nil {
-				utils.ErrExit("remove file: %v", err)
+				utils.ErrExit("remove file: %w", err)
 			}
 		}
 		log.Infof("no failed sql statements to dump")
@@ -339,19 +372,22 @@ func dumpStatements(stmts []string, filePath string) {
 	}
 	file, err := os.OpenFile(filePath, fileMode, 0644)
 	if err != nil {
-		utils.ErrExit("open file: %v", err)
+		utils.ErrExit("open file: %w", err)
 	}
 
 	for i := 0; i < len(stmts); i++ {
 		_, err = file.WriteString(stmts[i] + "\n\n")
 		if err != nil {
-			utils.ErrExit("failed writing in file: %s: %v", filePath, err)
+			utils.ErrExit("failed writing in file: %s: %w", filePath, err)
 		}
 	}
 
 	msg := fmt.Sprintf("\nSQL statements failed during migration are present in %q file\n", filePath)
 	color.Red(msg)
 	log.Info(msg)
+
+	//if there is failed sql statements, print analyze report
+	color.Yellow("\n%s", fmt.Sprintf(ANALYZE_REPORT_SUGGESTION_MSG, reportPath))
 }
 
 // installs Orafce extension in target YugabyteDB.
@@ -363,7 +399,7 @@ func installOrafceIfRequired(conn *pgx.Conn) {
 	utils.PrintAndLog("Installing Orafce extension in target YugabyteDB")
 	_, err := conn.Exec(context.Background(), "CREATE EXTENSION IF NOT EXISTS orafce")
 	if err != nil {
-		utils.ErrExit("failed to install Orafce extension: %v", err)
+		utils.ErrExit("failed to install Orafce extension: %w", err)
 	}
 }
 
@@ -381,7 +417,7 @@ func refreshMViews(conn *pgx.Conn) {
 		query := fmt.Sprintf("REFRESH MATERIALIZED VIEW %s", mViewName)
 		_, err := conn.Exec(context.Background(), query)
 		if err != nil && !strings.Contains(strings.ToLower(err.Error()), "has not been populated") {
-			utils.ErrExit("error in refreshing the materialized view: %s: %v", mViewName, err)
+			utils.ErrExit("error in refreshing the materialized view: %s: %w", mViewName, err)
 		}
 	}
 	log.Infof("Checking if mviews are refreshed or not - %v", mViewNames)
@@ -390,7 +426,7 @@ func refreshMViews(conn *pgx.Conn) {
 		query := fmt.Sprintf("SELECT * from %s LIMIT 1;", mViewName)
 		rows, err := conn.Query(context.Background(), query)
 		if err != nil {
-			utils.ErrExit("error in checking whether mview  is refreshed or not: %q: %v", mViewName, err)
+			utils.ErrExit("error in checking whether mview  is refreshed or not: %q: %w", mViewName, err)
 		}
 		if !rows.Next() {
 			mviewsNotRefreshed = append(mviewsNotRefreshed, mViewName)

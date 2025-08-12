@@ -33,6 +33,11 @@ const (
 	FREQUENCY_OF_NULLS           = "FrequencyOfNulls"
 	VALUE                        = "Value"
 	FREQUENCY_OF_VALUE           = "FrequencyOfTheValue"
+	REFERENCED_COLUMN_NAME       = "ReferencedColumnName"
+	COLUMN_TYPE                  = "ColumnType"
+	REFERENCED_COLUMN_TYPE       = "ReferencedColumnType"
+	FK_COLUMN_NAMES              = "ForeignKeyColumnNames"
+	REFERENCED_TABLE_NAME        = "ReferencedTableName"
 )
 
 var hotspotsOnDateIndexes = issue.Issue{
@@ -188,5 +193,46 @@ func NewMostFrequentValueIndexesIssue(objectType string, objectName string, sqlS
 		FREQUENCY_OF_VALUE: fmt.Sprintf("%d%%", frequency),
 		COLUMN_NAME:        columnName,
 	}
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+}
+
+var foreignKeyDatatypeMismatchIssue = issue.Issue{
+	Name:     FOREIGN_KEY_DATATYPE_MISMATCH_ISSUE_NAME,
+	Type:     FOREIGN_KEY_DATATYPE_MISMATCH,
+	Impact:   constants.IMPACT_LEVEL_1,
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#foreign-key-datatype-mismatch", // TODO add link to docs
+}
+
+func NewForeignKeyDatatypeMismatchIssue(objectType string, objectName string, sqlStatement string, fkColumnName string, refColumnName string, fkColumnType string, refColumnType string) QueryIssue {
+	issue := foreignKeyDatatypeMismatchIssue
+
+	issue.Description = fmt.Sprintf(FOREIGN_KEY_DATATYPE_MISMATCH_DESCRIPTION, fkColumnType, refColumnType)
+
+	details := map[string]interface{}{
+		COLUMN_NAME:            fkColumnName,
+		REFERENCED_COLUMN_NAME: refColumnName,
+		COLUMN_TYPE:            fkColumnType,
+		REFERENCED_COLUMN_TYPE: refColumnType,
+	}
+
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+}
+
+var missingForeignKeyIndexIssue = issue.Issue{
+	Name:        MISSING_FOREIGN_KEY_INDEX_ISSUE_NAME,
+	Type:        MISSING_FOREIGN_KEY_INDEX,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: MISSING_FOREIGN_KEY_INDEX_DESCRIPTION,
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-foreign-key-indexes", // TODO add link to docs
+}
+
+func NewMissingForeignKeyIndexIssue(objectType string, objectName string, sqlStatement string, fkColumns string, referencedTable string) QueryIssue {
+	issue := missingForeignKeyIndexIssue
+
+	details := map[string]interface{}{
+		FK_COLUMN_NAMES:       fkColumns,
+		REFERENCED_TABLE_NAME: referencedTable,
+	}
+
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
 }

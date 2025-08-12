@@ -33,17 +33,20 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/sqltransformer"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 var skipRecommendations utils.BoolStr
 var assessmentReportPath string
 var assessmentRecommendationsApplied bool
 var assessSchemaBeforeExport utils.BoolStr
+var skipPerfOptimizations utils.BoolStr
 
 var exportSchemaCmd = &cobra.Command{
 	Use: "schema",
@@ -58,7 +61,7 @@ var exportSchemaCmd = &cobra.Command{
 		setExportFlagsDefaults()
 		err := validateExportFlags(cmd, SOURCE_DB_EXPORTER_ROLE)
 		if err != nil {
-			utils.ErrExit("Error validating export schema flags: %s", err.Error())
+			utils.ErrExit("Error validating export schema flags: %w", err)
 		}
 		markFlagsRequired(cmd)
 	},
@@ -67,7 +70,7 @@ var exportSchemaCmd = &cobra.Command{
 		source.ApplyExportSchemaObjectListFilter()
 		err := exportSchema(cmd)
 		if err != nil {
-			utils.ErrExit("%v", err)
+			utils.ErrExit("%w", err)
 		}
 	},
 }
@@ -179,20 +182,38 @@ func exportSchema(cmd *cobra.Command) error {
 		return fmt.Errorf("failed to update indexes info metadata db: %w", err)
 	}
 
-	err = applyMigrationAssessmentRecommendations()
+	modifiedTables, modifiedMviews, colocatedTables, colocatedMviews, err := applyMigrationAssessmentRecommendations()
 	if err != nil {
 		return fmt.Errorf("failed to apply migration assessment recommendation to the schema files: %w", err)
 	}
 
-	// continue after logging the error; since this transformation is only for performance improvement
-	err = applyMergeConstraintsTransformations()
+	//TODO: merge the above Sharded/Colocated recommendation changes with this Table file transformation
+	//The challenge right now is that in this transformer we parse the file in a single pass but in above code we use regex parser written to read individual DDL from the file
+	//And then parse it and apply the change
+	//There are challenges with SourceDBType other than PG where it can fail to parse the file for some DDLs and will skip the transformation completely
+	//We can probably use the mix of both regex parser and file parser in the tranformer based on source tpyes
+	//and for that we can move our logic from the cmd package to the queryparser package
+	//Skipping that for now
+	_, err = applyTableFileTransformations()
 	if err != nil {
-		log.Warnf("failed to apply merge constraints transformation to the schema files: %v", err)
+		return fmt.Errorf("failed to apply table file transformations: %w", err)
 	}
 
+	indexTransformer, err := applyIndexFileTransformations()
+	if err != nil {
+		return fmt.Errorf("failed to apply index file transformations: %w", err)
+	}
+	var redundantIndexes []*sqlname.ObjectNameQualifiedWithTableName
+	if indexTransformer != nil {
+		redundantIndexes = indexTransformer.RemovedRedundantIndexes
+	}
+	err = generatePerformanceOptimizationReport(redundantIndexes, modifiedTables, modifiedMviews, colocatedTables, colocatedMviews)
+	if err != nil {
+		return fmt.Errorf("failed to generate performance optimization %w", err)
+	}
 	utils.PrintAndLog("\nExported schema files created under directory: %s\n\n", filepath.Join(exportDir, "schema"))
 
-	packAndSendExportSchemaPayload(COMPLETE, "")
+	packAndSendExportSchemaPayload(COMPLETE, nil)
 
 	saveSourceDBConfInMSR()
 	setSchemaIsExported()
@@ -253,7 +274,7 @@ func runAssessMigrationCmdBeforExportSchemaIfRequired(exportSchemaCmd *cobra.Com
 	// locate voyager binary
 	voyagerExecutable, err := os.Executable()
 	if err != nil {
-		return fmt.Errorf("cannot locate yb-voyager executable, skipping assessment: %v", err)
+		return fmt.Errorf("cannot locate yb-voyager executable, skipping assessment: %w", err)
 	}
 
 	var stderrBuf, stdoutBuf bytes.Buffer
@@ -288,7 +309,7 @@ func runAssessMigrationCmdBeforExportSchemaIfRequired(exportSchemaCmd *cobra.Com
 	return nil
 }
 
-func packAndSendExportSchemaPayload(status string, errorMsg string) {
+func packAndSendExportSchemaPayload(status string, errorMsg error) {
 	if !shouldSendCallhome() {
 		return
 	}
@@ -307,6 +328,8 @@ func packAndSendExportSchemaPayload(status string, errorMsg string) {
 		UseOrafce:              bool(source.UseOrafce),
 		CommentsOnObjects:      bool(source.CommentsOnObjects),
 		Error:                  callhome.SanitizeErrorMsg(errorMsg),
+		SkipRecommendations:    bool(skipRecommendations),
+		SkipPerfOptimizations:  bool(skipPerfOptimizations),
 		ControlPlaneType:       getControlPlaneType(),
 	}
 
@@ -338,6 +361,9 @@ func init() {
 	BoolVar(exportSchemaCmd.Flags(), &skipRecommendations, "skip-recommendations", false,
 		"disable applying recommendations in the exported schema suggested by the migration assessment report")
 
+	BoolVar(exportSchemaCmd.Flags(), &skipPerfOptimizations, "skip-performance-optimizations", false,
+		"disable automatically applying performance optimizations in the exported schema.")
+
 	exportSchemaCmd.Flags().StringVar(&assessmentReportPath, "assessment-report-path", "",
 		"path to the generated assessment report file(JSON format) to be used for applying recommendation to exported schema")
 
@@ -353,7 +379,7 @@ func schemaIsExported() bool {
 	}
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		utils.ErrExit("check if schema is exported: load migration status record: %s", err)
+		utils.ErrExit("check if schema is exported: load migration status record: %w", err)
 	}
 
 	return msr.ExportSchemaDone
@@ -364,7 +390,7 @@ func setSchemaIsExported() {
 		record.ExportSchemaDone = true
 	})
 	if err != nil {
-		utils.ErrExit("set schema is exported: update migration status record: %s", err)
+		utils.ErrExit("set schema is exported: update migration status record: %w", err)
 	}
 }
 
@@ -373,7 +399,7 @@ func clearSchemaIsExported() {
 		record.ExportSchemaDone = false
 	})
 	if err != nil {
-		utils.ErrExit("clear schema is exported: update migration status record: %s", err)
+		utils.ErrExit("clear schema is exported: update migration status record: %w", err)
 	}
 }
 
@@ -396,22 +422,22 @@ func updateIndexesInfoInMetaDB() error {
 	return nil
 }
 
-func applyMigrationAssessmentRecommendations() error {
+func applyMigrationAssessmentRecommendations() ([]string, []string, []string, []string, error) {
 	if skipRecommendations {
 		log.Infof("not apply recommendations due to flag --skip-recommendations=true")
-		return nil
+		return nil, nil, nil, nil, nil
 	} else if source.DBType == MYSQL {
-		return nil
+		return nil, nil, nil, nil, nil
 	}
 
 	assessViaExportSchema, err := IsMigrationAssessmentDoneViaExportSchema()
 	if err != nil {
-		return fmt.Errorf("failed to check if migration assessment is done via export schema: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("failed to check if migration assessment is done via export schema: %w", err)
 	}
 
 	if !bool(skipRecommendations) && assessViaExportSchema {
-		utils.PrintAndLog("no recommendations to apply: run `assess-migration` command to generate recommendations")
-		return nil
+		utils.PrintAndLog(`Recommendations generated but not applied. Run the "assess-migration" command explicitly to produce precise recommendations and apply them.`)
+		return nil, nil, nil, nil, nil
 	}
 
 	// TODO: copy the reports to "export-dir/assessment/reports" for further usage
@@ -420,26 +446,27 @@ func applyMigrationAssessmentRecommendations() error {
 	log.Infof("using assessmentReportPath: %s", assessmentReportPath)
 	if !utils.FileOrFolderExists(assessmentReportPath) {
 		utils.PrintAndLog("migration assessment report file doesn't exists at %q, skipping apply recommendations step...", assessmentReportPath)
-		return nil
+		return nil, nil, nil, nil, nil
 	}
 
 	log.Infof("parsing assessment report json file for applying recommendations")
 	report, err := ParseJSONToAssessmentReport(assessmentReportPath)
 	if err != nil {
-		return fmt.Errorf("failed to parse json report file %q: %w", assessmentReportPath, err)
+		return nil, nil, nil, nil, fmt.Errorf("failed to parse json report file %q: %w", assessmentReportPath, err)
 	}
 
+	var modifiedTables, modifiedMviews, colocatedTables, colocatedMviews []string
 	shardedTables, err := report.GetShardedTablesRecommendation()
 	if err != nil {
-		return fmt.Errorf("failed to fetch sharded tables recommendation: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("failed to fetch sharded tables recommendation: %w", err)
 	} else {
-		err := applyShardedTablesRecommendation(shardedTables, TABLE)
+		modifiedTables, colocatedTables, err = applyShardedTablesRecommendation(shardedTables, TABLE)
 		if err != nil {
-			return fmt.Errorf("failed to apply colocated vs sharded table recommendation: %w", err)
+			return nil, nil, nil, nil, fmt.Errorf("failed to apply colocated vs sharded table recommendation: %w", err)
 		}
-		err = applyShardedTablesRecommendation(shardedTables, MVIEW)
+		modifiedMviews, colocatedMviews, err = applyShardedTablesRecommendation(shardedTables, MVIEW)
 		if err != nil {
-			return fmt.Errorf("failed to apply colocated vs sharded table recommendation: %w", err)
+			return nil, nil, nil, nil, fmt.Errorf("failed to apply colocated vs sharded table recommendation: %w", err)
 		}
 	}
 
@@ -447,62 +474,13 @@ func applyMigrationAssessmentRecommendations() error {
 	SetAssessmentRecommendationsApplied()
 
 	utils.PrintAndLog("Applied assessment recommendations.")
-	return nil
+	return modifiedTables, modifiedMviews, colocatedTables, colocatedMviews, nil
 }
 
-// TODO: merge this function with applying sharded/colocated recommendation
-func applyMergeConstraintsTransformations() error {
-	if utils.GetEnvAsBool("YB_VOYAGER_SKIP_MERGE_CONSTRAINTS_TRANSFORMATIONS", false) {
-		log.Infof("skipping applying merge constraints transformation due to env var YB_VOYAGER_SKIP_MERGE_CONSTRAINTS_TRANSFORMATIONS=true")
-		return nil
-	}
-
-	utils.PrintAndLog("Applying merge constraints transformation to the exported schema")
-	transformer := sqltransformer.NewTransformer()
-
-	fileName := utils.GetObjectFilePath(schemaDir, TABLE)
-	if !utils.FileOrFolderExists(fileName) { // there are no tables in exported schema
-		log.Infof("table.sql file doesn't exists, skipping applying merge constraints transformation")
-		return nil
-	}
-
-	rawStmts, err := queryparser.ParseSqlFile(fileName)
-	if err != nil {
-		return fmt.Errorf("failed to parse table.sql file: %w", err)
-	}
-
-	transformedRawStmts, err := transformer.MergeConstraints(rawStmts.Stmts)
-	if err != nil {
-		return fmt.Errorf("failed to merge constraints: %w", err)
-	}
-
-	sqlStmts, err := queryparser.DeparseRawStmts(transformedRawStmts)
-	if err != nil {
-		return fmt.Errorf("failed to deparse transformed raw stmts: %w", err)
-	}
-
-	fileContent := strings.Join(sqlStmts, "\n\n")
-
-	// rename the old file to table_before_merge_constraints.sql
-	// replace filepath base with new name
-	renamedFileName := filepath.Join(filepath.Dir(fileName), "table_before_merge_constraints.sql")
-	err = os.Rename(fileName, renamedFileName)
-	if err != nil {
-		return fmt.Errorf("failed to rename table.sql file to table_before_merge_constraints.sql: %w", err)
-	}
-
-	err = os.WriteFile(fileName, []byte(fileContent), 0644)
-	if err != nil {
-		return fmt.Errorf("failed to write transformed table.sql file: %w", err)
-	}
-
-	return nil
-}
-
-func applyShardedTablesRecommendation(shardedTables []string, objType string) error {
+func applyShardedTablesRecommendation(shardedTables []string, objType string) ([]string, []string, error) {
 	if shardedTables == nil {
 		log.Info("list of sharded tables is null hence all the tables are recommended as colocated")
-		return nil
+		return nil, nil, nil
 	}
 
 	filePath := utils.GetObjectFilePath(schemaDir, objType)
@@ -512,12 +490,14 @@ func applyShardedTablesRecommendation(shardedTables []string, objType string) er
 			utils.PrintAndLog("Required schema file %s does not exists, "+
 				"returning without applying colocated/sharded tables recommendation", filePath)
 		}
-		return nil
+		return nil, nil, nil
 	}
 
 	log.Infof("applying colocated vs sharded tables recommendation")
 	var newSQLFileContent strings.Builder
 	sqlInfoArr := parseSqlFileForObjectType(filePath, objType)
+
+	var modifiedObjects, colocatedObjects []string
 
 	for _, sqlInfo := range sqlInfoArr {
 		/*
@@ -527,7 +507,7 @@ func applyShardedTablesRecommendation(shardedTables []string, objType string) er
 			We can pass the whole .sql file as a string also to pg_query.Parse() all the statements at once.
 			But avoiding that also specially for cases where the SQL syntax can be invalid
 		*/
-		modifiedSqlStmt, match, err := applyShardingRecommendationIfMatching(&sqlInfo, shardedTables, objType)
+		modifiedSqlStmt, match, isColocated, objectName, err := applyShardingRecommendationIfMatching(&sqlInfo, shardedTables, objType)
 		if err != nil {
 			log.Errorf("failed to apply sharding recommendation for table=%q: %v", sqlInfo.objName, err)
 			if match {
@@ -538,12 +518,16 @@ func applyShardedTablesRecommendation(shardedTables []string, objType string) er
 			if match {
 				log.Infof("original ddl - %s", sqlInfo.stmt)
 				log.Infof("modified ddl - %s", modifiedSqlStmt)
+				modifiedObjects = append(modifiedObjects, objectName)
+			}
+			if isColocated {
+				colocatedObjects = append(colocatedObjects, objectName)
 			}
 		}
 
 		_, err = newSQLFileContent.WriteString(modifiedSqlStmt + "\n\n")
 		if err != nil {
-			return fmt.Errorf("write SQL string to string builder: %w", err)
+			return nil, nil, fmt.Errorf("write SQL string to string builder: %w", err)
 		}
 	}
 
@@ -552,20 +536,20 @@ func applyShardedTablesRecommendation(shardedTables []string, objType string) er
 	log.Infof("renaming existing file '%s' --> '%s.orig'", filePath, backupPath)
 	err := os.Rename(filePath, filePath+".orig")
 	if err != nil {
-		return fmt.Errorf("error renaming file %s: %w", filePath, err)
+		return nil, nil, fmt.Errorf("error renaming file %s: %w", filePath, err)
 	}
 
 	// create new table.sql file for modified schema
 	log.Infof("creating file %q to store the modified recommended schema", filePath)
 	file, err := os.Create(filePath)
 	if err != nil {
-		return fmt.Errorf("error creating file '%q' storing the modified recommended schema: %w", filePath, err)
+		return nil, nil, fmt.Errorf("error creating file '%q' storing the modified recommended schema: %w", filePath, err)
 	}
 	if _, err = file.WriteString(newSQLFileContent.String()); err != nil {
-		return fmt.Errorf("error writing to file '%q' storing the modified recommended schema: %w", filePath, err)
+		return nil, nil, fmt.Errorf("error writing to file '%q' storing the modified recommended schema: %w", filePath, err)
 	}
 	if err = file.Close(); err != nil {
-		return fmt.Errorf("error closing file '%q' storing the modified recommended schema: %w", filePath, err)
+		return nil, nil, fmt.Errorf("error closing file '%q' storing the modified recommended schema: %w", filePath, err)
 	}
 	var objTypeName = ""
 	switch objType {
@@ -581,7 +565,7 @@ func applyShardedTablesRecommendation(shardedTables []string, objType string) er
 		objTypeName,
 		utils.GetRelativePathFromCwd(filePath))
 	utils.PrintAndLog("The original DDLs have been preserved in %q for reference.", utils.GetRelativePathFromCwd(backupPath))
-	return nil
+	return modifiedObjects, colocatedObjects, nil
 }
 
 /*
@@ -594,23 +578,28 @@ so in worse case, only recommendation of that table won't be followed.
 returns:
 modifiedSqlStmt: original stmt if not sharded else modified stmt with colocation clause
 match: true if its a sharded table and should be modified
+isColocated: true if the table is colocated
 error: nil/non-nil
+
+if any error scenerio both the match and isColocated will be false
+if the table / mview is not sharded then match will be false and isColocated will be true
+if the table is sharded then match will be true and isColocated will be false
 
 Drawback: pg_query module doesn't have functionality to format the query after parsing
 so the CREATE TABLE for sharding recommended tables will be one-liner
 */
-func applyShardingRecommendationIfMatching(sqlInfo *sqlInfo, shardedTables []string, objType string) (string, bool, error) {
+func applyShardingRecommendationIfMatching(sqlInfo *sqlInfo, shardedTables []string, objType string) (string, bool, bool, string, error) {
 
 	stmt := sqlInfo.stmt
 	formattedStmt := sqlInfo.formattedStmt
 	parseTree, err := pg_query.Parse(stmt)
 	if err != nil {
-		return formattedStmt, false, fmt.Errorf("error parsing the stmt-%s: %v", stmt, err)
+		return formattedStmt, false, false, "", fmt.Errorf("error parsing the stmt-%s: %v", stmt, err)
 	}
 
 	if len(parseTree.Stmts) == 0 {
 		log.Warnf("parse tree is empty for stmt=%s for table '%s'", stmt, sqlInfo.objName)
-		return formattedStmt, false, nil
+		return formattedStmt, false, false, "", nil
 	}
 
 	relation := &pg_query.RangeVar{}
@@ -621,14 +610,14 @@ func applyShardingRecommendationIfMatching(sqlInfo *sqlInfo, shardedTables []str
 			// return the original sql if it's not a Create Materialized view statement
 			log.Infof("stmt=%s is not create materialized view as per the parse tree,"+
 				" expected tablename=%s", stmt, sqlInfo.objName)
-			return formattedStmt, false, nil
+			return formattedStmt, false, false, "", nil
 		}
 		relation = createMViewNode.CreateTableAsStmt.Into.Rel
 	case TABLE:
 		createStmtNode, ok := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateStmt)
 		if !ok { // return the original sql if it's not a CreateStmt
 			log.Infof("stmt=%s is not createTable as per the parse tree, expected tablename=%s", stmt, sqlInfo.objName)
-			return formattedStmt, false, nil
+			return formattedStmt, false, false, "", nil
 		}
 		relation = createStmtNode.CreateStmt.Relation
 	default:
@@ -656,7 +645,7 @@ func applyShardingRecommendationIfMatching(sqlInfo *sqlInfo, shardedTables []str
 	}
 	if !match {
 		log.Infof("%q not present in the sharded table list", parsedObjectName)
-		return formattedStmt, false, nil
+		return formattedStmt, false, true, parsedObjectName, nil //It a colocated table
 	} else {
 		log.Infof("%q present in the sharded table list", parsedObjectName)
 	}
@@ -700,11 +689,11 @@ func applyShardingRecommendationIfMatching(sqlInfo *sqlInfo, shardedTables []str
 	log.Infof("deparsing the updated parse tre into a stmt for table '%s'", parsedObjectName)
 	modifiedQuery, err := pg_query.Deparse(parseTree)
 	if err != nil {
-		return formattedStmt, true, fmt.Errorf("error deparsing the parseTree into the query: %w", err)
+		return formattedStmt, false, false, "", fmt.Errorf("error deparsing the parseTree into the query: %w", err)
 	}
 
 	// adding semi-colon at the end
-	return fmt.Sprintf("%s;", modifiedQuery), true, nil
+	return fmt.Sprintf("%s;", modifiedQuery), true, false, parsedObjectName, nil
 }
 
 func createExportSchemaStartedEvent() cp.ExportSchemaStartedEvent {
@@ -733,6 +722,99 @@ func clearAssessmentRecommendationsApplied() {
 		record.AssessmentRecommendationsApplied = false
 	})
 	if err != nil {
-		utils.ErrExit("clear assessment recommendations applied: update migration status record: %s", err)
+		utils.ErrExit("clear assessment recommendations applied: update migration status record: %w", err)
 	}
+}
+
+func applyTableFileTransformations() (*sqltransformer.TableFileTransformer, error) {
+	tableFilePath := utils.GetObjectFilePath(schemaDir, TABLE)
+	if !utils.FileOrFolderExists(tableFilePath) {
+		log.Infof("TABLE file doesn't exists, skipping table file transformations")
+		return nil, nil
+	}
+
+	skipMergeConstraints := utils.GetEnvAsBool("YB_VOYAGER_SKIP_MERGE_CONSTRAINTS_TRANSFORMATIONS", false)
+
+	tableTransformer := sqltransformer.NewTableFileTransformer(skipMergeConstraints, source.DBType)
+
+	backUpFile, err := tableTransformer.Transform(tableFilePath)
+	if err != nil {
+		//Skipping error in the case table file transformation errors out as for other DBTypes then PG it can fail to parse file sometimes
+		//And for PG the error scenario is rare so keeping the behavior same earlier Merge constraints transformation code path
+		//TODO: revisit this once we have more transformations - like PRIMARY KEY HASH performance optimization, sharded/colocated recommendations, etc..
+		log.Infof("skipping error while transforming file %s: %v", tableFilePath, err)
+		return nil, nil
+	}
+	log.Infof("Schema modifications are applied to TABLE DDLs and the original DDLs are backed up to %s", backUpFile)
+	return tableTransformer, nil
+}
+
+func applyIndexFileTransformations() (*sqltransformer.IndexFileTransformer, error) {
+
+	if source.DBType != POSTGRESQL {
+		log.Infof("skipping index file transformations for source db type %s", source.DBType)
+		return nil, nil
+	}
+
+	indexFilePath := utils.GetObjectFilePath(schemaDir, INDEX)
+	if !utils.FileOrFolderExists(indexFilePath) {
+		log.Infof("INDEX file doesn't exists, skipping index file transformations")
+		return nil, nil
+	}
+
+	//fetching redundanant indexes from assessment db
+	//assuming that assessment is run and fetched the redundant indexes
+	//TODO: see if we need to take care of the scenario where assessment is unable to fetch these
+	var err error
+	var redundantIndexToResolvedExistingIndex map[string]string
+	redundantIndexToResolvedExistingIndex, err = fetchRedundantIndexMapFromAssessmentDB()
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch redundant index map from assessment db: %w\n%s", err, sqltransformer.SUGGESTION_TO_USE_SKIP_PERF_OPTIMIZATIONS_FLAG)
+	}
+	indexTransformer := sqltransformer.NewIndexFileTransformer(redundantIndexToResolvedExistingIndex, bool(skipPerfOptimizations), source.DBType)
+
+	backUpFile, err := indexTransformer.Transform(indexFilePath)
+	if err != nil {
+		//In case of PG we should return error but for other SourceDBTypes we should return nil as the parser can fail
+		//TODO: modify the logic of adding suggestion to use skip-performance-optimizations flag once we have more type of transformations in this
+		errMsg := fmt.Errorf("failed to transform file %s: %w\n%s", indexFilePath, err, sqltransformer.SUGGESTION_TO_USE_SKIP_PERF_OPTIMIZATIONS_FLAG)
+		if source.DBType != constants.POSTGRESQL {
+			log.Infof("skipping error while transforming file %s: %v", indexFilePath, err)
+			errMsg = nil
+		}
+		return nil, errMsg
+	}
+	log.Infof("Schema modifications are applied to INDEX DDLs and the original file is backed up to %s", backUpFile)
+
+	return indexTransformer, nil
+}
+
+func fetchRedundantIndexMapFromAssessmentDB() (map[string]string, error) {
+	if skipPerfOptimizations {
+		log.Infof("skipping fetching redundant index map from assessment db")
+		return nil, nil
+	}
+
+	var err error
+	migassessment.AssessmentDir = filepath.Join(exportDir, "assessment")
+
+	assessmentDB, err = migassessment.NewAssessmentDB(source.DBType)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create assessment db: %w", err)
+	}
+
+	resolvedRedundantIndexes, err := fetchRedundantIndexInfoFromAssessmentDB()
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch redundant index info from assessment db: %w", err)
+	}
+	if len(resolvedRedundantIndexes) == 0 {
+		log.Infof("no redundant indexes found, skipping applying performance optimizations")
+	}
+
+	redundantIndexToResolvedExistingIndex := make(map[string]string) //Find the resolved Existing index DDL from the redundant issues
+	for _, resolvedRedundantIndex := range resolvedRedundantIndexes {
+		redundantIndexCatalogName := resolvedRedundantIndex.GetRedundantIndexObjectNameWithTableName().CatalogName()
+		redundantIndexToResolvedExistingIndex[redundantIndexCatalogName] = resolvedRedundantIndex.ExistingIndexDDL
+	}
+	return redundantIndexToResolvedExistingIndex, nil
 }

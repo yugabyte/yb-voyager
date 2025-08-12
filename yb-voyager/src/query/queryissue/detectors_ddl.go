@@ -124,6 +124,16 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 					c.ConstraintName,
 				))
 			}
+			if c.ConstraintType == queryparser.FOREIGN_CONSTR_TYPE {
+				detectForeignKeyDatatypeMismatch(
+					obj.GetObjectType(),
+					table.GetObjectName(),
+					c.Columns,
+					d.columnMetadata,
+					&issues,
+				)
+
+			}
 
 			if c.ConstraintType != queryparser.FOREIGN_CONSTR_TYPE && c.IsDeferrable {
 				issues = append(issues, NewDeferrableConstraintIssue(
@@ -144,6 +154,7 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 			}
 
 			if c.IsPrimaryKeyORUniqueConstraint() {
+
 				for _, col := range c.Columns {
 					unsupportedColumnsForTable, ok := d.columnsWithUnsupportedIndexDatatypes[table.GetObjectName()]
 					if !ok {
@@ -222,6 +233,7 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 				"",
 			))
 		}
+
 	}
 
 	if table.IsPartitioned {
@@ -271,6 +283,50 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 	}
 
 	return issues, nil
+}
+
+func detectForeignKeyDatatypeMismatch(objectType string, objectName string, columnList []string, columnMetadata map[string]map[string]*ColumnMetadata, issues *[]QueryIssue) {
+	for _, col := range columnList {
+		colMetadata, ok := columnMetadata[objectName][col]
+		if !ok || !colMetadata.IsForeignKey {
+			continue
+		}
+		if colMetadata.ReferencedColumnType == "" {
+			log.Warnf("Referenced column type for %s.%s (referenced by foreign key on %s.%s) not found in column metadata",
+				colMetadata.ReferencedTable, colMetadata.ReferencedColumn, objectName, col)
+			continue
+		}
+		if colMetadata.DataType == "" {
+			log.Warnf("Data type for column %s in table %s not found in column metadata", col, objectName)
+			continue
+		}
+
+		// For detection logic: compare internal types and modifiers for accurate detection
+		// For display: use SQL type names with modifiers for user-facing output
+
+		// Compare only the internal types
+		// Not comparing the modifiers here as in the testing, there were no issues with datatypes with mismatched modifiers
+		if colMetadata.DataType == colMetadata.ReferencedColumnType {
+			continue
+		}
+
+		// Generate user-facing display types for the issue
+		localSQLTypeName := utils.GetSQLTypeName(colMetadata.DataType)
+		localDatatypeWithModifiers := utils.ApplyModifiersToDatatype(localSQLTypeName, colMetadata.DataTypeMods)
+
+		referencedSQLTypeName := utils.GetSQLTypeName(colMetadata.ReferencedColumnType)
+		referencedDatatypeWithModifiers := utils.ApplyModifiersToDatatype(referencedSQLTypeName, colMetadata.ReferencedColumnTypeMods)
+
+		*issues = append(*issues, NewForeignKeyDatatypeMismatchIssue(
+			objectType,
+			objectName,
+			"", // query string
+			objectName+"."+col,
+			colMetadata.ReferencedTable+"."+colMetadata.ReferencedColumn,
+			localDatatypeWithModifiers,
+			referencedDatatypeWithModifiers,
+		))
+	}
 }
 
 func detectHotspotIssueOnConstraint(constraintType string, constraintName string, constraintColumns []string, columnsWithHotspotRangeIndexesDatatypes map[string]map[string]string, obj queryparser.DDLObject) ([]QueryIssue, error) {
@@ -594,13 +650,29 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 	var issues []QueryIssue
 
 	// Check for unsupported index methods
-	if slices.Contains(UnsupportedIndexMethods, index.AccessMethod) {
-		issues = append(issues, NewUnsupportedIndexMethodIssue(
+	switch index.AccessMethod {
+
+	case "gist":
+		issues = append(issues, NewUnsupportedGistIndexMethodIssue(
 			obj.GetObjectType(),
 			index.GetObjectName(),
 			"", // query string
-			index.AccessMethod,
 		))
+
+	case "brin":
+		issues = append(issues, NewUnsupportedBrinIndexMethodIssue(
+			obj.GetObjectType(),
+			index.GetObjectName(),
+			"", // query string
+		))
+
+	case "spgist":
+		issues = append(issues, NewUnsupportedSpgistIndexMethodIssue(
+			obj.GetObjectType(),
+			index.GetObjectName(),
+			"", // query string
+		))
+
 	}
 
 	// Check for storage parameters
@@ -723,17 +795,32 @@ func (i *IndexIssueDetector) reportVariousIndexPerfOptimizationsOnFirstColumnOfI
 	var issues []QueryIssue
 
 	firstColumnParam := index.Params[0]
-	firstColumnName := fmt.Sprintf("%s.%s", index.GetTableName(), firstColumnParam.ColName)
+	qualifiedFirstColumnName := fmt.Sprintf("%s.%s", index.GetTableName(), firstColumnParam.ColName)
 
 	isSingleColumnIndex := len(index.Params) == 1
 
-	stat, ok := i.columnStatistics[firstColumnName]
+	stat, ok := i.columnStatistics[qualifiedFirstColumnName]
 	if !ok {
 		return nil, nil
 	}
 
 	maxFrequencyPerc := int(stat.MostCommonFrequency * 100)
 	nullFrequencyPerc := int(stat.NullFraction * 100)
+	nullPartialIndex := false
+	mostCommonValPartialIndex := false
+
+	for _, clause := range index.WhereClausePredicates {
+		if clause.ColName != firstColumnParam.ColName {
+			continue
+		}
+		if clause.ColIsNotNULL {
+			nullPartialIndex = true
+		}
+
+		if clause.Value == stat.MostCommonValue && clause.Operator == "<>" {
+			mostCommonValPartialIndex = true
+		}
+	}
 
 	//Precendence here is if the index has low-cardinality issue then most frequent value issue is not relevant as the user will have to fix the low cardinality index
 	//and the solution of that should also resolve the most frequent value issue as after resolution the key won't remain same
@@ -741,7 +828,7 @@ func (i *IndexIssueDetector) reportVariousIndexPerfOptimizationsOnFirstColumnOfI
 		// LOW CARDINALITY INDEX ISSUE
 		issues = append(issues, NewLowCardinalityIndexesIssue(INDEX_OBJECT_TYPE, index.GetObjectName(),
 			"", isSingleColumnIndex, stat.DistinctValues, stat.ColumnName))
-	} else if maxFrequencyPerc >= MOST_FREQUENT_VALUE_THRESHOLD {
+	} else if maxFrequencyPerc >= MOST_FREQUENT_VALUE_THRESHOLD && !mostCommonValPartialIndex {
 
 		//If the index is not LOW cardinality one then see if that has most frequent value or not
 		//MOST FREQUENT VALUE INDEX ISSUE
@@ -750,7 +837,7 @@ func (i *IndexIssueDetector) reportVariousIndexPerfOptimizationsOnFirstColumnOfI
 
 	}
 
-	if nullFrequencyPerc >= NULL_FREQUENCY_THRESHOLD {
+	if nullFrequencyPerc >= NULL_FREQUENCY_THRESHOLD && !nullPartialIndex {
 
 		// NULL VALUE INDEX ISSUE
 		issues = append(issues, NewNullValueIndexesIssue(INDEX_OBJECT_TYPE, index.GetObjectName(), "", isSingleColumnIndex, nullFrequencyPerc, stat.ColumnName))
@@ -959,6 +1046,18 @@ func (aid *AlterTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Q
 				"",
 				alter.ConstraintName,
 			))
+		}
+
+		// Foreign key datatype mismatch
+		if alter.ConstraintType == queryparser.FOREIGN_CONSTR_TYPE {
+			detectForeignKeyDatatypeMismatch(
+				obj.GetObjectType(),
+				alter.GetObjectName(),
+				alter.ConstraintColumns,
+				aid.columnMetadata,
+				&issues,
+			)
+
 		}
 
 		if alter.ConstraintType == queryparser.PRIMARY_CONSTR_TYPE &&

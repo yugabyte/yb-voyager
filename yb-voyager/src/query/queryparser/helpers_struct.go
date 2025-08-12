@@ -18,12 +18,15 @@ package queryparser
 import (
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 
 	pg_query "github.com/pganalyze/pg_query_go/v6"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 func IsPLPGSQLObject(parseTree *pg_query.ParseResult) bool {
@@ -56,6 +59,14 @@ func IsCollationObject(parseTree *pg_query.ParseResult) bool {
 		arg:{string:{sval:"false"}}  defaction:DEFELEM_UNSPEC  location:91}}}}  stmt_len:113}
 	*/
 	return ok && collation.Kind == pg_query.ObjectType_OBJECT_COLLATION
+}
+
+func GetIndexObjectNameFromIndexStmt(stmt *pg_query.IndexStmt) *sqlname.ObjectNameQualifiedWithTableName {
+	indexName := stmt.Idxname
+	schemaName := stmt.Relation.GetSchemaname()
+	tableName := stmt.Relation.GetRelname()
+	sqlName := sqlname.NewObjectNameQualifiedWithTableName(constants.POSTGRESQL, "", indexName, schemaName, tableName)
+	return sqlName
 }
 
 func GetObjectTypeAndObjectName(parseTree *pg_query.ParseResult) (string, string) {
@@ -101,9 +112,8 @@ func GetObjectTypeAndObjectName(parseTree *pg_query.ParseResult) (string, string
 		fullyQualifiedName := utils.BuildObjectName(schemaName, tableName)
 		displayObjName := fmt.Sprintf("%s ON %s", indexName, fullyQualifiedName)
 		return "INDEX", displayObjName
-	default:
-		panic("unsupported type of parseResult")
 	}
+	return "NOT_SUPPORTED", ""
 }
 
 func isArrayType(typeName *pg_query.TypeName) bool {
@@ -132,6 +142,42 @@ func getSchemaAndObjectName(nameList []*pg_query.Node) (string, string) {
 		schemaName = nameList[len(nameList)-2].GetString_().Sval // // obj name can be qualified / unqualifed or native / non-native proper schema name will always be available at last 2nd index
 	}
 	return schemaName, objName
+}
+
+/*
+extractTypeMods extracts type modifier values (typmods) from a slice of pg_query AST nodes.
+
+Typmods represent additional information about a column's datatype — such as length for VARCHAR
+or precision and scale for NUMERIC.
+
+Examples:
+  - VARCHAR(10) has typmods: [10]
+  - NUMERIC(8, 2) has typmods: [8, 2]
+
+This function iterates over the typmod nodes, looks for A_Const integer constants, and returns
+the list of extracted integer values as a slice.
+
+Input AST (for NUMERIC(8,2)):
+
+	[ a_const: { ival: { ival: 8 } }, a_const: { ival: { ival: 2 } } ]
+
+Output:
+
+	[]int32{8, 2}
+*/
+func extractTypeMods(typmods []*pg_query.Node) []int32 {
+	result := make([]int32, 0, len(typmods))
+	for _, node := range typmods {
+		if aconst := node.GetAConst(); aconst != nil {
+			switch val := aconst.Val.(type) {
+			case *pg_query.A_Const_Ival:
+				if val.Ival != nil {
+					result = append(result, val.Ival.Ival)
+				}
+			}
+		}
+	}
+	return result
 }
 
 func getCreateTableAsStmtNode(parseTree *pg_query.ParseResult) (*pg_query.Node_CreateTableAsStmt, bool) {
@@ -364,4 +410,86 @@ func DeparseRawStmts(rawStmts []*pg_query.RawStmt) ([]string, error) {
 	}
 
 	return deparsedStmts, nil
+}
+
+func DeparseRawStmt(rawStmt *pg_query.RawStmt) (string, error) {
+	if rawStmt == nil {
+		return "", fmt.Errorf("raw statement is nil")
+	}
+
+	parseResult := &pg_query.ParseResult{
+		Stmts: []*pg_query.RawStmt{rawStmt},
+	}
+
+	deparsedStmt, err := pg_query.Deparse(parseResult)
+	if err != nil {
+		return "", fmt.Errorf("error deparsing raw statement: %w", err)
+	}
+
+	return deparsedStmt + ";", nil // adding semicolon to make it a valid SQL statement
+}
+
+func DeparseParseTree(parseTree *pg_query.ParseResult) (string, error) {
+	if parseTree == nil || len(parseTree.Stmts) == 0 {
+		return "", fmt.Errorf("parse tree is empty or invalid")
+	}
+
+	deparsedStmt, err := pg_query.Deparse(parseTree)
+	if err != nil {
+		return "", fmt.Errorf("error deparsing parse tree: %w", err)
+	}
+
+	return deparsedStmt, nil
+}
+
+func getAConstValue(node *pg_query.Node) string {
+
+	if node == nil {
+		return ""
+	}
+	if node.GetTypeCast() != nil {
+		return getAConstValue(node.GetTypeCast().GetArg())
+	}
+	if node.GetAConst() == nil {
+		return ""
+	}
+
+	aConst := node.GetAConst()
+	if aConst.GetVal() == nil {
+		//if it doesn't have val
+		return ""
+	}
+
+	switch {
+	case aConst.GetSval() != nil:
+		return aConst.GetSval().Sval
+	case aConst.GetIval() != nil:
+		return strconv.Itoa(int(aConst.GetIval().Ival))
+	case aConst.GetFval() != nil:
+		return aConst.GetFval().Fval
+	case aConst.GetBsval() != nil:
+		return aConst.GetBsval().Bsval
+	case aConst.GetBoolval() != nil:
+		return aConst.GetBoolval().String()
+	}
+	return ""
+}
+
+func TraverseAndFindColumnName(node *pg_query.Node) string {
+	if node.GetColumnRef() != nil {
+		_, colName := GetColNameFromColumnRef(node.GetColumnRef().ProtoReflect())
+		return colName
+	}
+	switch {
+	case node.GetTypeCast() != nil:
+		/*
+			WHERE ((status)::text <> 'active'::text)
+			- where_clause:{a_expr:{kind:AEXPR_OP name:{string:{sval:"<>"}} lexpr:{type_cast:{arg:{column_ref:{fields:{string:{sval:"status"}} location:167}}
+			  type_name:{names:{string:{sval:"text"}} typemod:-1 location:176} location:174}} rexpr:{type_cast:{arg:{a_const:{sval:{sval:"active"}
+		*/
+		return TraverseAndFindColumnName(node.GetTypeCast().Arg)
+		//add more cases if possible for columnRef TODO:
+	}
+
+	return ""
 }

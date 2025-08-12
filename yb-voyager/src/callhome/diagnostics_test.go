@@ -20,6 +20,7 @@ package callhome
 import (
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -28,7 +29,6 @@ import (
 )
 
 func TestCallhomeStructs(t *testing.T) {
-
 	tests := []struct {
 		name         string
 		actualType   reflect.Type
@@ -89,6 +89,7 @@ func TestCallhomeStructs(t *testing.T) {
 				SourceConnectivity             bool                      `json:"source_connectivity"`
 				IopsInterval                   int64                     `json:"iops_interval"`
 				ControlPlaneType               string                    `json:"control_plane_type"`
+				AnonymizedDDLs                 []string                  `json:"anonymized_ddls"`
 			}{},
 		},
 		{
@@ -101,6 +102,7 @@ func TestCallhomeStructs(t *testing.T) {
 				Name                string                 `json:"name"`
 				Impact              string                 `json:"impact"`
 				ObjectType          string                 `json:"object_type"`
+				SqlStatement        string                 `json:"sql_statement,omitempty"`
 				Details             map[string]interface{} `json:"details,omitempty"`
 			}{},
 		},
@@ -147,6 +149,8 @@ func TestCallhomeStructs(t *testing.T) {
 				AppliedRecommendations bool   `json:"applied_recommendations"`
 				UseOrafce              bool   `json:"use_orafce"`
 				CommentsOnObjects      bool   `json:"comments_on_objects"`
+				SkipRecommendations    bool   `json:"skip_recommendations"`
+				SkipPerfOptimizations  bool   `json:"skip_performance_optimizations"`
 				Error                  string `json:"error"`
 				ControlPlaneType       string `json:"control_plane_type"`
 			}{},
@@ -211,31 +215,58 @@ func TestCallhomeStructs(t *testing.T) {
 			name:       "Validate ImportDataPhasePayload Struct Definition",
 			actualType: reflect.TypeOf(ImportDataPhasePayload{}),
 			expectedType: struct {
-				ParallelJobs        int64  `json:"parallel_jobs"`
-				TotalRows           int64  `json:"total_rows_imported"`
-				LargestTableRows    int64  `json:"largest_table_rows_imported"`
-				StartClean          bool   `json:"start_clean"`
-				Phase               string `json:"phase,omitempty"`
-				TotalImportedEvents int64  `json:"total_imported_events,omitempty"`
-				EventsImportRate    int64  `json:"events_import_rate_3m,omitempty"`
-				LiveWorkflowType    string `json:"live_workflow_type,omitempty"`
-				EnableUpsert        bool   `json:"enable_upsert"`
-				Error               string `json:"error"`
-				ControlPlaneType    string `json:"control_plane_type"`
+				PayloadVersion              string            `json:"payload_version"`
+				BatchSize                   int64             `json:"batch_size"`
+				ParallelJobs                int64             `json:"parallel_jobs"`
+				OnPrimaryKeyConflictAction  string            `json:"on_primary_key_conflict_action"`
+				EnableYBAdaptiveParallelism bool              `json:"enable_yb_adaptive_parallelism"`
+				AdaptiveParallelismMax      int64             `json:"adaptive_parallelism_max"`
+				ErrorPolicySnapshot         string            `json:"error_policy_snapshot"`
+				StartClean                  bool              `json:"start_clean"`
+				YBClusterMetrics            YBClusterMetrics  `json:"yb_cluster_metrics"`
+				DataMetrics                 ImportDataMetrics `json:"data_metrics"`
+				Phase                       string            `json:"phase,omitempty"`
+				LiveWorkflowType            string            `json:"live_workflow_type,omitempty"`
+				EnableUpsert                bool              `json:"enable_upsert"`
+				Error                       string            `json:"error"`
+				ControlPlaneType            string            `json:"control_plane_type"`
+			}{},
+		},
+		{
+			name:       "Validate YBClusterMetrics Struct Definition",
+			actualType: reflect.TypeOf(YBClusterMetrics{}),
+			expectedType: struct {
+				Timestamp time.Time    `json:"timestamp"`
+				AvgCpuPct float64      `json:"avg_cpu_pct"`
+				MaxCpuPct float64      `json:"max_cpu_pct"`
+				Nodes     []NodeMetric `json:"nodes"`
+			}{},
+		},
+		{
+			name:       "Validate NodeMetric Struct Definition",
+			actualType: reflect.TypeOf(NodeMetric{}),
+			expectedType: struct {
+				UUID                   string  `json:"uuid"`
+				TotalCPUPct            float64 `json:"total_cpu_pct"`
+				TserverMemSoftLimitPct float64 `json:"tserver_mem_soft_limit_pct"`
+				MemoryFree             int64   `json:"memory_free"`
+				MemoryAvailable        int64   `json:"memory_available"`
+				MemoryTotal            int64   `json:"memory_total"`
+				Status                 string  `json:"status"`
+				Error                  string  `json:"error"`
 			}{},
 		},
 		{
 			name:       "Validate ImportDataFilePhasePayload Struct Definition",
 			actualType: reflect.TypeOf(ImportDataFilePhasePayload{}),
 			expectedType: struct {
-				ParallelJobs       int64  `json:"parallel_jobs"`
-				TotalSize          int64  `json:"total_size_imported"`
-				LargestTableSize   int64  `json:"largest_table_size_imported"`
-				FileStorageType    string `json:"file_storage_type"`
-				StartClean         bool   `json:"start_clean"`
-				DataFileParameters string `json:"data_file_parameters"`
-				Error              string `json:"error"`
-				ControlPlaneType   string `json:"control_plane_type"`
+				ParallelJobs       int64                 `json:"parallel_jobs"`
+				FileStorageType    string                `json:"file_storage_type"`
+				StartClean         bool                  `json:"start_clean"`
+				DataFileParameters string                `json:"data_file_parameters"`
+				DataMetrics        ImportDataFileMetrics `json:"data_metrics"`
+				Error              string                `json:"error"`
+				ControlPlaneType   string                `json:"control_plane_type"`
 			}{},
 		},
 		{
@@ -248,6 +279,28 @@ func TestCallhomeStructs(t *testing.T) {
 				QuoteChar  string `json:"QuoteChar,omitempty"`
 				EscapeChar string `json:"EscapeChar,omitempty"`
 				NullString string `json:"NullString,omitempty"`
+			}{},
+		},
+		{
+			name:       "Validate ImportDataMetrics Struct Definition",
+			actualType: reflect.TypeOf(ImportDataMetrics{}),
+			expectedType: struct {
+				MigrationSnapshotTotalRows        int64 `json:"migration_snapshot_total_rows"`
+				MigrationSnapshotLargestTableRows int64 `json:"migration_snapshot_largest_table_rows"`
+				MigrationCdcTotalImportedEvents   int64 `json:"migration_cdc_total_imported_events"`
+				SnapshotTotalRows                 int64 `json:"snapshot_total_rows"`
+				SnapshotTotalBytes                int64 `json:"snapshot_total_bytes"`
+				CdcEventsImportRate3min           int64 `json:"cdc_events_import_rate_3min"`
+			}{},
+		},
+		{
+			name:       "Validate ImportDataFileMetrics Struct Definition",
+			actualType: reflect.TypeOf(ImportDataFileMetrics{}),
+			expectedType: struct {
+				MigrationSnapshotTotalBytes        int64 `json:"migration_snapshot_total_bytes"`
+				MigrationSnapshotLargestTableBytes int64 `json:"migration_snapshot_largest_table_bytes"`
+				SnapshotTotalRows                  int64 `json:"snapshot_total_rows"`
+				SnapshotTotalBytes                 int64 `json:"snapshot_total_bytes"`
 			}{},
 		},
 		{

@@ -38,7 +38,7 @@ var importDataToSourceCmd = &cobra.Command{
 		importerRole = SOURCE_DB_IMPORTER_ROLE
 		err := initTargetConfFromSourceConf()
 		if err != nil {
-			utils.ErrExit("failed to setup target conf from source conf in MSR: %v", err)
+			utils.ErrExit("failed to setup target conf from source conf in MSR: %w", err)
 		}
 		tconf.EnableYBAdaptiveParallelism = false
 		importDataCmd.PreRun(cmd, args)
@@ -60,7 +60,7 @@ func init() {
 func initTargetConfFromSourceConf() error {
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		return fmt.Errorf("get migration status record: %v", err)
+		return fmt.Errorf("get migration status record: %w", err)
 	}
 	sconf := msr.SourceDBConf
 	tconf.TargetDBType = sconf.DBType
@@ -87,7 +87,7 @@ func initTargetConfFromSourceConf() error {
 	return nil
 }
 
-func packAndSendImportDataToSourcePayload(status string, errorMsg string) {
+func packAndSendImportDataToSourcePayload(status string, errorMsg error) {
 
 	if !shouldSendCallhome() {
 		return
@@ -105,19 +105,28 @@ func packAndSendImportDataToSourcePayload(status string, errorMsg string) {
 	payload.SourceDBDetails = callhome.MarshalledJsonString(sourceDBDetails)
 
 	payload.MigrationPhase = IMPORT_DATA_SOURCE_PHASE
+	// Create ImportDataMetrics struct
+	dataMetrics := callhome.ImportDataMetrics{}
+	if callhomeMetricsCollector != nil {
+		dataMetrics.SnapshotTotalRows = callhomeMetricsCollector.GetSnapshotTotalRows()
+		dataMetrics.SnapshotTotalBytes = callhomeMetricsCollector.GetSnapshotTotalBytes()
+	}
+
+	// Set live migration metrics if applicable
+	if importPhase != dbzm.MODE_SNAPSHOT && statsReporter != nil {
+		dataMetrics.MigrationCdcTotalImportedEvents = statsReporter.TotalEventsImported
+		dataMetrics.CdcEventsImportRate3min = statsReporter.EventsImportRateLast3Min
+	}
+
 	importDataPayload := callhome.ImportDataPhasePayload{
+		PayloadVersion:   callhome.IMPORT_DATA_CALLHOME_PAYLOAD_VERSION,
 		ParallelJobs:     int64(tconf.Parallelism),
 		StartClean:       bool(startClean),
 		LiveWorkflowType: FALL_BACK,
 		Error:            callhome.SanitizeErrorMsg(errorMsg),
 		ControlPlaneType: getControlPlaneType(),
-	}
-
-	importDataPayload.Phase = importPhase
-
-	if importPhase != dbzm.MODE_SNAPSHOT && statsReporter != nil {
-		importDataPayload.EventsImportRate = statsReporter.EventsImportRateLast3Min
-		importDataPayload.TotalImportedEvents = statsReporter.TotalEventsImported
+		DataMetrics:      dataMetrics,
+		Phase:            importPhase,
 	}
 
 	payload.PhasePayload = callhome.MarshalledJsonString(importDataPayload)

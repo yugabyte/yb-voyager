@@ -56,6 +56,18 @@ var (
 	callHomeErrorOrCompletePayloadSent bool
 )
 
+var envVarValuesToObfuscateInLogs = []string{
+	"SOURCE_DB_PASSWORD",
+	"TARGET_DB_PASSWORD",
+	"SOURCE_REPLICA_DB_PASSWORD",
+}
+
+var configKeyValuesToObfuscateInLogs = []string{
+	"source.db-password",
+	"target.db-password",
+	"source-replica.db-password",
+}
+
 var rootCmd = &cobra.Command{
 	Use:   "yb-voyager",
 	Short: "A CLI based migration engine to migrate complete database(schema + data) from some source database to YugabyteDB",
@@ -91,7 +103,7 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			}
 			err = InitLogging(bulkAssessmentDir, config.LogLevel, cmd.Use == "status", GetCommandID(cmd))
 			if err != nil {
-				utils.ErrExit("Failed to initialize logging: %v", err)
+				utils.ErrExit("Failed to initialize logging: %w", err)
 			}
 			startTime = time.Now()
 			log.Infof("Start time: %s\n", startTime)
@@ -104,7 +116,7 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			// no info/payload is collected/supported for assess-migration-bulk
 			err = setControlPlane("")
 			if err != nil {
-				utils.ErrExit("ERROR: setting up control plane: %v", err)
+				utils.ErrExit("ERROR: setting up control plane: %w", err)
 			}
 		} else {
 			validateExportDirFlag()
@@ -122,7 +134,7 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			}
 			err = InitLogging(exportDir, config.LogLevel, cmd.Use == "status", GetCommandID(cmd))
 			if err != nil {
-				utils.ErrExit("Failed to initialize logging: %v", err)
+				utils.ErrExit("Failed to initialize logging: %w", err)
 			}
 			startTime = time.Now()
 			log.Infof("Start time: %s\n", startTime)
@@ -140,7 +152,7 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 				metaDB = initMetaDB(exportDir)
 				msr, err := metaDB.GetMigrationStatusRecord()
 				if err != nil {
-					utils.ErrExit("get migration status record: %v", err)
+					utils.ErrExit("get migration status record: %w", err)
 				}
 
 				msrVoyagerVersionString := msr.VoyagerVersion
@@ -153,20 +165,29 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			}
 			err = setControlPlane(getControlPlaneType())
 			if err != nil {
-				utils.ErrExit("ERROR: setting up control plane: %v", err)
+				utils.ErrExit("ERROR: setting up control plane: %w", err)
 			}
 		}
 
 		// Log the flag values set from the config file
 		for _, f := range overrides {
+			if slices.Contains(configKeyValuesToObfuscateInLogs, f.ConfigKey) {
+				f.Value = "********"
+			}
 			log.Infof("Flag '%s' set from config key '%s' with value '%s'\n", f.FlagName, f.ConfigKey, f.Value)
 		}
 		// Log the env variables already set in the environment by the user
 		for envVar, val := range envVarsAlreadyExported {
+			if slices.Contains(envVarValuesToObfuscateInLogs, envVar) {
+				val = "********"
+			}
 			log.Infof("Environment variable '%s' already set with value '%s'\n", envVar, val)
 		}
 		// Log the env variables set from the config file
 		for _, val := range envVarsSetViaConfig {
+			if slices.Contains(envVarValuesToObfuscateInLogs, val.EnvVar) {
+				val.Value = "********"
+			}
 			log.Infof("Environment variable '%s' set from config key '%s' with value '%s'\n", val.EnvVar, val.ConfigKey, val.Value)
 		}
 
@@ -351,7 +372,7 @@ func validateExportDirFlag() {
 		var err error
 		exportDir, err = filepath.Abs(exportDir)
 		if err != nil {
-			utils.ErrExit("Failed to get absolute path for export-dir: %q: %v\n", exportDir, err)
+			utils.ErrExit("Failed to get absolute path for export-dir: %q: %w\n", exportDir, err)
 		}
 		exportDir = filepath.Clean(exportDir)
 	}
@@ -399,7 +420,7 @@ func setControlPlane(cpType string) error {
 		log.Infof("Migration UUID %s", migrationUUID)
 		err := controlPlane.Init()
 		if err != nil {
-			return fmt.Errorf("initialize the target DB for visualization. %s", err)
+			return fmt.Errorf("initialize the target DB for visualization. %w", err)
 		}
 	default:
 		return fmt.Errorf("invalid value of control plane type: %q. Allowed values: %v", cpType, []string{YUGABYTED})

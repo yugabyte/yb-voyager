@@ -1,16 +1,16 @@
-name: "PG 13: Migration Tests"
+name: "PG 13: Migration Tests (CLI Workflow)"
 
 on:
   push:
     branches: ['main', '*.*-dev', '*.*.*-dev']
   pull_request:
-    branches: ['main']
+    branches: [main]
 
 jobs:
   run-pg-13-migration-tests:
     strategy:
       matrix:
-        version: [2024.2.2.3-b1, 2.20.9.0-b47, 2024.1.4.0-b108, 2.25.1.0-b381]
+        version: [2024.2.4.0-b89, 2.20.10.0-b29, 2.25.2.0-b359, 2025.1.0.0-b168, 2024.1.6.1-b2]
         BETA_FAST_DATA_EXPORT: [0, 1]
         test_group:
           - offline
@@ -93,7 +93,7 @@ jobs:
           docker run -d --name yugabytedb --hostname yb-cluster-test\
             -p7000:7000 -p9000:9000 -p15433:15433 -p5433:5433 -p9042:9042 \
             yugabytedb/yugabyte:${{ matrix.version }} \
-            bin/yugabyted start --tserver_flags="ysql_hba_conf_csv={host all yugabyte all trust,host all all all md5}" --background=false --ui=false 
+            bin/yugabyted start --tserver_flags="ysql_hba_conf_csv={host all yugabyte all trust,host all all all md5}" --background=false --ui=false --callhome=false 
           sleep 20
 
       - name: Test YugabyteDB connection
@@ -144,11 +144,11 @@ jobs:
 
       - name: "TEST: pg-partitions"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
-        run: migtests/scripts/run-test.sh pg/partitions 
+        run: migtests/scripts/run-test.sh pg/partitions
 
       - name: "TEST: pg-partitions with (table-list)"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
-        run: EXPORT_TABLE_LIST='customers,sales,emp,p2.boston,p2.london,p2.sydney,range_columns_partition_test,sales_region,test_partitions_sequences' migtests/scripts/run-test.sh pg/partitions 
+        run: EXPORT_TABLE_LIST='customers,sales,emp,p2.boston,p2.london,p2.sydney,range_columns_partition_test,sales_region,test_partitions_sequences' migtests/scripts/run-test.sh pg/partitions
 
       # Broken for v2.15 and v2.16: https://github.com/yugabyte/yugabyte-db/issues/14529
       # Fixed in 2.17.1.0-b368
@@ -199,6 +199,10 @@ jobs:
       - name: "TEST: pg-basic-public-fall-forward-test"
         if: ${{ !cancelled() && matrix.test_group == 'live_basic' }}
         run: migtests/scripts/live-migration-fallf-run-test.sh pg/basic-public-live-test
+
+      - name: "TEST: pg-datatypes-fall-forward-test"
+        if: ${{ !cancelled() && matrix.test_group == 'live_basic' }}
+        run: migtests/scripts/live-migration-fallf-run-test.sh pg/datatypes
 
       # - name: "TEST: pg-basic-non-public-fall-back-test"
       #   run: migtests/scripts/live-migration-fallb-run-test.sh pg/basic-non-public-live-test

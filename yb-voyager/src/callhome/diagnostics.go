@@ -18,6 +18,7 @@ package callhome
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -25,11 +26,15 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgconn"
+	pgconnv5 "github.com/jackc/pgx/v5/pgconn"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryissue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
@@ -104,8 +109,10 @@ Version History
 1.1: Added a new field as ControlPlaneType
 1.2: Removed field 'ParallelVoyagerJobs` from SizingCallhome
 1.3: Added field Details in AssessmentIssueCallhome struct
+1.4: Added SqlStatement field in AssessmentIssueCallhome struct
+1.5: Added AnonymizedDDLs field in AssessMigrationPhasePayload struct
 */
-var ASSESS_MIGRATION_CALLHOME_PAYLOAD_VERSION = "1.3"
+var ASSESS_MIGRATION_CALLHOME_PAYLOAD_VERSION = "1.5"
 
 type AssessMigrationPhasePayload struct {
 	PayloadVersion                 string                    `json:"payload_version"`
@@ -121,6 +128,7 @@ type AssessMigrationPhasePayload struct {
 	SourceConnectivity             bool                      `json:"source_connectivity"`
 	IopsInterval                   int64                     `json:"iops_interval"`
 	ControlPlaneType               string                    `json:"control_plane_type"`
+	AnonymizedDDLs                 []string                  `json:"anonymized_ddls"`
 }
 
 type AssessmentIssueCallhome struct {
@@ -130,9 +138,11 @@ type AssessmentIssueCallhome struct {
 	Name                string                 `json:"name"`
 	Impact              string                 `json:"impact"`
 	ObjectType          string                 `json:"object_type"`
+	SqlStatement        string                 `json:"sql_statement,omitempty"`
 	Details             map[string]interface{} `json:"details,omitempty"`
 }
-func NewAsssesmentIssueCallhome(category string, categoryDesc string, issueType string, issueName string, issueImpact string, objectType string, details map[string]interface{}) AssessmentIssueCallhome {
+
+func NewAssessmentIssueCallhome(category string, categoryDesc string, issueType string, issueName string, issueImpact string, objectType string, details map[string]interface{}) AssessmentIssueCallhome {
 	return AssessmentIssueCallhome{
 		Category:            category,
 		CategoryDescription: categoryDesc,
@@ -175,6 +185,8 @@ type ExportSchemaPhasePayload struct {
 	AppliedRecommendations bool   `json:"applied_recommendations"`
 	UseOrafce              bool   `json:"use_orafce"`
 	CommentsOnObjects      bool   `json:"comments_on_objects"`
+	SkipRecommendations    bool   `json:"skip_recommendations"`
+	SkipPerfOptimizations  bool   `json:"skip_performance_optimizations"`
 	Error                  string `json:"error"`
 	ControlPlaneType       string `json:"control_plane_type"`
 }
@@ -233,30 +245,82 @@ type ImportSchemaPhasePayload struct {
 	ControlPlaneType   string `json:"control_plane_type"`
 }
 
+/*
+Version History:
+1.0: Added fields for BatchSize, OnPrimaryKeyConflictAction, EnableYBAdaptiveParallelism, AdaptiveParallelismMax
+1.1: Added YBClusterMetrics field, and corresponding struct - YBClusterMetrics, NodeMetric
+1.2: Split out the data metrics into a separate struct - ImportDataMetrics
+*/
+var IMPORT_DATA_CALLHOME_PAYLOAD_VERSION = "1.2"
+
 type ImportDataPhasePayload struct {
-	ParallelJobs     int64 `json:"parallel_jobs"`
-	TotalRows        int64 `json:"total_rows_imported"`
-	LargestTableRows int64 `json:"largest_table_rows_imported"`
-	StartClean       bool  `json:"start_clean"`
+	PayloadVersion              string            `json:"payload_version"`
+	BatchSize                   int64             `json:"batch_size"`
+	ParallelJobs                int64             `json:"parallel_jobs"`
+	OnPrimaryKeyConflictAction  string            `json:"on_primary_key_conflict_action"`
+	EnableYBAdaptiveParallelism bool              `json:"enable_yb_adaptive_parallelism"`
+	AdaptiveParallelismMax      int64             `json:"adaptive_parallelism_max"`
+	ErrorPolicySnapshot         string            `json:"error_policy_snapshot"`
+	StartClean                  bool              `json:"start_clean"`
+	YBClusterMetrics            YBClusterMetrics  `json:"yb_cluster_metrics"`
+	DataMetrics                 ImportDataMetrics `json:"data_metrics"`
 	//TODO: see if these three can be changed to not use omitempty to put the data for 0 rate or total events
-	Phase               string `json:"phase,omitempty"`
-	TotalImportedEvents int64  `json:"total_imported_events,omitempty"`
-	EventsImportRate    int64  `json:"events_import_rate_3m,omitempty"`
-	LiveWorkflowType    string `json:"live_workflow_type,omitempty"`
-	EnableUpsert        bool   `json:"enable_upsert"`
-	Error               string `json:"error"`
-	ControlPlaneType    string `json:"control_plane_type"`
+	Phase            string `json:"phase,omitempty"`
+	LiveWorkflowType string `json:"live_workflow_type,omitempty"`
+	EnableUpsert     bool   `json:"enable_upsert"`
+	Error            string `json:"error"`
+	ControlPlaneType string `json:"control_plane_type"`
+}
+
+type ImportDataMetrics struct {
+	// for the entire migration, across command runs. would be sensitive to start-clean.
+	MigrationSnapshotTotalRows        int64 `json:"migration_snapshot_total_rows"`
+	MigrationSnapshotLargestTableRows int64 `json:"migration_snapshot_largest_table_rows"`
+	MigrationCdcTotalImportedEvents   int64 `json:"migration_cdc_total_imported_events"`
+
+	// command run related metrics; for the current command run.
+	SnapshotTotalRows       int64 `json:"snapshot_total_rows"`
+	SnapshotTotalBytes      int64 `json:"snapshot_total_bytes"`
+	CdcEventsImportRate3min int64 `json:"cdc_events_import_rate_3min"`
+}
+
+type YBClusterMetrics struct {
+	Timestamp time.Time    `json:"timestamp"`   // time when the metrics were collected
+	AvgCpuPct float64      `json:"avg_cpu_pct"` // mean of node CPU% across all nodes
+	MaxCpuPct float64      `json:"max_cpu_pct"` // max of node CPU% across all nodes
+	Nodes     []NodeMetric `json:"nodes"`       // one entry per node
+}
+
+// per-node snapshot
+type NodeMetric struct {
+	UUID                   string  `json:"uuid"`
+	TotalCPUPct            float64 `json:"total_cpu_pct"`              // (user+system)*100
+	TserverMemSoftLimitPct float64 `json:"tserver_mem_soft_limit_pct"` // tserver root memory soft limit % (consumption/soft-limit)*100
+	MemoryFree             int64   `json:"memory_free"`                // free memory in bytes
+	MemoryAvailable        int64   `json:"memory_available"`           // available memory in bytes
+	MemoryTotal            int64   `json:"memory_total"`               // total memory in bytes
+	Status                 string  `json:"status"`                     // "OK", "ERROR"
+	Error                  string  `json:"error"`                      // error message if status is not OK
 }
 
 type ImportDataFilePhasePayload struct {
-	ParallelJobs       int64  `json:"parallel_jobs"`
-	TotalSize          int64  `json:"total_size_imported"`
-	LargestTableSize   int64  `json:"largest_table_size_imported"`
-	FileStorageType    string `json:"file_storage_type"`
-	StartClean         bool   `json:"start_clean"`
-	DataFileParameters string `json:"data_file_parameters"`
-	Error              string `json:"error"`
-	ControlPlaneType   string `json:"control_plane_type"`
+	ParallelJobs       int64                 `json:"parallel_jobs"`
+	FileStorageType    string                `json:"file_storage_type"`
+	StartClean         bool                  `json:"start_clean"`
+	DataFileParameters string                `json:"data_file_parameters"`
+	DataMetrics        ImportDataFileMetrics `json:"data_metrics"`
+	Error              string                `json:"error"`
+	ControlPlaneType   string                `json:"control_plane_type"`
+}
+
+type ImportDataFileMetrics struct {
+	// for the entire migration, across command runs. would be sensitive to start-clean.
+	MigrationSnapshotTotalBytes        int64 `json:"migration_snapshot_total_bytes"`
+	MigrationSnapshotLargestTableBytes int64 `json:"migration_snapshot_largest_table_bytes"`
+
+	// command run related metrics; for the current command run.
+	SnapshotTotalRows  int64 `json:"snapshot_total_rows"`
+	SnapshotTotalBytes int64 `json:"snapshot_total_bytes"`
 }
 
 type DataFileParameters struct {
@@ -309,6 +373,19 @@ func readCallHomeServiceEnv() {
 	}
 }
 
+func isLocalCallHome() bool {
+	host := os.Getenv("LOCAL_CALL_HOME_SERVICE_HOST")
+	port := os.Getenv("LOCAL_CALL_HOME_SERVICE_PORT")
+	return host != "" && port != ""
+}
+
+func getCallHomeProtocol() string {
+	if isLocalCallHome() {
+		return "http"
+	}
+	return "https"
+}
+
 // Send http request to flask servers after saving locally
 func SendPayload(payload *Payload) error {
 	if !SendDiagnostics {
@@ -325,7 +402,9 @@ func SendPayload(payload *Payload) error {
 	requestBody := bytes.NewBuffer(postBody)
 
 	log.Infof("callhome: Payload being sent for diagnostic usage: %s\n", string(postBody))
-	callhomeURL := fmt.Sprintf("https://%s:%d/", CALL_HOME_SERVICE_HOST, CALL_HOME_SERVICE_PORT)
+
+	protocol := getCallHomeProtocol()
+	callhomeURL := fmt.Sprintf("%s://%s:%d/", protocol, CALL_HOME_SERVICE_HOST, CALL_HOME_SERVICE_PORT)
 	resp, err := http.Post(callhomeURL, "application/json", requestBody)
 	if err != nil {
 		log.Infof("error while sending diagnostic data: %s", err)
@@ -349,8 +428,44 @@ func SendPayload(payload *Payload) error {
 
 // We want to ensure that no user-specific information is sent to the call-home service.
 // Therefore, we only send the segment of the error message before the first ":" as that is the generic error message.
-// Note: This is a temporary solution. A better solution would be to have
-// properly structured errors and only send the generic error message to callhome.
-func SanitizeErrorMsg(errorMsg string) string {
-	return strings.Split(errorMsg, ":")[0]
+// Accepts error type, returns empty string if error is nil.
+func SanitizeErrorMsg(err error) string {
+	if err == nil {
+		return ""
+	}
+	errorMsg := strings.Split(err.Error(), ":")[0]
+	additionalContext := getSpecificNonSensitiveContextForError(err)
+	if additionalContext != nil {
+		errorMsg = fmt.Sprintf("%s: %s", errorMsg, MarshalledJsonString(additionalContext))
+	}
+	return errorMsg
+}
+
+func getSpecificNonSensitiveContextForError(err error) map[string]string {
+	if err == nil {
+		return nil
+	}
+	context := make(map[string]string)
+
+	var ibe errs.ImportBatchError
+	if errors.As(err, &ibe) {
+		context["step"] = ibe.Step()
+		context["flow"] = ibe.Flow()
+	}
+
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		// If the error is a pgconn.PgError, we can return a more
+		// specific error message that includes the SQLSTATE code
+		context["pg_error_code"] = pgErr.Code
+	}
+
+	var pgErrV5 *pgconnv5.PgError
+	if errors.As(err, &pgErrV5) {
+		// If the error is a pgconnv5.PgError, we can return
+		// a more specific error message that includes the SQLSTATE code
+		context["pg_error_code"] = pgErrV5.Code
+	}
+
+	return context
 }

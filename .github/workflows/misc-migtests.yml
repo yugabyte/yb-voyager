@@ -4,7 +4,7 @@ on:
   push:
     branches: ['main', '*.*-dev', '*.*.*-dev']
   pull_request:
-    branches: ['main']
+    branches: [main]
 
 jobs:
   run-misc-migration-tests:
@@ -77,6 +77,9 @@ jobs:
         run: |
           ./migtests/scripts/postgresql/create_pg_user
 
+      - name: "TEST: Basic assessment report test"
+        run: migtests/scripts/run-validate-assessment-report.sh pg/basic-assessment-report-test
+
       - name: "TEST: Assessment Report Test For Performance optimization"
         run: migtests/scripts/run-validate-assessment-report.sh pg/assessment-perf-optimization-test
 
@@ -102,7 +105,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.RAHULB_S3_SECRET_ACCESS_KEY }}
         if: ${{ !cancelled() }}
         run: |
-          versions=("2024.2.2.3-b1" "2.20.9.0-b47" "2024.1.4.0-b108" "2.25.0.0-b489")
+          versions=("2024.2.4.0-b89" "2.20.10.0-b29" "2.25.2.0-b359" "2025.1.0.0-b168" "2024.1.6.1-b2")
           for version in "${versions[@]}"; do
             echo "Running tests on version $version"
 
@@ -110,7 +113,7 @@ jobs:
             docker run -d --name yugabytedb-$version --hostname yb-cluster-test-$version\
             -p7000:7000 -p9000:9000 -p15433:15433 -p5433:5433 -p9042:9042 \
             yugabytedb/yugabyte:$version \
-            bin/yugabyted start --tserver_flags="ysql_hba_conf_csv={host all yugabyte all trust,host all all all md5}" --background=false --ui=false 
+            bin/yugabyted start --tserver_flags="ysql_hba_conf_csv={host all yugabyte all trust,host all all all md5}" --background=false --ui=false --callhome=false 
             sleep 20
           
             echo "Test YugabyteDB connection"

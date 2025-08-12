@@ -85,7 +85,7 @@ func (tdb *TargetOracleDB) Init() error {
 		tdb.tconf.Schema)
 	var cntSchemaName int
 	if err = tdb.QueryRow(checkSchemaExistsQuery).Scan(&cntSchemaName); err != nil {
-		err = fmt.Errorf("run query %q on target %q to check schema exists: %s", checkSchemaExistsQuery, tdb.tconf.Host, err)
+		err = fmt.Errorf("run query %q on target %q to check schema exists: %w", checkSchemaExistsQuery, tdb.tconf.Host, err)
 	} else if cntSchemaName == 0 {
 		err = fmt.Errorf("schema '%s' does not exist in target", tdb.tconf.Schema)
 	}
@@ -160,7 +160,7 @@ func (tdb *TargetOracleDB) GetVersion() string {
 	// query sample output: Oracle Database 19c Enterprise Edition Release 19.0.0.0.0 - Production
 	err := tdb.QueryRow(query).Scan(&version)
 	if err != nil {
-		utils.ErrExit("run query: %q on source: %s", query, err)
+		utils.ErrExit("run query: %q on source: %w", query, err)
 	}
 	return version
 }
@@ -199,23 +199,9 @@ func (tdb *TargetOracleDB) GetPrimaryKeyColumns(table sqlname.NameTuple) ([]stri
 	return columns, nil
 }
 
-// Implementing this for completion but not used in Oracle fall-forward/fall-back
-// This info is only used in fast path import of batches(Target YugabyteDB)
-func (tdb *TargetOracleDB) GetPrimaryKeyConstraintName(table sqlname.NameTuple) (string, error) {
-	sname, tname := table.ForCatalogQuery()
-	query := fmt.Sprintf(`SELECT CONSTRAINT_NAME FROM ALL_CONSTRAINTS WHERE TABLE_NAME = '%s' AND OWNER = '%s' AND CONSTRAINT_TYPE = 'P'`, tname, sname)
-	row := tdb.QueryRow(query)
-
-	var constraintName string
-	err := row.Scan(&constraintName)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return "", nil // No primary key constraint found
-		}
-		return "", fmt.Errorf("failed to get primary key constraint name: %w", err)
-	}
-
-	return constraintName, nil
+// No need to implement GetPrimaryKeyColumns for Oracle fall-forward/fall-back as fast path is not valid there
+func (tdb *TargetOracleDB) GetPrimaryKeyConstraintNames(table sqlname.NameTuple) ([]string, error) {
+	return nil, nil
 }
 
 func (tdb *TargetOracleDB) GetNonEmptyTables(tables []sqlname.NameTuple) []sqlname.NameTuple {
@@ -227,7 +213,7 @@ func (tdb *TargetOracleDB) GetNonEmptyTables(tables []sqlname.NameTuple) []sqlna
 		stmt := fmt.Sprintf("SELECT COUNT(*) FROM %s", table.ForUserQuery())
 		err := tdb.QueryRow(stmt).Scan(&rowCount)
 		if err != nil {
-			utils.ErrExit("run query: %q on target: %s", stmt, err)
+			utils.ErrExit("run query: %q on target: %w", stmt, err)
 		}
 		if rowCount > 0 {
 			result = append(result, table)
@@ -275,11 +261,7 @@ func (tdb *TargetOracleDB) RestoreSequences(sequencesLastVal map[string]int64) e
 	return nil
 }
 
-func (tdb *TargetOracleDB) ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string, nonTxnPath bool) (int64, error) {
-	if nonTxnPath {
-		panic("non-transactional path for import batch is not supported in Oracle")
-	}
-
+func (tdb *TargetOracleDB) ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string, isRecoveryCandidate bool) (int64, error, bool) {
 	tdb.Lock()
 	defer tdb.Unlock()
 
@@ -290,7 +272,7 @@ func (tdb *TargetOracleDB) ImportBatch(batch Batch, args *ImportBatchArgs, expor
 		return false, err
 	}
 	err = tdb.WithConnFromPool(copyFn)
-	return rowsAffected, err
+	return rowsAffected, err, false
 }
 
 func (tdb *TargetOracleDB) WithConnFromPool(fn func(*sql.Conn) (bool, error)) error {
@@ -350,7 +332,7 @@ func (tdb *TargetOracleDB) importBatch(conn *sql.Conn, batch Batch, args *Import
 			err2 = tx.Rollback()
 			if err2 != nil {
 				rowsAffected = 0
-				err = fmt.Errorf("rollback transaction: %w (while processing %s)", err2, err)
+				err = fmt.Errorf("rollback transaction: %w (while processing %w)", err2, err)
 			}
 		} else {
 			err2 = tx.Commit()
@@ -486,7 +468,7 @@ func (tdb *TargetOracleDB) setTargetSchema(conn *sql.Conn) {
 	setSchemaQuery := fmt.Sprintf("ALTER SESSION SET CURRENT_SCHEMA = %s", tdb.tconf.Schema)
 	_, err := conn.ExecContext(context.Background(), setSchemaQuery)
 	if err != nil {
-		utils.ErrExit("run query: %q on target %q to set schema: %s", setSchemaQuery, tdb.tconf.Host, err)
+		utils.ErrExit("run query: %q on target %q to set schema: %w", setSchemaQuery, tdb.tconf.Host, err)
 	}
 }
 
@@ -744,7 +726,7 @@ func (tdb *TargetOracleDB) isTableExists(nt sqlname.NameTuple) bool {
 func (tdb *TargetOracleDB) isQueryResultNonEmpty(query string) bool {
 	rows, err := tdb.Query(query)
 	if err != nil {
-		utils.ErrExit("error checking if query is empty: %q: %v", query, err)
+		utils.ErrExit("error checking if query is empty: %q: %w", query, err)
 	}
 	defer rows.Close()
 

@@ -21,7 +21,10 @@ import (
 
 	pg_query "github.com/pganalyze/pg_query_go/v6"
 	log "github.com/sirupsen/logrus"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 /*
@@ -64,10 +67,11 @@ Note: Need to keep the relative ordering of statements(tables) intact.
 Because there can be cases like Foreign Key constraints that depend on the order of tables.
 */
 func (t *Transformer) MergeConstraints(stmts []*pg_query.RawStmt) ([]*pg_query.RawStmt, error) {
+	utils.PrintAndLog("Applying merge constraints transformation to the exported schema")
 	createStmtMap := make(map[string]*pg_query.RawStmt)
 	for _, stmt := range stmts {
 		stmtType := queryparser.GetStatementType(stmt.Stmt.ProtoReflect())
-		if stmtType == queryparser.PG_QUERY_CREATE_STMT {
+		if stmtType == queryparser.PG_QUERY_CREATE_STMT_NODE {
 			objectName := queryparser.GetObjectNameFromRangeVar(stmt.Stmt.GetCreateStmt().Relation)
 			createStmtMap[objectName] = stmt
 		}
@@ -88,9 +92,9 @@ func (t *Transformer) MergeConstraints(stmts []*pg_query.RawStmt) ([]*pg_query.R
 	for _, stmt := range stmts {
 		stmtType := queryparser.GetStatementType(stmt.Stmt.ProtoReflect())
 		switch stmtType {
-		case queryparser.PG_QUERY_CREATE_STMT:
+		case queryparser.PG_QUERY_CREATE_STMT_NODE:
 			result = append(result, stmt)
-		case queryparser.PG_QUERY_ALTER_TABLE_STMT:
+		case queryparser.PG_QUERY_ALTER_TABLE_STMT_NODE:
 			objectName := queryparser.GetObjectNameFromRangeVar(stmt.Stmt.GetAlterTableStmt().Relation)
 			alterTableNode := stmt.Stmt.GetAlterTableStmt()
 
@@ -153,4 +157,27 @@ func (t *Transformer) MergeConstraints(stmts []*pg_query.RawStmt) ([]*pg_query.R
 	}
 
 	return result, nil
+}
+
+func (t *Transformer) RemoveRedundantIndexes(stmts []*pg_query.RawStmt, redundantIndexesMap map[string]string) ([]*pg_query.RawStmt, *utils.StructMap[*sqlname.ObjectNameQualifiedWithTableName, *pg_query.RawStmt], error) {
+	log.Infof("removing redundant indexes from the schema")
+	var sqlStmts []*pg_query.RawStmt
+	removedIndexToStmtMap := utils.NewStructMap[*sqlname.ObjectNameQualifiedWithTableName, *pg_query.RawStmt]()
+	for _, stmt := range stmts {
+		stmtType := queryparser.GetStatementType(stmt.Stmt.ProtoReflect())
+		if stmtType != queryparser.PG_QUERY_INDEX_STMT {
+			sqlStmts = append(sqlStmts, stmt)
+			continue
+		}
+		objectNameWithTable := queryparser.GetIndexObjectNameFromIndexStmt(stmt.Stmt.GetIndexStmt())
+		if _, ok := redundantIndexesMap[objectNameWithTable.CatalogName()]; ok {
+			log.Infof("removing redundant index %s from the schema", objectNameWithTable.CatalogName())
+			removedIndexToStmtMap.Put(objectNameWithTable, stmt)
+		} else {
+			sqlStmts = append(sqlStmts, stmt)
+		}
+
+	}
+
+	return sqlStmts, removedIndexToStmtMap, nil
 }

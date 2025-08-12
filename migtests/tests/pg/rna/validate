@@ -38,8 +38,12 @@ def migration_completed_checks(tgt):
 
 	view_list = tgt.get_objects_of_type("VIEW", "rnacen")
 	print("view_list:", view_list)
-	assert len(view_list) == 3
-	# 1 view is commented out due to parsing issues
+	if yb.has_pg15_merge(tgt.get_target_version()):
+		expected_views = 4
+	else:
+		expected_views = 3
+		# 1 view is commented out due to parsing issues
+	assert len(view_list) == expected_views
 
 	mview_list = tgt.get_objects_of_type("MVIEW", "rnacen")
 	print("mview_list:", mview_list)
@@ -47,7 +51,7 @@ def migration_completed_checks(tgt):
 
 	index_list = tgt.get_objects_of_type("INDEX", "rnacen")
 	print("index_list:", index_list)
-	assert len(index_list) == 1611
+	assert len(index_list) == 1568
 
 if __name__ == "__main__":
 	main()

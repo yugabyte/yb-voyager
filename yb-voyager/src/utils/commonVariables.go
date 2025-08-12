@@ -65,7 +65,9 @@ var oracleSchemaObjectListForExport = []string{"TYPE", "SEQUENCE", "TABLE", "PAC
 var postgresSchemaObjectList = []string{"SCHEMA", "COLLATION", "EXTENSION", "TYPE", "DOMAIN", "SEQUENCE",
 	"TABLE", "INDEX", "FUNCTION", "AGGREGATE", "PROCEDURE", "VIEW", "TRIGGER",
 	"MVIEW", "RULE", "COMMENT" /* GRANT, ROLE*/, "CONVERSION", "FOREIGN TABLE", "POLICY", "OPERATOR"}
-var postgresSchemaObjectListForExport = []string{"TYPE", "DOMAIN", "SEQUENCE", "TABLE", "FUNCTION", "PROCEDURE", "AGGREGATE", "VIEW", "MVIEW", "TRIGGER", "COMMENT", "CONVERSION", "FOREIGN TABLE", "ROW SECURITY", "POLICY", "OPERATOR", "OPERATOR FAMILY", "OPERATOR CLASS"}
+var postgresSchemaObjectListForExport = []string{"TYPE", "DOMAIN", "SEQUENCE", "TABLE", "FUNCTION", "PROCEDURE",
+	"AGGREGATE", "VIEW", "MVIEW", "TRIGGER", "COMMENT", "CONVERSION", "FOREIGN TABLE", "ROW SECURITY", "POLICY",
+	"OPERATOR", "OPERATOR FAMILY", "OPERATOR CLASS"}
 
 // In MYSQL, TYPE and SEQUENCE are not supported
 var mysqlSchemaObjectList = []string{"TABLE", "PARTITION", "INDEX", "VIEW", /*"GRANT*/
@@ -173,17 +175,29 @@ type RedundantIndexesInfo struct {
 }
 
 func (r *RedundantIndexesInfo) GetRedundantIndexObjectName() string {
-	tableObjectName := sqlname.NewObjectName(r.DBType, "", r.RedundantSchemaName, r.RedundantTableName)
-	indexSQlObjectName := sqlname.NewObjectName(r.DBType, "", r.RedundantSchemaName, r.RedundantIndexName)
-	return fmt.Sprintf("%s ON %s", indexSQlObjectName.Unqualified.MinQuoted, tableObjectName.MinQualified.MinQuoted)
+	sqlName := r.GetRedundantIndexObjectNameWithTableName()
+	return sqlName.MinQualified.MinQuoted
 }
 
 func (r *RedundantIndexesInfo) GetExistingIndexObjectName() string {
-	tableObjectName := sqlname.NewObjectName(r.DBType, "", r.ExistingSchemaName, r.ExistingTableName)
-	indexSQlObjectName := sqlname.NewObjectName(r.DBType, "", r.ExistingSchemaName, r.ExistingIndexName)
-	return fmt.Sprintf("%s ON %s", indexSQlObjectName.Unqualified.MinQuoted, tableObjectName.MinQualified.MinQuoted)
+	sqlName := r.GetExistingIndexObjectNameWithTableName()
+	return sqlName.MinQualified.MinQuoted
 }
 
+func (r *RedundantIndexesInfo) GetRedundantIndexCatalogObjectName() string {
+	sqlName := r.GetRedundantIndexObjectNameWithTableName()
+	return sqlName.Qualified.Unquoted
+}
+
+func (r *RedundantIndexesInfo) GetRedundantIndexObjectNameWithTableName() *sqlname.ObjectNameQualifiedWithTableName {
+	objectNameWithTableName := sqlname.NewObjectNameQualifiedWithTableName(r.DBType, "", r.RedundantIndexName, r.RedundantSchemaName, r.RedundantTableName)
+	return objectNameWithTableName
+}
+
+func (r *RedundantIndexesInfo) GetExistingIndexObjectNameWithTableName() *sqlname.ObjectNameQualifiedWithTableName {
+	objectNameWithTableName := sqlname.NewObjectNameQualifiedWithTableName(r.DBType, "", r.ExistingIndexName, r.ExistingSchemaName, r.ExistingTableName)
+	return objectNameWithTableName
+}
 type ColumnStatistics struct {
 	DBType              string
 	SchemaName          string

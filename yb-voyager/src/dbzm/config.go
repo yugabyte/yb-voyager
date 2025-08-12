@@ -110,6 +110,7 @@ debezium.source.errors.max.retries=15
 
 var baseSinkConfigTemplate = `
 debezium.sink.type=ybexporter
+debezium.sink.ybexporter.exportDir=%s
 debezium.sink.ybexporter.dataDir=%s
 debezium.sink.ybexporter.column_sequence.map=%s
 debezium.sink.ybexporter.sequence.max.map=%s
@@ -231,7 +232,7 @@ debezium.source.database.ssl.truststore.password=%s
 `
 
 var yugabyteSrcConfigTemplate = `
-debezium.source.connector.class=io.debezium.connector.yugabytedb.YugabyteDBConnector
+debezium.source.connector.class=io.debezium.connector.yugabytedb.YugabyteDBgRPCConnector
 debezium.source.database.hostname=%s
 debezium.source.database.port=%d
 debezium.source.database.dbname=%s
@@ -266,6 +267,7 @@ debezium.source.publication.name=%s
 
 var yugabyteSrcTransactionOrderingConfigTemplate = `
 debezium.source.transaction.ordering=true
+debezium.source.TEST.override.transaction.ordering.deprecation=true
 debezium.source.tasks.max=1
 `
 var yugabyteConfigTemplate = baseConfigTemplate +
@@ -330,6 +332,7 @@ func (c *Config) String() string {
 			c.Host, c.Port,
 			c.DatabaseName,
 			schemaNames,
+			c.ExportDir,
 
 			dataDir,
 			c.ColumnSequenceMapping,
@@ -364,6 +367,7 @@ func (c *Config) String() string {
 				c.Host, c.Port,
 				c.DatabaseName,
 				schemaNames,
+				c.ExportDir,
 
 				dataDir,
 				c.ColumnSequenceMapping,
@@ -400,6 +404,7 @@ func (c *Config) String() string {
 				c.YBStreamID,
 				c.YBMasterNodes,
 				schemaNames,
+				c.ExportDir,
 
 				dataDir,
 				c.ColumnSequenceMapping,
@@ -434,6 +439,7 @@ func (c *Config) String() string {
 			filepath.Join(c.ExportDir, "data", "history.dat"),
 			filepath.Join(c.ExportDir, "data", "schema_history.json"),
 			logMiningFlushTable,
+			c.ExportDir,
 
 			dataDir,
 			c.ColumnSequenceMapping,
@@ -465,6 +471,7 @@ func (c *Config) String() string {
 			c.DatabaseName,
 			getDatabaseServerID(),
 			filepath.Join(c.ExportDir, "data", "schema_history.json"),
+			c.ExportDir,
 
 			dataDir,
 			c.ColumnSequenceMapping,

@@ -25,7 +25,10 @@ import (
 
 	"github.com/sourcegraph/conc/pool"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
@@ -115,7 +118,7 @@ func TestBasicTaskImportStachAndContinueErrorPolicy(t *testing.T) {
 
 	progressReporter := NewImportDataProgressReporter(true)
 	workerPool := pool.New().WithMaxGoroutines(2)
-	taskImporter, err := NewFileTaskImporter(task, state, workerPool, progressReporter, nil, false, scErrorHandler)
+	taskImporter, err := NewFileTaskImporter(task, state, workerPool, progressReporter, nil, false, scErrorHandler, nil)
 	testutils.FatalIfError(t, err)
 
 	for !taskImporter.AllBatchesSubmitted() {
@@ -166,7 +169,7 @@ func TestTaskImportStachAndContinueErrorPolicy_NoErrors(t *testing.T) {
 
 	progressReporter := NewImportDataProgressReporter(true)
 	workerPool := pool.New().WithMaxGoroutines(2)
-	taskImporter, err := NewFileTaskImporter(task, state, workerPool, progressReporter, nil, false, scErrorHandler)
+	taskImporter, err := NewFileTaskImporter(task, state, workerPool, progressReporter, nil, false, scErrorHandler, nil)
 	testutils.FatalIfError(t, err)
 
 	for !taskImporter.AllBatchesSubmitted() {
@@ -209,7 +212,7 @@ func TestTaskImportStachAndContinueErrorPolicy_SingleBatchWithError(t *testing.T
 
 	progressReporter := NewImportDataProgressReporter(true)
 	workerPool := pool.New().WithMaxGoroutines(2)
-	taskImporter, err := NewFileTaskImporter(task, state, workerPool, progressReporter, nil, false, scErrorHandler)
+	taskImporter, err := NewFileTaskImporter(task, state, workerPool, progressReporter, nil, false, scErrorHandler, nil)
 	testutils.FatalIfError(t, err)
 
 	for !taskImporter.AllBatchesSubmitted() {
@@ -231,6 +234,65 @@ func TestTaskImportStachAndContinueErrorPolicy_SingleBatchWithError(t *testing.T
 1, "hello"
 2, "world"`,
 		`ERROR: duplicate key value violates unique constraint "test_table_error_pkey" (SQLSTATE 23505)`)
+}
+
+func TestTaskImportStachAndContinueErrorPolicy_SingleBatch_OnPkConflictIgnore(t *testing.T) {
+	ldataDir, lexportDir, state, _, err := setupExportDirAndImportDependencies(2, 1024)
+	testutils.FatalIfError(t, err)
+	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir))
+	testutils.FatalIfError(t, err)
+	t.Cleanup(func() { cleanupExportDirDataDir(ldataDir, lexportDir) })
+
+	setupYugabyteTestDb(t)
+	tconf.OnPrimaryKeyConflictAction = constants.PRIMARY_KEY_CONFLICT_ACTION_IGNORE
+	t.Cleanup(func() {
+		tconf.OnPrimaryKeyConflictAction = constants.PRIMARY_KEY_CONFLICT_ACTION_ERROR
+	})
+
+	defer testYugabyteDBTarget.Finalize()
+	testYugabyteDBTarget.TestContainer.ExecuteSqls(
+		`CREATE TABLE test_table_unique_error (id INT PRIMARY KEY, email TEXT UNIQUE, val TEXT);`,
+		`INSERT INTO test_table_unique_error VALUES (1000, 'abc@def.com', 'one');`,
+	)
+	defer testYugabyteDBTarget.TestContainer.ExecuteSqls(`DROP TABLE test_table_unique_error;`)
+
+	// file import
+	// gets divided into one batch
+	// the single batch will have a unique key violation on email (abc@def.com)
+	fileContents := `id,val,email
+1,"abc@def.com","hello"
+2,"ghi@jkl.com","world"`
+	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table_unique_error", 1)
+	testutils.FatalIfError(t, err)
+
+	progressReporter := NewImportDataProgressReporter(true)
+	workerPool := pool.New().WithMaxGoroutines(2)
+	taskImporter, err := NewFileTaskImporter(task, state, workerPool, progressReporter, nil, false, scErrorHandler, nil)
+	testutils.FatalIfError(t, err)
+
+	for !taskImporter.AllBatchesSubmitted() {
+		err := taskImporter.ProduceAndSubmitNextBatchToWorkerPool()
+		assert.NoError(t, err)
+	}
+	workerPool.Wait()
+
+	assertTableRowCount(t, "test_table_unique_error", 1)
+	assertTableIds(t, "test_table_unique_error", []int64{1000})
+
+	erroredBatches, err := state.GetErroredBatches(task.FilePath, task.TableNameTup)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(erroredBatches), "Expected one errored batch")
+
+	assertBatchErrored(t, erroredBatches[0], 2, "batch::0.2.2.60.E")
+	assertBatchErrorFileContents(t, erroredBatches[0], lexportDir, state, task,
+		fileContents,
+		`ERROR: duplicate key value violates unique constraint "test_table_unique_error_email_key" (SQLSTATE 23505)`,
+	)
+
+	assertBatchErrorFileContents(t, erroredBatches[0], lexportDir, state, task,
+		fileContents,
+		PARTIAL_BATCH_ERROR_NOTE,
+	)
 }
 
 func TestTaskImportStachAndContinueErrorPolicy_MultipleBatchesWithDifferentErrors(t *testing.T) {
@@ -270,7 +332,7 @@ func TestTaskImportStachAndContinueErrorPolicy_MultipleBatchesWithDifferentError
 
 	progressReporter := NewImportDataProgressReporter(true)
 	workerPool := pool.New().WithMaxGoroutines(2)
-	taskImporter, err := NewFileTaskImporter(task, state, workerPool, progressReporter, nil, false, scErrorHandler)
+	taskImporter, err := NewFileTaskImporter(task, state, workerPool, progressReporter, nil, false, scErrorHandler, nil)
 	testutils.FatalIfError(t, err)
 
 	for !taskImporter.AllBatchesSubmitted() {
@@ -286,19 +348,29 @@ func TestTaskImportStachAndContinueErrorPolicy_MultipleBatchesWithDifferentError
 	assert.NoError(t, err)
 	assert.Equal(t, 3, len(erroredBatches), "Expected three errored batch")
 
+	tgtYBVersion := testutils.GetYBVersionFromTestContainer(t, testYugabyteDBTarget.TestContainer)
+
 	assertBatchErrored(t, erroredBatches[1], 2, "batch::1.2.2.89.E")
+	errorMsg := `ERROR: invalid input syntax for integer: "xyz" (SQLSTATE 22P02)`
+	if tgtYBVersion.ReleaseType() == ybversion.V2025_1_0_0.ReleaseType() && tgtYBVersion.GreaterThanOrEqual(ybversion.V2025_1_0_0) {
+		errorMsg = `ERROR: invalid input syntax for type integer: "xyz" (SQLSTATE 22P02)`
+	}
 	assertBatchErrorFileContents(t, erroredBatches[1], lexportDir, state, task,
 		`id,val,not_null_col,num_col,fixed_col
 1,"hello","abc",10,"ab"
 2,"world","xyz","xyz","cd"`,
-		`ERROR: invalid input syntax for integer: "xyz" (SQLSTATE 22P02)`)
+		errorMsg)
 
 	assertBatchErrored(t, erroredBatches[2], 2, "batch::3.6.2.49.E")
+	errorMsg = `ERROR: null value in column "not_null_col" violates not-null constraint (SQLSTATE 23502)`
+	if tgtYBVersion.ReleaseType() == ybversion.V2025_1_0_0.ReleaseType() && tgtYBVersion.GreaterThanOrEqual(ybversion.V2025_1_0_0) {
+		errorMsg = `ERROR: null value in column "not_null_col" of relation "test_table_error" violates not-null constraint (SQLSTATE 23502)`
+	}
 	assertBatchErrorFileContents(t, erroredBatches[2], lexportDir, state, task,
 		`id,val,not_null_col,num_col,fixed_col
 5,"quux",NULL,40,"ij"
 6,"corge","grault",50,"mn"`,
-		`ERROR: null value in column "not_null_col" violates not-null constraint (SQLSTATE 23502)`)
+		errorMsg)
 
 	assertBatchErrored(t, erroredBatches[0], 2, "batch::0.10.2.57.E")
 	assertBatchErrorFileContents(t, erroredBatches[0], lexportDir, state, task,
@@ -337,7 +409,7 @@ func TestTaskImportStachAndContinueErrorPolicy_TaskResumptionAfterBatchError(t *
 
 	progressReporter := NewImportDataProgressReporter(true)
 	workerPool := pool.New().WithMaxGoroutines(2)
-	taskImporter, err := NewFileTaskImporter(task, state, workerPool, progressReporter, nil, false, scErrorHandler)
+	taskImporter, err := NewFileTaskImporter(task, state, workerPool, progressReporter, nil, false, scErrorHandler, nil)
 	testutils.FatalIfError(t, err)
 
 	// ingest first batch.
@@ -360,7 +432,7 @@ func TestTaskImportStachAndContinueErrorPolicy_TaskResumptionAfterBatchError(t *
 	// simulate resumption
 	progressReporter = NewImportDataProgressReporter(true)
 	workerPool = pool.New().WithMaxGoroutines(2)
-	taskImporter, err = NewFileTaskImporter(task, state, workerPool, progressReporter, nil, false, scErrorHandler)
+	taskImporter, err = NewFileTaskImporter(task, state, workerPool, progressReporter, nil, false, scErrorHandler, nil)
 	testutils.FatalIfError(t, err)
 
 	// ingest second batch. This should not retry the first errored-out batch.

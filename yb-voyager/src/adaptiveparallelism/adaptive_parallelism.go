@@ -32,10 +32,11 @@ const (
 	CPU_USAGE_SYSTEM_METRIC                        = "cpu_usage_system"
 	TSERVER_ROOT_MEMORY_CONSUMPTION_METRIC         = "tserver_root_memory_consumption"
 	TSERVER_ROOT_MEMORY_SOFT_LIMIT_METRIC          = "tserver_root_memory_soft_limit"
+	MEMORY_FREE_METRIC                             = "memory_free"
 	MEMORY_TOTAL_METRIC                            = "memory_total"
 	MEMORY_AVAILABLE_METRIC                        = "memory_available"
 	MIN_PARALLELISM                                = 1
-	DEFAULT_MAX_CPU_THRESHOLD                      = 70
+	DEFAULT_MAX_CPU_THRESHOLD                      = 80
 	DEFAULT_ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS = 10
 	DEFAULT_MIN_AVAILABLE_MEMORY_THRESHOLD         = 10
 )
@@ -142,7 +143,7 @@ func isCpuLoadHigh(clusterMetrics map[string]tgtdb.NodeMetrics) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("getting max cpu usage in cluster: %w", err)
 	}
-	log.Infof("adaptive: max cpu usage in cluster = %d, max cpu threhsold = %d", maxCpuUsagePct, MAX_CPU_THRESHOLD)
+	log.Infof("adaptive: max cpu usage in cluster = %d, max cpu threshold = %d", maxCpuUsagePct, MAX_CPU_THRESHOLD)
 	return maxCpuUsagePct > MAX_CPU_THRESHOLD, nil
 }
 

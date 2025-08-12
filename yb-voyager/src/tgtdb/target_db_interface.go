@@ -40,10 +40,10 @@ type TargetDB interface {
 	GetNonEmptyTables(tableNames []sqlname.NameTuple) []sqlname.NameTuple
 	TruncateTables(tableNames []sqlname.NameTuple) error
 	IsNonRetryableCopyError(err error) bool
-	ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string, isRecoveryCandidate bool) (int64, error)
+	ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string, isRecoveryCandidate bool) (int64, error, bool)
 	QuoteAttributeNames(tableNameTup sqlname.NameTuple, columns []string) ([]string, error)
 	GetPrimaryKeyColumns(table sqlname.NameTuple) ([]string, error)
-	GetPrimaryKeyConstraintName(tableNameTup sqlname.NameTuple) (string, error)
+	GetPrimaryKeyConstraintNames(tableNameTup sqlname.NameTuple) ([]string, error)
 	ExecuteBatch(migrationUUID uuid.UUID, batch *EventBatch) error
 	GetListOfTableAttributes(tableNameTup sqlname.NameTuple) ([]string, error)
 	QuoteAttributeName(tableNameTup sqlname.NameTuple, columnName string) (string, error)
@@ -99,12 +99,13 @@ func NewTargetDB(tconf *TargetConf) TargetDB {
 // ======================= ImportBatchArgs ====================
 
 type ImportBatchArgs struct {
-	FilePath                 string
-	TableNameTup             sqlname.NameTuple
-	Columns                  []string
-	PrimaryKeyColumns        []string
-	PKConstraintName string
-	PKConflictAction         string
+	FilePath string
+	// TODO: move table related fields to a separate child struct
+	TableNameTup      sqlname.NameTuple
+	Columns           []string
+	PrimaryKeyColumns []string
+	PKConstraintNames []string
+	PKConflictAction  string
 
 	FileFormat string
 	HasHeader  bool

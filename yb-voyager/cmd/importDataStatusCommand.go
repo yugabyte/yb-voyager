@@ -59,11 +59,11 @@ var importDataStatusCmd = &cobra.Command{
 
 		err = InitNameRegistry(exportDir, "", nil, nil, nil, nil, false)
 		if err != nil {
-			utils.ErrExit("initialize name registry: %v", err)
+			utils.ErrExit("initialize name registry: %w", err)
 		}
 		err = runImportDataStatusCmd()
 		if err != nil {
-			utils.ErrExit("error running import data status: %s\n", err)
+			utils.ErrExit("error running import data status: %w\n", err)
 		}
 	},
 }
@@ -111,7 +111,7 @@ func runImportDataStatusCmd() error {
 		reportFile := jsonfile.NewJsonFile[[]*tableMigStatusOutputRow](reportFilePath)
 		err := reportFile.Create(&rows)
 		if err != nil {
-			utils.ErrExit("creating into json file: %s: %v", reportFilePath, err)
+			utils.ErrExit("creating into json file: %s: %w", reportFilePath, err)
 		}
 		fmt.Print(color.GreenString("Import data status report is written to %s\n", reportFilePath))
 		return nil
@@ -154,7 +154,7 @@ func prepareDummyDescriptor(state *ImportDataState) (*datafile.Descriptor, error
 	var dataFileDescriptor datafile.Descriptor
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		return nil, fmt.Errorf("getting migration status record: %v", err)
+		return nil, fmt.Errorf("getting migration status record: %w", err)
 	}
 	dataStore = datastore.NewDataStore(msr.ImportDataFileFlagDataDir)
 	importFileTasksForFTM := getImportFileTasks(msr.ImportDataFileFlagFileTableMapping)
@@ -191,6 +191,8 @@ func prepareImportDataStatusTable() ([]*tableMigStatusOutputRow, error) {
 		}
 	}
 
+	//For import data file, we can have multiple files for a table so the key is a combination of table name and file name.
+	//For import data, we can only single data file for a table so the key is just the table name.
 	outputRows := make(map[string]*tableMigStatusOutputRow)
 
 	for _, dataFile := range dataFileDescriptor.DataFileList {
@@ -199,7 +201,8 @@ func prepareImportDataStatusTable() ([]*tableMigStatusOutputRow, error) {
 			return nil, fmt.Errorf("prepare row with datafile: %w", err)
 		}
 		if importerRole == IMPORT_FILE_ROLE {
-			outputRows[row.TableName] = row
+			key := row.TableName + "-" + row.FileName
+			outputRows[key] = row
 		} else {
 			// In import-data, for partitioned tables, we may have multiple data files for the same table.
 			// We aggregate the counts for such tables.
@@ -208,12 +211,12 @@ func prepareImportDataStatusTable() ([]*tableMigStatusOutputRow, error) {
 			existingRow, found = outputRows[row.TableName]
 			if !found {
 				existingRow = &tableMigStatusOutputRow{}
-				outputRows[row.TableName] = existingRow
 			}
 			existingRow.TableName = row.TableName
 			existingRow.TotalCount += row.TotalCount
 			existingRow.ImportedCount += row.ImportedCount
 			existingRow.ErroredCount += row.ErroredCount
+			outputRows[row.TableName] = existingRow
 		}
 	}
 
@@ -231,6 +234,7 @@ func prepareImportDataStatusTable() ([]*tableMigStatusOutputRow, error) {
 			row.Status = STATUS_MIGRATING
 		}
 		table = append(table, row)
+
 	}
 
 	// First sort by status and then by table-name.
@@ -260,7 +264,7 @@ func prepareRowWithDatafile(dataFile *datafile.FileEntry, state *ImportDataState
 	reportProgressInBytes = reportProgressInBytes || dataFile.RowCount == -1
 	dataFileNt, err := namereg.NameReg.LookupTableName(dataFile.TableName)
 	if err != nil {
-		return nil, fmt.Errorf("lookup %s from name registry: %v", dataFile.TableName, err)
+		return nil, fmt.Errorf("lookup %s from name registry: %w", dataFile.TableName, err)
 	}
 
 	if reportProgressInBytes {

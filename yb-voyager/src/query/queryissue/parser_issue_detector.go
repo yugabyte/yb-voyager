@@ -30,9 +30,42 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
 
-//TODO: combine all these fields which are storing the columns information e.g. columnsWithUnsupportedIndexDatatypes, columnsWithHotspotRangeIndexesDatatypes, jsonbColumns, etc..
-//we can store in a single map all the columns information and the detector needs to take care of which types it is interested in.
+// ColumnMetadata stores metadata about a column extracted during DDL parsing.
+// It tracks characteristics like data type, index suitability, special types
+// (e.g., JSONB, arrays), and foreign key relationships.
+type ColumnMetadata struct {
+	DataType               string
+	DataTypeMods           []int32
+	IsUnsupportedForIndex  bool
+	IsHotspotForRangeIndex bool
+	IsJsonb                bool
+	IsArray                bool
+	IsUserDefinedType      bool
+
+	IsForeignKey             bool
+	ReferencedTable          string
+	ReferencedColumn         string
+	ReferencedColumnType     string  // Stores the base type (e.g., "varchar", "numeric")
+	ReferencedColumnTypeMods []int32 // Stores the type modifiers (e.g., [255] for varchar(255), [8,2] for numeric(8,2))
+}
+
+// foreignKeyConstraint represents a foreign key relationship defined in the schema.
+// It captures the child table and columns, and the corresponding referenced parent table and columns.
+// This structure is used to defer FK processing until all schema definitions are parsed.
+type ForeignKeyConstraint struct {
+	TableName         string
+	ColumnNames       []string
+	ReferencedTable   string
+	ReferencedColumns []string
+}
+
 type ParserIssueDetector struct {
+	// key is table name, value is map of column name to ColumnMetadata
+	columnMetadata map[string]map[string]*ColumnMetadata
+
+	// list of foreign key constraints in the exported schema
+	foreignKeyConstraints []ForeignKeyConstraint
+
 	/*
 		this will contain the information in this format:
 		public.table1 -> {
@@ -70,6 +103,12 @@ type ParserIssueDetector struct {
 	// key is partitioned table, value is true
 	partitionedTablesMap map[string]bool
 
+	// key is partitioned child table, value is its parent partitioned table
+	partitionedFrom map[string]string
+
+	// key is inherited child table, value is slice of parent table names (to handle multiple inheritance)
+	inheritedFrom map[string][]string
+
 	// key is partitioned table, value is sqlInfo (sqlstmt, fpath) where the ADD PRIMARY KEY statement resides
 	primaryConsInAlter map[string]*queryparser.AlterTable
 
@@ -87,17 +126,27 @@ type ParserIssueDetector struct {
 
 	//column is the key (qualifiedTableName.column_name) -> column stats
 	columnStatistics map[string]utils.ColumnStatistics
+
+	// Indexes stored per table
+	// Key is table name, value is slice of indexes on that table.
+	tableIndexes map[string][]*queryparser.Index
 }
 
 func NewParserIssueDetector() *ParserIssueDetector {
 	return &ParserIssueDetector{
-		columnsWithUnsupportedIndexDatatypes:    make(map[string]map[string]string),
-		columnsWithHotspotRangeIndexesDatatypes: make(map[string]map[string]string),
+		columnMetadata:                          make(map[string]map[string]*ColumnMetadata),
 		compositeTypes:                          make([]string, 0),
 		enumTypes:                               make([]string, 0),
 		partitionedTablesMap:                    make(map[string]bool),
 		primaryConsInAlter:                      make(map[string]*queryparser.AlterTable),
 		columnStatistics:                        make(map[string]utils.ColumnStatistics),
+		foreignKeyConstraints:                   make([]ForeignKeyConstraint, 0),
+		inheritedFrom:                           make(map[string][]string),
+		partitionedFrom:                         make(map[string]string),
+		columnsWithUnsupportedIndexDatatypes:    make(map[string]map[string]string),
+		columnsWithHotspotRangeIndexesDatatypes: make(map[string]map[string]string),
+		jsonbColumns:                            make([]string, 0),
+		tableIndexes:                            make(map[string][]*queryparser.Index),
 	}
 }
 
@@ -116,6 +165,57 @@ func (p *ParserIssueDetector) GetAllIssues(query string, targetDbVersion *ybvers
 	}
 
 	return p.getIssuesNotFixedInTargetDbVersion(issues, targetDbVersion)
+}
+
+// This function is used to get the jsonb columns from the parser issue detector
+// It is used in the JsonbSubscriptingDetector to check if the column is jsonb or not
+func (p *ParserIssueDetector) GetJsonbColumns() []string {
+	jsonbColumns := make([]string, 0)
+	for _, columns := range p.columnMetadata {
+		for columnName, meta := range columns {
+			if meta.IsJsonb {
+				jsonbColumns = append(jsonbColumns, columnName)
+			}
+		}
+	}
+	return jsonbColumns
+}
+
+// GetColumnsWithUnsupportedIndexDatatypes returns a map of table names to column names
+// where the column uses a datatype not supported for indexing in YugabyteDB.
+// Each entry also includes the column's data type for context.
+func (p *ParserIssueDetector) GetColumnsWithUnsupportedIndexDatatypes() map[string]map[string]string {
+	columnsWithUnsupportedIndexDatatypes := make(map[string]map[string]string)
+	for tableName, columns := range p.columnMetadata {
+		for columnName, meta := range columns {
+			if meta.IsUnsupportedForIndex {
+				if _, exists := columnsWithUnsupportedIndexDatatypes[tableName]; !exists {
+					columnsWithUnsupportedIndexDatatypes[tableName] = make(map[string]string)
+				}
+				columnsWithUnsupportedIndexDatatypes[tableName][columnName] = meta.DataType
+			}
+		}
+	}
+
+	return columnsWithUnsupportedIndexDatatypes
+}
+
+// GetColumnsWithHotspotRangeIndexesDatatypes returns a map of table names to column names
+// where the column's datatype is known to cause read/write hotspot issues when used in range indexes.
+// Each entry also includes the column's data type for context.
+func (p *ParserIssueDetector) GetColumnsWithHotspotRangeIndexesDatatypes() map[string]map[string]string {
+	columnsWithHotspotRangeIndexesDatatypes := make(map[string]map[string]string)
+	for tableName, columns := range p.columnMetadata {
+		for columnName, meta := range columns {
+			if meta.IsHotspotForRangeIndex {
+				if _, exists := columnsWithHotspotRangeIndexesDatatypes[tableName]; !exists {
+					columnsWithHotspotRangeIndexesDatatypes[tableName] = make(map[string]string)
+				}
+				columnsWithHotspotRangeIndexesDatatypes[tableName][columnName] = meta.DataType
+			}
+		}
+	}
+	return columnsWithHotspotRangeIndexesDatatypes
 }
 
 func (p *ParserIssueDetector) getAllIssues(query string) ([]QueryIssue, error) {
@@ -206,6 +306,138 @@ func (p *ParserIssueDetector) getPLPGSQLIssues(query string) ([]QueryIssue, erro
 	}), nil
 }
 
+// FinalizeColumnMetadata processes the column metadata after all DDL statements have been parsed.
+func (p *ParserIssueDetector) FinalizeColumnMetadata() {
+	// Finalize column metadata for inherited tables - copying columns from parent tables to child tables
+	p.finalizeColumnsFromParentMap(p.inheritedFrom)
+
+	// Finalize column metadata for partitioned tables - copying columns from partitioned parent tables to their child partitions
+	// Convert partitionedFrom: map[string]string → map[string][]string first to pass it to finalizeColumnsFromParentMap
+	partitionParentMap := make(map[string][]string)
+	for child, parent := range p.partitionedFrom {
+		partitionParentMap[child] = []string{parent}
+	}
+	p.finalizeColumnsFromParentMap(partitionParentMap)
+
+	p.finalizeForeignKeyConstraints()
+
+	p.populateColumnMetadataDerivedVars()
+
+}
+
+// populateColumnMetadataDerivedVars populates the variables in ParserIssueDetector struct that are derived from column metadata.
+func (p *ParserIssueDetector) populateColumnMetadataDerivedVars() {
+	p.columnsWithUnsupportedIndexDatatypes = p.GetColumnsWithUnsupportedIndexDatatypes()
+
+	p.columnsWithHotspotRangeIndexesDatatypes = p.GetColumnsWithHotspotRangeIndexesDatatypes()
+
+	p.jsonbColumns = p.GetJsonbColumns()
+}
+
+// finalizeColumnsFromParentMap copies column metadata from parent tables to their children,
+// based on a given parent-child dependency map.
+//
+// The input is a map from child table name to a list of parent table names,
+// and the function uses topological sorting to ensure all parent metadata is available
+// before copying columns to their children.
+//
+// For each child, it creates a column metadata map if it doesn't exist,
+// and copies any missing columns from each of its parents.
+//
+// This function is used to populate column metadata for both inherited and partitioned tables.
+func (p *ParserIssueDetector) finalizeColumnsFromParentMap(parentMap map[string][]string) {
+	orderedChildren := topoSort(parentMap)
+
+	for _, child := range orderedChildren {
+		parentList, exists := parentMap[child]
+		if !exists || len(parentList) == 0 {
+			continue // This is a root table with no parents
+		}
+		for _, parent := range parentList {
+			parentCols, ok := p.columnMetadata[parent]
+			if !ok {
+				continue // Parent metadata not found
+			}
+			if _, exists := p.columnMetadata[child]; !exists {
+				p.columnMetadata[child] = make(map[string]*ColumnMetadata)
+			}
+			for colName, colMeta := range parentCols {
+				if _, exists := p.columnMetadata[child][colName]; !exists {
+					copy := *colMeta
+					p.columnMetadata[child][colName] = &copy
+				}
+			}
+		}
+	}
+}
+
+// topoSort returns a topological ordering of the keys in a dependency map,
+// ensuring that all parent tables are visited before their children.
+//
+// The input is a map from child table name to a list of parent table names.
+// This supports both partitioned tables (single parent) and inherited tables (multiple parents).
+//
+// It performs a depth-first traversal and returns a slice of table names
+// such that for any entry [child -> parents], all parents appear before the child in the result.
+//
+// Assumes there are no cycles in the dependency map. This should not happen in either partitioned or inherited tables.
+func topoSort(dependencyMap map[string][]string) []string {
+	visited := make(map[string]bool)
+	var result []string
+
+	var dfs func(string)
+	dfs = func(curr string) {
+		if visited[curr] {
+			return
+		}
+		for _, parent := range dependencyMap[curr] {
+			dfs(parent)
+		}
+		visited[curr] = true
+		result = append(result, curr)
+	}
+
+	for child := range dependencyMap {
+		dfs(child)
+	}
+	return result
+}
+
+// finalizeForeignKeyConstraints updates columnMetadata with foreign key details.
+// It iterates through all stored FK constraints and marks the corresponding local columns
+// as foreign keys, populating their referenced table, column, and type information.
+// This is done after all DDL statements have been processed to ensure complete metadata is
+func (p *ParserIssueDetector) finalizeForeignKeyConstraints() {
+	for _, fk := range p.foreignKeyConstraints {
+		for i, localCol := range fk.ColumnNames {
+			if _, ok := p.columnMetadata[fk.TableName]; !ok {
+				p.columnMetadata[fk.TableName] = make(map[string]*ColumnMetadata)
+			}
+			meta, ok := p.columnMetadata[fk.TableName][localCol]
+			if !ok {
+				meta = &ColumnMetadata{}
+				p.columnMetadata[fk.TableName][localCol] = meta
+			}
+
+			meta.IsForeignKey = true
+			meta.ReferencedTable = fk.ReferencedTable
+			if i < len(fk.ReferencedColumns) {
+				refCol := fk.ReferencedColumns[i]
+				meta.ReferencedColumn = refCol
+
+				if refMeta, ok := p.columnMetadata[fk.ReferencedTable][refCol]; ok {
+					// Store the referenced column type and modifiers separately for accurate comparison
+					meta.ReferencedColumnType = refMeta.DataType
+					meta.ReferencedColumnTypeMods = refMeta.DataTypeMods
+				}
+			} else {
+				log.Warnf("Foreign key column count mismatch for table %s: localCols=%v, refCols=%v",
+					fk.TableName, fk.ColumnNames, fk.ReferencedColumns)
+			}
+		}
+	}
+}
+
 // this function is to parse the DDL and process it to extract the metadata about schema like isGinIndexPresentInSchema, partition tables, etc.
 func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 	parseTree, err := queryparser.Parse(query)
@@ -220,53 +452,126 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 	switch ddlObj.(type) {
 	case *queryparser.AlterTable:
 		alter, _ := ddlObj.(*queryparser.AlterTable)
+
 		if alter.ConstraintType == queryparser.PRIMARY_CONSTR_TYPE {
 			//For the case ALTER and CREATE are not not is expected order where ALTER is before CREATE
 			alter.Query = query
 			p.primaryConsInAlter[alter.GetObjectName()] = alter
+
+			// Process primary key as index for foreign key detection
+			if len(alter.ConstraintColumns) > 0 {
+				p.addConstraintAsIndex(alter.SchemaName, alter.TableName, alter.ConstraintColumns, alter.ConstraintName)
+			}
 		}
+
+		if alter.ConstraintType == queryparser.UNIQUE_CONSTR_TYPE {
+			// Process unique constraint as index for foreign key detection
+			if len(alter.ConstraintColumns) > 0 {
+				p.addConstraintAsIndex(alter.SchemaName, alter.TableName, alter.ConstraintColumns, alter.ConstraintName)
+			}
+		}
+
+		if alter.ConstraintType == queryparser.FOREIGN_CONSTR_TYPE {
+			// Collect the foreign key constraint details from ALTER TABLE statement.
+			// These are stored temporarily and will be processed later in FinalizeColumnMetadata,
+			// once all tables and columns are parsed and available in columnMetadata.
+			p.foreignKeyConstraints = append(p.foreignKeyConstraints, ForeignKeyConstraint{
+				TableName:         alter.GetObjectName(),
+				ColumnNames:       alter.ConstraintColumns,
+				ReferencedTable:   alter.ConstraintReferencedTable,
+				ReferencedColumns: alter.ConstraintReferencedColumns,
+			})
+		}
+
+		// If alter is to attach a partitioned table, track it
+		if alter.AlterType == queryparser.ATTACH_PARTITION {
+			// Ensure the partitioned table's parent is tracked in partitionedFrom
+			if _, exists := p.partitionedFrom[alter.GetObjectName()]; !exists {
+				p.partitionedFrom[alter.PartitionedChild] = alter.GetObjectName()
+			}
+		}
+
 	case *queryparser.Table:
 		table, _ := ddlObj.(*queryparser.Table)
+
+		tableName := table.GetObjectName()
+
 		if table.IsPartitioned {
-			p.partitionedTablesMap[table.GetObjectName()] = true
+			p.partitionedTablesMap[tableName] = true
+		}
+
+		// Track if table is a partition of another table
+		if table.IsPartitionOf {
+			p.partitionedFrom[tableName] = table.PartitionedFrom
+		}
+
+		// Track inheritance relationships
+		if table.IsInherited {
+			p.inheritedFrom[tableName] = append([]string{}, table.InheritedFrom...)
+		}
+
+		// Ensure map is initialized
+		if _, exists := p.columnMetadata[tableName]; !exists {
+			p.columnMetadata[tableName] = make(map[string]*ColumnMetadata)
 		}
 
 		for _, col := range table.Columns {
+			// Check if metadata already exists (e.g., from deferred FK)
+			meta, exists := p.columnMetadata[tableName][col.ColumnName]
+			if !exists {
+				meta = &ColumnMetadata{}
+				p.columnMetadata[tableName][col.ColumnName] = meta
+			}
+
+			// Store the original type name from parse tree
+			meta.DataType = col.TypeName
+			meta.DataTypeMods = col.TypeMods
+
 			isUnsupportedType := slices.Contains(UnsupportedIndexDatatypes, col.TypeName)
 			isUDTType := slices.Contains(p.compositeTypes, col.GetFullTypeName())
 			isHotspotType := slices.Contains(hotspotRangeIndexesTypes, col.TypeName)
-			switch true {
+
+			switch {
 			case col.IsArrayType:
-				//For Array types and storing the type as "array" as of now we can enhance the to have specific type e.g. INT4ARRAY
-				_, ok := p.columnsWithUnsupportedIndexDatatypes[table.GetObjectName()]
-				if !ok {
-					p.columnsWithUnsupportedIndexDatatypes[table.GetObjectName()] = make(map[string]string)
-				}
-				p.columnsWithUnsupportedIndexDatatypes[table.GetObjectName()][col.ColumnName] = "array"
+				meta.IsArray = true
+				meta.IsUnsupportedForIndex = true
+				meta.DataType = "array"
+
 			case isUnsupportedType || isUDTType:
-				_, ok := p.columnsWithUnsupportedIndexDatatypes[table.GetObjectName()]
-				if !ok {
-					p.columnsWithUnsupportedIndexDatatypes[table.GetObjectName()] = make(map[string]string)
+				meta.IsUnsupportedForIndex = true
+				if isUDTType {
+					meta.IsUserDefinedType = true
+					meta.DataType = "user_defined_type"
 				}
-				p.columnsWithUnsupportedIndexDatatypes[table.GetObjectName()][col.ColumnName] = col.TypeName
-				if isUDTType { //For UDTs
-					p.columnsWithUnsupportedIndexDatatypes[table.GetObjectName()][col.ColumnName] = "user_defined_type"
-				}
+
 			case isHotspotType:
-				//For these types like timestamp/date the indexes can create read/write hotspot problem
-				_, ok := p.columnsWithHotspotRangeIndexesDatatypes[table.GetObjectName()]
-				if !ok {
-					p.columnsWithHotspotRangeIndexesDatatypes[table.GetObjectName()] = make(map[string]string)
-				}
-				p.columnsWithHotspotRangeIndexesDatatypes[table.GetObjectName()][col.ColumnName] = col.TypeName
+				meta.IsHotspotForRangeIndex = true
 			}
 
 			if col.TypeName == "jsonb" {
-				// used to detect the jsonb subscripting happening on these columns
-				p.jsonbColumns = append(p.jsonbColumns, col.ColumnName)
+				meta.IsJsonb = true
 			}
 		}
 
+		// Collect the foreign key constraint details from CREATE TABLE statement.
+		// These are stored temporarily and will be processed later in FinalizeColumnMetadata,
+		// once all tables and columns are parsed and available in columnMetadata.
+		for _, constraint := range table.Constraints {
+			if constraint.ConstraintType != queryparser.FOREIGN_CONSTR_TYPE {
+				continue
+			}
+
+			// Populate the foreign key constraints
+			p.foreignKeyConstraints = append(p.foreignKeyConstraints, ForeignKeyConstraint{
+				TableName:         tableName,
+				ColumnNames:       constraint.Columns,
+				ReferencedTable:   constraint.ReferencedTable,
+				ReferencedColumns: constraint.ReferencedColumns,
+			})
+		}
+
+		// Process primary keys and unique constraints as indexes for foreign key detection
+		p.processTableConstraintsAsIndexes(table)
 	case *queryparser.CreateType:
 		typeObj, _ := ddlObj.(*queryparser.CreateType)
 		if typeObj.IsEnum {
@@ -279,6 +584,9 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 		if index.AccessMethod == GIN_ACCESS_METHOD {
 			p.isGinIndexPresentInSchema = true
 		}
+
+		// Process index for foreign key detection
+		p.addIndexToCoverage(index)
 	case *queryparser.Function:
 		fn, _ := ddlObj.(*queryparser.Function)
 		p.functionObjects = append(p.functionObjects, fn)
@@ -513,59 +821,159 @@ func (p *ParserIssueDetector) IsUnloggedTablesIssueFiltered() bool {
 	return p.isUnloggedTablesIssueFiltered
 }
 
+// DetectMissingForeignKeyIndexes detects missing foreign key indexes after all DDL has been processed
+// This method should be called after all DDL statements have been parsed to ensure complete metadata
+func (p *ParserIssueDetector) DetectMissingForeignKeyIndexes() []QueryIssue {
+	var issues []QueryIssue
+
+	// Process all stored foreign key constraints
+	for _, fkConstraint := range p.foreignKeyConstraints {
+		// Check if this FK has proper index coverage using existing logic
+		if !p.hasProperIndexCoverage(fkConstraint) {
+			// Create and add the issue
+			issue := p.createMissingFKIndexIssue(fkConstraint)
+			issues = append(issues, issue)
+		}
+	}
+
+	return issues
+}
+
+// hasProperIndexCoverage checks if a foreign key has proper index coverage.
+// Detects exact matches, column permutations, and composite index prefixes.
+// Only considers FK columns as leading columns.
+//
+// Examples:
+// FK (x,y,z) → Index (x,y,z) ✓ (exact match)
+// FK (x,y,z) → Index (y,z,x) ✓ (permutation)
+// FK (x,y,z) → Index (x,y,z,other) ✓ (prefix)
+// FK (x,y,z) → Index (other,x,y,z) ✗ (FK not at start) → Detected as missing index
+// FK (x,y,z) → Index (x,y) ✗ (missing column) → Detected as missing index
+// FK (x,y,z) → No index ✗ → Detected as missing index
+func (p *ParserIssueDetector) hasProperIndexCoverage(fk ForeignKeyConstraint) bool {
+	indexes, exists := p.tableIndexes[fk.TableName]
+	if !exists {
+		return false
+	}
+
+	for _, index := range indexes {
+		if p.hasIndexCoverage(index, fk.ColumnNames) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// hasIndexCoverage checks if an index provides coverage for the given foreign key columns.
+// It checks if the FK columns exactly match the leading index columns (in any order).
+func (p *ParserIssueDetector) hasIndexCoverage(index *queryparser.Index, fkColumns []string) bool {
+	// Extract columns and check for expressions in the prefix
+	indexColumns := make([]string, 0)
+	for i, param := range index.Params {
+		// Check if expression exists in the prefix we need to check
+		if i < len(fkColumns) && param.IsExpression {
+			return false // Expression in the prefix disqualifies the index
+		}
+		indexColumns = append(indexColumns, param.ColName)
+	}
+
+	// Check if we have enough columns in the index
+	if len(indexColumns) < len(fkColumns) {
+		return false
+	}
+
+	// Check if the FK columns exactly match the leading index columns (in any order).
+	indexPrefix := indexColumns[:len(fkColumns)]
+	return utils.IsSetEqual(fkColumns, indexPrefix)
+}
+
+// createMissingFKIndexIssue creates a QueryIssue from a foreign key constraint
+func (p *ParserIssueDetector) createMissingFKIndexIssue(fk ForeignKeyConstraint) QueryIssue {
+	// Create fully qualified column names
+	qualifiedColumnNames := make([]string, len(fk.ColumnNames))
+	for i, colName := range fk.ColumnNames {
+		qualifiedColumnNames[i] = fmt.Sprintf("%s.%s", fk.TableName, colName)
+	}
+
+	return NewMissingForeignKeyIndexIssue(
+		"TABLE",
+		fk.TableName,
+		"", // sqlStatement - we don't have this in stored constraint
+		strings.Join(qualifiedColumnNames, ", "),
+		fk.ReferencedTable,
+	)
+}
+
 func (p *ParserIssueDetector) SetColumnStatistics(columnStats []utils.ColumnStatistics) {
 	for _, stat := range columnStats {
 		p.columnStatistics[stat.GetQualifiedColumnName()] = stat
 	}
 }
 
-// ======= Functions not use parser right now
+// addIndexToCoverage adds an index to the table indexes map for checking missing foreign key index issue
+func (p *ParserIssueDetector) addIndexToCoverage(index *queryparser.Index) {
+	tableName := index.GetTableName()
 
-func GetRedundantIndexIssues(redundantIndexes []utils.RedundantIndexesInfo) []QueryIssue {
-
-	redundantIndexToInfo := make(map[string]utils.RedundantIndexesInfo)
-
-	//This function helps in resolving the existing index in cases where existing index is also a redundant index on some other index
-	//So in such cases we need to report the main existing index.
-	/*
-		e.g. INDEX idx1 on t(id); INDEX idx2 on t(id, id1); INDEX idx3 on t(id, id1,id2);
-		redundant index coming from the script can have
-		Redundant - idx1, Existing idx2
-		Redundant - idx2, Existing idx3
-		So in this case we need to report it like
-		Redundant - idx1, Existing idx3
-		Redundant - idx2, Existing idx3
-	*/
-	getRootRedundantIndexInfo := func(currRedundantIndexInfo utils.RedundantIndexesInfo) utils.RedundantIndexesInfo {
-		for {
-			existingIndexOfCurrRedundant := currRedundantIndexInfo.GetExistingIndexObjectName()
-			nextRedundantIndexInfo, ok := redundantIndexToInfo[existingIndexOfCurrRedundant]
-			if !ok {
-				return currRedundantIndexInfo
-			}
-			currRedundantIndexInfo = nextRedundantIndexInfo
-		}
+	// Add the index to the table's index list
+	if _, exists := p.tableIndexes[tableName]; !exists {
+		p.tableIndexes[tableName] = make([]*queryparser.Index, 0)
 	}
-	for _, redundantIndex := range redundantIndexes {
-		redundantIndexToInfo[redundantIndex.GetRedundantIndexObjectName()] = redundantIndex
-	}
-	for _, redundantIndex := range redundantIndexes {
-		rootIndexInfo := getRootRedundantIndexInfo(redundantIndex)
-		rootExistingIndex := rootIndexInfo.GetExistingIndexObjectName()
-		currentExistingIndex := redundantIndex.GetExistingIndexObjectName()
-		if rootExistingIndex != currentExistingIndex {
-			//If existing index was redundant index then after figuring out the actual existing index use that to report existing index
-			redundantIndex.ExistingIndexName = rootIndexInfo.ExistingIndexName
-			redundantIndex.ExistingSchemaName = rootIndexInfo.ExistingSchemaName
-			redundantIndex.ExistingTableName = rootIndexInfo.ExistingTableName
-			redundantIndex.ExistingIndexDDL = rootIndexInfo.ExistingIndexDDL
-			redundantIndexToInfo[redundantIndex.GetRedundantIndexObjectName()] = redundantIndex
-		}
-	}
-	var issues []QueryIssue
-	for _, redundantIndexInfo := range redundantIndexToInfo {
-		issues = append(issues, NewRedundantIndexIssue(INDEX_OBJECT_TYPE, redundantIndexInfo.GetRedundantIndexObjectName(),
-			redundantIndexInfo.RedundantIndexDDL, redundantIndexInfo.ExistingIndexDDL))
-	}
-	return issues
+	p.tableIndexes[tableName] = append(p.tableIndexes[tableName], index)
 }
+
+// addConstraintAsIndex creates a mock index object from a constraint and adds it to the table indexes map.
+// This is used for primary keys and unique constraints which are also indexes for missing foreign key index detection.
+func (p *ParserIssueDetector) addConstraintAsIndex(schemaName, tableName string, columns []string, constraintName string) {
+	// Create mock index parameters from columns
+	indexParams := make([]queryparser.IndexParam, len(columns))
+	for i, colName := range columns {
+		indexParams[i] = queryparser.IndexParam{
+			ColName:      colName,
+			IsExpression: false, // We can't create expressions in primary keys and unique constraints in PG/YB
+		}
+	}
+
+	// Create a mock index object
+	mockIndex := &queryparser.Index{
+		SchemaName: schemaName,
+		IndexName:  constraintName,
+		TableName:  tableName,
+		// Primary keys and unique constraints use btree by default.
+		//  Mentioned in the docs here:https://www.postgresql.org/docs/current/sql-createtable.html#:~:text=Adding%20a%20PRIMARY%20KEY%20constraint%20will%20automatically%20create%20a%20unique%20btree%20index%20on%20the%20column%20or%20group%20of%20columns%20used%20in%20the%20constraint.%20That%20index%20has%20the%20same%20name%20as%20the%20primary%20key%20constraint
+		AccessMethod: BTREE_ACCESS_METHOD,
+		Params:       indexParams,
+	}
+
+	// Add to table indexes
+	p.addIndexToCoverage(mockIndex)
+}
+
+// processTableConstraintsAsIndexes processes primary keys and unique constraints as indexes for foreign key detection.
+func (p *ParserIssueDetector) processTableConstraintsAsIndexes(table *queryparser.Table) {
+	// Process primary keys
+	for _, constraint := range table.Constraints {
+		if constraint.ConstraintType == queryparser.PRIMARY_CONSTR_TYPE {
+			// Primary key constraints are also indexes for missing foreign key index detection
+			// We need to ensure the index is processed and covered
+			primaryKeyColumns := constraint.Columns
+			if len(primaryKeyColumns) > 0 {
+				p.addConstraintAsIndex(table.SchemaName, table.TableName, primaryKeyColumns, constraint.ConstraintName)
+			}
+		}
+	}
+
+	// Process unique constraints
+	for _, constraint := range table.Constraints {
+		if constraint.ConstraintType == queryparser.UNIQUE_CONSTR_TYPE {
+			// Unique constraints are also indexes for missing foreign key index detection
+			// We need to ensure the index is processed and covered
+			uniqueColumns := constraint.Columns
+			if len(uniqueColumns) > 0 {
+				p.addConstraintAsIndex(table.SchemaName, table.TableName, uniqueColumns, constraint.ConstraintName)
+			}
+		}
+	}
+}
+
+// ======= Functions not use parser right now

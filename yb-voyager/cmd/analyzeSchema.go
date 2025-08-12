@@ -347,6 +347,17 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string, d
 		if parserIssueDetector.IsGinIndexPresentInSchema() {
 			summaryMap["INDEX"].details[GIN_INDEX_DETAILS] = true
 		}
+	}
+
+	// Finalize and populate column metadata that depends on complete schema context.
+	// This includes metadata that can only be resolved after all SQL statements are parsed,
+	// such as foreign key constraints, inherited columns, and partitioned table columns.
+	// Run this only if object type is TABLE, as it is the only one that has columns.
+	if objType == "TABLE" {
+		parserIssueDetector.FinalizeColumnMetadata()
+	}
+
+	for _, sqlStmtInfo := range sqlInfoArr {
 		ddlIssues, err := parserIssueDetector.GetDDLIssues(sqlStmtInfo.formattedStmt, targetDbVersion)
 		if err != nil {
 			utils.ErrExit("error getting ddl issues for stmt: [%s]: %v", sqlStmtInfo.formattedStmt, err)
@@ -608,6 +619,11 @@ func checker(sqlInfoArr []sqlInfo, fpath string, objType string, detectPerfOptim
 	checkSql(sqlInfoArr, fpath)
 	checkDDL(sqlInfoArr, fpath, objType)
 	checkForeign(sqlInfoArr, fpath)
+
+	if objType == "CONVERSION" {
+		checkConversions(sqlInfoArr, fpath)
+	}
+
 	checkRemaining(sqlInfoArr, fpath)
 	checkStmtsUsingParser(sqlInfoArr, fpath, objType, detectPerfOptimizationIssues)
 	if utils.GetEnvAsBool("REPORT_UNSUPPORTED_PLPGSQL_OBJECTS", true) {
@@ -649,6 +665,9 @@ func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fil
 	migrationCaveatsIssues = append(migrationCaveatsIssues, queryissue.UnsupportedDatatypesInLiveMigrationIssuesWithFForFBIssues...)
 
 	switch true {
+	case slices.Contains(queryissue.PerformanceOptimizationIssues, issueInstance.Type):
+		issueType = PERFORMANCE_OPTIMIZATIONS_CATEGORY
+
 	case isPlPgSQLIssue:
 		issueType = UNSUPPORTED_PLPGSQL_OBJECTS_CATEGORY
 	case slices.ContainsFunc(migrationCaveatsIssues, func(i string) bool {
@@ -659,8 +678,7 @@ func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fil
 	case strings.HasPrefix(issueInstance.Name, UNSUPPORTED_DATATYPE):
 		//Adding the UNSUPPORTED_DATATYPES issueType of the utils.Issue for these issues whose TypeName starts with "Unsupported datatype ..."
 		issueType = UNSUPPORTED_DATATYPES_CATEGORY
-	case slices.Contains(queryissue.PerformanceOptimizationIssues, issueInstance.Type):
-		issueType = PERFORMANCE_OPTIMIZATIONS_CATEGORY
+
 	}
 
 	var constraintIssues = []string{
@@ -1096,40 +1114,50 @@ func analyzeSchemaInternal(sourceDBConf *srcdb.Source, detectIssues bool, detect
 	initializeSummaryMap()
 
 	for _, objType := range sourceObjList {
-		var sqlInfoArr []sqlInfo
-		filePath := utils.GetObjectFilePath(schemaDir, objType)
-		if objType != "INDEX" {
-			sqlInfoArr = parseSqlFileForObjectType(filePath, objType)
-		} else {
-			sqlInfoArr = parseSqlFileForObjectType(filePath, objType)
-			otherFPaths := utils.GetObjectFilePath(schemaDir, "PARTITION_INDEX")
-			sqlInfoArr = append(sqlInfoArr, parseSqlFileForObjectType(otherFPaths, "PARTITION_INDEX")...)
-			otherFPaths = utils.GetObjectFilePath(schemaDir, "FTS_INDEX")
-			sqlInfoArr = append(sqlInfoArr, parseSqlFileForObjectType(otherFPaths, "FTS_INDEX")...)
-		}
-		if detectIssues {
+		sqlInfoArr := getSQLInfoArrayForObjectType(schemaDir, objType)
+
+		if detectIssues && len(sqlInfoArr) > 0 {
+			filePath := utils.GetObjectFilePath(schemaDir, objType)
 			checker(sqlInfoArr, filePath, objType, detectPerfOptimizationIssues)
-
-			if objType == "CONVERSION" {
-				checkConversions(sqlInfoArr, filePath)
-			}
-
-			// Ideally all filtering of issues should happen in queryissue pkg layer,
-			// but until we move all issue detection logic to queryissue pkg, we will filter issues here as well.
-			schemaAnalysisReport.Issues = lo.Filter(schemaAnalysisReport.Issues, func(i utils.AnalyzeSchemaIssue, index int) bool {
-				fixed, err := i.IsFixedIn(targetDbVersion)
-				if err != nil {
-					utils.ErrExit("error checking if analyze issue is supported: issue[%v]: %v", i, err)
-				}
-				return !fixed
-			})
 		}
+	}
+
+	// Run misc checks after all DDL has been processed
+	if detectIssues {
+		checkerMisc(detectPerfOptimizationIssues)
+
+		// Filter out issues that are already fixed in the target database version
+		// This should happen once after all issues have been collected
+		// Ideally all filtering of issues should happen in queryissue pkg layer,
+		// but until we move all issue detection logic to queryissue pkg, we will filter issues here as well.
+		schemaAnalysisReport.Issues = lo.Filter(schemaAnalysisReport.Issues, func(i utils.AnalyzeSchemaIssue, index int) bool {
+			fixed, err := i.IsFixedIn(targetDbVersion)
+			if err != nil {
+				utils.ErrExit("error checking if analyze issue is supported: issue[%v]: %v", i, err)
+			}
+			return !fixed
+		})
 	}
 
 	schemaAnalysisReport.SchemaSummary = reportSchemaSummary(sourceDBConf)
 	schemaAnalysisReport.VoyagerVersion = utils.YB_VOYAGER_VERSION
 	schemaAnalysisReport.TargetDBVersion = targetDbVersion
 	return schemaAnalysisReport
+}
+
+// checkerMisc runs miscellaneous checks that require complete schema metadata
+// This function should be called after all DDL has been processed
+func checkerMisc(detectPerfOptimizationIssues bool) {
+	// Detect missing foreign key indexes (only if performance optimization issues are enabled)
+	if detectPerfOptimizationIssues {
+		fkIssues := parserIssueDetector.DetectMissingForeignKeyIndexes()
+
+		// Convert QueryIssues to AnalyzeSchemaIssues and add to report
+		for _, issue := range fkIssues {
+			analyzeIssue := convertIssueInstanceToAnalyzeIssue(issue, "", false, true)
+			schemaAnalysisReport.Issues = append(schemaAnalysisReport.Issues, analyzeIssue)
+		}
+	}
 }
 
 func checkConversions(sqlInfoArr []sqlInfo, filePath string) {
@@ -1180,19 +1208,28 @@ func analyzeSchema() {
 	analyzeSchemaInternal(msr.SourceDBConf, true, false)
 
 	if analyzeSchemaReportFormat != "" {
-		generateAnalyzeSchemaReport(msr, analyzeSchemaReportFormat)
+		err = generateAnalyzeSchemaReport(msr, analyzeSchemaReportFormat, true)
+		if err != nil {
+			utils.ErrExit("failed to generate analyze schema report: %s", err)
+		}
 	} else {
-		generateAnalyzeSchemaReport(msr, HTML)
-		generateAnalyzeSchemaReport(msr, JSON)
+		err = generateAnalyzeSchemaReport(msr, HTML, true)
+		if err != nil {
+			utils.ErrExit("failed to generate analyze schema report: %s", err)
+		}
+		err = generateAnalyzeSchemaReport(msr, JSON, true)
+		if err != nil {
+			utils.ErrExit("failed to generate analyze schema report: %s", err)
+		}
 	}
 
-	packAndSendAnalyzeSchemaPayload(COMPLETE, "")
+	packAndSendAnalyzeSchemaPayload(COMPLETE, nil)
 
 	schemaAnalysisReport := createSchemaAnalysisIterationCompletedEvent(schemaAnalysisReport)
 	controlPlane.SchemaAnalysisIterationCompleted(&schemaAnalysisReport)
 }
 
-func generateAnalyzeSchemaReport(msr *metadb.MigrationStatusRecord, reportFormat string) (err error) {
+func generateAnalyzeSchemaReport(msr *metadb.MigrationStatusRecord, reportFormat string, printReportPath bool) (err error) {
 	var finalReport string
 	switch reportFormat {
 	case "html":
@@ -1203,25 +1240,25 @@ func generateAnalyzeSchemaReport(msr *metadb.MigrationStatusRecord, reportFormat
 		}
 		finalReport, err = applyTemplate(schemaAnalysisReport, schemaAnalysisHtmlTmpl)
 		if err != nil {
-			utils.ErrExit("failed to apply template for html schema analysis report: %v", err)
+			return fmt.Errorf("failed to apply template for html schema analysis report: %v", err)
 		}
 		// restorting the value in struct for generating other format reports
 		schemaAnalysisReport.SchemaSummary.SchemaNames = schemaNames
 	case "json":
 		jsonReportBytes, err := json.MarshalIndent(schemaAnalysisReport, "", "    ")
 		if err != nil {
-			utils.ErrExit("failed to marshal the report struct into json schema analysis report: %v", err)
+			return fmt.Errorf("failed to marshal the report struct into json schema analysis report: %v", err)
 		}
 		finalReport = string(jsonReportBytes)
 	case "txt":
 		finalReport, err = applyTemplate(schemaAnalysisReport, schemaAnalysisTxtTmpl)
 		if err != nil {
-			utils.ErrExit("failed to apply template for txt schema analysis report: %v", err)
+			return fmt.Errorf("failed to apply template for txt schema analysis report: %v", err)
 		}
 	case "xml":
 		xmlReportBytes, err := xml.MarshalIndent(schemaAnalysisReport, "", "\t")
 		if err != nil {
-			utils.ErrExit("failed to marshal the report struct into xml schema analysis report: %v", err)
+			return fmt.Errorf("failed to marshal the report struct into xml schema analysis report: %v", err)
 		}
 		finalReport = string(xmlReportBytes)
 	default:
@@ -1237,7 +1274,7 @@ func generateAnalyzeSchemaReport(msr *metadb.MigrationStatusRecord, reportFormat
 
 	file, err := os.OpenFile(reportPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
-		utils.ErrExit("Error while opening: %q: %s", reportPath, err)
+		return fmt.Errorf("Error while opening: %q: %s", reportPath, err)
 	}
 	defer func() {
 		if err := file.Close(); err != nil {
@@ -1247,9 +1284,11 @@ func generateAnalyzeSchemaReport(msr *metadb.MigrationStatusRecord, reportFormat
 
 	_, err = file.WriteString(finalReport)
 	if err != nil {
-		utils.ErrExit("failed to write report to: %q: %s", reportPath, err)
+		return fmt.Errorf("failed to write report to: %q: %s", reportPath, err)
 	}
-	fmt.Printf("-- find schema analysis report at: %s\n", reportPath)
+	if printReportPath {
+		fmt.Printf("-- find schema analysis report at: %s\n", reportPath)
+	}
 	return nil
 }
 
@@ -1258,7 +1297,7 @@ var includeObjectNameInCallhomePayloadForIssueTypes = []string{
 	queryissue.UNSUPPORTED_EXTENSION,
 }
 
-func packAndSendAnalyzeSchemaPayload(status string, errorMsg string) {
+func packAndSendAnalyzeSchemaPayload(status string, errorMsg error) {
 	if !shouldSendCallhome() {
 		return
 	}
@@ -1370,4 +1409,51 @@ func createSchemaAnalysisIterationCompletedEvent(report utils.SchemaReport) cp.S
 	initBaseSourceEvent(&result.BaseEvent, "ANALYZE SCHEMA")
 	result.AnalysisReport = report
 	return result
+}
+
+// getSQLInfoArrayForObjectType extracts SQL info for a given object type, handling special cases like INDEX
+func getSQLInfoArrayForObjectType(schemaDir, objType string) []sqlInfo {
+	if objType != "INDEX" {
+		filePath := utils.GetObjectFilePath(schemaDir, objType)
+		return parseSqlFileForObjectType(filePath, objType)
+	}
+
+	// Special handling for INDEX - includes partition and FTS indexes
+	var sqlInfoArr []sqlInfo
+	filePath := utils.GetObjectFilePath(schemaDir, objType)
+	sqlInfoArr = append(sqlInfoArr, parseSqlFileForObjectType(filePath, objType)...)
+
+	// Add partition indexes
+	otherFPaths := utils.GetObjectFilePath(schemaDir, "PARTITION_INDEX")
+	sqlInfoArr = append(sqlInfoArr, parseSqlFileForObjectType(otherFPaths, "PARTITION_INDEX")...)
+
+	// Add FTS indexes
+	otherFPaths = utils.GetObjectFilePath(schemaDir, "FTS_INDEX")
+	sqlInfoArr = append(sqlInfoArr, parseSqlFileForObjectType(otherFPaths, "FTS_INDEX")...)
+
+	return sqlInfoArr
+}
+
+// collectAllDDLs collects all DDL statements from the schema without any issue detection
+func collectAllDDLs(sourceDBConf *srcdb.Source, skipList []string) []string {
+	sourceDBType = sourceDBConf.DBType
+	sourceObjList = utils.GetSchemaObjectList(sourceDBConf.DBType)
+
+	var collectedDDLs []string
+
+	for _, objType := range sourceObjList {
+		// Skip object types that are in the skip list
+		if slices.Contains(skipList, objType) {
+			continue
+		}
+
+		sqlInfoArr := getSQLInfoArrayForObjectType(schemaDir, objType)
+
+		// Collect DDLs without doing any issue detection
+		for _, sqlInfo := range sqlInfoArr {
+			collectedDDLs = append(collectedDDLs, sqlInfo.formattedStmt)
+		}
+	}
+
+	return collectedDDLs
 }

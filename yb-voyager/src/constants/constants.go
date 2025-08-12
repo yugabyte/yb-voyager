@@ -17,11 +17,15 @@ package constants
 
 const (
 	// Database Object types
-	TABLE    = "TABLE"
-	FUNCTION = "FUNCTION"
-	COLUMN   = "COLUMN"
-	INDEX    = "INDEX"
-	TYPE     = "TYPE"
+	TABLE             = "TABLE"
+	FUNCTION          = "FUNCTION"
+	PROCEDURE         = "PROCEDURE"
+	COLUMN            = "COLUMN"
+	INDEX             = "INDEX"
+	TYPE              = "TYPE"
+	VIEW              = "VIEW"
+	MATERIALIZED_VIEW = "MVIEW"
+	TRIGGER           = "TRIGGER"
 
 	// Source DB Types
 	YUGABYTEDB = "yugabytedb"
