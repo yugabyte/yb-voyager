@@ -706,6 +706,15 @@ func (a *SqlAnonymizer) handleUserDefinedTypeObjectNodes(msg protoreflect.Messag
 		SQL:		CREATE TYPE myrange AS RANGE (subtype = int4);
 		ParseTree:	stmt:{create_range_stmt:{type_name:{string:{sval:"myrange"}} params:{def_elem:{defname:"subtype"
 					arg:{type_name:{names:{string:{sval:"int4"}} }} defaction:DEFELEM_UNSPEC }}}}
+
+		SQL: CREATE TYPE timerange AS RANGE (
+				subtype = time,
+				subtype_diff = time_subtype_diff
+			);
+		ParseTree:	stmt:{create_range_stmt:{type_name:{string:{sval:"timerange"}}
+		        	params:{def_elem:{defname:"subtype" arg:{type_name:{names:{string:{sval:"pg_catalog"}} names:{string:{sval:"time"}} }}
+					defaction:DEFELEM_UNSPEC }} params:{def_elem:{defname:"subtype_diff" arg:{type_name:{names:{string:{sval:"time_subtype_diff"}} }}
+					defaction:DEFELEM_UNSPEC }}}} stmt_len:91
 	*/
 	case queryparser.PG_QUERY_CREATE_RANGE_STMT_NODE:
 		crs, ok := queryparser.ProtoAsCreateRangeStmtNode(msg)
@@ -719,26 +728,10 @@ func (a *SqlAnonymizer) handleUserDefinedTypeObjectNodes(msg protoreflect.Messag
 			return fmt.Errorf("anon range type name: %w", err)
 		}
 
-		// Anonymize subtype which can be a user defined type or a built-in type
-		for _, defElem := range crs.Params {
-			defElemNode := defElem.GetDefElem()
-			if defElemNode == nil || defElemNode.Defname == "" {
-				continue
-			}
-			switch defElemNode.Defname {
-			case "subtype":
-				// For range types, subtype should be anonymized as TYPE
-				if defElemNode.Arg == nil {
-					continue
-				}
-				typeName := defElemNode.Arg.GetTypeName()
-				if typeName == nil || IsBuiltinType(typeName) {
-					continue
-				}
-				if err := a.anonymizeStringNodes(typeName.Names, TYPE_KIND_PREFIX); err != nil {
-					return fmt.Errorf("anon range subtype: %w", err)
-				}
-			}
+		// Anonymize all range type parameters
+		err = a.anonymizeRangeTypeParameters(crs.Params)
+		if err != nil {
+			return fmt.Errorf("anon range type parameters: %w", err)
 		}
 
 	/*
@@ -2112,6 +2105,102 @@ func (a *SqlAnonymizer) anonymizeRangeVarNode(rv *pg_query.RangeVar, finalPrefix
 	if err != nil {
 		return err
 	}
+	return nil
+}
+
+// anonymizeRangeTypeParameters handles all parameters for CREATE TYPE ... AS RANGE statements
+/*
+Refer: https://www.postgresql.org/docs/current/sql-createtype.html
+
+CREATE TYPE name AS RANGE (
+    SUBTYPE = subtype
+    [ , SUBTYPE_OPCLASS = subtype_operator_class ]
+    [ , COLLATION = collation ]
+    [ , CANONICAL = canonical_function ]
+    [ , SUBTYPE_DIFF = subtype_diff_function ]
+    [ , MULTIRANGE_TYPE_NAME = multirange_type_name ]
+)
+*/
+func (a *SqlAnonymizer) anonymizeRangeTypeParameters(params []*pg_query.Node) error {
+	if params == nil {
+		return nil
+	}
+
+	for _, defElem := range params {
+		defElemNode := defElem.GetDefElem()
+		if defElemNode == nil || defElemNode.Defname == "" {
+			continue
+		}
+
+		switch defElemNode.Defname {
+		case "subtype":
+			// For range types, subtype should be anonymized as TYPE
+			if defElemNode.Arg == nil {
+				continue
+			}
+			typeName := defElemNode.Arg.GetTypeName()
+			if typeName == nil || IsBuiltinType(typeName) {
+				continue
+			}
+			if err := a.anonymizeStringNodes(typeName.Names, TYPE_KIND_PREFIX); err != nil {
+				return fmt.Errorf("anon range subtype: %w", err)
+			}
+
+		case "subtype_opclass":
+			// Handle operator class names
+			if defElemNode.Arg == nil {
+				continue
+			}
+			typeName := defElemNode.Arg.GetTypeName()
+			if err := a.anonymizeStringNodes(typeName.Names, OPCLASS_KIND_PREFIX); err != nil {
+				return fmt.Errorf("anon range subtype_opclass: %w", err)
+			}
+
+		case "collation":
+			// Handle collation names
+			if defElemNode.Arg == nil {
+				continue
+			}
+			typeName := defElemNode.Arg.GetTypeName()
+			if err := a.anonymizeStringNodes(typeName.Names, COLLATION_KIND_PREFIX); err != nil {
+				return fmt.Errorf("anon range collation: %w", err)
+			}
+
+		case "canonical":
+			// Handle canonical function names
+			if defElemNode.Arg == nil {
+				continue
+			}
+			typeName := defElemNode.Arg.GetTypeName()
+			if err := a.anonymizeStringNodes(typeName.Names, FUNCTION_KIND_PREFIX); err != nil {
+				return fmt.Errorf("anon range canonical: %w", err)
+			}
+
+		case "subtype_diff":
+			// Handle subtype_diff function names
+			if defElemNode.Arg == nil {
+				continue
+			}
+			typeName := defElemNode.Arg.GetTypeName()
+			if err := a.anonymizeStringNodes(typeName.Names, FUNCTION_KIND_PREFIX); err != nil {
+				return fmt.Errorf("anon range subtype_diff: %w", err)
+			}
+
+		case "multirange_type_name":
+			// Handle multirange type names
+			if defElemNode.Arg == nil {
+				continue
+			}
+			typeName := defElemNode.Arg.GetTypeName()
+			if typeName == nil || IsBuiltinType(typeName) {
+				continue
+			}
+			if err := a.anonymizeStringNodes(typeName.Names, TYPE_KIND_PREFIX); err != nil {
+				return fmt.Errorf("anon range multirange_type_name: %w", err)
+			}
+		}
+	}
+
 	return nil
 }
 
