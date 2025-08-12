@@ -1,0 +1,12 @@
+[
+    {
+      "table_name": "public.\"s3_csv\"",
+      "file_name": "csv_test.csv",
+      "status": "MIGRATING",
+      "total_count": 13,
+      "imported_count": 12,
+      "errored_count": 0,
+      "percentage_complete": 92.3076923076923
+    }
+  ]
+  
