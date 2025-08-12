@@ -90,6 +90,11 @@ type ExpDataLoadTimeColumnsImpact struct {
 	multiplicationFactorColocated sql.NullFloat64 `db:"multiplication_factor_colocated,string"`
 }
 
+type ExpDataLoadTimeNumNodesImpact struct {
+	numNodes             sql.NullInt64   `db:"num_nodes,string"`
+	importThroughputMbps sql.NullFloat64 `db:"import_throughput_mbps,string"`
+}
+
 type IntermediateRecommendation struct {
 	ColocatedTables                 []SourceDBMetadata
 	ShardedTables                   []SourceDBMetadata
@@ -119,6 +124,7 @@ const (
 	SHARDED_LOAD_TIME_TABLE        = "sharded_load_time"
 	LOAD_TIME_INDEX_IMPACT_TABLE   = "load_time_index_impact"
 	LOAD_TIME_COLUMNS_IMPACT_TABLE = "load_time_columns_impact"
+	LOAD_TIME_NUM_NODES_IMPACT     = "load_time_num_nodes_impact"
 	// GITHUB_RAW_LINK use raw github link to fetch the file from repository using the api:
 	// https://raw.githubusercontent.com/{username-or-organization}/{repository}/{branch}/{path-to-file}
 	GITHUB_RAW_LINK                 = "https://raw.githubusercontent.com/yugabyte/yb-voyager/main/yb-voyager/src/migassessment/resources"
@@ -257,19 +263,32 @@ func SizingAssessment(targetDbVersion *ybversion.YBVersion) error {
 		return fmt.Errorf("error while fetching experiment data for impact of number of columns on load time: %w", err)
 	}
 
+	// get experimental data for throughput scaling with number of nodes
+	numNodesImpactOnLoadTimeSharded, err := getExpDataNumNodesImpactOnLoadTime(experimentDB,
+		finalSizingRecommendation.VCPUsPerInstance, finalSizingRecommendation.MemoryPerCore, ybVersionIdToUse)
+	if err != nil {
+		return fmt.Errorf("error while fetching experiment data for throughput scaling with number of nodes: %w", err)
+	}
+
+	numNodesImportTimeDivisorCommon := 1.0
 	// calculate time taken for colocated import
 	importTimeForColocatedObjects, err := calculateTimeTakenForImport(
 		finalSizingRecommendation.ColocatedTables, sourceIndexMetadata, colocatedLoadTimes,
-		indexImpactOnLoadTimeCommon, columnsImpactOnLoadTimeCommon, COLOCATED)
+		indexImpactOnLoadTimeCommon, columnsImpactOnLoadTimeCommon, COLOCATED, numNodesImportTimeDivisorCommon)
 	if err != nil {
 		SizingReport.FailureReasoning = fmt.Sprintf("calculate time taken for colocated data import: %v", err)
 		return fmt.Errorf("calculate time taken for colocated data import: %w", err)
 	}
 
+	// find ratio of throughput of 3 nodes from experiment data vs the closest throughput of the recommended number of nodes
+	// if the number of nodes is 3, then no scaling is needed
+	numNodesImportTimeDivisorCommon = lo.Ternary(finalSizingRecommendation.NumNodes == 3, 1.0,
+		findNumNodesThroughputScalingImportTimeDivisor(numNodesImpactOnLoadTimeSharded, finalSizingRecommendation.NumNodes))
+	
 	// calculate time taken for sharded import
 	importTimeForShardedObjects, err := calculateTimeTakenForImport(
 		finalSizingRecommendation.ShardedTables, sourceIndexMetadata, shardedLoadTimes,
-		indexImpactOnLoadTimeCommon, columnsImpactOnLoadTimeCommon, SHARDED)
+		indexImpactOnLoadTimeCommon, columnsImpactOnLoadTimeCommon, SHARDED, numNodesImportTimeDivisorCommon)
 	if err != nil {
 		SizingReport.FailureReasoning = fmt.Sprintf("calculate time taken for sharded data import: %v", err)
 		return fmt.Errorf("calculate time taken for sharded data import: %w", err)
@@ -933,6 +952,7 @@ Parameters:
 	loadTimes: Experiment data for impact of load times on tables
 	indexImpacts: Data containing impact of indexes on load time.
 	objectType: COLOCATED or SHARDED
+	numNodesImportTimeDivisorCommon: Divisor for impact of number of nodes on import time.
 
 Returns:
 
@@ -942,7 +962,7 @@ Returns:
 func calculateTimeTakenForImport(tables []SourceDBMetadata,
 	sourceIndexMetadata []SourceDBMetadata, loadTimes []ExpDataLoadTime,
 	indexImpactData []ExpDataLoadTimeIndexImpact, numColumnImpactData []ExpDataLoadTimeColumnsImpact,
-	objectType string) (float64, error) {
+	objectType string, numNodesImportTimeDivisorCommon float64) (float64, error) {
 	var importTime float64
 
 	// we need to calculate the time taken for import for every table.
@@ -965,7 +985,8 @@ func calculateTimeTakenForImport(tables []SourceDBMetadata,
 		importTime += (loadTimeMultiplicationFactorWrtIndexes * loadTimeMultiplicationFactorWrtNumColumns * tableImportTimeSec) / 60
 	}
 
-	return math.Ceil(importTime), nil
+	// divide the total import time by the divisor for number of nodes.
+	return math.Ceil(importTime / numNodesImportTimeDivisorCommon), nil
 }
 
 /*
@@ -1114,6 +1135,54 @@ func getExpDataNumColumnsImpactOnLoadTime(experimentDB *sql.DB, vCPUPerInstance 
 		loadTimeColumnsImpacts = append(loadTimeColumnsImpacts, loadTimeColumnsImpact)
 	}
 	return loadTimeColumnsImpacts, nil
+}
+
+/*
+getExpDataNumNodesImpactOnLoadTime fetches data for throughput scaling with number of nodes from the experiment
+data table.
+Parameters:
+
+	experimentDB: Connection to the experiment database
+	vCPUPerInstance: Number of virtual CPUs per instance.
+	memPerCore: Memory per core.
+	ybVersionIdToUse: yb version id to use w.r.t. given target yb version.
+
+Returns:
+
+	[]ExpDataLoadTimeNumNodesImpact: A slice containing the fetched throughput scaling information based on number of nodes.
+	error: Error if any.
+*/
+func getExpDataNumNodesImpactOnLoadTime(experimentDB *sql.DB, vCPUPerInstance int,
+	memPerCore int, ybVersionIdToUse int64) ([]ExpDataLoadTimeNumNodesImpact, error) {
+	selectQuery := fmt.Sprintf(`
+		SELECT num_nodes, 
+			   import_throughput_mbps
+		FROM %v 
+		WHERE num_cores = ? 
+			AND mem_per_core = ?
+		AND yb_version_id = ? 
+		ORDER BY num_nodes;
+	`, LOAD_TIME_NUM_NODES_IMPACT)
+	rows, err := experimentDB.Query(selectQuery, vCPUPerInstance, memPerCore, ybVersionIdToUse)
+
+	if err != nil {
+		return nil, fmt.Errorf("error while fetching num nodes impact info with query [%s]: %w", selectQuery, err)
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			log.Warnf("failed to close result set for query: [%s]", selectQuery)
+		}
+	}()
+
+	var loadTimeNumNodesImpacts []ExpDataLoadTimeNumNodesImpact
+	for rows.Next() {
+		var loadTimeNumNodesImpact ExpDataLoadTimeNumNodesImpact
+		if err = rows.Scan(&loadTimeNumNodesImpact.numNodes, &loadTimeNumNodesImpact.importThroughputMbps); err != nil {
+			return nil, fmt.Errorf("cannot fetch data from experiment data table with query [%s]: %w", selectQuery, err)
+		}
+		loadTimeNumNodesImpacts = append(loadTimeNumNodesImpacts, loadTimeNumNodesImpact)
+	}
+	return loadTimeNumNodesImpacts, nil
 }
 
 /*
@@ -1643,4 +1712,46 @@ func findClosestVersion(targetDbVersion *ybversion.YBVersion, availableVersions 
 	} else {
 		return closest.versionId
 	}
+}
+
+/*
+findNumNodesThroughputScalingImportTimeDivisor Helper function to find the relative import time divisor based on throughput scaling with number of nodes
+
+Parameters:
+  - numNodesImpactData: slice of experiment data for throughput scaling with different number of nodes
+  - targetNumNodes: the target number of nodes to calculate ratio for
+
+Returns:
+  - returns the relative import time divisor based on throughput scaling with number of nodes
+*/
+func findNumNodesThroughputScalingImportTimeDivisor(numNodesImpactData []ExpDataLoadTimeNumNodesImpact, targetNumNodes float64) float64 {
+	if len(numNodesImpactData) == 0 {
+		return 1.0 // default ratio if no data available
+	}
+
+	// Find the closest entry to targetNumNodes
+	closest := numNodesImpactData[0]
+	minDiff := math.MaxFloat64
+
+	for _, data := range numNodesImpactData {
+		if data.numNodes.Valid && data.importThroughputMbps.Valid {
+			diff := math.Abs(targetNumNodes - float64(data.numNodes.Int64))
+			if diff < minDiff {
+				minDiff = diff
+				closest = data
+			}
+		}
+	}
+
+	if !closest.importThroughputMbps.Valid || closest.importThroughputMbps.Float64 == 0 || !closest.numNodes.Valid || closest.numNodes.Int64 == 0 {
+		return 1.0 // default ratio if closest data is invalid
+	}
+
+	// Calculate per-node throughput from the closest entry
+	perNodeThroughput := closest.importThroughputMbps.Float64 / float64(closest.numNodes.Int64)
+
+	// Calculate ratio = (targetNumNodes * perNodeThroughput) / closest.importThroughputMbps
+	ratio := (targetNumNodes * perNodeThroughput) / closest.importThroughputMbps.Float64
+
+	return ratio
 }
