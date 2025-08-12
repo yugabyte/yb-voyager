@@ -2167,25 +2167,25 @@ func (a *SqlAnonymizer) anonymizeColumnDefNode(cd *pg_query.ColumnDef) (err erro
 // anonymizeConstantValue handles anonymization of constant values in SQL statements
 // This function consolidates the logic for handling different types of constant values
 // including TypeName, A_Const (string, int, float, bool), String_, and raw values
-func (a *SqlAnonymizer) anonymizeConstantValue(arg *pg_query.Node, prefix string) error {
-	if arg == nil {
+func (a *SqlAnonymizer) anonymizeConstantValue(node *pg_query.Node, prefix string) error {
+	if node == nil {
 		return nil
 	}
 
 	// Handle TypeName nodes (e.g., alignment = int4)
-	if typeName := arg.GetTypeName(); typeName != nil {
+	if typeName := node.GetTypeName(); typeName != nil {
 		if err := a.anonymizeStringNodes(typeName.Names, prefix); err != nil {
 			return fmt.Errorf("anon constant type value: %w", err)
 		}
 		return nil
 	}
 
-	if aConst := arg.GetAConst(); aConst != nil {
+	if aConst := node.GetAConst(); aConst != nil {
 		return a.anonymizeAConst(aConst, prefix)
 	}
 
 	// Handle String_ nodes (e.g., delimiter = ',')
-	if str := arg.GetString_(); str != nil {
+	if str := node.GetString_(); str != nil {
 		hashedVal, err := a.registry.GetHash(prefix, str.Sval)
 		if err != nil {
 			return fmt.Errorf("anon constant string value: %w", err)
@@ -2195,13 +2195,13 @@ func (a *SqlAnonymizer) anonymizeConstantValue(arg *pg_query.Node, prefix string
 	}
 
 	// Handle Integer nodes (e.g., internallength = 1548)
-	if integer := arg.GetInteger(); integer != nil {
+	if integer := node.GetInteger(); integer != nil {
 		hashedVal, err := a.registry.GetHash(prefix, fmt.Sprintf("%d", integer.Ival))
 		if err != nil {
 			return fmt.Errorf("anon constant integer value: %w", err)
 		}
 		// Replace the integer node with a string node to preserve parse tree integrity
-		*arg = pg_query.Node{
+		*node = pg_query.Node{
 			Node: &pg_query.Node_String_{
 				String_: &pg_query.String{Sval: hashedVal},
 			},
