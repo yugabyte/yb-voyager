@@ -87,7 +87,7 @@ main() {
 	if [ "${SOURCE_DB_TYPE}" = "postgresql" ]; then
 		#give fallback permissions for pg before starting as it is required for running snapshot validations where we insert data with ybvoyager user which will not have any usage permissions on sequences.
 		conn_string="postgresql://${SOURCE_DB_ADMIN_USER}:${SOURCE_DB_ADMIN_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${SOURCE_DB_NAME}"
-		echo "2" | psql "${conn_string}" -v voyager_user="${SOURCE_DB_USER}" \
+		echo "1" | psql "${conn_string}" -v voyager_user="${SOURCE_DB_USER}" \
                                     -v schema_list="${SOURCE_DB_SCHEMA}" \
                                     -v replication_group='replication_group' \
                                     -v is_live_migration=1 \

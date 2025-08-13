@@ -244,14 +244,9 @@ GRANT pg_read_all_stats to :voyager_user;
                     END LOOP;
                 END $$;
 
-                \echo 'Found ' :rdsadmin_owned_table_count ' rdsadmin-owned table(s) in the selected schema(s).'
-                \echo 'These tables are owned by rdsadmin; role membership cannot be granted to the migration user.'
-                \prompt 'Proceed anyway? We will not be granting ownership to the migration user for these tables. (yes/no): ' proceed
-                \if :proceed
-                \else
-                    \echo 'Aborting as requested.'
-                    \q
-                \endif
+                \echo 'Found ' :rdsadmin_owned_table_count ' rdsadmin-owned table(s) in the selected schema(s). Role membership cannot be granted to the migration user for rdsadmin-owned tables.'
+                \echo 'Aborting. Use option 1 instead.'
+                \q
             \endif
 
             \echo ''
