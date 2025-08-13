@@ -58,7 +58,9 @@ type Source struct {
 	StrExportObjectTypeList  string        `json:"str_export_object_type_list"`
 	StrExcludeObjectTypeList string        `json:"str_exclude_object_type_list"`
 	RunGuardrailsChecks      utils.BoolStr `json:"run_guardrails_checks"`
-	IsYBGrpcConnector        bool          `json:"-"`
+	// TECH PREVIEW: allow CLOB export for Oracle via ora2pg in offline snapshot path
+	AllowOracleClobDataExport utils.BoolStr `json:"allow_oracle_clob_data_export"`
+	IsYBGrpcConnector         bool          `json:"-"`
 
 	ExportObjectTypeList []string `json:"-"`
 	sourceDB             SourceDB `json:"-"`

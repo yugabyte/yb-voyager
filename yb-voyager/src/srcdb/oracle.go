@@ -560,6 +560,11 @@ func (ora *Oracle) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple, u
 			//Using this ContainsAnyStringFromSlice as the catalog we use for fetching datatypes uses the data_type only
 			// which just contains the base type for example VARCHARs it won't include any length, precision or scale information
 			//of these types there are other columns available for these information so we just do string match of types with our list
+			// Experimental flag: allow CLOB export in offline (ora2pg) path only
+			if bool(ora.source.AllowOracleClobDataExport) && !useDebezium && !isStreamingEnabled && strings.EqualFold(dataTypes[i], "CLOB") {
+				supportedColumnNames = append(supportedColumnNames, columns[i])
+				continue
+			}
 			if isUdtWithDebezium || utils.ContainsAnyStringFromSlice(OracleUnsupportedDataTypes, dataTypes[i]) {
 				log.Infof("Skipping unsupproted column %s.%s of type %s", tname, columns[i], dataTypes[i])
 				unsupportedColumnNames = append(unsupportedColumnNames, fmt.Sprintf("%s.%s of type %s", tname, columns[i], dataTypes[i]))
