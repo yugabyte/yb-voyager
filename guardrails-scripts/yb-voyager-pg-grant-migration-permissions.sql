@@ -219,36 +219,6 @@ GRANT pg_read_all_stats to :voyager_user;
 
         \else
             -- Option 2: Grant the original owners of the tables to the migration user
-            -- Count rdsadmin-owned tables in selected schemas and expose as psql variable
-            SELECT COUNT(*) AS rdsadmin_owned_table_count
-            FROM pg_catalog.pg_tables t
-            WHERE t.schemaname = ANY(string_to_array(current_setting('myvars.schema_list'), ',')::text[])
-            AND t.tableowner = 'rdsadmin';
-            \gset
-
-            -- If any found, warn per-table and prompt to proceed
-            \if :rdsadmin_owned_table_count
-                \echo ''
-                DO $$
-                DECLARE
-                    r RECORD;
-                BEGIN
-                    FOR r IN
-                        SELECT t.schemaname, t.tablename
-                        FROM pg_catalog.pg_tables t
-                        WHERE t.schemaname = ANY(string_to_array(current_setting('myvars.schema_list'), ',')::text[])
-                        AND t.tableowner = 'rdsadmin'
-                    LOOP
-                        RAISE WARNING 'Table %.% is owned by rdsadmin; cannot grant this role to %.',
-                            r.schemaname, r.tablename, current_setting('myvars.voyager_user');
-                    END LOOP;
-                END $$;
-
-                \echo 'Found ' :rdsadmin_owned_table_count ' rdsadmin-owned table(s) in the selected schema(s). Role membership cannot be granted to the migration user for rdsadmin-owned tables.'
-                \echo 'Aborting. Use option 1 instead.'
-                \q
-            \endif
-
             \echo ''
             \echo '--- Granting the original owners of the tables to the migration user ---'
             DO $$
