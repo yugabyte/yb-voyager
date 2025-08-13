@@ -152,7 +152,7 @@ GRANT pg_read_all_stats to :voyager_user;
     \echo 'Choose how to grant permissions for the selected schema(s): ' :schema_list
     \echo 'Note: For live migration, CREATE PUBLICATION requires table ownership; choose one option to ensure the migration user has required ownership.'
     \echo '  1) Transfer ownership of ALL tables to replication group ' :replication_group ', and add original owners + ' :voyager_user ' to that group.'
-    \echo '  2) Grant each table\'s original owner role to ' :voyager_user ' (excluding rdsadmin).'
+    \echo '  2) Grant each table\s original owner role to ' :voyager_user ' (excluding rdsadmin).'
     \prompt 'Enter choice (1/2): ' transfer_choice
     \o /dev/null
     SELECT 
