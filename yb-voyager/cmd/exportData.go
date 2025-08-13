@@ -193,10 +193,11 @@ func packAndSendExportDataPayload(status string, errorMsg error) {
 
 	payload.MigrationPhase = EXPORT_DATA_PHASE
 	exportDataPayload := callhome.ExportDataPhasePayload{
-		ParallelJobs:     int64(source.NumConnections),
-		StartClean:       bool(startClean),
-		Error:            callhome.SanitizeErrorMsg(errorMsg),
-		ControlPlaneType: getControlPlaneType(),
+		ParallelJobs:              int64(source.NumConnections),
+		StartClean:                bool(startClean),
+		Error:                     callhome.SanitizeErrorMsg(errorMsg),
+		ControlPlaneType:          getControlPlaneType(),
+		AllowOracleClobDataExport: bool(source.AllowOracleClobDataExport),
 	}
 
 	updateExportSnapshotDataStatsInPayload(&exportDataPayload)

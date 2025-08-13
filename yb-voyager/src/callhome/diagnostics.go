@@ -225,12 +225,13 @@ type ExportDataPhasePayload struct {
 	StartClean              bool   `json:"start_clean"`
 	ExportSnapshotMechanism string `json:"export_snapshot_mechanism,omitempty"`
 	//TODO: see if these three can be changed to not use omitempty to put the data for 0 rate or total events
-	Phase               string `json:"phase,omitempty"`
-	TotalExportedEvents int64  `json:"total_exported_events,omitempty"`
-	EventsExportRate    int64  `json:"events_export_rate_3m,omitempty"`
-	LiveWorkflowType    string `json:"live_workflow_type,omitempty"`
-	Error               string `json:"error"`
-	ControlPlaneType    string `json:"control_plane_type"`
+	Phase                     string `json:"phase,omitempty"`
+	TotalExportedEvents       int64  `json:"total_exported_events,omitempty"`
+	EventsExportRate          int64  `json:"events_export_rate_3m,omitempty"`
+	LiveWorkflowType          string `json:"live_workflow_type,omitempty"`
+	Error                     string `json:"error"`
+	ControlPlaneType          string `json:"control_plane_type"`
+	AllowOracleClobDataExport bool   `json:"allow_oracle_clob_data_export"`
 }
 
 type ImportSchemaPhasePayload struct {
