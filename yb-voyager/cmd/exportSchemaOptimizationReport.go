@@ -28,7 +28,6 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/sqltransformer"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 // =============================================== schema optimization changes report
@@ -60,9 +59,9 @@ func (r *RedundantIndexChange) IsEmpty() bool {
 	return r == nil || len(r.TableToRemovedIndexesMap) == 0
 }
 
-// AppliedShardingRecommendationChange represents the application of sharding recommendations
+// ShardingRecommendationChange represents the application of sharding recommendations
 // to database objects (tables or materialized views) for improved performance.
-type AppliedShardingRecommendationChange struct {
+type ShardingRecommendationChange struct {
 	Title                    string   `json:"title"`
 	Description              string   `json:"description"`
 	ReferenceFile            string   `json:"reference_file"`
@@ -73,7 +72,7 @@ type AppliedShardingRecommendationChange struct {
 }
 
 // IsEmpty returns true if no sharding recommendations were applied
-func (a *AppliedShardingRecommendationChange) IsEmpty() bool {
+func (a *ShardingRecommendationChange) IsEmpty() bool {
 	return a == nil || (len(a.ShardedObjects) == 0)
 }
 
@@ -88,8 +87,8 @@ type SchemaOptimizationReport struct {
 
 	// Optimization changes applied
 	RedundantIndexChange        *RedundantIndexChange                `json:"redundant_index_change,omitempty"`
-	TableShardingRecommendation *AppliedShardingRecommendationChange `json:"table_sharding_recommendation,omitempty"`
-	MviewShardingRecommendation *AppliedShardingRecommendationChange `json:"mview_sharding_recommendation,omitempty"`
+	TableShardingRecommendation *ShardingRecommendationChange `json:"table_sharding_recommendation,omitempty"`
+	MviewShardingRecommendation *ShardingRecommendationChange `json:"mview_sharding_recommendation,omitempty"`
 }
 
 // HasOptimizations returns true if any optimizations were applied
@@ -110,7 +109,7 @@ func NewRedundantIndexChange() *RedundantIndexChange {
 }
 
 // NewAppliedShardingRecommendationChange creates a new AppliedShardingRecommendationChange with default values
-func NewAppliedShardingRecommendationChange(objectType string) *AppliedShardingRecommendationChange {
+func NewAppliedShardingRecommendationChange(objectType string) *ShardingRecommendationChange {
 	var title, description string
 	switch objectType {
 	case TABLE:
@@ -124,7 +123,7 @@ func NewAppliedShardingRecommendationChange(objectType string) *AppliedShardingR
 		description = "Sharding recommendations from the assessment have been applied to optimize data distribution and performance."
 	}
 
-	return &AppliedShardingRecommendationChange{
+	return &ShardingRecommendationChange{
 		Title:             title,
 		Description:       description,
 		ShardedObjects:    make([]string, 0),
@@ -162,11 +161,7 @@ func buildRedundantIndexChange(indexTransformer *sqltransformer.IndexFileTransfo
 	redundantIndexChange.ReferenceFileDisplayName = RedundantIndexesFileName
 
 	tableToIndexMap := make(map[string][]string)
-	redundantIndexesToRemove := make([]*sqlname.ObjectNameQualifiedWithTableName, 0)
-	indexTransformer.RedundantIndexesToExistingIndexToRemove.IterKV(func(key *sqlname.ObjectNameQualifiedWithTableName, value string) (bool, error) {
-		redundantIndexesToRemove = append(redundantIndexesToRemove, key)
-		return true, nil
-	})
+	redundantIndexesToRemove := indexTransformer.RedundantIndexesToExistingIndexToRemove.ActualKeys()
 	redundantIndexes := indexTransformer.RemovedRedundantIndexes
 	if skipPerfOptimizations {
 		redundantIndexes = redundantIndexesToRemove
@@ -183,8 +178,8 @@ func buildRedundantIndexChange(indexTransformer *sqltransformer.IndexFileTransfo
 	return redundantIndexChange
 }
 
-func buildShardingTableRecommendationChange(shardedTables []string, colocatedTables []string) *AppliedShardingRecommendationChange {
-	var appliedRecommendationTable *AppliedShardingRecommendationChange
+func buildShardingTableRecommendationChange(shardedTables []string, colocatedTables []string) *ShardingRecommendationChange {
+	var appliedRecommendationTable *ShardingRecommendationChange
 	if !assessmentRecommendationsApplied { //If assessment recommendations not applied and skip recommendations is true, then show that its not applied
 		if skipRecommendations {
 			appliedRecommendationTable = NewAppliedShardingRecommendationChange("") // Dummy entry for both table and mview as no need to show two
@@ -217,8 +212,8 @@ func buildShardingTableRecommendationChange(shardedTables []string, colocatedTab
 	return appliedRecommendationTable
 }
 
-func buildShardingMviewRecommendationChange(shardedMviews []string, colocatedMviews []string) *AppliedShardingRecommendationChange {
-	var appliedRecommendationMview *AppliedShardingRecommendationChange
+func buildShardingMviewRecommendationChange(shardedMviews []string, colocatedMviews []string) *ShardingRecommendationChange {
+	var appliedRecommendationMview *ShardingRecommendationChange
 	mviewFile := utils.GetObjectFilePath(filepath.Join(exportDir, "schema"), MVIEW)
 	//To mviews then add that change separately
 	if !utils.FileOrFolderExists(mviewFile) || len(shardedMviews) == 0 { // only display this in case there is any modifield sharded mview
@@ -257,9 +252,6 @@ func generatePerformanceOptimizationReport(indexTransformer *sqltransformer.Inde
 		//Not generating the report in case other than PG
 		return nil
 	}
-	redundantIndexChange := buildRedundantIndexChange(indexTransformer)
-	appliedRecommendationTable := buildShardingTableRecommendationChange(shardedTables, colocatedTables)
-	appliedRecommendationMview := buildShardingMviewRecommendationChange(shardedMviews, colocatedMviews)
 
 	htmlReportFilePath := filepath.Join(exportDir, "reports", fmt.Sprintf("%s%s", SchemaOptimizationReportFileName, HTML_EXTENSION))
 	log.Infof("writing changes report to file: %s", htmlReportFilePath)
@@ -271,9 +263,9 @@ func generatePerformanceOptimizationReport(indexTransformer *sqltransformer.Inde
 		strings.Join(strings.Split(source.Schema, "|"), ", "),
 		source.DBVersion,
 	)
-	schemaOptimizationReport.RedundantIndexChange = redundantIndexChange
-	schemaOptimizationReport.TableShardingRecommendation = appliedRecommendationTable
-	schemaOptimizationReport.MviewShardingRecommendation = appliedRecommendationMview
+	schemaOptimizationReport.RedundantIndexChange = buildRedundantIndexChange(indexTransformer)
+	schemaOptimizationReport.TableShardingRecommendation = buildShardingTableRecommendationChange(shardedTables, colocatedTables)
+	schemaOptimizationReport.MviewShardingRecommendation = buildShardingMviewRecommendationChange(shardedMviews, colocatedMviews)
 
 	if schemaOptimizationReport.HasOptimizations() {
 		file, err := os.Create(htmlReportFilePath)

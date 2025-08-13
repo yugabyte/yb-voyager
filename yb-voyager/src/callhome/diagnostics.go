@@ -181,14 +181,14 @@ type AssessMigrationBulkPhasePayload struct {
 }
 
 type SchemaOptimizationChange struct {
-	ChangeType string   `json:"change_type"`
-	IsApplied  bool     `json:"is_applied"`
-	Objects    []string `json:"objects"`
+	OptimizationType string   `json:"optimization_type"`
+	IsApplied        bool     `json:"is_applied"`
+	Objects          []string `json:"objects"`
 }
 
 /*
 Version History
-1.0: Added a new field as PayloadVersion
+1.0: Added a new field as PayloadVersion and SchemaOptimizationChanges
 */
 var EXPORT_SCHEMA_CALLHOME_PAYLOAD_VERSION = "1.0"
 

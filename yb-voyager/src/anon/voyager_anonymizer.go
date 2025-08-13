@@ -49,7 +49,7 @@ func (s *VoyagerAnonymizer) AnonymizeTableName(tableName string) (string, error)
 	return s.tableNameAnonymizer.Anonymize(tableName)
 }
 
-func (s *VoyagerAnonymizer) AnonymizeMviewName(mviewName string) (string, error) {
+func (s *VoyagerAnonymizer) AnonymizeMViewName(mviewName string) (string, error) {
 	return s.mviewNameAnonymizer.Anonymize(mviewName)
 }
 

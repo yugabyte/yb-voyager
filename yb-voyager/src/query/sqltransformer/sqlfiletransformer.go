@@ -100,10 +100,7 @@ func (t *IndexFileTransformer) Transform(file string) (string, error) {
 		return "", fmt.Errorf("failed to remove redundant indexes: %w", err)
 	}
 	t.RedundantIndexesFileName = filepath.Join(filepath.Dir(file), REMOVED_REDUNDANT_INDEXES_FILE_NAME)
-	removedIndexToStmtMap.IterKV(func(key *sqlname.ObjectNameQualifiedWithTableName, value *pg_query.RawStmt) (bool, error) {
-		t.RemovedRedundantIndexes = append(t.RemovedRedundantIndexes, key)
-		return true, nil
-	})
+	t.RemovedRedundantIndexes = removedIndexToStmtMap.ActualKeys()
 	err = t.writeRemovedRedundantIndexesToFile(removedIndexToStmtMap)
 	if err != nil {
 		return "", fmt.Errorf("failed to write removed redundant indexes to file: %w", err)

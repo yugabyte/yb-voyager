@@ -294,14 +294,19 @@ func getAnonymizedDDLs(sourceDBConf *srcdb.Source) []string {
 	return anonymizedDDLs
 }
 
-
 // ============================export schema callhome payload information============================
+
+const (
+	REDUNDANT_INDEX_CHANGE_TYPE               = "redundant_index"
+	TABLE_SHARDING_RECOMMENDATION_CHANGE_TYPE = "table_sharding_recommendation"
+	MVIEW_SHARDING_RECOMMENDATION_CHANGE_TYPE = "mview_sharding_recommendation"
+)
 
 func buildCallhomeSchemaOptimizationChanges() []callhome.SchemaOptimizationChange {
 	if schemaOptimizationReport == nil {
 		return nil
 	}
-
+	//For individual change, adding the anonymized object names to the callhome payload
 	schemaOptimizationChanges := make([]callhome.SchemaOptimizationChange, 0)
 	if schemaOptimizationReport.RedundantIndexChange != nil {
 		objects := make([]string, 0)
@@ -321,9 +326,9 @@ func buildCallhomeSchemaOptimizationChanges() []callhome.SchemaOptimizationChang
 			}
 		}
 		schemaOptimizationChanges = append(schemaOptimizationChanges, callhome.SchemaOptimizationChange{
-			ChangeType: "redundant_index_change",
-			IsApplied:  schemaOptimizationReport.RedundantIndexChange.IsApplied,
-			Objects:    objects,
+			OptimizationType: REDUNDANT_INDEX_CHANGE_TYPE,
+			IsApplied:        schemaOptimizationReport.RedundantIndexChange.IsApplied,
+			Objects:          objects,
 		})
 	}
 	if schemaOptimizationReport.TableShardingRecommendation != nil {
@@ -337,15 +342,15 @@ func buildCallhomeSchemaOptimizationChanges() []callhome.SchemaOptimizationChang
 			objects = append(objects, anonymizedObj)
 		}
 		schemaOptimizationChanges = append(schemaOptimizationChanges, callhome.SchemaOptimizationChange{
-			ChangeType: "table_sharding_recommendation",
-			IsApplied:  schemaOptimizationReport.TableShardingRecommendation.IsApplied,
-			Objects:    objects,
+			OptimizationType: TABLE_SHARDING_RECOMMENDATION_CHANGE_TYPE,
+			IsApplied:        schemaOptimizationReport.TableShardingRecommendation.IsApplied,
+			Objects:          objects,
 		})
 	}
 	if schemaOptimizationReport.MviewShardingRecommendation != nil {
 		objects := make([]string, 0)
 		for _, obj := range schemaOptimizationReport.MviewShardingRecommendation.ShardedObjects {
-			anonymizedObj, err := anonymizer.AnonymizeMviewName(obj)
+			anonymizedObj, err := anonymizer.AnonymizeMViewName(obj)
 			if err != nil {
 				log.Errorf("callhome: failed to anonymise mview-%s: %v", obj, err)
 				continue
@@ -353,9 +358,9 @@ func buildCallhomeSchemaOptimizationChanges() []callhome.SchemaOptimizationChang
 			objects = append(objects, anonymizedObj)
 		}
 		schemaOptimizationChanges = append(schemaOptimizationChanges, callhome.SchemaOptimizationChange{
-			ChangeType: "mview_sharding_recommendation",
-			IsApplied:  schemaOptimizationReport.MviewShardingRecommendation.IsApplied,
-			Objects:    schemaOptimizationReport.MviewShardingRecommendation.ShardedObjects,
+			OptimizationType: MVIEW_SHARDING_RECOMMENDATION_CHANGE_TYPE,
+			IsApplied:        schemaOptimizationReport.MviewShardingRecommendation.IsApplied,
+			Objects:          schemaOptimizationReport.MviewShardingRecommendation.ShardedObjects,
 		})
 	}
 	return schemaOptimizationChanges
