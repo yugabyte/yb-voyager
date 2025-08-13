@@ -101,20 +101,38 @@ class YugabyteTabletInfo:
                     size_info = cells[8]  # On-disk size column
                     raft_config = cells[9]  # RaftConfig column
                     
+                    # Debug: Check if this is the missing tablet
+                    if tablet_id == "00004000000030008000000000005002":
+                        print(f"DEBUG: Found missing tablet {tablet_id} on {node_ip}")
+                        print(f"DEBUG:   Table name: '{table_name_cell}' (looking for '{table_name}')")
+                        print(f"DEBUG:   Namespace: '{namespace}'")
+                        print(f"DEBUG:   State: '{state}'")
+                        print(f"DEBUG:   Partition: '{partition_info}'")
+                        print(f"DEBUG:   RaftConfig: {raft_config.get_text(strip=True) if raft_config else 'None'}")
+                        print(f"DEBUG:   Table name match: {table_name.lower() == table_name_cell.lower()}")
+                    
                     # Only process tablets for the specified table (exact match)
                     if table_name.lower() == table_name_cell.lower():
                         # Check if this node is the leader for this tablet
                         is_leader = self.is_tablet_leader(raft_config, node_ip)
+                        
+                        # Debug: Check if this is the missing tablet
+                        if tablet_id == "00004000000030008000000000005002":
+                            print(f"DEBUG:   Is leader: {is_leader}")
+                        
+                                                # Debug: Show all tablets for the target table
+                        if tablet_id == "00004000000030008000000000005002":
+                            print(f"DEBUG:   Adding tablet {tablet_id} to results (leader: {is_leader})")
                         
                         # Only include if this node is the leader
                         if is_leader:
                             # Parse partition information
                             partition_type, partition_keys = self.parse_partition_info(partition_info)
                             
-                                                    # Parse size information
-                        size_str = self.parse_size_info(size_info)
-                        
-                        tablet_info = {
+                            # Parse size information
+                            size_str = self.parse_size_info(size_info)
+                            
+                            tablet_info = {
                                 'node_host': node_ip,
                                 'tablet_id': tablet_id,
                                 'partition_type': partition_type,
@@ -122,7 +140,11 @@ class YugabyteTabletInfo:
                                 'size': size_str,  # Use original size string instead of bytes
                                 'state': state
                             }
-                        tablets.append(tablet_info)
+                            tablets.append(tablet_info)
+                        else:
+                            # Debug: Show non-leader tablets for the target table
+                            if tablet_id == "00004000000030008000000000005002":
+                                print(f"DEBUG:   Skipping tablet {tablet_id} - not a leader on {node_ip}")
             
             return tablets
         except requests.exceptions.RequestException as e:
@@ -248,6 +270,13 @@ class YugabyteTabletInfo:
         
         # All tablet information comes from UI scraping
         combined_tablets = all_tablets
+        
+        # Debug: Show summary of tablets found
+        print(f"DEBUG: Total tablets found for table '{table_name}': {len(combined_tablets)}")
+        if len(combined_tablets) > 0:
+            print("DEBUG: Tablet IDs found:")
+            for tablet in combined_tablets:
+                print(f"DEBUG:   {tablet['tablet_id']} on {tablet['node_host']}")
         
         # Create DataFrame
         df = pd.DataFrame(combined_tablets)
