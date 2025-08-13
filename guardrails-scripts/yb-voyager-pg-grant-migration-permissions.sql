@@ -230,7 +230,6 @@ GRANT pg_read_all_stats to :voyager_user;
                     FROM pg_catalog.pg_tables t
                     WHERE t.schemaname = ANY(string_to_array(current_setting('myvars.schema_list'), ',')::text[])
                     AND t.tableowner <> current_setting('myvars.voyager_user')
-                    AND t.tableowner NOT IN ('rdsadmin')
                 LOOP
                     RAISE NOTICE 'Granting role: GRANT % TO %;', owner_name, current_setting('myvars.voyager_user');
                     EXECUTE format('GRANT %I TO %I;', owner_name, current_setting('myvars.voyager_user'));
