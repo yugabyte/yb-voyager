@@ -623,7 +623,6 @@ func addLeafPartitionsInTableList(tableList []sqlname.NameTuple, addAllLeafParti
 			modifiedTableList = append(modifiedTableList, rootTable)
 		}
 	}
-	log.Infof("partitions of all root table being exported: %v", partitionsToRootTableMap)
 	return partitionsToRootTableMap, lo.UniqBy(modifiedTableList, func(table sqlname.NameTuple) string {
 		return table.ForKey()
 	}), nil
@@ -857,6 +856,7 @@ func applyTableListFlagsOnFullListAndAddLeafPartitions(fullTableList []sqlname.N
 	var includeTableList, excludeTableList []sqlname.NameTuple
 
 	applyFilterAndAddLeafTable := func(flagList string, flagName string) ([]sqlname.NameTuple, error) {
+		log.Infof("applying filter for %s list of tables and adding leaf tables - %s", flagName, flagList)
 		flagTableList, err := extractTableListFromString(fullTableList, flagList, flagName)
 		if err != nil {
 			return nil, fmt.Errorf("error extracting the %s list: %w", flagName, err)
@@ -865,6 +865,9 @@ func applyTableListFlagsOnFullListAndAddLeafPartitions(fullTableList []sqlname.N
 		if err != nil {
 			return nil, fmt.Errorf("failed to add the leaf partitions in %s table list: %w", flagName, err)
 		}
+		log.Infof("filtered %s list of tables and added leaf tables - %v", flagName, lo.Map(flagTableList, func(t sqlname.NameTuple, _ int) string {
+			return t.ForOutput()
+		}))
 		return flagTableList, nil
 	}
 
@@ -887,12 +890,18 @@ func applyTableListFlagsOnFullListAndAddLeafPartitions(fullTableList []sqlname.N
 		//this is only for removing  the mid level partitioned table from fullTableList
 		//by passing false in `addAllLeafPartitions` boolean flag which  means this function won't the leaf parittions again it will just filter the list based on type
 		//i.e. only add if its a normal, root, or leaf table.
+		log.Infof("keeping only leaf and root tables in full table list - %v", lo.Map(includeTableList, func(t sqlname.NameTuple, _ int) string {
+			return t.ForOutput()
+		}))
 		_, includeTableList, err = addLeafPartitionsInTableList(includeTableList, false)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error keeping only leaf and root tables: %w", err)
 		}
+		log.Infof("filtered full table list and added leaf tables - %v", lo.Map(includeTableList, func(t sqlname.NameTuple, _ int) string {
+			return t.ForOutput()
+		}))
 	}
-	//return the include and exclude table list generated from the command flags  table-list (include list) / exclude-table-list in this run
+	//return the include and exclude table list generated from the command flags  table-list (include list) / exclude-table-list in this
 
 	return includeTableList, excludeTableList, nil
 }
@@ -909,6 +918,9 @@ func fetchTablesNamesFromSourceAndFilterTableList() (map[string]string, []sqlnam
 		}
 		nameTupleTableListFromDB = append(nameTupleTableListFromDB, tuple)
 	}
+	log.Infof("fetched tables from source - %v", lo.Map(nameTupleTableListFromDB, func(t sqlname.NameTuple, _ int) string {
+		return t.ForOutput()
+	}))
 
 	//apply table list flags filter on the nameTupleTableListFromDB
 	includeTableList, excludeTableList, err := applyTableListFlagsOnFullListAndAddLeafPartitions(nameTupleTableListFromDB, source.TableList, source.ExcludeTableList)
@@ -937,6 +949,10 @@ func fetchTablesNamesFromSourceAndFilterTableList() (map[string]string, []sqlnam
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to add the leaf partitions in table list: %w", err)
 	}
+	log.Infof("filtered table list in first run - %v", lo.Map(tableListInFirstRun, func(t sqlname.NameTuple, _ int) string {
+		return t.ForOutput()
+	}))
+	log.Infof("partitions of all root table being exported: %v", partitionsToRootTableMap)
 	return partitionsToRootTableMap, tableListInFirstRun, nil
 }
 
@@ -977,6 +993,8 @@ func retrieveFirstRunListAndPartitionsRootMap(msr *metadb.MigrationStatusRecord)
 
 	}
 
+	log.Infof("stored table list from meta db - %v", storedTableList)
+
 	for _, table := range storedTableList {
 		tuple, err := getNameTupleFromQualifiedObject(table, nil, fetchNameTupleFromNameRegDirectly)
 		if err != nil {
@@ -1011,6 +1029,7 @@ func getInitialTableList() (map[string]string, []sqlname.NameTuple, error) {
 	}
 
 	if bool(startClean) || storedTableListNotAvailable() {
+		log.Infof("fetching tables names from source and filtering table list")
 		// fresh start case or the first run where we don't have a table list stored in msr
 		return fetchTablesNamesFromSourceAndFilterTableList()
 
@@ -1019,6 +1038,7 @@ func getInitialTableList() (map[string]string, []sqlname.NameTuple, error) {
 	//sunsequent run case where we will use a table-list stored in msr
 	var firstRunTableWithLeafsAndRoots []sqlname.NameTuple
 	var partitionsToRootTableMap map[string]string
+	log.Infof("retrieving first run list and partitions root map")
 
 	firstRunTableWithLeafsAndRoots, partitionsToRootTableMap, err = retrieveFirstRunListAndPartitionsRootMap(msr)
 	if err != nil {
@@ -1209,7 +1229,11 @@ func finalizeTableColumnList(finalTableList []sqlname.NameTuple) ([]sqlname.Name
 	if changeStreamingIsEnabled(exportType) {
 		reportUnsupportedTables(finalTableList)
 	}
-	log.Infof("initial all tables table list for data export: %v", finalTableList)
+	log.Infof("initial all tables table list for data export: %v", lo.Map(finalTableList, func(t sqlname.NameTuple, _ int) string {
+		return t.ForOutput()
+	}))
+
+	log.Info("finalizing table list by filtering empty tables and unsupported tables/columns/etc..")
 
 	var skippedTableList []sqlname.NameTuple
 	if !changeStreamingIsEnabled(exportType) {
@@ -1235,10 +1259,10 @@ func finalizeTableColumnList(finalTableList []sqlname.NameTuple) ([]sqlname.Name
 	// If any of the keys of unsupportedTableColumnsMap contains values in the string array then do this check
 	if len(unsupportedTableColumnsMap.Keys()) > 0 {
 		log.Infof("preparing column list for the data export without unsupported datatype columns: %v", unsupportedTableColumnsMap)
-		fmt.Println("The following columns data export is unsupported:")
+		utils.PrintAndLog("The following columns data export is unsupported:")
 		unsupportedTableColumnsMap.IterKV(func(k sqlname.NameTuple, v []string) (bool, error) {
 			if len(v) != 0 {
-				fmt.Printf("%s: %s\n", k.ForOutput(), v)
+				utils.PrintAndLog("%s: %s\n", k.ForOutput(), v)
 			}
 			return true, nil
 		})
@@ -1259,6 +1283,9 @@ func finalizeTableColumnList(finalTableList []sqlname.NameTuple) ([]sqlname.Name
 
 		finalTableList = filterTableWithEmptySupportedColumnList(finalTableList, tablesColumnList)
 	}
+	log.Infof("final table list after filtering empty tables and unsupported tables/columns/etc.. - %v", lo.Map(finalTableList, func(t sqlname.NameTuple, _ int) string {
+		return t.ForOutput()
+	}))
 	return finalTableList, tablesColumnList
 }
 
