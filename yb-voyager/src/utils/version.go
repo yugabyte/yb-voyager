@@ -17,7 +17,7 @@ package utils
 
 const (
 	// This constant must be updated on every release.
-	YB_VOYAGER_VERSION = "main"
+	YB_VOYAGER_VERSION = "0rc1.2025.8.2"
 
 	// This constant must be updated after every breaking change.
 	PREVIOUS_BREAKING_CHANGE_VERSION = "1.8.5"
