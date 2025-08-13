@@ -316,19 +316,13 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) (err 
 			return fmt.Errorf("expected TypeName, got %T", msg.Interface())
 		}
 
-		// Only anonymize if it's not a built-in type
-		if !IsBuiltinType(tn) {
-			// get string node sval from TypeName
-			for i, node := range tn.Names {
-				str := node.GetString_()
-				if str == nil || str.Sval == "" {
-					continue
-				}
-				str.Sval, err = a.registry.GetHash(TYPE_KIND_PREFIX, str.Sval)
-				if err != nil {
-					return fmt.Errorf("anon typename[%d]=%q lookup: %w", i, str.Sval, err)
-				}
-			}
+		if IsBuiltinType(tn) {
+			return nil
+		}
+
+		err = a.anonymizeStringNodes(tn.Names, TYPE_KIND_PREFIX)
+		if err != nil {
+			return fmt.Errorf("anon typename: %w", err)
 		}
 
 	/*
