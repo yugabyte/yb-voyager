@@ -148,75 +148,101 @@ GRANT pg_read_all_stats to :voyager_user;
     FROM is_rds
     \gexec
 
-    -- Create a replication group
     \echo ''
-    \echo '--- Creating Replication Group ---'
-    CREATE ROLE :replication_group;
+    \echo 'Choose how to grant permissions for the selected schema(s): ' :schema_list
+    \echo 'Note: For live migration, CREATE PUBLICATION requires table ownership; choose one option to ensure the migration user has required ownership.'
+    \echo '  1) Transfer ownership of ALL tables to replication group ' :replication_group ', and add original owners + ' :voyager_user ' to that group.'
+    \echo '  2) Grant original owner role of each table to ' :voyager_user
+    \prompt 'Enter choice (1/2): ' transfer_choice
+    \o /dev/null
+    SELECT 
+        CASE WHEN trim(both from :'transfer_choice') = '1' THEN 1 ELSE 0 END AS transfer_is_group,
+        CASE WHEN trim(both from :'transfer_choice') IN ('1','2') THEN 1 ELSE 0 END AS transfer_choice_valid;
+    \gset
+    \o
+    \if :transfer_choice_valid
+        \if :transfer_is_group
+            -- Option 1: Grant ownership of all tables in the specified schemas to the specified replication group. The migration user and the original owner of the tables will be added to the replication group.
+            \echo ''
+            \echo '--- Creating Replication Group ---'
+            CREATE ROLE :replication_group;
+            
+            \echo ''
+            \echo 'Transferring ownership of all tables in the specified schemas to the specified replication group. The migration user and the original owner of the tables will be added to the replication group.'
+            
+            \echo ''
+            \echo '--- Adding Original Owner to Replication Group ---'
+            DO $$
+            DECLARE
+                tableowner TEXT;
+                schema_list TEXT[] := string_to_array(current_setting('myvars.schema_list'), ',');  -- Convert the schema list to an array
+                replication_group TEXT := current_setting('myvars.replication_group');  -- Get the replication group from settings
+            BEGIN
+                -- Generate the GRANT statements and execute them dynamically
+                FOR tableowner IN
+                    SELECT DISTINCT t.tableowner
+                    FROM pg_catalog.pg_tables t
+                    WHERE t.schemaname = ANY (schema_list)  -- Use the schema_list variable
+                    AND NOT EXISTS (
+                        SELECT 1
+                        FROM pg_roles r
+                        WHERE r.rolname = t.tableowner
+                            AND pg_has_role(t.tableowner, replication_group, 'USAGE')  -- Use the replication_group variable
+                    )
+                LOOP
+                    -- Display the GRANT statement
+                    RAISE NOTICE 'Granting role: GRANT % TO %;', replication_group, tableowner;
+            
+                    -- Execute the GRANT statement
+                    EXECUTE format('GRANT %I TO %I;', replication_group, tableowner);
+                END LOOP;
+            END $$;
+            
+            \echo ''
+            \echo '--- Adding User to Replication Group ---'
+            GRANT :replication_group TO :voyager_user;
+            
+            \echo ''
+            \echo '--- Transferring Ownership of Tables to Replication Group ---'
+            DO $$
+            DECLARE
+                r RECORD;
+            BEGIN
+                FOR r IN
+                    SELECT table_schema, '"' || table_name || '"' AS t_name
+                    FROM information_schema.tables
+                    WHERE table_schema = ANY(string_to_array(current_setting('myvars.schema_list'), ',')::text[])
+                LOOP
+                    EXECUTE 'ALTER TABLE ' || r.table_schema || '.' || r.t_name || ' OWNER TO ' || current_setting('myvars.replication_group');
+                END LOOP;
+            END $$;
 
-    -- Prompt the user to let them know that ownership of the tables will be transferred to the replication group and proceed only if they confirm
-    \echo ''
-    \echo 'Transferring ownership of all tables in the specified schemas to the specified replication group. The migration user and the original owner of the tables will be added to the replication group.'
-    -- Only 'yes' or 'no' are valid inputs. 'y' and 'n' are not valid inputs.
-    \prompt 'Proceed with the transfer of ownership? (yes/no): ' proceed
+        \else
+            -- Option 2: Grant the original owners of the tables to the migration user
+            \echo ''
+            \echo '--- Granting the original owners of the tables to the migration user ---'
+            DO $$
+            DECLARE
+                owner_name TEXT;
+            BEGIN
+                FOR owner_name IN
+                    SELECT DISTINCT t.tableowner
+                    FROM pg_catalog.pg_tables t
+                    WHERE t.schemaname = ANY(string_to_array(current_setting('myvars.schema_list'), ',')::text[])
+                    AND t.tableowner <> current_setting('myvars.voyager_user')
+                LOOP
+                    RAISE NOTICE 'Granting role: GRANT % TO %;', owner_name, current_setting('myvars.voyager_user');
+                    EXECUTE format('GRANT %I TO %I;', owner_name, current_setting('myvars.voyager_user'));
+                END LOOP;
+            END $$;
 
-    \if :proceed
-        \echo 'Proceeding with the transfer of ownership...'
+        \endif
     \else
-        \echo 'Aborting the script.'
+        \echo 'Invalid choice. Please run again and enter 1 or 2.'
         \q
     \endif
 
-    -- Add the original owner of the tables to the group
-    \echo ''
-    \echo '--- Adding Original Owner to Replication Group ---'
-    DO $$
-    DECLARE
-        tableowner TEXT;
-        schema_list TEXT[] := string_to_array(current_setting('myvars.schema_list'), ',');  -- Convert the schema list to an array
-        replication_group TEXT := current_setting('myvars.replication_group');  -- Get the replication group from settings
-    BEGIN
-        -- Generate the GRANT statements and execute them dynamically
-        FOR tableowner IN
-            SELECT DISTINCT t.tableowner
-            FROM pg_catalog.pg_tables t
-            WHERE t.schemaname = ANY (schema_list)  -- Use the schema_list variable
-            AND NOT EXISTS (
-                SELECT 1
-                FROM pg_roles r
-                WHERE r.rolname = t.tableowner
-                    AND pg_has_role(t.tableowner, replication_group, 'USAGE')  -- Use the replication_group variable
-            )
-        LOOP
-            -- Display the GRANT statement
-            RAISE NOTICE 'Granting role: GRANT % TO %;', replication_group, tableowner;
-
-            -- Execute the GRANT statement
-            EXECUTE format('GRANT %I TO %I;', replication_group, tableowner);
-        END LOOP;
-    END $$;
-
-    -- Add the user ybvoyager to the replication group
-    \echo ''
-    \echo '--- Adding User to Replication Group ---'
-    GRANT :replication_group TO :voyager_user;
-
-    -- Transfer ownership of the tables to the replication group
-    \echo ''
-    \echo '--- Transferring Ownership of Tables to Replication Group ---'
-    DO $$
-    DECLARE
-        r RECORD;
-    BEGIN
-        FOR r IN
-            SELECT table_schema, '"' || table_name || '"' AS t_name
-            FROM information_schema.tables
-            WHERE table_schema = ANY(string_to_array(current_setting('myvars.schema_list'), ',')::text[])
-        LOOP
-            EXECUTE 'ALTER TABLE ' || r.table_schema || '.' || r.t_name || ' OWNER TO ' || current_setting('myvars.replication_group');
-        END LOOP;
-    END $$;
-
-    -- Grant CREATE permission on the specified database to the specified user
+     -- Grant CREATE permission on the specified database to the specified user
     \echo ''
     \echo '--- Granting CREATE Permission on Database ---'
     DO $$
