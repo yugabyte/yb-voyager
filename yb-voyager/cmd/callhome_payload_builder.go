@@ -17,18 +17,20 @@ limitations under the License.
 package cmd
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryissue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
-	"golang.org/x/exp/slices"
 )
 
 var (
@@ -155,6 +157,8 @@ func packAndSendAssessMigrationPayload(status string, errMsg error) {
 		callHomeErrorOrCompletePayloadSent = true
 	}
 }
+
+// ============================assess migration callhome payload information============================
 
 func anonymizeAssessmentIssuesForCallhomePayload(assessmentIssues []AssessmentIssue) []callhome.AssessmentIssueCallhome {
 	/*
@@ -291,4 +295,76 @@ func getAnonymizedDDLs(sourceDBConf *srcdb.Source) []string {
 	}
 
 	return anonymizedDDLs
+}
+
+// ============================export schema callhome payload information============================
+
+const (
+	REDUNDANT_INDEX_CHANGE_TYPE               = "redundant_index"
+	TABLE_SHARDING_RECOMMENDATION_CHANGE_TYPE = "table_sharding_recommendation"
+	MVIEW_SHARDING_RECOMMENDATION_CHANGE_TYPE = "mview_sharding_recommendation"
+)
+
+func buildCallhomeSchemaOptimizationChanges() []callhome.SchemaOptimizationChange {
+	if schemaOptimizationReport == nil {
+		return nil
+	}
+	//For individual change, adding the anonymized object names to the callhome payload
+	schemaOptimizationChanges := make([]callhome.SchemaOptimizationChange, 0)
+	if schemaOptimizationReport.RedundantIndexChange != nil {
+		objects := make([]string, 0)
+		for tbl, indexes := range schemaOptimizationReport.RedundantIndexChange.TableToRemovedIndexesMap {
+			for _, index := range indexes {
+				anonymizedInd, err := anonymizer.AnonymizeIndexName(index)
+				if err != nil {
+					log.Errorf("callhome: failed to anonymise index-%s: %v", index, err)
+					continue
+				}
+				anonymizedTbl, err := anonymizer.AnonymizeTableName(tbl)
+				if err != nil {
+					log.Errorf("callhome: failed to anonymise table-%s: %v", tbl, err)
+					continue
+				}
+				objects = append(objects, fmt.Sprintf("%s ON %s", anonymizedInd, anonymizedTbl))
+			}
+		}
+		schemaOptimizationChanges = append(schemaOptimizationChanges, callhome.SchemaOptimizationChange{
+			OptimizationType: REDUNDANT_INDEX_CHANGE_TYPE,
+			IsApplied:        schemaOptimizationReport.RedundantIndexChange.IsApplied,
+			Objects:          objects,
+		})
+	}
+	if schemaOptimizationReport.TableShardingRecommendation != nil {
+		objects := make([]string, 0)
+		for _, obj := range schemaOptimizationReport.TableShardingRecommendation.ShardedObjects {
+			anonymizedObj, err := anonymizer.AnonymizeTableName(obj)
+			if err != nil {
+				log.Errorf("callhome: failed to anonymise table-%s: %v", obj, err)
+				continue
+			}
+			objects = append(objects, anonymizedObj)
+		}
+		schemaOptimizationChanges = append(schemaOptimizationChanges, callhome.SchemaOptimizationChange{
+			OptimizationType: TABLE_SHARDING_RECOMMENDATION_CHANGE_TYPE,
+			IsApplied:        schemaOptimizationReport.TableShardingRecommendation.IsApplied,
+			Objects:          objects,
+		})
+	}
+	if schemaOptimizationReport.MviewShardingRecommendation != nil {
+		objects := make([]string, 0)
+		for _, obj := range schemaOptimizationReport.MviewShardingRecommendation.ShardedObjects {
+			anonymizedObj, err := anonymizer.AnonymizeMViewName(obj)
+			if err != nil {
+				log.Errorf("callhome: failed to anonymise mview-%s: %v", obj, err)
+				continue
+			}
+			objects = append(objects, anonymizedObj)
+		}
+		schemaOptimizationChanges = append(schemaOptimizationChanges, callhome.SchemaOptimizationChange{
+			OptimizationType: MVIEW_SHARDING_RECOMMENDATION_CHANGE_TYPE,
+			IsApplied:        schemaOptimizationReport.MviewShardingRecommendation.IsApplied,
+			Objects:          schemaOptimizationReport.MviewShardingRecommendation.ShardedObjects,
+		})
+	}
+	return schemaOptimizationChanges
 }

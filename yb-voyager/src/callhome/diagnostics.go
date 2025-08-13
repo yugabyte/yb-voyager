@@ -182,15 +182,29 @@ type AssessMigrationBulkPhasePayload struct {
 	ControlPlaneType string `json:"control_plane_type"`
 }
 
+type SchemaOptimizationChange struct {
+	OptimizationType string   `json:"optimization_type"`
+	IsApplied        bool     `json:"is_applied"`
+	Objects          []string `json:"objects"`
+}
+
+/*
+Version History
+1.0: Added a new field as PayloadVersion and SchemaOptimizationChanges
+*/
+var EXPORT_SCHEMA_CALLHOME_PAYLOAD_VERSION = "1.0"
+
 type ExportSchemaPhasePayload struct {
-	StartClean             bool   `json:"start_clean"`
-	AppliedRecommendations bool   `json:"applied_recommendations"`
-	UseOrafce              bool   `json:"use_orafce"`
-	CommentsOnObjects      bool   `json:"comments_on_objects"`
-	SkipRecommendations    bool   `json:"skip_recommendations"`
-	SkipPerfOptimizations  bool   `json:"skip_performance_optimizations"`
-	Error                  string `json:"error"`
-	ControlPlaneType       string `json:"control_plane_type"`
+	PayloadVersion            string                     `json:"payload_version"`
+	StartClean                bool                       `json:"start_clean"`
+	AppliedRecommendations    bool                       `json:"applied_recommendations"`
+	UseOrafce                 bool                       `json:"use_orafce"`
+	CommentsOnObjects         bool                       `json:"comments_on_objects"`
+	SkipRecommendations       bool                       `json:"skip_recommendations"`
+	SkipPerfOptimizations     bool                       `json:"skip_performance_optimizations"`
+	Error                     string                     `json:"error"`
+	ControlPlaneType          string                     `json:"control_plane_type"`
+	SchemaOptimizationChanges []SchemaOptimizationChange `json:"schema_optimization_changes"`
 }
 
 /*
