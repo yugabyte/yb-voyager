@@ -251,7 +251,7 @@ func registerExportDataFlags(cmd *cobra.Command) {
 		fmt.Sprintf("export type: (%s, %s[TECH PREVIEW])", SNAPSHOT_ONLY, SNAPSHOT_AND_CHANGES))
 
 	BoolVar(cmd.Flags(), &source.AllowOracleClobDataExport, "allow-oracle-clob-data-export", false,
-		"[TECH PREVIEW][Oracle only] Allow exporting CLOB columns in offline export.")
+		"[EXPERIMENTAL][Oracle only] Allow exporting data of CLOB columns in offline migration.")
 }
 
 func validateSourceDBType() {

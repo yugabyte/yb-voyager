@@ -113,8 +113,10 @@ func exportDataCommandPreRun(cmd *cobra.Command, args []string) {
 	if bool(source.AllowOracleClobDataExport) {
 		if source.DBType != ORACLE {
 			utils.ErrExit(color.RedString("allow-oracle-clob-data-export is only valid with source db type oracle. Remove this flag and retry."))
-		} else if changeStreamingIsEnabled(exportType) || useDebezium {
-			utils.ErrExit(color.RedString("allow-oracle-clob-data-export is not supported for live/BETA_FAST_DATA_EXPORT export paths. Remove this flag and retry."))
+		} else if changeStreamingIsEnabled(exportType) {
+			utils.ErrExit(color.RedString("allow-oracle-clob-data-export is not supported for Live Migration. Remove this flag and retry."))
+		} else if useDebezium {
+			utils.ErrExit(color.RedString("allow-oracle-clob-data-export is not supported for BETA_FAST_DATA_EXPORT export path. Remove this flag and retry."))
 		} else {
 			utils.PrintAndLog(color.YellowString("Note: Experimental CLOB export is enabled for Oracle offline export."))
 		}
