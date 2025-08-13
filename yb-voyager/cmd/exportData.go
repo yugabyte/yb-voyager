@@ -109,6 +109,18 @@ func exportDataCommandPreRun(cmd *cobra.Command, args []string) {
 	if changeStreamingIsEnabled(exportType) {
 		useDebezium = true
 	}
+
+	if bool(source.AllowOracleClobDataExport) {
+		if source.DBType != ORACLE {
+			utils.ErrExit(color.RedString("allow-oracle-clob-data-export is only valid with source db type oracle. Remove this flag and retry."))
+		} else if changeStreamingIsEnabled(exportType) {
+			utils.ErrExit(color.RedString("allow-oracle-clob-data-export is not supported for Live Migration. Remove this flag and retry."))
+		} else if useDebezium {
+			utils.ErrExit(color.RedString("allow-oracle-clob-data-export is not supported for BETA_FAST_DATA_EXPORT export path. Remove this flag and retry."))
+		} else {
+			utils.PrintAndLog(color.YellowString("Note: Experimental CLOB export is enabled for Oracle offline export."))
+		}
+	}
 }
 
 func exportDataCommandFn(cmd *cobra.Command, args []string) {
@@ -181,10 +193,11 @@ func packAndSendExportDataPayload(status string, errorMsg error) {
 
 	payload.MigrationPhase = EXPORT_DATA_PHASE
 	exportDataPayload := callhome.ExportDataPhasePayload{
-		ParallelJobs:     int64(source.NumConnections),
-		StartClean:       bool(startClean),
-		Error:            callhome.SanitizeErrorMsg(errorMsg),
-		ControlPlaneType: getControlPlaneType(),
+		ParallelJobs:              int64(source.NumConnections),
+		StartClean:                bool(startClean),
+		Error:                     callhome.SanitizeErrorMsg(errorMsg),
+		ControlPlaneType:          getControlPlaneType(),
+		AllowOracleClobDataExport: bool(source.AllowOracleClobDataExport),
 	}
 
 	updateExportSnapshotDataStatsInPayload(&exportDataPayload)

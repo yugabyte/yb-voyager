@@ -186,17 +186,18 @@ func TestCallhomeStructs(t *testing.T) {
 			name:       "Validate ExportDataPhasePayload Struct Definition",
 			actualType: reflect.TypeOf(ExportDataPhasePayload{}),
 			expectedType: struct {
-				ParallelJobs            int64  `json:"parallel_jobs"`
-				TotalRows               int64  `json:"total_rows_exported"`
-				LargestTableRows        int64  `json:"largest_table_rows_exported"`
-				StartClean              bool   `json:"start_clean"`
-				ExportSnapshotMechanism string `json:"export_snapshot_mechanism,omitempty"`
-				Phase                   string `json:"phase,omitempty"`
-				TotalExportedEvents     int64  `json:"total_exported_events,omitempty"`
-				EventsExportRate        int64  `json:"events_export_rate_3m,omitempty"`
-				LiveWorkflowType        string `json:"live_workflow_type,omitempty"`
-				Error                   string `json:"error"`
-				ControlPlaneType        string `json:"control_plane_type"`
+				ParallelJobs              int64  `json:"parallel_jobs"`
+				TotalRows                 int64  `json:"total_rows_exported"`
+				LargestTableRows          int64  `json:"largest_table_rows_exported"`
+				StartClean                bool   `json:"start_clean"`
+				ExportSnapshotMechanism   string `json:"export_snapshot_mechanism,omitempty"`
+				Phase                     string `json:"phase,omitempty"`
+				TotalExportedEvents       int64  `json:"total_exported_events,omitempty"`
+				EventsExportRate          int64  `json:"events_export_rate_3m,omitempty"`
+				LiveWorkflowType          string `json:"live_workflow_type,omitempty"`
+				Error                     string `json:"error"`
+				ControlPlaneType          string `json:"control_plane_type"`
+				AllowOracleClobDataExport bool   `json:"allow_oracle_clob_data_export"`
 			}{},
 		},
 		{
