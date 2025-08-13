@@ -270,11 +270,11 @@ func SizingAssessment(targetDbVersion *ybversion.YBVersion) error {
 		return fmt.Errorf("error while fetching experiment data for throughput scaling with number of nodes: %w", err)
 	}
 
-	numNodesImportTimeDivisorCommon := 1.0
 	// calculate time taken for colocated import
+	numNodesImportTimeDivisorColocated := 1.0
 	importTimeForColocatedObjects, err := calculateTimeTakenForImport(
 		finalSizingRecommendation.ColocatedTables, sourceIndexMetadata, colocatedLoadTimes,
-		indexImpactOnLoadTimeCommon, columnsImpactOnLoadTimeCommon, COLOCATED, numNodesImportTimeDivisorCommon)
+		indexImpactOnLoadTimeCommon, columnsImpactOnLoadTimeCommon, COLOCATED, numNodesImportTimeDivisorColocated)
 	if err != nil {
 		SizingReport.FailureReasoning = fmt.Sprintf("calculate time taken for colocated data import: %v", err)
 		return fmt.Errorf("calculate time taken for colocated data import: %w", err)
@@ -282,13 +282,13 @@ func SizingAssessment(targetDbVersion *ybversion.YBVersion) error {
 
 	// find ratio of throughput of 3 nodes from experiment data vs the closest throughput of the recommended number of nodes
 	// if the number of nodes is 3, then no scaling is needed
-	numNodesImportTimeDivisorCommon = lo.Ternary(finalSizingRecommendation.NumNodes == 3, 1.0,
+	numNodesImportTimeDivisorSharded := lo.Ternary(finalSizingRecommendation.NumNodes == 3, 1.0,
 		findNumNodesThroughputScalingImportTimeDivisor(numNodesImpactOnLoadTimeSharded, finalSizingRecommendation.NumNodes))
 
 	// calculate time taken for sharded import
 	importTimeForShardedObjects, err := calculateTimeTakenForImport(
 		finalSizingRecommendation.ShardedTables, sourceIndexMetadata, shardedLoadTimes,
-		indexImpactOnLoadTimeCommon, columnsImpactOnLoadTimeCommon, SHARDED, numNodesImportTimeDivisorCommon)
+		indexImpactOnLoadTimeCommon, columnsImpactOnLoadTimeCommon, SHARDED, numNodesImportTimeDivisorSharded)
 	if err != nil {
 		SizingReport.FailureReasoning = fmt.Sprintf("calculate time taken for sharded data import: %v", err)
 		return fmt.Errorf("calculate time taken for sharded data import: %w", err)
@@ -1738,6 +1738,11 @@ Returns:
   - returns the relative import time divisor based on throughput scaling with number of nodes
 */
 func findNumNodesThroughputScalingImportTimeDivisor(numNodesImpactData []ExpDataLoadTimeNumNodesImpact, targetNumNodes float64) float64 {
+	// Check if the slice is empty
+	if len(numNodesImpactData) == 0 {
+		return 1.0 // Return 1.0 if no data available
+	}
+
 	// select the 3-node baseline entry
 	var baselineData ExpDataLoadTimeNumNodesImpact
 	for _, data := range numNodesImpactData {
@@ -1745,6 +1750,10 @@ func findNumNodesThroughputScalingImportTimeDivisor(numNodesImpactData []ExpData
 			baselineData = data
 			break
 		}
+	}
+
+	if !baselineData.importThroughputMbps.Valid || !baselineData.numNodes.Valid {
+		return 1.0 // Return 1.0 if no baseline data available
 	}
 
 	// Find the closest entry to targetNumNodes
