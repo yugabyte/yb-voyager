@@ -36,7 +36,6 @@ var (
 	skipCategoriesForAnonymization = []string{
 		UNSUPPORTED_QUERY_CONSTRUCTS_CATEGORY,
 		UNSUPPORTED_PLPGSQL_OBJECTS_CATEGORY,
-		UNSUPPORTED_DATATYPES_CATEGORY, // TODO: add anonymization for unsupported datatypes
 	}
 
 	// skipObjectTypesForAnonymization contains object types that should be skipped during SQL anonymization
@@ -168,17 +167,26 @@ func anonymizeAssessmentIssuesForCallhomePayload(assessmentIssues []AssessmentIs
 			slices.Contains(skipObjectTypesForAnonymization, issue.ObjectType)
 	}
 
+	var err error
 	anonymizedIssues := make([]callhome.AssessmentIssueCallhome, len(assessmentIssues))
 	for i, issue := range assessmentIssues {
 		anonymizedIssues[i] = callhome.NewAssessmentIssueCallhome(issue.Category, issue.CategoryDescription, issue.Type, issue.Name, issue.Impact, issue.ObjectType, issue.Details)
+
+		if shouldSkipAnonymization(issue) {
+			continue
+		}
 
 		// special handling for extensions issue: adding extname to issue.Name
 		if issue.Type == queryissue.UNSUPPORTED_EXTENSION {
 			anonymizedIssues[i].Name = queryissue.AppendObjectNameToIssueName(issue.Name, issue.ObjectName)
 		}
 
-		if shouldSkipAnonymization(issue) {
-			continue
+		if issue.Category == UNSUPPORTED_DATATYPES_CATEGORY {
+			anonymizedIssues[i].ObjectName, err = anonymizer.AnonymizeQualifiedColumnName(issue.ObjectName)
+			if err != nil {
+				log.Warnf("failed to anonymize object name %s: %v", issue.ObjectName, err)
+				anonymizedIssues[i].ObjectName = constants.OBFUSCATE_STRING
+			}
 		}
 
 		if issue.SqlStatement != "" {

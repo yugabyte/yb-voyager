@@ -111,8 +111,9 @@ Version History
 1.3: Added field Details in AssessmentIssueCallhome struct
 1.4: Added SqlStatement field in AssessmentIssueCallhome struct
 1.5: Added AnonymizedDDLs field in AssessMigrationPhasePayload struct
+1.6: Added ObjectName field in AssessmentIssueCallhome struct
 */
-var ASSESS_MIGRATION_CALLHOME_PAYLOAD_VERSION = "1.5"
+var ASSESS_MIGRATION_CALLHOME_PAYLOAD_VERSION = "1.6"
 
 type AssessMigrationPhasePayload struct {
 	PayloadVersion                 string                    `json:"payload_version"`
@@ -138,6 +139,7 @@ type AssessmentIssueCallhome struct {
 	Name                string                 `json:"name"`
 	Impact              string                 `json:"impact"`
 	ObjectType          string                 `json:"object_type"`
+	ObjectName          string                 `json:"object_name"`
 	SqlStatement        string                 `json:"sql_statement,omitempty"`
 	Details             map[string]interface{} `json:"details,omitempty"`
 }
