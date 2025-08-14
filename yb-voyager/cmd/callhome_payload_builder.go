@@ -313,26 +313,10 @@ func buildCallhomeSchemaOptimizationChanges() []callhome.SchemaOptimizationChang
 	//For individual change, adding the anonymized object names to the callhome payload
 	schemaOptimizationChanges := make([]callhome.SchemaOptimizationChange, 0)
 	if schemaOptimizationReport.RedundantIndexChange != nil {
-		objects := make([]string, 0)
-		for tbl, indexes := range schemaOptimizationReport.RedundantIndexChange.TableToRemovedIndexesMap {
-			for _, index := range indexes {
-				anonymizedInd, err := anonymizer.AnonymizeIndexName(index)
-				if err != nil {
-					log.Errorf("callhome: failed to anonymise index-%s: %v", index, err)
-					continue
-				}
-				anonymizedTbl, err := anonymizer.AnonymizeTableName(tbl)
-				if err != nil {
-					log.Errorf("callhome: failed to anonymise table-%s: %v", tbl, err)
-					continue
-				}
-				objects = append(objects, fmt.Sprintf("%s ON %s", anonymizedInd, anonymizedTbl))
-			}
-		}
 		schemaOptimizationChanges = append(schemaOptimizationChanges, callhome.SchemaOptimizationChange{
 			OptimizationType: REDUNDANT_INDEX_CHANGE_TYPE,
 			IsApplied:        schemaOptimizationReport.RedundantIndexChange.IsApplied,
-			Objects:          objects,
+			Objects:          getAnonymizedIndexObjectsFromIndexToTableMap(schemaOptimizationReport.RedundantIndexChange.TableToRemovedIndexesMap),
 		})
 	}
 	if schemaOptimizationReport.TableShardingRecommendation != nil {
@@ -368,27 +352,31 @@ func buildCallhomeSchemaOptimizationChanges() []callhome.SchemaOptimizationChang
 		})
 	}
 	if schemaOptimizationReport.SecondaryIndexToRangeChange != nil {
-		objects := make([]string, 0)
-		for tbl, indexes := range schemaOptimizationReport.SecondaryIndexToRangeChange.ModifiedIndexes {
-			for _, index := range indexes {
-				anonymizedInd, err := anonymizer.AnonymizeIndexName(index)
-				if err != nil {
-					log.Errorf("callhome: failed to anonymise index-%s: %v", index, err)
-					continue
-				}
-				anonymizedTbl, err := anonymizer.AnonymizeTableName(tbl)
-				if err != nil {
-					log.Errorf("callhome: failed to anonymise table-%s: %v", tbl, err)
-					continue
-				}
-				objects = append(objects, fmt.Sprintf("%s ON %s", anonymizedInd, anonymizedTbl))
-			}
-		}
 		schemaOptimizationChanges = append(schemaOptimizationChanges, callhome.SchemaOptimizationChange{
 			OptimizationType: SECONDARY_INDEX_TO_RANGE_CHANGE_TYPE,
 			IsApplied:        schemaOptimizationReport.SecondaryIndexToRangeChange.IsApplied,
-			Objects:          objects,
+			Objects:          getAnonymizedIndexObjectsFromIndexToTableMap(schemaOptimizationReport.SecondaryIndexToRangeChange.ModifiedIndexes),
 		})
 	}
 	return schemaOptimizationChanges
+}
+
+func getAnonymizedIndexObjectsFromIndexToTableMap(indexToTableMap map[string][]string) []string {
+	objects := make([]string, 0)
+	for tbl, indexes := range indexToTableMap {
+		for _, index := range indexes {
+			anonymizedInd, err := anonymizer.AnonymizeIndexName(index)
+			if err != nil {
+				log.Errorf("callhome: failed to anonymise index-%s: %v", index, err)
+				continue
+			}
+			anonymizedTbl, err := anonymizer.AnonymizeTableName(tbl)
+			if err != nil {
+				log.Errorf("callhome: failed to anonymise table-%s: %v", tbl, err)
+				continue
+			}
+			objects = append(objects, fmt.Sprintf("%s ON %s", anonymizedInd, anonymizedTbl))
+		}
+	}
+	return objects
 }
