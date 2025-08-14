@@ -13,152 +13,9 @@ import (
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
-// enabling one by one as implementation is complete
-var enabled = map[string]bool{
-	"SCHEMA-CREATE":             true,
-	"SCHEMA-RENAME":             true,
-	"SCHEMA-CHANGE-OWNER":       true,
-	"SCHEMA-DROP":               true,
-	"SCHEMA-GRANT-USAGE":        true,
-	"COLLATION-CREATE":          true,
-	"COLLATION-RENAME":          true,
-	"COLLATION-DROP":            true,
-	"EXTENSION-CREATE":          true,
-	"EXTENSION-ALTER-SCHEMA":    true,
-	"SEQUENCE-CREATE":           true,
-	"SEQUENCE-OWNEDBY":          true,
-	"SEQUENCE-RENAME":           true,
-	"SEQUENCE-SET-SCHEMA":       true,
-	"SEQUENCE-DROP":             true,
-	"TYPE-CREATE-ENUM":          true,
-	"TYPE-ALTER-ENUM-ADD-VALUE": true,
-	"TYPE-CREATE-COMPOSITE":     true,
-	// "TYPE-CREATE-BASE":       true,
-	// "TYPE-CREATE-RANGE":      true,
-	"TYPE-RENAME":   true,
-	"DOMAIN-CREATE": true,
-	"DOMAIN-RENAME": true,
-	"DOMAIN-DROP":   true,
-
-	"TABLE-CREATE":             true,
-	"TABLE-CREATE-AS":          true,
-	"TABLE-CREATE-LIKE":        true,
-	"TABLE-RENAME":             true,
-	"TABLE-ADD-COLUMN":         true,
-	"TABLE-RENAME-COLUMN":      true,
-	"TABLE-DROP-COLUMN":        true,
-	"TABLE-ALTER-COLUMN-TYPE":  true,
-	"TABLE-ADD-CONSTRAINT-PK":  true,
-	"TABLE-ADD-CONSTRAINT-FK":  true,
-	"TABLE-ADD-CONSTRAINT-UK":  true,
-	"TABLE-ADD-CONSTRAINT-CHK": true,
-	"TABLE-DROP-CONSTRAINT":    true,
-	"TABLE-SET-SCHEMA":         true,
-	"TABLE-CHANGE-OWNER":       true,
-	"TABLE-DROP":               true,
-	"TABLE-TRUNCATE":           true,
-
-	// Additional ALTER TABLE operations
-	"TABLE-ALTER-COLUMN-DEFAULT":       true,
-	"TABLE-ALTER-COLUMN-DROP-DEFAULT":  true,
-	"TABLE-ALTER-COLUMN-SET-NOT-NULL":  true,
-	"TABLE-ALTER-COLUMN-DROP-NOT-NULL": true,
-	"TABLE-ALTER-COLUMN-SET-OPTIONS":   true,
-	"TABLE-ALTER-COLUMN-RESET-OPTIONS": true,
-	"TABLE-ALTER-CONSTRAINT":           true,
-	"TABLE-VALIDATE-CONSTRAINT":        true,
-	"TABLE-CLUSTER-ON-INDEX":           true,
-	"TABLE-ADD-INDEX-CONSTRAINT":       true,
-	"TABLE-ENABLE-TRIGGER":             true,
-	"TABLE-DISABLE-TRIGGER":            true,
-	"TABLE-ENABLE-ALWAYS-TRIGGER":      true,
-	"TABLE-ENABLE-REPLICA-TRIGGER":     true,
-	"TABLE-ENABLE-RULE":                true,
-	"TABLE-DISABLE-RULE":               true,
-	"TABLE-ENABLE-ALWAYS-RULE":         true,
-	"TABLE-ENABLE-REPLICA-RULE":        true,
-	"TABLE-ADD-IDENTITY":               true,
-	"TABLE-SET-IDENTITY":               true,
-	"TABLE-DROP-IDENTITY":              true,
-	"TABLE-ADD-INHERIT":                true,
-	"TABLE-DROP-INHERIT":               true,
-	"TABLE-ADD-OF-TYPE":                true,
-	"TABLE-ATTACH-PARTITION":           true,
-	"TABLE-DETACH-PARTITION":           true,
-	"TABLE-DETACH-PARTITION-FINALIZE":  true,
-	"TABLE-REPLICA-IDENTITY-INDEX":     true,
-	"INDEX-CREATE":                     true,
-	"INDEX-RENAME":                     true,
-	"INDEX-CREATE-UNIQUE":              true,
-	"INDEX-CREATE-GIN":                 true,
-	"INDEX-CREATE-EXPRESSION":          true,
-	"INDEX-CREATE-PARTIAL":             true,
-	"INDEX-CREATE-CONCURRENTLY":        true,
-	"INDEX-CREATE-IF-NOT-EXISTS":       true,
-	"INDEX-CREATE-WITH-OPTIONS":        true,
-	"INDEX-DROP":                       true,
-	"INDEX-DROP-IF-EXISTS":             true,
-	"INDEX-DROP-CONCURRENTLY":          true,
-
-	"POLICY-CREATE":                    true,
-	"POLICY-DROP":                      true,
-	"POLICY-CREATE-WITH-ROLES":         true,
-	"POLICY-CREATE-COMPLEX-CONDITIONS": true,
-	"POLICY-CREATE-ALL-COMMANDS":       true,
-
-	"COMMENT-TABLE":                            true,
-	"COMMENT-COLUMN":                           true,
-	"COMMENT-INDEX":                            true,
-	"COMMENT-POLICY":                           true,
-	"COMMENT-SEQUENCE":                         true,
-	"COMMENT-TYPE":                             true,
-	"COMMENT-DOMAIN":                           true,
-	"COMMENT-EXTENSION":                        true,
-	"COMMENT-SCHEMA":                           true,
-	"COMMENT-FUNCTION":                         true,
-	"COMMENT-PROCEDURE":                        true,
-	"COMMENT-TRIGGER":                          true,
-	"COMMENT-VIEW":                             true,
-	"COMMENT-MVIEW":                            true,
-	"COMMENT-DATABASE":                         true,
-	"COMMENT-CONSTRAINT":                       true,
-	"COMMENT-ROLE":                             true,
-	"COMMENT-COLLATION":                        true,
-	"CONVERSION-CREATE":                        true,
-	"CONVERSION-CREATE-BASIC":                  true,
-	"CONVERSION-CREATE-DEFAULT":                true,
-	"CONVERSION-SET-SCHEMA":                    true,
-	"CONVERSION-OWNER":                         true,
-	"FOREIGN-TABLE-CREATE":                     true,
-	"FOREIGN-TABLE-CREATE-WITH-OPTIONS":        true,
-	"RULE-CREATE":                              true,
-	"RULE-CREATE-SELECT":                       true,
-	"RULE-CREATE-UPDATE":                       true,
-	"RULE-CREATE-DELETE":                       true,
-	"RULE-CREATE-WITH-ALSO":                    true,
-	"RULE-CREATE-WITH-OR-REPLACE":              true,
-	"AGGREGATE-CREATE":                         true,
-	"AGGREGATE-CREATE-WITH-ALL-OPTIONS":        true,
-	"AGGREGATE-CREATE-WITH-ORDER-BY":           true,
-	"AGGREGATE-CREATE-WITH-PARALLEL":           true,
-	"AGGREGATE-CREATE-WITH-HYPOTHETICAL":       true,
-	"AGGREGATE-CREATE-WITH-USER-DEFINED-STYPE": true,
-
-	"OPERATOR-CLASS-CREATE":             true,
-	"OPERATOR-CLASS-CREATE-WITH-FAMILY": true,
-	"OPERATOR-FAMILY-CREATE":            true,
-
-	"OPERATOR-CREATE":                  true,
-	"OPERATOR-CREATE-WITH-COMMUTATOR":  true,
-	"OPERATOR-CREATE-WITH-NEGATOR":     true,
-	"OPERATOR-CREATE-WITH-RESTRICT":    true,
-	"OPERATOR-CREATE-WITH-JOIN":        true,
-	"OPERATOR-CREATE-WITH-ALL-OPTIONS": true,
-	"OPERATOR-CREATE-LEFT-UNARY":       true,
-	"OPERATOR-CREATE-RIGHT-UNARY":      true,
+func hasTok(s, pref string) bool {
+	return strings.Contains(s, pref)
 }
-
-func hasTok(s, pref string) bool { return strings.Contains(s, pref) }
 
 type ddlCase struct {
 	key      string   // unique id, also used in `enabled`
@@ -261,6 +118,17 @@ func TestPostgresDDLVariants(t *testing.T) {
 			[]string{TYPE_KIND_PREFIX, ENUM_KIND_PREFIX}},
 
 		// ─── TYPE (composite, base, range) ─────────────────────
+		{
+			"TYPE-CREATE-BASIC",
+			`CREATE TYPE base_type_examples.base_type (
+				INTERNALLENGTH = variable,
+				INPUT = base_type_examples.base_fn_in,
+				OUTPUT = base_type_examples.base_fn_out,
+				ALIGNMENT = int4,
+				STORAGE = plain
+			);`,
+			[]string{"base_type_examples", "base_type", "base_fn_in", "base_fn_out"},
+			[]string{SCHEMA_KIND_PREFIX, TYPE_KIND_PREFIX, FUNCTION_KIND_PREFIX, FUNCTION_KIND_PREFIX}},
 		{"TYPE-CREATE-COMPOSITE",
 			`CREATE TYPE dbname.schema1.mycomposit AS (col1 int, col2 text);`,
 			[]string{"dbname", "schema1", "mycomposit", "col1", "col2"},
@@ -269,10 +137,91 @@ func TestPostgresDDLVariants(t *testing.T) {
 			`CREATE TYPE mybase (input = mybase_in, output = mybase_out);`,
 			[]string{"mybase", "mybase_in", "mybase_out"},
 			[]string{TYPE_KIND_PREFIX, FUNCTION_KIND_PREFIX}},
-		{"TYPE-CREATE-RANGE",
+		{"TYPE-CREATE-BASE-WITH-RECEIVE-SEND",
+			`CREATE TYPE mybase (input = mybase_in, output = mybase_out, receive = mybase_receive, send = mybase_send);`,
+			[]string{"mybase", "mybase_in", "mybase_out", "mybase_receive", "mybase_send"},
+			[]string{TYPE_KIND_PREFIX, FUNCTION_KIND_PREFIX}},
+		{"TYPE-CREATE-BASE-WITH-TYPMOD",
+			`CREATE TYPE mybase (input = mybase_in, output = mybase_out, typmod_in = mybase_typmod_in, typmod_out = mybase_typmod_out);`,
+			[]string{"mybase", "mybase_in", "mybase_out", "mybase_typmod_in", "mybase_typmod_out"},
+			[]string{TYPE_KIND_PREFIX, FUNCTION_KIND_PREFIX}},
+		{"TYPE-CREATE-BASE-WITH-ANALYZE-SUBSCRIPT",
+			`CREATE TYPE mybase (input = mybase_in, output = mybase_out, analyze = mybase_analyze, subscript = mybase_subscript);`,
+			[]string{"mybase", "mybase_in", "mybase_out", "mybase_analyze", "mybase_subscript"},
+			[]string{TYPE_KIND_PREFIX, FUNCTION_KIND_PREFIX}},
+		{"TYPE-CREATE-BASE-WITH-LIKE-ELEMENT",
+			`CREATE TYPE mybase (input = mybase_in, output = mybase_out, like = mybase_like, element = mybase_element);`,
+			[]string{"mybase", "mybase_in", "mybase_out", "mybase_like", "mybase_element"},
+			[]string{TYPE_KIND_PREFIX, FUNCTION_KIND_PREFIX}},
+		{"TYPE-CREATE-BASE-WITH-CONSTANTS",
+			`CREATE TYPE mybase (input = mybase_in, output = mybase_out, internallength = 198548, alignment = int4, storage = plain, category = 'U', preferred = false, default = 'default_value', delimiter = ',');`,
+			[]string{"mybase", "mybase_in", "mybase_out", "198548", "int4", "plain", "U", "false", "default_value", "false"},
+			[]string{TYPE_KIND_PREFIX, FUNCTION_KIND_PREFIX, CONST_KIND_PREFIX}},
+		{"TYPE-CREATE-BASE-COMPREHENSIVE",
+			`CREATE TYPE mybase (
+				input = mybase_in,
+				output = mybase_out,
+				receive = mybase_receive,
+				send = mybase_send,
+				typmod_in = mybase_typmod_in,
+				typmod_out = mybase_typmod_out,
+				analyze = mybase_analyze,
+				subscript = mybase_subscript,
+				internallength = 198548,
+				alignment = int4,
+				storage = plain,
+				like = mybase_like,
+				category = 'U',
+				preferred = false,
+				default = 'default_value',
+				element = mybase_element,
+				delimiter = ',',
+				passedbyvalue = true,
+				collatable = true
+			);`,
+			[]string{"mybase", "mybase_in", "mybase_out", "mybase_receive", "mybase_send", "mybase_typmod_in", "mybase_typmod_out",
+				"mybase_analyze", "mybase_subscript", "198548", "int4", "plain", "mybase_like", "U", "false", "default_value", "mybase_element",
+				"true", "false"},
+			[]string{TYPE_KIND_PREFIX, FUNCTION_KIND_PREFIX, CONST_KIND_PREFIX}},
+		{"TYPE-CREATE-RANGE-BASIC",
 			`CREATE TYPE myrange AS RANGE (subtype = int4);`,
-			[]string{"myrange", "int4"},
-			[]string{TYPE_KIND_PREFIX, TYPE_KIND_PREFIX}},
+			[]string{"myrange"},
+			[]string{TYPE_KIND_PREFIX}},
+		{"TYPE-CREATE-RANGE-USER-DEFINED-SUBTYPE",
+			`CREATE TYPE customrange AS RANGE (subtype = my_custom_type);`,
+			[]string{"customrange", "my_custom_type"},
+			[]string{TYPE_KIND_PREFIX}},
+		{"TYPE-CREATE-RANGE-WITH-SUBTYPE-DIFF",
+			`CREATE TYPE timerange AS RANGE (subtype = time, subtype_diff = time_subtype_diff);`,
+			[]string{"timerange", "time_subtype_diff"},
+			[]string{TYPE_KIND_PREFIX, FUNCTION_KIND_PREFIX}},
+		{"TYPE-CREATE-RANGE-WITH-OPCLASS",
+			`CREATE TYPE timerange AS RANGE (subtype = time, subtype_opclass = time_ops);`,
+			[]string{"timerange", "time_ops"},
+			[]string{TYPE_KIND_PREFIX, OPCLASS_KIND_PREFIX}},
+		{"TYPE-CREATE-RANGE-WITH-COLLATION",
+			`CREATE TYPE timerange AS RANGE (subtype = time, collation = time_collation);`,
+			[]string{"timerange", "time_collation"},
+			[]string{TYPE_KIND_PREFIX, COLLATION_KIND_PREFIX}},
+		{"TYPE-CREATE-RANGE-WITH-CANONICAL",
+			`CREATE TYPE timerange AS RANGE (subtype = time, canonical = time_canonical_func);`,
+			[]string{"timerange", "time_canonical_func"},
+			[]string{TYPE_KIND_PREFIX, FUNCTION_KIND_PREFIX}},
+		{"TYPE-CREATE-RANGE-WITH-MULTIRANGE",
+			`CREATE TYPE timerange AS RANGE (subtype = time, multirange_type_name = timerange_multirange);`,
+			[]string{"timerange", "timerange_multirange"},
+			[]string{TYPE_KIND_PREFIX}},
+		{"TYPE-CREATE-RANGE-COMPREHENSIVE",
+			`CREATE TYPE timerange AS RANGE (
+				subtype = time,
+				subtype_opclass = time_ops,
+				collation = time_collation,
+				canonical = time_canonical_func,
+				subtype_diff = time_diff_func,
+				multirange_type_name = timerange_multirange
+			);`,
+			[]string{"timerange", "time_ops", "time_collation", "time_canonical_func", "time_diff_func", "timerange_multirange"},
+			[]string{TYPE_KIND_PREFIX, OPCLASS_KIND_PREFIX, COLLATION_KIND_PREFIX, FUNCTION_KIND_PREFIX}},
 		{"TYPE-RENAME",
 			`ALTER TYPE mycomposit RENAME TO mycomposit2;`,
 			[]string{"mycomposit", "mycomposit2"},
@@ -745,6 +694,10 @@ func TestPostgresDDLVariants(t *testing.T) {
 			`CREATE OPERATOR FAMILY sales.abs_numeric_ops USING btree;`,
 			[]string{"sales", "abs_numeric_ops"},
 			[]string{SCHEMA_KIND_PREFIX, OPFAMILY_KIND_PREFIX}},
+		{"OPERATOR-FAMILY-ALTER",
+			`ALTER OPERATOR FAMILY am_examples.box_ops USING gist2 ADD OPERATOR 1 <<(box, box), OPERATOR 2 &<(box, box), OPERATOR 3 &&(box, box), OPERATOR 4 &>(box, box), OPERATOR 5 >>(box, box), OPERATOR 6 ~=(box, box), OPERATOR 7 @>(box, box), OPERATOR 8 <@(box, box), OPERATOR 9 &<|(box, box), OPERATOR 10 <<|(box, box), OPERATOR 11 |>>(box, box), OPERATOR 12 |&>(box, box)`,
+			[]string{"am_examples", "box_ops", "<<", "&<", "&&", "&>", ">>", "~=", "@>", "<@", "&<|", "<<|", "|>>", "|&>"},
+			[]string{SCHEMA_KIND_PREFIX, OPFAMILY_KIND_PREFIX, OPERATOR_KIND_PREFIX}},
 
 		// ─── OPERATOR ─────────────────────────────────────────────
 		{"OPERATOR-CREATE",
@@ -784,9 +737,6 @@ func TestPostgresDDLVariants(t *testing.T) {
 	for _, c := range cases {
 		c := c
 		t.Run(c.key, func(t *testing.T) {
-			if !enabled[c.key] {
-				t.Skip("disabled until anonymizer supports " + c.key)
-			}
 			out, err := az.Anonymize(c.sql)
 			if err != nil {
 				t.Fatalf("anonymize: %v", err)
@@ -1097,3 +1047,162 @@ func TestMissingNodeAnonymization(t *testing.T) {
 //  MVIEW                 ...                                            | [ ]
 //  FUNCTION / PROCEDURE  ...                                            | [ ]
 // ============================================================================
+
+// TestPostgresDDLCornerCases tests edge cases and corner cases for PostgreSQL DDL statements
+// that may not be covered by the standard test cases above
+func TestPostgresDDLCornerCases(t *testing.T) {
+	log.SetLevel(log.WarnLevel)
+	exportDir := testutils.CreateTempExportDir()
+	defer testutils.RemoveTempExportDir(exportDir)
+	az := newAnon(t, exportDir)
+
+	cases := []ddlCase{
+		// ─── CORNER CASE: TABLE WITH DEFAULT VALUES ─────────────────────────────────────────────
+		{
+			"TABLE-CREATE-WITH-DEFAULT-INT",
+			`CREATE TABLE sales.products (product_id int DEFAULT 1)`,
+			[]string{"sales", "products", "product_id"},
+			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX, CONST_KIND_PREFIX},
+		},
+		{
+			"TABLE-CREATE-WITH-DEFAULT-STRING",
+			`CREATE TABLE sales.products (product_name text DEFAULT 'default_name')`,
+			[]string{"sales", "products", "product_name", "default_name"},
+			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX, CONST_KIND_PREFIX},
+		},
+		{
+			"TABLE-CREATE-WITH-DEFAULT-FLOAT",
+			`CREATE TABLE sales.products (price numeric DEFAULT 99.99)`,
+			[]string{"sales", "products", "price"},
+			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX, CONST_KIND_PREFIX},
+		},
+		{
+			"TABLE-CREATE-WITH-DEFAULT-BOOLEAN",
+			`CREATE TABLE sales.products (is_active boolean DEFAULT true)`,
+			[]string{"sales", "products", "is_active"},
+			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX, CONST_KIND_PREFIX},
+		},
+		{
+			"TABLE-CREATE-WITH-DEFAULT-NULL",
+			`CREATE TABLE sales.products (description text DEFAULT NULL)`,
+			[]string{"sales", "products", "description"},
+			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX},
+		},
+		{
+			"TABLE-CREATE-WITH-MULTIPLE-DEFAULTS",
+			`CREATE TABLE sales.products (id int DEFAULT 1, name text DEFAULT 'product', price numeric DEFAULT 0.00, active boolean DEFAULT true)`,
+			[]string{"sales", "products", "id", "name", "product", "price", "active"},
+			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX, CONST_KIND_PREFIX},
+		},
+
+		// ─── PARTITIONING STRATEGIES ─────────────────────────────────────────────────────────────
+		// LIST Partitioning
+		{
+			"TABLE-CREATE-PARTITIONED-LIST",
+			`CREATE TABLE sales.orders (order_id int NOT NULL, customer_id int, order_status text, region text NOT NULL) PARTITION BY LIST(region)`,
+			[]string{"sales", "orders", "order_id", "customer_id", "order_status", "region"},
+			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX},
+		},
+
+		// RANGE Partitioning
+		{
+			"TABLE-CREATE-PARTITIONED-RANGE",
+			`CREATE TABLE sales.orders_by_date (order_id int, order_date date, amount numeric) PARTITION BY RANGE(order_date)`,
+			[]string{"sales", "orders_by_date", "order_id", "order_date", "amount"},
+			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX},
+		},
+
+		// HASH Partitioning
+		{
+			"TABLE-CREATE-PARTITIONED-HASH",
+			`CREATE TABLE sales.orders_by_hash (order_id int, customer_id int, amount numeric) PARTITION BY HASH(customer_id)`,
+			[]string{"sales", "orders_by_hash", "order_id", "customer_id", "amount"},
+			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX},
+		},
+
+		// Multiple Column Partitioning
+		{
+			"TABLE-CREATE-PARTITIONED-MULTI-COLUMN",
+			`CREATE TABLE sales.orders_multi (order_id int, region text, order_date date, amount numeric) PARTITION BY RANGE(region, order_date)`,
+			[]string{"sales", "orders_multi", "order_id", "region", "order_date", "amount"},
+			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX},
+		},
+
+		// Expression-based Partitioning
+		{
+			"TABLE-CREATE-PARTITIONED-EXPRESSION",
+			`CREATE TABLE sales.orders_expr (order_id int, order_date timestamp, amount numeric) PARTITION BY RANGE(EXTRACT(YEAR FROM order_date))`,
+			[]string{"sales", "orders_expr", "order_id", "order_date", "amount"},
+			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX},
+		},
+
+		// Function-based Partitioning
+		{
+			"TABLE-CREATE-PARTITIONED-FUNCTION",
+			`CREATE TABLE sales.orders_func (order_id int, order_date timestamp, amount numeric) PARTITION BY RANGE(date_trunc('month', order_date))`,
+			[]string{"sales", "orders_func", "order_id", "order_date", "amount"},
+			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX},
+		},
+
+		// ─── ALTER TABLE IDENTITY OPERATIONS ─────────────────────────────────────────────
+		{
+			"TABLE-ALTER-ADD-IDENTITY-WITH-SEQUENCE",
+			`ALTER TABLE sales.orders ALTER COLUMN order_id ADD GENERATED BY DEFAULT AS IDENTITY (SEQUENCE NAME public.ts_query_table_id_seq START 1 INCREMENT 1 NO MINVALUE NO MAXVALUE CACHE 1)`,
+			[]string{"sales", "orders", "order_id", "public", "ts_query_table_id_seq"},
+			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX, SEQUENCE_KIND_PREFIX},
+		},
+
+		// ─── ALTER TABLE PARTITION OPERATIONS ─────────────────────────────────────────────
+		{
+			"TABLE-ALTER-ATTACH-PARTITION",
+			`ALTER TABLE ONLY sales.orders ATTACH PARTITION sales.orders_2024 FOR VALUES FROM (5545) TO (5612)`,
+			[]string{"sales", "orders", "orders_2024", "5545", "5612"},
+			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX},
+		},
+		{
+			"TABLE-ALTER-ATTACH-PARTITION-DATE",
+			`ALTER TABLE ONLY sales.orders ATTACH PARTITION sales.orders_2024 FOR VALUES FROM ('2024-01-01') TO ('2024-12-31')`,
+			[]string{"sales", "orders", "orders_2024", "2024-01-01", "2024-12-31"},
+			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX},
+		},
+		{
+			"TABLE-ALTER-ATTACH-PARTITION-STRING",
+			`ALTER TABLE ONLY sales.orders ATTACH PARTITION sales.orders_region_a FOR VALUES FROM ('US') TO ('CA')`,
+			[]string{"sales", "orders", "orders_region_a", "US", "CA"},
+			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX},
+		},
+
+		// ─── INDEX WITH OPERATOR CLASS AND OPTIONS ─────────────────────────────────────────────
+		{
+			"INDEX-CREATE-WITH-OPERATOR-CLASS-OPTIONS",
+			`CREATE INDEX idx_orders_location ON sales.orders USING gist (location postgis.gist_geometry_ops(siglen='1232'))`,
+			[]string{"idx_orders_location", "sales", "orders", "location", "postgis", "gist_geometry_ops", "siglen", "1232"},
+			[]string{INDEX_KIND_PREFIX, SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX, SCHEMA_KIND_PREFIX, OPCLASS_KIND_PREFIX, PARAMETER_KIND_PREFIX, CONST_KIND_PREFIX},
+		},
+	}
+
+	for _, c := range cases {
+		c := c
+		t.Run(c.key, func(t *testing.T) {
+			out, err := az.Anonymize(c.sql)
+			if err != nil {
+				t.Fatalf("anonymize: %v", err)
+			}
+			fmt.Printf("Test Name: %s\nIN: %s\nOUT: %s\n\n", c.key, c.sql, out)
+
+			// Check that raw identifiers are anonymized
+			for _, raw := range c.raw {
+				if strings.Contains(out, raw) {
+					t.Errorf("raw identifier %q leaked in %s", raw, out)
+				}
+			}
+
+			// Check that expected prefixes appear
+			for _, pref := range c.prefixes {
+				if !hasTok(out, pref) {
+					t.Errorf("expected prefix %q not found in %s", pref, out)
+				}
+			}
+		})
+	}
+}

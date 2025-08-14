@@ -1,0 +1,12 @@
+[
+    {
+      "table_name": "public.\"accounts\"",
+      "file_name": "accounts_data.csv",
+      "status": "DONE",
+      "total_count": 170140395,
+      "imported_count": 170140395,
+      "errored_count": 0,
+      "percentage_complete": 100
+    }
+  ]
+  

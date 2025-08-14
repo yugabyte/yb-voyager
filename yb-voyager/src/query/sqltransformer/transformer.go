@@ -160,7 +160,7 @@ func (t *Transformer) MergeConstraints(stmts []*pg_query.RawStmt) ([]*pg_query.R
 	return result, nil
 }
 
-func (t *Transformer) RemoveRedundantIndexes(stmts []*pg_query.RawStmt, redundantIndexesMap map[string]string) ([]*pg_query.RawStmt, *utils.StructMap[*sqlname.ObjectNameQualifiedWithTableName, *pg_query.RawStmt], error) {
+func (t *Transformer) RemoveRedundantIndexes(stmts []*pg_query.RawStmt, redundantIndexesMap *utils.StructMap[*sqlname.ObjectNameQualifiedWithTableName, string]) ([]*pg_query.RawStmt, *utils.StructMap[*sqlname.ObjectNameQualifiedWithTableName, *pg_query.RawStmt], error) {
 	log.Infof("removing redundant indexes from the schema")
 	var sqlStmts []*pg_query.RawStmt
 	removedIndexToStmtMap := utils.NewStructMap[*sqlname.ObjectNameQualifiedWithTableName, *pg_query.RawStmt]()
@@ -171,7 +171,7 @@ func (t *Transformer) RemoveRedundantIndexes(stmts []*pg_query.RawStmt, redundan
 			continue
 		}
 		objectNameWithTable := queryparser.GetIndexObjectNameFromIndexStmt(stmt.Stmt.GetIndexStmt())
-		if _, ok := redundantIndexesMap[objectNameWithTable.CatalogName()]; ok {
+		if _, ok := redundantIndexesMap.Get(objectNameWithTable); ok {
 			log.Infof("removing redundant index %s from the schema", objectNameWithTable.CatalogName())
 			removedIndexToStmtMap.Put(objectNameWithTable, stmt)
 		} else {

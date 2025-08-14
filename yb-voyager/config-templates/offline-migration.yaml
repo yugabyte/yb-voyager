@@ -351,7 +351,12 @@ export-data:
   ### Note: This overrides the global log-level parameter for this command only.
   ### Accepted values - (trace, debug, info, warn, error, fatal, panic) 
   ### Default - info
-  # log-level: info                                            
+  # log-level: info    
+
+  ### [EXPERIMENTAL][Oracle only] Allow exporting data of CLOB columns in offline migration. Not supported for live/BETA_FAST_DATA_EXPORT export paths.
+  ### Accepted values (true, false, yes, no, 1, 0)
+  ### Default - false
+  # allow-oracle-clob-data-export: true
 
 # ---------------------------------------------------------
 # Import Data Configuration

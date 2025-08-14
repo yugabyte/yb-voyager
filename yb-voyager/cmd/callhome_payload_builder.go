@@ -17,18 +17,20 @@ limitations under the License.
 package cmd
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryissue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
-	"golang.org/x/exp/slices"
 )
 
 var (
@@ -36,7 +38,6 @@ var (
 	skipCategoriesForAnonymization = []string{
 		UNSUPPORTED_QUERY_CONSTRUCTS_CATEGORY,
 		UNSUPPORTED_PLPGSQL_OBJECTS_CATEGORY,
-		UNSUPPORTED_DATATYPES_CATEGORY, // TODO: add anonymization for unsupported datatypes
 	}
 
 	// skipObjectTypesForAnonymization contains object types that should be skipped during SQL anonymization
@@ -117,11 +118,6 @@ func packAndSendAssessMigrationPayload(status string, errMsg error) {
 
 	anonymizedIssues := anonymizeAssessmentIssuesForCallhomePayload(assessmentReport.Issues)
 
-	// replacing anonymized sql statements in the issues with empty string for now, till existing issues are fixed
-	for i := 0; i < len(anonymizedIssues); i++ {
-		anonymizedIssues[i].SqlStatement = ""
-	}
-
 	var callhomeSizingAssessment callhome.SizingCallhome
 	if assessmentReport.Sizing != nil {
 		sizingRecommedation := &assessmentReport.Sizing.SizingRecommendation
@@ -162,6 +158,8 @@ func packAndSendAssessMigrationPayload(status string, errMsg error) {
 	}
 }
 
+// ============================assess migration callhome payload information============================
+
 func anonymizeAssessmentIssuesForCallhomePayload(assessmentIssues []AssessmentIssue) []callhome.AssessmentIssueCallhome {
 	/*
 		Case to skip for sql statement anonymization:
@@ -173,17 +171,26 @@ func anonymizeAssessmentIssuesForCallhomePayload(assessmentIssues []AssessmentIs
 			slices.Contains(skipObjectTypesForAnonymization, issue.ObjectType)
 	}
 
+	var err error
 	anonymizedIssues := make([]callhome.AssessmentIssueCallhome, len(assessmentIssues))
 	for i, issue := range assessmentIssues {
 		anonymizedIssues[i] = callhome.NewAssessmentIssueCallhome(issue.Category, issue.CategoryDescription, issue.Type, issue.Name, issue.Impact, issue.ObjectType, issue.Details)
+
+		if shouldSkipAnonymization(issue) {
+			continue
+		}
 
 		// special handling for extensions issue: adding extname to issue.Name
 		if issue.Type == queryissue.UNSUPPORTED_EXTENSION {
 			anonymizedIssues[i].Name = queryissue.AppendObjectNameToIssueName(issue.Name, issue.ObjectName)
 		}
 
-		if shouldSkipAnonymization(issue) {
-			continue
+		if issue.Category == UNSUPPORTED_DATATYPES_CATEGORY {
+			anonymizedIssues[i].ObjectName, err = anonymizer.AnonymizeQualifiedColumnName(issue.ObjectName)
+			if err != nil {
+				log.Warnf("failed to anonymize object name %s: %v", issue.ObjectName, err)
+				anonymizedIssues[i].ObjectName = constants.OBFUSCATE_STRING
+			}
 		}
 
 		if issue.SqlStatement != "" {
@@ -247,7 +254,7 @@ func anonymizeIssueDetailsForCallhome(details map[string]interface{}) map[string
 	return anonymizedDetails
 }
 
-var DDL_ANONYMIZATION_FEATURE_ENABLED = false
+var DDL_ANONYMIZATION_FEATURE_ENABLED = true
 
 func getAnonymizedDDLs(sourceDBConf *srcdb.Source) []string {
 	// env var to enable sending anonymized DDLs to call home
@@ -288,4 +295,76 @@ func getAnonymizedDDLs(sourceDBConf *srcdb.Source) []string {
 	}
 
 	return anonymizedDDLs
+}
+
+// ============================export schema callhome payload information============================
+
+const (
+	REDUNDANT_INDEX_CHANGE_TYPE               = "redundant_index"
+	TABLE_SHARDING_RECOMMENDATION_CHANGE_TYPE = "table_sharding_recommendation"
+	MVIEW_SHARDING_RECOMMENDATION_CHANGE_TYPE = "mview_sharding_recommendation"
+)
+
+func buildCallhomeSchemaOptimizationChanges() []callhome.SchemaOptimizationChange {
+	if schemaOptimizationReport == nil {
+		return nil
+	}
+	//For individual change, adding the anonymized object names to the callhome payload
+	schemaOptimizationChanges := make([]callhome.SchemaOptimizationChange, 0)
+	if schemaOptimizationReport.RedundantIndexChange != nil {
+		objects := make([]string, 0)
+		for tbl, indexes := range schemaOptimizationReport.RedundantIndexChange.TableToRemovedIndexesMap {
+			for _, index := range indexes {
+				anonymizedInd, err := anonymizer.AnonymizeIndexName(index)
+				if err != nil {
+					log.Errorf("callhome: failed to anonymise index-%s: %v", index, err)
+					continue
+				}
+				anonymizedTbl, err := anonymizer.AnonymizeTableName(tbl)
+				if err != nil {
+					log.Errorf("callhome: failed to anonymise table-%s: %v", tbl, err)
+					continue
+				}
+				objects = append(objects, fmt.Sprintf("%s ON %s", anonymizedInd, anonymizedTbl))
+			}
+		}
+		schemaOptimizationChanges = append(schemaOptimizationChanges, callhome.SchemaOptimizationChange{
+			OptimizationType: REDUNDANT_INDEX_CHANGE_TYPE,
+			IsApplied:        schemaOptimizationReport.RedundantIndexChange.IsApplied,
+			Objects:          objects,
+		})
+	}
+	if schemaOptimizationReport.TableShardingRecommendation != nil {
+		objects := make([]string, 0)
+		for _, obj := range schemaOptimizationReport.TableShardingRecommendation.ShardedObjects {
+			anonymizedObj, err := anonymizer.AnonymizeTableName(obj)
+			if err != nil {
+				log.Errorf("callhome: failed to anonymise table-%s: %v", obj, err)
+				continue
+			}
+			objects = append(objects, anonymizedObj)
+		}
+		schemaOptimizationChanges = append(schemaOptimizationChanges, callhome.SchemaOptimizationChange{
+			OptimizationType: TABLE_SHARDING_RECOMMENDATION_CHANGE_TYPE,
+			IsApplied:        schemaOptimizationReport.TableShardingRecommendation.IsApplied,
+			Objects:          objects,
+		})
+	}
+	if schemaOptimizationReport.MviewShardingRecommendation != nil {
+		objects := make([]string, 0)
+		for _, obj := range schemaOptimizationReport.MviewShardingRecommendation.ShardedObjects {
+			anonymizedObj, err := anonymizer.AnonymizeMViewName(obj)
+			if err != nil {
+				log.Errorf("callhome: failed to anonymise mview-%s: %v", obj, err)
+				continue
+			}
+			objects = append(objects, anonymizedObj)
+		}
+		schemaOptimizationChanges = append(schemaOptimizationChanges, callhome.SchemaOptimizationChange{
+			OptimizationType: MVIEW_SHARDING_RECOMMENDATION_CHANGE_TYPE,
+			IsApplied:        schemaOptimizationReport.MviewShardingRecommendation.IsApplied,
+			Objects:          schemaOptimizationReport.MviewShardingRecommendation.ShardedObjects,
+		})
+	}
+	return schemaOptimizationChanges
 }

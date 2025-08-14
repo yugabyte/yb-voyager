@@ -111,8 +111,9 @@ Version History
 1.3: Added field Details in AssessmentIssueCallhome struct
 1.4: Added SqlStatement field in AssessmentIssueCallhome struct
 1.5: Added AnonymizedDDLs field in AssessMigrationPhasePayload struct
+1.6: Added ObjectName field in AssessmentIssueCallhome struct
 */
-var ASSESS_MIGRATION_CALLHOME_PAYLOAD_VERSION = "1.5"
+var ASSESS_MIGRATION_CALLHOME_PAYLOAD_VERSION = "1.6"
 
 type AssessMigrationPhasePayload struct {
 	PayloadVersion                 string                    `json:"payload_version"`
@@ -138,6 +139,7 @@ type AssessmentIssueCallhome struct {
 	Name                string                 `json:"name"`
 	Impact              string                 `json:"impact"`
 	ObjectType          string                 `json:"object_type"`
+	ObjectName          string                 `json:"object_name"`
 	SqlStatement        string                 `json:"sql_statement,omitempty"`
 	Details             map[string]interface{} `json:"details,omitempty"`
 }
@@ -180,15 +182,29 @@ type AssessMigrationBulkPhasePayload struct {
 	ControlPlaneType string `json:"control_plane_type"`
 }
 
+type SchemaOptimizationChange struct {
+	OptimizationType string   `json:"optimization_type"`
+	IsApplied        bool     `json:"is_applied"`
+	Objects          []string `json:"objects"`
+}
+
+/*
+Version History
+1.0: Added a new field as PayloadVersion and SchemaOptimizationChanges
+*/
+var EXPORT_SCHEMA_CALLHOME_PAYLOAD_VERSION = "1.0"
+
 type ExportSchemaPhasePayload struct {
-	StartClean             bool   `json:"start_clean"`
-	AppliedRecommendations bool   `json:"applied_recommendations"`
-	UseOrafce              bool   `json:"use_orafce"`
-	CommentsOnObjects      bool   `json:"comments_on_objects"`
-	SkipRecommendations    bool   `json:"skip_recommendations"`
-	SkipPerfOptimizations  bool   `json:"skip_performance_optimizations"`
-	Error                  string `json:"error"`
-	ControlPlaneType       string `json:"control_plane_type"`
+	PayloadVersion            string                     `json:"payload_version"`
+	StartClean                bool                       `json:"start_clean"`
+	AppliedRecommendations    bool                       `json:"applied_recommendations"`
+	UseOrafce                 bool                       `json:"use_orafce"`
+	CommentsOnObjects         bool                       `json:"comments_on_objects"`
+	SkipRecommendations       bool                       `json:"skip_recommendations"`
+	SkipPerfOptimizations     bool                       `json:"skip_performance_optimizations"`
+	Error                     string                     `json:"error"`
+	ControlPlaneType          string                     `json:"control_plane_type"`
+	SchemaOptimizationChanges []SchemaOptimizationChange `json:"schema_optimization_changes"`
 }
 
 /*
@@ -225,12 +241,13 @@ type ExportDataPhasePayload struct {
 	StartClean              bool   `json:"start_clean"`
 	ExportSnapshotMechanism string `json:"export_snapshot_mechanism,omitempty"`
 	//TODO: see if these three can be changed to not use omitempty to put the data for 0 rate or total events
-	Phase               string `json:"phase,omitempty"`
-	TotalExportedEvents int64  `json:"total_exported_events,omitempty"`
-	EventsExportRate    int64  `json:"events_export_rate_3m,omitempty"`
-	LiveWorkflowType    string `json:"live_workflow_type,omitempty"`
-	Error               string `json:"error"`
-	ControlPlaneType    string `json:"control_plane_type"`
+	Phase                     string `json:"phase,omitempty"`
+	TotalExportedEvents       int64  `json:"total_exported_events,omitempty"`
+	EventsExportRate          int64  `json:"events_export_rate_3m,omitempty"`
+	LiveWorkflowType          string `json:"live_workflow_type,omitempty"`
+	Error                     string `json:"error"`
+	ControlPlaneType          string `json:"control_plane_type"`
+	AllowOracleClobDataExport bool   `json:"allow_oracle_clob_data_export"`
 }
 
 type ImportSchemaPhasePayload struct {

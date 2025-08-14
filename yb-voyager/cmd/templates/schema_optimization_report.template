@@ -138,7 +138,53 @@
             margin-bottom: 15px;
         }
 
-        pre, code {
+        /* Optimization Section Styles */
+        .optimization-section {
+            margin-bottom: 2rem;
+            padding: 1.5rem;
+            border-radius: 8px;
+            border-left: 4px solid;
+        }
+
+        .optimization-section.applied {
+            background-color: #f0f9ff;
+            border-left-color: #10b981;
+            border: 1px solid #ffffff;
+        }
+
+        .optimization-section.not-applied {
+            background-color: #fef3c7;
+            border-left-color: #f59e0b;
+            border: 1px solid #ffffff;
+        }
+
+        .optimization-section h3 {
+            margin-top: 0;
+            color: #1f2937;
+        }
+
+        .optimization-section.applied h3 {
+            color: #065f46;
+        }
+
+        .optimization-section.not-applied h3 {
+            color: #92400e;
+        }
+
+        /* Ensure table rows in optimization sections have white background */
+        .optimization-section table tbody tr {
+            background-color: white !important;
+        }
+
+        .optimization-section table tbody tr:nth-child(even) {
+            background-color: white !important;
+        }
+
+        .optimization-section table tbody tr:nth-child(odd) {
+            background-color: white !important;
+        }
+
+        pre {
             width: 100%;          /* Ensure content takes full width of container */
             margin: 0;            /* Remove default margins */
             padding: 8px;         /* Add consistent padding around code blocks */
@@ -148,6 +194,14 @@
             word-break: break-word;     /* Break long words if needed */
             overflow-wrap: break-word;  /* Same as above, for newer browsers */
             box-sizing: border-box;     /* Include padding in element's total width */
+            font-size: 1em; 
+            white-space: pre-wrap; 
+            word-break: break-word; 
+            overflow-wrap: break-word; 
+            margin: 0; 
+            padding: 8px; 
+            color: #000; 
+            font-family: Arial, sans-serif;
         }
 
         /* Highlight Table Styles */
@@ -183,7 +237,7 @@
             border-top: 1px solid #ddd;
             margin: 0;
         }
-
+        
         .details-row > td {
             padding: 0;
             height: 0;
@@ -281,73 +335,87 @@
             <p><strong>Source DB Version:</strong> {{.SourceDatabaseVersion}}</p>
             <p>Summary of schema optimizations and recommendations applied to improve performance and ensure compatibility with YugabyteDB’s distributed architecture.</p>
             {{ if .RedundantIndexChange }}
-               <h3>{{.RedundantIndexChange.Title}}</h3>
-               <p>{{.RedundantIndexChange.Description}}</p>
-               <p> Refer to the <a class="file-link" href="{{.RedundantIndexChange.ReferenceFile}}" target="_blank"> {{.RedundantIndexChange.ReferenceFileDisplayName}} </a></p>
+               <div class="optimization-section {{if .RedundantIndexChange.IsApplied}}applied{{else}}not-applied{{end}}">
+                  <h3>
+                     {{if .RedundantIndexChange.IsApplied}}✅ {{else}}⚠️ {{end}}
+                     {{.RedundantIndexChange.Title}}
+                  </h3>
+                  <pre>{{.RedundantIndexChange.Description}}</pre>
+                  {{if .RedundantIndexChange.IsApplied}}
+                     <pre>Refer to the <a class="file-link" href="{{.RedundantIndexChange.ReferenceFile}}" target="_blank"> {{.RedundantIndexChange.ReferenceFileDisplayName}} </a></pre>
+                  {{end}}
 
-               <details>
-                  <summary>Details</summary>
-                  <table>
-                     <thead>
-                        <tr>
-                           <th class="centered-cell">Table</th>
-                           <th class="centered-cell">Removed Indexes</th>
-                        </tr>
-                     </thead>
-                     <tbody>
-                        {{range $table, $indexes := .RedundantIndexChange.TableToRemovedIndexesMap}}
+                  <details>
+                     <summary>Details</summary>
+                     <table>
+                        <thead>
                            <tr>
-                              <td>{{$table}}</td>
-                              <td class="scrollable-div">
-                                 <ul>
-                                    {{range $indexes}}
-                                       <li>{{.}}</li>
-                                    {{end}}
-                                 </ul>
-                              </td>
+                              <th class="centered-cell">Table</th>
+                              <th class="centered-cell">Indexes</th>
                            </tr>
-                        {{end}}
-                     </tbody>
-                  </table>
-               </details>
+                        </thead>
+                        <tbody>
+                           {{range $table, $indexes := .RedundantIndexChange.TableToRemovedIndexesMap}}
+                              <tr>
+                                 <td>{{$table}}</td>
+                                 <td class="scrollable-div">
+                                    <ul>
+                                       {{range $indexes}}
+                                          <li>{{.}}</li>
+                                       {{end}}
+                                    </ul>
+                                 </td>
+                              </tr>
+                           {{end}}
+                        </tbody>
+                     </table>
+                  </details>
+               </div>
             {{ end }}
          
 
             {{ if .TableShardingRecommendation }}
-               <h3>{{.TableShardingRecommendation.Title}}</h3>
-               <p> {{.TableShardingRecommendation.Description}}</p>
-               <p> Refer to the <a class="file-link" href="{{.TableShardingRecommendation.ReferenceFile}}" target="_blank"> {{.TableShardingRecommendation.ReferenceFileDisplayName}} </a> for modified DDLs.</p>
-               <details>
-                  <summary>Details</summary>
-                  <table>
-                     <tr>
-                           <th class="centered-cell">Sharded Tables</th>
-                           <th class="centered-cell">Colocated Tables</th>
-                     </tr>
-                     <tr>
-                           <td>
-                              <div class="scrollable-div no-wrap-list">
-                                 {{ range .TableShardingRecommendation.ShardedObjects}}
-                                       <li>{{ . }}</li>
-                                 {{ end }}
-                              </div>
-                           </td>
-                           <td>
-                              <div class="scrollable-div no-wrap-list">
-                                 {{ range .TableShardingRecommendation.CollocatedObjects }}
-                                       <li>{{ . }}</li>
-                                 {{ end }}
-                              </div>
-                           </td>
-                     </tr>
-                  </table>
-               </details>
+               <div class="optimization-section {{if .TableShardingRecommendation.IsApplied}}applied{{else}}not-applied{{end}}">
+                  <h3>
+                     {{if .TableShardingRecommendation.IsApplied}}✅ {{else}}⚠️ {{end}}
+                     {{.TableShardingRecommendation.Title}}
+                  </h3>
+                  <pre>{{.TableShardingRecommendation.Description}}</pre>
+                  {{if .TableShardingRecommendation.IsApplied}}
+                     <pre>Refer to the <a class="file-link" href="{{.TableShardingRecommendation.ReferenceFile}}" target="_blank"> {{.TableShardingRecommendation.ReferenceFileDisplayName}} </a> for modified DDLs.</pre>
+                     <details>
+                        <summary>Details</summary>
+                        <table>
+                           <tr>
+                                 <th class="centered-cell">Sharded Tables</th>
+                                 <th class="centered-cell">Colocated Tables</th>
+                           </tr>
+                           <tr>
+                                 <td>
+                                    <div class="scrollable-div no-wrap-list">
+                                       {{ range .TableShardingRecommendation.ShardedObjects}}
+                                             <li>{{ . }}</li>
+                                       {{ end }}
+                                    </div>
+                                 </td>
+                                 <td>
+                                    <div class="scrollable-div no-wrap-list">
+                                       {{ range .TableShardingRecommendation.CollocatedObjects }}
+                                             <li>{{ . }}</li>
+                                       {{ end }}
+                                    </div>
+                                 </td>
+                           </tr>
+                        </table>
+                     </details>
+                  {{end}}
+               </div>
             {{ end }}
    
             {{ if .MviewShardingRecommendation }}
                <h3>{{.MviewShardingRecommendation.Title}}</h3>
-               <p> {{.MviewShardingRecommendation.Description}}</p>
-               <p> Refer to the <a class="file-link" href="{{.MviewShardingRecommendation.ReferenceFile}}" target="_blank"> {{.MviewShardingRecommendation.ReferenceFileDisplayName}} </a> for modified DDLs.</p>
+               <pre>{{.MviewShardingRecommendation.Description}}</pre>
+               <pre>Refer to the <a class="file-link" href="{{.MviewShardingRecommendation.ReferenceFile}}" target="_blank"> {{.MviewShardingRecommendation.ReferenceFileDisplayName}} </a> for modified DDLs.</pre>
                <details>
                   <summary>Details</summary>
                   <table>
