@@ -265,8 +265,6 @@ func generatePerformanceOptimizationReport(indexTransformer *sqltransformer.Inde
 		//Not generating the report in case other than PG
 		return nil
 	}
-	var modifiedIndexesToRange []*sqlname.ObjectNameQualifiedWithTableName
-
 	htmlReportFilePath := filepath.Join(exportDir, "reports", fmt.Sprintf("%s%s", SchemaOptimizationReportFileName, HTML_EXTENSION))
 	log.Infof("writing changes report to file: %s", htmlReportFilePath)
 
@@ -280,9 +278,9 @@ func generatePerformanceOptimizationReport(indexTransformer *sqltransformer.Inde
 	schemaOptimizationReport.RedundantIndexChange = buildRedundantIndexChange(indexTransformer)
 	schemaOptimizationReport.TableShardingRecommendation = buildShardingTableRecommendationChange(shardedTables, colocatedTables)
 	schemaOptimizationReport.MviewShardingRecommendation = buildShardingMviewRecommendationChange(shardedMviews, colocatedMviews)
-	if len(modifiedIndexesToRange) > 0 {
+	if len(indexTransformer.ModifiedIndexesToRange) > 0 {
 		schemaOptimizationReport.SecondaryIndexToRangeChange = NewSecondaryIndexToRangeChange()
-		schemaOptimizationReport.SecondaryIndexToRangeChange.ModifiedIndexes = GetTableToIndexMap(modifiedIndexesToRange)
+		schemaOptimizationReport.SecondaryIndexToRangeChange.ModifiedIndexes = GetTableToIndexMap(indexTransformer.ModifiedIndexesToRange)
 	}
 
 	if schemaOptimizationReport.HasOptimizations() {
