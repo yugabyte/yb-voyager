@@ -150,14 +150,16 @@ type SecondaryIndexToRangeChange struct {
 	ReferenceFile            string              `json:"reference_file"`
 	ReferenceFileDisplayName string              `json:"reference_file_display_name"`
 	ModifiedIndexes          map[string][]string `json:"modified_indexes"`
+	IsApplied                bool                `json:"is_applied"`
 }
 
 func NewSecondaryIndexToRangeChange() *SecondaryIndexToRangeChange {
 	return &SecondaryIndexToRangeChange{
-		Title:                    "Modified Secondary Indexes to be range-sharded",
+		Title:                    "Secondary Indexes to be range-sharded - Applied",
 		Description:              "The following secondary indexes were converted to range-sharded indexes. This helps in distributing the data evenly across the nodes and improves the performance of these indexes.",
 		ReferenceFile:            utils.GetObjectFilePath(filepath.Join(exportDir, "schema"), INDEX),
 		ReferenceFileDisplayName: "index.sql",
+		IsApplied:                true,
 	}
 }
 
@@ -249,6 +251,23 @@ func buildShardingMviewRecommendationChange(shardedMviews []string, colocatedMvi
 	return appliedRecommendationMview
 }
 
+func buildSecondaryIndexToRangeChange(indexTransformer *sqltransformer.IndexFileTransformer) *SecondaryIndexToRangeChange {
+	if indexTransformer == nil {
+		return nil
+	}
+	if skipPerfOptimizations {
+		secondaryIndexToRangeChange := NewSecondaryIndexToRangeChange()
+		secondaryIndexToRangeChange.IsApplied = false
+		secondaryIndexToRangeChange.Description = "Range-sharded secondary indexes helps in better data distribution and performance. Due to the skip-performance-optimizations flag, all the btree indexes were not converted to range-sharded indexes. Modify the indexes to be range-sharded manually."
+		secondaryIndexToRangeChange.Title = "Secondary Indexes to be range-sharded - Not Applied"
+		return secondaryIndexToRangeChange
+	}
+	secondaryIndexToRangeChange := NewSecondaryIndexToRangeChange()
+	secondaryIndexToRangeChange.ModifiedIndexes = GetTableToIndexMap(indexTransformer.ModifiedIndexesToRange)
+	secondaryIndexToRangeChange.IsApplied = true
+	return secondaryIndexToRangeChange
+}
+
 //go:embed templates/schema_optimization_report.template
 var optimizationChangesTemplate []byte
 
@@ -278,10 +297,7 @@ func generatePerformanceOptimizationReport(indexTransformer *sqltransformer.Inde
 	schemaOptimizationReport.RedundantIndexChange = buildRedundantIndexChange(indexTransformer)
 	schemaOptimizationReport.TableShardingRecommendation = buildShardingTableRecommendationChange(shardedTables, colocatedTables)
 	schemaOptimizationReport.MviewShardingRecommendation = buildShardingMviewRecommendationChange(shardedMviews, colocatedMviews)
-	if len(indexTransformer.ModifiedIndexesToRange) > 0 {
-		schemaOptimizationReport.SecondaryIndexToRangeChange = NewSecondaryIndexToRangeChange()
-		schemaOptimizationReport.SecondaryIndexToRangeChange.ModifiedIndexes = GetTableToIndexMap(indexTransformer.ModifiedIndexesToRange)
-	}
+	schemaOptimizationReport.SecondaryIndexToRangeChange = buildSecondaryIndexToRangeChange(indexTransformer)
 
 	if schemaOptimizationReport.HasOptimizations() {
 		file, err := os.Create(htmlReportFilePath)
