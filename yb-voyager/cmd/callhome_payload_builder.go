@@ -303,6 +303,7 @@ const (
 	REDUNDANT_INDEX_CHANGE_TYPE               = "redundant_index"
 	TABLE_SHARDING_RECOMMENDATION_CHANGE_TYPE = "table_sharding_recommendation"
 	MVIEW_SHARDING_RECOMMENDATION_CHANGE_TYPE = "mview_sharding_recommendation"
+	SECONDARY_INDEX_TO_RANGE_CHANGE_TYPE      = "secondary_index_to_range"
 )
 
 func buildCallhomeSchemaOptimizationChanges() []callhome.SchemaOptimizationChange {
@@ -364,6 +365,29 @@ func buildCallhomeSchemaOptimizationChanges() []callhome.SchemaOptimizationChang
 			OptimizationType: MVIEW_SHARDING_RECOMMENDATION_CHANGE_TYPE,
 			IsApplied:        schemaOptimizationReport.MviewShardingRecommendation.IsApplied,
 			Objects:          schemaOptimizationReport.MviewShardingRecommendation.ShardedObjects,
+		})
+	}
+	if schemaOptimizationReport.SecondaryIndexToRangeChange != nil {
+		objects := make([]string, 0)
+		for tbl, indexes := range schemaOptimizationReport.SecondaryIndexToRangeChange.ModifiedIndexes {
+			for _, index := range indexes {
+				anonymizedInd, err := anonymizer.AnonymizeIndexName(index)
+				if err != nil {
+					log.Errorf("callhome: failed to anonymise index-%s: %v", index, err)
+					continue
+				}
+				anonymizedTbl, err := anonymizer.AnonymizeTableName(tbl)
+				if err != nil {
+					log.Errorf("callhome: failed to anonymise table-%s: %v", tbl, err)
+					continue
+				}
+				objects = append(objects, fmt.Sprintf("%s ON %s", anonymizedInd, anonymizedTbl))
+			}
+		}
+		schemaOptimizationChanges = append(schemaOptimizationChanges, callhome.SchemaOptimizationChange{
+			OptimizationType: SECONDARY_INDEX_TO_RANGE_CHANGE_TYPE,
+			IsApplied:        schemaOptimizationReport.SecondaryIndexToRangeChange.IsApplied,
+			Objects:          objects,
 		})
 	}
 	return schemaOptimizationChanges
