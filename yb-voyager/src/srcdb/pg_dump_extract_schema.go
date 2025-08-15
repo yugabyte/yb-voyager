@@ -270,7 +270,7 @@ func shouldSkipLine(line string) bool {
 }
 
 func isCompleteLine(line string) bool {
-	return strings.EqualFold(line, strings.TrimSpace("-- PostgreSQL database dump complete"))
+	return strings.EqualFold(strings.TrimSpace(line),"-- PostgreSQL database dump complete")
 }
 
 func isDelimiterLine(line string) bool {
