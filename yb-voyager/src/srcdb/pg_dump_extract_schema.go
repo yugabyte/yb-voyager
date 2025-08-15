@@ -154,7 +154,6 @@ func parseSchemaFile(exportDir string, schemaDir string, exportObjectTypesList [
 		if isDelimiterLine(line) {
 			delimiterIndexes = append(delimiterIndexes, i)
 		}
-		// fmt.Printf("line %s\n", line)
 	}
 
 	// map to store the sql statements for each db object type
@@ -271,7 +270,7 @@ func shouldSkipLine(line string) bool {
 }
 
 func isCompleteLine(line string) bool {
-	return strings.EqualFold(line, "-- PostgreSQL database dump complete")
+	return strings.EqualFold(line, strings.TrimSpace("-- PostgreSQL database dump complete"))
 }
 
 func isDelimiterLine(line string) bool {
