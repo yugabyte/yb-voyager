@@ -67,6 +67,51 @@ func pgdumpExtractSchema(source *Source, connectionUri string, exportDir string,
 	}
 }
 
+/*
+schema.sql looks like this for pg_dump version 17.6:
+--
+-- PostgreSQL database dump
+--
+
+\restrict ZccYr1ZKbIyAS4yDEZ4a1eB6CaYX4GW6QmFWXxKS9SfuamtoY1xSxlgQv4Bl21D
+
+-- Dumped from database version 17.2 (Debian 17.2-1.pgdg120+1)
+-- Dumped by pg_dump version 17.6 (Homebrew)
+
+SET statement_timeout = 0;
+SET lock_timeout = 0;
+SET idle_in_transaction_session_timeout = 0;
+SET transaction_timeout = 0;
+.... DDL Statements in between
+
+--
+-- Name: foreign_test foreign_test_pid_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.foreign_test
+    ADD CONSTRAINT foreign_test_pid_fkey FOREIGN KEY (pid) REFERENCES public.primary_test(id);
+
+
+--
+-- PostgreSQL database dump complete
+--
+
+\unrestrict ZccYr1ZKbIyAS4yDEZ4a1eB6CaYX4GW6QmFWXxKS9SfuamtoY1xSxlgQv4Bl21D
+
+so we don't consider the restrict already right now and we add the unrestrict with the last SQL statement.
+for e.g. the last sql statement in above scenario is ALTER TABLE ONLY public.foreign_test ADD CONSTRAINT foreign_test_pid_fkey FOREIGN KEY (pid) REFERENCES public.primary_test(id);
+so we add the unrestrict with the last sql statement.
+
+and it comes in table.sql like this:
+
+ALTER TABLE ONLY public.foreign_test
+    ADD CONSTRAINT foreign_test_pid_fkey FOREIGN KEY (pid) REFERENCES public.primary_test(id);
+-- PostgreSQL database dump complete
+\unrestrict QMyXdT2hNspUPgIayBgPRbKUlNirJvdnQcHsdygouy4b3L7lucGqm9HWObJ8UNe
+
+so the fix is to stop the reading if we reach the comment line -- PostgreSQL database dump complete
+
+*/
 func readSchemaFile(path string) []string {
 	file, err := os.Open(path)
 	if err != nil {
@@ -77,6 +122,9 @@ func readSchemaFile(path string) []string {
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line := scanner.Text()
+		if isCompleteLine(line) {
+			break
+		}
 		if !shouldSkipLine(line) {
 			lines = append(lines, line)
 		}
@@ -106,6 +154,7 @@ func parseSchemaFile(exportDir string, schemaDir string, exportObjectTypesList [
 		if isDelimiterLine(line) {
 			delimiterIndexes = append(delimiterIndexes, i)
 		}
+		// fmt.Printf("line %s\n", line)
 	}
 
 	// map to store the sql statements for each db object type
@@ -216,10 +265,13 @@ func extractSqlTypeFromComment(comment string) string {
 func shouldSkipLine(line string) bool {
 	return strings.HasPrefix(line, "SET default_table_access_method") ||
 		strings.Compare(line, "--") == 0 || len(line) == 0 ||
-		strings.EqualFold(line, "-- PostgreSQL database dump complete") ||
 		strings.EqualFold(line, "-- PostgreSQL database dump") ||
 		strings.HasPrefix(line, "-- Dumped from database version") ||
 		strings.HasPrefix(line, "SET check_function_bodies = false")
+}
+
+func isCompleteLine(line string) bool {
+	return strings.EqualFold(line, "-- PostgreSQL database dump complete")
 }
 
 func isDelimiterLine(line string) bool {
