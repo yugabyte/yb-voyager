@@ -810,7 +810,7 @@
 			"Impact": "LEVEL_2",
 			"ObjectType": "VIEW",
 			"ObjectName": "public.top_employees_view",
-			"SqlStatement": "CREATE VIEW public.top_employees_view AS\n SELECT id,\n    first_name,\n    last_name,\n    salary\n   FROM ( SELECT employeesforview.id,\n            employeesforview.first_name,\n            employeesforview.last_name,\n            employeesforview.salary\n           FROM public.employeesforview\n          ORDER BY employeesforview.salary DESC\n         FETCH FIRST 2 ROWS WITH TIES) top_employees;",
+			"SqlStatement": "CREATE VIEW public.top_employees_view AS\n SELECT id,\n    first_name,\n    last_name,\n    salary\n   FROM ( SELECT employeesforview.id,\n            employeesforview.first_name,\n            employeesforview.last_name,\n            employeesforview.salary\n           FROM public.employeesforview\n          ORDER BY employeesforview.salary DESC\n         FETCH FIRST (2) ROWS WITH TIES) top_employees;",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 			"MinimumVersionsFixedIn": null
 		},
@@ -823,7 +823,7 @@
 			"Impact": "LEVEL_2",
 			"ObjectType": "VIEW",
 			"ObjectName": "schema2.top_employees_view",
-			"SqlStatement": "CREATE VIEW schema2.top_employees_view AS\n SELECT id,\n    first_name,\n    last_name,\n    salary\n   FROM ( SELECT employeesforview.id,\n            employeesforview.first_name,\n            employeesforview.last_name,\n            employeesforview.salary\n           FROM schema2.employeesforview\n          ORDER BY employeesforview.salary DESC\n         FETCH FIRST 2 ROWS WITH TIES) top_employees;",
+			"SqlStatement": "CREATE VIEW schema2.top_employees_view AS\n SELECT id,\n    first_name,\n    last_name,\n    salary\n   FROM ( SELECT employeesforview.id,\n            employeesforview.first_name,\n            employeesforview.last_name,\n            employeesforview.salary\n           FROM schema2.employeesforview\n          ORDER BY employeesforview.salary DESC\n         FETCH FIRST (2) ROWS WITH TIES) top_employees;",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 			"MinimumVersionsFixedIn": null
 		},
