@@ -387,7 +387,9 @@ func dumpStatements(reportPath string, stmts []string, filePath string) {
 	log.Info(msg)
 
 	//if there is failed sql statements, print analyze report
-	color.Yellow("\n%s", fmt.Sprintf(ANALYZE_REPORT_SUGGESTION_MSG, reportPath))
+	if reportPath != "" {
+		color.Yellow("\n%s", fmt.Sprintf(ANALYZE_REPORT_SUGGESTION_MSG, reportPath))
+	}
 }
 
 // installs Orafce extension in target YugabyteDB.

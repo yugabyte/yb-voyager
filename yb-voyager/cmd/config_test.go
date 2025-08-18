@@ -1077,6 +1077,7 @@ export-data-from-source:
   queue-segment-max-bytes: 10485760
   debezium-dist-dir: /tmp/debezium
   beta-fast-data-export: true
+  allow-oracle-clob-data-export: true
 `, tmpExportDir)
 	configFile, configDir := setupConfigFile(t, configContent)
 	t.Cleanup(func() { os.RemoveAll(configDir) })
@@ -1135,6 +1136,7 @@ func TestExportDataFromSourceConfigBinding_ConfigFileBinding(t *testing.T) {
 	assert.Equal(t, "/tmp/table-list.txt", tableListFilePath, "Table list file path should match the config")
 	assert.Equal(t, 4, source.NumConnections, "Parallel jobs should match the config")
 	assert.Equal(t, "snapshot-and-changes", exportType, "Export type should match the config")
+	assert.Equal(t, utils.BoolStr(true), source.AllowOracleClobDataExport, "Allow Oracle CLOB data export should match the config")
 	assert.Equal(t, "10485760", os.Getenv("QUEUE_SEGMENT_MAX_BYTES"), "QUEUE_SEGMENT_MAX_BYTES should match the config")
 	assert.Equal(t, "/tmp/debezium", os.Getenv("DEBEZIUM_DIST_DIR"), "DEBEZIUM_DIST_DIR should match the config")
 	assert.Equal(t, "true", os.Getenv("BETA_FAST_DATA_EXPORT"), "BETA_FAST_DATA_EXPORT should match the config")
@@ -1162,6 +1164,7 @@ func TestExportDataFromSourceConfigBinding_CLIOverridesConfig(t *testing.T) {
 		"--table-list-file-path", "/tmp/new-table-list.txt",
 		"--parallel-jobs", "8",
 		"--export-type", "snapshot-only",
+		"--allow-oracle-clob-data-export", "false",
 		"--source-db-type", "postgres",
 		"--source-db-host", "localhost2",
 		"--source-db-port", "5433",
@@ -1224,6 +1227,7 @@ func TestExportDataFromSourceConfigBinding_CLIOverridesConfig(t *testing.T) {
 	assert.Equal(t, "/tmp/new-table-list.txt", tableListFilePath, "Table list file path should be overridden by CLI")
 	assert.Equal(t, 8, source.NumConnections, "Parallel jobs should be overridden by CLI")
 	assert.Equal(t, "snapshot-only", exportType, "Export type should be overridden by CLI")
+	assert.Equal(t, utils.BoolStr(false), source.AllowOracleClobDataExport, "Allow Oracle CLOB data export should be overridden by CLI")
 	assert.Equal(t, "10485760", os.Getenv("QUEUE_SEGMENT_MAX_BYTES"), "QUEUE_SEGMENT_MAX_BYTES should be overridden by env var")
 	assert.Equal(t, "/tmp/debezium", os.Getenv("DEBEZIUM_DIST_DIR"), "DEBEZIUM_DIST_DIR should be overridden by env var")
 	assert.Equal(t, "true", os.Getenv("BETA_FAST_DATA_EXPORT"), "BETA_FAST_DATA_EXPORT should be overridden by env var")
@@ -1294,6 +1298,7 @@ func TestExportDataFromSourceConfigBinding_EnvOverridesConfig(t *testing.T) {
 	assert.Equal(t, "/tmp/table-list.txt", tableListFilePath, "Table list file path should match the config")
 	assert.Equal(t, 4, source.NumConnections, "Parallel jobs should match the config")
 	assert.Equal(t, "snapshot-and-changes", exportType, "Export type should match the config")
+	assert.Equal(t, utils.BoolStr(true), source.AllowOracleClobDataExport, "Allow Oracle CLOB data export should match the config")
 	assert.Equal(t, "20971520", os.Getenv("QUEUE_SEGMENT_MAX_BYTES"), "QUEUE_SEGMENT_MAX_BYTES should be overridden by env var")
 	assert.Equal(t, "/tmp/new-debezium", os.Getenv("DEBEZIUM_DIST_DIR"), "DEBEZIUM_DIST_DIR should be overridden by env var")
 	assert.Equal(t, "false", os.Getenv("BETA_FAST_DATA_EXPORT"), "BETA_FAST_DATA_EXPORT should be overridden by env var")
@@ -1326,6 +1331,7 @@ export-data:
   queue-segment-max-bytes: 10485760
   debezium-dist-dir: /tmp/debezium
   beta-fast-data-export: true
+  allow-oracle-clob-data-export: true
 `, tmpExportDir)
 	configFile, configDir := setupConfigFile(t, configContent)
 	defer os.RemoveAll(configDir)
@@ -1352,6 +1358,7 @@ export-data:
 	assert.Equal(t, "/tmp/table-list.txt", tableListFilePath, "Table list file path should match the config")
 	assert.Equal(t, 4, source.NumConnections, "Parallel jobs should match the config")
 	assert.Equal(t, "snapshot-and-changes", exportType, "Export type should match the config")
+	assert.Equal(t, utils.BoolStr(true), source.AllowOracleClobDataExport, "Allow Oracle CLOB data export should match the config")
 	assert.Equal(t, "10485760", os.Getenv("QUEUE_SEGMENT_MAX_BYTES"), "QUEUE_SEGMENT_MAX_BYTES should match the config")
 	assert.Equal(t, "/tmp/debezium", os.Getenv("DEBEZIUM_DIST_DIR"), "DEBEZIUM_DIST_DIR should match the config")
 	assert.Equal(t, "true", os.Getenv("BETA_FAST_DATA_EXPORT"), "BETA_FAST_DATA_EXPORT should match the config")
@@ -1379,6 +1386,7 @@ export-data-from-source:
   queue-segment-max-bytes: 10485760
   debezium-dist-dir: /tmp/debezium
   beta-fast-data-export: true
+  allow-oracle-clob-data-export: true
 `, tmpExportDir)
 	configFile, configDir = setupConfigFile(t, configContent)
 	defer os.RemoveAll(configDir)
@@ -1406,6 +1414,7 @@ export-data-from-source:
 	assert.Equal(t, "/tmp/table-list.txt", tableListFilePath, "Table list file path should match the config")
 	assert.Equal(t, 4, source.NumConnections, "Parallel jobs should match the config")
 	assert.Equal(t, "snapshot-and-changes", exportType, "Export type should match the config")
+	assert.Equal(t, utils.BoolStr(true), source.AllowOracleClobDataExport, "Allow Oracle CLOB data export should match the config")
 	assert.Equal(t, "10485760", os.Getenv("QUEUE_SEGMENT_MAX_BYTES"), "QUEUE_SEGMENT_MAX_BYTES should match the config")
 	assert.Equal(t, "/tmp/debezium", os.Getenv("DEBEZIUM_DIST_DIR"), "DEBEZIUM_DIST_DIR should match the config")
 	assert.Equal(t, "true", os.Getenv("BETA_FAST_DATA_EXPORT"), "BETA_FAST_DATA_EXPORT should match the config")

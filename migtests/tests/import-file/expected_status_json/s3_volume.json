@@ -1,0 +1,12 @@
+[
+    {
+      "table_name": "public.\"s3_volume\"",
+      "file_name": "volume_test",
+      "status": "DONE",
+      "total_count": 2685861,
+      "imported_count": 2685861,
+      "errored_count": 0,
+      "percentage_complete": 100
+    }
+  ]
+  

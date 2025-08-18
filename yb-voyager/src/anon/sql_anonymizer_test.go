@@ -184,7 +184,13 @@ func TestAllAnonymizationProcessorCases(t *testing.T) {
 		},
 		/* ---------- Miscellaneous ---------- */
 		{
-			nodeName: "CreateExtensionStmt",
+			nodeName: "CreateExtensionStmt (no schema)",
+			sql:      `CREATE EXTENSION IF NOT EXISTS pg_partman;`,
+			raw:      []string{},
+			prefixes: []string{},
+		},
+		{
+			nodeName: "CreateExtensionStmt (with schema)",
 			sql:      `CREATE EXTENSION IF NOT EXISTS postgis SCHEMA public`,
 			raw:      []string{"public"},
 			prefixes: []string{SCHEMA_KIND_PREFIX},
@@ -244,7 +250,7 @@ func TestSameTokenForSameObjectName(t *testing.T) {
 				{COLUMN_KIND_PREFIX, "name"},
 			},
 			sql1: "SELECT * FROM users",
-			sql2: "SELECT id, name FROM users WHERE id > 10",
+			sql2: "SELECT id, name FROM users",
 		},
 		{
 			name: "same column",
@@ -255,7 +261,23 @@ func TestSameTokenForSameObjectName(t *testing.T) {
 				{CONST_KIND_PREFIX, "constant1"},
 			},
 			sql1: "SELECT password FROM accounts",
-			sql2: "UPDATE accounts SET password = 'constant1' WHERE id = 1",
+			sql2: "UPDATE accounts SET password = 'constant1'",
+		},
+		{
+			name: "consistent schema token across type definition and usage",
+			identifiers: []struct{ kind, raw string }{
+				{SCHEMA_KIND_PREFIX, "public"},
+				{TYPE_KIND_PREFIX, "address_type"},
+				{TABLE_KIND_PREFIX, "combined_tbl"},
+				{COLUMN_KIND_PREFIX, "id"},
+				{COLUMN_KIND_PREFIX, "address"},
+				{COLUMN_KIND_PREFIX, "street"},
+				{COLUMN_KIND_PREFIX, "city"},
+				{COLUMN_KIND_PREFIX, "state"},
+				{COLUMN_KIND_PREFIX, "zip_code"},
+			},
+			sql1: `CREATE TYPE public.address_type AS (street varchar, city varchar, state varchar, zip_code varchar)`,
+			sql2: `CREATE TABLE public.combined_tbl (id int NOT NULL, address public.address_type)`,
 		},
 	}
 

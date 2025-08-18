@@ -90,6 +90,7 @@ var allowedExportDataConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"log-level", "run-guardrails-checks",
 	"disable-pb", "exclude-table-list", "table-list", "exclude-table-list-file-path",
 	"table-list-file-path", "parallel-jobs", "export-type",
+	"allow-oracle-clob-data-export",
 	// environment variables keys
 	"queue-segment-max-bytes", "debezium-dist-dir", "beta-fast-data-export",
 )
