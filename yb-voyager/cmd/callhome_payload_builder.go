@@ -322,7 +322,7 @@ func buildCallhomeSchemaOptimizationChanges() []callhome.SchemaOptimizationChang
 	if schemaOptimizationReport.TableShardingRecommendation != nil {
 		objects := make([]string, 0)
 		for _, obj := range schemaOptimizationReport.TableShardingRecommendation.ShardedObjects {
-			anonymizedObj, err := anonymizer.AnonymizeTableName(obj)
+			anonymizedObj, err := anonymizer.AnonymizeQualifiedTableName(obj)
 			if err != nil {
 				log.Errorf("callhome: failed to anonymise table-%s: %v", obj, err)
 				continue
@@ -338,7 +338,7 @@ func buildCallhomeSchemaOptimizationChanges() []callhome.SchemaOptimizationChang
 	if schemaOptimizationReport.MviewShardingRecommendation != nil {
 		objects := make([]string, 0)
 		for _, obj := range schemaOptimizationReport.MviewShardingRecommendation.ShardedObjects {
-			anonymizedObj, err := anonymizer.AnonymizeMViewName(obj)
+			anonymizedObj, err := anonymizer.AnonymizeQualifiedMViewName(obj)
 			if err != nil {
 				log.Errorf("callhome: failed to anonymise mview-%s: %v", obj, err)
 				continue
@@ -370,7 +370,7 @@ func getAnonymizedIndexObjectsFromIndexToTableMap(indexToTableMap map[string][]s
 				log.Errorf("callhome: failed to anonymise index-%s: %v", index, err)
 				continue
 			}
-			anonymizedTbl, err := anonymizer.AnonymizeTableName(tbl)
+			anonymizedTbl, err := anonymizer.AnonymizeQualifiedTableName(tbl)
 			if err != nil {
 				log.Errorf("callhome: failed to anonymise table-%s: %v", tbl, err)
 				continue
