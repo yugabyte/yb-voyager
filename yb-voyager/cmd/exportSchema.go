@@ -358,7 +358,7 @@ func init() {
 	exportSchemaCmd.Flags().StringVar(&source.StrExcludeObjectTypeList, "exclude-object-type-list", "",
 		"comma separated list of objects to exclude from export. ")
 
-	BoolVar(exportSchemaCmd.Flags(), &skipRecommendations, "skip-recommendations", false,
+	BoolVar(exportSchemaCmd.Flags(), &skipRecommendations, "skip-sharding-recommendations", false,
 		"disable applying recommendations in the exported schema suggested by the migration assessment report")
 
 	BoolVar(exportSchemaCmd.Flags(), &skipPerfOptimizations, "skip-performance-optimizations", false,
@@ -424,7 +424,7 @@ func updateIndexesInfoInMetaDB() error {
 
 func applyMigrationAssessmentRecommendations() ([]string, []string, []string, []string, error) {
 	if skipRecommendations {
-		log.Infof("not apply recommendations due to flag --skip-recommendations=true")
+		log.Infof("not apply recommendations due to flag --skip-sharding-recommendations=true")
 		return nil, nil, nil, nil, nil
 	} else if source.DBType == MYSQL {
 		return nil, nil, nil, nil, nil

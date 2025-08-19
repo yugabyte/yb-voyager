@@ -205,7 +205,7 @@ export-schema:
   ### Disable applying recommendations in the exported schema suggested by the migration assessment report
   ### Accepted values (true, false, yes, no, 1, 0)  
   ### Default - false                                       
-  # skip-recommendations: false
+  # skip-sharding-recommendations: false
 
   ### Disable applying performance optimizations in the exported schema
   ### Accepted values (true, false, yes, no, 1, 0)  

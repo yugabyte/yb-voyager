@@ -37,9 +37,9 @@ var schemaOptimizationReport *SchemaOptimizationReport
 // File names for optimization reports
 const (
 	RedundantIndexesFileName                        = "redundant_indexes.sql"
-	SchemaOptimizationReportFileName                = "schema_optimization_report"
+	SCHEMA_OPTIMIZATION_REPORT_FILE_NAME            = "schema_optimization_report"
 	REDUNDANT_INDEXES_DESCRIPTION                   = "The following indexes were identified as redundant. These indexes were fully covered by stronger indexes—indexes that share the same leading key columns (in order) and potentially include additional columns, making the redundant ones unnecessary."
-	APPLIED_RECOMMENDATIONS_NOT_APPLIED_DESCRIPTION = "Sharding recommendations were not applied due to the skip-recommendations flag. Modify the schema manually as per the recommendations in assessment report."
+	APPLIED_RECOMMENDATIONS_NOT_APPLIED_DESCRIPTION = "Sharding recommendations were not applied due to the skip-sharding-recommendations flag. Modify the schema manually as per the recommendations in assessment report."
 	REDUNDANT_INDEXES_NOT_APPLIED_DESCRIPTION       = REDUNDANT_INDEXES_DESCRIPTION + "\nThese indexes were not removed due to the skip-performance-optimizations flag. Remove them manually from the schema."
 )
 
@@ -86,7 +86,7 @@ type SchemaOptimizationReport struct {
 	SourceDatabaseVersion string `json:"source_database_version"`
 
 	// Optimization changes applied
-	RedundantIndexChange        *RedundantIndexChange                `json:"redundant_index_change,omitempty"`
+	RedundantIndexChange        *RedundantIndexChange         `json:"redundant_index_change,omitempty"`
 	TableShardingRecommendation *ShardingRecommendationChange `json:"table_sharding_recommendation,omitempty"`
 	MviewShardingRecommendation *ShardingRecommendationChange `json:"mview_sharding_recommendation,omitempty"`
 }
@@ -253,7 +253,7 @@ func generatePerformanceOptimizationReport(indexTransformer *sqltransformer.Inde
 		return nil
 	}
 
-	htmlReportFilePath := filepath.Join(exportDir, "reports", fmt.Sprintf("%s%s", SchemaOptimizationReportFileName, HTML_EXTENSION))
+	htmlReportFilePath := filepath.Join(exportDir, "reports", fmt.Sprintf("%s%s", SCHEMA_OPTIMIZATION_REPORT_FILE_NAME, HTML_EXTENSION))
 	log.Infof("writing changes report to file: %s", htmlReportFilePath)
 
 	tmpl := template.Must(template.New("report").Parse(string(optimizationChangesTemplate)))
