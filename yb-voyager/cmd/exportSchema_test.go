@@ -27,6 +27,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/jsonfile"
 	testcontainers "github.com/yugabyte/yb-voyager/yb-voyager/test/containers"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
@@ -334,4 +335,67 @@ func TestExportSchemaRunningAssessmentInternally_DisableFlag(t *testing.T) {
 	if utils.FileOrFolderExists(reportFilePath) {
 		t.Errorf("Expected assessment report file does exist: %s", reportFilePath)
 	}
+}
+
+// Add test for Schema optimization report json format in the export schema command
+func TestExportSchemaSchemaOptimizationReportJsonFormat(t *testing.T) {
+	// create temp export dir and setting global exportDir variable
+	exportDir = testutils.CreateTempExportDir()
+	defer testutils.RemoveTempExportDir(exportDir)
+
+	// setting up source test container and source params for assessment
+	postgresContainer := testcontainers.NewTestContainer("postgresql", nil)
+	err := postgresContainer.Start(context.Background())
+	if err != nil {
+		utils.ErrExit("Failed to start postgres container: %v", err)
+	}
+
+	// create table and initial data in it
+	postgresContainer.ExecuteSqls(
+		`CREATE SCHEMA test_schema;`,
+		`CREATE TABLE test_schema.test_data (
+			id SERIAL PRIMARY KEY,
+			value TEXT,
+			value_2 TEXT,
+			id1 int
+		);`,
+		`CREATE INDEX idx_test_data_value ON test_schema.test_data (value);`,
+		`CREATE INDEX idx_test_data_value_2 ON test_schema.test_data (value_2);`,
+		`CREATE INDEX idx_test_data_value_3 ON test_schema.test_data (value, value_2);`,
+		`CREATE INDEX idx_test_data_id1 ON test_schema.test_data (value_2, id1);`,
+
+	)
+	if err != nil {
+		t.Errorf("Failed to create test table: %v", err)
+	}
+	defer postgresContainer.ExecuteSqls(`
+		DROP SCHEMA test_schema CASCADE;`)
+
+	_, err = testutils.RunVoyagerCommand(postgresContainer, "export schema", []string{
+		"--source-db-schema", "test_schema",
+		"--export-dir", exportDir,
+		"--yes",
+	}, nil, false)
+	if err != nil {
+		t.Errorf("Failed to run export schema command: %v", err)
+	}
+
+	// check if schema optimization report json file exists
+	schemaOptimizationReportFilePath := filepath.Join(exportDir, "reports", "schema_optimization_report.json")
+	if !utils.FileOrFolderExists(schemaOptimizationReportFilePath) {
+		t.Errorf("Expected schema optimization report file does not exist: %s", schemaOptimizationReportFilePath)
+	}
+
+	jsonFile := jsonfile.NewJsonFile[SchemaOptimizationReport](schemaOptimizationReportFilePath)
+	schemaOptimizationReport, err := jsonFile.Read()
+	if err != nil {
+		t.Errorf("Failed to read schema optimization report file: %v", err)
+	}
+	assert.NotNil(t, schemaOptimizationReport)
+	assert.NotNil(t, schemaOptimizationReport.RedundantIndexChange)
+	assert.Nil(t, schemaOptimizationReport.TableShardingRecommendation)
+	assert.Nil(t, schemaOptimizationReport.MviewShardingRecommendation)
+	assert.Equal(t, 1, len(schemaOptimizationReport.RedundantIndexChange.TableToRemovedIndexesMap))
+	assert.Equal(t, 2, len(schemaOptimizationReport.RedundantIndexChange.TableToRemovedIndexesMap["test_schema.test_data"]))
+
 }

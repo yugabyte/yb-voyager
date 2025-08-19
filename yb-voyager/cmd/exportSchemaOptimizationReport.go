@@ -28,6 +28,7 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/sqltransformer"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/jsonfile"
 )
 
 // =============================================== schema optimization changes report
@@ -272,6 +273,14 @@ func generatePerformanceOptimizationReport(indexTransformer *sqltransformer.Inde
 		if err != nil {
 			return fmt.Errorf("failed to create file for %q: %w", filepath.Base(htmlReportFilePath), err)
 		}
+
+		jsonFilePath := filepath.Join(exportDir, "reports", fmt.Sprintf("%s.json", SCHEMA_OPTIMIZATION_REPORT_FILE_NAME))
+		jsonFile := jsonfile.NewJsonFile[SchemaOptimizationReport](jsonFilePath)
+		err = jsonFile.Create(schemaOptimizationReport)
+		if err != nil {
+			return fmt.Errorf("failed to create json report: %w", err)
+		}
+
 		err = tmpl.Execute(file, schemaOptimizationReport)
 		if err != nil {
 			return fmt.Errorf("failed to render the schema optimization report: %w", err)
