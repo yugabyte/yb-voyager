@@ -25,10 +25,6 @@
          .section {
             margin-bottom: 2rem;
          }
-         .file-link {
-            color: #0077cc;
-            text-decoration: none;
-         }
          ul {
             padding-left: 1.5rem;
          }
@@ -169,6 +165,32 @@
 
         .optimization-section.not-applied h3 {
             color: #92400e;
+        }
+
+        /* Consistent link styling for all links in the optimization report */
+        a {
+            color: #0077cc !important;
+            font-weight: normal !important;
+            background-color: transparent !important;
+            text-decoration: none;
+        }
+
+        a:hover {
+            color: #005599 !important;
+            text-decoration: none;
+
+        }
+
+        a:visited {
+            color: #0077cc !important;
+            text-decoration: none;
+
+        }
+
+        a:active {
+            color: #005599 !important;
+            text-decoration: none;
+
         }
 
         /* Ensure table rows in optimization sections have white background */
@@ -342,7 +364,7 @@
                   </h3>
                   <pre>{{.RedundantIndexChange.Description}}</pre>
                   {{if .RedundantIndexChange.IsApplied}}
-                     <pre>Refer to the <a class="file-link" href="{{.RedundantIndexChange.ReferenceFile}}" target="_blank"> {{.RedundantIndexChange.ReferenceFileDisplayName}} </a></pre>
+                     <pre>Refer to the <a href="{{.RedundantIndexChange.ReferenceFile}}" target="_blank">redundant_indexes.sql</a></pre>
                   {{end}}
 
                   <details>
@@ -379,9 +401,9 @@
                      {{if .SecondaryIndexToRangeChange.IsApplied}}✅ {{else}}⚠️ {{end}}
                      {{.SecondaryIndexToRangeChange.Title}}
                   </h3>
-               <pre>{{.SecondaryIndexToRangeChange.Description}}</pre>
+               <pre>{{.SecondaryIndexToRangeChange.Description}} The range-sharded indexes helps in giving the flexibility to execute range-based queries, and avoids potential hotspots that come with hash-sharded indexes such as <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-low-cardinality-column" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-low-cardinality-column">index on low cardinality column</a>, <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-column-with-a-high-percentage-of-null-values" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-column-with-a-high-percentage-of-null-values">index on high percentage of NULLs</a>, and <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-column-with-high-percentage-of-a-particular-value" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-column-with-high-percentage-of-a-particular-value">index on high percentage of particular value</a>. Refer to sharding strategy <a href="https://docs.yugabyte.com/preview/architecture/docdb-sharding/sharding/" target="_blank" title="https://docs.yugabyte.com/preview/architecture/docdb-sharding/sharding/">docs</a> for more information.</pre>
                {{ if .SecondaryIndexToRangeChange.IsApplied}}
-                  <pre>Refer to the <a class="file-link" href="{{.SecondaryIndexToRangeChange.ReferenceFile}}" target="_blank"> {{.SecondaryIndexToRangeChange.ReferenceFileDisplayName}} </a> for modified DDLs.</pre>
+                  <pre>Refer to the <a href="{{.SecondaryIndexToRangeChange.ReferenceFile}}" target="_blank">index file</a> for modified DDLs.</pre>
                   <details>
                      <summary>Details</summary>
                      <table>
@@ -420,7 +442,7 @@
                   </h3>
                   <pre>{{.TableShardingRecommendation.Description}}</pre>
                   {{if .TableShardingRecommendation.IsApplied}}
-                     <pre>Refer to the <a class="file-link" href="{{.TableShardingRecommendation.ReferenceFile}}" target="_blank"> {{.TableShardingRecommendation.ReferenceFileDisplayName}} </a> for modified DDLs.</pre>
+                     <pre>Refer to the <a href="{{.TableShardingRecommendation.ReferenceFile}}" target="_blank">table file</a> for modified DDLs.</pre>
                      <details>
                         <summary>Details</summary>
                         <table>
@@ -453,7 +475,7 @@
             {{ if .MviewShardingRecommendation }}
                <h3>{{.MviewShardingRecommendation.Title}}</h3>
                <pre>{{.MviewShardingRecommendation.Description}}</pre>
-               <pre>Refer to the <a class="file-link" href="{{.MviewShardingRecommendation.ReferenceFile}}" target="_blank"> {{.MviewShardingRecommendation.ReferenceFileDisplayName}} </a> for modified DDLs.</pre>
+               <pre>Refer to the <a href="{{.MviewShardingRecommendation.ReferenceFile}}" target="_blank">mview file</a> for modified DDLs.</pre>
                <details>
                   <summary>Details</summary>
                   <table>

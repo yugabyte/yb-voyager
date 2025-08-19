@@ -42,6 +42,7 @@ const (
 	REDUNDANT_INDEXES_DESCRIPTION                   = "The following indexes were identified as redundant. These indexes were fully covered by stronger indexes—indexes that share the same leading key columns (in order) and potentially include additional columns, making the redundant ones unnecessary."
 	APPLIED_RECOMMENDATIONS_NOT_APPLIED_DESCRIPTION = "Sharding recommendations were not applied due to the skip-recommendations flag. Modify the schema manually as per the recommendations in assessment report."
 	REDUNDANT_INDEXES_NOT_APPLIED_DESCRIPTION       = REDUNDANT_INDEXES_DESCRIPTION + "\nThese indexes were not removed due to the skip-performance-optimizations flag. Remove them manually from the schema."
+	RANGE_SHARDED_SECONDARY_INDEXES_DESCRIPTION     = "The following secondary indexes were configured to be range-sharded indexes in YugabyteDB. This helps in giving the flexibility to execute range-based queries, and avoids potential hotspots that come with hash-sharded indexes such as index on low cardinality column, index on high percentage of NULLs and index on high percentage of particular value."
 )
 
 // SchemaOptimizationReport represents a comprehensive report of schema optimizations
@@ -83,7 +84,6 @@ type RedundantIndexChange struct {
 	Title                    string              `json:"title"`
 	Description              string              `json:"description"`
 	ReferenceFile            string              `json:"reference_file"`
-	ReferenceFileDisplayName string              `json:"reference_file_display_name"`
 	TableToRemovedIndexesMap map[string][]string `json:"table_to_removed_indexes_map"`
 	IsApplied                bool                `json:"is_applied"`
 }
@@ -94,7 +94,7 @@ func (r *RedundantIndexChange) IsEmpty() bool {
 }
 
 // NewRedundantIndexChange creates a new RedundantIndexChange with default values
-func NewRedundantIndexChange(applied bool, referenceFile string, displayFileName string, tableToRemovedIndexesMap map[string][]string) *RedundantIndexChange {
+func NewRedundantIndexChange(applied bool, referenceFile string, tableToRemovedIndexesMap map[string][]string) *RedundantIndexChange {
 	title := "Redundant Indexes - Removed"
 	description := REDUNDANT_INDEXES_DESCRIPTION
 	if !applied {
@@ -105,7 +105,6 @@ func NewRedundantIndexChange(applied bool, referenceFile string, displayFileName
 		Title:                    title,
 		Description:              description,
 		ReferenceFile:            referenceFile,
-		ReferenceFileDisplayName: displayFileName,
 		TableToRemovedIndexesMap: tableToRemovedIndexesMap,
 		IsApplied:                applied,
 	}
@@ -114,13 +113,12 @@ func NewRedundantIndexChange(applied bool, referenceFile string, displayFileName
 // ShardingRecommendationChange represents the application of sharding recommendations
 // to database objects (tables or materialized views) for improved performance.
 type ShardingRecommendationChange struct {
-	Title                    string   `json:"title"`
-	Description              string   `json:"description"`
-	ReferenceFile            string   `json:"reference_file"`
-	ReferenceFileDisplayName string   `json:"reference_file_display_name"`
-	ShardedObjects           []string `json:"sharded_objects"`
-	CollocatedObjects        []string `json:"collocated_objects"`
-	IsApplied                bool     `json:"is_applied"`
+	Title             string   `json:"title"`
+	Description       string   `json:"description"`
+	ReferenceFile     string   `json:"reference_file"`
+	ShardedObjects    []string `json:"sharded_objects"`
+	CollocatedObjects []string `json:"collocated_objects"`
+	IsApplied         bool     `json:"is_applied"`
 }
 
 // IsEmpty returns true if no sharding recommendations were applied
@@ -129,7 +127,7 @@ func (a *ShardingRecommendationChange) IsEmpty() bool {
 }
 
 // NewAppliedShardingRecommendationChange creates a new AppliedShardingRecommendationChange with default values
-func NewAppliedShardingRecommendationChange(objectType string, applied bool) *ShardingRecommendationChange {
+func NewAppliedShardingRecommendationChange(objectType string, applied bool, referenceFile string, shardedObjects []string, colocatedObjects []string) *ShardingRecommendationChange {
 	var title, description string
 	switch objectType {
 	case TABLE:
@@ -150,35 +148,34 @@ func NewAppliedShardingRecommendationChange(objectType string, applied bool) *Sh
 	return &ShardingRecommendationChange{
 		Title:             title,
 		Description:       description,
-		ShardedObjects:    make([]string, 0),
-		CollocatedObjects: make([]string, 0),
+		ReferenceFile:     referenceFile,
+		ShardedObjects:    shardedObjects,
+		CollocatedObjects: colocatedObjects,
 		IsApplied:         applied,
 	}
 }
 
 type SecondaryIndexToRangeChange struct {
-	Title                    string              `json:"title"`
-	Description              string              `json:"description"`
-	ReferenceFile            string              `json:"reference_file"`
-	ReferenceFileDisplayName string              `json:"reference_file_display_name"`
-	ModifiedIndexes          map[string][]string `json:"modified_indexes"`
-	IsApplied                bool                `json:"is_applied"`
+	Title           string              `json:"title"`
+	Description     string              `json:"description"`
+	ReferenceFile   string              `json:"reference_file"`
+	ModifiedIndexes map[string][]string `json:"modified_indexes"`
+	IsApplied       bool                `json:"is_applied"`
 }
 
-func NewSecondaryIndexToRangeChange(applied bool, referenceFile string, displayFileName string, modifiedIndexes map[string][]string) *SecondaryIndexToRangeChange {
+func NewSecondaryIndexToRangeChange(applied bool, referenceFile string, modifiedIndexes map[string][]string) *SecondaryIndexToRangeChange {
 	title := "Secondary Indexes to be range-sharded - Applied"
-	description := "The following secondary indexes were converted to range-sharded indexes. This helps in distributing the data evenly across the nodes and improves the performance of these indexes."
+	description := "The following secondary indexes were configured to be range-sharded indexes in YugabyteDB."
 	if !applied {
 		title = "Secondary Indexes to be range-sharded - Not Applied"
-		description = "Range-sharded secondary indexes helps in better data distribution and performance. Due to the skip-performance-optimizations flag, all the btree indexes were not converted to range-sharded indexes. Modify the indexes to be range-sharded manually."
+		description = "Due to the skip-performance-optimizations flag, all the btree indexes were not converted to range-sharded indexes. Modify the indexes to be range-sharded manually."
 	}
 	return &SecondaryIndexToRangeChange{
-		Title:                    title,
-		Description:              description,
-		ReferenceFile:            referenceFile,
-		ReferenceFileDisplayName: displayFileName,
-		ModifiedIndexes:          modifiedIndexes,
-		IsApplied:                applied,
+		Title:           title,
+		Description:     description,
+		ReferenceFile:   referenceFile,
+		ModifiedIndexes: modifiedIndexes,
+		IsApplied:       applied,
 	}
 }
 
@@ -200,13 +197,13 @@ func buildRedundantIndexChange(indexTransformer *sqltransformer.IndexFileTransfo
 	if skipPerfOptimizations {
 		redundantIndexes = redundantIndexesToRemove
 	}
-	return NewRedundantIndexChange(!bool(skipPerfOptimizations), redundantIndexesFile, RedundantIndexesFileName, GetTableToIndexMap(redundantIndexes))
+	return NewRedundantIndexChange(!bool(skipPerfOptimizations), redundantIndexesFile, getTableToIndexMap(redundantIndexes))
 }
 
 func buildShardingTableRecommendationChange(shardedTables []string, colocatedTables []string) *ShardingRecommendationChange {
 	if !assessmentRecommendationsApplied { //If assessment recommendations not applied and skip recommendations is true, then show that its not applied
 		if skipRecommendations {
-			return NewAppliedShardingRecommendationChange("", false) // Dummy entry for both table and mview as no need to show two
+			return NewAppliedShardingRecommendationChange("", false, "", nil, nil) // Dummy entry for both table and mview as no need to show two
 		}
 		return nil
 	}
@@ -216,41 +213,20 @@ func buildShardingTableRecommendationChange(shardedTables []string, colocatedTab
 	if !utils.FileOrFolderExists(referenceTableFile) || len(shardedTables) == 0 { // only display this in case there is any modifield sharded tables
 		return nil
 	}
-	// Get relative path from reports directory to the table file
-	reportsDir := filepath.Join(exportDir, "reports")
-	relativePath, err := filepath.Rel(reportsDir, referenceTableFile)
-	if err == nil {
-		//If no error, then use the relative path
-		referenceTableFile = relativePath
-	}
 
-	change := NewAppliedShardingRecommendationChange(TABLE, true)
-	change.ReferenceFile = referenceTableFile
-	change.ReferenceFileDisplayName = "table.sql"
-	change.ShardedObjects = shardedTables
-	change.CollocatedObjects = colocatedTables
-	return change
+	return NewAppliedShardingRecommendationChange(TABLE, true, getRelativePathWithReportsDir(referenceTableFile), shardedTables, colocatedTables)
 }
 
 func buildShardingMviewRecommendationChange(shardedMviews []string, colocatedMviews []string) *ShardingRecommendationChange {
+	if !assessmentRecommendationsApplied { //If assessment recommendations not applied, we are already addding a generic section for Sharding recommendations not applied with table case above
+		return nil
+	}
 	referenceMviewFile := utils.GetObjectFilePath(filepath.Join(exportDir, "schema"), MVIEW)
 	//To mviews then add that change separately
 	if !utils.FileOrFolderExists(referenceMviewFile) || len(shardedMviews) == 0 { // only display this in case there is any modifield sharded mview
 		return nil
 	}
-	// Get relative path from reports directory to the mview file
-	reportsDir := filepath.Join(exportDir, "reports")
-	relativePath, err := filepath.Rel(reportsDir, referenceMviewFile)
-	if err == nil {
-		//If no error, then use the relative path
-		referenceMviewFile = relativePath
-	}
-	change := NewAppliedShardingRecommendationChange(MVIEW, true)
-	change.ReferenceFile = referenceMviewFile
-	change.ReferenceFileDisplayName = "mview.sql"
-	change.ShardedObjects = shardedMviews
-	change.CollocatedObjects = colocatedMviews
-	return change
+	return NewAppliedShardingRecommendationChange(MVIEW, true, getRelativePathWithReportsDir(referenceMviewFile), shardedMviews, colocatedMviews)
 }
 
 func buildSecondaryIndexToRangeChange(indexTransformer *sqltransformer.IndexFileTransformer) *SecondaryIndexToRangeChange {
@@ -258,16 +234,10 @@ func buildSecondaryIndexToRangeChange(indexTransformer *sqltransformer.IndexFile
 		return nil
 	}
 	if skipPerfOptimizations {
-		return NewSecondaryIndexToRangeChange(false, "", "", nil)
+		return NewSecondaryIndexToRangeChange(false, "", nil)
 	}
 	referenceIndexesFile := utils.GetObjectFilePath(filepath.Join(exportDir, "schema"), INDEX)
-	reportsDir := filepath.Join(exportDir, "reports")
-	relativePath, err := filepath.Rel(reportsDir, referenceIndexesFile)
-	if err == nil {
-		//If no error, then use the relative path
-		referenceIndexesFile = relativePath
-	}
-	return NewSecondaryIndexToRangeChange(true, referenceIndexesFile, "index.sql", GetTableToIndexMap(indexTransformer.ModifiedIndexesToRange))
+	return NewSecondaryIndexToRangeChange(true, getRelativePathWithReportsDir(referenceIndexesFile), getTableToIndexMap(indexTransformer.ModifiedIndexesToRange))
 }
 
 //go:embed templates/schema_optimization_report.template
@@ -321,7 +291,7 @@ func generatePerformanceOptimizationReport(indexTransformer *sqltransformer.Inde
 	return nil
 }
 
-func GetTableToIndexMap(indexes []*sqlname.ObjectNameQualifiedWithTableName) map[string][]string {
+func getTableToIndexMap(indexes []*sqlname.ObjectNameQualifiedWithTableName) map[string][]string {
 	tableToIndexMap := make(map[string][]string)
 	for _, obj := range indexes {
 		tableName := obj.GetQualifiedTableName()
@@ -329,4 +299,14 @@ func GetTableToIndexMap(indexes []*sqlname.ObjectNameQualifiedWithTableName) map
 		tableToIndexMap[tableName] = append(tableToIndexMap[tableName], indexName)
 	}
 	return tableToIndexMap
+}
+
+func getRelativePathWithReportsDir(filePath string) string {
+	reportsDir := filepath.Join(exportDir, "reports")
+	relativePath, err := filepath.Rel(reportsDir, filePath)
+	if err == nil {
+		//If no error, then use the relative path
+		filePath = relativePath
+	}
+	return filePath
 }
