@@ -473,6 +473,11 @@ Note: If the table is created as colocated, this hotspot concern can safely be i
 
 	MISSING_FOREIGN_KEY_INDEX_ISSUE_NAME  = "Missing index on foreign key columns"
 	MISSING_FOREIGN_KEY_INDEX_DESCRIPTION = "Foreign key columns do not have a proper index. The index must include all foreign key columns as leading columns (either in exact order, any permutation, or as a prefix of a composite index). This can cause performance issues during DML operations on the referenced table."
+
+	// Recommend PK when UNIQUE + all NOT NULL but no PK exists
+	MISSING_PRIMARY_KEY_WHEN_UNIQUE_NOT_NULL             = "MISSING_PRIMARY_KEY_WHEN_UNIQUE_NOT_NULL"
+	MISSING_PRIMARY_KEY_WHEN_UNIQUE_NOT_NULL_ISSUE_NAME  = "Recommend adding primary key on unique NOT NULL column(s)"
+	MISSING_PRIMARY_KEY_WHEN_UNIQUE_NOT_NULL_DESCRIPTION = "Table has a UNIQUE constraint on column(s) that are all NOT NULL but does not define a PRIMARY KEY. Consider creating a primary key on these column(s) to improve data integrity and performance."
 )
 
 // Object types

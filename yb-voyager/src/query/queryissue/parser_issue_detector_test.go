@@ -2341,3 +2341,180 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 		assert.True(t, cmp.Equal(expectedIssue, issues[0]), "Expected issue not found: %v\nFound: %v", expectedIssue, issues[0])
 	})
 }
+
+func TestPrimaryKeyRecommendations(t *testing.T) {
+	// Case 1: Simple UNIQUE(a) with a NOT NULL, no PK
+	t.Run("PKREC: Simple UNIQUE(a) with a NOT NULL, no PK", func(t *testing.T) {
+		detector := NewParserIssueDetector()
+		stmt := `CREATE TABLE t1 (
+		    a int NOT NULL,
+		    b text,
+		    UNIQUE(a)
+		);`
+		err := detector.ParseAndProcessDDL(stmt)
+		assert.NoError(t, err)
+		detector.FinalizeColumnMetadata()
+
+		recs := detector.DetectPrimaryKeyRecommendations()
+		expected := NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "t1", []string{"a"})
+		assert.Equal(t, 1, len(recs))
+		assert.True(t, cmp.Equal(expected, recs[0]), "Expected recommendation not found:\nExpected: %v\nActual:   %v", expected, recs[0])
+	})
+
+	// Case 2: Composite UNIQUE(a,b) both NOT NULL
+	t.Run("PKREC: Composite UNIQUE(a,b) both NOT NULL", func(t *testing.T) {
+		detector := NewParserIssueDetector()
+		stmt := `CREATE TABLE t2 (
+		    a int NOT NULL,
+		    b text NOT NULL,
+		    c text,
+		    UNIQUE(a,b)
+		);`
+		err := detector.ParseAndProcessDDL(stmt)
+		assert.NoError(t, err)
+		detector.FinalizeColumnMetadata()
+
+		recs := detector.DetectPrimaryKeyRecommendations()
+		expected := NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "t2", []string{"a", "b"})
+		assert.Equal(t, 1, len(recs))
+		assert.True(t, cmp.Equal(expected, recs[0]), "Expected recommendation not found:\nExpected: %v\nActual:   %v", expected, recs[0])
+	})
+
+	// Case 3: Multiple ALTER SET NOT NULL then UNIQUE(a,b)
+	t.Run("PKREC: Multiple ALTER SET NOT NULL then UNIQUE(a,b)", func(t *testing.T) {
+		detector := NewParserIssueDetector()
+		create := `CREATE TABLE t3 (a int, b int);`
+		alter1 := `ALTER TABLE t3 ALTER COLUMN a SET NOT NULL, ALTER COLUMN b SET NOT NULL;`
+		alter2 := `ALTER TABLE t3 ADD CONSTRAINT uq_t3 UNIQUE (a,b);`
+
+		for _, stmt := range []string{create, alter1, alter2} {
+			err := detector.ParseAndProcessDDL(stmt)
+			assert.NoError(t, err)
+		}
+		detector.FinalizeColumnMetadata()
+
+		recs := detector.DetectPrimaryKeyRecommendations()
+		expected := NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "t3", []string{"a", "b"})
+		assert.Equal(t, 1, len(recs))
+		assert.True(t, cmp.Equal(expected, recs[0]), "Expected recommendation not found:\nExpected: %v\nActual:   %v", expected, recs[0])
+	})
+
+	// Case 4: DROP NOT NULL cancels composite UNIQUE(a,b)
+	t.Run("PKREC: DROP NOT NULL cancels composite UNIQUE(a,b)", func(t *testing.T) {
+		detector := NewParserIssueDetector()
+		create := `CREATE TABLE t4 (a int, b int);`
+		alter1 := `ALTER TABLE t4 ALTER COLUMN a SET NOT NULL, ALTER COLUMN b SET NOT NULL;`
+		alter2 := `ALTER TABLE t4 ALTER COLUMN b DROP NOT NULL;`
+		alter3 := `ALTER TABLE t4 ADD CONSTRAINT uq_t4 UNIQUE (a,b);`
+
+		for _, stmt := range []string{create, alter1, alter2, alter3} {
+			err := detector.ParseAndProcessDDL(stmt)
+			assert.NoError(t, err)
+		}
+		detector.FinalizeColumnMetadata()
+
+		recs := detector.DetectPrimaryKeyRecommendations()
+		assert.Equal(t, 0, len(recs))
+	})
+
+	// Case 5: No recommendation if table already has PK
+	t.Run("PKREC: No recommendation if PK exists", func(t *testing.T) {
+		detector := NewParserIssueDetector()
+		stmt := `CREATE TABLE t5 (
+		    a int NOT NULL,
+		    UNIQUE(a),
+		    PRIMARY KEY(a)
+		);`
+		err := detector.ParseAndProcessDDL(stmt)
+		assert.NoError(t, err)
+		detector.FinalizeColumnMetadata()
+
+		recs := detector.DetectPrimaryKeyRecommendations()
+		assert.Equal(t, 0, len(recs))
+	})
+
+	// Case 6: Prefer smallest qualifying UNIQUE set
+	t.Run("PKREC: Prefer smallest qualifying UNIQUE set", func(t *testing.T) {
+		detector := NewParserIssueDetector()
+		stmt := `CREATE TABLE t6 (
+		    a int NOT NULL,
+		    b int NOT NULL,
+		    UNIQUE(a,b),
+		    UNIQUE(a)
+		);`
+		err := detector.ParseAndProcessDDL(stmt)
+		assert.NoError(t, err)
+		detector.FinalizeColumnMetadata()
+
+		recs := detector.DetectPrimaryKeyRecommendations()
+		expected := NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "t6", []string{"a"})
+		assert.Equal(t, 1, len(recs))
+		assert.True(t, cmp.Equal(expected, recs[0]), "Expected recommendation not found:\nExpected: %v\nActual:   %v", expected, recs[0])
+	})
+
+	// Case 7: UNIQUE with a nullable column should not recommend
+	t.Run("PKREC: UNIQUE with nullable column -> no recommendation", func(t *testing.T) {
+		detector := NewParserIssueDetector()
+		stmt := `CREATE TABLE t7 (
+		    a int NOT NULL,
+		    b int,
+		    UNIQUE(a,b)
+		);`
+		err := detector.ParseAndProcessDDL(stmt)
+		assert.NoError(t, err)
+		detector.FinalizeColumnMetadata()
+
+		recs := detector.DetectPrimaryKeyRecommendations()
+		assert.Equal(t, 0, len(recs))
+	})
+
+	// Case 8: Partitioned table skipped
+	t.Run("PKREC: Partitioned table skipped", func(t *testing.T) {
+		detector := NewParserIssueDetector()
+		create := `CREATE TABLE public.p_root (
+		    a int NOT NULL,
+		    b int NOT NULL
+		) PARTITION BY RANGE (a);`
+		alter := `ALTER TABLE public.p_root ADD CONSTRAINT uq_root UNIQUE (a,b);`
+		for _, stmt := range []string{create, alter} {
+			err := detector.ParseAndProcessDDL(stmt)
+			assert.NoError(t, err)
+		}
+		detector.FinalizeColumnMetadata()
+
+		recs := detector.DetectPrimaryKeyRecommendations()
+		assert.Equal(t, 0, len(recs))
+	})
+
+	// Case 9: Inheritance skipped
+	t.Run("PKREC: Inheritance skipped", func(t *testing.T) {
+		detector := NewParserIssueDetector()
+		parent := `CREATE TABLE parent_i (a int, b int);`
+		child := `CREATE TABLE child_i (a int, b int) INHERITS (parent_i);`
+		alter1 := `ALTER TABLE child_i ALTER COLUMN a SET NOT NULL, ALTER COLUMN b SET NOT NULL;`
+		alter2 := `ALTER TABLE child_i ADD CONSTRAINT uq_child UNIQUE (a,b);`
+		for _, stmt := range []string{parent, child, alter1, alter2} {
+			err := detector.ParseAndProcessDDL(stmt)
+			assert.NoError(t, err)
+		}
+		detector.FinalizeColumnMetadata()
+
+		recs := detector.DetectPrimaryKeyRecommendations()
+		assert.Equal(t, 0, len(recs))
+	})
+
+	// Case 10: UNIQUE exists, then PK added later -> no recommendation
+	t.Run("PKREC: UNIQUE then PK -> no recommendation", func(t *testing.T) {
+		detector := NewParserIssueDetector()
+		create := `CREATE TABLE t8 (a int NOT NULL, b int NOT NULL, UNIQUE(a,b));`
+		addpk := `ALTER TABLE t8 ADD PRIMARY KEY (a,b);`
+		for _, stmt := range []string{create, addpk} {
+			err := detector.ParseAndProcessDDL(stmt)
+			assert.NoError(t, err)
+		}
+		detector.FinalizeColumnMetadata()
+
+		recs := detector.DetectPrimaryKeyRecommendations()
+		assert.Equal(t, 0, len(recs))
+	})
+}

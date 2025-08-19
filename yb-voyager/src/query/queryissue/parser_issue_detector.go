@@ -21,6 +21,7 @@ import (
 	"slices"
 	"strings"
 
+	pg_query "github.com/pganalyze/pg_query_go/v6"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -130,6 +131,13 @@ type ParserIssueDetector struct {
 	// Indexes stored per table
 	// Key is table name, value is slice of indexes on that table.
 	tableIndexes map[string][]*queryparser.Index
+
+	// Primary key columns by table (qualified table name)
+	tablePrimaryKeys map[string][]string
+	// Unique constraint columns by table (list of column sets)
+	tableUniqueConstraints map[string][][]string
+	// NOT NULL columns by table
+	tableNotNullColumns map[string]map[string]bool
 }
 
 func NewParserIssueDetector() *ParserIssueDetector {
@@ -147,6 +155,9 @@ func NewParserIssueDetector() *ParserIssueDetector {
 		columnsWithHotspotRangeIndexesDatatypes: make(map[string]map[string]string),
 		jsonbColumns:                            make([]string, 0),
 		tableIndexes:                            make(map[string][]*queryparser.Index),
+		tablePrimaryKeys:                        make(map[string][]string),
+		tableUniqueConstraints:                  make(map[string][][]string),
+		tableNotNullColumns:                     make(map[string]map[string]bool),
 	}
 }
 
@@ -462,12 +473,38 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 			if len(alter.ConstraintColumns) > 0 {
 				p.addConstraintAsIndex(alter.SchemaName, alter.TableName, alter.ConstraintColumns, alter.ConstraintName)
 			}
+
+			// Track PK columns
+			p.tablePrimaryKeys[alter.GetObjectName()] = append([]string{}, alter.ConstraintColumns...)
 		}
 
 		if alter.ConstraintType == queryparser.UNIQUE_CONSTR_TYPE {
 			// Process unique constraint as index for foreign key detection
 			if len(alter.ConstraintColumns) > 0 {
 				p.addConstraintAsIndex(alter.SchemaName, alter.TableName, alter.ConstraintColumns, alter.ConstraintName)
+			}
+			// Track UNIQUE columns
+			if len(alter.ConstraintColumns) > 0 {
+				qualifiedTable := alter.GetObjectName()
+				p.tableUniqueConstraints[qualifiedTable] = append(p.tableUniqueConstraints[qualifiedTable], append([]string{}, alter.ConstraintColumns...))
+			}
+		}
+		// Track NOT NULL alters (multiple subcommands supported)
+		if len(alter.SetNotNullColumns) > 0 {
+			qualifiedTable := alter.GetObjectName()
+			if _, ok := p.tableNotNullColumns[qualifiedTable]; !ok {
+				p.tableNotNullColumns[qualifiedTable] = make(map[string]bool)
+			}
+			for _, col := range alter.SetNotNullColumns {
+				p.tableNotNullColumns[qualifiedTable][col] = true
+			}
+		}
+		if len(alter.DropNotNullColumns) > 0 {
+			qualifiedTable := alter.GetObjectName()
+			if _, ok := p.tableNotNullColumns[qualifiedTable]; ok {
+				for _, col := range alter.DropNotNullColumns {
+					delete(p.tableNotNullColumns[qualifiedTable], col)
+				}
 			}
 		}
 
@@ -550,6 +587,25 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 
 			if col.TypeName == "jsonb" {
 				meta.IsJsonb = true
+			}
+		}
+
+		// Initialize NOT NULL map for this table
+		if _, ok := p.tableNotNullColumns[tableName]; !ok {
+			p.tableNotNullColumns[tableName] = make(map[string]bool)
+		}
+
+		// Track constraints for PK/UK and column-level NOT NULL
+		for _, constraint := range table.Constraints {
+			switch constraint.ConstraintType {
+			case queryparser.PRIMARY_CONSTR_TYPE:
+				p.tablePrimaryKeys[tableName] = append([]string{}, constraint.Columns...)
+			case queryparser.UNIQUE_CONSTR_TYPE:
+				p.tableUniqueConstraints[tableName] = append(p.tableUniqueConstraints[tableName], append([]string{}, constraint.Columns...))
+			case pg_query.ConstrType_CONSTR_NOTNULL:
+				if len(constraint.Columns) == 1 {
+					p.tableNotNullColumns[tableName][constraint.Columns[0]] = true
+				}
 			}
 		}
 
@@ -836,6 +892,57 @@ func (p *ParserIssueDetector) DetectMissingForeignKeyIndexes() []QueryIssue {
 		}
 	}
 
+	return issues
+}
+
+// DetectPrimaryKeyRecommendations recommends adding a PK when there's a UNIQUE constraint with all NOT NULL columns and no PK
+func (p *ParserIssueDetector) DetectPrimaryKeyRecommendations() []QueryIssue {
+	var issues []QueryIssue
+
+	// Skip for partitioned or inherited tables, as PK rules differ
+	shouldSkip := func(table string) bool {
+		if p.partitionedTablesMap[table] {
+			return true
+		}
+		if _, ok := p.partitionedFrom[table]; ok {
+			return true
+		}
+		if parents, ok := p.inheritedFrom[table]; ok && len(parents) > 0 {
+			return true
+		}
+		return false
+	}
+
+	for table, uLists := range p.tableUniqueConstraints {
+		if shouldSkip(table) {
+			continue
+		}
+		if len(p.tablePrimaryKeys[table]) > 0 {
+			continue // PK already present
+		}
+		notNulls := p.tableNotNullColumns[table]
+		// Find the smallest qualifying UNIQUE column set
+		var best []string
+		for _, cols := range uLists {
+			allNN := true
+			for _, c := range cols {
+				if !notNulls[c] {
+					allNN = false
+					break
+				}
+			}
+			if !allNN {
+				continue
+			}
+			if len(best) == 0 || len(cols) < len(best) {
+				best = cols
+			}
+		}
+		if len(best) > 0 {
+			// Create recommendation
+			issues = append(issues, NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", table, best))
+		}
+	}
 	return issues
 }
 

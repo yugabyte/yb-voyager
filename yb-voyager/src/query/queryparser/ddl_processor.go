@@ -757,89 +757,96 @@ func (atProcessor *AlterTableProcessor) Process(parseTree *pg_query.ParseResult)
 	alter := &AlterTable{
 		SchemaName: alterNode.AlterTableStmt.Relation.Schemaname,
 		TableName:  alterNode.AlterTableStmt.Relation.Relname,
-		AlterType:  alterNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetSubtype(),
 	}
 
-	// Parse specific alter command
-	cmd := alterNode.AlterTableStmt.Cmds[0].GetAlterTableCmd()
-	switch alter.AlterType {
-	case pg_query.AlterTableType_AT_SetOptions:
-		/*
-			e.g. alter table test_1 alter column col1 set (attribute_option=value);
-			cmds:{alter_table_cmd:{subtype:AT_SetOptions name:"col1" def:{list:{items:{def_elem:{defname:"attribute_option"
-			arg:{type_name:{names:{string:{sval:"value"}} typemod:-1 location:263}} defaction:DEFELEM_UNSPEC location:246}}}}...
+	// Parse all alter commands; retain subtype of the first cmd for AlterType
+	cmds := alterNode.AlterTableStmt.Cmds
+	if len(cmds) == 0 {
+		return alter, nil
+	}
+	alter.AlterType = cmds[0].GetAlterTableCmd().GetSubtype()
 
-			for set attribute issue we will the type of alter setting the options and in the 'def' definition field which has the
-			information of the type, we will check if there is any list which will only present in case there is syntax like <SubTYPE> (...)
-		*/
-		alter.NumSetAttributes = len(cmd.GetDef().GetList().GetItems())
-	case pg_query.AlterTableType_AT_AddConstraint:
-		alter.NumStorageOptions = len(cmd.GetDef().GetConstraint().GetOptions())
-		/*
-			e.g.
-				ALTER TABLE example2
-					ADD CONSTRAINT example2_pkey PRIMARY KEY (id);
-				tmts:{stmt:{alter_table_stmt:{relation:{relname:"example2"  inh:true  relpersistence:"p"  location:693}
-				cmds:{alter_table_cmd:{subtype:AT_AddConstraint  def:{constraint:{contype:CONSTR_PRIMARY  conname:"example2_pkey"
-				location:710  keys:{string:{sval:"id"}}}}  behavior:DROP_RESTRICT}}  objtype:OBJECT_TABLE}}  stmt_location:679  stmt_len:72}
-
-			e.g. ALTER TABLE ONLY public.meeting ADD CONSTRAINT no_time_overlap EXCLUDE USING gist (room_id WITH =, time_range WITH &&);
-			cmds:{alter_table_cmd:{subtype:AT_AddConstraint def:{constraint:{contype:CONSTR_EXCLUSION conname:"no_time_overlap" location:41
-			here again same checking the definition of the alter stmt if it has constraint and checking its type
-
-			e.g. ALTER TABLE ONLY public.users ADD CONSTRAINT users_email_key UNIQUE (email) DEFERRABLE;
-			alter_table_cmd:{subtype:AT_AddConstraint  def:{constraint:{contype:CONSTR_UNIQUE  conname:"users_email_key"
-			deferrable:true  location:196  keys:{string:{sval:"email"}}}}  behavior:DROP_RESTRICT}}  objtype:OBJECT_TABLE}}
-
-			similar to CREATE table 2nd case where constraint is at the end of column definitions mentioning the constraint only
-			so here as well while adding constraint checking the type of constraint and the deferrable field of it.
-
-			ALTER TABLE test ADD CONSTRAINT chk check (id<>'') NOT VALID;
-			stmts:{stmt:...subtype:AT_AddConstraint def:{constraint:{contype:CONSTR_CHECK conname:"chk" location:22
-			raw_expr:{a_expr:{kind:AEXPR_OP name:{string:{sval:"<>"}} lexpr:{column_ref:{fields:{string:{sval:"id"}} location:43}} rexpr:{a_const:{sval:{}
-			location:47}} location:45}} skip_validation:true}} behavior:DROP_RESTRICT}} objtype:OBJECT_TABLE}} stmt_len:60}
-		*/
-		constraint := cmd.GetDef().GetConstraint()
-		alter.ConstraintType = constraint.Contype
-		alter.ConstraintName = constraint.Conname
-		alter.IsDeferrable = constraint.Deferrable
-		alter.ConstraintNotValid = constraint.SkipValidation // this is set for the NOT VALID clause
-		alter.ConstraintColumns = parseColumnsFromKeys(constraint.GetKeys())
-		if alter.ConstraintType == FOREIGN_CONSTR_TYPE {
+	for idx, node := range cmds {
+		cmd := node.GetAlterTableCmd()
+		switch cmd.GetSubtype() {
+		case pg_query.AlterTableType_AT_SetOptions:
 			/*
-				alter_table_cmd:{subtype:AT_AddConstraint  def:{constraint:{contype:CONSTR_FOREIGN  conname:"fk"  initially_valid:true
-				pktable:{schemaname:"schema1"  relname:"abc"  inh:true  relpersistence:"p"
-				In case of FKs the reference table is in PKTable field and columns are in FkAttrs
+				e.g. alter table test_1 alter column col1 set (attribute_option=value);
+				cmds:{alter_table_cmd:{subtype:AT_SetOptions name:"col1" def:{list:{items:{def_elem:{defname:"attribute_option"
+				arg:{type_name:{names:{string:{sval:"value"}} typemod:-1 location:263}} defaction:DEFELEM_UNSPEC location:246}}}}...
+
+				for set attribute issue we will the type of alter setting the options and in the 'def' definition field which has the
+				information of the type, we will check if there is any list which will only present in case there is syntax like <SubTYPE> (...)
 			*/
-			alter.ConstraintColumns = parseColumnsFromKeys(constraint.FkAttrs)
-			alter.ConstraintReferencedTable = utils.BuildObjectName(constraint.Pktable.Schemaname, constraint.Pktable.Relname)
-			alter.ConstraintReferencedColumns = parseColumnsFromKeys(constraint.PkAttrs)
+			// only consider the first occurrence for counters; harmless if repeated
+			if idx == 0 {
+				alter.NumSetAttributes = len(cmd.GetDef().GetList().GetItems())
+			}
+		case pg_query.AlterTableType_AT_AddConstraint:
+			if idx == 0 {
+				/*
+					e.g.
+						ALTER TABLE example2
+							ADD CONSTRAINT example2_pkey PRIMARY KEY (id);
+						tmts:{stmt:{alter_table_stmt:{relation:{relname:"example2"  inh:true  relpersistence:"p"  location:693}
+						cmds:{alter_table_cmd:{subtype:AT_AddConstraint  def:{constraint:{contype:CONSTR_PRIMARY  conname:"example2_pkey"
+						location:710  keys:{string:{sval:"id"}}}}  behavior:DROP_RESTRICT}}  objtype:OBJECT_TABLE}}  stmt_location:679  stmt_len:72}
+
+					e.g. ALTER TABLE ONLY public.meeting ADD CONSTRAINT no_time_overlap EXCLUDE USING gist (room_id WITH =, time_range WITH &&);
+					cmds:{alter_table_cmd:{subtype:AT_AddConstraint def:{constraint:{contype:CONSTR_EXCLUSION conname:"no_time_overlap" location:41
+					here again same checking the definition of the alter stmt if it has constraint and checking its type
+
+					e.g. ALTER TABLE ONLY public.users ADD CONSTRAINT users_email_key UNIQUE (email) DEFERRABLE;
+					alter_table_cmd:{subtype:AT_AddConstraint  def:{constraint:{contype:CONSTR_UNIQUE  conname:"users_email_key"
+					deferrable:true  location:196  keys:{string:{sval:"email"}}}}  behavior:DROP_RESTRICT}}  objtype:OBJECT_TABLE}}
+
+					similar to CREATE table 2nd case where constraint is at the end of column definitions mentioning the constraint only
+					so here as well while adding constraint checking the type of constraint and the deferrable field of it.
+
+					ALTER TABLE test ADD CONSTRAINT chk check (id<>'') NOT VALID;
+					stmts:{stmt:...subtype:AT_AddConstraint def:{constraint:{contype:CONSTR_CHECK conname:"chk" location:22
+					raw_expr:{a_expr:{kind:AEXPR_OP name:{string:{sval:"<>"}} lexpr:{column_ref:{fields:{string:{sval:"id"}} location:43}} rexpr:{a_const:{sval:{}}
+					location:47}} location:45}} skip_validation:true}} behavior:DROP_RESTRICT}} objtype:OBJECT_TABLE}} stmt_len:60}
+				*/
+				alter.NumStorageOptions = len(cmd.GetDef().GetConstraint().GetOptions())
+			}
+			constraint := cmd.GetDef().GetConstraint()
+			alter.ConstraintType = constraint.Contype
+			alter.ConstraintName = constraint.Conname
+			alter.IsDeferrable = constraint.Deferrable
+			alter.ConstraintNotValid = constraint.SkipValidation // this is set for the NOT VALID clause
+			alter.ConstraintColumns = parseColumnsFromKeys(constraint.GetKeys())
+			if alter.ConstraintType == FOREIGN_CONSTR_TYPE {
+				/*
+					alter_table_cmd:{subtype:AT_AddConstraint  def:{constraint:{contype:CONSTR_FOREIGN  conname:"fk"  initially_valid:true
+					pktable:{schemaname:"schema1"  relname:"abc"  inh:true  relpersistence:"p"
+					In case of FKs the reference table is in PKTable field and columns are in FkAttrs
+				*/
+				alter.ConstraintColumns = parseColumnsFromKeys(constraint.FkAttrs)
+				alter.ConstraintReferencedTable = utils.BuildObjectName(constraint.Pktable.Schemaname, constraint.Pktable.Relname)
+				alter.ConstraintReferencedColumns = parseColumnsFromKeys(constraint.PkAttrs)
+			}
+		case pg_query.AlterTableType_AT_DisableRule:
+			/*
+				e.g. ALTER TABLE example DISABLE example_rule;
+				cmds:{alter_table_cmd:{subtype:AT_DisableRule name:"example_rule" behavior:DROP_RESTRICT}} objtype:OBJECT_TABLE}}
+				checking the subType is sufficient in this case
+			*/
+			alter.RuleName = cmd.Name
+		case pg_query.AlterTableType_AT_AttachPartition:
+			/*
+				e.g. ALTER TABLE ONLY public.device_events ATTACH PARTITION public.device_events_june2024 FOR VALUES FROM ('2024-06-01 00:00:00+00') TO ('2024-07-01 00:00:00+00');
+				stmt:{alter_table_stmt:{relation:{schemaname:"public" relname:"device_events_pkey" inh:true relpersistence:"p" location:12}
+				cmds:{alter_table_cmd:{subtype:AT_AttachPartition def:{partition_cmd:{name:{schemaname:"public" relname:"device_events_june2024_pkey" inh:true relpersistence:"p" location:55}}}behavior:DROP_RESTRICT}} objtype:OBJECT_INDEX}} stmt_len:89
+			*/
+			partitionCmd := cmd.GetDef().GetPartitionCmd()
+			partitionChildTable := partitionCmd.GetName()
+			alter.PartitionedChild = utils.BuildObjectName(partitionChildTable.Schemaname, partitionChildTable.Relname)
+		case pg_query.AlterTableType_AT_SetNotNull:
+			alter.SetNotNullColumns = append(alter.SetNotNullColumns, cmd.Name)
+		case pg_query.AlterTableType_AT_DropNotNull:
+			alter.DropNotNullColumns = append(alter.DropNotNullColumns, cmd.Name)
 		}
-
-	case pg_query.AlterTableType_AT_DisableRule:
-		/*
-			e.g. ALTER TABLE example DISABLE example_rule;
-			cmds:{alter_table_cmd:{subtype:AT_DisableRule name:"example_rule" behavior:DROP_RESTRICT}} objtype:OBJECT_TABLE}}
-			checking the subType is sufficient in this case
-		*/
-		alter.RuleName = cmd.Name
-		//case CLUSTER ON
-		/*
-			e.g. ALTER TABLE example CLUSTER ON idx;
-			stmt:{alter_table_stmt:{relation:{relname:"example" inh:true relpersistence:"p" location:13}
-			cmds:{alter_table_cmd:{subtype:AT_ClusterOn name:"idx" behavior:DROP_RESTRICT}} objtype:OBJECT_TABLE}} stmt_len:32
-
-		*/
-
-	case pg_query.AlterTableType_AT_AttachPartition:
-		/*
-			e.g. ALTER TABLE ONLY public.device_events ATTACH PARTITION public.device_events_june2024 FOR VALUES FROM ('2024-06-01 00:00:00+00') TO ('2024-07-01 00:00:00+00');
-			stmt:{alter_table_stmt:{relation:{schemaname:"public" relname:"device_events_pkey" inh:true relpersistence:"p" location:12}
-			cmds:{alter_table_cmd:{subtype:AT_AttachPartition def:{partition_cmd:{name:{schemaname:"public" relname:"device_events_june2024_pkey" inh:true relpersistence:"p" location:55}}}behavior:DROP_RESTRICT}} objtype:OBJECT_INDEX}} stmt_len:89
-		*/
-		partitionCmd := cmd.GetDef().GetPartitionCmd()
-		partitionChildTable := partitionCmd.GetName()
-		alter.PartitionedChild = utils.BuildObjectName(partitionChildTable.Schemaname, partitionChildTable.Relname)
 	}
 
 	return alter, nil
@@ -862,6 +869,9 @@ type AlterTable struct {
 	IsDeferrable                bool
 	ConstraintColumns           []string
 	PartitionedChild            string // In case this is a partitioned table
+	// In case the ALTER TABLE contains multiple subcommands, collect all SET/DROP NOT NULL columns
+	SetNotNullColumns  []string
+	DropNotNullColumns []string
 }
 
 func (a *AlterTable) GetObjectName() string {
