@@ -201,6 +201,8 @@ func (t *Transformer) ModifySecondaryIndexesToRange(stmts []*pg_query.RawStmt) (
 			continue
 		}
 		if len(indexStmt.IndexParams) == 0 {
+			//Just a sanity check to avoid any nil pointer dereference
+			//In general, this should not happen
 			continue
 		}
 		//checking only the first param of the key column of the index 
