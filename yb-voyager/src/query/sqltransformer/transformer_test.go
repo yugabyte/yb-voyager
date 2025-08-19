@@ -447,6 +447,7 @@ func TestRemoveRedundantIndexes(t *testing.T) {
 		`CREATE INDEX idx_t1 ON public.t(a);`,
 		`CREATE INDEX idx_t2 ON public.t(b);`,
 		`CREATE INDEX idx_t3 ON public.t(a, b);`,
+		`CREATE INDEX idx_t4 ON public.t(b ASC);`,
 	}
 
 	idxT1 := sqlname.NewObjectNameQualifiedWithTableName(constants.POSTGRESQL, "public", "idx_t1", "public", "t")
@@ -458,7 +459,7 @@ func TestRemoveRedundantIndexes(t *testing.T) {
 
 	redundantIndexesMap := utils.NewStructMap[*sqlname.ObjectNameQualifiedWithTableName, string]()
 	redundantIndexesMap.Put(idxT1, "CREATE INDEX idx_t3 ON public.t USING btree (a, b);")
-	redundantIndexesMap.Put(idxT2, "CREATE INDEX idx_t3 ON public.t USING btree (a, b);")
+	redundantIndexesMap.Put(idxT2, "CREATE INDEX idx_t3 ON public.t USING btree (b ASC);")
 
 	tempFilePath, err := testutils.CreateTempFile("/tmp", sqlFileContent, "sql")
 	testutils.FatalIfError(t, err)
@@ -480,7 +481,9 @@ func TestRemoveRedundantIndexes(t *testing.T) {
 	finalSqlStmts, err := queryparser.DeparseRawStmts(transformedStmts)
 	testutils.FatalIfError(t, err)
 
-	testutils.AssertEqualStringSlices(t, []string{`CREATE INDEX idx_t3 ON public.t USING btree (a, b);`}, finalSqlStmts)
+	assert.Equal(t, 2, len(finalSqlStmts))
+
+	testutils.AssertEqualStringSlices(t, []string{`CREATE INDEX idx_t3 ON public.t USING btree (a, b);`, `CREATE INDEX idx_t4 ON public.t USING btree (b ASC);`}, finalSqlStmts)
 
 }
 
