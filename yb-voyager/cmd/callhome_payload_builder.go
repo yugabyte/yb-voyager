@@ -142,7 +142,7 @@ func packAndSendAssessMigrationPayload(status string, errMsg error) {
 		MigrationComplexityExplanation: assessmentReport.MigrationComplexityExplanation,
 		SchemaSummary:                  callhome.MarshalledJsonString(schemaSummaryCopy),
 		Issues:                         anonymizedIssues,
-		Error:                          callhome.SanitizeErrorMsg(errMsg),
+		Error:                          callhome.SanitizeErrorMsg(errMsg, anonymizer),
 		TableSizingStats:               callhome.MarshalledJsonString(tableSizingStats),
 		IndexSizingStats:               callhome.MarshalledJsonString(indexSizingStats),
 		SourceConnectivity:             assessmentMetadataDirFlag == "",

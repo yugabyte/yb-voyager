@@ -388,7 +388,7 @@ func packAndSendImportDataFilePayload(status string, errorMsg error) {
 		ParallelJobs:       int64(tconf.Parallelism),
 		StartClean:         bool(startClean),
 		DataFileParameters: callhome.MarshalledJsonString(dataFileParameters),
-		Error:              callhome.SanitizeErrorMsg(errorMsg),
+		Error:              callhome.SanitizeErrorMsg(errorMsg, anonymizer),
 		ControlPlaneType:   getControlPlaneType(),
 		DataMetrics:        dataMetrics,
 	}

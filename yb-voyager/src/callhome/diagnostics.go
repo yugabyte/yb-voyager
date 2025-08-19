@@ -34,6 +34,7 @@ import (
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/anon"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryissue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -446,19 +447,19 @@ func SendPayload(payload *Payload) error {
 // We want to ensure that no user-specific information is sent to the call-home service.
 // Therefore, we only send the segment of the error message before the first ":" as that is the generic error message.
 // Accepts error type, returns empty string if error is nil.
-func SanitizeErrorMsg(err error) string {
+func SanitizeErrorMsg(err error, anonymizer *anon.VoyagerAnonymizer) string {
 	if err == nil {
 		return ""
 	}
 	errorMsg := strings.Split(err.Error(), ":")[0]
-	additionalContext := getSpecificNonSensitiveContextForError(err)
+	additionalContext := getSpecificNonSensitiveContextForError(err, anonymizer)
 	if additionalContext != nil {
 		errorMsg = fmt.Sprintf("%s: %s", errorMsg, MarshalledJsonString(additionalContext))
 	}
 	return errorMsg
 }
 
-func getSpecificNonSensitiveContextForError(err error) map[string]string {
+func getSpecificNonSensitiveContextForError(err error, anonymizer *anon.VoyagerAnonymizer) map[string]string {
 	if err == nil {
 		return nil
 	}
@@ -482,6 +483,18 @@ func getSpecificNonSensitiveContextForError(err error) map[string]string {
 		// If the error is a pgconnv5.PgError, we can return
 		// a more specific error message that includes the SQLSTATE code
 		context["pg_error_code"] = pgErrV5.Code
+	}
+
+	var executeDDLErr errs.ExecuteDDLError
+	if errors.As(err, &executeDDLErr) {
+		if anonymizer != nil {
+			anonymizedDDL, aerr := anonymizer.AnonymizeSql(executeDDLErr.DDL())
+			if aerr != nil {
+				anonymizedDDL = ""
+				log.Infof("callhome: error anonymizing ddl: %v", aerr)
+			}
+			context["ddl"] = anonymizedDDL
+		}
 	}
 
 	return context

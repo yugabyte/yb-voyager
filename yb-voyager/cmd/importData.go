@@ -1238,7 +1238,7 @@ func packAndSendImportDataToTargetPayload(status string, errorMsg error) {
 		ParallelJobs:                int64(tconf.Parallelism),
 		StartClean:                  bool(startClean),
 		EnableUpsert:                bool(tconf.EnableUpsert),
-		Error:                       callhome.SanitizeErrorMsg(errorMsg),
+		Error:                       callhome.SanitizeErrorMsg(errorMsg, anonymizer),
 		ControlPlaneType:            getControlPlaneType(),
 		BatchSize:                   batchSizeInNumRows,
 		OnPrimaryKeyConflictAction:  tconf.OnPrimaryKeyConflictAction,
