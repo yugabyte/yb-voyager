@@ -276,6 +276,7 @@ func saveMigrationReportsFn(msr *metadb.MigrationStatusRecord) {
 
 	saveMigrationAssessmentReport()
 	saveSchemaAnalysisReport()
+	saveSchemaOptimizationReport()
 	if streamChangesMode {
 		saveDataMigrationReport(msr)
 	} else { // snapshot case
@@ -283,6 +284,36 @@ func saveMigrationReportsFn(msr *metadb.MigrationStatusRecord) {
 			saveDataExportReport()
 		}
 		saveDataImportReport(msr)
+	}
+}
+
+func saveSchemaOptimizationReport() {
+	optimizationReportGlobPath := filepath.Join(backupDir, "reports", fmt.Sprintf("%s.*", SCHEMA_OPTIMIZATION_REPORT_FILE_NAME))
+	alreadyBackedUp := utils.FileOrFolderExistsWithGlobPattern(optimizationReportGlobPath)
+	if alreadyBackedUp {
+		utils.PrintAndLog("schema optimization report is already present at %q", optimizationReportGlobPath)
+		return
+	}
+	utils.PrintAndLog("saving schema optimization report...")
+
+	files, err := os.ReadDir(filepath.Join(exportDir, "reports"))
+	if err != nil {
+		utils.ErrExit("reading reports directory: %w", err)
+	}
+	for _, file := range files {
+		if file.IsDir() || !strings.HasPrefix(file.Name(), fmt.Sprintf("%s.", SCHEMA_OPTIMIZATION_REPORT_FILE_NAME)) {
+			continue
+		}
+
+		oldPath := filepath.Join(exportDir, "reports", file.Name())
+		newPath := filepath.Join(backupDir, "reports", file.Name())
+		cmd := exec.Command("mv", oldPath, newPath)
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			utils.ErrExit("moving schema optimization report: %s: %w", string(output), err)
+		} else {
+			log.Infof("moved schema optimization report %q to %q", oldPath, newPath)
+		}
 	}
 }
 
