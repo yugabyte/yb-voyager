@@ -465,12 +465,22 @@ func getSpecificNonSensitiveContextForError(err error, anonymizer *anon.VoyagerA
 	}
 	context := make(map[string]string)
 
+	addImportBatchErrorContext(err, context)
+	addPostgreSQLErrorContext(err, context)
+	addExecuteDDLErrorContext(err, anonymizer, context)
+
+	return context
+}
+
+func addImportBatchErrorContext(err error, context map[string]string) {
 	var ibe errs.ImportBatchError
 	if errors.As(err, &ibe) {
 		context["step"] = ibe.Step()
 		context["flow"] = ibe.Flow()
 	}
+}
 
+func addPostgreSQLErrorContext(err error, context map[string]string) {
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) {
 		// If the error is a pgconn.PgError, we can return a more
@@ -484,10 +494,6 @@ func getSpecificNonSensitiveContextForError(err error, anonymizer *anon.VoyagerA
 		// a more specific error message that includes the SQLSTATE code
 		context["pg_error_code"] = pgErrV5.Code
 	}
-
-	addExecuteDDLErrorContext(err, anonymizer, context)
-
-	return context
 }
 
 func addExecuteDDLErrorContext(err error, anonymizer *anon.VoyagerAnonymizer, context map[string]string) {
