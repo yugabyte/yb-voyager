@@ -509,7 +509,7 @@ func addExecuteDDLErrorContext(err error, anonymizer *anon.VoyagerAnonymizer, co
 	erroredDDL := executeDDLErr.DDL()
 	anonymizedDDL, aerr := anonymizer.AnonymizeSql(erroredDDL)
 	if aerr != nil {
-		anonymizedDDL = ""
+		anonymizedDDL = "XXX"
 		log.Infof("callhome: error anonymizing ddl %q: %v", erroredDDL, aerr)
 	}
 	context["ddl"] = anonymizedDDL
