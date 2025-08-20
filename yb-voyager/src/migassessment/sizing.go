@@ -128,7 +128,7 @@ const (
 	// GITHUB_RAW_LINK use raw github link to fetch the file from repository using the api:
 	// https://raw.githubusercontent.com/{username-or-organization}/{repository}/{branch}/{path-to-file}
 	GITHUB_RAW_LINK                 = "https://raw.githubusercontent.com/yugabyte/yb-voyager/main/yb-voyager/src/migassessment/resources"
-	EXPERIMENT_DATA_FILENAME        = "yb_2024_0_source.db"
+	EXPERIMENT_DATA_FILENAME        = "yb_experiment_data_source.db"
 	DBS_DIR                         = "dbs"
 	SIZE_UNIT_GB                    = "GB"
 	SIZE_UNIT_MB                    = "MB"
@@ -165,7 +165,7 @@ var SourceMetadataObjectTypesToUse = []string{
 func SizingAssessment(assessmentDir string, targetDbVersion *ybversion.YBVersion) error {
 
 	log.Infof("loading metadata files for sharding assessment")
-	sourceTableMetadata, sourceIndexMetadata, _, err := loadSourceMetadata(assessmentDir)
+	sourceTableMetadata, sourceIndexMetadata, _, err := loadSourceMetadata(GetSourceMetadataDBFilePath(), assessmentDir)
 	if err != nil {
 		SizingReport.FailureReasoning = fmt.Sprintf("failed to load source metadata: %v", err)
 		return fmt.Errorf("failed to load source metadata: %w", err)
@@ -353,7 +353,6 @@ func pickBestRecommendation(recommendations map[int]IntermediateRecommendation) 
 			foundRecommendation = true
 			// Update finalRecommendation if the current recommendation has fewer cores.
 			log.Infof(fmt.Sprintf("vCPU: %v & cores required: %v gives nodes required: %v\n", rec.VCPUsPerInstance, rec.CoresNeeded, rec.NumNodes))
-			fmt.Printf(fmt.Sprintf("vCPU: %v & cores required: %v gives nodes required: %v\n", rec.VCPUsPerInstance, rec.CoresNeeded, rec.NumNodes))
 			if minCores > int(rec.CoresNeeded) {
 				finalRecommendation = rec
 				minCores = int(rec.CoresNeeded)
@@ -413,6 +412,7 @@ func findNumNodesNeededBasedOnThroughputRequirement(sourceIndexMetadata []Source
 		// Add it explicitly.
 		if len(previousRecommendation.ColocatedTables) > 0 {
 			nodesNeeded += 1
+			neededCores += float64(previousRecommendation.VCPUsPerInstance)
 		}
 
 		// Assumption: minimum required replication is 3, so minimum nodes recommended would be 3.
@@ -914,15 +914,15 @@ Returns:
 	[]SourceDBMetadata: all index objects from source db
 	float64: total size of source db
 */
-func loadSourceMetadata(assessmentDir string) ([]SourceDBMetadata, []SourceDBMetadata, float64, error) {
-	filePath := GetSourceMetadataDBFilePath()
+func loadSourceMetadata(filePath string, assessmentDir string) ([]SourceDBMetadata, []SourceDBMetadata, float64, error) {
+	filePath = GetSourceMetadataDBFilePath()
 	if AssessmentDir == "" {
 		filePath = filepath.Join(assessmentDir, filePath)
 	} else {
 		filePath = filepath.Join(AssessmentDir, filePath)
 	}
 
-	fmt.Println("source db file to connect to: ", filePath)
+	// fmt.Println("source db file to connect to: ", filePath)
 	SourceMetaDB, err := utils.ConnectToSqliteDatabase(filePath)
 	if err != nil {
 		return nil, nil, 0.0, fmt.Errorf("cannot connect to source metadata database: %w", err)
