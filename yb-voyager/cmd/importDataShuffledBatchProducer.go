@@ -22,6 +22,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 // ShuffledBatchProducer wraps FileBatchProducer to provide concurrent batch production
@@ -33,8 +34,6 @@ type ShuffledBatchProducer struct {
 	producerFinished  bool
 }
 
-// NewShuffledBatchProducer creates a new ShuffledBatchProducer that wraps a FileBatchProducer.
-// The producer goroutine is not started until Init() is called.
 func NewShuffledBatchProducer(task *ImportFileTask, state *ImportDataState,
 	errorHandler importdata.ImportDataErrorHandler) (*ShuffledBatchProducer, error) {
 
@@ -65,10 +64,8 @@ func (sbp *ShuffledBatchProducer) Init() {
 			}
 			batch, err := sbp.fileBatchProducer.NextBatch()
 			if err != nil {
-				sbp.producerFinished = true
 				sbp.mu.Unlock()
-				log.Errorf("Producer error for file %s: %v", sbp.fileBatchProducer.task.FilePath, err)
-				break
+				utils.ErrExit("Producer error for file %s: %v", sbp.fileBatchProducer.task.FilePath, err)
 			}
 			sbp.batches = append(sbp.batches, batch)
 			sbp.mu.Unlock()
