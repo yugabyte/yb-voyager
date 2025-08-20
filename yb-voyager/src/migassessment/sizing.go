@@ -216,6 +216,12 @@ func SizingAssessment(assessmentDir string, targetDbVersion *ybversion.YBVersion
 	}
 
 	sizingRecommendationPerCore := createSizingRecommendationStructure(colocatedLimits)
+	sizingRecommendationPerCoreShardingStrategy := createSizingRecommendationStructure(colocatedLimits)
+
+	for key, rec := range sizingRecommendationPerCoreShardingStrategy {
+		rec.ShardedTables = append(rec.ShardedTables, sourceTableMetadata...)
+		sizingRecommendationPerCoreShardingStrategy[key] = rec
+	}
 
 	sizingRecommendationPerCore = shardingBasedOnTableSizeAndCount(sourceTableMetadata, sourceIndexMetadata,
 		colocatedLimits, sizingRecommendationPerCore)
@@ -224,15 +230,26 @@ func SizingAssessment(assessmentDir string, targetDbVersion *ybversion.YBVersion
 
 	sizingRecommendationPerCore = checkShardedTableLimit(sourceIndexMetadata, shardedLimits, sizingRecommendationPerCore)
 
+	sizingRecommendationPerCoreShardingStrategy = checkShardedTableLimit(sourceIndexMetadata, shardedLimits, sizingRecommendationPerCoreShardingStrategy)
+
 	sizingRecommendationPerCore = findNumNodesNeededBasedOnThroughputRequirement(sourceIndexMetadata, shardedThroughput, sizingRecommendationPerCore)
+	sizingRecommendationPerCoreShardingStrategy = findNumNodesNeededBasedOnThroughputRequirement(sourceIndexMetadata, shardedThroughput, sizingRecommendationPerCoreShardingStrategy)
 
 	sizingRecommendationPerCore = findNumNodesNeededBasedOnTabletsRequired(sourceIndexMetadata, shardedLimits, sizingRecommendationPerCore)
-	finalSizingRecommendation := pickBestRecommendation(sizingRecommendationPerCore)
+	sizingRecommendationPerCoreShardingStrategy = findNumNodesNeededBasedOnTabletsRequired(sourceIndexMetadata, shardedLimits, sizingRecommendationPerCoreShardingStrategy)
 
-	if finalSizingRecommendation.FailureReasoning != "" {
-		SizingReport.FailureReasoning = finalSizingRecommendation.FailureReasoning
-		return fmt.Errorf("error picking best recommendation: %v", finalSizingRecommendation.FailureReasoning)
+	finalSizingRecommendationColoShardedCombined := pickBestRecommendation(sizingRecommendationPerCore)
+	if finalSizingRecommendationColoShardedCombined.FailureReasoning != "" {
+		SizingReport.FailureReasoning = finalSizingRecommendationColoShardedCombined.FailureReasoning
+		return fmt.Errorf("error picking best recommendation: %v", finalSizingRecommendationColoShardedCombined.FailureReasoning)
 	}
+	finalSizingRecommendationAllSharded := pickBestRecommendation(sizingRecommendationPerCoreShardingStrategy)
+	if finalSizingRecommendationAllSharded.FailureReasoning != "" {
+		SizingReport.FailureReasoning = finalSizingRecommendationAllSharded.FailureReasoning
+		return fmt.Errorf("error picking best recommendation: %v", finalSizingRecommendationAllSharded.FailureReasoning)
+	}
+
+	finalSizingRecommendation, pickReasoning := pickBestOutOfTwo(finalSizingRecommendationColoShardedCombined, finalSizingRecommendationAllSharded, sourceIndexMetadata)
 
 	colocatedObjects, cumulativeIndexCountColocated :=
 		getListOfIndexesAlongWithObjects(finalSizingRecommendation.ColocatedTables, sourceIndexMetadata)
@@ -299,6 +316,8 @@ func SizingAssessment(assessmentDir string, targetDbVersion *ybversion.YBVersion
 	}
 	reasoning := getReasoning(finalSizingRecommendation, shardedObjects, cumulativeIndexCountSharded, colocatedObjects,
 		cumulativeIndexCountColocated)
+
+	reasoning += pickReasoning
 
 	sizingRecommendation := &SizingRecommendation{
 		ColocatedTables:                 fetchObjectNames(finalSizingRecommendation.ColocatedTables),
@@ -373,6 +392,58 @@ func pickBestRecommendation(recommendations map[int]IntermediateRecommendation) 
 
 	// Return the best recommendation
 	return finalRecommendation
+}
+
+/*
+pickBestOutOfTwo selects the best recommendation from two recommendations by choosing the one with fewer cores needed.
+It returns the selected recommendation along with reasoning explaining the choice.
+
+Parameters:
+  - rec1: First IntermediateRecommendation to compare
+  - rec2: Second IntermediateRecommendation to compare
+  - sourceIndexMetadata: A slice of SourceDBMetadata structs representing source indexes
+
+Returns:
+  - The best IntermediateRecommendation based on fewer cores needed
+  - A string explaining the reasoning behind the choice, including cores comparison and detailed object counts
+*/
+func pickBestOutOfTwo(rec1, rec2 IntermediateRecommendation, sourceIndexMetadata []SourceDBMetadata) (IntermediateRecommendation, string) {
+	var selectedRec, notSelectedRec IntermediateRecommendation
+	var reasoning string
+
+	// Compare cores needed - pick the one with fewer cores, preferring all-sharded when equal
+	if rec1.CoresNeeded < rec2.CoresNeeded {
+		selectedRec = rec1
+		notSelectedRec = rec2
+		reasoning = fmt.Sprintf("\nSelected colocated+sharded strategy requiring %.0f cores over all-sharded strategy requiring %.0f cores. ",
+			rec1.CoresNeeded, rec2.CoresNeeded)
+	} else if rec1.CoresNeeded > rec2.CoresNeeded {
+		selectedRec = rec2
+		notSelectedRec = rec1
+		reasoning = fmt.Sprintf("\nSelected all-sharded strategy requiring %.0f cores over colocated+sharded strategy requiring %.0f cores. ",
+			rec2.CoresNeeded, rec1.CoresNeeded)
+	} else {
+		// Equal cores - prefer all-sharded (rec2)
+		selectedRec = rec2
+		notSelectedRec = rec1
+		reasoning = fmt.Sprintf("\nSelected all-sharded strategy (same %.0f cores as colocated+sharded strategy, preferring all-sharded). ",
+			rec2.CoresNeeded)
+	}
+
+	// Get detailed object counts for non-selected recommendations
+	_, notSelectedColocatedIndexCount := getListOfIndexesAlongWithObjects(notSelectedRec.ColocatedTables, sourceIndexMetadata)
+	_, notSelectedShardedIndexCount := getListOfIndexesAlongWithObjects(notSelectedRec.ShardedTables, sourceIndexMetadata)
+
+	// Calculate table counts
+	notSelectedColocatedTableCount := len(notSelectedRec.ColocatedTables)
+	notSelectedShardedTableCount := len(notSelectedRec.ShardedTables)
+
+	// Add detailed information about not selected recommendations
+	reasoning += fmt.Sprintf("Non-selected recommendation: %d colocated objects (%d tables, %d indexes) and %d sharded objects (%d tables, %d indexes).",
+		notSelectedColocatedTableCount+notSelectedColocatedIndexCount, notSelectedColocatedTableCount, notSelectedColocatedIndexCount,
+		notSelectedShardedTableCount+notSelectedShardedIndexCount, notSelectedShardedTableCount, notSelectedShardedIndexCount)
+
+	return selectedRec, reasoning
 }
 
 /*
