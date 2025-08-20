@@ -172,7 +172,7 @@ func NewSecondaryIndexToRangeChange(applied bool, referenceFile string, modified
 		title = "Secondary Indexes to be range-sharded - Not Applied"
 		description = "Due to the skip-performance-optimizations flag, all the btree indexes were not converted to range-sharded indexes. Modify the indexes to be range-sharded manually."
 	}
-	description += "The range-sharded indexes helps in giving the flexibility to execute range-based queries, and avoids potential hotspots that come with hash-sharded indexes such as index on low cardinality column, index on high percentage of NULLs, and index on high percentage of particular value</a>. Refer to sharding strategy on documentation for more information."
+	description += "The range-sharded indexes helps in giving the flexibility to execute range-based queries, and avoids potential hotspots that come with hash-sharded indexes such as index on low cardinality column, index on high percentage of NULLs, and index on high percentage of particular value</a>. Refer to sharding strategy in documentation for more information."
 	return &SecondaryIndexToRangeChange{
 		Title:       title,
 		Description: description,
