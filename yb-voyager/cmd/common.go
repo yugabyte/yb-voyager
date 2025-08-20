@@ -864,7 +864,7 @@ func hideImportFlagsInFallForwardOrBackCmds(cmd *cobra.Command) {
 }
 
 func hideExportFlagsInFallForwardOrBackCmds(cmd *cobra.Command) {
-	var flags = []string{"source-db-type", "export-type", "parallel-jobs", "start-clean"}
+	var flags = []string{"source-db-type", "export-type", "parallel-jobs", "start-clean", "allow-oracle-clob-data-export"}
 	for _, flagName := range flags {
 		flag := cmd.Flags().Lookup(flagName)
 		if flag != nil {

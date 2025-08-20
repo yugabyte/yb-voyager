@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 
@@ -546,6 +547,11 @@ func (ora *Oracle) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple, u
 	unsupportedTableColumnsMap := utils.NewStructMap[sqlname.NameTuple, []string]()
 	if isStreamingEnabled {
 		OracleUnsupportedDataTypes = append(OracleUnsupportedDataTypes, "NCHAR", "NVARCHAR2")
+	}
+	if bool(ora.source.AllowOracleClobDataExport) {
+		// The flag won't be allowed for live/BETA_FAST_DATA_EXPORT export paths
+		// If allow-oracle-clob-data-export is true, then CLOB needs to be included in the export and removed from the unsupported data types list
+		OracleUnsupportedDataTypes = lo.Without(OracleUnsupportedDataTypes, "CLOB")
 	}
 	for _, tableName := range tableList {
 		columns, dataTypes, dataTypesOwner, err := ora.getTableColumns(tableName)

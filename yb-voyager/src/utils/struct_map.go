@@ -72,6 +72,12 @@ func (m *StructMap[K, V]) Clear() {
 	m.vmap = make(map[string]V)
 }
 
+//Returns the internal keys used for the map
 func (m *StructMap[K, V]) Keys() []string {
 	return lo.Keys(m.kmap)
+}
+
+//Returns the actual keys of struct map
+func (m *StructMap[K, V]) ActualKeys() []K {
+	return lo.Values(m.kmap)
 }
