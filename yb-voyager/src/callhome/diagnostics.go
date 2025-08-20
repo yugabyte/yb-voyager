@@ -485,17 +485,26 @@ func getSpecificNonSensitiveContextForError(err error, anonymizer *anon.VoyagerA
 		context["pg_error_code"] = pgErrV5.Code
 	}
 
-	var executeDDLErr errs.ExecuteDDLError
-	if errors.As(err, &executeDDLErr) {
-		if anonymizer != nil {
-			anonymizedDDL, aerr := anonymizer.AnonymizeSql(executeDDLErr.DDL())
-			if aerr != nil {
-				anonymizedDDL = ""
-				log.Infof("callhome: error anonymizing ddl: %v", aerr)
-			}
-			context["ddl"] = anonymizedDDL
-		}
-	}
+	addExecuteDDLErrorContext(err, anonymizer, context)
 
 	return context
+}
+
+func addExecuteDDLErrorContext(err error, anonymizer *anon.VoyagerAnonymizer, context map[string]string) {
+	var executeDDLErr errs.ExecuteDDLError
+	if !errors.As(err, &executeDDLErr) {
+		return
+	}
+
+	if anonymizer == nil {
+		return
+	}
+
+	erroredDDL := executeDDLErr.DDL()
+	anonymizedDDL, aerr := anonymizer.AnonymizeSql(erroredDDL)
+	if aerr != nil {
+		anonymizedDDL = ""
+		log.Infof("callhome: error anonymizing ddl %q: %v", erroredDDL, aerr)
+	}
+	context["ddl"] = anonymizedDDL
 }
