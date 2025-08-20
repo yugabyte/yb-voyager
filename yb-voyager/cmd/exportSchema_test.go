@@ -23,6 +23,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -338,10 +339,10 @@ func TestExportSchemaRunningAssessmentInternally_DisableFlag(t *testing.T) {
 }
 
 // Add test for Schema optimization report json format in the export schema command
-func TestExportSchemaSchemaOptimizationReportJsonFormat(t *testing.T) {
+func TestExportSchemaSchemaOptimizationReportAndRedundantIndexAutofix(t *testing.T) {
 	// create temp export dir and setting global exportDir variable
-	exportDir = testutils.CreateTempExportDir()
-	defer testutils.RemoveTempExportDir(exportDir)
+	tempExportDir := testutils.CreateTempExportDir()
+	defer testutils.RemoveTempExportDir(tempExportDir)
 
 	// setting up source test container and source params for assessment
 	postgresContainer := testcontainers.NewTestContainer("postgresql", nil)
@@ -349,6 +350,14 @@ func TestExportSchemaSchemaOptimizationReportJsonFormat(t *testing.T) {
 	if err != nil {
 		utils.ErrExit("Failed to start postgres container: %v", err)
 	}
+	defer postgresContainer.Stop(context.Background())
+
+	yugabyteContainer := testcontainers.NewTestContainer("yugabytedb", nil)
+	err = yugabyteContainer.Start(context.Background())
+	if err != nil {
+		utils.ErrExit("Failed to start yugabyte container: %v", err)
+	}
+	defer yugabyteContainer.Stop(context.Background())
 
 	// create table and initial data in it
 	postgresContainer.ExecuteSqls(
@@ -363,7 +372,6 @@ func TestExportSchemaSchemaOptimizationReportJsonFormat(t *testing.T) {
 		`CREATE INDEX idx_test_data_value_2 ON test_schema.test_data (value_2);`,
 		`CREATE INDEX idx_test_data_value_3 ON test_schema.test_data (value, value_2);`,
 		`CREATE INDEX idx_test_data_id1 ON test_schema.test_data (value_2, id1);`,
-
 	)
 	if err != nil {
 		t.Errorf("Failed to create test table: %v", err)
@@ -373,7 +381,7 @@ func TestExportSchemaSchemaOptimizationReportJsonFormat(t *testing.T) {
 
 	_, err = testutils.RunVoyagerCommand(postgresContainer, "export schema", []string{
 		"--source-db-schema", "test_schema",
-		"--export-dir", exportDir,
+		"--export-dir", tempExportDir,
 		"--yes",
 	}, nil, false)
 	if err != nil {
@@ -398,4 +406,130 @@ func TestExportSchemaSchemaOptimizationReportJsonFormat(t *testing.T) {
 	assert.Equal(t, 1, len(schemaOptimizationReport.RedundantIndexChange.TableToRemovedIndexesMap))
 	assert.Equal(t, 2, len(schemaOptimizationReport.RedundantIndexChange.TableToRemovedIndexesMap["test_schema.test_data"]))
 
+	_, err = testutils.RunVoyagerCommand(yugabyteContainer, "import schema", []string{
+		"--export-dir", tempExportDir,
+	}, func() {
+		time.Sleep(10 * time.Second)
+	}, true)
+	if err != nil {
+		t.Errorf("Failed to run import schema command: %v", err)
+	}
+	//GEt all indexes from yugabyte container
+	rows, err := yugabyteContainer.Query("select indexname from pg_indexes where tablename = 'test_data' and schemaname = 'test_schema' ;")
+	if err != nil {
+		t.Errorf("Failed to get indexes: %v", err)
+	}
+	indexes := []string{}
+	for rows.Next() {
+		var indexName string
+		err = rows.Scan(&indexName)
+		if err != nil {
+			t.Errorf("Failed to scan index: %v", err)
+		}
+		indexes = append(indexes, indexName)
+	}
+
+	assert.Equal(t, 3, len(indexes))
+	expectedIndexes := []string{
+		"idx_test_data_value_3",
+		"idx_test_data_id1",
+		"test_data_pkey", //PK index
+	}
+	testutils.AssertEqualStringSlices(t, expectedIndexes, indexes)
+}
+
+func TestExportSchemaSchemaOptimizationReportAndRangeShardedAutofix(t *testing.T) {
+	// create temp export dir and setting global exportDir variable
+	tempExportDir := testutils.CreateTempExportDir()
+	defer testutils.RemoveTempExportDir(tempExportDir)
+
+	// setting up source test container and source params for assessment
+	postgresContainer := testcontainers.NewTestContainer("postgresql", nil)
+	err := postgresContainer.Start(context.Background())
+	if err != nil {
+		utils.ErrExit("Failed to start postgres container: %v", err)
+	}
+	defer postgresContainer.Stop(context.Background())
+
+	yugabyteContainer := testcontainers.NewTestContainer("yugabytedb", nil)
+	err = yugabyteContainer.Start(context.Background())
+	if err != nil {
+		utils.ErrExit("Failed to start yugabyte container: %v", err)
+	}
+	defer yugabyteContainer.Stop(context.Background())
+
+	// create table and initial data in it
+	postgresContainer.ExecuteSqls(
+		`CREATE SCHEMA test_schema;`,
+		`CREATE TABLE test_schema.test_data (
+				id SERIAL PRIMARY KEY,
+				value TEXT,
+				value_2 TEXT,
+				id1 int
+			);`,
+		`CREATE INDEX idx_test_data_value_3 ON test_schema.test_data (value, value_2);`,
+		`CREATE INDEX idx_test_data_id1 ON test_schema.test_data (value_2 DESC, id1);`,
+	)
+	if err != nil {
+		t.Errorf("Failed to create test table: %v", err)
+	}
+	defer postgresContainer.ExecuteSqls(`
+			DROP SCHEMA test_schema CASCADE;`)
+
+	_, err = testutils.RunVoyagerCommand(postgresContainer, "export schema", []string{
+		"--source-db-schema", "test_schema",
+		"--export-dir", tempExportDir,
+		"--yes",
+	}, nil, false)
+	if err != nil {
+		t.Errorf("Failed to run export schema command: %v", err)
+	}
+
+	// check if schema optimization report json file exists
+	schemaOptimizationReportFilePath := filepath.Join(exportDir, "reports", "schema_optimization_report.json")
+	if !utils.FileOrFolderExists(schemaOptimizationReportFilePath) {
+		t.Errorf("Expected schema optimization report file does not exist: %s", schemaOptimizationReportFilePath)
+	}
+
+	jsonFile := jsonfile.NewJsonFile[SchemaOptimizationReport](schemaOptimizationReportFilePath)
+	schemaOptimizationReport, err := jsonFile.Read()
+	if err != nil {
+		t.Errorf("Failed to read schema optimization report file: %v", err)
+	}
+	assert.NotNil(t, schemaOptimizationReport)
+	assert.Nil(t, schemaOptimizationReport.RedundantIndexChange)
+	assert.Nil(t, schemaOptimizationReport.TableShardingRecommendation)
+	assert.Nil(t, schemaOptimizationReport.MviewShardingRecommendation)
+	assert.NotNil(t, schemaOptimizationReport.TableShard)
+
+	_, err = testutils.RunVoyagerCommand(yugabyteContainer, "import schema", []string{
+		"--export-dir", tempExportDir,
+	}, func() {
+		time.Sleep(10 * time.Second)
+	}, true)
+	if err != nil {
+		t.Errorf("Failed to run import schema command: %v", err)
+	}
+	//GEt all indexes from yugabyte container
+	rows, err := yugabyteContainer.Query("select indexname from pg_indexes where tablename = 'test_data' and schemaname = 'test_schema' ;")
+	if err != nil {
+		t.Errorf("Failed to get indexes: %v", err)
+	}
+	indexes := []string{}
+	for rows.Next() {
+		var indexName string
+		err = rows.Scan(&indexName)
+		if err != nil {
+			t.Errorf("Failed to scan index: %v", err)
+		}
+		indexes = append(indexes, indexName)
+	}
+
+	assert.Equal(t, 3, len(indexes))
+	expectedIndexes := []string{
+		"idx_test_data_value_3",
+		"idx_test_data_id1",
+		"test_data_pkey", //PK index
+	}
+	testutils.AssertEqualStringSlices(t, expectedIndexes, indexes)
 }
