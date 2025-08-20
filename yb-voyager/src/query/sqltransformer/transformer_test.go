@@ -19,11 +19,16 @@ package sqltransformer
 
 import (
 	"os"
+	"strings"
 	"testing"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
@@ -435,4 +440,91 @@ func Test_DeparsingAPI(t *testing.T) {
 	testutils.FatalIfError(t, err)
 
 	testutils.AssertEqualStringSlices(t, expectedSqls, finalSqlStmts)
+}
+
+func TestRemoveRedundantIndexes(t *testing.T) {
+	sqls := []string{
+		`CREATE INDEX idx_t1 ON public.t(a);`,
+		`CREATE INDEX idx_t2 ON public.t(b);`,
+		`CREATE INDEX idx_t3 ON public.t(a, b);`,
+		`CREATE INDEX idx_t4 ON public.t(b ASC);`,
+	}
+
+	idxT1 := sqlname.NewObjectNameQualifiedWithTableName(constants.POSTGRESQL, "public", "idx_t1", "public", "t")
+	idxT2 := sqlname.NewObjectNameQualifiedWithTableName(constants.POSTGRESQL, "public", "idx_t2", "public", "t")
+
+	sqlFileContent := strings.Join(sqls, "\n")
+	//idx_t1 and idx_t2 are redundant
+	//idx_t3 is not redundant
+
+	redundantIndexesMap := utils.NewStructMap[*sqlname.ObjectNameQualifiedWithTableName, string]()
+	redundantIndexesMap.Put(idxT1, "CREATE INDEX idx_t3 ON public.t USING btree (a, b);")
+	redundantIndexesMap.Put(idxT2, "CREATE INDEX idx_t3 ON public.t USING btree (b ASC);")
+
+	tempFilePath, err := testutils.CreateTempFile("/tmp", sqlFileContent, "sql")
+	testutils.FatalIfError(t, err)
+
+	sqlStmts, err := queryparser.ParseSqlFile(tempFilePath)
+	testutils.FatalIfError(t, err)
+
+	transformer := NewTransformer()
+	transformedStmts, removedIndexToStmtMap, err := transformer.RemoveRedundantIndexes(sqlStmts.Stmts, redundantIndexesMap)
+	testutils.FatalIfError(t, err)
+
+	assert.Equal(t, 2, len(removedIndexToStmtMap.Keys()))
+
+	_, ok := removedIndexToStmtMap.Get(idxT1)
+	assert.True(t, ok)
+	_, ok = removedIndexToStmtMap.Get(idxT2)
+	assert.True(t, ok)
+
+	finalSqlStmts, err := queryparser.DeparseRawStmts(transformedStmts)
+	testutils.FatalIfError(t, err)
+
+	assert.Equal(t, 2, len(finalSqlStmts))
+
+	testutils.AssertEqualStringSlices(t, []string{`CREATE INDEX idx_t3 ON public.t USING btree (a, b);`, `CREATE INDEX idx_t4 ON public.t USING btree (b ASC);`}, finalSqlStmts)
+
+}
+
+
+func TestModifySecondaryIndexesToRange(t *testing.T) {
+	sqls := []string{
+		`CREATE INDEX idx_t1 ON public.t(a,b);`,
+		`CREATE INDEX idx_t2 ON public.t(a);`,
+		`CREATE INDEX idx_t3 ON public.t USING gist(a);`,
+		`CREATE INDEX idx_t4 ON public.t USING btree(a DESC);`,
+	}
+
+	idxT1 := sqlname.NewObjectNameQualifiedWithTableName(constants.POSTGRESQL, "public", "idx_t1", "public", "t")
+	idxT2 := sqlname.NewObjectNameQualifiedWithTableName(constants.POSTGRESQL, "public", "idx_t2", "public", "t")
+
+	sqlFileContent := strings.Join(sqls, "\n")
+
+	tempFilePath, err := testutils.CreateTempFile("/tmp", sqlFileContent, "sql")
+	testutils.FatalIfError(t, err)
+
+	sqlStmts, err := queryparser.ParseSqlFile(tempFilePath)
+	testutils.FatalIfError(t, err)
+
+	transformer := NewTransformer()
+	transformedStmts, modifiedObjNames, err := transformer.ModifySecondaryIndexesToRange(sqlStmts.Stmts)
+	testutils.FatalIfError(t, err)
+
+	assert.Equal(t, 2, len(modifiedObjNames))
+	assert.Equal(t, idxT1.CatalogName(), modifiedObjNames[0].CatalogName())
+	assert.Equal(t, idxT2.CatalogName(), modifiedObjNames[1].CatalogName())
+
+	finalSqlStmts, err := queryparser.DeparseRawStmts(transformedStmts)
+	testutils.FatalIfError(t, err)
+
+	expectedSqls := []string{
+		`CREATE INDEX idx_t1 ON public.t USING btree (a ASC, b);`,
+		`CREATE INDEX idx_t2 ON public.t USING btree (a ASC);`,
+		`CREATE INDEX idx_t3 ON public.t USING gist (a);`, // Non btree index not modified
+		`CREATE INDEX idx_t4 ON public.t USING btree (a DESC);`, // Already range sharded not modified
+	}
+
+	assert.Equal(t, expectedSqls, finalSqlStmts)
+
 }

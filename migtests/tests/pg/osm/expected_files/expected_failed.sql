@@ -20,7 +20,7 @@ CREATE INDEX changeset_geom_gist ON public.osm_changeset USING gist (geom);
 ERROR: relation "public.osm_changeset" does not exist (SQLSTATE 42P01)
 File :/home/centos/yb-voyager/migtests/tests/pg/osm/export-dir/schema/tables/INDEXES_table.sql
 */
-CREATE INDEX created_idx ON public.osm_changeset USING btree (created_at);
+CREATE INDEX created_idx ON public.osm_changeset USING btree (created_at ASC);
 
 /*
 ERROR: relation "public.osm_changeset" does not exist (SQLSTATE 42P01)
@@ -32,11 +32,11 @@ CREATE INDEX tags_idx ON public.osm_changeset USING gin (tags);
 ERROR: relation "public.osm_changeset" does not exist (SQLSTATE 42P01)
 File :/home/centos/yb-voyager/migtests/tests/pg/osm/export-dir/schema/tables/INDEXES_table.sql
 */
-CREATE INDEX user_id_idx ON public.osm_changeset USING btree (user_id);
+CREATE INDEX user_id_idx ON public.osm_changeset USING btree (user_id ASC);
 
 /*
 ERROR: relation "public.osm_changeset" does not exist (SQLSTATE 42P01)
 File :/home/centos/yb-voyager/migtests/tests/pg/osm/export-dir/schema/tables/INDEXES_table.sql
 */
-CREATE INDEX user_name_idx ON public.osm_changeset USING btree (user_name);
+CREATE INDEX user_name_idx ON public.osm_changeset USING btree (user_name ASC);
 

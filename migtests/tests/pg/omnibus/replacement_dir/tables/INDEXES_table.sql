@@ -19,12 +19,12 @@ SET row_security = off;
 CREATE INDEX gin_idx ON idx_ex.films USING gin (to_tsvector('english'::regconfig, title));
 
 
-CREATE INDEX title_idx_lower ON idx_ex.films USING btree (lower(title));
+CREATE INDEX title_idx_lower ON idx_ex.films USING btree (lower(title) ASC);
 
 
-CREATE INDEX title_idx_nulls_low ON idx_ex.films USING btree (title NULLS FIRST);
+CREATE INDEX title_idx_nulls_low ON idx_ex.films USING btree (title ASC NULLS FIRST);
 
 
-CREATE UNIQUE INDEX title_idx_u2 ON idx_ex.films USING btree (title) INCLUDE (director, rating);
+CREATE UNIQUE INDEX title_idx_u2 ON idx_ex.films USING btree (title ASC) INCLUDE (director, rating);
 
 
