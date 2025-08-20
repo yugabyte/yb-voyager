@@ -66,7 +66,8 @@ type SchemaOptimizationReport struct {
 func (s *SchemaOptimizationReport) HasOptimizations() bool {
 	return !s.RedundantIndexChange.IsEmpty() ||
 		!s.TableShardingRecommendation.IsEmpty() ||
-		!s.MviewShardingRecommendation.IsEmpty()
+		!s.MviewShardingRecommendation.IsEmpty() ||
+		!s.SecondaryIndexToRangeChange.IsEmpty()
 }
 
 // NewSchemaOptimizationReport creates a new SchemaOptimizationReport with the given metadata
@@ -187,6 +188,10 @@ func NewSecondaryIndexToRangeChange(applied bool, referenceFile string, modified
 		ModifiedIndexes: modifiedIndexes,
 		IsApplied:       applied,
 	}
+}
+
+func (s *SecondaryIndexToRangeChange) IsEmpty() bool {
+	return s == nil || len(s.ModifiedIndexes) == 0
 }
 
 func buildRedundantIndexChange(indexTransformer *sqltransformer.IndexFileTransformer) *RedundantIndexChange {
