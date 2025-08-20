@@ -25,10 +25,6 @@
          .section {
             margin-bottom: 2rem;
          }
-         .file-link {
-            color: #0077cc;
-            text-decoration: none;
-         }
          ul {
             padding-left: 1.5rem;
          }
@@ -169,6 +165,32 @@
 
         .optimization-section.not-applied h3 {
             color: #92400e;
+        }
+
+        /* Consistent link styling for all links in the optimization report */
+        a {
+            color: #0077cc !important;
+            font-weight: normal !important;
+            background-color: transparent !important;
+            text-decoration: none;
+        }
+
+        a:hover {
+            color: #005599 !important;
+            text-decoration: none;
+
+        }
+
+        a:visited {
+            color: #0077cc !important;
+            text-decoration: none;
+
+        }
+
+        a:active {
+            color: #005599 !important;
+            text-decoration: none;
+
         }
 
         /* Ensure table rows in optimization sections have white background */
@@ -342,7 +364,7 @@
                   </h3>
                   <pre>{{.RedundantIndexChange.Description}}</pre>
                   {{if .RedundantIndexChange.IsApplied}}
-                     <pre>Refer to the <a class="file-link" href="{{.RedundantIndexChange.ReferenceFile}}" target="_blank"> {{.RedundantIndexChange.ReferenceFileDisplayName}} </a></pre>
+                     <pre>Refer to the <a href="{{.RedundantIndexChange.ReferenceFile}}" target="_blank">redundant_indexes.sql</a></pre>
                   {{end}}
 
                   <details>
@@ -373,6 +395,44 @@
                </div>
             {{ end }}
          
+            {{ if .SecondaryIndexToRangeChange }}
+            <div class="optimization-section {{if .SecondaryIndexToRangeChange.IsApplied}}applied{{else}}not-applied{{end}}">
+                  <h3>
+                     {{if .SecondaryIndexToRangeChange.IsApplied}}✅ {{else}}⚠️ {{end}}
+                     {{.SecondaryIndexToRangeChange.Title}}
+                  </h3>
+               <pre>{{replaceLinks .SecondaryIndexToRangeChange.Description .SecondaryIndexToRangeChange.HyperLinksInDescription}}</pre>
+               {{ if .SecondaryIndexToRangeChange.IsApplied}}
+                  <pre>Refer to the <a href="{{.SecondaryIndexToRangeChange.ReferenceFile}}" target="_blank">index file</a> for modified DDLs.</pre>
+                  <details>
+                     <summary>Details</summary>
+                     <table>
+                        <thead>
+                           <tr>
+                              <th class="centered-cell">Table</th>
+                              <th class="centered-cell">Modified Indexes</th>
+                           </tr>
+                        </thead>
+                        <tbody>
+                           {{range $table, $indexes := .SecondaryIndexToRangeChange.ModifiedIndexes}}
+                              <tr>
+                                 <td>{{$table}}</td>
+                                 <td class="scrollable-div">
+                                    <ul>
+                                       {{range $indexes}}
+                                          <li>{{.}}</li>
+                                       {{end}}
+                                    </ul>
+                                 </td>
+                              </tr>
+                           {{end}}
+                        </tbody>
+                     </table>
+                  </details>
+               {{ end }}
+               </div>
+            {{ end }}
+
 
             {{ if .TableShardingRecommendation }}
                <div class="optimization-section {{if .TableShardingRecommendation.IsApplied}}applied{{else}}not-applied{{end}}">
@@ -382,7 +442,7 @@
                   </h3>
                   <pre>{{.TableShardingRecommendation.Description}}</pre>
                   {{if .TableShardingRecommendation.IsApplied}}
-                     <pre>Refer to the <a class="file-link" href="{{.TableShardingRecommendation.ReferenceFile}}" target="_blank"> {{.TableShardingRecommendation.ReferenceFileDisplayName}} </a> for modified DDLs.</pre>
+                     <pre>Refer to the <a href="{{.TableShardingRecommendation.ReferenceFile}}" target="_blank">table file</a> for modified DDLs.</pre>
                      <details>
                         <summary>Details</summary>
                         <table>
@@ -415,7 +475,7 @@
             {{ if .MviewShardingRecommendation }}
                <h3>{{.MviewShardingRecommendation.Title}}</h3>
                <pre>{{.MviewShardingRecommendation.Description}}</pre>
-               <pre>Refer to the <a class="file-link" href="{{.MviewShardingRecommendation.ReferenceFile}}" target="_blank"> {{.MviewShardingRecommendation.ReferenceFileDisplayName}} </a> for modified DDLs.</pre>
+               <pre>Refer to the <a href="{{.MviewShardingRecommendation.ReferenceFile}}" target="_blank">mview file</a> for modified DDLs.</pre>
                <details>
                   <summary>Details</summary>
                   <table>
@@ -442,6 +502,7 @@
                   </table>
                </details>
             {{ end }}
+
          </div>
          
          <!-- Footer Note -->

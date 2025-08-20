@@ -49,8 +49,48 @@ func (s *VoyagerAnonymizer) AnonymizeTableName(tableName string) (string, error)
 	return s.tableNameAnonymizer.Anonymize(tableName)
 }
 
+func (s *VoyagerAnonymizer) AnonymizeQualifiedTableName(tableName string) (string, error) {
+	splits := strings.Split(tableName, ".")
+	switch len(splits) {
+	case 1:
+		return s.tableNameAnonymizer.Anonymize(tableName)
+	case 2:
+		anonymizedSchemaName, err := s.AnonymizeSchemaName(splits[0])
+		if err != nil {
+			return "", fmt.Errorf("failed to anonymize schema name %s: %w", splits[0], err)
+		}
+		anonymizedTableName, err := s.AnonymizeTableName(splits[1])
+		if err != nil {
+			return "", fmt.Errorf("failed to anonymize table name %s: %w", splits[1], err)
+		}
+		return fmt.Sprintf("%s.%s", anonymizedSchemaName, anonymizedTableName), nil
+	default:
+		return s.tableNameAnonymizer.Anonymize(tableName)
+	}
+}
+
 func (s *VoyagerAnonymizer) AnonymizeMViewName(mviewName string) (string, error) {
 	return s.mviewNameAnonymizer.Anonymize(mviewName)
+}
+
+func (s *VoyagerAnonymizer) AnonymizeQualifiedMViewName(mviewName string) (string, error) {
+	splits := strings.Split(mviewName, ".")
+	switch len(splits) {
+	case 1:
+		return s.mviewNameAnonymizer.Anonymize(mviewName)
+	case 2:
+		anonymizedSchemaName, err := s.AnonymizeSchemaName(splits[0])
+		if err != nil {
+			return "", fmt.Errorf("failed to anonymize schema name %s: %w", splits[0], err)
+		}
+		anonymizedMviewName, err := s.AnonymizeMViewName(splits[1])
+		if err != nil {
+			return "", fmt.Errorf("failed to anonymize mview name %s: %w", splits[1], err)
+		}
+		return fmt.Sprintf("%s.%s", anonymizedSchemaName, anonymizedMviewName), nil
+	default:
+		return s.mviewNameAnonymizer.Anonymize(mviewName)
+	}
 }
 
 func (s *VoyagerAnonymizer) AnonymizeColumnName(columnName string) (string, error) {

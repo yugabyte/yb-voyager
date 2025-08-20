@@ -141,7 +141,7 @@ CREATE INDEX grect2ind2 ON am_examples.fast_emp4000 USING gist2 (home_base);
 ERROR: relation "composite_type_examples.ordinary_table" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/INDEXES_table.sql
 */
-CREATE INDEX idx_1 ON composite_type_examples.ordinary_table USING btree (basic_);
+CREATE INDEX idx_1 ON composite_type_examples.ordinary_table USING btree (basic_ ASC);
 
 /*
 ERROR: type range_type_example.float8_range does not exist (SQLSTATE 42704)
