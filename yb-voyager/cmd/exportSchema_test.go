@@ -339,7 +339,10 @@ func TestExportSchemaRunningAssessmentInternally_DisableFlag(t *testing.T) {
 	}
 }
 
-// Add test for Schema optimization report json format in the export schema command
+//Test: export schema default behavior
+//Expectation: schema optimization report should be generated with performance optimizations applied
+//Run import schema to verify that indexes are changed/removed
+//verify the indexes on YB
 func TestExportSchemaSchemaOptimizationReportPerfOptimizationsAutofix(t *testing.T) {
 	// create temp export dir and setting global exportDir variable
 	tempExportDir := testutils.CreateTempExportDir()
@@ -407,8 +410,6 @@ func TestExportSchemaSchemaOptimizationReportPerfOptimizationsAutofix(t *testing
 	assert.Nil(t, schemaOptimizationReport.MviewShardingRecommendation)
 	assert.Equal(t, 1, len(schemaOptimizationReport.RedundantIndexChange.TableToRemovedIndexesMap))
 	assert.Equal(t, 2, len(schemaOptimizationReport.RedundantIndexChange.TableToRemovedIndexesMap["test_schema.test_data"]))
-
-	//GEt all indexes from yugabyte container
 	assert.NotNil(t, schemaOptimizationReport.SecondaryIndexToRangeChange)
 	assert.True(t, schemaOptimizationReport.SecondaryIndexToRangeChange.IsApplied)
 	assert.Equal(t, 1, len(schemaOptimizationReport.SecondaryIndexToRangeChange.ModifiedIndexes))
@@ -432,6 +433,10 @@ func TestExportSchemaSchemaOptimizationReportPerfOptimizationsAutofix(t *testing
 	assert.Equal(t, "HASH", indexesToShardingStrategy["test_data_pkey"])
 }
 
+//Test: export schema with --skip-performance-optimizations flag
+//Expectation: schema optimization report should be generated with no performance optimizations applied
+//Run import schema to verify that indexes are not changed
+//verify the indexes on YB
 func TestExportSchemaSchemaOptimizationReportWithSkipPerfOptimizations(t *testing.T) {
 	// create temp export dir and setting global exportDir variable
 	tempExportDir := testutils.CreateTempExportDir()
@@ -501,7 +506,6 @@ func TestExportSchemaSchemaOptimizationReportWithSkipPerfOptimizations(t *testin
 	assert.Equal(t, 1, len(schemaOptimizationReport.RedundantIndexChange.TableToRemovedIndexesMap))
 	assert.Equal(t, 2, len(schemaOptimizationReport.RedundantIndexChange.TableToRemovedIndexesMap["test_schema.test_data"]))
 
-	//GEt all indexes from yugabyte container
 	assert.NotNil(t, schemaOptimizationReport.SecondaryIndexToRangeChange)
 	assert.False(t, schemaOptimizationReport.SecondaryIndexToRangeChange.IsApplied) //Not applied because of --skip-perf-optimizations flag
 	assert.Equal(t, 0, len(schemaOptimizationReport.SecondaryIndexToRangeChange.ModifiedIndexes))
@@ -525,7 +529,8 @@ func TestExportSchemaSchemaOptimizationReportWithSkipPerfOptimizations(t *testin
 }
 
 func getIndexesToShardingStrategy(t *testing.T, yugabyteContainer testcontainers.TestContainer, schemaName, tableName string) map[string]string {
-	//Get all indexes from yugabyte container
+	//Get all indexes from yugabyte container with sharding strategy
+	//This query might not be correct for all cases, but works for now.
 	const QUERY_TO_GET_SHARDING_STRATEGY_OF_INDEXES = `SELECT 
     idx.relname as index_name,
     CASE
