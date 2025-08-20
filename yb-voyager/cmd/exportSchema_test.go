@@ -20,6 +20,7 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -339,7 +340,7 @@ func TestExportSchemaRunningAssessmentInternally_DisableFlag(t *testing.T) {
 }
 
 // Add test for Schema optimization report json format in the export schema command
-func TestExportSchemaSchemaOptimizationReportAndRedundantIndexAutofix(t *testing.T) {
+func TestExportSchemaSchemaOptimizationReportPerfOptimizationsAutofix(t *testing.T) {
 	// create temp export dir and setting global exportDir variable
 	tempExportDir := testutils.CreateTempExportDir()
 	defer testutils.RemoveTempExportDir(tempExportDir)
@@ -369,9 +370,9 @@ func TestExportSchemaSchemaOptimizationReportAndRedundantIndexAutofix(t *testing
 			id1 int
 		);`,
 		`CREATE INDEX idx_test_data_value ON test_schema.test_data (value);`,
-		`CREATE INDEX idx_test_data_value_2 ON test_schema.test_data (value_2);`,
+		`CREATE INDEX idx_test_data_value_2 ON test_schema.test_data (value_2 DESC);`,
 		`CREATE INDEX idx_test_data_value_3 ON test_schema.test_data (value, value_2);`,
-		`CREATE INDEX idx_test_data_id1 ON test_schema.test_data (value_2, id1);`,
+		`CREATE INDEX idx_test_data_id1 ON test_schema.test_data (value_2 DESC, id1);`,
 	)
 	if err != nil {
 		t.Errorf("Failed to create test table: %v", err)
@@ -389,7 +390,7 @@ func TestExportSchemaSchemaOptimizationReportAndRedundantIndexAutofix(t *testing
 	}
 
 	// check if schema optimization report json file exists
-	schemaOptimizationReportFilePath := filepath.Join(exportDir, "reports", "schema_optimization_report.json")
+	schemaOptimizationReportFilePath := filepath.Join(tempExportDir, "reports", "schema_optimization_report.json")
 	if !utils.FileOrFolderExists(schemaOptimizationReportFilePath) {
 		t.Errorf("Expected schema optimization report file does not exist: %s", schemaOptimizationReportFilePath)
 	}
@@ -401,10 +402,18 @@ func TestExportSchemaSchemaOptimizationReportAndRedundantIndexAutofix(t *testing
 	}
 	assert.NotNil(t, schemaOptimizationReport)
 	assert.NotNil(t, schemaOptimizationReport.RedundantIndexChange)
+	assert.True(t, schemaOptimizationReport.RedundantIndexChange.IsApplied)
 	assert.Nil(t, schemaOptimizationReport.TableShardingRecommendation)
 	assert.Nil(t, schemaOptimizationReport.MviewShardingRecommendation)
 	assert.Equal(t, 1, len(schemaOptimizationReport.RedundantIndexChange.TableToRemovedIndexesMap))
 	assert.Equal(t, 2, len(schemaOptimizationReport.RedundantIndexChange.TableToRemovedIndexesMap["test_schema.test_data"]))
+
+	//GEt all indexes from yugabyte container
+	assert.NotNil(t, schemaOptimizationReport.SecondaryIndexToRangeChange)
+	assert.True(t, schemaOptimizationReport.SecondaryIndexToRangeChange.IsApplied)
+	assert.Equal(t, 1, len(schemaOptimizationReport.SecondaryIndexToRangeChange.ModifiedIndexes))
+	assert.Equal(t, 1, len(schemaOptimizationReport.SecondaryIndexToRangeChange.ModifiedIndexes["test_schema.test_data"]))
+	assert.Equal(t, "idx_test_data_value_3", schemaOptimizationReport.SecondaryIndexToRangeChange.ModifiedIndexes["test_schema.test_data"][0])
 
 	_, err = testutils.RunVoyagerCommand(yugabyteContainer, "import schema", []string{
 		"--export-dir", tempExportDir,
@@ -414,31 +423,16 @@ func TestExportSchemaSchemaOptimizationReportAndRedundantIndexAutofix(t *testing
 	if err != nil {
 		t.Errorf("Failed to run import schema command: %v", err)
 	}
-	//GEt all indexes from yugabyte container
-	rows, err := yugabyteContainer.Query("select indexname from pg_indexes where tablename = 'test_data' and schemaname = 'test_schema' ;")
-	if err != nil {
-		t.Errorf("Failed to get indexes: %v", err)
-	}
-	indexes := []string{}
-	for rows.Next() {
-		var indexName string
-		err = rows.Scan(&indexName)
-		if err != nil {
-			t.Errorf("Failed to scan index: %v", err)
-		}
-		indexes = append(indexes, indexName)
-	}
 
-	assert.Equal(t, 3, len(indexes))
-	expectedIndexes := []string{
-		"idx_test_data_value_3",
-		"idx_test_data_id1",
-		"test_data_pkey", //PK index
-	}
-	testutils.AssertEqualStringSlices(t, expectedIndexes, indexes)
+	indexesToShardingStrategy := getIndexesToShardingStrategy(t, yugabyteContainer, "test_schema", "test_data")
+
+	assert.Equal(t, 3, len(indexesToShardingStrategy))
+	assert.Equal(t, "ASC", indexesToShardingStrategy["idx_test_data_value_3"])
+	assert.Equal(t, "DESC", indexesToShardingStrategy["idx_test_data_id1"])
+	assert.Equal(t, "HASH", indexesToShardingStrategy["test_data_pkey"])
 }
 
-func TestExportSchemaSchemaOptimizationReportAndRangeShardedAutofix(t *testing.T) {
+func TestExportSchemaSchemaOptimizationReportWithSkipPerfOptimizations(t *testing.T) {
 	// create temp export dir and setting global exportDir variable
 	tempExportDir := testutils.CreateTempExportDir()
 	defer testutils.RemoveTempExportDir(tempExportDir)
@@ -467,6 +461,8 @@ func TestExportSchemaSchemaOptimizationReportAndRangeShardedAutofix(t *testing.T
 				value_2 TEXT,
 				id1 int
 			);`,
+		`CREATE INDEX idx_test_data_value ON test_schema.test_data (value);`,
+		`CREATE INDEX idx_test_data_value_2 ON test_schema.test_data (value_2 DESC);`,
 		`CREATE INDEX idx_test_data_value_3 ON test_schema.test_data (value, value_2);`,
 		`CREATE INDEX idx_test_data_id1 ON test_schema.test_data (value_2 DESC, id1);`,
 	)
@@ -479,6 +475,7 @@ func TestExportSchemaSchemaOptimizationReportAndRangeShardedAutofix(t *testing.T
 	_, err = testutils.RunVoyagerCommand(postgresContainer, "export schema", []string{
 		"--source-db-schema", "test_schema",
 		"--export-dir", tempExportDir,
+		"--skip-performance-optimizations", "true",
 		"--yes",
 	}, nil, false)
 	if err != nil {
@@ -486,7 +483,7 @@ func TestExportSchemaSchemaOptimizationReportAndRangeShardedAutofix(t *testing.T
 	}
 
 	// check if schema optimization report json file exists
-	schemaOptimizationReportFilePath := filepath.Join(exportDir, "reports", "schema_optimization_report.json")
+	schemaOptimizationReportFilePath := filepath.Join(tempExportDir, "reports", "schema_optimization_report.json")
 	if !utils.FileOrFolderExists(schemaOptimizationReportFilePath) {
 		t.Errorf("Expected schema optimization report file does not exist: %s", schemaOptimizationReportFilePath)
 	}
@@ -497,10 +494,17 @@ func TestExportSchemaSchemaOptimizationReportAndRangeShardedAutofix(t *testing.T
 		t.Errorf("Failed to read schema optimization report file: %v", err)
 	}
 	assert.NotNil(t, schemaOptimizationReport)
-	assert.Nil(t, schemaOptimizationReport.RedundantIndexChange)
+	assert.NotNil(t, schemaOptimizationReport.RedundantIndexChange)
+	assert.False(t, schemaOptimizationReport.RedundantIndexChange.IsApplied) //Not applied because of --skip-perf-optimizations flag
 	assert.Nil(t, schemaOptimizationReport.TableShardingRecommendation)
 	assert.Nil(t, schemaOptimizationReport.MviewShardingRecommendation)
-	assert.NotNil(t, schemaOptimizationReport.TableShard)
+	assert.Equal(t, 1, len(schemaOptimizationReport.RedundantIndexChange.TableToRemovedIndexesMap))
+	assert.Equal(t, 2, len(schemaOptimizationReport.RedundantIndexChange.TableToRemovedIndexesMap["test_schema.test_data"]))
+
+	//GEt all indexes from yugabyte container
+	assert.NotNil(t, schemaOptimizationReport.SecondaryIndexToRangeChange)
+	assert.False(t, schemaOptimizationReport.SecondaryIndexToRangeChange.IsApplied) //Not applied because of --skip-perf-optimizations flag
+	assert.Equal(t, 0, len(schemaOptimizationReport.SecondaryIndexToRangeChange.ModifiedIndexes))
 
 	_, err = testutils.RunVoyagerCommand(yugabyteContainer, "import schema", []string{
 		"--export-dir", tempExportDir,
@@ -510,26 +514,48 @@ func TestExportSchemaSchemaOptimizationReportAndRangeShardedAutofix(t *testing.T
 	if err != nil {
 		t.Errorf("Failed to run import schema command: %v", err)
 	}
-	//GEt all indexes from yugabyte container
-	rows, err := yugabyteContainer.Query("select indexname from pg_indexes where tablename = 'test_data' and schemaname = 'test_schema' ;")
+	indexesToShardingStrategy := getIndexesToShardingStrategy(t, yugabyteContainer, "test_schema", "test_data")
+
+	assert.Equal(t, 5, len(indexesToShardingStrategy))
+	assert.Equal(t, "HASH", indexesToShardingStrategy["idx_test_data_value"])
+	assert.Equal(t, "DESC", indexesToShardingStrategy["idx_test_data_value_2"])
+	assert.Equal(t, "HASH", indexesToShardingStrategy["idx_test_data_value_3"])
+	assert.Equal(t, "DESC", indexesToShardingStrategy["idx_test_data_id1"])
+	assert.Equal(t, "HASH", indexesToShardingStrategy["test_data_pkey"])
+}
+
+func getIndexesToShardingStrategy(t *testing.T, yugabyteContainer testcontainers.TestContainer, schemaName, tableName string) map[string]string {
+	//Get all indexes from yugabyte container
+	const QUERY_TO_GET_SHARDING_STRATEGY_OF_INDEXES = `SELECT 
+    idx.relname as index_name,
+    CASE
+        WHEN (unopts.indopt & 4) = 4 THEN 'HASH'
+        WHEN (unopts.indopt & 1) = 1 THEN 'DESC'
+        ELSE 'ASC'
+    END as first_key_option
+FROM pg_index pg_idx
+     CROSS JOIN LATERAL unnest(pg_idx.indkey) WITH ORDINALITY AS unkeys(indkey, k)
+     LEFT OUTER JOIN LATERAL unnest(pg_idx.indoption) WITH ORDINALITY AS unopts(indopt, pos)
+     ON unopts.pos = unkeys.k
+     JOIN pg_class idx ON idx.oid = pg_idx.indexrelid
+     JOIN pg_namespace nsp ON nsp.oid = idx.relnamespace
+     JOIN pg_class tbl ON tbl.oid = pg_idx.indrelid
+WHERE nsp.nspname = '%s' and tbl.relname = '%s'
+  AND unkeys.k = 1
+ORDER BY nsp.nspname, tbl.relname, idx.relname;`
+
+	rows, err := yugabyteContainer.Query(fmt.Sprintf(QUERY_TO_GET_SHARDING_STRATEGY_OF_INDEXES, schemaName, tableName))
 	if err != nil {
 		t.Errorf("Failed to get indexes: %v", err)
 	}
-	indexes := []string{}
+	indexesToShardingStrategy := map[string]string{}
 	for rows.Next() {
-		var indexName string
-		err = rows.Scan(&indexName)
+		var indexName, shardingStrategy string
+		err = rows.Scan(&indexName, &shardingStrategy)
 		if err != nil {
 			t.Errorf("Failed to scan index: %v", err)
 		}
-		indexes = append(indexes, indexName)
+		indexesToShardingStrategy[indexName] = shardingStrategy
 	}
-
-	assert.Equal(t, 3, len(indexes))
-	expectedIndexes := []string{
-		"idx_test_data_value_3",
-		"idx_test_data_id1",
-		"test_data_pkey", //PK index
-	}
-	testutils.AssertEqualStringSlices(t, expectedIndexes, indexes)
+	return indexesToShardingStrategy
 }
