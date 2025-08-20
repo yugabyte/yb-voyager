@@ -197,7 +197,6 @@ func buildRedundantIndexChange(indexTransformer *sqltransformer.IndexFileTransfo
 		//Do not add redundant index change if no redundant indexes found
 		return nil
 	}
-	redundantIndexChange = NewRedundantIndexChange()
 	// Get relative path from reports directory to the redundant indexes file
 	reportsDir := filepath.Join(exportDir, "reports")
 	redundantIndexesFile := indexTransformer.RedundantIndexesFileName
