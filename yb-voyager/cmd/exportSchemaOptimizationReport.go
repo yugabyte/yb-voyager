@@ -156,8 +156,10 @@ func NewAppliedShardingRecommendationChange(objectType string, applied bool, ref
 }
 
 type SecondaryIndexToRangeChange struct {
-	Title           string              `json:"title"`
-	Description     string              `json:"description"`
+	Title                   string            `json:"title"`
+	Description             string            `json:"description"`
+	HyperLinksInDescription map[string]string `json:"hyper_links_in_description"` //map of text and hyperlink on that text
+
 	ReferenceFile   string              `json:"reference_file"`
 	ModifiedIndexes map[string][]string `json:"modified_indexes"`
 	IsApplied       bool                `json:"is_applied"`
@@ -170,9 +172,16 @@ func NewSecondaryIndexToRangeChange(applied bool, referenceFile string, modified
 		title = "Secondary Indexes to be range-sharded - Not Applied"
 		description = "Due to the skip-performance-optimizations flag, all the btree indexes were not converted to range-sharded indexes. Modify the indexes to be range-sharded manually."
 	}
+	description += "The range-sharded indexes helps in giving the flexibility to execute range-based queries, and avoids potential hotspots that come with hash-sharded indexes such as index on low cardinality column, index on high percentage of NULLs, and index on high percentage of particular value</a>. Refer to sharding strategy on documentation for more information."
 	return &SecondaryIndexToRangeChange{
-		Title:           title,
-		Description:     description,
+		Title:       title,
+		Description: description,
+		HyperLinksInDescription: map[string]string{
+			"index on low cardinality column":              "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-low-cardinality-column",
+			"index on high percentage of NULLs":            "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-column-with-a-high-percentage-of-null-values",
+			"index on high percentage of particular value": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-column-with-high-percentage-of-a-particular-value",
+			"documentation":                    "https://docs.yugabyte.com/preview/architecture/docdb-sharding/sharding/",
+		},
 		ReferenceFile:   referenceFile,
 		ModifiedIndexes: modifiedIndexes,
 		IsApplied:       applied,
@@ -259,7 +268,18 @@ func generatePerformanceOptimizationReport(indexTransformer *sqltransformer.Inde
 	htmlReportFilePath := filepath.Join(exportDir, "reports", fmt.Sprintf("%s%s", SchemaOptimizationReportFileName, HTML_EXTENSION))
 	log.Infof("writing changes report to file: %s", htmlReportFilePath)
 
-	tmpl := template.Must(template.New("report").Parse(string(optimizationChangesTemplate)))
+	funcMap := template.FuncMap{
+		"replaceLinks": func(text string, links map[string]string) string {
+			result := text
+			for textToReplace, url := range links {
+				linkHTML := fmt.Sprintf(`<a href="%s" target="_blank" title="%s">%s</a>`, url, url, textToReplace)
+				result = strings.ReplaceAll(result, textToReplace, linkHTML)
+			}
+			return result
+		},
+	}
+
+	tmpl := template.Must(template.New("report").Funcs(funcMap).Parse(string(optimizationChangesTemplate)))
 	schemaOptimizationReport = NewSchemaOptimizationReport(
 		utils.YB_VOYAGER_VERSION,
 		source.DBName,
