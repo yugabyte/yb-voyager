@@ -58,10 +58,10 @@ func NewShuffledBatchProducer(task *ImportFileTask, state *ImportDataState,
 
 // Init starts the producer goroutine that continuously produces batches from the underlying FileBatchProducer.
 func (sbp *ShuffledBatchProducer) Init() {
-	log.Infof("Starting shuffled batch producer for file: %s", sbp.fileBatchProducer.task.FilePath)
 
 	// Start producer goroutine
 	go func() {
+		log.Infof("Starting batch production for file: %s", sbp.fileBatchProducer.task.FilePath)
 		for {
 			sbp.mu.Lock()
 			if sbp.fileBatchProducer.Done() {
@@ -110,7 +110,7 @@ func (sbp *ShuffledBatchProducer) NextBatch() (*Batch, error) {
 	batch := sbp.batches[idx]
 	sbp.batches = append(sbp.batches[:idx], sbp.batches[idx+1:]...)
 
-	log.Debugf("Returning batch %d from shuffled producer for file: %s", batch.Number, sbp.fileBatchProducer.task.FilePath)
+	log.Infof("Returning batch %d from shuffled producer for file: %s", batch.Number, sbp.fileBatchProducer.task.FilePath)
 	return batch, nil
 }
 
