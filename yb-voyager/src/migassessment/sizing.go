@@ -1398,10 +1398,115 @@ func getSourceMetadata(sourceDB *sql.DB) ([]SourceDBMetadata, []SourceDBMetadata
 	if err := rows.Err(); err != nil {
 		return nil, nil, 0.0, fmt.Errorf("failed to query source metadata with query [%s]: %w", query, err)
 	}
+
+	// Filter out redundant indexes using the existing sourceDB connection
+	redundantIndexes, err := fetchRedundantIndexes(sourceDB)
+	if err != nil {
+		log.Warnf("failed to fetch redundant indexes: %v", err)
+	} else {
+		sourceIndexMetadata = filterRedundantIndexes(sourceIndexMetadata, redundantIndexes)
+	}
+
 	if err := sourceDB.Close(); err != nil {
 		log.Warnf("failed to close connection to sourceDB metadata")
 	}
 	return sourceTableMetadata, sourceIndexMetadata, totalSourceDBSize, nil
+}
+
+/*
+filterRedundantIndexes filters out redundant indexes from the sourceIndexMetadata slice.
+It removes indexes where the combination of SchemaName.ParentTableName.ObjectName matches
+redundant_schema_name.redundant_table_name.redundant_index_name from the redundant_indexes table.
+
+Parameters:
+
+	sourceIndexMetadata: Slice of source index metadata to be filtered
+	redundantIndexes: Slice of redundant index information from the database
+
+Returns:
+
+	[]SourceDBMetadata: Filtered slice with redundant indexes removed
+*/
+func filterRedundantIndexes(sourceIndexMetadata []SourceDBMetadata, redundantIndexes []RedundantIndex) []SourceDBMetadata {
+	if len(redundantIndexes) == 0 {
+		return sourceIndexMetadata
+	}
+
+	// Create a map for efficient lookup of redundant indexes
+	redundantMap := make(map[string]bool)
+	for _, ri := range redundantIndexes {
+		// Create a key in the format: schema_name.table_name.index_name
+		key := fmt.Sprintf("%s.%s.%s", ri.SchemaName, ri.TableName, ri.IndexName)
+		redundantMap[key] = true
+	}
+
+	// Filter out redundant indexes
+	var filteredIndexes []SourceDBMetadata
+	for _, indexMetadata := range sourceIndexMetadata {
+		// Extract table name from parent table name (format: "schema.table")
+		var tableName string
+		if indexMetadata.ParentTableName.Valid {
+			parts := strings.Split(indexMetadata.ParentTableName.String, ".")
+			if len(parts) == 2 {
+				tableName = parts[1] // Extract table name part
+			} else {
+				tableName = indexMetadata.ParentTableName.String // Fallback to full string
+			}
+		}
+
+		// Create key to check against redundant indexes
+		key := fmt.Sprintf("%s.%s.%s", indexMetadata.SchemaName, tableName, indexMetadata.ObjectName)
+
+		// Only include index if it's not in the redundant list
+		if !redundantMap[key] {
+			filteredIndexes = append(filteredIndexes, indexMetadata)
+		} else {
+			log.Infof("Filtered out redundant index: %s", key)
+		}
+	}
+
+	log.Infof("Filtered out %d redundant indexes from %d total indexes",
+		len(sourceIndexMetadata)-len(filteredIndexes), len(sourceIndexMetadata))
+
+	return filteredIndexes
+}
+
+/*
+fetchRedundantIndexes fetches redundant indexes from the redundant_indexes table using the provided database connection.
+It returns a slice of RedundantIndex structs containing schema, table, and index names.
+
+Parameters:
+
+	sourceDB: Database connection to query the redundant_indexes table
+
+Returns:
+
+	[]RedundantIndex: Slice of redundant index information from the database
+	error: Error if any issue occurs during the query
+*/
+func fetchRedundantIndexes(sourceDB *sql.DB) ([]RedundantIndex, error) {
+	log.Infof("fetching redundant indexes from %q table", GetTableRedundantIndexesName())
+	query := fmt.Sprintf(`SELECT redundant_schema_name, redundant_table_name, redundant_index_name FROM %s`, GetTableRedundantIndexesName())
+	rows, err := sourceDB.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("error querying redundant indexes-%s: %w", query, err)
+	}
+	defer rows.Close()
+
+	redundantIndexes := make([]RedundantIndex, 0)
+	for rows.Next() {
+		var ri RedundantIndex
+		if err := rows.Scan(&ri.SchemaName, &ri.TableName, &ri.IndexName); err != nil {
+			return nil, fmt.Errorf("error scanning redundant index row: %w", err)
+		}
+		redundantIndexes = append(redundantIndexes, ri)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error reading redundant index rows: %w", err)
+	}
+
+	return redundantIndexes, nil
 }
 
 /*

@@ -23,6 +23,8 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
@@ -1863,4 +1865,364 @@ func createMockDB(t *testing.T) (*sql.DB, sqlmock.Sqlmock) {
 	db, mock, err := sqlmock.New()
 	assert.NoError(t, err)
 	return db, mock
+}
+
+// Test functions for redundant index filtering
+
+func TestFetchRedundantIndexes(t *testing.T) {
+	tests := []struct {
+		name           string
+		mockRows       [][]interface{}
+		expectedResult []RedundantIndex
+		expectError    bool
+	}{
+		{
+			name: "successful fetch with multiple redundant indexes",
+			mockRows: [][]interface{}{
+				{"schema1", "table1", "idx1"},
+				{"schema2", "table2", "idx2"},
+				{"schema1", "table1", "idx3"},
+			},
+			expectedResult: []RedundantIndex{
+				{SchemaName: "schema1", TableName: "table1", IndexName: "idx1"},
+				{SchemaName: "schema2", TableName: "table2", IndexName: "idx2"},
+				{SchemaName: "schema1", TableName: "table1", IndexName: "idx3"},
+			},
+			expectError: false,
+		},
+		{
+			name:           "successful fetch with no redundant indexes",
+			mockRows:       [][]interface{}{},
+			expectedResult: []RedundantIndex{},
+			expectError:    false,
+		},
+		{
+			name: "single redundant index",
+			mockRows: [][]interface{}{
+				{"public", "users", "idx_email_duplicate"},
+			},
+			expectedResult: []RedundantIndex{
+				{SchemaName: "public", TableName: "users", IndexName: "idx_email_duplicate"},
+			},
+			expectError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			db, mock := createMockDB(t)
+			defer db.Close()
+
+			// Setup mock expectation
+			query := fmt.Sprintf(`SELECT redundant_schema_name, redundant_table_name, redundant_index_name FROM %s`, GetTableRedundantIndexesName())
+			expectedQuery := regexp.QuoteMeta(query)
+
+			rows := sqlmock.NewRows([]string{"redundant_schema_name", "redundant_table_name", "redundant_index_name"})
+			for _, row := range tt.mockRows {
+				rows.AddRow(row[0], row[1], row[2])
+			}
+			mock.ExpectQuery(expectedQuery).WillReturnRows(rows)
+
+			// Execute the function
+			result, err := fetchRedundantIndexes(db)
+
+			// Assert results
+			if tt.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.expectedResult, result)
+			}
+
+			// Assert all expectations were met
+			assert.NoError(t, mock.ExpectationsWereMet())
+		})
+	}
+}
+
+func TestFetchRedundantIndexesQueryError(t *testing.T) {
+	db, mock := createMockDB(t)
+	defer db.Close()
+
+	// Setup mock to return an error
+	query := fmt.Sprintf(`SELECT redundant_schema_name, redundant_table_name, redundant_index_name FROM %s`, GetTableRedundantIndexesName())
+	expectedQuery := regexp.QuoteMeta(query)
+	mock.ExpectQuery(expectedQuery).WillReturnError(fmt.Errorf("database connection error"))
+
+	// Execute the function
+	result, err := fetchRedundantIndexes(db)
+
+	// Assert error
+	assert.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "error querying redundant indexes")
+
+	// Assert all expectations were met
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestFilterRedundantIndexes(t *testing.T) {
+	tests := []struct {
+		name                   string
+		sourceIndexMetadata    []SourceDBMetadata
+		redundantIndexes       []RedundantIndex
+		expectedFilteredCount  int
+		expectedRemainingNames []string
+	}{
+		{
+			name: "filter out single redundant index",
+			sourceIndexMetadata: []SourceDBMetadata{
+				{
+					SchemaName:      "schema1",
+					ObjectName:      "idx1",
+					ParentTableName: sql.NullString{String: "schema1.table1", Valid: true},
+					IsIndex:         true,
+				},
+				{
+					SchemaName:      "schema1",
+					ObjectName:      "idx2",
+					ParentTableName: sql.NullString{String: "schema1.table1", Valid: true},
+					IsIndex:         true,
+				},
+			},
+			redundantIndexes: []RedundantIndex{
+				{SchemaName: "schema1", TableName: "table1", IndexName: "idx1"},
+			},
+			expectedFilteredCount:  1,
+			expectedRemainingNames: []string{"idx2"},
+		},
+		{
+			name: "filter out multiple redundant indexes",
+			sourceIndexMetadata: []SourceDBMetadata{
+				{
+					SchemaName:      "schema1",
+					ObjectName:      "idx1",
+					ParentTableName: sql.NullString{String: "schema1.table1", Valid: true},
+					IsIndex:         true,
+				},
+				{
+					SchemaName:      "schema1",
+					ObjectName:      "idx2",
+					ParentTableName: sql.NullString{String: "schema1.table1", Valid: true},
+					IsIndex:         true,
+				},
+				{
+					SchemaName:      "schema2",
+					ObjectName:      "idx3",
+					ParentTableName: sql.NullString{String: "schema2.table2", Valid: true},
+					IsIndex:         true,
+				},
+			},
+			redundantIndexes: []RedundantIndex{
+				{SchemaName: "schema1", TableName: "table1", IndexName: "idx1"},
+				{SchemaName: "schema2", TableName: "table2", IndexName: "idx3"},
+			},
+			expectedFilteredCount:  1,
+			expectedRemainingNames: []string{"idx2"},
+		},
+		{
+			name: "no redundant indexes to filter",
+			sourceIndexMetadata: []SourceDBMetadata{
+				{
+					SchemaName:      "schema1",
+					ObjectName:      "idx1",
+					ParentTableName: sql.NullString{String: "schema1.table1", Valid: true},
+					IsIndex:         true,
+				},
+				{
+					SchemaName:      "schema1",
+					ObjectName:      "idx2",
+					ParentTableName: sql.NullString{String: "schema1.table1", Valid: true},
+					IsIndex:         true,
+				},
+			},
+			redundantIndexes:       []RedundantIndex{},
+			expectedFilteredCount:  2,
+			expectedRemainingNames: []string{"idx1", "idx2"},
+		},
+		{
+			name: "redundant index not matching any source index",
+			sourceIndexMetadata: []SourceDBMetadata{
+				{
+					SchemaName:      "schema1",
+					ObjectName:      "idx1",
+					ParentTableName: sql.NullString{String: "schema1.table1", Valid: true},
+					IsIndex:         true,
+				},
+			},
+			redundantIndexes: []RedundantIndex{
+				{SchemaName: "schema2", TableName: "table2", IndexName: "idx_nonexistent"},
+			},
+			expectedFilteredCount:  1,
+			expectedRemainingNames: []string{"idx1"},
+		},
+		{
+			name: "index with invalid parent table name",
+			sourceIndexMetadata: []SourceDBMetadata{
+				{
+					SchemaName:      "schema1",
+					ObjectName:      "idx1",
+					ParentTableName: sql.NullString{Valid: false},
+					IsIndex:         true,
+				},
+				{
+					SchemaName:      "schema1",
+					ObjectName:      "idx2",
+					ParentTableName: sql.NullString{String: "schema1.table1", Valid: true},
+					IsIndex:         true,
+				},
+			},
+			redundantIndexes: []RedundantIndex{
+				{SchemaName: "schema1", TableName: "table1", IndexName: "idx2"},
+			},
+			expectedFilteredCount:  1,
+			expectedRemainingNames: []string{"idx1"},
+		},
+		{
+			name: "parent table name with unexpected format",
+			sourceIndexMetadata: []SourceDBMetadata{
+				{
+					SchemaName:      "schema1",
+					ObjectName:      "idx1",
+					ParentTableName: sql.NullString{String: "just_table_name", Valid: true},
+					IsIndex:         true,
+				},
+			},
+			redundantIndexes: []RedundantIndex{
+				{SchemaName: "schema1", TableName: "just_table_name", IndexName: "idx1"},
+			},
+			expectedFilteredCount:  0,
+			expectedRemainingNames: []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := filterRedundantIndexes(tt.sourceIndexMetadata, tt.redundantIndexes)
+
+			// Assert the count of filtered indexes
+			assert.Equal(t, tt.expectedFilteredCount, len(result))
+
+			// Assert the remaining index names
+			var remainingNames []string
+			for _, index := range result {
+				remainingNames = append(remainingNames, index.ObjectName)
+			}
+			assert.ElementsMatch(t, tt.expectedRemainingNames, remainingNames)
+		})
+	}
+}
+
+func TestGetSourceMetadataWithRedundantIndexFiltering(t *testing.T) {
+	db, mock := createMockDB(t)
+	defer db.Close()
+
+	// Setup mock for main metadata query
+	metadataQuery := fmt.Sprintf(`
+		SELECT schema_name, 
+			   object_name, 
+			   row_count, 
+			   reads_per_second, 
+			   writes_per_second, 
+			   is_index, 
+			   parent_table_name, 
+			   size_in_bytes,
+			   column_count 
+		FROM %v 
+		WHERE %s
+		ORDER BY IFNULL(size_in_bytes, 0) ASC
+	`, GetTableIndexStatName(), strings.Join([]string{
+		fmt.Sprintf("object_type LIKE '%s'", "%table%"),
+		fmt.Sprintf("object_type LIKE '%s'", "%index%"),
+		fmt.Sprintf("object_type LIKE '%s'", "materialized view"),
+	}, " OR "))
+
+	metadataRows := sqlmock.NewRows([]string{
+		"schema_name", "object_name", "row_count", "reads_per_second", "writes_per_second",
+		"is_index", "parent_table_name", "size_in_bytes", "column_count",
+	}).
+		AddRow("schema1", "table1", 1000, 10, 5, false, nil, 1024*1024*1024, 5).        // table
+		AddRow("schema1", "idx1", nil, 5, 2, true, "schema1.table1", 512*1024*1024, 2). // index (should be filtered)
+		AddRow("schema1", "idx2", nil, 3, 1, true, "schema1.table1", 256*1024*1024, 1)  // index (should remain)
+
+	mock.ExpectQuery(regexp.QuoteMeta(strings.ReplaceAll(metadataQuery, "\n\t\t", " "))).WillReturnRows(metadataRows)
+
+	// Setup mock for redundant indexes query
+	redundantQuery := fmt.Sprintf(`SELECT redundant_schema_name, redundant_table_name, redundant_index_name FROM %s`, GetTableRedundantIndexesName())
+	redundantRows := sqlmock.NewRows([]string{"redundant_schema_name", "redundant_table_name", "redundant_index_name"}).
+		AddRow("schema1", "table1", "idx1")
+
+	mock.ExpectQuery(regexp.QuoteMeta(redundantQuery)).WillReturnRows(redundantRows)
+
+	// Expect database close
+	mock.ExpectClose()
+
+	// Execute the function
+	tables, indexes, totalSize, err := getSourceMetadata(db)
+
+	// Assert results
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(tables))
+	assert.Equal(t, 1, len(indexes)) // Only idx2 should remain, idx1 should be filtered
+	assert.Equal(t, "table1", tables[0].ObjectName)
+	assert.Equal(t, "idx2", indexes[0].ObjectName)
+	assert.Greater(t, totalSize, 0.0)
+
+	// Assert all expectations were met
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestGetSourceMetadataWithRedundantIndexError(t *testing.T) {
+	db, mock := createMockDB(t)
+	defer db.Close()
+
+	// Setup mock for main metadata query
+	metadataQuery := fmt.Sprintf(`
+		SELECT schema_name, 
+			   object_name, 
+			   row_count, 
+			   reads_per_second, 
+			   writes_per_second, 
+			   is_index, 
+			   parent_table_name, 
+			   size_in_bytes,
+			   column_count 
+		FROM %v 
+		WHERE %s
+		ORDER BY IFNULL(size_in_bytes, 0) ASC
+	`, GetTableIndexStatName(), strings.Join([]string{
+		fmt.Sprintf("object_type LIKE '%s'", "%table%"),
+		fmt.Sprintf("object_type LIKE '%s'", "%index%"),
+		fmt.Sprintf("object_type LIKE '%s'", "materialized view"),
+	}, " OR "))
+
+	metadataRows := sqlmock.NewRows([]string{
+		"schema_name", "object_name", "row_count", "reads_per_second", "writes_per_second",
+		"is_index", "parent_table_name", "size_in_bytes", "column_count",
+	}).
+		AddRow("schema1", "table1", 1000, 10, 5, false, nil, 1024*1024*1024, 5).       // table
+		AddRow("schema1", "idx1", nil, 5, 2, true, "schema1.table1", 512*1024*1024, 2) // index
+
+	mock.ExpectQuery(regexp.QuoteMeta(strings.ReplaceAll(metadataQuery, "\n\t\t", " "))).WillReturnRows(metadataRows)
+
+	// Setup mock for redundant indexes query to return error
+	redundantQuery := fmt.Sprintf(`SELECT redundant_schema_name, redundant_table_name, redundant_index_name FROM %s`, GetTableRedundantIndexesName())
+	mock.ExpectQuery(regexp.QuoteMeta(redundantQuery)).WillReturnError(fmt.Errorf("redundant table does not exist"))
+
+	// Expect database close
+	mock.ExpectClose()
+
+	// Execute the function
+	tables, indexes, totalSize, err := getSourceMetadata(db)
+
+	// Assert results - should continue despite redundant index error
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(tables))
+	assert.Equal(t, 1, len(indexes)) // index should remain since filtering failed gracefully
+	assert.Equal(t, "table1", tables[0].ObjectName)
+	assert.Equal(t, "idx1", indexes[0].ObjectName)
+	assert.Greater(t, totalSize, 0.0)
+
+	// Assert all expectations were met
+	assert.NoError(t, mock.ExpectationsWereMet())
 }
