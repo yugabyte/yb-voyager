@@ -489,7 +489,7 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 				p.tableUniqueConstraints[qualifiedTable] = append(p.tableUniqueConstraints[qualifiedTable], append([]string{}, alter.ConstraintColumns...))
 			}
 		}
-		// Track NOT NULL alters (multiple subcommands supported)
+		// Track NOT NULL alter commands
 		if len(alter.SetNotNullColumns) > 0 {
 			qualifiedTable := alter.GetObjectName()
 			if _, ok := p.tableNotNullColumns[qualifiedTable]; !ok {

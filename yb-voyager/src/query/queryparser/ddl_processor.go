@@ -759,6 +759,12 @@ func (atProcessor *AlterTableProcessor) Process(parseTree *pg_query.ParseResult)
 		TableName:  alterNode.AlterTableStmt.Relation.Relname,
 	}
 
+	// Alter statements can have multiple subcommands, so we need to parse all of them
+	// Example:
+	// ALTER TABLE ONLY public.device_events
+	// ALTER COLUMN device_id SET NOT NULL;
+	// ALTER COLUMN device_name DROP NOT NULL;
+	// ALTER COLUMN device_type SET NOT NULL;
 	// Parse all alter commands; retain subtype of the first cmd for AlterType
 	cmds := alterNode.AlterTableStmt.Cmds
 	if len(cmds) == 0 {
@@ -843,8 +849,18 @@ func (atProcessor *AlterTableProcessor) Process(parseTree *pg_query.ParseResult)
 			partitionChildTable := partitionCmd.GetName()
 			alter.PartitionedChild = utils.BuildObjectName(partitionChildTable.Schemaname, partitionChildTable.Relname)
 		case pg_query.AlterTableType_AT_SetNotNull:
+			/*
+				e.g. ALTER TABLE ONLY public.device_events ALTER COLUMN device_id SET NOT NULL;
+				stmt:{alter_table_stmt:{relation:{schemaname:"public" relname:"device_events" inh:true relpersistence:"p" location:12}
+				cmds:{alter_table_cmd:{subtype:AT_SetNotNull name:"device_id" behavior:DROP_RESTRICT}} objtype:OBJECT_TABLE}} stmt_len:40}
+			*/
 			alter.SetNotNullColumns = append(alter.SetNotNullColumns, cmd.Name)
 		case pg_query.AlterTableType_AT_DropNotNull:
+			/*
+				e.g. ALTER TABLE ONLY public.device_events ALTER COLUMN device_id DROP NOT NULL;
+				stmt:{alter_table_stmt:{relation:{schemaname:"public" relname:"device_events" inh:true relpersistence:"p" location:12}
+				cmds:{alter_table_cmd:{subtype:AT_DropNotNull name:"device_id" behavior:DROP_RESTRICT}} objtype:OBJECT_TABLE}} stmt_len:40}
+			*/
 			alter.DropNotNullColumns = append(alter.DropNotNullColumns, cmd.Name)
 		}
 	}
