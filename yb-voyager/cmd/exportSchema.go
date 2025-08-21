@@ -203,7 +203,6 @@ func exportSchema(cmd *cobra.Command) error {
 	if err != nil {
 		return fmt.Errorf("failed to apply index file transformations: %w", err)
 	}
-
 	err = generatePerformanceOptimizationReport(indexTransformer, modifiedTables, modifiedMviews, colocatedTables, colocatedMviews)
 	if err != nil {
 		return fmt.Errorf("failed to generate performance optimization %w", err)
@@ -326,7 +325,7 @@ func packAndSendExportSchemaPayload(status string, errorMsg error) {
 		AppliedRecommendations:    assessmentRecommendationsApplied,
 		UseOrafce:                 bool(source.UseOrafce),
 		CommentsOnObjects:         bool(source.CommentsOnObjects),
-		Error:                     callhome.SanitizeErrorMsg(errorMsg),
+		Error:                     callhome.SanitizeErrorMsg(errorMsg, anonymizer),
 		SkipRecommendations:       bool(skipRecommendations),
 		SkipPerfOptimizations:     bool(skipPerfOptimizations),
 		ControlPlaneType:          getControlPlaneType(),

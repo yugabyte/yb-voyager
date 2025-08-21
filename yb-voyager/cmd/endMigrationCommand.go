@@ -123,7 +123,7 @@ func packAndSendEndMigrationPayload(status string, errorMsg error) {
 		BackupLogFiles:       bool(backupLogFiles),
 		BackupSchemaFiles:    bool(backupSchemaFiles),
 		SaveMigrationReports: bool(saveMigrationReports),
-		Error:                callhome.SanitizeErrorMsg(errorMsg),
+		Error:                callhome.SanitizeErrorMsg(errorMsg, anonymizer),
 		ControlPlaneType:     getControlPlaneType(),
 	}
 	payload.PhasePayload = callhome.MarshalledJsonString(endMigrationPayload)
