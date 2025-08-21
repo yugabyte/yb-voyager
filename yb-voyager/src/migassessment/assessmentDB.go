@@ -61,12 +61,22 @@ type TableIndexStats struct {
 	SizeInBytes     *int64  `json:"SizeInBytes"`
 }
 
+type RedundantIndex struct {
+	SchemaName string `db:"redundant_schema_name"`
+	TableName  string `db:"redundant_table_name"`
+	IndexName  string `db:"redundant_index_name"`
+}
+
 var GetSourceMetadataDBFilePath = func() string {
 	return filepath.Join(AssessmentDir, "dbs", "assessment.db")
 }
 
 func GetTableIndexStatName() string {
 	return TABLE_INDEX_STATS
+}
+
+func GetTableRedundantIndexesName() string {
+	return REDUNDANT_INDEXES
 }
 
 func InitAssessmentDB() error {
