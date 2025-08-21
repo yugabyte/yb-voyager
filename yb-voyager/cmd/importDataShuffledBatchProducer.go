@@ -31,9 +31,12 @@ type ShuffledBatchProducer struct {
 	fileBatchProducer *FileBatchProducer
 	batches           []*Batch
 	mu                sync.Mutex
+	cond              *sync.Cond // Condition variable for waiting
 	producerFinished  bool
 }
 
+// NewShuffledBatchProducer creates a new ShuffledBatchProducer that wraps a FileBatchProducer.
+// The producer goroutine is not started until Init() is called.
 func NewShuffledBatchProducer(task *ImportFileTask, state *ImportDataState,
 	errorHandler importdata.ImportDataErrorHandler) (*ShuffledBatchProducer, error) {
 
@@ -42,10 +45,15 @@ func NewShuffledBatchProducer(task *ImportFileTask, state *ImportDataState,
 		return nil, err
 	}
 
-	return &ShuffledBatchProducer{
+	sbp := &ShuffledBatchProducer{
 		fileBatchProducer: fileBatchProducer,
 		batches:           make([]*Batch, 0),
-	}, nil
+	}
+
+	// Initialize the condition variable with the mutex
+	sbp.cond = sync.NewCond(&sbp.mu)
+
+	return sbp, nil
 }
 
 // Init starts the producer goroutine that continuously produces batches from the underlying FileBatchProducer.
@@ -68,6 +76,7 @@ func (sbp *ShuffledBatchProducer) Init() {
 				utils.ErrExit("Producer error for file %s: %v", sbp.fileBatchProducer.task.FilePath, err)
 			}
 			sbp.batches = append(sbp.batches, batch)
+			sbp.cond.Signal() // Wake up one waiting consumer
 			sbp.mu.Unlock()
 		}
 	}()
@@ -81,17 +90,19 @@ func (sbp *ShuffledBatchProducer) Done() bool {
 }
 
 // NextBatch returns a randomly selected batch from the available batches.
-// If no batches are available and the producer has finished, returns an error.
+// If no batches are available, it waits until batches become available or the producer finishes.
 func (sbp *ShuffledBatchProducer) NextBatch() (*Batch, error) {
 	sbp.mu.Lock()
 	defer sbp.mu.Unlock()
 
+	// Wait for batches to become available
+	for len(sbp.batches) == 0 && !sbp.producerFinished {
+		sbp.cond.Wait() // This releases the lock and waits
+		// When we wake up, the lock is re-acquired automatically
+	}
+
 	if len(sbp.batches) == 0 {
-		if sbp.producerFinished {
-			return nil, fmt.Errorf("no more batches available")
-		}
-		// Could add timeout/wait logic here if needed
-		return nil, fmt.Errorf("no batches available yet")
+		return nil, fmt.Errorf("no more batches available")
 	}
 
 	// Pick random batch
