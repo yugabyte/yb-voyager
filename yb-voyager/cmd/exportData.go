@@ -195,7 +195,7 @@ func packAndSendExportDataPayload(status string, errorMsg error) {
 	exportDataPayload := callhome.ExportDataPhasePayload{
 		ParallelJobs:              int64(source.NumConnections),
 		StartClean:                bool(startClean),
-		Error:                     callhome.SanitizeErrorMsg(errorMsg),
+		Error:                     callhome.SanitizeErrorMsg(errorMsg, anonymizer),
 		ControlPlaneType:          getControlPlaneType(),
 		AllowOracleClobDataExport: bool(source.AllowOracleClobDataExport),
 	}

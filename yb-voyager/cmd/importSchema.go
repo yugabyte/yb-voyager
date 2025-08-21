@@ -327,7 +327,7 @@ func packAndSendImportSchemaPayload(status string, errMsg error) {
 		ErrorCount:         len(errorsList),
 		PostSnapshotImport: bool(flagPostSnapshotImport),
 		StartClean:         bool(startClean),
-		Error:              callhome.SanitizeErrorMsg(errMsg),
+		Error:              callhome.SanitizeErrorMsg(errMsg, anonymizer),
 		ControlPlaneType:   getControlPlaneType(),
 	}
 

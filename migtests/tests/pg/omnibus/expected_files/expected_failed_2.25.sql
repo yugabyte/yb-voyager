@@ -26,7 +26,7 @@ CREATE TABLE regress_rls_schema.t3_3 (id int NOT NULL, c text, b text, a int, CO
 ERROR: INDEX on column of type 'user_defined_type' not yet supported (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/INDEXES_table.sql
 */
-CREATE INDEX idx_1 ON composite_type_examples.ordinary_table USING btree (basic_);
+CREATE INDEX idx_1 ON composite_type_examples.ordinary_table USING btree (basic_ ASC);
 
 /*
 ERROR: index method "gist" not supported yet (SQLSTATE XX000)
