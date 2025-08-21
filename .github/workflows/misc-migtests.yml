@@ -63,11 +63,12 @@ jobs:
         run: |
           cd installer_scripts
           yes | ./install-yb-voyager --install-from-local-source --only-pg-support
-          # sudo rm /usr/bin/pg_dump
-          # sudo ln -s /usr/lib/postgresql/17/bin/pg_dump /usr/bin/pg_dump
-          # sudo rm /usr/bin/pg_restore
-          # sudo ln -s /usr/lib/postgresql/17/bin/pg_restore /usr/bin/pg_restore
-          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+          # Since pg_dump/restore 17 is required, we need to remove the symlink to the old PG 14 binary(default)
+          # and create a symlink to the new PG 17 binary
+          sudo rm /usr/bin/pg_dump
+          sudo ln -s /usr/lib/postgresql/17/bin/pg_dump /usr/bin/pg_dump
+          sudo rm /usr/bin/pg_restore
+          sudo ln -s /usr/lib/postgresql/17/bin/pg_restore /usr/bin/pg_restore
           pg_dump --version
           pg_restore --version
           psql --version
