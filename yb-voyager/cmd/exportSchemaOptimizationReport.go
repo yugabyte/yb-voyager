@@ -59,13 +59,15 @@ type SchemaOptimizationReport struct {
 	TableShardingRecommendation *ShardingRecommendationChange `json:"table_sharding_recommendation,omitempty"`
 	MviewShardingRecommendation *ShardingRecommendationChange `json:"mview_sharding_recommendation,omitempty"`
 	SecondaryIndexToRangeChange *SecondaryIndexToRangeChange  `json:"secondary_index_to_range_change,omitempty"`
+	PKOrUKHashSplittingChange   *PKOrUKHashSplittingChange    `json:"pk_or_uk_hash_splitting_change,omitempty"`
 }
 
 // HasOptimizations returns true if any optimizations were applied
 func (s *SchemaOptimizationReport) HasOptimizations() bool {
 	return !s.RedundantIndexChange.IsEmpty() ||
 		!s.TableShardingRecommendation.IsEmpty() ||
-		!s.MviewShardingRecommendation.IsEmpty()
+		!s.MviewShardingRecommendation.IsEmpty() ||
+		!s.PKOrUKHashSplittingChange.IsEmpty()
 }
 
 // NewSchemaOptimizationReport creates a new SchemaOptimizationReport with the given metadata
@@ -180,12 +182,41 @@ func NewSecondaryIndexToRangeChange(applied bool, referenceFile string, modified
 			"index on low cardinality column":              "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-low-cardinality-column",
 			"index on high percentage of NULLs":            "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-column-with-a-high-percentage-of-null-values",
 			"index on high percentage of particular value": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-column-with-high-percentage-of-a-particular-value",
-			"documentation":                    "https://docs.yugabyte.com/preview/architecture/docdb-sharding/sharding/",
+			"documentation": "https://docs.yugabyte.com/preview/architecture/docdb-sharding/sharding/",
 		},
 		ReferenceFile:   referenceFile,
 		ModifiedIndexes: modifiedIndexes,
 		IsApplied:       applied,
 	}
+}
+
+type PKOrUKHashSplittingChange struct {
+	Title                   string            `json:"title"`
+	Description             string            `json:"description"`
+	IsApplied               bool              `json:"is_applied"`
+	HyperLinksInDescription map[string]string `json:"hyper_links_in_description"`
+}
+
+func NewPKOrUKHashSplittingChange(skipPerfOptimizations bool) *PKOrUKHashSplittingChange {
+	applied := !skipPerfOptimizations
+	title := "Primary/Unique Key Indexes to be hash-sharded - Applied"
+	description := "The Primary/Unique key indexes were configured to be hash-sharded in YugabyteDB. This helps in giving randomize distribution of unique values of the Primary/Unique key across the nodes and helps in avoiding the hotspots that comes with the range-sharding for increasing nature of these values. Refer to sharding strategy in documentation for more information."
+	if !applied {
+		title = "Primary/Unique Key Indexes to be hash-sharded - Not Applied"
+		description = "Due to the skip-performance-optimizations flag, the Primary/Unique key indexes were not configured to be hash-sharded. Modify the Primary/Unique key indexes to be hash-sharded manually. The Primary/Unique key Indexes as hash-sharded helps in giving randomize distribution of unique values of the Primary/Unique key across the nodes and helps in avoiding the hotspots that comes with the range-sharding for increasing nature of these values. Refer to sharding strategy in documentation for more information. "
+	}
+	return &PKOrUKHashSplittingChange{
+		Title:       title,
+		Description: description,
+		IsApplied:   applied,
+		HyperLinksInDescription: map[string]string{
+			"documentation": "https://docs.yugabyte.com/preview/architecture/docdb-sharding/sharding/",
+		},
+	}
+}
+
+func (p *PKOrUKHashSplittingChange) IsEmpty() bool {
+	return p == nil
 }
 
 func buildRedundantIndexChange(indexTransformer *sqltransformer.IndexFileTransformer) *RedundantIndexChange {
@@ -290,6 +321,8 @@ func generatePerformanceOptimizationReport(indexTransformer *sqltransformer.Inde
 	schemaOptimizationReport.TableShardingRecommendation = buildShardingTableRecommendationChange(shardedTables, colocatedTables)
 	schemaOptimizationReport.MviewShardingRecommendation = buildShardingMviewRecommendationChange(shardedMviews, colocatedMviews)
 	schemaOptimizationReport.SecondaryIndexToRangeChange = buildSecondaryIndexToRangeChange(indexTransformer)
+
+	schemaOptimizationReport.PKOrUKHashSplittingChange = NewPKOrUKHashSplittingChange(bool(skipPerfOptimizations))
 
 	if schemaOptimizationReport.HasOptimizations() {
 		file, err := os.Create(htmlReportFilePath)
