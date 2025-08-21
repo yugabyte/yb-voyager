@@ -935,7 +935,13 @@ func (p *ParserIssueDetector) DetectPrimaryKeyRecommendations() []QueryIssue {
 			if !allNN {
 				continue
 			}
-			options = append(options, cols)
+
+			// Create fully qualified column names for this option
+			qualifiedCols := make([]string, len(cols))
+			for i, col := range cols {
+				qualifiedCols[i] = fmt.Sprintf("%s.%s", table, col)
+			}
+			options = append(options, qualifiedCols)
 		}
 		if len(options) > 0 {
 			issues = append(issues, NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", table, options))

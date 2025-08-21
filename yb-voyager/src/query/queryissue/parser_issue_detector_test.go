@@ -2449,12 +2449,12 @@ func TestPKRec_CommonRunner(t *testing.T) {
 		{
 			name:     "PKREC: Simple UNIQUE(a) with a NOT NULL, no PK",
 			ddls:     []string{`CREATE TABLE t1 (a int NOT NULL, b text, UNIQUE(a));`},
-			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "t1", [][]string{{"a"}})},
+			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "t1", [][]string{{"t1.a"}})},
 		},
 		{
 			name:     "PKREC: Composite UNIQUE(a,b) both NOT NULL",
 			ddls:     []string{`CREATE TABLE t2 (a int NOT NULL, b text NOT NULL, c text, UNIQUE(a,b));`},
-			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "t2", [][]string{{"a", "b"}})},
+			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "t2", [][]string{{"t2.a", "t2.b"}})},
 		},
 		{
 			name: "PKREC: Multiple ALTER SET NOT NULL then UNIQUE(a,b)",
@@ -2463,7 +2463,7 @@ func TestPKRec_CommonRunner(t *testing.T) {
 				`ALTER TABLE t3 ALTER COLUMN a SET NOT NULL, ALTER COLUMN b SET NOT NULL;`,
 				`ALTER TABLE t3 ADD CONSTRAINT uq_t3 UNIQUE (a,b);`,
 			},
-			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "t3", [][]string{{"a", "b"}})},
+			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "t3", [][]string{{"t3.a", "t3.b"}})},
 		},
 		{
 			name: "PKREC: DROP NOT NULL cancels composite UNIQUE(a,b)",
@@ -2483,7 +2483,7 @@ func TestPKRec_CommonRunner(t *testing.T) {
 		{
 			name:     "PKREC: Aggregate all qualifying UNIQUE sets",
 			ddls:     []string{`CREATE TABLE t6 (a int NOT NULL, b int NOT NULL, UNIQUE(a,b), UNIQUE(a));`},
-			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "t6", [][]string{{"a"}, {"a", "b"}})},
+			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "t6", [][]string{{"t6.a"}, {"t6.a", "t6.b"}})},
 		},
 		{
 			name:     "PKREC: UNIQUE with nullable column -> no recommendation",
