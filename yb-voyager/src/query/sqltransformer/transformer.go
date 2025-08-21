@@ -22,6 +22,7 @@ import (
 	pg_query "github.com/pganalyze/pg_query_go/v6"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryissue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -180,4 +181,43 @@ func (t *Transformer) RemoveRedundantIndexes(stmts []*pg_query.RawStmt, redundan
 	}
 
 	return sqlStmts, removedIndexToStmtMap, nil
+}
+
+func (t *Transformer) ModifySecondaryIndexesToRange(stmts []*pg_query.RawStmt) ([]*pg_query.RawStmt, []*sqlname.ObjectNameQualifiedWithTableName, error) {
+	var modifiedObjNames []*sqlname.ObjectNameQualifiedWithTableName
+	for idx, stmt := range stmts {
+		stmtType := queryparser.GetStatementType(stmt.Stmt.ProtoReflect())
+		if stmtType != queryparser.PG_QUERY_INDEX_STMT {
+			continue
+		}
+		indexStmt := stmt.Stmt.GetIndexStmt()
+		if indexStmt == nil {
+			continue
+		}
+		if indexStmt.AccessMethod != queryissue.BTREE_ACCESS_METHOD {
+			//In Postgres the ordered scans are only supported for btree
+			//so restricting the change to only Btree indexes
+			//refer https://www.postgresql.org/docs/current/sql-createindex.html#:~:text=For%20index%20methods%20that%20support%20ordered%20scans%20(currently%2C%20only%20B%2Dtree)%2C%20the%20optional%20clauses%20ASC
+			continue
+		}
+		if len(indexStmt.IndexParams) == 0 {
+			//Just a sanity check to avoid any nil pointer dereference
+			//In general, this should not happen
+			continue
+		}
+		//checking only the first param of the key column of the index 
+		if indexStmt.IndexParams[0].GetIndexElem() == nil {
+			continue
+		}
+		if indexStmt.IndexParams[0].GetIndexElem().Ordering != queryparser.DEFAULT_SORTING_ORDER {
+			//If the index is already ordered, then we don't need to convert it to range index
+			continue
+		}
+		//If the index is not ordered, then we need to convert it to range index
+		//Add ASC clause to the index
+		indexStmt.IndexParams[0].GetIndexElem().Ordering = queryparser.ASC_SORTING_ORDER
+		stmts[idx] = stmt
+		modifiedObjNames = append(modifiedObjNames, queryparser.GetIndexObjectNameFromIndexStmt(indexStmt))
+	}
+	return stmts, modifiedObjNames, nil
 }
