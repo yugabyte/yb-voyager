@@ -161,7 +161,7 @@ var SourceMetadataObjectTypesToUse = []string{
 func SizingAssessment(targetDbVersion *ybversion.YBVersion) error {
 
 	log.Infof("loading metadata files for sharding assessment")
-	sourceTableMetadata, sourceIndexMetadata, _, err := loadSourceMetadata(GetSourceMetadataDBFilePath())
+	sourceTableMetadata, sourceIndexMetadata, sourceUniqueIndexeMetadata, _, err := loadSourceMetadata(GetSourceMetadataDBFilePath())
 	if err != nil {
 		SizingReport.FailureReasoning = fmt.Sprintf("failed to load source metadata: %v", err)
 		return fmt.Errorf("failed to load source metadata: %w", err)
@@ -273,7 +273,7 @@ func SizingAssessment(targetDbVersion *ybversion.YBVersion) error {
 	// calculate time taken for colocated import
 	numNodesImportTimeDivisorColocated := 1.0
 	importTimeForColocatedObjects, err := calculateTimeTakenForImport(
-		finalSizingRecommendation.ColocatedTables, sourceIndexMetadata, colocatedLoadTimes,
+		finalSizingRecommendation.ColocatedTables, sourceUniqueIndexeMetadata, colocatedLoadTimes,
 		indexImpactOnLoadTimeCommon, columnsImpactOnLoadTimeCommon, COLOCATED, numNodesImportTimeDivisorColocated)
 	if err != nil {
 		SizingReport.FailureReasoning = fmt.Sprintf("calculate time taken for colocated data import: %v", err)
@@ -287,7 +287,7 @@ func SizingAssessment(targetDbVersion *ybversion.YBVersion) error {
 
 	// calculate time taken for sharded import
 	importTimeForShardedObjects, err := calculateTimeTakenForImport(
-		finalSizingRecommendation.ShardedTables, sourceIndexMetadata, shardedLoadTimes,
+		finalSizingRecommendation.ShardedTables, sourceUniqueIndexeMetadata, shardedLoadTimes,
 		indexImpactOnLoadTimeCommon, columnsImpactOnLoadTimeCommon, SHARDED, numNodesImportTimeDivisorSharded)
 	if err != nil {
 		SizingReport.FailureReasoning = fmt.Sprintf("calculate time taken for sharded data import: %v", err)
@@ -907,12 +907,13 @@ Returns:
 
 	[]SourceDBMetadata: all table objects from source db
 	[]SourceDBMetadata: all index objects from source db
+	[]SourceDBMetadata: all index objects from source db after filtering out redundant indexes.
 	float64: total size of source db
 */
-func loadSourceMetadata(filePath string) ([]SourceDBMetadata, []SourceDBMetadata, float64, error) {
+func loadSourceMetadata(filePath string) ([]SourceDBMetadata, []SourceDBMetadata, []SourceDBMetadata, float64, error) {
 	SourceMetaDB, err := utils.ConnectToSqliteDatabase(filePath)
 	if err != nil {
-		return nil, nil, 0.0, fmt.Errorf("cannot connect to source metadata database: %w", err)
+		return nil, nil, nil, 0.0, fmt.Errorf("cannot connect to source metadata database: %w", err)
 	}
 	return getSourceMetadata(SourceMetaDB)
 }
@@ -948,9 +949,10 @@ minutes and returned.
 Parameters:
 
 	tables: A slice containing metadata for the database objects to be migrated.
-	sourceIndexMetadata: A slice containing metadata for the indexes of the database objects to be migrated.
+	sourceUniqueIndexeMetadata: A slice containing metadata for the indexes of the database objects to be migrated.
 	loadTimes: Experiment data for impact of load times on tables
-	indexImpacts: Data containing impact of indexes on load time.
+	indexImpactData: Data containing impact of indexes on load time.
+	numColumnImpactData: Data containing impact of number of columns on load time.
 	objectType: COLOCATED or SHARDED
 	numNodesImportTimeDivisorCommon: Divisor for impact of number of nodes on import time.
 
@@ -960,7 +962,7 @@ Returns:
 	error: Error if any
 */
 func calculateTimeTakenForImport(tables []SourceDBMetadata,
-	sourceIndexMetadata []SourceDBMetadata, loadTimes []ExpDataLoadTime,
+	sourceUniqueIndexeMetadata []SourceDBMetadata, loadTimes []ExpDataLoadTime,
 	indexImpactData []ExpDataLoadTimeIndexImpact, numColumnImpactData []ExpDataLoadTimeColumnsImpact,
 	objectType string, numNodesImportTimeDivisorCommon float64) (float64, error) {
 	var importTime float64
@@ -975,7 +977,7 @@ func calculateTimeTakenForImport(tables []SourceDBMetadata,
 
 		// get multiplication factor for every table based on the number of indexes
 		loadTimeMultiplicationFactorWrtIndexes := getMultiplicationFactorForImportTimeBasedOnIndexes(table,
-			sourceIndexMetadata, indexImpactData, objectType)
+			sourceUniqueIndexeMetadata, indexImpactData, objectType)
 		// get multiplication factor for every table based on the number of columns in the table
 		loadTimeMultiplicationFactorWrtNumColumns := getMultiplicationFactorForImportTimeBasedOnNumColumns(table,
 			numColumnImpactData, objectType)
@@ -1234,19 +1236,20 @@ of indexes on the table.
 Parameters:
 
 	table: Metadata for the database table for which the multiplication factor is to be calculated.
-	sourceIndexMetadata: A slice containing metadata for the indexes in the database.
+	sourceUniqueIndexeMetadata: A slice containing metadata for the unique indexes in the database.
+	indexImpacts: Experimental data containing impact of indexes on load time.
 	objectType: COLOCATED or SHARDED
 
 Returns:
 
 	float64: The multiplication factor for import time based on the number of indexes on the table.
 */
-func getMultiplicationFactorForImportTimeBasedOnIndexes(table SourceDBMetadata, sourceIndexMetadata []SourceDBMetadata,
+func getMultiplicationFactorForImportTimeBasedOnIndexes(table SourceDBMetadata, sourceUniqueIndexeMetadata []SourceDBMetadata,
 	indexImpacts []ExpDataLoadTimeIndexImpact, objectType string) float64 {
 	var numberOfIndexesOnTable float64 = 0
 	var multiplicationFactor float64 = 1
 
-	for _, index := range sourceIndexMetadata {
+	for _, index := range sourceUniqueIndexeMetadata {
 		if index.ParentTableName.Valid && index.ParentTableName.String == (table.SchemaName+"."+table.ObjectName) {
 			numberOfIndexesOnTable += 1
 		}
@@ -1283,6 +1286,7 @@ number of columns on the table.
 Parameters:
 
 	table: Metadata for the database table for which the multiplication factor is to be calculated.
+	columnImpacts: Experimental data containing impact of number of columns on load time.
 	objectType: COLOCATED or SHARDED
 
 Returns:
@@ -1334,15 +1338,41 @@ func getMultiplicationFactorForImportTimeBasedOnNumColumns(table SourceDBMetadat
 }
 
 /*
-getSourceMetadata retrieves metadata for source database tables and indexes along with the total size of the source
-database.
+getSourceMetadata retrieves metadata for source database tables, indexes, redundant indexes along with the total
+size of the source database.
 Returns:
 
 	[]SourceDBMetadata: Metadata for source database tables.
 	[]SourceDBMetadata: Metadata for source database indexes.
+	[]SourceDBMetadata: Metadata for source database indexes after filtering out redundant indexes.
 	float64: The total size of the source database in gigabytes.
 */
-func getSourceMetadata(sourceDB *sql.DB) ([]SourceDBMetadata, []SourceDBMetadata, float64, error) {
+func getSourceMetadata(sourceDB *sql.DB) ([]SourceDBMetadata, []SourceDBMetadata, []SourceDBMetadata, float64, error) {
+	// get source database tables, indexes and total size
+	sourceTableMetadata, sourceIndexMetadata, totalSourceDBSize, err := getSourceMetadataTableIndexStats(sourceDB, GetTableIndexStatName())
+	if err != nil {
+		return nil, nil, nil, 0.0, fmt.Errorf("failed read source metadata table %v: %w", GetTableIndexStatName(), err)
+	}
+	// get source database redundant indexes
+	redundantIndexes, err := getSourceMetadataRedundantIndexes(sourceDB, GetTableRedundantIndexesName())
+	var uniqueSourceIndexMetadata []SourceDBMetadata
+	if err != nil {
+		log.Warnf("failed to read redundant indexes from %v: %v, continuing without filtering redundant indexes", GetTableRedundantIndexesName(), err)
+		// If we can't get redundant indexes, just use all indexes without filtering
+		uniqueSourceIndexMetadata = sourceIndexMetadata
+	} else {
+		// filter out all redudant indexes from sourceIndexMetadata
+		uniqueSourceIndexMetadata = filterRedundantIndexes(sourceIndexMetadata, redundantIndexes)
+	}
+
+	if err := sourceDB.Close(); err != nil {
+		log.Warnf("failed to close connection to sourceDB metadata")
+	}
+
+	return sourceTableMetadata, sourceIndexMetadata, uniqueSourceIndexMetadata, totalSourceDBSize, nil
+}
+
+func getSourceMetadataTableIndexStats(sourceDB *sql.DB, sourceTableName string) ([]SourceDBMetadata, []SourceDBMetadata, float64, error) {
 	// Construct the WHERE clause dynamically using LIKE
 	var likeConditions []string
 	for _, pattern := range SourceMetadataObjectTypesToUse {
@@ -1364,10 +1394,10 @@ func getSourceMetadata(sourceDB *sql.DB) ([]SourceDBMetadata, []SourceDBMetadata
 		FROM %v 
 		WHERE %s
 		ORDER BY IFNULL(size_in_bytes, 0) ASC
-	`, GetTableIndexStatName(), whereClause)
+	`, sourceTableName, whereClause)
 	rows, err := sourceDB.Query(query)
 	if err != nil {
-		return nil, nil, 0.0, fmt.Errorf("failed to query source metadata with query [%s]: %w", query, err)
+		return nil, nil, 0.0, fmt.Errorf("failed to query source metadata table: %v with query [%s]: %w", sourceTableName, query, err)
 	}
 	defer func() {
 		if closeErr := rows.Close(); closeErr != nil {
@@ -1399,17 +1429,6 @@ func getSourceMetadata(sourceDB *sql.DB) ([]SourceDBMetadata, []SourceDBMetadata
 		return nil, nil, 0.0, fmt.Errorf("failed to query source metadata with query [%s]: %w", query, err)
 	}
 
-	// Filter out redundant indexes using the existing sourceDB connection
-	redundantIndexes, err := fetchRedundantIndexes(sourceDB)
-	if err != nil {
-		log.Warnf("failed to fetch redundant indexes: %v", err)
-	} else {
-		sourceIndexMetadata = filterRedundantIndexes(sourceIndexMetadata, redundantIndexes)
-	}
-
-	if err := sourceDB.Close(); err != nil {
-		log.Warnf("failed to close connection to sourceDB metadata")
-	}
 	return sourceTableMetadata, sourceIndexMetadata, totalSourceDBSize, nil
 }
 
@@ -1472,21 +1491,22 @@ func filterRedundantIndexes(sourceIndexMetadata []SourceDBMetadata, redundantInd
 }
 
 /*
-fetchRedundantIndexes fetches redundant indexes from the redundant_indexes table using the provided database connection.
+getSourceMetadataRedundantIndexes fetches redundant indexes from the redundant_indexes table using the provided database connection.
 It returns a slice of RedundantIndex structs containing schema, table, and index names.
 
 Parameters:
 
 	sourceDB: Database connection to query the redundant_indexes table
+	sourceTableName: Name of the table containing redundant index information
 
 Returns:
 
 	[]RedundantIndex: Slice of redundant index information from the database
 	error: Error if any issue occurs during the query
 */
-func fetchRedundantIndexes(sourceDB *sql.DB) ([]RedundantIndex, error) {
-	log.Infof("fetching redundant indexes from %q table", GetTableRedundantIndexesName())
-	query := fmt.Sprintf(`SELECT redundant_schema_name, redundant_table_name, redundant_index_name FROM %s`, GetTableRedundantIndexesName())
+func getSourceMetadataRedundantIndexes(sourceDB *sql.DB, sourceTableName string) ([]RedundantIndex, error) {
+	log.Infof("fetching redundant indexes from %q table", sourceTableName)
+	query := fmt.Sprintf(`SELECT redundant_schema_name, redundant_table_name, redundant_index_name FROM %s`, sourceTableName)
 	rows, err := sourceDB.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("error querying redundant indexes-%s: %w", query, err)
@@ -1840,7 +1860,7 @@ Parameters:
   - targetNumNodes: the target number of nodes to calculate the scaling ratio for
 
 Returns:
-  - returns the relative import time divisor based on throughput scaling with number of nodes
+  - float64: the relative import time divisor based on throughput scaling with number of nodes
 */
 func findNumNodesThroughputScalingImportTimeDivisor(numNodesImpactData []ExpDataLoadTimeNumNodesImpact, targetNumNodes float64) float64 {
 	// Check if the slice is empty

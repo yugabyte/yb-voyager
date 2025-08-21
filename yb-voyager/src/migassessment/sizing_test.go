@@ -99,7 +99,12 @@ func TestGetSourceMetadata_SuccessReadingSourceMetadata(t *testing.T) {
 
 	mock.ExpectQuery(AssessmentDbSelectQuery).WillReturnRows(rows)
 
-	sourceTableMetadata, sourceIndexMetadata, totalSourceDBSize, err := getSourceMetadata(db)
+	// Mock the redundant indexes query
+	redundantIndexRows := sqlmock.NewRows([]string{"redundant_schema_name", "redundant_table_name", "redundant_index_name"})
+	redundantIndexQuery := fmt.Sprintf(`SELECT redundant_schema_name, redundant_table_name, redundant_index_name FROM %s`, GetTableRedundantIndexesName())
+	mock.ExpectQuery(regexp.QuoteMeta(redundantIndexQuery)).WillReturnRows(redundantIndexRows)
+
+	sourceTableMetadata, sourceIndexMetadata, _, totalSourceDBSize, err := getSourceMetadata(db)
 	// assert if there are errors
 	assert.NoError(t, err)
 	// check if the total tables are equal to expected tables
@@ -120,7 +125,7 @@ func TestGetSourceMetadata_QueryErrorIfTableDoesNotExistOrColumnsUnavailable(t *
 	db, mock := createMockDB(t)
 	mock.ExpectQuery(AssessmentDbSelectQuery).WillReturnError(errors.New("query error"))
 
-	_, _, _, err := getSourceMetadata(db)
+	_, _, _, _, err := getSourceMetadata(db)
 	assert.Error(t, err)
 	// check if the error returned contains the expected string
 	assert.Contains(t, err.Error(), "failed to query source metadata")
@@ -135,7 +140,7 @@ func TestGetSourceMetadata_RowScanError(t *testing.T) {
 		RowError(1, errors.New("row scan error"))
 	mock.ExpectQuery(AssessmentDbSelectQuery).WillReturnRows(rows)
 
-	_, _, _, err := getSourceMetadata(db)
+	_, _, _, _, err := getSourceMetadata(db)
 	assert.Error(t, err)
 	// check if the error is as expected
 	assert.Contains(t, err.Error(), "failed to read from result set of query source metadata")
@@ -146,7 +151,13 @@ func TestGetSourceMetadata_NoRows(t *testing.T) {
 	db, mock := createMockDB(t)
 	rows := sqlmock.NewRows(AssessmentDBColumns)
 	mock.ExpectQuery(AssessmentDbSelectQuery).WillReturnRows(rows)
-	sourceTableMetadata, sourceIndexMetadata, totalSourceDBSize, err := getSourceMetadata(db)
+
+	// Mock the redundant indexes query
+	redundantIndexRows := sqlmock.NewRows([]string{"redundant_schema_name", "redundant_table_name", "redundant_index_name"})
+	redundantIndexQuery := fmt.Sprintf(`SELECT redundant_schema_name, redundant_table_name, redundant_index_name FROM %s`, GetTableRedundantIndexesName())
+	mock.ExpectQuery(regexp.QuoteMeta(redundantIndexQuery)).WillReturnRows(redundantIndexRows)
+
+	sourceTableMetadata, sourceIndexMetadata, _, totalSourceDBSize, err := getSourceMetadata(db)
 
 	assert.NoError(t, err)
 	//  since there is no mock data, all the fields are expected to be empty
@@ -1924,7 +1935,7 @@ func TestFetchRedundantIndexes(t *testing.T) {
 			mock.ExpectQuery(expectedQuery).WillReturnRows(rows)
 
 			// Execute the function
-			result, err := fetchRedundantIndexes(db)
+			result, err := getSourceMetadataRedundantIndexes(db, GetTableRedundantIndexesName())
 
 			// Assert results
 			if tt.expectError {
@@ -1950,7 +1961,7 @@ func TestFetchRedundantIndexesQueryError(t *testing.T) {
 	mock.ExpectQuery(expectedQuery).WillReturnError(fmt.Errorf("database connection error"))
 
 	// Execute the function
-	result, err := fetchRedundantIndexes(db)
+	result, err := getSourceMetadataRedundantIndexes(db, GetTableRedundantIndexesName())
 
 	// Assert error
 	assert.Error(t, err)
@@ -2158,14 +2169,15 @@ func TestGetSourceMetadataWithRedundantIndexFiltering(t *testing.T) {
 	mock.ExpectClose()
 
 	// Execute the function
-	tables, indexes, totalSize, err := getSourceMetadata(db)
+	tables, indexes, filteredIndexes, totalSize, err := getSourceMetadata(db)
 
 	// Assert results
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(tables))
-	assert.Equal(t, 1, len(indexes)) // Only idx2 should remain, idx1 should be filtered
+	assert.Equal(t, 2, len(indexes))         // Original indexes should remain unfiltered
+	assert.Equal(t, 1, len(filteredIndexes)) // Only idx2 should remain, idx1 should be filtered
 	assert.Equal(t, "table1", tables[0].ObjectName)
-	assert.Equal(t, "idx2", indexes[0].ObjectName)
+	assert.Equal(t, "idx2", filteredIndexes[0].ObjectName)
 	assert.Greater(t, totalSize, 0.0)
 
 	// Assert all expectations were met
@@ -2213,7 +2225,7 @@ func TestGetSourceMetadataWithRedundantIndexError(t *testing.T) {
 	mock.ExpectClose()
 
 	// Execute the function
-	tables, indexes, totalSize, err := getSourceMetadata(db)
+	tables, indexes, _, totalSize, err := getSourceMetadata(db)
 
 	// Assert results - should continue despite redundant index error
 	assert.NoError(t, err)
