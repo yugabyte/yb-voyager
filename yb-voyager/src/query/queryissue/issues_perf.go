@@ -18,7 +18,6 @@ package queryissue
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/samber/lo"
 
@@ -247,11 +246,10 @@ var missingPrimaryKeyWhenUniqueNotNullIssue = issue.Issue{
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-primary-key-when-unique-not-null",
 }
 
-func NewMissingPrimaryKeyWhenUniqueNotNullIssue(objectType string, objectName string, columns []string) QueryIssue {
+func NewMissingPrimaryKeyWhenUniqueNotNullIssue(objectType string, objectName string, options [][]string) QueryIssue {
 	issue := missingPrimaryKeyWhenUniqueNotNullIssue
 	details := map[string]interface{}{
-		"ColumnNames":  strings.Join(columns, ", "),
-		"SuggestedDDL": fmt.Sprintf("ALTER TABLE %s ADD PRIMARY KEY (%s)", objectName, strings.Join(columns, ", ")),
+		"PrimaryKeyColumnOptions": options,
 	}
 	return newQueryIssue(issue, objectType, objectName, "", details)
 }

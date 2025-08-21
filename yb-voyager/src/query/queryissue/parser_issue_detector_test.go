@@ -20,6 +20,7 @@ package queryissue
 import (
 	"fmt"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -2342,179 +2343,156 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 	})
 }
 
-func TestPrimaryKeyRecommendations(t *testing.T) {
-	// Case 1: Simple UNIQUE(a) with a NOT NULL, no PK
-	t.Run("PKREC: Simple UNIQUE(a) with a NOT NULL, no PK", func(t *testing.T) {
-		detector := NewParserIssueDetector()
-		stmt := `CREATE TABLE t1 (
-		    a int NOT NULL,
-		    b text,
-		    UNIQUE(a)
-		);`
-		err := detector.ParseAndProcessDDL(stmt)
-		assert.NoError(t, err)
-		detector.FinalizeColumnMetadata()
+// ====== Primary Key Recommendation Testing - Checks for missing PK when UNIQUE and NOT NULL columns are available ======
 
-		recs := detector.DetectPrimaryKeyRecommendations()
-		expected := NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "t1", []string{"a"})
-		assert.Equal(t, 1, len(recs))
-		assert.True(t, cmp.Equal(expected, recs[0]), "Expected recommendation not found:\nExpected: %v\nActual:   %v", expected, recs[0])
-	})
-
-	// Case 2: Composite UNIQUE(a,b) both NOT NULL
-	t.Run("PKREC: Composite UNIQUE(a,b) both NOT NULL", func(t *testing.T) {
-		detector := NewParserIssueDetector()
-		stmt := `CREATE TABLE t2 (
-		    a int NOT NULL,
-		    b text NOT NULL,
-		    c text,
-		    UNIQUE(a,b)
-		);`
-		err := detector.ParseAndProcessDDL(stmt)
-		assert.NoError(t, err)
-		detector.FinalizeColumnMetadata()
-
-		recs := detector.DetectPrimaryKeyRecommendations()
-		expected := NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "t2", []string{"a", "b"})
-		assert.Equal(t, 1, len(recs))
-		assert.True(t, cmp.Equal(expected, recs[0]), "Expected recommendation not found:\nExpected: %v\nActual:   %v", expected, recs[0])
-	})
-
-	// Case 3: Multiple ALTER SET NOT NULL then UNIQUE(a,b)
-	t.Run("PKREC: Multiple ALTER SET NOT NULL then UNIQUE(a,b)", func(t *testing.T) {
-		detector := NewParserIssueDetector()
-		create := `CREATE TABLE t3 (a int, b int);`
-		alter1 := `ALTER TABLE t3 ALTER COLUMN a SET NOT NULL, ALTER COLUMN b SET NOT NULL;`
-		alter2 := `ALTER TABLE t3 ADD CONSTRAINT uq_t3 UNIQUE (a,b);`
-
-		for _, stmt := range []string{create, alter1, alter2} {
-			err := detector.ParseAndProcessDDL(stmt)
-			assert.NoError(t, err)
+func runPKRec(t *testing.T, name string, ddls []string, expected []QueryIssue) {
+	// Helper function to build parser issue detector from DDL statements
+	pkrecBuild := func(ddls ...string) *ParserIssueDetector {
+		d := NewParserIssueDetector()
+		for _, s := range ddls {
+			if s == "" {
+				continue
+			}
+			_ = d.ParseAndProcessDDL(s)
 		}
-		detector.FinalizeColumnMetadata()
+		d.FinalizeColumnMetadata()
+		return d
+	}
 
-		recs := detector.DetectPrimaryKeyRecommendations()
-		expected := NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "t3", []string{"a", "b"})
-		assert.Equal(t, 1, len(recs))
-		assert.True(t, cmp.Equal(expected, recs[0]), "Expected recommendation not found:\nExpected: %v\nActual:   %v", expected, recs[0])
-	})
-
-	// Case 4: DROP NOT NULL cancels composite UNIQUE(a,b)
-	t.Run("PKREC: DROP NOT NULL cancels composite UNIQUE(a,b)", func(t *testing.T) {
-		detector := NewParserIssueDetector()
-		create := `CREATE TABLE t4 (a int, b int);`
-		alter1 := `ALTER TABLE t4 ALTER COLUMN a SET NOT NULL, ALTER COLUMN b SET NOT NULL;`
-		alter2 := `ALTER TABLE t4 ALTER COLUMN b DROP NOT NULL;`
-		alter3 := `ALTER TABLE t4 ADD CONSTRAINT uq_t4 UNIQUE (a,b);`
-
-		for _, stmt := range []string{create, alter1, alter2, alter3} {
-			err := detector.ParseAndProcessDDL(stmt)
-			assert.NoError(t, err)
+	// Helper function to create a key for sorting QueryIssues
+	pkrecKey := func(q QueryIssue) string {
+		opt, _ := q.Details["PrimaryKeyColumnOptions"].([][]string)
+		// Sort the column options to ensure consistent ordering
+		sortedOpt := make([][]string, len(opt))
+		copy(sortedOpt, opt)
+		slices.SortFunc(sortedOpt, func(a, b []string) int {
+			if len(a) != len(b) {
+				return len(a) - len(b)
+			}
+			return strings.Compare(strings.Join(a, ","), strings.Join(b, ","))
+		})
+		// Create a string representation for the key
+		keyParts := make([]string, len(sortedOpt))
+		for i, cols := range sortedOpt {
+			keyParts[i] = strings.Join(cols, ",")
 		}
-		detector.FinalizeColumnMetadata()
+		joined := strings.Join(keyParts, "|")
+		return q.ObjectName + "|" + joined
+	}
 
-		recs := detector.DetectPrimaryKeyRecommendations()
-		assert.Equal(t, 0, len(recs))
-	})
-
-	// Case 5: No recommendation if table already has PK
-	t.Run("PKREC: No recommendation if PK exists", func(t *testing.T) {
-		detector := NewParserIssueDetector()
-		stmt := `CREATE TABLE t5 (
-		    a int NOT NULL,
-		    UNIQUE(a),
-		    PRIMARY KEY(a)
-		);`
-		err := detector.ParseAndProcessDDL(stmt)
-		assert.NoError(t, err)
-		detector.FinalizeColumnMetadata()
-
-		recs := detector.DetectPrimaryKeyRecommendations()
-		assert.Equal(t, 0, len(recs))
-	})
-
-	// Case 6: Prefer smallest qualifying UNIQUE set
-	t.Run("PKREC: Prefer smallest qualifying UNIQUE set", func(t *testing.T) {
-		detector := NewParserIssueDetector()
-		stmt := `CREATE TABLE t6 (
-		    a int NOT NULL,
-		    b int NOT NULL,
-		    UNIQUE(a,b),
-		    UNIQUE(a)
-		);`
-		err := detector.ParseAndProcessDDL(stmt)
-		assert.NoError(t, err)
-		detector.FinalizeColumnMetadata()
-
-		recs := detector.DetectPrimaryKeyRecommendations()
-		expected := NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "t6", []string{"a"})
-		assert.Equal(t, 1, len(recs))
-		assert.True(t, cmp.Equal(expected, recs[0]), "Expected recommendation not found:\nExpected: %v\nActual:   %v", expected, recs[0])
-	})
-
-	// Case 7: UNIQUE with a nullable column should not recommend
-	t.Run("PKREC: UNIQUE with nullable column -> no recommendation", func(t *testing.T) {
-		detector := NewParserIssueDetector()
-		stmt := `CREATE TABLE t7 (
-		    a int NOT NULL,
-		    b int,
-		    UNIQUE(a,b)
-		);`
-		err := detector.ParseAndProcessDDL(stmt)
-		assert.NoError(t, err)
-		detector.FinalizeColumnMetadata()
-
-		recs := detector.DetectPrimaryKeyRecommendations()
-		assert.Equal(t, 0, len(recs))
-	})
-
-	// Case 8: Partitioned table skipped
-	t.Run("PKREC: Partitioned table skipped", func(t *testing.T) {
-		detector := NewParserIssueDetector()
-		create := `CREATE TABLE public.p_root (
-		    a int NOT NULL,
-		    b int NOT NULL
-		) PARTITION BY RANGE (a);`
-		alter := `ALTER TABLE public.p_root ADD CONSTRAINT uq_root UNIQUE (a,b);`
-		for _, stmt := range []string{create, alter} {
-			err := detector.ParseAndProcessDDL(stmt)
-			assert.NoError(t, err)
+	// Helper function to sort QueryIssues for consistent comparison
+	pkrecSort := func(issues []QueryIssue) []QueryIssue {
+		out := append([]QueryIssue(nil), issues...)
+		// First, sort the PrimaryKeyColumnOptions within each QueryIssue for consistency
+		for i := range out {
+			if opt, ok := out[i].Details["PrimaryKeyColumnOptions"].([][]string); ok {
+				sortedOpt := make([][]string, len(opt))
+				copy(sortedOpt, opt)
+				slices.SortFunc(sortedOpt, func(a, b []string) int {
+					if len(a) != len(b) {
+						return len(a) - len(b)
+					}
+					return strings.Compare(strings.Join(a, ","), strings.Join(b, ","))
+				})
+				out[i].Details["PrimaryKeyColumnOptions"] = sortedOpt
+			}
 		}
-		detector.FinalizeColumnMetadata()
+		// Then sort the QueryIssues themselves
+		slices.SortFunc(out, func(a, b QueryIssue) int { return strings.Compare(pkrecKey(a), pkrecKey(b)) })
+		return out
+	}
 
-		recs := detector.DetectPrimaryKeyRecommendations()
-		assert.Equal(t, 0, len(recs))
-	})
-
-	// Case 9: Inheritance skipped
-	t.Run("PKREC: Inheritance skipped", func(t *testing.T) {
-		detector := NewParserIssueDetector()
-		parent := `CREATE TABLE parent_i (a int, b int);`
-		child := `CREATE TABLE child_i (a int, b int) INHERITS (parent_i);`
-		alter1 := `ALTER TABLE child_i ALTER COLUMN a SET NOT NULL, ALTER COLUMN b SET NOT NULL;`
-		alter2 := `ALTER TABLE child_i ADD CONSTRAINT uq_child UNIQUE (a,b);`
-		for _, stmt := range []string{parent, child, alter1, alter2} {
-			err := detector.ParseAndProcessDDL(stmt)
-			assert.NoError(t, err)
+	// Helper function to create a string representation of QueryIssues for debugging
+	pkrecString := func(list []QueryIssue) string {
+		parts := make([]string, 0, len(list))
+		for _, q := range pkrecSort(list) {
+			opt, _ := q.Details["PrimaryKeyColumnOptions"].([][]string)
+			optionStrings := make([]string, len(opt))
+			for i, cols := range opt {
+				optionStrings[i] = strings.Join(cols, ", ")
+			}
+			parts = append(parts, fmt.Sprintf("%s [%s]", q.ObjectName, strings.Join(optionStrings, "; ")))
 		}
-		detector.FinalizeColumnMetadata()
+		return fmt.Sprintf("[%s]", strings.Join(parts, ", "))
+	}
 
-		recs := detector.DetectPrimaryKeyRecommendations()
-		assert.Equal(t, 0, len(recs))
-	})
+	z := func(v any) string { return fmt.Sprintf("%#v", v) }
+	t.Helper()
+	t.Run(name, func(t *testing.T) {
+		d := pkrecBuild(ddls...)
+		got := d.DetectPrimaryKeyRecommendations()
+		gotS := pkrecSort(got)
+		expS := pkrecSort(expected)
 
-	// Case 10: UNIQUE exists, then PK added later -> no recommendation
-	t.Run("PKREC: UNIQUE then PK -> no recommendation", func(t *testing.T) {
-		detector := NewParserIssueDetector()
-		create := `CREATE TABLE t8 (a int NOT NULL, b int NOT NULL, UNIQUE(a,b));`
-		addpk := `ALTER TABLE t8 ADD PRIMARY KEY (a,b);`
-		for _, stmt := range []string{create, addpk} {
-			err := detector.ParseAndProcessDDL(stmt)
-			assert.NoError(t, err)
+		// Print test name and recommendations for debugging
+		fmt.Printf("\n=== Test: %s ===\n", name)
+		if len(gotS) == 0 {
+			fmt.Printf("No recommendations\n")
+		} else {
+			for i, rec := range gotS {
+				fmt.Printf("Recommendation %d: %+v\n", i+1, rec)
+			}
 		}
-		detector.FinalizeColumnMetadata()
 
-		recs := detector.DetectPrimaryKeyRecommendations()
-		assert.Equal(t, 0, len(recs))
+		if diff := cmp.Diff(expS, gotS); diff != "" {
+			t.Fatalf("PK recommendations mismatch (-want +got):\n%s\nExpected (objects): %s\nActual   (objects): %s\nExpected (pretty):  %s\nActual   (pretty):  %s", diff, z(expS), z(gotS), pkrecString(expS), pkrecString(gotS))
+		}
 	})
+}
+
+func TestPKRec_CommonRunner(t *testing.T) {
+	cases := []struct {
+		name     string
+		ddls     []string
+		expected []QueryIssue
+	}{
+		{
+			name:     "PKREC: Simple UNIQUE(a) with a NOT NULL, no PK",
+			ddls:     []string{`CREATE TABLE t1 (a int NOT NULL, b text, UNIQUE(a));`},
+			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "t1", [][]string{{"a"}})},
+		},
+		{
+			name:     "PKREC: Composite UNIQUE(a,b) both NOT NULL",
+			ddls:     []string{`CREATE TABLE t2 (a int NOT NULL, b text NOT NULL, c text, UNIQUE(a,b));`},
+			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "t2", [][]string{{"a", "b"}})},
+		},
+		{
+			name: "PKREC: Multiple ALTER SET NOT NULL then UNIQUE(a,b)",
+			ddls: []string{
+				`CREATE TABLE t3 (a int, b int);`,
+				`ALTER TABLE t3 ALTER COLUMN a SET NOT NULL, ALTER COLUMN b SET NOT NULL;`,
+				`ALTER TABLE t3 ADD CONSTRAINT uq_t3 UNIQUE (a,b);`,
+			},
+			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "t3", [][]string{{"a", "b"}})},
+		},
+		{
+			name: "PKREC: DROP NOT NULL cancels composite UNIQUE(a,b)",
+			ddls: []string{
+				`CREATE TABLE t4 (a int, b int);`,
+				`ALTER TABLE t4 ALTER COLUMN a SET NOT NULL, ALTER COLUMN b SET NOT NULL;`,
+				`ALTER TABLE t4 ALTER COLUMN b DROP NOT NULL;`,
+				`ALTER TABLE t4 ADD CONSTRAINT uq_t4 UNIQUE (a,b);`,
+			},
+			expected: nil,
+		},
+		{
+			name:     "PKREC: No recommendation if PK exists",
+			ddls:     []string{`CREATE TABLE t5 (a int NOT NULL, UNIQUE(a), PRIMARY KEY(a));`},
+			expected: nil,
+		},
+		{
+			name:     "PKREC: Aggregate all qualifying UNIQUE sets",
+			ddls:     []string{`CREATE TABLE t6 (a int NOT NULL, b int NOT NULL, UNIQUE(a,b), UNIQUE(a));`},
+			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "t6", [][]string{{"a"}, {"a", "b"}})},
+		},
+		{
+			name:     "PKREC: UNIQUE with nullable column -> no recommendation",
+			ddls:     []string{`CREATE TABLE t7 (a int NOT NULL, b int, UNIQUE(a,b));`},
+			expected: nil,
+		},
+	}
+
+	for _, tc := range cases {
+		runPKRec(t, tc.name, tc.ddls, tc.expected)
+	}
 }

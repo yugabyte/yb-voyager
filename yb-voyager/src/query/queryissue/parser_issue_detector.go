@@ -921,8 +921,9 @@ func (p *ParserIssueDetector) DetectPrimaryKeyRecommendations() []QueryIssue {
 			continue // PK already present
 		}
 		notNulls := p.tableNotNullColumns[table]
-		// Find the smallest qualifying UNIQUE column set
-		var best []string
+
+		// Collect all qualifying UNIQUE column sets
+		var options [][]string
 		for _, cols := range uLists {
 			allNN := true
 			for _, c := range cols {
@@ -934,13 +935,10 @@ func (p *ParserIssueDetector) DetectPrimaryKeyRecommendations() []QueryIssue {
 			if !allNN {
 				continue
 			}
-			if len(best) == 0 || len(cols) < len(best) {
-				best = cols
-			}
+			options = append(options, cols)
 		}
-		if len(best) > 0 {
-			// Create recommendation
-			issues = append(issues, NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", table, best))
+		if len(options) > 0 {
+			issues = append(issues, NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", table, options))
 		}
 	}
 	return issues
