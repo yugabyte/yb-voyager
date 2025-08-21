@@ -111,9 +111,9 @@ func TestCallhomeStructs(t *testing.T) {
 			name:       "Validate SizingCallhome Struct Definition",
 			actualType: reflect.TypeOf(SizingCallhome{}),
 			expectedType: struct {
-				NumColocatedTables              int     `json:"num_colocated_tables"`
-				ColocatedReasoning              string  `json:"colocated_reasoning"`
-				NumShardedTables                int     `json:"num_sharded_tables"`
+				ColocatedTables                 []string `json:"colocated_tables"`
+				ColocatedReasoning              string   `json:"colocated_reasoning"`
+				ShardedTables                   []string `json:"sharded_tables"`
 				NumNodes                        float64 `json:"num_nodes"`
 				VCPUsPerInstance                int     `json:"vcpus_per_instance"`
 				MemoryPerInstance               int     `json:"memory_per_instance"`
