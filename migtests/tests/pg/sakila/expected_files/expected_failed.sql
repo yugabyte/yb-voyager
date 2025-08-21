@@ -80,73 +80,73 @@ ALTER TABLE ONLY public.payment_p2007_06 ALTER COLUMN payment_id SET DEFAULT nex
 ERROR: relation "public.payment_p2007_01" does not exist (SQLSTATE 42P01)
 File :/home/centos/yb-voyager/migtests/tests/pg/sakila/export-dir/schema/tables/INDEXES_table.sql
 */
-CREATE INDEX idx_fk_payment_p2007_01_customer_id ON public.payment_p2007_01 USING btree (customer_id);
+CREATE INDEX idx_fk_payment_p2007_01_customer_id ON public.payment_p2007_01 USING btree (customer_id ASC);
 
 /*
 ERROR: relation "public.payment_p2007_01" does not exist (SQLSTATE 42P01)
 File :/home/centos/yb-voyager/migtests/tests/pg/sakila/export-dir/schema/tables/INDEXES_table.sql
 */
-CREATE INDEX idx_fk_payment_p2007_01_staff_id ON public.payment_p2007_01 USING btree (staff_id);
+CREATE INDEX idx_fk_payment_p2007_01_staff_id ON public.payment_p2007_01 USING btree (staff_id ASC);
 
 /*
 ERROR: relation "public.payment_p2007_02" does not exist (SQLSTATE 42P01)
 File :/home/centos/yb-voyager/migtests/tests/pg/sakila/export-dir/schema/tables/INDEXES_table.sql
 */
-CREATE INDEX idx_fk_payment_p2007_02_customer_id ON public.payment_p2007_02 USING btree (customer_id);
+CREATE INDEX idx_fk_payment_p2007_02_customer_id ON public.payment_p2007_02 USING btree (customer_id ASC);
 
 /*
 ERROR: relation "public.payment_p2007_02" does not exist (SQLSTATE 42P01)
 File :/home/centos/yb-voyager/migtests/tests/pg/sakila/export-dir/schema/tables/INDEXES_table.sql
 */
-CREATE INDEX idx_fk_payment_p2007_02_staff_id ON public.payment_p2007_02 USING btree (staff_id);
+CREATE INDEX idx_fk_payment_p2007_02_staff_id ON public.payment_p2007_02 USING btree (staff_id ASC);
 
 /*
 ERROR: relation "public.payment_p2007_03" does not exist (SQLSTATE 42P01)
 File :/home/centos/yb-voyager/migtests/tests/pg/sakila/export-dir/schema/tables/INDEXES_table.sql
 */
-CREATE INDEX idx_fk_payment_p2007_03_customer_id ON public.payment_p2007_03 USING btree (customer_id);
+CREATE INDEX idx_fk_payment_p2007_03_customer_id ON public.payment_p2007_03 USING btree (customer_id ASC);
 
 /*
 ERROR: relation "public.payment_p2007_03" does not exist (SQLSTATE 42P01)
 File :/home/centos/yb-voyager/migtests/tests/pg/sakila/export-dir/schema/tables/INDEXES_table.sql
 */
-CREATE INDEX idx_fk_payment_p2007_03_staff_id ON public.payment_p2007_03 USING btree (staff_id);
+CREATE INDEX idx_fk_payment_p2007_03_staff_id ON public.payment_p2007_03 USING btree (staff_id ASC);
 
 /*
 ERROR: relation "public.payment_p2007_04" does not exist (SQLSTATE 42P01)
 File :/home/centos/yb-voyager/migtests/tests/pg/sakila/export-dir/schema/tables/INDEXES_table.sql
 */
-CREATE INDEX idx_fk_payment_p2007_04_customer_id ON public.payment_p2007_04 USING btree (customer_id);
+CREATE INDEX idx_fk_payment_p2007_04_customer_id ON public.payment_p2007_04 USING btree (customer_id ASC);
 
 /*
 ERROR: relation "public.payment_p2007_04" does not exist (SQLSTATE 42P01)
 File :/home/centos/yb-voyager/migtests/tests/pg/sakila/export-dir/schema/tables/INDEXES_table.sql
 */
-CREATE INDEX idx_fk_payment_p2007_04_staff_id ON public.payment_p2007_04 USING btree (staff_id);
+CREATE INDEX idx_fk_payment_p2007_04_staff_id ON public.payment_p2007_04 USING btree (staff_id ASC);
 
 /*
 ERROR: relation "public.payment_p2007_05" does not exist (SQLSTATE 42P01)
 File :/home/centos/yb-voyager/migtests/tests/pg/sakila/export-dir/schema/tables/INDEXES_table.sql
 */
-CREATE INDEX idx_fk_payment_p2007_05_customer_id ON public.payment_p2007_05 USING btree (customer_id);
+CREATE INDEX idx_fk_payment_p2007_05_customer_id ON public.payment_p2007_05 USING btree (customer_id ASC);
 
 /*
 ERROR: relation "public.payment_p2007_05" does not exist (SQLSTATE 42P01)
 File :/home/centos/yb-voyager/migtests/tests/pg/sakila/export-dir/schema/tables/INDEXES_table.sql
 */
-CREATE INDEX idx_fk_payment_p2007_05_staff_id ON public.payment_p2007_05 USING btree (staff_id);
+CREATE INDEX idx_fk_payment_p2007_05_staff_id ON public.payment_p2007_05 USING btree (staff_id ASC);
 
 /*
 ERROR: relation "public.payment_p2007_06" does not exist (SQLSTATE 42P01)
 File :/home/centos/yb-voyager/migtests/tests/pg/sakila/export-dir/schema/tables/INDEXES_table.sql
 */
-CREATE INDEX idx_fk_payment_p2007_06_customer_id ON public.payment_p2007_06 USING btree (customer_id);
+CREATE INDEX idx_fk_payment_p2007_06_customer_id ON public.payment_p2007_06 USING btree (customer_id ASC);
 
 /*
 ERROR: relation "public.payment_p2007_06" does not exist (SQLSTATE 42P01)
 File :/home/centos/yb-voyager/migtests/tests/pg/sakila/export-dir/schema/tables/INDEXES_table.sql
 */
-CREATE INDEX idx_fk_payment_p2007_06_staff_id ON public.payment_p2007_06 USING btree (staff_id);
+CREATE INDEX idx_fk_payment_p2007_06_staff_id ON public.payment_p2007_06 USING btree (staff_id ASC);
 
 /*
 ERROR: relation "public.payment_p2007_01" does not exist (SQLSTATE 42P01)

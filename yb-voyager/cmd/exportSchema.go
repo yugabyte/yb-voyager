@@ -203,7 +203,6 @@ func exportSchema(cmd *cobra.Command) error {
 	if err != nil {
 		return fmt.Errorf("failed to apply index file transformations: %w", err)
 	}
-
 	err = generatePerformanceOptimizationReport(indexTransformer, modifiedTables, modifiedMviews, colocatedTables, colocatedMviews)
 	if err != nil {
 		return fmt.Errorf("failed to generate performance optimization %w", err)
@@ -321,13 +320,18 @@ func packAndSendExportSchemaPayload(status string, errorMsg error) {
 	schemaOptimizationChanges := buildCallhomeSchemaOptimizationChanges()
 
 	payload.SourceDBDetails = callhome.MarshalledJsonString(sourceDBDetails)
+	assessRunInExportSchema, err := IsMigrationAssessmentDoneViaExportSchema()
+	if err != nil {
+		log.Infof("callhome: failed to get migration assessment done via export schema: %v", err)
+	}
 	exportSchemaPayload := callhome.ExportSchemaPhasePayload{
 		StartClean:                bool(startClean),
 		AppliedRecommendations:    assessmentRecommendationsApplied,
 		UseOrafce:                 bool(source.UseOrafce),
 		CommentsOnObjects:         bool(source.CommentsOnObjects),
-		Error:                     callhome.SanitizeErrorMsg(errorMsg),
+		Error:                     callhome.SanitizeErrorMsg(errorMsg, anonymizer),
 		SkipRecommendations:       bool(skipRecommendations),
+		AssessRunInExportSchema:   assessRunInExportSchema,
 		SkipPerfOptimizations:     bool(skipPerfOptimizations),
 		ControlPlaneType:          getControlPlaneType(),
 		SchemaOptimizationChanges: schemaOptimizationChanges,
@@ -335,7 +339,7 @@ func packAndSendExportSchemaPayload(status string, errorMsg error) {
 
 	payload.PhasePayload = callhome.MarshalledJsonString(exportSchemaPayload)
 
-	err := callhome.SendPayload(&payload)
+	err = callhome.SendPayload(&payload)
 	if err == nil && (status == COMPLETE || status == ERROR) {
 		callHomeErrorOrCompletePayloadSent = true
 	}

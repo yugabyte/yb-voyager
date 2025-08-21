@@ -141,7 +141,7 @@ func packAndSendImportDataToSrcReplicaPayload(status string, errorMsg error) {
 		ParallelJobs:     int64(tconf.Parallelism),
 		StartClean:       bool(startClean),
 		LiveWorkflowType: FALL_FORWARD,
-		Error:            callhome.SanitizeErrorMsg(errorMsg),
+		Error:            callhome.SanitizeErrorMsg(errorMsg, anonymizer),
 		ControlPlaneType: getControlPlaneType(),
 		DataMetrics:      dataMetrics,
 		Phase:            importPhase,
