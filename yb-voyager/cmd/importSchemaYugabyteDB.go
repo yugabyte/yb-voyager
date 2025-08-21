@@ -129,7 +129,9 @@ func filterSessionVariables(sqlInfoArr []sqlInfo) ([]sqlInfo, []sqlInfo) {
 			// pg_dump generate `SET client_min_messages = 'warning';`, but we want to get
 			// NOTICE severity as well (which is the default), hence skipping this.
 			//pg_dump 17 gives this SET transaction_timeout = 0;
-			if strings.Contains(upperStmt, CLIENT_MESSAGES_SESSION_VAR) || strings.Contains(upperStmt, TRANSACTION_TIMEOUT_SESSION_VAR) {
+			if strings.HasPrefix(upperStmt, "SELECT ") ||
+				strings.Contains(upperStmt, CLIENT_MESSAGES_SESSION_VAR) ||
+				strings.Contains(upperStmt, TRANSACTION_TIMEOUT_SESSION_VAR) {
 				//skip these session variables
 				log.Infof("Skipping session variable: %s", sqlInfo.stmt)
 				continue
