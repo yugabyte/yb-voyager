@@ -122,9 +122,9 @@ func packAndSendAssessMigrationPayload(status string, errMsg error) {
 	if assessmentReport.Sizing != nil {
 		sizingRecommedation := &assessmentReport.Sizing.SizingRecommendation
 		callhomeSizingAssessment = callhome.SizingCallhome{
-			NumColocatedTables:              len(sizingRecommedation.ColocatedTables),
+			ColocatedTables:                 anonymizeQualifiedTableNames(sizingRecommedation.ColocatedTables),
 			ColocatedReasoning:              sizingRecommedation.ColocatedReasoning,
-			NumShardedTables:                len(sizingRecommedation.ShardedTables),
+			ShardedTables:                   anonymizeQualifiedTableNames(sizingRecommedation.ShardedTables),
 			NumNodes:                        sizingRecommedation.NumNodes,
 			VCPUsPerInstance:                sizingRecommedation.VCPUsPerInstance,
 			MemoryPerInstance:               sizingRecommedation.MemoryPerInstance,
@@ -156,6 +156,17 @@ func packAndSendAssessMigrationPayload(status string, errMsg error) {
 	if err == nil && (status == COMPLETE || status == ERROR) {
 		callHomeErrorOrCompletePayloadSent = true
 	}
+}
+
+func anonymizeQualifiedTableNames(tableNames []string) []string {
+	return lo.Map(tableNames, func(tableName string, _ int) string {
+		anonymizedName, err := anonymizer.AnonymizeQualifiedTableName(tableName)
+		if err != nil {
+			log.Warnf("failed to anonymize table name %s: %v", tableName, err)
+			return constants.OBFUSCATE_STRING
+		}
+		return anonymizedName
+	})
 }
 
 // ============================assess migration callhome payload information============================
