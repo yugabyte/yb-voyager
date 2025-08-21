@@ -34,6 +34,7 @@ import (
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/anon"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryissue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -446,30 +447,40 @@ func SendPayload(payload *Payload) error {
 // We want to ensure that no user-specific information is sent to the call-home service.
 // Therefore, we only send the segment of the error message before the first ":" as that is the generic error message.
 // Accepts error type, returns empty string if error is nil.
-func SanitizeErrorMsg(err error) string {
+func SanitizeErrorMsg(err error, anonymizer *anon.VoyagerAnonymizer) string {
 	if err == nil {
 		return ""
 	}
 	errorMsg := strings.Split(err.Error(), ":")[0]
-	additionalContext := getSpecificNonSensitiveContextForError(err)
+	additionalContext := getSpecificNonSensitiveContextForError(err, anonymizer)
 	if additionalContext != nil {
 		errorMsg = fmt.Sprintf("%s: %s", errorMsg, MarshalledJsonString(additionalContext))
 	}
 	return errorMsg
 }
 
-func getSpecificNonSensitiveContextForError(err error) map[string]string {
+func getSpecificNonSensitiveContextForError(err error, anonymizer *anon.VoyagerAnonymizer) map[string]string {
 	if err == nil {
 		return nil
 	}
 	context := make(map[string]string)
 
+	addImportBatchErrorContext(err, context)
+	addPostgreSQLErrorContext(err, context)
+	addExecuteDDLErrorContext(err, anonymizer, context)
+
+	return context
+}
+
+func addImportBatchErrorContext(err error, context map[string]string) {
 	var ibe errs.ImportBatchError
 	if errors.As(err, &ibe) {
 		context["step"] = ibe.Step()
 		context["flow"] = ibe.Flow()
 	}
+}
 
+func addPostgreSQLErrorContext(err error, context map[string]string) {
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) {
 		// If the error is a pgconn.PgError, we can return a more
@@ -483,6 +494,23 @@ func getSpecificNonSensitiveContextForError(err error) map[string]string {
 		// a more specific error message that includes the SQLSTATE code
 		context["pg_error_code"] = pgErrV5.Code
 	}
+}
 
-	return context
+func addExecuteDDLErrorContext(err error, anonymizer *anon.VoyagerAnonymizer, context map[string]string) {
+	var executeDDLErr errs.ExecuteDDLError
+	if !errors.As(err, &executeDDLErr) {
+		return
+	}
+
+	if anonymizer == nil {
+		return
+	}
+
+	erroredDDL := executeDDLErr.DDL()
+	anonymizedDDL, aerr := anonymizer.AnonymizeSql(erroredDDL)
+	if aerr != nil {
+		anonymizedDDL = "XXX"
+		log.Infof("callhome: error anonymizing ddl %q: %v", erroredDDL, aerr)
+	}
+	context["ddl"] = anonymizedDDL
 }

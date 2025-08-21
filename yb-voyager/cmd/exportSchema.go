@@ -325,7 +325,7 @@ func packAndSendExportSchemaPayload(status string, errorMsg error) {
 		AppliedRecommendations:    assessmentRecommendationsApplied,
 		UseOrafce:                 bool(source.UseOrafce),
 		CommentsOnObjects:         bool(source.CommentsOnObjects),
-		Error:                     callhome.SanitizeErrorMsg(errorMsg),
+		Error:                     callhome.SanitizeErrorMsg(errorMsg, anonymizer),
 		SkipRecommendations:       bool(skipRecommendations),
 		SkipPerfOptimizations:     bool(skipPerfOptimizations),
 		ControlPlaneType:          getControlPlaneType(),
