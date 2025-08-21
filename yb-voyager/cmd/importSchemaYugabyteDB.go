@@ -19,6 +19,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -37,7 +38,13 @@ import (
 
 const CONTINUE_ON_ERROR_IGNORE_EXIST_MSG = "If you wish to ignore the errors and continue, use the '--continue-on-error true' flag. If you wish to ignore 'already exists' errors, use the '--ignore-exist true' flag."
 
-var deferredSqlStmts []sqlInfo
+var deferredSqlStmts []DefferedSqlStmt
+
+type DefferedSqlStmt struct {
+	sqlStmt          sqlInfo
+	sessionVariables []sqlInfo // session variables to be set before executing the file of this sqlStmt
+}
+
 var finalFailedSqlStmts []string
 
 // The client message (NOTICE/WARNING) from psql is stored in this global variable.
@@ -111,25 +118,50 @@ func isNotValidConstraint(stmt string) (bool, error) {
 	return false, nil
 }
 
+func filterSessionVariables(sqlInfoArr []sqlInfo) ([]sqlInfo, []sqlInfo) {
+	var sessionVariablesSqlInfo []sqlInfo
+	var filteredSqlInfoArr []sqlInfo
+	for _, sqlInfo := range sqlInfoArr {
+		upperStmt := strings.ToUpper(sqlInfo.stmt)
+		if strings.HasPrefix(upperStmt, "SET ") ||
+			strings.HasPrefix(upperStmt, "SELECT ") {
+			// TODO: should we filter these out at the time of export schema
+			// pg_dump generate `SET client_min_messages = 'warning';`, but we want to get
+			// NOTICE severity as well (which is the default), hence skipping this.
+			//pg_dump 17 gives this SET transaction_timeout = 0;
+			if strings.Contains(upperStmt, CLIENT_MESSAGES_SESSION_VAR) || strings.Contains(upperStmt, TRANSACTION_TIMEOUT_SESSION_VAR) {
+				//skip these session variables
+				log.Infof("Skipping session variable: %s", sqlInfo.stmt)
+				continue
+			}
+			sessionVariablesSqlInfo = append(sessionVariablesSqlInfo, sqlInfo)
+		} else {
+			//rest are DDLs
+			filteredSqlInfoArr = append(filteredSqlInfoArr, sqlInfo)
+		}
+	}
+	return sessionVariablesSqlInfo, filteredSqlInfoArr
+}
+
 func executeSqlFile(file string, objType string, skipFn func(string, string) bool) error {
 	log.Infof("Execute SQL file %q on target %q", file, tconf.Host)
-	conn := newTargetConn()
+
+	sqlInfoArr := parseSqlFileForObjectType(file, objType)
+	sessionVariablesSqlInfo, filteredSqlInfoArr := filterSessionVariables(sqlInfoArr)
+
+	conn := newTargetConn(sessionVariablesSqlInfo)
 
 	defer func() {
 		if conn != nil {
 			conn.Close(context.Background())
 		}
 	}()
-
-	sqlInfoArr := parseSqlFileForObjectType(file, objType)
-	for _, sqlInfo := range sqlInfoArr {
+	for _, sqlInfo := range filteredSqlInfoArr {
 		if conn == nil {
-			conn = newTargetConn()
+			conn = newTargetConn(sessionVariablesSqlInfo)
 		}
 
-		setOrSelectStmt := strings.HasPrefix(strings.ToUpper(sqlInfo.stmt), "SET ") ||
-			strings.HasPrefix(strings.ToUpper(sqlInfo.stmt), "SELECT ")
-		if !setOrSelectStmt && skipFn != nil && skipFn(objType, sqlInfo.stmt) {
+		if skipFn != nil && skipFn(objType, sqlInfo.stmt) {
 			continue
 		}
 		// Check if the statement should be skipped
@@ -142,7 +174,7 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 			continue
 		}
 
-		err = executeSqlStmtWithRetries(&conn, sqlInfo, objType)
+		err = executeSqlStmtWithRetries(&conn, sqlInfo, objType, sessionVariablesSqlInfo)
 		if err != nil {
 			return err
 		}
@@ -153,13 +185,6 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 func shouldSkipDDL(stmt string, objType string) (bool, error) {
 	stmt = strings.ToUpper(stmt)
 
-	// TODO: should we filter these out at the time of export schema
-	// pg_dump generate `SET client_min_messages = 'warning';`, but we want to get
-	// NOTICE severity as well (which is the default), hence skipping this.
-	//pg_dump 17 gives this SET transaction_timeout = 0;
-	if strings.Contains(stmt, CLIENT_MESSAGES_SESSION_VAR) || strings.Contains(stmt, TRANSACTION_TIMEOUT_SESSION_VAR) {
-		return true, nil
-	}
 	if objType != TABLE {
 		return false, nil
 	}
@@ -181,7 +206,7 @@ func shouldSkipDDL(stmt string, objType string) (bool, error) {
 	return false, nil
 }
 
-func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string) error {
+func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string, sessionVariablesSqlInfo []sqlInfo) error {
 	var err error
 	var stmtNotice *pgconn.Notice
 	log.Infof("On %s run query:\n%s\n", tconf.Host, sqlInfo.formattedStmt)
@@ -211,13 +236,13 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 		if strings.Contains(strings.ToLower(err.Error()), "conflicts with higher priority transaction") {
 			// creating fresh connection
 			(*conn).Close(context.Background())
-			*conn = newTargetConn()
+			*conn = newTargetConn(sessionVariablesSqlInfo)
 			continue
 		} else if strings.Contains(strings.ToLower(err.Error()), strings.ToLower(SCHEMA_VERSION_MISMATCH_ERR)) &&
 			(objType == "INDEX" || objType == "PARTITION_INDEX") { // retriable error
 			// creating fresh connection
 			(*conn).Close(context.Background())
-			*conn = newTargetConn()
+			*conn = newTargetConn(sessionVariablesSqlInfo)
 
 			// Extract the schema name and add to the index name
 			fullyQualifiedObjName, err := getIndexName(sqlInfo.stmt, sqlInfo.objName)
@@ -238,7 +263,10 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 			continue
 		} else if missingRequiredSchemaObject(err) {
 			log.Infof("deffering execution of SQL: %s", sqlInfo.formattedStmt)
-			deferredSqlStmts = append(deferredSqlStmts, sqlInfo)
+			deferredSqlStmts = append(deferredSqlStmts, DefferedSqlStmt{
+				sqlStmt:          sqlInfo,
+				sessionVariables: sessionVariablesSqlInfo,
+			})
 		} else if isAlreadyExists(err.Error()) {
 			// pg_dump generates `CREATE SCHEMA public;` in the schemas.sql. Because the `public`
 			// schema already exists on the target YB db, the create schema statement fails with
@@ -285,20 +313,34 @@ func importDeferredStatements() {
 
 	utils.PrintAndLog("\nExecuting the remaining SQL statements...\n\n")
 	maxIterations := len(deferredSqlStmts)
-	conn := newTargetConn()
-	defer func() { conn.Close(context.Background()) }()
+	sort.Slice(deferredSqlStmts, func(i, j int) bool {
+		return deferredSqlStmts[i].sqlStmt.fileName < deferredSqlStmts[j].sqlStmt.fileName
+	})
 
 	var err error
+	var conn *pgx.Conn
 	var finalFailedDeferredStmts []string
 	// max loop iterations to remove all errors
 	for i := 1; i <= maxIterations && len(deferredSqlStmts) > 0; i++ {
 		beforeDeferredSqlCount := len(deferredSqlStmts)
 		var failedSqlStmtInIthIteration []string
+		var lastFileProcessed string
 		for j := 0; j < len(deferredSqlStmts); j++ {
+			if deferredSqlStmts[j].sqlStmt.fileName != lastFileProcessed {
+				//If the file name is different, then we need to close the connection and create a new one
+				// close the connection
+				// create a new connection with the session variables for the new file
+				if conn != nil {
+					conn.Close(context.Background())
+				}
+				conn = newTargetConn(deferredSqlStmts[j].sessionVariables)
+				lastFileProcessed = deferredSqlStmts[j].sqlStmt.fileName
+			}
+
 			var stmtNotice *pgconn.Notice
-			stmtNotice, err = execStmtAndGetNotice(conn, deferredSqlStmts[j].formattedStmt)
+			stmtNotice, err = execStmtAndGetNotice(conn, deferredSqlStmts[j].sqlStmt.formattedStmt)
 			if err == nil {
-				utils.PrintAndLog("%s\n", utils.GetSqlStmtToPrint(deferredSqlStmts[j].stmt))
+				utils.PrintAndLog("%s\n", utils.GetSqlStmtToPrint(deferredSqlStmts[j].sqlStmt.stmt))
 				noticeMsg := getNoticeMessage(stmtNotice)
 				if noticeMsg != "" {
 					utils.PrintAndLog(color.YellowString("%s\n", noticeMsg))
@@ -307,14 +349,14 @@ func importDeferredStatements() {
 				deferredSqlStmts = append(deferredSqlStmts[:j], deferredSqlStmts[j+1:]...)
 				break
 			} else {
-				log.Infof("failed retry of deferred stmt: %s\n%v", utils.GetSqlStmtToPrint(deferredSqlStmts[j].stmt), err)
-				errString := fmt.Sprintf("/*\n%s\nFile :%s\n*/\n", err.Error(), deferredSqlStmts[j].fileName)
-				failedSqlStmtInIthIteration = append(failedSqlStmtInIthIteration, errString+deferredSqlStmts[j].formattedStmt)
+				log.Infof("failed retry of deferred stmt: %s\n%v", utils.GetSqlStmtToPrint(deferredSqlStmts[j].sqlStmt.stmt), err)
+				errString := fmt.Sprintf("/*\n%s\nFile :%s\n*/\n", err.Error(), deferredSqlStmts[j].sqlStmt.fileName)
+				failedSqlStmtInIthIteration = append(failedSqlStmtInIthIteration, errString+deferredSqlStmts[j].sqlStmt.formattedStmt)
 				err = conn.Close(context.Background())
 				if err != nil {
 					log.Warnf("error while closing the connection due to failed deferred stmt: %v", err)
 				}
-				conn = newTargetConn()
+				conn = newTargetConn(deferredSqlStmts[j].sessionVariables)
 			}
 		}
 
@@ -437,7 +479,7 @@ func dropIdx(conn *pgx.Conn, idxName string) error {
 	return nil
 }
 
-func newTargetConn() *pgx.Conn {
+func newTargetConn(sessionVariablesSqlInfo []sqlInfo) *pgx.Conn {
 	// save notice in global variable
 	noticeHandler := func(conn *pgconn.PgConn, n *pgconn.Notice) {
 		// ALTER TABLE .. ADD PRIMARY KEY throws the following notice in YugabyteDB.
@@ -477,6 +519,14 @@ func newTargetConn() *pgx.Conn {
 
 	conn, err := pgx.ConnectConfig(context.Background(), conf)
 	errExit(err)
+
+	//set session variables on the connection
+	for _, sessionVariable := range sessionVariablesSqlInfo {
+		_, err := conn.Exec(context.Background(), sessionVariable.stmt)
+		if err != nil {
+			utils.ErrExit("run query: %q on target %q: %s", sessionVariable.stmt, tconf.Host, err)
+		}
+	}
 
 	setTargetSchema(conn)
 
