@@ -131,6 +131,7 @@ func packAndSendAssessMigrationPayload(status string, errMsg error) {
 			OptimalSelectConnectionsPerNode: sizingRecommedation.OptimalSelectConnectionsPerNode,
 			OptimalInsertConnectionsPerNode: sizingRecommedation.OptimalInsertConnectionsPerNode,
 			EstimatedTimeInMinForImport:     sizingRecommedation.EstimatedTimeInMinForImport,
+			EstimatedTimeInMinForImportWithoutRedundantIndexes: sizingRecommedation.EstimatedTimeInMinForImportWithoutRedundantIndexes,
 		}
 	}
 

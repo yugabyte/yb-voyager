@@ -63,15 +63,16 @@ func TestAssessmentReportStructs(t *testing.T) {
 			name:       "Validate SizingRecommendation Struct Definition",
 			actualType: reflect.TypeOf(migassessment.SizingRecommendation{}),
 			expectedType: struct {
-				ColocatedTables                 []string
-				ColocatedReasoning              string
-				ShardedTables                   []string
-				NumNodes                        float64
-				VCPUsPerInstance                int
-				MemoryPerInstance               int
-				OptimalSelectConnectionsPerNode int64
-				OptimalInsertConnectionsPerNode int64
-				EstimatedTimeInMinForImport     float64
+				ColocatedTables                                    []string
+				ColocatedReasoning                                 string
+				ShardedTables                                      []string
+				NumNodes                                           float64
+				VCPUsPerInstance                                   int
+				MemoryPerInstance                                  int
+				OptimalSelectConnectionsPerNode                    int64
+				OptimalInsertConnectionsPerNode                    int64
+				EstimatedTimeInMinForImport                        float64
+				EstimatedTimeInMinForImportWithoutRedundantIndexes float64
 			}{},
 		},
 		{

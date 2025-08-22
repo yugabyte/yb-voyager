@@ -1009,8 +1009,8 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithoutIndex_Colocat
 	}
 
 	// Call the function
-	estimatedTime, err := calculateTimeTakenForImport(colocatedTables,
-		sourceIndexMetadata, colocatedLoadTimes, indexImpacts, columnImpacts, COLOCATED, 1.0)
+	estimatedTimeWithAllIndexes, estimatedTimeWithoutRedundantIndexes, err := calculateTimeTakenForImport(colocatedTables,
+		sourceIndexMetadata, sourceIndexMetadata, colocatedLoadTimes, indexImpacts, columnImpacts, COLOCATED, 1.0)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -1018,8 +1018,11 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithoutIndex_Colocat
 	// Define expected results
 	// Calculated as table0: 1 * ((1134 * 23) / 19) / 60
 	expectedTime := 23.0
-	if estimatedTime != expectedTime {
-		t.Errorf("calculateTimeTakenForImport() = (%v), want (%v)", estimatedTime, expectedTime)
+	if estimatedTimeWithAllIndexes != expectedTime {
+		t.Errorf("calculateTimeTakenForImport() with all indexes = (%v), want (%v)", estimatedTimeWithAllIndexes, expectedTime)
+	}
+	if estimatedTimeWithoutRedundantIndexes != expectedTime {
+		t.Errorf("calculateTimeTakenForImport() without redundant indexes = (%v), want (%v)", estimatedTimeWithoutRedundantIndexes, expectedTime)
 	}
 
 }
@@ -1063,8 +1066,8 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithOneIndex_Colocat
 	}
 
 	// Call the function
-	estimatedTime, err := calculateTimeTakenForImport(colocatedTables,
-		sourceIndexMetadata, colocatedLoadTimes, indexImpacts, columnImpacts, COLOCATED, 1.0)
+	estimatedTimeWithAllIndexes, estimatedTimeWithoutRedundantIndexes, err := calculateTimeTakenForImport(colocatedTables,
+		sourceIndexMetadata, sourceIndexMetadata, colocatedLoadTimes, indexImpacts, columnImpacts, COLOCATED, 1.0)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -1072,8 +1075,11 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithOneIndex_Colocat
 	// Define expected results
 	// Calculated as table0: 1.77777 * ((1461 * 23) / 19) / 60
 	expectedTime := 53.0 // double the time required when there are no indexes.
-	if estimatedTime != expectedTime {
-		t.Errorf("calculateTimeTakenForImport() = (%v), want (%v)", estimatedTime, expectedTime)
+	if estimatedTimeWithAllIndexes != expectedTime {
+		t.Errorf("calculateTimeTakenForImport() with all indexes = (%v), want (%v)", estimatedTimeWithAllIndexes, expectedTime)
+	}
+	if estimatedTimeWithoutRedundantIndexes != expectedTime {
+		t.Errorf("calculateTimeTakenForImport() without redundant indexes = (%v), want (%v)", estimatedTimeWithoutRedundantIndexes, expectedTime)
 	}
 
 }
@@ -1117,8 +1123,8 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithFiveIndexes_Colo
 		},
 	}
 	// Call the function
-	estimatedTime, err := calculateTimeTakenForImport(colocatedTables,
-		sourceIndexMetadata, colocatedLoadTimes, indexImpacts, columnsImpact, COLOCATED, 1.0)
+	estimatedTimeWithAllIndexes, estimatedTimeWithoutRedundantIndexes, err := calculateTimeTakenForImport(colocatedTables,
+		sourceIndexMetadata, sourceIndexMetadata, colocatedLoadTimes, indexImpacts, columnsImpact, COLOCATED, 1.0)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -1126,8 +1132,11 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithFiveIndexes_Colo
 	// Define expected results
 	// Calculated as table0: 4.66666 * ((1461 * 23) / 19) / 60
 	expectedTime := 138.0
-	if estimatedTime != expectedTime {
-		t.Errorf("calculateTimeTakenForImport() = (%v), want (%v)", estimatedTime, expectedTime)
+	if estimatedTimeWithAllIndexes != expectedTime {
+		t.Errorf("calculateTimeTakenForImport() with all indexes = (%v), want (%v)", estimatedTimeWithAllIndexes, expectedTime)
+	}
+	if estimatedTimeWithoutRedundantIndexes != expectedTime {
+		t.Errorf("calculateTimeTakenForImport() without redundant indexes = (%v), want (%v)", estimatedTimeWithoutRedundantIndexes, expectedTime)
 	}
 
 }
@@ -1161,8 +1170,8 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithoutIndex_Sharded
 		},
 	}
 	// Call the function
-	estimatedTime, err := calculateTimeTakenForImport(shardedTables, sourceIndexMetadata,
-		shardedLoadTimes, indexImpacts, columnsImpact, SHARDED, 1.0)
+	estimatedTimeWithAllIndexes, estimatedTimeWithoutRedundantIndexes, err := calculateTimeTakenForImport(shardedTables, sourceIndexMetadata,
+		sourceIndexMetadata, shardedLoadTimes, indexImpacts, columnsImpact, SHARDED, 1.0)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -1170,8 +1179,11 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithoutIndex_Sharded
 	// Define expected results
 	// Calculated as table0: 1 * ((1134 * 23) / 19) / 60
 	expectedTime := 23.0
-	if estimatedTime != expectedTime {
-		t.Errorf("calculateTimeTakenForImport() = (%v), want (%v)", estimatedTime, expectedTime)
+	if estimatedTimeWithAllIndexes != expectedTime {
+		t.Errorf("calculateTimeTakenForImport() with all indexes = (%v), want (%v)", estimatedTimeWithAllIndexes, expectedTime)
+	}
+	if estimatedTimeWithoutRedundantIndexes != expectedTime {
+		t.Errorf("calculateTimeTakenForImport() without redundant indexes = (%v), want (%v)", estimatedTimeWithoutRedundantIndexes, expectedTime)
 	}
 
 }
@@ -1209,8 +1221,8 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithOneIndex_Sharded
 		},
 	}
 	// Call the function
-	estimatedTime, err :=
-		calculateTimeTakenForImport(shardedTables, sourceIndexMetadata, shardedLoadTimes,
+	estimatedTimeWithAllIndexes, estimatedTimeWithoutRedundantIndexes, err :=
+		calculateTimeTakenForImport(shardedTables, sourceIndexMetadata, sourceIndexMetadata, shardedLoadTimes,
 			indexImpacts, columnsImpact, SHARDED, 1.0)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
@@ -1220,8 +1232,11 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithOneIndex_Sharded
 	// Calculated as table0: 1.76 * ((1134 * 23) / 19) / 60
 	expectedTime := 41.0 // double the time required when there are no indexes.
 
-	if estimatedTime != expectedTime {
-		t.Errorf("calculateTimeTakenForImport() = (%v), want (%v)", estimatedTime, expectedTime)
+	if estimatedTimeWithAllIndexes != expectedTime {
+		t.Errorf("calculateTimeTakenForImport() with all indexes = (%v), want (%v)", estimatedTimeWithAllIndexes, expectedTime)
+	}
+	if estimatedTimeWithoutRedundantIndexes != expectedTime {
+		t.Errorf("calculateTimeTakenForImport() without redundant indexes = (%v), want (%v)", estimatedTimeWithoutRedundantIndexes, expectedTime)
 	}
 
 }
@@ -1265,8 +1280,8 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithFiveIndexes_Shar
 		},
 	}
 	// Call the function
-	estimatedTime, err :=
-		calculateTimeTakenForImport(shardedTables, sourceIndexMetadata, shardedLoadTimes,
+	estimatedTimeWithAllIndexes, estimatedTimeWithoutRedundantIndexes, err :=
+		calculateTimeTakenForImport(shardedTables, sourceIndexMetadata, sourceIndexMetadata, shardedLoadTimes,
 			indexImpacts, columnsImpact, SHARDED, 1.0)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
@@ -1276,8 +1291,11 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithFiveIndexes_Shar
 	// Calculated as table0: 4.6 * ((1134 * 23) / 19) / 60
 	expectedTime := 106.0
 
-	if estimatedTime != expectedTime {
-		t.Errorf("calculateTimeTakenForImport() = (%v), want (%v)", estimatedTime, expectedTime)
+	if estimatedTimeWithAllIndexes != expectedTime {
+		t.Errorf("calculateTimeTakenForImport() with all indexes = (%v), want (%v)", estimatedTimeWithAllIndexes, expectedTime)
+	}
+	if estimatedTimeWithoutRedundantIndexes != expectedTime {
+		t.Errorf("calculateTimeTakenForImport() without redundant indexes = (%v), want (%v)", estimatedTimeWithoutRedundantIndexes, expectedTime)
 	}
 
 }
@@ -1312,8 +1330,8 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithoutIndex5Columns
 	}
 
 	// Call the function
-	estimatedTime, err := calculateTimeTakenForImport(colocatedTables,
-		sourceIndexMetadata, colocatedLoadTimes, indexImpacts, columnImpacts, COLOCATED, 1.0)
+	estimatedTimeWithAllIndexes, estimatedTimeWithoutRedundantIndexes, err := calculateTimeTakenForImport(colocatedTables,
+		sourceIndexMetadata, sourceIndexMetadata, colocatedLoadTimes, indexImpacts, columnImpacts, COLOCATED, 1.0)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -1322,8 +1340,11 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithoutIndex5Columns
 	// Calculated as table0: 1 * ((1134 * 23) / 19) / 60
 	expectedTime := 23.0
 
-	if estimatedTime != expectedTime {
-		t.Errorf("calculateTimeTakenForImport() = (%v), want (%v)", estimatedTime, expectedTime)
+	if estimatedTimeWithAllIndexes != expectedTime {
+		t.Errorf("calculateTimeTakenForImport() with all indexes = (%v), want (%v)", estimatedTimeWithAllIndexes, expectedTime)
+	}
+	if estimatedTimeWithoutRedundantIndexes != expectedTime {
+		t.Errorf("calculateTimeTakenForImport() without redundant indexes = (%v), want (%v)", estimatedTimeWithoutRedundantIndexes, expectedTime)
 	}
 
 }
@@ -1363,8 +1384,8 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithoutIndex40Column
 	}
 
 	// Call the function
-	estimatedTime, err := calculateTimeTakenForImport(colocatedTables,
-		sourceIndexMetadata, colocatedLoadTimes, indexImpacts, columnImpacts, COLOCATED, 1.0)
+	estimatedTimeWithAllIndexes, estimatedTimeWithoutRedundantIndexes, err := calculateTimeTakenForImport(colocatedTables,
+		sourceIndexMetadata, sourceIndexMetadata, colocatedLoadTimes, indexImpacts, columnImpacts, COLOCATED, 1.0)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -1373,8 +1394,11 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithoutIndex40Column
 	// Calculated as table0: 1.57 * ((1134 * 23) / 19) / 60
 	expectedTime := 36.0
 
-	if estimatedTime != expectedTime {
-		t.Errorf("calculateTimeTakenForImport() = (%v), want (%v)", estimatedTime, expectedTime)
+	if estimatedTimeWithAllIndexes != expectedTime {
+		t.Errorf("calculateTimeTakenForImport() with all indexes = (%v), want (%v)", estimatedTimeWithAllIndexes, expectedTime)
+	}
+	if estimatedTimeWithoutRedundantIndexes != expectedTime {
+		t.Errorf("calculateTimeTakenForImport() without redundant indexes = (%v), want (%v)", estimatedTimeWithoutRedundantIndexes, expectedTime)
 	}
 
 }
@@ -1414,8 +1438,8 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithoutIndex100Colum
 	}
 
 	// Call the function
-	estimatedTime, err := calculateTimeTakenForImport(colocatedTables,
-		sourceIndexMetadata, colocatedLoadTimes, indexImpacts, columnImpacts, COLOCATED, 1.0)
+	estimatedTimeWithAllIndexes, estimatedTimeWithoutRedundantIndexes, err := calculateTimeTakenForImport(colocatedTables,
+		sourceIndexMetadata, sourceIndexMetadata, colocatedLoadTimes, indexImpacts, columnImpacts, COLOCATED, 1.0)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -1425,8 +1449,11 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithoutIndex100Colum
 	// Calculated as table0: 4.13 * ((1134 * 23) / 19) / 60
 	expectedTime := 95.0
 
-	if estimatedTime != expectedTime {
-		t.Errorf("calculateTimeTakenForImport() = (%v), want (%v)", estimatedTime, expectedTime)
+	if estimatedTimeWithAllIndexes != expectedTime {
+		t.Errorf("calculateTimeTakenForImport() with all indexes = (%v), want (%v)", estimatedTimeWithAllIndexes, expectedTime)
+	}
+	if estimatedTimeWithoutRedundantIndexes != expectedTime {
+		t.Errorf("calculateTimeTakenForImport() without redundant indexes = (%v), want (%v)", estimatedTimeWithoutRedundantIndexes, expectedTime)
 	}
 
 }
@@ -1466,8 +1493,8 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithoutIndex250Colum
 	}
 
 	// Call the function
-	estimatedTime, err := calculateTimeTakenForImport(colocatedTables,
-		sourceIndexMetadata, colocatedLoadTimes, indexImpacts, columnImpacts, COLOCATED, 1.0)
+	estimatedTimeWithAllIndexes, estimatedTimeWithoutRedundantIndexes, err := calculateTimeTakenForImport(colocatedTables,
+		sourceIndexMetadata, sourceIndexMetadata, colocatedLoadTimes, indexImpacts, columnImpacts, COLOCATED, 1.0)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -1477,8 +1504,11 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithoutIndex250Colum
 	// Calculated as table0: 6.45 * ((1134 * 23) / 19) / 60
 	expectedTime := 148.0
 
-	if estimatedTime != expectedTime {
-		t.Errorf("calculateTimeTakenForImport() = (%v), want (%v)", estimatedTime, expectedTime)
+	if estimatedTimeWithAllIndexes != expectedTime {
+		t.Errorf("calculateTimeTakenForImport() with all indexes = (%v), want (%v)", estimatedTimeWithAllIndexes, expectedTime)
+	}
+	if estimatedTimeWithoutRedundantIndexes != expectedTime {
+		t.Errorf("calculateTimeTakenForImport() without redundant indexes = (%v), want (%v)", estimatedTimeWithoutRedundantIndexes, expectedTime)
 	}
 
 }
@@ -2184,9 +2214,9 @@ func TestGetSourceMetadataWithRedundantIndexFiltering(t *testing.T) {
 		"schema_name", "object_name", "row_count", "reads_per_second", "writes_per_second",
 		"is_index", "parent_table_name", "size_in_bytes", "column_count",
 	}).
-		AddRow("schema1", "table1", 1000, 10, 5, false, nil, 1024*1024*1024, 5). // table
+		AddRow("schema1", "table1", 1000, 10, 5, false, nil, 1024*1024*1024, 5).        // table
 		AddRow("schema1", "idx1", nil, 5, 2, true, "schema1.table1", 512*1024*1024, 2). // index (should be filtered)
-		AddRow("schema1", "idx2", nil, 3, 1, true, "schema1.table1", 256*1024*1024, 1) // index (should remain)
+		AddRow("schema1", "idx2", nil, 3, 1, true, "schema1.table1", 256*1024*1024, 1)  // index (should remain)
 
 	mock.ExpectQuery(regexp.QuoteMeta(strings.ReplaceAll(metadataQuery, "\n\t\t", " "))).WillReturnRows(metadataRows)
 
@@ -2251,7 +2281,7 @@ func TestGetSourceMetadataWithRedundantIndexError(t *testing.T) {
 		"schema_name", "object_name", "row_count", "reads_per_second", "writes_per_second",
 		"is_index", "parent_table_name", "size_in_bytes", "column_count",
 	}).
-		AddRow("schema1", "table1", 1000, 10, 5, false, nil, 1024*1024*1024, 5). // table
+		AddRow("schema1", "table1", 1000, 10, 5, false, nil, 1024*1024*1024, 5).       // table
 		AddRow("schema1", "idx1", nil, 5, 2, true, "schema1.table1", 512*1024*1024, 2) // index
 
 	mock.ExpectQuery(regexp.QuoteMeta(strings.ReplaceAll(metadataQuery, "\n\t\t", " "))).WillReturnRows(metadataRows)
