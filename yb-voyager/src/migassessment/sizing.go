@@ -30,6 +30,7 @@ import (
 
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
@@ -1479,13 +1480,9 @@ func filterRedundantIndexes(sourceIndexMetadata []SourceDBMetadata, redundantInd
 		}
 
 		// Create a temporary RedundantIndexesInfo to use the same helper method for consistent formatting
-		tempRedundantInfo := utils.RedundantIndexesInfo{
-			DBType:              sourceDBType,
-			RedundantSchemaName: indexMetadata.SchemaName,
-			RedundantTableName:  tableName,
-			RedundantIndexName:  indexMetadata.ObjectName,
-		}
-		key := tempRedundantInfo.GetRedundantIndexCatalogObjectName()
+		indexSqlName := sqlname.NewObjectNameQualifiedWithTableName(sourceDBType, "",
+			indexMetadata.ObjectName, indexMetadata.SchemaName, tableName)
+		key := indexSqlName.Qualified.Unquoted
 
 		// Only include index if it's not in the redundant list
 		if !redundantMap[key] {
