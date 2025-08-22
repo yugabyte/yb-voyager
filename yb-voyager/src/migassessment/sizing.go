@@ -158,7 +158,7 @@ var SourceMetadataObjectTypesToUse = []string{
 	"materialized view",
 }
 
-func SizingAssessment(targetDbVersion *ybversion.YBVersion, sourceDBType *string) error {
+func SizingAssessment(targetDbVersion *ybversion.YBVersion, sourceDBType string) error {
 
 	log.Infof("loading metadata files for sharding assessment")
 	sourceTableMetadata, sourceIndexMetadata, sourceUniqueIndexeMetadata, _, err := loadSourceMetadata(GetSourceMetadataDBFilePath(), sourceDBType)
@@ -911,7 +911,7 @@ Returns:
 	[]SourceDBMetadata: all index objects from source db after filtering out redundant indexes.
 	float64: total size of source db
 */
-func loadSourceMetadata(filePath string, sourceDBType *string) ([]SourceDBMetadata, []SourceDBMetadata, []SourceDBMetadata, float64, error) {
+func loadSourceMetadata(filePath string, sourceDBType string) ([]SourceDBMetadata, []SourceDBMetadata, []SourceDBMetadata, float64, error) {
 	SourceMetaDB, err := utils.ConnectToSqliteDatabase(filePath)
 	if err != nil {
 		return nil, nil, nil, 0.0, fmt.Errorf("cannot connect to source metadata database: %w", err)
@@ -1348,7 +1348,7 @@ Returns:
 	[]SourceDBMetadata: Metadata for source database indexes after filtering out redundant indexes.
 	float64: The total size of the source database in gigabytes.
 */
-func getSourceMetadata(sourceDB *sql.DB, sourceDBType *string) ([]SourceDBMetadata, []SourceDBMetadata, []SourceDBMetadata, float64, error) {
+func getSourceMetadata(sourceDB *sql.DB, sourceDBType string) ([]SourceDBMetadata, []SourceDBMetadata, []SourceDBMetadata, float64, error) {
 	// get source database tables, indexes and total size
 	sourceTableMetadata, sourceIndexMetadata, totalSourceDBSize, err := getSourceMetadataTableIndexStats(sourceDB, GetTableIndexStatName())
 	if err != nil {
@@ -1447,7 +1447,7 @@ Returns:
 
 	[]SourceDBMetadata: Filtered slice with redundant indexes removed
 */
-func filterRedundantIndexes(sourceIndexMetadata []SourceDBMetadata, redundantIndexes []utils.RedundantIndexesInfo, sourceDBType *string) []SourceDBMetadata {
+func filterRedundantIndexes(sourceIndexMetadata []SourceDBMetadata, redundantIndexes []utils.RedundantIndexesInfo, sourceDBType string) []SourceDBMetadata {
 	if len(redundantIndexes) == 0 {
 		return sourceIndexMetadata
 	}
@@ -1480,7 +1480,7 @@ func filterRedundantIndexes(sourceIndexMetadata []SourceDBMetadata, redundantInd
 
 		// Create a temporary RedundantIndexesInfo to use the same helper method for consistent formatting
 		tempRedundantInfo := utils.RedundantIndexesInfo{
-			DBType:              *sourceDBType,
+			DBType:              sourceDBType,
 			RedundantSchemaName: indexMetadata.SchemaName,
 			RedundantTableName:  tableName,
 			RedundantIndexName:  indexMetadata.ObjectName,
@@ -1515,7 +1515,7 @@ Returns:
 	[]utils.RedundantIndexesInfo: Slice of redundant index information from the database
 	error: Error if any issue occurs during the query
 */
-func getSourceMetadataRedundantIndexes(sourceDB *sql.DB, sourceTableName string, sourceDBType *string) ([]utils.RedundantIndexesInfo, error) {
+func getSourceMetadataRedundantIndexes(sourceDB *sql.DB, sourceTableName string, sourceDBType string) ([]utils.RedundantIndexesInfo, error) {
 	log.Infof("fetching redundant indexes from %q table", sourceTableName)
 	query := fmt.Sprintf(`SELECT redundant_schema_name, redundant_table_name, redundant_index_name FROM %s`, sourceTableName)
 	rows, err := sourceDB.Query(query)
@@ -1531,7 +1531,7 @@ func getSourceMetadataRedundantIndexes(sourceDB *sql.DB, sourceTableName string,
 			return nil, fmt.Errorf("error scanning redundant index row: %w", err)
 		}
 		// Set the DBType to enable proper object name generation
-		ri.DBType = *sourceDBType
+		ri.DBType = sourceDBType
 		redundantIndexes = append(redundantIndexes, ri)
 	}
 
