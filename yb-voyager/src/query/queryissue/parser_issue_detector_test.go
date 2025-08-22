@@ -2425,14 +2425,14 @@ func runPKRec(t *testing.T, name string, ddls []string, expected []QueryIssue) {
 		expS := pkrecSort(expected)
 
 		// Print test name and recommendations for debugging
-		fmt.Printf("\n=== Test: %s ===\n", name)
-		if len(gotS) == 0 {
-			fmt.Printf("No recommendations\n")
-		} else {
-			for i, rec := range gotS {
-				fmt.Printf("Recommendation %d: %+v\n", i+1, rec)
-			}
-		}
+		// fmt.Printf("\n=== Test: %s ===\n", name)
+		// if len(gotS) == 0 {
+		// 	fmt.Printf("No recommendations\n")
+		// } else {
+		// 	for i, rec := range gotS {
+		// 		fmt.Printf("Recommendation %d: %+v\n", i+1, rec)
+		// 	}
+		// }
 
 		if diff := cmp.Diff(expS, gotS); diff != "" {
 			t.Fatalf("PK recommendations mismatch (-want +got):\n%s\nExpected (objects): %s\nActual   (objects): %s\nExpected (pretty):  %s\nActual   (pretty):  %s", diff, z(expS), z(gotS), pkrecString(expS), pkrecString(gotS))
