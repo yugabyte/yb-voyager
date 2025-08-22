@@ -2318,13 +2318,13 @@ CREATE INDEX "xref_p27_deleted$last" ON rnacen.xref_p27_deleted USING btree (las
 ERROR: relation "rnacen.xref_p27_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/INDEXES_table.sql
 */
-CREATE INDEX "xref_p27_deleted$taxid" ON rnacen.xref_p27_deleted USING btree (taxid);
+CREATE INDEX "xref_p27_deleted$taxid" ON rnacen.xref_p27_deleted USING btree (taxid ASC);
 
 /*
 ERROR: relation "rnacen.xref_p27_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/INDEXES_table.sql
 */
-CREATE INDEX "xref_p27_deleted$upi" ON rnacen.xref_p27_deleted USING btree (upi);
+CREATE INDEX "xref_p27_deleted$upi" ON rnacen.xref_p27_deleted USING btree (upi ASC);
 
 /*
 ERROR: relation "rnacen.xref_p27_not_deleted" does not exist (SQLSTATE 42P01)
