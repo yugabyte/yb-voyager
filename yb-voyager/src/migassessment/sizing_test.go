@@ -770,6 +770,99 @@ func TestFindNumNodesNeededBasedOnThroughputRequirement_NeedMoreNodes(t *testing
 	assert.Equal(t, updatedRecommendation[4].NumNodes, float64(15))
 }
 
+// validate that when colocated tables exist, 1 additional node and corresponding cores are added
+func TestFindNumNodesNeededBasedOnThroughputRequirement_WithColocatedTablesAddsOneNode(t *testing.T) {
+	// Define test data
+	var sourceIndexMetadata []SourceDBMetadata
+	shardedThroughput := []ExpDataThroughput{
+		{
+			numCores:                   sql.NullFloat64{Float64: 4},
+			maxSupportedSelectsPerCore: sql.NullFloat64{Float64: 1000},
+			maxSupportedInsertsPerCore: sql.NullFloat64{Float64: 500},
+		},
+	}
+
+	recommendation := map[int]IntermediateRecommendation{
+		4: {
+			ColocatedTables: []SourceDBMetadata{
+				{
+					ObjectName: "colocated_table1", Size: sql.NullFloat64{Float64: 10.0, Valid: true},
+					ReadsPerSec:  sql.NullInt64{Valid: true, Int64: 100},
+					WritesPerSec: sql.NullInt64{Valid: true, Int64: 50},
+				},
+			},
+			ShardedTables: []SourceDBMetadata{
+				{
+					ObjectName: "sharded_table1", Size: sql.NullFloat64{Float64: 20.0, Valid: true},
+					ReadsPerSec:  sql.NullInt64{Valid: true, Int64: 8000},
+					WritesPerSec: sql.NullInt64{Valid: true, Int64: 4000},
+				},
+			},
+			VCPUsPerInstance: 4,
+			MemoryPerCore:    4,
+		},
+	}
+
+	// Run the function
+	updatedRecommendation :=
+		findNumNodesNeededBasedOnThroughputRequirement(sourceIndexMetadata, shardedThroughput, recommendation)
+
+	// With colocated tables present, expect +1 node and +4 cores (VCPUsPerInstance)
+	// Base calculation: (8000/1000 + 4000/500) = 16 cores needed -> 4 nodes needed
+	// With colocated tables: 4 + 1 = 5 nodes, 16 + 4 = 20 cores needed
+	// Minimum enforcement: max(5, 3) = 5 nodes, max(20, 12) = 20 cores
+	expectedNumNodes := float64(5)
+	expectedCoresNeeded := float64(20)
+
+	// Check the results
+	recommendationToVerify := updatedRecommendation[4]
+	assert.Equal(t, expectedNumNodes, recommendationToVerify.NumNodes)
+	assert.Equal(t, expectedCoresNeeded, recommendationToVerify.CoresNeeded)
+}
+
+// validate that when no colocated tables exist, no additional node/cores are added
+func TestFindNumNodesNeededBasedOnThroughputRequirement_WithoutColocatedTablesNoExtraNode(t *testing.T) {
+	// Define test data
+	var sourceIndexMetadata []SourceDBMetadata
+	shardedThroughput := []ExpDataThroughput{
+		{
+			numCores:                   sql.NullFloat64{Float64: 4},
+			maxSupportedSelectsPerCore: sql.NullFloat64{Float64: 1000},
+			maxSupportedInsertsPerCore: sql.NullFloat64{Float64: 500},
+		},
+	}
+
+	recommendation := map[int]IntermediateRecommendation{
+		4: {
+			ColocatedTables: []SourceDBMetadata{}, // No colocated tables
+			ShardedTables: []SourceDBMetadata{
+				{
+					ObjectName: "sharded_table1", Size: sql.NullFloat64{Float64: 20.0, Valid: true},
+					ReadsPerSec:  sql.NullInt64{Valid: true, Int64: 8000},
+					WritesPerSec: sql.NullInt64{Valid: true, Int64: 4000},
+				},
+			},
+			VCPUsPerInstance: 4,
+			MemoryPerCore:    4,
+		},
+	}
+
+	// Run the function
+	updatedRecommendation :=
+		findNumNodesNeededBasedOnThroughputRequirement(sourceIndexMetadata, shardedThroughput, recommendation)
+
+	// Without colocated tables, no extra node/cores should be added
+	// Base calculation: (8000/1000 + 4000/500) = 16 cores needed -> 4 nodes needed
+	// No colocated tables: just 4 nodes, cores: 16 cores
+	expectedNumNodes := float64(4)
+	expectedCoresNeeded := float64(16)
+
+	// Check the results
+	recommendationToVerify := updatedRecommendation[4]
+	assert.Equal(t, expectedNumNodes, recommendationToVerify.NumNodes)
+	assert.Equal(t, expectedCoresNeeded, recommendationToVerify.CoresNeeded)
+}
+
 /*
 ===== 	Test functions to test findNumNodesNeededBasedOnTabletsRequired function	=====
 */

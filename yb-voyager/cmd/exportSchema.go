@@ -320,6 +320,10 @@ func packAndSendExportSchemaPayload(status string, errorMsg error) {
 	schemaOptimizationChanges := buildCallhomeSchemaOptimizationChanges()
 
 	payload.SourceDBDetails = callhome.MarshalledJsonString(sourceDBDetails)
+	assessRunInExportSchema, err := IsMigrationAssessmentDoneViaExportSchema()
+	if err != nil {
+		log.Infof("callhome: failed to get migration assessment done via export schema: %v", err)
+	}
 	exportSchemaPayload := callhome.ExportSchemaPhasePayload{
 		StartClean:                bool(startClean),
 		AppliedRecommendations:    assessmentRecommendationsApplied,
@@ -327,6 +331,7 @@ func packAndSendExportSchemaPayload(status string, errorMsg error) {
 		CommentsOnObjects:         bool(source.CommentsOnObjects),
 		Error:                     callhome.SanitizeErrorMsg(errorMsg, anonymizer),
 		SkipRecommendations:       bool(skipRecommendations),
+		AssessRunInExportSchema:   assessRunInExportSchema,
 		SkipPerfOptimizations:     bool(skipPerfOptimizations),
 		ControlPlaneType:          getControlPlaneType(),
 		SchemaOptimizationChanges: schemaOptimizationChanges,
@@ -334,7 +339,7 @@ func packAndSendExportSchemaPayload(status string, errorMsg error) {
 
 	payload.PhasePayload = callhome.MarshalledJsonString(exportSchemaPayload)
 
-	err := callhome.SendPayload(&payload)
+	err = callhome.SendPayload(&payload)
 	if err == nil && (status == COMPLETE || status == ERROR) {
 		callHomeErrorOrCompletePayloadSent = true
 	}
