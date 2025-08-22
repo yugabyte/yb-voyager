@@ -408,6 +408,7 @@ func findNumNodesNeededBasedOnThroughputRequirement(sourceIndexMetadata []Source
 		// Add it explicitly.
 		if len(previousRecommendation.ColocatedTables) > 0 {
 			nodesNeeded += 1
+			neededCores += float64(previousRecommendation.VCPUsPerInstance)
 		}
 
 		// Assumption: minimum required replication is 3, so minimum nodes recommended would be 3.
