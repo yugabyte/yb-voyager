@@ -1504,6 +1504,7 @@ func filterRedundantIndexes(sourceIndexMetadata []SourceDBMetadata, redundantInd
 			filteredIndexes = append(filteredIndexes, indexMetadata)
 		} else {
 			log.Infof("Filtered out redundant index: %s", key)
+			fmt.Printf("Filtered out redundant index: %s\n", key)
 		}
 	}
 
