@@ -19,7 +19,6 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 
@@ -123,14 +122,12 @@ func filterSessionVariables(sqlInfoArr []sqlInfo) ([]sqlInfo, []sqlInfo) {
 	var filteredSqlInfoArr []sqlInfo
 	for _, sqlInfo := range sqlInfoArr {
 		upperStmt := strings.ToUpper(sqlInfo.stmt)
-		if strings.HasPrefix(upperStmt, "SET ") ||
-			strings.HasPrefix(upperStmt, "SELECT ") {
+		if strings.HasPrefix(upperStmt, "SET ") {
 			// TODO: should we filter these out at the time of export schema
 			// pg_dump generate `SET client_min_messages = 'warning';`, but we want to get
 			// NOTICE severity as well (which is the default), hence skipping this.
 			//pg_dump 17 gives this SET transaction_timeout = 0;
-			if strings.HasPrefix(upperStmt, "SELECT ") ||
-				strings.Contains(upperStmt, CLIENT_MESSAGES_SESSION_VAR) ||
+			if strings.Contains(upperStmt, CLIENT_MESSAGES_SESSION_VAR) ||
 				strings.Contains(upperStmt, TRANSACTION_TIMEOUT_SESSION_VAR) {
 				//skip these session variables
 				log.Infof("Skipping session variable: %s", sqlInfo.stmt)
@@ -315,9 +312,6 @@ func importDeferredStatements() {
 
 	utils.PrintAndLog("\nExecuting the remaining SQL statements...\n\n")
 	maxIterations := len(deferredSqlStmts)
-	sort.Slice(deferredSqlStmts, func(i, j int) bool {
-		return deferredSqlStmts[i].sqlStmt.fileName < deferredSqlStmts[j].sqlStmt.fileName
-	})
 
 	var err error
 	var conn *pgx.Conn
