@@ -24,6 +24,7 @@ import (
 	pg_query "github.com/pganalyze/pg_query_go/v6"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -32,6 +33,7 @@ import (
 const (
 	REMOVED_REDUNDANT_INDEXES_FILE_NAME            = "redundant_indexes.sql"
 	SUGGESTION_TO_USE_SKIP_PERF_OPTIMIZATIONS_FLAG = "Use --skip-performance-optimizations true flag to skip applying performance optimizations to the index file"
+	HASH_SPLITTING_SESSION_VARIABLE                = "set yb_use_hash_splitting_by_default=on;"
 )
 
 // =========================INDEX FILE TRANSFORMER=====================================
@@ -158,14 +160,16 @@ func (t *IndexFileTransformer) writeRemovedRedundantIndexesToFile(removedIndexTo
 // TODO: merge the sharding/colocated recommendation changes with this Table file transformation
 type TableFileTransformer struct {
 	//skipping the merge constraints with this parameter
-	skipMergeConstraints bool
-	sourceDBType         string
+	skipMergeConstraints         bool
+	sourceDBType                 string
+	skipPerformanceOptimizations bool
 }
 
-func NewTableFileTransformer(skipMergeConstraints bool, sourceDBType string) *TableFileTransformer {
+func NewTableFileTransformer(skipMergeConstraints bool, sourceDBType string, skipPerformanceOptimizations bool) *TableFileTransformer {
 	return &TableFileTransformer{
-		skipMergeConstraints: skipMergeConstraints,
-		sourceDBType:         sourceDBType,
+		skipMergeConstraints:         skipMergeConstraints,
+		sourceDBType:                 sourceDBType,
+		skipPerformanceOptimizations: skipPerformanceOptimizations,
 	}
 }
 
@@ -191,6 +195,16 @@ func (t *TableFileTransformer) Transform(file string) (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("error while merging constraints: %w", err)
 		}
+	}
+
+	if !t.skipPerformanceOptimizations && t.sourceDBType == constants.POSTGRESQL {
+		var parseTreeHashSplitting *pg_query.ParseResult
+		parseTreeHashSplitting, err = queryparser.Parse(HASH_SPLITTING_SESSION_VARIABLE)
+		if err != nil {
+			return "", fmt.Errorf("failed to parse hash splitting session variable: %w", err) // TODO: handle error hand
+		}
+		parseTreeHashSplitting.Stmts = append(parseTreeHashSplitting.Stmts, parseTree.Stmts...)
+		parseTree.Stmts = parseTreeHashSplitting.Stmts
 	}
 
 	sqlStmts, err := queryparser.DeparseRawStmts(parseTree.Stmts)

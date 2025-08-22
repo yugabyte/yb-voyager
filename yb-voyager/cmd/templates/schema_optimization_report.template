@@ -433,6 +433,15 @@
                </div>
             {{ end }}
 
+            {{ if .PKOrUKHashSplittingChange }}
+            <div class="optimization-section {{if .PKOrUKHashSplittingChange.IsApplied}}applied{{else}}not-applied{{end}}">
+                  <h3>
+                     {{if .PKOrUKHashSplittingChange.IsApplied}}✅ {{else}}⚠️ {{end}}
+                     {{.PKOrUKHashSplittingChange.Title}}
+                  </h3>
+               <pre>{{ replaceLinks .PKOrUKHashSplittingChange.Description .PKOrUKHashSplittingChange.HyperLinksInDescription}}</pre>
+            </div>
+            {{ end }}
 
             {{ if .TableShardingRecommendation }}
                <div class="optimization-section {{if .TableShardingRecommendation.IsApplied}}applied{{else}}not-applied{{end}}">
