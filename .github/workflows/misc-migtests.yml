@@ -59,13 +59,19 @@ jobs:
           sudo apt install python3-psycopg2
           pip3 install bs4 # Install BeautifulSoup4 module for HTML report validation
 
-      #TODO Remove the install PG 17 command once we do that in installer script 
       - name: Run installer script to setup voyager
         run: |
           cd installer_scripts
           yes | ./install-yb-voyager --install-from-local-source --only-pg-support
-          sudo apt-get -y install postgresql-17
-          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+          # Since pg_dump/restore 17 is required, we need to remove the symlink to the old PG 14 binary(default)
+          # and create a symlink to the new PG 17 binary
+          sudo rm /usr/bin/pg_dump
+          sudo ln -s /usr/lib/postgresql/17/bin/pg_dump /usr/bin/pg_dump
+          sudo rm /usr/bin/pg_restore
+          sudo ln -s /usr/lib/postgresql/17/bin/pg_restore /usr/bin/pg_restore
+          pg_dump --version
+          pg_restore --version
+          psql --version
         env:
           ON_INSTALLER_ERROR_OUTPUT_LOG: Y
 

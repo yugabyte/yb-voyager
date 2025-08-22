@@ -111,16 +111,16 @@ func TestCallhomeStructs(t *testing.T) {
 			name:       "Validate SizingCallhome Struct Definition",
 			actualType: reflect.TypeOf(SizingCallhome{}),
 			expectedType: struct {
-				NumColocatedTables                                 int     `json:"num_colocated_tables"`
-				ColocatedReasoning                                 string  `json:"colocated_reasoning"`
-				NumShardedTables                                   int     `json:"num_sharded_tables"`
-				NumNodes                                           float64 `json:"num_nodes"`
-				VCPUsPerInstance                                   int     `json:"vcpus_per_instance"`
-				MemoryPerInstance                                  int     `json:"memory_per_instance"`
-				OptimalSelectConnectionsPerNode                    int64   `json:"optimal_select_connections_per_node"`
-				OptimalInsertConnectionsPerNode                    int64   `json:"optimal_insert_connections_per_node"`
-				EstimatedTimeInMinForImport                        float64 `json:"estimated_time_in_min_for_import"`
-				EstimatedTimeInMinForImportWithoutRedundantIndexes float64 `json:"estimated_time_in_min_for_import_without_redundant_indexes"`
+				ColocatedTables                                    []string `json:"colocated_tables"`
+				ColocatedReasoning                                 string   `json:"colocated_reasoning"`
+				ShardedTables                                      []string `json:"sharded_tables"`
+				NumNodes                                           float64  `json:"num_nodes"`
+				VCPUsPerInstance                                   int      `json:"vcpus_per_instance"`
+				MemoryPerInstance                                  int      `json:"memory_per_instance"`
+				OptimalSelectConnectionsPerNode                    int64    `json:"optimal_select_connections_per_node"`
+				OptimalInsertConnectionsPerNode                    int64    `json:"optimal_insert_connections_per_node"`
+				EstimatedTimeInMinForImport                        float64  `json:"estimated_time_in_min_for_import"`
+				EstimatedTimeInMinForImportWithoutRedundantIndexes float64  `json:"estimated_time_in_min_for_import_without_redundant_indexes"`
 			}{},
 		},
 		{
@@ -153,6 +153,7 @@ func TestCallhomeStructs(t *testing.T) {
 				UseOrafce                 bool                       `json:"use_orafce"`
 				CommentsOnObjects         bool                       `json:"comments_on_objects"`
 				SkipRecommendations       bool                       `json:"skip_recommendations"`
+				AssessRunInExportSchema   bool                       `json:"assess_run_in_export_schema"`
 				SkipPerfOptimizations     bool                       `json:"skip_performance_optimizations"`
 				Error                     string                     `json:"error"`
 				ControlPlaneType          string                     `json:"control_plane_type"`

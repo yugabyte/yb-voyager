@@ -113,8 +113,9 @@ Version History
 1.4: Added SqlStatement field in AssessmentIssueCallhome struct
 1.5: Added AnonymizedDDLs field in AssessMigrationPhasePayload struct
 1.6: Added ObjectName field in AssessmentIssueCallhome struct
+1.7 Changed NumShardedTables and NumColocatedTables to ShardedTables and ColocatedTables respectively with anonymized names
 */
-var ASSESS_MIGRATION_CALLHOME_PAYLOAD_VERSION = "1.6"
+var ASSESS_MIGRATION_CALLHOME_PAYLOAD_VERSION = "1.7"
 
 type AssessMigrationPhasePayload struct {
 	PayloadVersion                 string                    `json:"payload_version"`
@@ -158,16 +159,16 @@ func NewAssessmentIssueCallhome(category string, categoryDesc string, issueType 
 }
 
 type SizingCallhome struct {
-	NumColocatedTables                                 int     `json:"num_colocated_tables"`
-	ColocatedReasoning                                 string  `json:"colocated_reasoning"`
-	NumShardedTables                                   int     `json:"num_sharded_tables"`
-	NumNodes                                           float64 `json:"num_nodes"`
-	VCPUsPerInstance                                   int     `json:"vcpus_per_instance"`
-	MemoryPerInstance                                  int     `json:"memory_per_instance"`
-	OptimalSelectConnectionsPerNode                    int64   `json:"optimal_select_connections_per_node"`
-	OptimalInsertConnectionsPerNode                    int64   `json:"optimal_insert_connections_per_node"`
-	EstimatedTimeInMinForImport                        float64 `json:"estimated_time_in_min_for_import"`
-	EstimatedTimeInMinForImportWithoutRedundantIndexes float64 `json:"estimated_time_in_min_for_import_without_redundant_indexes"`
+	ColocatedTables                                    []string `json:"colocated_tables"`
+	ColocatedReasoning                                 string   `json:"colocated_reasoning"`
+	ShardedTables                                      []string `json:"sharded_tables"`
+	NumNodes                                           float64  `json:"num_nodes"`
+	VCPUsPerInstance                                   int      `json:"vcpus_per_instance"`
+	MemoryPerInstance                                  int      `json:"memory_per_instance"`
+	OptimalSelectConnectionsPerNode                    int64    `json:"optimal_select_connections_per_node"`
+	OptimalInsertConnectionsPerNode                    int64    `json:"optimal_insert_connections_per_node"`
+	EstimatedTimeInMinForImport                        float64  `json:"estimated_time_in_min_for_import"`
+	EstimatedTimeInMinForImportWithoutRedundantIndexes float64  `json:"estimated_time_in_min_for_import_without_redundant_indexes"`
 }
 
 type ObjectSizingStats struct {
@@ -193,8 +194,9 @@ type SchemaOptimizationChange struct {
 /*
 Version History
 1.0: Added a new field as PayloadVersion and SchemaOptimizationChanges
+1.1: Added a new field as AssessRunInExportSchema
 */
-var EXPORT_SCHEMA_CALLHOME_PAYLOAD_VERSION = "1.0"
+var EXPORT_SCHEMA_CALLHOME_PAYLOAD_VERSION = "1.1"
 
 type ExportSchemaPhasePayload struct {
 	PayloadVersion            string                     `json:"payload_version"`
@@ -203,6 +205,7 @@ type ExportSchemaPhasePayload struct {
 	UseOrafce                 bool                       `json:"use_orafce"`
 	CommentsOnObjects         bool                       `json:"comments_on_objects"`
 	SkipRecommendations       bool                       `json:"skip_recommendations"`
+	AssessRunInExportSchema   bool                       `json:"assess_run_in_export_schema"`
 	SkipPerfOptimizations     bool                       `json:"skip_performance_optimizations"`
 	Error                     string                     `json:"error"`
 	ControlPlaneType          string                     `json:"control_plane_type"`
