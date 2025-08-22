@@ -50,9 +50,7 @@ jobs:
         run: |
           docker exec ${{ job.services.postgres.id }} sh -c "
             apt-get update && apt-get install -y \
-              postgresql-17-postgis \
               postgresql-17-postgis-3 \
-              postgresql-contrib-17 \
               postgresql-plpython3-17 \
               postgresql-plperl-17 \
               postgresql-17-pglogical"
