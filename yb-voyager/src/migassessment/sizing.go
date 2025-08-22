@@ -1520,14 +1520,8 @@ func filterRedundantIndexes(sourceIndexMetadata []SourceDBMetadata, redundantInd
 		// Only include index if it's not in the redundant list
 		if !redundantMap[key] {
 			filteredIndexes = append(filteredIndexes, indexMetadata)
-		} else {
-			log.Infof("Filtered out redundant index: %s", key)
-			fmt.Printf("Filtered out redundant index: %s\n", key)
 		}
 	}
-
-	log.Infof("Filtered out %d redundant indexes from %d total indexes",
-		len(sourceIndexMetadata)-len(filteredIndexes), len(sourceIndexMetadata))
 
 	return filteredIndexes
 }
