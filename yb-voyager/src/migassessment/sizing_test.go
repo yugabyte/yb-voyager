@@ -27,6 +27,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 
 	"github.com/DATA-DOG/go-sqlmock"
@@ -104,7 +106,7 @@ func TestGetSourceMetadata_SuccessReadingSourceMetadata(t *testing.T) {
 	redundantIndexQuery := fmt.Sprintf(`SELECT redundant_schema_name, redundant_table_name, redundant_index_name FROM %s`, GetTableRedundantIndexesName())
 	mock.ExpectQuery(regexp.QuoteMeta(redundantIndexQuery)).WillReturnRows(redundantIndexRows)
 
-	sourceTableMetadata, sourceIndexMetadata, _, totalSourceDBSize, err := getSourceMetadata(db)
+	sourceTableMetadata, sourceIndexMetadata, _, totalSourceDBSize, err := getSourceMetadata(db, &SourceDBType)
 	// assert if there are errors
 	assert.NoError(t, err)
 	// check if the total tables are equal to expected tables
@@ -125,7 +127,7 @@ func TestGetSourceMetadata_QueryErrorIfTableDoesNotExistOrColumnsUnavailable(t *
 	db, mock := createMockDB(t)
 	mock.ExpectQuery(AssessmentDbSelectQuery).WillReturnError(errors.New("query error"))
 
-	_, _, _, _, err := getSourceMetadata(db)
+	_, _, _, _, err := getSourceMetadata(db, &SourceDBType)
 	assert.Error(t, err)
 	// check if the error returned contains the expected string
 	assert.Contains(t, err.Error(), "failed to query source metadata")
@@ -140,7 +142,7 @@ func TestGetSourceMetadata_RowScanError(t *testing.T) {
 		RowError(1, errors.New("row scan error"))
 	mock.ExpectQuery(AssessmentDbSelectQuery).WillReturnRows(rows)
 
-	_, _, _, _, err := getSourceMetadata(db)
+	_, _, _, _, err := getSourceMetadata(db, &SourceDBType)
 	assert.Error(t, err)
 	// check if the error is as expected
 	assert.Contains(t, err.Error(), "failed to read from result set of query source metadata")
@@ -157,7 +159,7 @@ func TestGetSourceMetadata_NoRows(t *testing.T) {
 	redundantIndexQuery := fmt.Sprintf(`SELECT redundant_schema_name, redundant_table_name, redundant_index_name FROM %s`, GetTableRedundantIndexesName())
 	mock.ExpectQuery(regexp.QuoteMeta(redundantIndexQuery)).WillReturnRows(redundantIndexRows)
 
-	sourceTableMetadata, sourceIndexMetadata, _, totalSourceDBSize, err := getSourceMetadata(db)
+	sourceTableMetadata, sourceIndexMetadata, _, totalSourceDBSize, err := getSourceMetadata(db, &SourceDBType)
 
 	assert.NoError(t, err)
 	//  since there is no mock data, all the fields are expected to be empty
@@ -1884,7 +1886,7 @@ func TestFetchRedundantIndexes(t *testing.T) {
 	tests := []struct {
 		name           string
 		mockRows       [][]interface{}
-		expectedResult []RedundantIndex
+		expectedResult []utils.RedundantIndexesInfo
 		expectError    bool
 	}{
 		{
@@ -1894,17 +1896,17 @@ func TestFetchRedundantIndexes(t *testing.T) {
 				{"schema2", "table2", "idx2"},
 				{"schema1", "table1", "idx3"},
 			},
-			expectedResult: []RedundantIndex{
-				{SchemaName: "schema1", TableName: "table1", IndexName: "idx1"},
-				{SchemaName: "schema2", TableName: "table2", IndexName: "idx2"},
-				{SchemaName: "schema1", TableName: "table1", IndexName: "idx3"},
+			expectedResult: []utils.RedundantIndexesInfo{
+				{DBType: constants.POSTGRESQL, RedundantSchemaName: "schema1", RedundantTableName: "table1", RedundantIndexName: "idx1"},
+				{DBType: constants.POSTGRESQL, RedundantSchemaName: "schema2", RedundantTableName: "table2", RedundantIndexName: "idx2"},
+				{DBType: constants.POSTGRESQL, RedundantSchemaName: "schema1", RedundantTableName: "table1", RedundantIndexName: "idx3"},
 			},
 			expectError: false,
 		},
 		{
 			name:           "successful fetch with no redundant indexes",
 			mockRows:       [][]interface{}{},
-			expectedResult: []RedundantIndex{},
+			expectedResult: []utils.RedundantIndexesInfo{},
 			expectError:    false,
 		},
 		{
@@ -1912,8 +1914,8 @@ func TestFetchRedundantIndexes(t *testing.T) {
 			mockRows: [][]interface{}{
 				{"public", "users", "idx_email_duplicate"},
 			},
-			expectedResult: []RedundantIndex{
-				{SchemaName: "public", TableName: "users", IndexName: "idx_email_duplicate"},
+			expectedResult: []utils.RedundantIndexesInfo{
+				{DBType: constants.POSTGRESQL, RedundantSchemaName: "public", RedundantTableName: "users", RedundantIndexName: "idx_email_duplicate"},
 			},
 			expectError: false,
 		},
@@ -1921,6 +1923,13 @@ func TestFetchRedundantIndexes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Set up SourceDBType for the test
+			originalSourceDBType := SourceDBType
+			SourceDBType = constants.POSTGRESQL // Set to a valid database type for testing
+			defer func() {
+				SourceDBType = originalSourceDBType // Restore original value
+			}()
+
 			db, mock := createMockDB(t)
 			defer db.Close()
 
@@ -1935,7 +1944,8 @@ func TestFetchRedundantIndexes(t *testing.T) {
 			mock.ExpectQuery(expectedQuery).WillReturnRows(rows)
 
 			// Execute the function
-			result, err := getSourceMetadataRedundantIndexes(db, GetTableRedundantIndexesName())
+			sourceDBType := constants.POSTGRESQL
+			result, err := getSourceMetadataRedundantIndexes(db, GetTableRedundantIndexesName(), &sourceDBType)
 
 			// Assert results
 			if tt.expectError {
@@ -1952,6 +1962,13 @@ func TestFetchRedundantIndexes(t *testing.T) {
 }
 
 func TestFetchRedundantIndexesQueryError(t *testing.T) {
+	// Set up SourceDBType for the test
+	originalSourceDBType := SourceDBType
+	SourceDBType = "postgresql" // Set to a valid database type for testing
+	defer func() {
+		SourceDBType = originalSourceDBType // Restore original value
+	}()
+
 	db, mock := createMockDB(t)
 	defer db.Close()
 
@@ -1961,7 +1978,8 @@ func TestFetchRedundantIndexesQueryError(t *testing.T) {
 	mock.ExpectQuery(expectedQuery).WillReturnError(fmt.Errorf("database connection error"))
 
 	// Execute the function
-	result, err := getSourceMetadataRedundantIndexes(db, GetTableRedundantIndexesName())
+	sourceDBType := constants.POSTGRESQL
+	result, err := getSourceMetadataRedundantIndexes(db, GetTableRedundantIndexesName(), &sourceDBType)
 
 	// Assert error
 	assert.Error(t, err)
@@ -1976,7 +1994,7 @@ func TestFilterRedundantIndexes(t *testing.T) {
 	tests := []struct {
 		name                   string
 		sourceIndexMetadata    []SourceDBMetadata
-		redundantIndexes       []RedundantIndex
+		redundantIndexes       []utils.RedundantIndexesInfo
 		expectedFilteredCount  int
 		expectedRemainingNames []string
 	}{
@@ -1996,8 +2014,8 @@ func TestFilterRedundantIndexes(t *testing.T) {
 					IsIndex:         true,
 				},
 			},
-			redundantIndexes: []RedundantIndex{
-				{SchemaName: "schema1", TableName: "table1", IndexName: "idx1"},
+			redundantIndexes: []utils.RedundantIndexesInfo{
+				{DBType: constants.POSTGRESQL, RedundantSchemaName: "schema1", RedundantTableName: "table1", RedundantIndexName: "idx1"},
 			},
 			expectedFilteredCount:  1,
 			expectedRemainingNames: []string{"idx2"},
@@ -2024,9 +2042,9 @@ func TestFilterRedundantIndexes(t *testing.T) {
 					IsIndex:         true,
 				},
 			},
-			redundantIndexes: []RedundantIndex{
-				{SchemaName: "schema1", TableName: "table1", IndexName: "idx1"},
-				{SchemaName: "schema2", TableName: "table2", IndexName: "idx3"},
+			redundantIndexes: []utils.RedundantIndexesInfo{
+				{DBType: constants.POSTGRESQL, RedundantSchemaName: "schema1", RedundantTableName: "table1", RedundantIndexName: "idx1"},
+				{DBType: constants.POSTGRESQL, RedundantSchemaName: "schema2", RedundantTableName: "table2", RedundantIndexName: "idx3"},
 			},
 			expectedFilteredCount:  1,
 			expectedRemainingNames: []string{"idx2"},
@@ -2047,7 +2065,7 @@ func TestFilterRedundantIndexes(t *testing.T) {
 					IsIndex:         true,
 				},
 			},
-			redundantIndexes:       []RedundantIndex{},
+			redundantIndexes:       []utils.RedundantIndexesInfo{},
 			expectedFilteredCount:  2,
 			expectedRemainingNames: []string{"idx1", "idx2"},
 		},
@@ -2061,8 +2079,8 @@ func TestFilterRedundantIndexes(t *testing.T) {
 					IsIndex:         true,
 				},
 			},
-			redundantIndexes: []RedundantIndex{
-				{SchemaName: "schema2", TableName: "table2", IndexName: "idx_nonexistent"},
+			redundantIndexes: []utils.RedundantIndexesInfo{
+				{DBType: constants.POSTGRESQL, RedundantSchemaName: "schema2", RedundantTableName: "table2", RedundantIndexName: "idx_nonexistent"},
 			},
 			expectedFilteredCount:  1,
 			expectedRemainingNames: []string{"idx1"},
@@ -2083,8 +2101,8 @@ func TestFilterRedundantIndexes(t *testing.T) {
 					IsIndex:         true,
 				},
 			},
-			redundantIndexes: []RedundantIndex{
-				{SchemaName: "schema1", TableName: "table1", IndexName: "idx2"},
+			redundantIndexes: []utils.RedundantIndexesInfo{
+				{DBType: constants.POSTGRESQL, RedundantSchemaName: "schema1", RedundantTableName: "table1", RedundantIndexName: "idx2"},
 			},
 			expectedFilteredCount:  1,
 			expectedRemainingNames: []string{"idx1"},
@@ -2099,8 +2117,8 @@ func TestFilterRedundantIndexes(t *testing.T) {
 					IsIndex:         true,
 				},
 			},
-			redundantIndexes: []RedundantIndex{
-				{SchemaName: "schema1", TableName: "just_table_name", IndexName: "idx1"},
+			redundantIndexes: []utils.RedundantIndexesInfo{
+				{DBType: constants.POSTGRESQL, RedundantSchemaName: "schema1", RedundantTableName: "just_table_name", RedundantIndexName: "idx1"},
 			},
 			expectedFilteredCount:  0,
 			expectedRemainingNames: []string{},
@@ -2109,7 +2127,14 @@ func TestFilterRedundantIndexes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := filterRedundantIndexes(tt.sourceIndexMetadata, tt.redundantIndexes)
+			// Set up SourceDBType for the test
+			originalSourceDBType := SourceDBType
+			SourceDBType = constants.POSTGRESQL // Set to a valid database type for testing
+			defer func() {
+				SourceDBType = originalSourceDBType // Restore original value
+			}()
+
+			result := filterRedundantIndexes(tt.sourceIndexMetadata, tt.redundantIndexes, &SourceDBType)
 
 			// Assert the count of filtered indexes
 			assert.Equal(t, tt.expectedFilteredCount, len(result))
@@ -2125,6 +2150,13 @@ func TestFilterRedundantIndexes(t *testing.T) {
 }
 
 func TestGetSourceMetadataWithRedundantIndexFiltering(t *testing.T) {
+	// Set up SourceDBType for the test
+	originalSourceDBType := SourceDBType
+	SourceDBType = "postgresql" // Set to a valid database type for testing
+	defer func() {
+		SourceDBType = originalSourceDBType // Restore original value
+	}()
+
 	db, mock := createMockDB(t)
 	defer db.Close()
 
@@ -2169,7 +2201,7 @@ func TestGetSourceMetadataWithRedundantIndexFiltering(t *testing.T) {
 	mock.ExpectClose()
 
 	// Execute the function
-	tables, indexes, filteredIndexes, totalSize, err := getSourceMetadata(db)
+	tables, indexes, filteredIndexes, totalSize, err := getSourceMetadata(db, &SourceDBType)
 
 	// Assert results
 	assert.NoError(t, err)
@@ -2185,6 +2217,13 @@ func TestGetSourceMetadataWithRedundantIndexFiltering(t *testing.T) {
 }
 
 func TestGetSourceMetadataWithRedundantIndexError(t *testing.T) {
+	// Set up SourceDBType for the test
+	originalSourceDBType := SourceDBType
+	SourceDBType = "postgresql" // Set to a valid database type for testing
+	defer func() {
+		SourceDBType = originalSourceDBType // Restore original value
+	}()
+
 	db, mock := createMockDB(t)
 	defer db.Close()
 
@@ -2225,7 +2264,7 @@ func TestGetSourceMetadataWithRedundantIndexError(t *testing.T) {
 	mock.ExpectClose()
 
 	// Execute the function
-	tables, indexes, _, totalSize, err := getSourceMetadata(db)
+	tables, indexes, _, totalSize, err := getSourceMetadata(db, &SourceDBType)
 
 	// Assert results - should continue despite redundant index error
 	assert.NoError(t, err)
