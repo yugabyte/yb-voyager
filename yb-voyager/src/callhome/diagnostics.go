@@ -158,15 +158,16 @@ func NewAssessmentIssueCallhome(category string, categoryDesc string, issueType 
 }
 
 type SizingCallhome struct {
-	NumColocatedTables              int     `json:"num_colocated_tables"`
-	ColocatedReasoning              string  `json:"colocated_reasoning"`
-	NumShardedTables                int     `json:"num_sharded_tables"`
-	NumNodes                        float64 `json:"num_nodes"`
-	VCPUsPerInstance                int     `json:"vcpus_per_instance"`
-	MemoryPerInstance               int     `json:"memory_per_instance"`
-	OptimalSelectConnectionsPerNode int64   `json:"optimal_select_connections_per_node"`
-	OptimalInsertConnectionsPerNode int64   `json:"optimal_insert_connections_per_node"`
-	EstimatedTimeInMinForImport     float64 `json:"estimated_time_in_min_for_import"`
+	NumColocatedTables                                 int     `json:"num_colocated_tables"`
+	ColocatedReasoning                                 string  `json:"colocated_reasoning"`
+	NumShardedTables                                   int     `json:"num_sharded_tables"`
+	NumNodes                                           float64 `json:"num_nodes"`
+	VCPUsPerInstance                                   int     `json:"vcpus_per_instance"`
+	MemoryPerInstance                                  int     `json:"memory_per_instance"`
+	OptimalSelectConnectionsPerNode                    int64   `json:"optimal_select_connections_per_node"`
+	OptimalInsertConnectionsPerNode                    int64   `json:"optimal_insert_connections_per_node"`
+	EstimatedTimeInMinForImport                        float64 `json:"estimated_time_in_min_for_import"`
+	EstimatedTimeInMinForImportWithoutRedundantIndexes float64 `json:"estimated_time_in_min_for_import_without_redundant_indexes"`
 }
 
 type ObjectSizingStats struct {
