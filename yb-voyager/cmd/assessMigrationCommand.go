@@ -484,7 +484,8 @@ func convertAssessmentIssueToYugabyteDAssessmentIssue(ar AssessmentReport) []Ass
 
 func runAssessment(assessmentDir string) error {
 	log.Infof("running assessment for migration from '%s' to YugabyteDB", source.DBType)
-	err := migassessment.SizingAssessment(assessmentDir, targetDbVersion)
+
+	err := migassessment.SizingAssessment(assessmentDir, targetDbVersion, &source.DBType)
 	if err != nil {
 		log.Errorf("failed to perform sizing and sharding assessment: %v", err)
 		return fmt.Errorf("failed to perform sizing and sharding assessment: %w", err)
