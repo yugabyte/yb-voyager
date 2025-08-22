@@ -215,6 +215,7 @@ func TestAssessmentReportJson(t *testing.T) {
 				OptimalSelectConnectionsPerNode: 10,
 				OptimalInsertConnectionsPerNode: 10,
 				EstimatedTimeInMinForImport:     10,
+				EstimatedTimeInMinForImportWithoutRedundantIndexes: 10,
 			},
 			FailureReasoning: "Test failure reasoning",
 		},
@@ -359,7 +360,8 @@ func TestAssessmentReportJson(t *testing.T) {
 			"MemoryPerInstance": 16,
 			"OptimalSelectConnectionsPerNode": 10,
 			"OptimalInsertConnectionsPerNode": 10,
-			"EstimatedTimeInMinForImport": 10
+			"EstimatedTimeInMinForImport": 10,
+			"EstimatedTimeInMinForImportWithoutRedundantIndexes": 10
 		},
 		"FailureReasoning": "Test failure reasoning"
 	},
