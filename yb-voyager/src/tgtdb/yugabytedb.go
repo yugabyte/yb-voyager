@@ -232,6 +232,39 @@ func (yb *TargetYugabyteDB) GetVersion() string {
 	return yb.tconf.DBVersion
 }
 
+// GetYugabyteClusterUUID fetches the cluster UUID if available
+//
+// YugabyteDB Cluster UUID Support:
+// - Added in YugabyteDB v2024.2.3.0 (May 16, 2025)
+// - Available via yb_servers() function returning universe_uuid field
+// - For versions < v2024.2.3.0, returns empty string
+// - Reference: https://docs.yugabyte.com/preview/releases/ybdb-releases/v2024.2/#v2024.2.3.0
+func (yb *TargetYugabyteDB) GetYugabyteClusterUUID() string {
+	yb.EnsureConnected()
+	yb.Lock()
+	defer yb.Unlock()
+
+	// Try to get universe_uuid from yb_servers()
+	query := "SELECT universe_uuid FROM yb_servers() LIMIT 1"
+	var universeUUID string
+	err := yb.QueryRow(query).Scan(&universeUUID)
+	if err != nil {
+		if strings.Contains(err.Error(), "column") && strings.Contains(err.Error(), "does not exist") {
+			log.Infof("YugabyteDB cluster UUID not available (version < v2024.2.3.0)")
+		} else {
+			log.Warnf("Failed to fetch YugabyteDB cluster UUID: %v", err)
+		}
+		return ""
+	}
+
+	if universeUUID != "" {
+		log.Infof("Successfully captured YugabyteDB cluster UUID: %s", universeUUID)
+		return universeUUID
+	}
+
+	return ""
+}
+
 func (yb *TargetYugabyteDB) PrepareForStreaming() {
 	log.Infof("Preparing target DB for streaming - disable throttling")
 	yb.connPool.DisableThrottling()
@@ -1283,10 +1316,15 @@ func (yb *TargetYugabyteDB) GetCallhomeTargetDBInfo() *callhome.TargetDBDetails 
 	}
 	confs := yb.getTargetConfsAsPerLoadBalancerUsed(loadBalancerUsed, actualTconfs)
 	totalCores, _ := fetchCores(confs) // no need to handle error in case we couldn't fine cores
+
+	// Get cluster UUID if available
+	clusterUUID := yb.GetYugabyteClusterUUID()
+
 	return &callhome.TargetDBDetails{
-		NodeCount: len(actualTconfs),
-		Cores:     totalCores,
-		DBVersion: yb.GetVersion(),
+		NodeCount:           len(actualTconfs),
+		Cores:               totalCores,
+		DBVersion:           yb.GetVersion(),
+		YugabyteClusterUUID: clusterUUID, // Will be empty string for older versions
 	}
 }
 

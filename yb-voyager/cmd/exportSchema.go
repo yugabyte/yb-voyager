@@ -138,6 +138,9 @@ func exportSchema(cmd *cobra.Command) error {
 	if err != nil {
 		log.Errorf("error getting database size: %v", err) //can just log as this is used for call-home only
 	}
+
+	// Get PostgreSQL system identifier while still connected
+	source.FetchPostgresSystemIdentifier()
 	utils.PrintAndLog("%s version: %s\n", source.DBType, sourceDBVersion)
 
 	res := source.DB().CheckSchemaExists()
@@ -313,9 +316,10 @@ func packAndSendExportSchemaPayload(status string, errorMsg error) {
 	payload.MigrationPhase = EXPORT_SCHEMA_PHASE
 	payload.Status = status
 	sourceDBDetails := callhome.SourceDBDetails{
-		DBType:    source.DBType,
-		DBVersion: source.DBVersion,
-		DBSize:    source.DBSize,
+		DBType:                   source.DBType,
+		DBVersion:                source.DBVersion,
+		DBSize:                   source.DBSize,
+		PostgresSystemIdentifier: source.PostgresSystemIdentifier,
 	}
 	schemaOptimizationChanges := buildCallhomeSchemaOptimizationChanges()
 

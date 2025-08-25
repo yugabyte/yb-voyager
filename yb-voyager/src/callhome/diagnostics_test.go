@@ -55,21 +55,23 @@ func TestCallhomeStructs(t *testing.T) {
 			name:       "Validate SourceDBDetails Struct Definition",
 			actualType: reflect.TypeOf(SourceDBDetails{}),
 			expectedType: struct {
-				Host      string `json:"host"`
-				DBType    string `json:"db_type"`
-				DBVersion string `json:"db_version"`
-				DBSize    int64  `json:"total_db_size_bytes"`
-				Role      string `json:"role,omitempty"`
+				Host                     string `json:"host"`
+				DBType                   string `json:"db_type"`
+				DBVersion                string `json:"db_version"`
+				DBSize                   int64  `json:"total_db_size_bytes"`
+				Role                     string `json:"role,omitempty"`
+				PostgresSystemIdentifier int64  `json:"postgres_system_identifier,omitempty"`
 			}{},
 		},
 		{
 			name:       "Validate TargetDBDetails Struct Definition",
 			actualType: reflect.TypeOf(TargetDBDetails{}),
 			expectedType: struct {
-				Host      string `json:"host"`
-				DBVersion string `json:"db_version"`
-				NodeCount int    `json:"node_count"`
-				Cores     int    `json:"total_cores"`
+				Host                string `json:"host"`
+				DBVersion           string `json:"db_version"`
+				NodeCount           int    `json:"node_count"`
+				Cores               int    `json:"total_cores"`
+				YugabyteClusterUUID string `json:"yugabyte_cluster_uuid,omitempty"`
 			}{},
 		},
 		{
@@ -114,12 +116,12 @@ func TestCallhomeStructs(t *testing.T) {
 				ColocatedTables                 []string `json:"colocated_tables"`
 				ColocatedReasoning              string   `json:"colocated_reasoning"`
 				ShardedTables                   []string `json:"sharded_tables"`
-				NumNodes                        float64 `json:"num_nodes"`
-				VCPUsPerInstance                int     `json:"vcpus_per_instance"`
-				MemoryPerInstance               int     `json:"memory_per_instance"`
-				OptimalSelectConnectionsPerNode int64   `json:"optimal_select_connections_per_node"`
-				OptimalInsertConnectionsPerNode int64   `json:"optimal_insert_connections_per_node"`
-				EstimatedTimeInMinForImport     float64 `json:"estimated_time_in_min_for_import"`
+				NumNodes                        float64  `json:"num_nodes"`
+				VCPUsPerInstance                int      `json:"vcpus_per_instance"`
+				MemoryPerInstance               int      `json:"memory_per_instance"`
+				OptimalSelectConnectionsPerNode int64    `json:"optimal_select_connections_per_node"`
+				OptimalInsertConnectionsPerNode int64    `json:"optimal_insert_connections_per_node"`
+				EstimatedTimeInMinForImport     float64  `json:"estimated_time_in_min_for_import"`
 			}{},
 		},
 		{
