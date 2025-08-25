@@ -77,7 +77,7 @@ func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedE
 		Sizing:           assessmentReport.Sizing,
 		TableIndexStats:  assessmentReport.TableIndexStats,
 
-		Notes:            assessmentReport.Notes, // for backward compatibility
+		Notes: assessmentReport.Notes, // for backward compatibility
 		AssessmentJsonReport: AssessmentReportYugabyteD{ // for backward compatibility
 			VoyagerVersion:             assessmentReport.VoyagerVersion,
 			TargetDBVersion:            assessmentReport.TargetDBVersion,
@@ -101,11 +101,11 @@ func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedE
 		noteType := GetNoteType(note)
 		switch noteType {
 		case GeneralNotes:
-			payload.Notes = append(payload.Notes, note)
+			payload.GeneralNotes = append(payload.GeneralNotes, note)
 		case ColocatedShardedNotes:
-			payload.Notes = append(payload.Notes, note)
+			payload.ColocatedShardedNotes = append(payload.ColocatedShardedNotes, note)
 		case SizingNotes:
-			payload.Notes = append(payload.Notes, note)
+			payload.SizingNotes = append(payload.SizingNotes, note)
 		}
 	}
 
