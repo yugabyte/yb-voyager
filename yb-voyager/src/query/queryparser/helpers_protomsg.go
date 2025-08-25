@@ -19,6 +19,8 @@ import (
 	"fmt"
 	"strings"
 
+	"strconv"
+
 	pg_query "github.com/pganalyze/pg_query_go/v6"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -762,12 +764,14 @@ func ProtoAsCreateRangeStmtNode(msg protoreflect.Message) (*pg_query.CreateRange
 	return createRangeStmt, ok
 }
 
-/*
-Example:
-options:{def_elem:{defname:"security_invoker" arg:{string:{sval:"true"}} defaction:DEFELEM_UNSPEC location:32}}
-options:{def_elem:{defname:"security_barrier" arg:{string:{sval:"false"}} defaction:DEFELEM_UNSPEC location:57}}
-Extract all defnames from the def_eleme node
-*/
+func ProtoAsAIndirectionNode(msg protoreflect.Message) (*pg_query.A_Indirection, bool) {
+	aIndirectionNode, ok := msg.Interface().(*pg_query.A_Indirection)
+	if !ok {
+		return nil, false
+	}
+	return aIndirectionNode, true
+}
+
 func TraverseAndExtractDefNamesFromDefElem(msg protoreflect.Message) (map[string]string, error) {
 	defNamesWithValues := make(map[string]string)
 	collectorFunc := func(msg protoreflect.Message) error {
@@ -781,16 +785,7 @@ func TraverseAndExtractDefNamesFromDefElem(msg protoreflect.Message) (map[string
 		}
 
 		defName := defElemNode.Defname
-		arg := defElemNode.GetArg()
-		if arg != nil && arg.GetString_() != nil {
-			defElemVal := arg.GetString_().Sval
-			defNamesWithValues[defName] = defElemVal
-		} else {
-			log.Warnf("defElem Node doesn't have arg or the arg is not the string type [%s]", defElemNode)
-			//TODO: see how to handle this later where GetString_() is not directly available or arg is of different type
-			//e.g. defname:"provider"  arg:{type_name:{names:{string:{sval:"icu"}}  typemod:-1  location:37}}  defaction:DEFELEM_UNSPEC  location:26defname:"locale"
-			defNamesWithValues[defName] = ""
-		}
+		defNamesWithValues[defName] = NormalizeDefElemArgToString(defElemNode.Arg)
 		return nil
 	}
 	visited := make(map[protoreflect.Message]bool)
@@ -802,8 +797,73 @@ func TraverseAndExtractDefNamesFromDefElem(msg protoreflect.Message) (map[string
 	return defNamesWithValues, nil
 }
 
-func GetAIndirectionNode(msg protoreflect.Message) (*pg_query.A_Indirection, bool) {
-	protoMsg := msg.Interface().(protoreflect.ProtoMessage)
-	aIndirection, ok := protoMsg.(*pg_query.A_Indirection)
-	return aIndirection, ok
+/*
+Example:
+options:{def_elem:{defname:"security_invoker" arg:{string:{sval:"true"}} defaction:DEFELEM_UNSPEC location:32}}
+options:{def_elem:{defname:"security_barrier" arg:{string:{sval:"false"}} defaction:DEFELEM_UNSPEC location:57}}
+
+Presence-only flag example where arg is absent (nil in parse tree):
+SQL: CREATE TABLE t(id int) WITH (autovacuum_enabled);
+ParseTree: stmt:{create_stmt:{relation:{relname:"t"  inh:true  relpersistence:"p"  location:13}
+
+	table_elts:{column_def:{colname:"id"  type_name:{names:{string:{sval:"pg_catalog"}}  names:{string:{sval:"int4"}} }}
+	options:{def_elem:{defname:"autovacuum_enabled"  defaction:DEFELEM_UNSPEC }} }}
+
+NormalizeDefElemArgToString converts common DefElem Arg node shapes to string to avoid warn/noise:
+- nil => "true" (presence-only flags)
+- String_ => sval
+- A_Const => sval/ival/fval/bsval/boolval
+- TypeName => last component of Names (e.g. "icu")
+- List => comma-joined normalized items
+- TypeCast => normalize inner Arg
+- Fallback => arg.String() to keep value non-empty
+*/
+func NormalizeDefElemArgToString(arg *pg_query.Node) string {
+	if arg == nil {
+		return "true"
+	}
+	if s := arg.GetString_(); s != nil {
+		return s.Sval
+	}
+	if a := arg.GetAConst(); a != nil {
+		switch {
+		case a.GetSval() != nil:
+			return a.GetSval().Sval
+		case a.GetIval() != nil:
+			return strconv.FormatInt(int64(a.GetIval().Ival), 10)
+		case a.GetFval() != nil:
+			return a.GetFval().Fval
+		case a.GetBsval() != nil:
+			return a.GetBsval().Bsval
+		case a.GetBoolval() != nil:
+			return a.GetBoolval().String()
+		default:
+			return arg.String()
+		}
+	}
+
+	if i := arg.GetInteger(); i != nil {
+		return strconv.FormatInt(int64(i.Ival), 10)
+	}
+
+	if tn := arg.GetTypeName(); tn != nil {
+		if len(tn.Names) > 0 && tn.Names[len(tn.Names)-1].GetString_() != nil {
+			return tn.Names[len(tn.Names)-1].GetString_().Sval
+		}
+		return arg.String()
+	}
+	if l := arg.GetList(); l != nil {
+		parts := make([]string, 0, len(l.Items))
+		for _, it := range l.Items {
+			v := NormalizeDefElemArgToString(it)
+			if v != "" {
+				parts = append(parts, v)
+			}
+		}
+		return strings.Join(parts, ",")
+	}
+	if tc := arg.GetTypeCast(); tc != nil {
+		return NormalizeDefElemArgToString(tc.Arg)
+	}
+	return arg.String()
 }
