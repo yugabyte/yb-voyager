@@ -46,7 +46,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-maven-
 
-      - name: "Enable postgres with pg_stat_statements loaded via shared_preload_libraries"
+      - name: "Enable postgres with pg_stat_statements, pglogical loaded via shared_preload_libraries and install pg extensions"
         run: |
           docker exec ${{ job.services.postgres.id }} sh -c "
             apt-get update && apt-get install -y \
