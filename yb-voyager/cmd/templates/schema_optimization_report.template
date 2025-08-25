@@ -514,8 +514,8 @@
                   To prevent automatic schema modifications during export, use these flags:
                </p>
                <ul style="margin: 0.5rem 0 0 0; padding-left: 1.5rem; color: #666; font-size: 0.9rem;">
-                  <li><strong>--skip-performance-optimizations true</strong> - Skip performance optimizations (e.g. redundant index removal)</li>
-                  <li><strong>--skip-sharding-recommendations true</strong> - Skip sharding recommendations from assessment</li>
+                  <li><strong>--skip-performance-recommendations true</strong> - Skip performance optimizations (e.g. redundant index removal)</li>
+                  <li><strong>--skip-colocation-recommendations true</strong> - Skip sharding recommendations from assessment</li>
                </ul>
             </div>
          </div>

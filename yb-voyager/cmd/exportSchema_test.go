@@ -339,10 +339,10 @@ func TestExportSchemaRunningAssessmentInternally_DisableFlag(t *testing.T) {
 	}
 }
 
-//Test: export schema default behavior
-//Expectation: schema optimization report should be generated with performance optimizations applied
-//Run import schema to verify that indexes are changed/removed
-//verify the indexes on YB
+// Test: export schema default behavior
+// Expectation: schema optimization report should be generated with performance optimizations applied
+// Run import schema to verify that indexes are changed/removed
+// verify the indexes on YB
 func TestExportSchemaSchemaOptimizationReportPerfOptimizationsAutofix(t *testing.T) {
 	// create temp export dir and setting global exportDir variable
 	tempExportDir := testutils.CreateTempExportDir()
@@ -433,10 +433,10 @@ func TestExportSchemaSchemaOptimizationReportPerfOptimizationsAutofix(t *testing
 	assert.Equal(t, "HASH", indexesToShardingStrategy["test_data_pkey"])
 }
 
-//Test: export schema with --skip-performance-optimizations flag
-//Expectation: schema optimization report should be generated with no performance optimizations applied
-//Run import schema to verify that indexes are not changed
-//verify the indexes on YB
+// Test: export schema with --skip-performance-recommendations flag
+// Expectation: schema optimization report should be generated with no performance optimizations applied
+// Run import schema to verify that indexes are not changed
+// verify the indexes on YB
 func TestExportSchemaSchemaOptimizationReportWithSkipPerfOptimizations(t *testing.T) {
 	// create temp export dir and setting global exportDir variable
 	tempExportDir := testutils.CreateTempExportDir()
@@ -480,7 +480,7 @@ func TestExportSchemaSchemaOptimizationReportWithSkipPerfOptimizations(t *testin
 	_, err = testutils.RunVoyagerCommand(postgresContainer, "export schema", []string{
 		"--source-db-schema", "test_schema",
 		"--export-dir", tempExportDir,
-		"--skip-performance-optimizations", "true",
+		"--skip-performance-recommendations", "true",
 		"--yes",
 	}, nil, false)
 	if err != nil {

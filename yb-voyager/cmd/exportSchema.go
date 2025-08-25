@@ -357,10 +357,10 @@ func init() {
 	exportSchemaCmd.Flags().StringVar(&source.StrExcludeObjectTypeList, "exclude-object-type-list", "",
 		"comma separated list of objects to exclude from export. ")
 
-	BoolVar(exportSchemaCmd.Flags(), &skipRecommendations, "skip-sharding-recommendations", false,
+	BoolVar(exportSchemaCmd.Flags(), &skipRecommendations, "skip-colocation-recommendations", false,
 		"disable applying recommendations in the exported schema suggested by the migration assessment report")
 
-	BoolVar(exportSchemaCmd.Flags(), &skipPerfOptimizations, "skip-performance-optimizations", false,
+	BoolVar(exportSchemaCmd.Flags(), &skipPerfOptimizations, "skip-performance-recommendations", false,
 		"disable automatically applying performance optimizations in the exported schema.")
 
 	exportSchemaCmd.Flags().StringVar(&assessmentReportPath, "assessment-report-path", "",
@@ -423,7 +423,7 @@ func updateIndexesInfoInMetaDB() error {
 
 func applyMigrationAssessmentRecommendations() ([]string, []string, []string, []string, error) {
 	if skipRecommendations {
-		log.Infof("not apply recommendations due to flag --skip-sharding-recommendations=true")
+		log.Infof("not apply recommendations due to flag --skip-colocation-recommendations=true")
 		return nil, nil, nil, nil, nil
 	} else if source.DBType == MYSQL {
 		return nil, nil, nil, nil, nil
@@ -779,7 +779,7 @@ func applyIndexFileTransformations() (*sqltransformer.IndexFileTransformer, erro
 	backUpFile, err := indexTransformer.Transform(indexFilePath)
 	if err != nil {
 		//In case of PG we should return error but for other SourceDBTypes we should return nil as the parser can fail
-		//TODO: modify the logic of adding suggestion to use skip-performance-optimizations flag once we have more type of transformations in this
+		//TODO: modify the logic of adding suggestion to use skip-performance-recommendations flag once we have more type of transformations in this
 		errMsg := fmt.Errorf("failed to transform file %s: %w\n%s", indexFilePath, err, sqltransformer.SUGGESTION_TO_USE_SKIP_PERF_OPTIMIZATIONS_FLAG)
 		if source.DBType != constants.POSTGRESQL {
 			log.Infof("skipping error while transforming file %s: %v", indexFilePath, err)

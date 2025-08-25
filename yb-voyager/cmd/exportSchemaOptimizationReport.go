@@ -41,8 +41,8 @@ const (
 	RedundantIndexesFileName                        = "redundant_indexes.sql"
 	SCHEMA_OPTIMIZATION_REPORT_FILE_NAME            = "schema_optimization_report"
 	REDUNDANT_INDEXES_DESCRIPTION                   = "The following indexes were identified as redundant. These indexes were fully covered by stronger indexes—indexes that share the same leading key columns (in order) and potentially include additional columns, making the redundant ones unnecessary."
-	APPLIED_RECOMMENDATIONS_NOT_APPLIED_DESCRIPTION = "Sharding recommendations were not applied due to the skip-sharding-recommendations flag. Modify the schema manually as per the recommendations in assessment report."
-	REDUNDANT_INDEXES_NOT_APPLIED_DESCRIPTION       = REDUNDANT_INDEXES_DESCRIPTION + "\nThese indexes were not removed due to the skip-performance-optimizations flag. Remove them manually from the schema."
+	APPLIED_RECOMMENDATIONS_NOT_APPLIED_DESCRIPTION = "Sharding recommendations were not applied due to the skip-colocation-recommendations flag. Modify the schema manually as per the recommendations in assessment report."
+	REDUNDANT_INDEXES_NOT_APPLIED_DESCRIPTION       = REDUNDANT_INDEXES_DESCRIPTION + "\nThese indexes were not removed due to the skip-performance-recommendations flag. Remove them manually from the schema."
 	RANGE_SHARDED_SECONDARY_INDEXES_DESCRIPTION     = "The following secondary indexes were configured to be range-sharded indexes in YugabyteDB. This helps in giving the flexibility to execute range-based queries, and avoids potential hotspots that come with hash-sharded indexes such as index on low cardinality column, index on high percentage of NULLs and index on high percentage of particular value."
 )
 
@@ -172,7 +172,7 @@ func NewSecondaryIndexToRangeChange(applied bool, referenceFile string, modified
 	description := "The following secondary indexes were configured to be range-sharded indexes in YugabyteDB."
 	if !applied {
 		title = "Secondary Indexes to be range-sharded - Not Applied"
-		description = "Due to the skip-performance-optimizations flag, all the btree indexes were not converted to range-sharded indexes. Modify the indexes to be range-sharded manually."
+		description = "Due to the skip-performance-recommendations flag, all the btree indexes were not converted to range-sharded indexes. Modify the indexes to be range-sharded manually."
 	}
 	description += "The range-sharded indexes helps in giving the flexibility to execute range-based queries, and avoids potential hotspots that come with hash-sharded indexes such as index on low cardinality column, index on high percentage of NULLs, and index on high percentage of particular value. Refer to sharding strategy in documentation for more information."
 	return &SecondaryIndexToRangeChange{
