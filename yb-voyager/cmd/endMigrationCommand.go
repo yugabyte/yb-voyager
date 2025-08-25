@@ -288,33 +288,23 @@ func saveMigrationReportsFn(msr *metadb.MigrationStatusRecord) {
 }
 
 func saveSchemaOptimizationReport() {
-	optimizationReportGlobPath := filepath.Join(backupDir, "reports", fmt.Sprintf("%s.*", SCHEMA_OPTIMIZATION_REPORT_FILE_NAME))
-	alreadyBackedUp := utils.FileOrFolderExistsWithGlobPattern(optimizationReportGlobPath)
+	optimizationReportBackUpPath := filepath.Join(backupDir, "reports", fmt.Sprintf("%s.html", SCHEMA_OPTIMIZATION_REPORT_FILE_NAME))
+	alreadyBackedUp := utils.FileOrFolderExistsWithGlobPattern(optimizationReportBackUpPath)
 	if alreadyBackedUp {
-		utils.PrintAndLog("schema optimization report is already present at %q", optimizationReportGlobPath)
+		utils.PrintAndLog("schema optimization report is already present at %q", optimizationReportBackUpPath)
 		return
 	}
 	utils.PrintAndLog("saving schema optimization report...")
 
-	files, err := os.ReadDir(filepath.Join(exportDir, "reports"))
+	optimizationReportCurrentPath := filepath.Join(exportDir, "reports", fmt.Sprintf("%s.html", SCHEMA_OPTIMIZATION_REPORT_FILE_NAME))
+	cmd := exec.Command("mv", optimizationReportCurrentPath, optimizationReportBackUpPath)
+	output, err := cmd.CombinedOutput()
 	if err != nil {
-		utils.ErrExit("reading reports directory: %w", err)
+		utils.ErrExit("moving schema optimization report: %s: %w", string(output), err)
+	} else {
+		log.Infof("moved schema optimization report %q to %q", optimizationReportCurrentPath, optimizationReportBackUpPath)
 	}
-	for _, file := range files {
-		if file.IsDir() || !strings.HasPrefix(file.Name(), fmt.Sprintf("%s.", SCHEMA_OPTIMIZATION_REPORT_FILE_NAME)) {
-			continue
-		}
 
-		oldPath := filepath.Join(exportDir, "reports", file.Name())
-		newPath := filepath.Join(backupDir, "reports", file.Name())
-		cmd := exec.Command("mv", oldPath, newPath)
-		output, err := cmd.CombinedOutput()
-		if err != nil {
-			utils.ErrExit("moving schema optimization report: %s: %w", string(output), err)
-		} else {
-			log.Infof("moved schema optimization report %q to %q", oldPath, newPath)
-		}
-	}
 }
 
 func saveMigrationAssessmentReport() {
