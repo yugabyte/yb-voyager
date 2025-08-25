@@ -1396,9 +1396,10 @@ func (ar *AssessmentReport) GetClusterSizingRecommendation() string {
 		return ar.Sizing.FailureReasoning
 	}
 
-	return fmt.Sprintf("Num Nodes: %f, vCPU per instance: %d, Memory per instance: %d, Estimated Import Time: %f minutes",
+	return fmt.Sprintf("Num Nodes: %f, vCPU per instance: %d, Memory per instance: %d, Estimated Import Time: %f minutes, Estimated Import Time Without Redundant Indexes: %f minutes",
 		ar.Sizing.SizingRecommendation.NumNodes, ar.Sizing.SizingRecommendation.VCPUsPerInstance,
-		ar.Sizing.SizingRecommendation.MemoryPerInstance, ar.Sizing.SizingRecommendation.EstimatedTimeInMinForImport)
+		ar.Sizing.SizingRecommendation.MemoryPerInstance, ar.Sizing.SizingRecommendation.EstimatedTimeInMinForImport,
+		ar.Sizing.SizingRecommendation.EstimatedTimeInMinForImportWithoutRedundantIndexes)
 }
 
 func (ar *AssessmentReport) GetTotalTableRowCount() int64 {

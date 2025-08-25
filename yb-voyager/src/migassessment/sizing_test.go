@@ -23,8 +23,12 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"regexp"
+	"strings"
 	"testing"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 
 	"github.com/DATA-DOG/go-sqlmock"
@@ -97,7 +101,12 @@ func TestGetSourceMetadata_SuccessReadingSourceMetadata(t *testing.T) {
 
 	mock.ExpectQuery(AssessmentDbSelectQuery).WillReturnRows(rows)
 
-	sourceTableMetadata, sourceIndexMetadata, totalSourceDBSize, err := getSourceMetadata(db)
+	// Mock the redundant indexes query
+	redundantIndexRows := sqlmock.NewRows([]string{"redundant_schema_name", "redundant_table_name", "redundant_index_name"})
+	redundantIndexQuery := fmt.Sprintf(`SELECT redundant_schema_name, redundant_table_name, redundant_index_name FROM %s`, GetTableRedundantIndexesName())
+	mock.ExpectQuery(regexp.QuoteMeta(redundantIndexQuery)).WillReturnRows(redundantIndexRows)
+
+	sourceTableMetadata, sourceIndexMetadata, _, totalSourceDBSize, err := getSourceMetadata(db, SourceDBType)
 	// assert if there are errors
 	assert.NoError(t, err)
 	// check if the total tables are equal to expected tables
@@ -118,7 +127,7 @@ func TestGetSourceMetadata_QueryErrorIfTableDoesNotExistOrColumnsUnavailable(t *
 	db, mock := createMockDB(t)
 	mock.ExpectQuery(AssessmentDbSelectQuery).WillReturnError(errors.New("query error"))
 
-	_, _, _, err := getSourceMetadata(db)
+	_, _, _, _, err := getSourceMetadata(db, SourceDBType)
 	assert.Error(t, err)
 	// check if the error returned contains the expected string
 	assert.Contains(t, err.Error(), "failed to query source metadata")
@@ -133,7 +142,7 @@ func TestGetSourceMetadata_RowScanError(t *testing.T) {
 		RowError(1, errors.New("row scan error"))
 	mock.ExpectQuery(AssessmentDbSelectQuery).WillReturnRows(rows)
 
-	_, _, _, err := getSourceMetadata(db)
+	_, _, _, _, err := getSourceMetadata(db, SourceDBType)
 	assert.Error(t, err)
 	// check if the error is as expected
 	assert.Contains(t, err.Error(), "failed to read from result set of query source metadata")
@@ -144,7 +153,13 @@ func TestGetSourceMetadata_NoRows(t *testing.T) {
 	db, mock := createMockDB(t)
 	rows := sqlmock.NewRows(AssessmentDBColumns)
 	mock.ExpectQuery(AssessmentDbSelectQuery).WillReturnRows(rows)
-	sourceTableMetadata, sourceIndexMetadata, totalSourceDBSize, err := getSourceMetadata(db)
+
+	// Mock the redundant indexes query
+	redundantIndexRows := sqlmock.NewRows([]string{"redundant_schema_name", "redundant_table_name", "redundant_index_name"})
+	redundantIndexQuery := fmt.Sprintf(`SELECT redundant_schema_name, redundant_table_name, redundant_index_name FROM %s`, GetTableRedundantIndexesName())
+	mock.ExpectQuery(regexp.QuoteMeta(redundantIndexQuery)).WillReturnRows(redundantIndexRows)
+
+	sourceTableMetadata, sourceIndexMetadata, _, totalSourceDBSize, err := getSourceMetadata(db, SourceDBType)
 
 	assert.NoError(t, err)
 	//  since there is no mock data, all the fields are expected to be empty
@@ -1087,8 +1102,8 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithoutIndex_Colocat
 	}
 
 	// Call the function
-	estimatedTime, err := calculateTimeTakenForImport(colocatedTables,
-		sourceIndexMetadata, colocatedLoadTimes, indexImpacts, columnImpacts, COLOCATED, 1.0)
+	estimatedTimeWithAllIndexes, estimatedTimeWithoutRedundantIndexes, err := calculateTimeTakenForImport(colocatedTables,
+		sourceIndexMetadata, sourceIndexMetadata, colocatedLoadTimes, indexImpacts, columnImpacts, COLOCATED, 1.0)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -1096,8 +1111,11 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithoutIndex_Colocat
 	// Define expected results
 	// Calculated as table0: 1 * ((1134 * 23) / 19) / 60
 	expectedTime := 23.0
-	if estimatedTime != expectedTime {
-		t.Errorf("calculateTimeTakenForImport() = (%v), want (%v)", estimatedTime, expectedTime)
+	if estimatedTimeWithAllIndexes != expectedTime {
+		t.Errorf("calculateTimeTakenForImport() with all indexes = (%v), want (%v)", estimatedTimeWithAllIndexes, expectedTime)
+	}
+	if estimatedTimeWithoutRedundantIndexes != expectedTime {
+		t.Errorf("calculateTimeTakenForImport() without redundant indexes = (%v), want (%v)", estimatedTimeWithoutRedundantIndexes, expectedTime)
 	}
 
 }
@@ -1141,8 +1159,8 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithOneIndex_Colocat
 	}
 
 	// Call the function
-	estimatedTime, err := calculateTimeTakenForImport(colocatedTables,
-		sourceIndexMetadata, colocatedLoadTimes, indexImpacts, columnImpacts, COLOCATED, 1.0)
+	estimatedTimeWithAllIndexes, estimatedTimeWithoutRedundantIndexes, err := calculateTimeTakenForImport(colocatedTables,
+		sourceIndexMetadata, sourceIndexMetadata, colocatedLoadTimes, indexImpacts, columnImpacts, COLOCATED, 1.0)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -1150,8 +1168,11 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithOneIndex_Colocat
 	// Define expected results
 	// Calculated as table0: 1.77777 * ((1461 * 23) / 19) / 60
 	expectedTime := 53.0 // double the time required when there are no indexes.
-	if estimatedTime != expectedTime {
-		t.Errorf("calculateTimeTakenForImport() = (%v), want (%v)", estimatedTime, expectedTime)
+	if estimatedTimeWithAllIndexes != expectedTime {
+		t.Errorf("calculateTimeTakenForImport() with all indexes = (%v), want (%v)", estimatedTimeWithAllIndexes, expectedTime)
+	}
+	if estimatedTimeWithoutRedundantIndexes != expectedTime {
+		t.Errorf("calculateTimeTakenForImport() without redundant indexes = (%v), want (%v)", estimatedTimeWithoutRedundantIndexes, expectedTime)
 	}
 
 }
@@ -1195,8 +1216,8 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithFiveIndexes_Colo
 		},
 	}
 	// Call the function
-	estimatedTime, err := calculateTimeTakenForImport(colocatedTables,
-		sourceIndexMetadata, colocatedLoadTimes, indexImpacts, columnsImpact, COLOCATED, 1.0)
+	estimatedTimeWithAllIndexes, estimatedTimeWithoutRedundantIndexes, err := calculateTimeTakenForImport(colocatedTables,
+		sourceIndexMetadata, sourceIndexMetadata, colocatedLoadTimes, indexImpacts, columnsImpact, COLOCATED, 1.0)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -1204,8 +1225,11 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithFiveIndexes_Colo
 	// Define expected results
 	// Calculated as table0: 4.66666 * ((1461 * 23) / 19) / 60
 	expectedTime := 138.0
-	if estimatedTime != expectedTime {
-		t.Errorf("calculateTimeTakenForImport() = (%v), want (%v)", estimatedTime, expectedTime)
+	if estimatedTimeWithAllIndexes != expectedTime {
+		t.Errorf("calculateTimeTakenForImport() with all indexes = (%v), want (%v)", estimatedTimeWithAllIndexes, expectedTime)
+	}
+	if estimatedTimeWithoutRedundantIndexes != expectedTime {
+		t.Errorf("calculateTimeTakenForImport() without redundant indexes = (%v), want (%v)", estimatedTimeWithoutRedundantIndexes, expectedTime)
 	}
 
 }
@@ -1239,8 +1263,8 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithoutIndex_Sharded
 		},
 	}
 	// Call the function
-	estimatedTime, err := calculateTimeTakenForImport(shardedTables, sourceIndexMetadata,
-		shardedLoadTimes, indexImpacts, columnsImpact, SHARDED, 1.0)
+	estimatedTimeWithAllIndexes, estimatedTimeWithoutRedundantIndexes, err := calculateTimeTakenForImport(shardedTables, sourceIndexMetadata,
+		sourceIndexMetadata, shardedLoadTimes, indexImpacts, columnsImpact, SHARDED, 1.0)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -1248,8 +1272,11 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithoutIndex_Sharded
 	// Define expected results
 	// Calculated as table0: 1 * ((1134 * 23) / 19) / 60
 	expectedTime := 23.0
-	if estimatedTime != expectedTime {
-		t.Errorf("calculateTimeTakenForImport() = (%v), want (%v)", estimatedTime, expectedTime)
+	if estimatedTimeWithAllIndexes != expectedTime {
+		t.Errorf("calculateTimeTakenForImport() with all indexes = (%v), want (%v)", estimatedTimeWithAllIndexes, expectedTime)
+	}
+	if estimatedTimeWithoutRedundantIndexes != expectedTime {
+		t.Errorf("calculateTimeTakenForImport() without redundant indexes = (%v), want (%v)", estimatedTimeWithoutRedundantIndexes, expectedTime)
 	}
 
 }
@@ -1287,8 +1314,8 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithOneIndex_Sharded
 		},
 	}
 	// Call the function
-	estimatedTime, err :=
-		calculateTimeTakenForImport(shardedTables, sourceIndexMetadata, shardedLoadTimes,
+	estimatedTimeWithAllIndexes, estimatedTimeWithoutRedundantIndexes, err :=
+		calculateTimeTakenForImport(shardedTables, sourceIndexMetadata, sourceIndexMetadata, shardedLoadTimes,
 			indexImpacts, columnsImpact, SHARDED, 1.0)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
@@ -1298,8 +1325,11 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithOneIndex_Sharded
 	// Calculated as table0: 1.76 * ((1134 * 23) / 19) / 60
 	expectedTime := 41.0 // double the time required when there are no indexes.
 
-	if estimatedTime != expectedTime {
-		t.Errorf("calculateTimeTakenForImport() = (%v), want (%v)", estimatedTime, expectedTime)
+	if estimatedTimeWithAllIndexes != expectedTime {
+		t.Errorf("calculateTimeTakenForImport() with all indexes = (%v), want (%v)", estimatedTimeWithAllIndexes, expectedTime)
+	}
+	if estimatedTimeWithoutRedundantIndexes != expectedTime {
+		t.Errorf("calculateTimeTakenForImport() without redundant indexes = (%v), want (%v)", estimatedTimeWithoutRedundantIndexes, expectedTime)
 	}
 
 }
@@ -1343,8 +1373,8 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithFiveIndexes_Shar
 		},
 	}
 	// Call the function
-	estimatedTime, err :=
-		calculateTimeTakenForImport(shardedTables, sourceIndexMetadata, shardedLoadTimes,
+	estimatedTimeWithAllIndexes, estimatedTimeWithoutRedundantIndexes, err :=
+		calculateTimeTakenForImport(shardedTables, sourceIndexMetadata, sourceIndexMetadata, shardedLoadTimes,
 			indexImpacts, columnsImpact, SHARDED, 1.0)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
@@ -1354,8 +1384,11 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithFiveIndexes_Shar
 	// Calculated as table0: 4.6 * ((1134 * 23) / 19) / 60
 	expectedTime := 106.0
 
-	if estimatedTime != expectedTime {
-		t.Errorf("calculateTimeTakenForImport() = (%v), want (%v)", estimatedTime, expectedTime)
+	if estimatedTimeWithAllIndexes != expectedTime {
+		t.Errorf("calculateTimeTakenForImport() with all indexes = (%v), want (%v)", estimatedTimeWithAllIndexes, expectedTime)
+	}
+	if estimatedTimeWithoutRedundantIndexes != expectedTime {
+		t.Errorf("calculateTimeTakenForImport() without redundant indexes = (%v), want (%v)", estimatedTimeWithoutRedundantIndexes, expectedTime)
 	}
 
 }
@@ -1390,8 +1423,8 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithoutIndex5Columns
 	}
 
 	// Call the function
-	estimatedTime, err := calculateTimeTakenForImport(colocatedTables,
-		sourceIndexMetadata, colocatedLoadTimes, indexImpacts, columnImpacts, COLOCATED, 1.0)
+	estimatedTimeWithAllIndexes, estimatedTimeWithoutRedundantIndexes, err := calculateTimeTakenForImport(colocatedTables,
+		sourceIndexMetadata, sourceIndexMetadata, colocatedLoadTimes, indexImpacts, columnImpacts, COLOCATED, 1.0)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -1400,8 +1433,11 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithoutIndex5Columns
 	// Calculated as table0: 1 * ((1134 * 23) / 19) / 60
 	expectedTime := 23.0
 
-	if estimatedTime != expectedTime {
-		t.Errorf("calculateTimeTakenForImport() = (%v), want (%v)", estimatedTime, expectedTime)
+	if estimatedTimeWithAllIndexes != expectedTime {
+		t.Errorf("calculateTimeTakenForImport() with all indexes = (%v), want (%v)", estimatedTimeWithAllIndexes, expectedTime)
+	}
+	if estimatedTimeWithoutRedundantIndexes != expectedTime {
+		t.Errorf("calculateTimeTakenForImport() without redundant indexes = (%v), want (%v)", estimatedTimeWithoutRedundantIndexes, expectedTime)
 	}
 
 }
@@ -1441,8 +1477,8 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithoutIndex40Column
 	}
 
 	// Call the function
-	estimatedTime, err := calculateTimeTakenForImport(colocatedTables,
-		sourceIndexMetadata, colocatedLoadTimes, indexImpacts, columnImpacts, COLOCATED, 1.0)
+	estimatedTimeWithAllIndexes, estimatedTimeWithoutRedundantIndexes, err := calculateTimeTakenForImport(colocatedTables,
+		sourceIndexMetadata, sourceIndexMetadata, colocatedLoadTimes, indexImpacts, columnImpacts, COLOCATED, 1.0)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -1451,8 +1487,11 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithoutIndex40Column
 	// Calculated as table0: 1.57 * ((1134 * 23) / 19) / 60
 	expectedTime := 36.0
 
-	if estimatedTime != expectedTime {
-		t.Errorf("calculateTimeTakenForImport() = (%v), want (%v)", estimatedTime, expectedTime)
+	if estimatedTimeWithAllIndexes != expectedTime {
+		t.Errorf("calculateTimeTakenForImport() with all indexes = (%v), want (%v)", estimatedTimeWithAllIndexes, expectedTime)
+	}
+	if estimatedTimeWithoutRedundantIndexes != expectedTime {
+		t.Errorf("calculateTimeTakenForImport() without redundant indexes = (%v), want (%v)", estimatedTimeWithoutRedundantIndexes, expectedTime)
 	}
 
 }
@@ -1492,8 +1531,8 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithoutIndex100Colum
 	}
 
 	// Call the function
-	estimatedTime, err := calculateTimeTakenForImport(colocatedTables,
-		sourceIndexMetadata, colocatedLoadTimes, indexImpacts, columnImpacts, COLOCATED, 1.0)
+	estimatedTimeWithAllIndexes, estimatedTimeWithoutRedundantIndexes, err := calculateTimeTakenForImport(colocatedTables,
+		sourceIndexMetadata, sourceIndexMetadata, colocatedLoadTimes, indexImpacts, columnImpacts, COLOCATED, 1.0)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -1503,8 +1542,11 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithoutIndex100Colum
 	// Calculated as table0: 4.13 * ((1134 * 23) / 19) / 60
 	expectedTime := 95.0
 
-	if estimatedTime != expectedTime {
-		t.Errorf("calculateTimeTakenForImport() = (%v), want (%v)", estimatedTime, expectedTime)
+	if estimatedTimeWithAllIndexes != expectedTime {
+		t.Errorf("calculateTimeTakenForImport() with all indexes = (%v), want (%v)", estimatedTimeWithAllIndexes, expectedTime)
+	}
+	if estimatedTimeWithoutRedundantIndexes != expectedTime {
+		t.Errorf("calculateTimeTakenForImport() without redundant indexes = (%v), want (%v)", estimatedTimeWithoutRedundantIndexes, expectedTime)
 	}
 
 }
@@ -1544,8 +1586,8 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithoutIndex250Colum
 	}
 
 	// Call the function
-	estimatedTime, err := calculateTimeTakenForImport(colocatedTables,
-		sourceIndexMetadata, colocatedLoadTimes, indexImpacts, columnImpacts, COLOCATED, 1.0)
+	estimatedTimeWithAllIndexes, estimatedTimeWithoutRedundantIndexes, err := calculateTimeTakenForImport(colocatedTables,
+		sourceIndexMetadata, sourceIndexMetadata, colocatedLoadTimes, indexImpacts, columnImpacts, COLOCATED, 1.0)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -1555,8 +1597,11 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithoutIndex250Colum
 	// Calculated as table0: 6.45 * ((1134 * 23) / 19) / 60
 	expectedTime := 148.0
 
-	if estimatedTime != expectedTime {
-		t.Errorf("calculateTimeTakenForImport() = (%v), want (%v)", estimatedTime, expectedTime)
+	if estimatedTimeWithAllIndexes != expectedTime {
+		t.Errorf("calculateTimeTakenForImport() with all indexes = (%v), want (%v)", estimatedTimeWithAllIndexes, expectedTime)
+	}
+	if estimatedTimeWithoutRedundantIndexes != expectedTime {
+		t.Errorf("calculateTimeTakenForImport() without redundant indexes = (%v), want (%v)", estimatedTimeWithoutRedundantIndexes, expectedTime)
 	}
 
 }
@@ -1956,4 +2001,402 @@ func createMockDB(t *testing.T) (*sql.DB, sqlmock.Sqlmock) {
 	db, mock, err := sqlmock.New()
 	assert.NoError(t, err)
 	return db, mock
+}
+
+// Test functions for redundant index filtering
+
+func TestFetchRedundantIndexes(t *testing.T) {
+	tests := []struct {
+		name           string
+		mockRows       [][]interface{}
+		expectedResult []utils.RedundantIndexesInfo
+		expectError    bool
+	}{
+		{
+			name: "successful fetch with multiple redundant indexes",
+			mockRows: [][]interface{}{
+				{"schema1", "table1", "idx1"},
+				{"schema2", "table2", "idx2"},
+				{"schema1", "table1", "idx3"},
+			},
+			expectedResult: []utils.RedundantIndexesInfo{
+				{DBType: constants.POSTGRESQL, RedundantSchemaName: "schema1", RedundantTableName: "table1", RedundantIndexName: "idx1"},
+				{DBType: constants.POSTGRESQL, RedundantSchemaName: "schema2", RedundantTableName: "table2", RedundantIndexName: "idx2"},
+				{DBType: constants.POSTGRESQL, RedundantSchemaName: "schema1", RedundantTableName: "table1", RedundantIndexName: "idx3"},
+			},
+			expectError: false,
+		},
+		{
+			name:           "successful fetch with no redundant indexes",
+			mockRows:       [][]interface{}{},
+			expectedResult: []utils.RedundantIndexesInfo{},
+			expectError:    false,
+		},
+		{
+			name: "single redundant index",
+			mockRows: [][]interface{}{
+				{"public", "users", "idx_email_duplicate"},
+			},
+			expectedResult: []utils.RedundantIndexesInfo{
+				{DBType: constants.POSTGRESQL, RedundantSchemaName: "public", RedundantTableName: "users", RedundantIndexName: "idx_email_duplicate"},
+			},
+			expectError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Set up SourceDBType for the test
+			originalSourceDBType := SourceDBType
+			SourceDBType = constants.POSTGRESQL // Set to a valid database type for testing
+			defer func() {
+				SourceDBType = originalSourceDBType // Restore original value
+			}()
+
+			db, mock := createMockDB(t)
+			defer db.Close()
+
+			// Setup mock expectation
+			query := fmt.Sprintf(`SELECT redundant_schema_name, redundant_table_name, redundant_index_name FROM %s`, GetTableRedundantIndexesName())
+			expectedQuery := regexp.QuoteMeta(query)
+
+			rows := sqlmock.NewRows([]string{"redundant_schema_name", "redundant_table_name", "redundant_index_name"})
+			for _, row := range tt.mockRows {
+				rows.AddRow(row[0], row[1], row[2])
+			}
+			mock.ExpectQuery(expectedQuery).WillReturnRows(rows)
+
+			// Execute the function
+			sourceDBType := constants.POSTGRESQL
+			result, err := getSourceMetadataRedundantIndexes(db, GetTableRedundantIndexesName(), sourceDBType)
+
+			// Assert results
+			if tt.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.expectedResult, result)
+			}
+
+			// Assert all expectations were met
+			assert.NoError(t, mock.ExpectationsWereMet())
+		})
+	}
+}
+
+func TestFetchRedundantIndexesQueryError(t *testing.T) {
+	// Set up SourceDBType for the test
+	originalSourceDBType := SourceDBType
+	SourceDBType = "postgresql" // Set to a valid database type for testing
+	defer func() {
+		SourceDBType = originalSourceDBType // Restore original value
+	}()
+
+	db, mock := createMockDB(t)
+	defer db.Close()
+
+	// Setup mock to return an error
+	query := fmt.Sprintf(`SELECT redundant_schema_name, redundant_table_name, redundant_index_name FROM %s`, GetTableRedundantIndexesName())
+	expectedQuery := regexp.QuoteMeta(query)
+	mock.ExpectQuery(expectedQuery).WillReturnError(fmt.Errorf("database connection error"))
+
+	// Execute the function
+	sourceDBType := constants.POSTGRESQL
+	result, err := getSourceMetadataRedundantIndexes(db, GetTableRedundantIndexesName(), sourceDBType)
+
+	// Assert error
+	assert.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "error querying redundant indexes")
+
+	// Assert all expectations were met
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestFilterRedundantIndexes(t *testing.T) {
+	tests := []struct {
+		name                   string
+		sourceIndexMetadata    []SourceDBMetadata
+		redundantIndexes       []utils.RedundantIndexesInfo
+		expectedFilteredCount  int
+		expectedRemainingNames []string
+	}{
+		{
+			name: "filter out single redundant index",
+			sourceIndexMetadata: []SourceDBMetadata{
+				{
+					SchemaName:      "schema1",
+					ObjectName:      "idx1",
+					ParentTableName: sql.NullString{String: "schema1.table1", Valid: true},
+					IsIndex:         true,
+				},
+				{
+					SchemaName:      "schema1",
+					ObjectName:      "idx2",
+					ParentTableName: sql.NullString{String: "schema1.table1", Valid: true},
+					IsIndex:         true,
+				},
+			},
+			redundantIndexes: []utils.RedundantIndexesInfo{
+				{DBType: constants.POSTGRESQL, RedundantSchemaName: "schema1", RedundantTableName: "table1", RedundantIndexName: "idx1"},
+			},
+			expectedFilteredCount:  1,
+			expectedRemainingNames: []string{"idx2"},
+		},
+		{
+			name: "filter out multiple redundant indexes",
+			sourceIndexMetadata: []SourceDBMetadata{
+				{
+					SchemaName:      "schema1",
+					ObjectName:      "idx1",
+					ParentTableName: sql.NullString{String: "schema1.table1", Valid: true},
+					IsIndex:         true,
+				},
+				{
+					SchemaName:      "schema1",
+					ObjectName:      "idx2",
+					ParentTableName: sql.NullString{String: "schema1.table1", Valid: true},
+					IsIndex:         true,
+				},
+				{
+					SchemaName:      "schema2",
+					ObjectName:      "idx3",
+					ParentTableName: sql.NullString{String: "schema2.table2", Valid: true},
+					IsIndex:         true,
+				},
+			},
+			redundantIndexes: []utils.RedundantIndexesInfo{
+				{DBType: constants.POSTGRESQL, RedundantSchemaName: "schema1", RedundantTableName: "table1", RedundantIndexName: "idx1"},
+				{DBType: constants.POSTGRESQL, RedundantSchemaName: "schema2", RedundantTableName: "table2", RedundantIndexName: "idx3"},
+			},
+			expectedFilteredCount:  1,
+			expectedRemainingNames: []string{"idx2"},
+		},
+		{
+			name: "no redundant indexes to filter",
+			sourceIndexMetadata: []SourceDBMetadata{
+				{
+					SchemaName:      "schema1",
+					ObjectName:      "idx1",
+					ParentTableName: sql.NullString{String: "schema1.table1", Valid: true},
+					IsIndex:         true,
+				},
+				{
+					SchemaName:      "schema1",
+					ObjectName:      "idx2",
+					ParentTableName: sql.NullString{String: "schema1.table1", Valid: true},
+					IsIndex:         true,
+				},
+			},
+			redundantIndexes:       []utils.RedundantIndexesInfo{},
+			expectedFilteredCount:  2,
+			expectedRemainingNames: []string{"idx1", "idx2"},
+		},
+		{
+			name: "redundant index not matching any source index",
+			sourceIndexMetadata: []SourceDBMetadata{
+				{
+					SchemaName:      "schema1",
+					ObjectName:      "idx1",
+					ParentTableName: sql.NullString{String: "schema1.table1", Valid: true},
+					IsIndex:         true,
+				},
+			},
+			redundantIndexes: []utils.RedundantIndexesInfo{
+				{DBType: constants.POSTGRESQL, RedundantSchemaName: "schema2", RedundantTableName: "table2", RedundantIndexName: "idx_nonexistent"},
+			},
+			expectedFilteredCount:  1,
+			expectedRemainingNames: []string{"idx1"},
+		},
+		{
+			name: "index with invalid parent table name",
+			sourceIndexMetadata: []SourceDBMetadata{
+				{
+					SchemaName:      "schema1",
+					ObjectName:      "idx1",
+					ParentTableName: sql.NullString{Valid: false},
+					IsIndex:         true,
+				},
+				{
+					SchemaName:      "schema1",
+					ObjectName:      "idx2",
+					ParentTableName: sql.NullString{String: "schema1.table1", Valid: true},
+					IsIndex:         true,
+				},
+			},
+			redundantIndexes: []utils.RedundantIndexesInfo{
+				{DBType: constants.POSTGRESQL, RedundantSchemaName: "schema1", RedundantTableName: "table1", RedundantIndexName: "idx2"},
+			},
+			expectedFilteredCount:  1,
+			expectedRemainingNames: []string{"idx1"},
+		},
+		{
+			name: "parent table name with unexpected format",
+			sourceIndexMetadata: []SourceDBMetadata{
+				{
+					SchemaName:      "schema1",
+					ObjectName:      "idx1",
+					ParentTableName: sql.NullString{String: "just_table_name", Valid: true},
+					IsIndex:         true,
+				},
+			},
+			redundantIndexes: []utils.RedundantIndexesInfo{
+				{DBType: constants.POSTGRESQL, RedundantSchemaName: "schema1", RedundantTableName: "just_table_name", RedundantIndexName: "idx1"},
+			},
+			expectedFilteredCount:  0,
+			expectedRemainingNames: []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Set up SourceDBType for the test
+			originalSourceDBType := SourceDBType
+			SourceDBType = constants.POSTGRESQL // Set to a valid database type for testing
+			defer func() {
+				SourceDBType = originalSourceDBType // Restore original value
+			}()
+
+			result := filterRedundantIndexes(tt.sourceIndexMetadata, tt.redundantIndexes, SourceDBType)
+
+			// Assert the count of filtered indexes
+			assert.Equal(t, tt.expectedFilteredCount, len(result))
+
+			// Assert the remaining index names
+			var remainingNames []string
+			for _, index := range result {
+				remainingNames = append(remainingNames, index.ObjectName)
+			}
+			assert.ElementsMatch(t, tt.expectedRemainingNames, remainingNames)
+		})
+	}
+}
+
+func TestGetSourceMetadataWithRedundantIndexFiltering(t *testing.T) {
+	// Set up SourceDBType for the test
+	originalSourceDBType := SourceDBType
+	SourceDBType = "postgresql" // Set to a valid database type for testing
+	defer func() {
+		SourceDBType = originalSourceDBType // Restore original value
+	}()
+
+	db, mock := createMockDB(t)
+	defer db.Close()
+
+	// Setup mock for main metadata query
+	metadataQuery := fmt.Sprintf(`
+		SELECT schema_name, 
+			   object_name, 
+			   row_count, 
+			   reads_per_second, 
+			   writes_per_second, 
+			   is_index, 
+			   parent_table_name, 
+			   size_in_bytes,
+			   column_count 
+		FROM %v 
+		WHERE %s
+		ORDER BY IFNULL(size_in_bytes, 0) ASC
+	`, GetTableIndexStatName(), strings.Join([]string{
+		fmt.Sprintf("object_type LIKE '%s'", "%table%"),
+		fmt.Sprintf("object_type LIKE '%s'", "%index%"),
+		fmt.Sprintf("object_type LIKE '%s'", "materialized view"),
+	}, " OR "))
+
+	metadataRows := sqlmock.NewRows([]string{
+		"schema_name", "object_name", "row_count", "reads_per_second", "writes_per_second",
+		"is_index", "parent_table_name", "size_in_bytes", "column_count",
+	}).
+		AddRow("schema1", "table1", 1000, 10, 5, false, nil, 1024*1024*1024, 5).        // table
+		AddRow("schema1", "idx1", nil, 5, 2, true, "schema1.table1", 512*1024*1024, 2). // index (should be filtered)
+		AddRow("schema1", "idx2", nil, 3, 1, true, "schema1.table1", 256*1024*1024, 1)  // index (should remain)
+
+	mock.ExpectQuery(regexp.QuoteMeta(strings.ReplaceAll(metadataQuery, "\n\t\t", " "))).WillReturnRows(metadataRows)
+
+	// Setup mock for redundant indexes query
+	redundantQuery := fmt.Sprintf(`SELECT redundant_schema_name, redundant_table_name, redundant_index_name FROM %s`, GetTableRedundantIndexesName())
+	redundantRows := sqlmock.NewRows([]string{"redundant_schema_name", "redundant_table_name", "redundant_index_name"}).
+		AddRow("schema1", "table1", "idx1")
+
+	mock.ExpectQuery(regexp.QuoteMeta(redundantQuery)).WillReturnRows(redundantRows)
+
+	// Expect database close
+	mock.ExpectClose()
+
+	// Execute the function
+	tables, indexes, filteredIndexes, totalSize, err := getSourceMetadata(db, SourceDBType)
+
+	// Assert results
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(tables))
+	assert.Equal(t, 2, len(indexes))         // Original indexes should remain unfiltered
+	assert.Equal(t, 1, len(filteredIndexes)) // Only idx2 should remain, idx1 should be filtered
+	assert.Equal(t, "table1", tables[0].ObjectName)
+	assert.Equal(t, "idx2", filteredIndexes[0].ObjectName)
+	assert.Greater(t, totalSize, 0.0)
+
+	// Assert all expectations were met
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestGetSourceMetadataWithRedundantIndexError(t *testing.T) {
+	// Set up SourceDBType for the test
+	originalSourceDBType := SourceDBType
+	SourceDBType = "postgresql" // Set to a valid database type for testing
+	defer func() {
+		SourceDBType = originalSourceDBType // Restore original value
+	}()
+
+	db, mock := createMockDB(t)
+	defer db.Close()
+
+	// Setup mock for main metadata query
+	metadataQuery := fmt.Sprintf(`
+		SELECT schema_name, 
+			   object_name, 
+			   row_count, 
+			   reads_per_second, 
+			   writes_per_second, 
+			   is_index, 
+			   parent_table_name, 
+			   size_in_bytes,
+			   column_count 
+		FROM %v 
+		WHERE %s
+		ORDER BY IFNULL(size_in_bytes, 0) ASC
+	`, GetTableIndexStatName(), strings.Join([]string{
+		fmt.Sprintf("object_type LIKE '%s'", "%table%"),
+		fmt.Sprintf("object_type LIKE '%s'", "%index%"),
+		fmt.Sprintf("object_type LIKE '%s'", "materialized view"),
+	}, " OR "))
+
+	metadataRows := sqlmock.NewRows([]string{
+		"schema_name", "object_name", "row_count", "reads_per_second", "writes_per_second",
+		"is_index", "parent_table_name", "size_in_bytes", "column_count",
+	}).
+		AddRow("schema1", "table1", 1000, 10, 5, false, nil, 1024*1024*1024, 5).       // table
+		AddRow("schema1", "idx1", nil, 5, 2, true, "schema1.table1", 512*1024*1024, 2) // index
+
+	mock.ExpectQuery(regexp.QuoteMeta(strings.ReplaceAll(metadataQuery, "\n\t\t", " "))).WillReturnRows(metadataRows)
+
+	// Setup mock for redundant indexes query to return error
+	redundantQuery := fmt.Sprintf(`SELECT redundant_schema_name, redundant_table_name, redundant_index_name FROM %s`, GetTableRedundantIndexesName())
+	mock.ExpectQuery(regexp.QuoteMeta(redundantQuery)).WillReturnError(fmt.Errorf("redundant table does not exist"))
+
+	// Expect database close
+	mock.ExpectClose()
+
+	// Execute the function
+	tables, indexes, _, totalSize, err := getSourceMetadata(db, SourceDBType)
+
+	// Assert results - should continue despite redundant index error
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(tables))
+	assert.Equal(t, 1, len(indexes)) // index should remain since filtering failed gracefully
+	assert.Equal(t, "table1", tables[0].ObjectName)
+	assert.Equal(t, "idx1", indexes[0].ObjectName)
+	assert.Greater(t, totalSize, 0.0)
+
+	// Assert all expectations were met
+	assert.NoError(t, mock.ExpectationsWereMet())
 }

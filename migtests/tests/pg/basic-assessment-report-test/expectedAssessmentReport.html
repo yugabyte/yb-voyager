@@ -570,6 +570,7 @@
                         <tr><td class="centered-cell">Optimal select connections per node</td><td class="centered-cell">8</td></tr>
                         <tr><td class="centered-cell">Optimal insert connections per node</td><td class="centered-cell">12</td></tr>
                         <tr><td class="centered-cell">Estimated time taken for data import </td><td class="centered-cell">1 min</td></tr>
+                        <tr><td class="centered-cell">Estimated time taken for data import (Excluding redundant indexes)</td><td class="centered-cell">1 min</td></tr>
                     </table>
                     <h3>Reasoning:</h3>
                     <p class="spaced-words">Recommended instance type with 4 vCPU and 16 GiB memory could fit 6 objects (4 tables/materialized views and 2 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Rest 4 objects (1 tables/materialized views and 3 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec need to be migrated as range partitioned tables. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.</p>
