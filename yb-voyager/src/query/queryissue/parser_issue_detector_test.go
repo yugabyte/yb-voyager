@@ -20,6 +20,7 @@ package queryissue
 import (
 	"fmt"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -2340,4 +2341,158 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 		assert.Equal(t, 1, len(issues))
 		assert.True(t, cmp.Equal(expectedIssue, issues[0]), "Expected issue not found: %v\nFound: %v", expectedIssue, issues[0])
 	})
+}
+
+// ====== Primary Key Recommendation Testing - Checks for missing PK when UNIQUE and NOT NULL columns are available ======
+
+func runPKRec(t *testing.T, name string, ddls []string, expected []QueryIssue) {
+	// Helper function to build parser issue detector from DDL statements
+	pkrecBuild := func(ddls ...string) *ParserIssueDetector {
+		d := NewParserIssueDetector()
+		for _, s := range ddls {
+			if s == "" {
+				continue
+			}
+			_ = d.ParseAndProcessDDL(s)
+		}
+		d.FinalizeColumnMetadata()
+		return d
+	}
+
+	// Helper function to create a key for sorting QueryIssues
+	pkrecKey := func(q QueryIssue) string {
+		opt, _ := q.Details["PrimaryKeyColumnOptions"].([][]string)
+		// Sort the column options to ensure consistent ordering
+		sortedOpt := make([][]string, len(opt))
+		copy(sortedOpt, opt)
+		slices.SortFunc(sortedOpt, func(a, b []string) int {
+			if len(a) != len(b) {
+				return len(a) - len(b)
+			}
+			return strings.Compare(strings.Join(a, ","), strings.Join(b, ","))
+		})
+		// Create a string representation for the key
+		keyParts := make([]string, len(sortedOpt))
+		for i, cols := range sortedOpt {
+			keyParts[i] = strings.Join(cols, ",")
+		}
+		joined := strings.Join(keyParts, "|")
+		return q.ObjectName + "|" + joined
+	}
+
+	// Helper function to sort QueryIssues for consistent comparison
+	pkrecSort := func(issues []QueryIssue) []QueryIssue {
+		out := append([]QueryIssue(nil), issues...)
+		// First, sort the PrimaryKeyColumnOptions within each QueryIssue for consistency
+		for i := range out {
+			if opt, ok := out[i].Details["PrimaryKeyColumnOptions"].([][]string); ok {
+				sortedOpt := make([][]string, len(opt))
+				copy(sortedOpt, opt)
+				slices.SortFunc(sortedOpt, func(a, b []string) int {
+					if len(a) != len(b) {
+						return len(a) - len(b)
+					}
+					return strings.Compare(strings.Join(a, ","), strings.Join(b, ","))
+				})
+				out[i].Details["PrimaryKeyColumnOptions"] = sortedOpt
+			}
+		}
+		// Then sort the QueryIssues themselves
+		slices.SortFunc(out, func(a, b QueryIssue) int { return strings.Compare(pkrecKey(a), pkrecKey(b)) })
+		return out
+	}
+
+	// Helper function to create a string representation of QueryIssues for debugging
+	pkrecString := func(list []QueryIssue) string {
+		parts := make([]string, 0, len(list))
+		for _, q := range pkrecSort(list) {
+			opt, _ := q.Details["PrimaryKeyColumnOptions"].([][]string)
+			optionStrings := make([]string, len(opt))
+			for i, cols := range opt {
+				optionStrings[i] = strings.Join(cols, ", ")
+			}
+			parts = append(parts, fmt.Sprintf("%s [%s]", q.ObjectName, strings.Join(optionStrings, "; ")))
+		}
+		return fmt.Sprintf("[%s]", strings.Join(parts, ", "))
+	}
+
+	z := func(v any) string { return fmt.Sprintf("%#v", v) }
+	t.Helper()
+	t.Run(name, func(t *testing.T) {
+		d := pkrecBuild(ddls...)
+		got := d.DetectPrimaryKeyRecommendations()
+		gotS := pkrecSort(got)
+		expS := pkrecSort(expected)
+
+		// Print test name and recommendations for debugging
+		// fmt.Printf("\n=== Test: %s ===\n", name)
+		// if len(gotS) == 0 {
+		// 	fmt.Printf("No recommendations\n")
+		// } else {
+		// 	for i, rec := range gotS {
+		// 		fmt.Printf("Recommendation %d: %+v\n", i+1, rec)
+		// 	}
+		// }
+
+		if diff := cmp.Diff(expS, gotS); diff != "" {
+			t.Fatalf("PK recommendations mismatch (-want +got):\n%s\nExpected (objects): %s\nActual   (objects): %s\nExpected (pretty):  %s\nActual   (pretty):  %s", diff, z(expS), z(gotS), pkrecString(expS), pkrecString(gotS))
+		}
+	})
+}
+
+func TestPKRec_CommonRunner(t *testing.T) {
+	cases := []struct {
+		name     string
+		ddls     []string
+		expected []QueryIssue
+	}{
+		{
+			name:     "PKREC: Simple UNIQUE(a) with a NOT NULL, no PK",
+			ddls:     []string{`CREATE TABLE t1 (a int NOT NULL, b text, UNIQUE(a));`},
+			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "t1", [][]string{{"t1.a"}})},
+		},
+		{
+			name:     "PKREC: Composite UNIQUE(a,b) both NOT NULL",
+			ddls:     []string{`CREATE TABLE t2 (a int NOT NULL, b text NOT NULL, c text, UNIQUE(a,b));`},
+			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "t2", [][]string{{"t2.a", "t2.b"}})},
+		},
+		{
+			name: "PKREC: Multiple ALTER SET NOT NULL then UNIQUE(a,b)",
+			ddls: []string{
+				`CREATE TABLE t3 (a int, b int);`,
+				`ALTER TABLE t3 ALTER COLUMN a SET NOT NULL, ALTER COLUMN b SET NOT NULL;`,
+				`ALTER TABLE t3 ADD CONSTRAINT uq_t3 UNIQUE (a,b);`,
+			},
+			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "t3", [][]string{{"t3.a", "t3.b"}})},
+		},
+		{
+			name: "PKREC: DROP NOT NULL cancels composite UNIQUE(a,b)",
+			ddls: []string{
+				`CREATE TABLE t4 (a int, b int);`,
+				`ALTER TABLE t4 ALTER COLUMN a SET NOT NULL, ALTER COLUMN b SET NOT NULL;`,
+				`ALTER TABLE t4 ALTER COLUMN b DROP NOT NULL;`,
+				`ALTER TABLE t4 ADD CONSTRAINT uq_t4 UNIQUE (a,b);`,
+			},
+			expected: nil,
+		},
+		{
+			name:     "PKREC: No recommendation if PK exists",
+			ddls:     []string{`CREATE TABLE t5 (a int NOT NULL, UNIQUE(a), PRIMARY KEY(a));`},
+			expected: nil,
+		},
+		{
+			name:     "PKREC: Aggregate all qualifying UNIQUE sets",
+			ddls:     []string{`CREATE TABLE t6 (a int NOT NULL, b int NOT NULL, UNIQUE(a,b), UNIQUE(a));`},
+			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "t6", [][]string{{"t6.a"}, {"t6.a", "t6.b"}})},
+		},
+		{
+			name:     "PKREC: UNIQUE with nullable column -> no recommendation",
+			ddls:     []string{`CREATE TABLE t7 (a int NOT NULL, b int, UNIQUE(a,b));`},
+			expected: nil,
+		},
+	}
+
+	for _, tc := range cases {
+		runPKRec(t, tc.name, tc.ddls, tc.expected)
+	}
 }

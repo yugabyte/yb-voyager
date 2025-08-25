@@ -1152,8 +1152,12 @@ func checkerMisc(detectPerfOptimizationIssues bool) {
 	if detectPerfOptimizationIssues {
 		fkIssues := parserIssueDetector.DetectMissingForeignKeyIndexes()
 
+		// Detect PK recommendation when UNIQUE+NOT NULL exists but PK is missing
+		pkRecs := parserIssueDetector.DetectPrimaryKeyRecommendations()
+
 		// Convert QueryIssues to AnalyzeSchemaIssues and add to report
-		for _, issue := range fkIssues {
+		issues := append(fkIssues, pkRecs...)
+		for _, issue := range issues {
 			analyzeIssue := convertIssueInstanceToAnalyzeIssue(issue, "", false, true)
 			schemaAnalysisReport.Issues = append(schemaAnalysisReport.Issues, analyzeIssue)
 		}
