@@ -19,6 +19,7 @@ import (
 	"strings"
 
 	"github.com/samber/lo"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
@@ -55,6 +56,7 @@ type Source struct {
 	CommentsOnObjects         utils.BoolStr `json:"comments_on_objects"`
 	DBVersion                 string        `json:"db_version"`
 	DBSize                    int64         `json:"db_size"`
+	PostgresSystemIdentifier  int64         `json:"postgres_system_identifier"`
 	StrExportObjectTypeList   string        `json:"str_export_object_type_list"`
 	StrExcludeObjectTypeList  string        `json:"str_exclude_object_type_list"`
 	RunGuardrailsChecks       utils.BoolStr `json:"run_guardrails_checks"`
@@ -87,6 +89,19 @@ func (s *Source) GetOracleHome() string {
 
 func (s *Source) GetSchemaList() []string {
 	return strings.Split(s.Schema, "|")
+}
+
+// FetchPostgresSystemIdentifier fetches and stores the PostgreSQL system identifier if the source is PostgreSQL
+func (s *Source) FetchPostgresSystemIdentifier() {
+	if s.DBType == "postgresql" {
+		if pgDB, ok := s.DB().(*PostgreSQL); ok {
+			if systemIdentifier, err := pgDB.GetSystemIdentifier(); err == nil {
+				s.PostgresSystemIdentifier = systemIdentifier
+			} else {
+				log.Infof("callhome: failed to get PostgreSQL system identifier: %v", err)
+			}
+		}
+	}
 }
 
 func (s *Source) IsOracleCDBSetup() bool {

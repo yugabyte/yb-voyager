@@ -88,11 +88,12 @@ type Payload struct {
 // SHOULD NOT REMOVE THESE (host, db_type, db_version, total_db_size_bytes) FIELDS of SourceDBDetails as parsing these specifically here
 // https://github.com/yugabyte/yugabyte-growth/blob/ad5df306c50c05136df77cd6548a1091ae577046/diagnostics_v2/main.py#L549
 type SourceDBDetails struct {
-	Host      string `json:"host"` //keeping it empty for now, as field is parsed in big query app
-	DBType    string `json:"db_type"`
-	DBVersion string `json:"db_version"`
-	DBSize    int64  `json:"total_db_size_bytes"` //bytes
-	Role      string `json:"role,omitempty"`      //for differentiating replica details
+	Host                     string `json:"host"` //keeping it empty for now, as field is parsed in big query app
+	DBType                   string `json:"db_type"`
+	DBVersion                string `json:"db_version"`
+	DBSize                   int64  `json:"total_db_size_bytes"`                  //bytes
+	Role                     string `json:"role,omitempty"`                       //for differentiating replica details
+	PostgresSystemIdentifier int64  `json:"postgres_system_identifier,omitempty"` //PostgreSQL system identifier for unique instance identification
 }
 
 // SHOULD NOT REMOVE THESE (host, db_version, node_count, total_cores) FIELDS of TargetDBDetails as parsing these specifically here
@@ -162,12 +163,12 @@ type SizingCallhome struct {
 	ColocatedTables                 []string `json:"colocated_tables"`
 	ColocatedReasoning              string   `json:"colocated_reasoning"`
 	ShardedTables                   []string `json:"sharded_tables"`
-	NumNodes                        float64 `json:"num_nodes"`
-	VCPUsPerInstance                int     `json:"vcpus_per_instance"`
-	MemoryPerInstance               int     `json:"memory_per_instance"`
-	OptimalSelectConnectionsPerNode int64   `json:"optimal_select_connections_per_node"`
-	OptimalInsertConnectionsPerNode int64   `json:"optimal_insert_connections_per_node"`
-	EstimatedTimeInMinForImport     float64 `json:"estimated_time_in_min_for_import"`
+	NumNodes                        float64  `json:"num_nodes"`
+	VCPUsPerInstance                int      `json:"vcpus_per_instance"`
+	MemoryPerInstance               int      `json:"memory_per_instance"`
+	OptimalSelectConnectionsPerNode int64    `json:"optimal_select_connections_per_node"`
+	OptimalInsertConnectionsPerNode int64    `json:"optimal_insert_connections_per_node"`
+	EstimatedTimeInMinForImport     float64  `json:"estimated_time_in_min_for_import"`
 }
 
 type ObjectSizingStats struct {
