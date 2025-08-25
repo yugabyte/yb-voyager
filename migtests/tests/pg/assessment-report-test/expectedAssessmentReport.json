@@ -2,7 +2,7 @@
 	"VoyagerVersion": "main",
 	"TargetDBVersion": "2024.2.0.0",
 	"MigrationComplexity": "HIGH",
-	"MigrationComplexityExplanation": "Found 32 Level 2 issue(s) and 18 Level 3 issue(s), resulting in HIGH migration complexity",
+	"MigrationComplexityExplanation": "Found 32 Level 2 issue(s) and 22 Level 3 issue(s), resulting in HIGH migration complexity",
 	"SchemaSummary": {
 		"Description": "Objects that will be created on the target YugabyteDB.",
 		"DbName": "pg_assessment_report",
@@ -27,9 +27,9 @@
 			},
 			{
 				"ObjectType": "EXTENSION",
-				"TotalCount": 5,
-				"InvalidCount": 0,
-				"ObjectNames": "citext, hstore, lo, pg_stat_statements, pgcrypto"
+				"TotalCount": 9,
+				"InvalidCount": 4,
+				"ObjectNames": "plperl, plpython3u, citext, hstore, lo, pg_stat_statements, pgcrypto, pglogical, postgis"
 			},
 			{
 				"ObjectType": "TYPE",
@@ -119,6 +119,7 @@
 				"public.numeric_multirange_table",
 				"public.child_table",
 				"public.timestamp_multirange_table",
+				"public.spatial_ref_sys",
 				"public.tbl_unlogged",
 				"public.documents",
 				"public.inet_type",
@@ -339,6 +340,58 @@
 			"ObjectName": "public.child_table",
 			"SqlStatement": "CREATE TABLE public.child_table (\n    specific_column1 date\n)\nINHERITS (public.parent_table);",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "unsupported_features",
+			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
+			"Type": "UNSUPPORTED_EXTENSION",
+			"Name": "Unsupported Extension",
+			"Description": "This extension is not supported in YugabyteDB by default.",
+			"Impact": "LEVEL_3",
+			"ObjectType": "EXTENSION",
+			"ObjectName": "plperl",
+			"SqlStatement": "CREATE EXTENSION IF NOT EXISTS plperl WITH SCHEMA pg_catalog;",
+			"DocsLink": "https://docs.yugabyte.com/preview/explore/ysql-language-features/pg-extensions/",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "unsupported_features",
+			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
+			"Type": "UNSUPPORTED_EXTENSION",
+			"Name": "Unsupported Extension",
+			"Description": "This extension is not supported in YugabyteDB by default.",
+			"Impact": "LEVEL_3",
+			"ObjectType": "EXTENSION",
+			"ObjectName": "plpython3u",
+			"SqlStatement": "CREATE EXTENSION IF NOT EXISTS plpython3u WITH SCHEMA pg_catalog;",
+			"DocsLink": "https://docs.yugabyte.com/preview/explore/ysql-language-features/pg-extensions/",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "unsupported_features",
+			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
+			"Type": "UNSUPPORTED_EXTENSION",
+			"Name": "Unsupported Extension",
+			"Description": "This extension is not supported in YugabyteDB by default.",
+			"Impact": "LEVEL_3",
+			"ObjectType": "EXTENSION",
+			"ObjectName": "pglogical",
+			"SqlStatement": "CREATE EXTENSION IF NOT EXISTS pglogical WITH SCHEMA pglogical;",
+			"DocsLink": "https://docs.yugabyte.com/preview/explore/ysql-language-features/pg-extensions/",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "unsupported_features",
+			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
+			"Type": "UNSUPPORTED_EXTENSION",
+			"Name": "Unsupported Extension",
+			"Description": "This extension is not supported in YugabyteDB by default.",
+			"Impact": "LEVEL_3",
+			"ObjectType": "EXTENSION",
+			"ObjectName": "postgis",
+			"SqlStatement": "CREATE EXTENSION IF NOT EXISTS postgis WITH SCHEMA public;",
+			"DocsLink": "https://docs.yugabyte.com/preview/explore/ysql-language-features/pg-extensions/",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -3359,6 +3412,30 @@
 			"ObjectType": "index",
 			"ParentTableName": "public.inet_type",
 			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "spatial_ref_sys",
+			"RowCount": 8500,
+			"ColumnCount": 5,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "table",
+			"ParentTableName": null,
+			"SizeInBytes": 7061504
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "spatial_ref_sys_pkey",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "primary key",
+			"ParentTableName": "public.spatial_ref_sys",
+			"SizeInBytes": 212992
 		},
 		{
 			"SchemaName": "public",
