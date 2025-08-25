@@ -804,10 +804,11 @@ options:{def_elem:{defname:"security_barrier" arg:{string:{sval:"false"}} defact
 
 Presence-only flag example where arg is absent (nil in parse tree):
 SQL: CREATE TABLE t(id int) WITH (autovacuum_enabled);
-ParseTree: stmt:{create_stmt:{relation:{relname:"t"  inh:true  relpersistence:"p"  location:13}
 
-	table_elts:{column_def:{colname:"id"  type_name:{names:{string:{sval:"pg_catalog"}}  names:{string:{sval:"int4"}} }}
-	options:{def_elem:{defname:"autovacuum_enabled"  defaction:DEFELEM_UNSPEC }} }}
+ParseTree:	stmt:{create_stmt:{relation:{relname:"t"  inh:true  relpersistence:"p"  location:13}
+
+			table_elts:{column_def:{colname:"id"  type_name:{names:{string:{sval:"pg_catalog"}}  names:{string:{sval:"int4"}} }}
+	    	options:{def_elem:{defname:"autovacuum_enabled"  defaction:DEFELEM_UNSPEC }} }}
 
 NormalizeDefElemArgToString converts common DefElem Arg node shapes to string to avoid warn/noise:
 - nil => "true" (presence-only flags)
