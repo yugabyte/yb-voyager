@@ -331,6 +331,9 @@ func fetchSourceInfo() {
 	if err != nil {
 		log.Errorf("error getting database size: %v", err) //can just log as this is used for call-home only
 	}
+
+	// Get PostgreSQL system identifier
+	source.FetchPostgresSystemIdentifier()
 }
 
 func SetMigrationAssessmentDoneInMSR() error {
