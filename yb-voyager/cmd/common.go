@@ -1255,7 +1255,7 @@ type AssessMigrationDBConfig struct {
 	Schema   string
 }
 
-// =============== for yugabyted controlplane ==============//
+// =============== For YUGABYTEDB CONTROL PLANE ==============//
 // TODO: see if this can be accommodated in controlplane pkg, facing pkg cyclic dependency issue
 
 /*
@@ -1267,8 +1267,9 @@ Version History
 1.4: Removed field 'ParallelVoyagerJobs` from sizing recommendation
 1.5: Changed type of the Details field from json.RawMessage to map[string]interface{}
 1.6: Add EstimatedTimeInMinForImportWithoutRedundantIndexes in SizingRecommendation struct
+1.7: added separate fields for notes: GeneralNotes, ColocatedShardedNotes, SizingNotes; deprecated Notes field
 */
-var ASSESS_MIGRATION_YBD_PAYLOAD_VERSION = "1.6"
+var ASSESS_MIGRATION_YBD_PAYLOAD_VERSION = "1.7"
 
 // TODO: decouple this struct from utils.AnalyzeSchemaIssue struct, right now its tightly coupled;
 // Similarly for migassessment.SizingAssessmentReport and migassessment.TableIndexStats
@@ -1285,9 +1286,12 @@ type AssessMigrationPayload struct {
 	ConversionIssues               []utils.AnalyzeSchemaIssue
 	Sizing                         *migassessment.SizingAssessmentReport
 	TableIndexStats                *[]migassessment.TableIndexStats
-	Notes                          []string
-	// Depreacted: AssessmentJsonReport is deprecated; use the fields directly inside struct
-	AssessmentJsonReport AssessmentReportYugabyteD
+	GeneralNotes                   []string
+	ColocatedShardedNotes          []string
+	SizingNotes                    []string
+
+	AssessmentJsonReport AssessmentReportYugabyteD // Depreacted: AssessmentJsonReport is deprecated; use the fields directly inside struct
+	Notes                []string                  // Depreacted: Notes is deprecated; use the new fields for notes: GeneralNotes, ColocatedShardedNotes, SizingNotes
 }
 
 type AssessmentIssueYugabyteD struct {
