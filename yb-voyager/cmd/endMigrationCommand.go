@@ -304,6 +304,10 @@ func saveSchemaOptimizationReport() error {
 	utils.PrintAndLog("saving schema optimization report...")
 
 	optimizationReportCurrentPath := filepath.Join(exportDir, "reports", fmt.Sprintf("%s.html", SCHEMA_OPTIMIZATION_REPORT_FILE_NAME))
+	if !utils.FileOrFolderExists(optimizationReportCurrentPath) {
+		log.Infof("schema optimization report not found at %q", optimizationReportCurrentPath)
+		return nil
+	}
 	cmd := exec.Command("mv", optimizationReportCurrentPath, optimizationReportBackUpPath)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
