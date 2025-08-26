@@ -1023,6 +1023,8 @@ func (p *ParserIssueDetector) DetectPrimaryKeyRecommendations() []QueryIssue {
 	var issues []QueryIssue
 
 	// Skip for partitioned or inherited tables, as PK rules differ
+	// TODO: Remove this skip and add a proper check for PK rules: the columns suggested should contain the partition key columns
+	// https://yugabyte.atlassian.net/browse/DB-18077
 	shouldSkip := func(table string) bool {
 		partitionedTables := p.getPartitionedTablesMap()
 		partitionedFrom := p.getPartitionedFrom()
@@ -1050,6 +1052,9 @@ func (p *ParserIssueDetector) DetectPrimaryKeyRecommendations() []QueryIssue {
 
 		// Collect all qualifying UNIQUE column sets where all columns are NOT NULL
 		var options [][]string
+		// Currently we only detect PK recommendations for UNIQUE constraints
+		// TODO: We should also consider UNIQUE INDEXES for PK recommendations
+		// https://yugabyte.atlassian.net/browse/DB-18078
 		for _, uniqueCols := range tm.GetUniqueConstraints() {
 			allNN := true
 			for _, col := range uniqueCols {
