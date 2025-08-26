@@ -1187,7 +1187,7 @@ type AssessmentReport struct {
 	Sizing                         *migassessment.SizingAssessmentReport `json:"Sizing"`
 	Issues                         []AssessmentIssue                     `json:"AssessmentIssues"`
 	TableIndexStats                *[]migassessment.TableIndexStats      `json:"TableIndexStats"`
-	Notes                          []string                              `json:"Notes"`
+	Notes                          []NoteInfo                            `json:"Notes"`
 
 	// fields going to be deprecated
 	UnsupportedDataTypes       []utils.TableColumnsDataTypes     `json:"-"`
@@ -1228,6 +1228,21 @@ type ObjectInfo struct {
 	ObjectType   string `json:"ObjectType,omitempty"`
 	ObjectName   string
 	SqlStatement string
+}
+
+// Enum definitions for different types of notes in the YugabyteD event payload
+type NoteType string
+
+const (
+	GeneralNotes          NoteType = "GeneralNotes"
+	ColocatedShardedNotes NoteType = "ColocatedShardedNotes"
+	SizingNotes           NoteType = "SizingNotes"
+)
+
+// NoteInfo contains both the note text and its type at start instead of delaying the classification in yugabyted event builder logic
+type NoteInfo struct {
+	Type NoteType `json:"Type"`
+	Text string   `json:"Text"`
 }
 
 // ======================================================================

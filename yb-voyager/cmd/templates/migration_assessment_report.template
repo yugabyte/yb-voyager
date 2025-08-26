@@ -735,7 +735,7 @@
                 <h4>Notes</h4>
                 <ul id="notes-list">
                     {{ range .Notes }}
-                        <li>{{ . }}</li>
+                        <li>{{ .Text }}</li>
                     {{ end }}
                 </ul>
             </div>

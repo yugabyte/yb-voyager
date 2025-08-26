@@ -19,6 +19,7 @@ package cmd
 import (
 	"encoding/json"
 
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -29,15 +30,6 @@ func createMigrationAssessmentStartedEvent() *cp.MigrationAssessmentStartedEvent
 	initBaseSourceEvent(&ev.BaseEvent, "ASSESS MIGRATION")
 	return ev
 }
-
-// Enum definitions for different types of notes in the YugabyteD event payload
-type NoteType int
-
-const (
-	GeneralNotes          NoteType = iota // 0
-	ColocatedShardedNotes                 // 1
-	SizingNotes                           // 2
-)
 
 func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedEvent {
 	ev := &cp.MigrationAssessmentCompletedEvent{}
@@ -54,6 +46,10 @@ func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedE
 	}
 
 	assessmentIssues := convertAssessmentIssueToYugabyteDAssessmentIssue(assessmentReport)
+
+	allNotesText := lo.Map(assessmentReport.Notes, func(note NoteInfo, _ int) string {
+		return note.Text
+	})
 
 	payload := AssessMigrationPayload{
 		PayloadVersion:                 ASSESS_MIGRATION_YBD_PAYLOAD_VERSION,
@@ -77,7 +73,7 @@ func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedE
 		Sizing:           assessmentReport.Sizing,
 		TableIndexStats:  assessmentReport.TableIndexStats,
 
-		Notes: assessmentReport.Notes, // for backward compatibility
+		Notes: allNotesText, // for backward compatibility
 		AssessmentJsonReport: AssessmentReportYugabyteD{ // for backward compatibility
 			VoyagerVersion:             assessmentReport.VoyagerVersion,
 			TargetDBVersion:            assessmentReport.TargetDBVersion,
@@ -85,7 +81,7 @@ func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedE
 			SchemaSummary:              assessmentReport.SchemaSummary,
 			Sizing:                     assessmentReport.Sizing,
 			TableIndexStats:            assessmentReport.TableIndexStats,
-			Notes:                      assessmentReport.Notes,
+			Notes:                      allNotesText,
 			UnsupportedDataTypes:       assessmentReport.UnsupportedDataTypes,
 			UnsupportedDataTypesDesc:   assessmentReport.UnsupportedDataTypesDesc,
 			UnsupportedFeatures:        assessmentReport.UnsupportedFeatures,
@@ -98,14 +94,13 @@ func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedE
 
 	// classify notes into GeneralNotes, ColocatedShardedNotes, SizingNotes
 	for _, note := range assessmentReport.Notes {
-		noteType := GetNoteType(note)
-		switch noteType {
+		switch note.Type {
 		case GeneralNotes:
-			payload.GeneralNotes = append(payload.GeneralNotes, note)
+			payload.GeneralNotes = append(payload.GeneralNotes, note.Text)
 		case ColocatedShardedNotes:
-			payload.ColocatedShardedNotes = append(payload.ColocatedShardedNotes, note)
+			payload.ColocatedShardedNotes = append(payload.ColocatedShardedNotes, note.Text)
 		case SizingNotes:
-			payload.SizingNotes = append(payload.SizingNotes, note)
+			payload.SizingNotes = append(payload.SizingNotes, note.Text)
 		}
 	}
 
