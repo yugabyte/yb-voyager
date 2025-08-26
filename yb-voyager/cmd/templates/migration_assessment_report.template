@@ -247,6 +247,49 @@
             line-height: 1.2em;
             font-family: monospace;
         }
+
+        /* Notes Section Styles */
+        .notes-section {
+            margin: 15px 0;
+            padding: 12px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+        }
+
+        .notes-section h5 {
+            margin: 0 0 8px 0;
+            font-size: 0.95em;
+            color: #666;
+            font-weight: 500;
+        }
+
+        .notes-section ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+
+        .notes-section li {
+            margin: 5px 0;
+            line-height: 1.4;
+        }
+
+        .general-notes-container {
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            padding: 12px;
+            margin: 10px 0;
+        }
+
+        .general-notes-container ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+
+        .general-notes-container li {
+            margin: 5px 0;
+            line-height: 1.4;
+        }
+
     </style>
     <script>
 
@@ -454,6 +497,19 @@
                             </td>
                         </tr>
                     </table>
+
+                    <!-- Add ColocatedShardedNotes here -->
+                    {{ if hasNotesByType $.Notes "ColocatedShardedNotes" }}
+                        <div class="notes-section">
+                            <h5>Notes</h5>
+                            <ul>
+                                {{ range filterNotesByType $.Notes "ColocatedShardedNotes" }}
+                                    <li>{{ .Text }}</li>
+                                {{ end }}
+                            </ul>
+                        </div>
+                    {{ end }}
+
                     <h2>Sizing Recommendations</h2>
                     <table>
                         <tr>
@@ -470,6 +526,18 @@
                     </table>
                     <h3>Reasoning:</h3>
                     <p class="spaced-words">{{ .ColocatedReasoning }}</p>
+
+                    <!-- Add SizingNotes here -->
+                    {{ if hasNotesByType $.Notes "SizingNotes" }}
+                        <div class="notes-section">
+                            <h5>Notes</h5>
+                            <ul>
+                                {{ range filterNotesByType $.Notes "SizingNotes" }}
+                                    <li>{{ .Text }}</li>
+                                {{ end }}
+                            </ul>
+                        </div>
+                    {{ end }}
                 {{ end }}
             {{ else }}
                 <p>Could not perform sizing assessment: {{ .FailureReasoning }}</p>
@@ -729,15 +797,17 @@
 {{ end }}
 
 
-        {{ if .Notes }}
+        {{ if hasNotesByType .Notes "GeneralNotes" }}
             <hr>
             <div>
-                <h4>Notes</h4>
-                <ul id="notes-list">
-                    {{ range .Notes }}
-                        <li>{{ .Text }}</li>
-                    {{ end }}
-                </ul>
+                <h4>General Notes</h4>
+                <div class="general-notes-container">
+                    <ul id="notes-list">
+                        {{ range filterNotesByType .Notes "GeneralNotes" }}
+                            <li>{{ .Text }}</li>
+                        {{ end }}
+                    </ul>
+                </div>
             </div>
         {{ end }}
     </div>

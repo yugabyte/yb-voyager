@@ -1806,6 +1806,8 @@ func generateAssessmentReportHtml(reportDir string) error {
 		"filterOutPerformanceOptimizationIssues": filterOutPerformanceOptimizationIssues,
 		"getPerformanceOptimizationIssues":       getPerformanceOptimizationIssues,
 		"dict":                                   dict,
+		"hasNotesByType":                         hasNotesByType,
+		"filterNotesByType":                      filterNotesByType,
 	}
 
 	tmpl := template.Must(template.New("report").Funcs(funcMap).Parse(string(bytesTemplate)))
@@ -1889,6 +1891,27 @@ func numKeysInMapStringObjectInfo(m map[string][]ObjectInfo) int {
 
 func split(value string, delimiter string) []string {
 	return strings.Split(value, delimiter)
+}
+
+// hasNotesByType checks if there are any notes of the specified type
+func hasNotesByType(notes []NoteInfo, noteType NoteType) bool {
+	for _, note := range notes {
+		if note.Type == noteType {
+			return true
+		}
+	}
+	return false
+}
+
+// filterNotesByType returns only notes of the specified type
+func filterNotesByType(notes []NoteInfo, noteType NoteType) []NoteInfo {
+	var filtered []NoteInfo
+	for _, note := range notes {
+		if note.Type == noteType {
+			filtered = append(filtered, note)
+		}
+	}
+	return filtered
 }
 
 func getSupportedVersionString(minimumVersionsFixedIn map[string]*ybversion.YBVersion) string {
