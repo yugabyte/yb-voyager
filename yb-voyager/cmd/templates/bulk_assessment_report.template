@@ -79,7 +79,7 @@
                 <h4>Notes</h4>
                     <ul>
                         {{range .Notes}}
-                            <li>{{.}}</li>
+                            <li>{{.Text}}</li>
                         {{end}}
                     </ul>
             </div>
