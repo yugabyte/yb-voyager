@@ -28,6 +28,7 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/sqltransformer"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/jsonfile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
@@ -38,10 +39,10 @@ var schemaOptimizationReport *SchemaOptimizationReport
 // File names for optimization reports
 const (
 	RedundantIndexesFileName                        = "redundant_indexes.sql"
-	SchemaOptimizationReportFileName                = "schema_optimization_report"
+	SCHEMA_OPTIMIZATION_REPORT_FILE_NAME            = "schema_optimization_report"
 	REDUNDANT_INDEXES_DESCRIPTION                   = "The following indexes were identified as redundant. These indexes were fully covered by stronger indexes—indexes that share the same leading key columns (in order) and potentially include additional columns, making the redundant ones unnecessary."
-	APPLIED_RECOMMENDATIONS_NOT_APPLIED_DESCRIPTION = "Sharding recommendations were not applied due to the skip-recommendations flag. Modify the schema manually as per the recommendations in assessment report."
-	REDUNDANT_INDEXES_NOT_APPLIED_DESCRIPTION       = REDUNDANT_INDEXES_DESCRIPTION + "\nThese indexes were not removed due to the skip-performance-optimizations flag. Remove them manually from the schema."
+	APPLIED_RECOMMENDATIONS_NOT_APPLIED_DESCRIPTION = "Sharding recommendations were not applied due to the skip-colocation-recommendations flag. Modify the schema manually as per the recommendations in assessment report."
+	REDUNDANT_INDEXES_NOT_APPLIED_DESCRIPTION       = REDUNDANT_INDEXES_DESCRIPTION + "\nThese indexes were not removed due to the skip-performance-recommendations flag. Remove them manually from the schema."
 	RANGE_SHARDED_SECONDARY_INDEXES_DESCRIPTION     = "The following secondary indexes were configured to be range-sharded indexes in YugabyteDB. This helps in giving the flexibility to execute range-based queries, and avoids potential hotspots that come with hash-sharded indexes such as index on low cardinality column, index on high percentage of NULLs and index on high percentage of particular value."
 )
 
@@ -65,7 +66,8 @@ type SchemaOptimizationReport struct {
 func (s *SchemaOptimizationReport) HasOptimizations() bool {
 	return !s.RedundantIndexChange.IsEmpty() ||
 		!s.TableShardingRecommendation.IsEmpty() ||
-		!s.MviewShardingRecommendation.IsEmpty()
+		!s.MviewShardingRecommendation.IsEmpty() ||
+		!s.SecondaryIndexToRangeChange.IsEmpty()
 }
 
 // NewSchemaOptimizationReport creates a new SchemaOptimizationReport with the given metadata
@@ -170,7 +172,7 @@ func NewSecondaryIndexToRangeChange(applied bool, referenceFile string, modified
 	description := "The following secondary indexes were configured to be range-sharded indexes in YugabyteDB."
 	if !applied {
 		title = "Secondary Indexes to be range-sharded - Not Applied"
-		description = "Due to the skip-performance-optimizations flag, all the btree indexes were not converted to range-sharded indexes. Modify the indexes to be range-sharded manually."
+		description = "Due to the skip-performance-recommendations flag, all the btree indexes were not converted to range-sharded indexes. Modify the indexes to be range-sharded manually."
 	}
 	description += "The range-sharded indexes helps in giving the flexibility to execute range-based queries, and avoids potential hotspots that come with hash-sharded indexes such as index on low cardinality column, index on high percentage of NULLs, and index on high percentage of particular value. Refer to sharding strategy in documentation for more information."
 	return &SecondaryIndexToRangeChange{
@@ -180,7 +182,7 @@ func NewSecondaryIndexToRangeChange(applied bool, referenceFile string, modified
 			"index on low cardinality column":              "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-low-cardinality-column",
 			"index on high percentage of NULLs":            "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-column-with-a-high-percentage-of-null-values",
 			"index on high percentage of particular value": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-column-with-high-percentage-of-a-particular-value",
-			"documentation":                    "https://docs.yugabyte.com/preview/architecture/docdb-sharding/sharding/",
+			"documentation": "https://docs.yugabyte.com/preview/architecture/docdb-sharding/sharding/",
 		},
 		ReferenceFile:   referenceFile,
 		ModifiedIndexes: modifiedIndexes,
@@ -188,8 +190,16 @@ func NewSecondaryIndexToRangeChange(applied bool, referenceFile string, modified
 	}
 }
 
+func (s *SecondaryIndexToRangeChange) IsEmpty() bool {
+	return s == nil || len(s.ModifiedIndexes) == 0
+}
+
 func buildRedundantIndexChange(indexTransformer *sqltransformer.IndexFileTransformer) *RedundantIndexChange {
 	if indexTransformer == nil {
+		return nil
+	}
+	if len(indexTransformer.RedundantIndexesToExistingIndexToRemove.Keys()) == 0 {
+		//Do not add redundant index change if no redundant indexes found
 		return nil
 	}
 	// Get relative path from reports directory to the redundant indexes file
@@ -265,7 +275,8 @@ func generatePerformanceOptimizationReport(indexTransformer *sqltransformer.Inde
 		//Not generating the report in case other than PG
 		return nil
 	}
-	htmlReportFilePath := filepath.Join(exportDir, "reports", fmt.Sprintf("%s%s", SchemaOptimizationReportFileName, HTML_EXTENSION))
+
+	htmlReportFilePath := filepath.Join(exportDir, "reports", fmt.Sprintf("%s%s", SCHEMA_OPTIMIZATION_REPORT_FILE_NAME, HTML_EXTENSION))
 	log.Infof("writing changes report to file: %s", htmlReportFilePath)
 
 	funcMap := template.FuncMap{
@@ -296,6 +307,14 @@ func generatePerformanceOptimizationReport(indexTransformer *sqltransformer.Inde
 		if err != nil {
 			return fmt.Errorf("failed to create file for %q: %w", filepath.Base(htmlReportFilePath), err)
 		}
+
+		jsonFilePath := filepath.Join(exportDir, "reports", fmt.Sprintf("%s.json", SCHEMA_OPTIMIZATION_REPORT_FILE_NAME))
+		jsonFile := jsonfile.NewJsonFile[SchemaOptimizationReport](jsonFilePath)
+		err = jsonFile.Create(schemaOptimizationReport)
+		if err != nil {
+			return fmt.Errorf("failed to create json report: %w", err)
+		}
+
 		err = tmpl.Execute(file, schemaOptimizationReport)
 		if err != nil {
 			return fmt.Errorf("failed to render the schema optimization report: %w", err)
