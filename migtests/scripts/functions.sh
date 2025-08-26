@@ -276,7 +276,7 @@ export_schema() {
         --source-db-password ${SOURCE_DB_PASSWORD}
         --source-db-name ${SOURCE_DB_NAME}
         --send-diagnostics=false --yes
-        --skip-performance-optimizations false
+        --skip-performance-recommendations false
     "
     # Use the resolved local variable which may override the default env var
     # Required for Bulk Assessment test
@@ -1021,7 +1021,7 @@ normalize_json() {
     )' "$temp_file" > "$temp_file2"
 
     # Remove unwanted lines
-    sed -i '/Review and manually import.*uncategorized.sql/d' "$temp_file2"
+    sed -i '' '/Review and manually import.*uncategorized.sql/d' "$temp_file2"
 
     # Move cleaned file to output
     mv "$temp_file2" "$output_file"
