@@ -158,15 +158,11 @@ CREATE INDEX all_cre_cache_idx_celltype_term_key ON mgd.all_cre_cache USING btre
 
 CREATE INDEX all_cre_cache_idx_clustered ON mgd.all_cre_cache USING btree (_allele_key ASC, _emapa_term_key, _stage_key, _assay_key, expressed);
 
-ALTER TABLE mgd.all_cre_cache CLUSTER ON all_cre_cache_idx_clustered;
-
 CREATE INDEX all_cre_cache_idx_emapa_term_key ON mgd.all_cre_cache USING btree (_emapa_term_key ASC);
 
 CREATE INDEX all_cre_cache_idx_stage_key ON mgd.all_cre_cache USING btree (_stage_key ASC);
 
 CREATE INDEX all_knockout_cache_idx_clustered ON mgd.all_knockout_cache USING btree (_allele_key ASC);
-
-ALTER TABLE mgd.all_knockout_cache CLUSTER ON all_knockout_cache_idx_clustered;
 
 CREATE UNIQUE INDEX all_knockout_cache_idx_marker_key ON mgd.all_knockout_cache USING btree (_marker_key ASC);
 
