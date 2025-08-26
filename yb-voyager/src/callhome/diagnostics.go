@@ -114,8 +114,9 @@ Version History
 1.5: Added AnonymizedDDLs field in AssessMigrationPhasePayload struct
 1.6: Added ObjectName field in AssessmentIssueCallhome struct
 1.7 Changed NumShardedTables and NumColocatedTables to ShardedTables and ColocatedTables respectively with anonymized names
+1.8 Added EstimatedTimeInMinForImportWithoutRedundantIndexes to SizingCallhome
 */
-var ASSESS_MIGRATION_CALLHOME_PAYLOAD_VERSION = "1.7"
+var ASSESS_MIGRATION_CALLHOME_PAYLOAD_VERSION = "1.8"
 
 type AssessMigrationPhasePayload struct {
 	PayloadVersion                 string                    `json:"payload_version"`
