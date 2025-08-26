@@ -1516,7 +1516,7 @@ By default, YugabyteDB uses hash sharding for indexes, which distributes data ra
 	COLOCATED_TABLE_RECOMMENDATION_CAVEAT = NoteInfo{
 		Type: ColocatedShardedNotes,
 		Text: `If there are any tables that receive disproportionately high load, ensure that they are NOT colocated to avoid the colocated tablet becoming a hotspot.
-For additional considerations related to colocated tables, refer to the documentation at: https://docs.yugabyte.com/preview/explore/colocation/#limitations-and-considerations`,
+For additional considerations related to colocated tables, refer to the documentation at: <a class="highlight-link" target="_blank" href="https://docs.yugabyte.com/preview/explore/colocation/#limitations-and-considerations">https://docs.yugabyte.com/preview/explore/colocation/#limitations-and-considerations</a>`,
 	}
 	ORACLE_PARTITION_DEFAULT_COLOCATION = NoteInfo{
 		Type: ColocatedShardedNotes,
@@ -1531,7 +1531,6 @@ To manually modify the schema, please refer: <a class="highlight-link" href="htt
 	}
 )
 
-// TODO: fix notes handling for html tags just for html and not for json
 func addNotesToAssessmentReport() {
 	log.Infof("adding notes to assessment report")
 
