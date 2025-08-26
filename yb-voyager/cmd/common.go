@@ -531,6 +531,20 @@ func initAnonymizer(metaDBInstance *metadb.MetaDB) error {
 }
 
 func loadOrGenerateAnonymisationSalt(metaDB *metadb.MetaDB) (string, error) {
+	// Check test deterministic anonymization mode
+	enableDet := utils.GetEnvAsBool("VOYAGER_ENABLE_DETERMINISTIC_ANON", false)
+	testSalt := os.Getenv("VOYAGER_TEST_ANON_SALT")
+
+	if enableDet {
+		if testSalt == "" {
+			return "", errors.New("VOYAGER_ENABLE_DETERMINISTIC_ANON is set but VOYAGER_TEST_ANON_SALT is empty")
+		}
+
+		log.Warn("Deterministic anonymization is enabled using a test salt")
+		fmt.Printf("Warning: Deterministic anonymization is enabled using a test salt\n")
+		return testSalt, nil
+	}
+
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
 		return "", fmt.Errorf("error getting migration status record: %w", err)
