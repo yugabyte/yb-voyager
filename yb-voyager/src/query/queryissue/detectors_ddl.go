@@ -129,7 +129,7 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 					obj.GetObjectType(),
 					table.GetObjectName(),
 					c.Columns,
-					d.columnMetadata,
+					d.tableMetadata,
 					&issues,
 				)
 
@@ -144,7 +144,7 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 				))
 			}
 
-			if c.ConstraintType == queryparser.FOREIGN_CONSTR_TYPE && d.partitionedTablesMap[c.ReferencedTable] {
+			if c.ConstraintType == queryparser.FOREIGN_CONSTR_TYPE && d.getPartitionedTablesMap()[c.ReferencedTable] {
 				issues = append(issues, NewForeignKeyReferencesPartitionedTableIssue(
 					TABLE_OBJECT_TYPE,
 					table.GetObjectName(),
@@ -285,9 +285,13 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 	return issues, nil
 }
 
-func detectForeignKeyDatatypeMismatch(objectType string, objectName string, columnList []string, columnMetadata map[string]map[string]*ColumnMetadata, issues *[]QueryIssue) {
+func detectForeignKeyDatatypeMismatch(objectType string, objectName string, columnList []string, tableMetadata map[string]*TableMetadata, issues *[]QueryIssue) {
 	for _, col := range columnList {
-		colMetadata, ok := columnMetadata[objectName][col]
+		tm, ok := tableMetadata[objectName]
+		if !ok {
+			continue
+		}
+		colMetadata, ok := tm.Columns[col]
 		if !ok || !colMetadata.IsForeignKey {
 			continue
 		}
@@ -1038,7 +1042,7 @@ func (aid *AlterTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Q
 		}
 
 		if alter.ConstraintType == queryparser.FOREIGN_CONSTR_TYPE &&
-			aid.partitionedTablesMap[alter.ConstraintReferencedTable] {
+			aid.getPartitionedTablesMap()[alter.ConstraintReferencedTable] {
 			//FK constraint references partitioned table
 			issues = append(issues, NewForeignKeyReferencesPartitionedTableIssue(
 				TABLE_OBJECT_TYPE,
@@ -1054,14 +1058,14 @@ func (aid *AlterTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Q
 				obj.GetObjectType(),
 				alter.GetObjectName(),
 				alter.ConstraintColumns,
-				aid.columnMetadata,
+				aid.tableMetadata,
 				&issues,
 			)
 
 		}
 
 		if alter.ConstraintType == queryparser.PRIMARY_CONSTR_TYPE &&
-			aid.partitionedTablesMap[alter.GetObjectName()] {
+			aid.getPartitionedTablesMap()[alter.GetObjectName()] {
 			issues = append(issues, NewAlterTableAddPKOnPartiionIssue(
 				obj.GetObjectType(),
 				alter.GetObjectName(),
@@ -1180,7 +1184,7 @@ func (tid *TriggerIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Quer
 		))
 	}
 
-	if trigger.IsBeforeRowTrigger() && tid.partitionedTablesMap[trigger.GetTableName()] {
+	if trigger.IsBeforeRowTrigger() && tid.getPartitionedTablesMap()[trigger.GetTableName()] {
 		issues = append(issues, NewBeforeRowOnPartitionTableIssue(
 			obj.GetObjectType(),
 			trigger.GetObjectName(),
