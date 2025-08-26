@@ -65,7 +65,6 @@ type ConstraintMetadata struct {
 type TableMetadata struct {
 	TableName          string
 	SchemaName         string
-	PrimaryKeyColumns  []string
 	Columns            map[string]*ColumnMetadata
 	Constraints        []ConstraintMetadata
 	Indexes            []*queryparser.Index
@@ -85,7 +84,7 @@ func (tm *TableMetadata) IsColumnNotNull(columnName string) bool {
 
 // HasPrimaryKey returns true if the table has a primary key.
 func (tm *TableMetadata) HasPrimaryKey() bool {
-	return len(tm.PrimaryKeyColumns) > 0
+	return len(tm.GetPrimaryKeyConstraints()) > 0
 }
 
 // IsPartitioned returns true if the table is a partitioned table or a partition of another table.
@@ -101,13 +100,36 @@ func (tm *TableMetadata) IsInherited() bool {
 // GetUniqueConstraints returns all unique constraints as a slice of column name slices.
 // Returns empty slice if no unique constraints exist.
 func (tm *TableMetadata) GetUniqueConstraints() [][]string {
+	constraints := tm.GetConstraintsByType("UNIQUE")
 	var uniqueConstraints [][]string
-	for _, constraint := range tm.Constraints {
-		if constraint.Type == "UNIQUE" {
-			uniqueConstraints = append(uniqueConstraints, constraint.Columns)
-		}
+	for _, constraint := range constraints {
+		uniqueConstraints = append(uniqueConstraints, constraint.Columns)
 	}
 	return uniqueConstraints
+}
+
+// GetPrimaryKeyConstraints returns all primary key constraints.
+// Returns empty slice if no primary key constraints exist.
+func (tm *TableMetadata) GetPrimaryKeyConstraints() []ConstraintMetadata {
+	return tm.GetConstraintsByType("PRIMARY")
+}
+
+// GetForeignKeyConstraints returns all foreign key constraints.
+// Returns empty slice if no foreign key constraints exist.
+func (tm *TableMetadata) GetForeignKeyConstraints() []ConstraintMetadata {
+	return tm.GetConstraintsByType("FOREIGN")
+}
+
+// GetConstraintsByType returns all constraints of the specified type.
+// Returns empty slice if no constraints of that type exist.
+func (tm *TableMetadata) GetConstraintsByType(constraintType string) []ConstraintMetadata {
+	var constraints []ConstraintMetadata
+	for _, constraint := range tm.Constraints {
+		if constraint.Type == constraintType {
+			constraints = append(constraints, constraint)
+		}
+	}
+	return constraints
 }
 
 // Helper methods for ParserIssueDetector to work with TableMetadata
@@ -176,20 +198,7 @@ func (p *ParserIssueDetector) getInheritedFrom() map[string][]string {
 	return inheritedFrom
 }
 
-// foreignKeyConstraint represents a foreign key relationship defined in the schema.
-// It captures the child table and columns, and the corresponding referenced parent table and columns.
-// This structure is used to defer FK processing until all schema definitions are parsed.
-type ForeignKeyConstraint struct {
-	TableName         string
-	ColumnNames       []string
-	ReferencedTable   string
-	ReferencedColumns []string
-}
-
 type ParserIssueDetector struct {
-
-	// list of foreign key constraints in the exported schema
-	foreignKeyConstraints []ForeignKeyConstraint
 
 	/*
 		this will contain the information in this format:
@@ -255,7 +264,6 @@ func NewParserIssueDetector() *ParserIssueDetector {
 		enumTypes:                               make([]string, 0),
 		primaryConsInAlter:                      make(map[string]*queryparser.AlterTable),
 		columnStatistics:                        make(map[string]utils.ColumnStatistics),
-		foreignKeyConstraints:                   make([]ForeignKeyConstraint, 0),
 		columnsWithUnsupportedIndexDatatypes:    make(map[string]map[string]string),
 		columnsWithHotspotRangeIndexesDatatypes: make(map[string]map[string]string),
 		jsonbColumns:                            make([]string, 0),
@@ -519,31 +527,32 @@ func topoSort(dependencyMap map[string][]string) []string {
 // as foreign keys, populating their referenced table, column, and type information.
 // This is done after all DDL statements have been processed to ensure complete metadata is
 func (p *ParserIssueDetector) finalizeForeignKeyConstraints() {
-	for _, fk := range p.foreignKeyConstraints {
-		for i, localCol := range fk.ColumnNames {
-			tm := p.getOrCreateTableMetadata(fk.TableName)
-			meta, ok := tm.Columns[localCol]
-			if !ok {
-				meta = &ColumnMetadata{}
-				tm.Columns[localCol] = meta
-			}
-
-			meta.IsForeignKey = true
-			meta.ReferencedTable = fk.ReferencedTable
-			if i < len(fk.ReferencedColumns) {
-				refCol := fk.ReferencedColumns[i]
-				meta.ReferencedColumn = refCol
-
-				if refTM, ok := p.tableMetadata[fk.ReferencedTable]; ok {
-					if refMeta, ok := refTM.Columns[refCol]; ok {
-						// Store the referenced column type and modifiers separately for accurate comparison
-						meta.ReferencedColumnType = refMeta.DataType
-						meta.ReferencedColumnTypeMods = refMeta.DataTypeMods
-					}
+	for tableName, tm := range p.tableMetadata {
+		for _, constraint := range tm.GetForeignKeyConstraints() {
+			for i, localCol := range constraint.Columns {
+				meta, ok := tm.Columns[localCol]
+				if !ok {
+					meta = &ColumnMetadata{}
+					tm.Columns[localCol] = meta
 				}
-			} else {
-				log.Warnf("Foreign key column count mismatch for table %s: localCols=%v, refCols=%v",
-					fk.TableName, fk.ColumnNames, fk.ReferencedColumns)
+
+				meta.IsForeignKey = true
+				meta.ReferencedTable = constraint.ReferencedTable
+				if i < len(constraint.ReferencedColumns) {
+					refCol := constraint.ReferencedColumns[i]
+					meta.ReferencedColumn = refCol
+
+					if refTM, ok := p.tableMetadata[constraint.ReferencedTable]; ok {
+						if refMeta, ok := refTM.Columns[refCol]; ok {
+							// Store the referenced column type and modifiers separately for accurate comparison
+							meta.ReferencedColumnType = refMeta.DataType
+							meta.ReferencedColumnTypeMods = refMeta.DataTypeMods
+						}
+					}
+				} else {
+					log.Warnf("Foreign key column count mismatch for table %s: localCols=%v, refCols=%v",
+						tableName, constraint.Columns, constraint.ReferencedColumns)
+				}
 			}
 		}
 	}
@@ -576,7 +585,14 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 
 			// Track PK columns
 			tm := p.getOrCreateTableMetadata(alter.GetObjectName())
-			tm.PrimaryKeyColumns = append([]string{}, alter.ConstraintColumns...)
+
+			// Add to Constraints slice for comprehensive tracking
+			pkConstraint := ConstraintMetadata{
+				Type:    "PRIMARY",
+				Name:    alter.ConstraintName,
+				Columns: append([]string{}, alter.ConstraintColumns...),
+			}
+			tm.Constraints = append(tm.Constraints, pkConstraint)
 		}
 
 		if alter.ConstraintType == queryparser.UNIQUE_CONSTR_TYPE {
@@ -618,15 +634,16 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 		}
 
 		if alter.ConstraintType == queryparser.FOREIGN_CONSTR_TYPE {
-			// Collect the foreign key constraint details from ALTER TABLE statement.
-			// These are stored temporarily and will be processed later in FinalizeColumnMetadata,
-			// once all tables and columns are parsed and available in columnMetadata.
-			p.foreignKeyConstraints = append(p.foreignKeyConstraints, ForeignKeyConstraint{
-				TableName:         alter.GetObjectName(),
-				ColumnNames:       alter.ConstraintColumns,
+			// Add to Constraints slice for comprehensive tracking
+			tm := p.getOrCreateTableMetadata(alter.GetObjectName())
+			fkConstraint := ConstraintMetadata{
+				Type:              "FOREIGN",
+				Name:              alter.ConstraintName,
+				Columns:           append([]string{}, alter.ConstraintColumns...),
 				ReferencedTable:   alter.ConstraintReferencedTable,
-				ReferencedColumns: alter.ConstraintReferencedColumns,
-			})
+				ReferencedColumns: append([]string{}, alter.ConstraintReferencedColumns...),
+			}
+			tm.Constraints = append(tm.Constraints, fkConstraint)
 		}
 
 		// If alter is to attach a partitioned table, track it
@@ -695,7 +712,13 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 		for _, constraint := range table.Constraints {
 			switch constraint.ConstraintType {
 			case queryparser.PRIMARY_CONSTR_TYPE:
-				tm.PrimaryKeyColumns = append([]string{}, constraint.Columns...)
+				// Add primary key constraint to the Constraints slice
+				pkConstraint := ConstraintMetadata{
+					Type:    "PRIMARY",
+					Name:    constraint.ConstraintName,
+					Columns: append([]string{}, constraint.Columns...),
+				}
+				tm.Constraints = append(tm.Constraints, pkConstraint)
 			case queryparser.UNIQUE_CONSTR_TYPE:
 				// Add unique constraint to the Constraints slice
 				uniqueConstraint := ConstraintMetadata{
@@ -704,6 +727,16 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 					Columns: append([]string{}, constraint.Columns...),
 				}
 				tm.Constraints = append(tm.Constraints, uniqueConstraint)
+			case queryparser.FOREIGN_CONSTR_TYPE:
+				// Add to Constraints slice for comprehensive tracking
+				fkConstraint := ConstraintMetadata{
+					Type:              "FOREIGN",
+					Name:              constraint.ConstraintName,
+					Columns:           append([]string{}, constraint.Columns...),
+					ReferencedTable:   constraint.ReferencedTable,
+					ReferencedColumns: append([]string{}, constraint.ReferencedColumns...),
+				}
+				tm.Constraints = append(tm.Constraints, fkConstraint)
 			case pg_query.ConstrType_CONSTR_NOTNULL:
 				if len(constraint.Columns) == 1 {
 					colName := constraint.Columns[0]
@@ -712,23 +745,6 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 					}
 				}
 			}
-		}
-
-		// Collect the foreign key constraint details from CREATE TABLE statement.
-		// These are stored temporarily and will be processed later in FinalizeColumnMetadata,
-		// once all tables and columns are parsed and available in tableMetadata.
-		for _, constraint := range table.Constraints {
-			if constraint.ConstraintType != queryparser.FOREIGN_CONSTR_TYPE {
-				continue
-			}
-
-			// Populate the foreign key constraints
-			p.foreignKeyConstraints = append(p.foreignKeyConstraints, ForeignKeyConstraint{
-				TableName:         tableName,
-				ColumnNames:       constraint.Columns,
-				ReferencedTable:   constraint.ReferencedTable,
-				ReferencedColumns: constraint.ReferencedColumns,
-			})
 		}
 
 		// Process primary keys and unique constraints as indexes for foreign key detection
@@ -987,13 +1003,15 @@ func (p *ParserIssueDetector) IsUnloggedTablesIssueFiltered() bool {
 func (p *ParserIssueDetector) DetectMissingForeignKeyIndexes() []QueryIssue {
 	var issues []QueryIssue
 
-	// Process all stored foreign key constraints
-	for _, fkConstraint := range p.foreignKeyConstraints {
-		// Check if this FK has proper index coverage using existing logic
-		if !p.hasProperIndexCoverage(fkConstraint) {
-			// Create and add the issue
-			issue := p.createMissingFKIndexIssue(fkConstraint)
-			issues = append(issues, issue)
+	// Process all foreign key constraints from table metadata
+	for tableName, tm := range p.tableMetadata {
+		for _, constraint := range tm.GetForeignKeyConstraints() {
+			// Check if this FK has proper index coverage using existing logic
+			if !p.hasProperIndexCoverage(constraint, tableName) {
+				// Create and add the issue
+				issue := p.createMissingFKIndexIssue(constraint, tableName)
+				issues = append(issues, issue)
+			}
 		}
 	}
 
@@ -1067,14 +1085,14 @@ func (p *ParserIssueDetector) DetectPrimaryKeyRecommendations() []QueryIssue {
 // FK (x,y,z) → Index (other,x,y,z) ✗ (FK not at start) → Detected as missing index
 // FK (x,y,z) → Index (x,y) ✗ (missing column) → Detected as missing index
 // FK (x,y,z) → No index ✗ → Detected as missing index
-func (p *ParserIssueDetector) hasProperIndexCoverage(fk ForeignKeyConstraint) bool {
-	tm := p.getTableMetadata(fk.TableName)
+func (p *ParserIssueDetector) hasProperIndexCoverage(constraint ConstraintMetadata, tableName string) bool {
+	tm := p.getTableMetadata(tableName)
 	if tm == nil {
 		return false
 	}
 
 	for _, index := range tm.Indexes {
-		if p.hasIndexCoverage(index, fk.ColumnNames) {
+		if p.hasIndexCoverage(index, constraint.Columns) {
 			return true
 		}
 	}
@@ -1106,19 +1124,19 @@ func (p *ParserIssueDetector) hasIndexCoverage(index *queryparser.Index, fkColum
 }
 
 // createMissingFKIndexIssue creates a QueryIssue from a foreign key constraint
-func (p *ParserIssueDetector) createMissingFKIndexIssue(fk ForeignKeyConstraint) QueryIssue {
+func (p *ParserIssueDetector) createMissingFKIndexIssue(constraint ConstraintMetadata, tableName string) QueryIssue {
 	// Create fully qualified column names
-	qualifiedColumnNames := make([]string, len(fk.ColumnNames))
-	for i, colName := range fk.ColumnNames {
-		qualifiedColumnNames[i] = fmt.Sprintf("%s.%s", fk.TableName, colName)
+	qualifiedColumnNames := make([]string, len(constraint.Columns))
+	for i, colName := range constraint.Columns {
+		qualifiedColumnNames[i] = fmt.Sprintf("%s.%s", tableName, colName)
 	}
 
 	return NewMissingForeignKeyIndexIssue(
 		"TABLE",
-		fk.TableName,
+		tableName,
 		"", // sqlStatement - we don't have this in stored constraint
 		strings.Join(qualifiedColumnNames, ", "),
-		fk.ReferencedTable,
+		constraint.ReferencedTable,
 	)
 }
 
