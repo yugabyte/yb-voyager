@@ -1266,8 +1266,9 @@ Version History
 1.3: Moved Sizing, TableIndexStats, Notes, fields out from depcreated AssessmentJsonReport field to top level struct
 1.4: Removed field 'ParallelVoyagerJobs` from sizing recommendation
 1.5: Changed type of the Details field from json.RawMessage to map[string]interface{}
+1.6: Add EstimatedTimeInMinForImportWithoutRedundantIndexes in SizingRecommendation struct
 */
-var ASSESS_MIGRATION_YBD_PAYLOAD_VERSION = "1.5"
+var ASSESS_MIGRATION_YBD_PAYLOAD_VERSION = "1.6"
 
 // TODO: decouple this struct from utils.AnalyzeSchemaIssue struct, right now its tightly coupled;
 // Similarly for migassessment.SizingAssessmentReport and migassessment.TableIndexStats
@@ -1396,9 +1397,10 @@ func (ar *AssessmentReport) GetClusterSizingRecommendation() string {
 		return ar.Sizing.FailureReasoning
 	}
 
-	return fmt.Sprintf("Num Nodes: %f, vCPU per instance: %d, Memory per instance: %d, Estimated Import Time: %f minutes",
+	return fmt.Sprintf("Num Nodes: %f, vCPU per instance: %d, Memory per instance: %d, Estimated Import Time: %f minutes, Estimated Import Time Without Redundant Indexes: %f minutes",
 		ar.Sizing.SizingRecommendation.NumNodes, ar.Sizing.SizingRecommendation.VCPUsPerInstance,
-		ar.Sizing.SizingRecommendation.MemoryPerInstance, ar.Sizing.SizingRecommendation.EstimatedTimeInMinForImport)
+		ar.Sizing.SizingRecommendation.MemoryPerInstance, ar.Sizing.SizingRecommendation.EstimatedTimeInMinForImport,
+		ar.Sizing.SizingRecommendation.EstimatedTimeInMinForImportWithoutRedundantIndexes)
 }
 
 func (ar *AssessmentReport) GetTotalTableRowCount() int64 {

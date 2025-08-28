@@ -100,6 +100,7 @@ END $$;`)
 			OptimalSelectConnectionsPerNode: 8,
 			OptimalInsertConnectionsPerNode: 12,
 			EstimatedTimeInMinForImport:     1,
+			EstimatedTimeInMinForImportWithoutRedundantIndexes: 1,
 		},
 		FailureReasoning: "",
 	}

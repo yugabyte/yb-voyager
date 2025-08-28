@@ -114,8 +114,9 @@ Version History
 1.5: Added AnonymizedDDLs field in AssessMigrationPhasePayload struct
 1.6: Added ObjectName field in AssessmentIssueCallhome struct
 1.7 Changed NumShardedTables and NumColocatedTables to ShardedTables and ColocatedTables respectively with anonymized names
+1.8 Added EstimatedTimeInMinForImportWithoutRedundantIndexes to SizingCallhome
 */
-var ASSESS_MIGRATION_CALLHOME_PAYLOAD_VERSION = "1.7"
+var ASSESS_MIGRATION_CALLHOME_PAYLOAD_VERSION = "1.8"
 
 type AssessMigrationPhasePayload struct {
 	PayloadVersion                 string                    `json:"payload_version"`
@@ -159,15 +160,16 @@ func NewAssessmentIssueCallhome(category string, categoryDesc string, issueType 
 }
 
 type SizingCallhome struct {
-	ColocatedTables                 []string `json:"colocated_tables"`
-	ColocatedReasoning              string   `json:"colocated_reasoning"`
-	ShardedTables                   []string `json:"sharded_tables"`
-	NumNodes                        float64 `json:"num_nodes"`
-	VCPUsPerInstance                int     `json:"vcpus_per_instance"`
-	MemoryPerInstance               int     `json:"memory_per_instance"`
-	OptimalSelectConnectionsPerNode int64   `json:"optimal_select_connections_per_node"`
-	OptimalInsertConnectionsPerNode int64   `json:"optimal_insert_connections_per_node"`
-	EstimatedTimeInMinForImport     float64 `json:"estimated_time_in_min_for_import"`
+	ColocatedTables                                    []string `json:"colocated_tables"`
+	ColocatedReasoning                                 string   `json:"colocated_reasoning"`
+	ShardedTables                                      []string `json:"sharded_tables"`
+	NumNodes                                           float64  `json:"num_nodes"`
+	VCPUsPerInstance                                   int      `json:"vcpus_per_instance"`
+	MemoryPerInstance                                  int      `json:"memory_per_instance"`
+	OptimalSelectConnectionsPerNode                    int64    `json:"optimal_select_connections_per_node"`
+	OptimalInsertConnectionsPerNode                    int64    `json:"optimal_insert_connections_per_node"`
+	EstimatedTimeInMinForImport                        float64  `json:"estimated_time_in_min_for_import"`
+	EstimatedTimeInMinForImportWithoutRedundantIndexes float64  `json:"estimated_time_in_min_for_import_without_redundant_indexes"`
 }
 
 type ObjectSizingStats struct {
