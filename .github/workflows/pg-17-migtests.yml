@@ -58,7 +58,14 @@ jobs:
           docker exec ${{ job.services.postgres.id }} sh -c "echo 'wal_level=logical' >> /var/lib/postgresql/data/postgresql.conf"
           docker exec ${{ job.services.postgres.id }} sh -c "apt-get update && apt-get install -y postgresql-17-postgis-3"
           docker restart ${{ job.services.postgres.id }}
-          sleep 10
+          
+          # Wait for PostgreSQL to be ready with health check instead of fixed sleep
+          echo "Waiting for PostgreSQL to be ready after restart..."
+          timeout 30s bash -c 'until docker exec ${{ job.services.postgres.id }} pg_isready > /dev/null 2>&1; do 
+            echo "PostgreSQL not ready yet, waiting 1 second..."
+            sleep 1
+          done'
+          echo "PostgreSQL is ready!"
 
       - name: Install python3 and psycopg2
         run: |
@@ -94,7 +101,14 @@ jobs:
             -p7000:7000 -p9000:9000 -p15433:15433 -p5433:5433 -p9042:9042 \
             yugabytedb/yugabyte:${{ matrix.version }} \
             bin/yugabyted start --tserver_flags="ysql_hba_conf_csv={host all yugabyte all trust,host all all all md5}" --background=false --ui=false --callhome=false 
-          sleep 20
+          
+          # Wait for YugabyteDB to be ready with health check
+          echo "Waiting for YugabyteDB to be ready..."
+          timeout 60s bash -c 'until psql "postgresql://yugabyte:@127.0.0.1:5433/yugabyte" -c "SELECT 1" > /dev/null 2>&1; do 
+            echo "YugabyteDB not ready yet, waiting 2 seconds..."
+            sleep 2
+          done'
+          echo "YugabyteDB is ready!"
 
       - name: Test YugabyteDB connection
         run: |
