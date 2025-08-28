@@ -246,8 +246,8 @@ func runAssessMigrationCmdBeforExportSchemaIfRequired(exportSchemaCmd *cobra.Com
 			continue
 		}
 
-		if flag.Name == "source-db-password" && flag.Changed {
-			//Setting it in env variable
+		if flag.Name == "source-db-password" {
+			//Skip this flag to set in cli completely and set it in env variable only
 			continue
 		}
 
