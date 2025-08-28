@@ -614,22 +614,21 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 			}
 		}
 		// Track NOT NULL alter commands
+		// TODO:
+		// Currently we are not processing if there are multiple columns under multiple alter commands in the same query
+		// Add support for this
 		if len(alter.SetNotNullColumns) > 0 {
 			qualifiedTable := alter.GetObjectName()
 			tm := p.getOrCreateTableMetadata(qualifiedTable)
-			for _, col := range alter.SetNotNullColumns {
-				if colMeta, exists := tm.Columns[col]; exists {
-					colMeta.IsNotNull = true
-				}
+			if colMeta, exists := tm.Columns[alter.SetNotNullColumns]; exists {
+				colMeta.IsNotNull = true
 			}
 		}
 		if len(alter.DropNotNullColumns) > 0 {
 			qualifiedTable := alter.GetObjectName()
 			tm := p.getOrCreateTableMetadata(qualifiedTable)
-			for _, col := range alter.DropNotNullColumns {
-				if colMeta, exists := tm.Columns[col]; exists {
-					colMeta.IsNotNull = false
-				}
+			if colMeta, exists := tm.Columns[alter.DropNotNullColumns]; exists {
+				colMeta.IsNotNull = false
 			}
 		}
 

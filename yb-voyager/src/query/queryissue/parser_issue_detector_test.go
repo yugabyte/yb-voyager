@@ -2416,7 +2416,8 @@ func TestPKRec_CommonRunner(t *testing.T) {
 			name: "PKREC: Multiple ALTER SET NOT NULL then UNIQUE(a,b)",
 			ddls: []string{
 				`CREATE TABLE t3 (a int, b int);`,
-				`ALTER TABLE t3 ALTER COLUMN a SET NOT NULL, ALTER COLUMN b SET NOT NULL;`,
+				`ALTER TABLE t3 ALTER COLUMN a SET NOT NULL;`,
+				`ALTER TABLE t3 ALTER COLUMN b SET NOT NULL;`,
 				`ALTER TABLE t3 ADD CONSTRAINT uq_t3 UNIQUE (a,b);`,
 			},
 			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "t3", [][]string{{"t3.a", "t3.b"}})},
@@ -2425,7 +2426,8 @@ func TestPKRec_CommonRunner(t *testing.T) {
 			name: "PKREC: DROP NOT NULL cancels composite UNIQUE(a,b)",
 			ddls: []string{
 				`CREATE TABLE t4 (a int, b int);`,
-				`ALTER TABLE t4 ALTER COLUMN a SET NOT NULL, ALTER COLUMN b SET NOT NULL;`,
+				`ALTER TABLE t4 ALTER COLUMN a SET NOT NULL;`,
+				`ALTER TABLE t4 ALTER COLUMN b SET NOT NULL;`,
 				`ALTER TABLE t4 ALTER COLUMN b DROP NOT NULL;`,
 				`ALTER TABLE t4 ADD CONSTRAINT uq_t4 UNIQUE (a,b);`,
 			},
