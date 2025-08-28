@@ -56,7 +56,7 @@ type Source struct {
 	CommentsOnObjects         utils.BoolStr `json:"comments_on_objects"`
 	DBVersion                 string        `json:"db_version"`
 	DBSize                    int64         `json:"db_size"`
-	PostgresSystemIdentifier  int64         `json:"postgres_system_identifier"`
+	DBSystemIdentifier        int64         `json:"db_system_identifier"`
 	StrExportObjectTypeList   string        `json:"str_export_object_type_list"`
 	StrExcludeObjectTypeList  string        `json:"str_exclude_object_type_list"`
 	RunGuardrailsChecks       utils.BoolStr `json:"run_guardrails_checks"`
@@ -91,17 +91,18 @@ func (s *Source) GetSchemaList() []string {
 	return strings.Split(s.Schema, "|")
 }
 
-// FetchPostgresSystemIdentifier fetches and stores the PostgreSQL system identifier if the source is PostgreSQL
-// The PostgreSQL system identifier is a unique 64-bit integer
-// that identifies the database cluster. This identifier remains constant throughout the lifetime
-// of the database cluster, even across restarts.
-func (s *Source) FetchPostgresSystemIdentifier() {
+// FetchDBSystemIdentifier fetches and stores the database system identifier
+// Currently only implemented for PostgreSQL
+func (s *Source) FetchDBSystemIdentifier() {
 	if s.DBType == "postgresql" {
+		// The PostgreSQL system identifier is a unique 64-bit integer
+		// that identifies the database cluster. This identifier remains constant throughout the lifetime
+		// of the database cluster, even across restarts.
 		var systemIdentifier int64
 		query := "SELECT system_identifier FROM pg_control_system()"
 		err := s.DB().QueryRow(query).Scan(&systemIdentifier)
 		if err == nil {
-			s.PostgresSystemIdentifier = systemIdentifier
+			s.DBSystemIdentifier = systemIdentifier
 		} else {
 			log.Infof("callhome: failed to get PostgreSQL system identifier: %v", err)
 		}

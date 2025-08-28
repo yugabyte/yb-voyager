@@ -140,7 +140,7 @@ func exportSchema(cmd *cobra.Command) error {
 	}
 
 	// Get PostgreSQL system identifier while still connected
-	source.FetchPostgresSystemIdentifier()
+	source.FetchDBSystemIdentifier()
 	utils.PrintAndLog("%s version: %s\n", source.DBType, sourceDBVersion)
 
 	res := source.DB().CheckSchemaExists()
@@ -316,10 +316,10 @@ func packAndSendExportSchemaPayload(status string, errorMsg error) {
 	payload.MigrationPhase = EXPORT_SCHEMA_PHASE
 	payload.Status = status
 	sourceDBDetails := callhome.SourceDBDetails{
-		DBType:                   source.DBType,
-		DBVersion:                source.DBVersion,
-		DBSize:                   source.DBSize,
-		PostgresSystemIdentifier: source.PostgresSystemIdentifier,
+		DBType:             source.DBType,
+		DBVersion:          source.DBVersion,
+		DBSize:             source.DBSize,
+		DBSystemIdentifier: source.DBSystemIdentifier,
 	}
 	schemaOptimizationChanges := buildCallhomeSchemaOptimizationChanges()
 

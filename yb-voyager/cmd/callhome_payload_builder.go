@@ -61,10 +61,10 @@ func packAndSendAssessMigrationPayload(status string, errMsg error) {
 	payload.Status = status
 	if assessmentMetadataDirFlag == "" {
 		sourceDBDetails := callhome.SourceDBDetails{
-			DBType:                   source.DBType,
-			DBVersion:                source.DBVersion,
-			DBSize:                   source.DBSize,
-			PostgresSystemIdentifier: source.PostgresSystemIdentifier,
+			DBType:             source.DBType,
+			DBVersion:          source.DBVersion,
+			DBSize:             source.DBSize,
+			DBSystemIdentifier: source.DBSystemIdentifier,
 		}
 		payload.SourceDBDetails = callhome.MarshalledJsonString(sourceDBDetails)
 	}

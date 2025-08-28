@@ -333,7 +333,7 @@ func fetchSourceInfo() {
 	}
 
 	// Get PostgreSQL system identifier
-	source.FetchPostgresSystemIdentifier()
+	source.FetchDBSystemIdentifier()
 }
 
 func SetMigrationAssessmentDoneInMSR() error {

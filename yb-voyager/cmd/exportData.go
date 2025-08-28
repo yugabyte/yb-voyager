@@ -184,10 +184,10 @@ func packAndSendExportDataPayload(status string, errorMsg error) {
 		payload.MigrationType = LIVE_MIGRATION
 	}
 	sourceDBDetails := callhome.SourceDBDetails{
-		DBType:                   source.DBType,
-		DBVersion:                source.DBVersion,
-		DBSize:                   source.DBSize,
-		PostgresSystemIdentifier: source.PostgresSystemIdentifier,
+		DBType:             source.DBType,
+		DBVersion:          source.DBVersion,
+		DBSize:             source.DBSize,
+		DBSystemIdentifier: source.DBSystemIdentifier,
 	}
 
 	payload.SourceDBDetails = callhome.MarshalledJsonString(sourceDBDetails)
@@ -252,7 +252,7 @@ func exportData() bool {
 	}
 
 	// Get PostgreSQL system identifier while still connected
-	source.FetchPostgresSystemIdentifier()
+	source.FetchDBSystemIdentifier()
 
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
