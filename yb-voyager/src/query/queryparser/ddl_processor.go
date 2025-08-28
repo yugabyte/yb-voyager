@@ -855,7 +855,7 @@ func (atProcessor *AlterTableProcessor) Process(parseTree *pg_query.ParseResult)
 			stmt:{alter_table_stmt:{relation:{schemaname:"public" relname:"device_events" inh:true relpersistence:"p" location:12}
 			cmds:{alter_table_cmd:{subtype:AT_SetNotNull name:"device_id" behavior:DROP_RESTRICT}} objtype:OBJECT_TABLE}} stmt_len:40}
 		*/
-		alter.SetNotNullColumns = cmd.Name
+		alter.SetNotNullColumn = cmd.Name
 
 	case pg_query.AlterTableType_AT_DropNotNull:
 		/*
@@ -863,7 +863,7 @@ func (atProcessor *AlterTableProcessor) Process(parseTree *pg_query.ParseResult)
 			stmt:{alter_table_stmt:{relation:{schemaname:"public" relname:"device_events" inh:true relpersistence:"p" location:12}
 			cmds:{alter_table_cmd:{subtype:AT_DropNotNull name:"device_id" behavior:DROP_RESTRICT}} objtype:OBJECT_TABLE}} stmt_len:40}
 		*/
-		alter.DropNotNullColumns = cmd.Name
+		alter.DropNotNullColumn = cmd.Name
 	}
 
 	return alter, nil
@@ -887,8 +887,8 @@ type AlterTable struct {
 	ConstraintColumns           []string
 	PartitionedChild            string // In case this is a partitioned table
 	// In case the ALTER TABLE contains multiple subcommands, collect all SET/DROP NOT NULL columns
-	SetNotNullColumns  string
-	DropNotNullColumns string
+	SetNotNullColumn  string
+	DropNotNullColumn string
 }
 
 func (a *AlterTable) GetObjectName() string {

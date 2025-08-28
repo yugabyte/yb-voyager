@@ -617,17 +617,17 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 		// TODO:
 		// Currently we are not processing if there are multiple columns under multiple alter commands in the same query
 		// Add support for this
-		if len(alter.SetNotNullColumns) > 0 {
+		if alter.SetNotNullColumn != "" {
 			qualifiedTable := alter.GetObjectName()
 			tm := p.getOrCreateTableMetadata(qualifiedTable)
-			if colMeta, exists := tm.Columns[alter.SetNotNullColumns]; exists {
+			if colMeta, exists := tm.Columns[alter.SetNotNullColumn]; exists {
 				colMeta.IsNotNull = true
 			}
 		}
-		if len(alter.DropNotNullColumns) > 0 {
+		if alter.DropNotNullColumn != "" {
 			qualifiedTable := alter.GetObjectName()
 			tm := p.getOrCreateTableMetadata(qualifiedTable)
-			if colMeta, exists := tm.Columns[alter.DropNotNullColumns]; exists {
+			if colMeta, exists := tm.Columns[alter.DropNotNullColumn]; exists {
 				colMeta.IsNotNull = false
 			}
 		}
