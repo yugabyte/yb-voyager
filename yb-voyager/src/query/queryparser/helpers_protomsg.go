@@ -839,7 +839,8 @@ func NormalizeDefElemArgToString(arg *pg_query.Node) string {
 		case a.GetBoolval() != nil:
 			return a.GetBoolval().String()
 		default:
-			return arg.String()
+			log.Warnf("NormalizeDefElemArgToString: using fallback for unhandled A_Const value type: %T", arg.GetAConst().GetVal())
+			return arg.String() // fallback: return full protobuf representation
 		}
 	}
 
@@ -851,7 +852,8 @@ func NormalizeDefElemArgToString(arg *pg_query.Node) string {
 		if len(tn.Names) > 0 && tn.Names[len(tn.Names)-1].GetString_() != nil {
 			return tn.Names[len(tn.Names)-1].GetString_().Sval
 		}
-		return arg.String()
+		log.Warnf("NormalizeDefElemArgToString: using fallback for TypeName with no valid names")
+		return arg.String() // fallback: return full protobuf representation
 	}
 	if l := arg.GetList(); l != nil {
 		parts := make([]string, 0, len(l.Items))
@@ -866,5 +868,6 @@ func NormalizeDefElemArgToString(arg *pg_query.Node) string {
 	if tc := arg.GetTypeCast(); tc != nil {
 		return NormalizeDefElemArgToString(tc.Arg)
 	}
-	return arg.String()
+	log.Warnf("NormalizeDefElemArgToString: using fallback for unhandled node type: %T", arg.GetNode())
+	return arg.String() // fallback: return full protobuf representation for unhandled node types
 }
