@@ -1281,10 +1281,11 @@ Version History
 1.3: Moved Sizing, TableIndexStats, Notes, fields out from depcreated AssessmentJsonReport field to top level struct
 1.4: Removed field 'ParallelVoyagerJobs` from sizing recommendation
 1.5: Changed type of the Details field from json.RawMessage to map[string]interface{}
-1.6: Add EstimatedTimeInMinForImportWithoutRedundantIndexes in SizingRecommendation struct
-1.7: added separate fields for notes: GeneralNotes, ColocatedShardedNotes, SizingNotes; deprecated Notes field
+1.6:
+  - Add EstimatedTimeInMinForImportWithoutRedundantIndexes in SizingRecommendation struct
+  - Added separate fields for notes: GeneralNotes, ColocatedShardedNotes, SizingNotes; deprecated Notes field
 */
-var ASSESS_MIGRATION_YBD_PAYLOAD_VERSION = "1.7"
+var ASSESS_MIGRATION_YBD_PAYLOAD_VERSION = "1.6"
 
 // TODO: decouple this struct from utils.AnalyzeSchemaIssue struct, right now its tightly coupled;
 // Similarly for migassessment.SizingAssessmentReport and migassessment.TableIndexStats
