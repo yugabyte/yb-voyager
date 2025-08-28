@@ -374,9 +374,8 @@ func IsMigrationAssessmentDoneViaExportSchema() (bool, error) {
 
 func ClearMigrationAssessmentDone() error {
 	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
-		if record.MigrationAssessmentDone {
-			record.MigrationAssessmentDone = false
-		}
+		record.MigrationAssessmentDone = false
+		record.MigrationAssessmentDoneViaExportSchema = false
 	})
 	if err != nil {
 		return fmt.Errorf("failed to clear migration status record with migration assessment done flag: %w", err)

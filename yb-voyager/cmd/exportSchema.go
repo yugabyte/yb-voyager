@@ -246,6 +246,11 @@ func runAssessMigrationCmdBeforExportSchemaIfRequired(exportSchemaCmd *cobra.Com
 			continue
 		}
 
+		if flag.Name == "source-db-password" {
+			//Skip this flag to set in cli completely and set it in env variable only
+			continue
+		}
+
 		// bool flags: --flag=value
 		// everything else: --flag value
 		if flag.Value.Type() == "bool" {
@@ -281,6 +286,9 @@ func runAssessMigrationCmdBeforExportSchemaIfRequired(exportSchemaCmd *cobra.Com
 	cmd := exec.Command(voyagerExecutable, append([]string{"assess-migration"}, assessFlagsWithValues...)...)
 	cmd.Stdout = &stdoutBuf
 	cmd.Stderr = &stderrBuf
+
+	cmd.Env = os.Environ()
+	cmd.Env = append(cmd.Env, "SOURCE_DB_PASSWORD="+source.Password)
 
 	// run and ignore exit status
 	if err := cmd.Run(); err != nil {
