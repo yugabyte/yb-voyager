@@ -157,7 +157,7 @@ func TestAssessmentReportStructs(t *testing.T) {
 				Sizing                         *migassessment.SizingAssessmentReport `json:"Sizing"`
 				Issues                         []AssessmentIssue                     `json:"AssessmentIssues"`
 				TableIndexStats                *[]migassessment.TableIndexStats      `json:"TableIndexStats"`
-				Notes                          []string                              `json:"Notes"`
+				Notes                          []NoteInfo                            `json:"Notes"`
 				UnsupportedDataTypes           []utils.TableColumnsDataTypes         `json:"-"`
 				UnsupportedDataTypesDesc       string                                `json:"-"`
 				UnsupportedFeatures            []UnsupportedFeature                  `json:"-"`
@@ -235,7 +235,12 @@ func TestAssessmentReportJson(t *testing.T) {
 				SizeInBytes:     Int64Ptr(1024),
 			},
 		},
-		Notes: []string{"Test note"},
+		Notes: []NoteInfo{
+			{
+				Type: GeneralNotes,
+				Text: "Test note",
+			},
+		},
 		UnsupportedDataTypes: []utils.TableColumnsDataTypes{
 			{
 				SchemaName: "public",
@@ -381,7 +386,10 @@ func TestAssessmentReportJson(t *testing.T) {
 		}
 	],
 	"Notes": [
-		"Test note"
+		{
+			"Type": "GeneralNotes",
+			"Text": "Test note"
+		}
 	]
 }`
 
