@@ -17,6 +17,14 @@ jobs:
           - live-migration-basic
           - live-migration-datatypes-ff-fb
           - live-migration-advanced
+        exclude:
+          # Exclude BETA_FAST_DATA_EXPORT=1 for live migration tests (redundant, Debezium forced)
+          - BETA_FAST_DATA_EXPORT: 1
+            test_group: live-migration-basic
+          - BETA_FAST_DATA_EXPORT: 1
+            test_group: live-migration-datatypes-ff-fb
+          - BETA_FAST_DATA_EXPORT: 1
+            test_group: live-migration-advanced
 
     env:
       BETA_FAST_DATA_EXPORT: ${{ matrix.BETA_FAST_DATA_EXPORT }}
