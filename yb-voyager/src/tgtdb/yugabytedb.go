@@ -249,6 +249,8 @@ func (yb *TargetYugabyteDB) GetYugabyteClusterUUID() string {
 	var universeUUID string
 	err := yb.QueryRow(query).Scan(&universeUUID)
 	if err != nil {
+		// Example error message:
+		// ERROR:  column "universe_uuid" does not exist
 		if strings.Contains(err.Error(), "column") && strings.Contains(err.Error(), "does not exist") {
 			log.Infof("YugabyteDB cluster UUID not available (version < v2024.2.3.0)")
 		} else {

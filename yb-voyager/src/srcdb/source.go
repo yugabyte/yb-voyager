@@ -92,14 +92,18 @@ func (s *Source) GetSchemaList() []string {
 }
 
 // FetchPostgresSystemIdentifier fetches and stores the PostgreSQL system identifier if the source is PostgreSQL
+// The PostgreSQL system identifier is a unique 64-bit integer
+// that identifies the database cluster. This identifier remains constant throughout the lifetime
+// of the database cluster, even across restarts.
 func (s *Source) FetchPostgresSystemIdentifier() {
 	if s.DBType == "postgresql" {
-		if pgDB, ok := s.DB().(*PostgreSQL); ok {
-			if systemIdentifier, err := pgDB.GetSystemIdentifier(); err == nil {
-				s.PostgresSystemIdentifier = systemIdentifier
-			} else {
-				log.Infof("callhome: failed to get PostgreSQL system identifier: %v", err)
-			}
+		var systemIdentifier int64
+		query := "SELECT system_identifier FROM pg_control_system()"
+		err := s.DB().QueryRow(query).Scan(&systemIdentifier)
+		if err == nil {
+			s.PostgresSystemIdentifier = systemIdentifier
+		} else {
+			log.Infof("callhome: failed to get PostgreSQL system identifier: %v", err)
 		}
 	}
 }

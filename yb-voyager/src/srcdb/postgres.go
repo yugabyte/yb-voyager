@@ -251,19 +251,6 @@ func (pg *PostgreSQL) GetVersion() string {
 	return version
 }
 
-// GetSystemIdentifier returns the PostgreSQL system identifier which is a unique 64-bit integer
-// that identifies the database cluster. This identifier remains constant throughout the lifetime
-// of the database cluster, even across restarts.
-func (pg *PostgreSQL) GetSystemIdentifier() (int64, error) {
-	var systemIdentifier int64
-	query := "SELECT system_identifier FROM pg_control_system()"
-	err := pg.db.QueryRow(query).Scan(&systemIdentifier)
-	if err != nil {
-		return 0, fmt.Errorf("failed to get system identifier: %w", err)
-	}
-	return systemIdentifier, nil
-}
-
 func (pg *PostgreSQL) CheckSchemaExists() bool {
 	schemaList := pg.checkSchemasExists()
 	return schemaList != nil
