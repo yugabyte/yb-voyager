@@ -129,7 +129,7 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 					obj.GetObjectType(),
 					table.GetObjectName(),
 					c.Columns,
-					d.tableMetadata,
+					d.tablesMetadata,
 					&issues,
 				)
 
@@ -285,9 +285,9 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 	return issues, nil
 }
 
-func detectForeignKeyDatatypeMismatch(objectType string, objectName string, columnList []string, tableMetadata map[string]*TableMetadata, issues *[]QueryIssue) {
+func detectForeignKeyDatatypeMismatch(objectType string, objectName string, columnList []string, tablesMetadata map[string]*TableMetadata, issues *[]QueryIssue) {
 	for _, col := range columnList {
-		tm, ok := tableMetadata[objectName]
+		tm, ok := tablesMetadata[objectName]
 		if !ok {
 			continue
 		}
@@ -1058,7 +1058,7 @@ func (aid *AlterTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Q
 				obj.GetObjectType(),
 				alter.GetObjectName(),
 				alter.ConstraintColumns,
-				aid.tableMetadata,
+				aid.tablesMetadata,
 				&issues,
 			)
 

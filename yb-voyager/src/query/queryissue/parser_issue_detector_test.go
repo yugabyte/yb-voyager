@@ -2359,31 +2359,10 @@ func runPKRec(t *testing.T, name string, ddls []string, expected []QueryIssue) {
 		return d
 	}
 
-	// Helper function to create a key for sorting QueryIssues
-	pkrecKey := func(q QueryIssue) string {
-		opt, _ := q.Details["PrimaryKeyColumnOptions"].([][]string)
-		// Sort the column options to ensure consistent ordering
-		sortedOpt := make([][]string, len(opt))
-		copy(sortedOpt, opt)
-		slices.SortFunc(sortedOpt, func(a, b []string) int {
-			if len(a) != len(b) {
-				return len(a) - len(b)
-			}
-			return strings.Compare(strings.Join(a, ","), strings.Join(b, ","))
-		})
-		// Create a string representation for the key
-		keyParts := make([]string, len(sortedOpt))
-		for i, cols := range sortedOpt {
-			keyParts[i] = strings.Join(cols, ",")
-		}
-		joined := strings.Join(keyParts, "|")
-		return q.ObjectName + "|" + joined
-	}
-
 	// Helper function to sort QueryIssues for consistent comparison
 	pkrecSort := func(issues []QueryIssue) []QueryIssue {
 		out := append([]QueryIssue(nil), issues...)
-		// First, sort the PrimaryKeyColumnOptions within each QueryIssue for consistency
+		// Sort the PrimaryKeyColumnOptions within each QueryIssue for consistency
 		for i := range out {
 			if opt, ok := out[i].Details["PrimaryKeyColumnOptions"].([][]string); ok {
 				sortedOpt := make([][]string, len(opt))
@@ -2397,46 +2376,23 @@ func runPKRec(t *testing.T, name string, ddls []string, expected []QueryIssue) {
 				out[i].Details["PrimaryKeyColumnOptions"] = sortedOpt
 			}
 		}
-		// Then sort the QueryIssues themselves
-		slices.SortFunc(out, func(a, b QueryIssue) int { return strings.Compare(pkrecKey(a), pkrecKey(b)) })
+		// Sort the QueryIssues by ObjectName for consistency
+		slices.SortFunc(out, func(a, b QueryIssue) int {
+			return strings.Compare(a.ObjectName, b.ObjectName)
+		})
 		return out
 	}
 
-	// Helper function to create a string representation of QueryIssues for debugging
-	pkrecString := func(list []QueryIssue) string {
-		parts := make([]string, 0, len(list))
-		for _, q := range pkrecSort(list) {
-			opt, _ := q.Details["PrimaryKeyColumnOptions"].([][]string)
-			optionStrings := make([]string, len(opt))
-			for i, cols := range opt {
-				optionStrings[i] = strings.Join(cols, ", ")
-			}
-			parts = append(parts, fmt.Sprintf("%s [%s]", q.ObjectName, strings.Join(optionStrings, "; ")))
-		}
-		return fmt.Sprintf("[%s]", strings.Join(parts, ", "))
-	}
-
-	z := func(v any) string { return fmt.Sprintf("%#v", v) }
 	t.Helper()
 	t.Run(name, func(t *testing.T) {
 		d := pkrecBuild(ddls...)
 		got := d.DetectPrimaryKeyRecommendations()
-		gotS := pkrecSort(got)
-		expS := pkrecSort(expected)
 
-		// Print test name and recommendations for debugging
-		// fmt.Printf("\n=== Test: %s ===\n", name)
-		// if len(gotS) == 0 {
-		// 	fmt.Printf("No recommendations\n")
-		// } else {
-		// 	for i, rec := range gotS {
-		// 		fmt.Printf("Recommendation %d: %+v\n", i+1, rec)
-		// 	}
-		// }
+		// Sort both expected and actual results for consistent comparison
+		gotSorted := pkrecSort(got)
+		expectedSorted := pkrecSort(expected)
 
-		if diff := cmp.Diff(expS, gotS); diff != "" {
-			t.Fatalf("PK recommendations mismatch (-want +got):\n%s\nExpected (objects): %s\nActual   (objects): %s\nExpected (pretty):  %s\nActual   (pretty):  %s", diff, z(expS), z(gotS), pkrecString(expS), pkrecString(gotS))
-		}
+		assert.Equal(t, expectedSorted, gotSorted)
 	})
 }
 
@@ -2488,6 +2444,11 @@ func TestPKRec_CommonRunner(t *testing.T) {
 		{
 			name:     "PKREC: UNIQUE with nullable column -> no recommendation",
 			ddls:     []string{`CREATE TABLE t7 (a int NOT NULL, b int, UNIQUE(a,b));`},
+			expected: nil,
+		},
+		{
+			name:     "PKREC: UNIQUE on separate column when PK exists on different column",
+			ddls:     []string{`CREATE TABLE t8 (a int NOT NULL, b int NOT NULL, PRIMARY KEY(a), UNIQUE(b));`},
 			expected: nil,
 		},
 	}

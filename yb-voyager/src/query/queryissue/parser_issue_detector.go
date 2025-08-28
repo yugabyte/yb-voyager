@@ -132,70 +132,16 @@ func (tm *TableMetadata) GetConstraintsByType(constraintType string) []Constrain
 	return constraints
 }
 
-// Helper methods for ParserIssueDetector to work with TableMetadata
-// getOrCreateTableMetadata retrieves existing table metadata or creates new if it doesn't exist.
-func (p *ParserIssueDetector) getOrCreateTableMetadata(tableName string) *TableMetadata {
-	if tm, exists := p.tableMetadata[tableName]; exists {
-		return tm
+// AddConstraint adds a constraint to the table metadata
+func (tm *TableMetadata) AddConstraint(constraintType, name string, columns []string, referencedTable string, referencedColumns []string) {
+	constraint := ConstraintMetadata{
+		Type:              constraintType,
+		Name:              name,
+		Columns:           append([]string{}, columns...),
+		ReferencedTable:   referencedTable,
+		ReferencedColumns: append([]string{}, referencedColumns...),
 	}
-
-	// Parse table name to extract schema and table
-	parts := strings.Split(tableName, ".")
-	schemaName := "public" // default schema
-	tableNameOnly := tableName
-	if len(parts) == 2 {
-		schemaName = parts[0]
-		tableNameOnly = parts[1]
-	}
-
-	tm := &TableMetadata{
-		TableName:   tableNameOnly,
-		SchemaName:  schemaName,
-		Columns:     make(map[string]*ColumnMetadata),
-		Constraints: make([]ConstraintMetadata, 0),
-		Indexes:     make([]*queryparser.Index, 0),
-	}
-	p.tableMetadata[tableName] = tm
-	return tm
-}
-
-// getTableMetadata retrieves existing table metadata. Returns nil if not found.
-func (p *ParserIssueDetector) getTableMetadata(tableName string) *TableMetadata {
-	return p.tableMetadata[tableName]
-}
-
-// Getter methods for ParserIssueDetector to derive information from tableMetadata
-// getPartitionedTablesMap returns a map of partitioned table names to true.
-func (p *ParserIssueDetector) getPartitionedTablesMap() map[string]bool {
-	partitionedTables := make(map[string]bool)
-	for tableName, tm := range p.tableMetadata {
-		if tm.IsPartitioned() {
-			partitionedTables[tableName] = true
-		}
-	}
-	return partitionedTables
-}
-
-// getPartitionedFrom returns a map of child tables to their parent partitioned table.
-func (p *ParserIssueDetector) getPartitionedFrom() map[string]string {
-	partitionedFrom := make(map[string]string)
-	for tableName, tm := range p.tableMetadata {
-		if tm.PartitionedFrom != "" {
-			partitionedFrom[tableName] = tm.PartitionedFrom
-		}
-	}
-	return partitionedFrom
-}
-
-// getInheritedFrom returns a map of child tables to their parent table names.
-func (p *ParserIssueDetector) getInheritedFrom() map[string][]string {
-	inheritedFrom := make(map[string][]string)
-	for tableName, tm := range p.tableMetadata {
-		if len(tm.InheritedFrom) > 0 {
-			inheritedFrom[tableName] = tm.InheritedFrom
-		}
-	}
-	return inheritedFrom
+	tm.Constraints = append(tm.Constraints, constraint)
 }
 
 type ParserIssueDetector struct {
@@ -254,7 +200,7 @@ type ParserIssueDetector struct {
 
 	// Table metadata consolidated into a single structure
 	// Key is qualified table name (schema.table), value is TableMetadata
-	tableMetadata map[string]*TableMetadata
+	tablesMetadata map[string]*TableMetadata
 }
 
 func NewParserIssueDetector() *ParserIssueDetector {
@@ -267,8 +213,74 @@ func NewParserIssueDetector() *ParserIssueDetector {
 		columnsWithUnsupportedIndexDatatypes:    make(map[string]map[string]string),
 		columnsWithHotspotRangeIndexesDatatypes: make(map[string]map[string]string),
 		jsonbColumns:                            make([]string, 0),
-		tableMetadata:                           make(map[string]*TableMetadata),
+		tablesMetadata:                          make(map[string]*TableMetadata),
 	}
+}
+
+// Helper methods for ParserIssueDetector to work with TableMetadata
+// getOrCreateTableMetadata retrieves existing table metadata or creates new if it doesn't exist.
+func (p *ParserIssueDetector) getOrCreateTableMetadata(tableName string) *TableMetadata {
+	if tm, exists := p.tablesMetadata[tableName]; exists {
+		return tm
+	}
+
+	// Parse table name to extract schema and table
+	parts := strings.Split(tableName, ".")
+	schemaName := "public" // default schema
+	tableNameOnly := tableName
+	if len(parts) == 2 {
+		schemaName = parts[0]
+		tableNameOnly = parts[1]
+	}
+
+	tm := &TableMetadata{
+		TableName:   tableNameOnly,
+		SchemaName:  schemaName,
+		Columns:     make(map[string]*ColumnMetadata),
+		Constraints: make([]ConstraintMetadata, 0),
+		Indexes:     make([]*queryparser.Index, 0),
+	}
+	p.tablesMetadata[tableName] = tm
+	return tm
+}
+
+// getTableMetadata retrieves existing table metadata. Returns nil if not found.
+func (p *ParserIssueDetector) getTableMetadata(tableName string) *TableMetadata {
+	return p.tablesMetadata[tableName]
+}
+
+// Getter methods for ParserIssueDetector to derive information from tablesMetadata
+// getPartitionedTablesMap returns a map of partitioned table names to true.
+func (p *ParserIssueDetector) getPartitionedTablesMap() map[string]bool {
+	partitionedTables := make(map[string]bool)
+	for tableName, tm := range p.tablesMetadata {
+		if tm.IsPartitioned() {
+			partitionedTables[tableName] = true
+		}
+	}
+	return partitionedTables
+}
+
+// getPartitionedFrom returns a map of child tables to their parent partitioned table.
+func (p *ParserIssueDetector) getPartitionedFrom() map[string]string {
+	partitionedFrom := make(map[string]string)
+	for tableName, tm := range p.tablesMetadata {
+		if tm.PartitionedFrom != "" {
+			partitionedFrom[tableName] = tm.PartitionedFrom
+		}
+	}
+	return partitionedFrom
+}
+
+// getInheritedFrom returns a map of child tables to their parent table names.
+func (p *ParserIssueDetector) getInheritedFrom() map[string][]string {
+	inheritedFrom := make(map[string][]string)
+	for tableName, tm := range p.tablesMetadata {
+		if len(tm.InheritedFrom) > 0 {
+			inheritedFrom[tableName] = tm.InheritedFrom
+		}
+	}
+	return inheritedFrom
 }
 
 func (p *ParserIssueDetector) GetCompositeTypes() []string {
@@ -292,7 +304,7 @@ func (p *ParserIssueDetector) GetAllIssues(query string, targetDbVersion *ybvers
 // It is used in the JsonbSubscriptingDetector to check if the column is jsonb or not
 func (p *ParserIssueDetector) GetJsonbColumns() []string {
 	jsonbColumns := make([]string, 0)
-	for _, tm := range p.tableMetadata {
+	for _, tm := range p.tablesMetadata {
 		for columnName, meta := range tm.Columns {
 			if meta.IsJsonb {
 				jsonbColumns = append(jsonbColumns, columnName)
@@ -307,7 +319,7 @@ func (p *ParserIssueDetector) GetJsonbColumns() []string {
 // Each entry also includes the column's data type for context.
 func (p *ParserIssueDetector) GetColumnsWithUnsupportedIndexDatatypes() map[string]map[string]string {
 	columnsWithUnsupportedIndexDatatypes := make(map[string]map[string]string)
-	for tableName, tm := range p.tableMetadata {
+	for tableName, tm := range p.tablesMetadata {
 		for columnName, meta := range tm.Columns {
 			if meta.IsUnsupportedForIndex {
 				if _, exists := columnsWithUnsupportedIndexDatatypes[tableName]; !exists {
@@ -326,7 +338,7 @@ func (p *ParserIssueDetector) GetColumnsWithUnsupportedIndexDatatypes() map[stri
 // Each entry also includes the column's data type for context.
 func (p *ParserIssueDetector) GetColumnsWithHotspotRangeIndexesDatatypes() map[string]map[string]string {
 	columnsWithHotspotRangeIndexesDatatypes := make(map[string]map[string]string)
-	for tableName, tm := range p.tableMetadata {
+	for tableName, tm := range p.tablesMetadata {
 		for columnName, meta := range tm.Columns {
 			if meta.IsHotspotForRangeIndex {
 				if _, exists := columnsWithHotspotRangeIndexesDatatypes[tableName]; !exists {
@@ -475,7 +487,7 @@ func (p *ParserIssueDetector) finalizeColumnsFromParentMap(parentMap map[string]
 			continue // This is a root table with no parents
 		}
 		for _, parent := range parentList {
-			parentTM, ok := p.tableMetadata[parent]
+			parentTM, ok := p.tablesMetadata[parent]
 			if !ok {
 				continue // Parent metadata not found
 			}
@@ -527,7 +539,7 @@ func topoSort(dependencyMap map[string][]string) []string {
 // as foreign keys, populating their referenced table, column, and type information.
 // This is done after all DDL statements have been processed to ensure complete metadata is
 func (p *ParserIssueDetector) finalizeForeignKeyConstraints() {
-	for tableName, tm := range p.tableMetadata {
+	for tableName, tm := range p.tablesMetadata {
 		for _, constraint := range tm.GetForeignKeyConstraints() {
 			for i, localCol := range constraint.Columns {
 				meta, ok := tm.Columns[localCol]
@@ -542,7 +554,7 @@ func (p *ParserIssueDetector) finalizeForeignKeyConstraints() {
 					refCol := constraint.ReferencedColumns[i]
 					meta.ReferencedColumn = refCol
 
-					if refTM, ok := p.tableMetadata[constraint.ReferencedTable]; ok {
+					if refTM, ok := p.tablesMetadata[constraint.ReferencedTable]; ok {
 						if refMeta, ok := refTM.Columns[refCol]; ok {
 							// Store the referenced column type and modifiers separately for accurate comparison
 							meta.ReferencedColumnType = refMeta.DataType
@@ -586,13 +598,7 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 			// Track PK columns
 			tm := p.getOrCreateTableMetadata(alter.GetObjectName())
 
-			// Add to Constraints slice for comprehensive tracking
-			pkConstraint := ConstraintMetadata{
-				Type:    "PRIMARY",
-				Name:    alter.ConstraintName,
-				Columns: append([]string{}, alter.ConstraintColumns...),
-			}
-			tm.Constraints = append(tm.Constraints, pkConstraint)
+			tm.AddConstraint("PRIMARY", alter.ConstraintName, alter.ConstraintColumns, "", nil)
 		}
 
 		if alter.ConstraintType == queryparser.UNIQUE_CONSTR_TYPE {
@@ -604,12 +610,7 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 			if len(alter.ConstraintColumns) > 0 {
 				qualifiedTable := alter.GetObjectName()
 				tm := p.getOrCreateTableMetadata(qualifiedTable)
-				uniqueConstraint := ConstraintMetadata{
-					Type:    "UNIQUE",
-					Name:    alter.ConstraintName,
-					Columns: append([]string{}, alter.ConstraintColumns...),
-				}
-				tm.Constraints = append(tm.Constraints, uniqueConstraint)
+				tm.AddConstraint("UNIQUE", alter.ConstraintName, alter.ConstraintColumns, "", nil)
 			}
 		}
 		// Track NOT NULL alter commands
@@ -624,11 +625,10 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 		}
 		if len(alter.DropNotNullColumns) > 0 {
 			qualifiedTable := alter.GetObjectName()
-			if tm := p.getTableMetadata(qualifiedTable); tm != nil {
-				for _, col := range alter.DropNotNullColumns {
-					if colMeta, exists := tm.Columns[col]; exists {
-						colMeta.IsNotNull = false
-					}
+			tm := p.getOrCreateTableMetadata(qualifiedTable)
+			for _, col := range alter.DropNotNullColumns {
+				if colMeta, exists := tm.Columns[col]; exists {
+					colMeta.IsNotNull = false
 				}
 			}
 		}
@@ -636,14 +636,7 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 		if alter.ConstraintType == queryparser.FOREIGN_CONSTR_TYPE {
 			// Add to Constraints slice for comprehensive tracking
 			tm := p.getOrCreateTableMetadata(alter.GetObjectName())
-			fkConstraint := ConstraintMetadata{
-				Type:              "FOREIGN",
-				Name:              alter.ConstraintName,
-				Columns:           append([]string{}, alter.ConstraintColumns...),
-				ReferencedTable:   alter.ConstraintReferencedTable,
-				ReferencedColumns: append([]string{}, alter.ConstraintReferencedColumns...),
-			}
-			tm.Constraints = append(tm.Constraints, fkConstraint)
+			tm.AddConstraint("FOREIGN", alter.ConstraintName, alter.ConstraintColumns, alter.ConstraintReferencedTable, alter.ConstraintReferencedColumns)
 		}
 
 		// If alter is to attach a partitioned table, track it
@@ -712,31 +705,11 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 		for _, constraint := range table.Constraints {
 			switch constraint.ConstraintType {
 			case queryparser.PRIMARY_CONSTR_TYPE:
-				// Add primary key constraint to the Constraints slice
-				pkConstraint := ConstraintMetadata{
-					Type:    "PRIMARY",
-					Name:    constraint.ConstraintName,
-					Columns: append([]string{}, constraint.Columns...),
-				}
-				tm.Constraints = append(tm.Constraints, pkConstraint)
+				tm.AddConstraint("PRIMARY", constraint.ConstraintName, constraint.Columns, "", nil)
 			case queryparser.UNIQUE_CONSTR_TYPE:
-				// Add unique constraint to the Constraints slice
-				uniqueConstraint := ConstraintMetadata{
-					Type:    "UNIQUE",
-					Name:    constraint.ConstraintName,
-					Columns: append([]string{}, constraint.Columns...),
-				}
-				tm.Constraints = append(tm.Constraints, uniqueConstraint)
+				tm.AddConstraint("UNIQUE", constraint.ConstraintName, constraint.Columns, "", nil)
 			case queryparser.FOREIGN_CONSTR_TYPE:
-				// Add to Constraints slice for comprehensive tracking
-				fkConstraint := ConstraintMetadata{
-					Type:              "FOREIGN",
-					Name:              constraint.ConstraintName,
-					Columns:           append([]string{}, constraint.Columns...),
-					ReferencedTable:   constraint.ReferencedTable,
-					ReferencedColumns: append([]string{}, constraint.ReferencedColumns...),
-				}
-				tm.Constraints = append(tm.Constraints, fkConstraint)
+				tm.AddConstraint("FOREIGN", constraint.ConstraintName, constraint.Columns, constraint.ReferencedTable, constraint.ReferencedColumns)
 			case pg_query.ConstrType_CONSTR_NOTNULL:
 				if len(constraint.Columns) == 1 {
 					colName := constraint.Columns[0]
@@ -1004,7 +977,7 @@ func (p *ParserIssueDetector) DetectMissingForeignKeyIndexes() []QueryIssue {
 	var issues []QueryIssue
 
 	// Process all foreign key constraints from table metadata
-	for tableName, tm := range p.tableMetadata {
+	for tableName, tm := range p.tablesMetadata {
 		for _, constraint := range tm.GetForeignKeyConstraints() {
 			// Check if this FK has proper index coverage using existing logic
 			if !p.hasProperIndexCoverage(constraint, tableName) {
@@ -1042,7 +1015,7 @@ func (p *ParserIssueDetector) DetectPrimaryKeyRecommendations() []QueryIssue {
 		return false
 	}
 
-	for tableName, tm := range p.tableMetadata {
+	for tableName, tm := range p.tablesMetadata {
 		if shouldSkip(tableName) {
 			continue
 		}
