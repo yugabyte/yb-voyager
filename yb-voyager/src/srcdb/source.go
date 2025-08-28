@@ -94,18 +94,20 @@ func (s *Source) GetSchemaList() []string {
 // FetchDBSystemIdentifier fetches and stores the database system identifier
 // Currently only implemented for PostgreSQL
 func (s *Source) FetchDBSystemIdentifier() {
-	if s.DBType == "postgresql" {
-		// The PostgreSQL system identifier is a unique 64-bit integer
-		// that identifies the database cluster. This identifier remains constant throughout the lifetime
-		// of the database cluster, even across restarts.
-		var systemIdentifier int64
-		query := "SELECT system_identifier FROM pg_control_system()"
-		err := s.DB().QueryRow(query).Scan(&systemIdentifier)
-		if err == nil {
-			s.DBSystemIdentifier = systemIdentifier
-		} else {
-			log.Infof("callhome: failed to get PostgreSQL system identifier: %v", err)
-		}
+	if s.DBType != "postgresql" {
+		return
+	}
+
+	// The PostgreSQL system identifier is a unique 64-bit integer
+	// that identifies the database cluster. This identifier remains constant throughout the lifetime
+	// of the database cluster, even across restarts.
+	var systemIdentifier int64
+	query := "SELECT system_identifier FROM pg_control_system()"
+	err := s.DB().QueryRow(query).Scan(&systemIdentifier)
+	if err == nil {
+		s.DBSystemIdentifier = systemIdentifier
+	} else {
+		log.Infof("callhome: failed to get PostgreSQL system identifier: %v", err)
 	}
 }
 
