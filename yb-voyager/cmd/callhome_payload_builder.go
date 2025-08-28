@@ -258,6 +258,26 @@ func anonymizeIssueDetailsForCallhome(details map[string]interface{}) map[string
 			} else {
 				anonymizedDetails[key] = value
 			}
+		} else if key == "PrimaryKeyColumnOptions" {
+			if pkOptions, ok := value.([][]string); ok {
+				var anonymizedOptions [][]string
+				for _, option := range pkOptions {
+					var anonymizedOption []string
+					for _, columnName := range option {
+						anonymizedColumn, err := anonymizer.AnonymizeQualifiedColumnName(columnName)
+						if err != nil {
+							log.Warnf("failed to anonymize PK column name %s: %v", columnName, err)
+							anonymizedOption = append(anonymizedOption, "column_xxx")
+						} else {
+							anonymizedOption = append(anonymizedOption, anonymizedColumn)
+						}
+					}
+					anonymizedOptions = append(anonymizedOptions, anonymizedOption)
+				}
+				anonymizedDetails[key] = anonymizedOptions
+			} else {
+				anonymizedDetails[key] = value
+			}
 		} else {
 			// Non-sensitive keys are kept as-is
 			anonymizedDetails[key] = value

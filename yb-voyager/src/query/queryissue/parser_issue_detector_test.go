@@ -20,6 +20,7 @@ package queryissue
 import (
 	"fmt"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -2340,4 +2341,121 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 		assert.Equal(t, 1, len(issues))
 		assert.True(t, cmp.Equal(expectedIssue, issues[0]), "Expected issue not found: %v\nFound: %v", expectedIssue, issues[0])
 	})
+}
+
+// ====== Primary Key Recommendation Testing - Checks for missing PK when UNIQUE and NOT NULL columns are available ======
+
+func runPKRec(t *testing.T, name string, ddls []string, expected []QueryIssue) {
+	// Helper function to build parser issue detector from DDL statements
+	pkrecBuild := func(ddls ...string) *ParserIssueDetector {
+		d := NewParserIssueDetector()
+		for _, s := range ddls {
+			if s == "" {
+				continue
+			}
+			_ = d.ParseAndProcessDDL(s)
+		}
+		d.FinalizeColumnMetadata()
+		return d
+	}
+
+	// Helper function to sort QueryIssues for consistent comparison
+	pkrecSort := func(issues []QueryIssue) []QueryIssue {
+		out := append([]QueryIssue(nil), issues...)
+		// Sort the PrimaryKeyColumnOptions within each QueryIssue for consistency
+		for i := range out {
+			if opt, ok := out[i].Details["PrimaryKeyColumnOptions"].([][]string); ok {
+				sortedOpt := make([][]string, len(opt))
+				copy(sortedOpt, opt)
+				slices.SortFunc(sortedOpt, func(a, b []string) int {
+					if len(a) != len(b) {
+						return len(a) - len(b)
+					}
+					return strings.Compare(strings.Join(a, ","), strings.Join(b, ","))
+				})
+				out[i].Details["PrimaryKeyColumnOptions"] = sortedOpt
+			}
+		}
+		// Sort the QueryIssues by ObjectName for consistency
+		slices.SortFunc(out, func(a, b QueryIssue) int {
+			return strings.Compare(a.ObjectName, b.ObjectName)
+		})
+		return out
+	}
+
+	t.Helper()
+	t.Run(name, func(t *testing.T) {
+		d := pkrecBuild(ddls...)
+		got := d.DetectPrimaryKeyRecommendations()
+
+		// Sort both expected and actual results for consistent comparison
+		gotSorted := pkrecSort(got)
+		expectedSorted := pkrecSort(expected)
+
+		assert.Equal(t, expectedSorted, gotSorted)
+	})
+}
+
+func TestPKRec_CommonRunner(t *testing.T) {
+	cases := []struct {
+		name     string
+		ddls     []string
+		expected []QueryIssue
+	}{
+		{
+			name:     "PKREC: Simple UNIQUE(a) with a NOT NULL, no PK",
+			ddls:     []string{`CREATE TABLE t1 (a int NOT NULL, b text, UNIQUE(a));`},
+			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "t1", [][]string{{"t1.a"}})},
+		},
+		{
+			name:     "PKREC: Composite UNIQUE(a,b) both NOT NULL",
+			ddls:     []string{`CREATE TABLE t2 (a int NOT NULL, b text NOT NULL, c text, UNIQUE(a,b));`},
+			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "t2", [][]string{{"t2.a", "t2.b"}})},
+		},
+		{
+			name: "PKREC: Multiple ALTER SET NOT NULL then UNIQUE(a,b)",
+			ddls: []string{
+				`CREATE TABLE t3 (a int, b int);`,
+				`ALTER TABLE t3 ALTER COLUMN a SET NOT NULL;`,
+				`ALTER TABLE t3 ALTER COLUMN b SET NOT NULL;`,
+				`ALTER TABLE t3 ADD CONSTRAINT uq_t3 UNIQUE (a,b);`,
+			},
+			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "t3", [][]string{{"t3.a", "t3.b"}})},
+		},
+		{
+			name: "PKREC: DROP NOT NULL cancels composite UNIQUE(a,b)",
+			ddls: []string{
+				`CREATE TABLE t4 (a int, b int);`,
+				`ALTER TABLE t4 ALTER COLUMN a SET NOT NULL;`,
+				`ALTER TABLE t4 ALTER COLUMN b SET NOT NULL;`,
+				`ALTER TABLE t4 ALTER COLUMN b DROP NOT NULL;`,
+				`ALTER TABLE t4 ADD CONSTRAINT uq_t4 UNIQUE (a,b);`,
+			},
+			expected: nil,
+		},
+		{
+			name:     "PKREC: No recommendation if PK exists",
+			ddls:     []string{`CREATE TABLE t5 (a int NOT NULL, UNIQUE(a), PRIMARY KEY(a));`},
+			expected: nil,
+		},
+		{
+			name:     "PKREC: Aggregate all qualifying UNIQUE sets",
+			ddls:     []string{`CREATE TABLE t6 (a int NOT NULL, b int NOT NULL, UNIQUE(a,b), UNIQUE(a));`},
+			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "t6", [][]string{{"t6.a"}, {"t6.a", "t6.b"}})},
+		},
+		{
+			name:     "PKREC: UNIQUE with nullable column -> no recommendation",
+			ddls:     []string{`CREATE TABLE t7 (a int NOT NULL, b int, UNIQUE(a,b));`},
+			expected: nil,
+		},
+		{
+			name:     "PKREC: UNIQUE on separate column when PK exists on different column",
+			ddls:     []string{`CREATE TABLE t8 (a int NOT NULL, b int NOT NULL, PRIMARY KEY(a), UNIQUE(b));`},
+			expected: nil,
+		},
+	}
+
+	for _, tc := range cases {
+		runPKRec(t, tc.name, tc.ddls, tc.expected)
+	}
 }
