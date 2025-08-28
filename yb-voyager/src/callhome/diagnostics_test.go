@@ -67,11 +67,11 @@ func TestCallhomeStructs(t *testing.T) {
 			name:       "Validate TargetDBDetails Struct Definition",
 			actualType: reflect.TypeOf(TargetDBDetails{}),
 			expectedType: struct {
-				Host                string `json:"host"`
-				DBVersion           string `json:"db_version"`
-				NodeCount           int    `json:"node_count"`
-				Cores               int    `json:"total_cores"`
-				YugabyteClusterUUID string `json:"yugabyte_cluster_uuid,omitempty"`
+				Host               string `json:"host"`
+				DBVersion          string `json:"db_version"`
+				NodeCount          int    `json:"node_count"`
+				Cores              int    `json:"total_cores"`
+				DBSystemIdentifier string `json:"db_system_identifier,omitempty"`
 			}{},
 		},
 		{

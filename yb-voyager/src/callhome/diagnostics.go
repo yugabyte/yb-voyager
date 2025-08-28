@@ -99,11 +99,11 @@ type SourceDBDetails struct {
 // SHOULD NOT REMOVE THESE (host, db_version, node_count, total_cores) FIELDS of TargetDBDetails as parsing these specifically here
 // https://github.com/yugabyte/yugabyte-growth/blob/ad5df306c50c05136df77cd6548a1091ae577046/diagnostics_v2/main.py#L556
 type TargetDBDetails struct {
-	Host                string `json:"host"`
-	DBVersion           string `json:"db_version"`
-	NodeCount           int    `json:"node_count"`
-	Cores               int    `json:"total_cores"`
-	YugabyteClusterUUID string `json:"yugabyte_cluster_uuid,omitempty"` // Available from v2024.2.3.0+
+	Host               string `json:"host"`
+	DBVersion          string `json:"db_version"`
+	NodeCount          int    `json:"node_count"`
+	Cores              int    `json:"total_cores"`
+	DBSystemIdentifier string `json:"db_system_identifier,omitempty"` // Database system identifier (currently only implemented for YugabyteDB cluster UUID from v2024.2.3.0+)
 }
 
 /*

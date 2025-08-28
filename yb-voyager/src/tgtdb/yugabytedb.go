@@ -232,14 +232,14 @@ func (yb *TargetYugabyteDB) GetVersion() string {
 	return yb.tconf.DBVersion
 }
 
-// GetYugabyteClusterUUID fetches the cluster UUID if available
+// GetDBSystemIdentifier fetches the database system identifier if available
 //
 // YugabyteDB Cluster UUID Support:
 // - Added in YugabyteDB v2024.2.3.0 (May 16, 2025)
 // - Available via yb_servers() function returning universe_uuid field
 // - For versions < v2024.2.3.0, returns empty string
 // - Reference: https://docs.yugabyte.com/preview/releases/ybdb-releases/v2024.2/#v2024.2.3.0
-func (yb *TargetYugabyteDB) GetYugabyteClusterUUID() string {
+func (yb *TargetYugabyteDB) GetDBSystemIdentifier() string {
 	yb.EnsureConnected()
 	yb.Lock()
 	defer yb.Unlock()
@@ -1319,14 +1319,11 @@ func (yb *TargetYugabyteDB) GetCallhomeTargetDBInfo() *callhome.TargetDBDetails 
 	confs := yb.getTargetConfsAsPerLoadBalancerUsed(loadBalancerUsed, actualTconfs)
 	totalCores, _ := fetchCores(confs) // no need to handle error in case we couldn't fine cores
 
-	// Get cluster UUID if available
-	clusterUUID := yb.GetYugabyteClusterUUID()
-
 	return &callhome.TargetDBDetails{
-		NodeCount:           len(actualTconfs),
-		Cores:               totalCores,
-		DBVersion:           yb.GetVersion(),
-		YugabyteClusterUUID: clusterUUID, // Will be empty string for older versions
+		NodeCount:          len(actualTconfs),
+		Cores:              totalCores,
+		DBVersion:          yb.GetVersion(),
+		DBSystemIdentifier: yb.GetDBSystemIdentifier(), // Will be empty string for older versions
 	}
 }
 
