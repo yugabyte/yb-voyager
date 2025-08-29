@@ -66,6 +66,7 @@ jobs:
           # Clear Go build cache to ensure fresh compilation from current source
           # (but keep module cache which is safely cached based on go.sum)
           go clean -cache || true
+
           yes | ./installer_scripts/install-yb-voyager --install-from-local-source
         env:
           ON_INSTALLER_ERROR_OUTPUT_LOG: Y

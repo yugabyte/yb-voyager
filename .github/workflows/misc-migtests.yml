@@ -109,6 +109,7 @@ jobs:
           # Clear Go build cache to ensure fresh compilation from current source
           # (but keep module cache which is safely cached based on go.sum)
           go clean -cache || true
+
           cd installer_scripts
           yes | ./install-yb-voyager --install-from-local-source --only-pg-support
           # Since pg_dump/restore 17 is required, we need to remove the symlink to the old PG 14 binary(default)
