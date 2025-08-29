@@ -218,7 +218,9 @@ main() {
 	# Updating the trap command to include the ff setup
 	trap "kill_process -${exp_pid} ; kill_process -${imp_pid} ; kill_process -${ffs_pid} ; kill_process -${archive_changes_pid}; exit 1" SIGINT SIGTERM EXIT SIGSEGV SIGHUP
 
-	wait_for_snapshot_import_completion
+	# wait till import data to target and source replica is complete before validating the snapshot
+	wait_for_string_in_log "${EXPORT_DIR}/logs/yb-voyager-import-data.log" "snapshot data import complete"
+	wait_for_string_in_log "${EXPORT_DIR}/logs/yb-voyager-import-data-to-source-replica.log" "snapshot data import complete"
 
 	step "Import remaining schema (FK, index, and trigger) and Refreshing MViews if present."
 	finalize_schema_post_data_import

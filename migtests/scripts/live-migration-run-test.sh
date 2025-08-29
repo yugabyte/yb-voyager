@@ -183,7 +183,12 @@ main() {
 	step "Archive Changes."
 	archive_changes &
 
-	wait_for_snapshot_import_completion
+
+	# Note: For Live migration snapshot completion detection
+	# Note: We cannot use 'import data status' or 'get data-migration-report' commands for this purpose because:
+	# 1. 'import data status' is designed for offline migration and returns exit code 1 in live migration mode
+	# 2. 'get data-migration-report' is for final reporting but doesn't indicate snapshot completion status
+	wait_for_string_in_log "${EXPORT_DIR}/logs/yb-voyager-import-data.log" "snapshot data import complete"
 
 	step "Import remaining schema (FK, index, and trigger) and Refreshing MViews if present."
 	finalize_schema_post_data_import
@@ -191,7 +196,7 @@ main() {
 	step "Run snapshot validations."
 	"${TEST_DIR}/validate" --live_migration 'true' --ff_enabled 'false' --fb_enabled 'false'
 
-	step "Inserting new events"
+	step "Inserting new events to source"
 	run_sql_file source_delta.sql
 
 	sleep 120

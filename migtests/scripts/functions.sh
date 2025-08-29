@@ -504,6 +504,9 @@ import_data_to_source_replica() {
         args="${args} --oracle-tns-alias ${SOURCE_REPLICA_DB_ORACLE_TNS_ALIAS}"
     else
         args="${args} --source-replica-db-host ${SOURCE_REPLICA_DB_HOST}"
+        if [ "${SOURCE_REPLICA_DB_PORT}" != "" ]; then
+            args="${args} --source-replica-db-port ${SOURCE_REPLICA_DB_PORT}"
+        fi
     fi
 
     yb-voyager import data to source-replica ${args} "$@"
@@ -599,43 +602,34 @@ import_data_status(){
     yb-voyager import data status ${args} "$@"
 }
 
-wait_for_snapshot_import_completion(){
-    local timeout_seconds=${1:-300}  # Default 5 minutes
+# Generic function to wait for a string in a log file
+wait_for_string_in_log() {
+    local log_file="$1"
+    local search_string="$2"
+    local timeout_seconds="${3:-300}"  # Default 5 minutes
+    local step_message="${4:-"Wait for string in log file"}"
+    
+    local start_time=$(date +%s)
+    
+    step "$step_message"
+    
+    while true; do
+        local current_time=$(date +%s)
+        local elapsed=$((current_time - start_time))
+        
+        if [ $elapsed -ge $timeout_seconds ]; then
+            echo "Timeout reached ($timeout_seconds seconds). String '$search_string' not found in $log_file."
+            return 1
+        fi
+        
+        if grep -q "$search_string" "$log_file" 2>/dev/null; then
+            echo "String '$search_string' found in $log_file successfully."
+            break
+        fi
 
-    step "Wait for snapshot import to complete"
-    timeout $timeout_seconds bash -c '
-        while true; do
-            # Get import status JSON
-            status_output=$(import_data_status 2>/dev/null || echo "[]")
-            if [ "$status_output" = "[]" ]; then
-                echo "Import status not available yet, waiting..."
-                sleep 3
-                continue
-            fi
-
-            # Check for tables still in snapshot phase (MIGRATING or NOT_STARTED)
-            migrating_tables=$(echo "$status_output" | jq -r ".[] | select(.status == \"MIGRATING\") | .table_name" 2>/dev/null || echo "")
-            not_started_tables=$(echo "$status_output" | jq -r ".[] | select(.status == \"NOT_STARTED\") | .table_name" 2>/dev/null || echo "")
-
-            # Log current status for debugging
-            if [ -n "$migrating_tables" ]; then
-                echo "Tables still migrating: $migrating_tables"
-            fi
-            if [ -n "$not_started_tables" ]; then
-                echo "Tables not started: $not_started_tables"
-            fi
-
-            # Check if all tables are in completed states (DONE, DONE_WITH_ERRORS, or STREAMING)
-            if [ -z "$migrating_tables" ] && [ -z "$not_started_tables" ]; then
-                echo "All tables have completed snapshot import"
-                echo "Final status:"
-                echo "$status_output" | jq . 2>/dev/null || echo "$status_output"
-                break
-            fi
-
-            sleep 3
-        done
-    '
+        echo "Waiting for string '$search_string' in $log_file..."
+        sleep 3
+    done
 }
 
 get_data_migration_report(){
@@ -1311,7 +1305,7 @@ generate_voyager_config() {
 
 	if [ "${run_via_config_file}" = true ]; then
 		CONFIG_GEN_SCRIPT="${SCRIPTS}/generate_voyager_config_file.py"
-		GENERATED_CONFIG="${TEST_DIR}/generated-config.yaml"
+		export GENERATED_CONFIG="${TEST_DIR}/generated-config.yaml"
 
 		echo "Generating config from template: $template_file"
 		python3 "$CONFIG_GEN_SCRIPT" --template "$template_file" --output "$GENERATED_CONFIG"

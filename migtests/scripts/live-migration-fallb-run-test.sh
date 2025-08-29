@@ -193,7 +193,7 @@ main() {
 	step "Archive Changes."
 	archive_changes &
 
-	wait_for_snapshot_import_completion
+	wait_for_string_in_log "${EXPORT_DIR}/logs/yb-voyager-import-data.log" "snapshot data import complete"
 
 	step "Import remaining schema (FK, index, and trigger) and Refreshing MViews if present."
 	finalize_schema_post_data_import
@@ -205,7 +205,7 @@ main() {
 			exit 1
 		} 
 
-	step "Inserting new events"
+	step "Inserting new events to source"
 	run_sql_file source_delta.sql
 
 	sleep 120
