@@ -504,6 +504,9 @@ import_data_to_source_replica() {
         args="${args} --oracle-tns-alias ${SOURCE_REPLICA_DB_ORACLE_TNS_ALIAS}"
     else
         args="${args} --source-replica-db-host ${SOURCE_REPLICA_DB_HOST}"
+        if [ "${SOURCE_REPLICA_DB_PORT}" != "" ]; then
+            args="${args} --source-replica-db-port ${SOURCE_REPLICA_DB_PORT}"
+        fi
     fi
 
     yb-voyager import data to source-replica ${args} "$@"
@@ -598,6 +601,104 @@ import_data_status(){
     args="--export-dir ${EXPORT_DIR} --output-format json"
     yb-voyager import data status ${args} "$@"
 }
+
+# Generic function to wait for a string in a file
+wait_for_string_in_file() {
+    local file_path="$1"
+    local search_string="$2"
+    local timeout_seconds="${3:-300}"  # Default 5 minutes
+    local step_message="${4:-"Wait for string in file"}"
+    
+    local start_time=$(date +%s)
+    
+    step "$step_message"
+    
+    while true; do
+        local current_time=$(date +%s)
+        local elapsed=$((current_time - start_time))
+        
+        if [ $elapsed -ge $timeout_seconds ]; then
+            echo "Timeout reached ($timeout_seconds seconds). String '$search_string' not found in $file_path."
+            return 1
+        fi
+        
+        if [ -f "$file_path" ] && grep -q "$search_string" "$file_path" 2>/dev/null; then
+            echo "String '$search_string' found in $file_path successfully."
+            return 0
+        fi
+
+        echo "Waiting for string '$search_string' in $file_path..."
+        sleep 3
+    done
+}
+
+
+# Wait until at least one event from a specific exporter_role appears in the queue
+# which ensures that the exporter is capturing changes and cutover can be initiated safely
+# Usage: wait_for_exporter_event <exporter_role> [timeout_seconds]
+# Example roles:
+#   - source_db_exporter
+#   - target_db_exporter_ff
+#   - target_db_exporter_fb
+wait_for_exporter_event() {
+    local exporter_role="$1"
+    local timeout_seconds="${2:-300}"
+
+    if [ -z "$exporter_role" ]; then
+        echo "wait_for_exporter_event: exporter_role is required"
+        return 1
+    fi
+    local step_message="Wait for events from exporter_role=${exporter_role}"
+    step "$step_message"
+
+    # Ensure we're in streaming mode (quick wait)
+    wait_for_string_in_file "${EXPORT_DIR}/data/export_status.json" '"mode" : "STREAMING"' 30 "Wait for export to transition to STREAMING mode"
+
+    local queue_dir="${EXPORT_DIR}/data/queue"
+    local start_time=$(date +%s)
+
+    while true; do
+        local current_time=$(date +%s)
+        local elapsed=$((current_time - start_time))
+
+        if [ $elapsed -ge $timeout_seconds ]; then
+            echo "Timeout reached (${timeout_seconds}s). Proceeding without detecting ${exporter_role} events."
+            return 0
+        fi
+
+        # Skip if queue directory doesn't exist
+        if [ ! -d "$queue_dir" ]; then
+            echo "Queue directory does not exist. Waiting for it to be created..."
+            sleep 3
+            continue
+        fi
+
+        # Check each segment file for events with the target exporter role (starting from the last)
+        for file in $(ls -v "$queue_dir"/segment.*.ndjson 2>/dev/null | tac); do
+            # Skip if file doesn't exist or is empty
+            if [ ! -f "$file" ] || [ ! -s "$file" ]; then
+                continue
+            fi
+
+            # Check if file contains events with our expected exporter role
+            if grep -q "\"exporter_role\":\"${exporter_role}\"" "$file" 2>/dev/null; then
+                echo "Detected ${exporter_role} events in queue files."
+
+                # Additional wait to ensure more events are captured after first detection
+                # this is specially required for unique-key-conflicts-test fall-forward test during cutover from target to source-replica
+                # this might be a bug in voyager as normally expectation is once debezium starts capturing changes, it should capture all the changes even if cutover is triggered
+                # GHA failed runs: https://github.com/yugabyte/yb-voyager/actions/runs/17331419213/job/49208062992?pr=3001
+                echo "Waiting additional 10 seconds for event capture to complete..."
+                sleep 10
+                return 0
+            fi
+        done
+
+        echo "Waiting for ${exporter_role} events to appear..."
+        sleep 3
+    done
+}
+
 
 get_data_migration_report(){
     if [ "${run_via_config_file}" = "true" ]; then
@@ -1272,7 +1373,7 @@ generate_voyager_config() {
 
 	if [ "${run_via_config_file}" = true ]; then
 		CONFIG_GEN_SCRIPT="${SCRIPTS}/generate_voyager_config_file.py"
-		GENERATED_CONFIG="${TEST_DIR}/generated-config.yaml"
+		export GENERATED_CONFIG="${TEST_DIR}/generated-config.yaml"
 
 		echo "Generating config from template: $template_file"
 		python3 "$CONFIG_GEN_SCRIPT" --template "$template_file" --output "$GENERATED_CONFIG"

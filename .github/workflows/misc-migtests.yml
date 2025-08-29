@@ -30,8 +30,8 @@ jobs:
 
 
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-java@v3
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
         # https://github.com/actions/setup-java
         with:
           distribution: "temurin"
@@ -39,12 +39,42 @@ jobs:
           check-latest: true
       
       - name: Cache local Maven repository
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ~/.m2/repository
           key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
           restore-keys: |
             ${{ runner.os }}-maven-
+
+      - name: Cache APT packages
+        uses: actions/cache@v4
+        with:
+          path: /var/cache/apt/archives
+          key: ${{ runner.os }}-apt-cache-${{ hashFiles('.github/workflows/misc-migtests.yml') }}
+          restore-keys: |
+            ${{ runner.os }}-apt-cache-
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum', '**/go.mod') }}
+          restore-keys: |
+            ${{ runner.os }}-go-mod-
+      
+      # Note: We do NOT cache ~/.cache/go-build because:
+      # 1. The voyager binary is built from current source via --install-from-local-source
+      # 2. Build cache could contain stale compiled objects from previous commits
+      # 3. This would cause tests to run against old voyager binary instead of current changes
+      # 4. Module cache (go.mod/go.sum) is safe to cache as it only contains downloaded dependencies
+
+      - name: Cache Python pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
 
       - name: "Enable postgres with pg_stat_statements, pglogical loaded via shared_preload_libraries and install pg extensions"
         run: |
@@ -58,7 +88,14 @@ jobs:
           docker exec ${{ job.services.postgres.id }} sh -c "echo \"shared_preload_libraries = 'pg_stat_statements, pglogical'\" >> /var/lib/postgresql/data/postgresql.conf"
 
           docker restart ${{ job.services.postgres.id }}
-          sleep 10
+          
+          # Wait for PostgreSQL to be ready with health check instead of fixed sleep
+          echo "Waiting for PostgreSQL to be ready after restart..."
+          timeout 30s bash -c 'until docker exec ${{ job.services.postgres.id }} pg_isready > /dev/null 2>&1; do 
+            echo "PostgreSQL not ready yet, waiting 1 second..."
+            sleep 1
+          done'
+          echo "PostgreSQL is ready!"
 
       - name: Install python3, psycopg2 and bs4
         run: |
@@ -69,6 +106,10 @@ jobs:
 
       - name: Run installer script to setup voyager
         run: |
+          # Clear Go build cache to ensure fresh compilation from current source
+          # (but keep module cache which is safely cached based on go.sum)
+          go clean -cache || true
+
           cd installer_scripts
           yes | ./install-yb-voyager --install-from-local-source --only-pg-support
           # Since pg_dump/restore 17 is required, we need to remove the symlink to the old PG 14 binary(default)
@@ -128,7 +169,14 @@ jobs:
             -p7000:7000 -p9000:9000 -p15433:15433 -p5433:5433 -p9042:9042 \
             yugabytedb/yugabyte:$version \
             bin/yugabyted start --tserver_flags="ysql_hba_conf_csv={host all yugabyte all trust,host all all all md5}" --background=false --ui=false --callhome=false 
-            sleep 20
+            
+            # Wait for YugabyteDB to be ready with health check
+            echo "Waiting for YugabyteDB to be ready..."
+            timeout 60s bash -c 'until psql "postgresql://yugabyte:@127.0.0.1:5433/yugabyte" -c "SELECT 1" > /dev/null 2>&1; do 
+              echo "YugabyteDB not ready yet, waiting 2 seconds..."
+              sleep 2
+            done'
+            echo "YugabyteDB is ready!"
           
             echo "Test YugabyteDB connection"
             psql "postgresql://yugabyte:@127.0.0.1:5433/yugabyte" -c "SELECT version();"

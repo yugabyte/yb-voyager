@@ -20,12 +20,26 @@ jobs:
 
     runs-on: ubuntu-22.04
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: Set up Go
-      uses: actions/setup-go@v3
+      uses: actions/setup-go@v4
       with:
         go-version: "1.23.1"
+
+    - name: Cache Go modules
+      uses: actions/cache@v4
+      with:
+        path: ~/go/pkg/mod
+        key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum', '**/go.mod') }}
+        restore-keys: |
+          ${{ runner.os }}-go-mod-
+    
+    # Note: We do NOT cache ~/.cache/go-build because:
+    # 1. The voyager binary is built from current source in tests
+    # 2. Build cache could contain stale compiled objects from previous commits
+    # 3. This would cause tests to run against old voyager binary instead of current changes
+    # 4. Module cache (go.mod/go.sum) is safe to cache as it only contains downloaded dependencies
 
     - name: Setup YugabyteDB
       run: |
@@ -42,7 +56,14 @@ jobs:
         mkdir -p yugabyte-${YB_VERSION}
         tar -xvzf yugabyte-${YB_VERSION}-centos-x86_64.tar.gz -C yugabyte-${YB_VERSION} --strip-components=1
         yugabyte-${YB_VERSION}/bin/yugabyted start --advertise_address 127.0.0.1 --callhome=false
-        sleep 20
+        
+        # Wait for YugabyteDB to be ready with health check instead of fixed sleep
+        echo "Waiting for YugabyteDB to be ready..."
+        timeout 60s bash -c 'until psql "${YB_CONN_STR}" -c "SELECT 1" > /dev/null 2>&1; do 
+          echo "YugabyteDB not ready yet, waiting 2 seconds..."
+          sleep 2
+        done'
+        echo "YugabyteDB is ready!"
     
     - name: Test YugabyteDB connection
       run: |

@@ -14,8 +14,17 @@ jobs:
         BETA_FAST_DATA_EXPORT: [0, 1]
         test_group:
           - offline
-          - live_basic
-          - live_advanced
+          - live-migration-basic
+          - live-migration-datatypes-ff-fb
+          - live-migration-advanced
+        exclude:
+          # Exclude BETA_FAST_DATA_EXPORT=1 for live migration tests (redundant, Debezium forced)
+          - BETA_FAST_DATA_EXPORT: 1
+            test_group: live-migration-basic
+          - BETA_FAST_DATA_EXPORT: 1
+            test_group: live-migration-datatypes-ff-fb
+          - BETA_FAST_DATA_EXPORT: 1
+            test_group: live-migration-advanced
 
     env:
       BETA_FAST_DATA_EXPORT: ${{ matrix.BETA_FAST_DATA_EXPORT }}
@@ -37,8 +46,8 @@ jobs:
           - 5432:5432
 
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-java@v3
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
         # https://github.com/actions/setup-java
         with:
           distribution: "temurin"
@@ -46,19 +55,56 @@ jobs:
           check-latest: true
 
       - name: Cache local Maven repository
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ~/.m2/repository
           key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
           restore-keys: |
             ${{ runner.os }}-maven-
 
+      - name: Cache APT packages
+        uses: actions/cache@v4
+        with:
+          path: /var/cache/apt/archives
+          key: ${{ runner.os }}-apt-cache-${{ hashFiles('.github/workflows/pg-17-migtests.yml') }}
+          restore-keys: |
+            ${{ runner.os }}-apt-cache-
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum', '**/go.mod') }}
+          restore-keys: |
+            ${{ runner.os }}-go-mod-
+      
+      # Note: We do NOT cache ~/.cache/go-build because:
+      # 1. The voyager binary is built from current source via --install-from-local-source
+      # 2. Build cache could contain stale compiled objects from previous commits
+      # 3. This would cause tests to run against old voyager binary instead of current changes
+      # 4. Module cache (go.mod/go.sum) is safe to cache as it only contains downloaded dependencies
+
+      - name: Cache Python pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
       - name: "Enable postgres with wal_level as logical and install postgis"
         run: |
           docker exec ${{ job.services.postgres.id }} sh -c "echo 'wal_level=logical' >> /var/lib/postgresql/data/postgresql.conf"
           docker exec ${{ job.services.postgres.id }} sh -c "apt-get update && apt-get install -y postgresql-17-postgis-3"
           docker restart ${{ job.services.postgres.id }}
-          sleep 10
+          
+          # Wait for PostgreSQL to be ready with health check instead of fixed sleep
+          echo "Waiting for PostgreSQL to be ready after restart..."
+          timeout 30s bash -c 'until docker exec ${{ job.services.postgres.id }} pg_isready > /dev/null 2>&1; do 
+            echo "PostgreSQL not ready yet, waiting 1 second..."
+            sleep 1
+          done'
+          echo "PostgreSQL is ready!"
 
       - name: Install python3 and psycopg2
         run: |
@@ -68,6 +114,10 @@ jobs:
 
       - name: Run installer script to setup voyager
         run: |
+          # Clear Go build cache to ensure fresh compilation from current source
+          # (but keep module cache which is safely cached based on go.sum)
+          go clean -cache || true
+
           cd installer_scripts
           yes | ./install-yb-voyager --install-from-local-source --only-pg-support
           sudo rm /usr/bin/pg_dump
@@ -94,7 +144,14 @@ jobs:
             -p7000:7000 -p9000:9000 -p15433:15433 -p5433:5433 -p9042:9042 \
             yugabytedb/yugabyte:${{ matrix.version }} \
             bin/yugabyted start --tserver_flags="ysql_hba_conf_csv={host all yugabyte all trust,host all all all md5}" --background=false --ui=false --callhome=false 
-          sleep 20
+          
+          # Wait for YugabyteDB to be ready with health check
+          echo "Waiting for YugabyteDB to be ready..."
+          timeout 60s bash -c 'until psql "postgresql://yugabyte:@127.0.0.1:5433/yugabyte" -c "SELECT 1" > /dev/null 2>&1; do 
+            echo "YugabyteDB not ready yet, waiting 2 seconds..."
+            sleep 2
+          done'
+          echo "YugabyteDB is ready!"
 
       - name: Test YugabyteDB connection
         run: |
@@ -225,33 +282,33 @@ jobs:
         run: migtests/scripts/run-test.sh pg/case-sensitivity-reserved-words --run-via-config-file
 
       - name: "TEST: pg-basic-non-public-live-migration-test"
-        if: ${{ !cancelled() && matrix.test_group == 'live_basic' }}
+        if: ${{ !cancelled() && matrix.test_group == 'live-migration-basic' }}
         run: migtests/scripts/live-migration-run-test.sh pg/basic-non-public-live-test --run-via-config-file
 
       - name: "TEST: pg-basic-public-fall-forward-test"
-        if: ${{ !cancelled() && matrix.test_group == 'live_basic' }}
+        if: ${{ !cancelled() && matrix.test_group == 'live-migration-basic' }}
         run: migtests/scripts/live-migration-fallf-run-test.sh pg/basic-public-live-test --run-via-config-file
 
       - name: "TEST: pg-datatypes-fall-forward-test"
-        if: ${{ !cancelled() && matrix.test_group == 'live_basic' }}
+        if: ${{ !cancelled() && matrix.test_group == 'live-migration-datatypes-ff-fb' }}
         run: migtests/scripts/live-migration-fallf-run-test.sh pg/datatypes --run-via-config-file
 
       # - name: "TEST: pg-basic-non-public-fall-back-test"
       #   run: migtests/scripts/live-migration-fallb-run-test.sh pg/basic-non-public-live-test --run-via-config-file
 
       - name: "TEST: pg-datatypes-fall-back-test"
-        if: ${{ !cancelled() && matrix.test_group == 'live_basic' }}
+        if: ${{ !cancelled() && matrix.test_group == 'live-migration-datatypes-ff-fb' }}
         run: migtests/scripts/live-migration-fallb-run-test.sh pg/datatypes --run-via-config-file
 
       # case sensitive table names are not yet supported in live migration, to restricting test only to a few tables.
       - name: "TEST: pg-live-migration-multiple-schemas"
-        if: ${{ !cancelled() && matrix.test_group == 'live_advanced' }}
+        if: ${{ !cancelled() && matrix.test_group == 'live-migration-advanced' }}
         run: EXPORT_TABLE_LIST="ext_test,tt,audit,recipients,session_log,schema2.ext_test,schema2.tt,schema2.audit,schema2.recipients,schema2.session_log" migtests/scripts/live-migration-run-test.sh  pg/multiple-schemas --run-via-config-file
 
       - name: "TEST: pg-unique-key-conflicts-test"
-        if: ${{ !cancelled() && matrix.test_group == 'live_advanced' }}
+        if: ${{ !cancelled() && matrix.test_group == 'live-migration-advanced' }}
         run: migtests/scripts/live-migration-fallf-run-test.sh pg/unique-key-conflicts-test --run-via-config-file
 
       - name: "TEST: pg-live-migration-partitions-fall-forward"
-        if: ${{ !cancelled() && matrix.test_group == 'live_advanced' }}
+        if: ${{ !cancelled() && matrix.test_group == 'live-migration-advanced' }}
         run: migtests/scripts/live-migration-fallf-run-test.sh pg/partitions --run-via-config-file
