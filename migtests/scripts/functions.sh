@@ -666,13 +666,26 @@ wait_for_exporter_event() {
             return 0
         fi
 
-        if [ -d "$queue_dir" ]; then
-            local event_count=$(find "$queue_dir" -name 'segment.*.ndjson' -exec grep -c "\"exporter_role\":\"${exporter_role}\"" {} + 2>/dev/null | awk '{s+=$1} END {print s+0}')
-            if [ "$event_count" -gt 0 ]; then
-                echo "Detected ${event_count} ${exporter_role} events."
+        # Skip if queue directory doesn't exist
+        if [ ! -d "$queue_dir" ]; then
+            echo "Queue directory does not exist. Waiting for it to be created..."
+            sleep 3
+            continue
+        fi
+
+        # Check each segment file for events with the target exporter role (starting from the last)
+        for file in $(ls -v "$queue_dir"/segment.*.ndjson 2>/dev/null | tac); do
+            # Skip if file doesn't exist or is empty
+            if [ ! -f "$file" ] || [ ! -s "$file" ]; then
+                continue
+            fi
+
+            # Check if file contains events with our expected exporter role
+            if grep -q "\"exporter_role\":\"${exporter_role}\"" "$file" 2>/dev/null; then
+                echo "Detected ${exporter_role} events in queue files."
                 return 0
             fi
-        fi
+        done
 
         echo "Waiting for ${exporter_role} events to appear..."
         sleep 3
