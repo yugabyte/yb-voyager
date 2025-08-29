@@ -200,7 +200,7 @@ main() {
 	step "Inserting new events to source"
 	run_sql_file source_delta.sql
 
-	sleep 120
+	wait_for_debezium_capture_start
 
 	# Resetting the trap command
 	trap - SIGINT SIGTERM EXIT SIGSEGV SIGHUP

@@ -632,6 +632,43 @@ wait_for_string_in_file() {
     done
 }
 
+# Function to wait for Debezium to start capturing streaming changes
+wait_for_debezium_capture_start() {
+    local timeout_seconds="${1:-300}"
+    local step_message="Wait for streaming changes to be captured by Debezium"
+    
+    step "$step_message"
+    
+    # First ensure we're in streaming mode
+    wait_for_string_in_file "${EXPORT_DIR}/data/export_status.json" '"mode" : "STREAMING"' 30 "Wait for export to transition to STREAMING mode"
+    
+    local queue_file="${EXPORT_DIR}/data/queue/segment.0.ndjson"
+    local start_time=$(date +%s)
+    
+    echo "Monitoring for streaming changes in segment.0.ndjson..."
+    
+    while true; do
+        local current_time=$(date +%s)
+        local elapsed=$((current_time - start_time))
+        
+        if [ $elapsed -ge $timeout_seconds ]; then
+            echo "Timeout reached ($timeout_seconds seconds). Proceeding with cutover."
+            return 0  # Don't fail, just proceed
+        fi
+        
+        # Check if segment.0.ndjson exists and has content
+        if [ -f "$queue_file" ] && [ -s "$queue_file" ]; then
+            local line_count=$(wc -l < "$queue_file" 2>/dev/null || echo "0")
+            if [ "$line_count" -gt 0 ]; then
+                echo "Detected $line_count events in segment.0.ndjson. Debezium has captured streaming changes."
+                return 0
+            fi
+        fi
+        
+        echo "Waiting for streaming changes in segment.0.ndjson..."
+        sleep 3
+    done
+}
 
 
 get_data_migration_report(){
