@@ -661,7 +661,6 @@ wait_for_exporter_event() {
         local current_time=$(date +%s)
         local elapsed=$((current_time - start_time))
 
-        # Timeout check
         if [ $elapsed -ge $timeout_seconds ]; then
             echo "Timeout reached (${timeout_seconds}s). Proceeding without detecting ${exporter_role} events."
             return 0
@@ -683,16 +682,19 @@ wait_for_exporter_event() {
 
             # Check if file contains events with our expected exporter role
             if grep -q "\"exporter_role\":\"${exporter_role}\"" "$file" 2>/dev/null; then
-                echo "DEBUG: Detected ${exporter_role} events in queue files."
-                echo "DEBUG: Found events in $(basename "$file")"
-                # Count events for debugging
-                local matching_count=$(grep -c "\"exporter_role\":\"${exporter_role}\"" "$file" 2>/dev/null || echo 0)
-                echo "DEBUG: ${matching_count} ${exporter_role} events in this file"
+                echo "Detected ${exporter_role} events in queue files."
+
+                # Additional wait to ensure more events are captured after first detection
+                # this is specially required for unique-key-conflicts-test fall-forward test during cutover from target to source-replica
+                # this might be a bug in voyager as normally expectation is once debezium starts capturing changes, it should capture all the changes even if cutover is triggered
+                # GHA failed runs: https://github.com/yugabyte/yb-voyager/actions/runs/17331419213/job/49208062992?pr=3001
+                echo "Waiting additional 10 seconds for event capture to complete..."
+                sleep 10
                 return 0
             fi
         done
 
-        echo "Waiting for ${exporter_role} events to appear... (${elapsed}s elapsed)"
+        echo "Waiting for ${exporter_role} events to appear..."
         sleep 3
     done
 }

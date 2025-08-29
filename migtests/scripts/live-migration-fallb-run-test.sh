@@ -248,9 +248,6 @@ main() {
 
 	step "Wait for target exporter to start capturing changes"
 	wait_for_exporter_event "target_db_exporter_fb"
-	
-	# Wait for queue to stabilize - ensures all changes are captured
-	${SCRIPTS}/wait_for_debezium_queue_to_stabilize.sh "${EXPORT_DIR}" "target_db_exporter_fb" 60
 
 	step "Resetting the trap command"
 	trap - SIGINT SIGTERM EXIT SIGSEGV SIGHUP
