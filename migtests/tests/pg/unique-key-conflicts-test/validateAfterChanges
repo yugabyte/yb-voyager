@@ -149,6 +149,10 @@ def migration_completed_checks(tgt):
 
         for table_name, row_count in expected_row_count.items():
             print(f"Schema: {schema_name}, Table: {table_name}, Expected Row Count: {row_count}, Got Row Count: {got_row_count[table_name]}")
+            if row_count != got_row_count[table_name]:
+                print(f"DEBUG: Row count mismatch detected for {table_name}")
+                print(f"DEBUG: Expected {row_count}, Got {got_row_count[table_name]}")
+                
             assert row_count == got_row_count[table_name], f"Row count mismatch for {table_name} in schema {schema_name}"
         
         # Validation for final varchar state (unique values)

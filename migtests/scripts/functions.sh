@@ -661,6 +661,7 @@ wait_for_exporter_event() {
         local current_time=$(date +%s)
         local elapsed=$((current_time - start_time))
 
+        # Timeout check
         if [ $elapsed -ge $timeout_seconds ]; then
             echo "Timeout reached (${timeout_seconds}s). Proceeding without detecting ${exporter_role} events."
             return 0
@@ -682,12 +683,16 @@ wait_for_exporter_event() {
 
             # Check if file contains events with our expected exporter role
             if grep -q "\"exporter_role\":\"${exporter_role}\"" "$file" 2>/dev/null; then
-                echo "Detected ${exporter_role} events in queue files."
+                echo "DEBUG: Detected ${exporter_role} events in queue files."
+                echo "DEBUG: Found events in $(basename "$file")"
+                # Count events for debugging
+                local matching_count=$(grep -c "\"exporter_role\":\"${exporter_role}\"" "$file" 2>/dev/null || echo 0)
+                echo "DEBUG: ${matching_count} ${exporter_role} events in this file"
                 return 0
             fi
         done
 
-        echo "Waiting for ${exporter_role} events to appear..."
+        echo "Waiting for ${exporter_role} events to appear... (${elapsed}s elapsed)"
         sleep 3
     done
 }
