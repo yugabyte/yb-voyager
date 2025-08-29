@@ -200,7 +200,8 @@ main() {
 	step "Inserting new events to source"
 	run_sql_file source_delta.sql
 
-	wait_for_debezium_capture_start
+	step "Wait for source exporter to start capturing changes"
+	wait_for_exporter_event "source_db_exporter"
 
 	# Resetting the trap command
 	trap - SIGINT SIGTERM EXIT SIGSEGV SIGHUP

@@ -237,7 +237,8 @@ main() {
 	step "Inserting new events to source"
 	run_sql_file source_delta.sql
 
-	wait_for_debezium_capture_start
+	step "Wait for source exporter to start capturing changes"
+	wait_for_exporter_event "source_db_exporter"
 
 	step "Initiating cutover"
 	cutover_to_target
@@ -269,7 +270,8 @@ main() {
 	step "Inserting new events to YB"
 	ysql_import_file ${TARGET_DB_NAME} target_delta.sql
 
-	sleep 120
+	step "Wait for target exporter to start capturing changes"
+	wait_for_exporter_event "target_db_exporter_ff"
 
 	step "Resetting the trap command"
 	trap - SIGINT SIGTERM EXIT SIGSEGV SIGHUP
