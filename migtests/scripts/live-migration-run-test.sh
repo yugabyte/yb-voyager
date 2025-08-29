@@ -188,7 +188,8 @@ main() {
 	# Note: We cannot use 'import data status' or 'get data-migration-report' commands for this purpose because:
 	# 1. 'import data status' is designed for offline migration and returns exit code 1 in live migration mode
 	# 2. 'get data-migration-report' is for final reporting but doesn't indicate snapshot completion status
-	wait_for_string_in_log "${EXPORT_DIR}/logs/yb-voyager-import-data.log" "snapshot data import complete"
+	wait_for_string_in_file "${EXPORT_DIR}/logs/yb-voyager-import-data.log" "snapshot data import complete"
+	echo "Snapshot data import complete"
 
 	step "Import remaining schema (FK, index, and trigger) and Refreshing MViews if present."
 	finalize_schema_post_data_import
@@ -218,6 +219,7 @@ main() {
 			exit 1
         fi
     else
+		echo "Cutover to target COMPLETED"
         break
     fi
 	done

@@ -602,12 +602,12 @@ import_data_status(){
     yb-voyager import data status ${args} "$@"
 }
 
-# Generic function to wait for a string in a log file
-wait_for_string_in_log() {
-    local log_file="$1"
+# Generic function to wait for a string in a file
+wait_for_string_in_file() {
+    local file_path="$1"
     local search_string="$2"
     local timeout_seconds="${3:-300}"  # Default 5 minutes
-    local step_message="${4:-"Wait for string in log file"}"
+    local step_message="${4:-"Wait for string in file"}"
     
     local start_time=$(date +%s)
     
@@ -618,19 +618,21 @@ wait_for_string_in_log() {
         local elapsed=$((current_time - start_time))
         
         if [ $elapsed -ge $timeout_seconds ]; then
-            echo "Timeout reached ($timeout_seconds seconds). String '$search_string' not found in $log_file."
+            echo "Timeout reached ($timeout_seconds seconds). String '$search_string' not found in $file_path."
             return 1
         fi
         
-        if grep -q "$search_string" "$log_file" 2>/dev/null; then
-            echo "String '$search_string' found in $log_file successfully."
-            break
+        if [ -f "$file_path" ] && grep -q "$search_string" "$file_path" 2>/dev/null; then
+            echo "String '$search_string' found in $file_path successfully."
+            return 0
         fi
 
-        echo "Waiting for string '$search_string' in $log_file..."
+        echo "Waiting for string '$search_string' in $file_path..."
         sleep 3
     done
 }
+
+
 
 get_data_migration_report(){
     if [ "${run_via_config_file}" = "true" ]; then

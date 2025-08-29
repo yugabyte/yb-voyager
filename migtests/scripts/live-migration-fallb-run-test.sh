@@ -193,7 +193,8 @@ main() {
 	step "Archive Changes."
 	archive_changes &
 
-	wait_for_string_in_log "${EXPORT_DIR}/logs/yb-voyager-import-data.log" "snapshot data import complete"
+	wait_for_string_in_file "${EXPORT_DIR}/logs/yb-voyager-import-data.log" "snapshot data import complete"
+	echo "Snapshot data import complete"
 
 	step "Import remaining schema (FK, index, and trigger) and Refreshing MViews if present."
 	finalize_schema_post_data_import
@@ -209,7 +210,7 @@ main() {
 	run_sql_file source_delta.sql
 
 	sleep 120
-	
+
 	# Resetting the trap command
 	trap - SIGINT SIGTERM EXIT SIGSEGV SIGHUP
 
@@ -231,11 +232,10 @@ main() {
 			exit 1
         fi
     else
+		echo "Cutover to target COMPLETED"
         break
     fi
 	done
-	
-	sleep 120
 
 	if [ -f ${TEST_DIR}/validateAfterCutoverToTarget ]; then
 		step "Run validations after cutover to target."
@@ -264,6 +264,7 @@ main() {
 			exit 1
         fi
     else
+		echo "Cutover to source COMPLETED"
         break
     fi
 	done
