@@ -599,6 +599,45 @@ import_data_status(){
     yb-voyager import data status ${args} "$@"
 }
 
+wait_for_snapshot_import_completion(){
+    local timeout_seconds=${1:-300}  # Default 5 minutes
+
+    step "Wait for snapshot import to complete"
+    timeout $timeout_seconds bash -c '
+        while true; do
+            # Get import status JSON
+            status_output=$(import_data_status 2>/dev/null || echo "[]")
+            if [ "$status_output" = "[]" ]; then
+                echo "Import status not available yet, waiting..."
+                sleep 3
+                continue
+            fi
+
+            # Check for tables still in snapshot phase (MIGRATING or NOT_STARTED)
+            migrating_tables=$(echo "$status_output" | jq -r ".[] | select(.status == \"MIGRATING\") | .table_name" 2>/dev/null || echo "")
+            not_started_tables=$(echo "$status_output" | jq -r ".[] | select(.status == \"NOT_STARTED\") | .table_name" 2>/dev/null || echo "")
+
+            # Log current status for debugging
+            if [ -n "$migrating_tables" ]; then
+                echo "Tables still migrating: $migrating_tables"
+            fi
+            if [ -n "$not_started_tables" ]; then
+                echo "Tables not started: $not_started_tables"
+            fi
+
+            # Check if all tables are in completed states (DONE, DONE_WITH_ERRORS, or STREAMING)
+            if [ -z "$migrating_tables" ] && [ -z "$not_started_tables" ]; then
+                echo "All tables have completed snapshot import"
+                echo "Final status:"
+                echo "$status_output" | jq . 2>/dev/null || echo "$status_output"
+                break
+            fi
+
+            sleep 3
+        done
+    '
+}
+
 get_data_migration_report(){
     if [ "${run_via_config_file}" = "true" ]; then
         # Run using the generated config file

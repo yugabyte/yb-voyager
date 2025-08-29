@@ -218,7 +218,7 @@ main() {
 	# Updating the trap command to include the ff setup
 	trap "kill_process -${exp_pid} ; kill_process -${imp_pid} ; kill_process -${ffs_pid} ; kill_process -${archive_changes_pid}; exit 1" SIGINT SIGTERM EXIT SIGSEGV SIGHUP
 
-	sleep 60
+	wait_for_snapshot_import_completion
 
 	step "Import remaining schema (FK, index, and trigger) and Refreshing MViews if present."
 	finalize_schema_post_data_import

@@ -193,7 +193,7 @@ main() {
 	step "Archive Changes."
 	archive_changes &
 
-	sleep 60 
+	wait_for_snapshot_import_completion
 
 	step "Import remaining schema (FK, index, and trigger) and Refreshing MViews if present."
 	finalize_schema_post_data_import
