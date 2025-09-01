@@ -463,7 +463,7 @@ Note: If the table is created as colocated, this hotspot concern can safely be i
 
 	MOST_FREQUENT_VALUE_INDEXES_ISSUE_NAME              = "Index on column with high percentage of a particular value"
 	MOST_FREQUENT_VALUE_INDEXES                         = "INDEX_ON_COLUMN_WITH_HIGH_PERCENTAGE_OF_PARTICULAR_VALUE"
-	MOST_FREQUENT_VALUE_INDEX_DESCRIPTION               = `In distributed databases, unnecessary index entries for a value can increase write performance and storage usage. If queries do not filter on this value using partial indexes can eliminate these unnecessary writes.`
+	MOST_FREQUENT_VALUE_INDEX_DESCRIPTION               = `In distributed databases, unnecessary index entries for a value can increase write performance and storage usage. If queries do not filter on this value, using partial indexes can eliminate these unnecessary writes.`
 	MOST_FREQUENT_VALUE_INDEX_DESCRIPTION_SINGLE_COLUMN = `This index is built on column having a value occuring in large number of rows.`
 	MOST_FREQUENT_VALUE_INDEX_DESCRIPTION_MULTI_COLUMN  = `The first column of this index has value occuring in large number of rows.`
 
