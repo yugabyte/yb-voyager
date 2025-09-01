@@ -296,7 +296,9 @@ func (p *FileBatchProducer) Close() {
 }
 
 func (p *FileBatchProducer) handleRowProcessingErrorAndResetBytes(row string, rowErr error, currentBytesRead int64) error {
-	handleErr := p.errorHandler.HandleRowProcessingError(row, rowErr, p.task.TableNameTup, p.task.FilePath)
+	// Get the current batch number for error handling
+	currentBatchNumber := p.lastBatchNumber + 1
+	handleErr := p.errorHandler.HandleRowProcessingError(row, rowErr, p.task.TableNameTup, p.task.FilePath, currentBatchNumber)
 	if handleErr != nil {
 		return fmt.Errorf("failed to handle row processing error: %w", handleErr)
 	}

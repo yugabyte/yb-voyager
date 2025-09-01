@@ -37,7 +37,7 @@ var defaultProcessingErrorFileSize int64 = 5 * 1024 * 1024 // 5MB
 
 type ImportDataErrorHandler interface {
 	ShouldAbort() bool
-	HandleRowProcessingError(row string, rowErr error, tableName sqlname.NameTuple, taskFilePath string) error
+	HandleRowProcessingError(row string, rowErr error, tableName sqlname.NameTuple, taskFilePath string, batchNumber int64) error
 	HandleBatchIngestionError(batch ErroredBatch, taskFilePath string, batchErr error, isPartialBatchIngestionPossible bool) error
 	CleanUpStoredErrors(tableName sqlname.NameTuple, taskFilePath string) error
 	GetErrorsLocation() string
@@ -62,7 +62,7 @@ func (handler *ImportDataAbortHandler) ShouldAbort() bool {
 	return true
 }
 
-func (handler *ImportDataAbortHandler) HandleRowProcessingError(row string, rowErr error, tableName sqlname.NameTuple, taskFilePath string) error {
+func (handler *ImportDataAbortHandler) HandleRowProcessingError(row string, rowErr error, tableName sqlname.NameTuple, taskFilePath string, batchNumber int64) error {
 	// nothing to do.
 	return nil
 }
@@ -105,7 +105,7 @@ func (handler *ImportDataStashAndContinueHandler) ShouldAbort() bool {
 // HandleRowProcessingError writes the row and error to a processing-errors.log roratingFile.
 // <export-dir>/data/errors/table::<table-name>/file::<base-path>:<hash>/processing-errors.log
 // On rotation, new files of the format processing-errors-<timestamp>.log will be created.
-func (handler *ImportDataStashAndContinueHandler) HandleRowProcessingError(row string, rowErr error, tableName sqlname.NameTuple, taskFilePath string) error {
+func (handler *ImportDataStashAndContinueHandler) HandleRowProcessingError(row string, rowErr error, tableName sqlname.NameTuple, taskFilePath string, batchNumber int64) error {
 	var err error
 	if row == "" && rowErr == nil {
 		return nil
