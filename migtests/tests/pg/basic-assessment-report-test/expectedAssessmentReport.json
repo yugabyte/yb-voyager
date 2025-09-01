@@ -216,23 +216,6 @@
 			"Details": {
 				"ColumnName": "created_at"
 			}
-		},
-		{
-			"Category": "performance_optimizations",
-			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
-			"Type": "INDEX_ON_LOW_CARDINALITY_COLUMN",
-			"Name": "Index on low-cardinality column",
-			"Description": "In distributed databases, index design should ensure even data distribution across multiple nodes. Indexes built on low-cardinality columns (e.g., boolean, days of the week) are not optimal, as they may lead to bad data distribution among tablets. This index is built on a low-cardinality column.",
-			"Impact": "LEVEL_1",
-			"ObjectType": "INDEX",
-			"ObjectName": "idx_test_low_card_employed ON schema1.test_hotspot_timestamp",
-			"SqlStatement": "CREATE INDEX idx_test_low_card_employed ON schema1.test_hotspot_timestamp USING btree (employed);",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-low-cardinality-column",
-			"MinimumVersionsFixedIn": null,
-			"Details": {
-				"Cardinality": 2,
-				"ColumnName": "employed"
-			}
 		}
 	],
 	"TableIndexStats": [
