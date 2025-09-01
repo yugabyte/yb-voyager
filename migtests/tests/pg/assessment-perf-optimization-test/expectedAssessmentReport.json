@@ -2,7 +2,7 @@
 	"VoyagerVersion": "main",
 	"TargetDBVersion": "2024.2.2.3",
 	"MigrationComplexity": "LOW",
-	"MigrationComplexityExplanation": "Found 14 Level 1 issue(s) and 0 Level 2 issue(s), resulting in LOW migration complexity",
+	"MigrationComplexityExplanation": "Found 5 Level 1 issue(s) and 0 Level 2 issue(s), resulting in LOW migration complexity",
 	"SchemaSummary": {
 		"Description": "Objects that will be created on the target YugabyteDB.",
 		"DbName": "pg_assessment_perf_optimizations",
@@ -27,13 +27,13 @@
 			{
 				"ObjectType": "INDEX",
 				"TotalCount": 22,
-				"InvalidCount": 12,
+				"InvalidCount": 5,
 				"ObjectNames": "idx ON public.test_low_card, idx_muli_col_key_first_col ON public.test_multi_col_idx, idx_muli_col_key_first_col1 ON public.test_multi_col_idx, idx_name ON public.users, idx_name1 ON public.users, idx_test_case_sensitive ON public.\"Test_caseSensitive\", idx_test_multi_id ON public.test_multi_col_idx, idx_test_multi_id1 ON public.test_multi_col_idx, idx_test_multi_id1_id2 ON public.test_multi_col_idx, idx_test_multi_id2 ON public.test_multi_col_idx, idx_test_multi_val ON public.test_multi_col_idx, idx_try ON public.tbl, idxtt ON public.t, idxtt1 ON public.t, indx ON public.test_most_freq, indx1 ON public.test_most_freq, indx34 ON public.test_most_freq, idx ON test.t, idx2 ON test.t, idx_normal ON test.test_mostcomm_status, idx_partial_high ON test.test_mostcomm_status, idx_try ON test.t_low_most"
 			},
 			{
 				"ObjectType": "FUNCTION",
 				"TotalCount": 1,
-				"InvalidCount": 1,
+				"InvalidCount": 0,
 				"ObjectNames": "public.test_perf_plpgsql"
 			}
 		]
@@ -66,148 +66,12 @@
 		"FailureReasoning": ""
 	},
 	"AssessmentIssues": [
-		{
-			"Category": "performance_optimizations",
-			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
-			"Type": "INDEX_ON_LOW_CARDINALITY_COLUMN",
-			"Name": "Index on low-cardinality column",
-			"Description": "In distributed databases, index design should ensure even data distribution across multiple nodes. Indexes built on low-cardinality columns (e.g., boolean, days of the week) are not optimal, as they may lead to bad data distribution among tablets. This index is built on a low-cardinality column.",
-			"Impact": "LEVEL_1",
-			"ObjectType": "INDEX",
-			"ObjectName": "idx ON public.test_low_card",
-			"SqlStatement": "CREATE INDEX idx ON public.test_low_card USING btree (isactive) WHERE (isactive = false);",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-low-cardinality-column",
-			"MinimumVersionsFixedIn": null,
-			"Details": {
-				"Cardinality": 2,
-				"ColumnName": "isactive"
-			}
-		},
-		{
-			"Category": "performance_optimizations",
-			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
-			"Type": "INDEX_ON_LOW_CARDINALITY_COLUMN",
-			"Name": "Index on low-cardinality column",
-			"Description": "In distributed databases, index design should ensure even data distribution across multiple nodes. Indexes built on low-cardinality columns (e.g., boolean, days of the week) are not optimal, as they may lead to bad data distribution among tablets. This index is built on a low-cardinality column.",
-			"Impact": "LEVEL_1",
-			"ObjectType": "INDEX",
-			"ObjectName": "idx_test_case_sensitive ON public.Test_caseSensitive",
-			"SqlStatement": "CREATE INDEX idx_test_case_sensitive ON public.\"Test_caseSensitive\" USING btree (id);",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-low-cardinality-column",
-			"MinimumVersionsFixedIn": null,
-			"Details": {
-				"Cardinality": 2,
-				"ColumnName": "id"
-			}
-		},
-		{
-			"Category": "performance_optimizations",
-			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
-			"Type": "INDEX_ON_LOW_CARDINALITY_COLUMN",
-			"Name": "Index on low-cardinality column",
-			"Description": "In distributed databases, index design should ensure even data distribution across multiple nodes. Indexes built on low-cardinality columns (e.g., boolean, days of the week) are not optimal, as they may lead to bad data distribution among tablets. This index is built on a low-cardinality column.",
-			"Impact": "LEVEL_1",
-			"ObjectType": "INDEX",
-			"ObjectName": "idx_test_multi_id2 ON public.test_multi_col_idx",
-			"SqlStatement": "CREATE INDEX idx_test_multi_id2 ON public.test_multi_col_idx USING btree (id2);",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-low-cardinality-column",
-			"MinimumVersionsFixedIn": null,
-			"Details": {
-				"Cardinality": 10,
-				"ColumnName": "id2"
-			}
-		},
-		{
-			"Category": "performance_optimizations",
-			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
-			"Type": "INDEX_ON_LOW_CARDINALITY_COLUMN",
-			"Name": "Index on low-cardinality column",
-			"Description": "In distributed databases, index design should ensure even data distribution across multiple nodes. Indexes built on low-cardinality columns (e.g., boolean, days of the week) are not optimal, as they may lead to bad data distribution among tablets. This index is built on a low-cardinality column.",
-			"Impact": "LEVEL_1",
-			"ObjectType": "INDEX",
-			"ObjectName": "idx_try ON public.tbl",
-			"SqlStatement": "CREATE INDEX idx_try ON public.tbl USING btree (id);",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-low-cardinality-column",
-			"MinimumVersionsFixedIn": null,
-			"Details": {
-				"Cardinality": 2,
-				"ColumnName": "id"
-			}
-		},
-		{
-			"Category": "performance_optimizations",
-			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
-			"Type": "INDEX_ON_LOW_CARDINALITY_COLUMN",
-			"Name": "Index on low-cardinality column",
-			"Description": "In distributed databases, index design should ensure even data distribution across multiple nodes. Indexes built on low-cardinality columns (e.g., boolean, days of the week) are not optimal, as they may lead to bad data distribution among tablets. This index is built on a low-cardinality column.",
-			"Impact": "LEVEL_1",
-			"ObjectType": "INDEX",
-			"ObjectName": "indx ON public.test_most_freq",
-			"SqlStatement": "CREATE INDEX indx ON public.test_most_freq USING btree (status) WHERE (status \u003c\u003e 'active'::text);",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-low-cardinality-column",
-			"MinimumVersionsFixedIn": null,
-			"Details": {
-				"Cardinality": 2,
-				"ColumnName": "status"
-			}
-		},
-		{
-			"Category": "performance_optimizations",
-			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
-			"Type": "INDEX_ON_LOW_CARDINALITY_COLUMN",
-			"Name": "Index on low-cardinality column",
-			"Description": "In distributed databases, index design should ensure even data distribution across multiple nodes. Indexes built on low-cardinality columns (e.g., boolean, days of the week) are not optimal, as they may lead to bad data distribution among tablets. This index is built on a low-cardinality column.",
-			"Impact": "LEVEL_1",
-			"ObjectType": "FUNCTION",
-			"ObjectName": "public.test_perf_plpgsql",
-			"SqlStatement": "CREATE INDEX idx_try1 on public.tbl(id);",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-low-cardinality-column",
-			"MinimumVersionsFixedIn": null,
-			"Details": {
-				"Cardinality": 2,
-				"ColumnName": "id"
-			}
-		},
-		{
-			"Category": "performance_optimizations",
-			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
-			"Type": "INDEX_ON_LOW_CARDINALITY_COLUMN",
-			"Name": "Index on low-cardinality column",
-			"Description": "In distributed databases, index design should ensure even data distribution across multiple nodes. Indexes built on low-cardinality columns (e.g., boolean, days of the week) are not optimal, as they may lead to bad data distribution among tablets. The first column of this index is low-cardinality column.",
-			"Impact": "LEVEL_1",
-			"ObjectType": "INDEX",
-			"ObjectName": "indx1 ON public.test_most_freq",
-			"SqlStatement": "CREATE INDEX indx1 ON public.test_most_freq USING btree (status, id);",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-low-cardinality-column",
-			"MinimumVersionsFixedIn": null,
-			"Details": {
-				"Cardinality": 2,
-				"ColumnName": "status"
-			}
-		},
-		{
-			"Category": "performance_optimizations",
-			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
-			"Type": "INDEX_ON_LOW_CARDINALITY_COLUMN",
-			"Name": "Index on low-cardinality column",
-			"Description": "In distributed databases, index design should ensure even data distribution across multiple nodes. Indexes built on low-cardinality columns (e.g., boolean, days of the week) are not optimal, as they may lead to bad data distribution among tablets. This index is built on a low-cardinality column.",
-			"Impact": "LEVEL_1",
-			"ObjectType": "INDEX",
-			"ObjectName": "idx ON test.t",
-			"SqlStatement": "CREATE INDEX idx ON test.t USING btree (val);",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-low-cardinality-column",
-			"MinimumVersionsFixedIn": null,
-			"Details": {
-				"Cardinality": 2,
-				"ColumnName": "val"
-			}
-		},
 				{
 			"Category": "performance_optimizations",
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "INDEX_ON_COLUMN_WITH_HIGH_PERCENTAGE_OF_PARTICULAR_VALUE",
 			"Name": "Index on column with high percentage of a particular value",
-			"Description": "In distributed databases, index design should ensure even data distribution across nodes. Indexes on columns with highly skewed value distributions (e.g., a value appearing in atleast 60% of rows) can cause performance issues in distributed systems due to uneven data placement and lead to Hotspots. This index is built on column having a value occuring in large number of rows.",
+			"Description": "In distributed databases, unnecessary index entries for a value can increase write performance and storage usage. If queries do not filter on this value using partial indexes can eliminate these unnecessary writes. This index is built on column having a value occuring in large number of rows.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "idx_normal ON test.test_mostcomm_status",
@@ -224,35 +88,19 @@
 		{
 			"Category": "performance_optimizations",
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
-			"Type": "INDEX_ON_LOW_CARDINALITY_COLUMN",
-			"Name": "Index on low-cardinality column",
-			"Description": "In distributed databases, index design should ensure even data distribution across multiple nodes. Indexes built on low-cardinality columns (e.g., boolean, days of the week) are not optimal, as they may lead to bad data distribution among tablets. This index is built on a low-cardinality column.",
+			"Type": "INDEX_ON_COLUMN_WITH_HIGH_PERCENTAGE_OF_PARTICULAR_VALUE",
+			"Name": "Index on column with high percentage of a particular value",
+			"Description": "In distributed databases, unnecessary index entries for a value can increase write performance and storage usage. If queries do not filter on this value using partial indexes can eliminate these unnecessary writes. The first column of this index has value occuring in large number of rows.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
-			"ObjectName": "idx2 ON test.t",
-			"SqlStatement": "CREATE INDEX idx2 ON test.t USING btree (val1);",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-low-cardinality-column",
+			"ObjectName": "indx1 ON public.test_most_freq",
+			"SqlStatement": "CREATE INDEX indx1 ON public.test_most_freq USING btree (status, id);",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-column-with-high-percentage-of-a-particular-value",
 			"MinimumVersionsFixedIn": null,
 			"Details": {
-				"Cardinality": 1,
-				"ColumnName": "val1"
-			}
-		},
-		{
-			"Category": "performance_optimizations",
-			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
-			"Type": "INDEX_ON_LOW_CARDINALITY_COLUMN",
-			"Name": "Index on low-cardinality column",
-			"Description": "In distributed databases, index design should ensure even data distribution across multiple nodes. Indexes built on low-cardinality columns (e.g., boolean, days of the week) are not optimal, as they may lead to bad data distribution among tablets. This index is built on a low-cardinality column.",
-			"Impact": "LEVEL_1",
-			"ObjectType": "INDEX",
-			"ObjectName": "idx_try ON test.t_low_most",
-			"SqlStatement": "CREATE INDEX idx_try ON test.t_low_most USING btree (id);",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-low-cardinality-column",
-			"MinimumVersionsFixedIn": null,
-			"Details": {
-				"Cardinality": 2,
-				"ColumnName": "id"
+				"ColumnName": "status",
+				"FrequencyOfTheValue": "70%",
+				"Value": "active"
 			}
 		},
 		{
@@ -260,7 +108,7 @@
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "INDEX_ON_COLUMN_WITH_HIGH_PERCENTAGE_OF_PARTICULAR_VALUE",
 			"Name": "Index on column with high percentage of a particular value",
-			"Description": "In distributed databases, index design should ensure even data distribution across nodes. Indexes on columns with highly skewed value distributions (e.g., a value appearing in atleast 60% of rows) can cause performance issues in distributed systems due to uneven data placement and lead to Hotspots. This index is built on column having a value occuring in large number of rows.",
+			"Description": "In distributed databases, unnecessary index entries for a value can increase write performance and storage usage. If queries do not filter on this value using partial indexes can eliminate these unnecessary writes. This index is built on column having a value occuring in large number of rows.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "idx_name ON public.users",
@@ -278,7 +126,7 @@
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "INDEX_ON_COLUMN_WITH_HIGH_PERCENTAGE_OF_NULL_VALUES",
 			"Name": "Index on column with a high percentage of NULL values",
-			"Description": "In distributed databases, index design should ensure even data distribution across nodes. Indexes on columns with many NULL values can lead to uneven distribution and can cause performance issues. This index is built on a column having high percentage of NULL values.",
+			"Description": "In distributed databases, unnecessary index entries for NULL values can increase write performance and storage usage. If queries do not filter on NULL values, using partial indexes can eliminate these unnecessary writes. This index is built on a column having high percentage of NULL values.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "idxtt ON public.t",
@@ -295,7 +143,7 @@
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "INDEX_ON_COLUMN_WITH_HIGH_PERCENTAGE_OF_NULL_VALUES",
 			"Name": "Index on column with a high percentage of NULL values",
-			"Description": "In distributed databases, index design should ensure even data distribution across nodes. Indexes on columns with many NULL values can lead to uneven distribution and can cause performance issues. This index is built on a column having high percentage of NULL values.",
+			"Description": "In distributed databases, unnecessary index entries for NULL values can increase write performance and storage usage. If queries do not filter on NULL values, using partial indexes can eliminate these unnecessary writes. This index is built on a column having high percentage of NULL values.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "idx2 ON test.t",
