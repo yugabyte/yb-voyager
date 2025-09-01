@@ -71,6 +71,7 @@ type TableMetadata struct {
 	IsPartitionedTable bool
 	InheritedFrom      []string
 	PartitionedFrom    string
+	PartitionColumns   []string
 }
 
 // IsColumnNotNull checks if a column is NOT NULL in the table.
@@ -95,6 +96,16 @@ func (tm *TableMetadata) IsPartitioned() bool {
 // IsInherited returns true if the table inherits from other tables.
 func (tm *TableMetadata) IsInherited() bool {
 	return len(tm.InheritedFrom) > 0
+}
+
+// GetPartitionColumns returns the partition columns for this table
+func (tm *TableMetadata) GetPartitionColumns() []string {
+	return tm.PartitionColumns
+}
+
+// GetObjectName returns the fully qualified table name
+func (tm *TableMetadata) GetObjectName() string {
+	return utils.BuildObjectName(tm.SchemaName, tm.TableName)
 }
 
 // GetUniqueConstraints returns all unique constraints as a slice of column name slices.
@@ -661,6 +672,8 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 		if table.IsInherited {
 			tm.InheritedFrom = append([]string{}, table.InheritedFrom...)
 		}
+		// Store partition columns
+		tm.PartitionColumns = append([]string{}, table.PartitionColumns...)
 
 		for _, col := range table.Columns {
 			// Check if metadata already exists (e.g., from deferred FK)
@@ -994,61 +1007,132 @@ func (p *ParserIssueDetector) DetectMissingForeignKeyIndexes() []QueryIssue {
 func (p *ParserIssueDetector) DetectPrimaryKeyRecommendations() []QueryIssue {
 	var issues []QueryIssue
 
-	// Skip for partitioned or inherited tables, as PK rules differ
-	// TODO: Remove this skip and add a proper check for PK rules: the columns suggested should contain the partition key columns
-	// https://yugabyte.atlassian.net/browse/DB-18077
-	shouldSkip := func(table string) bool {
-		partitionedTables := p.getPartitionedTablesMap()
-		partitionedFrom := p.getPartitionedFrom()
-		inheritedFrom := p.getInheritedFrom()
-
-		if partitionedTables[table] {
-			return true
-		}
-		if _, ok := partitionedFrom[table]; ok {
-			return true
-		}
-		if parents, ok := inheritedFrom[table]; ok && len(parents) > 0 {
-			return true
-		}
-		return false
-	}
-
-	for tableName, tm := range p.tablesMetadata {
-		if shouldSkip(tableName) {
-			continue
-		}
+	for _, tm := range p.tablesMetadata {
 		if tm.HasPrimaryKey() {
 			continue // PK already present
 		}
 
-		// Collect all qualifying UNIQUE column sets where all columns are NOT NULL
-		var options [][]string
-		// Currently we only detect PK recommendations for UNIQUE constraints
-		// TODO: We should also consider UNIQUE INDEXES for PK recommendations
-		// https://yugabyte.atlassian.net/browse/DB-18078
-		for _, uniqueCols := range tm.GetUniqueConstraints() {
-			allNN := true
-			for _, col := range uniqueCols {
-				if !tm.IsColumnNotNull(col) {
-					allNN = false
-					break
-				}
-			}
-			if allNN {
-				// Create fully qualified column names for this option
-				qualifiedCols := make([]string, len(uniqueCols))
-				for i, col := range uniqueCols {
-					qualifiedCols[i] = fmt.Sprintf("%s.%s", tableName, col)
-				}
-				options = append(options, qualifiedCols)
-			}
+		// Handle inherited tables (skip for now as per current logic)
+		if tm.IsInherited() {
+			continue
 		}
-		if len(options) > 0 {
-			issues = append(issues, NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", tableName, options))
+
+		// Skip child (mid-level and leaf) partition tables - PKs should only be defined at the root level
+		//
+		// PostgreSQL Partitioning PK Rules:
+		// 1. Root-level partitioned tables can have primary keys that include all partition columns
+		// 2. Child partitions (mid-level and leaf) inherit their primary key from the root table
+		// 3. Mid-level partitioned tables can only have PKs if the root table has no PK
+		// 4. PKs must include all partition columns in the hierarchy below the table
+		// 5. We only suggest PKs at the root level to avoid conflicts with inheritance
+		//
+		// Child partitions are identified by having PartitionedFrom != "" (they inherit from a parent)
+		if tm.PartitionedFrom != "" {
+			continue
 		}
+
+		// Handle both regular and partitioned tables with a single function
+		issues = append(issues, p.detectTablePKRecommendations(tm)...)
 	}
 	return issues
+}
+
+// detectTablePKRecommendations handles PK recommendations for both regular and partitioned tables
+func (p *ParserIssueDetector) detectTablePKRecommendations(tm *TableMetadata) []QueryIssue {
+	var issues []QueryIssue
+
+	// Get partition columns for partitioned tables
+	partitionColumns := tm.GetPartitionColumns()
+	isPartitioned := tm.IsPartitioned()
+
+	// For partitioned tables, ensure we have partition columns
+	// Root-level partitioned tables should always have partition columns defined
+	// as they define the partitioning strategy
+	if isPartitioned && len(partitionColumns) == 0 {
+		// This shouldn't happen for root-level partitioned tables
+		// Root partitioned tables should always have partition columns defined
+		return issues
+	}
+
+	// For root-level partitioned tables, get all partition columns down the hierarchy
+	// Only root-level tables (PartitionedFrom == "") should get hierarchy partition columns
+	if isPartitioned && tm.PartitionedFrom == "" {
+		partitionColumns = p.getAllPartitionColumnsInHierarchy(tm)
+	}
+
+	// Collect all qualifying UNIQUE column sets where all columns are NOT NULL
+	var options [][]string
+	// Currently we only detect PK recommendations for UNIQUE constraints
+	// TODO: We should also consider UNIQUE INDEXES for PK recommendations
+	// https://yugabyte.atlassian.net/browse/DB-18078
+	for _, uniqueCols := range tm.GetUniqueConstraints() {
+		// Check if all unique columns are NOT NULL
+		allNN := true
+		for _, col := range uniqueCols {
+			if !tm.IsColumnNotNull(col) {
+				allNN = false
+				break
+			}
+		}
+
+		if allNN {
+			// For partitioned tables, ensure partition columns are included
+			// PKs must include all partition columns down the entire hierarchy to ensure proper data distribution
+			if isPartitioned {
+				// Check if all partition columns are contained in unique columns
+				missingPartitionCols, _ := lo.Difference(partitionColumns, uniqueCols)
+				if len(missingPartitionCols) > 0 {
+					continue // Skip this unique constraint if it doesn't contain all partition columns
+				}
+			}
+
+			// Create fully qualified column names for this option
+			qualifiedCols := make([]string, len(uniqueCols))
+			for i, col := range uniqueCols {
+				qualifiedCols[i] = fmt.Sprintf("%s.%s", tm.GetObjectName(), col)
+			}
+			options = append(options, qualifiedCols)
+		}
+	}
+
+	if len(options) > 0 {
+		issues = append(issues, NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", tm.GetObjectName(), options))
+	}
+
+	return issues
+}
+
+// getAllPartitionColumnsInHierarchy returns all partition columns down the entire hierarchy
+// for a root-level partitioned table. This includes partition columns from all child tables.
+func (p *ParserIssueDetector) getAllPartitionColumnsInHierarchy(tm *TableMetadata) []string {
+	// Using a map to do automatic deduplication in case if same column is present in multiple child tables
+	allPartitionColumns := make(map[string]bool)
+
+	// Start with the current table's partition columns
+	for _, col := range tm.GetPartitionColumns() {
+		allPartitionColumns[col] = true
+	}
+
+	// Find all child tables that inherit from this table
+	// Extract just the table name without schema for comparison
+	tableNameOnly := tm.TableName
+	for _, childTM := range p.tablesMetadata {
+		if childTM.PartitionedFrom == tableNameOnly {
+			// Recursively get partition columns from this child and all its descendants
+			childPartitionColumns := p.getAllPartitionColumnsInHierarchy(childTM)
+			for _, col := range childPartitionColumns {
+				allPartitionColumns[col] = true
+			}
+		}
+	}
+
+	// Convert map back to slice
+	result := make([]string, 0, len(allPartitionColumns))
+	for col := range allPartitionColumns {
+		result = append(result, col)
+	}
+
+	return result
 }
 
 // hasProperIndexCoverage checks if a foreign key has proper index coverage.
