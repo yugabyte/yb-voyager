@@ -1160,6 +1160,39 @@ func (p *ParserIssueDetector) detectTablePKRecommendations(tm *TableMetadata) []
 	return issues
 }
 
+// getAllPartitionColumnsInHierarchy returns all partition columns down the entire hierarchy
+// for a root-level partitioned table. This includes partition columns from all child tables.
+func (p *ParserIssueDetector) getAllPartitionColumnsInHierarchy(tm *TableMetadata) []string {
+	// Using a map to do automatic deduplication in case if same column is present in multiple child tables
+	allPartitionColumns := make(map[string]bool)
+
+	// Start with the current table's partition columns
+	for _, col := range tm.GetPartitionColumns() {
+		allPartitionColumns[col] = true
+	}
+
+	// Find all child tables that inherit from this table
+	// Extract just the table name without schema for comparison
+	tableNameOnly := tm.TableName
+	for _, childTM := range p.tablesMetadata {
+		if childTM.PartitionedFrom == tableNameOnly {
+			// Recursively get partition columns from this child and all its descendants
+			childPartitionColumns := p.getAllPartitionColumnsInHierarchy(childTM)
+			for _, col := range childPartitionColumns {
+				allPartitionColumns[col] = true
+			}
+		}
+	}
+
+	// Convert map back to slice
+	result := make([]string, 0, len(allPartitionColumns))
+	for col := range allPartitionColumns {
+		result = append(result, col)
+	}
+
+	return result
+}
+
 // hasProperIndexCoverage checks if a foreign key has proper index coverage.
 // Detects exact matches, column permutations, and composite index prefixes.
 // Only considers FK columns as leading columns.
