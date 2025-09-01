@@ -22,6 +22,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 
 	log "github.com/sirupsen/logrus"
 
@@ -42,6 +44,7 @@ type ImportDataErrorHandler interface {
 	CleanUpStoredErrors(tableName sqlname.NameTuple, taskFilePath string) error
 	GetErrorsLocation() string
 	FinalizeRowProcessingErrorsForBatch(batchNumber int64, tableName sqlname.NameTuple, taskFilePath string) error
+	GetProcessingErrorCountSize(tableName sqlname.NameTuple, taskFilePath string) (int64, int64, error)
 }
 
 type ErroredBatch interface {
@@ -85,6 +88,11 @@ func (handler *ImportDataAbortHandler) GetErrorsLocation() string {
 func (handler *ImportDataAbortHandler) FinalizeRowProcessingErrorsForBatch(batchNumber int64, tableName sqlname.NameTuple, taskFilePath string) error {
 	// nothing to do for abort handler
 	return nil
+}
+
+func (handler *ImportDataAbortHandler) GetProcessingErrorCountSize(tableName sqlname.NameTuple, taskFilePath string) (int64, int64, error) {
+	// nothing to do for abort handler
+	return 0, 0, nil
 }
 
 // -----------------------------------------------------------------------------------------------------//
@@ -153,6 +161,47 @@ func (handler *ImportDataStashAndContinueHandler) HandleRowProcessingError(row s
 // generateTableTaskBatchKey creates a unique key for identifying data by table, task, and batch
 func (handler *ImportDataStashAndContinueHandler) generateTableTaskBatchKey(tableName sqlname.NameTuple, taskFilePath string, batchNumber int64) string {
 	return fmt.Sprintf("%s-%s-%d", tableName.ForMinOutput(), ComputePathHash(taskFilePath), batchNumber)
+}
+
+// GetProcessingErrorCountSize extracts row count and byte count from existing processing error file names
+// Returns the total row count and byte count across all error files for the given table and task
+func (handler *ImportDataStashAndContinueHandler) GetProcessingErrorCountSize(tableName sqlname.NameTuple, taskFilePath string) (int64, int64, error) {
+	errorsDir := handler.getErrorsFolderPathForTableTask(tableName, taskFilePath)
+
+	// Pattern to match processing error files: processing-errors.<batchNumber>.<rowCount>.<byteCount>.log
+	globPattern := fmt.Sprintf("%s.*.*.*.log", PROCESSING_ERRORS_BASE_NAME)
+	searchPath := filepath.Join(errorsDir, globPattern)
+
+	files, err := filepath.Glob(searchPath)
+	if err != nil {
+		return 0, 0, fmt.Errorf("error globbing for processing error files with pattern %s: %w", searchPath, err)
+	}
+
+	var totalRowCount, totalByteCount int64
+
+	for _, file := range files {
+		fileName := filepath.Base(file)
+		// Extract row count and byte count from filename: processing-errors.<batchNumber>.<rowCount>.<byteCount>.log
+		parts := strings.Split(fileName, ".")
+		if len(parts) < 4 {
+			return 0, 0, fmt.Errorf("filename %s does not have enough parts to parse (expected 4, got %d)", fileName, len(parts))
+		}
+
+		// parts[0] = "processing-errors", parts[1] = batchNumber, parts[2] = rowCount, parts[3] = byteCount
+		rowCount, err := strconv.ParseInt(parts[2], 10, 64)
+		if err != nil {
+			return 0, 0, fmt.Errorf("failed to parse row count from filename %s: %w", fileName, err)
+		}
+		totalRowCount += rowCount
+
+		byteCount, err := strconv.ParseInt(parts[3], 10, 64)
+		if err != nil {
+			return 0, 0, fmt.Errorf("failed to parse byte count from filename %s: %w", fileName, err)
+		}
+		totalByteCount += byteCount
+	}
+
+	return totalRowCount, totalByteCount, nil
 }
 
 // FinalizeRowProcessingErrorsForBatch renames the temporary error file to include statistics
