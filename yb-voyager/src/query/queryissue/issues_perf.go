@@ -243,7 +243,7 @@ var missingPrimaryKeyWhenUniqueNotNullIssue = issue.Issue{
 	Type:        MISSING_PRIMARY_KEY_WHEN_UNIQUE_NOT_NULL,
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: MISSING_PRIMARY_KEY_WHEN_UNIQUE_NOT_NULL_DESCRIPTION,
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-primary-key-when-unique-not-null",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-primary-key-for-table-when-unique-and-not-null-columns-exist",
 }
 
 func NewMissingPrimaryKeyWhenUniqueNotNullIssue(objectType string, objectName string, options [][]string) QueryIssue {
