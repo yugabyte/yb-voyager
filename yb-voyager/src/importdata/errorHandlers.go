@@ -23,6 +23,8 @@ import (
 	"os"
 	"path/filepath"
 
+	log "github.com/sirupsen/logrus"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
@@ -167,17 +169,34 @@ func (handler *ImportDataStashAndContinueHandler) FinalizeRowProcessingErrorsFor
 		errorFile.Close()
 	}
 
+	// Delete old error files potentially left over from previous run.
+	errorsDir := handler.getErrorsFolderPathForTableTask(tableName, taskFilePath)
+	globPattern := fmt.Sprintf("%s.%d.*.log", PROCESSING_ERRORS_BASE_NAME, batchNumber)
+	searchPath := filepath.Join(errorsDir, globPattern)
+
+	filesToDelete, err := filepath.Glob(searchPath)
+	if err != nil {
+		// Log the error but don't return, as the main task (renaming the current file) can still proceed.
+		log.Errorf("Error globbing for old error files with pattern %s: %v", searchPath, err)
+	} else {
+		for _, file := range filesToDelete {
+			err := os.Remove(file)
+			if err != nil {
+				log.Errorf("Error deleting old error file %s: %v", file, err)
+			} else {
+				log.Debugf("Deleted old error file: %s", file)
+			}
+		}
+	}
+
+	// 	rename to the new filename with row count and byte count
 	rowCount := handler.rowProcessingErrorRowCount[tableTaskBatchKey]
 	byteCount := handler.rowProcessingErrorByteCount[tableTaskBatchKey]
-
-	// Generate the new filename with row count and byte count
-	errorsDir := handler.getErrorsFolderPathForTableTask(tableName, taskFilePath)
 	newFileName := fmt.Sprintf("%s.%d.%d.%d.log", PROCESSING_ERRORS_BASE_NAME, batchNumber, rowCount, byteCount)
 	newFilePath := filepath.Join(errorsDir, newFileName)
 
-	// rename
 	oldFilePath := errorFile.Name()
-	err := os.Rename(oldFilePath, newFilePath)
+	err = os.Rename(oldFilePath, newFilePath)
 	if err != nil {
 		return fmt.Errorf("renaming error file from %s to %s: %w", filepath.Base(oldFilePath), newFileName, err)
 	}
