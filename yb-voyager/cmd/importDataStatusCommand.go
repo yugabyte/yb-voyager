@@ -28,6 +28,7 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/jsonfile"
@@ -57,7 +58,7 @@ var importDataStatusCmd = &cobra.Command{
 			importerRole = IMPORT_FILE_ROLE
 		}
 
-		err = InitNameRegistry(exportDir, "", nil, nil, nil, nil, false)
+		err = InitNameRegistry(exportDir, importerRole, nil, nil, nil, nil, false)
 		if err != nil {
 			utils.ErrExit("initialize name registry: %w", err)
 		}
@@ -266,6 +267,17 @@ func prepareRowWithDatafile(dataFile *datafile.FileEntry, state *ImportDataState
 	if err != nil {
 		return nil, fmt.Errorf("lookup %s from name registry: %w", dataFile.TableName, err)
 	}
+	utils.PrintAndLog("dataFileNt: %v", dataFileNt)
+
+	dataDir := filepath.Join(exportDir, "data")
+	errorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, dataDir)
+	if err != nil {
+		return nil, fmt.Errorf("get import data error handler: %w", err)
+	}
+	processingErrorRowCount, processingErrorByteCount, err := errorHandler.GetProcessingErrorCountSize(dataFileNt, dataFile.FilePath)
+	if err != nil {
+		return nil, fmt.Errorf("get processing error count size: %w", err)
+	}
 
 	if reportProgressInBytes {
 		totalCount = dataFile.FileSize
@@ -277,6 +289,7 @@ func prepareRowWithDatafile(dataFile *datafile.FileEntry, state *ImportDataState
 		if err != nil {
 			return nil, fmt.Errorf("compute errored data size: %w", err)
 		}
+		erroredCount += processingErrorByteCount
 	} else {
 		totalCount = dataFile.RowCount
 		importedCount, err = state.GetImportedRowCount(dataFile.FilePath, dataFileNt)
@@ -287,6 +300,7 @@ func prepareRowWithDatafile(dataFile *datafile.FileEntry, state *ImportDataState
 		if err != nil {
 			return nil, fmt.Errorf("compute errored data size: %w", err)
 		}
+		erroredCount += processingErrorRowCount
 	}
 
 	if totalCount != 0 {
