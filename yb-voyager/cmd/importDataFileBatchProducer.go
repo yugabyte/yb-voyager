@@ -155,7 +155,7 @@ func (p *FileBatchProducer) produceNextBatch() (*Batch, error) {
 			if p.errorHandler.ShouldAbort() {
 				return nil, errMsg
 			}
-			err := p.handleRowProcessingErrorAndResetBytes(line, errMsg, currentBytesRead)
+			err := p.handleRowProcessingErrorAndResetBytes(batchNum, line, errMsg, currentBytesRead)
 			if err != nil {
 				return nil, err
 			}
@@ -171,7 +171,7 @@ func (p *FileBatchProducer) produceNextBatch() (*Batch, error) {
 				if p.errorHandler.ShouldAbort() {
 					return nil, errMsg
 				}
-				err := p.handleRowProcessingErrorAndResetBytes(lineBeforeConversion, errMsg, currentBytesRead)
+				err := p.handleRowProcessingErrorAndResetBytes(batchNum, lineBeforeConversion, errMsg, currentBytesRead)
 				if err != nil {
 					return nil, err
 				}
@@ -276,6 +276,11 @@ func (p *FileBatchProducer) newBatchWriter() (*BatchWriter, error) {
 
 func (p *FileBatchProducer) finalizeBatch(batchWriter *BatchWriter, isLastBatch bool, offsetEnd int64, bytesInBatch int64) (*Batch, error) {
 	batchNum := p.lastBatchNumber + 1
+	err := p.errorHandler.FinalizeRowProcessingErrorsForBatch(batchNum, p.task.TableNameTup, p.task.FilePath)
+	if err != nil {
+		return nil, fmt.Errorf("finalizing row processing errors for batch %d: %w", p.lastBatchNumber, err)
+	}
+
 	if p.header != "" && batchNum == FIRST_BATCH_NUM {
 		//in the import-data-state of the batch include the header bytes only for the first batch so imported Bytes count is same as total bytes count
 		bytesInBatch += p.headerByteCount
@@ -295,10 +300,8 @@ func (p *FileBatchProducer) Close() {
 	}
 }
 
-func (p *FileBatchProducer) handleRowProcessingErrorAndResetBytes(row string, rowErr error, currentBytesRead int64) error {
-	// Get the current batch number for error handling
-	currentBatchNumber := p.lastBatchNumber + 1
-	handleErr := p.errorHandler.HandleRowProcessingError(row, rowErr, p.task.TableNameTup, p.task.FilePath, currentBatchNumber)
+func (p *FileBatchProducer) handleRowProcessingErrorAndResetBytes(currentBatchNumber int64, row string, rowErr error, currentBytesRead int64) error {
+	handleErr := p.errorHandler.HandleRowProcessingError(row, currentBytesRead, rowErr, p.task.TableNameTup, p.task.FilePath, currentBatchNumber)
 	if handleErr != nil {
 		return fmt.Errorf("failed to handle row processing error: %w", handleErr)
 	}

@@ -23,24 +23,23 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 const (
+	PROCESSING_ERRORS_BASE_NAME               = "processing-errors"
 	PROCESSING_ERRORS_LOG_FILE                = "processing-errors.log"
 	INGESTION_ERROR_PREFIX                    = "ingestion-error"
 	STASH_AND_CONTINUE_RECOMMENDATION_MESSAGE = "To continue with the import without aborting, set the configuration parameter `error-policy`/`error-policy-snapshot` to `stash-and-continue`"
 )
 
-var defaultProcessingErrorFileSize int64 = 5 * 1024 * 1024 // 5MB
-
 type ImportDataErrorHandler interface {
 	ShouldAbort() bool
-	HandleRowProcessingError(row string, rowErr error, tableName sqlname.NameTuple, taskFilePath string, batchNumber int64) error
+	HandleRowProcessingError(row string, rowByteCount int64, rowErr error, tableName sqlname.NameTuple, taskFilePath string, batchNumber int64) error
 	HandleBatchIngestionError(batch ErroredBatch, taskFilePath string, batchErr error, isPartialBatchIngestionPossible bool) error
 	CleanUpStoredErrors(tableName sqlname.NameTuple, taskFilePath string) error
 	GetErrorsLocation() string
+	FinalizeRowProcessingErrorsForBatch(batchNumber int64, tableName sqlname.NameTuple, taskFilePath string) error
 }
 
 type ErroredBatch interface {
@@ -62,7 +61,7 @@ func (handler *ImportDataAbortHandler) ShouldAbort() bool {
 	return true
 }
 
-func (handler *ImportDataAbortHandler) HandleRowProcessingError(row string, rowErr error, tableName sqlname.NameTuple, taskFilePath string, batchNumber int64) error {
+func (handler *ImportDataAbortHandler) HandleRowProcessingError(row string, rowByteCount int64, rowErr error, tableName sqlname.NameTuple, taskFilePath string, batchNumber int64) error {
 	// nothing to do.
 	return nil
 }
@@ -81,20 +80,29 @@ func (handler *ImportDataAbortHandler) GetErrorsLocation() string {
 	return ""
 }
 
+func (handler *ImportDataAbortHandler) FinalizeRowProcessingErrorsForBatch(batchNumber int64, tableName sqlname.NameTuple, taskFilePath string) error {
+	// nothing to do for abort handler
+	return nil
+}
+
 // -----------------------------------------------------------------------------------------------------//
 
 /*
 Stash the error to some file(s) with the relevant error information
 */
 type ImportDataStashAndContinueHandler struct {
-	dataDir                 string
-	rowProcessingErrorFiles map[string]*utils.RotatableFile // one per table/task file
+	dataDir                     string
+	rowProcessingErrorFiles     map[string]*os.File // key is table-task-batch
+	rowProcessingErrorRowCount  map[string]int64    // key is table-task-batch
+	rowProcessingErrorByteCount map[string]int64    // key is table-task-batch
 }
 
 func NewImportDataStashAndContinueHandler(dataDir string) *ImportDataStashAndContinueHandler {
 	return &ImportDataStashAndContinueHandler{
-		dataDir:                 dataDir,
-		rowProcessingErrorFiles: make(map[string]*utils.RotatableFile),
+		dataDir:                     dataDir,
+		rowProcessingErrorFiles:     make(map[string]*os.File),
+		rowProcessingErrorRowCount:  make(map[string]int64),
+		rowProcessingErrorByteCount: make(map[string]int64),
 	}
 }
 
@@ -102,10 +110,9 @@ func (handler *ImportDataStashAndContinueHandler) ShouldAbort() bool {
 	return false
 }
 
-// HandleRowProcessingError writes the row and error to a processing-errors.log roratingFile.
-// <export-dir>/data/errors/table::<table-name>/file::<base-path>:<hash>/processing-errors.log
-// On rotation, new files of the format processing-errors-<timestamp>.log will be created.
-func (handler *ImportDataStashAndContinueHandler) HandleRowProcessingError(row string, rowErr error, tableName sqlname.NameTuple, taskFilePath string, batchNumber int64) error {
+// HandleRowProcessingError writes the row and error to a processing-errors.<batchNumber>.log.tmp file.
+// <export-dir>/data/errors/table::<table-name>/file::<base-path>:<hash>/processing-errors.<batchNumber>.log.tmp
+func (handler *ImportDataStashAndContinueHandler) HandleRowProcessingError(row string, rowByteCount int64, rowErr error, tableName sqlname.NameTuple, taskFilePath string, batchNumber int64) error {
 	var err error
 	if row == "" && rowErr == nil {
 		return nil
@@ -115,16 +122,19 @@ func (handler *ImportDataStashAndContinueHandler) HandleRowProcessingError(row s
 		return fmt.Errorf("creating errors dir: %w", err)
 	}
 
-	tableFilePathKey := fmt.Sprintf("%s::%s", tableName.ForMinOutput(), ComputePathHash(taskFilePath))
-	errorFile, ok := handler.rowProcessingErrorFiles[tableFilePathKey]
+	tableTaskBatchKey := handler.generateTableTaskBatchKey(tableName, taskFilePath, batchNumber)
+	errorFile, ok := handler.rowProcessingErrorFiles[tableTaskBatchKey]
 	if !ok {
-		errorFilePath := filepath.Join(errorsDir, PROCESSING_ERRORS_LOG_FILE)
-		errorFile, err = utils.NewRotatableFile(errorFilePath, defaultProcessingErrorFileSize)
+		errorFileName := fmt.Sprintf("%s.%d.log.tmp", PROCESSING_ERRORS_BASE_NAME, batchNumber)
+		errorFilePath := filepath.Join(errorsDir, errorFileName)
+		errorFile, err = os.OpenFile(errorFilePath, os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
-			return fmt.Errorf("creating file rotator: %w", err)
+			return fmt.Errorf("creating error file %s: %w", errorFilePath, err)
 		}
-		handler.rowProcessingErrorFiles[tableFilePathKey] = errorFile
+		handler.rowProcessingErrorFiles[tableTaskBatchKey] = errorFile
 	}
+	handler.rowProcessingErrorRowCount[tableTaskBatchKey]++
+	handler.rowProcessingErrorByteCount[tableTaskBatchKey] += rowByteCount
 
 	/*
 		ERROR: <error message>
@@ -133,8 +143,50 @@ func (handler *ImportDataStashAndContinueHandler) HandleRowProcessingError(row s
 	msg := fmt.Sprintf("ERROR: %s\nROW: %s\n\n", rowErr, row)
 	_, err = errorFile.Write([]byte(msg))
 	if err != nil {
-		return fmt.Errorf("writing to %s: %w", PROCESSING_ERRORS_LOG_FILE, err)
+		return fmt.Errorf("writing to error file %s: %w", errorFile.Name(), err)
 	}
+	return nil
+}
+
+// generateTableTaskBatchKey creates a unique key for identifying data by table, task, and batch
+func (handler *ImportDataStashAndContinueHandler) generateTableTaskBatchKey(tableName sqlname.NameTuple, taskFilePath string, batchNumber int64) string {
+	return fmt.Sprintf("%s-%s-%d", tableName.ForMinOutput(), ComputePathHash(taskFilePath), batchNumber)
+}
+
+// FinalizeRowProcessingErrorsForBatch renames the temporary error file to include statistics
+// from processing-errors.<batchNumber>.log.tmp to processing-errors.<batchNumber>.<rowCount>.<batchByteCount>.log
+func (handler *ImportDataStashAndContinueHandler) FinalizeRowProcessingErrorsForBatch(batchNumber int64, tableName sqlname.NameTuple, taskFilePath string) error {
+	tableTaskBatchKey := handler.generateTableTaskBatchKey(tableName, taskFilePath, batchNumber)
+
+	// Get the current error file
+	errorFile, ok := handler.rowProcessingErrorFiles[tableTaskBatchKey]
+	if !ok {
+		return nil
+	}
+	if errorFile != nil {
+		errorFile.Close()
+	}
+
+	rowCount := handler.rowProcessingErrorRowCount[tableTaskBatchKey]
+	byteCount := handler.rowProcessingErrorByteCount[tableTaskBatchKey]
+
+	// Generate the new filename with row count and byte count
+	errorsDir := handler.getErrorsFolderPathForTableTask(tableName, taskFilePath)
+	newFileName := fmt.Sprintf("%s.%d.%d.%d.log", PROCESSING_ERRORS_BASE_NAME, batchNumber, rowCount, byteCount)
+	newFilePath := filepath.Join(errorsDir, newFileName)
+
+	// rename
+	oldFilePath := errorFile.Name()
+	err := os.Rename(oldFilePath, newFilePath)
+	if err != nil {
+		return fmt.Errorf("renaming error file from %s to %s: %w", filepath.Base(oldFilePath), newFileName, err)
+	}
+
+	// Clean up the maps
+	delete(handler.rowProcessingErrorFiles, tableTaskBatchKey)
+	delete(handler.rowProcessingErrorRowCount, tableTaskBatchKey)
+	delete(handler.rowProcessingErrorByteCount, tableTaskBatchKey)
+
 	return nil
 }
 
