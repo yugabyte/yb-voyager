@@ -102,14 +102,36 @@ INSERT INTO public.t(id) SELECT i from generate_series(1,500) as i;
 
 INSERT INTO test_low_card SELECT i, i%2 = 0 from generate_series(1,100) as i;
 
-INSERT INTO public.test_most_freq
-SELECT i, 
-    CASE 
-        WHEN random() < 0.65 THEN 'active'
-        ELSE 'isactive'
-    END
-FROM generate_series(1, 100) AS i;
-
+INSERT INTO public.test_most_freq Values (1, 'active');
+INSERT INTO public.test_most_freq Values (2, 'isactive');
+INSERT INTO public.test_most_freq Values (3, 'isactive');
+INSERT INTO public.test_most_freq Values (4, 'isactive');
+INSERT INTO public.test_most_freq Values (5, 'active');
+INSERT INTO public.test_most_freq Values (6, 'active');
+INSERT INTO public.test_most_freq Values (7, 'active');
+INSERT INTO public.test_most_freq Values (8, 'active');
+INSERT INTO public.test_most_freq Values (9, 'active');
+INSERT INTO public.test_most_freq Values (10, 'active');
+INSERT INTO public.test_most_freq Values (11, 'active');
+INSERT INTO public.test_most_freq Values (12, 'isactive');
+INSERT INTO public.test_most_freq Values (13, 'isactive');
+INSERT INTO public.test_most_freq Values (14, 'isactive');
+INSERT INTO public.test_most_freq Values (15, 'active');
+INSERT INTO public.test_most_freq Values (16, 'active');
+INSERT INTO public.test_most_freq Values (17, 'active');
+INSERT INTO public.test_most_freq Values (18, 'active');
+INSERT INTO public.test_most_freq Values (19, 'active');
+INSERT INTO public.test_most_freq Values (20, 'active');
+INSERT INTO public.test_most_freq Values (21, 'active');
+INSERT INTO public.test_most_freq Values (22, 'isactive');
+INSERT INTO public.test_most_freq Values (23, 'isactive');
+INSERT INTO public.test_most_freq Values (24, 'isactive');
+INSERT INTO public.test_most_freq Values (25, 'active');
+INSERT INTO public.test_most_freq Values (26, 'active');
+INSERT INTO public.test_most_freq Values (27, 'active');
+INSERT INTO public.test_most_freq Values (28, 'active');
+INSERT INTO public.test_most_freq Values (29, 'active');
+INSERT INTO public.test_most_freq Values (30, 'active');
 
 INSERT INTO public.test_multi_col_idx
 SELECT i, 
