@@ -99,7 +99,7 @@
 			"MinimumVersionsFixedIn": null,
 			"Details": {
 				"ColumnName": "status",
-				"FrequencyOfTheValue": "70%",
+				"FrequencyOfTheValue": "69%",
 				"Value": "active"
 			}
 		},
