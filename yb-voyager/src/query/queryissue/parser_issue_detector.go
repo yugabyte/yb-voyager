@@ -1028,7 +1028,6 @@ func (p *ParserIssueDetector) DetectPrimaryKeyRecommendations() []QueryIssue {
 			continue
 		}
 
-		// Handle both regular and partitioned tables with a single function
 		issues = append(issues, p.detectTablePKRecommendations(tm)...)
 	}
 	return issues
@@ -1043,16 +1042,12 @@ func (p *ParserIssueDetector) detectTablePKRecommendations(tm *TableMetadata) []
 	isPartitioned := tm.IsPartitioned()
 
 	// For partitioned tables, ensure we have partition columns
-	// Root-level partitioned tables should always have partition columns defined
-	// as they define the partitioning strategy
 	if isPartitioned && len(partitionColumns) == 0 {
-		// This shouldn't happen for root-level partitioned tables
-		// Root partitioned tables should always have partition columns defined
+		// This shouldn't happen for root-level partitioned tables as they define the partitioning strategy
 		return issues
 	}
 
 	// For root-level partitioned tables, get all partition columns down the hierarchy
-	// Only root-level tables (PartitionedFrom == "") should get hierarchy partition columns
 	if isPartitioned && tm.PartitionedFrom == "" {
 		partitionColumns = p.getAllPartitionColumnsInHierarchy(tm)
 	}
@@ -1073,10 +1068,9 @@ func (p *ParserIssueDetector) detectTablePKRecommendations(tm *TableMetadata) []
 		}
 
 		if allNN {
-			// For partitioned tables, ensure partition columns are included
-			// PKs must include all partition columns down the entire hierarchy to ensure proper data distribution
+			// For partitioned tables, ensure partition columns are included as the PKs must include
+			// all partition columns down the entire hierarchy
 			if isPartitioned {
-				// Check if all partition columns are contained in unique columns
 				missingPartitionCols, _ := lo.Difference(partitionColumns, uniqueCols)
 				if len(missingPartitionCols) > 0 {
 					continue
@@ -1105,13 +1099,10 @@ func (p *ParserIssueDetector) getAllPartitionColumnsInHierarchy(tm *TableMetadat
 	// Using a map to do automatic deduplication in case if same column is present in multiple child tables
 	allPartitionColumns := make(map[string]bool)
 
-	// Start with the current table's partition columns
 	for _, col := range tm.GetPartitionColumns() {
 		allPartitionColumns[col] = true
 	}
 
-	// Find all child tables that inherit from this table
-	// Extract just the table name without schema for comparison
 	tableNameOnly := tm.TableName
 	for _, childTM := range p.tablesMetadata {
 		if childTM.PartitionedFrom == tableNameOnly {
@@ -1133,14 +1124,9 @@ func (p *ParserIssueDetector) getAllPartitionColumnsInHierarchy(tm *TableMetadat
 }
 
 // hasAnyRelatedTablePrimaryKey checks if this table or any related table already has a primary key.
-//
 // For regular tables: simply checks if the table itself has a PK.
 // For partitioned tables: checks if any table in the partitioning hierarchy (including descendants) has a PK.
-//
-// This is used to prevent PK recommendations when a PK already exists in the table or its hierarchy,
-// as PostgreSQL only allows one PK per partitioning hierarchy.
 func (p *ParserIssueDetector) hasAnyRelatedTablePrimaryKey(tm *TableMetadata) bool {
-	// Check if the current table has a PK
 	if tm.HasPrimaryKey() {
 		return true
 	}
