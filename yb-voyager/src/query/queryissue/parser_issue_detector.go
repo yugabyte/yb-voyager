@@ -1166,13 +1166,10 @@ func (p *ParserIssueDetector) getAllPartitionColumnsInHierarchy(tm *TableMetadat
 	// Using a map to do automatic deduplication in case if same column is present in multiple child tables
 	allPartitionColumns := make(map[string]bool)
 
-	// Start with the current table's partition columns
 	for _, col := range tm.GetPartitionColumns() {
 		allPartitionColumns[col] = true
 	}
 
-	// Find all child tables that inherit from this table
-	// Extract just the table name without schema for comparison
 	tableNameOnly := tm.TableName
 	for _, childTM := range p.tablesMetadata {
 		if childTM.PartitionedFrom == tableNameOnly {
@@ -1194,14 +1191,9 @@ func (p *ParserIssueDetector) getAllPartitionColumnsInHierarchy(tm *TableMetadat
 }
 
 // hasAnyRelatedTablePrimaryKey checks if this table or any related table already has a primary key.
-//
 // For regular tables: simply checks if the table itself has a PK.
 // For partitioned tables: checks if any table in the partitioning hierarchy (including descendants) has a PK.
-//
-// This is used to prevent PK recommendations when a PK already exists in the table or its hierarchy,
-// as PostgreSQL only allows one PK per partitioning hierarchy.
 func (p *ParserIssueDetector) hasAnyRelatedTablePrimaryKey(tm *TableMetadata) bool {
-	// Check if the current table has a PK
 	if tm.HasPrimaryKey() {
 		return true
 	}
