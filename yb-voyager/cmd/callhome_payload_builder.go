@@ -61,9 +61,10 @@ func packAndSendAssessMigrationPayload(status string, errMsg error) {
 	payload.Status = status
 	if assessmentMetadataDirFlag == "" {
 		sourceDBDetails := callhome.SourceDBDetails{
-			DBType:    source.DBType,
-			DBVersion: source.DBVersion,
-			DBSize:    source.DBSize,
+			DBType:             source.DBType,
+			DBVersion:          source.DBVersion,
+			DBSize:             source.DBSize,
+			DBSystemIdentifier: source.DBSystemIdentifier,
 		}
 		payload.SourceDBDetails = callhome.MarshalledJsonString(sourceDBDetails)
 	}
@@ -122,15 +123,16 @@ func packAndSendAssessMigrationPayload(status string, errMsg error) {
 	if assessmentReport.Sizing != nil {
 		sizingRecommedation := &assessmentReport.Sizing.SizingRecommendation
 		callhomeSizingAssessment = callhome.SizingCallhome{
-			NumColocatedTables:              len(sizingRecommedation.ColocatedTables),
+			ColocatedTables:                 anonymizeQualifiedTableNames(sizingRecommedation.ColocatedTables),
 			ColocatedReasoning:              sizingRecommedation.ColocatedReasoning,
-			NumShardedTables:                len(sizingRecommedation.ShardedTables),
+			ShardedTables:                   anonymizeQualifiedTableNames(sizingRecommedation.ShardedTables),
 			NumNodes:                        sizingRecommedation.NumNodes,
 			VCPUsPerInstance:                sizingRecommedation.VCPUsPerInstance,
 			MemoryPerInstance:               sizingRecommedation.MemoryPerInstance,
 			OptimalSelectConnectionsPerNode: sizingRecommedation.OptimalSelectConnectionsPerNode,
 			OptimalInsertConnectionsPerNode: sizingRecommedation.OptimalInsertConnectionsPerNode,
 			EstimatedTimeInMinForImport:     sizingRecommedation.EstimatedTimeInMinForImport,
+			EstimatedTimeInMinForImportWithoutRedundantIndexes: sizingRecommedation.EstimatedTimeInMinForImportWithoutRedundantIndexes,
 		}
 	}
 
@@ -156,6 +158,17 @@ func packAndSendAssessMigrationPayload(status string, errMsg error) {
 	if err == nil && (status == COMPLETE || status == ERROR) {
 		callHomeErrorOrCompletePayloadSent = true
 	}
+}
+
+func anonymizeQualifiedTableNames(tableNames []string) []string {
+	return lo.Map(tableNames, func(tableName string, _ int) string {
+		anonymizedName, err := anonymizer.AnonymizeQualifiedTableName(tableName)
+		if err != nil {
+			log.Warnf("failed to anonymize table name %s: %v", tableName, err)
+			return constants.OBFUSCATE_STRING
+		}
+		return anonymizedName
+	})
 }
 
 // ============================assess migration callhome payload information============================
@@ -242,6 +255,26 @@ func anonymizeIssueDetailsForCallhome(details map[string]interface{}) map[string
 
 				// Join the anonymized column names back with comma
 				anonymizedDetails[key] = strings.Join(anonymizedColumns, ", ")
+			} else {
+				anonymizedDetails[key] = value
+			}
+		} else if key == "PrimaryKeyColumnOptions" {
+			if pkOptions, ok := value.([][]string); ok {
+				var anonymizedOptions [][]string
+				for _, option := range pkOptions {
+					var anonymizedOption []string
+					for _, columnName := range option {
+						anonymizedColumn, err := anonymizer.AnonymizeQualifiedColumnName(columnName)
+						if err != nil {
+							log.Warnf("failed to anonymize PK column name %s: %v", columnName, err)
+							anonymizedOption = append(anonymizedOption, "column_xxx")
+						} else {
+							anonymizedOption = append(anonymizedOption, anonymizedColumn)
+						}
+					}
+					anonymizedOptions = append(anonymizedOptions, anonymizedOption)
+				}
+				anonymizedDetails[key] = anonymizedOptions
 			} else {
 				anonymizedDetails[key] = value
 			}

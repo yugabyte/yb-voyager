@@ -69,6 +69,10 @@ func GetTableIndexStatName() string {
 	return TABLE_INDEX_STATS
 }
 
+func GetTableRedundantIndexesName() string {
+	return REDUNDANT_INDEXES
+}
+
 func InitAssessmentDB() error {
 	assessmentDBPath := GetSourceMetadataDBFilePath()
 	log.Infof("initializing assessment db at %s", assessmentDBPath)

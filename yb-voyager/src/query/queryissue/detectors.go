@@ -253,7 +253,7 @@ func (j *JsonbSubscriptingDetector) Detect(msg protoreflect.Message) error {
 	if queryparser.GetMsgFullName(msg) != queryparser.PG_QUERY_A_INDIRECTION_NODE {
 		return nil
 	}
-	aIndirectionNode, ok := queryparser.GetAIndirectionNode(msg)
+	aIndirectionNode, ok := queryparser.ProtoAsAIndirectionNode(msg)
 	if !ok {
 		return nil
 	}

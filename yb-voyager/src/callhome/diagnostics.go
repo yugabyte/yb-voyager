@@ -88,20 +88,22 @@ type Payload struct {
 // SHOULD NOT REMOVE THESE (host, db_type, db_version, total_db_size_bytes) FIELDS of SourceDBDetails as parsing these specifically here
 // https://github.com/yugabyte/yugabyte-growth/blob/ad5df306c50c05136df77cd6548a1091ae577046/diagnostics_v2/main.py#L549
 type SourceDBDetails struct {
-	Host      string `json:"host"` //keeping it empty for now, as field is parsed in big query app
-	DBType    string `json:"db_type"`
-	DBVersion string `json:"db_version"`
-	DBSize    int64  `json:"total_db_size_bytes"` //bytes
-	Role      string `json:"role,omitempty"`      //for differentiating replica details
+	Host               string `json:"host"` //keeping it empty for now, as field is parsed in big query app
+	DBType             string `json:"db_type"`
+	DBVersion          string `json:"db_version"`
+	DBSize             int64  `json:"total_db_size_bytes"`            //bytes
+	Role               string `json:"role,omitempty"`                 //for differentiating replica details
+	DBSystemIdentifier int64  `json:"db_system_identifier,omitempty"` //Database system identifier for unique instance identification (currently only implemented for PostgreSQL)
 }
 
 // SHOULD NOT REMOVE THESE (host, db_version, node_count, total_cores) FIELDS of TargetDBDetails as parsing these specifically here
 // https://github.com/yugabyte/yugabyte-growth/blob/ad5df306c50c05136df77cd6548a1091ae577046/diagnostics_v2/main.py#L556
 type TargetDBDetails struct {
-	Host      string `json:"host"`
-	DBVersion string `json:"db_version"`
-	NodeCount int    `json:"node_count"`
-	Cores     int    `json:"total_cores"`
+	Host               string `json:"host"`
+	DBVersion          string `json:"db_version"`
+	NodeCount          int    `json:"node_count"`
+	Cores              int    `json:"total_cores"`
+	DBSystemIdentifier string `json:"db_system_identifier,omitempty"` // Database system identifier (currently only implemented for YugabyteDB cluster UUID from v2024.2.3.0+)
 }
 
 /*
@@ -113,8 +115,10 @@ Version History
 1.4: Added SqlStatement field in AssessmentIssueCallhome struct
 1.5: Added AnonymizedDDLs field in AssessMigrationPhasePayload struct
 1.6: Added ObjectName field in AssessmentIssueCallhome struct
+1.7 Changed NumShardedTables and NumColocatedTables to ShardedTables and ColocatedTables respectively with anonymized names
+1.8 Added EstimatedTimeInMinForImportWithoutRedundantIndexes to SizingCallhome
 */
-var ASSESS_MIGRATION_CALLHOME_PAYLOAD_VERSION = "1.6"
+var ASSESS_MIGRATION_CALLHOME_PAYLOAD_VERSION = "1.8"
 
 type AssessMigrationPhasePayload struct {
 	PayloadVersion                 string                    `json:"payload_version"`
@@ -158,15 +162,16 @@ func NewAssessmentIssueCallhome(category string, categoryDesc string, issueType 
 }
 
 type SizingCallhome struct {
-	NumColocatedTables              int     `json:"num_colocated_tables"`
-	ColocatedReasoning              string  `json:"colocated_reasoning"`
-	NumShardedTables                int     `json:"num_sharded_tables"`
-	NumNodes                        float64 `json:"num_nodes"`
-	VCPUsPerInstance                int     `json:"vcpus_per_instance"`
-	MemoryPerInstance               int     `json:"memory_per_instance"`
-	OptimalSelectConnectionsPerNode int64   `json:"optimal_select_connections_per_node"`
-	OptimalInsertConnectionsPerNode int64   `json:"optimal_insert_connections_per_node"`
-	EstimatedTimeInMinForImport     float64 `json:"estimated_time_in_min_for_import"`
+	ColocatedTables                                    []string `json:"colocated_tables"`
+	ColocatedReasoning                                 string   `json:"colocated_reasoning"`
+	ShardedTables                                      []string `json:"sharded_tables"`
+	NumNodes                                           float64  `json:"num_nodes"`
+	VCPUsPerInstance                                   int      `json:"vcpus_per_instance"`
+	MemoryPerInstance                                  int      `json:"memory_per_instance"`
+	OptimalSelectConnectionsPerNode                    int64    `json:"optimal_select_connections_per_node"`
+	OptimalInsertConnectionsPerNode                    int64    `json:"optimal_insert_connections_per_node"`
+	EstimatedTimeInMinForImport                        float64  `json:"estimated_time_in_min_for_import"`
+	EstimatedTimeInMinForImportWithoutRedundantIndexes float64  `json:"estimated_time_in_min_for_import_without_redundant_indexes"`
 }
 
 type ObjectSizingStats struct {
@@ -192,8 +197,9 @@ type SchemaOptimizationChange struct {
 /*
 Version History
 1.0: Added a new field as PayloadVersion and SchemaOptimizationChanges
+1.1: Added a new field as AssessRunInExportSchema
 */
-var EXPORT_SCHEMA_CALLHOME_PAYLOAD_VERSION = "1.0"
+var EXPORT_SCHEMA_CALLHOME_PAYLOAD_VERSION = "1.1"
 
 type ExportSchemaPhasePayload struct {
 	PayloadVersion            string                     `json:"payload_version"`
@@ -202,6 +208,7 @@ type ExportSchemaPhasePayload struct {
 	UseOrafce                 bool                       `json:"use_orafce"`
 	CommentsOnObjects         bool                       `json:"comments_on_objects"`
 	SkipRecommendations       bool                       `json:"skip_recommendations"`
+	AssessRunInExportSchema   bool                       `json:"assess_run_in_export_schema"`
 	SkipPerfOptimizations     bool                       `json:"skip_performance_optimizations"`
 	Error                     string                     `json:"error"`
 	ControlPlaneType          string                     `json:"control_plane_type"`

@@ -2,7 +2,7 @@
 	"VoyagerVersion": "main",
 	"TargetDBVersion": "2024.2.0.0",
 	"MigrationComplexity": "HIGH",
-	"MigrationComplexityExplanation": "Found 32 Level 2 issue(s) and 18 Level 3 issue(s), resulting in HIGH migration complexity",
+	"MigrationComplexityExplanation": "Found 32 Level 2 issue(s) and 22 Level 3 issue(s), resulting in HIGH migration complexity",
 	"SchemaSummary": {
 		"Description": "Objects that will be created on the target YugabyteDB.",
 		"DbName": "pg_assessment_report",
@@ -27,9 +27,9 @@
 			},
 			{
 				"ObjectType": "EXTENSION",
-				"TotalCount": 5,
-				"InvalidCount": 0,
-				"ObjectNames": "citext, hstore, lo, pg_stat_statements, pgcrypto"
+				"TotalCount": 9,
+				"InvalidCount": 4,
+				"ObjectNames": "plperl, plpython3u, citext, hstore, lo, pg_stat_statements, pgcrypto, pglogical, postgis"
 			},
 			{
 				"ObjectType": "TYPE",
@@ -119,6 +119,7 @@
 				"public.numeric_multirange_table",
 				"public.child_table",
 				"public.timestamp_multirange_table",
+				"public.spatial_ref_sys",
 				"public.tbl_unlogged",
 				"public.documents",
 				"public.inet_type",
@@ -219,7 +220,8 @@
 			"MemoryPerInstance": 16,
 			"OptimalSelectConnectionsPerNode": 8,
 			"OptimalInsertConnectionsPerNode": 12,
-			"EstimatedTimeInMinForImport": 1
+			"EstimatedTimeInMinForImport": 1,
+			"EstimatedTimeInMinForImportWithoutRedundantIndexes": 1
 		},
 		"FailureReasoning": ""
 	},
@@ -339,6 +341,58 @@
 			"ObjectName": "public.child_table",
 			"SqlStatement": "CREATE TABLE public.child_table (\n    specific_column1 date\n)\nINHERITS (public.parent_table);",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "unsupported_features",
+			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
+			"Type": "UNSUPPORTED_EXTENSION",
+			"Name": "Unsupported Extension",
+			"Description": "This extension is not supported in YugabyteDB by default.",
+			"Impact": "LEVEL_3",
+			"ObjectType": "EXTENSION",
+			"ObjectName": "plperl",
+			"SqlStatement": "CREATE EXTENSION IF NOT EXISTS plperl WITH SCHEMA pg_catalog;",
+			"DocsLink": "https://docs.yugabyte.com/preview/explore/ysql-language-features/pg-extensions/",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "unsupported_features",
+			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
+			"Type": "UNSUPPORTED_EXTENSION",
+			"Name": "Unsupported Extension",
+			"Description": "This extension is not supported in YugabyteDB by default.",
+			"Impact": "LEVEL_3",
+			"ObjectType": "EXTENSION",
+			"ObjectName": "plpython3u",
+			"SqlStatement": "CREATE EXTENSION IF NOT EXISTS plpython3u WITH SCHEMA pg_catalog;",
+			"DocsLink": "https://docs.yugabyte.com/preview/explore/ysql-language-features/pg-extensions/",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "unsupported_features",
+			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
+			"Type": "UNSUPPORTED_EXTENSION",
+			"Name": "Unsupported Extension",
+			"Description": "This extension is not supported in YugabyteDB by default.",
+			"Impact": "LEVEL_3",
+			"ObjectType": "EXTENSION",
+			"ObjectName": "pglogical",
+			"SqlStatement": "CREATE EXTENSION IF NOT EXISTS pglogical WITH SCHEMA pglogical;",
+			"DocsLink": "https://docs.yugabyte.com/preview/explore/ysql-language-features/pg-extensions/",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "unsupported_features",
+			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
+			"Type": "UNSUPPORTED_EXTENSION",
+			"Name": "Unsupported Extension",
+			"Description": "This extension is not supported in YugabyteDB by default.",
+			"Impact": "LEVEL_3",
+			"ObjectType": "EXTENSION",
+			"ObjectName": "postgis",
+			"SqlStatement": "CREATE EXTENSION IF NOT EXISTS postgis WITH SCHEMA public;",
+			"DocsLink": "https://docs.yugabyte.com/preview/explore/ysql-language-features/pg-extensions/",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -3362,6 +3416,30 @@
 		},
 		{
 			"SchemaName": "public",
+			"ObjectName": "spatial_ref_sys",
+			"RowCount": 8500,
+			"ColumnCount": 5,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "table",
+			"ParentTableName": null,
+			"SizeInBytes": 7061504
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "spatial_ref_sys_pkey",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "primary key",
+			"ParentTableName": "public.spatial_ref_sys",
+			"SizeInBytes": 212992
+		},
+		{
+			"SchemaName": "public",
 			"ObjectName": "idx_inet1",
 			"RowCount": null,
 			"ColumnCount": 1,
@@ -4046,10 +4124,25 @@
 		}
 	],
 	"Notes": [
-		"Some features listed in this report may be supported under a preview flag in the specified target-db-version of YugabyteDB. Please refer to the official <a class=\"highlight-link\" target=\"_blank\" href=\"https://docs.yugabyte.com/preview/releases/ybdb-releases/\">release notes</a> for detailed information and usage guidelines.",
-		"If there are any tables that receive disproportionately high load, ensure that they are NOT colocated to avoid the colocated tablet becoming a hotspot.\nFor additional considerations related to colocated tables, refer to the documentation at: https://docs.yugabyte.com/preview/explore/colocation/#limitations-and-considerations",
-		"If indexes are created on columns commonly used in range-based queries (e.g. timestamp columns), it is recommended to explicitly configure these indexes with range sharding. This ensures efficient data access for range queries.\nBy default, YugabyteDB uses hash sharding for indexes, which distributes data randomly and is not ideal for range-based predicates potentially degrading query performance. Note that range sharding is enabled by default only in <a class=\"highlight-link\" target=\"_blank\" href=\"https://docs.yugabyte.com/preview/develop/postgresql-compatibility/\">PostgreSQL compatibility mode</a> in YugabyteDB.",
-		"<a class=\"highlight-link\" target=\"_blank\"  href=\"https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/#assessment-and-schema-analysis-limitations\">Limitations in assessment</a>",
-		"There are some Unlogged tables in the schema. They will be created as regular LOGGED tables in YugabyteDB as unlogged tables are not supported."
+		{
+			"Type": "GeneralNotes",
+			"Text": "Some features listed in this report may be supported under a preview flag in the specified target-db-version of YugabyteDB. Please refer to the official <a class=\"highlight-link\" target=\"_blank\" href=\"https://docs.yugabyte.com/preview/releases/ybdb-releases/\">release notes</a> for detailed information and usage guidelines."
+		},
+		{
+			"Type": "ColocatedShardedNotes",
+			"Text": "If there are any tables that receive disproportionately high load, ensure that they are NOT colocated to avoid the colocated tablet becoming a hotspot.\nFor additional considerations related to colocated tables, refer to the documentation at: https://docs.yugabyte.com/preview/explore/colocation/#limitations-and-considerations"
+		},
+		{
+			"Type": "GeneralNotes",
+			"Text": "If indexes are created on columns commonly used in range-based queries (e.g. timestamp columns), it is recommended to explicitly configure these indexes with range sharding. This ensures efficient data access for range queries.\nBy default, YugabyteDB uses hash sharding for indexes, which distributes data randomly and is not ideal for range-based predicates potentially degrading query performance. Note that range sharding is enabled by default only in <a class=\"highlight-link\" target=\"_blank\" href=\"https://docs.yugabyte.com/preview/develop/postgresql-compatibility/\">PostgreSQL compatibility mode</a> in YugabyteDB."
+		},
+		{
+			"Type": "GeneralNotes",
+			"Text": "<a class=\"highlight-link\" target=\"_blank\"  href=\"https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/#assessment-and-schema-analysis-limitations\">Limitations in assessment</a>"
+		},
+		{
+			"Type": "GeneralNotes",
+			"Text": "There are some Unlogged tables in the schema. They will be created as regular LOGGED tables in YugabyteDB as unlogged tables are not supported."
+		}
 	]
 }

@@ -79,8 +79,8 @@ var allowedAnalyzeSchemaConfigKeys = mapset.NewThreadUnsafeSet[string](
 var allowedExportSchemaConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"log-level", "run-guardrails-checks",
 	"use-orafce", "comments-on-objects", "object-type-list", "exclude-object-type-list",
-	"skip-recommendations", "assessment-report-path",
-	"skip-performance-optimizations",
+	"skip-colocation-recommendations", "assessment-report-path",
+	"skip-performance-recommendations",
 	"assess-schema-before-export",
 	// environment variables keys
 	"ybvoyager-skip-merge-constraints-transformation",
