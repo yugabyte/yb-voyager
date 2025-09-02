@@ -1008,26 +1008,23 @@ func (p *ParserIssueDetector) DetectPrimaryKeyRecommendations() []QueryIssue {
 	var issues []QueryIssue
 
 	for _, tm := range p.tablesMetadata {
-		if tm.HasPrimaryKey() {
-			continue // PK already present
-		}
-
 		// Handle inherited tables (skip for now as per current logic)
 		if tm.IsInherited() {
 			continue
 		}
 
-		// Skip child (mid-level and leaf) partition tables - PKs should only be defined at the root level
-		//
-		// PostgreSQL Partitioning PK Rules:
-		// 1. Root-level partitioned tables can have primary keys that include all partition columns
-		// 2. Child partitions (mid-level and leaf) inherit their primary key from the root table
-		// 3. Mid-level partitioned tables can only have PKs if the root table has no PK
-		// 4. PKs must include all partition columns in the hierarchy below the table
-		// 5. We only suggest PKs at the root level to avoid conflicts with inheritance
-		//
-		// Child partitions are identified by having PartitionedFrom != "" (they inherit from a parent)
+		// Skip child partitions - PKs should ideally be defined at the root level
+		// PostgreSQL only allows one PK per partitioning hierarchy, and child partitions
+		// inherit their PK from the root table
 		if tm.PartitionedFrom != "" {
+			continue
+		}
+
+		// Check if this table or any related table already has a primary key
+		// - For regular tables: checks if the table itself has a PK
+		// - For partitioned tables: checks if any table in the partitioning hierarchy has a PK
+		// If so, we cannot suggest a PK for this table as it would create a conflict
+		if p.hasAnyRelatedTablePrimaryKey(tm) {
 			continue
 		}
 
@@ -1082,7 +1079,7 @@ func (p *ParserIssueDetector) detectTablePKRecommendations(tm *TableMetadata) []
 				// Check if all partition columns are contained in unique columns
 				missingPartitionCols, _ := lo.Difference(partitionColumns, uniqueCols)
 				if len(missingPartitionCols) > 0 {
-					continue // Skip this unique constraint if it doesn't contain all partition columns
+					continue
 				}
 			}
 
@@ -1133,6 +1130,34 @@ func (p *ParserIssueDetector) getAllPartitionColumnsInHierarchy(tm *TableMetadat
 	}
 
 	return result
+}
+
+// hasAnyRelatedTablePrimaryKey checks if this table or any related table already has a primary key.
+//
+// For regular tables: simply checks if the table itself has a PK.
+// For partitioned tables: checks if any table in the partitioning hierarchy (including descendants) has a PK.
+//
+// This is used to prevent PK recommendations when a PK already exists in the table or its hierarchy,
+// as PostgreSQL only allows one PK per partitioning hierarchy.
+func (p *ParserIssueDetector) hasAnyRelatedTablePrimaryKey(tm *TableMetadata) bool {
+	// Check if the current table has a PK
+	if tm.HasPrimaryKey() {
+		return true
+	}
+
+	// For partitioned tables, check all descendant tables (tables that inherit from this table)
+	// For regular tables, this loop will be empty since they have no children
+	tableObjectName := tm.GetObjectName() // Use fully qualified name
+	for _, childTM := range p.tablesMetadata {
+		if childTM.PartitionedFrom == tableObjectName {
+			// Recursively check this child and all its descendants
+			if p.hasAnyRelatedTablePrimaryKey(childTM) {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 // hasProperIndexCoverage checks if a foreign key has proper index coverage.

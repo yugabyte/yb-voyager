@@ -2515,6 +2515,16 @@ func TestPKRec_CommonRunner(t *testing.T) {
 			},
 			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "public.sales", [][]string{{"public.sales.id", "public.sales.region", "public.sales.year"}})},
 		},
+		{
+			name: "PKREC: Root partitioned table with UNIQUE constraint including all partition columns - should not get recommendation",
+			ddls: []string{
+				`CREATE TABLE public.sales_with_mid_pk (id integer NOT NULL, sale_date date NOT NULL, region text NOT NULL, amount numeric, UNIQUE(id, sale_date, region)) PARTITION BY RANGE (sale_date);`,
+				`CREATE TABLE public.sales_with_mid_pk_2024 PARTITION OF public.sales_with_mid_pk FOR VALUES FROM ('2024-01-01') TO ('2025-01-01') PARTITION BY LIST (region);`,
+				`CREATE TABLE public.sales_with_mid_pk_2024_asia PARTITION OF public.sales_with_mid_pk_2024 FOR VALUES IN ('Asia');`,
+				`ALTER TABLE public.sales_with_mid_pk_2024 ADD CONSTRAINT sales_with_mid_pk_2024_pk PRIMARY KEY (id, region);`,
+			},
+			expected: nil,
+		},
 	}
 
 	for _, tc := range cases {
