@@ -466,6 +466,7 @@
                         <tr><td class="centered-cell">Optimal select connections per node</td><td class="centered-cell">{{ if eq .OptimalSelectConnectionsPerNode 0 }}--{{ else }}{{ .OptimalSelectConnectionsPerNode }}{{ end }}</td></tr>
                         <tr><td class="centered-cell">Optimal insert connections per node</td><td class="centered-cell">{{ if eq .OptimalInsertConnectionsPerNode 0 }}--{{ else }}{{ .OptimalInsertConnectionsPerNode }}{{ end }}</td></tr>
                         <tr><td class="centered-cell">Estimated time taken for data import </td><td class="centered-cell">{{ .EstimatedTimeInMinForImport }} min</td></tr>
+                        <tr><td class="centered-cell">Estimated time taken for data import (Excluding redundant indexes)</td><td class="centered-cell">{{ .EstimatedTimeInMinForImportWithoutRedundantIndexes }} min</td></tr>
                     </table>
                     <h3>Reasoning:</h3>
                     <p class="spaced-words">{{ .ColocatedReasoning }}</p>
@@ -734,7 +735,7 @@
                 <h4>Notes</h4>
                 <ul id="notes-list">
                     {{ range .Notes }}
-                        <li>{{ . }}</li>
+                        <li>{{ .Text }}</li>
                     {{ end }}
                 </ul>
             </div>

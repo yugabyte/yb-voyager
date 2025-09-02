@@ -31,7 +31,7 @@ import (
 
 const (
 	REMOVED_REDUNDANT_INDEXES_FILE_NAME            = "redundant_indexes.sql"
-	SUGGESTION_TO_USE_SKIP_PERF_OPTIMIZATIONS_FLAG = "Use --skip-performance-optimizations true flag to skip applying performance optimizations to the index file"
+	SUGGESTION_TO_USE_SKIP_PERF_OPTIMIZATIONS_FLAG = "Use --skip-performance-recommendations true flag to skip applying performance optimizations to the index file"
 )
 
 // =========================INDEX FILE TRANSFORMER=====================================

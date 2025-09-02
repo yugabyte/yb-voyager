@@ -595,7 +595,7 @@ export-schema:
   comments-on-objects: true
   object-type-list: table,index,view
   exclude-object-type-list: materialized_view
-  skip-recommendations: false
+  skip-colocation-recommendations: false
   assessment-report-path: /tmp/assessment-report
   assess-schema-before-export: false
   ybvoyager-skip-merge-constraints-transformation: true
@@ -678,7 +678,7 @@ func TestExportSchemaConfigBinding_CLIOverridesConfig(t *testing.T) {
 		"--comments-on-objects", "false",
 		"--object-type-list", "table,view",
 		"--exclude-object-type-list", "materialized_view,index",
-		"--skip-recommendations", "true",
+		"--skip-colocation-recommendations", "true",
 		"--assessment-report-path", "/tmp/new-assessment-report",
 		"--assess-schema-before-export", "true",
 		"--source-db-type", "postgres",

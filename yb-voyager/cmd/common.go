@@ -1187,7 +1187,7 @@ type AssessmentReport struct {
 	Sizing                         *migassessment.SizingAssessmentReport `json:"Sizing"`
 	Issues                         []AssessmentIssue                     `json:"AssessmentIssues"`
 	TableIndexStats                *[]migassessment.TableIndexStats      `json:"TableIndexStats"`
-	Notes                          []string                              `json:"Notes"`
+	Notes                          []NoteInfo                            `json:"Notes"`
 
 	// fields going to be deprecated
 	UnsupportedDataTypes       []utils.TableColumnsDataTypes     `json:"-"`
@@ -1230,6 +1230,21 @@ type ObjectInfo struct {
 	SqlStatement string
 }
 
+// Enum definitions for different types of notes in the YugabyteD event payload
+type NoteType string
+
+const (
+	GeneralNotes          NoteType = "GeneralNotes"
+	ColocatedShardedNotes NoteType = "ColocatedShardedNotes"
+	SizingNotes           NoteType = "SizingNotes"
+)
+
+// NoteInfo contains both the note text and its type at start instead of delaying the classification in yugabyted event builder logic
+type NoteInfo struct {
+	Type NoteType `json:"Type"`
+	Text string   `json:"Text"`
+}
+
 // ======================================================================
 type BulkAssessmentReport struct {
 	Details []AssessmentDetail `json:"Detail"`
@@ -1255,7 +1270,7 @@ type AssessMigrationDBConfig struct {
 	Schema   string
 }
 
-// =============== for yugabyted controlplane ==============//
+// =============== For YUGABYTEDB CONTROL PLANE ==============//
 // TODO: see if this can be accommodated in controlplane pkg, facing pkg cyclic dependency issue
 
 /*
@@ -1266,8 +1281,11 @@ Version History
 1.3: Moved Sizing, TableIndexStats, Notes, fields out from depcreated AssessmentJsonReport field to top level struct
 1.4: Removed field 'ParallelVoyagerJobs` from sizing recommendation
 1.5: Changed type of the Details field from json.RawMessage to map[string]interface{}
+1.6:
+  - Add EstimatedTimeInMinForImportWithoutRedundantIndexes in SizingRecommendation struct
+  - Added separate fields for notes: GeneralNotes, ColocatedShardedNotes, SizingNotes; deprecated Notes field
 */
-var ASSESS_MIGRATION_YBD_PAYLOAD_VERSION = "1.5"
+var ASSESS_MIGRATION_YBD_PAYLOAD_VERSION = "1.6"
 
 // TODO: decouple this struct from utils.AnalyzeSchemaIssue struct, right now its tightly coupled;
 // Similarly for migassessment.SizingAssessmentReport and migassessment.TableIndexStats
@@ -1284,9 +1302,12 @@ type AssessMigrationPayload struct {
 	ConversionIssues               []utils.AnalyzeSchemaIssue
 	Sizing                         *migassessment.SizingAssessmentReport
 	TableIndexStats                *[]migassessment.TableIndexStats
-	Notes                          []string
-	// Depreacted: AssessmentJsonReport is deprecated; use the fields directly inside struct
-	AssessmentJsonReport AssessmentReportYugabyteD
+	GeneralNotes                   []string
+	ColocatedShardedNotes          []string
+	SizingNotes                    []string
+
+	AssessmentJsonReport AssessmentReportYugabyteD // Depreacted: AssessmentJsonReport is deprecated; use the fields directly inside struct
+	Notes                []string                  // Depreacted: Notes is deprecated; use the new fields for notes: GeneralNotes, ColocatedShardedNotes, SizingNotes
 }
 
 type AssessmentIssueYugabyteD struct {
@@ -1396,9 +1417,10 @@ func (ar *AssessmentReport) GetClusterSizingRecommendation() string {
 		return ar.Sizing.FailureReasoning
 	}
 
-	return fmt.Sprintf("Num Nodes: %f, vCPU per instance: %d, Memory per instance: %d, Estimated Import Time: %f minutes",
+	return fmt.Sprintf("Num Nodes: %f, vCPU per instance: %d, Memory per instance: %d, Estimated Import Time: %f minutes, Estimated Import Time Without Redundant Indexes: %f minutes",
 		ar.Sizing.SizingRecommendation.NumNodes, ar.Sizing.SizingRecommendation.VCPUsPerInstance,
-		ar.Sizing.SizingRecommendation.MemoryPerInstance, ar.Sizing.SizingRecommendation.EstimatedTimeInMinForImport)
+		ar.Sizing.SizingRecommendation.MemoryPerInstance, ar.Sizing.SizingRecommendation.EstimatedTimeInMinForImport,
+		ar.Sizing.SizingRecommendation.EstimatedTimeInMinForImportWithoutRedundantIndexes)
 }
 
 func (ar *AssessmentReport) GetTotalTableRowCount() int64 {
