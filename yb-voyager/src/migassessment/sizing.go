@@ -221,7 +221,6 @@ func SizingAssessment(targetDbVersion *ybversion.YBVersion, sourceDBType string,
 
 	sizingRecommendationPerCore := createSizingRecommendationStructure(colocatedLimits)
 	sizingRecommendationPerCoreShardingStrategy := createSizingRecommendationStructure(colocatedLimits)
-
 	for key, rec := range sizingRecommendationPerCoreShardingStrategy {
 		rec.ShardedTables = append(rec.ShardedTables, sourceTableMetadata...)
 		sizingRecommendationPerCoreShardingStrategy[key] = rec
@@ -229,11 +228,13 @@ func SizingAssessment(targetDbVersion *ybversion.YBVersion, sourceDBType string,
 
 	sizingRecommendationPerCore = shardingBasedOnTableSizeAndCount(sourceTableMetadata, sourceIndexMetadata,
 		colocatedLimits, sizingRecommendationPerCore)
-
 	sizingRecommendationPerCore = shardingBasedOnOperations(sourceIndexMetadata, colocatedThroughput, sizingRecommendationPerCore)
+	sizingRecommendationPerCoreShardingStrategy = allSharding(sourceIndexMetadata, sourceTableMetadata, shardedThroughput, sizingRecommendationPerCoreShardingStrategy)
+	for _, rec := range sizingRecommendationPerCoreShardingStrategy {
+		fmt.Printf("after ops insert connections: %v\n", rec.OptimalInsertConnectionsPerNode)
+	}
 
 	sizingRecommendationPerCore = checkShardedTableLimit(sourceIndexMetadata, shardedLimits, sizingRecommendationPerCore)
-
 	sizingRecommendationPerCoreShardingStrategy = checkShardedTableLimit(sourceIndexMetadata, shardedLimits, sizingRecommendationPerCoreShardingStrategy)
 
 	sizingRecommendationPerCore = findNumNodesNeededBasedOnThroughputRequirement(sourceIndexMetadata, shardedThroughput, sizingRecommendationPerCore)
@@ -766,6 +767,45 @@ func shardingBasedOnOperations(sourceIndexMetadata []SourceDBMetadata,
 			ShardedSize:                     cumulativeSizeSharded,
 			EstimatedTimeInMinForImport:     previousRecommendation.EstimatedTimeInMinForImport,
 			EstimatedTimeInMinForImportWithoutRedundantIndexes: previousRecommendation.EstimatedTimeInMinForImportWithoutRedundantIndexes,
+		}
+	}
+	// Return updated recommendation map
+	return recommendation
+}
+
+/*
+allSharding performs sharding based on operations (reads and writes) per second, taking into account colocated limits.
+It updates the existing recommendations with information about colocated and sharded tables based on operations.
+Parameters:
+  - sourceIndexMetadata: A slice of SourceDBMetadata structs representing source indexes.
+  - shardedThroughput: A slice of ExpDataThroughput structs representing colocated limits.
+  - recommendation: A map where the key is the number of vCPUs per instance and the value is an IntermediateRecommendation struct.
+
+Returns:
+  - An updated map of recommendations where sharding information based on operations has been incorporated.
+*/
+func allSharding(sourceIndexMetadata []SourceDBMetadata, sourceTableMetadata []SourceDBMetadata,
+	shardedThroughputSlice []ExpDataThroughput, recommendation map[int]IntermediateRecommendation) map[int]IntermediateRecommendation {
+	var cumulativeSizeSharded float64 = 0
+	for _, table := range sourceTableMetadata {
+		_, indexesSizeSumSharded, _, _ := checkAndFetchIndexes(table, sourceIndexMetadata)
+		cumulativeSizeSharded += lo.Ternary(table.Size.Valid, table.Size.Float64, 0) + indexesSizeSumSharded
+	}
+
+	for _, shardedThroughput := range shardedThroughputSlice {
+		// Get previous recommendation for the current num of cores
+		previousRecommendation := recommendation[int(shardedThroughput.numCores.Float64)]
+		previousRecommendation.ShardedTables = append(previousRecommendation.ShardedTables, sourceTableMetadata...)
+
+		// Update recommendation for the current colocated limit
+		recommendation[int(shardedThroughput.numCores.Float64)] = IntermediateRecommendation{
+			ShardedTables:                   previousRecommendation.ShardedTables,
+			VCPUsPerInstance:                previousRecommendation.VCPUsPerInstance,
+			MemoryPerCore:                   previousRecommendation.MemoryPerCore,
+			NumNodes:                        previousRecommendation.NumNodes,
+			OptimalSelectConnectionsPerNode: shardedThroughput.selectConnPerNode.Int64,
+			OptimalInsertConnectionsPerNode: shardedThroughput.insertConnPerNode.Int64,
+			ShardedSize:                     cumulativeSizeSharded,
 		}
 	}
 	// Return updated recommendation map
