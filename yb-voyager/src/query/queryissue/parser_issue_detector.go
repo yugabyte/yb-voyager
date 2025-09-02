@@ -1091,7 +1091,7 @@ func (p *ParserIssueDetector) DetectPrimaryKeyRecommendations() []QueryIssue {
 		// - For regular tables: checks if the table itself has a PK
 		// - For partitioned tables: checks if any table in the partitioning hierarchy has a PK
 		// If so, we cannot suggest a PK for this table as it would create a conflict
-		if tm.HasAnyRelatedTablePrimaryKey() {
+		if p.hasAnyRelatedTablePrimaryKey(tm) {
 			continue
 		}
 
@@ -1191,6 +1191,34 @@ func (p *ParserIssueDetector) getAllPartitionColumnsInHierarchy(tm *TableMetadat
 	}
 
 	return result
+}
+
+// hasAnyRelatedTablePrimaryKey checks if this table or any related table already has a primary key.
+//
+// For regular tables: simply checks if the table itself has a PK.
+// For partitioned tables: checks if any table in the partitioning hierarchy (including descendants) has a PK.
+//
+// This is used to prevent PK recommendations when a PK already exists in the table or its hierarchy,
+// as PostgreSQL only allows one PK per partitioning hierarchy.
+func (p *ParserIssueDetector) hasAnyRelatedTablePrimaryKey(tm *TableMetadata) bool {
+	// Check if the current table has a PK
+	if tm.HasPrimaryKey() {
+		return true
+	}
+
+	// For partitioned tables, check all descendant tables (tables that inherit from this table)
+	// For regular tables, this loop will be empty since they have no children
+	tableObjectName := tm.GetObjectName() // Use fully qualified name
+	for _, childTM := range p.tablesMetadata {
+		if childTM.PartitionedFrom == tableObjectName {
+			// Recursively check this child and all its descendants
+			if p.hasAnyRelatedTablePrimaryKey(childTM) {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 // hasProperIndexCoverage checks if a foreign key has proper index coverage.
