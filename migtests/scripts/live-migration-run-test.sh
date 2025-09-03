@@ -201,7 +201,7 @@ main() {
 	run_sql_file source_delta.sql
 
 	step "Wait for source exporter to start capturing changes"
-	wait_for_exporter_event "source_db_exporter"
+	wait_for_exporter_event "source"
 
 	# Resetting the trap command
 	trap - SIGINT SIGTERM EXIT SIGSEGV SIGHUP

@@ -633,28 +633,107 @@ wait_for_string_in_file() {
 }
 
 
-# Wait until at least one event from a specific exporter_role appears in the queue
+# Helper function to read expected event count from metadata file
+# Usage: get_expected_event_count <exporter_db>
+# Returns: expected count or empty string if not found
+get_expected_event_count() {
+    local exporter_db="$1"
+    local metadata_file="${TEST_DIR}/live-migration-events.json"
+    
+    if [ ! -f "$metadata_file" ]; then
+        return 0
+    fi
+    
+    local expected_count=""
+    case "$exporter_db" in
+        "source")
+            expected_count=$(jq -r '.source_delta_events // empty' "$metadata_file" 2>/dev/null)
+            ;;
+        "target")
+            expected_count=$(jq -r '.target_delta_events // empty' "$metadata_file" 2>/dev/null)
+            ;;
+    esac
+    
+    # Validate the count is a positive number
+    if [[ "$expected_count" =~ ^[1-9][0-9]*$ ]]; then
+        echo "$expected_count"
+    fi
+}
+
+# Helper function to count actual events for a specific exporter database using data-migration-report
+# Usage: count_exported_events <exporter_db>
+# Returns: number of events found
+count_exported_events() {
+    local exporter_db="$1"
+    local total_count=0
+    
+    # Validate exporter_db parameter
+    case "$exporter_db" in
+        "source"|"target")
+            # Valid exporter_db
+            ;;
+        *)
+            echo "0"
+            return
+            ;;
+    esac
+    
+    # Run the command to generate the data migration report file (suppress all output)
+    get_data_migration_report >/dev/null 2>&1
+    local report_file="${EXPORT_DIR}/reports/data-migration-report.json"
+    
+    if [ -f "$report_file" ] && [ -s "$report_file" ]; then
+        # Validate JSON and count total exported events (inserts + updates + deletes) for the specified exporter_db
+        if jq empty "$report_file" 2>/dev/null; then
+            total_count=$(jq -r --arg exporter_db "$exporter_db" '
+                if type == "array" then
+                    map(select(.db_type == $exporter_db)) | 
+                    map(.exported_inserts + .exported_updates + .exported_deletes) | 
+                    add // 0
+                else
+                    0
+                end
+            ' "$report_file" 2>/dev/null || echo "0")
+        else
+            # Invalid JSON, return 0
+            total_count=0
+        fi
+    else
+        # Report file doesn't exist or is empty, return 0
+        total_count=0
+    fi
+    echo "$total_count"
+}
+
+# Wait until sufficient events from a specific exporter database are detected
 # which ensures that the exporter is capturing changes and cutover can be initiated safely
-# Usage: wait_for_exporter_event <exporter_role> [timeout_seconds]
-# Example roles:
-#   - source_db_exporter
-#   - target_db_exporter_ff
-#   - target_db_exporter_fb
+# Usage: wait_for_exporter_event <exporter_db> [timeout_seconds]
+# Supported exporter_db values:
+#   - source (for source database change events)
+#   - target (for target database change events in fall-forward/fall-back scenarios)
 wait_for_exporter_event() {
-    local exporter_role="$1"
+    local exporter_db="$1"
     local timeout_seconds="${2:-300}"
 
-    if [ -z "$exporter_role" ]; then
-        echo "wait_for_exporter_event: exporter_role is required"
+    if [ -z "$exporter_db" ]; then
+        echo "wait_for_exporter_event: exporter_db is required"
         return 1
     fi
-    local step_message="Wait for events from exporter_role=${exporter_role}"
+
+    # Try to get expected count from metadata file
+    local expected_count=$(get_expected_event_count "$exporter_db")
+    
+    local step_message="Wait for events from exporter_db=${exporter_db}"
+    if [ -n "$expected_count" ]; then
+        step_message="${step_message} (expecting ${expected_count} events)"
+    else
+        step_message="${step_message} (fallback: first event + 10s)"
+    fi
     step "$step_message"
 
     # Ensure we're in streaming mode (quick wait)
     wait_for_string_in_file "${EXPORT_DIR}/data/export_status.json" '"mode" : "STREAMING"' 30 "Wait for export to transition to STREAMING mode"
 
-    local queue_dir="${EXPORT_DIR}/data/queue"
     local start_time=$(date +%s)
 
     while true; do
@@ -662,39 +741,31 @@ wait_for_exporter_event() {
         local elapsed=$((current_time - start_time))
 
         if [ $elapsed -ge $timeout_seconds ]; then
-            echo "Timeout reached (${timeout_seconds}s). Proceeding without detecting ${exporter_role} events."
+            echo "Timeout reached (${timeout_seconds}s). Proceeding without detecting sufficient ${exporter_db} events."
             return 0
         fi
 
-        # Skip if queue directory doesn't exist
-        if [ ! -d "$queue_dir" ]; then
-            echo "Queue directory does not exist. Waiting for it to be created..."
-            sleep 3
-            continue
-        fi
-
-        # Check each segment file for events with the target exporter role (starting from the last)
-        for file in $(ls -v "$queue_dir"/segment.*.ndjson 2>/dev/null | tac); do
-            # Skip if file doesn't exist or is empty
-            if [ ! -f "$file" ] || [ ! -s "$file" ]; then
-                continue
+        # Count actual events using data-migration-report
+        local actual_count=$(count_exported_events "$exporter_db")
+        
+        if [ -n "$expected_count" ] && [ "$expected_count" -gt 0 ]; then
+            # Metadata-driven approach: wait for expected count
+            echo "Found ${actual_count}/${expected_count} expected ${exporter_db} events"
+            
+            if [ "$actual_count" -ge "$expected_count" ]; then
+                echo "Detected ${actual_count}/${expected_count} expected ${exporter_db} events. Proceeding."
+                return 0
             fi
-
-            # Check if file contains events with our expected exporter role
-            if grep -q "\"exporter_role\":\"${exporter_role}\"" "$file" 2>/dev/null; then
-                echo "Detected ${exporter_role} events in queue files."
-
-                # Additional wait to ensure more events are captured after first detection
-                # this is specially required for unique-key-conflicts-test fall-forward test during cutover from target to source-replica
-                # this might be a bug in voyager as normally expectation is once debezium starts capturing changes, it should capture all the changes even if cutover is triggered
-                # GHA failed runs: https://github.com/yugabyte/yb-voyager/actions/runs/17331419213/job/49208062992?pr=3001
-                echo "Waiting additional 10 seconds for event capture to complete..."
+        else
+            # Fallback approach: first event + 10 seconds
+            if [ "$actual_count" -gt 0 ]; then
+                echo "Detected ${actual_count} ${exporter_db} events. Waiting additional 10 seconds for event capture to complete (fallback mode)..."
                 sleep 10
                 return 0
             fi
-        done
+        fi
 
-        echo "Waiting for ${exporter_role} events to appear..."
+        echo "Waiting for ${exporter_db} events to appear..."
         sleep 3
     done
 }
