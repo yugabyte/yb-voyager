@@ -66,6 +66,10 @@ export-data:
   exclude-table-list-file-path: '{{ EXPORT_EX_TABLE_LIST_FILE_PATH }}'
   {% endif %}
 
+  {% if ENABLE_CLOB_EXPORT is defined and ENABLE_CLOB_EXPORT == "true" %}
+  allow-oracle-clob-data-export: true
+  {% endif %}
+
 import-data:
   enable-adaptive-parallelism: {% if RUN_WITHOUT_ADAPTIVE_PARALLELISM is defined and RUN_WITHOUT_ADAPTIVE_PARALLELISM == "true" %}false{% else %}true{% endif %}
   disable-pb: true
