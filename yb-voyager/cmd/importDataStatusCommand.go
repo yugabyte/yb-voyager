@@ -58,7 +58,7 @@ var importDataStatusCmd = &cobra.Command{
 			importerRole = IMPORT_FILE_ROLE
 		}
 
-		err = InitNameRegistry(exportDir, importerRole, nil, nil, nil, nil, false)
+		err = InitNameRegistry(exportDir, "", nil, nil, nil, nil, false)
 		if err != nil {
 			utils.ErrExit("initialize name registry: %w", err)
 		}

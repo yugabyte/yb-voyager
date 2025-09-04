@@ -162,7 +162,7 @@ func (handler *ImportDataStashAndContinueHandler) HandleRowProcessingError(row s
 
 // generateTableTaskBatchKey creates a unique key for identifying data by table, task, and batch
 func (handler *ImportDataStashAndContinueHandler) generateTableTaskBatchKey(tableName sqlname.NameTuple, taskFilePath string, batchNumber int64) string {
-	return fmt.Sprintf("%s-%s-%d", tableName.ForMinOutput(), ComputePathHash(taskFilePath), batchNumber)
+	return fmt.Sprintf("%s-%s-%d", tableName.ForKey(), ComputePathHash(taskFilePath), batchNumber)
 }
 
 // GetProcessingErrorCountSize extracts row count and byte count from existing processing error file names
@@ -310,7 +310,7 @@ func (handler *ImportDataStashAndContinueHandler) createBatchSymlinkInErrorsFold
 
 // <export-dir>/data/errors/table::<table-name>/file::<base-path>:<hash>/
 func (handler *ImportDataStashAndContinueHandler) getErrorsFolderPathForTableTask(tableName sqlname.NameTuple, taskFilePath string) string {
-	tableFolder := fmt.Sprintf("table::%s", tableName.ForMinOutput())
+	tableFolder := fmt.Sprintf("table::%s", tableName.ForKey())
 	// the entire path of the file can be long, so to make it shorter,
 	// we compute a hash of the file path and also include the base file name of the file.
 	taskFolder := fmt.Sprintf("file::%s:%s", filepath.Base(taskFilePath), ComputePathHash(taskFilePath))
