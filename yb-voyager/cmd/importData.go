@@ -443,7 +443,7 @@ func discoverFilesToImport() []*ImportFileTask {
 			// but pb hangs for empty so skipping empty tables in snapshot import
 			continue
 		}
-		tableName, err := namereg.NameReg.LookupTableNameAndIgnoreOtherSideMappingIfNotFound(fileEntry.TableName)
+		tableName, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFound(fileEntry.TableName)
 		if err != nil {
 			utils.ErrExit("lookup table name from name registry: %v", err)
 		}
@@ -1211,8 +1211,6 @@ func packAndSendImportDataToTargetPayload(status string, errorMsg error) {
 	if !shouldSendCallhome() {
 		return
 	}
-
-
 
 	//basic payload details
 	payload := createCallhomePayload()

@@ -193,7 +193,7 @@ func (reg *NameRegistry) GetRegisteredTableList(ignoreOtherSideOfMappingIfNotFou
 			}
 			tableName := fmt.Sprintf("%v.%v", s, t)
 			if ignoreOtherSideOfMappingIfNotFound {
-				tuple, err := reg.LookupTableNameAndIgnoreOtherSideMappingIfNotFound(tableName)
+				tuple, err := reg.LookupTableNameAndIgnoreIfTargetNotFound(tableName)
 				if err != nil {
 					return nil, fmt.Errorf("error lookup for the table name [%v]: %v", tableName, err)
 				}
@@ -317,12 +317,12 @@ func (reg *NameRegistry) LookupTableName(tableNameArg string) (sqlname.NameTuple
 //================================================
 
 /*
-this function hels returning the nametuple in case the tableNameArg is only present in target or source and not both,
+this function hels returning the nametuple in case the tableNameArg is only present in target,
 so this will return a nametuple with one side populated only
 In case both the source and target not present for the table this will return error.
 */
 
-func (reg *NameRegistry) LookupTableNameAndIgnoreOtherSideMappingIfNotFound(tableNameArg string) (sqlname.NameTuple, error) {
+func (reg *NameRegistry) LookupTableNameAndIgnoreIfTargetNotFound(tableNameArg string) (sqlname.NameTuple, error) {
 	sourceName, targetName, err := reg.lookupSourceAndTargetTableNames(tableNameArg, true, false)
 	if err != nil {
 		return sqlname.NameTuple{}, fmt.Errorf("error lookup source and target names for table [%v]: %v", tableNameArg, err)
@@ -330,6 +330,22 @@ func (reg *NameRegistry) LookupTableNameAndIgnoreOtherSideMappingIfNotFound(tabl
 	ntup := NewNameTuple(reg.params.Role, sourceName, targetName, true, false)
 	return ntup, nil
 }
+
+/*
+this function helps returning the nametuple in case the tableNameArg is only present in source,
+so this will return a nametuple with one side populated only
+In case both the source and target not present for the table this will return error.
+*/
+
+func (reg *NameRegistry) LookupTableNameAndIgnoreIfSourceNotFound(tableNameArg string) (sqlname.NameTuple, error) {
+	sourceName, targetName, err := reg.lookupSourceAndTargetTableNames(tableNameArg, false, true)
+	if err != nil {
+		return sqlname.NameTuple{}, fmt.Errorf("error lookup source and target names for table [%v]: %v", tableNameArg, err)
+	}
+	ntup := NewNameTuple(reg.params.Role, sourceName, targetName, false, true)
+	return ntup, nil
+}
+
 func (reg *NameRegistry) lookupSourceAndTargetTableNames(tableNameArg string, ignoreIfTargetNotFound bool, ignoreIfSourceNotFound bool) (*sqlname.ObjectName, *sqlname.ObjectName, error) {
 	createAllObjectNamesMap := func(m map[string][]string, m1 map[string][]string) map[string][]string {
 		if m == nil && m1 == nil {

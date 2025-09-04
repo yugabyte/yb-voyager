@@ -61,7 +61,7 @@ func buildNameTuple(reg *NameRegistry, sourceSchema, sourceTable, targetSchema, 
 	if targetSchema != "" && targetTable != "" {
 		targetName = sqlname.NewObjectName(constants.YUGABYTEDB, targetSchema, targetSchema, targetTable)
 	}
-	return NewNameTuple(reg.params.Role, sourceName, targetName)
+	return NewNameTuple(reg.params.Role, sourceName, targetName, false, false)
 }
 
 func TestNameTuple(t *testing.T) {
@@ -69,7 +69,7 @@ func TestNameTuple(t *testing.T) {
 	sourceName := sqlname.NewObjectName(constants.ORACLE, "SAKILA", "SAKILA", "TABLE1")
 	targetName := sqlname.NewObjectName(constants.YUGABYTEDB, "public", "public", "table1")
 
-	ntup := NewNameTuple(TARGET_DB_IMPORTER_ROLE, sourceName, targetName)
+	ntup := NewNameTuple(TARGET_DB_IMPORTER_ROLE, sourceName, targetName, false, false)
 
 	assert.Equal(ntup.CurrentName, ntup.TargetName)
 	assert.Equal(ntup.ForUserQuery(), `public."table1"`)
@@ -77,7 +77,7 @@ func TestNameTuple(t *testing.T) {
 	assert.Equal(schemaName, `public`)
 	assert.Equal(tableName, `table1`)
 
-	ntup = NewNameTuple(SOURCE_REPLICA_DB_IMPORTER_ROLE, sourceName, targetName)
+	ntup = NewNameTuple(SOURCE_REPLICA_DB_IMPORTER_ROLE, sourceName, targetName, false, false)
 
 	assert.Equal(ntup.CurrentName, ntup.SourceName)
 	assert.Equal(ntup.ForUserQuery(), `SAKILA."TABLE1"`)
@@ -85,10 +85,10 @@ func TestNameTuple(t *testing.T) {
 	assert.Equal(schemaName, `SAKILA`)
 	assert.Equal(tableName, `TABLE1`)
 
-	ntup = NewNameTuple(SOURCE_DB_EXPORTER_ROLE, sourceName, targetName)
+	ntup = NewNameTuple(SOURCE_DB_EXPORTER_ROLE, sourceName, targetName, false, false)
 	assert.Equal(ntup.CurrentName, ntup.SourceName)
 
-	ntup = NewNameTuple(TARGET_DB_EXPORTER_FF_ROLE, sourceName, targetName)
+	ntup = NewNameTuple(TARGET_DB_EXPORTER_FF_ROLE, sourceName, targetName, false, false)
 	assert.Equal(ntup.CurrentName, ntup.TargetName)
 }
 
@@ -96,7 +96,7 @@ func TestNameTupleMatchesPattern(t *testing.T) {
 	assert := assert.New(t)
 	sourceName := sqlname.NewObjectName(constants.ORACLE, "SAKILA", "SAKILA", "TABLE1")
 	targetName := sqlname.NewObjectName(constants.YUGABYTEDB, "public", "sakila", "table1")
-	ntup := NewNameTuple(TARGET_DB_IMPORTER_ROLE, sourceName, targetName)
+	ntup := NewNameTuple(TARGET_DB_IMPORTER_ROLE, sourceName, targetName, false, false)
 
 	testCases := []struct {
 		pattern string
@@ -132,7 +132,7 @@ func TestNameTupleMatchesPatternMySQL(t *testing.T) {
 	assert := assert.New(t)
 	sourceName := sqlname.NewObjectName(constants.MYSQL, "test", "test", "Table1")
 	targetName := sqlname.NewObjectName(constants.YUGABYTEDB, "public", "test", "table1")
-	ntup := NewNameTuple(TARGET_DB_IMPORTER_ROLE, sourceName, targetName)
+	ntup := NewNameTuple(TARGET_DB_IMPORTER_ROLE, sourceName, targetName, false, false)
 	testCases := []struct {
 		pattern string
 		match   bool
@@ -321,7 +321,7 @@ func TestNameRegistryFailedLookup(t *testing.T) {
 		SourceName:  sourceObj,
 		CurrentName: sourceObj,
 	}
-	tuple, err = reg.LookupTableNameAndIgnoreOtherSideMappingIfNotFound("SAKILA.TABLE3")
+	tuple, err = reg.LookupTableNameAndIgnoreIfTargetNotFound("SAKILA.TABLE3")
 	require.Nil(err)
 	assert.Equal(expectedTuple, tuple, "tableName: SAKILA.TABLE3")
 
@@ -335,7 +335,7 @@ func TestNameRegistryFailedLookup(t *testing.T) {
 		TargetName:  targetObj,
 		CurrentName: targetObj,
 	}
-	tuple, err = reg.LookupTableNameAndIgnoreOtherSideMappingIfNotFound("public.table123")
+	tuple, err = reg.LookupTableNameAndIgnoreIfSourceNotFound("public.table123")
 	require.Nil(err)
 	assert.Equal(expectedTuple, tuple, "tableName: public.table123")
 
