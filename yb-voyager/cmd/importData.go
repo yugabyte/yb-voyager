@@ -541,7 +541,7 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 			continue
 		}
 		table := task.TableNameTup
-		if !table.TargetTableAvailable() {
+		if !table.TargetTableAvailable() && !changeStreamingIsEnabled(importType) {
 			tablesNotPresentInTarget = append(tablesNotPresentInTarget, table)
 			continue
 		}
