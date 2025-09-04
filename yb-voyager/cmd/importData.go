@@ -548,10 +548,10 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 		result = append(result, task)
 	}
 	if len(tablesNotPresentInTarget) > 0 {
-		utils.PrintAndLog("Following tables are not present in the target database: %v", lo.Map(tablesNotPresentInTarget, func(t sqlname.NameTuple, _ int) string {
+		utils.PrintAndLog("Following tables are not present in the target database:\n%v", strings.Join(lo.Map(tablesNotPresentInTarget, func(t sqlname.NameTuple, _ int) string {
 			return t.ForKey()
-		}))
-		utils.ErrExit("Exclude these tables in table-list if you don't want to import them.")
+		}), ","))
+		utils.ErrExit("Exclude these tables in table-list flags if you don't want to import them.")
 	}
 	return result
 }
