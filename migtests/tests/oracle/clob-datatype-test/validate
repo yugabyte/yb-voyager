@@ -71,12 +71,20 @@ def migration_completed_checks(tgt):
 	tgt.assert_all_values_of_col("clob_test", "b_data", "public", expected_values=[None] * 8)
 	print("✓ NCLOB and BLOB correctly NULL (not exported)")
 
-	# Validate large CLOBs pattern (IDs 101-103) if they exist
-	print("Validating large CLOB content pattern...")
+	# Validate large CLOBs pattern and length (IDs 101-103) if they exist
+	print("Validating large CLOB content and length...")
+	expected_large_clob_size = 200 * 1024 * 1024  # 200MB
+	tolerance = 32768  # Allow 32KB tolerance for chunking variations
+	
 	for large_id in [101, 102, 103]:
 		if tgt.execute_query(f"SELECT COUNT(*) FROM public.clob_test WHERE id = {large_id}") > 0:
+			# Validate content pattern (first 100 characters)
 			sample_content = tgt.execute_query(f"SELECT LEFT(c_text, 100) FROM public.clob_test WHERE id = {large_id}")
 			assert sample_content == 'X' * 100, f"Large CLOB pattern mismatch for ID {large_id}"
+			
+			# Validate length (should be ~200MB)
+			clob_length = tgt.get_text_length("id", large_id, "c_text", "clob_test", "public")
+			assert abs(clob_length - expected_large_clob_size) <= tolerance, f"Large CLOB size mismatch for ID {large_id}. Expected ~{expected_large_clob_size}, got {clob_length}"
 	print("✓ Large CLOB validation passed")
 
 if __name__ == "__main__":
