@@ -158,6 +158,32 @@ func (tm *TableMetadata) GetUniqueConstraints() [][]string {
 	return uniqueConstraints
 }
 
+// GetUniqueColumnBasedIndexes returns unique indexes that are purely column-based (no expressions)
+// as a slice of column name slices. Returns empty slice if no such indexes exist.
+// This is used for PK recommendations since primary keys can only be defined on actual columns.
+func (tm *TableMetadata) GetUniqueColumnBasedIndexes() [][]string {
+	var uniqueIndexes [][]string
+	for _, index := range tm.Indexes {
+		if index.IsUnique {
+			// Extract column names from index parameters
+			var columns []string
+			hasExpression := false
+			for _, param := range index.Params {
+				if param.IsExpression {
+					hasExpression = true
+					break // If any parameter is an expression, skip this index
+				}
+				columns = append(columns, param.ColName)
+			}
+			// Only consider purely column-based unique indexes
+			if !hasExpression && len(columns) > 0 {
+				uniqueIndexes = append(uniqueIndexes, columns)
+			}
+		}
+	}
+	return uniqueIndexes
+}
+
 // GetPrimaryKeyConstraints returns all primary key constraints.
 // Returns empty slice if no primary key constraints exist.
 func (tm *TableMetadata) GetPrimaryKeyConstraints() []ConstraintMetadata {
@@ -1121,10 +1147,9 @@ func (p *ParserIssueDetector) detectTablePKRecommendations(tm *TableMetadata) []
 
 	// Collect all qualifying UNIQUE column sets where all columns are NOT NULL
 	var options [][]string
-	// Currently we only detect PK recommendations for UNIQUE constraints
-	// TODO: We should also consider UNIQUE INDEXES for PK recommendations
-	// https://yugabyte.atlassian.net/browse/DB-18078
-	for _, uniqueCols := range tm.GetUniqueConstraints() {
+
+	// Helper function to process unique column sets (from constraints or indexes)
+	processUniqueColumns := func(uniqueCols []string) {
 		// Check if all unique columns are NOT NULL
 		allNN := true
 		for _, col := range uniqueCols {
@@ -1140,7 +1165,7 @@ func (p *ParserIssueDetector) detectTablePKRecommendations(tm *TableMetadata) []
 			if isPartitioned {
 				missingPartitionCols, _ := lo.Difference(partitionColumns, uniqueCols)
 				if len(missingPartitionCols) > 0 {
-					continue
+					return
 				}
 			}
 
@@ -1153,8 +1178,23 @@ func (p *ParserIssueDetector) detectTablePKRecommendations(tm *TableMetadata) []
 		}
 	}
 
-	if len(options) > 0 {
-		issues = append(issues, NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", tm.GetObjectName(), options))
+	// Process UNIQUE constraints
+	for _, uniqueCols := range tm.GetUniqueConstraints() {
+		processUniqueColumns(uniqueCols)
+	}
+
+	// Process UNIQUE indexes (column-based only)
+	for _, uniqueCols := range tm.GetUniqueColumnBasedIndexes() {
+		processUniqueColumns(uniqueCols)
+	}
+
+	// Remove duplicates from options using lo.UniqBy
+	uniqueOptions := lo.UniqBy(options, func(option []string) string {
+		return strings.Join(option, ",")
+	})
+
+	if len(uniqueOptions) > 0 {
+		issues = append(issues, NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", tm.GetObjectName(), uniqueOptions))
 	}
 
 	return issues

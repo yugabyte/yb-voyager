@@ -500,6 +500,7 @@ func (indexProcessor *IndexProcessor) Process(parseTree *pg_query.ParseResult) (
 		IndexName:    indexNode.IndexStmt.Idxname,
 		TableName:    indexNode.IndexStmt.Relation.Relname,
 		AccessMethod: indexNode.IndexStmt.AccessMethod,
+		IsUnique:     indexNode.IndexStmt.Unique,
 		/*
 			e.g. CREATE INDEX idx on table_name(id) with (fillfactor='70');
 			index_stmt:{idxname:"idx" relation:{relname:"table_name" inh:true relpersistence:"p" location:21} access_method:"btree"
@@ -694,6 +695,7 @@ type Index struct {
 	IndexName             string
 	TableName             string
 	AccessMethod          string
+	IsUnique              bool
 	NumStorageOptions     int
 	Params                []IndexParam
 	WhereClausePredicates []WhereClausePredicate
