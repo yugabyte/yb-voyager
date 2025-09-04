@@ -535,15 +535,15 @@ func NewNameTuple(role string, sourceName *sqlname.ObjectName, targetName *sqlna
 	t := sqlname.NameTuple{SourceName: sourceName, TargetName: targetName}
 	switch role {
 	case TARGET_DB_IMPORTER_ROLE:
-		t.CurrentName = lo.Ternary(ignoreIfTargetNotFound, t.SourceName, t.TargetName)
+		t.CurrentName = t.TargetName
 	case SOURCE_DB_IMPORTER_ROLE:
-		t.CurrentName = lo.Ternary(ignoreIfSourceNotFound, t.TargetName, t.SourceName)
+		t.CurrentName = t.SourceName
 	case SOURCE_REPLICA_DB_IMPORTER_ROLE:
-		t.CurrentName = lo.Ternary(ignoreIfSourceNotFound, t.TargetName, t.SourceName)
+		t.CurrentName = t.SourceName
 	case SOURCE_DB_EXPORTER_ROLE, SOURCE_DB_EXPORTER_STATUS_ROLE:
-		t.CurrentName = lo.Ternary(ignoreIfSourceNotFound, t.TargetName, t.SourceName)
+		t.CurrentName = t.SourceName
 	case TARGET_DB_EXPORTER_FF_ROLE, TARGET_DB_EXPORTER_FB_ROLE:
-		t.CurrentName = lo.Ternary(ignoreIfTargetNotFound, t.SourceName, t.TargetName)
+		t.CurrentName = t.TargetName
 	case IMPORT_FILE_ROLE:
 		t.CurrentName = t.TargetName
 	default:
