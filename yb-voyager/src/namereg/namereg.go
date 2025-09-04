@@ -177,10 +177,12 @@ func (reg *NameRegistry) GetRegisteredTableList(ignoreOtherSideOfMappingIfNotFou
 	var res []sqlname.NameTuple
 	var m map[string][]string            // Complete list of tables and sequences
 	var sequencesMap map[string][]string // only sequence list
+	ignoreIfTargetNotFound := false
 	switch reg.params.Role {
 	case SOURCE_DB_EXPORTER_ROLE, SOURCE_DB_IMPORTER_ROLE, SOURCE_REPLICA_DB_IMPORTER_ROLE:
 		m = reg.SourceDBTableNames
 		sequencesMap = reg.SourceDBSequenceNames
+		ignoreIfTargetNotFound = true
 	case TARGET_DB_EXPORTER_FB_ROLE, TARGET_DB_EXPORTER_FF_ROLE, TARGET_DB_IMPORTER_ROLE:
 		m = reg.YBTableNames
 		sequencesMap = reg.YBSequenceNames
@@ -193,11 +195,19 @@ func (reg *NameRegistry) GetRegisteredTableList(ignoreOtherSideOfMappingIfNotFou
 			}
 			tableName := fmt.Sprintf("%v.%v", s, t)
 			if ignoreOtherSideOfMappingIfNotFound {
-				tuple, err := reg.LookupTableNameAndIgnoreIfTargetNotFound(tableName)
-				if err != nil {
-					return nil, fmt.Errorf("error lookup for the table name [%v]: %v", tableName, err)
+				if ignoreIfTargetNotFound {
+					tuple, err := reg.LookupTableNameAndIgnoreIfTargetNotFound(tableName)
+					if err != nil {
+						return nil, fmt.Errorf("error lookup for the table name [%v]: %v", tableName, err)
+					}
+					res = append(res, tuple)
+				} else {
+					tuple, err := reg.LookupTableNameAndIgnoreIfSourceNotFound(tableName)
+					if err != nil {
+						return nil, fmt.Errorf("error lookup for the table name [%v]: %v", tableName, err)
+					}
+					res = append(res, tuple)
 				}
-				res = append(res, tuple)
 			} else {
 				tuple, err := reg.LookupTableName(tableName)
 				if err != nil {
