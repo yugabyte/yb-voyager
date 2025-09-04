@@ -2402,15 +2402,16 @@ func TestPKRec_CommonRunner(t *testing.T) {
 		ddls     []string
 		expected []QueryIssue
 	}{
+		// ===== REGULAR TABLE TESTS =====
 		{
 			name:     "PKREC: Simple UNIQUE(a) with a NOT NULL, no PK",
 			ddls:     []string{`CREATE TABLE t1 (a int NOT NULL, b text, UNIQUE(a));`},
-			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "t1", [][]string{{"t1.a"}})},
+			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "public.t1", [][]string{{"public.t1.a"}})},
 		},
 		{
 			name:     "PKREC: Composite UNIQUE(a,b) both NOT NULL",
 			ddls:     []string{`CREATE TABLE t2 (a int NOT NULL, b text NOT NULL, c text, UNIQUE(a,b));`},
-			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "t2", [][]string{{"t2.a", "t2.b"}})},
+			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "public.t2", [][]string{{"public.t2.a", "public.t2.b"}})},
 		},
 		{
 			name: "PKREC: Multiple ALTER SET NOT NULL then UNIQUE(a,b)",
@@ -2420,7 +2421,7 @@ func TestPKRec_CommonRunner(t *testing.T) {
 				`ALTER TABLE t3 ALTER COLUMN b SET NOT NULL;`,
 				`ALTER TABLE t3 ADD CONSTRAINT uq_t3 UNIQUE (a,b);`,
 			},
-			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "t3", [][]string{{"t3.a", "t3.b"}})},
+			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "public.t3", [][]string{{"public.t3.a", "public.t3.b"}})},
 		},
 		{
 			name: "PKREC: DROP NOT NULL cancels composite UNIQUE(a,b)",
@@ -2441,7 +2442,7 @@ func TestPKRec_CommonRunner(t *testing.T) {
 		{
 			name:     "PKREC: Aggregate all qualifying UNIQUE sets",
 			ddls:     []string{`CREATE TABLE t6 (a int NOT NULL, b int NOT NULL, UNIQUE(a,b), UNIQUE(a));`},
-			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "t6", [][]string{{"t6.a"}, {"t6.a", "t6.b"}})},
+			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "public.t6", [][]string{{"public.t6.a"}, {"public.t6.a", "public.t6.b"}})},
 		},
 		{
 			name:     "PKREC: UNIQUE with nullable column -> no recommendation",
@@ -2452,6 +2453,186 @@ func TestPKRec_CommonRunner(t *testing.T) {
 			name:     "PKREC: UNIQUE on separate column when PK exists on different column",
 			ddls:     []string{`CREATE TABLE t8 (a int NOT NULL, b int NOT NULL, PRIMARY KEY(a), UNIQUE(b));`},
 			expected: nil,
+		},
+
+		// ===== PARTITIONED TABLE TESTS =====
+		{
+			name: "PKREC: Child partition table - no recommendation (skipped)",
+			ddls: []string{
+				`CREATE TABLE parent_partitioned (id int NOT NULL, region text NOT NULL, data text) PARTITION BY LIST (region);`,
+				`CREATE TABLE child_partition (id int NOT NULL, region text NOT NULL, data text, UNIQUE(id, region)) PARTITION OF parent_partitioned FOR VALUES IN ('US');`,
+			},
+			expected: nil,
+		},
+		{
+			name: "PKREC: Multi-level partitioning - only root gets PK recommendation",
+			ddls: []string{
+				`CREATE TABLE sales (id int NOT NULL, region text NOT NULL, year int NOT NULL, amount numeric, UNIQUE(id, region, year)) PARTITION BY RANGE (year);`,
+				`CREATE TABLE sales_2023 PARTITION OF sales FOR VALUES FROM (2023) TO (2024) PARTITION BY LIST (region);`,
+				`CREATE TABLE sales_2023_us PARTITION OF sales_2023 FOR VALUES IN ('US');`,
+				`CREATE TABLE sales_2024 PARTITION OF sales FOR VALUES FROM (2024) TO (2025) PARTITION BY LIST (region);`,
+				`CREATE TABLE sales_2024_eu PARTITION OF sales_2024 FOR VALUES IN ('EU');`,
+			},
+			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "public.sales", [][]string{{"public.sales.id", "public.sales.region", "public.sales.year"}})},
+		},
+
+		{
+			name: "PKREC: Root partitioned table with UNIQUE missing hierarchy partition columns - no recommendation",
+			ddls: []string{
+				`CREATE TABLE sales (id int NOT NULL, region text NOT NULL, year int NOT NULL, amount numeric, UNIQUE(id, year)) PARTITION BY RANGE (year);`,
+				`CREATE TABLE sales_2023 PARTITION OF sales FOR VALUES FROM (2023) TO (2024) PARTITION BY LIST (region);`,
+				`CREATE TABLE sales_2023_us PARTITION OF sales_2023 FOR VALUES IN ('US');`,
+			},
+			expected: nil, // No recommendation because UNIQUE(id, year) doesn't include 'region' from hierarchy
+		},
+		{
+			name: "PKREC: Root partitioned table with UNIQUE containing all hierarchy partition columns",
+			ddls: []string{
+				`CREATE TABLE sales (id int NOT NULL, region text NOT NULL, year int NOT NULL, amount numeric, UNIQUE(id, region, year)) PARTITION BY RANGE (year);`,
+				`CREATE TABLE sales_2023 PARTITION OF sales FOR VALUES FROM (2023) TO (2024) PARTITION BY LIST (region);`,
+				`CREATE TABLE sales_2023_us PARTITION OF sales_2023 FOR VALUES IN ('US');`,
+			},
+			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "public.sales", [][]string{{"public.sales.id", "public.sales.region", "public.sales.year"}})},
+		},
+		{
+			name: "PKREC: Root and mid-level both have qualifying UNIQUE constraints - only root gets recommendation",
+			ddls: []string{
+				`CREATE TABLE sales (id int NOT NULL, region text NOT NULL, year int NOT NULL, amount numeric, UNIQUE(id, region, year)) PARTITION BY RANGE (year);`,
+				`CREATE TABLE sales_2023 (id int NOT NULL, region text NOT NULL, year int NOT NULL, amount numeric, UNIQUE(id, region, year)) PARTITION OF sales FOR VALUES FROM (2023) TO (2024) PARTITION BY LIST (region);`,
+				`CREATE TABLE sales_2023_us PARTITION OF sales_2023 FOR VALUES IN ('US');`,
+			},
+			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "public.sales", [][]string{{"public.sales.id", "public.sales.region", "public.sales.year"}})},
+		},
+		{
+			name: "PKREC: Multiple mid-level tables with qualifying UNIQUE constraints - only root gets recommendation",
+			ddls: []string{
+				`CREATE TABLE sales (id int NOT NULL, region text NOT NULL, year int NOT NULL, amount numeric, UNIQUE(id, region, year)) PARTITION BY RANGE (year);`,
+				`CREATE TABLE sales_2023 (id int NOT NULL, region text NOT NULL, year int NOT NULL, amount numeric, UNIQUE(id, region, year)) PARTITION OF sales FOR VALUES FROM (2023) TO (2024) PARTITION BY LIST (region);`,
+				`CREATE TABLE sales_2024 (id int NOT NULL, region text NOT NULL, year int NOT NULL, amount numeric, UNIQUE(id, region, year)) PARTITION OF sales FOR VALUES FROM (2024) TO (2025) PARTITION BY LIST (region);`,
+				`CREATE TABLE sales_2023_us PARTITION OF sales_2023 FOR VALUES IN ('US');`,
+				`CREATE TABLE sales_2023_eu PARTITION OF sales_2023 FOR VALUES IN ('EU');`,
+				`CREATE TABLE sales_2024_us PARTITION OF sales_2024 FOR VALUES IN ('US');`,
+			},
+			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "public.sales", [][]string{{"public.sales.id", "public.sales.region", "public.sales.year"}})},
+		},
+		{
+			name: "PKREC: Root partitioned table with UNIQUE constraint including all partition columns - should not get recommendation",
+			ddls: []string{
+				`CREATE TABLE public.sales_with_mid_pk (id integer NOT NULL, sale_date date NOT NULL, region text NOT NULL, amount numeric, UNIQUE(id, sale_date, region)) PARTITION BY RANGE (sale_date);`,
+				`CREATE TABLE public.sales_with_mid_pk_2024 PARTITION OF public.sales_with_mid_pk FOR VALUES FROM ('2024-01-01') TO ('2025-01-01') PARTITION BY LIST (region);`,
+				`CREATE TABLE public.sales_with_mid_pk_2024_asia PARTITION OF public.sales_with_mid_pk_2024 FOR VALUES IN ('Asia');`,
+				`ALTER TABLE public.sales_with_mid_pk_2024 ADD CONSTRAINT sales_with_mid_pk_2024_pk PRIMARY KEY (id, region);`,
+			},
+			expected: nil,
+		},
+		// ===== UNIQUE INDEX TESTS =====
+		{
+			name:     "PKREC: Simple UNIQUE INDEX(a) with a NOT NULL, no PK",
+			ddls:     []string{`CREATE TABLE t_ui1 (a int NOT NULL, b text);`, `CREATE UNIQUE INDEX idx_ui1 ON t_ui1(a);`},
+			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "public.t_ui1", [][]string{{"public.t_ui1.a"}})},
+		},
+		{
+			name:     "PKREC: Composite UNIQUE INDEX(a,b) both NOT NULL",
+			ddls:     []string{`CREATE TABLE t_ui2 (a int NOT NULL, b text NOT NULL, c text);`, `CREATE UNIQUE INDEX idx_ui2 ON t_ui2(a,b);`},
+			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "public.t_ui2", [][]string{{"public.t_ui2.a", "public.t_ui2.b"}})},
+		},
+		{
+			name: "PKREC: Multiple ALTER SET NOT NULL then UNIQUE INDEX(a,b)",
+			ddls: []string{
+				`CREATE TABLE t_ui3 (a int, b int);`,
+				`ALTER TABLE t_ui3 ALTER COLUMN a SET NOT NULL;`,
+				`ALTER TABLE t_ui3 ALTER COLUMN b SET NOT NULL;`,
+				`CREATE UNIQUE INDEX idx_ui3 ON t_ui3(a,b);`,
+			},
+			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "public.t_ui3", [][]string{{"public.t_ui3.a", "public.t_ui3.b"}})},
+		},
+		{
+			name:     "PKREC: UNIQUE INDEX with nullable column -> no recommendation",
+			ddls:     []string{`CREATE TABLE t_ui4 (a int NOT NULL, b int);`, `CREATE UNIQUE INDEX idx_ui4 ON t_ui4(a,b);`},
+			expected: nil,
+		},
+		{
+			name:     "PKREC: No recommendation if PK exists with UNIQUE INDEX",
+			ddls:     []string{`CREATE TABLE t_ui5 (a int NOT NULL, PRIMARY KEY(a));`, `CREATE UNIQUE INDEX idx_ui5 ON t_ui5(a);`},
+			expected: nil,
+		},
+		{
+			name:     "PKREC: Aggregate all qualifying UNIQUE INDEX sets",
+			ddls:     []string{`CREATE TABLE t_ui6 (a int NOT NULL, b int NOT NULL);`, `CREATE UNIQUE INDEX idx_ui6_1 ON t_ui6(a,b);`, `CREATE UNIQUE INDEX idx_ui6_2 ON t_ui6(a);`},
+			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "public.t_ui6", [][]string{{"public.t_ui6.a"}, {"public.t_ui6.a", "public.t_ui6.b"}})},
+		},
+		// ===== MIXED UNIQUE CONSTRAINTS AND UNIQUE INDEXES TESTS =====
+		{
+			name:     "PKREC: Mix UNIQUE constraint and UNIQUE INDEX - both qualify",
+			ddls:     []string{`CREATE TABLE t_mix1 (a int NOT NULL, b int NOT NULL, UNIQUE(a));`, `CREATE UNIQUE INDEX idx_mix1 ON t_mix1(b);`},
+			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "public.t_mix1", [][]string{{"public.t_mix1.a"}, {"public.t_mix1.b"}})},
+		},
+		{
+			name:     "PKREC: Mix UNIQUE constraint and UNIQUE INDEX - composite and simple",
+			ddls:     []string{`CREATE TABLE t_mix2 (a int NOT NULL, b int NOT NULL, c int NOT NULL, UNIQUE(a,b));`, `CREATE UNIQUE INDEX idx_mix2 ON t_mix2(c);`},
+			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "public.t_mix2", [][]string{{"public.t_mix2.a", "public.t_mix2.b"}, {"public.t_mix2.c"}})},
+		},
+		{
+			name:     "PKREC: Mix UNIQUE constraint and UNIQUE INDEX - some nullable",
+			ddls:     []string{`CREATE TABLE t_mix3 (a int NOT NULL, b int, c int NOT NULL, UNIQUE(a,b));`, `CREATE UNIQUE INDEX idx_mix3 ON t_mix3(c);`},
+			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "public.t_mix3", [][]string{{"public.t_mix3.c"}})},
+		},
+		{
+			name:     "PKREC: Mix UNIQUE constraint and UNIQUE INDEX - same columns (should deduplicate)",
+			ddls:     []string{`CREATE TABLE t_mix4 (a int NOT NULL, b int NOT NULL, UNIQUE(a,b));`, `CREATE UNIQUE INDEX idx_mix4 ON t_mix4(a,b);`},
+			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "public.t_mix4", [][]string{{"public.t_mix4.a", "public.t_mix4.b"}})},
+		},
+		// ===== PARTITIONED TABLE WITH UNIQUE INDEX TESTS =====
+		{
+			name: "PKREC: Root partitioned table with UNIQUE INDEX including all partition columns",
+			ddls: []string{
+				`CREATE TABLE sales_ui (id int NOT NULL, region text NOT NULL, year int NOT NULL, amount numeric) PARTITION BY RANGE (year);`,
+				`CREATE UNIQUE INDEX idx_sales_ui ON sales_ui(id, region, year);`,
+				`CREATE TABLE sales_ui_2023 PARTITION OF sales_ui FOR VALUES FROM (2023) TO (2024) PARTITION BY LIST (region);`,
+				`CREATE TABLE sales_ui_2023_us PARTITION OF sales_ui_2023 FOR VALUES IN ('US');`,
+			},
+			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "public.sales_ui", [][]string{{"public.sales_ui.id", "public.sales_ui.region", "public.sales_ui.year"}})},
+		},
+		{
+			name: "PKREC: Root partitioned table with UNIQUE INDEX missing partition columns - no recommendation",
+			ddls: []string{
+				`CREATE TABLE sales_ui2 (id int NOT NULL, region text NOT NULL, year int NOT NULL, amount numeric) PARTITION BY RANGE (year);`,
+				`CREATE UNIQUE INDEX idx_sales_ui2 ON sales_ui2(id, year);`,
+				`CREATE TABLE sales_ui2_2023 PARTITION OF sales_ui2 FOR VALUES FROM (2023) TO (2024) PARTITION BY LIST (region);`,
+				`CREATE TABLE sales_ui2_2023_us PARTITION OF sales_ui2_2023 FOR VALUES IN ('US');`,
+			},
+			expected: nil,
+		},
+		{
+			name: "PKREC: Expression-based UNIQUE INDEX should be excluded from PK recommendations",
+			ddls: []string{
+				`CREATE TABLE public.users (id integer NOT NULL, email text NOT NULL, name text NOT NULL);`,
+				`CREATE UNIQUE INDEX idx_users_email_upper ON public.users ((UPPER(email)));`, // Expression-based unique index
+				`CREATE UNIQUE INDEX idx_users_name_lower ON public.users ((LOWER(name)));`,   // Another expression-based unique index
+			},
+			expected: nil, // Should not get PK recommendation because expression-based indexes cannot be used as PKs
+		},
+		{
+			name: "PKREC: Mixed column and expression UNIQUE INDEX should be excluded from PK recommendations",
+			ddls: []string{
+				`CREATE TABLE public.orders (id integer NOT NULL, customer_id integer NOT NULL, order_date date NOT NULL, status text NOT NULL);`,
+				`CREATE UNIQUE INDEX idx_orders_mixed ON public.orders (id, (customer_id + 1000), order_date);`, // Mixed column and expression
+			},
+			expected: nil, // Should not get PK recommendation because mixed indexes cannot be used as PKs
+		},
+		{
+			name: "PKREC: Pure column-based UNIQUE INDEX should be considered for PK recommendations",
+			ddls: []string{
+				`CREATE TABLE public.products (id integer NOT NULL, sku text NOT NULL, name text NOT NULL);`,
+				`CREATE UNIQUE INDEX idx_products_sku ON public.products (sku);`,          // Pure column-based unique index
+				`CREATE UNIQUE INDEX idx_products_id_name ON public.products (id, name);`, // Another pure column-based unique index
+			},
+			expected: []QueryIssue{
+				NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "public.products", [][]string{
+					{"public.products.sku"},
+					{"public.products.id", "public.products.name"},
+				}),
+			},
 		},
 	}
 
