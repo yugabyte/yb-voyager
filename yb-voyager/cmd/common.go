@@ -392,7 +392,7 @@ func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFile
 		dbType = "target"
 	}
 
-	snapshotRowCount, err := getImportedSnapshotRowsMap(dbType)
+	snapshotRowCount, err := getImportedSnapshotRowsMap(dbType, tableList)
 	if err != nil {
 		utils.ErrExit("failed to get imported snapshot rows map: %v", err)
 	}
@@ -1062,7 +1062,7 @@ func getExportedSnapshotRowsMap(exportSnapshotStatus *ExportSnapshotStatus) (*ut
 	return snapshotRowsMap, snapshotStatusMap, nil
 }
 
-func getImportedSnapshotRowsMap(dbType string) (*utils.StructMap[sqlname.NameTuple, RowCountPair], error) {
+func getImportedSnapshotRowsMap(dbType string, tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, RowCountPair], error) {
 	switch dbType {
 	case "target":
 		importerRole = TARGET_DB_IMPORTER_ROLE
@@ -1090,6 +1090,11 @@ func getImportedSnapshotRowsMap(dbType string) (*utils.StructMap[sqlname.NameTup
 	nameTupleTodataFilesMap := utils.NewStructMap[sqlname.NameTuple, []string]()
 	if snapshotDataFileDescriptor != nil {
 		for _, fileEntry := range snapshotDataFileDescriptor.DataFileList {
+			if !lo.ContainsBy(tableList, func(t sqlname.NameTuple) bool {
+				return t.ForKey() == fileEntry.TableName
+			}) {
+				continue
+			}
 			nt, err := namereg.NameReg.LookupTableName(fileEntry.TableName)
 			if err != nil {
 				return nil, fmt.Errorf("lookup table name from data file descriptor %s : %v", fileEntry.TableName, err)

@@ -210,6 +210,19 @@ func (reg *NameRegistry) GetRegisteredTableList(ignoreOtherSideOfMappingIfNotFou
 	return res, nil
 }
 
+/*
+
+a
+b
+c
+
+export data first run --table-list a,b
+name reg a, b, c
+
+c is not created
+
+*/
+
 func (reg *NameRegistry) initSourceDBSchemaNames() {
 	// source.Schema contains only one schema name for MySQL and Oracle; whereas
 	// it contains a pipe separated list for postgres.
@@ -293,11 +306,11 @@ schema1.foobar, schema1."foobar", schema1.FooBar, schema1."FooBar", schema1.FOOB
 */
 //TODO: have a separate function for Sequence lookup LookupSequenceName
 func (reg *NameRegistry) LookupTableName(tableNameArg string) (sqlname.NameTuple, error) {
-	sourceName, targetName, err := reg.lookupSourceAndTargetTableNames(tableNameArg, false)
+	sourceName, targetName, err := reg.lookupSourceAndTargetTableNames(tableNameArg, false, false)
 	if err != nil {
 		return sqlname.NameTuple{}, err
 	}
-	ntup := NewNameTuple(reg.params.Role, sourceName, targetName)
+	ntup := NewNameTuple(reg.params.Role, sourceName, targetName, false, false)
 	return ntup, nil
 }
 
@@ -310,14 +323,14 @@ In case both the source and target not present for the table this will return er
 */
 
 func (reg *NameRegistry) LookupTableNameAndIgnoreOtherSideMappingIfNotFound(tableNameArg string) (sqlname.NameTuple, error) {
-	sourceName, targetName, err := reg.lookupSourceAndTargetTableNames(tableNameArg, true)
+	sourceName, targetName, err := reg.lookupSourceAndTargetTableNames(tableNameArg, true, false)
 	if err != nil {
 		return sqlname.NameTuple{}, fmt.Errorf("error lookup source and target names for table [%v]: %v", tableNameArg, err)
 	}
-	ntup := NewNameTuple(reg.params.Role, sourceName, targetName)
+	ntup := NewNameTuple(reg.params.Role, sourceName, targetName, true, false)
 	return ntup, nil
 }
-func (reg *NameRegistry) lookupSourceAndTargetTableNames(tableNameArg string, ignoreIfOtherSideMappingNotFound bool) (*sqlname.ObjectName, *sqlname.ObjectName, error) {
+func (reg *NameRegistry) lookupSourceAndTargetTableNames(tableNameArg string, ignoreIfTargetNotFound bool, ignoreIfSourceNotFound bool) (*sqlname.ObjectName, *sqlname.ObjectName, error) {
 	createAllObjectNamesMap := func(m map[string][]string, m1 map[string][]string) map[string][]string {
 		if m == nil && m1 == nil {
 			return nil
@@ -390,7 +403,8 @@ func (reg *NameRegistry) lookupSourceAndTargetTableNames(tableNameArg string, ig
 			}
 			if err != nil {
 				errNotFound := &ErrNameNotFound{}
-				if ignoreIfOtherSideMappingNotFound && errors.As(err, &errNotFound) {
+				if ignoreIfSourceNotFound && errors.As(err, &errNotFound) {
+
 					log.Debugf("lookup source table name [%s.%s]: %v", schemaName, tableName, err)
 				} else {
 					// `err` can be: no default schema, no matching name, multiple matching names.
@@ -413,7 +427,7 @@ func (reg *NameRegistry) lookupSourceAndTargetTableNames(tableNameArg string, ig
 			}
 			if err != nil {
 				errNotFound := &ErrNameNotFound{}
-				if ignoreIfOtherSideMappingNotFound && errors.As(err, &errNotFound) {
+				if ignoreIfTargetNotFound && errors.As(err, &errNotFound) {
 					log.Debugf("lookup target table name [%s]: %v", tableNameArg, err)
 				} else {
 					// `err` can be: no default schema, no matching name, multiple matching names.
@@ -491,19 +505,19 @@ func matchName(objType string, names []string, name string) (string, error) {
 	return "", &ErrNameNotFound{ObjectType: objType, Name: name}
 }
 
-func NewNameTuple(role string, sourceName *sqlname.ObjectName, targetName *sqlname.ObjectName) sqlname.NameTuple {
+func NewNameTuple(role string, sourceName *sqlname.ObjectName, targetName *sqlname.ObjectName, ignoreIfTargetNotFound bool, ignoreIfSourceNotFound bool) sqlname.NameTuple {
 	t := sqlname.NameTuple{SourceName: sourceName, TargetName: targetName}
 	switch role {
 	case TARGET_DB_IMPORTER_ROLE:
-		t.CurrentName = t.TargetName
+		t.CurrentName = lo.Ternary(ignoreIfTargetNotFound, t.SourceName, t.TargetName)
 	case SOURCE_DB_IMPORTER_ROLE:
-		t.CurrentName = t.SourceName
+		t.CurrentName = lo.Ternary(ignoreIfSourceNotFound, t.TargetName, t.SourceName)
 	case SOURCE_REPLICA_DB_IMPORTER_ROLE:
-		t.CurrentName = t.SourceName
+		t.CurrentName = lo.Ternary(ignoreIfSourceNotFound, t.TargetName, t.SourceName)
 	case SOURCE_DB_EXPORTER_ROLE, SOURCE_DB_EXPORTER_STATUS_ROLE:
-		t.CurrentName = t.SourceName
+		t.CurrentName = lo.Ternary(ignoreIfSourceNotFound, t.TargetName, t.SourceName)
 	case TARGET_DB_EXPORTER_FF_ROLE, TARGET_DB_EXPORTER_FB_ROLE:
-		t.CurrentName = t.TargetName
+		t.CurrentName = lo.Ternary(ignoreIfTargetNotFound, t.SourceName, t.TargetName)
 	case IMPORT_FILE_ROLE:
 		t.CurrentName = t.TargetName
 	default:

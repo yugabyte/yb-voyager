@@ -1157,7 +1157,7 @@ func TestExportAndImportDataSnapshotReport(t *testing.T) {
 	if err := postgresContainer.Start(ctx); err != nil {
 		t.Fatalf("Failed to start Postgres container: %v", err)
 	}
-	
+
 	setupYugabyteTestDb(t)
 
 	// Create table in the default public schema in Postgres and YugabyteDB.
@@ -1198,7 +1198,15 @@ func TestExportAndImportDataSnapshotReport(t *testing.T) {
 	}
 	err = InitNameRegistry(exportDir, TARGET_DB_IMPORTER_ROLE, nil, nil, &testYugabyteDBTarget.Tconf, yb, false)
 	testutils.FatalIfError(t, err, "Failed to initialize name registry")
-	snapshotRowsMap, err := getImportedSnapshotRowsMap("target")
+
+	tableList := []sqlname.NameTuple{
+		sqlname.NameTuple{
+			SourceName:  sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "public.test_data"),
+			CurrentName: sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "public.test_data"),
+		},
+	}
+
+	snapshotRowsMap, err := getImportedSnapshotRowsMap("target", tableList)
 	if err != nil {
 		t.Fatalf("Failed to get imported snapshot rows map: %v", err)
 	}
@@ -1311,7 +1319,15 @@ func TestExportAndImportDataSnapshotReport_ErrorPolicyStashAndContinue(t *testin
 	}
 	err = InitNameRegistry(exportDir, TARGET_DB_IMPORTER_ROLE, nil, nil, &testYugabyteDBTarget.Tconf, yb, false)
 	testutils.FatalIfError(t, err, "Failed to initialize name registry")
-	snapshotRowsMap, err := getImportedSnapshotRowsMap("target")
+
+	tableList := []sqlname.NameTuple{
+		sqlname.NameTuple{
+			SourceName:  sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "public.test_data"),
+			CurrentName: sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "public.test_data"),
+		},
+	}
+	
+	snapshotRowsMap, err := getImportedSnapshotRowsMap("target", tableList)
 	if err != nil {
 		t.Fatalf("Failed to get imported snapshot rows map: %v", err)
 	}

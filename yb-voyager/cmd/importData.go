@@ -76,6 +76,7 @@ var skipNodeHealthChecks utils.BoolStr
 var skipDiskUsageHealthChecks utils.BoolStr
 var progressReporter *ImportDataProgressReporter
 var callhomeMetricsCollector *callhome.ImportDataMetricsCollector
+var importTableList []sqlname.NameTuple
 
 // Error policy
 var errorPolicySnapshotFlag importdata.ErrorPolicy = importdata.AbortErrorPolicy
@@ -442,7 +443,7 @@ func discoverFilesToImport() []*ImportFileTask {
 			// but pb hangs for empty so skipping empty tables in snapshot import
 			continue
 		}
-		tableName, err := namereg.NameReg.LookupTableName(fileEntry.TableName)
+		tableName, err := namereg.NameReg.LookupTableNameAndIgnoreOtherSideMappingIfNotFound(fileEntry.TableName)
 		if err != nil {
 			utils.ErrExit("lookup table name from name registry: %v", err)
 		}
@@ -528,6 +529,8 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 		utils.ErrExit("Please fix the table names in table-list and retry.")
 	}
 
+	tablesNotPresentInTarget := []sqlname.NameTuple{}
+
 	for _, task := range importFileTasks {
 		if len(includeList) > 0 && !slices.Contains(includeList, task.TableNameTup) {
 			log.Infof("Skipping table %q (fileName: %s) as it is not in the include list", task.TableNameTup, task.FilePath)
@@ -537,7 +540,18 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 			log.Infof("Skipping table %q (fileName: %s) as it is in the exclude list", task.TableNameTup, task.FilePath)
 			continue
 		}
+		table := task.TableNameTup
+		if !table.TargetTableAvailable() {
+			tablesNotPresentInTarget = append(tablesNotPresentInTarget, table)
+			continue
+		}
 		result = append(result, task)
+	}
+	if len(tablesNotPresentInTarget) > 0 {
+		utils.PrintAndLog("Following tables are not present in the target database: %v", lo.Map(tablesNotPresentInTarget, func(t sqlname.NameTuple, _ int) string {
+			return t.ForKey()
+		}))
+		utils.ErrExit("Exclude these tables in table-list if you don't want to import them.")
 	}
 	return result
 }
@@ -670,15 +684,16 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 
 	//TODO: BUG: we are applying table-list filter on importFileTasks, but here we are considering all tables as per
 	// export-data table-list. Should be fine because we are only disabling and re-enabling, but this is still not ideal.
-	sourceTableList := msr.TableListExportedFromSource
+	// sourceTableList := msr.TableListExportedFromSource
 	if msr.SourceDBConf != nil {
 		source = *msr.SourceDBConf
 	}
-	importTableList, err := getImportTableList(sourceTableList)
-	if err != nil {
-		utils.ErrExit("Error generating table list to import: %v", err)
-	}
+	// importTableList, err := getImportTableList(sourceTableList)
+	// if err != nil {
+	// 	utils.ErrExit("Error generating table list to import: %v", err)
+	// }
 
+	importTableList = importFileTasksToTableNameTuples(importFileTasks)
 	err = fetchAndStoreGeneratedAlwaysIdentityColumnsInMetadb(importTableList)
 	if err != nil {
 		utils.ErrExit("error fetching or storing the generated always identity columns: %v", err)
@@ -1196,6 +1211,9 @@ func packAndSendImportDataToTargetPayload(status string, errorMsg error) {
 	if !shouldSendCallhome() {
 		return
 	}
+
+
+
 	//basic payload details
 	payload := createCallhomePayload()
 	switch importType {
@@ -1214,7 +1232,7 @@ func packAndSendImportDataToTargetPayload(status string, errorMsg error) {
 	}
 
 	// Get phase-related metrics from existing logic
-	importRowsMap, err := getImportedSnapshotRowsMap("target")
+	importRowsMap, err := getImportedSnapshotRowsMap("target", importTableList)
 	if err != nil {
 		log.Infof("callhome: error in getting the import data: %v", err)
 	} else {
@@ -1530,7 +1548,7 @@ func getTargetSchemaName(tableName string) string {
 func prepareTableToColumns(tasks []*ImportFileTask) {
 	for _, task := range tasks {
 		var columns []string
-		dfdTableToExportedColumns := getDfdTableNameToExportedColumns(dataFileDescriptor)
+		dfdTableToExportedColumns := getDfdTableNameToExportedColumns(tasks, dataFileDescriptor)
 		if dfdTableToExportedColumns != nil {
 			columns, _ = dfdTableToExportedColumns.Get(task.TableNameTup)
 		} else if dataFileDescriptor.HasHeader {
@@ -1553,18 +1571,19 @@ func prepareTableToColumns(tasks []*ImportFileTask) {
 	}
 }
 
-func getDfdTableNameToExportedColumns(dataFileDescriptor *datafile.Descriptor) *utils.StructMap[sqlname.NameTuple, []string] {
+func getDfdTableNameToExportedColumns(tasks []*ImportFileTask, dataFileDescriptor *datafile.Descriptor) *utils.StructMap[sqlname.NameTuple, []string] {
 	if dataFileDescriptor.TableNameToExportedColumns == nil {
 		return nil
 	}
 
 	result := utils.NewStructMap[sqlname.NameTuple, []string]()
-	for tableNameRaw, columnList := range dataFileDescriptor.TableNameToExportedColumns {
-		nt, err := namereg.NameReg.LookupTableName(tableNameRaw)
-		if err != nil {
-			utils.ErrExit("lookup table in name registry: %q: %v", tableNameRaw, err)
+	for _, task := range tasks {
+		columnList, ok := dataFileDescriptor.TableNameToExportedColumns[task.TableNameTup.ForKey()]
+		if ok {
+			result.Put(task.TableNameTup, columnList)
+		} else {
+			utils.ErrExit("table %q not found in data file descriptor", task.TableNameTup.ForKey())
 		}
-		result.Put(nt, columnList)
 	}
 	return result
 }

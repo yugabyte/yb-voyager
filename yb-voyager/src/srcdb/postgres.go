@@ -460,7 +460,7 @@ func (pg *PostgreSQL) getExportedColumnsMap(
 		if tableMetadata.IsPartition {
 			rootTable = tableMetadata.ParentTable
 		}
-		result[rootTable.ForMinOutput()] = pg.getExportedColumnsListForTable(exportDir, rootTable)
+		result[rootTable.ForKey()] = pg.getExportedColumnsListForTable(exportDir, rootTable)
 	}
 	return result
 }
