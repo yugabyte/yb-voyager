@@ -46,36 +46,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-maven-
 
-      - name: Cache APT packages
-        uses: actions/cache@v4
-        with:
-          path: /var/cache/apt/archives
-          key: ${{ runner.os }}-apt-cache-${{ hashFiles('.github/workflows/misc-migtests.yml') }}
-          restore-keys: |
-            ${{ runner.os }}-apt-cache-
-
-      - name: Cache Go modules
-        uses: actions/cache@v4
-        with:
-          path: ~/go/pkg/mod
-          key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum', '**/go.mod') }}
-          restore-keys: |
-            ${{ runner.os }}-go-mod-
-      
-      # Note: We do NOT cache ~/.cache/go-build because:
-      # 1. The voyager binary is built from current source via --install-from-local-source
-      # 2. Build cache could contain stale compiled objects from previous commits
-      # 3. This would cause tests to run against old voyager binary instead of current changes
-      # 4. Module cache (go.mod/go.sum) is safe to cache as it only contains downloaded dependencies
-
-      - name: Cache Python pip packages
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
-
       - name: "Enable postgres with pg_stat_statements, pglogical loaded via shared_preload_libraries and install pg extensions"
         run: |
           docker exec ${{ job.services.postgres.id }} sh -c "
@@ -106,10 +76,6 @@ jobs:
 
       - name: Run installer script to setup voyager
         run: |
-          # Clear Go build cache to ensure fresh compilation from current source
-          # (but keep module cache which is safely cached based on go.sum)
-          go clean -cache || true
-
           cd installer_scripts
           yes | ./install-yb-voyager --install-from-local-source --only-pg-support
           # Since pg_dump/restore 17 is required, we need to remove the symlink to the old PG 14 binary(default)

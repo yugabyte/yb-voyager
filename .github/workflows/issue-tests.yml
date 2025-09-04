@@ -27,20 +27,6 @@ jobs:
       with:
         go-version: "1.23.1"
 
-    - name: Cache Go modules
-      uses: actions/cache@v4
-      with:
-        path: ~/go/pkg/mod
-        key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum', '**/go.mod') }}
-        restore-keys: |
-          ${{ runner.os }}-go-mod-
-    
-    # Note: We do NOT cache ~/.cache/go-build because:
-    # 1. The voyager binary is built from current source in tests
-    # 2. Build cache could contain stale compiled objects from previous commits
-    # 3. This would cause tests to run against old voyager binary instead of current changes
-    # 4. Module cache (go.mod/go.sum) is safe to cache as it only contains downloaded dependencies
-
     - name: Setup YugabyteDB
       run: |
         # Note: Update val for LATEST_STABLE here along with 'src/ybversion/constants.go/LATEST_STABLE' variable
