@@ -1322,7 +1322,7 @@
 		},
 		{
 			"Type": "ColocatedShardedNotes",
-			"Text": "For sharding/colocation recommendations, each partition is treated individually. During the export schema phase, all the partitions of a partitioned table are currently created as colocated by default.\nTo manually modify the schema, please refer: \u003ca class=\"highlight-link\" href=\"https://github.com/yugabyte/yb-voyager/issues/1581\"\u003ehttps://github.com/yugabyte/yb-voyager/issues/1581\u003c/a\u003e."
+			"Text": "For sharding/colocation recommendations, each partition is treated individually. During the export schema phase, all the partitions of a partitioned table are currently created as colocated by default.\nTo manually modify the schema, please refer: https://github.com/yugabyte/yb-voyager/issues/1581."
 		},
 		{
 			"Type": "SizingNotes",
@@ -1330,7 +1330,7 @@
 		},
 		{
 			"Type": "GeneralNotes",
-			"Text": "There are some BITMAP indexes present in the schema that will get converted to GIN indexes, but GIN indexes are partially supported in YugabyteDB as mentioned in \u003ca class=\"highlight-link\" href=\"https://github.com/yugabyte/yugabyte-db/issues/7850\"\u003ehttps://github.com/yugabyte/yugabyte-db/issues/7850\u003c/a\u003e so take a look and modify them if not supported."
+			"Text": "There are some BITMAP indexes present in the schema that will get converted to GIN indexes, but GIN indexes are partially supported in YugabyteDB as mentioned in https://github.com/yugabyte/yugabyte-db/issues/7850 so take a look and modify them if not supported."
 		}
 	]
 }

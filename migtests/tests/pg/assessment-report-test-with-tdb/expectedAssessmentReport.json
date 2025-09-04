@@ -4249,7 +4249,7 @@
 		},
 		{
 			"Type": "GeneralNotes",
-			"Text": "\u003ca class=\"highlight-link\" target=\"_blank\"  href=\"https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/#assessment-and-schema-analysis-limitations\"\u003eLimitations in assessment\u003c/a\u003e"
+			"Text": "Limitations in assessment (https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/#assessment-and-schema-analysis-limitations)"
 		}
 	]
 }
