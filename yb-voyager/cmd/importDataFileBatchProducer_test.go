@@ -413,7 +413,8 @@ func TestFileBatchProducer_StashAndContinue_ConversionError(t *testing.T) {
 	assert.Equal(t, int64(0), (batch.Number))
 	assert.Equal(t, true, batchproducer.Done())
 
-	assertProcessingErrorFileContains(t, lexportDir, task,
+	assertProcessingErrorBatchFileContains(t, lexportDir, task,
+		1, 2, 21,
 		"ERROR: transforming line number=1",
 		"mock conversion error",
 		"ROW: 1, \"hello\"",
@@ -719,6 +720,23 @@ func assertProcessingErrorFileContains(t *testing.T, lexportDir string, task *Im
 	taskFolderPath := fmt.Sprintf("file::%s:%s", filepath.Base(task.FilePath), importdata.ComputePathHash(task.FilePath))
 	tableFolderPath := fmt.Sprintf("table::%s", task.TableNameTup.ForMinOutput())
 	errorsFilePath := filepath.Join(getErrorsParentDir(lexportDir), "errors", tableFolderPath, taskFolderPath, "processing-errors.log")
+	assert.FileExists(t, errorsFilePath)
+	errorFileContentsBytes, err := os.ReadFile(errorsFilePath)
+	assert.NoError(t, err)
+	errorFileContents := string(errorFileContentsBytes)
+	for _, substr := range expectedSubstrings {
+		assert.Contains(t, errorFileContents, substr)
+	}
+}
+
+// assertProcessingErrorFileContains asserts that the error log file for a given task and table contains all the expected substrings.
+func assertProcessingErrorBatchFileContains(t *testing.T, lexportDir string, task *ImportFileTask,
+	batchNumber int64, expectedRowCount int64, expectedByteCount int64,
+	expectedSubstrings ...string) {
+	taskFolderPath := fmt.Sprintf("file::%s:%s", filepath.Base(task.FilePath), importdata.ComputePathHash(task.FilePath))
+	tableFolderPath := fmt.Sprintf("table::%s", task.TableNameTup.ForKey())
+	errorFileName := fmt.Sprintf("processing-errors.%d.%d.%d.log", batchNumber, expectedRowCount, expectedByteCount)
+	errorsFilePath := filepath.Join(getErrorsParentDir(lexportDir), "errors", tableFolderPath, taskFolderPath, errorFileName)
 	assert.FileExists(t, errorsFilePath)
 	errorFileContentsBytes, err := os.ReadFile(errorsFilePath)
 	assert.NoError(t, err)
