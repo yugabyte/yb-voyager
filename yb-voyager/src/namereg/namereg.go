@@ -320,7 +320,7 @@ func (reg *NameRegistry) LookupTableName(tableNameArg string) (sqlname.NameTuple
 	if err != nil {
 		return sqlname.NameTuple{}, err
 	}
-	ntup := NewNameTuple(reg.params.Role, sourceName, targetName, false, false)
+	ntup := NewNameTuple(reg.params.Role, sourceName, targetName)
 	return ntup, nil
 }
 
@@ -337,7 +337,7 @@ func (reg *NameRegistry) LookupTableNameAndIgnoreIfTargetNotFound(tableNameArg s
 	if err != nil {
 		return sqlname.NameTuple{}, fmt.Errorf("error lookup source and target names for table [%v]: %v", tableNameArg, err)
 	}
-	ntup := NewNameTuple(reg.params.Role, sourceName, targetName, true, false)
+	ntup := NewNameTuple(reg.params.Role, sourceName, targetName)
 	return ntup, nil
 }
 
@@ -352,7 +352,7 @@ func (reg *NameRegistry) LookupTableNameAndIgnoreIfSourceNotFound(tableNameArg s
 	if err != nil {
 		return sqlname.NameTuple{}, fmt.Errorf("error lookup source and target names for table [%v]: %v", tableNameArg, err)
 	}
-	ntup := NewNameTuple(reg.params.Role, sourceName, targetName, false, true)
+	ntup := NewNameTuple(reg.params.Role, sourceName, targetName)
 	return ntup, nil
 }
 
@@ -531,7 +531,7 @@ func matchName(objType string, names []string, name string) (string, error) {
 	return "", &ErrNameNotFound{ObjectType: objType, Name: name}
 }
 
-func NewNameTuple(role string, sourceName *sqlname.ObjectName, targetName *sqlname.ObjectName, ignoreIfTargetNotFound bool, ignoreIfSourceNotFound bool) sqlname.NameTuple {
+func NewNameTuple(role string, sourceName *sqlname.ObjectName, targetName *sqlname.ObjectName) sqlname.NameTuple {
 	t := sqlname.NameTuple{SourceName: sourceName, TargetName: targetName}
 	switch role {
 	case TARGET_DB_IMPORTER_ROLE:
