@@ -121,10 +121,12 @@ func (handler *ImportDataStashAndContinueHandler) ShouldAbort() bool {
 }
 
 // HandleRowProcessingError writes the row and error to a processing-errors.<batchNumber>.log.tmp file.
+// and stores the row count and byte count in-memory.
+// FinalizeRowProcessingErrorsForBatch() will rename the file to include the row count and byte count.
 // <export-dir>/data/errors/table::<table-name>/file::<base-path>:<hash>/processing-errors.<batchNumber>.log.tmp
 func (handler *ImportDataStashAndContinueHandler) HandleRowProcessingError(row string, rowByteCount int64, rowErr error, tableName sqlname.NameTuple, taskFilePath string, batchNumber int64) error {
 	var err error
-	if row == "" && rowErr == nil {
+	if rowErr == nil {
 		return nil
 	}
 	errorsDir := handler.getErrorsFolderPathForTableTask(tableName, taskFilePath)
@@ -241,6 +243,12 @@ func (handler *ImportDataStashAndContinueHandler) FinalizeRowProcessingErrorsFor
 	// 	rename to the new filename with row count and byte count
 	rowCount := handler.rowProcessingErrorRowCount[tableTaskBatchKey]
 	byteCount := handler.rowProcessingErrorByteCount[tableTaskBatchKey]
+
+	if rowCount == 0 && byteCount == 0 {
+		log.Debugf("No row processing errors for batch %d. Skipping renaming.", batchNumber)
+		return nil
+	}
+
 	newFileName := fmt.Sprintf("%s.%d.%d.%d.log", PROCESSING_ERRORS_BASE_NAME, batchNumber, rowCount, byteCount)
 	newFilePath := filepath.Join(errorsDir, newFileName)
 
@@ -254,6 +262,8 @@ func (handler *ImportDataStashAndContinueHandler) FinalizeRowProcessingErrorsFor
 	delete(handler.rowProcessingErrorFiles, tableTaskBatchKey)
 	delete(handler.rowProcessingErrorRowCount, tableTaskBatchKey)
 	delete(handler.rowProcessingErrorByteCount, tableTaskBatchKey)
+
+	log.Infof("Finalized row processing errors for batch %d: %d rows, %d bytes. File: %s", batchNumber, rowCount, byteCount, newFilePath)
 
 	return nil
 }

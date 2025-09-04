@@ -1063,6 +1063,9 @@ func getExportedSnapshotRowsMap(exportSnapshotStatus *ExportSnapshotStatus) (*ut
 }
 
 func getImportedSnapshotRowsMap(dbType string) (*utils.StructMap[sqlname.NameTuple, RowCountPair], error) {
+	var errorHandler importdata.ImportDataErrorHandler
+	var err error
+
 	switch dbType {
 	case "target":
 		importerRole = TARGET_DB_IMPORTER_ROLE
@@ -1103,10 +1106,12 @@ func getImportedSnapshotRowsMap(dbType string) (*utils.StructMap[sqlname.NameTup
 		}
 	}
 
-	dataDir := filepath.Join(exportDir, "data")
-	errorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, dataDir)
-	if err != nil {
-		return nil, fmt.Errorf("get import data error handler: %w", err)
+	if isTargetDBImporter(importerRole) { // we only support stash and continue error policy for target db importer
+		dataDir := filepath.Join(exportDir, "data")
+		errorHandler, err = importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, dataDir)
+		if err != nil {
+			return nil, fmt.Errorf("get import data error handler: %w", err)
+		}
 	}
 
 	err = nameTupleTodataFilesMap.IterKV(func(nt sqlname.NameTuple, dataFilePaths []string) (bool, error) {
@@ -1123,13 +1128,13 @@ func getImportedSnapshotRowsMap(dbType string) (*utils.StructMap[sqlname.NameTup
 			existingRowCountPair.Imported += importedRowCount
 			existingRowCountPair.Errored += erroredRowCount
 
-			processingErrorRowCount, _, err := errorHandler.GetProcessingErrorCountSize(nt, dataFilePath)
-			if err != nil {
-				return false, fmt.Errorf("get processing error count size: %w", err)
+			if isTargetDBImporter(importerRole) { // we only support stash and continue error policy for target db importer
+				processingErrorRowCount, _, err := errorHandler.GetProcessingErrorCountSize(nt, dataFilePath)
+				if err != nil {
+					return false, fmt.Errorf("get processing error count size: %w", err)
+				}
+				existingRowCountPair.Errored += processingErrorRowCount
 			}
-
-			existingRowCountPair.Errored += processingErrorRowCount
-
 			snapshotRowsMap.Put(nt, existingRowCountPair)
 
 		}

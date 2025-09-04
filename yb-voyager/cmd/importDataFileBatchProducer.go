@@ -276,6 +276,13 @@ func (p *FileBatchProducer) newBatchWriter() (*BatchWriter, error) {
 
 func (p *FileBatchProducer) finalizeBatch(batchWriter *BatchWriter, isLastBatch bool, offsetEnd int64, bytesInBatch int64) (*Batch, error) {
 	batchNum := p.lastBatchNumber + 1
+
+	// before we write the batch, we also store the processing errors that were encountered and stashed while
+	// producing the batch.
+	// It's important to do this before writing the batch, so that the processing errors are not lost.
+	// If we fail after storing the processing errors, but before writing the batch, during resume, the batch
+	// production will start from the previous batch's offset. Therefore, we will encounter all the processing errors again
+	// and those will be accumulated and stored again (the file will be overwritten).
 	err := p.errorHandler.FinalizeRowProcessingErrorsForBatch(batchNum, p.task.TableNameTup, p.task.FilePath)
 	if err != nil {
 		return nil, fmt.Errorf("finalizing row processing errors for batch %d: %w", p.lastBatchNumber, err)
