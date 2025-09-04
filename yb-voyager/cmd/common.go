@@ -1048,7 +1048,7 @@ func getExportedSnapshotRowsMap(exportSnapshotStatus *ExportSnapshotStatus) (*ut
 	snapshotStatusMap := utils.NewStructMap[sqlname.NameTuple, []string]()
 
 	for _, tableStatus := range exportSnapshotStatus.Tables {
-		nt, err := namereg.NameReg.LookupTableName(tableStatus.TableName)
+		nt, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFound(tableStatus.TableName)
 		if err != nil {
 			return nil, nil, fmt.Errorf("lookup table [%s] from name registry: %v", tableStatus.TableName, err)
 		}
