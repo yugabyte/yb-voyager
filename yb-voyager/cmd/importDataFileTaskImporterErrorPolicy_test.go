@@ -79,7 +79,7 @@ func assertBatchErrored(t *testing.T, batch *Batch, expectedRecordCount int64, e
 
 func assertBatchErrorFileContents(t *testing.T, batch *Batch, lexportDir string, state *ImportDataState, task *ImportFileTask, rows string, expectedErrorSubstring string) {
 	taskFolderPath := fmt.Sprintf("file::%s:%s", filepath.Base(task.FilePath), importdata.ComputePathHash(task.FilePath))
-	tableFolderPath := fmt.Sprintf("table::%s", task.TableNameTup.ForMinOutput())
+	tableFolderPath := fmt.Sprintf("table::%s", task.TableNameTup.ForKey())
 	batchErrorBaseFilePath := getBatchErrorBaseFilePath(filepath.Base(batch.GetFilePath()))
 	batchErrorFilePath := filepath.Join(getErrorsParentDir(lexportDir), "errors", tableFolderPath, taskFolderPath, batchErrorBaseFilePath)
 	errorFileContentsBytes, err := os.ReadFile(batchErrorFilePath)
