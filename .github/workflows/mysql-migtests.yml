@@ -33,7 +33,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-maven-
 
-      - name: Install python3, psycopg2 and bs4
+      - name: Install python3 and psycopg2
         run: |
           sudo apt install -y python3
           sudo apt install -y libpq-dev

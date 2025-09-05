@@ -731,11 +731,7 @@ wait_for_exporter_event() {
     fi
     step "$step_message"
 
-    # Ensure we're in streaming mode (quick wait)
-    wait_for_string_in_file "${EXPORT_DIR}/data/export_status.json" '"mode" : "STREAMING"' 30 "Wait for export to transition to STREAMING mode"
-
     local start_time=$(date +%s)
-
     while true; do
         local current_time=$(date +%s)
         local elapsed=$((current_time - start_time))
@@ -1444,7 +1440,7 @@ generate_voyager_config() {
 
 	if [ "${run_via_config_file}" = true ]; then
 		CONFIG_GEN_SCRIPT="${SCRIPTS}/generate_voyager_config_file.py"
-		export GENERATED_CONFIG="${TEST_DIR}/generated-config.yaml"
+		GENERATED_CONFIG="${TEST_DIR}/generated-config.yaml"
 
 		echo "Generating config from template: $template_file"
 		python3 "$CONFIG_GEN_SCRIPT" --template "$template_file" --output "$GENERATED_CONFIG"
