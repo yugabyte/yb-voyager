@@ -684,16 +684,18 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 
 	//TODO: BUG: we are applying table-list filter on importFileTasks, but here we are considering all tables as per
 	// export-data table-list. Should be fine because we are only disabling and re-enabling, but this is still not ideal.
-	// sourceTableList := msr.TableListExportedFromSource
+	sourceTableList := msr.TableListExportedFromSource
 	if msr.SourceDBConf != nil {
 		source = *msr.SourceDBConf
 	}
-	// importTableList, err := getImportTableList(sourceTableList)
-	// if err != nil {
-	// 	utils.ErrExit("Error generating table list to import: %v", err)
-	// }
-
-	importTableList = importFileTasksToTableNameTuples(importFileTasks)
+	if changeStreamingIsEnabled(importType) {
+		importTableList, err = getImportTableList(sourceTableList)
+		if err != nil {
+			utils.ErrExit("Error generating table list to import: %v", err)
+		}
+	} else {
+		importTableList = importFileTasksToTableNameTuples(importFileTasks)
+	}
 	err = fetchAndStoreGeneratedAlwaysIdentityColumnsInMetadb(importTableList)
 	if err != nil {
 		utils.ErrExit("error fetching or storing the generated always identity columns: %v", err)
