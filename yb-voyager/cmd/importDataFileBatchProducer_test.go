@@ -498,6 +498,72 @@ func TestFileBatchProducer_StashAndContinue_RowTooLargeError(t *testing.T) {
 		"ROW: 2, \"this row is too long and should trigger an error because it exceeds the max batch size\"")
 }
 
+/*
+row too large tests:
+1. 1st in the file
+2. all in the first batch.
+3. all in the last batch.
+
+*/
+
+func TestFileBatchProducer_StashAndContinue_RowTooLargeError_processingErrorFileRewrittenOnResumption(t *testing.T) {
+	// Set max batch size in bytes to a small value to trigger the row-too-large error
+	maxBatchSizeBytes := int64(20) // deliberately small to trigger error
+	ldataDir, lexportDir, state, _, err := setupExportDirAndImportDependencies(1000, maxBatchSizeBytes)
+	testutils.FatalIfError(t, err)
+	if ldataDir != "" {
+		defer os.RemoveAll(fmt.Sprintf("%s/", ldataDir))
+	}
+	if lexportDir != "" {
+		defer os.RemoveAll(fmt.Sprintf("%s/", lexportDir))
+	}
+
+	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir))
+	testutils.FatalIfError(t, err)
+
+	// The second row will be too large for the batch size
+	fileContents := `id,val
+1, "hello"
+2, "this row is too long and should trigger an error because it exceeds the max batch size"`
+	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
+	assert.NoError(t, err)
+
+	batchproducer, err := NewFileBatchProducer(task, state, scErrorHandler)
+	assert.NoError(t, err)
+
+	batch, err := batchproducer.NextBatch()
+	// Should not return an error, but the batch should only contain the first row
+	assert.NoError(t, err)
+	assert.NotNil(t, batch)
+	assert.Equal(t, int64(1), batch.RecordCount) // second row should be skipped due to error
+
+	assertProcessingErrorBatchFileContains(t, lexportDir, task,
+		1, 1, 91,
+		"larger than max batch size",
+		"ROW: 2, \"this row is too long and should trigger an error because it exceeds the max batch size\"")
+
+	// simulate crash and recover
+	// delete the batch file only and not the processing error batch file.
+	err = os.Remove(batch.GetFilePath())
+	assert.NoError(t, err)
+
+	batchproducer, err = NewFileBatchProducer(task, state, scErrorHandler)
+	assert.NoError(t, err)
+	assert.False(t, batchproducer.Done())
+
+	// regenerate the batch.
+	batch, err = batchproducer.NextBatch()
+	assert.NoError(t, err)
+	assert.NotNil(t, batch)
+	assert.Equal(t, int64(1), batch.RecordCount)
+
+	//processing error file should be rewritten without any issue.
+	assertProcessingErrorBatchFileContains(t, lexportDir, task,
+		1, 1, 91,
+		"larger than max batch size",
+		"ROW: 2, \"this row is too long and should trigger an error because it exceeds the max batch size\"")
+}
+
 func TestFileBatchProducer_StashAndContinue_RowTooLargeErrorDoesNotCountTowardsBatchSize(t *testing.T) {
 	// Set max batch size in bytes to a value that would only allow two small rows, but the second row will be too large and should not count towards the batch size
 	maxBatchSizeBytes := int64(25) // enough for header + one small row + one more if no error
