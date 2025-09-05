@@ -117,7 +117,7 @@ func packAndSendImportDataToSrcReplicaPayload(status string, errorMsg error) {
 	}
 
 	// Get phase-related metrics from existing logic
-	importRowsMap, err := getImportedSnapshotRowsMap("source-replica")
+	importRowsMap, err := getImportedSnapshotRowsMap("source-replica", importTableList)
 	if err != nil {
 		log.Infof("callhome: error in getting the import data: %v", err)
 	} else {

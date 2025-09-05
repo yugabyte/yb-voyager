@@ -392,7 +392,7 @@ func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFile
 		dbType = "target"
 	}
 
-	snapshotRowCount, err := getImportedSnapshotRowsMap(dbType)
+	snapshotRowCount, err := getImportedSnapshotRowsMap(dbType, tableList)
 	if err != nil {
 		utils.ErrExit("failed to get imported snapshot rows map: %v", err)
 	}
@@ -1062,7 +1062,9 @@ func getExportedSnapshotRowsMap(exportSnapshotStatus *ExportSnapshotStatus) (*ut
 	snapshotStatusMap := utils.NewStructMap[sqlname.NameTuple, []string]()
 
 	for _, tableStatus := range exportSnapshotStatus.Tables {
-		nt, err := namereg.NameReg.LookupTableName(tableStatus.TableName)
+		//using LookupTableNameAndIgnoreIfTargetNotFound in case if the export status is run after import data in which case
+		// if there is some table not present in target this should work
+		nt, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFound(tableStatus.TableName)
 		if err != nil {
 			return nil, nil, fmt.Errorf("lookup table [%s] from name registry: %v", tableStatus.TableName, err)
 		}
@@ -1076,7 +1078,7 @@ func getExportedSnapshotRowsMap(exportSnapshotStatus *ExportSnapshotStatus) (*ut
 	return snapshotRowsMap, snapshotStatusMap, nil
 }
 
-func getImportedSnapshotRowsMap(dbType string) (*utils.StructMap[sqlname.NameTuple, RowCountPair], error) {
+func getImportedSnapshotRowsMap(dbType string, tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, RowCountPair], error) {
 	switch dbType {
 	case "target":
 		importerRole = TARGET_DB_IMPORTER_ROLE
@@ -1104,10 +1106,20 @@ func getImportedSnapshotRowsMap(dbType string) (*utils.StructMap[sqlname.NameTup
 	nameTupleTodataFilesMap := utils.NewStructMap[sqlname.NameTuple, []string]()
 	if snapshotDataFileDescriptor != nil {
 		for _, fileEntry := range snapshotDataFileDescriptor.DataFileList {
+			//getting the import status of tables in the table List so that
+			// we can skip the Lookup for the tables not present in the table List
+			if !lo.ContainsBy(tableList, func(t sqlname.NameTuple) bool {
+				//assuming that the table names in descriptor will always be ForKey
+				return t.ForKey() == fileEntry.TableName
+			}) {
+				log.Infof("skipping the table %s from data file descriptor as it is not present in the table list - %v", fileEntry.TableName, tableList)
+				continue
+			}
 			nt, err := namereg.NameReg.LookupTableName(fileEntry.TableName)
 			if err != nil {
 				return nil, fmt.Errorf("lookup table name from data file descriptor %s : %v", fileEntry.TableName, err)
 			}
+
 			list, ok := nameTupleTodataFilesMap.Get(nt)
 			if !ok {
 				list = []string{}

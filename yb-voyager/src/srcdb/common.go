@@ -27,7 +27,6 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -35,20 +34,22 @@ func getExportedDataFileList(tablesMetadata map[string]*utils.TableProgressMetad
 	fileEntries := make([]*datafile.FileEntry, 0)
 	for key := range tablesMetadata {
 		tableMetadata := tablesMetadata[key]
-		targetTableName := strings.TrimSuffix(filepath.Base(tableMetadata.FinalFilePath), "_data.sql")
-		table, err := namereg.NameReg.LookupTableName(targetTableName)
-		if err != nil {
-			utils.ErrExit("error while looking up table name: %q: %w", targetTableName, err)
-		}
 		if !utils.FileOrFolderExists(tableMetadata.FinalFilePath) {
 			// This can happen in case of nested tables in Oracle.
 			log.Infof("File %q does not exist. Not including table %q in the descriptor.",
-				tableMetadata.FinalFilePath, targetTableName)
+				tableMetadata.FinalFilePath, tableMetadata.TableName.ForKey())
 			continue
+		}
+		//using the information stored in TableProgressMetadata to get the root table name
+		//as the file path is for the leaf table and we need to use the root table name for the datafile descriptor
+		//we were already re-writing the descriptor in export data post processing phase but we can revisit that later if it is required or not 
+		rootTable := tableMetadata.TableName
+		if tableMetadata.IsPartition {
+			rootTable = tableMetadata.ParentTable
 		}
 		fileEntry := &datafile.FileEntry{
 			FilePath:  filepath.Base(tableMetadata.FinalFilePath),
-			TableName: table.ForKey(),
+			TableName: rootTable.ForKey(),
 			RowCount:  tableMetadata.CountLiveRows,
 			FileSize:  -1, // Not available.
 		}

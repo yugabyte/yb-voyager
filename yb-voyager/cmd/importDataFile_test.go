@@ -97,7 +97,13 @@ func TestImportDataFileReport(t *testing.T) {
 		dataFileDescriptor = nil
 	}()
 	testutils.FatalIfError(t, err, "Failed to prepare dummy descriptor")
-	snapshotRowsMap, err := getImportedSnapshotRowsMap("target-file")
+	tableList := []sqlname.NameTuple{
+		sqlname.NameTuple{
+			SourceName:  sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "public.test_data"),
+			CurrentName: sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "public.test_data"),
+		},
+	}
+	snapshotRowsMap, err := getImportedSnapshotRowsMap("target-file", tableList)
 	if err != nil {
 		t.Fatalf("Failed to get imported snapshot rows map: %v", err)
 	}
@@ -215,8 +221,13 @@ func TestImportDataFileReport_ErrorPolicyStashAndContinue(t *testing.T) {
 		dataFileDescriptor = nil
 	}()
 	testutils.FatalIfError(t, err, "Failed to prepare dummy descriptor")
-
-	snapshotRowsMap, err := getImportedSnapshotRowsMap("target-file")
+	tableList := []sqlname.NameTuple{
+		sqlname.NameTuple{
+			SourceName:  sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "public.test_data"),
+			CurrentName: sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "public.test_data"),
+		},
+	}
+	snapshotRowsMap, err := getImportedSnapshotRowsMap("target-file", tableList)
 	if err != nil {
 		t.Fatalf("Failed to get imported snapshot rows map: %v", err)
 	}
@@ -363,7 +374,13 @@ func TestImportDataFile_MultipleTasksForATable(t *testing.T) {
 		dataFileDescriptor = nil
 	}()
 	testutils.FatalIfError(t, err, "Failed to prepare dummy descriptor")
-	snapshotRowsMap, err := getImportedSnapshotRowsMap("target-file")
+	tableList := []sqlname.NameTuple{
+		sqlname.NameTuple{
+			SourceName:  sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "public.test_data"),
+			CurrentName: sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "public.test_data"),
+		},
+	}
+	snapshotRowsMap, err := getImportedSnapshotRowsMap("target-file", tableList)
 	if err != nil {
 		t.Fatalf("Failed to get imported snapshot rows map: %v", err)
 	}
@@ -486,7 +503,17 @@ func TestImportDataFile_SameFileForMultipleTables(t *testing.T) {
 		dataFileDescriptor = nil
 	}()
 	testutils.FatalIfError(t, err, "Failed to prepare dummy descriptor")
-	snapshotRowsMap, err := getImportedSnapshotRowsMap("target-file")
+	tableList := []sqlname.NameTuple{
+		sqlname.NameTuple{
+			SourceName:  sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "test_schema.test_data"),
+			CurrentName: sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "test_schema.test_data"),
+		},
+		sqlname.NameTuple{
+			SourceName:  sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "test_schema.test_data1"),
+			CurrentName: sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "test_schema.test_data1"),
+		},
+	}
+	snapshotRowsMap, err := getImportedSnapshotRowsMap("target-file", tableList)
 	if err != nil {
 		t.Fatalf("Failed to get imported snapshot rows map: %v", err)
 	}

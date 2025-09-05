@@ -198,7 +198,7 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 	var targetImportedSnapshotRowsMap *utils.StructMap[sqlname.NameTuple, RowCountPair]
 	var targetEventsImportedMap *utils.StructMap[sqlname.NameTuple, *tgtdb.EventCounter]
 	if msr.TargetDBConf != nil {
-		targetImportedSnapshotRowsMap, err = getImportedSnapshotRowsMap("target")
+		targetImportedSnapshotRowsMap, err = getImportedSnapshotRowsMap("target", tableNameTups)
 		if err != nil {
 			utils.ErrExit("error while getting imported snapshot rows for target DB: %w\n", err)
 		}
@@ -215,7 +215,7 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 		// look up happens properly for source_replica names as here reg is the map of target->source-replica tablename
 		oldNameReg := namereg.NameReg
 		namereg.NameReg = *nameRegistryForSourceReplicaRole
-		replicaImportedSnapshotRowsMap, err = getImportedSnapshotRowsMap("source-replica")
+		replicaImportedSnapshotRowsMap, err = getImportedSnapshotRowsMap("source-replica", tableNameTups)
 		if err != nil {
 			utils.ErrExit("error while getting imported snapshot rows for source-replica DB: %w\n", err)
 		}
