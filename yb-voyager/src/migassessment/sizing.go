@@ -401,7 +401,11 @@ func pickBestRecommendation(recommendations map[int]IntermediateRecommendation) 
 }
 
 /*
-pickBestOutOfTwo selects the best recommendation from two recommendations by choosing the one with fewer nodes needed.
+pickBestOutOfTwo selects the best recommendation from two recommendations using the following logic:
+ 1. If recommendations have different VCPUsPerInstance, select the one with fewer VCPUs per instance
+    only if it also has lesser or equal cores needed
+ 2. Otherwise, select the one with fewer nodes needed (when equal nodes needed, choose all-sharded)
+
 It returns the selected recommendation along with reasoning explaining the choice.
 
 Parameters:
@@ -410,30 +414,52 @@ Parameters:
   - sourceIndexMetadata: A slice of SourceDBMetadata structs representing source indexes
 
 Returns:
-  - The best IntermediateRecommendation based on fewer nodes needed(when equal nodes needed, choose all-sharded)
-  - A string explaining the reasoning behind the choice, including nodes comparison and detailed object counts
+  - The best IntermediateRecommendation based on the selection logic described above
+  - A string explaining the reasoning behind the choice, including comparison details and detailed object counts
 */
 func pickBestOutOfTwo(rec1, rec2 IntermediateRecommendation, sourceIndexMetadata []SourceDBMetadata) (IntermediateRecommendation, string) {
 	var selectedRec, notSelectedRec IntermediateRecommendation
 	var reasoning string
 
-	// Compare cores needed - pick the one with fewer nodes, preferring all-sharded when equal
-	if rec1.NumNodes < rec2.NumNodes {
-		selectedRec = rec1
-		notSelectedRec = rec2
-		reasoning = fmt.Sprintf("\nSelected colocated+sharded strategy requiring %.0f nodes over all-sharded strategy requiring %.0f nodes. ",
-			rec1.NumNodes, rec2.NumNodes)
-	} else if rec1.NumNodes > rec2.NumNodes {
-		selectedRec = rec2
-		notSelectedRec = rec1
-		reasoning = fmt.Sprintf("\nSelected all-sharded strategy requiring %.0f nodes over colocated+sharded strategy requiring %.0f nodes. ",
-			rec2.NumNodes, rec1.NumNodes)
-	} else {
-		// Equal cores - prefer all-sharded (rec2)
-		selectedRec = rec2
-		notSelectedRec = rec1
-		reasoning = fmt.Sprintf("\nSelected all-sharded strategy (same %.0f nodes as colocated+sharded strategy, preferring all-sharded). ",
-			rec2.NumNodes)
+	// Check if recommendations have different VCPUsPerInstance and apply VCPUs + cores logic
+	vcpuConditionMet := false
+	if rec1.VCPUsPerInstance != rec2.VCPUsPerInstance {
+		// Find which recommendation has less VCPUsPerInstance
+		if rec1.VCPUsPerInstance < rec2.VCPUsPerInstance && rec1.CoresNeeded <= rec2.CoresNeeded {
+			selectedRec = rec1
+			notSelectedRec = rec2
+			reasoning = fmt.Sprintf("\nSelected colocated+sharded strategy with %d VCPUs per instance (%.1f cores needed) over all-sharded strategy with %d VCPUs per instance (%.1f cores needed). ",
+				rec1.VCPUsPerInstance, rec1.CoresNeeded, rec2.VCPUsPerInstance, rec2.CoresNeeded)
+			vcpuConditionMet = true
+		} else if rec2.VCPUsPerInstance < rec1.VCPUsPerInstance && rec2.CoresNeeded <= rec1.CoresNeeded {
+			selectedRec = rec2
+			notSelectedRec = rec1
+			reasoning = fmt.Sprintf("\nSelected all-sharded strategy with %d VCPUs per instance (%.1f cores needed) over colocated+sharded strategy with %d VCPUs per instance (%.1f cores needed). ",
+				rec2.VCPUsPerInstance, rec2.CoresNeeded, rec1.VCPUsPerInstance, rec1.CoresNeeded)
+			vcpuConditionMet = true
+		}
+	}
+
+	// If VCPUsPerInstance condition was not met, use original node comparison logic
+	if !vcpuConditionMet {
+		// Compare cores needed - pick the one with fewer nodes, preferring all-sharded when equal
+		if rec1.NumNodes < rec2.NumNodes {
+			selectedRec = rec1
+			notSelectedRec = rec2
+			reasoning = fmt.Sprintf("\nSelected colocated+sharded strategy requiring %.0f nodes over all-sharded strategy requiring %.0f nodes. ",
+				rec1.NumNodes, rec2.NumNodes)
+		} else if rec1.NumNodes > rec2.NumNodes {
+			selectedRec = rec2
+			notSelectedRec = rec1
+			reasoning = fmt.Sprintf("\nSelected all-sharded strategy requiring %.0f nodes over colocated+sharded strategy requiring %.0f nodes. ",
+				rec2.NumNodes, rec1.NumNodes)
+		} else {
+			// Equal cores - prefer all-sharded (rec2)
+			selectedRec = rec2
+			notSelectedRec = rec1
+			reasoning = fmt.Sprintf("\nSelected all-sharded strategy (same %.0f nodes as colocated+sharded strategy, preferring all-sharded). ",
+				rec2.NumNodes)
+		}
 	}
 
 	// Get detailed object counts for non-selected recommendations
