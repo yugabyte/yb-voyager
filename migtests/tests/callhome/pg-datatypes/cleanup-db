@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+
+set -e
+set -x
+
+source ${SCRIPTS}/functions.sh
+
+echo "Deleting ${SOURCE_DB_NAME} database on source"
+run_psql postgres "DROP DATABASE ${SOURCE_DB_NAME};"
+
+echo "Deleting ${SOURCE_DB_NAME} database on target"
+run_ysql yugabyte "DROP DATABASE ${SOURCE_DB_NAME};"
+
+if [ "${SOURCE_REPLICA_DB_NAME}" != "" ]
+then
+	echo "Deleting FF database"
+	run_psql postgres "DROP DATABASE ${SOURCE_REPLICA_DB_NAME};"
+	run_ysql yugabyte "DROP DATABASE ${SOURCE_REPLICA_DB_NAME};"
+fi

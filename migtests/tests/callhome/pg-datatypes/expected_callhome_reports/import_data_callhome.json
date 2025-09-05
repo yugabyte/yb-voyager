@@ -1,0 +1,23 @@
+{
+    "payload_version": "1.2",
+    "batch_size": 20000,
+    "parallel_jobs": 1,
+    "on_primary_key_conflict_action": "ERROR",
+    "enable_yb_adaptive_parallelism": true,
+    "adaptive_parallelism_max": 2,
+    "error_policy_snapshot": "abort",
+    "start_clean": false,
+    "yb_cluster_metrics": "{}",
+    "data_metrics": {
+        "migration_snapshot_total_rows": 32,
+        "migration_snapshot_largest_table_rows": 13,
+        "migration_cdc_total_imported_events": 0,
+        "snapshot_total_rows": 32,
+        "snapshot_total_bytes": 2182,
+        "cdc_events_import_rate_3min": 0
+    },
+    "phase": "SNAPSHOT",
+    "enable_upsert": false,
+    "error": "",
+    "control_plane_type": ""
+}
