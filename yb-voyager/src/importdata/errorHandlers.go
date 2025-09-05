@@ -43,7 +43,7 @@ type ImportDataErrorHandler interface {
 	HandleBatchIngestionError(batch ErroredBatch, taskFilePath string, batchErr error, isPartialBatchIngestionPossible bool) error
 	CleanUpStoredErrors(tableName sqlname.NameTuple, taskFilePath string) error
 	GetErrorsLocation() string
-	FinalizeRowProcessingErrorsForBatch(batchNumber int64, tableName sqlname.NameTuple, taskFilePath string) error
+	FinalizeRowProcessingErrorsForBatch(batchNumber int64, isLastBatch bool, tableName sqlname.NameTuple, taskFilePath string) error
 	GetProcessingErrorCountSize(tableName sqlname.NameTuple, taskFilePath string) (int64, int64, error)
 }
 
@@ -85,7 +85,7 @@ func (handler *ImportDataAbortHandler) GetErrorsLocation() string {
 	return ""
 }
 
-func (handler *ImportDataAbortHandler) FinalizeRowProcessingErrorsForBatch(batchNumber int64, tableName sqlname.NameTuple, taskFilePath string) error {
+func (handler *ImportDataAbortHandler) FinalizeRowProcessingErrorsForBatch(batchNumber int64, isLastBatch bool, tableName sqlname.NameTuple, taskFilePath string) error {
 	// nothing to do for abort handler
 	return nil
 }
@@ -208,7 +208,7 @@ func (handler *ImportDataStashAndContinueHandler) GetProcessingErrorCountSize(ta
 
 // FinalizeRowProcessingErrorsForBatch renames the temporary error file to include statistics
 // from processing-errors.<batchNumber>.log.tmp to processing-errors.<batchNumber>.<rowCount>.<batchByteCount>.log
-func (handler *ImportDataStashAndContinueHandler) FinalizeRowProcessingErrorsForBatch(batchNumber int64, tableName sqlname.NameTuple, taskFilePath string) error {
+func (handler *ImportDataStashAndContinueHandler) FinalizeRowProcessingErrorsForBatch(batchNumber int64, isLastBatch bool, tableName sqlname.NameTuple, taskFilePath string) error {
 	tableTaskBatchKey := handler.generateTableTaskBatchKey(tableName, taskFilePath, batchNumber)
 
 	// Get the current error file
@@ -247,6 +247,11 @@ func (handler *ImportDataStashAndContinueHandler) FinalizeRowProcessingErrorsFor
 	if rowCount == 0 && byteCount == 0 {
 		log.Debugf("No row processing errors for batch %d. Skipping renaming.", batchNumber)
 		return nil
+	}
+
+	if isLastBatch {
+		// new filename should be processing-errors.0.<rowCount>.<byteCount>.log
+		batchNumber = 0
 	}
 
 	newFileName := fmt.Sprintf("%s.%d.%d.%d.log", PROCESSING_ERRORS_BASE_NAME, batchNumber, rowCount, byteCount)
