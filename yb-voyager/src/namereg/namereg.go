@@ -220,19 +220,6 @@ func (reg *NameRegistry) GetRegisteredTableList(ignoreOtherSideOfMappingIfNotFou
 	return res, nil
 }
 
-/*
-
-a
-b
-c
-
-export data first run --table-list a,b
-name reg a, b, c
-
-c is not created
-
-*/
-
 func (reg *NameRegistry) initSourceDBSchemaNames() {
 	// source.Schema contains only one schema name for MySQL and Oracle; whereas
 	// it contains a pipe separated list for postgres.

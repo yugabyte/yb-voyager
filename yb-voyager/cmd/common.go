@@ -1048,6 +1048,8 @@ func getExportedSnapshotRowsMap(exportSnapshotStatus *ExportSnapshotStatus) (*ut
 	snapshotStatusMap := utils.NewStructMap[sqlname.NameTuple, []string]()
 
 	for _, tableStatus := range exportSnapshotStatus.Tables {
+		//using LookupTableNameAndIgnoreIfTargetNotFound in case if the export status is run after import data in which case 
+		// if there is some table not present in target this should work
 		nt, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFound(tableStatus.TableName)
 		if err != nil {
 			return nil, nil, fmt.Errorf("lookup table [%s] from name registry: %v", tableStatus.TableName, err)
@@ -1090,6 +1092,8 @@ func getImportedSnapshotRowsMap(dbType string, tableList []sqlname.NameTuple) (*
 	nameTupleTodataFilesMap := utils.NewStructMap[sqlname.NameTuple, []string]()
 	if snapshotDataFileDescriptor != nil {
 		for _, fileEntry := range snapshotDataFileDescriptor.DataFileList {
+			//getting the import status of tables in the table List so that 
+			// we can skip the Lookup for the tables not present in the table List
 			if !lo.ContainsBy(tableList, func(t sqlname.NameTuple) bool {
 				return t.ForKey() == fileEntry.TableName
 			}) {

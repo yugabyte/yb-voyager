@@ -443,6 +443,9 @@ func discoverFilesToImport() []*ImportFileTask {
 			// but pb hangs for empty so skipping empty tables in snapshot import
 			continue
 		}
+
+		//using the LookupTableNameAndIgnoreIfTargetNotFound if there are tables in descriptor which are not present in the target
+		//for such tables we will not get target table hence we will ask users to exclude them in table-list flags
 		tableName, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFound(fileEntry.TableName)
 		if err != nil {
 			utils.ErrExit("lookup table name from name registry: %v", err)
@@ -540,9 +543,12 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 			log.Infof("Skipping table %q (fileName: %s) as it is in the exclude list", task.TableNameTup, task.FilePath)
 			continue
 		}
-		table := task.TableNameTup
-		if !table.TargetTableAvailable() && !changeStreamingIsEnabled(importType) {
-			tablesNotPresentInTarget = append(tablesNotPresentInTarget, table)
+		tuple := task.TableNameTup
+		if !tuple.TargetTableAvailable() && !changeStreamingIsEnabled(importType) {
+			//If table not exclude and not present in target then we will ask users to exclude them in table-list flags
+			//for offline migration only as for live we don't support table-list flags so this doesn't matter for that
+			//and we can assume that all export side tables should be present in target
+			tablesNotPresentInTarget = append(tablesNotPresentInTarget, tuple)
 			continue
 		}
 		result = append(result, task)
@@ -682,18 +688,22 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 		utils.ErrExit("Error checking PK conflict mode on fresh start: %s", err)
 	}
 
-	//TODO: BUG: we are applying table-list filter on importFileTasks, but here we are considering all tables as per
-	// export-data table-list. Should be fine because we are only disabling and re-enabling, but this is still not ideal.
-	sourceTableList := msr.TableListExportedFromSource
 	if msr.SourceDBConf != nil {
 		source = *msr.SourceDBConf
 	}
 	if changeStreamingIsEnabled(importType) {
-		importTableList, err = getImportTableList(sourceTableList)
+		//For live migration we need to use the source table list to get the import table list
+		//as we don't suport filtering tables in import data for live migration so it might be okay to use source side list
+		//and one more reason of using that is empty tables which are present in datafile descriptor but we need to have them in 
+		// import list for live migration as streaming changes will be done for them
+		importTableList, err = getImportTableList(msr.TableListExportedFromSource)
 		if err != nil {
 			utils.ErrExit("Error generating table list to import: %v", err)
 		}
 	} else {
+		//for offline migration we need to use the import file tasks to get the import table list
+		//as that is the one where we filter the tables via table-list flags
+		//we don't need empty tables in offline case, data migration doesn't matter for them
 		importTableList = importFileTasksToTableNameTuples(importFileTasks)
 	}
 	err = fetchAndStoreGeneratedAlwaysIdentityColumnsInMetadb(importTableList)
@@ -1577,7 +1587,9 @@ func getDfdTableNameToExportedColumns(tasks []*ImportFileTask, dataFileDescripto
 	}
 
 	result := utils.NewStructMap[sqlname.NameTuple, []string]()
-	for _, task := range tasks {
+	// checking columns for all tables in the datafile descriptor by using the file tasks
+	//as this is used only for import batch which is snapshot
+	for _, task := range tasks {  
 		columnList, ok := dataFileDescriptor.TableNameToExportedColumns[task.TableNameTup.ForKey()]
 		if ok {
 			result.Put(task.TableNameTup, columnList)
