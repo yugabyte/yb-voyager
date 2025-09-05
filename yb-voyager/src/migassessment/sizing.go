@@ -253,7 +253,18 @@ func SizingAssessment(targetDbVersion *ybversion.YBVersion, sourceDBType string,
 		SizingReport.FailureReasoning = finalSizingRecommendationAllSharded.FailureReasoning
 		return fmt.Errorf("error picking best recommendation: %v", finalSizingRecommendationAllSharded.FailureReasoning)
 	}
-
+	fmt.Printf("finalSizingRecommendationColoShardedCombined: needed cores: %v, num nodes: %v, vCPUs per instance: %v, numcolocatedtables: %v, numshardedtables: %v\n",
+		finalSizingRecommendationColoShardedCombined.CoresNeeded,
+		finalSizingRecommendationColoShardedCombined.NumNodes,
+		finalSizingRecommendationColoShardedCombined.VCPUsPerInstance,
+		len(finalSizingRecommendationColoShardedCombined.ColocatedTables),
+		len(finalSizingRecommendationColoShardedCombined.ShardedTables))
+	fmt.Printf("finalSizingRecommendationAllSharded: needed cores: %v, num nodes: %v, vCPUs per instance: %v, numcolocatedtables: %v, numshardedtables: %v	\n",
+		finalSizingRecommendationAllSharded.CoresNeeded,
+		finalSizingRecommendationAllSharded.NumNodes,
+		finalSizingRecommendationAllSharded.VCPUsPerInstance,
+		len(finalSizingRecommendationAllSharded.ColocatedTables),
+		len(finalSizingRecommendationAllSharded.ShardedTables))
 	finalSizingRecommendation, pickReasoning := pickBestOutOfTwo(finalSizingRecommendationColoShardedCombined, finalSizingRecommendationAllSharded, sourceIndexMetadata)
 
 	colocatedObjects, cumulativeIndexCountColocated :=
@@ -821,7 +832,6 @@ func allSharding(sourceIndexMetadata []SourceDBMetadata, sourceTableMetadata []S
 	for _, shardedThroughput := range shardedThroughputSlice {
 		// Get previous recommendation for the current num of cores
 		previousRecommendation := recommendation[int(shardedThroughput.numCores.Float64)]
-		previousRecommendation.ShardedTables = append(previousRecommendation.ShardedTables, sourceTableMetadata...)
 
 		// Update recommendation for the current colocated limit
 		recommendation[int(shardedThroughput.numCores.Float64)] = IntermediateRecommendation{
