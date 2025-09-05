@@ -127,11 +127,7 @@ func (tm *TableMetadata) GetAllPartitionColumnsInHierarchy() []string {
 	}
 
 	// Convert map back to slice
-	result := make([]string, 0, len(allColumns))
-	for col := range allColumns {
-		result = append(result, col)
-	}
-	return result
+	return lo.Keys(allColumns)
 }
 
 // HasAnyRelatedTablePrimaryKey checks if this table or any of its descendants has a primary key
@@ -530,6 +526,7 @@ func (p *ParserIssueDetector) buildPartitionHierarchies() {
 				// CREATE TABLE ... PARTITION OF produces unqualified names (e.g., "sales") because
 				// PostgreSQL doesn't include schema info in parse tree, while ALTER TABLE ... ATTACH PARTITION
 				// produces qualified names (e.g., "public.sales") when schema is explicitly specified.
+				// TODO: Use sqlname for proper naming handling for qualified and unqualified names.
 				if parentTM.TableName == tm.PartitionedFrom || parentTM.GetObjectName() == tm.PartitionedFrom {
 					parentTM.Partitions = append(parentTM.Partitions, tm)
 					break
