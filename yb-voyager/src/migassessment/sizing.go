@@ -230,9 +230,9 @@ func SizingAssessment(targetDbVersion *ybversion.YBVersion, sourceDBType string,
 		colocatedLimits, sizingRecommendationPerCore)
 	sizingRecommendationPerCore = shardingBasedOnOperations(sourceIndexMetadata, colocatedThroughput, sizingRecommendationPerCore)
 	sizingRecommendationPerCoreShardingStrategy = allSharding(sourceIndexMetadata, sourceTableMetadata, shardedThroughput, sizingRecommendationPerCoreShardingStrategy)
-	for _, rec := range sizingRecommendationPerCoreShardingStrategy {
-		fmt.Printf("after ops insert connections: %v\n", rec.OptimalInsertConnectionsPerNode)
-	}
+	// for _, rec := range sizingRecommendationPerCoreShardingStrategy {
+	// 	fmt.Printf("after ops insert connections: %v\n", rec.OptimalInsertConnectionsPerNode)
+	// }
 
 	sizingRecommendationPerCore = checkShardedTableLimit(sourceIndexMetadata, shardedLimits, sizingRecommendationPerCore)
 	sizingRecommendationPerCoreShardingStrategy = checkShardedTableLimit(sourceIndexMetadata, shardedLimits, sizingRecommendationPerCoreShardingStrategy)
@@ -253,18 +253,6 @@ func SizingAssessment(targetDbVersion *ybversion.YBVersion, sourceDBType string,
 		SizingReport.FailureReasoning = finalSizingRecommendationAllSharded.FailureReasoning
 		return fmt.Errorf("error picking best recommendation: %v", finalSizingRecommendationAllSharded.FailureReasoning)
 	}
-	fmt.Printf("finalSizingRecommendationColoShardedCombined: needed cores: %v, num nodes: %v, vCPUs per instance: %v, numcolocatedtables: %v, numshardedtables: %v\n",
-		finalSizingRecommendationColoShardedCombined.CoresNeeded,
-		finalSizingRecommendationColoShardedCombined.NumNodes,
-		finalSizingRecommendationColoShardedCombined.VCPUsPerInstance,
-		len(finalSizingRecommendationColoShardedCombined.ColocatedTables),
-		len(finalSizingRecommendationColoShardedCombined.ShardedTables))
-	fmt.Printf("finalSizingRecommendationAllSharded: needed cores: %v, num nodes: %v, vCPUs per instance: %v, numcolocatedtables: %v, numshardedtables: %v	\n",
-		finalSizingRecommendationAllSharded.CoresNeeded,
-		finalSizingRecommendationAllSharded.NumNodes,
-		finalSizingRecommendationAllSharded.VCPUsPerInstance,
-		len(finalSizingRecommendationAllSharded.ColocatedTables),
-		len(finalSizingRecommendationAllSharded.ShardedTables))
 	finalSizingRecommendation, pickReasoning := pickBestOutOfTwo(finalSizingRecommendationColoShardedCombined, finalSizingRecommendationAllSharded, sourceIndexMetadata)
 
 	colocatedObjects, cumulativeIndexCountColocated :=
