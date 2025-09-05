@@ -20,10 +20,10 @@ jobs:
 
     runs-on: ubuntu-22.04
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: Set up Go
-      uses: actions/setup-go@v3
+      uses: actions/setup-go@v4
       with:
         go-version: "1.23.1"
 
@@ -42,7 +42,14 @@ jobs:
         mkdir -p yugabyte-${YB_VERSION}
         tar -xvzf yugabyte-${YB_VERSION}-centos-x86_64.tar.gz -C yugabyte-${YB_VERSION} --strip-components=1
         yugabyte-${YB_VERSION}/bin/yugabyted start --advertise_address 127.0.0.1 --callhome=false
-        sleep 20
+        
+        # Wait for YugabyteDB to be ready with health check instead of fixed sleep
+        echo "Waiting for YugabyteDB to be ready..."
+        timeout 60s bash -c 'until psql "${YB_CONN_STR}" -c "SELECT 1" > /dev/null 2>&1; do 
+          echo "YugabyteDB not ready yet, waiting 2 seconds..."
+          sleep 2
+        done'
+        echo "YugabyteDB is ready!"
     
     - name: Test YugabyteDB connection
       run: |

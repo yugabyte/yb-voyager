@@ -218,7 +218,10 @@ main() {
 	# Updating the trap command to include the ff setup
 	trap "kill_process -${exp_pid} ; kill_process -${imp_pid} ; kill_process -${ffs_pid} ; kill_process -${archive_changes_pid}; exit 1" SIGINT SIGTERM EXIT SIGSEGV SIGHUP
 
-	sleep 60
+	# wait till import data to target and source replica is complete before validating the snapshot
+	wait_for_string_in_file "${EXPORT_DIR}/logs/yb-voyager-import-data.log" "snapshot data import complete"
+	wait_for_string_in_file "${EXPORT_DIR}/logs/yb-voyager-import-data-to-source-replica.log" "snapshot data import complete"
+	echo "Snapshot data import complete - target and source replica"
 
 	step "Import remaining schema (FK, index, and trigger) and Refreshing MViews if present."
 	finalize_schema_post_data_import
@@ -234,8 +237,9 @@ main() {
 	step "Inserting new events to source"
 	run_sql_file source_delta.sql
 
-	sleep 120
-	
+	step "Wait for source exporter to start capturing changes"
+	wait_for_exporter_event "source"
+
 	step "Initiating cutover"
 	cutover_to_target
 
@@ -253,11 +257,10 @@ main() {
 			exit 1
         fi
     else
+		echo "Cutover to target COMPLETED"
         break
     fi
 	done
-
-	sleep 60
 
 	if [ -f ${TEST_DIR}/validateAfterCutoverToTarget ]; then
 		step "Run validations after cutover to target."
@@ -267,7 +270,8 @@ main() {
 	step "Inserting new events to YB"
 	ysql_import_file ${TARGET_DB_NAME} target_delta.sql
 
-	sleep 120
+	step "Wait for target exporter to start capturing changes"
+	wait_for_exporter_event "target"
 
 	step "Resetting the trap command"
 	trap - SIGINT SIGTERM EXIT SIGSEGV SIGHUP
