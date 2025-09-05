@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -617,6 +618,7 @@ func TestFileBatchProducer_StashAndContinue_RowTooLargeError_LastBatch(t *testin
 	assert.NoError(t, err)
 	assert.NotNil(t, batch)
 	assert.Equal(t, int64(3), batch.RecordCount) // first 3 rows should be processed successfully
+	assertNoProcessingErrorBatchFileExists(t, lexportDir, task, batch.Number)
 
 	// Second batch will contain all remaining rows 4,5, excluding the large rows.
 	batch, err = batchproducer.NextBatch()
@@ -948,5 +950,32 @@ func assertProcessingErrorBatchFileContains(t *testing.T, lexportDir string, tas
 	errorFileContents := string(errorFileContentsBytes)
 	for _, substr := range expectedSubstrings {
 		assert.Contains(t, errorFileContents, substr)
+	}
+}
+
+func assertNoProcessingErrorBatchFileExists(t *testing.T, lexportDir string, task *ImportFileTask, batchNumber int64) {
+	taskFolderPath := fmt.Sprintf("file::%s:%s", filepath.Base(task.FilePath), importdata.ComputePathHash(task.FilePath))
+	tableFolderPath := fmt.Sprintf("table::%s", task.TableNameTup.ForKey())
+	errorsDir := filepath.Join(getErrorsParentDir(lexportDir), "errors", tableFolderPath, taskFolderPath)
+
+	// Check if the errors directory exists
+	if _, err := os.Stat(errorsDir); os.IsNotExist(err) {
+		// Directory doesn't exist, so no error files exist
+		return
+	}
+
+	// Look for any processing error files for this batch number
+	entries, err := os.ReadDir(errorsDir)
+	assert.NoError(t, err)
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+
+		// Check if this is a processing error file for the specified batch number
+		if strings.HasPrefix(entry.Name(), fmt.Sprintf("processing-errors.%d.", batchNumber)) {
+			t.Errorf("Expected no processing error file for batch %d, but found: %s", batchNumber, entry.Name())
+		}
 	}
 }
