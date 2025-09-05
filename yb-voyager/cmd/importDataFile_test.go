@@ -143,7 +143,7 @@ func TestImportDataFileReport(t *testing.T) {
 	}, statusReport[0], "Status report row mismatch")
 }
 
-func TestImportDataFileReport_ErrorPolicyStashAndContinue(t *testing.T) {
+func TestImportDataFileReport_ErrorPolicyStashAndContinue_BatchIngestionError(t *testing.T) {
 	// Create a temporary export directory.
 	exportDir = testutils.CreateTempExportDir()
 	defer testutils.RemoveTempExportDir(exportDir)

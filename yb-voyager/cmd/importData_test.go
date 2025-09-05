@@ -1244,7 +1244,7 @@ func TestExportAndImportDataSnapshotReport(t *testing.T) {
 }
 
 // TestExportAndImportDataSnapshotReport_ErrorPolicyStashAndContinue verifies the behavior of the --error-policy stash-and-continue flag.
-func TestExportAndImportDataSnapshotReport_ErrorPolicyStashAndContinue(t *testing.T) {
+func TestExportAndImportDataSnapshotReport_ErrorPolicyStashAndContinue_BatchIngestionError(t *testing.T) {
 	ctx := context.Background()
 
 	// Create a temporary export directory.
