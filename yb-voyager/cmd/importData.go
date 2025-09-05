@@ -694,7 +694,7 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 	if changeStreamingIsEnabled(importType) {
 		//For live migration we need to use the source table list to get the import table list
 		//as we don't suport filtering tables in import data for live migration so it might be okay to use source side list
-		//and one more reason of using that is empty tables which are present in datafile descriptor but we need to have them in 
+		//and one more reason of using that is empty tables which are not present in datafile descriptor but we need to have them in 
 		// import list for live migration as streaming changes will be done for them
 		importTableList, err = getImportTableList(msr.TableListExportedFromSource)
 		if err != nil {
