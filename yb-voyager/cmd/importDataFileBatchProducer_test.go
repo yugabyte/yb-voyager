@@ -634,14 +634,6 @@ func TestFileBatchProducer_StashAndContinue_RowTooLargeError_LastBatch(t *testin
 
 }
 
-/*
-row too large tests:
-1. 1st in the file ✓
-2. all in the first batch.
-3. all in the last batch ✓
-
-*/
-
 func TestFileBatchProducer_StashAndContinue_RowTooLargeError_processingErrorFileRewrittenOnResumption(t *testing.T) {
 	// Set max batch size in bytes to a small value to trigger the row-too-large error
 	maxBatchSizeBytes := int64(20) // deliberately small to trigger error
