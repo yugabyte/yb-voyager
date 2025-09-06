@@ -1,5 +1,5 @@
 {
-    "payload_version": "1.7",
+    "payload_version": "1.8",
     "target_db_version": "2025.1.0.0",
     "sizing": {
         "colocated_tables": [
@@ -98,10 +98,10 @@
         ],
         "colocated_reasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 112 objects (92 tables/materialized views and 20 explicit/implicit indexes) with 6.73 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Rest 28 objects (5 tables/materialized views and 23 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec need to be migrated as range partitioned tables. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
         "sharded_tables": [
-            "schema_d7108fd530c9b1c2.table_7d834d237deea6a9",
-            "schema_d7108fd530c9b1c2.table_0c2b6b127253fd96",
             "schema_d7108fd530c9b1c2.table_a84d78d2ae709c44",
+            "schema_d7108fd530c9b1c2.table_7d834d237deea6a9",
             "schema_d7108fd530c9b1c2.table_9d743b98e77ebc2a",
+            "schema_d7108fd530c9b1c2.table_0c2b6b127253fd96",
             "schema_a1717e859fc83d39.table_0c2b6b127253fd96"
         ],
         "num_nodes": 3,
@@ -109,7 +109,8 @@
         "memory_per_instance": 16,
         "optimal_select_connections_per_node": 8,
         "optimal_insert_connections_per_node": 12,
-        "estimated_time_in_min_for_import": 1
+        "estimated_time_in_min_for_import": 1,
+        "estimated_time_in_min_for_import_without_redundant_indexes": 1
     },
     "migration_complexity": "HIGH",
     "migration_complexity_explanation": "Found 32 Level 2 issue(s) and 22 Level 3 issue(s), resulting in HIGH migration complexity",
