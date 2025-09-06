@@ -1,5 +1,5 @@
 {
-    "payload_version": "1.7",
+    "payload_version": "1.8",
     "target_db_version": "2025.1.0.0",
     "sizing": {
         "colocated_tables": [
@@ -19,7 +19,8 @@
         "memory_per_instance": 16,
         "optimal_select_connections_per_node": 8,
         "optimal_insert_connections_per_node": 12,
-        "estimated_time_in_min_for_import": 1
+        "estimated_time_in_min_for_import": 1,
+        "estimated_time_in_min_for_import_without_redundant_indexes": 1
     },
     "migration_complexity": "LOW",
     "migration_complexity_explanation": "Found 1 Level 1 issue(s) and 0 Level 2 issue(s), resulting in LOW migration complexity",
