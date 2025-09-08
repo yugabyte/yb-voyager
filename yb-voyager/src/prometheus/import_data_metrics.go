@@ -16,7 +16,6 @@ limitations under the License.
 package prometheus
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -28,8 +27,8 @@ import (
 var sessionID string
 
 func init() {
-	// Create a unique session ID based on timestamp
-	sessionID = fmt.Sprintf("%d", time.Now().Unix())
+	// Create a unique session ID based on formatted timestamp
+	sessionID = time.Now().Format("20060102-150405")
 }
 
 var (
