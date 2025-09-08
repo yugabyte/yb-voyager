@@ -454,7 +454,7 @@ import_data() {
         --target-db-name ${TARGET_DB_NAME}
         --disable-pb true
         --send-diagnostics=false
-        --max-retries 1
+        --max-streaming-retries 1
         --skip-replication-checks true
         --yes
     "
@@ -497,7 +497,7 @@ import_data_to_source_replica() {
         --disable-pb true
         --send-diagnostics=false
         --parallel-jobs 3
-        --max-retries 1
+        --max-streaming-retries 1
     "
 
     if [ "${SOURCE_REPLICA_DB_SCHEMA}" != "" ]; then

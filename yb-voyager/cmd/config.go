@@ -118,7 +118,7 @@ var allowedImportDataConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"log-level", "run-guardrails-checks",
 	"batch-size", "parallel-jobs", "enable-adaptive-parallelism", "adaptive-parallelism-max",
 	"skip-replication-checks",
-	"disable-pb", "max-retries", "exclude-table-list", "table-list",
+	"disable-pb", "max-streaming-retries", "exclude-table-list", "table-list",
 	"exclude-table-list-file-path", "table-list-file-path", "enable-upsert", "use-public-ip",
 	"target-endpoints", "truncate-tables", "error-policy-snapshot",
 	"skip-node-health-checks", "skip-disk-usage-health-checks",
@@ -142,7 +142,7 @@ var allowedImportDataToSourceConfigKeys = mapset.NewThreadUnsafeSet[string](
 
 var allowedImportDataToSourceReplicaConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"log-level", "run-guardrails-checks",
-	"batch-size", "parallel-jobs", "truncate-tables", "disable-pb", "max-retries",
+	"batch-size", "parallel-jobs", "truncate-tables", "disable-pb", "max-streaming-retries",
 	// environment variables keys
 	"ybvoyager-max-colocated-batches-in-progress", "num-event-channels",
 	"event-channel-size", "max-events-per-batch", "max-interval-between-batches",
@@ -151,7 +151,7 @@ var allowedImportDataToSourceReplicaConfigKeys = mapset.NewThreadUnsafeSet[strin
 
 var allowedImportDataFileConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"log-level",
-	"disable-pb", "max-retries", "enable-upsert", "use-public-ip", "target-endpoints",
+	"disable-pb", "max-streaming-retries", "enable-upsert", "use-public-ip", "target-endpoints",
 	"batch-size", "parallel-jobs", "enable-adaptive-parallelism", "adaptive-parallelism-max",
 	"format", "delimiter", "data-dir", "file-table-map", "has-header", "escape-char",
 	"quote-char", "file-opts", "null-string", "truncate-tables", "error-policy",
