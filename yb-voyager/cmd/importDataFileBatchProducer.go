@@ -24,6 +24,7 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/prometheus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -284,6 +285,10 @@ func (p *FileBatchProducer) finalizeBatch(batchWriter *BatchWriter, isLastBatch 
 	if err != nil {
 		utils.ErrExit("finalizing batch %d: %s", batchNum, err)
 	}
+
+	// Record batch created metric
+	prometheus.RecordSnapshotBatchCreated(p.task.TableNameTup, importerRole)
+
 	batchWriter = nil
 	p.lastBatchNumber = batchNum
 	return batch, nil

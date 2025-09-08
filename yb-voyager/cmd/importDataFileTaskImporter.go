@@ -136,6 +136,8 @@ func (fti *FileTaskImporter) submitBatch(batch *Batch) error {
 		fti.workerPool.Go(importBatchFunc)
 	}
 
+	prometheus.RecordSnapshotBatchSubmitted(fti.task.TableNameTup, importerRole)
+
 	log.Infof("Queued batch: %s", spew.Sdump(batch))
 	return nil
 }
@@ -253,7 +255,7 @@ func (fti *FileTaskImporter) updateProgressForCompletedBatch(batch *Batch) {
 	}
 
 	// update prometheus metrics
-	prometheus.RecordSnapshotBatchImport(fti.task.TableNameTup, importerRole, batch.RecordCount, batch.ByteCount)
+	prometheus.RecordSnapshotBatchIngested(fti.task.TableNameTup, importerRole, batch.RecordCount, batch.ByteCount)
 }
 
 func (fti *FileTaskImporter) PostProcess() {

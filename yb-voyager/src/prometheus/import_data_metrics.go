@@ -39,25 +39,51 @@ var (
 		},
 		[]string{"table_name", "schema_name", "importer_role"},
 	)
+
+	// Total number of batches created for import
+	snapshotBatchCreated = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "yb_voyager_import_snapshot_batch_created_total",
+			Help: "Total number of batches created for import",
+		},
+		[]string{"table_name", "schema_name", "importer_role"},
+	)
+
+	// Total number of batches submitted to worker pool
+	snapshotBatchSubmitted = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "yb_voyager_import_snapshot_batch_submitted_total",
+			Help: "Total number of batches submitted to worker pool",
+		},
+		[]string{"table_name", "schema_name", "importer_role"},
+	)
+
+	// Total number of batches successfully ingested
+	snapshotBatchIngested = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "yb_voyager_import_snapshot_batch_ingested_total",
+			Help: "Total number of batches successfully ingested",
+		},
+		[]string{"table_name", "schema_name", "importer_role"},
+	)
 )
 
-// RecordSnapshotBatchImport records metrics for a completed batch import
-func RecordSnapshotBatchImport(tableNameTup sqlname.NameTuple, importerRole string, rows, bytes int64) {
+// RecordSnapshotBatchIngested records metrics for a completed batch import
+func RecordSnapshotBatchIngested(tableNameTup sqlname.NameTuple, importerRole string, rows, bytes int64) {
 	schemaName, tableName := tableNameTup.ForKeyTableSchema()
 	importRowsTotal.WithLabelValues(tableName, schemaName, importerRole).Add(float64(rows))
 	importBytesTotal.WithLabelValues(tableName, schemaName, importerRole).Add(float64(bytes))
+	snapshotBatchIngested.WithLabelValues(tableName, schemaName, importerRole).Inc()
 }
 
-// ResetSnapshotTableMetrics resets metrics for a specific table to zero
-// func ResetSnapshotTableMetrics(tableNameTup sqlname.NameTuple, importerRole string) {
-// 	schemaName, tableName := tableNameTup.ForKeyTableSchema()
-// 	// Reset rows counter
-// 	rowsLabels := importRowsTotal.WithLabelValues(tableName, schemaName, importerRole)
-// 	currentRows := rowsLabels.Get()
-// 	rowsLabels.Add(-currentRows)
+// RecordSnapshotBatchCreated records when a batch is created
+func RecordSnapshotBatchCreated(tableNameTup sqlname.NameTuple, importerRole string) {
+	schemaName, tableName := tableNameTup.ForKeyTableSchema()
+	snapshotBatchCreated.WithLabelValues(tableName, schemaName, importerRole).Inc()
+}
 
-// 	// Reset bytes counter
-// 	bytesLabels := importBytesTotal.WithLabelValues(tableName, schemaName, importerRole)
-// 	currentBytes := bytesLabels.Get()
-// 	bytesLabels.Add(-currentBytes)
-// }
+// RecordSnapshotBatchSubmitted records when a batch is submitted to worker pool
+func RecordSnapshotBatchSubmitted(tableNameTup sqlname.NameTuple, importerRole string) {
+	schemaName, tableName := tableNameTup.ForKeyTableSchema()
+	snapshotBatchSubmitted.WithLabelValues(tableName, schemaName, importerRole).Inc()
+}
