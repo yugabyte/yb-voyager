@@ -825,9 +825,7 @@ func (i *IndexIssueDetector) reportVariousIndexPerfOptimizationsOnFirstColumnOfI
 			mostCommonValPartialIndex = true
 		}
 	}
-
-	//Precendence here is if the index has low-cardinality issue then most frequent value issue is not relevant as the user will have to fix the low cardinality index
-	//and the solution of that should also resolve the most frequent value issue as after resolution the key won't remain same
+	//Now most frequent value is reported all the time as low cardinality is no longer a problem as we have default as RANGE secondary indexes
 	if maxFrequencyPerc >= MOST_FREQUENT_VALUE_THRESHOLD && !mostCommonValPartialIndex {
 
 		//If the index is not LOW cardinality one then see if that has most frequent value or not
