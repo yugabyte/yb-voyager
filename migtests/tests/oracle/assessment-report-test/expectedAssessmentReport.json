@@ -1316,10 +1316,7 @@
 			"Type": "ColocatedShardedNotes",
 			"Text": "If there are any tables that receive disproportionately high load, ensure that they are NOT colocated to avoid the colocated tablet becoming a hotspot.\nFor additional considerations related to colocated tables, refer to the documentation at: https://docs.yugabyte.com/preview/explore/colocation/#limitations-and-considerations"
 		},
-		{
-			"Type": "GeneralNotes",
-			"Text": "If indexes are created on columns commonly used in range-based queries (e.g. timestamp columns), it is recommended to explicitly configure these indexes with range sharding. This ensures efficient data access for range queries.\nBy default, YugabyteDB uses hash sharding for indexes, which distributes data randomly and is not ideal for range-based predicates potentially degrading query performance. Note that range sharding is enabled by default only in PostgreSQL compatibility mode (https://docs.yugabyte.com/preview/develop/postgresql-compatibility/) in YugabyteDB."
-		},
+
 		{
 			"Type": "ColocatedShardedNotes",
 			"Text": "For sharding/colocation recommendations, each partition is treated individually. During the export schema phase, all the partitions of a partitioned table are currently created as colocated by default.\nTo manually modify the schema, please refer: https://github.com/yugabyte/yb-voyager/issues/1581."
