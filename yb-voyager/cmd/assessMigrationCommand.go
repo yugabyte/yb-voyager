@@ -19,7 +19,6 @@ package cmd
 import (
 	"bufio"
 	_ "embed"
-	"encoding/csv"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -640,23 +639,13 @@ func populateMetadataCSVIntoAssessmentDB() error {
 			migassessment.TABLE_INDEX_IOPS, tableName)
 
 		log.Infof("populating metadata from file %s into table %s", metadataFilePath, tableName)
-		file, err := os.Open(metadataFilePath)
+
+		err = assessmentDB.LoadCSVFileIntoTable(metadataFilePath, tableName)
 		if err != nil {
-			log.Warnf("error opening file %s: %v", metadataFilePath, err)
-			return nil
-		}
-		csvReader := csv.NewReader(file)
-		csvReader.ReuseRecord = true
-		rows, err := csvReader.ReadAll()
-		if err != nil {
-			log.Errorf("error reading csv file %s: %v", metadataFilePath, err)
-			return fmt.Errorf("error reading csv file %s: %w", metadataFilePath, err)
+			log.Warnf("error loading CSV file %s: %v", metadataFilePath, err)
+			return fmt.Errorf("error loading CSV file %s: %w", metadataFilePath, err)
 		}
 
-		err = assessmentDB.BulkInsert(tableName, rows)
-		if err != nil {
-			return fmt.Errorf("error bulk inserting data into %s table: %w", tableName, err)
-		}
 		log.Infof("populated metadata from file %s into table %s", metadataFilePath, tableName)
 	}
 

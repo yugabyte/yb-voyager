@@ -18,8 +18,10 @@ package migassessment
 import (
 	"context"
 	"database/sql"
+	"encoding/csv"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -384,4 +386,28 @@ func (adb *AssessmentDB) Query(query string, args ...interface{}) (*sql.Rows, er
 		return nil, fmt.Errorf("error executing query-%s: %w", query, err)
 	}
 	return rows, nil
+}
+
+// LoadCSVFileIntoTable reads a CSV file and loads it into the specified table
+func (adb *AssessmentDB) LoadCSVFileIntoTable(filePath, tableName string) error {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return fmt.Errorf("error opening file %s: %w", filePath, err)
+	}
+	defer file.Close()
+
+	csvReader := csv.NewReader(file)
+	csvReader.ReuseRecord = true
+
+	// Load all CSV rows in-memory; safe due to expected small file size (limited by DB object count or pg_stat_statements.max config)
+	rows, err := csvReader.ReadAll()
+	if err != nil {
+		return fmt.Errorf("error reading csv file %s: %w", filePath, err)
+	}
+
+	err = adb.BulkInsert(tableName, rows)
+	if err != nil {
+		return fmt.Errorf("error bulk inserting data into %s table: %w", tableName, err)
+	}
+	return nil
 }
