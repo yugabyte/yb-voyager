@@ -543,12 +543,11 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 			log.Infof("Skipping table %q (fileName: %s) as it is in the exclude list", task.TableNameTup, task.FilePath)
 			continue
 		}
-		tuple := task.TableNameTup
-		if !tuple.TargetTableAvailable() && !changeStreamingIsEnabled(importType) {
+		if !task.TableNameTup.TargetTableAvailable() && !changeStreamingIsEnabled(importType) {
 			//If table not exclude and not present in target then we will ask users to exclude them in table-list flags
 			//for offline migration only as for live we don't support table-list flags so this doesn't matter for that
 			//and we can assume that all export side tables should be present in target
-			tablesNotPresentInTarget = append(tablesNotPresentInTarget, tuple)
+			tablesNotPresentInTarget = append(tablesNotPresentInTarget, task.TableNameTup)
 			continue
 		}
 		result = append(result, task)
@@ -694,7 +693,7 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 	if changeStreamingIsEnabled(importType) {
 		//For live migration we need to use the source table list to get the import table list
 		//as we don't suport filtering tables in import data for live migration so it might be okay to use source side list
-		//and one more reason of using that is empty tables which are not present in datafile descriptor but we need to have them in 
+		//and one more reason of using that is empty tables which are not present in datafile descriptor but we need to have them in
 		// import list for live migration as streaming changes will be done for them
 		importTableList, err = getImportTableList(msr.TableListExportedFromSource)
 		if err != nil {
@@ -721,7 +720,10 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 			utils.PrintAndLog("All the tables are already imported, nothing left to import\n")
 		} else {
 			utils.PrintAndLog("Tables to import: %v", importFileTasksToTableNames(pendingTasks))
-			prepareTableToColumns(pendingTasks) //prepare the tableToColumns map
+			err = prepareTableToColumns(pendingTasks) //prepare the tableToColumns map
+			if err != nil {
+				utils.ErrExit("failed to prepare table to columns: %s", err)
+			}
 			maxParallelConns, err := getMaxParallelConnections()
 			if err != nil {
 				utils.ErrExit("Failed to get max parallel connections: %s", err)
@@ -1555,21 +1557,24 @@ func getTargetSchemaName(tableName string) string {
 	return tconf.Schema // default set to "public"
 }
 
-func prepareTableToColumns(tasks []*ImportFileTask) {
+func prepareTableToColumns(tasks []*ImportFileTask) error {
 	for _, task := range tasks {
 		var columns []string
-		dfdTableToExportedColumns := getDfdTableNameToExportedColumns(tasks, dataFileDescriptor)
+		dfdTableToExportedColumns, err := getDfdTableNameToExportedColumns(tasks, dataFileDescriptor)
+		if err != nil {
+			return fmt.Errorf("failed to get dfd table to exported columns: %s", err)
+		}
 		if dfdTableToExportedColumns != nil {
 			columns, _ = dfdTableToExportedColumns.Get(task.TableNameTup)
 		} else if dataFileDescriptor.HasHeader {
 			// File is either exported from debezium OR this is `import data file` case.
 			reader, err := dataStore.Open(task.FilePath)
 			if err != nil {
-				utils.ErrExit("datastore.Open: %q: %v", task.FilePath, err)
+				return fmt.Errorf("datastore.Open: %q: %v", task.FilePath, err)
 			}
 			df, err := datafile.NewDataFile(task.FilePath, reader, dataFileDescriptor)
 			if err != nil {
-				utils.ErrExit("opening datafile: %q: %v", task.FilePath, err)
+				return fmt.Errorf("opening datafile: %q: %v", task.FilePath, err)
 			}
 			header := df.GetHeader()
 			columns = strings.Split(header, dataFileDescriptor.Delimiter)
@@ -1579,25 +1584,26 @@ func prepareTableToColumns(tasks []*ImportFileTask) {
 		}
 		TableToColumnNames.Put(task.TableNameTup, columns)
 	}
+	return nil
 }
 
-func getDfdTableNameToExportedColumns(tasks []*ImportFileTask, dataFileDescriptor *datafile.Descriptor) *utils.StructMap[sqlname.NameTuple, []string] {
+func getDfdTableNameToExportedColumns(tasks []*ImportFileTask, dataFileDescriptor *datafile.Descriptor) (*utils.StructMap[sqlname.NameTuple, []string], error) {
 	if dataFileDescriptor.TableNameToExportedColumns == nil {
-		return nil
+		return nil, nil
 	}
 
 	result := utils.NewStructMap[sqlname.NameTuple, []string]()
 	// checking columns for all tables in the datafile descriptor by using the file tasks
 	//as this is used only for import batch which is snapshot
-	for _, task := range tasks {  
+	for _, task := range tasks {
 		columnList, ok := dataFileDescriptor.TableNameToExportedColumns[task.TableNameTup.ForKey()]
 		if ok {
 			result.Put(task.TableNameTup, columnList)
 		} else {
-			utils.ErrExit("table %q not found in data file descriptor", task.TableNameTup.ForKey())
+			return nil, fmt.Errorf("table %q not found in data file descriptor", task.TableNameTup.ForKey())
 		}
 	}
-	return result
+	return result, nil
 }
 
 func checkExportDataDoneFlag() {

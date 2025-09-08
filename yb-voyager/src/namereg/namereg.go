@@ -344,6 +344,10 @@ func (reg *NameRegistry) LookupTableNameAndIgnoreIfSourceNotFound(tableNameArg s
 }
 
 func (reg *NameRegistry) lookupSourceAndTargetTableNames(tableNameArg string, ignoreIfTargetNotFound bool, ignoreIfSourceNotFound bool) (*sqlname.ObjectName, *sqlname.ObjectName, error) {
+	if ignoreIfTargetNotFound && ignoreIfSourceNotFound {
+		//can't use nametuple if both are ignored	
+		return nil, nil, fmt.Errorf("ignoreIfTargetNotFound and ignoreIfSourceNotFound cannot be true at the same time")
+	}
 	createAllObjectNamesMap := func(m map[string][]string, m1 map[string][]string) map[string][]string {
 		if m == nil && m1 == nil {
 			return nil
