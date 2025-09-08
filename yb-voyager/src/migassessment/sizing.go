@@ -368,7 +368,7 @@ func pickBestRecommendation(recommendations map[int]IntermediateRecommendation) 
 	// Iterate over each recommendation
 	for _, rec := range recs {
 		// Update maxCores with the maximum number of vCPUs per instance across recommendations. If none of the cores
-		// abe to satisfy the criteria, recommendation with maxCores will be used as final recommendation
+		// able to satisfy the criteria, recommendation with maxCores will be used as final recommendation
 		if maxCores < rec.VCPUsPerInstance {
 			maxCores = rec.VCPUsPerInstance
 		}
@@ -401,9 +401,11 @@ func pickBestRecommendation(recommendations map[int]IntermediateRecommendation) 
 
 /*
 pickBestOutOfTwo selects the best recommendation from two recommendations using the following logic:
- 1. If recommendations have different VCPUsPerInstance, select the one with fewer VCPUs per instance
-    only if it also has lesser or equal cores needed
- 2. Otherwise, select the one with fewer nodes needed (when equal nodes needed, choose all-sharded)
+ 1. If recommendations have different VCPUsPerInstance:
+    a. Calculate resultant_cores = VCPUsPerInstance * NumNodes for both recommendations
+    b. If resultant_cores are equal, select the one with higher VCPUsPerInstance
+    c. Otherwise, select the one with fewer resultant_cores
+ 2. If recommendations have same VCPUsPerInstance, select the one with fewer nodes needed (when equal nodes needed, choose all-sharded)
 
 It returns the selected recommendation along with reasoning explaining the choice.
 
@@ -420,21 +422,38 @@ func pickBestOutOfTwo(rec1, rec2 IntermediateRecommendation, sourceIndexMetadata
 	var selectedRec, notSelectedRec IntermediateRecommendation
 	var reasoning string
 
-	// Check if recommendations have different VCPUsPerInstance and apply VCPUs + cores logic
+	// Check if recommendations have different VCPUsPerInstance and apply resultant_cores logic
 	vcpuConditionMet := false
 	if rec1.VCPUsPerInstance != rec2.VCPUsPerInstance {
-		// Find which recommendation has less VCPUsPerInstance
-		if rec1.VCPUsPerInstance < rec2.VCPUsPerInstance && rec1.CoresNeeded <= rec2.CoresNeeded {
+		// Calculate resultant_cores = VCPUsPerInstance * NumNodes
+		rec1ResultantCores := float64(rec1.VCPUsPerInstance) * rec1.NumNodes
+		rec2ResultantCores := float64(rec2.VCPUsPerInstance) * rec2.NumNodes
+
+		if rec1ResultantCores == rec2ResultantCores {
+			// When resultant_cores are equal, choose the one with higher VCPUsPerInstance
+			if rec1.VCPUsPerInstance > rec2.VCPUsPerInstance {
+				selectedRec = rec1
+				notSelectedRec = rec2
+				reasoning = fmt.Sprintf("\nSelected colocated+sharded strategy with %d VCPUs per instance (%.1f resultant cores) over all-sharded strategy with %d VCPUs per instance (%.1f resultant cores). ",
+					rec1.VCPUsPerInstance, rec1ResultantCores, rec2.VCPUsPerInstance, rec2ResultantCores)
+			} else {
+				selectedRec = rec2
+				notSelectedRec = rec1
+				reasoning = fmt.Sprintf("\nSelected all-sharded strategy with %d VCPUs per instance (%.1f resultant cores) over colocated+sharded strategy with %d VCPUs per instance (%.1f resultant cores). ",
+					rec2.VCPUsPerInstance, rec2ResultantCores, rec1.VCPUsPerInstance, rec1ResultantCores)
+			}
+			vcpuConditionMet = true
+		} else if rec1ResultantCores < rec2ResultantCores {
 			selectedRec = rec1
 			notSelectedRec = rec2
-			reasoning = fmt.Sprintf("\nSelected colocated+sharded strategy with %d VCPUs per instance (%.1f cores needed) over all-sharded strategy with %d VCPUs per instance (%.1f cores needed). ",
-				rec1.VCPUsPerInstance, rec1.CoresNeeded, rec2.VCPUsPerInstance, rec2.CoresNeeded)
+			reasoning = fmt.Sprintf("\nSelected colocated+sharded strategy with %d VCPUs per instance (%.1f resultant cores) over all-sharded strategy with %d VCPUs per instance (%.1f resultant cores). ",
+				rec1.VCPUsPerInstance, rec1ResultantCores, rec2.VCPUsPerInstance, rec2ResultantCores)
 			vcpuConditionMet = true
-		} else if rec2.VCPUsPerInstance < rec1.VCPUsPerInstance && rec2.CoresNeeded <= rec1.CoresNeeded {
+		} else if rec2ResultantCores < rec1ResultantCores {
 			selectedRec = rec2
 			notSelectedRec = rec1
-			reasoning = fmt.Sprintf("\nSelected all-sharded strategy with %d VCPUs per instance (%.1f cores needed) over colocated+sharded strategy with %d VCPUs per instance (%.1f cores needed). ",
-				rec2.VCPUsPerInstance, rec2.CoresNeeded, rec1.VCPUsPerInstance, rec1.CoresNeeded)
+			reasoning = fmt.Sprintf("\nSelected all-sharded strategy with %d VCPUs per instance (%.1f resultant cores) over colocated+sharded strategy with %d VCPUs per instance (%.1f resultant cores). ",
+				rec2.VCPUsPerInstance, rec2ResultantCores, rec1.VCPUsPerInstance, rec1ResultantCores)
 			vcpuConditionMet = true
 		}
 	}

@@ -942,19 +942,19 @@ func TestFindNumNodesNeededBasedOnTabletsRequired_NeedMoreNodes(t *testing.T) {
 /*
 ===== 	Test functions to test pickBestOutOfTwo function	=====
 */
-// Test VCPUsPerInstance logic - rec1 has fewer VCPUs and fewer cores, should be selected
-func TestPickBestOutOfTwo_VCPULogic_Rec1FewerVCPUsAndFewerCores(t *testing.T) {
+// Test VCPUsPerInstance logic - rec1 has fewer resultant cores, should be selected
+func TestPickBestOutOfTwo_VCPULogic_Rec1FewerResultantCores(t *testing.T) {
 	rec1 := IntermediateRecommendation{
 		VCPUsPerInstance: 4,
 		CoresNeeded:      12,
-		NumNodes:         5,
+		NumNodes:         3, // resultant_cores = 4 * 3 = 12
 		ColocatedTables:  []SourceDBMetadata{{ObjectName: "table1"}},
 		ShardedTables:    []SourceDBMetadata{{ObjectName: "table2"}},
 	}
 	rec2 := IntermediateRecommendation{
 		VCPUsPerInstance: 8,
 		CoresNeeded:      16,
-		NumNodes:         3,
+		NumNodes:         2, // resultant_cores = 8 * 2 = 16
 		ColocatedTables:  []SourceDBMetadata{{ObjectName: "table3"}},
 		ShardedTables:    []SourceDBMetadata{{ObjectName: "table4"}},
 	}
@@ -963,48 +963,23 @@ func TestPickBestOutOfTwo_VCPULogic_Rec1FewerVCPUsAndFewerCores(t *testing.T) {
 	selectedRec, reasoning := pickBestOutOfTwo(rec1, rec2, sourceIndexMetadata)
 
 	assert.Equal(t, rec1, selectedRec)
-	assert.Contains(t, reasoning, "Selected colocated+sharded strategy with 4 VCPUs per instance (12.0 cores needed)")
-	assert.Contains(t, reasoning, "over all-sharded strategy with 8 VCPUs per instance (16.0 cores needed)")
+	assert.Contains(t, reasoning, "Selected colocated+sharded strategy with 4 VCPUs per instance (12.0 resultant cores)")
+	assert.Contains(t, reasoning, "over all-sharded strategy with 8 VCPUs per instance (16.0 resultant cores)")
 }
 
-// Test VCPUsPerInstance logic - rec1 has fewer VCPUs and equal cores, should be selected
-func TestPickBestOutOfTwo_VCPULogic_Rec1FewerVCPUsAndEqualCores(t *testing.T) {
+// Test VCPUsPerInstance logic - equal resultant cores, should select higher VCPUs
+func TestPickBestOutOfTwo_VCPULogic_EqualResultantCores_SelectHigherVCPUs(t *testing.T) {
 	rec1 := IntermediateRecommendation{
 		VCPUsPerInstance: 4,
 		CoresNeeded:      12,
-		NumNodes:         5,
+		NumNodes:         3, // resultant_cores = 4 * 3 = 12
 		ColocatedTables:  []SourceDBMetadata{{ObjectName: "table1"}},
 		ShardedTables:    []SourceDBMetadata{{ObjectName: "table2"}},
 	}
 	rec2 := IntermediateRecommendation{
-		VCPUsPerInstance: 8,
+		VCPUsPerInstance: 6,
 		CoresNeeded:      12,
-		NumNodes:         3,
-		ColocatedTables:  []SourceDBMetadata{{ObjectName: "table3"}},
-		ShardedTables:    []SourceDBMetadata{{ObjectName: "table4"}},
-	}
-	var sourceIndexMetadata []SourceDBMetadata
-
-	selectedRec, reasoning := pickBestOutOfTwo(rec1, rec2, sourceIndexMetadata)
-
-	assert.Equal(t, rec1, selectedRec)
-	assert.Contains(t, reasoning, "Selected colocated+sharded strategy with 4 VCPUs per instance (12.0 cores needed)")
-	assert.Contains(t, reasoning, "over all-sharded strategy with 8 VCPUs per instance (12.0 cores needed)")
-}
-
-// Test VCPUsPerInstance logic - rec2 has fewer VCPUs and fewer cores, should be selected
-func TestPickBestOutOfTwo_VCPULogic_Rec2FewerVCPUsAndFewerCores(t *testing.T) {
-	rec1 := IntermediateRecommendation{
-		VCPUsPerInstance: 16,
-		CoresNeeded:      20,
-		NumNodes:         3,
-		ColocatedTables:  []SourceDBMetadata{{ObjectName: "table1"}},
-		ShardedTables:    []SourceDBMetadata{{ObjectName: "table2"}},
-	}
-	rec2 := IntermediateRecommendation{
-		VCPUsPerInstance: 8,
-		CoresNeeded:      15,
-		NumNodes:         5,
+		NumNodes:         2, // resultant_cores = 6 * 2 = 12
 		ColocatedTables:  []SourceDBMetadata{{ObjectName: "table3"}},
 		ShardedTables:    []SourceDBMetadata{{ObjectName: "table4"}},
 	}
@@ -1013,23 +988,48 @@ func TestPickBestOutOfTwo_VCPULogic_Rec2FewerVCPUsAndFewerCores(t *testing.T) {
 	selectedRec, reasoning := pickBestOutOfTwo(rec1, rec2, sourceIndexMetadata)
 
 	assert.Equal(t, rec2, selectedRec)
-	assert.Contains(t, reasoning, "Selected all-sharded strategy with 8 VCPUs per instance (15.0 cores needed)")
-	assert.Contains(t, reasoning, "over colocated+sharded strategy with 16 VCPUs per instance (20.0 cores needed)")
+	assert.Contains(t, reasoning, "Selected all-sharded strategy with 6 VCPUs per instance (12.0 resultant cores)")
+	assert.Contains(t, reasoning, "over colocated+sharded strategy with 4 VCPUs per instance (12.0 resultant cores)")
 }
 
-// Test VCPUsPerInstance logic - rec1 has fewer VCPUs but more cores, should fall back to node comparison
-func TestPickBestOutOfTwo_VCPULogic_Rec1FewerVCPUsButMoreCores_FallbackToNodes(t *testing.T) {
+// Test VCPUsPerInstance logic - rec2 has fewer resultant cores, should be selected
+func TestPickBestOutOfTwo_VCPULogic_Rec2FewerResultantCores(t *testing.T) {
+	rec1 := IntermediateRecommendation{
+		VCPUsPerInstance: 16,
+		CoresNeeded:      20,
+		NumNodes:         3, // resultant_cores = 16 * 3 = 48
+		ColocatedTables:  []SourceDBMetadata{{ObjectName: "table1"}},
+		ShardedTables:    []SourceDBMetadata{{ObjectName: "table2"}},
+	}
+	rec2 := IntermediateRecommendation{
+		VCPUsPerInstance: 8,
+		CoresNeeded:      15,
+		NumNodes:         4, // resultant_cores = 8 * 4 = 32
+		ColocatedTables:  []SourceDBMetadata{{ObjectName: "table3"}},
+		ShardedTables:    []SourceDBMetadata{{ObjectName: "table4"}},
+	}
+	var sourceIndexMetadata []SourceDBMetadata
+
+	selectedRec, reasoning := pickBestOutOfTwo(rec1, rec2, sourceIndexMetadata)
+
+	assert.Equal(t, rec2, selectedRec)
+	assert.Contains(t, reasoning, "Selected all-sharded strategy with 8 VCPUs per instance (32.0 resultant cores)")
+	assert.Contains(t, reasoning, "over colocated+sharded strategy with 16 VCPUs per instance (48.0 resultant cores)")
+}
+
+// Test VCPUsPerInstance logic - rec1 has fewer VCPUs but more resultant cores, should select rec2 due to fewer resultant cores
+func TestPickBestOutOfTwo_VCPULogic_Rec1FewerVCPUsButMoreResultantCores(t *testing.T) {
 	rec1 := IntermediateRecommendation{
 		VCPUsPerInstance: 4,
 		CoresNeeded:      20,
-		NumNodes:         6,
+		NumNodes:         7, // resultant_cores = 4 * 7 = 28
 		ColocatedTables:  []SourceDBMetadata{{ObjectName: "table1"}},
 		ShardedTables:    []SourceDBMetadata{{ObjectName: "table2"}},
 	}
 	rec2 := IntermediateRecommendation{
 		VCPUsPerInstance: 8,
 		CoresNeeded:      16,
-		NumNodes:         3,
+		NumNodes:         3, // resultant_cores = 8 * 3 = 24
 		ColocatedTables:  []SourceDBMetadata{{ObjectName: "table3"}},
 		ShardedTables:    []SourceDBMetadata{{ObjectName: "table4"}},
 	}
@@ -1037,24 +1037,25 @@ func TestPickBestOutOfTwo_VCPULogic_Rec1FewerVCPUsButMoreCores_FallbackToNodes(t
 
 	selectedRec, reasoning := pickBestOutOfTwo(rec1, rec2, sourceIndexMetadata)
 
-	// Should fall back to node comparison and select rec2 (fewer nodes)
+	// Should select rec2 due to fewer resultant cores
 	assert.Equal(t, rec2, selectedRec)
-	assert.Contains(t, reasoning, "Selected all-sharded strategy requiring 3 nodes over colocated+sharded strategy requiring 6 nodes")
+	assert.Contains(t, reasoning, "Selected all-sharded strategy with 8 VCPUs per instance (24.0 resultant cores)")
+	assert.Contains(t, reasoning, "over colocated+sharded strategy with 4 VCPUs per instance (28.0 resultant cores)")
 }
 
-// Test VCPUsPerInstance logic - rec2 has fewer VCPUs but more cores, should fall back to node comparison
-func TestPickBestOutOfTwo_VCPULogic_Rec2FewerVCPUsButMoreCores_FallbackToNodes(t *testing.T) {
+// Test VCPUsPerInstance logic - rec2 has fewer VCPUs but more resultant cores, should select rec1 due to fewer resultant cores
+func TestPickBestOutOfTwo_VCPULogic_Rec2FewerVCPUsButMoreResultantCores(t *testing.T) {
 	rec1 := IntermediateRecommendation{
 		VCPUsPerInstance: 16,
 		CoresNeeded:      15,
-		NumNodes:         3,
+		NumNodes:         3, // resultant_cores = 16 * 3 = 48
 		ColocatedTables:  []SourceDBMetadata{{ObjectName: "table1"}},
 		ShardedTables:    []SourceDBMetadata{{ObjectName: "table2"}},
 	}
 	rec2 := IntermediateRecommendation{
 		VCPUsPerInstance: 8,
 		CoresNeeded:      25,
-		NumNodes:         6,
+		NumNodes:         7, // resultant_cores = 8 * 7 = 56
 		ColocatedTables:  []SourceDBMetadata{{ObjectName: "table3"}},
 		ShardedTables:    []SourceDBMetadata{{ObjectName: "table4"}},
 	}
@@ -1062,9 +1063,10 @@ func TestPickBestOutOfTwo_VCPULogic_Rec2FewerVCPUsButMoreCores_FallbackToNodes(t
 
 	selectedRec, reasoning := pickBestOutOfTwo(rec1, rec2, sourceIndexMetadata)
 
-	// Should fall back to node comparison and select rec1 (fewer nodes)
+	// Should select rec1 due to fewer resultant cores
 	assert.Equal(t, rec1, selectedRec)
-	assert.Contains(t, reasoning, "Selected colocated+sharded strategy requiring 3 nodes over all-sharded strategy requiring 6 nodes")
+	assert.Contains(t, reasoning, "Selected colocated+sharded strategy with 16 VCPUs per instance (48.0 resultant cores)")
+	assert.Contains(t, reasoning, "over all-sharded strategy with 8 VCPUs per instance (56.0 resultant cores)")
 }
 
 // Test same VCPUsPerInstance - should use node comparison logic
@@ -1144,14 +1146,14 @@ func TestPickBestOutOfTwo_WithIndexes_VerifyObjectCounts(t *testing.T) {
 	rec1 := IntermediateRecommendation{
 		VCPUsPerInstance: 4,
 		CoresNeeded:      12,
-		NumNodes:         5,
+		NumNodes:         4, // resultant_cores = 4 * 4 = 16
 		ColocatedTables:  []SourceDBMetadata{{ObjectName: "table1"}, {ObjectName: "table2"}},
 		ShardedTables:    []SourceDBMetadata{{ObjectName: "table3"}},
 	}
 	rec2 := IntermediateRecommendation{
 		VCPUsPerInstance: 8,
 		CoresNeeded:      16,
-		NumNodes:         3,
+		NumNodes:         3, // resultant_cores = 8 * 3 = 24
 		ColocatedTables:  []SourceDBMetadata{{ObjectName: "table4"}},
 		ShardedTables:    []SourceDBMetadata{{ObjectName: "table5"}, {ObjectName: "table6"}},
 	}
@@ -1171,19 +1173,19 @@ func TestPickBestOutOfTwo_WithIndexes_VerifyObjectCounts(t *testing.T) {
 	assert.Contains(t, reasoning, "2 sharded objects (2 tables, 0 indexes)")
 }
 
-// Test edge case - zero values
-func TestPickBestOutOfTwo_EdgeCase_ZeroValues(t *testing.T) {
+// Test edge case - equal resultant cores, should prefer higher VCPUs
+func TestPickBestOutOfTwo_EdgeCase_EqualResultantCores(t *testing.T) {
 	rec1 := IntermediateRecommendation{
 		VCPUsPerInstance: 4,
 		CoresNeeded:      0,
-		NumNodes:         3,
+		NumNodes:         3, // resultant_cores = 4 * 3 = 12
 		ColocatedTables:  []SourceDBMetadata{},
 		ShardedTables:    []SourceDBMetadata{},
 	}
 	rec2 := IntermediateRecommendation{
-		VCPUsPerInstance: 8,
+		VCPUsPerInstance: 6,
 		CoresNeeded:      0,
-		NumNodes:         3,
+		NumNodes:         2, // resultant_cores = 6 * 2 = 12
 		ColocatedTables:  []SourceDBMetadata{},
 		ShardedTables:    []SourceDBMetadata{},
 	}
@@ -1191,9 +1193,9 @@ func TestPickBestOutOfTwo_EdgeCase_ZeroValues(t *testing.T) {
 
 	selectedRec, reasoning := pickBestOutOfTwo(rec1, rec2, sourceIndexMetadata)
 
-	// Should select rec1 due to fewer VCPUs with equal cores
-	assert.Equal(t, rec1, selectedRec)
-	assert.Contains(t, reasoning, "Selected colocated+sharded strategy with 4 VCPUs per instance (0.0 cores needed)")
+	// Should select rec2 due to higher VCPUs with equal resultant cores
+	assert.Equal(t, rec2, selectedRec)
+	assert.Contains(t, reasoning, "Selected all-sharded strategy with 6 VCPUs per instance (12.0 resultant cores)")
 }
 
 // Test edge case - large values
@@ -1201,14 +1203,14 @@ func TestPickBestOutOfTwo_EdgeCase_LargeValues(t *testing.T) {
 	rec1 := IntermediateRecommendation{
 		VCPUsPerInstance: 64,
 		CoresNeeded:      1000,
-		NumNodes:         50,
+		NumNodes:         50, // resultant_cores = 64 * 50 = 3200
 		ColocatedTables:  []SourceDBMetadata{{ObjectName: "table1"}},
 		ShardedTables:    []SourceDBMetadata{{ObjectName: "table2"}},
 	}
 	rec2 := IntermediateRecommendation{
 		VCPUsPerInstance: 32,
 		CoresNeeded:      800,
-		NumNodes:         100,
+		NumNodes:         80, // resultant_cores = 32 * 80 = 2560
 		ColocatedTables:  []SourceDBMetadata{{ObjectName: "table3"}},
 		ShardedTables:    []SourceDBMetadata{{ObjectName: "table4"}},
 	}
@@ -1216,10 +1218,10 @@ func TestPickBestOutOfTwo_EdgeCase_LargeValues(t *testing.T) {
 
 	selectedRec, reasoning := pickBestOutOfTwo(rec1, rec2, sourceIndexMetadata)
 
-	// Should select rec2 due to fewer VCPUs and fewer cores
+	// Should select rec2 due to fewer resultant cores
 	assert.Equal(t, rec2, selectedRec)
-	assert.Contains(t, reasoning, "Selected all-sharded strategy with 32 VCPUs per instance (800.0 cores needed)")
-	assert.Contains(t, reasoning, "over colocated+sharded strategy with 64 VCPUs per instance (1000.0 cores needed)")
+	assert.Contains(t, reasoning, "Selected all-sharded strategy with 32 VCPUs per instance (2560.0 resultant cores)")
+	assert.Contains(t, reasoning, "over colocated+sharded strategy with 64 VCPUs per instance (3200.0 resultant cores)")
 }
 
 // Test complex scenario with indexes affecting object counts
@@ -1227,7 +1229,7 @@ func TestPickBestOutOfTwo_ComplexScenario_WithMultipleIndexes(t *testing.T) {
 	rec1 := IntermediateRecommendation{
 		VCPUsPerInstance: 8,
 		CoresNeeded:      24,
-		NumNodes:         6,
+		NumNodes:         5, // resultant_cores = 8 * 5 = 40
 		ColocatedTables: []SourceDBMetadata{
 			{ObjectName: "users", SchemaName: "public"},
 			{ObjectName: "orders", SchemaName: "public"},
@@ -1239,7 +1241,7 @@ func TestPickBestOutOfTwo_ComplexScenario_WithMultipleIndexes(t *testing.T) {
 	rec2 := IntermediateRecommendation{
 		VCPUsPerInstance: 16,
 		CoresNeeded:      32,
-		NumNodes:         4,
+		NumNodes:         4, // resultant_cores = 16 * 4 = 64
 		ColocatedTables: []SourceDBMetadata{
 			{ObjectName: "categories", SchemaName: "public"},
 		},
@@ -1259,10 +1261,10 @@ func TestPickBestOutOfTwo_ComplexScenario_WithMultipleIndexes(t *testing.T) {
 
 	selectedRec, reasoning := pickBestOutOfTwo(rec1, rec2, sourceIndexMetadata)
 
-	// Should select rec1 due to fewer VCPUs and fewer cores
+	// Should select rec1 due to fewer resultant cores
 	assert.Equal(t, rec1, selectedRec)
-	assert.Contains(t, reasoning, "Selected colocated+sharded strategy with 8 VCPUs per instance (24.0 cores needed)")
-	assert.Contains(t, reasoning, "over all-sharded strategy with 16 VCPUs per instance (32.0 cores needed)")
+	assert.Contains(t, reasoning, "Selected colocated+sharded strategy with 8 VCPUs per instance (40.0 resultant cores)")
+	assert.Contains(t, reasoning, "over all-sharded strategy with 16 VCPUs per instance (64.0 resultant cores)")
 
 	// Verify object counts for non-selected recommendation (rec2)
 	assert.Contains(t, reasoning, "Non-selected recommendation:")
@@ -1270,19 +1272,19 @@ func TestPickBestOutOfTwo_ComplexScenario_WithMultipleIndexes(t *testing.T) {
 	assert.Contains(t, reasoning, "4 sharded objects (2 tables, 2 indexes)")
 }
 
-// Test reasoning format when falling back to node comparison
-func TestPickBestOutOfTwo_ReasoningFormat_NodeComparisonFallback(t *testing.T) {
+// Test reasoning format when using resultant cores comparison
+func TestPickBestOutOfTwo_ReasoningFormat_ResultantCoresComparison(t *testing.T) {
 	rec1 := IntermediateRecommendation{
 		VCPUsPerInstance: 4,
 		CoresNeeded:      25,
-		NumNodes:         7,
+		NumNodes:         7, // resultant_cores = 4 * 7 = 28
 		ColocatedTables:  []SourceDBMetadata{{ObjectName: "table1"}},
 		ShardedTables:    []SourceDBMetadata{},
 	}
 	rec2 := IntermediateRecommendation{
 		VCPUsPerInstance: 8,
 		CoresNeeded:      20,
-		NumNodes:         5,
+		NumNodes:         5, // resultant_cores = 8 * 5 = 40
 		ColocatedTables:  []SourceDBMetadata{},
 		ShardedTables:    []SourceDBMetadata{{ObjectName: "table2"}},
 	}
@@ -1290,10 +1292,36 @@ func TestPickBestOutOfTwo_ReasoningFormat_NodeComparisonFallback(t *testing.T) {
 
 	selectedRec, reasoning := pickBestOutOfTwo(rec1, rec2, sourceIndexMetadata)
 
-	// Should fall back to node comparison (rec2 has fewer nodes)
+	// Should select rec1 due to fewer resultant cores
+	assert.Equal(t, rec1, selectedRec)
+	assert.Contains(t, reasoning, "Selected colocated+sharded strategy with 4 VCPUs per instance (28.0 resultant cores)")
+	assert.Contains(t, reasoning, "over all-sharded strategy with 8 VCPUs per instance (40.0 resultant cores)")
+}
+
+// Test when same VCPUsPerInstance - should fallback to node comparison
+func TestPickBestOutOfTwo_SameVCPUs_FallbackToNodeComparison(t *testing.T) {
+	rec1 := IntermediateRecommendation{
+		VCPUsPerInstance: 8,
+		CoresNeeded:      25,
+		NumNodes:         7, // same VCPUsPerInstance, so compare by nodes
+		ColocatedTables:  []SourceDBMetadata{{ObjectName: "table1"}},
+		ShardedTables:    []SourceDBMetadata{},
+	}
+	rec2 := IntermediateRecommendation{
+		VCPUsPerInstance: 8,
+		CoresNeeded:      20,
+		NumNodes:         5, // fewer nodes
+		ColocatedTables:  []SourceDBMetadata{},
+		ShardedTables:    []SourceDBMetadata{{ObjectName: "table2"}},
+	}
+	var sourceIndexMetadata []SourceDBMetadata
+
+	selectedRec, reasoning := pickBestOutOfTwo(rec1, rec2, sourceIndexMetadata)
+
+	// Should select rec2 due to fewer nodes
 	assert.Equal(t, rec2, selectedRec)
 	assert.Contains(t, reasoning, "Selected all-sharded strategy requiring 5 nodes over colocated+sharded strategy requiring 7 nodes")
-	assert.NotContains(t, reasoning, "VCPUs per instance") // Should not mention VCPUs in fallback case
+	assert.NotContains(t, reasoning, "resultant cores") // Should not mention resultant cores in node comparison fallback
 }
 
 /*
