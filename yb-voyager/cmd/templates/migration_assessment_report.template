@@ -498,7 +498,6 @@
                         </tr>
                     </table>
 
-                    <!-- Add ColocatedShardedNotes here -->
                     {{ if hasNotesByType $.Notes "ColocatedShardedNotes" }}
                         <div class="notes-section">
                             <h5>Notes</h5>
@@ -527,7 +526,6 @@
                     <h3>Reasoning:</h3>
                     <p class="spaced-words">{{ .ColocatedReasoning }}</p>
 
-                    <!-- Add SizingNotes here -->
                     {{ if hasNotesByType $.Notes "SizingNotes" }}
                         <div class="notes-section">
                             <h5>Notes</h5>

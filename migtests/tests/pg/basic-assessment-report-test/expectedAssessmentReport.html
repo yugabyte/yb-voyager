@@ -247,6 +247,49 @@
             line-height: 1.2em;
             font-family: monospace;
         }
+
+        /* Notes Section Styles */
+        .notes-section {
+            margin: 15px 0;
+            padding: 12px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+        }
+
+        .notes-section h5 {
+            margin: 0 0 8px 0;
+            font-size: 0.95em;
+            color: #666;
+            font-weight: 500;
+        }
+
+        .notes-section ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+
+        .notes-section li {
+            margin: 5px 0;
+            line-height: 1.4;
+        }
+
+        .general-notes-container {
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            padding: 12px;
+            margin: 10px 0;
+        }
+
+        .general-notes-container ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+
+        .general-notes-container li {
+            margin: 5px 0;
+            line-height: 1.4;
+        }
+
     </style>
     <script>
 
@@ -558,6 +601,15 @@
                             </td>
                         </tr>
                     </table>
+
+                        <div class="notes-section">
+                            <h5>Notes</h5>
+                            <ul>
+                                    <li>If there are any tables that receive disproportionately high load, ensure that they are NOT colocated to avoid the colocated tablet becoming a hotspot.
+For additional considerations related to colocated tables, refer to the documentation at: <a class="highlight-link" target="_blank" href="https://docs.yugabyte.com/preview/explore/colocation/#limitations-and-considerations">https://docs.yugabyte.com/preview/explore/colocation/#limitations-and-considerations</a></li>
+                            </ul>
+                        </div>
+
                     <h2>Sizing Recommendations</h2>
                     <table>
                         <tr>
@@ -1934,20 +1986,18 @@ Note: If the table is created as colocated, this hotspot concern can safely be i
         
             <hr>
             <div>
-                <h4>Notes</h4>
-                <ul id="notes-list">
-                    
+                <h4>General Notes</h4>
+                <div class="general-notes-container">
+                    <ul id="notes-list">
                         <li>Some features listed in this report may be supported under a preview flag in the specified target-db-version of YugabyteDB. Please refer to the official <a class="highlight-link" target="_blank" href="https://docs.yugabyte.com/preview/releases/ybdb-releases/">release notes</a> for detailed information and usage guidelines.</li>
-                    
-                        <li>If there are any tables that receive disproportionately high load, ensure that they are NOT colocated to avoid the colocated tablet becoming a hotspot.
-For additional considerations related to colocated tables, refer to the documentation at: https://docs.yugabyte.com/preview/explore/colocation/#limitations-and-considerations</li>
                     
                         <li>If indexes are created on columns commonly used in range-based queries (e.g. timestamp columns), it is recommended to explicitly configure these indexes with range sharding. This ensures efficient data access for range queries.
 By default, YugabyteDB uses hash sharding for indexes, which distributes data randomly and is not ideal for range-based predicates potentially degrading query performance. Note that range sharding is enabled by default only in <a class="highlight-link" target="_blank" href="https://docs.yugabyte.com/preview/develop/postgresql-compatibility/">PostgreSQL compatibility mode</a> in YugabyteDB.</li>
                     
                         <li><a class="highlight-link" target="_blank"  href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/#assessment-and-schema-analysis-limitations">Limitations in assessment</a></li>
                     
-                </ul>
+                    </ul>
+                </div>
             </div>
         
     </div>
