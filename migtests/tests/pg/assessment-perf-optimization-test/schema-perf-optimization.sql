@@ -308,6 +308,207 @@ END;
 $$ LANGUAGE plpgsql;
 
 --
+-- PK Recommendation Test Cases
+--
+
+-- Regular table without PK but with qualifying UNIQUE constraint
+CREATE TABLE public.no_pk_table (
+    id integer NOT NULL,
+    name text NOT NULL,
+    email text,
+    UNIQUE(id, name)
+);
+
+-- Partitioned table without PK but with qualifying UNIQUE constraint
+CREATE TABLE public.partitioned_no_pk (
+    id integer NOT NULL,
+    region text NOT NULL,
+    year integer NOT NULL,
+    amount numeric,
+    UNIQUE(id, region, year)
+) PARTITION BY RANGE (year);
+
+CREATE TABLE public.partitioned_no_pk_2023 PARTITION OF public.partitioned_no_pk 
+FOR VALUES FROM (2023) TO (2024) PARTITION BY LIST (region);
+
+CREATE TABLE public.partitioned_no_pk_2023_us PARTITION OF public.partitioned_no_pk_2023 
+FOR VALUES IN ('US');
+
+-- Multi-level partitioned table without PK
+CREATE TABLE public.sales_hierarchy (
+    id integer NOT NULL,
+    region text NOT NULL,
+    year integer NOT NULL,
+    quarter text NOT NULL,
+    amount numeric,
+    UNIQUE(id, region, year, quarter)
+) PARTITION BY RANGE (year);
+
+CREATE TABLE public.sales_hierarchy_2023 PARTITION OF public.sales_hierarchy 
+FOR VALUES FROM (2023) TO (2024) PARTITION BY LIST (region);
+
+CREATE TABLE public.sales_hierarchy_2023_q1 PARTITION OF public.sales_hierarchy_2023 
+FOR VALUES IN ('US') PARTITION BY LIST (quarter);
+
+CREATE TABLE public.sales_hierarchy_2023_q1_us PARTITION OF public.sales_hierarchy_2023_q1 
+FOR VALUES IN ('Q1');
+
+-- Table with multiple UNIQUE constraints - should get multiple PK options
+CREATE TABLE public.multiple_unique_options (
+    id integer NOT NULL,
+    name text NOT NULL,
+    email text NOT NULL,
+    phone text NOT NULL,
+    UNIQUE(id, name),
+    UNIQUE(email),
+    UNIQUE(phone, name)
+);
+
+-- Partitioned table with multiple UNIQUE constraints containing all partition columns
+CREATE TABLE public.partitioned_multiple_unique (
+    id integer NOT NULL,
+    region text NOT NULL,
+    year integer NOT NULL,
+    quarter text NOT NULL,
+    amount numeric,
+    UNIQUE(id, region, year, quarter),
+    UNIQUE(id, year, region, quarter)  -- Same columns, different order
+) PARTITION BY RANGE (year);
+
+CREATE TABLE public.partitioned_multiple_unique_2023 PARTITION OF public.partitioned_multiple_unique 
+FOR VALUES FROM (2023) TO (2024) PARTITION BY LIST (region);
+
+CREATE TABLE public.partitioned_multiple_unique_2023_us PARTITION OF public.partitioned_multiple_unique_2023 
+FOR VALUES IN ('US');
+
+-- Insert test data for PK recommendation tables
+INSERT INTO public.no_pk_table (id, name, email) 
+SELECT i, 'user_' || i, 'user' || i || '@example.com' 
+FROM generate_series(1, 100) AS i;
+
+INSERT INTO public.partitioned_no_pk (id, region, year, amount)
+SELECT i, 'US', 2023, i * 100
+FROM generate_series(1, 50) AS i;
+
+INSERT INTO public.sales_hierarchy (id, region, year, quarter, amount)
+SELECT i, 'US', 2023, 'Q1', i * 1000
+FROM generate_series(1, 25) AS i;
+
+INSERT INTO public.multiple_unique_options (id, name, email, phone) 
+SELECT i, 'user_' || i, 'user' || i || '@example.com', '555-' || LPAD(i::text, 4, '0')
+FROM generate_series(1, 50) AS i;
+
+INSERT INTO public.partitioned_multiple_unique (id, region, year, quarter, amount)
+SELECT i, 'US', 2023, 'Q1', i * 1000
+FROM generate_series(1, 20) AS i;
+
+-- Negative test cases - should NOT get PK recommendations
+
+-- Root partitioned table where mid-level already has PK - should NOT get PK recommendation
+CREATE TABLE public.sales_with_mid_pk (
+    id integer NOT NULL,
+    sale_date date NOT NULL,
+    region text NOT NULL,
+    amount numeric,
+    UNIQUE(id, sale_date, region)  -- This would normally qualify for PK recommendation
+) PARTITION BY RANGE (sale_date);
+
+CREATE TABLE public.sales_with_mid_pk_2024 PARTITION OF public.sales_with_mid_pk 
+FOR VALUES FROM ('2024-01-01') TO ('2025-01-01') PARTITION BY LIST (region);
+
+CREATE TABLE public.sales_with_mid_pk_2024_asia PARTITION OF public.sales_with_mid_pk_2024 
+FOR VALUES IN ('Asia');
+
+-- Add PK to mid-level table (this prevents root from getting PK recommendation)
+ALTER TABLE public.sales_with_mid_pk_2024 
+ADD CONSTRAINT sales_with_mid_pk_2024_pk PRIMARY KEY (id, region);
+
+-- Table with UNIQUE constraint but nullable columns
+CREATE TABLE public.no_pk_nullable (
+    id integer,
+    name text,
+    email text,
+    UNIQUE(id, name)
+);
+
+-- Partitioned table without UNIQUE constraint
+CREATE TABLE public.partitioned_no_unique (
+    id integer NOT NULL,
+    region text NOT NULL,
+    year integer NOT NULL,
+    amount numeric
+) PARTITION BY RANGE (year);
+
+CREATE TABLE public.partitioned_no_unique_2023 PARTITION OF public.partitioned_no_unique 
+FOR VALUES FROM (2023) TO (2024) PARTITION BY LIST (region);
+
+CREATE TABLE public.partitioned_no_unique_2023_us PARTITION OF public.partitioned_no_unique_2023 
+FOR VALUES IN ('US');
+
+-- Multi-level partitioned table without UNIQUE constraint
+CREATE TABLE public.sales_hierarchy_no_unique (
+    id integer NOT NULL,
+    region text NOT NULL,
+    year integer NOT NULL,
+    quarter text NOT NULL,
+    amount numeric
+) PARTITION BY RANGE (year);
+
+CREATE TABLE public.sales_hierarchy_no_unique_2023 PARTITION OF public.sales_hierarchy_no_unique 
+FOR VALUES FROM (2023) TO (2024) PARTITION BY LIST (region);
+
+CREATE TABLE public.sales_hierarchy_no_unique_2023_q1 PARTITION OF public.sales_hierarchy_no_unique_2023 
+FOR VALUES IN ('US') PARTITION BY LIST (quarter);
+
+CREATE TABLE public.sales_hierarchy_no_unique_2023_q1_us PARTITION OF public.sales_hierarchy_no_unique_2023_q1 
+FOR VALUES IN ('Q1');
+
+-- Table that already has a PRIMARY KEY
+CREATE TABLE public.has_pk_already (
+    id integer NOT NULL,
+    name text NOT NULL,
+    email text,
+    PRIMARY KEY(id),
+    UNIQUE(name)
+);
+
+-- Child partition table (should be skipped)
+CREATE TABLE public.parent_partitioned (
+    id integer NOT NULL,
+    region text NOT NULL,
+    data text
+) PARTITION BY LIST (region);
+
+CREATE TABLE public.child_partition_skipped PARTITION OF public.parent_partitioned (
+    UNIQUE(id, region)
+) FOR VALUES IN ('US');
+
+-- Insert test data for negative test cases
+INSERT INTO public.no_pk_nullable (id, name, email) 
+SELECT i, 'user_' || i, 'user' || i || '@example.com' 
+FROM generate_series(1, 50) AS i;
+
+INSERT INTO public.partitioned_no_unique (id, region, year, amount)
+SELECT i, 'US', 2023, i * 100
+FROM generate_series(1, 25) AS i;
+
+INSERT INTO public.sales_hierarchy_no_unique (id, region, year, quarter, amount)
+SELECT i, 'US', 2023, 'Q1', i * 1000
+FROM generate_series(1, 15) AS i;
+
+INSERT INTO public.has_pk_already (id, name, email) 
+SELECT i, 'user_' || i, 'user' || i || '@example.com' 
+FROM generate_series(1, 75) AS i;
+
+INSERT INTO public.parent_partitioned (id, region, data)
+SELECT i, 'US', 'data_' || i
+FROM generate_series(1, 30) AS i;
+
+INSERT INTO public.sales_with_mid_pk (id, sale_date, region, amount)
+SELECT i, '2024-06-15', 'Asia', i * 100
+FROM generate_series(1, 30) AS i;
+
+--
 -- PostgreSQL database dump complete
 --
 
