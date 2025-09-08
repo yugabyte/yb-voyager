@@ -1,0 +1,92 @@
+#!/usr/bin/env python3
+
+import yb
+
+def main():
+	yb.run_checks(migration_completed_checks)
+	yb.run_checks(YB_specific_checks)
+
+def YB_specific_checks(tgt):
+	yb.verify_colocation(tgt, "oracle")
+
+#=============================================================================
+
+EXPECTED_ROW_COUNT = {
+	'clob_test': 8  # 5 regular rows + 3 large CLOBs (~200MB each)
+}
+
+EXPECTED_DATA_TYPES = {
+	'clob_test': {
+		'id': 'numeric',
+		'c_text': 'text',      # CLOB -> text
+		'n_text': 'text',      # NCLOB -> text  
+		'b_data': 'bytea'      # BLOB -> bytea
+	}
+}
+
+# Expected CLOB content (ordered by id)
+EXPECTED_CLOB_VALUES = [
+	'''Multi-line CLOB test:
+Line 2: Special chars 'single quotes', "double quotes", backslashes \\\\
+Line 3: Testing line breaks and escaping
+End of quote/backslash test.''',
+	'{"user": "testuser", "data": {"nested": "value", "quotes": ""escaped quotes""}, "symbols": "@#$%^&*()"}',
+	'''Numbers: 123-456-789, Symbols: @#$%^&*()
+SQL injection: DROP TABLE users; DELETE FROM important; --comment
+End of injection test.''',
+	None,  # EMPTY_CLOB() should be NULL
+	'Simple CLOB text for LOB types test'
+]
+
+def migration_completed_checks(tgt):
+	# Row count and data type validation
+	got_row_count = tgt.row_count_of_all_tables("public")
+	for table_name, row_count in EXPECTED_ROW_COUNT.items():
+		print(f"table_name: {table_name}, row_count: {got_row_count[table_name]}")
+		assert row_count == got_row_count[table_name]
+
+	fetched_datatypes_schema = tgt.get_column_to_data_type_mapping("public")
+	for table_name, columns in fetched_datatypes_schema.items():
+		for column_name, datatype in columns.items():
+			assert datatype == EXPECTED_DATA_TYPES[table_name][column_name]
+
+	# Validate CLOB content for IDs 1-5 (regular test cases)
+	print("Validating CLOB content...")
+	for i, expected_content in enumerate(EXPECTED_CLOB_VALUES, 1):
+		actual_content = tgt.execute_query(f"SELECT c_text FROM public.clob_test WHERE id = {i}")
+		
+		if expected_content is None:
+			assert actual_content is None, f"Expected NULL for ID {i}, got: {repr(actual_content)}"
+		else:
+			if actual_content != expected_content:
+				print(f"CLOB content mismatch for ID {i}:")
+				print(f"  Expected: {repr(expected_content)}")
+				print(f"  Actual: {repr(actual_content)}")
+			assert actual_content == expected_content, f"CLOB content mismatch for ID {i}"
+	print("✓ CLOB content validation passed")
+
+	# Validate NCLOB and BLOB are NULL (not exported) - all 8 rows should be NULL
+	print("Validating NCLOB and BLOB are NULL (not exported)...")
+	tgt.assert_all_values_of_col("clob_test", "n_text", "public", expected_values=[None] * 8)
+	tgt.assert_all_values_of_col("clob_test", "b_data", "public", expected_values=[None] * 8)
+	print("✓ NCLOB and BLOB correctly NULL (not exported)")
+
+	# Validate large CLOBs pattern and length (IDs 101-103) if they exist
+	print("Validating large CLOB content and length...")
+	expected_large_clob_size = 200 * 1024 * 1024  # 200MB
+	tolerance = 32768  # Allow 32KB tolerance for chunking variations
+	
+	for large_id in [101, 102, 103]:
+		if tgt.execute_query(f"SELECT COUNT(*) FROM public.clob_test WHERE id = {large_id}") > 0:
+			# Validate content pattern (first 100 characters)
+			sample_content = tgt.execute_query(f"SELECT LEFT(c_text, 100) FROM public.clob_test WHERE id = {large_id}")
+			assert sample_content == 'X' * 100, f"Large CLOB pattern mismatch for ID {large_id}"
+			
+			# Validate length (should be ~200MB)
+			clob_length = tgt.get_text_length("id", large_id, "c_text", "clob_test", "public")
+			assert abs(clob_length - expected_large_clob_size) <= tolerance, f"Large CLOB size mismatch for ID {large_id}. Expected ~{expected_large_clob_size}, got {clob_length}"
+	print("✓ Large CLOB validation passed")
+
+if __name__ == "__main__":
+	main()
+
