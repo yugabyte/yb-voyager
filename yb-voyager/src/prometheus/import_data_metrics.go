@@ -16,10 +16,21 @@ limitations under the License.
 package prometheus
 
 import (
+	"fmt"
+	"time"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
+
+// sessionID is created on package init and used for all metrics
+var sessionID string
+
+func init() {
+	// Create a unique session ID based on timestamp
+	sessionID = fmt.Sprintf("%d", time.Now().Unix())
+}
 
 var (
 	// Total rows imported during snapshot
@@ -28,7 +39,7 @@ var (
 			Name: "yb_voyager_import_snapshot_rows_total",
 			Help: "Total rows imported during snapshot",
 		},
-		[]string{"table_name", "schema_name", "importer_role"},
+		[]string{"session_id", "importer_role", "table_name", "schema_name"},
 	)
 
 	// Total bytes imported during snapshot
@@ -37,7 +48,7 @@ var (
 			Name: "yb_voyager_import_snapshot_bytes_total",
 			Help: "Total bytes imported during snapshot",
 		},
-		[]string{"table_name", "schema_name", "importer_role"},
+		[]string{"session_id", "importer_role", "table_name", "schema_name"},
 	)
 
 	// Total number of batches created for import
@@ -46,7 +57,7 @@ var (
 			Name: "yb_voyager_import_snapshot_batch_created_total",
 			Help: "Total number of batches created for import",
 		},
-		[]string{"table_name", "schema_name", "importer_role"},
+		[]string{"session_id", "importer_role", "table_name", "schema_name"},
 	)
 
 	// Total number of batches submitted to worker pool
@@ -55,7 +66,7 @@ var (
 			Name: "yb_voyager_import_snapshot_batch_submitted_total",
 			Help: "Total number of batches submitted to worker pool",
 		},
-		[]string{"table_name", "schema_name", "importer_role"},
+		[]string{"session_id", "importer_role", "table_name", "schema_name"},
 	)
 
 	// Total number of batches successfully ingested
@@ -64,26 +75,31 @@ var (
 			Name: "yb_voyager_import_snapshot_batch_ingested_total",
 			Help: "Total number of batches successfully ingested",
 		},
-		[]string{"table_name", "schema_name", "importer_role"},
+		[]string{"session_id", "importer_role", "table_name", "schema_name"},
 	)
 )
 
 // RecordSnapshotBatchIngested records metrics for a completed batch import
 func RecordSnapshotBatchIngested(tableNameTup sqlname.NameTuple, importerRole string, rows, bytes int64) {
 	schemaName, tableName := tableNameTup.ForKeyTableSchema()
-	importRowsTotal.WithLabelValues(tableName, schemaName, importerRole).Add(float64(rows))
-	importBytesTotal.WithLabelValues(tableName, schemaName, importerRole).Add(float64(bytes))
-	snapshotBatchIngested.WithLabelValues(tableName, schemaName, importerRole).Inc()
+	importRowsTotal.WithLabelValues(sessionID, importerRole, tableName, schemaName).Add(float64(rows))
+	importBytesTotal.WithLabelValues(sessionID, importerRole, tableName, schemaName).Add(float64(bytes))
+	snapshotBatchIngested.WithLabelValues(sessionID, importerRole, tableName, schemaName).Inc()
 }
 
 // RecordSnapshotBatchCreated records when a batch is created
 func RecordSnapshotBatchCreated(tableNameTup sqlname.NameTuple, importerRole string) {
 	schemaName, tableName := tableNameTup.ForKeyTableSchema()
-	snapshotBatchCreated.WithLabelValues(tableName, schemaName, importerRole).Inc()
+	snapshotBatchCreated.WithLabelValues(sessionID, importerRole, tableName, schemaName).Inc()
 }
 
 // RecordSnapshotBatchSubmitted records when a batch is submitted to worker pool
 func RecordSnapshotBatchSubmitted(tableNameTup sqlname.NameTuple, importerRole string) {
 	schemaName, tableName := tableNameTup.ForKeyTableSchema()
-	snapshotBatchSubmitted.WithLabelValues(tableName, schemaName, importerRole).Inc()
+	snapshotBatchSubmitted.WithLabelValues(sessionID, importerRole, tableName, schemaName).Inc()
+}
+
+// GetSessionID returns the current session ID for debugging purposes
+func GetSessionID() string {
+	return sessionID
 }
