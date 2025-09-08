@@ -656,10 +656,10 @@ For additional considerations related to colocated tables, refer to the document
                         
                             <tr>
                                 <td class="centered-cell">Performance Optimizations</td>
-                                <td class="centered-cell">2</td>
+                                <td class="centered-cell">1</td>
                                 <td class="centered-cell">0</td>
                                 <td class="centered-cell">0</td>
-                                <td class="centered-cell">2</td>
+                                <td class="centered-cell">1</td>
                             </tr>
                         
                             <tr>
@@ -700,7 +700,7 @@ For additional considerations related to colocated tables, refer to the document
 
             <p>
                 <strong>Complexity:</strong> MEDIUM<br>
-                <strong>Reasoning:</strong> Found 3 Level 1 issue(s), 6 Level 2 issue(s) and 2 Level 3 issue(s), resulting in MEDIUM migration complexity
+                <strong>Reasoning:</strong> Found 2 Level 1 issue(s), 6 Level 2 issue(s) and 2 Level 3 issue(s), resulting in MEDIUM migration complexity
             </p>
 
             <p>
@@ -1726,7 +1726,7 @@ FROM schema1.employees2</pre>
             <div class="assessment-issues-header">
                 <!-- Left area: text about total issues -->
                 <div>
-                    <p><strong>Total optimizations:</strong> 2</p>
+                    <p><strong>Total optimizations:</strong> 1</p>
                     <p>Below is a detailed breakdown of each issue.</p>
                 </div>
                 <!-- Right area: buttons -->
@@ -1866,111 +1866,6 @@ Note: If the table is created as colocated, this hotspot concern can safely be i
                     </tbody>
                 
                     
-                    
-                     
-                        
-                        
-                    
-                    <tbody class="issue-summary-detail-pair"
-                        data-category="performance_optimizations"
-                        data-name="Index on low-cardinality column"
-                        data-impact="LEVEL_1">
-                        
-                        <!-- Summary Row -->
-                        <tr class="summary-row" onclick="toggleDetails('details-perf-1', 'arrow-perf-1', true)">
-                            
-                            <td class="centered-cell">
-                                <div class="category-cell-flex">
-                                    
-                                        <div class="arrow-container">
-                                            <span id="arrow-perf-1">&#9654;</span>
-                                        </div>
-                                    
-                                    Index on low-cardinality column
-                                </div>
-                            </td>
-                            <td class="centered-cell">
-                                
-                                    idx_test_low_card_employed ON schema1.test_hotspot_timestamp
-                                
-                            </td>
-                            <td class="centered-cell" style="text-align: center;">Level 1</td>
-                        </tr>
-
-                        <!-- Hidden Details of the Row -->
-                        <tr id="details-perf-1" class="details-row">
-                            <td colspan="4">
-                                <div class="details-content-wrapper">
-                                    <div class="details-content">
-                                        <table class="formatted_table" style="width: 100%; border: 1px solid #ddd; margin-top: 5px;">
-                                            <colgroup>
-                                                <col style="width: 25%;">
-                                                <col style="width: 75%;">
-                                            </colgroup>
-                                            <tbody>
-                                                
-
-                                                <!-- Only show if ObjectType is present -->
-                                                
-                                                    <tr>
-                                                        <th class="centered-cell">Object Type</th>
-                                                        <td>INDEX</td>
-                                                    </tr>
-                                                
-                                                
-                                                    <tr>
-                                                        <th class="centered-cell">Object Name</th>
-                                                        <td>idx_test_low_card_employed ON schema1.test_hotspot_timestamp</td>
-                                                    </tr>
-                                                
-                                                <tr>
-                                                    <th class="centered-cell">SQL Statement</th>
-                                                    <td>
-                                                        
-                                                            <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">CREATE INDEX idx_test_low_card_employed ON schema1.test_hotspot_timestamp USING btree (employed);</pre>
-                                                            </div>
-                                                        
-                                                    </td>
-                                                </tr>
-
-                                                <!-- Only show if there is a supported version -->
-                                                
-                                                
-                                                <tr>
-                                                    <th class="centered-cell">Description</th>
-                                                    <td>
-                                                        
-                                                            <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">In distributed databases, index design should ensure even data distribution across multiple nodes. Indexes built on low-cardinality columns (e.g., boolean, days of the week) are not optimal, as they may lead to bad data distribution among tablets. This index is built on a low-cardinality column.</pre>
-                                                                
-                                                                    <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Refer to the <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-low-cardinality-column" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-low-cardinality-column">docs</a> for more details.</pre>
-                                                                
-                                                            </div>
-                                                        
-                                                    </td>
-                                                </tr>
-                                               
-                                                    <tr>
-                                                        <th class="centered-cell">More Information</th>
-                                                        <td>
-                                                            <ul>
-                                                            
-                                                                <li><pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Cardinality: 2</pre></li>
-                                                            
-                                                                <li><pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Column Name: employed</pre></li>
-                                                            
-                                                            </ul>
-                                                        </td>
-                                                    </tr>
-                                               
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            </td>
-                        </tr>
-                    </tbody>
                 
             </table>
 
