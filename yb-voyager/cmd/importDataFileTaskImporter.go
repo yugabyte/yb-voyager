@@ -29,6 +29,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/prometheus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -250,6 +251,9 @@ func (fti *FileTaskImporter) updateProgressForCompletedBatch(batch *Batch) {
 	if fti.callhomeMetricsCollector != nil {
 		fti.callhomeMetricsCollector.IncrementSnapshotProgress(batch.RecordCount, batch.ByteCount)
 	}
+
+	// update prometheus metrics
+	prometheus.RecordSnapshotBatchImport(fti.task.TableNameTup, importerRole, batch.RecordCount, batch.ByteCount)
 }
 
 func (fti *FileTaskImporter) PostProcess() {
