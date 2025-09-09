@@ -130,7 +130,7 @@ const (
 	// GITHUB_RAW_LINK use raw github link to fetch the file from repository using the api:
 	// https://raw.githubusercontent.com/{username-or-organization}/{repository}/{branch}/{path-to-file}
 	GITHUB_RAW_LINK                 = "https://raw.githubusercontent.com/yugabyte/yb-voyager/main/yb-voyager/src/migassessment/resources"
-	EXPERIMENT_DATA_FILENAME        = "yb_2024_0_source.db"
+	EXPERIMENT_DATA_FILENAME        = "yb_experiment_data_source.db"
 	DBS_DIR                         = "dbs"
 	SIZE_UNIT_GB                    = "GB"
 	SIZE_UNIT_MB                    = "MB"
