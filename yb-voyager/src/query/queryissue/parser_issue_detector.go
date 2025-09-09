@@ -1138,8 +1138,9 @@ func (p *ParserIssueDetector) detectTablePKRecommendations(tm *TableMetadata) []
 	// Collect all qualifying UNIQUE column sets where all columns are NOT NULL
 	var options [][]string
 
-	// Helper function to process unique column sets (from constraints or indexes)
-	processUniqueColumns := func(uniqueCols []string) {
+	// Process UNIQUE constraints and indexes (column-based only)
+	// This also fetches the unique constraints as they have been converted to mock indexes with IsUnique=true
+	for _, uniqueCols := range tm.GetUniqueColumnBasedIndexes() {
 		// Check if all unique columns are NOT NULL
 		allNN := true
 		for _, col := range uniqueCols {
@@ -1149,29 +1150,25 @@ func (p *ParserIssueDetector) detectTablePKRecommendations(tm *TableMetadata) []
 			}
 		}
 
-		if allNN {
-			// For partitioned tables, ensure partition columns are included as the PKs must include
-			// all partition columns down the entire hierarchy
-			if isPartitioned {
-				missingPartitionCols, _ := lo.Difference(partitionColumns, uniqueCols)
-				if len(missingPartitionCols) > 0 {
-					return
-				}
-			}
-
-			// Create fully qualified column names for this option
-			qualifiedCols := make([]string, len(uniqueCols))
-			for i, col := range uniqueCols {
-				qualifiedCols[i] = fmt.Sprintf("%s.%s", tm.GetObjectName(), col)
-			}
-			options = append(options, qualifiedCols)
+		if !allNN {
+			continue
 		}
-	}
 
-	// Process UNIQUE constraints and indexes (column-based only)
-	// This also fetches the unique constraints as they have been converted to mock indexes with IsUnique=true
-	for _, uniqueCols := range tm.GetUniqueColumnBasedIndexes() {
-		processUniqueColumns(uniqueCols)
+		// For partitioned tables, ensure partition columns are included as the PKs must include
+		// all partition columns down the entire hierarchy
+		if isPartitioned {
+			missingPartitionCols, _ := lo.Difference(partitionColumns, uniqueCols)
+			if len(missingPartitionCols) > 0 {
+				continue
+			}
+		}
+
+		// Create fully qualified column names for this option
+		qualifiedCols := make([]string, len(uniqueCols))
+		for i, col := range uniqueCols {
+			qualifiedCols[i] = fmt.Sprintf("%s.%s", tm.GetObjectName(), col)
+		}
+		options = append(options, qualifiedCols)
 	}
 
 	// Remove duplicates from options using lo.UniqBy
