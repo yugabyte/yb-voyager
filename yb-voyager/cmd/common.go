@@ -1103,7 +1103,7 @@ func getImportedSnapshotRowsMap(dbType string, tableList []sqlname.NameTuple) (*
 		}
 	}
 	snapshotRowsMap := utils.NewStructMap[sqlname.NameTuple, RowCountPair]()
-	nameTupleTodataFileEntry := utils.NewStructMap[sqlname.NameTuple, *datafile.FileEntry]()
+	nameTupleTodataFileEntry := utils.NewStructMap[sqlname.NameTuple, []*datafile.FileEntry]()
 	nameTupleTodataFilesMap := utils.NewStructMap[sqlname.NameTuple, []string]()
 	if snapshotDataFileDescriptor != nil {
 		for _, fileEntry := range snapshotDataFileDescriptor.DataFileList {
@@ -1111,20 +1111,21 @@ func getImportedSnapshotRowsMap(dbType string, tableList []sqlname.NameTuple) (*
 			if err != nil {
 				return nil, fmt.Errorf("lookup table name from data file descriptor %s : %v", fileEntry.TableName, err)
 			}
-
-			nameTupleTodataFileEntry.Put(nt, fileEntry)
-
+			fileEntries, ok := nameTupleTodataFileEntry.Get(nt)
+			if !ok {
+				fileEntries = []*datafile.FileEntry{}
+			}
+			fileEntries = append(fileEntries, fileEntry)
+			nameTupleTodataFileEntry.Put(nt, fileEntries)
 		}
 		for _, table := range tableList {
-			fileEntry, ok := nameTupleTodataFileEntry.Get(table)
+			fileEntries, ok := nameTupleTodataFileEntry.Get(table)
 			if !ok {
 				return nil, fmt.Errorf("table %s not found in data file descriptor", table.ForOutput())
 			}
-			list, ok := nameTupleTodataFilesMap.Get(table)
-			if !ok {
-				list = []string{}
-			}
-			list = append(list, fileEntry.FilePath)
+			list := lo.Map(fileEntries, func(fileEntry *datafile.FileEntry, _ int) string {
+				return fileEntry.FilePath
+			})
 			nameTupleTodataFilesMap.Put(table, list)
 		}
 	}
