@@ -3,33 +3,37 @@
 set -e
 set -x
 
-if [ $# -lt 2 ] || [ $# -gt 4 ]; then
-    echo "Usage: $0 TEST_NAME (--assess-only|--all-commands) [env.sh] [config_file]"
+if [ $# -lt 1 ] || [ $# -gt 4 ]; then
+    echo "Usage: $0 TEST_NAME [--assess-only] [env.sh] [config_file]"
+    echo "  --all-commands is the default behavior (no flag needed)"
+    echo "  Use --assess-only to run only the assess migration step"
     exit 1
 fi
 
-MODE=$2
+# Set default mode to --all-commands
+MODE="--all-commands"
 
-# Validate compulsory flag
-if [ "$MODE" != "--assess-only" ] && [ "$MODE" != "--all-commands" ]; then
-    echo "Error: MODE must be either --assess-only or --all-commands"
-    exit 1
+# Check if second argument is a mode flag
+if [ $# -ge 2 ] && [[ "$2" == --* ]]; then
+    if [ "$2" == "--assess-only" ]; then
+        MODE="--assess-only"
+        # Remove the mode flag from arguments (shift everything after $1)
+        set -- "$1" "${@:3}"
+    elif [ "$2" == "--all-commands" ]; then
+        echo "INFO: --all-commands is the default behavior and need not to be specified explicitly"
+        set -- "$1" "${@:3}"
+    else
+        echo "Error: Invalid flag '$2'"
+        echo "Valid flags: --assess-only (optional)"
+        echo "Usage: $0 TEST_NAME [--assess-only] [env.sh] [config_file]"
+        exit 1
+    fi
 fi
 
-# Parse remaining arguments: [env.sh] [config_file]
-# $1 = TEST_NAME, $2 = MODE, $3 = env.sh (optional), $4 = config_file (optional)
-if [ $# -eq 2 ]; then
-    ENV_SH=""
-    CONFIG_FILE=""
-elif [ $# -eq 3 ]; then
-    ENV_SH=$3
-    CONFIG_FILE=""
-elif [ $# -eq 4 ]; then
-    ENV_SH=$3
-    CONFIG_FILE=$4
-else
-    ENV_SH=""
-    CONFIG_FILE=""
+# If exactly 2 arguments are passed, and the second argument ends with .yaml,
+# treat it as the config_file and leave env.sh as an empty string
+if [ $# -eq 2 ] && [[ "$2" == *.yaml ]]; then
+    set -- "$1" "" "$2"
 fi
 
 export YB_VOYAGER_SEND_DIAGNOSTICS=true
@@ -49,12 +53,12 @@ export VOYAGER_TEST_ANON_SALT=a9f8c2d4e7b6f1a3d9c0b7e4f5a6c3d2
 export PYTHONPATH="${REPO_ROOT}/migtests/lib"
 
 # Load environment
-if [ -n "$ENV_SH" ]; then
-    if [ ! -f "${TEST_DIR}/$ENV_SH" ]; then
-        echo "$ENV_SH file not found in the test directory"
+if [ -n "$2" ]; then
+    if [ ! -f "${TEST_DIR}/$2" ]; then
+        echo "$2 file not found in the test directory"
         exit 1
     fi
-    source "${TEST_DIR}/$ENV_SH"
+    source "${TEST_DIR}/$2"
 else
     source "${TEST_DIR}/env.sh"
 fi
@@ -67,15 +71,13 @@ source "${SCRIPTS}/yugabytedb/env.sh"
 source "${SCRIPTS}/functions.sh"
 
 # Config file
-if [ -n "$CONFIG_FILE" ]; then
-    CONFIG_FILE="${TEST_DIR}/configs/$CONFIG_FILE"
+export CONFIG_FILE="${TEST_DIR}/configs/default_config.yaml"
+if [ -n "$3" ]; then
+    CONFIG_FILE="${TEST_DIR}/configs/$3"
     if [ ! -f "${CONFIG_FILE}" ]; then
-        echo "Error: Config file $CONFIG_FILE not found in the test directory."
+        echo "Error: Config file $3 not found in the test directory."
         exit 1
     fi
-    export CONFIG_FILE
-else
-    export CONFIG_FILE="${TEST_DIR}/configs/default_config.yaml"
 fi
 
 main() {
