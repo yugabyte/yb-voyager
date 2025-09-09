@@ -41,13 +41,13 @@ const (
 	RedundantIndexesFileName                        = "redundant_indexes.sql"
 	SCHEMA_OPTIMIZATION_REPORT_FILE_NAME            = "schema_optimization_report"
 	REDUNDANT_INDEXES_DESCRIPTION                   = "The following indexes were identified as redundant. These indexes were fully covered by stronger indexes—indexes that share the same leading key columns (in order) and potentially include additional columns, making the redundant ones unnecessary."
-	APPLIED_RECOMMENDATIONS_NOT_APPLIED_DESCRIPTION = "Sharding recommendations were not applied due to the skip-colocation-recommendations flag. Modify the schema manually as per the recommendations in assessment report."
+	APPLIED_RECOMMENDATIONS_NOT_APPLIED_DESCRIPTION = "Colocation recommendations were not applied due to the skip-colocation-recommendations flag. Modify the schema manually as per the recommendations in assessment report."
 	REDUNDANT_INDEXES_NOT_APPLIED_DESCRIPTION       = REDUNDANT_INDEXES_DESCRIPTION + "\nThese indexes were not removed due to the skip-performance-recommendations flag. Remove them manually from the schema."
 	RANGE_SHARDED_SECONDARY_INDEXES_DESCRIPTION     = "The following secondary indexes were configured to be range-sharded indexes in YugabyteDB. This helps in giving the flexibility to execute range-based queries, and avoids potential hotspots that come with hash-sharded indexes such as index on low cardinality column, index on high percentage of NULLs and index on high percentage of particular value."
 )
 
 // SchemaOptimizationReport represents a comprehensive report of schema optimizations
-// applied during the export process, including redundant index removal and sharding recommendations.
+// applied during the export process, including redundant index removal and Colocation recommendations.
 type SchemaOptimizationReport struct {
 	// Metadata about the export process
 	VoyagerVersion        string `json:"voyager_version"`
@@ -57,16 +57,16 @@ type SchemaOptimizationReport struct {
 
 	// Optimization changes applied
 	RedundantIndexChange        *RedundantIndexChange         `json:"redundant_index_change,omitempty"`
-	TableShardingRecommendation *ShardingRecommendationChange `json:"table_sharding_recommendation,omitempty"`
-	MviewShardingRecommendation *ShardingRecommendationChange `json:"mview_sharding_recommendation,omitempty"`
+	TableColocationRecommendation *ColocationRecommendationChange `json:"table_Colocation_recommendation,omitempty"`
+	MviewColocationRecommendation *ColocationRecommendationChange `json:"mview_Colocation_recommendation,omitempty"`
 	SecondaryIndexToRangeChange *SecondaryIndexToRangeChange  `json:"secondary_index_to_range_change,omitempty"`
 }
 
 // HasOptimizations returns true if any optimizations were applied
 func (s *SchemaOptimizationReport) HasOptimizations() bool {
 	return !s.RedundantIndexChange.IsEmpty() ||
-		!s.TableShardingRecommendation.IsEmpty() ||
-		!s.MviewShardingRecommendation.IsEmpty() ||
+		!s.TableColocationRecommendation.IsEmpty() ||
+		!s.MviewColocationRecommendation.IsEmpty() ||
 		!s.SecondaryIndexToRangeChange.IsEmpty()
 }
 
@@ -112,9 +112,9 @@ func NewRedundantIndexChange(applied bool, referenceFile string, tableToRemovedI
 	}
 }
 
-// ShardingRecommendationChange represents the application of sharding recommendations
+// ColocationRecommendationChange represents the application of Colocation recommendations
 // to database objects (tables or materialized views) for improved performance.
-type ShardingRecommendationChange struct {
+type ColocationRecommendationChange struct {
 	Title             string   `json:"title"`
 	Description       string   `json:"description"`
 	ReferenceFile     string   `json:"reference_file"`
@@ -123,31 +123,31 @@ type ShardingRecommendationChange struct {
 	IsApplied         bool     `json:"is_applied"`
 }
 
-// IsEmpty returns true if no sharding recommendations were applied
-func (a *ShardingRecommendationChange) IsEmpty() bool {
+// IsEmpty returns true if no Colocation recommendations were applied
+func (a *ColocationRecommendationChange) IsEmpty() bool {
 	return a == nil || (len(a.ShardedObjects) == 0)
 }
 
-// NewAppliedShardingRecommendationChange creates a new AppliedShardingRecommendationChange with default values
-func NewAppliedShardingRecommendationChange(objectType string, applied bool, referenceFile string, shardedObjects []string, colocatedObjects []string) *ShardingRecommendationChange {
+// NewAppliedColocationRecommendationChange creates a new AppliedColocationRecommendationChange with default values
+func NewAppliedColocationRecommendationChange(objectType string, applied bool, referenceFile string, shardedObjects []string, colocatedObjects []string) *ColocationRecommendationChange {
 	var title, description string
 	switch objectType {
 	case TABLE:
-		title = "Sharding Recommendations to Tables - Applied"
-		description = "Sharding recommendations from the assessment have been applied to the tables to optimize data distribution and performance. Tables will be created as colocated automatically according to the target database configuration."
+		title = "Colocation Recommendations to Tables - Applied"
+		description = "Colocation recommendations from the assessment have been applied to the tables to optimize data distribution and performance. Tables will be created as colocated automatically according to the target database configuration."
 	case MVIEW:
-		title = "Sharding Recommendations to Materialized Views - Applied"
-		description = "Sharding recommendations from the assessment have been applied to the mviews to optimize data distribution and performance. MViews will be created as colocated automatically according to the target database configuration."
+		title = "Colocation Recommendations to Materialized Views - Applied"
+		description = "Colocation recommendations from the assessment have been applied to the mviews to optimize data distribution and performance. MViews will be created as colocated automatically according to the target database configuration."
 	default:
-		title = "Sharding Recommendations - Applied"
-		description = "Sharding recommendations from the assessment have been applied to optimize data distribution and performance."
+		title = "Colocation Recommendations - Applied"
+		description = "Colocation recommendations from the assessment have been applied to optimize data distribution and performance."
 	}
 
 	if !applied {
-		title = "Sharding Recommendations - Not Applied"
+		title = "Colocation Recommendations - Not Applied"
 		description = APPLIED_RECOMMENDATIONS_NOT_APPLIED_DESCRIPTION
 	}
-	return &ShardingRecommendationChange{
+	return &ColocationRecommendationChange{
 		Title:             title,
 		Description:       description,
 		ReferenceFile:     referenceFile,
@@ -169,12 +169,12 @@ type SecondaryIndexToRangeChange struct {
 
 func NewSecondaryIndexToRangeChange(applied bool, referenceFile string, modifiedIndexes map[string][]string) *SecondaryIndexToRangeChange {
 	title := "Secondary Indexes to be range-sharded - Applied"
-	description := "The following secondary indexes were configured to be range-sharded indexes in YugabyteDB."
+	description := "All the btree secondary indexes were configured to be range-sharded indexes in YugabyteDB."
 	if !applied {
 		title = "Secondary Indexes to be range-sharded - Not Applied"
 		description = "Due to the skip-performance-recommendations flag, all the btree indexes were not converted to range-sharded indexes. Modify the indexes to be range-sharded manually."
 	}
-	description += "The range-sharded indexes helps in giving the flexibility to execute range-based queries, and avoids potential hotspots that come with hash-sharded indexes such as index on low cardinality column, index on high percentage of NULLs, and index on high percentage of particular value. Refer to sharding strategy in documentation for more information."
+	description += "The range-sharded indexes helps in giving the flexibility to execute range-based queries, and avoids potential hotspots that come with hash-sharded indexes such as index on low cardinality column, index on high percentage of NULLs, and index on high percentage of particular value. Refer to Colocation strategy in documentation for more information."
 	return &SecondaryIndexToRangeChange{
 		Title:       title,
 		Description: description,
@@ -182,7 +182,7 @@ func NewSecondaryIndexToRangeChange(applied bool, referenceFile string, modified
 			"index on low cardinality column":              "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-low-cardinality-column",
 			"index on high percentage of NULLs":            "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-column-with-a-high-percentage-of-null-values",
 			"index on high percentage of particular value": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-column-with-high-percentage-of-a-particular-value",
-			"documentation": "https://docs.yugabyte.com/preview/architecture/docdb-sharding/sharding/",
+			"documentation": "https://docs.yugabyte.com/preview/architecture/docdb-Colocation/Colocation/",
 		},
 		ReferenceFile:   referenceFile,
 		ModifiedIndexes: modifiedIndexes,
@@ -219,10 +219,10 @@ func buildRedundantIndexChange(indexTransformer *sqltransformer.IndexFileTransfo
 	return NewRedundantIndexChange(!bool(skipPerfOptimizations), redundantIndexesFile, getTableToIndexMap(redundantIndexes))
 }
 
-func buildShardingTableRecommendationChange(shardedTables []string, colocatedTables []string) *ShardingRecommendationChange {
+func buildColocationTableRecommendationChange(shardedTables []string, colocatedTables []string) *ColocationRecommendationChange {
 	if !assessmentRecommendationsApplied { //If assessment recommendations not applied and skip recommendations is true, then show that its not applied
 		if skipRecommendations {
-			return NewAppliedShardingRecommendationChange("", false, "", nil, nil) // Dummy entry for both table and mview as no need to show two
+			return NewAppliedColocationRecommendationChange("", false, "", nil, nil) // Dummy entry for both table and mview as no need to show two
 		}
 		return nil
 	}
@@ -233,11 +233,11 @@ func buildShardingTableRecommendationChange(shardedTables []string, colocatedTab
 		return nil
 	}
 
-	return NewAppliedShardingRecommendationChange(TABLE, true, getRelativePathWithReportsDir(referenceTableFile), shardedTables, colocatedTables)
+	return NewAppliedColocationRecommendationChange(TABLE, true, getRelativePathWithReportsDir(referenceTableFile), shardedTables, colocatedTables)
 }
 
-func buildShardingMviewRecommendationChange(shardedMviews []string, colocatedMviews []string) *ShardingRecommendationChange {
-	if !assessmentRecommendationsApplied { //If assessment recommendations not applied, we are already addding a generic section for Sharding recommendations not applied with table case above
+func buildColocationMviewRecommendationChange(shardedMviews []string, colocatedMviews []string) *ColocationRecommendationChange {
+	if !assessmentRecommendationsApplied { //If assessment recommendations not applied, we are already addding a generic section for Colocation recommendations not applied with table case above
 		return nil
 	}
 	referenceMviewFile := utils.GetObjectFilePath(filepath.Join(exportDir, "schema"), MVIEW)
@@ -245,7 +245,7 @@ func buildShardingMviewRecommendationChange(shardedMviews []string, colocatedMvi
 	if !utils.FileOrFolderExists(referenceMviewFile) || len(shardedMviews) == 0 { // only display this in case there is any modifield sharded mview
 		return nil
 	}
-	return NewAppliedShardingRecommendationChange(MVIEW, true, getRelativePathWithReportsDir(referenceMviewFile), shardedMviews, colocatedMviews)
+	return NewAppliedColocationRecommendationChange(MVIEW, true, getRelativePathWithReportsDir(referenceMviewFile), shardedMviews, colocatedMviews)
 }
 
 func buildSecondaryIndexToRangeChange(indexTransformer *sqltransformer.IndexFileTransformer) *SecondaryIndexToRangeChange {
@@ -263,12 +263,12 @@ func buildSecondaryIndexToRangeChange(indexTransformer *sqltransformer.IndexFile
 var optimizationChangesTemplate []byte
 
 // generatePerformanceOptimizationReport generates an HTML report detailing performance optimization changes applied to the exported schema.
-// It reports the removal of redundant indexes and the application of sharding recommendations to tables and materialized views (mviews).
+// It reports the removal of redundant indexes and the application of Colocation recommendations to tables and materialized views (mviews).
 // The report includes references to the relevant SQL files and lists the modified objects.
 // Parameters:
 //   - redundantIndexes: list of redundant index names that were removed.
-//   - tables: list of table names to which sharding recommendations were applied.
-//   - mviews: list of materialized view names to which sharding recommendations were applied.
+//   - tables: list of table names to which Colocation recommendations were applied.
+//   - mviews: list of materialized view names to which Colocation recommendations were applied.
 func generatePerformanceOptimizationReport(indexTransformer *sqltransformer.IndexFileTransformer, shardedTables []string, shardedMviews []string, colocatedTables []string, colocatedMviews []string) error {
 
 	if source.DBType != POSTGRESQL {
@@ -298,8 +298,8 @@ func generatePerformanceOptimizationReport(indexTransformer *sqltransformer.Inde
 		source.DBVersion,
 	)
 	schemaOptimizationReport.RedundantIndexChange = buildRedundantIndexChange(indexTransformer)
-	schemaOptimizationReport.TableShardingRecommendation = buildShardingTableRecommendationChange(shardedTables, colocatedTables)
-	schemaOptimizationReport.MviewShardingRecommendation = buildShardingMviewRecommendationChange(shardedMviews, colocatedMviews)
+	schemaOptimizationReport.TableColocationRecommendation = buildColocationTableRecommendationChange(shardedTables, colocatedTables)
+	schemaOptimizationReport.MviewColocationRecommendation = buildColocationMviewRecommendationChange(shardedMviews, colocatedMviews)
 	schemaOptimizationReport.SecondaryIndexToRangeChange = buildSecondaryIndexToRangeChange(indexTransformer)
 
 	if schemaOptimizationReport.HasOptimizations() {
