@@ -1121,7 +1121,10 @@ func getImportedSnapshotRowsMap(dbType string, tableList []sqlname.NameTuple) (*
 		for _, table := range tableList {
 			fileEntries, ok := nameTupleTodataFileEntry.Get(table)
 			if !ok {
-				return nil, fmt.Errorf("table %s not found in data file descriptor", table.ForOutput())
+				//We can't error out here as this is possible in case there are empty tables in live migraton scenario and 
+				//In get data-migration-report, table list can consist that table name but it won't be present in dataFileDescriptor
+				log.Warnf("table %s not found in data file descriptor", table.ForKey())
+				continue
 			}
 			list := lo.Map(fileEntries, func(fileEntry *datafile.FileEntry, _ int) string {
 				return fileEntry.FilePath
