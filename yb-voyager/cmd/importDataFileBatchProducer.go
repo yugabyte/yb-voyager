@@ -254,7 +254,7 @@ func (p *FileBatchProducer) openDataFile() error {
 	}
 
 	log.Infof("Skipping %d lines from %q", p.lastOffset, p.task.FilePath)
-	p.progressReporter.AddResumeInformation(p.task, fmt.Sprintf("Skipping %d lines", p.lastOffset))
+	p.progressReporter.AddResumeInformation(p.task, fmt.Sprintf("Resuming from %d lines", p.lastOffset))
 	err = dataFile.SkipLines(p.lastOffset)
 	if err != nil {
 		return fmt.Errorf("skipping line for offset=%d: %v", p.lastOffset, err)
