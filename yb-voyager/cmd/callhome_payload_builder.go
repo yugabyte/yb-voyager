@@ -333,10 +333,10 @@ func getAnonymizedDDLs(sourceDBConf *srcdb.Source) []string {
 // ============================export schema callhome payload information============================
 
 const (
-	REDUNDANT_INDEX_CHANGE_TYPE               = "redundant_index"
-	TABLE_Colocation_RECOMMENDATION_CHANGE_TYPE = "table_Colocation_recommendation"
-	MVIEW_Colocation_RECOMMENDATION_CHANGE_TYPE = "mview_Colocation_recommendation"
-	SECONDARY_INDEX_TO_RANGE_CHANGE_TYPE      = "secondary_index_to_range"
+	REDUNDANT_INDEX_CHANGE_TYPE                 = "redundant_index"
+	TABLE_COLOCATION_RECOMMENDATION_CHANGE_TYPE = "table_colocation_recommendation"
+	MVIEW_COLOCATION_RECOMMENDATION_CHANGE_TYPE = "mview_colocation_recommendation"
+	SECONDARY_INDEX_TO_RANGE_CHANGE_TYPE        = "secondary_index_to_range"
 )
 
 func buildCallhomeSchemaOptimizationChanges() []callhome.SchemaOptimizationChange {
@@ -363,7 +363,7 @@ func buildCallhomeSchemaOptimizationChanges() []callhome.SchemaOptimizationChang
 			objects = append(objects, anonymizedObj)
 		}
 		schemaOptimizationChanges = append(schemaOptimizationChanges, callhome.SchemaOptimizationChange{
-			OptimizationType: TABLE_Colocation_RECOMMENDATION_CHANGE_TYPE,
+			OptimizationType: TABLE_COLOCATION_RECOMMENDATION_CHANGE_TYPE,
 			IsApplied:        schemaOptimizationReport.TableColocationRecommendation.IsApplied,
 			Objects:          objects,
 		})
@@ -379,7 +379,7 @@ func buildCallhomeSchemaOptimizationChanges() []callhome.SchemaOptimizationChang
 			objects = append(objects, anonymizedObj)
 		}
 		schemaOptimizationChanges = append(schemaOptimizationChanges, callhome.SchemaOptimizationChange{
-			OptimizationType: MVIEW_Colocation_RECOMMENDATION_CHANGE_TYPE,
+			OptimizationType: MVIEW_COLOCATION_RECOMMENDATION_CHANGE_TYPE,
 			IsApplied:        schemaOptimizationReport.MviewColocationRecommendation.IsApplied,
 			Objects:          schemaOptimizationReport.MviewColocationRecommendation.ShardedObjects,
 		})

@@ -57,8 +57,8 @@ type SchemaOptimizationReport struct {
 
 	// Optimization changes applied
 	RedundantIndexChange        *RedundantIndexChange         `json:"redundant_index_change,omitempty"`
-	TableColocationRecommendation *ColocationRecommendationChange `json:"table_Colocation_recommendation,omitempty"`
-	MviewColocationRecommendation *ColocationRecommendationChange `json:"mview_Colocation_recommendation,omitempty"`
+	TableColocationRecommendation *ColocationRecommendationChange `json:"table_colocation_recommendation,omitempty"`
+	MviewColocationRecommendation *ColocationRecommendationChange `json:"mview_colocation_recommendation,omitempty"`
 	SecondaryIndexToRangeChange *SecondaryIndexToRangeChange  `json:"secondary_index_to_range_change,omitempty"`
 }
 
@@ -174,7 +174,7 @@ func NewSecondaryIndexToRangeChange(applied bool, referenceFile string, modified
 		title = "Secondary Indexes to be range-sharded - Not Applied"
 		description = "Due to the skip-performance-recommendations flag, all the btree indexes were not converted to range-sharded indexes. Modify the indexes to be range-sharded manually."
 	}
-	description += "The range-sharded indexes helps in giving the flexibility to execute range-based queries, and avoids potential hotspots that come with hash-sharded indexes such as index on low cardinality column, index on high percentage of NULLs, and index on high percentage of particular value. Refer to Colocation strategy in documentation for more information."
+	description += "The range-sharded indexes helps in giving the flexibility to execute range-based queries, and avoids potential hotspots that come with hash-sharded indexes such as index on low cardinality column, index on high percentage of NULLs, and index on high percentage of particular value. Refer to sharding strategy in documentation for more information."
 	return &SecondaryIndexToRangeChange{
 		Title:       title,
 		Description: description,
@@ -182,7 +182,7 @@ func NewSecondaryIndexToRangeChange(applied bool, referenceFile string, modified
 			"index on low cardinality column":              "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-low-cardinality-column",
 			"index on high percentage of NULLs":            "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-column-with-a-high-percentage-of-null-values",
 			"index on high percentage of particular value": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-column-with-high-percentage-of-a-particular-value",
-			"documentation": "https://docs.yugabyte.com/preview/architecture/docdb-Colocation/Colocation/",
+			"documentation": "https://docs.yugabyte.com/preview/architecture/docdb-sharding/sharding/",
 		},
 		ReferenceFile:   referenceFile,
 		ModifiedIndexes: modifiedIndexes,
