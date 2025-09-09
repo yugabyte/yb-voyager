@@ -582,11 +582,11 @@
                             <td>
                                 <div class="scrollable-div no-wrap-list">
                                     
+                                        <li>public.parent_table</li>
+
                                         <li>public.mixed_data_types_table1</li>
                                     
                                         <li>public.child_table</li>
-                                    
-                                        <li>public.parent_table</li>
                                     
                                         <li>schema1.test_hotspot_timestamp</li>
                                     
@@ -626,7 +626,14 @@ For additional considerations related to colocated tables, refer to the document
                     </table>
                     <h3>Reasoning:</h3>
                     <p class="spaced-words">Recommended instance type with 4 vCPU and 16 GiB memory could fit 6 objects (4 tables/materialized views and 2 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Rest 4 objects (1 tables/materialized views and 3 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec need to be migrated as range partitioned tables. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.</p>
-                
+                    <div class="notes-section">
+                        <h5>Notes</h5>
+                        <ul>
+                            
+                                <li>Estimated time taken for data import (Excluding redundant indexes) is calculated without considering redundant indexes as those indexes are removed during export schema phase automatically.</li>
+                            
+                        </ul>
+                    </div>
             
         
 

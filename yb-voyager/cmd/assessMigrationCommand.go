@@ -1529,6 +1529,11 @@ To manually modify the schema, please refer: <a class="highlight-link" href="htt
 		Type: SizingNotes,
 		Text: `Reference and System Partitioned tables are created as normal tables, but are not considered for target cluster sizing recommendations.`,
 	}
+
+	REDUNDANT_INDEX_ESTIMATED_TIME = NoteInfo{
+		Type: SizingNotes,
+		Text: `Estimated time taken for data import (Excluding redundant indexes) is calculated without considering redundant indexes as those indexes are removed during export schema phase automatically.`,
+	}
 )
 
 func addNotesToAssessmentReport() {
@@ -1570,6 +1575,7 @@ func addNotesToAssessmentReport() {
 			assessmentReport.Notes = append(assessmentReport.Notes, UNLOGGED_TABLE_NOTE)
 		}
 		assessmentReport.Notes = append(assessmentReport.Notes, REPORTING_LIMITATIONS_NOTE)
+		assessmentReport.Notes = append(assessmentReport.Notes, REDUNDANT_INDEX_ESTIMATED_TIME)
 	}
 
 }
