@@ -58,15 +58,14 @@
 	},
 	"Sizing": {
 		"SizingRecommendation": {
-			"ColocatedTables": [
-				"public.mixed_data_types_table1",
-				"public.child_table",
-				"public.parent_table",
-				"schema1.test_hotspot_timestamp"
-			],
+			"ColocatedTables": null,
 			"ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 6 objects (4 tables/materialized views and 2 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Rest 4 objects (1 tables/materialized views and 3 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec need to be migrated as range partitioned tables. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
 			"ShardedTables": [
-				"schema1.employees2"
+				"public.child_table",
+				"public.mixed_data_types_table1",
+				"public.parent_table",
+				"schema1.employees2",
+				"schema1.test_hotspot_timestamp"
 			],
 			"NumNodes": 3,
 			"VCPUsPerInstance": 4,
@@ -392,10 +391,6 @@
 		{
 			"Type": "GeneralNotes",
 			"Text": "Some features listed in this report may be supported under a preview flag in the specified target-db-version of YugabyteDB. Please refer to the official release notes (https://docs.yugabyte.com/preview/releases/ybdb-releases/) for detailed information and usage guidelines."
-		},
-		{
-			"Type": "ColocatedShardedNotes",
-			"Text": "If there are any tables that receive disproportionately high load, ensure that they are NOT colocated to avoid the colocated tablet becoming a hotspot.\nFor additional considerations related to colocated tables, refer to the documentation at: https://docs.yugabyte.com/preview/explore/colocation/#limitations-and-considerations"
 		},
 		{
 			"Type": "GeneralNotes",
