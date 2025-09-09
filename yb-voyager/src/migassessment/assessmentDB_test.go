@@ -87,6 +87,13 @@ func TestInitAssessmentDB(t *testing.T) {
 		DB_QUERIES_SUMMARY: {
 			"queryid": {Type: "BIGINT"},
 			"query":   {Type: "TEXT"},
+			"calls":   {Type: "BIGINT"},
+			"rows":    {Type: "BIGINT"},
+			"total_exec_time": {Type: "REAL"},
+			"mean_exec_time": {Type: "REAL"},
+			"min_exec_time": {Type: "REAL"},
+			"max_exec_time": {Type: "REAL"},
+			"stddev_exec_time": {Type: "REAL"},
 		},
 		REDUNDANT_INDEXES: {
 			"redundant_schema_name": {Type: "TEXT", PrimaryKey: 1},
