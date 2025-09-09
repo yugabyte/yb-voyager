@@ -253,8 +253,7 @@ func (p *FileBatchProducer) openDataFile() error {
 		dataFile.ResetBytesRead(0) //reset the bytes read for header
 	}
 
-	msg := fmt.Sprintf("Skipping %d lines from %q", p.lastOffset, p.task.FilePath)
-	log.Infof(msg)
+	log.Infof("Skipping %d lines from %q", p.lastOffset, p.task.FilePath)
 	p.progressReporter.AddResumeInformation(p.task, fmt.Sprintf("Skipping %d lines", p.lastOffset))
 	err = dataFile.SkipLines(p.lastOffset)
 	if err != nil {
