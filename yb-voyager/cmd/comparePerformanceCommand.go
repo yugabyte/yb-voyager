@@ -18,6 +18,7 @@ package cmd
 
 import (
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 
@@ -66,6 +67,7 @@ func comparePerformanceHandler(cmd *cobra.Command, args []string) {
 
 // collectTargetPgssData collects current PGSS data from target database (STUB)
 func collectTargetPgssData() error {
+	utils.PrintAndLog("Collecting target PGSS data...")
 	// TODO: Implement target PGSS data collection
 	// This should:
 	// 1. Connect to target YugabyteDB database
@@ -78,6 +80,7 @@ func collectTargetPgssData() error {
 
 // performAnalysisAndGenerateReport performs performance analysis and generates reports (STUB)
 func performAnalysisAndGenerateReport() error {
+	utils.PrintAndLog("Performing performance analysis and generating reports...")
 	// TODO: Implement performance analysis and report generation
 	// This should:
 	// 1. Match queries between source and target
@@ -93,11 +96,12 @@ func validatePrerequisites() {
 
 	// Check 1: Assessment database exists and is accessible
 	utils.PrintAndLog("Checking assessment database...")
+	// Set AssessmentDir before accessing assessment database functions
+	migassessment.AssessmentDir = filepath.Join(exportDir, "assessment")
 	assessmentDBPath := migassessment.GetSourceMetadataDBFilePath()
 	if _, err := os.Stat(assessmentDBPath); os.IsNotExist(err) {
 		utils.ErrExit("Assessment database not found. Please run 'assess-migration' command first.")
 	}
-
 	adb, err := migassessment.NewAssessmentDB("")
 	if err != nil {
 		utils.ErrExit("Failed to open assessment database: %v", err)

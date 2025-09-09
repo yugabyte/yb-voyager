@@ -65,6 +65,9 @@ type TableIndexStats struct {
 }
 
 var GetSourceMetadataDBFilePath = func() string {
+	if AssessmentDir == "" {
+		panic("AssessmentDir must be set before calling GetSourceMetadataDBFilePath()")
+	}
 	return filepath.Join(AssessmentDir, "dbs", "assessment.db")
 }
 
