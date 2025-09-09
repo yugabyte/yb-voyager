@@ -39,6 +39,8 @@ Prerequisites:
   - Source workload should have been executed on both source and target databases
   - pg_stat_statements extension must be enabled on the target YugabyteDB database`,
 
+	Hidden: true, // Hide command until fully implemented
+
 	PreRun: func(cmd *cobra.Command, args []string) {
 		validatePrerequisites()
 	},
