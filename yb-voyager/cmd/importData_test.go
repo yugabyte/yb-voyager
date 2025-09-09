@@ -1468,10 +1468,11 @@ FROM generate_series(1, 10);`
 	}, true).Run()
 	testutils.FatalIfError(t, err, "Export command failed")
 
-	err = testutils.NewVoyagerCommandRunner(nil, "export data status", []string{
+	exportStatus := testutils.NewVoyagerCommandRunner(nil, "export data status", []string{
 		"--export-dir", exportDir,
 		"--output-format", "json",
-	}, nil, false).Run()
+	}, nil, false)
+	err = exportStatus.Run()
 	testutils.FatalIfError(t, err, "Export data status command failed")
 
 	//verify the report file content
@@ -1524,7 +1525,7 @@ test_schema."test_migration1"`)
 	testutils.FatalIfError(t, err, "Import command failed")
 
 	//verify import data status command output
-	err = testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data status", []string{
+	err = testutils.NewVoyagerCommandRunner(nil, "import data status", []string{
 		"--export-dir", exportDir,
 		"--output-format", "json",
 	}, nil, false).Run()
@@ -1561,7 +1562,9 @@ test_schema."test_migration1"`)
 		PercentageComplete: 0,
 	}, importReportData[1], "Status report row mismatch")
 
-	//verify the export report content again
+	//verify the export report content
+	err = exportStatus.Run()
+	testutils.FatalIfError(t, err, "Export data status command failed")
 	reportPath = filepath.Join(exportDir, "reports", "export-data-status-report.json")
 	reportData, err = os.ReadFile(reportPath)
 	if err != nil {

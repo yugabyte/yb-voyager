@@ -1107,6 +1107,7 @@ func getImportedSnapshotRowsMap(dbType string, tableList []sqlname.NameTuple) (*
 	nameTupleTodataFilesMap := utils.NewStructMap[sqlname.NameTuple, []string]()
 	if snapshotDataFileDescriptor != nil {
 		for _, fileEntry := range snapshotDataFileDescriptor.DataFileList {
+			//ignoring target as the dataFileDescriptor can contain tables that exported but not present in target
 			nt, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFound(fileEntry.TableName)
 			if err != nil {
 				return nil, fmt.Errorf("lookup table name from data file descriptor %s : %v", fileEntry.TableName, err)
