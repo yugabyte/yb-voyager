@@ -164,21 +164,22 @@ func (tm *TableMetadata) GetUniqueConstraints() [][]string {
 func (tm *TableMetadata) GetUniqueColumnBasedIndexes() [][]string {
 	var uniqueIndexes [][]string
 	for _, index := range tm.Indexes {
-		if index.IsUnique {
-			// Extract column names from index parameters
-			var columns []string
-			hasExpression := false
-			for _, param := range index.Params {
-				if param.IsExpression {
-					hasExpression = true
-					break // If any parameter is an expression, skip this index
-				}
-				columns = append(columns, param.ColName)
+		if !index.IsUnique {
+			continue
+		}
+		// Extract column names from index parameters
+		var columns []string
+		hasExpression := false
+		for _, param := range index.Params {
+			if param.IsExpression {
+				hasExpression = true
+				break // If any parameter is an expression, skip this index
 			}
-			// Only consider purely column-based unique indexes
-			if !hasExpression && len(columns) > 0 {
-				uniqueIndexes = append(uniqueIndexes, columns)
-			}
+			columns = append(columns, param.ColName)
+		}
+		// Only consider purely column-based unique indexes
+		if !hasExpression && len(columns) > 0 {
+			uniqueIndexes = append(uniqueIndexes, columns)
 		}
 	}
 	return uniqueIndexes
@@ -1117,7 +1118,7 @@ func (p *ParserIssueDetector) DetectPrimaryKeyRecommendations() []QueryIssue {
 		// - For regular tables: checks if the table itself has a PK
 		// - For partitioned tables: checks if any table in the partitioning hierarchy has a PK
 		// If so, we cannot suggest a PK for this table as it would create a conflict
-		if p.hasAnyRelatedTablePrimaryKey(tm) {
+		if tm.HasAnyRelatedTablePrimaryKey() {
 			continue
 		}
 
@@ -1198,59 +1199,6 @@ func (p *ParserIssueDetector) detectTablePKRecommendations(tm *TableMetadata) []
 	}
 
 	return issues
-}
-
-// getAllPartitionColumnsInHierarchy returns all partition columns down the entire hierarchy
-// for a root-level partitioned table. This includes partition columns from all child tables.
-func (p *ParserIssueDetector) getAllPartitionColumnsInHierarchy(tm *TableMetadata) []string {
-	// Using a map to do automatic deduplication in case if same column is present in multiple child tables
-	allPartitionColumns := make(map[string]bool)
-
-	for _, col := range tm.GetPartitionColumns() {
-		allPartitionColumns[col] = true
-	}
-
-	tableNameOnly := tm.TableName
-	for _, childTM := range p.tablesMetadata {
-		if childTM.PartitionedFrom == tableNameOnly {
-			// Recursively get partition columns from this child and all its descendants
-			childPartitionColumns := p.getAllPartitionColumnsInHierarchy(childTM)
-			for _, col := range childPartitionColumns {
-				allPartitionColumns[col] = true
-			}
-		}
-	}
-
-	// Convert map back to slice
-	result := make([]string, 0, len(allPartitionColumns))
-	for col := range allPartitionColumns {
-		result = append(result, col)
-	}
-
-	return result
-}
-
-// hasAnyRelatedTablePrimaryKey checks if this table or any related table already has a primary key.
-// For regular tables: simply checks if the table itself has a PK.
-// For partitioned tables: checks if any table in the partitioning hierarchy (including descendants) has a PK.
-func (p *ParserIssueDetector) hasAnyRelatedTablePrimaryKey(tm *TableMetadata) bool {
-	if tm.HasPrimaryKey() {
-		return true
-	}
-
-	// For partitioned tables, check all descendant tables (tables that inherit from this table)
-	// For regular tables, this loop will be empty since they have no children
-	tableObjectName := tm.GetObjectName() // Use fully qualified name
-	for _, childTM := range p.tablesMetadata {
-		if childTM.PartitionedFrom == tableObjectName {
-			// Recursively check this child and all its descendants
-			if p.hasAnyRelatedTablePrimaryKey(childTM) {
-				return true
-			}
-		}
-	}
-
-	return false
 }
 
 // hasProperIndexCoverage checks if a foreign key has proper index coverage.
