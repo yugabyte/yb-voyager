@@ -1490,11 +1490,6 @@ var (
 		Type: GeneralNotes,
 		Text: `Some features listed in this report may be supported under a preview flag in the specified target-db-version of YugabyteDB. Please refer to the official <a class="highlight-link" target="_blank" href="https://docs.yugabyte.com/preview/releases/ybdb-releases/">release notes</a> for detailed information and usage guidelines.`,
 	}
-	RANGE_SHARDED_INDEXES_RECOMMENDATION = NoteInfo{
-		Type: GeneralNotes,
-		Text: `If indexes are created on columns commonly used in range-based queries (e.g. timestamp columns), it is recommended to explicitly configure these indexes with range sharding. This ensures efficient data access for range queries.
-By default, YugabyteDB uses hash sharding for indexes, which distributes data randomly and is not ideal for range-based predicates potentially degrading query performance. Note that range sharding is enabled by default only in <a class="highlight-link" target="_blank" href="https://docs.yugabyte.com/preview/develop/postgresql-compatibility/">PostgreSQL compatibility mode</a> in YugabyteDB.`,
-	}
 	GIN_INDEXES = NoteInfo{
 		Type: GeneralNotes,
 		Text: `There are some BITMAP indexes present in the schema that will get converted to GIN indexes, but GIN indexes are partially supported in YugabyteDB as mentioned in <a class="highlight-link" href="https://github.com/yugabyte/yugabyte-db/issues/7850">https://github.com/yugabyte/yugabyte-db/issues/7850</a> so take a look and modify them if not supported.`,
@@ -1539,12 +1534,7 @@ func addNotesToAssessmentReport() {
 	if len(assessmentReport.Sizing.SizingRecommendation.ColocatedTables) > 0 {
 		assessmentReport.Notes = append(assessmentReport.Notes, COLOCATED_TABLE_RECOMMENDATION_CAVEAT)
 	}
-	for _, dbObj := range schemaAnalysisReport.SchemaSummary.DBObjects {
-		if dbObj.ObjectType == "INDEX" && dbObj.TotalCount > 0 {
-			assessmentReport.Notes = append(assessmentReport.Notes, RANGE_SHARDED_INDEXES_RECOMMENDATION)
-			break
-		}
-	}
+
 	switch source.DBType {
 	case ORACLE:
 		partitionSqlFPath := filepath.Join(assessmentMetadataDir, "schema", "partitions", "partition.sql")
