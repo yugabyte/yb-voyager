@@ -26,7 +26,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// ColumnMapping maps actual pgss column names from CSV file to our struct's field names
+// ColumnMapping struct helps to map the QueryStats struct's fields to the actual pgss column names from CSV file
 type ColumnMapping struct {
 	QueryID        string // Always "queryid"
 	Query          string // Always "query"
@@ -39,7 +39,6 @@ type ColumnMapping struct {
 	StddevExecTime string // "stddev_time" (PG11-12) OR "stddev_exec_time" (PG13+)
 }
 
-// CreateColumnMapping analyzes CSV headers and creates a mapping to our struct's fields
 func CreateColumnMapping(headers []string) *ColumnMapping {
 	mapping := &ColumnMapping{}
 
@@ -135,7 +134,7 @@ func parseCSVRecord(headers []string, record []string, mapping *ColumnMapping) (
 		}
 		for i, header := range headers {
 			if header == columnName {
-				// headers and columns len is same
+				// Note: headers and columns len is same
 				return record[i]
 			}
 		}

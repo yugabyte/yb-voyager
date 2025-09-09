@@ -400,12 +400,11 @@ func (adb *AssessmentDB) Query(query string, args ...interface{}) (*sql.Rows, er
 
 // LoadCSVFileIntoTable reads a CSV file and loads it into the specified table
 func (adb *AssessmentDB) LoadCSVFileIntoTable(filePath, tableName string) error {
-	// Special handling for PGSS data with version normalization
 	if tableName == DB_QUERIES_SUMMARY {
+		// special handling due to pgss postgres version differences
 		return adb.LoadPgssCSVIntoTable(filePath)
 	}
 
-	// Standard CSV processing for other tables
 	file, err := os.Open(filePath)
 	if err != nil {
 		return fmt.Errorf("error opening file %s: %w", filePath, err)
@@ -428,11 +427,8 @@ func (adb *AssessmentDB) LoadCSVFileIntoTable(filePath, tableName string) error 
 	return nil
 }
 
-// LoadPgssCSVIntoTable loads PGSS CSV data with normalization to handle PostgreSQL version differences
+// LoadPgssCSVIntoTable loads PGSS CSV data into the db_queries_summary table
 func (adb *AssessmentDB) LoadPgssCSVIntoTable(filePath string) error {
-	log.Infof("Loading PGSS CSV with version normalization: %s", filePath)
-
-	// Parse CSV using our PGSS package
 	entries, err := pgss.ParseFromCSV(filePath)
 	if err != nil {
 		return fmt.Errorf("failed to parse PGSS CSV: %w", err)
@@ -443,7 +439,6 @@ func (adb *AssessmentDB) LoadPgssCSVIntoTable(filePath string) error {
 		return nil
 	}
 
-	// Insert all entries into database
 	successCount, err := adb.InsertPgssEntries(entries)
 	if err != nil {
 		return fmt.Errorf("failed to insert PGSS entries: %w", err)
@@ -453,7 +448,6 @@ func (adb *AssessmentDB) LoadPgssCSVIntoTable(filePath string) error {
 	return nil
 }
 
-// InsertPgssEntries inserts a slice of pgss.QueryStats into the database
 func (adb *AssessmentDB) InsertPgssEntries(entries []pgss.QueryStats) (int, error) {
 	if len(entries) == 0 {
 		return 0, nil
@@ -507,11 +501,7 @@ func (adb *AssessmentDB) InsertPgssEntries(entries []pgss.QueryStats) (int, erro
 		log.Warnf("PGSS insertion completed with %d errors out of %d total entries", errorCount, len(entries))
 	}
 
-	// Only fail if we couldn't insert any entries
-	if successCount == 0 && errorCount > 0 {
-		return 0, fmt.Errorf("failed to insert any PGSS entries (%d errors)", errorCount)
-	}
-
+	log.Infof("Successfully inserted %d PGSS entries into %s table", successCount, DB_QUERIES_SUMMARY)
 	return successCount, nil
 }
 
