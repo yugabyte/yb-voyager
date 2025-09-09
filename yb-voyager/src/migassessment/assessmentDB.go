@@ -543,3 +543,16 @@ func (adb *AssessmentDB) LoadPgssFromDB() ([]pgss.QueryStats, error) {
 
 	return entries, nil
 }
+
+// HasPgssData checks if any pg_stat_statements data exists in the assessment database
+func (adb *AssessmentDB) HasPgssData() (bool, error) {
+	query := fmt.Sprintf("SELECT 1 FROM %s LIMIT 1", DB_QUERIES_SUMMARY)
+	rows, err := adb.Query(query)
+	if err != nil {
+		return false, fmt.Errorf("failed to check for PGSS data: %w", err)
+	}
+	defer rows.Close()
+
+	// If we can read at least one row, data exists
+	return rows.Next(), nil
+}
