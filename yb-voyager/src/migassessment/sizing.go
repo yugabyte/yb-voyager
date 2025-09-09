@@ -244,17 +244,20 @@ func SizingAssessment(targetDbVersion *ybversion.YBVersion, sourceDBType string,
 	sizingRecommendationPerCoreShardingStrategy = findNumNodesNeededBasedOnTabletsRequired(sourceIndexMetadata, shardedLimits, sizingRecommendationPerCoreShardingStrategy)
 
 	finalSizingRecommendationColoShardedCombined := pickBestRecommendation(sizingRecommendationPerCore)
-	if finalSizingRecommendationColoShardedCombined.FailureReasoning != "" {
-		SizingReport.FailureReasoning = finalSizingRecommendationColoShardedCombined.FailureReasoning
-		return fmt.Errorf("error picking best recommendation: %v", finalSizingRecommendationColoShardedCombined.FailureReasoning)
-	}
+	// if finalSizingRecommendationColoShardedCombined.FailureReasoning != "" {
+	// 	SizingReport.FailureReasoning = finalSizingRecommendationColoShardedCombined.FailureReasoning
+	// 	return fmt.Errorf("error picking best recommendation: %v", finalSizingRecommendationColoShardedCombined.FailureReasoning)
+	// }
 	finalSizingRecommendationAllSharded := pickBestRecommendation(sizingRecommendationPerCoreShardingStrategy)
-	if finalSizingRecommendationAllSharded.FailureReasoning != "" {
-		SizingReport.FailureReasoning = finalSizingRecommendationAllSharded.FailureReasoning
-		return fmt.Errorf("error picking best recommendation: %v", finalSizingRecommendationAllSharded.FailureReasoning)
-	}
+	// if finalSizingRecommendationAllSharded.FailureReasoning != "" {
+	// 	SizingReport.FailureReasoning = finalSizingRecommendationAllSharded.FailureReasoning
+	// 	return fmt.Errorf("error picking best recommendation: %v", finalSizingRecommendationAllSharded.FailureReasoning)
+	// }
 	finalSizingRecommendation, pickReasoning := pickBestOutOfTwo(finalSizingRecommendationColoShardedCombined, finalSizingRecommendationAllSharded, sourceIndexMetadata)
-
+	if finalSizingRecommendation.FailureReasoning != "" {
+		SizingReport.FailureReasoning = finalSizingRecommendation.FailureReasoning
+		return fmt.Errorf("error picking best recommendation: %v", finalSizingRecommendation.FailureReasoning)
+	}
 	colocatedObjects, cumulativeIndexCountColocated :=
 		getListOfIndexesAlongWithObjects(finalSizingRecommendation.ColocatedTables, sourceIndexMetadata)
 	shardedObjects, cumulativeIndexCountSharded :=
@@ -426,16 +429,18 @@ func pickBestOutOfTwo(rec1, rec2 IntermediateRecommendation, sourceIndexMetadata
 	// If both have failure reasoning, return specific error message
 	if rec1HasFailure && rec2HasFailure {
 		// Return whichever recommendation (arbitrarily choose rec1) with the specific error message
-		rec1.FailureReasoning = "Unable to determine appropriate sizing recommendation. Reach out to the Yugabyte customer support team at https://support.yugabyte.com for further assistance."
-		return rec1, ""
+		reasoning := "Both colocated+sharded and all-sharded strategies could not support the requirements. Unable to determine appropriate sizing recommendation."
+		return rec1, reasoning
 	}
 
 	// If one has failure reasoning and the other doesn't, choose the one without failure reasoning
 	if rec1HasFailure && !rec2HasFailure {
-		return rec2, ""
+		reasoning := "Selected all-sharded strategy as colocated+sharded strategy could not support the requirements: " + rec1.FailureReasoning
+		return rec2, reasoning
 	}
 	if rec2HasFailure && !rec1HasFailure {
-		return rec1, ""
+		reasoning := "Selected colocated+sharded strategy as all-sharded strategy could not support the requirements: " + rec2.FailureReasoning
+		return rec1, reasoning
 	}
 
 	// Both have empty failure reasoning, proceed with normal comparison logic

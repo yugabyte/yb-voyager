@@ -1344,11 +1344,10 @@ func TestPickBestOutOfTwo_BothHaveFailureReasoning(t *testing.T) {
 	}
 	var sourceIndexMetadata []SourceDBMetadata
 
-	selectedRec, reasoning := pickBestOutOfTwo(rec1, rec2, sourceIndexMetadata)
+	_, reasoning := pickBestOutOfTwo(rec1, rec2, sourceIndexMetadata)
 
 	// Should return specific error message when both have failure reasoning
-	assert.Equal(t, "Unable to determine appropriate sizing recommendation. Reach out to the Yugabyte customer support team at https://support.yugabyte.com for further assistance.", selectedRec.FailureReasoning)
-	assert.Equal(t, "", reasoning)
+	assert.Equal(t, "Both colocated+sharded and all-sharded strategies could not support the requirements. Unable to determine appropriate sizing recommendation.", reasoning)
 }
 
 func TestPickBestOutOfTwo_Rec1HasFailureRec2DoesNot(t *testing.T) {
@@ -1374,7 +1373,7 @@ func TestPickBestOutOfTwo_Rec1HasFailureRec2DoesNot(t *testing.T) {
 
 	// Should select rec2 since it has no failure reasoning
 	assert.Equal(t, rec2, selectedRec)
-	assert.Equal(t, "", reasoning)
+	assert.Equal(t, "Selected all-sharded strategy as colocated+sharded strategy could not support the requirements: Cannot support throughput requirements", reasoning)
 }
 
 func TestPickBestOutOfTwo_Rec2HasFailureRec1DoesNot(t *testing.T) {
@@ -1400,7 +1399,7 @@ func TestPickBestOutOfTwo_Rec2HasFailureRec1DoesNot(t *testing.T) {
 
 	// Should select rec1 since it has no failure reasoning
 	assert.Equal(t, rec1, selectedRec)
-	assert.Equal(t, "", reasoning)
+	assert.Equal(t, "Selected colocated+sharded strategy as all-sharded strategy could not support the requirements: Exceeds table limits", reasoning)
 }
 
 func TestPickBestOutOfTwo_BothHaveEmptyFailureReasoning(t *testing.T) {
