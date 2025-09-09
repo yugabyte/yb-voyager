@@ -1,8 +1,8 @@
 {
 	"VoyagerVersion": "main",
 	"TargetDBVersion": "2024.2.2.3",
-	"MigrationComplexity": "MEDIUM",
-	"MigrationComplexityExplanation": "Found 25 Level 1 issue(s), 0 Level 2 issue(s) and 0 Level 3 issue(s), resulting in MEDIUM migration complexity",
+	"MigrationComplexity": "LOW",
+	"MigrationComplexityExplanation": "Found 16 Level 1 issue(s) and 0 Level 2 issue(s), resulting in LOW migration complexity",
 	"SchemaSummary": {
 		"Description": "Objects that will be created on the target YugabyteDB.",
 		"DbName": "pg_assessment_perf_optimizations",
@@ -27,7 +27,7 @@
 			{
 				"ObjectType": "INDEX",
 				"TotalCount": 36,
-				"InvalidCount": 12,
+				"InvalidCount": 5,
 				"ObjectNames": "idx ON public.test_low_card, idx_has_pk_unique ON public.has_pk_with_unique_index, idx_mix_email ON public.mix_constraint_index, idx_mix_phone ON public.mix_constraint_index, idx_mix_same ON public.mix_constraint_index_same, idx_muli_col_key_first_col ON public.test_multi_col_idx, idx_muli_col_key_first_col1 ON public.test_multi_col_idx, idx_name ON public.users, idx_name1 ON public.users, idx_partitioned_unique ON public.partitioned_unique_index, idx_test_case_sensitive ON public.\"Test_caseSensitive\", idx_test_multi_id ON public.test_multi_col_idx, idx_test_multi_id1 ON public.test_multi_col_idx, idx_test_multi_id1_id2 ON public.test_multi_col_idx, idx_test_multi_id2 ON public.test_multi_col_idx, idx_test_multi_val ON public.test_multi_col_idx, idx_try ON public.tbl, idx_unique_composite ON public.unique_index_composite, idx_unique_expression ON public.unique_index_expression, idx_unique_mixed ON public.unique_index_mixed, idx_unique_multiple_1 ON public.unique_index_multiple, idx_unique_multiple_2 ON public.unique_index_multiple, idx_unique_multiple_3 ON public.unique_index_multiple, idx_unique_nullable ON public.unique_index_nullable, idx_unique_simple ON public.unique_index_simple, idxtt ON public.t, idxtt1 ON public.t, indx ON public.test_most_freq, indx1 ON public.test_most_freq, indx34 ON public.test_most_freq, partitioned_unique_index_2023_id_region_year_idx ON public.partitioned_unique_index_2023, idx ON test.t, idx2 ON test.t, idx_normal ON test.test_mostcomm_status, idx_partial_high ON test.test_mostcomm_status, idx_try ON test.t_low_most"
 			},
 			{
