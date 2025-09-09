@@ -46,9 +46,17 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-maven-
 
-      - name: "Enable postgres with pg_stat_statements loaded via shared_preload_libraries"
+      - name: "Enable postgres with pg_stat_statements, pglogical loaded via shared_preload_libraries and install pg extensions"
         run: |
-          docker exec ${{ job.services.postgres.id }} sh -c "echo \"shared_preload_libraries = 'pg_stat_statements'\" >> /var/lib/postgresql/data/postgresql.conf"
+          docker exec ${{ job.services.postgres.id }} sh -c "
+            apt-get update && apt-get install -y \
+              postgresql-17-postgis-3 \
+              postgresql-plpython3-17 \
+              postgresql-plperl-17 \
+              postgresql-17-pglogical"
+
+          docker exec ${{ job.services.postgres.id }} sh -c "echo \"shared_preload_libraries = 'pg_stat_statements, pglogical'\" >> /var/lib/postgresql/data/postgresql.conf"
+
           docker restart ${{ job.services.postgres.id }}
           sleep 10
 
@@ -59,13 +67,19 @@ jobs:
           sudo apt install python3-psycopg2
           pip3 install bs4 # Install BeautifulSoup4 module for HTML report validation
 
-      #TODO Remove the install PG 17 command once we do that in installer script 
       - name: Run installer script to setup voyager
         run: |
           cd installer_scripts
           yes | ./install-yb-voyager --install-from-local-source --only-pg-support
-          sudo apt-get -y install postgresql-17
-          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+          # Since pg_dump/restore 17 is required, we need to remove the symlink to the old PG 14 binary(default)
+          # and create a symlink to the new PG 17 binary
+          sudo rm /usr/bin/pg_dump
+          sudo ln -s /usr/lib/postgresql/17/bin/pg_dump /usr/bin/pg_dump
+          sudo rm /usr/bin/pg_restore
+          sudo ln -s /usr/lib/postgresql/17/bin/pg_restore /usr/bin/pg_restore
+          pg_dump --version
+          pg_restore --version
+          psql --version
         env:
           ON_INSTALLER_ERROR_OUTPUT_LOG: Y
 
@@ -138,4 +152,3 @@ jobs:
             docker remove yugabytedb-$version
           done
         shell: bash
-

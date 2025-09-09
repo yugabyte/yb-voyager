@@ -73,7 +73,8 @@
 			"MemoryPerInstance": 16,
 			"OptimalSelectConnectionsPerNode": 8,
 			"OptimalInsertConnectionsPerNode": 12,
-			"EstimatedTimeInMinForImport": 1
+			"EstimatedTimeInMinForImport": 1,
+			"EstimatedTimeInMinForImportWithoutRedundantIndexes": 1
 		},
 		"FailureReasoning": ""
 	},
@@ -405,9 +406,21 @@
 		}
 	],
 	"Notes": [
-		"Some features listed in this report may be supported under a preview flag in the specified target-db-version of YugabyteDB. Please refer to the official \u003ca class=\"highlight-link\" target=\"_blank\" href=\"https://docs.yugabyte.com/preview/releases/ybdb-releases/\"\u003erelease notes\u003c/a\u003e for detailed information and usage guidelines.",
-		"If there are any tables that receive disproportionately high load, ensure that they are NOT colocated to avoid the colocated tablet becoming a hotspot.\nFor additional considerations related to colocated tables, refer to the documentation at: https://docs.yugabyte.com/preview/explore/colocation/#limitations-and-considerations",
-		"If indexes are created on columns commonly used in range-based queries (e.g. timestamp columns), it is recommended to explicitly configure these indexes with range sharding. This ensures efficient data access for range queries.\nBy default, YugabyteDB uses hash sharding for indexes, which distributes data randomly and is not ideal for range-based predicates potentially degrading query performance. Note that range sharding is enabled by default only in \u003ca class=\"highlight-link\" target=\"_blank\" href=\"https://docs.yugabyte.com/preview/develop/postgresql-compatibility/\"\u003ePostgreSQL compatibility mode\u003c/a\u003e in YugabyteDB.",
-		"\u003ca class=\"highlight-link\" target=\"_blank\"  href=\"https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/#assessment-and-schema-analysis-limitations\"\u003eLimitations in assessment\u003c/a\u003e"
+		{
+			"Type": "GeneralNotes",
+			"Text": "Some features listed in this report may be supported under a preview flag in the specified target-db-version of YugabyteDB. Please refer to the official \u003ca class=\"highlight-link\" target=\"_blank\" href=\"https://docs.yugabyte.com/preview/releases/ybdb-releases/\"\u003erelease notes\u003c/a\u003e for detailed information and usage guidelines."
+		},
+		{
+			"Type": "ColocatedShardedNotes",
+			"Text": "If there are any tables that receive disproportionately high load, ensure that they are NOT colocated to avoid the colocated tablet becoming a hotspot.\nFor additional considerations related to colocated tables, refer to the documentation at: https://docs.yugabyte.com/preview/explore/colocation/#limitations-and-considerations"
+		},
+		{
+			"Type": "GeneralNotes",
+			"Text": "If indexes are created on columns commonly used in range-based queries (e.g. timestamp columns), it is recommended to explicitly configure these indexes with range sharding. This ensures efficient data access for range queries.\nBy default, YugabyteDB uses hash sharding for indexes, which distributes data randomly and is not ideal for range-based predicates potentially degrading query performance. Note that range sharding is enabled by default only in \u003ca class=\"highlight-link\" target=\"_blank\" href=\"https://docs.yugabyte.com/preview/develop/postgresql-compatibility/\"\u003ePostgreSQL compatibility mode\u003c/a\u003e in YugabyteDB."
+		},
+		{
+			"Type": "GeneralNotes",
+			"Text": "\u003ca class=\"highlight-link\" target=\"_blank\"  href=\"https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/#assessment-and-schema-analysis-limitations\"\u003eLimitations in assessment\u003c/a\u003e"
+		}
 	]
 }

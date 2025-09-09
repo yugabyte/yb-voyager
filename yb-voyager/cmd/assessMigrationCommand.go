@@ -38,7 +38,6 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryissue"
@@ -331,6 +330,9 @@ func fetchSourceInfo() {
 	if err != nil {
 		log.Errorf("error getting database size: %v", err) //can just log as this is used for call-home only
 	}
+
+	// Get PostgreSQL system identifier
+	source.FetchDBSystemIdentifier()
 }
 
 func SetMigrationAssessmentDoneInMSR() error {
@@ -375,86 +377,13 @@ func IsMigrationAssessmentDoneViaExportSchema() (bool, error) {
 
 func ClearMigrationAssessmentDone() error {
 	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
-		if record.MigrationAssessmentDone {
-			record.MigrationAssessmentDone = false
-		}
+		record.MigrationAssessmentDone = false
+		record.MigrationAssessmentDoneViaExportSchema = false
 	})
 	if err != nil {
 		return fmt.Errorf("failed to clear migration status record with migration assessment done flag: %w", err)
 	}
 	return nil
-}
-
-func createMigrationAssessmentStartedEvent() *cp.MigrationAssessmentStartedEvent {
-	ev := &cp.MigrationAssessmentStartedEvent{}
-	initBaseSourceEvent(&ev.BaseEvent, "ASSESS MIGRATION")
-	return ev
-}
-
-func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedEvent {
-	ev := &cp.MigrationAssessmentCompletedEvent{}
-	initBaseSourceEvent(&ev.BaseEvent, "ASSESS MIGRATION")
-
-	totalColocatedSize, err := assessmentReport.GetTotalColocatedSize(source.DBType)
-	if err != nil {
-		utils.PrintAndLog("failed to calculate the total colocated table size from tableIndexStats: %v", err)
-	}
-
-	totalShardedSize, err := assessmentReport.GetTotalShardedSize(source.DBType)
-	if err != nil {
-		utils.PrintAndLog("failed to calculate the total sharded table size from tableIndexStats: %v", err)
-	}
-
-	assessmentIssues := convertAssessmentIssueToYugabyteDAssessmentIssue(assessmentReport)
-
-	payload := AssessMigrationPayload{
-		PayloadVersion:                 ASSESS_MIGRATION_YBD_PAYLOAD_VERSION,
-		VoyagerVersion:                 assessmentReport.VoyagerVersion,
-		TargetDBVersion:                assessmentReport.TargetDBVersion,
-		MigrationComplexity:            assessmentReport.MigrationComplexity,
-		MigrationComplexityExplanation: assessmentReport.MigrationComplexityExplanation,
-		SchemaSummary:                  assessmentReport.SchemaSummary,
-		AssessmentIssues:               assessmentIssues,
-		SourceSizeDetails: SourceDBSizeDetails{
-			TotalIndexSize:     assessmentReport.GetTotalIndexSize(),
-			TotalTableSize:     assessmentReport.GetTotalTableSize(),
-			TotalTableRowCount: assessmentReport.GetTotalTableRowCount(),
-			TotalDBSize:        source.DBSize,
-		},
-		TargetRecommendations: TargetSizingRecommendations{
-			TotalColocatedSize: totalColocatedSize,
-			TotalShardedSize:   totalShardedSize,
-		},
-		ConversionIssues: schemaAnalysisReport.Issues,
-		Sizing:           assessmentReport.Sizing,
-		TableIndexStats:  assessmentReport.TableIndexStats,
-		Notes:            assessmentReport.Notes,
-		AssessmentJsonReport: AssessmentReportYugabyteD{
-			VoyagerVersion:             assessmentReport.VoyagerVersion,
-			TargetDBVersion:            assessmentReport.TargetDBVersion,
-			MigrationComplexity:        assessmentReport.MigrationComplexity,
-			SchemaSummary:              assessmentReport.SchemaSummary,
-			Sizing:                     assessmentReport.Sizing,
-			TableIndexStats:            assessmentReport.TableIndexStats,
-			Notes:                      assessmentReport.Notes,
-			UnsupportedDataTypes:       assessmentReport.UnsupportedDataTypes,
-			UnsupportedDataTypesDesc:   assessmentReport.UnsupportedDataTypesDesc,
-			UnsupportedFeatures:        assessmentReport.UnsupportedFeatures,
-			UnsupportedFeaturesDesc:    assessmentReport.UnsupportedFeaturesDesc,
-			UnsupportedQueryConstructs: assessmentReport.UnsupportedQueryConstructs,
-			UnsupportedPlPgSqlObjects:  assessmentReport.UnsupportedPlPgSqlObjects,
-			MigrationCaveats:           assessmentReport.MigrationCaveats,
-		},
-	}
-
-	payloadBytes, err := json.Marshal(payload)
-	if err != nil {
-		utils.PrintAndLog("Failed to serialise the final report to json (ERR IGNORED): %s", err)
-	}
-
-	ev.Report = string(payloadBytes)
-	log.Infof("assess migration payload send to yugabyted: %s", ev.Report)
-	return ev
 }
 
 func convertAssessmentIssueToYugabyteDAssessmentIssue(ar AssessmentReport) []AssessmentIssueYugabyteD {
@@ -484,7 +413,7 @@ func convertAssessmentIssueToYugabyteDAssessmentIssue(ar AssessmentReport) []Ass
 func runAssessment() error {
 	log.Infof("running assessment for migration from '%s' to YugabyteDB", source.DBType)
 
-	err := migassessment.SizingAssessment(targetDbVersion)
+	err := migassessment.SizingAssessment(targetDbVersion, source.DBType)
 	if err != nil {
 		log.Errorf("failed to perform sizing and sharding assessment: %v", err)
 		return fmt.Errorf("failed to perform sizing and sharding assessment: %w", err)
@@ -1115,6 +1044,7 @@ func fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport utils.Schem
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.HOTSPOTS_ON_TIMESTAMP_PK_UK_ISSUE, "", queryissue.HOTSPOTS_ON_TIMESTAMP_PK_UK, schemaAnalysisReport, false))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.FOREIGN_KEY_DATATYPE_MISMATCH_ISSUE_NAME, "", queryissue.FOREIGN_KEY_DATATYPE_MISMATCH, schemaAnalysisReport, false))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.MISSING_FOREIGN_KEY_INDEX_ISSUE_NAME, "", queryissue.MISSING_FOREIGN_KEY_INDEX, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.MISSING_PRIMARY_KEY_WHEN_UNIQUE_NOT_NULL_ISSUE_NAME, "", queryissue.MISSING_PRIMARY_KEY_WHEN_UNIQUE_NOT_NULL, schemaAnalysisReport, false))
 
 	return lo.Filter(unsupportedFeatures, func(f UnsupportedFeature, _ int) bool {
 		return len(f.Objects) > 0
@@ -1554,23 +1484,52 @@ func considerQueryForIssueDetection(collectedSchemaList []string) bool {
 	return false
 }
 
-const (
-	PREVIEW_FEATURES_NOTE                = `Some features listed in this report may be supported under a preview flag in the specified target-db-version of YugabyteDB. Please refer to the official <a class="highlight-link" target="_blank" href="https://docs.yugabyte.com/preview/releases/ybdb-releases/">release notes</a> for detailed information and usage guidelines.`
-	RANGE_SHARDED_INDEXES_RECOMMENDATION = `If indexes are created on columns commonly used in range-based queries (e.g. timestamp columns), it is recommended to explicitly configure these indexes with range sharding. This ensures efficient data access for range queries.
-By default, YugabyteDB uses hash sharding for indexes, which distributes data randomly and is not ideal for range-based predicates potentially degrading query performance. Note that range sharding is enabled by default only in <a class="highlight-link" target="_blank" href="https://docs.yugabyte.com/preview/develop/postgresql-compatibility/">PostgreSQL compatibility mode</a> in YugabyteDB.`
-	COLOCATED_TABLE_RECOMMENDATION_CAVEAT = `If there are any tables that receive disproportionately high load, ensure that they are NOT colocated to avoid the colocated tablet becoming a hotspot.
-For additional considerations related to colocated tables, refer to the documentation at: https://docs.yugabyte.com/preview/explore/colocation/#limitations-and-considerations`
-	ORACLE_PARTITION_DEFAULT_COLOCATION = `For sharding/colocation recommendations, each partition is treated individually. During the export schema phase, all the partitions of a partitioned table are currently created as colocated by default.
-To manually modify the schema, please refer: <a class="highlight-link" href="https://github.com/yugabyte/yb-voyager/issues/1581">https://github.com/yugabyte/yb-voyager/issues/1581</a>.`
+var (
+	// GeneralNotes
+	PREVIEW_FEATURES_NOTE = NoteInfo{
+		Type: GeneralNotes,
+		Text: `Some features listed in this report may be supported under a preview flag in the specified target-db-version of YugabyteDB. Please refer to the official <a class="highlight-link" target="_blank" href="https://docs.yugabyte.com/preview/releases/ybdb-releases/">release notes</a> for detailed information and usage guidelines.`,
+	}
+	RANGE_SHARDED_INDEXES_RECOMMENDATION = NoteInfo{
+		Type: GeneralNotes,
+		Text: `If indexes are created on columns commonly used in range-based queries (e.g. timestamp columns), it is recommended to explicitly configure these indexes with range sharding. This ensures efficient data access for range queries.
+By default, YugabyteDB uses hash sharding for indexes, which distributes data randomly and is not ideal for range-based predicates potentially degrading query performance. Note that range sharding is enabled by default only in <a class="highlight-link" target="_blank" href="https://docs.yugabyte.com/preview/develop/postgresql-compatibility/">PostgreSQL compatibility mode</a> in YugabyteDB.`,
+	}
+	GIN_INDEXES = NoteInfo{
+		Type: GeneralNotes,
+		Text: `There are some BITMAP indexes present in the schema that will get converted to GIN indexes, but GIN indexes are partially supported in YugabyteDB as mentioned in <a class="highlight-link" href="https://github.com/yugabyte/yugabyte-db/issues/7850">https://github.com/yugabyte/yugabyte-db/issues/7850</a> so take a look and modify them if not supported.`,
+	}
+	UNLOGGED_TABLE_NOTE = NoteInfo{
+		Type: GeneralNotes,
+		Text: `There are some Unlogged tables in the schema. They will be created as regular LOGGED tables in YugabyteDB as unlogged tables are not supported.`,
+	}
+	REPORTING_LIMITATIONS_NOTE = NoteInfo{
+		Type: GeneralNotes,
+		Text: `<a class="highlight-link" target="_blank"  href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/#assessment-and-schema-analysis-limitations">Limitations in assessment</a>`,
+	}
+	FOREIGN_TABLE_NOTE = NoteInfo{
+		Type: GeneralNotes,
+		Text: `There are some Foreign tables in the schema, but during the export schema phase, exported schema does not include the SERVER and USER MAPPING objects. Therefore, you must manually create these objects before import schema. For more information on each of them, run analyze-schema. `,
+	}
 
-	ORACLE_UNSUPPPORTED_PARTITIONING = `Reference and System Partitioned tables are created as normal tables, but are not considered for target cluster sizing recommendations.`
+	// ColocatedShardedNotes
+	COLOCATED_TABLE_RECOMMENDATION_CAVEAT = NoteInfo{
+		Type: ColocatedShardedNotes,
+		Text: `If there are any tables that receive disproportionately high load, ensure that they are NOT colocated to avoid the colocated tablet becoming a hotspot.
+For additional considerations related to colocated tables, refer to the documentation at: https://docs.yugabyte.com/preview/explore/colocation/#limitations-and-considerations`,
+	}
+	ORACLE_PARTITION_DEFAULT_COLOCATION = NoteInfo{
+		Type: ColocatedShardedNotes,
+		Text: `For sharding/colocation recommendations, each partition is treated individually. During the export schema phase, all the partitions of a partitioned table are currently created as colocated by default.
+To manually modify the schema, please refer: <a class="highlight-link" href="https://github.com/yugabyte/yb-voyager/issues/1581">https://github.com/yugabyte/yb-voyager/issues/1581</a>.`,
+	}
 
-	GIN_INDEXES                = `There are some BITMAP indexes present in the schema that will get converted to GIN indexes, but GIN indexes are partially supported in YugabyteDB as mentioned in <a class="highlight-link" href="https://github.com/yugabyte/yugabyte-db/issues/7850">https://github.com/yugabyte/yugabyte-db/issues/7850</a> so take a look and modify them if not supported.`
-	UNLOGGED_TABLE_NOTE        = `There are some Unlogged tables in the schema. They will be created as regular LOGGED tables in YugabyteDB as unlogged tables are not supported.`
-	REPORTING_LIMITATIONS_NOTE = `<a class="highlight-link" target="_blank"  href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/#assessment-and-schema-analysis-limitations">Limitations in assessment</a>`
+	// SizingNotes
+	ORACLE_UNSUPPPORTED_PARTITIONING = NoteInfo{
+		Type: SizingNotes,
+		Text: `Reference and System Partitioned tables are created as normal tables, but are not considered for target cluster sizing recommendations.`,
+	}
 )
-
-const FOREIGN_TABLE_NOTE = `There are some Foreign tables in the schema, but during the export schema phase, exported schema does not include the SERVER and USER MAPPING objects. Therefore, you must manually create these objects before import schema. For more information on each of them, run analyze-schema. `
 
 // TODO: fix notes handling for html tags just for html and not for json
 func addNotesToAssessmentReport() {

@@ -45,6 +45,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/monitor"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/prometheus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -55,6 +56,9 @@ var batchSizeInNumRows = int64(0)
 var batchImportPool *pool.Pool
 var colocatedBatchImportPool *pool.Pool
 var colocatedBatchImportQueue chan func()
+
+// Prometheus metrics configuration
+const PROMETHEUS_METRICS_PORT = "8080"
 
 var tablesProgressMetadata map[string]*utils.TableProgressMetadata
 var importerRole string
@@ -135,7 +139,6 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	reportProgressInBytes = false
 	tconf.ImportMode = true
 	checkExportDataDoneFlag()
-
 	/*
 		Before this point MSR won't not be initialised in case of importDataFileCmd
 		In case of importDataCmd, MSR would be initialised already by previous commands
@@ -186,6 +189,12 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 		utils.ErrExit("--table-list and --exclude-table-list are not supported for live migration. Re-run the command without these flags.")
 	} else {
 		importFileTasks = applyTableListFilter(importFileTasks)
+	}
+
+	// Start Prometheus metrics server
+	err = prometheus.StartMetricsServer(PROMETHEUS_METRICS_PORT)
+	if err != nil {
+		log.Errorf("Failed to start Prometheus metrics server: %v", err)
 	}
 
 	importData(importFileTasks, errorPolicySnapshotFlag)
@@ -807,6 +816,7 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 		displayImportedRowCountSnapshot(state, importFileTasks, errorHandler)
 	}
 	fmt.Printf("\nImport data complete.\n")
+	time.Sleep(time.Second * 1000)
 }
 
 // For a fresh start but non empty tables in tableList && OnPrimaryKeyConflict is set to IGNORE -> notify user
@@ -1238,7 +1248,7 @@ func packAndSendImportDataToTargetPayload(status string, errorMsg error) {
 		ParallelJobs:                int64(tconf.Parallelism),
 		StartClean:                  bool(startClean),
 		EnableUpsert:                bool(tconf.EnableUpsert),
-		Error:                       callhome.SanitizeErrorMsg(errorMsg),
+		Error:                       callhome.SanitizeErrorMsg(errorMsg, anonymizer),
 		ControlPlaneType:            getControlPlaneType(),
 		BatchSize:                   batchSizeInNumRows,
 		OnPrimaryKeyConflictAction:  tconf.OnPrimaryKeyConflictAction,

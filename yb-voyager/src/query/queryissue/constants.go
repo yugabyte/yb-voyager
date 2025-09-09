@@ -473,6 +473,11 @@ Note: If the table is created as colocated, this hotspot concern can safely be i
 
 	MISSING_FOREIGN_KEY_INDEX_ISSUE_NAME  = "Missing index on foreign key columns"
 	MISSING_FOREIGN_KEY_INDEX_DESCRIPTION = "Foreign key columns do not have a proper index. The index must include all foreign key columns as leading columns (either in exact order, any permutation, or as a prefix of a composite index). This can cause performance issues during DML operations on the referenced table."
+
+	// Recommend PK when UNIQUE + all NOT NULL but no PK exists
+	MISSING_PRIMARY_KEY_WHEN_UNIQUE_NOT_NULL             = "MISSING_PRIMARY_KEY_WHEN_UNIQUE_NOT_NULL"
+	MISSING_PRIMARY_KEY_WHEN_UNIQUE_NOT_NULL_ISSUE_NAME  = "Missing primary key for table when unique and not null columns exist"
+	MISSING_PRIMARY_KEY_WHEN_UNIQUE_NOT_NULL_DESCRIPTION = "YugabyteDB's table storage is index-oriented. So, a table without a primary key is not viable in YugabyteDB. If you don't specify a primary key, YugabyteDB will use the internal ybrowid column as PRIMARY KEY and the table will be sharded on ybrowid HASH. However, if there are candidate primary keys (unique + NOT NULL), it is recommended to define them as a Primary Key to avoid secondary index structures."
 )
 
 // Object types

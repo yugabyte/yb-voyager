@@ -276,7 +276,7 @@ export_schema() {
         --source-db-password ${SOURCE_DB_PASSWORD}
         --source-db-name ${SOURCE_DB_NAME}
         --send-diagnostics=false --yes
-        --skip-performance-optimizations false
+        --skip-performance-recommendations false
     "
     # Use the resolved local variable which may override the default env var
     # Required for Bulk Assessment test
@@ -363,6 +363,9 @@ export_data() {
     fi
     if [ "${EXPORT_EX_TABLE_LIST_FILE_PATH}" != "" ]; then
         args="${args} --exclude-table-list-file-path ${EXPORT_EX_TABLE_LIST_FILE_PATH}"
+    fi
+    if [ "${ENABLE_CLOB_EXPORT}" = "true" ]; then
+        args="${args} --allow-oracle-clob-data-export true"
     fi
 
     # Add export-type flag for live migration workflows

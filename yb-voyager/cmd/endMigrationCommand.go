@@ -84,7 +84,10 @@ func endMigrationCommandFn(cmd *cobra.Command, args []string) {
 	checkIfEndCommandCanBePerformed(msr)
 
 	// backing up the state from the export directory
-	saveMigrationReportsFn(msr)
+	err = saveMigrationReportsFn(msr)
+	if err != nil {
+		utils.ErrExit("saving migration reports: %w", err)
+	}
 	backupSchemaFilesFn()
 	backupDataFilesFn()
 
@@ -123,7 +126,7 @@ func packAndSendEndMigrationPayload(status string, errorMsg error) {
 		BackupLogFiles:       bool(backupLogFiles),
 		BackupSchemaFiles:    bool(backupSchemaFiles),
 		SaveMigrationReports: bool(saveMigrationReports),
-		Error:                callhome.SanitizeErrorMsg(errorMsg),
+		Error:                callhome.SanitizeErrorMsg(errorMsg, anonymizer),
 		ControlPlaneType:     getControlPlaneType(),
 	}
 	payload.PhasePayload = callhome.MarshalledJsonString(endMigrationPayload)
@@ -264,18 +267,22 @@ func backupDataFilesFn() {
 	}
 }
 
-func saveMigrationReportsFn(msr *metadb.MigrationStatusRecord) {
+func saveMigrationReportsFn(msr *metadb.MigrationStatusRecord) error {
 	if !saveMigrationReports {
-		return
+		return nil
 	}
 
 	err := os.MkdirAll(filepath.Join(backupDir, "reports"), 0755)
 	if err != nil {
-		utils.ErrExit("creating reports directory for backup: %w", err)
+		return fmt.Errorf("creating reports directory for backup: %w", err)
 	}
 
 	saveMigrationAssessmentReport()
 	saveSchemaAnalysisReport()
+	err = saveSchemaOptimizationReport()
+	if err != nil {
+		return fmt.Errorf("saving schema optimization report: %w", err)
+	}
 	if streamChangesMode {
 		saveDataMigrationReport(msr)
 	} else { // snapshot case
@@ -284,6 +291,31 @@ func saveMigrationReportsFn(msr *metadb.MigrationStatusRecord) {
 		}
 		saveDataImportReport(msr)
 	}
+	return nil
+}
+
+func saveSchemaOptimizationReport() error {
+	optimizationReportBackUpPath := filepath.Join(backupDir, "reports", fmt.Sprintf("%s.html", SCHEMA_OPTIMIZATION_REPORT_FILE_NAME))
+	alreadyBackedUp := utils.FileOrFolderExistsWithGlobPattern(optimizationReportBackUpPath)
+	if alreadyBackedUp {
+		utils.PrintAndLog("schema optimization report is already present at %q", optimizationReportBackUpPath)
+		return nil
+	}
+	utils.PrintAndLog("saving schema optimization report...")
+
+	optimizationReportCurrentPath := filepath.Join(exportDir, "reports", fmt.Sprintf("%s.html", SCHEMA_OPTIMIZATION_REPORT_FILE_NAME))
+	if !utils.FileOrFolderExists(optimizationReportCurrentPath) {
+		log.Infof("schema optimization report not found at %q", optimizationReportCurrentPath)
+		return nil
+	}
+	cmd := exec.Command("mv", optimizationReportCurrentPath, optimizationReportBackUpPath)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("moving schema optimization report: %s: %w", string(output), err)
+	} else {
+		log.Infof("moved schema optimization report %q to %q", optimizationReportCurrentPath, optimizationReportBackUpPath)
+	}
+	return nil
 }
 
 func saveMigrationAssessmentReport() {

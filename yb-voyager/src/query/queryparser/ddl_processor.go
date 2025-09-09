@@ -760,6 +760,14 @@ func (atProcessor *AlterTableProcessor) Process(parseTree *pg_query.ParseResult)
 		AlterType:  alterNode.AlterTableStmt.Cmds[0].GetAlterTableCmd().GetSubtype(),
 	}
 
+	// TODO: Alter statements can have multiple subcommands, but currently we are only processing the first one
+	// Example:
+	// ALTER TABLE ONLY public.device_events
+	// ALTER COLUMN device_id SET NOT NULL;
+	// ALTER COLUMN device_name DROP NOT NULL;
+	// ALTER COLUMN device_type SET NOT NULL;
+	// Add support for multiple alter commands in the same query
+
 	// Parse specific alter command
 	cmd := alterNode.AlterTableStmt.Cmds[0].GetAlterTableCmd()
 	switch alter.AlterType {
@@ -840,6 +848,22 @@ func (atProcessor *AlterTableProcessor) Process(parseTree *pg_query.ParseResult)
 		partitionCmd := cmd.GetDef().GetPartitionCmd()
 		partitionChildTable := partitionCmd.GetName()
 		alter.PartitionedChild = utils.BuildObjectName(partitionChildTable.Schemaname, partitionChildTable.Relname)
+
+	case pg_query.AlterTableType_AT_SetNotNull:
+		/*
+			e.g. ALTER TABLE ONLY public.device_events ALTER COLUMN device_id SET NOT NULL;
+			stmt:{alter_table_stmt:{relation:{schemaname:"public" relname:"device_events" inh:true relpersistence:"p" location:12}
+			cmds:{alter_table_cmd:{subtype:AT_SetNotNull name:"device_id" behavior:DROP_RESTRICT}} objtype:OBJECT_TABLE}} stmt_len:40}
+		*/
+		alter.SetNotNullColumn = cmd.Name
+
+	case pg_query.AlterTableType_AT_DropNotNull:
+		/*
+			e.g. ALTER TABLE ONLY public.device_events ALTER COLUMN device_id DROP NOT NULL;
+			stmt:{alter_table_stmt:{relation:{schemaname:"public" relname:"device_events" inh:true relpersistence:"p" location:12}
+			cmds:{alter_table_cmd:{subtype:AT_DropNotNull name:"device_id" behavior:DROP_RESTRICT}} objtype:OBJECT_TABLE}} stmt_len:40}
+		*/
+		alter.DropNotNullColumn = cmd.Name
 	}
 
 	return alter, nil
@@ -862,6 +886,9 @@ type AlterTable struct {
 	IsDeferrable                bool
 	ConstraintColumns           []string
 	PartitionedChild            string // In case this is a partitioned table
+	// In case the ALTER TABLE contains multiple subcommands, collect all SET/DROP NOT NULL columns
+	SetNotNullColumn  string
+	DropNotNullColumn string
 }
 
 func (a *AlterTable) GetObjectName() string {
