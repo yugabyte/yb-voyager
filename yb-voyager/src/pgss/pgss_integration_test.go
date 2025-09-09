@@ -28,10 +28,11 @@ import (
 	testcontainers "github.com/yugabyte/yb-voyager/yb-voyager/test/containers"
 )
 
-func TestPgStatStatementsRequiredColumns(t *testing.T) {
-	pgVersions := []string{"11", "12", "13", "14", "15", "16", "17", "18"}
+// TODO: Keep this in sync with yb-voyager's supported PostgreSQL versions
+var supportedPgVersions = []string{"11", "12", "13", "14", "15", "16", "17"}
 
-	for _, version := range pgVersions {
+func TestPgStatStatementsRequiredColumns(t *testing.T) {
+	for _, version := range supportedPgVersions {
 		t.Run(fmt.Sprintf("PostgreSQL_%s", version), func(t *testing.T) {
 			container := testcontainers.NewTestContainer(testcontainers.POSTGRESQL, &testcontainers.ContainerConfig{
 				DBVersion: version,
