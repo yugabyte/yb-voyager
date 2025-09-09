@@ -419,6 +419,26 @@ Returns:
   - A string explaining the reasoning behind the choice, including comparison details and detailed object counts
 */
 func pickBestOutOfTwo(rec1, rec2 IntermediateRecommendation, sourceIndexMetadata []SourceDBMetadata) (IntermediateRecommendation, string) {
+	// Handle failure reasoning logic first
+	rec1HasFailure := rec1.FailureReasoning != ""
+	rec2HasFailure := rec2.FailureReasoning != ""
+
+	// If both have failure reasoning, return specific error message
+	if rec1HasFailure && rec2HasFailure {
+		// Return whichever recommendation (arbitrarily choose rec1) with the specific error message
+		rec1.FailureReasoning = "Unable to determine appropriate sizing recommendation. Reach out to the Yugabyte customer support team at https://support.yugabyte.com for further assistance."
+		return rec1, ""
+	}
+
+	// If one has failure reasoning and the other doesn't, choose the one without failure reasoning
+	if rec1HasFailure && !rec2HasFailure {
+		return rec2, ""
+	}
+	if rec2HasFailure && !rec1HasFailure {
+		return rec1, ""
+	}
+
+	// Both have empty failure reasoning, proceed with normal comparison logic
 	var selectedRec, notSelectedRec IntermediateRecommendation
 	var reasoning string
 

@@ -1324,6 +1324,112 @@ func TestPickBestOutOfTwo_SameVCPUs_FallbackToNodeComparison(t *testing.T) {
 	assert.NotContains(t, reasoning, "resultant cores") // Should not mention resultant cores in node comparison fallback
 }
 
+// Test failure reasoning scenarios
+func TestPickBestOutOfTwo_BothHaveFailureReasoning(t *testing.T) {
+	rec1 := IntermediateRecommendation{
+		VCPUsPerInstance: 4,
+		CoresNeeded:      12,
+		NumNodes:         3,
+		ColocatedTables:  []SourceDBMetadata{{ObjectName: "table1"}},
+		ShardedTables:    []SourceDBMetadata{{ObjectName: "table2"}},
+		FailureReasoning: "Cannot support throughput requirements",
+	}
+	rec2 := IntermediateRecommendation{
+		VCPUsPerInstance: 8,
+		CoresNeeded:      16,
+		NumNodes:         2,
+		ColocatedTables:  []SourceDBMetadata{{ObjectName: "table3"}},
+		ShardedTables:    []SourceDBMetadata{{ObjectName: "table4"}},
+		FailureReasoning: "Exceeds table limits",
+	}
+	var sourceIndexMetadata []SourceDBMetadata
+
+	selectedRec, reasoning := pickBestOutOfTwo(rec1, rec2, sourceIndexMetadata)
+
+	// Should return specific error message when both have failure reasoning
+	assert.Equal(t, "Unable to determine appropriate sizing recommendation. Reach out to the Yugabyte customer support team at https://support.yugabyte.com for further assistance.", selectedRec.FailureReasoning)
+	assert.Equal(t, "", reasoning)
+}
+
+func TestPickBestOutOfTwo_Rec1HasFailureRec2DoesNot(t *testing.T) {
+	rec1 := IntermediateRecommendation{
+		VCPUsPerInstance: 4,
+		CoresNeeded:      12,
+		NumNodes:         3,
+		ColocatedTables:  []SourceDBMetadata{{ObjectName: "table1"}},
+		ShardedTables:    []SourceDBMetadata{{ObjectName: "table2"}},
+		FailureReasoning: "Cannot support throughput requirements",
+	}
+	rec2 := IntermediateRecommendation{
+		VCPUsPerInstance: 8,
+		CoresNeeded:      16,
+		NumNodes:         2,
+		ColocatedTables:  []SourceDBMetadata{{ObjectName: "table3"}},
+		ShardedTables:    []SourceDBMetadata{{ObjectName: "table4"}},
+		FailureReasoning: "", // No failure reasoning
+	}
+	var sourceIndexMetadata []SourceDBMetadata
+
+	selectedRec, reasoning := pickBestOutOfTwo(rec1, rec2, sourceIndexMetadata)
+
+	// Should select rec2 since it has no failure reasoning
+	assert.Equal(t, rec2, selectedRec)
+	assert.Equal(t, "", reasoning)
+}
+
+func TestPickBestOutOfTwo_Rec2HasFailureRec1DoesNot(t *testing.T) {
+	rec1 := IntermediateRecommendation{
+		VCPUsPerInstance: 4,
+		CoresNeeded:      12,
+		NumNodes:         3,
+		ColocatedTables:  []SourceDBMetadata{{ObjectName: "table1"}},
+		ShardedTables:    []SourceDBMetadata{{ObjectName: "table2"}},
+		FailureReasoning: "", // No failure reasoning
+	}
+	rec2 := IntermediateRecommendation{
+		VCPUsPerInstance: 8,
+		CoresNeeded:      16,
+		NumNodes:         2,
+		ColocatedTables:  []SourceDBMetadata{{ObjectName: "table3"}},
+		ShardedTables:    []SourceDBMetadata{{ObjectName: "table4"}},
+		FailureReasoning: "Exceeds table limits",
+	}
+	var sourceIndexMetadata []SourceDBMetadata
+
+	selectedRec, reasoning := pickBestOutOfTwo(rec1, rec2, sourceIndexMetadata)
+
+	// Should select rec1 since it has no failure reasoning
+	assert.Equal(t, rec1, selectedRec)
+	assert.Equal(t, "", reasoning)
+}
+
+func TestPickBestOutOfTwo_BothHaveEmptyFailureReasoning(t *testing.T) {
+	rec1 := IntermediateRecommendation{
+		VCPUsPerInstance: 4,
+		CoresNeeded:      12,
+		NumNodes:         3,
+		ColocatedTables:  []SourceDBMetadata{{ObjectName: "table1"}},
+		ShardedTables:    []SourceDBMetadata{{ObjectName: "table2"}},
+		FailureReasoning: "", // Empty failure reasoning
+	}
+	rec2 := IntermediateRecommendation{
+		VCPUsPerInstance: 8,
+		CoresNeeded:      16,
+		NumNodes:         2,
+		ColocatedTables:  []SourceDBMetadata{{ObjectName: "table3"}},
+		ShardedTables:    []SourceDBMetadata{{ObjectName: "table4"}},
+		FailureReasoning: "", // Empty failure reasoning
+	}
+	var sourceIndexMetadata []SourceDBMetadata
+
+	selectedRec, reasoning := pickBestOutOfTwo(rec1, rec2, sourceIndexMetadata)
+
+	// Should apply normal comparison logic and select rec1 due to fewer resultant cores
+	assert.Equal(t, rec1, selectedRec)
+	assert.Contains(t, reasoning, "Selected colocated+sharded strategy with 4 VCPUs per instance (12.0 resultant cores)")
+	assert.Contains(t, reasoning, "over all-sharded strategy with 8 VCPUs per instance (16.0 resultant cores)")
+}
+
 /*
 ===== 	Test functions to test pickBestRecommendation function	=====
 */
