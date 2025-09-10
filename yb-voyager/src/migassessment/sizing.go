@@ -240,9 +240,9 @@ func SizingAssessment(targetDbVersion *ybversion.YBVersion, sourceDBType string)
 
 	finalSizingRecommendationAllSharded := pickBestRecommendation(sizingRecommendationPerCoreAllSharded)
 
-	finalSizingRecommendation, _ := pickBestRecommendationStrategy(finalSizingRecommendationColoShardedCombined, finalSizingRecommendationAllSharded, sourceIndexMetadata)
+	finalSizingRecommendation := pickBestRecommendationStrategy(finalSizingRecommendationColoShardedCombined, finalSizingRecommendationAllSharded, sourceIndexMetadata)
 
-	if finalSizingRecommendationColoShardedCombined.FailureReasoning != "" {
+	if finalSizingRecommendation.FailureReasoning != "" {
 		SizingReport.FailureReasoning = finalSizingRecommendation.FailureReasoning
 		return fmt.Errorf("error picking best recommendation: %v", finalSizingRecommendation.FailureReasoning)
 	}
@@ -398,114 +398,76 @@ i.e. colocated+sharded and all-sharded strategies using the following logic:
     c. Otherwise, select the one with fewer resultant_cores
  2. If recommendations have same VCPUsPerInstance, select the one with fewer nodes needed (when equal nodes needed, choose all-sharded)
 
-It returns the selected recommendation along with reasoning explaining the choice.
+The function logs the selection reasoning for debugging purposes.
 Parameters:
-  - recCombined: First IntermediateRecommendation to compare
-  - recAllSharded: Second IntermediateRecommendation to compare
+  - rec1: First IntermediateRecommendation to compare (colocated+sharded strategy)
+  - rec2: Second IntermediateRecommendation to compare (all-sharded strategy)
   - sourceIndexMetadata: A slice of SourceDBMetadata structs representing source indexes
 
 Returns:
   - The best IntermediateRecommendation based on the selection logic described above
-  - A string explaining the reasoning behind the choice, including comparison details and detailed object counts
 */
-func pickBestRecommendationStrategy(recCombined, recAllSharded IntermediateRecommendation, sourceIndexMetadata []SourceDBMetadata) (IntermediateRecommendation, string) {
+func pickBestRecommendationStrategy(rec1, rec2 IntermediateRecommendation, sourceIndexMetadata []SourceDBMetadata) IntermediateRecommendation {
 	// Handle failure reasoning logic first
-	rec1HasFailure := recCombined.FailureReasoning != ""
-	rec2HasFailure := recAllSharded.FailureReasoning != ""
-
-	// If both have failure reasoning, return specific error message
-	if rec1HasFailure && rec2HasFailure {
-		// Return whichever recommendation (arbitrarily choose rec1) with the specific error message
-		reasoning := "Both colocated+sharded and all-sharded strategies could not support the requirements. Unable to determine appropriate sizing recommendation."
-		return recCombined, reasoning
+	if rec1.FailureReasoning != "" && rec2.FailureReasoning != "" {
+		log.Info("Both colocated+sharded and all-sharded strategies could not support the requirements. Unable to determine appropriate sizing recommendation.")
+		return rec1
 	}
 
-	// If one has failure reasoning and the other doesn't, choose the one without failure reasoning
-	if rec1HasFailure && !rec2HasFailure {
-		reasoning := "Selected all-sharded strategy as colocated+sharded strategy could not support the requirements: " + recCombined.FailureReasoning
-		return recAllSharded, reasoning
+	if rec1.FailureReasoning != "" && rec2.FailureReasoning == "" {
+		log.Infof("Selected all-sharded strategy as colocated+sharded strategy could not support the requirements: %s", rec1.FailureReasoning)
+		return rec2
 	}
-	if rec2HasFailure && !rec1HasFailure {
-		reasoning := "Selected colocated+sharded strategy as all-sharded strategy could not support the requirements: " + recCombined.FailureReasoning
-		return recCombined, reasoning
+	if rec2.FailureReasoning != "" && rec1.FailureReasoning == "" {
+		log.Infof("Selected colocated+sharded strategy as all-sharded strategy could not support the requirements: %s", rec2.FailureReasoning)
+		return rec1
 	}
 
-	// Both have empty failure reasoning, proceed with normal comparison logic
-	var selectedRec, notSelectedRec IntermediateRecommendation
-	var reasoning string
+	// Both strategies are valid, apply optimization logic
+	// Optimization: Compare by resultant cores when VCPUs differ
+	if rec1.VCPUsPerInstance != rec2.VCPUsPerInstance {
+		rec1ResultantCores := float64(rec1.VCPUsPerInstance) * rec1.NumNodes
+		rec2ResultantCores := float64(rec2.VCPUsPerInstance) * rec2.NumNodes
 
-	// Check if recommendations have different VCPUsPerInstance and apply resultant_cores logic
-	vcpuConditionMet := false
-	if recCombined.VCPUsPerInstance != recAllSharded.VCPUsPerInstance {
-		// Calculate resultant_cores = VCPUsPerInstance * NumNodes
-		rec1ResultantCores := float64(recCombined.VCPUsPerInstance) * recCombined.NumNodes
-		rec2ResultantCores := float64(recAllSharded.VCPUsPerInstance) * recAllSharded.NumNodes
-
-		if rec1ResultantCores == rec2ResultantCores {
-			// When resultant_cores are equal, choose the one with higher VCPUsPerInstance
-			if recCombined.VCPUsPerInstance > recAllSharded.VCPUsPerInstance {
-				selectedRec = recCombined
-				notSelectedRec = recAllSharded
-				reasoning = fmt.Sprintf("\nSelected colocated+sharded strategy with %d VCPUs per instance (%.1f resultant cores) over all-sharded strategy with %d VCPUs per instance (%.1f resultant cores). ",
-					recCombined.VCPUsPerInstance, rec1ResultantCores, recAllSharded.VCPUsPerInstance, rec2ResultantCores)
+		switch {
+		case rec1ResultantCores == rec2ResultantCores:
+			// Equal resultant cores - prefer higher VCPUs
+			if rec1.VCPUsPerInstance > rec2.VCPUsPerInstance {
+				log.Infof("Selected colocated+sharded strategy: equal resultant cores (%.1f), preferring higher VCPUs (%d vs %d)",
+					rec1ResultantCores, rec1.VCPUsPerInstance, rec2.VCPUsPerInstance)
+				return rec1
 			} else {
-				selectedRec = recAllSharded
-				notSelectedRec = recCombined
-				reasoning = fmt.Sprintf("\nSelected all-sharded strategy with %d VCPUs per instance (%.1f resultant cores) over colocated+sharded strategy with %d VCPUs per instance (%.1f resultant cores). ",
-					recAllSharded.VCPUsPerInstance, rec2ResultantCores, recCombined.VCPUsPerInstance, rec1ResultantCores)
+				log.Infof("Selected all-sharded strategy: equal resultant cores (%.1f), preferring higher VCPUs (%d vs %d)",
+					rec2ResultantCores, rec2.VCPUsPerInstance, rec1.VCPUsPerInstance)
+				return rec2
 			}
-			vcpuConditionMet = true
-		} else if rec1ResultantCores < rec2ResultantCores {
-			selectedRec = recCombined
-			notSelectedRec = recAllSharded
-			reasoning = fmt.Sprintf("\nSelected colocated+sharded strategy with %d VCPUs per instance (%.1f resultant cores) over all-sharded strategy with %d VCPUs per instance (%.1f resultant cores). ",
-				recCombined.VCPUsPerInstance, rec1ResultantCores, recAllSharded.VCPUsPerInstance, rec2ResultantCores)
-			vcpuConditionMet = true
-		} else if rec2ResultantCores < rec1ResultantCores {
-			selectedRec = recAllSharded
-			notSelectedRec = recCombined
-			reasoning = fmt.Sprintf("\nSelected all-sharded strategy with %d VCPUs per instance (%.1f resultant cores) over colocated+sharded strategy with %d VCPUs per instance (%.1f resultant cores). ",
-				recAllSharded.VCPUsPerInstance, rec2ResultantCores, recCombined.VCPUsPerInstance, rec1ResultantCores)
-			vcpuConditionMet = true
+		case rec1ResultantCores < rec2ResultantCores:
+			log.Infof("Selected colocated+sharded strategy: fewer resultant cores (%.1f vs %.1f)",
+				rec1ResultantCores, rec2ResultantCores)
+			return rec1
+		default:
+			log.Infof("Selected all-sharded strategy: fewer resultant cores (%.1f vs %.1f)",
+				rec2ResultantCores, rec1ResultantCores)
+			return rec2
 		}
 	}
 
-	// If VCPUsPerInstance condition was not met, use original node comparison logic
-	if !vcpuConditionMet {
-		// Compare cores needed - pick the one with fewer nodes, preferring all-sharded when equal
-		if recCombined.NumNodes < recAllSharded.NumNodes {
-			selectedRec = recCombined
-			notSelectedRec = recAllSharded
-			reasoning = fmt.Sprintf("\nSelected colocated+sharded strategy requiring %.0f nodes over all-sharded strategy requiring %.0f nodes. ",
-				recCombined.NumNodes, recAllSharded.NumNodes)
-		} else if recCombined.NumNodes > recAllSharded.NumNodes {
-			selectedRec = recAllSharded
-			notSelectedRec = recCombined
-			reasoning = fmt.Sprintf("\nSelected all-sharded strategy requiring %.0f nodes over colocated+sharded strategy requiring %.0f nodes. ",
-				recAllSharded.NumNodes, recCombined.NumNodes)
-		} else {
-			// Equal cores - prefer all-sharded (recAllSharded)
-			selectedRec = recAllSharded
-			notSelectedRec = recCombined
-			reasoning = fmt.Sprintf("\nSelected all-sharded strategy (same %.0f nodes as colocated+sharded strategy, preferring all-sharded). ",
-				recAllSharded.NumNodes)
-		}
+	// Same VCPUs - compare by node count
+	switch {
+	case rec1.NumNodes < rec2.NumNodes:
+		log.Infof("Selected colocated+sharded strategy: fewer nodes (%.0f vs %.0f)",
+			rec1.NumNodes, rec2.NumNodes)
+		return rec1
+	case rec1.NumNodes > rec2.NumNodes:
+		log.Infof("Selected all-sharded strategy: fewer nodes (%.0f vs %.0f)",
+			rec2.NumNodes, rec1.NumNodes)
+		return rec2
+	default:
+		// Equal nodes - prefer all-sharded
+		log.Infof("Selected all-sharded strategy: same nodes (%.0f), preferring all-sharded strategy",
+			rec2.NumNodes)
+		return rec2
 	}
-
-	// Get detailed object counts for non-selected recommendations
-	_, notSelectedColocatedIndexCount := getListOfIndexesAlongWithObjects(notSelectedRec.ColocatedTables, sourceIndexMetadata)
-	_, notSelectedShardedIndexCount := getListOfIndexesAlongWithObjects(notSelectedRec.ShardedTables, sourceIndexMetadata)
-
-	// Calculate table counts
-	notSelectedColocatedTableCount := len(notSelectedRec.ColocatedTables)
-	notSelectedShardedTableCount := len(notSelectedRec.ShardedTables)
-
-	// Add detailed information about not selected recommendations
-	reasoning += fmt.Sprintf("Non-selected recommendation: %d colocated objects (%d tables, %d indexes) and %d sharded objects (%d tables, %d indexes).",
-		notSelectedColocatedTableCount+notSelectedColocatedIndexCount, notSelectedColocatedTableCount, notSelectedColocatedIndexCount,
-		notSelectedShardedTableCount+notSelectedShardedIndexCount, notSelectedShardedTableCount, notSelectedShardedIndexCount)
-
-	return selectedRec, reasoning
 }
 
 /*

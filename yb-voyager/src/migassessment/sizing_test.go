@@ -962,11 +962,9 @@ func TestPickBestRecommendationStrategy_VCPULogic_Rec1FewerResultantCores(t *tes
 	}
 	var sourceIndexMetadata []SourceDBMetadata
 
-	selectedRec, reasoning := pickBestRecommendationStrategy(rec1, rec2, sourceIndexMetadata)
+	selectedRec := pickBestRecommendationStrategy(rec1, rec2, sourceIndexMetadata)
 
 	assert.Equal(t, rec1, selectedRec)
-	assert.Contains(t, reasoning, "Selected colocated+sharded strategy with 4 VCPUs per instance (12.0 resultant cores)")
-	assert.Contains(t, reasoning, "over all-sharded strategy with 8 VCPUs per instance (16.0 resultant cores)")
 }
 
 // Test VCPUsPerInstance logic - equal resultant cores, should select higher VCPUs
@@ -987,11 +985,9 @@ func TestPickBestRecommendationStrategy_VCPULogic_EqualResultantCores_SelectHigh
 	}
 	var sourceIndexMetadata []SourceDBMetadata
 
-	selectedRec, reasoning := pickBestRecommendationStrategy(rec1, rec2, sourceIndexMetadata)
+	selectedRec := pickBestRecommendationStrategy(rec1, rec2, sourceIndexMetadata)
 
 	assert.Equal(t, rec2, selectedRec)
-	assert.Contains(t, reasoning, "Selected all-sharded strategy with 6 VCPUs per instance (12.0 resultant cores)")
-	assert.Contains(t, reasoning, "over colocated+sharded strategy with 4 VCPUs per instance (12.0 resultant cores)")
 }
 
 // Test VCPUsPerInstance logic - rec2 has fewer resultant cores, should be selected
@@ -1012,11 +1008,9 @@ func TestPickBestRecommendationStrategy_VCPULogic_Rec2FewerResultantCores(t *tes
 	}
 	var sourceIndexMetadata []SourceDBMetadata
 
-	selectedRec, reasoning := pickBestRecommendationStrategy(rec1, rec2, sourceIndexMetadata)
+	selectedRec := pickBestRecommendationStrategy(rec1, rec2, sourceIndexMetadata)
 
 	assert.Equal(t, rec2, selectedRec)
-	assert.Contains(t, reasoning, "Selected all-sharded strategy with 8 VCPUs per instance (32.0 resultant cores)")
-	assert.Contains(t, reasoning, "over colocated+sharded strategy with 16 VCPUs per instance (48.0 resultant cores)")
 }
 
 // Test VCPUsPerInstance logic - rec1 has fewer VCPUs but more resultant cores, should select rec2 due to fewer resultant cores
@@ -1037,12 +1031,10 @@ func TestPickBestRecommendationStrategy_VCPULogic_Rec1FewerVCPUsButMoreResultant
 	}
 	var sourceIndexMetadata []SourceDBMetadata
 
-	selectedRec, reasoning := pickBestRecommendationStrategy(rec1, rec2, sourceIndexMetadata)
+	selectedRec := pickBestRecommendationStrategy(rec1, rec2, sourceIndexMetadata)
 
 	// Should select rec2 due to fewer resultant cores
 	assert.Equal(t, rec2, selectedRec)
-	assert.Contains(t, reasoning, "Selected all-sharded strategy with 8 VCPUs per instance (24.0 resultant cores)")
-	assert.Contains(t, reasoning, "over colocated+sharded strategy with 4 VCPUs per instance (28.0 resultant cores)")
 }
 
 // Test VCPUsPerInstance logic - rec2 has fewer VCPUs but more resultant cores, should select rec1 due to fewer resultant cores
@@ -1063,12 +1055,10 @@ func TestPickBestRecommendationStrategy_VCPULogic_Rec2FewerVCPUsButMoreResultant
 	}
 	var sourceIndexMetadata []SourceDBMetadata
 
-	selectedRec, reasoning := pickBestRecommendationStrategy(rec1, rec2, sourceIndexMetadata)
+	selectedRec := pickBestRecommendationStrategy(rec1, rec2, sourceIndexMetadata)
 
 	// Should select rec1 due to fewer resultant cores
 	assert.Equal(t, rec1, selectedRec)
-	assert.Contains(t, reasoning, "Selected colocated+sharded strategy with 16 VCPUs per instance (48.0 resultant cores)")
-	assert.Contains(t, reasoning, "over all-sharded strategy with 8 VCPUs per instance (56.0 resultant cores)")
 }
 
 // Test same VCPUsPerInstance - should use node comparison logic
@@ -1089,10 +1079,9 @@ func TestPickBestRecommendationStrategy_SameVCPUs_UseNodeComparison_Rec1FewerNod
 	}
 	var sourceIndexMetadata []SourceDBMetadata
 
-	selectedRec, reasoning := pickBestRecommendationStrategy(rec1, rec2, sourceIndexMetadata)
+	selectedRec := pickBestRecommendationStrategy(rec1, rec2, sourceIndexMetadata)
 
 	assert.Equal(t, rec1, selectedRec)
-	assert.Contains(t, reasoning, "Selected colocated+sharded strategy requiring 3 nodes over all-sharded strategy requiring 5 nodes")
 }
 
 // Test same VCPUsPerInstance - should use node comparison logic
@@ -1113,10 +1102,9 @@ func TestPickBestRecommendationStrategy_SameVCPUs_UseNodeComparison_Rec2FewerNod
 	}
 	var sourceIndexMetadata []SourceDBMetadata
 
-	selectedRec, reasoning := pickBestRecommendationStrategy(rec1, rec2, sourceIndexMetadata)
+	selectedRec := pickBestRecommendationStrategy(rec1, rec2, sourceIndexMetadata)
 
 	assert.Equal(t, rec2, selectedRec)
-	assert.Contains(t, reasoning, "Selected all-sharded strategy requiring 4 nodes over colocated+sharded strategy requiring 6 nodes")
 }
 
 // Test same VCPUsPerInstance and same nodes - should prefer all-sharded (rec2)
@@ -1137,10 +1125,9 @@ func TestPickBestRecommendationStrategy_SameVCPUsAndNodes_PreferAllSharded(t *te
 	}
 	var sourceIndexMetadata []SourceDBMetadata
 
-	selectedRec, reasoning := pickBestRecommendationStrategy(rec1, rec2, sourceIndexMetadata)
+	selectedRec := pickBestRecommendationStrategy(rec1, rec2, sourceIndexMetadata)
 
 	assert.Equal(t, rec2, selectedRec)
-	assert.Contains(t, reasoning, "Selected all-sharded strategy (same 4 nodes as colocated+sharded strategy, preferring all-sharded)")
 }
 
 // Test with indexes - verify object counts in reasoning
@@ -1165,14 +1152,9 @@ func TestPickBestRecommendationStrategy_WithIndexes_VerifyObjectCounts(t *testin
 		{ObjectName: "idx3", ParentTableName: sql.NullString{String: "public.table5", Valid: true}},
 	}
 
-	selectedRec, reasoning := pickBestRecommendationStrategy(rec1, rec2, sourceIndexMetadata)
+	selectedRec := pickBestRecommendationStrategy(rec1, rec2, sourceIndexMetadata)
 
 	assert.Equal(t, rec1, selectedRec)
-	assert.Contains(t, reasoning, "Selected colocated+sharded strategy with 4 VCPUs per instance")
-	// Should include object counts for non-selected recommendation (rec2)
-	assert.Contains(t, reasoning, "Non-selected recommendation:")
-	assert.Contains(t, reasoning, "1 colocated objects (1 tables, 0 indexes)")
-	assert.Contains(t, reasoning, "2 sharded objects (2 tables, 0 indexes)")
 }
 
 // Test edge case - equal resultant cores, should prefer higher VCPUs
@@ -1193,11 +1175,10 @@ func TestPickBestRecommendationStrategy_EdgeCase_EqualResultantCores(t *testing.
 	}
 	var sourceIndexMetadata []SourceDBMetadata
 
-	selectedRec, reasoning := pickBestRecommendationStrategy(rec1, rec2, sourceIndexMetadata)
+	selectedRec := pickBestRecommendationStrategy(rec1, rec2, sourceIndexMetadata)
 
 	// Should select rec2 due to higher VCPUs with equal resultant cores
 	assert.Equal(t, rec2, selectedRec)
-	assert.Contains(t, reasoning, "Selected all-sharded strategy with 6 VCPUs per instance (12.0 resultant cores)")
 }
 
 // Test edge case - large values
@@ -1218,12 +1199,10 @@ func TestPickBestRecommendationStrategy_EdgeCase_LargeValues(t *testing.T) {
 	}
 	var sourceIndexMetadata []SourceDBMetadata
 
-	selectedRec, reasoning := pickBestRecommendationStrategy(rec1, rec2, sourceIndexMetadata)
+	selectedRec := pickBestRecommendationStrategy(rec1, rec2, sourceIndexMetadata)
 
 	// Should select rec2 due to fewer resultant cores
 	assert.Equal(t, rec2, selectedRec)
-	assert.Contains(t, reasoning, "Selected all-sharded strategy with 32 VCPUs per instance (2560.0 resultant cores)")
-	assert.Contains(t, reasoning, "over colocated+sharded strategy with 64 VCPUs per instance (3200.0 resultant cores)")
 }
 
 // Test complex scenario with indexes affecting object counts
@@ -1261,17 +1240,10 @@ func TestPickBestRecommendationStrategy_ComplexScenario_WithMultipleIndexes(t *t
 		{ObjectName: "idx_reviews_product", ParentTableName: sql.NullString{String: "public.reviews", Valid: true}},
 	}
 
-	selectedRec, reasoning := pickBestRecommendationStrategy(rec1, rec2, sourceIndexMetadata)
+	selectedRec := pickBestRecommendationStrategy(rec1, rec2, sourceIndexMetadata)
 
 	// Should select rec1 due to fewer resultant cores
 	assert.Equal(t, rec1, selectedRec)
-	assert.Contains(t, reasoning, "Selected colocated+sharded strategy with 8 VCPUs per instance (40.0 resultant cores)")
-	assert.Contains(t, reasoning, "over all-sharded strategy with 16 VCPUs per instance (64.0 resultant cores)")
-
-	// Verify object counts for non-selected recommendation (rec2)
-	assert.Contains(t, reasoning, "Non-selected recommendation:")
-	assert.Contains(t, reasoning, "2 colocated objects (1 tables, 1 indexes)")
-	assert.Contains(t, reasoning, "4 sharded objects (2 tables, 2 indexes)")
 }
 
 // Test reasoning format when using resultant cores comparison
@@ -1292,12 +1264,10 @@ func TestPickBestRecommendationStrategy_ReasoningFormat_ResultantCoresComparison
 	}
 	var sourceIndexMetadata []SourceDBMetadata
 
-	selectedRec, reasoning := pickBestRecommendationStrategy(rec1, rec2, sourceIndexMetadata)
+	selectedRec := pickBestRecommendationStrategy(rec1, rec2, sourceIndexMetadata)
 
 	// Should select rec1 due to fewer resultant cores
 	assert.Equal(t, rec1, selectedRec)
-	assert.Contains(t, reasoning, "Selected colocated+sharded strategy with 4 VCPUs per instance (28.0 resultant cores)")
-	assert.Contains(t, reasoning, "over all-sharded strategy with 8 VCPUs per instance (40.0 resultant cores)")
 }
 
 // Test when same VCPUsPerInstance - should fallback to node comparison
@@ -1318,12 +1288,10 @@ func TestPickBestRecommendationStrategy_SameVCPUs_FallbackToNodeComparison(t *te
 	}
 	var sourceIndexMetadata []SourceDBMetadata
 
-	selectedRec, reasoning := pickBestRecommendationStrategy(rec1, rec2, sourceIndexMetadata)
+	selectedRec := pickBestRecommendationStrategy(rec1, rec2, sourceIndexMetadata)
 
 	// Should select rec2 due to fewer nodes
 	assert.Equal(t, rec2, selectedRec)
-	assert.Contains(t, reasoning, "Selected all-sharded strategy requiring 5 nodes over colocated+sharded strategy requiring 7 nodes")
-	assert.NotContains(t, reasoning, "resultant cores") // Should not mention resultant cores in node comparison fallback
 }
 
 // Test failure reasoning scenarios
@@ -1346,10 +1314,10 @@ func TestPickBestRecommendationStrategy_BothHaveFailureReasoning(t *testing.T) {
 	}
 	var sourceIndexMetadata []SourceDBMetadata
 
-	_, reasoning := pickBestRecommendationStrategy(rec1, rec2, sourceIndexMetadata)
+	selectedRec := pickBestRecommendationStrategy(rec1, rec2, sourceIndexMetadata)
 
-	// Should return specific error message when both have failure reasoning
-	assert.Equal(t, "Both colocated+sharded and all-sharded strategies could not support the requirements. Unable to determine appropriate sizing recommendation.", reasoning)
+	// Should return rec1 with updated failure reasoning when both have failure reasoning
+	assert.Equal(t, rec1.VCPUsPerInstance, selectedRec.VCPUsPerInstance)
 }
 
 func TestPickBestRecommendationStrategy_Rec1HasFailureRec2DoesNot(t *testing.T) {
@@ -1371,11 +1339,10 @@ func TestPickBestRecommendationStrategy_Rec1HasFailureRec2DoesNot(t *testing.T) 
 	}
 	var sourceIndexMetadata []SourceDBMetadata
 
-	selectedRec, reasoning := pickBestRecommendationStrategy(rec1, rec2, sourceIndexMetadata)
+	selectedRec := pickBestRecommendationStrategy(rec1, rec2, sourceIndexMetadata)
 
 	// Should select rec2 since it has no failure reasoning
 	assert.Equal(t, rec2, selectedRec)
-	assert.Equal(t, "Selected all-sharded strategy as colocated+sharded strategy could not support the requirements: Cannot support throughput requirements", reasoning)
 }
 
 func TestPickBestRecommendationStrategy_Rec2HasFailureRec1DoesNot(t *testing.T) {
@@ -1397,7 +1364,7 @@ func TestPickBestRecommendationStrategy_Rec2HasFailureRec1DoesNot(t *testing.T) 
 	}
 	var sourceIndexMetadata []SourceDBMetadata
 
-	selectedRec, _ := pickBestRecommendationStrategy(rec1, rec2, sourceIndexMetadata)
+	selectedRec := pickBestRecommendationStrategy(rec1, rec2, sourceIndexMetadata)
 
 	// Should select rec1 since it has no failure reasoning
 	assert.Equal(t, rec1, selectedRec)
@@ -1422,12 +1389,10 @@ func TestPickBestRecommendationStrategy_BothHaveEmptyFailureReasoning(t *testing
 	}
 	var sourceIndexMetadata []SourceDBMetadata
 
-	selectedRec, reasoning := pickBestRecommendationStrategy(rec1, rec2, sourceIndexMetadata)
+	selectedRec := pickBestRecommendationStrategy(rec1, rec2, sourceIndexMetadata)
 
 	// Should apply normal comparison logic and select rec1 due to fewer resultant cores
 	assert.Equal(t, rec1, selectedRec)
-	assert.Contains(t, reasoning, "Selected colocated+sharded strategy with 4 VCPUs per instance (12.0 resultant cores)")
-	assert.Contains(t, reasoning, "over all-sharded strategy with 8 VCPUs per instance (16.0 resultant cores)")
 }
 
 /*
