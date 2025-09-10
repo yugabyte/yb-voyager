@@ -1,0 +1,13 @@
+{
+    "payload_version": "",
+    "start_clean": false,
+    "applied_recommendations": true,
+    "use_orafce": true,
+    "comments_on_objects": false,
+    "skip_recommendations": false,
+    "assess_run_in_export_schema": false,
+    "skip_performance_optimizations": false,
+    "error": "",
+    "control_plane_type": "",
+    "schema_optimization_changes": []
+}
