@@ -403,6 +403,75 @@ FOR VALUES FROM (2023) TO (2024) PARTITION BY LIST (region);
 CREATE TABLE public.partitioned_multiple_unique_2023_us PARTITION OF public.partitioned_multiple_unique_2023 
 FOR VALUES IN ('US');
 
+-- Simple UNIQUE INDEX on single column
+CREATE TABLE public.unique_index_simple (
+    id integer NOT NULL,
+    name text NOT NULL,
+    email text
+);
+
+CREATE UNIQUE INDEX idx_unique_simple ON public.unique_index_simple(id);
+
+-- Composite UNIQUE INDEX on multiple columns
+CREATE TABLE public.unique_index_composite (
+    id integer NOT NULL,
+    name text NOT NULL,
+    email text NOT NULL,
+    phone text
+);
+
+CREATE UNIQUE INDEX idx_unique_composite ON public.unique_index_composite(id, name);
+
+-- Multiple UNIQUE INDEXES - should get multiple PK options
+CREATE TABLE public.unique_index_multiple (
+    id integer NOT NULL,
+    name text NOT NULL,
+    email text NOT NULL,
+    phone text NOT NULL
+);
+
+CREATE UNIQUE INDEX idx_unique_multiple_1 ON public.unique_index_multiple(id);
+CREATE UNIQUE INDEX idx_unique_multiple_2 ON public.unique_index_multiple(email);
+CREATE UNIQUE INDEX idx_unique_multiple_3 ON public.unique_index_multiple(phone, name);
+
+-- Partitioned table with UNIQUE INDEX including all partition columns
+CREATE TABLE public.partitioned_unique_index (
+    id integer NOT NULL,
+    region text NOT NULL,
+    year integer NOT NULL,
+    amount numeric
+) PARTITION BY RANGE (year);
+
+CREATE UNIQUE INDEX idx_partitioned_unique ON public.partitioned_unique_index(id, region, year);
+
+CREATE TABLE public.partitioned_unique_index_2023 PARTITION OF public.partitioned_unique_index 
+FOR VALUES FROM (2023) TO (2024);
+
+CREATE TABLE public.partitioned_unique_index_2023_us PARTITION OF public.partitioned_unique_index_2023 
+FOR VALUES IN ('US');
+
+-- Mix of UNIQUE constraint and UNIQUE INDEX on different columns
+CREATE TABLE public.mix_constraint_index (
+    id integer NOT NULL,
+    name text NOT NULL,
+    email text NOT NULL,
+    phone text NOT NULL,
+    UNIQUE(id, name)
+);
+
+CREATE UNIQUE INDEX idx_mix_email ON public.mix_constraint_index(email);
+CREATE UNIQUE INDEX idx_mix_phone ON public.mix_constraint_index(phone);
+
+-- Mix of UNIQUE constraint and UNIQUE INDEX on same columns (should deduplicate)
+CREATE TABLE public.mix_constraint_index_same (
+    id integer NOT NULL,
+    name text NOT NULL,
+    email text NOT NULL,
+    UNIQUE(id, name)
+);
+
+CREATE UNIQUE INDEX idx_mix_same ON public.mix_constraint_index_same(id, name);
+
 -- Insert test data for PK recommendation tables
 INSERT INTO public.no_pk_table (id, name, email) 
 SELECT i, 'user_' || i, 'user' || i || '@example.com' 
@@ -423,6 +492,30 @@ FROM generate_series(1, 50) AS i;
 INSERT INTO public.partitioned_multiple_unique (id, region, year, quarter, amount)
 SELECT i, 'US', 2023, 'Q1', i * 1000
 FROM generate_series(1, 20) AS i;
+
+INSERT INTO public.unique_index_simple (id, name, email) 
+SELECT i, 'user_' || i, 'user' || i || '@example.com' 
+FROM generate_series(1, 50) AS i;
+
+INSERT INTO public.unique_index_composite (id, name, email, phone) 
+SELECT i, 'user_' || i, 'user' || i || '@example.com', '555-' || i
+FROM generate_series(1, 50) AS i;
+
+INSERT INTO public.unique_index_multiple (id, name, email, phone) 
+SELECT i, 'user_' || i, 'user' || i || '@example.com', '555-' || i
+FROM generate_series(1, 50) AS i;
+
+INSERT INTO public.partitioned_unique_index (id, region, year, amount)
+SELECT i, 'US', 2023, i * 100
+FROM generate_series(1, 25) AS i;
+
+INSERT INTO public.mix_constraint_index (id, name, email, phone) 
+SELECT i, 'user_' || i, 'user' || i || '@example.com', '555-' || i
+FROM generate_series(1, 50) AS i;
+
+INSERT INTO public.mix_constraint_index_same (id, name, email) 
+SELECT i, 'user_' || i, 'user' || i || '@example.com'
+FROM generate_series(1, 50) AS i;
 
 -- Negative test cases - should NOT get PK recommendations
 
@@ -505,6 +598,59 @@ CREATE TABLE public.child_partition_skipped PARTITION OF public.parent_partition
     UNIQUE(id, region)
 ) FOR VALUES IN ('US');
 
+-- UNIQUE INDEX with nullable columns
+CREATE TABLE public.unique_index_nullable (
+    id integer,
+    name text,
+    email text NOT NULL
+);
+
+CREATE UNIQUE INDEX idx_unique_nullable ON public.unique_index_nullable(id, name);
+
+-- Table that already has PRIMARY KEY with UNIQUE INDEX
+CREATE TABLE public.has_pk_with_unique_index (
+    id integer NOT NULL,
+    name text NOT NULL,
+    email text NOT NULL,
+    PRIMARY KEY(id)
+);
+
+CREATE UNIQUE INDEX idx_has_pk_unique ON public.has_pk_with_unique_index(email);
+
+-- Expression-based UNIQUE INDEX (should be excluded)
+CREATE TABLE public.unique_index_expression (
+    id integer NOT NULL,
+    name text NOT NULL,
+    email text NOT NULL
+);
+
+CREATE UNIQUE INDEX idx_unique_expression ON public.unique_index_expression((UPPER(name)));
+
+-- Mixed column and expression UNIQUE INDEX (should be excluded)
+CREATE TABLE public.unique_index_mixed (
+    id integer NOT NULL,
+    name text NOT NULL,
+    email text NOT NULL
+);
+
+CREATE UNIQUE INDEX idx_unique_mixed ON public.unique_index_mixed(id, (UPPER(name)));
+
+-- Root partitioned table with UNIQUE INDEX missing partition columns
+CREATE TABLE public.partitioned_unique_index_missing (
+    id integer NOT NULL,
+    region text NOT NULL,
+    year integer NOT NULL,
+    amount numeric
+) PARTITION BY RANGE (year);
+
+CREATE UNIQUE INDEX idx_partitioned_missing ON public.partitioned_unique_index_missing(id, region);
+
+CREATE TABLE public.partitioned_unique_index_missing_2023 PARTITION OF public.partitioned_unique_index_missing 
+FOR VALUES FROM (2023) TO (2024);
+
+CREATE TABLE public.partitioned_unique_index_missing_2023_us PARTITION OF public.partitioned_unique_index_missing_2023 
+FOR VALUES IN ('US');
+
 -- Insert test data for negative test cases
 INSERT INTO public.no_pk_nullable (id, name, email) 
 SELECT i, 'user_' || i, 'user' || i || '@example.com' 
@@ -529,6 +675,26 @@ FROM generate_series(1, 30) AS i;
 INSERT INTO public.sales_with_mid_pk (id, sale_date, region, amount)
 SELECT i, '2024-06-15', 'Asia', i * 100
 FROM generate_series(1, 30) AS i;
+
+INSERT INTO public.unique_index_nullable (id, name, email) 
+SELECT i, 'user_' || i, 'user' || i || '@example.com'
+FROM generate_series(1, 50) AS i;
+
+INSERT INTO public.has_pk_with_unique_index (id, name, email) 
+SELECT i, 'user_' || i, 'user' || i || '@example.com'
+FROM generate_series(1, 50) AS i;
+
+INSERT INTO public.unique_index_expression (id, name, email) 
+SELECT i, 'user_' || i, 'user' || i || '@example.com'
+FROM generate_series(1, 50) AS i;
+
+INSERT INTO public.unique_index_mixed (id, name, email) 
+SELECT i, 'user_' || i, 'user' || i || '@example.com'
+FROM generate_series(1, 50) AS i;
+
+INSERT INTO public.partitioned_unique_index_missing (id, region, year, amount)
+SELECT i, 'US', 2023, i * 100
+FROM generate_series(1, 25) AS i;
 
 --
 -- PostgreSQL database dump complete

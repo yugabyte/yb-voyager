@@ -147,15 +147,31 @@ func (tm *TableMetadata) HasAnyRelatedTablePrimaryKey() bool {
 	return false
 }
 
-// GetUniqueConstraints returns all unique constraints as a slice of column name slices.
-// Returns empty slice if no unique constraints exist.
-func (tm *TableMetadata) GetUniqueConstraints() [][]string {
-	constraints := tm.GetConstraintsByType("UNIQUE")
-	var uniqueConstraints [][]string
-	for _, constraint := range constraints {
-		uniqueConstraints = append(uniqueConstraints, constraint.Columns)
+// GetUniqueColumnBasedIndexes returns unique indexes that are purely column-based (no expressions)
+// as a slice of column name slices. Returns empty slice if no such indexes exist.
+// This is used for PK recommendations since primary keys can only be defined on actual columns.
+func (tm *TableMetadata) GetUniqueColumnBasedIndexes() [][]string {
+	var uniqueIndexes [][]string
+	for _, index := range tm.Indexes {
+		if !index.IsUnique {
+			continue
+		}
+		// Extract column names from index parameters
+		var columns []string
+		hasExpression := false
+		for _, param := range index.Params {
+			if param.IsExpression {
+				hasExpression = true
+				break // If any parameter is an expression, skip this index
+			}
+			columns = append(columns, param.ColName)
+		}
+		// Only consider purely column-based unique indexes
+		if !hasExpression && len(columns) > 0 {
+			uniqueIndexes = append(uniqueIndexes, columns)
+		}
 	}
-	return uniqueConstraints
+	return uniqueIndexes
 }
 
 // GetPrimaryKeyConstraints returns all primary key constraints.
@@ -670,7 +686,7 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 
 			// Process primary key as index for foreign key detection
 			if len(alter.ConstraintColumns) > 0 {
-				p.addConstraintAsIndex(alter.SchemaName, alter.TableName, alter.ConstraintColumns, alter.ConstraintName)
+				p.addConstraintAsIndex(alter.SchemaName, alter.TableName, alter.ConstraintColumns, alter.ConstraintName, true)
 			}
 
 			// Track PK columns
@@ -682,7 +698,7 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 		if alter.ConstraintType == queryparser.UNIQUE_CONSTR_TYPE {
 			// Process unique constraint as index for foreign key detection
 			if len(alter.ConstraintColumns) > 0 {
-				p.addConstraintAsIndex(alter.SchemaName, alter.TableName, alter.ConstraintColumns, alter.ConstraintName)
+				p.addConstraintAsIndex(alter.SchemaName, alter.TableName, alter.ConstraintColumns, alter.ConstraintName, true)
 			}
 			// Track UNIQUE columns
 			if len(alter.ConstraintColumns) > 0 {
@@ -1121,10 +1137,10 @@ func (p *ParserIssueDetector) detectTablePKRecommendations(tm *TableMetadata) []
 
 	// Collect all qualifying UNIQUE column sets where all columns are NOT NULL
 	var options [][]string
-	// Currently we only detect PK recommendations for UNIQUE constraints
-	// TODO: We should also consider UNIQUE INDEXES for PK recommendations
-	// https://yugabyte.atlassian.net/browse/DB-18078
-	for _, uniqueCols := range tm.GetUniqueConstraints() {
+
+	// Process UNIQUE constraints and indexes (column-based only)
+	// This also fetches the unique constraints as they have been converted to mock indexes with IsUnique=true
+	for _, uniqueCols := range tm.GetUniqueColumnBasedIndexes() {
 		// Check if all unique columns are NOT NULL
 		allNN := true
 		for _, col := range uniqueCols {
@@ -1134,27 +1150,34 @@ func (p *ParserIssueDetector) detectTablePKRecommendations(tm *TableMetadata) []
 			}
 		}
 
-		if allNN {
-			// For partitioned tables, ensure partition columns are included as the PKs must include
-			// all partition columns down the entire hierarchy
-			if isPartitioned {
-				missingPartitionCols, _ := lo.Difference(partitionColumns, uniqueCols)
-				if len(missingPartitionCols) > 0 {
-					continue
-				}
-			}
-
-			// Create fully qualified column names for this option
-			qualifiedCols := make([]string, len(uniqueCols))
-			for i, col := range uniqueCols {
-				qualifiedCols[i] = fmt.Sprintf("%s.%s", tm.GetObjectName(), col)
-			}
-			options = append(options, qualifiedCols)
+		if !allNN {
+			continue
 		}
+
+		// For partitioned tables, ensure partition columns are included as the PKs must include
+		// all partition columns down the entire hierarchy
+		if isPartitioned {
+			missingPartitionCols, _ := lo.Difference(partitionColumns, uniqueCols)
+			if len(missingPartitionCols) > 0 {
+				continue
+			}
+		}
+
+		// Create fully qualified column names for this option
+		qualifiedCols := make([]string, len(uniqueCols))
+		for i, col := range uniqueCols {
+			qualifiedCols[i] = fmt.Sprintf("%s.%s", tm.GetObjectName(), col)
+		}
+		options = append(options, qualifiedCols)
 	}
 
-	if len(options) > 0 {
-		issues = append(issues, NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", tm.GetObjectName(), options))
+	// Remove duplicates from options using lo.UniqBy
+	uniqueOptions := lo.UniqBy(options, func(option []string) string {
+		return strings.Join(option, ",")
+	})
+
+	if len(uniqueOptions) > 0 {
+		issues = append(issues, NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", tm.GetObjectName(), uniqueOptions))
 	}
 
 	return issues
@@ -1241,7 +1264,7 @@ func (p *ParserIssueDetector) addIndexToCoverage(index *queryparser.Index) {
 
 // addConstraintAsIndex creates a mock index object from a constraint and adds it to the table indexes map.
 // This is used for primary keys and unique constraints which are also indexes for missing foreign key index detection.
-func (p *ParserIssueDetector) addConstraintAsIndex(schemaName, tableName string, columns []string, constraintName string) {
+func (p *ParserIssueDetector) addConstraintAsIndex(schemaName, tableName string, columns []string, constraintName string, isUnique bool) {
 	// Create mock index parameters from columns
 	indexParams := make([]queryparser.IndexParam, len(columns))
 	for i, colName := range columns {
@@ -1256,6 +1279,7 @@ func (p *ParserIssueDetector) addConstraintAsIndex(schemaName, tableName string,
 		SchemaName: schemaName,
 		IndexName:  constraintName,
 		TableName:  tableName,
+		IsUnique:   isUnique,
 		// Primary keys and unique constraints use btree by default.
 		//  Mentioned in the docs here:https://www.postgresql.org/docs/current/sql-createtable.html#:~:text=Adding%20a%20PRIMARY%20KEY%20constraint%20will%20automatically%20create%20a%20unique%20btree%20index%20on%20the%20column%20or%20group%20of%20columns%20used%20in%20the%20constraint.%20That%20index%20has%20the%20same%20name%20as%20the%20primary%20key%20constraint
 		AccessMethod: BTREE_ACCESS_METHOD,
@@ -1275,7 +1299,7 @@ func (p *ParserIssueDetector) processTableConstraintsAsIndexes(table *queryparse
 			// We need to ensure the index is processed and covered
 			primaryKeyColumns := constraint.Columns
 			if len(primaryKeyColumns) > 0 {
-				p.addConstraintAsIndex(table.SchemaName, table.TableName, primaryKeyColumns, constraint.ConstraintName)
+				p.addConstraintAsIndex(table.SchemaName, table.TableName, primaryKeyColumns, constraint.ConstraintName, true)
 			}
 		}
 	}
@@ -1287,7 +1311,7 @@ func (p *ParserIssueDetector) processTableConstraintsAsIndexes(table *queryparse
 			// We need to ensure the index is processed and covered
 			uniqueColumns := constraint.Columns
 			if len(uniqueColumns) > 0 {
-				p.addConstraintAsIndex(table.SchemaName, table.TableName, uniqueColumns, constraint.ConstraintName)
+				p.addConstraintAsIndex(table.SchemaName, table.TableName, uniqueColumns, constraint.ConstraintName, true)
 			}
 		}
 	}
