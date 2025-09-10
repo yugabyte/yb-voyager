@@ -639,7 +639,6 @@ func populateMetadataCSVIntoAssessmentDB() error {
 			migassessment.TABLE_INDEX_IOPS, tableName)
 
 		log.Infof("populating metadata from file %s into table %s", metadataFilePath, tableName)
-
 		err = assessmentDB.LoadCSVFileIntoTable(metadataFilePath, tableName)
 		if err != nil {
 			log.Warnf("error loading CSV file %s: %v", metadataFilePath, err)

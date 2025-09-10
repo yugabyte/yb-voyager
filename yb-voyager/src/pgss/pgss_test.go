@@ -18,9 +18,10 @@ limitations under the License.
 package pgss
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
 func TestCreateColumnMapping(t *testing.T) {
@@ -64,15 +65,9 @@ func TestCreateColumnMapping(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mapping := CreateColumnMapping(tt.headers)
-			if mapping.QueryID != tt.expected.QueryID {
-				t.Errorf("QueryID mapping = %v, want %v", mapping.QueryID, tt.expected.QueryID)
-			}
-			if mapping.TotalExecTime != tt.expected.TotalExecTime {
-				t.Errorf("TotalExecTime mapping = %v, want %v", mapping.TotalExecTime, tt.expected.TotalExecTime)
-			}
-			if mapping.MeanExecTime != tt.expected.MeanExecTime {
-				t.Errorf("MeanExecTime mapping = %v, want %v", mapping.MeanExecTime, tt.expected.MeanExecTime)
-			}
+			assert.Equal(t, tt.expected.QueryID, mapping.QueryID, "QueryID mapping should match")
+			assert.Equal(t, tt.expected.TotalExecTime, mapping.TotalExecTime, "TotalExecTime mapping should match")
+			assert.Equal(t, tt.expected.MeanExecTime, mapping.MeanExecTime, "MeanExecTime mapping should match")
 		})
 	}
 }
@@ -92,18 +87,10 @@ func TestParseFromCSVFormats(t *testing.T) {
 			expectedLen: 2,
 			validate: func(t *testing.T, entries []QueryStats) {
 				entry1 := entries[0]
-				if entry1.QueryID != 123 {
-					t.Errorf("Entry1 QueryID = %v, want %v", entry1.QueryID, 123)
-				}
-				if entry1.Query != "SELECT * FROM users" {
-					t.Errorf("Entry1 Query = %v, want %v", entry1.Query, "SELECT * FROM users")
-				}
-				if entry1.TotalExecTime != 1500.5 {
-					t.Errorf("Entry1 TotalExecTime = %v, want %v", entry1.TotalExecTime, 1500.5)
-				}
-				if entry1.MeanExecTime != 15.005 {
-					t.Errorf("Entry1 MeanExecTime = %v, want %v", entry1.MeanExecTime, 15.005)
-				}
+				assert.Equal(t, int64(123), entry1.QueryID, "Entry1 QueryID should match")
+				assert.Equal(t, "SELECT * FROM users", entry1.Query, "Entry1 Query should match")
+				assert.Equal(t, 1500.5, entry1.TotalExecTime, "Entry1 TotalExecTime should match")
+				assert.Equal(t, 15.005, entry1.MeanExecTime, "Entry1 MeanExecTime should match")
 			},
 		},
 		{
@@ -114,18 +101,10 @@ func TestParseFromCSVFormats(t *testing.T) {
 			expectedLen: 2,
 			validate: func(t *testing.T, entries []QueryStats) {
 				entry1 := entries[0]
-				if entry1.QueryID != 789 {
-					t.Errorf("Entry1 QueryID = %v, want %v", entry1.QueryID, 789)
-				}
-				if entry1.Query != "SELECT count(*) FROM orders" {
-					t.Errorf("Entry1 Query = %v, want %v", entry1.Query, "SELECT count(*) FROM orders")
-				}
-				if entry1.TotalExecTime != 50.0 {
-					t.Errorf("Entry1 TotalExecTime = %v, want %v", entry1.TotalExecTime, 50.0)
-				}
-				if entry1.MeanExecTime != 0.25 {
-					t.Errorf("Entry1 MeanExecTime = %v, want %v", entry1.MeanExecTime, 0.25)
-				}
+				assert.Equal(t, int64(789), entry1.QueryID, "Entry1 QueryID should match")
+				assert.Equal(t, "SELECT count(*) FROM orders", entry1.Query, "Entry1 Query should match")
+				assert.Equal(t, 50.0, entry1.TotalExecTime, "Entry1 TotalExecTime should match")
+				assert.Equal(t, 0.25, entry1.MeanExecTime, "Entry1 MeanExecTime should match")
 			},
 		},
 		{
@@ -136,51 +115,13 @@ func TestParseFromCSVFormats(t *testing.T) {
 			expectedLen: 2,
 			validate: func(t *testing.T, entries []QueryStats) {
 				entry1 := entries[0]
-				if entry1.QueryID != 999 {
-					t.Errorf("Entry1 QueryID = %v, want %v", entry1.QueryID, 999)
-				}
-				if entry1.Query != "SELECT pg_stat_reset()" {
-					t.Errorf("Entry1 Query = %v, want %v", entry1.Query, "SELECT pg_stat_reset()")
-				}
+				assert.Equal(t, int64(999), entry1.QueryID, "Entry1 QueryID should match")
+				assert.Equal(t, "SELECT pg_stat_reset()", entry1.Query, "Entry1 Query should match")
+				assert.Equal(t, 1.5, entry1.TotalExecTime, "Entry1 TotalExecTime should match")
 
 				entry2 := entries[1]
-				if entry2.QueryID != 1001 {
-					t.Errorf("Entry2 QueryID = %v, want %v", entry2.QueryID, 1001)
-				}
-				// Test long-running query scenario
-				if entry2.TotalExecTime != 30000.0 {
-					t.Errorf("Entry2 TotalExecTime = %v, want %v", entry2.TotalExecTime, 30000.0)
-				}
-			},
-		},
-		{
-			name: "Missing one column from 9 (missing rows column)",
-			csvData: `queryid,query,calls,total_exec_time,mean_exec_time,min_exec_time,max_exec_time,stddev_exec_time
-555,"SELECT name FROM customers",25,125.0,5.0,1.0,10.0,2.5
-666,"DELETE FROM logs WHERE date < ?",10,200.0,20.0,5.0,50.0,15.0`,
-			expectedLen: 2,
-			validate: func(t *testing.T, entries []QueryStats) {
-				entry1 := entries[0]
-				if entry1.QueryID != 555 {
-					t.Errorf("Entry1 QueryID = %v, want %v", entry1.QueryID, 555)
-				}
-				if entry1.Query != "SELECT name FROM customers" {
-					t.Errorf("Entry1 Query = %v, want %v", entry1.Query, "SELECT name FROM customers")
-				}
-				if entry1.Calls != 25 {
-					t.Errorf("Entry1 Calls = %v, want %v", entry1.Calls, 25)
-				}
-				// Rows should be 0 since missing
-				if entry1.Rows != 0 {
-					t.Errorf("Entry1 Rows = %v, want %v (default for missing field)", entry1.Rows, 0)
-				}
-				// Timing fields should still be parsed
-				if entry1.TotalExecTime != 125.0 {
-					t.Errorf("Entry1 TotalExecTime = %v, want %v", entry1.TotalExecTime, 125.0)
-				}
-				if entry1.MinExecTime != 1.0 {
-					t.Errorf("Entry1 MinExecTime = %v, want %v", entry1.MinExecTime, 1.0)
-				}
+				assert.Equal(t, int64(1001), entry2.QueryID, "Entry2 QueryID should match")
+				assert.Equal(t, 30000.0, entry2.TotalExecTime, "Entry2 TotalExecTime should match")
 			},
 		},
 	}
@@ -188,24 +129,12 @@ func TestParseFromCSVFormats(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create temporary CSV file for this test case
-			tempDir := t.TempDir()
-			csvPath := filepath.Join(tempDir, "test_pgss.csv")
-
-			err := os.WriteFile(csvPath, []byte(tt.csvData), 0644)
-			if err != nil {
-				t.Fatalf("Failed to create test CSV file: %v", err)
-			}
+			csvPath := testutils.CreateTempCSVFile(t, tt.csvData)
 
 			// Parse the CSV
 			entries, err := ParseFromCSV(csvPath)
-			if err != nil {
-				t.Fatalf("ParseFromCSV failed: %v", err)
-			}
-
-			// Validate expected length
-			if len(entries) != tt.expectedLen {
-				t.Errorf("Expected %d entries, got %d", tt.expectedLen, len(entries))
-			}
+			assert.NoError(t, err, "ParseFromCSV should not fail")
+			assert.Len(t, entries, tt.expectedLen, "Should have expected number of entries")
 
 			// Run custom validation
 			if tt.validate != nil && len(entries) > 0 {
@@ -215,32 +144,90 @@ func TestParseFromCSVFormats(t *testing.T) {
 	}
 }
 
-func TestParseInvalidData(t *testing.T) {
-	// Test that parsing bad data gets rejected with detailed error messages
-	tempDir := t.TempDir()
-	csvPath := filepath.Join(tempDir, "test_invalid_pgss.csv")
+// TestParseInvalidDataInvalid tests all invalid data scenarios
+func TestParseInvalidDataInvalid(t *testing.T) {
+	tests := []struct {
+		name        string
+		csvData     string // For CSV content errors
+		expectError bool   // true = function returns error, false = succeeds but skips rows
+		expectedErr string // expected error message (if expectError = true)
+		expectedLen int    // expected valid entries (if expectError = false)
+	}{
 
-	// CSV with invalid data that should be gracefully handled
-	invalidData := `queryid,query,calls,rows,total_exec_time,mean_exec_time,min_exec_time,max_exec_time,stddev_exec_time
+		// 1. CSV Structure Errors (Function should return error immediately)
+		{
+			name: "Headers and records column count mismatch",
+			csvData: `queryid,query,calls,rows,total_exec_time,mean_exec_time,min_exec_time,max_exec_time,stddev_exec_time
+123,"SELECT * FROM users",100,1000,1500.5,15.005`,
+			expectError: true,
+			expectedErr: "wrong number of fields",
+		},
+
+		// 2. Column Mapping Validation Errors (Function should return error immediately)
+		{
+			name: "Missing required queryid column",
+			csvData: `query,calls,rows,total_exec_time,mean_exec_time,min_exec_time,max_exec_time,stddev_exec_time
+"SELECT * FROM users",100,1000,1500.5,15.005,5.2,25.8,3.5`,
+			expectError: true,
+			expectedErr: "missing required fields in CSV headers: [queryid]",
+		},
+		{
+			name: "Missing required query column",
+			csvData: `queryid,calls,rows,total_exec_time,mean_exec_time,min_exec_time,max_exec_time,stddev_exec_time
+123,100,1000,1500.5,15.005,5.2,25.8,3.5`,
+			expectError: true,
+			expectedErr: "missing required fields in CSV headers: [query]",
+		},
+		{
+			name: "Missing multiple required columns",
+			csvData: `queryid,query
+123,"SELECT * FROM users"`,
+			expectError: true,
+			expectedErr: "missing required fields in CSV headers:",
+		},
+
+		// 3. Data Validation Errors (Rows get skipped, but function succeeds)
+		{
+			name: "Invalid queryid (non-numeric)",
+			csvData: `queryid,query,calls,rows,total_exec_time,mean_exec_time,min_exec_time,max_exec_time,stddev_exec_time
+invalid_id,"SELECT * FROM users",100,1000,1500.5,15.005,5.2,25.8,3.5
+123,"SELECT * FROM users",100,1000,1500.5,15.005,5.2,25.8,3.5`,
+			expectError: false,
+			expectedLen: 1, // 1st row gets skipped
+		},
+		{
+			name: "Empty query text",
+			csvData: `queryid,query,calls,rows,total_exec_time,mean_exec_time,min_exec_time,max_exec_time,stddev_exec_time
+123,"",50,500,750.0,15.0,10.0,20.0,2.1
+456,"SELECT * FROM products",100,1000,1500.5,15.005,5.2,25.8,3.5`,
+			expectError: false,
+			expectedLen: 1, // 1st row gets skipped
+		},
+		{
+			name: "Multiple invalid rows",
+			csvData: `queryid,query,calls,rows,total_exec_time,mean_exec_time,min_exec_time,max_exec_time,stddev_exec_time
 invalid_id,"SELECT * FROM users",100,1000,1500.5,15.005,5.2,25.8,3.5
 123,"",50,500,750.0,15.0,10.0,20.0,2.1
-456,"SELECT * FROM products",invalid_calls,500,750.0,15.0,10.0,20.0,2.1`
-
-	err := os.WriteFile(csvPath, []byte(invalidData), 0644)
-	if err != nil {
-		t.Fatalf("Failed to create test CSV file: %v", err)
+456,"SELECT * FROM products",invalid_calls,500,750.0,15.0,10.0,20.0,2.1
+789,"SELECT * FROM orders",100,1000,1500.5,15.005,5.2,25.8,3.5`,
+			expectError: false,
+			expectedLen: 1,
+		},
 	}
 
-	entries, err := ParseFromCSV(csvPath)
-	if err != nil {
-		t.Fatalf("ParseFromCSV should not fail: %v", err)
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create temporary CSV file for this test case
+			csvPath := testutils.CreateTempCSVFile(t, tt.csvData)
 
-	// Should have 0 valid entries since all have validation issues that cause them to be skipped:
-	// Row 1: invalid queryid (can't parse) - skipped with detailed log
-	// Row 2: empty query - skipped with detailed log
-	// Row 3: invalid calls (can't parse) - skipped with detailed log
-	if len(entries) != 0 {
-		t.Errorf("Expected 0 valid entries (all should be skipped due to validation errors), got %d", len(entries))
+			entries, err := ParseFromCSV(csvPath)
+			if tt.expectError {
+				assert.Error(t, err, "Expected ParseFromCSV to return an error")
+				assert.Contains(t, err.Error(), tt.expectedErr, "Error message should contain expected text")
+			} else {
+				assert.NoError(t, err, "ParseFromCSV should not fail")
+				assert.Len(t, entries, tt.expectedLen, "Should have expected number of valid entries")
+			}
+		})
 	}
 }

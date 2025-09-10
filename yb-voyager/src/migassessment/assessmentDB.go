@@ -400,8 +400,6 @@ func (adb *AssessmentDB) Query(query string, args ...interface{}) (*sql.Rows, er
 
 // LoadCSVFileIntoTable reads a CSV file and loads it into the specified table
 func (adb *AssessmentDB) LoadCSVFileIntoTable(filePath, tableName string) error {
-	log.Infof("Loading CSV file into %s table", tableName)
-
 	if tableName == DB_QUERIES_SUMMARY {
 		// special handling due to pgss postgres version differences
 		return adb.LoadPgssCSVIntoTable(filePath)

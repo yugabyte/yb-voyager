@@ -123,10 +123,6 @@ func ParseFromCSV(csvPath string) ([]QueryStats, error) {
 		return nil, fmt.Errorf("failed to read CSV headers: %w", err)
 	}
 
-	if len(headers) == 0 {
-		return nil, fmt.Errorf("invalid PGSS CSV structure: no headers found")
-	}
-
 	mapping := CreateColumnMapping(headers)
 	if err = mapping.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid PGSS CSV structure: %w", err)
