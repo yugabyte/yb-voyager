@@ -71,6 +71,43 @@ func CreateColumnMapping(headers []string) *ColumnMapping {
 	return mapping
 }
 
+// Validate validates the column mapping by checking each field directly
+func (m *ColumnMapping) Validate() error {
+	var missingFields []string
+	if m.QueryID == "" {
+		missingFields = append(missingFields, "queryid")
+	}
+	if m.Query == "" {
+		missingFields = append(missingFields, "query")
+	}
+	if m.Calls == "" {
+		missingFields = append(missingFields, "calls")
+	}
+	if m.Rows == "" {
+		missingFields = append(missingFields, "rows")
+	}
+	if m.TotalExecTime == "" {
+		missingFields = append(missingFields, "total_exec_time")
+	}
+	if m.MeanExecTime == "" {
+		missingFields = append(missingFields, "mean_exec_time")
+	}
+	if m.MinExecTime == "" {
+		missingFields = append(missingFields, "min_exec_time")
+	}
+	if m.MaxExecTime == "" {
+		missingFields = append(missingFields, "max_exec_time")
+	}
+	if m.StddevExecTime == "" {
+		missingFields = append(missingFields, "stddev_exec_time")
+	}
+
+	if len(missingFields) > 0 {
+		return fmt.Errorf("missing required fields in CSV headers: %v", missingFields)
+	}
+	return nil
+}
+
 // ParseFromCSV parses a CSV file and returns normalized QueryStats entries
 func ParseFromCSV(csvPath string) ([]QueryStats, error) {
 	file, err := os.Open(csvPath)
@@ -91,6 +128,9 @@ func ParseFromCSV(csvPath string) ([]QueryStats, error) {
 	}
 
 	mapping := CreateColumnMapping(headers)
+	if err = mapping.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid PGSS CSV structure: %w", err)
+	}
 
 	var entries []QueryStats
 	lineNumber := 1 // Header is line 0
