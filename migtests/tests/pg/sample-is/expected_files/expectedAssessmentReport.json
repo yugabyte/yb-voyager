@@ -3,350 +3,345 @@
 	"MigrationComplexity": "LOW",
 	"MigrationComplexityExplanation": "Found 5 Level 1 issue(s) and 0 Level 2 issue(s), resulting in LOW migration complexity",
 	"SchemaSummary": {
-		"Description": "Objects that will be created on the target YugabyteDB.",
-		"DbName": "test_is",
-		"SchemaNames": [
-			"public"
-		],
-		"DbVersion": "14.13 (Ubuntu 14.13-1.pgdg22.04+1)",
-		"DatabaseObjects": [
-			{
-				"ObjectType": "SCHEMA",
-				"TotalCount": 1,
-				"InvalidCount": 0,
-				"ObjectNames": "public"
-			},
-			{
-				"ObjectType": "EXTENSION",
-				"TotalCount": 4,
-				"InvalidCount": 0,
-				"ObjectNames": "btree_gist, dblink, hstore, \"uuid-ossp\""
-			},
-			{
-				"ObjectType": "DOMAIN",
-				"TotalCount": 1,
-				"InvalidCount": 0,
-				"ObjectNames": "public.currency"
-			},
-			{
-				"ObjectType": "TABLE",
-				"TotalCount": 9,
-				"InvalidCount": 2,
-				"ObjectNames": "public.agent_statuses, public.agents, public.countries, public.expenses, public.expensive_items, public.gear_names, public.points, public.reports, public.secret_missions"
-			},
-			{
-				"ObjectType": "INDEX",
-				"TotalCount": 2,
-				"InvalidCount": 0,
-				"ObjectNames": "reports_attrs_idx ON public.reports, reports_report_idx ON public.reports",
-				"Details": "There are some GIN indexes present in the schema, but GIN indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."
-			},
-			{
-				"ObjectType": "TRIGGER",
-				"TotalCount": 1,
-				"InvalidCount": 0,
-				"ObjectNames": "report_tsv_update ON public.reports"
-			}
-		]
+	  "Description": "Objects that will be created on the target YugabyteDB.",
+	  "DbName": "test_is",
+	  "SchemaNames": [
+		"public"
+	  ],
+	  "DbVersion": "14.13 (Ubuntu 14.13-1.pgdg22.04+1)",
+	  "DatabaseObjects": [
+		{
+		  "ObjectType": "SCHEMA",
+		  "TotalCount": 1,
+		  "InvalidCount": 0,
+		  "ObjectNames": "public"
+		},
+		{
+		  "ObjectType": "EXTENSION",
+		  "TotalCount": 4,
+		  "InvalidCount": 0,
+		  "ObjectNames": "btree_gist, dblink, hstore, \"uuid-ossp\""
+		},
+		{
+		  "ObjectType": "DOMAIN",
+		  "TotalCount": 1,
+		  "InvalidCount": 0,
+		  "ObjectNames": "public.currency"
+		},
+		{
+		  "ObjectType": "TABLE",
+		  "TotalCount": 9,
+		  "InvalidCount": 2,
+		  "ObjectNames": "public.agent_statuses, public.agents, public.countries, public.expenses, public.expensive_items, public.gear_names, public.points, public.reports, public.secret_missions"
+		},
+		{
+		  "ObjectType": "INDEX",
+		  "TotalCount": 2,
+		  "InvalidCount": 0,
+		  "ObjectNames": "reports_attrs_idx ON public.reports, reports_report_idx ON public.reports",
+		  "Details": "There are some GIN indexes present in the schema, but GIN indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."
+		},
+		{
+		  "ObjectType": "TRIGGER",
+		  "TotalCount": 1,
+		  "InvalidCount": 0,
+		  "ObjectNames": "report_tsv_update ON public.reports"
+		}
+	  ]
 	},
 	"Sizing": {
-		"SizingRecommendation": {
-			"ColocatedTables": [
-				"public.agents",
-				"public.expenses",
-				"public.expensive_items",
-				"public.secret_missions",
-				"public.agent_statuses",
-				"public.gear_names",
-				"public.points",
-				"public.reports",
-				"public.countries"
-			],
-			"ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 12 objects (9 tables/materialized views and 3 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
-			"ShardedTables": null,
-			"NumNodes": 3,
-			"VCPUsPerInstance": 4,
-			"MemoryPerInstance": 16,
-			"OptimalSelectConnectionsPerNode": 8,
-			"OptimalInsertConnectionsPerNode": 12,
-			"EstimatedTimeInMinForImport": 0,
-			"EstimatedTimeInMinForImportWithoutRedundantIndexes": 0
-		},
-		"FailureReasoning": ""
+	  "SizingRecommendation": {
+		"ColocatedTables": null,
+		"ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 12 objects (9 tables/materialized views and 3 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as sharded. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
+		"ShardedTables": [
+		  "public.points",
+		  "public.agents",
+		  "public.reports",
+		  "public.agent_statuses",
+		  "public.gear_names",
+		  "public.expensive_items",
+		  "public.expenses",
+		  "public.secret_missions",
+		  "public.countries"
+		],
+		"NumNodes": 3,
+		"VCPUsPerInstance": 4,
+		"MemoryPerInstance": 16,
+		"OptimalSelectConnectionsPerNode": 10,
+		"OptimalInsertConnectionsPerNode": 12,
+		"EstimatedTimeInMinForImport": 0,
+		"EstimatedTimeInMinForImportWithoutRedundantIndexes": 0
+	  },
+	  "FailureReasoning": ""
 	},
 	"AssessmentIssues": [
-		{
-			"Category": "unsupported_features",
-			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
-			"Type": "EXCLUSION_CONSTRAINTS",
-			"Name": "Exclusion Constraints",
-			"Description": "Exclusion constraints are not yet supported in YugabyteDB.",
-			"Impact": "LEVEL_1",
-			"ObjectType": "TABLE",
-			"ObjectName": "public.secret_missions, constraint: (cnt_solo_agent)",
-			"SqlStatement": "ALTER TABLE ONLY public.secret_missions\n    ADD CONSTRAINT cnt_solo_agent EXCLUDE USING gist (location WITH =, mission_timeline WITH \u0026\u0026);",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#exclusion-constraints-is-not-supported",
-			"MinimumVersionsFixedIn": null,
-			"Details": {
-				"ConstraintName": "cnt_solo_agent"
-			}
-		},
-		{
-			"Category": "migration_caveats",
-			"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
-			"Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_HSTORE",
-			"Name": "Unsupported datatype for Live migration with fall-forward/fallback - hstore Datatype",
-			"Description": "HSTORE datatype not yet supported by voyager in live migration with fall-forward/fallback. Affected column: attrs. These columns will be excluded when exporting and importing data in live migration workflows.",
-			"Impact": "LEVEL_1",
-			"ObjectType": "COLUMN",
-			"ObjectName": "public.reports.attrs",
-			"SqlStatement": "",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-			"MinimumVersionsFixedIn": null
-		},
-		{
-			"Category": "migration_caveats",
-			"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
-			"Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_TSVECTOR",
-			"Name": "Unsupported datatype for Live migration with fall-forward/fallback - tsvector Datatype",
-			"Description": "TSVECTOR datatype not yet supported by voyager in live migration with fall-forward/fallback. Affected column: report_tsv. These columns will be excluded when exporting and importing data in live migration workflows.",
-			"Impact": "LEVEL_1",
-			"ObjectType": "COLUMN",
-			"ObjectName": "public.reports.report_tsv",
-			"SqlStatement": "",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-			"MinimumVersionsFixedIn": null
-		},
-		{
-			"Category": "performance_optimizations",
-			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
-			"Type": "MISSING_FOREIGN_KEY_INDEX",
-			"Name": "Missing index on foreign key columns",
-			"Description": "Foreign key columns do not have a proper index. The index must include all foreign key columns as leading columns (either in exact order, any permutation, or as a prefix of a composite index). This can cause performance issues during DML operations on the referenced table.",
-			"Impact": "LEVEL_1",
-			"ObjectType": "TABLE",
-			"ObjectName": "public.secret_missions",
-			"SqlStatement": "",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-foreign-key-indexes",
-			"MinimumVersionsFixedIn": null,
-			"Details": {
-				"ForeignKeyColumnNames": "public.secret_missions.agent_uuid",
-				"ReferencedTableName": "public.agents"
-			}
-		},
-		{
-			"Category": "performance_optimizations",
-			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
-			"Type": "MISSING_FOREIGN_KEY_INDEX",
-			"Name": "Missing index on foreign key columns",
-			"Description": "Foreign key columns do not have a proper index. The index must include all foreign key columns as leading columns (either in exact order, any permutation, or as a prefix of a composite index). This can cause performance issues during DML operations on the referenced table.",
-			"Impact": "LEVEL_1",
-			"ObjectType": "TABLE",
-			"ObjectName": "public.secret_missions",
-			"SqlStatement": "",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-foreign-key-indexes",
-			"MinimumVersionsFixedIn": null,
-			"Details": {
-				"ForeignKeyColumnNames": "public.secret_missions.location",
-				"ReferencedTableName": "public.countries"
-			}
+	  {
+		"Category": "unsupported_features",
+		"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
+		"Type": "EXCLUSION_CONSTRAINTS",
+		"Name": "Exclusion Constraints",
+		"Description": "Exclusion constraints are not yet supported in YugabyteDB.",
+		"Impact": "LEVEL_1",
+		"ObjectType": "TABLE",
+		"ObjectName": "public.secret_missions, constraint: (cnt_solo_agent)",
+		"SqlStatement": "ALTER TABLE ONLY public.secret_missions\n    ADD CONSTRAINT cnt_solo_agent EXCLUDE USING gist (location WITH =, mission_timeline WITH &&);",
+		"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#exclusion-constraints-is-not-supported",
+		"MinimumVersionsFixedIn": null,
+		"Details": {
+		  "ConstraintName": "cnt_solo_agent"
 		}
+	  },
+	  {
+		"Category": "migration_caveats",
+		"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+		"Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_HSTORE",
+		"Name": "Unsupported datatype for Live migration with fall-forward/fallback - hstore Datatype",
+		"Description": "HSTORE datatype not yet supported by voyager in live migration with fall-forward/fallback. Affected column: attrs. These columns will be excluded when exporting and importing data in live migration workflows.",
+		"Impact": "LEVEL_1",
+		"ObjectType": "COLUMN",
+		"ObjectName": "public.reports.attrs",
+		"SqlStatement": "",
+		"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+		"MinimumVersionsFixedIn": null
+	  },
+	  {
+		"Category": "migration_caveats",
+		"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+		"Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_TSVECTOR",
+		"Name": "Unsupported datatype for Live migration with fall-forward/fallback - tsvector Datatype",
+		"Description": "TSVECTOR datatype not yet supported by voyager in live migration with fall-forward/fallback. Affected column: report_tsv. These columns will be excluded when exporting and importing data in live migration workflows.",
+		"Impact": "LEVEL_1",
+		"ObjectType": "COLUMN",
+		"ObjectName": "public.reports.report_tsv",
+		"SqlStatement": "",
+		"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+		"MinimumVersionsFixedIn": null
+	  },
+	  {
+		"Category": "performance_optimizations",
+		"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
+		"Type": "MISSING_FOREIGN_KEY_INDEX",
+		"Name": "Missing index on foreign key columns",
+		"Description": "Foreign key columns do not have a proper index. The index must include all foreign key columns as leading columns (either in exact order, any permutation, or as a prefix of a composite index). This can cause performance issues during DML operations on the referenced table.",
+		"Impact": "LEVEL_1",
+		"ObjectType": "TABLE",
+		"ObjectName": "public.secret_missions",
+		"SqlStatement": "",
+		"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-foreign-key-indexes",
+		"MinimumVersionsFixedIn": null,
+		"Details": {
+		  "ForeignKeyColumnNames": "public.secret_missions.agent_uuid",
+		  "ReferencedTableName": "public.agents"
+		}
+	  },
+	  {
+		"Category": "performance_optimizations",
+		"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
+		"Type": "MISSING_FOREIGN_KEY_INDEX",
+		"Name": "Missing index on foreign key columns",
+		"Description": "Foreign key columns do not have a proper index. The index must include all foreign key columns as leading columns (either in exact order, any permutation, or as a prefix of a composite index). This can cause performance issues during DML operations on the referenced table.",
+		"Impact": "LEVEL_1",
+		"ObjectType": "TABLE",
+		"ObjectName": "public.secret_missions",
+		"SqlStatement": "",
+		"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-foreign-key-indexes",
+		"MinimumVersionsFixedIn": null,
+		"Details": {
+		  "ForeignKeyColumnNames": "public.secret_missions.location",
+		  "ReferencedTableName": "public.countries"
+		}
+	  }
 	],
 	"TableIndexStats": [
-		{
-			"SchemaName": "public",
-			"ObjectName": "agents",
-			"RowCount": 0,
-			"ColumnCount": 5,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "table",
-			"ParentTableName": null,
-			"SizeInBytes": 0
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "expenses",
-			"RowCount": 0,
-			"ColumnCount": 4,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "table",
-			"ParentTableName": null,
-			"SizeInBytes": 0
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "expensive_items",
-			"RowCount": 0,
-			"ColumnCount": 1,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "table",
-			"ParentTableName": null,
-			"SizeInBytes": 0
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "secret_missions",
-			"RowCount": 0,
-			"ColumnCount": 4,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "table",
-			"ParentTableName": null,
-			"SizeInBytes": 0
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "agent_statuses",
-			"RowCount": 0,
-			"ColumnCount": 3,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "table",
-			"ParentTableName": null,
-			"SizeInBytes": 0
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "gear_names",
-			"RowCount": 0,
-			"ColumnCount": 1,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "table",
-			"ParentTableName": null,
-			"SizeInBytes": 0
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "points",
-			"RowCount": 0,
-			"ColumnCount": 2,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "table",
-			"ParentTableName": null,
-			"SizeInBytes": 0
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "reports",
-			"RowCount": 0,
-			"ColumnCount": 5,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "table",
-			"ParentTableName": null,
-			"SizeInBytes": 0
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "countries",
-			"RowCount": 0,
-			"ColumnCount": 1,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "table",
-			"ParentTableName": null,
-			"SizeInBytes": 0
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "reports_report_idx",
-			"RowCount": null,
-			"ColumnCount": 1,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "index",
-			"ParentTableName": "public.reports",
-			"SizeInBytes": 16384
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "reports_attrs_idx",
-			"RowCount": null,
-			"ColumnCount": 1,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "index",
-			"ParentTableName": "public.reports",
-			"SizeInBytes": 16384
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "cnt_solo_agent",
-			"RowCount": null,
-			"ColumnCount": 2,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "index",
-			"ParentTableName": "public.secret_missions",
-			"SizeInBytes": 8192
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "agents_pkey",
-			"RowCount": null,
-			"ColumnCount": 1,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "primary key",
-			"ParentTableName": "public.agents",
-			"SizeInBytes": 8192
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "secret_missions_pkey",
-			"RowCount": null,
-			"ColumnCount": 1,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "primary key",
-			"ParentTableName": "public.secret_missions",
-			"SizeInBytes": 8192
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "countries_pkey",
-			"RowCount": null,
-			"ColumnCount": 1,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "primary key",
-			"ParentTableName": "public.countries",
-			"SizeInBytes": 8192
-		}
+	  {
+		"SchemaName": "public",
+		"ObjectName": "agents",
+		"RowCount": 0,
+		"ColumnCount": 5,
+		"ReadsPerSecond": 0,
+		"WritesPerSecond": 0,
+		"IsIndex": false,
+		"ObjectType": "table",
+		"ParentTableName": null,
+		"SizeInBytes": 0
+	  },
+	  {
+		"SchemaName": "public",
+		"ObjectName": "expenses",
+		"RowCount": 0,
+		"ColumnCount": 4,
+		"ReadsPerSecond": 0,
+		"WritesPerSecond": 0,
+		"IsIndex": false,
+		"ObjectType": "table",
+		"ParentTableName": null,
+		"SizeInBytes": 0
+	  },
+	  {
+		"SchemaName": "public",
+		"ObjectName": "expensive_items",
+		"RowCount": 0,
+		"ColumnCount": 1,
+		"ReadsPerSecond": 0,
+		"WritesPerSecond": 0,
+		"IsIndex": false,
+		"ObjectType": "table",
+		"ParentTableName": null,
+		"SizeInBytes": 0
+	  },
+	  {
+		"SchemaName": "public",
+		"ObjectName": "secret_missions",
+		"RowCount": 0,
+		"ColumnCount": 4,
+		"ReadsPerSecond": 0,
+		"WritesPerSecond": 0,
+		"IsIndex": false,
+		"ObjectType": "table",
+		"ParentTableName": null,
+		"SizeInBytes": 0
+	  },
+	  {
+		"SchemaName": "public",
+		"ObjectName": "agent_statuses",
+		"RowCount": 0,
+		"ColumnCount": 3,
+		"ReadsPerSecond": 0,
+		"WritesPerSecond": 0,
+		"IsIndex": false,
+		"ObjectType": "table",
+		"ParentTableName": null,
+		"SizeInBytes": 0
+	  },
+	  {
+		"SchemaName": "public",
+		"ObjectName": "gear_names",
+		"RowCount": 0,
+		"ColumnCount": 1,
+		"ReadsPerSecond": 0,
+		"WritesPerSecond": 0,
+		"IsIndex": false,
+		"ObjectType": "table",
+		"ParentTableName": null,
+		"SizeInBytes": 0
+	  },
+	  {
+		"SchemaName": "public",
+		"ObjectName": "points",
+		"RowCount": 0,
+		"ColumnCount": 2,
+		"ReadsPerSecond": 0,
+		"WritesPerSecond": 0,
+		"IsIndex": false,
+		"ObjectType": "table",
+		"ParentTableName": null,
+		"SizeInBytes": 0
+	  },
+	  {
+		"SchemaName": "public",
+		"ObjectName": "reports",
+		"RowCount": 0,
+		"ColumnCount": 5,
+		"ReadsPerSecond": 0,
+		"WritesPerSecond": 0,
+		"IsIndex": false,
+		"ObjectType": "table",
+		"ParentTableName": null,
+		"SizeInBytes": 0
+	  },
+	  {
+		"SchemaName": "public",
+		"ObjectName": "countries",
+		"RowCount": 0,
+		"ColumnCount": 1,
+		"ReadsPerSecond": 0,
+		"WritesPerSecond": 0,
+		"IsIndex": false,
+		"ObjectType": "table",
+		"ParentTableName": null,
+		"SizeInBytes": 0
+	  },
+	  {
+		"SchemaName": "public",
+		"ObjectName": "reports_report_idx",
+		"RowCount": null,
+		"ColumnCount": 1,
+		"ReadsPerSecond": 0,
+		"WritesPerSecond": 0,
+		"IsIndex": true,
+		"ObjectType": "index",
+		"ParentTableName": "public.reports",
+		"SizeInBytes": 16384
+	  },
+	  {
+		"SchemaName": "public",
+		"ObjectName": "reports_attrs_idx",
+		"RowCount": null,
+		"ColumnCount": 1,
+		"ReadsPerSecond": 0,
+		"WritesPerSecond": 0,
+		"IsIndex": true,
+		"ObjectType": "index",
+		"ParentTableName": "public.reports",
+		"SizeInBytes": 16384
+	  },
+	  {
+		"SchemaName": "public",
+		"ObjectName": "cnt_solo_agent",
+		"RowCount": null,
+		"ColumnCount": 2,
+		"ReadsPerSecond": 0,
+		"WritesPerSecond": 0,
+		"IsIndex": true,
+		"ObjectType": "index",
+		"ParentTableName": "public.secret_missions",
+		"SizeInBytes": 8192
+	  },
+	  {
+		"SchemaName": "public",
+		"ObjectName": "agents_pkey",
+		"RowCount": null,
+		"ColumnCount": 1,
+		"ReadsPerSecond": 0,
+		"WritesPerSecond": 0,
+		"IsIndex": true,
+		"ObjectType": "primary key",
+		"ParentTableName": "public.agents",
+		"SizeInBytes": 8192
+	  },
+	  {
+		"SchemaName": "public",
+		"ObjectName": "secret_missions_pkey",
+		"RowCount": null,
+		"ColumnCount": 1,
+		"ReadsPerSecond": 0,
+		"WritesPerSecond": 0,
+		"IsIndex": true,
+		"ObjectType": "primary key",
+		"ParentTableName": "public.secret_missions",
+		"SizeInBytes": 8192
+	  },
+	  {
+		"SchemaName": "public",
+		"ObjectName": "countries_pkey",
+		"RowCount": null,
+		"ColumnCount": 1,
+		"ReadsPerSecond": 0,
+		"WritesPerSecond": 0,
+		"IsIndex": true,
+		"ObjectType": "primary key",
+		"ParentTableName": "public.countries",
+		"SizeInBytes": 8192
+	  }
 	],
 	"Notes": [
-		{
-			"Type": "GeneralNotes",
-			"Text": "Some features listed in this report may be supported under a preview flag in the specified target-db-version of YugabyteDB. Please refer to the official release notes (https://docs.yugabyte.com/preview/releases/ybdb-releases/) for detailed information and usage guidelines."
-		},
-		{
-			"Type": "ColocatedShardedNotes",
-			"Text": "If there are any tables that receive disproportionately high load, ensure that they are NOT colocated to avoid the colocated tablet becoming a hotspot.\nFor additional considerations related to colocated tables, refer to the documentation at: https://docs.yugabyte.com/preview/explore/colocation/#limitations-and-considerations"
-		},
-
-		{
-			"Type": "GeneralNotes",
-			"Text": "Limitations in assessment (https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/#assessment-and-schema-analysis-limitations)"
-		}
+	  {
+		"Type": "GeneralNotes",
+		"Text": "Some features listed in this report may be supported under a preview flag in the specified target-db-version of YugabyteDB. Please refer to the official release notes (https://docs.yugabyte.com/preview/releases/ybdb-releases/) for detailed information and usage guidelines."
+	  },
+	  {
+		"Type": "GeneralNotes",
+		"Text": "Limitations in assessment (https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/#assessment-and-schema-analysis-limitations)"
+	  }
 	]
-}
+  }

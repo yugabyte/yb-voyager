@@ -3,202 +3,198 @@
 	"MigrationComplexity": "LOW",
 	"MigrationComplexityExplanation": "Found 5 Level 1 issue(s) and 0 Level 2 issue(s), resulting in LOW migration complexity",
 	"SchemaSummary": {
-		"Description": "Objects that will be created on the target YugabyteDB.",
-		"DbName": "test_pgtbrus",
-		"SchemaNames": [
-			"public"
-		],
-		"DbVersion": "14.13 (Ubuntu 14.13-1.pgdg22.04+1)",
-		"DatabaseObjects": [
-			{
-				"ObjectType": "SCHEMA",
-				"TotalCount": 1,
-				"InvalidCount": 0,
-				"ObjectNames": "public"
-			},
-			{
-				"ObjectType": "EXTENSION",
-				"TotalCount": 1,
-				"InvalidCount": 0,
-				"ObjectNames": "postgres_fdw"
-			},
-			{
-				"ObjectType": "TYPE",
-				"TotalCount": 2,
-				"InvalidCount": 0,
-				"ObjectNames": "public.mycomposit, public.myenum"
-			},
-			{
-				"ObjectType": "SEQUENCE",
-				"TotalCount": 4,
-				"InvalidCount": 0,
-				"ObjectNames": "public.c_i_seq, public.f_c_i_seq, public.f_t_i_seq, public.t_i_seq"
-			},
-			{
-				"ObjectType": "TABLE",
-				"TotalCount": 2,
-				"InvalidCount": 2,
-				"ObjectNames": "public.c, public.t"
-			},
-			{
-				"ObjectType": "FUNCTION",
-				"TotalCount": 4,
-				"InvalidCount": 0,
-				"ObjectNames": "public.pk, public.tgf_d, public.tgf_i, public.tgf_u"
-			},
-			{
-				"ObjectType": "TRIGGER",
-				"TotalCount": 6,
-				"InvalidCount": 0,
-				"ObjectNames": "tgd ON public.c, tgd ON public.t, tgi ON public.c, tgi ON public.t, tgu ON public.c, tgu ON public.t"
-			},
-			{
-				"ObjectType": "FOREIGN TABLE",
-				"TotalCount": 2,
-				"InvalidCount": 2,
-				"ObjectNames": "public.f_c, public.f_t"
-			}
-		]
+	  "Description": "Objects that will be created on the target YugabyteDB.",
+	  "DbName": "test_pgtbrus",
+	  "SchemaNames": [
+		"public"
+	  ],
+	  "DbVersion": "14.13 (Ubuntu 14.13-1.pgdg22.04+1)",
+	  "DatabaseObjects": [
+		{
+		  "ObjectType": "SCHEMA",
+		  "TotalCount": 1,
+		  "InvalidCount": 0,
+		  "ObjectNames": "public"
+		},
+		{
+		  "ObjectType": "EXTENSION",
+		  "TotalCount": 1,
+		  "InvalidCount": 0,
+		  "ObjectNames": "postgres_fdw"
+		},
+		{
+		  "ObjectType": "TYPE",
+		  "TotalCount": 2,
+		  "InvalidCount": 0,
+		  "ObjectNames": "public.mycomposit, public.myenum"
+		},
+		{
+		  "ObjectType": "SEQUENCE",
+		  "TotalCount": 4,
+		  "InvalidCount": 0,
+		  "ObjectNames": "public.c_i_seq, public.f_c_i_seq, public.f_t_i_seq, public.t_i_seq"
+		},
+		{
+		  "ObjectType": "TABLE",
+		  "TotalCount": 2,
+		  "InvalidCount": 2,
+		  "ObjectNames": "public.c, public.t"
+		},
+		{
+		  "ObjectType": "FUNCTION",
+		  "TotalCount": 4,
+		  "InvalidCount": 0,
+		  "ObjectNames": "public.pk, public.tgf_d, public.tgf_i, public.tgf_u"
+		},
+		{
+		  "ObjectType": "TRIGGER",
+		  "TotalCount": 6,
+		  "InvalidCount": 0,
+		  "ObjectNames": "tgd ON public.c, tgd ON public.t, tgi ON public.c, tgi ON public.t, tgu ON public.c, tgu ON public.t"
+		},
+		{
+		  "ObjectType": "FOREIGN TABLE",
+		  "TotalCount": 2,
+		  "InvalidCount": 2,
+		  "ObjectNames": "public.f_c, public.f_t"
+		}
+	  ]
 	},
 	"Sizing": {
-		"SizingRecommendation": {
-			"ColocatedTables": [
-				"public.c",
-				"public.t"
-			],
-			"ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 2 objects (2 tables/materialized views and 0 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
-			"ShardedTables": null,
-			"NumNodes": 3,
-			"VCPUsPerInstance": 4,
-			"MemoryPerInstance": 16,
-			"OptimalSelectConnectionsPerNode": 8,
-			"OptimalInsertConnectionsPerNode": 12,
-			"EstimatedTimeInMinForImport": 1,
-			"EstimatedTimeInMinForImportWithoutRedundantIndexes": 1
-		},
-		"FailureReasoning": ""
+	  "SizingRecommendation": {
+		"ColocatedTables": null,
+		"ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 2 objects (2 tables/materialized views and 0 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as sharded. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
+		"ShardedTables": [
+		  "public.t",
+		  "public.c"
+		],
+		"NumNodes": 3,
+		"VCPUsPerInstance": 4,
+		"MemoryPerInstance": 16,
+		"OptimalSelectConnectionsPerNode": 10,
+		"OptimalInsertConnectionsPerNode": 12,
+		"EstimatedTimeInMinForImport": 1,
+		"EstimatedTimeInMinForImportWithoutRedundantIndexes": 1
+	  },
+	  "FailureReasoning": ""
 	},
 	"AssessmentIssues": [
-		{
-			"Category": "migration_caveats",
-			"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
-			"Type": "FOREIGN_TABLE",
-			"Name": "Foreign Table",
-			"Description": "Foreign table creation fails as SERVER and USER MAPPING objects are not exported by voyager. SERVER 'p10', and USER MAPPING should be created manually on the target to create and use the foreign table",
-			"Impact": "LEVEL_1",
-			"ObjectType": "FOREIGN TABLE",
-			"ObjectName": "public.f_c",
-			"SqlStatement": "CREATE FOREIGN TABLE public.f_c (\n    i integer NOT NULL,\n    t integer,\n    x text\n)\nSERVER p10\nOPTIONS (\n    table_name 'c'\n);",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#foreign-table-in-the-source-database-requires-server-and-user-mapping",
-			"MinimumVersionsFixedIn": null
-		},
-		{
-			"Category": "migration_caveats",
-			"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
-			"Type": "FOREIGN_TABLE",
-			"Name": "Foreign Table",
-			"Description": "Foreign table creation fails as SERVER and USER MAPPING objects are not exported by voyager. SERVER 'p10', and USER MAPPING should be created manually on the target to create and use the foreign table",
-			"Impact": "LEVEL_1",
-			"ObjectType": "FOREIGN TABLE",
-			"ObjectName": "public.f_t",
-			"SqlStatement": "CREATE FOREIGN TABLE public.f_t (\n    i integer NOT NULL,\n    ts timestamp(0) with time zone DEFAULT now(),\n    j json,\n    t text,\n    e public.myenum,\n    c public.mycomposit\n)\nSERVER p10\nOPTIONS (\n    table_name 't'\n);",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#foreign-table-in-the-source-database-requires-server-and-user-mapping",
-			"MinimumVersionsFixedIn": null
-		},
-		{
-			"Category": "migration_caveats",
-			"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
-			"Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED",
-			"Name": "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype",
-			"Description": "User defined datatype MYCOMPOSIT not yet supported by voyager in live migration with fall-forward/fallback. Affected column: c. These columns will be excluded when exporting and importing data in live migration workflows.",
-			"Impact": "LEVEL_1",
-			"ObjectType": "COLUMN",
-			"ObjectName": "public.t.c",
-			"SqlStatement": "",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-			"MinimumVersionsFixedIn": null
-		},
-		{
-			"Category": "migration_caveats",
-			"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
-			"Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED",
-			"Name": "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype",
-			"Description": "User defined datatype MYCOMPOSIT not yet supported by voyager in live migration with fall-forward/fallback. Affected column: c. These columns will be excluded when exporting and importing data in live migration workflows.",
-			"Impact": "LEVEL_1",
-			"ObjectType": "COLUMN",
-			"ObjectName": "public.f_t.c",
-			"SqlStatement": "",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-			"MinimumVersionsFixedIn": null
-		},
-		{
-			"Category": "performance_optimizations",
-			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
-			"Type": "MISSING_FOREIGN_KEY_INDEX",
-			"Name": "Missing index on foreign key columns",
-			"Description": "Foreign key columns do not have a proper index. The index must include all foreign key columns as leading columns (either in exact order, any permutation, or as a prefix of a composite index). This can cause performance issues during DML operations on the referenced table.",
-			"Impact": "LEVEL_1",
-			"ObjectType": "TABLE",
-			"ObjectName": "public.c",
-			"SqlStatement": "",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-foreign-key-indexes",
-			"MinimumVersionsFixedIn": null,
-			"Details": {
-				"ForeignKeyColumnNames": "public.c.t",
-				"ReferencedTableName": "public.t"
-			}
+	  {
+		"Category": "migration_caveats",
+		"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+		"Type": "FOREIGN_TABLE",
+		"Name": "Foreign Table",
+		"Description": "Foreign table creation fails as SERVER and USER MAPPING objects are not exported by voyager. SERVER 'p10', and USER MAPPING should be created manually on the target to create and use the foreign table",
+		"Impact": "LEVEL_1",
+		"ObjectType": "FOREIGN TABLE",
+		"ObjectName": "public.f_c",
+		"SqlStatement": "CREATE FOREIGN TABLE public.f_c (\n    i integer NOT NULL,\n    t integer,\n    x text\n)\nSERVER p10\nOPTIONS (\n    table_name 'c'\n);",
+		"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#foreign-table-in-the-source-database-requires-server-and-user-mapping",
+		"MinimumVersionsFixedIn": null
+	  },
+	  {
+		"Category": "migration_caveats",
+		"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+		"Type": "FOREIGN_TABLE",
+		"Name": "Foreign Table",
+		"Description": "Foreign table creation fails as SERVER and USER MAPPING objects are not exported by voyager. SERVER 'p10', and USER MAPPING should be created manually on the target to create and use the foreign table",
+		"Impact": "LEVEL_1",
+		"ObjectType": "FOREIGN TABLE",
+		"ObjectName": "public.f_t",
+		"SqlStatement": "CREATE FOREIGN TABLE public.f_t (\n    i integer NOT NULL,\n    ts timestamp(0) with time zone DEFAULT now(),\n    j json,\n    t text,\n    e public.myenum,\n    c public.mycomposit\n)\nSERVER p10\nOPTIONS (\n    table_name 't'\n);",
+		"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#foreign-table-in-the-source-database-requires-server-and-user-mapping",
+		"MinimumVersionsFixedIn": null
+	  },
+	  {
+		"Category": "migration_caveats",
+		"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+		"Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED",
+		"Name": "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype",
+		"Description": "User defined datatype MYCOMPOSIT not yet supported by voyager in live migration with fall-forward/fallback. Affected column: c. These columns will be excluded when exporting and importing data in live migration workflows.",
+		"Impact": "LEVEL_1",
+		"ObjectType": "COLUMN",
+		"ObjectName": "public.t.c",
+		"SqlStatement": "",
+		"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+		"MinimumVersionsFixedIn": null
+	  },
+	  {
+		"Category": "migration_caveats",
+		"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+		"Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED",
+		"Name": "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype",
+		"Description": "User defined datatype MYCOMPOSIT not yet supported by voyager in live migration with fall-forward/fallback. Affected column: c. These columns will be excluded when exporting and importing data in live migration workflows.",
+		"Impact": "LEVEL_1",
+		"ObjectType": "COLUMN",
+		"ObjectName": "public.f_t.c",
+		"SqlStatement": "",
+		"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+		"MinimumVersionsFixedIn": null
+	  },
+	  {
+		"Category": "performance_optimizations",
+		"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
+		"Type": "MISSING_FOREIGN_KEY_INDEX",
+		"Name": "Missing index on foreign key columns",
+		"Description": "Foreign key columns do not have a proper index. The index must include all foreign key columns as leading columns (either in exact order, any permutation, or as a prefix of a composite index). This can cause performance issues during DML operations on the referenced table.",
+		"Impact": "LEVEL_1",
+		"ObjectType": "TABLE",
+		"ObjectName": "public.c",
+		"SqlStatement": "",
+		"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-foreign-key-indexes",
+		"MinimumVersionsFixedIn": null,
+		"Details": {
+		  "ForeignKeyColumnNames": "public.c.t",
+		  "ReferencedTableName": "public.t"
 		}
+	  }
 	],
 	"TableIndexStats": [
-		{
-			"SchemaName": "public",
-			"ObjectName": "c",
-			"RowCount": 1,
-			"ColumnCount": 3,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "table",
-			"ParentTableName": null,
-			"SizeInBytes": 8192
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "t",
-			"RowCount": 6,
-			"ColumnCount": 6,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "table",
-			"ParentTableName": null,
-			"SizeInBytes": 8192
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "t_pkey",
-			"RowCount": null,
-			"ColumnCount": 1,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "primary key",
-			"ParentTableName": "public.t",
-			"SizeInBytes": 16384
-		}
+	  {
+		"SchemaName": "public",
+		"ObjectName": "c",
+		"RowCount": 1,
+		"ColumnCount": 3,
+		"ReadsPerSecond": 0,
+		"WritesPerSecond": 0,
+		"IsIndex": false,
+		"ObjectType": "table",
+		"ParentTableName": null,
+		"SizeInBytes": 8192
+	  },
+	  {
+		"SchemaName": "public",
+		"ObjectName": "t",
+		"RowCount": 6,
+		"ColumnCount": 6,
+		"ReadsPerSecond": 0,
+		"WritesPerSecond": 0,
+		"IsIndex": false,
+		"ObjectType": "table",
+		"ParentTableName": null,
+		"SizeInBytes": 8192
+	  },
+	  {
+		"SchemaName": "public",
+		"ObjectName": "t_pkey",
+		"RowCount": null,
+		"ColumnCount": 1,
+		"ReadsPerSecond": 0,
+		"WritesPerSecond": 0,
+		"IsIndex": true,
+		"ObjectType": "primary key",
+		"ParentTableName": "public.t",
+		"SizeInBytes": 16384
+	  }
 	],
 	"Notes": [
-		{
-			"Type": "GeneralNotes",
-			"Text": "Some features listed in this report may be supported under a preview flag in the specified target-db-version of YugabyteDB. Please refer to the official release notes (https://docs.yugabyte.com/preview/releases/ybdb-releases/) for detailed information and usage guidelines."
-		},
-		{
-			"Type": "ColocatedShardedNotes",
-			"Text": "If there are any tables that receive disproportionately high load, ensure that they are NOT colocated to avoid the colocated tablet becoming a hotspot.\nFor additional considerations related to colocated tables, refer to the documentation at: https://docs.yugabyte.com/preview/explore/colocation/#limitations-and-considerations"
-		},
-		{
-			"Type": "GeneralNotes",
-			"Text": "Limitations in assessment (https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/#assessment-and-schema-analysis-limitations)"
-		}
+	  {
+		"Type": "GeneralNotes",
+		"Text": "Some features listed in this report may be supported under a preview flag in the specified target-db-version of YugabyteDB. Please refer to the official release notes (https://docs.yugabyte.com/preview/releases/ybdb-releases/) for detailed information and usage guidelines."
+	  },
+	  {
+		"Type": "GeneralNotes",
+		"Text": "Limitations in assessment (https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/#assessment-and-schema-analysis-limitations)"
+	  }
 	]
-}
+  }
