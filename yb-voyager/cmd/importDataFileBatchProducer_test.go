@@ -922,20 +922,6 @@ func TestFileBatchProducer_StashAndContinue_MultipleTasksSameTable(t *testing.T)
 	)
 }
 
-// // assertProcessingErrorFileContains asserts that the error log file for a given task and table contains all the expected substrings.
-// func assertProcessingErrorFileContains(t *testing.T, lexportDir string, task *ImportFileTask, expectedSubstrings ...string) {
-// 	taskFolderPath := fmt.Sprintf("file::%s:%s", filepath.Base(task.FilePath), importdata.ComputePathHash(task.FilePath))
-// 	tableFolderPath := fmt.Sprintf("table::%s", task.TableNameTup.ForMinOutput())
-// 	errorsFilePath := filepath.Join(getErrorsParentDir(lexportDir), "errors", tableFolderPath, taskFolderPath, "processing-errors.log")
-// 	assert.FileExists(t, errorsFilePath)
-// 	errorFileContentsBytes, err := os.ReadFile(errorsFilePath)
-// 	assert.NoError(t, err)
-// 	errorFileContents := string(errorFileContentsBytes)
-// 	for _, substr := range expectedSubstrings {
-// 		assert.Contains(t, errorFileContents, substr)
-// 	}
-// }
-
 // assertProcessingErrorFileContains asserts that the error log file for a given task and table contains all the expected substrings.
 func assertProcessingErrorBatchFileContains(t *testing.T, lexportDir string, task *ImportFileTask,
 	batchNumber int64, expectedRowCount int64, expectedByteCount int64,

@@ -269,7 +269,6 @@ func prepareRowWithDatafile(dataFile *datafile.FileEntry, state *ImportDataState
 	if err != nil {
 		return nil, fmt.Errorf("lookup %s from name registry: %w", dataFile.TableName, err)
 	}
-	utils.PrintAndLog("dataFileNt: %v", dataFileNt)
 
 	errorHandler, err := getErrorHandlerUsed()
 	if err != nil {

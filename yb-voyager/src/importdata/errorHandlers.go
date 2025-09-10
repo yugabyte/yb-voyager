@@ -225,6 +225,7 @@ func (handler *ImportDataStashAndContinueHandler) FinalizeRowProcessingErrorsFor
 	globPattern := fmt.Sprintf("%s.%d.*.log", PROCESSING_ERRORS_BASE_NAME, batchNumber)
 	searchPath := filepath.Join(errorsDir, globPattern)
 
+	// ideally this should only be a single file at worst.
 	filesToDelete, err := filepath.Glob(searchPath)
 	if err != nil {
 		// Log the error but don't return, as the main task (renaming the current file) can still proceed.
@@ -235,7 +236,7 @@ func (handler *ImportDataStashAndContinueHandler) FinalizeRowProcessingErrorsFor
 			if err != nil {
 				log.Errorf("Error deleting old error file %s: %v", file, err)
 			} else {
-				log.Debugf("Deleted old error file: %s", file)
+				log.Infof("Deleted old error file for batch %d: %s", batchNumber, file)
 			}
 		}
 	}

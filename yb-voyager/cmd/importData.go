@@ -1248,6 +1248,7 @@ func packAndSendImportDataToTargetPayload(status string, errorMsg error) {
 	}
 
 	// Get phase-related metrics from existing logic
+	// TODO: fix: pass proper error handler here.
 	importRowsMap, err := getImportedSnapshotRowsMap("target", importTableList, nil)
 	if err != nil {
 		log.Infof("callhome: error in getting the import data: %v", err)
