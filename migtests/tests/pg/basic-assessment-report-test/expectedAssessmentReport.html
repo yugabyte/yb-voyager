@@ -247,6 +247,49 @@
             line-height: 1.2em;
             font-family: monospace;
         }
+
+        /* Notes Section Styles */
+        .notes-section {
+            margin: 15px 0;
+            padding: 12px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+        }
+
+        .notes-section h5 {
+            margin: 0 0 8px 0;
+            font-size: 0.95em;
+            color: #666;
+            font-weight: 500;
+        }
+
+        .notes-section ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+
+        .notes-section li {
+            margin: 5px 0;
+            line-height: 1.4;
+        }
+
+        .general-notes-container {
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            padding: 12px;
+            margin: 10px 0;
+        }
+
+        .general-notes-container ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+
+        .general-notes-container li {
+            margin: 5px 0;
+            line-height: 1.4;
+        }
+
     </style>
     <script>
 
@@ -558,6 +601,15 @@
                             </td>
                         </tr>
                     </table>
+
+                        <div class="notes-section">
+                            <h5>Notes</h5>
+                            <ul>
+                                    <li>If there are any tables that receive disproportionately high load, ensure that they are NOT colocated to avoid the colocated tablet becoming a hotspot.
+For additional considerations related to colocated tables, refer to the documentation at: <a class="highlight-link" target="_blank" href="https://docs.yugabyte.com/preview/explore/colocation/#limitations-and-considerations">https://docs.yugabyte.com/preview/explore/colocation/#limitations-and-considerations</a></li>
+                            </ul>
+                        </div>
+
                     <h2>Sizing Recommendations</h2>
                     <table>
                         <tr>
@@ -604,10 +656,10 @@
                         
                             <tr>
                                 <td class="centered-cell">Performance Optimizations</td>
-                                <td class="centered-cell">2</td>
+                                <td class="centered-cell">1</td>
                                 <td class="centered-cell">0</td>
                                 <td class="centered-cell">0</td>
-                                <td class="centered-cell">2</td>
+                                <td class="centered-cell">1</td>
                             </tr>
                         
                             <tr>
@@ -648,7 +700,7 @@
 
             <p>
                 <strong>Complexity:</strong> MEDIUM<br>
-                <strong>Reasoning:</strong> Found 3 Level 1 issue(s), 6 Level 2 issue(s) and 2 Level 3 issue(s), resulting in MEDIUM migration complexity
+                <strong>Reasoning:</strong> Found 2 Level 1 issue(s), 6 Level 2 issue(s) and 2 Level 3 issue(s), resulting in MEDIUM migration complexity
             </p>
 
             <p>
@@ -1674,7 +1726,7 @@ FROM schema1.employees2</pre>
             <div class="assessment-issues-header">
                 <!-- Left area: text about total issues -->
                 <div>
-                    <p><strong>Total optimizations:</strong> 2</p>
+                    <p><strong>Total optimizations:</strong> 1</p>
                     <p>Below is a detailed breakdown of each issue.</p>
                 </div>
                 <!-- Right area: buttons -->
@@ -1814,111 +1866,6 @@ Note: If the table is created as colocated, this hotspot concern can safely be i
                     </tbody>
                 
                     
-                    
-                     
-                        
-                        
-                    
-                    <tbody class="issue-summary-detail-pair"
-                        data-category="performance_optimizations"
-                        data-name="Index on low-cardinality column"
-                        data-impact="LEVEL_1">
-                        
-                        <!-- Summary Row -->
-                        <tr class="summary-row" onclick="toggleDetails('details-perf-1', 'arrow-perf-1', true)">
-                            
-                            <td class="centered-cell">
-                                <div class="category-cell-flex">
-                                    
-                                        <div class="arrow-container">
-                                            <span id="arrow-perf-1">&#9654;</span>
-                                        </div>
-                                    
-                                    Index on low-cardinality column
-                                </div>
-                            </td>
-                            <td class="centered-cell">
-                                
-                                    idx_test_low_card_employed ON schema1.test_hotspot_timestamp
-                                
-                            </td>
-                            <td class="centered-cell" style="text-align: center;">Level 1</td>
-                        </tr>
-
-                        <!-- Hidden Details of the Row -->
-                        <tr id="details-perf-1" class="details-row">
-                            <td colspan="4">
-                                <div class="details-content-wrapper">
-                                    <div class="details-content">
-                                        <table class="formatted_table" style="width: 100%; border: 1px solid #ddd; margin-top: 5px;">
-                                            <colgroup>
-                                                <col style="width: 25%;">
-                                                <col style="width: 75%;">
-                                            </colgroup>
-                                            <tbody>
-                                                
-
-                                                <!-- Only show if ObjectType is present -->
-                                                
-                                                    <tr>
-                                                        <th class="centered-cell">Object Type</th>
-                                                        <td>INDEX</td>
-                                                    </tr>
-                                                
-                                                
-                                                    <tr>
-                                                        <th class="centered-cell">Object Name</th>
-                                                        <td>idx_test_low_card_employed ON schema1.test_hotspot_timestamp</td>
-                                                    </tr>
-                                                
-                                                <tr>
-                                                    <th class="centered-cell">SQL Statement</th>
-                                                    <td>
-                                                        
-                                                            <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">CREATE INDEX idx_test_low_card_employed ON schema1.test_hotspot_timestamp USING btree (employed);</pre>
-                                                            </div>
-                                                        
-                                                    </td>
-                                                </tr>
-
-                                                <!-- Only show if there is a supported version -->
-                                                
-                                                
-                                                <tr>
-                                                    <th class="centered-cell">Description</th>
-                                                    <td>
-                                                        
-                                                            <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">In distributed databases, index design should ensure even data distribution across multiple nodes. Indexes built on low-cardinality columns (e.g., boolean, days of the week) are not optimal, as they may lead to bad data distribution among tablets. This index is built on a low-cardinality column.</pre>
-                                                                
-                                                                    <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Refer to the <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-low-cardinality-column" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-low-cardinality-column">docs</a> for more details.</pre>
-                                                                
-                                                            </div>
-                                                        
-                                                    </td>
-                                                </tr>
-                                               
-                                                    <tr>
-                                                        <th class="centered-cell">More Information</th>
-                                                        <td>
-                                                            <ul>
-                                                            
-                                                                <li><pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Cardinality: 2</pre></li>
-                                                            
-                                                                <li><pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Column Name: employed</pre></li>
-                                                            
-                                                            </ul>
-                                                        </td>
-                                                    </tr>
-                                               
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            </td>
-                        </tr>
-                    </tbody>
                 
             </table>
 
@@ -1934,20 +1881,15 @@ Note: If the table is created as colocated, this hotspot concern can safely be i
         
             <hr>
             <div>
-                <h4>Notes</h4>
-                <ul id="notes-list">
-                    
+                <h4>General Notes</h4>
+                <div class="general-notes-container">
+                    <ul id="notes-list">
                         <li>Some features listed in this report may be supported under a preview flag in the specified target-db-version of YugabyteDB. Please refer to the official <a class="highlight-link" target="_blank" href="https://docs.yugabyte.com/preview/releases/ybdb-releases/">release notes</a> for detailed information and usage guidelines.</li>
-                    
-                        <li>If there are any tables that receive disproportionately high load, ensure that they are NOT colocated to avoid the colocated tablet becoming a hotspot.
-For additional considerations related to colocated tables, refer to the documentation at: https://docs.yugabyte.com/preview/explore/colocation/#limitations-and-considerations</li>
-                    
-                        <li>If indexes are created on columns commonly used in range-based queries (e.g. timestamp columns), it is recommended to explicitly configure these indexes with range sharding. This ensures efficient data access for range queries.
-By default, YugabyteDB uses hash sharding for indexes, which distributes data randomly and is not ideal for range-based predicates potentially degrading query performance. Note that range sharding is enabled by default only in <a class="highlight-link" target="_blank" href="https://docs.yugabyte.com/preview/develop/postgresql-compatibility/">PostgreSQL compatibility mode</a> in YugabyteDB.</li>
                     
                         <li><a class="highlight-link" target="_blank"  href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/#assessment-and-schema-analysis-limitations">Limitations in assessment</a></li>
                     
-                </ul>
+                    </ul>
+                </div>
             </div>
         
     </div>

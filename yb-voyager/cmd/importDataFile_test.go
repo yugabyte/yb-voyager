@@ -103,16 +103,20 @@ func TestImportDataFileReport(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to get import data error handler: %v", err)
 	}
-	snapshotRowsMap, err := getImportedSnapshotRowsMap("target-file", errorHandler)
-	if err != nil {
-		t.Fatalf("Failed to get imported snapshot rows map: %v", err)
-	}
 
 	// Ensure the snapshotRowsMap contains the expected data.
 	tblName := sqlname.NameTuple{
 		SourceName:  sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "public.test_data"),
 		CurrentName: sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "public.test_data"),
 	}
+	tableList := []sqlname.NameTuple{
+		tblName,
+	}
+	snapshotRowsMap, err := getImportedSnapshotRowsMap("target-file", tableList, errorHandler)
+	if err != nil {
+		t.Fatalf("Failed to get imported snapshot rows map: %v", err)
+	}
+
 	rowCountPair, _ := snapshotRowsMap.Get(tblName)
 	assert.Equal(t, int64(100), rowCountPair.Imported, "Imported row count mismatch")
 	assert.Equal(t, int64(0), rowCountPair.Errored, "Errored row count mismatch")
@@ -227,15 +231,20 @@ func TestImportDataFileReport_ErrorPolicyStashAndContinue_BatchIngestionError(t 
 	if err != nil {
 		t.Fatalf("Failed to get import data error handler: %v", err)
 	}
-	snapshotRowsMap, err := getImportedSnapshotRowsMap("target-file", errorHandler)
-	if err != nil {
-		t.Fatalf("Failed to get imported snapshot rows map: %v", err)
-	}
+
 	// Ensure the snapshotRowsMap contains the expected data.
 	tblName := sqlname.NameTuple{
 		SourceName:  sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "public.test_data"),
 		CurrentName: sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "public.test_data"),
 	}
+	tableList := []sqlname.NameTuple{
+		tblName,
+	}
+	snapshotRowsMap, err := getImportedSnapshotRowsMap("target-file", tableList, errorHandler)
+	if err != nil {
+		t.Fatalf("Failed to get imported snapshot rows map: %v", err)
+	}
+
 	rowCountPair, _ := snapshotRowsMap.Get(tblName)
 	assert.Equal(t, int64(90), rowCountPair.Imported, "Imported row count mismatch")
 	assert.Equal(t, int64(10), rowCountPair.Errored, "Errored row count mismatch")
@@ -376,14 +385,18 @@ func TestImportDataFileReport_ErrorPolicyStashAndContinue_ProcessingError(t *tes
 	if err != nil {
 		t.Fatalf("Failed to get import data error handler: %v", err)
 	}
-	snapshotRowsMap, err := getImportedSnapshotRowsMap("target-file", errorHandler)
-	if err != nil {
-		t.Fatalf("Failed to get imported snapshot rows map: %v", err)
-	}
+
 	// Ensure the snapshotRowsMap contains the expected data.
 	tblName := sqlname.NameTuple{
 		SourceName:  sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "public.test_data"),
 		CurrentName: sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "public.test_data"),
+	}
+	tableList := []sqlname.NameTuple{
+		tblName,
+	}
+	snapshotRowsMap, err := getImportedSnapshotRowsMap("target-file", tableList, errorHandler)
+	if err != nil {
+		t.Fatalf("Failed to get imported snapshot rows map: %v", err)
 	}
 	rowCountPair, _ := snapshotRowsMap.Get(tblName)
 	assert.Equal(t, int64(99), rowCountPair.Imported, "Imported row count mismatch")
@@ -528,16 +541,20 @@ func TestImportDataFile_MultipleTasksForATable(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to get import data error handler: %v", err)
 	}
-	snapshotRowsMap, err := getImportedSnapshotRowsMap("target-file", errorHandler)
-	if err != nil {
-		t.Fatalf("Failed to get imported snapshot rows map: %v", err)
-	}
 
 	// Ensure the snapshotRowsMap contains the expected data.
 	tblName := sqlname.NameTuple{
 		SourceName:  sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "public.test_data"),
 		CurrentName: sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "public.test_data"),
 	}
+	tableList := []sqlname.NameTuple{
+		tblName,
+	}
+	snapshotRowsMap, err := getImportedSnapshotRowsMap("target-file", tableList, errorHandler)
+	if err != nil {
+		t.Fatalf("Failed to get imported snapshot rows map: %v", err)
+	}
+
 	rowCountPair, _ := snapshotRowsMap.Get(tblName)
 	assert.Equal(t, int64(200), rowCountPair.Imported, "Imported row count mismatch")
 	assert.Equal(t, int64(0), rowCountPair.Errored, "Errored row count mismatch")
@@ -651,25 +668,32 @@ func TestImportDataFile_SameFileForMultipleTables(t *testing.T) {
 		dataFileDescriptor = nil
 	}()
 	testutils.FatalIfError(t, err, "Failed to prepare dummy descriptor")
+
 	metaDB = initMetaDB(exportDir)
 	errorHandler, err := getImportDataFileErrorHandlerUsed()
 	if err != nil {
 		t.Fatalf("Failed to get import data error handler: %v", err)
 	}
-	snapshotRowsMap, err := getImportedSnapshotRowsMap("target-file", errorHandler)
+
+	// Ensure the snapshotRowsMap contains the expected data.
+	tblName := sqlname.NameTuple{
+		SourceName:  sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "test_schema", "test_schema.test_data"),
+		CurrentName: sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "test_schema", "test_schema.test_data"),
+	}
+	tblName1 := sqlname.NameTuple{
+		SourceName:  sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "test_schema", "test_schema.test_data1"),
+		CurrentName: sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "test_schema", "test_schema.test_data1"),
+	}
+	tableList := []sqlname.NameTuple{
+		tblName,
+		tblName1,
+	}
+	snapshotRowsMap, err := getImportedSnapshotRowsMap("target-file", tableList, errorHandler)
+
 	if err != nil {
 		t.Fatalf("Failed to get imported snapshot rows map: %v", err)
 	}
 
-	// Ensure the snapshotRowsMap contains the expected data.
-	tblName := sqlname.NameTuple{
-		SourceName:  sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "test_schema.test_data"),
-		CurrentName: sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "test_schema.test_data"),
-	}
-	tblName1 := sqlname.NameTuple{
-		SourceName:  sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "test_schema.test_data1"),
-		CurrentName: sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "test_schema.test_data1"),
-	}
 	tables := snapshotRowsMap.Keys()
 	assert.Equal(t, 2, len(tables), "There should be two tables in the snapshot rows map")
 

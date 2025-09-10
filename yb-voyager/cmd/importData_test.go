@@ -1157,6 +1157,7 @@ func TestExportAndImportDataSnapshotReport(t *testing.T) {
 	if err := postgresContainer.Start(ctx); err != nil {
 		t.Fatalf("Failed to start Postgres container: %v", err)
 	}
+
 	setupYugabyteTestDb(t)
 
 	// Create table in the default public schema in Postgres and YugabyteDB.
@@ -1203,16 +1204,19 @@ func TestExportAndImportDataSnapshotReport(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to get import data error handler: %v", err)
 	}
-	snapshotRowsMap, err := getImportedSnapshotRowsMap("target", errorHandler)
-	if err != nil {
-		t.Fatalf("Failed to get imported snapshot rows map: %v", err)
-	}
-
-	// Ensure the snapshotRowsMap contains the expected data.
 	tblName := sqlname.NameTuple{
 		SourceName:  sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "public.test_data"),
 		CurrentName: sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "public.test_data"),
 	}
+	tableList := []sqlname.NameTuple{
+		tblName,
+	}
+
+	snapshotRowsMap, err := getImportedSnapshotRowsMap("target", tableList, errorHandler)
+	if err != nil {
+		t.Fatalf("Failed to get imported snapshot rows map: %v", err)
+	}
+
 	rowCountPair, _ := snapshotRowsMap.Get(tblName)
 	assert.Equal(t, int64(10), rowCountPair.Imported, "Imported row count mismatch")
 	assert.Equal(t, int64(0), rowCountPair.Errored, "Errored row count mismatch")
@@ -1322,16 +1326,21 @@ func TestExportAndImportDataSnapshotReport_ErrorPolicyStashAndContinue_BatchInge
 	if err != nil {
 		t.Fatalf("Failed to get import data error handler: %v", err)
 	}
-	snapshotRowsMap, err := getImportedSnapshotRowsMap("target", errorHandler)
-	if err != nil {
-		t.Fatalf("Failed to get imported snapshot rows map: %v", err)
-	}
 
 	// Ensure the snapshotRowsMap contains the expected data.
 	tblName := sqlname.NameTuple{
 		SourceName:  sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "public.test_data"),
 		CurrentName: sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "public.test_data"),
 	}
+	tableList := []sqlname.NameTuple{
+		tblName,
+	}
+
+	snapshotRowsMap, err := getImportedSnapshotRowsMap("target", tableList, errorHandler)
+	if err != nil {
+		t.Fatalf("Failed to get imported snapshot rows map: %v", err)
+	}
+
 	rowCountPair, _ := snapshotRowsMap.Get(tblName)
 	assert.Equal(t, int64(90), rowCountPair.Imported, "Imported row count mismatch")
 	assert.Equal(t, int64(10), rowCountPair.Errored, "Errored row count mismatch")
@@ -1390,6 +1399,204 @@ func TestExportAndImportDataSnapshotReport_ErrorPolicyStashAndContinue_BatchInge
 
 	// Verify the content of the error file
 	testutils.AssertFileContains(t, errorFilePath, "duplicate key value violates unique constraint")
+}
+
+func TestImportOfSubsetOfExportedTables(t *testing.T) {
+	ctx := context.Background()
+
+	// Create a temporary export directory.
+	exportDir = testutils.CreateTempExportDir()
+	defer testutils.RemoveTempExportDir(exportDir)
+
+	createSchemaSQL := `CREATE SCHEMA IF NOT EXISTS test_schema;`
+	createTableSQL := `
+CREATE TABLE test_schema.test_migration (
+	id SERIAL PRIMARY KEY,
+	name TEXT,
+	email TEXT,
+	description TEXT
+);`
+	insertDataSQL := `
+INSERT INTO test_schema.test_migration (name, email, description)
+SELECT
+	md5(random()::text),                                      -- name
+	md5(random()::text) || '@example.com',                    -- email
+	repeat(md5(random()::text), 10)                           -- description (~320 chars)
+FROM generate_series(1, 10);`
+	createTable1SQL := `
+CREATE TABLE test_schema.test_migration1 (
+	id SERIAL PRIMARY KEY,
+	name TEXT,
+	email TEXT,
+	description TEXT
+);`
+	insertData1SQL := `
+INSERT INTO test_schema.test_migration1 (name, email, description)
+SELECT
+	md5(random()::text),                                      -- name
+	md5(random()::text) || '@example.com',                    -- email
+	repeat(md5(random()::text), 10)                           -- description (~320 chars)
+FROM generate_series(1, 10);`
+	dropSchemaSQL := `DROP SCHEMA IF EXISTS test_schema CASCADE;`
+
+	// Start Postgres container for live migration
+	postgresContainer := testcontainers.NewTestContainer("postgresql", &testcontainers.ContainerConfig{
+		ForLive: true,
+	})
+	if err := postgresContainer.Start(ctx); err != nil {
+		utils.ErrExit("Failed to start Postgres container: %v", err)
+	}
+
+	// Start YugabyteDB container.
+	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil)
+	if err := yugabytedbContainer.Start(ctx); err != nil {
+		utils.ErrExit("Failed to start YugabyteDB container: %v", err)
+	}
+	postgresContainer.ExecuteSqls([]string{
+		createSchemaSQL,
+		createTableSQL,
+		insertDataSQL,
+		createTable1SQL,
+		insertData1SQL,
+	}...)
+
+	yugabytedbContainer.ExecuteSqls([]string{
+		createSchemaSQL,
+		createTableSQL,
+		//Not creating second table in yb to test the import of subset of exported tables
+	}...)
+
+	defer postgresContainer.ExecuteSqls(dropSchemaSQL)
+	defer yugabytedbContainer.ExecuteSqls(dropSchemaSQL)
+
+	err := testutils.NewVoyagerCommandRunner(postgresContainer, "export data", []string{
+		"--export-dir", exportDir,
+		"--source-db-schema", "test_schema",
+		"--disable-pb", "true",
+		"--yes",
+	}, func() {
+		time.Sleep(15 * time.Second) // Wait for the export to start
+	}, true).Run()
+	testutils.FatalIfError(t, err, "Export command failed")
+
+	exportStatus := testutils.NewVoyagerCommandRunner(nil, "export data status", []string{
+		"--export-dir", exportDir,
+		"--output-format", "json",
+	}, nil, false)
+	err = exportStatus.Run()
+	testutils.FatalIfError(t, err, "Export data status command failed")
+
+	//verify the report file content
+	reportPath := filepath.Join(exportDir, "reports", "export-data-status-report.json")
+	reportData, err := os.ReadFile(reportPath)
+	if err != nil {
+		t.Fatalf("Failed to read import data status report file: %v", err)
+	}
+	var exportReportData []*exportTableMigStatusOutputRow
+	err = json.Unmarshal(reportData, &exportReportData)
+	testutils.FatalIfError(t, err, "Failed to read export data status report file")
+
+	assert.Equal(t, 2, len(exportReportData), "Report should contain exactly one entry")
+	assert.Equal(t, &exportTableMigStatusOutputRow{
+		TableName:     `test_migration`,
+		ExportedCount: 10,
+		Status:        "DONE",
+	}, exportReportData[0], "Status report row mismatch")
+
+	assert.Equal(t, &exportTableMigStatusOutputRow{
+		TableName:     `test_migration1`,
+		ExportedCount: 10,
+		Status:        "DONE",
+	}, exportReportData[1], "Status report row mismatch")
+
+	importCmd := testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
+		"--export-dir", exportDir,
+		"--disable-pb", "true",
+		"--yes",
+	}, func() {
+		time.Sleep(15 * time.Second)
+	}, false)
+
+	err = importCmd.Run()
+
+	//assert error contains table not found
+	assert.NotNil(t, err)
+	assert.Contains(t, importCmd.Stdout(), `Following tables are not present in the target database:
+test_schema."test_migration1"`)
+
+	err = testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
+		"--export-dir", exportDir,
+		"--disable-pb", "true",
+		"--exclude-table-list", "test_schema.test_migration1",
+		"--yes",
+	}, func() {
+		time.Sleep(15 * time.Second)
+	}, true).Run()
+
+	testutils.FatalIfError(t, err, "Import command failed")
+
+	//verify import data status command output
+	err = testutils.NewVoyagerCommandRunner(nil, "import data status", []string{
+		"--export-dir", exportDir,
+		"--output-format", "json",
+	}, nil, false).Run()
+	testutils.FatalIfError(t, err, "Import data status command failed")
+
+	//verify the import report file content
+	reportPath = filepath.Join(exportDir, "reports", "import-data-status-report.json")
+	reportData, err = os.ReadFile(reportPath)
+	if err != nil {
+		t.Fatalf("Failed to read import data status report file: %v", err)
+	}
+	var importReportData []*tableMigStatusOutputRow
+	err = json.Unmarshal(reportData, &importReportData)
+	testutils.FatalIfError(t, err, "Failed to read import data status report file")
+
+	assert.Equal(t, 2, len(importReportData), "Report should contain exactly one entry")
+	assert.Equal(t, &tableMigStatusOutputRow{
+		TableName:          `test_schema."test_migration"`,
+		FileName:           "",
+		ImportedCount:      10,
+		ErroredCount:       0,
+		TotalCount:         10,
+		Status:             "DONE",
+		PercentageComplete: 100,
+	}, importReportData[0], "Status report row mismatch")
+
+	assert.Equal(t, &tableMigStatusOutputRow{
+		TableName:          `test_schema."test_migration1"`,
+		FileName:           "",
+		ImportedCount:      0,
+		ErroredCount:       0,
+		TotalCount:         10,
+		Status:             "NOT_STARTED",
+		PercentageComplete: 0,
+	}, importReportData[1], "Status report row mismatch")
+
+	//verify the export report content
+	err = exportStatus.Run()
+	testutils.FatalIfError(t, err, "Export data status command failed")
+	reportPath = filepath.Join(exportDir, "reports", "export-data-status-report.json")
+	reportData, err = os.ReadFile(reportPath)
+	if err != nil {
+		t.Fatalf("Failed to read import data status report file: %v", err)
+	}
+	err = json.Unmarshal(reportData, &exportReportData)
+	testutils.FatalIfError(t, err, "Failed to read export data status report file")
+
+	assert.Equal(t, 2, len(exportReportData), "Report should contain exactly one entry")
+	assert.Equal(t, &exportTableMigStatusOutputRow{
+		TableName:     `test_migration`,
+		ExportedCount: 10,
+		Status:        "DONE",
+	}, exportReportData[0], "Status report row mismatch")
+
+	assert.Equal(t, &exportTableMigStatusOutputRow{
+		TableName:     `test_migration1`,
+		ExportedCount: 10,
+		Status:        "DONE",
+	}, exportReportData[1], "Status report row mismatch")
+
 }
 
 func TestExportAndImportDataSnapshotReport_ErrorPolicyStashAndContinue_ProcessingError(t *testing.T) {
@@ -1462,15 +1669,18 @@ func TestExportAndImportDataSnapshotReport_ErrorPolicyStashAndContinue_Processin
 	if err != nil {
 		t.Fatalf("Failed to get import data error handler: %v", err)
 	}
-	snapshotRowsMap, err := getImportedSnapshotRowsMap("target", errorHandler)
-	if err != nil {
-		t.Fatalf("Failed to get imported snapshot rows map: %v", err)
-	}
 
 	// Ensure the snapshotRowsMap contains the expected data.
 	tblName := sqlname.NameTuple{
 		SourceName:  sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "public.test_data"),
 		CurrentName: sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "public.test_data"),
+	}
+	tableList := []sqlname.NameTuple{
+		tblName,
+	}
+	snapshotRowsMap, err := getImportedSnapshotRowsMap("target", tableList, errorHandler)
+	if err != nil {
+		t.Fatalf("Failed to get imported snapshot rows map: %v", err)
 	}
 	rowCountPair, _ := snapshotRowsMap.Get(tblName)
 	assert.Equal(t, int64(99), rowCountPair.Imported, "Imported row count mismatch")

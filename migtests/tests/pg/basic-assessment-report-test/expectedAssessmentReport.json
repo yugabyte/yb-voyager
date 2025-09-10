@@ -2,7 +2,7 @@
 	"VoyagerVersion": "main",
 	"TargetDBVersion": "2024.2.3.1",
 	"MigrationComplexity": "MEDIUM",
-	"MigrationComplexityExplanation": "Found 3 Level 1 issue(s), 6 Level 2 issue(s) and 2 Level 3 issue(s), resulting in MEDIUM migration complexity",
+	"MigrationComplexityExplanation": "Found 2 Level 1 issue(s), 6 Level 2 issue(s) and 2 Level 3 issue(s), resulting in MEDIUM migration complexity",
 	"SchemaSummary": {
 		"Description": "Objects that will be created on the target YugabyteDB.",
 		"DbName": "pg_basic_assessment_report",
@@ -39,7 +39,7 @@
 			{
 				"ObjectType": "INDEX",
 				"TotalCount": 5,
-				"InvalidCount": 2,
+				"InvalidCount": 1,
 				"ObjectNames": "idx_employees2_first_name ON schema1.employees2, idx_employees2_full_name ON schema1.employees2, idx_employees2_last_name ON schema1.employees2, idx_test_hotspot_timestamp ON schema1.test_hotspot_timestamp, idx_test_low_card_employed ON schema1.test_hotspot_timestamp"
 			},
 			{
@@ -216,23 +216,6 @@
 			"Details": {
 				"ColumnName": "created_at"
 			}
-		},
-		{
-			"Category": "performance_optimizations",
-			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
-			"Type": "INDEX_ON_LOW_CARDINALITY_COLUMN",
-			"Name": "Index on low-cardinality column",
-			"Description": "In distributed databases, index design should ensure even data distribution across multiple nodes. Indexes built on low-cardinality columns (e.g., boolean, days of the week) are not optimal, as they may lead to bad data distribution among tablets. This index is built on a low-cardinality column.",
-			"Impact": "LEVEL_1",
-			"ObjectType": "INDEX",
-			"ObjectName": "idx_test_low_card_employed ON schema1.test_hotspot_timestamp",
-			"SqlStatement": "CREATE INDEX idx_test_low_card_employed ON schema1.test_hotspot_timestamp USING btree (employed);",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-low-cardinality-column",
-			"MinimumVersionsFixedIn": null,
-			"Details": {
-				"Cardinality": 2,
-				"ColumnName": "employed"
-			}
 		}
 	],
 	"TableIndexStats": [
@@ -408,19 +391,16 @@
 	"Notes": [
 		{
 			"Type": "GeneralNotes",
-			"Text": "Some features listed in this report may be supported under a preview flag in the specified target-db-version of YugabyteDB. Please refer to the official \u003ca class=\"highlight-link\" target=\"_blank\" href=\"https://docs.yugabyte.com/preview/releases/ybdb-releases/\"\u003erelease notes\u003c/a\u003e for detailed information and usage guidelines."
+			"Text": "Some features listed in this report may be supported under a preview flag in the specified target-db-version of YugabyteDB. Please refer to the official release notes (https://docs.yugabyte.com/preview/releases/ybdb-releases/) for detailed information and usage guidelines."
 		},
 		{
 			"Type": "ColocatedShardedNotes",
 			"Text": "If there are any tables that receive disproportionately high load, ensure that they are NOT colocated to avoid the colocated tablet becoming a hotspot.\nFor additional considerations related to colocated tables, refer to the documentation at: https://docs.yugabyte.com/preview/explore/colocation/#limitations-and-considerations"
 		},
+
 		{
 			"Type": "GeneralNotes",
-			"Text": "If indexes are created on columns commonly used in range-based queries (e.g. timestamp columns), it is recommended to explicitly configure these indexes with range sharding. This ensures efficient data access for range queries.\nBy default, YugabyteDB uses hash sharding for indexes, which distributes data randomly and is not ideal for range-based predicates potentially degrading query performance. Note that range sharding is enabled by default only in \u003ca class=\"highlight-link\" target=\"_blank\" href=\"https://docs.yugabyte.com/preview/develop/postgresql-compatibility/\"\u003ePostgreSQL compatibility mode\u003c/a\u003e in YugabyteDB."
-		},
-		{
-			"Type": "GeneralNotes",
-			"Text": "\u003ca class=\"highlight-link\" target=\"_blank\"  href=\"https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/#assessment-and-schema-analysis-limitations\"\u003eLimitations in assessment\u003c/a\u003e"
+			"Text": "Limitations in assessment (https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/#assessment-and-schema-analysis-limitations)"
 		}
 	]
 }
