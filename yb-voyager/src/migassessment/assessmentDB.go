@@ -400,6 +400,8 @@ func (adb *AssessmentDB) Query(query string, args ...interface{}) (*sql.Rows, er
 
 // LoadCSVFileIntoTable reads a CSV file and loads it into the specified table
 func (adb *AssessmentDB) LoadCSVFileIntoTable(filePath, tableName string) error {
+	log.Infof("Loading CSV file into %s table", tableName)
+
 	if tableName == DB_QUERIES_SUMMARY {
 		// special handling due to pgss postgres version differences
 		return adb.LoadPgssCSVIntoTable(filePath)
@@ -429,6 +431,7 @@ func (adb *AssessmentDB) LoadCSVFileIntoTable(filePath, tableName string) error 
 
 // LoadPgssCSVIntoTable loads PGSS CSV data into the db_queries_summary table
 func (adb *AssessmentDB) LoadPgssCSVIntoTable(filePath string) error {
+	log.Infof("starting to parse PGSS CSV file")
 	entries, err := pgss.ParseFromCSV(filePath)
 	if err != nil {
 		return fmt.Errorf("failed to parse PGSS CSV: %w", err)
@@ -439,6 +442,7 @@ func (adb *AssessmentDB) LoadPgssCSVIntoTable(filePath string) error {
 		return nil
 	}
 
+	log.Infof("inserting PGSS entries into %s table", DB_QUERIES_SUMMARY)
 	successCount, err := adb.InsertPgssEntries(entries)
 	if err != nil {
 		return fmt.Errorf("failed to insert PGSS entries: %w", err)
