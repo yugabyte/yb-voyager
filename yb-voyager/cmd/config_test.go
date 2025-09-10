@@ -28,6 +28,7 @@ import (
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/config"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
@@ -3181,6 +3182,7 @@ import-data-to-source:
   max-events-per-batch: 5000
   max-interval-between-batches: 2
   max-batch-size-bytes: 10485760
+  max-retries-streaming: 1
 `, tmpExportDir)
 	configFile, configDir := setupConfigFile(t, configContent)
 	t.Cleanup(func() { os.RemoveAll(configDir) })

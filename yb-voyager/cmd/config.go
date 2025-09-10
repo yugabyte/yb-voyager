@@ -138,6 +138,7 @@ var allowedImportDataToSourceConfigKeys = mapset.NewThreadUnsafeSet[string](
 	// environment variables keys
 	"num-event-channels", "event-channel-size", "max-events-per-batch",
 	"max-interval-between-batches", "max-batch-size-bytes",
+	"max-retries-streaming",
 )
 
 var allowedImportDataToSourceReplicaConfigKeys = mapset.NewThreadUnsafeSet[string](
