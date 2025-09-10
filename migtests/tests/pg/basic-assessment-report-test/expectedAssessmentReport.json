@@ -1,400 +1,400 @@
 {
-	"VoyagerVersion": "main",
-	"TargetDBVersion": "2024.2.3.1",
-	"MigrationComplexity": "MEDIUM",
-	"MigrationComplexityExplanation": "Found 2 Level 1 issue(s), 6 Level 2 issue(s) and 2 Level 3 issue(s), resulting in MEDIUM migration complexity",
-	"SchemaSummary": {
-	  "Description": "Objects that will be created on the target YugabyteDB.",
-	  "DbName": "pg_basic_assessment_report",
-	  "SchemaNames": [
-		"public",
-		"schema1"
-	  ],
-	  "DbVersion": "17.2 (Debian 17.2-1.pgdg120+1)",
-	  "DatabaseObjects": [
-		{
-		  "ObjectType": "SCHEMA",
-		  "TotalCount": 2,
-		  "InvalidCount": 0,
-		  "ObjectNames": "public, schema1"
-		},
-		{
-		  "ObjectType": "EXTENSION",
-		  "TotalCount": 1,
-		  "InvalidCount": 0,
-		  "ObjectNames": "pg_stat_statements"
-		},
-		{
-		  "ObjectType": "SEQUENCE",
-		  "TotalCount": 2,
-		  "InvalidCount": 0,
-		  "ObjectNames": "public.parent_table_id_seq, schema1.employees2_id_seq"
-		},
-		{
-		  "ObjectType": "TABLE",
-		  "TotalCount": 5,
-		  "InvalidCount": 2,
-		  "ObjectNames": "public.parent_table, public.child_table, public.mixed_data_types_table1, schema1.employees2, schema1.test_hotspot_timestamp"
-		},
-		{
-		  "ObjectType": "INDEX",
-		  "TotalCount": 5,
-		  "InvalidCount": 1,
-		  "ObjectNames": "idx_employees2_first_name ON schema1.employees2, idx_employees2_full_name ON schema1.employees2, idx_employees2_last_name ON schema1.employees2, idx_test_hotspot_timestamp ON schema1.test_hotspot_timestamp, idx_test_low_card_employed ON schema1.test_hotspot_timestamp"
-		},
-		{
-		  "ObjectType": "FUNCTION",
-		  "TotalCount": 1,
-		  "InvalidCount": 1,
-		  "ObjectNames": "public.manage_large_object"
-		},
-		{
-		  "ObjectType": "POLICY",
-		  "TotalCount": 1,
-		  "InvalidCount": 1,
-		  "ObjectNames": "policy_test_report ON public.parent_table"
-		}
-	  ]
-	},
-	"Sizing": {
-	  "SizingRecommendation": {
-		"ColocatedTables": null,
-		"ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 10 objects (5 tables/materialized views and 5 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as sharded. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
-		"ShardedTables": [
-		  "public.parent_table",
-		  "public.mixed_data_types_table1",
-		  "public.child_table",
-		  "schema1.employees2",
-		  "schema1.test_hotspot_timestamp"
-		],
-		"NumNodes": 3,
-		"VCPUsPerInstance": 4,
-		"MemoryPerInstance": 16,
-		"OptimalSelectConnectionsPerNode": 10,
-		"OptimalInsertConnectionsPerNode": 12,
-		"EstimatedTimeInMinForImport": 1,
-		"EstimatedTimeInMinForImportWithoutRedundantIndexes": 1
-	  },
-	  "FailureReasoning": ""
-	},
-	"AssessmentIssues": [
-	  {
-		"Category": "unsupported_datatypes",
-		"CategoryDescription": "Data types of the source database that are not supported on the target YugabyteDB.",
-		"Type": "UNSUPPORTED_DATATYPE_TXID_SNAPSHOT",
-		"Name": "Unsupported datatype - txid_snapshot",
-		"Description": "TXID_SNAPSHOT datatype is not yet supported in YugabyteDB. Affected column: snapshot_data.",
-		"Impact": "LEVEL_3",
-		"ObjectType": "COLUMN",
-		"ObjectName": "public.mixed_data_types_table1.snapshot_data",
-		"SqlStatement": "",
-		"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-yugabytedb",
-		"MinimumVersionsFixedIn": null
-	  },
-	  {
-		"Category": "unsupported_features",
-		"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
-		"Type": "INHERITANCE",
-		"Name": "Table Inheritance",
-		"Description": "Table inheritance is not yet supported in YugabyteDB.",
-		"Impact": "LEVEL_3",
-		"ObjectType": "TABLE",
-		"ObjectName": "public.child_table",
-		"SqlStatement": "CREATE TABLE public.child_table (\n    specific_column1 date\n)\nINHERITS (public.parent_table);",
-		"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
-		"MinimumVersionsFixedIn": null
-	  },
-	  {
-		"Category": "unsupported_query_constructs",
-		"CategoryDescription": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
-		"Type": "SYSTEM_COLUMN_CTID",
-		"Name": "System Column - ctid",
-		"Description": "System column 'ctid' is not yet supported in YugabyteDB.",
-		"Impact": "LEVEL_2",
-		"ObjectType": "",
-		"ObjectName": "",
-		"SqlStatement": "SELECT ctid, tableoid, xmin, xmax, cmin, cmax\nFROM schema1.employees2",
-		"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported",
-		"MinimumVersionsFixedIn": null
-	  },
-	  {
-		"Category": "unsupported_query_constructs",
-		"CategoryDescription": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
-		"Type": "SYSTEM_COLUMN_XMIN",
-		"Name": "System Column - xmin",
-		"Description": "System column 'xmin' is not yet supported in YugabyteDB.",
-		"Impact": "LEVEL_2",
-		"ObjectType": "",
-		"ObjectName": "",
-		"SqlStatement": "SELECT ctid, tableoid, xmin, xmax, cmin, cmax\nFROM schema1.employees2",
-		"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported",
-		"MinimumVersionsFixedIn": null
-	  },
-	  {
-		"Category": "unsupported_query_constructs",
-		"CategoryDescription": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
-		"Type": "SYSTEM_COLUMN_XMAX",
-		"Name": "System Column - xmax",
-		"Description": "System column 'xmax' is not yet supported in YugabyteDB.",
-		"Impact": "LEVEL_2",
-		"ObjectType": "",
-		"ObjectName": "",
-		"SqlStatement": "SELECT ctid, tableoid, xmin, xmax, cmin, cmax\nFROM schema1.employees2",
-		"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported",
-		"MinimumVersionsFixedIn": null
-	  },
-	  {
-		"Category": "unsupported_query_constructs",
-		"CategoryDescription": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
-		"Type": "SYSTEM_COLUMN_CMIN",
-		"Name": "System Column - cmin",
-		"Description": "System column 'cmin' is not yet supported in YugabyteDB.",
-		"Impact": "LEVEL_2",
-		"ObjectType": "",
-		"ObjectName": "",
-		"SqlStatement": "SELECT ctid, tableoid, xmin, xmax, cmin, cmax\nFROM schema1.employees2",
-		"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported",
-		"MinimumVersionsFixedIn": null
-	  },
-	  {
-		"Category": "unsupported_query_constructs",
-		"CategoryDescription": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
-		"Type": "SYSTEM_COLUMN_CMAX",
-		"Name": "System Column - cmax",
-		"Description": "System column 'cmax' is not yet supported in YugabyteDB.",
-		"Impact": "LEVEL_2",
-		"ObjectType": "",
-		"ObjectName": "",
-		"SqlStatement": "SELECT ctid, tableoid, xmin, xmax, cmin, cmax\nFROM schema1.employees2",
-		"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported",
-		"MinimumVersionsFixedIn": null
-	  },
-	  {
-		"Category": "unsupported_plpgsql_objects",
-		"CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
-		"Type": "LARGE_OBJECT_FUNCTIONS",
-		"Name": "Large Object Functions",
-		"Description": "Large Objects functions are not supported in YugabyteDB.",
-		"Impact": "LEVEL_2",
-		"ObjectType": "FUNCTION",
-		"ObjectName": "public.manage_large_object",
-		"SqlStatement": "SELECT lo_unlink(loid);",
-		"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#large-objects-and-its-functions-are-currently-not-supported",
-		"MinimumVersionsFixedIn": null,
-		"Details": {
-		  "FunctionNames": [
-			"lo_unlink"
-		  ]
-		}
-	  },
-	  {
-		"Category": "migration_caveats",
-		"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
-		"Type": "POLICY_WITH_ROLES",
-		"Name": "Policy with Roles",
-		"Description": "Policies require specific roles (test_policy) to be created in the target database, as roles are not migrated during schema migration. Create the Users manually to make the policies work.",
-		"Impact": "LEVEL_1",
-		"ObjectType": "POLICY",
-		"ObjectName": "policy_test_report ON public.parent_table",
-		"SqlStatement": "CREATE POLICY policy_test_report ON public.parent_table TO test_policy USING (true);",
-		"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#policies-on-users-in-source-require-manual-user-creation",
-		"MinimumVersionsFixedIn": null
-	  },
-	  {
-		"Category": "performance_optimizations",
-		"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
-		"Type": "HOTSPOTS_ON_TIMESTAMP_INDEX",
-		"Name": "Hotspots with indexes on timestamp as first column",
-		"Description": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, the recommendation is to change the sharding key to a modulo of hash of timestamp column value while keeping the timestamp column value as clustering key. Ensure that the index on the column is configured to be range-sharded on timestamp column.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.",
-		"Impact": "LEVEL_1",
-		"ObjectType": "INDEX",
-		"ObjectName": "idx_test_hotspot_timestamp ON schema1.test_hotspot_timestamp",
-		"SqlStatement": "CREATE INDEX idx_test_hotspot_timestamp ON schema1.test_hotspot_timestamp USING btree (created_at);",
-		"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
-		"MinimumVersionsFixedIn": null,
-		"Details": {
-		  "ColumnName": "created_at"
-		}
-	  }
-	],
-	"TableIndexStats": [
-	  {
-		"SchemaName": "public",
-		"ObjectName": "mixed_data_types_table1",
-		"RowCount": 0,
-		"ColumnCount": 3,
-		"ReadsPerSecond": 0,
-		"WritesPerSecond": 0,
-		"IsIndex": false,
-		"ObjectType": "table",
-		"ParentTableName": null,
-		"SizeInBytes": 0
-	  },
-	  {
-		"SchemaName": "public",
-		"ObjectName": "child_table",
-		"RowCount": 0,
-		"ColumnCount": 4,
-		"ReadsPerSecond": 0,
-		"WritesPerSecond": 0,
-		"IsIndex": false,
-		"ObjectType": "table",
-		"ParentTableName": null,
-		"SizeInBytes": 0
-	  },
-	  {
-		"SchemaName": "public",
-		"ObjectName": "parent_table",
-		"RowCount": 0,
-		"ColumnCount": 3,
-		"ReadsPerSecond": 0,
-		"WritesPerSecond": 0,
-		"IsIndex": false,
-		"ObjectType": "table",
-		"ParentTableName": null,
-		"SizeInBytes": 0
-	  },
-	  {
-		"SchemaName": "schema1",
-		"ObjectName": "test_hotspot_timestamp",
-		"RowCount": 2000,
-		"ColumnCount": 3,
-		"ReadsPerSecond": 0,
-		"WritesPerSecond": 0,
-		"IsIndex": false,
-		"ObjectType": "table",
-		"ParentTableName": null,
-		"SizeInBytes": 57344
-	  },
-	  {
-		"SchemaName": "schema1",
-		"ObjectName": "employees2",
-		"RowCount": 0,
-		"ColumnCount": 5,
-		"ReadsPerSecond": 0,
-		"WritesPerSecond": 0,
-		"IsIndex": false,
-		"ObjectType": "table",
-		"ParentTableName": null,
-		"SizeInBytes": 0
-	  },
-	  {
-		"SchemaName": "schema1",
-		"ObjectName": "idx_test_low_card_employed",
-		"RowCount": null,
-		"ColumnCount": 1,
-		"ReadsPerSecond": 0,
-		"WritesPerSecond": 0,
-		"IsIndex": true,
-		"ObjectType": "index",
-		"ParentTableName": "schema1.test_hotspot_timestamp",
-		"SizeInBytes": 16384
-	  },
-	  {
-		"SchemaName": "schema1",
-		"ObjectName": "idx_test_hotspot_timestamp",
-		"RowCount": null,
-		"ColumnCount": 1,
-		"ReadsPerSecond": 0,
-		"WritesPerSecond": 0,
-		"IsIndex": true,
-		"ObjectType": "index",
-		"ParentTableName": "schema1.test_hotspot_timestamp",
-		"SizeInBytes": 32768
-	  },
-	  {
-		"SchemaName": "schema1",
-		"ObjectName": "test_hotspot_timestamp_pkey",
-		"RowCount": null,
-		"ColumnCount": 1,
-		"ReadsPerSecond": 0,
-		"WritesPerSecond": 0,
-		"IsIndex": true,
-		"ObjectType": "primary key",
-		"ParentTableName": "schema1.test_hotspot_timestamp",
-		"SizeInBytes": 40960
-	  },
-	  {
-		"SchemaName": "schema1",
-		"ObjectName": "idx_employees2_last_name",
-		"RowCount": null,
-		"ColumnCount": 1,
-		"ReadsPerSecond": 0,
-		"WritesPerSecond": 0,
-		"IsIndex": true,
-		"ObjectType": "index",
-		"ParentTableName": "schema1.employees2",
-		"SizeInBytes": 8192
-	  },
-	  {
-		"SchemaName": "schema1",
-		"ObjectName": "idx_employees2_first_name",
-		"RowCount": null,
-		"ColumnCount": 1,
-		"ReadsPerSecond": 0,
-		"WritesPerSecond": 0,
-		"IsIndex": true,
-		"ObjectType": "index",
-		"ParentTableName": "schema1.employees2",
-		"SizeInBytes": 8192
-	  },
-	  {
-		"SchemaName": "schema1",
-		"ObjectName": "employees2_pkey",
-		"RowCount": null,
-		"ColumnCount": 1,
-		"ReadsPerSecond": 0,
-		"WritesPerSecond": 0,
-		"IsIndex": true,
-		"ObjectType": "primary key",
-		"ParentTableName": "schema1.employees2",
-		"SizeInBytes": 8192
-	  },
-	  {
-		"SchemaName": "schema1",
-		"ObjectName": "idx_employees2_full_name",
-		"RowCount": null,
-		"ColumnCount": 1,
-		"ReadsPerSecond": 0,
-		"WritesPerSecond": 0,
-		"IsIndex": true,
-		"ObjectType": "index",
-		"ParentTableName": "schema1.employees2",
-		"SizeInBytes": 8192
-	  },
-	  {
-		"SchemaName": "public",
-		"ObjectName": "parent_table_pkey",
-		"RowCount": null,
-		"ColumnCount": 1,
-		"ReadsPerSecond": 0,
-		"WritesPerSecond": 0,
-		"IsIndex": true,
-		"ObjectType": "primary key",
-		"ParentTableName": "public.parent_table",
-		"SizeInBytes": 8192
-	  },
-	  {
-		"SchemaName": "public",
-		"ObjectName": "mixed_data_types_table1_pkey",
-		"RowCount": null,
-		"ColumnCount": 1,
-		"ReadsPerSecond": 0,
-		"WritesPerSecond": 0,
-		"IsIndex": true,
-		"ObjectType": "primary key",
-		"ParentTableName": "public.mixed_data_types_table1",
-		"SizeInBytes": 8192
-	  }
-	],
-	"Notes": [
-	  {
-		"Type": "GeneralNotes",
-		"Text": "Some features listed in this report may be supported under a preview flag in the specified target-db-version of YugabyteDB. Please refer to the official release notes (https://docs.yugabyte.com/preview/releases/ybdb-releases/) for detailed information and usage guidelines."
-	  },
-	  {
-		"Type": "GeneralNotes",
-		"Text": "Limitations in assessment (https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/#assessment-and-schema-analysis-limitations)"
-	  }
-	]
-  }
+  "VoyagerVersion": "main",
+  "TargetDBVersion": "2024.2.3.1",
+  "MigrationComplexity": "MEDIUM",
+  "MigrationComplexityExplanation": "Found 2 Level 1 issue(s), 6 Level 2 issue(s) and 2 Level 3 issue(s), resulting in MEDIUM migration complexity",
+  "SchemaSummary": {
+    "Description": "Objects that will be created on the target YugabyteDB.",
+    "DbName": "pg_basic_assessment_report",
+    "SchemaNames": [
+      "public",
+      "schema1"
+    ],
+    "DbVersion": "17.2 (Debian 17.2-1.pgdg120+1)",
+    "DatabaseObjects": [
+      {
+        "ObjectType": "SCHEMA",
+        "TotalCount": 2,
+        "InvalidCount": 0,
+        "ObjectNames": "public, schema1"
+      },
+      {
+        "ObjectType": "EXTENSION",
+        "TotalCount": 1,
+        "InvalidCount": 0,
+        "ObjectNames": "pg_stat_statements"
+      },
+      {
+        "ObjectType": "SEQUENCE",
+        "TotalCount": 2,
+        "InvalidCount": 0,
+        "ObjectNames": "public.parent_table_id_seq, schema1.employees2_id_seq"
+      },
+      {
+        "ObjectType": "TABLE",
+        "TotalCount": 5,
+        "InvalidCount": 2,
+        "ObjectNames": "public.parent_table, public.child_table, public.mixed_data_types_table1, schema1.employees2, schema1.test_hotspot_timestamp"
+      },
+      {
+        "ObjectType": "INDEX",
+        "TotalCount": 5,
+        "InvalidCount": 1,
+        "ObjectNames": "idx_employees2_first_name ON schema1.employees2, idx_employees2_full_name ON schema1.employees2, idx_employees2_last_name ON schema1.employees2, idx_test_hotspot_timestamp ON schema1.test_hotspot_timestamp, idx_test_low_card_employed ON schema1.test_hotspot_timestamp"
+      },
+      {
+        "ObjectType": "FUNCTION",
+        "TotalCount": 1,
+        "InvalidCount": 1,
+        "ObjectNames": "public.manage_large_object"
+      },
+      {
+        "ObjectType": "POLICY",
+        "TotalCount": 1,
+        "InvalidCount": 1,
+        "ObjectNames": "policy_test_report ON public.parent_table"
+      }
+    ]
+  },
+  "Sizing": {
+    "SizingRecommendation": {
+      "ColocatedTables": null,
+      "ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 10 objects (5 tables/materialized views and 5 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as sharded. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
+      "ShardedTables": [
+        "public.parent_table",
+        "public.mixed_data_types_table1",
+        "public.child_table",
+        "schema1.employees2",
+        "schema1.test_hotspot_timestamp"
+      ],
+      "NumNodes": 3,
+      "VCPUsPerInstance": 4,
+      "MemoryPerInstance": 16,
+      "OptimalSelectConnectionsPerNode": 10,
+      "OptimalInsertConnectionsPerNode": 12,
+      "EstimatedTimeInMinForImport": 1,
+      "EstimatedTimeInMinForImportWithoutRedundantIndexes": 1
+    },
+    "FailureReasoning": ""
+  },
+  "AssessmentIssues": [
+    {
+      "Category": "unsupported_datatypes",
+      "CategoryDescription": "Data types of the source database that are not supported on the target YugabyteDB.",
+      "Type": "UNSUPPORTED_DATATYPE_TXID_SNAPSHOT",
+      "Name": "Unsupported datatype - txid_snapshot",
+      "Description": "TXID_SNAPSHOT datatype is not yet supported in YugabyteDB. Affected column: snapshot_data.",
+      "Impact": "LEVEL_3",
+      "ObjectType": "COLUMN",
+      "ObjectName": "public.mixed_data_types_table1.snapshot_data",
+      "SqlStatement": "",
+      "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-yugabytedb",
+      "MinimumVersionsFixedIn": null
+    },
+    {
+      "Category": "unsupported_features",
+      "CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
+      "Type": "INHERITANCE",
+      "Name": "Table Inheritance",
+      "Description": "Table inheritance is not yet supported in YugabyteDB.",
+      "Impact": "LEVEL_3",
+      "ObjectType": "TABLE",
+      "ObjectName": "public.child_table",
+      "SqlStatement": "CREATE TABLE public.child_table (\n    specific_column1 date\n)\nINHERITS (public.parent_table);",
+      "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
+      "MinimumVersionsFixedIn": null
+    },
+    {
+      "Category": "unsupported_query_constructs",
+      "CategoryDescription": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
+      "Type": "SYSTEM_COLUMN_CTID",
+      "Name": "System Column - ctid",
+      "Description": "System column 'ctid' is not yet supported in YugabyteDB.",
+      "Impact": "LEVEL_2",
+      "ObjectType": "",
+      "ObjectName": "",
+      "SqlStatement": "SELECT ctid, tableoid, xmin, xmax, cmin, cmax\nFROM schema1.employees2",
+      "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported",
+      "MinimumVersionsFixedIn": null
+    },
+    {
+      "Category": "unsupported_query_constructs",
+      "CategoryDescription": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
+      "Type": "SYSTEM_COLUMN_XMIN",
+      "Name": "System Column - xmin",
+      "Description": "System column 'xmin' is not yet supported in YugabyteDB.",
+      "Impact": "LEVEL_2",
+      "ObjectType": "",
+      "ObjectName": "",
+      "SqlStatement": "SELECT ctid, tableoid, xmin, xmax, cmin, cmax\nFROM schema1.employees2",
+      "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported",
+      "MinimumVersionsFixedIn": null
+    },
+    {
+      "Category": "unsupported_query_constructs",
+      "CategoryDescription": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
+      "Type": "SYSTEM_COLUMN_XMAX",
+      "Name": "System Column - xmax",
+      "Description": "System column 'xmax' is not yet supported in YugabyteDB.",
+      "Impact": "LEVEL_2",
+      "ObjectType": "",
+      "ObjectName": "",
+      "SqlStatement": "SELECT ctid, tableoid, xmin, xmax, cmin, cmax\nFROM schema1.employees2",
+      "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported",
+      "MinimumVersionsFixedIn": null
+    },
+    {
+      "Category": "unsupported_query_constructs",
+      "CategoryDescription": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
+      "Type": "SYSTEM_COLUMN_CMIN",
+      "Name": "System Column - cmin",
+      "Description": "System column 'cmin' is not yet supported in YugabyteDB.",
+      "Impact": "LEVEL_2",
+      "ObjectType": "",
+      "ObjectName": "",
+      "SqlStatement": "SELECT ctid, tableoid, xmin, xmax, cmin, cmax\nFROM schema1.employees2",
+      "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported",
+      "MinimumVersionsFixedIn": null
+    },
+    {
+      "Category": "unsupported_query_constructs",
+      "CategoryDescription": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
+      "Type": "SYSTEM_COLUMN_CMAX",
+      "Name": "System Column - cmax",
+      "Description": "System column 'cmax' is not yet supported in YugabyteDB.",
+      "Impact": "LEVEL_2",
+      "ObjectType": "",
+      "ObjectName": "",
+      "SqlStatement": "SELECT ctid, tableoid, xmin, xmax, cmin, cmax\nFROM schema1.employees2",
+      "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported",
+      "MinimumVersionsFixedIn": null
+    },
+    {
+      "Category": "unsupported_plpgsql_objects",
+      "CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
+      "Type": "LARGE_OBJECT_FUNCTIONS",
+      "Name": "Large Object Functions",
+      "Description": "Large Objects functions are not supported in YugabyteDB.",
+      "Impact": "LEVEL_2",
+      "ObjectType": "FUNCTION",
+      "ObjectName": "public.manage_large_object",
+      "SqlStatement": "SELECT lo_unlink(loid);",
+      "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#large-objects-and-its-functions-are-currently-not-supported",
+      "MinimumVersionsFixedIn": null,
+      "Details": {
+        "FunctionNames": [
+          "lo_unlink"
+        ]
+      }
+    },
+    {
+      "Category": "migration_caveats",
+      "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+      "Type": "POLICY_WITH_ROLES",
+      "Name": "Policy with Roles",
+      "Description": "Policies require specific roles (test_policy) to be created in the target database, as roles are not migrated during schema migration. Create the Users manually to make the policies work.",
+      "Impact": "LEVEL_1",
+      "ObjectType": "POLICY",
+      "ObjectName": "policy_test_report ON public.parent_table",
+      "SqlStatement": "CREATE POLICY policy_test_report ON public.parent_table TO test_policy USING (true);",
+      "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#policies-on-users-in-source-require-manual-user-creation",
+      "MinimumVersionsFixedIn": null
+    },
+    {
+      "Category": "performance_optimizations",
+      "CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
+      "Type": "HOTSPOTS_ON_TIMESTAMP_INDEX",
+      "Name": "Hotspots with indexes on timestamp as first column",
+      "Description": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, the recommendation is to change the sharding key to a modulo of hash of timestamp column value while keeping the timestamp column value as clustering key. Ensure that the index on the column is configured to be range-sharded on timestamp column.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.",
+      "Impact": "LEVEL_1",
+      "ObjectType": "INDEX",
+      "ObjectName": "idx_test_hotspot_timestamp ON schema1.test_hotspot_timestamp",
+      "SqlStatement": "CREATE INDEX idx_test_hotspot_timestamp ON schema1.test_hotspot_timestamp USING btree (created_at);",
+      "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
+      "MinimumVersionsFixedIn": null,
+      "Details": {
+        "ColumnName": "created_at"
+      }
+    }
+  ],
+  "TableIndexStats": [
+    {
+      "SchemaName": "public",
+      "ObjectName": "mixed_data_types_table1",
+      "RowCount": 0,
+      "ColumnCount": 3,
+      "ReadsPerSecond": 0,
+      "WritesPerSecond": 0,
+      "IsIndex": false,
+      "ObjectType": "table",
+      "ParentTableName": null,
+      "SizeInBytes": 0
+    },
+    {
+      "SchemaName": "public",
+      "ObjectName": "child_table",
+      "RowCount": 0,
+      "ColumnCount": 4,
+      "ReadsPerSecond": 0,
+      "WritesPerSecond": 0,
+      "IsIndex": false,
+      "ObjectType": "table",
+      "ParentTableName": null,
+      "SizeInBytes": 0
+    },
+    {
+      "SchemaName": "public",
+      "ObjectName": "parent_table",
+      "RowCount": 0,
+      "ColumnCount": 3,
+      "ReadsPerSecond": 0,
+      "WritesPerSecond": 0,
+      "IsIndex": false,
+      "ObjectType": "table",
+      "ParentTableName": null,
+      "SizeInBytes": 0
+    },
+    {
+      "SchemaName": "schema1",
+      "ObjectName": "test_hotspot_timestamp",
+      "RowCount": 2000,
+      "ColumnCount": 3,
+      "ReadsPerSecond": 0,
+      "WritesPerSecond": 0,
+      "IsIndex": false,
+      "ObjectType": "table",
+      "ParentTableName": null,
+      "SizeInBytes": 57344
+    },
+    {
+      "SchemaName": "schema1",
+      "ObjectName": "employees2",
+      "RowCount": 0,
+      "ColumnCount": 5,
+      "ReadsPerSecond": 0,
+      "WritesPerSecond": 0,
+      "IsIndex": false,
+      "ObjectType": "table",
+      "ParentTableName": null,
+      "SizeInBytes": 0
+    },
+    {
+      "SchemaName": "schema1",
+      "ObjectName": "idx_test_low_card_employed",
+      "RowCount": null,
+      "ColumnCount": 1,
+      "ReadsPerSecond": 0,
+      "WritesPerSecond": 0,
+      "IsIndex": true,
+      "ObjectType": "index",
+      "ParentTableName": "schema1.test_hotspot_timestamp",
+      "SizeInBytes": 16384
+    },
+    {
+      "SchemaName": "schema1",
+      "ObjectName": "idx_test_hotspot_timestamp",
+      "RowCount": null,
+      "ColumnCount": 1,
+      "ReadsPerSecond": 0,
+      "WritesPerSecond": 0,
+      "IsIndex": true,
+      "ObjectType": "index",
+      "ParentTableName": "schema1.test_hotspot_timestamp",
+      "SizeInBytes": 32768
+    },
+    {
+      "SchemaName": "schema1",
+      "ObjectName": "test_hotspot_timestamp_pkey",
+      "RowCount": null,
+      "ColumnCount": 1,
+      "ReadsPerSecond": 0,
+      "WritesPerSecond": 0,
+      "IsIndex": true,
+      "ObjectType": "primary key",
+      "ParentTableName": "schema1.test_hotspot_timestamp",
+      "SizeInBytes": 40960
+    },
+    {
+      "SchemaName": "schema1",
+      "ObjectName": "idx_employees2_last_name",
+      "RowCount": null,
+      "ColumnCount": 1,
+      "ReadsPerSecond": 0,
+      "WritesPerSecond": 0,
+      "IsIndex": true,
+      "ObjectType": "index",
+      "ParentTableName": "schema1.employees2",
+      "SizeInBytes": 8192
+    },
+    {
+      "SchemaName": "schema1",
+      "ObjectName": "idx_employees2_first_name",
+      "RowCount": null,
+      "ColumnCount": 1,
+      "ReadsPerSecond": 0,
+      "WritesPerSecond": 0,
+      "IsIndex": true,
+      "ObjectType": "index",
+      "ParentTableName": "schema1.employees2",
+      "SizeInBytes": 8192
+    },
+    {
+      "SchemaName": "schema1",
+      "ObjectName": "employees2_pkey",
+      "RowCount": null,
+      "ColumnCount": 1,
+      "ReadsPerSecond": 0,
+      "WritesPerSecond": 0,
+      "IsIndex": true,
+      "ObjectType": "primary key",
+      "ParentTableName": "schema1.employees2",
+      "SizeInBytes": 8192
+    },
+    {
+      "SchemaName": "schema1",
+      "ObjectName": "idx_employees2_full_name",
+      "RowCount": null,
+      "ColumnCount": 1,
+      "ReadsPerSecond": 0,
+      "WritesPerSecond": 0,
+      "IsIndex": true,
+      "ObjectType": "index",
+      "ParentTableName": "schema1.employees2",
+      "SizeInBytes": 8192
+    },
+    {
+      "SchemaName": "public",
+      "ObjectName": "parent_table_pkey",
+      "RowCount": null,
+      "ColumnCount": 1,
+      "ReadsPerSecond": 0,
+      "WritesPerSecond": 0,
+      "IsIndex": true,
+      "ObjectType": "primary key",
+      "ParentTableName": "public.parent_table",
+      "SizeInBytes": 8192
+    },
+    {
+      "SchemaName": "public",
+      "ObjectName": "mixed_data_types_table1_pkey",
+      "RowCount": null,
+      "ColumnCount": 1,
+      "ReadsPerSecond": 0,
+      "WritesPerSecond": 0,
+      "IsIndex": true,
+      "ObjectType": "primary key",
+      "ParentTableName": "public.mixed_data_types_table1",
+      "SizeInBytes": 8192
+    }
+  ],
+  "Notes": [
+    {
+      "Type": "GeneralNotes",
+      "Text": "Some features listed in this report may be supported under a preview flag in the specified target-db-version of YugabyteDB. Please refer to the official release notes (https://docs.yugabyte.com/preview/releases/ybdb-releases/) for detailed information and usage guidelines."
+    },
+    {
+      "Type": "GeneralNotes",
+      "Text": "Limitations in assessment (https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/#assessment-and-schema-analysis-limitations)"
+    }
+  ]
+}
