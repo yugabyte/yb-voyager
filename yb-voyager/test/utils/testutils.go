@@ -561,3 +561,23 @@ func GetYBVersionFromTestContainer(t *testing.T, ybContainer testcontainers.Test
 	FatalIfError(t, err)
 	return tgtYBVersion
 }
+
+// CreateTempCSVFile creates a temporary CSV file with the given data and returns the file path.
+// This is useful for testing CSV parsing functionality.
+func CreateTempCSVFile(t *testing.T, csvData string) string {
+	t.Helper()
+
+	// Create a temporary directory
+	tempDir := t.TempDir()
+
+	// Create the CSV file path
+	csvPath := fmt.Sprintf("%s/test.csv", tempDir)
+
+	// Write the CSV data to the file
+	err := os.WriteFile(csvPath, []byte(csvData), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create temporary CSV file: %v", err)
+	}
+
+	return csvPath
+}

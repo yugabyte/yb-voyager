@@ -1,7 +1,5 @@
 CREATE TEMP TABLE temp_table AS
-SELECT
-    queryid,
-    query
+SELECT *
 FROM
     :schema_name.pg_stat_statements
 WHERE
