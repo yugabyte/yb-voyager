@@ -582,33 +582,26 @@
                             <td>
                                 <div class="scrollable-div no-wrap-list">
                                     
+                                </div>
+                            </td>
+                            <td>
+                                <div class="scrollable-div no-wrap-list">
+                                    
                                         <li>public.mixed_data_types_table1</li>
                                     
                                         <li>public.child_table</li>
                                     
                                         <li>public.parent_table</li>
                                     
-                                        <li>schema1.test_hotspot_timestamp</li>
-                                    
-                                </div>
-                            </td>
-                            <td>
-                                <div class="scrollable-div no-wrap-list">
-                                    
                                         <li>schema1.employees2</li>
+                                    
+                                        <li>schema1.test_hotspot_timestamp</li>
                                     
                                 </div>
                             </td>
                         </tr>
                     </table>
 
-                        <div class="notes-section">
-                            <h5>Notes</h5>
-                            <ul>
-                                    <li>If there are any tables that receive disproportionately high load, ensure that they are NOT colocated to avoid the colocated tablet becoming a hotspot.
-For additional considerations related to colocated tables, refer to the documentation at: <a class="highlight-link" target="_blank" href="https://docs.yugabyte.com/preview/explore/colocation/#limitations-and-considerations">https://docs.yugabyte.com/preview/explore/colocation/#limitations-and-considerations</a></li>
-                            </ul>
-                        </div>
 
                     <h2>Sizing Recommendations</h2>
                     <table>
@@ -619,13 +612,13 @@ For additional considerations related to colocated tables, refer to the document
                         <tr><td class="centered-cell">Num of Nodes</td><td class="centered-cell">3</td></tr>
                         <tr><td class="centered-cell">vCPU per instance</td><td class="centered-cell">4</td></tr>
                         <tr><td class="centered-cell">Memory per instance(GiB)</td><td class="centered-cell">16</td></tr>
-                        <tr><td class="centered-cell">Optimal select connections per node</td><td class="centered-cell">8</td></tr>
+                        <tr><td class="centered-cell">Optimal select connections per node</td><td class="centered-cell">10</td></tr>
                         <tr><td class="centered-cell">Optimal insert connections per node</td><td class="centered-cell">12</td></tr>
                         <tr><td class="centered-cell">Estimated time taken for data import </td><td class="centered-cell">1 min</td></tr>
                         <tr><td class="centered-cell">Estimated time taken for data import (Excluding redundant indexes)</td><td class="centered-cell">1 min</td></tr>
                     </table>
                     <h3>Reasoning:</h3>
-                    <p class="spaced-words">Recommended instance type with 4 vCPU and 16 GiB memory could fit 6 objects (4 tables/materialized views and 2 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Rest 4 objects (1 tables/materialized views and 3 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec need to be migrated as range partitioned tables. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.</p>
+                    <p class="spaced-words">Recommended instance type with 4 vCPU and 16 GiB memory could fit 10 objects (5 tables/materialized views and 5 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as sharded. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.</p>
                 
             
         
