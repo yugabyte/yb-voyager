@@ -46,10 +46,10 @@ Prerequisites:
 		validatePrerequisites()
 	},
 
-	Run: comparePerformanceHandler,
+	Run: comparePerformanceCommandFn,
 }
 
-func comparePerformanceHandler(cmd *cobra.Command, args []string) {
+func comparePerformanceCommandFn(cmd *cobra.Command, args []string) {
 	utils.PrintAndLog("Starting performance comparison...")
 
 	err := collectTargetPgssData()
