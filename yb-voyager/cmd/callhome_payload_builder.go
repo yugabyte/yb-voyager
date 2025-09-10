@@ -334,8 +334,8 @@ func getAnonymizedDDLs(sourceDBConf *srcdb.Source) []string {
 
 const (
 	REDUNDANT_INDEX_CHANGE_TYPE                 = "redundant_index"
-	TABLE_COLOCATION_RECOMMENDATION_CHANGE_TYPE = "table_colocation_recommendation"
-	MVIEW_COLOCATION_RECOMMENDATION_CHANGE_TYPE = "mview_colocation_recommendation"
+	TABLE_COLOCATION_RECOMMENDATION_CHANGE_TYPE = "table_sharding_recommendation"
+	MVIEW_COLOCATION_RECOMMENDATION_CHANGE_TYPE = "mview_sharding_recommendation"
 	SECONDARY_INDEX_TO_RANGE_CHANGE_TYPE        = "secondary_index_to_range"
 )
 
