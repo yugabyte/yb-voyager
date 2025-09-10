@@ -271,15 +271,12 @@ func prepareRowWithDatafile(dataFile *datafile.FileEntry, state *ImportDataState
 	}
 	utils.PrintAndLog("dataFileNt: %v", dataFileNt)
 
-	isErrorPolicyUsed, err := isErrorPolicyUsed()
+	errorHandler, err := getErrorHandlerUsed()
 	if err != nil {
-		return nil, fmt.Errorf("check if error policy is used: %w", err)
+		return nil, fmt.Errorf("get error handler: %w", err)
 	}
-	if isErrorPolicyUsed {
-		errorHandler, err := getErrorHandlerUsed()
-		if err != nil {
-			return nil, fmt.Errorf("get error handler: %w", err)
-		}
+	if errorHandler != nil {
+		// if import-data/import-data-file was not run yet, errorHandler will be nil
 		processingErrorRowCount, processingErrorByteCount, err = errorHandler.GetProcessingErrorCountSize(dataFileNt, dataFile.FilePath)
 		if err != nil {
 			return nil, fmt.Errorf("get processing error count size: %w", err)
@@ -337,35 +334,20 @@ func getErrorHandlerUsed() (importdata.ImportDataErrorHandler, error) {
 	}
 }
 
-func isErrorPolicyUsed() (bool, error) {
-	switch importerRole {
-	case IMPORT_FILE_ROLE:
-		idfsr, err := metaDB.GetImportDataFileStatusRecord()
-		if err != nil {
-			return false, fmt.Errorf("error while getting import data file status record: %w", err)
-		}
-		if idfsr == nil {
-			return false, nil
-		}
-		return idfsr.ErrorPolicy != "", nil
-	case TARGET_DB_IMPORTER_ROLE:
-		idsr, err := metaDB.GetImportDataStatusRecord()
-		if err != nil {
-			return false, fmt.Errorf("error while getting import data status record: %w", err)
-		}
-		if idsr == nil {
-			return false, nil
-		}
-		return idsr.ErrorPolicySnapshot != "", nil
-	default:
-		return false, fmt.Errorf("unknown importer role: %s", importerRole)
-	}
-}
+/*
+retrieves the error policy used for import data from metaDB and
+returns the corresponding error handler.
 
+if import-data was not run yet, it will return nil
+*/
 func getImportDataErrorHandlerUsed() (importdata.ImportDataErrorHandler, error) {
 	errorPolicyUsedStr, err := metaDB.GetImportDataErrorPolicySnapshotUsed()
 	if err != nil {
 		return nil, fmt.Errorf("error while getting import data error policy snapshot used: %w", err)
+	}
+	if errorPolicyUsedStr == "" {
+		// it's possible import-data wasn't run yet.
+		return nil, nil
 	}
 	errorPolicyUsed, err := importdata.NewErrorPolicy(errorPolicyUsedStr)
 	if err != nil {
@@ -375,10 +357,20 @@ func getImportDataErrorHandlerUsed() (importdata.ImportDataErrorHandler, error) 
 	return importdata.GetImportDataErrorHandler(errorPolicyUsed, dataDir)
 }
 
+/*
+retrieves the error policy used for import data file from metaDB and
+returns the corresponding error handler.
+
+if import-data-file was not run yet, it will return nil
+*/
 func getImportDataFileErrorHandlerUsed() (importdata.ImportDataErrorHandler, error) {
 	errorPolicyUsedStr, err := metaDB.GetImportDataFileErrorPolicyUsed()
 	if err != nil {
 		return nil, fmt.Errorf("error while getting import data file error policy used: %w", err)
+	}
+	if errorPolicyUsedStr == "" {
+		// it's possible import-data-file wasn't run yet.
+		return nil, nil
 	}
 	errorPolicyUsed, err := importdata.NewErrorPolicy(errorPolicyUsedStr)
 	if err != nil {

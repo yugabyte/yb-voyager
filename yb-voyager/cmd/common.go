@@ -1145,14 +1145,6 @@ func getImportedSnapshotRowsMap(dbType string, tableList []sqlname.NameTuple, er
 		}
 	}
 
-	// if isTargetDBImporter(importerRole) && errorHandler == nil { // we only support stash and continue error policy for target db importer
-	// 	dataDir := filepath.Join(exportDir, "data")
-	// 	errorHandler, err = importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, dataDir)
-	// 	if err != nil {
-	// 		return nil, fmt.Errorf("get import data error handler: %w", err)
-	// 	}
-	// }
-
 	err = nameTupleTodataFilesMap.IterKV(func(nt sqlname.NameTuple, dataFilePaths []string) (bool, error) {
 		for _, dataFilePath := range dataFilePaths {
 			importedRowCount, err := state.GetImportedRowCount(dataFilePath, nt)
@@ -1168,6 +1160,7 @@ func getImportedSnapshotRowsMap(dbType string, tableList []sqlname.NameTuple, er
 			existingRowCountPair.Errored += erroredRowCount
 
 			if isTargetDBImporter(importerRole) && errorHandler != nil {
+				// error handler will be nil if import-data/import-data-file was not run yet
 				processingErrorRowCount, _, err := errorHandler.GetProcessingErrorCountSize(nt, dataFilePath)
 				if err != nil {
 					return false, fmt.Errorf("get processing error count size: %w", err)
