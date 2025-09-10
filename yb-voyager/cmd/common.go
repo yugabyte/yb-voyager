@@ -502,6 +502,14 @@ func initMetaDB(migrationExportDir string) *metadb.MetaDB {
 	if err != nil {
 		utils.ErrExit("could not init migration status record: %w", err)
 	}
+	err = metaDBInstance.InitImportDataStatusRecord()
+	if err != nil {
+		utils.ErrExit("could not init import data status record: %w", err)
+	}
+	err = metaDBInstance.InitImportDataFileStatusRecord()
+	if err != nil {
+		utils.ErrExit("could not init import data file status record: %w", err)
+	}
 
 	// TODO: initialising anonymizer should be a top-level function call, like in root.go
 	// but right now, initMetaDB is called from multiple places(from CreateMigrationProjectIfNotExists and root.go in some case)

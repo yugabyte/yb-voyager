@@ -584,6 +584,10 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 	if err != nil {
 		utils.ErrExit("Failed to initialize error handler: %s", err)
 	}
+	err = updateErrorPolicyInMetaDB(errorPolicy)
+	if err != nil {
+		utils.ErrExit("Failed to update error policy in meta DB: %s", err)
+	}
 
 	if importerRole == TARGET_DB_IMPORTER_ROLE {
 		importDataStartEvent := createSnapshotImportStartedEvent()
@@ -1694,6 +1698,28 @@ func cleanStoredErrors(errorHandler importdata.ImportDataErrorHandler, tasks []*
 
 func isTargetDBImporter(importerRole string) bool {
 	return importerRole == TARGET_DB_IMPORTER_ROLE || importerRole == IMPORT_FILE_ROLE
+}
+
+func updateErrorPolicyInMetaDB(errorPolicy importdata.ErrorPolicy) error {
+
+	switch importerRole {
+	case IMPORT_FILE_ROLE:
+		err := metaDB.UpdateImportDataFileStatusRecord(func(record *metadb.ImportDataFileStatusRecord) {
+			record.ErrorPolicy = errorPolicy.String()
+		})
+		if err != nil {
+			return fmt.Errorf("failed to update error policy in import data file status record: %w", err)
+		}
+	case TARGET_DB_IMPORTER_ROLE:
+		err := metaDB.UpdateImportDataStatusRecord(func(record *metadb.ImportDataStatusRecord) {
+			record.ErrorPolicySnapshot = errorPolicy.String()
+		})
+		if err != nil {
+			return fmt.Errorf("failed to update error policy in import data status record: %w", err)
+		}
+		// Not applicable for other roles
+	}
+	return nil
 }
 
 func BuildCallhomeYBClusterMetrics() (callhome.YBClusterMetrics, error) {
