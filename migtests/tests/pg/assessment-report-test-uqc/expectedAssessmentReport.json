@@ -1,350 +1,350 @@
 {
-  "VoyagerVersion": "IGNORED",
-  "TargetDBVersion": "IGNORED",
-  "MigrationComplexity": "LOW",
-  "MigrationComplexityExplanation": "Found 0 Level 1 issue(s) and 7 Level 2 issue(s), resulting in LOW migration complexity",
-  "SchemaSummary": {
-    "Description": "Objects that will be created on the target YugabyteDB.",
-    "DbName": "pg_assessment_report_uqc",
-    "SchemaNames": [
-      "sales",
-      "analytics"
+    "VoyagerVersion": "IGNORED",
+    "TargetDBVersion": "IGNORED",
+    "MigrationComplexity": "LOW",
+    "MigrationComplexityExplanation": "Found 0 Level 1 issue(s) and 7 Level 2 issue(s), resulting in LOW migration complexity",
+    "SchemaSummary": {
+        "Description": "Objects that will be created on the target YugabyteDB.",
+        "DbName": "pg_assessment_report_uqc",
+        "SchemaNames": [
+            "sales",
+            "analytics"
+        ],
+        "DbVersion": "14.13 (Ubuntu 14.13-1.pgdg20.04+1)",
+        "DatabaseObjects": [
+            {
+                "ObjectType": "SCHEMA",
+                "TotalCount": 2,
+                "InvalidCount": 0,
+                "ObjectNames": "analytics, sales"
+            },
+            {
+                "ObjectType": "EXTENSION",
+                "TotalCount": 1,
+                "InvalidCount": 0,
+                "ObjectNames": "pg_stat_statements"
+            },
+            {
+                "ObjectType": "TABLE",
+                "TotalCount": 8,
+                "InvalidCount": 1,
+                "ObjectNames": "sales.big_table, analytics.metrics, sales.orders, sales.test_json_chk, sales.events, sales.json_data, sales.customer_account, sales.recent_transactions"
+            },
+            {
+                "ObjectType": "SEQUENCE",
+                "TotalCount": 1,
+                "InvalidCount": 0,
+                "ObjectNames": "sales.recent_transactions_transaction_id_seq"
+            },
+            {
+                "ObjectType": "VIEW",
+                "TotalCount": 3,
+                "InvalidCount": 1,
+                "ObjectNames": "sales.employ_depart_view, sales.event_analysis_view, sales.event_analysis_view2"
+            },
+            {
+                "ObjectType": "FUNCTION",
+                "TotalCount": 1,
+                "InvalidCount": 0,
+                "ObjectNames": "sales.get_user_info"
+            }
+        ]
+    },
+    "Sizing": {
+        "SizingRecommendation": {
+            "ColocatedTables": null,
+            "ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 8 objects (8 tables/materialized views and 0 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as sharded. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
+            "ShardedTables": [
+                "sales.json_data",
+                "sales.big_table",
+                "sales.orders",
+                "sales.customer_account",
+                "sales.recent_transactions",
+                "sales.events",
+                "sales.test_json_chk",
+                "analytics.metrics"
+            ],
+            "NumNodes": 3,
+            "VCPUsPerInstance": 4,
+            "MemoryPerInstance": 16,
+            "OptimalSelectConnectionsPerNode": 10,
+            "OptimalInsertConnectionsPerNode": 12,
+            "EstimatedTimeInMinForImport": 1,
+            "EstimatedTimeInMinForImportWithoutRedundantIndexes": 1
+        },
+        "FailureReasoning": ""
+    },
+    "AssessmentIssues": [
+        {
+            "Category": "unsupported_features",
+            "CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
+            "Type": "ANY_VALUE_AGGREGATE_FUNCTION",
+            "Name": "ANY_VALUE() aggregate Function",
+            "Description": "any_value function are not supported yet in YugabyteDB.",
+            "Impact": "LEVEL_2",
+            "ObjectType": "VIEW",
+            "ObjectName": "sales.employ_depart_view",
+            "SqlStatement": "CREATE VIEW sales.employ_depart_view AS\n SELECT any_value(name) AS any_employee\n   FROM public.employees;",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+            "MinimumVersionsFixedIn": null
+        },
+        {
+            "Category": "unsupported_query_constructs",
+            "CategoryDescription": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
+            "Type": "DATABASE_OPTIONS_PG15",
+            "Name": "Database options",
+            "Description": "Database options (strategy) introduced in PostgreSQL 12 and later are not supported yet in YugabyteDB.",
+            "Impact": "LEVEL_2",
+            "ObjectType": "",
+            "ObjectName": "",
+            "SqlStatement": "CREATE DATABASE strategy_example\n    WITH STRATEGY = 'wal_log'",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+            "MinimumVersionsFixedIn": null
+        },
+        {
+            "Category": "unsupported_features",
+            "CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
+            "Type": "JSON_TYPE_PREDICATE",
+            "Name": "Json Type Predicate",
+            "Description": "IS JSON predicate expressions are not yet supported in YugabyteDB.",
+            "Impact": "LEVEL_2",
+            "ObjectType": "TABLE",
+            "ObjectName": "sales.json_data",
+            "SqlStatement": "CREATE TABLE sales.json_data (\n    id integer NOT NULL,\n    array_column text,\n    unique_keys_column text,\n    CONSTRAINT json_data_array_column_check CHECK ((array_column IS JSON ARRAY)),\n    CONSTRAINT json_data_unique_keys_column_check CHECK ((unique_keys_column IS JSON WITH UNIQUE KEYS))\n);",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+            "MinimumVersionsFixedIn": null
+        },
+        {
+            "Category": "unsupported_query_constructs",
+            "CategoryDescription": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
+            "Type": "JSON_TYPE_PREDICATE",
+            "Name": "Json Type Predicate",
+            "Description": "IS JSON predicate expressions are not yet supported in YugabyteDB.",
+            "Impact": "LEVEL_2",
+            "ObjectType": "",
+            "ObjectName": "",
+            "SqlStatement": "SELECT * \nFROM sales.json_data\nWHERE array_column IS JSON ARRAY",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+            "MinimumVersionsFixedIn": null
+        },
+        {
+            "Category": "unsupported_query_constructs",
+            "CategoryDescription": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
+            "Type": "MERGE_STATEMENT",
+            "Name": "Merge Statement",
+            "Description": "MERGE statement is not yet supported in YugabyteDB.",
+            "Impact": "LEVEL_2",
+            "ObjectType": "",
+            "ObjectName": "",
+            "SqlStatement": "MERGE INTO sales.customer_account ca\nUSING sales.recent_transactions t      \nON t.customer_id = ca.customer_id\nWHEN MATCHED THEN\n  UPDATE SET balance = balance + transaction_value\nWHEN NOT MATCHED THEN\n  INSERT (customer_id, balance)\n  VALUES (t.customer_id, t.transaction_value)",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#merge-command",
+            "MinimumVersionsFixedIn": null
+        },
+        {
+            "Category": "unsupported_query_constructs",
+            "CategoryDescription": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
+            "Type": "ANY_VALUE_AGGREGATE_FUNCTION",
+            "Name": "ANY_VALUE() aggregate Function",
+            "Description": "any_value function are not supported yet in YugabyteDB.",
+            "Impact": "LEVEL_2",
+            "ObjectType": "",
+            "ObjectName": "",
+            "SqlStatement": "SELECT\n        any_value(name) AS any_employee\n    FROM employees",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+            "MinimumVersionsFixedIn": null
+        },
+        {
+            "Category": "unsupported_query_constructs",
+            "CategoryDescription": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
+            "Type": "LISTEN_NOTIFY",
+            "Name": "Events Listen / Notify",
+            "Description": "LISTEN / NOTIFY is not supported yet in YugabyteDB.",
+            "Impact": "LEVEL_2",
+            "ObjectType": "",
+            "ObjectName": "",
+            "SqlStatement": "LISTEN my_table_changes",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#events-listen-notify",
+            "MinimumVersionsFixedIn": null
+        }
     ],
-    "DbVersion": "14.13 (Ubuntu 14.13-1.pgdg20.04+1)",
-    "DatabaseObjects": [
-      {
-        "ObjectType": "SCHEMA",
-        "TotalCount": 2,
-        "InvalidCount": 0,
-        "ObjectNames": "analytics, sales"
-      },
-      {
-        "ObjectType": "EXTENSION",
-        "TotalCount": 1,
-        "InvalidCount": 0,
-        "ObjectNames": "pg_stat_statements"
-      },
-      {
-        "ObjectType": "TABLE",
-        "TotalCount": 8,
-        "InvalidCount": 1,
-        "ObjectNames": "sales.big_table, analytics.metrics, sales.orders, sales.test_json_chk, sales.events, sales.json_data, sales.customer_account, sales.recent_transactions"
-      },
-      {
-        "ObjectType": "SEQUENCE",
-        "TotalCount": 1,
-        "InvalidCount": 0,
-        "ObjectNames": "sales.recent_transactions_transaction_id_seq"
-      },
-      {
-        "ObjectType": "VIEW",
-        "TotalCount": 3,
-        "InvalidCount": 1,
-        "ObjectNames": "sales.employ_depart_view, sales.event_analysis_view, sales.event_analysis_view2"
-      },
-      {
-        "ObjectType": "FUNCTION",
-        "TotalCount": 1,
-        "InvalidCount": 0,
-        "ObjectNames": "sales.get_user_info"
-      }
+    "TableIndexStats": [
+        {
+            "SchemaName": "sales",
+            "ObjectName": "customer_account",
+            "RowCount": 4,
+            "ColumnCount": 2,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": false,
+            "ObjectType": "table",
+            "ParentTableName": null,
+            "SizeInBytes": 8192
+        },
+        {
+            "SchemaName": "sales",
+            "ObjectName": "big_table",
+            "RowCount": 0,
+            "ColumnCount": 4,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": false,
+            "ObjectType": "table",
+            "ParentTableName": null,
+            "SizeInBytes": 0
+        },
+        {
+            "SchemaName": "sales",
+            "ObjectName": "recent_transactions",
+            "RowCount": 3,
+            "ColumnCount": 3,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": false,
+            "ObjectType": "table",
+            "ParentTableName": null,
+            "SizeInBytes": 8192
+        },
+        {
+            "SchemaName": "sales",
+            "ObjectName": "test_json_chk",
+            "RowCount": 2,
+            "ColumnCount": 5,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": false,
+            "ObjectType": "table",
+            "ParentTableName": null,
+            "SizeInBytes": 8192
+        },
+        {
+            "SchemaName": "sales",
+            "ObjectName": "orders",
+            "RowCount": 2,
+            "ColumnCount": 3,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": false,
+            "ObjectType": "table",
+            "ParentTableName": null,
+            "SizeInBytes": 8192
+        },
+        {
+            "SchemaName": "sales",
+            "ObjectName": "events",
+            "RowCount": 3,
+            "ColumnCount": 2,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": false,
+            "ObjectType": "table",
+            "ParentTableName": null,
+            "SizeInBytes": 8192
+        },
+        {
+            "SchemaName": "sales",
+            "ObjectName": "json_data",
+            "RowCount": 0,
+            "ColumnCount": 3,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": false,
+            "ObjectType": "table",
+            "ParentTableName": null,
+            "SizeInBytes": 0
+        },
+        {
+            "SchemaName": "analytics",
+            "ObjectName": "metrics",
+            "RowCount": 2,
+            "ColumnCount": 3,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": false,
+            "ObjectType": "table",
+            "ParentTableName": null,
+            "SizeInBytes": 8192
+        },
+        {
+            "SchemaName": "sales",
+            "ObjectName": "orders_pkey",
+            "RowCount": null,
+            "ColumnCount": 1,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "primary key",
+            "ParentTableName": "sales.orders",
+            "SizeInBytes": 16384
+        },
+        {
+            "SchemaName": "analytics",
+            "ObjectName": "metrics_pkey",
+            "RowCount": null,
+            "ColumnCount": 1,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "primary key",
+            "ParentTableName": "analytics.metrics",
+            "SizeInBytes": 16384
+        },
+        {
+            "SchemaName": "sales",
+            "ObjectName": "customer_account_pkey",
+            "RowCount": null,
+            "ColumnCount": 1,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "primary key",
+            "ParentTableName": "sales.customer_account",
+            "SizeInBytes": 16384
+        },
+        {
+            "SchemaName": "sales",
+            "ObjectName": "recent_transactions_pkey",
+            "RowCount": null,
+            "ColumnCount": 1,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "primary key",
+            "ParentTableName": "sales.recent_transactions",
+            "SizeInBytes": 16384
+        },
+        {
+            "SchemaName": "sales",
+            "ObjectName": "events_pkey",
+            "RowCount": null,
+            "ColumnCount": 1,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "primary key",
+            "ParentTableName": "sales.events",
+            "SizeInBytes": 16384
+        },
+        {
+            "SchemaName": "sales",
+            "ObjectName": "json_data_pkey",
+            "RowCount": null,
+            "ColumnCount": 1,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "primary key",
+            "ParentTableName": "sales.json_data",
+            "SizeInBytes": 8192
+        }
+    ],
+    "Notes": [
+        {
+            "Type": "GeneralNotes",
+            "Text": "Some features listed in this report may be supported under a preview flag in the specified target-db-version of YugabyteDB. Please refer to the official release notes (https://docs.yugabyte.com/preview/releases/ybdb-releases/) for detailed information and usage guidelines."
+        },
+        {
+            "Type": "GeneralNotes",
+            "Text": "Limitations in assessment (https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/#assessment-and-schema-analysis-limitations)"
+        }
     ]
-  },
-  "Sizing": {
-    "SizingRecommendation": {
-      "ColocatedTables": null,
-      "ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 8 objects (8 tables/materialized views and 0 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as sharded. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
-      "ShardedTables": [
-        "sales.json_data",
-        "sales.big_table",
-        "sales.orders",
-        "sales.customer_account",
-        "sales.recent_transactions",
-        "sales.events",
-        "sales.test_json_chk",
-        "analytics.metrics"
-      ],
-      "NumNodes": 3,
-      "VCPUsPerInstance": 4,
-      "MemoryPerInstance": 16,
-      "OptimalSelectConnectionsPerNode": 10,
-      "OptimalInsertConnectionsPerNode": 12,
-      "EstimatedTimeInMinForImport": 1,
-      "EstimatedTimeInMinForImportWithoutRedundantIndexes": 1
-    },
-    "FailureReasoning": ""
-  },
-  "AssessmentIssues": [
-    {
-      "Category": "unsupported_features",
-      "CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
-      "Type": "ANY_VALUE_AGGREGATE_FUNCTION",
-      "Name": "ANY_VALUE() aggregate Function",
-      "Description": "any_value function are not supported yet in YugabyteDB.",
-      "Impact": "LEVEL_2",
-      "ObjectType": "VIEW",
-      "ObjectName": "sales.employ_depart_view",
-      "SqlStatement": "CREATE VIEW sales.employ_depart_view AS\n SELECT any_value(name) AS any_employee\n   FROM public.employees;",
-      "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-      "MinimumVersionsFixedIn": null
-    },
-    {
-      "Category": "unsupported_query_constructs",
-      "CategoryDescription": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
-      "Type": "DATABASE_OPTIONS_PG15",
-      "Name": "Database options",
-      "Description": "Database options (strategy) introduced in PostgreSQL 12 and later are not supported yet in YugabyteDB.",
-      "Impact": "LEVEL_2",
-      "ObjectType": "",
-      "ObjectName": "",
-      "SqlStatement": "CREATE DATABASE strategy_example\n    WITH STRATEGY = 'wal_log'",
-      "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-      "MinimumVersionsFixedIn": null
-    },
-    {
-      "Category": "unsupported_features",
-      "CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
-      "Type": "JSON_TYPE_PREDICATE",
-      "Name": "Json Type Predicate",
-      "Description": "IS JSON predicate expressions are not yet supported in YugabyteDB.",
-      "Impact": "LEVEL_2",
-      "ObjectType": "TABLE",
-      "ObjectName": "sales.json_data",
-      "SqlStatement": "CREATE TABLE sales.json_data (\n    id integer NOT NULL,\n    array_column text,\n    unique_keys_column text,\n    CONSTRAINT json_data_array_column_check CHECK ((array_column IS JSON ARRAY)),\n    CONSTRAINT json_data_unique_keys_column_check CHECK ((unique_keys_column IS JSON WITH UNIQUE KEYS))\n);",
-      "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-      "MinimumVersionsFixedIn": null
-    },
-    {
-      "Category": "unsupported_query_constructs",
-      "CategoryDescription": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
-      "Type": "JSON_TYPE_PREDICATE",
-      "Name": "Json Type Predicate",
-      "Description": "IS JSON predicate expressions are not yet supported in YugabyteDB.",
-      "Impact": "LEVEL_2",
-      "ObjectType": "",
-      "ObjectName": "",
-      "SqlStatement": "SELECT * \nFROM sales.json_data\nWHERE array_column IS JSON ARRAY",
-      "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-      "MinimumVersionsFixedIn": null
-    },
-    {
-      "Category": "unsupported_query_constructs",
-      "CategoryDescription": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
-      "Type": "MERGE_STATEMENT",
-      "Name": "Merge Statement",
-      "Description": "MERGE statement is not yet supported in YugabyteDB.",
-      "Impact": "LEVEL_2",
-      "ObjectType": "",
-      "ObjectName": "",
-      "SqlStatement": "MERGE INTO sales.customer_account ca\nUSING sales.recent_transactions t      \nON t.customer_id = ca.customer_id\nWHEN MATCHED THEN\n  UPDATE SET balance = balance + transaction_value\nWHEN NOT MATCHED THEN\n  INSERT (customer_id, balance)\n  VALUES (t.customer_id, t.transaction_value)",
-      "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#merge-command",
-      "MinimumVersionsFixedIn": null
-    },
-    {
-      "Category": "unsupported_query_constructs",
-      "CategoryDescription": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
-      "Type": "ANY_VALUE_AGGREGATE_FUNCTION",
-      "Name": "ANY_VALUE() aggregate Function",
-      "Description": "any_value function are not supported yet in YugabyteDB.",
-      "Impact": "LEVEL_2",
-      "ObjectType": "",
-      "ObjectName": "",
-      "SqlStatement": "SELECT\n        any_value(name) AS any_employee\n    FROM employees",
-      "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-      "MinimumVersionsFixedIn": null
-    },
-    {
-      "Category": "unsupported_query_constructs",
-      "CategoryDescription": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
-      "Type": "LISTEN_NOTIFY",
-      "Name": "Events Listen / Notify",
-      "Description": "LISTEN / NOTIFY is not supported yet in YugabyteDB.",
-      "Impact": "LEVEL_2",
-      "ObjectType": "",
-      "ObjectName": "",
-      "SqlStatement": "LISTEN my_table_changes",
-      "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#events-listen-notify",
-      "MinimumVersionsFixedIn": null
-    }
-  ],
-  "TableIndexStats": [
-    {
-      "SchemaName": "sales",
-      "ObjectName": "customer_account",
-      "RowCount": 4,
-      "ColumnCount": 2,
-      "ReadsPerSecond": 0,
-      "WritesPerSecond": 0,
-      "IsIndex": false,
-      "ObjectType": "table",
-      "ParentTableName": null,
-      "SizeInBytes": 8192
-    },
-    {
-      "SchemaName": "sales",
-      "ObjectName": "big_table",
-      "RowCount": 0,
-      "ColumnCount": 4,
-      "ReadsPerSecond": 0,
-      "WritesPerSecond": 0,
-      "IsIndex": false,
-      "ObjectType": "table",
-      "ParentTableName": null,
-      "SizeInBytes": 0
-    },
-    {
-      "SchemaName": "sales",
-      "ObjectName": "recent_transactions",
-      "RowCount": 3,
-      "ColumnCount": 3,
-      "ReadsPerSecond": 0,
-      "WritesPerSecond": 0,
-      "IsIndex": false,
-      "ObjectType": "table",
-      "ParentTableName": null,
-      "SizeInBytes": 8192
-    },
-    {
-      "SchemaName": "sales",
-      "ObjectName": "test_json_chk",
-      "RowCount": 2,
-      "ColumnCount": 5,
-      "ReadsPerSecond": 0,
-      "WritesPerSecond": 0,
-      "IsIndex": false,
-      "ObjectType": "table",
-      "ParentTableName": null,
-      "SizeInBytes": 8192
-    },
-    {
-      "SchemaName": "sales",
-      "ObjectName": "orders",
-      "RowCount": 2,
-      "ColumnCount": 3,
-      "ReadsPerSecond": 0,
-      "WritesPerSecond": 0,
-      "IsIndex": false,
-      "ObjectType": "table",
-      "ParentTableName": null,
-      "SizeInBytes": 8192
-    },
-    {
-      "SchemaName": "sales",
-      "ObjectName": "events",
-      "RowCount": 3,
-      "ColumnCount": 2,
-      "ReadsPerSecond": 0,
-      "WritesPerSecond": 0,
-      "IsIndex": false,
-      "ObjectType": "table",
-      "ParentTableName": null,
-      "SizeInBytes": 8192
-    },
-    {
-      "SchemaName": "sales",
-      "ObjectName": "json_data",
-      "RowCount": 0,
-      "ColumnCount": 3,
-      "ReadsPerSecond": 0,
-      "WritesPerSecond": 0,
-      "IsIndex": false,
-      "ObjectType": "table",
-      "ParentTableName": null,
-      "SizeInBytes": 0
-    },
-    {
-      "SchemaName": "analytics",
-      "ObjectName": "metrics",
-      "RowCount": 2,
-      "ColumnCount": 3,
-      "ReadsPerSecond": 0,
-      "WritesPerSecond": 0,
-      "IsIndex": false,
-      "ObjectType": "table",
-      "ParentTableName": null,
-      "SizeInBytes": 8192
-    },
-    {
-      "SchemaName": "sales",
-      "ObjectName": "orders_pkey",
-      "RowCount": null,
-      "ColumnCount": 1,
-      "ReadsPerSecond": 0,
-      "WritesPerSecond": 0,
-      "IsIndex": true,
-      "ObjectType": "primary key",
-      "ParentTableName": "sales.orders",
-      "SizeInBytes": 16384
-    },
-    {
-      "SchemaName": "analytics",
-      "ObjectName": "metrics_pkey",
-      "RowCount": null,
-      "ColumnCount": 1,
-      "ReadsPerSecond": 0,
-      "WritesPerSecond": 0,
-      "IsIndex": true,
-      "ObjectType": "primary key",
-      "ParentTableName": "analytics.metrics",
-      "SizeInBytes": 16384
-    },
-    {
-      "SchemaName": "sales",
-      "ObjectName": "customer_account_pkey",
-      "RowCount": null,
-      "ColumnCount": 1,
-      "ReadsPerSecond": 0,
-      "WritesPerSecond": 0,
-      "IsIndex": true,
-      "ObjectType": "primary key",
-      "ParentTableName": "sales.customer_account",
-      "SizeInBytes": 16384
-    },
-    {
-      "SchemaName": "sales",
-      "ObjectName": "recent_transactions_pkey",
-      "RowCount": null,
-      "ColumnCount": 1,
-      "ReadsPerSecond": 0,
-      "WritesPerSecond": 0,
-      "IsIndex": true,
-      "ObjectType": "primary key",
-      "ParentTableName": "sales.recent_transactions",
-      "SizeInBytes": 16384
-    },
-    {
-      "SchemaName": "sales",
-      "ObjectName": "events_pkey",
-      "RowCount": null,
-      "ColumnCount": 1,
-      "ReadsPerSecond": 0,
-      "WritesPerSecond": 0,
-      "IsIndex": true,
-      "ObjectType": "primary key",
-      "ParentTableName": "sales.events",
-      "SizeInBytes": 16384
-    },
-    {
-      "SchemaName": "sales",
-      "ObjectName": "json_data_pkey",
-      "RowCount": null,
-      "ColumnCount": 1,
-      "ReadsPerSecond": 0,
-      "WritesPerSecond": 0,
-      "IsIndex": true,
-      "ObjectType": "primary key",
-      "ParentTableName": "sales.json_data",
-      "SizeInBytes": 8192
-    }
-  ],
-  "Notes": [
-    {
-      "Type": "GeneralNotes",
-      "Text": "Some features listed in this report may be supported under a preview flag in the specified target-db-version of YugabyteDB. Please refer to the official release notes (https://docs.yugabyte.com/preview/releases/ybdb-releases/) for detailed information and usage guidelines."
-    },
-    {
-      "Type": "GeneralNotes",
-      "Text": "Limitations in assessment (https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/#assessment-and-schema-analysis-limitations)"
-    }
-  ]
 }
