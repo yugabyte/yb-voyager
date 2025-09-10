@@ -63,17 +63,28 @@ UPDATE hstore_example
 SET data = '"{\"key1=value1, key2=value2\"}"=>"{\"key1=value1, key2={\"key1=value1, key2=value2\"}\"}"'
 WHERE id = 7;
 
+-- Insert new row, then update it later (intra-file dependency)
 INSERT INTO hstore_example (data) 
-VALUES 
-    ('key5 => value5, key6 => value6');
+VALUES ('k1=>v1');
+
+-- Insert new row, then delete it later (intra-file dependency)
+INSERT INTO hstore_example (data) 
+VALUES ('temp_key=>temp_val');
+
+-- More inserts for corner cases
+INSERT INTO hstore_example (data) 
+VALUES ('key5 => value5, key6 => value6');
 
 INSERT INTO hstore_example (data) 
-VALUES 
-    (hstore('{"key1=value1, key2=value2"}', '{"key1=value1, key2={"key1=value1, key2=value2"}"}'));
+VALUES (hstore('{"key1=value1, key2=value2"}', '{"key1=value1, key2={"key1=value1, key2=value2"}"}'));
 
 INSERT INTO hstore_example (data) 
-VALUES 
-    ('');
+VALUES ('');
+
+INSERT INTO hstore_example (data) 
+VALUES (
+    'multi_key1=>"val1", "multi key 2"=>"value with spaces", "escaped\"quote"=>"line1\nline2", "unicode_αβ"=>"Ωmega"'
+);
 
 UPDATE hstore_example 
 SET data = NULL
@@ -82,3 +93,18 @@ WHERE id = 5;
 UPDATE hstore_example 
 SET data = ''
 WHERE id = 6;
+
+-- Intra-file update on inserted row (chained updates)
+UPDATE hstore_example 
+SET data = data || 'k2=>v2'
+WHERE data @> 'k1=>v1';
+
+UPDATE hstore_example 
+SET data = data || 'k3=>v3'
+WHERE data @> 'k1=>v1';
+
+DELETE FROM hstore_example WHERE data @> 'temp_key=>temp_val';
+DELETE FROM hstore_example WHERE id = 2;
+DELETE FROM hstore_example WHERE id = 4;
+DELETE FROM hstore_example WHERE id = 8;
+DELETE FROM hstore_example WHERE id = 9;

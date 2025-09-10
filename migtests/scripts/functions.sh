@@ -1450,3 +1450,19 @@ generate_voyager_config() {
 	fi
 }
 
+# Function to execute logical replication connector specific DMLs
+execute_logical_replication_target_delta() {
+	if [ "${USE_YB_LOGICAL_REPLICATION_CONNECTOR}" != true ]; then
+		echo "Skipping logical replication specific DMLs (gRPC connector)"
+		return 0
+	fi
+	
+	if [ ! -f "${TEST_DIR}/target_delta_logical_connector.sql" ]; then
+		echo "Warning: target_delta_logical_connector.sql not found, skipping logical replication DMLs"
+		return 0
+	fi
+	
+	echo "Running logical replication specific target DMLs..."
+	ysql_import_file ${TARGET_DB_NAME} target_delta_logical_connector.sql
+}
+
