@@ -31,3 +31,14 @@ func (m *MetaDB) InitImportDataFileStatusRecord() error {
 		// nothing to initialize
 	})
 }
+
+func (m *MetaDB) GetImportDataFileErrorPolicyUsed() (string, error) {
+	idfsr, err := m.GetImportDataFileStatusRecord()
+	if err != nil {
+		return "", fmt.Errorf("error while getting import data file status record from meta db: %w", err)
+	}
+	if idfsr == nil {
+		return "", fmt.Errorf("import data file status record not found")
+	}
+	return idfsr.ErrorPolicy, nil
+}

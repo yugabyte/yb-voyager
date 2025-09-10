@@ -258,7 +258,7 @@ func prepareImportDataStatusTable() ([]*tableMigStatusOutputRow, error) {
 }
 
 func prepareRowWithDatafile(dataFile *datafile.FileEntry, state *ImportDataState) (*tableMigStatusOutputRow, error) {
-	var totalCount, importedCount, erroredCount int64
+	var totalCount, importedCount, erroredCount, processingErrorRowCount, processingErrorByteCount int64
 	var err error
 	var perc float64
 	var status string
@@ -269,14 +269,19 @@ func prepareRowWithDatafile(dataFile *datafile.FileEntry, state *ImportDataState
 	}
 	utils.PrintAndLog("dataFileNt: %v", dataFileNt)
 
-	dataDir := filepath.Join(exportDir, "data")
-	errorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, dataDir)
+	isErrorPolicyUsed, err := isErrorPolicyUsed()
 	if err != nil {
-		return nil, fmt.Errorf("get import data error handler: %w", err)
+		return nil, fmt.Errorf("check if error policy is used: %w", err)
 	}
-	processingErrorRowCount, processingErrorByteCount, err := errorHandler.GetProcessingErrorCountSize(dataFileNt, dataFile.FilePath)
-	if err != nil {
-		return nil, fmt.Errorf("get processing error count size: %w", err)
+	if isErrorPolicyUsed {
+		errorHandler, err := getErrorHandlerUsed()
+		if err != nil {
+			return nil, fmt.Errorf("get error handler: %w", err)
+		}
+		processingErrorRowCount, processingErrorByteCount, err = errorHandler.GetProcessingErrorCountSize(dataFileNt, dataFile.FilePath)
+		if err != nil {
+			return nil, fmt.Errorf("get processing error count size: %w", err)
+		}
 	}
 
 	if reportProgressInBytes {
@@ -317,4 +322,66 @@ func prepareRowWithDatafile(dataFile *datafile.FileEntry, state *ImportDataState
 		PercentageComplete: perc,
 	}
 	return row, nil
+}
+
+func getErrorHandlerUsed() (importdata.ImportDataErrorHandler, error) {
+	switch importerRole {
+	case IMPORT_FILE_ROLE:
+		return getImportDataFileErrorHandlerUsed()
+	case TARGET_DB_IMPORTER_ROLE:
+		return getImportDataErrorHandlerUsed()
+	default:
+		return nil, fmt.Errorf("unknown importer role: %s", importerRole)
+	}
+}
+
+func isErrorPolicyUsed() (bool, error) {
+	switch importerRole {
+	case IMPORT_FILE_ROLE:
+		idfsr, err := metaDB.GetImportDataFileStatusRecord()
+		if err != nil {
+			return false, fmt.Errorf("error while getting import data file status record: %w", err)
+		}
+		if idfsr == nil {
+			return false, nil
+		}
+		return idfsr.ErrorPolicy != "", nil
+	case TARGET_DB_IMPORTER_ROLE:
+		idsr, err := metaDB.GetImportDataStatusRecord()
+		if err != nil {
+			return false, fmt.Errorf("error while getting import data status record: %w", err)
+		}
+		if idsr == nil {
+			return false, nil
+		}
+		return idsr.ErrorPolicySnapshot != "", nil
+	default:
+		return false, fmt.Errorf("unknown importer role: %s", importerRole)
+	}
+}
+
+func getImportDataErrorHandlerUsed() (importdata.ImportDataErrorHandler, error) {
+	errorPolicyUsedStr, err := metaDB.GetImportDataErrorPolicySnapshotUsed()
+	if err != nil {
+		return nil, fmt.Errorf("error while getting import data error policy snapshot used: %w", err)
+	}
+	errorPolicyUsed, err := importdata.NewErrorPolicy(errorPolicyUsedStr)
+	if err != nil {
+		return nil, fmt.Errorf("error while initializing error policy: %w", err)
+	}
+	dataDir := filepath.Join(exportDir, "data")
+	return importdata.GetImportDataErrorHandler(errorPolicyUsed, dataDir)
+}
+
+func getImportDataFileErrorHandlerUsed() (importdata.ImportDataErrorHandler, error) {
+	errorPolicyUsedStr, err := metaDB.GetImportDataFileErrorPolicyUsed()
+	if err != nil {
+		return nil, fmt.Errorf("error while getting import data file error policy used: %w", err)
+	}
+	errorPolicyUsed, err := importdata.NewErrorPolicy(errorPolicyUsedStr)
+	if err != nil {
+		return nil, fmt.Errorf("error while initializing error policy: %w", err)
+	}
+	dataDir := filepath.Join(exportDir, "data")
+	return importdata.GetImportDataErrorHandler(errorPolicyUsed, dataDir)
 }

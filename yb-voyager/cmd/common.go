@@ -392,7 +392,7 @@ func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFile
 		dbType = "target"
 	}
 
-	snapshotRowCount, err := getImportedSnapshotRowsMap(dbType)
+	snapshotRowCount, err := getImportedSnapshotRowsMap(dbType, errorHandler)
 	if err != nil {
 		utils.ErrExit("failed to get imported snapshot rows map: %v", err)
 	}
@@ -1070,8 +1070,8 @@ func getExportedSnapshotRowsMap(exportSnapshotStatus *ExportSnapshotStatus) (*ut
 	return snapshotRowsMap, snapshotStatusMap, nil
 }
 
-func getImportedSnapshotRowsMap(dbType string) (*utils.StructMap[sqlname.NameTuple, RowCountPair], error) {
-	var errorHandler importdata.ImportDataErrorHandler
+func getImportedSnapshotRowsMap(dbType string, errorHandler importdata.ImportDataErrorHandler) (*utils.StructMap[sqlname.NameTuple, RowCountPair], error) {
+	// var errorHandler importdata.ImportDataErrorHandler
 	var err error
 
 	switch dbType {
@@ -1114,13 +1114,13 @@ func getImportedSnapshotRowsMap(dbType string) (*utils.StructMap[sqlname.NameTup
 		}
 	}
 
-	if isTargetDBImporter(importerRole) { // we only support stash and continue error policy for target db importer
-		dataDir := filepath.Join(exportDir, "data")
-		errorHandler, err = importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, dataDir)
-		if err != nil {
-			return nil, fmt.Errorf("get import data error handler: %w", err)
-		}
-	}
+	// if isTargetDBImporter(importerRole) && errorHandler == nil { // we only support stash and continue error policy for target db importer
+	// 	dataDir := filepath.Join(exportDir, "data")
+	// 	errorHandler, err = importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, dataDir)
+	// 	if err != nil {
+	// 		return nil, fmt.Errorf("get import data error handler: %w", err)
+	// 	}
+	// }
 
 	err = nameTupleTodataFilesMap.IterKV(func(nt sqlname.NameTuple, dataFilePaths []string) (bool, error) {
 		for _, dataFilePath := range dataFilePaths {
@@ -1136,7 +1136,7 @@ func getImportedSnapshotRowsMap(dbType string) (*utils.StructMap[sqlname.NameTup
 			existingRowCountPair.Imported += importedRowCount
 			existingRowCountPair.Errored += erroredRowCount
 
-			if isTargetDBImporter(importerRole) { // we only support stash and continue error policy for target db importer
+			if isTargetDBImporter(importerRole) && errorHandler != nil {
 				processingErrorRowCount, _, err := errorHandler.GetProcessingErrorCountSize(nt, dataFilePath)
 				if err != nil {
 					return false, fmt.Errorf("get processing error count size: %w", err)
