@@ -1197,7 +1197,13 @@ func TestExportAndImportDataSnapshotReport(t *testing.T) {
 	}
 	err = InitNameRegistry(exportDir, TARGET_DB_IMPORTER_ROLE, nil, nil, &testYugabyteDBTarget.Tconf, yb, false)
 	testutils.FatalIfError(t, err, "Failed to initialize name registry")
-	snapshotRowsMap, err := getImportedSnapshotRowsMap("target")
+
+	metaDB = initMetaDB(exportDir)
+	errorHandler, err := getImportDataErrorHandlerUsed()
+	if err != nil {
+		t.Fatalf("Failed to get import data error handler: %v", err)
+	}
+	snapshotRowsMap, err := getImportedSnapshotRowsMap("target", errorHandler)
 	if err != nil {
 		t.Fatalf("Failed to get imported snapshot rows map: %v", err)
 	}
@@ -1310,7 +1316,13 @@ func TestExportAndImportDataSnapshotReport_ErrorPolicyStashAndContinue_BatchInge
 	}
 	err = InitNameRegistry(exportDir, TARGET_DB_IMPORTER_ROLE, nil, nil, &testYugabyteDBTarget.Tconf, yb, false)
 	testutils.FatalIfError(t, err, "Failed to initialize name registry")
-	snapshotRowsMap, err := getImportedSnapshotRowsMap("target")
+
+	metaDB = initMetaDB(exportDir)
+	errorHandler, err := getImportDataErrorHandlerUsed()
+	if err != nil {
+		t.Fatalf("Failed to get import data error handler: %v", err)
+	}
+	snapshotRowsMap, err := getImportedSnapshotRowsMap("target", errorHandler)
 	if err != nil {
 		t.Fatalf("Failed to get imported snapshot rows map: %v", err)
 	}
@@ -1445,7 +1457,12 @@ func TestExportAndImportDataSnapshotReport_ErrorPolicyStashAndContinue_Processin
 	}
 	err = InitNameRegistry(exportDir, TARGET_DB_IMPORTER_ROLE, nil, nil, &testYugabyteDBTarget.Tconf, yb, false)
 	testutils.FatalIfError(t, err, "Failed to initialize name registry")
-	snapshotRowsMap, err := getImportedSnapshotRowsMap("target")
+	metaDB = initMetaDB(exportDir)
+	errorHandler, err := getImportDataErrorHandlerUsed()
+	if err != nil {
+		t.Fatalf("Failed to get import data error handler: %v", err)
+	}
+	snapshotRowsMap, err := getImportedSnapshotRowsMap("target", errorHandler)
 	if err != nil {
 		t.Fatalf("Failed to get imported snapshot rows map: %v", err)
 	}

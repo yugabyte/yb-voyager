@@ -98,7 +98,12 @@ func TestImportDataFileReport(t *testing.T) {
 		dataFileDescriptor = nil
 	}()
 	testutils.FatalIfError(t, err, "Failed to prepare dummy descriptor")
-	snapshotRowsMap, err := getImportedSnapshotRowsMap("target-file")
+	metaDB = initMetaDB(exportDir)
+	errorHandler, err := getImportDataFileErrorHandlerUsed()
+	if err != nil {
+		t.Fatalf("Failed to get import data error handler: %v", err)
+	}
+	snapshotRowsMap, err := getImportedSnapshotRowsMap("target-file", errorHandler)
 	if err != nil {
 		t.Fatalf("Failed to get imported snapshot rows map: %v", err)
 	}
@@ -217,7 +222,12 @@ func TestImportDataFileReport_ErrorPolicyStashAndContinue_BatchIngestionError(t 
 	}()
 	testutils.FatalIfError(t, err, "Failed to prepare dummy descriptor")
 
-	snapshotRowsMap, err := getImportedSnapshotRowsMap("target-file")
+	metaDB = initMetaDB(exportDir)
+	errorHandler, err := getImportDataFileErrorHandlerUsed()
+	if err != nil {
+		t.Fatalf("Failed to get import data error handler: %v", err)
+	}
+	snapshotRowsMap, err := getImportedSnapshotRowsMap("target-file", errorHandler)
 	if err != nil {
 		t.Fatalf("Failed to get imported snapshot rows map: %v", err)
 	}
@@ -361,7 +371,12 @@ func TestImportDataFileReport_ErrorPolicyStashAndContinue_ProcessingError(t *tes
 	}()
 	testutils.FatalIfError(t, err, "Failed to prepare dummy descriptor")
 
-	snapshotRowsMap, err := getImportedSnapshotRowsMap("target-file")
+	metaDB = initMetaDB(exportDir)
+	errorHandler, err := getImportDataFileErrorHandlerUsed()
+	if err != nil {
+		t.Fatalf("Failed to get import data error handler: %v", err)
+	}
+	snapshotRowsMap, err := getImportedSnapshotRowsMap("target-file", errorHandler)
 	if err != nil {
 		t.Fatalf("Failed to get imported snapshot rows map: %v", err)
 	}
@@ -508,7 +523,12 @@ func TestImportDataFile_MultipleTasksForATable(t *testing.T) {
 		dataFileDescriptor = nil
 	}()
 	testutils.FatalIfError(t, err, "Failed to prepare dummy descriptor")
-	snapshotRowsMap, err := getImportedSnapshotRowsMap("target-file")
+	metaDB = initMetaDB(exportDir)
+	errorHandler, err := getImportDataFileErrorHandlerUsed()
+	if err != nil {
+		t.Fatalf("Failed to get import data error handler: %v", err)
+	}
+	snapshotRowsMap, err := getImportedSnapshotRowsMap("target-file", errorHandler)
 	if err != nil {
 		t.Fatalf("Failed to get imported snapshot rows map: %v", err)
 	}
@@ -631,7 +651,12 @@ func TestImportDataFile_SameFileForMultipleTables(t *testing.T) {
 		dataFileDescriptor = nil
 	}()
 	testutils.FatalIfError(t, err, "Failed to prepare dummy descriptor")
-	snapshotRowsMap, err := getImportedSnapshotRowsMap("target-file")
+	metaDB = initMetaDB(exportDir)
+	errorHandler, err := getImportDataFileErrorHandlerUsed()
+	if err != nil {
+		t.Fatalf("Failed to get import data error handler: %v", err)
+	}
+	snapshotRowsMap, err := getImportedSnapshotRowsMap("target-file", errorHandler)
 	if err != nil {
 		t.Fatalf("Failed to get imported snapshot rows map: %v", err)
 	}
