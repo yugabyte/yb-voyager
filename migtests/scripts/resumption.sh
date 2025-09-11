@@ -108,7 +108,7 @@ main() {
 	step "Run import-data-status"
 	import_data_status
 
-	expected_file="${TEST_DIR}/import_data_status-final-report.json"
+	expected_file="${TEST_DIR}/import-data-status-final-report.json"
 	actual_file="${EXPORT_DIR}/reports/import-data-status-report.json"
 
 	step "Verify import-data-status report"
