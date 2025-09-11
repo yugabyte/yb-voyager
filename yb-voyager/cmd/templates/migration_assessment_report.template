@@ -472,7 +472,7 @@
         </table>
 
         {{ with .Sizing }}
-            <h2>Sharding Recommendations</h2>
+            <h2>Colocation Recommendations</h2>
             {{ if eq .FailureReasoning "" }}
                 {{ with .SizingRecommendation }}
                     <table>
