@@ -14120,7 +14120,7 @@
             "ObjectType": "TABLE",
             "ObjectName": "rnacen.xref_p53_deleted_old",
             "SqlStatement": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-primary-key-when-unique-not-null",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-primary-key-for-table-when-unique-and-not-null-columns-exist",
             "MinimumVersionsFixedIn": null,
             "Details": {
                 "PrimaryKeyColumnOptions": [
@@ -14140,7 +14140,7 @@
             "ObjectType": "TABLE",
             "ObjectName": "rnacen.xref_p43_not_deleted_old",
             "SqlStatement": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-primary-key-when-unique-not-null",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-primary-key-for-table-when-unique-and-not-null-columns-exist",
             "MinimumVersionsFixedIn": null,
             "Details": {
                 "PrimaryKeyColumnOptions": [
@@ -14160,7 +14160,7 @@
             "ObjectType": "TABLE",
             "ObjectName": "rnacen.xref_p49_deleted_old",
             "SqlStatement": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-primary-key-when-unique-not-null",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-primary-key-for-table-when-unique-and-not-null-columns-exist",
             "MinimumVersionsFixedIn": null,
             "Details": {
                 "PrimaryKeyColumnOptions": [
@@ -14180,7 +14180,7 @@
             "ObjectType": "TABLE",
             "ObjectName": "rnacen.xref_p49_not_deleted_old",
             "SqlStatement": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-primary-key-when-unique-not-null",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-primary-key-for-table-when-unique-and-not-null-columns-exist",
             "MinimumVersionsFixedIn": null,
             "Details": {
                 "PrimaryKeyColumnOptions": [
@@ -14200,7 +14200,7 @@
             "ObjectType": "TABLE",
             "ObjectName": "rnacen.xref_p43_deleted_old",
             "SqlStatement": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-primary-key-when-unique-not-null",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-primary-key-for-table-when-unique-and-not-null-columns-exist",
             "MinimumVersionsFixedIn": null,
             "Details": {
                 "PrimaryKeyColumnOptions": [
@@ -14220,7 +14220,7 @@
             "ObjectType": "TABLE",
             "ObjectName": "rnacen.xref_p53_not_deleted_old",
             "SqlStatement": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-primary-key-when-unique-not-null",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-primary-key-for-table-when-unique-and-not-null-columns-exist",
             "MinimumVersionsFixedIn": null,
             "Details": {
                 "PrimaryKeyColumnOptions": [
@@ -14240,7 +14240,7 @@
             "ObjectType": "TABLE",
             "ObjectName": "rnacen.xref_p51_deleted_old",
             "SqlStatement": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-primary-key-when-unique-not-null",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-primary-key-for-table-when-unique-and-not-null-columns-exist",
             "MinimumVersionsFixedIn": null,
             "Details": {
                 "PrimaryKeyColumnOptions": [
@@ -14260,7 +14260,7 @@
             "ObjectType": "TABLE",
             "ObjectName": "rnacen.xref_p51_not_deleted_old",
             "SqlStatement": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-primary-key-when-unique-not-null",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-primary-key-for-table-when-unique-and-not-null-columns-exist",
             "MinimumVersionsFixedIn": null,
             "Details": {
                 "PrimaryKeyColumnOptions": [
