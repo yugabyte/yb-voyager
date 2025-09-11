@@ -53,7 +53,7 @@
             "ObjectType": "TABLE",
             "ObjectName": "public.reports",
             "Reason": "HSTORE datatype not yet supported by voyager in live migration with fall-forward/fallback. Affected column: attrs. These columns will be excluded when exporting and importing data in live migration workflows.",
-            "SqlStatement": "CREATE TABLE public.reports (agent_uuid uuid, \"time\" timestamp with time zone, attrs public.hstore DEFAULT (''::public.hstore), report text, report_tsv tsvector)CREATE TABLE public.t (i int NOT NULL, ts timestamp (0) with time zone DEFAULT now(), j pg_catalog.json, t text, e public.myenum, c public.mycomposit, CONSTRAINT t_pkey PRIMARY KEY (i)) WITH (colocation=false) WITH (colocation=false);",
+            "SqlStatement": "CREATE TABLE public.reports (agent_uuid uuid, \"time\" timestamp with time zone, attrs public.hstore DEFAULT (''::public.hstore), report text, report_tsv tsvector) WITH (colocation=false);",
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/sample-is/export-dir/schema/tables/table.sql",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",

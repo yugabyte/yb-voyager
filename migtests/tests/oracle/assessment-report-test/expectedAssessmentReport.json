@@ -1313,10 +1313,6 @@
             "Text": "Some features listed in this report may be supported under a preview flag in the specified target-db-version of YugabyteDB. Please refer to the official release notes (https://docs.yugabyte.com/preview/releases/ybdb-releases/) for detailed information and usage guidelines."
         },
         {
-            "Type": "ColocatedShardedNotes",
-            "Text": "If there are any tables that receive disproportionately high load, ensure that they are NOT colocated to avoid the colocated tablet becoming a hotspot.\nFor additional considerations related to colocated tables, refer to the documentation at: https://docs.yugabyte.com/preview/explore/colocation/#limitations-and-considerations"
-        },
-        {
             "Type": "SizingNotes",
             "Text": "Reference and System Partitioned tables are created as normal tables, but are not considered for target cluster sizing recommendations."
         },
