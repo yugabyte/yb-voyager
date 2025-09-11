@@ -570,7 +570,7 @@
         </table>
 
         
-            <h2>Sharding Recommendations</h2>
+            <h2>Colocation Recommendations</h2>
             
                 
                     <table>
@@ -619,6 +619,14 @@
                     </table>
                     <h3>Reasoning:</h3>
                     <p class="spaced-words">Recommended instance type with 4 vCPU and 16 GiB memory could fit 10 objects (5 tables/materialized views and 5 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as sharded. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.</p>
+                    <div class="notes-section">
+                        <h5>Notes</h5>
+                        <ul>
+
+                            <li>Import data time estimates exclude redundant indexes since they are automatically removed during export schema phase.</li>
+
+                        </ul>
+                    </div>
                 
             
         
