@@ -4140,6 +4140,10 @@
 		{
 			"Type": "GeneralNotes",
 			"Text": "There are some Unlogged tables in the schema. They will be created as regular LOGGED tables in YugabyteDB as unlogged tables are not supported."
+		},
+		{
+			"Type": "SizingNotes",
+			"Text": "Import data time estimates exclude redundant indexes since they are automatically removed during export schema phase."
 		}
 	]
 }

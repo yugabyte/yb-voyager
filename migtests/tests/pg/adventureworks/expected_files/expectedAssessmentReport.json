@@ -4309,6 +4309,10 @@
 		{
 			"Type": "GeneralNotes",
 			"Text": "Limitations in assessment (https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/#assessment-and-schema-analysis-limitations)"
+		},
+		{
+			"Type": "SizingNotes",
+			"Text": "Import data time estimates exclude redundant indexes since they are automatically removed during export schema phase."
 		}
 	]
 }

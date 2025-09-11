@@ -502,7 +502,7 @@ func TestFileBatchProducer_StashAndContinue_RowTooLargeError(t *testing.T) {
 func TestFileBatchProducer_StashAndContinue_RowTooLargeError_FirstRow(t *testing.T) {
 	// Set max batch size in bytes to a small value to trigger the row-too-large error
 	maxBatchSizeBytes := int64(20) // deliberately small to trigger error
-	ldataDir, lexportDir, state, _, err := setupExportDirAndImportDependencies(1000, maxBatchSizeBytes)
+	ldataDir, lexportDir, state, _, progressReporter, err := setupExportDirAndImportDependencies(1000, maxBatchSizeBytes)
 	testutils.FatalIfError(t, err)
 	if ldataDir != "" {
 		defer os.RemoveAll(fmt.Sprintf("%s/", ldataDir))
@@ -521,7 +521,7 @@ func TestFileBatchProducer_StashAndContinue_RowTooLargeError_FirstRow(t *testing
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
 	assert.NoError(t, err)
 
-	batchproducer, err := NewFileBatchProducer(task, state, scErrorHandler)
+	batchproducer, err := NewFileBatchProducer(task, state, scErrorHandler, progressReporter)
 	assert.NoError(t, err)
 
 	batch, err := batchproducer.NextBatch()
@@ -539,7 +539,7 @@ func TestFileBatchProducer_StashAndContinue_RowTooLargeError_FirstRow(t *testing
 func TestFileBatchProducer_StashAndContinue_RowTooLargeError_FirstFiveRows(t *testing.T) {
 	// Set max batch size in bytes to a small value to trigger the row-too-large error
 	maxBatchSizeBytes := int64(20) // deliberately small to trigger error
-	ldataDir, lexportDir, state, _, err := setupExportDirAndImportDependencies(1000, maxBatchSizeBytes)
+	ldataDir, lexportDir, state, _, progressReporter, err := setupExportDirAndImportDependencies(1000, maxBatchSizeBytes)
 	testutils.FatalIfError(t, err)
 	if ldataDir != "" {
 		defer os.RemoveAll(fmt.Sprintf("%s/", ldataDir))
@@ -562,7 +562,7 @@ func TestFileBatchProducer_StashAndContinue_RowTooLargeError_FirstFiveRows(t *te
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
 	assert.NoError(t, err)
 
-	batchproducer, err := NewFileBatchProducer(task, state, scErrorHandler)
+	batchproducer, err := NewFileBatchProducer(task, state, scErrorHandler, progressReporter)
 	assert.NoError(t, err)
 
 	batch, err := batchproducer.NextBatch()
@@ -584,7 +584,7 @@ func TestFileBatchProducer_StashAndContinue_RowTooLargeError_FirstFiveRows(t *te
 func TestFileBatchProducer_StashAndContinue_RowTooLargeError_LastBatch(t *testing.T) {
 	// Set max batch size in bytes to a small value to trigger the row-too-large error
 	maxBatchSizeBytes := int64(20) // deliberately small to trigger error
-	ldataDir, lexportDir, state, _, err := setupExportDirAndImportDependencies(1000, maxBatchSizeBytes)
+	ldataDir, lexportDir, state, _, progressReporter, err := setupExportDirAndImportDependencies(1000, maxBatchSizeBytes)
 	testutils.FatalIfError(t, err)
 	if ldataDir != "" {
 		defer os.RemoveAll(fmt.Sprintf("%s/", ldataDir))
@@ -610,7 +610,7 @@ func TestFileBatchProducer_StashAndContinue_RowTooLargeError_LastBatch(t *testin
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
 	assert.NoError(t, err)
 
-	batchproducer, err := NewFileBatchProducer(task, state, scErrorHandler)
+	batchproducer, err := NewFileBatchProducer(task, state, scErrorHandler, progressReporter)
 	assert.NoError(t, err)
 
 	// First batch should contain the first 3 small rows
@@ -639,7 +639,7 @@ func TestFileBatchProducer_StashAndContinue_RowTooLargeError_LastBatch(t *testin
 func TestFileBatchProducer_StashAndContinue_RowTooLargeError_processingErrorFileRewrittenOnResumption(t *testing.T) {
 	// Set max batch size in bytes to a small value to trigger the row-too-large error
 	maxBatchSizeBytes := int64(20) // deliberately small to trigger error
-	ldataDir, lexportDir, state, _, err := setupExportDirAndImportDependencies(1000, maxBatchSizeBytes)
+	ldataDir, lexportDir, state, _, progressReporter, err := setupExportDirAndImportDependencies(1000, maxBatchSizeBytes)
 	testutils.FatalIfError(t, err)
 	if ldataDir != "" {
 		defer os.RemoveAll(fmt.Sprintf("%s/", ldataDir))
@@ -658,7 +658,7 @@ func TestFileBatchProducer_StashAndContinue_RowTooLargeError_processingErrorFile
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
 	assert.NoError(t, err)
 
-	batchproducer, err := NewFileBatchProducer(task, state, scErrorHandler)
+	batchproducer, err := NewFileBatchProducer(task, state, scErrorHandler, progressReporter)
 	assert.NoError(t, err)
 
 	batch, err := batchproducer.NextBatch()
@@ -677,7 +677,7 @@ func TestFileBatchProducer_StashAndContinue_RowTooLargeError_processingErrorFile
 	err = os.Remove(batch.GetFilePath())
 	assert.NoError(t, err)
 
-	batchproducer, err = NewFileBatchProducer(task, state, scErrorHandler)
+	batchproducer, err = NewFileBatchProducer(task, state, scErrorHandler, progressReporter)
 	assert.NoError(t, err)
 	assert.False(t, batchproducer.Done())
 
