@@ -708,6 +708,9 @@ count_exported_events() {
     echo "$total_count"
 }
 
+# Timeout constant for exporter events (in seconds)
+readonly EXPORTER_EVENT_TIMEOUT_SECONDS=600  # 10 minutes
+
 # Wait until sufficient events from a specific exporter database are detected
 # which ensures that the exporter is capturing changes and cutover can be initiated safely
 # Usage: wait_for_exporter_event <exporter_db> [timeout_seconds]
@@ -716,7 +719,7 @@ count_exported_events() {
 #   - target (for target database change events in fall-forward/fall-back scenarios)
 wait_for_exporter_event() {
     local exporter_db="$1"
-    local timeout_seconds="${2:-300}"
+    local timeout_seconds="${2:-$EXPORTER_EVENT_TIMEOUT_SECONDS}"
 
     if [ -z "$exporter_db" ]; then
         echo "wait_for_exporter_event: exporter_db is required"
