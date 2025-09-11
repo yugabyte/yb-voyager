@@ -48,9 +48,12 @@ type FileBatchProducer struct {
 	lineFromPreviousBatch string
 
 	errorHandler importdata.ImportDataErrorHandler
+
+	//required to print some information for users to display during batch production
+	progressReporter *ImportDataProgressReporter
 }
 
-func NewFileBatchProducer(task *ImportFileTask, state *ImportDataState, errorHandler importdata.ImportDataErrorHandler) (*FileBatchProducer, error) {
+func NewFileBatchProducer(task *ImportFileTask, state *ImportDataState, errorHandler importdata.ImportDataErrorHandler, progressReporter *ImportDataProgressReporter) (*FileBatchProducer, error) {
 	if errorHandler == nil {
 		return nil, fmt.Errorf("errorHandler must not be nil")
 	}
@@ -73,15 +76,16 @@ func NewFileBatchProducer(task *ImportFileTask, state *ImportDataState, errorHan
 	})
 
 	return &FileBatchProducer{
-		task:            task,
-		state:           state,
-		pendingBatches:  pendingBatches,
-		lastBatchNumber: lastBatchNumber,
-		lastOffset:      lastOffset,
-		fileFullySplit:  fileFullySplit,
-		completed:       completed,
-		numLinesTaken:   lastOffset,
-		errorHandler:    errorHandler,
+		task:             task,
+		state:            state,
+		pendingBatches:   pendingBatches,
+		lastBatchNumber:  lastBatchNumber,
+		lastOffset:       lastOffset,
+		fileFullySplit:   fileFullySplit,
+		completed:        completed,
+		numLinesTaken:    lastOffset,
+		errorHandler:     errorHandler,
+		progressReporter: progressReporter,
 	}, nil
 }
 
@@ -250,10 +254,12 @@ func (p *FileBatchProducer) openDataFile() error {
 	}
 
 	log.Infof("Skipping %d lines from %q", p.lastOffset, p.task.FilePath)
+	p.progressReporter.AddResumeInformation(p.task, fmt.Sprintf("Resuming from %d lines", p.lastOffset))
 	err = dataFile.SkipLines(p.lastOffset)
 	if err != nil {
 		return fmt.Errorf("skipping line for offset=%d: %v", p.lastOffset, err)
 	}
+	p.progressReporter.RemoveResumeInformation(p.task)
 	return nil
 }
 

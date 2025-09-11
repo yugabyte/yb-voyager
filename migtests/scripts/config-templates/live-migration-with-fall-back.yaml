@@ -76,6 +76,7 @@ export-data-from-source:
 import-data-to-target:
   enable-adaptive-parallelism: {% if RUN_WITHOUT_ADAPTIVE_PARALLELISM is defined and RUN_WITHOUT_ADAPTIVE_PARALLELISM == "true" %}false{% else %}true{% endif %}
   disable-pb: true
+  max-retries-streaming: 1
 
 archive-changes:
   delete-changes-without-archiving: true
@@ -92,6 +93,7 @@ export-data-from-target:
 
 import-data-to-source:
   disable-pb: true
+  max-retries-streaming: 1
 
 end-migration:
   backup-schema-files: false                                  
