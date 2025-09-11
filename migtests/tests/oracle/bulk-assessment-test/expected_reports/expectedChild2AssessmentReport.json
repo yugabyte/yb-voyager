@@ -748,6 +748,10 @@
         {
             "Type": "GeneralNotes",
             "Text": "Some features listed in this report may be supported under a preview flag in the specified target-db-version of YugabyteDB. Please refer to the official release notes (https://docs.yugabyte.com/preview/releases/ybdb-releases/) for detailed information and usage guidelines."
+        },
+        {
+            "Type": "ColocatedShardedNotes",
+            "Text": "For sharding/colocation recommendations, each partition is treated individually. During the export schema phase, all the partitions of a partitioned table are currently created as colocated by default.\nTo manually modify the schema, please refer: https://github.com/yugabyte/yb-voyager/issues/1581."
         }
     ]
 }

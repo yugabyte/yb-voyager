@@ -69,11 +69,11 @@ ERROR: VIEW WITH CASCADED CHECK OPTION not supported yet (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/views/view.sql
 */
 CREATE VIEW regress_rls_schema.bv1 WITH (security_barrier='true') AS
-SELECT a,
-       b
-FROM regress_rls_schema.b1
-WHERE (a > 0)
-    WITH CASCADED CHECK OPTION;
+ SELECT a,
+    b
+   FROM regress_rls_schema.b1
+  WHERE (a > 0)
+  WITH CASCADED CHECK OPTION;
 
 /*
 ERROR: CREATE CONVERSION not supported yet (SQLSTATE 0A000)
@@ -158,7 +158,7 @@ File :/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/functi
 CREATE FUNCTION range_type_example.return_depends_on_range_type() RETURNS range_type_example.float8_range
     LANGUAGE sql IMMUTABLE
     AS $$
-SELECT '[1.2, 3.4]'::range_type_example.float8_range
+    SELECT '[1.2, 3.4]'::range_type_example.float8_range
   $$;
 
 /*
@@ -166,40 +166,40 @@ ERROR: relation "composite_type_examples.ordinary_table" does not exist (SQLSTAT
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/views/view.sql
 */
 CREATE VIEW composite_type_examples.basic_view AS
-SELECT basic_,
-       _basic,
-       nested,
-       _nested
-FROM composite_type_examples.ordinary_table;
+ SELECT basic_,
+    _basic,
+    nested,
+    _nested
+   FROM composite_type_examples.ordinary_table;
 
 /*
 ERROR: relation "enum_example.bugs" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/views/view.sql
 */
 CREATE VIEW enum_example._bugs AS
-SELECT id,
-       status
-FROM enum_example.bugs;
+ SELECT id,
+    status
+   FROM enum_example.bugs;
 
 /*
 ERROR: relation "foreign_db_example.technically_doesnt_exist" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/views/view.sql
 */
 CREATE VIEW public.foreign_db_example AS
-SELECT id,
-       uses_type,
-       _uses_type,
-       positive_number,
-       _positive_number
-FROM foreign_db_example.technically_doesnt_exist;
+ SELECT id,
+    uses_type,
+    _uses_type,
+    positive_number,
+    _positive_number
+   FROM foreign_db_example.technically_doesnt_exist;
 
 /*
 ERROR: relation "range_type_example.example_tbl" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/views/view.sql
 */
 CREATE VIEW range_type_example.depends_on_col_using_type AS
-SELECT col
-FROM range_type_example.example_tbl;
+ SELECT col
+   FROM range_type_example.example_tbl;
 
 /*
 ERROR: role "regress_rls_eve" does not exist (SQLSTATE 42704)
