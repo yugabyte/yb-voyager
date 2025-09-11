@@ -1532,7 +1532,7 @@ To manually modify the schema, please refer: <a class="highlight-link" href="htt
 
 	REDUNDANT_INDEX_ESTIMATED_TIME = NoteInfo{
 		Type: SizingNotes,
-		Text: `Estimated time taken for data import (Excluding redundant indexes) is calculated without considering redundant indexes as those indexes are removed during export schema phase automatically.`,
+		Text: `Import data time estimates exclude redundant indexes since they are automatically removed during export schema phase.`,
 	}
 )
 
