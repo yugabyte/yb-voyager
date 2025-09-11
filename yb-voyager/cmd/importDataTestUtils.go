@@ -79,15 +79,15 @@ func setupYugabyteTestDb(t *testing.T) {
 	testutils.FatalIfError(t, err)
 }
 
-func setupExportDirAndImportDependencies(batchSizeRows int64, batchSizeBytes int64) (string, string, *ImportDataState, importdata.ImportDataErrorHandler, error) {
+func setupExportDirAndImportDependencies(batchSizeRows int64, batchSizeBytes int64) (string, string, *ImportDataState, importdata.ImportDataErrorHandler, *ImportDataProgressReporter, error) {
 	lexportDir, err := os.MkdirTemp("/tmp", "export-dir-*")
 	if err != nil {
-		return "", "", nil, nil, err
+		return "", "", nil, nil, nil, err
 	}
 
 	ldataDir, err := os.MkdirTemp("/tmp", "data-dir-*")
 	if err != nil {
-		return "", "", nil, nil, err
+		return "", "", nil, nil, nil, err
 	}
 
 	CreateMigrationProjectIfNotExists(constants.POSTGRESQL, lexportDir)
@@ -104,9 +104,11 @@ func setupExportDirAndImportDependencies(batchSizeRows int64, batchSizeBytes int
 	errorHandler, err := importdata.GetImportDataErrorHandler(importdata.AbortErrorPolicy, filepath.Join(lexportDir, "data"))
 
 	if err != nil {
-		return "", "", nil, nil, err
+		return "", "", nil, nil, nil, err
 	}
-	return ldataDir, lexportDir, state, errorHandler, nil
+	progressReporter := NewImportDataProgressReporter(true)
+
+	return ldataDir, lexportDir, state, errorHandler, progressReporter, nil
 }
 
 func createFileAndTask(lexportDir string, fileContents string, ldataDir string, tableName string, id int) (string, *ImportFileTask, error) {
