@@ -28,6 +28,7 @@ import (
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/config"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
@@ -1704,7 +1705,7 @@ import-data:
   adaptive-parallelism-max: 10
   skip-replication-checks: true
   disable-pb: true
-  max-retries: 3
+  max-retries-streaming: 3
   exclude-table-list: table1,table2
   table-list: table3,table4
   exclude-table-list-file-path: /tmp/exclude-tables.txt
@@ -1831,7 +1832,7 @@ func TestImportDataConfigBinding_CLIOverridesConfig(t *testing.T) {
 		"--adaptive-parallelism-max", "5",
 		"--skip-replication-checks", "false",
 		"--disable-pb", "false",
-		"--max-retries", "5",
+		"--max-retries-streaming", "5",
 		"--exclude-table-list", "table5,table6",
 		"--table-list", "table7,table8",
 		"--exclude-table-list-file-path", "/tmp/new-exclude-tables.txt",
@@ -2047,7 +2048,7 @@ import-data:
   adaptive-parallelism-max: 10
   skip-replication-checks: true
   disable-pb: true
-  max-retries: 3
+  max-retries-streaming: 3
   exclude-table-list: table1,table2
   table-list: table3,table4
   exclude-table-list-file-path: /tmp/exclude-tables.txt
@@ -2149,7 +2150,7 @@ import-data-to-target:
   adaptive-parallelism-max: 10
   skip-replication-checks: true
   disable-pb: true
-  max-retries: 3
+  max-retries-streaming: 3
   exclude-table-list: table1,table2
   table-list: table3,table4
   exclude-table-list-file-path: /tmp/exclude-tables.txt
@@ -2307,7 +2308,7 @@ import-data-file:
   enable-adaptive-parallelism: true
   adaptive-parallelism-max: 10
   disable-pb: true
-  max-retries: 3
+  max-retries-streaming: 3
   enable-upsert: true
   use-public-ip: true
   target-endpoints: endpoint1,endpoint2
@@ -2434,7 +2435,7 @@ func TestImportDataFileConfigBinding_CLIOverridesConfig(t *testing.T) {
 		"--enable-adaptive-parallelism", "false",
 		"--adaptive-parallelism-max", "5",
 		"--disable-pb", "false",
-		"--max-retries", "5",
+		"--max-retries-streaming", "5",
 		"--enable-upsert", "false",
 		"--use-public-ip", "false",
 		"--target-endpoints", "endpoint3,endpoint4",
@@ -3181,6 +3182,7 @@ import-data-to-source:
   max-events-per-batch: 5000
   max-interval-between-batches: 2
   max-batch-size-bytes: 10485760
+  max-retries-streaming: 1
 `, tmpExportDir)
 	configFile, configDir := setupConfigFile(t, configContent)
 	t.Cleanup(func() { os.RemoveAll(configDir) })
@@ -3412,7 +3414,7 @@ import-data-to-source-replica:
   parallel-jobs: 5
   truncate-tables: true
   disable-pb: true
-  max-retries: 3
+  max-retries-streaming: 3
   ybvoyager-max-colocated-batches-in-progress: 2
   num-event-channels: 4
   event-channel-size: 5000
@@ -3497,7 +3499,7 @@ func TestImportDataToSourceReplicaConfigBinding_CLIOverridesConfig(t *testing.T)
 		"--parallel-jobs", "3",
 		"--truncate-tables", "false",
 		"--disable-pb", "false",
-		"--max-retries", "5",
+		"--max-retries-streaming", "5",
 		"--source-replica-db-host", "localhost-replica",
 		"--source-replica-db-port", "1522",
 		"--source-replica-db-user", "test_user_2",

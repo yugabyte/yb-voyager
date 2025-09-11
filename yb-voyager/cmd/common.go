@@ -393,7 +393,7 @@ func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFile
 		dbType = "target"
 	}
 
-	snapshotRowCount, err := getImportedSnapshotRowsMap(dbType)
+	snapshotRowCount, err := getImportedSnapshotRowsMap(dbType, tableList, errorHandler)
 	if err != nil {
 		utils.ErrExit("failed to get imported snapshot rows map: %v", err)
 	}
@@ -502,6 +502,14 @@ func initMetaDB(migrationExportDir string) *metadb.MetaDB {
 	err = metaDBInstance.InitMigrationStatusRecord()
 	if err != nil {
 		utils.ErrExit("could not init migration status record: %w", err)
+	}
+	err = metaDBInstance.InitImportDataStatusRecord()
+	if err != nil {
+		utils.ErrExit("could not init import data status record: %w", err)
+	}
+	err = metaDBInstance.InitImportDataFileStatusRecord()
+	if err != nil {
+		utils.ErrExit("could not init import data file status record: %w", err)
 	}
 
 	// TODO: initialising anonymizer should be a top-level function call, like in root.go
@@ -1063,7 +1071,9 @@ func getExportedSnapshotRowsMap(exportSnapshotStatus *ExportSnapshotStatus) (*ut
 	snapshotStatusMap := utils.NewStructMap[sqlname.NameTuple, []string]()
 
 	for _, tableStatus := range exportSnapshotStatus.Tables {
-		nt, err := namereg.NameReg.LookupTableName(tableStatus.TableName)
+		//using LookupTableNameAndIgnoreIfTargetNotFound in case if the export status is run after import data in which case
+		// if there is some table not present in target this should work
+		nt, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFound(tableStatus.TableName)
 		if err != nil {
 			return nil, nil, fmt.Errorf("lookup table [%s] from name registry: %v", tableStatus.TableName, err)
 		}
@@ -1077,7 +1087,9 @@ func getExportedSnapshotRowsMap(exportSnapshotStatus *ExportSnapshotStatus) (*ut
 	return snapshotRowsMap, snapshotStatusMap, nil
 }
 
-func getImportedSnapshotRowsMap(dbType string) (*utils.StructMap[sqlname.NameTuple, RowCountPair], error) {
+func getImportedSnapshotRowsMap(dbType string, tableList []sqlname.NameTuple, errorHandler importdata.ImportDataErrorHandler) (*utils.StructMap[sqlname.NameTuple, RowCountPair], error) {
+
+	var err error
 	switch dbType {
 	case "target":
 		importerRole = TARGET_DB_IMPORTER_ROLE
@@ -1102,23 +1114,38 @@ func getImportedSnapshotRowsMap(dbType string) (*utils.StructMap[sqlname.NameTup
 		}
 	}
 	snapshotRowsMap := utils.NewStructMap[sqlname.NameTuple, RowCountPair]()
+	nameTupleTodataFileEntry := utils.NewStructMap[sqlname.NameTuple, []*datafile.FileEntry]()
 	nameTupleTodataFilesMap := utils.NewStructMap[sqlname.NameTuple, []string]()
 	if snapshotDataFileDescriptor != nil {
 		for _, fileEntry := range snapshotDataFileDescriptor.DataFileList {
-			nt, err := namereg.NameReg.LookupTableName(fileEntry.TableName)
+			//ignoring target as the dataFileDescriptor can contain tables that exported but not present in target
+			nt, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFound(fileEntry.TableName)
 			if err != nil {
 				return nil, fmt.Errorf("lookup table name from data file descriptor %s : %v", fileEntry.TableName, err)
 			}
-			list, ok := nameTupleTodataFilesMap.Get(nt)
+			fileEntries, ok := nameTupleTodataFileEntry.Get(nt)
 			if !ok {
-				list = []string{}
+				fileEntries = []*datafile.FileEntry{}
 			}
-			list = append(list, fileEntry.FilePath)
-			nameTupleTodataFilesMap.Put(nt, list)
+			fileEntries = append(fileEntries, fileEntry)
+			nameTupleTodataFileEntry.Put(nt, fileEntries)
+		}
+		for _, table := range tableList {
+			fileEntries, ok := nameTupleTodataFileEntry.Get(table)
+			if !ok {
+				//We can't error out here as this is possible in case there are empty tables in live migraton scenario and
+				//In get data-migration-report, table list can consist that table name but it won't be present in dataFileDescriptor
+				log.Warnf("table %s not found in data file descriptor", table.ForKey())
+				continue
+			}
+			list := lo.Map(fileEntries, func(fileEntry *datafile.FileEntry, _ int) string {
+				return fileEntry.FilePath
+			})
+			nameTupleTodataFilesMap.Put(table, list)
 		}
 	}
 
-	err := nameTupleTodataFilesMap.IterKV(func(nt sqlname.NameTuple, dataFilePaths []string) (bool, error) {
+	err = nameTupleTodataFilesMap.IterKV(func(nt sqlname.NameTuple, dataFilePaths []string) (bool, error) {
 		for _, dataFilePath := range dataFilePaths {
 			importedRowCount, err := state.GetImportedRowCount(dataFilePath, nt)
 			if err != nil {
@@ -1131,7 +1158,17 @@ func getImportedSnapshotRowsMap(dbType string) (*utils.StructMap[sqlname.NameTup
 			existingRowCountPair, _ := snapshotRowsMap.Get(nt)
 			existingRowCountPair.Imported += importedRowCount
 			existingRowCountPair.Errored += erroredRowCount
+
+			if isTargetDBImporter(importerRole) && errorHandler != nil {
+				// error handler will be nil if import-data/import-data-file was not run yet
+				processingErrorRowCount, _, err := errorHandler.GetProcessingErrorCountSize(nt, dataFilePath)
+				if err != nil {
+					return false, fmt.Errorf("get processing error count size: %w", err)
+				}
+				existingRowCountPair.Errored += processingErrorRowCount
+			}
 			snapshotRowsMap.Put(nt, existingRowCountPair)
+
 		}
 		return true, nil
 	})

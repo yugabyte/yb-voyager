@@ -14110,6 +14110,166 @@
 				"ForeignKeyColumnNames": "rnacen.validate_layout_counts.name",
 				"ReferencedTableName": "rnacen.rna"
 			}
+		},
+		{
+			"Category": "performance_optimizations",
+			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
+			"Type": "MISSING_PRIMARY_KEY_WHEN_UNIQUE_NOT_NULL",
+			"Name": "Missing primary key for table when unique and not null columns exist",
+			"Description": "YugabyteDB's table storage is index-oriented. So, a table without a primary key is not viable in YugabyteDB. If you don't specify a primary key, YugabyteDB will use the internal ybrowid column as PRIMARY KEY and the table will be sharded on ybrowid HASH. However, if there are candidate primary keys (unique + NOT NULL), it is recommended to define them as a Primary Key to avoid secondary index structures.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "TABLE",
+			"ObjectName": "rnacen.xref_p53_deleted_old",
+			"SqlStatement": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-primary-key-when-unique-not-null",
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"PrimaryKeyColumnOptions": [
+					[
+						"rnacen.xref_p53_deleted_old.id"
+					]
+				]
+			}
+		},
+		{
+			"Category": "performance_optimizations",
+			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
+			"Type": "MISSING_PRIMARY_KEY_WHEN_UNIQUE_NOT_NULL",
+			"Name": "Missing primary key for table when unique and not null columns exist",
+			"Description": "YugabyteDB's table storage is index-oriented. So, a table without a primary key is not viable in YugabyteDB. If you don't specify a primary key, YugabyteDB will use the internal ybrowid column as PRIMARY KEY and the table will be sharded on ybrowid HASH. However, if there are candidate primary keys (unique + NOT NULL), it is recommended to define them as a Primary Key to avoid secondary index structures.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "TABLE",
+			"ObjectName": "rnacen.xref_p43_not_deleted_old",
+			"SqlStatement": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-primary-key-when-unique-not-null",
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"PrimaryKeyColumnOptions": [
+					[
+						"rnacen.xref_p43_not_deleted_old.id"
+					]
+				]
+			}
+		},
+		{
+			"Category": "performance_optimizations",
+			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
+			"Type": "MISSING_PRIMARY_KEY_WHEN_UNIQUE_NOT_NULL",
+			"Name": "Missing primary key for table when unique and not null columns exist",
+			"Description": "YugabyteDB's table storage is index-oriented. So, a table without a primary key is not viable in YugabyteDB. If you don't specify a primary key, YugabyteDB will use the internal ybrowid column as PRIMARY KEY and the table will be sharded on ybrowid HASH. However, if there are candidate primary keys (unique + NOT NULL), it is recommended to define them as a Primary Key to avoid secondary index structures.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "TABLE",
+			"ObjectName": "rnacen.xref_p49_deleted_old",
+			"SqlStatement": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-primary-key-when-unique-not-null",
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"PrimaryKeyColumnOptions": [
+					[
+						"rnacen.xref_p49_deleted_old.id"
+					]
+				]
+			}
+		},
+		{
+			"Category": "performance_optimizations",
+			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
+			"Type": "MISSING_PRIMARY_KEY_WHEN_UNIQUE_NOT_NULL",
+			"Name": "Missing primary key for table when unique and not null columns exist",
+			"Description": "YugabyteDB's table storage is index-oriented. So, a table without a primary key is not viable in YugabyteDB. If you don't specify a primary key, YugabyteDB will use the internal ybrowid column as PRIMARY KEY and the table will be sharded on ybrowid HASH. However, if there are candidate primary keys (unique + NOT NULL), it is recommended to define them as a Primary Key to avoid secondary index structures.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "TABLE",
+			"ObjectName": "rnacen.xref_p49_not_deleted_old",
+			"SqlStatement": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-primary-key-when-unique-not-null",
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"PrimaryKeyColumnOptions": [
+					[
+						"rnacen.xref_p49_not_deleted_old.id"
+					]
+				]
+			}
+		},
+		{
+			"Category": "performance_optimizations",
+			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
+			"Type": "MISSING_PRIMARY_KEY_WHEN_UNIQUE_NOT_NULL",
+			"Name": "Missing primary key for table when unique and not null columns exist",
+			"Description": "YugabyteDB's table storage is index-oriented. So, a table without a primary key is not viable in YugabyteDB. If you don't specify a primary key, YugabyteDB will use the internal ybrowid column as PRIMARY KEY and the table will be sharded on ybrowid HASH. However, if there are candidate primary keys (unique + NOT NULL), it is recommended to define them as a Primary Key to avoid secondary index structures.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "TABLE",
+			"ObjectName": "rnacen.xref_p43_deleted_old",
+			"SqlStatement": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-primary-key-when-unique-not-null",
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"PrimaryKeyColumnOptions": [
+					[
+						"rnacen.xref_p43_deleted_old.id"
+					]
+				]
+			}
+		},
+		{
+			"Category": "performance_optimizations",
+			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
+			"Type": "MISSING_PRIMARY_KEY_WHEN_UNIQUE_NOT_NULL",
+			"Name": "Missing primary key for table when unique and not null columns exist",
+			"Description": "YugabyteDB's table storage is index-oriented. So, a table without a primary key is not viable in YugabyteDB. If you don't specify a primary key, YugabyteDB will use the internal ybrowid column as PRIMARY KEY and the table will be sharded on ybrowid HASH. However, if there are candidate primary keys (unique + NOT NULL), it is recommended to define them as a Primary Key to avoid secondary index structures.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "TABLE",
+			"ObjectName": "rnacen.xref_p53_not_deleted_old",
+			"SqlStatement": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-primary-key-when-unique-not-null",
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"PrimaryKeyColumnOptions": [
+					[
+						"rnacen.xref_p53_not_deleted_old.id"
+					]
+				]
+			}
+		},
+		{
+			"Category": "performance_optimizations",
+			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
+			"Type": "MISSING_PRIMARY_KEY_WHEN_UNIQUE_NOT_NULL",
+			"Name": "Missing primary key for table when unique and not null columns exist",
+			"Description": "YugabyteDB's table storage is index-oriented. So, a table without a primary key is not viable in YugabyteDB. If you don't specify a primary key, YugabyteDB will use the internal ybrowid column as PRIMARY KEY and the table will be sharded on ybrowid HASH. However, if there are candidate primary keys (unique + NOT NULL), it is recommended to define them as a Primary Key to avoid secondary index structures.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "TABLE",
+			"ObjectName": "rnacen.xref_p51_deleted_old",
+			"SqlStatement": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-primary-key-when-unique-not-null",
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"PrimaryKeyColumnOptions": [
+					[
+						"rnacen.xref_p51_deleted_old.id"
+					]
+				]
+			}
+		},
+		{
+			"Category": "performance_optimizations",
+			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
+			"Type": "MISSING_PRIMARY_KEY_WHEN_UNIQUE_NOT_NULL",
+			"Name": "Missing primary key for table when unique and not null columns exist",
+			"Description": "YugabyteDB's table storage is index-oriented. So, a table without a primary key is not viable in YugabyteDB. If you don't specify a primary key, YugabyteDB will use the internal ybrowid column as PRIMARY KEY and the table will be sharded on ybrowid HASH. However, if there are candidate primary keys (unique + NOT NULL), it is recommended to define them as a Primary Key to avoid secondary index structures.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "TABLE",
+			"ObjectName": "rnacen.xref_p51_not_deleted_old",
+			"SqlStatement": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-primary-key-when-unique-not-null",
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"PrimaryKeyColumnOptions": [
+					[
+						"rnacen.xref_p51_not_deleted_old.id"
+					]
+				]
+			}
 		}
 	],
 	"TableIndexStats": [
@@ -36947,10 +37107,7 @@
 			"Type": "ColocatedShardedNotes",
 			"Text": "If there are any tables that receive disproportionately high load, ensure that they are NOT colocated to avoid the colocated tablet becoming a hotspot.\nFor additional considerations related to colocated tables, refer to the documentation at: https://docs.yugabyte.com/preview/explore/colocation/#limitations-and-considerations"
 		},
-		{
-			"Type": "GeneralNotes",
-			"Text": "If indexes are created on columns commonly used in range-based queries (e.g. timestamp columns), it is recommended to explicitly configure these indexes with range sharding. This ensures efficient data access for range queries.\nBy default, YugabyteDB uses hash sharding for indexes, which distributes data randomly and is not ideal for range-based predicates potentially degrading query performance. Note that range sharding is enabled by default only in PostgreSQL compatibility mode (https://docs.yugabyte.com/preview/develop/postgresql-compatibility/) in YugabyteDB."
-		},
+
 		{
 			"Type": "GeneralNotes",
 			"Text": "Limitations in assessment (https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/#assessment-and-schema-analysis-limitations)"

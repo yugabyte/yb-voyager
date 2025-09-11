@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -97,9 +98,10 @@ func TestImportDataFileReport(t *testing.T) {
 		dataFileDescriptor = nil
 	}()
 	testutils.FatalIfError(t, err, "Failed to prepare dummy descriptor")
-	snapshotRowsMap, err := getImportedSnapshotRowsMap("target-file")
+	metaDB = initMetaDB(exportDir)
+	errorHandler, err := getImportDataFileErrorHandlerUsed()
 	if err != nil {
-		t.Fatalf("Failed to get imported snapshot rows map: %v", err)
+		t.Fatalf("Failed to get import data error handler: %v", err)
 	}
 
 	// Ensure the snapshotRowsMap contains the expected data.
@@ -107,6 +109,14 @@ func TestImportDataFileReport(t *testing.T) {
 		SourceName:  sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "public.test_data"),
 		CurrentName: sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "public.test_data"),
 	}
+	tableList := []sqlname.NameTuple{
+		tblName,
+	}
+	snapshotRowsMap, err := getImportedSnapshotRowsMap("target-file", tableList, errorHandler)
+	if err != nil {
+		t.Fatalf("Failed to get imported snapshot rows map: %v", err)
+	}
+
 	rowCountPair, _ := snapshotRowsMap.Get(tblName)
 	assert.Equal(t, int64(100), rowCountPair.Imported, "Imported row count mismatch")
 	assert.Equal(t, int64(0), rowCountPair.Errored, "Errored row count mismatch")
@@ -142,7 +152,7 @@ func TestImportDataFileReport(t *testing.T) {
 	}, statusReport[0], "Status report row mismatch")
 }
 
-func TestImportDataFileReport_ErrorPolicyStashAndContinue(t *testing.T) {
+func TestImportDataFileReport_ErrorPolicyStashAndContinue_BatchIngestionError(t *testing.T) {
 	// Create a temporary export directory.
 	exportDir = testutils.CreateTempExportDir()
 	defer testutils.RemoveTempExportDir(exportDir)
@@ -216,15 +226,25 @@ func TestImportDataFileReport_ErrorPolicyStashAndContinue(t *testing.T) {
 	}()
 	testutils.FatalIfError(t, err, "Failed to prepare dummy descriptor")
 
-	snapshotRowsMap, err := getImportedSnapshotRowsMap("target-file")
+	metaDB = initMetaDB(exportDir)
+	errorHandler, err := getImportDataFileErrorHandlerUsed()
 	if err != nil {
-		t.Fatalf("Failed to get imported snapshot rows map: %v", err)
+		t.Fatalf("Failed to get import data error handler: %v", err)
 	}
+
 	// Ensure the snapshotRowsMap contains the expected data.
 	tblName := sqlname.NameTuple{
 		SourceName:  sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "public.test_data"),
 		CurrentName: sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "public.test_data"),
 	}
+	tableList := []sqlname.NameTuple{
+		tblName,
+	}
+	snapshotRowsMap, err := getImportedSnapshotRowsMap("target-file", tableList, errorHandler)
+	if err != nil {
+		t.Fatalf("Failed to get imported snapshot rows map: %v", err)
+	}
+
 	rowCountPair, _ := snapshotRowsMap.Get(tblName)
 	assert.Equal(t, int64(90), rowCountPair.Imported, "Imported row count mismatch")
 	assert.Equal(t, int64(10), rowCountPair.Errored, "Errored row count mismatch")
@@ -275,7 +295,7 @@ func TestImportDataFileReport_ErrorPolicyStashAndContinue(t *testing.T) {
 
 	// Verify that the backup directory contains the expected error files.
 	// error file is expected to be under dir table::test_data/file::test_data_data.sql:1960b25c and of the name ingestion-error.batch::1.10.10.92.E
-	tableDir := fmt.Sprintf("table::%s", "test_data")
+	tableDir := fmt.Sprintf("table::%s", tblName.ForKey())
 	fileDir := fmt.Sprintf("file::%s:%s", filepath.Base(dataFilePath), importdata.ComputePathHash(dataFilePath))
 	tableFileErrorsDir := filepath.Join(backupDir, "data", "errors", tableDir, fileDir)
 	errorFilePath := filepath.Join(tableFileErrorsDir, "ingestion-error.batch::1.10.10.100.E")
@@ -283,6 +303,159 @@ func TestImportDataFileReport_ErrorPolicyStashAndContinue(t *testing.T) {
 
 	// Verify the content of the error file
 	testutils.AssertFileContains(t, errorFilePath, "duplicate key value violates unique constraint")
+}
+
+func TestImportDataFileReport_ErrorPolicyStashAndContinue_ProcessingError(t *testing.T) {
+	// Create a temporary export directory.
+	exportDir = testutils.CreateTempExportDir()
+	defer testutils.RemoveTempExportDir(exportDir)
+
+	// create backupDIr
+	backupDir := testutils.CreateBackupDir(t)
+
+	// Start YugabyteDB container.
+	setupYugabyteTestDb(t)
+
+	// Create table in the default public schema in YugabyteDB.
+	createTableSQL := `CREATE TABLE public.test_data (id INTEGER PRIMARY KEY, name TEXT);`
+	testYugabyteDBTarget.TestContainer.ExecuteSqls(createTableSQL)
+	t.Cleanup(func() {
+		testYugabyteDBTarget.TestContainer.ExecuteSqls("DROP TABLE IF EXISTS public.test_data;")
+	})
+
+	// Generate a CSV file with test data.
+	dataFilePath := filepath.Join("/tmp", "test_data.csv")
+	f, err := os.Create(dataFilePath)
+	if err != nil {
+		t.Fatalf("Failed to create data file: %v", err)
+	}
+	defer os.Remove(dataFilePath)
+	defer f.Close()
+
+	w := csv.NewWriter(f)
+
+	// Write header and rows to the CSV file.
+	w.Write([]string{"id", "name"})
+	for i := 1; i <= 100; i++ {
+		// if row is no. 50, create a large row with name column exceeding 1000 characters to trigger processing error
+		if i == 50 {
+			w.Write([]string{fmt.Sprintf("%d", i), fmt.Sprintf("name_%s", strings.Repeat("a", 1000))})
+		} else {
+			w.Write([]string{fmt.Sprintf("%d", i), fmt.Sprintf("name_%d", i)})
+		}
+	}
+	w.Flush()
+
+	// Import data from the CSV file into YugabyteDB with --error-policy stash-and-continue.
+	os.Setenv("MAX_BATCH_SIZE_BYTES", "500")
+	defer os.Unsetenv("MAX_BATCH_SIZE_BYTES")
+	importDataFileCmdArgs := []string{
+		"--export-dir", exportDir,
+		"--disable-pb", "true",
+		"--batch-size", "10",
+		"--target-db-schema", "public",
+		"--data-dir", filepath.Dir(dataFilePath),
+		"--file-table-map", "test_data.csv:public.test_data",
+		"--format", "CSV",
+		"--has-header", "true",
+		"--error-policy", "stash-and-continue",
+		"--yes",
+	}
+
+	err = testutils.NewVoyagerCommandRunner(testYugabyteDBTarget.TestContainer, "import data file", importDataFileCmdArgs, nil, false).Run()
+	testutils.FatalIfError(t, err, "Import data file command failed")
+
+	// Verify snapshot report.
+	yb, ok := testYugabyteDBTarget.TargetDB.(*tgtdb.TargetYugabyteDB)
+	if !ok {
+		t.Fatalf("TargetDB is not of type TargetYugabyteDB")
+	}
+	err = InitNameRegistry(exportDir, IMPORT_FILE_ROLE, nil, nil, &testYugabyteDBTarget.Tconf, yb, false)
+	testutils.FatalIfError(t, err, "Failed to initialize name registry")
+	metaDB = initMetaDB(exportDir)
+	state := NewImportDataState(exportDir)
+	dataFileDescriptor, err = prepareDummyDescriptor(state)
+	defer func() {
+		dataFileDescriptor = nil
+	}()
+	testutils.FatalIfError(t, err, "Failed to prepare dummy descriptor")
+
+	metaDB = initMetaDB(exportDir)
+	errorHandler, err := getImportDataFileErrorHandlerUsed()
+	if err != nil {
+		t.Fatalf("Failed to get import data error handler: %v", err)
+	}
+
+	// Ensure the snapshotRowsMap contains the expected data.
+	tblName := sqlname.NameTuple{
+		SourceName:  sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "public.test_data"),
+		CurrentName: sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "public.test_data"),
+	}
+	tableList := []sqlname.NameTuple{
+		tblName,
+	}
+	snapshotRowsMap, err := getImportedSnapshotRowsMap("target-file", tableList, errorHandler)
+	if err != nil {
+		t.Fatalf("Failed to get imported snapshot rows map: %v", err)
+	}
+	rowCountPair, _ := snapshotRowsMap.Get(tblName)
+	assert.Equal(t, int64(99), rowCountPair.Imported, "Imported row count mismatch")
+	assert.Equal(t, int64(1), rowCountPair.Errored, "Errored row count mismatch")
+
+	// Verify import data status command output
+	err = testutils.NewVoyagerCommandRunner(testYugabyteDBTarget.TestContainer, "import data status", []string{
+		"--export-dir", exportDir,
+		"--output-format", "json",
+	}, nil, false).Run()
+	testutils.FatalIfError(t, err, "Import data status command failed")
+
+	// Verify the report file content
+	reportPath := filepath.Join(exportDir, "reports", "import-data-status-report.json")
+	assert.FileExists(t, reportPath, "Import data status report file should exist")
+
+	reportData, err := os.ReadFile(reportPath)
+	if err != nil {
+		t.Fatalf("Failed to read import data status report file: %v", err)
+	}
+	var statusReport []*tableMigStatusOutputRow
+	err = json.Unmarshal(reportData, &statusReport)
+	testutils.FatalIfError(t, err, "Failed to unmarshal import data status report JSON")
+	assert.Equal(t, 1, len(statusReport), "Report should contain exactly one entry")
+
+	assert.Equal(t, &tableMigStatusOutputRow{
+		TableName:          `public."test_data"`,
+		FileName:           "test_data.csv",
+		ImportedCount:      1081,
+		ErroredCount:       1009,
+		TotalCount:         2090,
+		Status:             "DONE_WITH_ERRORS",
+		PercentageComplete: 100,
+	}, statusReport[0], "Status report row mismatch")
+
+	// Run end-migration to ensure that the errored files are backed up properly
+	os.Setenv("SOURCE_DB_PASSWORD", "postgres")
+	os.Setenv("TARGET_DB_PASSWORD", "yugabyte")
+	err = testutils.NewVoyagerCommandRunner(testYugabyteDBTarget.TestContainer, "end migration", []string{
+		"--export-dir", exportDir,
+		"--backup-data-files", "true",
+		"--backup-dir", backupDir,
+		"--backup-log-files", "true",
+		"--backup-schema-files", "false",
+		"--save-migration-reports", "false",
+		"--yes",
+	}, nil, false).Run()
+	testutils.FatalIfError(t, err, "End migration command failed")
+
+	// Verify that the backup directory contains the expected error files.
+	// error file is expected to be under dir table::test_data/file::test_data_data.sql:1960b25c and of the name ingestion-error.batch::1.10.10.92.E
+	tableDir := fmt.Sprintf("table::%s", tblName.ForKey())
+	fileDir := fmt.Sprintf("file::%s:%s", filepath.Base(dataFilePath), importdata.ComputePathHash(dataFilePath))
+	tableFileErrorsDir := filepath.Join(backupDir, "data", "errors", tableDir, fileDir)
+	errorFilePath := filepath.Join(tableFileErrorsDir, "processing-errors.5.1.1009.log")
+	assert.FileExistsf(t, errorFilePath, "Expected error file %s to exist", errorFilePath)
+
+	// Verify the content of the error file
+	testutils.AssertFileContains(t, errorFilePath, "larger than the max batch size")
 }
 
 func TestImportDataFile_MultipleTasksForATable(t *testing.T) {
@@ -363,9 +536,10 @@ func TestImportDataFile_MultipleTasksForATable(t *testing.T) {
 		dataFileDescriptor = nil
 	}()
 	testutils.FatalIfError(t, err, "Failed to prepare dummy descriptor")
-	snapshotRowsMap, err := getImportedSnapshotRowsMap("target-file")
+	metaDB = initMetaDB(exportDir)
+	errorHandler, err := getImportDataFileErrorHandlerUsed()
 	if err != nil {
-		t.Fatalf("Failed to get imported snapshot rows map: %v", err)
+		t.Fatalf("Failed to get import data error handler: %v", err)
 	}
 
 	// Ensure the snapshotRowsMap contains the expected data.
@@ -373,6 +547,14 @@ func TestImportDataFile_MultipleTasksForATable(t *testing.T) {
 		SourceName:  sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "public.test_data"),
 		CurrentName: sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "public.test_data"),
 	}
+	tableList := []sqlname.NameTuple{
+		tblName,
+	}
+	snapshotRowsMap, err := getImportedSnapshotRowsMap("target-file", tableList, errorHandler)
+	if err != nil {
+		t.Fatalf("Failed to get imported snapshot rows map: %v", err)
+	}
+
 	rowCountPair, _ := snapshotRowsMap.Get(tblName)
 	assert.Equal(t, int64(200), rowCountPair.Imported, "Imported row count mismatch")
 	assert.Equal(t, int64(0), rowCountPair.Errored, "Errored row count mismatch")
@@ -486,20 +668,32 @@ func TestImportDataFile_SameFileForMultipleTables(t *testing.T) {
 		dataFileDescriptor = nil
 	}()
 	testutils.FatalIfError(t, err, "Failed to prepare dummy descriptor")
-	snapshotRowsMap, err := getImportedSnapshotRowsMap("target-file")
+
+	metaDB = initMetaDB(exportDir)
+	errorHandler, err := getImportDataFileErrorHandlerUsed()
 	if err != nil {
-		t.Fatalf("Failed to get imported snapshot rows map: %v", err)
+		t.Fatalf("Failed to get import data error handler: %v", err)
 	}
 
 	// Ensure the snapshotRowsMap contains the expected data.
 	tblName := sqlname.NameTuple{
-		SourceName:  sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "test_schema.test_data"),
-		CurrentName: sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "test_schema.test_data"),
+		SourceName:  sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "test_schema", "test_schema.test_data"),
+		CurrentName: sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "test_schema", "test_schema.test_data"),
 	}
 	tblName1 := sqlname.NameTuple{
-		SourceName:  sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "test_schema.test_data1"),
-		CurrentName: sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "test_schema.test_data1"),
+		SourceName:  sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "test_schema", "test_schema.test_data1"),
+		CurrentName: sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "test_schema", "test_schema.test_data1"),
 	}
+	tableList := []sqlname.NameTuple{
+		tblName,
+		tblName1,
+	}
+	snapshotRowsMap, err := getImportedSnapshotRowsMap("target-file", tableList, errorHandler)
+
+	if err != nil {
+		t.Fatalf("Failed to get imported snapshot rows map: %v", err)
+	}
+
 	tables := snapshotRowsMap.Keys()
 	assert.Equal(t, 2, len(tables), "There should be two tables in the snapshot rows map")
 

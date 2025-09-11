@@ -4308,10 +4308,6 @@
 		},
 		{
 			"Type": "GeneralNotes",
-			"Text": "If indexes are created on columns commonly used in range-based queries (e.g. timestamp columns), it is recommended to explicitly configure these indexes with range sharding. This ensures efficient data access for range queries.\nBy default, YugabyteDB uses hash sharding for indexes, which distributes data randomly and is not ideal for range-based predicates potentially degrading query performance. Note that range sharding is enabled by default only in PostgreSQL compatibility mode (https://docs.yugabyte.com/preview/develop/postgresql-compatibility/) in YugabyteDB."
-		},
-		{
-			"Type": "GeneralNotes",
 			"Text": "Limitations in assessment (https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/#assessment-and-schema-analysis-limitations)"
 		},
 		{

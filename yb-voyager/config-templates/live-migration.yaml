@@ -446,7 +446,12 @@ import-data-to-target:
   ### Note: This overrides the global log-level parameter for this command only.
   ### Accepted values - (trace, debug, info, warn, error, fatal, panic) 
   ### Default - info
-  # log-level: info    
+  # log-level: info 
+
+  ### Maximum number of retries for the streaming change events during live migration
+  ### Note: This overrides the value of the number of retries to happen for streaming phase 
+  ## Accepted value - <integer>, default - 15
+  # max-retries-streaming: 15
 
 # ---------------------------------------------------------
 # Archive Changes
