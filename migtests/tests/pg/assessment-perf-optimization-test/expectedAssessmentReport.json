@@ -1,1483 +1,1476 @@
 {
-	"VoyagerVersion": "main",
-	"TargetDBVersion": "2024.2.2.3",
-	"MigrationComplexity": "LOW",
-	"MigrationComplexityExplanation": "Found 16 Level 1 issue(s) and 0 Level 2 issue(s), resulting in LOW migration complexity",
-	"SchemaSummary": {
-		"Description": "Objects that will be created on the target YugabyteDB.",
-		"DbName": "pg_assessment_perf_optimizations",
-		"SchemaNames": [
-			"public",
-			"test"
-		],
-		"DbVersion": "17.2 (Debian 17.2-1.pgdg120+1)",
-		"DatabaseObjects": [
-			{
-				"ObjectType": "SCHEMA",
-				"TotalCount": 2,
-				"InvalidCount": 0,
-				"ObjectNames": "public, test"
-			},
-			{
-				"ObjectType": "TABLE",
-				"TotalCount": 49,
-				"InvalidCount": 11,
-				"ObjectNames": "public.\"Test_caseSensitive\", public.parent_partitioned, public.child_partition_skipped, public.has_pk_already, public.has_pk_with_unique_index, public.mix_constraint_index, public.mix_constraint_index_same, public.multiple_unique_options, public.no_pk_nullable, public.no_pk_table, public.partitioned_multiple_unique, public.partitioned_multiple_unique_2023, public.partitioned_multiple_unique_2023_us, public.partitioned_no_pk, public.partitioned_no_pk_2023, public.partitioned_no_pk_2023_us, public.partitioned_no_unique, public.partitioned_no_unique_2023, public.partitioned_no_unique_2023_us, public.partitioned_unique_index, public.partitioned_unique_index_2023, public.partitioned_unique_index_missing, public.partitioned_unique_index_missing_2023, public.sales_hierarchy, public.sales_hierarchy_2023, public.sales_hierarchy_2023_q1, public.sales_hierarchy_2023_q1_us, public.sales_hierarchy_no_unique, public.sales_hierarchy_no_unique_2023, public.sales_hierarchy_no_unique_2023_q1, public.sales_hierarchy_no_unique_2023_q1_us, public.sales_with_mid_pk, public.sales_with_mid_pk_2024, public.sales_with_mid_pk_2024_asia, public.t, public.tbl, public.test_low_card, public.test_most_freq, public.test_multi_col_idx, public.unique_index_composite, public.unique_index_expression, public.unique_index_mixed, public.unique_index_multiple, public.unique_index_nullable, public.unique_index_simple, public.users, test.t, test.t_low_most, test.test_mostcomm_status"
-			},
-			{
-				"ObjectType": "INDEX",
-				"TotalCount": 36,
-				"InvalidCount": 5,
-				"ObjectNames": "idx ON public.test_low_card, idx_has_pk_unique ON public.has_pk_with_unique_index, idx_mix_email ON public.mix_constraint_index, idx_mix_phone ON public.mix_constraint_index, idx_mix_same ON public.mix_constraint_index_same, idx_muli_col_key_first_col ON public.test_multi_col_idx, idx_muli_col_key_first_col1 ON public.test_multi_col_idx, idx_name ON public.users, idx_name1 ON public.users, idx_partitioned_unique ON public.partitioned_unique_index, idx_test_case_sensitive ON public.\"Test_caseSensitive\", idx_test_multi_id ON public.test_multi_col_idx, idx_test_multi_id1 ON public.test_multi_col_idx, idx_test_multi_id1_id2 ON public.test_multi_col_idx, idx_test_multi_id2 ON public.test_multi_col_idx, idx_test_multi_val ON public.test_multi_col_idx, idx_try ON public.tbl, idx_unique_composite ON public.unique_index_composite, idx_unique_expression ON public.unique_index_expression, idx_unique_mixed ON public.unique_index_mixed, idx_unique_multiple_1 ON public.unique_index_multiple, idx_unique_multiple_2 ON public.unique_index_multiple, idx_unique_multiple_3 ON public.unique_index_multiple, idx_unique_nullable ON public.unique_index_nullable, idx_unique_simple ON public.unique_index_simple, idxtt ON public.t, idxtt1 ON public.t, indx ON public.test_most_freq, indx1 ON public.test_most_freq, indx34 ON public.test_most_freq, partitioned_unique_index_2023_id_region_year_idx ON public.partitioned_unique_index_2023, idx ON test.t, idx2 ON test.t, idx_normal ON test.test_mostcomm_status, idx_partial_high ON test.test_mostcomm_status, idx_try ON test.t_low_most"
-			},
-			{
-				"ObjectType": "FUNCTION",
-				"TotalCount": 1,
-				"InvalidCount": 0,
-				"ObjectNames": "public.test_perf_plpgsql"
-			}
-		]
-	},
-	"Sizing": {
-		"SizingRecommendation": {
-			"ColocatedTables": [
-				"public.unique_index_composite",
-				"public.mix_constraint_index_same",
-				"public.Test_caseSensitive",
-				"public.partitioned_no_unique_2023_us",
-				"public.partitioned_unique_index_missing_2023",
-				"public.partitioned_no_pk_2023_us",
-				"public.test_low_card",
-				"public.has_pk_with_unique_index",
-				"public.child_partition_skipped",
-				"public.sales_hierarchy_no_unique_2023_q1_us",
-				"public.sales_with_mid_pk_2024_asia",
-				"public.sales_hierarchy_2023_q1_us",
-				"public.has_pk_already",
-				"public.unique_index_expression",
-				"public.unique_index_mixed",
-				"public.partitioned_unique_index_2023",
-				"public.partitioned_multiple_unique_2023_us",
-				"public.no_pk_nullable",
-				"public.no_pk_table",
-				"public.unique_index_nullable",
-				"public.unique_index_simple",
-				"test.test_mostcomm_status",
-				"public.t",
-				"test.t_low_most",
-				"test.t",
-				"public.users",
-				"public.tbl"
-			],
-			"ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 57 objects (27 tables/materialized views and 30 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Rest 24 objects (5 tables/materialized views and 19 explicit/implicit indexes) with 0.73 MB size and throughput requirement of 0 reads/sec and 0 writes/sec need to be migrated as range partitioned tables. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
-			"ShardedTables": [
-				"public.test_most_freq",
-				"public.unique_index_multiple",
-				"public.mix_constraint_index",
-				"public.multiple_unique_options",
-				"public.test_multi_col_idx"
-			],
-			"NumNodes": 3,
-			"VCPUsPerInstance": 4,
-			"MemoryPerInstance": 16,
-			"OptimalSelectConnectionsPerNode": 8,
-			"OptimalInsertConnectionsPerNode": 12,
-			"EstimatedTimeInMinForImport": 2,
-			"EstimatedTimeInMinForImportWithoutRedundantIndexes": 2
-		},
-		"FailureReasoning": ""
-	},
-	"AssessmentIssues": [
-				{
-			"Category": "performance_optimizations",
-			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
-			"Type": "INDEX_ON_COLUMN_WITH_HIGH_PERCENTAGE_OF_PARTICULAR_VALUE",
-			"Name": "Index on column with high percentage of a particular value",
-			"Description": "If queries do not filter on this value, using partial indexes that excludes this value. In distributed databases, unnecessary index entries for a value can increase write performance and storage usage. This index is built on column having a value occuring in large number of rows.",
-			"Impact": "LEVEL_1",
-			"ObjectType": "INDEX",
-			"ObjectName": "idx_normal ON test.test_mostcomm_status",
-			"SqlStatement": "CREATE INDEX idx_normal ON test.test_mostcomm_status USING btree (status);",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-column-with-high-percentage-of-a-particular-value",
-			"MinimumVersionsFixedIn": null,
-			"Details": {
-				"ColumnName": "status",
-				"FrequencyOfTheValue": "64%",
-				"Value": "DONE"
-			}
-		},
-
-		{
-			"Category": "performance_optimizations",
-			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
-			"Type": "INDEX_ON_COLUMN_WITH_HIGH_PERCENTAGE_OF_PARTICULAR_VALUE",
-			"Name": "Index on column with high percentage of a particular value",
-			"Description": "If queries do not filter on this value, using partial indexes that excludes this value. In distributed databases, unnecessary index entries for a value can increase write performance and storage usage. The first column of this index has value occuring in large number of rows.",
-			"Impact": "LEVEL_1",
-			"ObjectType": "INDEX",
-			"ObjectName": "indx1 ON public.test_most_freq",
-			"SqlStatement": "CREATE INDEX indx1 ON public.test_most_freq USING btree (status, id);",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-column-with-high-percentage-of-a-particular-value",
-			"MinimumVersionsFixedIn": null,
-			"Details": {
-				"ColumnName": "status",
-				"FrequencyOfTheValue": "69%",
-				"Value": "active"
-			}
-		},
-		{
-			"Category": "performance_optimizations",
-			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
-			"Type": "INDEX_ON_COLUMN_WITH_HIGH_PERCENTAGE_OF_PARTICULAR_VALUE",
-			"Name": "Index on column with high percentage of a particular value",
-			"Description": "If queries do not filter on this value, using partial indexes that excludes this value. In distributed databases, unnecessary index entries for a value can increase write performance and storage usage. This index is built on column having a value occuring in large number of rows.",
-			"Impact": "LEVEL_1",
-			"ObjectType": "INDEX",
-			"ObjectName": "idx_name ON public.users",
-			"SqlStatement": "CREATE INDEX idx_name ON public.users USING btree (name);",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-column-with-high-percentage-of-a-particular-value",
-			"MinimumVersionsFixedIn": null,
-			"Details": {
-				"ColumnName": "name",
-				"FrequencyOfTheValue": "65%",
-				"Value": "' '"
-			}
-		},
-		{
-			"Category": "performance_optimizations",
-			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
-			"Type": "INDEX_ON_COLUMN_WITH_HIGH_PERCENTAGE_OF_NULL_VALUES",
-			"Name": "Index on column with a high percentage of NULL values",
-			"Description": "If queries do not filter on NULL values, consider using partial indexes that excludes NULL values. In distributed databases, unnecessary index entries for NULL values can increase write performance and storage usage. This index is built on a column having high percentage of NULL values.",
-			"Impact": "LEVEL_1",
-			"ObjectType": "INDEX",
-			"ObjectName": "idxtt ON public.t",
-			"SqlStatement": "CREATE INDEX idxtt ON public.t USING btree (id2);",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-column-with-a-high-percentage-of-null-values",
-			"MinimumVersionsFixedIn": null,
-			"Details": {
-				"ColumnName": "id2",
-				"FrequencyOfNulls": "100%"
-			}
-		},
-		{
-			"Category": "performance_optimizations",
-			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
-			"Type": "INDEX_ON_COLUMN_WITH_HIGH_PERCENTAGE_OF_NULL_VALUES",
-			"Name": "Index on column with a high percentage of NULL values",
-			"Description": "If queries do not filter on NULL values, consider using partial indexes that excludes NULL values. In distributed databases, unnecessary index entries for NULL values can increase write performance and storage usage. This index is built on a column having high percentage of NULL values.",
-			"Impact": "LEVEL_1",
-			"ObjectType": "INDEX",
-			"ObjectName": "idx2 ON test.t",
-			"SqlStatement": "CREATE INDEX idx2 ON test.t USING btree (val1);",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-column-with-a-high-percentage-of-null-values",
-			"MinimumVersionsFixedIn": null,
-			"Details": {
-				"ColumnName": "val1",
-				"FrequencyOfNulls": "50%"
-			}
-		},
-		{
-			"Category": "performance_optimizations",
-			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
-			"Type": "MISSING_PRIMARY_KEY_WHEN_UNIQUE_NOT_NULL",
-			"Name": "Missing primary key for table when unique and not null columns exist",
-			"Description": "YugabyteDB's table storage is index-oriented. So, a table without a primary key is not viable in YugabyteDB. If you don't specify a primary key, YugabyteDB will use the internal ybrowid column as PRIMARY KEY and the table will be sharded on ybrowid HASH. However, if there are candidate primary keys (unique + NOT NULL), it is recommended to define them as a Primary Key to avoid secondary index structures.",
-			"Impact": "LEVEL_1",
-			"ObjectType": "TABLE",
-			"ObjectName": "public.no_pk_table",
-			"SqlStatement": "",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-primary-key-when-unique-not-null",
-			"MinimumVersionsFixedIn": null,
-			"Details": {
-				"PrimaryKeyColumnOptions": [
-					[
-						"public.no_pk_table.id",
-						"public.no_pk_table.name"
-					]
-				]
-			}
-		},
-		{
-			"Category": "performance_optimizations",
-			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
-			"Type": "MISSING_PRIMARY_KEY_WHEN_UNIQUE_NOT_NULL",
-			"Name": "Missing primary key for table when unique and not null columns exist",
-			"Description": "YugabyteDB's table storage is index-oriented. So, a table without a primary key is not viable in YugabyteDB. If you don't specify a primary key, YugabyteDB will use the internal ybrowid column as PRIMARY KEY and the table will be sharded on ybrowid HASH. However, if there are candidate primary keys (unique + NOT NULL), it is recommended to define them as a Primary Key to avoid secondary index structures.",
-			"Impact": "LEVEL_1",
-			"ObjectType": "TABLE",
-			"ObjectName": "public.partitioned_multiple_unique",
-			"SqlStatement": "",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-primary-key-when-unique-not-null",
-			"MinimumVersionsFixedIn": null,
-			"Details": {
-				"PrimaryKeyColumnOptions": [
-					[
-						"public.partitioned_multiple_unique.id",
-						"public.partitioned_multiple_unique.region",
-						"public.partitioned_multiple_unique.year",
-						"public.partitioned_multiple_unique.quarter"
-					],
-					[
-						"public.partitioned_multiple_unique.id",
-						"public.partitioned_multiple_unique.year",
-						"public.partitioned_multiple_unique.region",
-						"public.partitioned_multiple_unique.quarter"
-					]
-				]
-			}
-		},
-		{
-			"Category": "performance_optimizations",
-			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
-			"Type": "MISSING_PRIMARY_KEY_WHEN_UNIQUE_NOT_NULL",
-			"Name": "Missing primary key for table when unique and not null columns exist",
-			"Description": "YugabyteDB's table storage is index-oriented. So, a table without a primary key is not viable in YugabyteDB. If you don't specify a primary key, YugabyteDB will use the internal ybrowid column as PRIMARY KEY and the table will be sharded on ybrowid HASH. However, if there are candidate primary keys (unique + NOT NULL), it is recommended to define them as a Primary Key to avoid secondary index structures.",
-			"Impact": "LEVEL_1",
-			"ObjectType": "TABLE",
-			"ObjectName": "public.partitioned_no_pk",
-			"SqlStatement": "",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-primary-key-when-unique-not-null",
-			"MinimumVersionsFixedIn": null,
-			"Details": {
-				"PrimaryKeyColumnOptions": [
-					[
-						"public.partitioned_no_pk.id",
-						"public.partitioned_no_pk.region",
-						"public.partitioned_no_pk.year"
-					]
-				]
-			}
-		},
-		{
-			"Category": "performance_optimizations",
-			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
-			"Type": "MISSING_PRIMARY_KEY_WHEN_UNIQUE_NOT_NULL",
-			"Name": "Missing primary key for table when unique and not null columns exist",
-			"Description": "YugabyteDB's table storage is index-oriented. So, a table without a primary key is not viable in YugabyteDB. If you don't specify a primary key, YugabyteDB will use the internal ybrowid column as PRIMARY KEY and the table will be sharded on ybrowid HASH. However, if there are candidate primary keys (unique + NOT NULL), it is recommended to define them as a Primary Key to avoid secondary index structures.",
-			"Impact": "LEVEL_1",
-			"ObjectType": "TABLE",
-			"ObjectName": "public.multiple_unique_options",
-			"SqlStatement": "",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-primary-key-when-unique-not-null",
-			"MinimumVersionsFixedIn": null,
-			"Details": {
-				"PrimaryKeyColumnOptions": [
-					[
-						"public.multiple_unique_options.email"
-					],
-					[
-						"public.multiple_unique_options.id",
-						"public.multiple_unique_options.name"
-					],
-					[
-						"public.multiple_unique_options.phone",
-						"public.multiple_unique_options.name"
-					]
-				]
-			}
-		},
-		{
-			"Category": "performance_optimizations",
-			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
-			"Type": "MISSING_PRIMARY_KEY_WHEN_UNIQUE_NOT_NULL",
-			"Name": "Missing primary key for table when unique and not null columns exist",
-			"Description": "YugabyteDB's table storage is index-oriented. So, a table without a primary key is not viable in YugabyteDB. If you don't specify a primary key, YugabyteDB will use the internal ybrowid column as PRIMARY KEY and the table will be sharded on ybrowid HASH. However, if there are candidate primary keys (unique + NOT NULL), it is recommended to define them as a Primary Key to avoid secondary index structures.",
-			"Impact": "LEVEL_1",
-			"ObjectType": "TABLE",
-			"ObjectName": "public.sales_hierarchy",
-			"SqlStatement": "",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-primary-key-when-unique-not-null",
-			"MinimumVersionsFixedIn": null,
-			"Details": {
-				"PrimaryKeyColumnOptions": [
-					[
-						"public.sales_hierarchy.id",
-						"public.sales_hierarchy.region",
-						"public.sales_hierarchy.year",
-						"public.sales_hierarchy.quarter"
-					]
-				]
-			}
-		},
-		{
-			"Category": "performance_optimizations",
-			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
-			"Type": "MISSING_PRIMARY_KEY_WHEN_UNIQUE_NOT_NULL",
-			"Name": "Missing primary key for table when unique and not null columns exist",
-			"Description": "YugabyteDB's table storage is index-oriented. So, a table without a primary key is not viable in YugabyteDB. If you don't specify a primary key, YugabyteDB will use the internal ybrowid column as PRIMARY KEY and the table will be sharded on ybrowid HASH. However, if there are candidate primary keys (unique + NOT NULL), it is recommended to define them as a Primary Key to avoid secondary index structures.",
-			"Impact": "LEVEL_1",
-			"ObjectType": "TABLE",
-			"ObjectName": "public.unique_index_composite",
-			"SqlStatement": "",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-primary-key-when-unique-not-null",
-			"MinimumVersionsFixedIn": null,
-			"Details": {
-				"PrimaryKeyColumnOptions": [
-					[
-						"public.unique_index_composite.id",
-						"public.unique_index_composite.name"
-					]
-				]
-			}
-		},
-		{
-			"Category": "performance_optimizations",
-			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
-			"Type": "MISSING_PRIMARY_KEY_WHEN_UNIQUE_NOT_NULL",
-			"Name": "Missing primary key for table when unique and not null columns exist",
-			"Description": "YugabyteDB's table storage is index-oriented. So, a table without a primary key is not viable in YugabyteDB. If you don't specify a primary key, YugabyteDB will use the internal ybrowid column as PRIMARY KEY and the table will be sharded on ybrowid HASH. However, if there are candidate primary keys (unique + NOT NULL), it is recommended to define them as a Primary Key to avoid secondary index structures.",
-			"Impact": "LEVEL_1",
-			"ObjectType": "TABLE",
-			"ObjectName": "public.partitioned_unique_index",
-			"SqlStatement": "",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-primary-key-when-unique-not-null",
-			"MinimumVersionsFixedIn": null,
-			"Details": {
-				"PrimaryKeyColumnOptions": [
-					[
-						"public.partitioned_unique_index.id",
-						"public.partitioned_unique_index.region",
-						"public.partitioned_unique_index.year"
-					]
-				]
-			}
-		},
-		{
-			"Category": "performance_optimizations",
-			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
-			"Type": "MISSING_PRIMARY_KEY_WHEN_UNIQUE_NOT_NULL",
-			"Name": "Missing primary key for table when unique and not null columns exist",
-			"Description": "YugabyteDB's table storage is index-oriented. So, a table without a primary key is not viable in YugabyteDB. If you don't specify a primary key, YugabyteDB will use the internal ybrowid column as PRIMARY KEY and the table will be sharded on ybrowid HASH. However, if there are candidate primary keys (unique + NOT NULL), it is recommended to define them as a Primary Key to avoid secondary index structures.",
-			"Impact": "LEVEL_1",
-			"ObjectType": "TABLE",
-			"ObjectName": "public.mix_constraint_index_same",
-			"SqlStatement": "",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-primary-key-when-unique-not-null",
-			"MinimumVersionsFixedIn": null,
-			"Details": {
-				"PrimaryKeyColumnOptions": [
-					[
-						"public.mix_constraint_index_same.id",
-						"public.mix_constraint_index_same.name"
-					]
-				]
-			}
-		},
-		{
-			"Category": "performance_optimizations",
-			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
-			"Type": "MISSING_PRIMARY_KEY_WHEN_UNIQUE_NOT_NULL",
-			"Name": "Missing primary key for table when unique and not null columns exist",
-			"Description": "YugabyteDB's table storage is index-oriented. So, a table without a primary key is not viable in YugabyteDB. If you don't specify a primary key, YugabyteDB will use the internal ybrowid column as PRIMARY KEY and the table will be sharded on ybrowid HASH. However, if there are candidate primary keys (unique + NOT NULL), it is recommended to define them as a Primary Key to avoid secondary index structures.",
-			"Impact": "LEVEL_1",
-			"ObjectType": "TABLE",
-			"ObjectName": "public.unique_index_multiple",
-			"SqlStatement": "",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-primary-key-when-unique-not-null",
-			"MinimumVersionsFixedIn": null,
-			"Details": {
-				"PrimaryKeyColumnOptions": [
-					[
-						"public.unique_index_multiple.id"
-					],
-					[
-						"public.unique_index_multiple.email"
-					],
-					[
-						"public.unique_index_multiple.phone",
-						"public.unique_index_multiple.name"
-					]
-				]
-			}
-		},
-		{
-			"Category": "performance_optimizations",
-			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
-			"Type": "MISSING_PRIMARY_KEY_WHEN_UNIQUE_NOT_NULL",
-			"Name": "Missing primary key for table when unique and not null columns exist",
-			"Description": "YugabyteDB's table storage is index-oriented. So, a table without a primary key is not viable in YugabyteDB. If you don't specify a primary key, YugabyteDB will use the internal ybrowid column as PRIMARY KEY and the table will be sharded on ybrowid HASH. However, if there are candidate primary keys (unique + NOT NULL), it is recommended to define them as a Primary Key to avoid secondary index structures.",
-			"Impact": "LEVEL_1",
-			"ObjectType": "TABLE",
-			"ObjectName": "public.mix_constraint_index",
-			"SqlStatement": "",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-primary-key-when-unique-not-null",
-			"MinimumVersionsFixedIn": null,
-			"Details": {
-				"PrimaryKeyColumnOptions": [
-					[
-						"public.mix_constraint_index.id",
-						"public.mix_constraint_index.name"
-					],
-					[
-						"public.mix_constraint_index.email"
-					],
-					[
-						"public.mix_constraint_index.phone"
-					]
-				]
-			}
-		},
-		{
-			"Category": "performance_optimizations",
-			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
-			"Type": "MISSING_PRIMARY_KEY_WHEN_UNIQUE_NOT_NULL",
-			"Name": "Missing primary key for table when unique and not null columns exist",
-			"Description": "YugabyteDB's table storage is index-oriented. So, a table without a primary key is not viable in YugabyteDB. If you don't specify a primary key, YugabyteDB will use the internal ybrowid column as PRIMARY KEY and the table will be sharded on ybrowid HASH. However, if there are candidate primary keys (unique + NOT NULL), it is recommended to define them as a Primary Key to avoid secondary index structures.",
-			"Impact": "LEVEL_1",
-			"ObjectType": "TABLE",
-			"ObjectName": "public.unique_index_simple",
-			"SqlStatement": "",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-primary-key-when-unique-not-null",
-			"MinimumVersionsFixedIn": null,
-			"Details": {
-				"PrimaryKeyColumnOptions": [
-					[
-						"public.unique_index_simple.id"
-					]
-				]
-			}
-		}
-	],
-	"TableIndexStats": [
-		{
-			"SchemaName": "public",
-			"ObjectName": "users",
-			"RowCount": 1000,
-			"ColumnCount": 3,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "table",
-			"ParentTableName": null,
-			"SizeInBytes": 40960
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "unique_index_composite",
-			"RowCount": 100,
-			"ColumnCount": 4,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "table",
-			"ParentTableName": null,
-			"SizeInBytes": 8192
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "mix_constraint_index_same",
-			"RowCount": 100,
-			"ColumnCount": 3,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "table",
-			"ParentTableName": null,
-			"SizeInBytes": 8192
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "Test_caseSensitive",
-			"RowCount": 100,
-			"ColumnCount": 2,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "table",
-			"ParentTableName": null,
-			"SizeInBytes": 8192
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "tbl",
-			"RowCount": 1000,
-			"ColumnCount": 1,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "table",
-			"ParentTableName": null,
-			"SizeInBytes": 40960
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "test_most_freq",
-			"RowCount": 100,
-			"ColumnCount": 2,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "table",
-			"ParentTableName": null,
-			"SizeInBytes": 8192
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "partitioned_no_unique_2023_us",
-			"RowCount": 50,
-			"ColumnCount": 4,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "table",
-			"ParentTableName": null,
-			"SizeInBytes": 8192
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "partitioned_unique_index_missing_2023",
-			"RowCount": 50,
-			"ColumnCount": 4,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "table",
-			"ParentTableName": null,
-			"SizeInBytes": 8192
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "partitioned_no_pk_2023_us",
-			"RowCount": 100,
-			"ColumnCount": 4,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "table",
-			"ParentTableName": null,
-			"SizeInBytes": 8192
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "test_low_card",
-			"RowCount": 100,
-			"ColumnCount": 2,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "table",
-			"ParentTableName": null,
-			"SizeInBytes": 8192
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "has_pk_with_unique_index",
-			"RowCount": 100,
-			"ColumnCount": 3,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "table",
-			"ParentTableName": null,
-			"SizeInBytes": 8192
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "child_partition_skipped",
-			"RowCount": 60,
-			"ColumnCount": 3,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "table",
-			"ParentTableName": null,
-			"SizeInBytes": 8192
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "sales_hierarchy_no_unique_2023_q1_us",
-			"RowCount": 30,
-			"ColumnCount": 5,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "table",
-			"ParentTableName": null,
-			"SizeInBytes": 8192
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "sales_with_mid_pk_2024_asia",
-			"RowCount": 60,
-			"ColumnCount": 4,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "table",
-			"ParentTableName": null,
-			"SizeInBytes": 8192
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "sales_hierarchy_2023_q1_us",
-			"RowCount": 50,
-			"ColumnCount": 5,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "table",
-			"ParentTableName": null,
-			"SizeInBytes": 8192
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "has_pk_already",
-			"RowCount": 75,
-			"ColumnCount": 3,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "table",
-			"ParentTableName": null,
-			"SizeInBytes": 8192
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "unique_index_multiple",
-			"RowCount": 100,
-			"ColumnCount": 4,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "table",
-			"ParentTableName": null,
-			"SizeInBytes": 8192
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "unique_index_expression",
-			"RowCount": 100,
-			"ColumnCount": 3,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "table",
-			"ParentTableName": null,
-			"SizeInBytes": 8192
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "unique_index_mixed",
-			"RowCount": 100,
-			"ColumnCount": 3,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "table",
-			"ParentTableName": null,
-			"SizeInBytes": 8192
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "mix_constraint_index",
-			"RowCount": 100,
-			"ColumnCount": 4,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "table",
-			"ParentTableName": null,
-			"SizeInBytes": 8192
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "partitioned_unique_index_2023",
-			"RowCount": 50,
-			"ColumnCount": 4,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "table",
-			"ParentTableName": null,
-			"SizeInBytes": 8192
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "multiple_unique_options",
-			"RowCount": 100,
-			"ColumnCount": 4,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "table",
-			"ParentTableName": null,
-			"SizeInBytes": 8192
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "partitioned_multiple_unique_2023_us",
-			"RowCount": 40,
-			"ColumnCount": 5,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "table",
-			"ParentTableName": null,
-			"SizeInBytes": 8192
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "no_pk_nullable",
-			"RowCount": 100,
-			"ColumnCount": 3,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "table",
-			"ParentTableName": null,
-			"SizeInBytes": 8192
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "no_pk_table",
-			"RowCount": 100,
-			"ColumnCount": 3,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "table",
-			"ParentTableName": null,
-			"SizeInBytes": 8192
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "test_multi_col_idx",
-			"RowCount": 10000,
-			"ColumnCount": 4,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "table",
-			"ParentTableName": null,
-			"SizeInBytes": 524288
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "t",
-			"RowCount": 500,
-			"ColumnCount": 2,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "table",
-			"ParentTableName": null,
-			"SizeInBytes": 24576
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "unique_index_nullable",
-			"RowCount": 100,
-			"ColumnCount": 3,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "table",
-			"ParentTableName": null,
-			"SizeInBytes": 8192
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "unique_index_simple",
-			"RowCount": 100,
-			"ColumnCount": 3,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "table",
-			"ParentTableName": null,
-			"SizeInBytes": 8192
-		},
-		{
-			"SchemaName": "test",
-			"ObjectName": "t_low_most",
-			"RowCount": 500,
-			"ColumnCount": 2,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "table",
-			"ParentTableName": null,
-			"SizeInBytes": 24576
-		},
-		{
-			"SchemaName": "test",
-			"ObjectName": "test_mostcomm_status",
-			"RowCount": 100,
-			"ColumnCount": 2,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "table",
-			"ParentTableName": null,
-			"SizeInBytes": 8192
-		},
-		{
-			"SchemaName": "test",
-			"ObjectName": "t",
-			"RowCount": 500,
-			"ColumnCount": 3,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "table",
-			"ParentTableName": null,
-			"SizeInBytes": 24576
-		},
-		{
-			"SchemaName": "test",
-			"ObjectName": "idx2",
-			"RowCount": null,
-			"ColumnCount": 1,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "index",
-			"ParentTableName": "test.t",
-			"SizeInBytes": 16384
-		},
-		{
-			"SchemaName": "test",
-			"ObjectName": "idx",
-			"RowCount": null,
-			"ColumnCount": 1,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "index",
-			"ParentTableName": "test.t",
-			"SizeInBytes": 16384
-		},
-		{
-			"SchemaName": "test",
-			"ObjectName": "idx_try",
-			"RowCount": null,
-			"ColumnCount": 1,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "index",
-			"ParentTableName": "test.t_low_most",
-			"SizeInBytes": 16384
-		},
-		{
-			"SchemaName": "test",
-			"ObjectName": "idx_normal",
-			"RowCount": null,
-			"ColumnCount": 1,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "index",
-			"ParentTableName": "test.test_mostcomm_status",
-			"SizeInBytes": 16384
-		},
-		{
-			"SchemaName": "test",
-			"ObjectName": "idx_partial_high",
-			"RowCount": null,
-			"ColumnCount": 1,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "index",
-			"ParentTableName": "test.test_mostcomm_status",
-			"SizeInBytes": 16384
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "idx_try",
-			"RowCount": null,
-			"ColumnCount": 1,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "index",
-			"ParentTableName": "public.tbl",
-			"SizeInBytes": 16384
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "no_pk_table_id_name_key",
-			"RowCount": null,
-			"ColumnCount": 2,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "index",
-			"ParentTableName": "public.no_pk_table",
-			"SizeInBytes": 16384
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "idx_mix_phone",
-			"RowCount": null,
-			"ColumnCount": 1,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "index",
-			"ParentTableName": "public.mix_constraint_index",
-			"SizeInBytes": 16384
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "idx_mix_email",
-			"RowCount": null,
-			"ColumnCount": 1,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "index",
-			"ParentTableName": "public.mix_constraint_index",
-			"SizeInBytes": 16384
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "mix_constraint_index_id_name_key",
-			"RowCount": null,
-			"ColumnCount": 2,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "index",
-			"ParentTableName": "public.mix_constraint_index",
-			"SizeInBytes": 16384
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "sales_with_mid_pk_2024_asia_pkey",
-			"RowCount": null,
-			"ColumnCount": 2,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "primary key",
-			"ParentTableName": "public.sales_with_mid_pk_2024_asia",
-			"SizeInBytes": 16384
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "sales_with_mid_pk_2024_asia_id_sale_date_region_key",
-			"RowCount": null,
-			"ColumnCount": 3,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "index",
-			"ParentTableName": "public.sales_with_mid_pk_2024_asia",
-			"SizeInBytes": 16384
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "no_pk_nullable_id_name_key",
-			"RowCount": null,
-			"ColumnCount": 2,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "index",
-			"ParentTableName": "public.no_pk_nullable",
-			"SizeInBytes": 16384
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "idx_test_case_sensitive",
-			"RowCount": null,
-			"ColumnCount": 1,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "index",
-			"ParentTableName": "public.Test_caseSensitive",
-			"SizeInBytes": 16384
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "idxtt1",
-			"RowCount": null,
-			"ColumnCount": 1,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "index",
-			"ParentTableName": "public.t",
-			"SizeInBytes": 8192
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "idxtt",
-			"RowCount": null,
-			"ColumnCount": 1,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "index",
-			"ParentTableName": "public.t",
-			"SizeInBytes": 16384
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "idx",
-			"RowCount": null,
-			"ColumnCount": 1,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "index",
-			"ParentTableName": "public.test_low_card",
-			"SizeInBytes": 16384
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "indx34",
-			"RowCount": null,
-			"ColumnCount": 1,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "index",
-			"ParentTableName": "public.test_most_freq",
-			"SizeInBytes": 16384
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "indx1",
-			"RowCount": null,
-			"ColumnCount": 2,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "index",
-			"ParentTableName": "public.test_most_freq",
-			"SizeInBytes": 16384
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "indx",
-			"RowCount": null,
-			"ColumnCount": 1,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "index",
-			"ParentTableName": "public.test_most_freq",
-			"SizeInBytes": 16384
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "idx_test_multi_val",
-			"RowCount": null,
-			"ColumnCount": 1,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "index",
-			"ParentTableName": "public.test_multi_col_idx",
-			"SizeInBytes": 90112
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "idx_test_multi_id2",
-			"RowCount": null,
-			"ColumnCount": 1,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "index",
-			"ParentTableName": "public.test_multi_col_idx",
-			"SizeInBytes": 90112
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "idx_test_multi_id1_id2",
-			"RowCount": null,
-			"ColumnCount": 2,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "index",
-			"ParentTableName": "public.test_multi_col_idx",
-			"SizeInBytes": 90112
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "idx_test_multi_id1",
-			"RowCount": null,
-			"ColumnCount": 1,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "index",
-			"ParentTableName": "public.test_multi_col_idx",
-			"SizeInBytes": 90112
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "idx_test_multi_id",
-			"RowCount": null,
-			"ColumnCount": 1,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "index",
-			"ParentTableName": "public.test_multi_col_idx",
-			"SizeInBytes": 245760
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "idx_muli_col_key_first_col1",
-			"RowCount": null,
-			"ColumnCount": 1,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "index",
-			"ParentTableName": "public.test_multi_col_idx",
-			"SizeInBytes": 90112
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "idx_muli_col_key_first_col",
-			"RowCount": null,
-			"ColumnCount": 2,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "index",
-			"ParentTableName": "public.test_multi_col_idx",
-			"SizeInBytes": 90112
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "idx_name1",
-			"RowCount": null,
-			"ColumnCount": 1,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "index",
-			"ParentTableName": "public.users",
-			"SizeInBytes": 16384
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "idx_name",
-			"RowCount": null,
-			"ColumnCount": 1,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "index",
-			"ParentTableName": "public.users",
-			"SizeInBytes": 16384
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "users_pkey",
-			"RowCount": null,
-			"ColumnCount": 1,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "primary key",
-			"ParentTableName": "public.users",
-			"SizeInBytes": 40960
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "partitioned_no_pk_2023_us_id_region_year_key",
-			"RowCount": null,
-			"ColumnCount": 3,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "index",
-			"ParentTableName": "public.partitioned_no_pk_2023_us",
-			"SizeInBytes": 16384
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "sales_hierarchy_2023_q1_us_id_region_year_quarter_key",
-			"RowCount": null,
-			"ColumnCount": 4,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "index",
-			"ParentTableName": "public.sales_hierarchy_2023_q1_us",
-			"SizeInBytes": 16384
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "multiple_unique_options_phone_name_key",
-			"RowCount": null,
-			"ColumnCount": 2,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "index",
-			"ParentTableName": "public.multiple_unique_options",
-			"SizeInBytes": 16384
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "multiple_unique_options_email_key",
-			"RowCount": null,
-			"ColumnCount": 1,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "index",
-			"ParentTableName": "public.multiple_unique_options",
-			"SizeInBytes": 16384
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "multiple_unique_options_id_name_key",
-			"RowCount": null,
-			"ColumnCount": 2,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "index",
-			"ParentTableName": "public.multiple_unique_options",
-			"SizeInBytes": 16384
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "partitioned_multiple_unique_2023_us_id_year_region_quarter_key",
-			"RowCount": null,
-			"ColumnCount": 4,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "index",
-			"ParentTableName": "public.partitioned_multiple_unique_2023_us",
-			"SizeInBytes": 16384
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "partitioned_multiple_unique_2023_us_id_region_year_quarter_key",
-			"RowCount": null,
-			"ColumnCount": 4,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "index",
-			"ParentTableName": "public.partitioned_multiple_unique_2023_us",
-			"SizeInBytes": 16384
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "idx_unique_simple",
-			"RowCount": null,
-			"ColumnCount": 1,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "index",
-			"ParentTableName": "public.unique_index_simple",
-			"SizeInBytes": 16384
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "idx_unique_composite",
-			"RowCount": null,
-			"ColumnCount": 2,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "index",
-			"ParentTableName": "public.unique_index_composite",
-			"SizeInBytes": 16384
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "idx_unique_multiple_3",
-			"RowCount": null,
-			"ColumnCount": 2,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "index",
-			"ParentTableName": "public.unique_index_multiple",
-			"SizeInBytes": 16384
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "idx_unique_multiple_2",
-			"RowCount": null,
-			"ColumnCount": 1,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "index",
-			"ParentTableName": "public.unique_index_multiple",
-			"SizeInBytes": 16384
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "idx_unique_multiple_1",
-			"RowCount": null,
-			"ColumnCount": 1,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "index",
-			"ParentTableName": "public.unique_index_multiple",
-			"SizeInBytes": 16384
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "idx_mix_same",
-			"RowCount": null,
-			"ColumnCount": 2,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "index",
-			"ParentTableName": "public.mix_constraint_index_same",
-			"SizeInBytes": 16384
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "mix_constraint_index_same_id_name_key",
-			"RowCount": null,
-			"ColumnCount": 2,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "index",
-			"ParentTableName": "public.mix_constraint_index_same",
-			"SizeInBytes": 16384
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "partitioned_unique_index_2023_id_region_year_idx",
-			"RowCount": null,
-			"ColumnCount": 3,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "index",
-			"ParentTableName": "public.partitioned_unique_index_2023",
-			"SizeInBytes": 16384
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "has_pk_already_name_key",
-			"RowCount": null,
-			"ColumnCount": 1,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "index",
-			"ParentTableName": "public.has_pk_already",
-			"SizeInBytes": 16384
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "has_pk_already_pkey",
-			"RowCount": null,
-			"ColumnCount": 1,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "primary key",
-			"ParentTableName": "public.has_pk_already",
-			"SizeInBytes": 16384
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "child_partition_skipped_id_region_key",
-			"RowCount": null,
-			"ColumnCount": 2,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "index",
-			"ParentTableName": "public.child_partition_skipped",
-			"SizeInBytes": 16384
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "idx_unique_nullable",
-			"RowCount": null,
-			"ColumnCount": 2,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "index",
-			"ParentTableName": "public.unique_index_nullable",
-			"SizeInBytes": 16384
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "idx_has_pk_unique",
-			"RowCount": null,
-			"ColumnCount": 1,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "index",
-			"ParentTableName": "public.has_pk_with_unique_index",
-			"SizeInBytes": 16384
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "has_pk_with_unique_index_pkey",
-			"RowCount": null,
-			"ColumnCount": 1,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "primary key",
-			"ParentTableName": "public.has_pk_with_unique_index",
-			"SizeInBytes": 16384
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "idx_unique_expression",
-			"RowCount": null,
-			"ColumnCount": 1,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "index",
-			"ParentTableName": "public.unique_index_expression",
-			"SizeInBytes": 16384
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "idx_unique_mixed",
-			"RowCount": null,
-			"ColumnCount": 2,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "index",
-			"ParentTableName": "public.unique_index_mixed",
-			"SizeInBytes": 16384
-		}
-	],
-	"Notes": [
-		{
-			"Type": "GeneralNotes",
-			"Text": "Some features listed in this report may be supported under a preview flag in the specified target-db-version of YugabyteDB. Please refer to the official release notes (https://docs.yugabyte.com/preview/releases/ybdb-releases/) for detailed information and usage guidelines."
-		},
-		{
-			"Type": "ColocatedShardedNotes",
-			"Text": "If there are any tables that receive disproportionately high load, ensure that they are NOT colocated to avoid the colocated tablet becoming a hotspot.\nFor additional considerations related to colocated tables, refer to the documentation at: https://docs.yugabyte.com/preview/explore/colocation/#limitations-and-considerations"
-		},
-
-		{
-			"Type": "GeneralNotes",
-			"Text": "Limitations in assessment (https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/#assessment-and-schema-analysis-limitations)"
-		},
-		{
-			"Type": "SizingNotes",
-			"Text": "Import data time estimates exclude redundant indexes since they are automatically removed during export schema phase."
-		}
-	]
+    "VoyagerVersion": "main",
+    "TargetDBVersion": "2024.2.2.3",
+    "MigrationComplexity": "LOW",
+    "MigrationComplexityExplanation": "Found 16 Level 1 issue(s) and 0 Level 2 issue(s), resulting in LOW migration complexity",
+    "SchemaSummary": {
+        "Description": "Objects that will be created on the target YugabyteDB.",
+        "DbName": "pg_assessment_perf_optimizations",
+        "SchemaNames": [
+            "public",
+            "test"
+        ],
+        "DbVersion": "17.2 (Debian 17.2-1.pgdg120+1)",
+        "DatabaseObjects": [
+            {
+                "ObjectType": "SCHEMA",
+                "TotalCount": 2,
+                "InvalidCount": 0,
+                "ObjectNames": "public, test"
+            },
+            {
+                "ObjectType": "TABLE",
+                "TotalCount": 49,
+                "InvalidCount": 11,
+                "ObjectNames": "public.\"Test_caseSensitive\", public.parent_partitioned, public.child_partition_skipped, public.has_pk_already, public.has_pk_with_unique_index, public.mix_constraint_index, public.mix_constraint_index_same, public.multiple_unique_options, public.no_pk_nullable, public.no_pk_table, public.partitioned_multiple_unique, public.partitioned_multiple_unique_2023, public.partitioned_multiple_unique_2023_us, public.partitioned_no_pk, public.partitioned_no_pk_2023, public.partitioned_no_pk_2023_us, public.partitioned_no_unique, public.partitioned_no_unique_2023, public.partitioned_no_unique_2023_us, public.partitioned_unique_index, public.partitioned_unique_index_2023, public.partitioned_unique_index_missing, public.partitioned_unique_index_missing_2023, public.sales_hierarchy, public.sales_hierarchy_2023, public.sales_hierarchy_2023_q1, public.sales_hierarchy_2023_q1_us, public.sales_hierarchy_no_unique, public.sales_hierarchy_no_unique_2023, public.sales_hierarchy_no_unique_2023_q1, public.sales_hierarchy_no_unique_2023_q1_us, public.sales_with_mid_pk, public.sales_with_mid_pk_2024, public.sales_with_mid_pk_2024_asia, public.t, public.tbl, public.test_low_card, public.test_most_freq, public.test_multi_col_idx, public.unique_index_composite, public.unique_index_expression, public.unique_index_mixed, public.unique_index_multiple, public.unique_index_nullable, public.unique_index_simple, public.users, test.t, test.t_low_most, test.test_mostcomm_status"
+            },
+            {
+                "ObjectType": "INDEX",
+                "TotalCount": 36,
+                "InvalidCount": 5,
+                "ObjectNames": "idx ON public.test_low_card, idx_has_pk_unique ON public.has_pk_with_unique_index, idx_mix_email ON public.mix_constraint_index, idx_mix_phone ON public.mix_constraint_index, idx_mix_same ON public.mix_constraint_index_same, idx_muli_col_key_first_col ON public.test_multi_col_idx, idx_muli_col_key_first_col1 ON public.test_multi_col_idx, idx_name ON public.users, idx_name1 ON public.users, idx_partitioned_unique ON public.partitioned_unique_index, idx_test_case_sensitive ON public.\"Test_caseSensitive\", idx_test_multi_id ON public.test_multi_col_idx, idx_test_multi_id1 ON public.test_multi_col_idx, idx_test_multi_id1_id2 ON public.test_multi_col_idx, idx_test_multi_id2 ON public.test_multi_col_idx, idx_test_multi_val ON public.test_multi_col_idx, idx_try ON public.tbl, idx_unique_composite ON public.unique_index_composite, idx_unique_expression ON public.unique_index_expression, idx_unique_mixed ON public.unique_index_mixed, idx_unique_multiple_1 ON public.unique_index_multiple, idx_unique_multiple_2 ON public.unique_index_multiple, idx_unique_multiple_3 ON public.unique_index_multiple, idx_unique_nullable ON public.unique_index_nullable, idx_unique_simple ON public.unique_index_simple, idxtt ON public.t, idxtt1 ON public.t, indx ON public.test_most_freq, indx1 ON public.test_most_freq, indx34 ON public.test_most_freq, partitioned_unique_index_2023_id_region_year_idx ON public.partitioned_unique_index_2023, idx ON test.t, idx2 ON test.t, idx_normal ON test.test_mostcomm_status, idx_partial_high ON test.test_mostcomm_status, idx_try ON test.t_low_most"
+            },
+            {
+                "ObjectType": "FUNCTION",
+                "TotalCount": 1,
+                "InvalidCount": 0,
+                "ObjectNames": "public.test_perf_plpgsql"
+            }
+        ]
+    },
+    "Sizing": {
+        "SizingRecommendation": {
+            "ColocatedTables": null,
+            "ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 81 objects (32 tables/materialized views and 49 explicit/implicit indexes) with 0.73 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as sharded. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
+            "ShardedTables": [
+                "public.sales_hierarchy_no_unique_2023_q1_us",
+                "public.multiple_unique_options",
+                "public.Test_caseSensitive",
+                "public.has_pk_already",
+                "public.mix_constraint_index",
+                "public.unique_index_expression",
+                "public.partitioned_multiple_unique_2023_us",
+                "public.no_pk_nullable",
+                "public.unique_index_mixed",
+                "public.test_low_card",
+                "public.unique_index_nullable",
+                "public.partitioned_no_pk_2023_us",
+                "public.unique_index_composite",
+                "public.partitioned_unique_index_2023",
+                "public.mix_constraint_index_same",
+                "public.sales_with_mid_pk_2024_asia",
+                "public.test_most_freq",
+                "public.unique_index_multiple",
+                "public.no_pk_table",
+                "public.partitioned_unique_index_missing_2023",
+                "public.unique_index_simple",
+                "public.partitioned_no_unique_2023_us",
+                "public.child_partition_skipped",
+                "public.sales_hierarchy_2023_q1_us",
+                "public.has_pk_with_unique_index",
+                "test.test_mostcomm_status",
+                "public.t",
+                "test.t_low_most",
+                "test.t",
+                "public.tbl",
+                "public.users",
+                "public.test_multi_col_idx"
+            ],
+            "NumNodes": 3,
+            "VCPUsPerInstance": 4,
+            "MemoryPerInstance": 16,
+            "OptimalSelectConnectionsPerNode": 10,
+            "OptimalInsertConnectionsPerNode": 12,
+            "EstimatedTimeInMinForImport": 2,
+            "EstimatedTimeInMinForImportWithoutRedundantIndexes": 1
+        },
+        "FailureReasoning": ""
+    },
+    "AssessmentIssues": [
+        {
+            "Category": "performance_optimizations",
+            "CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
+            "Type": "INDEX_ON_COLUMN_WITH_HIGH_PERCENTAGE_OF_PARTICULAR_VALUE",
+            "Name": "Index on column with high percentage of a particular value",
+            "Description": "If queries do not filter on this value, using partial indexes that excludes this value. In distributed databases, unnecessary index entries for a value can increase write performance and storage usage. This index is built on column having a value occuring in large number of rows.",
+            "Impact": "LEVEL_1",
+            "ObjectType": "INDEX",
+            "ObjectName": "idx_normal ON test.test_mostcomm_status",
+            "SqlStatement": "CREATE INDEX idx_normal ON test.test_mostcomm_status USING btree (status);",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-column-with-high-percentage-of-a-particular-value",
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "status",
+                "FrequencyOfTheValue": "64%",
+                "Value": "DONE"
+            }
+        },
+        {
+            "Category": "performance_optimizations",
+            "CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
+            "Type": "INDEX_ON_COLUMN_WITH_HIGH_PERCENTAGE_OF_PARTICULAR_VALUE",
+            "Name": "Index on column with high percentage of a particular value",
+            "Description": "If queries do not filter on this value, using partial indexes that excludes this value. In distributed databases, unnecessary index entries for a value can increase write performance and storage usage. The first column of this index has value occuring in large number of rows.",
+            "Impact": "LEVEL_1",
+            "ObjectType": "INDEX",
+            "ObjectName": "indx1 ON public.test_most_freq",
+            "SqlStatement": "CREATE INDEX indx1 ON public.test_most_freq USING btree (status, id);",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-column-with-high-percentage-of-a-particular-value",
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "status",
+                "FrequencyOfTheValue": "69%",
+                "Value": "active"
+            }
+        },
+        {
+            "Category": "performance_optimizations",
+            "CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
+            "Type": "INDEX_ON_COLUMN_WITH_HIGH_PERCENTAGE_OF_PARTICULAR_VALUE",
+            "Name": "Index on column with high percentage of a particular value",
+            "Description": "If queries do not filter on this value, using partial indexes that excludes this value. In distributed databases, unnecessary index entries for a value can increase write performance and storage usage. This index is built on column having a value occuring in large number of rows.",
+            "Impact": "LEVEL_1",
+            "ObjectType": "INDEX",
+            "ObjectName": "idx_name ON public.users",
+            "SqlStatement": "CREATE INDEX idx_name ON public.users USING btree (name);",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-column-with-high-percentage-of-a-particular-value",
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "name",
+                "FrequencyOfTheValue": "65%",
+                "Value": "' '"
+            }
+        },
+        {
+            "Category": "performance_optimizations",
+            "CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
+            "Type": "INDEX_ON_COLUMN_WITH_HIGH_PERCENTAGE_OF_NULL_VALUES",
+            "Name": "Index on column with a high percentage of NULL values",
+            "Description": "If queries do not filter on NULL values, consider using partial indexes that excludes NULL values. In distributed databases, unnecessary index entries for NULL values can increase write performance and storage usage. This index is built on a column having high percentage of NULL values.",
+            "Impact": "LEVEL_1",
+            "ObjectType": "INDEX",
+            "ObjectName": "idxtt ON public.t",
+            "SqlStatement": "CREATE INDEX idxtt ON public.t USING btree (id2);",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-column-with-a-high-percentage-of-null-values",
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "id2",
+                "FrequencyOfNulls": "100%"
+            }
+        },
+        {
+            "Category": "performance_optimizations",
+            "CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
+            "Type": "INDEX_ON_COLUMN_WITH_HIGH_PERCENTAGE_OF_NULL_VALUES",
+            "Name": "Index on column with a high percentage of NULL values",
+            "Description": "If queries do not filter on NULL values, consider using partial indexes that excludes NULL values. In distributed databases, unnecessary index entries for NULL values can increase write performance and storage usage. This index is built on a column having high percentage of NULL values.",
+            "Impact": "LEVEL_1",
+            "ObjectType": "INDEX",
+            "ObjectName": "idx2 ON test.t",
+            "SqlStatement": "CREATE INDEX idx2 ON test.t USING btree (val1);",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-column-with-a-high-percentage-of-null-values",
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "val1",
+                "FrequencyOfNulls": "50%"
+            }
+        },
+        {
+            "Category": "performance_optimizations",
+            "CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
+            "Type": "MISSING_PRIMARY_KEY_WHEN_UNIQUE_NOT_NULL",
+            "Name": "Missing primary key for table when unique and not null columns exist",
+            "Description": "YugabyteDB's table storage is index-oriented. So, a table without a primary key is not viable in YugabyteDB. If you don't specify a primary key, YugabyteDB will use the internal ybrowid column as PRIMARY KEY and the table will be sharded on ybrowid HASH. However, if there are candidate primary keys (unique + NOT NULL), it is recommended to define them as a Primary Key to avoid secondary index structures.",
+            "Impact": "LEVEL_1",
+            "ObjectType": "TABLE",
+            "ObjectName": "public.no_pk_table",
+            "SqlStatement": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-primary-key-when-unique-not-null",
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "PrimaryKeyColumnOptions": [
+                    [
+                        "public.no_pk_table.id",
+                        "public.no_pk_table.name"
+                    ]
+                ]
+            }
+        },
+        {
+            "Category": "performance_optimizations",
+            "CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
+            "Type": "MISSING_PRIMARY_KEY_WHEN_UNIQUE_NOT_NULL",
+            "Name": "Missing primary key for table when unique and not null columns exist",
+            "Description": "YugabyteDB's table storage is index-oriented. So, a table without a primary key is not viable in YugabyteDB. If you don't specify a primary key, YugabyteDB will use the internal ybrowid column as PRIMARY KEY and the table will be sharded on ybrowid HASH. However, if there are candidate primary keys (unique + NOT NULL), it is recommended to define them as a Primary Key to avoid secondary index structures.",
+            "Impact": "LEVEL_1",
+            "ObjectType": "TABLE",
+            "ObjectName": "public.partitioned_multiple_unique",
+            "SqlStatement": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-primary-key-when-unique-not-null",
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "PrimaryKeyColumnOptions": [
+                    [
+                        "public.partitioned_multiple_unique.id",
+                        "public.partitioned_multiple_unique.region",
+                        "public.partitioned_multiple_unique.year",
+                        "public.partitioned_multiple_unique.quarter"
+                    ],
+                    [
+                        "public.partitioned_multiple_unique.id",
+                        "public.partitioned_multiple_unique.year",
+                        "public.partitioned_multiple_unique.region",
+                        "public.partitioned_multiple_unique.quarter"
+                    ]
+                ]
+            }
+        },
+        {
+            "Category": "performance_optimizations",
+            "CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
+            "Type": "MISSING_PRIMARY_KEY_WHEN_UNIQUE_NOT_NULL",
+            "Name": "Missing primary key for table when unique and not null columns exist",
+            "Description": "YugabyteDB's table storage is index-oriented. So, a table without a primary key is not viable in YugabyteDB. If you don't specify a primary key, YugabyteDB will use the internal ybrowid column as PRIMARY KEY and the table will be sharded on ybrowid HASH. However, if there are candidate primary keys (unique + NOT NULL), it is recommended to define them as a Primary Key to avoid secondary index structures.",
+            "Impact": "LEVEL_1",
+            "ObjectType": "TABLE",
+            "ObjectName": "public.partitioned_no_pk",
+            "SqlStatement": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-primary-key-when-unique-not-null",
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "PrimaryKeyColumnOptions": [
+                    [
+                        "public.partitioned_no_pk.id",
+                        "public.partitioned_no_pk.region",
+                        "public.partitioned_no_pk.year"
+                    ]
+                ]
+            }
+        },
+        {
+            "Category": "performance_optimizations",
+            "CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
+            "Type": "MISSING_PRIMARY_KEY_WHEN_UNIQUE_NOT_NULL",
+            "Name": "Missing primary key for table when unique and not null columns exist",
+            "Description": "YugabyteDB's table storage is index-oriented. So, a table without a primary key is not viable in YugabyteDB. If you don't specify a primary key, YugabyteDB will use the internal ybrowid column as PRIMARY KEY and the table will be sharded on ybrowid HASH. However, if there are candidate primary keys (unique + NOT NULL), it is recommended to define them as a Primary Key to avoid secondary index structures.",
+            "Impact": "LEVEL_1",
+            "ObjectType": "TABLE",
+            "ObjectName": "public.multiple_unique_options",
+            "SqlStatement": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-primary-key-when-unique-not-null",
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "PrimaryKeyColumnOptions": [
+                    [
+                        "public.multiple_unique_options.email"
+                    ],
+                    [
+                        "public.multiple_unique_options.id",
+                        "public.multiple_unique_options.name"
+                    ],
+                    [
+                        "public.multiple_unique_options.phone",
+                        "public.multiple_unique_options.name"
+                    ]
+                ]
+            }
+        },
+        {
+            "Category": "performance_optimizations",
+            "CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
+            "Type": "MISSING_PRIMARY_KEY_WHEN_UNIQUE_NOT_NULL",
+            "Name": "Missing primary key for table when unique and not null columns exist",
+            "Description": "YugabyteDB's table storage is index-oriented. So, a table without a primary key is not viable in YugabyteDB. If you don't specify a primary key, YugabyteDB will use the internal ybrowid column as PRIMARY KEY and the table will be sharded on ybrowid HASH. However, if there are candidate primary keys (unique + NOT NULL), it is recommended to define them as a Primary Key to avoid secondary index structures.",
+            "Impact": "LEVEL_1",
+            "ObjectType": "TABLE",
+            "ObjectName": "public.sales_hierarchy",
+            "SqlStatement": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-primary-key-when-unique-not-null",
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "PrimaryKeyColumnOptions": [
+                    [
+                        "public.sales_hierarchy.id",
+                        "public.sales_hierarchy.region",
+                        "public.sales_hierarchy.year",
+                        "public.sales_hierarchy.quarter"
+                    ]
+                ]
+            }
+        },
+        {
+            "Category": "performance_optimizations",
+            "CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
+            "Type": "MISSING_PRIMARY_KEY_WHEN_UNIQUE_NOT_NULL",
+            "Name": "Missing primary key for table when unique and not null columns exist",
+            "Description": "YugabyteDB's table storage is index-oriented. So, a table without a primary key is not viable in YugabyteDB. If you don't specify a primary key, YugabyteDB will use the internal ybrowid column as PRIMARY KEY and the table will be sharded on ybrowid HASH. However, if there are candidate primary keys (unique + NOT NULL), it is recommended to define them as a Primary Key to avoid secondary index structures.",
+            "Impact": "LEVEL_1",
+            "ObjectType": "TABLE",
+            "ObjectName": "public.unique_index_composite",
+            "SqlStatement": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-primary-key-when-unique-not-null",
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "PrimaryKeyColumnOptions": [
+                    [
+                        "public.unique_index_composite.id",
+                        "public.unique_index_composite.name"
+                    ]
+                ]
+            }
+        },
+        {
+            "Category": "performance_optimizations",
+            "CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
+            "Type": "MISSING_PRIMARY_KEY_WHEN_UNIQUE_NOT_NULL",
+            "Name": "Missing primary key for table when unique and not null columns exist",
+            "Description": "YugabyteDB's table storage is index-oriented. So, a table without a primary key is not viable in YugabyteDB. If you don't specify a primary key, YugabyteDB will use the internal ybrowid column as PRIMARY KEY and the table will be sharded on ybrowid HASH. However, if there are candidate primary keys (unique + NOT NULL), it is recommended to define them as a Primary Key to avoid secondary index structures.",
+            "Impact": "LEVEL_1",
+            "ObjectType": "TABLE",
+            "ObjectName": "public.partitioned_unique_index",
+            "SqlStatement": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-primary-key-when-unique-not-null",
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "PrimaryKeyColumnOptions": [
+                    [
+                        "public.partitioned_unique_index.id",
+                        "public.partitioned_unique_index.region",
+                        "public.partitioned_unique_index.year"
+                    ]
+                ]
+            }
+        },
+        {
+            "Category": "performance_optimizations",
+            "CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
+            "Type": "MISSING_PRIMARY_KEY_WHEN_UNIQUE_NOT_NULL",
+            "Name": "Missing primary key for table when unique and not null columns exist",
+            "Description": "YugabyteDB's table storage is index-oriented. So, a table without a primary key is not viable in YugabyteDB. If you don't specify a primary key, YugabyteDB will use the internal ybrowid column as PRIMARY KEY and the table will be sharded on ybrowid HASH. However, if there are candidate primary keys (unique + NOT NULL), it is recommended to define them as a Primary Key to avoid secondary index structures.",
+            "Impact": "LEVEL_1",
+            "ObjectType": "TABLE",
+            "ObjectName": "public.mix_constraint_index_same",
+            "SqlStatement": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-primary-key-when-unique-not-null",
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "PrimaryKeyColumnOptions": [
+                    [
+                        "public.mix_constraint_index_same.id",
+                        "public.mix_constraint_index_same.name"
+                    ]
+                ]
+            }
+        },
+        {
+            "Category": "performance_optimizations",
+            "CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
+            "Type": "MISSING_PRIMARY_KEY_WHEN_UNIQUE_NOT_NULL",
+            "Name": "Missing primary key for table when unique and not null columns exist",
+            "Description": "YugabyteDB's table storage is index-oriented. So, a table without a primary key is not viable in YugabyteDB. If you don't specify a primary key, YugabyteDB will use the internal ybrowid column as PRIMARY KEY and the table will be sharded on ybrowid HASH. However, if there are candidate primary keys (unique + NOT NULL), it is recommended to define them as a Primary Key to avoid secondary index structures.",
+            "Impact": "LEVEL_1",
+            "ObjectType": "TABLE",
+            "ObjectName": "public.unique_index_multiple",
+            "SqlStatement": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-primary-key-when-unique-not-null",
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "PrimaryKeyColumnOptions": [
+                    [
+                        "public.unique_index_multiple.id"
+                    ],
+                    [
+                        "public.unique_index_multiple.email"
+                    ],
+                    [
+                        "public.unique_index_multiple.phone",
+                        "public.unique_index_multiple.name"
+                    ]
+                ]
+            }
+        },
+        {
+            "Category": "performance_optimizations",
+            "CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
+            "Type": "MISSING_PRIMARY_KEY_WHEN_UNIQUE_NOT_NULL",
+            "Name": "Missing primary key for table when unique and not null columns exist",
+            "Description": "YugabyteDB's table storage is index-oriented. So, a table without a primary key is not viable in YugabyteDB. If you don't specify a primary key, YugabyteDB will use the internal ybrowid column as PRIMARY KEY and the table will be sharded on ybrowid HASH. However, if there are candidate primary keys (unique + NOT NULL), it is recommended to define them as a Primary Key to avoid secondary index structures.",
+            "Impact": "LEVEL_1",
+            "ObjectType": "TABLE",
+            "ObjectName": "public.mix_constraint_index",
+            "SqlStatement": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-primary-key-when-unique-not-null",
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "PrimaryKeyColumnOptions": [
+                    [
+                        "public.mix_constraint_index.id",
+                        "public.mix_constraint_index.name"
+                    ],
+                    [
+                        "public.mix_constraint_index.email"
+                    ],
+                    [
+                        "public.mix_constraint_index.phone"
+                    ]
+                ]
+            }
+        },
+        {
+            "Category": "performance_optimizations",
+            "CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
+            "Type": "MISSING_PRIMARY_KEY_WHEN_UNIQUE_NOT_NULL",
+            "Name": "Missing primary key for table when unique and not null columns exist",
+            "Description": "YugabyteDB's table storage is index-oriented. So, a table without a primary key is not viable in YugabyteDB. If you don't specify a primary key, YugabyteDB will use the internal ybrowid column as PRIMARY KEY and the table will be sharded on ybrowid HASH. However, if there are candidate primary keys (unique + NOT NULL), it is recommended to define them as a Primary Key to avoid secondary index structures.",
+            "Impact": "LEVEL_1",
+            "ObjectType": "TABLE",
+            "ObjectName": "public.unique_index_simple",
+            "SqlStatement": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-primary-key-when-unique-not-null",
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "PrimaryKeyColumnOptions": [
+                    [
+                        "public.unique_index_simple.id"
+                    ]
+                ]
+            }
+        }
+    ],
+    "TableIndexStats": [
+        {
+            "SchemaName": "public",
+            "ObjectName": "users",
+            "RowCount": 1000,
+            "ColumnCount": 3,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": false,
+            "ObjectType": "table",
+            "ParentTableName": null,
+            "SizeInBytes": 40960
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "unique_index_composite",
+            "RowCount": 100,
+            "ColumnCount": 4,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": false,
+            "ObjectType": "table",
+            "ParentTableName": null,
+            "SizeInBytes": 8192
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "mix_constraint_index_same",
+            "RowCount": 100,
+            "ColumnCount": 3,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": false,
+            "ObjectType": "table",
+            "ParentTableName": null,
+            "SizeInBytes": 8192
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "Test_caseSensitive",
+            "RowCount": 100,
+            "ColumnCount": 2,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": false,
+            "ObjectType": "table",
+            "ParentTableName": null,
+            "SizeInBytes": 8192
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "tbl",
+            "RowCount": 1000,
+            "ColumnCount": 1,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": false,
+            "ObjectType": "table",
+            "ParentTableName": null,
+            "SizeInBytes": 40960
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "test_most_freq",
+            "RowCount": 100,
+            "ColumnCount": 2,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": false,
+            "ObjectType": "table",
+            "ParentTableName": null,
+            "SizeInBytes": 8192
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "partitioned_no_unique_2023_us",
+            "RowCount": 50,
+            "ColumnCount": 4,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": false,
+            "ObjectType": "table",
+            "ParentTableName": null,
+            "SizeInBytes": 8192
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "partitioned_unique_index_missing_2023",
+            "RowCount": 50,
+            "ColumnCount": 4,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": false,
+            "ObjectType": "table",
+            "ParentTableName": null,
+            "SizeInBytes": 8192
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "partitioned_no_pk_2023_us",
+            "RowCount": 100,
+            "ColumnCount": 4,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": false,
+            "ObjectType": "table",
+            "ParentTableName": null,
+            "SizeInBytes": 8192
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "test_low_card",
+            "RowCount": 100,
+            "ColumnCount": 2,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": false,
+            "ObjectType": "table",
+            "ParentTableName": null,
+            "SizeInBytes": 8192
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "has_pk_with_unique_index",
+            "RowCount": 100,
+            "ColumnCount": 3,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": false,
+            "ObjectType": "table",
+            "ParentTableName": null,
+            "SizeInBytes": 8192
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "child_partition_skipped",
+            "RowCount": 60,
+            "ColumnCount": 3,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": false,
+            "ObjectType": "table",
+            "ParentTableName": null,
+            "SizeInBytes": 8192
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "sales_hierarchy_no_unique_2023_q1_us",
+            "RowCount": 30,
+            "ColumnCount": 5,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": false,
+            "ObjectType": "table",
+            "ParentTableName": null,
+            "SizeInBytes": 8192
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "sales_with_mid_pk_2024_asia",
+            "RowCount": 60,
+            "ColumnCount": 4,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": false,
+            "ObjectType": "table",
+            "ParentTableName": null,
+            "SizeInBytes": 8192
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "sales_hierarchy_2023_q1_us",
+            "RowCount": 50,
+            "ColumnCount": 5,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": false,
+            "ObjectType": "table",
+            "ParentTableName": null,
+            "SizeInBytes": 8192
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "has_pk_already",
+            "RowCount": 75,
+            "ColumnCount": 3,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": false,
+            "ObjectType": "table",
+            "ParentTableName": null,
+            "SizeInBytes": 8192
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "unique_index_multiple",
+            "RowCount": 100,
+            "ColumnCount": 4,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": false,
+            "ObjectType": "table",
+            "ParentTableName": null,
+            "SizeInBytes": 8192
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "unique_index_expression",
+            "RowCount": 100,
+            "ColumnCount": 3,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": false,
+            "ObjectType": "table",
+            "ParentTableName": null,
+            "SizeInBytes": 8192
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "unique_index_mixed",
+            "RowCount": 100,
+            "ColumnCount": 3,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": false,
+            "ObjectType": "table",
+            "ParentTableName": null,
+            "SizeInBytes": 8192
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "mix_constraint_index",
+            "RowCount": 100,
+            "ColumnCount": 4,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": false,
+            "ObjectType": "table",
+            "ParentTableName": null,
+            "SizeInBytes": 8192
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "partitioned_unique_index_2023",
+            "RowCount": 50,
+            "ColumnCount": 4,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": false,
+            "ObjectType": "table",
+            "ParentTableName": null,
+            "SizeInBytes": 8192
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "multiple_unique_options",
+            "RowCount": 100,
+            "ColumnCount": 4,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": false,
+            "ObjectType": "table",
+            "ParentTableName": null,
+            "SizeInBytes": 8192
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "partitioned_multiple_unique_2023_us",
+            "RowCount": 40,
+            "ColumnCount": 5,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": false,
+            "ObjectType": "table",
+            "ParentTableName": null,
+            "SizeInBytes": 8192
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "no_pk_nullable",
+            "RowCount": 100,
+            "ColumnCount": 3,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": false,
+            "ObjectType": "table",
+            "ParentTableName": null,
+            "SizeInBytes": 8192
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "no_pk_table",
+            "RowCount": 100,
+            "ColumnCount": 3,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": false,
+            "ObjectType": "table",
+            "ParentTableName": null,
+            "SizeInBytes": 8192
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "test_multi_col_idx",
+            "RowCount": 10000,
+            "ColumnCount": 4,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": false,
+            "ObjectType": "table",
+            "ParentTableName": null,
+            "SizeInBytes": 524288
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "t",
+            "RowCount": 500,
+            "ColumnCount": 2,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": false,
+            "ObjectType": "table",
+            "ParentTableName": null,
+            "SizeInBytes": 24576
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "unique_index_nullable",
+            "RowCount": 100,
+            "ColumnCount": 3,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": false,
+            "ObjectType": "table",
+            "ParentTableName": null,
+            "SizeInBytes": 8192
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "unique_index_simple",
+            "RowCount": 100,
+            "ColumnCount": 3,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": false,
+            "ObjectType": "table",
+            "ParentTableName": null,
+            "SizeInBytes": 8192
+        },
+        {
+            "SchemaName": "test",
+            "ObjectName": "t_low_most",
+            "RowCount": 500,
+            "ColumnCount": 2,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": false,
+            "ObjectType": "table",
+            "ParentTableName": null,
+            "SizeInBytes": 24576
+        },
+        {
+            "SchemaName": "test",
+            "ObjectName": "test_mostcomm_status",
+            "RowCount": 100,
+            "ColumnCount": 2,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": false,
+            "ObjectType": "table",
+            "ParentTableName": null,
+            "SizeInBytes": 8192
+        },
+        {
+            "SchemaName": "test",
+            "ObjectName": "t",
+            "RowCount": 500,
+            "ColumnCount": 3,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": false,
+            "ObjectType": "table",
+            "ParentTableName": null,
+            "SizeInBytes": 24576
+        },
+        {
+            "SchemaName": "test",
+            "ObjectName": "idx2",
+            "RowCount": null,
+            "ColumnCount": 1,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "index",
+            "ParentTableName": "test.t",
+            "SizeInBytes": 16384
+        },
+        {
+            "SchemaName": "test",
+            "ObjectName": "idx",
+            "RowCount": null,
+            "ColumnCount": 1,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "index",
+            "ParentTableName": "test.t",
+            "SizeInBytes": 16384
+        },
+        {
+            "SchemaName": "test",
+            "ObjectName": "idx_try",
+            "RowCount": null,
+            "ColumnCount": 1,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "index",
+            "ParentTableName": "test.t_low_most",
+            "SizeInBytes": 16384
+        },
+        {
+            "SchemaName": "test",
+            "ObjectName": "idx_normal",
+            "RowCount": null,
+            "ColumnCount": 1,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "index",
+            "ParentTableName": "test.test_mostcomm_status",
+            "SizeInBytes": 16384
+        },
+        {
+            "SchemaName": "test",
+            "ObjectName": "idx_partial_high",
+            "RowCount": null,
+            "ColumnCount": 1,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "index",
+            "ParentTableName": "test.test_mostcomm_status",
+            "SizeInBytes": 16384
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "idx_try",
+            "RowCount": null,
+            "ColumnCount": 1,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "index",
+            "ParentTableName": "public.tbl",
+            "SizeInBytes": 16384
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "no_pk_table_id_name_key",
+            "RowCount": null,
+            "ColumnCount": 2,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "index",
+            "ParentTableName": "public.no_pk_table",
+            "SizeInBytes": 16384
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "idx_mix_phone",
+            "RowCount": null,
+            "ColumnCount": 1,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "index",
+            "ParentTableName": "public.mix_constraint_index",
+            "SizeInBytes": 16384
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "idx_mix_email",
+            "RowCount": null,
+            "ColumnCount": 1,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "index",
+            "ParentTableName": "public.mix_constraint_index",
+            "SizeInBytes": 16384
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "mix_constraint_index_id_name_key",
+            "RowCount": null,
+            "ColumnCount": 2,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "index",
+            "ParentTableName": "public.mix_constraint_index",
+            "SizeInBytes": 16384
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "sales_with_mid_pk_2024_asia_pkey",
+            "RowCount": null,
+            "ColumnCount": 2,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "primary key",
+            "ParentTableName": "public.sales_with_mid_pk_2024_asia",
+            "SizeInBytes": 16384
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "sales_with_mid_pk_2024_asia_id_sale_date_region_key",
+            "RowCount": null,
+            "ColumnCount": 3,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "index",
+            "ParentTableName": "public.sales_with_mid_pk_2024_asia",
+            "SizeInBytes": 16384
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "no_pk_nullable_id_name_key",
+            "RowCount": null,
+            "ColumnCount": 2,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "index",
+            "ParentTableName": "public.no_pk_nullable",
+            "SizeInBytes": 16384
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "idx_test_case_sensitive",
+            "RowCount": null,
+            "ColumnCount": 1,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "index",
+            "ParentTableName": "public.Test_caseSensitive",
+            "SizeInBytes": 16384
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "idxtt1",
+            "RowCount": null,
+            "ColumnCount": 1,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "index",
+            "ParentTableName": "public.t",
+            "SizeInBytes": 8192
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "idxtt",
+            "RowCount": null,
+            "ColumnCount": 1,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "index",
+            "ParentTableName": "public.t",
+            "SizeInBytes": 16384
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "idx",
+            "RowCount": null,
+            "ColumnCount": 1,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "index",
+            "ParentTableName": "public.test_low_card",
+            "SizeInBytes": 16384
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "indx34",
+            "RowCount": null,
+            "ColumnCount": 1,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "index",
+            "ParentTableName": "public.test_most_freq",
+            "SizeInBytes": 16384
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "indx1",
+            "RowCount": null,
+            "ColumnCount": 2,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "index",
+            "ParentTableName": "public.test_most_freq",
+            "SizeInBytes": 16384
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "indx",
+            "RowCount": null,
+            "ColumnCount": 1,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "index",
+            "ParentTableName": "public.test_most_freq",
+            "SizeInBytes": 16384
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "idx_test_multi_val",
+            "RowCount": null,
+            "ColumnCount": 1,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "index",
+            "ParentTableName": "public.test_multi_col_idx",
+            "SizeInBytes": 90112
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "idx_test_multi_id2",
+            "RowCount": null,
+            "ColumnCount": 1,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "index",
+            "ParentTableName": "public.test_multi_col_idx",
+            "SizeInBytes": 90112
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "idx_test_multi_id1_id2",
+            "RowCount": null,
+            "ColumnCount": 2,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "index",
+            "ParentTableName": "public.test_multi_col_idx",
+            "SizeInBytes": 90112
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "idx_test_multi_id1",
+            "RowCount": null,
+            "ColumnCount": 1,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "index",
+            "ParentTableName": "public.test_multi_col_idx",
+            "SizeInBytes": 90112
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "idx_test_multi_id",
+            "RowCount": null,
+            "ColumnCount": 1,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "index",
+            "ParentTableName": "public.test_multi_col_idx",
+            "SizeInBytes": 245760
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "idx_muli_col_key_first_col1",
+            "RowCount": null,
+            "ColumnCount": 1,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "index",
+            "ParentTableName": "public.test_multi_col_idx",
+            "SizeInBytes": 90112
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "idx_muli_col_key_first_col",
+            "RowCount": null,
+            "ColumnCount": 2,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "index",
+            "ParentTableName": "public.test_multi_col_idx",
+            "SizeInBytes": 90112
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "idx_name1",
+            "RowCount": null,
+            "ColumnCount": 1,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "index",
+            "ParentTableName": "public.users",
+            "SizeInBytes": 16384
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "idx_name",
+            "RowCount": null,
+            "ColumnCount": 1,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "index",
+            "ParentTableName": "public.users",
+            "SizeInBytes": 16384
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "users_pkey",
+            "RowCount": null,
+            "ColumnCount": 1,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "primary key",
+            "ParentTableName": "public.users",
+            "SizeInBytes": 40960
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "partitioned_no_pk_2023_us_id_region_year_key",
+            "RowCount": null,
+            "ColumnCount": 3,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "index",
+            "ParentTableName": "public.partitioned_no_pk_2023_us",
+            "SizeInBytes": 16384
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "sales_hierarchy_2023_q1_us_id_region_year_quarter_key",
+            "RowCount": null,
+            "ColumnCount": 4,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "index",
+            "ParentTableName": "public.sales_hierarchy_2023_q1_us",
+            "SizeInBytes": 16384
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "multiple_unique_options_phone_name_key",
+            "RowCount": null,
+            "ColumnCount": 2,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "index",
+            "ParentTableName": "public.multiple_unique_options",
+            "SizeInBytes": 16384
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "multiple_unique_options_email_key",
+            "RowCount": null,
+            "ColumnCount": 1,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "index",
+            "ParentTableName": "public.multiple_unique_options",
+            "SizeInBytes": 16384
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "multiple_unique_options_id_name_key",
+            "RowCount": null,
+            "ColumnCount": 2,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "index",
+            "ParentTableName": "public.multiple_unique_options",
+            "SizeInBytes": 16384
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "partitioned_multiple_unique_2023_us_id_year_region_quarter_key",
+            "RowCount": null,
+            "ColumnCount": 4,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "index",
+            "ParentTableName": "public.partitioned_multiple_unique_2023_us",
+            "SizeInBytes": 16384
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "partitioned_multiple_unique_2023_us_id_region_year_quarter_key",
+            "RowCount": null,
+            "ColumnCount": 4,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "index",
+            "ParentTableName": "public.partitioned_multiple_unique_2023_us",
+            "SizeInBytes": 16384
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "idx_unique_simple",
+            "RowCount": null,
+            "ColumnCount": 1,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "index",
+            "ParentTableName": "public.unique_index_simple",
+            "SizeInBytes": 16384
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "idx_unique_composite",
+            "RowCount": null,
+            "ColumnCount": 2,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "index",
+            "ParentTableName": "public.unique_index_composite",
+            "SizeInBytes": 16384
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "idx_unique_multiple_3",
+            "RowCount": null,
+            "ColumnCount": 2,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "index",
+            "ParentTableName": "public.unique_index_multiple",
+            "SizeInBytes": 16384
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "idx_unique_multiple_2",
+            "RowCount": null,
+            "ColumnCount": 1,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "index",
+            "ParentTableName": "public.unique_index_multiple",
+            "SizeInBytes": 16384
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "idx_unique_multiple_1",
+            "RowCount": null,
+            "ColumnCount": 1,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "index",
+            "ParentTableName": "public.unique_index_multiple",
+            "SizeInBytes": 16384
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "idx_mix_same",
+            "RowCount": null,
+            "ColumnCount": 2,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "index",
+            "ParentTableName": "public.mix_constraint_index_same",
+            "SizeInBytes": 16384
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "mix_constraint_index_same_id_name_key",
+            "RowCount": null,
+            "ColumnCount": 2,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "index",
+            "ParentTableName": "public.mix_constraint_index_same",
+            "SizeInBytes": 16384
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "partitioned_unique_index_2023_id_region_year_idx",
+            "RowCount": null,
+            "ColumnCount": 3,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "index",
+            "ParentTableName": "public.partitioned_unique_index_2023",
+            "SizeInBytes": 16384
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "has_pk_already_name_key",
+            "RowCount": null,
+            "ColumnCount": 1,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "index",
+            "ParentTableName": "public.has_pk_already",
+            "SizeInBytes": 16384
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "has_pk_already_pkey",
+            "RowCount": null,
+            "ColumnCount": 1,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "primary key",
+            "ParentTableName": "public.has_pk_already",
+            "SizeInBytes": 16384
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "child_partition_skipped_id_region_key",
+            "RowCount": null,
+            "ColumnCount": 2,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "index",
+            "ParentTableName": "public.child_partition_skipped",
+            "SizeInBytes": 16384
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "idx_unique_nullable",
+            "RowCount": null,
+            "ColumnCount": 2,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "index",
+            "ParentTableName": "public.unique_index_nullable",
+            "SizeInBytes": 16384
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "idx_has_pk_unique",
+            "RowCount": null,
+            "ColumnCount": 1,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "index",
+            "ParentTableName": "public.has_pk_with_unique_index",
+            "SizeInBytes": 16384
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "has_pk_with_unique_index_pkey",
+            "RowCount": null,
+            "ColumnCount": 1,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "primary key",
+            "ParentTableName": "public.has_pk_with_unique_index",
+            "SizeInBytes": 16384
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "idx_unique_expression",
+            "RowCount": null,
+            "ColumnCount": 1,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "index",
+            "ParentTableName": "public.unique_index_expression",
+            "SizeInBytes": 16384
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "idx_unique_mixed",
+            "RowCount": null,
+            "ColumnCount": 2,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "index",
+            "ParentTableName": "public.unique_index_mixed",
+            "SizeInBytes": 16384
+        }
+    ],
+    "Notes": [
+        {
+            "Type": "GeneralNotes",
+            "Text": "Some features listed in this report may be supported under a preview flag in the specified target-db-version of YugabyteDB. Please refer to the official release notes (https://docs.yugabyte.com/preview/releases/ybdb-releases/) for detailed information and usage guidelines."
+        },
+        {
+            "Type": "GeneralNotes",
+            "Text": "Limitations in assessment (https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/#assessment-and-schema-analysis-limitations)"
+        },
+        {
+            "Type": "SizingNotes",
+            "Text": "Import data time estimates exclude redundant indexes since they are automatically removed during export schema phase."
+        }
+    ]
 }
