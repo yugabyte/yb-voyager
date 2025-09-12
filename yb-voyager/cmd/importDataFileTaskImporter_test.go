@@ -28,6 +28,7 @@ import (
 	"github.com/sourcegraph/conc/pool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -36,7 +37,7 @@ import (
 )
 
 func TestBasicTaskImport(t *testing.T) {
-	ldataDir, lexportDir, state, errorHandler, err := setupExportDirAndImportDependencies(2, 1024)
+	ldataDir, lexportDir, state, errorHandler, progressReporter, err := setupExportDirAndImportDependencies(2, 1024)
 	testutils.FatalIfError(t, err)
 
 	if ldataDir != "" {
@@ -59,7 +60,6 @@ func TestBasicTaskImport(t *testing.T) {
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table_basic", 1)
 	testutils.FatalIfError(t, err)
 
-	progressReporter := NewImportDataProgressReporter(true)
 	workerPool := pool.New().WithMaxGoroutines(2)
 	taskImporter, err := NewFileTaskImporter(task, state, workerPool, progressReporter, nil, false, errorHandler, nil)
 	testutils.FatalIfError(t, err)
@@ -77,7 +77,7 @@ func TestBasicTaskImport(t *testing.T) {
 }
 
 func TestImportAllBatchesAndResume(t *testing.T) {
-	ldataDir, lexportDir, state, errorHandler, err := setupExportDirAndImportDependencies(2, 1024)
+	ldataDir, lexportDir, state, errorHandler, progressReporter, err := setupExportDirAndImportDependencies(2, 1024)
 	testutils.FatalIfError(t, err)
 
 	if ldataDir != "" {
@@ -100,7 +100,6 @@ func TestImportAllBatchesAndResume(t *testing.T) {
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table_all", 1)
 	testutils.FatalIfError(t, err)
 
-	progressReporter := NewImportDataProgressReporter(true)
 	workerPool := pool.New().WithMaxGoroutines(2)
 	taskImporter, err := NewFileTaskImporter(task, state, workerPool, progressReporter, nil, false, errorHandler, nil)
 
@@ -126,7 +125,7 @@ func TestImportAllBatchesAndResume(t *testing.T) {
 }
 
 func TestTaskImportResumable(t *testing.T) {
-	ldataDir, lexportDir, state, errorHandler, err := setupExportDirAndImportDependencies(2, 1024)
+	ldataDir, lexportDir, state, errorHandler, progressReporter, err := setupExportDirAndImportDependencies(2, 1024)
 	testutils.FatalIfError(t, err)
 
 	if ldataDir != "" {
@@ -151,7 +150,6 @@ func TestTaskImportResumable(t *testing.T) {
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table_resume", 1)
 	testutils.FatalIfError(t, err)
 
-	progressReporter := NewImportDataProgressReporter(true)
 	workerPool := pool.New().WithMaxGoroutines(2)
 	taskImporter, err := NewFileTaskImporter(task, state, workerPool, progressReporter, nil, false, errorHandler, nil)
 	testutils.FatalIfError(t, err)
@@ -185,7 +183,7 @@ func TestTaskImportResumable(t *testing.T) {
 }
 
 func TestTaskImportResumableNoPK(t *testing.T) {
-	ldataDir, lexportDir, state, errorHandler, err := setupExportDirAndImportDependencies(2, 1024)
+	ldataDir, lexportDir, state, errorHandler, progressReporter, err := setupExportDirAndImportDependencies(2, 1024)
 	testutils.FatalIfError(t, err)
 
 	if ldataDir != "" {
@@ -210,7 +208,6 @@ func TestTaskImportResumableNoPK(t *testing.T) {
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table_resume_no_pk", 1)
 	testutils.FatalIfError(t, err)
 
-	progressReporter := NewImportDataProgressReporter(true)
 	workerPool := pool.New().WithMaxGoroutines(2)
 	taskImporter, err := NewFileTaskImporter(task, state, workerPool, progressReporter, nil, false, errorHandler, nil)
 	testutils.FatalIfError(t, err)
@@ -244,7 +241,7 @@ func TestTaskImportResumableNoPK(t *testing.T) {
 }
 
 func TestTaskImportErrorsOutWithAbortErrorPolicy(t *testing.T) {
-	ldataDir, lexportDir, state, errorHandler, err := setupExportDirAndImportDependencies(2, 1024)
+	ldataDir, lexportDir, state, errorHandler, progressReporter, err := setupExportDirAndImportDependencies(2, 1024)
 	testutils.FatalIfError(t, err)
 
 	if ldataDir != "" {
@@ -271,7 +268,6 @@ func TestTaskImportErrorsOutWithAbortErrorPolicy(t *testing.T) {
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table_error", 1)
 	testutils.FatalIfError(t, err)
 
-	progressReporter := NewImportDataProgressReporter(true)
 	workerPool := pool.New().WithMaxGoroutines(2)
 	taskImporter, err := NewFileTaskImporter(task, state, workerPool, progressReporter, nil, false, errorHandler, nil)
 	testutils.FatalIfError(t, err)

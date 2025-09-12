@@ -364,6 +364,9 @@ export_data() {
     if [ "${EXPORT_EX_TABLE_LIST_FILE_PATH}" != "" ]; then
         args="${args} --exclude-table-list-file-path ${EXPORT_EX_TABLE_LIST_FILE_PATH}"
     fi
+    if [ "${ENABLE_CLOB_EXPORT}" = "true" ]; then
+        args="${args} --allow-oracle-clob-data-export true"
+    fi
 
     # Add export-type flag for live migration workflows
     if [[ "${VOYAGER_WORKFLOW}" == "live-migration" || \
@@ -451,7 +454,7 @@ import_data() {
         --target-db-name ${TARGET_DB_NAME}
         --disable-pb true
         --send-diagnostics=false
-        --max-retries 1
+        --max-retries-streaming 1
         --skip-replication-checks true
         --yes
     "
@@ -494,7 +497,7 @@ import_data_to_source_replica() {
         --disable-pb true
         --send-diagnostics=false
         --parallel-jobs 3
-        --max-retries 1
+        --max-retries-streaming 1
     "
 
     if [ "${SOURCE_REPLICA_DB_SCHEMA}" != "" ]; then
@@ -504,6 +507,9 @@ import_data_to_source_replica() {
         args="${args} --oracle-tns-alias ${SOURCE_REPLICA_DB_ORACLE_TNS_ALIAS}"
     else
         args="${args} --source-replica-db-host ${SOURCE_REPLICA_DB_HOST}"
+        if [ "${SOURCE_REPLICA_DB_PORT}" != "" ]; then
+            args="${args} --source-replica-db-port ${SOURCE_REPLICA_DB_PORT}"
+        fi
     fi
 
     yb-voyager import data to source-replica ${args} "$@"
@@ -598,6 +604,174 @@ import_data_status(){
     args="--export-dir ${EXPORT_DIR} --output-format json"
     yb-voyager import data status ${args} "$@"
 }
+
+# Generic function to wait for a string in a file
+wait_for_string_in_file() {
+    local file_path="$1"
+    local search_string="$2"
+    local timeout_seconds="${3:-300}"  # Default 5 minutes
+    local step_message="${4:-"Wait for string in file"}"
+    
+    local start_time=$(date +%s)
+    
+    step "$step_message"
+    
+    while true; do
+        local current_time=$(date +%s)
+        local elapsed=$((current_time - start_time))
+        
+        if [ $elapsed -ge $timeout_seconds ]; then
+            echo "Timeout reached ($timeout_seconds seconds). String '$search_string' not found in $file_path."
+            return 1
+        fi
+        
+        if [ -f "$file_path" ] && grep -q "$search_string" "$file_path" 2>/dev/null; then
+            echo "String '$search_string' found in $file_path successfully."
+            return 0
+        fi
+
+        echo "Waiting for string '$search_string' in $file_path..."
+        sleep 3
+    done
+}
+
+
+# Helper function to read expected event count from metadata file
+# Usage: get_expected_event_count <exporter_db>
+# Returns: expected count or empty string if not found
+get_expected_event_count() {
+    local exporter_db="$1"
+    local metadata_file="${TEST_DIR}/live-migration-events.json"
+    
+    if [ ! -f "$metadata_file" ]; then
+        return 0
+    fi
+    
+    local expected_count=""
+    case "$exporter_db" in
+        "source")
+            expected_count=$(jq -r '.source_delta_events // empty' "$metadata_file" 2>/dev/null)
+            ;;
+        "target")
+            expected_count=$(jq -r '.target_delta_events // empty' "$metadata_file" 2>/dev/null)
+            ;;
+    esac
+    
+    # Validate the count is a positive number
+    if [[ "$expected_count" =~ ^[1-9][0-9]*$ ]]; then
+        echo "$expected_count"
+    fi
+}
+
+# Helper function to count actual events for a specific exporter database using data-migration-report
+# Usage: count_exported_events <exporter_db>
+# Returns: number of events found
+count_exported_events() {
+    local exporter_db="$1"
+    local total_count=0
+    
+    # Validate exporter_db parameter
+    case "$exporter_db" in
+        "source"|"target")
+            # Valid exporter_db
+            ;;
+        *)
+            echo "0"
+            return
+            ;;
+    esac
+    
+    # Run the command to generate the data migration report file (suppress all output)
+    get_data_migration_report >/dev/null 2>&1
+    local report_file="${EXPORT_DIR}/reports/data-migration-report.json"
+    
+    if [ -f "$report_file" ] && [ -s "$report_file" ]; then
+        # Validate JSON and count total exported events (inserts + updates + deletes) for the specified exporter_db
+        if jq empty "$report_file" 2>/dev/null; then
+            total_count=$(jq -r --arg exporter_db "$exporter_db" '
+                if type == "array" then
+                    map(select(.db_type == $exporter_db)) | 
+                    map(.exported_inserts + .exported_updates + .exported_deletes) | 
+                    add // 0
+                else
+                    0
+                end
+            ' "$report_file" 2>/dev/null || echo "0")
+        else
+            # Invalid JSON, return 0
+            total_count=0
+        fi
+    else
+        # Report file doesn't exist or is empty, return 0
+        total_count=0
+    fi
+    echo "$total_count"
+}
+
+# Timeout constant for exporter events (in seconds)
+readonly EXPORTER_EVENT_TIMEOUT_SECONDS=600  # 10 minutes
+
+# Wait until sufficient events from a specific exporter database are detected
+# which ensures that the exporter is capturing changes and cutover can be initiated safely
+# Usage: wait_for_exporter_event <exporter_db> [timeout_seconds]
+# Supported exporter_db values:
+#   - source (for source database change events)
+#   - target (for target database change events in fall-forward/fall-back scenarios)
+wait_for_exporter_event() {
+    local exporter_db="$1"
+    local timeout_seconds="${2:-$EXPORTER_EVENT_TIMEOUT_SECONDS}"
+
+    if [ -z "$exporter_db" ]; then
+        echo "wait_for_exporter_event: exporter_db is required"
+        return 1
+    fi
+
+    # Try to get expected count from metadata file
+    local expected_count=$(get_expected_event_count "$exporter_db")
+    
+    local step_message="Wait for events from exporter_db=${exporter_db}"
+    if [ -n "$expected_count" ]; then
+        step_message="${step_message} (expecting ${expected_count} events)"
+    else
+        step_message="${step_message} (fallback: first event + 10s)"
+    fi
+    step "$step_message"
+
+    local start_time=$(date +%s)
+    while true; do
+        local current_time=$(date +%s)
+        local elapsed=$((current_time - start_time))
+
+        if [ $elapsed -ge $timeout_seconds ]; then
+            echo "Timeout reached (${timeout_seconds}s). Proceeding without detecting sufficient ${exporter_db} events."
+            return 0
+        fi
+
+        # Count actual events using data-migration-report
+        local actual_count=$(count_exported_events "$exporter_db")
+        
+        if [ -n "$expected_count" ] && [ "$expected_count" -gt 0 ]; then
+            # Metadata-driven approach: wait for expected count
+            echo "Found ${actual_count}/${expected_count} expected ${exporter_db} events"
+            
+            if [ "$actual_count" -ge "$expected_count" ]; then
+                echo "Detected ${actual_count}/${expected_count} expected ${exporter_db} events. Proceeding."
+                return 0
+            fi
+        else
+            # Fallback approach: first event + 10 seconds
+            if [ "$actual_count" -gt 0 ]; then
+                echo "Detected ${actual_count} ${exporter_db} events. Waiting additional 10 seconds for event capture to complete (fallback mode)..."
+                sleep 10
+                return 0
+            fi
+        fi
+
+        echo "Waiting for ${exporter_db} events to appear..."
+        sleep 3
+    done
+}
+
 
 get_data_migration_report(){
     if [ "${run_via_config_file}" = "true" ]; then

@@ -200,7 +200,7 @@ main() {
 	step "Run export-data-status"
 	export_data_status
 
-	expected_file="${TEST_DIR}/export_data_status-report.json"
+	expected_file="${TEST_DIR}/export-data-status-report.json"
 	actual_file="${EXPORT_DIR}/reports/export-data-status-report.json"
 
 	if [ "${EXPORT_TABLE_LIST}" != "" ]
@@ -214,7 +214,7 @@ main() {
 	step "Run import-data-status"
 	import_data_status
 
-	expected_file="${TEST_DIR}/import_data_status-report.json"
+	expected_file="${TEST_DIR}/import-data-status-report.json"
 	actual_file="${EXPORT_DIR}/reports/import-data-status-report.json"
 
     if [ "${EXPORT_TABLE_LIST}" != "" ]

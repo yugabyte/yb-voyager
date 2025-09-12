@@ -219,19 +219,33 @@ func SizingAssessment(targetDbVersion *ybversion.YBVersion, sourceDBType string,
 		return fmt.Errorf("error fetching the sharded throughput: %w", err)
 	}
 
-	sizingRecommendationPerCore := createSizingRecommendationStructure(colocatedLimits)
+	sizingRecommendationPerCoreColocatedAndShardedCombined := createRecommendationStructureColocatedAndShardedCombined(colocatedLimits)
 
-	sizingRecommendationPerCore = shardingBasedOnTableSizeAndCount(sourceTableMetadata, sourceIndexMetadata,
-		colocatedLimits, sizingRecommendationPerCore)
+	sizingRecommendationPerCoreAllSharded := createRecommendationStructureAllShardedRecommendations(sourceIndexMetadata, sourceTableMetadata,
+		shardedLimits, shardedThroughput)
 
-	sizingRecommendationPerCore = shardingBasedOnOperations(sourceIndexMetadata, colocatedThroughput, sizingRecommendationPerCore)
+	sizingRecommendationPerCoreColocatedAndShardedCombined = shardingBasedOnTableSizeAndCount(sourceTableMetadata, sourceIndexMetadata,
+		colocatedLimits, sizingRecommendationPerCoreColocatedAndShardedCombined)
 
-	sizingRecommendationPerCore = checkShardedTableLimit(sourceIndexMetadata, shardedLimits, sizingRecommendationPerCore)
+	sizingRecommendationPerCoreColocatedAndShardedCombined = shardingBasedOnOperations(sourceIndexMetadata, colocatedThroughput, sizingRecommendationPerCoreColocatedAndShardedCombined)
 
-	sizingRecommendationPerCore = findNumNodesNeededBasedOnThroughputRequirement(sourceIndexMetadata, shardedThroughput, sizingRecommendationPerCore)
+	sizingRecommendationPerCoreColocatedAndShardedCombined = checkShardedTableLimit(sourceIndexMetadata, shardedLimits, sizingRecommendationPerCoreColocatedAndShardedCombined)
 
-	sizingRecommendationPerCore = findNumNodesNeededBasedOnTabletsRequired(sourceIndexMetadata, shardedLimits, sizingRecommendationPerCore)
-	finalSizingRecommendation := pickBestRecommendation(sizingRecommendationPerCore)
+	sizingRecommendationPerCoreAllSharded = checkShardedTableLimit(sourceIndexMetadata, shardedLimits, sizingRecommendationPerCoreAllSharded)
+
+	sizingRecommendationPerCoreColocatedAndShardedCombined = findNumNodesNeededBasedOnThroughputRequirement(sourceIndexMetadata, shardedThroughput, sizingRecommendationPerCoreColocatedAndShardedCombined)
+
+	sizingRecommendationPerCoreAllSharded = findNumNodesNeededBasedOnThroughputRequirement(sourceIndexMetadata, shardedThroughput, sizingRecommendationPerCoreAllSharded)
+
+	sizingRecommendationPerCoreColocatedAndShardedCombined = findNumNodesNeededBasedOnTabletsRequired(sourceIndexMetadata, shardedLimits, sizingRecommendationPerCoreColocatedAndShardedCombined)
+
+	sizingRecommendationPerCoreAllSharded = findNumNodesNeededBasedOnTabletsRequired(sourceIndexMetadata, shardedLimits, sizingRecommendationPerCoreAllSharded)
+
+	finalSizingRecommendationColoShardedCombined := pickBestRecommendation(sizingRecommendationPerCoreColocatedAndShardedCombined)
+
+	finalSizingRecommendationAllSharded := pickBestRecommendation(sizingRecommendationPerCoreAllSharded)
+
+	finalSizingRecommendation := pickBestRecommendationStrategy(finalSizingRecommendationColoShardedCombined, finalSizingRecommendationAllSharded, sourceIndexMetadata)
 
 	if finalSizingRecommendation.FailureReasoning != "" {
 		SizingReport.FailureReasoning = finalSizingRecommendation.FailureReasoning
@@ -341,15 +355,15 @@ func pickBestRecommendation(recommendations map[int]IntermediateRecommendation) 
 	})
 
 	// find the one with the least number of nodes
-	var minCores int = math.MaxUint32
+	var minCores = math.MaxUint32
 	var finalRecommendation IntermediateRecommendation
-	var foundRecommendation bool = false
-	var maxCores int = math.MinInt32
+	var foundRecommendation = false
+	var maxCores = math.MinInt32
 
 	// Iterate over each recommendation
 	for _, rec := range recs {
 		// Update maxCores with the maximum number of vCPUs per instance across recommendations. If none of the cores
-		// abe to satisfy the criteria, recommendation with maxCores will be used as final recommendation
+		// able to satisfy the criteria, recommendation with maxCores will be used as final recommendation
 		if maxCores < rec.VCPUsPerInstance {
 			maxCores = rec.VCPUsPerInstance
 		}
@@ -378,6 +392,87 @@ func pickBestRecommendation(recommendations map[int]IntermediateRecommendation) 
 
 	// Return the best recommendation
 	return finalRecommendation
+}
+
+/*
+pickBestRecommendationStrategy selects the best recommendation from two recommendations strategies
+i.e. colocated+sharded and all-sharded strategies using the following logic:
+ 1. If recommendations have different VCPUsPerInstance:
+    a. Calculate resultant_cores = VCPUsPerInstance * NumNodes for both recommendations
+    b. If resultant_cores are equal, select the one with higher VCPUsPerInstance
+    c. Otherwise, select the one with fewer resultant_cores
+ 2. If recommendations have same VCPUsPerInstance, select the one with fewer nodes needed (when equal nodes needed, choose all-sharded)
+
+The function logs the selection reasoning for debugging purposes.
+Parameters:
+  - rec1: First IntermediateRecommendation to compare (colocated+sharded strategy)
+  - rec2: Second IntermediateRecommendation to compare (all-sharded strategy)
+  - sourceIndexMetadata: A slice of SourceDBMetadata structs representing source indexes
+
+Returns:
+  - The best IntermediateRecommendation based on the selection logic described above
+*/
+func pickBestRecommendationStrategy(rec1, rec2 IntermediateRecommendation, sourceIndexMetadata []SourceDBMetadata) IntermediateRecommendation {
+	// Handle failure reasoning logic first
+	if rec1.FailureReasoning != "" && rec2.FailureReasoning != "" {
+		log.Info("Both colocated+sharded and all-sharded strategies could not support the requirements. Unable to determine appropriate sizing recommendation.")
+		return rec1
+	}
+
+	if rec1.FailureReasoning != "" && rec2.FailureReasoning == "" {
+		log.Infof("Selected all-sharded strategy as colocated+sharded strategy could not support the requirements: %s", rec1.FailureReasoning)
+		return rec2
+	}
+	if rec2.FailureReasoning != "" && rec1.FailureReasoning == "" {
+		log.Infof("Selected colocated+sharded strategy as all-sharded strategy could not support the requirements: %s", rec2.FailureReasoning)
+		return rec1
+	}
+
+	// Both strategies are valid, apply optimization logic
+	// Optimization: Compare by resultant cores when VCPUs differ
+	if rec1.VCPUsPerInstance != rec2.VCPUsPerInstance {
+		rec1ResultantCores := float64(rec1.VCPUsPerInstance) * rec1.NumNodes
+		rec2ResultantCores := float64(rec2.VCPUsPerInstance) * rec2.NumNodes
+
+		switch {
+		case rec1ResultantCores == rec2ResultantCores:
+			// Equal resultant cores - prefer higher VCPUs
+			if rec1.VCPUsPerInstance > rec2.VCPUsPerInstance {
+				log.Infof("Selected colocated+sharded strategy: equal resultant cores (%.1f), preferring higher VCPUs (%d vs %d)",
+					rec1ResultantCores, rec1.VCPUsPerInstance, rec2.VCPUsPerInstance)
+				return rec1
+			} else {
+				log.Infof("Selected all-sharded strategy: equal resultant cores (%.1f), preferring higher VCPUs (%d vs %d)",
+					rec2ResultantCores, rec2.VCPUsPerInstance, rec1.VCPUsPerInstance)
+				return rec2
+			}
+		case rec1ResultantCores < rec2ResultantCores:
+			log.Infof("Selected colocated+sharded strategy: fewer resultant cores (%.1f vs %.1f)",
+				rec1ResultantCores, rec2ResultantCores)
+			return rec1
+		default:
+			log.Infof("Selected all-sharded strategy: fewer resultant cores (%.1f vs %.1f)",
+				rec2ResultantCores, rec1ResultantCores)
+			return rec2
+		}
+	}
+
+	// Same VCPUs - compare by node count
+	switch {
+	case rec1.NumNodes < rec2.NumNodes:
+		log.Infof("Selected colocated+sharded strategy: fewer nodes (%.0f vs %.0f)",
+			rec1.NumNodes, rec2.NumNodes)
+		return rec1
+	case rec1.NumNodes > rec2.NumNodes:
+		log.Infof("Selected all-sharded strategy: fewer nodes (%.0f vs %.0f)",
+			rec2.NumNodes, rec1.NumNodes)
+		return rec2
+	default:
+		// Equal nodes - prefer all-sharded
+		log.Infof("Selected all-sharded strategy: same nodes (%.0f), preferring all-sharded strategy",
+			rec2.NumNodes)
+		return rec2
+	}
 }
 
 /*
@@ -637,7 +732,7 @@ func shardingBasedOnOperations(sourceIndexMetadata []SourceDBMetadata,
 	for _, colocatedThroughput := range colocatedThroughputSlice {
 		var colocatedObjects []SourceDBMetadata
 		var cumulativeColocatedSizeSum float64 = 0
-		var numColocated int = 0
+		var numColocated = 0
 		var cumulativeSelectOpsPerSec int64 = 0
 		var cumulativeInsertOpsPerSec int64 = 0
 
@@ -720,7 +815,7 @@ func shardingBasedOnTableSizeAndCount(sourceTableMetadata []SourceDBMetadata,
 	for _, colocatedLimit := range colocatedLimits {
 		var cumulativeColocatedSizeSum float64 = 0
 		var colocatedObjects []SourceDBMetadata
-		var numColocated int = 0
+		var numColocated = 0
 		var cumulativeObjectCount int64 = 0
 
 		var shardedObjects []SourceDBMetadata
@@ -940,7 +1035,7 @@ func loadSourceMetadata(filePath string, sourceDBType string, assessmentDir stri
 }
 
 /*
-createSizingRecommendationStructure generates sizing recommendations based on colocated limits.
+createRecommendationStructureColocatedAndShardedCombined generates sizing recommendations based on colocated limits.
 It creates recommendations per core and returns them in a map.
 Parameters:
   - colocatedLimits: A slice of ExpDataColocatedLimit structs representing colocated limits.
@@ -948,7 +1043,7 @@ Parameters:
 Returns:
   - A map where the key is the number of vCPUs per instance and the value is an IntermediateRecommendation struct.
 */
-func createSizingRecommendationStructure(colocatedLimits []ExpDataColocatedLimit) map[int]IntermediateRecommendation {
+func createRecommendationStructureColocatedAndShardedCombined(colocatedLimits []ExpDataColocatedLimit) map[int]IntermediateRecommendation {
 	recommendationPerCore := make(map[int]IntermediateRecommendation)
 	for _, colocatedLimit := range colocatedLimits {
 		var sizingRecommendation IntermediateRecommendation
@@ -956,6 +1051,60 @@ func createSizingRecommendationStructure(colocatedLimits []ExpDataColocatedLimit
 		sizingRecommendation.VCPUsPerInstance = int(colocatedLimit.numCores.Float64)
 		// Store recommendation in the map with vCPUs per instance as the key
 		recommendationPerCore[sizingRecommendation.VCPUsPerInstance] = sizingRecommendation
+	}
+	// Return map containing recommendations per core
+	return recommendationPerCore
+}
+
+/*
+createRecommendationStructureAllShardedRecommendations generates sizing recommendations for all-sharded strategy.
+It creates a map where the key represents the number of vCPUs per instance and the value is an IntermediateRecommendation.
+Each recommendation has all tables set as sharded and includes throughput calculations.
+Parameters:
+  - sourceIndexMetadata: A slice of SourceDBMetadata structs representing source indexes.
+  - sourceTableMetadata: A slice of SourceDBMetadata structs representing source tables.
+  - shardedLimits: A slice of ExpDataShardedLimit structs representing sharded limits.
+  - shardedThroughputSlice: A slice of ExpDataThroughput structs representing sharded throughput data.
+
+Returns:
+  - A map where the key is the number of vCPUs per instance and the value is an IntermediateRecommendation.
+*/
+func createRecommendationStructureAllShardedRecommendations(sourceIndexMetadata []SourceDBMetadata, sourceTableMetadata []SourceDBMetadata,
+	shardedLimits []ExpDataShardedLimit, shardedThroughputSlice []ExpDataThroughput) map[int]IntermediateRecommendation {
+
+	// Create initial recommendation structure
+	recommendationPerCore := make(map[int]IntermediateRecommendation)
+	for _, shardedLimit := range shardedLimits {
+		var sizingRecommendation IntermediateRecommendation
+		sizingRecommendation.MemoryPerCore = int(shardedLimit.memPerCore.Float64)
+		sizingRecommendation.VCPUsPerInstance = int(shardedLimit.numCores.Float64)
+		sizingRecommendation.ShardedTables = append(sizingRecommendation.ShardedTables, sourceTableMetadata...)
+		// Store recommendation in the map with vCPUs per instance as the key
+		recommendationPerCore[sizingRecommendation.VCPUsPerInstance] = sizingRecommendation
+	}
+
+	// Calculate cumulative size for sharded tables including indexes
+	var cumulativeSizeSharded float64 = 0
+	for _, table := range sourceTableMetadata {
+		_, indexesSizeSumSharded, _, _ := checkAndFetchIndexes(table, sourceIndexMetadata)
+		cumulativeSizeSharded += lo.Ternary(table.Size.Valid, table.Size.Float64, 0) + indexesSizeSumSharded
+	}
+
+	// Update recommendations with throughput information
+	for _, shardedThroughput := range shardedThroughputSlice {
+		// Get previous recommendation for the current num of cores
+		previousRecommendation := recommendationPerCore[int(shardedThroughput.numCores.Float64)]
+
+		// Update recommendation for the current throughput data
+		recommendationPerCore[int(shardedThroughput.numCores.Float64)] = IntermediateRecommendation{
+			ShardedTables:                   previousRecommendation.ShardedTables,
+			VCPUsPerInstance:                previousRecommendation.VCPUsPerInstance,
+			MemoryPerCore:                   previousRecommendation.MemoryPerCore,
+			NumNodes:                        previousRecommendation.NumNodes,
+			OptimalSelectConnectionsPerNode: shardedThroughput.selectConnPerNode.Int64,
+			OptimalInsertConnectionsPerNode: shardedThroughput.insertConnPerNode.Int64,
+			ShardedSize:                     cumulativeSizeSharded,
+		}
 	}
 	// Return map containing recommendations per core
 	return recommendationPerCore
@@ -1694,7 +1843,7 @@ Returns:
 func getListOfIndexesAlongWithObjects(tableList []SourceDBMetadata,
 	sourceIndexMetadata []SourceDBMetadata) ([]SourceDBMetadata, int) {
 	var indexesAndObject []SourceDBMetadata
-	var cumulativeIndexCount int = 0
+	var cumulativeIndexCount = 0
 
 	for _, table := range tableList {
 		// Check and fetch indexes for the current table

@@ -71,6 +71,8 @@ type TableMetadata struct {
 	IsPartitionedTable bool
 	InheritedFrom      []string
 	PartitionedFrom    string
+	PartitionColumns   []string
+	Partitions         []*TableMetadata // Stores direct child partitions
 }
 
 // IsColumnNotNull checks if a column is NOT NULL in the table.
@@ -97,15 +99,79 @@ func (tm *TableMetadata) IsInherited() bool {
 	return len(tm.InheritedFrom) > 0
 }
 
-// GetUniqueConstraints returns all unique constraints as a slice of column name slices.
-// Returns empty slice if no unique constraints exist.
-func (tm *TableMetadata) GetUniqueConstraints() [][]string {
-	constraints := tm.GetConstraintsByType("UNIQUE")
-	var uniqueConstraints [][]string
-	for _, constraint := range constraints {
-		uniqueConstraints = append(uniqueConstraints, constraint.Columns)
+// GetPartitionColumns returns the partition columns for this table
+func (tm *TableMetadata) GetPartitionColumns() []string {
+	return tm.PartitionColumns
+}
+
+// GetObjectName returns the fully qualified table name
+func (tm *TableMetadata) GetObjectName() string {
+	return utils.BuildObjectName(tm.SchemaName, tm.TableName)
+}
+
+// GetAllPartitionColumnsInHierarchy returns all partition columns from this table and all its descendants
+func (tm *TableMetadata) GetAllPartitionColumnsInHierarchy() []string {
+	allColumns := make(map[string]bool)
+
+	// Add current table's partition columns
+	for _, col := range tm.GetPartitionColumns() {
+		allColumns[col] = true
 	}
-	return uniqueConstraints
+
+	// Recursively add partition columns from all descendants
+	for _, child := range tm.Partitions {
+		childColumns := child.GetAllPartitionColumnsInHierarchy()
+		for _, col := range childColumns {
+			allColumns[col] = true
+		}
+	}
+
+	// Convert map back to slice
+	return lo.Keys(allColumns)
+}
+
+// HasAnyRelatedTablePrimaryKey checks if this table or any of its descendants has a primary key
+func (tm *TableMetadata) HasAnyRelatedTablePrimaryKey() bool {
+	// Check current table
+	if tm.HasPrimaryKey() {
+		return true
+	}
+
+	// Recursively check all descendants
+	for _, child := range tm.Partitions {
+		if child.HasAnyRelatedTablePrimaryKey() {
+			return true
+		}
+	}
+
+	return false
+}
+
+// GetUniqueColumnBasedIndexes returns unique indexes that are purely column-based (no expressions)
+// as a slice of column name slices. Returns empty slice if no such indexes exist.
+// This is used for PK recommendations since primary keys can only be defined on actual columns.
+func (tm *TableMetadata) GetUniqueColumnBasedIndexes() [][]string {
+	var uniqueIndexes [][]string
+	for _, index := range tm.Indexes {
+		if !index.IsUnique {
+			continue
+		}
+		// Extract column names from index parameters
+		var columns []string
+		hasExpression := false
+		for _, param := range index.Params {
+			if param.IsExpression {
+				hasExpression = true
+				break // If any parameter is an expression, skip this index
+			}
+			columns = append(columns, param.ColName)
+		}
+		// Only consider purely column-based unique indexes
+		if !hasExpression && len(columns) > 0 {
+			uniqueIndexes = append(uniqueIndexes, columns)
+		}
+	}
+	return uniqueIndexes
 }
 
 // GetPrimaryKeyConstraints returns all primary key constraints.
@@ -456,6 +522,34 @@ func (p *ParserIssueDetector) FinalizeColumnMetadata() {
 
 	p.populateColumnMetadataDerivedVars()
 
+	// Build partition hierarchies
+	p.buildPartitionHierarchies()
+}
+
+// buildPartitionHierarchies builds the direct child relationships for all tables
+func (p *ParserIssueDetector) buildPartitionHierarchies() {
+	// Initialize Partitions slice for all tables
+	for _, tm := range p.tablesMetadata {
+		tm.Partitions = []*TableMetadata{}
+	}
+
+	// Build parent-child relationships
+	for _, tm := range p.tablesMetadata {
+		if tm.PartitionedFrom != "" {
+			// Find parent table
+			for _, parentTM := range p.tablesMetadata {
+				// Compare both qualified and unqualified names since PartitionedFrom can be either.
+				// CREATE TABLE ... PARTITION OF produces unqualified names (e.g., "sales") because
+				// PostgreSQL doesn't include schema info in parse tree, while ALTER TABLE ... ATTACH PARTITION
+				// produces qualified names (e.g., "public.sales") when schema is explicitly specified.
+				// TODO: Use sqlname for proper naming handling for qualified and unqualified names.
+				if parentTM.TableName == tm.PartitionedFrom || parentTM.GetObjectName() == tm.PartitionedFrom {
+					parentTM.Partitions = append(parentTM.Partitions, tm)
+					break
+				}
+			}
+		}
+	}
 }
 
 // populateColumnMetadataDerivedVars populates the variables in ParserIssueDetector struct that are derived from column metadata.
@@ -592,7 +686,7 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 
 			// Process primary key as index for foreign key detection
 			if len(alter.ConstraintColumns) > 0 {
-				p.addConstraintAsIndex(alter.SchemaName, alter.TableName, alter.ConstraintColumns, alter.ConstraintName)
+				p.addConstraintAsIndex(alter.SchemaName, alter.TableName, alter.ConstraintColumns, alter.ConstraintName, true)
 			}
 
 			// Track PK columns
@@ -604,7 +698,7 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 		if alter.ConstraintType == queryparser.UNIQUE_CONSTR_TYPE {
 			// Process unique constraint as index for foreign key detection
 			if len(alter.ConstraintColumns) > 0 {
-				p.addConstraintAsIndex(alter.SchemaName, alter.TableName, alter.ConstraintColumns, alter.ConstraintName)
+				p.addConstraintAsIndex(alter.SchemaName, alter.TableName, alter.ConstraintColumns, alter.ConstraintName, true)
 			}
 			// Track UNIQUE columns
 			if len(alter.ConstraintColumns) > 0 {
@@ -661,6 +755,8 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 		if table.IsInherited {
 			tm.InheritedFrom = append([]string{}, table.InheritedFrom...)
 		}
+		// Store partition columns
+		tm.PartitionColumns = append([]string{}, table.PartitionColumns...)
 
 		for _, col := range table.Columns {
 			// Check if metadata already exists (e.g., from deferred FK)
@@ -994,60 +1090,96 @@ func (p *ParserIssueDetector) DetectMissingForeignKeyIndexes() []QueryIssue {
 func (p *ParserIssueDetector) DetectPrimaryKeyRecommendations() []QueryIssue {
 	var issues []QueryIssue
 
-	// Skip for partitioned or inherited tables, as PK rules differ
-	// TODO: Remove this skip and add a proper check for PK rules: the columns suggested should contain the partition key columns
-	// https://yugabyte.atlassian.net/browse/DB-18077
-	shouldSkip := func(table string) bool {
-		partitionedTables := p.getPartitionedTablesMap()
-		partitionedFrom := p.getPartitionedFrom()
-		inheritedFrom := p.getInheritedFrom()
-
-		if partitionedTables[table] {
-			return true
-		}
-		if _, ok := partitionedFrom[table]; ok {
-			return true
-		}
-		if parents, ok := inheritedFrom[table]; ok && len(parents) > 0 {
-			return true
-		}
-		return false
-	}
-
-	for tableName, tm := range p.tablesMetadata {
-		if shouldSkip(tableName) {
+	for _, tm := range p.tablesMetadata {
+		// Handle inherited tables (skip for now as per current logic)
+		if tm.IsInherited() {
 			continue
 		}
-		if tm.HasPrimaryKey() {
-			continue // PK already present
+
+		// Skip child partitions - PKs should ideally be defined at the root level
+		// PostgreSQL only allows one PK per partitioning hierarchy, and child partitions
+		// inherit their PK from the root table
+		if tm.PartitionedFrom != "" {
+			continue
 		}
 
-		// Collect all qualifying UNIQUE column sets where all columns are NOT NULL
-		var options [][]string
-		// Currently we only detect PK recommendations for UNIQUE constraints
-		// TODO: We should also consider UNIQUE INDEXES for PK recommendations
-		// https://yugabyte.atlassian.net/browse/DB-18078
-		for _, uniqueCols := range tm.GetUniqueConstraints() {
-			allNN := true
-			for _, col := range uniqueCols {
-				if !tm.IsColumnNotNull(col) {
-					allNN = false
-					break
-				}
-			}
-			if allNN {
-				// Create fully qualified column names for this option
-				qualifiedCols := make([]string, len(uniqueCols))
-				for i, col := range uniqueCols {
-					qualifiedCols[i] = fmt.Sprintf("%s.%s", tableName, col)
-				}
-				options = append(options, qualifiedCols)
-			}
+		// Check if this table or any related table already has a primary key
+		// - For regular tables: checks if the table itself has a PK
+		// - For partitioned tables: checks if any table in the partitioning hierarchy has a PK
+		// If so, we cannot suggest a PK for this table as it would create a conflict
+		if tm.HasAnyRelatedTablePrimaryKey() {
+			continue
 		}
-		if len(options) > 0 {
-			issues = append(issues, NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", tableName, options))
-		}
+
+		issues = append(issues, p.detectTablePKRecommendations(tm)...)
 	}
+	return issues
+}
+
+// detectTablePKRecommendations handles PK recommendations for both regular and partitioned tables
+func (p *ParserIssueDetector) detectTablePKRecommendations(tm *TableMetadata) []QueryIssue {
+	var issues []QueryIssue
+
+	// Get partition columns for partitioned tables
+	partitionColumns := tm.GetPartitionColumns()
+	isPartitioned := tm.IsPartitioned()
+
+	// For partitioned tables, ensure we have partition columns
+	if isPartitioned && len(partitionColumns) == 0 {
+		// This shouldn't happen for root-level partitioned tables as they define the partitioning strategy
+		return issues
+	}
+
+	// For root-level partitioned tables, get all partition columns down the hierarchy
+	if isPartitioned && tm.PartitionedFrom == "" {
+		partitionColumns = tm.GetAllPartitionColumnsInHierarchy()
+	}
+
+	// Collect all qualifying UNIQUE column sets where all columns are NOT NULL
+	var options [][]string
+
+	// Process UNIQUE constraints and indexes (column-based only)
+	// This also fetches the unique constraints as they have been converted to mock indexes with IsUnique=true
+	for _, uniqueCols := range tm.GetUniqueColumnBasedIndexes() {
+		// Check if all unique columns are NOT NULL
+		allNN := true
+		for _, col := range uniqueCols {
+			if !tm.IsColumnNotNull(col) {
+				allNN = false
+				break
+			}
+		}
+
+		if !allNN {
+			continue
+		}
+
+		// For partitioned tables, ensure partition columns are included as the PKs must include
+		// all partition columns down the entire hierarchy
+		if isPartitioned {
+			missingPartitionCols, _ := lo.Difference(partitionColumns, uniqueCols)
+			if len(missingPartitionCols) > 0 {
+				continue
+			}
+		}
+
+		// Create fully qualified column names for this option
+		qualifiedCols := make([]string, len(uniqueCols))
+		for i, col := range uniqueCols {
+			qualifiedCols[i] = fmt.Sprintf("%s.%s", tm.GetObjectName(), col)
+		}
+		options = append(options, qualifiedCols)
+	}
+
+	// Remove duplicates from options using lo.UniqBy
+	uniqueOptions := lo.UniqBy(options, func(option []string) string {
+		return strings.Join(option, ",")
+	})
+
+	if len(uniqueOptions) > 0 {
+		issues = append(issues, NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", tm.GetObjectName(), uniqueOptions))
+	}
+
 	return issues
 }
 
@@ -1132,7 +1264,7 @@ func (p *ParserIssueDetector) addIndexToCoverage(index *queryparser.Index) {
 
 // addConstraintAsIndex creates a mock index object from a constraint and adds it to the table indexes map.
 // This is used for primary keys and unique constraints which are also indexes for missing foreign key index detection.
-func (p *ParserIssueDetector) addConstraintAsIndex(schemaName, tableName string, columns []string, constraintName string) {
+func (p *ParserIssueDetector) addConstraintAsIndex(schemaName, tableName string, columns []string, constraintName string, isUnique bool) {
 	// Create mock index parameters from columns
 	indexParams := make([]queryparser.IndexParam, len(columns))
 	for i, colName := range columns {
@@ -1147,6 +1279,7 @@ func (p *ParserIssueDetector) addConstraintAsIndex(schemaName, tableName string,
 		SchemaName: schemaName,
 		IndexName:  constraintName,
 		TableName:  tableName,
+		IsUnique:   isUnique,
 		// Primary keys and unique constraints use btree by default.
 		//  Mentioned in the docs here:https://www.postgresql.org/docs/current/sql-createtable.html#:~:text=Adding%20a%20PRIMARY%20KEY%20constraint%20will%20automatically%20create%20a%20unique%20btree%20index%20on%20the%20column%20or%20group%20of%20columns%20used%20in%20the%20constraint.%20That%20index%20has%20the%20same%20name%20as%20the%20primary%20key%20constraint
 		AccessMethod: BTREE_ACCESS_METHOD,
@@ -1166,7 +1299,7 @@ func (p *ParserIssueDetector) processTableConstraintsAsIndexes(table *queryparse
 			// We need to ensure the index is processed and covered
 			primaryKeyColumns := constraint.Columns
 			if len(primaryKeyColumns) > 0 {
-				p.addConstraintAsIndex(table.SchemaName, table.TableName, primaryKeyColumns, constraint.ConstraintName)
+				p.addConstraintAsIndex(table.SchemaName, table.TableName, primaryKeyColumns, constraint.ConstraintName, true)
 			}
 		}
 	}
@@ -1178,7 +1311,7 @@ func (p *ParserIssueDetector) processTableConstraintsAsIndexes(table *queryparse
 			// We need to ensure the index is processed and covered
 			uniqueColumns := constraint.Columns
 			if len(uniqueColumns) > 0 {
-				p.addConstraintAsIndex(table.SchemaName, table.TableName, uniqueColumns, constraint.ConstraintName)
+				p.addConstraintAsIndex(table.SchemaName, table.TableName, uniqueColumns, constraint.ConstraintName, true)
 			}
 		}
 	}

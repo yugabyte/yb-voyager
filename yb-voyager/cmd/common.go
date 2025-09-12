@@ -16,6 +16,7 @@ limitations under the License.
 package cmd
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -392,7 +393,7 @@ func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFile
 		dbType = "target"
 	}
 
-	snapshotRowCount, err := getImportedSnapshotRowsMap(dbType)
+	snapshotRowCount, err := getImportedSnapshotRowsMap(dbType, tableList, errorHandler)
 	if err != nil {
 		utils.ErrExit("failed to get imported snapshot rows map: %v", err)
 	}
@@ -502,6 +503,14 @@ func initMetaDB(migrationExportDir string) *metadb.MetaDB {
 	if err != nil {
 		utils.ErrExit("could not init migration status record: %w", err)
 	}
+	err = metaDBInstance.InitImportDataStatusRecord()
+	if err != nil {
+		utils.ErrExit("could not init import data status record: %w", err)
+	}
+	err = metaDBInstance.InitImportDataFileStatusRecord()
+	if err != nil {
+		utils.ErrExit("could not init import data file status record: %w", err)
+	}
 
 	// TODO: initialising anonymizer should be a top-level function call, like in root.go
 	// but right now, initMetaDB is called from multiple places(from CreateMigrationProjectIfNotExists and root.go in some case)
@@ -531,6 +540,20 @@ func initAnonymizer(metaDBInstance *metadb.MetaDB) error {
 }
 
 func loadOrGenerateAnonymisationSalt(metaDB *metadb.MetaDB) (string, error) {
+	// Check test deterministic anonymization mode
+	enableDet := utils.GetEnvAsBool("VOYAGER_ENABLE_DETERMINISTIC_ANON", false)
+	testSalt := os.Getenv("VOYAGER_TEST_ANON_SALT")
+
+	if enableDet {
+		if testSalt == "" {
+			return "", errors.New("VOYAGER_ENABLE_DETERMINISTIC_ANON is set but VOYAGER_TEST_ANON_SALT is empty")
+		}
+
+		log.Warn("Deterministic anonymization is enabled using a test salt")
+		fmt.Printf("Warning: Deterministic anonymization is enabled using a test salt\n")
+		return testSalt, nil
+	}
+
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
 		return "", fmt.Errorf("error getting migration status record: %w", err)
@@ -1048,7 +1071,9 @@ func getExportedSnapshotRowsMap(exportSnapshotStatus *ExportSnapshotStatus) (*ut
 	snapshotStatusMap := utils.NewStructMap[sqlname.NameTuple, []string]()
 
 	for _, tableStatus := range exportSnapshotStatus.Tables {
-		nt, err := namereg.NameReg.LookupTableName(tableStatus.TableName)
+		//using LookupTableNameAndIgnoreIfTargetNotFound in case if the export status is run after import data in which case
+		// if there is some table not present in target this should work
+		nt, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFound(tableStatus.TableName)
 		if err != nil {
 			return nil, nil, fmt.Errorf("lookup table [%s] from name registry: %v", tableStatus.TableName, err)
 		}
@@ -1062,7 +1087,9 @@ func getExportedSnapshotRowsMap(exportSnapshotStatus *ExportSnapshotStatus) (*ut
 	return snapshotRowsMap, snapshotStatusMap, nil
 }
 
-func getImportedSnapshotRowsMap(dbType string) (*utils.StructMap[sqlname.NameTuple, RowCountPair], error) {
+func getImportedSnapshotRowsMap(dbType string, tableList []sqlname.NameTuple, errorHandler importdata.ImportDataErrorHandler) (*utils.StructMap[sqlname.NameTuple, RowCountPair], error) {
+
+	var err error
 	switch dbType {
 	case "target":
 		importerRole = TARGET_DB_IMPORTER_ROLE
@@ -1087,23 +1114,38 @@ func getImportedSnapshotRowsMap(dbType string) (*utils.StructMap[sqlname.NameTup
 		}
 	}
 	snapshotRowsMap := utils.NewStructMap[sqlname.NameTuple, RowCountPair]()
+	nameTupleTodataFileEntry := utils.NewStructMap[sqlname.NameTuple, []*datafile.FileEntry]()
 	nameTupleTodataFilesMap := utils.NewStructMap[sqlname.NameTuple, []string]()
 	if snapshotDataFileDescriptor != nil {
 		for _, fileEntry := range snapshotDataFileDescriptor.DataFileList {
-			nt, err := namereg.NameReg.LookupTableName(fileEntry.TableName)
+			//ignoring target as the dataFileDescriptor can contain tables that exported but not present in target
+			nt, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFound(fileEntry.TableName)
 			if err != nil {
 				return nil, fmt.Errorf("lookup table name from data file descriptor %s : %v", fileEntry.TableName, err)
 			}
-			list, ok := nameTupleTodataFilesMap.Get(nt)
+			fileEntries, ok := nameTupleTodataFileEntry.Get(nt)
 			if !ok {
-				list = []string{}
+				fileEntries = []*datafile.FileEntry{}
 			}
-			list = append(list, fileEntry.FilePath)
-			nameTupleTodataFilesMap.Put(nt, list)
+			fileEntries = append(fileEntries, fileEntry)
+			nameTupleTodataFileEntry.Put(nt, fileEntries)
+		}
+		for _, table := range tableList {
+			fileEntries, ok := nameTupleTodataFileEntry.Get(table)
+			if !ok {
+				//We can't error out here as this is possible in case there are empty tables in live migraton scenario and
+				//In get data-migration-report, table list can consist that table name but it won't be present in dataFileDescriptor
+				log.Warnf("table %s not found in data file descriptor", table.ForKey())
+				continue
+			}
+			list := lo.Map(fileEntries, func(fileEntry *datafile.FileEntry, _ int) string {
+				return fileEntry.FilePath
+			})
+			nameTupleTodataFilesMap.Put(table, list)
 		}
 	}
 
-	err := nameTupleTodataFilesMap.IterKV(func(nt sqlname.NameTuple, dataFilePaths []string) (bool, error) {
+	err = nameTupleTodataFilesMap.IterKV(func(nt sqlname.NameTuple, dataFilePaths []string) (bool, error) {
 		for _, dataFilePath := range dataFilePaths {
 			importedRowCount, err := state.GetImportedRowCount(dataFilePath, nt)
 			if err != nil {
@@ -1116,7 +1158,17 @@ func getImportedSnapshotRowsMap(dbType string) (*utils.StructMap[sqlname.NameTup
 			existingRowCountPair, _ := snapshotRowsMap.Get(nt)
 			existingRowCountPair.Imported += importedRowCount
 			existingRowCountPair.Errored += erroredRowCount
+
+			if isTargetDBImporter(importerRole) && errorHandler != nil {
+				// error handler will be nil if import-data/import-data-file was not run yet
+				processingErrorRowCount, _, err := errorHandler.GetProcessingErrorCountSize(nt, dataFilePath)
+				if err != nil {
+					return false, fmt.Errorf("get processing error count size: %w", err)
+				}
+				existingRowCountPair.Errored += processingErrorRowCount
+			}
 			snapshotRowsMap.Put(nt, existingRowCountPair)
+
 		}
 		return true, nil
 	})
@@ -1243,6 +1295,47 @@ const (
 type NoteInfo struct {
 	Type NoteType `json:"Type"`
 	Text string   `json:"Text"`
+}
+
+// MarshalJSON implements custom JSON marshaling for NoteInfo to strip HTML tags from Text field
+func (ni NoteInfo) MarshalJSON() ([]byte, error) {
+	type Alias NoteInfo
+	return json.Marshal(&struct {
+		Type NoteType `json:"Type"`
+		Text string   `json:"Text"`
+	}{
+		Type: ni.Type,
+		Text: stripHTMLTags(ni.Text),
+	})
+}
+
+// stripHTMLTags removes <a> tags but preserves both link text and URL
+func stripHTMLTags(htmlText string) string {
+	if htmlText == "" {
+		return ""
+	}
+
+	// Extract href and text from <a> tags: <a href="URL">text</a> → "text (URL)"
+	linkPattern := regexp.MustCompile(`<a[^>]*href=["']([^"']*)["'][^>]*>(.*?)</a>`)
+	result := linkPattern.ReplaceAllStringFunc(htmlText, func(match string) string {
+		submatch := linkPattern.FindStringSubmatch(match)
+		if len(submatch) >= 3 {
+			url := submatch[1]
+			text := submatch[2]
+			// If text is the same as URL, just return the URL
+			if text == url {
+				return url
+			}
+			// Otherwise return "text (URL)"
+			return text + " (" + url + ")"
+		}
+		return match
+	})
+
+	// Clean up whitespace
+	result = strings.TrimSpace(result)
+
+	return result
 }
 
 // ======================================================================
