@@ -373,6 +373,17 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) (err 
 		if err != nil {
 			return fmt.Errorf("anon alter object schema stmt: %w", err)
 		}
+
+	// ─── FUNCTION CALL PROCESSOR ─────────────────────────────────────────────
+	case queryparser.PG_QUERY_FUNCCALL_NODE:
+		fc, ok := queryparser.ProtoAsFuncCallNode(msg)
+		if !ok {
+			return fmt.Errorf("expected FuncCall, got %T", msg.Interface())
+		}
+		err = a.anonymizeFuncCall(fc)
+		if err != nil {
+			return fmt.Errorf("anon function call: %w", err)
+		}
 	}
 	return nil
 }
@@ -2201,6 +2212,54 @@ func (a *SqlAnonymizer) anonymizeConstantValue(node *pg_query.Node, prefix strin
 			},
 		}
 		return nil
+	}
+
+	return nil
+}
+
+// anonymizeFuncCall handles anonymization of function calls in all contexts
+func (a *SqlAnonymizer) anonymizeFuncCall(funcCall *pg_query.FuncCall) error {
+	if funcCall == nil || funcCall.Funcname == nil {
+		return nil
+	}
+
+	// Special case: sequence functions - builtin functions but sequence name arguments should be anonymized
+	if IsSequenceFunction(funcCall.Funcname) {
+		return a.anonymizeSequenceFunctionArgs(funcCall)
+	}
+
+	// General case: check if user-defined function that should be anonymized
+	if ShouldAnonymizeFunction(funcCall.Funcname) {
+		return a.anonymizeStringNodes(funcCall.Funcname, FUNCTION_KIND_PREFIX)
+	}
+
+	return nil // Don't anonymize builtin functions
+}
+
+// anonymizeSequenceFunctionArgs handles sequence functions where the function is builtin
+// but the sequence name argument should be anonymized (nextval, currval, setval)
+func (a *SqlAnonymizer) anonymizeSequenceFunctionArgs(funcCall *pg_query.FuncCall) error {
+	if len(funcCall.Args) == 0 {
+		return nil
+	}
+
+	// The first argument should be the sequence name (as string literal)
+	firstArg := funcCall.Args[0]
+	if firstArg == nil {
+		return nil
+	}
+
+	// Handle string literal sequence name
+	if aConst := firstArg.GetAConst(); aConst != nil {
+		if sval := aConst.GetSval(); sval != nil {
+			// Parse sequence name - could be qualified like "schema.sequence_name"
+			// For now, anonymize the whole string as SEQUENCE
+			hashedVal, err := a.registry.GetHash(SEQUENCE_KIND_PREFIX, sval.Sval)
+			if err != nil {
+				return fmt.Errorf("anon sequence function sequence name: %w", err)
+			}
+			sval.Sval = hashedVal
+		}
 	}
 
 	return nil
