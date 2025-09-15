@@ -1538,7 +1538,10 @@ test_schema."test_migration1"`)
 
 	//assert error contains table not found
 	assert.NotNil(t, err)
-	assert.Contains(t, importCmd.Stdout(), `Unknown table names in the table-list: [abc_unknown]`)
+	assert.Contains(t, importCmd.Stdout(), `Unknown table names in the table-list: [abc_unknown]
+Valid table names are: [test_schema.test_migration test_schema."test_migration1"]
+`)
+	assert.Contains(t, importCmd.Stderr(), "Please fix the table names in table-list and retry.")
 
 	err = testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
 		"--export-dir", exportDir,
