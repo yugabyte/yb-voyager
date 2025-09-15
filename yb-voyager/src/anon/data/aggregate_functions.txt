@@ -1,2 +1,0 @@
-json_agg
-jsonb_agg

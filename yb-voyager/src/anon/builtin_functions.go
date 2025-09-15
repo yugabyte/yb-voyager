@@ -9,14 +9,20 @@ import (
 
 // Embedded function lists from different sources
 //
+// postgresql_17_catalog_functions.txt contains all functions, aggregates, and window functions
+// from PostgreSQL 17 pg_catalog schema. Generated using:
+//
+// SELECT DISTINCT proname FROM pg_catalog.pg_proc p
+// JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
+// WHERE n.nspname = 'pg_catalog'
+// AND p.prokind IN ('f', 'a', 'w')  -- Functions, Aggregates, Window functions
+// ORDER BY proname;
+//
 //go:embed data/postgresql_17_catalog_functions.txt
 var postgresql17CatalogFunctions string
 
 //go:embed data/sql_standard_functions.txt
 var sqlStandardFunctions string
-
-//go:embed data/aggregate_functions.txt
-var aggregateFunctions string
 
 //go:embed data/operator_functions.txt
 var operatorFunctions string
@@ -68,7 +74,6 @@ func init() {
 	// Load functions from all sources
 	loadFunctionsFromData(postgresql17CatalogFunctions)
 	loadFunctionsFromData(sqlStandardFunctions)
-	loadFunctionsFromData(aggregateFunctions)
 	loadFunctionsFromData(operatorFunctions)
 }
 
