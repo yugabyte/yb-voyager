@@ -1524,6 +1524,22 @@ FROM generate_series(1, 10);`
 	assert.Contains(t, importCmd.Stdout(), `Following tables are not present in the target database:
 test_schema."test_migration1"`)
 
+
+	importCmd = testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
+		"--export-dir", exportDir,
+		"--disable-pb", "true",
+		"--table-list", "abc_unknown",
+		"--yes",
+	}, func() {
+		time.Sleep(15 * time.Second)
+	}, false)
+
+	err = importCmd.Run()
+
+	//assert error contains table not found
+	assert.NotNil(t, err)
+	assert.Contains(t, importCmd.Stdout(), `Unknown table names in the table-list: [abc_unknown]`)
+
 	err = testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
 		"--export-dir", exportDir,
 		"--disable-pb", "true",
