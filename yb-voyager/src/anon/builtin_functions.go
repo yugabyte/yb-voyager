@@ -21,11 +21,11 @@ import (
 //go:embed data/postgresql_17_catalog_functions.txt
 var postgresql17CatalogFunctions string
 
-//go:embed data/sql_standard_functions.txt
-var sqlStandardFunctions string
-
-//go:embed data/operator_functions.txt
-var operatorFunctions string
+// additional_builtin_functions.txt contains special built-in functions not found in pg_catalog.pg_proc
+// These include SQL value functions (current_date, current_user) and other PostgreSQL built-ins
+//
+//go:embed data/additional_builtin_functions.txt
+var additionalBuiltinFunctions string
 
 // AllBuiltinFunctions contains all built-in functions that should NOT be anonymized
 var AllBuiltinFunctions map[string]bool
@@ -73,8 +73,7 @@ func init() {
 
 	// Load functions from all sources
 	loadFunctionsFromData(postgresql17CatalogFunctions)
-	loadFunctionsFromData(sqlStandardFunctions)
-	loadFunctionsFromData(operatorFunctions)
+	loadFunctionsFromData(additionalBuiltinFunctions)
 }
 
 // loadFunctionsFromData loads functions from embedded text data
