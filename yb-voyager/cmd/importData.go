@@ -527,6 +527,12 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 	if len(allUnknown) > 0 {
 		utils.PrintAndLog("Unknown table names in the table-list: %v", allUnknown)
 		utils.PrintAndLog("Valid table names are: %v", lo.Map(allTables, func(t sqlname.NameTuple, _ int) string {
+			if t.TargetTableAvailable() {
+				//For the tables that are present in target, we will display the current table name (i.e. as per target table name) properly
+				return t.ForOutput()
+			}
+			//For the tables that are not present in target, we will display the source table name as anyways these tables user will have to skip and 
+			//and we don't have target current table name for them (i.e. target table name )
 			return t.ForKey()
 		}))
 		utils.ErrExit("Please fix the table names in table-list and retry.")
