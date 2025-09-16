@@ -1,10 +1,41 @@
-CREATE TEMP TABLE temp_table AS
-SELECT *
-FROM
-    :schema_name.pg_stat_statements
-WHERE
-    dbid = (SELECT oid FROM pg_database WHERE datname = current_database());
+-- make the psql var a server setting
+SET my.vars.pgss_schema = :'schema_name';
 
-\copy temp_table to 'db-queries-summary.csv' WITH CSV HEADER;
+DO $do$
+DECLARE
+    pgss_schema  text := current_setting('my.vars.pgss_schema', true);
+    column_list  text;
+    sql_query    text;
+BEGIN
+    -- Build column list: alias only time columns, keep everything else as-is
+    -- so if there are new columns in future PG version they will get dumped into CSV
+    SELECT string_agg(
+             CASE column_name
+               WHEN 'total_time'  THEN 'total_time AS total_exec_time'
+               WHEN 'mean_time'   THEN 'mean_time AS mean_exec_time'
+               WHEN 'min_time'    THEN 'min_time AS min_exec_time'
+               WHEN 'max_time'    THEN 'max_time AS max_exec_time'
+               WHEN 'stddev_time' THEN 'stddev_time AS stddev_exec_time'
+               ELSE quote_ident(column_name)
+             END,
+             ', '
+             ORDER BY ordinal_position  -- Maintain original column order
+           )
+      INTO column_list
+      FROM information_schema.columns
+     WHERE table_schema = pgss_schema
+       AND table_name   = 'pg_stat_statements';
 
+    sql_query := format(
+      'CREATE TEMP TABLE temp_table AS
+         SELECT %s
+           FROM %I.pg_stat_statements
+          WHERE dbid = (SELECT oid FROM pg_database WHERE datname = current_database())',
+      column_list, pgss_schema);
+
+    EXECUTE sql_query;
+END
+$do$;
+
+\copy temp_table TO 'db-queries-summary.csv' CSV HEADER;
 DROP TABLE temp_table;
