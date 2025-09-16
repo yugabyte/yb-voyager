@@ -441,50 +441,50 @@ func (adb *AssessmentDB) LoadPgssCSVIntoTable(filePath string) error {
 	}
 
 	log.Infof("inserting PGSS entries into %s table", DB_QUERIES_SUMMARY)
-	successCount, err := adb.InsertPgssEntries(entries)
+	err = adb.InsertPgssEntries(entries)
 	if err != nil {
 		return fmt.Errorf("failed to insert PGSS entries: %w", err)
 	}
 
-	log.Infof("Successfully loaded %d PGSS entries into %s table", successCount, DB_QUERIES_SUMMARY)
 	return nil
 }
 
-func (adb *AssessmentDB) InsertPgssEntries(entries []pgss.QueryStats) (int, error) {
+func (adb *AssessmentDB) InsertPgssEntries(entries []pgss.QueryStats) error {
 	if len(entries) == 0 {
-		return 0, nil
+		return nil
 	}
 
-	// Prepare statement for batch insertion
-	insertSQL := fmt.Sprintf(`INSERT INTO %s 
-		(queryid, query, calls, rows, total_exec_time, mean_exec_time, min_exec_time, max_exec_time, stddev_exec_time) 
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, DB_QUERIES_SUMMARY)
+	// Prepared statement for faster insertion
+	insertSQL := fmt.Sprintf(`
+		INSERT INTO %s (
+			queryid,
+			query,
+			calls,
+			rows,
+			total_exec_time,
+			mean_exec_time,
+			min_exec_time,
+			max_exec_time,
+			stddev_exec_time
+		) VALUES (
+			?, ?, ?, ?, ?, ?, ?, ?, ?
+		)`, DB_QUERIES_SUMMARY)
 
 	stmt, err := adb.db.Prepare(insertSQL)
 	if err != nil {
-		return 0, fmt.Errorf("failed to prepare PGSS insert statement: %w", err)
+		return fmt.Errorf("failed to prepare PGSS insert statement: %w", err)
 	}
 	defer stmt.Close()
 
-	successCount := 0
-	errorCount := 0
 	for _, entry := range entries {
 		_, err = stmt.Exec(entry.QueryID, entry.Query, entry.Calls, entry.Rows, entry.TotalExecTime, entry.MeanExecTime,
 			entry.MinExecTime, entry.MaxExecTime, entry.StddevExecTime)
 		if err != nil {
-			log.Warnf("Failed to insert PGSS entry for queryid %d: %v", entry.QueryID, err)
-			errorCount++
-			continue
+			return fmt.Errorf("failed to insert PGSS entry for queryid %d: %w", entry.QueryID, err)
 		}
-		successCount++
 	}
 
-	if errorCount > 0 {
-		log.Warnf("PGSS insertion completed with %d errors out of %d total entries", errorCount, len(entries))
-	}
-
-	log.Infof("Successfully inserted %d PGSS entries into %s table", successCount, DB_QUERIES_SUMMARY)
-	return successCount, nil
+	return nil
 }
 
 // GetQueryStats retrieves all the source PGSS data from the assessment database
