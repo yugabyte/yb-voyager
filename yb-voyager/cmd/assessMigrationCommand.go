@@ -638,6 +638,13 @@ func populateMetadataCSVIntoAssessmentDB() error {
 		tableName = lo.Ternary(strings.Contains(tableName, migassessment.TABLE_INDEX_IOPS),
 			migassessment.TABLE_INDEX_IOPS, tableName)
 
+		// check if the table exist in the assessment db or not
+		// possible scenario: if gather scripts are run manually, not via voyager
+		err := assessmentDB.CheckIfTableExists(tableName)
+		if err != nil {
+			return fmt.Errorf("error checking if table %s exists: %w", tableName, err)
+		}
+
 		log.Infof("populating metadata from file %s into table %s", metadataFilePath, tableName)
 		err = assessmentDB.LoadCSVFileIntoTable(metadataFilePath, tableName)
 		if err != nil {

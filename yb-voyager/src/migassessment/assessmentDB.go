@@ -545,3 +545,15 @@ func (adb *AssessmentDB) LoadPgssFromDB() ([]pgss.QueryStats, error) {
 
 	return entries, nil
 }
+
+func (adb *AssessmentDB) CheckIfTableExists(tableName string) error {
+	query := `SELECT name FROM sqlite_master WHERE type='table' AND name=?;`
+
+	var name string
+	err := adb.db.QueryRow(query, tableName).Scan(&name)
+	if err != nil {
+		return fmt.Errorf("error checking if table %s exists: %w", tableName, err)
+	}
+
+	return nil
+}
