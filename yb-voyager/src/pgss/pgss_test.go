@@ -33,7 +33,7 @@ func TestParseFromCSVFormats(t *testing.T) {
 	}{
 		{
 			name: "PostgreSQL 11-12 format (9 columns without exec)",
-			csvData: `queryid,query,calls,rows,total_time,mean_time,min_time,max_time,stddev_time
+			csvData: `queryid,query,calls,rows,total_exec_time,mean_exec_time,min_exec_time,max_exec_time,stddev_exec_time
 123,"SELECT * FROM users",100,1000,1500.5,15.005,5.2,25.8,3.5
 456,"SELECT id FROM products",50,500,750.0,15.0,10.0,20.0,2.1`,
 			expectedLen: 2,
@@ -115,27 +115,27 @@ func TestParseInvalidDataInvalid(t *testing.T) {
 			expectedErr: "wrong number of fields",
 		},
 
-		// 2. Column Mapping Validation Errors (Function should return error immediately)
+		// 2. Missing Required Column Errors
 		{
 			name: "Missing required queryid column",
 			csvData: `query,calls,rows,total_exec_time,mean_exec_time,min_exec_time,max_exec_time,stddev_exec_time
 "SELECT * FROM users",100,1000,1500.5,15.005,5.2,25.8,3.5`,
 			expectError: true,
-			expectedErr: "missing required fields in CSV headers: [queryid]",
+			expectedErr: "missing queryid",
 		},
 		{
 			name: "Missing required query column",
 			csvData: `queryid,calls,rows,total_exec_time,mean_exec_time,min_exec_time,max_exec_time,stddev_exec_time
 123,100,1000,1500.5,15.005,5.2,25.8,3.5`,
 			expectError: true,
-			expectedErr: "missing required fields in CSV headers: [query]",
+			expectedErr: "missing or empty query",
 		},
 		{
 			name: "Missing multiple required columns",
 			csvData: `queryid,query
 123,"SELECT * FROM users"`,
 			expectError: true,
-			expectedErr: "missing required fields in CSV headers:",
+			expectedErr: "missing calls",
 		},
 
 		// 3. Data Validation Errors (Rows get skipped, but function succeeds)
@@ -144,26 +144,30 @@ func TestParseInvalidDataInvalid(t *testing.T) {
 			csvData: `queryid,query,calls,rows,total_exec_time,mean_exec_time,min_exec_time,max_exec_time,stddev_exec_time
 invalid_id,"SELECT * FROM users",100,1000,1500.5,15.005,5.2,25.8,3.5
 123,"SELECT * FROM users",100,1000,1500.5,15.005,5.2,25.8,3.5`,
-			expectError: false,
-			expectedLen: 1, // 1st row gets skipped
+			expectError: true,
+			expectedErr: "invalid queryid: invalid_id",
 		},
 		{
 			name: "Empty query text",
 			csvData: `queryid,query,calls,rows,total_exec_time,mean_exec_time,min_exec_time,max_exec_time,stddev_exec_time
 123,"",50,500,750.0,15.0,10.0,20.0,2.1
 456,"SELECT * FROM products",100,1000,1500.5,15.005,5.2,25.8,3.5`,
-			expectError: false,
-			expectedLen: 1, // 1st row gets skipped
+			expectError: true,
+			expectedErr: "missing or empty query",
 		},
 		{
-			name: "Multiple invalid rows",
+			name: "Invalid calls (non-numeric)",
 			csvData: `queryid,query,calls,rows,total_exec_time,mean_exec_time,min_exec_time,max_exec_time,stddev_exec_time
-invalid_id,"SELECT * FROM users",100,1000,1500.5,15.005,5.2,25.8,3.5
-123,"",50,500,750.0,15.0,10.0,20.0,2.1
-456,"SELECT * FROM products",invalid_calls,500,750.0,15.0,10.0,20.0,2.1
-789,"SELECT * FROM orders",100,1000,1500.5,15.005,5.2,25.8,3.5`,
-			expectError: false,
-			expectedLen: 1,
+123,"SELECT * FROM users",invalid_calls,1000,1500.5,15.005,5.2,25.8,3.5`,
+			expectError: true,
+			expectedErr: "invalid calls: invalid_calls",
+		},
+		{
+			name: "Invalid float in timing field",
+			csvData: `queryid,query,calls,rows,total_exec_time,mean_exec_time,min_exec_time,max_exec_time,stddev_exec_time
+123,"SELECT * FROM users",100,1000,invalid_float,15.005,5.2,25.8,3.5`,
+			expectError: true,
+			expectedErr: "invalid total_exec_time: invalid_float",
 		},
 	}
 

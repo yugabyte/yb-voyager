@@ -28,12 +28,12 @@ type QueryStats struct {
 	Calls int64 `json:"calls" db:"calls"` // Number of times executed
 	Rows  int64 `json:"rows" db:"rows"`   // Total rows retrieved or affected
 
-	// Timing metrics (all in milliseconds, normalized to PG 13+ column names)
-	TotalExecTime  float64 `json:"total_exec_time" db:"total_exec_time"`   // total_time (PG11-12) -> total_exec_time (PG13+)
-	MeanExecTime   float64 `json:"mean_exec_time" db:"mean_exec_time"`     // mean_time (PG11-12) -> mean_exec_time (PG13+)
-	MinExecTime    float64 `json:"min_exec_time" db:"min_exec_time"`       // min_time (PG11-12) -> min_exec_time (PG13+)
-	MaxExecTime    float64 `json:"max_exec_time" db:"max_exec_time"`       // max_time (PG11-12) -> max_exec_time (PG13+)
-	StddevExecTime float64 `json:"stddev_exec_time" db:"stddev_exec_time"` // stddev_time (PG11-12) -> stddev_exec_time (PG13+)
+	// Note: psql script takes care of normalizing timing metrics to same naming convention:  *_exec_time
+	TotalExecTime  float64 `json:"total_exec_time" db:"total_exec_time"`
+	MeanExecTime   float64 `json:"mean_exec_time" db:"mean_exec_time"`
+	MinExecTime    float64 `json:"min_exec_time" db:"min_exec_time"`
+	MaxExecTime    float64 `json:"max_exec_time" db:"max_exec_time"`
+	StddevExecTime float64 `json:"stddev_exec_time" db:"stddev_exec_time"`
 }
 
 // GetSlowdownRatio calculates how much slower this query is compared to a baseline
