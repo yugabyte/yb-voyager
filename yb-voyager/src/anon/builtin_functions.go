@@ -100,7 +100,6 @@ var SequenceFunctions = map[string]bool{
 func IsSequenceFunction(funcname []*pg_query.Node) bool {
 	if len(funcname) == 1 {
 		if funcStr := funcname[0].GetString_(); funcStr != nil {
-			// TODO: think about case sensitivity; do we need to handle that in this scenario or rely on pg parser
 			return SequenceFunctions[funcStr.Sval]
 		}
 	}
@@ -108,6 +107,7 @@ func IsSequenceFunction(funcname []*pg_query.Node) bool {
 }
 
 // IsBuiltinFunction checks if a function call represents a built-in function
+// No need to handle identifier's case: pg_query_go normalizes unquoted function names to lowercase.
 func IsBuiltinFunction(funcname []*pg_query.Node) bool {
 	if len(funcname) == 0 {
 		return false

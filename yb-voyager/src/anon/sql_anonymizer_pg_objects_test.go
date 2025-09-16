@@ -1039,15 +1039,35 @@ func TestPostgresDDLDefaultClauseAnonymization(t *testing.T) {
 			[]string{"now()", "current_timestamp"}},
 
 		// ─── SEQUENCE REFERENCES IN DEFAULT CLAUSES ─────────────────────────────────────────────
-		{ddlCase{"DEFAULT-SEQUENCE-REFERENCE",
-			`CREATE TABLE orders.order_items (
-  item_id      bigint PRIMARY KEY DEFAULT nextval('orders.item_seq'::regclass),
-  order_id     bigint NOT NULL,
-  product_name text DEFAULT 'Unknown Product'
+		{ddlCase{"SEQUENCE-UNQUALIFIED",
+			`CREATE TABLE public.customers (
+  customer_id bigint PRIMARY KEY DEFAULT nextval('customer_seq'),
+  name        text NOT NULL,
+  email       text DEFAULT concat('user', nextval('user_id_seq'), '@example.com')
 );`,
-			[]string{"orders", "order_items", "item_id", "order_id", "product_name", "item_seq"},
+			[]string{"public", "customers", "customer_id", "name", "email", "customer_seq", "user_id_seq"},
 			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX, SEQUENCE_KIND_PREFIX}},
-			[]string{"nextval"}},
+			[]string{"nextval", "concat"}},
+		{ddlCase{"SEQUENCE-QUALIFIED-SCHEMA",
+			`CREATE TABLE accounts.transactions (
+  txn_id       bigint PRIMARY KEY DEFAULT nextval('accounts.transaction_seq'),
+  account_id   bigint DEFAULT nextval('accounts.account_seq'),
+  amount       decimal NOT NULL,
+  reference_id text DEFAULT concat('TXN-', nextval('accounts.ref_seq'))
+);`,
+			[]string{"accounts", "transactions", "txn_id", "account_id", "amount", "reference_id", "transaction_seq", "account_seq", "ref_seq"},
+			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX, SEQUENCE_KIND_PREFIX}},
+			[]string{"nextval", "concat"}},
+		{ddlCase{"SEQUENCE-TYPECAST-VARIANTS",
+			`CREATE TABLE inventory.items (
+  item_id      bigint PRIMARY KEY DEFAULT nextval('inventory.item_seq'::regclass),
+  sku_id       bigint DEFAULT nextval('inventory.sku_seq'::text::regclass),
+  batch_id     bigint DEFAULT nextval('batch_seq'::regclass),
+  created_at   timestamp DEFAULT now()
+);`,
+			[]string{"inventory", "items", "item_id", "sku_id", "batch_id", "created_at", "item_seq", "sku_seq", "batch_seq"},
+			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX, SEQUENCE_KIND_PREFIX}},
+			[]string{"nextval", "now"}},
 
 		// ─── TYPE CASTS IN DEFAULT CLAUSES ─────────────────────────────────────────────
 		{ddlCase{"DEFAULT-TYPE-CASTS",
