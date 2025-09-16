@@ -456,18 +456,9 @@ func (adb *AssessmentDB) InsertPgssEntries(entries []pgss.QueryStats) (int, erro
 	}
 
 	// Prepare statement for batch insertion
-	insertSQL := `INSERT INTO db_queries_summary 
+	insertSQL := fmt.Sprintf(`INSERT INTO %s 
 		(queryid, query, calls, rows, total_exec_time, mean_exec_time, min_exec_time, max_exec_time, stddev_exec_time) 
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(queryid) DO UPDATE SET
-			query = excluded.query,
-			calls = excluded.calls,
-			rows = excluded.rows,
-			total_exec_time = excluded.total_exec_time,
-			mean_exec_time = excluded.mean_exec_time,
-			min_exec_time = excluded.min_exec_time,
-			max_exec_time = excluded.max_exec_time,
-			stddev_exec_time = excluded.stddev_exec_time`
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, DB_QUERIES_SUMMARY)
 
 	stmt, err := adb.db.Prepare(insertSQL)
 	if err != nil {
@@ -477,20 +468,9 @@ func (adb *AssessmentDB) InsertPgssEntries(entries []pgss.QueryStats) (int, erro
 
 	successCount := 0
 	errorCount := 0
-
-	// Insert each entry
 	for _, entry := range entries {
-		_, err = stmt.Exec(
-			entry.QueryID,
-			entry.Query,
-			entry.Calls,
-			entry.Rows,
-			entry.TotalExecTime,
-			entry.MeanExecTime,
-			entry.MinExecTime,
-			entry.MaxExecTime,
-			entry.StddevExecTime,
-		)
+		_, err = stmt.Exec(entry.QueryID, entry.Query, entry.Calls, entry.Rows, entry.TotalExecTime, entry.MeanExecTime,
+			entry.MinExecTime, entry.MaxExecTime, entry.StddevExecTime)
 		if err != nil {
 			log.Warnf("Failed to insert PGSS entry for queryid %d: %v", entry.QueryID, err)
 			errorCount++
@@ -507,8 +487,8 @@ func (adb *AssessmentDB) InsertPgssEntries(entries []pgss.QueryStats) (int, erro
 	return successCount, nil
 }
 
-// LoadPgssFromDB retrieves all PGSS data from the assessment database
-func (adb *AssessmentDB) LoadPgssFromDB() ([]pgss.QueryStats, error) {
+// GetQueryStats retrieves all the source PGSS data from the assessment database
+func (adb *AssessmentDB) GetQueryStats() ([]pgss.QueryStats, error) {
 	query := `SELECT queryid, query, calls, rows, total_exec_time, mean_exec_time, 
 		min_exec_time, max_exec_time, stddev_exec_time 
 		FROM db_queries_summary`

@@ -18,6 +18,7 @@ package pgss
 // QueryStats represents a pg_stat_statements entry
 // All field names follow PostgreSQL 13+ conventions for consistency across versions
 // This struct serves as the single source of truth for PGSS data throughout the system
+// Note: db tags here are linked to DB_QUERIES_SUMMARY table in the assessment db
 type QueryStats struct {
 	// Core identification fields
 	QueryID int64  `json:"queryid" db:"queryid"` // Unique identifier for the normalized query

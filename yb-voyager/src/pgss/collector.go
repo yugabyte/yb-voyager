@@ -20,12 +20,6 @@ import (
 	"fmt"
 )
 
-// CollectFromPostgreSQL collects PGSS data directly from a PostgreSQL database or assessmentDB
-// TODO: Implement when compare-performance command is developed
-func CollectFromPostgreSQL(db *sql.DB, schemaName string) ([]QueryStats, error) {
-	return nil, fmt.Errorf("CollectFromPostgreSQL not implemented yet - will be added for compare-performance command")
-}
-
 // CollectFromYugabyteDB collects PGSS data from YugabyteDB
 // TODO: Implement when compare-performance command is developed
 func CollectFromYugabyteDB(db *sql.DB, schemaName string) ([]QueryStats, error) {
