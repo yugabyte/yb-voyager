@@ -1509,8 +1509,8 @@ func (a *SqlAnonymizer) handleConversionObjectNodes(msg protoreflect.Message) (e
 // We need to anonymize the relation (table name) with FOREIGN_TABLE_KIND_PREFIX instead of TABLE_KIND_PREFIX.
 /*
 	SQL:    CREATE FOREIGN TABLE sales.external_orders (id int, customer_id int, amount numeric) SERVER external_server OPTIONS (schema_name 'public', table_name 'orders');
-			ParseTree: stmt:{create_foreign_table_stmt:{base_stmt:{relation:{relname:"external_orders" ...} table_elts:{column_def:{colname:"id" type_name:{names:{string:{sval:"pg_catalog"}} names:{string:{sval:"int4"}}}}}
-			table_elts:{column_def:{colname:"customer_id" type_name:{names:{string:{sval:"pg_catalog"}} names:{string:{sval:"int4"}}}}}
+			ParseTree: stmt:{create_foreign_table_stmt:{base_stmt:{relation:{schemaname:"sales" relname:"external_orders" }
+			table_elts:{column_def:{colname:"id" type_name:{names:{string:{sval:"pg_catalog"}} names:{string:{sval:"int4"}}}}}
 			table_elts:{column_def:{colname:"amount" type_name:{names:{string:{sval:"pg_catalog"}} names:{string:{sval:"numeric"}} } }} oncommit:ONCOMMIT_NOOP}
 			servername:"external_server" options:{def_elem:{defname:"schema_name" arg:{string:{sval:"public"}} defaction:DEFELEM_UNSPEC location:117}}
 			options:{def_elem:{defname:"table_name" arg:{string:{sval:"orders"}} defaction:DEFELEM_UNSPEC location:139}}}}

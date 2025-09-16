@@ -993,7 +993,6 @@ func TestPostgresDDLDefaultClauseAnonymization(t *testing.T) {
 	}
 
 	cases := []defaultClauseCase{
-		// ─── CUSTOM FUNCTION CALLS IN DEFAULT CLAUSES ─────────────────────────────────────────────
 		{ddlCase{"DEFAULT-CUSTOM-FUNCTION-SCHEMA",
 			`CREATE TABLE IF NOT EXISTS app.orders (
   id           bigserial PRIMARY KEY,
@@ -1004,6 +1003,16 @@ func TestPostgresDDLDefaultClauseAnonymization(t *testing.T) {
 			[]string{"app", "orders", "id", "code", "customer", "created_at", "generate_identifier"},
 			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX, FUNCTION_KIND_PREFIX}},
 			[]string{"now()"}},
+		{ddlCase{"DEFAULT-BUILTIN-FUNCTIONS",
+			`CREATE TABLE sales.products (
+  id           serial PRIMARY KEY,
+  name         text NOT NULL,
+  created_at   timestamptz DEFAULT now(),
+  updated_at   timestamptz DEFAULT current_timestamp
+);`,
+			[]string{"sales", "products", "id", "name", "created_at", "updated_at"},
+			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX}},
+			[]string{"now()", "current_timestamp"}},
 		{ddlCase{"DEFAULT-CUSTOM-FUNCTION-MULTIPLE",
 			`CREATE TABLE inventory.items (
   item_id      bigint PRIMARY KEY,
@@ -1025,19 +1034,6 @@ func TestPostgresDDLDefaultClauseAnonymization(t *testing.T) {
 			[]string{"users", "profiles", "user_id", "username", "email", "created_at", "last_login", "get_last_login_time"},
 			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX, FUNCTION_KIND_PREFIX}},
 			[]string{"gen_random_uuid()", "now()"}},
-
-		// ─── BUILT-IN FUNCTION CALLS IN DEFAULT CLAUSES ─────────────────────────────────────────────
-		{ddlCase{"DEFAULT-BUILTIN-FUNCTIONS",
-			`CREATE TABLE sales.products (
-  id           serial PRIMARY KEY,
-  name         text NOT NULL,
-  created_at   timestamptz DEFAULT now(),
-  updated_at   timestamptz DEFAULT current_timestamp
-);`,
-			[]string{"sales", "products", "id", "name", "created_at", "updated_at"},
-			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX}},
-			[]string{"now()", "current_timestamp"}},
-
 		// ─── SEQUENCE REFERENCES IN DEFAULT CLAUSES ─────────────────────────────────────────────
 		{ddlCase{"SEQUENCE-UNQUALIFIED",
 			`CREATE TABLE public.customers (
