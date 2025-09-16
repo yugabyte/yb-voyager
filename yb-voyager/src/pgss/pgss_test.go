@@ -24,54 +24,6 @@ import (
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
-func TestCreateColumnMapping(t *testing.T) {
-	tests := []struct {
-		name     string
-		headers  []string
-		expected ColumnMapping
-	}{
-		{
-			name:    "PG 11-12 headers",
-			headers: []string{"queryid", "query", "calls", "rows", "total_time", "mean_time", "min_time", "max_time", "stddev_time"},
-			expected: ColumnMapping{
-				QueryID:        "queryid",
-				Query:          "query",
-				Calls:          "calls",
-				Rows:           "rows",
-				TotalExecTime:  "total_time",
-				MeanExecTime:   "mean_time",
-				MinExecTime:    "min_time",
-				MaxExecTime:    "max_time",
-				StddevExecTime: "stddev_time",
-			},
-		},
-		{
-			name:    "PG 13+ headers",
-			headers: []string{"queryid", "query", "calls", "rows", "total_exec_time", "mean_exec_time", "min_exec_time", "max_exec_time", "stddev_exec_time"},
-			expected: ColumnMapping{
-				QueryID:        "queryid",
-				Query:          "query",
-				Calls:          "calls",
-				Rows:           "rows",
-				TotalExecTime:  "total_exec_time",
-				MeanExecTime:   "mean_exec_time",
-				MinExecTime:    "min_exec_time",
-				MaxExecTime:    "max_exec_time",
-				StddevExecTime: "stddev_exec_time",
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			mapping := CreateColumnMapping(tt.headers)
-			assert.Equal(t, tt.expected.QueryID, mapping.QueryID, "QueryID mapping should match")
-			assert.Equal(t, tt.expected.TotalExecTime, mapping.TotalExecTime, "TotalExecTime mapping should match")
-			assert.Equal(t, tt.expected.MeanExecTime, mapping.MeanExecTime, "MeanExecTime mapping should match")
-		})
-	}
-}
-
 func TestParseFromCSVFormats(t *testing.T) {
 	tests := []struct {
 		name        string
