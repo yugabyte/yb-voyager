@@ -110,6 +110,12 @@ func IsSequenceFunction(funcname []*pg_query.Node) bool {
 		}
 	} else if len(funcname) == 2 {
 		// Qualified function: pg_catalog.nextval, public.nextval, etc.
+		// check if the first part is pg_catalog
+		if funcStr := funcname[0].GetString_(); funcStr != nil {
+			if funcStr.Sval != "pg_catalog" {
+				return false
+			}
+		}
 		if funcStr := funcname[1].GetString_(); funcStr != nil {
 			return SequenceFunctions[funcStr.Sval]
 		}
