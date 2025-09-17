@@ -648,7 +648,6 @@ func populateMetadataCSVIntoAssessmentDB() error {
 		log.Infof("populating metadata from file %s into table %s", metadataFilePath, tableName)
 		err = assessmentDB.LoadCSVFileIntoTable(metadataFilePath, tableName)
 		if err != nil {
-			log.Warnf("error loading CSV file %s: %v", metadataFilePath, err)
 			return fmt.Errorf("error loading CSV file %s: %w", metadataFilePath, err)
 		}
 

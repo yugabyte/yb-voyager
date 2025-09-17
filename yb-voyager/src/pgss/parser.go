@@ -21,7 +21,6 @@ import (
 	"io"
 	"os"
 	"strconv"
-	"strings"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -68,80 +67,54 @@ func ParseFromCSV(csvPath string) ([]QueryStats, error) {
 
 // parseCSVRecord converts a single CSV record to QueryStats using the column mapping
 func parseCSVRecord(headers []string, record []string) (*QueryStats, error) {
+	var err error
 	entry := &QueryStats{}
 
-	// Helper function to safely get value by column name
-	getValue := func(columnName string) string {
-		if columnName == "" {
-			return ""
-		}
-		for i, header := range headers {
-			if header == columnName {
-				// Note: headers and columns len is same
-				return record[i]
+	for i, header := range headers {
+		switch header {
+		case "queryid":
+			entry.QueryID, err = strconv.ParseInt(record[i], 10, 64)
+			if err != nil {
+				return nil, fmt.Errorf("invalid queryid: %s", record[i])
+			}
+		case "query":
+			entry.Query = record[i]
+		case "calls":
+			entry.Calls, err = strconv.ParseInt(record[i], 10, 64)
+			if err != nil {
+				return nil, fmt.Errorf("invalid calls: %s", record[i])
+			}
+		case "rows":
+			entry.Rows, err = strconv.ParseInt(record[i], 10, 64)
+			if err != nil {
+				return nil, fmt.Errorf("invalid rows: %s", record[i])
+			}
+		case "total_exec_time":
+			err = parseFloatOrZero(record[i], "total_exec_time", &entry.TotalExecTime)
+			if err != nil {
+				return nil, err
+			}
+		case "mean_exec_time":
+			err = parseFloatOrZero(record[i], "mean_exec_time", &entry.MeanExecTime)
+			if err != nil {
+				return nil, err
+			}
+		case "min_exec_time":
+			err = parseFloatOrZero(record[i], "min_exec_time", &entry.MinExecTime)
+			if err != nil {
+				return nil, err
+			}
+		case "max_exec_time":
+			err = parseFloatOrZero(record[i], "max_exec_time", &entry.MaxExecTime)
+			if err != nil {
+				return nil, err
+			}
+		case "stddev_exec_time":
+			err = parseFloatOrZero(record[i], "stddev_exec_time", &entry.StddevExecTime)
+			if err != nil {
+				return nil, err
 			}
 		}
-		return ""
-	}
-
-	var err error
-
-	// QueryID (required)
-	queryIDValue := getValue("queryid")
-	if queryIDValue == "" {
-		return nil, fmt.Errorf("missing queryid")
-	}
-	entry.QueryID, err = strconv.ParseInt(queryIDValue, 10, 64)
-	if err != nil {
-		return nil, fmt.Errorf("invalid queryid: %s", queryIDValue)
-	}
-
-	// Query (required)
-	entry.Query = strings.TrimSpace(getValue("query"))
-	if entry.Query == "" {
-		return nil, fmt.Errorf("missing or empty query")
-	}
-
-	// Calls (required)
-	callsValue := getValue("calls")
-	if callsValue == "" {
-		return nil, fmt.Errorf("missing calls")
-	}
-	entry.Calls, err = strconv.ParseInt(callsValue, 10, 64)
-	if err != nil {
-		return nil, fmt.Errorf("invalid calls: %s", callsValue)
-	}
-	if entry.Calls <= 0 {
-		return nil, fmt.Errorf("calls must be > 0, got %d", entry.Calls)
-	}
-
-	// Rows (optional, default to 0)
-	rowsValue := getValue("rows")
-	if rowsValue != "" {
-		if val, err := strconv.ParseInt(rowsValue, 10, 64); err == nil {
-			entry.Rows = val
-		}
-	}
-
-	err = parseFloatOrZero(getValue("total_exec_time"), "total_exec_time", &entry.TotalExecTime)
-	if err != nil {
-		return nil, err
-	}
-	err = parseFloatOrZero(getValue("mean_exec_time"), "mean_exec_time", &entry.MeanExecTime)
-	if err != nil {
-		return nil, err
-	}
-	err = parseFloatOrZero(getValue("min_exec_time"), "min_exec_time", &entry.MinExecTime)
-	if err != nil {
-		return nil, err
-	}
-	err = parseFloatOrZero(getValue("max_exec_time"), "max_exec_time", &entry.MaxExecTime)
-	if err != nil {
-		return nil, err
-	}
-	err = parseFloatOrZero(getValue("stddev_exec_time"), "stddev_exec_time", &entry.StddevExecTime)
-	if err != nil {
-		return nil, err
 	}
 
 	return entry, nil

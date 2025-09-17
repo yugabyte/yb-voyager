@@ -76,6 +76,14 @@ func TestParseFromCSVFormats(t *testing.T) {
 				assert.Equal(t, 30000.0, entry2.TotalExecTime, "Entry2 TotalExecTime should match")
 			},
 		},
+		{
+			name: "Only header",
+			csvData: `queryid,query,calls,rows,total_exec_time,mean_exec_time,min_exec_time,max_exec_time,stddev_exec_time`,
+			expectedLen: 0,
+			validate: func(t *testing.T, entries []QueryStats) {
+				assert.Len(t, entries, 0, "Should have expected number of entries")
+			},
+		},
 	}
 
 	for _, tt := range tests {
