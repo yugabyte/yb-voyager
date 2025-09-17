@@ -294,7 +294,11 @@ func (yb *TargetYugabyteDB) InitConnPool() error {
 
 	if yb.tconf.EnableYBAdaptiveParallelism {
 		if yb.tconf.MaxParallelism <= 0 {
+			// max not specified, so use parallelism * 2
 			yb.tconf.MaxParallelism = yb.tconf.Parallelism * 2
+		} else {
+			// max specified, update parallelism to max/2, with minimum of 1
+			yb.tconf.Parallelism = max(yb.tconf.MaxParallelism/2, 1)
 		}
 	} else {
 		yb.tconf.MaxParallelism = yb.tconf.Parallelism
