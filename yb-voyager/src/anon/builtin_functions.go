@@ -98,8 +98,19 @@ var SequenceFunctions = map[string]bool{
 // == Helper functions for function classification ==
 
 func IsSequenceFunction(funcname []*pg_query.Node) bool {
+	if len(funcname) == 0 {
+		return false
+	}
+
+	// Handle both qualified and unqualified function names
 	if len(funcname) == 1 {
+		// Unqualified function: nextval, currval, etc.
 		if funcStr := funcname[0].GetString_(); funcStr != nil {
+			return SequenceFunctions[funcStr.Sval]
+		}
+	} else if len(funcname) == 2 {
+		// Qualified function: pg_catalog.nextval, public.nextval, etc.
+		if funcStr := funcname[1].GetString_(); funcStr != nil {
 			return SequenceFunctions[funcStr.Sval]
 		}
 	}

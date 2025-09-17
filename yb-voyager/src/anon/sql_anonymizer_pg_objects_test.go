@@ -1075,6 +1075,15 @@ func TestPostgresDDLDefaultClauseAnonymization(t *testing.T) {
 			[]string{"inventory", "items", "item_id", "sku_id", "batch_id", "created_at", "item_seq", "sku_seq", "batch_seq"},
 			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX, SEQUENCE_KIND_PREFIX}},
 			[]string{"nextval", "now"}},
+		{ddlCase{"SEQUENCE-PG-CATALOG-NEXTVAL",
+			`CREATE TABLE public.customers (
+  customer_id bigint PRIMARY KEY DEFAULT pg_catalog.nextval('customer_seq'),
+  name        text NOT NULL,
+  email       text DEFAULT concat('user', pg_catalog.nextval('user_id_seq'), '@example.com')
+);`,
+			[]string{"public", "customers", "customer_id", "name", "email", "customer_seq", "user_id_seq"},
+			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX, SEQUENCE_KIND_PREFIX}},
+			[]string{"nextval", "concat"}},
 
 		// ─── TYPE CASTS IN DEFAULT CLAUSES ─────────────────────────────────────────────
 		{ddlCase{"DEFAULT-TYPE-CASTS",
@@ -1150,6 +1159,9 @@ func TestPostgresDDLDefaultClauseAnonymization(t *testing.T) {
 				t.Logf("Anonymization failed as expected for unimplemented node type: %v", err)
 				return
 			}
+
+			// print before and after
+			t.Logf("Test Name: %s\nIN: %s\nOUT: %s\n\n", tc.key, tc.sql, out)
 
 			// If anonymization succeeds, verify the output doesn't contain raw identifiers
 			if tc.raw != nil {
