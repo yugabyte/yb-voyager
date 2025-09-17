@@ -428,6 +428,7 @@ func (adb *AssessmentDB) LoadCSVFileIntoTable(filePath, tableName string) error 
 }
 
 // LoadPgssCSVIntoTable loads PGSS CSV data into the db_queries_summary table
+// special handling because csv can have different columns based on the PG version and we need to load it into the table with specific schema(9 columns)
 func (adb *AssessmentDB) LoadPgssCSVIntoTable(filePath string) error {
 	log.Infof("starting to parse PGSS CSV file")
 	entries, err := pgss.ParseFromCSV(filePath)
