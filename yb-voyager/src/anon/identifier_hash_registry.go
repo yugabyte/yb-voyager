@@ -107,12 +107,8 @@ func IsAnonymized(identifier string) bool {
 		return false
 	}
 
-	if !strings.Contains(identifier, ".") {
-		return isPartAnonymized(identifier)
-	}
-
 	// Handle qualified names by checking each part separately
-	// Only case for this: sequence function arguments like nextval('schema.table.sequence')
+	// Only multi part case for now: sequence function arguments like nextval('schema.table.sequence')
 	parts := strings.Split(identifier, ".")
 	for _, part := range parts {
 		if part == "" {

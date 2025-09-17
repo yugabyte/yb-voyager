@@ -1034,6 +1034,17 @@ func TestPostgresDDLDefaultClauseAnonymization(t *testing.T) {
 			[]string{"users", "profiles", "user_id", "username", "email", "created_at", "last_login", "get_last_login_time"},
 			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX, FUNCTION_KIND_PREFIX}},
 			[]string{"gen_random_uuid()", "now()"}},
+		{ddlCase{"DEFAULT-CUSTOM-FUNCTION-MIXED-PG-CATALOG",
+			`CREATE TABLE users.profiles (
+  user_id      uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  username     text NOT NULL,
+  email        text DEFAULT 'user@example.com',
+  created_at   timestamptz DEFAULT pg_catalog.now(),
+  last_login   timestamptz DEFAULT users.get_last_login_time()
+);`,
+			[]string{"users", "profiles", "user_id", "username", "email", "created_at", "last_login", "get_last_login_time"},
+			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX, FUNCTION_KIND_PREFIX}},
+			[]string{"gen_random_uuid()", "now()"}},
 		// ─── SEQUENCE REFERENCES IN DEFAULT CLAUSES ─────────────────────────────────────────────
 		{ddlCase{"SEQUENCE-UNQUALIFIED",
 			`CREATE TABLE public.customers (

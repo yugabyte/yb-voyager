@@ -2295,6 +2295,7 @@ stmt:{create_stmt:{relation:{schemaname:"orders" relname:"order_items"  } table_
 	constraints:{constraint:{contype:CONSTR_DEFAULT location:166 raw_expr:{a_const:{sval:{sval:"Unknown Product"} location:174}}}} location:148}} oncommit:ONCOMMIT_NOOP}} stmt_len:193
 */
 func (a *SqlAnonymizer) anonymizeSequenceFunctionArgs(funcCall *pg_query.FuncCall) error {
+	var err error
 	if len(funcCall.Args) == 0 {
 		return nil
 	}
@@ -2320,12 +2321,10 @@ func (a *SqlAnonymizer) anonymizeSequenceFunctionArgs(funcCall *pg_query.FuncCal
 	if aConst == nil || aConst.GetSval() == nil {
 		return nil
 	}
-	anonymizedName, err := a.anonymizeQualifiedStringLiteral(aConst.GetSval().Sval, SEQUENCE_KIND_PREFIX)
+	aConst.GetSval().Sval, err = a.anonymizeQualifiedStringLiteral(aConst.GetSval().Sval, SEQUENCE_KIND_PREFIX)
 	if err != nil {
 		return fmt.Errorf("anon sequence function sequence name: %w", err)
 	}
-	aConst.GetSval().Sval = anonymizedName
-
 	return nil
 }
 
