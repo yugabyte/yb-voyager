@@ -77,8 +77,8 @@ func TestParseFromCSVFormats(t *testing.T) {
 			},
 		},
 		{
-			name: "Only header",
-			csvData: `queryid,query,calls,rows,total_exec_time,mean_exec_time,min_exec_time,max_exec_time,stddev_exec_time`,
+			name:        "Only header",
+			csvData:     `queryid,query,calls,rows,total_exec_time,mean_exec_time,min_exec_time,max_exec_time,stddev_exec_time`,
 			expectedLen: 0,
 			validate: func(t *testing.T, entries []QueryStats) {
 				assert.Len(t, entries, 0, "Should have expected number of entries")
@@ -126,24 +126,24 @@ func TestParseInvalidDataInvalid(t *testing.T) {
 		// 2. Missing Required Column Errors
 		{
 			name: "Missing required queryid column",
-			csvData: `query,calls,rows,total_exec_time,mean_exec_time,min_exec_time,max_exec_time,stddev_exec_time
-"SELECT * FROM users",100,1000,1500.5,15.005,5.2,25.8,3.5`,
+			csvData: `queryid,query,calls,rows,total_exec_time,mean_exec_time,min_exec_time,max_exec_time,stddev_exec_time
+,"SELECT * FROM users",100,1000,1500.5,15.005,5.2,25.8,3.5`,
 			expectError: true,
 			expectedErr: "missing queryid",
 		},
 		{
 			name: "Missing required query column",
-			csvData: `queryid,calls,rows,total_exec_time,mean_exec_time,min_exec_time,max_exec_time,stddev_exec_time
-123,100,1000,1500.5,15.005,5.2,25.8,3.5`,
+			csvData: `queryid,query,calls,rows,total_exec_time,mean_exec_time,min_exec_time,max_exec_time,stddev_exec_time
+123,,100,1000,1500.5,15.005,5.2,25.8,3.5`,
 			expectError: true,
 			expectedErr: "missing or empty query",
 		},
 		{
 			name: "Missing multiple required columns",
-			csvData: `queryid,query
-123,"SELECT * FROM users"`,
+			csvData: `queryid,query,calls
+123,"SELECT * FROM users",0`,
 			expectError: true,
-			expectedErr: "missing calls",
+			expectedErr: "invalid calls: 0",
 		},
 
 		// 3. Data Validation Errors (Rows get skipped, but function succeeds)

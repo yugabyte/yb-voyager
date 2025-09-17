@@ -21,6 +21,7 @@ import (
 	"io"
 	"os"
 	"strconv"
+	"strings"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -71,46 +72,61 @@ func parseCSVRecord(headers []string, record []string) (*QueryStats, error) {
 	entry := &QueryStats{}
 
 	for i, header := range headers {
+		value := record[i]
 		switch header {
 		case "queryid":
-			entry.QueryID, err = strconv.ParseInt(record[i], 10, 64)
+			if value == "" {
+				return nil, fmt.Errorf("missing queryid")
+			}
+			entry.QueryID, err = strconv.ParseInt(value, 10, 64)
 			if err != nil {
-				return nil, fmt.Errorf("invalid queryid: %s", record[i])
+				return nil, fmt.Errorf("invalid queryid: %s", value)
 			}
 		case "query":
-			entry.Query = record[i]
+			entry.Query = strings.TrimSpace(value)
+			if entry.Query == "" {
+				return nil, fmt.Errorf("missing or empty query")
+			}
 		case "calls":
-			entry.Calls, err = strconv.ParseInt(record[i], 10, 64)
+			if value == "" {
+				return nil, fmt.Errorf("missing calls")
+			}
+			entry.Calls, err = strconv.ParseInt(value, 10, 64)
 			if err != nil {
-				return nil, fmt.Errorf("invalid calls: %s", record[i])
+				return nil, fmt.Errorf("invalid calls: %s", value)
+			}
+			if entry.Calls <= 0 {
+				return nil, fmt.Errorf("invalid calls: %s", value)
 			}
 		case "rows":
-			entry.Rows, err = strconv.ParseInt(record[i], 10, 64)
-			if err != nil {
-				return nil, fmt.Errorf("invalid rows: %s", record[i])
+			if value != "" {
+				entry.Rows, err = strconv.ParseInt(value, 10, 64)
+				if err != nil {
+					return nil, fmt.Errorf("invalid rows: %s", value)
+				}
 			}
 		case "total_exec_time":
-			err = parseFloatOrZero(record[i], "total_exec_time", &entry.TotalExecTime)
+			err = parseFloatOrZero(value, "total_exec_time", &entry.TotalExecTime)
 			if err != nil {
 				return nil, err
 			}
 		case "mean_exec_time":
-			err = parseFloatOrZero(record[i], "mean_exec_time", &entry.MeanExecTime)
+			err = parseFloatOrZero(value, "mean_exec_time", &entry.MeanExecTime)
 			if err != nil {
 				return nil, err
 			}
 		case "min_exec_time":
-			err = parseFloatOrZero(record[i], "min_exec_time", &entry.MinExecTime)
+			err = parseFloatOrZero(value, "min_exec_time", &entry.MinExecTime)
 			if err != nil {
 				return nil, err
 			}
 		case "max_exec_time":
-			err = parseFloatOrZero(record[i], "max_exec_time", &entry.MaxExecTime)
+			err = parseFloatOrZero(value, "max_exec_time", &entry.MaxExecTime)
 			if err != nil {
 				return nil, err
 			}
 		case "stddev_exec_time":
-			err = parseFloatOrZero(record[i], "stddev_exec_time", &entry.StddevExecTime)
+			err = parseFloatOrZero(value, "stddev_exec_time", &entry.StddevExecTime)
 			if err != nil {
 				return nil, err
 			}
