@@ -15,7 +15,7 @@ import (
 // SELECT DISTINCT proname FROM pg_catalog.pg_proc p
 // JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
 // WHERE n.nspname = 'pg_catalog'
-// AND p.prokind IN ('f', 'a', 'w')  -- Functions, Aggregates, Window functions
+// AND p.prokind IN ('f', 'a', 'w', 'p')  -- Functions, Aggregates, Window functions, Procedures
 // ORDER BY proname;
 //
 //go:embed data/postgresql_17_catalog_functions.txt
