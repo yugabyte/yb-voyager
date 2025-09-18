@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"net/url"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/types"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -50,15 +51,15 @@ type TargetConf struct {
 	DBVersion            string        `json:"db_version"`
 	RunGuardrailsChecks  utils.BoolStr `json:"run_guardrails_checks"`
 
-	TargetEndpoints             string        `json:"target_endpoints"`
-	UsePublicIP                 utils.BoolStr `json:"use_public_ip"`
-	EnableUpsert                utils.BoolStr `json:"enable_upsert"`
-	DisableTransactionalWrites  utils.BoolStr `json:"disable_transactional_writes"`
-	Parallelism                 int           `json:"parallelism"`
-	EnableYBAdaptiveParallelism utils.BoolStr `json:"enable_adaptive_parallelism"`
-	MaxParallelism              int           `json:"max_parallelism"` // in case adaptive parallelism is enabled.
-	OnPrimaryKeyConflictAction  string        `json:"on_primary_key_conflict_action"`
-	SessionVars                 []string      `json:"session_vars"`
+	TargetEndpoints            string                        `json:"target_endpoints"`
+	UsePublicIP                utils.BoolStr                 `json:"use_public_ip"`
+	EnableUpsert               utils.BoolStr                 `json:"enable_upsert"`
+	DisableTransactionalWrites utils.BoolStr                 `json:"disable_transactional_writes"`
+	Parallelism                int                           `json:"parallelism"`
+	AdaptiveParallelismMode    types.AdaptiveParallelismMode `json:"adaptive_parallelism_mode"`
+	MaxParallelism             int                           `json:"max_parallelism"` // in case adaptive parallelism is enabled.
+	OnPrimaryKeyConflictAction string                        `json:"on_primary_key_conflict_action"`
+	SessionVars                []string                      `json:"session_vars"`
 }
 
 func (t *TargetConf) Clone() *TargetConf {

@@ -46,6 +46,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/monitor"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/types"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
@@ -93,6 +94,9 @@ var importDataCmd = &cobra.Command{
 		}
 		if importerRole == "" {
 			importerRole = TARGET_DB_IMPORTER_ROLE
+		}
+		if tconf.AdaptiveParallelismMode == "" {
+			tconf.AdaptiveParallelismMode = types.BalancedAdaptiveParallelismMode
 		}
 
 		err := retrieveMigrationUUID()
@@ -638,12 +642,11 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 	}
 
 	var adaptiveParallelismStarted bool
-	if tconf.EnableYBAdaptiveParallelism {
-		adaptiveParallelismStarted, err = startAdaptiveParallelism()
-		if err != nil {
-			utils.ErrExit("Failed to start adaptive parallelism: %s", err)
-		}
+	adaptiveParallelismStarted, err = startAdaptiveParallelism(tconf.AdaptiveParallelismMode)
+	if err != nil {
+		utils.ErrExit("Failed to start adaptive parallelism: %s", err)
 	}
+
 	progressReporter = NewImportDataProgressReporter(bool(disablePb))
 	err = startMonitoringTargetYBHealth()
 	if err != nil {
@@ -930,7 +933,7 @@ func restoreGeneratedIdentityColumns(importTableList []sqlname.NameTuple) error 
 
 func getMaxParallelConnections() (int, error) {
 	maxParallelConns := tconf.Parallelism
-	if tconf.EnableYBAdaptiveParallelism {
+	if tconf.AdaptiveParallelismMode.IsEnabled() {
 		// in case of adaptive parallelism, we need to use maxParalllelism * 2
 		yb, ok := tdb.(*tgtdb.TargetYugabyteDB)
 		if !ok {
@@ -1171,10 +1174,13 @@ func displayMonitoringInformationOnTheConsole(info string) {
 	}
 }
 
-func startAdaptiveParallelism() (bool, error) {
+func startAdaptiveParallelism(mode types.AdaptiveParallelismMode) (bool, error) {
 	yb, ok := tdb.(*tgtdb.TargetYugabyteDB)
 	if !ok {
 		return false, fmt.Errorf("adaptive parallelism is only supported if target DB is YugabyteDB")
+	}
+	if !mode.IsEnabled() {
+		return false, nil
 	}
 	if !yb.IsAdaptiveParallelismSupported() {
 		utils.PrintAndLog(color.YellowString("Note: Continuing without adaptive parallelism as it is not supported in this version of YugabyteDB."))
@@ -1182,7 +1188,7 @@ func startAdaptiveParallelism() (bool, error) {
 	}
 
 	go func() {
-		err := adaptiveparallelism.AdaptParallelism(yb)
+		err := adaptiveparallelism.AdaptParallelism(yb, mode)
 		if err != nil {
 			log.Errorf("adaptive parallelism error: %v", err)
 		}
@@ -1269,19 +1275,20 @@ func packAndSendImportDataToTargetPayload(status string, errorMsg error) {
 	}
 
 	importDataPayload := callhome.ImportDataPhasePayload{
-		PayloadVersion:              callhome.IMPORT_DATA_CALLHOME_PAYLOAD_VERSION,
-		ParallelJobs:                int64(tconf.Parallelism),
-		StartClean:                  bool(startClean),
-		EnableUpsert:                bool(tconf.EnableUpsert),
-		Error:                       callhome.SanitizeErrorMsg(errorMsg, anonymizer),
-		ControlPlaneType:            getControlPlaneType(),
-		BatchSize:                   batchSizeInNumRows,
-		OnPrimaryKeyConflictAction:  tconf.OnPrimaryKeyConflictAction,
-		EnableYBAdaptiveParallelism: bool(tconf.EnableYBAdaptiveParallelism),
-		AdaptiveParallelismMax:      int64(tconf.MaxParallelism),
-		ErrorPolicySnapshot:         errorPolicySnapshotFlag.String(),
-		DataMetrics:                 dataMetrics,
-		Phase:                       importPhase,
+		PayloadVersion:             callhome.IMPORT_DATA_CALLHOME_PAYLOAD_VERSION,
+		ParallelJobs:               int64(tconf.Parallelism),
+		StartClean:                 bool(startClean),
+		EnableUpsert:               bool(tconf.EnableUpsert),
+		Error:                      callhome.SanitizeErrorMsg(errorMsg, anonymizer),
+		ControlPlaneType:           getControlPlaneType(),
+		BatchSize:                  batchSizeInNumRows,
+		OnPrimaryKeyConflictAction: tconf.OnPrimaryKeyConflictAction,
+		// TODO: store the mode.
+		// EnableYBAdaptiveParallelism: bool(tconf.EnableYBAdaptiveParallelism),
+		AdaptiveParallelismMax: int64(tconf.MaxParallelism),
+		ErrorPolicySnapshot:    errorPolicySnapshotFlag.String(),
+		DataMetrics:            dataMetrics,
+		Phase:                  importPhase,
 	}
 
 	var err2 error
