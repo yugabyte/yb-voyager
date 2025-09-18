@@ -293,6 +293,7 @@ func TestCallhomeStructs(t *testing.T) {
 			name:       "Validate ImportDataMetrics Struct Definition",
 			actualType: reflect.TypeOf(ImportDataMetrics{}),
 			expectedType: struct {
+				CurrentParallelConnections        int   `json:"current_parallel_connections"`
 				MigrationSnapshotTotalRows        int64 `json:"migration_snapshot_total_rows"`
 				MigrationSnapshotLargestTableRows int64 `json:"migration_snapshot_largest_table_rows"`
 				MigrationCdcTotalImportedEvents   int64 `json:"migration_cdc_total_imported_events"`
@@ -305,6 +306,7 @@ func TestCallhomeStructs(t *testing.T) {
 			name:       "Validate ImportDataFileMetrics Struct Definition",
 			actualType: reflect.TypeOf(ImportDataFileMetrics{}),
 			expectedType: struct {
+				CurrentParallelConnections         int   `json:"current_parallel_connections"`
 				MigrationSnapshotTotalBytes        int64 `json:"migration_snapshot_total_bytes"`
 				MigrationSnapshotLargestTableBytes int64 `json:"migration_snapshot_largest_table_bytes"`
 				SnapshotTotalRows                  int64 `json:"snapshot_total_rows"`
