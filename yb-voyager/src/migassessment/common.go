@@ -23,8 +23,6 @@ var AssessmentDir string
 var SourceDBType string
 var IntervalForCapturingIops int64
 
-type Record map[string]any
-
 var SizingReport = &SizingAssessmentReport{}
 
 type SizingRecommendation struct {
