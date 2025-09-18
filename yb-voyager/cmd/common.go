@@ -658,7 +658,7 @@ func initAssessmentDB() {
 		utils.ErrExit("error creating and initializing assessment DB: %v", err)
 	}
 
-	assessmentDB, err = migassessment.NewAssessmentDB(source.DBType)
+	assessmentDB, err = migassessment.NewAssessmentDB()
 	if err != nil {
 		utils.ErrExit("error creating assessment DB instance: %v", err)
 	}
