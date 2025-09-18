@@ -54,7 +54,6 @@ func convertPgssToQueryStats(pgss []*pgss.PgStatStatements) []QueryStats {
 type ComparisonReport struct {
 	GeneratedAt  time.Time
 	SourceDBType string
-	TargetDBType string
 	Summary      ReportSummary
 
 	// focussed views: top by impact and top by slowdown
