@@ -298,6 +298,8 @@ type ImportDataPhasePayload struct {
 }
 
 type ImportDataMetrics struct {
+	CurrentParallelConnections int `json:"current_parallel_connections"`
+
 	// for the entire migration, across command runs. would be sensitive to start-clean.
 	MigrationSnapshotTotalRows        int64 `json:"migration_snapshot_total_rows"`
 	MigrationSnapshotLargestTableRows int64 `json:"migration_snapshot_largest_table_rows"`
@@ -339,6 +341,8 @@ type ImportDataFilePhasePayload struct {
 }
 
 type ImportDataFileMetrics struct {
+	CurrentParallelConnections int `json:"current_parallel_connections"`
+
 	// for the entire migration, across command runs. would be sensitive to start-clean.
 	MigrationSnapshotTotalBytes        int64 `json:"migration_snapshot_total_bytes"`
 	MigrationSnapshotLargestTableBytes int64 `json:"migration_snapshot_largest_table_bytes"`
