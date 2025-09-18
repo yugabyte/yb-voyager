@@ -16,16 +16,25 @@ limitations under the License.
 package compareperf
 
 import (
+	_ "embed"
+	"encoding/json"
 	"fmt"
+	"html/template"
+	"os"
+	"path/filepath"
 	"sort"
 	"time"
 
 	"github.com/samber/lo"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 const TOP_N = 20
+
+//go:embed templates/performance_comparison_report.template
+var performanceComparisonHtmlTemplate string
 
 type QueryPerformanceComparator struct {
 	SourceQueryStats []QueryStats
@@ -89,17 +98,19 @@ func (c *QueryPerformanceComparator) Compare() error {
 	return nil
 }
 
-func (c *QueryPerformanceComparator) GenerateReport() error {
-	var err error
+func (c *QueryPerformanceComparator) GenerateReport(exportDir string) error {
+	if c.Report == nil {
+		return fmt.Errorf("no comparison report available, Compare() must be executed first")
+	}
 
 	// 1. Generate HTML report
-	err = c.generateHTMLReport()
+	err := c.generateHTMLReport(exportDir)
 	if err != nil {
 		return fmt.Errorf("failed to generate HTML report: %w", err)
 	}
 
 	// 2. Generate JSON report
-	err = c.generateJSONReport()
+	err = c.generateJSONReport(exportDir)
 	if err != nil {
 		return fmt.Errorf("failed to generate JSON report: %w", err)
 	}
@@ -185,10 +196,59 @@ func (c *QueryPerformanceComparator) getTopBySlowdown(allComparisons []*QueryCom
 	return matched[:min(limit, len(matched))]
 }
 
-func (c *QueryPerformanceComparator) generateHTMLReport() error {
+func (c *QueryPerformanceComparator) generateHTMLReport(exportDir string) error {
+	// Create reports directory
+	reportsDir := filepath.Join(exportDir, "reports")
+	err := os.MkdirAll(reportsDir, 0755)
+	if err != nil {
+		return fmt.Errorf("failed to create reports directory: %w", err)
+	}
+
+	// Parse template
+	tmpl, err := template.New("performance-comparison-report").Parse(performanceComparisonHtmlTemplate)
+	if err != nil {
+		return fmt.Errorf("failed to parse HTML template: %w", err)
+	}
+
+	// Create HTML file
+	htmlPath := filepath.Join(reportsDir, "performance-comparison-report.html")
+	file, err := os.Create(htmlPath)
+	if err != nil {
+		return fmt.Errorf("failed to create HTML file: %w", err)
+	}
+	defer file.Close()
+
+	// Execute template
+	err = tmpl.Execute(file, c.Report)
+	if err != nil {
+		return fmt.Errorf("failed to execute HTML template: %w", err)
+	}
+
+	utils.PrintAndLog("HTML report generated: %s", htmlPath)
 	return nil
 }
 
-func (c *QueryPerformanceComparator) generateJSONReport() error {
+func (c *QueryPerformanceComparator) generateJSONReport(exportDir string) error {
+	// Create reports directory
+	reportsDir := filepath.Join(exportDir, "reports")
+	err := os.MkdirAll(reportsDir, 0755)
+	if err != nil {
+		return fmt.Errorf("failed to create reports directory: %w", err)
+	}
+
+	// Convert to JSON
+	jsonData, err := json.MarshalIndent(c.Report, "", "\t")
+	if err != nil {
+		return fmt.Errorf("failed to marshal JSON report: %w", err)
+	}
+
+	// Write JSON file
+	jsonPath := filepath.Join(reportsDir, "performance-comparison-report.json")
+	err = os.WriteFile(jsonPath, jsonData, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to write JSON report: %w", err)
+	}
+
+	utils.PrintAndLog("JSON report generated: %s", jsonPath)
 	return nil
 }

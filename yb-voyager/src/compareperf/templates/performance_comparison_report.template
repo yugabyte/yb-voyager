@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Performance Comparison Report</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px; 
+            background-color: #f5f5f5; 
+        }
+        .container { 
+            max-width: 1200px; 
+            margin: 0 auto; 
+            background: white; 
+            padding: 20px; 
+            border-radius: 8px; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1); 
+        }
+        h1 { 
+            color: #333; 
+            text-align: center; 
+        }
+        h2 { 
+            color: #555; 
+            border-bottom: 2px solid #ddd; 
+            padding-bottom: 10px; 
+        }
+        .tabs { 
+            margin: 20px 0; 
+        }
+        .tab-buttons { 
+            border-bottom: 1px solid #ddd; 
+        }
+        .tab-button { 
+            background: #f9f9f9; 
+            border: 1px solid #ddd; 
+            border-bottom: none; 
+            padding: 10px 20px; 
+            cursor: pointer; 
+            display: inline-block; 
+            margin-right: 5px; 
+        }
+        .tab-button.active { 
+            background: white; 
+            font-weight: bold; 
+        }
+        .tab-content { 
+            display: none; 
+            padding: 20px 0; 
+        }
+        .tab-content.active { 
+            display: block; 
+        }
+        table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            margin: 10px 0; 
+        }
+        th, td { 
+            padding: 12px; 
+            text-align: left; 
+            border-bottom: 1px solid #ddd; 
+        }
+        th { 
+            background-color: #f2f2f2; 
+            font-weight: bold; 
+        }
+        .summary-grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
+            gap: 20px; 
+            margin: 20px 0; 
+        }
+        .summary-card { 
+            background: #f8f9fa; 
+            padding: 20px; 
+            border-radius: 8px; 
+            text-align: center; 
+        }
+        .summary-card h3 { 
+            margin: 0 0 10px 0; 
+            color: #555; 
+        }
+        .summary-card .number { 
+            font-size: 2em; 
+            font-weight: bold; 
+            color: #333; 
+        }
+        .impact-positive { 
+            color: #dc3545; 
+        }
+        .impact-negative { 
+            color: #28a745; 
+        }
+        .query-text { 
+            font-family: 'Courier New', monospace; 
+            background: #f8f9fa; 
+            padding: 5px; 
+            border-radius: 3px; 
+            max-width: 500px; 
+            word-break: break-all; 
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Performance Comparison Report</h1>
+        <p><strong>Generated:</strong> {{.GeneratedAt.Format "2006-01-02 15:04:05"}}</p>
+        <p><strong>Source:</strong> {{.SourceDBType}} | <strong>Target:</strong> {{.TargetDBType}}</p>
+        
+        <div class="tabs">
+            <div class="tab-buttons">
+                <div class="tab-button active" onclick="showTab('summary')">Summary</div>
+                <div class="tab-button" onclick="showTab('impact')">Top by Impact</div>
+                <div class="tab-button" onclick="showTab('slowdown')">Top by Slowdown</div>
+                <div class="tab-button" onclick="showTab('all')">All Queries</div>
+            </div>
+            
+            <div id="summary" class="tab-content active">
+                <h2>Summary</h2>
+                <div class="summary-grid">
+                    <div class="summary-card">
+                        <h3>Total Queries</h3>
+                        <div class="number">{{.Summary.TotalQueries}}</div>
+                    </div>
+                    <div class="summary-card">
+                        <h3>Matched</h3>
+                        <div class="number">{{.Summary.MatchedQueries}}</div>
+                    </div>
+                    <div class="summary-card">
+                        <h3>Source Only</h3>
+                        <div class="number">{{.Summary.SourceOnlyQueries}}</div>
+                    </div>
+                    <div class="summary-card">
+                        <h3>Target Only</h3>
+                        <div class="number">{{.Summary.TargetOnlyQueries}}</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="impact" class="tab-content">
+                <h2>Top Queries by Impact</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Query</th>
+                            <th>Impact Score (ms)</th>
+                            <th>Source Total Time (ms)</th>
+                            <th>Target Total Time (ms)</th>
+                            <th>Source Calls</th>
+                            <th>Target Calls</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {{range .TopByImpact}}
+                        <tr>
+                            <td class="query-text">{{.Query}}</td>
+                            <td class="{{if lt .ImpactScore 0}}impact-negative{{else}}impact-positive{{end}}">{{printf "%.2f" .ImpactScore}}</td>
+                            <td>{{if .SourceStats}}{{printf "%.2f" .SourceStats.GetTotalExecutionTime}}{{else}}N/A{{end}}</td>
+                            <td>{{if .TargetStats}}{{printf "%.2f" .TargetStats.GetTotalExecutionTime}}{{else}}N/A{{end}}</td>
+                            <td>{{if .SourceStats}}{{.SourceStats.GetExecutionCount}}{{else}}N/A{{end}}</td>
+                            <td>{{if .TargetStats}}{{.TargetStats.GetExecutionCount}}{{else}}N/A{{end}}</td>
+                        </tr>
+                        {{end}}
+                    </tbody>
+                </table>
+            </div>
+            
+            <div id="slowdown" class="tab-content">
+                <h2>Top Queries by Slowdown</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Query</th>
+                            <th>Slowdown Ratio</th>
+                            <th>Source Avg Time (ms)</th>
+                            <th>Target Avg Time (ms)</th>
+                            <th>Source Calls</th>
+                            <th>Target Calls</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {{range .TopBySlowdown}}
+                        <tr>
+                            <td class="query-text">{{.Query}}</td>
+                            <td class="{{if lt .SlowdownRatio 1.0}}impact-negative{{else}}impact-positive{{end}}">{{printf "%.2fx" .SlowdownRatio}}</td>
+                            <td>{{if .SourceStats}}{{printf "%.2f" .SourceStats.GetAverageExecutionTime}}{{else}}N/A{{end}}</td>
+                            <td>{{if .TargetStats}}{{printf "%.2f" .TargetStats.GetAverageExecutionTime}}{{else}}N/A{{end}}</td>
+                            <td>{{if .SourceStats}}{{.SourceStats.GetExecutionCount}}{{else}}N/A{{end}}</td>
+                            <td>{{if .TargetStats}}{{.TargetStats.GetExecutionCount}}{{else}}N/A{{end}}</td>
+                        </tr>
+                        {{end}}
+                    </tbody>
+                </table>
+            </div>
+            
+            <div id="all" class="tab-content">
+                <h2>All Queries</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Query</th>
+                            <th>Match Status</th>
+                            <th>Impact Score (ms)</th>
+                            <th>Slowdown Ratio</th>
+                            <th>Source Calls</th>
+                            <th>Target Calls</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {{range .AllComparisons}}
+                        <tr>
+                            <td class="query-text">{{.Query}}</td>
+                            <td>{{.MatchStatus}}</td>
+                            <td>{{if eq .MatchStatus "MATCHED"}}{{printf "%.2f" .ImpactScore}}{{else}}N/A{{end}}</td>
+                            <td>{{if eq .MatchStatus "MATCHED"}}{{printf "%.2fx" .SlowdownRatio}}{{else}}N/A{{end}}</td>
+                            <td>{{if .SourceStats}}{{.SourceStats.GetExecutionCount}}{{else}}N/A{{end}}</td>
+                            <td>{{if .TargetStats}}{{.TargetStats.GetExecutionCount}}{{else}}N/A{{end}}</td>
+                        </tr>
+                        {{end}}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        function showTab(tabName) {
+            // Hide all tab contents
+            var contents = document.getElementsByClassName('tab-content');
+            for (var i = 0; i < contents.length; i++) {
+                contents[i].classList.remove('active');
+            }
+            
+            // Remove active from all buttons
+            var buttons = document.getElementsByClassName('tab-button');
+            for (var i = 0; i < buttons.length; i++) {
+                buttons[i].classList.remove('active');
+            }
+            
+            // Show selected tab
+            document.getElementById(tabName).classList.add('active');
+            event.target.classList.add('active');
+        }
+    </script>
+</body>
+</html>

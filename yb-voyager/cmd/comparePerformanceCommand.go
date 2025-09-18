@@ -60,46 +60,28 @@ func comparePerformanceCommandFn(cmd *cobra.Command, args []string) {
 		utils.ErrExit("Failed to initialize target database: %v", err)
 	}
 	defer targetDB.Finalize()
-
 	ybTarget, ok := targetDB.(*tgtdb.TargetYugabyteDB)
 	if !ok {
 		utils.ErrExit("compare-performance: target database is not YugabyteDB")
 	}
 
-	_, err = compareperf.NewQueryPerformanceComparator(assessmentDirPath, ybTarget)
+	comparator, err := compareperf.NewQueryPerformanceComparator(assessmentDirPath, ybTarget)
 	if err != nil {
 		utils.ErrExit("Failed to create query performance comparator: %v", err)
+	}
+	err = comparator.Compare()
+	if err != nil {
+		utils.ErrExit("Failed to perform performance comparison: %v", err)
+	}
+	err = comparator.GenerateReport(exportDir)
+	if err != nil {
+		utils.ErrExit("Failed to generate performance reports: %v", err)
 	}
 
 	utils.PrintAndLog("Performance comparison completed successfully!")
 }
 
-// collectTargetPgssData collects current PGSS data from target database (STUB)
-func collectTargetPgssData() error {
-	utils.PrintAndLog("Collecting target PGSS data...")
-	// TODO: Implement target PGSS data collection
-	// This should:
-	// 1. Connect to target YugabyteDB database
-	// 2. Query pg_stat_statements view
-	// 3. Handle multi-node cluster data aggregation
-	// 4. Return PGSS data as pgss.QueryStats slice
-
-	return nil
-}
-
-// performAnalysisAndGenerateReport performs performance analysis and generates reports (STUB)
-func performAnalysisAndGenerateReport() error {
-	utils.PrintAndLog("Performing performance analysis and generating reports...")
-	// TODO: Implement performance analysis and report generation
-	// This should:
-	// 1. Match queries between source and target
-	// 2. Calculate performance metrics (slowdown ratios, impact)
-	// 3. Generate HTML and JSON reports with multiple views
-	// 4. Save reports to output directory
-
-	return nil
-}
-
+// TODO: add check if report already exists(or MSR); ask for --start-clean
 func validatePrerequisites() {
 	utils.PrintAndLog("Validating prerequisites...")
 

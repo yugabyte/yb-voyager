@@ -249,6 +249,7 @@ var exportDirInitialisedCheckNeededList = []string{
 	"yb-voyager export data status",
 	"yb-voyager cutover status",
 	"yb-voyager get data-migration-report",
+	"yb-voyager compare-performance",
 	"yb-voyager archive changes",
 	"yb-voyager end migration",
 	"yb-voyager initiate cutover to source",
