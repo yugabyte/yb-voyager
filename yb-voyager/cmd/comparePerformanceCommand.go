@@ -22,6 +22,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/compareperf"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -52,14 +53,22 @@ Prerequisites:
 func comparePerformanceCommandFn(cmd *cobra.Command, args []string) {
 	utils.PrintAndLog("Starting performance comparison...")
 
-	err := collectTargetPgssData()
+	assessmentDirPath := filepath.Join(exportDir, "assessment")
+	targetDB := tgtdb.NewTargetDB(&tconf)
+	err := targetDB.Init()
 	if err != nil {
-		utils.ErrExit("Target PGSS collection failed: %v", err)
+		utils.ErrExit("Failed to initialize target database: %v", err)
+	}
+	defer targetDB.Finalize()
+
+	ybTarget, ok := targetDB.(*tgtdb.TargetYugabyteDB)
+	if !ok {
+		utils.ErrExit("compare-performance: target database is not YugabyteDB")
 	}
 
-	err = performAnalysisAndGenerateReport()
+	_, err = compareperf.NewQueryPerformanceComparator(assessmentDirPath, ybTarget)
 	if err != nil {
-		utils.ErrExit("Performance analysis failed: %v", err)
+		utils.ErrExit("Failed to create query performance comparator: %v", err)
 	}
 
 	utils.PrintAndLog("Performance comparison completed successfully!")
@@ -111,7 +120,7 @@ func validatePrerequisites() {
 	if _, err := os.Stat(assessmentDBPath); os.IsNotExist(err) {
 		utils.ErrExit("Assessment database not found. Please run 'assess-migration' command first.")
 	}
-	adb, err := migassessment.NewAssessmentDB("")
+	adb, err := migassessment.NewAssessmentDB()
 	if err != nil {
 		utils.ErrExit("Failed to open assessment database: %v", err)
 	}

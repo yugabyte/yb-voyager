@@ -68,6 +68,14 @@ func (p *PgStatStatements) GetAverageExecutionTime() float64 {
 	return p.MeanExecTime
 }
 
+func (p *PgStatStatements) GetMinExecutionTime() float64 {
+	return p.MinExecTime
+}
+
+func (p *PgStatStatements) GetMaxExecutionTime() float64 {
+	return p.MaxExecTime
+}
+
 func (p *PgStatStatements) GetDatabaseType() string {
 	return constants.POSTGRESQL
 }
