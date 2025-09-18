@@ -22,12 +22,12 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 )
 
-type Comparison struct {
+type QueryPerformanceComparator struct {
 	SourceQueryStats []QueryStats
 	TargetQueryStats []QueryStats
 }
 
-func NewComparison(assessmentDBPath string, targetDB *tgtdb.TargetYugabyteDB) (*Comparison, error) {
+func NewQueryPerformanceComparator(assessmentDBPath string, targetDB *tgtdb.TargetYugabyteDB) (*QueryPerformanceComparator, error) {
 	adb, err := migassessment.NewAssessmentDB("")
 	if err != nil {
 		return nil, fmt.Errorf("failed to open assessment database: %w", err)
@@ -43,7 +43,7 @@ func NewComparison(assessmentDBPath string, targetDB *tgtdb.TargetYugabyteDB) (*
 		return nil, fmt.Errorf("failed to get target query stats: %w", err)
 	}
 
-	return &Comparison{
+	return &QueryPerformanceComparator{
 		SourceQueryStats: convertPgssToQueryStats(sourceQueryStats),
 		TargetQueryStats: convertPgssToQueryStats(targetQueryStats),
 	}, nil
