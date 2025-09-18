@@ -494,7 +494,7 @@ func (adb *AssessmentDB) InsertPgssEntries(entries []pgss.PgStatStatements) erro
 }
 
 // GetSourceQueryStats retrieves all the source PGSS data from the assessment database
-func (adb *AssessmentDB) GetSourceQueryStats() ([]pgss.PgStatStatements, error) {
+func (adb *AssessmentDB) GetSourceQueryStats() ([]*pgss.PgStatStatements, error) {
 	query := `SELECT queryid, query, calls, rows, total_exec_time, mean_exec_time, 
 		min_exec_time, max_exec_time, stddev_exec_time 
 		FROM db_queries_summary`
@@ -505,7 +505,7 @@ func (adb *AssessmentDB) GetSourceQueryStats() ([]pgss.PgStatStatements, error) 
 	}
 	defer rows.Close()
 
-	var entries []pgss.PgStatStatements
+	var entries []*pgss.PgStatStatements
 	for rows.Next() {
 		var entry pgss.PgStatStatements
 		err := rows.Scan(
@@ -522,7 +522,7 @@ func (adb *AssessmentDB) GetSourceQueryStats() ([]pgss.PgStatStatements, error) 
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan PGSS row: %w", err)
 		}
-		entries = append(entries, entry)
+		entries = append(entries, &entry)
 	}
 
 	if err = rows.Err(); err != nil {

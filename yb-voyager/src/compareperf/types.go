@@ -15,6 +15,8 @@ limitations under the License.
 */
 package compareperf
 
+import "github.com/yugabyte/yb-voyager/yb-voyager/src/pgss"
+
 // QueryStats provides database-agnostic access to query performance metrics
 // This interface will abstract access to query statistics across different database systems (PostgreSQL, Oracle, MySQL)
 type QueryStats interface {
@@ -30,4 +32,12 @@ type QueryStats interface {
 	GetAverageExecutionTime() float64 // Average execution time per query
 
 	GetDatabaseType() string
+}
+
+func convertPgssToQueryStats(pgss []*pgss.PgStatStatements) []QueryStats {
+	queryStats := make([]QueryStats, len(pgss))
+	for i, pgss := range pgss {
+		queryStats[i] = pgss
+	}
+	return queryStats
 }
