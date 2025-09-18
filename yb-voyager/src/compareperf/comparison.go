@@ -13,15 +13,20 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package pgss
+package compareperf
 
-import (
-	"database/sql"
-	"fmt"
-)
-
-// CollectFromYugabyteDB collects PGSS data from YugabyteDB
-// TODO: Implement when compare-performance command is developed
-func CollectFromYugabyteDB(db *sql.DB, schemaName string) ([]QueryStats, error) {
-	return nil, fmt.Errorf("CollectFromYugabyteDB not implemented yet - will be added for compare-performance command")
+type Comparison struct {
+	SourceQueryStats []QueryStats
+	TargetQueryStats []QueryStats
 }
+
+// func NewComparison(sourceQueryStats []QueryStats, targetQueryStats []QueryStats) *Comparison {
+// 	return &Comparison{
+// 		SourceQueryStats: sourceQueryStats,
+// 		TargetQueryStats: targetQueryStats,
+// 	}
+// }
+
+// func (c *Comparison) Compare() error {
+// 	return nil
+// }

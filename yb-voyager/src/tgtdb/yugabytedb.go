@@ -46,6 +46,7 @@ import (
 	_ "github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/pgss"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
@@ -1948,6 +1949,56 @@ func (n *NodeMetrics) GetMemoryTotal() (int64, error) {
 		return -1, fmt.Errorf("node %s: parse memory_total: %w", n.UUID, err)
 	}
 	return memoryTotal, nil
+}
+
+// ================================ PgStatStatements Collection =================================
+
+const PG_STAT_STATEMENTS_QUERY = `
+SELECT
+	queryid, query, calls, rows, total_exec_time, mean_exec_time,
+	min_exec_time, max_exec_time, stddev_exec_time
+FROM pg_stat_statements
+`
+
+func (yb *TargetYugabyteDB) CollectPgStatStatements() ([]*pgss.PgStatStatements, error) {
+	loadBalancerUsed, tconfs, err := yb.GetYBServers()
+	if err != nil {
+		return nil, fmt.Errorf("error getting yb servers: %w", err)
+	}
+
+	// TODO: Implement pg_stat_statements collection for load balancer(YBM)
+	if loadBalancerUsed {
+		utils.ErrExit("yb cluster with load balancer access is not supported for compare-perf command yet.")
+	}
+
+	// first collect all entries from all the nodes and merge later
+	var entries []*pgss.PgStatStatements
+	for _, tconf := range tconfs {
+		conn, err := pgx.Connect(context.Background(), tconf.GetConnectionUri())
+		if err != nil {
+			return nil, fmt.Errorf("error connecting to target database: %w", err)
+		}
+		defer conn.Close(context.Background())
+
+		rows, err := conn.Query(context.Background(), PG_STAT_STATEMENTS_QUERY)
+		if err != nil {
+			return nil, fmt.Errorf("error querying pg_stat_statements: %w", err)
+		}
+
+		for rows.Next() {
+			var entry pgss.PgStatStatements
+			err := rows.Scan(&entry.QueryID, &entry.Query, &entry.Calls, &entry.Rows, &entry.TotalExecTime, &entry.MeanExecTime, &entry.MinExecTime, &entry.MaxExecTime, &entry.StddevExecTime)
+			if err != nil {
+				return nil, fmt.Errorf("error scanning pg_stat_statements row: %w", err)
+			}
+			entries = append(entries, &entry)
+		}
+
+		rows.Close()
+	}
+
+	mergedEntries := pgss.MergePgStatStatements(entries)
+	return mergedEntries, nil
 }
 
 // =============================== Guardrails =================================

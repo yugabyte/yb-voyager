@@ -118,7 +118,7 @@ func validatePrerequisites() {
 
 	// Check 2: Source PGSS data exists in assessment DB
 	utils.PrintAndLog("Checking source pg_stat_statements data...")
-	hasData, err := adb.HasPgssData()
+	hasData, err := adb.HasSourceQueryStats()
 	if err != nil {
 		utils.ErrExit("Failed to verify pg_stat_statements data in assessment database: %v", err)
 	}
