@@ -24,6 +24,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/types"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -70,7 +71,7 @@ type TargetYugabyteDBWithConnectionPool interface {
 
 var ErrAdaptiveParallelismNotSupported = fmt.Errorf("adaptive parallelism not supported in target YB database")
 
-func AdaptParallelism(yb TargetYugabyteDBWithConnectionPool) error {
+func AdaptParallelism(yb TargetYugabyteDBWithConnectionPool, mode types.AdaptiveParallelismMode) error {
 	if !yb.IsAdaptiveParallelismSupported() {
 		return ErrAdaptiveParallelismNotSupported
 	}

@@ -469,13 +469,14 @@ func validateFFDBSchemaFlag() {
 }
 
 func validateParallelismFlags() {
-	if tconf.EnableYBAdaptiveParallelism {
+	// TODO: fix error messages.
+	if tconf.AdaptiveParallelismMode.IsEnabled() {
 		if tconf.Parallelism > 0 {
 			utils.ErrExit("Error --parallel-jobs flag cannot be used with --enable-adaptive-parallelism true. If you wish to set the number of parallel jobs explicitly, disable adaptive parallelism using --enable-adaptive-parallelism false")
 		}
 	}
 	if tconf.MaxParallelism > 0 {
-		if !tconf.EnableYBAdaptiveParallelism {
+		if !tconf.AdaptiveParallelismMode.IsEnabled() {
 			utils.ErrExit("Error --adaptive-parallelism-max flag can only be used with --enable-adaptive-parallelism true")
 		}
 	}
