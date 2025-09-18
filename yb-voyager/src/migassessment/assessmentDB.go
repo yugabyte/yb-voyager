@@ -143,8 +143,10 @@ func InitAssessmentDB() error {
 			parent_table_name   TEXT,
 			size_in_bytes       INTEGER,
 			PRIMARY KEY(schema_name, object_name));`, TABLE_INDEX_STATS),
+
 		// to store pgss output for performance validation and unsupported query constructs detection
-		// Schema exactly matches src/pgss.QueryStats struct for consistency
+		// Schema exactly matches src/pgss.PgStatStatements struct for consistency
+		// Future: might have to change/adapt this for Oracle/MySQL stats
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
 			queryid				BIGINT,
 			query				TEXT,
@@ -453,7 +455,7 @@ func (adb *AssessmentDB) LoadPgssCSVIntoTable(filePath string) error {
 	return nil
 }
 
-func (adb *AssessmentDB) InsertPgssEntries(entries []pgss.QueryStats) error {
+func (adb *AssessmentDB) InsertPgssEntries(entries []pgss.PgStatStatements) error {
 	if len(entries) == 0 {
 		return nil
 	}
@@ -491,8 +493,8 @@ func (adb *AssessmentDB) InsertPgssEntries(entries []pgss.QueryStats) error {
 	return nil
 }
 
-// GetQueryStats retrieves all the source PGSS data from the assessment database
-func (adb *AssessmentDB) GetQueryStats() ([]pgss.QueryStats, error) {
+// GetSourceQueryStats retrieves all the source PGSS data from the assessment database
+func (adb *AssessmentDB) GetSourceQueryStats() ([]pgss.PgStatStatements, error) {
 	query := `SELECT queryid, query, calls, rows, total_exec_time, mean_exec_time, 
 		min_exec_time, max_exec_time, stddev_exec_time 
 		FROM db_queries_summary`
@@ -503,9 +505,9 @@ func (adb *AssessmentDB) GetQueryStats() ([]pgss.QueryStats, error) {
 	}
 	defer rows.Close()
 
-	var entries []pgss.QueryStats
+	var entries []pgss.PgStatStatements
 	for rows.Next() {
-		var entry pgss.QueryStats
+		var entry pgss.PgStatStatements
 		err := rows.Scan(
 			&entry.QueryID,
 			&entry.Query,
@@ -542,8 +544,9 @@ func (adb *AssessmentDB) CheckIfTableExists(tableName string) error {
 	return nil
 }
 
-// HasPgssData checks if any pg_stat_statements data exists in the assessment database
-func (adb *AssessmentDB) HasPgssData() (bool, error) {
+// HasSourceQueryStats checks if any pg_stat_statements data exists in the assessment database
+// Future: right now this function logic is tied to sourceDBType=PG; might have to change this in future for Oracle/MySQL
+func (adb *AssessmentDB) HasSourceQueryStats() (bool, error) {
 	query := fmt.Sprintf("SELECT 1 FROM %s LIMIT 1", DB_QUERIES_SUMMARY)
 	rows, err := adb.Query(query)
 	if err != nil {

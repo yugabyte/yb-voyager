@@ -26,8 +26,8 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// ParseFromCSV parses a CSV file and returns normalized QueryStats entries
-func ParseFromCSV(csvPath string) ([]QueryStats, error) {
+// ParseFromCSV parses a CSV file and returns normalized PgStatStatements entries
+func ParseFromCSV(csvPath string) ([]PgStatStatements, error) {
 	file, err := os.Open(csvPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open PGSS CSV file %s: %w", csvPath, err)
@@ -40,7 +40,7 @@ func ParseFromCSV(csvPath string) ([]QueryStats, error) {
 		return nil, fmt.Errorf("failed to read CSV headers: %w", err)
 	}
 
-	var entries []QueryStats
+	var entries []PgStatStatements
 	lineNumber := 1 // Header is line 0
 	for {
 		record, err := reader.Read()
@@ -66,10 +66,10 @@ func ParseFromCSV(csvPath string) ([]QueryStats, error) {
 	return entries, nil
 }
 
-// parseCSVRecord converts a single CSV record to QueryStats using the column mapping
-func parseCSVRecord(headers []string, record []string) (*QueryStats, error) {
+// parseCSVRecord converts a single CSV record to PgStatStatements struct
+func parseCSVRecord(headers []string, record []string) (*PgStatStatements, error) {
 	var err error
-	entry := &QueryStats{}
+	entry := &PgStatStatements{}
 
 	for i, header := range headers {
 		value := record[i]
