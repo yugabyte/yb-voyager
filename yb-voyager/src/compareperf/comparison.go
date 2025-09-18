@@ -83,7 +83,6 @@ func (c *QueryPerformanceComparator) Compare() error {
 	c.Report = &ComparisonReport{
 		GeneratedAt:  time.Now(),
 		SourceDBType: c.SourceQueryStats[0].GetDatabaseType(), // Corner case: what if its nil or len 0?
-		TargetDBType: c.TargetQueryStats[0].GetDatabaseType(),
 		Summary: ReportSummary{
 			TotalQueries:      len(allComparisons),
 			MatchedQueries:    lo.CountBy(allComparisons, func(c *QueryComparison) bool { return c.MatchStatus == MATCHED }),

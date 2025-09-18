@@ -17,8 +17,6 @@ package pgss
 
 import (
 	"math"
-
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 )
 
 // PgStatStatements represents a pg_stat_statements entry
@@ -77,7 +75,7 @@ func (p *PgStatStatements) GetMaxExecutionTime() float64 {
 }
 
 func (p *PgStatStatements) GetDatabaseType() string {
-	return constants.POSTGRESQL
+	return "PostgreSQL"
 }
 
 // Merge merges the stats for the entries with the same query
