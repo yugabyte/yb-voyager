@@ -15,18 +15,36 @@ limitations under the License.
 */
 package compareperf
 
+import (
+	"fmt"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
+)
+
 type Comparison struct {
 	SourceQueryStats []QueryStats
 	TargetQueryStats []QueryStats
 }
 
-// func NewComparison(sourceQueryStats []QueryStats, targetQueryStats []QueryStats) *Comparison {
-// 	return &Comparison{
-// 		SourceQueryStats: sourceQueryStats,
-// 		TargetQueryStats: targetQueryStats,
-// 	}
-// }
+func NewComparison(assessmentDBPath string, targetDB *tgtdb.TargetYugabyteDB) (*Comparison, error) {
+	adb, err := migassessment.NewAssessmentDB("")
+	if err != nil {
+		return nil, fmt.Errorf("failed to open assessment database: %w", err)
+	}
 
-// func (c *Comparison) Compare() error {
-// 	return nil
-// }
+	sourceQueryStats, err := adb.GetSourceQueryStats()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get source query stats: %w", err)
+	}
+
+	targetQueryStats, err := targetDB.CollectPgStatStatements()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get target query stats: %w", err)
+	}
+
+	return &Comparison{
+		SourceQueryStats: convertPgssToQueryStats(sourceQueryStats),
+		TargetQueryStats: convertPgssToQueryStats(targetQueryStats),
+	}, nil
+}
