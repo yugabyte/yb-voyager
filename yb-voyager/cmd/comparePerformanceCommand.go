@@ -44,7 +44,13 @@ Prerequisites:
 	Hidden: true, // Hide command until fully implemented
 
 	PreRun: func(cmd *cobra.Command, args []string) {
-		validatePrerequisites()
+		tconf.TargetDBType = YUGABYTEDB
+		importerRole = TARGET_DB_IMPORTER_ROLE
+		checkOrSetDefaultTargetSSLMode()
+		validateTargetPortRange()  // Sets default port if needed
+		validateTargetSchemaFlag() // Sets default schema based on DB type
+		getTargetPassword(cmd)
+		validateComparePerfPrerequisites()
 	},
 
 	Run: comparePerformanceCommandFn,
@@ -82,15 +88,12 @@ func comparePerformanceCommandFn(cmd *cobra.Command, args []string) {
 }
 
 // TODO: add check if report already exists(or MSR); ask for --start-clean
-func validatePrerequisites() {
+func validateComparePerfPrerequisites() {
 	utils.PrintAndLog("Validating prerequisites...")
 
 	// Check 0: source db type(postgres) by fetching from MetaDB
-	msr, err := metaDB.GetMigrationStatusRecord()
-	if err != nil {
-		utils.ErrExit("Failed to get migration status record: %v", err)
-	}
-	if msr.SourceDBConf.DBType != POSTGRESQL {
+	dbType := GetSourceDBTypeFromMSR()
+	if dbType != POSTGRESQL {
 		utils.ErrExit("Only PostgreSQL is supported for performance comparison.")
 	}
 
