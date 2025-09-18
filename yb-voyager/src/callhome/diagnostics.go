@@ -275,8 +275,9 @@ Version History:
 1.0: Added fields for BatchSize, OnPrimaryKeyConflictAction, EnableYBAdaptiveParallelism, AdaptiveParallelismMax
 1.1: Added YBClusterMetrics field, and corresponding struct - YBClusterMetrics, NodeMetric
 1.2: Split out the data metrics into a separate struct - ImportDataMetrics
+1.3: Added CurrentParallelConnections field to ImportDataMetrics
 */
-var IMPORT_DATA_CALLHOME_PAYLOAD_VERSION = "1.2"
+var IMPORT_DATA_CALLHOME_PAYLOAD_VERSION = "1.3"
 
 type ImportDataPhasePayload struct {
 	PayloadVersion              string            `json:"payload_version"`
