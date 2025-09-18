@@ -36,8 +36,8 @@ type QueryStats interface {
 
 func convertPgssToQueryStats(pgss []*pgss.PgStatStatements) []QueryStats {
 	queryStats := make([]QueryStats, len(pgss))
-	for i, pgss := range pgss {
-		queryStats[i] = pgss
+	for i := 0; i < len(pgss); i++ {
+		queryStats[i] = pgss[i]
 	}
 	return queryStats
 }
