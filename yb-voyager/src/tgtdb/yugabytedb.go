@@ -1199,15 +1199,13 @@ func (yb *TargetYugabyteDB) GetYBServers() (bool, []*TargetConf, error) {
 	var tconfs []*TargetConf
 	var loadBalancerUsed bool
 
-	tconf := yb.tconf
-
-	if tconf.TargetEndpoints != "" {
-		msg := fmt.Sprintf("given yb-servers for import data: %q\n", tconf.TargetEndpoints)
+	if yb.tconf.TargetEndpoints != "" {
+		msg := fmt.Sprintf("given yb-servers for import data: %q\n", yb.tconf.TargetEndpoints)
 		log.Infof(msg)
 
-		ybServers := utils.CsvStringToSlice(tconf.TargetEndpoints)
+		ybServers := utils.CsvStringToSlice(yb.tconf.TargetEndpoints)
 		for _, ybServer := range ybServers {
-			clone := tconf.Clone()
+			clone := yb.tconf.Clone()
 
 			if strings.Contains(ybServer, ":") {
 				clone.Host = strings.Split(ybServer, ":")[0]
@@ -1227,7 +1225,7 @@ func (yb *TargetYugabyteDB) GetYBServers() (bool, []*TargetConf, error) {
 		}
 	} else {
 		loadBalancerUsed = true
-		url := tconf.GetConnectionUri()
+		url := yb.tconf.GetConnectionUri()
 		conn, err := pgx.Connect(context.Background(), url)
 		if err != nil {
 			return false, nil, fmt.Errorf("Unable to connect to database: %w", err)
@@ -1242,7 +1240,7 @@ func (yb *TargetYugabyteDB) GetYBServers() (bool, []*TargetConf, error) {
 
 		var hostPorts []string
 		for rows.Next() {
-			clone := tconf.Clone()
+			clone := yb.tconf.Clone()
 			var host, nodeType, cloud, region, zone, public_ip string
 			var port, num_conns int
 			if err := rows.Scan(&host, &port, &num_conns,
@@ -1251,13 +1249,11 @@ func (yb *TargetYugabyteDB) GetYBServers() (bool, []*TargetConf, error) {
 			}
 
 			// check if given host is one of the server in cluster
-			if loadBalancerUsed {
-				if isSeedTargetHost(tconf, host, public_ip) {
-					loadBalancerUsed = false
-				}
+			if loadBalancerUsed && isSeedTargetHost(yb.tconf, host, public_ip) {
+				loadBalancerUsed = false
 			}
 
-			if tconf.UsePublicIP {
+			if yb.tconf.UsePublicIP {
 				if public_ip != "" {
 					clone.Host = public_ip
 				} else {
@@ -1283,6 +1279,7 @@ func (yb *TargetYugabyteDB) GetYBServers() (bool, []*TargetConf, error) {
 		}
 		log.Infof("Target DB nodes: %s", strings.Join(hostPorts, ","))
 	}
+
 	return loadBalancerUsed, tconfs, nil
 }
 
