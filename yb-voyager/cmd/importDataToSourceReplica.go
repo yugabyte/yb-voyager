@@ -24,6 +24,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/types"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
@@ -51,7 +52,7 @@ func setTargetConfSpecifics(cmd *cobra.Command) {
 	}
 	sconf := msr.SourceDBConf
 	tconf.TargetDBType = sconf.DBType
-	tconf.EnableYBAdaptiveParallelism = false
+	tconf.AdaptiveParallelismMode = types.DisabledAdaptiveParallelismMode
 	if tconf.TargetDBType == POSTGRESQL {
 		if cmd.Flags().Lookup("source-replica-db-schema").Changed {
 			utils.ErrExit("cannot specify --source-replica-db-schema for PostgreSQL source")

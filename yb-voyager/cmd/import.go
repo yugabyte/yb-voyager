@@ -397,8 +397,12 @@ func registerFlagsForTarget(cmd *cobra.Command) {
 			"number of cores N and use N/4 as parallel jobs. "+
 			"Otherwise, it fall back to using twice the number of nodes in the cluster. "+
 			"Any value less than 1 reverts to the default calculation.")
-	BoolVar(cmd.Flags(), &tconf.EnableYBAdaptiveParallelism, "enable-adaptive-parallelism", true,
-		"Adapt parallelism based on the resource usage (CPU, memory) of the target YugabyteDB cluster.")
+	// BoolVar(cmd.Flags(), &tconf.EnableYBAdaptiveParallelism, "enable-adaptive-parallelism", true,
+	// 	"Adapt parallelism based on the resource usage (CPU, memory) of the target YugabyteDB cluster.")
+
+	cmd.Flags().Var(&tconf.AdaptiveParallelismMode, "adaptive-parallelism-mode",
+		"The mode for adaptive parallelism behavior: disabled, balanced, aggressive (default balanced)")
+
 	cmd.Flags().IntVar(&tconf.MaxParallelism, "adaptive-parallelism-max", 0,
 		"number of max parallel jobs to use while importing data when adaptive parallelism is enabled. "+
 			"By default, voyager will try if it can determine the total number of cores N and use N/2 as the max parallel jobs.")
@@ -465,13 +469,14 @@ func validateFFDBSchemaFlag() {
 }
 
 func validateParallelismFlags() {
-	if tconf.EnableYBAdaptiveParallelism {
+	// TODO: fix error messages.
+	if tconf.AdaptiveParallelismMode.IsEnabled() {
 		if tconf.Parallelism > 0 {
 			utils.ErrExit("Error --parallel-jobs flag cannot be used with --enable-adaptive-parallelism true. If you wish to set the number of parallel jobs explicitly, disable adaptive parallelism using --enable-adaptive-parallelism false")
 		}
 	}
 	if tconf.MaxParallelism > 0 {
-		if !tconf.EnableYBAdaptiveParallelism {
+		if !tconf.AdaptiveParallelismMode.IsEnabled() {
 			utils.ErrExit("Error --adaptive-parallelism-max flag can only be used with --enable-adaptive-parallelism true")
 		}
 	}

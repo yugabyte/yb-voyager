@@ -292,7 +292,7 @@ func (yb *TargetYugabyteDB) InitConnPool() error {
 		log.Infof("Using %d parallel jobs by default. Use --parallel-jobs to specify a custom value", yb.tconf.Parallelism)
 	}
 
-	if yb.tconf.EnableYBAdaptiveParallelism {
+	if yb.tconf.AdaptiveParallelismMode.IsEnabled() {
 		if yb.tconf.MaxParallelism <= 0 {
 			yb.tconf.MaxParallelism = yb.tconf.Parallelism * 2
 		}
