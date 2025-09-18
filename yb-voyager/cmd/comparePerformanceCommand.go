@@ -29,16 +29,16 @@ import (
 
 var comparePerformanceCmd = &cobra.Command{
 	Use:   "compare-performance",
-	Short: "Compare query performance between source PostgreSQL and target YugabyteDB",
-	Long: `Compare query performance between source PostgreSQL and target YugabyteDB using pg_stat_statements data.
+	Short: "Compare query performance between source and target YugabyteDB",
+	Long: `Compare query performance between source and target YugabyteDB.
 
-This command analyzes pg_stat_statements data collected during assess-migration from the source database
-and compares it with current pg_stat_statements data from the target YugabyteDB database.
+This command analyzes stats collected during assess-migration from the source database
+and compares it with stats collected from the target YugabyteDB database.
 
 Prerequisites:
-  - assess-migration command must have been run with PGSS data collection
-  - Source workload should have been executed on both source and target databases
-  - pg_stat_statements extension must be enabled on the target YugabyteDB database`,
+  - assess-migration command must have been run and collected the stats from the source database
+  - Source workload should have been executed on both source and target database
+  - stats collection(pg_stat_statements) must be enabled on the target YugabyteDB database`,
 
 	Hidden: true, // Hide command until fully implemented
 
@@ -93,6 +93,15 @@ func performAnalysisAndGenerateReport() error {
 
 func validatePrerequisites() {
 	utils.PrintAndLog("Validating prerequisites...")
+
+	// Check 0: source db type(postgres) by fetching from MetaDB
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("Failed to get migration status record: %v", err)
+	}
+	if msr.SourceDBConf.DBType != POSTGRESQL {
+		utils.ErrExit("Only PostgreSQL is supported for performance comparison.")
+	}
 
 	// Check 1: Assessment database exists and is accessible
 	utils.PrintAndLog("Checking assessment database...")
