@@ -9,5 +9,20 @@
     "skip_performance_optimizations": false,
     "error": "",
     "control_plane_type": "",
-    "schema_optimization_changes": []
+    "schema_optimization_changes": [
+        {
+            "optimization_type": "table_sharding_recommendation",
+            "is_applied": true,
+            "objects": [
+                "schema_d7108fd530c9b1c2.table_269b49de7ff38a13",
+                "schema_d7108fd530c9b1c2.table_9fa19d27ea64c7a6",
+                "schema_d7108fd530c9b1c2.table_21db0ebbe3eff1c5",
+                "schema_d7108fd530c9b1c2.table_8dfb93d104511155",
+                "schema_d7108fd530c9b1c2.table_834e77f39ce395fc",
+                "schema_d7108fd530c9b1c2.table_02c317b0d719af0a",
+                "schema_d7108fd530c9b1c2.table_1b6e8818ac9f79cd",
+                "schema_d7108fd530c9b1c2.table_9dd5bddb143fd318"
+            ]
+        }
+    ]
 }

@@ -20,11 +20,3 @@ run_psql ${SOURCE_DB_NAME} "\i ../../pg/datatypes/pg_datatypes_data.sql;"
 
 echo "Check source database."
 run_psql ${SOURCE_DB_NAME} "SELECT count(*) FROM num_types;"
-
-if [ -n "${SOURCE_REPLICA_DB_NAME}" ] && [ "${SOURCE_REPLICA_DB_NAME}" != "${SOURCE_DB_NAME}" ];
-then
-	echo "Initialising FF database"
-	run_psql postgres "DROP DATABASE IF EXISTS ${SOURCE_REPLICA_DB_NAME};"
-    run_psql postgres "CREATE DATABASE ${SOURCE_REPLICA_DB_NAME};"
-    run_psql ${SOURCE_REPLICA_DB_NAME} "\i ../../pg/datatypes/pg_datatypes_schema.sql;"
-fi

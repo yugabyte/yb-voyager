@@ -28,22 +28,11 @@ def diagnostics():
         try:
             # Sort arrays to ensure consistent ordering
             payload = data['phase_payload']
-            
-            # If payload is a string, parse it as JSON first
-            if isinstance(payload, str):
-                payload = json.loads(payload)
+            payload = json.loads(payload)
             
             # Sort colocated_tables array if it exists
             if 'sizing' in payload and 'colocated_tables' in payload['sizing']:
                 payload['sizing']['colocated_tables'].sort()
-            
-            # Sort assessment_issues array if it exists
-            if 'assessment_issues' in payload:
-                payload['assessment_issues'].sort(key=lambda x: str(x))
-            
-            # Sort anonymized_ddls array if it exists
-            if 'anonymized_ddls' in payload:
-                payload['anonymized_ddls'].sort()
 
             if 'yb_cluster_metrics' in payload:
                 payload['yb_cluster_metrics']='{}'

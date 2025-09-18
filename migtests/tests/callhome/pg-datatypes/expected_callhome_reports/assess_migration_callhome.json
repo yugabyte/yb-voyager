@@ -2,22 +2,22 @@
     "payload_version": "1.8",
     "target_db_version": "2025.1.0.0",
     "sizing": {
-        "colocated_tables": [
+        "colocated_tables": [],
+        "colocated_reasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 8 objects (8 tables/materialized views and 0 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as sharded. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
+        "sharded_tables": [
             "schema_d7108fd530c9b1c2.table_02c317b0d719af0a",
-            "schema_d7108fd530c9b1c2.table_1b6e8818ac9f79cd",
-            "schema_d7108fd530c9b1c2.table_21db0ebbe3eff1c5",
-            "schema_d7108fd530c9b1c2.table_269b49de7ff38a13",
-            "schema_d7108fd530c9b1c2.table_834e77f39ce395fc",
             "schema_d7108fd530c9b1c2.table_8dfb93d104511155",
+            "schema_d7108fd530c9b1c2.table_1b6e8818ac9f79cd",
+            "schema_d7108fd530c9b1c2.table_9fa19d27ea64c7a6",
             "schema_d7108fd530c9b1c2.table_9dd5bddb143fd318",
-            "schema_d7108fd530c9b1c2.table_9fa19d27ea64c7a6"
+            "schema_d7108fd530c9b1c2.table_21db0ebbe3eff1c5",
+            "schema_d7108fd530c9b1c2.table_834e77f39ce395fc",
+            "schema_d7108fd530c9b1c2.table_269b49de7ff38a13"
         ],
-        "colocated_reasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 8 objects (8 tables/materialized views and 0 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
-        "sharded_tables": [],
         "num_nodes": 3,
         "vcpus_per_instance": 4,
         "memory_per_instance": 16,
-        "optimal_select_connections_per_node": 8,
+        "optimal_select_connections_per_node": 10,
         "optimal_insert_connections_per_node": 12,
         "estimated_time_in_min_for_import": 1,
         "estimated_time_in_min_for_import_without_redundant_indexes": 1
