@@ -1453,3 +1453,82 @@ generate_voyager_config() {
 	fi
 }
 
+normalize_callhome_json() {
+    local input_file="$1"
+    local output_file="$2"
+    local temp_file="/tmp/temp_file.json"
+
+    # Normalize JSON with jq; use --sort-keys to avoid the need to keep the same sequence of keys in expected vs actual json
+    jq --sort-keys 'walk(
+        if type == "object" then
+            .ObjectNames? |= (
+				if type == "string" then
+					split(", ") | sort | join(", ")
+				else
+					.
+				end
+			) |
+            .VoyagerVersion? = "IGNORED" |
+			.TargetDBVersion? = "IGNORED" |
+            .DbVersion? = "IGNORED" |
+            .FilePath? = "IGNORED" |
+            .OptimalSelectConnectionsPerNode? = "IGNORED" |
+            .OptimalInsertConnectionsPerNode? = "IGNORED" |
+			.SizeInBytes? = "IGNORED" |
+			.ColocatedReasoning? = "IGNORED" |
+            .RowCount? = "IGNORED" |
+            .yb_cluster_metrics = "IGNORED" |
+            .parallel_jobs = "IGNORED" |
+            .adaptive_parallelism_max = "IGNORED" |
+			.FeatureDescription? = "IGNORED" | # Ignore FeatureDescription instead of fixing it in all tests since it will be removed soon
+            # Replace newline characters in SqlStatement with spaces
+			.SqlStatement? |= (
+				if type == "string" then
+					gsub("\\n"; " ")
+				else
+					.
+				end
+			)
+        elif type == "array" then
+			sort_by(tostring)
+        elif type == "string" and (
+            # Check if the string is a JSON array and sort it
+            (tostring | test("^ *?\\[.*\\] *?$")) and (fromjson | type == "array")
+        ) then
+            fromjson | sort_by(tostring) | tojson
+		else
+            .
+        end
+    )' "$input_file" > "$temp_file"
+    
+    # Remove unwanted lines
+    sed -i '/Review and manually import.*uncategorized.sql/d' "$temp_file"
+
+    # Move cleaned file to output
+    mv "$temp_file" "$output_file"
+}
+
+compare_callhome_json_reports() {
+    local expected_report_file="$1"
+    local actual_report_file="$2"
+
+    local temp_file1=$(mktemp)
+    local temp_file2=$(mktemp)
+
+    normalize_callhome_json "$expected_report_file" "$temp_file1"
+    normalize_callhome_json "$actual_report_file" "$temp_file2"
+
+    # Compare actual and expected callhome data
+    compare_files "$temp_file1" "$temp_file2"
+    compare_status=$?
+
+    # Clean up temporary files
+    rm "$temp_file1" "$temp_file2"
+
+    # Exit with the status from compare_files if there are differences
+    if [ $compare_status -ne 0 ]; then
+        exit $compare_status
+    fi
+
+    echo "Proceeding with further steps..."
+}

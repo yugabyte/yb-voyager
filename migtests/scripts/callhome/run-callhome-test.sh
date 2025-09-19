@@ -89,11 +89,11 @@ validate_reports() {
         sleep 1
     done
 
-    # Compare actual and expected callhome data
-    compare_json_reports "${expected_report_file}" "${actual_report_file}"
+    step "Compare actual and expected callhome data"
+    compare_callhome_json_reports "$expected_report_file" "$actual_report_file"
 
     # Remove actualCallhomeReport.json file
-    rm -rf "${actual_report_file}"
+    rm -rf "$actual_report_file"
 }
 
 main() {
