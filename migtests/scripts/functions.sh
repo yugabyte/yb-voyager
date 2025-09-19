@@ -754,7 +754,7 @@ wait_for_exporter_event() {
             # Metadata-driven approach: wait for expected count
             echo "Found ${actual_count}/${expected_count} expected ${exporter_db} events"
             
-            if [ "$actual_count" -ge "$expected_count" ]; then
+            if [ "$actual_count" -eq "$expected_count" ]; then
                 echo "Detected ${actual_count}/${expected_count} expected ${exporter_db} events. Proceeding."
                 return 0
             fi
