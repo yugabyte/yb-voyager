@@ -1470,17 +1470,13 @@ normalize_callhome_json() {
 			) |
             .VoyagerVersion? = "IGNORED" |
 			.TargetDBVersion? = "IGNORED" |
-            .DbVersion? = "IGNORED" |
-            .FilePath? = "IGNORED" |
             .OptimalSelectConnectionsPerNode? = "IGNORED" |
             .OptimalInsertConnectionsPerNode? = "IGNORED" |
 			.SizeInBytes? = "IGNORED" |
 			.ColocatedReasoning? = "IGNORED" |
-            .RowCount? = "IGNORED" |
             .yb_cluster_metrics = "IGNORED" |
             .parallel_jobs = "IGNORED" |
             .adaptive_parallelism_max = "IGNORED" |
-			.FeatureDescription? = "IGNORED" | # Ignore FeatureDescription instead of fixing it in all tests since it will be removed soon
             # Replace newline characters in SqlStatement with spaces
 			.SqlStatement? |= (
 				if type == "string" then
@@ -1531,4 +1527,30 @@ compare_callhome_json_reports() {
     fi
 
     echo "Proceeding with further steps..."
+}
+
+validate_callhome_reports() {
+    local expected_report_file=$1
+    local actual_report_file=$2
+
+    # Wait for actualCallhomeReport.json file to be created
+    step "Wait for Actual Callhome Report to be created"
+    for i in {1..30}; do
+        if [ -f "${actual_report_file}" ]; then
+            echo "actualCallhomeReport.json created successfully"
+            break
+        fi
+        if [ $i -eq 30 ]; then
+            echo "ERROR: actualCallhomeReport.json not found after 30 attempts"
+            exit 1
+        fi
+        echo "Waiting for actualCallhomeReport.json to be created... (attempt $i/30)"
+        sleep 1
+    done
+
+    step "Compare actual and expected callhome data"
+    compare_callhome_json_reports "$expected_report_file" "$actual_report_file"
+
+    # Remove actualCallhomeReport.json file
+    rm -rf "$actual_report_file"
 }

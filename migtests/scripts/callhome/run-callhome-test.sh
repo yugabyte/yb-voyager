@@ -61,40 +61,14 @@ normalize_and_export_vars "callhome"
 
 # Callhome Server setup
 export FLASK_APP=${SCRIPTS}/callhome/server.py
-export PORT=5000
-export SERVER_IP=localhost
+export PORT=$FLASK_APP_PORT
+export SERVER_IP=$FLASK_SERVER_IP
 export LOCAL_CALL_HOME_SERVICE_HOST=$SERVER_IP
 export LOCAL_CALL_HOME_SERVICE_PORT=$PORT
 
 # Anonymisation setup
 export VOYAGER_ENABLE_DETERMINISTIC_ANON=true
 export VOYAGER_TEST_ANON_SALT=${ANON_SALT}
-
-validate_reports() {
-    local expected_report_file=$1
-    local actual_report_file=$2
-
-    # Wait for actualCallhomeReport.json file to be created
-    step "Wait for Actual Callhome Report to be created"
-    for i in {1..30}; do
-        if [ -f "${actual_report_file}" ]; then
-            echo "actualCallhomeReport.json created successfully"
-            break
-        fi
-        if [ $i -eq 30 ]; then
-            echo "ERROR: actualCallhomeReport.json not found after 30 attempts"
-            exit 1
-        fi
-        echo "Waiting for actualCallhomeReport.json to be created... (attempt $i/30)"
-        sleep 1
-    done
-
-    step "Compare actual and expected callhome data"
-    compare_callhome_json_reports "$expected_report_file" "$actual_report_file"
-
-    # Remove actualCallhomeReport.json file
-    rm -rf "$actual_report_file"
-}
 
 main() {
     echo "Deleting old export-dir"
@@ -140,43 +114,43 @@ main() {
     step "Assess migration"
     assess_migration --send-diagnostics=true
     step "Compare actual and expected assess-migration callhome data"
-    validate_reports "${TEST_DIR}/expected_callhome_reports/assess_migration_callhome.json" "${TEST_DIR}/actualCallhomeReport.json"
+    validate_callhome_reports "${TEST_DIR}/expected_callhome_reports/assess_migration_callhome.json" "${TEST_DIR}/actualCallhomeReport.json"
 
     if [ "$MODE" == "--all-commands" ]; then
         step "Export schema"
         export_schema --send-diagnostics=true
         step "Compare actual and expected export-schema callhome data"
-        validate_reports "${TEST_DIR}/expected_callhome_reports/export_schema_callhome.json" "${TEST_DIR}/actualCallhomeReport.json"
+        validate_callhome_reports "${TEST_DIR}/expected_callhome_reports/export_schema_callhome.json" "${TEST_DIR}/actualCallhomeReport.json"
 
         step "Analyze schema"
         analyze_schema --output-format json --send-diagnostics=true
         step "Compare actual and expected analyze-schema callhome data"
-        validate_reports "${TEST_DIR}/expected_callhome_reports/analyse_schema_callhome.json" "${TEST_DIR}/actualCallhomeReport.json"
+        validate_callhome_reports "${TEST_DIR}/expected_callhome_reports/analyse_schema_callhome.json" "${TEST_DIR}/actualCallhomeReport.json"
 
         step "Import schema"
         import_schema --send-diagnostics=true
         step "Compare actual and expected import-schema callhome data"
-        validate_reports "${TEST_DIR}/expected_callhome_reports/import_schema_callhome.json" "${TEST_DIR}/actualCallhomeReport.json"
+        validate_callhome_reports "${TEST_DIR}/expected_callhome_reports/import_schema_callhome.json" "${TEST_DIR}/actualCallhomeReport.json"
 
         step "Run Export Data"
         export_data --send-diagnostics=true
         step "Compare actual and expected export-data callhome data"
-        validate_reports "${TEST_DIR}/expected_callhome_reports/export_data_callhome.json" "${TEST_DIR}/actualCallhomeReport.json"
+        validate_callhome_reports "${TEST_DIR}/expected_callhome_reports/export_data_callhome.json" "${TEST_DIR}/actualCallhomeReport.json"
 
         step "Run Import Data"
         import_data --send-diagnostics=true
         step "Compare actual and expected import-data callhome data"
-        validate_reports "${TEST_DIR}/expected_callhome_reports/import_data_callhome.json" "${TEST_DIR}/actualCallhomeReport.json"
+        validate_callhome_reports "${TEST_DIR}/expected_callhome_reports/import_data_callhome.json" "${TEST_DIR}/actualCallhomeReport.json"
 
         step "Finalize Schema"
         finalize_schema_post_data_import --send-diagnostics=true
         step "Compare actual and expected finalize-schema callhome data"
-        validate_reports "${TEST_DIR}/expected_callhome_reports/finalize_schema_callhome.json" "${TEST_DIR}/actualCallhomeReport.json"
+        validate_callhome_reports "${TEST_DIR}/expected_callhome_reports/finalize_schema_callhome.json" "${TEST_DIR}/actualCallhomeReport.json"
 
         step "End Migration"
         end_migration --yes --send-diagnostics=true
         step "Compare actual and expected end-migration callhome data"
-        validate_reports "${TEST_DIR}/expected_callhome_reports/end_migration_callhome.json" "${TEST_DIR}/actualCallhomeReport.json"
+        validate_callhome_reports "${TEST_DIR}/expected_callhome_reports/end_migration_callhome.json" "${TEST_DIR}/actualCallhomeReport.json"
 
         step "All commands passed successfully"
     fi
