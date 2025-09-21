@@ -140,6 +140,7 @@ def fetch_voyager_rows(
           FROM `{client.project}.{source_dataset}.{source_table}`
           WHERE migration_phase = 'assess-migration'
             AND phase_payload IS NOT NULL
+            AND status = 'COMPLETE'
             AND last_updated_time > @since
         )
         SELECT uuid, start_time, last_updated_time, phase_payload, db_system_identifier
