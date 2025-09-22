@@ -30,6 +30,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/types"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -39,8 +40,8 @@ const TOP_N = 20
 var performanceComparisonHtmlTemplate string
 
 type QueryPerformanceComparator struct {
-	SourceQueryStats []*QueryStats
-	TargetQueryStats []*QueryStats
+	SourceQueryStats []*types.QueryStats
+	TargetQueryStats []*types.QueryStats
 
 	Report *ComparisonReport
 
@@ -62,7 +63,7 @@ func NewQueryPerformanceComparator(msr *metadb.MigrationStatusRecord, assessment
 	}
 
 	return &QueryPerformanceComparator{
-		SourceQueryStats: ConvertPgssSliceToQueryStats(sourceQueryStats),
+		SourceQueryStats: sourceQueryStats,
 		TargetQueryStats: ConvertPgssSliceToQueryStats(targetQueryStats),
 
 		msr:          msr,

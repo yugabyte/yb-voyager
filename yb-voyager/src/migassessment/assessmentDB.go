@@ -28,10 +28,10 @@ import (
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/compareperf"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/pgss"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/types"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -495,7 +495,7 @@ func (adb *AssessmentDB) InsertPgssEntries(entries []pgss.PgStatStatements) erro
 }
 
 // GetSourceQueryStats retrieves all the source PGSS data from the assessment database
-func (adb *AssessmentDB) GetSourceQueryStats() ([]*compareperf.QueryStats, error) {
+func (adb *AssessmentDB) GetSourceQueryStats() ([]*types.QueryStats, error) {
 	query := `
 		SELECT queryid, query, calls, rows,
 		       total_exec_time, mean_exec_time,
@@ -508,9 +508,9 @@ func (adb *AssessmentDB) GetSourceQueryStats() ([]*compareperf.QueryStats, error
 	}
 	defer rows.Close()
 
-	var entries []*compareperf.QueryStats
+	var entries []*types.QueryStats
 	for rows.Next() {
-		var entry compareperf.QueryStats
+		var entry types.QueryStats
 		err := rows.Scan(
 			&entry.QueryID,
 			&entry.QueryText,
