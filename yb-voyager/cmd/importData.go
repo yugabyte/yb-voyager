@@ -618,20 +618,6 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 		utils.ErrExit("Failed to get migration status record: %s", err)
 	}
 
-	if msr.IsSnapshotExportedViaDebezium() {
-		valueConverter, err = dbzm.NewValueConverter(exportDir, tdb, tconf, importerRole, msr.SourceDBConf.DBType)
-	} else {
-		valueConverter, err = dbzm.NewNoOpValueConverter()
-	}
-	if err != nil {
-		utils.ErrExit("create value converter: %s", err)
-	}
-
-	TableNameToSchema, err = valueConverter.GetTableNameToSchema()
-	if err != nil {
-		utils.ErrExit("getting table name to schema: %s", err)
-	}
-
 	err = tdb.InitConnPool()
 	if err != nil {
 		utils.ErrExit("Failed to initialize the target DB connection pool: %s", err)
@@ -708,6 +694,19 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 		//as that is the one where we filter the tables via table-list flags
 		//we don't need empty tables in offline case, data migration doesn't matter for them
 		importTableList = importFileTasksToTableNameTuples(importFileTasks)
+	}
+	if msr.IsSnapshotExportedViaDebezium() {
+		valueConverter, err = dbzm.NewValueConverter(exportDir, tdb, tconf, importerRole, msr.SourceDBConf.DBType, importTableList)
+	} else {
+		valueConverter, err = dbzm.NewNoOpValueConverter()
+	}
+	if err != nil {
+		utils.ErrExit("create value converter: %s", err)
+	}
+
+	TableNameToSchema, err = valueConverter.GetTableNameToSchema()
+	if err != nil {
+		utils.ErrExit("getting table name to schema: %s", err)
 	}
 	err = fetchAndStoreGeneratedAlwaysIdentityColumnsInMetadb(importTableList)
 	if err != nil {
@@ -787,7 +786,7 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 		if err != nil {
 			utils.ErrExit("failed to get table unique key columns map: %s", err)
 		}
-		valueConverter, err = dbzm.NewValueConverter(exportDir, tdb, tconf, importerRole, source.DBType)
+		valueConverter, err = dbzm.NewValueConverter(exportDir, tdb, tconf, importerRole, source.DBType, importTableList)
 		if err != nil {
 			utils.ErrExit("Failed to create value converter: %s", err)
 		}
@@ -841,6 +840,19 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 	}
 	fmt.Printf("\nImport data complete.\n")
 }
+
+/*
+if import data has table list filteration 
+	if a sequence is  attached to a table - tableColumn -> sequence name 
+		if table is part of table list being imported
+			yes then continue exectuing
+		else 
+			skip the sequence
+	else //independent sequence  // not possible right now
+		skip the sequence
+else // 
+	execute the sequence
+*/
 
 // For a fresh start but non empty tables in tableList && OnPrimaryKeyConflict is set to IGNORE -> notify user
 func runPKConflictModeGuardrails(state *ImportDataState, allTasks []*ImportFileTask) error {

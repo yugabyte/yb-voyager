@@ -36,8 +36,8 @@ type ValueConverter interface {
 	GetTableNameToSchema() (*utils.StructMap[sqlname.NameTuple, map[string]map[string]string], error) //returns table name to schema mapping
 }
 
-func NewValueConverter(exportDir string, tdb tgtdb.TargetDB, targetConf tgtdb.TargetConf, importerRole string, sourceDBType string) (ValueConverter, error) {
-	return NewDebeziumValueConverter(exportDir, tdb, targetConf, importerRole, sourceDBType)
+func NewValueConverter(exportDir string, tdb tgtdb.TargetDB, targetConf tgtdb.TargetConf, importerRole string, sourceDBType string, tableList []sqlname.NameTuple) (ValueConverter, error) {
+	return NewDebeziumValueConverter(tableList, exportDir, tdb, targetConf, importerRole, sourceDBType)
 }
 
 func NewNoOpValueConverter() (ValueConverter, error) {
@@ -80,8 +80,9 @@ type DebeziumValueConverter struct {
 	sourceDBType           string
 }
 
-func NewDebeziumValueConverter(exportDir string, tdb tgtdb.TargetDB, targetConf tgtdb.TargetConf, importerRole string, sourceDBType string) (*DebeziumValueConverter, error) {
-	schemaRegistrySource := schemareg.NewSchemaRegistry(exportDir, "source_db_exporter")
+//Initialize debezium value converter with the given table list
+func NewDebeziumValueConverter(tableList []sqlname.NameTuple, exportDir string, tdb tgtdb.TargetDB, targetConf tgtdb.TargetConf, importerRole string, sourceDBType string) (*DebeziumValueConverter, error) {
+	schemaRegistrySource := schemareg.NewSchemaRegistry(tableList, exportDir, "source_db_exporter")
 	err := schemaRegistrySource.Init()
 	if err != nil {
 		return nil, fmt.Errorf("initializing schema registry: %w", err)
@@ -89,9 +90,9 @@ func NewDebeziumValueConverter(exportDir string, tdb tgtdb.TargetDB, targetConf 
 	var schemaRegistryTarget *schemareg.SchemaRegistry
 	switch importerRole {
 	case "source_replica_db_importer":
-		schemaRegistryTarget = schemareg.NewSchemaRegistry(exportDir, "target_db_exporter_ff")
+		schemaRegistryTarget = schemareg.NewSchemaRegistry(tableList, exportDir, "target_db_exporter_ff")
 	case "source_db_importer":
-		schemaRegistryTarget = schemareg.NewSchemaRegistry(exportDir, "target_db_exporter_fb")
+		schemaRegistryTarget = schemareg.NewSchemaRegistry(tableList, exportDir, "target_db_exporter_fb")
 	}
 
 	tdbValueConverterSuite, err := getDebeziumValueConverterSuite(targetConf)

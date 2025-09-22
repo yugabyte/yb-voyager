@@ -22,6 +22,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/samber/lo"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -67,13 +69,16 @@ func (ts *TableSchema) getColumnType(columnName string, getSourceDatatypeIfRequi
 type SchemaRegistry struct {
 	exportDir         string
 	exporterRole      string
+	tableList         []sqlname.NameTuple
 	TableNameToSchema *utils.StructMap[sqlname.NameTuple, *TableSchema]
 }
 
-func NewSchemaRegistry(exportDir string, exporterRole string) *SchemaRegistry {
+//Initialize schema registry with the given table list
+func NewSchemaRegistry(tableList []sqlname.NameTuple, exportDir string, exporterRole string) *SchemaRegistry {
 	return &SchemaRegistry{
 		exportDir:         exportDir,
 		exporterRole:      exporterRole,
+		tableList:         tableList,
 		TableNameToSchema: utils.NewStructMap[sqlname.NameTuple, *TableSchema](),
 	}
 }
@@ -137,9 +142,18 @@ func (sreg *SchemaRegistry) Init() error {
 			return fmt.Errorf("failed to decode table schema file %s: %w", schemaFilePath, err)
 		}
 		tableName := strings.TrimSuffix(filepath.Base(schemaFile.Name()), "_schema.json")
-		table, err := namereg.NameReg.LookupTableName(tableName)
+		table, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFound(tableName)
 		if err != nil {
 			return fmt.Errorf("lookup %s from name registry: %v", tableName, err)
+		}
+		if !lo.ContainsBy(sreg.tableList, func(t sqlname.NameTuple) bool {
+			return t.ForKey() == table.ForKey() 
+		}) {
+			//skip the table if it is not present in the table list or if it is not present in the target
+			continue
+		} else if !table.TargetTableAvailable() {
+			//Table is in table list but target not found during lookup
+			return fmt.Errorf("table %s is not present in the target database", table)
 		}
 		sreg.TableNameToSchema.Put(table, &tableSchema)
 		schemaFile.Close()
