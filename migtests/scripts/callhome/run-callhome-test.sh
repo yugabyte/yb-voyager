@@ -47,6 +47,7 @@ if [ -n "$2" ]; then
     fi
     source "${TEST_DIR}/$2"
 else
+    source "${TEST_DIR}/callhome-env.sh"
     source "${TEST_DIR}/env.sh"
 fi
 
@@ -54,17 +55,18 @@ if [ -n "${SOURCE_DB_TYPE}" ]; then
     source "${SCRIPTS}/${SOURCE_DB_TYPE}/env.sh"
 fi
 
-source "${SCRIPTS}/yugabytedb/env.sh"
-source ${SCRIPTS}/functions.sh
+source "${SCRIPTS}/functions.sh"
 
 normalize_and_export_vars "callhome"
 
+source "${SCRIPTS}/yugabytedb/env.sh"
+
 # Callhome Server setup
 export FLASK_APP=${SCRIPTS}/callhome/server.py
-export PORT=$FLASK_APP_PORT
-export SERVER_IP=$FLASK_SERVER_IP
-export LOCAL_CALL_HOME_SERVICE_HOST=$SERVER_IP
-export LOCAL_CALL_HOME_SERVICE_PORT=$PORT
+export FLASK_APP_PORT=5000
+export FLASK_SERVER_IP=localhost
+export LOCAL_CALL_HOME_SERVICE_HOST=$FLASK_SERVER_IP
+export LOCAL_CALL_HOME_SERVICE_PORT=$FLASK_APP_PORT
 
 # Anonymisation setup
 export VOYAGER_ENABLE_DETERMINISTIC_ANON=true
@@ -93,13 +95,13 @@ main() {
     # Starting Flask server to receive callhome data
     step "Start Flask server"
     # Kill any existing Flask server process
-    lsof -ti:${PORT} | xargs -r kill -9
-    flask run --host "$SERVER_IP" --port "$PORT" &
+    lsof -ti:${FLASK_APP_PORT} | xargs -r kill -9
+    flask run --host "$FLASK_SERVER_IP" --port "$FLASK_APP_PORT" &
     
     # Wait for Flask server to start
     step "Wait for Flask server to start"
     for i in {1..30}; do
-        if curl -s "http://${SERVER_IP}:${PORT}/" > /dev/null 2>&1; then
+        if curl -s "http://${FLASK_SERVER_IP}:${FLASK_APP_PORT}/" > /dev/null 2>&1; then
             echo "Flask server is running successfully"
             break
         fi
@@ -117,6 +119,15 @@ main() {
     validate_callhome_reports "${TEST_DIR}/expected_callhome_reports/assess_migration_callhome.json" "${TEST_DIR}/actualCallhomeReport.json"
 
     if [ "$MODE" == "--all-commands" ]; then
+
+        step "Create target database."
+        run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
+        if [ "${SOURCE_DB_TYPE}" = "postgresql" ] || [ "${SOURCE_DB_TYPE}" = "oracle" ]; then
+            run_ysql yugabyte "CREATE DATABASE ${TARGET_DB_NAME} with COLOCATION=TRUE"
+        else
+            run_ysql yugabyte "CREATE DATABASE ${TARGET_DB_NAME}"
+        fi
+
         step "Export schema"
         export_schema --send-diagnostics=true
         step "Compare actual and expected export-schema callhome data"
