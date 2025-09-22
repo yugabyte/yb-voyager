@@ -1175,13 +1175,14 @@ func displayMonitoringInformationOnTheConsole(info string) {
 }
 
 func startAdaptiveParallelism(mode types.AdaptiveParallelismMode) (bool, error) {
+	if !mode.IsEnabled() {
+		return false, nil
+	}
 	yb, ok := tdb.(*tgtdb.TargetYugabyteDB)
 	if !ok {
 		return false, fmt.Errorf("adaptive parallelism is only supported if target DB is YugabyteDB")
 	}
-	if !mode.IsEnabled() {
-		return false, nil
-	}
+
 	if !yb.IsAdaptiveParallelismSupported() {
 		utils.PrintAndLog(color.YellowString("Note: Continuing without adaptive parallelism as it is not supported in this version of YugabyteDB."))
 		return false, nil
