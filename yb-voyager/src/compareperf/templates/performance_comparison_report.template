@@ -92,35 +92,33 @@
             padding: 20px 0;
             border-bottom: 2px solid #eee;
         }
-        .summary-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
+        .summary-table {
+            width: 100%;
+            border-collapse: collapse;
             margin: 20px 0;
-        }
-        .summary-card {
-            background: #f8f9fa;
-            padding: 20px;
+            background: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             border-radius: 8px;
-            text-align: center;
-            border-left: 4px solid #007bff;
-            transition: transform 0.2s ease;
+            overflow: hidden;
         }
-        .summary-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-        }
-        .summary-card h3 {
-            margin: 0 0 10px 0;
-            color: #555;
-            font-size: 14px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        .summary-card .number {
-            font-size: 2.5em;
+        .summary-table th {
+            background-color: #f2f2f2;
             font-weight: bold;
-            color: #333;
+            padding: 15px;
+            text-align: center;
+            font-size: 16px;
+        }
+        .summary-table td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #eee;
+        }
+        .summary-table td:first-child {
+            font-weight: bold;
+            background-color: #f8f9fa;
+            width: 40%;
+        }
+        .summary-table tbody tr:last-child td {
+            border-bottom: none;
         }
         .impact-score {
             font-weight: bold;
@@ -186,24 +184,39 @@
         <!-- Summary Section - Always Visible -->
         <div class="summary-section">
             <h2>Summary</h2>
-            <div class="summary-grid">
-                <div class="summary-card">
-                    <h3>Total Queries</h3>
-                    <div class="number">{{.Summary.TotalQueries}}</div>
-                </div>
-                <div class="summary-card">
-                    <h3>Matched</h3>
-                    <div class="number">{{.Summary.MatchedQueries}}</div>
-                </div>
-                <div class="summary-card">
-                    <h3>Source Only</h3>
-                    <div class="number">{{.Summary.SourceOnlyQueries}}</div>
-                </div>
-                <div class="summary-card">
-                    <h3>Target Only</h3>
-                    <div class="number">{{.Summary.TargetOnlyQueries}}</div>
-                </div>
-            </div>
+
+            <table class="summary-table">
+                <tbody>
+                    <tr>
+                        <td>Voyager Version</td>
+                        <td>{{.Summary.VoyagerVersion}}</td>
+                    </tr>
+                    <tr>
+                        <td>Source Database</td>
+                        <td>{{.Summary.SourceDBName}} (v{{.Summary.SourceDBVersion}})</td>
+                    </tr>
+                    <tr>
+                        <td>Target Database</td>
+                        <td>{{.Summary.TargetDBName}} (v{{.Summary.TargetDBVersion}})</td>
+                    </tr>
+                    <tr>
+                        <td>Total Queries Analyzed</td>
+                        <td>{{.Summary.TotalQueries}}</td>
+                    </tr>
+                    <tr>
+                        <td>Matched Queries</td>
+                        <td>{{.Summary.MatchedQueries}}</td>
+                    </tr>
+                    <tr>
+                        <td>Source Only Queries</td>
+                        <td>{{.Summary.SourceOnlyQueries}}</td>
+                    </tr>
+                    <tr>
+                        <td>Target Only Queries</td>
+                        <td>{{.Summary.TargetOnlyQueries}}</td>
+                    </tr>
+                </tbody>
+            </table>
         </div>
 
         <!-- Detailed Views with Tabs -->

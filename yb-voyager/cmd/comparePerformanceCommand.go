@@ -59,9 +59,21 @@ Prerequisites:
 func comparePerformanceCommandFn(cmd *cobra.Command, args []string) {
 	utils.PrintAndLog("Starting performance comparison...")
 
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("Failed to get migration status record: %v", err)
+	}
+
+	// TODO scenario: what if user provided assessment-metadata-dir flag in assessment command if they manually ran the gather scripts?
 	assessmentDirPath := filepath.Join(exportDir, "assessment")
+	migassessment.AssessmentDir = assessmentDirPath
+	assessmentDB, err := migassessment.NewAssessmentDB()
+	if err != nil {
+		utils.ErrExit("Failed to create assessment database: %v", err)
+	}
+
 	targetDB := tgtdb.NewTargetDB(&tconf)
-	err := targetDB.Init()
+	err = targetDB.Init()
 	if err != nil {
 		utils.ErrExit("Failed to initialize target database: %v", err)
 	}
@@ -71,7 +83,7 @@ func comparePerformanceCommandFn(cmd *cobra.Command, args []string) {
 		utils.ErrExit("compare-performance: target database is not YugabyteDB")
 	}
 
-	comparator, err := compareperf.NewQueryPerformanceComparator(assessmentDirPath, ybTarget)
+	comparator, err := compareperf.NewQueryPerformanceComparator(msr, assessmentDB, ybTarget)
 	if err != nil {
 		utils.ErrExit("Failed to create query performance comparator: %v", err)
 	}

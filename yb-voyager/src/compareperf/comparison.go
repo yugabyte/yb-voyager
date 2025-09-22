@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/samber/lo"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -41,16 +42,15 @@ type QueryPerformanceComparator struct {
 	TargetQueryStats []QueryStats
 
 	Report *ComparisonReport
+
+	// access to MSR, AssessmentDB, TargetDB
+	msr          *metadb.MigrationStatusRecord
+	assessmentDB *migassessment.AssessmentDB
+	targetDB     *tgtdb.TargetYugabyteDB
 }
 
-func NewQueryPerformanceComparator(assessmentDirPath string, targetDB *tgtdb.TargetYugabyteDB) (*QueryPerformanceComparator, error) {
-	migassessment.AssessmentDir = assessmentDirPath
-	adb, err := migassessment.NewAssessmentDB()
-	if err != nil {
-		return nil, fmt.Errorf("failed to open assessment database: %w", err)
-	}
-
-	sourceQueryStats, err := adb.GetSourceQueryStats()
+func NewQueryPerformanceComparator(msr *metadb.MigrationStatusRecord, assessmentDB *migassessment.AssessmentDB, targetDB *tgtdb.TargetYugabyteDB) (*QueryPerformanceComparator, error) {
+	sourceQueryStats, err := assessmentDB.GetSourceQueryStats()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get source query stats: %w", err)
 	}
@@ -63,6 +63,10 @@ func NewQueryPerformanceComparator(assessmentDirPath string, targetDB *tgtdb.Tar
 	return &QueryPerformanceComparator{
 		SourceQueryStats: convertPgssToQueryStats(sourceQueryStats),
 		TargetQueryStats: convertPgssToQueryStats(targetQueryStats),
+
+		msr:          msr,
+		assessmentDB: assessmentDB,
+		targetDB:     targetDB,
 	}, nil
 }
 
@@ -84,6 +88,11 @@ func (c *QueryPerformanceComparator) Compare() error {
 		GeneratedAt:  time.Now(),
 		SourceDBType: c.SourceQueryStats[0].GetDatabaseType(), // Corner case: what if its nil or len 0?
 		Summary: ReportSummary{
+			VoyagerVersion:    utils.YB_VOYAGER_VERSION,
+			SourceDBVersion:   c.msr.SourceDBConf.DBVersion,
+			TargetDBVersion:   c.targetDB.GetVersion(),
+			SourceDBName:      c.msr.SourceDBConf.DBName,
+			TargetDBName:      c.targetDB.Tconf.DBName,
 			TotalQueries:      len(allComparisons),
 			MatchedQueries:    lo.CountBy(allComparisons, func(c *QueryComparison) bool { return c.MatchStatus == MATCHED }),
 			SourceOnlyQueries: lo.CountBy(allComparisons, func(c *QueryComparison) bool { return c.MatchStatus == SOURCE_ONLY }),

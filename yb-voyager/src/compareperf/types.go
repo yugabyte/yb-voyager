@@ -82,11 +82,18 @@ const (
 )
 
 type ReportSummary struct {
+	VoyagerVersion    string
+	SourceDBVersion   string
+	TargetDBVersion   string
+	SourceDBName      string
+	TargetDBName      string
 	TotalQueries      int
 	MatchedQueries    int
 	SourceOnlyQueries int
 	TargetOnlyQueries int
 }
+
+// ================================ Comparison Report Types Methods ================================
 
 func (c *QueryComparison) calculateMetrics() {
 	if c.MatchStatus != MATCHED {
