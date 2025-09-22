@@ -598,3 +598,66 @@ func GetSequenceNameAndLastValueFromSetValStmt(parseTree *pg_query.ParseResult) 
 	}
 	return sequenceName, lastValueInt, nil
 }
+
+func IsAlterSequenceStmt(parseTree *pg_query.ParseResult) bool {
+	/*
+		stmts:{stmt:{alter_seq_stmt:{sequence:{relname:"case_sensitive_always_id_seq" inh:true relpersistence:"p" location:25}
+		options:{def_elem:{defname:"restart" arg:{integer:{ival:4}} defaction:DEFELEM_UNSPEC location:54}} missing_ok:true}} stmt_len:68}
+
+		ALTER SEQUENCE IF EXISTS case_sensitive_always_id_seq RESTART 4;
+	*/
+	_, ok := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_AlterSeqStmt)
+	if !ok {
+		return false
+	}
+	return true
+}
+
+func GetSequenceNameAndLastValueFromAlterSequenceStmt(parseTree *pg_query.ParseResult) (string, int64, error) {
+	if !IsAlterSequenceStmt(parseTree) {
+		return "", 0, fmt.Errorf("not an alter sequence statement")
+	}
+	/*
+		stmts:{stmt:{alter_seq_stmt:{sequence:{relname:"case_sensitive_always_id_seq" inh:true relpersistence:"p" location:25}
+		options:{def_elem:{defname:"restart" arg:{integer:{ival:4}} defaction:DEFELEM_UNSPEC location:54}} missing_ok:true}} stmt_len:68}
+
+		ALTER SEQUENCE IF EXISTS case_sensitive_always_id_seq RESTART 4;
+	*/
+	alterSeqStmt, _ := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_AlterSeqStmt)
+	if alterSeqStmt == nil {
+		return "", 0, fmt.Errorf("not an alter sequence statement")
+	}
+	seq := alterSeqStmt.AlterSeqStmt.GetSequence()
+	if seq == nil {
+		return "", 0, fmt.Errorf("not an alter sequence statement")
+	}
+	sequenceName := seq.GetRelname()
+	options := alterSeqStmt.AlterSeqStmt.GetOptions()
+	if options == nil {
+		return "", 0, fmt.Errorf("not an alter sequence statement")
+	}
+	if len(options) == 0 {
+		return "", 0, fmt.Errorf("not an alter sequence statement")
+	}
+	restartOption := options[0]
+	if restartOption == nil {
+		return "", 0, fmt.Errorf("not an alter sequence statement")
+	}
+	if restartOption.GetDefElem() == nil {
+		return "", 0, fmt.Errorf("not an alter sequence statement")
+	}
+	defElem := restartOption.GetDefElem()
+	if defElem == nil {
+		return "", 0, fmt.Errorf("not an alter sequence statement")
+	}
+	arg := defElem.GetArg()
+	if arg == nil {
+		return "", 0, fmt.Errorf("not an alter sequence statement")
+	}
+	val := arg.GetInteger()
+	if val == nil {
+		return "", 0, fmt.Errorf("not an alter sequence statement")
+	}
+	lastValue := int64(val.GetIval())
+	return sequenceName, lastValue, nil
+}

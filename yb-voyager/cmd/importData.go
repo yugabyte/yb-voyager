@@ -854,7 +854,7 @@ func restoreSequencesInOfflineMigration(msr *metadb.MigrationStatusRecord, impor
 		sequenceFilePath := filepath.Join(exportDir, "data", "postdata.sql")
 		if utils.FileOrFolderExists(sequenceFilePath) {
 			fmt.Printf("setting resume value for sequences %10s\n", "")
-			sequenceLastValue, err = readSequenceLastValueFromPostDataSql(sequenceFilePath)
+			sequenceLastValue, err = readSequenceLastValueFromPostDataSql(sequenceFilePath, msr.SourceDBConf.DBType)
 			if err != nil {
 				return fmt.Errorf("failed to read sequence last value from postdata.sql: %w", err)
 			}
@@ -947,7 +947,7 @@ func restoreSequencesInOfflineMigration(msr *metadb.MigrationStatusRecord, impor
 	return nil
 }
 
-func readSequenceLastValueFromPostDataSql(sequenceFilePath string) (map[string]int64, error) {
+func readSequenceLastValueFromPostDataSql(sequenceFilePath string, sourceDBType string) (map[string]int64, error) {
 	sequenceLastValue := make(map[string]int64)
 	//get all the setval statements from the postdata.sql file
 	sqlInfoArr := parseSqlFileForObjectType(sequenceFilePath, "SEQUENCE")
@@ -956,15 +956,31 @@ func readSequenceLastValueFromPostDataSql(sequenceFilePath string) (map[string]i
 		if err != nil {
 			return nil, fmt.Errorf("error parsing the ddl[%s]: %v", sqlInfo.stmt, err)
 		}
-		//check if the statement is a setval statement
-		if !queryparser.IsSelectSetValStmt(parseTree) {
-			log.Infof("not a setval statement: %s", sqlInfo.stmt)
-			continue
-		}
-		//get the sequence name and last value from the setval statement
-		sequenceName, lastValue, err := queryparser.GetSequenceNameAndLastValueFromSetValStmt(parseTree)
-		if err != nil {
-			return nil, fmt.Errorf("error getting sequence name and last value from setval statement: %w", err)
+		var sequenceName string
+		var lastValue int64
+		switch sourceDBType {
+		case POSTGRESQL:
+			//check if the statement is a setval statement for POSTGRESQL SELECT setval('sequence_name', last_value)
+			if !queryparser.IsSelectSetValStmt(parseTree) {
+				log.Infof("not a setval statement: %s", sqlInfo.stmt)
+				continue
+			}
+			//get the sequence name and last value from the setval statement
+			sequenceName, lastValue, err = queryparser.GetSequenceNameAndLastValueFromSetValStmt(parseTree)
+			if err != nil {
+				return nil, fmt.Errorf("error getting sequence name and last value from setval statement: %w", err)
+			}
+		case ORACLE, MYSQL:
+			//in case of ORACLE and MYSQL, we need to check if its as ALTER SEQUENCE seq RESTART 11 because ora2pg dumps it like that
+			if !queryparser.IsAlterSequenceStmt(parseTree) {
+				log.Infof("not an alter sequence statement: %s", sqlInfo.stmt)
+				continue
+			}
+			//get the sequence name and last value from the alter sequence statement
+			sequenceName, lastValue, err = queryparser.GetSequenceNameAndLastValueFromAlterSequenceStmt(parseTree)
+			if err != nil {
+				return nil, fmt.Errorf("error getting sequence name and last value from alter sequence statement: %w", err)
+			}
 		}
 		sequenceLastValue[sequenceName] = lastValue
 	}
