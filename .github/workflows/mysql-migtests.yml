@@ -38,6 +38,11 @@ jobs:
           sudo apt install -y libpq-dev
           sudo apt install python3-psycopg2
 
+      - name: Update certificates for SSL connections
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ca-certificates
+
       - name: Run installer script to setup voyager
         run: |
           yes | ./installer_scripts/install-yb-voyager --install-from-local-source
