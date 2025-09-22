@@ -747,10 +747,8 @@ wait_for_exporter_event() {
             echo "Timeout reached (${timeout_seconds}s). Proceeding without detecting sufficient ${exporter_db} events."
             # Showing relevant log file for debugging
             if [ "$exporter_db" == "source" ]; then
-                echo "Showing ${EXPORT_DIR}/logs/yb-voyager-export-data.log"
                 tail_log_file "yb-voyager-export-data.log"
             else 
-                echo "Showing ${EXPORT_DIR}/logs/yb-voyager-export-data-from-target.log"
                 tail_log_file "yb-voyager-export-data-from-target.log"
             fi
             return 0
