@@ -506,30 +506,24 @@ func IsSelectSetValStmt(parseTree *pg_query.ParseResult) bool {
 	if !ok {
 		return false
 	}
-	fmt.Printf("selectStmt: %v\n", selectStmt)
 	targetList := selectStmt.SelectStmt.GetTargetList()
 	if len(targetList) == 0 || targetList[0] == nil {
 		return false
 	}
-	fmt.Printf("targetList: %v\n", targetList)
-	
+
 	target := targetList[0].GetResTarget()
 	if target == nil {
 		return false
 	}
-	fmt.Printf("target: %v\n", target)
 	val := target.GetVal()
 	if val == nil {
 		return false
 	}
-	fmt.Printf("val: %v\n", val)
 	funcCall := val.GetFuncCall()
 	if funcCall == nil {
 		return false
 	}
-	fmt.Printf("funcCall: %v\n", funcCall)
 	schema, funcName := GetFuncNameFromFuncCall(funcCall.ProtoReflect())
-	fmt.Printf("schema: %s, funcName: %s\n", schema, funcName)
 	if schema != "pg_catalog" {
 		return false
 	}
