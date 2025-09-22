@@ -748,10 +748,10 @@ wait_for_exporter_event() {
             # Showing relevant log file for debugging
             if [ "$exporter_db" == "source" ]; then
                 echo "Showing ${EXPORT_DIR}/logs/yb-voyager-export-data.log"
-                tail_log_file "yb-voyager-export-data.log" 2>/dev/null || echo "Log file not found or not readable"
+                tail_log_file "yb-voyager-export-data.log"
             else 
                 echo "Showing ${EXPORT_DIR}/logs/yb-voyager-export-data-from-target.log"
-                tail_log_file "yb-voyager-export-data-from-target.log" 2>/dev/null || echo "Log file not found or not readable"
+                tail_log_file "yb-voyager-export-data-from-target.log"
             fi
             return 0
         fi
