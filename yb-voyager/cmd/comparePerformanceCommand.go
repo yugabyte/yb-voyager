@@ -17,12 +17,14 @@ limitations under the License.
 package cmd
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
 	"github.com/spf13/cobra"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/compareperf"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -96,12 +98,22 @@ func comparePerformanceCommandFn(cmd *cobra.Command, args []string) {
 		utils.ErrExit("Failed to generate performance reports: %v", err)
 	}
 
+	err = SetPerformanceComparisonDone()
+	if err != nil {
+		utils.ErrExit("Failed to mark performance comparison as done: %v", err)
+	}
+
 	utils.PrintAndLog("Performance comparison completed successfully!")
 }
 
-// TODO: add check if report already exists(or MSR); ask for --start-clean
 func validateComparePerfPrerequisites() {
 	utils.PrintAndLog("Validating prerequisites...")
+
+	// Handle start-clean flag and existing reports before doing any other checks (TODO refactor to be the same in assess-migration start clean code)
+	err := handleStartCleanForComparePerf()
+	if err != nil {
+		utils.ErrExit("Failed to handle start-clean: %v", err)
+	}
 
 	// Check 0: source db type(postgres) by fetching from MetaDB
 	dbType := GetSourceDBTypeFromMSR()
@@ -152,10 +164,84 @@ func validateComparePerfPrerequisites() {
 	utils.PrintAndLog("Prerequisites validated successfully for performance comparison\n")
 }
 
+// Helper functions for MSR tracking
+func IsPerformanceComparisonDone() (bool, error) {
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		return false, fmt.Errorf("failed to get migration status record: %w", err)
+	}
+	if msr == nil {
+		return false, nil
+	}
+	return msr.PerformanceComparisonDone, nil
+}
+
+func ClearPerformanceComparisonDone() error {
+	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		record.PerformanceComparisonDone = false
+	})
+	if err != nil {
+		return fmt.Errorf("failed to clear performance comparison done flag: %w", err)
+	}
+	return nil
+}
+
+func SetPerformanceComparisonDone() error {
+	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		record.PerformanceComparisonDone = true
+	})
+	if err != nil {
+		return fmt.Errorf("failed to set performance comparison done flag: %w", err)
+	}
+	return nil
+}
+
+func handleStartCleanForComparePerf() error {
+	reportsDir := filepath.Join(exportDir, "reports")
+	htmlReportPath := filepath.Join(reportsDir, "performance-comparison-report.html")
+	jsonReportPath := filepath.Join(reportsDir, "performance-comparison-report.json")
+
+	reportsExist := utils.FileOrFolderExists(htmlReportPath) || utils.FileOrFolderExists(jsonReportPath)
+
+	isComparisonDone, err := IsPerformanceComparisonDone()
+	if err != nil {
+		return fmt.Errorf("failed to check if performance comparison is done: %w", err)
+	}
+
+	needCleanupOfLeftoverFiles := reportsExist && !isComparisonDone
+	if bool(startClean) || needCleanupOfLeftoverFiles {
+		// just cleaning up the compare performance report files
+		if err := os.Remove(htmlReportPath); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("failed to remove HTML report: %w", err)
+		}
+		if err := os.Remove(jsonReportPath); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("failed to remove JSON report: %w", err)
+		}
+
+		err = ClearPerformanceComparisonDone()
+		if err != nil {
+			return fmt.Errorf("failed to clear performance comparison done flag: %w", err)
+		}
+
+		if bool(startClean) {
+			utils.PrintAndLog("Cleaned up existing performance comparison reports")
+		} else {
+			utils.PrintAndLog("Cleaned up leftover performance comparison files from previous incomplete run")
+		}
+	} else if reportsExist {
+		return fmt.Errorf("performance comparison reports already exist. Use --start-clean flag to overwrite them")
+	}
+
+	return nil
+}
+
 func init() {
 	// Register the command with root
 	rootCmd.AddCommand(comparePerformanceCmd)
 
 	registerCommonGlobalFlags(comparePerformanceCmd)
 	registerTargetDBConnFlags(comparePerformanceCmd)
+
+	BoolVar(comparePerformanceCmd.Flags(), &startClean, "start-clean", false,
+		"Clean up existing performance comparison reports before generating new ones (default false)")
 }
