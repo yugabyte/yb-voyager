@@ -226,8 +226,36 @@ func (c *QueryPerformanceComparator) generateHTMLReport(exportDir string) error 
 	}
 	defer file.Close()
 
+	// Sort AllComparisons for HTML display: MATCHED -> TARGET_ONLY -> SOURCE_ONLY, then by call frequency
+	sortedReport := *c.Report // Create a copy
+	sortedComparisons := make([]*QueryComparison, len(c.Report.AllComparisons))
+	copy(sortedComparisons, c.Report.AllComparisons) // deep copy to avoid modifying the original report
+
+	sort.Slice(sortedComparisons, func(i, j int) bool {
+		// Define priority order for match status
+		statusPriority := map[MatchStatus]int{
+			MATCHED:     1,
+			TARGET_ONLY: 2,
+			SOURCE_ONLY: 3,
+		}
+
+		iPriority := statusPriority[sortedComparisons[i].MatchStatus]
+		jPriority := statusPriority[sortedComparisons[j].MatchStatus]
+
+		// If different match status, sort by status priority
+		if iPriority != jPriority {
+			return iPriority < jPriority
+		}
+
+		// If same match status, sort by call frequency (descending)
+		iCalls := getCallCount(sortedComparisons[i])
+		jCalls := getCallCount(sortedComparisons[j])
+		return iCalls > jCalls
+	})
+	sortedReport.AllComparisons = sortedComparisons
+
 	// Execute template
-	err = tmpl.Execute(file, c.Report)
+	err = tmpl.Execute(file, &sortedReport)
 	if err != nil {
 		return fmt.Errorf("failed to execute HTML template: %w", err)
 	}
@@ -259,4 +287,25 @@ func (c *QueryPerformanceComparator) generateJSONReport(exportDir string) error 
 
 	utils.PrintAndLog("JSON report generated: %s", jsonPath)
 	return nil
+}
+
+// getCallCount returns the call count for sorting purposes
+// For MATCHED queries, use source calls (primary data source)
+// For SOURCE_ONLY queries, use source calls
+// For TARGET_ONLY queries, use target calls
+func getCallCount(comparison *QueryComparison) int64 {
+	switch comparison.MatchStatus {
+	case MATCHED, SOURCE_ONLY:
+		if comparison.SourceStats != nil {
+			return comparison.SourceStats.GetExecutionCount()
+		}
+		return 0
+	case TARGET_ONLY:
+		if comparison.TargetStats != nil {
+			return comparison.TargetStats.GetExecutionCount()
+		}
+		return 0
+	default:
+		return 0
+	}
 }
