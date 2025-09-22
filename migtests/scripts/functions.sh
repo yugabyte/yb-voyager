@@ -608,6 +608,7 @@ import_data_status(){
 # Generic function to wait for a string in a file
 wait_for_string_in_file() {
     local file_path="$1"
+    local file_name=$(basename "$file_path")
     local search_string="$2"
     local timeout_seconds="${3:-300}"  # Default 5 minutes
     local step_message="${4:-"Wait for string in file"}"
@@ -622,6 +623,7 @@ wait_for_string_in_file() {
         
         if [ $elapsed -ge $timeout_seconds ]; then
             echo "Timeout reached ($timeout_seconds seconds). String '$search_string' not found in $file_path."
+            tail_log_file "$file_name"
             return 1
         fi
         
