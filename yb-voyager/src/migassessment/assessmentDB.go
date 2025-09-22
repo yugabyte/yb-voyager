@@ -28,6 +28,7 @@ import (
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/compareperf"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/pgss"
@@ -494,10 +495,12 @@ func (adb *AssessmentDB) InsertPgssEntries(entries []pgss.PgStatStatements) erro
 }
 
 // GetSourceQueryStats retrieves all the source PGSS data from the assessment database
-func (adb *AssessmentDB) GetSourceQueryStats() ([]*pgss.PgStatStatements, error) {
-	query := `SELECT queryid, query, calls, rows, total_exec_time, mean_exec_time, 
-		min_exec_time, max_exec_time, stddev_exec_time 
-		FROM db_queries_summary`
+func (adb *AssessmentDB) GetSourceQueryStats() ([]*compareperf.QueryStats, error) {
+	query := `
+		SELECT queryid, query, calls, rows,
+		       total_exec_time, mean_exec_time,
+		       min_exec_time, max_exec_time
+		FROM db_queries_summary;`
 
 	rows, err := adb.db.Query(query)
 	if err != nil {
@@ -505,19 +508,18 @@ func (adb *AssessmentDB) GetSourceQueryStats() ([]*pgss.PgStatStatements, error)
 	}
 	defer rows.Close()
 
-	var entries []*pgss.PgStatStatements
+	var entries []*compareperf.QueryStats
 	for rows.Next() {
-		var entry pgss.PgStatStatements
+		var entry compareperf.QueryStats
 		err := rows.Scan(
 			&entry.QueryID,
-			&entry.Query,
-			&entry.Calls,
-			&entry.Rows,
+			&entry.QueryText,
+			&entry.ExecutionCount,
+			&entry.RowsProcessed,
 			&entry.TotalExecTime,
-			&entry.MeanExecTime,
+			&entry.AverageExecTime,
 			&entry.MinExecTime,
 			&entry.MaxExecTime,
-			&entry.StddevExecTime,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan PGSS row: %w", err)
@@ -544,8 +546,7 @@ func (adb *AssessmentDB) CheckIfTableExists(tableName string) error {
 	return nil
 }
 
-// HasSourceQueryStats checks if any pg_stat_statements data exists in the assessment database
-// Future: right now this function logic is tied to sourceDBType=PG; might have to change this in future for Oracle/MySQL
+// HasSourceQueryStats checks if query stats data exists in the assessment database (source-db type agnostic)
 func (adb *AssessmentDB) HasSourceQueryStats() (bool, error) {
 	query := fmt.Sprintf("SELECT 1 FROM %s LIMIT 1", DB_QUERIES_SUMMARY)
 	rows, err := adb.Query(query)

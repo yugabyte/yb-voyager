@@ -21,30 +21,37 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/pgss"
 )
 
-// QueryStats provides database-agnostic access to query performance metrics
-// This interface will abstract access to query statistics across different database systems (PostgreSQL, Oracle, MySQL)
-type QueryStats interface {
-	GetQueryID() int64
-	GetQueryText() string
-
-	GetExecutionCount() int64
-
-	GetRowsProcessed() int64
-
-	// Timing metrics (always in milliseconds for consistency)
-	// few of these might not be relevant for all databases types
-	GetTotalExecutionTime() float64
-	GetAverageExecutionTime() float64
-	GetMinExecutionTime() float64
-	GetMaxExecutionTime() float64
-
-	GetDatabaseType() string
+// QueryStats represents database-agnostic query performance metrics
+type QueryStats struct {
+	QueryID         int64   `json:"queryid" db:"queryid"`
+	QueryText       string  `json:"query" db:"query"`
+	ExecutionCount  int64   `json:"calls" db:"calls"`
+	RowsProcessed   int64   `json:"rows" db:"rows"`
+	TotalExecTime   float64 `json:"total_exec_time" db:"total_exec_time"`
+	AverageExecTime float64 `json:"mean_exec_time" db:"mean_exec_time"`
+	MinExecTime     float64 `json:"min_exec_time" db:"min_exec_time"`
+	MaxExecTime     float64 `json:"max_exec_time" db:"max_exec_time"`
 }
 
-func convertPgssToQueryStats(pgss []*pgss.PgStatStatements) []QueryStats {
-	queryStats := make([]QueryStats, len(pgss))
-	for i := 0; i < len(pgss); i++ {
-		queryStats[i] = pgss[i]
+// NewQueryStatsFromPgss converts PgStatStatements to QueryStats struct
+func NewQueryStatsFromPgss(pgss *pgss.PgStatStatements) *QueryStats {
+	return &QueryStats{
+		QueryID:         pgss.QueryID,
+		QueryText:       pgss.Query,
+		ExecutionCount:  pgss.Calls,
+		RowsProcessed:   pgss.Rows,
+		TotalExecTime:   pgss.TotalExecTime,
+		AverageExecTime: pgss.MeanExecTime,
+		MinExecTime:     pgss.MinExecTime,
+		MaxExecTime:     pgss.MaxExecTime,
+	}
+}
+
+// ConvertPgssSliceToQueryStats converts slice of PgStatStatements to slice of QueryStats
+func ConvertPgssSliceToQueryStats(pgssSlice []*pgss.PgStatStatements) []*QueryStats {
+	queryStats := make([]*QueryStats, len(pgssSlice))
+	for i, pgss := range pgssSlice {
+		queryStats[i] = NewQueryStatsFromPgss(pgss)
 	}
 	return queryStats
 }
@@ -66,10 +73,10 @@ type ComparisonReport struct {
 
 type QueryComparison struct {
 	Query         string
-	SourceStats   QueryStats // nil if MatchStatus == TARGET_ONLY
-	TargetStats   QueryStats // nil if MatchStatus == SOURCE_ONLY
-	ImpactScore   float64    // 0 if not MATCHED
-	SlowdownRatio float64    // 0 if not MATCHED
+	SourceStats   *QueryStats // nil if MatchStatus == TARGET_ONLY
+	TargetStats   *QueryStats // nil if MatchStatus == SOURCE_ONLY
+	ImpactScore   float64     // 0 if not MATCHED
+	SlowdownRatio float64     // 0 if not MATCHED
 	MatchStatus   MatchStatus
 }
 
@@ -96,18 +103,18 @@ type ReportSummary struct {
 // ================================ Comparison Report Types Methods ================================
 
 func (c *QueryComparison) calculateMetrics() {
-	if c.MatchStatus != MATCHED {
+	if c.MatchStatus != MATCHED || c.SourceStats == nil || c.TargetStats == nil {
 		return
 	}
 
 	// Impact score is the difference in total execution time between source and target
 	// number of calls can be different, so we need to normalize by number of calls
 	// Formula: yb_total_exec_time - pg_total_exec_time
-	sourceNormalized := c.SourceStats.GetAverageExecutionTime() * float64(c.TargetStats.GetExecutionCount())
-	targetTotal := c.TargetStats.GetTotalExecutionTime()
+	sourceNormalized := c.SourceStats.AverageExecTime * float64(c.TargetStats.ExecutionCount)
+	targetTotal := c.TargetStats.TotalExecTime
 	c.ImpactScore = targetTotal - sourceNormalized
 
 	// Slowdown ratio is the ratio of target average execution time to source average execution time
 	// Formula: (yb_avg_exec_time + 2) / (pg_avg_exec_time + 2)
-	c.SlowdownRatio = (c.TargetStats.GetAverageExecutionTime() + 2) / (c.SourceStats.GetAverageExecutionTime() + 2)
+	c.SlowdownRatio = (c.TargetStats.AverageExecTime + 2) / (c.SourceStats.AverageExecTime + 2)
 }

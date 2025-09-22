@@ -21,61 +21,21 @@ import (
 
 // PgStatStatements represents a pg_stat_statements entry
 // All field names follow PostgreSQL 13+ conventions for consistency across versions
-// This struct serves as the single source of truth for PGSS data throughout the system
-// Note: db tags here are linked to DB_QUERIES_SUMMARY table in the assessment db
 type PgStatStatements struct {
 	// Core identification fields
-	QueryID int64  `json:"queryid" db:"queryid"` // Unique identifier for the normalized query
-	Query   string `json:"query" db:"query"`     // The query text
+	QueryID int64  `json:"queryid"` // Unique identifier for the normalized query
+	Query   string `json:"query"`   // The query text
 
 	// Execution metrics
-	Calls int64 `json:"calls" db:"calls"` // Number of times executed
-	Rows  int64 `json:"rows" db:"rows"`   // Total rows retrieved or affected
+	Calls int64 `json:"calls"` // Number of times executed
+	Rows  int64 `json:"rows"`  // Total rows retrieved or affected
 
 	// Note: psql script takes care of normalizing timing metrics to same naming convention:  *_exec_time
-	TotalExecTime  float64 `json:"total_exec_time" db:"total_exec_time"`
-	MeanExecTime   float64 `json:"mean_exec_time" db:"mean_exec_time"`
-	MinExecTime    float64 `json:"min_exec_time" db:"min_exec_time"`
-	MaxExecTime    float64 `json:"max_exec_time" db:"max_exec_time"`
-	StddevExecTime float64 `json:"stddev_exec_time" db:"stddev_exec_time"`
-}
-
-// PgStatStatements implements compareperf.QueryStats interface
-
-func (p *PgStatStatements) GetQueryID() int64 {
-	return p.QueryID
-}
-
-func (p *PgStatStatements) GetQueryText() string {
-	return p.Query
-}
-
-func (p *PgStatStatements) GetExecutionCount() int64 {
-	return p.Calls
-}
-
-func (p *PgStatStatements) GetRowsProcessed() int64 {
-	return p.Rows
-}
-
-func (p *PgStatStatements) GetTotalExecutionTime() float64 {
-	return p.TotalExecTime
-}
-
-func (p *PgStatStatements) GetAverageExecutionTime() float64 {
-	return p.MeanExecTime
-}
-
-func (p *PgStatStatements) GetMinExecutionTime() float64 {
-	return p.MinExecTime
-}
-
-func (p *PgStatStatements) GetMaxExecutionTime() float64 {
-	return p.MaxExecTime
-}
-
-func (p *PgStatStatements) GetDatabaseType() string {
-	return "PostgreSQL"
+	TotalExecTime  float64 `json:"total_exec_time"`
+	MeanExecTime   float64 `json:"mean_exec_time"`
+	MinExecTime    float64 `json:"min_exec_time"`
+	MaxExecTime    float64 `json:"max_exec_time"`
+	StddevExecTime float64 `json:"stddev_exec_time"`
 }
 
 // Merge merges the stats for the entries with the same query

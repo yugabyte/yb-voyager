@@ -39,8 +39,8 @@ const TOP_N = 20
 var performanceComparisonHtmlTemplate string
 
 type QueryPerformanceComparator struct {
-	SourceQueryStats []QueryStats
-	TargetQueryStats []QueryStats
+	SourceQueryStats []*QueryStats
+	TargetQueryStats []*QueryStats
 
 	Report *ComparisonReport
 
@@ -62,8 +62,8 @@ func NewQueryPerformanceComparator(msr *metadb.MigrationStatusRecord, assessment
 	}
 
 	return &QueryPerformanceComparator{
-		SourceQueryStats: convertPgssToQueryStats(sourceQueryStats),
-		TargetQueryStats: convertPgssToQueryStats(targetQueryStats),
+		SourceQueryStats: ConvertPgssSliceToQueryStats(sourceQueryStats),
+		TargetQueryStats: ConvertPgssSliceToQueryStats(targetQueryStats),
 
 		msr:          msr,
 		assessmentDB: assessmentDB,
@@ -87,7 +87,7 @@ func (c *QueryPerformanceComparator) Compare() error {
 	// 4. final report
 	c.Report = &ComparisonReport{
 		GeneratedAt:  time.Now(),
-		SourceDBType: c.SourceQueryStats[0].GetDatabaseType(), // Corner case: what if its nil or len 0?
+		SourceDBType: c.msr.SourceDBConf.DBType,
 		Summary: ReportSummary{
 			VoyagerVersion:    utils.YB_VOYAGER_VERSION,
 			SourceDBVersion:   c.msr.SourceDBConf.DBVersion,
@@ -149,9 +149,9 @@ func (c *QueryPerformanceComparator) matchQueries() []*QueryComparison {
 	for _, sourceQueryStat := range c.SourceQueryStats {
 		matchFound := false
 		for _, targetQueryStat := range c.TargetQueryStats {
-			if sourceQueryStat.GetQueryText() == targetQueryStat.GetQueryText() {
+			if sourceQueryStat.QueryText == targetQueryStat.QueryText {
 				allComparisons = append(allComparisons, &QueryComparison{
-					Query:       sourceQueryStat.GetQueryText(),
+					Query:       sourceQueryStat.QueryText,
 					SourceStats: sourceQueryStat,
 					TargetStats: targetQueryStat,
 					MatchStatus: MATCHED,
@@ -163,7 +163,7 @@ func (c *QueryPerformanceComparator) matchQueries() []*QueryComparison {
 
 		if !matchFound {
 			allComparisons = append(allComparisons, &QueryComparison{
-				Query:       sourceQueryStat.GetQueryText(),
+				Query:       sourceQueryStat.QueryText,
 				SourceStats: sourceQueryStat,
 				TargetStats: nil,
 				MatchStatus: SOURCE_ONLY,
@@ -174,7 +174,7 @@ func (c *QueryPerformanceComparator) matchQueries() []*QueryComparison {
 	for _, targetQueryStat := range c.TargetQueryStats {
 		matchFound := false
 		for _, sourceQueryStat := range c.SourceQueryStats {
-			if targetQueryStat.GetQueryText() == sourceQueryStat.GetQueryText() {
+			if targetQueryStat.QueryText == sourceQueryStat.QueryText {
 				matchFound = true
 				break
 			}
@@ -182,7 +182,7 @@ func (c *QueryPerformanceComparator) matchQueries() []*QueryComparison {
 
 		if !matchFound {
 			allComparisons = append(allComparisons, &QueryComparison{
-				Query:       targetQueryStat.GetQueryText(),
+				Query:       targetQueryStat.QueryText,
 				TargetStats: targetQueryStat,
 				SourceStats: nil,
 				MatchStatus: TARGET_ONLY,
@@ -310,12 +310,12 @@ func getCallCount(comparison *QueryComparison) int64 {
 	switch comparison.MatchStatus {
 	case MATCHED, SOURCE_ONLY:
 		if comparison.SourceStats != nil {
-			return comparison.SourceStats.GetExecutionCount()
+			return comparison.SourceStats.ExecutionCount
 		}
 		return 0
 	case TARGET_ONLY:
 		if comparison.TargetStats != nil {
-			return comparison.TargetStats.GetExecutionCount()
+			return comparison.TargetStats.ExecutionCount
 		}
 		return 0
 	default:
