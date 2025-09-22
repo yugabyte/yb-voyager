@@ -21,6 +21,7 @@ import (
 	"os"
 	"path/filepath"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/compareperf"
@@ -59,7 +60,7 @@ Prerequisites:
 }
 
 func comparePerformanceCommandFn(cmd *cobra.Command, args []string) {
-	utils.PrintAndLog("Starting performance comparison...")
+	utils.PrintAndLog("starting performance comparison...")
 
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
@@ -93,6 +94,7 @@ func comparePerformanceCommandFn(cmd *cobra.Command, args []string) {
 	if err != nil {
 		utils.ErrExit("Failed to perform performance comparison: %v", err)
 	}
+	utils.PrintAndLog("generating performance reports...\n")
 	err = comparator.GenerateReport(exportDir)
 	if err != nil {
 		utils.ErrExit("Failed to generate performance reports: %v", err)
@@ -107,13 +109,13 @@ func comparePerformanceCommandFn(cmd *cobra.Command, args []string) {
 }
 
 func validateComparePerfPrerequisites() {
-	utils.PrintAndLog("Validating prerequisites...")
-
 	// Handle start-clean flag and existing reports before doing any other checks (TODO refactor to be the same in assess-migration start clean code)
 	err := handleStartCleanForComparePerf()
 	if err != nil {
 		utils.ErrExit("Failed to handle start-clean: %v", err)
 	}
+
+	utils.PrintAndLog("validating the setup for performance comparison...")
 
 	// Check 0: source db type(postgres) by fetching from MetaDB
 	dbType := GetSourceDBTypeFromMSR()
@@ -122,7 +124,7 @@ func validateComparePerfPrerequisites() {
 	}
 
 	// Check 1: Assessment database exists and is accessible
-	utils.PrintAndLog("Checking assessment database...")
+	log.Infof("checking assessment database...")
 	// Set AssessmentDir before accessing assessment database functions
 	migassessment.AssessmentDir = filepath.Join(exportDir, "assessment")
 	assessmentDBPath := migassessment.GetSourceMetadataDBFilePath()
@@ -135,7 +137,7 @@ func validateComparePerfPrerequisites() {
 	}
 
 	// Check 2: Source PGSS data exists in assessment DB
-	utils.PrintAndLog("Checking source pg_stat_statements data...")
+	log.Infof("checking source pg_stat_statements data...")
 	hasData, err := adb.HasSourceQueryStats()
 	if err != nil {
 		utils.ErrExit("Failed to verify pg_stat_statements data in assessment database: %v", err)
@@ -145,7 +147,7 @@ func validateComparePerfPrerequisites() {
 	}
 
 	// Check 3: Target database is reachable
-	utils.PrintAndLog("Checking target database connection...")
+	log.Infof("checking target database connection...")
 	tdb := tgtdb.NewTargetDB(&tconf)
 	err = tdb.Init()
 	if err != nil {
@@ -154,14 +156,14 @@ func validateComparePerfPrerequisites() {
 	defer tdb.Finalize()
 
 	// Check 4: pg_stat_statements extension is enabled on target database
-	utils.PrintAndLog("Checking pg_stat_statements extension on target database...")
+	log.Infof("checking pg_stat_statements extension on target database...")
 	_, err = tdb.Query("SELECT 1 FROM pg_stat_statements LIMIT 1")
 	if err != nil {
 		utils.ErrExit("pg_stat_statements extension is not available on target database: %v\n"+
 			"Please ensure the extension is installed and enabled.", err)
 	}
 
-	utils.PrintAndLog("Prerequisites validated successfully for performance comparison\n")
+	log.Infof("setup validated successfully for performance comparison\n")
 }
 
 // Helper functions for MSR tracking
@@ -224,9 +226,9 @@ func handleStartCleanForComparePerf() error {
 		}
 
 		if bool(startClean) {
-			utils.PrintAndLog("Cleaned up existing performance comparison reports")
+			utils.PrintAndLog("cleaned up existing performance comparison reports")
 		} else {
-			utils.PrintAndLog("Cleaned up leftover performance comparison files from previous incomplete run")
+			utils.PrintAndLog("cleaned up leftover performance comparison files from previous incomplete run")
 		}
 	} else if reportsExist {
 		return fmt.Errorf("performance comparison reports already exist. Use --start-clean flag to overwrite them")

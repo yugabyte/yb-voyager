@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/samber/lo"
+	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
@@ -103,6 +104,10 @@ func (c *QueryPerformanceComparator) Compare() error {
 		TopByImpact:    topByImpactView,
 		TopBySlowdown:  topBySlowdownView,
 	}
+
+	// 5. console summary
+	fmt.Println(c.consoleSummary())
+
 	return nil
 }
 
@@ -126,8 +131,16 @@ func (c *QueryPerformanceComparator) GenerateReport(exportDir string) error {
 	return nil
 }
 
-func (c *QueryPerformanceComparator) ConsoleSummary() string {
-	return ""
+func (c *QueryPerformanceComparator) consoleSummary() string {
+	if c.Report == nil {
+		return ""
+	}
+
+	s := c.Report.Summary
+	consoleSummary := fmt.Sprintf("total queries: %d (matched: %d, source-only: %d, target-only: %d)",
+		s.TotalQueries, s.MatchedQueries, s.SourceOnlyQueries, s.TargetOnlyQueries)
+	log.Info(consoleSummary)
+	return consoleSummary
 }
 
 func (c *QueryPerformanceComparator) matchQueries() []*QueryComparison {
@@ -260,7 +273,7 @@ func (c *QueryPerformanceComparator) generateHTMLReport(exportDir string) error 
 		return fmt.Errorf("failed to execute HTML template: %w", err)
 	}
 
-	utils.PrintAndLog("HTML report generated: %s", htmlPath)
+	utils.PrintAndLog("HTML report generated at: %s", htmlPath)
 	return nil
 }
 
@@ -285,7 +298,7 @@ func (c *QueryPerformanceComparator) generateJSONReport(exportDir string) error 
 		return fmt.Errorf("failed to write JSON report: %w", err)
 	}
 
-	utils.PrintAndLog("JSON report generated: %s", jsonPath)
+	utils.PrintAndLog("JSON report generated at: %s", jsonPath)
 	return nil
 }
 
