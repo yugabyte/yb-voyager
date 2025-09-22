@@ -256,8 +256,12 @@ func (tdb *TargetOracleDB) IsNonRetryableCopyError(err error) bool {
 	return false
 }
 
+func (tdb *TargetOracleDB) RestoreSequences(sequencesNameToLastValue map[string]int64) error {
+	return nil
+}
+
 // NOTE: TODO support for identity columns sequences
-func (tdb *TargetOracleDB) RestoreSequences(sequencesLastVal map[string]int64) error {
+func (tdb *TargetOracleDB) RestoreSequence(sequencesName sqlname.NameTuple, lastValue int64) error {
 	return nil
 }
 

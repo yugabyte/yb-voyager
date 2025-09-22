@@ -45,6 +45,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/monitor"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -816,21 +817,9 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 		utils.PrintAndLog("\nRun the following command to get the current report of the migration:\n" +
 			color.CyanString("yb-voyager get data-migration-report --export-dir %q", exportDir))
 	} else {
-		// offline migration; either using dbzm or pg_dump/ora2pg
-		if !msr.IsSnapshotExportedViaDebezium() {
-			errImport := executePostSnapshotImportSqls()
-			if errImport != nil {
-				utils.ErrExit("Error in importing finalize-schema-post-data-import sql: %v", err)
-			}
-		} else {
-			status, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
-			if err != nil {
-				utils.ErrExit("failed to read export status for restore sequences: %s", err)
-			}
-			err = tdb.RestoreSequences(status.Sequences)
-			if err != nil {
-				utils.ErrExit("failed to restore sequences: %s", err)
-			}
+		err = restoreSequencesInOfflineMigration(msr, importTableList)
+		if err != nil {
+			utils.ErrExit("failed to restore sequences: %s", err)
 		}
 		err = restoreGeneratedIdentityColumns(importTableList)
 		if err != nil {
@@ -842,17 +831,129 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 }
 
 /*
-if import data has table list filteration 
-	if a sequence is  attached to a table - tableColumn -> sequence name 
+if import data has table list filteration
+	if a sequence is  attached to a table - tableColumn -> sequence name
 		if table is part of table list being imported
 			yes then continue exectuing
-		else 
+		else
 			skip the sequence
 	else //independent sequence  // not possible right now
 		skip the sequence
-else // 
+else //
 	execute the sequence
 */
+
+func restoreSequencesInOfflineMigration(msr *metadb.MigrationStatusRecord, importTableList []sqlname.NameTuple) error {
+	// offline migration; either using dbzm or pg_dump/ora2pg
+	var err error
+	var sequenceLastValue map[string]int64
+	if !msr.IsSnapshotExportedViaDebezium() {
+		sequenceFilePath := filepath.Join(exportDir, "data", "postdata.sql")
+		if utils.FileOrFolderExists(sequenceFilePath) {
+			fmt.Printf("setting resume value for sequences %10s\n", "")
+			sequenceLastValue, err = readSequenceLastValueFromPostDataSql(sequenceFilePath)
+			if err != nil {
+				return fmt.Errorf("failed to read sequence last value from postdata.sql: %w", err)
+			}
+			log.Infof("sequence last value: %v", sequenceLastValue)
+		}
+	} else {
+		status, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
+		if err != nil {
+			return fmt.Errorf("failed to read export status for restore sequences: %w", err)
+		}
+		sequenceLastValue = status.Sequences
+	}
+	if tconf.TableList != "" || tconf.ExcludeTableList != "" {
+		//if import data has table list filteration
+		sequenceNameToTableMap := make(map[string][]string)
+		for column, sequenceName := range msr.SourceColumnToSequenceMapping {
+			parts := strings.Split(column, ".") //column is qualified tablename.colname
+			if len(parts) < 3 {
+				return fmt.Errorf("invalid column name: %s", column)
+			}
+			tableName := fmt.Sprintf("%s.%s", parts[0], parts[1])
+			sequenceTuple, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFound(sequenceName)
+			if err != nil {
+				return fmt.Errorf("error looking up sequence name %q: %w", sequenceName, err)
+			}
+			sequenceName = sequenceTuple.ForKey()
+			sequenceNameToTableMap[sequenceName] = append(sequenceNameToTableMap[sequenceName], tableName)
+		}
+		for sequenceName, lastValue := range sequenceLastValue {
+			//check if a sequence is  attached to a table
+			sequenceTuple, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFound(sequenceName)
+			if err != nil {
+				return fmt.Errorf("error looking up sequence name %q: %w", sequenceName, err)
+			}
+			sequenceName = sequenceTuple.ForKey()
+			if _, ok := sequenceNameToTableMap[sequenceName]; ok {
+				tables := sequenceNameToTableMap[sequenceName]
+				isTablePresentInTableList := false
+				for _, table := range tables {
+					tableTuple, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFound(table)
+					if err != nil {
+						return fmt.Errorf("error looking up table name %q: %w", table, err)
+					}
+					if lo.ContainsBy(importTableList, func(table sqlname.NameTuple) bool {
+						//check if a sequence is  attached to a table
+						return table.ForKey() == tableTuple.ForKey()
+					}) {
+						isTablePresentInTableList = true
+						break
+					}
+				}
+				if !isTablePresentInTableList {
+					//skip the sequence
+					log.Infof("sequence %q is not present in the table list, skipping", sequenceName)
+					continue
+				}
+				if !sequenceTuple.TargetTableAvailable() {
+					return fmt.Errorf("sequence %q is not present in the target database", sequenceName)
+				}
+				//restore the sequence
+				err = tdb.RestoreSequence(sequenceTuple, lastValue)
+				if err != nil {
+					return fmt.Errorf("failed to restore sequence %q: %w", sequenceName, err)
+				}
+			} else {
+				//skip the sequence
+				log.Infof("sequence %q is not attached to any table, skipping", sequenceName)
+				continue
+			}
+		}
+
+	} else {
+		//restore all sequences
+		err = tdb.RestoreSequences(sequenceLastValue)
+		if err != nil {
+			return fmt.Errorf("failed to restore sequences: %w", err)
+		}
+	}
+	return nil
+}
+
+func readSequenceLastValueFromPostDataSql(sequenceFilePath string) (map[string]int64, error) {
+	sequenceLastValue := make(map[string]int64)
+	sqlInfoArr := parseSqlFileForObjectType(sequenceFilePath, "SEQUENCE")
+	for _, sqlInfo := range sqlInfoArr {
+		parseTree, err := queryparser.Parse(sqlInfo.stmt)
+		if err != nil {
+			return nil, fmt.Errorf("error parsing the ddl[%s]: %v", sqlInfo.stmt, err)
+		}
+		if !queryparser.IsSelectSetValStmt(parseTree) {
+			log.Infof("not a setval statement: %s", sqlInfo.stmt)
+			continue
+		}
+		sequenceName, lastValue, err := queryparser.GetSequenceNameAndLastValueFromSetValStmt(parseTree)
+		if err != nil {
+			return nil, fmt.Errorf("error getting sequence name and last value from setval statement: %w", err)
+		}
+		sequenceLastValue[sequenceName] = lastValue
+		log.Infof("sequence name: %s, last value: %d", sequenceName, lastValue)
+	}
+	return sequenceLastValue, nil
+}
 
 // For a fresh start but non empty tables in tableList && OnPrimaryKeyConflict is set to IGNORE -> notify user
 func runPKConflictModeGuardrails(state *ImportDataState, allTasks []*ImportFileTask) error {
@@ -1527,18 +1628,6 @@ func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 			utils.ErrExit("failed to reset identity columns meta: %s", err)
 		}
 	}
-}
-
-func executePostSnapshotImportSqls() error {
-	sequenceFilePath := filepath.Join(exportDir, "data", "postdata.sql")
-	if utils.FileOrFolderExists(sequenceFilePath) {
-		fmt.Printf("setting resume value for sequences %10s\n", "")
-		err := executeSqlFile(sequenceFilePath, "SEQUENCE", func(_, _ string) bool { return false })
-		if err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func getIndexName(sqlQuery string, indexName string) (string, error) {

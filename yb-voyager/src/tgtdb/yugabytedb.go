@@ -980,6 +980,7 @@ func (yb *TargetYugabyteDB) RestoreSequences(sequencesLastVal map[string]int64) 
 			continue
 		}
 		// same function logic will work for sequences as well
+		// sequenceName, err := pg.qualifyTableName(sequenceName)
 		seqName, err := namereg.NameReg.LookupTableName(sequenceName)
 		if err != nil {
 			return fmt.Errorf("error looking up sequence name %q: %w", sequenceName, err)
@@ -1001,6 +1002,30 @@ func (yb *TargetYugabyteDB) RestoreSequences(sequencesLastVal map[string]int64) 
 		if err := br.Close(); err != nil {
 			log.Errorf("error closing batch: %v", err)
 			return false, fmt.Errorf("error closing batch: %w", err)
+		}
+		return false, nil
+	})
+	if err != nil {
+		return fmt.Errorf("error restoring sequences: %w", err)
+	}
+	return err
+}
+
+func (yb *TargetYugabyteDB) RestoreSequence(seqName sqlname.NameTuple, lastValue int64) error {
+	log.Infof("restoring sequences on target")
+	restoreStmt := "SELECT pg_catalog.setval('%s', %d, true)"
+	if lastValue == 0 {
+		// TODO: can be valid for cases like cyclic sequences
+		return nil
+	}
+
+	sequenceName := seqName.ForUserQuery()
+	log.Infof("restore sequence %s to %d", sequenceName, lastValue)
+
+	err := yb.connPool.WithConn(func(conn *pgx.Conn) (retry bool, err error) {
+		_, err = conn.Exec(context.Background(), fmt.Sprintf(restoreStmt, sequenceName, lastValue))
+		if err != nil {
+			return false, fmt.Errorf("error restoring sequence %s to %d: %w", sequenceName, lastValue, err)
 		}
 		return false, nil
 	})

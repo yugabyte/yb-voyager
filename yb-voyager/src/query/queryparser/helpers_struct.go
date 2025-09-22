@@ -493,3 +493,114 @@ func TraverseAndFindColumnName(node *pg_query.Node) string {
 
 	return ""
 }
+
+func IsSelectSetValStmt(parseTree *pg_query.ParseResult) bool {
+	/*
+		stmts:{stmt:{select_stmt:{target_list:{res_target:{val:{func_call:{funcname:{string:{sval:"pg_catalog"}}
+		funcname:{string:{sval:"setval"}} args:{a_const:{sval:{sval:"public.\"Case_Sensitive_Seq_id_seq\""} location:25}}
+		args:{a_const:{ival:{ival:2} location:63}} args:{a_const:{boolval:{boolval:true} location:66}}
+		funcformat:COERCE_EXPLICIT_CALL location:7}} location:7}} limit_option:LIMIT_OPTION_DEFAULT op:SETOP_NONE}}
+		stmt_len:71}
+	*/
+	selectStmt, ok := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_SelectStmt)
+	if !ok {
+		return false
+	}
+	fmt.Printf("selectStmt: %v\n", selectStmt)
+	targetList := selectStmt.SelectStmt.GetTargetList()
+	if len(targetList) == 0 || targetList[0] == nil {
+		return false
+	}
+	fmt.Printf("targetList: %v\n", targetList)
+	
+	target := targetList[0].GetResTarget()
+	if target == nil {
+		return false
+	}
+	fmt.Printf("target: %v\n", target)
+	val := target.GetVal()
+	if val == nil {
+		return false
+	}
+	fmt.Printf("val: %v\n", val)
+	funcCall := val.GetFuncCall()
+	if funcCall == nil {
+		return false
+	}
+	fmt.Printf("funcCall: %v\n", funcCall)
+	schema, funcName := GetFuncNameFromFuncCall(funcCall.ProtoReflect())
+	fmt.Printf("schema: %s, funcName: %s\n", schema, funcName)
+	if schema != "pg_catalog" {
+		return false
+	}
+	if funcName != "setval" {
+		return false
+	}
+	return true
+
+}
+
+func GetSequenceNameAndLastValueFromSetValStmt(parseTree *pg_query.ParseResult) (string, int64, error) {
+	if !IsSelectSetValStmt(parseTree) {
+		return "", 0, fmt.Errorf("not a setval statement")
+	}
+	selectStmt, ok := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_SelectStmt)
+	if !ok {
+		return "", 0, fmt.Errorf("not a setval statement")
+	}
+	targetList := selectStmt.SelectStmt.GetTargetList()
+	if len(targetList) == 0 || targetList[0] == nil {
+		return "", 0, fmt.Errorf("not a setval statement")
+	}
+	target := targetList[0].GetResTarget()
+	if target == nil {
+		return "", 0, fmt.Errorf("not a setval statement")
+	}
+	val := target.GetVal()
+	if val == nil {
+		return "", 0, fmt.Errorf("not a setval statement")
+	}
+	funcCall := val.GetFuncCall()
+	if funcCall == nil {
+		return "", 0, fmt.Errorf("not a setval statement")
+	}
+	args := funcCall.GetArgs()
+	if args == nil {
+		return "", 0, fmt.Errorf("not a setval statement")
+	}
+	/*
+
+		SELECT pg_catalog.setval('public."Case_Sensitive_Seq_id_seq"', 2, true);
+
+		stmts:{stmt:{select_stmt:{target_list:{res_target:{val:{func_call:{funcname:{string:{sval:"pg_catalog"}}
+		funcname:{string:{sval:"setval"}} args:{a_const:{sval:{sval:"public.\"Case_Sensitive_Seq_id_seq\""} location:25}}
+		args:{a_const:{ival:{ival:2} location:63}} args:{a_const:{boolval:{boolval:true} location:66}}
+		funcformat:COERCE_EXPLICIT_CALL location:7}} location:7}} limit_option:LIMIT_OPTION_DEFAULT op:SETOP_NONE}}
+		stmt_len:71}
+
+		SELECT pg_catalog.setval('public."Case_Sensitive_Seq_id_seq"'::regclass, 2, true);
+
+		stmts:{stmt:{select_stmt:{target_list:{res_target:{val:{func_call:{funcname:{string:{sval:"pg_catalog"}}
+		funcname:{string:{sval:"setval"}}  args:{type_cast:{arg:{a_const:{sval:{sval:"public.\"Case_Sensitive_Seq_id_seq\""}
+		location:25}}  type_name:{names:{string:{sval:"regclass"}}  typemod:-1  location:63}  location:61}}
+		args:{a_const:{ival:{ival:2}  location:73}}  args:{a_const:{boolval:{boolval:true}  location:76}}
+		funcformat:COERCE_EXPLICIT_CALL  location:7}}  location:7}}  limit_option:LIMIT_OPTION_DEFAULT  op:SETOP_NONE}}  stmt_len:81}
+	*/
+
+	//get a_const from args
+	if len(args) < 2 {
+		return "", 0, fmt.Errorf("not an expected setval statement")
+	}
+	sequenceArg := args[0]
+	if sequenceArg.GetTypeCast() != nil {
+		sequenceArg = sequenceArg.GetTypeCast().GetArg()
+	}
+	sequenceName := getAConstValue(sequenceArg)
+	lastValueArg := args[1]
+	lastValue := getAConstValue(lastValueArg)
+	lastValueInt, err := strconv.ParseInt(lastValue, 10, 64)
+	if err != nil {
+		return "", 0, fmt.Errorf("error parsing last value: %w", err)
+	}
+	return sequenceName, lastValueInt, nil
+}

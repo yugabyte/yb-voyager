@@ -48,7 +48,8 @@ type TargetDB interface {
 	GetListOfTableAttributes(tableNameTup sqlname.NameTuple) ([]string, error)
 	QuoteAttributeName(tableNameTup sqlname.NameTuple, columnName string) (string, error)
 	MaxBatchSizeInBytes() int64
-	RestoreSequences(sequencesLastValue map[string]int64) error
+	RestoreSequences(sequencesNameToLastValue map[string]int64) error
+	RestoreSequence(sequencesName sqlname.NameTuple, lastValue int64) error
 	GetIdentityColumnNamesForTable(tableNameTup sqlname.NameTuple, identityType string) ([]string, error)
 	DisableGeneratedAlwaysAsIdentityColumns(tableColumnsMap *utils.StructMap[sqlname.NameTuple, []string]) error
 	EnableGeneratedAlwaysAsIdentityColumns(tableColumnsMap *utils.StructMap[sqlname.NameTuple, []string]) error
