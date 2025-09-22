@@ -246,10 +246,10 @@
                         <tr>
                             <td class="query-text" title="{{.Query}}">{{.Query}}</td>
                             <td class="impact-score">{{printf "%.2f" .ImpactScore}}</td>
-                            <td>{{if .SourceStats}}{{printf "%.2f" (.SourceStats.GetTotalExecutionTime)}}{{else}}N/A{{end}}</td>
-                            <td>{{if .TargetStats}}{{printf "%.2f" (.TargetStats.GetTotalExecutionTime)}}{{else}}N/A{{end}}</td>
-                            <td>{{if .SourceStats}}{{.SourceStats.GetExecutionCount}}{{else}}N/A{{end}}</td>
-                            <td>{{if .TargetStats}}{{.TargetStats.GetExecutionCount}}{{else}}N/A{{end}}</td>
+                            <td>{{if .SourceStats}}{{printf "%.2f" .SourceStats.TotalExecTime}}{{else}}N/A{{end}}</td>
+                            <td>{{if .TargetStats}}{{printf "%.2f" .TargetStats.TotalExecTime}}{{else}}N/A{{end}}</td>
+                            <td>{{if .SourceStats}}{{.SourceStats.ExecutionCount}}{{else}}N/A{{end}}</td>
+                            <td>{{if .TargetStats}}{{.TargetStats.ExecutionCount}}{{else}}N/A{{end}}</td>
                         </tr>
                         {{end}}
                     </tbody>
@@ -278,10 +278,10 @@
                         <tr>
                             <td class="query-text" title="{{.Query}}">{{.Query}}</td>
                             <td class="slowdown-ratio">{{printf "%.2fx" .SlowdownRatio}}</td>
-                            <td>{{if .SourceStats}}{{printf "%.2f" (.SourceStats.GetAverageExecutionTime)}}{{else}}N/A{{end}}</td>
-                            <td>{{if .TargetStats}}{{printf "%.2f" (.TargetStats.GetAverageExecutionTime)}}{{else}}N/A{{end}}</td>
-                            <td>{{if .SourceStats}}{{.SourceStats.GetExecutionCount}}{{else}}N/A{{end}}</td>
-                            <td>{{if .TargetStats}}{{.TargetStats.GetExecutionCount}}{{else}}N/A{{end}}</td>
+                            <td>{{if .SourceStats}}{{printf "%.2f" .SourceStats.AverageExecTime}}{{else}}N/A{{end}}</td>
+                            <td>{{if .TargetStats}}{{printf "%.2f" .TargetStats.AverageExecTime}}{{else}}N/A{{end}}</td>
+                            <td>{{if .SourceStats}}{{.SourceStats.ExecutionCount}}{{else}}N/A{{end}}</td>
+                            <td>{{if .TargetStats}}{{.TargetStats.ExecutionCount}}{{else}}N/A{{end}}</td>
                         </tr>
                         {{end}}
                     </tbody>
@@ -363,19 +363,19 @@
                         <tr>
                             <td class="query-text" data-value="{{.Query}}" title="{{.Query}}">{{.Query}}</td>
                             <!-- Source Stats -->
-                            <td data-value="{{if .SourceStats}}{{.SourceStats.GetExecutionCount}}{{else}}-1{{end}}" style="border-right: 1px solid #ccc;">{{if .SourceStats}}{{.SourceStats.GetExecutionCount}}{{else}}N/A{{end}}</td>
-                            <td data-value="{{if .SourceStats}}{{.SourceStats.GetRowsProcessed}}{{else}}-1{{end}}" style="border-right: 1px solid #ccc;">{{if .SourceStats}}{{.SourceStats.GetRowsProcessed}}{{else}}N/A{{end}}</td>
-                            <td data-value="{{if .SourceStats}}{{.SourceStats.GetTotalExecutionTime}}{{else}}-1{{end}}" style="border-right: 1px solid #ccc;">{{if .SourceStats}}{{printf "%.2f" (.SourceStats.GetTotalExecutionTime)}}{{else}}N/A{{end}}</td>
-                            <td data-value="{{if .SourceStats}}{{.SourceStats.GetAverageExecutionTime}}{{else}}-1{{end}}" style="border-right: 1px solid #ccc;">{{if .SourceStats}}{{printf "%.2f" (.SourceStats.GetAverageExecutionTime)}}{{else}}N/A{{end}}</td>
-                            <td data-value="{{if .SourceStats}}{{.SourceStats.GetMinExecutionTime}}{{else}}-1{{end}}" style="border-right: 1px solid #ccc;">{{if .SourceStats}}{{printf "%.2f" (.SourceStats.GetMinExecutionTime)}}{{else}}N/A{{end}}</td>
-                            <td data-value="{{if .SourceStats}}{{.SourceStats.GetMaxExecutionTime}}{{else}}-1{{end}}" style="border-right: 3px solid #2c5aa0;">{{if .SourceStats}}{{printf "%.2f" (.SourceStats.GetMaxExecutionTime)}}{{else}}N/A{{end}}</td>
+                            <td data-value="{{if .SourceStats}}{{.SourceStats.ExecutionCount}}{{else}}-1{{end}}" style="border-right: 1px solid #ccc;">{{if .SourceStats}}{{.SourceStats.ExecutionCount}}{{else}}N/A{{end}}</td>
+                            <td data-value="{{if .SourceStats}}{{.SourceStats.RowsProcessed}}{{else}}-1{{end}}" style="border-right: 1px solid #ccc;">{{if .SourceStats}}{{.SourceStats.RowsProcessed}}{{else}}N/A{{end}}</td>
+                            <td data-value="{{if .SourceStats}}{{.SourceStats.TotalExecTime}}{{else}}-1{{end}}" style="border-right: 1px solid #ccc;">{{if .SourceStats}}{{printf "%.2f" .SourceStats.TotalExecTime}}{{else}}N/A{{end}}</td>
+                            <td data-value="{{if .SourceStats}}{{.SourceStats.AverageExecTime}}{{else}}-1{{end}}" style="border-right: 1px solid #ccc;">{{if .SourceStats}}{{printf "%.2f" .SourceStats.AverageExecTime}}{{else}}N/A{{end}}</td>
+                            <td data-value="{{if .SourceStats}}{{.SourceStats.MinExecTime}}{{else}}-1{{end}}" style="border-right: 1px solid #ccc;">{{if .SourceStats}}{{printf "%.2f" .SourceStats.MinExecTime}}{{else}}N/A{{end}}</td>
+                            <td data-value="{{if .SourceStats}}{{.SourceStats.MaxExecTime}}{{else}}-1{{end}}" style="border-right: 3px solid #2c5aa0;">{{if .SourceStats}}{{printf "%.2f" .SourceStats.MaxExecTime}}{{else}}N/A{{end}}</td>
                             <!-- YugabyteDB Stats -->
-                            <td data-value="{{if .TargetStats}}{{.TargetStats.GetExecutionCount}}{{else}}-1{{end}}">{{if .TargetStats}}{{.TargetStats.GetExecutionCount}}{{else}}N/A{{end}}</td>
-                            <td data-value="{{if .TargetStats}}{{.TargetStats.GetRowsProcessed}}{{else}}-1{{end}}">{{if .TargetStats}}{{.TargetStats.GetRowsProcessed}}{{else}}N/A{{end}}</td>
-                            <td data-value="{{if .TargetStats}}{{.TargetStats.GetTotalExecutionTime}}{{else}}-1{{end}}">{{if .TargetStats}}{{printf "%.2f" (.TargetStats.GetTotalExecutionTime)}}{{else}}N/A{{end}}</td>
-                            <td data-value="{{if .TargetStats}}{{.TargetStats.GetAverageExecutionTime}}{{else}}-1{{end}}">{{if .TargetStats}}{{printf "%.2f" (.TargetStats.GetAverageExecutionTime)}}{{else}}N/A{{end}}</td>
-                            <td data-value="{{if .TargetStats}}{{.TargetStats.GetMinExecutionTime}}{{else}}-1{{end}}">{{if .TargetStats}}{{printf "%.2f" (.TargetStats.GetMinExecutionTime)}}{{else}}N/A{{end}}</td>
-                            <td data-value="{{if .TargetStats}}{{.TargetStats.GetMaxExecutionTime}}{{else}}-1{{end}}">{{if .TargetStats}}{{printf "%.2f" (.TargetStats.GetMaxExecutionTime)}}{{else}}N/A{{end}}</td>
+                            <td data-value="{{if .TargetStats}}{{.TargetStats.ExecutionCount}}{{else}}-1{{end}}">{{if .TargetStats}}{{.TargetStats.ExecutionCount}}{{else}}N/A{{end}}</td>
+                            <td data-value="{{if .TargetStats}}{{.TargetStats.RowsProcessed}}{{else}}-1{{end}}">{{if .TargetStats}}{{.TargetStats.RowsProcessed}}{{else}}N/A{{end}}</td>
+                            <td data-value="{{if .TargetStats}}{{.TargetStats.TotalExecTime}}{{else}}-1{{end}}">{{if .TargetStats}}{{printf "%.2f" .TargetStats.TotalExecTime}}{{else}}N/A{{end}}</td>
+                            <td data-value="{{if .TargetStats}}{{.TargetStats.AverageExecTime}}{{else}}-1{{end}}">{{if .TargetStats}}{{printf "%.2f" .TargetStats.AverageExecTime}}{{else}}N/A{{end}}</td>
+                            <td data-value="{{if .TargetStats}}{{.TargetStats.MinExecTime}}{{else}}-1{{end}}">{{if .TargetStats}}{{printf "%.2f" .TargetStats.MinExecTime}}{{else}}N/A{{end}}</td>
+                            <td data-value="{{if .TargetStats}}{{.TargetStats.MaxExecTime}}{{else}}-1{{end}}">{{if .TargetStats}}{{printf "%.2f" .TargetStats.MaxExecTime}}{{else}}N/A{{end}}</td>
                         </tr>
                         {{end}}
                     </tbody>
