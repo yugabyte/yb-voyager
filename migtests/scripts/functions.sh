@@ -454,7 +454,7 @@ import_data() {
         --target-db-name ${TARGET_DB_NAME}
         --disable-pb true
         --send-diagnostics=false
-        --max-retries 1
+        --max-retries-streaming 1
         --skip-replication-checks true
         --yes
     "
@@ -497,7 +497,7 @@ import_data_to_source_replica() {
         --disable-pb true
         --send-diagnostics=false
         --parallel-jobs 3
-        --max-retries 1
+        --max-retries-streaming 1
     "
 
     if [ "${SOURCE_REPLICA_DB_SCHEMA}" != "" ]; then
@@ -622,6 +622,7 @@ wait_for_string_in_file() {
         
         if [ $elapsed -ge $timeout_seconds ]; then
             echo "Timeout reached ($timeout_seconds seconds). String '$search_string' not found in $file_path."
+            tail -n 100 "$file_path"
             return 1
         fi
         
@@ -708,6 +709,9 @@ count_exported_events() {
     echo "$total_count"
 }
 
+# Timeout constant for exporter events (in seconds)
+readonly EXPORTER_EVENT_TIMEOUT_SECONDS=600  # 10 minutes
+
 # Wait until sufficient events from a specific exporter database are detected
 # which ensures that the exporter is capturing changes and cutover can be initiated safely
 # Usage: wait_for_exporter_event <exporter_db> [timeout_seconds]
@@ -716,7 +720,7 @@ count_exported_events() {
 #   - target (for target database change events in fall-forward/fall-back scenarios)
 wait_for_exporter_event() {
     local exporter_db="$1"
-    local timeout_seconds="${2:-300}"
+    local timeout_seconds="${2:-$EXPORTER_EVENT_TIMEOUT_SECONDS}"
 
     if [ -z "$exporter_db" ]; then
         echo "wait_for_exporter_event: exporter_db is required"
@@ -741,6 +745,12 @@ wait_for_exporter_event() {
 
         if [ $elapsed -ge $timeout_seconds ]; then
             echo "Timeout reached (${timeout_seconds}s). Proceeding without detecting sufficient ${exporter_db} events."
+            # Showing relevant log file for debugging
+            if [ "$exporter_db" == "source" ]; then
+                tail_log_file "yb-voyager-export-data.log"
+            else 
+                tail_log_file "yb-voyager-export-data-from-target.log"
+            fi
             return 0
         fi
 
@@ -751,7 +761,7 @@ wait_for_exporter_event() {
             # Metadata-driven approach: wait for expected count
             echo "Found ${actual_count}/${expected_count} expected ${exporter_db} events"
             
-            if [ "$actual_count" -ge "$expected_count" ]; then
+            if [ "$actual_count" -eq "$expected_count" ]; then
                 echo "Detected ${actual_count}/${expected_count} expected ${exporter_db} events. Proceeding."
                 return 0
             fi

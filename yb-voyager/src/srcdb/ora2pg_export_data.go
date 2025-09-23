@@ -196,7 +196,8 @@ func getOra2pgExportedColumnsMap(exportDir string, tablesMetadata map[string]*ut
 		if tableMetadata.CountLiveRows == 0 {
 			continue
 		}
-		tableName := strings.TrimSuffix(filepath.Base(tableMetadata.FinalFilePath), "_data.sql")
+		//using ForKey here as this map is stored in the datafile descriptor and for correctness we should use ForKey only 
+		tableName := tableMetadata.TableName.ForKey()
 		result[tableName] = getOra2pgExportedColumnsListForTable(exportDir, tableName, tableMetadata.FinalFilePath)
 	}
 	return result

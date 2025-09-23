@@ -2,37 +2,37 @@
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/centos/yb-voyager/migtests/tests/pg/sakila/export-dir/schema/tables/table.sql
 */
-CREATE TABLE public.payment_p2007_01 (CONSTRAINT payment_p2007_01_payment_date_check CHECK (payment_date >= '2007-01-01 00:00:00'::timestamp AND payment_date < '2007-02-01 00:00:00'::timestamp)) INHERITS (public.payment);
+CREATE TABLE public.payment_p2007_01 (CONSTRAINT payment_p2007_01_payment_date_check CHECK (payment_date >= '2007-01-01 00:00:00'::timestamp AND payment_date < '2007-02-01 00:00:00'::timestamp)) INHERITS (public.payment) WITH (colocation=false);
 
 /*
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/centos/yb-voyager/migtests/tests/pg/sakila/export-dir/schema/tables/table.sql
 */
-CREATE TABLE public.payment_p2007_02 (CONSTRAINT payment_p2007_02_payment_date_check CHECK (payment_date >= '2007-02-01 00:00:00'::timestamp AND payment_date < '2007-03-01 00:00:00'::timestamp)) INHERITS (public.payment);
+CREATE TABLE public.payment_p2007_02 (CONSTRAINT payment_p2007_02_payment_date_check CHECK (payment_date >= '2007-02-01 00:00:00'::timestamp AND payment_date < '2007-03-01 00:00:00'::timestamp)) INHERITS (public.payment) WITH (colocation=false);
 
 /*
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/centos/yb-voyager/migtests/tests/pg/sakila/export-dir/schema/tables/table.sql
 */
-CREATE TABLE public.payment_p2007_03 (CONSTRAINT payment_p2007_03_payment_date_check CHECK (payment_date >= '2007-03-01 00:00:00'::timestamp AND payment_date < '2007-04-01 00:00:00'::timestamp)) INHERITS (public.payment);
+CREATE TABLE public.payment_p2007_03 (CONSTRAINT payment_p2007_03_payment_date_check CHECK (payment_date >= '2007-03-01 00:00:00'::timestamp AND payment_date < '2007-04-01 00:00:00'::timestamp)) INHERITS (public.payment) WITH (colocation=false);
 
 /*
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/centos/yb-voyager/migtests/tests/pg/sakila/export-dir/schema/tables/table.sql
 */
-CREATE TABLE public.payment_p2007_04 (CONSTRAINT payment_p2007_04_payment_date_check CHECK (payment_date >= '2007-04-01 00:00:00'::timestamp AND payment_date < '2007-05-01 00:00:00'::timestamp)) INHERITS (public.payment);
+CREATE TABLE public.payment_p2007_04 (CONSTRAINT payment_p2007_04_payment_date_check CHECK (payment_date >= '2007-04-01 00:00:00'::timestamp AND payment_date < '2007-05-01 00:00:00'::timestamp)) INHERITS (public.payment) WITH (colocation=false);
 
 /*
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/centos/yb-voyager/migtests/tests/pg/sakila/export-dir/schema/tables/table.sql
 */
-CREATE TABLE public.payment_p2007_05 (CONSTRAINT payment_p2007_05_payment_date_check CHECK (payment_date >= '2007-05-01 00:00:00'::timestamp AND payment_date < '2007-06-01 00:00:00'::timestamp)) INHERITS (public.payment);
+CREATE TABLE public.payment_p2007_05 (CONSTRAINT payment_p2007_05_payment_date_check CHECK (payment_date >= '2007-05-01 00:00:00'::timestamp AND payment_date < '2007-06-01 00:00:00'::timestamp)) INHERITS (public.payment) WITH (colocation=false);
 
 /*
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/centos/yb-voyager/migtests/tests/pg/sakila/export-dir/schema/tables/table.sql
 */
-CREATE TABLE public.payment_p2007_06 (CONSTRAINT payment_p2007_06_payment_date_check CHECK (payment_date >= '2007-06-01 00:00:00'::timestamp AND payment_date < '2007-07-01 00:00:00'::timestamp)) INHERITS (public.payment);
+CREATE TABLE public.payment_p2007_06 (CONSTRAINT payment_p2007_06_payment_date_check CHECK (payment_date >= '2007-06-01 00:00:00'::timestamp AND payment_date < '2007-07-01 00:00:00'::timestamp)) INHERITS (public.payment) WITH (colocation=false);
 
 /*
 ERROR: index method "gist" not supported yet (SQLSTATE XX000)

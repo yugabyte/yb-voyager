@@ -18,8 +18,10 @@ package migassessment
 import (
 	"context"
 	"database/sql"
+	"encoding/csv"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -28,6 +30,7 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/pgss"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -137,10 +140,19 @@ func InitAssessmentDB() error {
 			parent_table_name   TEXT,
 			size_in_bytes       INTEGER,
 			PRIMARY KEY(schema_name, object_name));`, TABLE_INDEX_STATS),
-		// to store pgss output for unsupported query constructs detection
+		// to store pgss output for performance validation and unsupported query constructs detection
+		// Schema exactly matches src/pgss.QueryStats struct for consistency
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
-			queryid			BIGINT,
-			query		TEXT);`, DB_QUERIES_SUMMARY),
+			queryid				BIGINT,
+			query				TEXT,
+			calls				BIGINT,
+			rows				BIGINT,
+			total_exec_time		REAL,
+			mean_exec_time		REAL,
+			min_exec_time		REAL,
+			max_exec_time		REAL,
+			stddev_exec_time	REAL,
+			PRIMARY KEY (queryid));`, DB_QUERIES_SUMMARY),
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
 			redundant_schema_name TEXT,
 			redundant_table_name TEXT,
@@ -384,4 +396,145 @@ func (adb *AssessmentDB) Query(query string, args ...interface{}) (*sql.Rows, er
 		return nil, fmt.Errorf("error executing query-%s: %w", query, err)
 	}
 	return rows, nil
+}
+
+// LoadCSVFileIntoTable reads a CSV file and loads it into the specified table
+func (adb *AssessmentDB) LoadCSVFileIntoTable(filePath, tableName string) error {
+	if tableName == DB_QUERIES_SUMMARY {
+		// special handling due to pgss postgres version differences
+		return adb.LoadPgssCSVIntoTable(filePath)
+	}
+
+	file, err := os.Open(filePath)
+	if err != nil {
+		return fmt.Errorf("error opening file %s: %w", filePath, err)
+	}
+	defer file.Close()
+
+	csvReader := csv.NewReader(file)
+	csvReader.ReuseRecord = true
+
+	// Load all CSV rows in-memory; safe due to expected small file size (limited by DB object count or pg_stat_statements.max config)
+	rows, err := csvReader.ReadAll()
+	if err != nil {
+		return fmt.Errorf("error reading csv file %s: %w", filePath, err)
+	}
+
+	err = adb.BulkInsert(tableName, rows)
+	if err != nil {
+		return fmt.Errorf("error bulk inserting data into %s table: %w", tableName, err)
+	}
+	return nil
+}
+
+// LoadPgssCSVIntoTable loads PGSS CSV data into the db_queries_summary table
+// special handling because csv can have different columns based on the PG version and we need to load it into the table with specific schema(9 columns)
+func (adb *AssessmentDB) LoadPgssCSVIntoTable(filePath string) error {
+	log.Infof("starting to parse PGSS CSV file")
+	entries, err := pgss.ParseFromCSV(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to parse PGSS CSV: %w", err)
+	}
+
+	if len(entries) == 0 {
+		log.Warnf("No valid PGSS entries found in %s", filePath)
+		return nil
+	}
+
+	log.Infof("inserting PGSS entries into %s table", DB_QUERIES_SUMMARY)
+	err = adb.InsertPgssEntries(entries)
+	if err != nil {
+		return fmt.Errorf("failed to insert PGSS entries: %w", err)
+	}
+
+	return nil
+}
+
+func (adb *AssessmentDB) InsertPgssEntries(entries []pgss.QueryStats) error {
+	if len(entries) == 0 {
+		return nil
+	}
+
+	// Prepared statement for faster insertion
+	insertSQL := fmt.Sprintf(`
+		INSERT INTO %s (
+			queryid,
+			query,
+			calls,
+			rows,
+			total_exec_time,
+			mean_exec_time,
+			min_exec_time,
+			max_exec_time,
+			stddev_exec_time
+		) VALUES (
+			?, ?, ?, ?, ?, ?, ?, ?, ?
+		)`, DB_QUERIES_SUMMARY)
+
+	stmt, err := adb.db.Prepare(insertSQL)
+	if err != nil {
+		return fmt.Errorf("failed to prepare PGSS insert statement: %w", err)
+	}
+	defer stmt.Close()
+
+	for _, entry := range entries {
+		_, err = stmt.Exec(entry.QueryID, entry.Query, entry.Calls, entry.Rows, entry.TotalExecTime, entry.MeanExecTime,
+			entry.MinExecTime, entry.MaxExecTime, entry.StddevExecTime)
+		if err != nil {
+			return fmt.Errorf("failed to insert PGSS entry for queryid %d: %w", entry.QueryID, err)
+		}
+	}
+
+	return nil
+}
+
+// GetQueryStats retrieves all the source PGSS data from the assessment database
+func (adb *AssessmentDB) GetQueryStats() ([]pgss.QueryStats, error) {
+	query := `SELECT queryid, query, calls, rows, total_exec_time, mean_exec_time, 
+		min_exec_time, max_exec_time, stddev_exec_time 
+		FROM db_queries_summary`
+
+	rows, err := adb.db.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query PGSS data: %w", err)
+	}
+	defer rows.Close()
+
+	var entries []pgss.QueryStats
+	for rows.Next() {
+		var entry pgss.QueryStats
+		err := rows.Scan(
+			&entry.QueryID,
+			&entry.Query,
+			&entry.Calls,
+			&entry.Rows,
+			&entry.TotalExecTime,
+			&entry.MeanExecTime,
+			&entry.MinExecTime,
+			&entry.MaxExecTime,
+			&entry.StddevExecTime,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan PGSS row: %w", err)
+		}
+		entries = append(entries, entry)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error reading PGSS rows: %w", err)
+	}
+
+	return entries, nil
+}
+
+func (adb *AssessmentDB) CheckIfTableExists(tableName string) error {
+	query := `SELECT name FROM sqlite_master WHERE type='table' AND name=?;`
+
+	var name string
+	err := adb.db.QueryRow(query, tableName).Scan(&name)
+	if err != nil {
+		return fmt.Errorf("error checking if table %s exists: %w", tableName, err)
+	}
+
+	return nil
 }

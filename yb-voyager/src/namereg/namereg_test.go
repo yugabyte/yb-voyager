@@ -321,7 +321,7 @@ func TestNameRegistryFailedLookup(t *testing.T) {
 		SourceName:  sourceObj,
 		CurrentName: sourceObj,
 	}
-	tuple, err = reg.LookupTableNameAndIgnoreOtherSideMappingIfNotFound("SAKILA.TABLE3")
+	tuple, err = reg.LookupTableNameAndIgnoreIfTargetNotFound("SAKILA.TABLE3")
 	require.Nil(err)
 	assert.Equal(expectedTuple, tuple, "tableName: SAKILA.TABLE3")
 
@@ -335,7 +335,7 @@ func TestNameRegistryFailedLookup(t *testing.T) {
 		TargetName:  targetObj,
 		CurrentName: targetObj,
 	}
-	tuple, err = reg.LookupTableNameAndIgnoreOtherSideMappingIfNotFound("public.table123")
+	tuple, err = reg.LookupTableNameAndIgnoreIfSourceNotFound("public.table123")
 	require.Nil(err)
 	assert.Equal(expectedTuple, tuple, "tableName: public.table123")
 
