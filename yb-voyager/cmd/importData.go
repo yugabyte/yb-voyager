@@ -1288,12 +1288,12 @@ func packAndSendImportDataToTargetPayload(status string, errorMsg error) {
 		ControlPlaneType:           getControlPlaneType(),
 		BatchSize:                  batchSizeInNumRows,
 		OnPrimaryKeyConflictAction: tconf.OnPrimaryKeyConflictAction,
-		// TODO: store the mode.
-		// EnableYBAdaptiveParallelism: bool(tconf.EnableYBAdaptiveParallelism),
-		AdaptiveParallelismMax: int64(tconf.MaxParallelism),
-		ErrorPolicySnapshot:    errorPolicySnapshotFlag.String(),
-		DataMetrics:            dataMetrics,
-		Phase:                  importPhase,
+		// TODO: store the mode properly
+		EnableYBAdaptiveParallelism: tconf.AdaptiveParallelismMode.IsEnabled(),
+		AdaptiveParallelismMax:      int64(tconf.MaxParallelism),
+		ErrorPolicySnapshot:         errorPolicySnapshotFlag.String(),
+		DataMetrics:                 dataMetrics,
+		Phase:                       importPhase,
 	}
 
 	var err2 error
