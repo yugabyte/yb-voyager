@@ -48,9 +48,14 @@ func (cluster *YugabyteDBClusterContainer) Start(ctx context.Context) (err error
 	}
 	cluster.nodes = append(cluster.nodes, masterNode)
 
-	masterContainerName := fmt.Sprintf("yb-node-%d", 1)
+	// Get the master container's IP address for join operations
+	masterJoinAddress, err := getContainerIPAddress(ctx, masterNode.container, cluster.network.Name)
+	if err != nil {
+		return fmt.Errorf("failed to get master container IP: %w", err)
+	}
+
 	for i := 2; i <= cluster.NodeCount; i++ {
-		node, err := cluster.createNode(ctx, i, masterContainerName)
+		node, err := cluster.createNode(ctx, i, masterJoinAddress)
 		if err != nil {
 			return fmt.Errorf("failed to start node %d: %w", i, err)
 		}
@@ -66,19 +71,18 @@ func (cluster *YugabyteDBClusterContainer) Start(ctx context.Context) (err error
 	return nil
 }
 
-func (cluster *YugabyteDBClusterContainer) createNode(ctx context.Context, nodeID int, joinHost string) (*YugabyteDBContainer, error) {
+func (cluster *YugabyteDBClusterContainer) createNode(ctx context.Context, nodeID int, masterJoinAddress string) (*YugabyteDBContainer, error) {
 	nodeContainer := &YugabyteDBContainer{
 		ContainerConfig: cluster.ContainerConfig,
 	}
 
 	cmd := []string{"bin/yugabyted", "start", "--daemon=false", "--ui=false"}
-	if joinHost != "" {
-		cmd = append(cmd, "--join", joinHost)
+	if masterJoinAddress != "" {
+		cmd = append(cmd, "--join", masterJoinAddress)
 	}
 
 	req := testcontainers.ContainerRequest{
 		Image: fmt.Sprintf("yugabytedb/yugabyte:%s", cluster.DBVersion),
-		Name:  fmt.Sprintf("yb-node-%d", nodeID),
 		ExposedPorts: []string{
 			"5433/tcp",
 		},
