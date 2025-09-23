@@ -1745,7 +1745,7 @@ FROM generate_series(1, 10) as i;`
 
 	//assert error contains table not found
 	assert.NotNil(t, err)
-	assert.Contains(t, importCmd.Stdout(), `Following tables are not present in the target database:
+	assert.Contains(t, importCmd.Stdout(), `Following source tables are not present in the target database:
 test_schema."test_migration1"`)
 
 	err = testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
