@@ -23,7 +23,7 @@ import (
 /*
 AdaptiveParallelismMode defines the mode for adaptive parallelism behavior:
 - disabled: Adaptive parallelism is turned off
-- balanced: Adaptive parallelism operates with conservative thresholds
+- balanced: Adaptive parallelism operates with moderate thresholds
 - aggressive: Adaptive parallelism operates with aggressive thresholds for maximum performance
 */
 type AdaptiveParallelismMode string

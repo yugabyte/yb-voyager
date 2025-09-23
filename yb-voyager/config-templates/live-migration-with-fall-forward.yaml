@@ -431,7 +431,7 @@ import-data-to-target:
   ### YugabyteDB cluster.
   ### The following flags are available to control parallelism:
   ### - adaptive-parallelism: Choose the mode for adaptive parallelism behavior.
-  ###     balanced: Operate with conservative thresholds. Recommended to be used when there are other workloads running on the cluster.
+  ###     balanced: Operate with moderate thresholds. Recommended to be used when there are other workloads running on the cluster.
   ###     aggressive: Operate with aggressive max-CPU thresholds for better performance. Recommended to be used when there are no other workloads running on the cluster.
   ###     disabled: Disable adaptive parallelism.
   ###   Accepted values: disabled, balanced, aggressive
