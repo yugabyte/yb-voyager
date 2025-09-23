@@ -744,14 +744,14 @@ wait_for_exporter_event() {
         local elapsed=$((current_time - start_time))
 
         if [ $elapsed -ge $timeout_seconds ]; then
-            echo "Timeout reached (${timeout_seconds}s). Proceeding without detecting sufficient ${exporter_db} events."
+            echo "Timeout reached (${timeout_seconds}s). Sufficient ${exporter_db} events not detected."
             # Showing relevant log file for debugging
             if [ "$exporter_db" == "source" ]; then
                 tail_log_file "yb-voyager-export-data.log"
             else 
                 tail_log_file "yb-voyager-export-data-from-target.log"
             fi
-            return 0
+            return 1
         fi
 
         # Count actual events using data-migration-report
