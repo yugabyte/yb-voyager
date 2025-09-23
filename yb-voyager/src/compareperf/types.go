@@ -63,12 +63,28 @@ type ComparisonReport struct {
 }
 
 type QueryComparison struct {
-	Query         string
-	SourceStats   *types.QueryStats // nil if MatchStatus == TARGET_ONLY
-	TargetStats   *types.QueryStats // nil if MatchStatus == SOURCE_ONLY
-	ImpactScore   float64           // 0 if not MATCHED
-	SlowdownRatio float64           // 0 if not MATCHED
-	MatchStatus   MatchStatus
+	Query       string
+	SourceStats *types.QueryStats // nil if MatchStatus == TARGET_ONLY
+	TargetStats *types.QueryStats // nil if MatchStatus == SOURCE_ONLY
+
+	/*
+		Impact score is the difference in total execution time between source and target
+		number of calls can be different, so we need to normalize by number of target calls
+		Formula: yb_total_exec_time - pg_total_exec_time
+
+		-1 if not MATCHED
+	*/
+	ImpactScore float64
+
+	/*
+		Slowdown ratio is the ratio of target average execution time to source average execution time
+		Formula: (yb_avg_exec_time + 2) / (pg_avg_exec_time + 2)
+
+		-1 if not MATCHED
+	*/
+	SlowdownRatio float64 // 0 if not MATCHED
+
+	MatchStatus MatchStatus
 }
 
 type MatchStatus string
@@ -99,7 +115,7 @@ func (c *QueryComparison) calculateMetrics() {
 	}
 
 	// Impact score is the difference in total execution time between source and target
-	// number of calls can be different, so we need to normalize by number of calls
+	// number of calls can be different, so we need to normalize by number of target calls
 	// Formula: yb_total_exec_time - pg_total_exec_time
 	sourceNormalized := c.SourceStats.AverageExecTime * float64(c.TargetStats.ExecutionCount)
 	targetTotal := c.TargetStats.TotalExecTime

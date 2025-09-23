@@ -549,12 +549,13 @@ func (adb *AssessmentDB) CheckIfTableExists(tableName string) error {
 // HasSourceQueryStats checks if query stats data exists in the assessment database (source-db type agnostic)
 func (adb *AssessmentDB) HasSourceQueryStats() (bool, error) {
 	query := fmt.Sprintf("SELECT 1 FROM %s LIMIT 1", DB_QUERIES_SUMMARY)
-	rows, err := adb.Query(query)
+	var exists int
+	err := adb.db.QueryRow(query).Scan(&exists)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			return false, nil
+		}
 		return false, fmt.Errorf("failed to check for PGSS data: %w", err)
 	}
-	defer rows.Close()
-
-	// If we can read at least one row, data exists
-	return rows.Next(), nil
+	return true, nil
 }

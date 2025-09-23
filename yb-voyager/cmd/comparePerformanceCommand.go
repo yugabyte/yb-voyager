@@ -47,8 +47,11 @@ Prerequisites:
 	Hidden: true, // Hide command until fully implemented
 
 	PreRun: func(cmd *cobra.Command, args []string) {
+		// required to decide the defaults values for default ssl mode, port, schema, etc.
 		tconf.TargetDBType = YUGABYTEDB
 		importerRole = TARGET_DB_IMPORTER_ROLE
+
+		// validations and setting the defaults
 		checkOrSetDefaultTargetSSLMode()
 		validateTargetPortRange()  // Sets default port if needed
 		validateTargetSchemaFlag() // Sets default schema based on DB type
@@ -231,7 +234,7 @@ func handleStartCleanForComparePerf() error {
 			utils.PrintAndLog("cleaned up leftover performance comparison files from previous incomplete run")
 		}
 	} else if reportsExist {
-		return fmt.Errorf("performance comparison reports already exist. Use --start-clean flag to overwrite them")
+		return fmt.Errorf("performance comparison reports already exist. Use --start-clean flag to remove them and re-run the command")
 	}
 
 	return nil
