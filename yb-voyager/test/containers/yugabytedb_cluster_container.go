@@ -171,9 +171,6 @@ func (cluster *YugabyteDBClusterContainer) Terminate(ctx context.Context) {
 // GetHostPort returns the host and port of the master node
 // for connecting to specific node, use the node specific GetHostPort()
 func (cluster *YugabyteDBClusterContainer) GetHostPort() (string, int, error) {
-	if len(cluster.nodes) == 0 {
-		return "", -1, fmt.Errorf("cluster has no nodes")
-	}
 	return cluster.nodes[0].GetHostPort()
 }
 
@@ -182,25 +179,16 @@ func (cluster *YugabyteDBClusterContainer) GetConfig() ContainerConfig {
 }
 
 func (cluster *YugabyteDBClusterContainer) GetConnectionString() string {
-	if len(cluster.nodes) == 0 {
-		utils.ErrExit("cluster has no nodes")
-	}
 	return cluster.nodes[0].GetConnectionString()
 }
 
 func (cluster *YugabyteDBClusterContainer) GetConnection() (*sql.DB, error) {
-	if len(cluster.nodes) == 0 {
-		return nil, fmt.Errorf("cluster has no nodes")
-	}
 	return cluster.nodes[0].GetConnection()
 }
 
 // GetNodeConnection returns a connection to a specific node in the cluster
 // nodeIndex is 0-based: 0=first node (master), 1=second node, etc.
 func (cluster *YugabyteDBClusterContainer) GetNodeConnection(nodeIndex int) (*sql.DB, error) {
-	if len(cluster.nodes) == 0 {
-		return nil, fmt.Errorf("cluster has no nodes")
-	}
 	if nodeIndex < 0 || nodeIndex >= len(cluster.nodes) {
 		return nil, fmt.Errorf("invalid node index %d, cluster has %d nodes", nodeIndex, len(cluster.nodes))
 	}
@@ -208,23 +196,14 @@ func (cluster *YugabyteDBClusterContainer) GetNodeConnection(nodeIndex int) (*sq
 }
 
 func (cluster *YugabyteDBClusterContainer) GetVersion() (string, error) {
-	if len(cluster.nodes) == 0 {
-		return "", fmt.Errorf("cluster has no nodes")
-	}
 	return cluster.nodes[0].GetVersion()
 }
 
 func (cluster *YugabyteDBClusterContainer) ExecuteSqls(sqls ...string) {
-	if len(cluster.nodes) == 0 {
-		utils.ErrExit("cluster has no nodes")
-	}
 	cluster.nodes[0].ExecuteSqls(sqls...)
 }
 
 func (cluster *YugabyteDBClusterContainer) Query(sql string, args ...interface{}) (*sql.Rows, error) {
-	if len(cluster.nodes) == 0 {
-		return nil, fmt.Errorf("cluster has no nodes")
-	}
 	return cluster.nodes[0].Query(sql, args...)
 }
 
