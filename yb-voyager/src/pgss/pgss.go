@@ -54,38 +54,40 @@ func (p *PgStatStatements) Merge(second *PgStatStatements) {
 
 	p.MinExecTime = math.Min(first.MinExecTime, second.MinExecTime)
 	p.MaxExecTime = math.Max(first.MaxExecTime, second.MaxExecTime)
-	p.StddevExecTime = mergeStddevPopulation(
-		first.Calls, first.TotalExecTime, first.StddevExecTime,
-		second.Calls, second.TotalExecTime, second.StddevExecTime,
-	)
+
+	// TODO: disabling stddev_exec_time until the ask/need comes up
+	// p.StddevExecTime = mergeStddevPopulation(
+	// 	first.Calls, first.TotalExecTime, first.StddevExecTime,
+	// 	second.Calls, second.TotalExecTime, second.StddevExecTime,
+	// )
 }
 
 // By ChatGPT:
 // mergeStddevPopulation merges two groups' execution-time stddevs as POPULATION stddev.
 // Inputs are per-group: n, total_time, stddev. Output is the combined stddev.
 // TODO: revisit this in future if usage of stddev_exec_time is increased
-func mergeStddevPopulation(n1 int64, total1, std1 float64, n2 int64, total2, std2 float64) float64 {
-	if n1 <= 0 {
-		return std2
-	}
-	if n2 <= 0 {
-		return std1
-	}
-	N1, N2 := float64(n1), float64(n2)
-	n := N1 + N2
+// func mergeStddevPopulation(n1 int64, total1, std1 float64, n2 int64, total2, std2 float64) float64 {
+// 	if n1 <= 0 {
+// 		return std2
+// 	}
+// 	if n2 <= 0 {
+// 		return std1
+// 	}
+// 	N1, N2 := float64(n1), float64(n2)
+// 	n := N1 + N2
 
-	mu := (total1 + total2) / n // combined mean
-	mu1 := total1 / N1
-	mu2 := total2 / N2
+// 	mu := (total1 + total2) / n // combined mean
+// 	mu1 := total1 / N1
+// 	mu2 := total2 / N2
 
-	// M2 = sum of squared deviations (population)
-	M2 := N1*std1*std1 +
-		N2*std2*std2 +
-		N1*(mu1-mu)*(mu1-mu) +
-		N2*(mu2-mu)*(mu2-mu)
+// 	// M2 = sum of squared deviations (population)
+// 	M2 := N1*std1*std1 +
+// 		N2*std2*std2 +
+// 		N1*(mu1-mu)*(mu1-mu) +
+// 		N2*(mu2-mu)*(mu2-mu)
 
-	return math.Sqrt(M2 / n) // use / (n-1) for sample stddev, if ever needed
-}
+// 	return math.Sqrt(M2 / n) // use / (n-1) for sample stddev, if ever needed
+// }
 
 // ================================ Merge PgStatStatements =================================
 
