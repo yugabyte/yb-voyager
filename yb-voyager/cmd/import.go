@@ -472,7 +472,7 @@ func validateParallelismFlags() {
 	// TODO: fix error messages.
 	if tconf.AdaptiveParallelismMode.IsEnabled() {
 		if tconf.Parallelism > 0 {
-			utils.ErrExit("Error --parallel-jobs flag cannot be used with adaptive-parallelism is enabled (balanced/aggressive). If you wish to set the number of parallel jobs explicitly, disable adaptive parallelism using --adaptive-parallelism disabled")
+			utils.ErrExit("Error --parallel-jobs flag cannot be used when adaptive-parallelism is enabled (balanced/aggressive). If you wish to set the number of parallel jobs explicitly, disable adaptive parallelism using --adaptive-parallelism disabled")
 		}
 	}
 	if tconf.MaxParallelism > 0 {
