@@ -651,17 +651,29 @@ get_expected_event_count() {
     local expected_count=""
     case "$exporter_db" in
         "source")
-            expected_count=$(jq -r '.source_delta_events // empty' "$metadata_file" 2>/dev/null)
+            if jq -e 'has("source_delta_events")' "$metadata_file" >/dev/null 2>&1; then
+                jq -r '.source_delta_events' "$metadata_file"
+                return 0
+            fi
+            return 0
             ;;
         "target")
-            expected_count=$(jq -r '.target_delta_events // empty' "$metadata_file" 2>/dev/null)
+            if [ "${USE_YB_LOGICAL_REPLICATION_CONNECTOR}" = true ] \
+               && jq -e 'has("target_delta_events_logical_replication")' "$metadata_file" >/dev/null 2>&1; then
+                jq -r '.target_delta_events_logical_replication' "$metadata_file"
+                return 0
+            fi
+
+            if jq -e 'has("target_delta_events")' "$metadata_file" >/dev/null 2>&1; then
+                jq -r '.target_delta_events' "$metadata_file"
+                return 0
+            fi
+
+            return 0
             ;;
     esac
-    
-    # Validate the count is a positive number
-    if [[ "$expected_count" =~ ^[1-9][0-9]*$ ]]; then
-        echo "$expected_count"
-    fi
+    # No match; return 0
+    return 0
 }
 
 # Helper function to count actual events for a specific exporter database using data-migration-report
