@@ -1473,18 +1473,9 @@ normalize_callhome_json() {
             .OptimalSelectConnectionsPerNode? = "IGNORED" |
             .OptimalInsertConnectionsPerNode? = "IGNORED" |
 			.SizeInBytes? = "IGNORED" |
-			.ColocatedReasoning? = "IGNORED" |
             .yb_cluster_metrics = "IGNORED" |
             .parallel_jobs = "IGNORED" |
-            .adaptive_parallelism_max = "IGNORED" |
-            # Replace newline characters in SqlStatement with spaces
-			.SqlStatement? |= (
-				if type == "string" then
-					gsub("\\n"; " ")
-				else
-					.
-				end
-			)
+            .adaptive_parallelism_max = "IGNORED"
         elif type == "array" then
 			sort_by(tostring)
         elif type == "string" and (
@@ -1496,9 +1487,6 @@ normalize_callhome_json() {
             .
         end
     )' "$input_file" > "$temp_file"
-    
-    # Remove unwanted lines
-    sed -i '/Review and manually import.*uncategorized.sql/d' "$temp_file"
 
     # Move cleaned file to output
     mv "$temp_file" "$output_file"
