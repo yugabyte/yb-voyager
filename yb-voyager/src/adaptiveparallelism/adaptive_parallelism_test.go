@@ -25,10 +25,11 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/types"
 )
 
 func init() {
-	readConfig()
+	readConfig(types.BalancedAdaptiveParallelismMode)
 }
 
 type dummyTargetYugabyteDB struct {
