@@ -94,8 +94,6 @@ main() {
 
     # Starting Flask server to receive callhome data
     step "Start Flask server"
-    # Kill any existing Flask server process
-    # lsof -ti:${FLASK_APP_PORT} | xargs -r kill -9
     flask run --host "$FLASK_SERVER_IP" --port "$FLASK_APP_PORT" &
     
     # Wait for Flask server to start
@@ -165,6 +163,10 @@ main() {
 
         step "All commands passed successfully"
     fi
+
+    # Stop the Flask server
+    step "Kill the Flask server process"
+    lsof -ti:${FLASK_APP_PORT} | xargs -r kill -9
 }
 
 main
