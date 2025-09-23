@@ -476,7 +476,7 @@ import_data() {
     fi
     # Check if RUN_WITHOUT_ADAPTIVE_PARALLELISM is true
     if [ "${RUN_WITHOUT_ADAPTIVE_PARALLELISM}" = "true" ]; then
-        args="${args} --enable-adaptive-parallelism false"
+        args="${args} --adaptive-parallelism disabled"
     fi
 
     yb-voyager import data ${args} "$@"
@@ -532,7 +532,7 @@ import_data_file() {
 
     # Check if RUN_WITHOUT_ADAPTIVE_PARALLELISM is true
     if [ "${RUN_WITHOUT_ADAPTIVE_PARALLELISM}" = "true" ]; then
-        args="${args} --enable-adaptive-parallelism false"
+        args="${args} --adaptive-parallelism disabled"
     fi
 
     yb-voyager import data file ${args} $*
