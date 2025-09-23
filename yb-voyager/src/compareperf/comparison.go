@@ -218,6 +218,8 @@ func (c *QueryPerformanceComparator) getTopBySlowdown(allComparisons []*QueryCom
 	return matched[:min(limit, len(matched))]
 }
 
+// ================================ Report Generation Methods ================================
+
 func (c *QueryPerformanceComparator) generateHTMLReport(exportDir string) error {
 	// Create reports directory
 	reportsDir := filepath.Join(exportDir, "reports")

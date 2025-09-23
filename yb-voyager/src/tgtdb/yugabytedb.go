@@ -1968,7 +1968,7 @@ func (yb *TargetYugabyteDB) CollectPgStatStatements() ([]*pgss.PgStatStatements,
 
 	// TODO: Implement pg_stat_statements collection for load balancer(YBM)
 	if loadBalancerUsed {
-		utils.ErrExit("yb cluster with load balancer access is not supported for compare-perf command yet.")
+		utils.ErrExit("yb cluster with load balancer setup is not supported for compare-perf command yet.")
 	}
 
 	// first collect all entries from all the nodes and merge later
