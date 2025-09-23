@@ -29,12 +29,12 @@ AdaptiveParallelismMode defines the mode for adaptive parallelism behavior:
 type AdaptiveParallelismMode string
 
 const (
-	// Mode names
+	// Mode values
 	DisabledAdaptiveParallelismModeName   = "disabled"
 	BalancedAdaptiveParallelismModeName   = "balanced"
 	AggressiveAdaptiveParallelismModeName = "aggressive"
 
-	// Mode values
+	// Mode consts
 	DisabledAdaptiveParallelismMode   AdaptiveParallelismMode = DisabledAdaptiveParallelismModeName
 	BalancedAdaptiveParallelismMode   AdaptiveParallelismMode = BalancedAdaptiveParallelismModeName
 	AggressiveAdaptiveParallelismMode AdaptiveParallelismMode = AggressiveAdaptiveParallelismModeName

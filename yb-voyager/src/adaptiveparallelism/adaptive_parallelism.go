@@ -37,7 +37,8 @@ const (
 	MEMORY_TOTAL_METRIC                            = "memory_total"
 	MEMORY_AVAILABLE_METRIC                        = "memory_available"
 	MIN_PARALLELISM                                = 1
-	DEFAULT_MAX_CPU_THRESHOLD                      = 80
+	DEFAULT_MAX_CPU_THRESHOLD_BALANCED             = 80
+	DEFAULT_MAX_CPU_THRESHOLD_AGGRESSIVE           = 95
 	DEFAULT_ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS = 10
 	DEFAULT_MIN_AVAILABLE_MEMORY_THRESHOLD         = 10
 )
@@ -46,9 +47,16 @@ var MAX_CPU_THRESHOLD int
 var ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS int
 var MIN_AVAILABLE_MEMORY_THRESHOLD int
 
-func readConfig() {
-	MAX_CPU_THRESHOLD = utils.GetEnvAsInt("MAX_CPU_THRESHOLD", DEFAULT_MAX_CPU_THRESHOLD)
-	if MAX_CPU_THRESHOLD != DEFAULT_MAX_CPU_THRESHOLD {
+func readConfig(mode types.AdaptiveParallelismMode) {
+	var defaultMaxCpuThreshold int
+	switch mode {
+	case types.BalancedAdaptiveParallelismMode:
+		defaultMaxCpuThreshold = DEFAULT_MAX_CPU_THRESHOLD_BALANCED
+	case types.AggressiveAdaptiveParallelismMode:
+		defaultMaxCpuThreshold = DEFAULT_MAX_CPU_THRESHOLD_AGGRESSIVE
+	}
+	MAX_CPU_THRESHOLD = utils.GetEnvAsInt("MAX_CPU_THRESHOLD", defaultMaxCpuThreshold)
+	if MAX_CPU_THRESHOLD != defaultMaxCpuThreshold {
 		utils.PrintAndLog("Using MAX_CPU_THRESHOLD: %d", MAX_CPU_THRESHOLD)
 	}
 	ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS = utils.GetEnvAsInt("ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS", DEFAULT_ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS)
@@ -72,10 +80,14 @@ type TargetYugabyteDBWithConnectionPool interface {
 var ErrAdaptiveParallelismNotSupported = fmt.Errorf("adaptive parallelism not supported in target YB database")
 
 func AdaptParallelism(yb TargetYugabyteDBWithConnectionPool, mode types.AdaptiveParallelismMode) error {
+	if !mode.IsEnabled() {
+		return nil
+	}
 	if !yb.IsAdaptiveParallelismSupported() {
 		return ErrAdaptiveParallelismNotSupported
 	}
-	readConfig()
+
+	readConfig(mode)
 	for {
 		time.Sleep(time.Duration(ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS) * time.Second)
 		err := fetchClusterMetricsAndUpdateParallelism(yb, MIN_PARALLELISM, yb.GetNumMaxConnectionsInPool())
