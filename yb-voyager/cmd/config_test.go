@@ -1701,7 +1701,7 @@ import-data:
   run-guardrails-checks: false
   batch-size: 1000
   parallel-jobs: 4
-  enable-adaptive-parallelism: true
+  adaptive-parallelism: balanced
   adaptive-parallelism-max: 10
   skip-replication-checks: true
   disable-pb: true
@@ -1828,7 +1828,7 @@ func TestImportDataConfigBinding_CLIOverridesConfig(t *testing.T) {
 		"--profile", "false",
 		"--batch-size", "2000",
 		"--parallel-jobs", "8",
-		"--enable-adaptive-parallelism", "false",
+		"--adaptive-parallelism", "disabled",
 		"--adaptive-parallelism-max", "5",
 		"--skip-replication-checks", "false",
 		"--disable-pb", "false",
@@ -2044,7 +2044,7 @@ target:
 import-data:
   batch-size: 1000
   parallel-jobs: 4
-  enable-adaptive-parallelism: true
+  adaptive-parallelism: balanced
   adaptive-parallelism-max: 10
   skip-replication-checks: true
   disable-pb: true
@@ -2146,7 +2146,7 @@ target:
 import-data-to-target:
   batch-size: 1000
   parallel-jobs: 4
-  enable-adaptive-parallelism: true
+  adaptive-parallelism: balanced
   adaptive-parallelism-max: 10
   skip-replication-checks: true
   disable-pb: true
@@ -2305,7 +2305,7 @@ target:
 import-data-file:
   batch-size: 1000
   parallel-jobs: 4
-  enable-adaptive-parallelism: true
+  adaptive-parallelism: balanced
   adaptive-parallelism-max: 10
   disable-pb: true
   max-retries-streaming: 3
@@ -2432,7 +2432,7 @@ func TestImportDataFileConfigBinding_CLIOverridesConfig(t *testing.T) {
 		"--profile", "false",
 		"--batch-size", "2000",
 		"--parallel-jobs", "8",
-		"--enable-adaptive-parallelism", "false",
+		"--adaptive-parallelism", "disabled",
 		"--adaptive-parallelism-max", "5",
 		"--disable-pb", "false",
 		"--max-retries-streaming", "5",

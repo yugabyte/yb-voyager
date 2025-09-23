@@ -400,7 +400,7 @@ func registerFlagsForTarget(cmd *cobra.Command) {
 	// BoolVar(cmd.Flags(), &tconf.EnableYBAdaptiveParallelism, "enable-adaptive-parallelism", true,
 	// 	"Adapt parallelism based on the resource usage (CPU, memory) of the target YugabyteDB cluster.")
 
-	cmd.Flags().Var(&tconf.AdaptiveParallelismMode, "adaptive-parallelism-mode",
+	cmd.Flags().Var(&tconf.AdaptiveParallelismMode, "adaptive-parallelism",
 		"The mode for adaptive parallelism behavior: disabled, balanced, aggressive (default balanced)")
 
 	cmd.Flags().IntVar(&tconf.MaxParallelism, "adaptive-parallelism-max", 0,
@@ -472,12 +472,12 @@ func validateParallelismFlags() {
 	// TODO: fix error messages.
 	if tconf.AdaptiveParallelismMode.IsEnabled() {
 		if tconf.Parallelism > 0 {
-			utils.ErrExit("Error --parallel-jobs flag cannot be used with --enable-adaptive-parallelism true. If you wish to set the number of parallel jobs explicitly, disable adaptive parallelism using --enable-adaptive-parallelism false")
+			utils.ErrExit("Error --parallel-jobs flag cannot be used with adaptive-parallelism is enabled (balanced/aggressive). If you wish to set the number of parallel jobs explicitly, disable adaptive parallelism using --adaptive-parallelism disabled")
 		}
 	}
 	if tconf.MaxParallelism > 0 {
 		if !tconf.AdaptiveParallelismMode.IsEnabled() {
-			utils.ErrExit("Error --adaptive-parallelism-max flag can only be used with --enable-adaptive-parallelism true")
+			utils.ErrExit("Error --adaptive-parallelism-max flag can only be used when adaptive-parallelism is enabled (balanced/aggressive)")
 		}
 	}
 
