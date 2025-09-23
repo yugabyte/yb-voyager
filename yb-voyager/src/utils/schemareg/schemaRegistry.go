@@ -149,7 +149,7 @@ func (sreg *SchemaRegistry) Init() error {
 		if !lo.ContainsBy(sreg.tableList, func(t sqlname.NameTuple) bool {
 			return t.ForKey() == table.ForKey() 
 		}) {
-			//skip the table if it is not present in the table list or if it is not present in the target
+			//skip the table if it is not present in the table list
 			continue
 		} else if !table.TargetTableAvailable() {
 			//Table is in table list but target not found during lookup
