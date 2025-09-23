@@ -151,24 +151,24 @@ func (c *QueryPerformanceComparator) matchQueries() []*QueryComparison {
 		matchFound := false
 		for _, targetQueryStat := range c.TargetQueryStats {
 			if sourceQueryStat.QueryText == targetQueryStat.QueryText {
-				allComparisons = append(allComparisons, &QueryComparison{
-					Query:       sourceQueryStat.QueryText,
-					SourceStats: sourceQueryStat,
-					TargetStats: targetQueryStat,
-					MatchStatus: MATCHED,
-				})
+				allComparisons = append(allComparisons, NewQueryComparison(
+					sourceQueryStat.QueryText,
+					sourceQueryStat,
+					targetQueryStat,
+					MATCHED,
+				))
 				matchFound = true
 				break
 			}
 		}
 
 		if !matchFound {
-			allComparisons = append(allComparisons, &QueryComparison{
-				Query:       sourceQueryStat.QueryText,
-				SourceStats: sourceQueryStat,
-				TargetStats: nil,
-				MatchStatus: SOURCE_ONLY,
-			})
+			allComparisons = append(allComparisons, NewQueryComparison(
+				sourceQueryStat.QueryText,
+				sourceQueryStat,
+				nil,
+				SOURCE_ONLY,
+			))
 		}
 	}
 
@@ -182,12 +182,12 @@ func (c *QueryPerformanceComparator) matchQueries() []*QueryComparison {
 		}
 
 		if !matchFound {
-			allComparisons = append(allComparisons, &QueryComparison{
-				Query:       targetQueryStat.QueryText,
-				TargetStats: targetQueryStat,
-				SourceStats: nil,
-				MatchStatus: TARGET_ONLY,
-			})
+			allComparisons = append(allComparisons, NewQueryComparison(
+				targetQueryStat.QueryText,
+				nil,
+				targetQueryStat,
+				TARGET_ONLY,
+			))
 		}
 	}
 

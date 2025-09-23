@@ -107,7 +107,23 @@ type ReportSummary struct {
 	TargetOnlyQueries int
 }
 
-// ================================ Comparison Report Types Methods ================================
+// NewQueryComparison creates a new QueryComparison with proper default values
+func NewQueryComparison(query string, sourceStats, targetStats *types.QueryStats, status MatchStatus) *QueryComparison {
+	comp := &QueryComparison{
+		Query:       query,
+		SourceStats: sourceStats,
+		TargetStats: targetStats,
+		MatchStatus: status,
+	}
+
+	// Set default values for non-matched queries
+	if status != MATCHED {
+		comp.ImpactScore = -1
+		comp.SlowdownRatio = -1
+	}
+
+	return comp
+}
 
 func (c *QueryComparison) calculateMetrics() {
 	if c.MatchStatus != MATCHED || c.SourceStats == nil || c.TargetStats == nil {
