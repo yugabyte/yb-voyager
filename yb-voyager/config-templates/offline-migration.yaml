@@ -384,17 +384,20 @@ import-data:
   ### of parallel jobs based on the resource usage (CPU, memory) of the target 
   ### YugabyteDB cluster.
   ### The following flags are available to control parallelism:
-  ### - enable-adaptive-parallelism: Enables adaptive adjustment of parallel jobs.
-  ###   Accepted values: true, false, yes, no, 1, 0 
-  ###   Default: true
+  ### - adaptive-parallelism: Choose the mode for adaptive parallelism behavior.
+  ###     balanced: Operate with conservative thresholds. Recommended to be used when there are other workloads running on the cluster.
+  ###     aggressive: Operate with aggressive max-CPU thresholds for better performance. Recommended to be used when there are no other workloads running on the cluster.
+  ###     disabled: Disable adaptive parallelism.
+  ###   Accepted values: disabled, balanced, aggressive
+  ###   Default: balanced
   ### - adaptive-parallelism-max: Optional upper limit on parallel jobs when
   ###   adaptive parallelism is enabled. If not set, Voyager will use N/2,
   ###   where N is the number of available CPU cores.
   ### - parallel-jobs: If set, overrides adaptive parallelism entirely.
   ###   Voyager will use the given number of parallel jobs.
   ###   Any value < 1 falls back to N/4 or 2×node count if N is not available.
-  ###   Note: Do not set this if enable-adaptive-parallelism is true.
-  enable-adaptive-parallelism: true
+  ###   Note: Do not set this if adaptive-parallelism is enabled (balanced/aggressive).
+  adaptive-parallelism: balanced
   # adaptive-parallelism-max: <integer>
   # parallel-jobs: <integer>   # Do not set if adaptive parallelism is enabled  
 
