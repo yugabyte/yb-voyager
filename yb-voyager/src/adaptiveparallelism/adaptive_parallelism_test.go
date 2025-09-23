@@ -166,11 +166,43 @@ func TestIncreaseParallelism(t *testing.T) {
 	assert.Equal(t, 4, yb.GetNumConnectionsInPool())
 }
 
+func TestIncreaseParallelismBasedOnCpuAggressiveMode(t *testing.T) {
+	readConfig(types.AggressiveAdaptiveParallelismMode)
+	defer readConfig(types.BalancedAdaptiveParallelismMode)
+	yb := &dummyTargetYugabyteDB{
+		size:          3,
+		maxSize:       6,
+		cpuUsageUser1: 0.9, // below threshold for aggressive mode.
+		cpuUsageSys1:  0.01,
+	}
+
+	err := fetchClusterMetricsAndUpdateParallelism(yb, MIN_PARALLELISM, yb.GetNumMaxConnectionsInPool())
+	assert.NoErrorf(t, err, "failed to fetch cluster metrics and update parallelism")
+	assert.Equal(t, 4, yb.GetNumConnectionsInPool())
+}
+
 func TestDecreaseParallelismBasedOnCpu(t *testing.T) {
 	yb := &dummyTargetYugabyteDB{
 		size:          3,
 		maxSize:       6,
 		cpuUsageUser1: 0.8, // above threshold
+		cpuUsageSys1:  0.1,
+		cpuUsageUser2: 0.5,
+		cpuUsageSys2:  0.1,
+	}
+
+	err := fetchClusterMetricsAndUpdateParallelism(yb, MIN_PARALLELISM, yb.GetNumMaxConnectionsInPool())
+	assert.NoErrorf(t, err, "failed to fetch cluster metrics and update parallelism")
+	assert.Equal(t, 2, yb.GetNumConnectionsInPool())
+}
+
+func TestDecreaseParallelismBasedOnCpuAggressiveMode(t *testing.T) {
+	readConfig(types.AggressiveAdaptiveParallelismMode)
+	defer readConfig(types.BalancedAdaptiveParallelismMode)
+	yb := &dummyTargetYugabyteDB{
+		size:          3,
+		maxSize:       6,
+		cpuUsageUser1: 0.86, // 0.86+0.1 = 0.96 > 0.95 (threshold for aggressive mode)
 		cpuUsageSys1:  0.1,
 		cpuUsageUser2: 0.5,
 		cpuUsageSys2:  0.1,
