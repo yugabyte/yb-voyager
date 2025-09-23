@@ -329,10 +329,30 @@ const SYNTAX_ERROR = "syntax error at"
 const RPC_MSG_LIMIT_ERROR = "Sending too long RPC message"
 const INVALID_INPUT_SYNTAX_ERROR = "invalid input syntax"
 
+// pgx driver error patterns
+// Mismatched param and argument count - produced by pgx's ExtendedQueryBuilder
+const MISMATCHED_PARAM_ARGUMENT_COUNT_ERROR = "mismatched param and argument count"
+
+// Failed to encode args[N] - pgx wraps encoding failures with fmt.Errorf
+const FAILED_TO_ENCODE_ARGS_ERROR = "failed to encode args"
+
+// Unable to encode - many pgx/pgtype errors include this text
+const UNABLE_TO_ENCODE_ERROR = "unable to encode"
+
+// Cannot find encode plan - specific phrase from pgx/pgtype
+const CANNOT_FIND_ENCODE_PLAN_ERROR = "cannot find encode plan"
+
 var NonRetryCopyErrors = []string{
+	// Existing patterns
 	INVALID_INPUT_SYNTAX_ERROR,
 	VIOLATES_UNIQUE_CONSTRAINT_ERROR,
 	SYNTAX_ERROR,
+
+	// pgx driver error patterns
+	MISMATCHED_PARAM_ARGUMENT_COUNT_ERROR,
+	FAILED_TO_ENCODE_ARGS_ERROR,
+	UNABLE_TO_ENCODE_ERROR,
+	CANNOT_FIND_ENCODE_PLAN_ERROR,
 }
 
 // IsPgErrorCodeNonRetryable checks if an error is a data integrity or constraint violation or syntax error
