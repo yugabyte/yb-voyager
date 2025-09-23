@@ -24,6 +24,30 @@ type YugabyteDBClusterContainer struct {
 	network *testcontainers.DockerNetwork // docker network for nodes in cluster
 }
 
+// NewYugabyteDBCluster creates a YugabyteDB cluster container with the given configuration.
+// If config is nil, uses defaults. If config is provided, fills in missing values with defaults.
+func NewYugabyteDBCluster(config *ContainerConfig) *YugabyteDBClusterContainer {
+	// Handle nil config
+	if config == nil {
+		config = &ContainerConfig{}
+	}
+
+	// Set defaults for missing values
+	setContainerConfigDefaultsIfNotProvided(YUGABYTEDB, config)
+
+	// Ensure cluster-appropriate defaults
+	if config.NodeCount <= 1 {
+		config.NodeCount = 3 // Default to 3-node cluster
+	}
+	if config.ReplicationFactor <= 1 {
+		config.ReplicationFactor = config.NodeCount // Default RF = NodeCount
+	}
+
+	return &YugabyteDBClusterContainer{
+		ContainerConfig: *config,
+	}
+}
+
 func (cluster *YugabyteDBClusterContainer) Start(ctx context.Context) (err error) {
 	cluster.mutex.Lock()
 	defer cluster.mutex.Unlock()
