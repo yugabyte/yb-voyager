@@ -841,19 +841,6 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 	fmt.Printf("\nImport data complete.\n")
 }
 
-/*
-if import data has table list filteration 
-	if a sequence is  attached to a table - tableColumn -> sequence name 
-		if table is part of table list being imported
-			yes then continue exectuing
-		else 
-			skip the sequence
-	else //independent sequence  // not possible right now
-		skip the sequence
-else // 
-	execute the sequence
-*/
-
 // For a fresh start but non empty tables in tableList && OnPrimaryKeyConflict is set to IGNORE -> notify user
 func runPKConflictModeGuardrails(state *ImportDataState, allTasks []*ImportFileTask) error {
 	// in case of ERROR mode, no need to check for non-empty tables
