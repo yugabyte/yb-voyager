@@ -530,7 +530,11 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 	allUnknown := append(unknownInclude, unknownExclude...)
 	if len(allUnknown) > 0 {
 		utils.PrintAndLog("Unknown table names in the table-list: %v", allUnknown)
-		utils.PrintAndLog("Valid table names are: %v", lo.Map(allTables, func(t sqlname.NameTuple, _ int) string {
+		tablesPresentInTarget := lo.Filter(allTables, func(t sqlname.NameTuple, _ int) bool {
+			return t.TargetTableAvailable()
+		})
+		utils.PrintAndLog("Valid table names are: %v", lo.Map(tablesPresentInTarget, func(t sqlname.NameTuple, _ int) string {
+			//For the tables that are present in target, we will display the current table name (i.e. as per target table name) properly
 			return t.ForOutput()
 		}))
 		utils.ErrExit("Please fix the table names in table-list and retry.")
@@ -557,7 +561,7 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 		result = append(result, task)
 	}
 	if len(tablesNotPresentInTarget) > 0 {
-		utils.PrintAndLog("Following tables are not present in the target database:\n%v", strings.Join(lo.Map(tablesNotPresentInTarget, func(t sqlname.NameTuple, _ int) string {
+		utils.PrintAndLog("Following source tables are not present in the target database:\n%v", strings.Join(lo.Map(tablesNotPresentInTarget, func(t sqlname.NameTuple, _ int) string {
 			return t.ForKey()
 		}), ","))
 		utils.ErrExit("Exclude these tables in table-list flags if you don't want to import them.")

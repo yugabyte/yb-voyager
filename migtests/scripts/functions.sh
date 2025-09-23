@@ -622,6 +622,7 @@ wait_for_string_in_file() {
         
         if [ $elapsed -ge $timeout_seconds ]; then
             echo "Timeout reached ($timeout_seconds seconds). String '$search_string' not found in $file_path."
+            tail -n 100 "$file_path"
             return 1
         fi
         
@@ -744,6 +745,12 @@ wait_for_exporter_event() {
 
         if [ $elapsed -ge $timeout_seconds ]; then
             echo "Timeout reached (${timeout_seconds}s). Proceeding without detecting sufficient ${exporter_db} events."
+            # Showing relevant log file for debugging
+            if [ "$exporter_db" == "source" ]; then
+                tail_log_file "yb-voyager-export-data.log"
+            else 
+                tail_log_file "yb-voyager-export-data-from-target.log"
+            fi
             return 0
         fi
 
@@ -754,7 +761,7 @@ wait_for_exporter_event() {
             # Metadata-driven approach: wait for expected count
             echo "Found ${actual_count}/${expected_count} expected ${exporter_db} events"
             
-            if [ "$actual_count" -ge "$expected_count" ]; then
+            if [ "$actual_count" -eq "$expected_count" ]; then
                 echo "Detected ${actual_count}/${expected_count} expected ${exporter_db} events. Proceeding."
                 return 0
             fi
