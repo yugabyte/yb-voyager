@@ -46,6 +46,7 @@ import (
 	_ "github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/pgss"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
@@ -63,7 +64,7 @@ const (
 type TargetYugabyteDB struct {
 	sync.Mutex
 	*AttributeNameRegistry
-	tconf    *TargetConf
+	Tconf    *TargetConf
 	db       *sql.DB
 	conn_    *pgx.Conn
 	connPool *ConnectionPool
@@ -73,7 +74,7 @@ type TargetYugabyteDB struct {
 
 func newTargetYugabyteDB(tconf *TargetConf) *TargetYugabyteDB {
 	tdb := &TargetYugabyteDB{
-		tconf:     tconf,
+		Tconf:     tconf,
 		attrNames: make(map[string][]string),
 	}
 	tdb.AttributeNameRegistry = NewAttributeNameRegistry(tdb, tconf)
@@ -97,14 +98,14 @@ func (yb *TargetYugabyteDB) Exec(query string) (int64, error) {
 		var pgErr *pgconn5.PgError
 		if errors.As(err, &pgErr) {
 			if pgErr.Hint != "" || pgErr.Detail != "" {
-				return rowsAffected, fmt.Errorf("run query %q on target %q: %w \nHINT: %s\nDETAIL: %s", query, yb.tconf.Host, err, pgErr.Hint, pgErr.Detail)
+				return rowsAffected, fmt.Errorf("run query %q on target %q: %w \nHINT: %s\nDETAIL: %s", query, yb.Tconf.Host, err, pgErr.Hint, pgErr.Detail)
 			}
 		}
-		return rowsAffected, fmt.Errorf("run query %q on target %q: %w", query, yb.tconf.Host, err)
+		return rowsAffected, fmt.Errorf("run query %q on target %q: %w", query, yb.Tconf.Host, err)
 	}
 	rowsAffected, err = res.RowsAffected()
 	if err != nil {
-		return rowsAffected, fmt.Errorf("rowsAffected on query %q on target %q: %w", query, yb.tconf.Host, err)
+		return rowsAffected, fmt.Errorf("rowsAffected on query %q on target %q: %w", query, yb.Tconf.Host, err)
 	}
 	return rowsAffected, err
 }
@@ -112,7 +113,7 @@ func (yb *TargetYugabyteDB) Exec(query string) (int64, error) {
 func (yb *TargetYugabyteDB) WithTx(fn func(tx *sql.Tx) error) error {
 	tx, err := yb.db.Begin()
 	if err != nil {
-		return fmt.Errorf("begin transaction on target %q: %w", yb.tconf.Host, err)
+		return fmt.Errorf("begin transaction on target %q: %w", yb.Tconf.Host, err)
 	}
 	defer tx.Rollback()
 	err = fn(tx)
@@ -121,29 +122,30 @@ func (yb *TargetYugabyteDB) WithTx(fn func(tx *sql.Tx) error) error {
 	}
 	err = tx.Commit()
 	if err != nil {
-		return fmt.Errorf("commit transaction on target %q: %w", yb.tconf.Host, err)
+		return fmt.Errorf("commit transaction on target %q: %w", yb.Tconf.Host, err)
 	}
 	return nil
 }
 
 func (yb *TargetYugabyteDB) Init() error {
+	log.Infof("initializing target database")
 	err := yb.connect()
 	if err != nil {
 		return err
 	}
 
-	if len(yb.tconf.SessionVars) == 0 {
-		yb.tconf.SessionVars = getYBSessionInitScript(yb.tconf)
+	if len(yb.Tconf.SessionVars) == 0 {
+		yb.Tconf.SessionVars = getYBSessionInitScript(yb.Tconf)
 	}
 
 	checkSchemaExistsQuery := fmt.Sprintf(
 		"SELECT count(nspname) FROM pg_catalog.pg_namespace WHERE nspname = '%s';",
-		yb.tconf.Schema)
+		yb.Tconf.Schema)
 	var cntSchemaName int
 	if err = yb.QueryRow(checkSchemaExistsQuery).Scan(&cntSchemaName); err != nil {
-		err = fmt.Errorf("run query %q on target %q to check schema exists: %w", checkSchemaExistsQuery, yb.tconf.Host, err)
+		err = fmt.Errorf("run query %q on target %q to check schema exists: %w", checkSchemaExistsQuery, yb.Tconf.Host, err)
 	} else if cntSchemaName == 0 {
-		err = fmt.Errorf("schema '%s' does not exist in target", yb.tconf.Schema)
+		err = fmt.Errorf("schema '%s' does not exist in target", yb.Tconf.Schema)
 	}
 	return err
 }
@@ -175,7 +177,7 @@ func (yb *TargetYugabyteDB) connect() error {
 		// Already connected.
 		return nil
 	}
-	connStr := yb.tconf.GetConnectionUri()
+	connStr := yb.Tconf.GetConnectionUri()
 	var err error
 	yb.db, err = sql.Open("pgx", connStr)
 	if err != nil {
@@ -217,19 +219,19 @@ func (yb *TargetYugabyteDB) EnsureConnected() {
 }
 
 func (yb *TargetYugabyteDB) GetVersion() string {
-	if yb.tconf.DBVersion != "" {
-		return yb.tconf.DBVersion
+	if yb.Tconf.DBVersion != "" {
+		return yb.Tconf.DBVersion
 	}
 
 	yb.EnsureConnected()
 	yb.Lock()
 	defer yb.Unlock()
 	query := "SELECT setting FROM pg_settings WHERE name = 'server_version'"
-	err := yb.QueryRow(query).Scan(&yb.tconf.DBVersion)
+	err := yb.QueryRow(query).Scan(&yb.Tconf.DBVersion)
 	if err != nil {
 		utils.ErrExit("get target db version: %w", err)
 	}
-	return yb.tconf.DBVersion
+	return yb.Tconf.DBVersion
 }
 
 // GetDBSystemIdentifier fetches the database system identifier if available
@@ -287,9 +289,9 @@ func (yb *TargetYugabyteDB) InitConnPool() error {
 	}
 	log.Infof("targetUriList: %s", utils.GetRedactedURLs(targetUriList))
 
-	if yb.tconf.Parallelism <= 0 {
-		yb.tconf.Parallelism = fetchDefaultParallelJobs(tconfs, YB_DEFAULT_PARALLELISM_FACTOR)
-		log.Infof("Using %d parallel jobs by default. Use --parallel-jobs to specify a custom value", yb.tconf.Parallelism)
+	if yb.Tconf.Parallelism <= 0 {
+		yb.Tconf.Parallelism = fetchDefaultParallelJobs(tconfs, YB_DEFAULT_PARALLELISM_FACTOR)
+		log.Infof("Using %d parallel jobs by default. Use --parallel-jobs to specify a custom value", yb.Tconf.Parallelism)
 	}
 
 	if yb.tconf.AdaptiveParallelismMode.IsEnabled() {
@@ -297,13 +299,13 @@ func (yb *TargetYugabyteDB) InitConnPool() error {
 			yb.tconf.MaxParallelism = yb.tconf.Parallelism * 2
 		}
 	} else {
-		yb.tconf.MaxParallelism = yb.tconf.Parallelism
+		yb.Tconf.MaxParallelism = yb.Tconf.Parallelism
 	}
 	params := &ConnectionParams{
-		NumConnections:    yb.tconf.Parallelism,
-		NumMaxConnections: yb.tconf.MaxParallelism,
+		NumConnections:    yb.Tconf.Parallelism,
+		NumMaxConnections: yb.Tconf.MaxParallelism,
 		ConnUriList:       targetUriList,
-		SessionInitScript: yb.tconf.SessionVars,
+		SessionInitScript: yb.Tconf.SessionVars,
 	}
 	yb.connPool = NewConnectionPool(params)
 	redactedParams := &ConnectionParams{}
@@ -1049,7 +1051,7 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 			ybBatch.Queue(stmt)
 			log.Debugf("SQL statement: Batch(%s): Event(%d): [%s]", batch.ID(), event.Vsn, stmt)
 		} else {
-			stmt, err := event.GetPreparedSQLStmt(yb, yb.tconf.TargetDBType)
+			stmt, err := event.GetPreparedSQLStmt(yb, yb.Tconf.TargetDBType)
 			if err != nil {
 				return fmt.Errorf("get prepared sql stmt: %w", err)
 			}
@@ -1219,15 +1221,13 @@ func (yb *TargetYugabyteDB) GetYBServers() (bool, []*TargetConf, error) {
 	var tconfs []*TargetConf
 	var loadBalancerUsed bool
 
-	tconf := yb.tconf
-
-	if tconf.TargetEndpoints != "" {
-		msg := fmt.Sprintf("given yb-servers for import data: %q\n", tconf.TargetEndpoints)
+	if yb.Tconf.TargetEndpoints != "" {
+		msg := fmt.Sprintf("given yb-servers for import data: %q\n", yb.Tconf.TargetEndpoints)
 		log.Infof(msg)
 
-		ybServers := utils.CsvStringToSlice(tconf.TargetEndpoints)
+		ybServers := utils.CsvStringToSlice(yb.Tconf.TargetEndpoints)
 		for _, ybServer := range ybServers {
-			clone := tconf.Clone()
+			clone := yb.Tconf.Clone()
 
 			if strings.Contains(ybServer, ":") {
 				clone.Host = strings.Split(ybServer, ":")[0]
@@ -1247,7 +1247,7 @@ func (yb *TargetYugabyteDB) GetYBServers() (bool, []*TargetConf, error) {
 		}
 	} else {
 		loadBalancerUsed = true
-		url := tconf.GetConnectionUri()
+		url := yb.Tconf.GetConnectionUri()
 		conn, err := pgx.Connect(context.Background(), url)
 		if err != nil {
 			return false, nil, fmt.Errorf("Unable to connect to database: %w", err)
@@ -1262,7 +1262,7 @@ func (yb *TargetYugabyteDB) GetYBServers() (bool, []*TargetConf, error) {
 
 		var hostPorts []string
 		for rows.Next() {
-			clone := tconf.Clone()
+			clone := yb.Tconf.Clone()
 			var host, nodeType, cloud, region, zone, public_ip string
 			var port, num_conns int
 			if err := rows.Scan(&host, &port, &num_conns,
@@ -1271,13 +1271,11 @@ func (yb *TargetYugabyteDB) GetYBServers() (bool, []*TargetConf, error) {
 			}
 
 			// check if given host is one of the server in cluster
-			if loadBalancerUsed {
-				if isSeedTargetHost(tconf, host, public_ip) {
-					loadBalancerUsed = false
-				}
+			if loadBalancerUsed && isSeedTargetHost(yb.Tconf, host, public_ip) {
+				loadBalancerUsed = false
 			}
 
-			if tconf.UsePublicIP {
+			if yb.Tconf.UsePublicIP {
 				if public_ip != "" {
 					clone.Host = public_ip
 				} else {
@@ -1303,12 +1301,13 @@ func (yb *TargetYugabyteDB) GetYBServers() (bool, []*TargetConf, error) {
 		}
 		log.Infof("Target DB nodes: %s", strings.Join(hostPorts, ","))
 	}
+
 	return loadBalancerUsed, tconfs, nil
 }
 
 func (yb *TargetYugabyteDB) getTargetConfsAsPerLoadBalancerUsed(loadBalancerUsed bool, confs []*TargetConf) []*TargetConf {
 	if loadBalancerUsed { // if load balancer is used no need to check direct connectivity
-		return []*TargetConf{yb.tconf}
+		return []*TargetConf{yb.Tconf}
 	} else {
 		return testAndFilterYbServers(confs)
 	}
@@ -1550,7 +1549,7 @@ func checkSessionVariableSupport(tconf *TargetConf, sqlStmt string) bool {
 }
 
 func (yb *TargetYugabyteDB) setTargetSchema(conn *pgx.Conn) error {
-	setSchemaQuery := fmt.Sprintf("SET SCHEMA '%s'", yb.tconf.Schema)
+	setSchemaQuery := fmt.Sprintf("SET SCHEMA '%s'", yb.Tconf.Schema)
 	_, err := conn.Exec(context.Background(), setSchemaQuery)
 	if err != nil {
 		return fmt.Errorf("run query: %q on target %q: %w", setSchemaQuery, conn.Config().Host, err)
@@ -1848,7 +1847,7 @@ func (yb *TargetYugabyteDB) ClearMigrationState(migrationUUID uuid.UUID, exportD
 	if len(nonEmptyTables) != 0 {
 		log.Infof("tables %v are not empty in schema %s", nonEmptyTables, schema)
 		utils.PrintAndLog("removed the current migration state from the target DB. "+
-			"But could not remove the schema '%s' as it still contains state of other migrations in '%s' database", schema, yb.tconf.DBName)
+			"But could not remove the schema '%s' as it still contains state of other migrations in '%s' database", schema, yb.Tconf.DBName)
 		return nil
 	}
 	utils.PrintAndLog("dropping schema %s", schema)
@@ -1953,16 +1952,67 @@ func (n *NodeMetrics) GetMemoryTotal() (int64, error) {
 	return memoryTotal, nil
 }
 
+// ================================ PgStatStatements Collection =================================
+
+const PG_STAT_STATEMENTS_QUERY = `
+SELECT
+	queryid, query, calls, rows, total_exec_time, mean_exec_time,
+	min_exec_time, max_exec_time, stddev_exec_time
+FROM pg_stat_statements
+	WHERE dbid = (SELECT oid FROM pg_database WHERE datname = current_database())
+`
+
+func (yb *TargetYugabyteDB) CollectPgStatStatements() ([]*pgss.PgStatStatements, error) {
+	loadBalancerUsed, tconfs, err := yb.GetYBServers()
+	if err != nil {
+		return nil, fmt.Errorf("error getting yb servers: %w", err)
+	}
+
+	// TODO: Implement pg_stat_statements collection for load balancer(YBM)
+	if loadBalancerUsed {
+		utils.ErrExit("yb cluster with load balancer setup is not supported for compare-perf command yet.")
+	}
+
+	// first collect all entries from all the nodes and merge later
+	var entries []*pgss.PgStatStatements
+	for _, tconf := range tconfs {
+		conn, err := pgx.Connect(context.Background(), tconf.GetConnectionUri())
+		if err != nil {
+			return nil, fmt.Errorf("error connecting to target database: %w", err)
+		}
+		defer conn.Close(context.Background())
+
+		rows, err := conn.Query(context.Background(), PG_STAT_STATEMENTS_QUERY)
+		if err != nil {
+			return nil, fmt.Errorf("error querying pg_stat_statements: %w", err)
+		}
+
+		for rows.Next() {
+			var entry pgss.PgStatStatements
+			err := rows.Scan(&entry.QueryID, &entry.Query, &entry.Calls, &entry.Rows, &entry.TotalExecTime, &entry.MeanExecTime, &entry.MinExecTime, &entry.MaxExecTime, &entry.StddevExecTime)
+			if err != nil {
+				return nil, fmt.Errorf("error scanning pg_stat_statements row: %w", err)
+			}
+			entries = append(entries, &entry)
+		}
+
+		rows.Close()
+	}
+
+	mergedEntries := pgss.MergePgStatStatements(entries)
+	return mergedEntries, nil
+}
+
 // =============================== Guardrails =================================
 
 func (yb *TargetYugabyteDB) GetMissingImportDataPermissions(isFallForwardEnabled bool) ([]string, error) {
 	// check if the user is a superuser
-	isSuperUser, err := IsCurrentUserSuperUser(yb.tconf)
+	isSuperUser, err := IsCurrentUserSuperUser(yb.Tconf)
 	if err != nil {
 		return nil, fmt.Errorf("checking if user is superuser: %w", err)
 	}
 	if !isSuperUser {
-		errorMsg := fmt.Sprintf("User %s is not a superuser.", yb.tconf.User)
+		errorMsg := fmt.Sprintf("User %s is not a superuser.", yb.Tconf.User)
 		return []string{errorMsg}, nil
 	}
 
@@ -2032,7 +2082,7 @@ func (yb *TargetYugabyteDB) GetEnabledTriggersAndFks() (enabledTriggers []string
 }
 
 func (yb *TargetYugabyteDB) NumOfLogicalReplicationSlots() (int64, error) {
-	query := fmt.Sprintf("SELECT count(slot_name) from pg_replication_slots where database='%s'", yb.tconf.DBName)
+	query := fmt.Sprintf("SELECT count(slot_name) from pg_replication_slots where database='%s'", yb.Tconf.DBName)
 	var numOfSlots int64
 
 	err := yb.QueryRow(query).Scan(&numOfSlots)
