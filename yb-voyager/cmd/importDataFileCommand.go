@@ -372,6 +372,7 @@ func packAndSendImportDataFilePayload(status string, errorMsg error) {
 	if callhomeMetricsCollector != nil {
 		dataMetrics.SnapshotTotalRows = callhomeMetricsCollector.GetSnapshotTotalRows()
 		dataMetrics.SnapshotTotalBytes = callhomeMetricsCollector.GetSnapshotTotalBytes()
+		dataMetrics.CurrentParallelConnections = callhomeMetricsCollector.GetCurrentParallelConnections()
 	}
 
 	// Get migration-related metrics from existing logic

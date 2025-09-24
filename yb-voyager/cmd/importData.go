@@ -646,7 +646,7 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 	}
 
 	var adaptiveParallelismStarted bool
-	adaptiveParallelismStarted, err = startAdaptiveParallelism(tconf.AdaptiveParallelismMode)
+	adaptiveParallelismStarted, err = startAdaptiveParallelism(tconf.AdaptiveParallelismMode, callhomeMetricsCollector)
 	if err != nil {
 		utils.ErrExit("Failed to start adaptive parallelism: %s", err)
 	}
@@ -1178,7 +1178,7 @@ func displayMonitoringInformationOnTheConsole(info string) {
 	}
 }
 
-func startAdaptiveParallelism(mode types.AdaptiveParallelismMode) (bool, error) {
+func startAdaptiveParallelism(mode types.AdaptiveParallelismMode, callhomeMetricsCollector *callhome.ImportDataMetricsCollector) (bool, error) {
 	if !mode.IsEnabled() {
 		return false, nil
 	}
@@ -1193,7 +1193,7 @@ func startAdaptiveParallelism(mode types.AdaptiveParallelismMode) (bool, error) 
 	}
 
 	go func() {
-		err := adaptiveparallelism.AdaptParallelism(yb, mode)
+		err := adaptiveparallelism.AdaptParallelism(yb, mode, callhomeMetricsCollector)
 		if err != nil {
 			log.Errorf("adaptive parallelism error: %v", err)
 		}
@@ -1256,6 +1256,7 @@ func packAndSendImportDataToTargetPayload(status string, errorMsg error) {
 	if callhomeMetricsCollector != nil {
 		dataMetrics.SnapshotTotalRows = callhomeMetricsCollector.GetSnapshotTotalRows()
 		dataMetrics.SnapshotTotalBytes = callhomeMetricsCollector.GetSnapshotTotalBytes()
+		dataMetrics.CurrentParallelConnections = callhomeMetricsCollector.GetCurrentParallelConnections()
 	}
 
 	// Get phase-related metrics from existing logic
