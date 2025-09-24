@@ -1469,6 +1469,7 @@ FROM generate_series(1, 10);`
 	defer postgresContainer.ExecuteSqls(dropSchemaSQL)
 	defer yugabytedbContainer.ExecuteSqls(dropSchemaSQL)
 
+	//exporting all tables here 
 	err := testutils.NewVoyagerCommandRunner(postgresContainer, "export data", []string{
 		"--export-dir", exportDir,
 		"--source-db-schema", "test_schema",
@@ -1496,7 +1497,7 @@ FROM generate_series(1, 10);`
 	err = json.Unmarshal(reportData, &exportReportData)
 	testutils.FatalIfError(t, err, "Failed to read export data status report file")
 
-	assert.Equal(t, 2, len(exportReportData), "Report should contain exactly one entry")
+	assert.Equal(t, 2, len(exportReportData), "Report should contain exactly two entries")
 	assert.Equal(t, &exportTableMigStatusOutputRow{
 		TableName:     `test_migration`,
 		ExportedCount: 10,
@@ -1571,7 +1572,7 @@ Valid table names are: [test_schema.test_migration]
 	err = json.Unmarshal(reportData, &importReportData)
 	testutils.FatalIfError(t, err, "Failed to read import data status report file")
 
-	assert.Equal(t, 2, len(importReportData), "Report should contain exactly one entry")
+	assert.Equal(t, 2, len(importReportData), "Report should contain exactly two entries")
 	assert.Equal(t, &tableMigStatusOutputRow{
 		TableName:          `test_schema."test_migration"`,
 		FileName:           "",
@@ -1603,7 +1604,7 @@ Valid table names are: [test_schema.test_migration]
 	err = json.Unmarshal(reportData, &exportReportData)
 	testutils.FatalIfError(t, err, "Failed to read export data status report file")
 
-	assert.Equal(t, 2, len(exportReportData), "Report should contain exactly one entry")
+	assert.Equal(t, 2, len(exportReportData), "Report should contain exactly two entries")
 	assert.Equal(t, &exportTableMigStatusOutputRow{
 		TableName:     `test_migration`,
 		ExportedCount: 10,
@@ -1693,6 +1694,7 @@ FROM generate_series(1, 10) as i;`
 	os.Setenv("BETA_FAST_DATA_EXPORT", "true")
 	defer os.Unsetenv("BETA_FAST_DATA_EXPORT")
 
+	//exporting all tables here 
 	err := testutils.NewVoyagerCommandRunner(postgresContainer, "export data", []string{
 		"--export-dir", exportDir,
 		"--source-db-schema", "test_schema",
@@ -1720,7 +1722,7 @@ FROM generate_series(1, 10) as i;`
 	err = json.Unmarshal(reportData, &exportReportData)
 	testutils.FatalIfError(t, err, "Failed to read export data status report file")
 
-	assert.Equal(t, 2, len(exportReportData), "Report should contain exactly one entry")
+	assert.Equal(t, 2, len(exportReportData), "Report should contain exactly two entries")
 	assert.Equal(t, &exportTableMigStatusOutputRow{
 		TableName:     `test_migration`,
 		ExportedCount: 10,
@@ -1776,7 +1778,7 @@ test_schema."test_migration1"`)
 	err = json.Unmarshal(reportData, &importReportData)
 	testutils.FatalIfError(t, err, "Failed to read import data status report file")
 
-	assert.Equal(t, 2, len(importReportData), "Report should contain exactly one entry")
+	assert.Equal(t, 2, len(importReportData), "Report should contain exactly two entries")
 	assert.Equal(t, &tableMigStatusOutputRow{
 		TableName:          `test_schema."test_migration"`,
 		FileName:           "",
@@ -1808,7 +1810,7 @@ test_schema."test_migration1"`)
 	err = json.Unmarshal(reportData, &exportReportData)
 	testutils.FatalIfError(t, err, "Failed to read export data status report file")
 
-	assert.Equal(t, 2, len(exportReportData), "Report should contain exactly one entry")
+	assert.Equal(t, 2, len(exportReportData), "Report should contain exactly two entries")
 	assert.Equal(t, &exportTableMigStatusOutputRow{
 		TableName:     `test_migration`,
 		ExportedCount: 10,
