@@ -82,7 +82,7 @@ type DebeziumValueConverter struct {
 
 //Initialize debezium value converter with the given table list
 func NewDebeziumValueConverter(tableList []sqlname.NameTuple, exportDir string, tdb tgtdb.TargetDB, targetConf tgtdb.TargetConf, importerRole string, sourceDBType string) (*DebeziumValueConverter, error) {
-	schemaRegistrySource := schemareg.NewSchemaRegistry(tableList, exportDir, "source_db_exporter")
+	schemaRegistrySource := schemareg.NewSchemaRegistry(tableList, exportDir, "source_db_exporter", importerRole)
 	err := schemaRegistrySource.Init()
 	if err != nil {
 		return nil, fmt.Errorf("initializing schema registry: %w", err)
@@ -90,9 +90,9 @@ func NewDebeziumValueConverter(tableList []sqlname.NameTuple, exportDir string, 
 	var schemaRegistryTarget *schemareg.SchemaRegistry
 	switch importerRole {
 	case "source_replica_db_importer":
-		schemaRegistryTarget = schemareg.NewSchemaRegistry(tableList, exportDir, "target_db_exporter_ff")
+		schemaRegistryTarget = schemareg.NewSchemaRegistry(tableList, exportDir, "target_db_exporter_ff", importerRole)
 	case "source_db_importer":
-		schemaRegistryTarget = schemareg.NewSchemaRegistry(tableList, exportDir, "target_db_exporter_fb")
+		schemaRegistryTarget = schemareg.NewSchemaRegistry(tableList, exportDir, "target_db_exporter_fb", importerRole)
 	}
 
 	tdbValueConverterSuite, err := getDebeziumValueConverterSuite(targetConf)
