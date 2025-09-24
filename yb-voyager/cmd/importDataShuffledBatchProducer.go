@@ -40,7 +40,7 @@ type ShuffledBatchProducer struct {
 func NewShuffledBatchProducer(task *ImportFileTask, state *ImportDataState,
 	errorHandler importdata.ImportDataErrorHandler) (*ShuffledBatchProducer, error) {
 
-	fileBatchProducer, err := NewFileBatchProducer(task, state, errorHandler)
+	fileBatchProducer, err := NewFileBatchProducer(task, state, errorHandler, nil)
 	if err != nil {
 		return nil, err
 	}

@@ -39,7 +39,7 @@ INSERT INTO empty_identity_always (description) VALUES ('Second Row');
 
 UPDATE empty_identity_always
 SET description = 'Updated First Row'
-WHERE id = 1;
+WHERE id = 1; -- no-op as id=1 is deleted in source_delta.sql already
 
 UPDATE empty_identity_always
 SET description = 'Updated Second Row'

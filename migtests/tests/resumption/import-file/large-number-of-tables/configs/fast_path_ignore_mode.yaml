@@ -1270,6 +1270,6 @@ varying_flags:
   --batch-size:
     type: choice
     value: [1234, 2500, 10500, 20000]
-  --enable-adaptive-parallelism:
+  --adaptive-parallelism:
     type: choice
-    value: [false]
+    value: [disabled]

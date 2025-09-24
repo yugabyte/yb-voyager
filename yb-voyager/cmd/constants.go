@@ -250,7 +250,7 @@ var ValidSSLModesForSourceDB = map[string][]string{
 	YUGABYTEDB: AllSSLModes,
 }
 
-var EVENT_BATCH_MAX_RETRY_COUNT = 50
+var EVENT_BATCH_MAX_RETRY_COUNT = 15
 
 // returns the description for a given assessment issue category
 func GetCategoryDescription(category string) string {

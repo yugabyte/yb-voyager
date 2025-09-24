@@ -145,6 +145,10 @@ func (t NameTuple) MatchesPattern(pattern string) (bool, error) {
 	return false, nil
 }
 
+func (t NameTuple) TargetTableAvailable() bool {
+	return t.TargetName != nil
+}
+
 func (t NameTuple) ForUserQuery() string {
 	return t.CurrentName.Qualified.Quoted
 }

@@ -42,8 +42,8 @@
   {
     "table_name": "public.\"hstore_example\"",
     "status": "DONE",
-    "total_count": 13,
-    "imported_count": 13,
+    "total_count": 26,
+    "imported_count": 26,
     "percentage_complete": 100,
     "errored_count": 0
   },

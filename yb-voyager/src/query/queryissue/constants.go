@@ -457,13 +457,13 @@ Note: If the table is created as colocated, this hotspot concern can safely be i
 
 	NULL_VALUE_INDEXES_ISSUE_NAME                = "Index on column with a high percentage of NULL values"
 	NULL_VALUE_INDEXES                           = "INDEX_ON_COLUMN_WITH_HIGH_PERCENTAGE_OF_NULL_VALUES"
-	NULL_VALUE_INDEXES_DESCRIPTION               = "In distributed databases, index design should ensure even data distribution across nodes. Indexes on columns with many NULL values can lead to uneven distribution and can cause performance issues."
+	NULL_VALUE_INDEXES_DESCRIPTION               = "If queries do not filter on NULL values, consider using partial indexes that excludes NULL values. In distributed databases, unnecessary index entries for NULL values can increase write performance and storage usage."
 	NULL_VALUE_INDEXES_DESCRIPTION_SINGLE_COLUMN = `This index is built on a column having high percentage of NULL values.`
 	NULL_VALUE_INDEXES_DESCRIPTION_MULTI_COLUMN  = `The first column of this index has high percentage of NULL values.`
 
 	MOST_FREQUENT_VALUE_INDEXES_ISSUE_NAME              = "Index on column with high percentage of a particular value"
 	MOST_FREQUENT_VALUE_INDEXES                         = "INDEX_ON_COLUMN_WITH_HIGH_PERCENTAGE_OF_PARTICULAR_VALUE"
-	MOST_FREQUENT_VALUE_INDEX_DESCRIPTION               = `In distributed databases, index design should ensure even data distribution across nodes. Indexes on columns with highly skewed value distributions (e.g., a value appearing in atleast 60% of rows) can cause performance issues in distributed systems due to uneven data placement and lead to Hotspots.`
+	MOST_FREQUENT_VALUE_INDEX_DESCRIPTION               = `If queries do not filter on this value, using partial indexes that excludes this value. In distributed databases, unnecessary index entries for a value can increase write performance and storage usage.`
 	MOST_FREQUENT_VALUE_INDEX_DESCRIPTION_SINGLE_COLUMN = `This index is built on column having a value occuring in large number of rows.`
 	MOST_FREQUENT_VALUE_INDEX_DESCRIPTION_MULTI_COLUMN  = `The first column of this index has value occuring in large number of rows.`
 
