@@ -836,8 +836,19 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 
 /*
 Restore sequence in offline migration via debezium or pg_dump/ora2pg
+getting sequences to last value mapping from different sources - debezium / ora2pg / pg_dump
 
-if import data has table list filteration
+For source type is PG - 
+	we are sure that all the sequences being migrated are attached to the tables so we can skip the sequence if it is not attached to a table in the table list
+	and in scenario if table is not present in the target database, we will skip the sequences attached to tables not part of table list
+
+For any other sources 
+	we are not sure if all the sequences are attached to the tables so we will restore all the sequences
+	and in scenario if table is not present in the target database, we will error out if any of them not present in the target database
+	which is the same behaviour as before 
+	as for example for oracle, its complicated to figure out if a sequence is attached to a table or not, hence not doing that for now as its not done on export side
+
+if import data has table list filteration or source type is POSTGRESQL
 	if a sequence is  attached to a table - tableColumn -> sequence name
 		if table is part of table list being imported
 			yes then continue exectuing
@@ -847,6 +858,18 @@ if import data has table list filteration
 		skip the sequence
 else //
 	execute the sequence
+
+while executing the sequence, we are using the setval('sequence_name', last_value) function consitently irrespective of export tool to restore sequence last value
+there is a change in behaviour for ora2pg now as earlier we were directly executing the DDL dumped in postdata.sql file
+now we are fetching the sequence name and last value from the ALTER SEQUENCE <seq> RESTART WITH <last_value>
+and using the setval('sequence_name', last_value) function to restore sequence last value
+
+The behaviour of ALTER SEQUENCE RESTART WITH val is different than setval('sequence_name', last_value)
+as the setval updates the currval to the last_Value so the next value used further is the last_value + 1
+but in case of ALTER SEQUENCE RESTART WITH val, the currval is previous value and next value is the last_value 
+
+but its okay because sequence value should always be unique even if there are some gaps in between.
+
 */
 
 func restoreSequencesInOfflineMigration(msr *metadb.MigrationStatusRecord, importTableList []sqlname.NameTuple) error {
@@ -871,7 +894,7 @@ func restoreSequencesInOfflineMigration(msr *metadb.MigrationStatusRecord, impor
 		}
 		sequenceLastValue = status.Sequences
 	}
-	if tconf.TableList != "" || tconf.ExcludeTableList != "" {
+	if (tconf.TableList != "" || tconf.ExcludeTableList != "") || msr.SourceDBConf.DBType == POSTGRESQL {
 		//if import data has table list filteration
 		//get the sequence name to table name map from MSR
 		sequenceNameToTableMap := make(map[string][]string)
