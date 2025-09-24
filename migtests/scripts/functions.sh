@@ -651,17 +651,29 @@ get_expected_event_count() {
     local expected_count=""
     case "$exporter_db" in
         "source")
-            expected_count=$(jq -r '.source_delta_events // empty' "$metadata_file" 2>/dev/null)
+            if jq -e 'has("source_delta_events")' "$metadata_file" >/dev/null 2>&1; then
+                jq -r '.source_delta_events' "$metadata_file"
+                return 0
+            fi
+            return 0
             ;;
         "target")
-            expected_count=$(jq -r '.target_delta_events // empty' "$metadata_file" 2>/dev/null)
+            if [ "${USE_YB_LOGICAL_REPLICATION_CONNECTOR}" = true ] \
+               && jq -e 'has("target_delta_events_logical_replication")' "$metadata_file" >/dev/null 2>&1; then
+                jq -r '.target_delta_events_logical_replication' "$metadata_file"
+                return 0
+            fi
+
+            if jq -e 'has("target_delta_events")' "$metadata_file" >/dev/null 2>&1; then
+                jq -r '.target_delta_events' "$metadata_file"
+                return 0
+            fi
+
+            return 0
             ;;
     esac
-    
-    # Validate the count is a positive number
-    if [[ "$expected_count" =~ ^[1-9][0-9]*$ ]]; then
-        echo "$expected_count"
-    fi
+    # No match; return 0
+    return 0
 }
 
 # Helper function to count actual events for a specific exporter database using data-migration-report
@@ -744,14 +756,14 @@ wait_for_exporter_event() {
         local elapsed=$((current_time - start_time))
 
         if [ $elapsed -ge $timeout_seconds ]; then
-            echo "Timeout reached (${timeout_seconds}s). Proceeding without detecting sufficient ${exporter_db} events."
+            echo "Timeout reached (${timeout_seconds}s). Sufficient ${exporter_db} events not detected."
             # Showing relevant log file for debugging
             if [ "$exporter_db" == "source" ]; then
                 tail_log_file "yb-voyager-export-data.log"
             else 
                 tail_log_file "yb-voyager-export-data-from-target.log"
             fi
-            return 0
+            return 1
         fi
 
         # Count actual events using data-migration-report
@@ -1458,5 +1470,21 @@ generate_voyager_config() {
 		echo "Generating config from template: $template_file"
 		python3 "$CONFIG_GEN_SCRIPT" --template "$template_file" --output "$GENERATED_CONFIG"
 	fi
+}
+
+# Function to execute logical replication connector specific DMLs
+execute_logical_replication_target_delta() {
+	if [ "${USE_YB_LOGICAL_REPLICATION_CONNECTOR}" != true ]; then
+		echo "Skipping logical replication specific DMLs (gRPC connector)"
+		return 0
+	fi
+	
+	if [ ! -f "${TEST_DIR}/target_delta_logical_connector.sql" ]; then
+		echo "Warning: target_delta_logical_connector.sql not found, skipping logical replication DMLs"
+		return 0
+	fi
+	
+	echo "Running logical replication specific target DMLs..."
+	ysql_import_file ${TARGET_DB_NAME} target_delta_logical_connector.sql
 }
 
