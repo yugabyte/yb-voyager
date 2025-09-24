@@ -160,7 +160,7 @@ func TestIncreaseParallelism(t *testing.T) {
 		tserverRootMemSoftLimit2:   3286263299,
 	}
 
-	err := fetchClusterMetricsAndUpdateParallelism(yb, MIN_PARALLELISM, yb.GetNumMaxConnectionsInPool())
+	err := fetchClusterMetricsAndUpdateParallelism(yb, MIN_PARALLELISM, yb.GetNumMaxConnectionsInPool(), nil)
 	assert.NoErrorf(t, err, "failed to fetch cluster metrics and update parallelism")
 	assert.Equal(t, 4, yb.GetNumConnectionsInPool())
 }
@@ -175,7 +175,7 @@ func TestDecreaseParallelismBasedOnCpu(t *testing.T) {
 		cpuUsageSys2:  0.1,
 	}
 
-	err := fetchClusterMetricsAndUpdateParallelism(yb, MIN_PARALLELISM, yb.GetNumMaxConnectionsInPool())
+	err := fetchClusterMetricsAndUpdateParallelism(yb, MIN_PARALLELISM, yb.GetNumMaxConnectionsInPool(), nil)
 	assert.NoErrorf(t, err, "failed to fetch cluster metrics and update parallelism")
 	assert.Equal(t, 2, yb.GetNumConnectionsInPool())
 }
@@ -200,7 +200,7 @@ func TestDecreaseInParallelismBecauseOfLowAvailableMemory(t *testing.T) {
 		tserverRootMemSoftLimit2:   3286263299,
 	}
 
-	err := fetchClusterMetricsAndUpdateParallelism(yb, MIN_PARALLELISM, yb.GetNumMaxConnectionsInPool())
+	err := fetchClusterMetricsAndUpdateParallelism(yb, MIN_PARALLELISM, yb.GetNumMaxConnectionsInPool(), nil)
 	assert.NoErrorf(t, err, "failed to fetch cluster metrics and update parallelism")
 	assert.Equal(t, 2, yb.GetNumConnectionsInPool())
 }
@@ -225,7 +225,7 @@ func TestDecreaseInParallelismBecauseofTserverRootMemoryConsumptionSoftLimitBrea
 		tserverRootMemSoftLimit2:   3286263299,
 	}
 
-	err := fetchClusterMetricsAndUpdateParallelism(yb, MIN_PARALLELISM, yb.GetNumMaxConnectionsInPool())
+	err := fetchClusterMetricsAndUpdateParallelism(yb, MIN_PARALLELISM, yb.GetNumMaxConnectionsInPool(), nil)
 	assert.NoErrorf(t, err, "failed to fetch cluster metrics and update parallelism")
 	assert.Equal(t, 2, yb.GetNumConnectionsInPool())
 }
@@ -250,7 +250,7 @@ func TestIncreaseInParallelismBeyondMax(t *testing.T) {
 		tserverRootMemSoftLimit2:   3286263299,
 	}
 
-	err := fetchClusterMetricsAndUpdateParallelism(yb, MIN_PARALLELISM, yb.GetNumMaxConnectionsInPool())
+	err := fetchClusterMetricsAndUpdateParallelism(yb, MIN_PARALLELISM, yb.GetNumMaxConnectionsInPool(), nil)
 	assert.NoErrorf(t, err, "failed to fetch cluster metrics and update parallelism")
 	// assert no change in size because it would go beyond max size
 	assert.Equal(t, 6, yb.GetNumConnectionsInPool())
@@ -266,7 +266,7 @@ func TestDecreaseInParallelismBelowMin(t *testing.T) {
 		cpuUsageSys2:  0.1,
 	}
 
-	err := fetchClusterMetricsAndUpdateParallelism(yb, MIN_PARALLELISM, yb.GetNumMaxConnectionsInPool())
+	err := fetchClusterMetricsAndUpdateParallelism(yb, MIN_PARALLELISM, yb.GetNumMaxConnectionsInPool(), nil)
 	assert.NoErrorf(t, err, "failed to fetch cluster metrics and update parallelism")
 	// assert no change in size because it would go below min size
 	assert.Equal(t, 1, yb.GetNumConnectionsInPool())

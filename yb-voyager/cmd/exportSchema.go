@@ -814,7 +814,7 @@ func fetchRedundantIndexMapFromAssessmentDB() (*utils.StructMap[*sqlname.ObjectN
 	var err error
 	migassessment.AssessmentDir = filepath.Join(exportDir, "assessment")
 
-	assessmentDB, err = migassessment.NewAssessmentDB(source.DBType)
+	assessmentDB, err = migassessment.NewAssessmentDB()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create assessment db: %w", err)
 	}

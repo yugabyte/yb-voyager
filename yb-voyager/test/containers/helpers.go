@@ -89,3 +89,20 @@ func pingDatabase(driver string, connStr string) error {
 	}
 	return fmt.Errorf("pingDatabase failed even after '%d' retries: %w", maxRetries, err)
 }
+
+// getContainerIPAddress retrieves a container's IP address from a specific Docker network
+func getContainerIPAddress(ctx context.Context, container testcontainers.Container, networkName string) (string, error) {
+	inspect, err := container.Inspect(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to inspect container: %w", err)
+	}
+
+	// Get the IP address from the specified network
+	for netName, networkInfo := range inspect.NetworkSettings.Networks {
+		if netName == networkName {
+			return networkInfo.IPAddress, nil
+		}
+	}
+
+	return "", fmt.Errorf("container not found in network %s", networkName)
+}

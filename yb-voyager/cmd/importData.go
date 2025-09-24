@@ -630,7 +630,7 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 
 	var adaptiveParallelismStarted bool
 	if tconf.EnableYBAdaptiveParallelism {
-		adaptiveParallelismStarted, err = startAdaptiveParallelism()
+		adaptiveParallelismStarted, err = startAdaptiveParallelism(callhomeMetricsCollector)
 		if err != nil {
 			utils.ErrExit("Failed to start adaptive parallelism: %s", err)
 		}
@@ -1320,7 +1320,7 @@ func displayMonitoringInformationOnTheConsole(info string) {
 	}
 }
 
-func startAdaptiveParallelism() (bool, error) {
+func startAdaptiveParallelism(callhomeMetricsCollector *callhome.ImportDataMetricsCollector) (bool, error) {
 	yb, ok := tdb.(*tgtdb.TargetYugabyteDB)
 	if !ok {
 		return false, fmt.Errorf("adaptive parallelism is only supported if target DB is YugabyteDB")
@@ -1331,7 +1331,7 @@ func startAdaptiveParallelism() (bool, error) {
 	}
 
 	go func() {
-		err := adaptiveparallelism.AdaptParallelism(yb)
+		err := adaptiveparallelism.AdaptParallelism(yb, callhomeMetricsCollector)
 		if err != nil {
 			log.Errorf("adaptive parallelism error: %v", err)
 		}
@@ -1394,6 +1394,7 @@ func packAndSendImportDataToTargetPayload(status string, errorMsg error) {
 	if callhomeMetricsCollector != nil {
 		dataMetrics.SnapshotTotalRows = callhomeMetricsCollector.GetSnapshotTotalRows()
 		dataMetrics.SnapshotTotalBytes = callhomeMetricsCollector.GetSnapshotTotalBytes()
+		dataMetrics.CurrentParallelConnections = callhomeMetricsCollector.GetCurrentParallelConnections()
 	}
 
 	// Get phase-related metrics from existing logic

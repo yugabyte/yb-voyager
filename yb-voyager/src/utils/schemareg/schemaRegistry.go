@@ -69,15 +69,17 @@ func (ts *TableSchema) getColumnType(columnName string, getSourceDatatypeIfRequi
 type SchemaRegistry struct {
 	exportDir         string
 	exporterRole      string
+	importerRole      string
 	tableList         []sqlname.NameTuple
 	TableNameToSchema *utils.StructMap[sqlname.NameTuple, *TableSchema]
 }
 
-//Initialize schema registry with the given table list
-func NewSchemaRegistry(tableList []sqlname.NameTuple, exportDir string, exporterRole string) *SchemaRegistry {
+// Initialize schema registry with the given table list
+func NewSchemaRegistry(tableList []sqlname.NameTuple, exportDir string, exporterRole string, importerRole string) *SchemaRegistry {
 	return &SchemaRegistry{
 		exportDir:         exportDir,
 		exporterRole:      exporterRole,
+		importerRole:      importerRole,
 		tableList:         tableList,
 		TableNameToSchema: utils.NewStructMap[sqlname.NameTuple, *TableSchema](),
 	}
@@ -142,16 +144,18 @@ func (sreg *SchemaRegistry) Init() error {
 			return fmt.Errorf("failed to decode table schema file %s: %w", schemaFilePath, err)
 		}
 		tableName := strings.TrimSuffix(filepath.Base(schemaFile.Name()), "_schema.json")
+		//Using this function here as schema registry is used in import data and to handle the case where the table is not present in the target
+		//using this function and checking if this is actually excluded in list
 		table, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFound(tableName)
 		if err != nil {
 			return fmt.Errorf("lookup %s from name registry: %v", tableName, err)
 		}
 		if !lo.ContainsBy(sreg.tableList, func(t sqlname.NameTuple) bool {
-			return t.ForKey() == table.ForKey() 
+			return t.ForKey() == table.ForKey()
 		}) {
 			//skip the table if it is not present in the table list
 			continue
-		} else if !table.TargetTableAvailable() {
+		} else if !table.TargetTableAvailable() && sreg.importerRole == namereg.TARGET_DB_IMPORTER_ROLE {
 			//Table is in table list but target not found during lookup
 			return fmt.Errorf("table %s is not present in the target database", table)
 		}

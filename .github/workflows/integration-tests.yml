@@ -87,4 +87,4 @@ jobs:
         MYSQL_VERSION: "8.4"
       run: |
         cd yb-voyager
-        go test -v ./... -tags 'integration_voyager_command' -timeout 20m
+        go test -v ./... -tags 'integration_voyager_command' -timeout 15m

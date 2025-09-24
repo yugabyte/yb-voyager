@@ -85,6 +85,8 @@ type MigrationStatusRecord struct {
 	AssessmentRecommendationsApplied       bool              `json:"AssessmentRecommendationsApplied"`
 	MigrationAssessmentDoneViaExportSchema bool              `json:"MigrationAssessmentDoneViaExportSchema"`
 
+	PerformanceComparisonDone bool `json:"PerformanceComparisonDone"`
+
 	ImportDataFileFlagFileTableMapping string `json:"ImportDataFileFlagFileTableMapping"` // Import data file command's file_table_mapping flag
 	ImportDataFileFlagDataDir          string `json:"ImportDataFileFlagDataDir"`          // Import data file command's data-dir flag
 

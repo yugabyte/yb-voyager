@@ -320,12 +320,22 @@ In case both the source and target not present for the table this will return er
 */
 
 func (reg *NameRegistry) LookupTableNameAndIgnoreIfTargetNotFound(tableNameArg string) (sqlname.NameTuple, error) {
-	sourceName, targetName, err := reg.lookupSourceAndTargetTableNames(tableNameArg, true, false)
-	if err != nil {
-		return sqlname.NameTuple{}, fmt.Errorf("error lookup source and target names for table [%v]: %v", tableNameArg, err)
+	switch reg.params.Role {
+	case TARGET_DB_IMPORTER_ROLE, SOURCE_DB_EXPORTER_STATUS_ROLE, SOURCE_DB_EXPORTER_ROLE:
+		//For target db importer specific roles only we should use this lookup with ignore if target not found 
+		//using exporter_status for export data status command as this command can run after import data command so we need to ignore if target not found
+		//using source db exporter role for export data command as it gets a registered table list from namereg and we need to ignore the ones that are not present in the target to handle subset of tables from source being migrated
+		//not using this function TARGET_DB_EXPORTER ones as they are live migration specific and we shouldn't use it for them.
+		sourceName, targetName, err := reg.lookupSourceAndTargetTableNames(tableNameArg, true, false)
+		if err != nil {
+			return sqlname.NameTuple{}, fmt.Errorf("error lookup source and target names for table [%v]: %v", tableNameArg, err)
+		}
+		ntup := NewNameTuple(reg.params.Role, sourceName, targetName)
+		return ntup, nil
+	default:
+		//In case the role is not target db import related we should use proper lookup 
+		return reg.LookupTableName(tableNameArg)
 	}
-	ntup := NewNameTuple(reg.params.Role, sourceName, targetName)
-	return ntup, nil
 }
 
 /*
@@ -345,7 +355,7 @@ func (reg *NameRegistry) LookupTableNameAndIgnoreIfSourceNotFound(tableNameArg s
 
 func (reg *NameRegistry) lookupSourceAndTargetTableNames(tableNameArg string, ignoreIfTargetNotFound bool, ignoreIfSourceNotFound bool) (*sqlname.ObjectName, *sqlname.ObjectName, error) {
 	if ignoreIfTargetNotFound && ignoreIfSourceNotFound {
-		//can't use nametuple if both are ignored	
+		//can't use nametuple if both are ignored
 		return nil, nil, fmt.Errorf("ignoreIfTargetNotFound and ignoreIfSourceNotFound cannot be true at the same time")
 	}
 	createAllObjectNamesMap := func(m map[string][]string, m1 map[string][]string) map[string][]string {
