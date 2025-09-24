@@ -176,7 +176,7 @@ func TestIncreaseParallelismBasedOnCpuAggressiveMode(t *testing.T) {
 		cpuUsageSys1:  0.01,
 	}
 
-	err := fetchClusterMetricsAndUpdateParallelism(yb, MIN_PARALLELISM, yb.GetNumMaxConnectionsInPool())
+	err := fetchClusterMetricsAndUpdateParallelism(yb, MIN_PARALLELISM, yb.GetNumMaxConnectionsInPool(), nil)
 	assert.NoErrorf(t, err, "failed to fetch cluster metrics and update parallelism")
 	assert.Equal(t, 4, yb.GetNumConnectionsInPool())
 }
@@ -208,7 +208,7 @@ func TestDecreaseParallelismBasedOnCpuAggressiveMode(t *testing.T) {
 		cpuUsageSys2:  0.1,
 	}
 
-	err := fetchClusterMetricsAndUpdateParallelism(yb, MIN_PARALLELISM, yb.GetNumMaxConnectionsInPool())
+	err := fetchClusterMetricsAndUpdateParallelism(yb, MIN_PARALLELISM, yb.GetNumMaxConnectionsInPool(), nil)
 	assert.NoErrorf(t, err, "failed to fetch cluster metrics and update parallelism")
 	assert.Equal(t, 2, yb.GetNumConnectionsInPool())
 }
