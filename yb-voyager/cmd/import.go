@@ -397,11 +397,11 @@ func registerFlagsForTarget(cmd *cobra.Command) {
 			"number of cores N and use N/4 as parallel jobs. "+
 			"Otherwise, it fall back to using twice the number of nodes in the cluster. "+
 			"Any value less than 1 reverts to the default calculation.")
-	// BoolVar(cmd.Flags(), &tconf.EnableYBAdaptiveParallelism, "enable-adaptive-parallelism", true,
-	// 	"Adapt parallelism based on the resource usage (CPU, memory) of the target YugabyteDB cluster.")
 
 	cmd.Flags().Var(&tconf.AdaptiveParallelismMode, "adaptive-parallelism",
-		"The mode for adaptive parallelism behavior: disabled, balanced, aggressive (default balanced)"+
+		"Adapt parallelism based on the resource usage (CPU, memory) of the target YugabyteDB cluster."+
+			"\n"+
+			"Specify the mode for adaptive parallelism behavior: disabled, balanced, aggressive (default balanced)"+
 			"\n"+
 			"\tbalanced: Operate with moderate thresholds. Recommended to be used when there are other workloads running on the cluster.\n"+
 			"\taggressive: Operate with aggressive max-CPU thresholds for better performance. Recommended to be used when there are no other workloads running on the cluster.\n"+
@@ -473,7 +473,6 @@ func validateFFDBSchemaFlag() {
 }
 
 func validateParallelismFlags() {
-	// TODO: fix error messages.
 	if tconf.AdaptiveParallelismMode.IsEnabled() {
 		if tconf.Parallelism > 0 {
 			utils.ErrExit("Error --parallel-jobs flag cannot be used when adaptive-parallelism is enabled (balanced/aggressive). If you wish to set the number of parallel jobs explicitly, disable adaptive parallelism using --adaptive-parallelism disabled")
