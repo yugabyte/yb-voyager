@@ -1524,7 +1524,23 @@ To manually modify the schema, please refer: <a class="highlight-link" href="htt
 		Type: SizingNotes,
 		Text: `Import data time estimates exclude redundant indexes since they are automatically removed during export schema phase.`,
 	}
+
+	// Oracle CLOB Data Export Note
+	ORACLE_CLOB_DATA_EXPORT_NOTE = NoteInfo{
+		Type: GeneralNotes,
+		Text: `Oracle CLOB data export is now supported via the experimental flag --allow-oracle-clob-data-export. This flag enables exporting CLOB columns during offline migration from Oracle to YugabyteDB. Note that this feature is experimental and has limitations: it's only supported for offline migration (not live migration or BETA_FAST_DATA_EXPORT), and CLOB data may have performance implications during export and import. Use this flag with caution and test thoroughly in your environment.`,
+	}
 )
+
+// hasClobDatatypes checks if there are any CLOB datatypes reported in the assessment issues
+func hasClobDatatypes() bool {
+	for _, issue := range assessmentReport.Issues {
+		if issue.Category == UNSUPPORTED_DATATYPES_CATEGORY && issue.Type == "CLOB" {
+			return true
+		}
+	}
+	return false
+}
 
 func addNotesToAssessmentReport() {
 	log.Infof("adding notes to assessment report")
@@ -1537,6 +1553,11 @@ func addNotesToAssessmentReport() {
 
 	switch source.DBType {
 	case ORACLE:
+		// Add CLOB data export note for Oracle only if CLOB datatypes are detected
+		if hasClobDatatypes() {
+			assessmentReport.Notes = append(assessmentReport.Notes, ORACLE_CLOB_DATA_EXPORT_NOTE)
+		}
+
 		partitionSqlFPath := filepath.Join(assessmentMetadataDir, "schema", "partitions", "partition.sql")
 		// file exists and isn't empty (containing PARTITIONs DDLs)
 		if utils.FileOrFolderExists(partitionSqlFPath) && !utils.IsFileEmpty(partitionSqlFPath) {
