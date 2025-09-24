@@ -34,10 +34,8 @@ func NewYugabyteDBCluster(config *ContainerConfig) *YugabyteDBClusterContainer {
 	setContainerConfigDefaultsIfNotProvided(YUGABYTEDB, config)
 	// Ensure cluster-appropriate defaults
 	if config.NodeCount <= 1 {
-		config.NodeCount = 3 // Default to 3-node cluster
-	}
-	if config.ReplicationFactor <= 1 {
-		config.ReplicationFactor = config.NodeCount // Default RF = NodeCount
+		config.NodeCount = 3         // Default to 3-node cluster
+		config.ReplicationFactor = 3 // Default RF = 3
 	}
 
 	return &YugabyteDBClusterContainer{
