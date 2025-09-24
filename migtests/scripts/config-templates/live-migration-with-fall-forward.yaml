@@ -83,7 +83,7 @@ export-data-from-source:
 
 
 import-data-to-target:
-  enable-adaptive-parallelism: {% if RUN_WITHOUT_ADAPTIVE_PARALLELISM is defined and RUN_WITHOUT_ADAPTIVE_PARALLELISM == "true" %}false{% else %}true{% endif %}
+  adaptive-parallelism: {% if RUN_WITHOUT_ADAPTIVE_PARALLELISM is defined and RUN_WITHOUT_ADAPTIVE_PARALLELISM == "true" %}disabled{% else %}balanced{% endif %}
   disable-pb: true
   max-retries-streaming: 1
 
