@@ -548,6 +548,7 @@ func (adb *AssessmentDB) CheckIfTableExists(tableName string) error {
 
 // HasSourceQueryStats checks if query stats data exists in the assessment database (source-db type agnostic)
 func (adb *AssessmentDB) HasSourceQueryStats() (bool, error) {
+	log.Infof("checking if query stats data exists in the assessment database")
 	query := fmt.Sprintf("SELECT 1 FROM %s LIMIT 1", DB_QUERIES_SUMMARY)
 	var exists int
 	err := adb.db.QueryRow(query).Scan(&exists)

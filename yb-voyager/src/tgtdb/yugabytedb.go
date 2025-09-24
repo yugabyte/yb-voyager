@@ -128,6 +128,7 @@ func (yb *TargetYugabyteDB) WithTx(fn func(tx *sql.Tx) error) error {
 }
 
 func (yb *TargetYugabyteDB) Init() error {
+	log.Infof("initializing target database")
 	err := yb.connect()
 	if err != nil {
 		return err
@@ -1958,6 +1959,7 @@ SELECT
 	queryid, query, calls, rows, total_exec_time, mean_exec_time,
 	min_exec_time, max_exec_time, stddev_exec_time
 FROM pg_stat_statements
+	WHERE dbid = (SELECT oid FROM pg_database WHERE datname = current_database())
 `
 
 func (yb *TargetYugabyteDB) CollectPgStatStatements() ([]*pgss.PgStatStatements, error) {

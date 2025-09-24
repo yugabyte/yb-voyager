@@ -120,37 +120,40 @@ func validateComparePerfPrerequisites() {
 
 	utils.PrintAndLog("validating the setup for performance comparison...")
 
-	// Check 0: source db type(postgres) by fetching from MetaDB
-	dbType := GetSourceDBTypeFromMSR()
-	if dbType != POSTGRESQL {
-		utils.ErrExit("Only PostgreSQL is supported for performance comparison.")
+	// Check 1: assess-migration must have been run
+	hasAssessment, err := IsMigrationAssessmentDoneDirectly(metaDB)
+	if err != nil {
+		utils.ErrExit("Failed to check if assess-migration has been run: %v", err)
+	}
+	if !hasAssessment {
+		utils.ErrExit("Migration assessment not found. Please run 'assess-migration' command before performing performance comparison.")
 	}
 
-	// Check 1: Assessment database exists and is accessible
-	log.Infof("checking assessment database...")
-	// Set AssessmentDir before accessing assessment database functions
-	migassessment.AssessmentDir = filepath.Join(exportDir, "assessment")
+	// Check 2: source db type(postgres) by fetching from MetaDB
+	dbType := GetSourceDBTypeFromMSR()
+	if dbType != POSTGRESQL {
+		utils.ErrExit("Performance comparison is only supported for PostgreSQL source database.")
+	}
+
+	// Check 3: Source PGSS data exists in assessment DB
+	migassessment.AssessmentDir = filepath.Join(exportDir, "assessment") // set assessment directory before assessmentDB access
 	assessmentDBPath := migassessment.GetSourceMetadataDBFilePath()
 	if _, err := os.Stat(assessmentDBPath); os.IsNotExist(err) {
-		utils.ErrExit("Assessment database not found. Please run 'assess-migration' command first.")
+		utils.ErrExit("Assessment database not found. Please ensure 'assess-migration' command has run successfully.")
 	}
 	adb, err := migassessment.NewAssessmentDB()
 	if err != nil {
 		utils.ErrExit("Failed to open assessment database: %v", err)
 	}
-
-	// Check 2: Source PGSS data exists in assessment DB
-	log.Infof("checking source pg_stat_statements data...")
 	hasData, err := adb.HasSourceQueryStats()
 	if err != nil {
 		utils.ErrExit("Failed to verify pg_stat_statements data in assessment database: %v", err)
 	}
 	if !hasData {
-		utils.ErrExit("No pg_stat_statements data found in assessment database. Please ensure pg_stat_statements extension was enabled during assess-migration and workload was executed on source database.")
+		utils.ErrExit("No query statistics found in assessment database. Please ensure pg_stat_statements extension was enabled during assess-migration and that workload was executed on the source database.")
 	}
 
-	// Check 3: Target database is reachable
-	log.Infof("checking target database connection...")
+	// Check 4: Target database is reachable
 	tdb := tgtdb.NewTargetDB(&tconf)
 	err = tdb.Init()
 	if err != nil {
@@ -158,14 +161,19 @@ func validateComparePerfPrerequisites() {
 	}
 	defer tdb.Finalize()
 
-	// Check 4: pg_stat_statements extension is enabled on target database
+	// Check 5: pg_stat_statements extension is enabled on target database
 	log.Infof("checking pg_stat_statements extension on target database...")
-	_, err = tdb.Query("SELECT 1 FROM pg_stat_statements LIMIT 1")
+	var cnt int
+	query := "SELECT count(*) FROM pg_stat_statements WHERE dbid = (SELECT oid FROM pg_database WHERE datname = current_database())"
+	err = tdb.QueryRow(query).Scan(&cnt)
 	if err != nil {
 		utils.ErrExit("pg_stat_statements extension is not available on target database: %v\n"+
-			"Please ensure the extension is installed and enabled.", err)
+			"Please ensure the extension is installed and enabled on the target YugabyteDB cluster.", err)
 	}
-
+	if cnt == 0 { // this check might be useless as observed there is always some query even just after creating pg_stat_statements extension
+		utils.ErrExit("pg_stat_statements extension appears to be empty on target database.\n" +
+			"Please ensure workload has been executed on the target YugabyteDB cluster after enabling pg_stat_statements.")
+	}
 	log.Infof("setup validated successfully for performance comparison\n")
 }
 

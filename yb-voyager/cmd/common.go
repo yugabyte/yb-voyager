@@ -850,6 +850,9 @@ func GetSourceDBTypeFromMSR() string {
 	if msr == nil {
 		utils.ErrExit("migration status record not found")
 	}
+	if msr.SourceDBConf == nil {
+		utils.ErrExit("source DB conf not found in migration status record")
+	}
 	return msr.SourceDBConf.DBType
 }
 
