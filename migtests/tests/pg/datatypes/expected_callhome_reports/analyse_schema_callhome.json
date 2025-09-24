@@ -1,0 +1,17 @@
+{
+    "payload_version": "1.1",
+    "target_db_version": "2025.1.0.0",
+    "issues": [
+        {
+            "category": "migration_caveats",
+            "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_HSTORE",
+            "name": "Unsupported datatype for Live migration with fall-forward/fallback - hstore Datatype",
+            "impact": "LEVEL_1",
+            "object_type": "TABLE",
+            "object_name": "XXXXX"
+        }
+    ],
+    "database_objects": "[{\"ObjectType\":\"SCHEMA\",\"TotalCount\":1,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"EXTENSION\",\"TotalCount\":1,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"TYPE\",\"TotalCount\":1,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"SEQUENCE\",\"TotalCount\":6,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"TABLE\",\"TotalCount\":8,\"InvalidCount\":1,\"ObjectNames\":\"\"}]",
+    "error": "",
+    "control_plane_type": ""
+}

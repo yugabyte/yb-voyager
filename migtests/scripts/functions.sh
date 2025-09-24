@@ -1460,3 +1460,92 @@ generate_voyager_config() {
 	fi
 }
 
+normalize_callhome_json() {
+    local input_file="$1"
+    local output_file="$2"
+    local temp_file="/tmp/temp_file.json"
+
+    # Normalize JSON with jq; use --sort-keys to avoid the need to keep the same sequence of keys in expected vs actual json
+    jq --sort-keys 'walk(
+        if type == "object" then
+            .ObjectNames? |= (
+				if type == "string" then
+					split(", ") | sort | join(", ")
+				else
+					.
+				end
+			) |
+            .VoyagerVersion? = "IGNORED" |
+			.TargetDBVersion? = "IGNORED" |
+            .OptimalSelectConnectionsPerNode? = "IGNORED" |
+            .OptimalInsertConnectionsPerNode? = "IGNORED" |
+			.SizeInBytes? = "IGNORED" |
+            .yb_cluster_metrics = "IGNORED" |
+            .parallel_jobs = "IGNORED" |
+            .adaptive_parallelism_max = "IGNORED"
+        elif type == "array" then
+			sort_by(tostring)
+        elif type == "string" and (
+            # Check if the string is a JSON array and sort it
+            (tostring | test("^ *?\\[.*\\] *?$")) and (fromjson | type == "array")
+        ) then
+            fromjson | sort_by(tostring) | tojson
+		else
+            .
+        end
+    )' "$input_file" > "$temp_file"
+
+    # Move cleaned file to output
+    mv "$temp_file" "$output_file"
+}
+
+compare_callhome_json_reports() {
+    local expected_report_file="$1"
+    local actual_report_file="$2"
+
+    local temp_file1=$(mktemp)
+    local temp_file2=$(mktemp)
+
+    normalize_callhome_json "$expected_report_file" "$temp_file1"
+    normalize_callhome_json "$actual_report_file" "$temp_file2"
+
+    # Compare actual and expected callhome data
+    compare_files "$temp_file1" "$temp_file2"
+    compare_status=$?
+
+    # Clean up temporary files
+    rm "$temp_file1" "$temp_file2"
+
+    # Exit with the status from compare_files if there are differences
+    if [ $compare_status -ne 0 ]; then
+        exit $compare_status
+    fi
+
+    echo "Proceeding with further steps..."
+}
+
+validate_callhome_reports() {
+    local expected_report_file=$1
+    local actual_report_file=$2
+
+    # Wait for actualCallhomeReport.json file to be created
+    step "Wait for Actual Callhome Report to be created"
+    for i in {1..30}; do
+        if [ -f "${actual_report_file}" ]; then
+            echo "actualCallhomeReport.json created successfully"
+            break
+        fi
+        if [ $i -eq 30 ]; then
+            echo "ERROR: actualCallhomeReport.json not found after 30 attempts"
+            exit 1
+        fi
+        echo "Waiting for actualCallhomeReport.json to be created... (attempt $i/30)"
+        sleep 1
+    done
+
+    step "Compare actual and expected callhome data"
+    compare_callhome_json_reports "$expected_report_file" "$actual_report_file"
+
+    # Remove actualCallhomeReport.json file
+    rm -rf "$actual_report_file"
+}

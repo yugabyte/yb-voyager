@@ -1,0 +1,8 @@
+{
+    "backup_data_files": true,
+    "backup_log_files": true,
+    "backup_schema_files": true,
+    "save_migration_reports": true,
+    "error": "",
+    "control_plane_type": ""
+}
