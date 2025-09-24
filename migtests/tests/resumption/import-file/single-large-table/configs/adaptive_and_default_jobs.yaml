@@ -24,5 +24,5 @@ resumption:
 varying_flags:
   --adaptive-parallelism:
     type: choice
-    value: [balanced, aggressive, disabled]
+    value: [balanced, disabled]
 
