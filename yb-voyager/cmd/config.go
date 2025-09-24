@@ -30,8 +30,22 @@ const (
 )
 
 var commandsUsingSourceReplicaConfig = []string{"import-data-to-source-replica"}
-var commandsUsingSourceConfig = []string{"assess-migration", "export-schema", "export-data", "export-data-from-source", "import-data-to-source"}
-var commandsUsingTargetConfig = []string{"import-schema", "import-data", "import-data-to-target", "import-data-file", "export-data-from-target", "finalize-schema-post-data-import"}
+var commandsUsingSourceConfig = []string{
+	"assess-migration",
+	"export-schema",
+	"export-data",
+	"export-data-from-source",
+	"import-data-to-source",
+}
+var commandsUsingTargetConfig = []string{
+	"import-schema",
+	"import-data",
+	"import-data-to-target",
+	"import-data-file",
+	"export-data-from-target",
+	"finalize-schema-post-data-import",
+	"compare-performance",
+}
 
 var allowedGlobalConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"export-dir", "log-level", "send-diagnostics",
