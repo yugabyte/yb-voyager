@@ -32,6 +32,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/config"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/types"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
@@ -1777,7 +1778,7 @@ func TestImportDataConfigBinding_ConfigFileBinding(t *testing.T) {
 	assert.Equal(t, utils.BoolStr(false), tconf.RunGuardrailsChecks, "Run guardrails checks should match the config")
 	assert.Equal(t, int64(1000), batchSizeInNumRows, "Batch size should match the config")
 	assert.Equal(t, 4, tconf.Parallelism, "Parallel jobs should match the config")
-	// assert.Equal(t, utils.BoolStr(true), tconf.EnableYBAdaptiveParallelism, "Enable adaptive parallelism should match the config")
+	assert.Equal(t, types.BalancedAdaptiveParallelismMode, tconf.AdaptiveParallelismMode, "Adaptive parallelism mode should match the config")
 	assert.Equal(t, 10, tconf.MaxParallelism, "Adaptive parallelism max should match the config")
 	assert.Equal(t, utils.BoolStr(true), skipReplicationChecks, "Skip replication checks should match the config")
 	assert.Equal(t, utils.BoolStr(true), disablePb, "Disable PB should match the config")
@@ -1890,7 +1891,7 @@ func TestImportDataConfigBinding_CLIOverridesConfig(t *testing.T) {
 	assert.Equal(t, utils.BoolStr(true), tconf.RunGuardrailsChecks, "Run guardrails checks should be overridden by CLI")
 	assert.Equal(t, int64(2000), batchSizeInNumRows, "Batch size should be overridden by CLI")
 	assert.Equal(t, 8, tconf.Parallelism, "Parallel jobs should be overridden by CLI")
-	// assert.Equal(t, utils.BoolStr(false), tconf.EnableYBAdaptiveParallelism, "Enable adaptive parallelism should be overridden by CLI")
+	assert.Equal(t, types.DisabledAdaptiveParallelismMode, tconf.AdaptiveParallelismMode, "Adaptive parallelism mode should be overridden by CLI")
 	assert.Equal(t, 5, tconf.MaxParallelism, "Adaptive parallelism max should be overridden by CLI")
 	assert.Equal(t, utils.BoolStr(false), skipReplicationChecks, "Skip replication checks should be overridden by CLI")
 	assert.Equal(t, utils.BoolStr(false), disablePb, "Disable PB should be overridden by CLI")
@@ -1984,7 +1985,7 @@ func TestImportDataConfigBinding_EnvOverridesConfig(t *testing.T) {
 	assert.Equal(t, utils.BoolStr(false), tconf.RunGuardrailsChecks, "Run guardrails checks should match the config")
 	assert.Equal(t, int64(1000), batchSizeInNumRows, "Batch size should match the config")
 	assert.Equal(t, 4, tconf.Parallelism, "Parallel jobs should match the config")
-	// assert.Equal(t, utils.BoolStr(true), tconf.EnableYBAdaptiveParallelism, "Enable adaptive parallelism should match the config")
+	assert.Equal(t, types.BalancedAdaptiveParallelismMode, tconf.AdaptiveParallelismMode, "Adaptive parallelism mode should match the config")
 	assert.Equal(t, 10, tconf.MaxParallelism, "Adaptive parallelism max should match the env var")
 	assert.Equal(t, utils.BoolStr(true), skipReplicationChecks, "Skip replication checks should match the config")
 	assert.Equal(t, utils.BoolStr(true), disablePb, "Disable PB should match the config")
@@ -2097,7 +2098,7 @@ import-data:
 	// Assertions on import-data config
 	assert.Equal(t, int64(1000), batchSizeInNumRows, "Batch size should match the config")
 	assert.Equal(t, 4, tconf.Parallelism, "Parallel jobs should match the config")
-	// assert.Equal(t, utils.BoolStr(true), tconf.EnableYBAdaptiveParallelism, "Enable adaptive parallelism should match the config")
+	assert.Equal(t, types.BalancedAdaptiveParallelismMode, tconf.AdaptiveParallelismMode, "Adaptive parallelism mode should match the config")
 	assert.Equal(t, 10, tconf.MaxParallelism, "Adaptive parallelism max should match the config")
 	assert.Equal(t, utils.BoolStr(true), skipReplicationChecks, "Skip replication checks should match the config")
 	assert.Equal(t, utils.BoolStr(true), disablePb, "Disable PB should match the config")
@@ -2199,7 +2200,7 @@ import-data-to-target:
 	// Assertions on import-data config
 	assert.Equal(t, int64(1000), batchSizeInNumRows, "Batch size should match the config")
 	assert.Equal(t, 4, tconf.Parallelism, "Parallel jobs should match the config")
-	// assert.Equal(t, utils.BoolStr(true), tconf.EnableYBAdaptiveParallelism, "Enable adaptive parallelism should match the config")
+	assert.Equal(t, types.BalancedAdaptiveParallelismMode, tconf.AdaptiveParallelismMode, "Adaptive parallelism mode should match the config")
 	assert.Equal(t, 10, tconf.MaxParallelism, "Adaptive parallelism max should match the config")
 	assert.Equal(t, utils.BoolStr(true), skipReplicationChecks, "Skip replication checks should match the config")
 	assert.Equal(t, utils.BoolStr(true), disablePb, "Disable PB should match the config")
@@ -2381,7 +2382,7 @@ func TestImportDataFileConfigBinding_ConfigFileBinding(t *testing.T) {
 	// Assertions on import-data-file config
 	assert.Equal(t, int64(1000), batchSizeInNumRows, "Batch size should match the config")
 	assert.Equal(t, 4, tconf.Parallelism, "Parallel jobs should match the config")
-	// assert.Equal(t, utils.BoolStr(true), tconf.EnableYBAdaptiveParallelism, "Enable adaptive parallelism should match the config")
+	assert.Equal(t, types.BalancedAdaptiveParallelismMode, tconf.AdaptiveParallelismMode, "Adaptive parallelism mode should match the config")
 	assert.Equal(t, 10, tconf.MaxParallelism, "Adaptive parallelism max should match the config")
 	assert.Equal(t, utils.BoolStr(true), disablePb, "Disable PB should match the config")
 	assert.Equal(t, 3, EVENT_BATCH_MAX_RETRY_COUNT, "Max retries should match the config")
@@ -2499,7 +2500,7 @@ func TestImportDataFileConfigBinding_CLIOverridesConfig(t *testing.T) {
 	// Assertions on import-data-file config
 	assert.Equal(t, int64(2000), batchSizeInNumRows, "Batch size should be overridden by CLI")
 	assert.Equal(t, 8, tconf.Parallelism, "Parallel jobs should be overridden by CLI")
-	// assert.Equal(t, utils.BoolStr(false), tconf.EnableYBAdaptiveParallelism, "Enable adaptive parallelism should be overridden by CLI")
+	assert.Equal(t, types.DisabledAdaptiveParallelismMode, tconf.AdaptiveParallelismMode, "Adaptive parallelism mode should be overridden by CLI")
 	assert.Equal(t, 5, tconf.MaxParallelism, "Adaptive parallelism max should be overridden by CLI")
 	assert.Equal(t, utils.BoolStr(false), disablePb, "Disable PB should be overridden by CLI")
 	assert.Equal(t, 5, EVENT_BATCH_MAX_RETRY_COUNT, "Max retries should be overridden by CLI")
@@ -2589,7 +2590,7 @@ func TestImportDataFileConfigBinding_EnvOverridesConfig(t *testing.T) {
 	// Assertions on import-data-file config
 	assert.Equal(t, int64(1000), batchSizeInNumRows, "Batch size should match the config")
 	assert.Equal(t, 4, tconf.Parallelism, "Parallel jobs should match the config")
-	// assert.Equal(t, utils.BoolStr(true), tconf.EnableYBAdaptiveParallelism, "Enable adaptive parallelism should match the config")
+	assert.Equal(t, types.BalancedAdaptiveParallelismMode, tconf.AdaptiveParallelismMode, "Adaptive parallelism mode should match the config")
 	assert.Equal(t, 10, tconf.MaxParallelism, "Adaptive parallelism max should match the config")
 	assert.Equal(t, utils.BoolStr(true), disablePb, "Disable PB should match the config")
 	assert.Equal(t, 3, EVENT_BATCH_MAX_RETRY_COUNT, "Max retries should match the config")

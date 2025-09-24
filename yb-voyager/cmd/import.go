@@ -401,7 +401,11 @@ func registerFlagsForTarget(cmd *cobra.Command) {
 	// 	"Adapt parallelism based on the resource usage (CPU, memory) of the target YugabyteDB cluster.")
 
 	cmd.Flags().Var(&tconf.AdaptiveParallelismMode, "adaptive-parallelism",
-		"The mode for adaptive parallelism behavior: disabled, balanced, aggressive (default balanced)")
+		"The mode for adaptive parallelism behavior: disabled, balanced, aggressive (default balanced)"+
+			"\n"+
+			"\tbalanced: Operate with moderate thresholds. Recommended to be used when there are other workloads running on the cluster.\n"+
+			"\taggressive: Operate with aggressive max-CPU thresholds for better performance. Recommended to be used when there are no other workloads running on the cluster.\n"+
+			"\tdisabled: Disable adaptive parallelism.")
 
 	cmd.Flags().IntVar(&tconf.MaxParallelism, "adaptive-parallelism-max", 0,
 		"number of max parallel jobs to use while importing data when adaptive parallelism is enabled. "+
