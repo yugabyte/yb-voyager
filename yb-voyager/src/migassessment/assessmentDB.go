@@ -31,6 +31,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/pgss"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/types"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -65,6 +66,9 @@ type TableIndexStats struct {
 }
 
 var GetSourceMetadataDBFilePath = func() string {
+	if AssessmentDir == "" {
+		panic("AssessmentDir must be set before calling GetSourceMetadataDBFilePath()")
+	}
 	return filepath.Join(AssessmentDir, "dbs", "assessment.db")
 }
 
@@ -140,8 +144,10 @@ func InitAssessmentDB() error {
 			parent_table_name   TEXT,
 			size_in_bytes       INTEGER,
 			PRIMARY KEY(schema_name, object_name));`, TABLE_INDEX_STATS),
+
 		// to store pgss output for performance validation and unsupported query constructs detection
-		// Schema exactly matches src/pgss.QueryStats struct for consistency
+		// Schema exactly matches src/pgss.PgStatStatements struct for consistency
+		// Future: might have to change/adapt this for Oracle/MySQL stats
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
 			queryid				BIGINT,
 			query				TEXT,
@@ -192,7 +198,7 @@ type AssessmentDB struct {
 	db *sql.DB
 }
 
-func NewAssessmentDB(sourceDBType string) (*AssessmentDB, error) {
+func NewAssessmentDB() (*AssessmentDB, error) {
 	db, err := sql.Open("sqlite3", fmt.Sprintf("%s%s", GetSourceMetadataDBFilePath(), metadb.SQLITE_OPTIONS))
 	if err != nil {
 		return nil, fmt.Errorf("error opening assessment db %s: %w", GetSourceMetadataDBFilePath(), err)
@@ -450,7 +456,7 @@ func (adb *AssessmentDB) LoadPgssCSVIntoTable(filePath string) error {
 	return nil
 }
 
-func (adb *AssessmentDB) InsertPgssEntries(entries []pgss.QueryStats) error {
+func (adb *AssessmentDB) InsertPgssEntries(entries []pgss.PgStatStatements) error {
 	if len(entries) == 0 {
 		return nil
 	}
@@ -488,11 +494,13 @@ func (adb *AssessmentDB) InsertPgssEntries(entries []pgss.QueryStats) error {
 	return nil
 }
 
-// GetQueryStats retrieves all the source PGSS data from the assessment database
-func (adb *AssessmentDB) GetQueryStats() ([]pgss.QueryStats, error) {
-	query := `SELECT queryid, query, calls, rows, total_exec_time, mean_exec_time, 
-		min_exec_time, max_exec_time, stddev_exec_time 
-		FROM db_queries_summary`
+// GetSourceQueryStats retrieves all the source PGSS data from the assessment database
+func (adb *AssessmentDB) GetSourceQueryStats() ([]*types.QueryStats, error) {
+	query := `
+		SELECT queryid, query, calls, rows,
+		       total_exec_time, mean_exec_time,
+		       min_exec_time, max_exec_time
+		FROM db_queries_summary;`
 
 	rows, err := adb.db.Query(query)
 	if err != nil {
@@ -500,24 +508,23 @@ func (adb *AssessmentDB) GetQueryStats() ([]pgss.QueryStats, error) {
 	}
 	defer rows.Close()
 
-	var entries []pgss.QueryStats
+	var entries []*types.QueryStats
 	for rows.Next() {
-		var entry pgss.QueryStats
+		var entry types.QueryStats
 		err := rows.Scan(
 			&entry.QueryID,
-			&entry.Query,
-			&entry.Calls,
-			&entry.Rows,
+			&entry.QueryText,
+			&entry.ExecutionCount,
+			&entry.RowsProcessed,
 			&entry.TotalExecTime,
-			&entry.MeanExecTime,
+			&entry.AverageExecTime,
 			&entry.MinExecTime,
 			&entry.MaxExecTime,
-			&entry.StddevExecTime,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan PGSS row: %w", err)
 		}
-		entries = append(entries, entry)
+		entries = append(entries, &entry)
 	}
 
 	if err = rows.Err(); err != nil {
@@ -537,4 +544,19 @@ func (adb *AssessmentDB) CheckIfTableExists(tableName string) error {
 	}
 
 	return nil
+}
+
+// HasSourceQueryStats checks if query stats data exists in the assessment database (source-db type agnostic)
+func (adb *AssessmentDB) HasSourceQueryStats() (bool, error) {
+	log.Infof("checking if query stats data exists in the assessment database")
+	query := fmt.Sprintf("SELECT 1 FROM %s LIMIT 1", DB_QUERIES_SUMMARY)
+	var exists int
+	err := adb.db.QueryRow(query).Scan(&exists)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return false, nil
+		}
+		return false, fmt.Errorf("failed to check for PGSS data: %w", err)
+	}
+	return true, nil
 }
