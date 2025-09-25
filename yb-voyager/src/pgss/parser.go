@@ -27,7 +27,7 @@ import (
 )
 
 // ParseFromCSV parses a CSV file and returns normalized PgStatStatements entries
-func ParseFromCSV(csvPath string) ([]PgStatStatements, error) {
+func ParseFromCSV(csvPath string) ([]*PgStatStatements, error) {
 	file, err := os.Open(csvPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open PGSS CSV file %s: %w", csvPath, err)
@@ -40,7 +40,7 @@ func ParseFromCSV(csvPath string) ([]PgStatStatements, error) {
 		return nil, fmt.Errorf("failed to read CSV headers: %w", err)
 	}
 
-	var entries []PgStatStatements
+	var entries []*PgStatStatements
 	lineNumber := 1 // Header is line 0
 	for {
 		record, err := reader.Read()
@@ -58,12 +58,13 @@ func ParseFromCSV(csvPath string) ([]PgStatStatements, error) {
 		}
 
 		// Entry is valid if parsing succeeded
-		entries = append(entries, *entry)
+		entries = append(entries, entry)
 		lineNumber++
 	}
 
 	log.Infof("PGSS CSV parsing completed with %d entries", len(entries))
-	return entries, nil
+	// since there is a possibility of same queryid for different entries(due to userid difference), we need to merge them
+	return MergePgStatStatements(entries), nil
 }
 
 // parseCSVRecord converts a single CSV record to PgStatStatements struct

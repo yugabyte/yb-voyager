@@ -455,7 +455,7 @@ func (adb *AssessmentDB) LoadPgssCSVIntoTable(filePath string) error {
 	return nil
 }
 
-func (adb *AssessmentDB) InsertPgssEntries(entries []pgss.PgStatStatements) error {
+func (adb *AssessmentDB) InsertPgssEntries(entries []*pgss.PgStatStatements) error {
 	if len(entries) == 0 {
 		return nil
 	}
