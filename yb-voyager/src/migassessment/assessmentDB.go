@@ -157,8 +157,7 @@ func InitAssessmentDB() error {
 			mean_exec_time		REAL,
 			min_exec_time		REAL,
 			max_exec_time		REAL,
-			stddev_exec_time	REAL,
-			PRIMARY KEY (queryid, query));`, DB_QUERIES_SUMMARY),
+			stddev_exec_time	REAL);`, DB_QUERIES_SUMMARY),
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
 			redundant_schema_name TEXT,
 			redundant_table_name TEXT,

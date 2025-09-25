@@ -18,6 +18,7 @@ limitations under the License.
 package pgss
 
 import (
+	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -191,6 +192,232 @@ invalid_id,"SELECT * FROM users",100,1000,1500.5,15.005,5.2,25.8,3.5
 			} else {
 				assert.NoError(t, err, "ParseFromCSV should not fail")
 				assert.Len(t, entries, tt.expectedLen, "Should have expected number of valid entries")
+			}
+		})
+	}
+}
+
+func TestMergePgStatStatements(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    []*PgStatStatements
+		expected []*PgStatStatements
+	}{
+		{
+			name: "Simple merge of two entries with same query",
+			input: []*PgStatStatements{
+				{
+					QueryID:        123,
+					Query:          "SELECT * FROM users",
+					Calls:          100,
+					Rows:           1000,
+					TotalExecTime:  1500.5,
+					MeanExecTime:   15.005,
+					MinExecTime:    5.2,
+					MaxExecTime:    25.8,
+					StddevExecTime: 3.5,
+				},
+				{
+					QueryID:        123,
+					Query:          "SELECT * FROM users",
+					Calls:          50,
+					Rows:           500,
+					TotalExecTime:  750.0,
+					MeanExecTime:   15.0,
+					MinExecTime:    3.0,
+					MaxExecTime:    30.0,
+					StddevExecTime: 2.1,
+				},
+			},
+			expected: []*PgStatStatements{
+				{
+					QueryID:        123,
+					Query:          "SELECT * FROM users",
+					Calls:          150,                // 100 + 50
+					Rows:           1500,               // 1000 + 500
+					TotalExecTime:  2250.5,             // 1500.5 + 750.0
+					MeanExecTime:   15.003333333333334, // 2250.5 / 150
+					MinExecTime:    3.0,                // min(5.2, 3.0)
+					MaxExecTime:    30.0,               // max(25.8, 30.0)
+					StddevExecTime: 3.5,                // Currently disabled, keeps first value
+				},
+			},
+		},
+		{
+			name: "Different queries remain separate",
+			input: []*PgStatStatements{
+				{
+					QueryID:        123,
+					Query:          "SELECT * FROM users",
+					Calls:          100,
+					Rows:           1000,
+					TotalExecTime:  1500.5,
+					MeanExecTime:   15.005,
+					MinExecTime:    5.2,
+					MaxExecTime:    25.8,
+					StddevExecTime: 3.5,
+				},
+				{
+					QueryID:        456,
+					Query:          "SELECT * FROM products", // Different query
+					Calls:          50,
+					Rows:           500,
+					TotalExecTime:  750.0,
+					MeanExecTime:   15.0,
+					MinExecTime:    10.0,
+					MaxExecTime:    20.0,
+					StddevExecTime: 2.1,
+				},
+			},
+			expected: []*PgStatStatements{
+				{
+					QueryID:        123,
+					Query:          "SELECT * FROM users",
+					Calls:          100,
+					Rows:           1000,
+					TotalExecTime:  1500.5,
+					MeanExecTime:   15.005,
+					MinExecTime:    5.2,
+					MaxExecTime:    25.8,
+					StddevExecTime: 3.5,
+				},
+				{
+					QueryID:        456,
+					Query:          "SELECT * FROM products",
+					Calls:          50,
+					Rows:           500,
+					TotalExecTime:  750.0,
+					MeanExecTime:   15.0,
+					MinExecTime:    10.0,
+					MaxExecTime:    20.0,
+					StddevExecTime: 2.1,
+				},
+			},
+		},
+		{
+			name: "Mixed scenario - some merge, some don't",
+			input: []*PgStatStatements{
+				{
+					QueryID:        100,
+					Query:          "SELECT count(*) FROM orders",
+					Calls:          200,
+					Rows:           1,
+					TotalExecTime:  50.0,
+					MeanExecTime:   0.25,
+					MinExecTime:    0.1,
+					MaxExecTime:    0.5,
+					StddevExecTime: 0.05,
+				},
+				{
+					QueryID:        200,
+					Query:          "SELECT id FROM products",
+					Calls:          150,
+					Rows:           300,
+					TotalExecTime:  75.0,
+					MeanExecTime:   0.5,
+					MinExecTime:    0.2,
+					MaxExecTime:    1.0,
+					StddevExecTime: 0.1,
+				},
+				{
+					QueryID:        300, // Same query as first entry
+					Query:          "SELECT count(*) FROM orders",
+					Calls:          100,
+					Rows:           1,
+					TotalExecTime:  30.0,
+					MeanExecTime:   0.3,
+					MinExecTime:    0.05, // Lower minimum
+					MaxExecTime:    0.8,  // Higher maximum
+					StddevExecTime: 0.08,
+				},
+			},
+			expected: []*PgStatStatements{
+				{
+					QueryID:        100, // Should keep first entry's QueryID
+					Query:          "SELECT count(*) FROM orders",
+					Calls:          300,                 // 200 + 100
+					Rows:           2,                   // 1 + 1
+					TotalExecTime:  80.0,                // 50.0 + 30.0
+					MeanExecTime:   0.26666666666666666, // 80.0 / 300
+					MinExecTime:    0.05,                // min(0.1, 0.05)
+					MaxExecTime:    0.8,                 // max(0.5, 0.8)
+					StddevExecTime: 0.05,                // Currently disabled, keeps first value
+				},
+				{
+					QueryID:        200,
+					Query:          "SELECT id FROM products",
+					Calls:          150,
+					Rows:           300,
+					TotalExecTime:  75.0,
+					MeanExecTime:   0.5,
+					MinExecTime:    0.2,
+					MaxExecTime:    1.0,
+					StddevExecTime: 0.1,
+				},
+			},
+		},
+		{
+			name:     "Empty input",
+			input:    []*PgStatStatements{},
+			expected: []*PgStatStatements{},
+		},
+		{
+			name: "Single entry",
+			input: []*PgStatStatements{
+				{
+					QueryID:        999,
+					Query:          "SELECT pg_stat_reset()",
+					Calls:          5,
+					Rows:           5,
+					TotalExecTime:  1.5,
+					MeanExecTime:   0.3,
+					MinExecTime:    0.1,
+					MaxExecTime:    0.8,
+					StddevExecTime: 0.2,
+				},
+			},
+			expected: []*PgStatStatements{
+				{
+					QueryID:        999,
+					Query:          "SELECT pg_stat_reset()",
+					Calls:          5,
+					Rows:           5,
+					TotalExecTime:  1.5,
+					MeanExecTime:   0.3,
+					MinExecTime:    0.1,
+					MaxExecTime:    0.8,
+					StddevExecTime: 0.2,
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := MergePgStatStatements(tt.input)
+
+			// Since the function returns entries in map iteration order which is not deterministic,
+			// we need to sort both result and expected for comparison
+			// Sort by Query for consistent comparison
+			sort.Slice(result, func(i, j int) bool {
+				return result[i].Query < result[j].Query
+			})
+			sort.Slice(tt.expected, func(i, j int) bool {
+				return tt.expected[i].Query < tt.expected[j].Query
+			})
+
+			assert.Len(t, result, len(tt.expected), "Should have expected number of entries")
+			for i, expected := range tt.expected {
+				actual := result[i]
+				assert.Equal(t, expected.QueryID, actual.QueryID, "QueryID should match for entry %d", i)
+				assert.Equal(t, expected.Query, actual.Query, "Query should match for entry %d", i)
+				assert.Equal(t, expected.Calls, actual.Calls, "Calls should match for entry %d", i)
+				assert.Equal(t, expected.Rows, actual.Rows, "Rows should match for entry %d", i)
+				assert.Equal(t, expected.TotalExecTime, actual.TotalExecTime, "TotalExecTime should match for entry %d", i)
+				assert.Equal(t, expected.MeanExecTime, actual.MeanExecTime, "MeanExecTime should match for entry %d", i)
+				assert.Equal(t, expected.MinExecTime, actual.MinExecTime, "MinExecTime should match for entry %d", i)
+				assert.Equal(t, expected.MaxExecTime, actual.MaxExecTime, "MaxExecTime should match for entry %d", i)
+				assert.Equal(t, expected.StddevExecTime, actual.StddevExecTime, "StddevExecTime should match for entry %d", i)
 			}
 		})
 	}

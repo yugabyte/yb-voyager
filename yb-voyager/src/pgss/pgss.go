@@ -17,6 +17,8 @@ package pgss
 
 import (
 	"math"
+
+	log "github.com/sirupsen/logrus"
 )
 
 // PgStatStatements represents a pg_stat_statements entry
@@ -91,10 +93,10 @@ func (p *PgStatStatements) Merge(second *PgStatStatements) {
 
 // ================================ Merge PgStatStatements =================================
 
-// MergePgStatStatements merges the stats for the entries with the same query
+// MergePgStatStatements merges the stats for the entries with the same query text
 func MergePgStatStatements(entries []*PgStatStatements) []*PgStatStatements {
+	log.Infof("merging pg_stat_statements entries")
 	queryMap := make(map[string]*PgStatStatements)
-
 	for _, entry := range entries {
 		if _, ok := queryMap[entry.Query]; !ok {
 			queryMap[entry.Query] = entry
@@ -107,5 +109,8 @@ func MergePgStatStatements(entries []*PgStatStatements) []*PgStatStatements {
 	for _, entry := range queryMap {
 		mergedEntries = append(mergedEntries, entry)
 	}
+
+	log.Infof("entries before merge: %d", len(entries))
+	log.Infof("entries after merge: %d", len(mergedEntries))
 	return mergedEntries
 }
