@@ -28,6 +28,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	testcontainers "github.com/yugabyte/yb-voyager/yb-voyager/test/containers"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
@@ -359,5 +360,191 @@ func TestPGStatStatementsQuery(t *testing.T) {
 			assert.True(t, hasResults, "Expected to find at least one query in pg_stat_statements for yb version %s", version)
 			assert.NoError(t, rows.Err(), "Error occurred while iterating over rows for yb version %s", version)
 		})
+	}
+}
+
+func TestCollectPgStatStatements_BasicSelectQueries(t *testing.T) {
+	// Test data: queries and their expected execution counts across nodes
+	testQueries := map[string]struct {
+		text          string
+		parameterized string
+		execCounts    []int // executions per node [node0, node1, node2]
+	}{
+		"simple_avg": {
+			text:          `SELECT AVG(salary) FROM test_pgss.employees`,
+			parameterized: `SELECT AVG(salary) FROM test_pgss.employees`,
+			execCounts:    []int{1, 0, 0}, // only on node 0
+		},
+		"simple_count": {
+			text:          `SELECT COUNT(*) FROM test_pgss.employees`,
+			parameterized: `SELECT COUNT(*) FROM test_pgss.employees`,
+			execCounts:    []int{0, 1, 0}, // only on node 1
+		},
+		"repeated_query": {
+			text:          `SELECT 'test_merge' as marker, COUNT(*) FROM test_pgss.employees`,
+			parameterized: `SELECT $1 as marker, COUNT(*) FROM test_pgss.employees`,
+			execCounts:    []int{2, 3, 1}, // distributed across all nodes
+		},
+	}
+
+	// Setup test environment
+	testYugabyteDBTargetCluster.ExecuteSqls(
+		`CREATE SCHEMA IF NOT EXISTS test_pgss;`,
+		`CREATE TABLE IF NOT EXISTS test_pgss.employees (
+			id INT PRIMARY KEY, name TEXT, salary INT
+		);`,
+		`INSERT INTO test_pgss.employees VALUES
+			(1, 'Alice', 75000), (2, 'Bob', 55000), (3, 'Charlie', 60000);`,
+		`CREATE EXTENSION IF NOT EXISTS pg_stat_statements;`,
+		`SELECT pg_stat_statements_reset();`,
+	)
+	defer testYugabyteDBTargetCluster.ExecuteSqls(`DROP SCHEMA test_pgss CASCADE;`)
+
+	// Execute queries on different nodes
+	for queryName, query := range testQueries {
+		for nodeIdx, execCount := range query.execCounts {
+			if execCount == 0 {
+				continue
+			}
+
+			conn, err := testYugabyteDBTargetCluster.GetNodeConnection(nodeIdx)
+			require.NoError(t, err, "Failed to connect to node %d for %s", nodeIdx, queryName)
+			defer conn.Close()
+
+			for i := 0; i < execCount; i++ {
+				_, err = conn.Exec(query.text)
+				require.NoError(t, err, "Failed to execute %s on node %d, iteration %d", queryName, nodeIdx, i+1)
+			}
+		}
+	}
+
+	// Collect PGSS
+	_, tconfs, err := testYugabyteDBTargetCluster.GetYBServers() // calls overriden GetYBServers() method
+	require.NoError(t, err)
+
+	actualStatements, err := testYugabyteDBTargetCluster.collectPgStatStatements(tconfs)
+	assert.NoError(t, err, "CollectPgStatStatements should not error")
+	assert.NotNil(t, actualStatements, "Should return statements")
+
+	// Validate results: check that our test queries have correct call counts
+	foundQueries := make(map[string]bool)
+	for _, actualPgss := range actualStatements {
+		for queryName, expectedPgss := range testQueries {
+			if actualPgss.Query != expectedPgss.parameterized {
+				continue
+			}
+			foundQueries[queryName] = true
+			expectedCalls := 0
+			for _, count := range expectedPgss.execCounts {
+				expectedCalls += count
+			}
+
+			assert.Equal(t, int64(expectedCalls), actualPgss.Calls,
+				"Query %s should have %d total calls, got %d", queryName, expectedCalls, actualPgss.Calls)
+			assert.Greater(t, actualPgss.TotalExecTime, float64(0),
+				"Query %s should have positive total exec time", queryName)
+			assert.Greater(t, actualPgss.MeanExecTime, float64(0),
+				"Query %s should have positive mean exec time", queryName)
+			assert.Greater(t, actualPgss.Rows, int64(0),
+				"Query %s should have non-negative rows", queryName)
+		}
+	}
+
+	// Ensure all test queries were found in results
+	for queryName := range testQueries {
+		assert.True(t, foundQueries[queryName], "Expected query %s not found in pg_stat_statements results", queryName)
+	}
+}
+
+func TestCollectPgStatStatements_InsertUpdateDeleteQueries(t *testing.T) {
+	// Test data: queries and their expected execution counts across nodes
+	testQueries := map[string]struct {
+		text          string
+		parameterized string
+		execCounts    []int // executions per node [node0, node1, node2]
+	}{
+		"insert": {
+			text:          `INSERT INTO test_pgss.employees VALUES (4, 'David', 65000)`,
+			parameterized: `INSERT INTO test_pgss.employees VALUES ($1, $2, $3)`,
+			execCounts:    []int{1, 0, 0}, // only on node 0
+		},
+		"update": {
+			text:          `UPDATE test_pgss.employees SET salary = 80000 WHERE id = 1`,
+			parameterized: `UPDATE test_pgss.employees SET salary = $1 WHERE id = $2`,
+			execCounts:    []int{1, 1, 0}, // only on node 1
+		},
+		"delete": {
+			text:          `DELETE FROM test_pgss.employees WHERE id = 4`,
+			parameterized: `DELETE FROM test_pgss.employees WHERE id = $1`,
+			execCounts:    []int{0, 0, 1}, // only on node 2
+		},
+	}
+
+	// Setup test environment
+	testYugabyteDBTargetCluster.ExecuteSqls(
+		`CREATE SCHEMA IF NOT EXISTS test_pgss;`,
+		`CREATE TABLE IF NOT EXISTS test_pgss.employees (
+			id INT PRIMARY KEY, name TEXT, salary INT
+		);`,
+		`INSERT INTO test_pgss.employees VALUES (1, 'Alice', 75000), (2, 'Bob', 55000), (3, 'Charlie', 60000);`,
+		`CREATE EXTENSION IF NOT EXISTS pg_stat_statements;`,
+		`SELECT pg_stat_statements_reset();`,
+	)
+	defer testYugabyteDBTargetCluster.ExecuteSqls(`DROP SCHEMA test_pgss CASCADE;`)
+
+	// Execute queries on different nodes
+	for queryName, query := range testQueries {
+		for nodeIdx, execCount := range query.execCounts {
+			if execCount == 0 {
+				continue
+			}
+
+			conn, err := testYugabyteDBTargetCluster.GetNodeConnection(nodeIdx)
+			require.NoError(t, err, "Failed to connect to node %d for %s", nodeIdx, queryName)
+			defer conn.Close()
+
+			for i := 0; i < execCount; i++ {
+				_, err = conn.Exec(query.text)
+				require.NoError(t, err, "Failed to execute %s on node %d, iteration %d", queryName, nodeIdx, i+1)
+			}
+		}
+	}
+
+	// Collect PGSS
+	_, tconfs, err := testYugabyteDBTargetCluster.GetYBServers() // calls overriden GetYBServers() method
+	require.NoError(t, err)
+
+	actualStatements, err := testYugabyteDBTargetCluster.collectPgStatStatements(tconfs)
+	assert.NoError(t, err, "CollectPgStatStatements should not error")
+	assert.NotNil(t, actualStatements, "Should return statements")
+
+	// Validate results: check that our test queries have correct call counts
+	foundQueries := make(map[string]bool)
+	for _, actualPgss := range actualStatements {
+		for queryName, expectedPgss := range testQueries {
+			if actualPgss.Query != expectedPgss.parameterized {
+				continue
+			}
+
+			expectedCalls := 0
+			for _, count := range expectedPgss.execCounts {
+				expectedCalls += count
+			}
+			foundQueries[queryName] = true
+
+			assert.Equal(t, int64(expectedCalls), actualPgss.Calls,
+				"Query %s should have %d total calls, got %d", queryName, expectedCalls, actualPgss.Calls)
+			assert.Greater(t, actualPgss.TotalExecTime, float64(0),
+				"Query %s should have positive total exec time", queryName)
+			assert.Greater(t, actualPgss.MeanExecTime, float64(0),
+				"Query %s should have positive mean exec time", queryName)
+			assert.Greater(t, actualPgss.Rows, int64(0),
+				"Query %s should have non-negative rows", queryName)
+		}
+	}
+
+	// Ensure all test queries were found in results
+	for queryName := range testQueries {
+		assert.True(t, foundQueries[queryName], "Expected query %s not found in pg_stat_statements results", queryName)
 	}
 }
