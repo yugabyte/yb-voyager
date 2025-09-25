@@ -906,7 +906,7 @@ func restoreSequencesInOfflineMigration(msr *metadb.MigrationStatusRecord, impor
 			tableName := fmt.Sprintf("%s.%s", parts[0], parts[1])
 			//get the sequence name from the source column to sequence mapping
 			//lookup the sequence name from source in name reg and ignore if target not found
-			sequenceTuple, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFound(sequenceName)
+			sequenceTuple, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole(sequenceName)
 			if err != nil {
 				return fmt.Errorf("error looking up sequence name %q: %w", sequenceName, err)
 			}
@@ -916,7 +916,7 @@ func restoreSequencesInOfflineMigration(msr *metadb.MigrationStatusRecord, impor
 		for sequenceName, lastValue := range sequenceLastValue {
 			//check if a sequence is  attached to a table
 			//lookup the sequence name as per source in name reg and ignore if target not found
-			sequenceTuple, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFound(sequenceName)
+			sequenceTuple, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole(sequenceName)
 			if err != nil {
 				return fmt.Errorf("error looking up sequence name %q: %w", sequenceName, err)
 			}
@@ -926,7 +926,7 @@ func restoreSequencesInOfflineMigration(msr *metadb.MigrationStatusRecord, impor
 				tables := sequenceNameToTableMap[sequenceName]
 				isTablePresentInTableList := false
 				for _, table := range tables {
-					tableTuple, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFound(table)
+					tableTuple, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole(table)
 					if err != nil {
 						return fmt.Errorf("error looking up table name %q: %w", table, err)
 					}
