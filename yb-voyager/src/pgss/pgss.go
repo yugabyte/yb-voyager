@@ -42,6 +42,8 @@ type PgStatStatements struct {
 
 // Merge merges the stats for the entries with the same query
 func (p *PgStatStatements) Merge(second *PgStatStatements) {
+	log.Infof("structs before merge:\nfirst: %+v, second: %+v", p, second)
+
 	first := *p // shallow copy is ok as no pointers in the struct
 
 	// queryid and query are expected to be same for the entries to be merged
@@ -62,6 +64,8 @@ func (p *PgStatStatements) Merge(second *PgStatStatements) {
 	// 	first.Calls, first.TotalExecTime, first.StddevExecTime,
 	// 	second.Calls, second.TotalExecTime, second.StddevExecTime,
 	// )
+
+	log.Infof("struct after merge: %+v", p)
 }
 
 // By ChatGPT:

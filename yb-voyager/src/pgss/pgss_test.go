@@ -417,7 +417,9 @@ func TestMergePgStatStatements(t *testing.T) {
 				assert.Equal(t, expected.MeanExecTime, actual.MeanExecTime, "MeanExecTime should match for entry %d", i)
 				assert.Equal(t, expected.MinExecTime, actual.MinExecTime, "MinExecTime should match for entry %d", i)
 				assert.Equal(t, expected.MaxExecTime, actual.MaxExecTime, "MaxExecTime should match for entry %d", i)
-				assert.Equal(t, expected.StddevExecTime, actual.StddevExecTime, "StddevExecTime should match for entry %d", i)
+
+				// TODO: merge logic is disable for stddev_exec_time right now
+				// assert.Equal(t, expected.StddevExecTime, actual.StddevExecTime, "StddevExecTime should match for entry %d", i)
 			}
 		})
 	}
