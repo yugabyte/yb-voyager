@@ -437,8 +437,7 @@ func init() {
 	getDataMigrationReportCmd.PersistentFlags().StringVarP(&config.LogLevel, "log-level", "l", "info",
 		"log level for yb-voyager. Accepted values: (trace, debug, info, warn, error, fatal, panic)")
 	getDataMigrationReportCmd.Flags().StringVar(&reportOrStatusCmdOutputFormat, "output-format", "table",
-		"format in which report will be generated: (table, json)")
-	getDataMigrationReportCmd.Flags().MarkHidden("output-format") //confirm this if should be hidden or not
+		"format in which report will be generated: (table, json) (default: table)")
 
 	getDataMigrationReportCmd.Flags().StringVar(&sourceReplicaDbPassword, "source-replica-db-password", "",
 		"password with which to connect to the target Source-Replica DB server. Alternatively, you can also specify the password by setting the environment variable SOURCE_REPLICA_DB_PASSWORD. If you don't provide a password via the CLI, yb-voyager will prompt you at runtime for a password. If the password contains special characters that are interpreted by the shell (for example, # and $), enclose the password in single quotes.")
