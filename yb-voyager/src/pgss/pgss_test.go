@@ -30,7 +30,7 @@ func TestParseFromCSVFormats(t *testing.T) {
 		name        string
 		csvData     string
 		expectedLen int
-		validate    func(t *testing.T, entries []*PgStatStatements)
+		validate    func(t *testing.T, entries []*PgStatStatements) //write validations based on entries sorted by QueryID
 	}{
 		{
 			name: "PostgreSQL 11-12 format (9 columns without exec)",
@@ -49,11 +49,11 @@ func TestParseFromCSVFormats(t *testing.T) {
 		{
 			name: "PostgreSQL 13+ format (9 columns with exec)",
 			csvData: `queryid,query,calls,rows,total_exec_time,mean_exec_time,min_exec_time,max_exec_time,stddev_exec_time
-789,"SELECT count(*) FROM orders",200,1,50.0,0.25,0.1,0.5,0.05
-321,"UPDATE users SET last_login = NOW()",75,75,150.0,2.0,1.0,5.0,0.8`,
+321,"UPDATE users SET last_login = NOW()",75,75,150.0,2.0,1.0,5.0,0.8
+789,"SELECT count(*) FROM orders",200,1,50.0,0.25,0.1,0.5,0.05`,
 			expectedLen: 2,
 			validate: func(t *testing.T, entries []*PgStatStatements) {
-				entry1 := entries[0]
+				entry1 := entries[1]
 				assert.Equal(t, int64(789), entry1.QueryID, "Entry1 QueryID should match")
 				assert.Equal(t, "SELECT count(*) FROM orders", entry1.Query, "Entry1 Query should match")
 				assert.Equal(t, 50.0, entry1.TotalExecTime, "Entry1 TotalExecTime should match")
@@ -113,6 +113,10 @@ func TestParseFromCSVFormats(t *testing.T) {
 			entries, err := ParseFromCSV(csvPath)
 			assert.NoError(t, err, "ParseFromCSV should not fail")
 			assert.Len(t, entries, tt.expectedLen, "Should have expected number of entries")
+
+			sort.Slice(entries, func(i, j int) bool {
+				return entries[i].QueryID < entries[j].QueryID
+			})
 
 			// Run custom validation
 			if tt.validate != nil && len(entries) > 0 {
