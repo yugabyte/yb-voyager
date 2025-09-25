@@ -196,7 +196,7 @@ func (reg *NameRegistry) GetRegisteredTableList(ignoreOtherSideOfMappingIfNotFou
 			tableName := fmt.Sprintf("%v.%v", s, t)
 			if ignoreOtherSideOfMappingIfNotFound {
 				if ignoreIfTargetNotFound {
-					tuple, err := reg.LookupTableNameAndIgnoreIfTargetNotFound(tableName)
+					tuple, err := reg.LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole(tableName)
 					if err != nil {
 						return nil, fmt.Errorf("error lookup for the table name [%v]: %v", tableName, err)
 					}
@@ -326,7 +326,7 @@ Usecases:
 4. schema-registry: BETA_FAST_DATA_EXPORT case (debezium) where table is exported, but not created on target. Only tables present in the table-list (already validated to be present on target) will be loaded from the registry.
 */
 
-func (reg *NameRegistry) LookupTableNameAndIgnoreIfTargetNotFound(tableNameArg string) (sqlname.NameTuple, error) {
+func (reg *NameRegistry) LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole(tableNameArg string) (sqlname.NameTuple, error) {
 	switch reg.params.Role {
 	case TARGET_DB_IMPORTER_ROLE, SOURCE_DB_EXPORTER_STATUS_ROLE, SOURCE_DB_EXPORTER_ROLE:
 		//For target db importer specific roles only we should use this lookup with ignore if target not found

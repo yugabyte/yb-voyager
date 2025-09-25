@@ -146,7 +146,7 @@ func (sreg *SchemaRegistry) Init() error {
 		tableName := strings.TrimSuffix(filepath.Base(schemaFile.Name()), "_schema.json")
 		//Using this function here as schema registry is used in import data and to handle the case where the table is not present in the target
 		//using this function and checking if this is actually excluded in list
-		table, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFound(tableName)
+		table, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole(tableName)
 		if err != nil {
 			return fmt.Errorf("lookup %s from name registry: %v", tableName, err)
 		}
