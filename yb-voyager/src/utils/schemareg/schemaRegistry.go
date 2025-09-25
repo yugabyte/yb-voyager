@@ -157,6 +157,7 @@ func (sreg *SchemaRegistry) Init() error {
 			continue
 		} else if !table.TargetTableAvailable() && sreg.importerRole == namereg.TARGET_DB_IMPORTER_ROLE {
 			//Table is in table list but target not found during lookup
+			// only possible in offline migration where table is exported, but not present in in import-data table list.
 			return fmt.Errorf("table %s is not present in the target database", table)
 		}
 		sreg.TableNameToSchema.Put(table, &tableSchema)
