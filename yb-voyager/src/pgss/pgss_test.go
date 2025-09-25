@@ -30,7 +30,7 @@ func TestParseFromCSVFormats(t *testing.T) {
 		name        string
 		csvData     string
 		expectedLen int
-		validate    func(t *testing.T, entries []PgStatStatements)
+		validate    func(t *testing.T, entries []*PgStatStatements)
 	}{
 		{
 			name: "PostgreSQL 11-12 format (9 columns without exec)",
@@ -38,7 +38,7 @@ func TestParseFromCSVFormats(t *testing.T) {
 123,"SELECT * FROM users",100,1000,1500.5,15.005,5.2,25.8,3.5
 456,"SELECT id FROM products",50,500,750.0,15.0,10.0,20.0,2.1`,
 			expectedLen: 2,
-			validate: func(t *testing.T, entries []PgStatStatements) {
+			validate: func(t *testing.T, entries []*PgStatStatements) {
 				entry1 := entries[0]
 				assert.Equal(t, int64(123), entry1.QueryID, "Entry1 QueryID should match")
 				assert.Equal(t, "SELECT * FROM users", entry1.Query, "Entry1 Query should match")
@@ -52,7 +52,7 @@ func TestParseFromCSVFormats(t *testing.T) {
 789,"SELECT count(*) FROM orders",200,1,50.0,0.25,0.1,0.5,0.05
 321,"UPDATE users SET last_login = NOW()",75,75,150.0,2.0,1.0,5.0,0.8`,
 			expectedLen: 2,
-			validate: func(t *testing.T, entries []PgStatStatements) {
+			validate: func(t *testing.T, entries []*PgStatStatements) {
 				entry1 := entries[0]
 				assert.Equal(t, int64(789), entry1.QueryID, "Entry1 QueryID should match")
 				assert.Equal(t, "SELECT count(*) FROM orders", entry1.Query, "Entry1 Query should match")
@@ -66,7 +66,7 @@ func TestParseFromCSVFormats(t *testing.T) {
 999,"SELECT pg_stat_reset()",5,5,1.5,0.3,0.1,0.8,0.2,100,10,5,2,0,0,0,0,0,0,0.1,0.05,3,1,512
 1001,"CREATE INDEX CONCURRENTLY idx_test ON table_test (column)",1,0,30000.0,30000.0,30000.0,30000.0,0.0,5000,2000,1000,500,100,50,25,10,500,250,1500.0,800.0,1000,200,102400`,
 			expectedLen: 2,
-			validate: func(t *testing.T, entries []PgStatStatements) {
+			validate: func(t *testing.T, entries []*PgStatStatements) {
 				entry1 := entries[0]
 				assert.Equal(t, int64(999), entry1.QueryID, "Entry1 QueryID should match")
 				assert.Equal(t, "SELECT pg_stat_reset()", entry1.Query, "Entry1 Query should match")
@@ -81,7 +81,7 @@ func TestParseFromCSVFormats(t *testing.T) {
 			name:        "Only header",
 			csvData:     `queryid,query,calls,rows,total_exec_time,mean_exec_time,min_exec_time,max_exec_time,stddev_exec_time`,
 			expectedLen: 0,
-			validate: func(t *testing.T, entries []PgStatStatements) {
+			validate: func(t *testing.T, entries []*PgStatStatements) {
 				assert.Len(t, entries, 0, "Should have expected number of entries")
 			},
 		},
