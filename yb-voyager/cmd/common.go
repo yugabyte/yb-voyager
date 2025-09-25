@@ -1076,7 +1076,7 @@ func getExportedSnapshotRowsMap(exportSnapshotStatus *ExportSnapshotStatus) (*ut
 	for _, tableStatus := range exportSnapshotStatus.Tables {
 		//using LookupTableNameAndIgnoreIfTargetNotFound in case if the export status is run after import data in which case
 		// if there is some table not present in target this should work
-		nt, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFound(tableStatus.TableName)
+		nt, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole(tableStatus.TableName)
 		if err != nil {
 			return nil, nil, fmt.Errorf("lookup table [%s] from name registry: %v", tableStatus.TableName, err)
 		}
@@ -1122,7 +1122,7 @@ func getImportedSnapshotRowsMap(dbType string, tableList []sqlname.NameTuple, er
 	if snapshotDataFileDescriptor != nil {
 		for _, fileEntry := range snapshotDataFileDescriptor.DataFileList {
 			//ignoring target as the dataFileDescriptor can contain tables that exported but not present in target
-			nt, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFound(fileEntry.TableName)
+			nt, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole(fileEntry.TableName)
 			if err != nil {
 				return nil, fmt.Errorf("lookup table name from data file descriptor %s : %v", fileEntry.TableName, err)
 			}

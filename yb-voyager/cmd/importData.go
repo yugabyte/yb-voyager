@@ -447,7 +447,7 @@ func discoverFilesToImport() []*ImportFileTask {
 
 		//using the LookupTableNameAndIgnoreIfTargetNotFound if there are tables in descriptor which are not present in the target
 		//for such tables we will not get target table hence we will ask users to exclude them in table-list flags
-		tableName, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFound(fileEntry.TableName)
+		tableName, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole(fileEntry.TableName)
 		if err != nil {
 			utils.ErrExit("lookup table name from name registry: %v", err)
 		}

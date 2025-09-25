@@ -321,7 +321,7 @@ func TestNameRegistryFailedLookup(t *testing.T) {
 		SourceName:  sourceObj,
 		CurrentName: sourceObj,
 	}
-	tuple, err = reg.LookupTableNameAndIgnoreIfTargetNotFound("SAKILA.TABLE3")
+	tuple, err = reg.LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole("SAKILA.TABLE3")
 	require.Nil(err)
 	assert.Equal(expectedTuple, tuple, "tableName: SAKILA.TABLE3")
 

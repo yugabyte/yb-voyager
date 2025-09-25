@@ -265,7 +265,7 @@ func prepareRowWithDatafile(dataFile *datafile.FileEntry, state *ImportDataState
 	reportProgressInBytes = reportProgressInBytes || dataFile.RowCount == -1
 	//We are ignoring the target side name if not found as it might not be used to import data
 	//for these tables we are anyways going to report status as NOT_STARTED
-	dataFileNt, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFound(dataFile.TableName)
+	dataFileNt, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole(dataFile.TableName)
 	if err != nil {
 		return nil, fmt.Errorf("lookup %s from name registry: %w", dataFile.TableName, err)
 	}
