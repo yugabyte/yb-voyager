@@ -1999,7 +1999,7 @@ func (yb *TargetYugabyteDB) CollectPgStatStatements() ([]*pgss.PgStatStatements,
 		rows.Close()
 	}
 
-	mergedEntries := pgss.MergePgStatStatements(entries)
+	mergedEntries := pgss.MergePgStatStatementsBasedOnQuery(entries)
 	return mergedEntries, nil
 }
 
