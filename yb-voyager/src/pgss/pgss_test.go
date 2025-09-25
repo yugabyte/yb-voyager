@@ -411,7 +411,7 @@ func TestMergePgStatStatements(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := MergePgStatStatements(tt.input)
+			result := MergePgStatStatementsBasedOnQuery(tt.input)
 
 			// Since the function returns entries in map iteration order which is not deterministic,
 			// we need to sort both result and expected for comparison

@@ -97,8 +97,8 @@ func (p *PgStatStatements) Merge(second *PgStatStatements) {
 
 // ================================ Merge PgStatStatements =================================
 
-// MergePgStatStatements merges the stats for the entries with the same query text
-func MergePgStatStatements(entries []*PgStatStatements) []*PgStatStatements {
+// MergePgStatStatementsBasedOnQuery merges the stats for the entries with the same query text
+func MergePgStatStatementsBasedOnQuery(entries []*PgStatStatements) []*PgStatStatements {
 	log.Infof("merging pg_stat_statements entries")
 	queryMap := make(map[string]*PgStatStatements)
 	for _, entry := range entries {

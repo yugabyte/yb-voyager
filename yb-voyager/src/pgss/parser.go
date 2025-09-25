@@ -63,8 +63,8 @@ func ParseFromCSV(csvPath string) ([]*PgStatStatements, error) {
 	}
 
 	log.Infof("PGSS CSV parsing completed with %d entries", len(entries))
-	// since there is a possibility of same queryid for different entries(due to userid difference), we need to merge them
-	return MergePgStatStatements(entries), nil
+	// since there is a possibility of same query text for different entries(due to userid difference), we need to merge them
+	return MergePgStatStatementsBasedOnQuery(entries), nil
 }
 
 // parseCSVRecord converts a single CSV record to PgStatStatements struct
