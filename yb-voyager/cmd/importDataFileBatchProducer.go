@@ -262,7 +262,9 @@ func (p *FileBatchProducer) openDataFile() error {
 	if err != nil {
 		return fmt.Errorf("skipping line for offset=%d: %v", p.lastOffset, err)
 	}
-	p.progressReporter.RemoveResumeInformation(p.task)
+	if p.progressReporter != nil {
+		p.progressReporter.RemoveResumeInformation(p.task)
+	}
 	return nil
 }
 
