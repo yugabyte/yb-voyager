@@ -1618,12 +1618,21 @@ func getDfdTableNameToExportedColumns(tasks []*ImportFileTask, dataFileDescripto
 	if dataFileDescriptor.TableNameToExportedColumns == nil {
 		return nil, nil
 	}
+	tableTupleToexportedColumns := utils.NewStructMap[sqlname.NameTuple, []string]()
+	for tableName, columnList := range dataFileDescriptor.TableNameToExportedColumns {
+		//Using lookup with ignoring if target not found as we are creating tuple for tables in datafile descriptor which are tables exported
+		tuple, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFound(tableName)
+		if err != nil {
+			return nil, fmt.Errorf("failed to lookup table name: %s", err)
+		}
+		tableTupleToexportedColumns.Put(tuple, columnList)
+	}
 
 	result := utils.NewStructMap[sqlname.NameTuple, []string]()
 	// checking columns for all tables in the datafile descriptor by using the file tasks
 	//as this is used only for import batch which is snapshot
 	for _, task := range tasks {
-		columnList, ok := dataFileDescriptor.TableNameToExportedColumns[task.TableNameTup.ForKey()]
+		columnList, ok := tableTupleToexportedColumns.Get(task.TableNameTup)
 		if ok {
 			result.Put(task.TableNameTup, columnList)
 		} else {
