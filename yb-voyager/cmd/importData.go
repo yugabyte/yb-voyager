@@ -215,12 +215,23 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 }
 
 func shouldReregisterYBNames() bool {
-	statusRecord, err := metaDB.GetImportDataStatusRecord()
-	if err != nil {
-		utils.ErrExit("failed to get import data status record: %w", err)
-	}
+	actualDataImportStarted := false
+	switch importerRole {
+	case TARGET_DB_IMPORTER_ROLE:
+		statusRecord, err := metaDB.GetImportDataStatusRecord()
+		if err != nil {
+			utils.ErrExit("failed to get import data status record: %w", err)
+		}
+		actualDataImportStarted = statusRecord.ActualImportStarted
+	case IMPORT_FILE_ROLE:
+		statusRecord, err := metaDB.GetImportDataFileStatusRecord()
+		if err != nil {
+			utils.ErrExit("failed to get import data status record: %w", err)
+		}
+		actualDataImportStarted = statusRecord.ActualImportStarted
 
-	return importerRole == TARGET_DB_IMPORTER_ROLE && (bool(startClean) || !statusRecord.ActualImportStarted)
+	}
+	return (bool(startClean) || !actualDataImportStarted)
 }
 
 func setImportTypeAndIdentityColumnMetaDBKeyForImporterRole(importerRole string) error {
@@ -607,11 +618,21 @@ func updateTargetConfInMigrationStatus() {
 
 func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorPolicy) {
 
-	err := metaDB.UpdateImportDataStatusRecord(func(record *metadb.ImportDataStatusRecord) {
-		record.ActualImportStarted = true
-	})
-	if err != nil {
-		utils.ErrExit("Failed to update import data status record: %s", err)
+	switch importerRole {
+	case TARGET_DB_IMPORTER_ROLE:
+		err := metaDB.UpdateImportDataStatusRecord(func(record *metadb.ImportDataStatusRecord) {
+			record.ActualImportStarted = true
+		})
+		if err != nil {
+			utils.ErrExit("Failed to update import data status record: %s", err)
+		}
+	case IMPORT_FILE_ROLE:
+		err := metaDB.UpdateImportDataFileStatusRecord(func(record *metadb.ImportDataFileStatusRecord) {
+			record.ActualImportStarted = true
+		})
+		if err != nil {
+			utils.ErrExit("Failed to update import data file status record: %s", err)
+		}
 	}
 
 	if callhome.SendDiagnostics {
