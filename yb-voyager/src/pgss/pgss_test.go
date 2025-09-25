@@ -85,6 +85,23 @@ func TestParseFromCSVFormats(t *testing.T) {
 				assert.Len(t, entries, 0, "Should have expected number of entries")
 			},
 		},
+		{
+			name: "Same queries resulting in merging of entries",
+			csvData: `queryid,query,calls,rows,total_exec_time,mean_exec_time,min_exec_time,max_exec_time,stddev_exec_time
+123,"SELECT * FROM users",100,1000,1500.5,15.005,5.2,25.8,3.5
+123,"SELECT * FROM users",50,500,750.0,15.0,10.0,20.0,2.1`,
+			expectedLen: 1,
+			validate: func(t *testing.T, entries []*PgStatStatements) {
+				assert.Len(t, entries, 1, "Should have expected number of entries")
+				assert.Equal(t, int64(150), entries[0].Calls, "Calls should match")
+				assert.Equal(t, int64(1500), entries[0].Rows, "Rows should match")
+				assert.Equal(t, 2250.5, entries[0].TotalExecTime, "TotalExecTime should match")
+				assert.Equal(t, 15.003333333333334, entries[0].MeanExecTime, "MeanExecTime should match")
+				assert.Equal(t, 5.2, entries[0].MinExecTime, "MinExecTime should match")
+				assert.Equal(t, 25.8, entries[0].MaxExecTime, "MaxExecTime should match")
+				assert.Equal(t, 3.5, entries[0].StddevExecTime, "StddevExecTime should match")
+			},
+		},
 	}
 
 	for _, tt := range tests {
