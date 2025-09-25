@@ -404,7 +404,7 @@ func saveDataMigrationReport(msr *metadb.MigrationStatusRecord) {
 	liveMigrationReportCmd := exec.Command("bash", "-c", strCmd)
 	liveMigrationReportCmd.Env = append(os.Environ(), passwordsEnvVars...)
 
-	saveCommandGeneratedReport(liveMigrationReportCmd, "data migration report", "data-migration-report", "", dataMigrationReportPath)
+	saveCommandGeneratedReport(liveMigrationReportCmd, "data migration report", "data-migration-report", dataMigrationReportPath)
 }
 
 func saveDataExportReport() {
@@ -416,7 +416,7 @@ func saveDataExportReport() {
 	utils.PrintAndLog("saving data export report...")
 	strCmd := fmt.Sprintf("yb-voyager export data status --export-dir %s --output-format json", exportDir)
 	exportDataStatusCmd := exec.Command("bash", "-c", strCmd)
-	saveCommandGeneratedReport(exportDataStatusCmd, "export data status", "export-data-status-report", exportDataStatusMsg, exportDataReportFilePath)
+	saveCommandGeneratedReport(exportDataStatusCmd, "export data status", "export-data-status-report", exportDataReportFilePath)
 }
 
 func saveDataImportReport(msr *metadb.MigrationStatusRecord) {
@@ -438,10 +438,10 @@ func saveDataImportReport(msr *metadb.MigrationStatusRecord) {
 	utils.PrintAndLog("saving data import report...")
 	strCmd := fmt.Sprintf("yb-voyager import data status --export-dir %s --output-format json", exportDir)
 	importDataStatusCmd := exec.Command("bash", "-c", strCmd)
-	saveCommandGeneratedReport(importDataStatusCmd, "import data status", "import-data-status-report", importDataStatusMsg, importDataReportFilePath)
+	saveCommandGeneratedReport(importDataStatusCmd, "import data status", "import-data-status-report", importDataReportFilePath)
 }
 
-func saveCommandGeneratedReport(cmd *exec.Cmd, cmdName string, reportFileName string, header string, reportFilePath string) {
+func saveCommandGeneratedReport(cmd *exec.Cmd, cmdName string, outputReportFileName string, backupReportFilePath string) {
 	var outbuf, errbuf bytes.Buffer
 	cmd.Stdout = &outbuf
 	cmd.Stderr = &errbuf
@@ -451,15 +451,15 @@ func saveCommandGeneratedReport(cmd *exec.Cmd, cmdName string, reportFileName st
 		utils.ErrExit("running %s command: %s: %w", cmdName, errbuf.String(), err)
 	}
 
-	dumpedReportFilePath := filepath.Join(exportDir, "reports", fmt.Sprintf("%s.json", reportFileName))
-	mvCmd := exec.Command("mv", dumpedReportFilePath, reportFilePath)
+	dumpedReportFilePath := filepath.Join(exportDir, "reports", fmt.Sprintf("%s.json", outputReportFileName))
+	mvCmd := exec.Command("mv", dumpedReportFilePath, backupReportFilePath)
 	output, err := mvCmd.CombinedOutput()
 	if err != nil {
 		utils.ErrExit("moving %s report: %s: %w", cmdName, string(output), err)
 	} else {
-		log.Infof("moved %s report %q to %q", cmdName, dumpedReportFilePath, reportFilePath)
+		log.Infof("moved %s report %q to %q", cmdName, dumpedReportFilePath, backupReportFilePath)
 	}
-	utils.PrintAndLog("saved %s report to %q", cmdName, reportFilePath)
+	utils.PrintAndLog("saved %s report to %q", cmdName, backupReportFilePath)
 }
 
 func backupLogFilesFn() {
