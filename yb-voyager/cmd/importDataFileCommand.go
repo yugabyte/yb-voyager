@@ -32,6 +32,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/types"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/az"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/gcs"
@@ -63,6 +64,9 @@ var importDataFileCmd = &cobra.Command{
 	PreRun: func(cmd *cobra.Command, args []string) {
 		if tconf.TargetDBType == "" {
 			tconf.TargetDBType = YUGABYTEDB
+		}
+		if tconf.AdaptiveParallelismMode == "" {
+			tconf.AdaptiveParallelismMode = types.BalancedAdaptiveParallelismMode
 		}
 		importerRole = IMPORT_FILE_ROLE
 		reportProgressInBytes = true

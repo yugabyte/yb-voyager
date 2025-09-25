@@ -71,7 +71,7 @@ export-data:
   {% endif %}
 
 import-data:
-  enable-adaptive-parallelism: {% if RUN_WITHOUT_ADAPTIVE_PARALLELISM is defined and RUN_WITHOUT_ADAPTIVE_PARALLELISM == "true" %}false{% else %}true{% endif %}
+  adaptive-parallelism: {% if RUN_WITHOUT_ADAPTIVE_PARALLELISM is defined and RUN_WITHOUT_ADAPTIVE_PARALLELISM == "true" %}disabled{% else %}balanced{% endif %}
   disable-pb: true
 
   {% if IMPORT_TABLE_LIST is defined and IMPORT_TABLE_LIST != "" %}

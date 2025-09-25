@@ -130,7 +130,7 @@ var allowedFinalizeSchemaPostDataImportConfigKeys = mapset.NewThreadUnsafeSet[st
 
 var allowedImportDataConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"log-level", "run-guardrails-checks",
-	"batch-size", "parallel-jobs", "enable-adaptive-parallelism", "adaptive-parallelism-max",
+	"batch-size", "parallel-jobs", "adaptive-parallelism", "adaptive-parallelism-max",
 	"skip-replication-checks",
 	"disable-pb", "max-retries-streaming", "exclude-table-list", "table-list",
 	"exclude-table-list-file-path", "table-list-file-path", "enable-upsert", "use-public-ip",
@@ -167,7 +167,7 @@ var allowedImportDataToSourceReplicaConfigKeys = mapset.NewThreadUnsafeSet[strin
 var allowedImportDataFileConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"log-level",
 	"disable-pb", "max-retries-streaming", "enable-upsert", "use-public-ip", "target-endpoints",
-	"batch-size", "parallel-jobs", "enable-adaptive-parallelism", "adaptive-parallelism-max",
+	"batch-size", "parallel-jobs", "adaptive-parallelism", "adaptive-parallelism-max",
 	"format", "delimiter", "data-dir", "file-table-map", "has-header", "escape-char",
 	"quote-char", "file-opts", "null-string", "truncate-tables", "error-policy",
 	"disable-transactional-writes", "truncate-splits", "skip-replication-checks",

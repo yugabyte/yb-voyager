@@ -105,8 +105,7 @@ var migrationReportFormats = []string{"table", "json"}
 func init() {
 	exportDataCmd.AddCommand(exportDataStatusCmd)
 	exportDataStatusCmd.Flags().StringVar(&reportOrStatusCmdOutputFormat, "output-format", "table",
-		"format in which report will be generated: (table, json)")
-	exportDataStatusCmd.Flags().MarkHidden("output-format") //confirm this if should be hidden or not
+		"format in which report will be generated: (table, json) (default: table)")
 }
 
 type exportTableMigStatusOutputRow struct {
