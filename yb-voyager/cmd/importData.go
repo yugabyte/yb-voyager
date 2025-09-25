@@ -1611,7 +1611,7 @@ func getDfdTableNameToExportedColumns(tasks []*ImportFileTask, dataFileDescripto
 	tableTupleToexportedColumns := utils.NewStructMap[sqlname.NameTuple, []string]()
 	for tableName, columnList := range dataFileDescriptor.TableNameToExportedColumns {
 		//Using lookup with ignoring if target not found as we are creating tuple for tables in datafile descriptor which are tables exported
-		tuple, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFound(tableName)
+		tuple, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole(tableName)
 		if err != nil {
 			return nil, fmt.Errorf("failed to lookup table name: %s", err)
 		}
