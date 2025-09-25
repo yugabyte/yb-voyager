@@ -141,7 +141,7 @@ func runExportDataStatusCmdDbzm(streamChanges bool, leafPartitions map[string][]
 func getSnapshotExportStatusRow(tableStatus *dbzm.TableExportStatus, leafPartitions map[string][]string, msr *metadb.MigrationStatusRecord) *exportTableMigStatusOutputRow {
 	//using LookupTableNameAndIgnoreIfTargetNotFound in case if the export status is run after import data in which case
 	// if there is some table not present in target this should work
-	nt, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFound(fmt.Sprintf("%s.%s", tableStatus.SchemaName, tableStatus.TableName))
+	nt, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole(fmt.Sprintf("%s.%s", tableStatus.SchemaName, tableStatus.TableName))
 	if err != nil {
 		utils.ErrExit("lookup in name registry: %s: %v", tableStatus.TableName, err)
 	}
@@ -195,7 +195,7 @@ func runExportDataStatusCmd(msr *metadb.MigrationStatusRecord, leafPartitions ma
 	for _, tableName := range tableList {
 		//using LookupTableNameAndIgnoreIfTargetNotFound in case if the export status is run after import data in which case
 		// if there is some table not present in target this should work
-		finalFullTableName, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFound(tableName)
+		finalFullTableName, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole(tableName)
 		if err != nil {
 			return nil, fmt.Errorf("lookup %s in name registry: %v", tableName, err)
 		}

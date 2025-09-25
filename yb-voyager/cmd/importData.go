@@ -450,7 +450,7 @@ func discoverFilesToImport() []*ImportFileTask {
 
 		//using the LookupTableNameAndIgnoreIfTargetNotFound if there are tables in descriptor which are not present in the target
 		//for such tables we will not get target table hence we will ask users to exclude them in table-list flags
-		tableName, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFound(fileEntry.TableName)
+		tableName, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole(fileEntry.TableName)
 		if err != nil {
 			utils.ErrExit("lookup table name from name registry: %v", err)
 		}
@@ -626,20 +626,6 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 		utils.ErrExit("Failed to get migration status record: %s", err)
 	}
 
-	if msr.IsSnapshotExportedViaDebezium() {
-		valueConverter, err = dbzm.NewValueConverter(exportDir, tdb, tconf, importerRole, msr.SourceDBConf.DBType)
-	} else {
-		valueConverter, err = dbzm.NewNoOpValueConverter()
-	}
-	if err != nil {
-		utils.ErrExit("create value converter: %s", err)
-	}
-
-	TableNameToSchema, err = valueConverter.GetTableNameToSchema()
-	if err != nil {
-		utils.ErrExit("getting table name to schema: %s", err)
-	}
-
 	err = tdb.InitConnPool()
 	if err != nil {
 		utils.ErrExit("Failed to initialize the target DB connection pool: %s", err)
@@ -715,6 +701,19 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 		//as that is the one where we filter the tables via table-list flags
 		//we don't need empty tables in offline case, data migration doesn't matter for them
 		importTableList = importFileTasksToTableNameTuples(importFileTasks)
+	}
+	if msr.IsSnapshotExportedViaDebezium() {
+		valueConverter, err = dbzm.NewValueConverter(exportDir, tdb, tconf, importerRole, msr.SourceDBConf.DBType, importTableList)
+	} else {
+		valueConverter, err = dbzm.NewNoOpValueConverter()
+	}
+	if err != nil {
+		utils.ErrExit("create value converter: %s", err)
+	}
+
+	TableNameToSchema, err = valueConverter.GetTableNameToSchema()
+	if err != nil {
+		utils.ErrExit("getting table name to schema: %s", err)
 	}
 	err = fetchAndStoreGeneratedAlwaysIdentityColumnsInMetadb(importTableList)
 	if err != nil {
@@ -794,7 +793,7 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 		if err != nil {
 			utils.ErrExit("failed to get table unique key columns map: %s", err)
 		}
-		valueConverter, err = dbzm.NewValueConverter(exportDir, tdb, tconf, importerRole, source.DBType)
+		valueConverter, err = dbzm.NewValueConverter(exportDir, tdb, tconf, importerRole, source.DBType, importTableList)
 		if err != nil {
 			utils.ErrExit("Failed to create value converter: %s", err)
 		}
