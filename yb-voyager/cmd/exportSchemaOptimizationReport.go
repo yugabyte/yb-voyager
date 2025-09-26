@@ -56,10 +56,11 @@ type SchemaOptimizationReport struct {
 	SourceDatabaseVersion string `json:"source_database_version"`
 
 	// Optimization changes applied
-	RedundantIndexChange        *RedundantIndexChange         `json:"redundant_index_change,omitempty"`
+	RedundantIndexChange          *RedundantIndexChange           `json:"redundant_index_change,omitempty"`
 	TableColocationRecommendation *ColocationRecommendationChange `json:"table_colocation_recommendation,omitempty"`
 	MviewColocationRecommendation *ColocationRecommendationChange `json:"mview_colocation_recommendation,omitempty"`
-	SecondaryIndexToRangeChange *SecondaryIndexToRangeChange  `json:"secondary_index_to_range_change,omitempty"`
+	SecondaryIndexToRangeChange   *SecondaryIndexToRangeChange    `json:"secondary_index_to_range_change,omitempty"`
+	PKOrUKHashSplittingChange     *PKOrUKHashSplittingChange      `json:"pk_or_uk_hash_splitting_change,omitempty"`
 }
 
 // HasOptimizations returns true if any optimizations were applied
@@ -67,6 +68,7 @@ func (s *SchemaOptimizationReport) HasOptimizations() bool {
 	return !s.RedundantIndexChange.IsEmpty() ||
 		!s.TableColocationRecommendation.IsEmpty() ||
 		!s.MviewColocationRecommendation.IsEmpty() ||
+		!s.PKOrUKHashSplittingChange.IsEmpty() ||
 		!s.SecondaryIndexToRangeChange.IsEmpty()
 }
 
@@ -194,6 +196,35 @@ func (s *SecondaryIndexToRangeChange) IsEmpty() bool {
 	return s == nil || len(s.ModifiedIndexes) == 0
 }
 
+type PKOrUKHashSplittingChange struct {
+	Title                   string            `json:"title"`
+	Description             string            `json:"description"`
+	HyperLinksInDescription map[string]string `json:"hyper_links_in_description"`
+	IsApplied               bool              `json:"is_applied"`
+}
+
+func NewPKOrUKHashSplittingChange(skipPerfOptimizations bool) *PKOrUKHashSplittingChange {
+	applied := !skipPerfOptimizations
+	title := "Primary/Unique Key Indexes to be hash-sharded - Applied"
+	description := "The Primary/Unique key indexes were configured to be hash-sharded in YugabyteDB. This helps in giving randomize distribution of unique values of the Primary/Unique key across the nodes and helps in avoiding the hotspots that comes with the range-sharding for increasing nature of these values. Refer to sharding strategy in documentation for more information."
+	if !applied {
+		title = "Primary/Unique Key Indexes to be hash-sharded - Not Applied"
+		description = "Due to the skip-performance-optimizations flag, the Primary/Unique key indexes were not configured to be hash-sharded. Modify the Primary/Unique key indexes to be hash-sharded manually. The Primary/Unique key Indexes as hash-sharded helps in giving randomize distribution of unique values of the Primary/Unique key across the nodes and helps in avoiding the hotspots that comes with the range-sharding for increasing nature of these values. Refer to sharding strategy in documentation for more information. "
+	}
+	return &PKOrUKHashSplittingChange{
+		Title:       title,
+		Description: description,
+		IsApplied:   applied,
+		HyperLinksInDescription: map[string]string{
+			"documentation": "https://docs.yugabyte.com/preview/architecture/docdb-sharding/sharding/",
+		},
+	}
+}
+
+func (p *PKOrUKHashSplittingChange) IsEmpty() bool {
+	return p == nil
+}
+
 func buildRedundantIndexChange(indexTransformer *sqltransformer.IndexFileTransformer) *RedundantIndexChange {
 	if indexTransformer == nil {
 		return nil
@@ -301,6 +332,8 @@ func generatePerformanceOptimizationReport(indexTransformer *sqltransformer.Inde
 	schemaOptimizationReport.TableColocationRecommendation = buildColocationTableRecommendationChange(shardedTables, colocatedTables)
 	schemaOptimizationReport.MviewColocationRecommendation = buildColocationMviewRecommendationChange(shardedMviews, colocatedMviews)
 	schemaOptimizationReport.SecondaryIndexToRangeChange = buildSecondaryIndexToRangeChange(indexTransformer)
+
+	schemaOptimizationReport.PKOrUKHashSplittingChange = NewPKOrUKHashSplittingChange(bool(skipPerfOptimizations))
 
 	if schemaOptimizationReport.HasOptimizations() {
 		file, err := os.Create(htmlReportFilePath)
