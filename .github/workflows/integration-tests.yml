@@ -4,7 +4,7 @@ on:
   push:
     branches: ['main', '*.*-dev', '*.*.*-dev']
   pull_request:
-    branches: [main]
+    branches: [priyanshi/fix-debezium-offline]
 
 env:
   ORACLE_INSTANT_CLIENT_VERSION: "21.5.0.0.0-1"
