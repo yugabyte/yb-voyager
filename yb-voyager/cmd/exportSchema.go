@@ -138,6 +138,9 @@ func exportSchema(cmd *cobra.Command) error {
 	if err != nil {
 		log.Errorf("error getting database size: %v", err) //can just log as this is used for call-home only
 	}
+
+	// Get PostgreSQL system identifier while still connected
+	source.FetchDBSystemIdentifier()
 	utils.PrintAndLog("%s version: %s\n", source.DBType, sourceDBVersion)
 
 	res := source.DB().CheckSchemaExists()
@@ -246,6 +249,11 @@ func runAssessMigrationCmdBeforExportSchemaIfRequired(exportSchemaCmd *cobra.Com
 			continue
 		}
 
+		if flag.Name == "source-db-password" {
+			//Skip this flag to set in cli completely and set it in env variable only
+			continue
+		}
+
 		// bool flags: --flag=value
 		// everything else: --flag value
 		if flag.Value.Type() == "bool" {
@@ -282,6 +290,9 @@ func runAssessMigrationCmdBeforExportSchemaIfRequired(exportSchemaCmd *cobra.Com
 	cmd.Stdout = &stdoutBuf
 	cmd.Stderr = &stderrBuf
 
+	cmd.Env = os.Environ()
+	cmd.Env = append(cmd.Env, "SOURCE_DB_PASSWORD="+source.Password)
+
 	// run and ignore exit status
 	if err := cmd.Run(); err != nil {
 		utils.PrintAndLog("Failed to assess the migration, continuing with export schema...\n")
@@ -313,20 +324,26 @@ func packAndSendExportSchemaPayload(status string, errorMsg error) {
 	payload.MigrationPhase = EXPORT_SCHEMA_PHASE
 	payload.Status = status
 	sourceDBDetails := callhome.SourceDBDetails{
-		DBType:    source.DBType,
-		DBVersion: source.DBVersion,
-		DBSize:    source.DBSize,
+		DBType:             source.DBType,
+		DBVersion:          source.DBVersion,
+		DBSize:             source.DBSize,
+		DBSystemIdentifier: source.DBSystemIdentifier,
 	}
 	schemaOptimizationChanges := buildCallhomeSchemaOptimizationChanges()
 
 	payload.SourceDBDetails = callhome.MarshalledJsonString(sourceDBDetails)
+	assessRunInExportSchema, err := IsMigrationAssessmentDoneViaExportSchema()
+	if err != nil {
+		log.Infof("callhome: failed to get migration assessment done via export schema: %v", err)
+	}
 	exportSchemaPayload := callhome.ExportSchemaPhasePayload{
 		StartClean:                bool(startClean),
 		AppliedRecommendations:    assessmentRecommendationsApplied,
 		UseOrafce:                 bool(source.UseOrafce),
 		CommentsOnObjects:         bool(source.CommentsOnObjects),
-		Error:                     callhome.SanitizeErrorMsg(errorMsg),
+		Error:                     callhome.SanitizeErrorMsg(errorMsg, anonymizer),
 		SkipRecommendations:       bool(skipRecommendations),
+		AssessRunInExportSchema:   assessRunInExportSchema,
 		SkipPerfOptimizations:     bool(skipPerfOptimizations),
 		ControlPlaneType:          getControlPlaneType(),
 		SchemaOptimizationChanges: schemaOptimizationChanges,
@@ -334,7 +351,7 @@ func packAndSendExportSchemaPayload(status string, errorMsg error) {
 
 	payload.PhasePayload = callhome.MarshalledJsonString(exportSchemaPayload)
 
-	err := callhome.SendPayload(&payload)
+	err = callhome.SendPayload(&payload)
 	if err == nil && (status == COMPLETE || status == ERROR) {
 		callHomeErrorOrCompletePayloadSent = true
 	}
@@ -357,10 +374,10 @@ func init() {
 	exportSchemaCmd.Flags().StringVar(&source.StrExcludeObjectTypeList, "exclude-object-type-list", "",
 		"comma separated list of objects to exclude from export. ")
 
-	BoolVar(exportSchemaCmd.Flags(), &skipRecommendations, "skip-recommendations", false,
+	BoolVar(exportSchemaCmd.Flags(), &skipRecommendations, "skip-colocation-recommendations", false,
 		"disable applying recommendations in the exported schema suggested by the migration assessment report")
 
-	BoolVar(exportSchemaCmd.Flags(), &skipPerfOptimizations, "skip-performance-optimizations", false,
+	BoolVar(exportSchemaCmd.Flags(), &skipPerfOptimizations, "skip-performance-recommendations", false,
 		"disable automatically applying performance optimizations in the exported schema.")
 
 	exportSchemaCmd.Flags().StringVar(&assessmentReportPath, "assessment-report-path", "",
@@ -423,7 +440,7 @@ func updateIndexesInfoInMetaDB() error {
 
 func applyMigrationAssessmentRecommendations() ([]string, []string, []string, []string, error) {
 	if skipRecommendations {
-		log.Infof("not apply recommendations due to flag --skip-recommendations=true")
+		log.Infof("not apply recommendations due to flag --skip-colocation-recommendations=true")
 		return nil, nil, nil, nil, nil
 	} else if source.DBType == MYSQL {
 		return nil, nil, nil, nil, nil
@@ -780,7 +797,7 @@ func applyIndexFileTransformations() (*sqltransformer.IndexFileTransformer, erro
 	backUpFile, err := indexTransformer.Transform(indexFilePath)
 	if err != nil {
 		//In case of PG we should return error but for other SourceDBTypes we should return nil as the parser can fail
-		//TODO: modify the logic of adding suggestion to use skip-performance-optimizations flag once we have more type of transformations in this
+		//TODO: modify the logic of adding suggestion to use skip-performance-recommendations flag once we have more type of transformations in this
 		errMsg := fmt.Errorf("failed to transform file %s: %w\n%s", indexFilePath, err, sqltransformer.SUGGESTION_TO_USE_SKIP_PERF_OPTIMIZATIONS_FLAG)
 		if source.DBType != constants.POSTGRESQL {
 			log.Infof("skipping error while transforming file %s: %v", indexFilePath, err)
@@ -798,7 +815,7 @@ func fetchRedundantIndexMapFromAssessmentDB() (*utils.StructMap[*sqlname.ObjectN
 	var err error
 	migassessment.AssessmentDir = filepath.Join(exportDir, "assessment")
 
-	assessmentDB, err = migassessment.NewAssessmentDB(source.DBType)
+	assessmentDB, err = migassessment.NewAssessmentDB()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create assessment db: %w", err)
 	}

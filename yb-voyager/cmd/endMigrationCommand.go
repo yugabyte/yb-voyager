@@ -84,7 +84,10 @@ func endMigrationCommandFn(cmd *cobra.Command, args []string) {
 	checkIfEndCommandCanBePerformed(msr)
 
 	// backing up the state from the export directory
-	saveMigrationReportsFn(msr)
+	err = saveMigrationReportsFn(msr)
+	if err != nil {
+		utils.ErrExit("saving migration reports: %w", err)
+	}
 	backupSchemaFilesFn()
 	backupDataFilesFn()
 
@@ -123,7 +126,7 @@ func packAndSendEndMigrationPayload(status string, errorMsg error) {
 		BackupLogFiles:       bool(backupLogFiles),
 		BackupSchemaFiles:    bool(backupSchemaFiles),
 		SaveMigrationReports: bool(saveMigrationReports),
-		Error:                callhome.SanitizeErrorMsg(errorMsg),
+		Error:                callhome.SanitizeErrorMsg(errorMsg, anonymizer),
 		ControlPlaneType:     getControlPlaneType(),
 	}
 	payload.PhasePayload = callhome.MarshalledJsonString(endMigrationPayload)
@@ -264,18 +267,22 @@ func backupDataFilesFn() {
 	}
 }
 
-func saveMigrationReportsFn(msr *metadb.MigrationStatusRecord) {
+func saveMigrationReportsFn(msr *metadb.MigrationStatusRecord) error {
 	if !saveMigrationReports {
-		return
+		return nil
 	}
 
 	err := os.MkdirAll(filepath.Join(backupDir, "reports"), 0755)
 	if err != nil {
-		utils.ErrExit("creating reports directory for backup: %w", err)
+		return fmt.Errorf("creating reports directory for backup: %w", err)
 	}
 
 	saveMigrationAssessmentReport()
 	saveSchemaAnalysisReport()
+	err = saveSchemaOptimizationReport()
+	if err != nil {
+		return fmt.Errorf("saving schema optimization report: %w", err)
+	}
 	if streamChangesMode {
 		saveDataMigrationReport(msr)
 	} else { // snapshot case
@@ -284,6 +291,31 @@ func saveMigrationReportsFn(msr *metadb.MigrationStatusRecord) {
 		}
 		saveDataImportReport(msr)
 	}
+	return nil
+}
+
+func saveSchemaOptimizationReport() error {
+	optimizationReportBackUpPath := filepath.Join(backupDir, "reports", fmt.Sprintf("%s.html", SCHEMA_OPTIMIZATION_REPORT_FILE_NAME))
+	alreadyBackedUp := utils.FileOrFolderExistsWithGlobPattern(optimizationReportBackUpPath)
+	if alreadyBackedUp {
+		utils.PrintAndLog("schema optimization report is already present at %q", optimizationReportBackUpPath)
+		return nil
+	}
+	utils.PrintAndLog("saving schema optimization report...")
+
+	optimizationReportCurrentPath := filepath.Join(exportDir, "reports", fmt.Sprintf("%s.html", SCHEMA_OPTIMIZATION_REPORT_FILE_NAME))
+	if !utils.FileOrFolderExists(optimizationReportCurrentPath) {
+		log.Infof("schema optimization report not found at %q", optimizationReportCurrentPath)
+		return nil
+	}
+	cmd := exec.Command("mv", optimizationReportCurrentPath, optimizationReportBackUpPath)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("moving schema optimization report: %s: %w", string(output), err)
+	} else {
+		log.Infof("moved schema optimization report %q to %q", optimizationReportCurrentPath, optimizationReportBackUpPath)
+	}
+	return nil
 }
 
 func saveMigrationAssessmentReport() {
@@ -354,7 +386,7 @@ func saveSchemaAnalysisReport() {
 }
 
 func saveDataMigrationReport(msr *metadb.MigrationStatusRecord) {
-	dataMigrationReportPath := filepath.Join(backupDir, "reports", "data_migration_report.txt")
+	dataMigrationReportPath := filepath.Join(backupDir, "reports", "data_migration_report.json")
 	if utils.FileOrFolderExists(dataMigrationReportPath) {
 		utils.PrintAndLog("data migration report is already present at %q", dataMigrationReportPath)
 		return
@@ -368,22 +400,23 @@ func saveDataMigrationReport(msr *metadb.MigrationStatusRecord) {
 		fmt.Sprintf("SOURCE_DB_PASSWORD=%s", sourceDBPassword),
 	}
 
-	strCmd := fmt.Sprintf("yb-voyager get data-migration-report --export-dir %s --log-level %s", exportDir, config.LogLevel)
+	strCmd := fmt.Sprintf("yb-voyager get data-migration-report --export-dir %s --log-level %s --output-format json", exportDir, config.LogLevel)
 	liveMigrationReportCmd := exec.Command("bash", "-c", strCmd)
 	liveMigrationReportCmd.Env = append(os.Environ(), passwordsEnvVars...)
-	saveCommandOutput(liveMigrationReportCmd, "data migration report", "", dataMigrationReportPath)
+
+	saveCommandGeneratedReport(liveMigrationReportCmd, "data migration report", "data-migration-report", dataMigrationReportPath)
 }
 
 func saveDataExportReport() {
-	exportDataReportFilePath := filepath.Join(backupDir, "reports", "export_data_report.txt")
+	exportDataReportFilePath := filepath.Join(backupDir, "reports", "export_data_status_report.json")
 	if utils.FileOrFolderExists(exportDataReportFilePath) {
 		utils.PrintAndLog("export data report is already present at %q", exportDataReportFilePath)
 	}
 
 	utils.PrintAndLog("saving data export report...")
-	strCmd := fmt.Sprintf("yb-voyager export data status --export-dir %s", exportDir)
+	strCmd := fmt.Sprintf("yb-voyager export data status --export-dir %s --output-format json", exportDir)
 	exportDataStatusCmd := exec.Command("bash", "-c", strCmd)
-	saveCommandOutput(exportDataStatusCmd, "export data status", exportDataStatusMsg, exportDataReportFilePath)
+	saveCommandGeneratedReport(exportDataStatusCmd, "export data status", "export-data-status-report", exportDataReportFilePath)
 }
 
 func saveDataImportReport(msr *metadb.MigrationStatusRecord) {
@@ -397,18 +430,18 @@ func saveDataImportReport(msr *metadb.MigrationStatusRecord) {
 		return
 	}
 
-	importDataReportFilePath := filepath.Join(backupDir, "reports", "import_data_report.txt")
+	importDataReportFilePath := filepath.Join(backupDir, "reports", "import_data_status_report.json")
 	if utils.FileOrFolderExists(importDataReportFilePath) {
 		utils.PrintAndLog("import data report is already present at %q", importDataReportFilePath)
 	}
 
 	utils.PrintAndLog("saving data import report...")
-	strCmd := fmt.Sprintf("yb-voyager import data status --export-dir %s", exportDir)
+	strCmd := fmt.Sprintf("yb-voyager import data status --export-dir %s --output-format json", exportDir)
 	importDataStatusCmd := exec.Command("bash", "-c", strCmd)
-	saveCommandOutput(importDataStatusCmd, "import data status", importDataStatusMsg, importDataReportFilePath)
+	saveCommandGeneratedReport(importDataStatusCmd, "import data status", "import-data-status-report", importDataReportFilePath)
 }
 
-func saveCommandOutput(cmd *exec.Cmd, cmdName string, header string, reportFilePath string) {
+func saveCommandGeneratedReport(cmd *exec.Cmd, cmdName string, outputReportFileName string, backupReportFilePath string) {
 	var outbuf, errbuf bytes.Buffer
 	cmd.Stdout = &outbuf
 	cmd.Stderr = &errbuf
@@ -418,16 +451,15 @@ func saveCommandOutput(cmd *exec.Cmd, cmdName string, header string, reportFileP
 		utils.ErrExit("running %s command: %s: %w", cmdName, errbuf.String(), err)
 	}
 
-	outbufBytes := bytes.Trim(outbuf.Bytes(), " \n")
-	outbufBytes = append(outbufBytes, []byte("\n")...)
-	if len(outbufBytes) > 0 && string(outbufBytes) != header {
-		err = os.WriteFile(reportFilePath, outbufBytes, 0644)
-		if err != nil {
-			utils.ErrExit("writing %s report: %w", cmdName, err)
-		}
+	dumpedReportFilePath := filepath.Join(exportDir, "reports", fmt.Sprintf("%s.json", outputReportFileName))
+	mvCmd := exec.Command("mv", dumpedReportFilePath, backupReportFilePath)
+	output, err := mvCmd.CombinedOutput()
+	if err != nil {
+		utils.ErrExit("moving %s report: %s: %w", cmdName, string(output), err)
 	} else {
-		utils.PrintAndLog("nothing to save for %s report", cmdName)
+		log.Infof("moved %s report %q to %q", cmdName, dumpedReportFilePath, backupReportFilePath)
 	}
+	utils.PrintAndLog("saved %s report to %q", cmdName, backupReportFilePath)
 }
 
 func backupLogFilesFn() {

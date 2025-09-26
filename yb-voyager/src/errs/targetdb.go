@@ -82,6 +82,14 @@ type ExecuteDDLError struct {
 	err         error
 }
 
+func (e ExecuteDDLError) DDL() string {
+	return e.ddl
+}
+
+func (e ExecuteDDLError) DDLFilePath() string {
+	return e.ddlFilePath
+}
+
 func (e ExecuteDDLError) Error() string {
 	return fmt.Sprintf("execute DDL: %q from file: %s: %s", e.ddl, e.ddlFilePath, e.err.Error())
 }

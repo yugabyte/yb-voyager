@@ -88,18 +88,19 @@ END $$;`)
 		}
 	}
 
-	expectedColocatedTables := []string{"test_schema.test_data"}
+	expectedColocatedTables := []string(nil)
 	expectedSizingAssessmentReport := migassessment.SizingAssessmentReport{
 		SizingRecommendation: migassessment.SizingRecommendation{
-			ColocatedTables:                 []string{"test_schema.test_data"},
-			ColocatedReasoning:              "Recommended instance type with 4 vCPU and 16 GiB memory could fit 1 objects (1 tables/materialized views and 0 explicit/implicit indexes) with 6.52 MB size and throughput requirement of 10 reads/sec and 0 writes/sec as colocated. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
-			ShardedTables:                   nil,
+			ColocatedTables:                 nil,
+			ColocatedReasoning:              "Recommended instance type with 4 vCPU and 16 GiB memory could fit 1 objects (1 tables/materialized views and 0 explicit/implicit indexes) with 6.52 MB size and throughput requirement of 10 reads/sec and 0 writes/sec as sharded. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
+			ShardedTables:                   []string{"test_schema.test_data"},
 			NumNodes:                        3,
 			VCPUsPerInstance:                4,
 			MemoryPerInstance:               16,
-			OptimalSelectConnectionsPerNode: 8,
+			OptimalSelectConnectionsPerNode: 10,
 			OptimalInsertConnectionsPerNode: 12,
 			EstimatedTimeInMinForImport:     1,
+			EstimatedTimeInMinForImportWithoutRedundantIndexes: 1,
 		},
 		FailureReasoning: "",
 	}

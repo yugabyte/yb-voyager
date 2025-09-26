@@ -247,6 +247,49 @@
             line-height: 1.2em;
             font-family: monospace;
         }
+
+        /* Notes Section Styles */
+        .notes-section {
+            margin: 15px 0;
+            padding: 12px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+        }
+
+        .notes-section h5 {
+            margin: 0 0 8px 0;
+            font-size: 0.95em;
+            color: #666;
+            font-weight: 500;
+        }
+
+        .notes-section ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+
+        .notes-section li {
+            margin: 5px 0;
+            line-height: 1.4;
+        }
+
+        .general-notes-container {
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            padding: 12px;
+            margin: 10px 0;
+        }
+
+        .general-notes-container ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+
+        .general-notes-container li {
+            margin: 5px 0;
+            line-height: 1.4;
+        }
+
     </style>
     <script>
 
@@ -429,7 +472,7 @@
         </table>
 
         {{ with .Sizing }}
-            <h2>Sharding Recommendations</h2>
+            <h2>Colocation Recommendations</h2>
             {{ if eq .FailureReasoning "" }}
                 {{ with .SizingRecommendation }}
                     <table>
@@ -454,6 +497,18 @@
                             </td>
                         </tr>
                     </table>
+
+                    {{ if hasNotesByType $.Notes "ColocatedShardedNotes" }}
+                        <div class="notes-section">
+                            <h5>Notes</h5>
+                            <ul>
+                                {{ range filterNotesByType $.Notes "ColocatedShardedNotes" }}
+                                    <li>{{ .Text }}</li>
+                                {{ end }}
+                            </ul>
+                        </div>
+                    {{ end }}
+
                     <h2>Sizing Recommendations</h2>
                     <table>
                         <tr>
@@ -466,9 +521,21 @@
                         <tr><td class="centered-cell">Optimal select connections per node</td><td class="centered-cell">{{ if eq .OptimalSelectConnectionsPerNode 0 }}--{{ else }}{{ .OptimalSelectConnectionsPerNode }}{{ end }}</td></tr>
                         <tr><td class="centered-cell">Optimal insert connections per node</td><td class="centered-cell">{{ if eq .OptimalInsertConnectionsPerNode 0 }}--{{ else }}{{ .OptimalInsertConnectionsPerNode }}{{ end }}</td></tr>
                         <tr><td class="centered-cell">Estimated time taken for data import </td><td class="centered-cell">{{ .EstimatedTimeInMinForImport }} min</td></tr>
+                        <tr><td class="centered-cell">Estimated time taken for data import (Excluding redundant indexes)</td><td class="centered-cell">{{ .EstimatedTimeInMinForImportWithoutRedundantIndexes }} min</td></tr>
                     </table>
                     <h3>Reasoning:</h3>
                     <p class="spaced-words">{{ .ColocatedReasoning }}</p>
+
+                    {{ if hasNotesByType $.Notes "SizingNotes" }}
+                        <div class="notes-section">
+                            <h5>Notes</h5>
+                            <ul>
+                                {{ range filterNotesByType $.Notes "SizingNotes" }}
+                                    <li>{{ .Text }}</li>
+                                {{ end }}
+                            </ul>
+                        </div>
+                    {{ end }}
                 {{ end }}
             {{ else }}
                 <p>Could not perform sizing assessment: {{ .FailureReasoning }}</p>
@@ -728,15 +795,17 @@
 {{ end }}
 
 
-        {{ if .Notes }}
+        {{ if hasNotesByType .Notes "GeneralNotes" }}
             <hr>
             <div>
-                <h4>Notes</h4>
-                <ul id="notes-list">
-                    {{ range .Notes }}
-                        <li>{{ . }}</li>
-                    {{ end }}
-                </ul>
+                <h4>General Notes</h4>
+                <div class="general-notes-container">
+                    <ul id="notes-list">
+                        {{ range filterNotesByType .Notes "GeneralNotes" }}
+                            <li>{{ .Text }}</li>
+                        {{ end }}
+                    </ul>
+                </div>
             </div>
         {{ end }}
     </div>

@@ -1,276 +1,284 @@
 {
-	"VoyagerVersion": "IGNORED",
-	"MigrationComplexity": "MEDIUM",
-	"MigrationComplexityExplanation": "Found 3 Level 1 issue(s), 0 Level 2 issue(s) and 2 Level 3 issue(s), resulting in MEDIUM migration complexity",
-	"SchemaSummary": {
-		"Description": "Objects that will be created on the target YugabyteDB.",
-		"DbName": "test_osm",
-		"SchemaNames": [
-			"public"
-		],
-		"DbVersion": "14.13 (Ubuntu 14.13-1.pgdg22.04+1)",
-		"DatabaseObjects": [
-			{
-				"ObjectType": "SCHEMA",
-				"TotalCount": 1,
-				"InvalidCount": 0,
-				"ObjectNames": "public"
-			},
-			{
-				"ObjectType": "EXTENSION",
-				"TotalCount": 2,
-				"InvalidCount": 1,
-				"ObjectNames": "hstore, postgis"
-			},
-			{
-				"ObjectType": "TABLE",
-				"TotalCount": 3,
-				"InvalidCount": 1,
-				"ObjectNames": "public.osm_changeset, public.osm_changeset_comment, public.osm_changeset_state"
-			},
-			{
-				"ObjectType": "INDEX",
-				"TotalCount": 5,
-				"InvalidCount": 2,
+    "VoyagerVersion": "IGNORED",
+    "MigrationComplexity": "MEDIUM",
+    "MigrationComplexityExplanation": "Found 3 Level 1 issue(s), 0 Level 2 issue(s) and 2 Level 3 issue(s), resulting in MEDIUM migration complexity",
+    "SchemaSummary": {
+        "Description": "Objects that will be created on the target YugabyteDB.",
+        "DbName": "test_osm",
+        "SchemaNames": [
+            "public"
+        ],
+        "DbVersion": "14.13 (Ubuntu 14.13-1.pgdg22.04+1)",
+        "DatabaseObjects": [
+            {
+                "ObjectType": "SCHEMA",
+                "TotalCount": 1,
+                "InvalidCount": 0,
+                "ObjectNames": "public"
+            },
+            {
+                "ObjectType": "EXTENSION",
+                "TotalCount": 2,
+                "InvalidCount": 1,
+                "ObjectNames": "hstore, postgis"
+            },
+            {
+                "ObjectType": "TABLE",
+                "TotalCount": 3,
+                "InvalidCount": 1,
+                "ObjectNames": "public.osm_changeset, public.osm_changeset_comment, public.osm_changeset_state"
+            },
+            {
+                "ObjectType": "INDEX",
+                "TotalCount": 5,
+                "InvalidCount": 2,
                 "ObjectNames": "changeset_geom_gist ON public.osm_changeset, created_idx ON public.osm_changeset, tags_idx ON public.osm_changeset, user_id_idx ON public.osm_changeset, user_name_idx ON public.osm_changeset",
-				"Details": "There are some GIN indexes present in the schema, but GIN indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."
-			},
-			{
-				"ObjectType": "FUNCTION",
-				"TotalCount": 1,
-				"InvalidCount": 0,
-				"ObjectNames": "public.insert_osm_data"
-			}
-		]
-	},
-	"Sizing": {
-		"SizingRecommendation": {
-			"ColocatedTables": [
-				"public.osm_changeset_state",
-				"public.osm_changeset_comment",
-				"public.spatial_ref_sys"
-			],
-			"ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 3 objects (3 tables/materialized views and 0 explicit/implicit indexes) with 6.73 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Rest 6 objects (1 tables/materialized views and 5 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec need to be migrated as range partitioned tables. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
-			"ShardedTables": [
-				"public.osm_changeset"
-			],
-			"NumNodes": 3,
-			"VCPUsPerInstance": 4,
-			"MemoryPerInstance": 16,
-			"OptimalSelectConnectionsPerNode": 8,
-			"OptimalInsertConnectionsPerNode": 12,
-			"EstimatedTimeInMinForImport": 1
-		},
-		"FailureReasoning": ""
-	},
-	"AssessmentIssues": [
-		{
-			"Category": "unsupported_features",
-			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
-			"Type": "UNSUPPORTED_GIST_INDEX_METHOD",
-			"Name": "Index with GIST access method",
-			"Description": "The schema contains an index with an access method 'GIST' which is not supported in YugabyteDB.",
-			"Impact": "LEVEL_1",
-			"ObjectType": "INDEX",
-			"ObjectName": "changeset_geom_gist ON public.osm_changeset",
-			"SqlStatement": "CREATE INDEX changeset_geom_gist ON public.osm_changeset USING gist (geom);",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#gist-brin-and-spgist-index-types-are-not-supported",
-			"MinimumVersionsFixedIn": null
-		},
-		{
-			"Category": "unsupported_features",
-			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
-			"Type": "UNSUPPORTED_EXTENSION",
-			"Name": "Unsupported Extension",
-			"Description": "This extension is not supported in YugabyteDB by default.",
-			"Impact": "LEVEL_3",
-			"ObjectType": "EXTENSION",
-			"ObjectName": "postgis",
-			"SqlStatement": "CREATE EXTENSION IF NOT EXISTS postgis WITH SCHEMA public;",
-			"DocsLink": "https://docs.yugabyte.com/preview/explore/ysql-language-features/pg-extensions/",
-			"MinimumVersionsFixedIn": null
-		},
-		{
-			"Category": "performance_optimizations",
-			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
-			"Type": "HOTSPOTS_ON_TIMESTAMP_INDEX",
-			"Name": "Hotspots with indexes on timestamp as first column",
-			"Description": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, the recommendation is to change the sharding key to a modulo of hash of timestamp column value while keeping the timestamp column value as clustering key. Ensure that the index on the column is configured to be range-sharded on timestamp column.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.",
-			"Impact": "LEVEL_1",
-			"ObjectType": "INDEX",
-			"ObjectName": "created_idx ON public.osm_changeset",
-			"SqlStatement": "CREATE INDEX created_idx ON public.osm_changeset USING btree (created_at);",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
-			"MinimumVersionsFixedIn": null,
-			"Details": {
-				"ColumnName": "created_at"
-			}
-		},
-		{
-			"Category": "unsupported_datatypes",
-			"CategoryDescription": "Data types of the source database that are not supported on the target YugabyteDB.",
-			"Type": "UNSUPPORTED_DATATYPE_GEOMETRY",
-			"Name": "Unsupported datatype - geometry",
-			"Description": "GEOMETRY datatype is not yet supported in YugabyteDB. Affected column: geom.",
-			"Impact": "LEVEL_3",
-			"ObjectType": "COLUMN",
-			"ObjectName": "public.osm_changeset.geom",
-			"SqlStatement": "",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-yugabytedb",
-			"MinimumVersionsFixedIn": null
-		},
-		{
-			"Category": "migration_caveats",
-			"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
-			"Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_HSTORE",
-			"Name": "Unsupported datatype for Live migration with fall-forward/fallback - hstore Datatype",
-			"Description": "HSTORE datatype not yet supported by voyager in live migration with fall-forward/fallback. Affected column: tags. These columns will be excluded when exporting and importing data in live migration workflows.",
-			"Impact": "LEVEL_1",
-			"ObjectType": "COLUMN",
-			"ObjectName": "public.osm_changeset.tags",
-			"SqlStatement": "",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-			"MinimumVersionsFixedIn": null
-		}
-	],
-	"TableIndexStats": [
-		{
-			"SchemaName": "public",
-			"ObjectName": "spatial_ref_sys",
-			"RowCount": 8500,
-			"ColumnCount": 5,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "table",
-			"ParentTableName": null,
-			"SizeInBytes": 7061504
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "osm_changeset",
-			"RowCount": 0,
-			"ColumnCount": 13,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "table",
-			"ParentTableName": null,
-			"SizeInBytes": 0
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "osm_changeset_state",
-			"RowCount": 0,
-			"ColumnCount": 3,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "table",
-			"ParentTableName": null,
-			"SizeInBytes": 0
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "osm_changeset_comment",
-			"RowCount": 0,
-			"ColumnCount": 5,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": false,
-			"ObjectType": "table",
-			"ParentTableName": null,
-			"SizeInBytes": 0
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "changeset_geom_gist",
-			"RowCount": null,
-			"ColumnCount": 1,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "index",
-			"ParentTableName": "public.osm_changeset",
-			"SizeInBytes": 8192
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "created_idx",
-			"RowCount": null,
-			"ColumnCount": 1,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "index",
-			"ParentTableName": "public.osm_changeset",
-			"SizeInBytes": 8192
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "tags_idx",
-			"RowCount": null,
-			"ColumnCount": 1,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "index",
-			"ParentTableName": "public.osm_changeset",
-			"SizeInBytes": 16384
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "user_id_idx",
-			"RowCount": null,
-			"ColumnCount": 1,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "index",
-			"ParentTableName": "public.osm_changeset",
-			"SizeInBytes": 8192
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "user_name_idx",
-			"RowCount": null,
-			"ColumnCount": 1,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "index",
-			"ParentTableName": "public.osm_changeset",
-			"SizeInBytes": 8192
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "spatial_ref_sys_pkey",
-			"RowCount": null,
-			"ColumnCount": 1,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "primary key",
-			"ParentTableName": "public.spatial_ref_sys",
-			"SizeInBytes": 212992
-		},
-		{
-			"SchemaName": "public",
-			"ObjectName": "osm_changeset_pkey",
-			"RowCount": null,
-			"ColumnCount": 1,
-			"ReadsPerSecond": 0,
-			"WritesPerSecond": 0,
-			"IsIndex": true,
-			"ObjectType": "primary key",
-			"ParentTableName": "public.osm_changeset",
-			"SizeInBytes": 8192
-		}
-	],
-	"Notes": [
-		"Some features listed in this report may be supported under a preview flag in the specified target-db-version of YugabyteDB. Please refer to the official <a class=\"highlight-link\" target=\"_blank\" href=\"https://docs.yugabyte.com/preview/releases/ybdb-releases/\">release notes</a> for detailed information and usage guidelines.",
-		"If there are any tables that receive disproportionately high load, ensure that they are NOT colocated to avoid the colocated tablet becoming a hotspot.\nFor additional considerations related to colocated tables, refer to the documentation at: https://docs.yugabyte.com/preview/explore/colocation/#limitations-and-considerations",
-		"If indexes are created on columns commonly used in range-based queries (e.g. timestamp columns), it is recommended to explicitly configure these indexes with range sharding. This ensures efficient data access for range queries.\nBy default, YugabyteDB uses hash sharding for indexes, which distributes data randomly and is not ideal for range-based predicates potentially degrading query performance. Note that range sharding is enabled by default only in <a class=\"highlight-link\" target=\"_blank\" href=\"https://docs.yugabyte.com/preview/develop/postgresql-compatibility/\">PostgreSQL compatibility mode</a> in YugabyteDB.",
-		"<a class=\"highlight-link\" target=\"_blank\"  href=\"https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/#assessment-and-schema-analysis-limitations\">Limitations in assessment</a>"
-	]
+                "Details": "There are some GIN indexes present in the schema, but GIN indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."
+            },
+            {
+                "ObjectType": "FUNCTION",
+                "TotalCount": 1,
+                "InvalidCount": 0,
+                "ObjectNames": "public.insert_osm_data"
+            }
+        ]
+    },
+    "Sizing": {
+        "SizingRecommendation": {
+            "ColocatedTables": null,
+            "ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 9 objects (4 tables/materialized views and 5 explicit/implicit indexes) with 6.73 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as sharded. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
+            "ShardedTables": [
+                "public.osm_changeset_state",
+                "public.osm_changeset_comment",
+                "public.osm_changeset",
+                "public.spatial_ref_sys"
+            ],
+            "NumNodes": 3,
+            "VCPUsPerInstance": 4,
+            "MemoryPerInstance": 16,
+            "OptimalSelectConnectionsPerNode": 10,
+            "OptimalInsertConnectionsPerNode": 12,
+            "EstimatedTimeInMinForImport": 1,
+            "EstimatedTimeInMinForImportWithoutRedundantIndexes": 1
+        },
+        "FailureReasoning": ""
+    },
+    "AssessmentIssues": [
+        {
+            "Category": "unsupported_features",
+            "CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
+            "Type": "UNSUPPORTED_GIST_INDEX_METHOD",
+            "Name": "Index with GIST access method",
+            "Description": "The schema contains an index with an access method 'GIST' which is not supported in YugabyteDB.",
+            "Impact": "LEVEL_1",
+            "ObjectType": "INDEX",
+            "ObjectName": "changeset_geom_gist ON public.osm_changeset",
+            "SqlStatement": "CREATE INDEX changeset_geom_gist ON public.osm_changeset USING gist (geom);",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#gist-brin-and-spgist-index-types-are-not-supported",
+            "MinimumVersionsFixedIn": null
+        },
+        {
+            "Category": "unsupported_features",
+            "CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
+            "Type": "UNSUPPORTED_EXTENSION",
+            "Name": "Unsupported Extension",
+            "Description": "This extension is not supported in YugabyteDB by default.",
+            "Impact": "LEVEL_3",
+            "ObjectType": "EXTENSION",
+            "ObjectName": "postgis",
+            "SqlStatement": "CREATE EXTENSION IF NOT EXISTS postgis WITH SCHEMA public;",
+            "DocsLink": "https://docs.yugabyte.com/preview/explore/ysql-language-features/pg-extensions/",
+            "MinimumVersionsFixedIn": null
+        },
+        {
+            "Category": "performance_optimizations",
+            "CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
+            "Type": "HOTSPOTS_ON_TIMESTAMP_INDEX",
+            "Name": "Hotspots with indexes on timestamp as first column",
+            "Description": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, the recommendation is to change the sharding key to a modulo of hash of timestamp column value while keeping the timestamp column value as clustering key. Ensure that the index on the column is configured to be range-sharded on timestamp column.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.",
+            "Impact": "LEVEL_1",
+            "ObjectType": "INDEX",
+            "ObjectName": "created_idx ON public.osm_changeset",
+            "SqlStatement": "CREATE INDEX created_idx ON public.osm_changeset USING btree (created_at);",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "created_at"
+            }
+        },
+        {
+            "Category": "unsupported_datatypes",
+            "CategoryDescription": "Data types of the source database that are not supported on the target YugabyteDB.",
+            "Type": "UNSUPPORTED_DATATYPE_GEOMETRY",
+            "Name": "Unsupported datatype - geometry",
+            "Description": "GEOMETRY datatype is not yet supported in YugabyteDB. Affected column: geom.",
+            "Impact": "LEVEL_3",
+            "ObjectType": "COLUMN",
+            "ObjectName": "public.osm_changeset.geom",
+            "SqlStatement": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-yugabytedb",
+            "MinimumVersionsFixedIn": null
+        },
+        {
+            "Category": "migration_caveats",
+            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+            "Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_HSTORE",
+            "Name": "Unsupported datatype for Live migration with fall-forward/fallback - hstore Datatype",
+            "Description": "HSTORE datatype not yet supported by voyager in live migration with fall-forward/fallback. Affected column: tags. These columns will be excluded when exporting and importing data in live migration workflows.",
+            "Impact": "LEVEL_1",
+            "ObjectType": "COLUMN",
+            "ObjectName": "public.osm_changeset.tags",
+            "SqlStatement": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+            "MinimumVersionsFixedIn": null
+        }
+    ],
+    "TableIndexStats": [
+        {
+            "SchemaName": "public",
+            "ObjectName": "spatial_ref_sys",
+            "RowCount": 8500,
+            "ColumnCount": 5,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": false,
+            "ObjectType": "table",
+            "ParentTableName": null,
+            "SizeInBytes": 7061504
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "osm_changeset",
+            "RowCount": 0,
+            "ColumnCount": 13,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": false,
+            "ObjectType": "table",
+            "ParentTableName": null,
+            "SizeInBytes": 0
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "osm_changeset_state",
+            "RowCount": 0,
+            "ColumnCount": 3,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": false,
+            "ObjectType": "table",
+            "ParentTableName": null,
+            "SizeInBytes": 0
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "osm_changeset_comment",
+            "RowCount": 0,
+            "ColumnCount": 5,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": false,
+            "ObjectType": "table",
+            "ParentTableName": null,
+            "SizeInBytes": 0
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "changeset_geom_gist",
+            "RowCount": null,
+            "ColumnCount": 1,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "index",
+            "ParentTableName": "public.osm_changeset",
+            "SizeInBytes": 8192
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "created_idx",
+            "RowCount": null,
+            "ColumnCount": 1,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "index",
+            "ParentTableName": "public.osm_changeset",
+            "SizeInBytes": 8192
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "tags_idx",
+            "RowCount": null,
+            "ColumnCount": 1,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "index",
+            "ParentTableName": "public.osm_changeset",
+            "SizeInBytes": 16384
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "user_id_idx",
+            "RowCount": null,
+            "ColumnCount": 1,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "index",
+            "ParentTableName": "public.osm_changeset",
+            "SizeInBytes": 8192
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "user_name_idx",
+            "RowCount": null,
+            "ColumnCount": 1,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "index",
+            "ParentTableName": "public.osm_changeset",
+            "SizeInBytes": 8192
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "spatial_ref_sys_pkey",
+            "RowCount": null,
+            "ColumnCount": 1,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "primary key",
+            "ParentTableName": "public.spatial_ref_sys",
+            "SizeInBytes": 212992
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "osm_changeset_pkey",
+            "RowCount": null,
+            "ColumnCount": 1,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "primary key",
+            "ParentTableName": "public.osm_changeset",
+            "SizeInBytes": 8192
+        }
+    ],
+    "Notes": [
+        {
+            "Type": "GeneralNotes",
+            "Text": "Some features listed in this report may be supported under a preview flag in the specified target-db-version of YugabyteDB. Please refer to the official release notes (https://docs.yugabyte.com/preview/releases/ybdb-releases/) for detailed information and usage guidelines."
+        },
+        {
+            "Type": "GeneralNotes",
+            "Text": "Limitations in assessment (https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/#assessment-and-schema-analysis-limitations)"
+        },
+        {
+            "Type": "SizingNotes",
+            "Text": "Import data time estimates exclude redundant indexes since they are automatically removed during export schema phase."
+        }
+    ]
 }

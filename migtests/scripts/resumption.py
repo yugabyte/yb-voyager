@@ -120,7 +120,7 @@ def prepare_import_data_file_command():
     ]
 
     if run_without_adaptive_parallelism:
-        args.extend(['--enable-adaptive-parallelism', 'false'])
+        args.extend(['--adaptive-parallelism', 'disabled'])
 
     for flag, value in additional_flags.items():
         args.append(flag)
@@ -151,7 +151,7 @@ def prepare_import_data_command():
         args.extend(['--target-db-schema', target_db_schema])
 
     if run_without_adaptive_parallelism:
-        args.extend(['--enable-adaptive-parallelism', 'false'])
+        args.extend(['--adaptive-parallelism', 'disabled'])
 
     for flag, value in additional_flags.items():
         args.append(flag)

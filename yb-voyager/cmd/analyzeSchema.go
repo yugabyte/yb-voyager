@@ -1152,8 +1152,12 @@ func checkerMisc(detectPerfOptimizationIssues bool) {
 	if detectPerfOptimizationIssues {
 		fkIssues := parserIssueDetector.DetectMissingForeignKeyIndexes()
 
+		// Detect PK recommendation when UNIQUE+NOT NULL exists but PK is missing
+		pkRecs := parserIssueDetector.DetectPrimaryKeyRecommendations()
+
 		// Convert QueryIssues to AnalyzeSchemaIssues and add to report
-		for _, issue := range fkIssues {
+		issues := append(fkIssues, pkRecs...)
+		for _, issue := range issues {
 			analyzeIssue := convertIssueInstanceToAnalyzeIssue(issue, "", false, true)
 			schemaAnalysisReport.Issues = append(schemaAnalysisReport.Issues, analyzeIssue)
 		}
@@ -1334,7 +1338,7 @@ func packAndSendAnalyzeSchemaPayload(status string, errorMsg error) {
 			dbObject.Details = "" // not useful, either static or sometimes sensitive(oracle indexes) information
 			return dbObject
 		})),
-		Error:            callhome.SanitizeErrorMsg(errorMsg),
+		Error:            callhome.SanitizeErrorMsg(errorMsg, anonymizer),
 		ControlPlaneType: getControlPlaneType(),
 	}
 

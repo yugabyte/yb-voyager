@@ -205,7 +205,7 @@ func (t *Transformer) ModifySecondaryIndexesToRange(stmts []*pg_query.RawStmt) (
 			//In general, this should not happen
 			continue
 		}
-		//checking only the first param of the key column of the index 
+		//checking only the first param of the key column of the index
 		if indexStmt.IndexParams[0].GetIndexElem() == nil {
 			continue
 		}

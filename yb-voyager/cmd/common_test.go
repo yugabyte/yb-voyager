@@ -24,6 +24,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
@@ -63,15 +64,16 @@ func TestAssessmentReportStructs(t *testing.T) {
 			name:       "Validate SizingRecommendation Struct Definition",
 			actualType: reflect.TypeOf(migassessment.SizingRecommendation{}),
 			expectedType: struct {
-				ColocatedTables                 []string
-				ColocatedReasoning              string
-				ShardedTables                   []string
-				NumNodes                        float64
-				VCPUsPerInstance                int
-				MemoryPerInstance               int
-				OptimalSelectConnectionsPerNode int64
-				OptimalInsertConnectionsPerNode int64
-				EstimatedTimeInMinForImport     float64
+				ColocatedTables                                    []string
+				ColocatedReasoning                                 string
+				ShardedTables                                      []string
+				NumNodes                                           float64
+				VCPUsPerInstance                                   int
+				MemoryPerInstance                                  int
+				OptimalSelectConnectionsPerNode                    int64
+				OptimalInsertConnectionsPerNode                    int64
+				EstimatedTimeInMinForImport                        float64
+				EstimatedTimeInMinForImportWithoutRedundantIndexes float64
 			}{},
 		},
 		{
@@ -156,7 +158,7 @@ func TestAssessmentReportStructs(t *testing.T) {
 				Sizing                         *migassessment.SizingAssessmentReport `json:"Sizing"`
 				Issues                         []AssessmentIssue                     `json:"AssessmentIssues"`
 				TableIndexStats                *[]migassessment.TableIndexStats      `json:"TableIndexStats"`
-				Notes                          []string                              `json:"Notes"`
+				Notes                          []NoteInfo                            `json:"Notes"`
 				UnsupportedDataTypes           []utils.TableColumnsDataTypes         `json:"-"`
 				UnsupportedDataTypesDesc       string                                `json:"-"`
 				UnsupportedFeatures            []UnsupportedFeature                  `json:"-"`
@@ -214,6 +216,7 @@ func TestAssessmentReportJson(t *testing.T) {
 				OptimalSelectConnectionsPerNode: 10,
 				OptimalInsertConnectionsPerNode: 10,
 				EstimatedTimeInMinForImport:     10,
+				EstimatedTimeInMinForImportWithoutRedundantIndexes: 10,
 			},
 			FailureReasoning: "Test failure reasoning",
 		},
@@ -233,7 +236,12 @@ func TestAssessmentReportJson(t *testing.T) {
 				SizeInBytes:     Int64Ptr(1024),
 			},
 		},
-		Notes: []string{"Test note"},
+		Notes: []NoteInfo{
+			{
+				Type: GeneralNotes,
+				Text: "Test note",
+			},
+		},
 		UnsupportedDataTypes: []utils.TableColumnsDataTypes{
 			{
 				SchemaName: "public",
@@ -358,7 +366,8 @@ func TestAssessmentReportJson(t *testing.T) {
 			"MemoryPerInstance": 16,
 			"OptimalSelectConnectionsPerNode": 10,
 			"OptimalInsertConnectionsPerNode": 10,
-			"EstimatedTimeInMinForImport": 10
+			"EstimatedTimeInMinForImport": 10,
+			"EstimatedTimeInMinForImportWithoutRedundantIndexes": 10
 		},
 		"FailureReasoning": "Test failure reasoning"
 	},
@@ -378,12 +387,98 @@ func TestAssessmentReportJson(t *testing.T) {
 		}
 	],
 	"Notes": [
-		"Test note"
+		{
+			"Type": "GeneralNotes",
+			"Text": "Test note"
+		}
 	]
 }`
 
 	testutils.CompareJson(t, reportPath, expectedJSON, reportDir)
 
+}
+
+func TestStripHTMLTags(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "Empty string",
+			input:    "",
+			expected: "",
+		},
+		{
+			name:     "Whitespace only",
+			input:    "   ",
+			expected: "",
+		},
+		{
+			name:     "No HTML tags",
+			input:    "Plain text without any HTML",
+			expected: "Plain text without any HTML",
+		},
+		{
+			name:     "Leading and trailing whitespace",
+			input:    "   <a href=\"https://example.com\">Example</a>   ",
+			expected: "Example (https://example.com)",
+		},
+		{
+			name:     "Basic link processing",
+			input:    "<a href=\"https://example.com\">Example</a>",
+			expected: "Example (https://example.com)",
+		},
+		{
+			name:     "Link with text same as URL",
+			input:    "<a href=\"https://example.com\">https://example.com</a>",
+			expected: "https://example.com",
+		},
+		{
+			name:     "Link with attributes and single quotes",
+			input:    "<a href='https://docs.yugabyte.com' target=\"_blank\" class=\"link\">YugabyteDB Docs</a>",
+			expected: "YugabyteDB Docs (https://docs.yugabyte.com)",
+		},
+		{
+			name:     "Multiple links",
+			input:    "<a href=\"https://example1.com\">Link1</a> and <a href=\"https://example2.com\">Link2</a>",
+			expected: "Link1 (https://example1.com) and Link2 (https://example2.com)",
+		},
+		{
+			name:     "Various HTML tags preserved",
+			input:    "<table><tr><td>Data</td></tr></table><ul><li>Item</li></ul><form><input type=\"text\"/></form>",
+			expected: "<table><tr><td>Data</td></tr></table><ul><li>Item</li></ul><form><input type=\"text\"/></form>",
+		},
+		{
+			name:     "Mixed content with links and diverse tags",
+			input:    "<div><a href=\"https://example.com\">Link</a> and <span>span text</span><img src=\"image.jpg\" alt=\"image\"/></div>",
+			expected: "<div>Link (https://example.com) and <span>span text</span><img src=\"image.jpg\" alt=\"image\"/></div>",
+		},
+		{
+			name:     "Link with special characters in URL",
+			input:    "<a href=\"https://example.com/path?param=value&other=123\">Special URL</a>",
+			expected: "Special URL (https://example.com/path?param=value&other=123)",
+		},
+		{
+			name:     "Link with special characters in text",
+			input:    "<a href=\"https://example.com\">Text with &amp; symbols &lt;tags&gt;</a>",
+			expected: "Text with &amp; symbols &lt;tags&gt; (https://example.com)",
+		},
+		{
+			name:     "Malformed HTML - missing closing tag",
+			input:    "<a href=\"https://example.com\">Unclosed link",
+			expected: "<a href=\"https://example.com\">Unclosed link",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := stripHTMLTags(tt.input)
+			assert.Equal(t, tt.expected, result,
+				"Test: %s\nInput: %q\nExpected: %q\nActual: %q",
+				tt.name, tt.input, tt.expected, result)
+		})
+	}
 }
 
 func Int64Ptr(i int64) *int64 {

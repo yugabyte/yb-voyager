@@ -214,8 +214,7 @@ func registerImportDataCommonFlags(cmd *cobra.Command) {
 	BoolVar(cmd.Flags(), &disablePb, "disable-pb", false,
 		"Disable progress bar/stats during data import (default false)")
 
-	cmd.Flags().IntVar(&EVENT_BATCH_MAX_RETRY_COUNT, "max-retries", 50, "Maximum number of retries for failed event batch in live migration")
-	cmd.Flags().MarkHidden("max-retries") // majorly for automation as we don't want any retries to happen in automation for even retryable errors
+	cmd.Flags().IntVar(&EVENT_BATCH_MAX_RETRY_COUNT, "max-retries-streaming", 15, "Maximum number of retries for failed event batch in live migration")
 
 	cmd.Flags().StringVar(&tconf.ExcludeTableList, "exclude-table-list", "",
 		"comma-separated list of the source db table names to exclude while import data.\n"+
@@ -398,8 +397,16 @@ func registerFlagsForTarget(cmd *cobra.Command) {
 			"number of cores N and use N/4 as parallel jobs. "+
 			"Otherwise, it fall back to using twice the number of nodes in the cluster. "+
 			"Any value less than 1 reverts to the default calculation.")
-	BoolVar(cmd.Flags(), &tconf.EnableYBAdaptiveParallelism, "enable-adaptive-parallelism", true,
-		"Adapt parallelism based on the resource usage (CPU, memory) of the target YugabyteDB cluster.")
+
+	cmd.Flags().Var(&tconf.AdaptiveParallelismMode, "adaptive-parallelism",
+		"Adapt parallelism based on the resource usage (CPU, memory) of the target YugabyteDB cluster."+
+			"\n"+
+			"Specify the mode for adaptive parallelism behavior: disabled, balanced, aggressive (default balanced)"+
+			"\n"+
+			"\tbalanced: Operate with moderate thresholds. Recommended to be used when there are other workloads running on the cluster.\n"+
+			"\taggressive: Operate with aggressive max-CPU thresholds for better performance. Recommended to be used when there are no other workloads running on the cluster.\n"+
+			"\tdisabled: Disable adaptive parallelism.")
+
 	cmd.Flags().IntVar(&tconf.MaxParallelism, "adaptive-parallelism-max", 0,
 		"number of max parallel jobs to use while importing data when adaptive parallelism is enabled. "+
 			"By default, voyager will try if it can determine the total number of cores N and use N/2 as the max parallel jobs.")
@@ -466,14 +473,14 @@ func validateFFDBSchemaFlag() {
 }
 
 func validateParallelismFlags() {
-	if tconf.EnableYBAdaptiveParallelism {
+	if tconf.AdaptiveParallelismMode.IsEnabled() {
 		if tconf.Parallelism > 0 {
-			utils.ErrExit("Error --parallel-jobs flag cannot be used with --enable-adaptive-parallelism true. If you wish to set the number of parallel jobs explicitly, disable adaptive parallelism using --enable-adaptive-parallelism false")
+			utils.ErrExit("Error --parallel-jobs flag cannot be used when adaptive-parallelism is enabled (balanced/aggressive). If you wish to set the number of parallel jobs explicitly, disable adaptive parallelism using --adaptive-parallelism disabled")
 		}
 	}
 	if tconf.MaxParallelism > 0 {
-		if !tconf.EnableYBAdaptiveParallelism {
-			utils.ErrExit("Error --adaptive-parallelism-max flag can only be used with --enable-adaptive-parallelism true")
+		if !tconf.AdaptiveParallelismMode.IsEnabled() {
+			utils.ErrExit("Error --adaptive-parallelism-max flag can only be used when adaptive-parallelism is enabled (balanced/aggressive)")
 		}
 	}
 

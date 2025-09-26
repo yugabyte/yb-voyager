@@ -184,9 +184,10 @@ func packAndSendExportDataPayload(status string, errorMsg error) {
 		payload.MigrationType = LIVE_MIGRATION
 	}
 	sourceDBDetails := callhome.SourceDBDetails{
-		DBType:    source.DBType,
-		DBVersion: source.DBVersion,
-		DBSize:    source.DBSize,
+		DBType:             source.DBType,
+		DBVersion:          source.DBVersion,
+		DBSize:             source.DBSize,
+		DBSystemIdentifier: source.DBSystemIdentifier,
 	}
 
 	payload.SourceDBDetails = callhome.MarshalledJsonString(sourceDBDetails)
@@ -195,7 +196,7 @@ func packAndSendExportDataPayload(status string, errorMsg error) {
 	exportDataPayload := callhome.ExportDataPhasePayload{
 		ParallelJobs:              int64(source.NumConnections),
 		StartClean:                bool(startClean),
-		Error:                     callhome.SanitizeErrorMsg(errorMsg),
+		Error:                     callhome.SanitizeErrorMsg(errorMsg, anonymizer),
 		ControlPlaneType:          getControlPlaneType(),
 		AllowOracleClobDataExport: bool(source.AllowOracleClobDataExport),
 	}
@@ -249,6 +250,9 @@ func exportData() bool {
 	if err != nil {
 		log.Errorf("error getting database size: %v", err) //can just log as this is used for call-home only
 	}
+
+	// Get PostgreSQL system identifier while still connected
+	source.FetchDBSystemIdentifier()
 
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {

@@ -30,8 +30,8 @@ jobs:
 
 
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-java@v3
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
         # https://github.com/actions/setup-java
         with:
           distribution: "temurin"
@@ -39,18 +39,48 @@ jobs:
           check-latest: true
       
       - name: Cache local Maven repository
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ~/.m2/repository
           key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
           restore-keys: |
             ${{ runner.os }}-maven-
 
-      - name: "Enable postgres with pg_stat_statements loaded via shared_preload_libraries"
+      - name: Free disk 
+        run: df -h /
+
+      #cleanup some cache and unrequired things to free up some disk space referred this https://carlosbecker.com/posts/github-actions-disk-space/
+      - name: cleanup 
         run: |
-          docker exec ${{ job.services.postgres.id }} sh -c "echo \"shared_preload_libraries = 'pg_stat_statements'\" >> /var/lib/postgresql/data/postgresql.conf"
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force
+          sudo docker builder prune -a
+
+      #freeing up some disk space to avoid running in insufficient disk space with YB cluster during ingestion
+      - name: Free disk after cleanup
+        run: df -h /
+
+
+      - name: "Enable postgres with pg_stat_statements, pglogical loaded via shared_preload_libraries and install pg extensions"
+        run: |
+          docker exec ${{ job.services.postgres.id }} sh -c "
+            apt-get update && apt-get install -y \
+              postgresql-17-postgis-3 \
+              postgresql-plpython3-17 \
+              postgresql-plperl-17 \
+              postgresql-17-pglogical"
+
+          docker exec ${{ job.services.postgres.id }} sh -c "echo \"shared_preload_libraries = 'pg_stat_statements, pglogical'\" >> /var/lib/postgresql/data/postgresql.conf"
+
           docker restart ${{ job.services.postgres.id }}
-          sleep 10
+          
+          # Wait for PostgreSQL to be ready with health check instead of fixed sleep
+          echo "Waiting for PostgreSQL to be ready after restart..."
+          timeout 30s bash -c 'until docker exec ${{ job.services.postgres.id }} pg_isready > /dev/null 2>&1; do 
+            echo "PostgreSQL not ready yet, waiting 1 second..."
+            sleep 1
+          done'
+          echo "PostgreSQL is ready!"
 
       - name: Install python3, psycopg2 and bs4
         run: |
@@ -59,13 +89,19 @@ jobs:
           sudo apt install python3-psycopg2
           pip3 install bs4 # Install BeautifulSoup4 module for HTML report validation
 
-      #TODO Remove the install PG 17 command once we do that in installer script 
       - name: Run installer script to setup voyager
         run: |
           cd installer_scripts
           yes | ./install-yb-voyager --install-from-local-source --only-pg-support
-          sudo apt-get -y install postgresql-17
-          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+          # Since pg_dump/restore 17 is required, we need to remove the symlink to the old PG 14 binary(default)
+          # and create a symlink to the new PG 17 binary
+          sudo rm /usr/bin/pg_dump
+          sudo ln -s /usr/lib/postgresql/17/bin/pg_dump /usr/bin/pg_dump
+          sudo rm /usr/bin/pg_restore
+          sudo ln -s /usr/lib/postgresql/17/bin/pg_restore /usr/bin/pg_restore
+          pg_dump --version
+          pg_restore --version
+          psql --version
         env:
           ON_INSTALLER_ERROR_OUTPUT_LOG: Y
 
@@ -114,7 +150,14 @@ jobs:
             -p7000:7000 -p9000:9000 -p15433:15433 -p5433:5433 -p9042:9042 \
             yugabytedb/yugabyte:$version \
             bin/yugabyted start --tserver_flags="ysql_hba_conf_csv={host all yugabyte all trust,host all all all md5}" --background=false --ui=false --callhome=false 
-            sleep 20
+            
+            # Wait for YugabyteDB to be ready with health check
+            echo "Waiting for YugabyteDB to be ready..."
+            timeout 60s bash -c 'until psql "postgresql://yugabyte:@127.0.0.1:5433/yugabyte" -c "SELECT 1" > /dev/null 2>&1; do 
+              echo "YugabyteDB not ready yet, waiting 2 seconds..."
+              sleep 2
+            done'
+            echo "YugabyteDB is ready!"
           
             echo "Test YugabyteDB connection"
             psql "postgresql://yugabyte:@127.0.0.1:5433/yugabyte" -c "SELECT version();"
@@ -138,4 +181,3 @@ jobs:
             docker remove yugabytedb-$version
           done
         shell: bash
-

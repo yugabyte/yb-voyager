@@ -23,6 +23,7 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/types"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -40,7 +41,7 @@ var importDataToSourceCmd = &cobra.Command{
 		if err != nil {
 			utils.ErrExit("failed to setup target conf from source conf in MSR: %w", err)
 		}
-		tconf.EnableYBAdaptiveParallelism = false
+		tconf.AdaptiveParallelismMode = types.DisabledAdaptiveParallelismMode
 		importDataCmd.PreRun(cmd, args)
 		importDataCmd.Run(cmd, args)
 	},
@@ -123,7 +124,7 @@ func packAndSendImportDataToSourcePayload(status string, errorMsg error) {
 		ParallelJobs:     int64(tconf.Parallelism),
 		StartClean:       bool(startClean),
 		LiveWorkflowType: FALL_BACK,
-		Error:            callhome.SanitizeErrorMsg(errorMsg),
+		Error:            callhome.SanitizeErrorMsg(errorMsg, anonymizer),
 		ControlPlaneType: getControlPlaneType(),
 		DataMetrics:      dataMetrics,
 		Phase:            importPhase,

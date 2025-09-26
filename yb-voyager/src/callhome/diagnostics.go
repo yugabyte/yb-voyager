@@ -34,6 +34,7 @@ import (
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/anon"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryissue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -87,20 +88,22 @@ type Payload struct {
 // SHOULD NOT REMOVE THESE (host, db_type, db_version, total_db_size_bytes) FIELDS of SourceDBDetails as parsing these specifically here
 // https://github.com/yugabyte/yugabyte-growth/blob/ad5df306c50c05136df77cd6548a1091ae577046/diagnostics_v2/main.py#L549
 type SourceDBDetails struct {
-	Host      string `json:"host"` //keeping it empty for now, as field is parsed in big query app
-	DBType    string `json:"db_type"`
-	DBVersion string `json:"db_version"`
-	DBSize    int64  `json:"total_db_size_bytes"` //bytes
-	Role      string `json:"role,omitempty"`      //for differentiating replica details
+	Host               string `json:"host"` //keeping it empty for now, as field is parsed in big query app
+	DBType             string `json:"db_type"`
+	DBVersion          string `json:"db_version"`
+	DBSize             int64  `json:"total_db_size_bytes"`            //bytes
+	Role               string `json:"role,omitempty"`                 //for differentiating replica details
+	DBSystemIdentifier int64  `json:"db_system_identifier,omitempty"` //Database system identifier for unique instance identification (currently only implemented for PostgreSQL)
 }
 
 // SHOULD NOT REMOVE THESE (host, db_version, node_count, total_cores) FIELDS of TargetDBDetails as parsing these specifically here
 // https://github.com/yugabyte/yugabyte-growth/blob/ad5df306c50c05136df77cd6548a1091ae577046/diagnostics_v2/main.py#L556
 type TargetDBDetails struct {
-	Host      string `json:"host"`
-	DBVersion string `json:"db_version"`
-	NodeCount int    `json:"node_count"`
-	Cores     int    `json:"total_cores"`
+	Host               string `json:"host"`
+	DBVersion          string `json:"db_version"`
+	NodeCount          int    `json:"node_count"`
+	Cores              int    `json:"total_cores"`
+	DBSystemIdentifier string `json:"db_system_identifier,omitempty"` // Database system identifier (currently only implemented for YugabyteDB cluster UUID from v2024.2.3.0+)
 }
 
 /*
@@ -112,8 +115,10 @@ Version History
 1.4: Added SqlStatement field in AssessmentIssueCallhome struct
 1.5: Added AnonymizedDDLs field in AssessMigrationPhasePayload struct
 1.6: Added ObjectName field in AssessmentIssueCallhome struct
+1.7 Changed NumShardedTables and NumColocatedTables to ShardedTables and ColocatedTables respectively with anonymized names
+1.8 Added EstimatedTimeInMinForImportWithoutRedundantIndexes to SizingCallhome
 */
-var ASSESS_MIGRATION_CALLHOME_PAYLOAD_VERSION = "1.6"
+var ASSESS_MIGRATION_CALLHOME_PAYLOAD_VERSION = "1.8"
 
 type AssessMigrationPhasePayload struct {
 	PayloadVersion                 string                    `json:"payload_version"`
@@ -157,15 +162,16 @@ func NewAssessmentIssueCallhome(category string, categoryDesc string, issueType 
 }
 
 type SizingCallhome struct {
-	NumColocatedTables              int     `json:"num_colocated_tables"`
-	ColocatedReasoning              string  `json:"colocated_reasoning"`
-	NumShardedTables                int     `json:"num_sharded_tables"`
-	NumNodes                        float64 `json:"num_nodes"`
-	VCPUsPerInstance                int     `json:"vcpus_per_instance"`
-	MemoryPerInstance               int     `json:"memory_per_instance"`
-	OptimalSelectConnectionsPerNode int64   `json:"optimal_select_connections_per_node"`
-	OptimalInsertConnectionsPerNode int64   `json:"optimal_insert_connections_per_node"`
-	EstimatedTimeInMinForImport     float64 `json:"estimated_time_in_min_for_import"`
+	ColocatedTables                                    []string `json:"colocated_tables"`
+	ColocatedReasoning                                 string   `json:"colocated_reasoning"`
+	ShardedTables                                      []string `json:"sharded_tables"`
+	NumNodes                                           float64  `json:"num_nodes"`
+	VCPUsPerInstance                                   int      `json:"vcpus_per_instance"`
+	MemoryPerInstance                                  int      `json:"memory_per_instance"`
+	OptimalSelectConnectionsPerNode                    int64    `json:"optimal_select_connections_per_node"`
+	OptimalInsertConnectionsPerNode                    int64    `json:"optimal_insert_connections_per_node"`
+	EstimatedTimeInMinForImport                        float64  `json:"estimated_time_in_min_for_import"`
+	EstimatedTimeInMinForImportWithoutRedundantIndexes float64  `json:"estimated_time_in_min_for_import_without_redundant_indexes"`
 }
 
 type ObjectSizingStats struct {
@@ -191,8 +197,9 @@ type SchemaOptimizationChange struct {
 /*
 Version History
 1.0: Added a new field as PayloadVersion and SchemaOptimizationChanges
+1.1: Added a new field as AssessRunInExportSchema
 */
-var EXPORT_SCHEMA_CALLHOME_PAYLOAD_VERSION = "1.0"
+var EXPORT_SCHEMA_CALLHOME_PAYLOAD_VERSION = "1.1"
 
 type ExportSchemaPhasePayload struct {
 	PayloadVersion            string                     `json:"payload_version"`
@@ -201,6 +208,7 @@ type ExportSchemaPhasePayload struct {
 	UseOrafce                 bool                       `json:"use_orafce"`
 	CommentsOnObjects         bool                       `json:"comments_on_objects"`
 	SkipRecommendations       bool                       `json:"skip_recommendations"`
+	AssessRunInExportSchema   bool                       `json:"assess_run_in_export_schema"`
 	SkipPerfOptimizations     bool                       `json:"skip_performance_optimizations"`
 	Error                     string                     `json:"error"`
 	ControlPlaneType          string                     `json:"control_plane_type"`
@@ -267,8 +275,9 @@ Version History:
 1.0: Added fields for BatchSize, OnPrimaryKeyConflictAction, EnableYBAdaptiveParallelism, AdaptiveParallelismMax
 1.1: Added YBClusterMetrics field, and corresponding struct - YBClusterMetrics, NodeMetric
 1.2: Split out the data metrics into a separate struct - ImportDataMetrics
+1.3: Added CurrentParallelConnections field to ImportDataMetrics
 */
-var IMPORT_DATA_CALLHOME_PAYLOAD_VERSION = "1.2"
+var IMPORT_DATA_CALLHOME_PAYLOAD_VERSION = "1.3"
 
 type ImportDataPhasePayload struct {
 	PayloadVersion              string            `json:"payload_version"`
@@ -290,6 +299,8 @@ type ImportDataPhasePayload struct {
 }
 
 type ImportDataMetrics struct {
+	CurrentParallelConnections int `json:"current_parallel_connections"`
+
 	// for the entire migration, across command runs. would be sensitive to start-clean.
 	MigrationSnapshotTotalRows        int64 `json:"migration_snapshot_total_rows"`
 	MigrationSnapshotLargestTableRows int64 `json:"migration_snapshot_largest_table_rows"`
@@ -331,6 +342,8 @@ type ImportDataFilePhasePayload struct {
 }
 
 type ImportDataFileMetrics struct {
+	CurrentParallelConnections int `json:"current_parallel_connections"`
+
 	// for the entire migration, across command runs. would be sensitive to start-clean.
 	MigrationSnapshotTotalBytes        int64 `json:"migration_snapshot_total_bytes"`
 	MigrationSnapshotLargestTableBytes int64 `json:"migration_snapshot_largest_table_bytes"`
@@ -446,30 +459,40 @@ func SendPayload(payload *Payload) error {
 // We want to ensure that no user-specific information is sent to the call-home service.
 // Therefore, we only send the segment of the error message before the first ":" as that is the generic error message.
 // Accepts error type, returns empty string if error is nil.
-func SanitizeErrorMsg(err error) string {
+func SanitizeErrorMsg(err error, anonymizer *anon.VoyagerAnonymizer) string {
 	if err == nil {
 		return ""
 	}
 	errorMsg := strings.Split(err.Error(), ":")[0]
-	additionalContext := getSpecificNonSensitiveContextForError(err)
+	additionalContext := getSpecificNonSensitiveContextForError(err, anonymizer)
 	if additionalContext != nil {
 		errorMsg = fmt.Sprintf("%s: %s", errorMsg, MarshalledJsonString(additionalContext))
 	}
 	return errorMsg
 }
 
-func getSpecificNonSensitiveContextForError(err error) map[string]string {
+func getSpecificNonSensitiveContextForError(err error, anonymizer *anon.VoyagerAnonymizer) map[string]string {
 	if err == nil {
 		return nil
 	}
 	context := make(map[string]string)
 
+	addImportBatchErrorContext(err, context)
+	addPostgreSQLErrorContext(err, context)
+	addExecuteDDLErrorContext(err, anonymizer, context)
+
+	return context
+}
+
+func addImportBatchErrorContext(err error, context map[string]string) {
 	var ibe errs.ImportBatchError
 	if errors.As(err, &ibe) {
 		context["step"] = ibe.Step()
 		context["flow"] = ibe.Flow()
 	}
+}
 
+func addPostgreSQLErrorContext(err error, context map[string]string) {
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) {
 		// If the error is a pgconn.PgError, we can return a more
@@ -483,6 +506,23 @@ func getSpecificNonSensitiveContextForError(err error) map[string]string {
 		// a more specific error message that includes the SQLSTATE code
 		context["pg_error_code"] = pgErrV5.Code
 	}
+}
 
-	return context
+func addExecuteDDLErrorContext(err error, anonymizer *anon.VoyagerAnonymizer, context map[string]string) {
+	var executeDDLErr errs.ExecuteDDLError
+	if !errors.As(err, &executeDDLErr) {
+		return
+	}
+
+	if anonymizer == nil {
+		return
+	}
+
+	erroredDDL := executeDDLErr.DDL()
+	anonymizedDDL, aerr := anonymizer.AnonymizeSql(erroredDDL)
+	if aerr != nil {
+		anonymizedDDL = "XXX"
+		log.Infof("callhome: error anonymizing ddl %q: %v", erroredDDL, aerr)
+	}
+	context["ddl"] = anonymizedDDL
 }

@@ -30,6 +30,7 @@ import (
 
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
@@ -96,18 +97,19 @@ type ExpDataLoadTimeNumNodesImpact struct {
 }
 
 type IntermediateRecommendation struct {
-	ColocatedTables                 []SourceDBMetadata
-	ShardedTables                   []SourceDBMetadata
-	ColocatedSize                   float64
-	ShardedSize                     float64
-	NumNodes                        float64
-	VCPUsPerInstance                int
-	MemoryPerCore                   int
-	OptimalSelectConnectionsPerNode int64
-	OptimalInsertConnectionsPerNode int64
-	EstimatedTimeInMinForImport     float64
-	FailureReasoning                string
-	CoresNeeded                     float64
+	ColocatedTables                                    []SourceDBMetadata
+	ShardedTables                                      []SourceDBMetadata
+	ColocatedSize                                      float64
+	ShardedSize                                        float64
+	NumNodes                                           float64
+	VCPUsPerInstance                                   int
+	MemoryPerCore                                      int
+	OptimalSelectConnectionsPerNode                    int64
+	OptimalInsertConnectionsPerNode                    int64
+	EstimatedTimeInMinForImport                        float64
+	EstimatedTimeInMinForImportWithoutRedundantIndexes float64
+	FailureReasoning                                   string
+	CoresNeeded                                        float64
 }
 
 type ExperimentDataAvailableYbVersion struct {
@@ -128,7 +130,7 @@ const (
 	// GITHUB_RAW_LINK use raw github link to fetch the file from repository using the api:
 	// https://raw.githubusercontent.com/{username-or-organization}/{repository}/{branch}/{path-to-file}
 	GITHUB_RAW_LINK                 = "https://raw.githubusercontent.com/yugabyte/yb-voyager/main/yb-voyager/src/migassessment/resources"
-	EXPERIMENT_DATA_FILENAME        = "yb_2024_0_source.db"
+	EXPERIMENT_DATA_FILENAME        = "yb_experiment_data_source.db"
 	DBS_DIR                         = "dbs"
 	SIZE_UNIT_GB                    = "GB"
 	SIZE_UNIT_MB                    = "MB"
@@ -158,10 +160,11 @@ var SourceMetadataObjectTypesToUse = []string{
 	"materialized view",
 }
 
-func SizingAssessment(targetDbVersion *ybversion.YBVersion) error {
+func SizingAssessment(targetDbVersion *ybversion.YBVersion, sourceDBType string) error {
 
 	log.Infof("loading metadata files for sharding assessment")
-	sourceTableMetadata, sourceIndexMetadata, _, err := loadSourceMetadata(GetSourceMetadataDBFilePath())
+	sourceTableMetadata, sourceIndexMetadata, sourceUniqueIndexesMetadata, _, err := loadSourceMetadata(GetSourceMetadataDBFilePath(), sourceDBType)
+
 	if err != nil {
 		SizingReport.FailureReasoning = fmt.Sprintf("failed to load source metadata: %v", err)
 		return fmt.Errorf("failed to load source metadata: %w", err)
@@ -211,19 +214,33 @@ func SizingAssessment(targetDbVersion *ybversion.YBVersion) error {
 		return fmt.Errorf("error fetching the sharded throughput: %w", err)
 	}
 
-	sizingRecommendationPerCore := createSizingRecommendationStructure(colocatedLimits)
+	sizingRecommendationPerCoreColocatedAndShardedCombined := createRecommendationStructureColocatedAndShardedCombined(colocatedLimits)
 
-	sizingRecommendationPerCore = shardingBasedOnTableSizeAndCount(sourceTableMetadata, sourceIndexMetadata,
-		colocatedLimits, sizingRecommendationPerCore)
+	sizingRecommendationPerCoreAllSharded := createRecommendationStructureAllShardedRecommendations(sourceIndexMetadata, sourceTableMetadata,
+		shardedLimits, shardedThroughput)
 
-	sizingRecommendationPerCore = shardingBasedOnOperations(sourceIndexMetadata, colocatedThroughput, sizingRecommendationPerCore)
+	sizingRecommendationPerCoreColocatedAndShardedCombined = shardingBasedOnTableSizeAndCount(sourceTableMetadata, sourceIndexMetadata,
+		colocatedLimits, sizingRecommendationPerCoreColocatedAndShardedCombined)
 
-	sizingRecommendationPerCore = checkShardedTableLimit(sourceIndexMetadata, shardedLimits, sizingRecommendationPerCore)
+	sizingRecommendationPerCoreColocatedAndShardedCombined = shardingBasedOnOperations(sourceIndexMetadata, colocatedThroughput, sizingRecommendationPerCoreColocatedAndShardedCombined)
 
-	sizingRecommendationPerCore = findNumNodesNeededBasedOnThroughputRequirement(sourceIndexMetadata, shardedThroughput, sizingRecommendationPerCore)
+	sizingRecommendationPerCoreColocatedAndShardedCombined = checkShardedTableLimit(sourceIndexMetadata, shardedLimits, sizingRecommendationPerCoreColocatedAndShardedCombined)
 
-	sizingRecommendationPerCore = findNumNodesNeededBasedOnTabletsRequired(sourceIndexMetadata, shardedLimits, sizingRecommendationPerCore)
-	finalSizingRecommendation := pickBestRecommendation(sizingRecommendationPerCore)
+	sizingRecommendationPerCoreAllSharded = checkShardedTableLimit(sourceIndexMetadata, shardedLimits, sizingRecommendationPerCoreAllSharded)
+
+	sizingRecommendationPerCoreColocatedAndShardedCombined = findNumNodesNeededBasedOnThroughputRequirement(sourceIndexMetadata, shardedThroughput, sizingRecommendationPerCoreColocatedAndShardedCombined)
+
+	sizingRecommendationPerCoreAllSharded = findNumNodesNeededBasedOnThroughputRequirement(sourceIndexMetadata, shardedThroughput, sizingRecommendationPerCoreAllSharded)
+
+	sizingRecommendationPerCoreColocatedAndShardedCombined = findNumNodesNeededBasedOnTabletsRequired(sourceIndexMetadata, shardedLimits, sizingRecommendationPerCoreColocatedAndShardedCombined)
+
+	sizingRecommendationPerCoreAllSharded = findNumNodesNeededBasedOnTabletsRequired(sourceIndexMetadata, shardedLimits, sizingRecommendationPerCoreAllSharded)
+
+	finalSizingRecommendationColoShardedCombined := pickBestRecommendation(sizingRecommendationPerCoreColocatedAndShardedCombined)
+
+	finalSizingRecommendationAllSharded := pickBestRecommendation(sizingRecommendationPerCoreAllSharded)
+
+	finalSizingRecommendation := pickBestRecommendationStrategy(finalSizingRecommendationColoShardedCombined, finalSizingRecommendationAllSharded, sourceIndexMetadata)
 
 	if finalSizingRecommendation.FailureReasoning != "" {
 		SizingReport.FailureReasoning = finalSizingRecommendation.FailureReasoning
@@ -272,8 +289,8 @@ func SizingAssessment(targetDbVersion *ybversion.YBVersion) error {
 
 	// calculate time taken for colocated import
 	numNodesImportTimeDivisorColocated := 1.0
-	importTimeForColocatedObjects, err := calculateTimeTakenForImport(
-		finalSizingRecommendation.ColocatedTables, sourceIndexMetadata, colocatedLoadTimes,
+	importTimeForColocatedObjects, importTimeForColocatedObjectsWithoutRedundantIndexes, err := calculateTimeTakenForImport(
+		finalSizingRecommendation.ColocatedTables, sourceUniqueIndexesMetadata, sourceIndexMetadata, colocatedLoadTimes,
 		indexImpactOnLoadTimeCommon, columnsImpactOnLoadTimeCommon, COLOCATED, numNodesImportTimeDivisorColocated)
 	if err != nil {
 		SizingReport.FailureReasoning = fmt.Sprintf("calculate time taken for colocated data import: %v", err)
@@ -286,8 +303,8 @@ func SizingAssessment(targetDbVersion *ybversion.YBVersion) error {
 		findNumNodesThroughputScalingImportTimeDivisor(numNodesImpactOnLoadTimeSharded, finalSizingRecommendation.NumNodes))
 
 	// calculate time taken for sharded import
-	importTimeForShardedObjects, err := calculateTimeTakenForImport(
-		finalSizingRecommendation.ShardedTables, sourceIndexMetadata, shardedLoadTimes,
+	importTimeForShardedObjects, importTimeForShardedObjectsWithoutRedundantIndexes, err := calculateTimeTakenForImport(
+		finalSizingRecommendation.ShardedTables, sourceUniqueIndexesMetadata, sourceIndexMetadata, shardedLoadTimes,
 		indexImpactOnLoadTimeCommon, columnsImpactOnLoadTimeCommon, SHARDED, numNodesImportTimeDivisorSharded)
 	if err != nil {
 		SizingReport.FailureReasoning = fmt.Sprintf("calculate time taken for sharded data import: %v", err)
@@ -306,6 +323,7 @@ func SizingAssessment(targetDbVersion *ybversion.YBVersion) error {
 		OptimalInsertConnectionsPerNode: finalSizingRecommendation.OptimalInsertConnectionsPerNode,
 		ColocatedReasoning:              reasoning,
 		EstimatedTimeInMinForImport:     importTimeForColocatedObjects + importTimeForShardedObjects,
+		EstimatedTimeInMinForImportWithoutRedundantIndexes: importTimeForColocatedObjectsWithoutRedundantIndexes + importTimeForShardedObjectsWithoutRedundantIndexes,
 	}
 	SizingReport.SizingRecommendation = *sizingRecommendation
 
@@ -332,15 +350,15 @@ func pickBestRecommendation(recommendations map[int]IntermediateRecommendation) 
 	})
 
 	// find the one with the least number of nodes
-	var minCores int = math.MaxUint32
+	var minCores = math.MaxUint32
 	var finalRecommendation IntermediateRecommendation
-	var foundRecommendation bool = false
-	var maxCores int = math.MinInt32
+	var foundRecommendation = false
+	var maxCores = math.MinInt32
 
 	// Iterate over each recommendation
 	for _, rec := range recs {
 		// Update maxCores with the maximum number of vCPUs per instance across recommendations. If none of the cores
-		// abe to satisfy the criteria, recommendation with maxCores will be used as final recommendation
+		// able to satisfy the criteria, recommendation with maxCores will be used as final recommendation
 		if maxCores < rec.VCPUsPerInstance {
 			maxCores = rec.VCPUsPerInstance
 		}
@@ -369,6 +387,87 @@ func pickBestRecommendation(recommendations map[int]IntermediateRecommendation) 
 
 	// Return the best recommendation
 	return finalRecommendation
+}
+
+/*
+pickBestRecommendationStrategy selects the best recommendation from two recommendations strategies
+i.e. colocated+sharded and all-sharded strategies using the following logic:
+ 1. If recommendations have different VCPUsPerInstance:
+    a. Calculate resultant_cores = VCPUsPerInstance * NumNodes for both recommendations
+    b. If resultant_cores are equal, select the one with higher VCPUsPerInstance
+    c. Otherwise, select the one with fewer resultant_cores
+ 2. If recommendations have same VCPUsPerInstance, select the one with fewer nodes needed (when equal nodes needed, choose all-sharded)
+
+The function logs the selection reasoning for debugging purposes.
+Parameters:
+  - rec1: First IntermediateRecommendation to compare (colocated+sharded strategy)
+  - rec2: Second IntermediateRecommendation to compare (all-sharded strategy)
+  - sourceIndexMetadata: A slice of SourceDBMetadata structs representing source indexes
+
+Returns:
+  - The best IntermediateRecommendation based on the selection logic described above
+*/
+func pickBestRecommendationStrategy(rec1, rec2 IntermediateRecommendation, sourceIndexMetadata []SourceDBMetadata) IntermediateRecommendation {
+	// Handle failure reasoning logic first
+	if rec1.FailureReasoning != "" && rec2.FailureReasoning != "" {
+		log.Info("Both colocated+sharded and all-sharded strategies could not support the requirements. Unable to determine appropriate sizing recommendation.")
+		return rec1
+	}
+
+	if rec1.FailureReasoning != "" && rec2.FailureReasoning == "" {
+		log.Infof("Selected all-sharded strategy as colocated+sharded strategy could not support the requirements: %s", rec1.FailureReasoning)
+		return rec2
+	}
+	if rec2.FailureReasoning != "" && rec1.FailureReasoning == "" {
+		log.Infof("Selected colocated+sharded strategy as all-sharded strategy could not support the requirements: %s", rec2.FailureReasoning)
+		return rec1
+	}
+
+	// Both strategies are valid, apply optimization logic
+	// Optimization: Compare by resultant cores when VCPUs differ
+	if rec1.VCPUsPerInstance != rec2.VCPUsPerInstance {
+		rec1ResultantCores := float64(rec1.VCPUsPerInstance) * rec1.NumNodes
+		rec2ResultantCores := float64(rec2.VCPUsPerInstance) * rec2.NumNodes
+
+		switch {
+		case rec1ResultantCores == rec2ResultantCores:
+			// Equal resultant cores - prefer higher VCPUs
+			if rec1.VCPUsPerInstance > rec2.VCPUsPerInstance {
+				log.Infof("Selected colocated+sharded strategy: equal resultant cores (%.1f), preferring higher VCPUs (%d vs %d)",
+					rec1ResultantCores, rec1.VCPUsPerInstance, rec2.VCPUsPerInstance)
+				return rec1
+			} else {
+				log.Infof("Selected all-sharded strategy: equal resultant cores (%.1f), preferring higher VCPUs (%d vs %d)",
+					rec2ResultantCores, rec2.VCPUsPerInstance, rec1.VCPUsPerInstance)
+				return rec2
+			}
+		case rec1ResultantCores < rec2ResultantCores:
+			log.Infof("Selected colocated+sharded strategy: fewer resultant cores (%.1f vs %.1f)",
+				rec1ResultantCores, rec2ResultantCores)
+			return rec1
+		default:
+			log.Infof("Selected all-sharded strategy: fewer resultant cores (%.1f vs %.1f)",
+				rec2ResultantCores, rec1ResultantCores)
+			return rec2
+		}
+	}
+
+	// Same VCPUs - compare by node count
+	switch {
+	case rec1.NumNodes < rec2.NumNodes:
+		log.Infof("Selected colocated+sharded strategy: fewer nodes (%.0f vs %.0f)",
+			rec1.NumNodes, rec2.NumNodes)
+		return rec1
+	case rec1.NumNodes > rec2.NumNodes:
+		log.Infof("Selected all-sharded strategy: fewer nodes (%.0f vs %.0f)",
+			rec2.NumNodes, rec1.NumNodes)
+		return rec2
+	default:
+		// Equal nodes - prefer all-sharded
+		log.Infof("Selected all-sharded strategy: same nodes (%.0f), preferring all-sharded strategy",
+			rec2.NumNodes)
+		return rec2
+	}
 }
 
 /*
@@ -408,6 +507,7 @@ func findNumNodesNeededBasedOnThroughputRequirement(sourceIndexMetadata []Source
 		// Add it explicitly.
 		if len(previousRecommendation.ColocatedTables) > 0 {
 			nodesNeeded += 1
+			neededCores += float64(previousRecommendation.VCPUsPerInstance)
 		}
 
 		// Assumption: minimum required replication is 3, so minimum nodes recommended would be 3.
@@ -427,8 +527,9 @@ func findNumNodesNeededBasedOnThroughputRequirement(sourceIndexMetadata []Source
 			ColocatedSize:                   previousRecommendation.ColocatedSize,
 			ShardedSize:                     previousRecommendation.ShardedSize,
 			EstimatedTimeInMinForImport:     previousRecommendation.EstimatedTimeInMinForImport,
-			FailureReasoning:                previousRecommendation.FailureReasoning,
-			CoresNeeded:                     neededCores,
+			EstimatedTimeInMinForImportWithoutRedundantIndexes: previousRecommendation.EstimatedTimeInMinForImportWithoutRedundantIndexes,
+			FailureReasoning: previousRecommendation.FailureReasoning,
+			CoresNeeded:      neededCores,
 		}
 	}
 	// Return updated recommendation map
@@ -600,7 +701,8 @@ func checkShardedTableLimit(sourceIndexMetadata []SourceDBMetadata, shardedLimit
 				ColocatedSize:                   0,
 				ShardedSize:                     0,
 				EstimatedTimeInMinForImport:     previousRecommendation.EstimatedTimeInMinForImport,
-				FailureReasoning:                failureReasoning,
+				EstimatedTimeInMinForImportWithoutRedundantIndexes: previousRecommendation.EstimatedTimeInMinForImportWithoutRedundantIndexes,
+				FailureReasoning: failureReasoning,
 			}
 		}
 	}
@@ -625,7 +727,7 @@ func shardingBasedOnOperations(sourceIndexMetadata []SourceDBMetadata,
 	for _, colocatedThroughput := range colocatedThroughputSlice {
 		var colocatedObjects []SourceDBMetadata
 		var cumulativeColocatedSizeSum float64 = 0
-		var numColocated int = 0
+		var numColocated = 0
 		var cumulativeSelectOpsPerSec int64 = 0
 		var cumulativeInsertOpsPerSec int64 = 0
 
@@ -682,6 +784,7 @@ func shardingBasedOnOperations(sourceIndexMetadata []SourceDBMetadata,
 			ColocatedSize:                   cumulativeColocatedSizeSum,
 			ShardedSize:                     cumulativeSizeSharded,
 			EstimatedTimeInMinForImport:     previousRecommendation.EstimatedTimeInMinForImport,
+			EstimatedTimeInMinForImportWithoutRedundantIndexes: previousRecommendation.EstimatedTimeInMinForImportWithoutRedundantIndexes,
 		}
 	}
 	// Return updated recommendation map
@@ -707,7 +810,7 @@ func shardingBasedOnTableSizeAndCount(sourceTableMetadata []SourceDBMetadata,
 	for _, colocatedLimit := range colocatedLimits {
 		var cumulativeColocatedSizeSum float64 = 0
 		var colocatedObjects []SourceDBMetadata
-		var numColocated int = 0
+		var numColocated = 0
 		var cumulativeObjectCount int64 = 0
 
 		var shardedObjects []SourceDBMetadata
@@ -761,6 +864,7 @@ func shardingBasedOnTableSizeAndCount(sourceTableMetadata []SourceDBMetadata,
 			ColocatedSize:                   cumulativeColocatedSizeSum,
 			ShardedSize:                     cumulativeSizeSharded,
 			EstimatedTimeInMinForImport:     previousRecommendation.EstimatedTimeInMinForImport,
+			EstimatedTimeInMinForImportWithoutRedundantIndexes: previousRecommendation.EstimatedTimeInMinForImportWithoutRedundantIndexes,
 		}
 	}
 	// Return updated recommendation map
@@ -907,18 +1011,19 @@ Returns:
 
 	[]SourceDBMetadata: all table objects from source db
 	[]SourceDBMetadata: all index objects from source db
+	[]SourceDBMetadata: all index objects from source db after filtering out redundant indexes.
 	float64: total size of source db
 */
-func loadSourceMetadata(filePath string) ([]SourceDBMetadata, []SourceDBMetadata, float64, error) {
+func loadSourceMetadata(filePath string, sourceDBType string) ([]SourceDBMetadata, []SourceDBMetadata, []SourceDBMetadata, float64, error) {
 	SourceMetaDB, err := utils.ConnectToSqliteDatabase(filePath)
 	if err != nil {
-		return nil, nil, 0.0, fmt.Errorf("cannot connect to source metadata database: %w", err)
+		return nil, nil, nil, 0.0, fmt.Errorf("cannot connect to source metadata database: %w", err)
 	}
-	return getSourceMetadata(SourceMetaDB)
+	return getSourceMetadata(SourceMetaDB, sourceDBType)
 }
 
 /*
-createSizingRecommendationStructure generates sizing recommendations based on colocated limits.
+createRecommendationStructureColocatedAndShardedCombined generates sizing recommendations based on colocated limits.
 It creates recommendations per core and returns them in a map.
 Parameters:
   - colocatedLimits: A slice of ExpDataColocatedLimit structs representing colocated limits.
@@ -926,7 +1031,7 @@ Parameters:
 Returns:
   - A map where the key is the number of vCPUs per instance and the value is an IntermediateRecommendation struct.
 */
-func createSizingRecommendationStructure(colocatedLimits []ExpDataColocatedLimit) map[int]IntermediateRecommendation {
+func createRecommendationStructureColocatedAndShardedCombined(colocatedLimits []ExpDataColocatedLimit) map[int]IntermediateRecommendation {
 	recommendationPerCore := make(map[int]IntermediateRecommendation)
 	for _, colocatedLimit := range colocatedLimits {
 		var sizingRecommendation IntermediateRecommendation
@@ -940,30 +1045,90 @@ func createSizingRecommendationStructure(colocatedLimits []ExpDataColocatedLimit
 }
 
 /*
+createRecommendationStructureAllShardedRecommendations generates sizing recommendations for all-sharded strategy.
+It creates a map where the key represents the number of vCPUs per instance and the value is an IntermediateRecommendation.
+Each recommendation has all tables set as sharded and includes throughput calculations.
+Parameters:
+  - sourceIndexMetadata: A slice of SourceDBMetadata structs representing source indexes.
+  - sourceTableMetadata: A slice of SourceDBMetadata structs representing source tables.
+  - shardedLimits: A slice of ExpDataShardedLimit structs representing sharded limits.
+  - shardedThroughputSlice: A slice of ExpDataThroughput structs representing sharded throughput data.
+
+Returns:
+  - A map where the key is the number of vCPUs per instance and the value is an IntermediateRecommendation.
+*/
+func createRecommendationStructureAllShardedRecommendations(sourceIndexMetadata []SourceDBMetadata, sourceTableMetadata []SourceDBMetadata,
+	shardedLimits []ExpDataShardedLimit, shardedThroughputSlice []ExpDataThroughput) map[int]IntermediateRecommendation {
+
+	// Create initial recommendation structure
+	recommendationPerCore := make(map[int]IntermediateRecommendation)
+	for _, shardedLimit := range shardedLimits {
+		var sizingRecommendation IntermediateRecommendation
+		sizingRecommendation.MemoryPerCore = int(shardedLimit.memPerCore.Float64)
+		sizingRecommendation.VCPUsPerInstance = int(shardedLimit.numCores.Float64)
+		sizingRecommendation.ShardedTables = append(sizingRecommendation.ShardedTables, sourceTableMetadata...)
+		// Store recommendation in the map with vCPUs per instance as the key
+		recommendationPerCore[sizingRecommendation.VCPUsPerInstance] = sizingRecommendation
+	}
+
+	// Calculate cumulative size for sharded tables including indexes
+	var cumulativeSizeSharded float64 = 0
+	for _, table := range sourceTableMetadata {
+		_, indexesSizeSumSharded, _, _ := checkAndFetchIndexes(table, sourceIndexMetadata)
+		cumulativeSizeSharded += lo.Ternary(table.Size.Valid, table.Size.Float64, 0) + indexesSizeSumSharded
+	}
+
+	// Update recommendations with throughput information
+	for _, shardedThroughput := range shardedThroughputSlice {
+		// Get previous recommendation for the current num of cores
+		previousRecommendation := recommendationPerCore[int(shardedThroughput.numCores.Float64)]
+
+		// Update recommendation for the current throughput data
+		recommendationPerCore[int(shardedThroughput.numCores.Float64)] = IntermediateRecommendation{
+			ShardedTables:                   previousRecommendation.ShardedTables,
+			VCPUsPerInstance:                previousRecommendation.VCPUsPerInstance,
+			MemoryPerCore:                   previousRecommendation.MemoryPerCore,
+			NumNodes:                        previousRecommendation.NumNodes,
+			OptimalSelectConnectionsPerNode: shardedThroughput.selectConnPerNode.Int64,
+			OptimalInsertConnectionsPerNode: shardedThroughput.insertConnPerNode.Int64,
+			ShardedSize:                     cumulativeSizeSharded,
+		}
+	}
+	// Return map containing recommendations per core
+	return recommendationPerCore
+}
+
+/*
 calculateTimeTakenForImport estimates the time taken for import of tables.
 It queries experimental data to find import time estimates for similar object sizes and configurations. For every table
 , it tries to find out how much time it would table for importing that table. The function adjusts the
 import time on that table by multiplying it by factor based on the indexes. The import time is also converted to
-minutes and returned.
+minutes and returned. This function calculates two different import times: one with all indexes (including redundant)
+and one with only unique indexes (excluding redundant).
 Parameters:
 
 	tables: A slice containing metadata for the database objects to be migrated.
-	sourceIndexMetadata: A slice containing metadata for the indexes of the database objects to be migrated.
+	sourceUniqueIndexesMetadata: A slice containing metadata for unique indexes only.
+	sourceAllIndexesMetadata: A slice containing metadata for all indexes including redundant ones.
 	loadTimes: Experiment data for impact of load times on tables
-	indexImpacts: Data containing impact of indexes on load time.
+	indexImpactData: Data containing impact of indexes on load time.
+	numColumnImpactData: Data containing impact of number of columns on load time.
 	objectType: COLOCATED or SHARDED
 	numNodesImportTimeDivisorCommon: Divisor for impact of number of nodes on import time.
 
 Returns:
 
-	float64: The estimated time taken for import in minutes.
+	float64: The estimated time taken for import in minutes with all indexes.
+	float64: The estimated time taken for import in minutes without redundant indexes.
 	error: Error if any
 */
 func calculateTimeTakenForImport(tables []SourceDBMetadata,
-	sourceIndexMetadata []SourceDBMetadata, loadTimes []ExpDataLoadTime,
-	indexImpactData []ExpDataLoadTimeIndexImpact, numColumnImpactData []ExpDataLoadTimeColumnsImpact,
-	objectType string, numNodesImportTimeDivisorCommon float64) (float64, error) {
-	var importTime float64
+	sourceUniqueIndexesMetadata []SourceDBMetadata, sourceAllIndexesMetadata []SourceDBMetadata,
+	loadTimes []ExpDataLoadTime, indexImpactData []ExpDataLoadTimeIndexImpact,
+	numColumnImpactData []ExpDataLoadTimeColumnsImpact,
+	objectType string, numNodesImportTimeDivisorCommon float64) (float64, float64, error) {
+	var importTimeWithAllIndexes float64
+	var importTimeWithoutRedundantIndexes float64
 
 	// we need to calculate the time taken for import for every table.
 	// For every index, the time taken for import increases.
@@ -973,20 +1138,30 @@ func calculateTimeTakenForImport(tables []SourceDBMetadata,
 		tableSize := lo.Ternary(table.Size.Valid, table.Size.Float64, 0)
 		rowsInTable := lo.Ternary(table.RowCount.Valid, table.RowCount.Float64, 0)
 
-		// get multiplication factor for every table based on the number of indexes
-		loadTimeMultiplicationFactorWrtIndexes := getMultiplicationFactorForImportTimeBasedOnIndexes(table,
-			sourceIndexMetadata, indexImpactData, objectType)
+		// get multiplication factor for every table based on all indexes (including redundant)
+		loadTimeMultiplicationFactorWrtAllIndexes := getMultiplicationFactorForImportTimeBasedOnIndexes(table,
+			sourceAllIndexesMetadata, indexImpactData, objectType)
+
+		// get multiplication factor for every table based on unique indexes only (excluding redundant)
+		loadTimeMultiplicationFactorWrtUniqueIndexes := getMultiplicationFactorForImportTimeBasedOnIndexes(table,
+			sourceUniqueIndexesMetadata, indexImpactData, objectType)
+
 		// get multiplication factor for every table based on the number of columns in the table
 		loadTimeMultiplicationFactorWrtNumColumns := getMultiplicationFactorForImportTimeBasedOnNumColumns(table,
 			numColumnImpactData, objectType)
 
 		tableImportTimeSec := findImportTimeFromExpDataLoadTime(loadTimes, tableSize, rowsInTable)
-		// add maximum import time to total import time by converting it to minutes
-		importTime += (loadTimeMultiplicationFactorWrtIndexes * loadTimeMultiplicationFactorWrtNumColumns * tableImportTimeSec) / 60
+
+		// add import time with all indexes to total import time by converting it to minutes
+		importTimeWithAllIndexes += (loadTimeMultiplicationFactorWrtAllIndexes * loadTimeMultiplicationFactorWrtNumColumns * tableImportTimeSec) / 60
+
+		// add import time without redundant indexes to total import time by converting it to minutes
+		importTimeWithoutRedundantIndexes += (loadTimeMultiplicationFactorWrtUniqueIndexes * loadTimeMultiplicationFactorWrtNumColumns * tableImportTimeSec) / 60
 	}
 
 	// divide the total import time by the divisor for number of nodes.
-	return math.Ceil(importTime / numNodesImportTimeDivisorCommon), nil
+	return math.Ceil(importTimeWithAllIndexes / numNodesImportTimeDivisorCommon),
+		math.Ceil(importTimeWithoutRedundantIndexes / numNodesImportTimeDivisorCommon), nil
 }
 
 /*
@@ -1234,19 +1409,20 @@ of indexes on the table.
 Parameters:
 
 	table: Metadata for the database table for which the multiplication factor is to be calculated.
-	sourceIndexMetadata: A slice containing metadata for the indexes in the database.
+	sourceUniqueIndexesMetadata: A slice containing metadata for the unique indexes in the database.
+	indexImpacts: Experimental data containing impact of indexes on load time.
 	objectType: COLOCATED or SHARDED
 
 Returns:
 
 	float64: The multiplication factor for import time based on the number of indexes on the table.
 */
-func getMultiplicationFactorForImportTimeBasedOnIndexes(table SourceDBMetadata, sourceIndexMetadata []SourceDBMetadata,
+func getMultiplicationFactorForImportTimeBasedOnIndexes(table SourceDBMetadata, sourceUniqueIndexesMetadata []SourceDBMetadata,
 	indexImpacts []ExpDataLoadTimeIndexImpact, objectType string) float64 {
 	var numberOfIndexesOnTable float64 = 0
 	var multiplicationFactor float64 = 1
 
-	for _, index := range sourceIndexMetadata {
+	for _, index := range sourceUniqueIndexesMetadata {
 		if index.ParentTableName.Valid && index.ParentTableName.String == (table.SchemaName+"."+table.ObjectName) {
 			numberOfIndexesOnTable += 1
 		}
@@ -1283,6 +1459,7 @@ number of columns on the table.
 Parameters:
 
 	table: Metadata for the database table for which the multiplication factor is to be calculated.
+	columnImpacts: Experimental data containing impact of number of columns on load time.
 	objectType: COLOCATED or SHARDED
 
 Returns:
@@ -1334,15 +1511,41 @@ func getMultiplicationFactorForImportTimeBasedOnNumColumns(table SourceDBMetadat
 }
 
 /*
-getSourceMetadata retrieves metadata for source database tables and indexes along with the total size of the source
-database.
+getSourceMetadata retrieves metadata for source database tables, indexes, redundant indexes along with the total
+size of the source database.
 Returns:
 
 	[]SourceDBMetadata: Metadata for source database tables.
 	[]SourceDBMetadata: Metadata for source database indexes.
+	[]SourceDBMetadata: Metadata for source database indexes after filtering out redundant indexes.
 	float64: The total size of the source database in gigabytes.
 */
-func getSourceMetadata(sourceDB *sql.DB) ([]SourceDBMetadata, []SourceDBMetadata, float64, error) {
+func getSourceMetadata(sourceDB *sql.DB, sourceDBType string) ([]SourceDBMetadata, []SourceDBMetadata, []SourceDBMetadata, float64, error) {
+	// get source database tables, indexes and total size
+	sourceTableMetadata, sourceIndexMetadata, totalSourceDBSize, err := getSourceMetadataTableIndexStats(sourceDB, GetTableIndexStatName())
+	if err != nil {
+		return nil, nil, nil, 0.0, fmt.Errorf("failed read source metadata table %v: %w", GetTableIndexStatName(), err)
+	}
+	// get source database redundant indexes
+	redundantIndexes, err := getSourceMetadataRedundantIndexes(sourceDB, GetTableRedundantIndexesName(), sourceDBType)
+	var uniqueSourceIndexMetadata []SourceDBMetadata
+	if err != nil {
+		log.Warnf("failed to read redundant indexes from %v: %v, continuing without filtering redundant indexes", GetTableRedundantIndexesName(), err)
+		// If we can't get redundant indexes, just use all indexes without filtering
+		uniqueSourceIndexMetadata = sourceIndexMetadata
+	} else {
+		// filter out all redudant indexes from sourceIndexMetadata
+		uniqueSourceIndexMetadata = filterRedundantIndexes(sourceIndexMetadata, redundantIndexes, sourceDBType)
+	}
+
+	if err := sourceDB.Close(); err != nil {
+		log.Warnf("failed to close connection to sourceDB metadata")
+	}
+
+	return sourceTableMetadata, sourceIndexMetadata, uniqueSourceIndexMetadata, totalSourceDBSize, nil
+}
+
+func getSourceMetadataTableIndexStats(sourceDB *sql.DB, sourceTableName string) ([]SourceDBMetadata, []SourceDBMetadata, float64, error) {
 	// Construct the WHERE clause dynamically using LIKE
 	var likeConditions []string
 	for _, pattern := range SourceMetadataObjectTypesToUse {
@@ -1364,10 +1567,10 @@ func getSourceMetadata(sourceDB *sql.DB) ([]SourceDBMetadata, []SourceDBMetadata
 		FROM %v 
 		WHERE %s
 		ORDER BY IFNULL(size_in_bytes, 0) ASC
-	`, GetTableIndexStatName(), whereClause)
+	`, sourceTableName, whereClause)
 	rows, err := sourceDB.Query(query)
 	if err != nil {
-		return nil, nil, 0.0, fmt.Errorf("failed to query source metadata with query [%s]: %w", query, err)
+		return nil, nil, 0.0, fmt.Errorf("failed to query source metadata table: %v with query [%s]: %w", sourceTableName, query, err)
 	}
 	defer func() {
 		if closeErr := rows.Close(); closeErr != nil {
@@ -1398,10 +1601,108 @@ func getSourceMetadata(sourceDB *sql.DB) ([]SourceDBMetadata, []SourceDBMetadata
 	if err := rows.Err(); err != nil {
 		return nil, nil, 0.0, fmt.Errorf("failed to query source metadata with query [%s]: %w", query, err)
 	}
-	if err := sourceDB.Close(); err != nil {
-		log.Warnf("failed to close connection to sourceDB metadata")
-	}
+
 	return sourceTableMetadata, sourceIndexMetadata, totalSourceDBSize, nil
+}
+
+/*
+filterRedundantIndexes filters out redundant indexes from the sourceIndexMetadata slice.
+It removes indexes where the combination of SchemaName.ParentTableName.ObjectName matches
+redundant_schema_name.redundant_table_name.redundant_index_name from the redundant_indexes table.
+
+Parameters:
+
+	sourceIndexMetadata: Slice of source index metadata to be filtered
+	redundantIndexes: Slice of redundant index information from the database
+
+Returns:
+
+	[]SourceDBMetadata: Filtered slice with redundant indexes removed
+*/
+func filterRedundantIndexes(sourceIndexMetadata []SourceDBMetadata, redundantIndexes []utils.RedundantIndexesInfo, sourceDBType string) []SourceDBMetadata {
+	if len(redundantIndexes) == 0 {
+		return sourceIndexMetadata
+	}
+
+	// Create a map for efficient lookup of redundant indexes
+	redundantMap := make(map[string]bool)
+	for _, ri := range redundantIndexes {
+		// Use the helper method to get fully qualified index name
+		key := ri.GetRedundantIndexCatalogObjectName()
+		redundantMap[key] = true
+	}
+
+	// Filter out redundant indexes
+	var filteredIndexes []SourceDBMetadata
+	for _, indexMetadata := range sourceIndexMetadata {
+		// Extract table name from parent table name (format: "schema.table")
+		var tableName string
+		if indexMetadata.ParentTableName.Valid {
+			parts := strings.Split(indexMetadata.ParentTableName.String, ".")
+			if len(parts) == 2 {
+				tableName = parts[1] // Extract table name part
+			} else {
+				tableName = indexMetadata.ParentTableName.String // Fallback to full string
+			}
+		} else {
+			// If parent table name is not valid, include the index (can't match against redundant list)
+			filteredIndexes = append(filteredIndexes, indexMetadata)
+			continue
+		}
+
+		// Create a temporary RedundantIndexesInfo to use the same helper method for consistent formatting
+		indexSqlName := sqlname.NewObjectNameQualifiedWithTableName(sourceDBType, "",
+			indexMetadata.ObjectName, indexMetadata.SchemaName, tableName)
+		key := indexSqlName.Qualified.Unquoted
+
+		// Only include index if it's not in the redundant list
+		if !redundantMap[key] {
+			filteredIndexes = append(filteredIndexes, indexMetadata)
+		}
+	}
+
+	return filteredIndexes
+}
+
+/*
+getSourceMetadataRedundantIndexes fetches redundant indexes from the redundant_indexes table using the provided database connection.
+It returns a slice of RedundantIndexesInfo structs containing schema, table, and index names.
+
+Parameters:
+
+	sourceDB: Database connection to query the redundant_indexes table
+	sourceTableName: Name of the table containing redundant index information
+
+Returns:
+
+	[]utils.RedundantIndexesInfo: Slice of redundant index information from the database
+	error: Error if any issue occurs during the query
+*/
+func getSourceMetadataRedundantIndexes(sourceDB *sql.DB, sourceTableName string, sourceDBType string) ([]utils.RedundantIndexesInfo, error) {
+	log.Infof("fetching redundant indexes from %q table", sourceTableName)
+	query := fmt.Sprintf(`SELECT redundant_schema_name, redundant_table_name, redundant_index_name FROM %s`, sourceTableName)
+	rows, err := sourceDB.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("error querying redundant indexes-%s: %w", query, err)
+	}
+	defer rows.Close()
+
+	redundantIndexes := make([]utils.RedundantIndexesInfo, 0)
+	for rows.Next() {
+		var ri utils.RedundantIndexesInfo
+		if err := rows.Scan(&ri.RedundantSchemaName, &ri.RedundantTableName, &ri.RedundantIndexName); err != nil {
+			return nil, fmt.Errorf("error scanning redundant index row: %w", err)
+		}
+		// Set the DBType to enable proper object name generation
+		ri.DBType = sourceDBType
+		redundantIndexes = append(redundantIndexes, ri)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error reading redundant index rows: %w", err)
+	}
+
+	return redundantIndexes, nil
 }
 
 /*
@@ -1530,7 +1831,7 @@ Returns:
 func getListOfIndexesAlongWithObjects(tableList []SourceDBMetadata,
 	sourceIndexMetadata []SourceDBMetadata) ([]SourceDBMetadata, int) {
 	var indexesAndObject []SourceDBMetadata
-	var cumulativeIndexCount int = 0
+	var cumulativeIndexCount = 0
 
 	for _, table := range tableList {
 		// Check and fetch indexes for the current table
@@ -1735,7 +2036,7 @@ Parameters:
   - targetNumNodes: the target number of nodes to calculate the scaling ratio for
 
 Returns:
-  - returns the relative import time divisor based on throughput scaling with number of nodes
+  - float64: the relative import time divisor based on throughput scaling with number of nodes
 */
 func findNumNodesThroughputScalingImportTimeDivisor(numNodesImpactData []ExpDataLoadTimeNumNodesImpact, targetNumNodes float64) float64 {
 	// Check if the slice is empty
