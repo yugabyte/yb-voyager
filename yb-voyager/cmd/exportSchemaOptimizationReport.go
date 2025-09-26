@@ -227,6 +227,7 @@ func (p *PKOrUKHashSplittingChange) IsEmpty() bool {
 
 func buildRedundantIndexChange(indexTransformer *sqltransformer.IndexFileTransformer) *RedundantIndexChange {
 	if indexTransformer == nil {
+		return nil
 	}
 	if len(indexTransformer.RedundantIndexesToExistingIndexToRemove.Keys()) == 0 {
 		//Do not add redundant index change if no redundant indexes found
