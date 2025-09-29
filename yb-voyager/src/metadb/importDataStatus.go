@@ -21,7 +21,7 @@ import (
 
 type ImportDataStatusRecord struct {
 	ErrorPolicySnapshot string `json:"errorPolicySnapshot"`
-	ActualImportStarted bool `json:"actualImportStarted"`
+	ImportDataStarted   bool   `json:"importDataStarted"`
 }
 
 const IMPORT_DATA_STATUS_KEY = "import_data_status"

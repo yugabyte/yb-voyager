@@ -226,13 +226,13 @@ func shouldReregisterYBNames() bool {
 		if err != nil {
 			utils.ErrExit("failed to get import data status record: %w", err)
 		}
-		actualDataImportStarted = statusRecord.ActualImportStarted
+		actualDataImportStarted = statusRecord.ImportDataStarted
 	case IMPORT_FILE_ROLE:
 		statusRecord, err := metaDB.GetImportDataFileStatusRecord()
 		if err != nil {
 			utils.ErrExit("failed to get import data status record: %w", err)
 		}
-		actualDataImportStarted = statusRecord.ActualImportStarted
+		actualDataImportStarted = statusRecord.ImportDataStarted
 
 	}
 	return (bool(startClean) || !actualDataImportStarted)
@@ -620,23 +620,31 @@ func updateTargetConfInMigrationStatus() {
 	}
 }
 
-func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorPolicy) {
-
+func updateImportDataStartedInMetaDB() error {
 	switch importerRole {
 	case TARGET_DB_IMPORTER_ROLE:
 		err := metaDB.UpdateImportDataStatusRecord(func(record *metadb.ImportDataStatusRecord) {
-			record.ActualImportStarted = true
+			record.ImportDataStarted = true
 		})
 		if err != nil {
-			utils.ErrExit("Failed to update import data status record: %s", err)
+			return fmt.Errorf("Failed to update import data status record: %s", err)
 		}
 	case IMPORT_FILE_ROLE:
 		err := metaDB.UpdateImportDataFileStatusRecord(func(record *metadb.ImportDataFileStatusRecord) {
-			record.ActualImportStarted = true
+			record.ImportDataStarted = true
 		})
 		if err != nil {
-			utils.ErrExit("Failed to update import data file status record: %s", err)
+			return fmt.Errorf("Failed to update import data file status record: %s", err)
 		}
+	}
+	return nil
+}
+
+func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorPolicy) {
+
+	err := updateImportDataStartedInMetaDB()
+	if err != nil {
+		utils.ErrExit("Failed to update import data started in meta DB: %s", err)
 	}
 
 	if callhome.SendDiagnostics {
