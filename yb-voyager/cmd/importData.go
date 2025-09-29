@@ -233,6 +233,9 @@ func shouldReregisterYBNames() bool {
 			utils.ErrExit("failed to get import data status record: %w", err)
 		}
 		actualDataImportStarted = statusRecord.ImportDataStarted
+	default: 
+		//for other importers we shouldn't re-register as this is for YB names and other importers are source-replica / source 
+		return false
 
 	}
 	return (bool(startClean) || !actualDataImportStarted)
