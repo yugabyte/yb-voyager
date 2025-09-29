@@ -44,8 +44,6 @@ Prerequisites:
   - Source workload should have been executed on both source and target database
   - stats collection(pg_stat_statements) must be enabled on the target YugabyteDB database`,
 
-	Hidden: true, // Hide command until fully implemented
-
 	PreRun: func(cmd *cobra.Command, args []string) {
 		// required to decide the defaults values for default ssl mode, port, schema, etc.
 		tconf.TargetDBType = YUGABYTEDB
