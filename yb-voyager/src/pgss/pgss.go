@@ -17,6 +17,8 @@ package pgss
 
 import (
 	"math"
+
+	log "github.com/sirupsen/logrus"
 )
 
 // PgStatStatements represents a pg_stat_statements entry
@@ -40,6 +42,8 @@ type PgStatStatements struct {
 
 // Merge merges the stats for the entries with the same query
 func (p *PgStatStatements) Merge(second *PgStatStatements) {
+	log.Infof("structs before merge:\nfirst: %+v, second: %+v", p, second)
+
 	first := *p // shallow copy is ok as no pointers in the struct
 
 	// queryid and query are expected to be same for the entries to be merged
@@ -60,6 +64,8 @@ func (p *PgStatStatements) Merge(second *PgStatStatements) {
 	// 	first.Calls, first.TotalExecTime, first.StddevExecTime,
 	// 	second.Calls, second.TotalExecTime, second.StddevExecTime,
 	// )
+
+	log.Infof("struct after merge: %+v", p)
 }
 
 // By ChatGPT:
@@ -91,10 +97,10 @@ func (p *PgStatStatements) Merge(second *PgStatStatements) {
 
 // ================================ Merge PgStatStatements =================================
 
-// MergePgStatStatements merges the stats for the entries with the same query
-func MergePgStatStatements(entries []*PgStatStatements) []*PgStatStatements {
+// MergePgStatStatementsBasedOnQuery merges the stats for the entries with the same query text
+func MergePgStatStatementsBasedOnQuery(entries []*PgStatStatements) []*PgStatStatements {
+	log.Infof("merging pg_stat_statements entries")
 	queryMap := make(map[string]*PgStatStatements)
-
 	for _, entry := range entries {
 		if _, ok := queryMap[entry.Query]; !ok {
 			queryMap[entry.Query] = entry
@@ -107,5 +113,8 @@ func MergePgStatStatements(entries []*PgStatStatements) []*PgStatStatements {
 	for _, entry := range queryMap {
 		mergedEntries = append(mergedEntries, entry)
 	}
+
+	log.Infof("entries before merge: %d", len(entries))
+	log.Infof("entries after merge: %d", len(mergedEntries))
 	return mergedEntries
 }

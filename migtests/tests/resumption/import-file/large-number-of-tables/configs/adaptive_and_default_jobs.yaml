@@ -1263,6 +1263,6 @@ row_count:
 
 # Flags which are run with varying values on each invocation
 varying_flags:
-  --enable-adaptive-parallelism:
+  --adaptive-parallelism:
     type: choice
-    value: [true, false]
+    value: [balanced, disabled]

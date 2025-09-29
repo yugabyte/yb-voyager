@@ -157,8 +157,7 @@ func InitAssessmentDB() error {
 			mean_exec_time		REAL,
 			min_exec_time		REAL,
 			max_exec_time		REAL,
-			stddev_exec_time	REAL,
-			PRIMARY KEY (queryid));`, DB_QUERIES_SUMMARY),
+			stddev_exec_time	REAL);`, DB_QUERIES_SUMMARY),
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
 			redundant_schema_name TEXT,
 			redundant_table_name TEXT,
@@ -456,7 +455,7 @@ func (adb *AssessmentDB) LoadPgssCSVIntoTable(filePath string) error {
 	return nil
 }
 
-func (adb *AssessmentDB) InsertPgssEntries(entries []pgss.PgStatStatements) error {
+func (adb *AssessmentDB) InsertPgssEntries(entries []*pgss.PgStatStatements) error {
 	if len(entries) == 0 {
 		return nil
 	}

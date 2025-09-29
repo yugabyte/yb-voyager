@@ -294,9 +294,9 @@ func (yb *TargetYugabyteDB) InitConnPool() error {
 		log.Infof("Using %d parallel jobs by default. Use --parallel-jobs to specify a custom value", yb.Tconf.Parallelism)
 	}
 
-	if yb.Tconf.EnableYBAdaptiveParallelism {
-		if yb.Tconf.MaxParallelism <= 0 {
-			yb.Tconf.MaxParallelism = yb.Tconf.Parallelism * 2
+	if yb.tconf.AdaptiveParallelismMode.IsEnabled() {
+		if yb.tconf.MaxParallelism <= 0 {
+			yb.tconf.MaxParallelism = yb.tconf.Parallelism * 2
 		}
 	} else {
 		yb.Tconf.MaxParallelism = yb.Tconf.Parallelism
@@ -1999,7 +1999,7 @@ func (yb *TargetYugabyteDB) CollectPgStatStatements() ([]*pgss.PgStatStatements,
 		rows.Close()
 	}
 
-	mergedEntries := pgss.MergePgStatStatements(entries)
+	mergedEntries := pgss.MergePgStatStatementsBasedOnQuery(entries)
 	return mergedEntries, nil
 }
 

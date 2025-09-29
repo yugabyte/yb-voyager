@@ -58,7 +58,7 @@ var importDataStatusCmd = &cobra.Command{
 			importerRole = IMPORT_FILE_ROLE
 		}
 
-		err = InitNameRegistry(exportDir, "", nil, nil, nil, nil, false)
+		err = InitNameRegistry(exportDir, importerRole, nil, nil, nil, nil, false)
 		if err != nil {
 			utils.ErrExit("initialize name registry: %w", err)
 		}
@@ -73,8 +73,7 @@ var reportOrStatusCmdOutputFormat string
 func init() {
 	importDataCmd.AddCommand(importDataStatusCmd)
 	importDataStatusCmd.Flags().StringVar(&reportOrStatusCmdOutputFormat, "output-format", "table",
-		"format in which report will be generated: (table, json)")
-	importDataStatusCmd.Flags().MarkHidden("output-format") //confirm this if should be hidden or not
+		"format in which report will be generated: (table, json) (default: table)")
 }
 
 const (
@@ -265,7 +264,7 @@ func prepareRowWithDatafile(dataFile *datafile.FileEntry, state *ImportDataState
 	reportProgressInBytes = reportProgressInBytes || dataFile.RowCount == -1
 	//We are ignoring the target side name if not found as it might not be used to import data
 	//for these tables we are anyways going to report status as NOT_STARTED
-	dataFileNt, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFound(dataFile.TableName)
+	dataFileNt, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole(dataFile.TableName)
 	if err != nil {
 		return nil, fmt.Errorf("lookup %s from name registry: %w", dataFile.TableName, err)
 	}

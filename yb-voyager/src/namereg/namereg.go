@@ -196,7 +196,7 @@ func (reg *NameRegistry) GetRegisteredTableList(ignoreOtherSideOfMappingIfNotFou
 			tableName := fmt.Sprintf("%v.%v", s, t)
 			if ignoreOtherSideOfMappingIfNotFound {
 				if ignoreIfTargetNotFound {
-					tuple, err := reg.LookupTableNameAndIgnoreIfTargetNotFound(tableName)
+					tuple, err := reg.LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole(tableName)
 					if err != nil {
 						return nil, fmt.Errorf("error lookup for the table name [%v]: %v", tableName, err)
 					}
@@ -317,15 +317,32 @@ func (reg *NameRegistry) LookupTableName(tableNameArg string) (sqlname.NameTuple
 this function hels returning the nametuple in case the tableNameArg is only present in target,
 so this will return a nametuple with one side populated only
 In case both the source and target not present for the table this will return error.
+
+Usecases:
+0. export-data: Required to run guardrails to prevent changing table-list in resumption cases of export-data.
+1. import-data: Table was exported in export-data, but table not created on target, and excluded in table-list of import-data. Tables which are not present on target are not allowed to be migrated.
+2. import-data-status: as a result of above case of import-data, status commands also need to support tables that were exported, but not created/migrated on target. status for ignored tables is reported as NOT_STARTED.
+3. export-data-status: run export-data tables (a,b,c), import-data(a,b). run export-data-status: at this point, we need to ignore if c is not found on target. (we still report it in the status output)
+4. schema-registry: BETA_FAST_DATA_EXPORT case (debezium) where table is exported, but not created on target. Only tables present in the table-list (already validated to be present on target) will be loaded from the registry.
 */
 
-func (reg *NameRegistry) LookupTableNameAndIgnoreIfTargetNotFound(tableNameArg string) (sqlname.NameTuple, error) {
-	sourceName, targetName, err := reg.lookupSourceAndTargetTableNames(tableNameArg, true, false)
-	if err != nil {
-		return sqlname.NameTuple{}, fmt.Errorf("error lookup source and target names for table [%v]: %v", tableNameArg, err)
+func (reg *NameRegistry) LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole(tableNameArg string) (sqlname.NameTuple, error) {
+	switch reg.params.Role {
+	case TARGET_DB_IMPORTER_ROLE, SOURCE_DB_EXPORTER_STATUS_ROLE, SOURCE_DB_EXPORTER_ROLE:
+		//For target db importer specific roles only we should use this lookup with ignore if target not found
+		//using exporter_status for export data status command as this command can run after import data command so we need to ignore if target not found
+		//using source db exporter role for export data command as it gets a registered table list from namereg and we need to ignore the ones that are not present in the target to handle subset of tables from source being migrated
+		//not using this function TARGET_DB_EXPORTER ones as they are live migration specific and we shouldn't use it for them.
+		sourceName, targetName, err := reg.lookupSourceAndTargetTableNames(tableNameArg, true, false)
+		if err != nil {
+			return sqlname.NameTuple{}, fmt.Errorf("error lookup source and target names for table [%v]: %v", tableNameArg, err)
+		}
+		ntup := NewNameTuple(reg.params.Role, sourceName, targetName)
+		return ntup, nil
+	default:
+		//In case the role is not target db import related we should use proper lookup
+		return reg.LookupTableName(tableNameArg)
 	}
-	ntup := NewNameTuple(reg.params.Role, sourceName, targetName)
-	return ntup, nil
 }
 
 /*
@@ -345,7 +362,7 @@ func (reg *NameRegistry) LookupTableNameAndIgnoreIfSourceNotFound(tableNameArg s
 
 func (reg *NameRegistry) lookupSourceAndTargetTableNames(tableNameArg string, ignoreIfTargetNotFound bool, ignoreIfSourceNotFound bool) (*sqlname.ObjectName, *sqlname.ObjectName, error) {
 	if ignoreIfTargetNotFound && ignoreIfSourceNotFound {
-		//can't use nametuple if both are ignored	
+		//can't use nametuple if both are ignored
 		return nil, nil, fmt.Errorf("ignoreIfTargetNotFound and ignoreIfSourceNotFound cannot be true at the same time")
 	}
 	createAllObjectNamesMap := func(m map[string][]string, m1 map[string][]string) map[string][]string {
