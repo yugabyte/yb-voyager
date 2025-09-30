@@ -117,38 +117,19 @@ func isNotValidConstraint(stmt string) (bool, error) {
 	return false, nil
 }
 
-func filterSessionVariables(sqlInfoArr []sqlInfo) ([]sqlInfo, []sqlInfo) {
-	// var sessionVariablesSqlInfo []sqlInfo
-	// var filteredSqlInfoArr []sqlInfo
-	// for _, sqlInfo := range sqlInfoArr {
-	// 	// upperStmt := strings.ToUpper(sqlInfo.stmt)
-	// 	// if strings.HasPrefix(upperStmt, "SET ") {
-	// 	// 	// TODO: should we filter these out at the time of export schema
-	// 	// 	// pg_dump generate `SET client_min_messages = 'warning';`, but we want to get
-	// 	// 	// NOTICE severity as well (which is the default), hence skipping this.
-	// 	// 	//pg_dump 17 gives this SET transaction_timeout = 0;
-	// 	// 	if strings.Contains(upperStmt, CLIENT_MESSAGES_SESSION_VAR) ||
-	// 	// 		strings.Contains(upperStmt, TRANSACTION_TIMEOUT_SESSION_VAR) {
-	// 	// 		//skip these session variables
-	// 	// 		log.Infof("Skipping session variable: %s", sqlInfo.stmt)
-	// 	// 		continue
-	// 	// 	}
-	// 	// 	sessionVariablesSqlInfo = append(sessionVariablesSqlInfo, sqlInfo)
-	// 	// } else {
-	// 	//rest are DDLs
-	// 	filteredSqlInfoArr = append(filteredSqlInfoArr, sqlInfo)
-	// 	// }
-	// }
-	// return sessionVariablesSqlInfo, filteredSqlInfoArr
-	return nil, nil
-}
 
 func executeSqlFile(file string, objType string, skipFn func(string, string) bool) error {
 	log.Infof("Execute SQL file %q on target %q", file, tconf.Host)
 
 	sqlInfoArr := parseSqlFileForObjectType(file, objType)
-	// sessionVariablesSqlInfo, filteredSqlInfoArr := filterSessionVariables(sqlInfoArr)
 
+	/*
+	session variables are treated in the same manner as any other statement.
+	we are storing the session variables executed in the order in this list to use this list 
+	to create a new connection with the same session variables for the particular point in the file.
+	For the deffered logic, we are storing the sessions variables with the statment to execute them whenever we are creating
+	connection.
+	*/
 	sessionVariables := make([]sqlInfo, 0)
 	conn := newTargetConn(sessionVariables)
 
