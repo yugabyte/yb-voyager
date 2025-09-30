@@ -62,3 +62,8 @@ const (
 	PRIMARY_KEY_CONFLICT_ACTION_IGNORE = "IGNORE"
 	// PRIMARY_KEY_CONFLICT_ACTION_UPDATE = "UPDATE"
 )
+
+// Performance comparison report constants
+const (
+	PERFORMANCE_REPORT_BASE_NAME = "performance-comparison-report"
+)
