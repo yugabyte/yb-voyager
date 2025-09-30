@@ -65,5 +65,5 @@ const (
 
 // Performance comparison report constants
 const (
-	PERFORMANCE_REPORT_BASE_NAME = "performance-comparison-report"
+	PERFORMANCE_REPORT_BASE_NAME = "performance_comparison_report"
 )
