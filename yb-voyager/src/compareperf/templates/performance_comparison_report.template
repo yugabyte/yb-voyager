@@ -308,6 +308,9 @@
                                 Query
                                 <span class="sort-arrow"></span>
                             </th>
+                            <th colspan="2" style="background-color: #27ae60; color: white; text-align: center; border-right: 3px solid #1e8449;">
+                                Comparison Metrics
+                            </th>
                             <th colspan="6" style="background-color: #4a90e2; color: white; text-align: center; border-right: 3px solid #2c5aa0;">
                                 {{.SourceDBType}}
                             </th>
@@ -316,6 +319,14 @@
                             </th>
                         </tr>
                         <tr>
+                            <th class="sortable sort-none" data-column="impact-score" data-type="number" style="background-color: #27ae60; color: white;">
+                                Impact Score (ms)
+                                <span class="sort-arrow"></span>
+                            </th>
+                            <th class="sortable sort-none" data-column="slowdown-ratio" data-type="number" style="background-color: #27ae60; color: white; border-right: 3px solid #1e8449;">
+                                Slowdown Ratio
+                                <span class="sort-arrow"></span>
+                            </th>
                             <th class="sortable sort-none" data-column="source-calls" data-type="number" style="background-color: #4a90e2; color: white;">
                                 Calls
                                 <span class="sort-arrow"></span>
@@ -370,6 +381,9 @@
                         {{range .AllComparisons}}
                         <tr>
                             <td class="query-text" data-value="{{.Query}}" title="{{.Query}}">{{.Query}}</td>
+                            <!-- Performance Metrics -->
+                            <td data-value="{{if eq .MatchStatus "MATCHED"}}{{.ImpactScore}}{{else}}-1{{end}}">{{if eq .MatchStatus "MATCHED"}}{{printf "%.2f" .ImpactScore}}{{else}}N/A{{end}}</td>
+                            <td data-value="{{if eq .MatchStatus "MATCHED"}}{{.SlowdownRatio}}{{else}}-1{{end}}" style="border-right: 3px solid #1e8449;">{{if eq .MatchStatus "MATCHED"}}{{printf "%.2fx" .SlowdownRatio}}{{else}}N/A{{end}}</td>
                             <!-- Source Stats -->
                             <td data-value="{{if .SourceStats}}{{.SourceStats.ExecutionCount}}{{else}}-1{{end}}" style="border-right: 1px solid #ccc;">{{if .SourceStats}}{{.SourceStats.ExecutionCount}}{{else}}N/A{{end}}</td>
                             <td data-value="{{if .SourceStats}}{{.SourceStats.RowsProcessed}}{{else}}-1{{end}}" style="border-right: 1px solid #ccc;">{{if .SourceStats}}{{.SourceStats.RowsProcessed}}{{else}}N/A{{end}}</td>
@@ -511,18 +525,20 @@
             function getColumnIndex(column) {
                 var mapping = {
                     'query': 0,
-                    'source-calls': 1,
-                    'source-rows': 2,
-                    'source-total': 3,
-                    'source-mean': 4,
-                    'source-min': 5,
-                    'source-max': 6,
-                    'yb-calls': 7,
-                    'yb-rows': 8,
-                    'yb-total': 9,
-                    'yb-mean': 10,
-                    'yb-min': 11,
-                    'yb-max': 12
+                    'impact-score': 1,
+                    'slowdown-ratio': 2,
+                    'source-calls': 3,
+                    'source-rows': 4,
+                    'source-total': 5,
+                    'source-mean': 6,
+                    'source-min': 7,
+                    'source-max': 8,
+                    'yb-calls': 9,
+                    'yb-rows': 10,
+                    'yb-total': 11,
+                    'yb-mean': 12,
+                    'yb-min': 13,
+                    'yb-max': 14
                 };
                 return mapping[column] || 0;
             }
