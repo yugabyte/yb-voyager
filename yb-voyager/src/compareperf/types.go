@@ -47,6 +47,10 @@ func ConvertPgssSliceToQueryStats(pgssSlice []*pgss.PgStatStatements) []*types.Q
 	return queryStats
 }
 
+// SLOWDOWN_RATIO_OFFSET is the constant added to both source and target average execution times
+// in the slowdown ratio formula to account for client side latencies(2 ms generally) observed by users
+const SLOWDOWN_RATIO_OFFSET = 2.0
+
 // ================================ Comparison Report Types =================================
 
 type ComparisonReport struct {
@@ -78,7 +82,7 @@ type QueryComparison struct {
 
 	/*
 		Slowdown ratio is the ratio of target average execution time to source average execution time
-		Formula: (yb_avg_exec_time + 2) / (pg_avg_exec_time + 2)
+		Formula: (yb_avg_exec_time + SLOWDOWN_RATIO_OFFSET) / (pg_avg_exec_time + SLOWDOWN_RATIO_OFFSET)
 
 		-1 if not MATCHED
 	*/
@@ -137,7 +141,30 @@ func (c *QueryComparison) calculateMetrics() {
 	targetTotal := c.TargetStats.TotalExecTime
 	c.ImpactScore = targetTotal - sourceNormalized
 
+	// TODO: check if impact score is negative (i.e. target is faster)
+
 	// Slowdown ratio is the ratio of target average execution time to source average execution time
-	// Formula: (yb_avg_exec_time + 2) / (pg_avg_exec_time + 2)
-	c.SlowdownRatio = (c.TargetStats.AverageExecTime + 2) / (c.SourceStats.AverageExecTime + 2)
+	// Formula: (yb_avg_exec_time + SLOWDOWN_RATIO_OFFSET) / (pg_avg_exec_time + SLOWDOWN_RATIO_OFFSET)
+	c.SlowdownRatio = (c.TargetStats.AverageExecTime + SLOWDOWN_RATIO_OFFSET) / (c.SourceStats.AverageExecTime + SLOWDOWN_RATIO_OFFSET)
+}
+
+// getCallCount returns the call count for sorting purposes
+// For MATCHED queries, use source calls (primary data source)
+// For SOURCE_ONLY queries, use source calls
+// For TARGET_ONLY queries, use target calls
+func (c *QueryComparison) getCallCount() int64 {
+	switch c.MatchStatus {
+	case MATCHED, SOURCE_ONLY:
+		if c.SourceStats != nil {
+			return c.SourceStats.ExecutionCount
+		}
+		return 0
+	case TARGET_ONLY:
+		if c.TargetStats != nil {
+			return c.TargetStats.ExecutionCount
+		}
+		return 0
+	default:
+		return 0
+	}
 }

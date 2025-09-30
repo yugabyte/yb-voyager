@@ -109,7 +109,6 @@ func (c *QueryPerformanceComparator) Compare() error {
 
 	// 5. console summary
 	fmt.Println(c.consoleSummary())
-
 	return nil
 }
 
@@ -265,8 +264,8 @@ func (c *QueryPerformanceComparator) generateHTMLReport(exportDir string) error 
 		}
 
 		// If same match status, sort by call frequency (descending)
-		iCalls := getCallCount(sortedComparisons[i])
-		jCalls := getCallCount(sortedComparisons[j])
+		iCalls := sortedComparisons[i].getCallCount()
+		jCalls := sortedComparisons[j].getCallCount()
 		return iCalls > jCalls
 	})
 	sortedReport.AllComparisons = sortedComparisons
@@ -304,25 +303,4 @@ func (c *QueryPerformanceComparator) generateJSONReport(exportDir string) error 
 
 	utils.PrintAndLog("JSON report generated at: %s", jsonPath)
 	return nil
-}
-
-// getCallCount returns the call count for sorting purposes
-// For MATCHED queries, use source calls (primary data source)
-// For SOURCE_ONLY queries, use source calls
-// For TARGET_ONLY queries, use target calls
-func getCallCount(comparison *QueryComparison) int64 {
-	switch comparison.MatchStatus {
-	case MATCHED, SOURCE_ONLY:
-		if comparison.SourceStats != nil {
-			return comparison.SourceStats.ExecutionCount
-		}
-		return 0
-	case TARGET_ONLY:
-		if comparison.TargetStats != nil {
-			return comparison.TargetStats.ExecutionCount
-		}
-		return 0
-	default:
-		return 0
-	}
 }
