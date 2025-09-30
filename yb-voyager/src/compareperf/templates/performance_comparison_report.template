@@ -11,7 +11,8 @@
             background-color: #f5f5f5;
         }
         .container {
-            max-width: 1200px;
+            max-width: none;
+            width: 95%;
             margin: 0 auto;
             background: white;
             padding: 20px;
@@ -173,6 +174,12 @@
             content: "⇅";
             opacity: 0.5;
         }
+        .table-container {
+            overflow-x: auto;
+            margin: 20px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
     </style>
 </head>
 <body>
@@ -293,7 +300,8 @@
 
             <div id="all" class="tab-content">
                 <h2>All Queries</h2>
-                <table id="allQueriesTable">
+                <div class="table-container">
+                    <table id="allQueriesTable">
                     <thead>
                         <tr>
                             <th rowspan="2" class="sortable sort-none" data-column="query" data-type="text">
@@ -380,6 +388,7 @@
                         {{end}}
                     </tbody>
                 </table>
+                </div>
             </div>
         </div>
 
