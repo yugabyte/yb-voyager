@@ -118,46 +118,48 @@ func isNotValidConstraint(stmt string) (bool, error) {
 }
 
 func filterSessionVariables(sqlInfoArr []sqlInfo) ([]sqlInfo, []sqlInfo) {
-	var sessionVariablesSqlInfo []sqlInfo
-	var filteredSqlInfoArr []sqlInfo
-	for _, sqlInfo := range sqlInfoArr {
-		upperStmt := strings.ToUpper(sqlInfo.stmt)
-		if strings.HasPrefix(upperStmt, "SET ") {
-			// TODO: should we filter these out at the time of export schema
-			// pg_dump generate `SET client_min_messages = 'warning';`, but we want to get
-			// NOTICE severity as well (which is the default), hence skipping this.
-			//pg_dump 17 gives this SET transaction_timeout = 0;
-			if strings.Contains(upperStmt, CLIENT_MESSAGES_SESSION_VAR) ||
-				strings.Contains(upperStmt, TRANSACTION_TIMEOUT_SESSION_VAR) {
-				//skip these session variables
-				log.Infof("Skipping session variable: %s", sqlInfo.stmt)
-				continue
-			}
-			sessionVariablesSqlInfo = append(sessionVariablesSqlInfo, sqlInfo)
-		} else {
-			//rest are DDLs
-			filteredSqlInfoArr = append(filteredSqlInfoArr, sqlInfo)
-		}
-	}
-	return sessionVariablesSqlInfo, filteredSqlInfoArr
+	// var sessionVariablesSqlInfo []sqlInfo
+	// var filteredSqlInfoArr []sqlInfo
+	// for _, sqlInfo := range sqlInfoArr {
+	// 	// upperStmt := strings.ToUpper(sqlInfo.stmt)
+	// 	// if strings.HasPrefix(upperStmt, "SET ") {
+	// 	// 	// TODO: should we filter these out at the time of export schema
+	// 	// 	// pg_dump generate `SET client_min_messages = 'warning';`, but we want to get
+	// 	// 	// NOTICE severity as well (which is the default), hence skipping this.
+	// 	// 	//pg_dump 17 gives this SET transaction_timeout = 0;
+	// 	// 	if strings.Contains(upperStmt, CLIENT_MESSAGES_SESSION_VAR) ||
+	// 	// 		strings.Contains(upperStmt, TRANSACTION_TIMEOUT_SESSION_VAR) {
+	// 	// 		//skip these session variables
+	// 	// 		log.Infof("Skipping session variable: %s", sqlInfo.stmt)
+	// 	// 		continue
+	// 	// 	}
+	// 	// 	sessionVariablesSqlInfo = append(sessionVariablesSqlInfo, sqlInfo)
+	// 	// } else {
+	// 	//rest are DDLs
+	// 	filteredSqlInfoArr = append(filteredSqlInfoArr, sqlInfo)
+	// 	// }
+	// }
+	// return sessionVariablesSqlInfo, filteredSqlInfoArr
+	return nil, nil
 }
 
 func executeSqlFile(file string, objType string, skipFn func(string, string) bool) error {
 	log.Infof("Execute SQL file %q on target %q", file, tconf.Host)
 
 	sqlInfoArr := parseSqlFileForObjectType(file, objType)
-	sessionVariablesSqlInfo, filteredSqlInfoArr := filterSessionVariables(sqlInfoArr)
+	// sessionVariablesSqlInfo, filteredSqlInfoArr := filterSessionVariables(sqlInfoArr)
 
-	conn := newTargetConn(sessionVariablesSqlInfo)
+	sessionVariables := make([]sqlInfo, 0)
+	conn := newTargetConn(sessionVariables)
 
 	defer func() {
 		if conn != nil {
 			conn.Close(context.Background())
 		}
 	}()
-	for _, sqlInfo := range filteredSqlInfoArr {
+	for _, sqlInfo := range sqlInfoArr {
 		if conn == nil {
-			conn = newTargetConn(sessionVariablesSqlInfo)
+			conn = newTargetConn(sessionVariables)
 		}
 
 		if skipFn != nil && skipFn(objType, sqlInfo.stmt) {
@@ -173,7 +175,12 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 			continue
 		}
 
-		err = executeSqlStmtWithRetries(&conn, sqlInfo, objType, sessionVariablesSqlInfo)
+		upperStmt := strings.ToUpper(sqlInfo.stmt)
+		if strings.HasPrefix(upperStmt, "SET ") && !skip {
+			sessionVariables = append(sessionVariables, sqlInfo)
+		}
+
+		err = executeSqlStmtWithRetries(&conn, sqlInfo, objType, sessionVariables)
 		if err != nil {
 			return err
 		}
@@ -183,6 +190,13 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 
 func shouldSkipDDL(stmt string, objType string) (bool, error) {
 	stmt = strings.ToUpper(stmt)
+
+	if strings.Contains(stmt, CLIENT_MESSAGES_SESSION_VAR) ||
+		strings.Contains(stmt, TRANSACTION_TIMEOUT_SESSION_VAR) {
+		//skip these session variables
+		log.Infof("Skipping session variable: %s", stmt)
+		return true, nil
+	}
 
 	if objType != TABLE {
 		return false, nil
@@ -205,7 +219,7 @@ func shouldSkipDDL(stmt string, objType string) (bool, error) {
 	return false, nil
 }
 
-func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string, sessionVariablesSqlInfo []sqlInfo) error {
+func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string, sessionVariables []sqlInfo) error {
 	var err error
 	var stmtNotice *pgconn.Notice
 	log.Infof("On %s run query:\n%s\n", tconf.Host, sqlInfo.formattedStmt)
@@ -235,13 +249,13 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string,
 		if strings.Contains(strings.ToLower(err.Error()), "conflicts with higher priority transaction") {
 			// creating fresh connection
 			(*conn).Close(context.Background())
-			*conn = newTargetConn(sessionVariablesSqlInfo)
+			*conn = newTargetConn(sessionVariables)
 			continue
 		} else if strings.Contains(strings.ToLower(err.Error()), strings.ToLower(SCHEMA_VERSION_MISMATCH_ERR)) &&
 			(objType == "INDEX" || objType == "PARTITION_INDEX") { // retriable error
 			// creating fresh connection
 			(*conn).Close(context.Background())
-			*conn = newTargetConn(sessionVariablesSqlInfo)
+			*conn = newTargetConn(sessionVariables)
 
 			// Extract the schema name and add to the index name
 			fullyQualifiedObjName, err := getIndexName(sqlInfo.stmt, sqlInfo.objName)
@@ -264,7 +278,7 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string,
 			log.Infof("deffering execution of SQL: %s", sqlInfo.formattedStmt)
 			deferredSqlStmts = append(deferredSqlStmts, DefferedSqlStmt{
 				sqlStmt:          sqlInfo,
-				sessionVariables: sessionVariablesSqlInfo,
+				sessionVariables: sessionVariables,
 			})
 		} else if isAlreadyExists(err.Error()) {
 			// pg_dump generates `CREATE SCHEMA public;` in the schemas.sql. Because the `public`
@@ -475,7 +489,7 @@ func dropIdx(conn *pgx.Conn, idxName string) error {
 	return nil
 }
 
-func newTargetConn(sessionVariablesSqlInfo []sqlInfo) *pgx.Conn {
+func newTargetConn(sessionVariables []sqlInfo) *pgx.Conn {
 	// save notice in global variable
 	noticeHandler := func(conn *pgconn.PgConn, n *pgconn.Notice) {
 		// ALTER TABLE .. ADD PRIMARY KEY throws the following notice in YugabyteDB.
@@ -517,7 +531,7 @@ func newTargetConn(sessionVariablesSqlInfo []sqlInfo) *pgx.Conn {
 	errExit(err)
 
 	//set session variables on the connection
-	for _, sessionVariable := range sessionVariablesSqlInfo {
+	for _, sessionVariable := range sessionVariables {
 		_, err := conn.Exec(context.Background(), sessionVariable.stmt)
 		if err != nil {
 			if strings.Contains(err.Error(), "unrecognized configuration") {

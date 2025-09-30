@@ -33,7 +33,8 @@ import (
 const (
 	REMOVED_REDUNDANT_INDEXES_FILE_NAME            = "redundant_indexes.sql"
 	SUGGESTION_TO_USE_SKIP_PERF_OPTIMIZATIONS_FLAG = "Use --skip-performance-optimizations true flag to skip applying performance optimizations to the index file"
-	HASH_SPLITTING_SESSION_VARIABLE                = "set yb_use_hash_splitting_by_default=on;"
+	HASH_SPLITTING_SESSION_VARIABLE_ON             = "set yb_use_hash_splitting_by_default=on;"
+	HASH_SPLITTING_SESSION_VARIABLE_OFF            = "set yb_use_hash_splitting_by_default=off;"
 )
 
 // =========================INDEX FILE TRANSFORMER=====================================
@@ -198,13 +199,10 @@ func (t *TableFileTransformer) Transform(file string) (string, error) {
 	}
 
 	if !t.skipPerformanceOptimizations && t.sourceDBType == constants.POSTGRESQL {
-		var parseTreeHashSplitting *pg_query.ParseResult
-		parseTreeHashSplitting, err = queryparser.Parse(HASH_SPLITTING_SESSION_VARIABLE)
+		parseTree.Stmts, err = transformer.AddHashSplittingONForPKConstraintsAndOFFForUKConstraints(parseTree.Stmts)
 		if err != nil {
-			return "", fmt.Errorf("failed to parse hash splitting session variable: %w", err) // TODO: handle error hand
+			return "", fmt.Errorf("failed to add hash splitting on for pk constraints: %w", err)
 		}
-		parseTreeHashSplitting.Stmts = append(parseTreeHashSplitting.Stmts, parseTree.Stmts...)
-		parseTree.Stmts = parseTreeHashSplitting.Stmts
 	}
 
 	sqlStmts, err := queryparser.DeparseRawStmts(parseTree.Stmts)

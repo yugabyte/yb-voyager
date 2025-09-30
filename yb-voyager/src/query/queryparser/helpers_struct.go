@@ -247,6 +247,16 @@ func IsFunctionObject(parseTree *pg_query.ParseResult) bool {
 	return !funcNode.CreateFunctionStmt.IsProcedure
 }
 
+func IsSetStmt(stmt *pg_query.RawStmt) bool {
+	_, ok := stmt.Stmt.Node.(*pg_query.Node_VariableSetStmt)
+	return ok
+}
+
+func IsSelectSetStmt(stmt *pg_query.RawStmt) bool {
+	_, ok := stmt.Stmt.Node.(*pg_query.Node_SelectStmt)
+	return ok
+}
+
 /*
 return type ex-
 CREATE OR REPLACE FUNCTION public.process_combined_tbl(
