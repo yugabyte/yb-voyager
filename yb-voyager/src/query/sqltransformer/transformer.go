@@ -53,7 +53,6 @@ func NewTransformer() *Transformer {
 
 var constraintTypesToMerge = []pg_query.ConstrType{
 	pg_query.ConstrType_CONSTR_PRIMARY, // PRIMARY KEY
-	// pg_query.ConstrType_CONSTR_UNIQUE,  // UNIQUE
 	pg_query.ConstrType_CONSTR_CHECK, // CHECK
 }
 

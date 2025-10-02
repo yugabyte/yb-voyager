@@ -76,7 +76,8 @@ func TestMergeConstraints_Basic(t *testing.T) {
 	expectedSqls := []string{
 		`CREATE TABLE test_table1 (id int, name varchar(255), CONSTRAINT test_table_pk PRIMARY KEY (id));`,
 		`ALTER TABLE test_table1 ADD CONSTRAINT check_name CHECK (name <> '') NOT VALID;`,
-		`CREATE TABLE test_table2 (id int, name varchar(255), email varchar(255), CONSTRAINT test_table_uk UNIQUE (email));`,
+		`CREATE TABLE test_table2 (id int, name varchar(255), email varchar(255));`,
+		`ALTER TABLE test_table2 ADD CONSTRAINT test_table_uk UNIQUE (email);`,
 		`ALTER TABLE test_table2 ADD CONSTRAINT test_table_fk FOREIGN KEY (id) REFERENCES test_table1 (id);`,
 	}
 
@@ -139,9 +140,10 @@ func TestMergeConstraints_AllSupportedConstraintTypes(t *testing.T) {
 	`
 
 	expectedSqls := []string{
-		`CREATE TABLE all_constraints (col1 int, col2 text, CONSTRAINT c_ck CHECK (col1 > 0), CONSTRAINT c_pk PRIMARY KEY (col1), CONSTRAINT c_uk UNIQUE (col2));`,
+		`CREATE TABLE all_constraints (col1 int, col2 text, CONSTRAINT c_ck CHECK (col1 > 0), CONSTRAINT c_pk PRIMARY KEY (col1));`,
 		`ALTER TABLE all_constraints ALTER COLUMN col1 SET NOT NULL;`,
 		`ALTER TABLE all_constraints ALTER COLUMN col1 SET DEFAULT 100;`,
+		`ALTER TABLE all_constraints ADD CONSTRAINT c_uk UNIQUE (col2);`,
 		`ALTER TABLE all_constraints ALTER col1 ADD GENERATED ALWAYS AS IDENTITY;`,
 		`ALTER TABLE all_constraints ADD CONSTRAINT c_excl EXCLUDE USING gist (col2 WITH &&);`,
 		`ALTER TABLE all_constraints ADD CONSTRAINT c_fk FOREIGN KEY (col2) REFERENCES some_table (txt);`,
