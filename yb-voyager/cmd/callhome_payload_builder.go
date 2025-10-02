@@ -337,6 +337,8 @@ const (
 	TABLE_COLOCATION_RECOMMENDATION_CHANGE_TYPE = "table_sharding_recommendation"
 	MVIEW_COLOCATION_RECOMMENDATION_CHANGE_TYPE = "mview_sharding_recommendation"
 	SECONDARY_INDEX_TO_RANGE_CHANGE_TYPE        = "secondary_index_to_range"
+	PK_HASH_SPLITTING_CHANGE_TYPE               = "pk_hash_splitting"
+	UK_RANGE_SPLITTING_CHANGE_TYPE              = "uk_range_splitting"
 )
 
 func buildCallhomeSchemaOptimizationChanges() []callhome.SchemaOptimizationChange {
@@ -389,6 +391,20 @@ func buildCallhomeSchemaOptimizationChanges() []callhome.SchemaOptimizationChang
 			OptimizationType: SECONDARY_INDEX_TO_RANGE_CHANGE_TYPE,
 			IsApplied:        schemaOptimizationReport.SecondaryIndexToRangeChange.IsApplied,
 			Objects:          getAnonymizedIndexObjectsFromIndexToTableMap(schemaOptimizationReport.SecondaryIndexToRangeChange.ModifiedIndexes),
+		})
+	}
+	if schemaOptimizationReport.PKHashSplittingChange != nil {
+		schemaOptimizationChanges = append(schemaOptimizationChanges, callhome.SchemaOptimizationChange{
+			OptimizationType: PK_HASH_SPLITTING_CHANGE_TYPE,
+			IsApplied:        schemaOptimizationReport.PKHashSplittingChange.IsApplied,
+			Objects:          []string{},
+		})
+	}
+	if schemaOptimizationReport.UKRangeSplittingChange != nil {
+		schemaOptimizationChanges = append(schemaOptimizationChanges, callhome.SchemaOptimizationChange{
+			OptimizationType: UK_RANGE_SPLITTING_CHANGE_TYPE,
+			IsApplied:        schemaOptimizationReport.UKRangeSplittingChange.IsApplied,
+			Objects:          []string{},
 		})
 	}
 	return schemaOptimizationChanges
