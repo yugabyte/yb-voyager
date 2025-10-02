@@ -433,13 +433,23 @@
                </div>
             {{ end }}
 
-            {{ if .PKOrUKHashSplittingChange }}
-            <div class="optimization-section {{if .PKOrUKHashSplittingChange.IsApplied}}applied{{else}}not-applied{{end}}">
+            {{ if .PKHashSplittingChange }}
+            <div class="optimization-section {{if .PKHashSplittingChange.IsApplied}}applied{{else}}not-applied{{end}}">
                   <h3>
-                     {{if .PKOrUKHashSplittingChange.IsApplied}}✅ {{else}}⚠️ {{end}}
-                     {{.PKOrUKHashSplittingChange.Title}}
+                     {{if .PKHashSplittingChange.IsApplied}}✅ {{else}}⚠️ {{end}}
+                     {{.PKHashSplittingChange.Title}}
                   </h3>
-               <pre>{{ replaceLinks .PKOrUKHashSplittingChange.Description .PKOrUKHashSplittingChange.HyperLinksInDescription}}</pre>
+               <pre>{{ replaceLinks .PKHashSplittingChange.Description .PKHashSplittingChange.HyperLinksInDescription}}</pre>
+            </div>
+            {{ end }}
+
+            {{ if .UKRangeSplittingChange }}
+            <div class="optimization-section {{if .UKRangeSplittingChange.IsApplied}}applied{{else}}not-applied{{end}}">
+                  <h3>
+                     {{if .UKRangeSplittingChange.IsApplied}}✅ {{else}}⚠️ {{end}}
+                     {{.UKRangeSplittingChange.Title}}
+                  </h3>
+               <pre>{{ replaceLinks .UKRangeSplittingChange.Description .UKRangeSplittingChange.HyperLinksInDescription}}</pre>
             </div>
             {{ end }}
 
