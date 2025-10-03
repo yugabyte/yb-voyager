@@ -300,7 +300,9 @@ func TestPGStatStatementsQuery(t *testing.T) {
 
 	// Test each supported yb version
 	for _, version := range versions {
+		version := version // capture the version for closures to have separate copy
 		t.Run(fmt.Sprintf("Version_%s", version), func(t *testing.T) {
+			t.Parallel()
 			ctx := context.Background()
 
 			config := &testcontainers.ContainerConfig{
