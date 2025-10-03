@@ -22,8 +22,10 @@ jobs:
         run: |
           # Extract versions array as compact JSON
           versions=$(jq -r '.version | @json' yb-voyager/testdata/yb-versions.json)
+          echo "YB Versions: $versions"
           echo "yb_versions=$versions" >> $GITHUB_OUTPUT
           
           # Extract latest stable version (with fallback)
           latest_stable=$(jq -r '.latest_stable // "2025.1.0.0-b168"' yb-voyager/testdata/yb-versions.json)
+          echo "YB Latest Stable: $latest_stable"
           echo "yb_latest_stable=$latest_stable" >> $GITHUB_OUTPUT
