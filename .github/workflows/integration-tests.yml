@@ -73,7 +73,7 @@ jobs:
 
     - name: Run Integration Tests
       env: 
-        YB_VERSION: ${{ fromJSON(needs.prepare-versions.outputs.yb_latest_stable) }}
+        YB_VERSION: ${{ needs.prepare-versions.outputs.yb_latest_stable }}
         PG_VERSION: "14"
         ORACLE_VERSION: "21"
         MYSQL_VERSION: "8.4"
@@ -85,7 +85,7 @@ jobs:
     # Hence its important to ensure the voyager binary built is using the changes in the PR branch - `./install-yb-voyager --install-from-local-source`
     - name: Run Integration Tests (executing voyager commands)
       env: 
-        YB_VERSION: ${{ fromJSON(needs.prepare-versions.outputs.yb_latest_stable) }}
+        YB_VERSION: ${{ needs.prepare-versions.outputs.yb_latest_stable }}
         PG_VERSION: "14"
         ORACLE_VERSION: "21"
         MYSQL_VERSION: "8.4"
