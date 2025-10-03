@@ -7,7 +7,11 @@ on:
     branches: [main]
 
 jobs:
+  prepare-versions:
+    uses: ./.github/workflows/prepare-versions.yml
+
   run-misc-migration-tests:
+    needs: [prepare-versions]
     runs-on: ubuntu-22.04
     
     env:
@@ -141,8 +145,8 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.RAHULB_S3_SECRET_ACCESS_KEY }}
         if: ${{ !cancelled() }}
         run: |
-          mapfile -t versions < <(jq -r '.version[]' yb-voyager/testdata/yb-versions.json)
-          for version in "${versions[@]}"; do
+          versions=$(echo '${{ needs.prepare-versions.outputs.yb_versions }}' | jq -r '.[]')
+          for version in $versions; do
             echo "Running tests on version $version"
 
             echo "Start YugabyteDB cluster"
