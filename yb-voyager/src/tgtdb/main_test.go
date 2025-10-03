@@ -90,15 +90,15 @@ func TestMain(m *testing.M) {
 	defer testPostgresTarget.Finalize()
 
 	// Oracle setup
-	// oracleConfig := &testcontainers.ContainerConfig{
-	// 	DBType: testcontainers.ORACLE,
-	// }
-	// testOracleTarget = createTestDBTarget(ctx, oracleConfig)
-	// err = testOracleTarget.Init()
-	// if err != nil {
-	// 	utils.ErrExit("Failed to connect to oracle database: %w", err)
-	// }
-	// defer testOracleTarget.Finalize()
+	oracleConfig := &testcontainers.ContainerConfig{
+		DBType: testcontainers.ORACLE,
+	}
+	testOracleTarget = createTestDBTarget(ctx, oracleConfig)
+	err = testOracleTarget.Init()
+	if err != nil {
+		utils.ErrExit("Failed to connect to oracle database: %w", err)
+	}
+	defer testOracleTarget.Finalize()
 
 	// YugabyteDB setup
 	yugabytedbConfig := &testcontainers.ContainerConfig{
