@@ -528,6 +528,10 @@ func runSessionVariables(conn *pgx.Conn, sessionVariables []sqlInfo) {
 	for _, sessionVariable := range sessionVariables {
 		_, err := conn.Exec(context.Background(), sessionVariable.stmt)
 		if err != nil {
+			if strings.Contains(err.Error(), "unrecognized configuration") {
+				utils.PrintAndLog(color.YellowString("Skipping session variable: %s\n", sessionVariable.stmt)) //TODO: remove
+				continue
+			}
 			utils.ErrExit("run query: %q on target %q: %s", sessionVariable.stmt, tconf.Host, err)
 		}
 	}
