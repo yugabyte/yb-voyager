@@ -3,6 +3,7 @@ package testutils
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"os"
 	"reflect"
@@ -580,4 +581,50 @@ func CreateTempCSVFile(t *testing.T, csvData string) string {
 	}
 
 	return csvPath
+}
+
+// YBVersionsData represents the structure of yb-versions.json
+type YBVersionsData struct {
+	Version      []string `json:"version"`
+	LatestStable string   `json:"latest_stable"`
+}
+
+// LoadYBVersions loads YB versions from the testdata/yb-versions.json file
+func LoadYBVersions(t *testing.T) YBVersionsData {
+	t.Helper()
+
+	// Read the yb-versions.json file
+	versionsData, err := os.ReadFile("../../testdata/yb-versions.json")
+	if err != nil {
+		t.Fatalf("Failed to read yb-versions.json: %v", err)
+	}
+
+	var versions YBVersionsData
+	err = json.Unmarshal(versionsData, &versions)
+	if err != nil {
+		t.Fatalf("Failed to parse yb-versions.json: %v", err)
+	}
+
+	if len(versions.Version) == 0 {
+		t.Fatal("No versions found in yb-versions.json")
+	}
+
+	return versions
+}
+
+// GetYBVersions returns just the version array from yb-versions.json
+func GetYBVersions(t *testing.T) []string {
+	t.Helper()
+	versions := LoadYBVersions(t)
+	return versions.Version
+}
+
+// GetLatestStableYBVersion returns the latest stable version from yb-versions.json
+func GetLatestStableYBVersion(t *testing.T) string {
+	t.Helper()
+	versions := LoadYBVersions(t)
+	if versions.LatestStable == "" {
+		t.Fatal("No latest_stable version found in yb-versions.json")
+	}
+	return versions.LatestStable
 }

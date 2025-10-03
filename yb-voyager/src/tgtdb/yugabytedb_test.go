@@ -18,6 +18,7 @@ limitations under the License.
 package tgtdb
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"strings"
@@ -27,6 +28,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
+	testcontainers "github.com/yugabyte/yb-voyager/yb-voyager/test/containers"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
@@ -288,5 +290,81 @@ func TestGetPrimaryKeyConstraintNames(t *testing.T) {
 		pkNames, err := testYugabyteDBTarget.GetPrimaryKeyConstraintNames(tt.table)
 		assert.NoError(t, err)
 		testutils.AssertEqualStringSlices(t, tt.expectedPKNames, pkNames)
+	}
+}
+
+func TestPGStatStatementsQuery(t *testing.T) {
+	versions := testutils.GetYBVersions(t)
+
+	// Test each version
+	for _, version := range versions {
+		t.Run(fmt.Sprintf("Version_%s", version), func(t *testing.T) {
+			// Create YugabyteDB container using existing framework
+			container := testcontainers.NewTestContainer(testcontainers.YUGABYTEDB, &testcontainers.ContainerConfig{
+				DBVersion: version,
+			})
+
+			// Start container
+			err := container.Start(context.Background())
+			assert.NoError(t, err, "Failed to start YugabyteDB container for version %s", version)
+
+			// Get database connection
+			db, err := container.GetConnection()
+			assert.NoError(t, err, "Failed to connect to YugabyteDB for version %s", version)
+			defer db.Close()
+
+			// Enable pg_stat_statements extension
+			_, err = db.Exec("CREATE EXTENSION IF NOT EXISTS pg_stat_statements")
+			assert.NoError(t, err, "Failed to create pg_stat_statements extension for version %s", version)
+
+			// Execute test queries to generate statistics
+			testQueries := []string{
+				"SELECT 1",
+				"SELECT 2 + 3",
+				"SELECT current_database()",
+				"SELECT pg_stat_statements_reset()", // Reset to start fresh
+				"SELECT 42",
+				"SELECT 'hello'",
+			}
+
+			for _, query := range testQueries {
+				_, err = db.Exec(query)
+				assert.NoError(t, err, "Failed to execute test query: %s for version %s", query, version)
+			}
+
+			// Test the PG_STAT_STATEMENTS_QUERY
+			rows, err := db.Query(PG_STAT_STATEMENTS_QUERY)
+			assert.NoError(t, err, "Failed to execute PG_STAT_STATEMENTS_QUERY for version %s", version)
+			defer rows.Close()
+
+			// Verify that we get some results
+			var hasResults bool
+			for rows.Next() {
+				hasResults = true
+				var queryid int64
+				var query string
+				var calls int64
+				var rowCount int64
+				var totalExecTime float64
+				var meanExecTime float64
+				var minExecTime float64
+				var maxExecTime float64
+				var stddevExecTime float64
+
+				err := rows.Scan(&queryid, &query, &calls, &rowCount, &totalExecTime, &meanExecTime, &minExecTime, &maxExecTime, &stddevExecTime)
+				assert.NoError(t, err, "Failed to scan pg_stat_statements row for query %s for yb version %s", query, version)
+
+				// Basic validation
+				assert.Greater(t, queryid, int64(0), "Query ID should be positive for version %s", version)
+				assert.NotEmpty(t, query, "Query should not be empty for yb version %s", version)
+				assert.GreaterOrEqual(t, calls, int64(1), "Calls should be at least 1 for yb version %s", version)
+			}
+
+			assert.True(t, hasResults, "Expected to find at least one query in pg_stat_statements for yb version %s", version)
+			assert.NoError(t, rows.Err(), "Error occurred while iterating over rows for yb version %s", version)
+
+			// Terminate container just after the test is done
+			container.Terminate(context.Background())
+		})
 	}
 }
