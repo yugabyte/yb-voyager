@@ -53,7 +53,7 @@ func NewTransformer() *Transformer {
 
 var constraintTypesToMerge = []pg_query.ConstrType{
 	pg_query.ConstrType_CONSTR_PRIMARY, // PRIMARY KEY
-	pg_query.ConstrType_CONSTR_CHECK, // CHECK
+	pg_query.ConstrType_CONSTR_CHECK,   // CHECK
 }
 
 /*
@@ -224,11 +224,11 @@ func (t *Transformer) ModifySecondaryIndexesToRange(stmts []*pg_query.RawStmt) (
 func (t *Transformer) AddHashSplittingONForPKConstraintsAndOFFForUKConstraints(stmts []*pg_query.RawStmt) ([]*pg_query.RawStmt, error) {
 	log.Infof("adding hash splitting on for pk constraints to the schema")
 	selectSetStatements := make([]*pg_query.RawStmt, 0)
-	createTables := make([]*pg_query.RawStmt, 0)
+	createAndAlterTableWithPK := make([]*pg_query.RawStmt, 0)
 	AlterTableUKConstraints := make([]*pg_query.RawStmt, 0)
 	otherStatements := make([]*pg_query.RawStmt, 0)
 	for _, stmt := range stmts {
-		if queryparser.IsSelectSetStmt(stmt) || queryparser.IsSetStmt(stmt) {
+		if queryparser.IsSelectStmt(stmt) || queryparser.IsSetStmt(stmt) {
 			selectSetStatements = append(selectSetStatements, stmt)
 			continue
 		}
@@ -238,11 +238,11 @@ func (t *Transformer) AddHashSplittingONForPKConstraintsAndOFFForUKConstraints(s
 		}
 		switch ddlObject.(type) {
 		case *queryparser.Table:
-			createTables = append(createTables, stmt)
+			createAndAlterTableWithPK = append(createAndAlterTableWithPK, stmt)
 		case *queryparser.AlterTable:
 			alterTable, _ := ddlObject.(*queryparser.AlterTable)
 			if alterTable.ConstraintType == queryparser.PRIMARY_CONSTR_TYPE {
-				createTables = append(createTables, stmt)
+				createAndAlterTableWithPK = append(createAndAlterTableWithPK, stmt)
 			} else if alterTable.ConstraintType == queryparser.UNIQUE_CONSTR_TYPE {
 				AlterTableUKConstraints = append(AlterTableUKConstraints, stmt)
 			} else {
@@ -265,7 +265,7 @@ func (t *Transformer) AddHashSplittingONForPKConstraintsAndOFFForUKConstraints(s
 	modifiedStmts := make([]*pg_query.RawStmt, 0)
 	modifiedStmts = append(modifiedStmts, selectSetStatements...)
 	modifiedStmts = append(modifiedStmts, parseedHashSplittingSessionVariableOn.Stmts...)
-	modifiedStmts = append(modifiedStmts, createTables...)
+	modifiedStmts = append(modifiedStmts, createAndAlterTableWithPK...)
 	modifiedStmts = append(modifiedStmts, parseedHashSplittingSessionVariableOff.Stmts...)
 	modifiedStmts = append(modifiedStmts, AlterTableUKConstraints...)
 	modifiedStmts = append(modifiedStmts, otherStatements...)

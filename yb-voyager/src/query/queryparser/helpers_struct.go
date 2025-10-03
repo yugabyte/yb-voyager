@@ -252,7 +252,7 @@ func IsSetStmt(stmt *pg_query.RawStmt) bool {
 	return ok
 }
 
-func IsSelectSetStmt(stmt *pg_query.RawStmt) bool {
+func IsSelectStmt(stmt *pg_query.RawStmt) bool {
 	_, ok := stmt.Stmt.Node.(*pg_query.Node_SelectStmt)
 	return ok
 }

@@ -175,6 +175,10 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 func shouldSkipDDL(stmt string, objType string) (bool, error) {
 	stmt = strings.ToUpper(stmt)
 
+	// TODO: should we filter these out at the time of export schema
+	// pg_dump generate `SET client_min_messages = 'warning';`, but we want to get
+	// NOTICE severity as well (which is the default), hence skipping this.
+	//pg_dump 17 gives this SET transaction_timeout = 0;
 	if strings.Contains(stmt, CLIENT_MESSAGES_SESSION_VAR) ||
 		strings.Contains(stmt, TRANSACTION_TIMEOUT_SESSION_VAR) {
 		//skip these session variables
@@ -318,17 +322,11 @@ func importDeferredStatements() {
 	for i := 1; i <= maxIterations && len(deferredSqlStmts) > 0; i++ {
 		beforeDeferredSqlCount := len(deferredSqlStmts)
 		var failedSqlStmtInIthIteration []string
-		var lastFileProcessed string
 		for j := 0; j < len(deferredSqlStmts); j++ {
-			if deferredSqlStmts[j].sqlStmt.fileName != lastFileProcessed {
-				//If the file name is different, then we need to close the connection and create a new one
-				// close the connection
-				// create a new connection with the session variables for the new file
-				if conn != nil {
-					conn.Close(context.Background())
-				}
+			if conn == nil {
 				conn = newTargetConn(deferredSqlStmts[j].sessionVariables)
-				lastFileProcessed = deferredSqlStmts[j].sqlStmt.fileName
+			} else {
+				runSessionVariables(conn, deferredSqlStmts[j].sessionVariables)
 			}
 
 			var stmtNotice *pgconn.Notice
@@ -515,16 +513,7 @@ func newTargetConn(sessionVariables []sqlInfo) *pgx.Conn {
 	errExit(err)
 
 	//set session variables on the connection
-	for _, sessionVariable := range sessionVariables {
-		_, err := conn.Exec(context.Background(), sessionVariable.stmt)
-		if err != nil {
-			if strings.Contains(err.Error(), "unrecognized configuration") {
-				utils.PrintAndLog(color.YellowString("Skipping session variable: %s\n", sessionVariable.stmt)) //TODO: remove
-				continue
-			}
-			utils.ErrExit("run query: %q on target %q: %s", sessionVariable.stmt, tconf.Host, err)
-		}
-	}
+	runSessionVariables(conn, sessionVariables)
 
 	setTargetSchema(conn)
 
@@ -533,6 +522,15 @@ func newTargetConn(sessionVariables []sqlInfo) *pgx.Conn {
 	}
 
 	return conn
+}
+
+func runSessionVariables(conn *pgx.Conn, sessionVariables []sqlInfo) {
+	for _, sessionVariable := range sessionVariables {
+		_, err := conn.Exec(context.Background(), sessionVariable.stmt)
+		if err != nil {
+			utils.ErrExit("run query: %q on target %q: %s", sessionVariable.stmt, tconf.Host, err)
+		}
+	}
 }
 
 func getNoticeMessage(n *pgconn.Notice) string {
