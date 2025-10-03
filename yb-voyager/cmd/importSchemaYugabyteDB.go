@@ -117,18 +117,17 @@ func isNotValidConstraint(stmt string) (bool, error) {
 	return false, nil
 }
 
-
 func executeSqlFile(file string, objType string, skipFn func(string, string) bool) error {
 	log.Infof("Execute SQL file %q on target %q", file, tconf.Host)
 
 	sqlInfoArr := parseSqlFileForObjectType(file, objType)
 
 	/*
-	session variables are treated in the same manner as any other statement.
-	we are storing the session variables executed in the order in this list to use this list 
-	to create a new connection with the same session variables for the particular point in the file.
-	For the deffered logic, we are storing the sessions variables with the statment to execute them whenever we are creating
-	connection.
+		session variables are treated in the same manner as any other statement.
+		we are storing the session variables executed in the order in this list to use this list
+		to create a new connection with the same session variables for the particular point in the file.
+		For the deffered logic, we are storing the sessions variables with the statment to execute them whenever we are creating
+		connection.
 	*/
 	sessionVariables := make([]sqlInfo, 0)
 	conn := newTargetConn(sessionVariables)
@@ -163,6 +162,10 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 
 		err = executeSqlStmtWithRetries(&conn, sqlInfo, objType, sessionVariables)
 		if err != nil {
+			if strings.HasPrefix(upperStmt, "SET ") && strings.Contains(err.Error(), "unrecognized configuration") {
+				utils.PrintAndLog(color.YellowString("Skipping session variable: %s\n", sqlInfo.stmt))
+				continue
+			}
 			return err
 		}
 	}
