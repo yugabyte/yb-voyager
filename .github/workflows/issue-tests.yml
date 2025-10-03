@@ -8,13 +8,7 @@ on:
 
 jobs:
   prepare-versions:
-    runs-on: ubuntu-22.04
-    outputs:
-      yb_versions: ${{ steps.read.outputs.yb_versions }}
-    steps:
-      - uses: actions/checkout@v4
-      - id: read
-        run: echo "yb_versions=$(jq -c '.version' yb-voyager/testdata/yb-versions.json)" >> $GITHUB_OUTPUT
+    uses: ./.github/workflows/prepare-versions.yml
 
   test-issues-against-all-yb-versions:
     needs: [prepare-versions]

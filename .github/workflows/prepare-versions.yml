@@ -1,0 +1,29 @@
+name: Prepare YB Versions
+
+on:
+  workflow_call:
+    outputs:
+      yb_versions:
+        description: "Array of YB versions from yb-versions.json"
+        value: ${{ jobs.prepare-versions.outputs.yb_versions }}
+      yb_latest_stable:
+        description: "Latest stable YB version"
+        value: ${{ jobs.prepare-versions.outputs.yb_latest_stable }}
+
+jobs:
+  prepare-versions:
+    runs-on: ubuntu-22.04
+    outputs:
+      yb_versions: ${{ steps.read.outputs.yb_versions }}
+      yb_latest_stable: ${{ steps.read.outputs.yb_latest_stable }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: read
+        run: |
+          # Extract versions array as compact JSON
+          versions=$(jq -r '.version | @json' yb-voyager/testdata/yb-versions.json)
+          echo "yb_versions=$versions" >> $GITHUB_OUTPUT
+          
+          # Extract latest stable version (with fallback)
+          latest_stable=$(jq -r '.latest_stable // "2025.1.0.0-b168"' yb-voyager/testdata/yb-versions.json)
+          echo "yb_latest_stable=$latest_stable" >> $GITHUB_OUTPUT
