@@ -9,6 +9,15 @@ on:
       yb_latest_stable:
         description: "Latest stable YB version"
         value: ${{ jobs.prepare-versions.outputs.yb_latest_stable }}
+      go_version:
+        description: "Go version from ci-config.json"
+        value: ${{ jobs.prepare-versions.outputs.go_version }}
+      java_version:
+        description: "Java version from ci-config.json"
+        value: ${{ jobs.prepare-versions.outputs.java_version }}
+      staticcheck_version:
+        description: "Staticcheck version from ci-config.json"
+        value: ${{ jobs.prepare-versions.outputs.staticcheck_version }}
 
 jobs:
   prepare-versions:
@@ -16,6 +25,9 @@ jobs:
     outputs:
       yb_versions: ${{ steps.read.outputs.yb_versions }}
       yb_latest_stable: ${{ steps.read.outputs.yb_latest_stable }}
+      go_version: ${{ steps.read.outputs.go_version }}
+      java_version: ${{ steps.read.outputs.java_version }}
+      staticcheck_version: ${{ steps.read.outputs.staticcheck_version }}
     steps:
       - uses: actions/checkout@v4
       - id: read
@@ -29,3 +41,38 @@ jobs:
           latest_stable=$(jq -r '.latest_stable // "2025.1.0.0-b168"' yb-voyager/testdata/yb-versions.json)
           echo "YB Latest Stable: $latest_stable"
           echo "yb_latest_stable=$latest_stable" >> $GITHUB_OUTPUT
+          
+          # Extract CI versions from ci-config.json
+          go_version=$(jq -r '.versions.go' yb-voyager/testdata/ci-config.json)
+          java_version=$(jq -r '.versions.java' yb-voyager/testdata/ci-config.json)
+          staticcheck_version=$(jq -r '.versions.staticcheck' yb-voyager/testdata/ci-config.json)
+          
+          echo "Go Version: $go_version"
+          echo "Java Version: $java_version"
+          echo "Staticcheck Version: $staticcheck_version"
+          
+          echo "go_version=$go_version" >> $GITHUB_OUTPUT
+          echo "java_version=$java_version" >> $GITHUB_OUTPUT
+          echo "staticcheck_version=$staticcheck_version" >> $GITHUB_OUTPUT
+      
+      - name: Validate Go Version Consistency
+        run: |
+          # Extract Go version from go.mod
+          GO_MOD_VERSION=$(grep '^go ' yb-voyager/go.mod | awk '{print $2}')
+          
+          # Extract Go version from ci-config.json
+          CI_GO_VERSION=$(jq -r '.versions.go' yb-voyager/testdata/ci-config.json)
+          
+          echo "Go version in go.mod: $GO_MOD_VERSION"
+          echo "Go version in ci-config.json: $CI_GO_VERSION"
+          
+          # Compare versions
+          if [ "$GO_MOD_VERSION" != "$CI_GO_VERSION" ]; then
+            echo "ERROR: Go version mismatch!"
+            echo "go.mod: $GO_MOD_VERSION"
+            echo "ci-config.json: $CI_GO_VERSION"
+            echo "Please update both files to use the same Go version."
+            exit 1
+          fi
+          
+          echo "Go versions are consistent: $GO_MOD_VERSION"

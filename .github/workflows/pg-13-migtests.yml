@@ -49,7 +49,7 @@ jobs:
         # https://github.com/actions/setup-java
         with:
           distribution: "temurin"
-          java-version: "17"
+          java-version: ${{ needs.prepare-versions.outputs.java_version }}
           check-latest: true
 
       - name: Cache local Maven repository
