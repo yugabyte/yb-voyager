@@ -9,6 +9,7 @@ import (
 
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
+	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
 // containerRegistry to ensure one container per database(dbtype+version) [Singleton Pattern]
@@ -146,7 +147,7 @@ func setContainerConfigDefaultsIfNotProvided(dbType string, config *ContainerCon
 
 	ybVersion := os.Getenv("YB_VERSION")
 	if ybVersion == "" {
-		ybVersion = "2025.1.0.0-b168" // default to current latest yb version for now
+		ybVersion = testutils.GetLatestStableYBVersion()
 	}
 
 	pgVersion := os.Getenv("PG_VERSION")

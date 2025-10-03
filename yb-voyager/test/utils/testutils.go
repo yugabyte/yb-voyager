@@ -17,6 +17,7 @@ import (
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 	testcontainers "github.com/yugabyte/yb-voyager/yb-voyager/test/containers"
@@ -590,41 +591,37 @@ type YBVersionsData struct {
 }
 
 // LoadYBVersions loads YB versions from the testdata/yb-versions.json file
-func LoadYBVersions(t *testing.T) YBVersionsData {
-	t.Helper()
-
+func LoadYBVersions() YBVersionsData {
 	// Read the yb-versions.json file
 	versionsData, err := os.ReadFile("../../testdata/yb-versions.json")
 	if err != nil {
-		t.Fatalf("Failed to read yb-versions.json: %v", err)
+		utils.ErrExit("Failed to read yb-versions.json: %v", err)
 	}
 
 	var versions YBVersionsData
 	err = json.Unmarshal(versionsData, &versions)
 	if err != nil {
-		t.Fatalf("Failed to parse yb-versions.json: %v", err)
+		utils.ErrExit("Failed to parse yb-versions.json: %v", err)
 	}
 
 	if len(versions.Version) == 0 {
-		t.Fatal("No versions found in yb-versions.json")
+		utils.ErrExit("No versions found in yb-versions.json")
 	}
 
 	return versions
 }
 
 // GetYBVersions returns just the version array from yb-versions.json
-func GetYBVersions(t *testing.T) []string {
-	t.Helper()
-	versions := LoadYBVersions(t)
+func GetYBVersions() []string {
+	versions := LoadYBVersions()
 	return versions.Version
 }
 
 // GetLatestStableYBVersion returns the latest stable version from yb-versions.json
-func GetLatestStableYBVersion(t *testing.T) string {
-	t.Helper()
-	versions := LoadYBVersions(t)
+func GetLatestStableYBVersion() string {
+	versions := LoadYBVersions()
 	if versions.LatestStable == "" {
-		t.Fatal("No latest_stable version found in yb-versions.json")
+		utils.ErrExit("No latest_stable version found in yb-versions.json")
 	}
 	return versions.LatestStable
 }

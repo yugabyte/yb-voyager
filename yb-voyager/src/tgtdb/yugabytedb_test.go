@@ -296,7 +296,7 @@ func TestGetPrimaryKeyConstraintNames(t *testing.T) {
 
 // this test is to ensure the query being used for fetching pg_stat_statements from target is working for voyager supported yb versions
 func TestPGStatStatementsQuery(t *testing.T) {
-	versions := testutils.GetYBVersions(t)
+	versions := testutils.GetYBVersions()
 
 	// Test each supported yb version
 	for _, version := range versions {
