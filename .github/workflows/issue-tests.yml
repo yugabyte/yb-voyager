@@ -17,7 +17,7 @@ jobs:
       matrix:
         yb_version: ${{ fromJSON(needs.prepare-versions.outputs.yb_versions) }}
     env:
-      YB_LATEST_STABLE: ${{ fromJSON(needs.prepare-versions.outputs.yb_latest_stable) }}
+      YB_LATEST_STABLE: ${{ needs.prepare-versions.outputs.yb_latest_stable }}
       YB_CONN_STR: "postgres://yugabyte:yugabyte@127.0.0.1:5433/yugabyte"
       YB_VOYAGER_SEND_DIAGNOSTICS: 0
 

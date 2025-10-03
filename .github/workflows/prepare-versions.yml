@@ -20,8 +20,8 @@ jobs:
       - uses: actions/checkout@v4
       - id: read
         run: |
-          # Extract versions array as compact JSON
-          versions=$(jq -r '.version | @json' yb-voyager/testdata/yb-versions.json)
+          # Extract versions array as compact JSON (single line); required for matrix strategy in workflows
+          versions=$(jq -c '.version' yb-voyager/testdata/yb-versions.json)
           echo "YB Versions: $versions"
           echo "yb_versions=$versions" >> $GITHUB_OUTPUT
           
