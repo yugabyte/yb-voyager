@@ -169,7 +169,7 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	targetDBDetails = tdb.GetCallhomeTargetDBInfo()
 
 	// we don't want to re-register in case import data to source/source-replica
-	reregisterYBNames := importerRole == TARGET_DB_IMPORTER_ROLE && bool(startClean)
+	reregisterYBNames := shouldReregisterYBNames()
 	err = InitNameRegistry(exportDir, importerRole, nil, nil, &tconf, tdb, reregisterYBNames)
 	if err != nil {
 		utils.ErrExit("initialize name registry: %v", err)
@@ -194,6 +194,13 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 		importFileTasks = applyTableListFilter(importFileTasks)
 	}
 
+	if importerRole == TARGET_DB_IMPORTER_ROLE && tconf.EnableUpsert {
+		if !utils.AskPrompt(color.RedString("WARNING: Ensure that tables on target YugabyteDB do not have secondary indexes. " +
+			"If a table has secondary indexes, setting --enable-upsert to true may lead to corruption of the indexes. Are you sure you want to proceed?")) {
+			utils.ErrExit("Aborting import.")
+		}
+	}
+
 	importData(importFileTasks, errorPolicySnapshotFlag)
 	tdb.Finalize()
 	switch importerRole {
@@ -210,6 +217,29 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	if changeStreamingIsEnabled(importType) {
 		startExportDataFromTargetIfRequired()
 	}
+}
+
+func shouldReregisterYBNames() bool {
+	actualDataImportStarted := false
+	switch importerRole {
+	case TARGET_DB_IMPORTER_ROLE:
+		statusRecord, err := metaDB.GetImportDataStatusRecord()
+		if err != nil {
+			utils.ErrExit("failed to get import data status record: %w", err)
+		}
+		actualDataImportStarted = statusRecord.ImportDataStarted
+	case IMPORT_FILE_ROLE:
+		statusRecord, err := metaDB.GetImportDataFileStatusRecord()
+		if err != nil {
+			utils.ErrExit("failed to get import data status record: %w", err)
+		}
+		actualDataImportStarted = statusRecord.ImportDataStarted
+	default: 
+		//for other importers we shouldn't re-register as this is for YB names and other importers are source-replica / source 
+		return false
+
+	}
+	return (bool(startClean) || !actualDataImportStarted)
 }
 
 func setImportTypeAndIdentityColumnMetaDBKeyForImporterRole(importerRole string) error {
@@ -565,7 +595,7 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 		utils.PrintAndLog("Following source tables are not present in the target database:\n%v", strings.Join(lo.Map(tablesNotPresentInTarget, func(t sqlname.NameTuple, _ int) string {
 			return t.ForKey()
 		}), ","))
-		utils.ErrExit("Exclude these tables in table-list flags if you don't want to import them.")
+		utils.ErrExit("Create these tables in the target database or exclude the tables in table-list flags if you don't want to import them.")
 	}
 	return result
 }
@@ -594,13 +624,31 @@ func updateTargetConfInMigrationStatus() {
 	}
 }
 
+func updateImportDataStartedInMetaDB() error {
+	switch importerRole {
+	case TARGET_DB_IMPORTER_ROLE:
+		err := metaDB.UpdateImportDataStatusRecord(func(record *metadb.ImportDataStatusRecord) {
+			record.ImportDataStarted = true
+		})
+		if err != nil {
+			return fmt.Errorf("Failed to update import data status record: %s", err)
+		}
+	case IMPORT_FILE_ROLE:
+		err := metaDB.UpdateImportDataFileStatusRecord(func(record *metadb.ImportDataFileStatusRecord) {
+			record.ImportDataStarted = true
+		})
+		if err != nil {
+			return fmt.Errorf("Failed to update import data file status record: %s", err)
+		}
+	}
+	return nil
+}
+
 func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorPolicy) {
 
-	if (importerRole == TARGET_DB_IMPORTER_ROLE || importerRole == IMPORT_FILE_ROLE) && (tconf.EnableUpsert) {
-		if !utils.AskPrompt(color.RedString("WARNING: Ensure that tables on target YugabyteDB do not have secondary indexes. " +
-			"If a table has secondary indexes, setting --enable-upsert to true may lead to corruption of the indexes. Are you sure you want to proceed?")) {
-			utils.ErrExit("Aborting import.")
-		}
+	err := updateImportDataStartedInMetaDB()
+	if err != nil {
+		utils.ErrExit("Failed to update import data started in meta DB: %s", err)
 	}
 
 	if callhome.SendDiagnostics {
