@@ -73,6 +73,11 @@ func createTestDBTarget(ctx context.Context, config *testcontainers.ContainerCon
 		}),
 	}
 
+	// public schema is expected to be present in yugabytedb and postgres; creating in case some test deleting it
+	if config.DBType == testcontainers.YUGABYTEDB || config.DBType == testcontainers.POSTGRESQL {
+		testDB.ExecuteSqls(`CREATE SCHEMA IF NOT EXISTS public;`)
+	}
+
 	err = testDB.Init()
 	if err != nil {
 		utils.ErrExit("Failed to connect to %s database: %w", config.DBType, err)

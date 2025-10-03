@@ -312,10 +312,7 @@ func TestPGStatStatementsQuery(t *testing.T) {
 			defer destroyTestDBTarget(ctx, testDB)
 
 			// Enable pg_stat_statements extension
-			testDB.ExecuteSqls(
-				`CREATE SCHEMA IF NOT EXISTS public;`,
-				`CREATE EXTENSION IF NOT EXISTS pg_stat_statements WITH SCHEMA public;`,
-			)
+			testDB.ExecuteSqls(`CREATE EXTENSION IF NOT EXISTS pg_stat_statements;`)
 
 			// Execute test queries to generate statistics
 			testQueries := []string{
