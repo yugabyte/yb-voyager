@@ -33,19 +33,19 @@ jobs:
       - id: read
         run: |
           # Extract versions array as compact JSON (single line); required for matrix strategy in workflows
-          versions=$(jq -c '.version' yb-voyager/testdata/yb-versions.json)
+          versions=$(jq -c '.version' yb-voyager/versions/yb-versions.json)
           echo "YB Versions: $versions"
           echo "yb_versions=$versions" >> $GITHUB_OUTPUT
           
           # Extract latest stable version (with fallback)
-          latest_stable=$(jq -r '.latest_stable // "2025.1.0.0-b168"' yb-voyager/testdata/yb-versions.json)
+          latest_stable=$(jq -r '.latest_stable // "2025.1.0.0-b168"' yb-voyager/versions/yb-versions.json)
           echo "YB Latest Stable: $latest_stable"
           echo "yb_latest_stable=$latest_stable" >> $GITHUB_OUTPUT
           
           # Extract CI versions from ci-config.json
-          go_version=$(jq -r '.versions.go' yb-voyager/testdata/ci-config.json)
-          java_version=$(jq -r '.versions.java' yb-voyager/testdata/ci-config.json)
-          staticcheck_version=$(jq -r '.versions.staticcheck' yb-voyager/testdata/ci-config.json)
+          go_version=$(jq -r '.versions.go' yb-voyager/versions/ci-config.json)
+          java_version=$(jq -r '.versions.java' yb-voyager/versions/ci-config.json)
+          staticcheck_version=$(jq -r '.versions.staticcheck' yb-voyager/versions/ci-config.json)
           
           echo "Go Version: $go_version"
           echo "Java Version: $java_version"
@@ -61,7 +61,7 @@ jobs:
           GO_MOD_VERSION=$(grep '^go ' yb-voyager/go.mod | awk '{print $2}')
           
           # Extract Go version from ci-config.json
-          CI_GO_VERSION=$(jq -r '.versions.go' yb-voyager/testdata/ci-config.json)
+          CI_GO_VERSION=$(jq -r '.versions.go' yb-voyager/versions/ci-config.json)
           
           echo "Go version in go.mod: $GO_MOD_VERSION"
           echo "Go version in ci-config.json: $CI_GO_VERSION"

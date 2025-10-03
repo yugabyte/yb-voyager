@@ -3,7 +3,6 @@ package testutils
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"os"
 	"reflect"
@@ -17,7 +16,6 @@ import (
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 	testcontainers "github.com/yugabyte/yb-voyager/yb-voyager/test/containers"
@@ -582,46 +580,4 @@ func CreateTempCSVFile(t *testing.T, csvData string) string {
 	}
 
 	return csvPath
-}
-
-// YBVersionsData represents the structure of yb-versions.json
-type YBVersionsData struct {
-	Version      []string `json:"version"`
-	LatestStable string   `json:"latest_stable"`
-}
-
-// LoadYBVersions loads YB versions from the testdata/yb-versions.json file
-func LoadYBVersions() YBVersionsData {
-	// Read the yb-versions.json file
-	versionsData, err := os.ReadFile("../../testdata/yb-versions.json")
-	if err != nil {
-		utils.ErrExit("Failed to read yb-versions.json: %v", err)
-	}
-
-	var versions YBVersionsData
-	err = json.Unmarshal(versionsData, &versions)
-	if err != nil {
-		utils.ErrExit("Failed to parse yb-versions.json: %v", err)
-	}
-
-	if len(versions.Version) == 0 {
-		utils.ErrExit("No versions found in yb-versions.json")
-	}
-
-	return versions
-}
-
-// GetYBVersions returns just the version array from yb-versions.json
-func GetYBVersions() []string {
-	versions := LoadYBVersions()
-	return versions.Version
-}
-
-// GetLatestStableYBVersion returns the latest stable version from yb-versions.json
-func GetLatestStableYBVersion() string {
-	versions := LoadYBVersions()
-	if versions.LatestStable == "" {
-		utils.ErrExit("No latest_stable version found in yb-versions.json")
-	}
-	return versions.LatestStable
 }

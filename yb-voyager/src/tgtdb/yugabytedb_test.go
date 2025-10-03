@@ -31,6 +31,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	testcontainers "github.com/yugabyte/yb-voyager/yb-voyager/test/containers"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/versions"
 )
 
 func TestCreateVoyagerSchemaYB(t *testing.T) {
@@ -296,10 +297,10 @@ func TestGetPrimaryKeyConstraintNames(t *testing.T) {
 
 // this test is to ensure the query being used for fetching pg_stat_statements from target is working for voyager supported yb versions
 func TestPGStatStatementsQuery(t *testing.T) {
-	versions := testutils.GetYBVersions()
+	versionsList := versions.GetVoyagerSupportedYBVersions()
 
 	// Test each supported yb version
-	for _, version := range versions {
+	for _, version := range versionsList {
 		t.Run(fmt.Sprintf("Version_%s", version), func(t *testing.T) {
 			t.Parallel()
 			ctx := context.Background()
