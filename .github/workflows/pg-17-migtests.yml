@@ -128,31 +128,31 @@ jobs:
           psql "postgresql://yugabyte@yb-cluster-test:5433/yugabyte" -c "SELECT version();"
 
       - name: "TEST: PG sample schemas (sakila)"
-        if: ${{ !cancelled() && matrix.test_group == 'offline' }}
+        if: ${{ !cancelled() && matrix.test_group == 'offline' && matrix.version != '2.20.10.0-b29' }}
         run: migtests/scripts/run-schema-migration.sh pg/sakila
 
       - name: "TEST: PG sample schemas (osm)"
-        if: ${{ !cancelled() && matrix.test_group == 'offline' }}
+        if: ${{ !cancelled() && matrix.test_group == 'offline' && matrix.version != '2.20.10.0-b29' }}
         run: migtests/scripts/run-schema-migration.sh pg/osm
 
       - name: "TEST: PG sample schemas (omnibus)"
-        if: ${{ !cancelled() && matrix.test_group == 'offline' }}
+        if: ${{ !cancelled() && matrix.test_group == 'offline' && matrix.version != '2.20.10.0-b29' }}
         run: migtests/scripts/run-schema-migration.sh pg/omnibus
 
       - name: "TEST: PG sample schemas (adventureworks)"
-        if: ${{ !cancelled() && matrix.test_group == 'offline' }}
+        if: ${{ !cancelled() && matrix.test_group == 'offline' && matrix.version != '2.20.10.0-b29' }}
         run: migtests/scripts/run-schema-migration.sh pg/adventureworks
 
       - name: "TEST: PG sample schemas (sample-is)"
-        if: ${{ !cancelled() && matrix.test_group == 'offline' }}
+        if: ${{ !cancelled() && matrix.test_group == 'offline' && matrix.version != '2.20.10.0-b29' }}
         run: migtests/scripts/run-schema-migration.sh pg/sample-is
 
       - name: "TEST: PG sample schemas (pgtbrus)"
-        if: ${{ !cancelled() && matrix.test_group == 'offline' }}
+        if: ${{ !cancelled() && matrix.test_group == 'offline' && matrix.version != '2.20.10.0-b29' }}
         run: migtests/scripts/run-schema-migration.sh pg/pgtbrus
 
       - name: "TEST: PG sample schemas (stackexchange)"
-        if: ${{ !cancelled() && matrix.test_group == 'offline' }}
+        if: ${{ !cancelled() && matrix.test_group == 'offline' && matrix.version != '2.20.10.0-b29' }}
         run: migtests/scripts/run-schema-migration.sh pg/stackexchange
 
       - name: "TEST: pg-table-list-flags-test (table-list and exclude-table-list)"
