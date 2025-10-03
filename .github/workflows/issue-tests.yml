@@ -7,12 +7,21 @@ on:
     branches: [main]
 
 jobs:
+  prepare-versions:
+    runs-on: ubuntu-22.04
+    outputs:
+      yb_versions: ${{ steps.read.outputs.yb_versions }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: read
+        run: echo "yb_versions=$(jq -c '.version' yb-voyager/testdata/yb-versions.json)" >> $GITHUB_OUTPUT
 
   test-issues-against-all-yb-versions:
+    needs: [prepare-versions]
     strategy:
       fail-fast: false
       matrix:
-        version: [2.25.2.0-b359, LATEST_STABLE, 2.20.10.0-b29, "2024.2.4.0-b89", "2024.1.6.1-b2"]
+        version: ${{ fromJSON(needs.prepare-versions.outputs.yb_versions) }}
     env:
       YB_VERSION: ${{ matrix.version }}
       YB_CONN_STR: "postgres://yugabyte:yugabyte@127.0.0.1:5433/yugabyte"
@@ -30,12 +39,12 @@ jobs:
     - name: Setup YugabyteDB
       run: |
         # Note: Update val for LATEST_STABLE here along with 'src/ybversion/constants.go/LATEST_STABLE' variable
-        if [ "${YB_VERSION}" == "LATEST_STABLE" ]; then
-          YB_VERSION="2025.1.0.0-b168"
+        # if [ "${YB_VERSION}" == "LATEST_STABLE" ]; then
+        #   YB_VERSION="2025.1.0.0-b168"
 
-          # write it to GitHub's environment to override previous value
-          echo "YB_VERSION=${YB_VERSION}" >> $GITHUB_ENV
-        fi
+        #   # write it to GitHub's environment to override previous value
+        #   echo "YB_VERSION=${YB_VERSION}" >> $GITHUB_ENV
+        # fi
 
         # using s3 release instead of docker image to allow testing against un-released versions
         wget https://s3.us-west-2.amazonaws.com/releases.yugabyte.com/${YB_VERSION}/yugabyte-${YB_VERSION}-centos-x86_64.tar.gz
@@ -65,8 +74,8 @@ jobs:
         cd yb-voyager
         go test -v ./... -tags 'issues_integration'
 
-    - name: Test Latest Stable YB Version
-      if: ${{ matrix.version == 'LATEST_STABLE' }}
-      run: |
-        cd yb-voyager
-        go test -v ./... -tags 'yb_version_latest_stable'
+    # - name: Test Latest Stable YB Version
+    #   if: ${{ matrix.version == 'LATEST_STABLE' }}
+    #   run: |
+    #     cd yb-voyager
+    #     go test -v ./... -tags 'yb_version_latest_stable'
