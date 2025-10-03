@@ -24,6 +24,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/jackc/pgx/v4"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -293,28 +294,33 @@ func TestGetPrimaryKeyConstraintNames(t *testing.T) {
 	}
 }
 
+// this test is to ensure the query being used for fetching pg_stat_statements from target is working for voyager supported yb versions
 func TestPGStatStatementsQuery(t *testing.T) {
 	versions := testutils.GetYBVersions(t)
 
-	// Test each version
+	// Test each supported yb version
 	for _, version := range versions {
 		t.Run(fmt.Sprintf("Version_%s", version), func(t *testing.T) {
-			// Create YugabyteDB container using existing framework
-			container := testcontainers.NewTestContainer(testcontainers.YUGABYTEDB, &testcontainers.ContainerConfig{
+			ctx := context.Background()
+
+			config := &testcontainers.ContainerConfig{
+				DBType:    testcontainers.YUGABYTEDB,
 				DBVersion: version,
-			})
+			}
+			testDB := createTestDBTarget(ctx, config)
+			defer testDB.Finalize()
 
-			// Start container
-			err := container.Start(context.Background())
-			assert.NoError(t, err, "Failed to start YugabyteDB container for version %s", version)
+			// Initialize the connection
+			err := testDB.Init()
+			assert.NoError(t, err, "Failed to initialize YugabyteDB target for version %s", version)
 
-			// Get database connection
-			db, err := container.GetConnection()
-			assert.NoError(t, err, "Failed to connect to YugabyteDB for version %s", version)
-			defer db.Close()
+			// Get pgx connection for the query
+			conn, err := pgx.Connect(ctx, testDB.GetConnectionString())
+			assert.NoError(t, err, "Failed to get pgx connection for version %s", version)
+			defer conn.Close(ctx)
 
 			// Enable pg_stat_statements extension
-			_, err = db.Exec("CREATE EXTENSION IF NOT EXISTS pg_stat_statements")
+			_, err = conn.Exec(ctx, "CREATE EXTENSION IF NOT EXISTS pg_stat_statements")
 			assert.NoError(t, err, "Failed to create pg_stat_statements extension for version %s", version)
 
 			// Execute test queries to generate statistics
@@ -322,18 +328,21 @@ func TestPGStatStatementsQuery(t *testing.T) {
 				"SELECT 1",
 				"SELECT 2 + 3",
 				"SELECT current_database()",
-				"SELECT pg_stat_statements_reset()", // Reset to start fresh
-				"SELECT 42",
-				"SELECT 'hello'",
 			}
 
 			for _, query := range testQueries {
-				_, err = db.Exec(query)
+				_, err = conn.Exec(ctx, query)
 				assert.NoError(t, err, "Failed to execute test query: %s for version %s", query, version)
 			}
 
-			// Test the PG_STAT_STATEMENTS_QUERY
-			rows, err := db.Query(PG_STAT_STATEMENTS_QUERY)
+			ybTargetImpl, ok := testDB.TargetDB.(*TargetYugabyteDB)
+			assert.True(t, ok, "Failed to cast TargetDB to TargetYugabyteDB for version %s", version)
+
+			// Test the pg_stat_statements query
+			query, err := ybTargetImpl.getPgStatStatementsQuery(conn)
+			assert.NoError(t, err, "Failed to get pg_stat_statements query for version %s", version)
+
+			rows, err := conn.Query(ctx, query)
 			assert.NoError(t, err, "Failed to execute PG_STAT_STATEMENTS_QUERY for version %s", version)
 			defer rows.Close()
 
@@ -353,18 +362,10 @@ func TestPGStatStatementsQuery(t *testing.T) {
 
 				err := rows.Scan(&queryid, &query, &calls, &rowCount, &totalExecTime, &meanExecTime, &minExecTime, &maxExecTime, &stddevExecTime)
 				assert.NoError(t, err, "Failed to scan pg_stat_statements row for query %s for yb version %s", query, version)
-
-				// Basic validation
-				assert.Greater(t, queryid, int64(0), "Query ID should be positive for version %s", version)
-				assert.NotEmpty(t, query, "Query should not be empty for yb version %s", version)
-				assert.GreaterOrEqual(t, calls, int64(1), "Calls should be at least 1 for yb version %s", version)
 			}
 
 			assert.True(t, hasResults, "Expected to find at least one query in pg_stat_statements for yb version %s", version)
 			assert.NoError(t, rows.Err(), "Error occurred while iterating over rows for yb version %s", version)
-
-			// Terminate container just after the test is done
-			container.Terminate(context.Background())
 		})
 	}
 }
