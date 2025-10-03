@@ -235,7 +235,7 @@ func TestGetPrimaryKeyConstraintNames(t *testing.T) {
 		`CREATE TABLE test_schema."EmP_1" PARTITION OF test_schema."EmP" FOR VALUES WITH (MODULUS 3, REMAINDER 1);`,
 		`CREATE TABLE test_schema."EmP_2" PARTITION OF test_schema."EmP" FOR VALUES WITH (MODULUS 3, REMAINDER 2);`,
 
-		// 3. Multi level partitioning
+		// 3. Multi level partitioning in public schema
 		`CREATE TABLE customers (id INTEGER, statuses TEXT, arr NUMERIC, PRIMARY KEY(id, statuses, arr)) PARTITION BY LIST(statuses);`,
 
 		`CREATE TABLE cust_active PARTITION OF customers FOR VALUES IN ('ACTIVE', 'RECURRING','REACTIVATED') PARTITION BY RANGE(arr);`,
@@ -308,20 +308,13 @@ func TestPGStatStatementsQuery(t *testing.T) {
 				DBVersion: version,
 			}
 			testDB := createTestDBTarget(ctx, config)
-			defer testDB.Finalize()
-
-			// Initialize the connection
-			err := testDB.Init()
-			assert.NoError(t, err, "Failed to initialize YugabyteDB target for version %s", version)
-
-			// Get pgx connection for the query
-			conn, err := pgx.Connect(ctx, testDB.GetConnectionString())
-			assert.NoError(t, err, "Failed to get pgx connection for version %s", version)
-			defer conn.Close(ctx)
+			defer destroyTestDBTarget(ctx, testDB)
 
 			// Enable pg_stat_statements extension
-			_, err = conn.Exec(ctx, "CREATE EXTENSION IF NOT EXISTS pg_stat_statements")
-			assert.NoError(t, err, "Failed to create pg_stat_statements extension for version %s", version)
+			testDB.ExecuteSqls(
+				`CREATE SCHEMA IF NOT EXISTS public;`,
+				`CREATE EXTENSION IF NOT EXISTS pg_stat_statements WITH SCHEMA public;`,
+			)
 
 			// Execute test queries to generate statistics
 			testQueries := []string{
@@ -329,14 +322,14 @@ func TestPGStatStatementsQuery(t *testing.T) {
 				"SELECT 2 + 3",
 				"SELECT current_database()",
 			}
-
-			for _, query := range testQueries {
-				_, err = conn.Exec(ctx, query)
-				assert.NoError(t, err, "Failed to execute test query: %s for version %s", query, version)
-			}
+			testDB.ExecuteSqls(testQueries...)
 
 			ybTargetImpl, ok := testDB.TargetDB.(*TargetYugabyteDB)
 			assert.True(t, ok, "Failed to cast TargetDB to TargetYugabyteDB for version %s", version)
+
+			conn, err := pgx.Connect(ctx, testDB.GetConnectionString())
+			assert.NoError(t, err, "Failed to get pgx connection for version %s", version)
+			defer conn.Close(ctx)
 
 			// Test the pg_stat_statements query
 			query, err := ybTargetImpl.getPgStatStatementsQuery(conn)

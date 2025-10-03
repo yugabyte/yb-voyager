@@ -58,7 +58,7 @@ func createTestDBTarget(ctx context.Context, config *testcontainers.ContainerCon
 		sslMode = "disable"
 	}
 
-	return &TestDB{
+	testDB := &TestDB{
 		TestContainer: container,
 		TargetDB: NewTargetDB(&TargetConf{
 			TargetDBType: config.DBType,
@@ -72,6 +72,18 @@ func createTestDBTarget(ctx context.Context, config *testcontainers.ContainerCon
 			SSLMode:      sslMode,
 		}),
 	}
+
+	err = testDB.Init()
+	if err != nil {
+		utils.ErrExit("Failed to connect to %s database: %w", config.DBType, err)
+	}
+
+	return testDB
+}
+
+func destroyTestDBTarget(ctx context.Context, testDB *TestDB) {
+	testDB.Finalize()
+	testDB.TestContainer.Terminate(ctx)
 }
 
 func TestMain(m *testing.M) {
@@ -83,33 +95,21 @@ func TestMain(m *testing.M) {
 		DBType: testcontainers.POSTGRESQL,
 	}
 	testPostgresTarget = createTestDBTarget(ctx, postgresConfig)
-	err := testPostgresTarget.Init()
-	if err != nil {
-		utils.ErrExit("Failed to connect to postgres database: %w", err)
-	}
-	defer testPostgresTarget.Finalize()
+	defer destroyTestDBTarget(ctx, testPostgresTarget)
 
 	// Oracle setup
 	oracleConfig := &testcontainers.ContainerConfig{
 		DBType: testcontainers.ORACLE,
 	}
 	testOracleTarget = createTestDBTarget(ctx, oracleConfig)
-	err = testOracleTarget.Init()
-	if err != nil {
-		utils.ErrExit("Failed to connect to oracle database: %w", err)
-	}
-	defer testOracleTarget.Finalize()
+	defer destroyTestDBTarget(ctx, testOracleTarget)
 
 	// YugabyteDB setup
 	yugabytedbConfig := &testcontainers.ContainerConfig{
 		DBType: testcontainers.YUGABYTEDB,
 	}
 	testYugabyteDBTarget = createTestDBTarget(ctx, yugabytedbConfig)
-	err = testYugabyteDBTarget.Init()
-	if err != nil {
-		utils.ErrExit("Failed to connect to yugabytedb database: %w", err)
-	}
-	defer testYugabyteDBTarget.Finalize()
+	defer destroyTestDBTarget(ctx, testYugabyteDBTarget)
 
 	// to avoid info level logs flooding the test output
 	log.SetLevel(log.WarnLevel)
