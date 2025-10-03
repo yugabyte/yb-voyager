@@ -1469,7 +1469,7 @@ FROM generate_series(1, 10);`
 	defer postgresContainer.ExecuteSqls(dropSchemaSQL)
 	defer yugabytedbContainer.ExecuteSqls(dropSchemaSQL)
 
-	//exporting all tables here 
+	//exporting all tables here
 	err := testutils.NewVoyagerCommandRunner(postgresContainer, "export data", []string{
 		"--export-dir", exportDir,
 		"--source-db-schema", "test_schema",
@@ -1524,7 +1524,6 @@ FROM generate_series(1, 10);`
 	assert.NotNil(t, err)
 	assert.Contains(t, importCmd.Stdout(), `Following source tables are not present in the target database:
 test_schema."test_migration1"`)
-
 
 	importCmd = testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
 		"--export-dir", exportDir,
@@ -1617,8 +1616,9 @@ Valid table names are: [test_schema.test_migration]
 		Status:        "DONE",
 	}, exportReportData[1], "Status report row mismatch")
 
-}
+	//verify the sequence last value is restored properly
 
+}
 
 func TestImportOfSubsetOfExportedTablesDebeziumOffline(t *testing.T) {
 	ctx := context.Background()
@@ -1630,34 +1630,32 @@ func TestImportOfSubsetOfExportedTablesDebeziumOffline(t *testing.T) {
 	createSchemaSQL := `CREATE SCHEMA IF NOT EXISTS test_schema;`
 	createTableSQL := `
 CREATE TABLE test_schema.test_migration (
-	id int PRIMARY KEY,
+	id serial PRIMARY KEY,
 	name TEXT,
 	email TEXT,
 	description TEXT
 );`
 	insertDataSQL := `
-INSERT INTO test_schema.test_migration (id, name, email, description)
+INSERT INTO test_schema.test_migration (name, email, description)
 SELECT
-	i,
 	md5(random()::text),                                      -- name
 	md5(random()::text) || '@example.com',                    -- email
 	repeat(md5(random()::text), 10)                           -- description (~320 chars)
-FROM generate_series(1, 10) as i;`
+FROM generate_series(1, 10);`
 	createTable1SQL := `
 CREATE TABLE test_schema.test_migration1 (
-	id int PRIMARY KEY,
+	id serial PRIMARY KEY,
 	name TEXT,
 	email TEXT,
 	description TEXT
 );`
 	insertData1SQL := `
-INSERT INTO test_schema.test_migration1 (id, name, email, description)
+INSERT INTO test_schema.test_migration1 (name, email, description)
 SELECT
-	i,
 	md5(random()::text),                                      -- name
 	md5(random()::text) || '@example.com',                    -- email
 	repeat(md5(random()::text), 10)                           -- description (~320 chars)
-FROM generate_series(1, 10) as i;`
+FROM generate_series(1, 10);`
 	dropSchemaSQL := `DROP SCHEMA IF EXISTS test_schema CASCADE;`
 
 	// Start Postgres container for live migration
@@ -1694,7 +1692,7 @@ FROM generate_series(1, 10) as i;`
 	os.Setenv("BETA_FAST_DATA_EXPORT", "true")
 	defer os.Unsetenv("BETA_FAST_DATA_EXPORT")
 
-	//exporting all tables here 
+	//exporting all tables here
 	err := testutils.NewVoyagerCommandRunner(postgresContainer, "export data", []string{
 		"--export-dir", exportDir,
 		"--source-db-schema", "test_schema",
@@ -1823,7 +1821,20 @@ test_schema."test_migration1"`)
 		Status:        "DONE",
 	}, exportReportData[0], "Status report row mismatch")
 
+	//verify the sequence last value is restored properly
+	seq1 := `test_schema.test_migration_id_seq`
+	res1, err := yugabytedbContainer.Query(fmt.Sprintf("SELECT nextval('%s')", seq1))
+	testutils.FatalIfError(t, err, "Failed to query sequence %s", seq1)
+	defer res1.Close()
+	var nextVal1 int64
+	for res1.Next() {
+		err := res1.Scan(&nextVal1)
+		testutils.FatalIfError(t, err, "Failed to scan sequence %s", seq1)
+	}
+	assert.Equal(t, int64(11), nextVal1)
+
 }
+
 
 func TestExportAndImportDataSnapshotReport_ErrorPolicyStashAndContinue_ProcessingError(t *testing.T) {
 	ctx := context.Background()

@@ -808,7 +808,16 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 			utils.ErrExit("failed to read export status for restore sequences: %s", err)
 		}
 		// in case of live migration sequences are restored after cutover
-		err = tdb.RestoreSequences(status.Sequences)
+		sequenceNameTupleToLastValueMap := *utils.NewStructMap[sqlname.NameTuple, int64]()
+		for sequenceName, lastValue := range status.Sequences {
+			sequenceTuple, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole(sequenceName)
+			if err != nil {
+				utils.ErrExit("error looking up sequence name %q: %w", sequenceName, err)
+			}
+			sequenceNameTupleToLastValueMap.Put(sequenceTuple, lastValue)
+		}
+		err = tdb.RestoreSequences(sequenceNameTupleToLastValueMap)
+
 		if err != nil {
 			utils.ErrExit("failed to restore sequences: %s", err)
 		}
@@ -841,14 +850,14 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 Restore sequence in offline migration via debezium or pg_dump/ora2pg
 getting sequences to last value mapping from different sources - debezium / ora2pg / pg_dump
 
-For source type is PG - 
+For source type is PG -
 	we are sure that all the sequences being migrated are attached to the tables so we can skip the sequence if it is not attached to a table in the table list
 	and in scenario if table is not present in the target database, we will skip the sequences attached to tables not part of table list
 
-For any other sources 
+For any other sources
 	we are not sure if all the sequences are attached to the tables so we will restore all the sequences
 	and in scenario if table is not present in the target database, we will error out if any of them not present in the target database
-	which is the same behaviour as before 
+	which is the same behaviour as before
 	as for example for oracle, its complicated to figure out if a sequence is attached to a table or not, hence not doing that for now as its not done on export side
 
 if import data has table list filteration or source type is POSTGRESQL
@@ -869,7 +878,7 @@ and using the setval('sequence_name', last_value) function to restore sequence l
 
 The behaviour of ALTER SEQUENCE RESTART WITH val is different than setval('sequence_name', last_value)
 as the setval updates the currval to the last_Value so the next value used further is the last_value + 1
-but in case of ALTER SEQUENCE RESTART WITH val, the currval is previous value and next value is the last_value 
+but in case of ALTER SEQUENCE RESTART WITH val, the currval is previous value and next value is the last_value
 
 but its okay because sequence value should always be unique even if there are some gaps in between.
 
@@ -900,7 +909,7 @@ func restoreSequencesInOfflineMigration(msr *metadb.MigrationStatusRecord, impor
 	if (tconf.TableList != "" || tconf.ExcludeTableList != "") || msr.SourceDBConf.DBType == POSTGRESQL {
 		//if import data has table list filteration
 		//get the sequence name to table name map from MSR
-		sequenceNameToTableMap := make(map[string][]string)
+		sequenceNameToTableMap := utils.NewStructMap[sqlname.NameTuple, []string]()
 		for column, sequenceName := range msr.SourceColumnToSequenceMapping {
 			parts := strings.Split(column, ".") //column is qualified tablename.colname
 			if len(parts) < 3 {
@@ -914,8 +923,15 @@ func restoreSequencesInOfflineMigration(msr *metadb.MigrationStatusRecord, impor
 				return fmt.Errorf("error looking up sequence name %q: %w", sequenceName, err)
 			}
 			sequenceName = sequenceTuple.ForKey()
-			sequenceNameToTableMap[sequenceName] = append(sequenceNameToTableMap[sequenceName], tableName)
+			tableList, ok := sequenceNameToTableMap.Get(sequenceTuple)
+			if ok {
+				tableList = append(tableList, tableName)
+				sequenceNameToTableMap.Put(sequenceTuple, tableList)
+			} else {
+				sequenceNameToTableMap.Put(sequenceTuple, []string{tableName})
+			}
 		}
+		sequenceNameTupleToLastValueMap := *utils.NewStructMap[sqlname.NameTuple, int64]()
 		for sequenceName, lastValue := range sequenceLastValue {
 			//check if a sequence is  attached to a table
 			//lookup the sequence name as per source in name reg and ignore if target not found
@@ -924,11 +940,10 @@ func restoreSequencesInOfflineMigration(msr *metadb.MigrationStatusRecord, impor
 				return fmt.Errorf("error looking up sequence name %q: %w", sequenceName, err)
 			}
 			sequenceName = sequenceTuple.ForKey()
-			if _, ok := sequenceNameToTableMap[sequenceName]; ok {
+			if tableList, ok := sequenceNameToTableMap.Get(sequenceTuple); ok {
 				//if the sequence is attached to a table
-				tables := sequenceNameToTableMap[sequenceName]
 				isTablePresentInTableList := false
-				for _, table := range tables {
+				for _, table := range tableList {
 					tableTuple, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole(table)
 					if err != nil {
 						return fmt.Errorf("error looking up table name %q: %w", table, err)
@@ -953,10 +968,7 @@ func restoreSequencesInOfflineMigration(msr *metadb.MigrationStatusRecord, impor
 					return fmt.Errorf("sequence %q is not present in the target database", sequenceName)
 				}
 				//restore the sequence last value
-				err = tdb.RestoreSequence(sequenceTuple, lastValue)
-				if err != nil {
-					return fmt.Errorf("failed to restore sequence %q: %w", sequenceName, err)
-				}
+				sequenceNameTupleToLastValueMap.Put(sequenceTuple, lastValue)
 			} else {
 				//skip the sequence
 				//this is possible in case of independent sequence
@@ -965,11 +977,24 @@ func restoreSequencesInOfflineMigration(msr *metadb.MigrationStatusRecord, impor
 				continue
 			}
 		}
+		//restore the sequence last value
+		err = tdb.RestoreSequences(sequenceNameTupleToLastValueMap)
+		if err != nil {
+			return fmt.Errorf("failed to restore sequences: %w", err)
+		}
 
 	} else {
 		//restore all sequences
 		//if tables are not being filtered then ideally we should restore all sequences
-		err = tdb.RestoreSequences(sequenceLastValue)
+		sequenceNameTupleToLastValueMap := *utils.NewStructMap[sqlname.NameTuple, int64]()
+		for sequenceName, lastValue := range sequenceLastValue {
+			sequenceTuple, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole(sequenceName)
+			if err != nil {
+				return fmt.Errorf("error looking up sequence name %q: %w", sequenceName, err)
+			}
+			sequenceNameTupleToLastValueMap.Put(sequenceTuple, lastValue)
+		}
+		err = tdb.RestoreSequences(sequenceNameTupleToLastValueMap)
 		if err != nil {
 			return fmt.Errorf("failed to restore sequences: %w", err)
 		}
