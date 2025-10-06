@@ -1494,7 +1494,8 @@ normalize_callhome_json() {
 			.SizeInBytes? = "IGNORED" |
             .yb_cluster_metrics = "IGNORED" |
             .parallel_jobs = "IGNORED" |
-            .adaptive_parallelism_max = "IGNORED"
+            .adaptive_parallelism_max = "IGNORED" |
+            .snapshot_total_bytes = "IGNORED"
         elif type == "array" then
 			sort_by(tostring)
         elif type == "string" and (

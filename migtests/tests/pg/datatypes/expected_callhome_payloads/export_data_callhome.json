@@ -1,7 +1,7 @@
 {
     "parallel_jobs": 4,
-    "total_rows_exported": 32,
-    "largest_table_rows_exported": 13,
+    "total_rows_exported": 45,
+    "largest_table_rows_exported": 26,
     "start_clean": false,
     "export_snapshot_mechanism": "pg_dump",
     "phase": "SNAPSHOT",
