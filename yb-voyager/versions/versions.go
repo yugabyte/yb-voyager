@@ -20,6 +20,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 // =============================== YB Versions ===============================
@@ -61,6 +62,11 @@ func GetLatestStableYBVersion() string {
 		panic("No latest_stable version found in yb-versions.json")
 	}
 	return versions.LatestStable
+}
+
+func GetLatestStableYBVersionWithoutBuildNumber() string {
+	latestVersion := GetLatestStableYBVersion()
+	return strings.Split(latestVersion, "-")[0]
 }
 
 // =============================== CI Config ===============================
