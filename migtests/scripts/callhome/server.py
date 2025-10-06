@@ -6,6 +6,7 @@ import requests
 from flask import Flask, request, jsonify
 
 application = Flask(__name__)
+callhome_payload = {}
 
 def api_response(status_code, message):
     if status_code != 200:
@@ -16,9 +17,13 @@ def api_response(status_code, message):
     resp.status_code = status_code
     return resp
 
+@application.route("/get_report", methods=["GET"])
+def get_report():
+    return api_response(200, callhome_payload);
 
 @application.route("/", methods=["POST"])
 def diagnostics():
+    global callhome_payload
     try:
         data = json.loads(request.get_data())
         error = False
@@ -26,11 +31,8 @@ def diagnostics():
         data["host_ip"] = ip_address
 
         try:
-            # Sort arrays to ensure consistent ordering
             payload = json.loads(data['phase_payload'])
-            test_dir=os.environ.get("TEST_DIR")
-            with open(f"{test_dir}/actualCallhomeReport.json", "w") as f:
-                json.dump(payload, f, indent=4)
+            callhome_payload = payload
         except Exception as e:
             logging.error(f"Error processing payload: {e}")
             error = True

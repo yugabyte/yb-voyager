@@ -3,8 +3,8 @@
 set -e
 set -x
 
-if [ $# -lt 1 ] || [ $# -gt 3 ]; then
-    echo "Usage: $0 TEST_NAME [--assess-only] [env.sh]"
+if [ $# -lt 1 ] || [ $# -gt 2 ]; then
+    echo "Usage: $0 TEST_NAME [--assess-only]"
     echo "  --all-commands is the default behavior (no flag needed)"
     echo "  Use --assess-only to run only the assess migration step"
     exit 1
@@ -17,21 +17,15 @@ MODE="--all-commands"
 if [ $# -ge 2 ] && [[ "$2" == --* ]]; then
     if [ "$2" == "--assess-only" ]; then
         MODE="--assess-only"
-        # Remove the mode flag from arguments (shift everything after $2)
-        set -- "$1" "${@:3}"
-    elif [ "$2" == "--all-commands" ]; then
-        echo "INFO: --all-commands is the default behavior and need not to be specified explicitly"
-        set -- "$1" "${@:3}"
     else
         echo "Error: Invalid flag '$2'"
         echo "Valid flags: --assess-only (optional)"
-        echo "Usage: $0 TEST_NAME [--assess-only] [env.sh]"
+        echo "Usage: $0 TEST_NAME [--assess-only]"
         exit 1
     fi
 fi
 
 # Test Setup
-export YB_VOYAGER_SEND_DIAGNOSTICS=true
 export TEST_NAME=$1
 export REPO_ROOT="${PWD}"
 export SCRIPTS="${REPO_ROOT}/migtests/scripts"
@@ -40,12 +34,9 @@ export TEST_DIR="${TESTS_DIR}/${TEST_NAME}"
 export PYTHONPATH="${REPO_ROOT}/migtests/lib"
 
 # Load environment
-if [ -n "$2" ]; then
-    if [ ! -f "${TEST_DIR}/$2" ]; then
-        echo "$2 file not found in the test directory"
-        exit 1
-    fi
-    source "${TEST_DIR}/$2"
+if [ ! -f "${TEST_DIR}/callhome-env.sh" && ! -f "${TEST_DIR}/env.sh" ]; then
+    echo "${TEST_DIR}/callhome-env.sh or ${TEST_DIR}/env.sh file not found in the test directory"
+    exit 1
 else
     source "${TEST_DIR}/callhome-env.sh"
     source "${TEST_DIR}/env.sh"
@@ -72,11 +63,52 @@ export LOCAL_CALL_HOME_SERVICE_PORT=$FLASK_APP_PORT
 export VOYAGER_ENABLE_DETERMINISTIC_ANON=true
 export VOYAGER_TEST_ANON_SALT=${ANON_SALT}
 
+start_flask_server() {
+    step "Start Flask server"
+    flask run --host "$FLASK_SERVER_IP" --port "$FLASK_APP_PORT" &
+    FLASK_PID=$!
+
+    # wait until its reachable (max 30s)
+    curl -s \
+    --retry 30 \
+    --retry-delay 1 \
+    --retry-connrefused \
+    --max-time 1 \
+    "http://${FLASK_SERVER_IP}:${FLASK_APP_PORT}/" >/dev/null || {
+        echo "ERROR: Flask failed to start in time"
+        kill "$FLASK_PID" 2>/dev/null || true
+        exit 1
+    }
+
+    echo "Flask server is running"
+}
+
+stop_flask_server() {
+    step "Stop the Flask server"
+    lsof -ti:${FLASK_APP_PORT} | xargs -r kill -15
+    
+    # Wait for port to be free, checking every second for 30 seconds
+    step "Wait for Flask server to stop gracefully"
+    for i in {1..30}; do
+        if ! lsof -ti:${FLASK_APP_PORT} > /dev/null 2>&1; then
+            echo "Flask server stopped gracefully"
+            break
+        fi
+        if [ $i -eq 30 ]; then
+            echo "Flask server did not stop gracefully, force killing"
+            lsof -ti:${FLASK_APP_PORT} | xargs -r kill -9
+            echo "Flask server process killed"
+        else
+            echo "Waiting for Flask server to stop... (attempt $i/30)"
+            sleep 1
+        fi
+    done
+}
+
 main() {
     echo "Deleting old export-dir"
     rm -rf "${EXPORT_DIR}"
     mkdir -p "${EXPORT_DIR}"
-    chmod +x "${TEST_DIR}/init-db"
 
     step "START: ${TEST_NAME}"
     print_env
@@ -93,28 +125,12 @@ main() {
     grant_permissions "${SOURCE_DB_NAME}" "${SOURCE_DB_TYPE}" "${SOURCE_DB_SCHEMA}"
 
     # Starting Flask server to receive callhome data
-    step "Start Flask server"
-    flask run --host "$FLASK_SERVER_IP" --port "$FLASK_APP_PORT" &
-    
-    # Wait for Flask server to start
-    step "Wait for Flask server to start"
-    for i in {1..30}; do
-        if curl -s "http://${FLASK_SERVER_IP}:${FLASK_APP_PORT}/" > /dev/null 2>&1; then
-            echo "Flask server is running successfully"
-            break
-        fi
-        if [ $i -eq 30 ]; then
-            echo "ERROR: Flask server failed to start after 30 attempts"
-            exit 1
-        fi
-        echo "Waiting for Flask server to start... (attempt $i/30)"
-        sleep 1
-    done
+    start_flask_server
 
     step "Assess migration"
     assess_migration --send-diagnostics=true
     step "Compare actual and expected assess-migration callhome data"
-    validate_callhome_reports "${TEST_DIR}/expected_callhome_reports/assess_migration_callhome.json" "${TEST_DIR}/actualCallhomeReport.json"
+    compare_callhome_json_reports "${TEST_DIR}/expected_callhome_payloads/assess_migration_callhome.json"
 
     if [ "$MODE" == "--all-commands" ]; then
 
@@ -129,44 +145,43 @@ main() {
         step "Export schema"
         export_schema --send-diagnostics=true
         step "Compare actual and expected export-schema callhome data"
-        validate_callhome_reports "${TEST_DIR}/expected_callhome_reports/export_schema_callhome.json" "${TEST_DIR}/actualCallhomeReport.json"
+        compare_callhome_json_reports "${TEST_DIR}/expected_callhome_payloads/export_schema_callhome.json"
 
         step "Analyze schema"
         analyze_schema --output-format json --send-diagnostics=true
         step "Compare actual and expected analyze-schema callhome data"
-        validate_callhome_reports "${TEST_DIR}/expected_callhome_reports/analyse_schema_callhome.json" "${TEST_DIR}/actualCallhomeReport.json"
+        compare_callhome_json_reports "${TEST_DIR}/expected_callhome_payloads/analyse_schema_callhome.json"
 
         step "Import schema"
         import_schema --send-diagnostics=true
         step "Compare actual and expected import-schema callhome data"
-        validate_callhome_reports "${TEST_DIR}/expected_callhome_reports/import_schema_callhome.json" "${TEST_DIR}/actualCallhomeReport.json"
+        compare_callhome_json_reports "${TEST_DIR}/expected_callhome_payloads/import_schema_callhome.json"
 
         step "Run Export Data"
         export_data --send-diagnostics=true
         step "Compare actual and expected export-data callhome data"
-        validate_callhome_reports "${TEST_DIR}/expected_callhome_reports/export_data_callhome.json" "${TEST_DIR}/actualCallhomeReport.json"
+        compare_callhome_json_reports "${TEST_DIR}/expected_callhome_payloads/export_data_callhome.json"
 
         step "Run Import Data"
         import_data --send-diagnostics=true
         step "Compare actual and expected import-data callhome data"
-        validate_callhome_reports "${TEST_DIR}/expected_callhome_reports/import_data_callhome.json" "${TEST_DIR}/actualCallhomeReport.json"
+        compare_callhome_json_reports "${TEST_DIR}/expected_callhome_payloads/import_data_callhome.json"
 
         step "Finalize Schema"
         finalize_schema_post_data_import --send-diagnostics=true
         step "Compare actual and expected finalize-schema callhome data"
-        validate_callhome_reports "${TEST_DIR}/expected_callhome_reports/finalize_schema_callhome.json" "${TEST_DIR}/actualCallhomeReport.json"
+        compare_callhome_json_reports "${TEST_DIR}/expected_callhome_payloads/finalize_schema_callhome.json"
 
         step "End Migration"
         end_migration --yes --send-diagnostics=true
         step "Compare actual and expected end-migration callhome data"
-        validate_callhome_reports "${TEST_DIR}/expected_callhome_reports/end_migration_callhome.json" "${TEST_DIR}/actualCallhomeReport.json"
+        compare_callhome_json_reports "${TEST_DIR}/expected_callhome_payloads/end_migration_callhome.json"
 
         step "All commands passed successfully"
     fi
 
     # Stop the Flask server
-    step "Kill the Flask server process"
-    lsof -ti:${FLASK_APP_PORT} | xargs -r kill -9
+    stop_flask_server
 }
 
 main

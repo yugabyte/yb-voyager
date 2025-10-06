@@ -1494,7 +1494,17 @@ normalize_callhome_json() {
 
 compare_callhome_json_reports() {
     local expected_report_file="$1"
-    local actual_report_file="$2"
+    
+    # Get report data from API and save to local file
+    local actual_report_file=$(mktemp)
+    if curl -s -o "$actual_report_file" "http://localhost:5000/get_report"; then
+        echo "Successfully retrieved report data from API"
+        echo "Report data saved to: $actual_report_file"
+    else
+        echo "Failed to retrieve report data from API"
+        rm -f "$actual_report_file"
+        exit 1
+    fi
 
     local temp_file1=$(mktemp)
     local temp_file2=$(mktemp)
@@ -1507,7 +1517,7 @@ compare_callhome_json_reports() {
     compare_status=$?
 
     # Clean up temporary files
-    rm "$temp_file1" "$temp_file2"
+    rm "$temp_file1" "$temp_file2" "$actual_report_file"
 
     # Exit with the status from compare_files if there are differences
     if [ $compare_status -ne 0 ]; then
@@ -1515,30 +1525,4 @@ compare_callhome_json_reports() {
     fi
 
     echo "Proceeding with further steps..."
-}
-
-validate_callhome_reports() {
-    local expected_report_file=$1
-    local actual_report_file=$2
-
-    # Wait for actualCallhomeReport.json file to be created
-    step "Wait for Actual Callhome Report to be created"
-    for i in {1..30}; do
-        if [ -f "${actual_report_file}" ]; then
-            echo "actualCallhomeReport.json created successfully"
-            break
-        fi
-        if [ $i -eq 30 ]; then
-            echo "ERROR: actualCallhomeReport.json not found after 30 attempts"
-            exit 1
-        fi
-        echo "Waiting for actualCallhomeReport.json to be created... (attempt $i/30)"
-        sleep 1
-    done
-
-    step "Compare actual and expected callhome data"
-    compare_callhome_json_reports "$expected_report_file" "$actual_report_file"
-
-    # Remove actualCallhomeReport.json file
-    rm -rf "$actual_report_file"
 }

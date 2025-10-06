@@ -115,1076 +115,1076 @@
     "migration_complexity_explanation": "Found 32 Level 2 issue(s) and 22 Level 3 issue(s), resulting in HIGH migration complexity",
     "schema_summary": "{\"Description\":\"\",\"DbName\":\"\",\"SchemaNames\":null,\"DbVersion\":\"\",\"DatabaseObjects\":[{\"ObjectType\":\"SCHEMA\",\"TotalCount\":3,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"COLLATION\",\"TotalCount\":2,\"InvalidCount\":1,\"ObjectNames\":\"\"},{\"ObjectType\":\"EXTENSION\",\"TotalCount\":9,\"InvalidCount\":4,\"ObjectNames\":\"\"},{\"ObjectType\":\"TYPE\",\"TotalCount\":5,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"DOMAIN\",\"TotalCount\":2,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"SEQUENCE\",\"TotalCount\":42,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"TABLE\",\"TotalCount\":93,\"InvalidCount\":23,\"ObjectNames\":\"\"},{\"ObjectType\":\"INDEX\",\"TotalCount\":30,\"InvalidCount\":24,\"ObjectNames\":\"\"},{\"ObjectType\":\"FUNCTION\",\"TotalCount\":19,\"InvalidCount\":6,\"ObjectNames\":\"\"},{\"ObjectType\":\"AGGREGATE\",\"TotalCount\":2,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"PROCEDURE\",\"TotalCount\":3,\"InvalidCount\":1,\"ObjectNames\":\"\"},{\"ObjectType\":\"VIEW\",\"TotalCount\":10,\"InvalidCount\":5,\"ObjectNames\":\"\"},{\"ObjectType\":\"TRIGGER\",\"TotalCount\":4,\"InvalidCount\":3,\"ObjectNames\":\"\"},{\"ObjectType\":\"MVIEW\",\"TotalCount\":3,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"RULE\",\"TotalCount\":4,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"POLICY\",\"TotalCount\":4,\"InvalidCount\":2,\"ObjectNames\":\"\"}]}",
     "assessment_issues": [
-        {
-            "category": "migration_caveats",
-            "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "type": "POLICY_WITH_ROLES",
-            "name": "Policy with Roles",
-            "impact": "LEVEL_1",
-            "object_type": "POLICY",
-            "object_name": "",
-            "sql_statement": "CREATE POLICY policy_c327cba652eb481d ON schema_a1717e859fc83d39.table_4729835644e61bf5 TO role_e34abedd38298024 USING ('const_0cb1b807a7d43ef1') "
-        },
-        {
-            "category": "migration_caveats",
-            "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "type": "POLICY_WITH_ROLES",
-            "name": "Policy with Roles",
-            "impact": "LEVEL_1",
-            "object_type": "POLICY",
-            "object_name": "",
-            "sql_statement": "CREATE POLICY policy_c327cba652eb481d ON schema_d7108fd530c9b1c2.table_4729835644e61bf5 TO role_e34abedd38298024 USING ('const_0cb1b807a7d43ef1') "
-        },
-        {
-            "category": "migration_caveats",
-            "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_BOX",
-            "name": "Unsupported datatype for Live migration - box",
-            "impact": "LEVEL_1",
-            "object_type": "COLUMN",
-            "object_name": ""
-        },
-        {
-            "category": "migration_caveats",
-            "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_BOX",
-            "name": "Unsupported datatype for Live migration - box",
-            "impact": "LEVEL_1",
-            "object_type": "COLUMN",
-            "object_name": ""
-        },
-        {
-            "category": "migration_caveats",
-            "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_LSEG",
-            "name": "Unsupported datatype for Live migration - lseg",
-            "impact": "LEVEL_1",
-            "object_type": "COLUMN",
-            "object_name": ""
-        },
-        {
-            "category": "migration_caveats",
-            "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_LSEG",
-            "name": "Unsupported datatype for Live migration - lseg",
-            "impact": "LEVEL_1",
-            "object_type": "COLUMN",
-            "object_name": ""
-        },
-        {
-            "category": "migration_caveats",
-            "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_LSEG",
-            "name": "Unsupported datatype for Live migration - lseg",
-            "impact": "LEVEL_1",
-            "object_type": "COLUMN",
-            "object_name": ""
-        },
-        {
-            "category": "migration_caveats",
-            "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_LSEG",
-            "name": "Unsupported datatype for Live migration - lseg",
-            "impact": "LEVEL_1",
-            "object_type": "COLUMN",
-            "object_name": ""
-        },
-        {
-            "category": "migration_caveats",
-            "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_PATH",
-            "name": "Unsupported datatype for Live migration - path",
-            "impact": "LEVEL_1",
-            "object_type": "COLUMN",
-            "object_name": ""
-        },
-        {
-            "category": "migration_caveats",
-            "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_PATH",
-            "name": "Unsupported datatype for Live migration - path",
-            "impact": "LEVEL_1",
-            "object_type": "COLUMN",
-            "object_name": ""
-        },
-        {
-            "category": "migration_caveats",
-            "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_POINT",
-            "name": "Unsupported datatype for Live migration - point",
-            "impact": "LEVEL_1",
-            "object_type": "COLUMN",
-            "object_name": ""
-        },
-        {
-            "category": "migration_caveats",
-            "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_POINT",
-            "name": "Unsupported datatype for Live migration - point",
-            "impact": "LEVEL_1",
-            "object_type": "COLUMN",
-            "object_name": ""
-        },
-        {
-            "category": "migration_caveats",
-            "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_ARRAY_OF_ENUM",
-            "name": "Unsupported datatype for Live migration with fall-forward/fallback - Array of Enum Datatype",
-            "impact": "LEVEL_1",
-            "object_type": "COLUMN",
-            "object_name": ""
-        },
-        {
-            "category": "migration_caveats",
-            "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_HSTORE",
-            "name": "Unsupported datatype for Live migration with fall-forward/fallback - hstore Datatype",
-            "impact": "LEVEL_1",
-            "object_type": "COLUMN",
-            "object_name": ""
-        },
-        {
-            "category": "migration_caveats",
-            "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_TSQUERY",
-            "name": "Unsupported datatype for Live migration with fall-forward/fallback - tsquery Datatype",
-            "impact": "LEVEL_1",
-            "object_type": "COLUMN",
-            "object_name": ""
-        },
-        {
-            "category": "migration_caveats",
-            "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_TSVECTOR",
-            "name": "Unsupported datatype for Live migration with fall-forward/fallback - tsvector Datatype",
-            "impact": "LEVEL_1",
-            "object_type": "COLUMN",
-            "object_name": ""
-        },
-        {
-            "category": "migration_caveats",
-            "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_TSVECTOR",
-            "name": "Unsupported datatype for Live migration with fall-forward/fallback - tsvector Datatype",
-            "impact": "LEVEL_1",
-            "object_type": "COLUMN",
-            "object_name": ""
-        },
-        {
-            "category": "migration_caveats",
-            "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED",
-            "name": "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype",
-            "impact": "LEVEL_1",
-            "object_type": "COLUMN",
-            "object_name": ""
-        },
-        {
-            "category": "migration_caveats",
-            "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED",
-            "name": "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype",
-            "impact": "LEVEL_1",
-            "object_type": "COLUMN",
-            "object_name": ""
-        },
-        {
-            "category": "migration_caveats",
-            "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED",
-            "name": "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype",
-            "impact": "LEVEL_1",
-            "object_type": "COLUMN",
-            "object_name": ""
-        },
-        {
-            "category": "migration_caveats",
-            "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED",
-            "name": "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype",
-            "impact": "LEVEL_1",
-            "object_type": "COLUMN",
-            "object_name": ""
-        },
-        {
-            "category": "migration_caveats",
-            "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED",
-            "name": "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype",
-            "impact": "LEVEL_1",
-            "object_type": "COLUMN",
-            "object_name": ""
-        },
-        {
-            "category": "performance_optimizations",
-            "category_description": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
-            "type": "HOTSPOTS_ON_DATE_INDEX",
-            "name": "Hotspots with indexes on date as first column",
-            "impact": "LEVEL_1",
-            "object_type": "INDEX",
-            "object_name": "",
-            "sql_statement": "CREATE INDEX index_bdb3cc5272e0cdc2 ON schema_d7108fd530c9b1c2.table_e2d2370afa4b58aa USING btree (col_da9a2f6cea6d4e61)"
-        },
-        {
-            "category": "performance_optimizations",
-            "category_description": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
-            "type": "HOTSPOTS_ON_TIMESTAMP_INDEX",
-            "name": "Hotspots with indexes on timestamp as first column",
-            "impact": "LEVEL_1",
-            "object_type": "INDEX",
-            "object_name": "",
-            "sql_statement": "CREATE INDEX index_ba6b491f8e777839 ON schema_d7108fd530c9b1c2.table_559de2c8ffa2acc0 USING btree (col_d4965197dd40998a)"
-        },
-        {
-            "category": "performance_optimizations",
-            "category_description": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
-            "type": "MISSING_FOREIGN_KEY_INDEX",
-            "name": "Missing index on foreign key columns",
-            "impact": "LEVEL_1",
-            "object_type": "TABLE",
-            "object_name": "",
-            "details": {
-                "ForeignKeyColumnNames": "schema_d7108fd530c9b1c2.table_9d743b98e77ebc2a.col_190e9d7fd2ee599f, schema_d7108fd530c9b1c2.table_9d743b98e77ebc2a.col_b84e1b7daad1a46c"
-            }
-        },
-        {
-            "category": "unsupported_datatypes",
-            "category_description": "Data types of the source database that are not supported on the target YugabyteDB.",
-            "type": "UNSUPPORTED_DATATYPE_LARGE_OBJECT",
-            "name": "Unsupported datatype - lo",
-            "impact": "LEVEL_3",
-            "object_type": "COLUMN",
-            "object_name": "schema_d7108fd530c9b1c2.table_a84d78d2ae709c44.col_62e951386ea523d7"
-        },
-        {
-            "category": "unsupported_datatypes",
-            "category_description": "Data types of the source database that are not supported on the target YugabyteDB.",
-            "type": "UNSUPPORTED_DATATYPE_PG_LSN",
-            "name": "Unsupported datatype - pg_lsn",
-            "impact": "LEVEL_3",
-            "object_type": "COLUMN",
-            "object_name": "schema_a1717e859fc83d39.table_7497a31892d9b2db.col_cd3e694b236504f6"
-        },
-        {
-            "category": "unsupported_datatypes",
-            "category_description": "Data types of the source database that are not supported on the target YugabyteDB.",
-            "type": "UNSUPPORTED_DATATYPE_PG_LSN",
-            "name": "Unsupported datatype - pg_lsn",
-            "impact": "LEVEL_3",
-            "object_type": "COLUMN",
-            "object_name": "schema_d7108fd530c9b1c2.table_7497a31892d9b2db.col_cd3e694b236504f6"
-        },
-        {
-            "category": "unsupported_datatypes",
-            "category_description": "Data types of the source database that are not supported on the target YugabyteDB.",
-            "type": "UNSUPPORTED_DATATYPE_PG_LSN",
-            "name": "Unsupported datatype - pg_lsn",
-            "impact": "LEVEL_3",
-            "object_type": "COLUMN",
-            "object_name": "schema_d7108fd530c9b1c2.table_a84d78d2ae709c44.col_adc966a138a40129"
-        },
-        {
-            "category": "unsupported_datatypes",
-            "category_description": "Data types of the source database that are not supported on the target YugabyteDB.",
-            "type": "UNSUPPORTED_DATATYPE_TXID_SNAPSHOT",
-            "name": "Unsupported datatype - txid_snapshot",
-            "impact": "LEVEL_3",
-            "object_type": "COLUMN",
-            "object_name": "schema_a1717e859fc83d39.table_0c2b6b127253fd96.col_adb081fcda21c98d"
-        },
-        {
-            "category": "unsupported_datatypes",
-            "category_description": "Data types of the source database that are not supported on the target YugabyteDB.",
-            "type": "UNSUPPORTED_DATATYPE_TXID_SNAPSHOT",
-            "name": "Unsupported datatype - txid_snapshot",
-            "impact": "LEVEL_3",
-            "object_type": "COLUMN",
-            "object_name": "schema_d7108fd530c9b1c2.table_0c2b6b127253fd96.col_adb081fcda21c98d"
-        },
-        {
-            "category": "unsupported_datatypes",
-            "category_description": "Data types of the source database that are not supported on the target YugabyteDB.",
-            "type": "UNSUPPORTED_DATATYPE_XID",
-            "name": "Unsupported datatype - xid",
-            "impact": "LEVEL_3",
-            "object_type": "COLUMN",
-            "object_name": "schema_d7108fd530c9b1c2.table_c395f750ef950af4.col_8ac074daca586e47"
-        },
-        {
-            "category": "unsupported_datatypes",
-            "category_description": "Data types of the source database that are not supported on the target YugabyteDB.",
-            "type": "UNSUPPORTED_DATATYPE_XML",
-            "name": "Unsupported datatype - xml",
-            "impact": "LEVEL_3",
-            "object_type": "COLUMN",
-            "object_name": "schema_a1717e859fc83d39.table_4729835644e61bf5.col_afe436b0d9baf3e0"
-        },
-        {
-            "category": "unsupported_datatypes",
-            "category_description": "Data types of the source database that are not supported on the target YugabyteDB.",
-            "type": "UNSUPPORTED_DATATYPE_XML",
-            "name": "Unsupported datatype - xml",
-            "impact": "LEVEL_3",
-            "object_type": "COLUMN",
-            "object_name": "schema_d7108fd530c9b1c2.table_4729835644e61bf5.col_afe436b0d9baf3e0"
-        },
-        {
-            "category": "unsupported_datatypes",
-            "category_description": "Data types of the source database that are not supported on the target YugabyteDB.",
-            "type": "UNSUPPORTED_DATATYPE_XML",
-            "name": "Unsupported datatype - xml",
-            "impact": "LEVEL_3",
-            "object_type": "COLUMN",
-            "object_name": "schema_d7108fd530c9b1c2.table_6bb1c595362ac906.col_520ba31098d10801"
-        },
-        {
-            "category": "unsupported_datatypes",
-            "category_description": "Data types of the source database that are not supported on the target YugabyteDB.",
-            "type": "UNSUPPORTED_DATATYPE_XML",
-            "name": "Unsupported datatype - xml",
-            "impact": "LEVEL_3",
-            "object_type": "COLUMN",
-            "object_name": "schema_d7108fd530c9b1c2.table_8e843153cfb385fb.col_1f6e746c000fd39a"
-        },
-        {
-            "category": "unsupported_datatypes",
-            "category_description": "Data types of the source database that are not supported on the target YugabyteDB.",
-            "type": "UNSUPPORTED_DATATYPE_XML",
-            "name": "Unsupported datatype - xml",
-            "impact": "LEVEL_3",
-            "object_type": "COLUMN",
-            "object_name": "schema_d7108fd530c9b1c2.table_a84d78d2ae709c44.col_be768810d9e2d20a"
-        },
-        {
-            "category": "unsupported_datatypes",
-            "category_description": "Data types of the source database that are not supported on the target YugabyteDB.",
-            "type": "UNSUPPORTED_DATATYPE_XML",
-            "name": "Unsupported datatype - xml",
-            "impact": "LEVEL_3",
-            "object_type": "COLUMN",
-            "object_name": "schema_d7108fd530c9b1c2.table_c395f750ef950af4.col_1e5e4013d294f986"
-        },
-        {
-            "category": "unsupported_datatypes",
-            "category_description": "Data types of the source database that are not supported on the target YugabyteDB.",
-            "type": "UNSUPPORTED_DATATYPE_XML",
-            "name": "Unsupported datatype - xml",
-            "impact": "LEVEL_3",
-            "object_type": "COLUMN",
-            "object_name": "schema_d7108fd530c9b1c2.table_c395f750ef950af4.col_21277e15eb34abcd"
-        },
-        {
-            "category": "unsupported_features",
-            "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
-            "type": "COMPRESSION_CLAUSE_IN_TABLE",
-            "name": "COMPRESSION clause in table for TOASTing",
-            "impact": "LEVEL_1",
-            "object_type": "TABLE",
-            "object_name": "",
-            "sql_statement": "ALTER TABLE ONLY schema_a1717e859fc83d39.table_b2ba8100151b290f ALTER COLUMN col_75ec50d2d13476a6 SET COMPRESSION pglz"
-        },
-        {
-            "category": "unsupported_features",
-            "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
-            "type": "COMPRESSION_CLAUSE_IN_TABLE",
-            "name": "COMPRESSION clause in table for TOASTing",
-            "impact": "LEVEL_1",
-            "object_type": "TABLE",
-            "object_name": "",
-            "sql_statement": "ALTER TABLE ONLY schema_d7108fd530c9b1c2.table_b2ba8100151b290f ALTER COLUMN col_75ec50d2d13476a6 SET COMPRESSION pglz"
-        },
-        {
-            "category": "unsupported_features",
-            "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
-            "type": "CONSTRAINT_TRIGGER",
-            "name": "Constraint Trigger",
-            "impact": "LEVEL_1",
-            "object_type": "TRIGGER",
-            "object_name": ""
-        },
-        {
-            "category": "unsupported_features",
-            "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
-            "type": "CONSTRAINT_TRIGGER",
-            "name": "Constraint Trigger",
-            "impact": "LEVEL_1",
-            "object_type": "TRIGGER",
-            "object_name": ""
-        },
-        {
-            "category": "unsupported_features",
-            "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
-            "type": "DEFERRABLE_CONSTRAINTS",
-            "name": "Deferrable Constraints",
-            "impact": "LEVEL_3",
-            "object_type": "TABLE",
-            "object_name": "",
-            "sql_statement": "ALTER TABLE ONLY schema_a1717e859fc83d39.table_e2d2370afa4b58aa ADD CONSTRAINT constraint_b28fa2c3d1030b75 UNIQUE (col_61138afb6c7b1256) DEFERRABLE"
-        },
-        {
-            "category": "unsupported_features",
-            "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
-            "type": "DEFERRABLE_CONSTRAINTS",
-            "name": "Deferrable Constraints",
-            "impact": "LEVEL_3",
-            "object_type": "TABLE",
-            "object_name": "",
-            "sql_statement": "ALTER TABLE ONLY schema_d7108fd530c9b1c2.table_e2d2370afa4b58aa ADD CONSTRAINT constraint_b28fa2c3d1030b75 UNIQUE (col_61138afb6c7b1256) DEFERRABLE"
-        },
-        {
-            "category": "unsupported_features",
-            "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
-            "type": "EXCLUSION_CONSTRAINTS",
-            "name": "Exclusion Constraints",
-            "impact": "LEVEL_1",
-            "object_type": "TABLE",
-            "object_name": "",
-            "sql_statement": "ALTER TABLE ONLY schema_d7108fd530c9b1c2.table_fb8cffdef52d6643 ADD CONSTRAINT constraint_60b0c9f6dad0fb7a EXCLUDE (col_1fd8a97c78c3ef7c WITH =, col_54159b91a2ae7dfa WITH =)"
-        },
-        {
-            "category": "unsupported_features",
-            "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
-            "type": "FETCH_WITH_TIES",
-            "name": "FETCH .. WITH TIES",
-            "impact": "LEVEL_2",
-            "object_type": "VIEW",
-            "object_name": ""
-        },
-        {
-            "category": "unsupported_features",
-            "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
-            "type": "FETCH_WITH_TIES",
-            "name": "FETCH .. WITH TIES",
-            "impact": "LEVEL_2",
-            "object_type": "VIEW",
-            "object_name": ""
-        },
-        {
-            "category": "unsupported_features",
-            "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
-            "type": "INDEX_ON_ARRAY_DATATYPE",
-            "name": "Index on column with array datatype",
-            "impact": "LEVEL_1",
-            "object_type": "INDEX",
-            "object_name": "",
-            "sql_statement": "CREATE INDEX index_a49076e9bfac5896 ON schema_d7108fd530c9b1c2.table_807fb1d567216a46 USING btree (col_7c155f249fa945e9)"
-        },
-        {
-            "category": "unsupported_features",
-            "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
-            "type": "INDEX_ON_BIT_DATATYPE",
-            "name": "Index on column with bit datatype",
-            "impact": "LEVEL_1",
-            "object_type": "INDEX",
-            "object_name": "",
-            "sql_statement": "CREATE INDEX index_d173c213f22a2454 ON schema_d7108fd530c9b1c2.table_a84d78d2ae709c44 USING btree (col_5f1c76770be9808f)"
-        },
-        {
-            "category": "unsupported_features",
-            "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
-            "type": "INDEX_ON_CIDR_DATATYPE",
-            "name": "Index on column with cidr datatype",
-            "impact": "LEVEL_1",
-            "object_type": "INDEX",
-            "object_name": "",
-            "sql_statement": "CREATE INDEX index_d80289608fbe32a5 ON schema_d7108fd530c9b1c2.table_a84d78d2ae709c44 USING btree (col_f5639e231ca3e603)"
-        },
-        {
-            "category": "unsupported_features",
-            "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
-            "type": "INDEX_ON_CITEXT_DATATYPE",
-            "name": "Index on column with citext datatype",
-            "impact": "LEVEL_1",
-            "object_type": "INDEX",
-            "object_name": "",
-            "sql_statement": "CREATE INDEX index_0523a53c6e78dac2 ON schema_d7108fd530c9b1c2.table_7d834d237deea6a9 USING btree (col_afe436b0d9baf3e0)"
-        },
-        {
-            "category": "unsupported_features",
-            "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
-            "type": "INDEX_ON_DATERANGE_DATATYPE",
-            "name": "Index on column with daterange datatype",
-            "impact": "LEVEL_1",
-            "object_type": "INDEX",
-            "object_name": "",
-            "sql_statement": "CREATE INDEX index_8f64a9e14ff77d6c ON schema_d7108fd530c9b1c2.table_a84d78d2ae709c44 USING btree (col_ab16cfabf97fecc5)"
-        },
-        {
-            "category": "unsupported_features",
-            "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
-            "type": "INDEX_ON_INET_DATATYPE",
-            "name": "Index on column with inet datatype",
-            "impact": "LEVEL_1",
-            "object_type": "INDEX",
-            "object_name": "",
-            "sql_statement": "CREATE INDEX index_04d6f38b4c27207c ON schema_d7108fd530c9b1c2.table_28d75042790195db USING btree (col_afe436b0d9baf3e0)"
-        },
-        {
-            "category": "unsupported_features",
-            "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
-            "type": "INDEX_ON_INTERVAL_DATATYPE",
-            "name": "Index on column with interval datatype",
-            "impact": "LEVEL_1",
-            "object_type": "INDEX",
-            "object_name": "",
-            "sql_statement": "CREATE INDEX index_4eb3a52282a0383a ON schema_d7108fd530c9b1c2.table_a84d78d2ae709c44 USING btree (col_1507c377ac817143)"
-        },
-        {
-            "category": "unsupported_features",
-            "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
-            "type": "INDEX_ON_JSONB_DATATYPE",
-            "name": "Index on column with jsonb datatype",
-            "impact": "LEVEL_1",
-            "object_type": "INDEX",
-            "object_name": "",
-            "sql_statement": "CREATE INDEX index_44a9ad8fa7086526 ON schema_d7108fd530c9b1c2.table_9d743b98e77ebc2a USING btree ((col_b10be7f69b2b574c::jsonb))"
-        },
-        {
-            "category": "unsupported_features",
-            "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
-            "type": "INDEX_ON_JSONB_DATATYPE",
-            "name": "Index on column with jsonb datatype",
-            "impact": "LEVEL_1",
-            "object_type": "INDEX",
-            "object_name": "",
-            "sql_statement": "CREATE INDEX index_8625131bcadc85b2 ON schema_d7108fd530c9b1c2.table_9d743b98e77ebc2a USING btree (col_afe436b0d9baf3e0)"
-        },
-        {
-            "category": "unsupported_features",
-            "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
-            "type": "INDEX_ON_MACADDR8_DATATYPE",
-            "name": "Index on column with macaddr8 datatype",
-            "impact": "LEVEL_1",
-            "object_type": "INDEX",
-            "object_name": "",
-            "sql_statement": "CREATE INDEX index_f0d882c0bbfc08dc ON schema_d7108fd530c9b1c2.table_a84d78d2ae709c44 USING btree (col_28c504d0021984ec)"
-        },
-        {
-            "category": "unsupported_features",
-            "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
-            "type": "INDEX_ON_MACADDR_DATATYPE",
-            "name": "Index on column with macaddr datatype",
-            "impact": "LEVEL_1",
-            "object_type": "INDEX",
-            "object_name": "",
-            "sql_statement": "CREATE INDEX index_058186288c0693fe ON schema_d7108fd530c9b1c2.table_a84d78d2ae709c44 USING btree (col_4bc78c73121b30db)"
-        },
-        {
-            "category": "unsupported_features",
-            "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
-            "type": "INDEX_ON_PG_LSN_DATATYPE",
-            "name": "Index on column with pg_lsn datatype",
-            "impact": "LEVEL_1",
-            "object_type": "INDEX",
-            "object_name": "",
-            "sql_statement": "CREATE INDEX index_00a02a89661bc1f2 ON schema_d7108fd530c9b1c2.table_a84d78d2ae709c44 USING btree (col_adc966a138a40129)"
-        },
-        {
-            "category": "unsupported_features",
-            "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
-            "type": "INDEX_ON_TSQUERY_DATATYPE",
-            "name": "Index on column with tsquery datatype",
-            "impact": "LEVEL_1",
-            "object_type": "INDEX",
-            "object_name": "",
-            "sql_statement": "CREATE INDEX index_bfa6dd153e75e278 ON schema_d7108fd530c9b1c2.table_bcb2e17708d0e1c9 USING btree (col_3f99d19386c8f03d)"
-        },
-        {
-            "category": "unsupported_features",
-            "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
-            "type": "INDEX_ON_TSVECTOR_DATATYPE",
-            "name": "Index on column with tsvector datatype",
-            "impact": "LEVEL_1",
-            "object_type": "INDEX",
-            "object_name": "",
-            "sql_statement": "CREATE INDEX index_46bfe6a377e8d64c ON schema_d7108fd530c9b1c2.table_807fb1d567216a46 USING btree (col_09444eff0bde38c8, col_190e9d7fd2ee599f)"
-        },
-        {
-            "category": "unsupported_features",
-            "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
-            "type": "INDEX_ON_USER_DEFINED_DATATYPE",
-            "name": "Index on column with user defined datatype",
-            "impact": "LEVEL_1",
-            "object_type": "INDEX",
-            "object_name": "",
-            "sql_statement": "CREATE INDEX index_a39d97ba9c1af3c1 ON schema_d7108fd530c9b1c2.table_a84d78d2ae709c44 USING btree (col_54159b91a2ae7dfa)"
-        },
-        {
-            "category": "unsupported_features",
-            "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
-            "type": "INDEX_ON_VARBIT_DATATYPE",
-            "name": "Index on column with varbit datatype",
-            "impact": "LEVEL_1",
-            "object_type": "INDEX",
-            "object_name": "",
-            "sql_statement": "CREATE INDEX index_a75de522a18b2aa8 ON schema_d7108fd530c9b1c2.table_a84d78d2ae709c44 USING btree (col_551003545287bc1e)"
-        },
-        {
-            "category": "unsupported_features",
-            "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
-            "type": "INHERITANCE",
-            "name": "Table Inheritance",
-            "impact": "LEVEL_3",
-            "object_type": "TABLE",
-            "object_name": "",
-            "sql_statement": "CREATE TABLE schema_a1717e859fc83d39.table_93e1de19aa34394b (col_86c9526271b4a1d0 date) INHERITS (schema_a1717e859fc83d39.table_b41e8c20f29c59f8)"
-        },
-        {
-            "category": "unsupported_features",
-            "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
-            "type": "INHERITANCE",
-            "name": "Table Inheritance",
-            "impact": "LEVEL_3",
-            "object_type": "TABLE",
-            "object_name": "",
-            "sql_statement": "CREATE TABLE schema_d7108fd530c9b1c2.table_93e1de19aa34394b (col_86c9526271b4a1d0 date) INHERITS (schema_d7108fd530c9b1c2.table_b41e8c20f29c59f8)"
-        },
-        {
-            "category": "unsupported_features",
-            "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
-            "type": "LARGE_OBJECT_FUNCTIONS",
-            "name": "Large Object Functions",
-            "impact": "LEVEL_2",
-            "object_type": "TRIGGER",
-            "object_name": ""
-        },
-        {
-            "category": "unsupported_features",
-            "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
-            "type": "NON_DETERMINISTIC_COLLATION",
-            "name": "Non-Deterministic collations",
-            "impact": "LEVEL_1",
-            "object_type": "COLLATION",
-            "object_name": "",
-            "sql_statement": "CREATE COLLATION schema_a1717e859fc83d39.collation_53226a330ab6e605 (provider = type_0716a8228a79d024, deterministic = false, locale = 'und-u-kc-ks-level1')"
-        },
-        {
-            "category": "unsupported_features",
-            "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
-            "type": "PK_UK_ON_ARRAY_DATATYPE",
-            "name": "Primary/Unique key on column with array datatype",
-            "impact": "LEVEL_1",
-            "object_type": "TABLE",
-            "object_name": "",
-            "sql_statement": "ALTER TABLE ONLY schema_d7108fd530c9b1c2.table_a84d78d2ae709c44 ADD CONSTRAINT constraint_e74627fd7ee17d08 PRIMARY KEY (col_190e9d7fd2ee599f, col_a917749a02e9c7a8)"
-        },
-        {
-            "category": "unsupported_features",
-            "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
-            "type": "PK_UK_ON_PG_LSN_DATATYPE",
-            "name": "Primary/Unique key on column with pg_lsn datatype",
-            "impact": "LEVEL_1",
-            "object_type": "TABLE",
-            "object_name": "",
-            "sql_statement": "ALTER TABLE ONLY schema_d7108fd530c9b1c2.table_a84d78d2ae709c44 ADD CONSTRAINT constraint_14541250ed4bae35 UNIQUE (col_adc966a138a40129)"
-        },
-        {
-            "category": "unsupported_features",
-            "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
-            "type": "PK_UK_ON_VARBIT_DATATYPE",
-            "name": "Primary/Unique key on column with varbit datatype",
-            "impact": "LEVEL_1",
-            "object_type": "TABLE",
-            "object_name": "",
-            "sql_statement": "ALTER TABLE ONLY schema_d7108fd530c9b1c2.table_a84d78d2ae709c44 ADD CONSTRAINT constraint_12644263d7d90f06 UNIQUE (col_551003545287bc1e)"
-        },
-        {
-            "category": "unsupported_features",
-            "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
-            "type": "SYSTEM_COLUMN_CTID",
-            "name": "System Column - ctid",
-            "impact": "LEVEL_2",
-            "object_type": "VIEW",
-            "object_name": ""
-        },
-        {
-            "category": "unsupported_features",
-            "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
-            "type": "SYSTEM_COLUMN_XMIN",
-            "name": "System Column - xmin",
-            "impact": "LEVEL_2",
-            "object_type": "VIEW",
-            "object_name": ""
-        },
-        {
-            "category": "unsupported_features",
-            "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
-            "type": "UNSUPPORTED_BRIN_INDEX_METHOD",
-            "name": "Index with BRIN access method",
-            "impact": "LEVEL_1",
-            "object_type": "INDEX",
-            "object_name": "",
-            "sql_statement": "CREATE INDEX index_bfeb7cbb9fc6b0f2 ON schema_d7108fd530c9b1c2.table_0c2b6b127253fd96 USING brin (col_18cca1c687213d35)"
-        },
-        {
-            "category": "unsupported_features",
-            "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
-            "type": "UNSUPPORTED_EXTENSION",
-            "name": "Unsupported Extension - pglogical",
-            "impact": "LEVEL_3",
-            "object_type": "EXTENSION",
-            "object_name": "",
-            "sql_statement": "CREATE EXTENSION IF NOT EXISTS pglogical SCHEMA schema_68ec2ae613c42996"
-        },
-        {
-            "category": "unsupported_features",
-            "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
-            "type": "UNSUPPORTED_EXTENSION",
-            "name": "Unsupported Extension - plperl",
-            "impact": "LEVEL_3",
-            "object_type": "EXTENSION",
-            "object_name": "",
-            "sql_statement": "CREATE EXTENSION IF NOT EXISTS plperl SCHEMA schema_ef0e5bb64d3991e2"
-        },
-        {
-            "category": "unsupported_features",
-            "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
-            "type": "UNSUPPORTED_EXTENSION",
-            "name": "Unsupported Extension - plpython3u",
-            "impact": "LEVEL_3",
-            "object_type": "EXTENSION",
-            "object_name": "",
-            "sql_statement": "CREATE EXTENSION IF NOT EXISTS plpython3u SCHEMA schema_ef0e5bb64d3991e2"
-        },
-        {
-            "category": "unsupported_features",
-            "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
-            "type": "UNSUPPORTED_EXTENSION",
-            "name": "Unsupported Extension - postgis",
-            "impact": "LEVEL_3",
-            "object_type": "EXTENSION",
-            "object_name": "",
-            "sql_statement": "CREATE EXTENSION IF NOT EXISTS postgis SCHEMA schema_d7108fd530c9b1c2"
-        },
-        {
-            "category": "unsupported_features",
-            "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
-            "type": "UNSUPPORTED_GIST_INDEX_METHOD",
-            "name": "Index with GIST access method",
-            "impact": "LEVEL_1",
-            "object_type": "INDEX",
-            "object_name": "",
-            "sql_statement": "CREATE INDEX index_c47446c09b673296 ON schema_a1717e859fc83d39.table_0c2b6b127253fd96 USING gist (col_18cca1c687213d35)"
-        },
-        {
-            "category": "unsupported_features",
-            "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
-            "type": "UNSUPPORTED_GIST_INDEX_METHOD",
-            "name": "Index with GIST access method",
-            "impact": "LEVEL_1",
-            "object_type": "INDEX",
-            "object_name": "",
-            "sql_statement": "CREATE INDEX index_c47446c09b673296 ON schema_d7108fd530c9b1c2.table_0c2b6b127253fd96 USING gist (col_18cca1c687213d35)"
-        },
-        {
-            "category": "unsupported_features",
-            "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
-            "type": "UNSUPPORTED_GIST_INDEX_METHOD",
-            "name": "Index with GIST access method",
-            "impact": "LEVEL_1",
-            "object_type": "INDEX",
-            "object_name": "",
-            "sql_statement": "CREATE INDEX index_fa228d1a6bceab41 ON schema_a1717e859fc83d39.table_0c2b6b127253fd96 USING gist (col_e089bc0f27ae9091)"
-        },
-        {
-            "category": "unsupported_features",
-            "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
-            "type": "UNSUPPORTED_GIST_INDEX_METHOD",
-            "name": "Index with GIST access method",
-            "impact": "LEVEL_1",
-            "object_type": "INDEX",
-            "object_name": "",
-            "sql_statement": "CREATE INDEX index_fa228d1a6bceab41 ON schema_d7108fd530c9b1c2.table_0c2b6b127253fd96 USING gist (col_e089bc0f27ae9091)"
-        },
-        {
-            "category": "unsupported_features",
-            "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
-            "type": "UNSUPPORTED_SPGIST_INDEX_METHOD",
-            "name": "Index with SPGIST access method",
-            "impact": "LEVEL_1",
-            "object_type": "INDEX",
-            "object_name": "",
-            "sql_statement": "CREATE INDEX index_4648374b868022cb ON schema_a1717e859fc83d39.table_0c2b6b127253fd96 USING spgist (col_18cca1c687213d35)"
-        },
-        {
-            "category": "unsupported_features",
-            "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
-            "type": "VIEW_WITH_CHECK_OPTION",
-            "name": "View With Check Option",
-            "impact": "LEVEL_1",
-            "object_type": "VIEW",
-            "object_name": ""
-        },
-        {
-            "category": "unsupported_features",
-            "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
-            "type": "VIEW_WITH_CHECK_OPTION",
-            "name": "View With Check Option",
-            "impact": "LEVEL_1",
-            "object_type": "VIEW",
-            "object_name": ""
-        },
-        {
-            "category": "unsupported_features",
-            "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
-            "type": "XML_FUNCTIONS",
-            "name": "XML Functions",
-            "impact": "LEVEL_2",
-            "object_type": "VIEW",
-            "object_name": ""
-        },
-        {
-            "category": "unsupported_plpgsql_objects",
-            "category_description": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
-            "type": "LARGE_OBJECT_FUNCTIONS",
-            "name": "Large Object Functions",
-            "impact": "LEVEL_2",
-            "object_type": "FUNCTION",
-            "object_name": ""
-        },
-        {
-            "category": "unsupported_plpgsql_objects",
-            "category_description": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
-            "type": "LISTEN_NOTIFY",
-            "name": "Events Listen / Notify",
-            "impact": "LEVEL_2",
-            "object_type": "FUNCTION",
-            "object_name": ""
-        },
-        {
-            "category": "unsupported_plpgsql_objects",
-            "category_description": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
-            "type": "LISTEN_NOTIFY",
-            "name": "Events Listen / Notify",
-            "impact": "LEVEL_2",
-            "object_type": "FUNCTION",
-            "object_name": ""
-        },
-        {
-            "category": "unsupported_plpgsql_objects",
-            "category_description": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
-            "type": "LISTEN_NOTIFY",
-            "name": "Events Listen / Notify",
-            "impact": "LEVEL_2",
-            "object_type": "FUNCTION",
-            "object_name": ""
-        },
-        {
-            "category": "unsupported_plpgsql_objects",
-            "category_description": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
-            "type": "LISTEN_NOTIFY",
-            "name": "Events Listen / Notify",
-            "impact": "LEVEL_2",
-            "object_type": "FUNCTION",
-            "object_name": ""
-        },
-        {
-            "category": "unsupported_plpgsql_objects",
-            "category_description": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
-            "type": "LISTEN_NOTIFY",
-            "name": "Events Listen / Notify",
-            "impact": "LEVEL_2",
-            "object_type": "FUNCTION",
-            "object_name": ""
-        },
-        {
-            "category": "unsupported_plpgsql_objects",
-            "category_description": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
-            "type": "LISTEN_NOTIFY",
-            "name": "Events Listen / Notify",
-            "impact": "LEVEL_2",
-            "object_type": "FUNCTION",
-            "object_name": ""
-        },
-        {
-            "category": "unsupported_plpgsql_objects",
-            "category_description": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
-            "type": "LISTEN_NOTIFY",
-            "name": "Events Listen / Notify",
-            "impact": "LEVEL_2",
-            "object_type": "FUNCTION",
-            "object_name": ""
-        },
-        {
-            "category": "unsupported_plpgsql_objects",
-            "category_description": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
-            "type": "LISTEN_NOTIFY",
-            "name": "Events Listen / Notify",
-            "impact": "LEVEL_2",
-            "object_type": "FUNCTION",
-            "object_name": ""
-        },
-        {
-            "category": "unsupported_plpgsql_objects",
-            "category_description": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
-            "type": "NON_DECIMAL_INTEGER_LITERAL",
-            "name": "Non-decimal integer literal",
-            "impact": "LEVEL_2",
-            "object_type": "FUNCTION",
-            "object_name": ""
-        },
-        {
-            "category": "unsupported_plpgsql_objects",
-            "category_description": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
-            "type": "NON_DECIMAL_INTEGER_LITERAL",
-            "name": "Non-decimal integer literal",
-            "impact": "LEVEL_2",
-            "object_type": "FUNCTION",
-            "object_name": ""
-        },
-        {
-            "category": "unsupported_plpgsql_objects",
-            "category_description": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
-            "type": "REFERENCED_TYPE_DECLARATION",
-            "name": "Referencing type declaration of variables",
-            "impact": "LEVEL_1",
-            "object_type": "FUNCTION",
-            "object_name": ""
-        },
-        {
-            "category": "unsupported_plpgsql_objects",
-            "category_description": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
-            "type": "REFERENCED_TYPE_DECLARATION",
-            "name": "Referencing type declaration of variables",
-            "impact": "LEVEL_1",
-            "object_type": "PROCEDURE",
-            "object_name": ""
-        },
-        {
-            "category": "unsupported_query_constructs",
-            "category_description": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
-            "type": "COPY ... ON_ERROR",
-            "name": "COPY ... ON_ERROR",
-            "impact": "LEVEL_2",
-            "object_type": "",
-            "object_name": ""
-        },
-        {
-            "category": "unsupported_query_constructs",
-            "category_description": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
-            "type": "LARGE_OBJECT_FUNCTIONS",
-            "name": "Large Object Functions",
-            "impact": "LEVEL_2",
-            "object_type": "",
-            "object_name": ""
-        },
-        {
-            "category": "unsupported_query_constructs",
-            "category_description": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
-            "type": "SYSTEM_COLUMN_CMAX",
-            "name": "System Column - cmax",
-            "impact": "LEVEL_2",
-            "object_type": "",
-            "object_name": ""
-        },
-        {
-            "category": "unsupported_query_constructs",
-            "category_description": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
-            "type": "SYSTEM_COLUMN_CMIN",
-            "name": "System Column - cmin",
-            "impact": "LEVEL_2",
-            "object_type": "",
-            "object_name": ""
-        },
-        {
-            "category": "unsupported_query_constructs",
-            "category_description": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
-            "type": "SYSTEM_COLUMN_CTID",
-            "name": "System Column - ctid",
-            "impact": "LEVEL_2",
-            "object_type": "",
-            "object_name": ""
-        },
-        {
-            "category": "unsupported_query_constructs",
-            "category_description": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
-            "type": "SYSTEM_COLUMN_XMAX",
-            "name": "System Column - xmax",
-            "impact": "LEVEL_2",
-            "object_type": "",
-            "object_name": ""
-        },
-        {
-            "category": "unsupported_query_constructs",
-            "category_description": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
-            "type": "SYSTEM_COLUMN_XMIN",
-            "name": "System Column - xmin",
-            "impact": "LEVEL_2",
-            "object_type": "",
-            "object_name": ""
-        },
-        {
-            "category": "unsupported_query_constructs",
-            "category_description": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
-            "type": "XML_FUNCTIONS",
-            "name": "XML Functions",
-            "impact": "LEVEL_2",
-            "object_type": "",
-            "object_name": ""
-        },
-        {
-            "category": "unsupported_query_constructs",
-            "category_description": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
-            "type": "XML_FUNCTIONS",
-            "name": "XML Functions",
-            "impact": "LEVEL_2",
-            "object_type": "",
-            "object_name": ""
-        },
-        {
-            "category": "unsupported_query_constructs",
-            "category_description": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
-            "type": "XML_FUNCTIONS",
-            "name": "XML Functions",
-            "impact": "LEVEL_2",
-            "object_type": "",
-            "object_name": ""
-        },
-        {
-            "category": "unsupported_query_constructs",
-            "category_description": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
-            "type": "XML_FUNCTIONS",
-            "name": "XML Functions",
-            "impact": "LEVEL_2",
-            "object_type": "",
-            "object_name": ""
-        },
-        {
-            "category": "unsupported_query_constructs",
-            "category_description": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
-            "type": "XML_FUNCTIONS",
-            "name": "XML Functions",
-            "impact": "LEVEL_2",
-            "object_type": "",
-            "object_name": ""
-        },
-        {
-            "category": "unsupported_query_constructs",
-            "category_description": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
-            "type": "XML_FUNCTIONS",
-            "name": "XML Functions",
-            "impact": "LEVEL_2",
-            "object_type": "",
-            "object_name": ""
-        },
-        {
-            "category": "unsupported_query_constructs",
-            "category_description": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
-            "type": "XML_FUNCTIONS",
-            "name": "XML Functions",
-            "impact": "LEVEL_2",
-            "object_type": "",
-            "object_name": ""
-        },
-        {
-            "category": "unsupported_query_constructs",
-            "category_description": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
-            "type": "XML_FUNCTIONS",
-            "name": "XML Functions",
-            "impact": "LEVEL_2",
-            "object_type": "",
-            "object_name": ""
-        }
+      {
+        "category": "unsupported_datatypes",
+        "category_description": "Data types of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_3",
+        "name": "Unsupported datatype - xid",
+        "object_name": "schema_d7108fd530c9b1c2.table_c395f750ef950af4.col_8ac074daca586e47",
+        "object_type": "COLUMN",
+        "type": "UNSUPPORTED_DATATYPE_XID"
+      },
+      {
+        "category": "unsupported_datatypes",
+        "category_description": "Data types of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_3",
+        "name": "Unsupported datatype - xml",
+        "object_name": "schema_a1717e859fc83d39.table_4729835644e61bf5.col_afe436b0d9baf3e0",
+        "object_type": "COLUMN",
+        "type": "UNSUPPORTED_DATATYPE_XML"
+      },
+      {
+        "category": "unsupported_datatypes",
+        "category_description": "Data types of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_3",
+        "name": "Unsupported datatype - xml",
+        "object_name": "schema_d7108fd530c9b1c2.table_c395f750ef950af4.col_1e5e4013d294f986",
+        "object_type": "COLUMN",
+        "type": "UNSUPPORTED_DATATYPE_XML"
+      },
+      {
+        "category": "unsupported_datatypes",
+        "category_description": "Data types of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_3",
+        "name": "Unsupported datatype - xml",
+        "object_name": "schema_d7108fd530c9b1c2.table_a84d78d2ae709c44.col_be768810d9e2d20a",
+        "object_type": "COLUMN",
+        "type": "UNSUPPORTED_DATATYPE_XML"
+      },
+      {
+        "category": "unsupported_datatypes",
+        "category_description": "Data types of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_3",
+        "name": "Unsupported datatype - txid_snapshot",
+        "object_name": "schema_a1717e859fc83d39.table_0c2b6b127253fd96.col_adb081fcda21c98d",
+        "object_type": "COLUMN",
+        "type": "UNSUPPORTED_DATATYPE_TXID_SNAPSHOT"
+      },
+      {
+        "category": "unsupported_datatypes",
+        "category_description": "Data types of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_3",
+        "name": "Unsupported datatype - xml",
+        "object_name": "schema_d7108fd530c9b1c2.table_8e843153cfb385fb.col_1f6e746c000fd39a",
+        "object_type": "COLUMN",
+        "type": "UNSUPPORTED_DATATYPE_XML"
+      },
+      {
+        "category": "unsupported_datatypes",
+        "category_description": "Data types of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_3",
+        "name": "Unsupported datatype - pg_lsn",
+        "object_name": "schema_d7108fd530c9b1c2.table_7497a31892d9b2db.col_cd3e694b236504f6",
+        "object_type": "COLUMN",
+        "type": "UNSUPPORTED_DATATYPE_PG_LSN"
+      },
+      {
+        "category": "unsupported_datatypes",
+        "category_description": "Data types of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_3",
+        "name": "Unsupported datatype - xml",
+        "object_name": "schema_d7108fd530c9b1c2.table_c395f750ef950af4.col_21277e15eb34abcd",
+        "object_type": "COLUMN",
+        "type": "UNSUPPORTED_DATATYPE_XML"
+      },
+      {
+        "category": "unsupported_datatypes",
+        "category_description": "Data types of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_3",
+        "name": "Unsupported datatype - txid_snapshot",
+        "object_name": "schema_d7108fd530c9b1c2.table_0c2b6b127253fd96.col_adb081fcda21c98d",
+        "object_type": "COLUMN",
+        "type": "UNSUPPORTED_DATATYPE_TXID_SNAPSHOT"
+      },
+      {
+        "category": "unsupported_datatypes",
+        "category_description": "Data types of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_3",
+        "name": "Unsupported datatype - pg_lsn",
+        "object_name": "schema_d7108fd530c9b1c2.table_a84d78d2ae709c44.col_adc966a138a40129",
+        "object_type": "COLUMN",
+        "type": "UNSUPPORTED_DATATYPE_PG_LSN"
+      },
+      {
+        "category": "unsupported_datatypes",
+        "category_description": "Data types of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_3",
+        "name": "Unsupported datatype - xml",
+        "object_name": "schema_d7108fd530c9b1c2.table_6bb1c595362ac906.col_520ba31098d10801",
+        "object_type": "COLUMN",
+        "type": "UNSUPPORTED_DATATYPE_XML"
+      },
+      {
+        "category": "unsupported_datatypes",
+        "category_description": "Data types of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_3",
+        "name": "Unsupported datatype - pg_lsn",
+        "object_name": "schema_a1717e859fc83d39.table_7497a31892d9b2db.col_cd3e694b236504f6",
+        "object_type": "COLUMN",
+        "type": "UNSUPPORTED_DATATYPE_PG_LSN"
+      },
+      {
+        "category": "unsupported_datatypes",
+        "category_description": "Data types of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_3",
+        "name": "Unsupported datatype - xml",
+        "object_name": "schema_d7108fd530c9b1c2.table_4729835644e61bf5.col_afe436b0d9baf3e0",
+        "object_type": "COLUMN",
+        "type": "UNSUPPORTED_DATATYPE_XML"
+      },
+      {
+        "category": "unsupported_datatypes",
+        "category_description": "Data types of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_3",
+        "name": "Unsupported datatype - lo",
+        "object_name": "schema_d7108fd530c9b1c2.table_a84d78d2ae709c44.col_62e951386ea523d7",
+        "object_type": "COLUMN",
+        "type": "UNSUPPORTED_DATATYPE_LARGE_OBJECT"
+      },
+      {
+        "category": "unsupported_features",
+        "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_1",
+        "name": "Index on column with bit datatype",
+        "object_name": "",
+        "object_type": "INDEX",
+        "sql_statement": "CREATE INDEX index_d173c213f22a2454 ON schema_d7108fd530c9b1c2.table_a84d78d2ae709c44 USING btree (col_5f1c76770be9808f)",
+        "type": "INDEX_ON_BIT_DATATYPE"
+      },
+      {
+        "category": "unsupported_features",
+        "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_1",
+        "name": "Index with SPGIST access method",
+        "object_name": "",
+        "object_type": "INDEX",
+        "sql_statement": "CREATE INDEX index_4648374b868022cb ON schema_a1717e859fc83d39.table_0c2b6b127253fd96 USING spgist (col_18cca1c687213d35)",
+        "type": "UNSUPPORTED_SPGIST_INDEX_METHOD"
+      },
+      {
+        "category": "unsupported_features",
+        "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_3",
+        "name": "Deferrable Constraints",
+        "object_name": "",
+        "object_type": "TABLE",
+        "sql_statement": "ALTER TABLE ONLY schema_a1717e859fc83d39.table_e2d2370afa4b58aa ADD CONSTRAINT constraint_b28fa2c3d1030b75 UNIQUE (col_61138afb6c7b1256) DEFERRABLE",
+        "type": "DEFERRABLE_CONSTRAINTS"
+      },
+      {
+        "category": "unsupported_features",
+        "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_1",
+        "name": "View With Check Option",
+        "object_name": "",
+        "object_type": "VIEW",
+        "type": "VIEW_WITH_CHECK_OPTION"
+      },
+      {
+        "category": "unsupported_features",
+        "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_1",
+        "name": "View With Check Option",
+        "object_name": "",
+        "object_type": "VIEW",
+        "type": "VIEW_WITH_CHECK_OPTION"
+      },
+      {
+        "category": "unsupported_features",
+        "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_1",
+        "name": "Index on column with citext datatype",
+        "object_name": "",
+        "object_type": "INDEX",
+        "sql_statement": "CREATE INDEX index_0523a53c6e78dac2 ON schema_d7108fd530c9b1c2.table_7d834d237deea6a9 USING btree (col_afe436b0d9baf3e0)",
+        "type": "INDEX_ON_CITEXT_DATATYPE"
+      },
+      {
+        "category": "unsupported_features",
+        "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_1",
+        "name": "Index on column with tsvector datatype",
+        "object_name": "",
+        "object_type": "INDEX",
+        "sql_statement": "CREATE INDEX index_46bfe6a377e8d64c ON schema_d7108fd530c9b1c2.table_807fb1d567216a46 USING btree (col_09444eff0bde38c8, col_190e9d7fd2ee599f)",
+        "type": "INDEX_ON_TSVECTOR_DATATYPE"
+      },
+      {
+        "category": "unsupported_features",
+        "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_1",
+        "name": "Index on column with tsquery datatype",
+        "object_name": "",
+        "object_type": "INDEX",
+        "sql_statement": "CREATE INDEX index_bfa6dd153e75e278 ON schema_d7108fd530c9b1c2.table_bcb2e17708d0e1c9 USING btree (col_3f99d19386c8f03d)",
+        "type": "INDEX_ON_TSQUERY_DATATYPE"
+      },
+      {
+        "category": "unsupported_features",
+        "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_1",
+        "name": "Index on column with jsonb datatype",
+        "object_name": "",
+        "object_type": "INDEX",
+        "sql_statement": "CREATE INDEX index_8625131bcadc85b2 ON schema_d7108fd530c9b1c2.table_9d743b98e77ebc2a USING btree (col_afe436b0d9baf3e0)",
+        "type": "INDEX_ON_JSONB_DATATYPE"
+      },
+      {
+        "category": "unsupported_features",
+        "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_1",
+        "name": "Index on column with jsonb datatype",
+        "object_name": "",
+        "object_type": "INDEX",
+        "sql_statement": "CREATE INDEX index_44a9ad8fa7086526 ON schema_d7108fd530c9b1c2.table_9d743b98e77ebc2a USING btree ((col_b10be7f69b2b574c::jsonb))",
+        "type": "INDEX_ON_JSONB_DATATYPE"
+      },
+      {
+        "category": "unsupported_features",
+        "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_1",
+        "name": "Index on column with inet datatype",
+        "object_name": "",
+        "object_type": "INDEX",
+        "sql_statement": "CREATE INDEX index_04d6f38b4c27207c ON schema_d7108fd530c9b1c2.table_28d75042790195db USING btree (col_afe436b0d9baf3e0)",
+        "type": "INDEX_ON_INET_DATATYPE"
+      },
+      {
+        "category": "unsupported_features",
+        "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_1",
+        "name": "Index on column with macaddr datatype",
+        "object_name": "",
+        "object_type": "INDEX",
+        "sql_statement": "CREATE INDEX index_058186288c0693fe ON schema_d7108fd530c9b1c2.table_a84d78d2ae709c44 USING btree (col_4bc78c73121b30db)",
+        "type": "INDEX_ON_MACADDR_DATATYPE"
+      },
+      {
+        "category": "unsupported_features",
+        "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_1",
+        "name": "Index on column with macaddr8 datatype",
+        "object_name": "",
+        "object_type": "INDEX",
+        "sql_statement": "CREATE INDEX index_f0d882c0bbfc08dc ON schema_d7108fd530c9b1c2.table_a84d78d2ae709c44 USING btree (col_28c504d0021984ec)",
+        "type": "INDEX_ON_MACADDR8_DATATYPE"
+      },
+      {
+        "category": "unsupported_features",
+        "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_1",
+        "name": "Index on column with cidr datatype",
+        "object_name": "",
+        "object_type": "INDEX",
+        "sql_statement": "CREATE INDEX index_d80289608fbe32a5 ON schema_d7108fd530c9b1c2.table_a84d78d2ae709c44 USING btree (col_f5639e231ca3e603)",
+        "type": "INDEX_ON_CIDR_DATATYPE"
+      },
+      {
+        "category": "unsupported_features",
+        "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_1",
+        "name": "Index with GIST access method",
+        "object_name": "",
+        "object_type": "INDEX",
+        "sql_statement": "CREATE INDEX index_c47446c09b673296 ON schema_d7108fd530c9b1c2.table_0c2b6b127253fd96 USING gist (col_18cca1c687213d35)",
+        "type": "UNSUPPORTED_GIST_INDEX_METHOD"
+      },
+      {
+        "category": "unsupported_features",
+        "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_1",
+        "name": "Index on column with varbit datatype",
+        "object_name": "",
+        "object_type": "INDEX",
+        "sql_statement": "CREATE INDEX index_a75de522a18b2aa8 ON schema_d7108fd530c9b1c2.table_a84d78d2ae709c44 USING btree (col_551003545287bc1e)",
+        "type": "INDEX_ON_VARBIT_DATATYPE"
+      },
+      {
+        "category": "unsupported_features",
+        "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_1",
+        "name": "Index on column with daterange datatype",
+        "object_name": "",
+        "object_type": "INDEX",
+        "sql_statement": "CREATE INDEX index_8f64a9e14ff77d6c ON schema_d7108fd530c9b1c2.table_a84d78d2ae709c44 USING btree (col_ab16cfabf97fecc5)",
+        "type": "INDEX_ON_DATERANGE_DATATYPE"
+      },
+      {
+        "category": "unsupported_features",
+        "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_1",
+        "name": "Index on column with interval datatype",
+        "object_name": "",
+        "object_type": "INDEX",
+        "sql_statement": "CREATE INDEX index_4eb3a52282a0383a ON schema_d7108fd530c9b1c2.table_a84d78d2ae709c44 USING btree (col_1507c377ac817143)",
+        "type": "INDEX_ON_INTERVAL_DATATYPE"
+      },
+      {
+        "category": "unsupported_features",
+        "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_1",
+        "name": "Index on column with pg_lsn datatype",
+        "object_name": "",
+        "object_type": "INDEX",
+        "sql_statement": "CREATE INDEX index_00a02a89661bc1f2 ON schema_d7108fd530c9b1c2.table_a84d78d2ae709c44 USING btree (col_adc966a138a40129)",
+        "type": "INDEX_ON_PG_LSN_DATATYPE"
+      },
+      {
+        "category": "unsupported_features",
+        "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_1",
+        "name": "Index on column with array datatype",
+        "object_name": "",
+        "object_type": "INDEX",
+        "sql_statement": "CREATE INDEX index_a49076e9bfac5896 ON schema_d7108fd530c9b1c2.table_807fb1d567216a46 USING btree (col_7c155f249fa945e9)",
+        "type": "INDEX_ON_ARRAY_DATATYPE"
+      },
+      {
+        "category": "unsupported_features",
+        "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_1",
+        "name": "Index on column with user defined datatype",
+        "object_name": "",
+        "object_type": "INDEX",
+        "sql_statement": "CREATE INDEX index_a39d97ba9c1af3c1 ON schema_d7108fd530c9b1c2.table_a84d78d2ae709c44 USING btree (col_54159b91a2ae7dfa)",
+        "type": "INDEX_ON_USER_DEFINED_DATATYPE"
+      },
+      {
+        "category": "unsupported_features",
+        "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_1",
+        "name": "Primary/Unique key on column with varbit datatype",
+        "object_name": "",
+        "object_type": "TABLE",
+        "sql_statement": "ALTER TABLE ONLY schema_d7108fd530c9b1c2.table_a84d78d2ae709c44 ADD CONSTRAINT constraint_12644263d7d90f06 UNIQUE (col_551003545287bc1e)",
+        "type": "PK_UK_ON_VARBIT_DATATYPE"
+      },
+      {
+        "category": "unsupported_features",
+        "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_1",
+        "name": "Primary/Unique key on column with pg_lsn datatype",
+        "object_name": "",
+        "object_type": "TABLE",
+        "sql_statement": "ALTER TABLE ONLY schema_d7108fd530c9b1c2.table_a84d78d2ae709c44 ADD CONSTRAINT constraint_14541250ed4bae35 UNIQUE (col_adc966a138a40129)",
+        "type": "PK_UK_ON_PG_LSN_DATATYPE"
+      },
+      {
+        "category": "unsupported_features",
+        "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_1",
+        "name": "Primary/Unique key on column with array datatype",
+        "object_name": "",
+        "object_type": "TABLE",
+        "sql_statement": "ALTER TABLE ONLY schema_d7108fd530c9b1c2.table_a84d78d2ae709c44 ADD CONSTRAINT constraint_e74627fd7ee17d08 PRIMARY KEY (col_190e9d7fd2ee599f, col_a917749a02e9c7a8)",
+        "type": "PK_UK_ON_ARRAY_DATATYPE"
+      },
+      {
+        "category": "unsupported_features",
+        "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_2",
+        "name": "XML Functions",
+        "object_name": "",
+        "object_type": "VIEW",
+        "type": "XML_FUNCTIONS"
+      },
+      {
+        "category": "unsupported_features",
+        "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_2",
+        "name": "System Column - xmin",
+        "object_name": "",
+        "object_type": "VIEW",
+        "type": "SYSTEM_COLUMN_XMIN"
+      },
+      {
+        "category": "unsupported_features",
+        "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_2",
+        "name": "System Column - ctid",
+        "object_name": "",
+        "object_type": "VIEW",
+        "type": "SYSTEM_COLUMN_CTID"
+      },
+      {
+        "category": "unsupported_features",
+        "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_2",
+        "name": "Large Object Functions",
+        "object_name": "",
+        "object_type": "TRIGGER",
+        "type": "LARGE_OBJECT_FUNCTIONS"
+      },
+      {
+        "category": "unsupported_features",
+        "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_2",
+        "name": "FETCH .. WITH TIES",
+        "object_name": "",
+        "object_type": "VIEW",
+        "type": "FETCH_WITH_TIES"
+      },
+      {
+        "category": "unsupported_features",
+        "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_2",
+        "name": "FETCH .. WITH TIES",
+        "object_name": "",
+        "object_type": "VIEW",
+        "type": "FETCH_WITH_TIES"
+      },
+      {
+        "category": "unsupported_features",
+        "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_1",
+        "name": "Non-Deterministic collations",
+        "object_name": "",
+        "object_type": "COLLATION",
+        "sql_statement": "CREATE COLLATION schema_a1717e859fc83d39.collation_53226a330ab6e605 (provider = type_0716a8228a79d024, deterministic = false, locale = 'und-u-kc-ks-level1')",
+        "type": "NON_DETERMINISTIC_COLLATION"
+      },
+      {
+        "category": "unsupported_features",
+        "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_1",
+        "name": "COMPRESSION clause in table for TOASTing",
+        "object_name": "",
+        "object_type": "TABLE",
+        "sql_statement": "ALTER TABLE ONLY schema_d7108fd530c9b1c2.table_b2ba8100151b290f ALTER COLUMN col_75ec50d2d13476a6 SET COMPRESSION pglz",
+        "type": "COMPRESSION_CLAUSE_IN_TABLE"
+      },
+      {
+        "category": "unsupported_features",
+        "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_1",
+        "name": "COMPRESSION clause in table for TOASTing",
+        "object_name": "",
+        "object_type": "TABLE",
+        "sql_statement": "ALTER TABLE ONLY schema_a1717e859fc83d39.table_b2ba8100151b290f ALTER COLUMN col_75ec50d2d13476a6 SET COMPRESSION pglz",
+        "type": "COMPRESSION_CLAUSE_IN_TABLE"
+      },
+      {
+        "category": "unsupported_features",
+        "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_1",
+        "name": "Index with GIST access method",
+        "object_name": "",
+        "object_type": "INDEX",
+        "sql_statement": "CREATE INDEX index_fa228d1a6bceab41 ON schema_d7108fd530c9b1c2.table_0c2b6b127253fd96 USING gist (col_e089bc0f27ae9091)",
+        "type": "UNSUPPORTED_GIST_INDEX_METHOD"
+      },
+      {
+        "category": "unsupported_features",
+        "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_1",
+        "name": "Index with GIST access method",
+        "object_name": "",
+        "object_type": "INDEX",
+        "sql_statement": "CREATE INDEX index_c47446c09b673296 ON schema_a1717e859fc83d39.table_0c2b6b127253fd96 USING gist (col_18cca1c687213d35)",
+        "type": "UNSUPPORTED_GIST_INDEX_METHOD"
+      },
+      {
+        "category": "unsupported_features",
+        "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_1",
+        "name": "Index with GIST access method",
+        "object_name": "",
+        "object_type": "INDEX",
+        "sql_statement": "CREATE INDEX index_fa228d1a6bceab41 ON schema_a1717e859fc83d39.table_0c2b6b127253fd96 USING gist (col_e089bc0f27ae9091)",
+        "type": "UNSUPPORTED_GIST_INDEX_METHOD"
+      },
+      {
+        "category": "unsupported_features",
+        "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_1",
+        "name": "Index with BRIN access method",
+        "object_name": "",
+        "object_type": "INDEX",
+        "sql_statement": "CREATE INDEX index_bfeb7cbb9fc6b0f2 ON schema_d7108fd530c9b1c2.table_0c2b6b127253fd96 USING brin (col_18cca1c687213d35)",
+        "type": "UNSUPPORTED_BRIN_INDEX_METHOD"
+      },
+      {
+        "category": "unsupported_features",
+        "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_3",
+        "name": "Deferrable Constraints",
+        "object_name": "",
+        "object_type": "TABLE",
+        "sql_statement": "ALTER TABLE ONLY schema_d7108fd530c9b1c2.table_e2d2370afa4b58aa ADD CONSTRAINT constraint_b28fa2c3d1030b75 UNIQUE (col_61138afb6c7b1256) DEFERRABLE",
+        "type": "DEFERRABLE_CONSTRAINTS"
+      },
+      {
+        "category": "unsupported_features",
+        "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_1",
+        "name": "Constraint Trigger",
+        "object_name": "",
+        "object_type": "TRIGGER",
+        "type": "CONSTRAINT_TRIGGER"
+      },
+      {
+        "category": "unsupported_features",
+        "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_1",
+        "name": "Constraint Trigger",
+        "object_name": "",
+        "object_type": "TRIGGER",
+        "type": "CONSTRAINT_TRIGGER"
+      },
+      {
+        "category": "unsupported_features",
+        "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_3",
+        "name": "Table Inheritance",
+        "object_name": "",
+        "object_type": "TABLE",
+        "sql_statement": "CREATE TABLE schema_d7108fd530c9b1c2.table_93e1de19aa34394b (col_86c9526271b4a1d0 date) INHERITS (schema_d7108fd530c9b1c2.table_b41e8c20f29c59f8)",
+        "type": "INHERITANCE"
+      },
+      {
+        "category": "unsupported_features",
+        "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_3",
+        "name": "Table Inheritance",
+        "object_name": "",
+        "object_type": "TABLE",
+        "sql_statement": "CREATE TABLE schema_a1717e859fc83d39.table_93e1de19aa34394b (col_86c9526271b4a1d0 date) INHERITS (schema_a1717e859fc83d39.table_b41e8c20f29c59f8)",
+        "type": "INHERITANCE"
+      },
+      {
+        "category": "unsupported_features",
+        "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_3",
+        "name": "Unsupported Extension - plperl",
+        "object_name": "",
+        "object_type": "EXTENSION",
+        "sql_statement": "CREATE EXTENSION IF NOT EXISTS plperl SCHEMA schema_ef0e5bb64d3991e2",
+        "type": "UNSUPPORTED_EXTENSION"
+      },
+      {
+        "category": "unsupported_features",
+        "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_3",
+        "name": "Unsupported Extension - plpython3u",
+        "object_name": "",
+        "object_type": "EXTENSION",
+        "sql_statement": "CREATE EXTENSION IF NOT EXISTS plpython3u SCHEMA schema_ef0e5bb64d3991e2",
+        "type": "UNSUPPORTED_EXTENSION"
+      },
+      {
+        "category": "unsupported_features",
+        "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_3",
+        "name": "Unsupported Extension - pglogical",
+        "object_name": "",
+        "object_type": "EXTENSION",
+        "sql_statement": "CREATE EXTENSION IF NOT EXISTS pglogical SCHEMA schema_68ec2ae613c42996",
+        "type": "UNSUPPORTED_EXTENSION"
+      },
+      {
+        "category": "unsupported_features",
+        "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_3",
+        "name": "Unsupported Extension - postgis",
+        "object_name": "",
+        "object_type": "EXTENSION",
+        "sql_statement": "CREATE EXTENSION IF NOT EXISTS postgis SCHEMA schema_d7108fd530c9b1c2",
+        "type": "UNSUPPORTED_EXTENSION"
+      },
+      {
+        "category": "unsupported_features",
+        "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_1",
+        "name": "Exclusion Constraints",
+        "object_name": "",
+        "object_type": "TABLE",
+        "sql_statement": "ALTER TABLE ONLY schema_d7108fd530c9b1c2.table_fb8cffdef52d6643 ADD CONSTRAINT constraint_60b0c9f6dad0fb7a EXCLUDE (col_1fd8a97c78c3ef7c WITH =, col_54159b91a2ae7dfa WITH =)",
+        "type": "EXCLUSION_CONSTRAINTS"
+      },
+      {
+        "category": "unsupported_query_constructs",
+        "category_description": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
+        "impact": "LEVEL_2",
+        "name": "XML Functions",
+        "object_name": "",
+        "object_type": "",
+        "type": "XML_FUNCTIONS"
+      },
+      {
+        "category": "unsupported_query_constructs",
+        "category_description": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
+        "impact": "LEVEL_2",
+        "name": "XML Functions",
+        "object_name": "",
+        "object_type": "",
+        "type": "XML_FUNCTIONS"
+      },
+      {
+        "category": "unsupported_query_constructs",
+        "category_description": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
+        "impact": "LEVEL_2",
+        "name": "XML Functions",
+        "object_name": "",
+        "object_type": "",
+        "type": "XML_FUNCTIONS"
+      },
+      {
+        "category": "unsupported_query_constructs",
+        "category_description": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
+        "impact": "LEVEL_2",
+        "name": "XML Functions",
+        "object_name": "",
+        "object_type": "",
+        "type": "XML_FUNCTIONS"
+      },
+      {
+        "category": "unsupported_query_constructs",
+        "category_description": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
+        "impact": "LEVEL_2",
+        "name": "System Column - xmax",
+        "object_name": "",
+        "object_type": "",
+        "type": "SYSTEM_COLUMN_XMAX"
+      },
+      {
+        "category": "unsupported_query_constructs",
+        "category_description": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
+        "impact": "LEVEL_2",
+        "name": "System Column - cmin",
+        "object_name": "",
+        "object_type": "",
+        "type": "SYSTEM_COLUMN_CMIN"
+      },
+      {
+        "category": "unsupported_query_constructs",
+        "category_description": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
+        "impact": "LEVEL_2",
+        "name": "System Column - cmax",
+        "object_name": "",
+        "object_type": "",
+        "type": "SYSTEM_COLUMN_CMAX"
+      },
+      {
+        "category": "unsupported_query_constructs",
+        "category_description": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
+        "impact": "LEVEL_2",
+        "name": "System Column - ctid",
+        "object_name": "",
+        "object_type": "",
+        "type": "SYSTEM_COLUMN_CTID"
+      },
+      {
+        "category": "unsupported_query_constructs",
+        "category_description": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
+        "impact": "LEVEL_2",
+        "name": "System Column - xmin",
+        "object_name": "",
+        "object_type": "",
+        "type": "SYSTEM_COLUMN_XMIN"
+      },
+      {
+        "category": "unsupported_query_constructs",
+        "category_description": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
+        "impact": "LEVEL_2",
+        "name": "COPY ... ON_ERROR",
+        "object_name": "",
+        "object_type": "",
+        "type": "COPY ... ON_ERROR"
+      },
+      {
+        "category": "unsupported_query_constructs",
+        "category_description": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
+        "impact": "LEVEL_2",
+        "name": "XML Functions",
+        "object_name": "",
+        "object_type": "",
+        "type": "XML_FUNCTIONS"
+      },
+      {
+        "category": "unsupported_query_constructs",
+        "category_description": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
+        "impact": "LEVEL_2",
+        "name": "XML Functions",
+        "object_name": "",
+        "object_type": "",
+        "type": "XML_FUNCTIONS"
+      },
+      {
+        "category": "unsupported_query_constructs",
+        "category_description": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
+        "impact": "LEVEL_2",
+        "name": "Large Object Functions",
+        "object_name": "",
+        "object_type": "",
+        "type": "LARGE_OBJECT_FUNCTIONS"
+      },
+      {
+        "category": "unsupported_query_constructs",
+        "category_description": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
+        "impact": "LEVEL_2",
+        "name": "XML Functions",
+        "object_name": "",
+        "object_type": "",
+        "type": "XML_FUNCTIONS"
+      },
+      {
+        "category": "unsupported_query_constructs",
+        "category_description": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
+        "impact": "LEVEL_2",
+        "name": "XML Functions",
+        "object_name": "",
+        "object_type": "",
+        "type": "XML_FUNCTIONS"
+      },
+      {
+        "category": "unsupported_plpgsql_objects",
+        "category_description": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
+        "impact": "LEVEL_2",
+        "name": "Non-decimal integer literal",
+        "object_name": "",
+        "object_type": "FUNCTION",
+        "type": "NON_DECIMAL_INTEGER_LITERAL"
+      },
+      {
+        "category": "unsupported_plpgsql_objects",
+        "category_description": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
+        "impact": "LEVEL_1",
+        "name": "Referencing type declaration of variables",
+        "object_name": "",
+        "object_type": "PROCEDURE",
+        "type": "REFERENCED_TYPE_DECLARATION"
+      },
+      {
+        "category": "unsupported_plpgsql_objects",
+        "category_description": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
+        "impact": "LEVEL_2",
+        "name": "Events Listen / Notify",
+        "object_name": "",
+        "object_type": "FUNCTION",
+        "type": "LISTEN_NOTIFY"
+      },
+      {
+        "category": "unsupported_plpgsql_objects",
+        "category_description": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
+        "impact": "LEVEL_2",
+        "name": "Events Listen / Notify",
+        "object_name": "",
+        "object_type": "FUNCTION",
+        "type": "LISTEN_NOTIFY"
+      },
+      {
+        "category": "unsupported_plpgsql_objects",
+        "category_description": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
+        "impact": "LEVEL_2",
+        "name": "Events Listen / Notify",
+        "object_name": "",
+        "object_type": "FUNCTION",
+        "type": "LISTEN_NOTIFY"
+      },
+      {
+        "category": "unsupported_plpgsql_objects",
+        "category_description": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
+        "impact": "LEVEL_2",
+        "name": "Events Listen / Notify",
+        "object_name": "",
+        "object_type": "FUNCTION",
+        "type": "LISTEN_NOTIFY"
+      },
+      {
+        "category": "unsupported_plpgsql_objects",
+        "category_description": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
+        "impact": "LEVEL_2",
+        "name": "Events Listen / Notify",
+        "object_name": "",
+        "object_type": "FUNCTION",
+        "type": "LISTEN_NOTIFY"
+      },
+      {
+        "category": "unsupported_plpgsql_objects",
+        "category_description": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
+        "impact": "LEVEL_2",
+        "name": "Events Listen / Notify",
+        "object_name": "",
+        "object_type": "FUNCTION",
+        "type": "LISTEN_NOTIFY"
+      },
+      {
+        "category": "unsupported_plpgsql_objects",
+        "category_description": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
+        "impact": "LEVEL_2",
+        "name": "Events Listen / Notify",
+        "object_name": "",
+        "object_type": "FUNCTION",
+        "type": "LISTEN_NOTIFY"
+      },
+      {
+        "category": "unsupported_plpgsql_objects",
+        "category_description": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
+        "impact": "LEVEL_2",
+        "name": "Events Listen / Notify",
+        "object_name": "",
+        "object_type": "FUNCTION",
+        "type": "LISTEN_NOTIFY"
+      },
+      {
+        "category": "unsupported_plpgsql_objects",
+        "category_description": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
+        "impact": "LEVEL_2",
+        "name": "Large Object Functions",
+        "object_name": "",
+        "object_type": "FUNCTION",
+        "type": "LARGE_OBJECT_FUNCTIONS"
+      },
+      {
+        "category": "unsupported_plpgsql_objects",
+        "category_description": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
+        "impact": "LEVEL_1",
+        "name": "Referencing type declaration of variables",
+        "object_name": "",
+        "object_type": "FUNCTION",
+        "type": "REFERENCED_TYPE_DECLARATION"
+      },
+      {
+        "category": "unsupported_plpgsql_objects",
+        "category_description": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
+        "impact": "LEVEL_2",
+        "name": "Non-decimal integer literal",
+        "object_name": "",
+        "object_type": "FUNCTION",
+        "type": "NON_DECIMAL_INTEGER_LITERAL"
+      },
+      {
+        "category": "migration_caveats",
+        "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
+        "impact": "LEVEL_1",
+        "name": "Unsupported datatype for Live migration - box",
+        "object_name": "",
+        "object_type": "COLUMN",
+        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_BOX"
+      },
+      {
+        "category": "migration_caveats",
+        "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
+        "impact": "LEVEL_1",
+        "name": "Unsupported datatype for Live migration - lseg",
+        "object_name": "",
+        "object_type": "COLUMN",
+        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_LSEG"
+      },
+      {
+        "category": "migration_caveats",
+        "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
+        "impact": "LEVEL_1",
+        "name": "Unsupported datatype for Live migration with fall-forward/fallback - tsvector Datatype",
+        "object_name": "",
+        "object_type": "COLUMN",
+        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_TSVECTOR"
+      },
+      {
+        "category": "migration_caveats",
+        "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
+        "impact": "LEVEL_1",
+        "name": "Policy with Roles",
+        "object_name": "",
+        "object_type": "POLICY",
+        "sql_statement": "CREATE POLICY policy_c327cba652eb481d ON schema_d7108fd530c9b1c2.table_4729835644e61bf5 TO role_e34abedd38298024 USING ('const_0cb1b807a7d43ef1') ",
+        "type": "POLICY_WITH_ROLES"
+      },
+      {
+        "category": "migration_caveats",
+        "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
+        "impact": "LEVEL_1",
+        "name": "Policy with Roles",
+        "object_name": "",
+        "object_type": "POLICY",
+        "sql_statement": "CREATE POLICY policy_c327cba652eb481d ON schema_a1717e859fc83d39.table_4729835644e61bf5 TO role_e34abedd38298024 USING ('const_0cb1b807a7d43ef1') ",
+        "type": "POLICY_WITH_ROLES"
+      },
+      {
+        "category": "migration_caveats",
+        "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
+        "impact": "LEVEL_1",
+        "name": "Unsupported datatype for Live migration - box",
+        "object_name": "",
+        "object_type": "COLUMN",
+        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_BOX"
+      },
+      {
+        "category": "migration_caveats",
+        "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
+        "impact": "LEVEL_1",
+        "name": "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype",
+        "object_name": "",
+        "object_type": "COLUMN",
+        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED"
+      },
+      {
+        "category": "migration_caveats",
+        "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
+        "impact": "LEVEL_1",
+        "name": "Unsupported datatype for Live migration - lseg",
+        "object_name": "",
+        "object_type": "COLUMN",
+        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_LSEG"
+      },
+      {
+        "category": "migration_caveats",
+        "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
+        "impact": "LEVEL_1",
+        "name": "Unsupported datatype for Live migration - point",
+        "object_name": "",
+        "object_type": "COLUMN",
+        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_POINT"
+      },
+      {
+        "category": "migration_caveats",
+        "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
+        "impact": "LEVEL_1",
+        "name": "Unsupported datatype for Live migration - path",
+        "object_name": "",
+        "object_type": "COLUMN",
+        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_PATH"
+      },
+      {
+        "category": "migration_caveats",
+        "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
+        "impact": "LEVEL_1",
+        "name": "Unsupported datatype for Live migration - point",
+        "object_name": "",
+        "object_type": "COLUMN",
+        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_POINT"
+      },
+      {
+        "category": "migration_caveats",
+        "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
+        "impact": "LEVEL_1",
+        "name": "Unsupported datatype for Live migration - lseg",
+        "object_name": "",
+        "object_type": "COLUMN",
+        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_LSEG"
+      },
+      {
+        "category": "migration_caveats",
+        "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
+        "impact": "LEVEL_1",
+        "name": "Unsupported datatype for Live migration - lseg",
+        "object_name": "",
+        "object_type": "COLUMN",
+        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_LSEG"
+      },
+      {
+        "category": "migration_caveats",
+        "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
+        "impact": "LEVEL_1",
+        "name": "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype",
+        "object_name": "",
+        "object_type": "COLUMN",
+        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED"
+      },
+      {
+        "category": "migration_caveats",
+        "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
+        "impact": "LEVEL_1",
+        "name": "Unsupported datatype for Live migration - path",
+        "object_name": "",
+        "object_type": "COLUMN",
+        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_PATH"
+      },
+      {
+        "category": "migration_caveats",
+        "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
+        "impact": "LEVEL_1",
+        "name": "Unsupported datatype for Live migration with fall-forward/fallback - Array of Enum Datatype",
+        "object_name": "",
+        "object_type": "COLUMN",
+        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_ARRAY_OF_ENUM"
+      },
+      {
+        "category": "migration_caveats",
+        "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
+        "impact": "LEVEL_1",
+        "name": "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype",
+        "object_name": "",
+        "object_type": "COLUMN",
+        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED"
+      },
+      {
+        "category": "migration_caveats",
+        "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
+        "impact": "LEVEL_1",
+        "name": "Unsupported datatype for Live migration with fall-forward/fallback - tsquery Datatype",
+        "object_name": "",
+        "object_type": "COLUMN",
+        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_TSQUERY"
+      },
+      {
+        "category": "migration_caveats",
+        "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
+        "impact": "LEVEL_1",
+        "name": "Unsupported datatype for Live migration with fall-forward/fallback - tsvector Datatype",
+        "object_name": "",
+        "object_type": "COLUMN",
+        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_TSVECTOR"
+      },
+      {
+        "category": "migration_caveats",
+        "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
+        "impact": "LEVEL_1",
+        "name": "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype",
+        "object_name": "",
+        "object_type": "COLUMN",
+        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED"
+      },
+      {
+        "category": "migration_caveats",
+        "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
+        "impact": "LEVEL_1",
+        "name": "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype",
+        "object_name": "",
+        "object_type": "COLUMN",
+        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED"
+      },
+      {
+        "category": "migration_caveats",
+        "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
+        "impact": "LEVEL_1",
+        "name": "Unsupported datatype for Live migration with fall-forward/fallback - hstore Datatype",
+        "object_name": "",
+        "object_type": "COLUMN",
+        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_HSTORE"
+      },
+      {
+        "category": "performance_optimizations",
+        "category_description": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
+        "impact": "LEVEL_1",
+        "name": "Hotspots with indexes on timestamp as first column",
+        "object_name": "",
+        "object_type": "INDEX",
+        "sql_statement": "CREATE INDEX index_ba6b491f8e777839 ON schema_d7108fd530c9b1c2.table_559de2c8ffa2acc0 USING btree (col_d4965197dd40998a)",
+        "type": "HOTSPOTS_ON_TIMESTAMP_INDEX"
+      },
+      {
+        "category": "performance_optimizations",
+        "category_description": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
+        "details": {
+          "ForeignKeyColumnNames": "schema_d7108fd530c9b1c2.table_9d743b98e77ebc2a.col_190e9d7fd2ee599f, schema_d7108fd530c9b1c2.table_9d743b98e77ebc2a.col_b84e1b7daad1a46c"
+        },
+        "impact": "LEVEL_1",
+        "name": "Missing index on foreign key columns",
+        "object_name": "",
+        "object_type": "TABLE",
+        "type": "MISSING_FOREIGN_KEY_INDEX"
+      },
+      {
+        "category": "performance_optimizations",
+        "category_description": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
+        "impact": "LEVEL_1",
+        "name": "Hotspots with indexes on date as first column",
+        "object_name": "",
+        "object_type": "INDEX",
+        "sql_statement": "CREATE INDEX index_bdb3cc5272e0cdc2 ON schema_d7108fd530c9b1c2.table_e2d2370afa4b58aa USING btree (col_da9a2f6cea6d4e61)",
+        "type": "HOTSPOTS_ON_DATE_INDEX"
+      }
     ],
     "error": "",
     "table_sizing_stats": "[{\"schema_name\": \"schema_a1717e859fc83d39\", \"object_name\": \"table_05178023b253f63f\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 0}, {\"schema_name\": \"schema_a1717e859fc83d39\", \"object_name\": \"table_0a6413e80a5f1a10\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 0}, {\"schema_name\": \"schema_a1717e859fc83d39\", \"object_name\": \"table_0c2b6b127253fd96\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 0}, {\"schema_name\": \"schema_a1717e859fc83d39\", \"object_name\": \"table_0f8a248b060177ee\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 0}, {\"schema_name\": \"schema_a1717e859fc83d39\", \"object_name\": \"table_15c1e6221080a683\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 0}, {\"schema_name\": \"schema_a1717e859fc83d39\", \"object_name\": \"table_17f74a26372ced11\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 0}, {\"schema_name\": \"schema_a1717e859fc83d39\", \"object_name\": \"table_1b5ad6d926add57c\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 8192}, {\"schema_name\": \"schema_a1717e859fc83d39\", \"object_name\": \"table_1c6420cbc937e8e4\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 0}, {\"schema_name\": \"schema_a1717e859fc83d39\", \"object_name\": \"table_1f47b790b37f3769\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 8192}, {\"schema_name\": \"schema_a1717e859fc83d39\", \"object_name\": \"table_25879988a02f2711\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 0}, {\"schema_name\": \"schema_a1717e859fc83d39\", \"object_name\": \"table_2cbfc16afc965cf9\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 0}, {\"schema_name\": \"schema_a1717e859fc83d39\", \"object_name\": \"table_34f20d6bfe2e7ad7\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 0}, {\"schema_name\": \"schema_a1717e859fc83d39\", \"object_name\": \"table_37d51679ce71b486\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 8192}, {\"schema_name\": \"schema_a1717e859fc83d39\", \"object_name\": \"table_4589770530f2ca24\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 0}, {\"schema_name\": \"schema_a1717e859fc83d39\", \"object_name\": \"table_4729835644e61bf5\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 8192}, {\"schema_name\": \"schema_a1717e859fc83d39\", \"object_name\": \"table_4d2f75a857599258\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 8192}, {\"schema_name\": \"schema_a1717e859fc83d39\", \"object_name\": \"table_5407a19fae8cbc82\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 8192}, {\"schema_name\": \"schema_a1717e859fc83d39\", \"object_name\": \"table_56efcd4a164357ea\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 0}, {\"schema_name\": \"schema_a1717e859fc83d39\", \"object_name\": \"table_5c12a01e24dfdfaa\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 8192}, {\"schema_name\": \"schema_a1717e859fc83d39\", \"object_name\": \"table_5f30f8084174d71e\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 8192}, {\"schema_name\": \"schema_a1717e859fc83d39\", \"object_name\": \"table_6123eed3ba818dfe\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 8192}, {\"schema_name\": \"schema_a1717e859fc83d39\", \"object_name\": \"table_660ed154eed932e4\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 0}, {\"schema_name\": \"schema_a1717e859fc83d39\", \"object_name\": \"table_7389ad4c31ce5812\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 0}, {\"schema_name\": \"schema_a1717e859fc83d39\", \"object_name\": \"table_7497a31892d9b2db\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 0}, {\"schema_name\": \"schema_a1717e859fc83d39\", \"object_name\": \"table_8b0cc820426a47d0\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 8192}, {\"schema_name\": \"schema_a1717e859fc83d39\", \"object_name\": \"table_8b2fd17d4cfaa84a\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 0}, {\"schema_name\": \"schema_a1717e859fc83d39\", \"object_name\": \"table_8dfae44084674d87\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 8192}, {\"schema_name\": \"schema_a1717e859fc83d39\", \"object_name\": \"table_8ee5af308526bb2a\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 8192}, {\"schema_name\": \"schema_a1717e859fc83d39\", \"object_name\": \"table_93e1de19aa34394b\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 0}, {\"schema_name\": \"schema_a1717e859fc83d39\", \"object_name\": \"table_977e93283bd5c85c\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 0}, {\"schema_name\": \"schema_a1717e859fc83d39\", \"object_name\": \"table_a8ce51c9ef35bc96\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 0}, {\"schema_name\": \"schema_a1717e859fc83d39\", \"object_name\": \"table_a9092475e87fe61c\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 8192}, {\"schema_name\": \"schema_a1717e859fc83d39\", \"object_name\": \"table_b2ba8100151b290f\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 0}, {\"schema_name\": \"schema_a1717e859fc83d39\", \"object_name\": \"table_b41e8c20f29c59f8\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 0}, {\"schema_name\": \"schema_a1717e859fc83d39\", \"object_name\": \"table_bcd69afe2545c511\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 8192}, {\"schema_name\": \"schema_a1717e859fc83d39\", \"object_name\": \"table_c47e5c5af7687f6c\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 8192}, {\"schema_name\": \"schema_a1717e859fc83d39\", \"object_name\": \"table_c6570e4a0d899eb5\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 0}, {\"schema_name\": \"schema_a1717e859fc83d39\", \"object_name\": \"table_de51d4ada62f2266\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 0}, {\"schema_name\": \"schema_a1717e859fc83d39\", \"object_name\": \"table_e2d2370afa4b58aa\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 0}, {\"schema_name\": \"schema_ae9b85f2c9255e63\", \"object_name\": \"table_1e86beb931da99c4\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 8192}, {\"schema_name\": \"schema_ae9b85f2c9255e63\", \"object_name\": \"table_941d4e9531fc10cc\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 8192}, {\"schema_name\": \"schema_ae9b85f2c9255e63\", \"object_name\": \"table_9b4963a7016e343b\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 8192}, {\"schema_name\": \"schema_ae9b85f2c9255e63\", \"object_name\": \"table_c73f6493f77fcb73\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 8192}, {\"schema_name\": \"schema_ae9b85f2c9255e63\", \"object_name\": \"table_d4b89a4b1a0b0b7d\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 8192}, {\"schema_name\": \"schema_d7108fd530c9b1c2\", \"object_name\": \"table_05178023b253f63f\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 0}, {\"schema_name\": \"schema_d7108fd530c9b1c2\", \"object_name\": \"table_0a6413e80a5f1a10\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 0}, {\"schema_name\": \"schema_d7108fd530c9b1c2\", \"object_name\": \"table_0c2b6b127253fd96\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 0}, {\"schema_name\": \"schema_d7108fd530c9b1c2\", \"object_name\": \"table_0f8a248b060177ee\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 0}, {\"schema_name\": \"schema_d7108fd530c9b1c2\", \"object_name\": \"table_15c1e6221080a683\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 0}, {\"schema_name\": \"schema_d7108fd530c9b1c2\", \"object_name\": \"table_17f74a26372ced11\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 0}, {\"schema_name\": \"schema_d7108fd530c9b1c2\", \"object_name\": \"table_1b5ad6d926add57c\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 8192}, {\"schema_name\": \"schema_d7108fd530c9b1c2\", \"object_name\": \"table_1c6420cbc937e8e4\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 8192}, {\"schema_name\": \"schema_d7108fd530c9b1c2\", \"object_name\": \"table_1f47b790b37f3769\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 8192}, {\"schema_name\": \"schema_d7108fd530c9b1c2\", \"object_name\": \"table_25879988a02f2711\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 0}, {\"schema_name\": \"schema_d7108fd530c9b1c2\", \"object_name\": \"table_28d75042790195db\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 0}, {\"schema_name\": \"schema_d7108fd530c9b1c2\", \"object_name\": \"table_2cbfc16afc965cf9\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 0}, {\"schema_name\": \"schema_d7108fd530c9b1c2\", \"object_name\": \"table_34f20d6bfe2e7ad7\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 0}, {\"schema_name\": \"schema_d7108fd530c9b1c2\", \"object_name\": \"table_37d51679ce71b486\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 8192}, {\"schema_name\": \"schema_d7108fd530c9b1c2\", \"object_name\": \"table_3a4c8efeb56b6d10\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 8192}, {\"schema_name\": \"schema_d7108fd530c9b1c2\", \"object_name\": \"table_4589770530f2ca24\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 0}, {\"schema_name\": \"schema_d7108fd530c9b1c2\", \"object_name\": \"table_4729835644e61bf5\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 8192}, {\"schema_name\": \"schema_d7108fd530c9b1c2\", \"object_name\": \"table_4d2f75a857599258\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 8192}, {\"schema_name\": \"schema_d7108fd530c9b1c2\", \"object_name\": \"table_5407a19fae8cbc82\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 8192}, {\"schema_name\": \"schema_d7108fd530c9b1c2\", \"object_name\": \"table_559de2c8ffa2acc0\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 8192}, {\"schema_name\": \"schema_d7108fd530c9b1c2\", \"object_name\": \"table_56efcd4a164357ea\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 0}, {\"schema_name\": \"schema_d7108fd530c9b1c2\", \"object_name\": \"table_5c12a01e24dfdfaa\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 8192}, {\"schema_name\": \"schema_d7108fd530c9b1c2\", \"object_name\": \"table_5f30f8084174d71e\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 8192}, {\"schema_name\": \"schema_d7108fd530c9b1c2\", \"object_name\": \"table_6123eed3ba818dfe\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 8192}, {\"schema_name\": \"schema_d7108fd530c9b1c2\", \"object_name\": \"table_660ed154eed932e4\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 0}, {\"schema_name\": \"schema_d7108fd530c9b1c2\", \"object_name\": \"table_6bb1c595362ac906\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 0}, {\"schema_name\": \"schema_d7108fd530c9b1c2\", \"object_name\": \"table_7389ad4c31ce5812\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 0}, {\"schema_name\": \"schema_d7108fd530c9b1c2\", \"object_name\": \"table_7497a31892d9b2db\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 0}, {\"schema_name\": \"schema_d7108fd530c9b1c2\", \"object_name\": \"table_7d834d237deea6a9\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 0}, {\"schema_name\": \"schema_d7108fd530c9b1c2\", \"object_name\": \"table_807fb1d567216a46\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 0}, {\"schema_name\": \"schema_d7108fd530c9b1c2\", \"object_name\": \"table_8b0cc820426a47d0\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 8192}, {\"schema_name\": \"schema_d7108fd530c9b1c2\", \"object_name\": \"table_8b2fd17d4cfaa84a\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 0}, {\"schema_name\": \"schema_d7108fd530c9b1c2\", \"object_name\": \"table_8dfae44084674d87\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 8192}, {\"schema_name\": \"schema_d7108fd530c9b1c2\", \"object_name\": \"table_8e843153cfb385fb\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 8192}, {\"schema_name\": \"schema_d7108fd530c9b1c2\", \"object_name\": \"table_8ee5af308526bb2a\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 8192}, {\"schema_name\": \"schema_d7108fd530c9b1c2\", \"object_name\": \"table_93e1de19aa34394b\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 0}, {\"schema_name\": \"schema_d7108fd530c9b1c2\", \"object_name\": \"table_977e93283bd5c85c\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 0}, {\"schema_name\": \"schema_d7108fd530c9b1c2\", \"object_name\": \"table_9d743b98e77ebc2a\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 0}, {\"schema_name\": \"schema_d7108fd530c9b1c2\", \"object_name\": \"table_a84d78d2ae709c44\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 0}, {\"schema_name\": \"schema_d7108fd530c9b1c2\", \"object_name\": \"table_a8b282370ce959e2\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 8192}, {\"schema_name\": \"schema_d7108fd530c9b1c2\", \"object_name\": \"table_a8ce51c9ef35bc96\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 8192}, {\"schema_name\": \"schema_d7108fd530c9b1c2\", \"object_name\": \"table_a9092475e87fe61c\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 8192}, {\"schema_name\": \"schema_d7108fd530c9b1c2\", \"object_name\": \"table_b2ba8100151b290f\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 0}, {\"schema_name\": \"schema_d7108fd530c9b1c2\", \"object_name\": \"table_b41e8c20f29c59f8\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 0}, {\"schema_name\": \"schema_d7108fd530c9b1c2\", \"object_name\": \"table_bcb2e17708d0e1c9\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 0}, {\"schema_name\": \"schema_d7108fd530c9b1c2\", \"object_name\": \"table_bcd69afe2545c511\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 8192}, {\"schema_name\": \"schema_d7108fd530c9b1c2\", \"object_name\": \"table_c47e5c5af7687f6c\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 8192}, {\"schema_name\": \"schema_d7108fd530c9b1c2\", \"object_name\": \"table_c6570e4a0d899eb5\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 0}, {\"schema_name\": \"schema_d7108fd530c9b1c2\", \"object_name\": \"table_db8b73b0ff6d5ca4\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 7061504}, {\"schema_name\": \"schema_d7108fd530c9b1c2\", \"object_name\": \"table_de51d4ada62f2266\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 0}, {\"schema_name\": \"schema_d7108fd530c9b1c2\", \"object_name\": \"table_e2d2370afa4b58aa\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 0}, {\"schema_name\": \"schema_d7108fd530c9b1c2\", \"object_name\": \"table_fb8cffdef52d6643\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 0}, {\"schema_name\": \"schema_d7108fd530c9b1c2\", \"object_name\": \"table_fbf014ff0cf8a02a\", \"reads_per_second\": 0, \"writes_per_second\": 0, \"size_in_bytes\": 8192}]",
