@@ -23,14 +23,15 @@ jobs:
   prepare-versions:
     runs-on: ubuntu-22.04
     outputs:
-      yb_versions: ${{ steps.read.outputs.yb_versions }}
-      yb_latest_stable: ${{ steps.read.outputs.yb_latest_stable }}
-      go_version: ${{ steps.read.outputs.go_version }}
-      java_version: ${{ steps.read.outputs.java_version }}
-      staticcheck_version: ${{ steps.read.outputs.staticcheck_version }}
+      yb_versions: ${{ steps.extract-versions.outputs.yb_versions }}
+      yb_latest_stable: ${{ steps.extract-versions.outputs.yb_latest_stable }}
+      go_version: ${{ steps.extract-versions.outputs.go_version }}
+      java_version: ${{ steps.extract-versions.outputs.java_version }}
+      staticcheck_version: ${{ steps.extract-versions.outputs.staticcheck_version }}
     steps:
       - uses: actions/checkout@v4
-      - id: read
+      - name: Extracting versions from central registry
+        id: extract-versions
         run: |
           # Extract versions array as compact JSON (single line); required for matrix strategy in workflows
           versions=$(jq -c '.version' yb-voyager/versions/yb-versions.json)
