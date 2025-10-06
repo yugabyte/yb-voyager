@@ -69,7 +69,7 @@ jobs:
 
     - name: Run Integration Tests
       env: 
-        YB_VERSION: "2025.1.0.0-b168" # Update this to the desired YugabyteDB version
+        YB_VERSION: "2025.1.1.1-b1" # Update this to the desired YugabyteDB version
         PG_VERSION: "14"
         ORACLE_VERSION: "21"
         MYSQL_VERSION: "8.4"
