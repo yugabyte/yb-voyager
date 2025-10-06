@@ -42,6 +42,14 @@ jobs:
             echo "ERROR: latest_stable field is missing or empty in yb-versions.json"
             exit 1
           fi
+
+          # Validate that latest_stable exists in the version array to avoid missing updating the complete list of versions.
+          if [[ "$versions" != *"\"$latest_stable\""* ]]; then
+            echo "ERROR: latest_stable version '$latest_stable' is not found in the version array"
+            echo "Available versions: $versions"
+            exit 1
+          fi
+
           echo "YB Latest Stable: $latest_stable"
           echo "yb_latest_stable=$latest_stable" >> $GITHUB_OUTPUT
           
