@@ -106,6 +106,8 @@ type TargetDBDetails struct {
 	DBSystemIdentifier string `json:"db_system_identifier,omitempty"` // Database system identifier (currently only implemented for YugabyteDB cluster UUID from v2024.2.3.0+)
 }
 
+// =============================== Assess Migration ===============================
+
 /*
 Version History
 1.0: Introduced Issues field for storing assessment issues in flattened format and removed the other fields like UnsupportedFeatures, UnsupportedDatatypes,etc..
@@ -194,6 +196,8 @@ type SchemaOptimizationChange struct {
 	Objects          []string `json:"objects"`
 }
 
+// =============================== Export Schema ===============================
+
 /*
 Version History
 1.0: Added a new field as PayloadVersion and SchemaOptimizationChanges
@@ -214,6 +218,8 @@ type ExportSchemaPhasePayload struct {
 	ControlPlaneType          string                     `json:"control_plane_type"`
 	SchemaOptimizationChanges []SchemaOptimizationChange `json:"schema_optimization_changes"`
 }
+
+// =============================== Analyze ===============================
 
 /*
 Version History
@@ -242,6 +248,8 @@ type AnalyzeIssueCallhome struct {
 	ObjectName string `json:"object_name"`
 }
 
+// =============================== Export Data ===============================
+
 type ExportDataPhasePayload struct {
 	ParallelJobs            int64  `json:"parallel_jobs"`
 	TotalRows               int64  `json:"total_rows_exported"`
@@ -258,6 +266,8 @@ type ExportDataPhasePayload struct {
 	AllowOracleClobDataExport bool   `json:"allow_oracle_clob_data_export"`
 }
 
+// =============================== Import Schema ===============================
+
 type ImportSchemaPhasePayload struct {
 	ContinueOnError    bool   `json:"continue_on_error"`
 	EnableOrafce       bool   `json:"enable_orafce"`
@@ -269,6 +279,8 @@ type ImportSchemaPhasePayload struct {
 	Error              string `json:"error"`
 	ControlPlaneType   string `json:"control_plane_type"`
 }
+
+// =============================== Import Data ===============================
 
 /*
 Version History:
@@ -362,6 +374,45 @@ type DataFileParameters struct {
 	NullString string `json:"NullString,omitempty"`
 }
 
+// =============================== Compare Performance ===============================
+/*
+Version History
+1.0: Initial version
+*/
+var COMPARE_PERFORMANCE_PAYLOAD_VERSION = "1.0"
+
+type ComparePerformancePhasePayload struct {
+	PayloadVersion    string        `json:"payload_version"`
+	TotalQueries      int           `json:"total_queries"`
+	MatchedQueries    int           `json:"matched_queries"`
+	SourceOnlyQueries int           `json:"source_only_queries"`
+	TargetOnlyQueries int           `json:"target_only_queries"`
+	QueryMetrics      []QueryMetric `json:"query_metrics"`
+	Error             string        `json:"error"`
+	ControlPlaneType  string        `json:"control_plane_type"`
+}
+
+// QueryMetric holds performance metrics for matched queries included for callhome
+type QueryMetric struct {
+	QueryLabel    string             `json:"query_label"` // "SELECT_JOIN", "INSERT_BULK", etc.
+	SlowdownRatio float64            `json:"slowdown_ratio"`
+	ImpactScore   float64            `json:"impact_score"`
+	SourceStats   QueryStatsCallhome `json:"source_stats"`
+	TargetStats   QueryStatsCallhome `json:"target_stats"`
+}
+
+// Query statistics for callhome (callhome version of types.QueryStats)
+// all times are in milliseconds
+type QueryStatsCallhome struct {
+	ExecutionCount  int64   `json:"execution_count"`
+	RowsProcessed   int64   `json:"rows_processed"`
+	TotalExecTime   float64 `json:"total_exec_time_ms"`
+	AverageExecTime float64 `json:"average_exec_time_ms"`
+	MinExecTime     float64 `json:"min_exec_time_ms"`
+	MaxExecTime     float64 `json:"max_exec_time_ms"`
+}
+
+// =============================== End Migration ===============================
 type EndMigrationPhasePayload struct {
 	BackupDataFiles      bool   `json:"backup_data_files"`
 	BackupLogFiles       bool   `json:"backup_log_files"`

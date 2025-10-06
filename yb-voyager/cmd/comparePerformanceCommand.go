@@ -106,6 +106,9 @@ func comparePerformanceCommandFn(cmd *cobra.Command, args []string) {
 		utils.ErrExit("Failed to mark performance comparison as done: %v", err)
 	}
 
+	// Send successful callhome payload
+	packAndSendComparePerformancePayload("COMPLETE", nil, comparator)
+
 	utils.PrintAndLog("Performance comparison completed successfully!")
 }
 
