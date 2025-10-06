@@ -34,11 +34,10 @@ export TEST_DIR="${TESTS_DIR}/${TEST_NAME}"
 export PYTHONPATH="${REPO_ROOT}/migtests/lib"
 
 # Load environment
-if [ ! -f "${TEST_DIR}/callhome-env.sh" && ! -f "${TEST_DIR}/env.sh" ]; then
-    echo "${TEST_DIR}/callhome-env.sh or ${TEST_DIR}/env.sh file not found in the test directory"
+if [ ! -f "${TEST_DIR}/env.sh" ]; then
+    echo "${TEST_DIR}/env.sh file not found in the test directory"
     exit 1
 else
-    source "${TEST_DIR}/callhome-env.sh"
     source "${TEST_DIR}/env.sh"
 fi
 
@@ -130,55 +129,66 @@ main() {
     step "Assess migration"
     assess_migration --send-diagnostics=true
     step "Compare actual and expected assess-migration callhome data"
-    compare_callhome_json_reports "${TEST_DIR}/expected_callhome_payloads/assess_migration_callhome.json"
+    expected_file="${TEST_DIR}/expected_callhome_payloads/assess_migration_callhome.json"
+    compare_callhome_json_reports "${expected_file}" "assess-migration"
 
-    if [ "$MODE" == "--all-commands" ]; then
-
-        step "Create target database."
-        run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
-        if [ "${SOURCE_DB_TYPE}" = "postgresql" ] || [ "${SOURCE_DB_TYPE}" = "oracle" ]; then
-            run_ysql yugabyte "CREATE DATABASE ${TARGET_DB_NAME} with COLOCATION=TRUE"
-        else
-            run_ysql yugabyte "CREATE DATABASE ${TARGET_DB_NAME}"
-        fi
-
-        step "Export schema"
-        export_schema --send-diagnostics=true
-        step "Compare actual and expected export-schema callhome data"
-        compare_callhome_json_reports "${TEST_DIR}/expected_callhome_payloads/export_schema_callhome.json"
-
-        step "Analyze schema"
-        analyze_schema --output-format json --send-diagnostics=true
-        step "Compare actual and expected analyze-schema callhome data"
-        compare_callhome_json_reports "${TEST_DIR}/expected_callhome_payloads/analyse_schema_callhome.json"
-
-        step "Import schema"
-        import_schema --send-diagnostics=true
-        step "Compare actual and expected import-schema callhome data"
-        compare_callhome_json_reports "${TEST_DIR}/expected_callhome_payloads/import_schema_callhome.json"
-
-        step "Run Export Data"
-        export_data --send-diagnostics=true
-        step "Compare actual and expected export-data callhome data"
-        compare_callhome_json_reports "${TEST_DIR}/expected_callhome_payloads/export_data_callhome.json"
-
-        step "Run Import Data"
-        import_data --send-diagnostics=true
-        step "Compare actual and expected import-data callhome data"
-        compare_callhome_json_reports "${TEST_DIR}/expected_callhome_payloads/import_data_callhome.json"
-
-        step "Finalize Schema"
-        finalize_schema_post_data_import --send-diagnostics=true
-        step "Compare actual and expected finalize-schema callhome data"
-        compare_callhome_json_reports "${TEST_DIR}/expected_callhome_payloads/finalize_schema_callhome.json"
-
-        step "End Migration"
-        end_migration --yes --send-diagnostics=true
-        step "Compare actual and expected end-migration callhome data"
-        compare_callhome_json_reports "${TEST_DIR}/expected_callhome_payloads/end_migration_callhome.json"
-
-        step "All commands passed successfully"
+    if [ "$MODE" != "--all-commands" ]; then
+        # Stop the Flask server
+        stop_flask_server
+        return
     fi
+
+    step "Create target database."
+    run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
+    if [ "${SOURCE_DB_TYPE}" = "postgresql" ] || [ "${SOURCE_DB_TYPE}" = "oracle" ]; then
+        run_ysql yugabyte "CREATE DATABASE ${TARGET_DB_NAME} with COLOCATION=TRUE"
+    else
+        run_ysql yugabyte "CREATE DATABASE ${TARGET_DB_NAME}"
+    fi
+
+    step "Export schema"
+    export_schema --send-diagnostics=true
+    step "Compare actual and expected export-schema callhome data"
+    expected_file="${TEST_DIR}/expected_callhome_payloads/export_schema_callhome.json"
+    compare_callhome_json_reports "${expected_file}" "export-schema"
+
+    step "Analyze schema"
+    analyze_schema --output-format json --send-diagnostics=true
+    step "Compare actual and expected analyze-schema callhome data"
+    expected_file="${TEST_DIR}/expected_callhome_payloads/analyse_schema_callhome.json"
+    compare_callhome_json_reports "${expected_file}" "analyze-schema"
+
+    step "Import schema"
+    import_schema --send-diagnostics=true
+    step "Compare actual and expected import-schema callhome data"
+    expected_file="${TEST_DIR}/expected_callhome_payloads/import_schema_callhome.json"
+    compare_callhome_json_reports "${expected_file}" "import-schema"
+
+    step "Run Export Data"
+    export_data --send-diagnostics=true
+    step "Compare actual and expected export-data callhome data"
+    expected_file="${TEST_DIR}/expected_callhome_payloads/export_data_callhome.json"
+    compare_callhome_json_reports "${expected_file}" "export-data"
+
+    step "Run Import Data"
+    import_data --send-diagnostics=true
+    step "Compare actual and expected import-data callhome data"
+    expected_file="${TEST_DIR}/expected_callhome_payloads/import_data_callhome.json"
+    compare_callhome_json_reports "${expected_file}" "import-data"
+
+    step "Finalize Schema"
+    finalize_schema_post_data_import --send-diagnostics=true
+    step "Compare actual and expected finalize-schema callhome data"
+    expected_file="${TEST_DIR}/expected_callhome_payloads/finalize_schema_callhome.json"
+    compare_callhome_json_reports "${expected_file}" "finalize-schema"
+
+    step "End Migration"
+    end_migration --yes --send-diagnostics=true
+    step "Compare actual and expected end-migration callhome data"
+    expected_file="${TEST_DIR}/expected_callhome_payloads/end_migration_callhome.json"
+    compare_callhome_json_reports "${expected_file}" "end-migration"
+
+    step "All commands passed successfully"
 
     # Stop the Flask server
     stop_flask_server

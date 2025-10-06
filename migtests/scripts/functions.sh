@@ -1514,10 +1514,11 @@ normalize_callhome_json() {
 
 compare_callhome_json_reports() {
     local expected_report_file="$1"
+    local phase="$2"
     
     # Get report data from API and save to local file
     local actual_report_file=$(mktemp)
-    if curl -s -o "$actual_report_file" "http://localhost:5000/get_report"; then
+    if curl -s -o "$actual_report_file" "http://localhost:5000/get_payload/$phase"; then
         echo "Successfully retrieved report data from API"
         echo "Report data saved to: $actual_report_file"
     else
@@ -1536,10 +1537,8 @@ compare_callhome_json_reports() {
     compare_files "$temp_file1" "$temp_file2"
     compare_status=$?
 
-    # Clean up temporary files
     rm "$temp_file1" "$temp_file2" "$actual_report_file"
 
-    # Exit with the status from compare_files if there are differences
     if [ $compare_status -ne 0 ]; then
         exit $compare_status
     fi
