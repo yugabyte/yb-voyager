@@ -81,10 +81,6 @@ main() {
 	fi
 	./init-db
 
-	if [ "${SOURCE_DB_TYPE}" = "postgresql" ]; then
-		run_psql ${SOURCE_DB_NAME} "CREATE EXTENSION IF NOT EXISTS pg_stat_statements;"
-	fi
-
 	step "Grant source database user permissions for live migration"	
 	grant_permissions_for_live_migration
 
