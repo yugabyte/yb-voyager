@@ -234,8 +234,8 @@ func shouldReregisterYBNames() bool {
 			utils.ErrExit("failed to get import data status record: %w", err)
 		}
 		actualDataImportStarted = statusRecord.ImportDataStarted
-	default: 
-		//for other importers we shouldn't re-register as this is for YB names and other importers are source-replica / source 
+	default:
+		//for other importers we shouldn't re-register as this is for YB names and other importers are source-replica / source
 		return false
 
 	}
@@ -856,16 +856,7 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 			utils.ErrExit("failed to read export status for restore sequences: %s", err)
 		}
 		// in case of live migration sequences are restored after cutover
-		sequenceNameTupleToLastValueMap := *utils.NewStructMap[sqlname.NameTuple, int64]()
-		for sequenceName, lastValue := range status.Sequences {
-			sequenceTuple, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole(sequenceName)
-			if err != nil {
-				utils.ErrExit("error looking up sequence name %q: %w", sequenceName, err)
-			}
-			sequenceNameTupleToLastValueMap.Put(sequenceTuple, lastValue)
-		}
-		err = tdb.RestoreSequences(sequenceNameTupleToLastValueMap)
-
+		err = restoreSequences(status.Sequences)
 		if err != nil {
 			utils.ErrExit("failed to restore sequences: %s", err)
 		}
@@ -935,49 +926,17 @@ but its okay because sequence value should always be unique even if there are so
 func restoreSequencesInOfflineMigration(msr *metadb.MigrationStatusRecord, importTableList []sqlname.NameTuple) error {
 	// offline migration; either using dbzm or pg_dump/ora2pg
 	var err error
-	var sequenceLastValue map[string]int64
-	if !msr.IsSnapshotExportedViaDebezium() {
-		//read the sequence last value from the postdata.sql file if export is not via debezium
-		sequenceFilePath := filepath.Join(exportDir, "data", "postdata.sql")
-		if utils.FileOrFolderExists(sequenceFilePath) {
-			fmt.Printf("setting resume value for sequences %10s\n", "")
-			sequenceLastValue, err = readSequenceLastValueFromPostDataSql(sequenceFilePath, msr.SourceDBConf.DBType)
-			if err != nil {
-				return fmt.Errorf("failed to read sequence last value from postdata.sql: %w", err)
-			}
-		}
-	} else {
-		//read the sequence last value from the export status file if export is via debezium
-		status, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
-		if err != nil {
-			return fmt.Errorf("failed to read export status for restore sequences: %w", err)
-		}
-		sequenceLastValue = status.Sequences
+	sequenceLastValue, err := fetchSequenceLastValueMap(msr)
+	if err != nil {
+		return fmt.Errorf("failed to fetch sequence last value map: %w", err)
 	}
+
 	if (tconf.TableList != "" || tconf.ExcludeTableList != "") || msr.SourceDBConf.DBType == POSTGRESQL {
 		//if import data has table list filteration
 		//get the sequence name to table name map from MSR
-		sequenceNameToTableMap := utils.NewStructMap[sqlname.NameTuple, []string]()
-		for column, sequenceName := range msr.SourceColumnToSequenceMapping {
-			parts := strings.Split(column, ".") //column is qualified tablename.colname
-			if len(parts) < 3 {
-				return fmt.Errorf("invalid column name: %s", column)
-			}
-			tableName := fmt.Sprintf("%s.%s", parts[0], parts[1])
-			//get the sequence name from the source column to sequence mapping
-			//lookup the sequence name from source in name reg and ignore if target not found
-			sequenceTuple, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole(sequenceName)
-			if err != nil {
-				return fmt.Errorf("error looking up sequence name %q: %w", sequenceName, err)
-			}
-			sequenceName = sequenceTuple.ForKey()
-			tableList, ok := sequenceNameToTableMap.Get(sequenceTuple)
-			if ok {
-				tableList = append(tableList, tableName)
-				sequenceNameToTableMap.Put(sequenceTuple, tableList)
-			} else {
-				sequenceNameToTableMap.Put(sequenceTuple, []string{tableName})
-			}
+		sequenceNameToTableMap, err := fetchSequenceToTableListMap(msr)
+		if err != nil {
+			return fmt.Errorf("failed to fetch sequence to table list map: %w", err)
 		}
 		sequenceNameTupleToLastValueMap := *utils.NewStructMap[sqlname.NameTuple, int64]()
 		for sequenceName, lastValue := range sequenceLastValue {
@@ -987,43 +946,31 @@ func restoreSequencesInOfflineMigration(msr *metadb.MigrationStatusRecord, impor
 			if err != nil {
 				return fmt.Errorf("error looking up sequence name %q: %w", sequenceName, err)
 			}
-			sequenceName = sequenceTuple.ForKey()
-			if tableList, ok := sequenceNameToTableMap.Get(sequenceTuple); ok {
-				//if the sequence is attached to a table
-				isTablePresentInTableList := false
-				for _, table := range tableList {
-					tableTuple, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole(table)
-					if err != nil {
-						return fmt.Errorf("error looking up table name %q: %w", table, err)
-					}
-					//check if the table is present in the table list
-					if lo.ContainsBy(importTableList, func(table sqlname.NameTuple) bool {
-						return table.ForKey() == tableTuple.ForKey()
-					}) {
-						isTablePresentInTableList = true
-						break
-					}
-				}
-				if !isTablePresentInTableList {
-					//if the sequence is attached to a table but not in the table list
-					//skip the sequence
-					log.Infof("sequence %q is not present in the table list, skipping", sequenceName)
-					continue
-				}
-				if !sequenceTuple.TargetTableAvailable() {
-					//if the sequence is attached to a table and table in table list but sequence not present in the target database
-					//return error
-					return fmt.Errorf("sequence %q is not present in the target database", sequenceName)
-				}
-				//restore the sequence last value
-				sequenceNameTupleToLastValueMap.Put(sequenceTuple, lastValue)
-			} else {
-				//skip the sequence
-				//this is possible in case of independent sequence
-				//But right now this is not expected from export as we only migrate sequences attached to tables in all migration workflows
+			sequenceAttachedToTables, ok := sequenceNameToTableMap.Get(sequenceTuple)
+			if !ok {
+				//sequence is not attached to any table, right now this is not expected from export as we only migrate sequences attached to tables in all migration workflows
 				log.Infof("sequence %q is not attached to any table, skipping", sequenceName)
 				continue
 			}
+			//check if the sequence is attached to a table and present in the table list
+			isTablePresentInTableList, err := checkIfSequenceAttachedToTablesInTableList(sequenceTuple, importTableList, sequenceAttachedToTables)
+			if err != nil {
+				return fmt.Errorf("failed to check if sequence is attached to tables in table list: %w", err)
+			}
+			if !isTablePresentInTableList {
+				//if the sequence is attached to a table but not in the table list
+				//skip the sequence
+				log.Infof("sequence %q is not present in the table list, skipping", sequenceName)
+				continue
+			}
+			if !sequenceTuple.TargetTableAvailable() {
+				//if the sequence is attached to a table and table in table list but sequence not present in the target database
+				//return error
+				return fmt.Errorf("sequence %q is not present in the target database", sequenceName)
+			}
+			//restore the sequence last value
+			sequenceNameTupleToLastValueMap.Put(sequenceTuple, lastValue)
+
 		}
 		//restore the sequence last value
 		err = tdb.RestoreSequences(sequenceNameTupleToLastValueMap)
@@ -1034,20 +981,91 @@ func restoreSequencesInOfflineMigration(msr *metadb.MigrationStatusRecord, impor
 	} else {
 		//restore all sequences
 		//if tables are not being filtered then ideally we should restore all sequences
-		sequenceNameTupleToLastValueMap := *utils.NewStructMap[sqlname.NameTuple, int64]()
-		for sequenceName, lastValue := range sequenceLastValue {
-			sequenceTuple, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole(sequenceName)
-			if err != nil {
-				return fmt.Errorf("error looking up sequence name %q: %w", sequenceName, err)
-			}
-			sequenceNameTupleToLastValueMap.Put(sequenceTuple, lastValue)
-		}
-		err = tdb.RestoreSequences(sequenceNameTupleToLastValueMap)
-		if err != nil {
-			return fmt.Errorf("failed to restore sequences: %w", err)
-		}
+		restoreSequences(sequenceLastValue)
 	}
 	return nil
+}
+
+func restoreSequences(sequenceLastValue map[string]int64) error {
+	sequenceNameTupleToLastValueMap := *utils.NewStructMap[sqlname.NameTuple, int64]()
+	for sequenceName, lastValue := range sequenceLastValue {
+		sequenceTuple, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole(sequenceName)
+		if err != nil {
+			return fmt.Errorf("error looking up sequence name %q: %w", sequenceName, err)
+		}
+		sequenceNameTupleToLastValueMap.Put(sequenceTuple, lastValue)
+	}
+	err := tdb.RestoreSequences(sequenceNameTupleToLastValueMap)
+	if err != nil {
+		return fmt.Errorf("failed to restore sequences: %w", err)
+	}
+	return nil
+}
+
+func fetchSequenceLastValueMap(msr *metadb.MigrationStatusRecord) (map[string]int64, error) {
+	sequenceLastValue := make(map[string]int64)
+	var err error
+	if !msr.IsSnapshotExportedViaDebezium() {
+		//read the sequence last value from the postdata.sql file if export is not via debezium
+		sequenceFilePath := filepath.Join(exportDir, "data", "postdata.sql")
+		if utils.FileOrFolderExists(sequenceFilePath) {
+			fmt.Printf("setting resume value for sequences %10s\n", "")
+			sequenceLastValue, err = readSequenceLastValueFromPostDataSql(sequenceFilePath, msr.SourceDBConf.DBType)
+			if err != nil {
+				return nil, fmt.Errorf("failed to read sequence last value from postdata.sql: %w", err)
+			}
+		}
+	} else {
+		//read the sequence last value from the export status file if export is via debezium
+		status, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
+		if err != nil {
+			return nil, fmt.Errorf("failed to read export status for restore sequences: %w", err)
+		}
+		sequenceLastValue = status.Sequences
+	}
+	return sequenceLastValue, nil
+}
+
+func fetchSequenceToTableListMap(msr *metadb.MigrationStatusRecord) (*utils.StructMap[sqlname.NameTuple, []string], error) {
+
+	sequenceNameToTableMap := utils.NewStructMap[sqlname.NameTuple, []string]()
+	for column, sequenceName := range msr.SourceColumnToSequenceMapping {
+		parts := strings.Split(column, ".") //column is qualified tablename.colname
+		if len(parts) < 3 {
+			return nil, fmt.Errorf("invalid column name: %s", column)
+		}
+		tableName := fmt.Sprintf("%s.%s", parts[0], parts[1])
+		//get the sequence name from the source column to sequence mapping
+		//lookup the sequence name from source in name reg and ignore if target not found
+		sequenceTuple, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole(sequenceName)
+		if err != nil {
+			return nil, fmt.Errorf("error looking up sequence name %q: %w", sequenceName, err)
+		}
+		sequenceName = sequenceTuple.ForKey()
+		tableList, ok := sequenceNameToTableMap.Get(sequenceTuple)
+		if ok {
+			tableList = append(tableList, tableName)
+			sequenceNameToTableMap.Put(sequenceTuple, tableList)
+		} else {
+			sequenceNameToTableMap.Put(sequenceTuple, []string{tableName})
+		}
+	}
+	return sequenceNameToTableMap, nil
+}
+
+func checkIfSequenceAttachedToTablesInTableList(sequenceTuple sqlname.NameTuple, importTableList []sqlname.NameTuple, tableList []string) (bool, error) {
+	for _, table := range tableList {
+		tableTuple, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole(table)
+		if err != nil {
+			return false, fmt.Errorf("error looking up table name %q: %w", table, err)
+		}
+		if lo.ContainsBy(importTableList, func(t sqlname.NameTuple) bool {
+			return t.ForKey() == tableTuple.ForKey()
+		}) {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func readSequenceLastValueFromPostDataSql(sequenceFilePath string, sourceDBType string) (map[string]int64, error) {
