@@ -37,8 +37,11 @@ jobs:
           echo "YB Versions: $versions"
           echo "yb_versions=$versions" >> $GITHUB_OUTPUT
           
-          # Extract latest stable version (with fallback)
-          latest_stable=$(jq -r '.latest_stable // "2025.1.0.0-b168"' yb-voyager/versions/yb-versions.json)
+          latest_stable=$(jq -r '.latest_stable' yb-voyager/versions/yb-versions.json)
+          if [ -z "$latest_stable" ] || [ "$latest_stable" = "null" ]; then
+            echo "ERROR: latest_stable field is missing or empty in yb-versions.json"
+            exit 1
+          fi
           echo "YB Latest Stable: $latest_stable"
           echo "yb_latest_stable=$latest_stable" >> $GITHUB_OUTPUT
           
