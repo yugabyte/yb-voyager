@@ -88,20 +88,22 @@ type Payload struct {
 // SHOULD NOT REMOVE THESE (host, db_type, db_version, total_db_size_bytes) FIELDS of SourceDBDetails as parsing these specifically here
 // https://github.com/yugabyte/yugabyte-growth/blob/ad5df306c50c05136df77cd6548a1091ae577046/diagnostics_v2/main.py#L549
 type SourceDBDetails struct {
-	Host      string `json:"host"` //keeping it empty for now, as field is parsed in big query app
-	DBType    string `json:"db_type"`
-	DBVersion string `json:"db_version"`
-	DBSize    int64  `json:"total_db_size_bytes"` //bytes
-	Role      string `json:"role,omitempty"`      //for differentiating replica details
+	Host               string `json:"host"` //keeping it empty for now, as field is parsed in big query app
+	DBType             string `json:"db_type"`
+	DBVersion          string `json:"db_version"`
+	DBSize             int64  `json:"total_db_size_bytes"`            //bytes
+	Role               string `json:"role,omitempty"`                 //for differentiating replica details
+	DBSystemIdentifier int64  `json:"db_system_identifier,omitempty"` //Database system identifier for unique instance identification (currently only implemented for PostgreSQL)
 }
 
 // SHOULD NOT REMOVE THESE (host, db_version, node_count, total_cores) FIELDS of TargetDBDetails as parsing these specifically here
 // https://github.com/yugabyte/yugabyte-growth/blob/ad5df306c50c05136df77cd6548a1091ae577046/diagnostics_v2/main.py#L556
 type TargetDBDetails struct {
-	Host      string `json:"host"`
-	DBVersion string `json:"db_version"`
-	NodeCount int    `json:"node_count"`
-	Cores     int    `json:"total_cores"`
+	Host               string `json:"host"`
+	DBVersion          string `json:"db_version"`
+	NodeCount          int    `json:"node_count"`
+	Cores              int    `json:"total_cores"`
+	DBSystemIdentifier string `json:"db_system_identifier,omitempty"` // Database system identifier (currently only implemented for YugabyteDB cluster UUID from v2024.2.3.0+)
 }
 
 /*
@@ -114,8 +116,9 @@ Version History
 1.5: Added AnonymizedDDLs field in AssessMigrationPhasePayload struct
 1.6: Added ObjectName field in AssessmentIssueCallhome struct
 1.7 Changed NumShardedTables and NumColocatedTables to ShardedTables and ColocatedTables respectively with anonymized names
+1.8 Added EstimatedTimeInMinForImportWithoutRedundantIndexes to SizingCallhome
 */
-var ASSESS_MIGRATION_CALLHOME_PAYLOAD_VERSION = "1.7"
+var ASSESS_MIGRATION_CALLHOME_PAYLOAD_VERSION = "1.8"
 
 type AssessMigrationPhasePayload struct {
 	PayloadVersion                 string                    `json:"payload_version"`
@@ -159,15 +162,16 @@ func NewAssessmentIssueCallhome(category string, categoryDesc string, issueType 
 }
 
 type SizingCallhome struct {
-	ColocatedTables                 []string `json:"colocated_tables"`
-	ColocatedReasoning              string   `json:"colocated_reasoning"`
-	ShardedTables                   []string `json:"sharded_tables"`
-	NumNodes                        float64 `json:"num_nodes"`
-	VCPUsPerInstance                int     `json:"vcpus_per_instance"`
-	MemoryPerInstance               int     `json:"memory_per_instance"`
-	OptimalSelectConnectionsPerNode int64   `json:"optimal_select_connections_per_node"`
-	OptimalInsertConnectionsPerNode int64   `json:"optimal_insert_connections_per_node"`
-	EstimatedTimeInMinForImport     float64 `json:"estimated_time_in_min_for_import"`
+	ColocatedTables                                    []string `json:"colocated_tables"`
+	ColocatedReasoning                                 string   `json:"colocated_reasoning"`
+	ShardedTables                                      []string `json:"sharded_tables"`
+	NumNodes                                           float64  `json:"num_nodes"`
+	VCPUsPerInstance                                   int      `json:"vcpus_per_instance"`
+	MemoryPerInstance                                  int      `json:"memory_per_instance"`
+	OptimalSelectConnectionsPerNode                    int64    `json:"optimal_select_connections_per_node"`
+	OptimalInsertConnectionsPerNode                    int64    `json:"optimal_insert_connections_per_node"`
+	EstimatedTimeInMinForImport                        float64  `json:"estimated_time_in_min_for_import"`
+	EstimatedTimeInMinForImportWithoutRedundantIndexes float64  `json:"estimated_time_in_min_for_import_without_redundant_indexes"`
 }
 
 type ObjectSizingStats struct {
@@ -271,8 +275,9 @@ Version History:
 1.0: Added fields for BatchSize, OnPrimaryKeyConflictAction, EnableYBAdaptiveParallelism, AdaptiveParallelismMax
 1.1: Added YBClusterMetrics field, and corresponding struct - YBClusterMetrics, NodeMetric
 1.2: Split out the data metrics into a separate struct - ImportDataMetrics
+1.3: Added CurrentParallelConnections field to ImportDataMetrics
 */
-var IMPORT_DATA_CALLHOME_PAYLOAD_VERSION = "1.2"
+var IMPORT_DATA_CALLHOME_PAYLOAD_VERSION = "1.3"
 
 type ImportDataPhasePayload struct {
 	PayloadVersion              string            `json:"payload_version"`
@@ -294,6 +299,8 @@ type ImportDataPhasePayload struct {
 }
 
 type ImportDataMetrics struct {
+	CurrentParallelConnections int `json:"current_parallel_connections"`
+
 	// for the entire migration, across command runs. would be sensitive to start-clean.
 	MigrationSnapshotTotalRows        int64 `json:"migration_snapshot_total_rows"`
 	MigrationSnapshotLargestTableRows int64 `json:"migration_snapshot_largest_table_rows"`
@@ -335,6 +342,8 @@ type ImportDataFilePhasePayload struct {
 }
 
 type ImportDataFileMetrics struct {
+	CurrentParallelConnections int `json:"current_parallel_connections"`
+
 	// for the entire migration, across command runs. would be sensitive to start-clean.
 	MigrationSnapshotTotalBytes        int64 `json:"migration_snapshot_total_bytes"`
 	MigrationSnapshotLargestTableBytes int64 `json:"migration_snapshot_largest_table_bytes"`

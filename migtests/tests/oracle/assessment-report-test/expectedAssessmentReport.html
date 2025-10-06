@@ -247,6 +247,49 @@
             line-height: 1.2em;
             font-family: monospace;
         }
+
+        /* Notes Section Styles */
+        .notes-section {
+            margin: 15px 0;
+            padding: 12px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+        }
+
+        .notes-section h5 {
+            margin: 0 0 8px 0;
+            font-size: 0.95em;
+            color: #666;
+            font-weight: 500;
+        }
+
+        .notes-section ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+
+        .notes-section li {
+            margin: 5px 0;
+            line-height: 1.4;
+        }
+
+        .general-notes-container {
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            padding: 12px;
+            margin: 10px 0;
+        }
+
+        .general-notes-container ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+
+        .general-notes-container li {
+            margin: 5px 0;
+            line-height: 1.4;
+        }
+
     </style>
     <script>
 
@@ -697,7 +740,7 @@
         </table>
 
         
-            <h2>Sharding Recommendations</h2>
+            <h2>Colocation Recommendations</h2>
             
                 
                     <table>
@@ -706,6 +749,11 @@
                             <th class="centered-cell">Sharded Tables</th>
                         </tr>
                         <tr>
+                            <td>
+                                <div class="scrollable-div no-wrap-list">
+                                    
+                                </div>
+                            </td>
                             <td>
                                 <div class="scrollable-div no-wrap-list">
                                     
@@ -859,13 +907,21 @@
                                     
                                 </div>
                             </td>
-                            <td>
-                                <div class="scrollable-div no-wrap-list">
-                                    
-                                </div>
-                            </td>
                         </tr>
                     </table>
+
+                    
+                        <div class="notes-section">
+                            <h5>Notes</h5>
+                            <ul>
+                                
+                                    <li>For sharding/colocation recommendations, each partition is treated individually. During the export schema phase, all the partitions of a partitioned table are currently created as colocated by default.
+To manually modify the schema, please refer: <a class="highlight-link" href="https://github.com/yugabyte/yb-voyager/issues/1581">https://github.com/yugabyte/yb-voyager/issues/1581</a>.</li>
+                                
+                            </ul>
+                        </div>
+                    
+
                     <h2>Sizing Recommendations</h2>
                     <table>
                         <tr>
@@ -875,12 +931,24 @@
                         <tr><td class="centered-cell">Num of Nodes</td><td class="centered-cell">3</td></tr>
                         <tr><td class="centered-cell">vCPU per instance</td><td class="centered-cell">4</td></tr>
                         <tr><td class="centered-cell">Memory per instance(GiB)</td><td class="centered-cell">16</td></tr>
-                        <tr><td class="centered-cell">Optimal select connections per node</td><td class="centered-cell">8</td></tr>
+                        <tr><td class="centered-cell">Optimal select connections per node</td><td class="centered-cell">10</td></tr>
                         <tr><td class="centered-cell">Optimal insert connections per node</td><td class="centered-cell">12</td></tr>
                         <tr><td class="centered-cell">Estimated time taken for data import </td><td class="centered-cell">1 min</td></tr>
+                        <tr><td class="centered-cell">Estimated time taken for data import (Excluding redundant indexes)</td><td class="centered-cell">1 min</td></tr>
                     </table>
                     <h3>Reasoning:</h3>
-                    <p class="spaced-words">Recommended instance type with 4 vCPU and 16 GiB memory could fit 78 objects (74 tables/materialized views and 4 explicit/implicit indexes) with 192.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.</p>
+                    <p class="spaced-words">Recommended instance type with 4 vCPU and 16 GiB memory could fit 78 objects (74 tables/materialized views and 4 explicit/implicit indexes) with 192.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as sharded. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.</p>
+
+                    
+                        <div class="notes-section">
+                            <h5>Notes</h5>
+                            <ul>
+                                
+                                    <li>Reference and System Partitioned tables are created as normal tables, but are not considered for target cluster sizing recommendations.</li>
+                                
+                            </ul>
+                        </div>
+                    
                 
             
         
@@ -890,14 +958,10 @@
         
   
   
-
-  
-
-  
-
   
   
-
+  
+  
 
   
 
@@ -1035,7 +1099,7 @@
                                                     <td>
                                                         
                                                             <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="font-size: 0.95em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">COMPOUND TRIGGER is not supported in YugabyteDB.</pre>
+                                                                <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">COMPOUND TRIGGER is not supported in YugabyteDB.</pre>
                                                                 
                                                             </div>
                                                         
@@ -1178,7 +1242,7 @@
                             </td>
                             <td class="centered-cell">
                                 
-                                    Index Name: IDX_EMP_DEPT_CLUSTER, Index Type=CLUSTER INDEX
+                                    Index Name: REV_INDEX, Index Type=NORMAL/REV INDEX
                                 
                             </td>
                             <td class="centered-cell" style="text-align: center;">-</td>
@@ -1216,7 +1280,7 @@
                                                 
                                                     <tr>
                                                         <th class="centered-cell">Object Name</th>
-                                                        <td>Index Name: IDX_EMP_DEPT_CLUSTER, Index Type=CLUSTER INDEX</td>
+                                                        <td>Index Name: REV_INDEX, Index Type=NORMAL/REV INDEX</td>
                                                     </tr>
                                                 
                                                 <tr>
@@ -1278,7 +1342,7 @@
                             </td>
                             <td class="centered-cell">
                                 
-                                    Index Name: REV_INDEX, Index Type=NORMAL/REV INDEX
+                                    Index Name: IDX_EMP_DEPT_CLUSTER, Index Type=CLUSTER INDEX
                                 
                             </td>
                             <td class="centered-cell" style="text-align: center;">-</td>
@@ -1316,7 +1380,7 @@
                                                 
                                                     <tr>
                                                         <th class="centered-cell">Object Name</th>
-                                                        <td>Index Name: REV_INDEX, Index Type=NORMAL/REV INDEX</td>
+                                                        <td>Index Name: IDX_EMP_DEPT_CLUSTER, Index Type=CLUSTER INDEX</td>
                                                     </tr>
                                                 
                                                 <tr>
@@ -2155,7 +2219,7 @@
                     
                     <tbody class="issue-summary-detail-pair"
                         data-category="unsupported_datatypes"
-                        data-name="BLOB"
+                        data-name="CLOB"
                         data-impact="-">
                         
                         <!-- Summary Row -->
@@ -2165,6 +2229,106 @@
                                     <div class="category-cell-flex">
                                         <div class="arrow-container">
                                             <span id="arrow-12">&#9654;</span>
+                                        </div>
+                                        <span style="word-break: break-word;">Unsupported Datatypes</span>
+                                    </div>
+                                </td>
+                            
+                            <td class="centered-cell">
+                                <div class="category-cell-flex">
+                                    
+                                    CLOB
+                                </div>
+                            </td>
+                            <td class="centered-cell">
+                                
+                                    TEST_SCHEMA.TEXT_TABLE.TEXT_DATA
+                                
+                            </td>
+                            <td class="centered-cell" style="text-align: center;">-</td>
+                        </tr>
+
+                        <!-- Hidden Details of the Row -->
+                        <tr id="details-12" class="details-row">
+                            <td colspan="4">
+                                <div class="details-content-wrapper">
+                                    <div class="details-content">
+                                        <table class="formatted_table" style="width: 100%; border: 1px solid #ddd; margin-top: 5px;">
+                                            <colgroup>
+                                                <col style="width: 25%;">
+                                                <col style="width: 75%;">
+                                            </colgroup>
+                                            <tbody>
+                                                
+                                                    <tr>
+                                                        <th class="centered-cell">Category Description</th>
+                                                        <td>
+                                                            <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc; padding:5px;">
+                                                                Data types of the source database that are not supported on the target YugabyteDB.
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                
+
+                                                <!-- Only show if ObjectType is present -->
+                                                
+                                                    <tr>
+                                                        <th class="centered-cell">Object Type</th>
+                                                        <td>COLUMN</td>
+                                                    </tr>
+                                                
+                                                
+                                                    <tr>
+                                                        <th class="centered-cell">Object Name</th>
+                                                        <td>TEST_SCHEMA.TEXT_TABLE.TEXT_DATA</td>
+                                                    </tr>
+                                                
+                                                <tr>
+                                                    <th class="centered-cell">SQL Statement</th>
+                                                    <td>
+                                                        
+                                                        <!-- display N/A if Sql Statement not present -->
+                                                            N/A
+                                                        
+                                                    </td>
+                                                </tr>
+
+                                                <!-- Only show if there is a supported version -->
+                                                
+                                                
+                                                <tr>
+                                                    <th class="centered-cell">Description</th>
+                                                    <td>
+                                                        
+                                                        <!-- display N/A if description not present -->
+                                                            N/A
+                                                        
+                                                    </td>
+                                                </tr>
+                                               
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                
+                    
+                    
+                    
+                    <tbody class="issue-summary-detail-pair"
+                        data-category="unsupported_datatypes"
+                        data-name="BLOB"
+                        data-impact="-">
+                        
+                        <!-- Summary Row -->
+                        <tr class="summary-row" onclick="toggleDetails('details-13', 'arrow-13', false)">
+                            
+                                <td class="centered-cell">
+                                    <div class="category-cell-flex">
+                                        <div class="arrow-container">
+                                            <span id="arrow-13">&#9654;</span>
                                         </div>
                                         <span style="word-break: break-word;">Unsupported Datatypes</span>
                                     </div>
@@ -2185,7 +2349,7 @@
                         </tr>
 
                         <!-- Hidden Details of the Row -->
-                        <tr id="details-12" class="details-row">
+                        <tr id="details-13" class="details-row">
                             <td colspan="4">
                                 <div class="details-content-wrapper">
                                     <div class="details-content">
@@ -2259,12 +2423,12 @@
                         data-impact="-">
                         
                         <!-- Summary Row -->
-                        <tr class="summary-row" onclick="toggleDetails('details-13', 'arrow-13', false)">
+                        <tr class="summary-row" onclick="toggleDetails('details-14', 'arrow-14', false)">
                             
                                 <td class="centered-cell">
                                     <div class="category-cell-flex">
                                         <div class="arrow-container">
-                                            <span id="arrow-13">&#9654;</span>
+                                            <span id="arrow-14">&#9654;</span>
                                         </div>
                                         <span style="word-break: break-word;">Unsupported Datatypes</span>
                                     </div>
@@ -2285,7 +2449,7 @@
                         </tr>
 
                         <!-- Hidden Details of the Row -->
-                        <tr id="details-13" class="details-row">
+                        <tr id="details-14" class="details-row">
                             <td colspan="4">
                                 <div class="details-content-wrapper">
                                     <div class="details-content">
@@ -2359,106 +2523,6 @@
                         data-impact="-">
                         
                         <!-- Summary Row -->
-                        <tr class="summary-row" onclick="toggleDetails('details-14', 'arrow-14', false)">
-                            
-                                <td class="centered-cell">
-                                    <div class="category-cell-flex">
-                                        <div class="arrow-container">
-                                            <span id="arrow-14">&#9654;</span>
-                                        </div>
-                                        <span style="word-break: break-word;">Unsupported Datatypes</span>
-                                    </div>
-                                </td>
-                            
-                            <td class="centered-cell">
-                                <div class="category-cell-flex">
-                                    
-                                    CLOB
-                                </div>
-                            </td>
-                            <td class="centered-cell">
-                                
-                                    TEST_SCHEMA.CLOB_TABLE.DATA
-                                
-                            </td>
-                            <td class="centered-cell" style="text-align: center;">-</td>
-                        </tr>
-
-                        <!-- Hidden Details of the Row -->
-                        <tr id="details-14" class="details-row">
-                            <td colspan="4">
-                                <div class="details-content-wrapper">
-                                    <div class="details-content">
-                                        <table class="formatted_table" style="width: 100%; border: 1px solid #ddd; margin-top: 5px;">
-                                            <colgroup>
-                                                <col style="width: 25%;">
-                                                <col style="width: 75%;">
-                                            </colgroup>
-                                            <tbody>
-                                                
-                                                    <tr>
-                                                        <th class="centered-cell">Category Description</th>
-                                                        <td>
-                                                            <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc; padding:5px;">
-                                                                Data types of the source database that are not supported on the target YugabyteDB.
-                                                            </div>
-                                                        </td>
-                                                    </tr>
-                                                
-
-                                                <!-- Only show if ObjectType is present -->
-                                                
-                                                    <tr>
-                                                        <th class="centered-cell">Object Type</th>
-                                                        <td>COLUMN</td>
-                                                    </tr>
-                                                
-                                                
-                                                    <tr>
-                                                        <th class="centered-cell">Object Name</th>
-                                                        <td>TEST_SCHEMA.CLOB_TABLE.DATA</td>
-                                                    </tr>
-                                                
-                                                <tr>
-                                                    <th class="centered-cell">SQL Statement</th>
-                                                    <td>
-                                                        
-                                                        <!-- display N/A if Sql Statement not present -->
-                                                            N/A
-                                                        
-                                                    </td>
-                                                </tr>
-
-                                                <!-- Only show if there is a supported version -->
-                                                
-                                                
-                                                <tr>
-                                                    <th class="centered-cell">Description</th>
-                                                    <td>
-                                                        
-                                                        <!-- display N/A if description not present -->
-                                                            N/A
-                                                        
-                                                    </td>
-                                                </tr>
-                                               
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            </td>
-                        </tr>
-                    </tbody>
-                
-                    
-                    
-                    
-                    <tbody class="issue-summary-detail-pair"
-                        data-category="unsupported_datatypes"
-                        data-name="CLOB"
-                        data-impact="-">
-                        
-                        <!-- Summary Row -->
                         <tr class="summary-row" onclick="toggleDetails('details-15', 'arrow-15', false)">
                             
                                 <td class="centered-cell">
@@ -2478,7 +2542,7 @@
                             </td>
                             <td class="centered-cell">
                                 
-                                    TEST_SCHEMA.TEXT_TABLE.TEXT_DATA
+                                    TEST_SCHEMA.CLOB_TABLE.DATA
                                 
                             </td>
                             <td class="centered-cell" style="text-align: center;">-</td>
@@ -2516,7 +2580,7 @@
                                                 
                                                     <tr>
                                                         <th class="centered-cell">Object Name</th>
-                                                        <td>TEST_SCHEMA.TEXT_TABLE.TEXT_DATA</td>
+                                                        <td>TEST_SCHEMA.CLOB_TABLE.DATA</td>
                                                     </tr>
                                                 
                                                 <tr>
@@ -2651,25 +2715,52 @@
                     </tbody>
                 
             </table>
+
+        
+   
+
+ 
+
+        
+        
+  
+  
+  
+  
+  
+  
+
+  
+    
+    
+    
+    
+    
+    
+  
+
+        
+   
+
+ 
+
+        
+
+
+
+        
             <hr>
             <div>
-                <h4>Notes</h4>
-                <ul id="notes-list">
-                        <li>Some features listed in this report may be supported under a preview flag in the specified target-db-version of YugabyteDB. Please refer to the official <a class="highlight-link" target="_blank" href="https://docs.yugabyte.com/preview/releases/ybdb-releases/">release notes</a> for detailed information and usage guidelines.</li> 
-                        <li>If there are any tables that receive disproportionately high load, ensure that they are NOT colocated to avoid the colocated tablet becoming a hotspot.
-For additional considerations related to colocated tables, refer to the documentation at: https://docs.yugabyte.com/preview/explore/colocation/#limitations-and-considerations</li>
-                    
-                        <li>If indexes are created on columns commonly used in range-based queries (e.g. timestamp columns), it is recommended to explicitly configure these indexes with range sharding. This ensures efficient data access for range queries.
-By default, YugabyteDB uses hash sharding for indexes, which distributes data randomly and is not ideal for range-based predicates potentially degrading query performance. Note that range sharding is enabled by default only in <a class="highlight-link" target="_blank" href="https://docs.yugabyte.com/preview/develop/postgresql-compatibility/">PostgreSQL compatibility mode</a> in YugabyteDB.</li>
-                    
-                        <li>For sharding/colocation recommendations, each partition is treated individually. During the export schema phase, all the partitions of a partitioned table are currently created as colocated by default.
-To manually modify the schema, please refer: <a class="highlight-link" href="https://github.com/yugabyte/yb-voyager/issues/1581">https://github.com/yugabyte/yb-voyager/issues/1581</a>.</li>
-                    
-                        <li>Reference and System Partitioned tables are created as normal tables, but are not considered for target cluster sizing recommendations.</li>
-                    
-                        <li>There are some BITMAP indexes present in the schema that will get converted to GIN indexes, but GIN indexes are partially supported in YugabyteDB as mentioned in <a class="highlight-link" href="https://github.com/yugabyte/yugabyte-db/issues/7850">https://github.com/yugabyte/yugabyte-db/issues/7850</a> so take a look and modify them if not supported.</li>
-                    
-                </ul>
+                <h4>General Notes</h4>
+                <div class="general-notes-container">
+                    <ul id="notes-list">
+                        
+                            <li>Some features listed in this report may be supported under a preview flag in the specified target-db-version of YugabyteDB. Please refer to the official <a class="highlight-link" target="_blank" href="https://docs.yugabyte.com/preview/releases/ybdb-releases/">release notes</a> for detailed information and usage guidelines.</li>
+                        
+                            <li>There are some BITMAP indexes present in the schema that will get converted to GIN indexes, but GIN indexes are partially supported in YugabyteDB as mentioned in <a class="highlight-link" href="https://github.com/yugabyte/yugabyte-db/issues/7850">https://github.com/yugabyte/yugabyte-db/issues/7850</a> so take a look and modify them if not supported.</li>
+                        
+                    </ul>
+                </div>
             </div>
         
     </div>

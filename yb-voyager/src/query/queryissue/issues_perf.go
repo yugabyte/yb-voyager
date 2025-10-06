@@ -236,3 +236,20 @@ func NewMissingForeignKeyIndexIssue(objectType string, objectName string, sqlSta
 
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
 }
+
+// NewMissingPrimaryKeyWhenUniqueNotNullIssue returns a recommendation to add a PK when a UNIQUE constraint's columns are all NOT NULL
+var missingPrimaryKeyWhenUniqueNotNullIssue = issue.Issue{
+	Name:        MISSING_PRIMARY_KEY_WHEN_UNIQUE_NOT_NULL_ISSUE_NAME,
+	Type:        MISSING_PRIMARY_KEY_WHEN_UNIQUE_NOT_NULL,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: MISSING_PRIMARY_KEY_WHEN_UNIQUE_NOT_NULL_DESCRIPTION,
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-primary-key-for-table-when-unique-and-not-null-columns-exist",
+}
+
+func NewMissingPrimaryKeyWhenUniqueNotNullIssue(objectType string, objectName string, options [][]string) QueryIssue {
+	issue := missingPrimaryKeyWhenUniqueNotNullIssue
+	details := map[string]interface{}{
+		"PrimaryKeyColumnOptions": options,
+	}
+	return newQueryIssue(issue, objectType, objectName, "", details)
+}

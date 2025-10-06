@@ -27,7 +27,7 @@ UPDATE user_table SET email = 'updated_user4@example.com' WHERE id = 4;
 UPDATE user_table SET email = 'user4@example.com' WHERE id = 6;
 
 -- events with NULL value for unique key columns
-UPDATE user_table SET status = 'inactive' where id > 0;
+UPDATE user_table SET status = 'inactive' where id > 0; -- affects 8 rows
 
 --events for test_enum table 
 INSERT INTO test_enum values(5, 'duplicate_payment_method');

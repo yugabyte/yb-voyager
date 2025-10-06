@@ -61,9 +61,10 @@ func packAndSendAssessMigrationPayload(status string, errMsg error) {
 	payload.Status = status
 	if assessmentMetadataDirFlag == "" {
 		sourceDBDetails := callhome.SourceDBDetails{
-			DBType:    source.DBType,
-			DBVersion: source.DBVersion,
-			DBSize:    source.DBSize,
+			DBType:             source.DBType,
+			DBVersion:          source.DBVersion,
+			DBSize:             source.DBSize,
+			DBSystemIdentifier: source.DBSystemIdentifier,
 		}
 		payload.SourceDBDetails = callhome.MarshalledJsonString(sourceDBDetails)
 	}
@@ -131,6 +132,7 @@ func packAndSendAssessMigrationPayload(status string, errMsg error) {
 			OptimalSelectConnectionsPerNode: sizingRecommedation.OptimalSelectConnectionsPerNode,
 			OptimalInsertConnectionsPerNode: sizingRecommedation.OptimalInsertConnectionsPerNode,
 			EstimatedTimeInMinForImport:     sizingRecommedation.EstimatedTimeInMinForImport,
+			EstimatedTimeInMinForImportWithoutRedundantIndexes: sizingRecommedation.EstimatedTimeInMinForImportWithoutRedundantIndexes,
 		}
 	}
 
@@ -256,6 +258,26 @@ func anonymizeIssueDetailsForCallhome(details map[string]interface{}) map[string
 			} else {
 				anonymizedDetails[key] = value
 			}
+		} else if key == "PrimaryKeyColumnOptions" {
+			if pkOptions, ok := value.([][]string); ok {
+				var anonymizedOptions [][]string
+				for _, option := range pkOptions {
+					var anonymizedOption []string
+					for _, columnName := range option {
+						anonymizedColumn, err := anonymizer.AnonymizeQualifiedColumnName(columnName)
+						if err != nil {
+							log.Warnf("failed to anonymize PK column name %s: %v", columnName, err)
+							anonymizedOption = append(anonymizedOption, "column_xxx")
+						} else {
+							anonymizedOption = append(anonymizedOption, anonymizedColumn)
+						}
+					}
+					anonymizedOptions = append(anonymizedOptions, anonymizedOption)
+				}
+				anonymizedDetails[key] = anonymizedOptions
+			} else {
+				anonymizedDetails[key] = value
+			}
 		} else {
 			// Non-sensitive keys are kept as-is
 			anonymizedDetails[key] = value
@@ -311,10 +333,10 @@ func getAnonymizedDDLs(sourceDBConf *srcdb.Source) []string {
 // ============================export schema callhome payload information============================
 
 const (
-	REDUNDANT_INDEX_CHANGE_TYPE               = "redundant_index"
-	TABLE_SHARDING_RECOMMENDATION_CHANGE_TYPE = "table_sharding_recommendation"
-	MVIEW_SHARDING_RECOMMENDATION_CHANGE_TYPE = "mview_sharding_recommendation"
-	SECONDARY_INDEX_TO_RANGE_CHANGE_TYPE      = "secondary_index_to_range"
+	REDUNDANT_INDEX_CHANGE_TYPE                 = "redundant_index"
+	TABLE_COLOCATION_RECOMMENDATION_CHANGE_TYPE = "table_sharding_recommendation"
+	MVIEW_COLOCATION_RECOMMENDATION_CHANGE_TYPE = "mview_sharding_recommendation"
+	SECONDARY_INDEX_TO_RANGE_CHANGE_TYPE        = "secondary_index_to_range"
 )
 
 func buildCallhomeSchemaOptimizationChanges() []callhome.SchemaOptimizationChange {
@@ -330,9 +352,9 @@ func buildCallhomeSchemaOptimizationChanges() []callhome.SchemaOptimizationChang
 			Objects:          getAnonymizedIndexObjectsFromIndexToTableMap(schemaOptimizationReport.RedundantIndexChange.TableToRemovedIndexesMap),
 		})
 	}
-	if schemaOptimizationReport.TableShardingRecommendation != nil {
+	if schemaOptimizationReport.TableColocationRecommendation != nil {
 		objects := make([]string, 0)
-		for _, obj := range schemaOptimizationReport.TableShardingRecommendation.ShardedObjects {
+		for _, obj := range schemaOptimizationReport.TableColocationRecommendation.ShardedObjects {
 			anonymizedObj, err := anonymizer.AnonymizeQualifiedTableName(obj)
 			if err != nil {
 				log.Errorf("callhome: failed to anonymise table-%s: %v", obj, err)
@@ -341,14 +363,14 @@ func buildCallhomeSchemaOptimizationChanges() []callhome.SchemaOptimizationChang
 			objects = append(objects, anonymizedObj)
 		}
 		schemaOptimizationChanges = append(schemaOptimizationChanges, callhome.SchemaOptimizationChange{
-			OptimizationType: TABLE_SHARDING_RECOMMENDATION_CHANGE_TYPE,
-			IsApplied:        schemaOptimizationReport.TableShardingRecommendation.IsApplied,
+			OptimizationType: TABLE_COLOCATION_RECOMMENDATION_CHANGE_TYPE,
+			IsApplied:        schemaOptimizationReport.TableColocationRecommendation.IsApplied,
 			Objects:          objects,
 		})
 	}
-	if schemaOptimizationReport.MviewShardingRecommendation != nil {
+	if schemaOptimizationReport.MviewColocationRecommendation != nil {
 		objects := make([]string, 0)
-		for _, obj := range schemaOptimizationReport.MviewShardingRecommendation.ShardedObjects {
+		for _, obj := range schemaOptimizationReport.MviewColocationRecommendation.ShardedObjects {
 			anonymizedObj, err := anonymizer.AnonymizeQualifiedMViewName(obj)
 			if err != nil {
 				log.Errorf("callhome: failed to anonymise mview-%s: %v", obj, err)
@@ -357,9 +379,9 @@ func buildCallhomeSchemaOptimizationChanges() []callhome.SchemaOptimizationChang
 			objects = append(objects, anonymizedObj)
 		}
 		schemaOptimizationChanges = append(schemaOptimizationChanges, callhome.SchemaOptimizationChange{
-			OptimizationType: MVIEW_SHARDING_RECOMMENDATION_CHANGE_TYPE,
-			IsApplied:        schemaOptimizationReport.MviewShardingRecommendation.IsApplied,
-			Objects:          schemaOptimizationReport.MviewShardingRecommendation.ShardedObjects,
+			OptimizationType: MVIEW_COLOCATION_RECOMMENDATION_CHANGE_TYPE,
+			IsApplied:        schemaOptimizationReport.MviewColocationRecommendation.IsApplied,
+			Objects:          schemaOptimizationReport.MviewColocationRecommendation.ShardedObjects,
 		})
 	}
 	if schemaOptimizationReport.SecondaryIndexToRangeChange != nil {

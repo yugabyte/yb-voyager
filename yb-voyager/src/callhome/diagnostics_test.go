@@ -55,21 +55,23 @@ func TestCallhomeStructs(t *testing.T) {
 			name:       "Validate SourceDBDetails Struct Definition",
 			actualType: reflect.TypeOf(SourceDBDetails{}),
 			expectedType: struct {
-				Host      string `json:"host"`
-				DBType    string `json:"db_type"`
-				DBVersion string `json:"db_version"`
-				DBSize    int64  `json:"total_db_size_bytes"`
-				Role      string `json:"role,omitempty"`
+				Host               string `json:"host"`
+				DBType             string `json:"db_type"`
+				DBVersion          string `json:"db_version"`
+				DBSize             int64  `json:"total_db_size_bytes"`
+				Role               string `json:"role,omitempty"`
+				DBSystemIdentifier int64  `json:"db_system_identifier,omitempty"`
 			}{},
 		},
 		{
 			name:       "Validate TargetDBDetails Struct Definition",
 			actualType: reflect.TypeOf(TargetDBDetails{}),
 			expectedType: struct {
-				Host      string `json:"host"`
-				DBVersion string `json:"db_version"`
-				NodeCount int    `json:"node_count"`
-				Cores     int    `json:"total_cores"`
+				Host               string `json:"host"`
+				DBVersion          string `json:"db_version"`
+				NodeCount          int    `json:"node_count"`
+				Cores              int    `json:"total_cores"`
+				DBSystemIdentifier string `json:"db_system_identifier,omitempty"`
 			}{},
 		},
 		{
@@ -111,15 +113,16 @@ func TestCallhomeStructs(t *testing.T) {
 			name:       "Validate SizingCallhome Struct Definition",
 			actualType: reflect.TypeOf(SizingCallhome{}),
 			expectedType: struct {
-				ColocatedTables                 []string `json:"colocated_tables"`
-				ColocatedReasoning              string   `json:"colocated_reasoning"`
-				ShardedTables                   []string `json:"sharded_tables"`
-				NumNodes                        float64 `json:"num_nodes"`
-				VCPUsPerInstance                int     `json:"vcpus_per_instance"`
-				MemoryPerInstance               int     `json:"memory_per_instance"`
-				OptimalSelectConnectionsPerNode int64   `json:"optimal_select_connections_per_node"`
-				OptimalInsertConnectionsPerNode int64   `json:"optimal_insert_connections_per_node"`
-				EstimatedTimeInMinForImport     float64 `json:"estimated_time_in_min_for_import"`
+				ColocatedTables                                    []string `json:"colocated_tables"`
+				ColocatedReasoning                                 string   `json:"colocated_reasoning"`
+				ShardedTables                                      []string `json:"sharded_tables"`
+				NumNodes                                           float64  `json:"num_nodes"`
+				VCPUsPerInstance                                   int      `json:"vcpus_per_instance"`
+				MemoryPerInstance                                  int      `json:"memory_per_instance"`
+				OptimalSelectConnectionsPerNode                    int64    `json:"optimal_select_connections_per_node"`
+				OptimalInsertConnectionsPerNode                    int64    `json:"optimal_insert_connections_per_node"`
+				EstimatedTimeInMinForImport                        float64  `json:"estimated_time_in_min_for_import"`
+				EstimatedTimeInMinForImportWithoutRedundantIndexes float64  `json:"estimated_time_in_min_for_import_without_redundant_indexes"`
 			}{},
 		},
 		{
@@ -290,6 +293,7 @@ func TestCallhomeStructs(t *testing.T) {
 			name:       "Validate ImportDataMetrics Struct Definition",
 			actualType: reflect.TypeOf(ImportDataMetrics{}),
 			expectedType: struct {
+				CurrentParallelConnections        int   `json:"current_parallel_connections"`
 				MigrationSnapshotTotalRows        int64 `json:"migration_snapshot_total_rows"`
 				MigrationSnapshotLargestTableRows int64 `json:"migration_snapshot_largest_table_rows"`
 				MigrationCdcTotalImportedEvents   int64 `json:"migration_cdc_total_imported_events"`
@@ -302,6 +306,7 @@ func TestCallhomeStructs(t *testing.T) {
 			name:       "Validate ImportDataFileMetrics Struct Definition",
 			actualType: reflect.TypeOf(ImportDataFileMetrics{}),
 			expectedType: struct {
+				CurrentParallelConnections         int   `json:"current_parallel_connections"`
 				MigrationSnapshotTotalBytes        int64 `json:"migration_snapshot_total_bytes"`
 				MigrationSnapshotLargestTableBytes int64 `json:"migration_snapshot_largest_table_bytes"`
 				SnapshotTotalRows                  int64 `json:"snapshot_total_rows"`

@@ -48,9 +48,12 @@ type FileBatchProducer struct {
 	lineFromPreviousBatch string
 
 	errorHandler importdata.ImportDataErrorHandler
+
+	//required to print some information for users to display during batch production
+	progressReporter *ImportDataProgressReporter
 }
 
-func NewFileBatchProducer(task *ImportFileTask, state *ImportDataState, errorHandler importdata.ImportDataErrorHandler) (*FileBatchProducer, error) {
+func NewFileBatchProducer(task *ImportFileTask, state *ImportDataState, errorHandler importdata.ImportDataErrorHandler, progressReporter *ImportDataProgressReporter) (*FileBatchProducer, error) {
 	if errorHandler == nil {
 		return nil, fmt.Errorf("errorHandler must not be nil")
 	}
@@ -73,15 +76,16 @@ func NewFileBatchProducer(task *ImportFileTask, state *ImportDataState, errorHan
 	})
 
 	return &FileBatchProducer{
-		task:            task,
-		state:           state,
-		pendingBatches:  pendingBatches,
-		lastBatchNumber: lastBatchNumber,
-		lastOffset:      lastOffset,
-		fileFullySplit:  fileFullySplit,
-		completed:       completed,
-		numLinesTaken:   lastOffset,
-		errorHandler:    errorHandler,
+		task:             task,
+		state:            state,
+		pendingBatches:   pendingBatches,
+		lastBatchNumber:  lastBatchNumber,
+		lastOffset:       lastOffset,
+		fileFullySplit:   fileFullySplit,
+		completed:        completed,
+		numLinesTaken:    lastOffset,
+		errorHandler:     errorHandler,
+		progressReporter: progressReporter,
 	}, nil
 }
 
@@ -155,7 +159,7 @@ func (p *FileBatchProducer) produceNextBatch() (*Batch, error) {
 			if p.errorHandler.ShouldAbort() {
 				return nil, errMsg
 			}
-			err := p.handleRowProcessingErrorAndResetBytes(line, errMsg, currentBytesRead)
+			err := p.handleRowProcessingErrorAndResetBytes(batchNum, line, errMsg, currentBytesRead)
 			if err != nil {
 				return nil, err
 			}
@@ -171,7 +175,7 @@ func (p *FileBatchProducer) produceNextBatch() (*Batch, error) {
 				if p.errorHandler.ShouldAbort() {
 					return nil, errMsg
 				}
-				err := p.handleRowProcessingErrorAndResetBytes(lineBeforeConversion, errMsg, currentBytesRead)
+				err := p.handleRowProcessingErrorAndResetBytes(batchNum, lineBeforeConversion, errMsg, currentBytesRead)
 				if err != nil {
 					return nil, err
 				}
@@ -250,10 +254,12 @@ func (p *FileBatchProducer) openDataFile() error {
 	}
 
 	log.Infof("Skipping %d lines from %q", p.lastOffset, p.task.FilePath)
+	p.progressReporter.AddResumeInformation(p.task, fmt.Sprintf("Resuming from %d lines", p.lastOffset))
 	err = dataFile.SkipLines(p.lastOffset)
 	if err != nil {
 		return fmt.Errorf("skipping line for offset=%d: %v", p.lastOffset, err)
 	}
+	p.progressReporter.RemoveResumeInformation(p.task)
 	return nil
 }
 
@@ -276,6 +282,18 @@ func (p *FileBatchProducer) newBatchWriter() (*BatchWriter, error) {
 
 func (p *FileBatchProducer) finalizeBatch(batchWriter *BatchWriter, isLastBatch bool, offsetEnd int64, bytesInBatch int64) (*Batch, error) {
 	batchNum := p.lastBatchNumber + 1
+
+	// before we write the batch, we also store the processing errors that were encountered and stashed while
+	// producing the batch.
+	// It's important to do this before writing the batch, so that the processing errors are not lost.
+	// If we fail after storing the processing errors, but before writing the batch, during resume, the batch
+	// production will start from the previous batch's offset. Therefore, we will encounter all the processing errors again
+	// and those will be accumulated and stored again (the file will be overwritten).
+	err := p.errorHandler.FinalizeRowProcessingErrorsForBatch(batchNum, isLastBatch, p.task.TableNameTup, p.task.FilePath)
+	if err != nil {
+		return nil, fmt.Errorf("finalizing row processing errors for batch %d: %w", batchNum, err)
+	}
+
 	if p.header != "" && batchNum == FIRST_BATCH_NUM {
 		//in the import-data-state of the batch include the header bytes only for the first batch so imported Bytes count is same as total bytes count
 		bytesInBatch += p.headerByteCount
@@ -295,8 +313,8 @@ func (p *FileBatchProducer) Close() {
 	}
 }
 
-func (p *FileBatchProducer) handleRowProcessingErrorAndResetBytes(row string, rowErr error, currentBytesRead int64) error {
-	handleErr := p.errorHandler.HandleRowProcessingError(row, rowErr, p.task.TableNameTup, p.task.FilePath)
+func (p *FileBatchProducer) handleRowProcessingErrorAndResetBytes(currentBatchNumber int64, row string, rowErr error, currentBytesRead int64) error {
+	handleErr := p.errorHandler.HandleRowProcessingError(row, currentBytesRead, rowErr, p.task.TableNameTup, p.task.FilePath, currentBatchNumber)
 	if handleErr != nil {
 		return fmt.Errorf("failed to handle row processing error: %w", handleErr)
 	}

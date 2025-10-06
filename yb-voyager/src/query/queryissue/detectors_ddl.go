@@ -129,7 +129,7 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 					obj.GetObjectType(),
 					table.GetObjectName(),
 					c.Columns,
-					d.columnMetadata,
+					d.tablesMetadata,
 					&issues,
 				)
 
@@ -144,7 +144,7 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 				))
 			}
 
-			if c.ConstraintType == queryparser.FOREIGN_CONSTR_TYPE && d.partitionedTablesMap[c.ReferencedTable] {
+			if c.ConstraintType == queryparser.FOREIGN_CONSTR_TYPE && d.getPartitionedTablesMap()[c.ReferencedTable] {
 				issues = append(issues, NewForeignKeyReferencesPartitionedTableIssue(
 					TABLE_OBJECT_TYPE,
 					table.GetObjectName(),
@@ -285,9 +285,13 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 	return issues, nil
 }
 
-func detectForeignKeyDatatypeMismatch(objectType string, objectName string, columnList []string, columnMetadata map[string]map[string]*ColumnMetadata, issues *[]QueryIssue) {
+func detectForeignKeyDatatypeMismatch(objectType string, objectName string, columnList []string, tablesMetadata map[string]*TableMetadata, issues *[]QueryIssue) {
 	for _, col := range columnList {
-		colMetadata, ok := columnMetadata[objectName][col]
+		tm, ok := tablesMetadata[objectName]
+		if !ok {
+			continue
+		}
+		colMetadata, ok := tm.Columns[col]
 		if !ok || !colMetadata.IsForeignKey {
 			continue
 		}
@@ -821,14 +825,8 @@ func (i *IndexIssueDetector) reportVariousIndexPerfOptimizationsOnFirstColumnOfI
 			mostCommonValPartialIndex = true
 		}
 	}
-
-	//Precendence here is if the index has low-cardinality issue then most frequent value issue is not relevant as the user will have to fix the low cardinality index
-	//and the solution of that should also resolve the most frequent value issue as after resolution the key won't remain same
-	if stat.DistinctValues > LOW_CARDINALITY_MIN_THRESHOLD && stat.DistinctValues <= LOW_CARDINALITY_MAX_THRESHOLD {
-		// LOW CARDINALITY INDEX ISSUE
-		issues = append(issues, NewLowCardinalityIndexesIssue(INDEX_OBJECT_TYPE, index.GetObjectName(),
-			"", isSingleColumnIndex, stat.DistinctValues, stat.ColumnName))
-	} else if maxFrequencyPerc >= MOST_FREQUENT_VALUE_THRESHOLD && !mostCommonValPartialIndex {
+	//Now most frequent value is reported all the time as low cardinality is no longer a problem as we have default as RANGE secondary indexes
+	if maxFrequencyPerc >= MOST_FREQUENT_VALUE_THRESHOLD && !mostCommonValPartialIndex {
 
 		//If the index is not LOW cardinality one then see if that has most frequent value or not
 		//MOST FREQUENT VALUE INDEX ISSUE
@@ -1038,7 +1036,7 @@ func (aid *AlterTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Q
 		}
 
 		if alter.ConstraintType == queryparser.FOREIGN_CONSTR_TYPE &&
-			aid.partitionedTablesMap[alter.ConstraintReferencedTable] {
+			aid.getPartitionedTablesMap()[alter.ConstraintReferencedTable] {
 			//FK constraint references partitioned table
 			issues = append(issues, NewForeignKeyReferencesPartitionedTableIssue(
 				TABLE_OBJECT_TYPE,
@@ -1054,14 +1052,14 @@ func (aid *AlterTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Q
 				obj.GetObjectType(),
 				alter.GetObjectName(),
 				alter.ConstraintColumns,
-				aid.columnMetadata,
+				aid.tablesMetadata,
 				&issues,
 			)
 
 		}
 
 		if alter.ConstraintType == queryparser.PRIMARY_CONSTR_TYPE &&
-			aid.partitionedTablesMap[alter.GetObjectName()] {
+			aid.getPartitionedTablesMap()[alter.GetObjectName()] {
 			issues = append(issues, NewAlterTableAddPKOnPartiionIssue(
 				obj.GetObjectType(),
 				alter.GetObjectName(),
@@ -1180,7 +1178,7 @@ func (tid *TriggerIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Quer
 		))
 	}
 
-	if trigger.IsBeforeRowTrigger() && tid.partitionedTablesMap[trigger.GetTableName()] {
+	if trigger.IsBeforeRowTrigger() && tid.getPartitionedTablesMap()[trigger.GetTableName()] {
 		issues = append(issues, NewBeforeRowOnPartitionTableIssue(
 			obj.GetObjectType(),
 			trigger.GetObjectName(),

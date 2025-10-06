@@ -2,25 +2,25 @@
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/table.sql
 */
-CREATE TABLE composite_type_examples.inherited_table () INHERITS (composite_type_examples.ordinary_table);
+CREATE TABLE composite_type_examples.inherited_table () INHERITS (composite_type_examples.ordinary_table) WITH (colocation=false);
 
 /*
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/table.sql
 */
-CREATE TABLE enum_example.bugs_clone () INHERITS (enum_example.bugs);
+CREATE TABLE enum_example.bugs_clone () INHERITS (enum_example.bugs) WITH (colocation=false);
 
 /*
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/table.sql
 */
-CREATE TABLE regress_rls_schema.t2 (c double precision) INHERITS (regress_rls_schema.t1);
+CREATE TABLE regress_rls_schema.t2 (c double precision) INHERITS (regress_rls_schema.t1) WITH (colocation=false);
 
 /*
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/table.sql
 */
-CREATE TABLE regress_rls_schema.t3_3 (id int NOT NULL, c text, b text, a int, CONSTRAINT t3_3_pkey PRIMARY KEY (id)) INHERITS (regress_rls_schema.t1_3);
+CREATE TABLE regress_rls_schema.t3_3 (id int NOT NULL, c text, b text, a int, CONSTRAINT t3_3_pkey PRIMARY KEY (id)) INHERITS (regress_rls_schema.t1_3) WITH (colocation=false);
 
 /*
 ERROR: INDEX on column of type 'user_defined_type' not yet supported (SQLSTATE 0A000)
