@@ -89,17 +89,13 @@ run_pg_restore() {
 run_ysql() {
 	db_name=$1
 	sql=$2
-	export PGPASSWORD=${TARGET_DB_ADMIN_PASSWORD}
-	psql -P pager=off -h ${TARGET_DB_HOST} -p ${TARGET_DB_PORT} -U ${TARGET_DB_ADMIN_USER} -d ${db_name} -c "${sql}"
-	unset PGPASSWORD
+	PGPASSWORD="${TARGET_DB_ADMIN_PASSWORD}" psql -P pager=off -h ${TARGET_DB_HOST} -p ${TARGET_DB_PORT} -U ${TARGET_DB_ADMIN_USER} -d ${db_name} -c "${sql}"
 }
 
 ysql_import_file() {
 	db_name=$1
 	file=$2
-	export PGPASSWORD=${TARGET_DB_ADMIN_PASSWORD}
-	psql -h ${TARGET_DB_HOST} -p ${TARGET_DB_PORT} -U ${TARGET_DB_ADMIN_USER} -d ${db_name} -f "${file}"
-	unset PGPASSWORD
+	PGPASSWORD="${TARGET_DB_ADMIN_PASSWORD}" psql -h ${TARGET_DB_HOST} -p ${TARGET_DB_PORT} -U ${TARGET_DB_ADMIN_USER} -d ${db_name} -f "${file}"
 }
 
 run_mysql() {
