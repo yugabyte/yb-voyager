@@ -989,7 +989,7 @@ func restoreSequencesInOfflineMigration(msr *metadb.MigrationStatusRecord, impor
 func restoreSequences(sequenceLastValue map[string]int64) error {
 	sequenceNameTupleToLastValueMap := *utils.NewStructMap[sqlname.NameTuple, int64]()
 	for sequenceName, lastValue := range sequenceLastValue {
-		sequenceTuple, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole(sequenceName)
+		sequenceTuple, err := namereg.NameReg.LookupTableName(sequenceName)
 		if err != nil {
 			return fmt.Errorf("error looking up sequence name %q: %w", sequenceName, err)
 		}
