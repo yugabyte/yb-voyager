@@ -85,7 +85,7 @@ func TestInitAssessmentDB(t *testing.T) {
 			"size_in_bytes":     {Type: "INTEGER"},
 		},
 		DB_QUERIES_SUMMARY: {
-			"queryid":          {Type: "BIGINT", PrimaryKey: 1},
+			"queryid":          {Type: "BIGINT"},
 			"query":            {Type: "TEXT"},
 			"calls":            {Type: "BIGINT"},
 			"rows":             {Type: "BIGINT"},

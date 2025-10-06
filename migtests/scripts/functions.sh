@@ -476,7 +476,7 @@ import_data() {
     fi
     # Check if RUN_WITHOUT_ADAPTIVE_PARALLELISM is true
     if [ "${RUN_WITHOUT_ADAPTIVE_PARALLELISM}" = "true" ]; then
-        args="${args} --enable-adaptive-parallelism false"
+        args="${args} --adaptive-parallelism disabled"
     fi
 
     yb-voyager import data ${args} "$@"
@@ -532,7 +532,7 @@ import_data_file() {
 
     # Check if RUN_WITHOUT_ADAPTIVE_PARALLELISM is true
     if [ "${RUN_WITHOUT_ADAPTIVE_PARALLELISM}" = "true" ]; then
-        args="${args} --enable-adaptive-parallelism false"
+        args="${args} --adaptive-parallelism disabled"
     fi
 
     yb-voyager import data file ${args} $*
@@ -622,6 +622,7 @@ wait_for_string_in_file() {
         
         if [ $elapsed -ge $timeout_seconds ]; then
             echo "Timeout reached ($timeout_seconds seconds). String '$search_string' not found in $file_path."
+            tail -n 100 "$file_path"
             return 1
         fi
         
@@ -650,17 +651,29 @@ get_expected_event_count() {
     local expected_count=""
     case "$exporter_db" in
         "source")
-            expected_count=$(jq -r '.source_delta_events // empty' "$metadata_file" 2>/dev/null)
+            if jq -e 'has("source_delta_events")' "$metadata_file" >/dev/null 2>&1; then
+                jq -r '.source_delta_events' "$metadata_file"
+                return 0
+            fi
+            return 0
             ;;
         "target")
-            expected_count=$(jq -r '.target_delta_events // empty' "$metadata_file" 2>/dev/null)
+            if [ "${USE_YB_LOGICAL_REPLICATION_CONNECTOR}" = true ] \
+               && jq -e 'has("target_delta_events_logical_replication")' "$metadata_file" >/dev/null 2>&1; then
+                jq -r '.target_delta_events_logical_replication' "$metadata_file"
+                return 0
+            fi
+
+            if jq -e 'has("target_delta_events")' "$metadata_file" >/dev/null 2>&1; then
+                jq -r '.target_delta_events' "$metadata_file"
+                return 0
+            fi
+
+            return 0
             ;;
     esac
-    
-    # Validate the count is a positive number
-    if [[ "$expected_count" =~ ^[1-9][0-9]*$ ]]; then
-        echo "$expected_count"
-    fi
+    # No match; return 0
+    return 0
 }
 
 # Helper function to count actual events for a specific exporter database using data-migration-report
@@ -743,8 +756,14 @@ wait_for_exporter_event() {
         local elapsed=$((current_time - start_time))
 
         if [ $elapsed -ge $timeout_seconds ]; then
-            echo "Timeout reached (${timeout_seconds}s). Proceeding without detecting sufficient ${exporter_db} events."
-            return 0
+            echo "Timeout reached (${timeout_seconds}s). Sufficient ${exporter_db} events not detected."
+            # Showing relevant log file for debugging
+            if [ "$exporter_db" == "source" ]; then
+                tail_log_file "yb-voyager-export-data.log"
+            else 
+                tail_log_file "yb-voyager-export-data-from-target.log"
+            fi
+            return 1
         fi
 
         # Count actual events using data-migration-report
@@ -754,7 +773,7 @@ wait_for_exporter_event() {
             # Metadata-driven approach: wait for expected count
             echo "Found ${actual_count}/${expected_count} expected ${exporter_db} events"
             
-            if [ "$actual_count" -ge "$expected_count" ]; then
+            if [ "$actual_count" -eq "$expected_count" ]; then
                 echo "Detected ${actual_count}/${expected_count} expected ${exporter_db} events. Proceeding."
                 return 0
             fi
@@ -1526,3 +1545,20 @@ compare_callhome_json_reports() {
 
     echo "Proceeding with further steps..."
 }
+
+# Function to execute logical replication connector specific DMLs
+execute_logical_replication_target_delta() {
+	if [ "${USE_YB_LOGICAL_REPLICATION_CONNECTOR}" != true ]; then
+		echo "Skipping logical replication specific DMLs (gRPC connector)"
+		return 0
+	fi
+	
+	if [ ! -f "${TEST_DIR}/target_delta_logical_connector.sql" ]; then
+		echo "Warning: target_delta_logical_connector.sql not found, skipping logical replication DMLs"
+		return 0
+	fi
+	
+	echo "Running logical replication specific target DMLs..."
+	ysql_import_file ${TARGET_DB_NAME} target_delta_logical_connector.sql
+}
+

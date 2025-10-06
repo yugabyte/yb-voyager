@@ -772,6 +772,14 @@ func ProtoAsAIndirectionNode(msg protoreflect.Message) (*pg_query.A_Indirection,
 	return aIndirectionNode, true
 }
 
+func ProtoAsFuncCallNode(msg protoreflect.Message) (*pg_query.FuncCall, bool) {
+	funcCall, ok := msg.Interface().(*pg_query.FuncCall)
+	if !ok {
+		return nil, false
+	}
+	return funcCall, ok
+}
+
 func TraverseAndExtractDefNamesFromDefElem(msg protoreflect.Message) (map[string]string, error) {
 	defNamesWithValues := make(map[string]string)
 	collectorFunc := func(msg protoreflect.Message) error {

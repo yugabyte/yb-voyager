@@ -1,4 +1,5 @@
 {
-  "source_delta_events": 40,
-  "target_delta_events": 36
+  "source_delta_events": 50,
+  "target_delta_events": 45,
+  "target_delta_events_logical_replication": 63
 }
