@@ -394,7 +394,7 @@ type ComparePerformancePhasePayload struct {
 
 // QueryMetric holds performance metrics for matched queries included for callhome
 type QueryMetric struct {
-	QueryLabel    string             `json:"query_label"` // "SELECT_JOIN", "INSERT_BULK", etc.
+	QueryLabel    string             `json:"query_label"` // "SELECT_SIMPLE", "INSERT_COMPLEX", etc.
 	SlowdownRatio float64            `json:"slowdown_ratio"`
 	ImpactScore   float64            `json:"impact_score"`
 	SourceStats   QueryStatsCallhome `json:"source_stats"`

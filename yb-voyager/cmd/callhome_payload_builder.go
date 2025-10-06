@@ -492,6 +492,10 @@ func buildCallhomeComparePerformancePayload(comparator *compareperf.QueryPerform
 		if comparison.MatchStatus != compareperf.MATCHED {
 			continue
 		}
+		// not expected though since they are matched queries but just to be safe
+		if comparison.SourceStats == nil || comparison.TargetStats == nil {
+			continue
+		}
 
 		queryMetric := callhome.QueryMetric{
 			QueryLabel:    generateQueryLabel(comparison.Query),
