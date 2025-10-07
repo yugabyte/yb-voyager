@@ -85,6 +85,9 @@ main() {
 	    echo "Skipping database creation as SKIP_DB_CREATION is set to true."
 	fi
 	./init-db
+	
+	step "Creating PGSS Extension"
+	run_psql ${SOURCE_DB_NAME} "CREATE EXTENSION IF NOT EXISTS pg_stat_statements;"
 
 	step "Grant source database user permissions"
 	grant_permissions ${SOURCE_DB_NAME} ${SOURCE_DB_TYPE} ${SOURCE_DB_SCHEMA}

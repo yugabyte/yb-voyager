@@ -89,6 +89,9 @@ main() {
 	fi
 	./init-db
 
+	step "Creating PGSS Extension"
+	run_psql ${SOURCE_DB_NAME} "CREATE EXTENSION IF NOT EXISTS pg_stat_statements;"
+
 	step "Grant source database user permissions for live migration"
 	grant_permissions_for_live_migration
 
