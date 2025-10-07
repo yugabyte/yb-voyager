@@ -1954,13 +1954,45 @@ func (n *NodeMetrics) GetMemoryTotal() (int64, error) {
 
 // ================================ PgStatStatements Collection =================================
 
-const PG_STAT_STATEMENTS_QUERY = `
+const PG_STAT_STATEMENTS_QUERY_NEW = `
 SELECT
 	queryid, query, calls, rows, total_exec_time, mean_exec_time,
 	min_exec_time, max_exec_time, stddev_exec_time
 FROM pg_stat_statements
-	WHERE dbid = (SELECT oid FROM pg_database WHERE datname = current_database())
+WHERE dbid = (SELECT oid FROM pg_database WHERE datname = current_database())
 `
+
+const PG_STAT_STATEMENTS_QUERY_OLD = `
+SELECT
+	queryid, query, calls, rows,
+	total_time AS total_exec_time, mean_time AS mean_exec_time,
+	min_time AS min_exec_time, max_time AS max_exec_time,
+	stddev_time AS stddev_exec_time
+FROM pg_stat_statements
+WHERE dbid = (SELECT oid FROM pg_database WHERE datname = current_database())
+`
+
+// returns query to fetch pg_stat_statements from target based on the column name(s) across different pg releases
+func (yb *TargetYugabyteDB) getPgStatStatementsQuery(conn *pgx.Conn) (string, error) {
+	// Check if new column names (with "exec") exist
+	var hasNewColumns bool
+	err := conn.QueryRow(context.Background(), `
+		SELECT EXISTS(
+			SELECT 1 FROM information_schema.columns 
+			WHERE table_schema = 'pg_catalog' 
+			  AND table_name = 'pg_stat_statements' 
+			  AND column_name = 'total_exec_time'
+		)`).Scan(&hasNewColumns)
+
+	if err != nil {
+		return "", err
+	}
+
+	if hasNewColumns {
+		return PG_STAT_STATEMENTS_QUERY_NEW, nil
+	}
+	return PG_STAT_STATEMENTS_QUERY_OLD, nil
+}
 
 func (yb *TargetYugabyteDB) CollectPgStatStatements() ([]*pgss.PgStatStatements, error) {
 	loadBalancerUsed, tconfs, err := yb.GetYBServers()
@@ -1982,7 +2014,12 @@ func (yb *TargetYugabyteDB) CollectPgStatStatements() ([]*pgss.PgStatStatements,
 		}
 		defer conn.Close(context.Background())
 
-		rows, err := conn.Query(context.Background(), PG_STAT_STATEMENTS_QUERY)
+		query, err := yb.getPgStatStatementsQuery(conn)
+		if err != nil {
+			return nil, fmt.Errorf("error getting pg_stat_statements query: %w", err)
+		}
+
+		rows, err := conn.Query(context.Background(), query)
 		if err != nil {
 			return nil, fmt.Errorf("error querying pg_stat_statements: %w", err)
 		}

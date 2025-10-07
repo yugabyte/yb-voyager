@@ -18,16 +18,20 @@ limitations under the License.
 package tgtdb
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"strings"
 	"testing"
 
+	"github.com/jackc/pgx/v4"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
+	testcontainers "github.com/yugabyte/yb-voyager/yb-voyager/test/containers"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/versions"
 )
 
 func TestCreateVoyagerSchemaYB(t *testing.T) {
@@ -232,7 +236,7 @@ func TestGetPrimaryKeyConstraintNames(t *testing.T) {
 		`CREATE TABLE test_schema."EmP_1" PARTITION OF test_schema."EmP" FOR VALUES WITH (MODULUS 3, REMAINDER 1);`,
 		`CREATE TABLE test_schema."EmP_2" PARTITION OF test_schema."EmP" FOR VALUES WITH (MODULUS 3, REMAINDER 2);`,
 
-		// 3. Multi level partitioning
+		// 3. Multi level partitioning in public schema
 		`CREATE TABLE customers (id INTEGER, statuses TEXT, arr NUMERIC, PRIMARY KEY(id, statuses, arr)) PARTITION BY LIST(statuses);`,
 
 		`CREATE TABLE cust_active PARTITION OF customers FOR VALUES IN ('ACTIVE', 'RECURRING','REACTIVATED') PARTITION BY RANGE(arr);`,
@@ -288,5 +292,72 @@ func TestGetPrimaryKeyConstraintNames(t *testing.T) {
 		pkNames, err := testYugabyteDBTarget.GetPrimaryKeyConstraintNames(tt.table)
 		assert.NoError(t, err)
 		testutils.AssertEqualStringSlices(t, tt.expectedPKNames, pkNames)
+	}
+}
+
+// this test is to ensure the query being used for fetching pg_stat_statements from target is working for voyager supported yb versions
+func TestPGStatStatementsQuery(t *testing.T) {
+	versionsList := versions.GetVoyagerSupportedYBVersions()
+
+	// Test each supported yb version
+	for _, version := range versionsList {
+		t.Run(fmt.Sprintf("Version_%s", version), func(t *testing.T) {
+			t.Parallel()
+			ctx := context.Background()
+
+			config := &testcontainers.ContainerConfig{
+				DBType:    testcontainers.YUGABYTEDB,
+				DBVersion: version,
+			}
+			testDB := createTestDBTarget(ctx, config)
+			defer destroyTestDBTarget(ctx, testDB)
+
+			// Enable pg_stat_statements extension
+			testDB.ExecuteSqls(`CREATE EXTENSION IF NOT EXISTS pg_stat_statements;`)
+
+			// Execute test queries to generate statistics
+			testQueries := []string{
+				"SELECT 1",
+				"SELECT 2 + 3",
+				"SELECT current_database()",
+			}
+			testDB.ExecuteSqls(testQueries...)
+
+			ybTargetImpl, ok := testDB.TargetDB.(*TargetYugabyteDB)
+			assert.True(t, ok, "Failed to cast TargetDB to TargetYugabyteDB for version %s", version)
+
+			conn, err := pgx.Connect(ctx, testDB.GetConnectionString())
+			assert.NoError(t, err, "Failed to get pgx connection for version %s", version)
+			defer conn.Close(ctx)
+
+			// Test the pg_stat_statements query
+			query, err := ybTargetImpl.getPgStatStatementsQuery(conn)
+			assert.NoError(t, err, "Failed to get pg_stat_statements query for version %s", version)
+
+			rows, err := conn.Query(ctx, query)
+			assert.NoError(t, err, "Failed to execute PG_STAT_STATEMENTS_QUERY for version %s", version)
+			defer rows.Close()
+
+			// Verify that we get some results
+			var hasResults bool
+			for rows.Next() {
+				hasResults = true
+				var queryid int64
+				var query string
+				var calls int64
+				var rowCount int64
+				var totalExecTime float64
+				var meanExecTime float64
+				var minExecTime float64
+				var maxExecTime float64
+				var stddevExecTime float64
+
+				err := rows.Scan(&queryid, &query, &calls, &rowCount, &totalExecTime, &meanExecTime, &minExecTime, &maxExecTime, &stddevExecTime)
+				assert.NoError(t, err, "Failed to scan pg_stat_statements row for query %s for yb version %s", query, version)
+			}
+
+			assert.True(t, hasResults, "Expected to find at least one query in pg_stat_statements for yb version %s", version)
+			assert.NoError(t, rows.Err(), "Error occurred while iterating over rows for yb version %s", version)
+		})
 	}
 }

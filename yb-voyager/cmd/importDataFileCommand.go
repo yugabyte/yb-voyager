@@ -21,6 +21,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/fatih/color"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/maps"
@@ -87,7 +88,7 @@ var importDataFileCmd = &cobra.Command{
 			utils.ErrExit("Failed to initialize the target DB: %s", err)
 		}
 		targetDBDetails = tdb.GetCallhomeTargetDBInfo()
-		err = InitNameRegistry(exportDir, importerRole, nil, nil, &tconf, tdb, bool(startClean))
+		err = InitNameRegistry(exportDir, importerRole, nil, nil, &tconf, tdb, shouldReregisterYBNames())
 		if err != nil {
 			utils.ErrExit("initialize name registry: %v", err)
 		}
@@ -99,6 +100,13 @@ var importDataFileCmd = &cobra.Command{
 		storeFileTableMapAndDataDirInMSR()
 		importFileTasks := getImportFileTasks(fileTableMapping)
 		prepareForImportDataCmd(importFileTasks)
+
+		if tconf.EnableUpsert {
+			if !utils.AskPrompt(color.RedString("WARNING: Ensure that tables on target YugabyteDB do not have secondary indexes. " +
+				"If a table has secondary indexes, setting --enable-upsert to true may lead to corruption of the indexes. Are you sure you want to proceed?")) {
+				utils.ErrExit("Aborting import.")
+			}
+		}
 		importData(importFileTasks, errorPolicySnapshotFlag)
 		packAndSendImportDataFilePayload(COMPLETE, nil)
 

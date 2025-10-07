@@ -27,6 +27,7 @@ import (
 
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
@@ -229,13 +230,13 @@ func (c *QueryPerformanceComparator) generateHTMLReport(exportDir string) error 
 	}
 
 	// Parse template
-	tmpl, err := template.New("performance-comparison-report").Parse(performanceComparisonHtmlTemplate)
+	tmpl, err := template.New(constants.PERFORMANCE_REPORT_BASE_NAME).Parse(performanceComparisonHtmlTemplate)
 	if err != nil {
 		return fmt.Errorf("failed to parse HTML template: %w", err)
 	}
 
 	// Create HTML file
-	htmlPath := filepath.Join(reportsDir, "performance-comparison-report.html")
+	htmlPath := filepath.Join(reportsDir, constants.PERFORMANCE_REPORT_BASE_NAME+".html")
 	file, err := os.Create(htmlPath)
 	if err != nil {
 		return fmt.Errorf("failed to create HTML file: %w", err)
@@ -295,7 +296,7 @@ func (c *QueryPerformanceComparator) generateJSONReport(exportDir string) error 
 	}
 
 	// Write JSON file
-	jsonPath := filepath.Join(reportsDir, "performance-comparison-report.json")
+	jsonPath := filepath.Join(reportsDir, constants.PERFORMANCE_REPORT_BASE_NAME+".json")
 	err = os.WriteFile(jsonPath, jsonData, 0644)
 	if err != nil {
 		return fmt.Errorf("failed to write JSON report: %w", err)
