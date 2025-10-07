@@ -180,6 +180,9 @@
             border: 1px solid #ddd;
             border-radius: 4px;
         }
+        .numeric {
+            text-align: right;
+        }
     </style>
 </head>
 <body>
@@ -241,22 +244,22 @@
                     <thead>
                         <tr>
                             <th>Query</th>
-                            <th>Impact Score (ms)</th>
-                            <th>Source Total Time (ms)</th>
-                            <th>Target Total Time (ms)</th>
-                            <th>Source Calls</th>
-                            <th>Target Calls</th>
+                            <th class="numeric" style="border-right: 1px solid #ccc;">Impact Score (ms)</th>
+                            <th class="numeric" style="border-right: 1px solid #ccc;">Source Total Time (ms)</th>
+                            <th class="numeric" style="border-right: 1px solid #ccc;">Target Total Time (ms)</th>
+                            <th class="numeric" style="border-right: 1px solid #ccc;">Source Calls</th>
+                            <th class="numeric">Target Calls</th>
                         </tr>
                     </thead>
                     <tbody>
                         {{range .TopByImpact}}
                         <tr>
                             <td class="query-text" title="{{.Query}}">{{.Query}}</td>
-                            <td class="impact-score">{{printf "%.2f" .ImpactScore}}</td>
-                            <td>{{if .SourceStats}}{{printf "%.2f" .SourceStats.TotalExecTime}}{{else}}N/A{{end}}</td>
-                            <td>{{if .TargetStats}}{{printf "%.2f" .TargetStats.TotalExecTime}}{{else}}N/A{{end}}</td>
-                            <td>{{if .SourceStats}}{{.SourceStats.ExecutionCount}}{{else}}N/A{{end}}</td>
-                            <td>{{if .TargetStats}}{{.TargetStats.ExecutionCount}}{{else}}N/A{{end}}</td>
+                            <td class="impact-score numeric" style="border-right: 1px solid #ccc;">{{printf "%.2f" .ImpactScore}}</td>
+                            <td class="numeric" style="border-right: 1px solid #ccc;">{{if .SourceStats}}{{printf "%.2f" .SourceStats.TotalExecTime}}{{else}}N/A{{end}}</td>
+                            <td class="numeric" style="border-right: 1px solid #ccc;">{{if .TargetStats}}{{printf "%.2f" .TargetStats.TotalExecTime}}{{else}}N/A{{end}}</td>
+                            <td class="numeric" style="border-right: 1px solid #ccc;">{{if .SourceStats}}{{.SourceStats.ExecutionCount}}{{else}}N/A{{end}}</td>
+                            <td class="numeric">{{if .TargetStats}}{{.TargetStats.ExecutionCount}}{{else}}N/A{{end}}</td>
                         </tr>
                         {{end}}
                     </tbody>
@@ -273,22 +276,22 @@
                     <thead>
                         <tr>
                             <th>Query</th>
-                            <th>Slowdown Ratio</th>
-                            <th>Source Avg Time (ms)</th>
-                            <th>Target Avg Time (ms)</th>
-                            <th>Source Calls</th>
-                            <th>Target Calls</th>
+                            <th class="numeric" style="border-right: 1px solid #ccc;">Slowdown Ratio</th>
+                            <th class="numeric" style="border-right: 1px solid #ccc;">Source Avg Time (ms)</th>
+                            <th class="numeric" style="border-right: 1px solid #ccc;">Target Avg Time (ms)</th>
+                            <th class="numeric" style="border-right: 1px solid #ccc;">Source Calls</th>
+                            <th class="numeric">Target Calls</th>
                         </tr>
                     </thead>
                     <tbody>
                         {{range .TopBySlowdown}}
                         <tr>
                             <td class="query-text" title="{{.Query}}">{{.Query}}</td>
-                            <td class="slowdown-ratio">{{printf "%.2fx" .SlowdownRatio}}</td>
-                            <td>{{if .SourceStats}}{{printf "%.2f" .SourceStats.AverageExecTime}}{{else}}N/A{{end}}</td>
-                            <td>{{if .TargetStats}}{{printf "%.2f" .TargetStats.AverageExecTime}}{{else}}N/A{{end}}</td>
-                            <td>{{if .SourceStats}}{{.SourceStats.ExecutionCount}}{{else}}N/A{{end}}</td>
-                            <td>{{if .TargetStats}}{{.TargetStats.ExecutionCount}}{{else}}N/A{{end}}</td>
+                            <td class="slowdown-ratio numeric" style="border-right: 1px solid #ccc;">{{printf "%.2fx" .SlowdownRatio}}</td>
+                            <td class="numeric" style="border-right: 1px solid #ccc;">{{if .SourceStats}}{{printf "%.2f" .SourceStats.AverageExecTime}}{{else}}N/A{{end}}</td>
+                            <td class="numeric" style="border-right: 1px solid #ccc;">{{if .TargetStats}}{{printf "%.2f" .TargetStats.AverageExecTime}}{{else}}N/A{{end}}</td>
+                            <td class="numeric" style="border-right: 1px solid #ccc;">{{if .SourceStats}}{{.SourceStats.ExecutionCount}}{{else}}N/A{{end}}</td>
+                            <td class="numeric">{{if .TargetStats}}{{.TargetStats.ExecutionCount}}{{else}}N/A{{end}}</td>
                         </tr>
                         {{end}}
                     </tbody>
@@ -319,59 +322,59 @@
                             </th>
                         </tr>
                         <tr>
-                            <th class="sortable sort-none" data-column="impact-score" data-type="number" style="background-color: #27ae60; color: white; border-right: 1px solid #ccc;">
+                            <th class="sortable sort-none numeric" data-column="impact-score" data-type="number" style="background-color: #27ae60; color: white; border-right: 1px solid #ccc;">
                                 Impact Score (ms)
                                 <span class="sort-arrow"></span>
                             </th>
-                            <th class="sortable sort-none" data-column="slowdown-ratio" data-type="number" style="background-color: #27ae60; color: white; border-right: 3px solid #1e8449;">
+                            <th class="sortable sort-none numeric" data-column="slowdown-ratio" data-type="number" style="background-color: #27ae60; color: white; border-right: 3px solid #1e8449;">
                                 Slowdown Ratio
                                 <span class="sort-arrow"></span>
                             </th>
-                            <th class="sortable sort-none" data-column="source-calls" data-type="number" style="background-color: #4a90e2; color: white;">
+                            <th class="sortable sort-none numeric" data-column="source-calls" data-type="number" style="background-color: #4a90e2; color: white;">
                                 Calls
                                 <span class="sort-arrow"></span>
                             </th>
-                            <th class="sortable sort-none" data-column="source-rows" data-type="number" style="background-color: #4a90e2; color: white;">
+                            <th class="sortable sort-none numeric" data-column="source-rows" data-type="number" style="background-color: #4a90e2; color: white;">
                                 Rows
                                 <span class="sort-arrow"></span>
                             </th>
-                            <th class="sortable sort-none" data-column="source-total" data-type="number" style="background-color: #4a90e2; color: white;">
+                            <th class="sortable sort-none numeric" data-column="source-total" data-type="number" style="background-color: #4a90e2; color: white;">
                                 Total Time (ms)
                                 <span class="sort-arrow"></span>
                             </th>
-                            <th class="sortable sort-none" data-column="source-mean" data-type="number" style="background-color: #4a90e2; color: white;">
+                            <th class="sortable sort-none numeric" data-column="source-mean" data-type="number" style="background-color: #4a90e2; color: white;">
                                 Mean Time (ms)
                                 <span class="sort-arrow"></span>
                             </th>
-                            <th class="sortable sort-none" data-column="source-min" data-type="number" style="background-color: #4a90e2; color: white;">
+                            <th class="sortable sort-none numeric" data-column="source-min" data-type="number" style="background-color: #4a90e2; color: white;">
                                 Min Time (ms)
                                 <span class="sort-arrow"></span>
                             </th>
-                            <th class="sortable sort-none" data-column="source-max" data-type="number" style="background-color: #4a90e2; color: white; border-right: 3px solid #2c5aa0;">
+                            <th class="sortable sort-none numeric" data-column="source-max" data-type="number" style="background-color: #4a90e2; color: white; border-right: 3px solid #2c5aa0;">
                                 Max Time (ms)
                                 <span class="sort-arrow"></span>
                             </th>
-                            <th class="sortable sort-none" data-column="yb-calls" data-type="number" style="background-color: #f39c12; color: white; border-right: 1px solid #ccc;">
+                            <th class="sortable sort-none numeric" data-column="yb-calls" data-type="number" style="background-color: #f39c12; color: white; border-right: 1px solid #ccc;">
                                 Calls
                                 <span class="sort-arrow"></span>
                             </th>
-                            <th class="sortable sort-none" data-column="yb-rows" data-type="number" style="background-color: #f39c12; color: white; border-right: 1px solid #ccc;">
+                            <th class="sortable sort-none numeric" data-column="yb-rows" data-type="number" style="background-color: #f39c12; color: white; border-right: 1px solid #ccc;">
                                 Rows
                                 <span class="sort-arrow"></span>
                             </th>
-                            <th class="sortable sort-none" data-column="yb-total" data-type="number" style="background-color: #f39c12; color: white; border-right: 1px solid #ccc;">
+                            <th class="sortable sort-none numeric" data-column="yb-total" data-type="number" style="background-color: #f39c12; color: white; border-right: 1px solid #ccc;">
                                 Total Time (ms)
                                 <span class="sort-arrow"></span>
                             </th>
-                            <th class="sortable sort-none" data-column="yb-mean" data-type="number" style="background-color: #f39c12; color: white; border-right: 1px solid #ccc;">
+                            <th class="sortable sort-none numeric" data-column="yb-mean" data-type="number" style="background-color: #f39c12; color: white; border-right: 1px solid #ccc;">
                                 Mean Time (ms)
                                 <span class="sort-arrow"></span>
                             </th>
-                            <th class="sortable sort-none" data-column="yb-min" data-type="number" style="background-color: #f39c12; color: white; border-right: 1px solid #ccc;">
+                            <th class="sortable sort-none numeric" data-column="yb-min" data-type="number" style="background-color: #f39c12; color: white; border-right: 1px solid #ccc;">
                                 Min Time (ms)
                                 <span class="sort-arrow"></span>
                             </th>
-                            <th class="sortable sort-none" data-column="yb-max" data-type="number" style="background-color: #f39c12; color: white;">
+                            <th class="sortable sort-none numeric" data-column="yb-max" data-type="number" style="background-color: #f39c12; color: white;">
                                 Max Time (ms)
                                 <span class="sort-arrow"></span>
                             </th>
@@ -382,22 +385,22 @@
                         <tr>
                             <td class="query-text" data-value="{{.Query}}" title="{{.Query}}">{{.Query}}</td>
                             <!-- Performance Metrics -->
-                            <td data-value="{{if eq .MatchStatus "MATCHED"}}{{.ImpactScore}}{{else}}-1{{end}}" style="border-right: 1px solid #ccc;">{{if eq .MatchStatus "MATCHED"}}{{printf "%.2f" .ImpactScore}}{{else}}N/A{{end}}</td>
-                            <td data-value="{{if eq .MatchStatus "MATCHED"}}{{.SlowdownRatio}}{{else}}-1{{end}}" style="border-right: 3px solid #1e8449;">{{if eq .MatchStatus "MATCHED"}}{{printf "%.2fx" .SlowdownRatio}}{{else}}N/A{{end}}</td>
+                            <td class="numeric" data-value="{{if eq .MatchStatus "MATCHED"}}{{.ImpactScore}}{{else}}-1{{end}}" style="border-right: 1px solid #ccc;">{{if eq .MatchStatus "MATCHED"}}{{printf "%.2f" .ImpactScore}}{{else}}N/A{{end}}</td>
+                            <td class="numeric" data-value="{{if eq .MatchStatus "MATCHED"}}{{.SlowdownRatio}}{{else}}-1{{end}}" style="border-right: 3px solid #1e8449;">{{if eq .MatchStatus "MATCHED"}}{{printf "%.2fx" .SlowdownRatio}}{{else}}N/A{{end}}</td>
                             <!-- Source Stats -->
-                            <td data-value="{{if .SourceStats}}{{.SourceStats.ExecutionCount}}{{else}}-1{{end}}" style="border-right: 1px solid #ccc;">{{if .SourceStats}}{{.SourceStats.ExecutionCount}}{{else}}N/A{{end}}</td>
-                            <td data-value="{{if .SourceStats}}{{.SourceStats.RowsProcessed}}{{else}}-1{{end}}" style="border-right: 1px solid #ccc;">{{if .SourceStats}}{{.SourceStats.RowsProcessed}}{{else}}N/A{{end}}</td>
-                            <td data-value="{{if .SourceStats}}{{.SourceStats.TotalExecTime}}{{else}}-1{{end}}" style="border-right: 1px solid #ccc;">{{if .SourceStats}}{{printf "%.2f" .SourceStats.TotalExecTime}}{{else}}N/A{{end}}</td>
-                            <td data-value="{{if .SourceStats}}{{.SourceStats.AverageExecTime}}{{else}}-1{{end}}" style="border-right: 1px solid #ccc;">{{if .SourceStats}}{{printf "%.2f" .SourceStats.AverageExecTime}}{{else}}N/A{{end}}</td>
-                            <td data-value="{{if .SourceStats}}{{.SourceStats.MinExecTime}}{{else}}-1{{end}}" style="border-right: 1px solid #ccc;">{{if .SourceStats}}{{printf "%.2f" .SourceStats.MinExecTime}}{{else}}N/A{{end}}</td>
-                            <td data-value="{{if .SourceStats}}{{.SourceStats.MaxExecTime}}{{else}}-1{{end}}" style="border-right: 3px solid #2c5aa0;">{{if .SourceStats}}{{printf "%.2f" .SourceStats.MaxExecTime}}{{else}}N/A{{end}}</td>
+                            <td class="numeric" data-value="{{if .SourceStats}}{{.SourceStats.ExecutionCount}}{{else}}-1{{end}}" style="border-right: 1px solid #ccc;">{{if .SourceStats}}{{.SourceStats.ExecutionCount}}{{else}}N/A{{end}}</td>
+                            <td class="numeric" data-value="{{if .SourceStats}}{{.SourceStats.RowsProcessed}}{{else}}-1{{end}}" style="border-right: 1px solid #ccc;">{{if .SourceStats}}{{.SourceStats.RowsProcessed}}{{else}}N/A{{end}}</td>
+                            <td class="numeric" data-value="{{if .SourceStats}}{{.SourceStats.TotalExecTime}}{{else}}-1{{end}}" style="border-right: 1px solid #ccc;">{{if .SourceStats}}{{printf "%.2f" .SourceStats.TotalExecTime}}{{else}}N/A{{end}}</td>
+                            <td class="numeric" data-value="{{if .SourceStats}}{{.SourceStats.AverageExecTime}}{{else}}-1{{end}}" style="border-right: 1px solid #ccc;">{{if .SourceStats}}{{printf "%.2f" .SourceStats.AverageExecTime}}{{else}}N/A{{end}}</td>
+                            <td class="numeric" data-value="{{if .SourceStats}}{{.SourceStats.MinExecTime}}{{else}}-1{{end}}" style="border-right: 1px solid #ccc;">{{if .SourceStats}}{{printf "%.2f" .SourceStats.MinExecTime}}{{else}}N/A{{end}}</td>
+                            <td class="numeric" data-value="{{if .SourceStats}}{{.SourceStats.MaxExecTime}}{{else}}-1{{end}}" style="border-right: 3px solid #2c5aa0;">{{if .SourceStats}}{{printf "%.2f" .SourceStats.MaxExecTime}}{{else}}N/A{{end}}</td>
                             <!-- YugabyteDB Stats -->
-                            <td data-value="{{if .TargetStats}}{{.TargetStats.ExecutionCount}}{{else}}-1{{end}}" style="border-right: 1px solid #ccc;">{{if .TargetStats}}{{.TargetStats.ExecutionCount}}{{else}}N/A{{end}}</td>
-                            <td data-value="{{if .TargetStats}}{{.TargetStats.RowsProcessed}}{{else}}-1{{end}}" style="border-right: 1px solid #ccc;">{{if .TargetStats}}{{.TargetStats.RowsProcessed}}{{else}}N/A{{end}}</td>
-                            <td data-value="{{if .TargetStats}}{{.TargetStats.TotalExecTime}}{{else}}-1{{end}}" style="border-right: 1px solid #ccc;">{{if .TargetStats}}{{printf "%.2f" .TargetStats.TotalExecTime}}{{else}}N/A{{end}}</td>
-                            <td data-value="{{if .TargetStats}}{{.TargetStats.AverageExecTime}}{{else}}-1{{end}}" style="border-right: 1px solid #ccc;">{{if .TargetStats}}{{printf "%.2f" .TargetStats.AverageExecTime}}{{else}}N/A{{end}}</td>
-                            <td data-value="{{if .TargetStats}}{{.TargetStats.MinExecTime}}{{else}}-1{{end}}" style="border-right: 1px solid #ccc;">{{if .TargetStats}}{{printf "%.2f" .TargetStats.MinExecTime}}{{else}}N/A{{end}}</td>
-                            <td data-value="{{if .TargetStats}}{{.TargetStats.MaxExecTime}}{{else}}-1{{end}}">{{if .TargetStats}}{{printf "%.2f" .TargetStats.MaxExecTime}}{{else}}N/A{{end}}</td>
+                            <td class="numeric" data-value="{{if .TargetStats}}{{.TargetStats.ExecutionCount}}{{else}}-1{{end}}" style="border-right: 1px solid #ccc;">{{if .TargetStats}}{{.TargetStats.ExecutionCount}}{{else}}N/A{{end}}</td>
+                            <td class="numeric" data-value="{{if .TargetStats}}{{.TargetStats.RowsProcessed}}{{else}}-1{{end}}" style="border-right: 1px solid #ccc;">{{if .TargetStats}}{{.TargetStats.RowsProcessed}}{{else}}N/A{{end}}</td>
+                            <td class="numeric" data-value="{{if .TargetStats}}{{.TargetStats.TotalExecTime}}{{else}}-1{{end}}" style="border-right: 1px solid #ccc;">{{if .TargetStats}}{{printf "%.2f" .TargetStats.TotalExecTime}}{{else}}N/A{{end}}</td>
+                            <td class="numeric" data-value="{{if .TargetStats}}{{.TargetStats.AverageExecTime}}{{else}}-1{{end}}" style="border-right: 1px solid #ccc;">{{if .TargetStats}}{{printf "%.2f" .TargetStats.AverageExecTime}}{{else}}N/A{{end}}</td>
+                            <td class="numeric" data-value="{{if .TargetStats}}{{.TargetStats.MinExecTime}}{{else}}-1{{end}}" style="border-right: 1px solid #ccc;">{{if .TargetStats}}{{printf "%.2f" .TargetStats.MinExecTime}}{{else}}N/A{{end}}</td>
+                            <td class="numeric" data-value="{{if .TargetStats}}{{.TargetStats.MaxExecTime}}{{else}}-1{{end}}">{{if .TargetStats}}{{printf "%.2f" .TargetStats.MaxExecTime}}{{else}}N/A{{end}}</td>
                         </tr>
                         {{end}}
                     </tbody>
