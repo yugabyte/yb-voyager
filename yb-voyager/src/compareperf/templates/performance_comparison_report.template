@@ -180,7 +180,7 @@
             border: 1px solid #ddd;
             border-radius: 4px;
         }
-        .numeric {
+        td.numeric {
             text-align: right;
         }
     </style>
