@@ -319,7 +319,7 @@
                             </th>
                         </tr>
                         <tr>
-                            <th class="sortable sort-none" data-column="impact-score" data-type="number" style="background-color: #27ae60; color: white;">
+                            <th class="sortable sort-none" data-column="impact-score" data-type="number" style="background-color: #27ae60; color: white; border-right: 1px solid #ccc;">
                                 Impact Score (ms)
                                 <span class="sort-arrow"></span>
                             </th>
@@ -351,23 +351,23 @@
                                 Max Time (ms)
                                 <span class="sort-arrow"></span>
                             </th>
-                            <th class="sortable sort-none" data-column="yb-calls" data-type="number" style="background-color: #f39c12; color: white;">
+                            <th class="sortable sort-none" data-column="yb-calls" data-type="number" style="background-color: #f39c12; color: white; border-right: 1px solid #ccc;">
                                 Calls
                                 <span class="sort-arrow"></span>
                             </th>
-                            <th class="sortable sort-none" data-column="yb-rows" data-type="number" style="background-color: #f39c12; color: white;">
+                            <th class="sortable sort-none" data-column="yb-rows" data-type="number" style="background-color: #f39c12; color: white; border-right: 1px solid #ccc;">
                                 Rows
                                 <span class="sort-arrow"></span>
                             </th>
-                            <th class="sortable sort-none" data-column="yb-total" data-type="number" style="background-color: #f39c12; color: white;">
+                            <th class="sortable sort-none" data-column="yb-total" data-type="number" style="background-color: #f39c12; color: white; border-right: 1px solid #ccc;">
                                 Total Time (ms)
                                 <span class="sort-arrow"></span>
                             </th>
-                            <th class="sortable sort-none" data-column="yb-mean" data-type="number" style="background-color: #f39c12; color: white;">
+                            <th class="sortable sort-none" data-column="yb-mean" data-type="number" style="background-color: #f39c12; color: white; border-right: 1px solid #ccc;">
                                 Mean Time (ms)
                                 <span class="sort-arrow"></span>
                             </th>
-                            <th class="sortable sort-none" data-column="yb-min" data-type="number" style="background-color: #f39c12; color: white;">
+                            <th class="sortable sort-none" data-column="yb-min" data-type="number" style="background-color: #f39c12; color: white; border-right: 1px solid #ccc;">
                                 Min Time (ms)
                                 <span class="sort-arrow"></span>
                             </th>
@@ -382,7 +382,7 @@
                         <tr>
                             <td class="query-text" data-value="{{.Query}}" title="{{.Query}}">{{.Query}}</td>
                             <!-- Performance Metrics -->
-                            <td data-value="{{if eq .MatchStatus "MATCHED"}}{{.ImpactScore}}{{else}}-1{{end}}">{{if eq .MatchStatus "MATCHED"}}{{printf "%.2f" .ImpactScore}}{{else}}N/A{{end}}</td>
+                            <td data-value="{{if eq .MatchStatus "MATCHED"}}{{.ImpactScore}}{{else}}-1{{end}}" style="border-right: 1px solid #ccc;">{{if eq .MatchStatus "MATCHED"}}{{printf "%.2f" .ImpactScore}}{{else}}N/A{{end}}</td>
                             <td data-value="{{if eq .MatchStatus "MATCHED"}}{{.SlowdownRatio}}{{else}}-1{{end}}" style="border-right: 3px solid #1e8449;">{{if eq .MatchStatus "MATCHED"}}{{printf "%.2fx" .SlowdownRatio}}{{else}}N/A{{end}}</td>
                             <!-- Source Stats -->
                             <td data-value="{{if .SourceStats}}{{.SourceStats.ExecutionCount}}{{else}}-1{{end}}" style="border-right: 1px solid #ccc;">{{if .SourceStats}}{{.SourceStats.ExecutionCount}}{{else}}N/A{{end}}</td>
@@ -392,11 +392,11 @@
                             <td data-value="{{if .SourceStats}}{{.SourceStats.MinExecTime}}{{else}}-1{{end}}" style="border-right: 1px solid #ccc;">{{if .SourceStats}}{{printf "%.2f" .SourceStats.MinExecTime}}{{else}}N/A{{end}}</td>
                             <td data-value="{{if .SourceStats}}{{.SourceStats.MaxExecTime}}{{else}}-1{{end}}" style="border-right: 3px solid #2c5aa0;">{{if .SourceStats}}{{printf "%.2f" .SourceStats.MaxExecTime}}{{else}}N/A{{end}}</td>
                             <!-- YugabyteDB Stats -->
-                            <td data-value="{{if .TargetStats}}{{.TargetStats.ExecutionCount}}{{else}}-1{{end}}">{{if .TargetStats}}{{.TargetStats.ExecutionCount}}{{else}}N/A{{end}}</td>
-                            <td data-value="{{if .TargetStats}}{{.TargetStats.RowsProcessed}}{{else}}-1{{end}}">{{if .TargetStats}}{{.TargetStats.RowsProcessed}}{{else}}N/A{{end}}</td>
-                            <td data-value="{{if .TargetStats}}{{.TargetStats.TotalExecTime}}{{else}}-1{{end}}">{{if .TargetStats}}{{printf "%.2f" .TargetStats.TotalExecTime}}{{else}}N/A{{end}}</td>
-                            <td data-value="{{if .TargetStats}}{{.TargetStats.AverageExecTime}}{{else}}-1{{end}}">{{if .TargetStats}}{{printf "%.2f" .TargetStats.AverageExecTime}}{{else}}N/A{{end}}</td>
-                            <td data-value="{{if .TargetStats}}{{.TargetStats.MinExecTime}}{{else}}-1{{end}}">{{if .TargetStats}}{{printf "%.2f" .TargetStats.MinExecTime}}{{else}}N/A{{end}}</td>
+                            <td data-value="{{if .TargetStats}}{{.TargetStats.ExecutionCount}}{{else}}-1{{end}}" style="border-right: 1px solid #ccc;">{{if .TargetStats}}{{.TargetStats.ExecutionCount}}{{else}}N/A{{end}}</td>
+                            <td data-value="{{if .TargetStats}}{{.TargetStats.RowsProcessed}}{{else}}-1{{end}}" style="border-right: 1px solid #ccc;">{{if .TargetStats}}{{.TargetStats.RowsProcessed}}{{else}}N/A{{end}}</td>
+                            <td data-value="{{if .TargetStats}}{{.TargetStats.TotalExecTime}}{{else}}-1{{end}}" style="border-right: 1px solid #ccc;">{{if .TargetStats}}{{printf "%.2f" .TargetStats.TotalExecTime}}{{else}}N/A{{end}}</td>
+                            <td data-value="{{if .TargetStats}}{{.TargetStats.AverageExecTime}}{{else}}-1{{end}}" style="border-right: 1px solid #ccc;">{{if .TargetStats}}{{printf "%.2f" .TargetStats.AverageExecTime}}{{else}}N/A{{end}}</td>
+                            <td data-value="{{if .TargetStats}}{{.TargetStats.MinExecTime}}{{else}}-1{{end}}" style="border-right: 1px solid #ccc;">{{if .TargetStats}}{{printf "%.2f" .TargetStats.MinExecTime}}{{else}}N/A{{end}}</td>
                             <td data-value="{{if .TargetStats}}{{.TargetStats.MaxExecTime}}{{else}}-1{{end}}">{{if .TargetStats}}{{printf "%.2f" .TargetStats.MaxExecTime}}{{else}}N/A{{end}}</td>
                         </tr>
                         {{end}}
