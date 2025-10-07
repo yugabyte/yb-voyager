@@ -205,8 +205,7 @@ type PKHashSplittingChange struct {
 	IsApplied               bool              `json:"is_applied"`
 }
 
-func NewPKHashSplittingChange(skipPerfOptimizations bool) *PKHashSplittingChange {
-	applied := !skipPerfOptimizations
+func NewPKHashSplittingChange(applied bool) *PKHashSplittingChange {
 	title := "Primary Key Constraints to be hash-sharded - Applied"
 	description := "The Primary key constraints were configured to be hash-sharded in YugabyteDB. This helps in giving randomize distribution of unique values of the Primary key across the nodes and helps in avoiding the hotspots that comes with the range-sharding for increasing nature of these values. Refer to sharding strategy in documentation for more information."
 	if !applied {
@@ -234,11 +233,8 @@ type UKRangeSplittingChange struct {
 	IsApplied               bool              `json:"is_applied"`
 }
 
-/*
-The range-sharded indexes helps in giving the flexibility to execute range-based queries, and avoids potential hotspots that come with hash-sharded indexes such as index on low cardinality column, index on high percentage of NULLs, and index on high percentage of particular value. Refer to sharding strategy in documentation for more information.
-*/
-func NewUKRangeSplittingChange(skipPerfOptimizations bool) *UKRangeSplittingChange {
-	applied := !skipPerfOptimizations
+ 
+func NewUKRangeSplittingChange(applied bool) *UKRangeSplittingChange {
 	title := "Unique Key Constraints to be range-sharded - Applied"
 	description := "The Unique key constraints were configured to be range-sharded in YugabyteDB."
 	if !applied {
@@ -369,8 +365,8 @@ func generatePerformanceOptimizationReport(indexTransformer *sqltransformer.Inde
 	schemaOptimizationReport.MviewColocationRecommendation = buildColocationMviewRecommendationChange(shardedMviews, colocatedMviews)
 	schemaOptimizationReport.SecondaryIndexToRangeChange = buildSecondaryIndexToRangeChange(indexTransformer)
 
-	schemaOptimizationReport.PKHashSplittingChange = NewPKHashSplittingChange(bool(skipPerfOptimizations))
-	schemaOptimizationReport.UKRangeSplittingChange = NewUKRangeSplittingChange(bool(skipPerfOptimizations))
+	schemaOptimizationReport.PKHashSplittingChange = NewPKHashSplittingChange(!bool(skipPerfOptimizations))
+	schemaOptimizationReport.UKRangeSplittingChange = NewUKRangeSplittingChange(!bool(skipPerfOptimizations))
 
 	if schemaOptimizationReport.HasOptimizations() {
 		file, err := os.Create(htmlReportFilePath)

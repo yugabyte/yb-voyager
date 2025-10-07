@@ -154,22 +154,32 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 			log.Infof("Skipping DDL: %s", sqlInfo.stmt)
 			continue
 		}
-
-		upperStmt := strings.ToUpper(sqlInfo.stmt)
-		if strings.HasPrefix(upperStmt, "SET ") && !skip {
+		if isSessionVariable(sqlInfo.stmt) && !skip {
 			sessionVariables = append(sessionVariables, sqlInfo)
+			err = applySessionVariable(conn, sqlInfo)
+			if err != nil {
+				return err
+			}
+			continue
 		}
 
 		err = executeSqlStmtWithRetries(&conn, sqlInfo, objType, sessionVariables)
 		if err != nil {
-			if strings.HasPrefix(upperStmt, "SET ") && strings.Contains(err.Error(), "unrecognized configuration") {
-				utils.PrintAndLog(color.YellowString("Skipping session variable: %s\n", sqlInfo.stmt))
-				continue
-			}
 			return err
 		}
 	}
 	return nil
+}
+
+func isSessionVariable(stmt string) bool {
+	parseTree, err := queryparser.Parse(stmt)
+	if err != nil {
+		return false
+	}
+	if len(parseTree.Stmts) == 0 {
+		return false
+	}
+	return queryparser.IsSetStmt(parseTree.Stmts[0])
 }
 
 func shouldSkipDDL(stmt string, objType string) (bool, error) {
@@ -326,7 +336,13 @@ func importDeferredStatements() {
 			if conn == nil {
 				conn = newTargetConn(deferredSqlStmts[j].sessionVariables)
 			} else {
-				runSessionVariables(conn, deferredSqlStmts[j].sessionVariables)
+				// Apply session variables on the connection for this deferred statement
+				for _, sessionVariable := range deferredSqlStmts[j].sessionVariables {
+					err = applySessionVariable(conn, sessionVariable)
+					if err != nil {
+						log.Errorf("error applying session variable: %v", err)
+					}
+				}
 			}
 
 			var stmtNotice *pgconn.Notice
@@ -513,7 +529,12 @@ func newTargetConn(sessionVariables []sqlInfo) *pgx.Conn {
 	errExit(err)
 
 	//set session variables on the connection
-	runSessionVariables(conn, sessionVariables)
+	for _, sessionVariable := range sessionVariables {
+		err = applySessionVariable(conn, sessionVariable)
+		if err != nil {
+			errExit(err)
+		}
+	}
 
 	setTargetSchema(conn)
 
@@ -524,17 +545,17 @@ func newTargetConn(sessionVariables []sqlInfo) *pgx.Conn {
 	return conn
 }
 
-func runSessionVariables(conn *pgx.Conn, sessionVariables []sqlInfo) {
-	for _, sessionVariable := range sessionVariables {
-		_, err := conn.Exec(context.Background(), sessionVariable.stmt)
-		if err != nil {
-			if strings.Contains(err.Error(), "unrecognized configuration") {
-				utils.PrintAndLog(color.YellowString("Skipping session variable: %s\n", sessionVariable.stmt)) //TODO: remove
-				continue
-			}
-			utils.ErrExit("run query: %q on target %q: %s", sessionVariable.stmt, tconf.Host, err)
+func applySessionVariable(conn *pgx.Conn, sessionVariable sqlInfo) error {
+	_, err := conn.Exec(context.Background(), sessionVariable.stmt)
+	if err != nil {
+		if strings.Contains(err.Error(), "unrecognized configuration") {
+			//Skipping unrecognized configuration
+			log.Warnf("Skipping unrecognized configuration: %s", sessionVariable.stmt)
+			return nil
 		}
+		return fmt.Errorf("run query: %q on target %q: %s", sessionVariable.stmt, tconf.Host, err)
 	}
+	return nil
 }
 
 func getNoticeMessage(n *pgconn.Notice) string {
