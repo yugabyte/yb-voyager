@@ -256,7 +256,7 @@ func (tdb *TargetOracleDB) IsNonRetryableCopyError(err error) bool {
 	return false
 }
 
-func (tdb *TargetOracleDB) RestoreSequences(sequencesNameToLastValue utils.StructMap[sqlname.NameTuple, int64]) error {
+func (tdb *TargetOracleDB) RestoreSequences(sequencesNameToLastValue *utils.StructMap[sqlname.NameTuple, int64]) error {
 	return nil
 }
 

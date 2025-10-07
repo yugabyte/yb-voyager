@@ -511,7 +511,7 @@ func (pg *TargetPostgreSQL) IsNonRetryableCopyError(err error) bool {
 	return utils.ContainsAnySubstringFromSlice(NonRetryCopyErrors, err.Error())
 }
 
-func (pg *TargetPostgreSQL) RestoreSequences(sequencesLastVal utils.StructMap[sqlname.NameTuple, int64]) error {
+func (pg *TargetPostgreSQL) RestoreSequences(sequencesLastVal *utils.StructMap[sqlname.NameTuple, int64]) error {
 	log.Infof("restoring sequences on target")
 	batch := pgx.Batch{}
 	restoreStmt := "SELECT pg_catalog.setval('%s', %d, true)"
@@ -538,30 +538,6 @@ func (pg *TargetPostgreSQL) RestoreSequences(sequencesLastVal utils.StructMap[sq
 		if err := br.Close(); err != nil {
 			log.Errorf("error closing batch: %v", err)
 			return false, fmt.Errorf("error closing batch: %w", err)
-		}
-		return false, nil
-	})
-	if err != nil {
-		return fmt.Errorf("error restoring sequences: %w", err)
-	}
-	return err
-}
-
-func (pg *TargetPostgreSQL) RestoreSequence(seqName sqlname.NameTuple, lastValue int64) error {
-	log.Infof("restoring sequences on target")
-	restoreStmt := "SELECT pg_catalog.setval('%s', %d, true)"
-	if lastValue == 0 {
-		// TODO: can be valid for cases like cyclic sequences
-		return nil
-	}
-
-	sequenceName := seqName.ForUserQuery()
-	log.Infof("restore sequence %s to %d", sequenceName, lastValue)
-
-	err := pg.connPool.WithConn(func(conn *pgx.Conn) (retry bool, err error) {
-		_, err = conn.Exec(context.Background(), fmt.Sprintf(restoreStmt, sequenceName, lastValue))
-		if err != nil {
-			return false, fmt.Errorf("error restoring sequence %s to %d: %w", sequenceName, lastValue, err)
 		}
 		return false, nil
 	})
