@@ -133,18 +133,13 @@ main() {
     compare_callhome_json_reports "${expected_file}" "assess-migration"
 
     if [ "$MODE" != "--all-commands" ]; then
-        # Stop the Flask server
         stop_flask_server
         return
     fi
 
     step "Create target database."
     run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
-    if [ "${SOURCE_DB_TYPE}" = "postgresql" ] || [ "${SOURCE_DB_TYPE}" = "oracle" ]; then
-        run_ysql yugabyte "CREATE DATABASE ${TARGET_DB_NAME} with COLOCATION=TRUE"
-    else
-        run_ysql yugabyte "CREATE DATABASE ${TARGET_DB_NAME}"
-    fi
+    run_ysql yugabyte "CREATE DATABASE ${TARGET_DB_NAME} with COLOCATION=TRUE;"
 
     step "Export schema"
     export_schema --send-diagnostics=true

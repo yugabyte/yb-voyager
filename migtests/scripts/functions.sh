@@ -1518,7 +1518,7 @@ compare_callhome_json_reports() {
     
     # Get report data from API and save to local file
     local actual_report_file=$(mktemp)
-    if curl -s -o "$actual_report_file" "http://localhost:5000/get_payload/$phase"; then
+    if curl -sfS -o "$actual_report_file" "http://localhost:5000/get_payload/$phase"; then
         echo "Successfully retrieved report data from API"
         echo "Report data saved to: $actual_report_file"
     else
