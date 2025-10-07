@@ -25,6 +25,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/compareperf"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
@@ -209,8 +210,8 @@ func SetPerformanceComparisonDone() error {
 
 func handleStartCleanForComparePerf() error {
 	reportsDir := filepath.Join(exportDir, "reports")
-	htmlReportPath := filepath.Join(reportsDir, "performance-comparison-report.html")
-	jsonReportPath := filepath.Join(reportsDir, "performance-comparison-report.json")
+	htmlReportPath := filepath.Join(reportsDir, constants.PERFORMANCE_REPORT_BASE_NAME+".html")
+	jsonReportPath := filepath.Join(reportsDir, constants.PERFORMANCE_REPORT_BASE_NAME+".json")
 
 	reportsExist := utils.FileOrFolderExists(htmlReportPath) || utils.FileOrFolderExists(jsonReportPath)
 
