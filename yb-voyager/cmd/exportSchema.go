@@ -713,7 +713,6 @@ func applyTableFileTransformations() (*sqltransformer.TableFileTransformer, erro
 
 	backUpFile, err := tableTransformer.Transform(tableFilePath)
 	if err != nil {
-		//TODO: see
 		//Skipping error in the case table file transformation errors out as for other DBTypes then PG it can fail to parse file sometimes
 		//And for PG the error scenario is rare so keeping the behavior same earlier Merge constraints transformation code path
 		//TODO: revisit this once we have more transformations - like PRIMARY KEY HASH performance optimization, sharded/colocated recommendations, etc..
