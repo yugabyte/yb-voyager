@@ -190,7 +190,6 @@ main() {
 
     step "All commands passed successfully"
 
-    # Stop the Flask server
     stop_flask_server
 }
 

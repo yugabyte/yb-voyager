@@ -1543,7 +1543,7 @@ compare_callhome_json_reports() {
         exit $compare_status
     fi
 
-    echo "Proceeding with further steps..."
+    echo "Comparison Passed for $phase"
 }
 
 # Function to execute logical replication connector specific DMLs
