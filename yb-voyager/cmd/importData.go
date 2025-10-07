@@ -953,7 +953,7 @@ func restoreSequencesInOfflineMigration(msr *metadb.MigrationStatusRecord, impor
 				continue
 			}
 			//check if the sequence is attached to a table and present in the table list
-			isTablePresentInTableList, err := checkIfSequenceAttachedToTablesInTableList(sequenceTuple, importTableList, sequenceAttachedToTables)
+			isTablePresentInTableList, err := checkIfSequenceAttachedToTablesInTableList(importTableList, sequenceAttachedToTables)
 			if err != nil {
 				return fmt.Errorf("failed to check if sequence is attached to tables in table list: %w", err)
 			}
@@ -987,6 +987,11 @@ func restoreSequencesInOfflineMigration(msr *metadb.MigrationStatusRecord, impor
 }
 
 func restoreSequences(sequenceLastValue map[string]int64) error {
+	if tconf.TargetDBType == ORACLE {
+		//for oracle import data, we don't restore sequences as its not supported
+		//so no need to do anything here right now
+		return nil
+	}
 	sequenceNameTupleToLastValueMap := *utils.NewStructMap[sqlname.NameTuple, int64]()
 	for sequenceName, lastValue := range sequenceLastValue {
 		sequenceTuple, err := namereg.NameReg.LookupTableName(sequenceName)
@@ -1053,7 +1058,7 @@ func fetchSequenceToTableListMap(msr *metadb.MigrationStatusRecord) (*utils.Stru
 	return sequenceNameToTableMap, nil
 }
 
-func checkIfSequenceAttachedToTablesInTableList(sequenceTuple sqlname.NameTuple, importTableList []sqlname.NameTuple, tableList []string) (bool, error) {
+func checkIfSequenceAttachedToTablesInTableList(importTableList []sqlname.NameTuple, tableList []string) (bool, error) {
 	for _, table := range tableList {
 		tableTuple, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole(table)
 		if err != nil {
