@@ -1,0 +1,11 @@
+{
+    "continue_on_error": false,
+    "enable_orafce": true,
+    "ignore_exist": false,
+    "refresh_mviews": true,
+    "errors": 0,
+    "post_snapshot_import": true,
+    "start_clean": false,
+    "error": "",
+    "control_plane_type": ""
+}
