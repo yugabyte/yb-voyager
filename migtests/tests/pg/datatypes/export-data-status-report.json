@@ -35,7 +35,7 @@
     "exported_count": 2
   },
   {
-    "exported_count": 13,
+    "exported_count": 26,
     "status": "DONE",
     "table_name": "hstore_example"
   }

@@ -20,7 +20,8 @@ import (
 )
 
 type ImportDataFileStatusRecord struct {
-	ErrorPolicy string `json:"errorPolicy"`
+	ErrorPolicy         string `json:"errorPolicy"`
+	ImportDataStarted   bool   `json:"importDataStarted"`
 }
 
 const IMPORT_DATA_FILE_STATUS_KEY = "import_data_file_status"

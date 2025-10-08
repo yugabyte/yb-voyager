@@ -89,14 +89,13 @@ run_pg_restore() {
 run_ysql() {
 	db_name=$1
 	sql=$2
-	psql -P pager=off "postgresql://${TARGET_DB_ADMIN_USER}:${TARGET_DB_ADMIN_PASSWORD}@${TARGET_DB_HOST}:${TARGET_DB_PORT}/${db_name}" -c "${sql}"
+	PGPASSWORD="${TARGET_DB_ADMIN_PASSWORD}" psql -P pager=off -h ${TARGET_DB_HOST} -p ${TARGET_DB_PORT} -U ${TARGET_DB_ADMIN_USER} -d ${db_name} -c "${sql}"
 }
 
 ysql_import_file() {
 	db_name=$1
 	file=$2
-	conn_string="postgresql://${TARGET_DB_ADMIN_USER}:${TARGET_DB_ADMIN_PASSWORD}@${TARGET_DB_HOST}:${TARGET_DB_PORT}/${db_name}"
-	psql "${conn_string}" -f "${file}"
+	PGPASSWORD="${TARGET_DB_ADMIN_PASSWORD}" psql -h ${TARGET_DB_HOST} -p ${TARGET_DB_PORT} -U ${TARGET_DB_ADMIN_USER} -d ${db_name} -f "${file}"
 }
 
 run_mysql() {
@@ -476,7 +475,7 @@ import_data() {
     fi
     # Check if RUN_WITHOUT_ADAPTIVE_PARALLELISM is true
     if [ "${RUN_WITHOUT_ADAPTIVE_PARALLELISM}" = "true" ]; then
-        args="${args} --enable-adaptive-parallelism false"
+        args="${args} --adaptive-parallelism disabled"
     fi
 
     yb-voyager import data ${args} "$@"
@@ -532,7 +531,7 @@ import_data_file() {
 
     # Check if RUN_WITHOUT_ADAPTIVE_PARALLELISM is true
     if [ "${RUN_WITHOUT_ADAPTIVE_PARALLELISM}" = "true" ]; then
-        args="${args} --enable-adaptive-parallelism false"
+        args="${args} --adaptive-parallelism disabled"
     fi
 
     yb-voyager import data file ${args} $*
@@ -622,6 +621,7 @@ wait_for_string_in_file() {
         
         if [ $elapsed -ge $timeout_seconds ]; then
             echo "Timeout reached ($timeout_seconds seconds). String '$search_string' not found in $file_path."
+            tail -n 100 "$file_path"
             return 1
         fi
         
@@ -650,17 +650,29 @@ get_expected_event_count() {
     local expected_count=""
     case "$exporter_db" in
         "source")
-            expected_count=$(jq -r '.source_delta_events // empty' "$metadata_file" 2>/dev/null)
+            if jq -e 'has("source_delta_events")' "$metadata_file" >/dev/null 2>&1; then
+                jq -r '.source_delta_events' "$metadata_file"
+                return 0
+            fi
+            return 0
             ;;
         "target")
-            expected_count=$(jq -r '.target_delta_events // empty' "$metadata_file" 2>/dev/null)
+            if [ "${USE_YB_LOGICAL_REPLICATION_CONNECTOR}" = true ] \
+               && jq -e 'has("target_delta_events_logical_replication")' "$metadata_file" >/dev/null 2>&1; then
+                jq -r '.target_delta_events_logical_replication' "$metadata_file"
+                return 0
+            fi
+
+            if jq -e 'has("target_delta_events")' "$metadata_file" >/dev/null 2>&1; then
+                jq -r '.target_delta_events' "$metadata_file"
+                return 0
+            fi
+
+            return 0
             ;;
     esac
-    
-    # Validate the count is a positive number
-    if [[ "$expected_count" =~ ^[1-9][0-9]*$ ]]; then
-        echo "$expected_count"
-    fi
+    # No match; return 0
+    return 0
 }
 
 # Helper function to count actual events for a specific exporter database using data-migration-report
@@ -743,8 +755,14 @@ wait_for_exporter_event() {
         local elapsed=$((current_time - start_time))
 
         if [ $elapsed -ge $timeout_seconds ]; then
-            echo "Timeout reached (${timeout_seconds}s). Proceeding without detecting sufficient ${exporter_db} events."
-            return 0
+            echo "Timeout reached (${timeout_seconds}s). Sufficient ${exporter_db} events not detected."
+            # Showing relevant log file for debugging
+            if [ "$exporter_db" == "source" ]; then
+                tail_log_file "yb-voyager-export-data.log"
+            else 
+                tail_log_file "yb-voyager-export-data-from-target.log"
+            fi
+            return 1
         fi
 
         # Count actual events using data-migration-report
@@ -754,7 +772,7 @@ wait_for_exporter_event() {
             # Metadata-driven approach: wait for expected count
             echo "Found ${actual_count}/${expected_count} expected ${exporter_db} events"
             
-            if [ "$actual_count" -ge "$expected_count" ]; then
+            if [ "$actual_count" -eq "$expected_count" ]; then
                 echo "Detected ${actual_count}/${expected_count} expected ${exporter_db} events. Proceeding."
                 return 0
             fi
@@ -1451,5 +1469,95 @@ generate_voyager_config() {
 		echo "Generating config from template: $template_file"
 		python3 "$CONFIG_GEN_SCRIPT" --template "$template_file" --output "$GENERATED_CONFIG"
 	fi
+}
+
+normalize_callhome_json() {
+    local input_file="$1"
+    local output_file="$2"
+    local temp_file="/tmp/temp_file.json"
+
+    # Normalize JSON with jq; use --sort-keys to avoid the need to keep the same sequence of keys in expected vs actual json
+    jq --sort-keys 'walk(
+        if type == "object" then
+            .ObjectNames? |= (
+				if type == "string" then
+					split(", ") | sort | join(", ")
+				else
+					.
+				end
+			) |
+            .VoyagerVersion? = "IGNORED" |
+			.TargetDBVersion? = "IGNORED" |
+            .OptimalSelectConnectionsPerNode? = "IGNORED" |
+            .OptimalInsertConnectionsPerNode? = "IGNORED" |
+			.SizeInBytes? = "IGNORED" |
+            .yb_cluster_metrics = "IGNORED" |
+            .parallel_jobs = "IGNORED" |
+            .adaptive_parallelism_max = "IGNORED" |
+            .snapshot_total_bytes = "IGNORED"
+        elif type == "array" then
+			sort_by(tostring)
+        elif type == "string" and (
+            # Check if the string is a JSON array and sort it
+            (tostring | test("^ *?\\[.*\\] *?$")) and (fromjson | type == "array")
+        ) then
+            fromjson | sort_by(tostring) | tojson
+		else
+            .
+        end
+    )' "$input_file" > "$temp_file"
+
+    # Move cleaned file to output
+    mv "$temp_file" "$output_file"
+}
+
+compare_callhome_json_reports() {
+    local expected_report_file="$1"
+    local phase="$2"
+    
+    # Get report data from API and save to local file
+    local actual_report_file=$(mktemp)
+    if curl -sfS -o "$actual_report_file" "http://localhost:5000/get_payload/$phase"; then
+        echo "Successfully retrieved report data from API"
+        echo "Report data saved to: $actual_report_file"
+    else
+        echo "Failed to retrieve report data from API"
+        rm -f "$actual_report_file"
+        exit 1
+    fi
+
+    local temp_file1=$(mktemp)
+    local temp_file2=$(mktemp)
+
+    normalize_callhome_json "$expected_report_file" "$temp_file1"
+    normalize_callhome_json "$actual_report_file" "$temp_file2"
+
+    # Compare actual and expected callhome data
+    compare_files "$temp_file1" "$temp_file2"
+    compare_status=$?
+
+    rm "$temp_file1" "$temp_file2" "$actual_report_file"
+
+    if [ $compare_status -ne 0 ]; then
+        exit $compare_status
+    fi
+
+    echo "Comparison Passed for $phase"
+}
+
+# Function to execute logical replication connector specific DMLs
+execute_logical_replication_target_delta() {
+	if [ "${USE_YB_LOGICAL_REPLICATION_CONNECTOR}" != true ]; then
+		echo "Skipping logical replication specific DMLs (gRPC connector)"
+		return 0
+	fi
+	
+	if [ ! -f "${TEST_DIR}/target_delta_logical_connector.sql" ]; then
+		echo "Warning: target_delta_logical_connector.sql not found, skipping logical replication DMLs"
+		return 0
+	fi
+	
+	echo "Running logical replication specific target DMLs..."
+	ysql_import_file ${TARGET_DB_NAME} target_delta_logical_connector.sql
 }
 
