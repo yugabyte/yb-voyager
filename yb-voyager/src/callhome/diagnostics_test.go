@@ -55,12 +55,14 @@ func TestCallhomeStructs(t *testing.T) {
 			name:       "Validate SourceDBDetails Struct Definition",
 			actualType: reflect.TypeOf(SourceDBDetails{}),
 			expectedType: struct {
-				Host               string `json:"host"`
-				DBType             string `json:"db_type"`
-				DBVersion          string `json:"db_version"`
-				DBSize             int64  `json:"total_db_size_bytes"`
-				Role               string `json:"role,omitempty"`
-				DBSystemIdentifier int64  `json:"db_system_identifier,omitempty"`
+				Host               string   `json:"host"`
+				DBType             string   `json:"db_type"`
+				DBVersion          string   `json:"db_version"`
+				DBSize             int64    `json:"total_db_size_bytes"`
+				Role               string   `json:"role,omitempty"`
+				DBSystemIdentifier int64    `json:"db_system_identifier,omitempty"`
+				DBName             string   `json:"db_name,omitempty"`
+				SchemaNames        []string `json:"schema_names,omitempty"`
 			}{},
 		},
 		{
