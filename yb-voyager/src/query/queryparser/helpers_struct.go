@@ -503,3 +503,23 @@ func TraverseAndFindColumnName(node *pg_query.Node) string {
 
 	return ""
 }
+
+func GetSessionVariableName(stmtStr string) (string, error) {
+	parseTree, err := Parse(stmtStr)
+	if err != nil {
+		return "", fmt.Errorf("error parsing statement: %w", err)
+	}
+	if len(parseTree.Stmts) == 0 {
+		return "", fmt.Errorf("no statements in parse tree")
+	}
+	stmt := parseTree.Stmts[0]
+	if !IsSetStmt(stmt) {
+		return "", fmt.Errorf("not a set statement")
+	}
+	varStmt := stmt.Stmt.Node.(*pg_query.Node_VariableSetStmt)
+	if varStmt == nil || varStmt.VariableSetStmt == nil {
+		return "", fmt.Errorf("not a set statement")
+	}
+	return varStmt.VariableSetStmt.GetName(), nil
+
+}

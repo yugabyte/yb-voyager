@@ -154,12 +154,13 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 			log.Infof("Skipping DDL: %s", sqlInfo.stmt)
 			continue
 		}
-		if isSessionVariable(sqlInfo.stmt) && !skip {
+
+		isSessionVariable, err := isSessionVariable(sqlInfo.stmt)
+		if err != nil {
+			return fmt.Errorf("error checking whether statement is a session variable: %v", err)
+		}
+		if isSessionVariable {
 			sessionVariables = append(sessionVariables, sqlInfo)
-			err = applySessionVariable(conn, sqlInfo)
-			if err != nil {
-				return err
-			}
 			continue
 		}
 
@@ -167,19 +168,42 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 		if err != nil {
 			return err
 		}
+		if conn != nil {
+			// Reset all session variables on the connection for next stmt
+			err = resetAllSessionVariablesOnConn(conn, sessionVariables)
+			if err != nil {
+				return fmt.Errorf("error resetting all session variables on connection: %v", err)
+			}
+		}
 	}
 	return nil
 }
 
-func isSessionVariable(stmt string) bool {
+func resetAllSessionVariablesOnConn(conn *pgx.Conn, sessionVariables []sqlInfo) error {
+	log.Infof("Resetting all session variableso on the connection for next stmt")
+	for _, sessionVariable := range sessionVariables {
+		sessionVarName, err := queryparser.GetSessionVariableName(sessionVariable.stmt)
+		if err != nil {
+			return fmt.Errorf("error getting session variable name: %v", err)
+		}
+		resetSessionVariable := fmt.Sprintf("RESET %s", sessionVarName)
+		_, err = conn.Exec(context.Background(), resetSessionVariable)
+		if err != nil {
+			return fmt.Errorf("error resetting session variable: %v", err)
+		}
+	}
+	return nil
+}
+
+func isSessionVariable(stmt string) (bool, error) {
 	parseTree, err := queryparser.Parse(stmt)
 	if err != nil {
-		return false
+		return false, fmt.Errorf("error parsing statement: %w", err)
 	}
 	if len(parseTree.Stmts) == 0 {
-		return false
+		return false, nil
 	}
-	return queryparser.IsSetStmt(parseTree.Stmts[0])
+	return queryparser.IsSetStmt(parseTree.Stmts[0]), nil
 }
 
 func shouldSkipDDL(stmt string, objType string) (bool, error) {
@@ -221,6 +245,14 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string,
 	var err error
 	var stmtNotice *pgconn.Notice
 	log.Infof("On %s run query:\n%s\n", tconf.Host, sqlInfo.formattedStmt)
+	// Apply session variables on the connection for this statement
+	log.Infof("Applying session variables on the connection for this statement")
+	for _, sessionVariable := range sessionVariables {
+		err = applySessionVariable(*conn, sessionVariable)
+		if err != nil {
+			return fmt.Errorf("error applying session variable: %v", err)
+		}
+	}
 	for retryCount := 0; retryCount <= DDL_MAX_RETRY_COUNT; retryCount++ {
 		if retryCount > 0 { // Not the first iteration.
 			log.Infof("Sleep for 5 seconds before retrying for %dth time", retryCount)
@@ -328,6 +360,8 @@ func importDeferredStatements() {
 	var err error
 	var conn *pgx.Conn
 	var finalFailedDeferredStmts []string
+	var sessionVariablesOfPreviousDeferredStmt []sqlInfo
+
 	// max loop iterations to remove all errors
 	for i := 1; i <= maxIterations && len(deferredSqlStmts) > 0; i++ {
 		beforeDeferredSqlCount := len(deferredSqlStmts)
@@ -336,13 +370,22 @@ func importDeferredStatements() {
 			if conn == nil {
 				conn = newTargetConn(deferredSqlStmts[j].sessionVariables)
 			} else {
+				log.Infof("Resetting all session variables on the connection for previous deferred statement")
+
+				err = resetAllSessionVariablesOnConn(conn, sessionVariablesOfPreviousDeferredStmt)
+				if err != nil {
+					log.Errorf("error resetting all session variables on connection: %v", err)
+				}
+
 				// Apply session variables on the connection for this deferred statement
+				log.Infof("Applying session variables on the connection for this deferred statement")
 				for _, sessionVariable := range deferredSqlStmts[j].sessionVariables {
 					err = applySessionVariable(conn, sessionVariable)
 					if err != nil {
 						log.Errorf("error applying session variable: %v", err)
 					}
 				}
+				sessionVariablesOfPreviousDeferredStmt = deferredSqlStmts[j].sessionVariables
 			}
 
 			var stmtNotice *pgconn.Notice

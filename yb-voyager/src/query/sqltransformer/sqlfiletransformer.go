@@ -198,7 +198,7 @@ func (t *TableFileTransformer) Transform(file string) (string, error) {
 		}
 	}
 
-	if !t.skipPerformanceOptimizations && t.sourceDBType == constants.POSTGRESQL {
+	if t.shouldAddHashSplitting() {
 		parseTree.Stmts, err = transformer.AddHashSplittingONForPKConstraintsAndOFFForUKConstraints(parseTree.Stmts)
 		if err != nil {
 			return "", fmt.Errorf("failed to add hash splitting on for pk constraints: %w", err)
@@ -218,4 +218,11 @@ func (t *TableFileTransformer) Transform(file string) (string, error) {
 	}
 
 	return backUpFile, nil
+}
+
+func (t *TableFileTransformer) shouldAddHashSplitting() bool {
+	if t.sourceDBType != constants.POSTGRESQL {
+		return false
+	}
+	return !t.skipPerformanceOptimizations
 }
