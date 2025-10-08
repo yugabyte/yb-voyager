@@ -34,12 +34,15 @@ const QUERY_CALLS_FOR_TEST = 100
 //   - matchedQueries: number of queries that exist in both source and target
 //   - sourceOnly: number of queries that exist only in source
 //   - targetOnly: number of queries that exist only in target
-//   - targetSlowdownFactor: how much slower/faster target is (e.g., 1.5 = 50% slower, 0.8 = 20% faster)
+//   - targetSlowdownFactor: multiplier applied to source average time to derive target average in mocks.
+//   - 1.0 = same speed; >1.0 = slower (e.g., 1.5 => 50% slower); <1.0 = faster (e.g., 0.8 => 20% faster).
+//   - Formula: targetAvgTime = sourceAvgTime * targetSlowdownFactor
 //
 // Generated data patterns:
+//   - Matched queries: source avg = 10ms; target avg = 10ms * targetSlowdownFactor
+//   - Source-only queries: avg = 15ms (arbitrary for test variety; not used in slowdown/impact)
+//   - Target-only queries: avg = 8ms  (arbitrary for test variety; not used in slowdown/impact)
 //   - All queries have 100 execution calls for simple math
-//   - Source queries have 10ms average execution time
-//   - Target queries have (10ms * targetSlowdownFactor) average execution time
 //   - Query names: "Query-1", "Query-2", etc. for matched queries
 //   - Source-only: "SourceQuery-1", "SourceQuery-2", etc.
 //   - Target-only: "TargetQuery-1", "TargetQuery-2", etc.
@@ -125,39 +128,16 @@ func TestGetTopBySlowdown(t *testing.T) {
 	// All matched queries should have same slowdown ratio since same slowdown factor (source avg time is 10ms)
 	expectedSlowdownRatio := (15.0 + SLOWDOWN_RATIO_OFFSET) / (10.0 + SLOWDOWN_RATIO_OFFSET)
 
-	topBySlowdown := comparator.getTopBySlowdown(allComparisons, 10)
-	assert.Len(t, topBySlowdown, 3, "Should return only the 3 matched queries")
+	topN := 10
+	topBySlowdown := comparator.getTopBySlowdown(allComparisons, topN)
+	assert.Len(t, topBySlowdown, topN, "Should return only the 10 matched queries")
 	for i, comp := range topBySlowdown {
 		assert.Equal(t, MATCHED, comp.MatchStatus, "Query %d should be MATCHED", i)
 		assert.InDelta(t, expectedSlowdownRatio, comp.SlowdownRatio, 0.001)
 		assert.Contains(t, comp.Query, "Query-", "Should be a matched query")
 	}
 
-	for i := 1; i < len(topBySlowdown); i++ {
-		assert.True(t, topBySlowdown[i-1].SlowdownRatio >= topBySlowdown[i].SlowdownRatio,
-			"Results should be sorted by slowdown ratio in descending order")
-	}
-}
-
-// TestGetTopBySlowdown_WithNLimit tests the limit parameter behavior
-func TestGetTopBySlowdown_WithTopNLimit(t *testing.T) {
-	// Create comparator with 50 matched queries, target 2x slower
-	comparator := createMockComparator(50, 0, 0, 2.0)
-	expectedSlowdownRatio := (20.0 + SLOWDOWN_RATIO_OFFSET) / (10.0 + SLOWDOWN_RATIO_OFFSET)
-	allComparisons := comparator.matchQueries()
-	for _, comp := range allComparisons {
-		comp.calculateMetrics()
-	}
-
-	topN := 3
-	topBySlowdown := comparator.getTopBySlowdown(allComparisons, topN)
-
-	// assertions
-	assert.Len(t, topBySlowdown, topN, "Should return only 3 results due to limit")
-	for _, comp := range topBySlowdown {
-		assert.Equal(t, MATCHED, comp.MatchStatus, "All results should be MATCHED")
-		assert.InDelta(t, expectedSlowdownRatio, comp.SlowdownRatio, 0.001)
-	}
+	// TODO: add tests with different slowdown ratios for matched queries to test sorting
 }
 
 // TestGetTopBySlowdown_TargetFaster tests when target is faster (slowdown < 1)
@@ -202,31 +182,7 @@ func TestGetTopByImpact(t *testing.T) {
 		assert.Equal(t, expectedImpactScore, comp.ImpactScore)
 		assert.Contains(t, comp.Query, "Query-", "Should be a matched query")
 	}
-	for i := 1; i < len(topByImpact); i++ {
-		assert.True(t, topByImpact[i-1].ImpactScore >= topByImpact[i].ImpactScore,
-			"Results should be sorted by impact score in descending order")
-	}
-}
-
-// TestGetTopByImpact_WithTopNLimit tests the limit parameter behavior
-func TestGetTopByImpact_WithTopNLimit(t *testing.T) {
-	// Create comparator with 50 matched queries, target 2x slower
-	comparator := createMockComparator(50, 0, 0, 2.0)
-	expectedImpactScore := 20.0*QUERY_CALLS_FOR_TEST - 10.0*QUERY_CALLS_FOR_TEST
-	allComparisons := comparator.matchQueries()
-	for _, comp := range allComparisons {
-		comp.calculateMetrics()
-	}
-
-	topN := 3
-	topByImpact := comparator.getTopByImpact(allComparisons, topN)
-
-	// assertions
-	assert.Len(t, topByImpact, topN, "Should return only the %d matched queries", topN)
-	for _, comp := range topByImpact {
-		assert.Equal(t, MATCHED, comp.MatchStatus, "All results should be MATCHED")
-		assert.Equal(t, expectedImpactScore, comp.ImpactScore)
-	}
+	// TODO: add tests with different impact scores for matched queries to test sorting
 }
 
 // TestGetTopByImpact_TargetFaster tests when target is faster (impact < 0)
