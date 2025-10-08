@@ -26,6 +26,7 @@ import (
 
 	"github.com/jackc/pgx/v4"
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -470,14 +471,12 @@ func runPgStatStatementsTest(t *testing.T, testQueries map[string]struct {
 			if actualPgss.Query != expectedPgss.parameterized {
 				continue
 			}
-			foundQueries[queryName] = true
-			expectedCalls := 0
-			for _, count := range expectedPgss.execCounts {
-				expectedCalls += count
-			}
 
-			assert.Equal(t, int64(expectedCalls), actualPgss.Calls,
-				"Query %s should have %d total calls, got %d", queryName, expectedCalls, actualPgss.Calls)
+			foundQueries[queryName] = true
+			totalExpectedCalls := lo.Sum(expectedPgss.execCounts)
+
+			assert.Equal(t, actualPgss.Calls, int64(totalExpectedCalls),
+				"Query %s should have %d total calls, got %d", queryName, totalExpectedCalls, actualPgss.Calls)
 			assert.Greater(t, actualPgss.TotalExecTime, float64(0),
 				"Query %s should have positive total exec time", queryName)
 			assert.Greater(t, actualPgss.MeanExecTime, float64(0),
