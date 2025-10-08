@@ -143,7 +143,7 @@ func TestMain(m *testing.M) {
 	testYugabyteDBTargetCluster = &TestTargetYugabyteDBCluster{
 		YugabyteDBClusterContainer: yugabytedbClusterContainer,
 		TargetYugabyteDB: newTargetYugabyteDB(&TargetConf{
-			TargetDBType: "yugabytedb",
+			TargetDBType: testcontainers.YUGABYTEDB,
 			DBVersion:    yugabytedbClusterContainer.GetConfig().DBVersion,
 			User:         yugabytedbClusterContainer.GetConfig().User,
 			Password:     yugabytedbClusterContainer.GetConfig().Password,
