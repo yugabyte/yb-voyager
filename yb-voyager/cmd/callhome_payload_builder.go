@@ -61,12 +61,7 @@ func packAndSendAssessMigrationPayload(status string, errMsg error) {
 	payload.MigrationPhase = ASSESS_MIGRATION_PHASE
 	payload.Status = status
 	if assessmentMetadataDirFlag == "" {
-		sourceDBDetails := callhome.SourceDBDetails{
-			DBType:             source.DBType,
-			DBVersion:          source.DBVersion,
-			DBSize:             source.DBSize,
-			DBSystemIdentifier: source.DBSystemIdentifier,
-		}
+		sourceDBDetails := anonymizeSourceDBDetails(&source)
 		payload.SourceDBDetails = callhome.MarshalledJsonString(sourceDBDetails)
 	}
 
@@ -170,6 +165,47 @@ func anonymizeQualifiedTableNames(tableNames []string) []string {
 		}
 		return anonymizedName
 	})
+}
+
+// anonymizeSourceDBDetails creates anonymized source DB details for callhome
+func anonymizeSourceDBDetails(source *srcdb.Source) callhome.SourceDBDetails {
+	details := callhome.SourceDBDetails{
+		DBType:             source.DBType,
+		DBVersion:          source.DBVersion,
+		DBSize:             source.DBSize,
+		DBSystemIdentifier: source.DBSystemIdentifier,
+	}
+
+	// Anonymize database name
+	if source.DBName != "" {
+		anonymizedDBName, err := anonymizer.AnonymizeDatabaseName(source.DBName)
+		if err != nil {
+			log.Warnf("failed to anonymize database name %s: %v", source.DBName, err)
+			details.DBName = constants.OBFUSCATE_STRING
+		} else {
+			details.DBName = anonymizedDBName
+		}
+	}
+
+	// Anonymize schema names
+	if source.Schema != "" {
+		schemaList := source.GetSchemaList()
+		anonymizedSchemas := make([]string, 0, len(schemaList))
+		for _, schemaName := range schemaList {
+			if schemaName != "" {
+				anonymizedSchema, err := anonymizer.AnonymizeSchemaName(schemaName)
+				if err != nil {
+					log.Warnf("failed to anonymize schema name %s: %v", schemaName, err)
+					anonymizedSchemas = append(anonymizedSchemas, constants.OBFUSCATE_STRING)
+				} else {
+					anonymizedSchemas = append(anonymizedSchemas, anonymizedSchema)
+				}
+			}
+		}
+		details.SchemaNames = anonymizedSchemas
+	}
+
+	return details
 }
 
 // ============================assess migration callhome payload information============================
@@ -347,12 +383,7 @@ func packAndSendExportSchemaPayload(status string, errorMsg error) {
 	payload := createCallhomePayload()
 	payload.MigrationPhase = EXPORT_SCHEMA_PHASE
 	payload.Status = status
-	sourceDBDetails := callhome.SourceDBDetails{
-		DBType:             source.DBType,
-		DBVersion:          source.DBVersion,
-		DBSize:             source.DBSize,
-		DBSystemIdentifier: source.DBSystemIdentifier,
-	}
+	sourceDBDetails := anonymizeSourceDBDetails(&source)
 	schemaOptimizationChanges := buildCallhomeSchemaOptimizationChanges()
 
 	payload.SourceDBDetails = callhome.MarshalledJsonString(sourceDBDetails)

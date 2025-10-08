@@ -183,12 +183,7 @@ func packAndSendExportDataPayload(status string, errorMsg error) {
 	case SNAPSHOT_AND_CHANGES:
 		payload.MigrationType = LIVE_MIGRATION
 	}
-	sourceDBDetails := callhome.SourceDBDetails{
-		DBType:             source.DBType,
-		DBVersion:          source.DBVersion,
-		DBSize:             source.DBSize,
-		DBSystemIdentifier: source.DBSystemIdentifier,
-	}
+	sourceDBDetails := anonymizeSourceDBDetails(&source)
 
 	payload.SourceDBDetails = callhome.MarshalledJsonString(sourceDBDetails)
 
