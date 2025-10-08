@@ -949,8 +949,8 @@ func fetchTablesNamesFromSourceAndFilterTableList() (map[string]string, []sqlnam
 	if err != nil {
 		var applyErr *errs.ExportDataError
 		if errors.As(err, &applyErr) {
-			applyErr.AddStep(applyErr.Flow())
-			return nil, nil, errs.NewExportDataErrorWithSteps(errs.FETCH_TABLES_NAMES_FROM_SOURCE, applyErr.Steps(), applyErr.FailedStep(), applyErr.Unwrap())
+			applyErr.AddCall(applyErr.CurrentFlow())
+			return nil, nil, errs.NewExportDataErrorWithCompletedCalls(errs.FETCH_TABLES_NAMES_FROM_SOURCE, applyErr.CompletedCalls(), applyErr.FailedStep(), applyErr.Unwrap())
 		}
 		return nil, nil, fmt.Errorf("error in apply table list flags on full list and add leaf partitions: %w", err)
 	}
@@ -1062,8 +1062,8 @@ func getInitialTableList() (map[string]string, []sqlname.NameTuple, error) {
 		if err != nil {
 			var applyErr *errs.ExportDataError
 			if errors.As(err, &applyErr) {
-				applyErr.AddStep(applyErr.Flow())
-				return nil, nil, errs.NewExportDataErrorWithSteps(errs.GET_INITIAL_TABLE_LIST_OPERATION, applyErr.Steps(), applyErr.FailedStep(), applyErr.Unwrap())
+				applyErr.AddCall(applyErr.CurrentFlow())
+				return nil, nil, errs.NewExportDataErrorWithCompletedCalls(errs.GET_INITIAL_TABLE_LIST_OPERATION, applyErr.CompletedCalls(), applyErr.FailedStep(), applyErr.Unwrap())
 			}
 			return nil, nil, fmt.Errorf("error in fetch tables names from source and filter table list: %w", err)
 		}
@@ -1079,8 +1079,8 @@ func getInitialTableList() (map[string]string, []sqlname.NameTuple, error) {
 	if err != nil {
 		var fetchErr *errs.ExportDataError
 		if errors.As(err, &fetchErr) {
-			fetchErr.AddStep(fetchErr.Flow())
-			return nil, nil, errs.NewExportDataErrorWithSteps(errs.GET_INITIAL_TABLE_LIST_OPERATION, fetchErr.Steps(), fetchErr.FailedStep(), fetchErr.Unwrap())
+			fetchErr.AddCall(fetchErr.CurrentFlow())
+			return nil, nil, errs.NewExportDataErrorWithCompletedCalls(errs.GET_INITIAL_TABLE_LIST_OPERATION, fetchErr.CompletedCalls(), fetchErr.FailedStep(), fetchErr.Unwrap())
 		}
 		return nil, nil, fmt.Errorf("error in retrieve first run list and partitions root map: %w", err)
 	}
@@ -1109,8 +1109,8 @@ func getInitialTableList() (map[string]string, []sqlname.NameTuple, error) {
 	if err != nil {
 		var detectErr *errs.ExportDataError
 		if errors.As(err, &detectErr) {
-			detectErr.AddStep(detectErr.Flow())
-			return nil, nil, errs.NewExportDataErrorWithSteps(errs.GET_INITIAL_TABLE_LIST_OPERATION, detectErr.Steps(), detectErr.FailedStep(), detectErr.Unwrap())
+			detectErr.AddCall(detectErr.CurrentFlow())
+			return nil, nil, errs.NewExportDataErrorWithCompletedCalls(errs.GET_INITIAL_TABLE_LIST_OPERATION, detectErr.CompletedCalls(), detectErr.FailedStep(), detectErr.Unwrap())
 		}
 		return nil, nil, fmt.Errorf("error in detect new leaf partitions on partitioned tables: %w", err)
 	}
@@ -1119,8 +1119,8 @@ func getInitialTableList() (map[string]string, []sqlname.NameTuple, error) {
 	if err != nil {
 		var applyErr *errs.ExportDataError
 		if errors.As(err, &applyErr) {
-			applyErr.AddStep(applyErr.Flow())
-			return nil, nil, errs.NewExportDataErrorWithSteps(errs.GET_INITIAL_TABLE_LIST_OPERATION, applyErr.Steps(), applyErr.FailedStep(), applyErr.Unwrap())
+			applyErr.AddCall(applyErr.CurrentFlow())
+			return nil, nil, errs.NewExportDataErrorWithCompletedCalls(errs.GET_INITIAL_TABLE_LIST_OPERATION, applyErr.CompletedCalls(), applyErr.FailedStep(), applyErr.Unwrap())
 		}
 		return nil, nil, fmt.Errorf("error in apply table list filter on registered list for the flags in current run: %w", err)
 	}
@@ -1148,8 +1148,8 @@ func applyTableListFlagsOnCurrentAndRemoveRootsFromBothLists(
 	if err != nil {
 		var applyErr *errs.ExportDataError
 		if errors.As(err, &applyErr) {
-			applyErr.AddStep(applyErr.Flow())
-			return nil, nil, errs.NewExportDataErrorWithSteps(errs.APPLY_TABLE_LIST_FLAGS_ON_SUBSEQUENT_RUN, applyErr.Steps(), applyErr.FailedStep(), applyErr.Unwrap())
+			applyErr.AddCall(applyErr.CurrentFlow())
+			return nil, nil, errs.NewExportDataErrorWithCompletedCalls(errs.APPLY_TABLE_LIST_FLAGS_ON_SUBSEQUENT_RUN, applyErr.CompletedCalls(), applyErr.FailedStep(), applyErr.Unwrap())
 		}
 		return nil, nil, fmt.Errorf("error in apply table list flags on full list and add leaf partitions: %w", err)
 	}
@@ -1545,7 +1545,6 @@ func getDefaultSourceSchemaName() (string, bool) {
 		panic("invalid db type")
 	}
 }
-
 
 func extractTableListFromString(fullTableList []sqlname.NameTuple, flagTableList string, listName string) ([]sqlname.NameTuple, error) {
 	result := []sqlname.NameTuple{}

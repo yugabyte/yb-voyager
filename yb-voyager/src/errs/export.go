@@ -19,6 +19,8 @@ package errs
 import (
 	"fmt"
 	"strings"
+
+	"github.com/golang-collections/collections/stack"
 )
 
 const (
@@ -32,37 +34,39 @@ const (
 )
 
 type ExportDataError struct {
-	flow       string   // The main operation flow (e.g., "get_initial_table_list")
-	steps      []string // All steps completed so far in the flow
-	failedStep string   // The step that failed
-	err        error    // The underlying error
+	currentFlow          string       // The current flow which is finally throwing the error (e.g., "get_initial_table_list")
+	callExecutionHistory *stack.Stack // Stack of all the calls completed so far in the current flow
+	failedStep           string       // The step that failed in the last call where the error occurred
+	err                  error        // The underlying error
 }
 
 func (e *ExportDataError) Error() string {
-	// Reverse the steps array to show the flow in chronological order
-	reversedSteps := make([]string, len(e.steps))
-	for i, step := range e.steps {
-		reversedSteps[len(e.steps)-1-i] = step
+	completedCallStackTrace := fmt.Sprintf("%s -> ", e.currentFlow)
+	lastCall := ""
+	for e.callExecutionHistory.Len() > 0 {
+		currentCall := e.callExecutionHistory.Pop().(string)
+		lastCall = currentCall
+		completedCallStackTrace += currentCall + " -> "
 	}
-	completedSteps := strings.Join(reversedSteps, ", ")
-	if len(e.steps) > 0 {
-		return fmt.Sprintf("error in %s at step '%s', after steps - (%s): %s",
-			e.flow, e.failedStep, completedSteps, e.err.Error())
+	completedCallStackTrace = strings.TrimSuffix(completedCallStackTrace, " -> ")
+	if completedCallStackTrace != "" {
+		return fmt.Sprintf("error in %s at step '%s' in call '%s' (call stack - %s): %s",
+			e.currentFlow, e.failedStep, lastCall, completedCallStackTrace, e.err.Error())
 	}
 	return fmt.Sprintf("error in %s at step '%s': %s",
-		e.flow, e.failedStep, e.err.Error())
+		e.currentFlow, e.failedStep, e.err.Error())
 }
 
-func (e *ExportDataError) Flow() string {
-	return e.flow
+func (e *ExportDataError) CurrentFlow() string {
+	return e.currentFlow
 }
 
-func (e *ExportDataError) Steps() []string {
-	return e.steps
+func (e *ExportDataError) CompletedCalls() *stack.Stack {
+	return e.callExecutionHistory
 }
 
-func (e *ExportDataError) AddStep(step string) {
-	e.steps = append(e.steps, step)
+func (e *ExportDataError) AddCall(call string) {
+	e.callExecutionHistory.Push(call)
 }
 
 func (e *ExportDataError) FailedStep() string {
@@ -76,23 +80,22 @@ func (e *ExportDataError) Unwrap() error {
 // NewExportDataError creates a new error with flow context
 func NewExportDataError(flow string, failedStep string, err error) *ExportDataError {
 	return &ExportDataError{
-		flow:       flow,
-		failedStep: failedStep,
-		err:        err,
+		currentFlow:          flow,
+		failedStep:           failedStep,
+		callExecutionHistory: stack.New(),
+		err:                  err,
 	}
 }
 
-// NewExportDataErrorWithSteps creates a new error with flow context and completed steps
-func NewExportDataErrorWithSteps(flow string, steps []string, failedStep string, err error) *ExportDataError {
+// NewExportDataErrorWithCompletedFlows creates a new error with flow context and completed flows
+func NewExportDataErrorWithCompletedCalls(currentFlow string, completedCalls *stack.Stack, failedStep string, err error) *ExportDataError {
 	return &ExportDataError{
-		flow:       flow,
-		steps:      steps,
-		failedStep: failedStep,
-		err:        err,
+		currentFlow:          currentFlow,
+		callExecutionHistory: completedCalls,
+		failedStep:           failedStep,
+		err:                  err,
 	}
 }
-
-
 
 type UnknownTableErr struct {
 	typeOfList      string
