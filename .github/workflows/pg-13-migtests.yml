@@ -107,7 +107,7 @@ jobs:
         run: |
           docker run -d --network=host --name yugabytedb --hostname yb-cluster-test\
             yugabytedb/yugabyte:${{ matrix.yb_version }} \
-            bin/yugabyted start --tserver_flags="ysql_hba_conf_csv={host all yugabyte all trust,host all all all md5},pgsql_proxy_bind_address=localhost" --master_flags="enable_load_balancing=false" --background=false --ui=false --callhome=false 
+            bin/yugabyted start --tserver_flags="ysql_hba_conf_csv={host all yugabyte all trust,host all all all md5}" --advertise_address=localhost --background=false --ui=false --callhome=false 
           
           # Wait for YugabyteDB to be ready with health check
           echo "Waiting for YugabyteDB to be ready..."
