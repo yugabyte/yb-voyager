@@ -16,6 +16,7 @@ limitations under the License.
 package pgss
 
 import (
+	"fmt"
 	"math"
 
 	log "github.com/sirupsen/logrus"
@@ -38,6 +39,10 @@ type PgStatStatements struct {
 	MinExecTime    float64 `json:"min_exec_time"`
 	MaxExecTime    float64 `json:"max_exec_time"`
 	StddevExecTime float64 `json:"stddev_exec_time"`
+}
+
+func (p *PgStatStatements) String() string {
+	return fmt.Sprintf("PgStatStatements{QueryID: %d\nQuery: %s\nCalls: %d\nRows: %d\nTotalExecTime: %f\nMeanExecTime: %f\nMinExecTime: %f\nMaxExecTime: %f\nStddevExecTime: %f}", p.QueryID, p.Query, p.Calls, p.Rows, p.TotalExecTime, p.MeanExecTime, p.MinExecTime, p.MaxExecTime, p.StddevExecTime)
 }
 
 // Merge merges the stats for the entries with the same query

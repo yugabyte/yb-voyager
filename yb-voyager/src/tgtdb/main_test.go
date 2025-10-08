@@ -19,7 +19,10 @@ package tgtdb
 
 import (
 	"context"
+	"fmt"
 	"os"
+	"strconv"
+	"strings"
 	"testing"
 
 	_ "github.com/godror/godror"
@@ -35,10 +38,17 @@ type TestDB struct {
 	TargetDB
 }
 
+// TestTargetYugabyteDB embeds TargetYugabyteDB and overrides GetYBServers for testing
+type TestTargetYugabyteDBCluster struct {
+	*TargetYugabyteDB
+	*testcontainers.YugabyteDBClusterContainer
+}
+
 var (
-	testPostgresTarget   *TestDB
-	testOracleTarget     *TestDB
-	testYugabyteDBTarget *TestDB
+	testPostgresTarget          *TestDB
+	testOracleTarget            *TestDB
+	testYugabyteDBTarget        *TestDB
+	testYugabyteDBTargetCluster *TestTargetYugabyteDBCluster
 )
 
 func createTestDBTarget(ctx context.Context, config *testcontainers.ContainerConfig) *TestDB {
@@ -116,6 +126,40 @@ func TestMain(m *testing.M) {
 	testYugabyteDBTarget = createTestDBTarget(ctx, yugabytedbConfig)
 	defer destroyTestDBTarget(ctx, testYugabyteDBTarget)
 
+	// 4. Create a yugabytedb 3 node cluster container
+	yugabytedbClusterContainer := testcontainers.NewYugabyteDBCluster(&testcontainers.ContainerConfig{
+		DBType:            testcontainers.YUGABYTEDB,
+		NodeCount:         3,
+		ReplicationFactor: 3,
+	})
+	err := yugabytedbClusterContainer.Start(ctx)
+	if err != nil {
+		utils.ErrExit("Failed to start yugabytedb cluster: %v", err)
+	}
+	host, port, err := yugabytedbClusterContainer.GetHostPort()
+	if err != nil {
+		utils.ErrExit("%v", err)
+	}
+	testYugabyteDBTargetCluster = &TestTargetYugabyteDBCluster{
+		YugabyteDBClusterContainer: yugabytedbClusterContainer,
+		TargetYugabyteDB: newTargetYugabyteDB(&TargetConf{
+			TargetDBType: testcontainers.YUGABYTEDB,
+			DBVersion:    yugabytedbClusterContainer.GetConfig().DBVersion,
+			User:         yugabytedbClusterContainer.GetConfig().User,
+			Password:     yugabytedbClusterContainer.GetConfig().Password,
+			Schema:       yugabytedbClusterContainer.GetConfig().Schema,
+			DBName:       yugabytedbClusterContainer.GetConfig().DBName,
+			Host:         host,
+			Port:         port,
+			SSLMode:      "disable",
+		}),
+	}
+	err = testYugabyteDBTargetCluster.Init()
+	if err != nil {
+		utils.ErrExit("Failed to connect to yugabytedb cluster: %w", err)
+	}
+	defer testYugabyteDBTargetCluster.Finalize()
+
 	// to avoid info level logs flooding the test output
 	log.SetLevel(log.WarnLevel)
 
@@ -125,4 +169,37 @@ func TestMain(m *testing.M) {
 	testcontainers.TerminateAllContainers()
 
 	os.Exit(exitCode)
+}
+
+// Override GetYBServers to return actual cluster node configurations for testing
+// because docker yugabyte cluster setup doesn't expose external reachable IPs in yb_servers()
+func (tyb *TestTargetYugabyteDBCluster) GetYBServers() (bool, []*TargetConf, error) {
+	hostPorts, err := tyb.GetHostPorts()
+	if err != nil {
+		return false, nil, fmt.Errorf("failed to get cluster host ports: %w", err)
+	}
+
+	var tconfs []*TargetConf
+	for _, hostPort := range hostPorts {
+		parts := strings.Split(hostPort, ":")
+		if len(parts) != 2 {
+			return false, nil, fmt.Errorf("invalid host:port format: %s", hostPort)
+		}
+
+		host := parts[0]
+		port, err := strconv.Atoi(parts[1])
+		if err != nil {
+			return false, nil, fmt.Errorf("invalid port in %s: %w", hostPort, err)
+		}
+
+		// Create TargetConf for this node
+		clone := tyb.Tconf.Clone()
+		clone.Host = host
+		clone.Port = port
+		clone.Uri = getCloneConnectionUri(clone) // rebuild this other same connection will be made
+		tconfs = append(tconfs, clone)
+	}
+
+	// Return false for loadBalancerUsed and the actual cluster node configs
+	return false, tconfs, nil
 }

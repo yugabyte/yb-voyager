@@ -169,6 +169,19 @@ func (cluster *YugabyteDBClusterContainer) GetHostPort() (string, int, error) {
 	return cluster.nodes[0].GetHostPort()
 }
 
+// GetHostPorts returns a slice of host:port strings for all nodes in the cluster
+func (cluster *YugabyteDBClusterContainer) GetHostPorts() ([]string, error) {
+	var hostPorts []string
+	for i, node := range cluster.nodes {
+		host, port, err := node.GetHostPort()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get host port for node %d: %w", i, err)
+		}
+		hostPorts = append(hostPorts, fmt.Sprintf("%s:%d", host, port))
+	}
+	return hostPorts, nil
+}
+
 func (cluster *YugabyteDBClusterContainer) GetConfig() ContainerConfig {
 	return cluster.ContainerConfig
 }
