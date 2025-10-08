@@ -237,7 +237,7 @@ main() {
 
 		step "Validate Performance Comparison Reports"
 		# Checking if the assessment reports were created
-		if [ -f "${EXPORT_DIR}/reports/performance-comparison-report.html" ] && [ -f "${EXPORT_DIR}/reports/performance-comparison-report.json" ]; then
+		if [ -f "${EXPORT_DIR}/reports/performance_comparison_report.html" ] && [ -f "${EXPORT_DIR}/reports/performance_comparison_report.json" ]; then
 			echo "Performance comparison reports created successfully."
 		else
 			echo "Error: Performance comparison reports were not created successfully."
