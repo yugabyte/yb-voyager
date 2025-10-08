@@ -189,8 +189,26 @@ func resetAllSessionVariablesOnConn(conn *pgx.Conn, sessionVariables []sqlInfo) 
 		resetSessionVariable := fmt.Sprintf("RESET %s", sessionVarName)
 		_, err = conn.Exec(context.Background(), resetSessionVariable)
 		if err != nil {
+			if strings.Contains(err.Error(), "unrecognized configuration") {
+				//Skipping unrecognized configuration
+				log.Warnf("Skipping resetting unrecognized configuration: %s", sessionVariable.stmt)
+				continue
+			}
 			return fmt.Errorf("error resetting session variable: %v", err)
 		}
+	}
+	return nil
+}
+
+func applySessionVariable(conn *pgx.Conn, sessionVariable sqlInfo) error {
+	_, err := conn.Exec(context.Background(), sessionVariable.stmt)
+	if err != nil {
+		if strings.Contains(err.Error(), "unrecognized configuration") {
+			//Skipping unrecognized configuration
+			log.Warnf("Skipping unrecognized configuration: %s", sessionVariable.stmt)
+			return nil
+		}
+		return fmt.Errorf("run query: %q on target %q: %s", sessionVariable.stmt, tconf.Host, err)
 	}
 	return nil
 }
@@ -586,19 +604,6 @@ func newTargetConn(sessionVariables []sqlInfo) *pgx.Conn {
 	}
 
 	return conn
-}
-
-func applySessionVariable(conn *pgx.Conn, sessionVariable sqlInfo) error {
-	_, err := conn.Exec(context.Background(), sessionVariable.stmt)
-	if err != nil {
-		if strings.Contains(err.Error(), "unrecognized configuration") {
-			//Skipping unrecognized configuration
-			log.Warnf("Skipping unrecognized configuration: %s", sessionVariable.stmt)
-			return nil
-		}
-		return fmt.Errorf("run query: %q on target %q: %s", sessionVariable.stmt, tconf.Host, err)
-	}
-	return nil
 }
 
 func getNoticeMessage(n *pgconn.Notice) string {
