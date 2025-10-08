@@ -1528,7 +1528,7 @@ To manually modify the schema, please refer: <a class="highlight-link" href="htt
 	// Oracle CLOB Data Export Note
 	ORACLE_CLOB_DATA_EXPORT_NOTE = NoteInfo{
 		Type: GeneralNotes,
-		Text: `Oracle CLOB data export is now supported via the experimental flag --allow-oracle-clob-data-export. This flag enables exporting CLOB columns during offline migration from Oracle to YugabyteDB. Note that this feature is experimental and has limitations: it's only supported for offline migration (not live migration or BETA_FAST_DATA_EXPORT), and CLOB data may have performance implications during export and import. Use this flag with caution and test thoroughly in your environment.`,
+		Text: `Oracle CLOB data export is now supported via the experimental flag --allow-oracle-clob-data-export. This flag enables exporting CLOB columns during offline migration from Oracle to YugabyteDB. Note that this feature is experimental and has limitations: it's only supported for offline migration (not live migration or BETA_FAST_DATA_EXPORT), and CLOB data may have performance implications during export and import. Use this flag with caution and test thoroughly in your environment. For more information about Oracle CLOB limitations, see: https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/oracle/#large-sized-clob-data-is-not-supported`,
 	}
 )
 
