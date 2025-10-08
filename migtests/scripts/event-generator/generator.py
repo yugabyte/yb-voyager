@@ -1,8 +1,5 @@
 import random
 import psycopg2
-import string
-from faker import Faker
-import subprocess
 from utils import generate_table_schemas
 from utils import (
     build_bit_cast_expr,
@@ -10,13 +7,7 @@ from utils import (
     fetch_enum_values_for_column,
     fetch_array_types_for_column,
 )
-import json
-import ipaddress
-import re
 import time
-from psycopg2 import pool
-import decimal
-import uuid
 
 
 # Connect to PostgreSQL
