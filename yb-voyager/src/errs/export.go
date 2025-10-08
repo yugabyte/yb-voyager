@@ -61,7 +61,7 @@ func (e *ExportDataError) CurrentFlow() string {
 	return e.currentFlow
 }
 
-func (e *ExportDataError) CompletedCalls() *stack.Stack {
+func (e *ExportDataError) CallExecutionHistory() *stack.Stack {
 	return e.callExecutionHistory
 }
 
@@ -88,10 +88,10 @@ func NewExportDataError(flow string, failedStep string, err error) *ExportDataEr
 }
 
 // NewExportDataErrorWithCompletedFlows creates a new error with flow context and completed flows
-func NewExportDataErrorWithCompletedCalls(currentFlow string, completedCalls *stack.Stack, failedStep string, err error) *ExportDataError {
+func NewExportDataErrorWithCompletedCalls(currentFlow string, callExecutionHistory *stack.Stack, failedStep string, err error) *ExportDataError {
 	return &ExportDataError{
 		currentFlow:          currentFlow,
-		callExecutionHistory: completedCalls,
+		callExecutionHistory: callExecutionHistory,
 		failedStep:           failedStep,
 		err:                  err,
 	}
