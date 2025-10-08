@@ -66,12 +66,12 @@ type SchemaOptimizationReport struct {
 
 // HasOptimizations returns true if any optimizations were applied
 func (s *SchemaOptimizationReport) HasOptimizations() bool {
-	return !s.RedundantIndexChange.IsEmpty() ||
-		!s.TableColocationRecommendation.IsEmpty() ||
-		!s.MviewColocationRecommendation.IsEmpty() ||
-		!s.PKHashSplittingChange.IsEmpty() ||
-		!s.SecondaryIndexToRangeChange.IsEmpty() ||
-		!s.UKRangeSplittingChange.IsEmpty()
+	return s.RedundantIndexChange.Exist() ||
+		s.TableColocationRecommendation.Exist() ||
+		s.MviewColocationRecommendation.Exist() ||
+		s.PKHashSplittingChange.Exist() ||
+		s.SecondaryIndexToRangeChange.Exist() ||
+		s.UKRangeSplittingChange.Exist()
 }
 
 // NewSchemaOptimizationReport creates a new SchemaOptimizationReport with the given metadata
@@ -94,9 +94,9 @@ type RedundantIndexChange struct {
 	IsApplied                bool                `json:"is_applied"`
 }
 
-// IsEmpty returns true if no redundant indexes were removed
-func (r *RedundantIndexChange) IsEmpty() bool {
-	return r == nil || len(r.TableToRemovedIndexesMap) == 0
+// Exist returns true if no redundant indexes were removed
+func (r *RedundantIndexChange) Exist() bool {
+	return r != nil && len(r.TableToRemovedIndexesMap) > 0
 }
 
 // NewRedundantIndexChange creates a new RedundantIndexChange with default values
@@ -127,9 +127,9 @@ type ColocationRecommendationChange struct {
 	IsApplied         bool     `json:"is_applied"`
 }
 
-// IsEmpty returns true if no Colocation recommendations were applied
-func (a *ColocationRecommendationChange) IsEmpty() bool {
-	return a == nil || (len(a.ShardedObjects) == 0)
+// Exist returns true if no Colocation recommendations were applied
+func (a *ColocationRecommendationChange) Exist() bool {
+	return a != nil && (len(a.ShardedObjects) > 0)
 }
 
 // NewAppliedColocationRecommendationChange creates a new AppliedColocationRecommendationChange with default values
@@ -178,7 +178,7 @@ func NewSecondaryIndexToRangeChange(applied bool, referenceFile string, modified
 		title = "Secondary Indexes to be range-sharded - Not Applied"
 		description = "Due to the skip-performance-recommendations flag, all the btree indexes were not converted to range-sharded indexes. Modify the indexes to be range-sharded manually."
 	}
-	description += "The range-sharded indexes helps in giving the flexibility to execute range-based queries, and avoids potential hotspots that comes with hash-sharded indexes such as index on low cardinality column, index on high percentage of NULLs, and index on high percentage of particular value. Refer to sharding strategy in documentation for more information."
+	description += "The range-sharded indexes helps in giving the flexibility to execute range-based queries, and avoids potential hotspots that come with hash-sharded indexes such as index on low cardinality column, index on high percentage of NULLs, and index on high percentage of particular value. Refer to sharding strategy in documentation for more information."
 	return &SecondaryIndexToRangeChange{
 		Title:       title,
 		Description: description,
@@ -194,8 +194,8 @@ func NewSecondaryIndexToRangeChange(applied bool, referenceFile string, modified
 	}
 }
 
-func (s *SecondaryIndexToRangeChange) IsEmpty() bool {
-	return s == nil || len(s.ModifiedIndexes) == 0
+func (s *SecondaryIndexToRangeChange) Exist() bool {
+	return s != nil && len(s.ModifiedIndexes) > 0
 }
 
 type PKHashSplittingChange struct {
@@ -222,8 +222,8 @@ func NewPKHashSplittingChange(applied bool) *PKHashSplittingChange {
 	}
 }
 
-func (p *PKHashSplittingChange) IsEmpty() bool {
-	return p == nil
+func (p *PKHashSplittingChange) Exist() bool {
+	return p != nil
 }
 
 type UKRangeSplittingChange struct {
@@ -233,7 +233,6 @@ type UKRangeSplittingChange struct {
 	IsApplied               bool              `json:"is_applied"`
 }
 
- 
 func NewUKRangeSplittingChange(applied bool) *UKRangeSplittingChange {
 	title := "Unique Key Constraints to be range-sharded - Applied"
 	description := "The Unique key constraints were configured to be range-sharded in YugabyteDB."
@@ -241,7 +240,7 @@ func NewUKRangeSplittingChange(applied bool) *UKRangeSplittingChange {
 		title = "Unique Key Constraints to be range-sharded - Not Applied"
 		description = "Due to the skip-performance-optimizations flag, the Unique key constraints were not configured to be range-sharded. Modify the Unique key constraints to be range-sharded manually."
 	}
-	description += "The range-sharded indexes helps in giving the flexibility to execute range-based queries, and avoids potential hotspots that comes with hash-sharded indexes such as index on high percentage of NULLs. Refer to sharding strategy in documentation for more information."
+	description += "The range-sharded indexes helps in giving the flexibility to execute range-based queries, and avoids potential hotspot that comes with hash-sharded indexes such as index on high percentage of NULLs. Refer to sharding strategy in documentation for more information."
 	return &UKRangeSplittingChange{
 		Title:       title,
 		Description: description,
@@ -253,8 +252,8 @@ func NewUKRangeSplittingChange(applied bool) *UKRangeSplittingChange {
 	}
 }
 
-func (p *UKRangeSplittingChange) IsEmpty() bool {
-	return p == nil
+func (p *UKRangeSplittingChange) Exist() bool {
+	return p != nil
 }
 
 func buildRedundantIndexChange(indexTransformer *sqltransformer.IndexFileTransformer) *RedundantIndexChange {

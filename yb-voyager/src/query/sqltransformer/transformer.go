@@ -239,7 +239,7 @@ order of statements after transformation:
 6. Other statements
 */
 
-func (t *Transformer) AddHashSplittingONForPKConstraintsAndOFFForUKConstraints(stmts []*pg_query.RawStmt) ([]*pg_query.RawStmt, error) {
+func (t *Transformer) AddShardingStrategyForConstraints(stmts []*pg_query.RawStmt) ([]*pg_query.RawStmt, error) {
 	log.Infof("adding hash splitting on for pk constraints to the schema")
 	selectSetStatements := make([]*pg_query.RawStmt, 0)
 	createAndAlterTableWithPK := make([]*pg_query.RawStmt, 0)

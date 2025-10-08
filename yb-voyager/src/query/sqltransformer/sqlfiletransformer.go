@@ -199,7 +199,7 @@ func (t *TableFileTransformer) Transform(file string) (string, error) {
 	}
 
 	if t.shouldAddHashSplitting() {
-		parseTree.Stmts, err = transformer.AddHashSplittingONForPKConstraintsAndOFFForUKConstraints(parseTree.Stmts)
+		parseTree.Stmts, err = transformer.AddShardingStrategyForConstraints(parseTree.Stmts)
 		if err != nil {
 			return "", fmt.Errorf("failed to add hash splitting on for pk constraints: %w", err)
 		}
