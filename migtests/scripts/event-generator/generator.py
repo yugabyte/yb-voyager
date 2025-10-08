@@ -5,7 +5,6 @@ from faker import Faker
 import subprocess
 from utils import generate_table_schemas
 from utils import (
-    fetch_bit_info_for_column,
     build_bit_cast_expr,
     generate_random_data,
     fetch_enum_values_for_column,
@@ -33,7 +32,7 @@ print("tsm_system_rows extension is present or created successfully")
 # cursor.execute("SET session_replication_role = 'replica';")
 
 # Initialize Faker for generating random data
-fake = Faker()
+# fake = Faker()
 
 print("Generator starting")
 print("Note: No. of iterations may not equal number of events")
@@ -57,51 +56,27 @@ table_schemas = generate_table_schemas(cursor, schema_name=schema_name, exclude_
 
 print("Schema analysed")
 
-def fetch_bit_info_for_column(table_schemas, table_name, column_name):
-    if table_name in table_schemas and "bit_info" in table_schemas[table_name]:
-        return table_schemas[table_name]["bit_info"].get(column_name)
-    return None
-
-
-
-def execute_insert_retry(table_name, columns, values_list, max_retries=50):
-    global num_iterations
+def execute_with_retry(run_once_fn, rebuild_fn, *, max_retries=50):
     retry_count = 0
-    while retry_count < max_retries:
+    while retry_count <= max_retries:
         try:
-            query_to_run = f"INSERT INTO {table_name} ({columns}) VALUES {values_list}"
-            #print(query_to_run)
-            cursor.execute(query_to_run)
+            run_once_fn()
             return True
         except psycopg2.errors.UniqueViolation as e:
             conn.rollback()
             retry_count += 1
-            num_iterations += 1
-            print(f"Retrying INSERT operation (attempt {retry_count} of {max_retries})")
+            print(f"Retrying operation after UniqueViolation (attempt {retry_count} of {max_retries})")
             print(f"Error details: {e}")
-            # Generate new values for INSERT
-            values_list = []
-            for _ in range(number_of_rows_to_insert):
-                values = []
-                for column_name, data_type in table_schemas[table_name]["columns"].items():
-                    if "bit" in data_type.lower():
-                        values.append(build_bit_cast_expr(table_name, column_name, data_type))
-                    elif data_type != "USER-DEFINED" and data_type != "ARRAY":
-                        values.append(f"'{generate_random_data(data_type, table_name, None, None)}'")
-                    else:
-                        enum_values = fetch_enum_values_for_column(table_schemas, table_name, column_name)
-                        array_types = fetch_array_types_for_column(table_schemas, table_name, column_name)
-                        value = generate_random_data(data_type, table_name, enum_values, array_types)
-                        values.append(f"'{value}'" if value is not None else "NULL")
-                values_list.append(f"({', '.join(values)})")
-
-            values_list = ", ".join(values_list)
-    print(f"Reached maximum retry attempts for INSERT operation. Skipping...")
+            rebuild_fn()
+        except Exception:
+            # For non-unique errors, just propagate after rollback
+            conn.rollback()
+            raise
+    print("Reached maximum retry attempts. Skipping...")
     return False
 
 
 num_iterations = 20000 # Specify the number of iterations
-successful_operations = 0 # WIP
 wait_after_operations = 200000  # Adjust this value to set the desired wait interval
 wait_duration_seconds = 0  # Adjust this value to set the duration of the wait in seconds
 
@@ -138,7 +113,7 @@ for i in range(num_iterations):
                 values = []
                 for column_name, data_type in table_schemas[table_name]["columns"].items():
                     if "bit" in data_type.lower():
-                        values.append(build_bit_cast_expr(table_name, column_name, data_type))
+                        values.append(build_bit_cast_expr(table_schemas, table_name, column_name, data_type))
                     elif data_type != "USER-DEFINED" and data_type != "ARRAY":
                         values.append(f"'{generate_random_data(data_type, table_name, None, None)}'")
                     else:
@@ -149,9 +124,33 @@ for i in range(num_iterations):
                 values_list.append(f"({', '.join(values)})")
 
             values_list = ", ".join(values_list)
-            success = execute_insert_retry(table_name, columns, values_list)
+            values_holder = {"values_list": values_list}
+
+            # Prepare callbacks for retryable execution
+            def run_once():
+                query_to_run = f"INSERT INTO {table_name} ({columns}) VALUES {values_holder['values_list']}"
+                cursor.execute(query_to_run)
+
+            def rebuild():
+                regenerated_rows = []
+                for _ in range(number_of_rows_to_insert):
+                    vals = []
+                    for column_name, data_type in table_schemas[table_name]["columns"].items():
+                        if "bit" in data_type.lower():
+                            vals.append(build_bit_cast_expr(table_schemas, table_name, column_name, data_type))
+                        elif data_type != "USER-DEFINED" and data_type != "ARRAY":
+                            vals.append(f"'{generate_random_data(data_type, table_name, None, None)}'")
+                        else:
+                            enum_values = fetch_enum_values_for_column(table_schemas, table_name, column_name)
+                            array_types = fetch_array_types_for_column(table_schemas, table_name, column_name)
+                            v = generate_random_data(data_type, table_name, enum_values, array_types)
+                            vals.append(f"'{v}'" if v is not None else "NULL")
+                    regenerated_rows.append(f"({', '.join(vals)})")
+                values_holder["values_list"] = ", ".join(regenerated_rows)
+
+            success = execute_with_retry(run_once, rebuild, max_retries=50)
             if success:
-                successful_operations += 1
+                pass # No successful_operations += 1 here as it's removed
         
         elif operation == "UPDATE":
             num_rows_to_update = 20 # Set the number of rows to update in 1 operation
@@ -175,14 +174,13 @@ for i in range(num_iterations):
 
                 # Randomly choose the columns to update
                 columns_to_update = random.sample(updateable_columns, num_columns_to_update)
-                random_column_to_randomise = random.choice(updateable_columns)
                 # Build SET clause with special handling for bit/varbit
                 set_parts = []
                 params = []
                 for col in columns_to_update:
                     data_type = columns[col]
                     if "bit" in data_type.lower():
-                        expr = build_bit_cast_expr(table_name, col, data_type)
+                        expr = build_bit_cast_expr(table_schemas, table_name, col, data_type)
                         set_parts.append(f"{col} = {expr}")
                     else:
                         if data_type == "USER-DEFINED":
@@ -208,7 +206,7 @@ for i in range(num_iterations):
                 try:
                     cursor.execute(query_to_run, params)
                     conn.commit()
-                    successful_operations += 1
+                    # successful_operations += 1 # This line is removed
                     break  # Break out of the loop if the update is successful
                 except Exception as e:
                     #print(f"Error executing query: {query_to_run} with params: {params}")
@@ -227,7 +225,7 @@ for i in range(num_iterations):
             cursor.execute(query_to_run, params)
 
             conn.commit()
-            successful_operations += 1
+            # successful_operations += 1 # This line is removed
 
         if i % wait_after_operations == 0 and i != 0:
             print("-" * 50)

@@ -1,4 +1,3 @@
-import psycopg2
 import random
 import string
 from faker import Faker
@@ -8,8 +7,21 @@ import re
 import decimal
 import uuid
 
-def get_table_description(cursor, table_name):
-    cursor.execute(f"SELECT column_name, data_type FROM information_schema.columns WHERE table_name = %s", (table_name,))
+def get_table_description(cursor, table_name, schema_name=None):
+    if schema_name:
+        cursor.execute(
+            """
+            SELECT column_name, data_type
+            FROM information_schema.columns
+            WHERE table_schema = %s AND table_name = %s
+            """,
+            (schema_name, table_name,),
+        )
+    else:
+        cursor.execute(
+            f"SELECT column_name, data_type FROM information_schema.columns WHERE table_name = %s",
+            (table_name,),
+        )
     column_info = cursor.fetchall()
 
     for i, (column_name, data_type) in enumerate(column_info):
@@ -26,7 +38,7 @@ def get_table_description(cursor, table_name):
 
     return column_info
 
-def convert_pg_table_description(cursor, column_info, table_name):
+def convert_pg_table_description(cursor, column_info, table_name, schema_name=None):
     columns = {}
     array_types = {}
     enum_values = {}
@@ -62,13 +74,23 @@ def convert_pg_table_description(cursor, column_info, table_name):
         # Check for array types
         if 'ARRAY' in data_type.upper():
             # Get the actual array type using the specified query
-            array_type_query = f"""
-                SELECT udt_name::regtype
-                FROM information_schema.columns 
-                WHERE table_name = %s
-                  AND column_name = %s
-            """
-            cursor.execute(array_type_query, (table_name, column_name))
+            if schema_name:
+                array_type_query = f"""
+                    SELECT udt_name::regtype
+                    FROM information_schema.columns 
+                    WHERE table_schema = %s
+                      AND table_name = %s
+                      AND column_name = %s
+                """
+                cursor.execute(array_type_query, (schema_name, table_name, column_name))
+            else:
+                array_type_query = f"""
+                    SELECT udt_name::regtype
+                    FROM information_schema.columns 
+                    WHERE table_name = %s
+                      AND column_name = %s
+                """
+                cursor.execute(array_type_query, (table_name, column_name))
             array_type_result = cursor.fetchone()
 
             if array_type_result:
@@ -77,16 +99,37 @@ def convert_pg_table_description(cursor, column_info, table_name):
                 # Use the original data_type if the query doesn't return a result
                 array_types[column_name] = data_type
 
-    # Determine the primary key column by querying information_schema
-    primary_key_query = f"""
-        SELECT column_name
-        FROM information_schema.key_column_usage
-        WHERE table_name = %s
-    """
-    cursor.execute(primary_key_query, (table_name,))
-    result = cursor.fetchone()
-
-    primary_key = result[0] if result else None
+    # Determine the primary key column
+    if schema_name:
+        primary_key_query = f"""
+            SELECT kcu.column_name
+            FROM information_schema.table_constraints tc
+            JOIN information_schema.key_column_usage kcu
+              ON tc.constraint_name = kcu.constraint_name
+             AND tc.table_schema = kcu.table_schema
+             AND tc.table_name = kcu.table_name
+            WHERE tc.table_schema = %s
+              AND tc.table_name = %s
+              AND tc.constraint_type = 'PRIMARY KEY'
+            ORDER BY kcu.ordinal_position
+        """
+        cursor.execute(primary_key_query, (schema_name, table_name))
+        result = cursor.fetchone()
+        primary_key = result[0] if result else None
+    else:
+        # Fallback using pg_catalog with search_path resolution via regclass
+        primary_key_query = f"""
+            SELECT a.attname
+            FROM pg_index i
+            JOIN pg_class c ON c.oid = i.indrelid
+            JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum = ANY(i.indkey)
+            WHERE c.oid = %s::regclass
+              AND i.indisprimary
+            ORDER BY a.attnum
+        """
+        cursor.execute(primary_key_query, (table_name,))
+        result = cursor.fetchone()
+        primary_key = result[0] if result else None
 
     # Determine enum values for USER-DEFINED columns
     user_defined_columns = [(column_name, data_type) for column_name, data_type in column_info if not data_type.startswith('_')]
@@ -145,10 +188,10 @@ def generate_table_schemas(cursor, schema_name=None, manual_table_list=None, exc
 
     table_schemas = {}
     for table_name in table_list:
-        column_info = get_table_description(cursor, table_name)
+        column_info = get_table_description(cursor, table_name, schema_name)
 
         if column_info:
-            result = convert_pg_table_description(cursor, column_info, table_name)
+            result = convert_pg_table_description(cursor, column_info, table_name, schema_name)
             table_schemas.update(result)
         else:
             print(f"Table '{table_name}' not found.")
@@ -209,8 +252,6 @@ def generate_random_data(data_type, table_name, enum_values=None, array_types=No
             precision, scale = map(int, match.groups())
         else:
             precision, scale = 7, 2
-            # Handle case where precision and scale are not explicitly given
-            precision, scale = (7, 2) if (precision, scale) == (-1, 65531) else (precision, scale)
 
         # max_value = 10 ** (precision - scale) - 10 ** -scale
         # return round(random.uniform(-max_value, max_value), scale)
