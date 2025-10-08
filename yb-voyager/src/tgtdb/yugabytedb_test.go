@@ -467,6 +467,10 @@ func runPgStatStatementsTest(t *testing.T, testQueries map[string]struct {
 	// Validate results: check that our test queries have correct call counts
 	foundQueries := make(map[string]bool)
 	for _, actualPgss := range actualStatements {
+		// verify that an fetched query doesn't have calls = 0 by any chance
+		assert.Greater(t, actualPgss.Calls, int64(0),
+			"Query %s should have positive calls", actualPgss.Query)
+
 		for queryName, expectedPgss := range testQueries {
 			if actualPgss.Query != expectedPgss.parameterized {
 				continue
