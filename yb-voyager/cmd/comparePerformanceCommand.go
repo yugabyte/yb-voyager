@@ -46,6 +46,11 @@ Prerequisites:
   - stats collection(pg_stat_statements) must be enabled on the target YugabyteDB database`,
 
 	PreRun: func(cmd *cobra.Command, args []string) {
+		err := retrieveMigrationUUID()
+		if err != nil {
+			utils.ErrExit("failed to get migration UUID: %w", err)
+		}
+
 		// required to decide the defaults values for default ssl mode, port, schema, etc.
 		tconf.TargetDBType = YUGABYTEDB
 		importerRole = TARGET_DB_IMPORTER_ROLE
