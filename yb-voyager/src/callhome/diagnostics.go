@@ -87,7 +87,15 @@ type Payload struct {
 
 // SHOULD NOT REMOVE THESE (host, db_type, db_version, total_db_size_bytes) FIELDS of SourceDBDetails as parsing these specifically here
 // https://github.com/yugabyte/yugabyte-growth/blob/ad5df306c50c05136df77cd6548a1091ae577046/diagnostics_v2/main.py#L549
+
+/*
+Version History
+1.0: Introduced DBName and SchemaNames fields
+*/
+var SOURCE_DB_DETAILS_PAYLOAD_VERSION = "1.0"
+
 type SourceDBDetails struct {
+	PayloadVersion     string   `json:"payload_version"`
 	Host               string   `json:"host"` //keeping it empty for now, as field is parsed in big query app
 	DBType             string   `json:"db_type"`
 	DBVersion          string   `json:"db_version"`
