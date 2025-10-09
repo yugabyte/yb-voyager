@@ -218,7 +218,7 @@ func shouldSkipDDL(stmt string, objType string) (bool, error) {
 	return false, nil
 }
 
-func executeSqlStmtWithRetries(tgtConn **TargetConn, sqlInfo sqlInfo, objType string, sessionVariables []sqlInfo) error {
+func executeSqlStmtWithRetries(tgtConn **ImportSchemaTargetConn, sqlInfo sqlInfo, objType string, sessionVariables []sqlInfo) error {
 	var err error
 	var stmtNotice *pgconn.Notice
 	log.Infof("On %s run query:\n%s\n", tconf.Host, sqlInfo.formattedStmt)
@@ -230,7 +230,7 @@ func executeSqlStmtWithRetries(tgtConn **TargetConn, sqlInfo sqlInfo, objType st
 		return fmt.Errorf("error applying session variable: %v", err)
 	}
 
-	defer func(conn *TargetConn) error {
+	defer func(conn *ImportSchemaTargetConn) error {
 		if conn != nil {
 			return nil
 		}
@@ -348,7 +348,7 @@ func importDeferredStatements() {
 	maxIterations := len(deferredSqlStmts)
 
 	var err error
-	var tgtConn *TargetConn
+	var tgtConn *ImportSchemaTargetConn
 	var finalFailedDeferredStmts []string
 	var sessionVariablesOfPreviousDeferredStmt []sqlInfo
 
@@ -518,18 +518,18 @@ func dropIdx(conn *pgx.Conn, idxName string) error {
 	return nil
 }
 
-type TargetConn struct {
+type ImportSchemaTargetConn struct {
 	conn **pgx.Conn
 }
 
-func (tc *TargetConn) GetConn() *pgx.Conn {
+func (tc *ImportSchemaTargetConn) GetConn() *pgx.Conn {
 	return *tc.conn
 }
 
-func (tc *TargetConn) Close(ctx context.Context) error {
+func (tc *ImportSchemaTargetConn) Close(ctx context.Context) error {
 	return (*tc.conn).Close(ctx)
 }
-func (tc *TargetConn) ResetSessionVariables(sessionVariables []sqlInfo) error {
+func (tc *ImportSchemaTargetConn) ResetSessionVariables(sessionVariables []sqlInfo) error {
 	for _, sessionVariable := range sessionVariables {
 		sessionVarName, err := queryparser.GetSessionVariableName(sessionVariable.stmt)
 		if err != nil {
@@ -548,7 +548,7 @@ func (tc *TargetConn) ResetSessionVariables(sessionVariables []sqlInfo) error {
 	}
 	return nil
 }
-func (tc *TargetConn) ApplySessionVariables(sessionVariables []sqlInfo) error {
+func (tc *ImportSchemaTargetConn) ApplySessionVariables(sessionVariables []sqlInfo) error {
 	for _, sessionVariable := range sessionVariables {
 		_, err := (*tc.conn).Exec(context.Background(), sessionVariable.stmt)
 		if err != nil {
@@ -563,18 +563,18 @@ func (tc *TargetConn) ApplySessionVariables(sessionVariables []sqlInfo) error {
 	return nil
 }
 
-func (tc *TargetConn) Exec(stmt string) error {
+func (tc *ImportSchemaTargetConn) Exec(stmt string) error {
 	_, err := (*tc.conn).Exec(context.Background(), stmt)
 	return err
 }
 
-func (tc *TargetConn) ExecStmtAndGetNotice(stmt string) (*pgconn.Notice, error) {
+func (tc *ImportSchemaTargetConn) ExecStmtAndGetNotice(stmt string) (*pgconn.Notice, error) {
 	notice = nil // reset notice.
 	_, err := (*tc.conn).Exec(context.Background(), stmt)
 	return notice, err
 }
 
-func newTargetConn() *TargetConn {
+func newTargetConn() *ImportSchemaTargetConn {
 	// save notice in global variable
 	noticeHandler := func(conn *pgconn.PgConn, n *pgconn.Notice) {
 		// ALTER TABLE .. ADD PRIMARY KEY throws the following notice in YugabyteDB.
@@ -621,7 +621,7 @@ func newTargetConn() *TargetConn {
 		setOrafceSearchPath(conn)
 	}
 
-	return &TargetConn{conn: &conn}
+	return &ImportSchemaTargetConn{conn: &conn}
 }
 
 func getNoticeMessage(n *pgconn.Notice) string {

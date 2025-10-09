@@ -256,24 +256,18 @@ func (t *Transformer) AddShardingStrategyForConstraints(stmts []*pg_query.RawStm
 		}
 		switch ddlObject.(type) {
 		case *queryparser.Table:
-			//CREATE TABLE
 			createAndAlterTableWithPK = append(createAndAlterTableWithPK, stmt)
 		case *queryparser.AlterTable:
-			//ALTER TABLE statements
 			alterTable, _ := ddlObject.(*queryparser.AlterTable)
 			if alterTable.ConstraintType == queryparser.PRIMARY_CONSTR_TYPE {
-				//ALTER TABLE statements with PRIMARY KEY constraints
 				createAndAlterTableWithPK = append(createAndAlterTableWithPK, stmt)
 			} else if alterTable.ConstraintType == queryparser.UNIQUE_CONSTR_TYPE {
-				//ALTER TABLE statements with UNIQUE constraints
 				AlterTableUKConstraints = append(AlterTableUKConstraints, stmt)
 			} else {
-				//Other statements
 				otherStatements = append(otherStatements, stmt)
 			}
 		default:
-			//Other statements
-			otherStatements = append(otherStatements, stmt) //Other statements
+			otherStatements = append(otherStatements, stmt)
 		}
 	}
 

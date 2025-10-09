@@ -127,7 +127,7 @@ type ColocationRecommendationChange struct {
 	IsApplied         bool     `json:"is_applied"`
 }
 
-// Exist returns true if no Colocation recommendations were applied
+// Exist returns true if no sharded objects were present
 func (a *ColocationRecommendationChange) Exist() bool {
 	return a != nil && (len(a.ShardedObjects) > 0)
 }

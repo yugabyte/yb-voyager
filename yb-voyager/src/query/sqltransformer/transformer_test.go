@@ -1,5 +1,3 @@
-//go:build unit
-
 /*
 Copyright (c) YugabyteDB, Inc.
 
@@ -530,116 +528,178 @@ func TestModifySecondaryIndexesToRange(t *testing.T) {
 
 }
 
-func TestHashSplittingChangeBasicCase(t *testing.T) {
-	sqlFileContent := `
-		SET statement_timeout = 0;
-		SET lock_timeout = 0;
-		SET idle_in_transaction_session_timeout = 0;
-		SET transaction_timeout = 0;
-		SET client_encoding = 'UTF8';
-		SET standard_conforming_strings = on;
-		SELECT pg_catalog.set_config('search_path', '', false);
-		SET xmloption = content;
-		SET client_min_messages = warning;
-		SET row_security = off;
+func TestHashSplittingChanges(t *testing.T) {
+	type testCase struct {
+		sqlFileContent      string
+		expectedSqlsInOrder []string
+	}
+	cases := []testCase{
+		{
+			sqlFileContent: `
+			SET statement_timeout = 0;
+			SET lock_timeout = 0;
+			SET idle_in_transaction_session_timeout = 0;
+			SET transaction_timeout = 0;
+			SET client_encoding = 'UTF8';
+			SET standard_conforming_strings = on;
+			SELECT pg_catalog.set_config('search_path', '', false);
+			SET xmloption = content;
+			SET client_min_messages = warning;
+			SET row_security = off;
 
-		CREATE TABLE t(id int, CONSTRAINT pk PRIMARY KEY (id));
-		CREATE TABLE t_2(id int, id2 int, CONSTRAINT pk1 PRIMARY KEY (id2));
-		CREATE TABLE t_3(id int, val text);
-		ALTER TABLE t_2 ADD CONSTRAINT uk UNIQUE (id2);
-		ALTER TABLE t_3 ADD CONSTRAINT uk1 UNIQUE (val);
-		ALTER TABLE t_3 ADD CONSTRAINT fk FOREIGN KEY (id) REFERENCES t (id);
-	`
+			CREATE TABLE t(id int, CONSTRAINT pk PRIMARY KEY (id));
+			CREATE TABLE t_2(id int, id2 int, CONSTRAINT pk1 PRIMARY KEY (id2));
+			CREATE TABLE t_3(id int, val text);
+			ALTER TABLE t_2 ADD CONSTRAINT uk UNIQUE (id2);
+			ALTER TABLE t_3 ADD CONSTRAINT uk1 UNIQUE (val);
+			ALTER TABLE t_3 ADD CONSTRAINT fk FOREIGN KEY (id) REFERENCES t (id);`,
+			expectedSqlsInOrder: []string{
+				`SET statement_timeout TO 0;`,
+				`SET lock_timeout TO 0;`,
+				`SET idle_in_transaction_session_timeout TO 0;`,
+				`SET transaction_timeout TO 0;`,
+				`SET client_encoding TO "UTF8";`,
+				`SET standard_conforming_strings TO ON;`,
+				`SELECT pg_catalog.set_config('search_path', '', false);`,
+				`SET xmloption TO content;`,
+				`SET client_min_messages TO warning;`,
+				`SET row_security TO OFF;`,
+				`SET yb_use_hash_splitting_by_default TO ON;`,
+				`CREATE TABLE t (id int, CONSTRAINT pk PRIMARY KEY (id));`,
+				`CREATE TABLE t_2 (id int, id2 int, CONSTRAINT pk1 PRIMARY KEY (id2));`,
+				`CREATE TABLE t_3 (id int, val text);`,
+				`SET yb_use_hash_splitting_by_default TO OFF;`,
+				`ALTER TABLE t_2 ADD CONSTRAINT uk UNIQUE (id2);`,
+				`ALTER TABLE t_3 ADD CONSTRAINT uk1 UNIQUE (val);`,
+				`ALTER TABLE t_3 ADD CONSTRAINT fk FOREIGN KEY (id) REFERENCES t (id);`,
+			},
+		},
+		{
+			sqlFileContent: `
+				SET statement_timeout = 0;
+				SET lock_timeout = 0;
+				SET idle_in_transaction_session_timeout = 0;
+				SET transaction_timeout = 0;
+				SET client_encoding = 'UTF8';
+				SET row_security = off;
 
-	parseTree, err := queryparser.Parse(sqlFileContent)
-	testutils.FatalIfError(t, err)
+				CREATE TABLE t(id int, CONSTRAINT pk PRIMARY KEY (id));
+				CREATE TABLE t_2(id int, id2 int);
+				CREATE TABLE t_3(id int, val text);
+				ALTER TABLE t_2 ADD CONSTRAINT pk1 PRIMARY KEY (id2);
+				ALTER TABLE t_2 ADD CONSTRAINT uk UNIQUE (id2);
+				ALTER TABLE t_3 ADD CONSTRAINT uk1 UNIQUE (val);
+				SET standard_conforming_strings = on;
+				SELECT pg_catalog.set_config('search_path', '', false);
+				SET xmloption = content;
+				SET client_min_messages = warning;
+				ALTER TABLE t_3 ADD CONSTRAINT fk FOREIGN KEY (id) REFERENCES t (id);
+			`,
+			expectedSqlsInOrder: []string{
+				`SET statement_timeout TO 0;`,
+				`SET lock_timeout TO 0;`,
+				`SET idle_in_transaction_session_timeout TO 0;`,
+				`SET transaction_timeout TO 0;`,
+				`SET client_encoding TO "UTF8";`,
+				`SET row_security TO OFF;`,
+				`SET standard_conforming_strings TO ON;`,
+				`SELECT pg_catalog.set_config('search_path', '', false);`,
+				`SET xmloption TO content;`,
+				`SET client_min_messages TO warning;`,
+				`SET yb_use_hash_splitting_by_default TO ON;`,
+				`CREATE TABLE t (id int, CONSTRAINT pk PRIMARY KEY (id));`,
+				`CREATE TABLE t_2 (id int, id2 int);`,
+				`CREATE TABLE t_3 (id int, val text);`,
+				`ALTER TABLE t_2 ADD CONSTRAINT pk1 PRIMARY KEY (id2);`,
+				`SET yb_use_hash_splitting_by_default TO OFF;`,
+				`ALTER TABLE t_2 ADD CONSTRAINT uk UNIQUE (id2);`,
+				`ALTER TABLE t_3 ADD CONSTRAINT uk1 UNIQUE (val);`,
+				`ALTER TABLE t_3 ADD CONSTRAINT fk FOREIGN KEY (id) REFERENCES t (id);`,
+			},
+		},
+		{
+			sqlFileContent: `
+				SET statement_timeout = 0;
+				SET lock_timeout = 0;
+				SET idle_in_transaction_session_timeout = 0;
+				SET transaction_timeout = 0;
+				SET client_encoding = 'UTF8';
+				SET row_security = off;
+				SET standard_conforming_strings = on;
+				SELECT pg_catalog.set_config('search_path', '', false);
+				SET xmloption = content;
+				SET client_min_messages = warning;
 
-	transformer := NewTransformer()
-	transformedStmts, err := transformer.AddShardingStrategyForConstraints(parseTree.Stmts)
-	testutils.FatalIfError(t, err)
-
-	finalSqlStmts, err := queryparser.DeparseRawStmts(transformedStmts)
-	testutils.FatalIfError(t, err)
-
-	expectedSqls := []string{
-		`SET statement_timeout TO 0;`,
-		`SET lock_timeout TO 0;`,
-		`SET idle_in_transaction_session_timeout TO 0;`,
-		`SET transaction_timeout TO 0;`,
-		`SET client_encoding TO "UTF8";`,
-		`SET standard_conforming_strings TO ON;`,
-		`SELECT pg_catalog.set_config('search_path', '', false);`,
-		`SET xmloption TO content;`,
-		`SET client_min_messages TO warning;`,
-		`SET row_security TO OFF;`,
-		`SET yb_use_hash_splitting_by_default TO ON;`,
-		`CREATE TABLE t (id int, CONSTRAINT pk PRIMARY KEY (id));`,
-		`CREATE TABLE t_2 (id int, id2 int, CONSTRAINT pk1 PRIMARY KEY (id2));`,
-		`CREATE TABLE t_3 (id int, val text);`,
-		`SET yb_use_hash_splitting_by_default TO OFF;`,
-		`ALTER TABLE t_2 ADD CONSTRAINT uk UNIQUE (id2);`,
-		`ALTER TABLE t_3 ADD CONSTRAINT uk1 UNIQUE (val);`,
-		`ALTER TABLE t_3 ADD CONSTRAINT fk FOREIGN KEY (id) REFERENCES t (id);`,
+				ALTER TABLE t_2 ADD CONSTRAINT pk1 PRIMARY KEY (id2);
+				ALTER TABLE t_2 ADD CONSTRAINT uk UNIQUE (id2);
+				ALTER TABLE t_3 ADD CONSTRAINT uk1 UNIQUE (val);
+				ALTER TABLE t_3 ADD CONSTRAINT fk FOREIGN KEY (id) REFERENCES t (id);
+			`,
+			expectedSqlsInOrder: []string{
+				`SET statement_timeout TO 0;`,
+				`SET lock_timeout TO 0;`,
+				`SET idle_in_transaction_session_timeout TO 0;`,
+				`SET transaction_timeout TO 0;`,
+				`SET client_encoding TO "UTF8";`,
+				`SET row_security TO OFF;`,
+				`SET standard_conforming_strings TO ON;`,
+				`SELECT pg_catalog.set_config('search_path', '', false);`,
+				`SET xmloption TO content;`,
+				`SET client_min_messages TO warning;`,
+				`SET yb_use_hash_splitting_by_default TO ON;`,
+				`ALTER TABLE t_2 ADD CONSTRAINT pk1 PRIMARY KEY (id2);`,
+				`SET yb_use_hash_splitting_by_default TO OFF;`,
+				`ALTER TABLE t_2 ADD CONSTRAINT uk UNIQUE (id2);`,
+				`ALTER TABLE t_3 ADD CONSTRAINT uk1 UNIQUE (val);`,
+				`ALTER TABLE t_3 ADD CONSTRAINT fk FOREIGN KEY (id) REFERENCES t (id);`,
+			},
+		},
+		{
+			sqlFileContent: `
+			SET statement_timeout = 0;
+			SET lock_timeout = 0;
+			SET idle_in_transaction_session_timeout = 0;
+			SET transaction_timeout = 0;
+			SET client_encoding = 'UTF8';
+			SET row_security = off;
+			SET standard_conforming_strings = on;
+			SELECT pg_catalog.set_config('search_path', '', false);
+			SET xmloption = content;
+			SET client_min_messages = warning;
+		`,
+			expectedSqlsInOrder: []string{
+				`SET statement_timeout TO 0;`,
+				`SET lock_timeout TO 0;`,
+				`SET idle_in_transaction_session_timeout TO 0;`,
+				`SET transaction_timeout TO 0;`,
+				`SET client_encoding TO "UTF8";`,
+				`SET row_security TO OFF;`,
+				`SET standard_conforming_strings TO ON;`,
+				`SELECT pg_catalog.set_config('search_path', '', false);`,
+				`SET xmloption TO content;`,
+				`SET client_min_messages TO warning;`,
+				`SET yb_use_hash_splitting_by_default TO ON;`,
+				`SET yb_use_hash_splitting_by_default TO OFF;`,
+			},
+		},
 	}
 
-	assert.Equal(t, expectedSqls, finalSqlStmts)
+	for _, testCase := range cases {
 
-}
+		sqlFileContent := testCase.sqlFileContent
+		expectedSqls := testCase.expectedSqlsInOrder
 
-func TestHashSplittingChangeUnexpectedCase(t *testing.T) {
-	sqlFileContent := `
-		SET statement_timeout = 0;
-		SET lock_timeout = 0;
-		SET idle_in_transaction_session_timeout = 0;
-		SET transaction_timeout = 0;
-		SET client_encoding = 'UTF8';
-		SET row_security = off;
+		parseTree, err := queryparser.Parse(sqlFileContent)
+		testutils.FatalIfError(t, err)
 
-		CREATE TABLE t(id int, CONSTRAINT pk PRIMARY KEY (id));
-		CREATE TABLE t_2(id int, id2 int);
-		CREATE TABLE t_3(id int, val text);
-		ALTER TABLE t_2 ADD CONSTRAINT pk1 PRIMARY KEY (id2);
-		ALTER TABLE t_2 ADD CONSTRAINT uk UNIQUE (id2);
-		ALTER TABLE t_3 ADD CONSTRAINT uk1 UNIQUE (val);
-		SET standard_conforming_strings = on;
-		SELECT pg_catalog.set_config('search_path', '', false);
-		SET xmloption = content;
-		SET client_min_messages = warning;
-		ALTER TABLE t_3 ADD CONSTRAINT fk FOREIGN KEY (id) REFERENCES t (id);
-	`
+		transformer := NewTransformer()
+		transformedStmts, err := transformer.AddShardingStrategyForConstraints(parseTree.Stmts)
+		testutils.FatalIfError(t, err)
 
-	parseTree, err := queryparser.Parse(sqlFileContent)
-	testutils.FatalIfError(t, err)
+		finalSqlStmts, err := queryparser.DeparseRawStmts(transformedStmts)
+		testutils.FatalIfError(t, err)
 
-	transformer := NewTransformer()
-	transformedStmts, err := transformer.AddShardingStrategyForConstraints(parseTree.Stmts)
-	testutils.FatalIfError(t, err)
-
-	finalSqlStmts, err := queryparser.DeparseRawStmts(transformedStmts)
-	testutils.FatalIfError(t, err)
-
-	expectedSqls := []string{
-		`SET statement_timeout TO 0;`,
-		`SET lock_timeout TO 0;`,
-		`SET idle_in_transaction_session_timeout TO 0;`,
-		`SET transaction_timeout TO 0;`,
-		`SET client_encoding TO "UTF8";`,
-		`SET row_security TO OFF;`,
-		`SET standard_conforming_strings TO ON;`,
-		`SELECT pg_catalog.set_config('search_path', '', false);`,
-		`SET xmloption TO content;`,
-		`SET client_min_messages TO warning;`,
-		`SET yb_use_hash_splitting_by_default TO ON;`,
-		`CREATE TABLE t (id int, CONSTRAINT pk PRIMARY KEY (id));`,
-		`CREATE TABLE t_2 (id int, id2 int);`,
-		`CREATE TABLE t_3 (id int, val text);`,
-		`ALTER TABLE t_2 ADD CONSTRAINT pk1 PRIMARY KEY (id2);`,
-		`SET yb_use_hash_splitting_by_default TO OFF;`,
-		`ALTER TABLE t_2 ADD CONSTRAINT uk UNIQUE (id2);`,
-		`ALTER TABLE t_3 ADD CONSTRAINT uk1 UNIQUE (val);`,
-		`ALTER TABLE t_3 ADD CONSTRAINT fk FOREIGN KEY (id) REFERENCES t (id);`,
+		assert.Equal(t, expectedSqls, finalSqlStmts)
 	}
-
-	assert.Equal(t, expectedSqls, finalSqlStmts)
 
 }
