@@ -1487,7 +1487,7 @@ normalize_callhome_json() {
 				end
 			) |
             .VoyagerVersion? = "IGNORED" |
-			.TargetDBVersion? = "IGNORED" |
+			.target_db_version? = "IGNORED" |
             .OptimalSelectConnectionsPerNode? = "IGNORED" |
             .OptimalInsertConnectionsPerNode? = "IGNORED" |
 			.SizeInBytes? = "IGNORED" |

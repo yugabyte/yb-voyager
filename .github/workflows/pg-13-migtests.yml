@@ -131,6 +131,12 @@ jobs:
           echo "$docker_ip	yb-cluster-test" | sudo tee -a /etc/hosts
           psql "postgresql://yugabyte@yb-cluster-test:5433/yugabyte" -c "SELECT version();"
 
+      - name: "TEST: Callhome Datatypes Tests"
+        run: ./migtests/scripts/callhome/run-callhome-test.sh pg/datatypes
+
+      - name: "TEST: Callhome Assessment Report Tests"
+        run: ./migtests/scripts/callhome/run-callhome-test.sh pg/assessment-report-test --assess-only
+
       - name: "TEST: pg-table-list-flags-test (table-list and exclude-table-list)"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
         run: migtests/scripts/run-test.sh pg/table-list-flags-tests
