@@ -498,6 +498,7 @@ func packAndSendComparePerformancePayload(status string, errorMsg error, compara
 	payload := createCallhomePayload()
 	payload.MigrationPhase = COMPARE_PERFORMANCE_PHASE
 	payload.Status = status
+	payload.TargetDBDetails = callhome.MarshalledJsonString(targetDBDetails)
 
 	comparePerformancePayload := buildCallhomeComparePerformancePayload(comparator, errorMsg)
 	payload.PhasePayload = callhome.MarshalledJsonString(comparePerformancePayload)
