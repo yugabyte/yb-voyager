@@ -6,9 +6,53 @@ from utils import (
     generate_random_data,
     fetch_enum_values_for_column,
     fetch_array_types_for_column,
+    execute_with_retry,
+    build_insert_values,
 )
 import time
 
+
+# ----- Config knobs (tuning) -----
+
+#
+# Either we can provide our own table list
+# Or we can specify the schema from where all tables will be picked up
+#
+
+SCHEMA_NAME = "public"
+EXCLUDE_TABLE_LIST = ['eg_arr','eg_bits','eg_bytea','eg_full','eg_meta_bits','eg_num','eg_pk','eg_retry','eg_tsv','x','y']
+
+# Tables to target explicitly (leave empty to use schema scan)
+MANUAL_TABLE_LIST = [
+    "eg_users",
+    "eg_orders",
+]
+
+NUM_ITERATIONS = 200
+
+# Throttling
+WAIT_AFTER_OPERATIONS = 200000
+WAIT_DURATION_SECONDS = 0
+
+# Table selection (override weights per table; unspecified default to 1)
+TABLE_WEIGHTS = {
+    "eg_users": 100,
+    "eg_orders": 100,
+}
+
+# Operation selection
+OPERATIONS = ["INSERT", "UPDATE", "DELETE"]
+OPERATION_WEIGHTS = [3, 2, 1]
+
+# Batch sizes per operation
+INSERT_ROWS = 4
+UPDATE_ROWS = 2
+DELETE_ROWS = 1
+
+# Retries
+INSERT_MAX_RETRIES = 50
+UPDATE_MAX_RETRIES = 3
+# ---------------------------------
 
 # Connect to PostgreSQL
 
@@ -22,16 +66,10 @@ print("tsm_system_rows extension is present or created successfully")
 # Disabled to allow triggers and constraints to execute
 # cursor.execute("SET session_replication_role = 'replica';")
 
-# Initialize Faker for generating random data
-# fake = Faker()
-
 print("Generator starting")
 print("Note: No. of iterations may not equal number of events")
 print("Analysing schema")
-#
-# Either we can provide our own table list
-# Or we can specify the schema from where all tables will be picked up
-#
+
 
 # Manual list
 
@@ -39,56 +77,36 @@ print("Analysing schema")
 # table_schemas = generate_table_schemas(cursor, manual_table_list=manual_table_list)
 # print(table_schemas)
 
-# Schema based
-exclude_table_list = ['table_to_be_excluded',]
-schema_name = "public"
-table_schemas = generate_table_schemas(cursor, schema_name=schema_name, exclude_table_list=exclude_table_list)
+# Schema based or manual list
+table_schemas = generate_table_schemas(
+    cursor,
+    schema_name=SCHEMA_NAME,
+    manual_table_list=MANUAL_TABLE_LIST,
+    exclude_table_list=EXCLUDE_TABLE_LIST,
+)
 # print(table_schemas)
 
 print("Schema analysed")
 
-def execute_with_retry(run_once_fn, rebuild_fn, *, max_retries=50):
-    retry_count = 0
-    while retry_count <= max_retries:
-        try:
-            run_once_fn()
-            return True
-        except psycopg2.errors.UniqueViolation as e:
-            conn.rollback()
-            retry_count += 1
-            print(f"Retrying operation after UniqueViolation (attempt {retry_count} of {max_retries})")
-            print(f"Error details: {e}")
-            rebuild_fn()
-        except Exception:
-            # For non-unique errors, just propagate after rollback
-            conn.rollback()
-            raise
-    print("Reached maximum retry attempts. Skipping...")
-    return False
 
-
-num_iterations = 20000 # Specify the number of iterations
-wait_after_operations = 200000  # Adjust this value to set the desired wait interval
-wait_duration_seconds = 0  # Adjust this value to set the duration of the wait in seconds
+num_iterations = NUM_ITERATIONS # Specify the number of iterations
+wait_after_operations = WAIT_AFTER_OPERATIONS  # Adjust this value to set the desired wait interval
+wait_duration_seconds = WAIT_DURATION_SECONDS  # Adjust this value to set the duration of the wait in seconds
 
 
 for i in range(num_iterations):
     # Choose a random table
-    table_weights = {} #specify weights for tables you want to prioritise
-    # table_weights = {"table1": 5, "table2": 4}
+    table_weights = dict(TABLE_WEIGHTS) #specify weights for tables you want to prioritise
     for table in table_schemas.keys():
         table_weights.setdefault(table, 1)
 
     table_name = random.choices(list(table_weights.keys()), weights=list(table_weights.values()))[0]
 
     #print(table_name)
-    #table_name = random.choice(list(table_schemas.keys()))
 
     # Generate a random operation
-    # operations = ["INSERT"]
-    # weights = [1]
-    operations = ["INSERT", "UPDATE", "DELETE"]
-    weights = [3,2,1]  # Mention the weight of the operations
+    operations = OPERATIONS
+    weights = OPERATION_WEIGHTS  # Mention the weight of the operations
 
     operation = random.choices(operations, weights=weights)[0]
 
@@ -98,24 +116,8 @@ for i in range(num_iterations):
         if operation == "INSERT":
     # Generate random data and execute INSERT statement
             columns = ", ".join(table_schemas[table_name]["columns"].keys())
-            values_list = []
-            number_of_rows_to_insert = 40 # Adjust as needed
-            for _ in range(number_of_rows_to_insert):
-                values = []
-                for column_name, data_type in table_schemas[table_name]["columns"].items():
-                    if "bit" in data_type.lower():
-                        values.append(build_bit_cast_expr(table_schemas, table_name, column_name, data_type))
-                    elif data_type != "USER-DEFINED" and data_type != "ARRAY":
-                        values.append(f"'{generate_random_data(data_type, table_name, None, None)}'")
-                    else:
-                        enum_values = fetch_enum_values_for_column(table_schemas, table_name, column_name)
-                        array_types = fetch_array_types_for_column(table_schemas, table_name, column_name)
-                        value = generate_random_data(data_type, table_name, enum_values, array_types)
-                        values.append(f"'{value}'" if value is not None else "NULL")
-                values_list.append(f"({', '.join(values)})")
-
-            values_list = ", ".join(values_list)
-            values_holder = {"values_list": values_list}
+            number_of_rows_to_insert = INSERT_ROWS # Adjust as needed
+            values_holder = {"values_list": build_insert_values(table_schemas, table_name, number_of_rows_to_insert)}
 
             # Prepare callbacks for retryable execution
             def run_once():
@@ -123,29 +125,15 @@ for i in range(num_iterations):
                 cursor.execute(query_to_run)
 
             def rebuild():
-                regenerated_rows = []
-                for _ in range(number_of_rows_to_insert):
-                    vals = []
-                    for column_name, data_type in table_schemas[table_name]["columns"].items():
-                        if "bit" in data_type.lower():
-                            vals.append(build_bit_cast_expr(table_schemas, table_name, column_name, data_type))
-                        elif data_type != "USER-DEFINED" and data_type != "ARRAY":
-                            vals.append(f"'{generate_random_data(data_type, table_name, None, None)}'")
-                        else:
-                            enum_values = fetch_enum_values_for_column(table_schemas, table_name, column_name)
-                            array_types = fetch_array_types_for_column(table_schemas, table_name, column_name)
-                            v = generate_random_data(data_type, table_name, enum_values, array_types)
-                            vals.append(f"'{v}'" if v is not None else "NULL")
-                    regenerated_rows.append(f"({', '.join(vals)})")
-                values_holder["values_list"] = ", ".join(regenerated_rows)
+                values_holder["values_list"] = build_insert_values(table_schemas, table_name, number_of_rows_to_insert)
 
-            success = execute_with_retry(run_once, rebuild, max_retries=50)
+            success = execute_with_retry(run_once, rebuild, conn.rollback, max_retries=INSERT_MAX_RETRIES)
             if success:
                 pass # No successful_operations += 1 here as it's removed
         
         elif operation == "UPDATE":
-            num_rows_to_update = 20 # Set the number of rows to update in 1 operation
-            max_retries = 3  # Set a maximum number of retries to avoid infinite loops
+            num_rows_to_update = UPDATE_ROWS # Set the number of rows to update in 1 operation
+            max_retries = UPDATE_MAX_RETRIES  # Set a maximum number of retries to avoid infinite loops
 
             for _ in range(max_retries):
                 columns = table_schemas[table_name]["columns"]
@@ -171,7 +159,7 @@ for i in range(num_iterations):
                 for col in columns_to_update:
                     data_type = columns[col]
                     if "bit" in data_type.lower():
-                        expr = build_bit_cast_expr(table_schemas, table_name, col, data_type)
+                        expr = build_bit_cast_expr(table_schemas, table_name, col)
                         set_parts.append(f"{col} = {expr}")
                     else:
                         if data_type == "USER-DEFINED":
@@ -205,7 +193,7 @@ for i in range(num_iterations):
                     conn.rollback()
 
         elif operation == "DELETE":
-            num_rows_to_delete = 10 # Set the number of rows to delete in 1 operation
+            num_rows_to_delete = DELETE_ROWS # Set the number of rows to delete in 1 operation
 
             primary_key = table_schemas[table_name]["primary_key"]
             query_to_run = f"DELETE FROM {table_name} WHERE {primary_key} IN (SELECT {primary_key} FROM {table_name} TABLESAMPLE SYSTEM_ROWS(%s))"
