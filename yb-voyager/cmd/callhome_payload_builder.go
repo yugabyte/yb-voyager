@@ -192,14 +192,15 @@ func anonymizeSourceDBDetails(source *srcdb.Source) callhome.SourceDBDetails {
 		schemaList := source.GetSchemaList()
 		anonymizedSchemas := make([]string, 0, len(schemaList))
 		for _, schemaName := range schemaList {
-			if schemaName != "" {
-				anonymizedSchema, err := anonymizer.AnonymizeSchemaName(schemaName)
-				if err != nil {
-					log.Warnf("failed to anonymize schema name %s: %v", schemaName, err)
-					anonymizedSchemas = append(anonymizedSchemas, constants.OBFUSCATE_STRING)
-				} else {
-					anonymizedSchemas = append(anonymizedSchemas, anonymizedSchema)
-				}
+			if schemaName == "" {
+				continue
+			}
+			anonymizedSchema, err := anonymizer.AnonymizeSchemaName(schemaName)
+			if err != nil {
+				log.Warnf("failed to anonymize schema name %s: %v", schemaName, err)
+				anonymizedSchemas = append(anonymizedSchemas, constants.OBFUSCATE_STRING)
+			} else {
+				anonymizedSchemas = append(anonymizedSchemas, anonymizedSchema)
 			}
 		}
 		details.SchemaNames = anonymizedSchemas
