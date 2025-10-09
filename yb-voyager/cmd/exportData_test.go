@@ -268,9 +268,18 @@ func testUnknownTableCaseForTableListFlags(t *testing.T, withStartClean bool, ex
 	_, _, err := getInitialTableList()
 	errStr := err.Error()
 	if startClean {
-		assert.True(t, strings.Contains(errStr, fmt.Sprintf("error in get_initial_table_list at step 'extract_table_list_from_%s_list' in call 'apply_table_list_flags_on_full_list' (call stack - get_initial_table_list -> fetch_tables_names_from_source -> apply_table_list_flags_on_full_list):", flagName)))
+		assert.True(t, strings.Contains(errStr, fmt.Sprintf(`error in get_initial_table_list at step 'extract_table_list_from_%s_list' in call 'apply_table_list_flags_on_full_list'
+Execution history
+    -> get_initial_table_list
+    -> fetch_tables_names_from_source
+    -> apply_table_list_flags_on_full_list`, flagName)))
 	} else {
-		assert.True(t, strings.Contains(errStr, fmt.Sprintf("error in get_initial_table_list at step 'extract_table_list_from_%s_list' in call 'apply_table_list_flags_on_full_list' (call stack - get_initial_table_list -> apply_table_list_flags_on_subsequent_run -> apply_table_list_flags_on_full_list):", flagName)))
+		assert.True(t, strings.Contains(errStr, fmt.Sprintf(`error in get_initial_table_list at step 'extract_table_list_from_%s_list' in call 'apply_table_list_flags_on_full_list'
+Execution history
+    -> get_initial_table_list
+    -> apply_table_list_flags_on_subsequent_run
+    -> apply_table_list_flags_on_full_list
+Error:`, flagName)))
 	}
 	assert.True(t, strings.Contains(errStr, expectedUnknownErrorMsg))
 }

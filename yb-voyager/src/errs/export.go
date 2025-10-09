@@ -40,27 +40,54 @@ type ExportDataError struct {
 	err                  error        // The underlying error
 }
 
+/*
+e.g.
+error in get_initial_table_list at step 'extract_table_list_from_exclude_list' in call 'apply_table_list_flags_on_full_list'
+Execution history
+    -> get_initial_table_list
+    -> fetch_tables_names_from_source
+    -> apply_table_list_flags_on_full_list
+Error: 
+Unknown table names in the exclude list: [abc]
+*/
 func (e *ExportDataError) Error() string {
-	errMsg := fmt.Sprintf("error in %s at step '%s'\n", e.currentFlow, e.failedStep)
+	errMsg := fmt.Sprintf("error in %s at step '%s'", e.currentFlow, e.failedStep)
 
 	// Add call execution history
 	if e.callExecutionHistory.Len() > 0 {
-		errMsg += "Execution history\n"
-		errMsg += fmt.Sprintf("    -> %s\n", e.currentFlow)
-		//copy of execution history to avoid emptying the original stack
-		tempStack := stack.New()
-		for e.callExecutionHistory.Len() > 0 {
-			call := e.callExecutionHistory.Pop().(string)
-			tempStack.Push(call)
-			errMsg += fmt.Sprintf("    -> %s\n", call)
-		}
-		// Restore the original stack
-		for tempStack.Len() > 0 {
-			e.callExecutionHistory.Push(tempStack.Pop())
-		}
+		trace, lastCall := e.buildStackTrace()
+		errMsg += fmt.Sprintf(" in call '%s'\n", lastCall)
+		errMsg += trace
 	}
 	errMsg += fmt.Sprintf("Error: %s\n", e.err.Error())
 	return strings.TrimRight(errMsg, "\n")
+}
+
+/*
+e.g. 
+Execution history
+    -> get_initial_table_list
+    -> fetch_tables_names_from_source
+    -> apply_table_list_flags_on_full_list
+*/
+func (e *ExportDataError) buildStackTrace() (string, string) {
+	stackTrace := "Execution history\n"
+	stackTrace += fmt.Sprintf("    -> %s\n", e.currentFlow)
+	//copy of execution history to avoid emptying the original stack
+	tempStack := stack.New()
+	lastCall := ""
+
+	for e.callExecutionHistory.Len() > 0 {
+		call := e.callExecutionHistory.Pop().(string)
+		tempStack.Push(call)
+		lastCall = call
+		stackTrace += fmt.Sprintf("    -> %s\n", call)
+	}
+	// Restore the original stack
+	for tempStack.Len() > 0 {
+		e.callExecutionHistory.Push(tempStack.Pop())
+	}
+	return stackTrace, lastCall
 }
 
 func (e *ExportDataError) CurrentFlow() string {
