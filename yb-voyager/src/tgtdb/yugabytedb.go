@@ -2040,7 +2040,18 @@ func (yb *TargetYugabyteDB) collectPgStatStatements(tconfs []*TargetConf) ([]*pg
 			if err != nil {
 				return nil, fmt.Errorf("error scanning pg_stat_statements row: %w", err)
 			}
-			nodeEntries = append(nodeEntries, &entry)
+
+			/*
+				In YB, we have observed some pg_stat_statements entries with calls = 0.
+				This is unexpected (probably a bug in YB) and we should ignore these entries.
+
+				Ref: https://yugabyte.atlassian.net/browse/DB-18444
+			*/
+			if entry.Calls > 0 {
+				nodeEntries = append(nodeEntries, &entry)
+			} else {
+				log.Warnf("ignoring pg_stat_statements entry with calls = 0: %+v", entry)
+			}
 		}
 		allEntries = append(allEntries, nodeEntries...)
 		rows.Close() // close immediately, no defer

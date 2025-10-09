@@ -23,9 +23,11 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v4"
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -455,6 +457,10 @@ func runPgStatStatementsTest(t *testing.T, testQueries map[string]struct {
 		}
 	}
 
+	// pg_stat_statements is updated asynchronously, so we need to sleep to allow it to get updated
+	t.Log("Sleeping for 200ms to allow pg_stat_statements to update")
+	time.Sleep(200 * time.Millisecond)
+
 	// Collect PGSS
 	_, tconfs, err := testYugabyteDBTargetCluster.GetYBServers() // calls overridden GetYBServers() method
 	require.NoError(t, err)
@@ -466,18 +472,20 @@ func runPgStatStatementsTest(t *testing.T, testQueries map[string]struct {
 	// Validate results: check that our test queries have correct call counts
 	foundQueries := make(map[string]bool)
 	for _, actualPgss := range actualStatements {
+		// verify that an fetched query doesn't have calls = 0 by any chance
+		assert.Greater(t, actualPgss.Calls, int64(0),
+			"Query %s should have positive calls", actualPgss.Query)
+
 		for queryName, expectedPgss := range testQueries {
 			if actualPgss.Query != expectedPgss.parameterized {
 				continue
 			}
-			foundQueries[queryName] = true
-			expectedCalls := 0
-			for _, count := range expectedPgss.execCounts {
-				expectedCalls += count
-			}
 
-			assert.Equal(t, int64(expectedCalls), actualPgss.Calls,
-				"Query %s should have %d total calls, got %d", queryName, expectedCalls, actualPgss.Calls)
+			foundQueries[queryName] = true
+			totalExpectedCalls := lo.Sum(expectedPgss.execCounts)
+
+			assert.Equal(t, actualPgss.Calls, int64(totalExpectedCalls),
+				"Query %s should have %d total calls, got %d", queryName, totalExpectedCalls, actualPgss.Calls)
 			assert.Greater(t, actualPgss.TotalExecTime, float64(0),
 				"Query %s should have positive total exec time", queryName)
 			assert.Greater(t, actualPgss.MeanExecTime, float64(0),
