@@ -709,7 +709,7 @@ func applyTableFileTransformations() (*sqltransformer.TableFileTransformer, erro
 
 	skipMergeConstraints := utils.GetEnvAsBool("YB_VOYAGER_SKIP_MERGE_CONSTRAINTS_TRANSFORMATIONS", false)
 
-	tableTransformer := sqltransformer.NewTableFileTransformer(skipMergeConstraints, source.DBType)
+	tableTransformer := sqltransformer.NewTableFileTransformer(skipMergeConstraints, source.DBType, bool(skipPerfOptimizations))
 
 	backUpFile, err := tableTransformer.Transform(tableFilePath)
 	if err != nil {
