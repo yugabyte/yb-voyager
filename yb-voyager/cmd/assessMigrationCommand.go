@@ -1400,12 +1400,15 @@ func addAssessmentIssuesForUnsupportedDatatypes(unsupportedDatatypes []utils.Tab
 				CategoryDescription:    GetCategoryDescription(UNSUPPORTED_DATATYPES_CATEGORY),
 				Type:                   colInfo.DataType, // TODO: maybe name it like "unsupported datatype - geometry"
 				Name:                   colInfo.DataType, // TODO: maybe name it like "unsupported datatype - geometry"
-				Description:            "",               // TODO
+				Description:            "",               // set below for specific types if needed
 				Impact:                 constants.IMPACT_LEVEL_3,
 				ObjectType:             constants.COLUMN,
 				ObjectName:             qualifiedColName,
 				DocsLink:               "",  // TODO
 				MinimumVersionsFixedIn: nil, // TODO
+			}
+			if strings.EqualFold(colInfo.DataType, "CLOB") {
+				issue.Description = "Oracle CLOB data export is now supported via the experimental flag --allow-oracle-clob-data-export. This is supported only for offline migration (not Live or BETA_FAST_DATA_EXPORT) and large CLOBs may impact performance during export and import. For more information about Oracle CLOB limitations, see: https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/oracle/#large-sized-clob-data-is-not-supported"
 			}
 			assessmentReport.AppendIssues(issue)
 		case POSTGRESQL:
@@ -1524,23 +1527,7 @@ To manually modify the schema, please refer: <a class="highlight-link" href="htt
 		Type: SizingNotes,
 		Text: `Import data time estimates exclude redundant indexes since they are automatically removed during export schema phase.`,
 	}
-
-	// Oracle CLOB Data Export Note
-	ORACLE_CLOB_DATA_EXPORT_NOTE = NoteInfo{
-		Type: GeneralNotes,
-		Text: `Oracle CLOB data export is now supported via the experimental flag --allow-oracle-clob-data-export. This flag enables exporting CLOB columns during offline migration from Oracle to YugabyteDB. Note that this feature is experimental and has limitations: it's only supported for offline migration (not live migration or BETA_FAST_DATA_EXPORT), and CLOB data may have performance implications during export and import. Use this flag with caution and test thoroughly in your environment. For more information about Oracle CLOB limitations, see: https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/oracle/#large-sized-clob-data-is-not-supported`,
-	}
 )
-
-// hasClobDatatypes checks if there are any CLOB datatypes reported in the assessment issues
-func hasClobDatatypes() bool {
-	for _, issue := range assessmentReport.Issues {
-		if issue.Category == UNSUPPORTED_DATATYPES_CATEGORY && issue.Type == "CLOB" {
-			return true
-		}
-	}
-	return false
-}
 
 func addNotesToAssessmentReport() {
 	log.Infof("adding notes to assessment report")
@@ -1553,11 +1540,6 @@ func addNotesToAssessmentReport() {
 
 	switch source.DBType {
 	case ORACLE:
-		// Add CLOB data export note for Oracle only if CLOB datatypes are detected
-		if hasClobDatatypes() {
-			assessmentReport.Notes = append(assessmentReport.Notes, ORACLE_CLOB_DATA_EXPORT_NOTE)
-		}
-
 		partitionSqlFPath := filepath.Join(assessmentMetadataDir, "schema", "partitions", "partition.sql")
 		// file exists and isn't empty (containing PARTITIONs DDLs)
 		if utils.FileOrFolderExists(partitionSqlFPath) && !utils.IsFileEmpty(partitionSqlFPath) {

@@ -2299,10 +2299,9 @@ To manually modify the schema, please refer: <a class="highlight-link" href="htt
                                                 <tr>
                                                     <th class="centered-cell">Description</th>
                                                     <td>
-                                                        
-                                                        <!-- display N/A if description not present -->
-                                                            N/A
-                                                        
+                                                        <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
+                                                            <pre class="autolink-text" style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Oracle CLOB data export is now supported via the experimental flag --allow-oracle-clob-data-export. This is supported only for offline migration (not Live or BETA_FAST_DATA_EXPORT) and large CLOBs may impact performance during export and import. For more information about Oracle CLOB limitations, see: https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/oracle/#large-sized-clob-data-is-not-supported</pre>
+                                                        </div>
                                                     </td>
                                                 </tr>
                                                
@@ -2599,10 +2598,9 @@ To manually modify the schema, please refer: <a class="highlight-link" href="htt
                                                 <tr>
                                                     <th class="centered-cell">Description</th>
                                                     <td>
-                                                        
-                                                        <!-- display N/A if description not present -->
-                                                            N/A
-                                                        
+                                                        <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
+                                                            <pre class="autolink-text" style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Oracle CLOB data export is now supported via the experimental flag --allow-oracle-clob-data-export. This is supported only for offline migration (not Live or BETA_FAST_DATA_EXPORT) and large CLOBs may impact performance during export and import. For more information about Oracle CLOB limitations, see: https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/oracle/#large-sized-clob-data-is-not-supported</pre>
+                                                        </div>
                                                     </td>
                                                 </tr>
                                                
@@ -2756,7 +2754,7 @@ To manually modify the schema, please refer: <a class="highlight-link" href="htt
                     <ul id="notes-list">
                         
                             <li>Some features listed in this report may be supported under a preview flag in the specified target-db-version of YugabyteDB. Please refer to the official <a class="highlight-link" target="_blank" href="https://docs.yugabyte.com/preview/releases/ybdb-releases/">release notes</a> for detailed information and usage guidelines.</li>
-                            <li>Oracle CLOB data export is now supported via the experimental flag --allow-oracle-clob-data-export. This flag enables exporting CLOB columns during offline migration from Oracle to YugabyteDB. Note that this feature is experimental and has limitations: it's only supported for offline migration (not live migration or BETA_FAST_DATA_EXPORT), and CLOB data may have performance implications during export and import. Use this flag with caution and test thoroughly in your environment. For more information about Oracle CLOB limitations, see: https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/oracle/#large-sized-clob-data-is-not-supported</li>
+                            
                             <li>There are some BITMAP indexes present in the schema that will get converted to GIN indexes, but GIN indexes are partially supported in YugabyteDB as mentioned in <a class="highlight-link" href="https://github.com/yugabyte/yugabyte-db/issues/7850">https://github.com/yugabyte/yugabyte-db/issues/7850</a> so take a look and modify them if not supported.</li>
                         
                     </ul>
@@ -2772,23 +2770,18 @@ To manually modify the schema, please refer: <a class="highlight-link" href="htt
   to miss URLs.
 -->
 <script>
-    const notesListItems = document.querySelectorAll("#notes-list li");
-
-    notesListItems.forEach((li) => {
-        const originalText = li.textContent.trim();
+    function linkifyElementText(el) {
+        const originalText = (el.textContent || '').trim();
+        if (!originalText) return;
         const words = originalText.split(' ');
-
         const hasUrl = words.some(word => word.startsWith('http://') || word.startsWith('https://'));
         if (!hasUrl) return;
 
-        li.textContent = '';
-
+        el.textContent = '';
         words.forEach((word, index) => {
             let url = word;
             let charThatWillBeRemoved = '';
-
             const isUrl = url.startsWith('http://') || url.startsWith('https://');
-
             if (isUrl) {
                 const lastChar = url[url.length - 1];
                 const urlCantEndWithTheseChars = [',', '.', '!', '?', ';', ':'];
@@ -2796,23 +2789,24 @@ To manually modify the schema, please refer: <a class="highlight-link" href="htt
                     charThatWillBeRemoved = lastChar;
                     url = url.slice(0, -1);
                 }
-
-                const aTag = document.createElement("a");
+                const aTag = document.createElement('a');
                 aTag.href = url;
                 aTag.textContent = url;
-                aTag.classList.add("highlight-link");
-                aTag.target = "_blank";
-                li.appendChild(aTag);
+                aTag.classList.add('highlight-link');
+                aTag.target = '_blank';
+                el.appendChild(aTag);
                 if (charThatWillBeRemoved) {
-                    li.appendChild(document.createTextNode(charThatWillBeRemoved));
+                    el.appendChild(document.createTextNode(charThatWillBeRemoved));
                 }
             } else {
-                li.appendChild(document.createTextNode(word));
+                el.appendChild(document.createTextNode(word));
             }
             if (index < words.length - 1) {
-                li.appendChild(document.createTextNode(' '));
+                el.appendChild(document.createTextNode(' '));
             }
         });
-    });
+    }
+    document.querySelectorAll('#notes-list li').forEach(linkifyElementText);
+    document.querySelectorAll('.autolink-text').forEach(linkifyElementText);
 </script>
 </html>
