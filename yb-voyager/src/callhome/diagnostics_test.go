@@ -55,6 +55,7 @@ func TestCallhomeStructs(t *testing.T) {
 			name:       "Validate SourceDBDetails Struct Definition",
 			actualType: reflect.TypeOf(SourceDBDetails{}),
 			expectedType: struct {
+				PayloadVersion     string   `json:"payload_version"`
 				Host               string   `json:"host"`
 				DBType             string   `json:"db_type"`
 				DBVersion          string   `json:"db_version"`
