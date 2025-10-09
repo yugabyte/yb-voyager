@@ -5,7 +5,7 @@
     "MigrationComplexityExplanation": "Found 32 Level 2 issue(s) and 22 Level 3 issue(s), resulting in HIGH migration complexity",
     "SchemaSummary": {
         "Description": "Objects that will be created on the target YugabyteDB.",
-        "DbName": "pg_assessment_report",
+        "DbName": "pg_assessment_report_test_assess",
         "SchemaNames": [
             "public",
             "schema2",
