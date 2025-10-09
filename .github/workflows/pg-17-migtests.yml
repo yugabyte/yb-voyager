@@ -80,6 +80,9 @@ jobs:
           sudo apt install -y libpq-dev
           sudo apt install python3-psycopg2
 
+      - name: Install Flask
+        run: pip install Flask
+
       - name: Run installer script to setup voyager
         run: |
           cd installer_scripts
