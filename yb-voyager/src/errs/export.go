@@ -41,20 +41,26 @@ type ExportDataError struct {
 }
 
 func (e *ExportDataError) Error() string {
-	completedCallStackTrace := fmt.Sprintf("%s -> ", e.currentFlow)
-	lastCall := ""
-	for e.callExecutionHistory.Len() > 0 {
-		currentCall := e.callExecutionHistory.Pop().(string)
-		lastCall = currentCall
-		completedCallStackTrace += currentCall + " -> "
+	errMsg := fmt.Sprintf("error in %s at step '%s'\n", e.currentFlow, e.failedStep)
+
+	// Add call execution history
+	if e.callExecutionHistory.Len() > 0 {
+		errMsg += "Execution history\n"
+		errMsg += fmt.Sprintf("    -> %s\n", e.currentFlow)
+		//copy of execution history to avoid emptying the original stack
+		tempStack := stack.New()
+		for e.callExecutionHistory.Len() > 0 {
+			call := e.callExecutionHistory.Pop().(string)
+			tempStack.Push(call)
+			errMsg += fmt.Sprintf("    -> %s\n", call)
+		}
+		// Restore the original stack
+		for tempStack.Len() > 0 {
+			e.callExecutionHistory.Push(tempStack.Pop())
+		}
 	}
-	completedCallStackTrace = strings.TrimSuffix(completedCallStackTrace, " -> ")
-	if completedCallStackTrace != "" {
-		return fmt.Sprintf("error in %s at step '%s' in call '%s' (call stack - %s): %s",
-			e.currentFlow, e.failedStep, lastCall, completedCallStackTrace, e.err.Error())
-	}
-	return fmt.Sprintf("error in %s at step '%s': %s",
-		e.currentFlow, e.failedStep, e.err.Error())
+	errMsg += fmt.Sprintf("Error: %s\n", e.err.Error())
+	return strings.TrimRight(errMsg, "\n")
 }
 
 func (e *ExportDataError) CurrentFlow() string {
