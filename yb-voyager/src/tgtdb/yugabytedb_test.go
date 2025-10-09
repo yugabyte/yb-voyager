@@ -458,8 +458,8 @@ func runPgStatStatementsTest(t *testing.T, testQueries map[string]struct {
 	}
 
 	// pg_stat_statements is updated asynchronously, so we need to sleep to allow it to get updated
-	t.Log("Sleeping for 200ms to allow pg_stat_statements to update")
-	time.Sleep(200 * time.Millisecond)
+	t.Log("Sleeping for 2s to allow pg_stat_statements to update")
+	time.Sleep(2 * time.Second)
 
 	// Collect PGSS
 	_, tconfs, err := testYugabyteDBTargetCluster.GetYBServers() // calls overridden GetYBServers() method
