@@ -37,7 +37,6 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
@@ -512,25 +511,20 @@ func (pg *TargetPostgreSQL) IsNonRetryableCopyError(err error) bool {
 	return utils.ContainsAnySubstringFromSlice(NonRetryCopyErrors, err.Error())
 }
 
-func (pg *TargetPostgreSQL) RestoreSequences(sequencesLastVal map[string]int64) error {
+func (pg *TargetPostgreSQL) RestoreSequences(sequencesLastVal *utils.StructMap[sqlname.NameTuple, int64]) error {
 	log.Infof("restoring sequences on target")
 	batch := pgx.Batch{}
 	restoreStmt := "SELECT pg_catalog.setval('%s', %d, true)"
-	for sequenceName, lastValue := range sequencesLastVal {
+	sequencesLastVal.IterKV(func(sequenceTuple sqlname.NameTuple, lastValue int64) (bool, error) {
 		if lastValue == 0 {
 			// TODO: can be valid for cases like cyclic sequences
-			continue
+			return true, nil
 		}
-		// same function logic will work for sequences as well
-		// sequenceName, err := pg.qualifyTableName(sequenceName)
-		seqName, err := namereg.NameReg.LookupTableName(sequenceName)
-		if err != nil {
-			return fmt.Errorf("error looking up sequence name %q: %w", sequenceName, err)
-		}
-		sequenceName := seqName.ForUserQuery()
+		sequenceName := sequenceTuple.ForUserQuery()
 		log.Infof("restore sequence %s to %d", sequenceName, lastValue)
 		batch.Queue(fmt.Sprintf(restoreStmt, sequenceName, lastValue))
-	}
+		return true, nil
+	})
 
 	err := pg.connPool.WithConn(func(conn *pgx.Conn) (retry bool, err error) {
 		br := conn.SendBatch(context.Background(), &batch)
