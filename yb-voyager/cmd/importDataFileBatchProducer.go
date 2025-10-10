@@ -31,7 +31,7 @@ import (
 )
 
 var (
-	throughputLimiter = rate.NewLimiter(rate.Limit(100*1024*1024), math.MaxInt) //100MBPS max for producer.
+	throughputLimiter = rate.NewLimiter(rate.Limit(10*1024*1024), math.MaxInt) //100MBPS max for producer.
 )
 
 const FIRST_BATCH_NUM = 1
