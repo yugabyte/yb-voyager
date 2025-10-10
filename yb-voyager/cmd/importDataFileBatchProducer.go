@@ -16,15 +16,21 @@ limitations under the License.
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"io"
+	"math"
 	"sort"
 
 	log "github.com/sirupsen/logrus"
-
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"golang.org/x/time/rate"
+)
+
+var (
+	throughputLimiter = rate.NewLimiter(rate.Limit(100*1024*1024), math.MaxInt) //100MBPS max for producer.
 )
 
 const FIRST_BATCH_NUM = 1
@@ -127,6 +133,11 @@ func (p *FileBatchProducer) produceNextBatch() (*Batch, error) {
 	// because adding it would breach size/row based thresholds.
 	// Add that line to the current batch.
 	if p.lineFromPreviousBatch != "" {
+		// Write the record to the current batch
+		err = throughputLimiter.WaitN(context.Background(), int(currentBytesRead))
+		if err != nil {
+			return nil, fmt.Errorf("waiting for throughput limiter: %w", err)
+		}
 		err = batchWriter.WriteRecord(p.lineFromPreviousBatch)
 		if err != nil {
 			return nil, fmt.Errorf("Write to batch %d: %s", batchNum, err)
@@ -200,6 +211,10 @@ func (p *FileBatchProducer) produceNextBatch() (*Batch, error) {
 			}
 
 			// Write the record to the current batch
+			err = throughputLimiter.WaitN(context.Background(), int(currentBytesRead))
+			if err != nil {
+				return nil, fmt.Errorf("waiting for throughput limiter: %w", err)
+			}
 			err = batchWriter.WriteRecord(line)
 			if err != nil {
 				return nil, fmt.Errorf("Write to batch %d: %s", batchNum, err)
