@@ -88,7 +88,12 @@ func (sbp *ShuffledBatchProducer) Init() {
 				parallelBatchProducerSemaphore.Release(1)
 				utils.ErrExit("Producer error for file %s: %v", sbp.fileBatchProducer.task.FilePath, err)
 			}
+
 			sbp.batches = append(sbp.batches, batch)
+			if sbp.fileBatchProducer.Done() {
+				sbp.producerFinished = true
+				log.Infof("Producer finished for file: %s", sbp.fileBatchProducer.task.FilePath)
+			}
 			sbp.cond.Signal() // Wake up one waiting consumer
 			sbp.mu.Unlock()
 			parallelBatchProducerSemaphore.Release(1)
