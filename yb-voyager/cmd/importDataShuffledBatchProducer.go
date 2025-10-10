@@ -16,6 +16,7 @@ limitations under the License.
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
 	"sync"
@@ -23,6 +24,11 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"golang.org/x/sync/semaphore"
+)
+
+var (
+	parallelBatchProducerSemaphore = semaphore.NewWeighted(int64(5))
 )
 
 // ShuffledBatchProducer wraps FileBatchProducer to provide concurrent batch production
@@ -62,22 +68,30 @@ func (sbp *ShuffledBatchProducer) Init() {
 	// Start producer goroutine
 	go func() {
 		log.Infof("Starting batch production for file: %s", sbp.fileBatchProducer.task.FilePath)
+		ctx := context.Background()
 		for {
+			err := parallelBatchProducerSemaphore.Acquire(ctx, 1)
+			if err != nil {
+				utils.ErrExit("Failed to acquire semaphore: %v", err)
+			}
 			sbp.mu.Lock()
 			if sbp.fileBatchProducer.Done() {
 				sbp.producerFinished = true
 				sbp.mu.Unlock()
+				parallelBatchProducerSemaphore.Release(1)
 				log.Infof("Producer finished for file: %s", sbp.fileBatchProducer.task.FilePath)
 				break
 			}
 			batch, err := sbp.fileBatchProducer.NextBatch()
 			if err != nil {
 				sbp.mu.Unlock()
+				parallelBatchProducerSemaphore.Release(1)
 				utils.ErrExit("Producer error for file %s: %v", sbp.fileBatchProducer.task.FilePath, err)
 			}
 			sbp.batches = append(sbp.batches, batch)
 			sbp.cond.Signal() // Wake up one waiting consumer
 			sbp.mu.Unlock()
+			parallelBatchProducerSemaphore.Release(1)
 		}
 	}()
 }
