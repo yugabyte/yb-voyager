@@ -222,5 +222,61 @@
     "exported_updates": 1,
     "exported_deletes": 0,
     "final_row_count": 3
+  },
+  {
+    "table_name": "public.\"tsvector_table\"",
+    "db_type": "source",
+    "exported_snapshot_rows": 0,
+    "imported_snapshot_rows": 0,
+    "errored_imported_snapshot_rows": 0,
+    "imported_inserts": 0,
+    "imported_updates": 0,
+    "imported_deletes": 0,
+    "exported_inserts": 0,
+    "exported_updates": 0,
+    "exported_deletes": 0,
+    "final_row_count": 0
+  },
+  {
+    "table_name": "public.\"tsvector_table\"",
+    "db_type": "target",
+    "exported_snapshot_rows": 0,
+    "imported_snapshot_rows": 0,
+    "errored_imported_snapshot_rows": 0,
+    "imported_inserts": 0,
+    "imported_updates": 0,
+    "imported_deletes": 0,
+    "exported_inserts": 0,
+    "exported_updates": 0,
+    "exported_deletes": 0,
+    "final_row_count": 0
+  },
+  {
+    "table_name": "public.\"enum_array_table\"",
+    "db_type": "source",
+    "exported_snapshot_rows": 0,
+    "imported_snapshot_rows": 0,
+    "errored_imported_snapshot_rows": 0,
+    "imported_inserts": 0,
+    "imported_updates": 0,
+    "imported_deletes": 0,
+    "exported_inserts": 0,
+    "exported_updates": 0,
+    "exported_deletes": 0,
+    "final_row_count": 0
+  },
+  {
+    "table_name": "public.\"enum_array_table\"",
+    "db_type": "target",
+    "exported_snapshot_rows": 0,
+    "imported_snapshot_rows": 0,
+    "errored_imported_snapshot_rows": 0,
+    "imported_inserts": 0,
+    "imported_updates": 0,
+    "imported_deletes": 0,
+    "exported_inserts": 0,
+    "exported_updates": 0,
+    "exported_deletes": 0,
+    "final_row_count": 0
   }
 ]
