@@ -52,16 +52,6 @@ LOGICAL_REPLICATION_ROW_OVERRIDES = {
     'enum_array_table': 5,
 }
 
-# # FF/FB specific row counts for logical connector
-# LOGICAL_REPLICATION_FF_ROW_OVERRIDES = {
-#     'hstore_example': 29,
-#     # After source_delta.sql and target_delta_logical_connector.sql:
-#     # Both tables: 3 initial + 2 source inserts - 1 source delete + 2 target inserts - 1 target delete
-#     # = 3 + 2 - 1 + 2 - 1 = 5
-#     'tsvector_table': 5,
-#     'enum_array_table': 5,
-# }
-
 EXPECTED_SUM_OF_COLUMN = {
     'num_types': {
         'v1': '32556',
@@ -198,7 +188,7 @@ def run_migration_checks(db_type: str, expected, ff_fb_enabled: bool = False):
 def migration_completed_checks(tgt, expected):
     got_row_count = tgt.row_count_of_all_tables("public")
     for table_name, row_count in expected["row_count"].items():
-        print(f"table_name: {table_name}, row_count: {got_row_count[table_name]}")
+        print(f"table_name: {table_name}, row_count: {got_row_count[table_name]}, expected: {row_count}")
         assert row_count == got_row_count[table_name]
 
     for table_name, column_names_with_sum in expected["sum_of_column"].items():
