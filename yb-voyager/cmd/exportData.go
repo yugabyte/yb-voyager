@@ -1294,29 +1294,7 @@ func finalizeTableAndColumnList(finalTableList []sqlname.NameTuple) ([]sqlname.N
 	}
 	// If any of the keys of unsupportedTableColumnsMap contains values in the string array then do this check
 	if len(unsupportedTableColumnsMap.Keys()) > 0 {
-		log.Infof("preparing column list for the data export without unsupported datatype columns: %v", unsupportedTableColumnsMap)
-		utils.PrintAndLog("The following columns data export is unsupported:")
-		unsupportedTableColumnsMap.IterKV(func(k sqlname.NameTuple, v []string) (bool, error) {
-			if len(v) != 0 {
-				utils.PrintAndLog("%s: %s\n", k.ForOutput(), v)
-			}
-			return true, nil
-		})
-		if !utils.AskPrompt("\nDo you want to continue with the export by ignoring just these columns' data") {
-			utils.ErrExit("Exiting at user's request. Use `--exclude-table-list` flag to continue without these tables")
-		} else {
-			var importingDatabase string
-			if exporterRole == SOURCE_DB_EXPORTER_ROLE {
-				importingDatabase = "target"
-			} else if exporterRole == TARGET_DB_EXPORTER_FF_ROLE {
-				importingDatabase = "source-replica"
-			} else if exporterRole == TARGET_DB_EXPORTER_FB_ROLE {
-				importingDatabase = "source"
-			}
-
-			utils.PrintAndLog(color.YellowString("Continuing with the export by ignoring just these columns' data. \nPlease make sure to remove any null constraints on these columns in the %s database.", importingDatabase))
-		}
-
+		handleUnsupportedColumnsInExportData(unsupportedTableColumnsMap)
 		finalTableList = filterTableWithEmptySupportedColumnList(finalTableList, tablesColumnList)
 	}
 
@@ -1324,6 +1302,37 @@ func finalizeTableAndColumnList(finalTableList []sqlname.NameTuple) ([]sqlname.N
 		return t.ForOutput()
 	}))
 	return finalTableList, tablesColumnList
+}
+
+func handleUnsupportedColumnsInExportData(unsupportedTableColumnsMap *utils.StructMap[sqlname.NameTuple, []string]) {
+	log.Infof("preparing column list for the data export without unsupported datatype columns: %v", unsupportedTableColumnsMap)
+
+	var unsupportedColsMsg strings.Builder
+	unsupportedColsMsg.WriteString("The following columns data export is unsupported:\n")
+	unsupportedTableColumnsMap.IterKV(func(k sqlname.NameTuple, v []string) (bool, error) {
+		if len(v) != 0 {
+			unsupportedColsMsg.WriteString(fmt.Sprintf("%s: %s\n", k.ForOutput(), v))
+		}
+		return true, nil
+	})
+	utils.PrintAndLog(unsupportedColsMsg.String())
+	if !utils.AskPrompt("\nDo you want to continue with the export by ignoring just these columns' data") {
+		utils.ErrExit("Exiting at user's request. Use `--exclude-table-list` flag to continue without these tables")
+	} else {
+		utils.PrintAndLog(color.YellowString("Continuing with the export by ignoring just these columns' data.\n"+
+			"Please make sure to remove any null constraints on these columns in the %s database.", getImportingDatabaseString()))
+	}
+}
+
+func getImportingDatabaseString() string {
+	if exporterRole == SOURCE_DB_EXPORTER_ROLE {
+		return "target"
+	} else if exporterRole == TARGET_DB_EXPORTER_FF_ROLE {
+		return "source-replica"
+	} else if exporterRole == TARGET_DB_EXPORTER_FB_ROLE {
+		return "source"
+	}
+	return "UNKNOWN"
 }
 
 func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTableList []sqlname.NameTuple, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], snapshotName string) error {
