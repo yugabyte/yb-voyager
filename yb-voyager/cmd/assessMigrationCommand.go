@@ -364,7 +364,7 @@ func populateObjectUsageStats() ([]*types.ObjectUsageStats, error) {
 	for _, objectUsageStat := range objectUsageStats {
 		objectUsageStat.ReadUsage = types.GetUsageCategory(objectUsageStat.Reads, maxReads)
 		objectUsageStat.WriteUsage = types.GetUsageCategory(objectUsageStat.TotalWrites(), maxWrites)
- 		objectUsageStat.Usage = types.GetCombinedUsageCategory(objectUsageStat.ReadUsage, objectUsageStat.WriteUsage)
+		objectUsageStat.Usage = types.GetCombinedUsageCategory(objectUsageStat.ReadUsage, objectUsageStat.WriteUsage)
 	}
 	return objectUsageStats, nil
 }
@@ -1014,7 +1014,7 @@ func convertAnalyzeSchemaIssueToAssessmentIssue(analyzeSchemaIssue utils.Analyze
 		Impact:                 analyzeSchemaIssue.Impact,
 		ObjectType:             analyzeSchemaIssue.ObjectType,
 		ObjectName:             analyzeSchemaIssue.ObjectName,
-		ObjectUsageCategory:    analyzeSchemaIssue.ObjectUsageCategory,
+		ObjectUsage:            analyzeSchemaIssue.ObjectUsage,
 		SqlStatement:           analyzeSchemaIssue.SqlStatement,
 		DocsLink:               analyzeSchemaIssue.DocsLink,
 		MinimumVersionsFixedIn: minVersionsFixedIn,
@@ -1908,10 +1908,10 @@ func getPerformanceOptimizationIssues(issues []AssessmentIssue) []AssessmentIssu
 		ordStates := map[string]int{"FREQUENT": 1, "MODERATE": 2, "RARE": 3, "UNUSED": 4}
 		p1 := perfOptimzationIssues[i]
 		p2 := perfOptimzationIssues[j]
-		return ordStates[p1.ObjectUsageCategory] < ordStates[p2.ObjectUsageCategory]
+		return ordStates[p1.ObjectUsage] < ordStates[p2.ObjectUsage]
 	})
 	return perfOptimzationIssues
-}	
+}
 
 func groupByObjectType(objects []ObjectInfo) map[string][]ObjectInfo {
 	return lo.GroupBy(objects, func(object ObjectInfo) string {

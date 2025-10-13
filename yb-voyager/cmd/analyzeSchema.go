@@ -731,7 +731,7 @@ func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fil
 		Name:                   issueInstance.Name,
 		Reason:                 issueInstance.Description,
 		Impact:                 issueInstance.Impact,
-		ObjectUsageCategory:    issueInstance.ObjectUsage,
+		ObjectUsage:            issueInstance.ObjectUsage,
 		SqlStatement:           issueInstance.SqlStatement,
 		DocsLink:               issueInstance.DocsLink,
 		FilePath:               fileName,

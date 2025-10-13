@@ -699,7 +699,7 @@
                                 {{ end }}
                             </td>
                             {{ if $onlyPerf }}
-                                <td class="centered-cell" style="text-align: center;">{{ $issue.ObjectUsageCategory }}</td>
+                                <td class="centered-cell" style="text-align: center;">{{ $issue.ObjectUsage }}</td>
                             {{ end }}
                             <td class="centered-cell" style="text-align: center;">{{ snakeCaseToTitleCase $issue.Impact }}</td>
                         </tr>
