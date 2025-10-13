@@ -26,8 +26,11 @@ import (
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/reflect/protoreflect"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/types"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
 
@@ -65,6 +68,7 @@ type ConstraintMetadata struct {
 type TableMetadata struct {
 	TableName          string
 	SchemaName         string
+	Usage              string
 	Columns            map[string]*ColumnMetadata
 	Constraints        []ConstraintMetadata
 	Indexes            []*queryparser.Index
@@ -267,6 +271,9 @@ type ParserIssueDetector struct {
 	// Table metadata consolidated into a single structure
 	// Key is qualified table name (schema.table), value is TableMetadata
 	tablesMetadata map[string]*TableMetadata
+
+	// object usage stats
+	objectUsageStats map[string]*types.ObjectUsageStats
 }
 
 func NewParserIssueDetector() *ParserIssueDetector {
@@ -298,10 +305,11 @@ func (p *ParserIssueDetector) getOrCreateTableMetadata(tableName string) *TableM
 		schemaName = parts[0]
 		tableNameOnly = parts[1]
 	}
-
+	usageCategory := p.getUsageCategoryForTable(schemaName, tableNameOnly)
 	tm := &TableMetadata{
 		TableName:   tableNameOnly,
 		SchemaName:  schemaName,
+		Usage:       usageCategory,
 		Columns:     make(map[string]*ColumnMetadata),
 		Constraints: make([]ConstraintMetadata, 0),
 		Indexes:     make([]*queryparser.Index, 0),
@@ -503,6 +511,14 @@ func (p *ParserIssueDetector) getPLPGSQLIssues(query string) ([]QueryIssue, erro
 		i.ObjectName = objName
 		return i
 	}), nil
+}
+
+func (p *ParserIssueDetector) SetObjectUsageStats(objectUsageStats []*types.ObjectUsageStats) {
+	objectUsageStatsMap := make(map[string]*types.ObjectUsageStats)
+	for _, objectUsageStat := range objectUsageStats {
+		objectUsageStatsMap[objectUsageStat.GetObjectName()] = objectUsageStat
+	}
+	p.objectUsageStats = objectUsageStatsMap
 }
 
 // FinalizeColumnMetadata processes the column metadata after all DDL statements have been parsed.
@@ -1077,13 +1093,46 @@ func (p *ParserIssueDetector) DetectMissingForeignKeyIndexes() []QueryIssue {
 			// Check if this FK has proper index coverage using existing logic
 			if !p.hasProperIndexCoverage(constraint, tableName) {
 				// Create and add the issue
-				issue := p.createMissingFKIndexIssue(constraint, tableName)
+				issue := p.createMissingFKIndexIssue(constraint, tm.TableName, tm.Usage)
 				issues = append(issues, issue)
 			}
 		}
 	}
 
 	return issues
+}
+
+func (p *ParserIssueDetector) getUsageCategoryForTable(schemaName, tableName string) string {
+	objName := sqlname.NewObjectName(constants.POSTGRESQL, "", schemaName, tableName)
+	qualifiedObjName := objName.Qualified.Unquoted
+	stat, ok := p.objectUsageStats[qualifiedObjName]
+	if !ok {
+		log.Infof("No object usage stats found for table: %s", qualifiedObjName)
+		return types.ObjectUsageUnused
+	}
+	usageCategory := stat.Usage
+
+	return usageCategory
+}
+
+func (p *ParserIssueDetector) getUsageCategoryForIndex(schemaName, tableName, indexName string) string {
+	objName := sqlname.NewObjectNameQualifiedWithTableName(constants.POSTGRESQL, "", indexName, schemaName, tableName)
+	qualifiedObjName := objName.Qualified.Unquoted
+	stat, ok := p.objectUsageStats[qualifiedObjName]
+	if !ok {
+		log.Infof("No object usage stats found for index: %s", qualifiedObjName)
+		return types.ObjectUsageUnused
+	}
+	indexReadCategory := stat.ReadUsage
+	tableObjName := sqlname.NewObjectName(constants.POSTGRESQL, "", schemaName, tableName)
+	qualifiedObjName = tableObjName.Qualified.Unquoted
+	stat, ok = p.objectUsageStats[qualifiedObjName]
+	if !ok {
+		log.Infof("No object usage stats found for table: %s", qualifiedObjName)
+		return types.ObjectUsageUnused
+	}
+	tableWritesCategory := stat.WriteUsage
+	return types.GetCombinedUsageCategory(indexReadCategory, tableWritesCategory)
 }
 
 // DetectPrimaryKeyRecommendations recommends adding a PK when there's a UNIQUE constraint with all NOT NULL columns and no PK
@@ -1177,7 +1226,7 @@ func (p *ParserIssueDetector) detectTablePKRecommendations(tm *TableMetadata) []
 	})
 
 	if len(uniqueOptions) > 0 {
-		issues = append(issues, NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", tm.GetObjectName(), uniqueOptions))
+		issues = append(issues, NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", tm.GetObjectName(), uniqueOptions, tm.Usage))
 	}
 
 	return issues
@@ -1233,7 +1282,7 @@ func (p *ParserIssueDetector) hasIndexCoverage(index *queryparser.Index, fkColum
 }
 
 // createMissingFKIndexIssue creates a QueryIssue from a foreign key constraint
-func (p *ParserIssueDetector) createMissingFKIndexIssue(constraint ConstraintMetadata, tableName string) QueryIssue {
+func (p *ParserIssueDetector) createMissingFKIndexIssue(constraint ConstraintMetadata, tableName string, usageCategory string) QueryIssue {
 	// Create fully qualified column names
 	qualifiedColumnNames := make([]string, len(constraint.Columns))
 	for i, colName := range constraint.Columns {
@@ -1246,6 +1295,7 @@ func (p *ParserIssueDetector) createMissingFKIndexIssue(constraint ConstraintMet
 		"", // sqlStatement - we don't have this in stored constraint
 		strings.Join(qualifiedColumnNames, ", "),
 		constraint.ReferencedTable,
+		usageCategory,
 	)
 }
 

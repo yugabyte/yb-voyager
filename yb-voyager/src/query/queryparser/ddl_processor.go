@@ -390,6 +390,8 @@ func (t *Table) GetSchemaName() string { return t.SchemaName }
 
 func (t *Table) GetObjectType() string { return TABLE_OBJECT_TYPE }
 
+func (t *Table) GetTableName() string { return t.TableName }
+
 func (t *Table) PrimaryKeyColumns() []string {
 	for _, c := range t.Constraints {
 		if c.ConstraintType == PRIMARY_CONSTR_TYPE {
@@ -899,6 +901,8 @@ func (a *AlterTable) GetObjectName() string {
 func (a *AlterTable) GetSchemaName() string { return a.SchemaName }
 
 func (a *AlterTable) GetObjectType() string { return TABLE_OBJECT_TYPE }
+
+func (a *AlterTable) GetTableName() string { return a.TableName }
 
 func (a *AlterTable) AddPrimaryKeyOrUniqueCons() bool {
 	return a.ConstraintType == PRIMARY_CONSTR_TYPE || a.ConstraintType == UNIQUE_CONSTR_TYPE

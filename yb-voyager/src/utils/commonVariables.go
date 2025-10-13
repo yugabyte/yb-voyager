@@ -114,6 +114,7 @@ type AnalyzeSchemaIssue struct {
 	Type                   string                          `json:"-" xml:"-"` // identifier for issue type ADVISORY_LOCKS, SYSTEM_COLUMNS, etc
 	Name                   string                          `json:"-" xml:"-"` // to use for AssessmentIssue
 	Impact                 string                          `json:"-" xml:"-"` // temporary field; since currently we generate assessment issue from analyze issue
+	ObjectUsageCategory    string                          `json:"-" xml:"-"`
 	SqlStatement           string                          `json:"SqlStatement,omitempty"`
 	FilePath               string                          `json:"FilePath"`
 	Suggestion             string                          `json:"Suggestion"`
