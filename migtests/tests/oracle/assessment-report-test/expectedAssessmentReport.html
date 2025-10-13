@@ -2299,10 +2299,10 @@ To manually modify the schema, please refer: <a class="highlight-link" href="htt
                                                 <tr>
                                                     <th class="centered-cell">Description</th>
                                                     <td>
-                                                        
-                                                        <!-- display N/A if description not present -->
-                                                            N/A
-                                                        
+                                                        <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
+                                                            <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Oracle CLOB data export is now supported via the experimental flag --allow-oracle-clob-data-export. This is supported only for offline migration (not Live or BETA_FAST_DATA_EXPORT) and large CLOBs may impact performance during export and import.</pre>
+                                                            <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Refer to the <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/oracle/#large-sized-clob-data-is-not-supported" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/oracle/#large-sized-clob-data-is-not-supported">docs</a> for more details.</pre>
+                                                        </div>
                                                     </td>
                                                 </tr>
                                                
@@ -2599,10 +2599,10 @@ To manually modify the schema, please refer: <a class="highlight-link" href="htt
                                                 <tr>
                                                     <th class="centered-cell">Description</th>
                                                     <td>
-                                                        
-                                                        <!-- display N/A if description not present -->
-                                                            N/A
-                                                        
+                                                        <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
+                                                            <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Oracle CLOB data export is now supported via the experimental flag --allow-oracle-clob-data-export. This is supported only for offline migration (not Live or BETA_FAST_DATA_EXPORT) and large CLOBs may impact performance during export and import.</pre>
+                                                            <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Refer to the <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/oracle/#large-sized-clob-data-is-not-supported" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/oracle/#large-sized-clob-data-is-not-supported">docs</a> for more details.</pre>
+                                                        </div>
                                                     </td>
                                                 </tr>
                                                
@@ -2756,7 +2756,7 @@ To manually modify the schema, please refer: <a class="highlight-link" href="htt
                     <ul id="notes-list">
                         
                             <li>Some features listed in this report may be supported under a preview flag in the specified target-db-version of YugabyteDB. Please refer to the official <a class="highlight-link" target="_blank" href="https://docs.yugabyte.com/preview/releases/ybdb-releases/">release notes</a> for detailed information and usage guidelines.</li>
-                        
+                            
                             <li>There are some BITMAP indexes present in the schema that will get converted to GIN indexes, but GIN indexes are partially supported in YugabyteDB as mentioned in <a class="highlight-link" href="https://github.com/yugabyte/yugabyte-db/issues/7850">https://github.com/yugabyte/yugabyte-db/issues/7850</a> so take a look and modify them if not supported.</li>
                         
                     </ul>

@@ -247,6 +247,16 @@ func IsFunctionObject(parseTree *pg_query.ParseResult) bool {
 	return !funcNode.CreateFunctionStmt.IsProcedure
 }
 
+func IsSetStmt(stmt *pg_query.RawStmt) bool {
+	_, ok := stmt.Stmt.Node.(*pg_query.Node_VariableSetStmt)
+	return ok
+}
+
+func IsSelectStmt(stmt *pg_query.RawStmt) bool {
+	_, ok := stmt.Stmt.Node.(*pg_query.Node_SelectStmt)
+	return ok
+}
+
 /*
 return type ex-
 CREATE OR REPLACE FUNCTION public.process_combined_tbl(
@@ -492,4 +502,24 @@ func TraverseAndFindColumnName(node *pg_query.Node) string {
 	}
 
 	return ""
+}
+
+func GetSessionVariableName(stmtStr string) (string, error) {
+	parseTree, err := Parse(stmtStr)
+	if err != nil {
+		return "", fmt.Errorf("error parsing statement: %w", err)
+	}
+	if len(parseTree.Stmts) == 0 {
+		return "", fmt.Errorf("no statements in parse tree")
+	}
+	stmt := parseTree.Stmts[0]
+	if !IsSetStmt(stmt) {
+		return "", fmt.Errorf("not a set statement")
+	}
+	varStmt := stmt.Stmt.Node.(*pg_query.Node_VariableSetStmt)
+	if varStmt == nil || varStmt.VariableSetStmt == nil {
+		return "", fmt.Errorf("not a set statement")
+	}
+	return varStmt.VariableSetStmt.GetName(), nil
+
 }

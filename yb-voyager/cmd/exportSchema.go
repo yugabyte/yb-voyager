@@ -32,7 +32,6 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
 
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
@@ -314,47 +313,6 @@ func runAssessMigrationCmdBeforExportSchemaIfRequired(exportSchemaCmd *cobra.Com
 
 	fmt.Println()
 	return nil
-}
-
-func packAndSendExportSchemaPayload(status string, errorMsg error) {
-	if !shouldSendCallhome() {
-		return
-	}
-	payload := createCallhomePayload()
-	payload.MigrationPhase = EXPORT_SCHEMA_PHASE
-	payload.Status = status
-	sourceDBDetails := callhome.SourceDBDetails{
-		DBType:             source.DBType,
-		DBVersion:          source.DBVersion,
-		DBSize:             source.DBSize,
-		DBSystemIdentifier: source.DBSystemIdentifier,
-	}
-	schemaOptimizationChanges := buildCallhomeSchemaOptimizationChanges()
-
-	payload.SourceDBDetails = callhome.MarshalledJsonString(sourceDBDetails)
-	assessRunInExportSchema, err := IsMigrationAssessmentDoneViaExportSchema()
-	if err != nil {
-		log.Infof("callhome: failed to get migration assessment done via export schema: %v", err)
-	}
-	exportSchemaPayload := callhome.ExportSchemaPhasePayload{
-		StartClean:                bool(startClean),
-		AppliedRecommendations:    assessmentRecommendationsApplied,
-		UseOrafce:                 bool(source.UseOrafce),
-		CommentsOnObjects:         bool(source.CommentsOnObjects),
-		Error:                     callhome.SanitizeErrorMsg(errorMsg, anonymizer),
-		SkipRecommendations:       bool(skipRecommendations),
-		AssessRunInExportSchema:   assessRunInExportSchema,
-		SkipPerfOptimizations:     bool(skipPerfOptimizations),
-		ControlPlaneType:          getControlPlaneType(),
-		SchemaOptimizationChanges: schemaOptimizationChanges,
-	}
-
-	payload.PhasePayload = callhome.MarshalledJsonString(exportSchemaPayload)
-
-	err = callhome.SendPayload(&payload)
-	if err == nil && (status == COMPLETE || status == ERROR) {
-		callHomeErrorOrCompletePayloadSent = true
-	}
 }
 
 func init() {
@@ -751,7 +709,7 @@ func applyTableFileTransformations() (*sqltransformer.TableFileTransformer, erro
 
 	skipMergeConstraints := utils.GetEnvAsBool("YB_VOYAGER_SKIP_MERGE_CONSTRAINTS_TRANSFORMATIONS", false)
 
-	tableTransformer := sqltransformer.NewTableFileTransformer(skipMergeConstraints, source.DBType)
+	tableTransformer := sqltransformer.NewTableFileTransformer(skipMergeConstraints, source.DBType, bool(skipPerfOptimizations))
 
 	backUpFile, err := tableTransformer.Transform(tableFilePath)
 	if err != nil {

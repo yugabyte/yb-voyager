@@ -1,5 +1,4 @@
 //go:build unit
-
 /*
 Copyright (c) YugabyteDB, Inc.
 
@@ -76,7 +75,8 @@ func TestMergeConstraints_Basic(t *testing.T) {
 	expectedSqls := []string{
 		`CREATE TABLE test_table1 (id int, name varchar(255), CONSTRAINT test_table_pk PRIMARY KEY (id));`,
 		`ALTER TABLE test_table1 ADD CONSTRAINT check_name CHECK (name <> '') NOT VALID;`,
-		`CREATE TABLE test_table2 (id int, name varchar(255), email varchar(255), CONSTRAINT test_table_uk UNIQUE (email));`,
+		`CREATE TABLE test_table2 (id int, name varchar(255), email varchar(255));`,
+		`ALTER TABLE test_table2 ADD CONSTRAINT test_table_uk UNIQUE (email);`,
 		`ALTER TABLE test_table2 ADD CONSTRAINT test_table_fk FOREIGN KEY (id) REFERENCES test_table1 (id);`,
 	}
 
@@ -139,9 +139,10 @@ func TestMergeConstraints_AllSupportedConstraintTypes(t *testing.T) {
 	`
 
 	expectedSqls := []string{
-		`CREATE TABLE all_constraints (col1 int, col2 text, CONSTRAINT c_ck CHECK (col1 > 0), CONSTRAINT c_pk PRIMARY KEY (col1), CONSTRAINT c_uk UNIQUE (col2));`,
+		`CREATE TABLE all_constraints (col1 int, col2 text, CONSTRAINT c_ck CHECK (col1 > 0), CONSTRAINT c_pk PRIMARY KEY (col1));`,
 		`ALTER TABLE all_constraints ALTER COLUMN col1 SET NOT NULL;`,
 		`ALTER TABLE all_constraints ALTER COLUMN col1 SET DEFAULT 100;`,
+		`ALTER TABLE all_constraints ADD CONSTRAINT c_uk UNIQUE (col2);`,
 		`ALTER TABLE all_constraints ALTER col1 ADD GENERATED ALWAYS AS IDENTITY;`,
 		`ALTER TABLE all_constraints ADD CONSTRAINT c_excl EXCLUDE USING gist (col2 WITH &&);`,
 		`ALTER TABLE all_constraints ADD CONSTRAINT c_fk FOREIGN KEY (col2) REFERENCES some_table (txt);`,
@@ -487,7 +488,6 @@ func TestRemoveRedundantIndexes(t *testing.T) {
 
 }
 
-
 func TestModifySecondaryIndexesToRange(t *testing.T) {
 	sqls := []string{
 		`CREATE INDEX idx_t1 ON public.t(a,b);`,
@@ -521,10 +521,186 @@ func TestModifySecondaryIndexesToRange(t *testing.T) {
 	expectedSqls := []string{
 		`CREATE INDEX idx_t1 ON public.t USING btree (a ASC, b);`,
 		`CREATE INDEX idx_t2 ON public.t USING btree (a ASC);`,
-		`CREATE INDEX idx_t3 ON public.t USING gist (a);`, // Non btree index not modified
+		`CREATE INDEX idx_t3 ON public.t USING gist (a);`,       // Non btree index not modified
 		`CREATE INDEX idx_t4 ON public.t USING btree (a DESC);`, // Already range sharded not modified
 	}
 
 	assert.Equal(t, expectedSqls, finalSqlStmts)
+
+}
+
+func TestHashSplittingChanges(t *testing.T) {
+	type testCase struct {
+		sqlFileContent      string
+		expectedSqlsInOrder []string
+	}
+	cases := []testCase{
+		{
+			sqlFileContent: `
+			SET statement_timeout = 0;
+			SET lock_timeout = 0;
+			SET idle_in_transaction_session_timeout = 0;
+			SET transaction_timeout = 0;
+			SET client_encoding = 'UTF8';
+			SET standard_conforming_strings = on;
+			SELECT pg_catalog.set_config('search_path', '', false);
+			SET xmloption = content;
+			SET client_min_messages = warning;
+			SET row_security = off;
+
+			CREATE TABLE t(id int, CONSTRAINT pk PRIMARY KEY (id));
+			CREATE TABLE t_2(id int, id2 int, CONSTRAINT pk1 PRIMARY KEY (id2));
+			CREATE TABLE t_3(id int, val text);
+			ALTER TABLE t_2 ADD CONSTRAINT uk UNIQUE (id2);
+			ALTER TABLE t_3 ADD CONSTRAINT uk1 UNIQUE (val);
+			ALTER TABLE t_3 ADD CONSTRAINT fk FOREIGN KEY (id) REFERENCES t (id);`,
+			expectedSqlsInOrder: []string{
+				`SET statement_timeout TO 0;`,
+				`SET lock_timeout TO 0;`,
+				`SET idle_in_transaction_session_timeout TO 0;`,
+				`SET transaction_timeout TO 0;`,
+				`SET client_encoding TO "UTF8";`,
+				`SET standard_conforming_strings TO ON;`,
+				`SELECT pg_catalog.set_config('search_path', '', false);`,
+				`SET xmloption TO content;`,
+				`SET client_min_messages TO warning;`,
+				`SET row_security TO OFF;`,
+				`SET yb_use_hash_splitting_by_default TO ON;`,
+				`CREATE TABLE t (id int, CONSTRAINT pk PRIMARY KEY (id));`,
+				`CREATE TABLE t_2 (id int, id2 int, CONSTRAINT pk1 PRIMARY KEY (id2));`,
+				`CREATE TABLE t_3 (id int, val text);`,
+				`SET yb_use_hash_splitting_by_default TO OFF;`,
+				`ALTER TABLE t_2 ADD CONSTRAINT uk UNIQUE (id2);`,
+				`ALTER TABLE t_3 ADD CONSTRAINT uk1 UNIQUE (val);`,
+				`ALTER TABLE t_3 ADD CONSTRAINT fk FOREIGN KEY (id) REFERENCES t (id);`,
+			},
+		},
+		{
+			sqlFileContent: `
+				SET statement_timeout = 0;
+				SET lock_timeout = 0;
+				SET idle_in_transaction_session_timeout = 0;
+				SET transaction_timeout = 0;
+				SET client_encoding = 'UTF8';
+				SET row_security = off;
+
+				CREATE TABLE t(id int, CONSTRAINT pk PRIMARY KEY (id));
+				CREATE TABLE t_2(id int, id2 int);
+				CREATE TABLE t_3(id int, val text);
+				ALTER TABLE t_2 ADD CONSTRAINT pk1 PRIMARY KEY (id2);
+				ALTER TABLE t_2 ADD CONSTRAINT uk UNIQUE (id2);
+				ALTER TABLE t_3 ADD CONSTRAINT uk1 UNIQUE (val);
+				SET standard_conforming_strings = on;
+				SELECT pg_catalog.set_config('search_path', '', false);
+				SET xmloption = content;
+				SET client_min_messages = warning;
+				ALTER TABLE t_3 ADD CONSTRAINT fk FOREIGN KEY (id) REFERENCES t (id);
+			`,
+			expectedSqlsInOrder: []string{
+				`SET statement_timeout TO 0;`,
+				`SET lock_timeout TO 0;`,
+				`SET idle_in_transaction_session_timeout TO 0;`,
+				`SET transaction_timeout TO 0;`,
+				`SET client_encoding TO "UTF8";`,
+				`SET row_security TO OFF;`,
+				`SET standard_conforming_strings TO ON;`,
+				`SELECT pg_catalog.set_config('search_path', '', false);`,
+				`SET xmloption TO content;`,
+				`SET client_min_messages TO warning;`,
+				`SET yb_use_hash_splitting_by_default TO ON;`,
+				`CREATE TABLE t (id int, CONSTRAINT pk PRIMARY KEY (id));`,
+				`CREATE TABLE t_2 (id int, id2 int);`,
+				`CREATE TABLE t_3 (id int, val text);`,
+				`ALTER TABLE t_2 ADD CONSTRAINT pk1 PRIMARY KEY (id2);`,
+				`SET yb_use_hash_splitting_by_default TO OFF;`,
+				`ALTER TABLE t_2 ADD CONSTRAINT uk UNIQUE (id2);`,
+				`ALTER TABLE t_3 ADD CONSTRAINT uk1 UNIQUE (val);`,
+				`ALTER TABLE t_3 ADD CONSTRAINT fk FOREIGN KEY (id) REFERENCES t (id);`,
+			},
+		},
+		{
+			sqlFileContent: `
+				SET statement_timeout = 0;
+				SET lock_timeout = 0;
+				SET idle_in_transaction_session_timeout = 0;
+				SET transaction_timeout = 0;
+				SET client_encoding = 'UTF8';
+				SET row_security = off;
+				SET standard_conforming_strings = on;
+				SELECT pg_catalog.set_config('search_path', '', false);
+				SET xmloption = content;
+				SET client_min_messages = warning;
+
+				ALTER TABLE t_2 ADD CONSTRAINT pk1 PRIMARY KEY (id2);
+				ALTER TABLE t_2 ADD CONSTRAINT uk UNIQUE (id2);
+				ALTER TABLE t_3 ADD CONSTRAINT uk1 UNIQUE (val);
+				ALTER TABLE t_3 ADD CONSTRAINT fk FOREIGN KEY (id) REFERENCES t (id);
+			`,
+			expectedSqlsInOrder: []string{
+				`SET statement_timeout TO 0;`,
+				`SET lock_timeout TO 0;`,
+				`SET idle_in_transaction_session_timeout TO 0;`,
+				`SET transaction_timeout TO 0;`,
+				`SET client_encoding TO "UTF8";`,
+				`SET row_security TO OFF;`,
+				`SET standard_conforming_strings TO ON;`,
+				`SELECT pg_catalog.set_config('search_path', '', false);`,
+				`SET xmloption TO content;`,
+				`SET client_min_messages TO warning;`,
+				`SET yb_use_hash_splitting_by_default TO ON;`,
+				`ALTER TABLE t_2 ADD CONSTRAINT pk1 PRIMARY KEY (id2);`,
+				`SET yb_use_hash_splitting_by_default TO OFF;`,
+				`ALTER TABLE t_2 ADD CONSTRAINT uk UNIQUE (id2);`,
+				`ALTER TABLE t_3 ADD CONSTRAINT uk1 UNIQUE (val);`,
+				`ALTER TABLE t_3 ADD CONSTRAINT fk FOREIGN KEY (id) REFERENCES t (id);`,
+			},
+		},
+		{
+			sqlFileContent: `
+			SET statement_timeout = 0;
+			SET lock_timeout = 0;
+			SET idle_in_transaction_session_timeout = 0;
+			SET transaction_timeout = 0;
+			SET client_encoding = 'UTF8';
+			SET row_security = off;
+			SET standard_conforming_strings = on;
+			SELECT pg_catalog.set_config('search_path', '', false);
+			SET xmloption = content;
+			SET client_min_messages = warning;
+		`,
+			expectedSqlsInOrder: []string{
+				`SET statement_timeout TO 0;`,
+				`SET lock_timeout TO 0;`,
+				`SET idle_in_transaction_session_timeout TO 0;`,
+				`SET transaction_timeout TO 0;`,
+				`SET client_encoding TO "UTF8";`,
+				`SET row_security TO OFF;`,
+				`SET standard_conforming_strings TO ON;`,
+				`SELECT pg_catalog.set_config('search_path', '', false);`,
+				`SET xmloption TO content;`,
+				`SET client_min_messages TO warning;`,
+				`SET yb_use_hash_splitting_by_default TO ON;`,
+				`SET yb_use_hash_splitting_by_default TO OFF;`,
+			},
+		},
+	}
+
+	for _, testCase := range cases {
+
+		sqlFileContent := testCase.sqlFileContent
+		expectedSqls := testCase.expectedSqlsInOrder
+
+		parseTree, err := queryparser.Parse(sqlFileContent)
+		testutils.FatalIfError(t, err)
+
+		transformer := NewTransformer()
+		transformedStmts, err := transformer.AddShardingStrategyForConstraints(parseTree.Stmts)
+		testutils.FatalIfError(t, err)
+
+		finalSqlStmts, err := queryparser.DeparseRawStmts(transformedStmts)
+		testutils.FatalIfError(t, err)
+
+		assert.Equal(t, expectedSqls, finalSqlStmts)
+	}
 
 }

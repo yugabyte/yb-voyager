@@ -80,8 +80,6 @@ drop extension if exists pg_stat_statements;
 
 create extension pg_stat_statements;
 
-SELECT pg_stat_statements_reset();
-
 SELECT * FROM pg_stat_statements;
 
 SELECT ctid, tableoid, xmin, xmax, cmin, cmax

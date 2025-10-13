@@ -19,14 +19,16 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 	"golang.org/x/exp/slices"
-	"gotest.tools/assert"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
@@ -259,12 +261,27 @@ func assertGuardrailsChecksForMissingAndExtraTablesInSubsequentRun(t *testing.T,
 }
 
 // Tests the unknown table case by over ridding the utils.ErrExit function to assert the error msg
-func testUnknownTableCaseForTableListFlags(t *testing.T, withStartClean bool, expectedUnknownErrorMsg string) {
+func testUnknownTableCaseForTableListFlags(t *testing.T, withStartClean bool, expectedUnknownErrorMsg string, flagName string) {
 
 	//Run the function assert the error exit scenario
 	startClean = utils.BoolStr(withStartClean)
 	_, _, err := getInitialTableList()
-	assert.ErrorContains(t, err, expectedUnknownErrorMsg)
+	errStr := err.Error()
+	if startClean {
+		assert.True(t, strings.Contains(errStr, fmt.Sprintf(`error in get_initial_table_list at step 'extract_table_list_from_%s_list' in call 'apply_table_list_flags_on_full_list'
+Execution history
+    -> get_initial_table_list
+    -> fetch_tables_names_from_source
+    -> apply_table_list_flags_on_full_list`, flagName)))
+	} else {
+		assert.True(t, strings.Contains(errStr, fmt.Sprintf(`error in get_initial_table_list at step 'extract_table_list_from_%s_list' in call 'apply_table_list_flags_on_full_list'
+Execution history
+    -> get_initial_table_list
+    -> apply_table_list_flags_on_subsequent_run
+    -> apply_table_list_flags_on_full_list
+Error:`, flagName)))
+	}
+	assert.True(t, strings.Contains(errStr, expectedUnknownErrorMsg))
 }
 
 var (
@@ -468,6 +485,10 @@ func TestTableListInSubsequentRunOfExportDataBasicPG(t *testing.T) {
 	//Running the command level functions
 	source = *testPostgresSource.Source
 
+	startClean = true 
+	source.TableList = "asdsa"
+	testUnknownTableCaseForTableListFlags(t, true, "Unknown table names in the include list: [asdsa]", "include")
+
 	//Fetch table list and partitions to root mapping in the first run
 	expectedPartitionsToRootMap := map[string]string{
 		"public.test_partitions_sequences_l": "public.test_partitions_sequences",
@@ -489,6 +510,8 @@ func TestTableListInSubsequentRunOfExportDataBasicPG(t *testing.T) {
 		getNameTuple("public.datatypes1"),
 		getNameTuple("public.foreign_test"),
 	}
+
+	source.TableList = ""
 	assertTableListFilteringInTheFirstRun(t, expectedPartitionsToRootMap, expectedTableList)
 
 	expectedTableListWithOnlyRootTable := []sqlname.NameTuple{
@@ -512,6 +535,8 @@ func TestTableListInSubsequentRunOfExportDataBasicPG(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error updating msr: %v", err)
 	}
+
+	startClean = false
 
 	// getInitialTableList for subsequent run with  start-clean false and basic without table-list flags so no guardrails
 
@@ -547,7 +572,7 @@ func TestTableListInSubsequentRunOfExportDataBasicPG(t *testing.T) {
 	// getInitialTableList for subsequent run with  start-clean false and basic with table-list flag with unknown table so no guardrails
 	source.TableList = "test_partitions_sequences_p,fake_table_name"
 	expectedUnknownErrorMsg := `Unknown table names in the include list: [test_partitions_sequences_p fake_table_name]`
-	testUnknownTableCaseForTableListFlags(t, false, expectedUnknownErrorMsg)
+	testUnknownTableCaseForTableListFlags(t, false, expectedUnknownErrorMsg, "include")
 
 	//Case --start-clean true
 	// getInitialTableList for subsequent run with  start-clean false and basic without table-list flags so no guardrails
@@ -820,7 +845,12 @@ func TestTableListInSubsequentRunOfExportDatWithTableListFlagsPGWithMultiLevelPa
 
 	assertTableListFilteringInTheFirstRun(t, expectedPartitionsToRootMap, expectedTableList)
 
-	expectedTableListWithOnlyRootTable := []sqlname.NameTuple{}
+	expectedTableListWithOnlyRootTable := []sqlname.NameTuple{
+		getNameTuple(`test1.customers`),
+		getNameTuple(`test1."Foo"`),
+		getNameTuple(`test1."Foo1"`),
+		getNameTuple(`test1."Foo2"`),
+	}
 
 	//Create msr with required details for subsequent run
 	err = metaDB.UpdateMigrationStatusRecord(func(msr *metadb.MigrationStatusRecord) {
@@ -869,7 +899,7 @@ func testCasesWithDifferentTableListFlagValuesWithMultiLevelPartitionsAndWildCar
 	//--table-list
 	source.ExcludeTableList = "test1.cust_other,test1.Fooabc,test1.Foo1,test1.Foo2"
 	expectedUnknownErrorMsg := `Unknown table names in the exclude list: [test1.cust_other test1.Fooabc]`
-	testUnknownTableCaseForTableListFlags(t, false, expectedUnknownErrorMsg)
+	testUnknownTableCaseForTableListFlags(t, false, expectedUnknownErrorMsg, "exclude")
 
 	//case4: getInitialTableList for subsequent run with  start-clean false and basic with table-list flag with  same list so no guardrails
 	//--table-list

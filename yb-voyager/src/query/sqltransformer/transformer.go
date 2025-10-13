@@ -53,7 +53,6 @@ func NewTransformer() *Transformer {
 
 var constraintTypesToMerge = []pg_query.ConstrType{
 	pg_query.ConstrType_CONSTR_PRIMARY, // PRIMARY KEY
-	pg_query.ConstrType_CONSTR_UNIQUE,  // UNIQUE
 	pg_query.ConstrType_CONSTR_CHECK,   // CHECK
 }
 
@@ -220,4 +219,74 @@ func (t *Transformer) ModifySecondaryIndexesToRange(stmts []*pg_query.RawStmt) (
 		modifiedObjNames = append(modifiedObjNames, queryparser.GetIndexObjectNameFromIndexStmt(indexStmt))
 	}
 	return stmts, modifiedObjNames, nil
+}
+
+/*
+Splitting all the statements in table.sql file into following categories:
+1. Select and Set statements
+3. Create and Alter Table statements with PRIMARY KEY constraints
+4. Alter Table statements with UNIQUE constraints
+5. Other statements
+
+and then adding the hash splitting ON for pk constraints and OFF for uk constraints
+
+order of statements after transformation:
+1. Select and Setstatements
+2. SET HASH SPLITTING ON for pk constraints
+3. Create and Alter Table statements with PRIMARY KEY constraints
+4. SET HASH SPLITTING OFF for uk constraints
+5. Alter Table statements with UNIQUE constraints
+6. Other statements
+*/
+
+func (t *Transformer) AddShardingStrategyForConstraints(stmts []*pg_query.RawStmt) ([]*pg_query.RawStmt, error) {
+	log.Infof("adding hash splitting on for pk constraints to the schema")
+	selectSetStatements := make([]*pg_query.RawStmt, 0)
+	createAndAlterTableWithPK := make([]*pg_query.RawStmt, 0)
+	AlterTableUKConstraints := make([]*pg_query.RawStmt, 0)
+	otherStatements := make([]*pg_query.RawStmt, 0)
+	for _, stmt := range stmts {
+		if queryparser.IsSelectStmt(stmt) || queryparser.IsSetStmt(stmt) {
+			selectSetStatements = append(selectSetStatements, stmt)
+			continue
+		}
+		ddlObject, err := queryparser.ProcessDDL(&pg_query.ParseResult{Stmts: []*pg_query.RawStmt{stmt}})
+		if err != nil {
+			return nil, fmt.Errorf("failed to process ddl: %v", err)
+		}
+		switch ddlObject.(type) {
+		case *queryparser.Table:
+			createAndAlterTableWithPK = append(createAndAlterTableWithPK, stmt)
+		case *queryparser.AlterTable:
+			alterTable, _ := ddlObject.(*queryparser.AlterTable)
+			if alterTable.ConstraintType == queryparser.PRIMARY_CONSTR_TYPE {
+				createAndAlterTableWithPK = append(createAndAlterTableWithPK, stmt)
+			} else if alterTable.ConstraintType == queryparser.UNIQUE_CONSTR_TYPE {
+				AlterTableUKConstraints = append(AlterTableUKConstraints, stmt)
+			} else {
+				otherStatements = append(otherStatements, stmt)
+			}
+		default:
+			otherStatements = append(otherStatements, stmt)
+		}
+	}
+
+	hashSplittingSessionVariableOnParseTree, err := queryparser.Parse(HASH_SPLITTING_SESSION_VARIABLE_ON)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse hash splitting session variable on: %v", err)
+	}
+	hashSplittingSessionVariableOffParseTree, err := queryparser.Parse(HASH_SPLITTING_SESSION_VARIABLE_OFF)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse hash splitting session variable off: %v", err)
+	}
+
+	modifiedStmts := make([]*pg_query.RawStmt, 0)
+	modifiedStmts = append(modifiedStmts, selectSetStatements...)
+	modifiedStmts = append(modifiedStmts, hashSplittingSessionVariableOnParseTree.Stmts...)
+	modifiedStmts = append(modifiedStmts, createAndAlterTableWithPK...)
+	modifiedStmts = append(modifiedStmts, hashSplittingSessionVariableOffParseTree.Stmts...)
+	modifiedStmts = append(modifiedStmts, AlterTableUKConstraints...)
+	modifiedStmts = append(modifiedStmts, otherStatements...)
+	return modifiedStmts, nil
+
 }

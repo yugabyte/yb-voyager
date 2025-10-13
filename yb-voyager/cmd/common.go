@@ -1747,6 +1747,8 @@ func PackAndSendCallhomePayloadOnExit() {
 		packAndSendEndMigrationPayload(status, exitErr)
 	case importDataFileCmd.CommandPath():
 		packAndSendImportDataFilePayload(status, exitErr)
+	case comparePerformanceCmd.CommandPath():
+		packAndSendComparePerformancePayload(status, exitErr, nil)
 	}
 }
 
