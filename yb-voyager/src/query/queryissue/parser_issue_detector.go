@@ -1093,7 +1093,7 @@ func (p *ParserIssueDetector) DetectMissingForeignKeyIndexes() []QueryIssue {
 			// Check if this FK has proper index coverage using existing logic
 			if !p.hasProperIndexCoverage(constraint, tableName) {
 				// Create and add the issue
-				issue := p.createMissingFKIndexIssue(constraint, tm.TableName, tm.Usage)
+				issue := p.createMissingFKIndexIssue(constraint, tableName, tm.Usage)
 				issues = append(issues, issue)
 			}
 		}
