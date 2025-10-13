@@ -298,6 +298,7 @@ func exportData() bool {
 	// finalizing table list and column list to be exported based on the datatypes supported by the source DB
 	finalTableList, tablesColumnList := finalizeTableAndColumnList(finalTableList)
 	handleEmptyTableListForExport(finalTableList)
+
 	metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		switch source.DBType {
 		case POSTGRESQL:
