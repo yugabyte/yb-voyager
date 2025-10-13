@@ -27,6 +27,8 @@ EXPECTED_ROW_COUNT = {
 	'null_and_default' :2,
 	'decimal_types': 3,
 	'hstore_example': 26,
+	'tsvector_table': 3,
+	'enum_array_table': 3,
 }
 
 EXPECTED_SUM_OF_COLUMN = {
@@ -74,7 +76,7 @@ def migration_completed_checks_fb():
 def migration_completed_checks(tgt):
 	table_list = tgt.get_table_names("public")
 	print("table_list:", table_list)
-	assert len(table_list) == 8
+	assert len(table_list) == 10
 
 	got_row_count = tgt.row_count_of_all_tables("public")
 	for table_name, row_count in EXPECTED_ROW_COUNT.items():
@@ -175,6 +177,18 @@ def migration_completed_checks(tgt):
 	]
 
 	tgt.assert_distinct_values_of_col("hstore_example", "data", "public", expected_distinct_values=expected_hstore_values)
+
+	print("tsvector_table:")
+	expected_tsvector_titles = ['PostgreSQL Tutorial', 'Advanced SQL', 'Data Migration']
+	tgt.assert_distinct_values_of_col("tsvector_table", "title", "public", expected_distinct_values=expected_tsvector_titles)
+
+	print("enum_array_table:")
+	expected_enum_arrays = [['mon', 'wed', 'fri'], ['tue', 'thu'], ['sat', 'sun']]
+	actual_enum_arrays = tgt.get_distinct_values_of_column_of_table("enum_array_table", "week_days", "public")
+	# Convert to lowercase for comparison
+	actual_enum_arrays_lower = [[day.lower() for day in arr] if arr else arr for arr in actual_enum_arrays]
+	for expected in expected_enum_arrays:
+		assert expected in actual_enum_arrays_lower, f"Expected {expected} not found in {actual_enum_arrays_lower}"
 
 
 def YB_specific_checks(tgt):
