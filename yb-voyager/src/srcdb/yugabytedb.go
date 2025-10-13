@@ -37,8 +37,8 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
-// Apart from these we also skip UDT columns and error out for array of enums as unsupported tables.
-var YugabyteUnsupportedDataTypesForDbzmLogical = []string{"BOX", "CIRCLE", "LINE", "LSEG", "PATH", "PG_LSN", "POINT", "POLYGON", "TSQUERY", "TSVECTOR", "TXID_SNAPSHOT", "GEOMETRY", "GEOGRAPHY", "RASTER"}
+// Apart from these we also skip UDT columns and error out for array of enums as unsupported tables (but array of enums are supported with logical connector).
+var YugabyteUnsupportedDataTypesForDbzmLogical = []string{"BOX", "CIRCLE", "LINE", "LSEG", "PATH", "PG_LSN", "POINT", "POLYGON", "TSQUERY", "TXID_SNAPSHOT", "GEOMETRY", "GEOGRAPHY", "RASTER"}
 
 var YugabyteUnsupportedDataTypesForDbzmGrpc = []string{"BOX", "CIRCLE", "LINE", "LSEG", "PATH", "PG_LSN", "POINT", "POLYGON", "TSQUERY", "TSVECTOR", "TXID_SNAPSHOT", "GEOMETRY", "GEOGRAPHY", "RASTER", "HSTORE"}
 
@@ -487,6 +487,34 @@ func (yb *YugabyteDB) getAllUserDefinedTypesInSchema(schemaName string) []string
 	return enumTypes
 }
 
+func (yb *YugabyteDB) getAllEnumTypesInSchema(schemaName string) []string {
+	query := fmt.Sprintf(`SELECT typname
+						FROM pg_type t
+						JOIN pg_namespace n ON t.typnamespace = n.oid
+						WHERE n.nspname = '%s'
+						AND t.typcategory = 'E';`, schemaName)
+	rows, err := yb.db.Query(query)
+	if err != nil {
+		utils.ErrExit("error in querying source database for enum types: %q: %w\n", query, err)
+	}
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			log.Warnf("close rows for query %q: %v", query, closeErr)
+		}
+	}()
+	var enumTypes []string
+	for rows.Next() {
+		var enumType string
+		err = rows.Scan(&enumType)
+		if err != nil {
+			utils.ErrExit("error in scanning query rows for enum types: %w\n", err)
+		}
+		enumTypes = append(enumTypes, enumType)
+	}
+	return enumTypes
+}
+
 func (yb *YugabyteDB) getTypesOfAllArraysInATable(schemaName, tableName string) []string {
 	query := fmt.Sprintf(`SELECT udt_name FROM information_schema.columns 
 						WHERE table_schema = '%s' 
@@ -523,17 +551,24 @@ func (yb *YugabyteDB) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList
 		if len(userDefinedTypes) == 0 {
 			continue
 		}
+		enumTypes := yb.getAllEnumTypesInSchema(sname)
 		tableColumnArrayTypes := yb.getTypesOfAllArraysInATable(sname, tname)
 		if len(tableColumnArrayTypes) == 0 {
 			continue
 		}
 
-		// If any of the data types of the arrays are in the enum types then add the table to the unsupported tables list
+		// If any of the data types of the arrays are in the user defined types then add the table to the unsupported tables list
 		// udt_type/data_type looks like status_enum[] whereas enum_type looks like status_enum
 	outer:
 		for _, arrayType := range tableColumnArrayTypes {
+			baseType := strings.TrimLeft(arrayType, "_")
 			for _, udt := range userDefinedTypes {
-				if strings.EqualFold(strings.TrimLeft(arrayType, "_"), udt) {
+				if strings.EqualFold(baseType, udt) {
+					// Check if this is an array of enum and we're using logical connector
+					if slices.Contains(enumTypes, baseType) && !yb.source.IsYBGrpcConnector {
+						// Array of enums are supported with logical connector, skip to next array column
+						continue outer
+					}
 					// as the array_type is determined by an underscore at the first place
 					//ref - https://www.postgresql.org/docs/current/xtypes.html#:~:text=The%20array%20type%20typically%20has%20the%20same%20name%20as%20the%20base%20type%20with%20the%20underscore%20character%20(_)%20prepended
 					unsupportedTables = append(unsupportedTables, table)
@@ -549,7 +584,14 @@ func (yb *YugabyteDB) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList
 			unsupportedTablesStringList[i] = table.ForMinOutput()
 		}
 
-		if !utils.AskPrompt("\nThe following tables are unsupported since they contains an array of enums:\n" + strings.Join(unsupportedTablesStringList, "\n") +
+		var unsupportedReason string
+		if yb.source.IsYBGrpcConnector {
+			unsupportedReason = "an array of UDTs (enums or composite types)"
+		} else {
+			unsupportedReason = "an array of composite types"
+		}
+
+		if !utils.AskPrompt("\nThe following tables are unsupported since they contain " + unsupportedReason + ":\n" + strings.Join(unsupportedTablesStringList, "\n") +
 			"\nDo you want to skip these tables' data and continue with export") {
 			utils.ErrExit("Exiting at user's request. Use `--exclude-table-list` flag to continue without these tables")
 		}
