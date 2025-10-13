@@ -295,9 +295,8 @@ func exportData() bool {
 		checkExportDataPermissions(finalTableList)
 	}
 
-	// finalize table list and column list
-	finalTableList, tablesColumnList := finalizeTableColumnList(finalTableList)
-
+	// finalizing table list and column list to be exported based on the datatypes supported by the source DB
+	finalTableList, tablesColumnList := finalizeTableAndColumnList(finalTableList)
 	if len(finalTableList) == 0 {
 		utils.PrintAndLog("no tables present to export, exiting...")
 		setDataIsExported()
@@ -809,7 +808,11 @@ func getPGDumpSequencesAndValues() (*utils.StructMap[sqlname.NameTuple, int64], 
 	return result, nil
 }
 
-func reportUnsupportedTables(finalTableList []sqlname.NameTuple) {
+func reportUnsupportedTablesForLiveMigration(finalTableList []sqlname.NameTuple) {
+	if !changeStreamingIsEnabled(exportType) {
+		return
+	}
+
 	//report non-pk tables
 	allNonPKTables, err := source.DB().GetNonPKTables()
 	if err != nil {
@@ -823,7 +826,7 @@ func reportUnsupportedTables(finalTableList []sqlname.NameTuple) {
 	}
 	if len(nonPKTables) > 0 {
 		utils.PrintAndLog("Table names without a Primary key: %s", nonPKTables)
-		utils.ErrExit("This voyager release does not support live-migration for tables without a primary key.\n" +
+		utils.ErrExit("Currently voyager does not support live-migration for tables without a primary key.\n" +
 			"You can exclude these tables using the --exclude-table-list argument.")
 	}
 }
@@ -1255,33 +1258,36 @@ func propagateIfExportDataError(err error, currentFlow string) error {
 
 }
 
-func finalizeTableColumnList(finalTableList []sqlname.NameTuple) ([]sqlname.NameTuple, *utils.StructMap[sqlname.NameTuple, []string]) {
-	if changeStreamingIsEnabled(exportType) {
-		reportUnsupportedTables(finalTableList)
-	}
+// Finalize table and column lists for export, based on migration phase (offline/live) and DB type.
+func finalizeTableAndColumnList(finalTableList []sqlname.NameTuple) ([]sqlname.NameTuple, *utils.StructMap[sqlname.NameTuple, []string]) {
+	reportUnsupportedTablesForLiveMigration(finalTableList)
 	log.Infof("initial all tables table list for data export: %v", lo.Map(finalTableList, func(t sqlname.NameTuple, _ int) string {
 		return t.ForOutput()
 	}))
 
-	log.Info("finalizing table list by filtering empty tables and unsupported tables/columns/etc..")
+	log.Info("finalizing table list by filtering empty tables and unsupported tables/columns")
 
-	var skippedTableList []sqlname.NameTuple
+	// 1. empty tables check for offline migration only; live can have events for empty tables
 	if !changeStreamingIsEnabled(exportType) {
-		finalTableList, skippedTableList = source.DB().FilterEmptyTables(finalTableList)
-		if len(skippedTableList) != 0 {
-			utils.PrintAndLog("skipping empty tables: %v", lo.Map(skippedTableList, func(table sqlname.NameTuple, _ int) string {
+		var emptyTableList []sqlname.NameTuple
+		finalTableList, emptyTableList = source.DB().FilterEmptyTables(finalTableList)
+		if len(emptyTableList) != 0 {
+			utils.PrintAndLog("skipping empty tables: %v", lo.Map(emptyTableList, func(table sqlname.NameTuple, _ int) string {
 				return table.ForOutput()
 			}))
 		}
 	}
 
-	finalTableList, skippedTableList = source.DB().FilterUnsupportedTables(migrationUUID, finalTableList, useDebezium)
-	if len(skippedTableList) != 0 {
-		utils.PrintAndLog("skipping unsupported tables: %v", lo.Map(skippedTableList, func(table sqlname.NameTuple, _ int) string {
+	// 2. filtering unsupported tables(mostly oracle specific)
+	var unsupportedTableList []sqlname.NameTuple
+	finalTableList, unsupportedTableList = source.DB().FilterUnsupportedTables(migrationUUID, finalTableList, useDebezium)
+	if len(unsupportedTableList) != 0 {
+		utils.PrintAndLog("skipping unsupported tables: %v", lo.Map(unsupportedTableList, func(table sqlname.NameTuple, _ int) string {
 			return table.ForOutput()
 		}))
 	}
 
+	// 3. filtering unsupported columns
 	tablesColumnList, unsupportedTableColumnsMap, err := source.DB().GetColumnsWithSupportedTypes(finalTableList, useDebezium, changeStreamingIsEnabled(exportType))
 	if err != nil {
 		utils.ErrExit("get columns with supported types: %w", err)
@@ -1313,7 +1319,8 @@ func finalizeTableColumnList(finalTableList []sqlname.NameTuple) ([]sqlname.Name
 
 		finalTableList = filterTableWithEmptySupportedColumnList(finalTableList, tablesColumnList)
 	}
-	log.Infof("final table list after filtering empty tables and unsupported tables/columns/etc.. - %v", lo.Map(finalTableList, func(t sqlname.NameTuple, _ int) string {
+
+	log.Infof("final table list after filtering empty tables and unsupported tables/columns - %v", lo.Map(finalTableList, func(t sqlname.NameTuple, _ int) string {
 		return t.ForOutput()
 	}))
 	return finalTableList, tablesColumnList
@@ -1403,6 +1410,7 @@ func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTabl
 	}
 	displayExportedRowCountSnapshot(false)
 
+	// YDB control plane is only implemented for offline migration as of now
 	if exporterRole == SOURCE_DB_EXPORTER_ROLE {
 		exportDataCompleteEvent := createSnapshotExportCompletedEvent()
 		controlPlane.SnapshotExportCompleted(&exportDataCompleteEvent)
