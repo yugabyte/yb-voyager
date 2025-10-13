@@ -62,3 +62,17 @@ SET v1 = '{"new": "data"}', v2 = B'1111000011', v5=B'001010100101010101010101010
 DELETE FROM datatypes2
 WHERE 5 = ANY(v3);
 
+-- Note: For gRPC connector, tsvector_table and enum_array_table will be filtered out
+-- These operations won't execute in that case
+-- Enum array table operations (supported with logical connector)
+INSERT INTO enum_array_table (day_name, week_days, description)
+VALUES ('Sun', ARRAY['Sun']::week[], 'Sunday only');
+
+INSERT INTO enum_array_table (day_name, week_days, description)
+VALUES ('Wed', ARRAY['Mon', 'Wed', 'Fri']::week[], 'Alternate weekdays');
+
+UPDATE enum_array_table
+SET week_days = ARRAY['Sat', 'Sun']::week[], description = 'Complete weekend'
+WHERE id = 3;
+
+DELETE FROM enum_array_table WHERE day_name = 'Thu';
