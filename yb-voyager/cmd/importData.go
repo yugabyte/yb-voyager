@@ -1347,17 +1347,21 @@ func packAndSendImportDataToTargetPayload(status string, errorMsg error) {
 	}
 }
 
+// Handling identity columns for resumable import data
+// Background: A previous incomplete import run may have disabled "GENERATED ALWAYS AS IDENTITY" columns.
+// Two scenarios:
+//  1. Columns are disabled: Restore TableToIdentityColumnNames map from metaDB
+//  2. Columns are enabled: Fetch identity columns from database and persist to metaDB for import data resumability
 func fetchAndStoreGeneratedAlwaysIdentityColumnsInMetadb(tables []sqlname.NameTuple) error {
 	tableKeyToIdentityColumnNames := make(map[string][]string)
 
-	//Fetching the table to identity columns information from metadb if present
+	// Fetch the table to identity columns information from metadb if present
 	found, err := metaDB.GetJsonObject(nil, identityColumnsMetaDBKey, &tableKeyToIdentityColumnNames)
 	if err != nil {
 		return fmt.Errorf("failed to get identity columns from meta db: %s", err)
 	}
 	if found {
-		//IF present in metadb retrieve a map of table NameTuple Key -> columns
-		//convert it to the struct map of NameTuple -> columns in global variable TableToIdentityColumns
+		// Using retrieved identity columns from metaDB to populate TableToIdentityColumns
 		TableToIdentityColumnNames = utils.NewStructMap[sqlname.NameTuple, []string]()
 		for key, columns := range tableKeyToIdentityColumnNames {
 			nameTuple, err := namereg.NameReg.LookupTableName(key)
@@ -1368,14 +1372,14 @@ func fetchAndStoreGeneratedAlwaysIdentityColumnsInMetadb(tables []sqlname.NameTu
 		}
 		return nil
 	}
-	//If not found Fetch it from db in struct map of NameTuple -> columns
+
+	// If not found, fetch it from target db and populate TableToIdentityColumnNames and persist it to metaDB
 	TableToIdentityColumnNames = getIdentityColumnsForTables(tables, "ALWAYS")
-	//also store it as map of table NameTuple key -> columns and then store it in metadb
+
 	TableToIdentityColumnNames.IterKV(func(key sqlname.NameTuple, value []string) (bool, error) {
 		tableKeyToIdentityColumnNames[key.ForKey()] = value
 		return true, nil
 	})
-	// saving in metadb for handling restarts
 	err = metaDB.InsertJsonObject(nil, identityColumnsMetaDBKey, tableKeyToIdentityColumnNames)
 	if err != nil {
 		return fmt.Errorf("failed to insert into the key '%s': %v", identityColumnsMetaDBKey, err)

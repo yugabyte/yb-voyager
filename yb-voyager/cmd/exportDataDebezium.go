@@ -521,7 +521,7 @@ func checkAndHandleSnapshotComplete(config *dbzm.Config, status *dbzm.ExportStat
 			}
 			if !(msr.ExportFromTargetFallBackStarted || msr.ExportFromTargetFallForwardStarted) {
 				// In case of the logical replication connector, we don't need to wait for the log message.
-				// The momemnt a replication slot is created, we are guaranteed that we will receive events.
+				// The moment a replication slot is created, we are guaranteed that we will receive events.
 				// In the case of the old connector, there is no such explicit operation to 'start' CDC.
 				// It used to happen implicitly, which is why we have to wait for a log message.
 				if msr.UseYBgRPCConnector {
@@ -547,6 +547,7 @@ func checkAndHandleSnapshotComplete(config *dbzm.Config, status *dbzm.ExportStat
 				}
 			}
 		}
+
 		color.Blue("streaming changes to a local queue file...")
 		if !disablePb || callhome.SendDiagnostics {
 			go calculateStreamingProgress()
