@@ -987,6 +987,200 @@ INHERITS (public.parent_table);</pre>
                     
                     <tbody class="issue-summary-detail-pair"
                         data-category="unsupported_query_constructs"
+                        data-name="System Column - xmin"
+                        data-impact="LEVEL_2">
+                        
+                        <!-- Summary Row -->
+                        <tr class="summary-row" onclick="toggleDetails('details-2', 'arrow-2', false)">
+                            
+                                <td class="centered-cell">
+                                    <div class="category-cell-flex">
+                                        <div class="arrow-container">
+                                            <span id="arrow-2">&#9654;</span>
+                                        </div>
+                                        <span style="word-break: break-word;">Unsupported Query Constructs</span>
+                                    </div>
+                                </td>
+                            
+                            <td class="centered-cell">
+                                <div class="category-cell-flex">
+                                    
+                                    System Column - xmin
+                                </div>
+                            </td>
+                            <td class="centered-cell">
+                                
+                                    SELECT ctid, tableoid, xmin, xmax, cmin, cmax
+FROM schema1.employees2
+                                
+                            </td>
+                            <td class="centered-cell" style="text-align: center;">Level 2</td>
+                        </tr>
+
+                        <!-- Hidden Details of the Row -->
+                        <tr id="details-2" class="details-row">
+                            <td colspan="4">
+                                <div class="details-content-wrapper">
+                                    <div class="details-content">
+                                        <table class="formatted_table" style="width: 100%; border: 1px solid #ddd; margin-top: 5px;">
+                                            <colgroup>
+                                                <col style="width: 25%;">
+                                                <col style="width: 75%;">
+                                            </colgroup>
+                                            <tbody>
+                                                
+                                                    <tr>
+                                                        <th class="centered-cell">Category Description</th>
+                                                        <td>
+                                                            <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc; padding:5px;">
+                                                                Source database queries not supported in YugabyteDB, identified by scanning system tables.
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                
+
+                                                <!-- Only show if ObjectType is present -->
+                                                
+                                                
+                                                <tr>
+                                                    <th class="centered-cell">SQL Statement</th>
+                                                    <td>
+                                                        
+                                                            <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
+                                                                <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">SELECT ctid, tableoid, xmin, xmax, cmin, cmax
+FROM schema1.employees2</pre>
+                                                            </div>
+                                                        
+                                                    </td>
+                                                </tr>
+
+                                                <!-- Only show if there is a supported version -->
+                                                
+                                                
+                                                <tr>
+                                                    <th class="centered-cell">Description</th>
+                                                    <td>
+                                                        
+                                                            <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
+                                                                <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">System column 'xmin' is not yet supported in YugabyteDB.</pre>
+                                                                
+                                                                    <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Refer to the <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported">docs</a> for more details.</pre>
+                                                                
+                                                            </div>
+                                                        
+                                                    </td>
+                                                </tr>
+                                               
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                
+                    
+                    
+                    
+                    <tbody class="issue-summary-detail-pair"
+                        data-category="unsupported_query_constructs"
+                        data-name="System Column - xmax"
+                        data-impact="LEVEL_2">
+                        
+                        <!-- Summary Row -->
+                        <tr class="summary-row" onclick="toggleDetails('details-3', 'arrow-3', false)">
+                            
+                                <td class="centered-cell">
+                                    <div class="category-cell-flex">
+                                        <div class="arrow-container">
+                                            <span id="arrow-3">&#9654;</span>
+                                        </div>
+                                        <span style="word-break: break-word;">Unsupported Query Constructs</span>
+                                    </div>
+                                </td>
+                            
+                            <td class="centered-cell">
+                                <div class="category-cell-flex">
+                                    
+                                    System Column - xmax
+                                </div>
+                            </td>
+                            <td class="centered-cell">
+                                
+                                    SELECT ctid, tableoid, xmin, xmax, cmin, cmax
+FROM schema1.employees2
+                                
+                            </td>
+                            <td class="centered-cell" style="text-align: center;">Level 2</td>
+                        </tr>
+
+                        <!-- Hidden Details of the Row -->
+                        <tr id="details-3" class="details-row">
+                            <td colspan="4">
+                                <div class="details-content-wrapper">
+                                    <div class="details-content">
+                                        <table class="formatted_table" style="width: 100%; border: 1px solid #ddd; margin-top: 5px;">
+                                            <colgroup>
+                                                <col style="width: 25%;">
+                                                <col style="width: 75%;">
+                                            </colgroup>
+                                            <tbody>
+                                                
+                                                    <tr>
+                                                        <th class="centered-cell">Category Description</th>
+                                                        <td>
+                                                            <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc; padding:5px;">
+                                                                Source database queries not supported in YugabyteDB, identified by scanning system tables.
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                
+
+                                                <!-- Only show if ObjectType is present -->
+                                                
+                                                
+                                                <tr>
+                                                    <th class="centered-cell">SQL Statement</th>
+                                                    <td>
+                                                        
+                                                            <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
+                                                                <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">SELECT ctid, tableoid, xmin, xmax, cmin, cmax
+FROM schema1.employees2</pre>
+                                                            </div>
+                                                        
+                                                    </td>
+                                                </tr>
+
+                                                <!-- Only show if there is a supported version -->
+                                                
+                                                
+                                                <tr>
+                                                    <th class="centered-cell">Description</th>
+                                                    <td>
+                                                        
+                                                            <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
+                                                                <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">System column 'xmax' is not yet supported in YugabyteDB.</pre>
+                                                                
+                                                                    <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Refer to the <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported">docs</a> for more details.</pre>
+                                                                
+                                                            </div>
+                                                        
+                                                    </td>
+                                                </tr>
+                                               
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                
+                    
+                    
+                    
+                    <tbody class="issue-summary-detail-pair"
+                        data-category="unsupported_query_constructs"
                         data-name="System Column - cmin"
                         data-impact="LEVEL_2">
                         
@@ -1272,8 +1466,6 @@ FROM schema1.employees2</pre>
                             </td>
                         </tr>
                     </tbody>
-
-                    
                 
                     
                     
