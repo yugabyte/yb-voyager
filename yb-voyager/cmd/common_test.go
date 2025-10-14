@@ -133,15 +133,15 @@ func TestAssessmentReportStructs(t *testing.T) {
 			name:       "Validate Assessment Issue Struct Definition",
 			actualType: reflect.TypeOf(AssessmentIssue{}),
 			expectedType: struct {
-				Category            string `json:"Category"`
-				CategoryDescription string `json:"CategoryDescription"`
-				Type                string `json:"Type"`
-				Name                string `json:"Name"`
-				Description         string `json:"Description"`
-				Impact              string `json:"Impact"`
-				ObjectType          string `json:"ObjectType"`
-				ObjectName          string `json:"ObjectName"`
-				ObjectUsage         string `json:"ObjectUsage"`
+				Category               string                          `json:"Category"`
+				CategoryDescription    string                          `json:"CategoryDescription"`
+				Type                   string                          `json:"Type"`
+				Name                   string                          `json:"Name"`
+				Description            string                          `json:"Description"`
+				Impact                 string                          `json:"Impact"`
+				ObjectType             string                          `json:"ObjectType"`
+				ObjectName             string                          `json:"ObjectName"`
+				ObjectUsage            string                          `json:"ObjectUsage,omitempty"`
 				SqlStatement           string                          `json:"SqlStatement"`
 				DocsLink               string                          `json:"DocsLink"`
 				MinimumVersionsFixedIn map[string]*ybversion.YBVersion `json:"MinimumVersionsFixedIn"`
