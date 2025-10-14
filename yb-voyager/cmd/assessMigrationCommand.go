@@ -445,6 +445,7 @@ func convertAssessmentIssueToYugabyteDAssessmentIssue(ar AssessmentReport) []Ass
 			Impact:                 issue.Impact,
 			ObjectType:             issue.ObjectType,
 			ObjectName:             issue.ObjectName,
+			ObjectUsage:            issue.ObjectUsage,
 			SqlStatement:           issue.SqlStatement,
 			DocsLink:               issue.DocsLink,
 			MinimumVersionsFixedIn: issue.MinimumVersionsFixedIn,

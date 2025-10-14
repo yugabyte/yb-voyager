@@ -1381,8 +1381,9 @@ Version History
 1.6:
   - Add EstimatedTimeInMinForImportWithoutRedundantIndexes in SizingRecommendation struct
   - Added separate fields for notes: GeneralNotes, ColocatedShardedNotes, SizingNotes; deprecated Notes field
-*/
-var ASSESS_MIGRATION_YBD_PAYLOAD_VERSION = "1.6"
+1.7: Added ObjectUsage field to AssessmentIssueYugabyteD struct
+  */
+var ASSESS_MIGRATION_YBD_PAYLOAD_VERSION = "1.7"
 
 // TODO: decouple this struct from utils.AnalyzeSchemaIssue struct, right now its tightly coupled;
 // Similarly for migassessment.SizingAssessmentReport and migassessment.TableIndexStats
@@ -1416,6 +1417,7 @@ type AssessmentIssueYugabyteD struct {
 	Impact                 string                          `json:"Impact"`                 // Level-1, Level-2, Level-3 (no default: need to be assigned for each issue)
 	ObjectType             string                          `json:"ObjectType"`             // For datatype category, ObjectType will be datatype (for eg "geometry")
 	ObjectName             string                          `json:"ObjectName"`             // Fully qualified object name(empty if NA, eg UQC)
+	ObjectUsage            string                          `json:"ObjectUsage"`            // For datatype category, ObjectUsage will be unused (for eg "unused")
 	SqlStatement           string                          `json:"SqlStatement"`           // DDL or DML(UQC)
 	DocsLink               string                          `json:"DocsLink"`               // docs link based on the subtype
 	MinimumVersionsFixedIn map[string]*ybversion.YBVersion `json:"MinimumVersionsFixedIn"` // key: series (2024.1, 2.21, etc)
