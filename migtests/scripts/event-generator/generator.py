@@ -9,58 +9,50 @@ from utils import (
     execute_with_retry,
     build_insert_values,
 )
+from utils import load_event_generator_config, get_connection_kwargs_from_config
 import time
 
 
-# ----- Config knobs (tuning) -----
+# ----- Config knobs (tuning) from YAML config -----
+CONFIG = load_event_generator_config()
+GEN = CONFIG["generator"]
 
-#
-# Either we can provide our own table list
-# Or we can specify the schema from where all tables will be picked up
-#
-
-SCHEMA_NAME = "public"
-EXCLUDE_TABLE_LIST = ['eg_arr','eg_bits','eg_bytea','eg_full','eg_meta_bits','eg_num','eg_pk','eg_retry','eg_tsv','x','y']
+SCHEMA_NAME = GEN["schema_name"]
+EXCLUDE_TABLE_LIST = GEN["exclude_table_list"]
 
 # Tables to target explicitly (leave empty to use schema scan)
-MANUAL_TABLE_LIST = [
-    "eg_users",
-    "eg_orders",
-]
+MANUAL_TABLE_LIST = GEN["manual_table_list"]
 
-NUM_ITERATIONS = 200
+NUM_ITERATIONS = GEN["num_iterations"]
 
 # Throttling
-WAIT_AFTER_OPERATIONS = 200000
-WAIT_DURATION_SECONDS = 0
+WAIT_AFTER_OPERATIONS = GEN["wait_after_operations"]
+WAIT_DURATION_SECONDS = GEN["wait_duration_seconds"]
 
 # Table selection (override weights per table; unspecified default to 1)
-TABLE_WEIGHTS = {
-    "eg_users": 100,
-    "eg_orders": 100,
-}
+TABLE_WEIGHTS = GEN["table_weights"]
 
 # Operation selection
-OPERATIONS = ["INSERT", "UPDATE", "DELETE"]
-OPERATION_WEIGHTS = [3, 2, 1]
+OPERATIONS = GEN["operations"]
+OPERATION_WEIGHTS = GEN["operation_weights"]
 
 # Batch sizes per operation
-INSERT_ROWS = 4
-UPDATE_ROWS = 2
-DELETE_ROWS = 1
+INSERT_ROWS = GEN["insert_rows"]
+UPDATE_ROWS = GEN["update_rows"]
+DELETE_ROWS = GEN["delete_rows"]
 
 # Retries
-INSERT_MAX_RETRIES = 50
-UPDATE_MAX_RETRIES = 3
+INSERT_MAX_RETRIES = GEN["insert_max_retries"]
+UPDATE_MAX_RETRIES = GEN["update_max_retries"]
 # ---------------------------------
 
-# Connect to PostgreSQL
-
-conn = psycopg2.connect(dbname="test", user="postgres", password="postgres", host="localhost", port="5432")
+# Connect to PostgreSQL using config
+conn = psycopg2.connect(**get_connection_kwargs_from_config(CONFIG))
 cursor = conn.cursor()
 cursor.execute("""
     CREATE EXTENSION IF NOT EXISTS tsm_system_rows;
 """)
+conn.commit()
 print("tsm_system_rows extension is present or created successfully")
 
 # Disabled to allow triggers and constraints to execute
@@ -69,13 +61,6 @@ print("tsm_system_rows extension is present or created successfully")
 print("Generator starting")
 print("Note: No. of iterations may not equal number of events")
 print("Analysing schema")
-
-
-# Manual list
-
-# manual_table_list = ["v","v1","v2"]
-# table_schemas = generate_table_schemas(cursor, manual_table_list=manual_table_list)
-# print(table_schemas)
 
 # Schema based or manual list
 table_schemas = generate_table_schemas(
@@ -89,14 +74,9 @@ table_schemas = generate_table_schemas(
 print("Schema analysed")
 
 
-num_iterations = NUM_ITERATIONS # Specify the number of iterations
-wait_after_operations = WAIT_AFTER_OPERATIONS  # Adjust this value to set the desired wait interval
-wait_duration_seconds = WAIT_DURATION_SECONDS  # Adjust this value to set the duration of the wait in seconds
-
-
-for i in range(num_iterations):
+for i in range(NUM_ITERATIONS):
     # Choose a random table
-    table_weights = dict(TABLE_WEIGHTS) #specify weights for tables you want to prioritise
+    table_weights = dict(TABLE_WEIGHTS)
     for table in table_schemas.keys():
         table_weights.setdefault(table, 1)
 
@@ -105,10 +85,7 @@ for i in range(num_iterations):
     #print(table_name)
 
     # Generate a random operation
-    operations = OPERATIONS
-    weights = OPERATION_WEIGHTS  # Mention the weight of the operations
-
-    operation = random.choices(operations, weights=weights)[0]
+    operation = random.choices(OPERATIONS, weights=OPERATION_WEIGHTS)[0]
 
     # print(operation)
 
@@ -116,8 +93,7 @@ for i in range(num_iterations):
         if operation == "INSERT":
     # Generate random data and execute INSERT statement
             columns = ", ".join(table_schemas[table_name]["columns"].keys())
-            number_of_rows_to_insert = INSERT_ROWS # Adjust as needed
-            values_holder = {"values_list": build_insert_values(table_schemas, table_name, number_of_rows_to_insert)}
+            values_holder = {"values_list": build_insert_values(table_schemas, table_name, INSERT_ROWS)}
 
             # Prepare callbacks for retryable execution
             def run_once():
@@ -125,17 +101,14 @@ for i in range(num_iterations):
                 cursor.execute(query_to_run)
 
             def rebuild():
-                values_holder["values_list"] = build_insert_values(table_schemas, table_name, number_of_rows_to_insert)
+                values_holder["values_list"] = build_insert_values(table_schemas, table_name, INSERT_ROWS)
 
             success = execute_with_retry(run_once, rebuild, conn.rollback, max_retries=INSERT_MAX_RETRIES)
             if success:
-                pass # No successful_operations += 1 here as it's removed
+                pass
         
         elif operation == "UPDATE":
-            num_rows_to_update = UPDATE_ROWS # Set the number of rows to update in 1 operation
-            max_retries = UPDATE_MAX_RETRIES  # Set a maximum number of retries to avoid infinite loops
-
-            for _ in range(max_retries):
+            for _ in range(UPDATE_MAX_RETRIES):
                 columns = table_schemas[table_name]["columns"]
                 primary_key = table_schemas[table_name]["primary_key"]
 
@@ -178,14 +151,13 @@ for i in range(num_iterations):
                 # where_clause = f"{primary_key} IN (SELECT {primary_key} FROM {table_name} ORDER BY RANDOM() LIMIT %s)"
                 # where_clause = f"{primary_key} IN (SELECT {primary_key} FROM {table_name} TABLESAMPLE SYSTEM (0.00007))"
                 query_to_run = f"UPDATE {table_name} SET {set_clause} WHERE {where_clause}"
-                params = params + [num_rows_to_update]
+                params = params + [UPDATE_ROWS]
                 
                 # print(query_to_run, params)
 
                 try:
                     cursor.execute(query_to_run, params)
                     conn.commit()
-                    # successful_operations += 1 # This line is removed
                     break  # Break out of the loop if the update is successful
                 except Exception as e:
                     #print(f"Error executing query: {query_to_run} with params: {params}")
@@ -193,24 +165,22 @@ for i in range(num_iterations):
                     conn.rollback()
 
         elif operation == "DELETE":
-            num_rows_to_delete = DELETE_ROWS # Set the number of rows to delete in 1 operation
-
             primary_key = table_schemas[table_name]["primary_key"]
             query_to_run = f"DELETE FROM {table_name} WHERE {primary_key} IN (SELECT {primary_key} FROM {table_name} TABLESAMPLE SYSTEM_ROWS(%s))"
             # query_to_run = f"DELETE FROM {table_name} WHERE {primary_key} IN (SELECT {primary_key} FROM {table_name} ORDER BY RANDOM() LIMIT %s)"
             # query_to_run = f"DELETE FROM {table_name} WHERE {primary_key} IN (SELECT {primary_key} FROM {table_name} LIMIT %s)"
-            params = (num_rows_to_delete,)
+            params = (DELETE_ROWS,)
             #print(query_to_run, params)
             cursor.execute(query_to_run, params)
 
             conn.commit()
             # successful_operations += 1 # This line is removed
 
-        if i % wait_after_operations == 0 and i != 0:
+        if i % WAIT_AFTER_OPERATIONS == 0 and i != 0:
             print("-" * 50)
-            print(f"Waiting for {wait_duration_seconds} seconds after {i} operations...")
+            print(f"Waiting for {WAIT_DURATION_SECONDS} seconds after {i} operations...")
             print("-" * 50)
-            time.sleep(wait_duration_seconds)
+            time.sleep(WAIT_DURATION_SECONDS)
             conn.commit()
 
         conn.commit()

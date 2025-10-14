@@ -1,0 +1,50 @@
+connection:
+  # Hostname or IP of the PostgreSQL server
+  host: localhost
+  # Port PostgreSQL is listening on
+  port: 5432
+  # Target database name
+  database: sakila
+  # Username for authentication
+  user: postgres
+  # Password for authentication
+  password: postgres
+
+generator:
+  # Schema from which tables are discovered when manual_table_list is empty
+  schema_name: public
+
+  # Explicit list of tables to generate events for
+  # If empty, the generator scans the schema for all base tables
+  manual_table_list: [eg_users, eg_orders]
+
+  # Tables to exclude when scanning the schema (ignored if manual_table_list is non-empty)
+  exclude_table_list: []
+
+  # Total number of operations to attempt (INSERT/UPDATE/DELETE)
+  num_iterations: 2000
+
+  # After this many operations, sleep for wait_duration_seconds (0 disables sleeping)
+  wait_after_operations: 200000
+  # Duration in seconds to sleep at each throttle interval
+  wait_duration_seconds: 0
+
+  # Optional per-table selection weights; unspecified tables default to weight=1
+  # Example: { customers: 5, orders: 2 }
+  table_weights: { eg_users: 100, eg_orders: 100 }
+
+  # Candidate operations and their relative weights for random selection
+  operations: [INSERT, UPDATE, DELETE]
+  # Weights aligned by index with operations above
+  operation_weights: [3, 2, 1]
+
+  # Rows affected per operation (batch sizes)
+  insert_rows: 4
+  update_rows: 2
+  delete_rows: 1
+
+  # Retry limits for operations that can be retried (e.g., on unique violations)
+  insert_max_retries: 50
+  update_max_retries: 3
+
+
