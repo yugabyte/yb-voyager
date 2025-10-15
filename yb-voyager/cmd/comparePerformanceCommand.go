@@ -25,6 +25,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/compareperf"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
@@ -45,6 +46,11 @@ Prerequisites:
   - stats collection(pg_stat_statements) must be enabled on the target YugabyteDB database`,
 
 	PreRun: func(cmd *cobra.Command, args []string) {
+		err := retrieveMigrationUUID()
+		if err != nil {
+			utils.ErrExit("failed to get migration UUID: %w", err)
+		}
+
 		// required to decide the defaults values for default ssl mode, port, schema, etc.
 		tconf.TargetDBType = YUGABYTEDB
 		importerRole = TARGET_DB_IMPORTER_ROLE
@@ -105,6 +111,10 @@ func comparePerformanceCommandFn(cmd *cobra.Command, args []string) {
 	if err != nil {
 		utils.ErrExit("Failed to mark performance comparison as done: %v", err)
 	}
+
+	targetDBDetails = targetDB.GetCallhomeTargetDBInfo()
+	// Send successful callhome payload
+	packAndSendComparePerformancePayload("COMPLETE", nil, comparator)
 
 	utils.PrintAndLog("Performance comparison completed successfully!")
 }
@@ -209,8 +219,8 @@ func SetPerformanceComparisonDone() error {
 
 func handleStartCleanForComparePerf() error {
 	reportsDir := filepath.Join(exportDir, "reports")
-	htmlReportPath := filepath.Join(reportsDir, "performance-comparison-report.html")
-	jsonReportPath := filepath.Join(reportsDir, "performance-comparison-report.json")
+	htmlReportPath := filepath.Join(reportsDir, constants.PERFORMANCE_REPORT_BASE_NAME+".html")
+	jsonReportPath := filepath.Join(reportsDir, constants.PERFORMANCE_REPORT_BASE_NAME+".json")
 
 	reportsExist := utils.FileOrFolderExists(htmlReportPath) || utils.FileOrFolderExists(jsonReportPath)
 

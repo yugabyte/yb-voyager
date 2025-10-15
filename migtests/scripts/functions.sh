@@ -89,14 +89,13 @@ run_pg_restore() {
 run_ysql() {
 	db_name=$1
 	sql=$2
-	psql -P pager=off "postgresql://${TARGET_DB_ADMIN_USER}:${TARGET_DB_ADMIN_PASSWORD}@${TARGET_DB_HOST}:${TARGET_DB_PORT}/${db_name}" -c "${sql}"
+	PGPASSWORD="${TARGET_DB_ADMIN_PASSWORD}" psql -P pager=off -h ${TARGET_DB_HOST} -p ${TARGET_DB_PORT} -U ${TARGET_DB_ADMIN_USER} -d ${db_name} -c "${sql}"
 }
 
 ysql_import_file() {
 	db_name=$1
 	file=$2
-	conn_string="postgresql://${TARGET_DB_ADMIN_USER}:${TARGET_DB_ADMIN_PASSWORD}@${TARGET_DB_HOST}:${TARGET_DB_PORT}/${db_name}"
-	psql "${conn_string}" -f "${file}"
+	PGPASSWORD="${TARGET_DB_ADMIN_PASSWORD}" psql -h ${TARGET_DB_HOST} -p ${TARGET_DB_PORT} -U ${TARGET_DB_ADMIN_USER} -d ${db_name} -f "${file}"
 }
 
 run_mysql() {
@@ -1470,6 +1469,80 @@ generate_voyager_config() {
 		echo "Generating config from template: $template_file"
 		python3 "$CONFIG_GEN_SCRIPT" --template "$template_file" --output "$GENERATED_CONFIG"
 	fi
+}
+
+normalize_callhome_json() {
+    local input_file="$1"
+    local output_file="$2"
+    local temp_file="/tmp/temp_file.json"
+
+    # Normalize JSON with jq; use --sort-keys to avoid the need to keep the same sequence of keys in expected vs actual json
+    jq --sort-keys 'walk(
+        if type == "object" then
+            .ObjectNames? |= (
+				if type == "string" then
+					split(", ") | sort | join(", ")
+				else
+					.
+				end
+			) |
+            .VoyagerVersion? = "IGNORED" |
+			.target_db_version? = "IGNORED" |
+            .OptimalSelectConnectionsPerNode? = "IGNORED" |
+            .OptimalInsertConnectionsPerNode? = "IGNORED" |
+			.SizeInBytes? = "IGNORED" |
+            .yb_cluster_metrics = "IGNORED" |
+            .parallel_jobs = "IGNORED" |
+            .adaptive_parallelism_max = "IGNORED" |
+            .snapshot_total_bytes = "IGNORED"
+        elif type == "array" then
+			sort_by(tostring)
+        elif type == "string" and (
+            # Check if the string is a JSON array and sort it
+            (tostring | test("^ *?\\[.*\\] *?$")) and (fromjson | type == "array")
+        ) then
+            fromjson | sort_by(tostring) | tojson
+		else
+            .
+        end
+    )' "$input_file" > "$temp_file"
+
+    # Move cleaned file to output
+    mv "$temp_file" "$output_file"
+}
+
+compare_callhome_json_reports() {
+    local expected_report_file="$1"
+    local phase="$2"
+    
+    # Get report data from API and save to local file
+    local actual_report_file=$(mktemp)
+    if curl -sfS -o "$actual_report_file" "http://localhost:5000/get_payload/$phase"; then
+        echo "Successfully retrieved report data from API"
+        echo "Report data saved to: $actual_report_file"
+    else
+        echo "Failed to retrieve report data from API"
+        rm -f "$actual_report_file"
+        exit 1
+    fi
+
+    local temp_file1=$(mktemp)
+    local temp_file2=$(mktemp)
+
+    normalize_callhome_json "$expected_report_file" "$temp_file1"
+    normalize_callhome_json "$actual_report_file" "$temp_file2"
+
+    # Compare actual and expected callhome data
+    compare_files "$temp_file1" "$temp_file2"
+    compare_status=$?
+
+    rm "$temp_file1" "$temp_file2" "$actual_report_file"
+
+    if [ $compare_status -ne 0 ]; then
+        exit $compare_status
+    fi
+
+    echo "Comparison Passed for $phase"
 }
 
 # Function to execute logical replication connector specific DMLs

@@ -1407,6 +1407,11 @@ func addAssessmentIssuesForUnsupportedDatatypes(unsupportedDatatypes []utils.Tab
 				DocsLink:               "",  // TODO
 				MinimumVersionsFixedIn: nil, // TODO
 			}
+			// Handle CLOB datatype issue se
+			if strings.EqualFold(colInfo.DataType, "CLOB") {
+				issue.Description = "Oracle CLOB data export is now supported via the experimental flag --allow-oracle-clob-data-export. This is supported only for offline migration (not Live or BETA_FAST_DATA_EXPORT) and large CLOBs may impact performance during export and import."
+				issue.DocsLink = "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/oracle/#large-sized-clob-data-is-not-supported"
+			}
 			assessmentReport.AppendIssues(issue)
 		case POSTGRESQL:
 			// Datatypes can be of form public.geometry, so we need to extract the datatype from it

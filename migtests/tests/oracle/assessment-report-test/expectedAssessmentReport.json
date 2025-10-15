@@ -334,12 +334,12 @@
             "CategoryDescription": "Data types of the source database that are not supported on the target YugabyteDB.",
             "Type": "CLOB",
             "Name": "CLOB",
-            "Description": "",
+            "Description": "Oracle CLOB data export is now supported via the experimental flag --allow-oracle-clob-data-export. This is supported only for offline migration (not Live or BETA_FAST_DATA_EXPORT) and large CLOBs may impact performance during export and import.",
             "Impact": "-",
             "ObjectType": "COLUMN",
             "ObjectName": "TEST_SCHEMA.CLOB_TABLE.DATA",
             "SqlStatement": "",
-            "DocsLink": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/oracle/#large-sized-clob-data-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -360,12 +360,12 @@
             "CategoryDescription": "Data types of the source database that are not supported on the target YugabyteDB.",
             "Type": "CLOB",
             "Name": "CLOB",
-            "Description": "",
+            "Description": "Oracle CLOB data export is now supported via the experimental flag --allow-oracle-clob-data-export. This is supported only for offline migration (not Live or BETA_FAST_DATA_EXPORT) and large CLOBs may impact performance during export and import.",
             "Impact": "-",
             "ObjectType": "COLUMN",
             "ObjectName": "TEST_SCHEMA.TEXT_TABLE.TEXT_DATA",
             "SqlStatement": "",
-            "DocsLink": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/oracle/#large-sized-clob-data-is-not-supported",
             "MinimumVersionsFixedIn": null
         }
     ],

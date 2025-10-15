@@ -1949,13 +1949,45 @@ func (n *NodeMetrics) GetMemoryTotal() (int64, error) {
 
 // ================================ PgStatStatements Collection =================================
 
-const PG_STAT_STATEMENTS_QUERY = `
+const PG_STAT_STATEMENTS_QUERY_NEW = `
 SELECT
 	queryid, query, calls, rows, total_exec_time, mean_exec_time,
 	min_exec_time, max_exec_time, stddev_exec_time
 FROM pg_stat_statements
-	WHERE dbid = (SELECT oid FROM pg_database WHERE datname = current_database())
+WHERE dbid = (SELECT oid FROM pg_database WHERE datname = current_database())
 `
+
+const PG_STAT_STATEMENTS_QUERY_OLD = `
+SELECT
+	queryid, query, calls, rows,
+	total_time AS total_exec_time, mean_time AS mean_exec_time,
+	min_time AS min_exec_time, max_time AS max_exec_time,
+	stddev_time AS stddev_exec_time
+FROM pg_stat_statements
+WHERE dbid = (SELECT oid FROM pg_database WHERE datname = current_database())
+`
+
+// returns query to fetch pg_stat_statements from target based on the column name(s) across different pg releases
+func (yb *TargetYugabyteDB) getPgStatStatementsQuery(conn *pgx.Conn) (string, error) {
+	// Check if new column names (with "exec") exist
+	var hasNewColumns bool
+	err := conn.QueryRow(context.Background(), `
+		SELECT EXISTS(
+			SELECT 1 FROM information_schema.columns 
+			WHERE table_schema = 'pg_catalog' 
+			  AND table_name = 'pg_stat_statements' 
+			  AND column_name = 'total_exec_time'
+		)`).Scan(&hasNewColumns)
+
+	if err != nil {
+		return "", err
+	}
+
+	if hasNewColumns {
+		return PG_STAT_STATEMENTS_QUERY_NEW, nil
+	}
+	return PG_STAT_STATEMENTS_QUERY_OLD, nil
+}
 
 func (yb *TargetYugabyteDB) CollectPgStatStatements() ([]*pgss.PgStatStatements, error) {
 	loadBalancerUsed, tconfs, err := yb.GetYBServers()
@@ -1968,8 +2000,17 @@ func (yb *TargetYugabyteDB) CollectPgStatStatements() ([]*pgss.PgStatStatements,
 		utils.ErrExit("yb cluster with load balancer setup is not supported for compare-perf command yet.")
 	}
 
-	// first collect all entries from all the nodes and merge later
-	var entries []*pgss.PgStatStatements
+	entries, err := yb.collectPgStatStatements(tconfs)
+	if err != nil {
+		return nil, fmt.Errorf("error collecting pg_stat_statements: %w", err)
+	}
+
+	return entries, nil
+}
+
+func (yb *TargetYugabyteDB) collectPgStatStatements(tconfs []*TargetConf) ([]*pgss.PgStatStatements, error) {
+	// first collect all allEntries from all the nodes and merge at the end
+	var allEntries []*pgss.PgStatStatements
 	for _, tconf := range tconfs {
 		conn, err := pgx.Connect(context.Background(), tconf.GetConnectionUri())
 		if err != nil {
@@ -1977,25 +2018,41 @@ func (yb *TargetYugabyteDB) CollectPgStatStatements() ([]*pgss.PgStatStatements,
 		}
 		defer conn.Close(context.Background())
 
-		rows, err := conn.Query(context.Background(), PG_STAT_STATEMENTS_QUERY)
+		query, err := yb.getPgStatStatementsQuery(conn)
+		if err != nil {
+			return nil, fmt.Errorf("error getting pg_stat_statements query: %w", err)
+		}
+
+		rows, err := conn.Query(context.Background(), query)
 		if err != nil {
 			return nil, fmt.Errorf("error querying pg_stat_statements: %w", err)
 		}
 
+		var nodeEntries []*pgss.PgStatStatements
 		for rows.Next() {
 			var entry pgss.PgStatStatements
 			err := rows.Scan(&entry.QueryID, &entry.Query, &entry.Calls, &entry.Rows, &entry.TotalExecTime, &entry.MeanExecTime, &entry.MinExecTime, &entry.MaxExecTime, &entry.StddevExecTime)
 			if err != nil {
 				return nil, fmt.Errorf("error scanning pg_stat_statements row: %w", err)
 			}
-			entries = append(entries, &entry)
-		}
 
-		rows.Close()
+			/*
+				In YB, we have observed some pg_stat_statements entries with calls = 0.
+				This is unexpected (probably a bug in YB) and we should ignore these entries.
+
+				Ref: https://yugabyte.atlassian.net/browse/DB-18444
+			*/
+			if entry.Calls > 0 {
+				nodeEntries = append(nodeEntries, &entry)
+			} else {
+				log.Warnf("ignoring pg_stat_statements entry with calls = 0: %+v", entry)
+			}
+		}
+		allEntries = append(allEntries, nodeEntries...)
+		rows.Close() // close immediately, no defer
 	}
 
-	mergedEntries := pgss.MergePgStatStatementsBasedOnQuery(entries)
-	return mergedEntries, nil
+	return pgss.MergePgStatStatementsBasedOnQuery(allEntries), nil
 }
 
 // =============================== Guardrails =================================

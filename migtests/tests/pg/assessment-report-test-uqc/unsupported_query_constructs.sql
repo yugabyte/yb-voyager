@@ -1,7 +1,6 @@
 -- Unsupported Query Constructs 
 DROP EXTENSION IF EXISTS pg_stat_statements;
 CREATE EXTENSION pg_stat_statements;
-SELECT pg_stat_statements_reset();
 SELECT * FROM pg_stat_statements;
 
 

@@ -27,6 +27,7 @@ import (
 
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
@@ -108,7 +109,6 @@ func (c *QueryPerformanceComparator) Compare() error {
 
 	// 5. console summary
 	fmt.Println(c.consoleSummary())
-
 	return nil
 }
 
@@ -229,13 +229,13 @@ func (c *QueryPerformanceComparator) generateHTMLReport(exportDir string) error 
 	}
 
 	// Parse template
-	tmpl, err := template.New("performance-comparison-report").Parse(performanceComparisonHtmlTemplate)
+	tmpl, err := template.New(constants.PERFORMANCE_REPORT_BASE_NAME).Parse(performanceComparisonHtmlTemplate)
 	if err != nil {
 		return fmt.Errorf("failed to parse HTML template: %w", err)
 	}
 
 	// Create HTML file
-	htmlPath := filepath.Join(reportsDir, "performance-comparison-report.html")
+	htmlPath := filepath.Join(reportsDir, constants.PERFORMANCE_REPORT_BASE_NAME+".html")
 	file, err := os.Create(htmlPath)
 	if err != nil {
 		return fmt.Errorf("failed to create HTML file: %w", err)
@@ -264,8 +264,8 @@ func (c *QueryPerformanceComparator) generateHTMLReport(exportDir string) error 
 		}
 
 		// If same match status, sort by call frequency (descending)
-		iCalls := getCallCount(sortedComparisons[i])
-		jCalls := getCallCount(sortedComparisons[j])
+		iCalls := sortedComparisons[i].getCallCount()
+		jCalls := sortedComparisons[j].getCallCount()
 		return iCalls > jCalls
 	})
 	sortedReport.AllComparisons = sortedComparisons
@@ -295,7 +295,7 @@ func (c *QueryPerformanceComparator) generateJSONReport(exportDir string) error 
 	}
 
 	// Write JSON file
-	jsonPath := filepath.Join(reportsDir, "performance-comparison-report.json")
+	jsonPath := filepath.Join(reportsDir, constants.PERFORMANCE_REPORT_BASE_NAME+".json")
 	err = os.WriteFile(jsonPath, jsonData, 0644)
 	if err != nil {
 		return fmt.Errorf("failed to write JSON report: %w", err)
@@ -303,25 +303,4 @@ func (c *QueryPerformanceComparator) generateJSONReport(exportDir string) error 
 
 	utils.PrintAndLog("JSON report generated at: %s", jsonPath)
 	return nil
-}
-
-// getCallCount returns the call count for sorting purposes
-// For MATCHED queries, use source calls (primary data source)
-// For SOURCE_ONLY queries, use source calls
-// For TARGET_ONLY queries, use target calls
-func getCallCount(comparison *QueryComparison) int64 {
-	switch comparison.MatchStatus {
-	case MATCHED, SOURCE_ONLY:
-		if comparison.SourceStats != nil {
-			return comparison.SourceStats.ExecutionCount
-		}
-		return 0
-	case TARGET_ONLY:
-		if comparison.TargetStats != nil {
-			return comparison.TargetStats.ExecutionCount
-		}
-		return 0
-	default:
-		return 0
-	}
 }
