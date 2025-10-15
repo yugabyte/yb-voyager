@@ -32,5 +32,5 @@ sed -i '/^CREATE TABLE order_items.*);$/ s/shipment_id numeric(38)/shipment_id B
 sed -i '/^CREATE TABLE shipments.*);$/ s/customer_id numeric(38)/customer_id BIGINT/' tables/table.sql
 sed -i '/^CREATE TABLE shipments.*);$/ s/store_id numeric(38)/store_id BIGINT/' tables/table.sql
 
-# Removing the store_orders view creation as the view creation blocks the import schema
+# Removing the store_orders view creation as it falls under failed.sql due to grouping_id() Oracle specific syntax
 sed -i -E '/CREATE OR REPLACE VIEW store_orders/,/;/d' views/view.sql
