@@ -105,8 +105,7 @@ jobs:
 
       - name: Start YugabyteDB cluster
         run: |
-          docker run -d --name yugabytedb --hostname yb-cluster-test\
-            -p7000:7000 -p9000:9000 -p15433:15433 -p5433:5433 -p9042:9042 \
+          docker run -d --network=host --name yugabytedb --hostname yb-cluster-test\
             yugabytedb/yugabyte:${{ matrix.yb_version }} \
             bin/yugabyted start --tserver_flags="ysql_hba_conf_csv={host all yugabyte all trust,host all all all md5}" --advertise_address=localhost --background=false --ui=false --callhome=false 
           
