@@ -105,7 +105,8 @@ jobs:
 
       - name: Start YugabyteDB cluster
         run: |
-          docker run -d --network=host --name yugabytedb --hostname yb-cluster-test\
+          docker run -d --name yugabytedb --hostname yb-cluster-test\
+            -p7000:7000 -p9000:9000 -p15433:15433 -p5433:5433 -p9042:9042 \
             yugabytedb/yugabyte:${{ matrix.yb_version }} \
             bin/yugabyted start --tserver_flags="ysql_hba_conf_csv={host all yugabyte all trust,host all all all md5}" --advertise_address=localhost --background=false --ui=false --callhome=false 
           
@@ -127,32 +128,8 @@ jobs:
 
       - name: Enable yb-cluster-test name resolution
         run: |
-          # Wait for container to be fully ready
-          echo "Waiting for YugabyteDB container to be ready..."
-          timeout 30s bash -c 'until docker ps | grep -q yugabytedb; do 
-            echo "Container not ready yet, waiting 1 second..."
-            sleep 1
-          done'
-          
-          # Get container IP with error handling
-          docker_ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' yugabytedb 2>/dev/null || echo "")
-          if [ -z "$docker_ip" ]; then
-            echo "Failed to get container IP, using localhost fallback"
-            echo "127.0.0.1	yb-cluster-test" | sudo tee -a /etc/hosts
-          else
-            echo "$docker_ip	yb-cluster-test" | sudo tee -a /etc/hosts
-          fi
-          
-          # Test connection with retry
-          for i in {1..5}; do
-            if psql "postgresql://yugabyte@yb-cluster-test:5433/yugabyte" -c "SELECT version();" 2>/dev/null; then
-              echo "Connection successful!"
-              break
-            else
-              echo "Connection attempt $i failed, retrying in 2 seconds..."
-              sleep 2
-            fi
-          done
+          echo "127.0.0.1	yb-cluster-test" | sudo tee -a /etc/hosts
+          psql "postgresql://yugabyte@yb-cluster-test:5433/yugabyte" -c "SELECT version();"
 
       - name: "TEST: PG sample schemas (sakila)"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
