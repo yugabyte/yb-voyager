@@ -657,14 +657,9 @@ func TestYugabyteIdentityColumnsDisableEnableCycle(t *testing.T) {
 
 // Helper function to get identity column types from pg_catalog
 func getIdentityColumnTypes(db *sql.DB, schemaName, tableName string, columnNames []string) (map[string]string, error) {
-	placeholders := make([]string, len(columnNames))
-	args := make([]interface{}, len(columnNames)+2)
-	args[0] = schemaName
-	args[1] = tableName
-
+	quotedColumns := make([]string, len(columnNames))
 	for i, col := range columnNames {
-		placeholders[i] = fmt.Sprintf("$%d", i+3)
-		args[i+2] = col
+		quotedColumns[i] = fmt.Sprintf("'%s'", col)
 	}
 
 	query := fmt.Sprintf(`
@@ -677,13 +672,13 @@ func getIdentityColumnTypes(db *sql.DB, schemaName, tableName string, columnName
 		FROM pg_catalog.pg_attribute a
 		JOIN pg_catalog.pg_class c ON a.attrelid = c.oid
 		JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
-		WHERE n.nspname = $1
-		  AND c.relname = $2
+		WHERE n.nspname = '%s'
+		  AND c.relname = '%s'
 		  AND a.attname IN (%s)
 		ORDER BY a.attname;
-	`, strings.Join(placeholders, ","))
+	`, schemaName, tableName, strings.Join(quotedColumns, ","))
 
-	rows, err := db.Query(query, args...)
+	rows, err := db.Query(query)
 	if err != nil {
 		return nil, err
 	}
