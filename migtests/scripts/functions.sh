@@ -1385,9 +1385,7 @@ cutover_to_target() {
     "
 
     # Set grpc connector flag
-    if [ "${USE_YB_LOGICAL_REPLICATION_CONNECTOR}" = true ]; then
-        args="${args} --use-yb-grpc-connector false"
-    else 
+    if [ "${USE_YB_LOGICAL_REPLICATION_CONNECTOR}" = false ]; then
         args="${args} --use-yb-grpc-connector true"
     fi
 
