@@ -998,6 +998,7 @@ func (yb *TargetYugabyteDB) RestoreSequences(sequencesLastVal *utils.StructMap[s
 	sequencesLastVal.IterKV(func(sequenceTuple sqlname.NameTuple, lastValue int64) (bool, error) {
 		if lastValue == 0 {
 			// TODO: can be valid for cases like cyclic sequences
+			log.Infof("sequence %s has last value 0, skipping", sequenceTuple.ForKey())
 			return true, nil
 		}
 		sequenceName := sequenceTuple.ForUserQuery()

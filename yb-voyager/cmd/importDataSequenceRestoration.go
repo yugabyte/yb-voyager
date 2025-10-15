@@ -95,12 +95,15 @@ func restoreSequencesInOfflineMigration(msr *metadb.MigrationStatusRecord, impor
 	} else {
 		//restore all sequences
 		//if tables are not being filtered then ideally we should restore all sequences
-		sequenceTupleToLastValue.IterKV(func(sequenceTuple sqlname.NameTuple, lastValue int64) (bool, error) {
+		err = sequenceTupleToLastValue.IterKV(func(sequenceTuple sqlname.NameTuple, lastValue int64) (bool, error) {
 			if !sequenceTuple.TargetTableAvailable() {
 				return false, fmt.Errorf("sequence %q is not present in the target database", sequenceTuple.ForKey())
 			}
 			return true, nil
 		})
+		if err != nil {
+			return fmt.Errorf("failed to check sequences available on target: %w", err)
+		}
 	}
 
 	//restore the sequence last value
@@ -221,7 +224,7 @@ func checkIfSequenceAttachedToTablesInTableList(importTableList []sqlname.NameTu
 func filterSequencesAsPerImportTableList(sequenceTupleToLastValue *utils.StructMap[sqlname.NameTuple, int64], importTableList []sqlname.NameTuple, sequenceNameToTableMap *utils.StructMap[sqlname.NameTuple, []sqlname.NameTuple]) (*utils.StructMap[sqlname.NameTuple, int64], error) {
 	sequenceNameTupleToLastValueMap := utils.NewStructMap[sqlname.NameTuple, int64]()
 
-	sequenceTupleToLastValue.IterKV(func(sequenceTuple sqlname.NameTuple, lastValue int64) (bool, error) {
+	err := sequenceTupleToLastValue.IterKV(func(sequenceTuple sqlname.NameTuple, lastValue int64) (bool, error) {
 		sequenceAttachedToTables, ok := sequenceNameToTableMap.Get(sequenceTuple)
 		if !ok {
 			//sequence is not attached to any table, right now this is not expected from export as we only migrate sequences
@@ -249,6 +252,9 @@ func filterSequencesAsPerImportTableList(sequenceTupleToLastValue *utils.StructM
 		sequenceNameTupleToLastValueMap.Put(sequenceTuple, lastValue)
 		return true, nil
 	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to filter sequences as per import table list: %w", err)
+	}
 	return sequenceNameTupleToLastValueMap, nil
 }
 
