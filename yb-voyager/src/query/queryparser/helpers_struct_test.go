@@ -140,7 +140,7 @@ func TestGetSequenceNameAndLastValueFromSetValStmt(t *testing.T) {
 		if err != nil {
 			t.Fatalf("error parsing sql: %v", err)
 		}
-		sequenceName, lastValue, err := GetSequenceNameAndRestartValueFromAlterSequenceStmt(parseTree)
+		sequenceName, lastValue, err := GetSequenceNameAndLastValueFromSetValStmt(parseTree)
 		if err != nil {
 			t.Fatalf("error getting sequence name and last value: %v", err)
 		}
