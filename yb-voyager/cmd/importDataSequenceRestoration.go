@@ -99,6 +99,7 @@ func restoreSequencesInOfflineMigration(msr *metadb.MigrationStatusRecord, impor
 			if !sequenceTuple.TargetTableAvailable() {
 				return false, fmt.Errorf("sequence %q is not present in the target database", sequenceTuple.ForKey())
 			}
+			sequenceNameTupleToLastValueMap.Put(sequenceTuple, lastValue)
 			return true, nil
 		})
 		if err != nil {
