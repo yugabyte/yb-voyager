@@ -150,9 +150,10 @@ jobs:
             echo "Running tests on version $version"
 
             echo "Start YugabyteDB cluster"
-            docker run -d --network=host --name yugabytedb-$version --hostname yb-cluster-test-$version\
+            docker run -d --name yugabytedb-$version --hostname yb-cluster-test-$version\
+            -p7000:7000 -p9000:9000 -p15433:15433 -p5433:5433 -p9042:9042 \
             yugabytedb/yugabyte:$version \
-            bin/yugabyted start --tserver_flags="ysql_hba_conf_csv={host all yugabyte all trust,host all all all md5}" --advertise_address=localhost --background=false --ui=false --callhome=false 
+            bin/yugabyted start --tserver_flags="ysql_hba_conf_csv={host all yugabyte all trust,host all all all md5}" --background=false --ui=false --callhome=false 
             
             # Wait for YugabyteDB to be ready with health check
             echo "Waiting for YugabyteDB to be ready..."
@@ -169,7 +170,8 @@ jobs:
             ./migtests/scripts/yugabytedb/create_yb_user
 
             echo "Enable yb-cluster-test-$version name resolution"
-            echo "127.0.0.1	yb-cluster-test-$version" | sudo tee -a /etc/hosts
+            docker_ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' yugabytedb-$version)
+            echo "$docker_ip	yb-cluster-test-$version" | sudo tee -a /etc/hosts
             psql "postgresql://yugabyte@yb-cluster-test-$version:5433/yugabyte" -c "SELECT version();"
 
             echo "Setup the gcp credentials"

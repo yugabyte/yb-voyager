@@ -82,7 +82,7 @@ main() {
 	./init-db
 
 	if [ "${SOURCE_DB_TYPE}" = "postgresql" ]; then
-		step "Creating PGSS Extension"
+		step "Creating pg_stat_statements for the compare-performance command"
 		run_psql ${SOURCE_DB_NAME} "CREATE EXTENSION IF NOT EXISTS pg_stat_statements;"
 	fi
 
@@ -318,7 +318,7 @@ main() {
 			cat_log_file "yb-voyager-compare-performance.log"
 		}
 
-		step "Validate Performance Comparison Reports"
+		step "Validate Performance Reports"
 		# Checking if the assessment reports were created
 		if [ -f "${EXPORT_DIR}/reports/performance_comparison_report.html" ] && [ -f "${EXPORT_DIR}/reports/performance_comparison_report.json" ]; then
 			echo "Performance comparison reports created successfully."

@@ -1576,19 +1576,19 @@ compare_performance() {
         --send-diagnostics=false --yes
     "
 
-    if [ "${SOURCE_DB_SCHEMA}" != "" ]; then
+    if [ "${TARGET_DB_SCHEMA}" != "" ]; then
         args="${args} --target-db-schema ${TARGET_DB_SCHEMA}"
     fi
-    if [ "${SOURCE_DB_SSL_MODE}" != "" ]; then
+    if [ "${TARGET_DB_SSL_MODE}" != "" ]; then
         args="${args} --target-ssl-mode ${TARGET_DB_SSL_MODE}"
     fi
-    if [ "${SOURCE_DB_SSL_CERT}" != "" ]; then
+    if [ "${TARGET_DB_SSL_CERT}" != "" ]; then
         args="${args} --target-ssl-cert ${TARGET_DB_SSL_CERT}"
     fi
-    if [ "${SOURCE_DB_SSL_KEY}" != "" ]; then
+    if [ "${TARGET_DB_SSL_KEY}" != "" ]; then
         args="${args} --target-ssl-key ${TARGET_DB_SSL_KEY}"
     fi
-    if [ "${SOURCE_DB_SSL_ROOT_CERT}" != "" ]; then
+    if [ "${TARGET_DB_SSL_ROOT_CERT}" != "" ]; then
         args="${args} --target-ssl-root-cert ${TARGET_DB_SSL_ROOT_CERT}"
     fi
 

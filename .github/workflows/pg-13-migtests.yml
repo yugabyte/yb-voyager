@@ -64,6 +64,7 @@ jobs:
         run: |
           docker exec ${{ job.services.postgres.id }} sh -c "echo 'wal_level=logical' >> /var/lib/postgresql/data/postgresql.conf"
           docker exec ${{ job.services.postgres.id }} sh -c "apt-get update && apt-get install -y postgresql-13-postgis postgresql-13-postgis-3 postgresql-contrib-13"
+          # adding pg_stat_statements to shared_preload_libraries to enable the extension
           docker exec ${{ job.services.postgres.id }} sh -c "echo \"shared_preload_libraries = 'pg_stat_statements'\" >> /var/lib/postgresql/data/postgresql.conf"
           docker restart ${{ job.services.postgres.id }}
           
@@ -124,11 +125,6 @@ jobs:
       - name: Create YugabyteDB user
         run: |
           ./migtests/scripts/yugabytedb/create_yb_user
-
-      - name: Enable yb-cluster-test name resolution
-        run: |
-          echo "127.0.0.1	yb-cluster-test" | sudo tee -a /etc/hosts
-          psql "postgresql://yugabyte@yb-cluster-test:5433/yugabyte" -c "SELECT version();"
 
       - name: "TEST: pg-table-list-flags-test (table-list and exclude-table-list)"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
