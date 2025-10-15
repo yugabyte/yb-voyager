@@ -31,7 +31,7 @@
             {
                 "ObjectType": "TABLE",
                 "TotalCount": 9,
-                "InvalidCount": 2,
+                "InvalidCount": 1,
                 "ObjectNames": "public.agent_statuses, public.agents, public.countries, public.expenses, public.expensive_items, public.gear_names, public.points, public.reports, public.secret_missions"
             },
             {
