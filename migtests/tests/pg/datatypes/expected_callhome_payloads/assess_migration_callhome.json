@@ -25,46 +25,9 @@
         "estimated_time_in_min_for_import_without_redundant_indexes": 1
     },
     "migration_complexity": "LOW",
-    "migration_complexity_explanation": "Found 4 Level 1 issue(s) and 0 Level 2 issue(s), resulting in LOW migration complexity",
-    "schema_summary": "{\"Description\":\"\",\"DbName\":\"\",\"SchemaNames\":null,\"DbVersion\":\"\",\"DatabaseObjects\":[{\"ObjectType\":\"SCHEMA\",\"TotalCount\":1,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"EXTENSION\",\"TotalCount\":2,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"TYPE\",\"TotalCount\":1,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"SEQUENCE\",\"TotalCount\":8,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"TABLE\",\"TotalCount\":10,\"InvalidCount\":3,\"ObjectNames\":\"\"}]}",
-    "assessment_issues": [
-        {
-            "category": "migration_caveats",
-            "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_TSVECTOR",
-            "name": "Unsupported datatype for Live migration with fall-forward/fallback - tsvector Datatype",
-            "impact": "LEVEL_1",
-            "object_type": "COLUMN",
-            "object_name": ""
-        },
-        {
-            "category": "migration_caveats",
-            "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_TSVECTOR",
-            "name": "Unsupported datatype for Live migration with fall-forward/fallback - tsvector Datatype",
-            "impact": "LEVEL_1",
-            "object_type": "COLUMN",
-            "object_name": ""
-        },
-        {
-            "category": "migration_caveats",
-            "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_HSTORE",
-            "name": "Unsupported datatype for Live migration with fall-forward/fallback - hstore Datatype",
-            "impact": "LEVEL_1",
-            "object_type": "COLUMN",
-            "object_name": ""
-        },
-        {
-            "category": "migration_caveats",
-            "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_ARRAY_OF_ENUM",
-            "name": "Unsupported datatype for Live migration with fall-forward/fallback - Array of Enum Datatype",
-            "impact": "LEVEL_1",
-            "object_type": "COLUMN",
-            "object_name": ""
-        }
-    ],
+    "migration_complexity_explanation": "Found 1 Level 1 issue(s) and 0 Level 2 issue(s), resulting in LOW migration complexity",
+    "schema_summary": "{\"Description\":\"\",\"DbName\":\"\",\"SchemaNames\":null,\"DbVersion\":\"\",\"DatabaseObjects\":[{\"ObjectType\":\"SCHEMA\",\"TotalCount\":1,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"EXTENSION\",\"TotalCount\":1,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"TYPE\",\"TotalCount\":1,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"SEQUENCE\",\"TotalCount\":6,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"TABLE\",\"TotalCount\":8,\"InvalidCount\":1,\"ObjectNames\":\"\"}]}",
+    "assessment_issues": [],
     "error": "",
     "table_sizing_stats": "[{\"schema_name\":\"schema_d7108fd530c9b1c2\",\"object_name\":\"table_02c317b0d719af0a\",\"reads_per_second\":0,\"writes_per_second\":0,\"size_in_bytes\":8192},{\"schema_name\":\"schema_d7108fd530c9b1c2\",\"object_name\":\"table_19b43db2c11e31ef\",\"reads_per_second\":0,\"writes_per_second\":0,\"size_in_bytes\":8192},{\"schema_name\":\"schema_d7108fd530c9b1c2\",\"object_name\":\"table_1b6e8818ac9f79cd\",\"reads_per_second\":0,\"writes_per_second\":0,\"size_in_bytes\":8192},{\"schema_name\":\"schema_d7108fd530c9b1c2\",\"object_name\":\"table_21db0ebbe3eff1c5\",\"reads_per_second\":0,\"writes_per_second\":0,\"size_in_bytes\":8192},{\"schema_name\":\"schema_d7108fd530c9b1c2\",\"object_name\":\"table_269b49de7ff38a13\",\"reads_per_second\":0,\"writes_per_second\":0,\"size_in_bytes\":8192},{\"schema_name\":\"schema_d7108fd530c9b1c2\",\"object_name\":\"table_834e77f39ce395fc\",\"reads_per_second\":0,\"writes_per_second\":0,\"size_in_bytes\":8192},{\"schema_name\":\"schema_d7108fd530c9b1c2\",\"object_name\":\"table_8dfb93d104511155\",\"reads_per_second\":0,\"writes_per_second\":0,\"size_in_bytes\":8192},{\"schema_name\":\"schema_d7108fd530c9b1c2\",\"object_name\":\"table_9dd5bddb143fd318\",\"reads_per_second\":0,\"writes_per_second\":0,\"size_in_bytes\":8192},{\"schema_name\":\"schema_d7108fd530c9b1c2\",\"object_name\":\"table_9fa19d27ea64c7a6\",\"reads_per_second\":0,\"writes_per_second\":0,\"size_in_bytes\":8192},{\"schema_name\":\"schema_d7108fd530c9b1c2\",\"object_name\":\"table_e46e6ee4317473c9\",\"reads_per_second\":0,\"writes_per_second\":0,\"size_in_bytes\":8192}]",
     "index_sizing_stats": "[{\"schema_name\":\"schema_d7108fd530c9b1c2\",\"object_name\":\"index_14feeff899d819e9\",\"reads_per_second\":0,\"writes_per_second\":0,\"size_in_bytes\":16384},{\"schema_name\":\"schema_d7108fd530c9b1c2\",\"object_name\":\"index_28cb13b7911c4e46\",\"reads_per_second\":0,\"writes_per_second\":0,\"size_in_bytes\":16384},{\"schema_name\":\"schema_d7108fd530c9b1c2\",\"object_name\":\"index_56582f2da04cac56\",\"reads_per_second\":0,\"writes_per_second\":0,\"size_in_bytes\":16384},{\"schema_name\":\"schema_d7108fd530c9b1c2\",\"object_name\":\"index_90971060ad65eaba\",\"reads_per_second\":0,\"writes_per_second\":0,\"size_in_bytes\":16384},{\"schema_name\":\"schema_d7108fd530c9b1c2\",\"object_name\":\"index_99cfe5a737f659f6\",\"reads_per_second\":0,\"writes_per_second\":0,\"size_in_bytes\":16384},{\"schema_name\":\"schema_d7108fd530c9b1c2\",\"object_name\":\"index_a36147993f4fa492\",\"reads_per_second\":0,\"writes_per_second\":0,\"size_in_bytes\":16384},{\"schema_name\":\"schema_d7108fd530c9b1c2\",\"object_name\":\"index_ce7eae47e643544d\",\"reads_per_second\":0,\"writes_per_second\":0,\"size_in_bytes\":16384},{\"schema_name\":\"schema_d7108fd530c9b1c2\",\"object_name\":\"index_dc0079333ca3e821\",\"reads_per_second\":0,\"writes_per_second\":0,\"size_in_bytes\":16384},{\"schema_name\":\"schema_d7108fd530c9b1c2\",\"object_name\":\"index_e082c3e17692ddb4\",\"reads_per_second\":0,\"writes_per_second\":0,\"size_in_bytes\":16384},{\"schema_name\":\"schema_d7108fd530c9b1c2\",\"object_name\":\"index_e4d081c1fa777460\",\"reads_per_second\":0,\"writes_per_second\":0,\"size_in_bytes\":16384}]",

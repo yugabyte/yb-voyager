@@ -60,8 +60,9 @@ func GetPGLiveMigrationUnsupportedDatatypes() []string {
 }
 
 func GetPGLiveMigrationWithFFOrFBUnsupportedDatatypes() []string {
-	//TODO: add connector specific handling
-	unsupportedDataTypesForDbzmYBOnly, _ := lo.Difference(GetYugabyteUnsupportedDatatypesDbzm(true), PostgresUnsupportedDataTypes)
+	// Using logical connector (false) as default for fall forward/fall back
+	// Logical connector supports hstore, tsvector, and array of enums
+	unsupportedDataTypesForDbzmYBOnly, _ := lo.Difference(GetYugabyteUnsupportedDatatypesDbzm(false), PostgresUnsupportedDataTypes)
 	liveMigrationWithFForFBUnsupportedDatatypes, _ := lo.Difference(unsupportedDataTypesForDbzmYBOnly, GetPGLiveMigrationUnsupportedDatatypes())
 	return liveMigrationWithFForFBUnsupportedDatatypes
 }

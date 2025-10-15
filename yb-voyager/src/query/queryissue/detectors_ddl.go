@@ -193,10 +193,8 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 		isUnsupportedDatatypeInLive := utils.ContainsAnyStringFromSlice(liveUnsupportedDatatypes, col.TypeName)
 
 		isUnsupportedDatatypeInLiveWithFFOrFBList := utils.ContainsAnyStringFromSlice(liveWithFfOrFbUnsupportedDatatypes, col.TypeName)
-		isUDTDatatype := utils.ContainsAnyStringFromSlice(d.compositeTypes, col.GetFullTypeName()) //if type is array
-		isEnumDatatype := utils.ContainsAnyStringFromSlice(d.enumTypes, col.GetFullTypeName())     //is ENUM type
-		isArrayOfEnumsDatatype := col.IsArrayType && isEnumDatatype
-		isUnsupportedDatatypeInLiveWithFFOrFB := isUnsupportedDatatypeInLiveWithFFOrFBList || isUDTDatatype || isArrayOfEnumsDatatype
+		isUDTDatatype := utils.ContainsAnyStringFromSlice(d.compositeTypes, col.GetFullTypeName())
+		isUnsupportedDatatypeInLiveWithFFOrFB := isUnsupportedDatatypeInLiveWithFFOrFBList || isUDTDatatype
 
 		if isUnsupportedDatatype {
 			issues = append(issues, ReportUnsupportedDatatypes(col.TypeName, col.ColumnName, obj.GetObjectType(), table.GetObjectName()))
@@ -205,16 +203,7 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 		} else if isUnsupportedDatatypeInLiveWithFFOrFB {
 			//reporting only for TABLE Type  as we don't deal with FOREIGN TABLE in live migration
 			reportTypeName := col.GetFullTypeName()
-			if isArrayOfEnumsDatatype {
-				reportTypeName = fmt.Sprintf("%s[]", reportTypeName)
-				issues = append(issues, NewArrayOfEnumDatatypeIssue(
-					obj.GetObjectType(),
-					table.GetObjectName(),
-					"",
-					reportTypeName,
-					col.ColumnName,
-				))
-			} else if isUDTDatatype {
+			if isUDTDatatype {
 				issues = append(issues, NewUserDefinedDatatypeIssue(
 					obj.GetObjectType(),
 					table.GetObjectName(),
@@ -574,22 +563,6 @@ func ReportUnsupportedDatatypesInLiveWithFFOrFB(baseTypeName string, columnName 
 	switch baseTypeName {
 	case "tsquery":
 		issue = NewTsQueryDatatypeIssue(
-			objType,
-			objName,
-			"",
-			baseTypeName,
-			columnName,
-		)
-	case "tsvector":
-		issue = NewTsVectorDatatypeIssue(
-			objType,
-			objName,
-			"",
-			baseTypeName,
-			columnName,
-		)
-	case "hstore":
-		issue = NewHstoreDatatypeIssue(
 			objType,
 			objName,
 			"",

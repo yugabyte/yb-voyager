@@ -1005,19 +1005,6 @@
         {
             "Category": "migration_caveats",
             "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_HSTORE",
-            "Name": "Unsupported datatype for Live migration with fall-forward/fallback - hstore Datatype",
-            "Description": "HSTORE datatype not yet supported by voyager in live migration with fall-forward/fallback. Affected column: h. These columns will be excluded when exporting and importing data in live migration workflows.",
-            "Impact": "LEVEL_1",
-            "ObjectType": "COLUMN",
-            "ObjectName": "extension_example.testhstore.h",
-            "SqlStatement": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "Category": "migration_caveats",
-            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
             "Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED",
             "Name": "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype",
             "Description": "User defined datatype EXAMPLE_TYPE not yet supported by voyager in live migration with fall-forward/fallback. Affected column: _uses_type. These columns will be excluded when exporting and importing data in live migration workflows.",

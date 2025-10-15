@@ -63,15 +63,10 @@ var cutoverToTargetCmd = &cobra.Command{
 			} else if msr.FallForwardEnabled {
 				log.Infof("Migration workflow opted is live migration with fall-forward.")
 			}
-			// --use-yb-grpc-connector is mandatory in this case.
-			useYBgRPCConnectorSpecified := cmd.Flags().Changed("use-yb-grpc-connector")
-			if !useYBgRPCConnectorSpecified {
-				utils.ErrExit(`missing required flag "--use-yb-grpc-connector [true|false]"`)
-			}
 			if useYBgRPCConnector {
 				utils.PrintAndLogf("Using YB gRPC connector for export data from target")
 			} else {
-				utils.PrintAndLogf("Using YB Logical Replication connector for export data from target")
+				utils.PrintAndLog("Using YB Logical Replication connector for export data from target (default)")
 			}
 		} else {
 			log.Infof("Migration workflow opted is normal live migration.")
@@ -89,8 +84,7 @@ func init() {
 	registerConfigFileFlag(cutoverToTargetCmd)
 	BoolVar(cutoverToTargetCmd.Flags(), &prepareForFallBack, "prepare-for-fall-back", false,
 		"prepare for fallback by streaming changes from target DB back to source DB. Not applicable for fall-forward workflow.")
-	//Keeping the default as false here as the default value as false, 0 etc.. is not added to the usage msg by cobra and as the flag is mandatory there is no default value.
-	BoolVar(cutoverToTargetCmd.Flags(), &useYBgRPCConnector, "use-yb-grpc-connector", BOOL_FLAG_ZERO_VALUE,
+	BoolVar(cutoverToTargetCmd.Flags(), &useYBgRPCConnector, "use-yb-grpc-connector", false,
 		`Applicable to Fall-forward/fall-back workflows where it is required to export changes from YugabyteDB during 'export data from target'. YugabyteDB provides two types of CDC (Change Data Capture) connectors:
 gRPC Connector: Requires direct access to the cluster's internal ports—specifically, TServer (9100) and Master (7100). This connector is suitable for deployments where these ports are accessible.
 Logical Connector: It does not require access to internal ports. It is recommended for deployments where the gRPC connector cannot be used—such as with YBAeon or other restricted environments.
