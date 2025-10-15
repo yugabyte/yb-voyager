@@ -631,7 +631,7 @@
                     <col style="width: {{ $issueWidth }};"> <!-- Issue Name -->
                     <col style="width: {{ $objectWidth}}"> <!-- Object/SQL Preview -->
                     {{ if .onlyPerf }}
-                        <col style="width: 10%;"> <!-- Usage -->
+                        <col style="width: 10%;"> <!-- Object Usage -->
                     {{ end }}
                     <col style="width: 10%;"> <!-- Impact -->
                 </colgroup>
@@ -648,7 +648,7 @@
                         <th class="centered-cell">Object/SQL Preview</th>
                         {{ if .onlyPerf }}
                             <th class="centered-cell" style="cursor: pointer; text-align: center;"">
-                                Usage
+                                Object Usage
                             </th>
                         {{ end }}
                         <th class="centered-cell" style="cursor: pointer; text-align: center;" onclick="sortTableBy('impact', {{ .onlyPerf }})">
@@ -801,7 +801,7 @@
 
             {{ if .onlyPerf }}
                 <div style="margin-top: 10px; line-height: 1.6;">
-                    <strong>Usage Categories:</strong>
+                    <strong>Object Usage Categories:</strong>
                     <ul style="margin-top: 6px; padding-left: 20px;">
                         <li>
                         <strong>FREQUENT:</strong> High-priority objects that account for the majority of workload activity 

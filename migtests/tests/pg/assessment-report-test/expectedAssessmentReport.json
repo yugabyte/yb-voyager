@@ -1608,7 +1608,6 @@
             "Description": "User defined datatype ITEM_DETAILS not yet supported by voyager in live migration with fall-forward/fallback. Affected column: item. These columns will be excluded when exporting and importing data in live migration workflows.",
             "Impact": "LEVEL_1",
             "ObjectType": "COLUMN",
-            "ObjectUsage": "UNUSED",
             "ObjectName": "schema2.orders.item",
             "SqlStatement": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
