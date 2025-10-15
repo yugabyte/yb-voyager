@@ -8,6 +8,7 @@ from utils import (
     fetch_array_types_for_column,
     execute_with_retry,
     build_insert_values,
+    build_update_values,
 )
 from utils import load_event_generator_config, get_connection_kwargs_from_config
 import time
@@ -126,27 +127,8 @@ for i in range(NUM_ITERATIONS):
 
                 # Randomly choose the columns to update
                 columns_to_update = random.sample(updateable_columns, num_columns_to_update)
-                # Build SET clause with special handling for bit/varbit
-                set_parts = []
-                params = []
-                for col in columns_to_update:
-                    data_type = columns[col]
-                    if "bit" in data_type.lower():
-                        expr = build_bit_cast_expr(table_schemas, table_name, col)
-                        set_parts.append(f"{col} = {expr}")
-                    else:
-                        if data_type == "USER-DEFINED":
-                            enum_values = fetch_enum_values_for_column(table_schemas, table_name, col)
-                            value = generate_random_data(data_type, table_name, enum_values, None)
-                        else:
-                            array_types = fetch_array_types_for_column(table_schemas, table_name, col)
-                            value = generate_random_data(data_type, table_name, None, array_types)
-                        if value is None:
-                            set_parts.append(f"{col} = NULL")
-                        else:
-                            set_parts.append(f"{col} = %s")
-                            params.append(value)
-                set_clause = ", ".join(set_parts)
+
+                set_clause, params = build_update_values(table_schemas, table_name, columns_to_update)
                 where_clause = f"{primary_key} IN (SELECT {primary_key} FROM {table_name} TABLESAMPLE SYSTEM_ROWS(%s))"
                 # where_clause = f"{primary_key} IN (SELECT {primary_key} FROM {table_name} ORDER BY RANDOM() LIMIT %s)"
                 # where_clause = f"{primary_key} IN (SELECT {primary_key} FROM {table_name} TABLESAMPLE SYSTEM (0.00007))"

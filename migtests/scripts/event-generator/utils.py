@@ -19,72 +19,83 @@ _fake = Faker()
 
 # ----- Configuration loading  -----
 
+"""
+Declarative configuration schema and helpers for event-generator config loading.
+"""
+
+# ---------------------
+# Declarative config schema
+# ---------------------
+CONFIG_SCHEMA: Dict[str, Dict[str, Any]] = {
+    "connection": {
+        "host": str,
+        "port": int,
+        "database": str,
+        "user": str,
+        "password": str,
+    },
+    "generator": {
+        "schema_name": str,
+        "exclude_table_list": list,
+        "manual_table_list": list,
+        "num_iterations": int,
+        "wait_after_operations": int,
+        "wait_duration_seconds": int,
+        "table_weights": dict,
+        "operations": list,
+        "operation_weights": list,
+        "insert_rows": int,
+        "update_rows": int,
+        "delete_rows": int,
+        "insert_max_retries": int,
+        "update_max_retries": int,
+    },
+}
+
+# ---------------------
+# Helper functions
+# ---------------------
+def load_yaml_file(path: str) -> Dict[str, Any]:
+    if yaml is None:
+        raise RuntimeError("PyYAML is required to load configuration. Install with: pip install PyYAML")
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"Configuration file not found at: {path}")
+
+    with open(path, "r") as f:
+        content: Any = yaml.safe_load(f)
+    if not isinstance(content, dict):
+        raise ValueError("Top-level YAML must be a mapping/object")
+    return content
+
+
+def validate_section(section: Dict[str, Any], schema: Dict[str, Any], section_name: str) -> None:
+    for key, expected_type in schema.items():
+        if key not in section:
+            raise ValueError(f"Missing key '{key}' in '{section_name}' section")
+        if not isinstance(section[key], expected_type):
+            raise ValueError(
+                f"Key '{key}' in '{section_name}' must be of type {expected_type.__name__}"
+            )
+
+
+# ---------------------
+# Top-level loader
+# ---------------------
 def load_event_generator_config() -> Dict[str, Any]:
     """
-    Load event-generator.yaml and perform basic validation:
-    - Ensure PyYAML is available
-    - Ensure file exists and top-level is a mapping
-    - Ensure required sections and required keys with expected types
+    Load event-generator.yaml and validate against CONFIG_SCHEMA.
+    Returns the loaded config dict as-is.
     """
-    if yaml is None:
-        raise RuntimeError(
-            "PyYAML is required to load configuration. Install with: pip install PyYAML"
-        )
-
     config_path = os.path.join(os.path.dirname(__file__), "event-generator.yaml")
-    if not os.path.exists(config_path):
-        raise FileNotFoundError(
-            f"Configuration file not found at: {config_path}"
-        )
+    config = load_yaml_file(config_path)
 
-    with open(config_path, "r") as f:
-        loaded: Any = yaml.safe_load(f)
+    for section_name, schema in CONFIG_SCHEMA.items():
+        section = config.get(section_name)
+        if not isinstance(section, dict):
+            raise ValueError(f"Missing or invalid '{section_name}' section in config")
+        validate_section(section, schema, section_name)
 
-    if not isinstance(loaded, dict):
-        raise ValueError("Top-level YAML must be a mapping/object")
-
-    # Validate required sections
-    for section in ("connection", "generator"):
-        if section not in loaded or not isinstance(loaded[section], dict):
-            raise ValueError(f"Missing or invalid '{section}' section in config")
-
-    conn = loaded["connection"]
-    gen = loaded["generator"]
-
-    # Connection validation
-    _require_key_type(conn, "host", str, section_name="connection")
-    _require_key_type(conn, "port", int, section_name="connection")
-    _require_key_type(conn, "database", str, section_name="connection")
-    _require_key_type(conn, "user", str, section_name="connection")
-    _require_key_type(conn, "password", str, section_name="connection")
-
-    # Generator validation
-    _require_key_type(gen, "schema_name", str)
-    _require_key_type(gen, "exclude_table_list", list)
-    _require_key_type(gen, "manual_table_list", list)
-    _require_key_type(gen, "num_iterations", int)
-    _require_key_type(gen, "wait_after_operations", int)
-    _require_key_type(gen, "wait_duration_seconds", int)
-    _require_key_type(gen, "table_weights", dict)
-    _require_key_type(gen, "operations", list)
-    _require_key_type(gen, "operation_weights", list)
-    _require_key_type(gen, "insert_rows", int)
-    _require_key_type(gen, "update_rows", int)
-    _require_key_type(gen, "delete_rows", int)
-    _require_key_type(gen, "insert_max_retries", int)
-    _require_key_type(gen, "update_max_retries", int)
-
-    return loaded  # Strictly the provided values
-
-
-def _require_key_type(obj: Dict[str, Any], key: str, expected_type: type, *, section_name: str = "generator") -> None:
-    if key not in obj:
-        raise ValueError(f"Missing key '{key}' in '{section_name}' section")
-    if not isinstance(obj[key], expected_type):
-        raise ValueError(
-            f"Key '{key}' in '{section_name}' must be of type {expected_type.__name__}"
-        )
-
+    return config
 
 def get_connection_kwargs_from_config(config: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -104,6 +115,35 @@ def get_connection_kwargs_from_config(config: Dict[str, Any]) -> Dict[str, Any]:
 def _qualify_regclass(table_name: str, schema_name: Optional[str]) -> str:
     """Return schema-qualified identifier for regclass resolution when schema is provided."""
     return f"{schema_name}.{table_name}" if schema_name else table_name
+
+
+def _schema_filter(schema_name: Optional[str]) -> Tuple[str, Tuple[Any, ...]]:
+    """Return a WHERE prefix and params for information_schema queries.
+
+    Example:
+        ("table_schema = %s AND ", (schema_name,)) when schema is provided
+        ("", ()) when schema is not provided
+    """
+    if schema_name:
+        return "table_schema = %s AND ", (schema_name,)
+    return "", ()
+
+
+def get_array_element_type(cursor: Any, schema_name: Optional[str], table_name: str, column_name: str) -> Optional[str]:
+    """
+    Return the element type (regtype text) for an ARRAY column, or None if not resolvable.
+    Looks up information_schema.columns.udt_name and casts to regtype.
+    """
+    where_prefix, where_params = _schema_filter(schema_name)
+    query = f"""
+            SELECT udt_name::regtype
+            FROM information_schema.columns
+            WHERE {where_prefix} table_name = %s
+              AND column_name = %s
+        """
+    cursor.execute(query, where_params + (table_name, column_name))
+    row = cursor.fetchone()
+    return row[0] if row else None
 
 
 def fetch_enum_labels(cursor: Any, table_name: str, column_name: str, schema_name: Optional[str]) -> List[str]:
@@ -130,33 +170,6 @@ def fetch_enum_labels(cursor: Any, table_name: str, column_name: str, schema_nam
     cursor.execute(enum_query, (regclass, column_name))
     return [row[0] for row in cursor.fetchall()]
 
-
-def get_array_element_type(cursor: Any, schema_name: Optional[str], table_name: str, column_name: str) -> Optional[str]:
-    """
-    Return the element type (regtype text) for an ARRAY column, or None if not resolvable.
-    Looks up information_schema.columns.udt_name and casts to regtype.
-    """
-    if schema_name:
-        query = """
-            SELECT udt_name::regtype
-            FROM information_schema.columns
-            WHERE table_schema = %s
-              AND table_name = %s
-              AND column_name = %s
-        """
-        cursor.execute(query, (schema_name, table_name, column_name))
-    else:
-        query = """
-            SELECT udt_name::regtype
-            FROM information_schema.columns
-            WHERE table_name = %s
-              AND column_name = %s
-        """
-        cursor.execute(query, (table_name, column_name))
-    row = cursor.fetchone()
-    return row[0] if row else None
-
-
 def get_table_list(cursor: Any, schema_name: Optional[str] = None, exclude_table_list: Optional[List[str]] = None) -> List[str]:
     """List base tables in a schema (or all schemas), excluding given names."""
     if schema_name:
@@ -182,20 +195,15 @@ def get_table_list(cursor: Any, schema_name: Optional[str] = None, exclude_table
 
 def get_table_description(cursor: Any, table_name: str, schema_name: Optional[str] = None) -> List[Tuple[str, str]]:
     """Return (column_name, data_type) for a table, expanding numeric/decimal precision/scale."""
-    if schema_name:
-        cursor.execute(
-            """
+    where_prefix, where_params = _schema_filter(schema_name)
+    cursor.execute(
+        f"""
             SELECT column_name, data_type
             FROM information_schema.columns
-            WHERE table_schema = %s AND table_name = %s
+            WHERE {where_prefix} table_name = %s
             """,
-            (schema_name, table_name,),
-        )
-    else:
-        cursor.execute(
-            f"SELECT column_name, data_type FROM information_schema.columns WHERE table_name = %s",
-            (table_name,),
-        )
+        where_params + (table_name,),
+    )
     column_info = cursor.fetchall()
 
     for i, (column_name, data_type) in enumerate(column_info):
@@ -213,25 +221,22 @@ def get_table_description(cursor: Any, table_name: str, schema_name: Optional[st
 
     return column_info
 
+def _build_columns_dict(column_info: List[Tuple[str, str]]) -> Dict[str, str]:
+    """Return a mapping of column_name -> data_type from information_schema results."""
+    return {column_name: data_type for column_name, data_type in column_info}
 
-def convert_pg_table_description(
+
+def _build_bit_info(
     cursor: Any,
-    column_info: List[Tuple[str, str]],
     table_name: str,
-    schema_name: Optional[str] = None,
+    schema_name: Optional[str],
+    columns: Dict[str, str],
 ) -> Dict[str, Dict[str, Any]]:
-    """Convert column info into a schema dict (columns, arrays, PK, enums, bit/varbit)."""
-    columns = {}
-    array_types = {}
-    enum_values = {}
-    bit_info = {}
-
-    for column_name, data_type in column_info:
-        columns[column_name] = data_type
-
-        # Capture bit/varbit length metadata
+    """Return bit/varbit metadata dict for columns that are declared as bit/varbit."""
+    bit_info: Dict[str, Dict[str, Any]] = {}
+    regclass = _qualify_regclass(table_name, schema_name)
+    for column_name, data_type in columns.items():
         if data_type.lower() in ('bit', 'bit varying'):
-            regclass = _qualify_regclass(table_name, schema_name)
             cursor.execute(
                 """
                 SELECT atttypmod
@@ -253,36 +258,36 @@ def convert_pg_table_description(
                 "varying": data_type.lower() == 'bit varying',
                 "length": bit_length,
             }
+    return bit_info
 
-        # Check for array types
+
+def _build_array_types(
+    cursor: Any,
+    schema_name: Optional[str],
+    table_name: str,
+    columns: Dict[str, str],
+) -> Dict[str, str]:
+    """Return mapping of ARRAY columns to their element type (or original data_type as fallback)."""
+    array_types: Dict[str, str] = {}
+    for column_name, data_type in columns.items():
         if 'ARRAY' in data_type.upper():
             elem_type = get_array_element_type(cursor, schema_name, table_name, column_name)
             if elem_type:
                 array_types[column_name] = elem_type
             else:
-                # Use the original data_type if the query doesn't return a result
                 array_types[column_name] = data_type
+    return array_types
 
-    # Determine the primary key column
-    if schema_name:
-        primary_key_query = f"""
-            SELECT kcu.column_name
-            FROM information_schema.table_constraints tc
-            JOIN information_schema.key_column_usage kcu
-              ON tc.constraint_name = kcu.constraint_name
-             AND tc.table_schema = kcu.table_schema
-             AND tc.table_name = kcu.table_name
-            WHERE tc.table_schema = %s
-              AND tc.table_name = %s
-              AND tc.constraint_type = 'PRIMARY KEY'
-            ORDER BY kcu.ordinal_position
+
+def _find_primary_key(
+    cursor: Any,
+    table_name: str,
+    schema_name: Optional[str],
+) -> Optional[str]:
+    """Return the name of the primary key column or None if not found."""
+    regclass = _qualify_regclass(table_name, schema_name)
+    cursor.execute(
         """
-        cursor.execute(primary_key_query, (schema_name, table_name))
-        result = cursor.fetchone()
-        primary_key = result[0] if result else None
-    else:
-        # Fallback using pg_catalog with search_path resolution via regclass
-        primary_key_query = f"""
             SELECT a.attname
             FROM pg_index i
             JOIN pg_class c ON c.oid = i.indrelid
@@ -290,23 +295,45 @@ def convert_pg_table_description(
             WHERE c.oid = %s::regclass
               AND i.indisprimary
             ORDER BY a.attnum
-        """
-        regclass = _qualify_regclass(table_name, schema_name)
-        cursor.execute(primary_key_query, (regclass,))
-        result = cursor.fetchone()
-        primary_key = result[0] if result else None
+        """,
+        (regclass,),
+    )
+    result = cursor.fetchone()
+    return result[0] if result else None
 
-    # Determine enum values for USER-DEFINED columns (including arrays of enums)
+
+def _build_enum_values(
+    cursor: Any,
+    table_name: str,
+    schema_name: Optional[str],
+    column_info: List[Tuple[str, str]],
+) -> Dict[str, List[str]]:
+    """Return mapping of column_name -> enum labels for USER-DEFINED columns (incl. arrays)."""
+    enum_values: Dict[str, List[str]] = {}
     user_defined_columns = [
         (column_name, data_type)
         for column_name, data_type in column_info
         if data_type == "USER-DEFINED" or "ARRAY" in data_type.upper()
     ]
-
     for column_name, data_type in user_defined_columns:
         values = fetch_enum_labels(cursor, table_name, column_name, schema_name)
         if values:
             enum_values[column_name] = values
+    return enum_values
+
+
+def convert_pg_table_description(
+    cursor: Any,
+    column_info: List[Tuple[str, str]],
+    table_name: str,
+    schema_name: Optional[str] = None,
+) -> Dict[str, Dict[str, Any]]:
+    """Convert column info into a schema dict (columns, arrays, PK, enums, bit/varbit)."""
+    columns = _build_columns_dict(column_info)
+    bit_info = _build_bit_info(cursor, table_name, schema_name, columns)
+    array_types = _build_array_types(cursor, schema_name, table_name, columns)
+    primary_key = _find_primary_key(cursor, table_name, schema_name)
+    enum_values = _build_enum_values(cursor, table_name, schema_name, column_info)
 
     result = {
         "columns": columns,
@@ -542,6 +569,44 @@ def build_insert_values(
         rows.append(f"({', '.join(values)})")
     return ", ".join(rows)
 
+
+# ----- UPDATE helpers -----
+
+def build_update_values(
+    table_schemas: Dict[str, Dict[str, Any]],
+    table_name: str,
+    columns_to_update: List[str],
+) -> Tuple[str, List[Any]]:
+    """Build a SET clause and params for UPDATE with type-aware handling.
+
+    Returns a tuple of (set_clause, params), where set_clause is a comma-joined
+    list of column assignments and params are the corresponding values for
+    non-bit columns.
+    """
+    columns = table_schemas[table_name]["columns"]
+    set_parts: List[str] = []
+    params: List[Any] = []
+
+    for col in columns_to_update:
+        data_type = columns[col]
+        if "bit" in data_type.lower():
+            expr = build_bit_cast_expr(table_schemas, table_name, col)
+            set_parts.append(f"{col} = {expr}")
+        else:
+            if data_type == "USER-DEFINED":
+                enum_values = fetch_enum_values_for_column(table_schemas, table_name, col)
+                value = generate_random_data(data_type, table_name, enum_values, None)
+            else:
+                array_types = fetch_array_types_for_column(table_schemas, table_name, col)
+                value = generate_random_data(data_type, table_name, None, array_types)
+            if value is None:
+                set_parts.append(f"{col} = NULL")
+            else:
+                set_parts.append(f"{col} = %s")
+                params.append(value)
+
+    set_clause = ", ".join(set_parts)
+    return set_clause, params
 
 # ----- Execution utility -----
 
