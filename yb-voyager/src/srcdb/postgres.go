@@ -60,8 +60,9 @@ func GetPGLiveMigrationUnsupportedDatatypes() []string {
 }
 
 func GetPGLiveMigrationWithFFOrFBUnsupportedDatatypes() []string {
-	//TODO: add connector specific handling
-	unsupportedDataTypesForDbzmYBOnly, _ := lo.Difference(GetYugabyteUnsupportedDatatypesDbzm(true), PostgresUnsupportedDataTypes)
+	// Using logical connector (false) as default for fall forward/fall back
+	// Logical connector supports hstore, tsvector, and array of enums
+	unsupportedDataTypesForDbzmYBOnly, _ := lo.Difference(GetYugabyteUnsupportedDatatypesDbzm(false), PostgresUnsupportedDataTypes)
 	liveMigrationWithFForFBUnsupportedDatatypes, _ := lo.Difference(unsupportedDataTypesForDbzmYBOnly, GetPGLiveMigrationUnsupportedDatatypes())
 	return liveMigrationWithFForFBUnsupportedDatatypes
 }
@@ -460,7 +461,7 @@ func (pg *PostgreSQL) getExportedColumnsMap(
 		if tableMetadata.IsPartition {
 			rootTable = tableMetadata.ParentTable
 		}
-		//using ForKey here as this map is stored in the datafile descriptor and for correctness we should use ForKey only 
+		//using ForKey here as this map is stored in the datafile descriptor and for correctness we should use ForKey only
 		result[rootTable.ForKey()] = pg.getExportedColumnsListForTable(exportDir, rootTable)
 	}
 	return result
