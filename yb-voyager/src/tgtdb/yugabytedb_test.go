@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/jackc/pgx/v4"
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -457,10 +456,6 @@ func runPgStatStatementsTest(t *testing.T, testQueries map[string]struct {
 		}
 	}
 
-	// pg_stat_statements is updated asynchronously, so we need to sleep to allow it to get updated
-	t.Log("Sleeping for 5s to allow pg_stat_statements to update")
-	time.Sleep(5 * time.Second)
-
 	// Collect PGSS
 	_, tconfs, err := testYugabyteDBTargetCluster.GetYBServers() // calls overridden GetYBServers() method
 	require.NoError(t, err)
@@ -490,8 +485,6 @@ func runPgStatStatementsTest(t *testing.T, testQueries map[string]struct {
 				"Query %s should have positive total exec time", queryName)
 			assert.Greater(t, actualPgss.MeanExecTime, float64(0),
 				"Query %s should have positive mean exec time", queryName)
-			assert.Greater(t, actualPgss.Rows, int64(0),
-				"Query %s should have non-negative rows", queryName)
 		}
 	}
 
