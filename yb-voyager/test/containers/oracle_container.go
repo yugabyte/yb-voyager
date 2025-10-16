@@ -191,7 +191,22 @@ func (ora *OracleContainer) GetVersion() (string, error) {
 }
 
 func (ora *OracleContainer) ExecuteSqls(sqls ...string) {
-	panic("ExecuteSqls not implemented for OracleContainer")
+	if ora == nil {
+		utils.ErrExit("oracle container is not started: nil")
+	}
+
+	conn, err := ora.GetConnection()
+	if err != nil {
+		utils.ErrExit("failed to connect to oracle for executing sqls: %w", err)
+	}
+	defer conn.Close()
+
+	for _, sqlStmt := range sqls {
+		_, err := conn.Exec(sqlStmt)
+		if err != nil {
+			utils.ErrExit("failed to execute sql '%s': %w", sqlStmt, err)
+		}
+	}
 }
 
 func (ora *OracleContainer) Query(sql string, args ...interface{}) (*sql.Rows, error) {
