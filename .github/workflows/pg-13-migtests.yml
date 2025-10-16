@@ -63,7 +63,7 @@ jobs:
       - name: "Enable postgres with wal_level as logical and install postgis"
         run: |
           docker exec ${{ job.services.postgres.id }} sh -c "echo 'wal_level=logical' >> /var/lib/postgresql/data/postgresql.conf"
-          docker exec ${{ job.services.postgres.id }} sh -c "apt-get update && apt-get install -y postgresql-13-postgis postgresql-13-postgis-3 postgresql-contrib-13"
+          docker exec ${{ job.services.postgres.id }} sh -c "apt-get update && apt-get install -y postgresql-13-postgis-3 postgresql-contrib-13"
           # adding pg_stat_statements to shared_preload_libraries to enable the extension
           docker exec ${{ job.services.postgres.id }} sh -c "echo \"shared_preload_libraries = 'pg_stat_statements'\" >> /var/lib/postgresql/data/postgresql.conf"
           docker restart ${{ job.services.postgres.id }}
