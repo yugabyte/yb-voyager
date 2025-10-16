@@ -504,6 +504,180 @@ func TraverseAndFindColumnName(node *pg_query.Node) string {
 	return ""
 }
 
+func IsSelectSetValStmt(parseTree *pg_query.ParseResult) bool {
+	/*
+		stmts:{stmt:{select_stmt:{target_list:{res_target:{val:{func_call:{funcname:{string:{sval:"pg_catalog"}}
+		funcname:{string:{sval:"setval"}} args:{a_const:{sval:{sval:"public.\"Case_Sensitive_Seq_id_seq\""} location:25}}
+		args:{a_const:{ival:{ival:2} location:63}} args:{a_const:{boolval:{boolval:true} location:66}}
+		funcformat:COERCE_EXPLICIT_CALL location:7}} location:7}} limit_option:LIMIT_OPTION_DEFAULT op:SETOP_NONE}}
+		stmt_len:71}
+	*/
+	selectStmt, ok := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_SelectStmt)
+	if !ok {
+		return false
+	}
+	targetList := selectStmt.SelectStmt.GetTargetList()
+	if len(targetList) == 0 || targetList[0] == nil {
+		return false
+	}
+
+	target := targetList[0].GetResTarget()
+	if target == nil {
+		return false
+	}
+	val := target.GetVal()
+	if val == nil {
+		return false
+	}
+	funcCall := val.GetFuncCall()
+	if funcCall == nil {
+		return false
+	}
+	schema, funcName := GetFuncNameFromFuncCall(funcCall.ProtoReflect())
+	if schema != "pg_catalog" {
+		return false
+	}
+	if funcName != "setval" {
+		return false
+	}
+	return true
+
+}
+
+func GetSequenceNameAndLastValueFromSetValStmt(parseTree *pg_query.ParseResult) (string, int64, error) {
+	if !IsSelectSetValStmt(parseTree) {
+		return "", 0, fmt.Errorf("not a setval statement %v", parseTree)
+	}
+	selectStmt, ok := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_SelectStmt)
+	if !ok {
+		return "", 0, fmt.Errorf("select stmt is nil in the setval statement %v", parseTree)
+	}
+	targetList := selectStmt.SelectStmt.GetTargetList()
+	if len(targetList) == 0 || targetList[0] == nil {
+		return "", 0, fmt.Errorf("target list is empty in the setval statement %v", selectStmt)
+	}
+	target := targetList[0].GetResTarget()
+	if target == nil {
+		return "", 0, fmt.Errorf("target is nil in the setval statement %v", targetList)
+	}
+	val := target.GetVal()
+	if val == nil {
+		return "", 0, fmt.Errorf("val is nil in the setval statement %v", target)
+	}
+	funcCall := val.GetFuncCall()
+	if funcCall == nil {
+		return "", 0, fmt.Errorf("func call is nil in the setval statement %v", val)
+	}
+	args := funcCall.GetArgs()
+	if args == nil {
+		return "", 0, fmt.Errorf("args are nil in the setval statement %v", funcCall)
+	}
+	/*
+
+		SELECT pg_catalog.setval('public."Case_Sensitive_Seq_id_seq"', 2, true);
+
+		stmts:{stmt:{select_stmt:{target_list:{res_target:{val:{func_call:{funcname:{string:{sval:"pg_catalog"}}
+		funcname:{string:{sval:"setval"}} args:{a_const:{sval:{sval:"public.\"Case_Sensitive_Seq_id_seq\""} location:25}}
+		args:{a_const:{ival:{ival:2} location:63}} args:{a_const:{boolval:{boolval:true} location:66}}
+		funcformat:COERCE_EXPLICIT_CALL location:7}} location:7}} limit_option:LIMIT_OPTION_DEFAULT op:SETOP_NONE}}
+		stmt_len:71}
+
+		SELECT pg_catalog.setval('public."Case_Sensitive_Seq_id_seq"'::regclass, 2, true);
+
+		stmts:{stmt:{select_stmt:{target_list:{res_target:{val:{func_call:{funcname:{string:{sval:"pg_catalog"}}
+		funcname:{string:{sval:"setval"}}  args:{type_cast:{arg:{a_const:{sval:{sval:"public.\"Case_Sensitive_Seq_id_seq\""}
+		location:25}}  type_name:{names:{string:{sval:"regclass"}}  typemod:-1  location:63}  location:61}}
+		args:{a_const:{ival:{ival:2}  location:73}}  args:{a_const:{boolval:{boolval:true}  location:76}}
+		funcformat:COERCE_EXPLICIT_CALL  location:7}}  location:7}}  limit_option:LIMIT_OPTION_DEFAULT  op:SETOP_NONE}}  stmt_len:81}
+	*/
+
+	//get a_const from args
+	if len(args) < 2 {
+		return "", 0, fmt.Errorf("args are less than 2 in the setval statement %v", args)
+	}
+	sequenceArg := args[0]
+	if sequenceArg.GetTypeCast() != nil {
+		sequenceArg = sequenceArg.GetTypeCast().GetArg()
+	}
+	sequenceName := getAConstValue(sequenceArg)
+	lastValueArg := args[1]
+	lastValue := getAConstValue(lastValueArg)
+	lastValueInt, err := strconv.ParseInt(lastValue, 10, 64)
+	if err != nil {
+		return "", 0, fmt.Errorf("error parsing last value: %w", err)
+	}
+	return sequenceName, lastValueInt, nil
+}
+
+func IsAlterSequenceStmt(parseTree *pg_query.ParseResult) bool {
+	/*
+		stmts:{stmt:{alter_seq_stmt:{sequence:{relname:"case_sensitive_always_id_seq" inh:true relpersistence:"p" location:25}
+		options:{def_elem:{defname:"restart" arg:{integer:{ival:4}} defaction:DEFELEM_UNSPEC location:54}} missing_ok:true}} stmt_len:68}
+
+		ALTER SEQUENCE IF EXISTS case_sensitive_always_id_seq RESTART 4;
+	*/
+	_, ok := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_AlterSeqStmt)
+	if !ok {
+		return false
+	}
+	return true
+}
+
+func GetSequenceNameAndRestartValueFromAlterSequenceStmt(parseTree *pg_query.ParseResult) (string, int64, error) {
+	if !IsAlterSequenceStmt(parseTree) {
+		return "", 0, fmt.Errorf("not an alter sequence statement")
+	}
+	/*
+		stmts:{stmt:{alter_seq_stmt:{sequence:{relname:"case_sensitive_always_id_seq" inh:true relpersistence:"p" location:25}
+		options:{def_elem:{defname:"restart" arg:{integer:{ival:4}} defaction:DEFELEM_UNSPEC location:54}} missing_ok:true}} stmt_len:68}
+
+		ALTER SEQUENCE IF EXISTS case_sensitive_always_id_seq RESTART 4;
+	*/
+	if len(parseTree.Stmts) == 0 {
+		return "", 0, fmt.Errorf("parse tree is empty %s", parseTree)
+	}
+	if parseTree.Stmts[0] == nil {
+		return "", 0, fmt.Errorf("parse tree stmt is nil %s", parseTree)
+	}
+	alterSeqStmt, _ := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_AlterSeqStmt)
+	if alterSeqStmt == nil {
+		return "", 0, fmt.Errorf("not an alter sequence statement")
+	}
+	seq := alterSeqStmt.AlterSeqStmt.GetSequence()
+	if seq == nil {
+		return "", 0, fmt.Errorf("sequence is not present in the alter sequence stmt %v", alterSeqStmt)
+	}
+	sequenceName := seq.GetRelname()
+	options := alterSeqStmt.AlterSeqStmt.GetOptions()
+	if options == nil {
+		return "", 0, fmt.Errorf("options is nil in the alter sequence stmt %v", alterSeqStmt)
+	}
+	if len(options) == 0 {
+		return "", 0, fmt.Errorf("options is empty in the alter sequence stmt %v", alterSeqStmt)
+	}
+	restartOption := options[0]
+	if restartOption == nil {
+		return "", 0, fmt.Errorf("restart option is nil in the alter sequence stmt options %v", options)
+	}
+	if restartOption.GetDefElem() == nil {
+		return "", 0, fmt.Errorf("def elem is nil in the alter sequence stmt in restart option %v", restartOption)
+	}
+	defElem := restartOption.GetDefElem()
+	if defElem == nil {
+		return "", 0, fmt.Errorf("def elem is nil in the alter sequence stmt in restart option %v", restartOption)
+	}
+	arg := defElem.GetArg()
+	if arg == nil {
+		return "", 0, fmt.Errorf("arg is nil in the alter sequence stmt in restart option def element %v", defElem)
+	}
+	val := arg.GetInteger()
+	if val == nil {
+		return "", 0, fmt.Errorf("integer val is nil in the arg of the restart option def element %v", arg)
+	}
+	lastValue := int64(val.GetIval())
+	return sequenceName, lastValue, nil
+}
+
 func GetSessionVariableName(stmtStr string) (string, error) {
 	parseTree, err := Parse(stmtStr)
 	if err != nil {
