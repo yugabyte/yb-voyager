@@ -38,6 +38,12 @@ generator:
   # Weights aligned by index with operations above
   operation_weights: [3, 2, 1]
 
+  # Determinism seeds (YAML-only)
+  # random_seed: seeds Python's random module for table/op choices and numeric data
+  random_seed: 12345
+  # faker_seed: seeds Faker for text, timestamps, UUIDs, etc. Defaults to random_seed if omitted
+  faker_seed: 12345
+
   # Rows affected per operation (batch sizes)
   insert_rows: 4
   update_rows: 2

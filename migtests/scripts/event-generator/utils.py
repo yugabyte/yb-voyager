@@ -110,6 +110,9 @@ def get_connection_kwargs_from_config(config: Dict[str, Any]) -> Dict[str, Any]:
         "port": conn["port"],
     }
 
+def set_faker_seed(seed: int) -> None:
+    _fake.seed_instance(seed)
+
 # ----- Schema discovery/introspection -----
 
 def _qualify_regclass(table_name: str, schema_name: Optional[str]) -> str:
@@ -525,11 +528,14 @@ def generate_random_data(
             result = [f'"{fake.word()}"' for _ in range(3)] # Change 3 to the desired number of words
             return '{' + ', '.join(result) + '}'
         elif "integer" in array_types:
-            return {random.randint(-100000, 100000) for _ in range(3)}  # Change 3 to the desired number of elements
+            # Produce a deterministic, ordered array literal (not a Python set)
+            vals = [str(random.randint(-100000, 100000)) for _ in range(3)]
+            return '{' + ', '.join(vals) + '}'
         # Add more cases for other ARRAY data types as needed
 
     elif "uuid" in data_type:
-        return str(uuid.uuid4())
+        # Use Faker's uuid4 which is seeded via set_faker_seed for determinism
+        return _fake.uuid4()
     
     elif "tsvector" in data_type:
         words = [fake.word() for _ in range(5)]

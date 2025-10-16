@@ -12,26 +12,21 @@ from utils import (
 )
 from utils import load_event_generator_config, get_connection_kwargs_from_config
 import time
+from utils import set_faker_seed
 
 
 # ----- Config knobs (tuning) from YAML config -----
 CONFIG = load_event_generator_config()
 GEN = CONFIG["generator"]
 
-SCHEMA_NAME = GEN["schema_name"]
-EXCLUDE_TABLE_LIST = GEN["exclude_table_list"]
 
-# Tables to target explicitly (leave empty to use schema scan)
+SCHEMA_NAME = GEN["schema_name"]
+
 MANUAL_TABLE_LIST = GEN["manual_table_list"]
+EXCLUDE_TABLE_LIST = GEN["exclude_table_list"]
+TABLE_WEIGHTS = GEN["table_weights"]
 
 NUM_ITERATIONS = GEN["num_iterations"]
-
-# Throttling
-WAIT_AFTER_OPERATIONS = GEN["wait_after_operations"]
-WAIT_DURATION_SECONDS = GEN["wait_duration_seconds"]
-
-# Table selection (override weights per table; unspecified default to 1)
-TABLE_WEIGHTS = GEN["table_weights"]
 
 # Operation selection
 OPERATIONS = GEN["operations"]
@@ -45,11 +40,27 @@ DELETE_ROWS = GEN["delete_rows"]
 # Retries
 INSERT_MAX_RETRIES = GEN["insert_max_retries"]
 UPDATE_MAX_RETRIES = GEN["update_max_retries"]
+
+# Throttling
+WAIT_AFTER_OPERATIONS = GEN["wait_after_operations"]
+WAIT_DURATION_SECONDS = GEN["wait_duration_seconds"]
+
 # ---------------------------------
+
+# Deterministic seeds from YAML
+SEED = GEN.get("random_seed", GEN.get("seed"))
+FAKER_SEED = GEN.get("faker_seed", SEED)
+
+if SEED is not None:
+    random.seed(SEED)
+
+if FAKER_SEED is not None:
+    set_faker_seed(FAKER_SEED)
 
 # Connect to PostgreSQL using config
 conn = psycopg2.connect(**get_connection_kwargs_from_config(CONFIG))
 cursor = conn.cursor()
+
 cursor.execute("""
     CREATE EXTENSION IF NOT EXISTS tsm_system_rows;
 """)
@@ -92,7 +103,7 @@ for i in range(NUM_ITERATIONS):
 
     try:
         if operation == "INSERT":
-    # Generate random data and execute INSERT statement
+            # Generate random data and execute INSERT statement
             columns = ", ".join(table_schemas[table_name]["columns"].keys())
             values_holder = {"values_list": build_insert_values(table_schemas, table_name, INSERT_ROWS)}
 
