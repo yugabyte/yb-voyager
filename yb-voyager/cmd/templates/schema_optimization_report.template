@@ -440,6 +440,62 @@
                      {{.PKHashSplittingChange.Title}}
                   </h3>
                <pre>{{ replaceLinks .PKHashSplittingChange.Description .PKHashSplittingChange.HyperLinksInDescription}}</pre>
+               {{ if .PKHashSplittingChange.IsApplied}}
+                  <details>
+                     <summary>Details</summary>
+                     <table>
+                        <thead>
+                           <tr>
+                              <th class="centered-cell">Constraints</th>
+                           </tr>
+                        </thead>
+                        <tbody>
+                           <tr>
+                              <td>
+                                 <ul>
+                                    {{range $idx, $cons := .PKHashSplittingChange.ModifiedConstraints }}
+                                       <li>{{ $cons }}</li>
+                                    {{end}}
+                                 </ul>
+                              </td>
+                           </tr>
+                        </tbody>
+                     </table>
+                  </details>
+               {{ end }}
+            </div>
+            {{ end }}
+
+            {{ if .PKOnTimestampRangeSplittingChange }}
+            <div class="optimization-section {{if .PKOnTimestampRangeSplittingChange.IsApplied}}applied{{else}}not-applied{{end}}">
+                  <h3>
+                     {{if .PKOnTimestampRangeSplittingChange.IsApplied}}✅ {{else}}⚠️ {{end}}
+                     {{.PKOnTimestampRangeSplittingChange.Title}}
+                  </h3>
+               <pre>{{ replaceLinks .PKOnTimestampRangeSplittingChange.Description .PKOnTimestampRangeSplittingChange.HyperLinksInDescription}}</pre>
+               {{ if .PKOnTimestampRangeSplittingChange.IsApplied}}
+                  <details>
+                     <summary>Details</summary>
+                     <table>
+                        <thead>
+                           <tr>
+                              <th class="centered-cell">Constraints</th>
+                           </tr>
+                        </thead>
+                        <tbody>
+                           <tr>
+                              <td> 
+                                 <ul>
+                                    {{range $idx, $cons := .PKOnTimestampRangeSplittingChange.ModifiedConstraints }}
+                                       <li>{{ $cons }}</li>
+                                    {{end}}
+                                 </ul>
+                              </td>
+                           </tr>
+                        </tbody>
+                     </table>
+                  </details>
+               {{ end }}
             </div>
             {{ end }}
 

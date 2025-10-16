@@ -161,16 +161,21 @@ func (t *IndexFileTransformer) writeRemovedRedundantIndexesToFile(removedIndexTo
 // TODO: merge the sharding/colocated recommendation changes with this Table file transformation
 type TableFileTransformer struct {
 	//skipping the merge constraints with this parameter
-	skipMergeConstraints         bool
-	sourceDBType                 string
-	skipPerformanceOptimizations bool
+	skipMergeConstraints              bool
+	sourceDBType                      string
+	skipPerformanceOptimizations      bool
+	hotspotPKOnTimestampRelatedTables *utils.StructMap[*sqlname.ObjectName, string]
+	PKConstraintsOnTimestampOrDate    []string
+	OtherPKConstraints                []string
+	AppliedShardingChanges            bool
 }
 
-func NewTableFileTransformer(skipMergeConstraints bool, sourceDBType string, skipPerformanceOptimizations bool) *TableFileTransformer {
+func NewTableFileTransformer(skipMergeConstraints bool, sourceDBType string, skipPerformanceOptimizations bool, hotspotPKOnTimestampRelatedTables *utils.StructMap[*sqlname.ObjectName, string]) *TableFileTransformer {
 	return &TableFileTransformer{
-		skipMergeConstraints:         skipMergeConstraints,
-		sourceDBType:                 sourceDBType,
-		skipPerformanceOptimizations: skipPerformanceOptimizations,
+		skipMergeConstraints:              skipMergeConstraints,
+		sourceDBType:                      sourceDBType,
+		skipPerformanceOptimizations:      skipPerformanceOptimizations,
+		hotspotPKOnTimestampRelatedTables: hotspotPKOnTimestampRelatedTables,
 	}
 }
 
@@ -199,10 +204,11 @@ func (t *TableFileTransformer) Transform(file string) (string, error) {
 	}
 
 	if t.shouldAddHashSplitting() {
-		parseTree.Stmts, err = transformer.AddShardingStrategyForConstraints(parseTree.Stmts)
+		parseTree.Stmts, t.PKConstraintsOnTimestampOrDate, t.OtherPKConstraints, err = transformer.AddShardingStrategyForConstraints(parseTree.Stmts, t.hotspotPKOnTimestampRelatedTables)
 		if err != nil {
 			return "", fmt.Errorf("failed to add hash splitting on for pk constraints: %w", err)
 		}
+		t.AppliedShardingChanges = true
 	}
 
 	sqlStmts, err := queryparser.DeparseRawStmts(parseTree.Stmts)

@@ -56,12 +56,13 @@ type SchemaOptimizationReport struct {
 	SourceDatabaseVersion string `json:"source_database_version"`
 
 	// Optimization changes applied
-	RedundantIndexChange          *RedundantIndexChange           `json:"redundant_index_change,omitempty"`
-	TableColocationRecommendation *ColocationRecommendationChange `json:"table_colocation_recommendation,omitempty"`
-	MviewColocationRecommendation *ColocationRecommendationChange `json:"mview_colocation_recommendation,omitempty"`
-	SecondaryIndexToRangeChange   *SecondaryIndexToRangeChange    `json:"secondary_index_to_range_change,omitempty"`
-	PKHashSplittingChange         *PKHashSplittingChange          `json:"pk_hash_splitting_change,omitempty"`
-	UKRangeSplittingChange        *UKRangeSplittingChange         `json:"uk_range_splitting_change,omitempty"`
+	RedundantIndexChange              *RedundantIndexChange              `json:"redundant_index_change,omitempty"`
+	TableColocationRecommendation     *ColocationRecommendationChange    `json:"table_colocation_recommendation,omitempty"`
+	MviewColocationRecommendation     *ColocationRecommendationChange    `json:"mview_colocation_recommendation,omitempty"`
+	SecondaryIndexToRangeChange       *SecondaryIndexToRangeChange       `json:"secondary_index_to_range_change,omitempty"`
+	PKHashSplittingChange             *PKHashSplittingChange             `json:"pk_hash_splitting_change,omitempty"`
+	PKOnTimestampRangeSplittingChange *PKOnTimestampRangeSplittingChange `json:"pk_on_timestamp_range_splitting_change,omitempty"`
+	UKRangeSplittingChange            *UKRangeSplittingChange            `json:"uk_range_splitting_change,omitempty"`
 }
 
 // HasOptimizations returns true if any optimizations were applied
@@ -70,6 +71,7 @@ func (s *SchemaOptimizationReport) HasOptimizations() bool {
 		s.TableColocationRecommendation.Exist() ||
 		s.MviewColocationRecommendation.Exist() ||
 		s.PKHashSplittingChange.Exist() ||
+		s.PKOnTimestampRangeSplittingChange.Exist() ||
 		s.SecondaryIndexToRangeChange.Exist() ||
 		s.UKRangeSplittingChange.Exist()
 }
@@ -202,15 +204,16 @@ type PKHashSplittingChange struct {
 	Title                   string            `json:"title"`
 	Description             string            `json:"description"`
 	HyperLinksInDescription map[string]string `json:"hyper_links_in_description"`
+	ModifiedConstraints     []string          `json:"modified_constraints"`
 	IsApplied               bool              `json:"is_applied"`
 }
 
-func NewPKHashSplittingChange(applied bool) *PKHashSplittingChange {
+func NewPKHashSplittingChange(applied bool, modifiedConstraints []string) *PKHashSplittingChange {
 	title := "Primary Key Constraints to be hash-sharded - Applied"
-	description := "The Primary key constraints were configured to be hash-sharded in YugabyteDB. This helps in giving randomize distribution of unique values of the Primary key across the nodes and helps in avoiding the hotspots that comes with the range-sharding for increasing nature of these values. Refer to sharding strategy in documentation for more information."
+	description := "The following Primary key constraints that are not on the timestamp or date types as first column were configured to be hash-sharded in YugabyteDB. This helps in giving randomize distribution of unique values of the Primary key across the nodes and helps in avoiding the hotspots that comes with the range-sharding for increasing nature of these values. Refer to sharding strategy in documentation for more information."
 	if !applied {
 		title = "Primary Key Constraints to be hash-sharded - Not Applied"
-		description = "Due to the skip-performance-optimizations flag, the Primary key constraints were not configured to be hash-sharded. Modify the Primary key constraints to be hash-sharded manually. The Primary key Constraints as hash-sharded helps in giving randomize distribution of unique values of the Primary key across the nodes and helps in avoiding the hotspots that comes with the range-sharding for increasing nature of these values. Refer to sharding strategy in documentation for more information. "
+		description = "Due to the skip-performance-optimizations flag, the following Primary key constraints that are not on the timestamp or date types as first column were not configured to be hash-sharded. Modify the Primary key constraints to be hash-sharded manually. The Primary key Constraints as hash-sharded helps in giving randomize distribution of unique values of the Primary key across the nodes and helps in avoiding the hotspots that comes with the range-sharding for increasing nature of these values. Refer to sharding strategy in documentation for more information. "
 	}
 	return &PKHashSplittingChange{
 		Title:       title,
@@ -219,10 +222,42 @@ func NewPKHashSplittingChange(applied bool) *PKHashSplittingChange {
 		HyperLinksInDescription: map[string]string{
 			"documentation": "https://docs.yugabyte.com/preview/architecture/docdb-sharding/sharding/",
 		},
+		ModifiedConstraints: modifiedConstraints,
 	}
 }
 
 func (p *PKHashSplittingChange) Exist() bool {
+	return p != nil
+}
+
+type PKOnTimestampRangeSplittingChange struct {
+	Title                   string            `json:"title"`
+	Description             string            `json:"description"`
+	HyperLinksInDescription map[string]string `json:"hyper_links_in_description"`
+	ModifiedConstraints     []string          `json:"modified_constraints"`
+	IsApplied               bool              `json:"is_applied"`
+}
+
+func NewPKOnTimestampRangeSplittingChange(applied bool, modifiedConstraints []string) *PKOnTimestampRangeSplittingChange {
+	title := "Primary Key Constraints on the timestamp or date as first column to be range-sharded - Applied"
+	description := "The following Primary key constraints on the timestamp or date as first column were configured to be range-sharded in YugabyteDB."
+	if !applied {
+		title = "Primary Key Constraints on the timestamp or date as first column to be range-sharded - Not Applied"
+		description = "Due to the skip-performance-optimizations flag, the Primary key constraints on the timestamp or date as first column were not configured to be range-sharded. Modify those Primary key constraints on to be range-sharded manually."
+	}
+	description += "The range-sharded indexes helps in giving the flexibility to execute range-based queries. Refer to sharding strategy in documentation for more information."
+	return &PKOnTimestampRangeSplittingChange{
+		Title:       title,
+		Description: description,
+		IsApplied:   applied,
+		HyperLinksInDescription: map[string]string{
+			"documentation": "https://docs.yugabyte.com/preview/architecture/docdb-sharding/sharding/",
+		},
+		ModifiedConstraints: modifiedConstraints,
+	}
+}
+
+func (p *PKOnTimestampRangeSplittingChange) Exist() bool {
 	return p != nil
 }
 
@@ -235,10 +270,10 @@ type UKRangeSplittingChange struct {
 
 func NewUKRangeSplittingChange(applied bool) *UKRangeSplittingChange {
 	title := "Unique Key Constraints to be range-sharded - Applied"
-	description := "The Unique key constraints were configured to be range-sharded in YugabyteDB."
+	description := "All the unique key constraints were configured to be range-sharded in YugabyteDB."
 	if !applied {
 		title = "Unique Key Constraints to be range-sharded - Not Applied"
-		description = "Due to the skip-performance-optimizations flag, the Unique key constraints were not configured to be range-sharded. Modify the Unique key constraints to be range-sharded manually."
+		description = "Due to the skip-performance-optimizations flag, all the unique key constraints were not configured to be range-sharded. Modify all the unique key constraints to be range-sharded manually."
 	}
 	description += "The range-sharded indexes helps in giving the flexibility to execute range-based queries, and avoids potential hotspot that comes with hash-sharded indexes such as index on high percentage of NULLs. Refer to sharding strategy in documentation for more information."
 	return &UKRangeSplittingChange{
@@ -331,7 +366,7 @@ var optimizationChangesTemplate []byte
 //   - redundantIndexes: list of redundant index names that were removed.
 //   - tables: list of table names to which Colocation recommendations were applied.
 //   - mviews: list of materialized view names to which Colocation recommendations were applied.
-func generatePerformanceOptimizationReport(indexTransformer *sqltransformer.IndexFileTransformer, shardedTables []string, shardedMviews []string, colocatedTables []string, colocatedMviews []string) error {
+func generatePerformanceOptimizationReport(indexTransformer *sqltransformer.IndexFileTransformer, shardedTables []string, shardedMviews []string, colocatedTables []string, colocatedMviews []string, tableTransformer *sqltransformer.TableFileTransformer) error {
 
 	if source.DBType != POSTGRESQL {
 		//Not generating the report in case other than PG
@@ -364,8 +399,11 @@ func generatePerformanceOptimizationReport(indexTransformer *sqltransformer.Inde
 	schemaOptimizationReport.MviewColocationRecommendation = buildColocationMviewRecommendationChange(shardedMviews, colocatedMviews)
 	schemaOptimizationReport.SecondaryIndexToRangeChange = buildSecondaryIndexToRangeChange(indexTransformer)
 
-	schemaOptimizationReport.PKHashSplittingChange = NewPKHashSplittingChange(!bool(skipPerfOptimizations))
-	schemaOptimizationReport.UKRangeSplittingChange = NewUKRangeSplittingChange(!bool(skipPerfOptimizations))
+	shardingChangesApplied := tableTransformer.AppliedShardingChanges && !bool(skipPerfOptimizations)
+	
+	schemaOptimizationReport.PKHashSplittingChange = NewPKHashSplittingChange(shardingChangesApplied, tableTransformer.OtherPKConstraints)
+	schemaOptimizationReport.PKOnTimestampRangeSplittingChange = NewPKOnTimestampRangeSplittingChange(shardingChangesApplied, tableTransformer.PKConstraintsOnTimestampOrDate)
+	schemaOptimizationReport.UKRangeSplittingChange = NewUKRangeSplittingChange(shardingChangesApplied)
 
 	if schemaOptimizationReport.HasOptimizations() {
 		file, err := os.Create(htmlReportFilePath)

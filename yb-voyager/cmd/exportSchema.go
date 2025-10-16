@@ -36,6 +36,8 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryissue"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/sqltransformer"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -196,7 +198,7 @@ func exportSchema(cmd *cobra.Command) error {
 	//We can probably use the mix of both regex parser and file parser in the tranformer based on source tpyes
 	//and for that we can move our logic from the cmd package to the queryparser package
 	//Skipping that for now
-	_, err = applyTableFileTransformations()
+	tableTransformer, err := applyTableFileTransformations()
 	if err != nil {
 		return fmt.Errorf("failed to apply table file transformations: %w", err)
 	}
@@ -205,7 +207,7 @@ func exportSchema(cmd *cobra.Command) error {
 	if err != nil {
 		return fmt.Errorf("failed to apply index file transformations: %w", err)
 	}
-	err = generatePerformanceOptimizationReport(indexTransformer, modifiedTables, modifiedMviews, colocatedTables, colocatedMviews)
+	err = generatePerformanceOptimizationReport(indexTransformer, modifiedTables, modifiedMviews, colocatedTables, colocatedMviews, tableTransformer)
 	if err != nil {
 		return fmt.Errorf("failed to generate performance optimization %w", err)
 	}
@@ -709,7 +711,17 @@ func applyTableFileTransformations() (*sqltransformer.TableFileTransformer, erro
 
 	skipMergeConstraints := utils.GetEnvAsBool("YB_VOYAGER_SKIP_MERGE_CONSTRAINTS_TRANSFORMATIONS", false)
 
-	tableTransformer := sqltransformer.NewTableFileTransformer(skipMergeConstraints, source.DBType, bool(skipPerfOptimizations))
+	var err error
+	var hotspotPKTableToConstraint *utils.StructMap[*sqlname.ObjectName, string]
+	hotspotPKTableToConstraint, err = fetchHotspotPKOnTimestampRelatedTablesFromAssessmentReport()
+	if err != nil {
+		if skipPerfOptimizations {
+			log.Infof("skipping error while fetching hotspot pk on timestamp related tables from assessment report: %v", err)
+		} else {
+			return nil, fmt.Errorf("failed to fetch hotspot pk on timestamp related tables from assessment report: %w", err)
+		}
+	}
+	tableTransformer := sqltransformer.NewTableFileTransformer(skipMergeConstraints, source.DBType, bool(skipPerfOptimizations), hotspotPKTableToConstraint)
 
 	backUpFile, err := tableTransformer.Transform(tableFilePath)
 	if err != nil {
@@ -721,6 +733,46 @@ func applyTableFileTransformations() (*sqltransformer.TableFileTransformer, erro
 	}
 	log.Infof("Schema modifications are applied to TABLE DDLs and the original DDLs are backed up to %s", backUpFile)
 	return tableTransformer, nil
+}
+
+func fetchHotspotPKOnTimestampRelatedTablesFromAssessmentReport() (*utils.StructMap[*sqlname.ObjectName, string], error) {
+	if source.DBType != POSTGRESQL {
+		log.Infof("skipping fetching hotspot pk on timestamp related tables from assessment report for source db type %s", source.DBType)
+		return nil, nil
+	}
+	if skipPerfOptimizations {
+		log.Infof("skipping error while fetching hotspot pk on timestamp related tables from assessment report")
+		return nil, nil
+	}
+
+	assessmentReportPath := filepath.Join(exportDir, "assessment", "reports", fmt.Sprintf("%s.json", ASSESSMENT_FILE_NAME))
+	if !utils.FileOrFolderExists(assessmentReportPath) {
+		return nil, fmt.Errorf("assessment report file doesn't exists at %s", assessmentReportPath)
+	}
+
+	report, err := ParseJSONToAssessmentReport(assessmentReportPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse json report file %q: %w", assessmentReportPath, err)
+	}
+	hotspotPKUKPerformanceOptimizations := lo.Filter(report.Issues, func(issue AssessmentIssue, _ int) bool {
+		return issue.Type == queryissue.HOTSPOTS_ON_TIMESTAMP_PK_UK || issue.Type == queryissue.HOTSPOTS_ON_DATE_PK_UK
+	})
+
+	hotspotPKTableToConstraint := utils.NewStructMap[*sqlname.ObjectName, string]()
+	for _, issue := range hotspotPKUKPerformanceOptimizations {
+		tableObj := sqlname.NewObjectNameWithQualifiedName(source.DBType, "", issue.ObjectName)
+		colName, ok := issue.Details[queryissue.COLUMN_NAME]
+		if !ok {
+			log.Infof("column name not found in issue details for issue %v", issue)
+		}
+		constraintName, err := queryparser.ExtractPKOrUKConstraintNameFromDDL(issue.SqlStatement, colName.(string))
+		if err != nil {
+			return nil, fmt.Errorf("failed to get constraint name from stmt %q: %w", issue.SqlStatement, err)
+		}
+		hotspotPKTableToConstraint.Put(tableObj, constraintName)
+	}
+
+	return hotspotPKTableToConstraint, nil
 }
 
 func applyIndexFileTransformations() (*sqltransformer.IndexFileTransformer, error) {
