@@ -35,7 +35,7 @@
             {
                 "ObjectType": "TABLE",
                 "TotalCount": 21,
-                "InvalidCount": 7,
+                "InvalidCount": 6,
                 "ObjectNames": "public.customer, public.actor, public.category, public.film, public.film_actor, public.film_category, public.address, public.city, public.country, public.inventory, public.language, public.payment, public.payment_p2007_01, public.payment_p2007_02, public.payment_p2007_03, public.payment_p2007_04, public.payment_p2007_05, public.payment_p2007_06, public.rental, public.staff, public.store"
             },
             {
@@ -87,18 +87,6 @@
             "Suggestion": "",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1129",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "migration_caveats",
-            "ObjectType": "TABLE",
-            "ObjectName": "public.film",
-            "Reason": "TSVECTOR datatype not yet supported by voyager in live migration with fall-forward/fallback. Affected column: fulltext. These columns will be excluded when exporting and importing data in live migration workflows.",
-            "SqlStatement": "CREATE TABLE public.film (film_id int DEFAULT nextval('public.film_film_id_seq'::regclass) NOT NULL, title varchar(255) NOT NULL, description text, release_year public.year, language_id int NOT NULL, original_language_id int, rental_duration smallint DEFAULT 3 NOT NULL, rental_rate numeric(4, 2) DEFAULT 4.99 NOT NULL, length smallint, replacement_cost numeric(5, 2) DEFAULT 19.99 NOT NULL, rating public.mpaa_rating DEFAULT ('G'::public.mpaa_rating), last_update timestamp DEFAULT now() NOT NULL, special_features text[], fulltext tsvector NOT NULL, CONSTRAINT film_pkey PRIMARY KEY (film_id)) WITH (colocation=false);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/sakila/export-dir/schema/tables/table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
             "MinimumVersionsFixedIn": null
         },
         {

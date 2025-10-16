@@ -29,7 +29,7 @@
             {
                 "ObjectType": "TABLE",
                 "TotalCount": 9,
-                "InvalidCount": 2,
+                "InvalidCount": 1,
                 "ObjectNames": "public.agent_statuses, public.agents, public.countries, public.expenses, public.expensive_items, public.gear_names, public.points, public.reports, public.secret_missions"
             },
             {
@@ -49,18 +49,6 @@
     },
     "Issues": [
         {
-            "IssueType": "migration_caveats",
-            "ObjectType": "TABLE",
-            "ObjectName": "public.reports",
-            "Reason": "HSTORE datatype not yet supported by voyager in live migration with fall-forward/fallback. Affected column: attrs. These columns will be excluded when exporting and importing data in live migration workflows.",
-            "SqlStatement": "CREATE TABLE public.reports (agent_uuid uuid, \"time\" timestamp with time zone, attrs public.hstore DEFAULT (''::public.hstore), report text, report_tsv tsvector) WITH (colocation=false);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/sample-is/export-dir/schema/tables/table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
-        },
-        {
             "IssueType": "unsupported_features",
             "ObjectType": "TABLE",
             "ObjectName": "public.secret_missions, constraint: (cnt_solo_agent)",
@@ -70,18 +58,6 @@
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/3944",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#exclusion-constraints-is-not-supported",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "migration_caveats",
-            "ObjectType": "TABLE",
-            "ObjectName": "public.reports",
-            "Reason": "TSVECTOR datatype not yet supported by voyager in live migration with fall-forward/fallback. Affected column: report_tsv. These columns will be excluded when exporting and importing data in live migration workflows.",
-            "SqlStatement": "CREATE TABLE public.reports (agent_uuid uuid, \"time\" timestamp with time zone, attrs public.hstore DEFAULT (''::public.hstore), report text, report_tsv tsvector) WITH (colocation=false);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/sample-is/export-dir/schema/tables/table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
             "MinimumVersionsFixedIn": null
         }
     ]
