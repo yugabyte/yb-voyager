@@ -114,15 +114,15 @@ func TestPostgresGetPrimaryKeyColumns(t *testing.T) {
 		expectedPKCols []string
 	}{
 		{
-			table:          sqlname.NameTuple{CurrentName: sqlname.NewObjectName(POSTGRESQL, "test_schema", "test_schema", "foo")},
+			table:          testutils.CreateNameTupleWithTargetName("test_schema.foo", "public", POSTGRESQL),
 			expectedPKCols: []string{"id", "category"},
 		},
 		{
-			table:          sqlname.NameTuple{CurrentName: sqlname.NewObjectName(POSTGRESQL, "test_schema", "test_schema", "bar")},
+			table:          testutils.CreateNameTupleWithTargetName("test_schema.bar", "public", POSTGRESQL),
 			expectedPKCols: []string{"id"},
 		},
 		{
-			table:          sqlname.NameTuple{CurrentName: sqlname.NewObjectName(POSTGRESQL, "test_schema", "test_schema", "baz")},
+			table:          testutils.CreateNameTupleWithTargetName("test_schema.baz", "public", POSTGRESQL),
 			expectedPKCols: nil,
 		},
 	}
@@ -173,18 +173,18 @@ func TestPostgresGetNonEmptyTables(t *testing.T) {
 	defer testPostgresTarget.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
 
 	tables := []sqlname.NameTuple{
-		{CurrentName: sqlname.NewObjectName(POSTGRESQL, "test_schema", "test_schema", "foo")},
-		{CurrentName: sqlname.NewObjectName(POSTGRESQL, "test_schema", "test_schema", "bar")},
-		{CurrentName: sqlname.NewObjectName(POSTGRESQL, "test_schema", "test_schema", "unique_table")},
-		{CurrentName: sqlname.NewObjectName(POSTGRESQL, "test_schema", "test_schema", "table1")},
-		{CurrentName: sqlname.NewObjectName(POSTGRESQL, "test_schema", "test_schema", "table2")},
-		{CurrentName: sqlname.NewObjectName(POSTGRESQL, "test_schema", "test_schema", "non_pk1")},
-		{CurrentName: sqlname.NewObjectName(POSTGRESQL, "test_schema", "test_schema", "non_pk2")},
+		testutils.CreateNameTupleWithTargetName("test_schema.foo", "public", POSTGRESQL),
+		testutils.CreateNameTupleWithTargetName("test_schema.bar", "public", POSTGRESQL),
+		testutils.CreateNameTupleWithTargetName("test_schema.unique_table", "public", POSTGRESQL),
+		testutils.CreateNameTupleWithTargetName("test_schema.table1", "public", POSTGRESQL),
+		testutils.CreateNameTupleWithTargetName("test_schema.table2", "public", POSTGRESQL),
+		testutils.CreateNameTupleWithTargetName("test_schema.non_pk1", "public", POSTGRESQL),
+		testutils.CreateNameTupleWithTargetName("test_schema.non_pk2", "public", POSTGRESQL),
 	}
 
 	expectedTables := []sqlname.NameTuple{
-		{CurrentName: sqlname.NewObjectName(POSTGRESQL, "test_schema", "test_schema", "foo")},
-		{CurrentName: sqlname.NewObjectName(POSTGRESQL, "test_schema", "test_schema", "bar")},
+		testutils.CreateNameTupleWithTargetName("test_schema.foo", "public", POSTGRESQL),
+		testutils.CreateNameTupleWithTargetName("test_schema.bar", "public", POSTGRESQL),
 	}
 
 	actualTables := testPostgresTarget.GetNonEmptyTables(tables)
