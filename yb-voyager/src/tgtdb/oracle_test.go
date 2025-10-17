@@ -18,11 +18,15 @@ limitations under the License.
 package tgtdb
 
 import (
+	"database/sql"
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
@@ -124,4 +128,108 @@ func TestOracleGetIdentityColumnNamesForTable(t *testing.T) {
 			testutils.AssertEqualStringSlices(t, tt.expectedCols, actualCols)
 		})
 	}
+}
+
+func TestOracleIdentityColumnsDisableEnableCycle(t *testing.T) {
+	// Initialize connection pool used by the functions to be tested
+	oracle := testOracleTarget.TargetDB.(*TargetOracleDB)
+	err := oracle.InitConnPool()
+	require.NoError(t, err)
+
+	// Create test table with GENERATED ALWAYS AS IDENTITY column
+	// Note: Oracle allows only one identity column per table (ORA-30669)
+	testOracleTarget.ExecuteSqls(
+		`CREATE TABLE TEST_TABLE1 (
+			ID NUMBER GENERATED ALWAYS AS IDENTITY,
+			DATA VARCHAR2(100)
+		)`,
+	)
+	defer testOracleTarget.ExecuteSqls(
+		`DROP TABLE TEST_TABLE1`,
+	)
+
+	db, dbErr := testOracleTarget.GetConnection()
+	require.NoError(t, dbErr)
+
+	// Get the schema name from the Oracle target configuration
+	schemaName := oracle.tconf.Schema
+
+	// Test complete disable/enable cycle: ALWAYS -> BY DEFAULT -> ALWAYS
+	tableColumnsMap := createOracleTableToColumnsStructMap(schemaName, map[string][]string{
+		"TEST_TABLE1": {"ID"},
+	})
+
+	// Step 1: Verify initial ALWAYS state
+	tableTypes, err := getOracleIdentityColumnTypes(db, schemaName, "TEST_TABLE1", []string{"ID"})
+	require.NoError(t, err)
+	assert.Equal(t, constants.IDENTITY_GENERATION_ALWAYS, tableTypes["ID"])
+
+	// Step 2: Disable identity columns (ALWAYS -> BY DEFAULT)
+	err = oracle.DisableGeneratedAlwaysAsIdentityColumns(tableColumnsMap)
+	assert.NoError(t, err)
+
+	// Verify columns are now BY DEFAULT
+	tableTypesDisabled, err := getOracleIdentityColumnTypes(db, schemaName, "TEST_TABLE1", []string{"ID"})
+	require.NoError(t, err)
+	assert.Equal(t, constants.IDENTITY_GENERATION_BY_DEFAULT, tableTypesDisabled["ID"])
+
+	// Step 3: Enable identity columns (BY DEFAULT -> ALWAYS)
+	err = oracle.EnableGeneratedAlwaysAsIdentityColumns(tableColumnsMap)
+	assert.NoError(t, err)
+
+	// Verify columns are back to ALWAYS
+	tableTypesFinal, err := getOracleIdentityColumnTypes(db, schemaName, "TEST_TABLE1", []string{"ID"})
+	require.NoError(t, err)
+	assert.Equal(t, constants.IDENTITY_GENERATION_ALWAYS, tableTypesFinal["ID"])
+}
+
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
+// Helper function to get identity column types from Oracle's ALL_TAB_IDENTITY_COLS
+func getOracleIdentityColumnTypes(db *sql.DB, schemaName, tableName string, columnNames []string) (map[string]string, error) {
+	quotedColumns := make([]string, len(columnNames))
+	for i, col := range columnNames {
+		quotedColumns[i] = fmt.Sprintf("'%s'", col)
+	}
+
+	query := fmt.Sprintf(`
+		SELECT COLUMN_NAME, GENERATION_TYPE
+		FROM ALL_TAB_IDENTITY_COLS
+		WHERE OWNER = '%s' AND TABLE_NAME = '%s'
+		AND COLUMN_NAME IN (%s)
+		ORDER BY COLUMN_NAME
+	`, schemaName, tableName, strings.Join(quotedColumns, ","))
+
+	rows, err := db.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[string]string)
+	for rows.Next() {
+		var colName, generationType string
+		err := rows.Scan(&colName, &generationType)
+		if err != nil {
+			return nil, err
+		}
+		result[colName] = generationType
+	}
+	return result, nil
+}
+
+// Helper function to create StructMap[NameTuple, []string] mapping Oracle table NameTuples to their identity column lists
+func createOracleTableToColumnsStructMap(schemaName string, tables map[string][]string) *utils.StructMap[sqlname.NameTuple, []string] {
+	tableColumnsMap := utils.NewStructMap[sqlname.NameTuple, []string]()
+	for tableName, columns := range tables {
+		objName := sqlname.NewObjectName(constants.ORACLE, schemaName, schemaName, tableName)
+		tableNameTup := sqlname.NameTuple{
+			CurrentName: objName,
+			SourceName:  objName, // ForKey() method requires either SourceName or TargetName
+		}
+		tableColumnsMap.Put(tableNameTup, columns)
+	}
+	return tableColumnsMap
 }
