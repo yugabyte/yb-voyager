@@ -557,18 +557,22 @@ func (yb *YugabyteDB) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList
 			continue
 		}
 
-		// If any of the data types of the arrays are in the user defined types then add the table to the unsupported tables list
+		// Build list of unsupported types based on connector type
+		// UDT types without enums are always unsupported
+		udtTypes := utils.SetDifference(userDefinedTypes, enumTypes)
+		unsupportedTableTypes := udtTypes
+		// Array of enums are only unsupported with YBGrpcConnector
+		if yb.source.IsYBGrpcConnector {
+			unsupportedTableTypes = append(unsupportedTableTypes, enumTypes...)
+		}
+
+		// If any of the data types of the arrays are in the unsupported types then add the table to the unsupported tables list
 		// udt_type/data_type looks like status_enum[] whereas enum_type looks like status_enum
 	outer:
 		for _, arrayType := range tableColumnArrayTypes {
 			baseType := strings.TrimLeft(arrayType, "_")
-			for _, udt := range userDefinedTypes {
-				if strings.EqualFold(baseType, udt) {
-					// Check if this is an array of enum and we're using logical connector
-					if slices.Contains(enumTypes, baseType) && !yb.source.IsYBGrpcConnector {
-						// Array of enums are supported with logical connector, skip to next array column
-						continue outer
-					}
+			for _, unsupportedType := range unsupportedTableTypes {
+				if strings.EqualFold(baseType, unsupportedType) {
 					// as the array_type is determined by an underscore at the first place
 					//ref - https://www.postgresql.org/docs/current/xtypes.html#:~:text=The%20array%20type%20typically%20has%20the%20same%20name%20as%20the%20base%20type%20with%20the%20underscore%20character%20(_)%20prepended
 					unsupportedTables = append(unsupportedTables, table)
