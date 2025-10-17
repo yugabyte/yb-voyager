@@ -16,7 +16,7 @@ limitations under the License.
 package types
 
 type ObjectUsage struct {
-	*ObjectUsageStats
+	ObjectUsageStats
 	//Category based on some logic
 	ReadUsage  string
 	WriteUsage string
@@ -25,7 +25,7 @@ type ObjectUsage struct {
 
 func NewObjectUsage(schemaName, objectName, objectType string, parentTableName string, reads, inserts, updates, deletes int64) *ObjectUsage {
 	return &ObjectUsage{
-		ObjectUsageStats: &ObjectUsageStats{
+		ObjectUsageStats: ObjectUsageStats{
 			SchemaName:      schemaName,
 			ObjectName:      objectName,
 			ObjectType:      objectType,
