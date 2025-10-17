@@ -30,6 +30,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	testcontainers "github.com/yugabyte/yb-voyager/yb-voyager/test/containers"
@@ -535,37 +536,37 @@ func TestYugabyteGetIdentityColumnNamesForTable(t *testing.T) {
 		{
 			name:         "ALWAYS from always_table",
 			tableName:    "always_table",
-			identityType: "ALWAYS",
+			identityType: constants.IDENTITY_GENERATION_ALWAYS,
 			expectedCols: []string{"id1", "id2"},
 		},
 		{
 			name:         "BY DEFAULT from bydefault_table",
 			tableName:    "bydefault_table",
-			identityType: "BY DEFAULT",
+			identityType: constants.IDENTITY_GENERATION_BY_DEFAULT,
 			expectedCols: []string{"id1", "id2"},
 		},
 		{
 			name:         "ALWAYS from mixed_table",
 			tableName:    "mixed_table",
-			identityType: "ALWAYS",
+			identityType: constants.IDENTITY_GENERATION_ALWAYS,
 			expectedCols: []string{"always_col"},
 		},
 		{
 			name:         "BY DEFAULT from mixed_table",
 			tableName:    "mixed_table",
-			identityType: "BY DEFAULT",
+			identityType: constants.IDENTITY_GENERATION_BY_DEFAULT,
 			expectedCols: []string{"bydefault_col"},
 		},
 		{
 			name:         "ALWAYS from no_identity_table",
 			tableName:    "no_identity_table",
-			identityType: "ALWAYS",
+			identityType: constants.IDENTITY_GENERATION_ALWAYS,
 			expectedCols: nil, // Expect nil for no results
 		},
 		{
 			name:         "BY DEFAULT from always_table (empty)",
 			tableName:    "always_table",
-			identityType: "BY DEFAULT",
+			identityType: constants.IDENTITY_GENERATION_BY_DEFAULT,
 			expectedCols: nil, // Expect nil for no results
 		},
 	}
@@ -615,12 +616,12 @@ func TestYugabyteIdentityColumnsDisableEnableCycle(t *testing.T) {
 	// Step 1: Verify initial ALWAYS state
 	table1Types, err := getIdentityColumnTypes(db, "test_schema", "table1", []string{"id"})
 	require.NoError(t, err)
-	assert.Equal(t, "ALWAYS", table1Types["id"])
+	assert.Equal(t, constants.IDENTITY_GENERATION_ALWAYS, table1Types["id"])
 
 	table2Types, err := getIdentityColumnTypes(db, "test_schema", "table2", []string{"id1", "id2"})
 	require.NoError(t, err)
-	assert.Equal(t, "ALWAYS", table2Types["id1"])
-	assert.Equal(t, "ALWAYS", table2Types["id2"])
+	assert.Equal(t, constants.IDENTITY_GENERATION_ALWAYS, table2Types["id1"])
+	assert.Equal(t, constants.IDENTITY_GENERATION_ALWAYS, table2Types["id2"])
 
 	// Step 2: Disable identity columns (ALWAYS -> BY DEFAULT)
 	err = yb.DisableGeneratedAlwaysAsIdentityColumns(tableColumnsMap)
@@ -629,12 +630,12 @@ func TestYugabyteIdentityColumnsDisableEnableCycle(t *testing.T) {
 	// Verify columns are now BY DEFAULT
 	table1TypesDisabled, err := getIdentityColumnTypes(db, "test_schema", "table1", []string{"id"})
 	require.NoError(t, err)
-	assert.Equal(t, "BY DEFAULT", table1TypesDisabled["id"])
+	assert.Equal(t, constants.IDENTITY_GENERATION_BY_DEFAULT, table1TypesDisabled["id"])
 
 	table2TypesDisabled, err := getIdentityColumnTypes(db, "test_schema", "table2", []string{"id1", "id2"})
 	require.NoError(t, err)
-	assert.Equal(t, "BY DEFAULT", table2TypesDisabled["id1"])
-	assert.Equal(t, "BY DEFAULT", table2TypesDisabled["id2"])
+	assert.Equal(t, constants.IDENTITY_GENERATION_BY_DEFAULT, table2TypesDisabled["id1"])
+	assert.Equal(t, constants.IDENTITY_GENERATION_BY_DEFAULT, table2TypesDisabled["id2"])
 
 	// Step 3: Enable identity columns (BY DEFAULT -> ALWAYS)
 	err = yb.EnableGeneratedAlwaysAsIdentityColumns(tableColumnsMap)
@@ -643,12 +644,12 @@ func TestYugabyteIdentityColumnsDisableEnableCycle(t *testing.T) {
 	// Verify columns are back to ALWAYS
 	table1TypesFinal, err := getIdentityColumnTypes(db, "test_schema", "table1", []string{"id"})
 	require.NoError(t, err)
-	assert.Equal(t, "ALWAYS", table1TypesFinal["id"])
+	assert.Equal(t, constants.IDENTITY_GENERATION_ALWAYS, table1TypesFinal["id"])
 
 	table2TypesFinal, err := getIdentityColumnTypes(db, "test_schema", "table2", []string{"id1", "id2"})
 	require.NoError(t, err)
-	assert.Equal(t, "ALWAYS", table2TypesFinal["id1"])
-	assert.Equal(t, "ALWAYS", table2TypesFinal["id2"])
+	assert.Equal(t, constants.IDENTITY_GENERATION_ALWAYS, table2TypesFinal["id1"])
+	assert.Equal(t, constants.IDENTITY_GENERATION_ALWAYS, table2TypesFinal["id2"])
 }
 
 // ============================================================================

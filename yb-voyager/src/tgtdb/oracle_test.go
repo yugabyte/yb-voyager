@@ -22,6 +22,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
@@ -75,37 +76,37 @@ func TestOracleGetIdentityColumnNamesForTable(t *testing.T) {
 		{
 			name:         "ALWAYS from always_table",
 			tableName:    "ALWAYS_TABLE",
-			identityType: "ALWAYS",
+			identityType: constants.IDENTITY_GENERATION_ALWAYS,
 			expectedCols: []string{"ID"},
 		},
 		{
 			name:         "BY DEFAULT from bydefault_table",
 			tableName:    "BYDEFAULT_TABLE",
-			identityType: "BY DEFAULT",
+			identityType: constants.IDENTITY_GENERATION_BY_DEFAULT,
 			expectedCols: []string{"ID"},
 		},
 		{
 			name:         "ALWAYS from always_table2",
 			tableName:    "ALWAYS_TABLE2",
-			identityType: "ALWAYS",
+			identityType: constants.IDENTITY_GENERATION_ALWAYS,
 			expectedCols: []string{"ALWAYS_COL"},
 		},
 		{
 			name:         "BY DEFAULT from bydefault_table2",
 			tableName:    "BYDEFAULT_TABLE2",
-			identityType: "BY DEFAULT",
+			identityType: constants.IDENTITY_GENERATION_BY_DEFAULT,
 			expectedCols: []string{"BYDEFAULT_COL"},
 		},
 		{
 			name:         "ALWAYS from no_identity_table",
 			tableName:    "NO_IDENTITY_TABLE",
-			identityType: "ALWAYS",
+			identityType: constants.IDENTITY_GENERATION_ALWAYS,
 			expectedCols: nil,
 		},
 		{
 			name:         "BY DEFAULT from always_table (empty)",
 			tableName:    "ALWAYS_TABLE",
-			identityType: "BY DEFAULT",
+			identityType: constants.IDENTITY_GENERATION_BY_DEFAULT,
 			expectedCols: nil,
 		},
 	}
