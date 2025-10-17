@@ -45,7 +45,6 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	_ "github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/pgss"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -992,24 +991,21 @@ func (yb *TargetYugabyteDB) GetListOfTableAttributes(nt sqlname.NameTuple) ([]st
 	return result, nil
 }
 
-func (yb *TargetYugabyteDB) RestoreSequences(sequencesLastVal map[string]int64) error {
+func (yb *TargetYugabyteDB) RestoreSequences(sequencesLastVal *utils.StructMap[sqlname.NameTuple, int64]) error {
 	log.Infof("restoring sequences on target")
 	batch := pgx.Batch{}
 	restoreStmt := "SELECT pg_catalog.setval('%s', %d, true)"
-	for sequenceName, lastValue := range sequencesLastVal {
+	sequencesLastVal.IterKV(func(sequenceTuple sqlname.NameTuple, lastValue int64) (bool, error) {
 		if lastValue == 0 {
 			// TODO: can be valid for cases like cyclic sequences
-			continue
+			log.Infof("sequence %s has last value 0, skipping", sequenceTuple.ForKey())
+			return true, nil
 		}
-		// same function logic will work for sequences as well
-		seqName, err := namereg.NameReg.LookupTableName(sequenceName)
-		if err != nil {
-			return fmt.Errorf("error looking up sequence name %q: %w", sequenceName, err)
-		}
-		sequenceName := seqName.ForUserQuery()
+		sequenceName := sequenceTuple.ForUserQuery()
 		log.Infof("restore sequence %s to %d", sequenceName, lastValue)
 		batch.Queue(fmt.Sprintf(restoreStmt, sequenceName, lastValue))
-	}
+		return true, nil
+	})
 
 	err := yb.connPool.WithConn(func(conn *pgx.Conn) (retry bool, err error) {
 		br := conn.SendBatch(context.Background(), &batch)

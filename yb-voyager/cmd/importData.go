@@ -233,8 +233,8 @@ func shouldReregisterYBNames() bool {
 			utils.ErrExit("failed to get import data status record: %w", err)
 		}
 		actualDataImportStarted = statusRecord.ImportDataStarted
-	default: 
-		//for other importers we shouldn't re-register as this is for YB names and other importers are source-replica / source 
+	default:
+		//for other importers we shouldn't re-register as this is for YB names and other importers are source-replica / source
 		return false
 
 	}
@@ -855,7 +855,7 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 			utils.ErrExit("failed to read export status for restore sequences: %s", err)
 		}
 		// in case of live migration sequences are restored after cutover
-		err = tdb.RestoreSequences(status.Sequences)
+		err = restoreSequencesInLiveMigration(status.Sequences)
 		if err != nil {
 			utils.ErrExit("failed to restore sequences: %s", err)
 		}
@@ -871,21 +871,9 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 		utils.PrintAndLog("\nRun the following command to get the current report of the migration:\n" +
 			color.CyanString("yb-voyager get data-migration-report --export-dir %q", exportDir))
 	} else {
-		// offline migration; either using dbzm or pg_dump/ora2pg
-		if !msr.IsSnapshotExportedViaDebezium() {
-			errImport := executePostSnapshotImportSqls()
-			if errImport != nil {
-				utils.ErrExit("Error in importing finalize-schema-post-data-import sql: %v", err)
-			}
-		} else {
-			status, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
-			if err != nil {
-				utils.ErrExit("failed to read export status for restore sequences: %s", err)
-			}
-			err = tdb.RestoreSequences(status.Sequences)
-			if err != nil {
-				utils.ErrExit("failed to restore sequences: %s", err)
-			}
+		err = restoreSequencesInOfflineMigration(msr, importTableList)
+		if err != nil {
+			utils.ErrExit("failed to restore sequences: %s", err)
 		}
 		err = restoreGeneratedIdentityColumns(importTableList)
 		if err != nil {
@@ -1575,18 +1563,6 @@ func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 			utils.ErrExit("failed to reset identity columns meta: %s", err)
 		}
 	}
-}
-
-func executePostSnapshotImportSqls() error {
-	sequenceFilePath := filepath.Join(exportDir, "data", "postdata.sql")
-	if utils.FileOrFolderExists(sequenceFilePath) {
-		fmt.Printf("setting resume value for sequences %10s\n", "")
-		err := executeSqlFile(sequenceFilePath, "SEQUENCE", func(_, _ string) bool { return false })
-		if err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func getIndexName(sqlQuery string, indexName string) (string, error) {
