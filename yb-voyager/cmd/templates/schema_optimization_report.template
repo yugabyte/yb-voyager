@@ -444,7 +444,7 @@
                      {{.PKHashSplittingChange.Title}}
                   </h3>
                <pre>{{ replaceLinks .PKHashSplittingChange.Description .PKHashSplittingChange.HyperLinksInDescription}}</pre>
-               {{ if .PKHashSplittingChange.IsApplied}}
+               {{ if and (.PKHashSplittingChange.IsApplied) (.PKHashSplittingChange.ModifiedConstraints) }}
                   <details>
                      <summary>Details</summary>
                      <table>
@@ -479,7 +479,7 @@
                      {{.PKOnTimestampRangeSplittingChange.Title}}
                   </h3>
                <pre>{{ replaceLinks .PKOnTimestampRangeSplittingChange.Description .PKOnTimestampRangeSplittingChange.HyperLinksInDescription}}</pre>
-               {{ if .PKOnTimestampRangeSplittingChange.IsApplied}}
+               {{ if and (.PKOnTimestampRangeSplittingChange.IsApplied) (.PKOnTimestampRangeSplittingChange.ModifiedConstraints) }}
                   <details>
                      <summary>Details</summary>
                      <table>

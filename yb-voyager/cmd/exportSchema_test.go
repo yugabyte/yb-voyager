@@ -694,10 +694,8 @@ func TestExportSchemaSchemaOptimizationReportForHashSplittingWithoutPerfOptimiza
 		t.Errorf("Failed to read schema optimization report file: %v", err)
 	}
 	assert.NotNil(t, schemaOptimizationReport)
-	assert.NotNil(t, schemaOptimizationReport.PKHashSplittingChange)
-	assert.False(t, schemaOptimizationReport.PKHashSplittingChange.IsApplied)
-	assert.NotNil(t, schemaOptimizationReport.UKRangeSplittingChange)
-	assert.False(t, schemaOptimizationReport.UKRangeSplittingChange.IsApplied)
+	assert.Nil(t, schemaOptimizationReport.PKHashSplittingChange)
+	assert.Nil(t, schemaOptimizationReport.UKRangeSplittingChange)
 
 	_, err = testutils.RunVoyagerCommand(yugabyteContainer, "import schema", []string{
 		"--export-dir", tempExportDir,

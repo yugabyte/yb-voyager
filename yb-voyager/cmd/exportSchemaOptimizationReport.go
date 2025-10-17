@@ -399,14 +399,15 @@ func generatePerformanceOptimizationReport(indexTransformer *sqltransformer.Inde
 	schemaOptimizationReport.MviewColocationRecommendation = buildColocationMviewRecommendationChange(shardedMviews, colocatedMviews)
 	schemaOptimizationReport.SecondaryIndexToRangeChange = buildSecondaryIndexToRangeChange(indexTransformer)
 
-	shardingChangesApplied := tableTransformer.AppliedShardingChanges && !bool(skipPerfOptimizations)
-
-	if len(tableTransformer.OtherPKConstraints) > 0 {
-		schemaOptimizationReport.PKHashSplittingChange = NewPKHashSplittingChange(shardingChangesApplied, tableTransformer.OtherPKConstraints)
+	shardingChangesApplied := !bool(skipPerfOptimizations)
+	pkConstraintsOnTimestampOrDate, otherPKConstraints := []string{}, []string{}
+	if tableTransformer != nil {
+		shardingChangesApplied = tableTransformer.AppliedShardingChanges && !bool(skipPerfOptimizations)
+		pkConstraintsOnTimestampOrDate = tableTransformer.PKConstraintsOnTimestampOrDate
+		otherPKConstraints = tableTransformer.OtherPKConstraints
 	}
-	if len(tableTransformer.PKConstraintsOnTimestampOrDate) > 0 {
-		schemaOptimizationReport.PKOnTimestampRangeSplittingChange = NewPKOnTimestampRangeSplittingChange(shardingChangesApplied, tableTransformer.PKConstraintsOnTimestampOrDate)
-	}
+	schemaOptimizationReport.PKHashSplittingChange = NewPKHashSplittingChange(shardingChangesApplied, otherPKConstraints)
+	schemaOptimizationReport.PKOnTimestampRangeSplittingChange = NewPKOnTimestampRangeSplittingChange(shardingChangesApplied, pkConstraintsOnTimestampOrDate)
 	schemaOptimizationReport.UKRangeSplittingChange = NewUKRangeSplittingChange(shardingChangesApplied)
 
 	if schemaOptimizationReport.HasOptimizations() {
