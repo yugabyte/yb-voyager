@@ -534,6 +534,8 @@ func TestHashSplittingChanges(t *testing.T) {
 	type testCase struct {
 		sqlFileContent      string
 		expectedSqlsInOrder []string
+		errExpected         bool
+		errExpectedMsg      string
 	}
 	cases := []testCase{
 		{
@@ -663,6 +665,8 @@ func TestHashSplittingChanges(t *testing.T) {
 				`ALTER TABLE public.t_3 ADD CONSTRAINT uk1 UNIQUE (val);`,
 				`ALTER TABLE public.t_3 ADD CONSTRAINT fk FOREIGN KEY (id) REFERENCES public.t (id);`,
 			},
+			errExpected: true,
+			errExpectedMsg: "table public.t_2 not found in tables map",
 		},
 		{
 			sqlFileContent: `
@@ -705,7 +709,13 @@ func TestHashSplittingChanges(t *testing.T) {
 		transformer := NewTransformer()
 
 		transformedStmts, _, _, err := transformer.AddShardingStrategyForConstraints(parseTree.Stmts)
-		testutils.FatalIfError(t, err)
+		if testCase.errExpected {
+			assert.Error(t, err)
+			assert.Contains(t, err.Error(), testCase.errExpectedMsg)
+			continue
+		} else {
+			testutils.FatalIfError(t, err)
+		}
 
 		finalSqlStmts, err := queryparser.DeparseRawStmts(transformedStmts)
 		testutils.FatalIfError(t, err)
