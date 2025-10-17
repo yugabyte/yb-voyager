@@ -399,6 +399,7 @@ func (t *Table) PrimaryKeyColumns() []string {
 	return []string{}
 }
 
+//TODO: fix the []TableColumns to map[string]TableColumn
 func (t *Table) GetColumnType(colName string) string {
 	for _, col := range t.Columns {
 		if col.ColumnName == colName {

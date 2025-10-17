@@ -276,7 +276,7 @@ func (t *Transformer) AddShardingStrategyForConstraints(stmts []*pg_query.RawStm
 				createAndAlterTableWithPK = append(createAndAlterTableWithPK, stmt)
 				continue
 			}
-			isPKOnRangeDatatype, err := t.checkIfPrimaryKeyOnRangeDatatype(tableName, pkConstraint.Columns, table)
+			isPKOnRangeDatatype, err := t.checkIfPrimaryKeyOnRangeDatatype(pkConstraint.Columns, table)
 			if err != nil {
 				return nil, nil, nil, fmt.Errorf("failed to check if primary key on range datatype: %v", err)
 			}
@@ -295,7 +295,7 @@ func (t *Transformer) AddShardingStrategyForConstraints(stmts []*pg_query.RawStm
 				if !ok {
 					return nil, nil, nil, fmt.Errorf("table %s not found in tables map", alterTable.GetObjectName())
 				}
-				isPKOnRangeDatatype, err := t.checkIfPrimaryKeyOnRangeDatatype(alterTable.GetObjectName(), alterTable.ConstraintColumns, table)
+				isPKOnRangeDatatype, err := t.checkIfPrimaryKeyOnRangeDatatype(alterTable.ConstraintColumns, table)
 				if err != nil {
 					return nil, nil, nil, fmt.Errorf("failed to check if primary key on range datatype: %v", err)
 				}
@@ -368,7 +368,8 @@ func getTablesMap(stmts []*pg_query.RawStmt) (map[string]*queryparser.Table, err
 	return tablesMap, nil
 }
 
-func (t *Transformer) checkIfPrimaryKeyOnRangeDatatype(tableName string, pkConstraintCols []string, table *queryparser.Table) (bool, error) {
+func (t *Transformer) checkIfPrimaryKeyOnRangeDatatype(pkConstraintCols []string, table *queryparser.Table) (bool, error) {
+	tableName := table.GetObjectName()
 	if len(pkConstraintCols) == 0 {
 		return false, nil
 	}
