@@ -114,6 +114,16 @@ func TestInitAssessmentDB(t *testing.T) {
 			"most_common_freq":     {Type: "REAL"},
 			"most_common_val":      {Type: "TEXT"},
 		},
+		TABLE_INDEX_USAGE: {
+			"schema_name": {Type: "TEXT", PrimaryKey: 1},
+			"object_name": {Type: "TEXT", PrimaryKey: 2},
+			"object_type": {Type: "TEXT"},
+			"parent_table_name": {Type: "TEXT"},
+			"reads": {Type: "INTEGER"},
+			"inserts": {Type: "INTEGER"},
+			"updates": {Type: "INTEGER"},
+			"deletes": {Type: "INTEGER"},
+		},
 	}
 
 	// Create a temporary SQLite database file for testing

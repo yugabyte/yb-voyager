@@ -27,6 +27,7 @@ import (
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/types"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
@@ -442,43 +443,43 @@ func TestDDLIssues(t *testing.T) {
 			NewUniqueNullsNotDistinctIssue("INDEX", "unique_email_idx ON users", stmt27),
 		},
 		stmt29: []QueryIssue{
-			NewForeignKeyDatatypeMismatchIssue("TABLE", "orders", stmt29, "orders.user_id", "users.id", "bigint", "integer"),
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "orders", stmt29, "orders.user_id", "users.id", "bigint", "integer", types.ObjectUsageUnused),
 		},
 		stmt32: []QueryIssue{
-			NewForeignKeyDatatypeMismatchIssue("TABLE", "invoices", stmt32, "invoices.payment_id", "payments.payment_id", "text", "uuid"),
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "invoices", stmt32, "invoices.payment_id", "payments.payment_id", "text", "uuid", types.ObjectUsageUnused),
 		},
 		stmt35: []QueryIssue{
-			NewForeignKeyDatatypeMismatchIssue("TABLE", "delivery_tracking", stmt35, "delivery_tracking.shipment_code", "shipments.shipment_code", "varchar(10)", "char(5)"),
-			NewForeignKeyDatatypeMismatchIssue("TABLE", "delivery_tracking", stmt35, "delivery_tracking.country_code", "shipments.country_code", "text", "integer"),
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "delivery_tracking", stmt35, "delivery_tracking.shipment_code", "shipments.shipment_code", "varchar(10)", "char(5)", types.ObjectUsageUnused),
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "delivery_tracking", stmt35, "delivery_tracking.country_code", "shipments.country_code", "text", "integer", types.ObjectUsageUnused),
 		},
 		stmt38: []QueryIssue{},
 		stmt41: []QueryIssue{},
 		stmt44: []QueryIssue{
-			NewForeignKeyDatatypeMismatchIssue("TABLE", "Sessions", stmt44, "Sessions.UserID", "Accounts.UserID", "bigint", "integer"),
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "Sessions", stmt44, "Sessions.UserID", "Accounts.UserID", "bigint", "integer", types.ObjectUsageUnused),
 		},
 		stmt48: []QueryIssue{
-			NewForeignKeyDatatypeMismatchIssue("TABLE", "orders_partitioned", stmt48, "orders_partitioned.customer_id", "customers_root.id", "bigint", "integer"),
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "orders_partitioned", stmt48, "orders_partitioned.customer_id", "customers_root.id", "bigint", "integer", types.ObjectUsageUnused),
 		},
 		stmt53: []QueryIssue{
-			NewForeignKeyDatatypeMismatchIssue("TABLE", "sales", stmt53, "sales.product_id", "products_root.id", "bigint", "integer"),
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "sales", stmt53, "sales.product_id", "products_root.id", "bigint", "integer", types.ObjectUsageUnused),
 		},
 		stmt57: []QueryIssue{
-			NewForeignKeyDatatypeMismatchIssue("TABLE", "derived_items_2", stmt57, "derived_items_2.item_id", "base_items.item_id", "bigint", "integer"),
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "derived_items_2", stmt57, "derived_items_2.item_id", "base_items.item_id", "bigint", "integer", types.ObjectUsageUnused),
 		},
 		stmt62: []QueryIssue{
-			NewForeignKeyDatatypeMismatchIssue("TABLE", "schema1.employees", stmt62, "schema1.employees.dept_id", "schema2.departments.dept_id", "bigint", "integer"),
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "schema1.employees", stmt62, "schema1.employees.dept_id", "schema2.departments.dept_id", "bigint", "integer", types.ObjectUsageUnused),
 		},
 		stmt65: []QueryIssue{
-			NewForeignKeyDatatypeMismatchIssue("TABLE", "small_orders", stmt65, "small_orders.user_id", "small_users.id", "integer", "smallint"),
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "small_orders", stmt65, "small_orders.user_id", "small_users.id", "integer", "smallint", types.ObjectUsageUnused),
 		},
 		stmt68: []QueryIssue{
-			NewForeignKeyDatatypeMismatchIssue("TABLE", "precise_measurements", stmt68, "precise_measurements.value", "measurements.value", "double precision", "real"),
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "precise_measurements", stmt68, "precise_measurements.value", "measurements.value", "double precision", "real", types.ObjectUsageUnused),
 		},
 		stmt71: []QueryIssue{
-			NewForeignKeyDatatypeMismatchIssue("TABLE", "flag_logs", stmt71, "flag_logs.status", "flags.is_active", "text", "boolean"),
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "flag_logs", stmt71, "flag_logs.status", "flags.is_active", "text", "boolean", types.ObjectUsageUnused),
 		},
 		stmt74: []QueryIssue{
-			NewForeignKeyDatatypeMismatchIssue("TABLE", "complex_items", stmt74, "complex_items.id", "simple_items.id", "bigserial", "serial"),
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "complex_items", stmt74, "complex_items.id", "simple_items.id", "bigserial", "serial", types.ObjectUsageUnused),
 		},
 		stmt77: []QueryIssue{},
 		stmt80: []QueryIssue{},
@@ -1660,27 +1661,27 @@ func TestTimestampOrDateHotspotsIssues(t *testing.T) {
 		stmts[1]: []QueryIssue{},
 		stmts[2]: []QueryIssue{},
 		stmts[3]: []QueryIssue{
-			NewHotspotOnTimestampIndexIssue(INDEX_OBJECT_TYPE, "idx_created_at ON test", stmts[3], "created_at"),
+			NewHotspotOnTimestampIndexIssue(INDEX_OBJECT_TYPE, "idx_created_at ON test", stmts[3], "created_at", types.ObjectUsageUnused),
 		},
 		stmts[4]: []QueryIssue{},
 		stmts[5]: []QueryIssue{
-			NewHotspotOnTimestampIndexIssue(INDEX_OBJECT_TYPE, "idx_created_at_ordered_date ON test", stmts[5], "created_at"),
+			NewHotspotOnTimestampIndexIssue(INDEX_OBJECT_TYPE, "idx_created_at_ordered_date ON test", stmts[5], "created_at", types.ObjectUsageUnused),
 		},
 		stmts[6]: []QueryIssue{},
 		stmts[7]: []QueryIssue{
-			NewHotspotOnTimestampPKOrUKIssue(TABLE_OBJECT_TYPE, "test_pk_timestamp", stmts[7], "created_at"),
+			NewHotspotOnTimestampPKOrUKIssue(TABLE_OBJECT_TYPE, "test_pk_timestamp", stmts[7], "created_at", types.ObjectUsageUnused),
 		},
 		stmts[8]: []QueryIssue{},
 		stmts[10]: []QueryIssue{
-			NewHotspotOnDatePKOrUKIssue(TABLE_OBJECT_TYPE, "test_pk_timestamp_alter", stmts[10], "createdat"),
+			NewHotspotOnDatePKOrUKIssue(TABLE_OBJECT_TYPE, "test_pk_timestamp_alter", stmts[10], "createdat", types.ObjectUsageUnused),
 		},
 		stmts[11]: []QueryIssue{},
 		stmts[12]: []QueryIssue{
-			NewHotspotOnTimestampPKOrUKIssue(TABLE_OBJECT_TYPE, "schema2.test_uk_timestamp", stmts[12], "created_at"),
+			NewHotspotOnTimestampPKOrUKIssue(TABLE_OBJECT_TYPE, "schema2.test_uk_timestamp", stmts[12], "created_at", types.ObjectUsageUnused),
 		},
 		stmts[13]: []QueryIssue{},
 		stmts[15]: []QueryIssue{
-			NewHotspotOnDatePKOrUKIssue(TABLE_OBJECT_TYPE, "Test_uk_timestamp_alter", stmts[15], "createdat"),
+			NewHotspotOnDatePKOrUKIssue(TABLE_OBJECT_TYPE, "Test_uk_timestamp_alter", stmts[15], "createdat", types.ObjectUsageUnused),
 		},
 		stmts[16]: []QueryIssue{},
 	}
@@ -1756,7 +1757,7 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 			);`
 		)
 
-		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "public.orders_1", "", "public.orders_1.customer_id", "public.customers_1")
+		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "public.orders_1", "", "public.orders_1.customer_id", "public.customers_1", types.ObjectUsageUnused)
 
 		detector := setupBasicFK(stmt_parent, stmt_child)
 		issues := detector.DetectMissingForeignKeyIndexes()
@@ -1812,7 +1813,7 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 			);`
 		)
 
-		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "public.order_items_3", "", "public.order_items_3.order_id, public.order_items_3.product_id", "public.orders_3")
+		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "public.order_items_3", "", "public.order_items_3.order_id, public.order_items_3.product_id", "public.orders_3", types.ObjectUsageUnused)
 
 		detector := setupBasicFK(stmt_parent, stmt_child)
 		issues := detector.DetectMissingForeignKeyIndexes()
@@ -1869,7 +1870,7 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 				FOREIGN KEY (customer_id) REFERENCES public.customers_5(id);`
 		)
 
-		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "public.orders_5", "", "public.orders_5.customer_id", "public.customers_5")
+		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "public.orders_5", "", "public.orders_5.customer_id", "public.customers_5", types.ObjectUsageUnused)
 
 		detector := NewParserIssueDetector()
 		err := detector.ParseAndProcessDDL(stmt_parent)
@@ -1968,7 +1969,7 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 			stmt_wrong_prefix_index = `CREATE INDEX idx_order_items_8_wrong_prefix ON public.order_items_8(quantity, order_id, product_id);`
 		)
 
-		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "public.order_items_8", "", "public.order_items_8.order_id, public.order_items_8.product_id", "public.orders_8")
+		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "public.order_items_8", "", "public.order_items_8.order_id, public.order_items_8.product_id", "public.orders_8", types.ObjectUsageUnused)
 
 		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_wrong_prefix_index)
 		issues := detector.DetectMissingForeignKeyIndexes()
@@ -2023,7 +2024,7 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 			stmt_expr_index = `CREATE INDEX idx_orders_10_expr ON public.orders_10((customer_id + 1));`
 		)
 
-		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "public.orders_10", "", "public.orders_10.customer_id", "public.customers_10")
+		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "public.orders_10", "", "public.orders_10.customer_id", "public.customers_10", types.ObjectUsageUnused)
 
 		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_expr_index)
 		issues := detector.DetectMissingForeignKeyIndexes()
@@ -2126,7 +2127,7 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 			stmt_wrong_pos_index = `CREATE INDEX idx_order_items_14_wrong_pos ON public.order_items_14(quantity, order_id, product_id);`
 		)
 
-		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "public.order_items_14", "", "public.order_items_14.order_id, public.order_items_14.product_id", "public.orders_14")
+		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "public.order_items_14", "", "public.order_items_14.order_id, public.order_items_14.product_id", "public.orders_14", types.ObjectUsageUnused)
 
 		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_wrong_pos_index)
 		issues := detector.DetectMissingForeignKeyIndexes()
@@ -2162,7 +2163,7 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 			stmt_missing_col_index = `CREATE INDEX idx_order_items_15_missing ON public.order_items_15(order_id);`
 		)
 
-		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "public.order_items_15", "", "public.order_items_15.order_id, public.order_items_15.product_id", "public.orders_15")
+		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "public.order_items_15", "", "public.order_items_15.order_id, public.order_items_15.product_id", "public.orders_15", types.ObjectUsageUnused)
 
 		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_missing_col_index)
 		issues := detector.DetectMissingForeignKeyIndexes()
@@ -2198,7 +2199,7 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 			stmt_expr_prefix_index = `CREATE INDEX idx_order_items_16_expr_prefix ON public.order_items_16((order_id + 1), product_id);`
 		)
 
-		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "public.order_items_16", "", "public.order_items_16.order_id, public.order_items_16.product_id", "public.orders_16")
+		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "public.order_items_16", "", "public.order_items_16.order_id, public.order_items_16.product_id", "public.orders_16", types.ObjectUsageUnused)
 
 		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_expr_prefix_index)
 		issues := detector.DetectMissingForeignKeyIndexes()
@@ -2324,7 +2325,7 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 			stmt_expr_middle_index = `CREATE INDEX idx_order_items_21_expr_middle ON public.order_items_21(order_id, (quantity + 1), product_id, category_id);`
 		)
 
-		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "public.order_items_21", "", "public.order_items_21.order_id, public.order_items_21.product_id, public.order_items_21.category_id", "public.orders_21")
+		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "public.order_items_21", "", "public.order_items_21.order_id, public.order_items_21.product_id, public.order_items_21.category_id", "public.orders_21", types.ObjectUsageUnused)
 
 		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_expr_middle_index)
 		issues := detector.DetectMissingForeignKeyIndexes()
@@ -2406,12 +2407,12 @@ func TestPKRec_CommonRunner(t *testing.T) {
 		{
 			name:     "PKREC: Simple UNIQUE(a) with a NOT NULL, no PK",
 			ddls:     []string{`CREATE TABLE t1 (a int NOT NULL, b text, UNIQUE(a));`},
-			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "public.t1", [][]string{{"public.t1.a"}})},
+			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "public.t1", [][]string{{"public.t1.a"}}, types.ObjectUsageUnused)},
 		},
 		{
 			name:     "PKREC: Composite UNIQUE(a,b) both NOT NULL",
 			ddls:     []string{`CREATE TABLE t2 (a int NOT NULL, b text NOT NULL, c text, UNIQUE(a,b));`},
-			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "public.t2", [][]string{{"public.t2.a", "public.t2.b"}})},
+			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "public.t2", [][]string{{"public.t2.a", "public.t2.b"}}, types.ObjectUsageUnused)},
 		},
 		{
 			name: "PKREC: Multiple ALTER SET NOT NULL then UNIQUE(a,b)",
@@ -2421,7 +2422,7 @@ func TestPKRec_CommonRunner(t *testing.T) {
 				`ALTER TABLE t3 ALTER COLUMN b SET NOT NULL;`,
 				`ALTER TABLE t3 ADD CONSTRAINT uq_t3 UNIQUE (a,b);`,
 			},
-			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "public.t3", [][]string{{"public.t3.a", "public.t3.b"}})},
+			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "public.t3", [][]string{{"public.t3.a", "public.t3.b"}}, types.ObjectUsageUnused)},
 		},
 		{
 			name: "PKREC: DROP NOT NULL cancels composite UNIQUE(a,b)",
@@ -2442,7 +2443,7 @@ func TestPKRec_CommonRunner(t *testing.T) {
 		{
 			name:     "PKREC: Aggregate all qualifying UNIQUE sets",
 			ddls:     []string{`CREATE TABLE t6 (a int NOT NULL, b int NOT NULL, UNIQUE(a,b), UNIQUE(a));`},
-			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "public.t6", [][]string{{"public.t6.a"}, {"public.t6.a", "public.t6.b"}})},
+			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "public.t6", [][]string{{"public.t6.a"}, {"public.t6.a", "public.t6.b"}}, types.ObjectUsageUnused)},
 		},
 		{
 			name:     "PKREC: UNIQUE with nullable column -> no recommendation",
@@ -2473,7 +2474,7 @@ func TestPKRec_CommonRunner(t *testing.T) {
 				`CREATE TABLE sales_2024 PARTITION OF sales FOR VALUES FROM (2024) TO (2025) PARTITION BY LIST (region);`,
 				`CREATE TABLE sales_2024_eu PARTITION OF sales_2024 FOR VALUES IN ('EU');`,
 			},
-			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "public.sales", [][]string{{"public.sales.id", "public.sales.region", "public.sales.year"}})},
+			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "public.sales", [][]string{{"public.sales.id", "public.sales.region", "public.sales.year"}}, types.ObjectUsageUnused)},
 		},
 
 		{
@@ -2492,7 +2493,7 @@ func TestPKRec_CommonRunner(t *testing.T) {
 				`CREATE TABLE sales_2023 PARTITION OF sales FOR VALUES FROM (2023) TO (2024) PARTITION BY LIST (region);`,
 				`CREATE TABLE sales_2023_us PARTITION OF sales_2023 FOR VALUES IN ('US');`,
 			},
-			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "public.sales", [][]string{{"public.sales.id", "public.sales.region", "public.sales.year"}})},
+			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "public.sales", [][]string{{"public.sales.id", "public.sales.region", "public.sales.year"}}, types.ObjectUsageUnused)},
 		},
 		{
 			name: "PKREC: Root and mid-level both have qualifying UNIQUE constraints - only root gets recommendation",
@@ -2501,7 +2502,7 @@ func TestPKRec_CommonRunner(t *testing.T) {
 				`CREATE TABLE sales_2023 (id int NOT NULL, region text NOT NULL, year int NOT NULL, amount numeric, UNIQUE(id, region, year)) PARTITION OF sales FOR VALUES FROM (2023) TO (2024) PARTITION BY LIST (region);`,
 				`CREATE TABLE sales_2023_us PARTITION OF sales_2023 FOR VALUES IN ('US');`,
 			},
-			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "public.sales", [][]string{{"public.sales.id", "public.sales.region", "public.sales.year"}})},
+			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "public.sales", [][]string{{"public.sales.id", "public.sales.region", "public.sales.year"}}, types.ObjectUsageUnused)},
 		},
 		{
 			name: "PKREC: Multiple mid-level tables with qualifying UNIQUE constraints - only root gets recommendation",
@@ -2513,7 +2514,7 @@ func TestPKRec_CommonRunner(t *testing.T) {
 				`CREATE TABLE sales_2023_eu PARTITION OF sales_2023 FOR VALUES IN ('EU');`,
 				`CREATE TABLE sales_2024_us PARTITION OF sales_2024 FOR VALUES IN ('US');`,
 			},
-			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "public.sales", [][]string{{"public.sales.id", "public.sales.region", "public.sales.year"}})},
+			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "public.sales", [][]string{{"public.sales.id", "public.sales.region", "public.sales.year"}}, types.ObjectUsageUnused)},
 		},
 		{
 			name: "PKREC: Root partitioned table with UNIQUE constraint including all partition columns - should not get recommendation",
@@ -2529,12 +2530,12 @@ func TestPKRec_CommonRunner(t *testing.T) {
 		{
 			name:     "PKREC: Simple UNIQUE INDEX(a) with a NOT NULL, no PK",
 			ddls:     []string{`CREATE TABLE t_ui1 (a int NOT NULL, b text);`, `CREATE UNIQUE INDEX idx_ui1 ON t_ui1(a);`},
-			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "public.t_ui1", [][]string{{"public.t_ui1.a"}})},
+			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "public.t_ui1", [][]string{{"public.t_ui1.a"}}, types.ObjectUsageUnused)},
 		},
 		{
 			name:     "PKREC: Composite UNIQUE INDEX(a,b) both NOT NULL",
 			ddls:     []string{`CREATE TABLE t_ui2 (a int NOT NULL, b text NOT NULL, c text);`, `CREATE UNIQUE INDEX idx_ui2 ON t_ui2(a,b);`},
-			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "public.t_ui2", [][]string{{"public.t_ui2.a", "public.t_ui2.b"}})},
+			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "public.t_ui2", [][]string{{"public.t_ui2.a", "public.t_ui2.b"}}, types.ObjectUsageUnused)},
 		},
 		{
 			name: "PKREC: Multiple ALTER SET NOT NULL then UNIQUE INDEX(a,b)",
@@ -2544,7 +2545,7 @@ func TestPKRec_CommonRunner(t *testing.T) {
 				`ALTER TABLE t_ui3 ALTER COLUMN b SET NOT NULL;`,
 				`CREATE UNIQUE INDEX idx_ui3 ON t_ui3(a,b);`,
 			},
-			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "public.t_ui3", [][]string{{"public.t_ui3.a", "public.t_ui3.b"}})},
+			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "public.t_ui3", [][]string{{"public.t_ui3.a", "public.t_ui3.b"}}, types.ObjectUsageUnused)},
 		},
 		{
 			name:     "PKREC: UNIQUE INDEX with nullable column -> no recommendation",
@@ -2559,28 +2560,28 @@ func TestPKRec_CommonRunner(t *testing.T) {
 		{
 			name:     "PKREC: Aggregate all qualifying UNIQUE INDEX sets",
 			ddls:     []string{`CREATE TABLE t_ui6 (a int NOT NULL, b int NOT NULL);`, `CREATE UNIQUE INDEX idx_ui6_1 ON t_ui6(a,b);`, `CREATE UNIQUE INDEX idx_ui6_2 ON t_ui6(a);`},
-			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "public.t_ui6", [][]string{{"public.t_ui6.a"}, {"public.t_ui6.a", "public.t_ui6.b"}})},
+			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "public.t_ui6", [][]string{{"public.t_ui6.a"}, {"public.t_ui6.a", "public.t_ui6.b"}}, types.ObjectUsageUnused)},
 		},
 		// ===== MIXED UNIQUE CONSTRAINTS AND UNIQUE INDEXES TESTS =====
 		{
 			name:     "PKREC: Mix UNIQUE constraint and UNIQUE INDEX - both qualify",
 			ddls:     []string{`CREATE TABLE t_mix1 (a int NOT NULL, b int NOT NULL, UNIQUE(a));`, `CREATE UNIQUE INDEX idx_mix1 ON t_mix1(b);`},
-			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "public.t_mix1", [][]string{{"public.t_mix1.a"}, {"public.t_mix1.b"}})},
+			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "public.t_mix1", [][]string{{"public.t_mix1.a"}, {"public.t_mix1.b"}}, types.ObjectUsageUnused)},
 		},
 		{
 			name:     "PKREC: Mix UNIQUE constraint and UNIQUE INDEX - composite and simple",
 			ddls:     []string{`CREATE TABLE t_mix2 (a int NOT NULL, b int NOT NULL, c int NOT NULL, UNIQUE(a,b));`, `CREATE UNIQUE INDEX idx_mix2 ON t_mix2(c);`},
-			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "public.t_mix2", [][]string{{"public.t_mix2.a", "public.t_mix2.b"}, {"public.t_mix2.c"}})},
+			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "public.t_mix2", [][]string{{"public.t_mix2.a", "public.t_mix2.b"}, {"public.t_mix2.c"}}, types.ObjectUsageUnused)},
 		},
 		{
 			name:     "PKREC: Mix UNIQUE constraint and UNIQUE INDEX - some nullable",
 			ddls:     []string{`CREATE TABLE t_mix3 (a int NOT NULL, b int, c int NOT NULL, UNIQUE(a,b));`, `CREATE UNIQUE INDEX idx_mix3 ON t_mix3(c);`},
-			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "public.t_mix3", [][]string{{"public.t_mix3.c"}})},
+			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "public.t_mix3", [][]string{{"public.t_mix3.c"}}, types.ObjectUsageUnused)},
 		},
 		{
 			name:     "PKREC: Mix UNIQUE constraint and UNIQUE INDEX - same columns (should deduplicate)",
 			ddls:     []string{`CREATE TABLE t_mix4 (a int NOT NULL, b int NOT NULL, UNIQUE(a,b));`, `CREATE UNIQUE INDEX idx_mix4 ON t_mix4(a,b);`},
-			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "public.t_mix4", [][]string{{"public.t_mix4.a", "public.t_mix4.b"}})},
+			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "public.t_mix4", [][]string{{"public.t_mix4.a", "public.t_mix4.b"}}, types.ObjectUsageUnused)},
 		},
 		// ===== PARTITIONED TABLE WITH UNIQUE INDEX TESTS =====
 		{
@@ -2591,7 +2592,7 @@ func TestPKRec_CommonRunner(t *testing.T) {
 				`CREATE TABLE sales_ui_2023 PARTITION OF sales_ui FOR VALUES FROM (2023) TO (2024) PARTITION BY LIST (region);`,
 				`CREATE TABLE sales_ui_2023_us PARTITION OF sales_ui_2023 FOR VALUES IN ('US');`,
 			},
-			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "public.sales_ui", [][]string{{"public.sales_ui.id", "public.sales_ui.region", "public.sales_ui.year"}})},
+			expected: []QueryIssue{NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "public.sales_ui", [][]string{{"public.sales_ui.id", "public.sales_ui.region", "public.sales_ui.year"}}, types.ObjectUsageUnused)},
 		},
 		{
 			name: "PKREC: Root partitioned table with UNIQUE INDEX missing partition columns - no recommendation",
@@ -2631,7 +2632,7 @@ func TestPKRec_CommonRunner(t *testing.T) {
 				NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", "public.products", [][]string{
 					{"public.products.sku"},
 					{"public.products.id", "public.products.name"},
-				}),
+				}, types.ObjectUsageUnused),
 			},
 		},
 	}

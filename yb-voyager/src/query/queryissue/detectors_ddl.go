@@ -174,8 +174,9 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 							c.ConstraintName,
 						))
 				}
+				usageCategory := d.getUsageCategoryForTable(table.GetSchemaName(), table.GetTableName())
 				//Report PRIMARY KEY (createdat timestamp) as hotspot issue
-				hotspotIssues, err := detectHotspotIssueOnConstraint(c.ConstraintType.String(), c.ConstraintName, c.Columns, d.columnsWithHotspotRangeIndexesDatatypes, obj)
+				hotspotIssues, err := detectHotspotIssueOnConstraint(c.ConstraintType.String(), c.ConstraintName, c.Columns, d.columnsWithHotspotRangeIndexesDatatypes, obj, usageCategory)
 				if err != nil {
 					return nil, err
 				}
@@ -329,11 +330,12 @@ func detectForeignKeyDatatypeMismatch(objectType string, objectName string, colu
 			colMetadata.ReferencedTable+"."+colMetadata.ReferencedColumn,
 			localDatatypeWithModifiers,
 			referencedDatatypeWithModifiers,
+			tm.Usage,
 		))
 	}
 }
 
-func detectHotspotIssueOnConstraint(constraintType string, constraintName string, constraintColumns []string, columnsWithHotspotRangeIndexesDatatypes map[string]map[string]string, obj queryparser.DDLObject) ([]QueryIssue, error) {
+func detectHotspotIssueOnConstraint(constraintType string, constraintName string, constraintColumns []string, columnsWithHotspotRangeIndexesDatatypes map[string]map[string]string, obj queryparser.DDLObject, usageCategory string) ([]QueryIssue, error) {
 	if len(constraintColumns) <= 0 {
 		log.Warnf("empty columns list for %s constraint %s", constraintType, constraintName)
 		return nil, nil
@@ -348,7 +350,7 @@ func detectHotspotIssueOnConstraint(constraintType string, constraintName string
 	if !isHotspotType {
 		return nil, nil
 	}
-	return reportHotspotsOnTimestampTypes(hotspotTypeName, obj.GetObjectType(), obj.GetObjectName(), col, false)
+	return reportHotspotsOnTimestampTypes(hotspotTypeName, obj.GetObjectType(), obj.GetObjectName(), col, false, usageCategory)
 }
 
 func ReportUnsupportedDatatypes(baseTypeName string, columnName string, objType string, objName string) QueryIssue {
@@ -718,6 +720,7 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 	       4. normal index on column with UDTs
 	       5. these type of indexes on different access method like gin etc.. [TODO to explore more, for now not reporting the indexes on anyother access method than btree]
 	*/
+	usageCategory := d.getUsageCategoryForIndex(index.GetSchemaName(), index.TableName, index.IndexName)
 	if index.AccessMethod == BTREE_ACCESS_METHOD { // Right now not reporting any other access method issues with such types.
 		for idx, param := range index.Params {
 			if param.IsExpression {
@@ -747,7 +750,7 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 				} else if isHotspotType && idx == 0 {
 					//If first column is hotspot type then only report hotspot issue
 					//For expression case not adding any colName for now in the issue
-					hotspotIssues, err := reportHotspotsOnTimestampTypes(param.ExprCastTypeName, obj.GetObjectType(), obj.GetObjectName(), "", true)
+					hotspotIssues, err := reportHotspotsOnTimestampTypes(param.ExprCastTypeName, obj.GetObjectType(), obj.GetObjectName(), "", true, usageCategory)
 					if err != nil {
 						return nil, err
 					}
@@ -774,7 +777,7 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 					//If first column is hotspot type then only report hotspot issue
 					hotspotTypeName, isHotspotType := columnWithHotspotTypes[colName]
 					if isHotspotType {
-						hotspotIssues, err := reportHotspotsOnTimestampTypes(hotspotTypeName, obj.GetObjectType(), obj.GetObjectName(), colName, true)
+						hotspotIssues, err := reportHotspotsOnTimestampTypes(hotspotTypeName, obj.GetObjectType(), obj.GetObjectName(), colName, true, usageCategory)
 						if err != nil {
 							return nil, err
 						}
@@ -800,6 +803,8 @@ func (i *IndexIssueDetector) reportVariousIndexPerfOptimizationsOnFirstColumnOfI
 
 	firstColumnParam := index.Params[0]
 	qualifiedFirstColumnName := fmt.Sprintf("%s.%s", index.GetTableName(), firstColumnParam.ColName)
+
+	usageCategory := i.getUsageCategoryForIndex(index.GetSchemaName(), index.TableName, index.IndexName)
 
 	isSingleColumnIndex := len(index.Params) == 1
 
@@ -831,27 +836,27 @@ func (i *IndexIssueDetector) reportVariousIndexPerfOptimizationsOnFirstColumnOfI
 		//If the index is not LOW cardinality one then see if that has most frequent value or not
 		//MOST FREQUENT VALUE INDEX ISSUE
 		issues = append(issues, NewMostFrequentValueIndexesIssue(INDEX_OBJECT_TYPE, index.GetObjectName(), "",
-			isSingleColumnIndex, stat.MostCommonValue, maxFrequencyPerc, stat.ColumnName))
+			isSingleColumnIndex, stat.MostCommonValue, maxFrequencyPerc, stat.ColumnName, usageCategory))
 
 	}
 
 	if nullFrequencyPerc >= NULL_FREQUENCY_THRESHOLD && !nullPartialIndex {
 
 		// NULL VALUE INDEX ISSUE
-		issues = append(issues, NewNullValueIndexesIssue(INDEX_OBJECT_TYPE, index.GetObjectName(), "", isSingleColumnIndex, nullFrequencyPerc, stat.ColumnName))
+		issues = append(issues, NewNullValueIndexesIssue(INDEX_OBJECT_TYPE, index.GetObjectName(), "", isSingleColumnIndex, nullFrequencyPerc, stat.ColumnName, usageCategory))
 	}
 
 	return issues, nil
 }
 
-func reportHotspotsOnTimestampTypes(typeName string, objType string, objName string, colName string, isSecondaryIndex bool) ([]QueryIssue, error) {
+func reportHotspotsOnTimestampTypes(typeName string, objType string, objName string, colName string, isSecondaryIndex bool, usageCategory string) ([]QueryIssue, error) {
 	var issues []QueryIssue
 	switch typeName {
 	case TIMESTAMP, TIMESTAMPTZ:
-		issue := lo.Ternary(isSecondaryIndex, NewHotspotOnTimestampIndexIssue(objType, objName, "", colName), NewHotspotOnTimestampPKOrUKIssue(objType, objName, "", colName))
+		issue := lo.Ternary(isSecondaryIndex, NewHotspotOnTimestampIndexIssue(objType, objName, "", colName, usageCategory), NewHotspotOnTimestampPKOrUKIssue(objType, objName, "", colName, usageCategory))
 		issues = append(issues, issue)
 	case DATE:
-		issue := lo.Ternary(isSecondaryIndex, NewHotspotOnDateIndexIssue(objType, objName, "", colName), NewHotspotOnDatePKOrUKIssue(objType, objName, "", colName))
+		issue := lo.Ternary(isSecondaryIndex, NewHotspotOnDateIndexIssue(objType, objName, "", colName, usageCategory), NewHotspotOnDatePKOrUKIssue(objType, objName, "", colName, usageCategory))
 		issues = append(issues, issue)
 	default:
 		return issues, fmt.Errorf("unexpected type for the Hotspots on range indexes with timestamp/date types")
@@ -1086,9 +1091,9 @@ func (aid *AlterTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Q
 					alter.ConstraintName,
 				))
 			}
-
+			usageCategory := aid.getUsageCategoryForTable(alter.GetSchemaName(), alter.GetTableName())
 			//Report PRIMARY KEY (createdat timestamp) as hotspot issue
-			hotspotIssues, err := detectHotspotIssueOnConstraint(alter.ConstraintType.String(), alter.ConstraintName, alter.ConstraintColumns, aid.columnsWithHotspotRangeIndexesDatatypes, obj)
+			hotspotIssues, err := detectHotspotIssueOnConstraint(alter.ConstraintType.String(), alter.ConstraintName, alter.ConstraintColumns, aid.columnsWithHotspotRangeIndexesDatatypes, obj, usageCategory)
 			if err != nil {
 				return nil, err
 			}
