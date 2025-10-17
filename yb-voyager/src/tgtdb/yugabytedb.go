@@ -33,6 +33,7 @@ import (
 	"github.com/goccy/go-json"
 	"github.com/google/uuid"
 	"github.com/jackc/pgconn"
+	"github.com/jackc/pgtype"
 	"github.com/jackc/pgx/v4"
 	pgconn5 "github.com/jackc/pgx/v5/pgconn"
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -1615,6 +1616,76 @@ func (yb *TargetYugabyteDB) GetIdentityColumnNamesForTable(tableNameTup sqlname.
 		return false, nil
 	})
 	return identityColumns, err
+}
+
+func (yb *TargetYugabyteDB) GetIdentityColumnNamesForTables(tableNameTuples []sqlname.NameTuple, identityType string) (*utils.StructMap[sqlname.NameTuple, []string], error) {
+	result := utils.NewStructMap[sqlname.NameTuple, []string]()
+	if len(tableNameTuples) == 0 {
+		return result, nil
+	}
+
+	// Build a single query to fetch identity columns for all tables at once
+	// Example query:
+	// SELECT table_schema, table_name, array_agg(column_name ORDER BY column_name) AS identity_columns
+	// FROM information_schema.columns
+	// WHERE (table_schema, table_name) IN (('public', 'users'), ('public', 'orders'), ('inventory', 'products'))
+	//   AND is_identity = 'YES'
+	//   AND identity_generation = 'ALWAYS'
+	// GROUP BY table_schema, table_name
+
+	var valuesClauses []string
+	tableNameMap := make(map[string]sqlname.NameTuple) // map to lookup table name tuples by schema and table name
+
+	for _, t := range tableNameTuples {
+		schema, table := t.ForCatalogQuery()
+		// Add to values for IN clause, e.g., "('my_schema','my_table')"
+		valuesClauses = append(valuesClauses, fmt.Sprintf("('%s', '%s')", schema, table))
+		tableNameMap[fmt.Sprintf("%s.%s", schema, table)] = t
+	}
+
+	query := fmt.Sprintf(`
+		SELECT table_schema, table_name, array_agg(column_name ORDER BY column_name) AS identity_columns
+		FROM information_schema.columns
+		WHERE (table_schema, table_name) IN (%s)
+		  AND is_identity = 'YES'
+		  AND identity_generation = '%s'
+		GROUP BY table_schema, table_name`,
+		strings.Join(valuesClauses, ", "), identityType)
+
+	log.Infof("Querying for identity columns for %d tables with type '%s'", len(tableNameTuples), identityType)
+	log.Debugf("Identity column query: %s", query)
+
+	rows, err := yb.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("error in getting identity(%s) columns for tables: %w", identityType, err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var schemaName, tableName string
+		var identityColumnsPgTypeArray pgtype.TextArray
+		err = rows.Scan(&schemaName, &tableName, &identityColumnsPgTypeArray)
+		if err != nil {
+			return nil, fmt.Errorf("error in scanning row for identity(%s) columns: %w", identityType, err)
+		}
+
+		identityColumns := utils.ConvertPgTextArrayToStringSlice(identityColumnsPgTypeArray)
+
+		key := fmt.Sprintf("%s.%s", schemaName, tableName)
+		tableNameTuple, ok := tableNameMap[key]
+		if !ok {
+			// This should not happen if the query is correct.
+			log.Warnf("Found identity columns for table '%s' which was not in the original request", key)
+			continue
+		}
+		fmt.Printf("identityColumns for table %s: %v\n", tableNameTuple, identityColumns)
+		result.Put(tableNameTuple, identityColumns)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating over identity column results: %w", err)
+	}
+	return result, nil
+
 }
 
 func (yb *TargetYugabyteDB) DisableGeneratedAlwaysAsIdentityColumns(tableColumnsMap *utils.StructMap[sqlname.NameTuple, []string]) error {

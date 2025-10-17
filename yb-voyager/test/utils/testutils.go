@@ -431,9 +431,16 @@ func CreateTempFile(dir string, fileContents string, fileFormat string) (string,
 	return file.Name(), nil
 }
 
-func CreateNameTupleWithSourceName(s string, defaultSchema string, dbType string) sqlname.NameTuple {
+func CreateNameTupleWithSourceName(qualifiedName string, defaultSchema string, dbType string) sqlname.NameTuple {
 	return sqlname.NameTuple{
-		SourceName:  sqlname.NewObjectNameWithQualifiedName(dbType, defaultSchema, s),
+		SourceName:  sqlname.NewObjectNameWithQualifiedName(dbType, defaultSchema, qualifiedName),
+		CurrentName: sqlname.NewObjectNameWithQualifiedName(dbType, defaultSchema, qualifiedName),
+	}
+}
+
+func CreateNameTupleWithTargetName(s string, defaultSchema string, dbType string) sqlname.NameTuple {
+	return sqlname.NameTuple{
+		TargetName:  sqlname.NewObjectNameWithQualifiedName(dbType, defaultSchema, s),
 		CurrentName: sqlname.NewObjectNameWithQualifiedName(dbType, defaultSchema, s),
 	}
 }
