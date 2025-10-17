@@ -80,13 +80,19 @@ main() {
 
 	step "Initialise source and fall forward database."
 
-	if [ "${SOURCE_DB_TYPE}" = "oracle" ]
-	then
-		create_source_db ${SOURCE_DB_SCHEMA}
+	if [[ "${SOURCE_DB_TYPE}" = "postgresql" ]]; then
+	    create_source_db "${SOURCE_DB_NAME}"
 		# TODO: Add dynamic Fall Forward schema creation. Currently using the same name for all tests.
-		create_source_db ${SOURCE_REPLICA_DB_SCHEMA}
+		create_source_db "${SOURCE_REPLICA_DB_NAME}"
+	elif [[ "${SOURCE_DB_TYPE}" = "oracle" ]]; then
+	    create_source_db "${SOURCE_DB_SCHEMA}"
+		create_source_db "${SOURCE_REPLICA_DB_SCHEMA}"
 		run_sqlplus_as_sys ${SOURCE_REPLICA_DB_NAME} ${SCRIPTS}/oracle/create_metadata_tables.sql
+	else
+	    echo "ERROR: Unsupported SOURCE_DB_TYPE: ${SOURCE_DB_TYPE}"
+	    exit 1
 	fi
+
 	./init-db
 
 	step "Grant source database user permissions for live migration"
@@ -96,7 +102,7 @@ main() {
 	yb-voyager version
 
 	step "Assess Migration"
-	if [ "${SOURCE_DB_TYPE}" = "postgresql" ] || [ "${SOURCE_DB_TYPE}" == "oracle" ]; then
+	if [ "${SOURCE_DB_TYPE}" = "postgresql" ] || [ "${SOURCE_DB_TYPE}" = "oracle" ]; then
 		assess_migration || {
 			cat_log_file "yb-voyager-assess-migration.log"
 			cat_file ${EXPORT_DIR}/assessment/metadata/yb-voyager-assessment.log
@@ -308,10 +314,10 @@ main() {
 
 	# Choose expected report file based on connector type
 	if [ "${USE_YB_LOGICAL_REPLICATION_CONNECTOR}" = true ]; then
-		expected_file="${TEST_DIR}/data-migration-report-live-migration-fallf-logical-connector.json"
+		expected_file="${TEST_DIR}/expected_status_files/data-migration-report-live-migration-fallf-logical-connector.json"
 		echo "Using logical replication connector expected report"
 	else
-		expected_file="${TEST_DIR}/data-migration-report-live-migration-fallf.json"
+		expected_file="${TEST_DIR}/expected_status_files/data-migration-report-live-migration-fallf.json"
 		echo "Using gRPC connector expected report"
 	fi
 	actual_file="${EXPORT_DIR}/reports/data-migration-report.json"

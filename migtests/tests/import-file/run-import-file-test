@@ -11,7 +11,7 @@ export SCRIPTS="${REPO_ROOT}/migtests/scripts"
 export TESTS_DIR="${REPO_ROOT}/migtests/tests"
 export TEST_DIR="${TESTS_DIR}/${TEST_NAME}"
 export EXPORT_DIR=${EXPORT_DIR:-"${TEST_DIR}/export-dir"}
-export EXPECTED_JSON_DIR="${TEST_DIR}/expected_status_json"
+export EXPECTED_JSON_DIR="${TEST_DIR}/expected_status_files"
 
 export S3_BUCKET="s3://voyager-automation-data"
 export AWS_DEFAULT_REGION="us-west-2"

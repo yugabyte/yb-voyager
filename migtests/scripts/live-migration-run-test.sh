@@ -76,10 +76,16 @@ main() {
 	pushd ${TEST_DIR}
 
 	step "Initialise source database."
-	if [ "${SOURCE_DB_TYPE}" = "oracle" ]
-	then
-		create_source_db ${SOURCE_DB_SCHEMA}
+
+	if [[ "${SOURCE_DB_TYPE}" = "postgresql" || "${SOURCE_DB_TYPE}" = "mysql" ]]; then
+	    create_source_db "${SOURCE_DB_NAME}"
+	elif [[ "${SOURCE_DB_TYPE}" = "oracle" ]]; then
+	    create_source_db "${SOURCE_DB_SCHEMA}"
+	else
+	    echo "ERROR: Unsupported SOURCE_DB_TYPE: ${SOURCE_DB_TYPE}"
+	    exit 1
 	fi
+
 	./init-db
 
 	step "Grant source database user permissions for live migration"
@@ -89,7 +95,7 @@ main() {
 	yb-voyager version
 
 	step "Assess Migration"
-	if [ "${SOURCE_DB_TYPE}" = "postgresql" ] || [ "${SOURCE_DB_TYPE}" == "oracle" ]; then
+	if [ "${SOURCE_DB_TYPE}" = "postgresql" ] || [ "${SOURCE_DB_TYPE}" = "oracle" ]; then
 		assess_migration || {
 			cat_log_file "yb-voyager-assess-migration.log"
 			cat_file ${EXPORT_DIR}/assessment/metadata/yb-voyager-assessment.log
@@ -235,7 +241,7 @@ main() {
 	step "Run get data-migration-report"
 	get_data_migration_report
 
-	expected_file="${TEST_DIR}/data-migration-report-live-migration.json"
+	expected_file="${TEST_DIR}/expected_status_files/data-migration-report-live-migration.json"
 	actual_file="${EXPORT_DIR}/reports/data-migration-report.json"
 
 	step "Verify data-migration-report report"
