@@ -67,6 +67,37 @@ DELETE FROM hstore_example WHERE id = 13; -- snapshot row deletion
 DELETE FROM hstore_example WHERE data @> 'k1=>v1'; -- source CDC dependency
 DELETE FROM hstore_example WHERE data @> 'complex_key1=>"val1"'; -- intra-file dependency
 
+-- TSVECTOR table operations (supported with logical connector)
+INSERT INTO tsvector_table (title, content, title_tsv, content_tsv)
+VALUES 
+    ('Logical Replication', 
+     'Logical replication support for tsvector columns',
+     to_tsvector('english', 'Logical Replication'),
+     to_tsvector('english', 'Logical replication support for tsvector columns'));
 
+INSERT INTO tsvector_table (title, content, title_tsv, content_tsv)
+VALUES 
+    ('YugabyteDB Features', 
+     'YugabyteDB distributed SQL database features',
+     to_tsvector('english', 'YugabyteDB Features'),
+     to_tsvector('english', 'YugabyteDB distributed SQL database features'));
 
+UPDATE tsvector_table
+SET title = 'Updated Tutorial',
+    title_tsv = to_tsvector('english', 'Updated Tutorial')
+WHERE id = 3;
 
+DELETE FROM tsvector_table WHERE title = 'Full Text Search';
+
+-- Enum array table operations (supported with logical connector)
+INSERT INTO enum_array_table (day_name, week_days, description)
+VALUES ('Sun', ARRAY['Sun']::week[], 'Sunday only');
+
+INSERT INTO enum_array_table (day_name, week_days, description)
+VALUES ('Wed', ARRAY['Mon', 'Wed', 'Fri']::week[], 'Alternate weekdays');
+
+UPDATE enum_array_table
+SET week_days = ARRAY['Sat', 'Sun']::week[], description = 'Complete weekend'
+WHERE id = 3;
+
+DELETE FROM enum_array_table WHERE day_name = 'Thu';

@@ -38,5 +38,15 @@
     "exported_count": 26,
     "status": "DONE",
     "table_name": "hstore_example"
+  },
+  {
+    "table_name": "tsvector_table",
+    "status": "DONE",
+    "exported_count": 3
+  },
+  {
+    "table_name": "enum_array_table",
+    "status": "DONE",
+    "exported_count": 3
   }
 ]

@@ -108,3 +108,38 @@ DELETE FROM hstore_example WHERE id = 2;
 DELETE FROM hstore_example WHERE id = 4;
 DELETE FROM hstore_example WHERE id = 8;
 DELETE FROM hstore_example WHERE id = 9;
+
+-- TSVECTOR table operations
+INSERT INTO tsvector_table (title, content, title_tsv, content_tsv)
+VALUES 
+    ('Full Text Search', 
+     'Full text search capabilities in PostgreSQL',
+     to_tsvector('english', 'Full Text Search'),
+     to_tsvector('english', 'Full text search capabilities in PostgreSQL'));
+
+INSERT INTO tsvector_table (title, content, title_tsv, content_tsv)
+VALUES 
+    ('Database Performance', 
+     'Optimizing database queries for better performance',
+     to_tsvector('english', 'Database Performance'),
+     to_tsvector('english', 'Optimizing database queries for better performance'));
+
+UPDATE tsvector_table
+SET content = 'Updated content about PostgreSQL database system',
+    content_tsv = to_tsvector('english', 'Updated content about PostgreSQL database system')
+WHERE id = 1;
+
+DELETE FROM tsvector_table WHERE id = 2;
+
+-- Enum array table operations
+INSERT INTO enum_array_table (day_name, week_days, description)
+VALUES ('Thu', ARRAY['Mon', 'Tue', 'Wed', 'Thu', 'Fri']::week[], 'All weekdays');
+
+INSERT INTO enum_array_table (day_name, week_days, description)
+VALUES ('Fri', ARRAY['Fri']::week[], 'Friday only');
+
+UPDATE enum_array_table
+SET week_days = ARRAY['Sat']::week[], description = 'Saturday only'
+WHERE id = 1;
+
+DELETE FROM enum_array_table WHERE id = 2;
