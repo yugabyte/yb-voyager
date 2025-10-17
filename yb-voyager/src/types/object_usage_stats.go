@@ -29,10 +29,6 @@ type ObjectUsageStats struct {
 	Inserts         int64
 	Updates         int64
 	Deletes         int64
-	//Category based on some logic
-	ReadUsage       string
-	WriteUsage      string
-	Usage           string
 }
 
 func (o *ObjectUsageStats) TotalWrites() int64 {

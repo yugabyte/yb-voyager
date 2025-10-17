@@ -272,8 +272,8 @@ type ParserIssueDetector struct {
 	// Key is qualified table name (schema.table), value is TableMetadata
 	tablesMetadata map[string]*TableMetadata
 
-	// object usage stats
-	objectUsageStats map[string]*types.ObjectUsage
+	// object usages
+	objectUsages map[string]*types.ObjectUsage
 }
 
 func NewParserIssueDetector() *ParserIssueDetector {
@@ -513,12 +513,12 @@ func (p *ParserIssueDetector) getPLPGSQLIssues(query string) ([]QueryIssue, erro
 	}), nil
 }
 
-func (p *ParserIssueDetector) SetObjectUsageStats(objectUsages []*types.ObjectUsage) {
+func (p *ParserIssueDetector) SetObjectUsages(objectUsages []*types.ObjectUsage) {
 	objectUsageStatsMap := make(map[string]*types.ObjectUsage)
 	for _, objectUsageStat := range objectUsages {
 		objectUsageStatsMap[objectUsageStat.GetObjectName()] = objectUsageStat
 	}
-	p.objectUsageStats = objectUsageStatsMap
+	p.objectUsages = objectUsageStatsMap
 }
 
 // FinalizeColumnMetadata processes the column metadata after all DDL statements have been parsed.
@@ -1105,7 +1105,7 @@ func (p *ParserIssueDetector) DetectMissingForeignKeyIndexes() []QueryIssue {
 func (p *ParserIssueDetector) getUsageCategoryForTable(schemaName, tableName string) string {
 	objName := sqlname.NewObjectName(constants.POSTGRESQL, "", schemaName, tableName)
 	qualifiedObjName := objName.Qualified.Unquoted
-	stat, ok := p.objectUsageStats[qualifiedObjName]
+	stat, ok := p.objectUsages[qualifiedObjName]
 	if !ok {
 		log.Infof("No object usage stats found for table: %s", qualifiedObjName)
 		return types.ObjectUsageUnused
@@ -1118,7 +1118,7 @@ func (p *ParserIssueDetector) getUsageCategoryForTable(schemaName, tableName str
 func (p *ParserIssueDetector) getUsageCategoryForIndex(schemaName, tableName, indexName string) string {
 	objName := sqlname.NewObjectNameQualifiedWithTableName(constants.POSTGRESQL, "", indexName, schemaName, tableName)
 	qualifiedObjName := objName.Qualified.Unquoted
-	stat, ok := p.objectUsageStats[qualifiedObjName]
+	stat, ok := p.objectUsages[qualifiedObjName]
 	if !ok {
 		log.Infof("No object usage stats found for index: %s", qualifiedObjName)
 		return types.ObjectUsageUnused
@@ -1126,7 +1126,7 @@ func (p *ParserIssueDetector) getUsageCategoryForIndex(schemaName, tableName, in
 	indexReadCategory := stat.ReadUsage
 	tableObjName := sqlname.NewObjectName(constants.POSTGRESQL, "", schemaName, tableName)
 	qualifiedObjName = tableObjName.Qualified.Unquoted
-	stat, ok = p.objectUsageStats[qualifiedObjName]
+	stat, ok = p.objectUsages[qualifiedObjName]
 	if !ok {
 		log.Infof("No object usage stats found for table: %s", qualifiedObjName)
 		return types.ObjectUsageUnused

@@ -301,7 +301,7 @@ func assessMigration() (err error) {
 		return fmt.Errorf("failed to populate object usage stats: %w", err)
 	}
 
-	parserIssueDetector.SetObjectUsageStats(objectUsages)
+	parserIssueDetector.SetObjectUsages(objectUsages)
 
 	err = validateSourceDBIOPSForAssessMigration()
 	if err != nil {
