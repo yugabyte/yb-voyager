@@ -361,10 +361,10 @@ func populateObjectUsageStats() ([]*types.ObjectUsage, error) {
 		}
 		objectUsages = append(objectUsages, &objectUsage)
 	}
-	for _, objectUsageStat := range objectUsages {
-		objectUsageStat.ReadUsage = types.GetUsageCategory(objectUsageStat.Reads, maxReads)
-		objectUsageStat.WriteUsage = types.GetUsageCategory(objectUsageStat.TotalWrites(), maxWrites)
-		objectUsageStat.Usage = types.GetCombinedUsageCategory(objectUsageStat.ReadUsage, objectUsageStat.WriteUsage)
+	for _, objectUsage := range objectUsages {
+		objectUsage.ReadUsage = types.GetUsageCategory(objectUsage.Reads, maxReads)
+		objectUsage.WriteUsage = types.GetUsageCategory(objectUsage.TotalWrites(), maxWrites)
+		objectUsage.Usage = types.GetCombinedUsageCategory(objectUsage.ReadUsage, objectUsage.WriteUsage)
 	}
 	return objectUsages, nil
 }
