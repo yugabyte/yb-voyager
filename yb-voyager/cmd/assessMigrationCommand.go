@@ -296,12 +296,12 @@ func assessMigration() (err error) {
 		return fmt.Errorf("failed to populate metadata CSV into SQLite DB: %w", err)
 	}
 
-	objectUsageStats, err := populateObjectUsageStats()
+	objectUsages, err := populateObjectUsageStats()
 	if err != nil {
 		return fmt.Errorf("failed to populate object usage stats: %w", err)
 	}
 
-	parserIssueDetector.SetObjectUsageStats(objectUsageStats)
+	parserIssueDetector.SetObjectUsageStats(objectUsages)
 
 	err = validateSourceDBIOPSForAssessMigration()
 	if err != nil {
@@ -331,7 +331,7 @@ func assessMigration() (err error) {
 	return nil
 }
 
-func populateObjectUsageStats() ([]*types.ObjectUsageStats, error) {
+func populateObjectUsageStats() ([]*types.ObjectUsage, error) {
 	query := fmt.Sprintf(`SELECT schema_name,object_name,object_type,parent_table_name,reads,inserts,updates,deletes from %s`,
 		migassessment.TABLE_INDEX_USAGE)
 	rows, err := assessmentDB.Query(query)
@@ -345,28 +345,28 @@ func populateObjectUsageStats() ([]*types.ObjectUsageStats, error) {
 		}
 	}()
 
-	var objectUsageStats []*types.ObjectUsageStats
+	var objectUsages []*types.ObjectUsage
 	var maxReads, maxWrites int64
 	for rows.Next() {
-		var objectUsageStat types.ObjectUsageStats
-		err = rows.Scan(&objectUsageStat.SchemaName, &objectUsageStat.ObjectName, &objectUsageStat.ObjectType, &objectUsageStat.ParentTableName, &objectUsageStat.Reads, &objectUsageStat.Inserts, &objectUsageStat.Updates, &objectUsageStat.Deletes)
+		var objectUsage types.ObjectUsage
+		err = rows.Scan(&objectUsage.SchemaName, &objectUsage.ObjectName, &objectUsage.ObjectType, &objectUsage.ParentTableName, &objectUsage.Reads, &objectUsage.Inserts, &objectUsage.Updates, &objectUsage.Deletes)
 		if err != nil {
 			return nil, fmt.Errorf("error scanning object usage stat: %w", err)
 		}
-		if objectUsageStat.Reads > maxReads {
-			maxReads = objectUsageStat.Reads
+		if objectUsage.Reads > maxReads {
+			maxReads = objectUsage.Reads
 		}
-		if objectUsageStat.TotalWrites() > maxWrites {
-			maxWrites = objectUsageStat.TotalWrites()
+		if objectUsage.TotalWrites() > maxWrites {
+			maxWrites = objectUsage.TotalWrites()
 		}
-		objectUsageStats = append(objectUsageStats, &objectUsageStat)
+		objectUsages = append(objectUsages, &objectUsage)
 	}
-	for _, objectUsageStat := range objectUsageStats {
+	for _, objectUsageStat := range objectUsages {
 		objectUsageStat.ReadUsage = types.GetUsageCategory(objectUsageStat.Reads, maxReads)
 		objectUsageStat.WriteUsage = types.GetUsageCategory(objectUsageStat.TotalWrites(), maxWrites)
 		objectUsageStat.Usage = types.GetCombinedUsageCategory(objectUsageStat.ReadUsage, objectUsageStat.WriteUsage)
 	}
-	return objectUsageStats, nil
+	return objectUsages, nil
 }
 
 func fetchSourceInfo() {

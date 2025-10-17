@@ -273,7 +273,7 @@ type ParserIssueDetector struct {
 	tablesMetadata map[string]*TableMetadata
 
 	// object usage stats
-	objectUsageStats map[string]*types.ObjectUsageStats
+	objectUsageStats map[string]*types.ObjectUsage
 }
 
 func NewParserIssueDetector() *ParserIssueDetector {
@@ -513,9 +513,9 @@ func (p *ParserIssueDetector) getPLPGSQLIssues(query string) ([]QueryIssue, erro
 	}), nil
 }
 
-func (p *ParserIssueDetector) SetObjectUsageStats(objectUsageStats []*types.ObjectUsageStats) {
-	objectUsageStatsMap := make(map[string]*types.ObjectUsageStats)
-	for _, objectUsageStat := range objectUsageStats {
+func (p *ParserIssueDetector) SetObjectUsageStats(objectUsages []*types.ObjectUsage) {
+	objectUsageStatsMap := make(map[string]*types.ObjectUsage)
+	for _, objectUsageStat := range objectUsages {
 		objectUsageStatsMap[objectUsageStat.GetObjectName()] = objectUsageStat
 	}
 	p.objectUsageStats = objectUsageStatsMap
