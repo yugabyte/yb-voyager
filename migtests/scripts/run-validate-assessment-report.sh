@@ -57,9 +57,9 @@ main() {
 
 	step "Initialise source database."
 	if [[ "${SKIP_DB_CREATION}" != "true" ]]; then
-	    if [[ "${SOURCE_DB_TYPE}" == "postgresql" || "${SOURCE_DB_TYPE}" == "mysql" ]]; then
+	    if [[ "${SOURCE_DB_TYPE}" = "postgresql" || "${SOURCE_DB_TYPE}" = "mysql" ]]; then
 	        create_source_db "${SOURCE_DB_NAME}"
-	    elif [[ "${SOURCE_DB_TYPE}" == "oracle" ]]; then
+	    elif [[ "${SOURCE_DB_TYPE}" = "oracle" ]]; then
 	        create_source_db "${SOURCE_DB_SCHEMA}"
 	    else
 	        echo "ERROR: Unsupported SOURCE_DB_TYPE: ${SOURCE_DB_TYPE}"

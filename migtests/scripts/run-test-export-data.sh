@@ -42,6 +42,7 @@ main() {
 	pushd ${TEST_DIR}
 
 	step "Initialise source database."
+	create_source_db "${SOURCE_DB_NAME}"
 	./init-db
 
 	step "Grant source database user permissions"
