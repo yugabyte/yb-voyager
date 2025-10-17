@@ -523,33 +523,3 @@ func GetSessionVariableName(stmtStr string) (string, error) {
 	return varStmt.VariableSetStmt.GetName(), nil
 
 }
-
-func ExtractPKOrUKConstraintNameFromDDL(ddl string, colName string) (string, error) {
-	parseTree, err := Parse(ddl)
-	if err != nil {
-		return "", fmt.Errorf("error parsing ddl: %w", err)
-	}
-	ddLObject, err := ProcessDDL(parseTree)
-	if err != nil {
-		return "", fmt.Errorf("error processing ddl: %w", err)
-	}
-	switch ddLObject.(type) {
-	case *Table:
-		table := ddLObject.(*Table)
-		for _, constraint := range table.Constraints {
-			if constraint.IsPrimaryKeyORUniqueConstraint() {
-				//since we don't know if its a PK/UK issue check the column reported matches with the constraint's first column
-				if len(constraint.Columns) > 0 && constraint.Columns[0] == colName {
-					return constraint.ConstraintName, nil
-				}
-			}
-		}
-	case *AlterTable:
-		alterTable := ddLObject.(*AlterTable)
-		if !alterTable.AddPrimaryKeyOrUniqueCons() {
-			return "", fmt.Errorf("constraint is not a primary key or unique constraint")
-		}
-		return alterTable.ConstraintName, nil
-	}
-	return "", fmt.Errorf("unexpected ddl object type: %T", ddLObject)
-}

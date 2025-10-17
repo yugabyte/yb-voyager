@@ -22,7 +22,6 @@ import (
 	pg_query "github.com/pganalyze/pg_query_go/v6"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryissue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -242,7 +241,7 @@ order of statements after transformation:
 6. Other statements
 */
 
-func (t *Transformer) AddShardingStrategyForConstraints(stmts []*pg_query.RawStmt, hotspotPKOnTimestampRelatedTables *utils.StructMap[*sqlname.ObjectName, string]) ([]*pg_query.RawStmt, []string, []string, error) {
+func (t *Transformer) AddShardingStrategyForConstraints(stmts []*pg_query.RawStmt) ([]*pg_query.RawStmt, []string, []string, error) {
 	log.Infof("adding hash splitting on for pk constraints to the schema")
 	selectSetStatements := make([]*pg_query.RawStmt, 0)
 	createAndAlterTableWithPK := make([]*pg_query.RawStmt, 0)
@@ -252,6 +251,11 @@ func (t *Transformer) AddShardingStrategyForConstraints(stmts []*pg_query.RawStm
 
 	pkConstraintsOnTimestampOrDate := make([]string, 0)
 	otherPkConstraints := make([]string, 0)
+
+	tablesToColumnOnHotspotTypes, err := getTablesToColumnOnRangeTypes(stmts)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to get tables to column on hotspot types: %v", err)
+	}
 
 	for _, stmt := range stmts {
 		if queryparser.IsSelectStmt(stmt) || queryparser.IsSetStmt(stmt) {
@@ -266,29 +270,29 @@ func (t *Transformer) AddShardingStrategyForConstraints(stmts []*pg_query.RawStm
 		case *queryparser.Table:
 			table, _ := ddlObject.(*queryparser.Table)
 			tableName := table.GetObjectName()
-			pkConstraintName := table.GetPKConstraintName()
-			if pkConstraintName == "" {
+			pkConstraint := table.GetPKConstraint()
+			if pkConstraint.ConstraintName == "" {
 				//if the table doesn't have PK then no need to do further checks add it to create list and continue
 				createAndAlterTableWithPK = append(createAndAlterTableWithPK, stmt)
 				continue
 			}
 
-			isPKOnHotspotDatatype, err := t.checkIfPrimaryKeyOnHotspotDatatype(tableName, pkConstraintName, hotspotPKOnTimestampRelatedTables)
+			isPKOnHotspotDatatype, err := t.checkIfPrimaryKeyOnRangeDatatype(tableName, pkConstraint.Columns, tablesToColumnOnHotspotTypes)
 			if err != nil {
 				return nil, nil, nil, fmt.Errorf("failed to check if primary key on hotspot datatype: %v", err)
 			}
 			if isPKOnHotspotDatatype {
-				pkConstraintsOnTimestampOrDate = append(pkConstraintsOnTimestampOrDate, pkConstraintName)
+				pkConstraintsOnTimestampOrDate = append(pkConstraintsOnTimestampOrDate, pkConstraint.ConstraintName)
 				createAndAlterTableWithPKOnTimestamp = append(createAndAlterTableWithPKOnTimestamp, stmt)
 			} else {
-				otherPkConstraints = append(otherPkConstraints, pkConstraintName)
+				otherPkConstraints = append(otherPkConstraints, pkConstraint.ConstraintName)
 				createAndAlterTableWithPK = append(createAndAlterTableWithPK, stmt)
 			}
 		case *queryparser.AlterTable:
 			alterTable, _ := ddlObject.(*queryparser.AlterTable)
 			switch alterTable.ConstraintType {
 			case queryparser.PRIMARY_CONSTR_TYPE:
-				isPKOnHotspotDatatype, err := t.checkIfPrimaryKeyOnHotspotDatatype(alterTable.GetObjectName(), alterTable.ConstraintName, hotspotPKOnTimestampRelatedTables)
+				isPKOnHotspotDatatype, err := t.checkIfPrimaryKeyOnRangeDatatype(alterTable.GetObjectName(), alterTable.ConstraintColumns, tablesToColumnOnHotspotTypes)
 				if err != nil {
 					return nil, nil, nil, fmt.Errorf("failed to check if primary key on hotspot datatype: %v", err)
 				}
@@ -331,15 +335,51 @@ func (t *Transformer) AddShardingStrategyForConstraints(stmts []*pg_query.RawStm
 
 }
 
-func (t *Transformer) checkIfPrimaryKeyOnHotspotDatatype(tableName string, pkConstraintName string, hotspotPKOnTimestampRelatedTables *utils.StructMap[*sqlname.ObjectName, string]) (bool, error) {
-	tableNameObj := sqlname.NewObjectNameWithQualifiedName(constants.POSTGRESQL, "", tableName)
-	constraintNameFromMap, ok := hotspotPKOnTimestampRelatedTables.Get(tableNameObj)
+const (
+	TIMESTAMPTZ = "timestamptz"
+	TIMESTAMP   = "timestamp"
+	DATE        = "date"
+)
+
+var RangeDatatypes = []string{
+	TIMESTAMPTZ,
+	TIMESTAMP,
+	DATE,
+}
+
+func getTablesToColumnOnRangeTypes(stmts []*pg_query.RawStmt) (map[string][]string, error) {
+	tablesToColumnOnHotspotTypes := map[string][]string{}
+	for _, stmt := range stmts {
+		ddlObject, err := queryparser.ProcessDDL(&pg_query.ParseResult{Stmts: []*pg_query.RawStmt{stmt}})
+		if err != nil {
+			return nil, fmt.Errorf("failed to process ddl: %v", err)
+		}
+		switch ddlObject.(type) {
+		case *queryparser.Table:
+			table, _ := ddlObject.(*queryparser.Table)
+			tableName := table.GetObjectName()
+			for _, columns := range table.Columns {
+				if slices.Contains(RangeDatatypes, columns.TypeName) {
+					tablesToColumnOnHotspotTypes[tableName] = append(tablesToColumnOnHotspotTypes[tableName], columns.ColumnName)
+				}
+			}
+		}
+	}
+	return tablesToColumnOnHotspotTypes, nil
+}
+
+func (t *Transformer) checkIfPrimaryKeyOnRangeDatatype(tableName string, pkConstraintCols []string, tablesToColumnOnHotspotTypes map[string][]string) (bool, error) {
+	columnsOnHotspotTypes, ok := tablesToColumnOnHotspotTypes[tableName]
 	if !ok {
 		return false, nil
 	}
-	if pkConstraintName != constraintNameFromMap {
+	if len(pkConstraintCols) == 0 {
 		return false, nil
 	}
-	log.Infof("primary key %s on table %s is on hotspot datatype, making it range sharded", pkConstraintName, tableName)
+	firstCol := pkConstraintCols[0]
+	if !slices.Contains(columnsOnHotspotTypes, firstCol) {
+		return false, nil
+	}
+	log.Infof("primary key first column - %s on table %s is on hotspot datatype, making it range sharded", firstCol, tableName)
 	return true, nil
 }

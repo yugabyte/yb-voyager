@@ -399,13 +399,13 @@ func (t *Table) PrimaryKeyColumns() []string {
 	return []string{}
 }
 
-func (t *Table) GetPKConstraintName() string {
+func (t *Table) GetPKConstraint() TableConstraint {
 	for _, constraint := range t.Constraints {
 		if constraint.ConstraintType == PRIMARY_CONSTR_TYPE {
-			return constraint.ConstraintName
+			return constraint
 		}
 	}
-	return ""
+	return TableConstraint{}
 }
 
 func (t *Table) UniqueKeyColumns() []string {

@@ -657,8 +657,8 @@ func TestHashSplittingChanges(t *testing.T) {
 				`SET client_min_messages TO warning;`,
 				`SET yb_use_hash_splitting_by_default TO ON;`,
 				`ALTER TABLE public.t_2 ADD CONSTRAINT pk1 PRIMARY KEY (id2);`,
-				`SET yb_use_hash_splitting_by_default TO OFF;`,
 				`ALTER TABLE public.t_4 ADD CONSTRAINT t_4_pk PRIMARY KEY (created_at);`,
+				`SET yb_use_hash_splitting_by_default TO OFF;`,
 				`ALTER TABLE public.t_2 ADD CONSTRAINT uk UNIQUE (id2);`,
 				`ALTER TABLE public.t_3 ADD CONSTRAINT uk1 UNIQUE (val);`,
 				`ALTER TABLE public.t_3 ADD CONSTRAINT fk FOREIGN KEY (id) REFERENCES public.t (id);`,
@@ -694,9 +694,6 @@ func TestHashSplittingChanges(t *testing.T) {
 		},
 	}
 
-	hotspotPKOnTimestampTabletoConstraintMap := utils.NewStructMap[*sqlname.ObjectName, string]()
-	hotspotPKOnTimestampTabletoConstraintMap.Put(sqlname.NewObjectNameWithQualifiedName(constants.POSTGRESQL, "", "public.t_4"), "t_4_pk")
-
 	for _, testCase := range cases {
 
 		sqlFileContent := testCase.sqlFileContent
@@ -707,7 +704,7 @@ func TestHashSplittingChanges(t *testing.T) {
 
 		transformer := NewTransformer()
 
-		transformedStmts, _, _, err := transformer.AddShardingStrategyForConstraints(parseTree.Stmts, hotspotPKOnTimestampTabletoConstraintMap)
+		transformedStmts, _, _, err := transformer.AddShardingStrategyForConstraints(parseTree.Stmts)
 		testutils.FatalIfError(t, err)
 
 		finalSqlStmts, err := queryparser.DeparseRawStmts(transformedStmts)
