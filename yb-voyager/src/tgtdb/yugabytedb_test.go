@@ -123,15 +123,15 @@ func TestYugabyteGetPrimaryKeyColumns(t *testing.T) {
 		expectedPKCols []string
 	}{
 		{
-			table:          sqlname.NameTuple{CurrentName: sqlname.NewObjectName(POSTGRESQL, "test_schema", "test_schema", "foo")},
+			table:          testutils.CreateNameTupleWithTargetName("test_schema.foo", "public", POSTGRESQL),
 			expectedPKCols: []string{"id", "category"},
 		},
 		{
-			table:          sqlname.NameTuple{CurrentName: sqlname.NewObjectName(POSTGRESQL, "test_schema", "test_schema", "bar")},
+			table:          testutils.CreateNameTupleWithTargetName("test_schema.bar", "public", POSTGRESQL),
 			expectedPKCols: []string{"id"},
 		},
 		{
-			table:          sqlname.NameTuple{CurrentName: sqlname.NewObjectName(POSTGRESQL, "test_schema", "test_schema", "baz")},
+			table:          testutils.CreateNameTupleWithTargetName("test_schema.baz", "public", POSTGRESQL),
 			expectedPKCols: nil,
 		},
 	}
@@ -182,18 +182,18 @@ func TestYugabyteGetNonEmptyTables(t *testing.T) {
 	defer testYugabyteDBTarget.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
 
 	tables := []sqlname.NameTuple{
-		{CurrentName: sqlname.NewObjectName(YUGABYTEDB, "test_schema", "test_schema", "foo")},
-		{CurrentName: sqlname.NewObjectName(YUGABYTEDB, "test_schema", "test_schema", "bar")},
-		{CurrentName: sqlname.NewObjectName(YUGABYTEDB, "test_schema", "test_schema", "unique_table")},
-		{CurrentName: sqlname.NewObjectName(YUGABYTEDB, "test_schema", "test_schema", "table1")},
-		{CurrentName: sqlname.NewObjectName(YUGABYTEDB, "test_schema", "test_schema", "table2")},
-		{CurrentName: sqlname.NewObjectName(YUGABYTEDB, "test_schema", "test_schema", "non_pk1")},
-		{CurrentName: sqlname.NewObjectName(YUGABYTEDB, "test_schema", "test_schema", "non_pk2")},
+		testutils.CreateNameTupleWithTargetName("test_schema.foo", "public", YUGABYTEDB),
+		testutils.CreateNameTupleWithTargetName("test_schema.bar", "public", YUGABYTEDB),
+		testutils.CreateNameTupleWithTargetName("test_schema.unique_table", "public", YUGABYTEDB),
+		testutils.CreateNameTupleWithTargetName("test_schema.table1", "public", YUGABYTEDB),
+		testutils.CreateNameTupleWithTargetName("test_schema.table2", "public", YUGABYTEDB),
+		testutils.CreateNameTupleWithTargetName("test_schema.non_pk1", "public", YUGABYTEDB),
+		testutils.CreateNameTupleWithTargetName("test_schema.non_pk2", "public", YUGABYTEDB),
 	}
 
 	expectedTables := []sqlname.NameTuple{
-		{CurrentName: sqlname.NewObjectName(YUGABYTEDB, "test_schema", "test_schema", "foo")},
-		{CurrentName: sqlname.NewObjectName(YUGABYTEDB, "test_schema", "test_schema", "bar")},
+		testutils.CreateNameTupleWithTargetName("test_schema.foo", "public", YUGABYTEDB),
+		testutils.CreateNameTupleWithTargetName("test_schema.bar", "public", YUGABYTEDB),
 	}
 
 	actualTables := testYugabyteDBTarget.GetNonEmptyTables(tables)
@@ -201,7 +201,7 @@ func TestYugabyteGetNonEmptyTables(t *testing.T) {
 	testutils.AssertEqualNameTuplesSlice(t, expectedTables, actualTables)
 }
 
-func TestGetPrimaryKeyConstraintNames(t *testing.T) {
+func TestYugabyteGetPrimaryKeyConstraintNames(t *testing.T) {
 	testYugabyteDBTarget.ExecuteSqls(
 		`CREATE SCHEMA test_schema;`,
 		`CREATE TABLE test_schema.foo (
@@ -262,31 +262,31 @@ func TestGetPrimaryKeyConstraintNames(t *testing.T) {
 		expectedPKNames []string
 	}{
 		{
-			table:           sqlname.NameTuple{CurrentName: sqlname.NewObjectName(POSTGRESQL, "test_schema", "test_schema", "foo")},
+			table:           testutils.CreateNameTupleWithTargetName("test_schema.foo", "public", POSTGRESQL),
 			expectedPKNames: []string{"foo_pkey"},
 		},
 		{
-			table:           sqlname.NameTuple{CurrentName: sqlname.NewObjectName(POSTGRESQL, "test_schema", "test_schema", "bar")},
+			table:           testutils.CreateNameTupleWithTargetName("test_schema.bar", "public", POSTGRESQL),
 			expectedPKNames: []string{"bar_primary_key"},
 		},
 		{
-			table:           sqlname.NameTuple{CurrentName: sqlname.NewObjectName(POSTGRESQL, "test_schema", "test_schema", "baz")},
+			table:           testutils.CreateNameTupleWithTargetName("test_schema.baz", "public", POSTGRESQL),
 			expectedPKNames: nil,
 		},
 		{
-			table:           sqlname.NameTuple{CurrentName: sqlname.NewObjectName(POSTGRESQL, "test_schema", "test_schema", "CASE_sensitive")},
+			table:           testutils.CreateNameTupleWithTargetName("test_schema.\"CASE_sensitive\"", "public", POSTGRESQL),
 			expectedPKNames: []string{"CASE_sensitive_pkey"},
 		},
 		{
-			table:           sqlname.NameTuple{CurrentName: sqlname.NewObjectName(POSTGRESQL, "public", "public", "sales_region")},
+			table:           testutils.CreateNameTupleWithTargetName("public.sales_region", "public", POSTGRESQL),
 			expectedPKNames: []string{"sales_region_pkey", "london_pkey", "sydney_pkey", "boston_pkey"},
 		},
 		{
-			table:           sqlname.NameTuple{CurrentName: sqlname.NewObjectName(POSTGRESQL, "test_schema", "test_schema", "EmP")},
+			table:           testutils.CreateNameTupleWithTargetName("test_schema.\"EmP\"", "public", POSTGRESQL),
 			expectedPKNames: []string{"EmP_pkey", "EmP_0_pkey", "EmP_1_pkey", "EmP_2_pkey"},
 		},
 		{
-			table: sqlname.NameTuple{CurrentName: sqlname.NewObjectName(POSTGRESQL, "public", "public", "customers")},
+			table: testutils.CreateNameTupleWithTargetName("public.customers", "public", POSTGRESQL),
 			expectedPKNames: []string{"customers_pkey", "cust_active_pkey", "cust_other_pkey", "cust_arr_small_pkey",
 				"cust_part11_pkey", "cust_part12_pkey", "cust_arr_large_pkey", "cust_part21_pkey", "cust_part22_pkey"},
 		},
@@ -508,6 +508,88 @@ func runPgStatStatementsTest(t *testing.T, testQueries map[string]struct {
 	}
 }
 
+func TestYugabyteGetIdentityColumnNamesForTables(t *testing.T) {
+	testYugabyteDBTarget.ExecuteSqls(
+		`CREATE SCHEMA test_schema;`,
+		`CREATE TABLE test_schema.always_table (
+			id1 INT GENERATED ALWAYS AS IDENTITY,
+			id2 INT GENERATED ALWAYS AS IDENTITY,
+			data TEXT
+		);`,
+		`CREATE TABLE test_schema.bydefault_table (
+			id1 INT GENERATED BY DEFAULT AS IDENTITY,
+			id2 INT GENERATED BY DEFAULT AS IDENTITY,
+			data TEXT
+		);`,
+		`CREATE TABLE test_schema.mixed_table (
+			always_col INT GENERATED ALWAYS AS IDENTITY,
+			bydefault_col INT GENERATED BY DEFAULT AS IDENTITY,
+			regular_col INT,
+			data TEXT
+		);`,
+		`CREATE TABLE test_schema.no_identity_table (
+			id INT PRIMARY KEY,
+			data TEXT
+		);`,
+	)
+	defer testYugabyteDBTarget.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
+
+	tableTuplesList := []sqlname.NameTuple{
+		testutils.CreateNameTupleWithTargetName("test_schema.always_table", "public", YUGABYTEDB),
+		testutils.CreateNameTupleWithTargetName("test_schema.bydefault_table", "public", YUGABYTEDB),
+		testutils.CreateNameTupleWithTargetName("test_schema.mixed_table", "public", YUGABYTEDB),
+		testutils.CreateNameTupleWithTargetName("test_schema.no_identity_table", "public", YUGABYTEDB),
+	}
+
+	// Expected results for ALWAYS identity columns
+	expectedAlways := map[string][]string{
+		"always_table": {"id1", "id2"},
+		"mixed_table":  {"always_col"},
+	}
+
+	// Expected results for BY DEFAULT identity columns
+	expectedByDefault := map[string][]string{
+		"bydefault_table": {"id1", "id2"},
+		"mixed_table":     {"bydefault_col"},
+	}
+
+	// Test 1: Get ALWAYS identity columns
+	tableColsStructMap, err := testYugabyteDBTarget.GetIdentityColumnNamesForTables(tableTuplesList, constants.IDENTITY_GENERATION_ALWAYS)
+	assert.NoError(t, err)
+
+	// Verify ALWAYS results
+	for _, tableTuple := range tableTuplesList {
+		_, tableName := tableTuple.ForCatalogQuery()
+		expectedCols, shouldExist := expectedAlways[tableName]
+		actualCols, exists := tableColsStructMap.Get(tableTuple)
+
+		if shouldExist {
+			assert.True(t, exists, "Expected ALWAYS identity columns for table %s", tableName)
+			testutils.AssertEqualStringSlices(t, expectedCols, actualCols)
+		} else {
+			assert.False(t, exists, "Expected no ALWAYS identity columns for table %s", tableName)
+		}
+	}
+
+	// Test 2: Get BY DEFAULT identity columns
+	tableColsStructMapByDefault, err := testYugabyteDBTarget.GetIdentityColumnNamesForTables(tableTuplesList, constants.IDENTITY_GENERATION_BY_DEFAULT)
+	assert.NoError(t, err)
+
+	// Verify BY DEFAULT results
+	for _, tableTuple := range tableTuplesList {
+		_, tableName := tableTuple.ForCatalogQuery()
+		expectedCols, shouldExist := expectedByDefault[tableName]
+		actualCols, exists := tableColsStructMapByDefault.Get(tableTuple)
+
+		if shouldExist {
+			assert.True(t, exists, "Expected BY DEFAULT identity columns for table %s", tableName)
+			testutils.AssertEqualStringSlices(t, expectedCols, actualCols)
+		} else {
+			assert.False(t, exists, "Expected no BY DEFAULT identity columns for table %s", tableName)
+		}
+	}
+}
+
 func TestYugabyteGetIdentityColumnNamesForTable(t *testing.T) {
 	// Initialize connection pool used by the function to be tested
 	yb := testYugabyteDBTarget.TargetDB.(*TargetYugabyteDB)
@@ -585,9 +667,7 @@ func TestYugabyteGetIdentityColumnNamesForTable(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tableNameTup := sqlname.NameTuple{
-				CurrentName: sqlname.NewObjectName(YUGABYTEDB, "test_schema", "test_schema", tt.tableName),
-			}
+			tableNameTup := testutils.CreateNameTupleWithTargetName("test_schema."+tt.tableName, "public", YUGABYTEDB)
 
 			actualCols, err := yb.GetIdentityColumnNamesForTable(tableNameTup, tt.identityType)
 			assert.NoError(t, err)
@@ -713,11 +793,8 @@ func getIdentityColumnTypes(db *sql.DB, schemaName, tableName string, columnName
 func createTableToColumnsStructMap(schemaName string, tables map[string][]string) *utils.StructMap[sqlname.NameTuple, []string] {
 	tableColumnsMap := utils.NewStructMap[sqlname.NameTuple, []string]()
 	for tableName, columns := range tables {
-		objName := sqlname.NewObjectName(YUGABYTEDB, schemaName, schemaName, tableName)
-		tableNameTup := sqlname.NameTuple{
-			CurrentName: objName,
-			SourceName:  objName, // ForKey() method requires either SourceName or TargetName
-		}
+		qualifiedName := schemaName + "." + tableName
+		tableNameTup := testutils.CreateNameTupleWithTargetName(qualifiedName, "public", YUGABYTEDB)
 		tableColumnsMap.Put(tableNameTup, columns)
 	}
 	return tableColumnsMap
