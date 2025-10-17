@@ -598,14 +598,14 @@ func TestExportSchemaSchemaOptimizationReportWithHashSplitting(t *testing.T) {
 		t.Errorf("Failed to read schema optimization report file: %v", err)
 	}
 	assert.NotNil(t, schemaOptimizationReport)
-	assert.NotNil(t, schemaOptimizationReport.PKHashSplittingChange)
-	assert.True(t, schemaOptimizationReport.PKHashSplittingChange.IsApplied)
-	assert.Equal(t, 2, len(schemaOptimizationReport.PKHashSplittingChange.ModifiedConstraints))
-	assert.NotNil(t, schemaOptimizationReport.PKOnTimestampRangeSplittingChange)
-	assert.True(t, schemaOptimizationReport.PKOnTimestampRangeSplittingChange.IsApplied)
-	assert.Equal(t, 1, len(schemaOptimizationReport.PKOnTimestampRangeSplittingChange.ModifiedConstraints))
-	assert.NotNil(t, schemaOptimizationReport.UKRangeSplittingChange)
-	assert.True(t, schemaOptimizationReport.UKRangeSplittingChange.IsApplied)
+	assert.NotNil(t, schemaOptimizationReport.PKHashShardingChange)
+	assert.True(t, schemaOptimizationReport.PKHashShardingChange.IsApplied)
+	assert.Equal(t, 2, len(schemaOptimizationReport.PKHashShardingChange.ModifiedTables))
+	assert.NotNil(t, schemaOptimizationReport.PKOnTimestampRangeShardingChange)
+	assert.True(t, schemaOptimizationReport.PKOnTimestampRangeShardingChange.IsApplied)
+	assert.Equal(t, 1, len(schemaOptimizationReport.PKOnTimestampRangeShardingChange.ModifiedTables))
+	assert.NotNil(t, schemaOptimizationReport.UKRangeShardingChange)
+	assert.True(t, schemaOptimizationReport.UKRangeShardingChange.IsApplied)
 
 	_, err = testutils.RunVoyagerCommand(yugabyteContainer, "import schema", []string{
 		"--export-dir", tempExportDir,
@@ -698,12 +698,12 @@ func TestExportSchemaSchemaOptimizationReportForHashSplittingWithoutPerfOptimiza
 		t.Errorf("Failed to read schema optimization report file: %v", err)
 	}
 	assert.NotNil(t, schemaOptimizationReport)
-	assert.NotNil(t, schemaOptimizationReport.PKHashSplittingChange)
-	assert.False(t, schemaOptimizationReport.PKHashSplittingChange.IsApplied)
-	assert.NotNil(t, schemaOptimizationReport.PKOnTimestampRangeSplittingChange)	
-	assert.False(t, schemaOptimizationReport.PKOnTimestampRangeSplittingChange.IsApplied)
-	assert.NotNil(t, schemaOptimizationReport.UKRangeSplittingChange)
-	assert.False(t, schemaOptimizationReport.UKRangeSplittingChange.IsApplied)
+	assert.NotNil(t, schemaOptimizationReport.PKHashShardingChange)
+	assert.False(t, schemaOptimizationReport.PKHashShardingChange.IsApplied)
+	assert.NotNil(t, schemaOptimizationReport.PKOnTimestampRangeShardingChange)
+	assert.False(t, schemaOptimizationReport.PKOnTimestampRangeShardingChange.IsApplied)
+	assert.NotNil(t, schemaOptimizationReport.UKRangeShardingChange)
+	assert.False(t, schemaOptimizationReport.UKRangeShardingChange.IsApplied)
 
 	_, err = testutils.RunVoyagerCommand(yugabyteContainer, "import schema", []string{
 		"--export-dir", tempExportDir,

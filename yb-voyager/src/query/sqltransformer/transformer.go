@@ -249,10 +249,10 @@ func (t *Transformer) AddShardingStrategyForConstraints(stmts []*pg_query.RawStm
 	AlterTableUKConstraints := make([]*pg_query.RawStmt, 0)
 	otherStatements := make([]*pg_query.RawStmt, 0)
 
-	pkConstraintsOnTimestampOrDate := make([]string, 0)
-	otherPkConstraints := make([]string, 0)
+	pkTablesOnTimestampOrDate := make([]string, 0)
+	pkTablesWithHashSharding := make([]string, 0)
 
-	tablesToColumnOnRangeTypes, err := getTablesToColumnOnRangeTypes(stmts)
+	tablesMap, err := getTablesMap(stmts)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to get tables to column on range types: %v", err)
 	}
@@ -276,31 +276,34 @@ func (t *Transformer) AddShardingStrategyForConstraints(stmts []*pg_query.RawStm
 				createAndAlterTableWithPK = append(createAndAlterTableWithPK, stmt)
 				continue
 			}
-
-			isPKOnRangeDatatype, err := t.checkIfPrimaryKeyOnRangeDatatype(tableName, pkConstraint.Columns, tablesToColumnOnRangeTypes)
+			isPKOnRangeDatatype, err := t.checkIfPrimaryKeyOnRangeDatatype(tableName, pkConstraint.Columns, table)
 			if err != nil {
 				return nil, nil, nil, fmt.Errorf("failed to check if primary key on range datatype: %v", err)
 			}
 			if isPKOnRangeDatatype {
-				pkConstraintsOnTimestampOrDate = append(pkConstraintsOnTimestampOrDate, pkConstraint.ConstraintName)
+				pkTablesOnTimestampOrDate = append(pkTablesOnTimestampOrDate, tableName)
 				createAndAlterTableWithPKOnTimestampOrDate = append(createAndAlterTableWithPKOnTimestampOrDate, stmt)
 			} else {
-				otherPkConstraints = append(otherPkConstraints, pkConstraint.ConstraintName)
+				pkTablesWithHashSharding = append(pkTablesWithHashSharding, tableName)
 				createAndAlterTableWithPK = append(createAndAlterTableWithPK, stmt)
 			}
 		case *queryparser.AlterTable:
 			alterTable, _ := ddlObject.(*queryparser.AlterTable)
 			switch alterTable.ConstraintType {
 			case queryparser.PRIMARY_CONSTR_TYPE:
-				isPKOnRangeDatatype, err := t.checkIfPrimaryKeyOnRangeDatatype(alterTable.GetObjectName(), alterTable.ConstraintColumns, tablesToColumnOnRangeTypes)
+				table, ok := tablesMap[alterTable.GetObjectName()]
+				if !ok {
+					return nil, nil, nil, fmt.Errorf("table %s not found in tables map", alterTable.GetObjectName())
+				}
+				isPKOnRangeDatatype, err := t.checkIfPrimaryKeyOnRangeDatatype(alterTable.GetObjectName(), alterTable.ConstraintColumns, table)
 				if err != nil {
 					return nil, nil, nil, fmt.Errorf("failed to check if primary key on range datatype: %v", err)
 				}
 				if isPKOnRangeDatatype {
-					pkConstraintsOnTimestampOrDate = append(pkConstraintsOnTimestampOrDate, alterTable.ConstraintName)
+					pkTablesOnTimestampOrDate = append(pkTablesOnTimestampOrDate, alterTable.GetObjectName())
 					createAndAlterTableWithPKOnTimestampOrDate = append(createAndAlterTableWithPKOnTimestampOrDate, stmt)
 				} else {
-					otherPkConstraints = append(otherPkConstraints, alterTable.ConstraintName)
+					pkTablesWithHashSharding = append(pkTablesWithHashSharding, alterTable.GetObjectName())
 					createAndAlterTableWithPK = append(createAndAlterTableWithPK, stmt)
 				}
 			case queryparser.UNIQUE_CONSTR_TYPE:
@@ -322,6 +325,7 @@ func (t *Transformer) AddShardingStrategyForConstraints(stmts []*pg_query.RawStm
 		return nil, nil, nil, fmt.Errorf("failed to parse hash splitting session variable off: %v", err)
 	}
 
+	//TODO: see how we can add comments in between statements to make the table.sql more readable
 	modifiedStmts := make([]*pg_query.RawStmt, 0)
 	modifiedStmts = append(modifiedStmts, selectSetStatements...)
 	modifiedStmts = append(modifiedStmts, hashSplittingSessionVariableOnParseTree.Stmts...)
@@ -331,7 +335,7 @@ func (t *Transformer) AddShardingStrategyForConstraints(stmts []*pg_query.RawStm
 	modifiedStmts = append(modifiedStmts, AlterTableUKConstraints...)
 	modifiedStmts = append(modifiedStmts, otherStatements...)
 
-	return modifiedStmts, pkConstraintsOnTimestampOrDate, otherPkConstraints, nil
+	return modifiedStmts, pkTablesOnTimestampOrDate, pkTablesWithHashSharding, nil
 
 }
 
@@ -347,8 +351,8 @@ var RangeDatatypes = []string{
 	DATE,
 }
 
-func getTablesToColumnOnRangeTypes(stmts []*pg_query.RawStmt) (map[string][]string, error) {
-	tablesToColumnOnHotspotTypes := map[string][]string{}
+func getTablesMap(stmts []*pg_query.RawStmt) (map[string]*queryparser.Table, error) {
+	tablesMap := map[string]*queryparser.Table{}
 	for _, stmt := range stmts {
 		ddlObject, err := queryparser.ProcessDDL(&pg_query.ParseResult{Stmts: []*pg_query.RawStmt{stmt}})
 		if err != nil {
@@ -358,26 +362,19 @@ func getTablesToColumnOnRangeTypes(stmts []*pg_query.RawStmt) (map[string][]stri
 		case *queryparser.Table:
 			table, _ := ddlObject.(*queryparser.Table)
 			tableName := table.GetObjectName()
-			for _, columns := range table.Columns {
-				if slices.Contains(RangeDatatypes, columns.TypeName) {
-					tablesToColumnOnHotspotTypes[tableName] = append(tablesToColumnOnHotspotTypes[tableName], columns.ColumnName)
-				}
-			}
+			tablesMap[tableName] = table
 		}
 	}
-	return tablesToColumnOnHotspotTypes, nil
+	return tablesMap, nil
 }
 
-func (t *Transformer) checkIfPrimaryKeyOnRangeDatatype(tableName string, pkConstraintCols []string, tablesToColumnOnHotspotTypes map[string][]string) (bool, error) {
-	columnsOnHotspotTypes, ok := tablesToColumnOnHotspotTypes[tableName]
-	if !ok {
-		return false, nil
-	}
+func (t *Transformer) checkIfPrimaryKeyOnRangeDatatype(tableName string, pkConstraintCols []string, table *queryparser.Table) (bool, error) {
 	if len(pkConstraintCols) == 0 {
 		return false, nil
 	}
 	firstCol := pkConstraintCols[0]
-	if !slices.Contains(columnsOnHotspotTypes, firstCol) {
+	firstColType := table.GetColumnType(firstCol)
+	if !slices.Contains(RangeDatatypes, firstColType) {
 		return false, nil
 	}
 	log.Infof("primary key first column - %s on table %s is on hotspot datatype, making it range sharded", firstCol, tableName)

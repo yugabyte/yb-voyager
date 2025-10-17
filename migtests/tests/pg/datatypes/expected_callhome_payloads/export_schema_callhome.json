@@ -27,16 +27,21 @@
         {
             "is_applied": true,
             "objects": [
-                "constraint_1b9ffa36f0072665",
-                "constraint_3bda510ee080c8b0",
-                "constraint_3ec8f5e1c99d9993",
-                "constraint_4893da97e0a8d106",
-                "constraint_72b9b16b28db6df6",
-                "constraint_af3cc8ea370e5265",
-                "constraint_b1643d0711543ecc",
-                "constraint_e59501aab6ea8c89"
+                "schema_d7108fd530c9b1c2.table_02c317b0d719af0a",
+                "schema_d7108fd530c9b1c2.table_1b6e8818ac9f79cd",
+                "schema_d7108fd530c9b1c2.table_21db0ebbe3eff1c5",
+                "schema_d7108fd530c9b1c2.table_269b49de7ff38a13",
+                "schema_d7108fd530c9b1c2.table_834e77f39ce395fc",
+                "schema_d7108fd530c9b1c2.table_8dfb93d104511155",
+                "schema_d7108fd530c9b1c2.table_9dd5bddb143fd318",
+                "schema_d7108fd530c9b1c2.table_9fa19d27ea64c7a6"
             ],
             "optimization_type": "pk_hash_splitting"
+        },
+        {
+            "is_applied": true,
+            "objects": [],
+            "optimization_type": "pk_on_timestamp_or_date_range_sharding"
         },
         {
             "is_applied": true,

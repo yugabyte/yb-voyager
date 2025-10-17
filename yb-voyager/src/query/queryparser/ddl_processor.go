@@ -399,6 +399,15 @@ func (t *Table) PrimaryKeyColumns() []string {
 	return []string{}
 }
 
+func (t *Table) GetColumnType(colName string) string {
+	for _, col := range t.Columns {
+		if col.ColumnName == colName {
+			return col.TypeName
+		}
+	}
+	return ""
+}
+
 func (t *Table) GetPKConstraint() TableConstraint {
 	for _, constraint := range t.Constraints {
 		if constraint.ConstraintType == PRIMARY_CONSTR_TYPE {

@@ -437,20 +437,20 @@
                </div>
             {{ end }}
 
-            {{ if .PKHashSplittingChange }}
-            <div class="optimization-section {{if .PKHashSplittingChange.IsApplied}}applied{{else}}not-applied{{end}}">
+            {{ if .PKHashShardingChange }}
+            <div class="optimization-section {{if .PKHashShardingChange.IsApplied}}applied{{else}}not-applied{{end}}">
                   <h3>
-                     {{if .PKHashSplittingChange.IsApplied}}✅ {{else}}⚠️ {{end}}
-                     {{.PKHashSplittingChange.Title}}
+                     {{if .PKHashShardingChange.IsApplied}}✅ {{else}}⚠️ {{end}}
+                     {{.PKHashShardingChange.Title}}
                   </h3>
-               <pre>{{ replaceLinks .PKHashSplittingChange.Description .PKHashSplittingChange.HyperLinksInDescription}}</pre>
-               {{ if and (.PKHashSplittingChange.IsApplied) (.PKHashSplittingChange.ModifiedConstraints) }}
+               <pre>{{ replaceLinks .PKHashShardingChange.Description .PKHashShardingChange.HyperLinksInDescription}}</pre>
+               {{ if and (.PKHashShardingChange.IsApplied) (.PKHashShardingChange.ModifiedTables) }}
                   <details>
                      <summary>Details</summary>
                      <table>
                         <thead>
                            <tr>
-                              <th class="centered-cell">Constraints</th>
+                              <th class="centered-cell">Tables</th>
                            </tr>
                         </thead>
                         <tbody>
@@ -458,7 +458,7 @@
                               <td>
                                  <div class="scrollable-div no-wrap-list">
                                     <ul>
-                                       {{range $idx, $cons := .PKHashSplittingChange.ModifiedConstraints }}
+                                       {{range $idx, $cons := .PKHashShardingChange.ModifiedTables }}
                                           <li>{{ $cons }}</li>
                                        {{end}}
                                     </ul>
@@ -472,20 +472,20 @@
             </div>
             {{ end }}
 
-            {{ if .PKOnTimestampRangeSplittingChange }}
-            <div class="optimization-section {{if .PKOnTimestampRangeSplittingChange.IsApplied}}applied{{else}}not-applied{{end}}">
+            {{ if .PKOnTimestampRangeShardingChange }}
+            <div class="optimization-section {{if .PKOnTimestampRangeShardingChange.IsApplied}}applied{{else}}not-applied{{end}}">
                   <h3>
-                     {{if .PKOnTimestampRangeSplittingChange.IsApplied}}✅ {{else}}⚠️ {{end}}
-                     {{.PKOnTimestampRangeSplittingChange.Title}}
+                     {{if .PKOnTimestampRangeShardingChange.IsApplied}}✅ {{else}}⚠️ {{end}}
+                     {{.PKOnTimestampRangeShardingChange.Title}}
                   </h3>
-               <pre>{{ replaceLinks .PKOnTimestampRangeSplittingChange.Description .PKOnTimestampRangeSplittingChange.HyperLinksInDescription}}</pre>
-               {{ if and (.PKOnTimestampRangeSplittingChange.IsApplied) (.PKOnTimestampRangeSplittingChange.ModifiedConstraints) }}
+               <pre>{{ replaceLinks .PKOnTimestampRangeShardingChange.Description .PKOnTimestampRangeShardingChange.HyperLinksInDescription}}</pre>
+               {{ if and (.PKOnTimestampRangeShardingChange.IsApplied) (.PKOnTimestampRangeShardingChange.ModifiedTables) }}
                   <details>
                      <summary>Details</summary>
                      <table>
                         <thead>
                            <tr>
-                              <th class="centered-cell">Constraints</th>
+                              <th class="centered-cell">Tables</th>
                            </tr>
                         </thead>
                         <tbody>
@@ -493,7 +493,7 @@
                               <td> 
                                  <div class="scrollable-div no-wrap-list">
                                    <ul>
-                                     {{range $idx, $cons := .PKOnTimestampRangeSplittingChange.ModifiedConstraints }}
+                                     {{range $idx, $cons := .PKOnTimestampRangeShardingChange.ModifiedTables }}
                                        <li>{{ $cons }}</li>
                                      {{end}}
                                    </ul>
@@ -507,13 +507,13 @@
             </div>
             {{ end }}
 
-            {{ if .UKRangeSplittingChange }}
-            <div class="optimization-section {{if .UKRangeSplittingChange.IsApplied}}applied{{else}}not-applied{{end}}">
+            {{ if .UKRangeShardingChange }}
+            <div class="optimization-section {{if .UKRangeShardingChange.IsApplied}}applied{{else}}not-applied{{end}}">
                   <h3>
-                     {{if .UKRangeSplittingChange.IsApplied}}✅ {{else}}⚠️ {{end}}
-                     {{.UKRangeSplittingChange.Title}}
+                     {{if .UKRangeShardingChange.IsApplied}}✅ {{else}}⚠️ {{end}}
+                     {{.UKRangeShardingChange.Title}}
                   </h3>
-               <pre>{{ replaceLinks .UKRangeSplittingChange.Description .UKRangeSplittingChange.HyperLinksInDescription}}</pre>
+               <pre>{{ replaceLinks .UKRangeShardingChange.Description .UKRangeShardingChange.HyperLinksInDescription}}</pre>
             </div>
             {{ end }}
 

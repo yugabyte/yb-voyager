@@ -377,7 +377,7 @@ const (
 	SECONDARY_INDEX_TO_RANGE_CHANGE_TYPE                = "secondary_index_to_range"
 	PK_HASH_SPLITTING_CHANGE_TYPE                       = "pk_hash_splitting"
 	UK_RANGE_SPLITTING_CHANGE_TYPE                      = "uk_range_splitting"
-	PK_ON_TIMESTAMP_OR_DATE_RANGE_SPLITTING_CHANGE_TYPE = "pk_on_timestamp_or_date_range_splitting"
+	PK_ON_TIMESTAMP_OR_DATE_RANGE_SPLITTING_CHANGE_TYPE = "pk_on_timestamp_or_date_range_sharding"
 )
 
 func packAndSendExportSchemaPayload(status string, errorMsg error) {
@@ -468,24 +468,24 @@ func buildCallhomeSchemaOptimizationChanges() []callhome.SchemaOptimizationChang
 			Objects:          getAnonymizedIndexObjectsFromIndexToTableMap(schemaOptimizationReport.SecondaryIndexToRangeChange.ModifiedIndexes),
 		})
 	}
-	if schemaOptimizationReport.PKHashSplittingChange.Exist() {
+	if schemaOptimizationReport.PKHashShardingChange.Exist() {
 		schemaOptimizationChanges = append(schemaOptimizationChanges, callhome.SchemaOptimizationChange{
 			OptimizationType: PK_HASH_SPLITTING_CHANGE_TYPE,
-			IsApplied:        schemaOptimizationReport.PKHashSplittingChange.IsApplied,
-			Objects:          getAnonymizedConstraintNamesFromConstraints(schemaOptimizationReport.PKHashSplittingChange.ModifiedConstraints),
+			IsApplied:        schemaOptimizationReport.PKHashShardingChange.IsApplied,
+			Objects:          anonymizeQualifiedTableNames(schemaOptimizationReport.PKHashShardingChange.ModifiedTables),
 		})
 	}
-	if schemaOptimizationReport.PKOnTimestampRangeSplittingChange.Exist() {
+	if schemaOptimizationReport.PKOnTimestampRangeShardingChange.Exist() {
 		schemaOptimizationChanges = append(schemaOptimizationChanges, callhome.SchemaOptimizationChange{
 			OptimizationType: PK_ON_TIMESTAMP_OR_DATE_RANGE_SPLITTING_CHANGE_TYPE,
-			IsApplied:        schemaOptimizationReport.PKOnTimestampRangeSplittingChange.IsApplied,
-			Objects:          getAnonymizedConstraintNamesFromConstraints(schemaOptimizationReport.PKOnTimestampRangeSplittingChange.ModifiedConstraints),
+			IsApplied:        schemaOptimizationReport.PKOnTimestampRangeShardingChange.IsApplied,
+			Objects:          anonymizeQualifiedTableNames(schemaOptimizationReport.PKOnTimestampRangeShardingChange.ModifiedTables),
 		})
 	}
-	if schemaOptimizationReport.UKRangeSplittingChange.Exist() {
+	if schemaOptimizationReport.UKRangeShardingChange.Exist() {
 		schemaOptimizationChanges = append(schemaOptimizationChanges, callhome.SchemaOptimizationChange{
 			OptimizationType: UK_RANGE_SPLITTING_CHANGE_TYPE,
-			IsApplied:        schemaOptimizationReport.UKRangeSplittingChange.IsApplied,
+			IsApplied:        schemaOptimizationReport.UKRangeShardingChange.IsApplied,
 			Objects:          []string{},
 		})
 	}
