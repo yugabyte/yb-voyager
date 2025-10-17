@@ -380,12 +380,14 @@
                            {{range $table, $indexes := .RedundantIndexChange.TableToRemovedIndexesMap}}
                               <tr>
                                  <td>{{$table}}</td>
-                                 <td class="scrollable-div">
-                                    <ul>
-                                       {{range $indexes}}
-                                          <li>{{.}}</li>
-                                       {{end}}
-                                    </ul>
+                                 <td>
+                                   <div class="scrollable-div">
+                                        <ul>
+                                          {{range $indexes}}
+                                             <li>{{.}}</li>
+                                          {{end}}
+                                       </ul>
+                                   </div>
                                  </td>
                               </tr>
                            {{end}}
@@ -417,12 +419,14 @@
                            {{range $table, $indexes := .SecondaryIndexToRangeChange.ModifiedIndexes}}
                               <tr>
                                  <td>{{$table}}</td>
-                                 <td class="scrollable-div">
-                                    <ul>
-                                       {{range $indexes}}
-                                          <li>{{.}}</li>
-                                       {{end}}
-                                    </ul>
+                                 <td>
+                                   <div class="scrollable-div">
+                                       <ul>
+                                          {{range $indexes}}
+                                             <li>{{.}}</li>
+                                          {{end}}
+                                       </ul>
+                                   </div>
                                  </td>
                               </tr>
                            {{end}}
@@ -452,11 +456,13 @@
                         <tbody>
                            <tr>
                               <td>
-                                 <ul>
-                                    {{range $idx, $cons := .PKHashSplittingChange.ModifiedConstraints }}
-                                       <li>{{ $cons }}</li>
-                                    {{end}}
-                                 </ul>
+                                 <div class="scrollable-div no-wrap-list">
+                                    <ul>
+                                       {{range $idx, $cons := .PKHashSplittingChange.ModifiedConstraints }}
+                                          <li>{{ $cons }}</li>
+                                       {{end}}
+                                    </ul>
+                                 </div>
                               </td>
                            </tr>
                         </tbody>
@@ -485,11 +491,13 @@
                         <tbody>
                            <tr>
                               <td> 
-                                 <ul>
-                                    {{range $idx, $cons := .PKOnTimestampRangeSplittingChange.ModifiedConstraints }}
+                                 <div class="scrollable-div no-wrap-list">
+                                   <ul>
+                                     {{range $idx, $cons := .PKOnTimestampRangeSplittingChange.ModifiedConstraints }}
                                        <li>{{ $cons }}</li>
-                                    {{end}}
-                                 </ul>
+                                     {{end}}
+                                   </ul>
+                                 </div>
                               </td>
                            </tr>
                         </tbody>

@@ -245,16 +245,16 @@ func (t *Transformer) AddShardingStrategyForConstraints(stmts []*pg_query.RawStm
 	log.Infof("adding hash splitting on for pk constraints to the schema")
 	selectSetStatements := make([]*pg_query.RawStmt, 0)
 	createAndAlterTableWithPK := make([]*pg_query.RawStmt, 0)
-	createAndAlterTableWithPKOnTimestamp := make([]*pg_query.RawStmt, 0)
+	createAndAlterTableWithPKOnTimestampOrDate := make([]*pg_query.RawStmt, 0)
 	AlterTableUKConstraints := make([]*pg_query.RawStmt, 0)
 	otherStatements := make([]*pg_query.RawStmt, 0)
 
 	pkConstraintsOnTimestampOrDate := make([]string, 0)
 	otherPkConstraints := make([]string, 0)
 
-	tablesToColumnOnHotspotTypes, err := getTablesToColumnOnRangeTypes(stmts)
+	tablesToColumnOnRangeTypes, err := getTablesToColumnOnRangeTypes(stmts)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to get tables to column on hotspot types: %v", err)
+		return nil, nil, nil, fmt.Errorf("failed to get tables to column on range types: %v", err)
 	}
 
 	for _, stmt := range stmts {
@@ -277,13 +277,13 @@ func (t *Transformer) AddShardingStrategyForConstraints(stmts []*pg_query.RawStm
 				continue
 			}
 
-			isPKOnHotspotDatatype, err := t.checkIfPrimaryKeyOnRangeDatatype(tableName, pkConstraint.Columns, tablesToColumnOnHotspotTypes)
+			isPKOnRangeDatatype, err := t.checkIfPrimaryKeyOnRangeDatatype(tableName, pkConstraint.Columns, tablesToColumnOnRangeTypes)
 			if err != nil {
-				return nil, nil, nil, fmt.Errorf("failed to check if primary key on hotspot datatype: %v", err)
+				return nil, nil, nil, fmt.Errorf("failed to check if primary key on range datatype: %v", err)
 			}
-			if isPKOnHotspotDatatype {
+			if isPKOnRangeDatatype {
 				pkConstraintsOnTimestampOrDate = append(pkConstraintsOnTimestampOrDate, pkConstraint.ConstraintName)
-				createAndAlterTableWithPKOnTimestamp = append(createAndAlterTableWithPKOnTimestamp, stmt)
+				createAndAlterTableWithPKOnTimestampOrDate = append(createAndAlterTableWithPKOnTimestampOrDate, stmt)
 			} else {
 				otherPkConstraints = append(otherPkConstraints, pkConstraint.ConstraintName)
 				createAndAlterTableWithPK = append(createAndAlterTableWithPK, stmt)
@@ -292,13 +292,13 @@ func (t *Transformer) AddShardingStrategyForConstraints(stmts []*pg_query.RawStm
 			alterTable, _ := ddlObject.(*queryparser.AlterTable)
 			switch alterTable.ConstraintType {
 			case queryparser.PRIMARY_CONSTR_TYPE:
-				isPKOnHotspotDatatype, err := t.checkIfPrimaryKeyOnRangeDatatype(alterTable.GetObjectName(), alterTable.ConstraintColumns, tablesToColumnOnHotspotTypes)
+				isPKOnRangeDatatype, err := t.checkIfPrimaryKeyOnRangeDatatype(alterTable.GetObjectName(), alterTable.ConstraintColumns, tablesToColumnOnRangeTypes)
 				if err != nil {
-					return nil, nil, nil, fmt.Errorf("failed to check if primary key on hotspot datatype: %v", err)
+					return nil, nil, nil, fmt.Errorf("failed to check if primary key on range datatype: %v", err)
 				}
-				if isPKOnHotspotDatatype {
+				if isPKOnRangeDatatype {
 					pkConstraintsOnTimestampOrDate = append(pkConstraintsOnTimestampOrDate, alterTable.ConstraintName)
-					createAndAlterTableWithPKOnTimestamp = append(createAndAlterTableWithPKOnTimestamp, stmt)
+					createAndAlterTableWithPKOnTimestampOrDate = append(createAndAlterTableWithPKOnTimestampOrDate, stmt)
 				} else {
 					otherPkConstraints = append(otherPkConstraints, alterTable.ConstraintName)
 					createAndAlterTableWithPK = append(createAndAlterTableWithPK, stmt)
@@ -327,7 +327,7 @@ func (t *Transformer) AddShardingStrategyForConstraints(stmts []*pg_query.RawStm
 	modifiedStmts = append(modifiedStmts, hashSplittingSessionVariableOnParseTree.Stmts...)
 	modifiedStmts = append(modifiedStmts, createAndAlterTableWithPK...)
 	modifiedStmts = append(modifiedStmts, hashSplittingSessionVariableOffParseTree.Stmts...)
-	modifiedStmts = append(modifiedStmts, createAndAlterTableWithPKOnTimestamp...)
+	modifiedStmts = append(modifiedStmts, createAndAlterTableWithPKOnTimestampOrDate...)
 	modifiedStmts = append(modifiedStmts, AlterTableUKConstraints...)
 	modifiedStmts = append(modifiedStmts, otherStatements...)
 

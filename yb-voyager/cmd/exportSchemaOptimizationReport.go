@@ -400,9 +400,13 @@ func generatePerformanceOptimizationReport(indexTransformer *sqltransformer.Inde
 	schemaOptimizationReport.SecondaryIndexToRangeChange = buildSecondaryIndexToRangeChange(indexTransformer)
 
 	shardingChangesApplied := tableTransformer.AppliedShardingChanges && !bool(skipPerfOptimizations)
-	
-	schemaOptimizationReport.PKHashSplittingChange = NewPKHashSplittingChange(shardingChangesApplied, tableTransformer.OtherPKConstraints)
-	schemaOptimizationReport.PKOnTimestampRangeSplittingChange = NewPKOnTimestampRangeSplittingChange(shardingChangesApplied, tableTransformer.PKConstraintsOnTimestampOrDate)
+
+	if len(tableTransformer.OtherPKConstraints) > 0 {
+		schemaOptimizationReport.PKHashSplittingChange = NewPKHashSplittingChange(shardingChangesApplied, tableTransformer.OtherPKConstraints)
+	}
+	if len(tableTransformer.PKConstraintsOnTimestampOrDate) > 0 {
+		schemaOptimizationReport.PKOnTimestampRangeSplittingChange = NewPKOnTimestampRangeSplittingChange(shardingChangesApplied, tableTransformer.PKConstraintsOnTimestampOrDate)
+	}
 	schemaOptimizationReport.UKRangeSplittingChange = NewUKRangeSplittingChange(shardingChangesApplied)
 
 	if schemaOptimizationReport.HasOptimizations() {
