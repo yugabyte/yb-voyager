@@ -26,7 +26,16 @@
         },
         {
             "is_applied": true,
-            "objects": [],
+            "objects": [
+                "constraint_1b9ffa36f0072665",
+                "constraint_3bda510ee080c8b0",
+                "constraint_3ec8f5e1c99d9993",
+                "constraint_4893da97e0a8d106",
+                "constraint_72b9b16b28db6df6",
+                "constraint_af3cc8ea370e5265",
+                "constraint_b1643d0711543ecc",
+                "constraint_e59501aab6ea8c89"
+            ],
             "optimization_type": "pk_hash_splitting"
         },
         {
