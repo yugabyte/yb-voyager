@@ -309,12 +309,24 @@ func TestPGStatStatementsQuery(t *testing.T) {
 			t.Parallel()
 			ctx := context.Background()
 
-			config := &testcontainers.ContainerConfig{
-				DBType:    testcontainers.YUGABYTEDB,
-				DBVersion: version,
+			var testDB *TestDB
+			var shouldCleanup bool
+			if version == testYugabyteDBTarget.GetConfig().DBVersion {
+				// Use shared container - don't destroy it
+				testDB = testYugabyteDBTarget
+				shouldCleanup = false
+			} else {
+				// Create new container for different version
+				config := &testcontainers.ContainerConfig{
+					DBType:    testcontainers.YUGABYTEDB,
+					DBVersion: version,
+				}
+				testDB = createTestDBTarget(ctx, config)
+				shouldCleanup = true
 			}
-			testDB := createTestDBTarget(ctx, config)
-			defer destroyTestDBTarget(ctx, testDB)
+			if shouldCleanup {
+				defer destroyTestDBTarget(ctx, testDB)
+			}
 
 			// Enable pg_stat_statements extension
 			testDB.ExecuteSqls(`CREATE EXTENSION IF NOT EXISTS pg_stat_statements;`)
