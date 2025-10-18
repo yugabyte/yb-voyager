@@ -1,0 +1,10 @@
+{
+    "control_plane_type": "",
+    "error": "",
+    "matched_queries": 0,
+    "payload_version": "1.0",
+    "query_metrics": null,
+    "source_only_queries": 76,
+    "target_only_queries": 89,
+    "total_queries": 165
+}

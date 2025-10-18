@@ -63,6 +63,8 @@ def check_validations_per_schema(tgt,schema_name):
 	assert fetched_triggers == ["audit_trigger",]
 
 	fetched_procedures_functions = tgt.fetch_all_procedures(schema_name)
+	# Filter out pg_stat_statements related functions
+	fetched_procedures_functions = [func for func in fetched_procedures_functions if not func.startswith('pg_stat_statements')]
 	print(f"count of fetched procedures/functions - {len(fetched_procedures_functions)}")
 	chk_conditions = (len(fetched_procedures_functions) == 40 and schema_name == 'schema2') or (len(fetched_procedures_functions) == 4 and schema_name == 'public')
 	assert chk_conditions == True

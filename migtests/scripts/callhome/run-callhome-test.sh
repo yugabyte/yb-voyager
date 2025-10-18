@@ -120,6 +120,11 @@ main() {
     step "Initialise database"
     ./init-db
 
+    if [ "${SOURCE_DB_TYPE}" = "postgresql" ]; then
+		step "Creating pg_stat_statements for the compare-performance command"
+		run_psql ${SOURCE_DB_NAME} "CREATE EXTENSION IF NOT EXISTS pg_stat_statements;"
+	fi
+
     step "Grant source database user permissions"
     grant_permissions "${SOURCE_DB_NAME}" "${SOURCE_DB_TYPE}" "${SOURCE_DB_SCHEMA}"
 
@@ -176,6 +181,12 @@ main() {
     step "Compare actual and expected finalize-schema callhome data"
     expected_file="${TEST_DIR}/expected_callhome_payloads/finalize_schema_callhome.json"
     compare_callhome_json_reports "${expected_file}" "finalize-schema"
+
+    step "Run Performance Comparison"
+    compare_performance --send-diagnostics=true
+    step "Compare actual and expected compare-performance callhome data"
+    expected_file="${TEST_DIR}/expected_callhome_payloads/compare_performance_callhome.json"
+    compare_callhome_json_reports "${expected_file}" "compare-performance"
 
     step "End Migration"
     end_migration --yes --send-diagnostics=true
