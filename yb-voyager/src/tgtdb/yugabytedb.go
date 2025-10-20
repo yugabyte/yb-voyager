@@ -1679,31 +1679,46 @@ func (yb *TargetYugabyteDB) EnableGeneratedByDefaultAsIdentityColumns(tableColum
 func (yb *TargetYugabyteDB) alterColumns(tableColumnsMap *utils.StructMap[sqlname.NameTuple, []string], alterAction string) error {
 	log.Infof("altering columns for action %s", alterAction)
 	return tableColumnsMap.IterKV(func(table sqlname.NameTuple, columns []string) (bool, error) {
+		// Build comma-separated ALTER COLUMN clauses for all columns in the table
+		var alterClauses []string
 		for _, column := range columns {
-			query := fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN %s %s`, table.ForUserQuery(), column, alterAction)
-			sleepIntervalSec := 10
-			for i := 0; i < ALTER_QUERY_RETRY_COUNT; i++ {
-				err := yb.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
-					// Execute the query to alter the column
-					_, err := conn.Exec(context.Background(), query)
-					if err != nil {
-						log.Errorf("executing query to alter columns for table(%s): %v", table.ForUserQuery(), err)
-						return false, fmt.Errorf("executing query to alter columns for table(%s): %w", table.ForUserQuery(), err)
-					}
-					return false, nil
-				})
+			alterClauses = append(alterClauses, fmt.Sprintf("ALTER COLUMN %s %s", column, alterAction))
+		}
 
+		/*
+			Single ALTER TABLE statement with all columns
+			Example:
+				ALTER TABLE table_name
+				ALTER COLUMN column1 SET GENERATED ALWAYS AS IDENTITY,
+				ALTER COLUMN column2 SET GENERATED ALWAYS AS IDENTITY,
+				ALTER COLUMN column3 SET GENERATED ALWAYS AS IDENTITY;
+		*/
+		query := fmt.Sprintf("ALTER TABLE %s %s", table.ForUserQuery(), strings.Join(alterClauses, ", "))
+		log.Infof("Executing ALTER TABLE with %d columns for table %s: [%s]", len(columns), table.ForUserQuery(), query)
+
+		// Retry logic at table level
+		sleepIntervalSec := 10
+		for i := 0; i < ALTER_QUERY_RETRY_COUNT; i++ {
+			err := yb.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
+				// Execute the query to alter all columns at once
+				_, err := conn.Exec(context.Background(), query)
 				if err != nil {
-					log.Errorf("error in altering columns for table(%s): %v", table.ForUserQuery(), err)
-					if !strings.Contains(err.Error(), "while reaching out to the tablet servers") {
-						return false, err
-					}
-					log.Infof("retrying after %d seconds for table(%s)", sleepIntervalSec, table.ForUserQuery())
-					time.Sleep(time.Duration(sleepIntervalSec) * time.Second)
-					continue
+					log.Errorf("executing query to alter columns for table(%s): %v", table.ForUserQuery(), err)
+					return false, fmt.Errorf("executing query to alter columns for table(%s): %w", table.ForUserQuery(), err)
 				}
-				break
+				return false, nil
+			})
+
+			if err != nil {
+				log.Errorf("error in altering columns for table(%s): %v", table.ForUserQuery(), err)
+				if !strings.Contains(err.Error(), "while reaching out to the tablet servers") {
+					return false, err
+				}
+				log.Infof("retrying after %d seconds for table(%s)", sleepIntervalSec, table.ForUserQuery())
+				time.Sleep(time.Duration(sleepIntervalSec) * time.Second)
+				continue
 			}
+			break
 		}
 
 		return true, nil
