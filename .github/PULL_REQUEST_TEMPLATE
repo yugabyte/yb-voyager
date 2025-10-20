@@ -19,21 +19,26 @@ Was any manual testing needed? If yes, is there a need to add integration tests 
 
 ### Does your PR have changes in callhome/yugabyted payloads? If so, is the payload version incremented?
 
-### Does your PR have changes that can cause upgrade issues? 
-| Component        | Breaking changes? |
-| :----------------------------------------------: | :-----------: |
-| MetaDB                                                    |  Yes/No |
-| Name registry json                                        |  Yes/No |
-| Data File Descriptor Json                                 |  Yes/No |
-| Export Snapshot Status Json                               |  Yes/No |
-| Import Data State                                         |  Yes/No |
-| Export Status Json                                        |  Yes/No |
-| Data .sql files of tables                                 |  Yes/No |
-| Export and import data queue                              |  Yes/No |
-| Schema Dump                                               |  Yes/No |
-| AssessmentDB                                              |  Yes/No |
-| Sizing DB                                                 |  Yes/No |
-| Migration Assessment Report Json                          |  Yes/No |
-| Callhome Json                                             |  Yes/No |
-| YugabyteD Tables                                          |  Yes/No |
-| TargetDB Metadata Tables                                  |  Yes/No |
+### Does your PR have changes to on-disk structures that can cause upgrade issues? 
+
+---
+
+### Reference
+#### On-disk structures potentially causing breaking changes:
+| Component        
+| :----------------------------------------------: | 
+| MetaDB                                           |
+| Name registry json                               |
+| Data File Descriptor Json                        |
+| Export Snapshot Status Json                      |
+| Import Data State                                |
+| Export Status Json                               |
+| Data .sql files of tables                        |
+| Export and import data queue                     |
+| Schema Dump                                      |
+| AssessmentDB                                     |
+| Sizing DB                                        |
+| Migration Assessment Report Json                 |
+| Callhome Json                                    |
+| YugabyteD Tables                                 |
+| TargetDB Metadata Tables                         |
