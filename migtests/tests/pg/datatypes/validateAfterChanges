@@ -23,8 +23,6 @@ BASE_EXPECTED_ROW_COUNT = {
     'hstore_example': 27,
     'tsvector_table': 4,
     'enum_array_table': 4,
-    # Note: tsvector_table and enum_array_table are NOT included for gRPC connector
-    # as they will be filtered out during migration
 }
 
 # Base expected row counts for FF (for gRPC connector)
@@ -39,15 +37,11 @@ BASE_EXPECTED_ROW_COUNT_FF = {
     'hstore_example': 27,
     'tsvector_table': 4,
     'enum_array_table': 4,
-    # Note: tsvector_table and enum_array_table are NOT included for gRPC connector
-    # as they will be filtered out during migration
 }
 
 # Replacement row counts when logical replication connector is used
 LOGICAL_REPLICATION_ROW_OVERRIDES = {
     'hstore_example': 29,
-    # These tables are ONLY migrated with logical connector
-    # After source_delta.sql: 3 initial + 2 inserts - 1 delete = 4
     'tsvector_table': 5,
     'enum_array_table': 5,
 }
