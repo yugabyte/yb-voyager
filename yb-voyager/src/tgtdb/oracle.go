@@ -706,36 +706,6 @@ func (tdb *TargetOracleDB) GetIdentityColumnNamesForTables(tableNameTuples []sql
 	return result, nil
 }
 
-func (tdb *TargetOracleDB) GetIdentityColumnNamesForTable(tableNameTup sqlname.NameTuple, identityType string) ([]string, error) {
-	sname, tname := tableNameTup.ForCatalogQuery()
-	query := fmt.Sprintf(`Select COLUMN_NAME from ALL_TAB_IDENTITY_COLS where OWNER = '%s'
-	AND TABLE_NAME = '%s' AND GENERATION_TYPE='%s'`, sname, tname, identityType)
-	log.Infof("query of identity(%s) columns for table(%s): %s", identityType, tableNameTup, query)
-	var identityColumns []string
-	err := tdb.WithConnFromPool(func(conn *sql.Conn) (bool, error) {
-		rows, err := conn.QueryContext(context.Background(), query)
-		if err != nil {
-			if err == sql.ErrNoRows {
-				return false, nil
-			}
-			log.Errorf("querying identity(%s) columns: %v", identityType, err)
-			return false, fmt.Errorf("querying identity(%s) columns: %w", identityType, err)
-		}
-		defer rows.Close()
-		for rows.Next() {
-			var colName string
-			err := rows.Scan(&colName)
-			if err != nil {
-				log.Errorf("scanning row for identity(%s) column name: %v", identityType, err)
-				return false, fmt.Errorf("scanning row for identity(%s) column name: %w", identityType, err)
-			}
-			identityColumns = append(identityColumns, colName)
-		}
-		return false, nil
-	})
-	return identityColumns, err
-}
-
 func (tdb *TargetOracleDB) DisableGeneratedAlwaysAsIdentityColumns(tableColumnsMap *utils.StructMap[sqlname.NameTuple, []string]) error {
 	log.Infof("disabling generated always as identity columns")
 	return tdb.alterColumns(tableColumnsMap, constants.ORACLE_GENERATED_BY_DEFAULT_AS_IDENTITY)

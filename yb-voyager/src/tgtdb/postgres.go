@@ -807,33 +807,6 @@ func (pg *TargetPostgreSQL) GetIdentityColumnNamesForTables(tableNameTuples []sq
 
 }
 
-func (pg *TargetPostgreSQL) GetIdentityColumnNamesForTable(tableNameTup sqlname.NameTuple, identityType string) ([]string, error) {
-	sname, tname := tableNameTup.ForCatalogQuery()
-	query := fmt.Sprintf(`SELECT column_name FROM information_schema.columns where table_schema='%s' AND
-		table_name='%s' AND is_identity='YES' AND identity_generation='%s'`, sname, tname, identityType)
-	log.Infof("query of identity(%s) columns for table(%s): %s", identityType, tableNameTup, query)
-	var identityColumns []string
-	err := pg.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
-		rows, err := conn.Query(context.Background(), query)
-		if err != nil {
-			log.Errorf("querying identity(%s) columns: %v", identityType, err)
-			return false, fmt.Errorf("querying identity(%s) columns: %w", identityType, err)
-		}
-		defer rows.Close()
-		for rows.Next() {
-			var colName string
-			err = rows.Scan(&colName)
-			if err != nil {
-				log.Errorf("scanning row for identity(%s) column name: %v", identityType, err)
-				return false, fmt.Errorf("scanning row for identity(%s) column name: %w", identityType, err)
-			}
-			identityColumns = append(identityColumns, colName)
-		}
-		return false, nil
-	})
-	return identityColumns, err
-}
-
 func (pg *TargetPostgreSQL) DisableGeneratedAlwaysAsIdentityColumns(tableColumnsMap *utils.StructMap[sqlname.NameTuple, []string]) error {
 	log.Infof("disabling generated always as identity columns")
 	return pg.alterColumns(tableColumnsMap, constants.PG_SET_GENERATED_BY_DEFAULT)

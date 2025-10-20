@@ -1422,22 +1422,6 @@ func restoreGeneratedByDefaultAsIdentityColumns(tables []sqlname.NameTuple) erro
 	return nil
 }
 
-// TODO: remove this
-func getIdentityColumnsForTables(tables []sqlname.NameTuple, identityType string) *utils.StructMap[sqlname.NameTuple, []string] {
-	var result = utils.NewStructMap[sqlname.NameTuple, []string]()
-	log.Infof("getting identity(%s) columns for tables: %v", identityType, tables)
-	for _, table := range tables {
-		identityColumns, err := tdb.GetIdentityColumnNamesForTable(table, identityType)
-		if err != nil {
-			utils.ErrExit("error in getting identity(%s) columns for table: %s: %w", identityType, table, err)
-		}
-		if len(identityColumns) > 0 {
-			log.Infof("identity(%s) columns for table %s: %v", identityType, table, identityColumns)
-			result.Put(table, identityColumns)
-		}
-	}
-	return result
-}
 
 func importFileTasksToTableNames(tasks []*ImportFileTask) []string {
 	tableNames := []string{}

@@ -1591,33 +1591,6 @@ func (yb *TargetYugabyteDB) MaxBatchSizeInBytes() int64 {
 	return utils.GetEnvAsInt64("MAX_BATCH_SIZE_BYTES", 200*1024*1024) //default: 200 * 1024 * 1024 MB
 }
 
-func (yb *TargetYugabyteDB) GetIdentityColumnNamesForTable(tableNameTup sqlname.NameTuple, identityType string) ([]string, error) {
-	sname, tname := tableNameTup.ForCatalogQuery()
-	query := fmt.Sprintf(`SELECT column_name FROM information_schema.columns where table_schema='%s' AND
-		table_name='%s' AND is_identity='YES' AND identity_generation='%s'`, sname, tname, identityType)
-	log.Infof("query of identity(%s) columns for table(%s): %s", identityType, tableNameTup, query)
-	var identityColumns []string
-	err := yb.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
-		rows, err := conn.Query(context.Background(), query)
-		if err != nil {
-			log.Errorf("querying identity(%s) columns: %v", identityType, err)
-			return false, fmt.Errorf("querying identity(%s) columns: %w", identityType, err)
-		}
-		defer rows.Close()
-		for rows.Next() {
-			var colName string
-			err = rows.Scan(&colName)
-			if err != nil {
-				log.Errorf("scanning row for identity(%s) column name: %v", identityType, err)
-				return false, fmt.Errorf("scanning row for identity(%s) column name: %w", identityType, err)
-			}
-			identityColumns = append(identityColumns, colName)
-		}
-		return false, nil
-	})
-	return identityColumns, err
-}
-
 func (yb *TargetYugabyteDB) GetIdentityColumnNamesForTables(tableNameTuples []sqlname.NameTuple, identityType string) (*utils.StructMap[sqlname.NameTuple, []string], error) {
 	result := utils.NewStructMap[sqlname.NameTuple, []string]()
 	if len(tableNameTuples) == 0 {
@@ -1678,7 +1651,6 @@ func (yb *TargetYugabyteDB) GetIdentityColumnNamesForTables(tableNameTuples []sq
 			log.Warnf("Found identity columns for table '%s' which was not in the original request", key)
 			continue
 		}
-		fmt.Printf("identityColumns for table %s: %v\n", tableNameTuple, identityColumns)
 		result.Put(tableNameTuple, identityColumns)
 	}
 	if err := rows.Err(); err != nil {
