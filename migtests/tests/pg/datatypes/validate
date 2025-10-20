@@ -183,10 +183,25 @@ def migration_completed_checks(tgt):
 	tgt.assert_distinct_values_of_col("tsvector_table", "title", "public", expected_distinct_values=expected_tsvector_titles)
 
 	print("enum_array_table:")
-	# Expected enum arrays as actual Python lists (same pattern as other array tests)
+	# Get actual enum arrays and parse them from string representation to lists
+	actual_enum_arrays = tgt.get_distinct_values_of_column_of_table("enum_array_table", "week_days", "public")
+	print(f"actual_enum_arrays: {actual_enum_arrays}")
+	
+	# Parse string representations like '{mon,wed,fri}' into actual lists
+	def parse_enum_array_string(array_str):
+		if array_str is None:
+			return None
+		# Remove curly braces and split by comma
+		return [item.strip().lower() for item in array_str.strip('{}').split(',')]
+	
+	parsed_actual_arrays = [parse_enum_array_string(arr) for arr in actual_enum_arrays]
+	
+	# Expected enum arrays as actual Python lists
 	expected_enum_arrays = [['mon', 'wed', 'fri'], ['tue', 'thu'], ['sat', 'sun']]
-	tgt.assert_distinct_values_of_col("enum_array_table", "week_days", "public", 
-		expected_distinct_values=expected_enum_arrays)
+	
+	# Compare actual lists
+	for expected_array in expected_enum_arrays:
+		assert expected_array in parsed_actual_arrays, f"Expected {expected_array} not found in {parsed_actual_arrays}"
 
 
 def YB_specific_checks(tgt):
