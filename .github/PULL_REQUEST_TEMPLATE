@@ -31,14 +31,13 @@ Was any manual testing needed? If yes, is there a need to add integration tests 
 | Name registry json                               |
 | Data File Descriptor Json                        |
 | Export Snapshot Status Json                      |
-| Import Data State                                |
-| Export Status Json                               |
-| Data .sql files of tables                        |
-| Export and import data queue                     |
-| Schema Dump                                      |
-| AssessmentDB                                     |
-| Sizing DB                                        |
-| Migration Assessment Report Json                 |
 | Callhome Json                                    |
+| Export Status Json                               |
 | YugabyteD Tables                                 |
 | TargetDB Metadata Tables                         |
+| Schema Dump                                      |
+| AssessmentDB                                     |
+| Migration Assessment Report Json                 |
+| Import Data State                                |
+| Export and import data queue                     |
+| Data .sql files of tables                        |
