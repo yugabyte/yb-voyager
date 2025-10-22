@@ -241,6 +241,14 @@ main() {
 	step "Verify data-migration-report report"
 	verify_report ${expected_file} ${actual_file}
 
+	if [ "${TEST_NAME}" != "pg/datatypes" ]; then
+		step "Run data validation"
+		data-validation connections add --connection-name pg_local Postgres --host ${SOURCE_DB_HOST} --port ${SOURCE_DB_PORT} --user ${SOURCE_DB_USER} --password ${SOURCE_DB_PASSWORD} --database ${SOURCE_DB_NAME}
+		data-validation connections add --connection-name yb_nodal Postgres --host ${TARGET_DB_HOST} --port ${TARGET_DB_PORT} --user ${TARGET_DB_USER} --password ${TARGET_DB_PASSWORD} --database ${TARGET_DB_NAME}
+		data-validation connections list
+		data-validation validate column --source-conn pg_local --target-conn yb_nodal -tbls 'public.*' -sum '*' -wis -wit -ctb | grep -i 'fail' && exit 1 || echo "No validation failures found"
+	fi
+
 	step "End Migration: clearing metainfo about state of migration from everywhere"
 	end_migration --yes
 

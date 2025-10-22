@@ -79,6 +79,7 @@ jobs:
           sudo apt install -y python3
           sudo apt install -y libpq-dev
           sudo apt install python3-psycopg2
+          pip install google-pso-data-validator
 
       - name: Run installer script to setup voyager
         run: |
