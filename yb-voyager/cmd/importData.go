@@ -891,7 +891,7 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 func runPKConflictModeGuardrails(state *ImportDataState, allTasks []*ImportFileTask) error {
 	// in case of ERROR mode, no need to check for non-empty tables
 	// but for IGNORE or UPDATE(in future), we need to prompt user
-	if tconf.OnPrimaryKeyConflictAction == constants.PRIMARY_KEY_CONFLICT_ACTION_ERROR {
+	if tconf.OnPrimaryKeyConflictAction == constants.PRIMARY_KEY_CONFLICT_ACTION_ERROR_POLICY {
 		return nil
 	}
 

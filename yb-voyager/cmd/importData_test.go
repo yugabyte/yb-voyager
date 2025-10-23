@@ -503,7 +503,7 @@ func TestImportData_FastPath_OnPrimaryKeyConflictsAsIgnore_AllDatatypesTest(t *t
 	importDataCmdArgs := []string{
 		"--export-dir", exportDir,
 		"--disable-pb", "true",
-		"--on-primary-key-conflict", "ERROR",
+		"--on-primary-key-conflict", "ERROR-POLICY",
 		"--yes",
 	}
 	// first run: import data command to load data from PG
