@@ -243,7 +243,7 @@ func TestTaskImportStachAndContinueErrorPolicy_SingleBatch_OnPkConflictIgnore(t 
 	setupYugabyteTestDb(t)
 	tconf.OnPrimaryKeyConflictAction = constants.PRIMARY_KEY_CONFLICT_ACTION_IGNORE
 	t.Cleanup(func() {
-		tconf.OnPrimaryKeyConflictAction = constants.PRIMARY_KEY_CONFLICT_ACTION_ERROR
+		tconf.OnPrimaryKeyConflictAction = constants.PRIMARY_KEY_CONFLICT_ACTION_ERROR_POLICY
 	})
 
 	defer testYugabyteDBTarget.Finalize()

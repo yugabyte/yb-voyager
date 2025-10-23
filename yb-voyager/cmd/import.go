@@ -420,10 +420,10 @@ func registerFlagsForTarget(cmd *cobra.Command) {
 		"Skips the monitoring of the disk usage on the target YugabyteDB cluster. "+
 			"By default, voyager will keep monitoring the disk usage on the nodes to keep the cluster stable.")
 
-	cmd.Flags().StringVar(&tconf.OnPrimaryKeyConflictAction, "on-primary-key-conflict", "ERROR",
-		`Action to take on primary key conflict during data import.
+	cmd.Flags().StringVar(&tconf.OnPrimaryKeyConflictAction, "on-primary-key-conflict", "ERROR-POLICY",
+		`Action to take on primary key conflict during data import during snapshot phase.
 Supported values:
-ERROR(default): Import in this mode fails if any primary key conflict is encountered, assuming such conflicts are unexpected.
+ERROR-POLICY(default): Handle error as per configured error-policy, if any primary key conflict is encountered.
 IGNORE		: Skip rows where the primary key already exists and continue importing remaining data.`)
 
 	cmd.Flags().MarkHidden("skip-disk-usage-health-checks")
@@ -494,7 +494,7 @@ func validateTruncateTablesFlag() error {
 }
 
 var onPrimaryKeyConflictActions = []string{
-	constants.PRIMARY_KEY_CONFLICT_ACTION_ERROR,
+	constants.PRIMARY_KEY_CONFLICT_ACTION_ERROR_POLICY,
 	constants.PRIMARY_KEY_CONFLICT_ACTION_IGNORE,
 	// constants.PRIMARY_KEY_CONFLICT_ACTION_UPDATE,
 }
@@ -537,8 +537,8 @@ func validateOnPrimaryKeyConflictFlag() error {
 	}
 
 	// restrict setting --enable-upsert as true if --on-primary-key-conflict is not set to ERROR
-	if tconf.EnableUpsert && tconf.OnPrimaryKeyConflictAction != constants.PRIMARY_KEY_CONFLICT_ACTION_ERROR {
-		return fmt.Errorf("--enable-upsert=true can only be used with --on-primary-key-conflict=ERROR")
+	if tconf.EnableUpsert && tconf.OnPrimaryKeyConflictAction != constants.PRIMARY_KEY_CONFLICT_ACTION_ERROR_POLICY {
+		return fmt.Errorf("--enable-upsert=true can only be used with --on-primary-key-conflict=ERROR-POLICY")
 	}
 
 	if tconf.OnPrimaryKeyConflictAction == constants.PRIMARY_KEY_CONFLICT_ACTION_IGNORE {

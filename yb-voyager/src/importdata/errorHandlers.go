@@ -34,7 +34,7 @@ const (
 	PROCESSING_ERRORS_BASE_NAME               = "processing-errors"
 	PROCESSING_ERRORS_LOG_FILE                = "processing-errors.log"
 	INGESTION_ERROR_PREFIX                    = "ingestion-error"
-	STASH_AND_CONTINUE_RECOMMENDATION_MESSAGE = "To continue with the import without aborting, set the configuration parameter `error-policy`/`error-policy-snapshot` to `stash-and-continue`"
+	STASH_AND_CONTINUE_RECOMMENDATION_MESSAGE = "To stash the errored rows and continue importing data without aborting, set the configuration parameter error-policy/error-policy-snapshot to `stash-and-continue`"
 )
 
 type ImportDataErrorHandler interface {

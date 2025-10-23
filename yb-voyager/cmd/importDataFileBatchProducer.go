@@ -20,6 +20,7 @@ import (
 	"io"
 	"sort"
 
+	"github.com/fatih/color"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
@@ -157,6 +158,7 @@ func (p *FileBatchProducer) produceNextBatch() (*Batch, error) {
 			}
 			errMsg := fmt.Errorf("record of size %d larger than max batch size: record num=%d for table %q in file %s is larger than the max batch size %d bytes. Max Batch size can be changed using env var MAX_BATCH_SIZE_BYTES%s", currentBytesRead, p.numLinesTaken, p.task.TableNameTup.ForOutput(), p.task.FilePath, tdb.MaxBatchSizeInBytes(), ybSpecificMsg)
 			if p.errorHandler.ShouldAbort() {
+				errMsg = fmt.Errorf("%w\n%s", errMsg, color.YellowString(importdata.STASH_AND_CONTINUE_RECOMMENDATION_MESSAGE))
 				return nil, errMsg
 			}
 			err := p.handleRowProcessingErrorAndResetBytes(batchNum, line, errMsg, currentBytesRead)
@@ -173,6 +175,7 @@ func (p *FileBatchProducer) produceNextBatch() (*Batch, error) {
 			if err != nil {
 				errMsg := fmt.Errorf("transforming line number=%d for table: %q in file %s: %s", p.numLinesTaken, p.task.TableNameTup.ForOutput(), p.task.FilePath, err)
 				if p.errorHandler.ShouldAbort() {
+					errMsg = fmt.Errorf("%w\n%s", errMsg, color.YellowString(importdata.STASH_AND_CONTINUE_RECOMMENDATION_MESSAGE))
 					return nil, errMsg
 				}
 				err := p.handleRowProcessingErrorAndResetBytes(batchNum, lineBeforeConversion, errMsg, currentBytesRead)

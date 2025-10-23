@@ -168,11 +168,11 @@ import-data-file:
   ### Default - 20000
   # batch-size: 20000
 
-  ### Action to take on primary key conflict during data import.
+  ### Action to take on primary key conflict during data import in snapshot phase.
   ### Accepted values:
-  ###   ERROR   : fail on any PK conflict (default)
-  ###   IGNORE  : skip rows where the primary key already exists and continue importing remaining data
-  # on-primary-key-conflict: ERROR
+  ###   ERROR-POLICY   : handle error as per configured error policy on any PK conflict (default)
+  ###   IGNORE         : skip rows where the primary key already exists and continue importing remaining data
+  # on-primary-key-conflict: ERROR-POLICY
 
   ### Log level for the command
   ### Note: This overrides the global log-level parameter for this command only.
