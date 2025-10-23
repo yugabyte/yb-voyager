@@ -700,9 +700,10 @@ output() {
 
 
 install_golang() {
+	GO_VERSION="1.24.2"
 	if [ -x ${GO} ]; then
 		gov=`go version | { read _ _ v _; echo ${v#go}; }`
-		version_ok=$(version_satisfied 1.23.1 "$gov")
+		version_ok=$(version_satisfied ${GO_VERSION} "$gov")
 		if [[ $version_ok -eq 1 ]]
 		then
 			output "Found golang=${gov}"
@@ -710,7 +711,6 @@ install_golang() {
 		fi
 	fi
 	export GOROOT="/tmp/go"
-	GO_VERSION="go1.23.1"
 	GO="$GOROOT/bin/go"
 
 	os=$1
@@ -722,8 +722,8 @@ install_golang() {
 		arch="amd64"
 	fi
 
-	file_name="${GO_VERSION}.${os}-${arch}.tar.gz"
-	output "Installing golang os=${os} arch=${arch} version=${GO_VERSION}."
+	file_name="go${GO_VERSION}.${os}-${arch}.tar.gz"
+	output "Installing golang os=${os} arch=${arch} version=go${GO_VERSION}."
 
 	wget -nv https://golang.org/dl/${file_name} 1>&2
 	rm -rf $GOROOT
