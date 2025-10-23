@@ -1,1 +1,4 @@
 /yb-voyager/src/utils/version.go export-subst
+
+# Exclude migration test files from language statistics
+migtests/tests/ linguist-generated
