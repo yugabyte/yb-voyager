@@ -33,6 +33,7 @@ import (
 	"github.com/goccy/go-json"
 	"github.com/google/uuid"
 	"github.com/jackc/pgconn"
+	"github.com/jackc/pgtype"
 	"github.com/jackc/pgx/v4"
 	pgconn5 "github.com/jackc/pgx/v5/pgconn"
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -1590,31 +1591,73 @@ func (yb *TargetYugabyteDB) MaxBatchSizeInBytes() int64 {
 	return utils.GetEnvAsInt64("MAX_BATCH_SIZE_BYTES", 200*1024*1024) //default: 200 * 1024 * 1024 MB
 }
 
-func (yb *TargetYugabyteDB) GetIdentityColumnNamesForTable(tableNameTup sqlname.NameTuple, identityType string) ([]string, error) {
-	sname, tname := tableNameTup.ForCatalogQuery()
-	query := fmt.Sprintf(`SELECT column_name FROM information_schema.columns where table_schema='%s' AND
-		table_name='%s' AND is_identity='YES' AND identity_generation='%s'`, sname, tname, identityType)
-	log.Infof("query of identity(%s) columns for table(%s): %s", identityType, tableNameTup, query)
-	var identityColumns []string
-	err := yb.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
-		rows, err := conn.Query(context.Background(), query)
+func (yb *TargetYugabyteDB) GetIdentityColumnNamesForTables(tableNameTuples []sqlname.NameTuple, identityType string) (*utils.StructMap[sqlname.NameTuple, []string], error) {
+	result := utils.NewStructMap[sqlname.NameTuple, []string]()
+	if len(tableNameTuples) == 0 {
+		return result, nil
+	}
+
+	// Build a single query to fetch identity columns for all tables at once
+	// Example query:
+	// SELECT table_schema, table_name, array_agg(column_name ORDER BY column_name) AS identity_columns
+	// FROM information_schema.columns
+	// WHERE (table_schema, table_name) IN (('public', 'users'), ('public', 'orders'), ('inventory', 'products'))
+	//   AND is_identity = 'YES'
+	//   AND identity_generation = 'ALWAYS'
+	// GROUP BY table_schema, table_name
+
+	var valuesClauses []string
+	tableNameMap := make(map[string]sqlname.NameTuple) // map to lookup table name tuples by schema and table name
+
+	for _, t := range tableNameTuples {
+		schema, table := t.ForCatalogQuery()
+		// Add to values for IN clause, e.g., "('my_schema','my_table')"
+		valuesClauses = append(valuesClauses, fmt.Sprintf("('%s', '%s')", schema, table))
+		tableNameMap[fmt.Sprintf("%s.%s", schema, table)] = t
+	}
+
+	query := fmt.Sprintf(`
+		SELECT table_schema, table_name, array_agg(column_name ORDER BY column_name) AS identity_columns
+		FROM information_schema.columns
+		WHERE (table_schema, table_name) IN (%s)
+		  AND is_identity = 'YES'
+		  AND identity_generation = '%s'
+		GROUP BY table_schema, table_name`,
+		strings.Join(valuesClauses, ", "), identityType)
+
+	log.Infof("Querying for identity columns for %d tables with type '%s'", len(tableNameTuples), identityType)
+	log.Debugf("Identity column query: %s", query)
+
+	rows, err := yb.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("error in getting identity(%s) columns for tables: %w", identityType, err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var schemaName, tableName string
+		var identityColumnsPgTypeArray pgtype.TextArray
+		err = rows.Scan(&schemaName, &tableName, &identityColumnsPgTypeArray)
 		if err != nil {
-			log.Errorf("querying identity(%s) columns: %v", identityType, err)
-			return false, fmt.Errorf("querying identity(%s) columns: %w", identityType, err)
+			return nil, fmt.Errorf("error in scanning row for identity(%s) columns: %w", identityType, err)
 		}
-		defer rows.Close()
-		for rows.Next() {
-			var colName string
-			err = rows.Scan(&colName)
-			if err != nil {
-				log.Errorf("scanning row for identity(%s) column name: %v", identityType, err)
-				return false, fmt.Errorf("scanning row for identity(%s) column name: %w", identityType, err)
-			}
-			identityColumns = append(identityColumns, colName)
+
+		identityColumns := utils.ConvertPgTextArrayToStringSlice(identityColumnsPgTypeArray)
+
+		key := fmt.Sprintf("%s.%s", schemaName, tableName)
+		tableNameTuple, ok := tableNameMap[key]
+		if !ok {
+			// This should not happen if the query is correct.
+			log.Warnf("Found identity columns for table '%s' which was not in the original request", key)
+			continue
 		}
-		return false, nil
-	})
-	return identityColumns, err
+		result.Put(tableNameTuple, identityColumns)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating over identity column results: %w", err)
+	}
+	return result, nil
+
 }
 
 func (yb *TargetYugabyteDB) DisableGeneratedAlwaysAsIdentityColumns(tableColumnsMap *utils.StructMap[sqlname.NameTuple, []string]) error {
@@ -1636,31 +1679,46 @@ func (yb *TargetYugabyteDB) EnableGeneratedByDefaultAsIdentityColumns(tableColum
 func (yb *TargetYugabyteDB) alterColumns(tableColumnsMap *utils.StructMap[sqlname.NameTuple, []string], alterAction string) error {
 	log.Infof("altering columns for action %s", alterAction)
 	return tableColumnsMap.IterKV(func(table sqlname.NameTuple, columns []string) (bool, error) {
+		// Build comma-separated ALTER COLUMN clauses for all columns in the table
+		var alterClauses []string
 		for _, column := range columns {
-			query := fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN %s %s`, table.ForUserQuery(), column, alterAction)
-			sleepIntervalSec := 10
-			for i := 0; i < ALTER_QUERY_RETRY_COUNT; i++ {
-				err := yb.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
-					// Execute the query to alter the column
-					_, err := conn.Exec(context.Background(), query)
-					if err != nil {
-						log.Errorf("executing query to alter columns for table(%s): %v", table.ForUserQuery(), err)
-						return false, fmt.Errorf("executing query to alter columns for table(%s): %w", table.ForUserQuery(), err)
-					}
-					return false, nil
-				})
+			alterClauses = append(alterClauses, fmt.Sprintf("ALTER COLUMN %s %s", column, alterAction))
+		}
 
+		/*
+			Single ALTER TABLE statement with all columns
+			Example:
+				ALTER TABLE table_name
+				ALTER COLUMN column1 SET GENERATED ALWAYS AS IDENTITY,
+				ALTER COLUMN column2 SET GENERATED ALWAYS AS IDENTITY,
+				ALTER COLUMN column3 SET GENERATED ALWAYS AS IDENTITY;
+		*/
+		query := fmt.Sprintf("ALTER TABLE %s %s", table.ForUserQuery(), strings.Join(alterClauses, ", "))
+		log.Infof("Executing ALTER TABLE with %d columns for table %s: [%s]", len(columns), table.ForUserQuery(), query)
+
+		// Retry logic at table level
+		sleepIntervalSec := 10
+		for i := 0; i < ALTER_QUERY_RETRY_COUNT; i++ {
+			err := yb.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
+				// Execute the query to alter all columns at once
+				_, err := conn.Exec(context.Background(), query)
 				if err != nil {
-					log.Errorf("error in altering columns for table(%s): %v", table.ForUserQuery(), err)
-					if !strings.Contains(err.Error(), "while reaching out to the tablet servers") {
-						return false, err
-					}
-					log.Infof("retrying after %d seconds for table(%s)", sleepIntervalSec, table.ForUserQuery())
-					time.Sleep(time.Duration(sleepIntervalSec) * time.Second)
-					continue
+					log.Errorf("executing query to alter columns for table(%s): %v", table.ForUserQuery(), err)
+					return false, fmt.Errorf("executing query to alter columns for table(%s): %w", table.ForUserQuery(), err)
 				}
-				break
+				return false, nil
+			})
+
+			if err != nil {
+				log.Errorf("error in altering columns for table(%s): %v", table.ForUserQuery(), err)
+				if !strings.Contains(err.Error(), "while reaching out to the tablet servers") {
+					return false, err
+				}
+				log.Infof("retrying after %d seconds for table(%s)", sleepIntervalSec, table.ForUserQuery())
+				time.Sleep(time.Duration(sleepIntervalSec) * time.Second)
+				continue
 			}
+			break
 		}
 
 		return true, nil
