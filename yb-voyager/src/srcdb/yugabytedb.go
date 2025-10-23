@@ -611,22 +611,53 @@ func (yb *YugabyteDB) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList
 }
 
 func (yb *YugabyteDB) FilterEmptyTables(tableList []sqlname.NameTuple) ([]sqlname.NameTuple, []sqlname.NameTuple) {
-	var nonEmptyTableList, emptyTableList []sqlname.NameTuple
-	for _, tableName := range tableList {
-		query := fmt.Sprintf(`SELECT false FROM %s LIMIT 1;`, tableName.ForUserQuery())
-		var empty bool
-		err := yb.db.QueryRow(query).Scan(&empty)
-		if err != nil {
-			if err == sql.ErrNoRows {
-				empty = true
-			} else {
-				utils.ErrExit("error in querying table: %v: %w", tableName, err)
-			}
+	if len(tableList) == 0 {
+		return nil, nil
+	}
+
+	// Build a single UNION ALL query to check all tables at once.
+	// Example query for 3 tables:
+	//   SELECT 0 AS table_idx, EXISTS(SELECT 1 FROM public.products) AS has_rows
+	//   UNION ALL
+	//   SELECT 1 AS table_idx, EXISTS(SELECT 1 FROM public.users) AS has_rows
+	//   UNION ALL
+	//   SELECT 2 AS table_idx, EXISTS(SELECT 1 FROM public.invoices) AS has_rows
+	var unionParts []string
+	for idx, tableName := range tableList {
+		unionParts = append(unionParts,
+			fmt.Sprintf("SELECT %d AS table_idx, EXISTS(SELECT 1 FROM %s) AS has_rows",
+				idx, tableName.ForUserQuery()))
+	}
+	query := strings.Join(unionParts, " UNION ALL ")
+
+	rows, err := yb.db.Query(query)
+	if err != nil {
+		utils.ErrExit("failed to query for empty tables: %w", err)
+	}
+	defer rows.Close()
+
+	tableIsEmpty := make([]bool, len(tableList)) // defaults to false for all tables
+	for rows.Next() {
+		var tableIdx int
+		var hasRows bool
+		if err := rows.Scan(&tableIdx, &hasRows); err != nil {
+			utils.ErrExit("failed to scan row for empty table check: %w", err)
 		}
-		if !empty {
-			nonEmptyTableList = append(nonEmptyTableList, tableName)
+		if !hasRows {
+			tableIsEmpty[tableIdx] = true
+		}
+	}
+
+	if err := rows.Err(); err != nil {
+		utils.ErrExit("failed to iterate rows for empty table check: %w", err)
+	}
+
+	var nonEmptyTableList, emptyTableList []sqlname.NameTuple
+	for i, isEmpty := range tableIsEmpty {
+		if isEmpty {
+			emptyTableList = append(emptyTableList, tableList[i])
 		} else {
-			emptyTableList = append(emptyTableList, tableName)
+			nonEmptyTableList = append(nonEmptyTableList, tableList[i])
 		}
 	}
 	return nonEmptyTableList, emptyTableList

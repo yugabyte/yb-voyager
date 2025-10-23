@@ -24,6 +24,7 @@ import (
 	"github.com/samber/lo"
 	"gotest.tools/assert"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
@@ -51,7 +52,6 @@ func TestYugabyteGetAllTableNames(t *testing.T) {
 	testYugabyteDBSource.Source.Schema = "test_schema"
 
 	// Test GetAllTableNames
-	_ = testYugabyteDBSource.DB().Connect()
 	actualTables := testYugabyteDBSource.DB().GetAllTableNames()
 	expectedTables := []*sqlname.SourceName{
 		sqlname.NewSourceName("test_schema", "foo"),
@@ -197,9 +197,6 @@ func TestYBGetColumnToSequenceMap(t *testing.T) {
 	testYugabyteDBSource.Source.Schema = "public|custom_schema"
 
 	// Test GetColumnToSequenceMap
-	_ = testYugabyteDBSource.DB().Connect()
-	defer testYugabyteDBSource.DB().Disconnect()
-
 	fmt.Print("--- Full table list case ---- \n")
 	actualColumnToSequenceMap := testYugabyteDBSource.DB().GetColumnToSequenceMap(tableList)
 	expectedColumnToSequenceMap := map[string]string{
@@ -284,7 +281,6 @@ func TestYugabyteGetTableToUniqueKeyColumnsMap(t *testing.T) {
 	}
 
 	// Test GetTableToUniqueKeyColumnsMap
-	_ = testYugabyteDBSource.DB().Connect()
 	actualUniqKeys, err := testYugabyteDBSource.DB().GetTableToUniqueKeyColumnsMap(uniqueTablesList)
 	if err != nil {
 		t.Fatalf("Error retrieving unique keys: %v", err)
@@ -329,10 +325,79 @@ func TestYugabyteGetNonPKTables(t *testing.T) {
 	testYugabyteDBSource.Schema = "test_schema"
 
 	// Test GetNonPKTables
-	_ = testYugabyteDBSource.DB().Connect()
 	actualTables, err := testYugabyteDBSource.DB().GetNonPKTables()
 	assert.NilError(t, err, "Expected nil but non nil error: %v", err)
 
 	expectedTables := []string{`test_schema."non_pk2"`, `test_schema."non_pk1"`} // func returns table.Qualified.Quoted
 	testutils.AssertEqualStringSlices(t, expectedTables, actualTables)
+}
+
+func TestYugabyteFilterEmptyTables(t *testing.T) {
+	testYugabyteDBSource.TestContainer.ExecuteSqls(
+		`CREATE SCHEMA test_schema;`,
+		`CREATE TABLE test_schema.empty_table1 (
+			id INT PRIMARY KEY,
+			name VARCHAR(100)
+		);`,
+		`CREATE TABLE test_schema.empty_table2 (
+			id INT PRIMARY KEY,
+			name VARCHAR(100)
+		);`,
+		`CREATE TABLE test_schema.empty_table3 (
+			id INT PRIMARY KEY,
+			name VARCHAR(100)
+		);`,
+		`CREATE TABLE test_schema.empty_table4 (
+			id INT PRIMARY KEY,
+			name VARCHAR(100)
+		);`,
+		`CREATE TABLE test_schema.empty_table5 (
+			id INT PRIMARY KEY,
+			name VARCHAR(100)
+		);`,
+		`CREATE TABLE test_schema.non_empty_table1 (
+			id INT PRIMARY KEY,
+			name VARCHAR(100)
+		);`,
+		`INSERT INTO test_schema.non_empty_table1 VALUES (1, 'data1'), (2, 'data2');`,
+		`CREATE TABLE test_schema.non_empty_table2 (
+			id INT PRIMARY KEY,
+			name VARCHAR(100)
+		);`,
+		`INSERT INTO test_schema.non_empty_table2 VALUES (1, 'data1'), (2, 'data2');`,
+	)
+	defer testYugabyteDBSource.TestContainer.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
+
+	sqlname.SourceDBType = "postgresql"
+	testYugabyteDBSource.Source.Schema = "test_schema"
+
+	tableList := []sqlname.NameTuple{
+		testutils.CreateNameTupleWithSourceName("test_schema.empty_table1", "test_schema", constants.YUGABYTEDB),
+		testutils.CreateNameTupleWithSourceName("test_schema.empty_table2", "test_schema", constants.YUGABYTEDB),
+		testutils.CreateNameTupleWithSourceName("test_schema.empty_table3", "test_schema", constants.YUGABYTEDB),
+		testutils.CreateNameTupleWithSourceName("test_schema.empty_table4", "test_schema", constants.YUGABYTEDB),
+		testutils.CreateNameTupleWithSourceName("test_schema.empty_table5", "test_schema", constants.YUGABYTEDB),
+		testutils.CreateNameTupleWithSourceName("test_schema.non_empty_table1", "test_schema", constants.YUGABYTEDB),
+		testutils.CreateNameTupleWithSourceName("test_schema.non_empty_table2", "test_schema", constants.YUGABYTEDB),
+	}
+
+	// Test FilterEmptyTables
+	nonEmptyTables, emptyTables := testYugabyteDBSource.DB().FilterEmptyTables(tableList)
+
+	// Assert non-empty tables
+	expectedNonEmptyTables := []sqlname.NameTuple{
+		testutils.CreateNameTupleWithSourceName("test_schema.non_empty_table1", "test_schema", constants.YUGABYTEDB),
+		testutils.CreateNameTupleWithSourceName("test_schema.non_empty_table2", "test_schema", constants.YUGABYTEDB),
+	}
+	testutils.AssertEqualNameTuplesSlice(t, expectedNonEmptyTables, nonEmptyTables)
+
+	// Assert empty tables
+	expectedEmptyTables := []sqlname.NameTuple{
+		testutils.CreateNameTupleWithSourceName("test_schema.empty_table1", "test_schema", constants.YUGABYTEDB),
+		testutils.CreateNameTupleWithSourceName("test_schema.empty_table2", "test_schema", constants.YUGABYTEDB),
+		testutils.CreateNameTupleWithSourceName("test_schema.empty_table3", "test_schema", constants.YUGABYTEDB),
+		testutils.CreateNameTupleWithSourceName("test_schema.empty_table4", "test_schema", constants.YUGABYTEDB),
+		testutils.CreateNameTupleWithSourceName("test_schema.empty_table5", "test_schema", constants.YUGABYTEDB),
+	}
+	testutils.AssertEqualNameTuplesSlice(t, expectedEmptyTables, emptyTables)
 }
