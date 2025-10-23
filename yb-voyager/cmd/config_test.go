@@ -1906,7 +1906,7 @@ func TestImportDataConfigBinding_CLIOverridesConfig(t *testing.T) {
 	assert.Equal(t, utils.BoolStr(false), truncateTables, "Truncate tables for importing data should be overridden by CLI")
 	assert.Equal(t, utils.BoolStr(false), skipNodeHealthChecks, "Skip node health checks for importing data should be overridden by CLI")
 	assert.Equal(t, utils.BoolStr(false), skipDiskUsageHealthChecks, "Skip disk usage health checks for importing data should be overridden by CLI")
-	assert.Equal(t, "ERROR", tconf.OnPrimaryKeyConflictAction, "On primary key conflict for importing data should be overridden by CLI")
+	assert.Equal(t, "ERROR-POLICY", tconf.OnPrimaryKeyConflictAction, "On primary key conflict for importing data should be overridden by CLI")
 	assert.Equal(t, utils.BoolStr(false), tconf.DisableTransactionalWrites, "Disable transaction writes for importing data should be overridden by CLI")
 	assert.Equal(t, utils.BoolStr(true), truncateSplits, "Truncate splits for importing data should be overridden by CLI")
 	assert.Equal(t, "10485760", os.Getenv("CSV_READER_MAX_BUFFER_SIZE_BYTES"), "CSV reader max buffer size bytes should match the config")
@@ -2522,7 +2522,7 @@ func TestImportDataFileConfigBinding_CLIOverridesConfig(t *testing.T) {
 	assert.Equal(t, utils.BoolStr(false), skipReplicationChecks, "Skip replication checks for importing data should be overridden by CLI")
 	assert.Equal(t, utils.BoolStr(false), skipNodeHealthChecks, "Skip node health checks for importing data should be overridden by CLI")
 	assert.Equal(t, utils.BoolStr(false), skipDiskUsageHealthChecks, "Skip disk usage health checks for importing data should be overridden by CLI")
-	assert.Equal(t, "ERROR", tconf.OnPrimaryKeyConflictAction, "On primary key conflict for importing data should be overridden by CLI")
+	assert.Equal(t, "ERROR-POLICY", tconf.OnPrimaryKeyConflictAction, "On primary key conflict for importing data should be overridden by CLI")
 	assert.Equal(t, importdata.AbortErrorPolicy, errorPolicySnapshotFlag, "error-policy should be overridden by the CLI")
 
 	assert.Equal(t, "10485760", os.Getenv("CSV_READER_MAX_BUFFER_SIZE_BYTES"), "CSV reader max buffer size bytes should be overridden by CLI")
