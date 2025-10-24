@@ -1739,7 +1739,7 @@
             "Impact": "LEVEL_1",
             "ObjectType": "TABLE",
             "ObjectName": "public.test_jsonb",
-            "ObjectUsage": "RARE",
+            "ObjectUsage": "MODERATE",
             "SqlStatement": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-foreign-key-indexes",
             "MinimumVersionsFixedIn": null,
