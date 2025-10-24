@@ -663,13 +663,53 @@ func (yb *YugabyteDB) FilterEmptyTables(tableList []sqlname.NameTuple) ([]sqlnam
 	return nonEmptyTableList, emptyTableList
 }
 
-func (yb *YugabyteDB) getTableColumns(tableName sqlname.NameTuple) ([]string, []string, []string, error) {
-	var columns, dataTypes, dataTypesOwner []string
-	sname, tname := tableName.ForCatalogQuery()
-	query := fmt.Sprintf(GET_TABLE_COLUMNS_QUERY_TEMPLATE_PG_AND_YB, tname, sname)
+// tableColumnInfo holds column information for a table
+type tableColumnInfo struct {
+	Columns   []string
+	DataTypes []string
+}
+
+// getAllTableColumnsInfo fetches column information for all tables in a single database query
+func (yb *YugabyteDB) getAllTableColumnsInfo(tableList []sqlname.NameTuple) (map[sqlname.NameTuple]tableColumnInfo, error) {
+	var result = make(map[sqlname.NameTuple]tableColumnInfo)
+	if len(tableList) == 0 {
+		return result, nil
+	}
+
+	// Build IN clause AND create reverse lookup map for table name to NameTuple
+	var tableTuples []string
+	// Key: "schema.table" -> Value: original NameTuple
+	tableLookup := make(map[string]sqlname.NameTuple)
+
+	for _, table := range tableList {
+		schema, name := table.ForCatalogQuery()
+		tableTuples = append(tableTuples, fmt.Sprintf("('%s', '%s')", schema, name))
+
+		lookupKey := fmt.Sprintf("%s.%s", schema, name)
+		tableLookup[lookupKey] = table
+	}
+	inClause := strings.Join(tableTuples, ", ")
+
+	query := fmt.Sprintf(`
+		SELECT
+			n.nspname AS table_schema,
+			c.relname AS table_name,
+			a.attname AS column_name,
+			t.typname AS data_type
+		FROM pg_attribute AS a
+		JOIN pg_type AS t ON t.oid = a.atttypid
+		JOIN pg_class AS c ON c.oid = a.attrelid
+		JOIN pg_namespace AS n ON n.oid = c.relnamespace
+		WHERE (n.nspname, c.relname) IN (%s)
+			AND a.attname NOT IN ('tableoid', 'cmax', 'xmax', 'cmin', 'xmin', 'ctid')
+			AND a.attnum > 0
+			AND NOT a.attisdropped
+		ORDER BY n.nspname, c.relname, a.attnum; -- attnum ensures columns appear in table definition order and keeps Columns[] and DataTypes[] arrays aligned deterministically
+	`, inClause)
+
 	rows, err := yb.db.Query(query)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("error in querying(%q) source database for table columns: %w", query, err)
+		return nil, fmt.Errorf("error querying table columns: %w", err)
 	}
 	defer func() {
 		closeErr := rows.Close()
@@ -677,17 +717,28 @@ func (yb *YugabyteDB) getTableColumns(tableName sqlname.NameTuple) ([]string, []
 			log.Warnf("close rows for query %q: %v", query, closeErr)
 		}
 	}()
+
 	for rows.Next() {
-		var column, dataType, dataTypeOwner string
-		err = rows.Scan(&column, &dataType, &dataTypeOwner)
-		if err != nil {
-			return nil, nil, nil, fmt.Errorf("error in scanning query(%q) rows for table columns: %w", query, err)
+		var schema, table, column, dataType string
+		if err := rows.Scan(&schema, &table, &column, &dataType); err != nil {
+			return nil, fmt.Errorf("error scanning column info: %w", err)
 		}
-		columns = append(columns, column)
-		dataTypes = append(dataTypes, dataType)
-		dataTypesOwner = append(dataTypesOwner, dataTypeOwner)
+
+		lookupKey := fmt.Sprintf("%s.%s", schema, table)
+		matchingTable, exists := tableLookup[lookupKey]
+		if !exists {
+			// This shouldn't happen, but handle gracefully
+			log.Warnf("Received column info for unexpected table: %s.%s", schema, table)
+			continue
+		}
+
+		info := result[matchingTable]
+		info.Columns = append(info.Columns, column)
+		info.DataTypes = append(info.DataTypes, dataType)
+		result[matchingTable] = info
 	}
-	return columns, dataTypes, dataTypesOwner, nil
+
+	return result, rows.Err()
 }
 
 /*
@@ -770,11 +821,17 @@ func (yb *YugabyteDB) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple
 	userDefinedDataTypes := yb.filterUnsupportedUserDefinedDatatypes(tableList)
 	unsupportedDatatypesList = append(unsupportedDatatypesList, userDefinedDataTypes...)
 
+	// Fetch all table columns in a single query
+	allTableColumns, err := yb.getAllTableColumnsInfo(tableList)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error fetching table columns: %w", err)
+	}
+
 	for _, tableName := range tableList {
-		columns, dataTypes, _, err := yb.getTableColumns(tableName)
-		if err != nil {
-			return nil, nil, fmt.Errorf("error in getting table columns and datatypes: %w", err)
-		}
+		columnInfo := allTableColumns[tableName]
+		columns := columnInfo.Columns
+		dataTypes := columnInfo.DataTypes
+
 		var supportedColumnNames []string
 		var unsupportedColumnNames []string
 		for i, column := range columns {

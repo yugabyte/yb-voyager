@@ -468,3 +468,60 @@ func TestYugabyteFilterUnsupportedUserDefinedDatatypes(t *testing.T) {
 	actualEmptyUDTs := ybDB.filterUnsupportedUserDefinedDatatypes(emptyTableList)
 	assert.Equal(t, 0, len(actualEmptyUDTs), "Expected empty list for empty table list")
 }
+
+func TestYugabyteGetAllTableColumnsInfo(t *testing.T) {
+	testYugabyteDBSource.TestContainer.ExecuteSqls(
+		`CREATE SCHEMA test_schema;`,
+
+		`CREATE TABLE test_schema.products (
+			id SERIAL PRIMARY KEY,
+			name VARCHAR(100) NOT NULL,
+			price NUMERIC(10, 2),
+			in_stock BOOLEAN,
+			created_at TIMESTAMP DEFAULT NOW()
+		);`,
+
+		`CREATE TABLE test_schema.orders (
+			order_id BIGINT PRIMARY KEY,
+			customer_id INT,
+			total DECIMAL(12, 2)
+		);`,
+	)
+	defer testYugabyteDBSource.TestContainer.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
+
+	ybDB := testYugabyteDBSource.DB().(*YugabyteDB)
+
+	tableList := []sqlname.NameTuple{
+		testutils.CreateNameTupleWithSourceName("test_schema.products", "test_schema", constants.YUGABYTEDB),
+		testutils.CreateNameTupleWithSourceName("test_schema.orders", "test_schema", constants.YUGABYTEDB),
+	}
+
+	allColumnsInfo, err := ybDB.getAllTableColumnsInfo(tableList)
+	assert.NilError(t, err, "Expected no error fetching table columns")
+	assert.Equal(t, 2, len(allColumnsInfo), "Expected column info for 2 tables")
+
+	// Verify products table columns and data types
+	productsTable := tableList[0]
+	productsInfo, exists := allColumnsInfo[productsTable]
+	assert.Equal(t, true, exists, "Expected products table in results")
+	assert.Equal(t, 5, len(productsInfo.Columns), "Expected 5 columns in products table")
+	assert.Equal(t, 5, len(productsInfo.DataTypes), "Expected 5 data types in products table")
+
+	// Verify column order matches table definition (ORDER BY attnum)
+	testutils.AssertEqualStringSlices(t, []string{"id", "name", "price", "in_stock", "created_at"}, productsInfo.Columns)
+	// Verify parallel arrays are aligned (columns[i] matches dataTypes[i])
+	assert.Equal(t, "int4", productsInfo.DataTypes[0], "id should be int4")
+	assert.Equal(t, "varchar", productsInfo.DataTypes[1], "name should be varchar")
+	assert.Equal(t, "numeric", productsInfo.DataTypes[2], "price should be numeric")
+
+	// Verify orders table
+	ordersTable := tableList[1]
+	ordersInfo, exists := allColumnsInfo[ordersTable]
+	assert.Equal(t, true, exists, "Expected orders table in results")
+	testutils.AssertEqualStringSlices(t, []string{"order_id", "customer_id", "total"}, ordersInfo.Columns)
+
+	// Test edge case: Empty table list
+	emptyResult, err := ybDB.getAllTableColumnsInfo([]sqlname.NameTuple{})
+	assert.NilError(t, err, "Expected no error for empty table list")
+	assert.Equal(t, 0, len(emptyResult), "Expected empty result for empty table list")
+}
