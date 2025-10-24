@@ -81,6 +81,12 @@ main() {
 		cat_log_file "yb-voyager-assess-migration.log"
 		cat_file ${EXPORT_DIR}/assessment/metadata/yb-voyager-assessment.log
 	}
+
+	echo "Printing max"
+	sqlite3 ${EXPORT_DIR}/assessment/dbs/assessment.db "select max(reads), max(inserts+deletes+updates) from table_index_usage;"
+
+	echo "Printing table_index_usage table"
+	sqlite3 ${EXPORT_DIR}/assessment/dbs/assessment.db "select * from table_index_usage;"
 	
 	step "Validate Assessment Reports"
 	# Checking if the assessment reports were created
