@@ -760,6 +760,11 @@ func (yb *YugabyteDB) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple
 	supportedTableColumnsMap := utils.NewStructMap[sqlname.NameTuple, []string]()
 	unsupportedTableColumnsMap := utils.NewStructMap[sqlname.NameTuple, []string]()
 
+	// offline migration case, we support all datatypes
+	if !(useDebezium || isStreamingEnabled) {
+		return supportedTableColumnsMap, unsupportedTableColumnsMap, nil
+	}
+
 	unsupportedDatatypesList := GetYugabyteUnsupportedDatatypesDbzm(yb.source.IsYBGrpcConnector)
 	// Fetch all user-defined types for all tables in a single query
 	userDefinedDataTypes := yb.filterUnsupportedUserDefinedDatatypes(tableList)
@@ -773,15 +778,13 @@ func (yb *YugabyteDB) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple
 		var supportedColumnNames []string
 		var unsupportedColumnNames []string
 		for i, column := range columns {
-			if useDebezium || isStreamingEnabled {
-				//Using this ContainsAnyStringFromSlice as the catalog we use for fetching datatypes uses the data_type only
-				// which just contains the base type for example VARCHARs it won't include any length, precision or scale information
-				//of these types there are other columns available for these information so we just do string match of types with our list
-				if utils.ContainsAnyStringFromSlice(unsupportedDatatypesList, dataTypes[i]) {
-					unsupportedColumnNames = append(unsupportedColumnNames, column)
-				} else {
-					supportedColumnNames = append(supportedColumnNames, column)
-				}
+			//Using this ContainsAnyStringFromSlice as the catalog we use for fetching datatypes uses the data_type only
+			// which just contains the base type for example VARCHARs it won't include any length, precision or scale information
+			//of these types there are other columns available for these information so we just do string match of types with our list
+			if utils.ContainsAnyStringFromSlice(unsupportedDatatypesList, dataTypes[i]) {
+				unsupportedColumnNames = append(unsupportedColumnNames, column)
+			} else {
+				supportedColumnNames = append(supportedColumnNames, column)
 			}
 		}
 		if len(supportedColumnNames) == len(columns) {
