@@ -47,6 +47,7 @@ const (
 	DB_QUERIES_SUMMARY       = "db_queries_summary"
 	REDUNDANT_INDEXES        = "redundant_indexes"
 	COLUMN_STATISTICS        = "column_statistics"
+	TABLE_INDEX_USAGE        = "table_index_usage"
 
 	PARTITIONED_TABLE_OBJECT_TYPE = "partitioned table"
 	PARTITIONED_INDEX_OBJECT_TYPE = "partitioned index"
@@ -177,6 +178,16 @@ func InitAssessmentDB() error {
 			most_common_freq REAL,
 			most_common_val TEXT,
 			PRIMARY KEY(schema_name, table_name, column_name));`, COLUMN_STATISTICS),
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			schema_name TEXT,
+			object_name TEXT,
+			object_type TEXT,
+			parent_table_name TEXT,
+			reads INTEGER,
+			inserts INTEGER,
+			updates INTEGER,
+			deletes INTEGER, 
+			PRIMARY KEY(schema_name, object_name));`, TABLE_INDEX_USAGE),
 	}
 
 	for _, cmd := range cmds {

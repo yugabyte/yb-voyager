@@ -42,6 +42,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryissue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/types"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
@@ -295,6 +296,13 @@ func assessMigration() (err error) {
 		return fmt.Errorf("failed to populate metadata CSV into SQLite DB: %w", err)
 	}
 
+	objectUsages, err := populateObjectUsageStats()
+	if err != nil {
+		return fmt.Errorf("failed to populate object usage stats: %w", err)
+	}
+
+	parserIssueDetector.SetObjectUsages(objectUsages)
+
 	err = validateSourceDBIOPSForAssessMigration()
 	if err != nil {
 		return fmt.Errorf("failed to validate source database IOPS: %w", err)
@@ -321,6 +329,44 @@ func assessMigration() (err error) {
 		return fmt.Errorf("failed to set migration assessment completed in MSR: %w", err)
 	}
 	return nil
+}
+
+func populateObjectUsageStats() ([]*types.ObjectUsage, error) {
+	query := fmt.Sprintf(`SELECT schema_name,object_name,object_type,parent_table_name,reads,inserts,updates,deletes from %s`,
+		migassessment.TABLE_INDEX_USAGE)
+	rows, err := assessmentDB.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("error querying-%s on assessmentDB for object usage stats: %w", query, err)
+	}
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			log.Warnf("error closing rows while fetching object usage stats %v", err)
+		}
+	}()
+
+	var objectUsages []*types.ObjectUsage
+	var maxReads, maxWrites int64
+	for rows.Next() {
+		var objectUsage types.ObjectUsage
+		err = rows.Scan(&objectUsage.SchemaName, &objectUsage.ObjectName, &objectUsage.ObjectType, &objectUsage.ParentTableName, &objectUsage.Reads, &objectUsage.Inserts, &objectUsage.Updates, &objectUsage.Deletes)
+		if err != nil {
+			return nil, fmt.Errorf("error scanning object usage stat: %w", err)
+		}
+		if objectUsage.Reads > maxReads {
+			maxReads = objectUsage.Reads
+		}
+		if objectUsage.TotalWrites() > maxWrites {
+			maxWrites = objectUsage.TotalWrites()
+		}
+		objectUsages = append(objectUsages, &objectUsage)
+	}
+	for _, objectUsage := range objectUsages {
+		objectUsage.ReadUsage = types.GetUsageCategory(objectUsage.Reads, maxReads)
+		objectUsage.WriteUsage = types.GetUsageCategory(objectUsage.TotalWrites(), maxWrites)
+		objectUsage.Usage = types.GetCombinedUsageCategory(objectUsage.ReadUsage, objectUsage.WriteUsage)
+	}
+	return objectUsages, nil
 }
 
 func fetchSourceInfo() {
@@ -399,6 +445,7 @@ func convertAssessmentIssueToYugabyteDAssessmentIssue(ar AssessmentReport) []Ass
 			Impact:                 issue.Impact,
 			ObjectType:             issue.ObjectType,
 			ObjectName:             issue.ObjectName,
+			ObjectUsage:            issue.ObjectUsage,
 			SqlStatement:           issue.SqlStatement,
 			DocsLink:               issue.DocsLink,
 			MinimumVersionsFixedIn: issue.MinimumVersionsFixedIn,
@@ -968,6 +1015,7 @@ func convertAnalyzeSchemaIssueToAssessmentIssue(analyzeSchemaIssue utils.Analyze
 		Impact:                 analyzeSchemaIssue.Impact,
 		ObjectType:             analyzeSchemaIssue.ObjectType,
 		ObjectName:             analyzeSchemaIssue.ObjectName,
+		ObjectUsage:            analyzeSchemaIssue.ObjectUsage,
 		SqlStatement:           analyzeSchemaIssue.SqlStatement,
 		DocsLink:               analyzeSchemaIssue.DocsLink,
 		MinimumVersionsFixedIn: minVersionsFixedIn,
@@ -1856,6 +1904,12 @@ func filterOutPerformanceOptimizationIssues(issues []AssessmentIssue) []Assessme
 func getPerformanceOptimizationIssues(issues []AssessmentIssue) []AssessmentIssue {
 	perfOptimzationIssues := lo.Filter(issues, func(issue AssessmentIssue, _ int) bool {
 		return issue.Category == PERFORMANCE_OPTIMIZATIONS_CATEGORY
+	})
+	sort.Slice(perfOptimzationIssues, func(i, j int) bool {
+		ordStates := map[string]int{"FREQUENT": 1, "MODERATE": 2, "RARE": 3, "UNUSED": 4}
+		p1 := perfOptimzationIssues[i]
+		p2 := perfOptimzationIssues[j]
+		return ordStates[p1.ObjectUsage] < ordStates[p2.ObjectUsage]
 	})
 	return perfOptimzationIssues
 }

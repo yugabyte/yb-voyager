@@ -108,6 +108,7 @@ func TestCallhomeStructs(t *testing.T) {
 				Impact              string                 `json:"impact"`
 				ObjectType          string                 `json:"object_type"`
 				ObjectName          string                 `json:"object_name"`
+				ObjectUsage         string                 `json:"object_usage"`
 				SqlStatement        string                 `json:"sql_statement,omitempty"`
 				Details             map[string]interface{} `json:"details,omitempty"`
 			}{},
