@@ -49,7 +49,7 @@ func TestYugabyteGetAllTableNames(t *testing.T) {
 	defer testYugabyteDBSource.TestContainer.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
 
 	sqlname.SourceDBType = "postgresql"
-	testYugabyteDBSource.Source.Schema = "test_schema"
+	testYugabyteDBSource.Source.Schema = "test_schema" // setting schema to look for tables in
 
 	// Test GetAllTableNames
 	actualTables := testYugabyteDBSource.DB().GetAllTableNames()
@@ -62,7 +62,7 @@ func TestYugabyteGetAllTableNames(t *testing.T) {
 	testutils.AssertEqualSourceNameSlices(t, expectedTables, actualTables)
 }
 
-func TestYBGetColumnToSequenceMap(t *testing.T) {
+func TestYugabyteGetColumnToSequenceMap(t *testing.T) {
 
 	testYugabyteDBSource.TestContainer.ExecuteSqls(
 		`CREATE SCHEMA IF NOT EXISTS public;`,
@@ -181,7 +181,6 @@ func TestYBGetColumnToSequenceMap(t *testing.T) {
 		`DROP SEQUENCE manual_seq;`,
 		`DROP SCHEMA custom_schema CASCADE;`)
 
-	sqlname.SourceDBType = "postgresql"
 	tableList := []sqlname.NameTuple{
 		testutils.CreateNameTupleWithSourceName("public.serial_table", "public", testYugabyteDBSource.DBType),
 		testutils.CreateNameTupleWithSourceName("public.bigserial_table", "public", testYugabyteDBSource.DBType),
@@ -194,7 +193,6 @@ func TestYBGetColumnToSequenceMap(t *testing.T) {
 		testutils.CreateNameTupleWithSourceName("public.manual_linked_table_1", "public", testPostgresSource.DBType),
 		testutils.CreateNameTupleWithSourceName("public.manual_linked_table_2", "public", testPostgresSource.DBType),
 	}
-	testYugabyteDBSource.Source.Schema = "public|custom_schema"
 
 	// Test GetColumnToSequenceMap
 	fmt.Print("--- Full table list case ---- \n")
@@ -273,7 +271,6 @@ func TestYugabyteGetTableToUniqueKeyColumnsMap(t *testing.T) {
             ('user1', 30),
             ('user2', 40);`)
 	defer testYugabyteDBSource.TestContainer.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
-	testYugabyteDBSource.Schema = "test_schema"
 
 	uniqueTablesList := []sqlname.NameTuple{
 		{CurrentName: sqlname.NewObjectName("postgresql", "test_schema", "test_schema", "unique_table")},
@@ -322,7 +319,7 @@ func TestYugabyteGetNonPKTables(t *testing.T) {
 		name VARCHAR(255)
 	);`)
 	defer testYugabyteDBSource.TestContainer.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
-	testYugabyteDBSource.Schema = "test_schema"
+	testYugabyteDBSource.Source.Schema = "test_schema" // setting schema to look for tables in
 
 	// Test GetNonPKTables
 	actualTables, err := testYugabyteDBSource.DB().GetNonPKTables()
@@ -368,9 +365,6 @@ func TestYugabyteFilterEmptyTables(t *testing.T) {
 	)
 	defer testYugabyteDBSource.TestContainer.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
 
-	sqlname.SourceDBType = "postgresql"
-	testYugabyteDBSource.Source.Schema = "test_schema"
-
 	tableList := []sqlname.NameTuple{
 		testutils.CreateNameTupleWithSourceName("test_schema.empty_table1", "test_schema", constants.YUGABYTEDB),
 		testutils.CreateNameTupleWithSourceName("test_schema.empty_table2", "test_schema", constants.YUGABYTEDB),
@@ -400,4 +394,77 @@ func TestYugabyteFilterEmptyTables(t *testing.T) {
 		testutils.CreateNameTupleWithSourceName("test_schema.empty_table5", "test_schema", constants.YUGABYTEDB),
 	}
 	testutils.AssertEqualNameTuplesSlice(t, expectedEmptyTables, emptyTables)
+}
+
+func TestYugabyteFilterUnsupportedUserDefinedDatatypes(t *testing.T) {
+	testYugabyteDBSource.TestContainer.ExecuteSqls(
+		`CREATE SCHEMA hr;`,
+		`CREATE SCHEMA inventory;`,
+
+		// Create composite types (UDTs) - these SHOULD be detected
+		`CREATE TYPE hr.contact AS (
+			phone VARCHAR,
+			email VARCHAR
+		);`,
+		`CREATE TYPE inventory.device_specs AS (
+			cpu VARCHAR,
+			ram INT
+		);`,
+
+		// Create ENUM and DOMAIN types - these should NOT be detected
+		`CREATE TYPE hr.status_enum AS ENUM ('active', 'inactive', 'pending');`,
+		`CREATE DOMAIN hr.positive_int AS INTEGER CHECK (VALUE > 0);`,
+
+		// Case 1: Table with composite UDT from its own schema
+		`CREATE TABLE hr.employees (
+			id SERIAL PRIMARY KEY,
+			name VARCHAR,
+			contact_info hr.contact
+		);`,
+
+		// Case 2: Cross-schema usage - hr table using inventory composite UDT
+		`CREATE TABLE hr.employee_devices (
+			employee_id INT,
+			device_details inventory.device_specs
+		);`,
+
+		// Case 3: Table with ENUM and DOMAIN (should NOT be detected as unsupported UDTs)
+		`CREATE TABLE hr.projects (
+			id INT PRIMARY KEY,
+			name VARCHAR,
+			status hr.status_enum,
+			priority hr.positive_int
+		);`,
+	)
+	defer testYugabyteDBSource.TestContainer.ExecuteSqls(
+		`DROP SCHEMA hr CASCADE;`,
+		`DROP SCHEMA inventory CASCADE;`,
+	)
+
+	// Test with all three tables
+	tableList := []sqlname.NameTuple{
+		testutils.CreateNameTupleWithSourceName("hr.employees", "hr", constants.YUGABYTEDB),
+		testutils.CreateNameTupleWithSourceName("hr.employee_devices", "hr", constants.YUGABYTEDB),
+		testutils.CreateNameTupleWithSourceName("hr.projects", "hr", constants.YUGABYTEDB),
+	}
+
+	// Get the underlying YugabyteDB instance to access private method
+	ybDB := testYugabyteDBSource.DB().(*YugabyteDB)
+	actualUDTs := ybDB.filterUnsupportedUserDefinedDatatypes(tableList)
+
+	// Expected: Only composite types (typtype='c'), NOT enums or domains
+	// hr.status_enum and hr.positive_int should be excluded
+	expectedUDTs := []string{
+		"hr.contact",
+		"inventory.device_specs",
+	}
+
+	assert.Equal(t, len(expectedUDTs), len(actualUDTs),
+		"Expected %d UDTs but got %d", len(expectedUDTs), len(actualUDTs))
+	testutils.AssertEqualStringSlices(t, expectedUDTs, actualUDTs)
+
+	// Test edge case: Empty table list
+	emptyTableList := []sqlname.NameTuple{}
+	actualEmptyUDTs := ybDB.filterUnsupportedUserDefinedDatatypes(emptyTableList)
+	assert.Equal(t, 0, len(actualEmptyUDTs), "Expected empty list for empty table list")
 }

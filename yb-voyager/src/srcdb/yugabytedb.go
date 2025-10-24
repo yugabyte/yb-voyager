@@ -690,26 +690,49 @@ func (yb *YugabyteDB) getTableColumns(tableName sqlname.NameTuple) ([]string, []
 	return columns, dataTypes, dataTypesOwner, nil
 }
 
-func (yb *YugabyteDB) filterUnsupportedUserDefinedDatatypes(tableName sqlname.NameTuple) []string {
-	// Currently all UDTs other than enums and domain are unsupported
-	sname, tname := tableName.ForCatalogQuery()
-	query := fmt.Sprintf(`SELECT 
-    	t.typname AS type_name,
-		CASE WHEN t.typtype = 'c' THEN 'Yes' ELSE 'No' END AS is_user_defined
-	FROM 
-		pg_class c
-	JOIN 
-		pg_namespace n ON c.relnamespace = n.oid
-	JOIN 
-		pg_attribute a ON a.attrelid = c.oid
-	JOIN 
-		pg_type t ON a.atttypid = t.oid
-	WHERE 
-		c.relname = '%s' 
-		AND n.nspname = '%s'  
-		AND a.attnum > 0 
-	ORDER BY 
-		a.attnum;`, tname, sname)
+/*
+Currently all UDTs other than enums and domain are unsupported
+so while querying the catalog table, we ignore the enums and domain types and only consider the composite types
+i.e. typtype = 'c' (composite) AND NOT typtype = 'e' (enum) AND NOT typtype = 'd' (domain)
+
+This function now accepts a slice of tables and returns a unique list of fully qualified
+unsupported user-defined type names (e.g., "hr.contact", "inventory.device_specs") in a single database query.
+Qualified because same typename can be present in multiple schemas in completely different ways.
+*/
+func (yb *YugabyteDB) filterUnsupportedUserDefinedDatatypes(tableList []sqlname.NameTuple) []string {
+	if len(tableList) == 0 {
+		return []string{}
+	}
+
+	// Build the IN clause with tuples for all tables
+	// eg: [('public', 'products'), ('public', 'users'), ('public', 'invoices')]
+	var tableTuples []string
+	for _, table := range tableList {
+		schema, name := table.ForCatalogQuery()
+		tableTuples = append(tableTuples, fmt.Sprintf("('%s', '%s')", schema, name))
+	}
+	inClause := strings.Join(tableTuples, ", ")
+
+	query := fmt.Sprintf(`
+		SELECT DISTINCT
+			type_n.nspname || '.' || t.typname AS qualified_type_name
+		FROM
+			pg_attribute AS a
+		JOIN
+			pg_type AS t ON t.oid = a.atttypid
+		JOIN
+			pg_namespace AS type_n ON type_n.oid = t.typnamespace
+		JOIN
+			pg_class AS c ON c.oid = a.attrelid
+		JOIN
+			pg_namespace AS table_n ON table_n.oid = c.relnamespace
+		WHERE
+			(table_n.nspname, c.relname) IN (%s)
+			AND a.attnum > 0
+			AND t.typtype = 'c'
+		ORDER BY qualified_type_name;
+	`, inClause)
+
 	rows, err := yb.db.Query(query)
 	if err != nil {
 		utils.ErrExit("error in querying source database for user defined columns: %q: %w\n", query, err)
@@ -720,16 +743,15 @@ func (yb *YugabyteDB) filterUnsupportedUserDefinedDatatypes(tableName sqlname.Na
 			log.Warnf("close rows for query %q: %v", query, closeErr)
 		}
 	}()
+
 	var userDefinedDataTypes []string
 	for rows.Next() {
-		var dataType, isUserDefined string
-		err = rows.Scan(&dataType, &isUserDefined)
+		var qualifiedTypeName string
+		err = rows.Scan(&qualifiedTypeName)
 		if err != nil {
 			utils.ErrExit("error in scanning query rows for user defined columns: %w\n", err)
 		}
-		if isUserDefined == "Yes" {
-			userDefinedDataTypes = append(userDefinedDataTypes, dataType)
-		}
+		userDefinedDataTypes = append(userDefinedDataTypes, qualifiedTypeName)
 	}
 	return userDefinedDataTypes
 }
@@ -739,14 +761,15 @@ func (yb *YugabyteDB) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple
 	unsupportedTableColumnsMap := utils.NewStructMap[sqlname.NameTuple, []string]()
 
 	unsupportedDatatypesList := GetYugabyteUnsupportedDatatypesDbzm(yb.source.IsYBGrpcConnector)
+	// Fetch all user-defined types for all tables in a single query
+	userDefinedDataTypes := yb.filterUnsupportedUserDefinedDatatypes(tableList)
+	unsupportedDatatypesList = append(unsupportedDatatypesList, userDefinedDataTypes...)
 
 	for _, tableName := range tableList {
 		columns, dataTypes, _, err := yb.getTableColumns(tableName)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error in getting table columns and datatypes: %w", err)
 		}
-		userDefinedDataTypes := yb.filterUnsupportedUserDefinedDatatypes(tableName)
-		unsupportedDatatypesList = append(unsupportedDatatypesList, userDefinedDataTypes...)
 		var supportedColumnNames []string
 		var unsupportedColumnNames []string
 		for i, column := range columns {
