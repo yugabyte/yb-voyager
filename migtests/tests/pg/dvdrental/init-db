@@ -8,7 +8,7 @@ source ${SCRIPTS}/functions.sh
 echo "Downloading dvdrental sample database."
 if [ ! -e dvdrental.tar ]
 then
-  wget -q https://www.postgresqltutorial.com/wp-content/uploads/2019/05/dvdrental.zip
+  wget -v --server-response --max-redirect=5 --tries=3 --timeout=30 https://www.postgresqltutorial.com/wp-content/uploads/2019/05/dvdrental.zip
   unzip dvdrental.zip
 fi
 
