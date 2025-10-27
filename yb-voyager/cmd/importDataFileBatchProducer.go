@@ -111,6 +111,9 @@ func (p *FileBatchProducer) NextBatch() (*Batch, error) {
 }
 
 func (p *FileBatchProducer) produceNextBatch() (*Batch, error) {
+	utils.IRP.RequestToRunLowPriorityIO()
+	defer utils.IRP.ReleaseLowPriorityIO()
+
 	if p.dataFile == nil {
 		err := p.openDataFile()
 		if err != nil {
