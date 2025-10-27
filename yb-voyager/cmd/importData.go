@@ -295,10 +295,10 @@ func checkImportDataPermissions() {
 		// In YB we only check whether he user is a superuser and hence print only in the case where target db is not YB
 		// In case of fall forward too we only run superuser checks and hence print only in the case where fallback is enabled
 		if tconf.TargetDBType != YUGABYTEDB && !(importerRole == SOURCE_REPLICA_DB_IMPORTER_ROLE) {
-			utils.PrintAndLogf(color.RedString("\nPermissions and configurations missing in the target database for importing data:"))
+			utils.PrintAndLog(color.RedString("\nPermissions and configurations missing in the target database for importing data:"))
 		}
 		output := strings.Join(missingPermissions, "\n")
-		utils.PrintAndLogf(output)
+		utils.PrintAndLog(output)
 
 		var link string
 		switch importerRole {
@@ -397,7 +397,7 @@ func startExportDataFromTargetIfRequired() {
 
 	if msr.UseYBgRPCConnector {
 		if tconf.SSLMode == "prefer" || tconf.SSLMode == "allow" {
-			utils.PrintAndLogf(color.RedString("Warning: SSL mode '%s' is not supported for 'export data from target' yet. Downgrading it to 'disable'.\nIf you don't want these settings you can restart the 'export data from target' with a different value for --target-ssl-mode and --target-ssl-root-cert flag.", source.SSLMode))
+			utils.PrintAndLog(color.RedString("Warning: SSL mode '%s' is not supported for 'export data from target' yet. Downgrading it to 'disable'.\nIf you don't want these settings you can restart the 'export data from target' with a different value for --target-ssl-mode and --target-ssl-root-cert flag.", source.SSLMode))
 			tconf.SSLMode = "disable"
 		}
 		cmd = append(cmd, "--target-ssl-mode", tconf.SSLMode)
@@ -871,7 +871,7 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 		if err != nil {
 			utils.ErrExit("failed to mark cutover as processed: %s", err)
 		}
-		utils.PrintAndLogf("\nRun the following command to get the current report of the migration:\n" +
+		utils.PrintAndLog("\nRun the following command to get the current report of the migration:\n" +
 			color.CyanString("yb-voyager get data-migration-report --export-dir %q", exportDir))
 	} else {
 		err = restoreSequencesInOfflineMigration(msr, importTableList)
@@ -1205,7 +1205,7 @@ func displayMonitoringInformationOnTheConsole(info string) {
 		return
 	}
 	if disablePb {
-		utils.PrintAndLogf(info)
+		utils.PrintAndLog(info)
 	} else {
 		log.Warnf("monitoring: %v", info)
 		if importPhase == dbzm.MODE_SNAPSHOT || importerRole == IMPORT_FILE_ROLE {
@@ -1227,7 +1227,7 @@ func startAdaptiveParallelism(mode types.AdaptiveParallelismMode, callhomeMetric
 	}
 
 	if !yb.IsAdaptiveParallelismSupported() {
-		utils.PrintAndLogf(color.YellowString("Note: Continuing without adaptive parallelism as it is not supported in this version of YugabyteDB."))
+		utils.PrintAndLog(color.YellowString("Note: Continuing without adaptive parallelism as it is not supported in this version of YugabyteDB."))
 		return false, nil
 	}
 

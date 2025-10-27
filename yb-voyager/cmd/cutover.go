@@ -94,7 +94,7 @@ func InitiateCutover(dbRole string, prepareforFallback bool, useYBgRPCConnector 
 	}
 
 	if alreadyInitiated {
-		utils.PrintAndLogf(alreadyInitiatedMsg)
+		utils.PrintAndLog(alreadyInitiatedMsg)
 	} else {
 		utils.PrintAndLogf("%s initiated, wait for it to complete", userFacingActionMsg)
 	}

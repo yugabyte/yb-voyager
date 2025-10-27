@@ -44,6 +44,14 @@ func PrintAndLogf(formatString string, args ...interface{}) {
 	fmt.Printf(formatString, args...)
 }
 
+func PrintAndLog(message string) {
+	log.Info(message)
+	if !strings.HasSuffix(message, "\n") {
+		message = message + "\n"
+	}
+	fmt.Print(message)
+}
+
 func MonkeyPatchUtilsErrExitWithPanic() {
 	monkeyPatchUtilsErrExit(func(formatString string, args ...interface{}) {
 		panic("utils.ErrExit was called with: " + fmt.Sprintf(formatString, args...))

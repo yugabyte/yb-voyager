@@ -119,7 +119,7 @@ func exportDataCommandPreRun(cmd *cobra.Command, args []string) {
 		} else if useDebezium {
 			utils.ErrExit(color.RedString("allow-oracle-clob-data-export is not supported for BETA_FAST_DATA_EXPORT export path. Remove this flag and retry."))
 		} else {
-			utils.PrintAndLogf(color.YellowString("Note: Experimental CLOB export is enabled for Oracle offline export."))
+			utils.PrintAndLog(color.YellowString("Note: Experimental CLOB export is enabled for Oracle offline export."))
 		}
 	}
 }
@@ -136,7 +136,7 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 		utils.PrintAndLogf("Note: Beta feature to accelerate data export is enabled by setting BETA_FAST_DATA_EXPORT environment variable")
 	}
 	if changeStreamingIsEnabled(exportType) {
-		utils.PrintAndLogf(color.YellowString(`Note: Live migration is a TECH PREVIEW feature.`))
+		utils.PrintAndLog(color.YellowString(`Note: Live migration is a TECH PREVIEW feature.`))
 	}
 	utils.PrintAndLogf("export of data for source type as '%s'", source.DBType)
 	sqlname.SourceDBType = source.DBType
@@ -484,7 +484,7 @@ func exportData() bool {
 
 			updateCallhomeExportPhase()
 
-			utils.PrintAndLogf("\nRun the following command to get the current report of the migration:\n" +
+			utils.PrintAndLog("\nRun the following command to get the current report of the migration:\n" +
 				color.CyanString("yb-voyager get data-migration-report --export-dir %q\n", exportDir))
 		}
 		return true
@@ -729,7 +729,7 @@ func exportPGSnapshotWithPGdump(ctx context.Context, cancel context.CancelFunc, 
 		return fmt.Errorf("export snapshot: failed to create replication slot: %w", err)
 	}
 	yellowBold := color.New(color.FgYellow, color.Bold)
-	utils.PrintAndLogf(yellowBold.Sprintf("Created replication slot '%s' on source PG database. "+
+	utils.PrintAndLog(yellowBold.Sprintf("Created replication slot '%s' on source PG database. "+
 		"Be sure to run 'initiate cutover to target' or 'end migration' command after completing/aborting this migration to drop the replication slot. "+
 		"This is important to avoid filling up disk space.", replicationSlotName))
 
@@ -1208,7 +1208,7 @@ func detectAndReportNewLeafPartitionsOnPartitionedTables(rootTables []sqlname.Na
 		for k, leafs := range rootToNewLeafTablesMap {
 			listToPrint += fmt.Sprintf("Root table: %s, new leaf partitions: %s\n", k, strings.Join(leafs, ", "))
 		}
-		utils.PrintAndLogf(listToPrint)
+		utils.PrintAndLog(listToPrint)
 		msg := "Do you want to continue?"
 		if !utils.AskPrompt(msg) {
 			utils.ErrExit("Aborting, Start a fresh migration if required...")
@@ -1660,11 +1660,11 @@ func handleUnsupportedColumnsInExportData(unsupportedTableColumnsMap *utils.Stru
 		}
 		return true, nil
 	})
-	utils.PrintAndLogf(unsupportedColsMsg.String())
+	utils.PrintAndLog(unsupportedColsMsg.String())
 	if !utils.AskPrompt("\nDo you want to continue with the export by ignoring just these columns' data") {
 		utils.ErrExit("Exiting at user's request. Use `--exclude-table-list` flag to continue without these tables")
 	} else {
-		utils.PrintAndLogf(color.YellowString("Continuing with the export by ignoring just these columns' data.\n"+
+		utils.PrintAndLog(color.YellowString("Continuing with the export by ignoring just these columns' data.\n"+
 			"Please make sure to remove any null constraints on these columns in the %s database.", getImportingDatabaseString()))
 	}
 }

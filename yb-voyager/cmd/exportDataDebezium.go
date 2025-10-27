@@ -629,7 +629,7 @@ func createYBReplicationSlotAndPublication(tableList []sqlname.NameTuple, leafPa
 		return fmt.Errorf("export snapshot: failed to create replication slot: %w", err)
 	}
 	yellowBold := color.New(color.FgYellow, color.Bold)
-	utils.PrintAndLogf(yellowBold.Sprintf("Created replication slot '%s' on source YugabyteDB database. "+
+	utils.PrintAndLog(yellowBold.Sprintf("Created replication slot '%s' on source YugabyteDB database. "+
 		"Be sure to run either 'initiate cutover to source', 'initiate cutover to source-replica' or 'end migration' command after completing/aborting this migration to drop the replication slot. "+
 		"This is important to avoid filling up disk space.", replicationSlotName))
 
