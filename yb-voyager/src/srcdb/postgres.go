@@ -414,7 +414,7 @@ func (pg *PostgreSQL) ExportSchema(exportDir string, schemaDir string) {
 		pg.checkSchemasExists()
 
 		fmt.Printf("exporting the schema %10s", "")
-		go utils.Wait("done\n", "")
+		go utils.Wait(utils.Success.Sprintf("done\n"), "")
 		pgdumpExtractSchema(pg.source, pg.GetConnectionUriWithoutPassword(), exportDir, schemaDir)
 
 		//Parsing the single file to generate multiple database object files
@@ -460,7 +460,7 @@ func (pg *PostgreSQL) getExportedColumnsMap(
 		if tableMetadata.IsPartition {
 			rootTable = tableMetadata.ParentTable
 		}
-		//using ForKey here as this map is stored in the datafile descriptor and for correctness we should use ForKey only 
+		//using ForKey here as this map is stored in the datafile descriptor and for correctness we should use ForKey only
 		result[rootTable.ForKey()] = pg.getExportedColumnsListForTable(exportDir, rootTable)
 	}
 	return result

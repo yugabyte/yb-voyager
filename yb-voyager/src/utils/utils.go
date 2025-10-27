@@ -1012,3 +1012,11 @@ func IsSetEqual(a, b []string) bool {
 
 	return setA.Equal(setB)
 }
+
+// create color variables for success, info, warning, and blue path
+var (
+	Success  = color.New(color.FgGreen)
+	Info     = color.New(color.FgCyan)
+	Warning  = color.New(color.FgYellow)
+	BluePath = color.New(color.FgBlue, color.Underline)
+)

@@ -129,7 +129,6 @@ func exportSchema(cmd *cobra.Command) error {
 		}
 	}
 
-	utils.PrintAndLog("\nexport of schema for source type as '%s'\n", source.DBType)
 	checkSourceDBCharset()
 	sourceDBVersion := source.DB().GetVersion()
 	source.DBVersion = sourceDBVersion
@@ -177,6 +176,7 @@ func exportSchema(cmd *cobra.Command) error {
 	exportSchemaStartEvent := createExportSchemaStartedEvent()
 	controlPlane.ExportSchemaStarted(&exportSchemaStartEvent)
 
+	utils.PrintAndLog(utils.Info.Sprintf("\nExport of schema for source type as '%s'\n", source.DBType))
 	source.DB().ExportSchema(exportDir, schemaDir)
 
 	err = updateIndexesInfoInMetaDB()
@@ -282,7 +282,7 @@ func runAssessMigrationCmdBeforExportSchemaIfRequired(exportSchemaCmd *cobra.Com
 
 	var stderrBuf, stdoutBuf bytes.Buffer
 
-	utils.PrintAndLog("Assessing migration before exporting schema...")
+	utils.PrintAndLog(utils.Info.Sprintf("\nAssessing migration before exporting schema..."))
 
 	// Invoke the assess-migration command as a subprocess
 	cmd := exec.Command(voyagerExecutable, append([]string{"assess-migration"}, assessFlagsWithValues...)...)
@@ -298,8 +298,6 @@ func runAssessMigrationCmdBeforExportSchemaIfRequired(exportSchemaCmd *cobra.Com
 		return fmt.Errorf("assess migration cmd exit err: %s and stderr: %s", err.Error(), stderrBuf.String())
 	}
 
-	utils.PrintAndLog("Migration assessment completed successfully.")
-
 	// fetching assessment report path output line from stdout of assess-migration command process
 	re := regexp.MustCompile(`^\s*generated (?:JSON|HTML) assessment report at: .+`)
 	scanner := bufio.NewScanner(strings.NewReader(stdoutBuf.String()))
@@ -311,7 +309,7 @@ func runAssessMigrationCmdBeforExportSchemaIfRequired(exportSchemaCmd *cobra.Com
 		}
 	}
 
-	fmt.Println()
+	utils.PrintAndLog(utils.Success.Sprintf("Migration assessment completed successfully.\n"))
 	return nil
 }
 
@@ -410,7 +408,8 @@ func applyMigrationAssessmentRecommendations() ([]string, []string, []string, []
 	}
 
 	if !bool(skipRecommendations) && assessViaExportSchema {
-		utils.PrintAndLog(`Recommendations generated but not applied. Run the "assess-migration" command explicitly to produce precise recommendations and apply them.`)
+		//utils.PrintAndLog(`Recommendations generated but not applied. Run the "assess-migration" command explicitly to produce precise recommendations and apply them.`)
+		// utils.PrintAndLog(utils.Warning.Sprintf(`Colocation Recommendations are not applied
 		return nil, nil, nil, nil, nil
 	}
 
