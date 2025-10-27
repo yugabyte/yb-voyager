@@ -288,6 +288,10 @@ func (p *FileBatchProducer) newBatchWriter() (*BatchWriter, error) {
 }
 
 func (p *FileBatchProducer) finalizeBatch(batchWriter *BatchWriter, isLastBatch bool, offsetEnd int64, bytesInBatch int64) (*Batch, error) {
+
+	utils.IRP.RequestToRunLowPriorityIO()
+	defer utils.IRP.ReleaseLowPriorityIO()
+
 	batchNum := p.lastBatchNumber + 1
 
 	// before we write the batch, we also store the processing errors that were encountered and stashed while
