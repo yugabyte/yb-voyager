@@ -28,7 +28,7 @@ import (
 )
 
 var (
-	parallelBatchProducerSemaphore = semaphore.NewWeighted(int64(5))
+	parallelBatchProducerSemaphore = semaphore.NewWeighted(int64(5000))
 )
 
 // ShuffledBatchProducer wraps FileBatchProducer to provide concurrent batch production
@@ -74,6 +74,8 @@ func (sbp *ShuffledBatchProducer) Init() {
 			if err != nil {
 				utils.ErrExit("Failed to acquire semaphore: %v", err)
 			}
+			utils.IRP.RequestToRunLowPriorityIO()
+
 			sbp.mu.Lock()
 			if sbp.fileBatchProducer.Done() {
 				sbp.producerFinished = true
@@ -96,6 +98,7 @@ func (sbp *ShuffledBatchProducer) Init() {
 			}
 			sbp.cond.Signal() // Wake up one waiting consumer
 			sbp.mu.Unlock()
+			utils.IRP.ReleaseLowPriorityIO()
 			parallelBatchProducerSemaphore.Release(1)
 		}
 	}()

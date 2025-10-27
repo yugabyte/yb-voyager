@@ -780,6 +780,16 @@ func (yb *TargetYugabyteDB) importBatchFast(conn *pgx.Conn, batch Batch, args *I
 	return rowsAffected, err
 }
 
+type HighPriorityIOReader struct {
+	*os.File
+}
+
+func (h *HighPriorityIOReader) Read(p []byte) (n int, err error) {
+	utils.IRP.RequestToRunHighPriorityIO()
+	defer utils.IRP.ReleaseHighPriorityIO()
+	return h.File.Read(p)
+}
+
 func (yb *TargetYugabyteDB) copyBatchCore(conn *pgx.Conn, batch Batch, args *ImportBatchArgs) (int64, error) {
 	// 1. Open the batch file
 	file, err := batch.Open()
@@ -820,7 +830,8 @@ func (yb *TargetYugabyteDB) copyBatchCore(conn *pgx.Conn, batch Batch, args *Imp
 	}
 
 	log.Infof("Importing %q using COPY command: [%s]", batch.GetFilePath(), copyCommand)
-	res, err = conn.PgConn().CopyFrom(context.Background(), file, copyCommand)
+
+	res, err = conn.PgConn().CopyFrom(context.Background(), &HighPriorityIOReader{File: file}, copyCommand)
 	if err != nil {
 		err = newImportBatchErrorPgYb(err, batch,
 			lo.Ternary(args.ShouldUseFastPath(), errs.IMPORT_BATCH_ERROR_FLOW_COPY_FAST, errs.IMPORT_BATCH_ERROR_FLOW_COPY_NORMAL),
