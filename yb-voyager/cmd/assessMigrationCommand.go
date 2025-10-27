@@ -332,8 +332,8 @@ func assessMigration() (err error) {
 }
 
 func populateObjectUsageStats() ([]*types.ObjectUsage, error) {
-	query := fmt.Sprintf(`SELECT schema_name,object_name,object_type,parent_table_name,reads,inserts,updates,deletes from %s`,
-		migassessment.TABLE_INDEX_USAGE)
+	query := fmt.Sprintf(`SELECT schema_name,object_name,object_type,parent_table_name,scans,inserts,updates,deletes from %s`,
+		migassessment.TABLE_INDEX_USAGE_STATS)
 	rows, err := assessmentDB.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("error querying-%s on assessmentDB for object usage stats: %w", query, err)
@@ -349,12 +349,12 @@ func populateObjectUsageStats() ([]*types.ObjectUsage, error) {
 	var maxReads, maxWrites int64
 	for rows.Next() {
 		var objectUsage types.ObjectUsage
-		err = rows.Scan(&objectUsage.SchemaName, &objectUsage.ObjectName, &objectUsage.ObjectType, &objectUsage.ParentTableName, &objectUsage.Reads, &objectUsage.Inserts, &objectUsage.Updates, &objectUsage.Deletes)
+		err = rows.Scan(&objectUsage.SchemaName, &objectUsage.ObjectName, &objectUsage.ObjectType, &objectUsage.ParentTableName, &objectUsage.Scans, &objectUsage.Inserts, &objectUsage.Updates, &objectUsage.Deletes)
 		if err != nil {
 			return nil, fmt.Errorf("error scanning object usage stat: %w", err)
 		}
-		if objectUsage.Reads > maxReads {
-			maxReads = objectUsage.Reads
+		if objectUsage.Scans > maxReads {
+			maxReads = objectUsage.Scans
 		}
 		if objectUsage.TotalWrites() > maxWrites {
 			maxWrites = objectUsage.TotalWrites()
@@ -362,7 +362,7 @@ func populateObjectUsageStats() ([]*types.ObjectUsage, error) {
 		objectUsages = append(objectUsages, &objectUsage)
 	}
 	for _, objectUsage := range objectUsages {
-		objectUsage.ReadUsage = types.GetUsageCategory(objectUsage.Reads, maxReads)
+		objectUsage.ReadUsage = types.GetUsageCategory(objectUsage.Scans, maxReads)
 		objectUsage.WriteUsage = types.GetUsageCategory(objectUsage.TotalWrites(), maxWrites)
 		objectUsage.Usage = types.GetCombinedUsageCategory(objectUsage.ReadUsage, objectUsage.WriteUsage)
 	}

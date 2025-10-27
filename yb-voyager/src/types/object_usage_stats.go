@@ -20,12 +20,25 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
+const (
+	//object type constants
+	INDEX             = "index"
+)
+
+/*
+ObjectUsageStats - reads and writes usage stats for an object
+scans - sequential scans + index scans for tables and index scans for indexes
+inserts - insert rows
+updates - update rows
+deletes - delete rows
+*/
+
 type ObjectUsageStats struct {
 	SchemaName      string
 	ObjectName      string
 	ObjectType      string
-	ParentTableName string
-	Reads           int64
+	ParentTableName string //only available for indexes else empty string
+	Scans           int64
 	Inserts         int64
 	Updates         int64
 	Deletes         int64
@@ -36,7 +49,7 @@ func (o *ObjectUsageStats) TotalWrites() int64 {
 }
 
 func (o *ObjectUsageStats) GetObjectName() string {
-	if o.ObjectType == "index" {
+	if o.ObjectType == INDEX {
 		//Index object name with qualified table name
 		objName := sqlname.NewObjectNameQualifiedWithTableName(constants.POSTGRESQL, "", o.ObjectName, o.SchemaName, o.ParentTableName)
 		return objName.Qualified.Unquoted

@@ -1115,6 +1115,8 @@ func (p *ParserIssueDetector) getUsageCategoryForTable(schemaName, tableName str
 	return usageCategory
 }
 
+//For indexes we don't have any writes related information, so we get a writes usage for the table associated with that index
+//and use a combined usage of index reads and table writes
 func (p *ParserIssueDetector) getUsageCategoryForIndex(schemaName, tableName, indexName string) string {
 	objName := sqlname.NewObjectNameQualifiedWithTableName(constants.POSTGRESQL, "", indexName, schemaName, tableName)
 	qualifiedObjName := objName.Qualified.Unquoted

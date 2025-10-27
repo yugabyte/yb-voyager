@@ -15,6 +15,41 @@ limitations under the License.
 */
 package types
 
+/*
+ObjectUsage - refers to the usage of a specific object in the database under any of these buckets
+- frequent - if the object is used more than 70% of the workload
+- moderate - if the object is used more than 10% of the workload and less than 70% of the workload
+- rare - if the object is used less than 10% of the workload
+- unused - if the object is not used at all
+
+Usage category for an object if usage and max usage are given
+FREQUENT : usage >= 70% of max_usage
+MODERATE :  usage >=10 % of max_usage and usage < 70% of max_usage
+RARE : usage >0 and usage <10% of max_usage
+UNUSED : usage = 0
+
+Overall category of the object
+FREQUENT- if any of the read or write is FREQUENT
+MODERATE - if any of the read or write is MODERATE
+RARE - if any of the read or write is RARE
+UNUSED if both read and write are UNUSED
+
+
+*/
+
+const (
+	ObjectUsageFrequent string = "FREQUENT"
+	ObjectUsageModerate string = "MODERATE"
+	ObjectUsageRare     string = "RARE"
+	ObjectUsageUnused   string = "UNUSED"
+
+	// Thresholds for object usage categorization
+	OBJECT_USAGE_THRESHOLD_FREQUENT = 0.70 // >= 70% of max usage
+	OBJECT_USAGE_THRESHOLD_MODERATE = 0.10 // >= 10% of max usage and < 70% of max usage
+	//anything between 0 and 10% is considered as rare
+	OBJECT_USAGE_THRESHOLD_UNUSED   = 0.00 // 0% is unused
+)
+
 type ObjectUsage struct {
 	ObjectUsageStats
 	//Category based on some logic
@@ -23,14 +58,14 @@ type ObjectUsage struct {
 	Usage      string
 }
 
-func NewObjectUsage(schemaName, objectName, objectType string, parentTableName string, reads, inserts, updates, deletes int64) *ObjectUsage {
+func NewObjectUsage(schemaName, objectName, objectType string, parentTableName string, scans, inserts, updates, deletes int64) *ObjectUsage {
 	return &ObjectUsage{
 		ObjectUsageStats: ObjectUsageStats{
 			SchemaName:      schemaName,
 			ObjectName:      objectName,
 			ObjectType:      objectType,
 			ParentTableName: parentTableName,
-			Reads:           reads,
+			Scans:           scans,
 			Inserts:         inserts,
 			Updates:         updates,
 			Deletes:         deletes,
@@ -50,7 +85,7 @@ func GetCombinedUsageCategory(a, b string) string {
 }
 
 func GetUsageCategory(usage int64, maxUsage int64) string {
-	//if maxUsage is 0, means
+	//if maxUsage is 0 itself, all objects are unused
 	if maxUsage <= 0 {
 		return ObjectUsageUnused
 	}
@@ -70,18 +105,3 @@ func GetUsageCategory(usage int64, maxUsage int64) string {
 		return ObjectUsageRare
 	}
 }
-
-const (
-	ObjectUsageFrequent string = "FREQUENT"
-	ObjectUsageModerate string = "MODERATE"
-	ObjectUsageRare     string = "RARE"
-	ObjectUsageUnused   string = "UNUSED"
-)
-
-// Thresholds for object usage categorization
-const (
-	OBJECT_USAGE_THRESHOLD_FREQUENT = 0.70 // >= 70% of max usage
-	OBJECT_USAGE_THRESHOLD_MODERATE = 0.10 // >= 10% of max usage and < 70% of max usage
-	OBJECT_USAGE_THRESHOLD_RARE     = 0.01 // >= 1% of max usage and < 10% of max usage
-	OBJECT_USAGE_THRESHOLD_UNUSED   = 0.00 // < 1% of max usage
-)
