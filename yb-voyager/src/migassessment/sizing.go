@@ -366,7 +366,7 @@ func pickBestRecommendation(recommendations map[int]IntermediateRecommendation) 
 		if rec.FailureReasoning == "" {
 			foundRecommendation = true
 			// Update finalRecommendation if the current recommendation has fewer cores.
-			log.Infof(fmt.Sprintf("vCPU: %v & cores required: %v gives nodes required: %v\n", rec.VCPUsPerInstance, rec.CoresNeeded, rec.NumNodes))
+			log.Infof("vCPU: %v & cores required: %v gives nodes required: %v\n", rec.VCPUsPerInstance, rec.CoresNeeded, rec.NumNodes)
 			if minCores > int(rec.CoresNeeded) {
 				finalRecommendation = rec
 				minCores = int(rec.CoresNeeded)

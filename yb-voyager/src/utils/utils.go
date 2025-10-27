@@ -73,7 +73,7 @@ func Wait(args ...string) {
 			WaitChannel <- -1
 			return
 		default:
-			fmt.Printf("\b" + string(chars[i%4]))
+			fmt.Print("\b" + string(chars[i%4]))
 			time.Sleep(100 * time.Millisecond)
 		}
 	}
@@ -492,7 +492,7 @@ func PrintSqlStmtIfDDL(stmt string, fileName string, noticeMsg string) {
 	if !setOrSelectStmt {
 		fmt.Printf("%s: %s\n", fileName, GetSqlStmtToPrint(stmt))
 		if noticeMsg != "" {
-			fmt.Printf(color.YellowString("%s\n", noticeMsg))
+			fmt.Print(color.YellowString("%s\n", noticeMsg))
 			log.Infof("notice for %q: %s", GetSqlStmtToPrint(stmt), noticeMsg)
 		}
 	}
