@@ -1,10 +1,15 @@
 package utils
 
-import "sync"
+import (
+	"sync"
+
+	log "github.com/sirupsen/logrus"
+)
 
 type IORequestPrioritizer struct {
 	mu                sync.Mutex
 	highPriorityCount int
+	lowPriorityCount  int
 	cond              *sync.Cond
 }
 
@@ -19,6 +24,7 @@ func NewIORequestPrioritizer() *IORequestPrioritizer {
 func (irp *IORequestPrioritizer) RequestToRunHighPriorityIO() {
 	irp.mu.Lock()
 	irp.highPriorityCount++
+	log.Infof("Request to run high priority IO, highPriorityCount: %d, lowPriorityCount: %d\n", irp.highPriorityCount, irp.lowPriorityCount)
 	irp.mu.Unlock()
 }
 
@@ -37,11 +43,15 @@ func (irp *IORequestPrioritizer) RequestToRunLowPriorityIO() {
 	for irp.highPriorityCount > 0 {
 		irp.cond.Wait()
 	}
+	irp.lowPriorityCount++
 	irp.mu.Unlock()
 }
 
 func (irp *IORequestPrioritizer) ReleaseLowPriorityIO() {
 	// no-op for now
+	irp.mu.Lock()
+	irp.lowPriorityCount--
+	irp.mu.Unlock()
 }
 
 func init() {
