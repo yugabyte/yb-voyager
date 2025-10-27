@@ -74,7 +74,6 @@ func (sbp *ShuffledBatchProducer) Init() {
 			if err != nil {
 				utils.ErrExit("Failed to acquire semaphore: %v", err)
 			}
-			utils.IRP.RequestToRunLowPriorityIO()
 
 			sbp.mu.Lock()
 			if sbp.fileBatchProducer.Done() {
@@ -98,7 +97,6 @@ func (sbp *ShuffledBatchProducer) Init() {
 			}
 			sbp.cond.Signal() // Wake up one waiting consumer
 			sbp.mu.Unlock()
-			utils.IRP.ReleaseLowPriorityIO()
 			parallelBatchProducerSemaphore.Release(1)
 		}
 	}()

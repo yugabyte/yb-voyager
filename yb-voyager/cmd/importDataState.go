@@ -774,6 +774,9 @@ func (bw *BatchWriter) WriteRecord(record string) error {
 		return nil
 	}
 
+	utils.IRP.RequestToRunLowPriorityIO()
+	defer utils.IRP.ReleaseLowPriorityIO()
+
 	var err error
 	// adding newline after one record is written and before writing the next record
 	// to make sure that there is no newline at the end of the file contributing extra unnecessary bytes in the batch file

@@ -141,7 +141,9 @@ func (p *FileBatchProducer) produceNextBatch() (*Batch, error) {
 
 	for readLineErr == nil {
 
+		utils.IRP.RequestToRunLowPriorityIO()
 		line, currentBytesRead, readLineErr = p.dataFile.NextLine()
+		utils.IRP.ReleaseLowPriorityIO()
 		if readLineErr == nil || (readLineErr == io.EOF && line != "") {
 			// handling possible case: last dataline(i.e. EOF) but no newline char at the end
 			p.numLinesTaken += 1
