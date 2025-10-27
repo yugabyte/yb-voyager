@@ -793,6 +793,20 @@ func (h *HighPriorityIOReader) Read(p []byte) (n int, err error) {
 	return n, err
 }
 
+var parallelCopyCount int = 0
+var parallelCopyMutex sync.Mutex
+
+func init() {
+	go func() {
+		for {
+			time.Sleep(2 * time.Second)
+			parallelCopyMutex.Lock()
+			log.Infof("parallel copy count: %d", parallelCopyCount)
+			parallelCopyMutex.Unlock()
+		}
+	}()
+}
+
 func (yb *TargetYugabyteDB) copyBatchCore(conn *pgx.Conn, batch Batch, args *ImportBatchArgs) (int64, error) {
 	// 1. Open the batch file
 	file, err := batch.Open()
@@ -834,6 +848,10 @@ func (yb *TargetYugabyteDB) copyBatchCore(conn *pgx.Conn, batch Batch, args *Imp
 
 	log.Infof("Importing %q using COPY command: [%s]", batch.GetFilePath(), copyCommand)
 
+	parallelCopyMutex.Lock()
+	parallelCopyCount++
+	parallelCopyMutex.Unlock()
+
 	utils.IRP.RequestToRunHighPriorityIO()
 	res, err = conn.PgConn().CopyFrom(context.Background(), &HighPriorityIOReader{File: file}, copyCommand)
 	if err != nil {
@@ -843,6 +861,9 @@ func (yb *TargetYugabyteDB) copyBatchCore(conn *pgx.Conn, batch Batch, args *Imp
 
 		return res.RowsAffected(), err
 	}
+	parallelCopyMutex.Lock()
+	parallelCopyCount--
+	parallelCopyMutex.Unlock()
 
 	// 5. Record the import in the DB.
 	err = yb.recordEntryInDB(conn, batch, res.RowsAffected())
