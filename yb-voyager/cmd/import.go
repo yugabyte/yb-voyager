@@ -536,7 +536,7 @@ func validateOnPrimaryKeyConflictFlag() error {
 		}
 	}
 
-	// restrict setting --enable-upsert as true if --on-primary-key-conflict is not set to ERROR
+	// --enable-upsert true and on-primary-key-conflict ignore is conflicting, therefore we only allow it if on-primary-key-conflict is set to ERROR-POLICY
 	if tconf.EnableUpsert && tconf.OnPrimaryKeyConflictAction != constants.PRIMARY_KEY_CONFLICT_ACTION_ERROR_POLICY {
 		return fmt.Errorf("--enable-upsert=true can only be used with --on-primary-key-conflict=ERROR-POLICY")
 	}
