@@ -47,3 +47,22 @@ CREATE TABLE hstore_example (
     id SERIAL PRIMARY KEY,
     data hstore
 );
+
+drop table if exists tsvector_table cascade;
+
+CREATE TABLE tsvector_table (
+    id SERIAL PRIMARY KEY,
+    title TEXT,
+    content TEXT,
+    title_tsv TSVECTOR,
+    content_tsv TSVECTOR
+);
+
+drop table if exists enum_array_table cascade;
+
+CREATE TABLE enum_array_table (
+    id SERIAL PRIMARY KEY,
+    day_name week,
+    week_days week[],
+    description TEXT
+);

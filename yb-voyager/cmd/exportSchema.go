@@ -196,7 +196,7 @@ func exportSchema(cmd *cobra.Command) error {
 	//We can probably use the mix of both regex parser and file parser in the tranformer based on source tpyes
 	//and for that we can move our logic from the cmd package to the queryparser package
 	//Skipping that for now
-	_, err = applyTableFileTransformations()
+	tableTransformer, err := applyTableFileTransformations()
 	if err != nil {
 		return fmt.Errorf("failed to apply table file transformations: %w", err)
 	}
@@ -205,7 +205,7 @@ func exportSchema(cmd *cobra.Command) error {
 	if err != nil {
 		return fmt.Errorf("failed to apply index file transformations: %w", err)
 	}
-	err = generatePerformanceOptimizationReport(indexTransformer, modifiedTables, modifiedMviews, colocatedTables, colocatedMviews)
+	err = generatePerformanceOptimizationReport(indexTransformer, modifiedTables, modifiedMviews, colocatedTables, colocatedMviews, tableTransformer)
 	if err != nil {
 		return fmt.Errorf("failed to generate performance optimization %w", err)
 	}

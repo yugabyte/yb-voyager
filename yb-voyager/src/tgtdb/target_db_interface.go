@@ -34,6 +34,7 @@ type TargetDB interface {
 	Init() error
 	Finalize()
 	InitConnPool() error
+	// TODO: add close conn pool method to avoid connection leak
 	PrepareForStreaming()
 	GetVersion() string
 	CreateVoyagerSchema() error
@@ -188,7 +189,7 @@ func (args *ImportBatchArgs) GetInsertPreparedStmtForBatchImport() string {
 		args.TableNameTup.ForUserQuery(), columns, values)
 
 	switch args.PKConflictAction {
-	case constants.PRIMARY_KEY_CONFLICT_ACTION_ERROR:
+	case constants.PRIMARY_KEY_CONFLICT_ACTION_ERROR_POLICY:
 		return baseStmt // no additional clause - although this is not going to be called ever.
 
 	case constants.PRIMARY_KEY_CONFLICT_ACTION_IGNORE:

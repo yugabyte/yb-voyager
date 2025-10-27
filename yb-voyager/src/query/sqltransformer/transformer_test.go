@@ -1,4 +1,5 @@
 //go:build unit
+
 /*
 Copyright (c) YugabyteDB, Inc.
 
@@ -533,6 +534,8 @@ func TestHashSplittingChanges(t *testing.T) {
 	type testCase struct {
 		sqlFileContent      string
 		expectedSqlsInOrder []string
+		errExpected         bool
+		errExpectedMsg      string
 	}
 	cases := []testCase{
 		{
@@ -548,12 +551,13 @@ func TestHashSplittingChanges(t *testing.T) {
 			SET client_min_messages = warning;
 			SET row_security = off;
 
-			CREATE TABLE t(id int, CONSTRAINT pk PRIMARY KEY (id));
-			CREATE TABLE t_2(id int, id2 int, CONSTRAINT pk1 PRIMARY KEY (id2));
-			CREATE TABLE t_3(id int, val text);
-			ALTER TABLE t_2 ADD CONSTRAINT uk UNIQUE (id2);
-			ALTER TABLE t_3 ADD CONSTRAINT uk1 UNIQUE (val);
-			ALTER TABLE t_3 ADD CONSTRAINT fk FOREIGN KEY (id) REFERENCES t (id);`,
+			CREATE TABLE public.t(id int, CONSTRAINT pk PRIMARY KEY (id));
+			CREATE TABLE public.t_2(id int, id2 int, CONSTRAINT pk1 PRIMARY KEY (id2));
+			CREATE TABLE public.t_3(id int, val text);
+			CREATE TABLE public.t_4 (id int, created_at timestamp with time zone, CONSTRAINT t_4_pk PRIMARY KEY (created_at));
+			ALTER TABLE public.t_2 ADD CONSTRAINT uk UNIQUE (id2);
+			ALTER TABLE public.t_3 ADD CONSTRAINT uk1 UNIQUE (val);
+			ALTER TABLE public.t_3 ADD CONSTRAINT fk FOREIGN KEY (id) REFERENCES public.t (id);`,
 			expectedSqlsInOrder: []string{
 				`SET statement_timeout TO 0;`,
 				`SET lock_timeout TO 0;`,
@@ -566,13 +570,14 @@ func TestHashSplittingChanges(t *testing.T) {
 				`SET client_min_messages TO warning;`,
 				`SET row_security TO OFF;`,
 				`SET yb_use_hash_splitting_by_default TO ON;`,
-				`CREATE TABLE t (id int, CONSTRAINT pk PRIMARY KEY (id));`,
-				`CREATE TABLE t_2 (id int, id2 int, CONSTRAINT pk1 PRIMARY KEY (id2));`,
-				`CREATE TABLE t_3 (id int, val text);`,
+				`CREATE TABLE public.t (id int, CONSTRAINT pk PRIMARY KEY (id));`,
+				`CREATE TABLE public.t_2 (id int, id2 int, CONSTRAINT pk1 PRIMARY KEY (id2));`,
+				`CREATE TABLE public.t_3 (id int, val text);`,
 				`SET yb_use_hash_splitting_by_default TO OFF;`,
-				`ALTER TABLE t_2 ADD CONSTRAINT uk UNIQUE (id2);`,
-				`ALTER TABLE t_3 ADD CONSTRAINT uk1 UNIQUE (val);`,
-				`ALTER TABLE t_3 ADD CONSTRAINT fk FOREIGN KEY (id) REFERENCES t (id);`,
+				`CREATE TABLE public.t_4 (id int, created_at timestamp with time zone, CONSTRAINT t_4_pk PRIMARY KEY (created_at));`,
+				`ALTER TABLE public.t_2 ADD CONSTRAINT uk UNIQUE (id2);`,
+				`ALTER TABLE public.t_3 ADD CONSTRAINT uk1 UNIQUE (val);`,
+				`ALTER TABLE public.t_3 ADD CONSTRAINT fk FOREIGN KEY (id) REFERENCES public.t (id);`,
 			},
 		},
 		{
@@ -584,17 +589,19 @@ func TestHashSplittingChanges(t *testing.T) {
 				SET client_encoding = 'UTF8';
 				SET row_security = off;
 
-				CREATE TABLE t(id int, CONSTRAINT pk PRIMARY KEY (id));
-				CREATE TABLE t_2(id int, id2 int);
-				CREATE TABLE t_3(id int, val text);
-				ALTER TABLE t_2 ADD CONSTRAINT pk1 PRIMARY KEY (id2);
-				ALTER TABLE t_2 ADD CONSTRAINT uk UNIQUE (id2);
-				ALTER TABLE t_3 ADD CONSTRAINT uk1 UNIQUE (val);
+				CREATE TABLE public.t(id int, CONSTRAINT pk PRIMARY KEY (id));
+				CREATE TABLE public.t_2(id int, id2 int);
+				CREATE TABLE public.t_3(id int, val text);
+				CREATE TABLE public.t_4 (id int, created_at date);
+				ALTER TABLE public.t_2 ADD CONSTRAINT pk1 PRIMARY KEY (id2);
+				ALTER TABLE public.t_4 ADD CONSTRAINT t_4_pk PRIMARY KEY (created_at);
+				ALTER TABLE public.t_2 ADD CONSTRAINT uk UNIQUE (id2);
+				ALTER TABLE public.t_3 ADD CONSTRAINT uk1 UNIQUE (val);
 				SET standard_conforming_strings = on;
 				SELECT pg_catalog.set_config('search_path', '', false);
 				SET xmloption = content;
 				SET client_min_messages = warning;
-				ALTER TABLE t_3 ADD CONSTRAINT fk FOREIGN KEY (id) REFERENCES t (id);
+				ALTER TABLE public.t_3 ADD CONSTRAINT fk FOREIGN KEY (id) REFERENCES public.t (id);
 			`,
 			expectedSqlsInOrder: []string{
 				`SET statement_timeout TO 0;`,
@@ -608,14 +615,16 @@ func TestHashSplittingChanges(t *testing.T) {
 				`SET xmloption TO content;`,
 				`SET client_min_messages TO warning;`,
 				`SET yb_use_hash_splitting_by_default TO ON;`,
-				`CREATE TABLE t (id int, CONSTRAINT pk PRIMARY KEY (id));`,
-				`CREATE TABLE t_2 (id int, id2 int);`,
-				`CREATE TABLE t_3 (id int, val text);`,
-				`ALTER TABLE t_2 ADD CONSTRAINT pk1 PRIMARY KEY (id2);`,
+				`CREATE TABLE public.t (id int, CONSTRAINT pk PRIMARY KEY (id));`,
+				`CREATE TABLE public.t_2 (id int, id2 int);`,
+				`CREATE TABLE public.t_3 (id int, val text);`,
+				`CREATE TABLE public.t_4 (id int, created_at date);`,
+				`ALTER TABLE public.t_2 ADD CONSTRAINT pk1 PRIMARY KEY (id2);`,
 				`SET yb_use_hash_splitting_by_default TO OFF;`,
-				`ALTER TABLE t_2 ADD CONSTRAINT uk UNIQUE (id2);`,
-				`ALTER TABLE t_3 ADD CONSTRAINT uk1 UNIQUE (val);`,
-				`ALTER TABLE t_3 ADD CONSTRAINT fk FOREIGN KEY (id) REFERENCES t (id);`,
+				`ALTER TABLE public.t_4 ADD CONSTRAINT t_4_pk PRIMARY KEY (created_at);`,
+				`ALTER TABLE public.t_2 ADD CONSTRAINT uk UNIQUE (id2);`,
+				`ALTER TABLE public.t_3 ADD CONSTRAINT uk1 UNIQUE (val);`,
+				`ALTER TABLE public.t_3 ADD CONSTRAINT fk FOREIGN KEY (id) REFERENCES public.t (id);`,
 			},
 		},
 		{
@@ -631,10 +640,11 @@ func TestHashSplittingChanges(t *testing.T) {
 				SET xmloption = content;
 				SET client_min_messages = warning;
 
-				ALTER TABLE t_2 ADD CONSTRAINT pk1 PRIMARY KEY (id2);
-				ALTER TABLE t_2 ADD CONSTRAINT uk UNIQUE (id2);
-				ALTER TABLE t_3 ADD CONSTRAINT uk1 UNIQUE (val);
-				ALTER TABLE t_3 ADD CONSTRAINT fk FOREIGN KEY (id) REFERENCES t (id);
+				ALTER TABLE public.t_2 ADD CONSTRAINT pk1 PRIMARY KEY (id2);
+				ALTER TABLE public.t_4 ADD CONSTRAINT t_4_pk PRIMARY KEY (created_at);
+				ALTER TABLE public.t_2 ADD CONSTRAINT uk UNIQUE (id2);
+				ALTER TABLE public.t_3 ADD CONSTRAINT uk1 UNIQUE (val);
+				ALTER TABLE public.t_3 ADD CONSTRAINT fk FOREIGN KEY (id) REFERENCES public.t (id);
 			`,
 			expectedSqlsInOrder: []string{
 				`SET statement_timeout TO 0;`,
@@ -648,12 +658,15 @@ func TestHashSplittingChanges(t *testing.T) {
 				`SET xmloption TO content;`,
 				`SET client_min_messages TO warning;`,
 				`SET yb_use_hash_splitting_by_default TO ON;`,
-				`ALTER TABLE t_2 ADD CONSTRAINT pk1 PRIMARY KEY (id2);`,
+				`ALTER TABLE public.t_2 ADD CONSTRAINT pk1 PRIMARY KEY (id2);`,
+				`ALTER TABLE public.t_4 ADD CONSTRAINT t_4_pk PRIMARY KEY (created_at);`,
 				`SET yb_use_hash_splitting_by_default TO OFF;`,
-				`ALTER TABLE t_2 ADD CONSTRAINT uk UNIQUE (id2);`,
-				`ALTER TABLE t_3 ADD CONSTRAINT uk1 UNIQUE (val);`,
-				`ALTER TABLE t_3 ADD CONSTRAINT fk FOREIGN KEY (id) REFERENCES t (id);`,
+				`ALTER TABLE public.t_2 ADD CONSTRAINT uk UNIQUE (id2);`,
+				`ALTER TABLE public.t_3 ADD CONSTRAINT uk1 UNIQUE (val);`,
+				`ALTER TABLE public.t_3 ADD CONSTRAINT fk FOREIGN KEY (id) REFERENCES public.t (id);`,
 			},
+			errExpected: true,
+			errExpectedMsg: "table public.t_2 not found in tables map",
 		},
 		{
 			sqlFileContent: `
@@ -694,8 +707,15 @@ func TestHashSplittingChanges(t *testing.T) {
 		testutils.FatalIfError(t, err)
 
 		transformer := NewTransformer()
-		transformedStmts, err := transformer.AddShardingStrategyForConstraints(parseTree.Stmts)
-		testutils.FatalIfError(t, err)
+
+		transformedStmts, _, _, err := transformer.AddShardingStrategyForConstraints(parseTree.Stmts)
+		if testCase.errExpected {
+			assert.Error(t, err)
+			assert.Contains(t, err.Error(), testCase.errExpectedMsg)
+			continue
+		} else {
+			testutils.FatalIfError(t, err)
+		}
 
 		finalSqlStmts, err := queryparser.DeparseRawStmts(transformedStmts)
 		testutils.FatalIfError(t, err)

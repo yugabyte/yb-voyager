@@ -42,136 +42,93 @@ var (
 	testYugabyteDBSource *TestDB
 )
 
+func createTestDBSource(ctx context.Context, config *testcontainers.ContainerConfig) *TestDB {
+	container := testcontainers.NewTestContainer(config.DBType, config)
+	err := container.Start(ctx)
+	if err != nil {
+		utils.ErrExit("Failed to start %s container: %v", config.DBType, err)
+	}
+
+	host, port, err := container.GetHostPort()
+	if err != nil {
+		utils.ErrExit("%v", err)
+	}
+
+	sslMode := ""
+	if config.DBType == "postgresql" || config.DBType == "mysql" || config.DBType == "yugabytedb" {
+		sslMode = "disable"
+	}
+
+	testDB := &TestDB{
+		TestContainer: container,
+		Source: &Source{
+			DBType:    config.DBType,
+			DBVersion: container.GetConfig().DBVersion,
+			User:      container.GetConfig().User,
+			Password:  container.GetConfig().Password,
+			Schema:    container.GetConfig().Schema,
+			DBName:    container.GetConfig().DBName,
+			Host:      host,
+			Port:      port,
+			SSLMode:   sslMode,
+		},
+	}
+
+	err = testDB.DB().Connect()
+	if err != nil {
+		utils.ErrExit("Failed to connect to %s database: %v", config.DBType, err)
+	}
+
+	return testDB
+}
+
+func destroyTestDBSource(ctx context.Context, testDB *TestDB) {
+	testDB.DB().Disconnect()
+	testDB.TestContainer.Terminate(ctx)
+}
+
+// TestMain setup test database containers for all db types
+// and run the tests
+// and clean up the containers after the tests are run
 func TestMain(m *testing.M) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	postgresContainer := testcontainers.NewTestContainer("postgresql", nil)
-	err := postgresContainer.Start(ctx)
-	if err != nil {
-		utils.ErrExit("Failed to start postgres container: %v", err)
+	// PostgreSQL setup
+	postgresConfig := &testcontainers.ContainerConfig{
+		DBType: testcontainers.POSTGRESQL,
 	}
-	host, port, err := postgresContainer.GetHostPort()
-	if err != nil {
-		utils.ErrExit("%v", err)
-	}
-	testPostgresSource = &TestDB{
-		TestContainer: postgresContainer,
-		Source: &Source{
-			DBType:    "postgresql",
-			DBVersion: postgresContainer.GetConfig().DBVersion,
-			User:      postgresContainer.GetConfig().User,
-			Password:  postgresContainer.GetConfig().Password,
-			Schema:    postgresContainer.GetConfig().Schema,
-			DBName:    postgresContainer.GetConfig().DBName,
-			Host:      host,
-			Port:      port,
-			SSLMode:   "disable",
-		},
-	}
-	err = testPostgresSource.DB().Connect()
-	if err != nil {
-		utils.ErrExit("Failed to connect to postgres database: %w", err)
-	}
-	defer testPostgresSource.DB().Disconnect()
+	testPostgresSource = createTestDBSource(ctx, postgresConfig)
 
-	oracleContainer := testcontainers.NewTestContainer("oracle", nil)
-	err = oracleContainer.Start(ctx)
-	if err != nil {
-		utils.ErrExit("Failed to start oracle container: %v", err)
+	// Oracle setup
+	oracleConfig := &testcontainers.ContainerConfig{
+		DBType: testcontainers.ORACLE,
 	}
-	host, port, err = oracleContainer.GetHostPort()
-	if err != nil {
-		utils.ErrExit("%v", err)
-	}
+	testOracleSource = createTestDBSource(ctx, oracleConfig)
 
-	testOracleSource = &TestDB{
-		TestContainer: oracleContainer,
-		Source: &Source{
-			DBType:    "oracle",
-			DBVersion: oracleContainer.GetConfig().DBVersion,
-			User:      oracleContainer.GetConfig().User,
-			Password:  oracleContainer.GetConfig().Password,
-			Schema:    oracleContainer.GetConfig().Schema,
-			DBName:    oracleContainer.GetConfig().DBName,
-			Host:      host,
-			Port:      port,
-		},
+	// MySQL setup
+	mysqlConfig := &testcontainers.ContainerConfig{
+		DBType: testcontainers.MYSQL,
 	}
+	testMySQLSource = createTestDBSource(ctx, mysqlConfig)
 
-	err = testOracleSource.DB().Connect()
-	if err != nil {
-		utils.ErrExit("Failed to connect to oracle database: %w", err)
+	// YugabyteDB setup
+	yugabytedbConfig := &testcontainers.ContainerConfig{
+		DBType: testcontainers.YUGABYTEDB,
 	}
-	defer testOracleSource.DB().Disconnect()
-
-	mysqlContainer := testcontainers.NewTestContainer("mysql", nil)
-	err = mysqlContainer.Start(ctx)
-	if err != nil {
-		utils.ErrExit("Failed to start mysql container: %v", err)
-	}
-	host, port, err = mysqlContainer.GetHostPort()
-	if err != nil {
-		utils.ErrExit("%v", err)
-	}
-	testMySQLSource = &TestDB{
-		TestContainer: mysqlContainer,
-		Source: &Source{
-			DBType:    "mysql",
-			DBVersion: mysqlContainer.GetConfig().DBVersion,
-			User:      mysqlContainer.GetConfig().User,
-			Password:  mysqlContainer.GetConfig().Password,
-			Schema:    mysqlContainer.GetConfig().Schema,
-			DBName:    mysqlContainer.GetConfig().DBName,
-			Host:      host,
-			Port:      port,
-			SSLMode:   "disable",
-		},
-	}
-
-	err = testMySQLSource.DB().Connect()
-	if err != nil {
-		utils.ErrExit("Failed to connect to mysql database: %w", err)
-	}
-	defer testMySQLSource.DB().Disconnect()
-
-	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil)
-	err = yugabytedbContainer.Start(ctx)
-	if err != nil {
-		utils.ErrExit("Failed to start yugabytedb container: %v", err)
-	}
-	host, port, err = yugabytedbContainer.GetHostPort()
-	if err != nil {
-		utils.ErrExit("%v", err)
-	}
-	testYugabyteDBSource = &TestDB{
-		TestContainer: yugabytedbContainer,
-		Source: &Source{
-			DBType:    "yugabytedb",
-			DBVersion: yugabytedbContainer.GetConfig().DBVersion,
-			User:      yugabytedbContainer.GetConfig().User,
-			Password:  yugabytedbContainer.GetConfig().Password,
-			Schema:    yugabytedbContainer.GetConfig().Schema,
-			DBName:    yugabytedbContainer.GetConfig().DBName,
-			Host:      host,
-			Port:      port,
-			SSLMode:   "disable",
-		},
-	}
-
-	err = testYugabyteDBSource.DB().Connect()
-	if err != nil {
-		utils.ErrExit("Failed to connect to yugabytedb database: %w", err)
-	}
-	defer testYugabyteDBSource.DB().Disconnect()
+	testYugabyteDBSource = createTestDBSource(ctx, yugabytedbConfig)
 
 	// to avoid info level logs flooding the test output
 	log.SetLevel(log.WarnLevel)
 
 	exitCode := m.Run()
 
-	// cleanig up all the running containers
-	testcontainers.TerminateAllContainers()
+	// cleanup after the tests
+	destroyTestDBSource(ctx, testPostgresSource)
+	destroyTestDBSource(ctx, testOracleSource)
+	destroyTestDBSource(ctx, testMySQLSource)
+	destroyTestDBSource(ctx, testYugabyteDBSource)
+	testcontainers.TerminateAllContainers() // safety net in case any of them still left
 
 	os.Exit(exitCode)
 }
