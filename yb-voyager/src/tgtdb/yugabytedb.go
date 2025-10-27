@@ -786,8 +786,11 @@ type HighPriorityIOReader struct {
 
 func (h *HighPriorityIOReader) Read(p []byte) (n int, err error) {
 	utils.IRP.RequestToRunHighPriorityIO()
-	defer utils.IRP.ReleaseHighPriorityIO()
-	return h.File.Read(p)
+	n, err = h.File.Read(p)
+	if err == io.EOF {
+		utils.IRP.ReleaseHighPriorityIO()
+	}
+	return n, err
 }
 
 func (yb *TargetYugabyteDB) copyBatchCore(conn *pgx.Conn, batch Batch, args *ImportBatchArgs) (int64, error) {
