@@ -3,7 +3,9 @@ package utils
 import "sync"
 
 type IORequestPrioritizer struct {
-	highPriorityWaitGroup sync.WaitGroup
+	mu                sync.Mutex
+	highPriorityCount int
+	cond              *sync.Cond
 }
 
 var IRP *IORequestPrioritizer
@@ -14,16 +16,27 @@ func NewIORequestPrioritizer() *IORequestPrioritizer {
 }
 
 func (irp *IORequestPrioritizer) RequestToRunHighPriorityIO() {
-	irp.highPriorityWaitGroup.Add(1)
+	irp.mu.Lock()
+	irp.highPriorityCount++
+	irp.mu.Unlock()
 }
 
 func (irp *IORequestPrioritizer) ReleaseHighPriorityIO() {
-	irp.highPriorityWaitGroup.Done()
+	irp.mu.Lock()
+	irp.highPriorityCount--
+	if irp.highPriorityCount == 0 {
+		irp.cond.Broadcast()
+	}
+	irp.mu.Unlock()
 }
 
 func (irp *IORequestPrioritizer) RequestToRunLowPriorityIO() {
 	// wait until high priority requests are released
-	irp.highPriorityWaitGroup.Wait()
+	irp.mu.Lock()
+	for irp.highPriorityCount > 0 {
+		irp.cond.Wait()
+	}
+	irp.mu.Unlock()
 }
 
 func (irp *IORequestPrioritizer) ReleaseLowPriorityIO() {
