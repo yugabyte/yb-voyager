@@ -122,7 +122,7 @@ func updateFilePaths(source *srcdb.Source, exportDir string, tablesProgressMetad
 	for _, key := range sortedKeys {
 		logMsg += fmt.Sprintf("%+v\n", tablesProgressMetadata[key])
 	}
-	log.Infof(logMsg)
+	log.Info(logMsg)
 }
 
 func getMappingForTableNameVsTableFileName(dataDirPath string, noWait bool) map[string]string {
@@ -197,7 +197,7 @@ func getMappingForTableNameVsTableFileName(dataDirPath string, noWait bool) map[
 }
 
 func UpdateTableApproxRowCount(source *srcdb.Source, exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
-	utils.PrintAndLog("calculating approx num of rows to export for each table...")
+	utils.PrintAndLogf("calculating approx num of rows to export for each table...")
 	sortedKeys := utils.GetSortedKeys(tablesProgressMetadata)
 	for _, key := range sortedKeys {
 		approxRowCount := source.DB().GetTableApproxRowCount(tablesProgressMetadata[key].TableName)
@@ -444,9 +444,9 @@ func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFile
 		// in case there are errored rows, and we are in on-pk-conflict ignore mode,
 		// it is possible that the batches which errored out were partially ingested.
 		if tconf.OnPrimaryKeyConflictAction == constants.PRIMARY_KEY_CONFLICT_ACTION_IGNORE {
-			utils.PrintAndLog(color.YellowString("Note: It is possible that the table row count on the target DB may not match the IMPORTED ROW COUNT as some batches may have been partially ingested."))
+			utils.PrintAndLogf(color.YellowString("Note: It is possible that the table row count on the target DB may not match the IMPORTED ROW COUNT as some batches may have been partially ingested."))
 		}
-		utils.PrintAndLog(color.RedString("Errored snapshot rows are stashed in %q", errorHandler.GetErrorsLocation()))
+		utils.PrintAndLogf(color.RedString("Errored snapshot rows are stashed in %q", errorHandler.GetErrorsLocation()))
 	}
 }
 
@@ -624,14 +624,14 @@ func detectVersionCompatibility(msrVoyagerVersionString string, migrationExportD
 				// In this case we won't be able to convert the version using version.NewVersion() as "main" is not a valid version.
 				// Moreover, we know here that the msrVoyagerVersion is not "main" as we have already handled that case above.
 				// Therefore, the current version and the msrVoyagerVersion will not be equal.
-				utils.PrintAndLog("%s", noteString)
+				utils.PrintAndLogf("%s", noteString)
 			} else {
 				currentVersion, err := version.NewVersion(utils.YB_VOYAGER_VERSION)
 				if err != nil {
 					utils.ErrExit("could not create version from %q: %v", utils.YB_VOYAGER_VERSION, err)
 				}
 				if !currentVersion.Equal(msrVoyagerVersion) {
-					utils.PrintAndLog("%s", noteString)
+					utils.PrintAndLogf("%s", noteString)
 				}
 			}
 		}
@@ -737,7 +737,7 @@ func retrieveMigrationUUID() error {
 	}
 
 	migrationUUID = uuid.MustParse(msr.MigrationUUID)
-	utils.PrintAndLog("migrationID: %s", migrationUUID)
+	utils.PrintAndLogf("migrationID: %s", migrationUUID)
 	return nil
 }
 

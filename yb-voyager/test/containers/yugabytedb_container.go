@@ -31,12 +31,12 @@ func (yb *YugabyteDBContainer) Start(ctx context.Context) (err error) {
 
 	if yb.container != nil {
 		if yb.container.IsRunning() {
-			utils.PrintAndLog("YugabyteDB-%s container already running", yb.DBVersion)
+			utils.PrintAndLogf("YugabyteDB-%s container already running", yb.DBVersion)
 			return nil
 		}
 
 		// but if it’s stopped, so start it back up in place
-		utils.PrintAndLog("Restarting YugabyteDB-%s container", yb.DBVersion)
+		utils.PrintAndLogf("Restarting YugabyteDB-%s container", yb.DBVersion)
 		if err := yb.container.Start(ctx); err != nil {
 			return fmt.Errorf("failed to restart yugabytedb container: %w", err)
 		}
@@ -101,7 +101,7 @@ func (yb *YugabyteDBContainer) Stop(ctx context.Context) error {
 	if yb.container == nil {
 		return nil
 	} else if !yb.container.IsRunning() {
-		utils.PrintAndLog("YugabyteDB-%s container already stopped", yb.DBVersion)
+		utils.PrintAndLogf("YugabyteDB-%s container already stopped", yb.DBVersion)
 		return nil
 	}
 
@@ -111,7 +111,7 @@ func (yb *YugabyteDBContainer) Stop(ctx context.Context) error {
 		return fmt.Errorf("failed to stop postgres container: %w", err)
 	}
 
-	utils.PrintAndLog("🛑 YugabyteDB-%s container stopped", yb.DBVersion)
+	utils.PrintAndLogf("🛑 YugabyteDB-%s container stopped", yb.DBVersion)
 	return nil
 }
 

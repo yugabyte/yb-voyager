@@ -36,7 +36,7 @@ var ErrExit = func(formatString string, args ...interface{}) {
 	atexit.Exit(1)
 }
 
-func PrintAndLog(formatString string, args ...interface{}) {
+func PrintAndLogf(formatString string, args ...interface{}) {
 	log.Infof(formatString, args...)
 	if !strings.HasSuffix(formatString, "\n") {
 		formatString = formatString + "\n"

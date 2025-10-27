@@ -96,7 +96,7 @@ func exportSchema(cmd *cobra.Command) error {
 			return nil
 		}
 	} else if startClean {
-		utils.PrintAndLog("Schema is not exported yet. Ignoring --start-clean flag.\n\n")
+		utils.PrintAndLogf("Schema is not exported yet. Ignoring --start-clean flag.\n\n")
 	}
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 	err := retrieveMigrationUUID()
@@ -129,7 +129,7 @@ func exportSchema(cmd *cobra.Command) error {
 		}
 	}
 
-	utils.PrintAndLog("\nexport of schema for source type as '%s'\n", source.DBType)
+	utils.PrintAndLogf("\nexport of schema for source type as '%s'\n", source.DBType)
 	checkSourceDBCharset()
 	sourceDBVersion := source.DB().GetVersion()
 	source.DBVersion = sourceDBVersion
@@ -140,7 +140,7 @@ func exportSchema(cmd *cobra.Command) error {
 
 	// Get PostgreSQL system identifier while still connected
 	source.FetchDBSystemIdentifier()
-	utils.PrintAndLog("%s version: %s\n", source.DBType, sourceDBVersion)
+	utils.PrintAndLogf("%s version: %s\n", source.DBType, sourceDBVersion)
 
 	res := source.DB().CheckSchemaExists()
 	if !res {
@@ -209,7 +209,7 @@ func exportSchema(cmd *cobra.Command) error {
 	if err != nil {
 		return fmt.Errorf("failed to generate performance optimization %w", err)
 	}
-	utils.PrintAndLog("\nExported schema files created under directory: %s\n\n", filepath.Join(exportDir, "schema"))
+	utils.PrintAndLogf("\nExported schema files created under directory: %s\n\n", filepath.Join(exportDir, "schema"))
 
 	packAndSendExportSchemaPayload(COMPLETE, nil)
 
@@ -282,7 +282,7 @@ func runAssessMigrationCmdBeforExportSchemaIfRequired(exportSchemaCmd *cobra.Com
 
 	var stderrBuf, stdoutBuf bytes.Buffer
 
-	utils.PrintAndLog("Assessing migration before exporting schema...")
+	utils.PrintAndLogf("Assessing migration before exporting schema...")
 
 	// Invoke the assess-migration command as a subprocess
 	cmd := exec.Command(voyagerExecutable, append([]string{"assess-migration"}, assessFlagsWithValues...)...)
@@ -294,11 +294,11 @@ func runAssessMigrationCmdBeforExportSchemaIfRequired(exportSchemaCmd *cobra.Com
 
 	// run and ignore exit status
 	if err := cmd.Run(); err != nil {
-		utils.PrintAndLog("Failed to assess the migration, continuing with export schema...\n")
+		utils.PrintAndLogf("Failed to assess the migration, continuing with export schema...\n")
 		return fmt.Errorf("assess migration cmd exit err: %s and stderr: %s", err.Error(), stderrBuf.String())
 	}
 
-	utils.PrintAndLog("Migration assessment completed successfully.")
+	utils.PrintAndLogf("Migration assessment completed successfully.")
 
 	// fetching assessment report path output line from stdout of assess-migration command process
 	re := regexp.MustCompile(`^\s*generated (?:JSON|HTML) assessment report at: .+`)
@@ -410,7 +410,7 @@ func applyMigrationAssessmentRecommendations() ([]string, []string, []string, []
 	}
 
 	if !bool(skipRecommendations) && assessViaExportSchema {
-		utils.PrintAndLog(`Recommendations generated but not applied. Run the "assess-migration" command explicitly to produce precise recommendations and apply them.`)
+		utils.PrintAndLogf(`Recommendations generated but not applied. Run the "assess-migration" command explicitly to produce precise recommendations and apply them.`)
 		return nil, nil, nil, nil, nil
 	}
 
@@ -419,7 +419,7 @@ func applyMigrationAssessmentRecommendations() ([]string, []string, []string, []
 		filepath.Join(exportDir, "assessment", "reports", fmt.Sprintf("%s.json", ASSESSMENT_FILE_NAME)))
 	log.Infof("using assessmentReportPath: %s", assessmentReportPath)
 	if !utils.FileOrFolderExists(assessmentReportPath) {
-		utils.PrintAndLog("migration assessment report file doesn't exists at %q, skipping apply recommendations step...", assessmentReportPath)
+		utils.PrintAndLogf("migration assessment report file doesn't exists at %q, skipping apply recommendations step...", assessmentReportPath)
 		return nil, nil, nil, nil, nil
 	}
 
@@ -447,7 +447,7 @@ func applyMigrationAssessmentRecommendations() ([]string, []string, []string, []
 	assessmentRecommendationsApplied = true
 	SetAssessmentRecommendationsApplied()
 
-	utils.PrintAndLog("Applied assessment recommendations.")
+	utils.PrintAndLogf("Applied assessment recommendations.")
 	return modifiedTables, modifiedMviews, colocatedTables, colocatedMviews, nil
 }
 
@@ -461,7 +461,7 @@ func applyShardedTablesRecommendation(shardedTables []string, objType string) ([
 	if !utils.FileOrFolderExists(filePath) {
 		// Report if the file does not exist for tables. No need to report it for mviews
 		if objType == TABLE {
-			utils.PrintAndLog("Required schema file %s does not exists, "+
+			utils.PrintAndLogf("Required schema file %s does not exists, "+
 				"returning without applying colocated/sharded tables recommendation", filePath)
 		}
 		return nil, nil, nil
@@ -485,8 +485,8 @@ func applyShardedTablesRecommendation(shardedTables []string, objType string) ([
 		if err != nil {
 			log.Errorf("failed to apply sharding recommendation for table=%q: %v", sqlInfo.objName, err)
 			if match {
-				utils.PrintAndLog("Unable to apply sharding recommendation for table=%q, continuing without applying...\n", sqlInfo.objName)
-				utils.PrintAndLog("Please manually add the clause \"WITH (colocation = false)\" to the CREATE TABLE DDL of the '%s' table.\n", sqlInfo.objName)
+				utils.PrintAndLogf("Unable to apply sharding recommendation for table=%q, continuing without applying...\n", sqlInfo.objName)
+				utils.PrintAndLogf("Please manually add the clause \"WITH (colocation = false)\" to the CREATE TABLE DDL of the '%s' table.\n", sqlInfo.objName)
 			}
 		} else {
 			if match {
@@ -535,10 +535,10 @@ func applyShardedTablesRecommendation(shardedTables []string, objType string) ([
 		panic(fmt.Sprintf("Object type not supported %s", objType))
 	}
 
-	utils.PrintAndLog("Modified CREATE %s statements in %q according to the colocation and sharding recommendations of the assessment report.",
+	utils.PrintAndLogf("Modified CREATE %s statements in %q according to the colocation and sharding recommendations of the assessment report.",
 		objTypeName,
 		utils.GetRelativePathFromCwd(filePath))
-	utils.PrintAndLog("The original DDLs have been preserved in %q for reference.", utils.GetRelativePathFromCwd(backupPath))
+	utils.PrintAndLogf("The original DDLs have been preserved in %q for reference.", utils.GetRelativePathFromCwd(backupPath))
 	return modifiedObjects, colocatedObjects, nil
 }
 

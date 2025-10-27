@@ -119,7 +119,7 @@ func exportDataCommandPreRun(cmd *cobra.Command, args []string) {
 		} else if useDebezium {
 			utils.ErrExit(color.RedString("allow-oracle-clob-data-export is not supported for BETA_FAST_DATA_EXPORT export path. Remove this flag and retry."))
 		} else {
-			utils.PrintAndLog(color.YellowString("Note: Experimental CLOB export is enabled for Oracle offline export."))
+			utils.PrintAndLogf(color.YellowString("Note: Experimental CLOB export is enabled for Oracle offline export."))
 		}
 	}
 }
@@ -133,12 +133,12 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 
 	ExitIfAlreadyCutover(exporterRole)
 	if useDebezium && !changeStreamingIsEnabled(exportType) {
-		utils.PrintAndLog("Note: Beta feature to accelerate data export is enabled by setting BETA_FAST_DATA_EXPORT environment variable")
+		utils.PrintAndLogf("Note: Beta feature to accelerate data export is enabled by setting BETA_FAST_DATA_EXPORT environment variable")
 	}
 	if changeStreamingIsEnabled(exportType) {
-		utils.PrintAndLog(color.YellowString(`Note: Live migration is a TECH PREVIEW feature.`))
+		utils.PrintAndLogf(color.YellowString(`Note: Live migration is a TECH PREVIEW feature.`))
 	}
-	utils.PrintAndLog("export of data for source type as '%s'", source.DBType)
+	utils.PrintAndLogf("export of data for source type as '%s'", source.DBType)
 	sqlname.SourceDBType = source.DBType
 
 	success := exportData()
@@ -236,7 +236,7 @@ func exportData() bool {
 			utils.ErrExit("check dependencies for export: %w", err)
 		} else if len(binaryCheckIssues) > 0 {
 			headerStmt := color.RedString("Missing dependencies for export data:")
-			utils.PrintAndLog("\n%s\n%s", headerStmt, strings.Join(binaryCheckIssues, "\n"))
+			utils.PrintAndLogf("\n%s\n%s", headerStmt, strings.Join(binaryCheckIssues, "\n"))
 			utils.ErrExit("")
 		}
 	}
@@ -356,10 +356,10 @@ func exportData() bool {
 	})
 
 	fmt.Printf("num tables to export: %d\n", len(tableListToDisplay))
-	utils.PrintAndLog("table list for data export: %v", tableListToDisplay)
+	utils.PrintAndLogf("table list for data export: %v", tableListToDisplay)
 
 	if source.DBType == POSTGRESQL {
-		utils.PrintAndLog("Only the sequences that are attached to the above exported tables will be restored during the migration.")
+		utils.PrintAndLogf("Only the sequences that are attached to the above exported tables will be restored during the migration.")
 	}
 
 	//finalTableList is with leaf partitions and root tables after this in the whole export flow to make all the catalog queries work fine
@@ -484,7 +484,7 @@ func exportData() bool {
 
 			updateCallhomeExportPhase()
 
-			utils.PrintAndLog("\nRun the following command to get the current report of the migration:\n" +
+			utils.PrintAndLogf("\nRun the following command to get the current report of the migration:\n" +
 				color.CyanString("yb-voyager get data-migration-report --export-dir %q\n", exportDir))
 		}
 		return true
@@ -516,7 +516,7 @@ func checkExportDataPermissions(finalTableList []sqlname.NameTuple) {
 			utils.ErrExit("check replication slots: %w", err)
 		}
 		if !isAvailable {
-			utils.PrintAndLog("\n%s Current replication slots: %d; Max allowed replication slots: %d\n", color.RedString("ERROR:"), usedCount, maxCount)
+			utils.PrintAndLogf("\n%s Current replication slots: %d; Max allowed replication slots: %d\n", color.RedString("ERROR:"), usedCount, maxCount)
 			utils.ErrExit("")
 		}
 	}
@@ -528,7 +528,7 @@ func checkExportDataPermissions(finalTableList []sqlname.NameTuple) {
 	if len(missingPermissions) > 0 {
 		color.Red("\nPermissions and configurations missing in the source database for export data:\n")
 		output := strings.Join(missingPermissions, "\n")
-		utils.PrintAndLog("%s\n", output)
+		utils.PrintAndLogf("%s\n", output)
 
 		var link string
 		if changeStreamingIsEnabled(exportType) {
@@ -555,7 +555,7 @@ func checkIfSchemasHaveUsagePermissions() {
 		utils.ErrExit("get schemas missing usage permissions: %w", err)
 	}
 	if len(schemasMissingUsage) > 0 {
-		utils.PrintAndLog("\n%s[%s]", color.RedString(fmt.Sprintf("Missing USAGE permission for user %s on Schemas: ", source.User)), strings.Join(schemasMissingUsage, ", "))
+		utils.PrintAndLogf("\n%s[%s]", color.RedString(fmt.Sprintf("Missing USAGE permission for user %s on Schemas: ", source.User)), strings.Join(schemasMissingUsage, ", "))
 
 		var link string
 		if changeStreamingIsEnabled(exportType) {
@@ -729,7 +729,7 @@ func exportPGSnapshotWithPGdump(ctx context.Context, cancel context.CancelFunc, 
 		return fmt.Errorf("export snapshot: failed to create replication slot: %w", err)
 	}
 	yellowBold := color.New(color.FgYellow, color.Bold)
-	utils.PrintAndLog(yellowBold.Sprintf("Created replication slot '%s' on source PG database. "+
+	utils.PrintAndLogf(yellowBold.Sprintf("Created replication slot '%s' on source PG database. "+
 		"Be sure to run 'initiate cutover to target' or 'end migration' command after completing/aborting this migration to drop the replication slot. "+
 		"This is important to avoid filling up disk space.", replicationSlotName))
 
@@ -1203,12 +1203,12 @@ func detectAndReportNewLeafPartitionsOnPartitionedTables(rootTables []sqlname.Na
 
 	//TODO: also detect this during ongoing command as well - ticket to track https://github.com/yugabyte/yb-voyager/issues/2356
 	if len(lo.Keys(rootToNewLeafTablesMap)) > 0 {
-		utils.PrintAndLog("Detected new partition tables for the following partitioned tables. These will not be considered during migration:")
+		utils.PrintAndLogf("Detected new partition tables for the following partitioned tables. These will not be considered during migration:")
 		listToPrint := ""
 		for k, leafs := range rootToNewLeafTablesMap {
 			listToPrint += fmt.Sprintf("Root table: %s, new leaf partitions: %s\n", k, strings.Join(leafs, ", "))
 		}
-		utils.PrintAndLog(listToPrint)
+		utils.PrintAndLogf(listToPrint)
 		msg := "Do you want to continue?"
 		if !utils.AskPrompt(msg) {
 			utils.ErrExit("Aborting, Start a fresh migration if required...")
@@ -1409,7 +1409,7 @@ func clearMigrationStateIfRequired() {
 		if !utils.IsDirectoryEmpty(exportDataDir) {
 			if (changeStreamingIsEnabled(exportType)) &&
 				dbzm.IsMigrationInStreamingMode(exportDir) {
-				utils.PrintAndLog("Continuing streaming from where we left off...")
+				utils.PrintAndLogf("Continuing streaming from where we left off...")
 			} else {
 				utils.ErrExit("data directory is not empty, use --start-clean flag to clean the directories and start: %s", exportDir)
 			}
@@ -1469,12 +1469,12 @@ func checkSourceDBCharset() {
 	// proceeding for export.
 	charset, err := source.DB().GetCharset()
 	if err != nil {
-		utils.PrintAndLog("[WARNING] Failed to find character set of the source db: %s", err)
+		utils.PrintAndLogf("[WARNING] Failed to find character set of the source db: %s", err)
 		return
 	}
 	log.Infof("Source database charset: %q", charset)
 	if !strings.Contains(strings.ToLower(charset), "utf") {
-		utils.PrintAndLog("voyager supports only unicode character set for source database. "+
+		utils.PrintAndLogf("voyager supports only unicode character set for source database. "+
 			"But the source database is using '%s' character set. ", charset)
 		if !utils.AskPrompt("Are you sure you want to proceed with export? ") {
 			utils.ErrExit("Export aborted.")
@@ -1556,7 +1556,7 @@ func startFallBackSetupIfRequired() {
 
 	cmdStr := "SOURCE_DB_PASSWORD=*** " + strings.Join(cmd, " ")
 
-	utils.PrintAndLog("Starting import data to source with command:\n %s", color.GreenString(cmdStr))
+	utils.PrintAndLogf("Starting import data to source with command:\n %s", color.GreenString(cmdStr))
 
 	// If error had occurred while reading the config file, display the command and exit
 	if displayCmdAndExit {
@@ -1594,7 +1594,7 @@ func finalizeTableAndColumnList(finalTableList []sqlname.NameTuple) ([]sqlname.N
 		var emptyTableList []sqlname.NameTuple
 		finalTableList, emptyTableList = source.DB().FilterEmptyTables(finalTableList)
 		if len(emptyTableList) != 0 {
-			utils.PrintAndLog("skipping empty tables: %v", lo.Map(emptyTableList, func(table sqlname.NameTuple, _ int) string {
+			utils.PrintAndLogf("skipping empty tables: %v", lo.Map(emptyTableList, func(table sqlname.NameTuple, _ int) string {
 				return table.ForOutput()
 			}))
 		}
@@ -1604,7 +1604,7 @@ func finalizeTableAndColumnList(finalTableList []sqlname.NameTuple) ([]sqlname.N
 	var unsupportedTableList []sqlname.NameTuple
 	finalTableList, unsupportedTableList = source.DB().FilterUnsupportedTables(migrationUUID, finalTableList, useDebezium)
 	if len(unsupportedTableList) != 0 {
-		utils.PrintAndLog("skipping unsupported tables: %v", lo.Map(unsupportedTableList, func(table sqlname.NameTuple, _ int) string {
+		utils.PrintAndLogf("skipping unsupported tables: %v", lo.Map(unsupportedTableList, func(table sqlname.NameTuple, _ int) string {
 			return table.ForOutput()
 		}))
 	}
@@ -1643,7 +1643,7 @@ func reportUnsupportedTablesForLiveMigration(finalTableList []sqlname.NameTuple)
 		}
 	}
 	if len(nonPKTables) > 0 {
-		utils.PrintAndLog("Table names without a Primary key: %s", nonPKTables)
+		utils.PrintAndLogf("Table names without a Primary key: %s", nonPKTables)
 		utils.ErrExit("Currently voyager does not support live-migration for tables without a primary key.\n" +
 			"You can exclude these tables using the --exclude-table-list argument.")
 	}
@@ -1660,11 +1660,11 @@ func handleUnsupportedColumnsInExportData(unsupportedTableColumnsMap *utils.Stru
 		}
 		return true, nil
 	})
-	utils.PrintAndLog(unsupportedColsMsg.String())
+	utils.PrintAndLogf(unsupportedColsMsg.String())
 	if !utils.AskPrompt("\nDo you want to continue with the export by ignoring just these columns' data") {
 		utils.ErrExit("Exiting at user's request. Use `--exclude-table-list` flag to continue without these tables")
 	} else {
-		utils.PrintAndLog(color.YellowString("Continuing with the export by ignoring just these columns' data.\n"+
+		utils.PrintAndLogf(color.YellowString("Continuing with the export by ignoring just these columns' data.\n"+
 			"Please make sure to remove any null constraints on these columns in the %s database.", getImportingDatabaseString()))
 	}
 }
@@ -1685,7 +1685,7 @@ func handleEmptyTableListForExport(finalTableList []sqlname.NameTuple) {
 		return
 	}
 
-	utils.PrintAndLog("no tables present to export, exiting...")
+	utils.PrintAndLogf("no tables present to export, exiting...")
 	setDataIsExported()
 	dfd := datafile.Descriptor{
 		ExportDir:    exportDir,

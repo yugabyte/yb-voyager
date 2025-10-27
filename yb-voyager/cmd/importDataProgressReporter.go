@@ -49,7 +49,7 @@ func NewImportDataProgressReporter(disablePb bool) *ImportDataProgressReporter {
 // Custom prepend decorator
 // This decorator is used to prepend the table name to the progress bar
 // It is also used to display the resume message to the user
-//Implementing the decor.Decorator interface for the customization 
+// Implementing the decor.Decorator interface for the customization
 type PrependDecorator struct {
 	content   string
 	conf      decor.WC
@@ -96,16 +96,16 @@ func (pd *PrependDecorator) updateContent() {
 	pd.conf.W = len(pd.content)
 }
 
-//This is the function which gets run whenever there is an update in decorator to re-render the bar UI
-//so returning the content which is updated content with  resume msg in case of resumption
+// This is the function which gets run whenever there is an update in decorator to re-render the bar UI
+// so returning the content which is updated content with  resume msg in case of resumption
 func (pd *PrependDecorator) Decor(s decor.Statistics) string {
 	pd.mu.RLock()
 	defer pd.mu.RUnlock()
 
-	return  pd.content
+	return pd.content
 }
 
-//these below functions are just for implementing the Decorator interface and no change to these 
+// these below functions are just for implementing the Decorator interface and no change to these
 func (pd *PrependDecorator) GetConf() decor.WC {
 	pd.mu.RLock()
 	defer pd.mu.RUnlock()
@@ -136,7 +136,7 @@ func (pr *ImportDataProgressReporter) ImportFileStarted(task *ImportFileTask, to
 	defer pr.Unlock()
 
 	if pr.disablePb {
-		//displaying the table as well in the print to cover the same file to multiple table scenario 
+		//displaying the table as well in the print to cover the same file to multiple table scenario
 		fmt.Printf("File %s: import to table: %s started\n", task.FilePath, task.TableNameTup.ForOutput())
 		return
 	}
@@ -204,7 +204,7 @@ func (pr *ImportDataProgressReporter) FileImportDone(task *ImportFileTask) {
 	pr.Lock()
 	defer pr.Unlock()
 	if pr.disablePb {
-		utils.PrintAndLog("Table %s: import completed", task.TableNameTup.ForOutput())
+		utils.PrintAndLogf("Table %s: import completed", task.TableNameTup.ForOutput())
 		return
 	}
 	progressBar := pr.progressBars[task.ID]

@@ -188,7 +188,7 @@ func SizingAssessment(targetDbVersion *ybversion.YBVersion, sourceDBType string)
 		// find closest yb version from experiment data to targetYbVersion or default
 		ybVersionIdToUse = findClosestVersion(targetDbVersion, experimentDbAvailableYbVersions, defaultYbVersionId)
 	}
-	log.Infof(fmt.Sprintf("Experiment data yb version id used for sizing assessment: %v\n", ybVersionIdToUse))
+	log.Infof("Experiment data yb version id used for sizing assessment: %v\n", ybVersionIdToUse)
 
 	colocatedLimits, err := loadColocatedLimit(experimentDB, ybVersionIdToUse)
 	if err != nil {

@@ -37,12 +37,12 @@ func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedE
 
 	totalColocatedSize, err := assessmentReport.GetTotalColocatedSize(source.DBType)
 	if err != nil {
-		utils.PrintAndLog("failed to calculate the total colocated table size from tableIndexStats: %v", err)
+		utils.PrintAndLogf("failed to calculate the total colocated table size from tableIndexStats: %v", err)
 	}
 
 	totalShardedSize, err := assessmentReport.GetTotalShardedSize(source.DBType)
 	if err != nil {
-		utils.PrintAndLog("failed to calculate the total sharded table size from tableIndexStats: %v", err)
+		utils.PrintAndLogf("failed to calculate the total sharded table size from tableIndexStats: %v", err)
 	}
 
 	assessmentIssues := convertAssessmentIssueToYugabyteDAssessmentIssue(assessmentReport)
@@ -106,7 +106,7 @@ func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedE
 
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
-		utils.PrintAndLog("Failed to serialise the final report to json (ERR IGNORED): %s", err)
+		utils.PrintAndLogf("Failed to serialise the final report to json (ERR IGNORED): %s", err)
 	}
 
 	ev.Report = string(payloadBytes)

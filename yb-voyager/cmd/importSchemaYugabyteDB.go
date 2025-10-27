@@ -344,7 +344,7 @@ func importDeferredStatements() {
 	}
 	log.Infof("Number of statements in deferredSQLStmts list: %d\n", len(deferredSqlStmts))
 
-	utils.PrintAndLog("\nExecuting the remaining SQL statements...\n\n")
+	utils.PrintAndLogf("\nExecuting the remaining SQL statements...\n\n")
 	maxIterations := len(deferredSqlStmts)
 
 	var err error
@@ -379,10 +379,10 @@ func importDeferredStatements() {
 			var stmtNotice *pgconn.Notice
 			stmtNotice, err = tgtConn.ExecStmtAndGetNotice(deferredSqlStmts[j].sqlStmt.formattedStmt)
 			if err == nil {
-				utils.PrintAndLog("%s\n", utils.GetSqlStmtToPrint(deferredSqlStmts[j].sqlStmt.stmt))
+				utils.PrintAndLogf("%s\n", utils.GetSqlStmtToPrint(deferredSqlStmts[j].sqlStmt.stmt))
 				noticeMsg := getNoticeMessage(stmtNotice)
 				if noticeMsg != "" {
-					utils.PrintAndLog(color.YellowString("%s\n", noticeMsg))
+					utils.PrintAndLogf(color.YellowString("%s\n", noticeMsg))
 				}
 				// removing successfully executed SQL
 				deferredSqlStmts = append(deferredSqlStmts[:j], deferredSqlStmts[j+1:]...)

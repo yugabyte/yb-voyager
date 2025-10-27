@@ -261,7 +261,6 @@ func (tdb *TargetOracleDB) RestoreSequences(sequencesNameToLastValue *utils.Stru
 	return nil
 }
 
-
 func (tdb *TargetOracleDB) ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string, isRecoveryCandidate bool) (int64, error, bool) {
 	tdb.Lock()
 	defer tdb.Unlock()
@@ -772,7 +771,7 @@ func (tdb *TargetOracleDB) ClearMigrationState(migrationUUID uuid.UUID, exportDi
 
 	// ask to manually delete the USER in case of FF or FB
 	// TODO: check and inform user if there is another migrationUUID data in metadata schema tables before cleaning up the schema
-	utils.PrintAndLog(`Please manually delete the metadata schema '%s' from the '%s' host using the following SQL statement(after making sure no other migration is IN-PROGRESS):
+	utils.PrintAndLogf(`Please manually delete the metadata schema '%s' from the '%s' host using the following SQL statement(after making sure no other migration is IN-PROGRESS):
 	DROP USER %s CASCADE`, schema, tdb.tconf.Host, schema)
 	return nil
 }

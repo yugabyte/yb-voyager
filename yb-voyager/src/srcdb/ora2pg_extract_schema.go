@@ -62,7 +62,7 @@ func ora2pgExtractSchema(source *Source, exportDir string, schemaDir string) {
 
 		err := exportSchemaObjectCommand.Start()
 		if err != nil {
-			utils.PrintAndLog("Error while starting export: %v", err)
+			utils.PrintAndLogf("Error while starting export: %v", err)
 			utils.WaitChannel <- 1 //stop execution of command with exit code 1
 			<-utils.WaitChannel
 			continue
@@ -76,7 +76,7 @@ func ora2pgExtractSchema(source *Source, exportDir string, schemaDir string) {
 			log.Errorf(`ora2pg STDERR in export of %s : "%s"`, exportObject, errbuf.String())
 		}
 		if err != nil {
-			utils.PrintAndLog("Error while waiting for export command exit: %v", err)
+			utils.PrintAndLogf("Error while waiting for export command exit: %v", err)
 			utils.WaitChannel <- 1 //stop waiting with exit code 1
 			<-utils.WaitChannel
 			continue

@@ -1074,7 +1074,7 @@ func (pg *PostgreSQL) CheckSourceDBVersion(exportType string) error {
 	if exportType == utils.CHANGES_ONLY || exportType == utils.SNAPSHOT_AND_CHANGES {
 		if version.CompareSimple(majorVersion, MIN_SUPPORTED_PG_VERSION_LIVE) < 0 {
 			supportedVersionRange = fmt.Sprintf("%s to %s", MIN_SUPPORTED_PG_VERSION_LIVE, MAX_SUPPORTED_PG_VERSION)
-			utils.PrintAndLog(color.RedString("Warning: Live Migration: Current source db version: %s. Supported versions: %s", pgVersion, supportedVersionRange))
+			utils.PrintAndLogf(color.RedString("Warning: Live Migration: Current source db version: %s. Supported versions: %s", pgVersion, supportedVersionRange))
 		}
 	}
 
