@@ -12,6 +12,7 @@ var IRP *IORequestPrioritizer
 
 func NewIORequestPrioritizer() *IORequestPrioritizer {
 	irp := &IORequestPrioritizer{}
+	irp.cond = sync.NewCond(&irp.mu)
 	return irp
 }
 
