@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"math/rand"
 	"sync"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
@@ -116,10 +117,13 @@ func (sbp *ShuffledBatchProducer) NextBatch() (*Batch, error) {
 	defer sbp.mu.Unlock()
 
 	// Wait for batches to become available
+	start := time.Now()
 	for len(sbp.batches) == 0 && !sbp.producerFinished {
 		sbp.cond.Wait() // This releases the lock and waits
 		// When we wake up, the lock is re-acquired automatically
 	}
+	elapsed := time.Since(start)
+	log.Infof("to get a batch, waited for %s", elapsed)
 
 	if len(sbp.batches) == 0 {
 		return nil, fmt.Errorf("no more batches available")
