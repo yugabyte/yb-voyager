@@ -76,14 +76,16 @@ func (sbp *ShuffledBatchProducer) Init() {
 				utils.ErrExit("Failed to acquire semaphore: %v", err)
 			}
 
-			// sbp.mu.Lock()
-			// if sbp.fileBatchProducer.Done() {
-			// 	sbp.producerFinished = true
-			// 	sbp.mu.Unlock()
-			// 	parallelBatchProducerSemaphore.Release(1)
-			// 	log.Infof("Producer finished for file: %s", sbp.fileBatchProducer.task.FilePath)
-			// 	break
-			// }
+			sbp.mu.Lock()
+			if sbp.fileBatchProducer.Done() {
+				sbp.producerFinished = true
+				sbp.mu.Unlock()
+				parallelBatchProducerSemaphore.Release(1)
+				log.Infof("Producer finished for file: %s", sbp.fileBatchProducer.task.FilePath)
+				break
+			}
+			sbp.mu.Unlock()
+
 			batch, err := sbp.fileBatchProducer.NextBatch()
 			if err != nil {
 				// sbp.mu.Unlock()
