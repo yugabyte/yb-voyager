@@ -23,7 +23,6 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/fatih/color"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/sqltransformer"
@@ -86,6 +85,41 @@ func NewSchemaOptimizationReport(voyagerVersion, dbName, dbSchema, dbVersion str
 	}
 }
 
+func (s *SchemaOptimizationReport) Summary() string {
+	//summary for all the changes whether applied or not
+	summary := ""
+	idx := 1
+	if s.RedundantIndexChange != nil {
+		summary += fmt.Sprintf("%d. %s\n", idx, s.RedundantIndexChange.Title)
+		idx++
+	}
+	if s.TableColocationRecommendation != nil {
+		summary += fmt.Sprintf("%d. %s\n", idx, s.TableColocationRecommendation.Title)
+		idx++
+	}
+	if s.MviewColocationRecommendation != nil {
+		summary += fmt.Sprintf("%d. %s\n", idx, s.MviewColocationRecommendation.Title)
+		idx++
+	}
+	if s.SecondaryIndexToRangeChange != nil {
+		summary += fmt.Sprintf("%d. %s\n", idx, s.SecondaryIndexToRangeChange.Title)
+		idx++
+	}
+	if s.PKHashShardingChange != nil {
+		summary += fmt.Sprintf("%d. %s\n", idx, s.PKHashShardingChange.Title)
+		idx++
+	}
+	if s.PKOnTimestampRangeShardingChange != nil {
+		summary += fmt.Sprintf("%d. %s\n", idx, s.PKOnTimestampRangeShardingChange.Title)
+		idx++
+	}
+	if s.UKRangeShardingChange != nil {
+		summary += fmt.Sprintf("%d. %s\n", idx, s.UKRangeShardingChange.Title)
+		idx++
+	}
+	return summary
+}
+
 // RedundantIndexChange represents the removal of redundant indexes that are fully
 // covered by stronger indexes, improving performance and reducing storage overhead.
 type RedundantIndexChange struct {
@@ -131,7 +165,7 @@ type ColocationRecommendationChange struct {
 
 // Exist returns true if no sharded objects were present
 func (a *ColocationRecommendationChange) Exist() bool {
-	return a != nil && (len(a.ShardedObjects) > 0)
+	return a != nil
 }
 
 // NewAppliedColocationRecommendationChange creates a new AppliedColocationRecommendationChange with default values
@@ -160,6 +194,17 @@ func NewAppliedColocationRecommendationChange(objectType string, applied bool, r
 		ShardedObjects:    shardedObjects,
 		CollocatedObjects: colocatedObjects,
 		IsApplied:         applied,
+	}
+}
+
+func NewAppliedColocationRecommendationChangeWhenAssessRunViaExport() *ColocationRecommendationChange {
+	return &ColocationRecommendationChange{
+		Title:             "Colocation Recommendations - Not Applied",
+		Description:       "Colocation recommendations were not applied since assessment was done via export schema command. Run the 'assess-migration' command explicitly to produce precise recommendations and re run the 'export schema' command to apply them.",
+		ReferenceFile:     "",
+		ShardedObjects:    nil,
+		CollocatedObjects: nil,
+		IsApplied:         false,
 	}
 }
 
@@ -316,10 +361,12 @@ func buildRedundantIndexChange(indexTransformer *sqltransformer.IndexFileTransfo
 	return NewRedundantIndexChange(!bool(skipPerfOptimizations), redundantIndexesFile, getTableToIndexMap(redundantIndexes))
 }
 
-func buildColocationTableRecommendationChange(shardedTables []string, colocatedTables []string) *ColocationRecommendationChange {
+func buildColocationTableRecommendationChange(shardedTables []string, colocatedTables []string, assessViaExportSchema bool) *ColocationRecommendationChange {
 	if !assessmentRecommendationsApplied { //If assessment recommendations not applied and skip recommendations is true, then show that its not applied
 		if skipRecommendations {
 			return NewAppliedColocationRecommendationChange("", false, "", nil, nil) // Dummy entry for both table and mview as no need to show two
+		} else if assessViaExportSchema {
+			return NewAppliedColocationRecommendationChangeWhenAssessRunViaExport() // Dummy entry for both table and mview as no need to show two
 		}
 		return nil
 	}
@@ -395,7 +442,13 @@ func generatePerformanceOptimizationReport(indexTransformer *sqltransformer.Inde
 		source.DBVersion,
 	)
 	schemaOptimizationReport.RedundantIndexChange = buildRedundantIndexChange(indexTransformer)
-	schemaOptimizationReport.TableColocationRecommendation = buildColocationTableRecommendationChange(shardedTables, colocatedTables)
+
+	assessViaExportSchema, err := IsMigrationAssessmentDoneViaExportSchema()
+	if err != nil {
+		return fmt.Errorf("failed to check if migration assessment is done via export schema: %w", err)
+	}
+
+	schemaOptimizationReport.TableColocationRecommendation = buildColocationTableRecommendationChange(shardedTables, colocatedTables, assessViaExportSchema)
 	schemaOptimizationReport.MviewColocationRecommendation = buildColocationMviewRecommendationChange(shardedMviews, colocatedMviews)
 	schemaOptimizationReport.SecondaryIndexToRangeChange = buildSecondaryIndexToRangeChange(indexTransformer)
 
@@ -432,7 +485,10 @@ func generatePerformanceOptimizationReport(indexTransformer *sqltransformer.Inde
 			return fmt.Errorf("failed to close file %q: %w", htmlReportFilePath, err)
 		}
 
-		color.Green("\nSome Optimization changes were applied to the exported schema, refer to the detailed report for more information: %s", htmlReportFilePath)
+		utils.PrintAndLog(utils.Success.Sprintf("\nSchema optimization changes"))
+		utils.PrintAndLog(schemaOptimizationReport.Summary())
+		utils.PrintAndLog("\nRefer to the detailed report for more information: %s", utils.YellowPath.Sprintf(htmlReportFilePath))
+		// color.Green("\nSome Optimization changes were applied to the exported schema, refer to the detailed report for more information: %s", htmlReportFilePath)
 	}
 
 	return nil

@@ -162,6 +162,7 @@ func (t *IndexFileTransformer) writeRemovedRedundantIndexesToFile(removedIndexTo
 type TableFileTransformer struct {
 	//skipping the merge constraints with this parameter
 	skipMergeConstraints                            bool
+	MergedConstraints                               bool
 	sourceDBType                                    string
 	skipPerformanceOptimizations                    bool
 	PKTablesOnTimestampWithRangeSharded             []string
@@ -199,6 +200,7 @@ func (t *TableFileTransformer) Transform(file string) (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("error while merging constraints: %w", err)
 		}
+		t.MergedConstraints = true
 	}
 
 	if t.shouldConfigureShardingStrategyForConstraints() {

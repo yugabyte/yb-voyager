@@ -201,6 +201,10 @@ func exportSchema(cmd *cobra.Command) error {
 		return fmt.Errorf("failed to apply table file transformations: %w", err)
 	}
 
+	if tableTransformer.MergedConstraints {
+		utils.PrintAndLog(utils.Info.Sprintf("Merged constraint definitions into CREATE TABLE statements of the exported tables."))
+	}
+
 	indexTransformer, err := applyIndexFileTransformations()
 	if err != nil {
 		return fmt.Errorf("failed to apply index file transformations: %w", err)
@@ -209,7 +213,7 @@ func exportSchema(cmd *cobra.Command) error {
 	if err != nil {
 		return fmt.Errorf("failed to generate performance optimization %w", err)
 	}
-	utils.PrintAndLog("\nExported schema files created under directory: %s\n\n", filepath.Join(exportDir, "schema"))
+	utils.PrintAndLog(utils.Success.Sprintf("\nExported schema files created under directory: %s\n\n", utils.YellowPath.Sprintf(filepath.Join(exportDir, "schema"))))
 
 	packAndSendExportSchemaPayload(COMPLETE, nil)
 
@@ -446,7 +450,7 @@ func applyMigrationAssessmentRecommendations() ([]string, []string, []string, []
 	assessmentRecommendationsApplied = true
 	SetAssessmentRecommendationsApplied()
 
-	utils.PrintAndLog("Applied assessment recommendations.")
+	// utils.PrintAndLog("Applied assessment recommendations.")
 	return modifiedTables, modifiedMviews, colocatedTables, colocatedMviews, nil
 }
 
@@ -524,20 +528,20 @@ func applyShardedTablesRecommendation(shardedTables []string, objType string) ([
 	if err = file.Close(); err != nil {
 		return nil, nil, fmt.Errorf("error closing file '%q' storing the modified recommended schema: %w", filePath, err)
 	}
-	var objTypeName = ""
-	switch objType {
-	case MVIEW:
-		objTypeName = "MATERIALIZED VIEW"
-	case TABLE:
-		objTypeName = "TABLE"
-	default:
-		panic(fmt.Sprintf("Object type not supported %s", objType))
-	}
+	// var objTypeName = ""
+	// switch objType {
+	// case MVIEW:
+	// 	objTypeName = "MATERIALIZED VIEW"
+	// case TABLE:
+	// 	objTypeName = "TABLE"
+	// default:
+	// 	panic(fmt.Sprintf("Object type not supported %s", objType))
+	// }
 
-	utils.PrintAndLog("Modified CREATE %s statements in %q according to the colocation and sharding recommendations of the assessment report.",
-		objTypeName,
-		utils.GetRelativePathFromCwd(filePath))
-	utils.PrintAndLog("The original DDLs have been preserved in %q for reference.", utils.GetRelativePathFromCwd(backupPath))
+	// utils.PrintAndLog("Modified CREATE %s statements in %q according to the colocation and sharding recommendations of the assessment report.",
+	// 	objTypeName,
+	// 	utils.GetRelativePathFromCwd(filePath))
+	// utils.PrintAndLog("The original DDLs have been preserved in %q for reference.", utils.GetRelativePathFromCwd(backupPath))
 	return modifiedObjects, colocatedObjects, nil
 }
 
