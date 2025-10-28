@@ -16,15 +16,94 @@ limitations under the License.
 package cmd
 
 import (
+	"fmt"
+	"regexp"
+	"strings"
+
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
 
 var prepareForFallBack utils.BoolStr
 var useYBgRPCConnector utils.BoolStr
+
+// validateYBVersionForLogicalConnector checks if the YugabyteDB version is greater than 2024.1.1
+// Logical connector is only supported in YugabyteDB versions greater than 2024.1.1
+func validateYBVersionForLogicalConnector(tconf *tgtdb.TargetConf) error {
+	if tconf == nil {
+		return fmt.Errorf("target database configuration is not available")
+	}
+
+	// Version should already be stored in metadata from previous import commands
+	if tconf.DBVersion == "" {
+		return fmt.Errorf("YugabyteDB version not found in metadata.")
+	}
+	versionStr := tconf.DBVersion
+
+	// Extract YB version from PostgreSQL version string
+	// Format: PostgreSQL x.x-YB-version-bxxx or version
+	ybVersion, err := extractYBVersion(versionStr)
+	if err != nil {
+		return fmt.Errorf("failed to extract YugabyteDB version from '%s': %w", versionStr, err)
+	}
+
+	// Parse the version
+	targetVersion, err := ybversion.NewYBVersion("2024.1.1.0")
+	if err != nil {
+		return fmt.Errorf("failed to parse target version: %w", err)
+	}
+
+	currentVersion, err := ybversion.NewYBVersion(ybVersion)
+	if err != nil {
+		return fmt.Errorf("failed to parse YugabyteDB version '%s': %w. YugabyteDB version must be greater than 2024.1.1 for logical connector", ybVersion, err)
+	}
+
+	// Check if version is greater than 2024.1.1
+	// Using Equal check combined with comparison to ensure > (not >=)
+	if currentVersion.Equal(targetVersion) || !currentVersion.GreaterThanOrEqual(targetVersion) {
+		return fmt.Errorf("YugabyteDB logical replication connector is only supported in versions greater than 2024.1.1. Current version: %s. Please use --use-yb-grpc-connector=true or upgrade your YugabyteDB cluster", ybVersion)
+	}
+
+	log.Infof("YugabyteDB version %s is compatible with logical connector", ybVersion)
+	return nil
+}
+
+// extractYBVersion extracts YugabyteDB version from PostgreSQL version string
+// Examples:
+// - "14.6-YB-2.18.1.0-b89" -> "2.18.1.0"
+// - "2024.1.1.0" -> "2024.1.1.0"
+// - "14.6-YB-2024.1.1.0" -> "2024.1.1.0"
+func extractYBVersion(versionStr string) (string, error) {
+	// Try to match pattern like "14.6-YB-2.18.1.0-b89"
+	re := regexp.MustCompile(`YB-([0-9.]+)`)
+	match := re.FindStringSubmatch(versionStr)
+	if len(match) >= 2 {
+		version := match[1]
+		// Remove build suffix if present (e.g., "-b89")
+		if idx := strings.Index(version, "-"); idx != -1 {
+			version = version[:idx]
+		}
+		return version, nil
+	}
+
+	// If not in YB-X format, might already be the version
+	// Check if it looks like a version number (e.g., "2024.1.1.0" or "2.18.1.0")
+	if matched, _ := regexp.MatchString(`^\d+\.\d+\.\d+\.\d+$`, versionStr); matched {
+		return versionStr, nil
+	}
+
+	// Also handle 3-part versions like "2024.1.1" -> "2024.1.1.0"
+	if matched, _ := regexp.MatchString(`^\d+\.\d+\.\d+$`, versionStr); matched {
+		return versionStr + ".0", nil
+	}
+
+	return "", fmt.Errorf("unable to extract YugabyteDB version from string: %s", versionStr)
+}
 
 var cutoverToTargetCmd = &cobra.Command{
 	Use:   "target",
@@ -67,6 +146,14 @@ var cutoverToTargetCmd = &cobra.Command{
 				utils.PrintAndLogf("Using YB gRPC connector for export data from target")
 			} else {
 				utils.PrintAndLog("Using YB Logical Replication connector for export data from target (default)")
+			}
+
+			// Validate YugabyteDB version for logical connector
+			if !useYBgRPCConnector {
+				err = validateYBVersionForLogicalConnector(msr.TargetDBConf)
+				if err != nil {
+					utils.ErrExit("%w", err)
+				}
 			}
 		} else {
 			log.Infof("Migration workflow opted is normal live migration.")
