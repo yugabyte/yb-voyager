@@ -296,12 +296,12 @@ func assessMigration() (err error) {
 		return fmt.Errorf("failed to populate metadata CSV into SQLite DB: %w", err)
 	}
 
-	objectUsagesStats, err := populateObjectUsageStats()
+	objectUsagesStats, err := fetchObjectUsageStats()
 	if err != nil {
 		return fmt.Errorf("failed to populate object usage stats: %w", err)
 	}
 
-	parserIssueDetector.SetObjectUsages(objectUsagesStats)
+	parserIssueDetector.PopulateObjectUsages(objectUsagesStats)
 
 	err = validateSourceDBIOPSForAssessMigration()
 	if err != nil {
@@ -331,7 +331,7 @@ func assessMigration() (err error) {
 	return nil
 }
 
-func populateObjectUsageStats() ([]*types.ObjectUsageStats, error) {
+func fetchObjectUsageStats() ([]*types.ObjectUsageStats, error) {
 	query := fmt.Sprintf(`SELECT schema_name,object_name,object_type,parent_table_name,scans,inserts,updates,deletes from %s`,
 		migassessment.TABLE_INDEX_USAGE_STATS)
 	rows, err := assessmentDB.Query(query)

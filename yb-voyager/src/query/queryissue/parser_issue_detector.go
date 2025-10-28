@@ -513,7 +513,7 @@ func (p *ParserIssueDetector) getPLPGSQLIssues(query string) ([]QueryIssue, erro
 	}), nil
 }
 
-func (p *ParserIssueDetector) SetObjectUsages(objectUsagesStats []*types.ObjectUsageStats) {
+func (p *ParserIssueDetector) PopulateObjectUsages(objectUsagesStats []*types.ObjectUsageStats) {
 	var maxReads, maxWrites int64
 	for _, objectUsageStat := range objectUsagesStats {
 		if objectUsageStat.Scans > maxReads {
