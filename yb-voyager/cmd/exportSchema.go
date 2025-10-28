@@ -202,7 +202,7 @@ func exportSchema(cmd *cobra.Command) error {
 	}
 
 	if tableTransformer.MergedConstraints {
-		utils.PrintAndLog(utils.Info.Sprintf("Merged constraint definitions into CREATE TABLE statements of the exported tables."))
+		utils.PrintAndLog(utils.Info.Sprintf("Merged Primary Key and Check constraint definitions into CREATE TABLE statements of the exported tables for improving the import schema performance."))
 	}
 
 	indexTransformer, err := applyIndexFileTransformations()
