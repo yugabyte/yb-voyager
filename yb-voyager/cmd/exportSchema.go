@@ -176,7 +176,7 @@ func exportSchema(cmd *cobra.Command) error {
 	exportSchemaStartEvent := createExportSchemaStartedEvent()
 	controlPlane.ExportSchemaStarted(&exportSchemaStartEvent)
 
-	utils.PrintAndLog(utils.Info.Sprintf("\nExport of schema for source type as '%s'\n", source.DBType))
+	utils.PrintAndLogfInfo("\nExport of schema for source type as '%s'\n", source.DBType)
 	source.DB().ExportSchema(exportDir, schemaDir)
 
 	err = updateIndexesInfoInMetaDB()
@@ -202,7 +202,7 @@ func exportSchema(cmd *cobra.Command) error {
 	}
 
 	if tableTransformer.MergedConstraints {
-		utils.PrintAndLog(utils.Info.Sprintf("Merged Primary Key and Check constraint definitions into CREATE TABLE statements of the exported tables for improving the import schema performance."))
+		utils.PrintAndLogfInfo("Merged Primary Key and Check constraint definitions into CREATE TABLE statements of the exported tables for improving the import schema performance.")
 	}
 
 	indexTransformer, err := applyIndexFileTransformations()
@@ -213,7 +213,7 @@ func exportSchema(cmd *cobra.Command) error {
 	if err != nil {
 		return fmt.Errorf("failed to generate performance optimization %w", err)
 	}
-	utils.PrintAndLog(utils.Success.Sprintf("\nExported schema files created under directory: %s\n\n", utils.YellowPath.Sprintf(filepath.Join(exportDir, "schema"))))
+	utils.PrintAndLogfSuccess("\nExported schema files created under directory: %s\n\n", utils.PathColor.Sprintf(filepath.Join(exportDir, "schema")))
 
 	packAndSendExportSchemaPayload(COMPLETE, nil)
 
@@ -286,7 +286,7 @@ func runAssessMigrationCmdBeforExportSchemaIfRequired(exportSchemaCmd *cobra.Com
 
 	var stderrBuf, stdoutBuf bytes.Buffer
 
-	utils.PrintAndLog(utils.Info.Sprintf("\nAssessing migration before exporting schema..."))
+	utils.PrintAndLogfInfo("\nAssessing migration before exporting schema...")
 
 	// Invoke the assess-migration command as a subprocess
 	cmd := exec.Command(voyagerExecutable, append([]string{"assess-migration"}, assessFlagsWithValues...)...)
@@ -313,7 +313,7 @@ func runAssessMigrationCmdBeforExportSchemaIfRequired(exportSchemaCmd *cobra.Com
 		}
 	}
 
-	utils.PrintAndLog(utils.Success.Sprintf("Migration assessment completed successfully.\n"))
+	utils.PrintAndLogfSuccess("Migration assessment completed successfully.\n")
 	return nil
 }
 

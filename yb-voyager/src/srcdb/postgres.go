@@ -414,7 +414,7 @@ func (pg *PostgreSQL) ExportSchema(exportDir string, schemaDir string) {
 		pg.checkSchemasExists()
 
 		fmt.Printf("exporting the schema %10s", "")
-		go utils.Wait(utils.Success.Sprintf("done\n"), "")
+		go utils.Wait(utils.SuccessColor.Sprintf("done\n"), "")
 		pgdumpExtractSchema(pg.source, pg.GetConnectionUriWithoutPassword(), exportDir, schemaDir)
 
 		//Parsing the single file to generate multiple database object files

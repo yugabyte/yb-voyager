@@ -20,6 +20,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/fatih/color"
 	log "github.com/sirupsen/logrus"
 	"github.com/tebeka/atexit"
 )
@@ -34,6 +35,83 @@ var ErrExit = func(formatString string, args ...interface{}) {
 	fmt.Fprintf(os.Stderr, formatString+"\n", args...)
 	log.Errorf(formatString+"\n", args...)
 	atexit.Exit(1)
+}
+
+// LogLevel represents different types of console messages
+type LogLevel int
+
+const (
+	LogLevelSuccess LogLevel = iota
+	LogLevelInfo
+	LogLevelWarning
+	LogLevelError
+	LogLevelNormal // Default/plain text
+)
+
+var (
+	SuccessColor = color.New(color.FgGreen)
+	InfoColor    = color.New(color.FgCyan)
+	WarningColor = color.New(color.FgYellow)
+	ErrorColor   = color.New(color.FgRed)
+	PathColor    = color.New(color.FgYellow, color.Underline)
+)
+
+// PrintAndLogFormatted prints a formatted message to console with specified log level and also logs it
+// logLevel determines the color/style of the message:
+//   - LogLevelSuccess: Green text
+//   - LogLevelInfo: Cyan text
+//   - LogLevelWarning: Yellow text
+//   - LogLevelError: Red text
+//   - LogLevelNormal: Plain white text
+func PrintAndLogFormatted(logLevel LogLevel, formatString string, args ...interface{}) {
+	// Determine the message based on format string and args
+	message := fmt.Sprintf(formatString, args...)
+
+	// Ensure newline if not present
+	if !strings.HasSuffix(formatString, "\n") {
+		message = message + "\n"
+	}
+
+	// Print to console with appropriate color
+	var printer *color.Color
+	switch logLevel {
+	case LogLevelSuccess:
+		printer = SuccessColor
+		log.Info(message)
+	case LogLevelInfo:
+		printer = InfoColor
+		log.Info(message)
+	case LogLevelWarning:
+		printer = WarningColor
+		log.Warn(message)
+	case LogLevelError:
+		printer = ErrorColor
+		log.Error(message)
+	default: // LogLevelNormal
+		fmt.Print(message)
+		log.Info(message)
+		return
+	}
+
+	printer.Print(message)
+	return
+}
+
+// Convenience functions for common use cases
+func PrintAndLogfSuccess(formatString string, args ...interface{}) {
+	PrintAndLogFormatted(LogLevelSuccess, formatString, args...)
+}
+
+func PrintAndLogfInfo(formatString string, args ...interface{}) {
+	PrintAndLogFormatted(LogLevelInfo, formatString, args...)
+}
+
+func PrintAndLogfWarning(formatString string, args ...interface{}) {
+	PrintAndLogFormatted(LogLevelWarning, formatString, args...)
+}
+
+func PrintAndLogfError(formatString string, args ...interface{}) {
+	PrintAndLogFormatted(LogLevelError, formatString, args...)
 }
 
 func PrintAndLog(formatString string, args ...interface{}) {
