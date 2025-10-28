@@ -273,7 +273,7 @@ type ParserIssueDetector struct {
 	tablesMetadata map[string]*TableMetadata
 
 	// object usages
-	objectUsages map[string]*types.ObjectUsage
+	objectUsages map[string]*ObjectUsageCategory
 }
 
 func NewParserIssueDetector() *ParserIssueDetector {
@@ -513,10 +513,23 @@ func (p *ParserIssueDetector) getPLPGSQLIssues(query string) ([]QueryIssue, erro
 	}), nil
 }
 
-func (p *ParserIssueDetector) SetObjectUsages(objectUsages []*types.ObjectUsage) {
-	objectUsageStatsMap := make(map[string]*types.ObjectUsage)
-	for _, objectUsageStat := range objectUsages {
-		objectUsageStatsMap[objectUsageStat.GetObjectName()] = objectUsageStat
+func (p *ParserIssueDetector) SetObjectUsages(objectUsagesStats []*types.ObjectUsageStats) {
+	var maxReads, maxWrites int64
+	for _, objectUsageStat := range objectUsagesStats {
+		if objectUsageStat.Scans > maxReads {
+			maxReads = objectUsageStat.Scans
+		}
+		if objectUsageStat.TotalWrites() > maxWrites {
+			maxWrites = objectUsageStat.TotalWrites()
+		}
+	}
+	objectUsageStatsMap := make(map[string]*ObjectUsageCategory)
+	for _, objectUsageStat := range objectUsagesStats {
+		objectUsage := NewObjectUsage(objectUsageStat.SchemaName, objectUsageStat.ObjectName, objectUsageStat.ObjectType, objectUsageStat.ParentTableName, objectUsageStat.Scans, objectUsageStat.Inserts, objectUsageStat.Updates, objectUsageStat.Deletes)
+		objectUsage.ReadUsage = GetUsageCategory(objectUsageStat.Scans, maxReads)
+		objectUsage.WriteUsage = GetUsageCategory(objectUsageStat.TotalWrites(), maxWrites)
+		objectUsage.Usage = GetCombinedUsageCategory(objectUsage.ReadUsage, objectUsage.WriteUsage)
+		objectUsageStatsMap[objectUsageStat.GetObjectName()] = objectUsage
 	}
 	p.objectUsages = objectUsageStatsMap
 }
@@ -1108,22 +1121,22 @@ func (p *ParserIssueDetector) getUsageCategoryForTable(schemaName, tableName str
 	stat, ok := p.objectUsages[qualifiedObjName]
 	if !ok {
 		log.Infof("No object usage stats found for table: %s", qualifiedObjName)
-		return types.ObjectUsageUnused
+		return ObjectUsageCategoryUnused
 	}
 	usageCategory := stat.Usage
 
 	return usageCategory
 }
 
-//For indexes we don't have any writes related information, so we get a writes usage for the table associated with that index
-//and use a combined usage of index reads and table writes
+// For indexes we don't have any writes related information, so we get a writes usage for the table associated with that index
+// and use a combined usage of index reads and table writes
 func (p *ParserIssueDetector) getUsageCategoryForIndex(schemaName, tableName, indexName string) string {
 	objName := sqlname.NewObjectNameQualifiedWithTableName(constants.POSTGRESQL, "", indexName, schemaName, tableName)
 	qualifiedObjName := objName.Qualified.Unquoted
 	stat, ok := p.objectUsages[qualifiedObjName]
 	if !ok {
 		log.Infof("No object usage stats found for index: %s", qualifiedObjName)
-		return types.ObjectUsageUnused
+		return ObjectUsageCategoryUnused
 	}
 	indexReadCategory := stat.ReadUsage
 	tableObjName := sqlname.NewObjectName(constants.POSTGRESQL, "", schemaName, tableName)
@@ -1131,10 +1144,10 @@ func (p *ParserIssueDetector) getUsageCategoryForIndex(schemaName, tableName, in
 	stat, ok = p.objectUsages[qualifiedObjName]
 	if !ok {
 		log.Infof("No object usage stats found for table: %s", qualifiedObjName)
-		return types.ObjectUsageUnused
+		return ObjectUsageCategoryUnused
 	}
 	tableWritesCategory := stat.WriteUsage
-	return types.GetCombinedUsageCategory(indexReadCategory, tableWritesCategory)
+	return GetCombinedUsageCategory(indexReadCategory, tableWritesCategory)
 }
 
 // DetectPrimaryKeyRecommendations recommends adding a PK when there's a UNIQUE constraint with all NOT NULL columns and no PK

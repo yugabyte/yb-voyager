@@ -296,12 +296,12 @@ func assessMigration() (err error) {
 		return fmt.Errorf("failed to populate metadata CSV into SQLite DB: %w", err)
 	}
 
-	objectUsages, err := populateObjectUsageStats()
+	objectUsagesStats, err := populateObjectUsageStats()
 	if err != nil {
 		return fmt.Errorf("failed to populate object usage stats: %w", err)
 	}
 
-	parserIssueDetector.SetObjectUsages(objectUsages)
+	parserIssueDetector.SetObjectUsages(objectUsagesStats)
 
 	err = validateSourceDBIOPSForAssessMigration()
 	if err != nil {
@@ -331,7 +331,7 @@ func assessMigration() (err error) {
 	return nil
 }
 
-func populateObjectUsageStats() ([]*types.ObjectUsage, error) {
+func populateObjectUsageStats() ([]*types.ObjectUsageStats, error) {
 	query := fmt.Sprintf(`SELECT schema_name,object_name,object_type,parent_table_name,scans,inserts,updates,deletes from %s`,
 		migassessment.TABLE_INDEX_USAGE_STATS)
 	rows, err := assessmentDB.Query(query)
@@ -345,28 +345,16 @@ func populateObjectUsageStats() ([]*types.ObjectUsage, error) {
 		}
 	}()
 
-	var objectUsages []*types.ObjectUsage
-	var maxReads, maxWrites int64
+	var objectUsagesStats []*types.ObjectUsageStats
 	for rows.Next() {
-		var objectUsage types.ObjectUsage
+		var objectUsage types.ObjectUsageStats
 		err = rows.Scan(&objectUsage.SchemaName, &objectUsage.ObjectName, &objectUsage.ObjectType, &objectUsage.ParentTableName, &objectUsage.Scans, &objectUsage.Inserts, &objectUsage.Updates, &objectUsage.Deletes)
 		if err != nil {
 			return nil, fmt.Errorf("error scanning object usage stat: %w", err)
 		}
-		if objectUsage.Scans > maxReads {
-			maxReads = objectUsage.Scans
-		}
-		if objectUsage.TotalWrites() > maxWrites {
-			maxWrites = objectUsage.TotalWrites()
-		}
-		objectUsages = append(objectUsages, &objectUsage)
+		objectUsagesStats = append(objectUsagesStats, &objectUsage)
 	}
-	for _, objectUsage := range objectUsages {
-		objectUsage.ReadUsage = types.GetUsageCategory(objectUsage.Scans, maxReads)
-		objectUsage.WriteUsage = types.GetUsageCategory(objectUsage.TotalWrites(), maxWrites)
-		objectUsage.Usage = types.GetCombinedUsageCategory(objectUsage.ReadUsage, objectUsage.WriteUsage)
-	}
-	return objectUsages, nil
+	return objectUsagesStats, nil
 }
 
 func fetchSourceInfo() {

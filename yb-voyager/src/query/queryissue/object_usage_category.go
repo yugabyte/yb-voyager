@@ -13,7 +13,10 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package types
+
+package queryissue
+
+import "github.com/yugabyte/yb-voyager/yb-voyager/src/types"
 
 /*
 ObjectUsage - refers to the usage of a specific object in the database under any of these buckets
@@ -38,29 +41,29 @@ UNUSED if both read and write are UNUSED
 */
 
 const (
-	ObjectUsageFrequent string = "FREQUENT"
-	ObjectUsageModerate string = "MODERATE"
-	ObjectUsageRare     string = "RARE"
-	ObjectUsageUnused   string = "UNUSED"
+	ObjectUsageCategoryFrequent string = "FREQUENT"
+	ObjectUsageCategoryModerate string = "MODERATE"
+	ObjectUsageCategoryRare     string = "RARE"
+	ObjectUsageCategoryUnused   string = "UNUSED"
 
 	// Thresholds for object usage categorization
 	OBJECT_USAGE_THRESHOLD_FREQUENT = 0.70 // >= 70% of max usage
 	OBJECT_USAGE_THRESHOLD_MODERATE = 0.10 // >= 10% of max usage and < 70% of max usage
 	//anything between 0 and 10% is considered as rare
-	OBJECT_USAGE_THRESHOLD_UNUSED   = 0.00 // 0% is unused
+	OBJECT_USAGE_THRESHOLD_UNUSED = 0.00 // 0% is unused
 )
 
-type ObjectUsage struct {
-	ObjectUsageStats
+type ObjectUsageCategory struct {
+	types.ObjectUsageStats
 	//Category based on some logic
 	ReadUsage  string
 	WriteUsage string
 	Usage      string
 }
 
-func NewObjectUsage(schemaName, objectName, objectType string, parentTableName string, scans, inserts, updates, deletes int64) *ObjectUsage {
-	return &ObjectUsage{
-		ObjectUsageStats: ObjectUsageStats{
+func NewObjectUsage(schemaName, objectName, objectType string, parentTableName string, scans, inserts, updates, deletes int64) *ObjectUsageCategory {
+	return &ObjectUsageCategory{
+		ObjectUsageStats: types.ObjectUsageStats{
 			SchemaName:      schemaName,
 			ObjectName:      objectName,
 			ObjectType:      objectType,
@@ -74,34 +77,34 @@ func NewObjectUsage(schemaName, objectName, objectType string, parentTableName s
 }
 
 func GetCombinedUsageCategory(a, b string) string {
-	if a == ObjectUsageFrequent || b == ObjectUsageFrequent {
-		return ObjectUsageFrequent
-	} else if a == ObjectUsageModerate || b == ObjectUsageModerate {
-		return ObjectUsageModerate
-	} else if a == ObjectUsageRare || b == ObjectUsageRare {
-		return ObjectUsageRare
+	if a == ObjectUsageCategoryFrequent || b == ObjectUsageCategoryFrequent {
+		return ObjectUsageCategoryFrequent
+	} else if a == ObjectUsageCategoryModerate || b == ObjectUsageCategoryModerate {
+		return ObjectUsageCategoryModerate
+	} else if a == ObjectUsageCategoryRare || b == ObjectUsageCategoryRare {
+		return ObjectUsageCategoryRare
 	}
-	return ObjectUsageUnused
+	return ObjectUsageCategoryUnused
 }
 
 func GetUsageCategory(usage int64, maxUsage int64) string {
 	//if maxUsage is 0 itself, all objects are unused
 	if maxUsage <= 0 {
-		return ObjectUsageUnused
+		return ObjectUsageCategoryUnused
 	}
 
 	if usage <= OBJECT_USAGE_THRESHOLD_UNUSED {
-		return ObjectUsageUnused
+		return ObjectUsageCategoryUnused
 	}
 
 	// Calculate percentage of max usage
 	usageRatio := float64(usage) / float64(maxUsage)
 
 	if usageRatio >= OBJECT_USAGE_THRESHOLD_FREQUENT {
-		return ObjectUsageFrequent
+		return ObjectUsageCategoryFrequent
 	} else if usageRatio >= OBJECT_USAGE_THRESHOLD_MODERATE {
-		return ObjectUsageModerate
+		return ObjectUsageCategoryModerate
 	} else {
-		return ObjectUsageRare
+		return ObjectUsageCategoryRare
 	}
 }
