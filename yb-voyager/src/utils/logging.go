@@ -37,15 +37,15 @@ var ErrExit = func(formatString string, args ...interface{}) {
 	atexit.Exit(1)
 }
 
-// LogLevel represents different types of console messages
-type LogLevel int
+// OutputLogLevel represents different types of console messages
+type OutputLogLevel int
 
 const (
-	LogLevelSuccess LogLevel = iota
-	LogLevelInfo
-	LogLevelWarning
-	LogLevelError
-	LogLevelNormal // Default/plain text
+	OutputLogLevelSuccess OutputLogLevel = iota
+	OutputLogLevelInfo    OutputLogLevel = iota
+	OutputLogLevelWarning OutputLogLevel = iota
+	OutputLogLevelError   OutputLogLevel = iota
+	OutputLogLevelNormal  OutputLogLevel = iota
 )
 
 var (
@@ -57,13 +57,13 @@ var (
 )
 
 // PrintAndLogFormatted prints a formatted message to console with specified log level and also logs it
-// logLevel determines the color/style of the message:
-//   - LogLevelSuccess: Green text
-//   - LogLevelInfo: Cyan text
-//   - LogLevelWarning: Yellow text
-//   - LogLevelError: Red text
-//   - LogLevelNormal: Plain white text
-func PrintAndLogFormatted(logLevel LogLevel, formatString string, args ...interface{}) {
+// OutputLogLevel determines the color/style of the message:
+//   - OutputLogLevelSuccess: Green text
+//   - OutputLogLevelInfo: Cyan text
+//   - OutputLogLevelWarning: Yellow text
+//   - OutputLogLevelError: Red text
+//   - OutputLogLevelNormal: Plain white text
+func PrintAndLogFormatted(OutputLogLevel OutputLogLevel, formatString string, args ...interface{}) {
 	// Determine the message based on format string and args
 	message := fmt.Sprintf(formatString, args...)
 
@@ -74,20 +74,20 @@ func PrintAndLogFormatted(logLevel LogLevel, formatString string, args ...interf
 
 	// Print to console with appropriate color
 	var printer *color.Color
-	switch logLevel {
-	case LogLevelSuccess:
+	switch OutputLogLevel {
+	case OutputLogLevelSuccess:
 		printer = SuccessColor
 		log.Info(message)
-	case LogLevelInfo:
+	case OutputLogLevelInfo:
 		printer = InfoColor
 		log.Info(message)
-	case LogLevelWarning:
+	case OutputLogLevelWarning:
 		printer = WarningColor
 		log.Warn(message)
-	case LogLevelError:
+	case OutputLogLevelError:
 		printer = ErrorColor
 		log.Error(message)
-	default: // LogLevelNormal
+	default: // OutputLogLevelNormal
 		fmt.Print(message)
 		log.Info(message)
 		return
@@ -99,19 +99,19 @@ func PrintAndLogFormatted(logLevel LogLevel, formatString string, args ...interf
 
 // Convenience functions for common use cases
 func PrintAndLogfSuccess(formatString string, args ...interface{}) {
-	PrintAndLogFormatted(LogLevelSuccess, formatString, args...)
+	PrintAndLogFormatted(OutputLogLevelSuccess, formatString, args...)
 }
 
 func PrintAndLogfInfo(formatString string, args ...interface{}) {
-	PrintAndLogFormatted(LogLevelInfo, formatString, args...)
+	PrintAndLogFormatted(OutputLogLevelInfo, formatString, args...)
 }
 
 func PrintAndLogfWarning(formatString string, args ...interface{}) {
-	PrintAndLogFormatted(LogLevelWarning, formatString, args...)
+	PrintAndLogFormatted(OutputLogLevelWarning, formatString, args...)
 }
 
 func PrintAndLogfError(formatString string, args ...interface{}) {
-	PrintAndLogFormatted(LogLevelError, formatString, args...)
+	PrintAndLogFormatted(OutputLogLevelError, formatString, args...)
 }
 
 func PrintAndLog(formatString string, args ...interface{}) {
