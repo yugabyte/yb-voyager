@@ -176,6 +176,13 @@ main() {
 	run_ysql ${TARGET_DB_NAME} "\dt"
 
 	step "Run Schema validations."
+	if [ -f "${EXPORT_DIR}/schema/failed.sql" ]
+        then
+			echo "Unexpected failed.sql file found in the export directory"
+            cat "${EXPORT_DIR}/schema/failed.sql"
+            exit 1
+    fi
+
 	if [ -x "${TEST_DIR}/validate-schema" ]
 	then
 		 "${TEST_DIR}/validate-schema"

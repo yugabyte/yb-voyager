@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/fatih/color"
 	log "github.com/sirupsen/logrus"
 	"github.com/sourcegraph/conc/pool"
 
@@ -210,9 +211,9 @@ func (fti *FileTaskImporter) importBatch(batch *Batch) {
 			if errors.As(err, &ibe) {
 				// If the error is an ImportBatchError, we abort directly because the string
 				// representation of the error is already formatted with all the details.
-				utils.ErrExit("%w", err)
+				utils.ErrExit("%w\n%s", err, color.YellowString(importdata.STASH_AND_CONTINUE_RECOMMENDATION_MESSAGE))
 			}
-			utils.ErrExit("import batch: %q into %s: %w", batch.FilePath, batch.TableNameTup.ForOutput(), err)
+			utils.ErrExit("import batch: %q into %s: %w\n%s", batch.FilePath, batch.TableNameTup.ForOutput(), err, color.YellowString(importdata.STASH_AND_CONTINUE_RECOMMENDATION_MESSAGE))
 		}
 
 		// Handle the error

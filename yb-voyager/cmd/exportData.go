@@ -295,19 +295,10 @@ func exportData() bool {
 		checkExportDataPermissions(finalTableList)
 	}
 
-	// finalize table list and column list
-	finalTableList, tablesColumnList := finalizeTableColumnList(finalTableList)
+	// finalizing table list and column list to be exported based on the datatypes supported by the source DB
+	finalTableList, tablesColumnList := finalizeTableAndColumnList(finalTableList)
+	handleEmptyTableListForExport(finalTableList)
 
-	if len(finalTableList) == 0 {
-		utils.PrintAndLog("no tables present to export, exiting...")
-		setDataIsExported()
-		dfd := datafile.Descriptor{
-			ExportDir:    exportDir,
-			DataFileList: make([]*datafile.FileEntry, 0),
-		}
-		dfd.Save()
-		os.Exit(0)
-	}
 	metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		switch source.DBType {
 		case POSTGRESQL:
@@ -809,25 +800,6 @@ func getPGDumpSequencesAndValues() (*utils.StructMap[sqlname.NameTuple, int64], 
 	return result, nil
 }
 
-func reportUnsupportedTables(finalTableList []sqlname.NameTuple) {
-	//report non-pk tables
-	allNonPKTables, err := source.DB().GetNonPKTables()
-	if err != nil {
-		utils.ErrExit("get non-pk tables: %w", err)
-	}
-	var nonPKTables []string
-	for _, table := range finalTableList {
-		if lo.Contains(allNonPKTables, table.ForKey()) {
-			nonPKTables = append(nonPKTables, table.ForOutput())
-		}
-	}
-	if len(nonPKTables) > 0 {
-		utils.PrintAndLog("Table names without a Primary key: %s", nonPKTables)
-		utils.ErrExit("This voyager release does not support live-migration for tables without a primary key.\n" +
-			"You can exclude these tables using the --exclude-table-list argument.")
-	}
-}
-
 // Return the nameTuple of the qualfieidObj string
 func getNameTupleFromQualifiedObject(qualifiedObjectStr string, qualifiedObjectName *sqlname.ObjectName, goToNameRegDirectly bool) (sqlname.NameTuple, error) {
 	sourceTypeHandlesPartitionAsSeparateTable := func(dbType string) bool {
@@ -1255,70 +1227,6 @@ func propagateIfExportDataError(err error, currentFlow string) error {
 
 }
 
-func finalizeTableColumnList(finalTableList []sqlname.NameTuple) ([]sqlname.NameTuple, *utils.StructMap[sqlname.NameTuple, []string]) {
-	if changeStreamingIsEnabled(exportType) {
-		reportUnsupportedTables(finalTableList)
-	}
-	log.Infof("initial all tables table list for data export: %v", lo.Map(finalTableList, func(t sqlname.NameTuple, _ int) string {
-		return t.ForOutput()
-	}))
-
-	log.Info("finalizing table list by filtering empty tables and unsupported tables/columns/etc..")
-
-	var skippedTableList []sqlname.NameTuple
-	if !changeStreamingIsEnabled(exportType) {
-		finalTableList, skippedTableList = source.DB().FilterEmptyTables(finalTableList)
-		if len(skippedTableList) != 0 {
-			utils.PrintAndLog("skipping empty tables: %v", lo.Map(skippedTableList, func(table sqlname.NameTuple, _ int) string {
-				return table.ForOutput()
-			}))
-		}
-	}
-
-	finalTableList, skippedTableList = source.DB().FilterUnsupportedTables(migrationUUID, finalTableList, useDebezium)
-	if len(skippedTableList) != 0 {
-		utils.PrintAndLog("skipping unsupported tables: %v", lo.Map(skippedTableList, func(table sqlname.NameTuple, _ int) string {
-			return table.ForOutput()
-		}))
-	}
-
-	tablesColumnList, unsupportedTableColumnsMap, err := source.DB().GetColumnsWithSupportedTypes(finalTableList, useDebezium, changeStreamingIsEnabled(exportType))
-	if err != nil {
-		utils.ErrExit("get columns with supported types: %w", err)
-	}
-	// If any of the keys of unsupportedTableColumnsMap contains values in the string array then do this check
-	if len(unsupportedTableColumnsMap.Keys()) > 0 {
-		log.Infof("preparing column list for the data export without unsupported datatype columns: %v", unsupportedTableColumnsMap)
-		utils.PrintAndLog("The following columns data export is unsupported:")
-		unsupportedTableColumnsMap.IterKV(func(k sqlname.NameTuple, v []string) (bool, error) {
-			if len(v) != 0 {
-				utils.PrintAndLog("%s: %s\n", k.ForOutput(), v)
-			}
-			return true, nil
-		})
-		if !utils.AskPrompt("\nDo you want to continue with the export by ignoring just these columns' data") {
-			utils.ErrExit("Exiting at user's request. Use `--exclude-table-list` flag to continue without these tables")
-		} else {
-			var importingDatabase string
-			if exporterRole == SOURCE_DB_EXPORTER_ROLE {
-				importingDatabase = "target"
-			} else if exporterRole == TARGET_DB_EXPORTER_FF_ROLE {
-				importingDatabase = "source-replica"
-			} else if exporterRole == TARGET_DB_EXPORTER_FB_ROLE {
-				importingDatabase = "source"
-			}
-
-			utils.PrintAndLog(color.YellowString("Continuing with the export by ignoring just these columns' data. \nPlease make sure to remove any null constraints on these columns in the %s database.", importingDatabase))
-		}
-
-		finalTableList = filterTableWithEmptySupportedColumnList(finalTableList, tablesColumnList)
-	}
-	log.Infof("final table list after filtering empty tables and unsupported tables/columns/etc.. - %v", lo.Map(finalTableList, func(t sqlname.NameTuple, _ int) string {
-		return t.ForOutput()
-	}))
-	return finalTableList, tablesColumnList
-}
-
 func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTableList []sqlname.NameTuple, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], snapshotName string) error {
 	if exporterRole == SOURCE_DB_EXPORTER_ROLE {
 		exportDataStartEvent := createSnapshotExportStartedEvent()
@@ -1403,6 +1311,7 @@ func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTabl
 	}
 	displayExportedRowCountSnapshot(false)
 
+	// YDB control plane is only implemented for offline migration as of now
 	if exporterRole == SOURCE_DB_EXPORTER_ROLE {
 		exportDataCompleteEvent := createSnapshotExportCompletedEvent()
 		controlPlane.SnapshotExportCompleted(&exportDataCompleteEvent)
@@ -1668,6 +1577,125 @@ func startFallBackSetupIfRequired() {
 		utils.ErrExit("failed to run yb-voyager import data to source: %w\n Please re-run with command :\n%s", err, cmdStr)
 	}
 }
+
+// ================================ Export Data table list filtering ================================
+
+// Finalize table and column lists for export, based on migration phase (offline/live) and DB type.
+func finalizeTableAndColumnList(finalTableList []sqlname.NameTuple) ([]sqlname.NameTuple, *utils.StructMap[sqlname.NameTuple, []string]) {
+	reportUnsupportedTablesForLiveMigration(finalTableList)
+	log.Infof("initial all tables table list for data export: %v", lo.Map(finalTableList, func(t sqlname.NameTuple, _ int) string {
+		return t.ForOutput()
+	}))
+
+	log.Info("finalizing table list by filtering empty tables and unsupported tables/columns")
+
+	// 1. empty tables check for offline migration only; live can have events for empty tables
+	if !changeStreamingIsEnabled(exportType) {
+		var emptyTableList []sqlname.NameTuple
+		finalTableList, emptyTableList = source.DB().FilterEmptyTables(finalTableList)
+		if len(emptyTableList) != 0 {
+			utils.PrintAndLog("skipping empty tables: %v", lo.Map(emptyTableList, func(table sqlname.NameTuple, _ int) string {
+				return table.ForOutput()
+			}))
+		}
+	}
+
+	// 2. filtering unsupported tables(mostly oracle specific)
+	var unsupportedTableList []sqlname.NameTuple
+	finalTableList, unsupportedTableList = source.DB().FilterUnsupportedTables(migrationUUID, finalTableList, useDebezium)
+	if len(unsupportedTableList) != 0 {
+		utils.PrintAndLog("skipping unsupported tables: %v", lo.Map(unsupportedTableList, func(table sqlname.NameTuple, _ int) string {
+			return table.ForOutput()
+		}))
+	}
+
+	// 3. filtering unsupported columns
+	tablesColumnList, unsupportedTableColumnsMap, err := source.DB().GetColumnsWithSupportedTypes(finalTableList, useDebezium, changeStreamingIsEnabled(exportType))
+	if err != nil {
+		utils.ErrExit("get columns with supported types: %w", err)
+	}
+	// If any of the keys of unsupportedTableColumnsMap contains values in the string array then do this check
+	if len(unsupportedTableColumnsMap.Keys()) > 0 {
+		handleUnsupportedColumnsInExportData(unsupportedTableColumnsMap)
+		finalTableList = filterTableWithEmptySupportedColumnList(finalTableList, tablesColumnList)
+	}
+
+	log.Infof("final table list after filtering empty tables and unsupported tables/columns - %v", lo.Map(finalTableList, func(t sqlname.NameTuple, _ int) string {
+		return t.ForOutput()
+	}))
+	return finalTableList, tablesColumnList
+}
+
+func reportUnsupportedTablesForLiveMigration(finalTableList []sqlname.NameTuple) {
+	if !changeStreamingIsEnabled(exportType) {
+		return
+	}
+
+	//report non-pk tables
+	allNonPKTables, err := source.DB().GetNonPKTables()
+	if err != nil {
+		utils.ErrExit("get non-pk tables: %w", err)
+	}
+	var nonPKTables []string
+	for _, table := range finalTableList {
+		if lo.Contains(allNonPKTables, table.ForKey()) {
+			nonPKTables = append(nonPKTables, table.ForOutput())
+		}
+	}
+	if len(nonPKTables) > 0 {
+		utils.PrintAndLog("Table names without a Primary key: %s", nonPKTables)
+		utils.ErrExit("Currently voyager does not support live-migration for tables without a primary key.\n" +
+			"You can exclude these tables using the --exclude-table-list argument.")
+	}
+}
+
+func handleUnsupportedColumnsInExportData(unsupportedTableColumnsMap *utils.StructMap[sqlname.NameTuple, []string]) {
+	log.Infof("preparing column list for the data export without unsupported datatype columns: %v", unsupportedTableColumnsMap)
+
+	var unsupportedColsMsg strings.Builder
+	unsupportedColsMsg.WriteString("The following columns data export is unsupported:\n")
+	unsupportedTableColumnsMap.IterKV(func(k sqlname.NameTuple, v []string) (bool, error) {
+		if len(v) != 0 {
+			unsupportedColsMsg.WriteString(fmt.Sprintf("%s: %s\n", k.ForOutput(), v))
+		}
+		return true, nil
+	})
+	utils.PrintAndLog(unsupportedColsMsg.String())
+	if !utils.AskPrompt("\nDo you want to continue with the export by ignoring just these columns' data") {
+		utils.ErrExit("Exiting at user's request. Use `--exclude-table-list` flag to continue without these tables")
+	} else {
+		utils.PrintAndLog(color.YellowString("Continuing with the export by ignoring just these columns' data.\n"+
+			"Please make sure to remove any null constraints on these columns in the %s database.", getImportingDatabaseString()))
+	}
+}
+
+func getImportingDatabaseString() string {
+	if exporterRole == SOURCE_DB_EXPORTER_ROLE {
+		return "target"
+	} else if exporterRole == TARGET_DB_EXPORTER_FF_ROLE {
+		return "source-replica"
+	} else if exporterRole == TARGET_DB_EXPORTER_FB_ROLE {
+		return "source"
+	}
+	return "UNKNOWN"
+}
+
+func handleEmptyTableListForExport(finalTableList []sqlname.NameTuple) {
+	if len(finalTableList) != 0 {
+		return
+	}
+
+	utils.PrintAndLog("no tables present to export, exiting...")
+	setDataIsExported()
+	dfd := datafile.Descriptor{
+		ExportDir:    exportDir,
+		DataFileList: make([]*datafile.FileEntry, 0),
+	}
+	dfd.Save()
+	os.Exit(0)
+}
+
+// ================================ MSR or YugabyteD specific functions ================================
 
 func dataIsExported() bool {
 	msr, err := metaDB.GetMigrationStatusRecord()
