@@ -253,7 +253,7 @@ class PostgresDB:
 
 	def get_column_to_data_type_mapping(self, schema_name="public") -> Dict[str, Dict[str,str]]:
 		cur = self.conn.cursor()
-		cur.execute(f"SELECT table_name, column_name, data_type FROM information_schema.columns WHERE table_schema = '{schema_name}' and table_name NOT IN ({self.EXPECTED_ORAFCE_VIEWS}) and table_name NOT IN ['pg_stat_statements', 'pg_stat_statements_info']")
+		cur.execute(f"SELECT table_name, column_name, data_type FROM information_schema.columns WHERE table_schema = '{schema_name}' and table_name NOT IN ({self.EXPECTED_ORAFCE_VIEWS}) AND table_name NOT IN ('pg_stat_statements', 'pg_stat_statements_info');")
 		tables = {}
 		for table_name, column_name, data_type in cur.fetchall():
 			if table_name not in tables:
