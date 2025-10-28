@@ -17,10 +17,10 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand"
 	"sync"
-	"time"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
@@ -114,6 +114,8 @@ func (sbp *ShuffledBatchProducer) Done() bool {
 	return sbp.producerFinished && len(sbp.batches) == 0
 }
 
+var ErrNoBatchesAvailable = errors.New("no more batches available")
+
 // NextBatch returns a randomly selected batch from the available batches.
 // If no batches are available, it waits until batches become available or the producer finishes.
 func (sbp *ShuffledBatchProducer) NextBatch() (*Batch, error) {
@@ -123,11 +125,12 @@ func (sbp *ShuffledBatchProducer) NextBatch() (*Batch, error) {
 	// Wait for batches to become available
 
 	for len(sbp.batches) == 0 && !sbp.producerFinished {
-		start := time.Now()
-		sbp.cond.Wait() // This releases the lock and waits
-		// When we wake up, the lock is re-acquired automatically
-		elapsed := time.Since(start)
-		log.Infof("to get a batch, waited for %s", elapsed)
+		return nil, ErrNoBatchesAvailable
+		// start := time.Now()
+		// sbp.cond.Wait() // This releases the lock and waits
+		// // When we wake up, the lock is re-acquired automatically
+		// elapsed := time.Since(start)
+		// log.Infof("to get a batch, waited for %s", elapsed)
 	}
 
 	if len(sbp.batches) == 0 {

@@ -16,6 +16,7 @@ limitations under the License.
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -1045,6 +1046,10 @@ func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataS
 
 		}
 		err = taskImporter.ProduceAndSubmitNextBatchToWorkerPool()
+		if errors.Is(err, ErrNoBatchesAvailable) {
+			log.Infof("no more batches available for task: %s, continuing with some other taks", task)
+			continue
+		}
 		if err != nil {
 			return fmt.Errorf("submit next batch: task:%v err: %s", task, err)
 		}
