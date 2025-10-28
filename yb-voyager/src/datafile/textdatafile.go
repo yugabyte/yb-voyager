@@ -98,7 +98,7 @@ func (df *TextDataFile) GetHeader() string {
 func newTextDataFile(filePath string, readCloser io.ReadCloser, descriptor *Descriptor) (*TextDataFile, error) {
 	textDataFile := &TextDataFile{
 		closer:    readCloser,
-		reader:    bufio.NewReaderSize(readCloser, 4*1024*1024),
+		reader:    bufio.NewReader(readCloser),
 		Delimiter: descriptor.Delimiter,
 	}
 	log.Infof("created text data file struct for file: %s", filePath)
