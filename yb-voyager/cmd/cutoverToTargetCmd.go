@@ -66,7 +66,7 @@ func validateYBVersionForLogicalConnector(tconf *tgtdb.TargetConf) error {
 	// Check if version is greater than 2024.1.1
 	// Using Equal check combined with comparison to ensure > (not >=)
 	if currentVersion.Equal(targetVersion) || !currentVersion.GreaterThanOrEqual(targetVersion) {
-		return fmt.Errorf("YugabyteDB logical replication connector is only supported in versions greater than 2024.1.1. Current version: %s. Please use --use-yb-grpc-connector=true or upgrade your YugabyteDB cluster", ybVersion)
+		return fmt.Errorf("YugabyteDB logical replication connector is only supported in versions greater than 2024.1.1. Current version: %s. Please use --use-yb-grpc-connector=true", ybVersion)
 	}
 
 	log.Infof("YugabyteDB version %s is compatible with logical connector", ybVersion)
