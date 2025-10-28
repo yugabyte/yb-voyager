@@ -70,8 +70,6 @@ def migration_completed_checks(tgt):
  
 	print(fetched_datatypes_schema)
 	for table_name, columns in fetched_datatypes_schema.items():
-		if table_name in ['pg_stat_statements', 'pg_stat_statements_info']:
-			continue
 		print(f"table_name: {table_name} ---- ")
 		for column_name, datatype in columns.items():
 			print(f"column_name: {column_name}, datatype: {datatype}")
