@@ -142,6 +142,7 @@ const (
 	MAX_TABLETS_PER_TABLE           = 256
 	PREFER_REMOTE_EXPERIMENT_DB     = false
 	COLOCATED_MAX_INDEXES_THRESHOLD = 2
+	SKIP_SHARDED_TABLE_LIMIT_CHECK  = true
 	// COLOCATED / SHARDED Object types
 	COLOCATED = "colocated"
 	SHARDED   = "sharded"
@@ -229,9 +230,13 @@ func SizingAssessment(targetDbVersion *ybversion.YBVersion, sourceDBType string,
 
 	sizingRecommendationPerCoreColocatedAndShardedCombined = shardingBasedOnOperations(sourceIndexMetadata, colocatedThroughput, sizingRecommendationPerCoreColocatedAndShardedCombined)
 
-	sizingRecommendationPerCoreColocatedAndShardedCombined = checkShardedTableLimit(sourceIndexMetadata, shardedLimits, sizingRecommendationPerCoreColocatedAndShardedCombined)
+	if !SKIP_SHARDED_TABLE_LIMIT_CHECK {
+		sizingRecommendationPerCoreColocatedAndShardedCombined = checkShardedTableLimit(sourceIndexMetadata, shardedLimits, sizingRecommendationPerCoreColocatedAndShardedCombined)
+	}
 
-	sizingRecommendationPerCoreAllSharded = checkShardedTableLimit(sourceIndexMetadata, shardedLimits, sizingRecommendationPerCoreAllSharded)
+	if !SKIP_SHARDED_TABLE_LIMIT_CHECK {
+		sizingRecommendationPerCoreAllSharded = checkShardedTableLimit(sourceIndexMetadata, shardedLimits, sizingRecommendationPerCoreAllSharded)
+	}
 
 	sizingRecommendationPerCoreColocatedAndShardedCombined = findNumNodesNeededBasedOnThroughputRequirement(sourceIndexMetadata, shardedThroughput, sizingRecommendationPerCoreColocatedAndShardedCombined)
 
@@ -664,6 +669,7 @@ func getThresholdAndTablets(previousNumNodes float64, sizeGB float64) (float64, 
 /*
 checkShardedTableLimit checks if the total number of sharded tables exceeds the sharded limit for each core configuration.
 If the limit is exceeded, it updates the recommendation with a failure reasoning.
+Note: This function is only called when SKIP_SHARDED_TABLE_LIMIT_CHECK is false.
 Parameters:
   - sourceIndexMetadata: A slice of SourceDBMetadata structs representing source indexes.
   - shardedLimits: A slice of ExpDataShardedLimit structs representing sharded limits.
