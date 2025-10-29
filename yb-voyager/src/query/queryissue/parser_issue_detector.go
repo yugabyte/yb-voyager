@@ -1133,20 +1133,20 @@ func (p *ParserIssueDetector) getUsageCategoryForTable(schemaName, tableName str
 func (p *ParserIssueDetector) getUsageCategoryForIndex(schemaName, tableName, indexName string) string {
 	objName := sqlname.NewObjectNameQualifiedWithTableName(constants.POSTGRESQL, "", indexName, schemaName, tableName)
 	qualifiedObjName := objName.Qualified.Unquoted
-	stat, ok := p.objectUsages[qualifiedObjName]
+	indexStat, ok := p.objectUsages[qualifiedObjName]
 	if !ok {
 		log.Infof("No object usage stats found for index: %s", qualifiedObjName)
 		return ObjectUsageCategoryUnused
 	}
-	indexReadCategory := stat.ReadUsage
+	indexReadCategory := indexStat.ReadUsage
 	tableObjName := sqlname.NewObjectName(constants.POSTGRESQL, "", schemaName, tableName)
 	qualifiedObjName = tableObjName.Qualified.Unquoted
-	stat, ok = p.objectUsages[qualifiedObjName]
+	tableStat, ok := p.objectUsages[qualifiedObjName]
 	if !ok {
 		log.Infof("No object usage stats found for table: %s", qualifiedObjName)
 		return ObjectUsageCategoryUnused
 	}
-	tableWritesCategory := stat.WriteUsage
+	tableWritesCategory := tableStat.WriteUsage
 	return GetCombinedUsageCategory(indexReadCategory, tableWritesCategory)
 }
 

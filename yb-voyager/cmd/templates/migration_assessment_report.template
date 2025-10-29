@@ -596,7 +596,7 @@
   {{ $collapseButton := "collapseAllButton" }}
 
   {{ if .onlyPerf }}
-    {{ $heading = "Performance Optimzations" }}
+    {{ $heading = "Performance Optimizations" }}
     {{ $issues = getPerformanceOptimizationIssues .Issues }}
     {{ $totalCountKeyWord = "Total optimizations" }}
     {{ $issueKeyword = "Optimization" }}
