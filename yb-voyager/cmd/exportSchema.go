@@ -540,21 +540,7 @@ func applyShardedTablesRecommendation(shardedTables []string, objType string) ([
 	if err = file.Close(); err != nil {
 		return modifiedObjects, colocatedObjects, "", fmt.Errorf("error closing file '%q' storing the modified recommended schema: %w", filePath, err)
 	}
-	// var objTypeName = ""
-	// switch objType {
-	// case MVIEW:
-	// 	objTypeName = "MATERIALIZED VIEW"
-	// case TABLE:
-	// 	objTypeName = "TABLE"
-	// default:
-	// 	panic(fmt.Sprintf("Object type not supported %s", objType))
-	// }
-
-	// utils.PrintAndLog("Modified CREATE %s statements in %q according to the colocation and sharding recommendations of the assessment report.",
-
-	// 	objTypeName,
-	// 	utils.GetRelativePathFromCwd(filePath))
-	// utils.PrintAndLog("The original DDLs have been preserved in %q for reference.", utils.GetRelativePathFromCwd(backupPath))
+	
 	return modifiedObjects, colocatedObjects, backupPath, nil
 }
 
