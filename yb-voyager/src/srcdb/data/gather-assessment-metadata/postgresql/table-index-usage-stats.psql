@@ -20,7 +20,7 @@ SELECT
         ELSE ''
     END AS parent_table_name, -- for the indexes only to get the table on which index is created
     CASE 
-        WHEN c.relkind IN ('r', 'p') THEN COALESCE(psut.seq_scan + psut.idx_scan, 0)
+        WHEN c.relkind IN ('r', 'p') THEN COALESCE(psut.seq_scan, 0) + COALESCE(psut.idx_scan, 0)
         WHEN c.relkind IN ('i', 'I') THEN COALESCE(psi.idx_scan,0)
         ELSE 0::bigint
     END AS scans,
