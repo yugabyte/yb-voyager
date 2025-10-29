@@ -175,6 +175,11 @@ func SizingAssessment(targetDbVersion *ybversion.YBVersion, sourceDBType string,
 		return fmt.Errorf("failed to load source metadata: %w", err)
 	}
 
+	// Build index lookup maps for O(1) access instead of O(n) scanning
+	// This optimization is critical when dealing with 15,000+ indexes
+	allIndexLookupMap := buildIndexLookupMap(sourceIndexMetadata)
+	uniqueIndexLookupMap := buildIndexLookupMap(sourceUniqueIndexesMetadata)
+
 	experimentDB, err := createConnectionToExperimentData(assessmentDir)
 	if err != nil {
 		SizingReport.FailureReasoning = fmt.Sprintf("failed to connect to experiment data: %v", err)
@@ -222,35 +227,35 @@ func SizingAssessment(targetDbVersion *ybversion.YBVersion, sourceDBType string,
 
 	sizingRecommendationPerCoreColocatedAndShardedCombined := createRecommendationStructureColocatedAndShardedCombined(colocatedLimits)
 
-	sizingRecommendationPerCoreAllSharded := createRecommendationStructureAllShardedRecommendations(sourceIndexMetadata, sourceTableMetadata,
+	sizingRecommendationPerCoreAllSharded := createRecommendationStructureAllShardedRecommendations(allIndexLookupMap, sourceTableMetadata,
 		shardedLimits, shardedThroughput)
 
-	sizingRecommendationPerCoreColocatedAndShardedCombined = shardingBasedOnTableSizeAndCount(sourceTableMetadata, sourceIndexMetadata,
+	sizingRecommendationPerCoreColocatedAndShardedCombined = shardingBasedOnTableSizeAndCount(sourceTableMetadata, allIndexLookupMap,
 		colocatedLimits, sizingRecommendationPerCoreColocatedAndShardedCombined)
 
-	sizingRecommendationPerCoreColocatedAndShardedCombined = shardingBasedOnOperations(sourceIndexMetadata, colocatedThroughput, sizingRecommendationPerCoreColocatedAndShardedCombined)
+	sizingRecommendationPerCoreColocatedAndShardedCombined = shardingBasedOnOperations(allIndexLookupMap, colocatedThroughput, sizingRecommendationPerCoreColocatedAndShardedCombined)
 
 	if !SKIP_SHARDED_TABLE_LIMIT_CHECK {
-		sizingRecommendationPerCoreColocatedAndShardedCombined = checkShardedTableLimit(sourceIndexMetadata, shardedLimits, sizingRecommendationPerCoreColocatedAndShardedCombined)
+		sizingRecommendationPerCoreColocatedAndShardedCombined = checkShardedTableLimit(allIndexLookupMap, shardedLimits, sizingRecommendationPerCoreColocatedAndShardedCombined)
 	}
 
 	if !SKIP_SHARDED_TABLE_LIMIT_CHECK {
-		sizingRecommendationPerCoreAllSharded = checkShardedTableLimit(sourceIndexMetadata, shardedLimits, sizingRecommendationPerCoreAllSharded)
+		sizingRecommendationPerCoreAllSharded = checkShardedTableLimit(allIndexLookupMap, shardedLimits, sizingRecommendationPerCoreAllSharded)
 	}
 
-	sizingRecommendationPerCoreColocatedAndShardedCombined = findNumNodesNeededBasedOnThroughputRequirement(sourceIndexMetadata, shardedThroughput, sizingRecommendationPerCoreColocatedAndShardedCombined)
+	sizingRecommendationPerCoreColocatedAndShardedCombined = findNumNodesNeededBasedOnThroughputRequirement(allIndexLookupMap, shardedThroughput, sizingRecommendationPerCoreColocatedAndShardedCombined)
 
-	sizingRecommendationPerCoreAllSharded = findNumNodesNeededBasedOnThroughputRequirement(sourceIndexMetadata, shardedThroughput, sizingRecommendationPerCoreAllSharded)
+	sizingRecommendationPerCoreAllSharded = findNumNodesNeededBasedOnThroughputRequirement(allIndexLookupMap, shardedThroughput, sizingRecommendationPerCoreAllSharded)
 
-	sizingRecommendationPerCoreColocatedAndShardedCombined = findNumNodesNeededBasedOnTabletsRequired(sourceIndexMetadata, shardedLimits, sizingRecommendationPerCoreColocatedAndShardedCombined)
+	sizingRecommendationPerCoreColocatedAndShardedCombined = findNumNodesNeededBasedOnTabletsRequired(allIndexLookupMap, shardedLimits, sizingRecommendationPerCoreColocatedAndShardedCombined)
 
-	sizingRecommendationPerCoreAllSharded = findNumNodesNeededBasedOnTabletsRequired(sourceIndexMetadata, shardedLimits, sizingRecommendationPerCoreAllSharded)
+	sizingRecommendationPerCoreAllSharded = findNumNodesNeededBasedOnTabletsRequired(allIndexLookupMap, shardedLimits, sizingRecommendationPerCoreAllSharded)
 
 	finalSizingRecommendationColoShardedCombined := pickBestRecommendation(sizingRecommendationPerCoreColocatedAndShardedCombined)
 
 	finalSizingRecommendationAllSharded := pickBestRecommendation(sizingRecommendationPerCoreAllSharded)
 
-	finalSizingRecommendation := pickBestRecommendationStrategy(finalSizingRecommendationColoShardedCombined, finalSizingRecommendationAllSharded, sourceIndexMetadata)
+	finalSizingRecommendation := pickBestRecommendationStrategy(finalSizingRecommendationColoShardedCombined, finalSizingRecommendationAllSharded, allIndexLookupMap)
 
 	if finalSizingRecommendation.FailureReasoning != "" {
 		SizingReport.FailureReasoning = finalSizingRecommendation.FailureReasoning
@@ -258,9 +263,9 @@ func SizingAssessment(targetDbVersion *ybversion.YBVersion, sourceDBType string,
 	}
 
 	colocatedObjects, cumulativeIndexCountColocated :=
-		getListOfIndexesAlongWithObjects(finalSizingRecommendation.ColocatedTables, sourceIndexMetadata)
+		getListOfIndexesAlongWithObjects(finalSizingRecommendation.ColocatedTables, allIndexLookupMap)
 	shardedObjects, cumulativeIndexCountSharded :=
-		getListOfIndexesAlongWithObjects(finalSizingRecommendation.ShardedTables, sourceIndexMetadata)
+		getListOfIndexesAlongWithObjects(finalSizingRecommendation.ShardedTables, allIndexLookupMap)
 
 	// get load times data from experimental database for colocated Tables
 	colocatedLoadTimes, err := getExpDataLoadTime(experimentDB, finalSizingRecommendation.VCPUsPerInstance,
@@ -300,7 +305,7 @@ func SizingAssessment(targetDbVersion *ybversion.YBVersion, sourceDBType string,
 	// calculate time taken for colocated import
 	numNodesImportTimeDivisorColocated := 1.0
 	importTimeForColocatedObjects, importTimeForColocatedObjectsWithoutRedundantIndexes, err := calculateTimeTakenForImport(
-		finalSizingRecommendation.ColocatedTables, sourceUniqueIndexesMetadata, sourceIndexMetadata, colocatedLoadTimes,
+		finalSizingRecommendation.ColocatedTables, uniqueIndexLookupMap, allIndexLookupMap, colocatedLoadTimes,
 		indexImpactOnLoadTimeCommon, columnsImpactOnLoadTimeCommon, COLOCATED, numNodesImportTimeDivisorColocated)
 	if err != nil {
 		SizingReport.FailureReasoning = fmt.Sprintf("calculate time taken for colocated data import: %v", err)
@@ -314,7 +319,7 @@ func SizingAssessment(targetDbVersion *ybversion.YBVersion, sourceDBType string,
 
 	// calculate time taken for sharded import
 	importTimeForShardedObjects, importTimeForShardedObjectsWithoutRedundantIndexes, err := calculateTimeTakenForImport(
-		finalSizingRecommendation.ShardedTables, sourceUniqueIndexesMetadata, sourceIndexMetadata, shardedLoadTimes,
+		finalSizingRecommendation.ShardedTables, uniqueIndexLookupMap, allIndexLookupMap, shardedLoadTimes,
 		indexImpactOnLoadTimeCommon, columnsImpactOnLoadTimeCommon, SHARDED, numNodesImportTimeDivisorSharded)
 	if err != nil {
 		SizingReport.FailureReasoning = fmt.Sprintf("calculate time taken for sharded data import: %v", err)
@@ -412,12 +417,12 @@ The function logs the selection reasoning for debugging purposes.
 Parameters:
   - rec1: First IntermediateRecommendation to compare (colocated+sharded strategy)
   - rec2: Second IntermediateRecommendation to compare (all-sharded strategy)
-  - sourceIndexMetadata: A slice of SourceDBMetadata structs representing source indexes
+  - indexLookupMap: Pre-built map from parent table name to list of indexes (unused in current implementation)
 
 Returns:
   - The best IntermediateRecommendation based on the selection logic described above
 */
-func pickBestRecommendationStrategy(rec1, rec2 IntermediateRecommendation, sourceIndexMetadata []SourceDBMetadata) IntermediateRecommendation {
+func pickBestRecommendationStrategy(rec1, rec2 IntermediateRecommendation, indexLookupMap map[string][]SourceDBMetadata) IntermediateRecommendation {
 	// Handle failure reasoning logic first
 	if rec1.FailureReasoning != "" && rec2.FailureReasoning != "" {
 		log.Info("Both colocated+sharded and all-sharded strategies could not support the requirements. Unable to determine appropriate sizing recommendation.")
@@ -483,14 +488,14 @@ func pickBestRecommendationStrategy(rec1, rec2 IntermediateRecommendation, sourc
 /*
 findNumNodesNeededBasedOnThroughputRequirement calculates the number of nodes needed based on sharded throughput limits and updates the recommendation accordingly.
 Parameters:
-  - sourceIndexMetadata: A slice of SourceDBMetadata structs representing source indexes.
+  - indexLookupMap: Pre-built map from parent table name to list of indexes for O(1) lookup.
   - shardedThroughputSlice: A slice of ExpDataShardedThroughput structs representing sharded throughput limits.
   - recommendation: A map where the key is the number of vCPUs per instance and the value is an IntermediateRecommendation struct.
 
 Returns:
   - An updated map of recommendations with the number of nodes needed.
 */
-func findNumNodesNeededBasedOnThroughputRequirement(sourceIndexMetadata []SourceDBMetadata, shardedThroughputSlice []ExpDataThroughput,
+func findNumNodesNeededBasedOnThroughputRequirement(indexLookupMap map[string][]SourceDBMetadata, shardedThroughputSlice []ExpDataThroughput,
 	recommendation map[int]IntermediateRecommendation) map[int]IntermediateRecommendation {
 	// Iterate over sharded throughput limits
 	for _, shardedThroughput := range shardedThroughputSlice {
@@ -501,8 +506,8 @@ func findNumNodesNeededBasedOnThroughputRequirement(sourceIndexMetadata []Source
 
 		// Calculate cumulative operations per second for sharded tables
 		for _, table := range previousRecommendation.ShardedTables {
-			// Check and fetch indexes for the current table
-			_, _, indexReads, indexWrites := checkAndFetchIndexes(table, sourceIndexMetadata)
+			// Check and fetch indexes for the current table using optimized map lookup
+			_, _, indexReads, indexWrites := checkAndFetchIndexesFromMap(table, indexLookupMap)
 			cumulativeSelectOpsPerSec += lo.Ternary(table.ReadsPerSec.Valid, table.ReadsPerSec.Int64, 0) + indexReads
 			cumulativeInsertOpsPerSec += lo.Ternary(table.WritesPerSec.Valid, table.WritesPerSec.Int64, 0) + indexWrites
 		}
@@ -550,14 +555,14 @@ func findNumNodesNeededBasedOnThroughputRequirement(sourceIndexMetadata []Source
 findNumNodesNeededBasedOnTabletsRequired calculates the number of nodes needed based on tablets required by each
 table and its indexes and updates the recommendation accordingly.
 Parameters:
-  - sourceIndexMetadata: A slice of SourceDBMetadata structs representing source indexes.
+  - indexLookupMap: Pre-built map from parent table name to list of indexes for O(1) lookup.
   - shardedLimits: A slice of ExpDataShardedThroughput structs representing sharded throughput limits.
   - recommendation: A map where the key is the number of vCPUs per instance and the value is an IntermediateRecommendation struct.
 
 Returns:
   - An updated map of recommendations with the number of nodes needed.
 */
-func findNumNodesNeededBasedOnTabletsRequired(sourceIndexMetadata []SourceDBMetadata,
+func findNumNodesNeededBasedOnTabletsRequired(indexLookupMap map[string][]SourceDBMetadata,
 	shardedLimits []ExpDataShardedLimit,
 	recommendation map[int]IntermediateRecommendation) map[int]IntermediateRecommendation {
 	// Iterate over each intermediate recommendation where failureReasoning is empty
@@ -567,13 +572,14 @@ func findNumNodesNeededBasedOnTabletsRequired(sourceIndexMetadata []SourceDBMeta
 			// Iterate over each table and its indexes to find out how many tablets are needed
 			for _, table := range rec.ShardedTables {
 				_, tabletsRequired := getThresholdAndTablets(rec.NumNodes, lo.Ternary(table.Size.Valid, table.Size.Float64, 0))
-				for _, index := range sourceIndexMetadata {
-					if index.ParentTableName.Valid && (index.ParentTableName.String == (table.SchemaName + "." + table.ObjectName)) {
-						// calculating tablets required for each of the index
-						_, tabletsRequiredForIndex := getThresholdAndTablets(rec.NumNodes, lo.Ternary(index.Size.Valid, index.Size.Float64, 0))
-						// tablets required for each table is the sum of tablets required for the table and its indexes
-						tabletsRequired += tabletsRequiredForIndex
-					}
+				// Use optimized map lookup for indexes
+				tableKey := table.SchemaName + "." + table.ObjectName
+				indexes := indexLookupMap[tableKey]
+				for _, index := range indexes {
+					// calculating tablets required for each of the index
+					_, tabletsRequiredForIndex := getThresholdAndTablets(rec.NumNodes, lo.Ternary(index.Size.Valid, index.Size.Float64, 0))
+					// tablets required for each table is the sum of tablets required for the table and its indexes
+					tabletsRequired += tabletsRequiredForIndex
 				}
 				// adding total tablets required across all tables
 				totalTabletsRequired += tabletsRequired
@@ -671,14 +677,14 @@ checkShardedTableLimit checks if the total number of sharded tables exceeds the 
 If the limit is exceeded, it updates the recommendation with a failure reasoning.
 Note: This function is only called when SKIP_SHARDED_TABLE_LIMIT_CHECK is false.
 Parameters:
-  - sourceIndexMetadata: A slice of SourceDBMetadata structs representing source indexes.
+  - indexLookupMap: Pre-built map from parent table name to list of indexes for O(1) lookup.
   - shardedLimits: A slice of ExpDataShardedLimit structs representing sharded limits.
   - recommendation: A map where the key is the number of vCPUs per instance and the value is an IntermediateRecommendation struct.
 
 Returns:
   - An updated map of recommendations with failure reasoning if the sharded table limit is exceeded.
 */
-func checkShardedTableLimit(sourceIndexMetadata []SourceDBMetadata, shardedLimits []ExpDataShardedLimit, recommendation map[int]IntermediateRecommendation) map[int]IntermediateRecommendation {
+func checkShardedTableLimit(indexLookupMap map[string][]SourceDBMetadata, shardedLimits []ExpDataShardedLimit, recommendation map[int]IntermediateRecommendation) map[int]IntermediateRecommendation {
 
 	for _, shardedLimit := range shardedLimits {
 		var totalObjectCount int64 = 0
@@ -688,8 +694,8 @@ func checkShardedTableLimit(sourceIndexMetadata []SourceDBMetadata, shardedLimit
 
 		// Calculate total object count for sharded tables
 		for _, table := range previousRecommendation.ShardedTables {
-			// Check and fetch indexes for the current table
-			indexes, _, _, _ := checkAndFetchIndexes(table, sourceIndexMetadata)
+			// Check and fetch indexes for the current table using optimized map lookup
+			indexes, _, _, _ := checkAndFetchIndexesFromMap(table, indexLookupMap)
 			totalObjectCount += int64(len(indexes)) + 1
 
 		}
@@ -725,14 +731,14 @@ func checkShardedTableLimit(sourceIndexMetadata []SourceDBMetadata, shardedLimit
 shardingBasedOnOperations performs sharding based on operations (reads and writes) per second, taking into account colocated limits.
 It updates the existing recommendations with information about colocated and sharded tables based on operations.
 Parameters:
-  - sourceIndexMetadata: A slice of SourceDBMetadata structs representing source indexes.
+  - indexLookupMap: Pre-built map from parent table name to list of indexes for O(1) lookup.
   - colocatedThroughput: A slice of ExpDataThroughput structs representing colocated limits.
   - recommendation: A map where the key is the number of vCPUs per instance and the value is an IntermediateRecommendation struct.
 
 Returns:
   - An updated map of recommendations where sharding information based on operations has been incorporated.
 */
-func shardingBasedOnOperations(sourceIndexMetadata []SourceDBMetadata,
+func shardingBasedOnOperations(indexLookupMap map[string][]SourceDBMetadata,
 	colocatedThroughputSlice []ExpDataThroughput, recommendation map[int]IntermediateRecommendation) map[int]IntermediateRecommendation {
 
 	for _, colocatedThroughput := range colocatedThroughputSlice {
@@ -746,8 +752,8 @@ func shardingBasedOnOperations(sourceIndexMetadata []SourceDBMetadata,
 		previousRecommendation := recommendation[int(colocatedThroughput.numCores.Float64)]
 
 		for _, table := range previousRecommendation.ColocatedTables {
-			// Check and fetch indexes for the current table
-			_, indexesSizeSum, indexReads, indexWrites := checkAndFetchIndexes(table, sourceIndexMetadata)
+			// Check and fetch indexes for the current table using optimized map lookup
+			_, indexesSizeSum, indexReads, indexWrites := checkAndFetchIndexesFromMap(table, indexLookupMap)
 
 			// Calculate new operations per second
 			newSelectOpsPerSec := cumulativeSelectOpsPerSec + lo.Ternary(table.ReadsPerSec.Valid, table.ReadsPerSec.Int64, 0) + indexReads
@@ -779,7 +785,7 @@ func shardingBasedOnOperations(sourceIndexMetadata []SourceDBMetadata,
 		// Iterate over remaining colocated tables for sharding
 		for _, remainingTable := range previousRecommendation.ColocatedTables[numColocated:] {
 			shardedObjects = append(shardedObjects, remainingTable)
-			_, indexesSizeSumSharded, _, _ := checkAndFetchIndexes(remainingTable, sourceIndexMetadata)
+			_, indexesSizeSumSharded, _, _ := checkAndFetchIndexesFromMap(remainingTable, indexLookupMap)
 			cumulativeSizeSharded += lo.Ternary(remainingTable.Size.Valid, remainingTable.Size.Float64, 0) + indexesSizeSumSharded
 		}
 
@@ -807,7 +813,7 @@ shardingBasedOnTableSizeAndCount performs sharding based on table size and count
 It updates the existing recommendations with information about colocated and sharded tables.
 Parameters:
   - sourceTableMetadata: A slice of SourceDBMetadata structs representing source tables.
-  - sourceIndexMetadata: A slice of SourceDBMetadata structs representing source indexes.
+  - indexLookupMap: Pre-built map from parent table name to list of indexes for O(1) lookup.
   - colocatedLimits: A slice of ExpDataColocatedLimit structs representing colocated limits.
   - recommendation: A map where the key is the number of vCPUs per instance and the value is an IntermediateRecommendation struct.
 
@@ -815,7 +821,7 @@ Returns:
   - An updated map of recommendations where sharding information has been incorporated.
 */
 func shardingBasedOnTableSizeAndCount(sourceTableMetadata []SourceDBMetadata,
-	sourceIndexMetadata []SourceDBMetadata, colocatedLimits []ExpDataColocatedLimit,
+	indexLookupMap map[string][]SourceDBMetadata, colocatedLimits []ExpDataColocatedLimit,
 	recommendation map[int]IntermediateRecommendation) map[int]IntermediateRecommendation {
 
 	for _, colocatedLimit := range colocatedLimits {
@@ -828,8 +834,8 @@ func shardingBasedOnTableSizeAndCount(sourceTableMetadata []SourceDBMetadata,
 		var cumulativeSizeSharded float64 = 0
 
 		for _, table := range sourceTableMetadata {
-			// Check and fetch indexes for the current table
-			indexesOfTable, indexesSizeSum, _, _ := checkAndFetchIndexes(table, sourceIndexMetadata)
+			// Check and fetch indexes for the current table using optimized map lookup
+			indexesOfTable, indexesSizeSum, _, _ := checkAndFetchIndexesFromMap(table, indexLookupMap)
 			// DB-12363: make tables having more than COLOCATED_MAX_INDEXES_THRESHOLD indexes as sharded
 			// (irrespective of size or ops requirements)
 			if len(indexesOfTable) > COLOCATED_MAX_INDEXES_THRESHOLD {
@@ -859,7 +865,7 @@ func shardingBasedOnTableSizeAndCount(sourceTableMetadata []SourceDBMetadata,
 		// Iterate over remaining tables for sharding
 		for _, remainingTable := range sourceTableMetadata[(len(shardedObjects) + numColocated):] {
 			shardedObjects = append(shardedObjects, remainingTable)
-			_, indexesSizeSumSharded, _, _ := checkAndFetchIndexes(remainingTable, sourceIndexMetadata)
+			_, indexesSizeSumSharded, _, _ := checkAndFetchIndexesFromMap(remainingTable, indexLookupMap)
 			cumulativeSizeSharded += lo.Ternary(remainingTable.Size.Valid, remainingTable.Size.Float64, 0) + indexesSizeSumSharded
 		}
 		// Update recommendation for the current colocated limit
@@ -1067,7 +1073,7 @@ createRecommendationStructureAllShardedRecommendations generates sizing recommen
 It creates a map where the key represents the number of vCPUs per instance and the value is an IntermediateRecommendation.
 Each recommendation has all tables set as sharded and includes throughput calculations.
 Parameters:
-  - sourceIndexMetadata: A slice of SourceDBMetadata structs representing source indexes.
+  - indexLookupMap: Pre-built map from parent table name to list of indexes for O(1) lookup.
   - sourceTableMetadata: A slice of SourceDBMetadata structs representing source tables.
   - shardedLimits: A slice of ExpDataShardedLimit structs representing sharded limits.
   - shardedThroughputSlice: A slice of ExpDataThroughput structs representing sharded throughput data.
@@ -1075,7 +1081,7 @@ Parameters:
 Returns:
   - A map where the key is the number of vCPUs per instance and the value is an IntermediateRecommendation.
 */
-func createRecommendationStructureAllShardedRecommendations(sourceIndexMetadata []SourceDBMetadata, sourceTableMetadata []SourceDBMetadata,
+func createRecommendationStructureAllShardedRecommendations(indexLookupMap map[string][]SourceDBMetadata, sourceTableMetadata []SourceDBMetadata,
 	shardedLimits []ExpDataShardedLimit, shardedThroughputSlice []ExpDataThroughput) map[int]IntermediateRecommendation {
 
 	// Create initial recommendation structure
@@ -1089,10 +1095,10 @@ func createRecommendationStructureAllShardedRecommendations(sourceIndexMetadata 
 		recommendationPerCore[sizingRecommendation.VCPUsPerInstance] = sizingRecommendation
 	}
 
-	// Calculate cumulative size for sharded tables including indexes
+	// Calculate cumulative size for sharded tables including indexes using optimized map lookup
 	var cumulativeSizeSharded float64 = 0
 	for _, table := range sourceTableMetadata {
-		_, indexesSizeSumSharded, _, _ := checkAndFetchIndexes(table, sourceIndexMetadata)
+		_, indexesSizeSumSharded, _, _ := checkAndFetchIndexesFromMap(table, indexLookupMap)
 		cumulativeSizeSharded += lo.Ternary(table.Size.Valid, table.Size.Float64, 0) + indexesSizeSumSharded
 	}
 
@@ -1126,8 +1132,8 @@ and one with only unique indexes (excluding redundant).
 Parameters:
 
 	tables: A slice containing metadata for the database objects to be migrated.
-	sourceUniqueIndexesMetadata: A slice containing metadata for unique indexes only.
-	sourceAllIndexesMetadata: A slice containing metadata for all indexes including redundant ones.
+	uniqueIndexLookupMap: Pre-built map for unique indexes lookup.
+	allIndexLookupMap: Pre-built map for all indexes (including redundant) lookup.
 	loadTimes: Experiment data for impact of load times on tables
 	indexImpactData: Data containing impact of indexes on load time.
 	numColumnImpactData: Data containing impact of number of columns on load time.
@@ -1141,7 +1147,7 @@ Returns:
 	error: Error if any
 */
 func calculateTimeTakenForImport(tables []SourceDBMetadata,
-	sourceUniqueIndexesMetadata []SourceDBMetadata, sourceAllIndexesMetadata []SourceDBMetadata,
+	uniqueIndexLookupMap map[string][]SourceDBMetadata, allIndexLookupMap map[string][]SourceDBMetadata,
 	loadTimes []ExpDataLoadTime, indexImpactData []ExpDataLoadTimeIndexImpact,
 	numColumnImpactData []ExpDataLoadTimeColumnsImpact,
 	objectType string, numNodesImportTimeDivisorCommon float64) (float64, float64, error) {
@@ -1156,13 +1162,13 @@ func calculateTimeTakenForImport(tables []SourceDBMetadata,
 		tableSize := lo.Ternary(table.Size.Valid, table.Size.Float64, 0)
 		rowsInTable := lo.Ternary(table.RowCount.Valid, table.RowCount.Float64, 0)
 
-		// get multiplication factor for every table based on all indexes (including redundant)
-		loadTimeMultiplicationFactorWrtAllIndexes := getMultiplicationFactorForImportTimeBasedOnIndexes(table,
-			sourceAllIndexesMetadata, indexImpactData, objectType)
+		// get multiplication factor for every table based on all indexes (including redundant) using optimized map lookup
+		loadTimeMultiplicationFactorWrtAllIndexes := getMultiplicationFactorForImportTimeBasedOnIndexesFromMap(table,
+			allIndexLookupMap, indexImpactData, objectType)
 
-		// get multiplication factor for every table based on unique indexes only (excluding redundant)
-		loadTimeMultiplicationFactorWrtUniqueIndexes := getMultiplicationFactorForImportTimeBasedOnIndexes(table,
-			sourceUniqueIndexesMetadata, indexImpactData, objectType)
+		// get multiplication factor for every table based on unique indexes only (excluding redundant) using optimized map lookup
+		loadTimeMultiplicationFactorWrtUniqueIndexes := getMultiplicationFactorForImportTimeBasedOnIndexesFromMap(table,
+			uniqueIndexLookupMap, indexImpactData, objectType)
 
 		// get multiplication factor for every table based on the number of columns in the table
 		loadTimeMultiplicationFactorWrtNumColumns := getMultiplicationFactorForImportTimeBasedOnNumColumns(table,
@@ -1434,6 +1440,8 @@ Parameters:
 Returns:
 
 	float64: The multiplication factor for import time based on the number of indexes on the table.
+
+Deprecated: Use getMultiplicationFactorForImportTimeBasedOnIndexesFromMap for better performance with large datasets.
 */
 func getMultiplicationFactorForImportTimeBasedOnIndexes(table SourceDBMetadata, sourceUniqueIndexesMetadata []SourceDBMetadata,
 	indexImpacts []ExpDataLoadTimeIndexImpact, objectType string) float64 {
@@ -1468,6 +1476,56 @@ func getMultiplicationFactorForImportTimeBasedOnIndexes(table SourceDBMetadata, 
 
 		return multiplicationFactor
 	}
+}
+
+/*
+getMultiplicationFactorForImportTimeBasedOnIndexesFromMap is an optimized version that uses a pre-built lookup map.
+It calculates the multiplication factor for import time based on number of indexes on the table.
+
+Parameters:
+
+	table: Metadata for the database table for which the multiplication factor is to be calculated.
+	indexLookupMap: Pre-built map from parent table name to list of indexes for O(1) lookup.
+	indexImpacts: Experimental data containing impact of indexes on load time.
+	objectType: COLOCATED or SHARDED
+
+Returns:
+
+	float64: The multiplication factor for import time based on the number of indexes on the table.
+*/
+func getMultiplicationFactorForImportTimeBasedOnIndexesFromMap(table SourceDBMetadata, indexLookupMap map[string][]SourceDBMetadata,
+	indexImpacts []ExpDataLoadTimeIndexImpact, objectType string) float64 {
+	tableKey := table.SchemaName + "." + table.ObjectName
+	indexes := indexLookupMap[tableKey]
+	numberOfIndexesOnTable := float64(len(indexes))
+
+	if numberOfIndexesOnTable == 0 {
+		// if there are no indexes on table, return 1 immediately
+		return 1
+	}
+
+	closest := indexImpacts[0]
+	minDiff := math.Abs(numberOfIndexesOnTable - closest.numIndexes.Float64)
+
+	for _, indexImpactData := range indexImpacts {
+		diff := math.Abs(numberOfIndexesOnTable - indexImpactData.numIndexes.Float64)
+		if diff < minDiff {
+			minDiff = diff
+			closest = indexImpactData
+		}
+	}
+
+	// impact on load time for given table would be relative to the closest record's impact
+	var multiplicationFactor float64
+	if objectType == COLOCATED {
+		multiplicationFactor = (closest.multiplicationFactorColocated.Float64 / closest.numIndexes.Float64) * numberOfIndexesOnTable
+	} else if objectType == SHARDED {
+		multiplicationFactor = (closest.multiplicationFactorSharded.Float64 / closest.numIndexes.Float64) * numberOfIndexesOnTable
+	} else {
+		multiplicationFactor = 1
+	}
+
+	return multiplicationFactor
 }
 
 /*
@@ -1724,6 +1782,30 @@ func getSourceMetadataRedundantIndexes(sourceDB *sql.DB, sourceTableName string,
 }
 
 /*
+buildIndexLookupMap creates a map from parent table name to a list of indexes for O(1) lookup.
+This optimization is critical when dealing with large numbers of indexes (15,000+).
+Without this, checkAndFetchIndexes becomes O(n*m) where n=tables and m=indexes.
+
+Parameters:
+
+	indexes: A slice containing metadata for all indexes in the database.
+
+Returns:
+
+	map[string][]SourceDBMetadata: A map where key is "schema_name.table_name" and value is slice of indexes for that table.
+*/
+func buildIndexLookupMap(indexes []SourceDBMetadata) map[string][]SourceDBMetadata {
+	indexLookupMap := make(map[string][]SourceDBMetadata)
+	for _, index := range indexes {
+		if index.ParentTableName.Valid {
+			parentKey := index.ParentTableName.String
+			indexLookupMap[parentKey] = append(indexLookupMap[parentKey], index)
+		}
+	}
+	return indexLookupMap
+}
+
+/*
 checkAndFetchIndexes checks for indexes associated with a specific database table and fetches their metadata.
 It iterates through a slice of index metadata and selects indexes that belong to the specified table by comparing
 their parent table names. The function returns a slice containing metadata for indexes associated with the table
@@ -1739,6 +1821,8 @@ Returns:
 	float64: The total size of indexes associated with the specified table.
 	int64 : sum of read ops per second for all indexes of the table
 	int64 : sum of write ops per second for all indexes of the table
+
+Deprecated: Use checkAndFetchIndexesFromMap for better performance with large datasets.
 */
 func checkAndFetchIndexes(table SourceDBMetadata, indexes []SourceDBMetadata) ([]SourceDBMetadata, float64, int64, int64) {
 	indexesOfTable := make([]SourceDBMetadata, 0)
@@ -1752,6 +1836,39 @@ func checkAndFetchIndexes(table SourceDBMetadata, indexes []SourceDBMetadata) ([
 			cumulativeSelectOpsPerSecIdx += lo.Ternary(index.ReadsPerSec.Valid, index.ReadsPerSec.Int64, 0)
 			cumulativeInsertOpsPerSecIdx += lo.Ternary(index.ReadsPerSec.Valid, index.ReadsPerSec.Int64, 0)
 		}
+	}
+
+	return indexesOfTable, indexesSizeSum, cumulativeSelectOpsPerSecIdx, cumulativeInsertOpsPerSecIdx
+}
+
+/*
+checkAndFetchIndexesFromMap is an optimized version of checkAndFetchIndexes that uses a pre-built lookup map.
+This provides O(1) lookup instead of O(n) scanning, critical for large datasets (15,000+ indexes).
+
+Parameters:
+
+	table: Metadata for the database table for which indexes are to be checked.
+	indexLookupMap: Pre-built map from parent table name to list of indexes.
+
+Returns:
+
+	[]SourceDBMetadata: Metadata for indexes associated with the specified table.
+	float64: The total size of indexes associated with the specified table.
+	int64 : sum of read ops per second for all indexes of the table
+	int64 : sum of write ops per second for all indexes of the table
+*/
+func checkAndFetchIndexesFromMap(table SourceDBMetadata, indexLookupMap map[string][]SourceDBMetadata) ([]SourceDBMetadata, float64, int64, int64) {
+	tableKey := table.SchemaName + "." + table.ObjectName
+	indexesOfTable := indexLookupMap[tableKey]
+
+	var indexesSizeSum float64 = 0
+	var cumulativeSelectOpsPerSecIdx int64 = 0
+	var cumulativeInsertOpsPerSecIdx int64 = 0
+
+	for _, index := range indexesOfTable {
+		indexesSizeSum += lo.Ternary(index.Size.Valid, index.Size.Float64, 0)
+		cumulativeSelectOpsPerSecIdx += lo.Ternary(index.ReadsPerSec.Valid, index.ReadsPerSec.Int64, 0)
+		cumulativeInsertOpsPerSecIdx += lo.Ternary(index.WritesPerSec.Valid, index.WritesPerSec.Int64, 0)
 	}
 
 	return indexesOfTable, indexesSizeSum, cumulativeSelectOpsPerSecIdx, cumulativeInsertOpsPerSecIdx
@@ -1840,20 +1957,20 @@ func getObjectsSize(objects []SourceDBMetadata) (float64, int64, int64, string) 
 getListOfIndexesAlongWithObjects generates a list of indexes along with their corresponding tables from the given tableList.
 Parameters:
   - tableList: A slice of SourceDBMetadata structs representing tables.
-  - sourceIndexMetadata: A slice of SourceDBMetadata structs representing index metadata.
+  - indexLookupMap: Pre-built map from parent table name to list of indexes for O(1) lookup.
 
 Returns:
   - A slice of SourceDBMetadata structs containing both indexes and tables.
   - total indexes of the tables
 */
 func getListOfIndexesAlongWithObjects(tableList []SourceDBMetadata,
-	sourceIndexMetadata []SourceDBMetadata) ([]SourceDBMetadata, int) {
+	indexLookupMap map[string][]SourceDBMetadata) ([]SourceDBMetadata, int) {
 	var indexesAndObject []SourceDBMetadata
 	var cumulativeIndexCount = 0
 
 	for _, table := range tableList {
-		// Check and fetch indexes for the current table
-		indexes, _, _, _ := checkAndFetchIndexes(table, sourceIndexMetadata)
+		// Check and fetch indexes for the current table using optimized map lookup
+		indexes, _, _, _ := checkAndFetchIndexesFromMap(table, indexLookupMap)
 		indexesAndObject = append(indexesAndObject, indexes...)
 		indexesAndObject = append(indexesAndObject, table)
 		cumulativeIndexCount += len(indexes)
