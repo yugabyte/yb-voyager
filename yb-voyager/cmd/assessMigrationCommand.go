@@ -19,7 +19,6 @@ package cmd
 import (
 	"bufio"
 	_ "embed"
-	"encoding/csv"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -317,7 +316,8 @@ func assessMigration() (err error) {
 	utils.PrintAndLog("Migration assessment completed successfully.")
 	completedEvent := createMigrationAssessmentCompletedEvent()
 	controlPlane.MigrationAssessmentCompleted(completedEvent)
-	/*err = SetMigrationAssessmentDoneInMSR()
+	/*saveSourceDBConfInMSR()
+	err = SetMigrationAssessmentDoneInMSR()
 	if err != nil {
 		return fmt.Errorf("failed to set migration assessment completed in MSR: %w", err)
 	}*/
@@ -639,24 +639,19 @@ func populateMetadataCSVIntoAssessmentDB() error {
 		tableName = lo.Ternary(strings.Contains(tableName, migassessment.TABLE_INDEX_IOPS),
 			migassessment.TABLE_INDEX_IOPS, tableName)
 
-		log.Infof("populating metadata from file %s into table %s", metadataFilePath, tableName)
-		file, err := os.Open(metadataFilePath)
+		// check if the table exist in the assessment db or not
+		// possible scenario: if gather scripts are run manually, not via voyager
+		err := assessmentDB.CheckIfTableExists(tableName)
 		if err != nil {
-			log.Warnf("error opening file %s: %v", metadataFilePath, err)
-			return nil
-		}
-		csvReader := csv.NewReader(file)
-		csvReader.ReuseRecord = true
-		rows, err := csvReader.ReadAll()
-		if err != nil {
-			log.Errorf("error reading csv file %s: %v", metadataFilePath, err)
-			return fmt.Errorf("error reading csv file %s: %w", metadataFilePath, err)
+			return fmt.Errorf("error checking if table %s exists: %w", tableName, err)
 		}
 
-		err = assessmentDB.BulkInsert(tableName, rows)
+		log.Infof("populating metadata from file %s into table %s", metadataFilePath, tableName)
+		err = assessmentDB.LoadCSVFileIntoTable(metadataFilePath, tableName)
 		if err != nil {
-			return fmt.Errorf("error bulk inserting data into %s table: %w", tableName, err)
+			return fmt.Errorf("error loading CSV file %s: %w", metadataFilePath, err)
 		}
+
 		log.Infof("populated metadata from file %s into table %s", metadataFilePath, tableName)
 	}
 
@@ -1411,6 +1406,11 @@ func addAssessmentIssuesForUnsupportedDatatypes(unsupportedDatatypes []utils.Tab
 				ObjectName:             qualifiedColName,
 				DocsLink:               "",  // TODO
 				MinimumVersionsFixedIn: nil, // TODO
+			}
+			// Handle CLOB datatype issue se
+			if strings.EqualFold(colInfo.DataType, "CLOB") {
+				issue.Description = "Oracle CLOB data export is now supported via the experimental flag --allow-oracle-clob-data-export. This is supported only for offline migration (not Live or BETA_FAST_DATA_EXPORT) and large CLOBs may impact performance during export and import."
+				issue.DocsLink = "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/oracle/#large-sized-clob-data-is-not-supported"
 			}
 			assessmentReport.AppendIssues(issue)
 		case POSTGRESQL:

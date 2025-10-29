@@ -42,8 +42,8 @@
   {
     "table_name": "public.\"hstore_example\"",
     "status": "DONE",
-    "total_count": 13,
-    "imported_count": 13,
+    "total_count": 26,
+    "imported_count": 26,
     "percentage_complete": 100,
     "errored_count": 0
   },
@@ -57,6 +57,22 @@
   },
   {
     "table_name": "public.\"num_types\"",
+    "status": "DONE",
+    "total_count": 3,
+    "imported_count": 3,
+    "percentage_complete": 100,
+    "errored_count": 0
+  },
+  {
+    "table_name": "public.\"tsvector_table\"",
+    "status": "DONE",
+    "total_count": 3,
+    "imported_count": 3,
+    "percentage_complete": 100,
+    "errored_count": 0
+  },
+  {
+    "table_name": "public.\"enum_array_table\"",
     "status": "DONE",
     "total_count": 3,
     "imported_count": 3,

@@ -518,6 +518,24 @@ func (ora *Oracle) GetAllSequencesRaw(schemaName string) ([]string, error) {
 	if rows.Err() != nil {
 		return nil, fmt.Errorf("failed to scan all rows of query %q for auto increment columns in tables: %w", query, rows.Err())
 	}
+
+	//Also include all the other sequence objects in namereg.
+	queryNormalSequences := fmt.Sprintf("SELECT sequence_name FROM all_sequences WHERE sequence_owner = '%s'", schemaName)
+	rows, err = ora.db.Query(queryNormalSequences)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query %q for finding sequences: %w", queryNormalSequences, err)
+	}
+	for rows.Next() {
+		var sequenceName string
+		err := rows.Scan(&sequenceName)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan sequenceName from output of query %q: %w", queryNormalSequences, err)
+		}
+		sequences = append(sequences, sequenceName)
+	}
+	if rows.Err() != nil {
+		return nil, fmt.Errorf("failed to scan all rows of query %q for sequences: %w", queryNormalSequences, rows.Err())
+	}
 	return sequences, nil
 }
 

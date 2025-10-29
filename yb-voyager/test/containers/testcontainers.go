@@ -9,6 +9,7 @@ import (
 
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
+	"github.com/yugabyte/yb-voyager/yb-voyager/versions"
 )
 
 // containerRegistry to ensure one container per database(dbtype+version) [Singleton Pattern]
@@ -53,6 +54,20 @@ type ContainerConfig struct {
 	DBName    string
 	Schema    string
 	ForLive   bool
+	// YugabyteDB Cluster-specific fields
+	NodeCount         int // Number of nodes in cluster (default: 1)
+	ReplicationFactor int // RF-1, RF-3, etc. (default: 1)
+}
+
+func (config *ContainerConfig) buildContainerName(dbType string) string {
+	containerName := fmt.Sprintf("%s-%s", dbType, config.DBVersion)
+	// TODO: combination of live and multi node cluster is yet to be implemented in testcontainers
+	if config.ForLive {
+		containerName = fmt.Sprintf("%s-live-%s", dbType, config.DBVersion)
+	} else if config.NodeCount > 1 {
+		containerName = fmt.Sprintf("%s-cluster-%d-%s", dbType, config.NodeCount, config.DBVersion)
+	}
+	return containerName
 }
 
 func NewTestContainer(dbType string, containerConfig *ContainerConfig) TestContainer {
@@ -66,10 +81,7 @@ func NewTestContainer(dbType string, containerConfig *ContainerConfig) TestConta
 	setContainerConfigDefaultsIfNotProvided(dbType, containerConfig)
 
 	// check if container is already created after fetching default configs
-	containerName := fmt.Sprintf("%s-%s", dbType, containerConfig.DBVersion)
-	if containerConfig.ForLive {
-		containerName = fmt.Sprintf("%s-live-%s", dbType, containerConfig.DBVersion)
-	}
+	containerName := containerConfig.buildContainerName(dbType)
 	if container, exists := containerRegistry[containerName]; exists {
 		log.Infof("container '%s' already exists in the registry", containerName)
 		return container
@@ -82,8 +94,14 @@ func NewTestContainer(dbType string, containerConfig *ContainerConfig) TestConta
 			ContainerConfig: *containerConfig,
 		}
 	case YUGABYTEDB:
-		testContainer = &YugabyteDBContainer{
-			ContainerConfig: *containerConfig,
+		if containerConfig.NodeCount > 1 {
+			testContainer = &YugabyteDBClusterContainer{
+				ContainerConfig: *containerConfig,
+			}
+		} else {
+			testContainer = &YugabyteDBContainer{
+				ContainerConfig: *containerConfig,
+			}
 		}
 	case ORACLE:
 		testContainer = &OracleContainer{
@@ -129,7 +147,7 @@ func setContainerConfigDefaultsIfNotProvided(dbType string, config *ContainerCon
 
 	ybVersion := os.Getenv("YB_VERSION")
 	if ybVersion == "" {
-		ybVersion = "2025.1.0.0-b168" // default to current latest yb version for now
+		ybVersion = versions.GetLatestStableYBVersion()
 	}
 
 	pgVersion := os.Getenv("PG_VERSION")
@@ -161,6 +179,8 @@ func setContainerConfigDefaultsIfNotProvided(dbType string, config *ContainerCon
 		config.DBVersion = lo.Ternary(config.DBVersion == "", ybVersion, config.DBVersion)
 		config.Schema = lo.Ternary(config.Schema == "", "public", config.Schema)
 		config.DBName = lo.Ternary(config.DBName == "", "yugabyte", config.DBName)
+		config.NodeCount = lo.Ternary(config.NodeCount == 0, 1, config.NodeCount)
+		config.ReplicationFactor = lo.Ternary(config.ReplicationFactor == 0, 1, config.ReplicationFactor)
 
 	case ORACLE:
 		config.User = lo.Ternary(config.User == "", "ybvoyager", config.User)

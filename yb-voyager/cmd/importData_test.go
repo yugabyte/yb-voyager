@@ -503,7 +503,7 @@ func TestImportData_FastPath_OnPrimaryKeyConflictsAsIgnore_AllDatatypesTest(t *t
 	importDataCmdArgs := []string{
 		"--export-dir", exportDir,
 		"--disable-pb", "true",
-		"--on-primary-key-conflict", "ERROR",
+		"--on-primary-key-conflict", "ERROR-POLICY",
 		"--yes",
 	}
 	// first run: import data command to load data from PG
@@ -1469,6 +1469,235 @@ FROM generate_series(1, 10);`
 	defer postgresContainer.ExecuteSqls(dropSchemaSQL)
 	defer yugabytedbContainer.ExecuteSqls(dropSchemaSQL)
 
+	//exporting all tables here
+	err := testutils.NewVoyagerCommandRunner(postgresContainer, "export data", []string{
+		"--export-dir", exportDir,
+		"--source-db-schema", "test_schema",
+		"--disable-pb", "true",
+		"--yes",
+	}, func() {
+		time.Sleep(15 * time.Second) // Wait for the export to start
+	}, true).Run()
+	testutils.FatalIfError(t, err, "Export command failed")
+
+	exportStatus := testutils.NewVoyagerCommandRunner(nil, "export data status", []string{
+		"--export-dir", exportDir,
+		"--output-format", "json",
+	}, nil, false)
+	err = exportStatus.Run()
+	testutils.FatalIfError(t, err, "Export data status command failed")
+
+	//verify the report file content
+	reportPath := filepath.Join(exportDir, "reports", "export-data-status-report.json")
+	reportData, err := os.ReadFile(reportPath)
+	if err != nil {
+		t.Fatalf("Failed to read import data status report file: %v", err)
+	}
+	var exportReportData []*exportTableMigStatusOutputRow
+	err = json.Unmarshal(reportData, &exportReportData)
+	testutils.FatalIfError(t, err, "Failed to read export data status report file")
+
+	assert.Equal(t, 2, len(exportReportData), "Report should contain exactly two entries")
+	assert.Equal(t, &exportTableMigStatusOutputRow{
+		TableName:     `test_migration`,
+		ExportedCount: 10,
+		Status:        "DONE",
+	}, exportReportData[0], "Status report row mismatch")
+
+	assert.Equal(t, &exportTableMigStatusOutputRow{
+		TableName:     `test_migration1`,
+		ExportedCount: 10,
+		Status:        "DONE",
+	}, exportReportData[1], "Status report row mismatch")
+
+	importCmd := testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
+		"--export-dir", exportDir,
+		"--disable-pb", "true",
+		"--yes",
+	}, func() {
+		time.Sleep(15 * time.Second)
+	}, false)
+
+	err = importCmd.Run()
+
+	//assert error contains table not found
+	assert.NotNil(t, err)
+	assert.Contains(t, importCmd.Stdout(), `Following source tables are not present in the target database:
+test_schema."test_migration1"`)
+
+	importCmd = testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
+		"--export-dir", exportDir,
+		"--disable-pb", "true",
+		"--table-list", "abc_unknown",
+		"--yes",
+	}, func() {
+		time.Sleep(15 * time.Second)
+	}, false)
+
+	err = importCmd.Run()
+
+	//assert error contains table not found
+	assert.NotNil(t, err)
+	assert.Contains(t, importCmd.Stdout(), `Unknown table names in the table-list: [abc_unknown]
+Valid table names are: [test_schema.test_migration]
+`)
+	assert.Contains(t, importCmd.Stderr(), "Please fix the table names in table-list and retry.")
+
+	err = testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
+		"--export-dir", exportDir,
+		"--disable-pb", "true",
+		"--exclude-table-list", "test_schema.test_migration1",
+		"--yes",
+	}, func() {
+		time.Sleep(15 * time.Second)
+	}, true).Run()
+
+	testutils.FatalIfError(t, err, "Import command failed")
+
+	//verify import data status command output
+	err = testutils.NewVoyagerCommandRunner(nil, "import data status", []string{
+		"--export-dir", exportDir,
+		"--output-format", "json",
+	}, nil, false).Run()
+	testutils.FatalIfError(t, err, "Import data status command failed")
+
+	//verify the import report file content
+	reportPath = filepath.Join(exportDir, "reports", "import-data-status-report.json")
+	reportData, err = os.ReadFile(reportPath)
+	if err != nil {
+		t.Fatalf("Failed to read import data status report file: %v", err)
+	}
+	var importReportData []*tableMigStatusOutputRow
+	err = json.Unmarshal(reportData, &importReportData)
+	testutils.FatalIfError(t, err, "Failed to read import data status report file")
+
+	assert.Equal(t, 2, len(importReportData), "Report should contain exactly two entries")
+	assert.Equal(t, &tableMigStatusOutputRow{
+		TableName:          `test_schema."test_migration"`,
+		FileName:           "",
+		ImportedCount:      10,
+		ErroredCount:       0,
+		TotalCount:         10,
+		Status:             "DONE",
+		PercentageComplete: 100,
+	}, importReportData[0], "Status report row mismatch")
+
+	assert.Equal(t, &tableMigStatusOutputRow{
+		TableName:          `test_schema."test_migration1"`,
+		FileName:           "",
+		ImportedCount:      0,
+		ErroredCount:       0,
+		TotalCount:         10,
+		Status:             "NOT_STARTED",
+		PercentageComplete: 0,
+	}, importReportData[1], "Status report row mismatch")
+
+	//verify the export report content
+	err = exportStatus.Run()
+	testutils.FatalIfError(t, err, "Export data status command failed")
+	reportPath = filepath.Join(exportDir, "reports", "export-data-status-report.json")
+	reportData, err = os.ReadFile(reportPath)
+	if err != nil {
+		t.Fatalf("Failed to read import data status report file: %v", err)
+	}
+	err = json.Unmarshal(reportData, &exportReportData)
+	testutils.FatalIfError(t, err, "Failed to read export data status report file")
+
+	assert.Equal(t, 2, len(exportReportData), "Report should contain exactly two entries")
+	assert.Equal(t, &exportTableMigStatusOutputRow{
+		TableName:     `test_migration`,
+		ExportedCount: 10,
+		Status:        "DONE",
+	}, exportReportData[0], "Status report row mismatch")
+
+	assert.Equal(t, &exportTableMigStatusOutputRow{
+		TableName:     `test_migration1`,
+		ExportedCount: 10,
+		Status:        "DONE",
+	}, exportReportData[1], "Status report row mismatch")
+
+	//verify the sequence last value is restored properly
+	seq1 := `test_schema.test_migration_id_seq`
+	res1, err := yugabytedbContainer.Query(fmt.Sprintf("SELECT nextval('%s')", seq1))
+	testutils.FatalIfError(t, err, "Failed to query sequence %s", seq1)
+	defer res1.Close()
+	var nextVal1 int64
+	for res1.Next() {
+		err := res1.Scan(&nextVal1)
+		testutils.FatalIfError(t, err, "Failed to scan sequence %s", seq1)
+	}
+	assert.Equal(t, int64(11), nextVal1)
+
+}
+
+func TestImportOfAllExportedTablesAfterCreatedMissingTablesInTarget(t *testing.T) {
+	ctx := context.Background()
+
+	// Create a temporary export directory.
+	exportDir = testutils.CreateTempExportDir()
+	// defer testutils.RemoveTempExportDir(exxportDir)
+
+	createSchemaSQL := `CREATE SCHEMA IF NOT EXISTS test_schema;`
+	createTableSQL := `
+CREATE TABLE test_schema.test_migration (
+	id SERIAL PRIMARY KEY,
+	name TEXT,
+	email TEXT,
+	description TEXT
+);`
+	insertDataSQL := `
+INSERT INTO test_schema.test_migration (name, email, description)
+SELECT
+	md5(random()::text),                                      -- name
+	md5(random()::text) || '@example.com',                    -- email
+	repeat(md5(random()::text), 10)                           -- description (~320 chars)
+FROM generate_series(1, 10);`
+	createTable1SQL := `
+CREATE TABLE test_schema.test_migration1 (
+	id SERIAL PRIMARY KEY,
+	name TEXT,
+	email TEXT,
+	description TEXT
+);`
+	insertData1SQL := `
+INSERT INTO test_schema.test_migration1 (name, email, description)
+SELECT
+	md5(random()::text),                                      -- name
+	md5(random()::text) || '@example.com',                    -- email
+	repeat(md5(random()::text), 10)                           -- description (~320 chars)
+FROM generate_series(1, 10);`
+	dropSchemaSQL := `DROP SCHEMA IF EXISTS test_schema CASCADE;`
+
+	// Start Postgres container for live migration
+	postgresContainer := testcontainers.NewTestContainer("postgresql", &testcontainers.ContainerConfig{
+		ForLive: true,
+	})
+	if err := postgresContainer.Start(ctx); err != nil {
+		utils.ErrExit("Failed to start Postgres container: %v", err)
+	}
+
+	// Start YugabyteDB container.
+	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil)
+	if err := yugabytedbContainer.Start(ctx); err != nil {
+		utils.ErrExit("Failed to start YugabyteDB container: %v", err)
+	}
+	postgresContainer.ExecuteSqls([]string{
+		createSchemaSQL,
+		createTableSQL,
+		insertDataSQL,
+		createTable1SQL,
+		insertData1SQL,
+	}...)
+
+	yugabytedbContainer.ExecuteSqls([]string{
+		createSchemaSQL,
+		createTableSQL,
+		//Not creating second table in yb to test the import of subset of exported tables
+	}...)
+
+	defer postgresContainer.ExecuteSqls(dropSchemaSQL)
+	defer yugabytedbContainer.ExecuteSqls(dropSchemaSQL)
+
 	err := testutils.NewVoyagerCommandRunner(postgresContainer, "export data", []string{
 		"--export-dir", exportDir,
 		"--source-db-schema", "test_schema",
@@ -1521,13 +1750,34 @@ FROM generate_series(1, 10);`
 
 	//assert error contains table not found
 	assert.NotNil(t, err)
-	assert.Contains(t, importCmd.Stdout(), `Following tables are not present in the target database:
+	assert.Contains(t, importCmd.Stdout(), `Following source tables are not present in the target database:
 test_schema."test_migration1"`)
+
+	importCmd = testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
+		"--export-dir", exportDir,
+		"--disable-pb", "true",
+		"--table-list", "abc_unknown",
+		"--yes",
+	}, func() {
+		time.Sleep(15 * time.Second)
+	}, false)
+
+	err = importCmd.Run()
+
+	//assert error contains table not found
+	assert.NotNil(t, err)
+	assert.Contains(t, importCmd.Stdout(), `Unknown table names in the table-list: [abc_unknown]
+Valid table names are: [test_schema.test_migration]
+`)
+	assert.Contains(t, importCmd.Stderr(), "Please fix the table names in table-list and retry.")
+
+	yugabytedbContainer.ExecuteSqls([]string{
+		createTable1SQL,
+	}...)
 
 	err = testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
 		"--export-dir", exportDir,
 		"--disable-pb", "true",
-		"--exclude-table-list", "test_schema.test_migration1",
 		"--yes",
 	}, func() {
 		time.Sleep(15 * time.Second)
@@ -1566,11 +1816,11 @@ test_schema."test_migration1"`)
 	assert.Equal(t, &tableMigStatusOutputRow{
 		TableName:          `test_schema."test_migration1"`,
 		FileName:           "",
-		ImportedCount:      0,
+		ImportedCount:      10,
 		ErroredCount:       0,
 		TotalCount:         10,
-		Status:             "NOT_STARTED",
-		PercentageComplete: 0,
+		Status:             "DONE",
+		PercentageComplete: 100,
 	}, importReportData[1], "Status report row mismatch")
 
 	//verify the export report content
@@ -1596,6 +1846,242 @@ test_schema."test_migration1"`)
 		ExportedCount: 10,
 		Status:        "DONE",
 	}, exportReportData[1], "Status report row mismatch")
+
+	//verify the sequence last value is restored properly
+	seq1 := `test_schema.test_migration_id_seq`
+	seq2 := `test_schema.test_migration1_id_seq`
+	res1, err := yugabytedbContainer.Query(fmt.Sprintf("SELECT nextval('%s')", seq1))
+	testutils.FatalIfError(t, err, "Failed to query sequence %s", seq1)
+	defer res1.Close()
+	res2, err := yugabytedbContainer.Query(fmt.Sprintf("SELECT nextval('%s')", seq2))
+	testutils.FatalIfError(t, err, "Failed to query sequence %s", seq2)
+	defer res2.Close()
+	var nextVal1, nextVal2 int64
+	for res1.Next() {
+		err := res1.Scan(&nextVal1)
+		testutils.FatalIfError(t, err, "Failed to scan sequence %s", seq1)
+	}
+	for res2.Next() {
+		err := res2.Scan(&nextVal2)
+		testutils.FatalIfError(t, err, "Failed to scan sequence %s", seq2)
+	}
+	assert.Equal(t, int64(11), nextVal1)
+	assert.Equal(t, int64(11), nextVal2)
+
+}
+
+func TestImportOfSubsetOfExportedTablesDebeziumOffline(t *testing.T) {
+	ctx := context.Background()
+
+	// Create a temporary export directory.
+	exportDir = testutils.CreateTempExportDir()
+	defer testutils.RemoveTempExportDir(exportDir)
+
+	createSchemaSQL := `CREATE SCHEMA IF NOT EXISTS test_schema;`
+	createTableSQL := `
+CREATE TABLE test_schema.test_migration (
+	id serial PRIMARY KEY,
+	name TEXT,
+	email TEXT,
+	description TEXT
+);`
+	insertDataSQL := `
+INSERT INTO test_schema.test_migration (name, email, description)
+SELECT
+	md5(random()::text),                                      -- name
+	md5(random()::text) || '@example.com',                    -- email
+	repeat(md5(random()::text), 10)                           -- description (~320 chars)
+FROM generate_series(1, 10);`
+	createTable1SQL := `
+CREATE TABLE test_schema.test_migration1 (
+	id serial PRIMARY KEY,
+	name TEXT,
+	email TEXT,
+	description TEXT
+);`
+	insertData1SQL := `
+INSERT INTO test_schema.test_migration1 (name, email, description)
+SELECT
+	md5(random()::text),                                      -- name
+	md5(random()::text) || '@example.com',                    -- email
+	repeat(md5(random()::text), 10)                           -- description (~320 chars)
+FROM generate_series(1, 10);`
+	dropSchemaSQL := `DROP SCHEMA IF EXISTS test_schema CASCADE;`
+
+	// Start Postgres container for live migration
+	postgresContainer := testcontainers.NewTestContainer("postgresql", &testcontainers.ContainerConfig{
+		ForLive: true,
+	})
+	if err := postgresContainer.Start(ctx); err != nil {
+		utils.ErrExit("Failed to start Postgres container: %v", err)
+	}
+
+	// Start YugabyteDB container.
+	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil)
+	if err := yugabytedbContainer.Start(ctx); err != nil {
+		utils.ErrExit("Failed to start YugabyteDB container: %v", err)
+	}
+	postgresContainer.ExecuteSqls([]string{
+		createSchemaSQL,
+		createTableSQL,
+		insertDataSQL,
+		createTable1SQL,
+		insertData1SQL,
+	}...)
+
+	yugabytedbContainer.ExecuteSqls([]string{
+		createSchemaSQL,
+		createTableSQL,
+		//Not creating second table in yb to test the import of subset of exported tables
+	}...)
+
+	defer postgresContainer.ExecuteSqls(dropSchemaSQL)
+	defer yugabytedbContainer.ExecuteSqls(dropSchemaSQL)
+
+	//run an export variable before this command
+	os.Setenv("BETA_FAST_DATA_EXPORT", "true")
+	defer os.Unsetenv("BETA_FAST_DATA_EXPORT")
+
+	//exporting all tables here
+	err := testutils.NewVoyagerCommandRunner(postgresContainer, "export data", []string{
+		"--export-dir", exportDir,
+		"--source-db-schema", "test_schema",
+		"--disable-pb", "true",
+		"--yes",
+	}, func() {
+		time.Sleep(15 * time.Second) // Wait for the export to start
+	}, true).Run()
+	testutils.FatalIfError(t, err, "Export command failed")
+
+	exportStatus := testutils.NewVoyagerCommandRunner(nil, "export data status", []string{
+		"--export-dir", exportDir,
+		"--output-format", "json",
+	}, nil, false)
+	err = exportStatus.Run()
+	testutils.FatalIfError(t, err, "Export data status command failed")
+
+	//verify the report file content
+	reportPath := filepath.Join(exportDir, "reports", "export-data-status-report.json")
+	reportData, err := os.ReadFile(reportPath)
+	if err != nil {
+		t.Fatalf("Failed to read import data status report file: %v", err)
+	}
+	var exportReportData []*exportTableMigStatusOutputRow
+	err = json.Unmarshal(reportData, &exportReportData)
+	testutils.FatalIfError(t, err, "Failed to read export data status report file")
+
+	assert.Equal(t, 2, len(exportReportData), "Report should contain exactly two entries")
+	assert.Equal(t, &exportTableMigStatusOutputRow{
+		TableName:     `test_migration`,
+		ExportedCount: 10,
+		Status:        "DONE",
+	}, exportReportData[1], "Status report row mismatch")
+
+	assert.Equal(t, &exportTableMigStatusOutputRow{
+		TableName:     `test_migration1`,
+		ExportedCount: 10,
+		Status:        "DONE",
+	}, exportReportData[0], "Status report row mismatch")
+
+	importCmd := testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
+		"--export-dir", exportDir,
+		"--disable-pb", "true",
+		"--yes",
+	}, func() {
+		time.Sleep(15 * time.Second)
+	}, false)
+
+	err = importCmd.Run()
+
+	//assert error contains table not found
+	assert.NotNil(t, err)
+	assert.Contains(t, importCmd.Stdout(), `Following source tables are not present in the target database:
+test_schema."test_migration1"`)
+
+	err = testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
+		"--export-dir", exportDir,
+		"--disable-pb", "true",
+		"--exclude-table-list", "test_schema.test_migration1",
+		"--yes",
+	}, func() {
+		time.Sleep(15 * time.Second)
+	}, true).Run()
+
+	testutils.FatalIfError(t, err, "Import command failed")
+
+	//verify import data status command output
+	err = testutils.NewVoyagerCommandRunner(nil, "import data status", []string{
+		"--export-dir", exportDir,
+		"--output-format", "json",
+	}, nil, false).Run()
+	testutils.FatalIfError(t, err, "Import data status command failed")
+
+	//verify the import report file content
+	reportPath = filepath.Join(exportDir, "reports", "import-data-status-report.json")
+	reportData, err = os.ReadFile(reportPath)
+	if err != nil {
+		t.Fatalf("Failed to read import data status report file: %v", err)
+	}
+	var importReportData []*tableMigStatusOutputRow
+	err = json.Unmarshal(reportData, &importReportData)
+	testutils.FatalIfError(t, err, "Failed to read import data status report file")
+
+	assert.Equal(t, 2, len(importReportData), "Report should contain exactly two entries")
+	assert.Equal(t, &tableMigStatusOutputRow{
+		TableName:          `test_schema."test_migration"`,
+		FileName:           "",
+		ImportedCount:      10,
+		ErroredCount:       0,
+		TotalCount:         10,
+		Status:             "DONE",
+		PercentageComplete: 100,
+	}, importReportData[0], "Status report row mismatch")
+
+	assert.Equal(t, &tableMigStatusOutputRow{
+		TableName:          `test_schema."test_migration1"`,
+		FileName:           "",
+		ImportedCount:      0,
+		ErroredCount:       0,
+		TotalCount:         10,
+		Status:             "NOT_STARTED",
+		PercentageComplete: 0,
+	}, importReportData[1], "Status report row mismatch")
+
+	//verify the export report content
+	err = exportStatus.Run()
+	testutils.FatalIfError(t, err, "Export data status command failed")
+	reportPath = filepath.Join(exportDir, "reports", "export-data-status-report.json")
+	reportData, err = os.ReadFile(reportPath)
+	if err != nil {
+		t.Fatalf("Failed to read import data status report file: %v", err)
+	}
+	err = json.Unmarshal(reportData, &exportReportData)
+	testutils.FatalIfError(t, err, "Failed to read export data status report file")
+
+	assert.Equal(t, 2, len(exportReportData), "Report should contain exactly two entries")
+	assert.Equal(t, &exportTableMigStatusOutputRow{
+		TableName:     `test_migration`,
+		ExportedCount: 10,
+		Status:        "DONE",
+	}, exportReportData[1], "Status report row mismatch")
+
+	assert.Equal(t, &exportTableMigStatusOutputRow{
+		TableName:     `test_migration1`,
+		ExportedCount: 10,
+		Status:        "DONE",
+	}, exportReportData[0], "Status report row mismatch")
+
+	//verify the sequence last value is restored properly
+	seq1 := `test_schema.test_migration_id_seq`
+	res1, err := yugabytedbContainer.Query(fmt.Sprintf("SELECT nextval('%s')", seq1))
+	testutils.FatalIfError(t, err, "Failed to query sequence %s", seq1)
+	defer res1.Close()
+	var nextVal1 int64
+	for res1.Next() {
+		err := res1.Scan(&nextVal1)
+		testutils.FatalIfError(t, err, "Failed to scan sequence %s", seq1)
+	}
+	assert.Equal(t, int64(11), nextVal1)
 
 }
 

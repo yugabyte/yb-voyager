@@ -42,6 +42,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
@@ -183,12 +184,7 @@ func packAndSendExportDataPayload(status string, errorMsg error) {
 	case SNAPSHOT_AND_CHANGES:
 		payload.MigrationType = LIVE_MIGRATION
 	}
-	sourceDBDetails := callhome.SourceDBDetails{
-		DBType:             source.DBType,
-		DBVersion:          source.DBVersion,
-		DBSize:             source.DBSize,
-		DBSystemIdentifier: source.DBSystemIdentifier,
-	}
+	sourceDBDetails := anonymizeSourceDBDetails(&source)
 
 	payload.SourceDBDetails = callhome.MarshalledJsonString(sourceDBDetails)
 
@@ -287,7 +283,11 @@ func exportData() bool {
 	// get initial table list
 	partitionsToRootTableMap, finalTableList, err := getInitialTableList()
 	if err != nil {
-		utils.ErrExit("error getting initial table list: %w", err)
+		var exportErr *errs.ExportDataError
+		if errors.As(err, &exportErr) {
+			utils.ErrExit(err.Error())
+		}
+		utils.ErrExit("error in get initial table list: %w", err)
 	}
 
 	// Check if source DB has required permissions for export data
@@ -295,19 +295,10 @@ func exportData() bool {
 		checkExportDataPermissions(finalTableList)
 	}
 
-	// finalize table list and column list
-	finalTableList, tablesColumnList := finalizeTableColumnList(finalTableList)
+	// finalizing table list and column list to be exported based on the datatypes supported by the source DB
+	finalTableList, tablesColumnList := finalizeTableAndColumnList(finalTableList)
+	handleEmptyTableListForExport(finalTableList)
 
-	if len(finalTableList) == 0 {
-		utils.PrintAndLog("no tables present to export, exiting...")
-		setDataIsExported()
-		dfd := datafile.Descriptor{
-			ExportDir:    exportDir,
-			DataFileList: make([]*datafile.FileEntry, 0),
-		}
-		dfd.Save()
-		os.Exit(0)
-	}
 	metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		switch source.DBType {
 		case POSTGRESQL:
@@ -809,25 +800,6 @@ func getPGDumpSequencesAndValues() (*utils.StructMap[sqlname.NameTuple, int64], 
 	return result, nil
 }
 
-func reportUnsupportedTables(finalTableList []sqlname.NameTuple) {
-	//report non-pk tables
-	allNonPKTables, err := source.DB().GetNonPKTables()
-	if err != nil {
-		utils.ErrExit("get non-pk tables: %w", err)
-	}
-	var nonPKTables []string
-	for _, table := range finalTableList {
-		if lo.Contains(allNonPKTables, table.ForKey()) {
-			nonPKTables = append(nonPKTables, table.ForOutput())
-		}
-	}
-	if len(nonPKTables) > 0 {
-		utils.PrintAndLog("Table names without a Primary key: %s", nonPKTables)
-		utils.ErrExit("This voyager release does not support live-migration for tables without a primary key.\n" +
-			"You can exclude these tables using the --exclude-table-list argument.")
-	}
-}
-
 // Return the nameTuple of the qualfieidObj string
 func getNameTupleFromQualifiedObject(qualifiedObjectStr string, qualifiedObjectName *sqlname.ObjectName, goToNameRegDirectly bool) (sqlname.NameTuple, error) {
 	sourceTypeHandlesPartitionAsSeparateTable := func(dbType string) bool {
@@ -876,11 +848,11 @@ func applyTableListFlagsOnFullListAndAddLeafPartitions(fullTableList []sqlname.N
 		log.Infof("applying filter for %s list of tables and adding leaf tables - %s", flagName, flagList)
 		flagTableList, err := extractTableListFromString(fullTableList, flagList, flagName)
 		if err != nil {
-			return nil, fmt.Errorf("error extracting the %s list: %w", flagName, err)
+			return nil, errs.NewExportDataError(errs.APPLY_TABLE_LIST_FLAGS_ON_FULL_LIST, fmt.Sprintf("extract_table_list_from_%s_list", flagName), err)
 		}
 		_, flagTableList, err = addLeafPartitionsInTableList(flagTableList, true)
 		if err != nil {
-			return nil, fmt.Errorf("failed to add the leaf partitions in %s table list: %w", flagName, err)
+			return nil, errs.NewExportDataError(errs.APPLY_TABLE_LIST_FLAGS_ON_FULL_LIST, fmt.Sprintf("add_leaf_partitions_in_%s_list", flagName), err)
 		}
 		log.Infof("filtered %s list of tables and added leaf tables - %v", flagName, lo.Map(flagTableList, func(t sqlname.NameTuple, _ int) string {
 			return t.ForOutput()
@@ -912,7 +884,7 @@ func applyTableListFlagsOnFullListAndAddLeafPartitions(fullTableList []sqlname.N
 		}))
 		_, includeTableList, err = addLeafPartitionsInTableList(includeTableList, false)
 		if err != nil {
-			return nil, nil, fmt.Errorf("error keeping only leaf and root tables: %w", err)
+			return nil, nil, errs.NewExportDataError(errs.APPLY_TABLE_LIST_FLAGS_ON_FULL_LIST, "add_leaf_partitions", err)
 		}
 		log.Infof("filtered full table list and added leaf tables - %v", lo.Map(includeTableList, func(t sqlname.NameTuple, _ int) string {
 			return t.ForOutput()
@@ -931,7 +903,7 @@ func fetchTablesNamesFromSourceAndFilterTableList() (map[string]string, []sqlnam
 	for _, t := range tableListFromDB {
 		tuple, err := getNameTupleFromQualifiedObject(t.Qualified.Quoted, nil, false)
 		if err != nil {
-			return nil, nil, fmt.Errorf("error getting name tuple for the object: %s: %w", t.Qualified.Quoted, err)
+			return nil, nil, errs.NewExportDataError(errs.FETCH_TABLES_NAMES_FROM_SOURCE, "get_name_tuple_from_qualified_object", err)
 		}
 		nameTupleTableListFromDB = append(nameTupleTableListFromDB, tuple)
 	}
@@ -942,7 +914,7 @@ func fetchTablesNamesFromSourceAndFilterTableList() (map[string]string, []sqlnam
 	//apply table list flags filter on the nameTupleTableListFromDB
 	includeTableList, excludeTableList, err := applyTableListFlagsOnFullListAndAddLeafPartitions(nameTupleTableListFromDB, source.TableList, source.ExcludeTableList)
 	if err != nil {
-		return nil, nil, fmt.Errorf("error applying table list flags on full table list: %w", err)
+		return nil, nil, propagateIfExportDataError(err, errs.FETCH_TABLES_NAMES_FROM_SOURCE)
 	}
 	tableListInFirstRun = sqlname.SetDifferenceNameTuples(includeTableList, excludeTableList)
 
@@ -964,7 +936,7 @@ func fetchTablesNamesFromSourceAndFilterTableList() (map[string]string, []sqlnam
 	//Just populating the partitionsToRootTableMap from the finalTableList which is filtered from flags if required and has leaf and roots both
 	partitionsToRootTableMap, tableListInFirstRun, err = addLeafPartitionsInTableList(tableListInFirstRun, false)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to add the leaf partitions in table list: %w", err)
+		return nil, nil, errs.NewExportDataError(errs.FETCH_TABLES_NAMES_FROM_SOURCE, "add_leaf_partitions", err)
 	}
 	log.Infof("filtered table list in first run - %v", lo.Map(tableListInFirstRun, func(t sqlname.NameTuple, _ int) string {
 		return t.ForOutput()
@@ -1015,7 +987,7 @@ func retrieveFirstRunListAndPartitionsRootMap(msr *metadb.MigrationStatusRecord)
 	for _, table := range storedTableList {
 		tuple, err := getNameTupleFromQualifiedObject(table, nil, fetchNameTupleFromNameRegDirectly)
 		if err != nil {
-			return nil, nil, fmt.Errorf("error getting name  tuple for the string oject name: %w", err)
+			return nil, nil, errs.NewExportDataError(errs.RETRIEVE_FIRST_RUN_TABLE_LIST_OPERATION, "get_name_tuple_from_qualified_object", err)
 		}
 		firstRunTableWithLeafsAndRoots = append(firstRunTableWithLeafsAndRoots, tuple)
 	}
@@ -1027,7 +999,7 @@ func retrieveFirstRunListAndPartitionsRootMap(msr *metadb.MigrationStatusRecord)
 			// as it will only have root table names and get the partitionsToRootTableMap
 			partitionsToRootTableMap, firstRunTableWithLeafsAndRoots, err = addLeafPartitionsInTableList(firstRunTableWithLeafsAndRoots, true)
 			if err != nil {
-				return nil, nil, fmt.Errorf("failed to add the leaf partitions in table list: %w", err)
+				return nil, nil, errs.NewExportDataError(errs.RETRIEVE_FIRST_RUN_TABLE_LIST_OPERATION, "add_leaf_partitions", err)
 			}
 		}
 	}
@@ -1048,8 +1020,11 @@ func getInitialTableList() (map[string]string, []sqlname.NameTuple, error) {
 	if bool(startClean) || storedTableListNotAvailable() {
 		log.Infof("fetching tables names from source and filtering table list")
 		// fresh start case or the first run where we don't have a table list stored in msr
-		return fetchTablesNamesFromSourceAndFilterTableList()
-
+		partitionsToRootTableMap, finalTableList, err := fetchTablesNamesFromSourceAndFilterTableList()
+		if err != nil {
+			return nil, nil, propagateIfExportDataError(err, errs.GET_INITIAL_TABLE_LIST_OPERATION)
+		}
+		return partitionsToRootTableMap, finalTableList, nil
 	}
 
 	//sunsequent run case where we will use a table-list stored in msr
@@ -1059,14 +1034,14 @@ func getInitialTableList() (map[string]string, []sqlname.NameTuple, error) {
 
 	firstRunTableWithLeafsAndRoots, partitionsToRootTableMap, err = retrieveFirstRunListAndPartitionsRootMap(msr)
 	if err != nil {
-		return nil, nil, fmt.Errorf("getting the first run table list and partition to root mapping: %w", err)
+		return nil, nil, propagateIfExportDataError(err, errs.GET_INITIAL_TABLE_LIST_OPERATION)
 	}
 
 	//guardrails around the table-list in case of re-run
 
 	registeredList, err := getRegisteredNameRegList()
 	if err != nil {
-		return nil, nil, fmt.Errorf("error getting name registry list: %w", err)
+		return nil, nil, errs.NewExportDataError(errs.GET_INITIAL_TABLE_LIST_OPERATION, "get_registered_name_registry_list", err)
 	}
 
 	rootTables := make([]sqlname.NameTuple, 0)
@@ -1084,12 +1059,12 @@ func getInitialTableList() (map[string]string, []sqlname.NameTuple, error) {
 	// Finding all the partitions of all root tables part of migration, and report if there any new partitions added
 	rootToNewLeafTablesMap, err := detectAndReportNewLeafPartitionsOnPartitionedTables(rootTables, registeredList)
 	if err != nil {
-		return nil, nil, fmt.Errorf("detecting new leaf tables on the partitioned tables: %w", err)
+		return nil, nil, propagateIfExportDataError(err, errs.GET_INITIAL_TABLE_LIST_OPERATION)
 	}
 
 	firstRunTableWithLeafParititons, currentRunTableListWithLeafPartitions, err := applyTableListFlagsOnCurrentAndRemoveRootsFromBothLists(registeredList, source.TableList, source.ExcludeTableList, rootToNewLeafTablesMap, rootTables, firstRunTableWithLeafsAndRoots)
 	if err != nil {
-		return nil, nil, fmt.Errorf("error applying table list flags for current list: %w", err)
+		return nil, nil, propagateIfExportDataError(err, errs.GET_INITIAL_TABLE_LIST_OPERATION)
 	}
 	//Reporting the guardrail msgs only on leaf tables to be consistent so filtering the root table from both the list
 	_, _, err = guardrailsAroundFirstRunAndCurrentRunTableList(firstRunTableWithLeafParititons, currentRunTableListWithLeafPartitions)
@@ -1113,7 +1088,7 @@ func applyTableListFlagsOnCurrentAndRemoveRootsFromBothLists(
 	//apply include/exclude flags and if a new table is passed (which is not present in name registry), then error out Unknown table
 	currentRunIncludeTableList, currentRunExlcudeTableList, err := applyTableListFlagsOnFullListAndAddLeafPartitions(registeredList, tableListViaFlag, excludeTableListViaFlag)
 	if err != nil {
-		return nil, nil, fmt.Errorf("error in apply table list filter on registered list for the flags in current run: %w", err)
+		return nil, nil, propagateIfExportDataError(err, errs.APPLY_TABLE_LIST_FLAGS_ON_SUBSEQUENT_RUN)
 	}
 	//Filtering the include and exclude list here using the ForKey() because we are using the LookupTableNameAndIgnoreOtherSideMappingIfNotFound for the Registered list
 	//Which will populate the NameTuple for all the tables with both sides in case available (including the partitions) and if not available then only one side.
@@ -1213,7 +1188,7 @@ func guardrailsAroundFirstRunAndCurrentRunTableList(firstRunTableListWithLeafPar
 func detectAndReportNewLeafPartitionsOnPartitionedTables(rootTables []sqlname.NameTuple, registeredList []sqlname.NameTuple) (map[string][]string, error) {
 	updatedPartitionsToRootTableMap, _, err := addLeafPartitionsInTableList(rootTables, true)
 	if err != nil {
-		return nil, fmt.Errorf("getting updated partitions to root table mapping: %w", err)
+		return nil, errs.NewExportDataError(errs.DETECT_AND_REPORT_NEW_LEAF_PARTITIONS_ON_PARTITIONED_TABLES, "add_leaf_partitions", err)
 	}
 
 	rootToNewLeafTablesMap := make(map[string][]string)
@@ -1242,68 +1217,14 @@ func detectAndReportNewLeafPartitionsOnPartitionedTables(rootTables []sqlname.Na
 	return rootToNewLeafTablesMap, nil
 }
 
-func finalizeTableColumnList(finalTableList []sqlname.NameTuple) ([]sqlname.NameTuple, *utils.StructMap[sqlname.NameTuple, []string]) {
-	if changeStreamingIsEnabled(exportType) {
-		reportUnsupportedTables(finalTableList)
+func propagateIfExportDataError(err error, currentFlow string) error {
+	var exportDataErr *errs.ExportDataError
+	if errors.As(err, &exportDataErr) {
+		exportDataErr.AddCall(exportDataErr.CurrentFlow())
+		return errs.NewExportDataErrorWithCompletedCalls(currentFlow, exportDataErr.CallExecutionHistory(), exportDataErr.FailedStep(), exportDataErr.Unwrap())
 	}
-	log.Infof("initial all tables table list for data export: %v", lo.Map(finalTableList, func(t sqlname.NameTuple, _ int) string {
-		return t.ForOutput()
-	}))
+	return fmt.Errorf("error in %s: %w", currentFlow, err)
 
-	log.Info("finalizing table list by filtering empty tables and unsupported tables/columns/etc..")
-
-	var skippedTableList []sqlname.NameTuple
-	if !changeStreamingIsEnabled(exportType) {
-		finalTableList, skippedTableList = source.DB().FilterEmptyTables(finalTableList)
-		if len(skippedTableList) != 0 {
-			utils.PrintAndLog("skipping empty tables: %v", lo.Map(skippedTableList, func(table sqlname.NameTuple, _ int) string {
-				return table.ForOutput()
-			}))
-		}
-	}
-
-	finalTableList, skippedTableList = source.DB().FilterUnsupportedTables(migrationUUID, finalTableList, useDebezium)
-	if len(skippedTableList) != 0 {
-		utils.PrintAndLog("skipping unsupported tables: %v", lo.Map(skippedTableList, func(table sqlname.NameTuple, _ int) string {
-			return table.ForOutput()
-		}))
-	}
-
-	tablesColumnList, unsupportedTableColumnsMap, err := source.DB().GetColumnsWithSupportedTypes(finalTableList, useDebezium, changeStreamingIsEnabled(exportType))
-	if err != nil {
-		utils.ErrExit("get columns with supported types: %w", err)
-	}
-	// If any of the keys of unsupportedTableColumnsMap contains values in the string array then do this check
-	if len(unsupportedTableColumnsMap.Keys()) > 0 {
-		log.Infof("preparing column list for the data export without unsupported datatype columns: %v", unsupportedTableColumnsMap)
-		utils.PrintAndLog("The following columns data export is unsupported:")
-		unsupportedTableColumnsMap.IterKV(func(k sqlname.NameTuple, v []string) (bool, error) {
-			if len(v) != 0 {
-				utils.PrintAndLog("%s: %s\n", k.ForOutput(), v)
-			}
-			return true, nil
-		})
-		if !utils.AskPrompt("\nDo you want to continue with the export by ignoring just these columns' data") {
-			utils.ErrExit("Exiting at user's request. Use `--exclude-table-list` flag to continue without these tables")
-		} else {
-			var importingDatabase string
-			if exporterRole == SOURCE_DB_EXPORTER_ROLE {
-				importingDatabase = "target"
-			} else if exporterRole == TARGET_DB_EXPORTER_FF_ROLE {
-				importingDatabase = "source-replica"
-			} else if exporterRole == TARGET_DB_EXPORTER_FB_ROLE {
-				importingDatabase = "source"
-			}
-
-			utils.PrintAndLog(color.YellowString("Continuing with the export by ignoring just these columns' data. \nPlease make sure to remove any null constraints on these columns in the %s database.", importingDatabase))
-		}
-
-		finalTableList = filterTableWithEmptySupportedColumnList(finalTableList, tablesColumnList)
-	}
-	log.Infof("final table list after filtering empty tables and unsupported tables/columns/etc.. - %v", lo.Map(finalTableList, func(t sqlname.NameTuple, _ int) string {
-		return t.ForOutput()
-	}))
-	return finalTableList, tablesColumnList
 }
 
 func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTableList []sqlname.NameTuple, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], snapshotName string) error {
@@ -1390,6 +1311,7 @@ func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTabl
 	}
 	displayExportedRowCountSnapshot(false)
 
+	// YDB control plane is only implemented for offline migration as of now
 	if exporterRole == SOURCE_DB_EXPORTER_ROLE {
 		exportDataCompleteEvent := createSnapshotExportCompletedEvent()
 		controlPlane.SnapshotExportCompleted(&exportDataCompleteEvent)
@@ -1508,16 +1430,6 @@ func getDefaultSourceSchemaName() (string, bool) {
 	}
 }
 
-type UnknownTableErr struct {
-	typeOfList      string
-	unknownTables   []string
-	validTableNames []string
-}
-
-func (e *UnknownTableErr) Error() string {
-	return fmt.Sprintf("\nUnknown table names in the %s list: %v\nValid table names are: %v", e.typeOfList, e.unknownTables, e.validTableNames)
-}
-
 func extractTableListFromString(fullTableList []sqlname.NameTuple, flagTableList string, listName string) ([]sqlname.NameTuple, error) {
 	result := []sqlname.NameTuple{}
 	if flagTableList == "" {
@@ -1543,13 +1455,9 @@ func extractTableListFromString(fullTableList []sqlname.NameTuple, flagTableList
 		result = append(result, tables...)
 	}
 	if len(unknownTableNames) > 0 {
-		return nil, &UnknownTableErr{
-			typeOfList:    listName,
-			unknownTables: unknownTableNames,
-			validTableNames: lo.Map(fullTableList, func(tableName sqlname.NameTuple, _ int) string {
-				return tableName.ForOutput()
-			}),
-		}
+		return nil, errs.NewUnknownTableErr(listName, unknownTableNames, lo.Map(fullTableList, func(tableName sqlname.NameTuple, _ int) string {
+			return tableName.ForOutput()
+		}))
 	}
 	return lo.UniqBy(result, func(tableName sqlname.NameTuple) string {
 		return tableName.ForKey()
@@ -1669,6 +1577,125 @@ func startFallBackSetupIfRequired() {
 		utils.ErrExit("failed to run yb-voyager import data to source: %w\n Please re-run with command :\n%s", err, cmdStr)
 	}
 }
+
+// ================================ Export Data table list filtering ================================
+
+// Finalize table and column lists for export, based on migration phase (offline/live) and DB type.
+func finalizeTableAndColumnList(finalTableList []sqlname.NameTuple) ([]sqlname.NameTuple, *utils.StructMap[sqlname.NameTuple, []string]) {
+	reportUnsupportedTablesForLiveMigration(finalTableList)
+	log.Infof("initial all tables table list for data export: %v", lo.Map(finalTableList, func(t sqlname.NameTuple, _ int) string {
+		return t.ForOutput()
+	}))
+
+	log.Info("finalizing table list by filtering empty tables and unsupported tables/columns")
+
+	// 1. empty tables check for offline migration only; live can have events for empty tables
+	if !changeStreamingIsEnabled(exportType) {
+		var emptyTableList []sqlname.NameTuple
+		finalTableList, emptyTableList = source.DB().FilterEmptyTables(finalTableList)
+		if len(emptyTableList) != 0 {
+			utils.PrintAndLog("skipping empty tables: %v", lo.Map(emptyTableList, func(table sqlname.NameTuple, _ int) string {
+				return table.ForOutput()
+			}))
+		}
+	}
+
+	// 2. filtering unsupported tables(mostly oracle specific)
+	var unsupportedTableList []sqlname.NameTuple
+	finalTableList, unsupportedTableList = source.DB().FilterUnsupportedTables(migrationUUID, finalTableList, useDebezium)
+	if len(unsupportedTableList) != 0 {
+		utils.PrintAndLog("skipping unsupported tables: %v", lo.Map(unsupportedTableList, func(table sqlname.NameTuple, _ int) string {
+			return table.ForOutput()
+		}))
+	}
+
+	// 3. filtering unsupported columns
+	tablesColumnList, unsupportedTableColumnsMap, err := source.DB().GetColumnsWithSupportedTypes(finalTableList, useDebezium, changeStreamingIsEnabled(exportType))
+	if err != nil {
+		utils.ErrExit("get columns with supported types: %w", err)
+	}
+	// If any of the keys of unsupportedTableColumnsMap contains values in the string array then do this check
+	if len(unsupportedTableColumnsMap.Keys()) > 0 {
+		handleUnsupportedColumnsInExportData(unsupportedTableColumnsMap)
+		finalTableList = filterTableWithEmptySupportedColumnList(finalTableList, tablesColumnList)
+	}
+
+	log.Infof("final table list after filtering empty tables and unsupported tables/columns - %v", lo.Map(finalTableList, func(t sqlname.NameTuple, _ int) string {
+		return t.ForOutput()
+	}))
+	return finalTableList, tablesColumnList
+}
+
+func reportUnsupportedTablesForLiveMigration(finalTableList []sqlname.NameTuple) {
+	if !changeStreamingIsEnabled(exportType) {
+		return
+	}
+
+	//report non-pk tables
+	allNonPKTables, err := source.DB().GetNonPKTables()
+	if err != nil {
+		utils.ErrExit("get non-pk tables: %w", err)
+	}
+	var nonPKTables []string
+	for _, table := range finalTableList {
+		if lo.Contains(allNonPKTables, table.ForKey()) {
+			nonPKTables = append(nonPKTables, table.ForOutput())
+		}
+	}
+	if len(nonPKTables) > 0 {
+		utils.PrintAndLog("Table names without a Primary key: %s", nonPKTables)
+		utils.ErrExit("Currently voyager does not support live-migration for tables without a primary key.\n" +
+			"You can exclude these tables using the --exclude-table-list argument.")
+	}
+}
+
+func handleUnsupportedColumnsInExportData(unsupportedTableColumnsMap *utils.StructMap[sqlname.NameTuple, []string]) {
+	log.Infof("preparing column list for the data export without unsupported datatype columns: %v", unsupportedTableColumnsMap)
+
+	var unsupportedColsMsg strings.Builder
+	unsupportedColsMsg.WriteString("The following columns data export is unsupported:\n")
+	unsupportedTableColumnsMap.IterKV(func(k sqlname.NameTuple, v []string) (bool, error) {
+		if len(v) != 0 {
+			unsupportedColsMsg.WriteString(fmt.Sprintf("%s: %s\n", k.ForOutput(), v))
+		}
+		return true, nil
+	})
+	utils.PrintAndLog(unsupportedColsMsg.String())
+	if !utils.AskPrompt("\nDo you want to continue with the export by ignoring just these columns' data") {
+		utils.ErrExit("Exiting at user's request. Use `--exclude-table-list` flag to continue without these tables")
+	} else {
+		utils.PrintAndLog(color.YellowString("Continuing with the export by ignoring just these columns' data.\n"+
+			"Please make sure to remove any null constraints on these columns in the %s database.", getImportingDatabaseString()))
+	}
+}
+
+func getImportingDatabaseString() string {
+	if exporterRole == SOURCE_DB_EXPORTER_ROLE {
+		return "target"
+	} else if exporterRole == TARGET_DB_EXPORTER_FF_ROLE {
+		return "source-replica"
+	} else if exporterRole == TARGET_DB_EXPORTER_FB_ROLE {
+		return "source"
+	}
+	return "UNKNOWN"
+}
+
+func handleEmptyTableListForExport(finalTableList []sqlname.NameTuple) {
+	if len(finalTableList) != 0 {
+		return
+	}
+
+	utils.PrintAndLog("no tables present to export, exiting...")
+	setDataIsExported()
+	dfd := datafile.Descriptor{
+		ExportDir:    exportDir,
+		DataFileList: make([]*datafile.FileEntry, 0),
+	}
+	dfd.Save()
+	os.Exit(0)
+}
+
+// ================================ MSR or YugabyteD specific functions ================================
 
 func dataIsExported() bool {
 	msr, err := metaDB.GetMigrationStatusRecord()

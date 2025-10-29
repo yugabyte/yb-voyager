@@ -397,8 +397,16 @@ func registerFlagsForTarget(cmd *cobra.Command) {
 			"number of cores N and use N/4 as parallel jobs. "+
 			"Otherwise, it fall back to using twice the number of nodes in the cluster. "+
 			"Any value less than 1 reverts to the default calculation.")
-	BoolVar(cmd.Flags(), &tconf.EnableYBAdaptiveParallelism, "enable-adaptive-parallelism", true,
-		"Adapt parallelism based on the resource usage (CPU, memory) of the target YugabyteDB cluster.")
+
+	cmd.Flags().Var(&tconf.AdaptiveParallelismMode, "adaptive-parallelism",
+		"Adapt parallelism based on the resource usage (CPU, memory) of the target YugabyteDB cluster."+
+			"\n"+
+			"Specify the mode for adaptive parallelism behavior: disabled, balanced, aggressive (default balanced)"+
+			"\n"+
+			"\tbalanced: Operate with moderate thresholds. Recommended to be used when there are other workloads running on the cluster.\n"+
+			"\taggressive: Operate with aggressive max-CPU thresholds for better performance. Recommended to be used when there are no other workloads running on the cluster.\n"+
+			"\tdisabled: Disable adaptive parallelism.")
+
 	cmd.Flags().IntVar(&tconf.MaxParallelism, "adaptive-parallelism-max", 0,
 		"number of max parallel jobs to use while importing data when adaptive parallelism is enabled. "+
 			"By default, voyager will try if it can determine the total number of cores N and use N/2 as the max parallel jobs.")
@@ -412,10 +420,10 @@ func registerFlagsForTarget(cmd *cobra.Command) {
 		"Skips the monitoring of the disk usage on the target YugabyteDB cluster. "+
 			"By default, voyager will keep monitoring the disk usage on the nodes to keep the cluster stable.")
 
-	cmd.Flags().StringVar(&tconf.OnPrimaryKeyConflictAction, "on-primary-key-conflict", "ERROR",
-		`Action to take on primary key conflict during data import.
+	cmd.Flags().StringVar(&tconf.OnPrimaryKeyConflictAction, "on-primary-key-conflict", "ERROR-POLICY",
+		`Action to take on primary key conflict during data import during snapshot phase.
 Supported values:
-ERROR(default): Import in this mode fails if any primary key conflict is encountered, assuming such conflicts are unexpected.
+ERROR-POLICY(default): Handle error as per configured error-policy, if any primary key conflict is encountered.
 IGNORE		: Skip rows where the primary key already exists and continue importing remaining data.`)
 
 	cmd.Flags().MarkHidden("skip-disk-usage-health-checks")
@@ -465,14 +473,14 @@ func validateFFDBSchemaFlag() {
 }
 
 func validateParallelismFlags() {
-	if tconf.EnableYBAdaptiveParallelism {
+	if tconf.AdaptiveParallelismMode.IsEnabled() {
 		if tconf.Parallelism > 0 {
-			utils.ErrExit("Error --parallel-jobs flag cannot be used with --enable-adaptive-parallelism true. If you wish to set the number of parallel jobs explicitly, disable adaptive parallelism using --enable-adaptive-parallelism false")
+			utils.ErrExit("Error --parallel-jobs flag cannot be used when adaptive-parallelism is enabled (balanced/aggressive). If you wish to set the number of parallel jobs explicitly, disable adaptive parallelism using --adaptive-parallelism disabled")
 		}
 	}
 	if tconf.MaxParallelism > 0 {
-		if !tconf.EnableYBAdaptiveParallelism {
-			utils.ErrExit("Error --adaptive-parallelism-max flag can only be used with --enable-adaptive-parallelism true")
+		if !tconf.AdaptiveParallelismMode.IsEnabled() {
+			utils.ErrExit("Error --adaptive-parallelism-max flag can only be used when adaptive-parallelism is enabled (balanced/aggressive)")
 		}
 	}
 
@@ -486,7 +494,7 @@ func validateTruncateTablesFlag() error {
 }
 
 var onPrimaryKeyConflictActions = []string{
-	constants.PRIMARY_KEY_CONFLICT_ACTION_ERROR,
+	constants.PRIMARY_KEY_CONFLICT_ACTION_ERROR_POLICY,
 	constants.PRIMARY_KEY_CONFLICT_ACTION_IGNORE,
 	// constants.PRIMARY_KEY_CONFLICT_ACTION_UPDATE,
 }
@@ -528,9 +536,9 @@ func validateOnPrimaryKeyConflictFlag() error {
 		}
 	}
 
-	// restrict setting --enable-upsert as true if --on-primary-key-conflict is not set to ERROR
-	if tconf.EnableUpsert && tconf.OnPrimaryKeyConflictAction != constants.PRIMARY_KEY_CONFLICT_ACTION_ERROR {
-		return fmt.Errorf("--enable-upsert=true can only be used with --on-primary-key-conflict=ERROR")
+	// --enable-upsert true and on-primary-key-conflict ignore is conflicting, therefore we only allow it if on-primary-key-conflict is set to ERROR-POLICY
+	if tconf.EnableUpsert && tconf.OnPrimaryKeyConflictAction != constants.PRIMARY_KEY_CONFLICT_ACTION_ERROR_POLICY {
+		return fmt.Errorf("--enable-upsert=true can only be used with --on-primary-key-conflict=ERROR-POLICY")
 	}
 
 	if tconf.OnPrimaryKeyConflictAction == constants.PRIMARY_KEY_CONFLICT_ACTION_IGNORE {

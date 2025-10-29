@@ -26,7 +26,9 @@ EXPECTED_ROW_COUNT = {
 	'datetime_type2': 2, 
 	'null_and_default' :2,
 	'decimal_types': 3,
-	'hstore_example': 13,
+	'hstore_example': 26,
+	'tsvector_table': 3,
+	'enum_array_table': 3,
 }
 
 EXPECTED_SUM_OF_COLUMN = {
@@ -74,7 +76,7 @@ def migration_completed_checks_fb():
 def migration_completed_checks(tgt):
 	table_list = tgt.get_table_names("public")
 	print("table_list:", table_list)
-	assert len(table_list) == 8
+	assert len(table_list) == 10
 
 	got_row_count = tgt.row_count_of_all_tables("public")
 	for table_name, row_count in EXPECTED_ROW_COUNT.items():
@@ -144,11 +146,62 @@ def migration_completed_checks(tgt):
 	tgt.assert_all_values_of_col("null_and_default", "b", "public", expected_values=[False, None])
 
 	print("hstore_example:")
-	expected_hstore_values=['"f1"=>"1", "f2"=>"{\\"key1=value1, key2=value2\\"}"', None, '"json_field"=>"{\\"key1=value1, key2={\\"key1=value1, key2=value2\\"}\\"}"', 
-	'"weight"=>"11.2 ounces", "ISBN-13"=>"978-1449370000", "language"=>"English", "paperback"=>"243", "publisher"=>"postgresqltutorial.com"', '"key1"=>"value1", "key2"=>"value2"', 
-	'"\\"{key1:value1,key2:value2}\\""=>"{\\"key1=value1, key2={\\"key1=value1, key2=value2\\"}\\"}"', '"a\\"b"=>"d\\\\\\"a"', '"{\\"key1=value1, key2=value2\\"}"=>"{\\"key1=value1, key2={\\"key1=value1, key2=value2\\"}\\"}"', 
-	'"key7"=>"value7", "key8"=>"123", "key9"=>"true"', '"\\"{\\"\\"key1\\"\\":\\"\\"value1\\"\\",\\"\\"key2\\"\\":\\"\\"value2\\"\\"}\\""=>"{\\"key1=value1, key2={\\"key1=value1, key2=value2\\"}\\"}"', '']
+	expected_hstore_values = [
+    '"key1"=>"value1", "key2"=>"value2"',
+    '"a\\"b"=>"d\\"a"',
+    None,
+    '',
+    '"key1"=>"value1", "key2"=>"value2"',
+    '"key7"=>"value7", "key8"=>"123", "key9"=>"true"',
+    '"weight"=>"11.2 ounces", "ISBN-13"=>"978-1449370000", "language"=>"English", "paperback"=>"243", "publisher"=>"postgresqltutorial.com"',
+    '"f1"=>"1", "f2"=>"{\\"key1=value1, key2=value2\\"}"',
+    '"json_field"=>"{\\"key1=value1, key2={\\"key1=value1, key2=value2\\"}\\"}"',
+    '"{\\"key1=value1, key2=value2\\"}"=>"{\\"key1=value1, key2={\\"key1=value1, key2=value2\\"}\\"}"',
+    '""=>"emptykey"',
+    '"emptyvalue"=>""',
+    '"longkey"=>"{}"'.format('x'*10000),
+    '"ключ"=>"значение"',
+    '"emoji_😀"=>"😎🔥"',
+    '"café"=>"naïve"',
+    '"select"=>"statement"',
+    '"dup"=>"first"',
+    '"key with spaces"=>"value with spaces"',
+    '" space_key "=>" space_value "',
+    '"key\\"quote"=>"value\\"quote"',
+    '"key\'single"=>"value\'single"',
+    '"{\\"json_like_key\\":1}"=>"{\\"json_like_value\\":2}"',
+	'"\\"{key1:value1,key2:value2}\\""=>"{\\"key1=value1, key2={\\"key1=value1, key2=value2\\"}\\"}"',
+	'"\\"{\\"\\"key1\\"\\":\\"\\"value1\\"\\",\\"\\"key2\\"\\":\\"\\"value2\\"\\"}\\""=>"{\\"key1=value1, key2={\\"key1=value1, key2=value2\\"}\\"}"',
+	'"key=,=>"=>"value\\\\n\\\\t"'
+
+	]
+
 	tgt.assert_distinct_values_of_col("hstore_example", "data", "public", expected_distinct_values=expected_hstore_values)
+
+	print("tsvector_table:")
+	expected_tsvector_titles = ['PostgreSQL Tutorial', 'Advanced SQL', 'Data Migration']
+	tgt.assert_distinct_values_of_col("tsvector_table", "title", "public", expected_distinct_values=expected_tsvector_titles)
+
+	print("enum_array_table:")
+	# Get actual enum arrays and parse them from string representation to lists
+	actual_enum_arrays = tgt.get_distinct_values_of_column_of_table("enum_array_table", "week_days", "public")
+	print(f"actual_enum_arrays: {actual_enum_arrays}")
+	
+	# Parse string representations like '{mon,wed,fri}' into actual lists
+	def parse_enum_array_string(array_str):
+		if array_str is None:
+			return None
+		# Remove curly braces and split by comma
+		return [item.strip().lower() for item in array_str.strip('{}').split(',')]
+	
+	parsed_actual_arrays = [parse_enum_array_string(arr) for arr in actual_enum_arrays]
+	
+	# Expected enum arrays as actual Python lists
+	expected_enum_arrays = [['mon', 'wed', 'fri'], ['tue', 'thu'], ['sat', 'sun']]
+	
+	# Compare actual lists
+	for expected_array in expected_enum_arrays:
+		assert expected_array in parsed_actual_arrays, f"Expected {expected_array} not found in {parsed_actual_arrays}"
 
 
 def YB_specific_checks(tgt):

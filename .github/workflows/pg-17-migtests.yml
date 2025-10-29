@@ -7,10 +7,14 @@ on:
     branches: [main]
 
 jobs:
+  prepare-versions:
+    uses: ./.github/workflows/prepare-versions.yml
+
   run-pg-17-migration-tests:
+    needs: [prepare-versions]
     strategy:
       matrix:
-        version: [2024.2.4.0-b89, 2.20.10.0-b29, 2.25.2.0-b359, 2025.1.0.0-b168, 2024.1.6.1-b2]
+        yb_version: ${{ fromJSON(needs.prepare-versions.outputs.yb_versions) }}
         BETA_FAST_DATA_EXPORT: [0, 1]
         test_group:
           - offline
@@ -45,7 +49,7 @@ jobs:
         # https://github.com/actions/setup-java
         with:
           distribution: "temurin"
-          java-version: "17"
+          java-version: ${{ needs.prepare-versions.outputs.java_version }}
           check-latest: true
 
       - name: Cache local Maven repository
@@ -59,7 +63,9 @@ jobs:
       - name: "Enable postgres with wal_level as logical and install postgis"
         run: |
           docker exec ${{ job.services.postgres.id }} sh -c "echo 'wal_level=logical' >> /var/lib/postgresql/data/postgresql.conf"
-          docker exec ${{ job.services.postgres.id }} sh -c "apt-get update && apt-get install -y postgresql-17-postgis-3"
+          docker exec ${{ job.services.postgres.id }} sh -c "apt-get update && apt-get install -y postgresql-17-postgis-3 postgresql-contrib-17"
+          # adding pg_stat_statements to shared_preload_libraries to enable the extension
+          docker exec ${{ job.services.postgres.id }} sh -c "echo \"shared_preload_libraries = 'pg_stat_statements'\" >> /var/lib/postgresql/data/postgresql.conf"
           docker restart ${{ job.services.postgres.id }}
           
           # Wait for PostgreSQL to be ready with health check instead of fixed sleep
@@ -100,10 +106,9 @@ jobs:
 
       - name: Start YugabyteDB cluster
         run: |
-          docker run -d --name yugabytedb --hostname yb-cluster-test\
-            -p7000:7000 -p9000:9000 -p15433:15433 -p5433:5433 -p9042:9042 \
-            yugabytedb/yugabyte:${{ matrix.version }} \
-            bin/yugabyted start --tserver_flags="ysql_hba_conf_csv={host all yugabyte all trust,host all all all md5}" --background=false --ui=false --callhome=false 
+          docker run -d --network=host --name yugabytedb --hostname yb-cluster-test\
+            yugabytedb/yugabyte:${{ matrix.yb_version }} \
+            bin/yugabyted start --tserver_flags="ysql_hba_conf_csv={host all yugabyte all trust,host all all all md5}" --advertise_address=localhost --background=false --ui=false --callhome=false 
           
           # Wait for YugabyteDB to be ready with health check
           echo "Waiting for YugabyteDB to be ready..."
@@ -120,12 +125,6 @@ jobs:
       - name: Create YugabyteDB user
         run: |
           ./migtests/scripts/yugabytedb/create_yb_user
-
-      - name: Enable yb-cluster-test name resolution
-        run: |
-          docker_ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' yugabytedb)
-          echo "$docker_ip	yb-cluster-test" | sudo tee -a /etc/hosts
-          psql "postgresql://yugabyte@yb-cluster-test:5433/yugabyte" -c "SELECT version();"
 
       - name: "TEST: PG sample schemas (sakila)"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}

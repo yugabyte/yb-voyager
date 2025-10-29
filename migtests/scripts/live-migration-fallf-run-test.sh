@@ -89,6 +89,11 @@ main() {
 	fi
 	./init-db
 
+	if [ "${SOURCE_DB_TYPE}" = "postgresql" ]; then
+		step "Creating pg_stat_statements for the compare-performance command"
+		run_psql ${SOURCE_DB_NAME} "CREATE EXTENSION IF NOT EXISTS pg_stat_statements;"
+	fi
+
 	step "Grant source database user permissions for live migration"
 	grant_permissions_for_live_migration
 
@@ -270,6 +275,9 @@ main() {
 	step "Inserting new events to YB"
 	ysql_import_file ${TARGET_DB_NAME} target_delta.sql
 
+	# Execute logical replication specific DMLs if connector is enabled
+	execute_logical_replication_target_delta
+
 	step "Wait for target exporter to start capturing changes"
 	wait_for_exporter_event "target"
 
@@ -303,11 +311,35 @@ main() {
 	step "Run get data-migration-report"
 	get_data_migration_report
 
-	expected_file="${TEST_DIR}/data-migration-report-live-migration-fallf.json"
+	# Choose expected report file based on connector type
+	if [ "${USE_YB_LOGICAL_REPLICATION_CONNECTOR}" = true ]; then
+		expected_file="${TEST_DIR}/data-migration-report-live-migration-fallf-logical-connector.json"
+		echo "Using logical replication connector expected report"
+	else
+		expected_file="${TEST_DIR}/data-migration-report-live-migration-fallf.json"
+		echo "Using gRPC connector expected report"
+	fi
 	actual_file="${EXPORT_DIR}/reports/data-migration-report.json"
 
 	step "Verify data-migration-report report"
 	verify_report ${expected_file} ${actual_file}
+
+	step "Run performance comparison."
+	if [ "${SOURCE_DB_TYPE}" = "postgresql" ]; then
+		compare_performance || {
+			cat_log_file "yb-voyager-compare-performance.log"
+		}
+
+		step "Validate Performance Reports"
+		# Checking if the performance comparison reports were created
+		if [ -f "${EXPORT_DIR}/reports/performance_comparison_report.html" ] && [ -f "${EXPORT_DIR}/reports/performance_comparison_report.json" ]; then
+			echo "Performance comparison reports created successfully."
+		else
+			echo "Error: Performance comparison reports were not created successfully."
+			cat_log_file "yb-voyager-compare-performance.log"
+			exit 1
+		fi
+	fi
 
 	step "End Migration: clearing metainfo about state of migration from everywhere."
 	end_migration --yes

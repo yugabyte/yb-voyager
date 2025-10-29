@@ -63,17 +63,28 @@ UPDATE hstore_example
 SET data = '"{\"key1=value1, key2=value2\"}"=>"{\"key1=value1, key2={\"key1=value1, key2=value2\"}\"}"'
 WHERE id = 7;
 
+-- Insert new row, then update it later (intra-file dependency)
 INSERT INTO hstore_example (data) 
-VALUES 
-    ('key5 => value5, key6 => value6');
+VALUES ('k1=>v1');
+
+-- Insert new row, then delete it later (intra-file dependency)
+INSERT INTO hstore_example (data) 
+VALUES ('temp_key=>temp_val');
+
+-- More inserts for corner cases
+INSERT INTO hstore_example (data) 
+VALUES ('key5 => value5, key6 => value6');
 
 INSERT INTO hstore_example (data) 
-VALUES 
-    (hstore('{"key1=value1, key2=value2"}', '{"key1=value1, key2={"key1=value1, key2=value2"}"}'));
+VALUES (hstore('{"key1=value1, key2=value2"}', '{"key1=value1, key2={"key1=value1, key2=value2"}"}'));
 
 INSERT INTO hstore_example (data) 
-VALUES 
-    ('');
+VALUES ('');
+
+INSERT INTO hstore_example (data) 
+VALUES (
+    'multi_key1=>"val1", "multi key 2"=>"value with spaces", "escaped\"quote"=>"line1\nline2", "unicode_αβ"=>"Ωmega"'
+);
 
 UPDATE hstore_example 
 SET data = NULL
@@ -82,3 +93,53 @@ WHERE id = 5;
 UPDATE hstore_example 
 SET data = ''
 WHERE id = 6;
+
+-- Intra-file update on inserted row (chained updates)
+UPDATE hstore_example 
+SET data = data || 'k2=>v2'
+WHERE data @> 'k1=>v1';
+
+UPDATE hstore_example 
+SET data = data || 'k3=>v3'
+WHERE data @> 'k1=>v1';
+
+DELETE FROM hstore_example WHERE data @> 'temp_key=>temp_val';
+DELETE FROM hstore_example WHERE id = 2;
+DELETE FROM hstore_example WHERE id = 4;
+DELETE FROM hstore_example WHERE id = 8;
+DELETE FROM hstore_example WHERE id = 9;
+
+-- TSVECTOR table operations
+INSERT INTO tsvector_table (title, content, title_tsv, content_tsv)
+VALUES 
+    ('Full Text Search', 
+     'Full text search capabilities in PostgreSQL',
+     to_tsvector('english', 'Full Text Search'),
+     to_tsvector('english', 'Full text search capabilities in PostgreSQL'));
+
+INSERT INTO tsvector_table (title, content, title_tsv, content_tsv)
+VALUES 
+    ('Database Performance', 
+     'Optimizing database queries for better performance',
+     to_tsvector('english', 'Database Performance'),
+     to_tsvector('english', 'Optimizing database queries for better performance'));
+
+UPDATE tsvector_table
+SET content = 'Updated content about PostgreSQL database system',
+    content_tsv = to_tsvector('english', 'Updated content about PostgreSQL database system')
+WHERE id = 1;
+
+DELETE FROM tsvector_table WHERE id = 2;
+
+-- Enum array table operations
+INSERT INTO enum_array_table (day_name, week_days, description)
+VALUES ('Thu', ARRAY['Mon', 'Tue', 'Wed', 'Thu', 'Fri']::week[], 'All weekdays');
+
+INSERT INTO enum_array_table (day_name, week_days, description)
+VALUES ('Fri', ARRAY['Fri']::week[], 'Friday only');
+
+UPDATE enum_array_table
+SET week_days = ARRAY['Sat']::week[], description = 'Saturday only'
+WHERE id = 1;
+
+DELETE FROM enum_array_table WHERE id = 2;

@@ -658,7 +658,7 @@ func initAssessmentDB() {
 		utils.ErrExit("error creating and initializing assessment DB: %v", err)
 	}
 
-	assessmentDB, err = migassessment.NewAssessmentDB(source.DBType)
+	assessmentDB, err = migassessment.NewAssessmentDB()
 	if err != nil {
 		utils.ErrExit("error creating assessment DB instance: %v", err)
 	}
@@ -849,6 +849,9 @@ func GetSourceDBTypeFromMSR() string {
 	}
 	if msr == nil {
 		utils.ErrExit("migration status record not found")
+	}
+	if msr.SourceDBConf == nil {
+		utils.ErrExit("source DB conf not found in migration status record")
 	}
 	return msr.SourceDBConf.DBType
 }
@@ -1073,7 +1076,7 @@ func getExportedSnapshotRowsMap(exportSnapshotStatus *ExportSnapshotStatus) (*ut
 	for _, tableStatus := range exportSnapshotStatus.Tables {
 		//using LookupTableNameAndIgnoreIfTargetNotFound in case if the export status is run after import data in which case
 		// if there is some table not present in target this should work
-		nt, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFound(tableStatus.TableName)
+		nt, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole(tableStatus.TableName)
 		if err != nil {
 			return nil, nil, fmt.Errorf("lookup table [%s] from name registry: %v", tableStatus.TableName, err)
 		}
@@ -1119,7 +1122,7 @@ func getImportedSnapshotRowsMap(dbType string, tableList []sqlname.NameTuple, er
 	if snapshotDataFileDescriptor != nil {
 		for _, fileEntry := range snapshotDataFileDescriptor.DataFileList {
 			//ignoring target as the dataFileDescriptor can contain tables that exported but not present in target
-			nt, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFound(fileEntry.TableName)
+			nt, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole(fileEntry.TableName)
 			if err != nil {
 				return nil, fmt.Errorf("lookup table name from data file descriptor %s : %v", fileEntry.TableName, err)
 			}
@@ -1744,6 +1747,8 @@ func PackAndSendCallhomePayloadOnExit() {
 		packAndSendEndMigrationPayload(status, exitErr)
 	case importDataFileCmd.CommandPath():
 		packAndSendImportDataFilePayload(status, exitErr)
+	case comparePerformanceCmd.CommandPath():
+		packAndSendComparePerformancePayload(status, exitErr, nil)
 	}
 }
 

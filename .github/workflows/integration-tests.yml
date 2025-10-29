@@ -10,7 +10,11 @@ env:
   ORACLE_INSTANT_CLIENT_VERSION: "21.5.0.0.0-1"
 
 jobs:
+  prepare-versions:
+    uses: ./.github/workflows/prepare-versions.yml
+
   integration-tests:
+    needs: [prepare-versions]
     strategy:
       fail-fast: false
 
@@ -25,7 +29,7 @@ jobs:
       # https://github.com/actions/setup-java
       with:
         distribution: "temurin"
-        java-version: "17"
+        java-version: ${{ needs.prepare-versions.outputs.java_version }}
         check-latest: true
 
     - name: Cache local Maven repository
@@ -39,7 +43,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v4
       with:
-        go-version: "1.23.1"
+        go-version: ${{ needs.prepare-versions.outputs.go_version }}
 
     - name: Run installer script to setup voyager and dependencies for running integration tests
       run: |
@@ -69,7 +73,7 @@ jobs:
 
     - name: Run Integration Tests
       env: 
-        YB_VERSION: "2025.1.0.0-b168" # Update this to the desired YugabyteDB version
+        YB_VERSION: ${{ needs.prepare-versions.outputs.yb_latest_stable }}
         PG_VERSION: "14"
         ORACLE_VERSION: "21"
         MYSQL_VERSION: "8.4"
@@ -81,10 +85,10 @@ jobs:
     # Hence its important to ensure the voyager binary built is using the changes in the PR branch - `./install-yb-voyager --install-from-local-source`
     - name: Run Integration Tests (executing voyager commands)
       env: 
-        YB_VERSION: "2025.1.0.0-b168" # Update this to the desired YugabyteDB version
+        YB_VERSION: ${{ needs.prepare-versions.outputs.yb_latest_stable }}
         PG_VERSION: "14"
         ORACLE_VERSION: "21"
         MYSQL_VERSION: "8.4"
       run: |
         cd yb-voyager
-        go test -v ./... -tags 'integration_voyager_command'
+        go test -v ./... -tags 'integration_voyager_command' -timeout 15m

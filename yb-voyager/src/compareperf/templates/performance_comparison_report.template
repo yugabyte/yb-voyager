@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Performance Comparison Report</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: none;
+            width: 95%;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .report-header {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        h1 {
+            color: #333;
+            margin: 0;
+            font-size: 2.5em;
+        }
+        .report-footer {
+            margin-top: 40px;
+            padding: 20px;
+            text-align: center;
+            color: #666;
+            font-size: 12px;
+            border-top: 1px solid #eee;
+        }
+        h2 {
+            color: #555;
+            border-bottom: 2px solid #ddd;
+            padding-bottom: 10px;
+        }
+        .tabs {
+            margin: 20px 0;
+        }
+        .tab-buttons {
+            border-bottom: 1px solid #ddd;
+        }
+        .tab-button {
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            border-bottom: none;
+            padding: 10px 20px;
+            cursor: pointer;
+            display: inline-block;
+            margin-right: 5px;
+        }
+        .tab-button.active {
+            background: white;
+            font-weight: bold;
+        }
+        .tab-content {
+            display: none;
+            padding: 20px 0;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 10px 0;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #f2f2f2;
+            font-weight: bold;
+            font-size: 13px;
+            text-align: center;
+            position: relative;
+        }
+        .summary-section {
+            margin: 30px 0;
+            padding: 20px 0;
+            border-bottom: 2px solid #eee;
+        }
+        .summary-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .summary-table th {
+            background-color: #f2f2f2;
+            font-weight: bold;
+            padding: 15px;
+            text-align: center;
+            font-size: 16px;
+        }
+        .summary-table td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #eee;
+        }
+        .summary-table td:first-child {
+            font-weight: bold;
+            background-color: #f8f9fa;
+            width: 40%;
+        }
+        .summary-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+        .impact-score {
+            font-weight: bold;
+        }
+        .slowdown-ratio {
+            font-weight: bold;
+        }
+        .query-text {
+            font-family: 'Courier New', monospace;
+            background: #f8f9fa;
+            padding: 8px;
+            border-radius: 4px;
+            max-width: 400px;
+            font-size: 11px;
+            line-height: 1.3;
+            word-break: break-word;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .query-text:hover {
+            white-space: normal;
+            overflow: visible;
+            max-height: none;
+        }
+        /* Sortable column styles */
+        .sortable {
+            cursor: pointer;
+            position: relative;
+            user-select: none;
+        }
+        .sortable:hover {
+            background-color: #e6e6e6;
+        }
+        .sort-arrow {
+            position: absolute;
+            right: 5px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 12px;
+            opacity: 0.5;
+        }
+        .sort-asc .sort-arrow::after {
+            content: "▲";
+            opacity: 1;
+        }
+        .sort-desc .sort-arrow::after {
+            content: "▼";
+            opacity: 1;
+        }
+        .sort-none .sort-arrow::after {
+            content: "⇅";
+            opacity: 0.5;
+        }
+        .table-container {
+            overflow-x: auto;
+            margin: 20px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        td.numeric {
+            text-align: right;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="report-header">
+            <h1>Performance Comparison Report</h1>
+        </div>
+
+        <!-- Summary Section - Always Visible -->
+        <div class="summary-section">
+            <h2>Summary</h2>
+
+            <table class="summary-table">
+                <tbody>
+                    <tr>
+                        <td>Voyager Version</td>
+                        <td>{{.Summary.VoyagerVersion}}</td>
+                    </tr>
+                    <tr>
+                        <td>Source Database</td>
+                        <td>{{.Summary.SourceDBName}} (v{{.Summary.SourceDBVersion}})</td>
+                    </tr>
+                    <tr>
+                        <td>Target Database</td>
+                        <td>{{.Summary.TargetDBName}} (v{{.Summary.TargetDBVersion}})</td>
+                    </tr>
+                    <tr>
+                        <td>Total Queries Analyzed</td>
+                        <td>{{.Summary.TotalQueries}}</td>
+                    </tr>
+                    <tr>
+                        <td>Matched Queries</td>
+                        <td>{{.Summary.MatchedQueries}}</td>
+                    </tr>
+                    <tr>
+                        <td>Source Only Queries</td>
+                        <td>{{.Summary.SourceOnlyQueries}}</td>
+                    </tr>
+                    <tr>
+                        <td>Target Only Queries</td>
+                        <td>{{.Summary.TargetOnlyQueries}}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Detailed Views with Tabs -->
+        <div class="tabs">
+            <div class="tab-buttons">
+                <div class="tab-button active" onclick="showTab('impact')">Top by Impact</div>
+                <div class="tab-button" onclick="showTab('slowdown')">Top by Slowdown</div>
+                <div class="tab-button" onclick="showTab('all')">All Queries</div>
+            </div>
+
+            <div id="impact" class="tab-content active">
+                <h2>Top Queries by Impact</h2>
+                {{if .TopByImpact}}
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Query</th>
+                            <th class="numeric" style="border-right: 1px solid #ccc;">Impact Score (ms)</th>
+                            <th class="numeric" style="border-right: 1px solid #ccc;">Source Total Time (ms)</th>
+                            <th class="numeric" style="border-right: 1px solid #ccc;">Target Total Time (ms)</th>
+                            <th class="numeric" style="border-right: 1px solid #ccc;">Source Calls</th>
+                            <th class="numeric">Target Calls</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {{range .TopByImpact}}
+                        <tr>
+                            <td class="query-text" title="{{.Query}}">{{.Query}}</td>
+                            <td class="impact-score numeric" style="border-right: 1px solid #ccc;">{{printf "%.2f" .ImpactScore}}</td>
+                            <td class="numeric" style="border-right: 1px solid #ccc;">{{if .SourceStats}}{{printf "%.2f" .SourceStats.TotalExecTime}}{{else}}N/A{{end}}</td>
+                            <td class="numeric" style="border-right: 1px solid #ccc;">{{if .TargetStats}}{{printf "%.2f" .TargetStats.TotalExecTime}}{{else}}N/A{{end}}</td>
+                            <td class="numeric" style="border-right: 1px solid #ccc;">{{if .SourceStats}}{{.SourceStats.ExecutionCount}}{{else}}N/A{{end}}</td>
+                            <td class="numeric">{{if .TargetStats}}{{.TargetStats.ExecutionCount}}{{else}}N/A{{end}}</td>
+                        </tr>
+                        {{end}}
+                    </tbody>
+                </table>
+                {{else}}
+                <p>No queries with performance impact found. This may indicate no matching queries between source and target databases.</p>
+                {{end}}
+            </div>
+
+            <div id="slowdown" class="tab-content">
+                <h2>Top Queries by Slowdown</h2>
+                {{if .TopBySlowdown}}
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Query</th>
+                            <th class="numeric" style="border-right: 1px solid #ccc;">Slowdown Ratio</th>
+                            <th class="numeric" style="border-right: 1px solid #ccc;">Source Avg Time (ms)</th>
+                            <th class="numeric" style="border-right: 1px solid #ccc;">Target Avg Time (ms)</th>
+                            <th class="numeric" style="border-right: 1px solid #ccc;">Source Calls</th>
+                            <th class="numeric">Target Calls</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {{range .TopBySlowdown}}
+                        <tr>
+                            <td class="query-text" title="{{.Query}}">{{.Query}}</td>
+                            <td class="slowdown-ratio numeric" style="border-right: 1px solid #ccc;">{{printf "%.2fx" .SlowdownRatio}}</td>
+                            <td class="numeric" style="border-right: 1px solid #ccc;">{{if .SourceStats}}{{printf "%.2f" .SourceStats.AverageExecTime}}{{else}}N/A{{end}}</td>
+                            <td class="numeric" style="border-right: 1px solid #ccc;">{{if .TargetStats}}{{printf "%.2f" .TargetStats.AverageExecTime}}{{else}}N/A{{end}}</td>
+                            <td class="numeric" style="border-right: 1px solid #ccc;">{{if .SourceStats}}{{.SourceStats.ExecutionCount}}{{else}}N/A{{end}}</td>
+                            <td class="numeric">{{if .TargetStats}}{{.TargetStats.ExecutionCount}}{{else}}N/A{{end}}</td>
+                        </tr>
+                        {{end}}
+                    </tbody>
+                </table>
+                {{else}}
+                <p>No queries with slowdown found. This may indicate no matching queries between source and target databases.</p>
+                {{end}}
+            </div>
+
+            <div id="all" class="tab-content">
+                <h2>All Queries</h2>
+                <div class="table-container">
+                    <table id="allQueriesTable">
+                    <thead>
+                        <tr>
+                            <th rowspan="2" class="sortable sort-none" data-column="query" data-type="text">
+                                Query
+                                <span class="sort-arrow"></span>
+                            </th>
+                            <th colspan="2" style="background-color: #27ae60; color: white; text-align: center; border-right: 3px solid #1e8449;">
+                                Comparison Metrics
+                            </th>
+                            <th colspan="6" style="background-color: #4a90e2; color: white; text-align: center; border-right: 3px solid #2c5aa0;">
+                                {{.SourceDBType}}
+                            </th>
+                            <th colspan="6" style="background-color: #f39c12; color: white; text-align: center;">
+                                YugabyteDB
+                            </th>
+                        </tr>
+                        <tr>
+                            <th class="sortable sort-none numeric" data-column="impact-score" data-type="number" style="background-color: #27ae60; color: white; border-right: 1px solid #ccc;">
+                                Impact Score (ms)
+                                <span class="sort-arrow"></span>
+                            </th>
+                            <th class="sortable sort-none numeric" data-column="slowdown-ratio" data-type="number" style="background-color: #27ae60; color: white; border-right: 3px solid #1e8449;">
+                                Slowdown Ratio
+                                <span class="sort-arrow"></span>
+                            </th>
+                            <th class="sortable sort-none numeric" data-column="source-calls" data-type="number" style="background-color: #4a90e2; color: white;">
+                                Calls
+                                <span class="sort-arrow"></span>
+                            </th>
+                            <th class="sortable sort-none numeric" data-column="source-rows" data-type="number" style="background-color: #4a90e2; color: white;">
+                                Rows
+                                <span class="sort-arrow"></span>
+                            </th>
+                            <th class="sortable sort-none numeric" data-column="source-total" data-type="number" style="background-color: #4a90e2; color: white;">
+                                Total Time (ms)
+                                <span class="sort-arrow"></span>
+                            </th>
+                            <th class="sortable sort-none numeric" data-column="source-mean" data-type="number" style="background-color: #4a90e2; color: white;">
+                                Mean Time (ms)
+                                <span class="sort-arrow"></span>
+                            </th>
+                            <th class="sortable sort-none numeric" data-column="source-min" data-type="number" style="background-color: #4a90e2; color: white;">
+                                Min Time (ms)
+                                <span class="sort-arrow"></span>
+                            </th>
+                            <th class="sortable sort-none numeric" data-column="source-max" data-type="number" style="background-color: #4a90e2; color: white; border-right: 3px solid #2c5aa0;">
+                                Max Time (ms)
+                                <span class="sort-arrow"></span>
+                            </th>
+                            <th class="sortable sort-none numeric" data-column="yb-calls" data-type="number" style="background-color: #f39c12; color: white; border-right: 1px solid #ccc;">
+                                Calls
+                                <span class="sort-arrow"></span>
+                            </th>
+                            <th class="sortable sort-none numeric" data-column="yb-rows" data-type="number" style="background-color: #f39c12; color: white; border-right: 1px solid #ccc;">
+                                Rows
+                                <span class="sort-arrow"></span>
+                            </th>
+                            <th class="sortable sort-none numeric" data-column="yb-total" data-type="number" style="background-color: #f39c12; color: white; border-right: 1px solid #ccc;">
+                                Total Time (ms)
+                                <span class="sort-arrow"></span>
+                            </th>
+                            <th class="sortable sort-none numeric" data-column="yb-mean" data-type="number" style="background-color: #f39c12; color: white; border-right: 1px solid #ccc;">
+                                Mean Time (ms)
+                                <span class="sort-arrow"></span>
+                            </th>
+                            <th class="sortable sort-none numeric" data-column="yb-min" data-type="number" style="background-color: #f39c12; color: white; border-right: 1px solid #ccc;">
+                                Min Time (ms)
+                                <span class="sort-arrow"></span>
+                            </th>
+                            <th class="sortable sort-none numeric" data-column="yb-max" data-type="number" style="background-color: #f39c12; color: white;">
+                                Max Time (ms)
+                                <span class="sort-arrow"></span>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {{range .AllComparisons}}
+                        <tr>
+                            <td class="query-text" data-value="{{.Query}}" title="{{.Query}}">{{.Query}}</td>
+                            <!-- Performance Metrics -->
+                            <td class="numeric" data-value="{{if eq .MatchStatus "MATCHED"}}{{.ImpactScore}}{{else}}-1{{end}}" style="border-right: 1px solid #ccc;">{{if eq .MatchStatus "MATCHED"}}{{printf "%.2f" .ImpactScore}}{{else}}N/A{{end}}</td>
+                            <td class="numeric" data-value="{{if eq .MatchStatus "MATCHED"}}{{.SlowdownRatio}}{{else}}-1{{end}}" style="border-right: 3px solid #1e8449;">{{if eq .MatchStatus "MATCHED"}}{{printf "%.2fx" .SlowdownRatio}}{{else}}N/A{{end}}</td>
+                            <!-- Source Stats -->
+                            <td class="numeric" data-value="{{if .SourceStats}}{{.SourceStats.ExecutionCount}}{{else}}-1{{end}}" style="border-right: 1px solid #ccc;">{{if .SourceStats}}{{.SourceStats.ExecutionCount}}{{else}}N/A{{end}}</td>
+                            <td class="numeric" data-value="{{if .SourceStats}}{{.SourceStats.RowsProcessed}}{{else}}-1{{end}}" style="border-right: 1px solid #ccc;">{{if .SourceStats}}{{.SourceStats.RowsProcessed}}{{else}}N/A{{end}}</td>
+                            <td class="numeric" data-value="{{if .SourceStats}}{{.SourceStats.TotalExecTime}}{{else}}-1{{end}}" style="border-right: 1px solid #ccc;">{{if .SourceStats}}{{printf "%.2f" .SourceStats.TotalExecTime}}{{else}}N/A{{end}}</td>
+                            <td class="numeric" data-value="{{if .SourceStats}}{{.SourceStats.AverageExecTime}}{{else}}-1{{end}}" style="border-right: 1px solid #ccc;">{{if .SourceStats}}{{printf "%.2f" .SourceStats.AverageExecTime}}{{else}}N/A{{end}}</td>
+                            <td class="numeric" data-value="{{if .SourceStats}}{{.SourceStats.MinExecTime}}{{else}}-1{{end}}" style="border-right: 1px solid #ccc;">{{if .SourceStats}}{{printf "%.2f" .SourceStats.MinExecTime}}{{else}}N/A{{end}}</td>
+                            <td class="numeric" data-value="{{if .SourceStats}}{{.SourceStats.MaxExecTime}}{{else}}-1{{end}}" style="border-right: 3px solid #2c5aa0;">{{if .SourceStats}}{{printf "%.2f" .SourceStats.MaxExecTime}}{{else}}N/A{{end}}</td>
+                            <!-- YugabyteDB Stats -->
+                            <td class="numeric" data-value="{{if .TargetStats}}{{.TargetStats.ExecutionCount}}{{else}}-1{{end}}" style="border-right: 1px solid #ccc;">{{if .TargetStats}}{{.TargetStats.ExecutionCount}}{{else}}N/A{{end}}</td>
+                            <td class="numeric" data-value="{{if .TargetStats}}{{.TargetStats.RowsProcessed}}{{else}}-1{{end}}" style="border-right: 1px solid #ccc;">{{if .TargetStats}}{{.TargetStats.RowsProcessed}}{{else}}N/A{{end}}</td>
+                            <td class="numeric" data-value="{{if .TargetStats}}{{.TargetStats.TotalExecTime}}{{else}}-1{{end}}" style="border-right: 1px solid #ccc;">{{if .TargetStats}}{{printf "%.2f" .TargetStats.TotalExecTime}}{{else}}N/A{{end}}</td>
+                            <td class="numeric" data-value="{{if .TargetStats}}{{.TargetStats.AverageExecTime}}{{else}}-1{{end}}" style="border-right: 1px solid #ccc;">{{if .TargetStats}}{{printf "%.2f" .TargetStats.AverageExecTime}}{{else}}N/A{{end}}</td>
+                            <td class="numeric" data-value="{{if .TargetStats}}{{.TargetStats.MinExecTime}}{{else}}-1{{end}}" style="border-right: 1px solid #ccc;">{{if .TargetStats}}{{printf "%.2f" .TargetStats.MinExecTime}}{{else}}N/A{{end}}</td>
+                            <td class="numeric" data-value="{{if .TargetStats}}{{.TargetStats.MaxExecTime}}{{else}}-1{{end}}">{{if .TargetStats}}{{printf "%.2f" .TargetStats.MaxExecTime}}{{else}}N/A{{end}}</td>
+                        </tr>
+                        {{end}}
+                    </tbody>
+                </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="report-footer">
+            Generated on {{.GeneratedAt.Format "January 2, 2006 at 15:04:05"}}
+        </div>
+    </div>
+
+    <script>
+        function showTab(tabName) {
+            // Hide all tab contents
+            var contents = document.getElementsByClassName('tab-content');
+            for (var i = 0; i < contents.length; i++) {
+                contents[i].classList.remove('active');
+            }
+
+            // Remove active from all buttons
+            var buttons = document.getElementsByClassName('tab-button');
+            for (var i = 0; i < buttons.length; i++) {
+                buttons[i].classList.remove('active');
+            }
+
+            // Show selected tab
+            document.getElementById(tabName).classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        // Sorting functionality for All Queries table
+        document.addEventListener('DOMContentLoaded', function() {
+            var table = document.getElementById('allQueriesTable');
+            if (!table) return;
+
+            var headers = table.querySelectorAll('.sortable');
+            var tbody = table.querySelector('tbody');
+            var currentSort = { column: null, direction: 'none' };
+            var originalRowOrder = Array.from(tbody.querySelectorAll('tr')); // Store original order
+
+            headers.forEach(function(header) {
+                header.addEventListener('click', function() {
+                    var column = this.getAttribute('data-column');
+                    var type = this.getAttribute('data-type');
+
+                    // Reset all other headers
+                    headers.forEach(function(h) {
+                        if (h !== header) {
+                            h.className = h.className.replace(/sort-(asc|desc|none)/, 'sort-none');
+                        }
+                    });
+
+                    // Determine sort direction
+                    var direction = 'asc';
+                    if (currentSort.column === column) {
+                        if (currentSort.direction === 'asc') {
+                            direction = 'desc';
+                        } else if (currentSort.direction === 'desc') {
+                            direction = 'none';
+                        }
+                    }
+
+                    // Update header class
+                    this.className = this.className.replace(/sort-(asc|desc|none)/, 'sort-' + direction);
+
+                    // Sort table
+                    if (direction === 'none') {
+                        // Reset to original order
+                        restoreOriginalOrder();
+                    } else {
+                        sortTable(column, direction, type);
+                    }
+
+                    currentSort = { column: column, direction: direction };
+                });
+            });
+
+            function sortTable(column, direction, type) {
+                var rows = Array.from(tbody.querySelectorAll('tr'));
+                var columnIndex = getColumnIndex(column);
+
+                rows.sort(function(a, b) {
+                    var cellA = a.cells[columnIndex];
+                    var cellB = b.cells[columnIndex];
+                    var valueA = cellA.getAttribute('data-value');
+                    var valueB = cellB.getAttribute('data-value');
+
+                    // Handle N/A values (put them at the bottom)
+                    if (valueA === '-1' || valueA === '-999999') valueA = direction === 'asc' ? 'zzz' : '';
+                    if (valueB === '-1' || valueB === '-999999') valueB = direction === 'asc' ? 'zzz' : '';
+
+                    // Convert to numbers for numeric sorting
+                    if (type === 'number') {
+                        valueA = parseFloat(valueA) || (direction === 'asc' ? 999999 : -999999);
+                        valueB = parseFloat(valueB) || (direction === 'asc' ? 999999 : -999999);
+                    }
+
+                    if (valueA < valueB) {
+                        return direction === 'asc' ? -1 : 1;
+                    }
+                    if (valueA > valueB) {
+                        return direction === 'asc' ? 1 : -1;
+                    }
+                    return 0;
+                });
+
+                // Re-append sorted rows
+                rows.forEach(function(row) {
+                    tbody.appendChild(row);
+                });
+            }
+
+            function restoreOriginalOrder() {
+                // Clear tbody and restore original order
+                while (tbody.firstChild) {
+                    tbody.removeChild(tbody.firstChild);
+                }
+                originalRowOrder.forEach(function(row) {
+                    tbody.appendChild(row);
+                });
+            }
+
+            function getColumnIndex(column) {
+                var mapping = {
+                    'query': 0,
+                    'impact-score': 1,
+                    'slowdown-ratio': 2,
+                    'source-calls': 3,
+                    'source-rows': 4,
+                    'source-total': 5,
+                    'source-mean': 6,
+                    'source-min': 7,
+                    'source-max': 8,
+                    'yb-calls': 9,
+                    'yb-rows': 10,
+                    'yb-total': 11,
+                    'yb-mean': 12,
+                    'yb-min': 13,
+                    'yb-max': 14
+                };
+                return mapping[column] || 0;
+            }
+        });
+    </script>
+</body>
+</html>

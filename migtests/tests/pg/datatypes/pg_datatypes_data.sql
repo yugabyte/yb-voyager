@@ -36,20 +36,86 @@ insert into null_and_default VALUES(2, NULL, NULL, NULL);
 
 INSERT INTO hstore_example (data) 
 VALUES 
+    -- 1 Basic key-value pair
     ('"key1"=>"value1", "key2"=>"value2"'),
-    (hstore('a"b', 'd\"a')),
+    -- 2 Escaped quotes in key/value
+    (hstore('a"b', 'd"a')),
+    -- 3 NULL value
     (NULL),
+    -- 4 Empty string
     (''),
-    ('key1 => value1, key2 => value2'),
+    -- 5 Hstore from arrays
     (hstore(ARRAY['key1', 'key2'], ARRAY['value1', 'value2'])),
+    -- 6 Mixed types as strings (text, number, boolean)
     ('key7 => value7, key8 => 123, key9 => true'),
+    -- 7 Multi-line key-value
     ('"paperback" => "243",
-     "publisher" => "postgresqltutorial.com",
-     "language"  => "English",
-     "ISBN-13"   => "978-1449370000",
-     "weight"    => "11.2 ounces"'),
+      "publisher" => "postgresqltutorial.com",
+      "language"  => "English",
+      "ISBN-13"   => "978-1449370000",
+      "weight"    => "11.2 ounces"'),
+    -- 8 Hstore from ROW constructor
     (hstore(ROW(1,'{"key1=value1, key2=value2"}'))),
-    (hstore('json_field', '{"key1=value1, key2={"key1=value1, key2=value2"}"}')), --hstore() key and values need no extra processing
-    ('"{\"key1=value1, key2=value2\"}"=>"{\"key1=value1, key2={\"key1=value1, key2=value2\"}\"}"'), --single quotes string need to escaped properly
+    -- 9 JSON-like string stored as value
+    (hstore('json_field', '{"key1=value1, key2={"key1=value1, key2=value2"}"}')),
+    -- 10 Escaped nested quotes
+    ('"{\"key1=value1, key2=value2\"}"=>"{\"key1=value1, key2={\"key1=value1, key2=value2\"}\"}"'),
+    -- 11 Double quotes in key
     (hstore('"{""key1"":""value1"",""key2"":""value2""}"', '{"key1=value1, key2={"key1=value1, key2=value2"}"}')),
-    (hstore('"{key1:value1,key2:value2}"', '{"key1=value1, key2={"key1=value1, key2=value2"}"}'));
+    -- 12 Braces in key
+    (hstore('"{key1:value1,key2:value2}"', '{"key1=value1, key2={"key1=value1, key2=value2"}"}')),
+    -- 13 Special characters
+    (hstore('key=,=>', 'value\n\t')),
+    -- 14 Empty key
+    (hstore('', 'emptykey')),
+    -- 15 Empty value
+    (hstore('emptyvalue', '')),
+    -- 16 Very long string (key or value)
+    (hstore('longkey', repeat('x', 10000))),
+    -- 17 UTF-8 multi-byte letters
+    (hstore('ключ', 'значение')),
+    -- 18 UTF-8 Emoji
+    (hstore('emoji_😀', '😎🔥')),
+    -- 19 UTF-8 accented letters
+    (hstore('café', 'naïve')),
+    -- 20 SQL reserved word as key (representative)
+    (hstore('select', 'statement')),
+    -- 21 Duplicate key
+    ('dup => first, dup => second'),
+    -- 22 Key with spaces
+    (hstore('key with spaces', 'value with spaces')),
+    -- 23 Key/value with leading/trailing space
+    (hstore(' space_key ', ' space_value ')),
+    -- 24 Nested double quotes
+    (hstore('key"quote', 'value"quote')),
+    -- 25 Nested single quotes
+    (hstore('key''single', 'value''single')),
+    -- 26 JSON-like key/value stored as text
+    (hstore('{"json_like_key":1}', '{"json_like_value":2}'));
+
+-- TSVECTOR table data
+INSERT INTO tsvector_table (title, content, title_tsv, content_tsv)
+VALUES 
+    ('PostgreSQL Tutorial', 
+     'PostgreSQL is a powerful open-source database system',
+     to_tsvector('english', 'PostgreSQL Tutorial'),
+     to_tsvector('english', 'PostgreSQL is a powerful open-source database system')),
+    ('Advanced SQL', 
+     'Learn advanced SQL queries and optimization techniques',
+     to_tsvector('english', 'Advanced SQL'),
+     to_tsvector('english', 'Learn advanced SQL queries and optimization techniques')),
+    ('Data Migration', 
+     'Migrating data from one database to another requires careful planning',
+     to_tsvector('english', 'Data Migration'),
+     to_tsvector('english', 'Migrating data from one database to another requires careful planning'));
+
+select * from tsvector_table;
+
+-- Enum array table data
+INSERT INTO enum_array_table (day_name, week_days, description)
+VALUES 
+    ('Mon', ARRAY['Mon', 'Wed', 'Fri']::week[], 'Work days example 1'),
+    ('Tue', ARRAY['Tue', 'Thu']::week[], 'Work days example 2'),
+    ('Sat', ARRAY['Sat', 'Sun']::week[], 'Weekend days');
+
+select * from enum_array_table;

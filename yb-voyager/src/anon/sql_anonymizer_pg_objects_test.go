@@ -942,8 +942,6 @@ func TestMissingNodeAnonymization(t *testing.T) {
 				t.Skip(tc.skipReason)
 			}
 
-			// For now, just verify that the SQL can be parsed without error
-			// This is a placeholder test until these node types are implemented
 			out, err := az.Anonymize(tc.sql)
 			if err != nil {
 				// If anonymization fails, that's expected for unimplemented node types
@@ -966,6 +964,228 @@ func TestMissingNodeAnonymization(t *testing.T) {
 				for _, pref := range tc.expectedPrefixes {
 					if !hasTok(out, pref) {
 						t.Errorf("expected prefix %q not found in %s", pref, out)
+					}
+				}
+			}
+		})
+	}
+}
+
+// TestPostgresDDLDefaultClauseAnonymization tests comprehensive anonymization of DEFAULT clause expressions
+// This covers all types of expressions that can appear in DEFAULT clauses including:
+// - Custom function calls
+// - Built-in function calls
+// - Sequence references
+// - Type casts
+// - Array expressions
+// - Case expressions
+// - Collation specifications
+func TestPostgresDDLDefaultClauseAnonymization(t *testing.T) {
+	log.SetLevel(log.WarnLevel)
+	exportDir := testutils.CreateTempExportDir()
+	defer testutils.RemoveTempExportDir(exportDir)
+	az := newAnon(t, exportDir)
+
+	// Extended test case struct with keep field for built-in functions
+	type defaultClauseCase struct {
+		ddlCase
+		keep []string // identifiers that must remain unchanged (e.g., built-in functions)
+	}
+
+	cases := []defaultClauseCase{
+		{ddlCase{"DEFAULT-CUSTOM-FUNCTION-SCHEMA",
+			`CREATE TABLE IF NOT EXISTS app.orders (
+  id           bigserial PRIMARY KEY,
+  code         text NOT NULL DEFAULT app.generate_identifier(),
+  customer     text NOT NULL,
+  created_at   timestamptz NOT NULL DEFAULT now()
+);`,
+			[]string{"app", "orders", "id", "code", "customer", "created_at", "generate_identifier"},
+			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX, FUNCTION_KIND_PREFIX}},
+			[]string{"now()"}},
+		{ddlCase{"DEFAULT-BUILTIN-FUNCTIONS",
+			`CREATE TABLE sales.products (
+  id           serial PRIMARY KEY,
+  name         text NOT NULL,
+  created_at   timestamptz DEFAULT now(),
+  updated_at   timestamptz DEFAULT current_timestamp
+);`,
+			[]string{"sales", "products", "id", "name", "created_at", "updated_at"},
+			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX}},
+			[]string{"now()", "current_timestamp"}},
+		{ddlCase{"DEFAULT-CUSTOM-FUNCTION-MULTIPLE",
+			`CREATE TABLE inventory.items (
+  item_id      bigint PRIMARY KEY,
+  sku          text DEFAULT inventory.generate_sku(),
+  description  text DEFAULT inventory.get_default_description(),
+  status       text DEFAULT 'active'
+);`,
+			[]string{"inventory", "items", "item_id", "sku", "description", "status", "generate_sku", "get_default_description"},
+			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX, FUNCTION_KIND_PREFIX}},
+			nil},
+		{ddlCase{"DEFAULT-CUSTOM-FUNCTION-MIXED",
+			`CREATE TABLE users.profiles (
+  user_id      uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  username     text NOT NULL,
+  email        text DEFAULT 'user@example.com',
+  created_at   timestamptz DEFAULT now(),
+  last_login   timestamptz DEFAULT users.get_last_login_time()
+);`,
+			[]string{"users", "profiles", "user_id", "username", "email", "created_at", "last_login", "get_last_login_time"},
+			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX, FUNCTION_KIND_PREFIX}},
+			[]string{"gen_random_uuid()", "now()"}},
+		{ddlCase{"DEFAULT-CUSTOM-FUNCTION-MIXED-PG-CATALOG",
+			`CREATE TABLE users.profiles (
+  user_id      uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  username     text NOT NULL,
+  email        text DEFAULT 'user@example.com',
+  created_at   timestamptz DEFAULT pg_catalog.now(),
+  last_login   timestamptz DEFAULT users.get_last_login_time()
+);`,
+			[]string{"users", "profiles", "user_id", "username", "email", "created_at", "last_login", "get_last_login_time"},
+			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX, FUNCTION_KIND_PREFIX}},
+			[]string{"gen_random_uuid()", "now()"}},
+		// ─── SEQUENCE REFERENCES IN DEFAULT CLAUSES ─────────────────────────────────────────────
+		{ddlCase{"SEQUENCE-UNQUALIFIED",
+			`CREATE TABLE public.customers (
+  customer_id bigint PRIMARY KEY DEFAULT nextval('customer_seq'),
+  name        text NOT NULL,
+  email       text DEFAULT concat('user', nextval('user_id_seq'), '@example.com')
+);`,
+			[]string{"public", "customers", "customer_id", "name", "email", "customer_seq", "user_id_seq"},
+			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX, SEQUENCE_KIND_PREFIX}},
+			[]string{"nextval", "concat"}},
+		{ddlCase{"SEQUENCE-QUALIFIED-SCHEMA",
+			`CREATE TABLE accounts.transactions (
+  txn_id       bigint PRIMARY KEY DEFAULT nextval('accounts.transaction_seq'),
+  account_id   bigint DEFAULT nextval('accounts.account_seq'),
+  amount       decimal NOT NULL,
+  reference_id text DEFAULT concat('TXN-', nextval('accounts.ref_seq'))
+);`,
+			[]string{"accounts", "transactions", "txn_id", "account_id", "amount", "reference_id", "transaction_seq", "account_seq", "ref_seq"},
+			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX, SEQUENCE_KIND_PREFIX}},
+			[]string{"nextval", "concat"}},
+		{ddlCase{"SEQUENCE-TYPECAST-VARIANTS",
+			`CREATE TABLE inventory.items (
+  item_id      bigint PRIMARY KEY DEFAULT nextval('inventory.item_seq'::regclass),
+  sku_id       bigint DEFAULT nextval('inventory.sku_seq'::text::regclass),
+  batch_id     bigint DEFAULT nextval('batch_seq'::regclass),
+  created_at   timestamp DEFAULT now()
+);`,
+			[]string{"inventory", "items", "item_id", "sku_id", "batch_id", "created_at", "item_seq", "sku_seq", "batch_seq"},
+			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX, SEQUENCE_KIND_PREFIX}},
+			[]string{"nextval", "now"}},
+		{ddlCase{"SEQUENCE-PG-CATALOG-NEXTVAL",
+			`CREATE TABLE public.customers (
+  customer_id bigint PRIMARY KEY DEFAULT pg_catalog.nextval('customer_seq'),
+  name        text NOT NULL,
+  email       text DEFAULT concat('user', pg_catalog.nextval('user_id_seq'), '@example.com')
+);`,
+			[]string{"public", "customers", "customer_id", "name", "email", "customer_seq", "user_id_seq"},
+			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX, SEQUENCE_KIND_PREFIX}},
+			[]string{"nextval", "concat"}},
+
+		// ─── TYPE CASTS IN DEFAULT CLAUSES ─────────────────────────────────────────────
+		{ddlCase{"DEFAULT-TYPE-CASTS",
+			`CREATE TABLE inventory.products (
+  product_id   integer PRIMARY KEY,
+  price        numeric DEFAULT '99.99'::numeric,
+  created_date date DEFAULT '2024-01-01'::date,
+  is_active    boolean DEFAULT 'true'::boolean
+);`,
+			[]string{"inventory", "products", "product_id", "price", "created_date", "is_active"},
+			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX, CONST_KIND_PREFIX}},
+			nil},
+
+		// ─── ARRAY EXPRESSIONS IN DEFAULT CLAUSES ─────────────────────────────────────────────
+		{ddlCase{"DEFAULT-ARRAY-EXPRESSIONS",
+			`CREATE TABLE users.preferences (
+  user_id      integer PRIMARY KEY,
+  tags         text[] DEFAULT ARRAY['default', 'user']::text[],
+  permissions  integer[] DEFAULT '{1,2,3}'::integer[]
+);`,
+			[]string{"users", "preferences", "user_id", "tags", "permissions"},
+			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX, CONST_KIND_PREFIX}},
+			[]string{"ARRAY"}},
+
+		// ─── CASE EXPRESSIONS IN DEFAULT CLAUSES ─────────────────────────────────────────────
+		{ddlCase{"DEFAULT-CASE-EXPRESSIONS",
+			`CREATE TABLE sales.orders (
+  order_id     serial PRIMARY KEY,
+  status       text DEFAULT CASE WHEN random() > 0.5 THEN 'pending' ELSE 'approved' END,
+  priority     text DEFAULT CASE WHEN extract(hour from now()) < 12 THEN 'high' ELSE 'normal' END
+);`,
+			[]string{"sales", "orders", "order_id", "status", "priority"},
+			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX, CONST_KIND_PREFIX}},
+			[]string{"random()", "extract", "now()", "CASE", "WHEN", "THEN", "ELSE", "END"}},
+
+		// ─── COLLATION IN DEFAULT CLAUSES ─────────────────────────────────────────────
+		{ddlCase{"DEFAULT-COLLATION",
+			`CREATE TABLE content.articles (
+  article_id   serial PRIMARY KEY,
+  title        text DEFAULT 'Untitled' COLLATE "en_US",
+  content      text DEFAULT 'No content available'
+);`,
+			[]string{"content", "articles", "article_id", "title", "content"},
+			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX, CONST_KIND_PREFIX}},
+			[]string{"COLLATE"}},
+
+		// ─── ALTER TABLE DEFAULT CLAUSE OPERATIONS ─────────────────────────────────────────────
+		{ddlCase{"ALTER-DEFAULT-CUSTOM-FUNCTION",
+			`ALTER TABLE sales.orders ALTER COLUMN order_code SET DEFAULT sales.generate_order_code();`,
+			[]string{"sales", "orders", "order_code", "generate_order_code"},
+			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX, FUNCTION_KIND_PREFIX}},
+			nil},
+		{ddlCase{"ALTER-DEFAULT-SCHEMA-FUNCTION",
+			`ALTER TABLE inventory.items ALTER COLUMN sku SET DEFAULT inventory.generate_sku();`,
+			[]string{"inventory", "items", "sku", "generate_sku"},
+			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX, FUNCTION_KIND_PREFIX}},
+			nil},
+		{ddlCase{"ALTER-DEFAULT-SEQUENCE",
+			`ALTER TABLE orders.order_items ALTER COLUMN item_id SET DEFAULT nextval('orders.item_seq'::regclass);`,
+			[]string{"orders", "order_items", "item_id", "item_seq"},
+			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX, SEQUENCE_KIND_PREFIX}},
+			[]string{"nextval"}},
+	}
+
+	// Run tests for cases that are not skipped
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.key, func(t *testing.T) {
+			out, err := az.Anonymize(tc.sql)
+			if err != nil {
+				// If anonymization fails, that's expected for unimplemented node types
+				// We just want to ensure the test doesn't crash
+				t.Logf("Anonymization failed as expected for unimplemented node type: %v", err)
+				return
+			}
+
+			// print before and after
+			t.Logf("Test Name: %s\nIN: %s\nOUT: %s\n\n", tc.key, tc.sql, out)
+
+			// If anonymization succeeds, verify the output doesn't contain raw identifiers
+			if tc.raw != nil {
+				for _, identifier := range tc.raw {
+					if strings.Contains(out, identifier) {
+						t.Errorf("identifier %q should be anonymized but leaked in %s", identifier, out)
+					}
+				}
+			}
+
+			// Verify expected prefixes appear
+			if tc.prefixes != nil {
+				for _, pref := range tc.prefixes {
+					if !hasTok(out, pref) {
+						t.Errorf("expected prefix %q not found in %s", pref, out)
+					}
+				}
+			}
+
+			// Verify identifiers that must remain unchanged (e.g., built-in functions)
+			if tc.keep != nil {
+				for _, identifier := range tc.keep {
+					if !strings.Contains(out, identifier) {
+						t.Errorf("identifier %q should remain unchanged but was modified in %s", identifier, out)
 					}
 				}
 			}

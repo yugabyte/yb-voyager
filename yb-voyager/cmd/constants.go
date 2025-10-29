@@ -73,6 +73,7 @@ const (
 	IMPORT_DATA_PHASE                = "import-data"
 	IMPORT_DATA_SOURCE_REPLICA_PHASE = "import-data-to-source-repilca"
 	IMPORT_DATA_SOURCE_PHASE         = "import-data-to-source"
+	COMPARE_PERFORMANCE_PHASE        = "compare-performance"
 	END_MIGRATION_PHASE              = "end-migration"
 	ASSESS_MIGRATION_PHASE           = "assess-migration"
 	ASSESS_MIGRATION_BULK_PHASE      = "assess-migration-bulk"

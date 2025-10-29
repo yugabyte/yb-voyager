@@ -380,12 +380,14 @@
                            {{range $table, $indexes := .RedundantIndexChange.TableToRemovedIndexesMap}}
                               <tr>
                                  <td>{{$table}}</td>
-                                 <td class="scrollable-div">
-                                    <ul>
-                                       {{range $indexes}}
-                                          <li>{{.}}</li>
-                                       {{end}}
-                                    </ul>
+                                 <td>
+                                   <div class="scrollable-div">
+                                        <ul>
+                                          {{range $indexes}}
+                                             <li>{{.}}</li>
+                                          {{end}}
+                                       </ul>
+                                   </div>
                                  </td>
                               </tr>
                            {{end}}
@@ -417,12 +419,14 @@
                            {{range $table, $indexes := .SecondaryIndexToRangeChange.ModifiedIndexes}}
                               <tr>
                                  <td>{{$table}}</td>
-                                 <td class="scrollable-div">
-                                    <ul>
-                                       {{range $indexes}}
-                                          <li>{{.}}</li>
-                                       {{end}}
-                                    </ul>
+                                 <td>
+                                   <div class="scrollable-div">
+                                       <ul>
+                                          {{range $indexes}}
+                                             <li>{{.}}</li>
+                                          {{end}}
+                                       </ul>
+                                   </div>
                                  </td>
                               </tr>
                            {{end}}
@@ -433,6 +437,85 @@
                </div>
             {{ end }}
 
+            {{ if .PKHashShardingChange }}
+            <div class="optimization-section {{if .PKHashShardingChange.IsApplied}}applied{{else}}not-applied{{end}}">
+                  <h3>
+                     {{if .PKHashShardingChange.IsApplied}}✅ {{else}}⚠️ {{end}}
+                     {{.PKHashShardingChange.Title}}
+                  </h3>
+               <pre>{{ replaceLinks .PKHashShardingChange.Description .PKHashShardingChange.HyperLinksInDescription}}</pre>
+               {{ if and (.PKHashShardingChange.IsApplied) (.PKHashShardingChange.ModifiedTables) }}
+                  <details>
+                     <summary>Details</summary>
+                     <table>
+                        <thead>
+                           <tr>
+                              <th class="centered-cell">Tables</th>
+                           </tr>
+                        </thead>
+                        <tbody>
+                           <tr>
+                              <td>
+                                 <div class="scrollable-div no-wrap-list">
+                                    <ul>
+                                       {{range $idx, $cons := .PKHashShardingChange.ModifiedTables }}
+                                          <li>{{ $cons }}</li>
+                                       {{end}}
+                                    </ul>
+                                 </div>
+                              </td>
+                           </tr>
+                        </tbody>
+                     </table>
+                  </details>
+               {{ end }}
+            </div>
+            {{ end }}
+
+            {{ if .PKOnTimestampRangeShardingChange }}
+            <div class="optimization-section {{if .PKOnTimestampRangeShardingChange.IsApplied}}applied{{else}}not-applied{{end}}">
+                  <h3>
+                     {{if .PKOnTimestampRangeShardingChange.IsApplied}}✅ {{else}}⚠️ {{end}}
+                     {{.PKOnTimestampRangeShardingChange.Title}}
+                  </h3>
+               <pre>{{ replaceLinks .PKOnTimestampRangeShardingChange.Description .PKOnTimestampRangeShardingChange.HyperLinksInDescription}}</pre>
+               {{ if and (.PKOnTimestampRangeShardingChange.IsApplied) (.PKOnTimestampRangeShardingChange.ModifiedTables) }}
+                  <details>
+                     <summary>Details</summary>
+                     <table>
+                        <thead>
+                           <tr>
+                              <th class="centered-cell">Tables</th>
+                           </tr>
+                        </thead>
+                        <tbody>
+                           <tr>
+                              <td> 
+                                 <div class="scrollable-div no-wrap-list">
+                                   <ul>
+                                     {{range $idx, $cons := .PKOnTimestampRangeShardingChange.ModifiedTables }}
+                                       <li>{{ $cons }}</li>
+                                     {{end}}
+                                   </ul>
+                                 </div>
+                              </td>
+                           </tr>
+                        </tbody>
+                     </table>
+                  </details>
+               {{ end }}
+            </div>
+            {{ end }}
+
+            {{ if .UKRangeShardingChange }}
+            <div class="optimization-section {{if .UKRangeShardingChange.IsApplied}}applied{{else}}not-applied{{end}}">
+                  <h3>
+                     {{if .UKRangeShardingChange.IsApplied}}✅ {{else}}⚠️ {{end}}
+                     {{.UKRangeShardingChange.Title}}
+                  </h3>
+               <pre>{{ replaceLinks .UKRangeShardingChange.Description .UKRangeShardingChange.HyperLinksInDescription}}</pre>
+            </div>
+            {{ end }}
 
             {{ if .TableColocationRecommendation }}
                <div class="optimization-section {{if .TableColocationRecommendation.IsApplied}}applied{{else}}not-applied{{end}}">
