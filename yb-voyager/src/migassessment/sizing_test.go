@@ -205,7 +205,7 @@ func TestShardingBasedOnTableSizeAndCount_TableWithSizePlacedInColocated(t *test
 	}
 
 	actualRecommendation :=
-		shardingBasedOnTableSizeAndCount(sourceTableMetadata, sourceIndexMetadata, colocatedLimits, recommendation)
+		shardingBasedOnTableSizeAndCount(sourceTableMetadata, buildIndexLookupMap(sourceIndexMetadata), colocatedLimits, recommendation)
 	assert.Equal(t, expectedRecommendation, actualRecommendation)
 }
 
@@ -248,7 +248,7 @@ func TestShardingBasedOnTableSizeAndCount_WithIndexes_ColocateAll(t *testing.T) 
 	}
 
 	result :=
-		shardingBasedOnTableSizeAndCount(sourceTableMetadata, sourceIndexMetadata, colocatedLimits, recommendation)
+		shardingBasedOnTableSizeAndCount(sourceTableMetadata, buildIndexLookupMap(sourceIndexMetadata), colocatedLimits, recommendation)
 	assert.Equal(t, expectedRecommendation, result)
 }
 
@@ -296,7 +296,7 @@ func TestShardingBasedOnTableSizeAndCount_ColocatedLimitExceededBySize(t *testin
 	}
 
 	result :=
-		shardingBasedOnTableSizeAndCount(sourceTableMetadata, sourceIndexMetadata, colocatedLimits, recommendation)
+		shardingBasedOnTableSizeAndCount(sourceTableMetadata, buildIndexLookupMap(sourceIndexMetadata), colocatedLimits, recommendation)
 	assert.Equal(t, expectedRecommendation, result)
 }
 
@@ -328,7 +328,7 @@ func TestShardingBasedOnTableSizeAndCount_ColocatedLimitExceededByCount(t *testi
 	}
 
 	actualRecommendationsResult :=
-		shardingBasedOnTableSizeAndCount(sourceTableMetadata, sourceIndexMetadata, colocatedLimits, recommendation)
+		shardingBasedOnTableSizeAndCount(sourceTableMetadata, buildIndexLookupMap(sourceIndexMetadata), colocatedLimits, recommendation)
 	for key, rec := range actualRecommendationsResult {
 		assert.Equal(t, expectedResults[key]["lenColocatedTables"], len(rec.ColocatedTables))
 		assert.Equal(t, expectedResults[key]["lenShardedTables"], len(rec.ShardedTables))
@@ -359,7 +359,7 @@ func TestShardingBasedOnTableSizeAndCount_NoColocatedTables(t *testing.T) {
 	}
 
 	result :=
-		shardingBasedOnTableSizeAndCount(sourceTableMetadata, sourceIndexMetadata, colocatedLimits, recommendation)
+		shardingBasedOnTableSizeAndCount(sourceTableMetadata, buildIndexLookupMap(sourceIndexMetadata), colocatedLimits, recommendation)
 	for key, rec := range result {
 		// assert that there are no colocated tables
 		assert.Equal(t, expectedResults[key]["lenColocatedTables"], len(rec.ColocatedTables))
@@ -415,7 +415,7 @@ func TestShardingBasedOnTableSizeAndCount_TableWithMoreThanThresholdIndexesAsSha
 	}
 
 	result :=
-		shardingBasedOnTableSizeAndCount(sourceTableMetadata, sourceIndexMetadata, colocatedLimits, recommendation)
+		shardingBasedOnTableSizeAndCount(sourceTableMetadata, buildIndexLookupMap(sourceIndexMetadata), colocatedLimits, recommendation)
 	for key, rec := range result {
 		// assert that expectedShardedTableName is the one that is sharded
 		assert.Equal(t, expectedShardedTableName, rec.ShardedTables[0].ObjectName)
@@ -461,7 +461,7 @@ func TestShardingBasedOnTableSizeAndCount_TableWithThresholdOrLessIndexesAsColoc
 	}
 
 	result :=
-		shardingBasedOnTableSizeAndCount(sourceTableMetadata, sourceIndexMetadata, colocatedLimits, recommendation)
+		shardingBasedOnTableSizeAndCount(sourceTableMetadata, buildIndexLookupMap(sourceIndexMetadata), colocatedLimits, recommendation)
 	for key, rec := range result {
 		// assert that there are no colocated tables
 		assert.Equal(t, expectedResults[key]["lenColocatedTables"], len(rec.ColocatedTables))
@@ -523,7 +523,7 @@ func TestShardingBasedOnOperations_CanSupportOpsRequirement(t *testing.T) {
 	}
 
 	// Run the function
-	updatedRecommendation := shardingBasedOnOperations(sourceIndexMetadata, colocatedThroughput, recommendation)
+	updatedRecommendation := shardingBasedOnOperations(buildIndexLookupMap(sourceIndexMetadata), colocatedThroughput, recommendation)
 
 	// expected is that the table should be removed from colocated and added to sharded as the ops requirement is high
 	for _, rec := range updatedRecommendation {
@@ -584,7 +584,7 @@ func TestShardingBasedOnOperations_CannotSupportOpsAndNeedsSharding(t *testing.T
 	}
 
 	// Run the function
-	updatedRecommendation := shardingBasedOnOperations(sourceIndexMetadata, colocatedThroughput, recommendation)
+	updatedRecommendation := shardingBasedOnOperations(buildIndexLookupMap(sourceIndexMetadata), colocatedThroughput, recommendation)
 
 	// expected is that the table should be removed from colocated and added to sharded as the ops requirement is high
 	for _, rec := range updatedRecommendation {
@@ -627,7 +627,7 @@ func TestCheckShardedTableLimit_WithinLimit(t *testing.T) {
 	}
 
 	// Run the function
-	updatedRecommendation := checkShardedTableLimit(sourceIndexMetadata, shardedLimits, recommendation)
+	updatedRecommendation := checkShardedTableLimit(buildIndexLookupMap(sourceIndexMetadata), shardedLimits, recommendation)
 	for _, rec := range updatedRecommendation {
 		// failure reasoning should be empty
 		assert.Empty(t, rec.FailureReasoning)
@@ -664,7 +664,7 @@ func TestCheckShardedTableLimit_LimitExceeded(t *testing.T) {
 	}
 
 	// Run the function
-	updatedRecommendation := checkShardedTableLimit(sourceIndexMetadata, shardedLimits, recommendation)
+	updatedRecommendation := checkShardedTableLimit(buildIndexLookupMap(sourceIndexMetadata), shardedLimits, recommendation)
 
 	// check if the Failure reasoning matches with the one generated
 	for _, rec := range updatedRecommendation {
@@ -721,7 +721,7 @@ func TestFindNumNodesNeededBasedOnThroughputRequirement_CanSupportOps(t *testing
 
 	// Run the function
 	updatedRecommendation :=
-		findNumNodesNeededBasedOnThroughputRequirement(sourceIndexMetadata, shardedThroughput, recommendation)
+		findNumNodesNeededBasedOnThroughputRequirement(buildIndexLookupMap(sourceIndexMetadata), shardedThroughput, recommendation)
 
 	// for 4 cores data, expected results are
 	var expectedOptimalSelectConnectionsPerNode int64 = 50
@@ -764,7 +764,7 @@ func TestFindNumNodesNeededBasedOnThroughputRequirement_NeedMoreNodes(t *testing
 
 	// Run the function
 	updatedRecommendation :=
-		findNumNodesNeededBasedOnThroughputRequirement(sourceIndexMetadata, shardedLimits, recommendation)
+		findNumNodesNeededBasedOnThroughputRequirement(buildIndexLookupMap(sourceIndexMetadata), shardedLimits, recommendation)
 
 	// validate the expected number of nodes
 	assert.Equal(t, updatedRecommendation[4].NumNodes, float64(15))
@@ -805,7 +805,7 @@ func TestFindNumNodesNeededBasedOnThroughputRequirement_WithColocatedTablesAddsO
 
 	// Run the function
 	updatedRecommendation :=
-		findNumNodesNeededBasedOnThroughputRequirement(sourceIndexMetadata, shardedThroughput, recommendation)
+		findNumNodesNeededBasedOnThroughputRequirement(buildIndexLookupMap(sourceIndexMetadata), shardedThroughput, recommendation)
 
 	// With colocated tables present, expect +1 node and +4 cores (VCPUsPerInstance)
 	// Base calculation: (8000/1000 + 4000/500) = 16 cores needed -> 4 nodes needed
@@ -849,7 +849,7 @@ func TestFindNumNodesNeededBasedOnThroughputRequirement_WithoutColocatedTablesNo
 
 	// Run the function
 	updatedRecommendation :=
-		findNumNodesNeededBasedOnThroughputRequirement(sourceIndexMetadata, shardedThroughput, recommendation)
+		findNumNodesNeededBasedOnThroughputRequirement(buildIndexLookupMap(sourceIndexMetadata), shardedThroughput, recommendation)
 
 	// Without colocated tables, no extra node/cores should be added
 	// Base calculation: (8000/1000 + 4000/500) = 16 cores needed -> 4 nodes needed
@@ -891,7 +891,7 @@ func TestFindNumNodesNeededBasedOnTabletsRequired_CanSupportTablets(t *testing.T
 
 	// Run the function
 	updatedRecommendation :=
-		findNumNodesNeededBasedOnTabletsRequired(sourceIndexMetadata, shardedLimits, recommendation)
+		findNumNodesNeededBasedOnTabletsRequired(buildIndexLookupMap(sourceIndexMetadata), shardedLimits, recommendation)
 
 	// check if the num nodes in updated recommendation is same as before(3) meaning no scaling is required
 	assert.Equal(t, float64(3), updatedRecommendation[4].NumNodes)
@@ -932,7 +932,7 @@ func TestFindNumNodesNeededBasedOnTabletsRequired_NeedMoreNodes(t *testing.T) {
 
 	// Run the function
 	updatedRecommendation :=
-		findNumNodesNeededBasedOnTabletsRequired(sourceIndexMetadata, shardedLimits, recommendation)
+		findNumNodesNeededBasedOnTabletsRequired(buildIndexLookupMap(sourceIndexMetadata), shardedLimits, recommendation)
 
 	// check if the num nodes and cores in updated recommendation has increased. Meaning scaling is required.
 	assert.Equal(t, float64(6), updatedRecommendation[4].NumNodes)
@@ -960,7 +960,7 @@ func TestPickBestRecommendationStrategy_VCPULogic_Rec1FewerResultantCores(t *tes
 	}
 	var sourceIndexMetadata []SourceDBMetadata
 
-	selectedRec := pickBestRecommendationStrategy(rec1, rec2, sourceIndexMetadata)
+	selectedRec := pickBestRecommendationStrategy(rec1, rec2, buildIndexLookupMap(sourceIndexMetadata))
 
 	assert.Equal(t, rec1, selectedRec)
 }
@@ -983,7 +983,7 @@ func TestPickBestRecommendationStrategy_VCPULogic_EqualResultantCores_SelectHigh
 	}
 	var sourceIndexMetadata []SourceDBMetadata
 
-	selectedRec := pickBestRecommendationStrategy(rec1, rec2, sourceIndexMetadata)
+	selectedRec := pickBestRecommendationStrategy(rec1, rec2, buildIndexLookupMap(sourceIndexMetadata))
 
 	assert.Equal(t, rec2, selectedRec)
 }
@@ -1006,7 +1006,7 @@ func TestPickBestRecommendationStrategy_VCPULogic_Rec2FewerResultantCores(t *tes
 	}
 	var sourceIndexMetadata []SourceDBMetadata
 
-	selectedRec := pickBestRecommendationStrategy(rec1, rec2, sourceIndexMetadata)
+	selectedRec := pickBestRecommendationStrategy(rec1, rec2, buildIndexLookupMap(sourceIndexMetadata))
 
 	assert.Equal(t, rec2, selectedRec)
 }
@@ -1029,7 +1029,7 @@ func TestPickBestRecommendationStrategy_VCPULogic_Rec1FewerVCPUsButMoreResultant
 	}
 	var sourceIndexMetadata []SourceDBMetadata
 
-	selectedRec := pickBestRecommendationStrategy(rec1, rec2, sourceIndexMetadata)
+	selectedRec := pickBestRecommendationStrategy(rec1, rec2, buildIndexLookupMap(sourceIndexMetadata))
 
 	// Should select rec2 due to fewer resultant cores
 	assert.Equal(t, rec2, selectedRec)
@@ -1053,7 +1053,7 @@ func TestPickBestRecommendationStrategy_VCPULogic_Rec2FewerVCPUsButMoreResultant
 	}
 	var sourceIndexMetadata []SourceDBMetadata
 
-	selectedRec := pickBestRecommendationStrategy(rec1, rec2, sourceIndexMetadata)
+	selectedRec := pickBestRecommendationStrategy(rec1, rec2, buildIndexLookupMap(sourceIndexMetadata))
 
 	// Should select rec1 due to fewer resultant cores
 	assert.Equal(t, rec1, selectedRec)
@@ -1077,7 +1077,7 @@ func TestPickBestRecommendationStrategy_SameVCPUs_UseNodeComparison_Rec1FewerNod
 	}
 	var sourceIndexMetadata []SourceDBMetadata
 
-	selectedRec := pickBestRecommendationStrategy(rec1, rec2, sourceIndexMetadata)
+	selectedRec := pickBestRecommendationStrategy(rec1, rec2, buildIndexLookupMap(sourceIndexMetadata))
 
 	assert.Equal(t, rec1, selectedRec)
 }
@@ -1100,7 +1100,7 @@ func TestPickBestRecommendationStrategy_SameVCPUs_UseNodeComparison_Rec2FewerNod
 	}
 	var sourceIndexMetadata []SourceDBMetadata
 
-	selectedRec := pickBestRecommendationStrategy(rec1, rec2, sourceIndexMetadata)
+	selectedRec := pickBestRecommendationStrategy(rec1, rec2, buildIndexLookupMap(sourceIndexMetadata))
 
 	assert.Equal(t, rec2, selectedRec)
 }
@@ -1123,7 +1123,7 @@ func TestPickBestRecommendationStrategy_SameVCPUsAndNodes_PreferAllSharded(t *te
 	}
 	var sourceIndexMetadata []SourceDBMetadata
 
-	selectedRec := pickBestRecommendationStrategy(rec1, rec2, sourceIndexMetadata)
+	selectedRec := pickBestRecommendationStrategy(rec1, rec2, buildIndexLookupMap(sourceIndexMetadata))
 
 	assert.Equal(t, rec2, selectedRec)
 }
@@ -1150,7 +1150,7 @@ func TestPickBestRecommendationStrategy_WithIndexes_VerifyObjectCounts(t *testin
 		{ObjectName: "idx3", ParentTableName: sql.NullString{String: "public.table5", Valid: true}},
 	}
 
-	selectedRec := pickBestRecommendationStrategy(rec1, rec2, sourceIndexMetadata)
+	selectedRec := pickBestRecommendationStrategy(rec1, rec2, buildIndexLookupMap(sourceIndexMetadata))
 
 	assert.Equal(t, rec1, selectedRec)
 }
@@ -1173,7 +1173,7 @@ func TestPickBestRecommendationStrategy_EdgeCase_EqualResultantCores(t *testing.
 	}
 	var sourceIndexMetadata []SourceDBMetadata
 
-	selectedRec := pickBestRecommendationStrategy(rec1, rec2, sourceIndexMetadata)
+	selectedRec := pickBestRecommendationStrategy(rec1, rec2, buildIndexLookupMap(sourceIndexMetadata))
 
 	// Should select rec2 due to higher VCPUs with equal resultant cores
 	assert.Equal(t, rec2, selectedRec)
@@ -1197,7 +1197,7 @@ func TestPickBestRecommendationStrategy_EdgeCase_LargeValues(t *testing.T) {
 	}
 	var sourceIndexMetadata []SourceDBMetadata
 
-	selectedRec := pickBestRecommendationStrategy(rec1, rec2, sourceIndexMetadata)
+	selectedRec := pickBestRecommendationStrategy(rec1, rec2, buildIndexLookupMap(sourceIndexMetadata))
 
 	// Should select rec2 due to fewer resultant cores
 	assert.Equal(t, rec2, selectedRec)
@@ -1238,7 +1238,7 @@ func TestPickBestRecommendationStrategy_ComplexScenario_WithMultipleIndexes(t *t
 		{ObjectName: "idx_reviews_product", ParentTableName: sql.NullString{String: "public.reviews", Valid: true}},
 	}
 
-	selectedRec := pickBestRecommendationStrategy(rec1, rec2, sourceIndexMetadata)
+	selectedRec := pickBestRecommendationStrategy(rec1, rec2, buildIndexLookupMap(sourceIndexMetadata))
 
 	// Should select rec1 due to fewer resultant cores
 	assert.Equal(t, rec1, selectedRec)
@@ -1262,7 +1262,7 @@ func TestPickBestRecommendationStrategy_ReasoningFormat_ResultantCoresComparison
 	}
 	var sourceIndexMetadata []SourceDBMetadata
 
-	selectedRec := pickBestRecommendationStrategy(rec1, rec2, sourceIndexMetadata)
+	selectedRec := pickBestRecommendationStrategy(rec1, rec2, buildIndexLookupMap(sourceIndexMetadata))
 
 	// Should select rec1 due to fewer resultant cores
 	assert.Equal(t, rec1, selectedRec)
@@ -1286,7 +1286,7 @@ func TestPickBestRecommendationStrategy_SameVCPUs_FallbackToNodeComparison(t *te
 	}
 	var sourceIndexMetadata []SourceDBMetadata
 
-	selectedRec := pickBestRecommendationStrategy(rec1, rec2, sourceIndexMetadata)
+	selectedRec := pickBestRecommendationStrategy(rec1, rec2, buildIndexLookupMap(sourceIndexMetadata))
 
 	// Should select rec2 due to fewer nodes
 	assert.Equal(t, rec2, selectedRec)
@@ -1312,7 +1312,7 @@ func TestPickBestRecommendationStrategy_BothHaveFailureReasoning(t *testing.T) {
 	}
 	var sourceIndexMetadata []SourceDBMetadata
 
-	selectedRec := pickBestRecommendationStrategy(rec1, rec2, sourceIndexMetadata)
+	selectedRec := pickBestRecommendationStrategy(rec1, rec2, buildIndexLookupMap(sourceIndexMetadata))
 
 	// Should return rec1 with updated failure reasoning when both have failure reasoning
 	assert.Equal(t, rec1.VCPUsPerInstance, selectedRec.VCPUsPerInstance)
@@ -1337,7 +1337,7 @@ func TestPickBestRecommendationStrategy_Rec1HasFailureRec2DoesNot(t *testing.T) 
 	}
 	var sourceIndexMetadata []SourceDBMetadata
 
-	selectedRec := pickBestRecommendationStrategy(rec1, rec2, sourceIndexMetadata)
+	selectedRec := pickBestRecommendationStrategy(rec1, rec2, buildIndexLookupMap(sourceIndexMetadata))
 
 	// Should select rec2 since it has no failure reasoning
 	assert.Equal(t, rec2, selectedRec)
@@ -1362,7 +1362,7 @@ func TestPickBestRecommendationStrategy_Rec2HasFailureRec1DoesNot(t *testing.T) 
 	}
 	var sourceIndexMetadata []SourceDBMetadata
 
-	selectedRec := pickBestRecommendationStrategy(rec1, rec2, sourceIndexMetadata)
+	selectedRec := pickBestRecommendationStrategy(rec1, rec2, buildIndexLookupMap(sourceIndexMetadata))
 
 	// Should select rec1 since it has no failure reasoning
 	assert.Equal(t, rec1, selectedRec)
@@ -1387,7 +1387,7 @@ func TestPickBestRecommendationStrategy_BothHaveEmptyFailureReasoning(t *testing
 	}
 	var sourceIndexMetadata []SourceDBMetadata
 
-	selectedRec := pickBestRecommendationStrategy(rec1, rec2, sourceIndexMetadata)
+	selectedRec := pickBestRecommendationStrategy(rec1, rec2, buildIndexLookupMap(sourceIndexMetadata))
 
 	// Should apply normal comparison logic and select rec1 due to fewer resultant cores
 	assert.Equal(t, rec1, selectedRec)
@@ -1555,7 +1555,7 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithoutIndex_Colocat
 
 	// Call the function
 	estimatedTimeWithAllIndexes, estimatedTimeWithoutRedundantIndexes, err := calculateTimeTakenForImport(colocatedTables,
-		sourceIndexMetadata, sourceIndexMetadata, colocatedLoadTimes, indexImpacts, columnImpacts, COLOCATED, 1.0)
+		buildIndexLookupMap(sourceIndexMetadata), buildIndexLookupMap(sourceIndexMetadata), colocatedLoadTimes, indexImpacts, columnImpacts, COLOCATED, 1.0)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -1612,7 +1612,7 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithOneIndex_Colocat
 
 	// Call the function
 	estimatedTimeWithAllIndexes, estimatedTimeWithoutRedundantIndexes, err := calculateTimeTakenForImport(colocatedTables,
-		sourceIndexMetadata, sourceIndexMetadata, colocatedLoadTimes, indexImpacts, columnImpacts, COLOCATED, 1.0)
+		buildIndexLookupMap(sourceIndexMetadata), buildIndexLookupMap(sourceIndexMetadata), colocatedLoadTimes, indexImpacts, columnImpacts, COLOCATED, 1.0)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -1669,7 +1669,7 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithFiveIndexes_Colo
 	}
 	// Call the function
 	estimatedTimeWithAllIndexes, estimatedTimeWithoutRedundantIndexes, err := calculateTimeTakenForImport(colocatedTables,
-		sourceIndexMetadata, sourceIndexMetadata, colocatedLoadTimes, indexImpacts, columnsImpact, COLOCATED, 1.0)
+		buildIndexLookupMap(sourceIndexMetadata), buildIndexLookupMap(sourceIndexMetadata), colocatedLoadTimes, indexImpacts, columnsImpact, COLOCATED, 1.0)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -1715,8 +1715,8 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithoutIndex_Sharded
 		},
 	}
 	// Call the function
-	estimatedTimeWithAllIndexes, estimatedTimeWithoutRedundantIndexes, err := calculateTimeTakenForImport(shardedTables, sourceIndexMetadata,
-		sourceIndexMetadata, shardedLoadTimes, indexImpacts, columnsImpact, SHARDED, 1.0)
+	estimatedTimeWithAllIndexes, estimatedTimeWithoutRedundantIndexes, err := calculateTimeTakenForImport(shardedTables, buildIndexLookupMap(sourceIndexMetadata),
+		buildIndexLookupMap(sourceIndexMetadata), shardedLoadTimes, indexImpacts, columnsImpact, SHARDED, 1.0)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -1767,7 +1767,7 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithOneIndex_Sharded
 	}
 	// Call the function
 	estimatedTimeWithAllIndexes, estimatedTimeWithoutRedundantIndexes, err :=
-		calculateTimeTakenForImport(shardedTables, sourceIndexMetadata, sourceIndexMetadata, shardedLoadTimes,
+		calculateTimeTakenForImport(shardedTables, buildIndexLookupMap(sourceIndexMetadata), buildIndexLookupMap(sourceIndexMetadata), shardedLoadTimes,
 			indexImpacts, columnsImpact, SHARDED, 1.0)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
@@ -1826,7 +1826,7 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithFiveIndexes_Shar
 	}
 	// Call the function
 	estimatedTimeWithAllIndexes, estimatedTimeWithoutRedundantIndexes, err :=
-		calculateTimeTakenForImport(shardedTables, sourceIndexMetadata, sourceIndexMetadata, shardedLoadTimes,
+		calculateTimeTakenForImport(shardedTables, buildIndexLookupMap(sourceIndexMetadata), buildIndexLookupMap(sourceIndexMetadata), shardedLoadTimes,
 			indexImpacts, columnsImpact, SHARDED, 1.0)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
@@ -1876,7 +1876,7 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithoutIndex5Columns
 
 	// Call the function
 	estimatedTimeWithAllIndexes, estimatedTimeWithoutRedundantIndexes, err := calculateTimeTakenForImport(colocatedTables,
-		sourceIndexMetadata, sourceIndexMetadata, colocatedLoadTimes, indexImpacts, columnImpacts, COLOCATED, 1.0)
+		buildIndexLookupMap(sourceIndexMetadata), buildIndexLookupMap(sourceIndexMetadata), colocatedLoadTimes, indexImpacts, columnImpacts, COLOCATED, 1.0)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -1930,7 +1930,7 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithoutIndex40Column
 
 	// Call the function
 	estimatedTimeWithAllIndexes, estimatedTimeWithoutRedundantIndexes, err := calculateTimeTakenForImport(colocatedTables,
-		sourceIndexMetadata, sourceIndexMetadata, colocatedLoadTimes, indexImpacts, columnImpacts, COLOCATED, 1.0)
+		buildIndexLookupMap(sourceIndexMetadata), buildIndexLookupMap(sourceIndexMetadata), colocatedLoadTimes, indexImpacts, columnImpacts, COLOCATED, 1.0)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -1984,7 +1984,7 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithoutIndex100Colum
 
 	// Call the function
 	estimatedTimeWithAllIndexes, estimatedTimeWithoutRedundantIndexes, err := calculateTimeTakenForImport(colocatedTables,
-		sourceIndexMetadata, sourceIndexMetadata, colocatedLoadTimes, indexImpacts, columnImpacts, COLOCATED, 1.0)
+		buildIndexLookupMap(sourceIndexMetadata), buildIndexLookupMap(sourceIndexMetadata), colocatedLoadTimes, indexImpacts, columnImpacts, COLOCATED, 1.0)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -2039,7 +2039,7 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithoutIndex250Colum
 
 	// Call the function
 	estimatedTimeWithAllIndexes, estimatedTimeWithoutRedundantIndexes, err := calculateTimeTakenForImport(colocatedTables,
-		sourceIndexMetadata, sourceIndexMetadata, colocatedLoadTimes, indexImpacts, columnImpacts, COLOCATED, 1.0)
+		buildIndexLookupMap(sourceIndexMetadata), buildIndexLookupMap(sourceIndexMetadata), colocatedLoadTimes, indexImpacts, columnImpacts, COLOCATED, 1.0)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
