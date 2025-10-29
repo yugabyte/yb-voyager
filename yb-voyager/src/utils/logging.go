@@ -46,6 +46,7 @@ const (
 	OutputLogLevelWarning OutputLogLevel = iota
 	OutputLogLevelError   OutputLogLevel = iota
 	OutputLogLevelNormal  OutputLogLevel = iota
+	OutputLogLevelTitle   OutputLogLevel = iota
 )
 
 var (
@@ -54,6 +55,7 @@ var (
 	WarningColor = color.New(color.FgYellow)
 	ErrorColor   = color.New(color.FgRed)
 	PathColor    = color.New(color.FgYellow, color.Underline)
+	TitleColor   = color.New(color.FgBlue)
 )
 
 // PrintAndLogFormatted prints a formatted message to console with specified log level and also logs it
@@ -87,6 +89,9 @@ func PrintAndLogFormatted(OutputLogLevel OutputLogLevel, formatString string, ar
 	case OutputLogLevelError:
 		printer = ErrorColor
 		log.Error(message)
+	case OutputLogLevelTitle:
+		printer = TitleColor
+		log.Info(message)
 	default: // OutputLogLevelNormal
 		fmt.Print(message)
 		log.Info(message)
@@ -112,6 +117,10 @@ func PrintAndLogfWarning(formatString string, args ...interface{}) {
 
 func PrintAndLogfError(formatString string, args ...interface{}) {
 	PrintAndLogFormatted(OutputLogLevelError, formatString, args...)
+}
+
+func PrintAndLogfPhase(formatString string, args ...interface{}) {
+	PrintAndLogFormatted(OutputLogLevelTitle, formatString, args...)
 }
 
 func PrintAndLog(formatString string, args ...interface{}) {

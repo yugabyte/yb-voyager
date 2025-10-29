@@ -485,11 +485,9 @@ func generatePerformanceOptimizationReport(indexTransformer *sqltransformer.Inde
 			return fmt.Errorf("failed to close file %q: %w", htmlReportFilePath, err)
 		}
 
-		utils.PrintAndLogfSuccess("\nSchema optimization changes")
+		utils.PrintAndLogfInfo("\nSchema optimization changes\n\n")
 		utils.PrintAndLog(schemaOptimizationReport.Summary())
-		utils.PrintAndLog("\nRefer to the detailed report for more information: %s\n", utils.PathColor.Sprintf(htmlReportFilePath))
-
-		// color.Green("\nSome Optimization changes were applied to the exported schema, refer to the detailed report for more information: %s", htmlReportFilePath)
+		utils.PrintAndLog("Refer to the detailed report for more information: %s\n", utils.PathColor.Sprintf(htmlReportFilePath))
 	}
 
 	return nil

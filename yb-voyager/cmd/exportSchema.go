@@ -176,13 +176,15 @@ func exportSchema(cmd *cobra.Command) error {
 	exportSchemaStartEvent := createExportSchemaStartedEvent()
 	controlPlane.ExportSchemaStarted(&exportSchemaStartEvent)
 
-	utils.PrintAndLogfInfo("\nExport of schema for source type as '%s'\n", source.DBType)
+	utils.PrintAndLogfPhase("\nExport of schema for source type as '%s'\n", source.DBType)
 	source.DB().ExportSchema(exportDir, schemaDir)
 
 	err = updateIndexesInfoInMetaDB()
 	if err != nil {
 		return fmt.Errorf("failed to update indexes info metadata db: %w", err)
 	}
+
+	utils.PrintAndLogfPhase("\nApplying schema modifications...\n")
 
 	modifiedTables, modifiedMviews, colocatedTables, colocatedMviews, tableBackupPath, mviewBackupPath, err := applyMigrationAssessmentRecommendations()
 	if err != nil {
@@ -202,7 +204,7 @@ func exportSchema(cmd *cobra.Command) error {
 	}
 
 	if tableTransformer.MergedConstraints {
-		utils.PrintAndLogfInfo("Merged Primary Key and Check constraint definitions into CREATE TABLE statements of the exported tables for improving the import schema performance.")
+		utils.PrintAndLogfInfo("\nMerged Primary Key and Check constraint definitions into CREATE TABLE statements of the exported tables for improving the import schema performance.")
 	}
 
 	indexTransformer, indexBackupPath, err := applyIndexFileTransformations()
@@ -223,6 +225,8 @@ func exportSchema(cmd *cobra.Command) error {
 	if utils.FileOrFolderExists(indexBackupPath) {
 		utils.PrintAndLogfInfo("Original INDEX DDLs are backed up at: %s", utils.PathColor.Sprintf(indexBackupPath))
 	}
+	fmt.Println()
+	
 	packAndSendExportSchemaPayload(COMPLETE, nil)
 
 	saveSourceDBConfInMSR()
@@ -294,7 +298,7 @@ func runAssessMigrationCmdBeforExportSchemaIfRequired(exportSchemaCmd *cobra.Com
 
 	var stderrBuf, stdoutBuf bytes.Buffer
 
-	utils.PrintAndLogfInfo("\nAssessing migration before exporting schema...")
+	utils.PrintAndLogfPhase("\nAssessing migration before exporting schema...")
 
 	// Invoke the assess-migration command as a subprocess
 	cmd := exec.Command(voyagerExecutable, append([]string{"assess-migration"}, assessFlagsWithValues...)...)
