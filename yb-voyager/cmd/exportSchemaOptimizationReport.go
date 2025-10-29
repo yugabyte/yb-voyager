@@ -197,10 +197,10 @@ func NewAppliedColocationRecommendationChange(objectType string, applied bool, r
 	}
 }
 
-func NewAppliedColocationRecommendationChangeWhenAssessRunViaExport() *ColocationRecommendationChange {
+func NewNotAppliedColocationRecommendationChangeWhenAssessNotDoneDirectly() *ColocationRecommendationChange {
 	return &ColocationRecommendationChange{
 		Title:             "Colocation Recommendations - Not Applied",
-		Description:       "Colocation recommendations were not applied since assessment was done via export schema command. Run the 'assess-migration' command explicitly to produce precise recommendations and re run the 'export schema' command to apply them.",
+		Description:       "Colocation recommendations were not applied since assessment was not run on the source database. Run the 'assess-migration' command explicitly to produce precise recommendations and re run the 'export schema' command to apply them.",
 		ReferenceFile:     "",
 		ShardedObjects:    nil,
 		CollocatedObjects: nil,
@@ -361,12 +361,12 @@ func buildRedundantIndexChange(indexTransformer *sqltransformer.IndexFileTransfo
 	return NewRedundantIndexChange(!bool(skipPerfOptimizations), redundantIndexesFile, getTableToIndexMap(redundantIndexes))
 }
 
-func buildColocationTableRecommendationChange(shardedTables []string, colocatedTables []string, assessViaExportSchema bool) *ColocationRecommendationChange {
+func buildColocationTableRecommendationChange(shardedTables []string, colocatedTables []string, isMigrationAssessmentDoneDirectly bool) *ColocationRecommendationChange {
 	if !assessmentRecommendationsApplied { //If assessment recommendations not applied and skip recommendations is true, then show that its not applied
 		if skipRecommendations {
 			return NewAppliedColocationRecommendationChange("", false, "", nil, nil) // Dummy entry for both table and mview as no need to show two
-		} else if assessViaExportSchema {
-			return NewAppliedColocationRecommendationChangeWhenAssessRunViaExport() // Dummy entry for both table and mview as no need to show two
+		} else if !isMigrationAssessmentDoneDirectly {
+			return NewNotAppliedColocationRecommendationChangeWhenAssessNotDoneDirectly() // Dummy entry for both table and mview as no need to show two
 		}
 		return nil
 	}
@@ -443,12 +443,12 @@ func generatePerformanceOptimizationReport(indexTransformer *sqltransformer.Inde
 	)
 	schemaOptimizationReport.RedundantIndexChange = buildRedundantIndexChange(indexTransformer)
 
-	assessViaExportSchema, err := IsMigrationAssessmentDoneViaExportSchema()
+	isMigrationAssessmentDoneDirectly, err := IsMigrationAssessmentDoneDirectly(metaDB)
 	if err != nil {
 		return fmt.Errorf("failed to check if migration assessment is done via export schema: %w", err)
 	}
 
-	schemaOptimizationReport.TableColocationRecommendation = buildColocationTableRecommendationChange(shardedTables, colocatedTables, assessViaExportSchema)
+	schemaOptimizationReport.TableColocationRecommendation = buildColocationTableRecommendationChange(shardedTables, colocatedTables, isMigrationAssessmentDoneDirectly)
 	schemaOptimizationReport.MviewColocationRecommendation = buildColocationMviewRecommendationChange(shardedMviews, colocatedMviews)
 	schemaOptimizationReport.SecondaryIndexToRangeChange = buildSecondaryIndexToRangeChange(indexTransformer)
 

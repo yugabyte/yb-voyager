@@ -184,7 +184,7 @@ func exportSchema(cmd *cobra.Command) error {
 		return fmt.Errorf("failed to update indexes info metadata db: %w", err)
 	}
 
-	modifiedTables, modifiedMviews, colocatedTables, colocatedMviews, err := applyMigrationAssessmentRecommendations()
+	modifiedTables, modifiedMviews, colocatedTables, colocatedMviews, tableBackupPath, mviewBackupPath, err := applyMigrationAssessmentRecommendations()
 	if err != nil {
 		return fmt.Errorf("failed to apply migration assessment recommendation to the schema files: %w", err)
 	}
@@ -205,7 +205,7 @@ func exportSchema(cmd *cobra.Command) error {
 		utils.PrintAndLogfInfo("Merged Primary Key and Check constraint definitions into CREATE TABLE statements of the exported tables for improving the import schema performance.")
 	}
 
-	indexTransformer, err := applyIndexFileTransformations()
+	indexTransformer, indexBackupPath, err := applyIndexFileTransformations()
 	if err != nil {
 		return fmt.Errorf("failed to apply index file transformations: %w", err)
 	}
@@ -214,7 +214,15 @@ func exportSchema(cmd *cobra.Command) error {
 		return fmt.Errorf("failed to generate performance optimization %w", err)
 	}
 	utils.PrintAndLogfSuccess("\nExported schema files created under directory: %s\n\n", utils.PathColor.Sprintf(filepath.Join(exportDir, "schema")))
-
+	if utils.FileOrFolderExists(tableBackupPath) {
+		utils.PrintAndLogfInfo("Original TABLE DDLs are backed up at: %s", utils.PathColor.Sprintf(tableBackupPath))
+	}
+	if utils.FileOrFolderExists(mviewBackupPath) {
+		utils.PrintAndLogfInfo("Original MVIEW DDLs are backed up at: %s", utils.PathColor.Sprintf(mviewBackupPath))
+	}
+	if utils.FileOrFolderExists(indexBackupPath) {
+		utils.PrintAndLogfInfo("Original INDEX DDLs are backed up at: %s", utils.PathColor.Sprintf(indexBackupPath))
+	}
 	packAndSendExportSchemaPayload(COMPLETE, nil)
 
 	saveSourceDBConfInMSR()
@@ -398,23 +406,23 @@ func updateIndexesInfoInMetaDB() error {
 	return nil
 }
 
-func applyMigrationAssessmentRecommendations() ([]string, []string, []string, []string, error) {
+func applyMigrationAssessmentRecommendations() ([]string, []string, []string, []string, string, string, error) {
 	if skipRecommendations {
 		log.Infof("not apply recommendations due to flag --skip-colocation-recommendations=true")
-		return nil, nil, nil, nil, nil
+		return nil, nil, nil, nil, "", "", nil
 	} else if source.DBType == MYSQL {
-		return nil, nil, nil, nil, nil
+		return nil, nil, nil, nil, "", "", nil
 	}
 
 	assessViaExportSchema, err := IsMigrationAssessmentDoneViaExportSchema()
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("failed to check if migration assessment is done via export schema: %w", err)
+		return nil, nil, nil, nil, "", "", fmt.Errorf("failed to check if migration assessment is done via export schema: %w", err)
 	}
 
 	if !bool(skipRecommendations) && assessViaExportSchema {
 		//utils.PrintAndLog(`Recommendations generated but not applied. Run the "assess-migration" command explicitly to produce precise recommendations and apply them.`)
 		// utils.PrintAndLog(utils.Warning.Sprintf(`Colocation Recommendations are not applied
-		return nil, nil, nil, nil, nil
+		return nil, nil, nil, nil, "", "", nil
 	}
 
 	// TODO: copy the reports to "export-dir/assessment/reports" for further usage
@@ -423,41 +431,41 @@ func applyMigrationAssessmentRecommendations() ([]string, []string, []string, []
 	log.Infof("using assessmentReportPath: %s", assessmentReportPath)
 	if !utils.FileOrFolderExists(assessmentReportPath) {
 		utils.PrintAndLog("migration assessment report file doesn't exists at %q, skipping apply recommendations step...", assessmentReportPath)
-		return nil, nil, nil, nil, nil
+		return nil, nil, nil, nil, "", "", nil
 	}
 
 	log.Infof("parsing assessment report json file for applying recommendations")
 	report, err := ParseJSONToAssessmentReport(assessmentReportPath)
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("failed to parse json report file %q: %w", assessmentReportPath, err)
+		return nil, nil, nil, nil, "", "", fmt.Errorf("failed to parse json report file %q: %w", assessmentReportPath, err)
 	}
 
 	var modifiedTables, modifiedMviews, colocatedTables, colocatedMviews []string
+	var tableBackupPath, mviewBackupPath string
 	shardedTables, err := report.GetShardedTablesRecommendation()
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("failed to fetch sharded tables recommendation: %w", err)
+		return nil, nil, nil, nil, "", "", fmt.Errorf("failed to fetch sharded tables recommendation: %w", err)
 	} else {
-		modifiedTables, colocatedTables, err = applyShardedTablesRecommendation(shardedTables, TABLE)
+		modifiedTables, colocatedTables, tableBackupPath, err = applyShardedTablesRecommendation(shardedTables, TABLE)
 		if err != nil {
-			return nil, nil, nil, nil, fmt.Errorf("failed to apply colocated vs sharded table recommendation: %w", err)
+			return nil, nil, nil, nil, "", "", fmt.Errorf("failed to apply colocated vs sharded table recommendation: %w", err)
 		}
-		modifiedMviews, colocatedMviews, err = applyShardedTablesRecommendation(shardedTables, MVIEW)
+		modifiedMviews, colocatedMviews, mviewBackupPath, err = applyShardedTablesRecommendation(shardedTables, MVIEW)
 		if err != nil {
-			return nil, nil, nil, nil, fmt.Errorf("failed to apply colocated vs sharded table recommendation: %w", err)
+			return nil, nil, nil, nil, "", "", fmt.Errorf("failed to apply colocated vs sharded table recommendation: %w", err)
 		}
 	}
 
 	assessmentRecommendationsApplied = true
 	SetAssessmentRecommendationsApplied()
 
-	// utils.PrintAndLog("Applied assessment recommendations.")
-	return modifiedTables, modifiedMviews, colocatedTables, colocatedMviews, nil
+	return modifiedTables, modifiedMviews, colocatedTables, colocatedMviews, tableBackupPath, mviewBackupPath, nil
 }
 
-func applyShardedTablesRecommendation(shardedTables []string, objType string) ([]string, []string, error) {
+func applyShardedTablesRecommendation(shardedTables []string, objType string) ([]string, []string, string, error) {
 	if shardedTables == nil {
 		log.Info("list of sharded tables is null hence all the tables are recommended as colocated")
-		return nil, nil, nil
+		return nil, nil, "", nil
 	}
 
 	filePath := utils.GetObjectFilePath(schemaDir, objType)
@@ -467,7 +475,7 @@ func applyShardedTablesRecommendation(shardedTables []string, objType string) ([
 			utils.PrintAndLog("Required schema file %s does not exists, "+
 				"returning without applying colocated/sharded tables recommendation", filePath)
 		}
-		return nil, nil, nil
+		return nil, nil, "", nil
 	}
 
 	log.Infof("applying colocated vs sharded tables recommendation")
@@ -504,7 +512,7 @@ func applyShardedTablesRecommendation(shardedTables []string, objType string) ([
 
 		_, err = newSQLFileContent.WriteString(modifiedSqlStmt + "\n\n")
 		if err != nil {
-			return nil, nil, fmt.Errorf("write SQL string to string builder: %w", err)
+			return nil, nil, "", fmt.Errorf("write SQL string to string builder: %w", err)
 		}
 	}
 
@@ -513,20 +521,20 @@ func applyShardedTablesRecommendation(shardedTables []string, objType string) ([
 	log.Infof("renaming existing file '%s' --> '%s.orig'", filePath, backupPath)
 	err := os.Rename(filePath, filePath+".orig")
 	if err != nil {
-		return nil, nil, fmt.Errorf("error renaming file %s: %w", filePath, err)
+		return nil, nil, "", fmt.Errorf("error renaming file %s: %w", filePath, err)
 	}
 
 	// create new table.sql file for modified schema
 	log.Infof("creating file %q to store the modified recommended schema", filePath)
 	file, err := os.Create(filePath)
 	if err != nil {
-		return nil, nil, fmt.Errorf("error creating file '%q' storing the modified recommended schema: %w", filePath, err)
+		return nil, nil, "", fmt.Errorf("error creating file '%q' storing the modified recommended schema: %w", filePath, err)
 	}
 	if _, err = file.WriteString(newSQLFileContent.String()); err != nil {
-		return nil, nil, fmt.Errorf("error writing to file '%q' storing the modified recommended schema: %w", filePath, err)
+		return nil, nil, "", fmt.Errorf("error writing to file '%q' storing the modified recommended schema: %w", filePath, err)
 	}
 	if err = file.Close(); err != nil {
-		return nil, nil, fmt.Errorf("error closing file '%q' storing the modified recommended schema: %w", filePath, err)
+		return modifiedObjects, colocatedObjects, "", fmt.Errorf("error closing file '%q' storing the modified recommended schema: %w", filePath, err)
 	}
 	// var objTypeName = ""
 	// switch objType {
@@ -539,10 +547,11 @@ func applyShardedTablesRecommendation(shardedTables []string, objType string) ([
 	// }
 
 	// utils.PrintAndLog("Modified CREATE %s statements in %q according to the colocation and sharding recommendations of the assessment report.",
+
 	// 	objTypeName,
 	// 	utils.GetRelativePathFromCwd(filePath))
 	// utils.PrintAndLog("The original DDLs have been preserved in %q for reference.", utils.GetRelativePathFromCwd(backupPath))
-	return modifiedObjects, colocatedObjects, nil
+	return modifiedObjects, colocatedObjects, backupPath, nil
 }
 
 /*
@@ -726,17 +735,17 @@ func applyTableFileTransformations() (*sqltransformer.TableFileTransformer, erro
 	return tableTransformer, nil
 }
 
-func applyIndexFileTransformations() (*sqltransformer.IndexFileTransformer, error) {
+func applyIndexFileTransformations() (*sqltransformer.IndexFileTransformer, string, error) {
 
 	if source.DBType != POSTGRESQL {
 		log.Infof("skipping index file transformations for source db type %s", source.DBType)
-		return nil, nil
+		return nil, "", nil
 	}
 
 	indexFilePath := utils.GetObjectFilePath(schemaDir, INDEX)
 	if !utils.FileOrFolderExists(indexFilePath) {
 		log.Infof("INDEX file doesn't exists, skipping index file transformations")
-		return nil, nil
+		return nil, "", nil
 	}
 
 	//fetching redundanant indexes from assessment db
@@ -748,9 +757,9 @@ func applyIndexFileTransformations() (*sqltransformer.IndexFileTransformer, erro
 	if err != nil {
 		if skipPerfOptimizations {
 			log.Infof("skipping error while fetching redundant index map from assessment db: %v", err)
-			return nil, nil
+			return nil, "", nil
 		}
-		return nil, fmt.Errorf("failed to fetch redundant index map from assessment db: %w\n%s", err, sqltransformer.SUGGESTION_TO_USE_SKIP_PERF_OPTIMIZATIONS_FLAG)
+		return nil, "", fmt.Errorf("failed to fetch redundant index map from assessment db: %w\n%s", err, sqltransformer.SUGGESTION_TO_USE_SKIP_PERF_OPTIMIZATIONS_FLAG)
 	}
 	indexTransformer := sqltransformer.NewIndexFileTransformer(redundantIndexToResolvedExistingIndex, bool(skipPerfOptimizations), source.DBType)
 
@@ -763,11 +772,11 @@ func applyIndexFileTransformations() (*sqltransformer.IndexFileTransformer, erro
 			log.Infof("skipping error while transforming file %s: %v", indexFilePath, err)
 			errMsg = nil
 		}
-		return nil, errMsg
+		return nil, "", errMsg
 	}
 	log.Infof("Schema modifications are applied to INDEX DDLs and the original file is backed up to %s", backUpFile)
 
-	return indexTransformer, nil
+	return indexTransformer, backUpFile, nil
 }
 
 func fetchRedundantIndexMapFromAssessmentDB() (*utils.StructMap[*sqlname.ObjectNameQualifiedWithTableName, string], error) {
