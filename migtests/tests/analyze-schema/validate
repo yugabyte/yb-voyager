@@ -75,6 +75,11 @@ def validate_report_issues(report, expected_issues):
 	print("Ensure that all the expected issues are reported.")
 	for expected_issue in expected_issues:
 		assert expected_issue in report["Issues"], f"expected issue is not reported: {expected_issue}"
+  
+	# Do reverse matching to ensure that no extra issues are reported.
+	for reported_issue in report["Issues"]:
+		assert reported_issue in expected_issues, f"extra issue is reported: {reported_issue}"
+    
 
 	print ("Length of expected issues:", len(expected_issues))
 	print ("Length of reported issues:", len(report["Issues"]))
