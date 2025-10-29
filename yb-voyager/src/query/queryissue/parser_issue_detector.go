@@ -526,8 +526,8 @@ func (p *ParserIssueDetector) PopulateObjectUsages(objectUsagesStats []*types.Ob
 	objectUsageStatsMap := make(map[string]*ObjectUsageCategory)
 	for _, objectUsageStat := range objectUsagesStats {
 		objectUsage := NewObjectUsage(objectUsageStat.SchemaName, objectUsageStat.ObjectName, objectUsageStat.ObjectType, objectUsageStat.ParentTableName, objectUsageStat.Scans, objectUsageStat.Inserts, objectUsageStat.Updates, objectUsageStat.Deletes)
-		objectUsage.ReadUsage = GetUsageCategory(objectUsageStat.Scans, maxReads)
-		objectUsage.WriteUsage = GetUsageCategory(objectUsageStat.TotalWrites(), maxWrites)
+		objectUsage.ReadUsage = GetReadUsageCategory(objectUsageStat.Scans, maxReads)
+		objectUsage.WriteUsage = GetWriteUsageCategory(objectUsageStat.TotalWrites(), maxWrites)
 		objectUsage.Usage = GetCombinedUsageCategory(objectUsage.ReadUsage, objectUsage.WriteUsage)
 		objectUsageStatsMap[objectUsageStat.GetObjectName()] = objectUsage
 	}

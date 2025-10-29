@@ -50,7 +50,8 @@ const (
 	OBJECT_USAGE_THRESHOLD_FREQUENT = 0.70 // >= 70% of max usage
 	OBJECT_USAGE_THRESHOLD_MODERATE = 0.10 // >= 10% of max usage and < 70% of max usage
 	//anything between 0 and 10% is considered as rare
-	OBJECT_USAGE_THRESHOLD_UNUSED = 0.00 // 0% is unused
+	OBJECT_SCAN_THRESHOLD_UNUSED  = 5 // <= 5 scans is considered as unused
+	OBJECT_USAGE_THRESHOLD_UNUSED = 0 // 0 usage is considered as unused
 )
 
 type ObjectUsageCategory struct {
@@ -87,7 +88,18 @@ func GetCombinedUsageCategory(a, b string) string {
 	return ObjectUsageCategoryUnused
 }
 
-func GetUsageCategory(usage int64, maxUsage int64) string {
+func GetReadUsageCategory(scans int64, maxScans int64) string {
+	if scans <= OBJECT_SCAN_THRESHOLD_UNUSED {
+		return ObjectUsageCategoryUnused
+	}
+	return getUsageCategory(scans, maxScans)
+}
+
+func GetWriteUsageCategory(rowsWritten int64, maxRowsWritten int64) string {
+	return getUsageCategory(rowsWritten, maxRowsWritten)
+}
+
+func getUsageCategory(usage int64, maxUsage int64) string {
 	//if maxUsage is 0 itself, all objects are unused
 	if maxUsage <= 0 {
 		return ObjectUsageCategoryUnused
