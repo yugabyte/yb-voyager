@@ -51,7 +51,7 @@ var allowedGlobalConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"export-dir", "log-level", "send-diagnostics",
 	"profile",
 	// environment variables keys
-	"control-plane-type", "yugabyted-db-conn-string", "java-home",
+	"control-plane-type", "java-home",
 	"local-call-home-service-host", "local-call-home-service-port",
 	"yb-tserver-port", "tns-admin",
 )
@@ -73,6 +73,14 @@ var allowedSourceReplicaConfigKeys = mapset.NewThreadUnsafeSet[string](
 var allowedTargetConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"name", "db-host", "db-port", "db-user", "db-password", "db-name",
 	"db-schema", "ssl-cert", "ssl-mode", "ssl-key", "ssl-root-cert", "ssl-crl",
+)
+
+var allowedYugabytedControlPlaneConfigKeys = mapset.NewThreadUnsafeSet[string](
+	"db-conn-string",
+)
+
+var allowedYBMControlPlaneConfigKeys = mapset.NewThreadUnsafeSet[string](
+	"domain", "account-id", "project-id", "cluster-id", "api-key",
 )
 
 var allowedAssessMigrationConfigKeys = mapset.NewThreadUnsafeSet[string](
@@ -198,6 +206,8 @@ var allowedConfigSections = map[string]mapset.Set[string]{
 	"source":                           allowedSourceConfigKeys,
 	"source-replica":                   allowedSourceReplicaConfigKeys,
 	"target":                           allowedTargetConfigKeys,
+	"yugabyted-control-plane":          allowedYugabytedControlPlaneConfigKeys,
+	"ybm-control-plane":                allowedYBMControlPlaneConfigKeys,
 	"assess-migration":                 allowedAssessMigrationConfigKeys,
 	"analyze-schema":                   allowedAnalyzeSchemaConfigKeys,
 	"export-schema":                    allowedExportSchemaConfigKeys,
@@ -251,19 +261,19 @@ initConfig initializes the configuration for the given Cobra command.
 
 	This setup ensures CLI > Config precedence
 */
-func initConfig(cmd *cobra.Command) ([]ConfigFlagOverride, []EnvVarSetViaConfig, map[string]string, error) {
+func initConfig(cmd *cobra.Command) ([]ConfigFlagOverride, []EnvVarSetViaConfig, map[string]string, *viper.Viper, error) {
 	v := viper.New()
 	v.SetConfigType("yaml")
 
 	if cfgFile != "" {
 		// Use config file from the flag.
 		if !utils.FileOrFolderExists(cfgFile) {
-			return nil, nil, nil, fmt.Errorf("config file does not exist: %s", cfgFile)
+			return nil, nil, nil, nil, fmt.Errorf("config file does not exist: %s", cfgFile)
 		}
 
 		cfgFile, err := filepath.Abs(cfgFile)
 		if err != nil {
-			return nil, nil, nil, fmt.Errorf("failed to get absolute path for config file: %s: %w", cfgFile, err)
+			return nil, nil, nil, nil, fmt.Errorf("failed to get absolute path for config file: %s: %w", cfgFile, err)
 		}
 		cfgFile = filepath.Clean(cfgFile)
 
@@ -276,40 +286,40 @@ func initConfig(cmd *cobra.Command) ([]ConfigFlagOverride, []EnvVarSetViaConfig,
 		fmt.Println("Using config file:", color.BlueString(v.ConfigFileUsed()))
 	} else {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-			return nil, nil, nil, fmt.Errorf("%w\nHint: Check for YAML issues like missing colons, missing spaces after colons, or inconsistent indentation.", err)
+			return nil, nil, nil, nil, fmt.Errorf("%w\nHint: Check for YAML issues like missing colons, missing spaces after colons, or inconsistent indentation.", err)
 		}
 	}
 
 	// Validate the config file for allowed keys and sections
 	err := validateConfigFile(v)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 
 	// Bind the config values to the Cobra command flags
 	overrides, err := bindCobraFlagsToViper(cmd, v)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to bind cobra flags to viper: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("failed to bind cobra flags to viper: %w", err)
 	}
 
 	envVarsSetViaConfig, envVarsAlreadyExported, err := bindEnvVarsToViper(cmd, v)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to bind environment variables to viper: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("failed to bind environment variables to viper: %w", err)
 	}
 
-	return overrides, envVarsSetViaConfig, envVarsAlreadyExported, nil
+	return overrides, envVarsSetViaConfig, envVarsAlreadyExported, v, nil
 }
 
 // map of string environment variable names to their config keys
 var confParamEnvVarPairs = map[string]string{
-	"control-plane-type":           "CONTROL_PLANE_TYPE",
-	"yugabyted-db-conn-string":     "YUGABYTED_DB_CONN_STRING",
-	"java-home":                    "JAVA_HOME",
-	"local-call-home-service-host": "LOCAL_CALL_HOME_SERVICE_HOST",
-	"local-call-home-service-port": "LOCAL_CALL_HOME_SERVICE_PORT",
-	"yb-tserver-port":              "YB_TSERVER_PORT",
-	"tns-admin":                    "TNS_ADMIN",
-	"send-diagnostics":             "YB_VOYAGER_SEND_DIAGNOSTICS",
+	"control-plane-type":                     "CONTROL_PLANE_TYPE",
+	"yugabyted-control-plane.db-conn-string": "YUGABYTED_DB_CONN_STRING", // Backward compatibility
+	"java-home":                              "JAVA_HOME",
+	"local-call-home-service-host":           "LOCAL_CALL_HOME_SERVICE_HOST",
+	"local-call-home-service-port":           "LOCAL_CALL_HOME_SERVICE_PORT",
+	"yb-tserver-port":                        "YB_TSERVER_PORT",
+	"tns-admin":                              "TNS_ADMIN",
+	"send-diagnostics":                       "YB_VOYAGER_SEND_DIAGNOSTICS",
 
 	"source.db-password": "SOURCE_DB_PASSWORD",
 

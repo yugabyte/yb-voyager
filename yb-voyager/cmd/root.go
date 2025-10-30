@@ -29,6 +29,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+	"github.com/spf13/viper"
 	"github.com/tebeka/atexit"
 	"golang.org/x/exp/slices"
 
@@ -36,6 +37,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/config"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp/noopcp"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp/ybm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp/yugabyted"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/lockfile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -54,6 +56,7 @@ var (
 	controlPlane                       cp.ControlPlane
 	currentCommand                     string
 	callHomeErrorOrCompletePayloadSent bool
+	controlPlaneConfig                 map[string]string // Holds control plane configuration from config file
 )
 
 var envVarValuesToObfuscateInLogs = []string{
@@ -76,7 +79,7 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		// Initialize the config file
-		overrides, envVarsSetViaConfig, envVarsAlreadyExported, err := initConfig(cmd)
+		overrides, envVarsSetViaConfig, envVarsAlreadyExported, viperInstance, err := initConfig(cmd)
 		if err != nil {
 			// not using utils.ErrExit as logging is not initialized yet
 			fmt.Printf("ERROR: Failed to initialize config: %v\n", err)
@@ -163,6 +166,8 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			if perfProfile {
 				go startPprofServer()
 			}
+			// Load control plane configuration from config file
+			loadControlPlaneConfig(viperInstance)
 			err = setControlPlane(getControlPlaneType())
 			if err != nil {
 				utils.ErrExit("ERROR: setting up control plane: %w", err)
@@ -412,25 +417,72 @@ func metaDBIsCreated(exportDir string) bool {
 func setControlPlane(cpType string) error {
 	switch cpType {
 	case "":
-		log.Infof("'CONTROL_PLANE_TYPE' environment variable not set. Setting cp to NoopControlPlane.")
+		log.Infof("'control-plane-type' not set. Setting cp to NoopControlPlane.")
 		controlPlane = noopcp.New()
 	case YUGABYTED:
 		ybdConnString := os.Getenv("YUGABYTED_DB_CONN_STRING")
 		if ybdConnString == "" {
-			return fmt.Errorf("yugabyted-db-conn-string config param (or YUGABYTED_DB_CONN_STRING environment variable) needs to be set if control plane type is 'yugabyted'.")
+			return fmt.Errorf("yugabyted-control-plane.db-conn-string config param (or YUGABYTED_DB_CONN_STRING environment variable) needs to be set if control plane type is 'yugabyted'.")
 		}
 		controlPlane = yugabyted.New(exportDir)
 		log.Infof("Migration UUID %s", migrationUUID)
 		err := controlPlane.Init()
 		if err != nil {
-			return fmt.Errorf("initialize the target DB for visualization. %w", err)
+			return fmt.Errorf("initialize yugabyted control plane for visualization: %w", err)
 		}
+		log.Infof("Yugabyted control plane initialized successfully")
+	case YBM:
+		// Get YBM config from nested section
+		domain := controlPlaneConfig["ybm-control-plane.domain"]
+		accountID := controlPlaneConfig["ybm-control-plane.account-id"]
+		projectID := controlPlaneConfig["ybm-control-plane.project-id"]
+		clusterID := controlPlaneConfig["ybm-control-plane.cluster-id"]
+		apiKey := controlPlaneConfig["ybm-control-plane.api-key"]
+
+		ybmConfig := &ybm.YBMConfig{
+			Domain:    domain,
+			AccountID: accountID,
+			ProjectID: projectID,
+			ClusterID: clusterID,
+			APIKey:    apiKey,
+		}
+
+		controlPlane = ybm.New(exportDir, ybmConfig)
+		log.Infof("Migration UUID %s", migrationUUID)
+		err := controlPlane.Init()
+		if err != nil {
+			return fmt.Errorf("initialize YBM control plane for visualization: %w", err)
+		}
+		log.Infof("YBM control plane initialized successfully")
 	default:
-		return fmt.Errorf("invalid value of control plane type: %q. Allowed values: %v", cpType, []string{YUGABYTED})
+		return fmt.Errorf("invalid value of control plane type: %q. Allowed values: %v", cpType, []string{YUGABYTED, YBM})
 	}
 	return nil
 }
 
 func getControlPlaneType() string {
 	return os.Getenv("CONTROL_PLANE_TYPE")
+}
+
+// loadControlPlaneConfig reads control plane configuration from viper instance
+func loadControlPlaneConfig(v *viper.Viper) {
+	controlPlaneConfig = make(map[string]string)
+
+	// Read all control plane config keys directly from viper
+	controlPlaneKeys := []string{
+		"yugabyted-control-plane.db-conn-string",
+		"ybm-control-plane.domain",
+		"ybm-control-plane.account-id",
+		"ybm-control-plane.project-id",
+		"ybm-control-plane.cluster-id",
+		"ybm-control-plane.api-key",
+	}
+
+	for _, key := range controlPlaneKeys {
+		if v.IsSet(key) {
+			controlPlaneConfig[key] = v.GetString(key)
+		}
+	}
+
+	log.Debugf("Control plane config loaded: %d keys", len(controlPlaneConfig))
 }

@@ -15,7 +15,9 @@ limitations under the License.
 */
 package yugabyted
 
-import "github.com/google/uuid"
+import (
+	"github.com/google/uuid"
+)
 
 // Table metrics for both Export and Import steps.
 type VisualizerTableMetrics struct {
@@ -27,13 +29,6 @@ type VisualizerTableMetrics struct {
 	CountLiveRows       int64     `json:"count_live_rows"`
 	CountTotalRows      int64     `json:"count_total_rows"`
 	InvocationTimestamp string    `json:"invocation_timestamp"`
-}
-
-var UPDATE_ROW_COUNT_STATUS_STR_TO_INT = map[string]int{
-	"NOT STARTED": 0,
-	"IN PROGRESS": 1,
-	"DONE":        2,
-	"COMPLETED":   3,
 }
 
 // Create a table metrics struct

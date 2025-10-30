@@ -18,15 +18,33 @@ log-level: info
 ### To see the Voyager migration workflow details in the UI, set the following parameters.
 
 ### Control plane type refers to the deployment type of YugabyteDB
-### Accepted value - (yugabyted)
-### Optional
-control-plane-type: yugabyted  
+### Accepted values: yugabyted, ybm
+### Optional (if not set, no visualization will be available)
+# control-plane-type: yugabyted
 
-### YSQL connection string
-### Provide the standard PostgreSQL connection parameters, including user name, host name, and port. For example, postgresql://yugabyte:yugabyte@127.0.0.1:5433
-### Note: Don't include the dbname parameter in the connection string; the default yugabyte database is used to store the meta information for showing the migration in the yugabyted UI.
-### Required if control-plane-type is set to yugabyted
-yugabyted-db-conn-string: postgresql://yugabyte:yugabyte@127.0.0.1:5433                           
+### Yugabyted Control Plane Configuration (for local yugabyted clusters)
+### Uncomment the section below if control-plane-type is 'yugabyted'
+# yugabyted-control-plane:
+#   ### YSQL connection string to yugabyted database
+#   ### Provide standard PostgreSQL connection parameters: user name, host name, and port
+#   ### Example: postgresql://yugabyte:yugabyte@127.0.0.1:5433
+#   ### Note: Don't include the dbname parameter; the default 'yugabyte' database is used for metadata
+#   db-conn-string: postgresql://yugabyte:yugabyte@127.0.0.1:5433
+
+### YBM Control Plane Configuration (for YugabyteDB Managed clusters)
+### Uncomment the section below if control-plane-type is 'ybm'
+# ybm-control-plane:
+#   ### YBM environment domain
+#   ### Options: https://cloud.yugabyte.com (production), https://cloudportal.yugabyte.com (portal), https://devcloud.yugabyte.com (dev)
+#   domain: https://cloud.yugabyte.com
+#   ### Account ID from YBM profile menu (top right corner)
+#   account-id: <your-account-id>
+#   ### Project ID from YBM profile menu (top right corner)
+#   project-id: <your-project-id>
+#   ### Cluster ID from cluster list or cluster settings
+#   cluster-id: <your-cluster-id>
+#   ### API Key from Security -> API Keys
+#   api-key: <your-api-key>                           
 
 # ---------------------------------------------------------
 # Source Database Configuration
