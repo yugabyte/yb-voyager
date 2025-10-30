@@ -158,7 +158,7 @@ type AssessmentIssueCallhome struct {
 	Impact              string                 `json:"impact"`
 	ObjectType          string                 `json:"object_type"`
 	ObjectName          string                 `json:"object_name"`
-	ObjectUsage         string                 `json:"object_usage"`
+	ObjectUsage         string                 `json:"object_usage,omitempty"`
 	SqlStatement        string                 `json:"sql_statement,omitempty"`
 	Details             map[string]interface{} `json:"details,omitempty"`
 }
