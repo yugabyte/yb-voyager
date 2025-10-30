@@ -596,7 +596,7 @@
   {{ $collapseButton := "collapseAllButton" }}
 
   {{ if .onlyPerf }}
-    {{ $heading = "Performance Optimzations" }}
+    {{ $heading = "Performance Optimizations" }}
     {{ $issues = getPerformanceOptimizationIssues .Issues }}
     {{ $totalCountKeyWord = "Total optimizations" }}
     {{ $issueKeyword = "Optimization" }}
@@ -622,12 +622,17 @@
                 <!-- Summary Row Header for the issue -->
                 <colgroup>
                     {{ $issueWidth := "40%" }}
+                    {{ $objectWidth := "40%;"}}
                     {{ if not .onlyPerf }}
                         <col style="width: 20%;"> <!-- Category + arrow -->
                         {{ $issueWidth = "20%" }}
+                        {{ $objectWidth = "50%" }}
                     {{ end }}
                     <col style="width: {{ $issueWidth }};"> <!-- Issue Name -->
-                    <col style="width: 50%;"> <!-- Object/SQL Preview -->
+                    <col style="width: {{ $objectWidth}}"> <!-- Object/SQL Preview -->
+                    {{ if .onlyPerf }}
+                        <col style="width: 10%;"> <!-- Object Usage -->
+                    {{ end }}
                     <col style="width: 10%;"> <!-- Impact -->
                 </colgroup>
                 <thead>
@@ -641,6 +646,11 @@
                             {{ $issueKeyword }} <span class="sort-indicator">&#8597;</span>
                         </th>
                         <th class="centered-cell">Object/SQL Preview</th>
+                        {{ if .onlyPerf }}
+                            <th class="centered-cell" style="cursor: pointer; text-align: center;"">
+                                Object Usage
+                            </th>
+                        {{ end }}
                         <th class="centered-cell" style="cursor: pointer; text-align: center;" onclick="sortTableBy('impact', {{ .onlyPerf }})">
                             Impact <span class="sort-indicator">&#8597;</span>
                         </th>
@@ -688,6 +698,9 @@
                                     {{ getSqlPreview $issue.SqlStatement }}
                                 {{ end }}
                             </td>
+                            {{ if $onlyPerf }}
+                                <td class="centered-cell" style="text-align: center;">{{ $issue.ObjectUsage }}</td>
+                            {{ end }}
                             <td class="centered-cell" style="text-align: center;">{{ snakeCaseToTitleCase $issue.Impact }}</td>
                         </tr>
 
@@ -786,6 +799,28 @@
                 {{ end }}
             </table>
 
+            {{ if .onlyPerf }}
+                <div style="margin-top: 10px; line-height: 1.6;">
+                    <strong>Object Usage Categories:</strong>
+                    <ul style="margin-top: 6px; padding-left: 20px;">
+                        <li>
+                        <strong>FREQUENT:</strong> High-priority objects that account for the majority of workload activity 
+                        <em>(top ~70%)</em>
+                        </li>
+                        <li>
+                        <strong>MODERATE:</strong> Medium-priority objects with a balanced level of workload activity 
+                        <em>(within the 10-70% activity range)</em>
+                        </li>
+                        <li>
+                        <strong>RARE:</strong> Low-priority objects with infrequent access or minimal workload activity
+                        <em>(less than 10% of activity range)</em>
+                        </li>
+                        <li>
+                        <strong>UNUSED:</strong> Objects that show no workload activity.
+                        </li>
+                    </ul>
+                </div>
+            {{ end }}
         {{ else if not .onlyPerf }} 
             <p>No issues were found in the assessment.</p>
         {{ end }}

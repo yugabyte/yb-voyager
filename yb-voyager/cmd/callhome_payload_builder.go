@@ -225,7 +225,7 @@ func anonymizeAssessmentIssuesForCallhomePayload(assessmentIssues []AssessmentIs
 	var err error
 	anonymizedIssues := make([]callhome.AssessmentIssueCallhome, len(assessmentIssues))
 	for i, issue := range assessmentIssues {
-		anonymizedIssues[i] = callhome.NewAssessmentIssueCallhome(issue.Category, issue.CategoryDescription, issue.Type, issue.Name, issue.Impact, issue.ObjectType, issue.Details)
+		anonymizedIssues[i] = callhome.NewAssessmentIssueCallhome(issue.Category, issue.CategoryDescription, issue.Type, issue.Name, issue.Impact, issue.ObjectType, issue.Details, issue.ObjectUsage)
 
 		if shouldSkipAnonymization(issue) {
 			continue
