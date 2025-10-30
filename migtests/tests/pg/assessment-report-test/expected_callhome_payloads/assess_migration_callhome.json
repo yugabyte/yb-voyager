@@ -1174,7 +1174,7 @@
         "name": "Missing index on foreign key columns",
         "object_name": "",
         "object_type": "TABLE",
-        "object_usage": "RARE",
+        "object_usage": "UNUSED",
         "type": "MISSING_FOREIGN_KEY_INDEX"
       },
       {
