@@ -277,8 +277,8 @@ END $$;`,
 		t.Errorf("failed to parse json report file %q: %v", assessmentReportPath, err)
 	}
 
-	// fmt.Printf("Assessment report: %+v\n", report)
-	fmt.Printf("performance optimziations: %v\n", len(report.Issues))
+	assert.NotNil(t, report)
+	assert.Equal(t, 9, len(report.Issues))
 	expectedObjectToUsageCategory := map[string]string{
 		"test_schema.test_data":                                             "FREQUENT", //3 scan 100000 writes
 		"test_schema.test_data2":                                            "FREQUENT", //6000 scans 0 writes
@@ -301,5 +301,4 @@ END $$;`,
 		}
 		assert.Equal(t, expectedUsageCategory, issue.ObjectUsage, "expected usage category: %s, actual usage category: %s for object: %s", expectedUsageCategory, issue.ObjectUsage, issue.ObjectName)
 	}
-	assert.Nil(t, report)
 }
