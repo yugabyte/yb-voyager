@@ -396,6 +396,63 @@ func TestYugabyteFilterEmptyTables(t *testing.T) {
 	testutils.AssertEqualNameTuplesSlice(t, expectedEmptyTables, emptyTables)
 }
 
+func TestYugabyteGetAllTableColumnsInfo(t *testing.T) {
+	testYugabyteDBSource.TestContainer.ExecuteSqls(
+		`CREATE SCHEMA test_schema;`,
+
+		`CREATE TABLE test_schema.products (
+			id SERIAL PRIMARY KEY,
+			name VARCHAR(100) NOT NULL,
+			price NUMERIC(10, 2),
+			in_stock BOOLEAN,
+			created_at TIMESTAMP DEFAULT NOW()
+		);`,
+
+		`CREATE TABLE test_schema.orders (
+			order_id BIGINT PRIMARY KEY,
+			customer_id INT,
+			total DECIMAL(12, 2)
+		);`,
+	)
+	defer testYugabyteDBSource.TestContainer.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
+
+	ybDB := testYugabyteDBSource.DB().(*YugabyteDB)
+
+	tableList := []sqlname.NameTuple{
+		testutils.CreateNameTupleWithSourceName("test_schema.products", "test_schema", constants.YUGABYTEDB),
+		testutils.CreateNameTupleWithSourceName("test_schema.orders", "test_schema", constants.YUGABYTEDB),
+	}
+
+	allColumnsInfo, err := ybDB.getAllTableColumnsInfo(tableList)
+	assert.NilError(t, err, "Expected no error fetching table columns")
+	assert.Equal(t, 2, len(allColumnsInfo), "Expected column info for 2 tables")
+
+	// Verify products table columns and data types
+	productsTable := tableList[0]
+	productsInfo, exists := allColumnsInfo[productsTable]
+	assert.Equal(t, true, exists, "Expected products table in results")
+	assert.Equal(t, 5, len(productsInfo.Columns), "Expected 5 columns in products table")
+	assert.Equal(t, 5, len(productsInfo.DataTypes), "Expected 5 data types in products table")
+
+	// Verify column order matches table definition (ORDER BY attnum)
+	testutils.AssertEqualStringSlices(t, []string{"id", "name", "price", "in_stock", "created_at"}, productsInfo.Columns)
+	// Verify parallel arrays are aligned (columns[i] matches dataTypes[i])
+	assert.Equal(t, "int4", productsInfo.DataTypes[0], "id should be int4")
+	assert.Equal(t, "varchar", productsInfo.DataTypes[1], "name should be varchar")
+	assert.Equal(t, "numeric", productsInfo.DataTypes[2], "price should be numeric")
+
+	// Verify orders table
+	ordersTable := tableList[1]
+	ordersInfo, exists := allColumnsInfo[ordersTable]
+	assert.Equal(t, true, exists, "Expected orders table in results")
+	testutils.AssertEqualStringSlices(t, []string{"order_id", "customer_id", "total"}, ordersInfo.Columns)
+
+	// Test edge case: Empty table list
+	emptyResult, err := ybDB.getAllTableColumnsInfo([]sqlname.NameTuple{})
+	assert.NilError(t, err, "Expected no error for empty table list")
+	assert.Equal(t, 0, len(emptyResult), "Expected empty result for empty table list")
+}
+
 func TestYugabyteFilterUnsupportedUserDefinedDatatypes(t *testing.T) {
 	testYugabyteDBSource.TestContainer.ExecuteSqls(
 		`CREATE SCHEMA hr;`,
@@ -469,59 +526,94 @@ func TestYugabyteFilterUnsupportedUserDefinedDatatypes(t *testing.T) {
 	assert.Equal(t, 0, len(actualEmptyUDTs), "Expected empty list for empty table list")
 }
 
-func TestYugabyteGetAllTableColumnsInfo(t *testing.T) {
+// TestYugabyteGetColumnsWithSupportedTypes_UDT tests that UDT columns are correctly
+// identified as unsupported when using Debezium/streaming.
+// Verifies that getAllTableColumnsInfo returns qualified UDT names (e.g., "hr.contact") that
+// match the qualified names from filterUnsupportedUserDefinedDatatypes(), enabling correct filtering.
+func TestYugabyteGetColumnsWithSupportedTypes_UDT(t *testing.T) {
 	testYugabyteDBSource.TestContainer.ExecuteSqls(
-		`CREATE SCHEMA test_schema;`,
+		`CREATE SCHEMA hr;`,
+		`CREATE SCHEMA inventory;`,
 
-		`CREATE TABLE test_schema.products (
-			id SERIAL PRIMARY KEY,
-			name VARCHAR(100) NOT NULL,
-			price NUMERIC(10, 2),
-			in_stock BOOLEAN,
-			created_at TIMESTAMP DEFAULT NOW()
+		// Create composite types (UDTs)
+		`CREATE TYPE hr.contact AS (
+			phone VARCHAR,
+			email VARCHAR
+		);`,
+		`CREATE TYPE inventory.device_specs AS (
+			cpu VARCHAR,
+			ram INT
 		);`,
 
-		`CREATE TABLE test_schema.orders (
-			order_id BIGINT PRIMARY KEY,
-			customer_id INT,
-			total DECIMAL(12, 2)
+		// Create ENUM type
+		`CREATE TYPE hr.status_enum AS ENUM ('active', 'inactive', 'pending');`,
+
+		// Case 1: Table with composite UDT and regular columns
+		`CREATE TABLE hr.employees (
+			id SERIAL PRIMARY KEY,
+			name VARCHAR,
+			age INT,
+			contact_info hr.contact,
+			department VARCHAR
+		);`,
+
+		// Case 2: Cross-schema usage with multiple column types
+		`CREATE TABLE hr.employee_devices (
+			employee_id INT,
+			device_name VARCHAR,
+			device_details inventory.device_specs,
+			status hr.status_enum
+		);`,
+
+		// Case 3: Table with only regular columns (no UDTs)
+		`CREATE TABLE hr.projects (
+			id INT PRIMARY KEY,
+			name VARCHAR,
+			budget NUMERIC
 		);`,
 	)
-	defer testYugabyteDBSource.TestContainer.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
+	defer testYugabyteDBSource.TestContainer.ExecuteSqls(
+		`DROP SCHEMA hr CASCADE;`,
+		`DROP SCHEMA inventory CASCADE;`,
+	)
 
 	ybDB := testYugabyteDBSource.DB().(*YugabyteDB)
-
 	tableList := []sqlname.NameTuple{
-		testutils.CreateNameTupleWithSourceName("test_schema.products", "test_schema", constants.YUGABYTEDB),
-		testutils.CreateNameTupleWithSourceName("test_schema.orders", "test_schema", constants.YUGABYTEDB),
+		testutils.CreateNameTupleWithSourceName("hr.employees", "hr", constants.YUGABYTEDB),
+		testutils.CreateNameTupleWithSourceName("hr.employee_devices", "hr", constants.YUGABYTEDB),
+		testutils.CreateNameTupleWithSourceName("hr.projects", "hr", constants.YUGABYTEDB),
 	}
 
-	allColumnsInfo, err := ybDB.getAllTableColumnsInfo(tableList)
-	assert.NilError(t, err, "Expected no error fetching table columns")
-	assert.Equal(t, 2, len(allColumnsInfo), "Expected column info for 2 tables")
+	// Test with useDebezium=true (where UDTs are unsupported)
+	supportedCols, unsupportedCols, err := ybDB.GetColumnsWithSupportedTypes(tableList, true, false)
+	assert.NilError(t, err, "Expected no error")
 
-	// Verify products table columns and data types
-	productsTable := tableList[0]
-	productsInfo, exists := allColumnsInfo[productsTable]
-	assert.Equal(t, true, exists, "Expected products table in results")
-	assert.Equal(t, 5, len(productsInfo.Columns), "Expected 5 columns in products table")
-	assert.Equal(t, 5, len(productsInfo.DataTypes), "Expected 5 data types in products table")
+	// hr.employees: contact_info should be unsupported, rest should be supported
+	employeesTable := tableList[0]
+	supported, exists := supportedCols.Get(employeesTable)
+	assert.Equal(t, true, exists, "Expected hr.employees in supported columns map")
+	testutils.AssertEqualStringSlices(t, []string{"id", "name", "age", "department"}, supported)
 
-	// Verify column order matches table definition (ORDER BY attnum)
-	testutils.AssertEqualStringSlices(t, []string{"id", "name", "price", "in_stock", "created_at"}, productsInfo.Columns)
-	// Verify parallel arrays are aligned (columns[i] matches dataTypes[i])
-	assert.Equal(t, "int4", productsInfo.DataTypes[0], "id should be int4")
-	assert.Equal(t, "varchar", productsInfo.DataTypes[1], "name should be varchar")
-	assert.Equal(t, "numeric", productsInfo.DataTypes[2], "price should be numeric")
+	unsupported, exists := unsupportedCols.Get(employeesTable)
+	assert.Equal(t, true, exists, "Expected hr.employees in unsupported columns map")
+	testutils.AssertEqualStringSlices(t, []string{"contact_info"}, unsupported) // contact_info is a UDT
 
-	// Verify orders table
-	ordersTable := tableList[1]
-	ordersInfo, exists := allColumnsInfo[ordersTable]
-	assert.Equal(t, true, exists, "Expected orders table in results")
-	testutils.AssertEqualStringSlices(t, []string{"order_id", "customer_id", "total"}, ordersInfo.Columns)
+	// hr.employee_devices: device_details should be unsupported
+	devicesTable := tableList[1]
+	supported, exists = supportedCols.Get(devicesTable)
+	assert.Equal(t, true, exists, "Expected hr.employee_devices in supported columns map")
+	testutils.AssertEqualStringSlices(t, []string{"employee_id", "device_name", "status"}, supported)
 
-	// Test edge case: Empty table list
-	emptyResult, err := ybDB.getAllTableColumnsInfo([]sqlname.NameTuple{})
-	assert.NilError(t, err, "Expected no error for empty table list")
-	assert.Equal(t, 0, len(emptyResult), "Expected empty result for empty table list")
+	unsupported, exists = unsupportedCols.Get(devicesTable)
+	assert.Equal(t, true, exists, "Expected hr.employee_devices in unsupported columns map")
+	testutils.AssertEqualStringSlices(t, []string{"device_details"}, unsupported)
+
+	// hr.projects: all columns should be supported (no UDTs)
+	projectsTable := tableList[2]
+	supported, exists = supportedCols.Get(projectsTable)
+	assert.Equal(t, true, exists, "Expected hr.projects in supported columns map")
+	testutils.AssertEqualStringSlices(t, []string{"*"}, supported)
+
+	_, exists = unsupportedCols.Get(projectsTable)
+	assert.Equal(t, false, exists, "Expected hr.projects NOT in unsupported columns map")
 }

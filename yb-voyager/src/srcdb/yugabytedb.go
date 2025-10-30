@@ -685,19 +685,24 @@ func (yb *YugabyteDB) getAllTableColumnsInfo(tableList []sqlname.NameTuple) (map
 		schema, name := table.ForCatalogQuery()
 		tableTuples = append(tableTuples, fmt.Sprintf("('%s', '%s')", schema, name))
 
-		lookupKey := fmt.Sprintf("%s.%s", schema, name)
+		lookupKey := table.AsQualifiedCatalogName()
 		tableLookup[lookupKey] = table
 	}
 	inClause := strings.Join(tableTuples, ", ")
-
 	query := fmt.Sprintf(`
 		SELECT
 			n.nspname AS table_schema,
 			c.relname AS table_name,
 			a.attname AS column_name,
-			t.typname AS data_type
+			-- Qualify UDTs (e.g., "hr.contact") as same type can be present in multiple schemas in completely different ways
+			-- but keep native types unqualified (e.g., "int4") to match both unsupported native types list and UDT list
+			CASE
+				WHEN type_n.nspname = 'pg_catalog' THEN t.typname
+				ELSE type_n.nspname || '.' || t.typname
+			END AS data_type
 		FROM pg_attribute AS a
 		JOIN pg_type AS t ON t.oid = a.atttypid
+		JOIN pg_namespace AS type_n ON type_n.oid = t.typnamespace
 		JOIN pg_class AS c ON c.oid = a.attrelid
 		JOIN pg_namespace AS n ON n.oid = c.relnamespace
 		WHERE (n.nspname, c.relname) IN (%s)
@@ -706,7 +711,6 @@ func (yb *YugabyteDB) getAllTableColumnsInfo(tableList []sqlname.NameTuple) (map
 			AND NOT a.attisdropped
 		ORDER BY n.nspname, c.relname, a.attnum; -- attnum ensures columns appear in table definition order and keeps Columns[] and DataTypes[] arrays aligned deterministically
 	`, inClause)
-
 	rows, err := yb.db.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("error querying table columns: %w", err)
@@ -747,7 +751,7 @@ so while querying the catalog table, we ignore the enums and domain types and on
 i.e. typtype = 'c' (composite) AND NOT typtype = 'e' (enum) AND NOT typtype = 'd' (domain)
 
 This function now accepts a slice of tables and returns a unique list of fully qualified
-unsupported user-defined type names (e.g., "hr.contact", "inventory.device_specs") in a single database query.
+unsupported user-defined type names (e.g., "hr.contact", "inventory.device_specs") by making a single database query.
 Qualified because same typename can be present in multiple schemas in completely different ways.
 */
 func (yb *YugabyteDB) filterUnsupportedUserDefinedDatatypes(tableList []sqlname.NameTuple) []string {
