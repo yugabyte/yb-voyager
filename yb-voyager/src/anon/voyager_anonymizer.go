@@ -13,12 +13,13 @@ type VoyagerAnonymizer struct {
 
 	sqlAnonymizer Anonymizer
 	// Anonymizers for different identifier kinds
-	databaseNameAnonymizer Anonymizer
-	schemaNameAnonymizer   Anonymizer
-	tableNameAnonymizer    Anonymizer
-	columnNameAnonymizer   Anonymizer
-	indexNameAnonymizer    Anonymizer
-	mviewNameAnonymizer    Anonymizer
+	databaseNameAnonymizer   Anonymizer
+	schemaNameAnonymizer     Anonymizer
+	tableNameAnonymizer      Anonymizer
+	columnNameAnonymizer     Anonymizer
+	indexNameAnonymizer      Anonymizer
+	mviewNameAnonymizer      Anonymizer
+	constraintNameAnonymizer Anonymizer
 }
 
 func NewVoyagerAnonymizer(anonymizationSalt string) (*VoyagerAnonymizer, error) {
@@ -28,14 +29,15 @@ func NewVoyagerAnonymizer(anonymizationSalt string) (*VoyagerAnonymizer, error) 
 	}
 
 	return &VoyagerAnonymizer{
-		identifierHashRegistry: registry,
-		sqlAnonymizer:          NewSqlAnonymizer(registry),
-		databaseNameAnonymizer: NewIdentifierAnonymizer(registry, DATABASE_KIND_PREFIX),
-		schemaNameAnonymizer:   NewIdentifierAnonymizer(registry, SCHEMA_KIND_PREFIX),
-		tableNameAnonymizer:    NewIdentifierAnonymizer(registry, TABLE_KIND_PREFIX),
-		columnNameAnonymizer:   NewIdentifierAnonymizer(registry, COLUMN_KIND_PREFIX),
-		indexNameAnonymizer:    NewIdentifierAnonymizer(registry, INDEX_KIND_PREFIX),
-		mviewNameAnonymizer:    NewIdentifierAnonymizer(registry, MVIEW_KIND_PREFIX),
+		identifierHashRegistry:   registry,
+		sqlAnonymizer:            NewSqlAnonymizer(registry),
+		databaseNameAnonymizer:   NewIdentifierAnonymizer(registry, DATABASE_KIND_PREFIX),
+		schemaNameAnonymizer:     NewIdentifierAnonymizer(registry, SCHEMA_KIND_PREFIX),
+		tableNameAnonymizer:      NewIdentifierAnonymizer(registry, TABLE_KIND_PREFIX),
+		columnNameAnonymizer:     NewIdentifierAnonymizer(registry, COLUMN_KIND_PREFIX),
+		indexNameAnonymizer:      NewIdentifierAnonymizer(registry, INDEX_KIND_PREFIX),
+		mviewNameAnonymizer:      NewIdentifierAnonymizer(registry, MVIEW_KIND_PREFIX),
+		constraintNameAnonymizer: NewIdentifierAnonymizer(registry, CONSTRAINT_KIND_PREFIX),
 	}, nil
 }
 
@@ -53,6 +55,10 @@ func (s *VoyagerAnonymizer) AnonymizeSchemaName(schemaName string) (string, erro
 
 func (s *VoyagerAnonymizer) AnonymizeTableName(tableName string) (string, error) {
 	return s.tableNameAnonymizer.Anonymize(tableName)
+}
+
+func (s *VoyagerAnonymizer) AnonymizeConstraintName(constraintName string) (string, error) {
+	return s.constraintNameAnonymizer.Anonymize(constraintName)
 }
 
 func (s *VoyagerAnonymizer) AnonymizeQualifiedTableName(tableName string) (string, error) {

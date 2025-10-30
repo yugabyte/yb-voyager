@@ -62,5 +62,21 @@
     "imported_count": 3,
     "percentage_complete": 100,
     "errored_count": 0
+  },
+  {
+    "table_name": "public.\"tsvector_table\"",
+    "status": "DONE",
+    "total_count": 3,
+    "imported_count": 3,
+    "percentage_complete": 100,
+    "errored_count": 0
+  },
+  {
+    "table_name": "public.\"enum_array_table\"",
+    "status": "DONE",
+    "total_count": 3,
+    "imported_count": 3,
+    "percentage_complete": 100,
+    "errored_count": 0
   }
 ]

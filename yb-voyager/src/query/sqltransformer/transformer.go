@@ -225,26 +225,38 @@ func (t *Transformer) ModifySecondaryIndexesToRange(stmts []*pg_query.RawStmt) (
 Splitting all the statements in table.sql file into following categories:
 1. Select and Set statements
 3. Create and Alter Table statements with PRIMARY KEY constraints
-4. Alter Table statements with UNIQUE constraints
-5. Other statements
+4. Create and Alter Table statements with PRIMARY KEY constraints on TIMESTAMP/ DATE types
+5. Alter Table statements with UNIQUE constraints
+6. Other statements
 
-and then adding the hash splitting ON for pk constraints and OFF for uk constraints
+and then adding the hash splitting ON for pk constraints and OFF for pk on timestamp/date types and  uk constraints
 
 order of statements after transformation:
 1. Select and Setstatements
 2. SET HASH SPLITTING ON for pk constraints
 3. Create and Alter Table statements with PRIMARY KEY constraints
 4. SET HASH SPLITTING OFF for uk constraints
-5. Alter Table statements with UNIQUE constraints
+5. Create and Alter Table statements with PRIMARY KEY constraints on TIMESTAMP/ DATE types
+6. Alter Table statements with UNIQUE constraints
 6. Other statements
 */
 
-func (t *Transformer) AddShardingStrategyForConstraints(stmts []*pg_query.RawStmt) ([]*pg_query.RawStmt, error) {
+func (t *Transformer) AddShardingStrategyForConstraints(stmts []*pg_query.RawStmt) ([]*pg_query.RawStmt, []string, []string, error) {
 	log.Infof("adding hash splitting on for pk constraints to the schema")
 	selectSetStatements := make([]*pg_query.RawStmt, 0)
 	createAndAlterTableWithPK := make([]*pg_query.RawStmt, 0)
+	createAndAlterTableWithPKOnTimestampOrDate := make([]*pg_query.RawStmt, 0)
 	AlterTableUKConstraints := make([]*pg_query.RawStmt, 0)
 	otherStatements := make([]*pg_query.RawStmt, 0)
+
+	pkTablesOnTimestampOrDate := make([]string, 0)
+	pkTablesWithHashSharding := make([]string, 0)
+
+	tablesMap, err := getTablesMap(stmts)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to get tables to column on range types: %v", err)
+	}
+
 	for _, stmt := range stmts {
 		if queryparser.IsSelectStmt(stmt) || queryparser.IsSetStmt(stmt) {
 			selectSetStatements = append(selectSetStatements, stmt)
@@ -252,18 +264,51 @@ func (t *Transformer) AddShardingStrategyForConstraints(stmts []*pg_query.RawStm
 		}
 		ddlObject, err := queryparser.ProcessDDL(&pg_query.ParseResult{Stmts: []*pg_query.RawStmt{stmt}})
 		if err != nil {
-			return nil, fmt.Errorf("failed to process ddl: %v", err)
+			return nil, nil, nil, fmt.Errorf("failed to process ddl: %v", err)
 		}
 		switch ddlObject.(type) {
 		case *queryparser.Table:
-			createAndAlterTableWithPK = append(createAndAlterTableWithPK, stmt)
+			table, _ := ddlObject.(*queryparser.Table)
+			tableName := table.GetObjectName()
+			pkConstraint := table.GetPKConstraint()
+			if pkConstraint.ConstraintName == "" {
+				//if the table doesn't have PK then no need to do further checks add it to create list and continue
+				createAndAlterTableWithPK = append(createAndAlterTableWithPK, stmt)
+				continue
+			}
+			isPKOnRangeDatatype, err := t.checkIfPrimaryKeyOnRangeDatatype(pkConstraint.Columns, table)
+			if err != nil {
+				return nil, nil, nil, fmt.Errorf("failed to check if primary key on range datatype: %v", err)
+			}
+			if isPKOnRangeDatatype {
+				pkTablesOnTimestampOrDate = append(pkTablesOnTimestampOrDate, tableName)
+				createAndAlterTableWithPKOnTimestampOrDate = append(createAndAlterTableWithPKOnTimestampOrDate, stmt)
+			} else {
+				pkTablesWithHashSharding = append(pkTablesWithHashSharding, tableName)
+				createAndAlterTableWithPK = append(createAndAlterTableWithPK, stmt)
+			}
 		case *queryparser.AlterTable:
 			alterTable, _ := ddlObject.(*queryparser.AlterTable)
-			if alterTable.ConstraintType == queryparser.PRIMARY_CONSTR_TYPE {
-				createAndAlterTableWithPK = append(createAndAlterTableWithPK, stmt)
-			} else if alterTable.ConstraintType == queryparser.UNIQUE_CONSTR_TYPE {
+			switch alterTable.ConstraintType {
+			case queryparser.PRIMARY_CONSTR_TYPE:
+				table, ok := tablesMap[alterTable.GetObjectName()]
+				if !ok {
+					return nil, nil, nil, fmt.Errorf("table %s not found in tables map", alterTable.GetObjectName())
+				}
+				isPKOnRangeDatatype, err := t.checkIfPrimaryKeyOnRangeDatatype(alterTable.ConstraintColumns, table)
+				if err != nil {
+					return nil, nil, nil, fmt.Errorf("failed to check if primary key on range datatype: %v", err)
+				}
+				if isPKOnRangeDatatype {
+					pkTablesOnTimestampOrDate = append(pkTablesOnTimestampOrDate, alterTable.GetObjectName())
+					createAndAlterTableWithPKOnTimestampOrDate = append(createAndAlterTableWithPKOnTimestampOrDate, stmt)
+				} else {
+					pkTablesWithHashSharding = append(pkTablesWithHashSharding, alterTable.GetObjectName())
+					createAndAlterTableWithPK = append(createAndAlterTableWithPK, stmt)
+				}
+			case queryparser.UNIQUE_CONSTR_TYPE:
 				AlterTableUKConstraints = append(AlterTableUKConstraints, stmt)
-			} else {
+			default:
 				otherStatements = append(otherStatements, stmt)
 			}
 		default:
@@ -273,20 +318,66 @@ func (t *Transformer) AddShardingStrategyForConstraints(stmts []*pg_query.RawStm
 
 	hashSplittingSessionVariableOnParseTree, err := queryparser.Parse(HASH_SPLITTING_SESSION_VARIABLE_ON)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse hash splitting session variable on: %v", err)
+		return nil, nil, nil, fmt.Errorf("failed to parse hash splitting session variable on: %v", err)
 	}
 	hashSplittingSessionVariableOffParseTree, err := queryparser.Parse(HASH_SPLITTING_SESSION_VARIABLE_OFF)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse hash splitting session variable off: %v", err)
+		return nil, nil, nil, fmt.Errorf("failed to parse hash splitting session variable off: %v", err)
 	}
 
+	//TODO: see how we can add comments in between statements to make the table.sql more readable
 	modifiedStmts := make([]*pg_query.RawStmt, 0)
 	modifiedStmts = append(modifiedStmts, selectSetStatements...)
 	modifiedStmts = append(modifiedStmts, hashSplittingSessionVariableOnParseTree.Stmts...)
 	modifiedStmts = append(modifiedStmts, createAndAlterTableWithPK...)
 	modifiedStmts = append(modifiedStmts, hashSplittingSessionVariableOffParseTree.Stmts...)
+	modifiedStmts = append(modifiedStmts, createAndAlterTableWithPKOnTimestampOrDate...)
 	modifiedStmts = append(modifiedStmts, AlterTableUKConstraints...)
 	modifiedStmts = append(modifiedStmts, otherStatements...)
-	return modifiedStmts, nil
 
+	return modifiedStmts, pkTablesOnTimestampOrDate, pkTablesWithHashSharding, nil
+
+}
+
+const (
+	TIMESTAMPTZ = "timestamptz"
+	TIMESTAMP   = "timestamp"
+	DATE        = "date"
+)
+
+var RangeDatatypes = []string{
+	TIMESTAMPTZ,
+	TIMESTAMP,
+	DATE,
+}
+
+func getTablesMap(stmts []*pg_query.RawStmt) (map[string]*queryparser.Table, error) {
+	tablesMap := map[string]*queryparser.Table{}
+	for _, stmt := range stmts {
+		ddlObject, err := queryparser.ProcessDDL(&pg_query.ParseResult{Stmts: []*pg_query.RawStmt{stmt}})
+		if err != nil {
+			return nil, fmt.Errorf("failed to process ddl: %v", err)
+		}
+		switch ddlObject.(type) {
+		case *queryparser.Table:
+			table, _ := ddlObject.(*queryparser.Table)
+			tableName := table.GetObjectName()
+			tablesMap[tableName] = table
+		}
+	}
+	return tablesMap, nil
+}
+
+func (t *Transformer) checkIfPrimaryKeyOnRangeDatatype(pkConstraintCols []string, table *queryparser.Table) (bool, error) {
+	tableName := table.GetObjectName()
+	if len(pkConstraintCols) == 0 {
+		return false, nil
+	}
+	firstCol := pkConstraintCols[0]
+	firstColType := table.GetColumnType(firstCol)
+	if !slices.Contains(RangeDatatypes, firstColType) {
+		return false, nil
+	}
+	log.Infof("primary key first column - %s on table %s is on hotspot datatype, making it range sharded", firstCol, tableName)
+	return true, nil
 }

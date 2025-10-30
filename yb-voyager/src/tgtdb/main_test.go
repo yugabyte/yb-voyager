@@ -110,21 +110,18 @@ func TestMain(m *testing.M) {
 		DBType: testcontainers.POSTGRESQL,
 	}
 	testPostgresTarget = createTestDBTarget(ctx, postgresConfig)
-	defer destroyTestDBTarget(ctx, testPostgresTarget)
 
 	// Oracle setup
 	oracleConfig := &testcontainers.ContainerConfig{
 		DBType: testcontainers.ORACLE,
 	}
 	testOracleTarget = createTestDBTarget(ctx, oracleConfig)
-	defer destroyTestDBTarget(ctx, testOracleTarget)
 
 	// YugabyteDB setup
 	yugabytedbConfig := &testcontainers.ContainerConfig{
 		DBType: testcontainers.YUGABYTEDB,
 	}
 	testYugabyteDBTarget = createTestDBTarget(ctx, yugabytedbConfig)
-	defer destroyTestDBTarget(ctx, testYugabyteDBTarget)
 
 	// 4. Create a yugabytedb 3 node cluster container
 	yugabytedbClusterContainer := testcontainers.NewYugabyteDBCluster(&testcontainers.ContainerConfig{
@@ -165,8 +162,12 @@ func TestMain(m *testing.M) {
 
 	exitCode := m.Run()
 
-	// cleaning up all the running containers
-	testcontainers.TerminateAllContainers()
+	// cleanup after the tests
+	destroyTestDBTarget(ctx, testPostgresTarget)
+	destroyTestDBTarget(ctx, testOracleTarget)
+	destroyTestDBTarget(ctx, testYugabyteDBTarget)
+	testYugabyteDBTargetCluster.Terminate(ctx)
+	testcontainers.TerminateAllContainers() // safety net in case any of them still left
 
 	os.Exit(exitCode)
 }

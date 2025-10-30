@@ -401,6 +401,25 @@ func (t *Table) PrimaryKeyColumns() []string {
 	return []string{}
 }
 
+//TODO: fix the []TableColumns to map[string]TableColumn
+func (t *Table) GetColumnType(colName string) string {
+	for _, col := range t.Columns {
+		if col.ColumnName == colName {
+			return col.TypeName
+		}
+	}
+	return ""
+}
+
+func (t *Table) GetPKConstraint() TableConstraint {
+	for _, constraint := range t.Constraints {
+		if constraint.ConstraintType == PRIMARY_CONSTR_TYPE {
+			return constraint
+		}
+	}
+	return TableConstraint{}
+}
+
 func (t *Table) UniqueKeyColumns() []string {
 	uniqueCols := make([]string, 0)
 	for _, c := range t.Constraints {

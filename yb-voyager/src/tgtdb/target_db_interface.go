@@ -34,6 +34,7 @@ type TargetDB interface {
 	Init() error
 	Finalize()
 	InitConnPool() error
+	// TODO: add close conn pool method to avoid connection leak
 	PrepareForStreaming()
 	GetVersion() string
 	CreateVoyagerSchema() error
@@ -48,7 +49,7 @@ type TargetDB interface {
 	GetListOfTableAttributes(tableNameTup sqlname.NameTuple) ([]string, error)
 	QuoteAttributeName(tableNameTup sqlname.NameTuple, columnName string) (string, error)
 	MaxBatchSizeInBytes() int64
-	RestoreSequences(sequencesLastValue map[string]int64) error
+	RestoreSequences(sequencesNameToLastValue *utils.StructMap[sqlname.NameTuple, int64]) error
 	GetIdentityColumnNamesForTable(tableNameTup sqlname.NameTuple, identityType string) ([]string, error)
 	DisableGeneratedAlwaysAsIdentityColumns(tableColumnsMap *utils.StructMap[sqlname.NameTuple, []string]) error
 	EnableGeneratedAlwaysAsIdentityColumns(tableColumnsMap *utils.StructMap[sqlname.NameTuple, []string]) error
@@ -188,7 +189,7 @@ func (args *ImportBatchArgs) GetInsertPreparedStmtForBatchImport() string {
 		args.TableNameTup.ForUserQuery(), columns, values)
 
 	switch args.PKConflictAction {
-	case constants.PRIMARY_KEY_CONFLICT_ACTION_ERROR:
+	case constants.PRIMARY_KEY_CONFLICT_ACTION_ERROR_POLICY:
 		return baseStmt // no additional clause - although this is not going to be called ever.
 
 	case constants.PRIMARY_KEY_CONFLICT_ACTION_IGNORE:

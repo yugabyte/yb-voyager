@@ -81,6 +81,11 @@ main() {
 	fi
 	./init-db
 
+	if [ "${SOURCE_DB_TYPE}" = "postgresql" ]; then
+		step "Creating pg_stat_statements for the compare-performance command"
+		run_psql ${SOURCE_DB_NAME} "CREATE EXTENSION IF NOT EXISTS pg_stat_statements;"
+	fi
+
 	step "Grant source database user permissions for live migration"	
 	grant_permissions_for_live_migration
 
@@ -306,6 +311,23 @@ main() {
 
 	step "Verify data-migration-report report"
 	verify_report ${expected_file} ${actual_file}
+
+	step "Run performance comparison."
+	if [ "${SOURCE_DB_TYPE}" = "postgresql" ]; then
+		compare_performance || {
+			cat_log_file "yb-voyager-compare-performance.log"
+		}
+
+		step "Validate Performance Reports"
+		# Checking if the performance comparison reports were created
+		if [ -f "${EXPORT_DIR}/reports/performance_comparison_report.html" ] && [ -f "${EXPORT_DIR}/reports/performance_comparison_report.json" ]; then
+			echo "Performance comparison reports created successfully."
+		else
+			echo "Error: Performance comparison reports were not created successfully."
+			cat_log_file "yb-voyager-compare-performance.log"
+			exit 1
+		fi
+	fi
 
 	step "End Migration: clearing metainfo about state of migration from everywhere"
 	end_migration --yes

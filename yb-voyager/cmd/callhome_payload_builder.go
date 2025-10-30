@@ -371,12 +371,13 @@ func getAnonymizedDDLs(sourceDBConf *srcdb.Source) []string {
 // ============================export schema callhome payload information============================
 
 const (
-	REDUNDANT_INDEX_CHANGE_TYPE                 = "redundant_index"
-	TABLE_COLOCATION_RECOMMENDATION_CHANGE_TYPE = "table_sharding_recommendation"
-	MVIEW_COLOCATION_RECOMMENDATION_CHANGE_TYPE = "mview_sharding_recommendation"
-	SECONDARY_INDEX_TO_RANGE_CHANGE_TYPE        = "secondary_index_to_range"
-	PK_HASH_SPLITTING_CHANGE_TYPE               = "pk_hash_splitting"
-	UK_RANGE_SPLITTING_CHANGE_TYPE              = "uk_range_splitting"
+	REDUNDANT_INDEX_CHANGE_TYPE                         = "redundant_index"
+	TABLE_COLOCATION_RECOMMENDATION_CHANGE_TYPE         = "table_sharding_recommendation"
+	MVIEW_COLOCATION_RECOMMENDATION_CHANGE_TYPE         = "mview_sharding_recommendation"
+	SECONDARY_INDEX_TO_RANGE_CHANGE_TYPE                = "secondary_index_to_range"
+	PK_HASH_SPLITTING_CHANGE_TYPE                       = "pk_hash_splitting"
+	UK_RANGE_SPLITTING_CHANGE_TYPE                      = "uk_range_splitting"
+	PK_ON_TIMESTAMP_OR_DATE_RANGE_SPLITTING_CHANGE_TYPE = "pk_on_timestamp_or_date_range_sharding"
 )
 
 func packAndSendExportSchemaPayload(status string, errorMsg error) {
@@ -467,23 +468,43 @@ func buildCallhomeSchemaOptimizationChanges() []callhome.SchemaOptimizationChang
 			Objects:          getAnonymizedIndexObjectsFromIndexToTableMap(schemaOptimizationReport.SecondaryIndexToRangeChange.ModifiedIndexes),
 		})
 	}
-	if schemaOptimizationReport.PKHashSplittingChange.Exist() {
+	if schemaOptimizationReport.PKHashShardingChange.Exist() {
 		schemaOptimizationChanges = append(schemaOptimizationChanges, callhome.SchemaOptimizationChange{
 			OptimizationType: PK_HASH_SPLITTING_CHANGE_TYPE,
-			IsApplied:        schemaOptimizationReport.PKHashSplittingChange.IsApplied,
-			Objects:          []string{},
+			IsApplied:        schemaOptimizationReport.PKHashShardingChange.IsApplied,
+			Objects:          anonymizeQualifiedTableNames(schemaOptimizationReport.PKHashShardingChange.ModifiedTables),
 		})
 	}
-	if schemaOptimizationReport.UKRangeSplittingChange.Exist() {
+	if schemaOptimizationReport.PKOnTimestampRangeShardingChange.Exist() {
+		schemaOptimizationChanges = append(schemaOptimizationChanges, callhome.SchemaOptimizationChange{
+			OptimizationType: PK_ON_TIMESTAMP_OR_DATE_RANGE_SPLITTING_CHANGE_TYPE,
+			IsApplied:        schemaOptimizationReport.PKOnTimestampRangeShardingChange.IsApplied,
+			Objects:          anonymizeQualifiedTableNames(schemaOptimizationReport.PKOnTimestampRangeShardingChange.ModifiedTables),
+		})
+	}
+	if schemaOptimizationReport.UKRangeShardingChange.Exist() {
 		schemaOptimizationChanges = append(schemaOptimizationChanges, callhome.SchemaOptimizationChange{
 			OptimizationType: UK_RANGE_SPLITTING_CHANGE_TYPE,
-			IsApplied:        schemaOptimizationReport.UKRangeSplittingChange.IsApplied,
+			IsApplied:        schemaOptimizationReport.UKRangeShardingChange.IsApplied,
 			Objects:          []string{},
 		})
 	}
 	return schemaOptimizationChanges
 }
 
+func getAnonymizedConstraintNamesFromConstraints(constraints []string) []string {
+	anonymizedConstraints := make([]string, 0)
+	for _, constraint := range constraints {
+		anonymizedConstraint, err := anonymizer.AnonymizeConstraintName(constraint)
+		if err != nil {
+			log.Errorf("callhome: failed to anonymise constraint-%s: %v", constraint, err)
+			anonymizedConstraints = append(anonymizedConstraints, constants.OBFUSCATE_STRING)
+			continue
+		}
+		anonymizedConstraints = append(anonymizedConstraints, anonymizedConstraint)
+	}
+	return anonymizedConstraints
+}
 func getAnonymizedIndexObjectsFromIndexToTableMap(indexToTableMap map[string][]string) []string {
 	objects := make([]string, 0)
 	for tbl, indexes := range indexToTableMap {
