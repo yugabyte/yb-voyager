@@ -977,10 +977,8 @@ func TestPickBestRecommendationStrategy_VCPULogic_Rec1FewerResultantCores(t *tes
 		ColocatedTables:  []SourceDBMetadata{{ObjectName: "table3"}},
 		ShardedTables:    []SourceDBMetadata{{ObjectName: "table4"}},
 	}
-	var sourceIndexMetadata []SourceDBMetadata
-	indexLookupMap := buildIndexLookupMap(sourceIndexMetadata)
 
-	selectedRec := pickBestRecommendationStrategy(rec1, rec2, indexLookupMap)
+	selectedRec := pickBestRecommendationStrategy(rec1, rec2)
 
 	assert.Equal(t, rec1, selectedRec)
 }
@@ -1001,10 +999,8 @@ func TestPickBestRecommendationStrategy_VCPULogic_EqualResultantCores_SelectHigh
 		ColocatedTables:  []SourceDBMetadata{{ObjectName: "table3"}},
 		ShardedTables:    []SourceDBMetadata{{ObjectName: "table4"}},
 	}
-	var sourceIndexMetadata []SourceDBMetadata
-	indexLookupMap := buildIndexLookupMap(sourceIndexMetadata)
 
-	selectedRec := pickBestRecommendationStrategy(rec1, rec2, indexLookupMap)
+	selectedRec := pickBestRecommendationStrategy(rec1, rec2)
 
 	assert.Equal(t, rec2, selectedRec)
 }
@@ -1025,10 +1021,8 @@ func TestPickBestRecommendationStrategy_VCPULogic_Rec2FewerResultantCores(t *tes
 		ColocatedTables:  []SourceDBMetadata{{ObjectName: "table3"}},
 		ShardedTables:    []SourceDBMetadata{{ObjectName: "table4"}},
 	}
-	var sourceIndexMetadata []SourceDBMetadata
-	indexLookupMap := buildIndexLookupMap(sourceIndexMetadata)
 
-	selectedRec := pickBestRecommendationStrategy(rec1, rec2, indexLookupMap)
+	selectedRec := pickBestRecommendationStrategy(rec1, rec2)
 
 	assert.Equal(t, rec2, selectedRec)
 }
@@ -1049,10 +1043,8 @@ func TestPickBestRecommendationStrategy_VCPULogic_Rec1FewerVCPUsButMoreResultant
 		ColocatedTables:  []SourceDBMetadata{{ObjectName: "table3"}},
 		ShardedTables:    []SourceDBMetadata{{ObjectName: "table4"}},
 	}
-	var sourceIndexMetadata []SourceDBMetadata
-	indexLookupMap := buildIndexLookupMap(sourceIndexMetadata)
 
-	selectedRec := pickBestRecommendationStrategy(rec1, rec2, indexLookupMap)
+	selectedRec := pickBestRecommendationStrategy(rec1, rec2)
 
 	// Should select rec2 due to fewer resultant cores
 	assert.Equal(t, rec2, selectedRec)
@@ -1074,10 +1066,8 @@ func TestPickBestRecommendationStrategy_VCPULogic_Rec2FewerVCPUsButMoreResultant
 		ColocatedTables:  []SourceDBMetadata{{ObjectName: "table3"}},
 		ShardedTables:    []SourceDBMetadata{{ObjectName: "table4"}},
 	}
-	var sourceIndexMetadata []SourceDBMetadata
-	indexLookupMap := buildIndexLookupMap(sourceIndexMetadata)
 
-	selectedRec := pickBestRecommendationStrategy(rec1, rec2, indexLookupMap)
+	selectedRec := pickBestRecommendationStrategy(rec1, rec2)
 
 	// Should select rec1 due to fewer resultant cores
 	assert.Equal(t, rec1, selectedRec)
@@ -1099,10 +1089,8 @@ func TestPickBestRecommendationStrategy_SameVCPUs_UseNodeComparison_Rec1FewerNod
 		ColocatedTables:  []SourceDBMetadata{{ObjectName: "table3"}},
 		ShardedTables:    []SourceDBMetadata{{ObjectName: "table4"}},
 	}
-	var sourceIndexMetadata []SourceDBMetadata
-	indexLookupMap := buildIndexLookupMap(sourceIndexMetadata)
 
-	selectedRec := pickBestRecommendationStrategy(rec1, rec2, indexLookupMap)
+	selectedRec := pickBestRecommendationStrategy(rec1, rec2)
 
 	assert.Equal(t, rec1, selectedRec)
 }
@@ -1123,10 +1111,8 @@ func TestPickBestRecommendationStrategy_SameVCPUs_UseNodeComparison_Rec2FewerNod
 		ColocatedTables:  []SourceDBMetadata{{ObjectName: "table3"}},
 		ShardedTables:    []SourceDBMetadata{{ObjectName: "table4"}},
 	}
-	var sourceIndexMetadata []SourceDBMetadata
-	indexLookupMap := buildIndexLookupMap(sourceIndexMetadata)
 
-	selectedRec := pickBestRecommendationStrategy(rec1, rec2, indexLookupMap)
+	selectedRec := pickBestRecommendationStrategy(rec1, rec2)
 
 	assert.Equal(t, rec2, selectedRec)
 }
@@ -1147,10 +1133,8 @@ func TestPickBestRecommendationStrategy_SameVCPUsAndNodes_PreferAllSharded(t *te
 		ColocatedTables:  []SourceDBMetadata{{ObjectName: "table3"}},
 		ShardedTables:    []SourceDBMetadata{{ObjectName: "table4"}},
 	}
-	var sourceIndexMetadata []SourceDBMetadata
-	indexLookupMap := buildIndexLookupMap(sourceIndexMetadata)
 
-	selectedRec := pickBestRecommendationStrategy(rec1, rec2, indexLookupMap)
+	selectedRec := pickBestRecommendationStrategy(rec1, rec2)
 
 	assert.Equal(t, rec2, selectedRec)
 }
@@ -1171,14 +1155,8 @@ func TestPickBestRecommendationStrategy_WithIndexes_VerifyObjectCounts(t *testin
 		ColocatedTables:  []SourceDBMetadata{{ObjectName: "table4"}},
 		ShardedTables:    []SourceDBMetadata{{ObjectName: "table5"}, {ObjectName: "table6"}},
 	}
-	sourceIndexMetadata := []SourceDBMetadata{
-		{ObjectName: "idx1", ParentTableName: sql.NullString{String: "public.table1", Valid: true}},
-		{ObjectName: "idx2", ParentTableName: sql.NullString{String: "public.table3", Valid: true}},
-		{ObjectName: "idx3", ParentTableName: sql.NullString{String: "public.table5", Valid: true}},
-	}
-	indexLookupMap := buildIndexLookupMap(sourceIndexMetadata)
 
-	selectedRec := pickBestRecommendationStrategy(rec1, rec2, indexLookupMap)
+	selectedRec := pickBestRecommendationStrategy(rec1, rec2)
 
 	assert.Equal(t, rec1, selectedRec)
 }
@@ -1199,10 +1177,8 @@ func TestPickBestRecommendationStrategy_EdgeCase_EqualResultantCores(t *testing.
 		ColocatedTables:  []SourceDBMetadata{},
 		ShardedTables:    []SourceDBMetadata{},
 	}
-	var sourceIndexMetadata []SourceDBMetadata
-	indexLookupMap := buildIndexLookupMap(sourceIndexMetadata)
 
-	selectedRec := pickBestRecommendationStrategy(rec1, rec2, indexLookupMap)
+	selectedRec := pickBestRecommendationStrategy(rec1, rec2)
 
 	// Should select rec2 due to higher VCPUs with equal resultant cores
 	assert.Equal(t, rec2, selectedRec)
@@ -1224,10 +1200,8 @@ func TestPickBestRecommendationStrategy_EdgeCase_LargeValues(t *testing.T) {
 		ColocatedTables:  []SourceDBMetadata{{ObjectName: "table3"}},
 		ShardedTables:    []SourceDBMetadata{{ObjectName: "table4"}},
 	}
-	var sourceIndexMetadata []SourceDBMetadata
-	indexLookupMap := buildIndexLookupMap(sourceIndexMetadata)
 
-	selectedRec := pickBestRecommendationStrategy(rec1, rec2, indexLookupMap)
+	selectedRec := pickBestRecommendationStrategy(rec1, rec2)
 
 	// Should select rec2 due to fewer resultant cores
 	assert.Equal(t, rec2, selectedRec)
@@ -1259,17 +1233,8 @@ func TestPickBestRecommendationStrategy_ComplexScenario_WithMultipleIndexes(t *t
 			{ObjectName: "reviews", SchemaName: "public"},
 		},
 	}
-	sourceIndexMetadata := []SourceDBMetadata{
-		{ObjectName: "idx_users_email", ParentTableName: sql.NullString{String: "public.users", Valid: true}},
-		{ObjectName: "idx_orders_user", ParentTableName: sql.NullString{String: "public.orders", Valid: true}},
-		{ObjectName: "idx_products_name", ParentTableName: sql.NullString{String: "public.products", Valid: true}},
-		{ObjectName: "idx_categories_name", ParentTableName: sql.NullString{String: "public.categories", Valid: true}},
-		{ObjectName: "idx_inventory_product", ParentTableName: sql.NullString{String: "public.inventory", Valid: true}},
-		{ObjectName: "idx_reviews_product", ParentTableName: sql.NullString{String: "public.reviews", Valid: true}},
-	}
-	indexLookupMap := buildIndexLookupMap(sourceIndexMetadata)
 
-	selectedRec := pickBestRecommendationStrategy(rec1, rec2, indexLookupMap)
+	selectedRec := pickBestRecommendationStrategy(rec1, rec2)
 
 	// Should select rec1 due to fewer resultant cores
 	assert.Equal(t, rec1, selectedRec)
@@ -1291,10 +1256,8 @@ func TestPickBestRecommendationStrategy_ReasoningFormat_ResultantCoresComparison
 		ColocatedTables:  []SourceDBMetadata{},
 		ShardedTables:    []SourceDBMetadata{{ObjectName: "table2"}},
 	}
-	var sourceIndexMetadata []SourceDBMetadata
-	indexLookupMap := buildIndexLookupMap(sourceIndexMetadata)
 
-	selectedRec := pickBestRecommendationStrategy(rec1, rec2, indexLookupMap)
+	selectedRec := pickBestRecommendationStrategy(rec1, rec2)
 
 	// Should select rec1 due to fewer resultant cores
 	assert.Equal(t, rec1, selectedRec)
@@ -1316,10 +1279,8 @@ func TestPickBestRecommendationStrategy_SameVCPUs_FallbackToNodeComparison(t *te
 		ColocatedTables:  []SourceDBMetadata{},
 		ShardedTables:    []SourceDBMetadata{{ObjectName: "table2"}},
 	}
-	var sourceIndexMetadata []SourceDBMetadata
-	indexLookupMap := buildIndexLookupMap(sourceIndexMetadata)
 
-	selectedRec := pickBestRecommendationStrategy(rec1, rec2, indexLookupMap)
+	selectedRec := pickBestRecommendationStrategy(rec1, rec2)
 
 	// Should select rec2 due to fewer nodes
 	assert.Equal(t, rec2, selectedRec)
@@ -1343,10 +1304,8 @@ func TestPickBestRecommendationStrategy_BothHaveFailureReasoning(t *testing.T) {
 		ShardedTables:    []SourceDBMetadata{{ObjectName: "table4"}},
 		FailureReasoning: "Exceeds table limits",
 	}
-	var sourceIndexMetadata []SourceDBMetadata
-	indexLookupMap := buildIndexLookupMap(sourceIndexMetadata)
 
-	selectedRec := pickBestRecommendationStrategy(rec1, rec2, indexLookupMap)
+	selectedRec := pickBestRecommendationStrategy(rec1, rec2)
 
 	// Should return rec1 with updated failure reasoning when both have failure reasoning
 	assert.Equal(t, rec1.VCPUsPerInstance, selectedRec.VCPUsPerInstance)
@@ -1369,10 +1328,8 @@ func TestPickBestRecommendationStrategy_Rec1HasFailureRec2DoesNot(t *testing.T) 
 		ShardedTables:    []SourceDBMetadata{{ObjectName: "table4"}},
 		FailureReasoning: "", // No failure reasoning
 	}
-	var sourceIndexMetadata []SourceDBMetadata
-	indexLookupMap := buildIndexLookupMap(sourceIndexMetadata)
 
-	selectedRec := pickBestRecommendationStrategy(rec1, rec2, indexLookupMap)
+	selectedRec := pickBestRecommendationStrategy(rec1, rec2)
 
 	// Should select rec2 since it has no failure reasoning
 	assert.Equal(t, rec2, selectedRec)
@@ -1395,10 +1352,8 @@ func TestPickBestRecommendationStrategy_Rec2HasFailureRec1DoesNot(t *testing.T) 
 		ShardedTables:    []SourceDBMetadata{{ObjectName: "table4"}},
 		FailureReasoning: "Exceeds table limits",
 	}
-	var sourceIndexMetadata []SourceDBMetadata
-	indexLookupMap := buildIndexLookupMap(sourceIndexMetadata)
 
-	selectedRec := pickBestRecommendationStrategy(rec1, rec2, indexLookupMap)
+	selectedRec := pickBestRecommendationStrategy(rec1, rec2)
 
 	// Should select rec1 since it has no failure reasoning
 	assert.Equal(t, rec1, selectedRec)
@@ -1421,10 +1376,8 @@ func TestPickBestRecommendationStrategy_BothHaveEmptyFailureReasoning(t *testing
 		ShardedTables:    []SourceDBMetadata{{ObjectName: "table4"}},
 		FailureReasoning: "", // Empty failure reasoning
 	}
-	var sourceIndexMetadata []SourceDBMetadata
-	indexLookupMap := buildIndexLookupMap(sourceIndexMetadata)
 
-	selectedRec := pickBestRecommendationStrategy(rec1, rec2, indexLookupMap)
+	selectedRec := pickBestRecommendationStrategy(rec1, rec2)
 
 	// Should apply normal comparison logic and select rec1 due to fewer resultant cores
 	assert.Equal(t, rec1, selectedRec)

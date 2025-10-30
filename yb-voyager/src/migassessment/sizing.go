@@ -170,8 +170,7 @@ func SizingAssessment(targetDbVersion *ybversion.YBVersion, sourceDBType string)
 		return fmt.Errorf("failed to load source metadata: %w", err)
 	}
 
-	// Build index lookup maps for O(1) access instead of O(n) scanning
-	// This optimization is critical when dealing with 15,000+ indexes
+	// Build index lookup maps for O(1) access
 	allIndexLookupMap := buildIndexLookupMap(sourceIndexMetadata)
 	uniqueIndexLookupMap := buildIndexLookupMap(sourceUniqueIndexesMetadata)
 
@@ -245,7 +244,7 @@ func SizingAssessment(targetDbVersion *ybversion.YBVersion, sourceDBType string)
 
 	finalSizingRecommendationAllSharded := pickBestRecommendation(sizingRecommendationPerCoreAllSharded)
 
-	finalSizingRecommendation := pickBestRecommendationStrategy(finalSizingRecommendationColoShardedCombined, finalSizingRecommendationAllSharded, allIndexLookupMap)
+	finalSizingRecommendation := pickBestRecommendationStrategy(finalSizingRecommendationColoShardedCombined, finalSizingRecommendationAllSharded)
 
 	if finalSizingRecommendation.FailureReasoning != "" {
 		SizingReport.FailureReasoning = finalSizingRecommendation.FailureReasoning
@@ -407,12 +406,11 @@ The function logs the selection reasoning for debugging purposes.
 Parameters:
   - rec1: First IntermediateRecommendation to compare (colocated+sharded strategy)
   - rec2: Second IntermediateRecommendation to compare (all-sharded strategy)
-  - indexLookupMap: Pre-built map from parent table name to list of indexes (unused in current implementation)
 
 Returns:
   - The best IntermediateRecommendation based on the selection logic described above
 */
-func pickBestRecommendationStrategy(rec1, rec2 IntermediateRecommendation, indexLookupMap map[string][]SourceDBMetadata) IntermediateRecommendation {
+func pickBestRecommendationStrategy(rec1, rec2 IntermediateRecommendation) IntermediateRecommendation {
 	// Handle failure reasoning logic first
 	if rec1.FailureReasoning != "" && rec2.FailureReasoning != "" {
 		log.Info("Both colocated+sharded and all-sharded strategies could not support the requirements. Unable to determine appropriate sizing recommendation.")
