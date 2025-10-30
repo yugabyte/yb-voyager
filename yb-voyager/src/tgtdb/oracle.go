@@ -261,7 +261,6 @@ func (tdb *TargetOracleDB) RestoreSequences(sequencesNameToLastValue *utils.Stru
 	return nil
 }
 
-
 func (tdb *TargetOracleDB) ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string, isRecoveryCandidate bool) (int64, error, bool) {
 	tdb.Lock()
 	defer tdb.Unlock()
@@ -665,9 +664,10 @@ func (tdb *TargetOracleDB) GetIdentityColumnNamesForTables(tableNameTuples []sql
 		SELECT TABLE_NAME, COLUMN_NAME
 		FROM ALL_TAB_IDENTITY_COLS
 		WHERE TABLE_NAME IN (%s)
-		  AND GENERATION_TYPE = '%s'
+			AND OWNER = '%s'
+			AND GENERATION_TYPE = '%s'
 		ORDER BY TABLE_NAME, COLUMN_NAME`,
-		strings.Join(tableNames, ", "), identityType)
+		strings.Join(tableNames, ", "), tdb.tconf.Schema, identityType)
 
 	log.Infof("Querying for identity columns for %d tables with type '%s'", len(tableNameTuples), identityType)
 	log.Debugf("Identity column query: %s", query)
