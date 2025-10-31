@@ -526,16 +526,23 @@ func TestYugabyteFilterUnsupportedUserDefinedDatatypes(t *testing.T) {
 	assert.Equal(t, 0, len(actualEmptyUDTs), "Expected empty list for empty table list")
 }
 
-// TestYugabyteGetColumnsWithSupportedTypes_UDT tests that UDT columns are correctly
-// identified as unsupported when using Debezium/streaming.
-// Verifies that getAllTableColumnsInfo returns qualified UDT names (e.g., "hr.contact") that
-// match the qualified names from filterUnsupportedUserDefinedDatatypes(), enabling correct filtering.
-func TestYugabyteGetColumnsWithSupportedTypes_UDT(t *testing.T) {
+// TestYugabyteGetColumnsWithSupportedTypes_AllScenarios tests:
+// 1. UDT columns (composite types) correctly identified as unsupported with qualified names (same-schema and cross-schema)
+// 2. Extension types (hstore) in custom schemas matched against unqualified unsupported list
+// 3. Case-insensitive matching (catalog returns lowercase, unsupported list has uppercase)
+// 4. Connector type differences (GRPC vs Logical - TSVECTOR handling)
+// 5. Mixed scenarios: UDT + extension type + ENUM + regular columns in same table
+// 6. Cross-schema type usage (types from one schema used in tables in another schema)
+// 7. Offline migration mode (all types supported)
+func TestYugabyteGetColumnsWithSupportedTypes_AllScenarios(t *testing.T) {
 	testYugabyteDBSource.TestContainer.ExecuteSqls(
+		`CREATE SCHEMA custom_ext;`,
 		`CREATE SCHEMA hr;`,
 		`CREATE SCHEMA inventory;`,
 
-		// Create composite types (UDTs)
+		`CREATE EXTENSION IF NOT EXISTS hstore WITH SCHEMA custom_ext;`,
+
+		// Create composite UDTs
 		`CREATE TYPE hr.contact AS (
 			phone VARCHAR,
 			email VARCHAR
@@ -544,28 +551,38 @@ func TestYugabyteGetColumnsWithSupportedTypes_UDT(t *testing.T) {
 			cpu VARCHAR,
 			ram INT
 		);`,
-
-		// Create ENUM type
+		// Create ENUM type (supported in all modes)
 		`CREATE TYPE hr.status_enum AS ENUM ('active', 'inactive', 'pending');`,
 
-		// Case 1: Table with composite UDT and regular columns
-		`CREATE TABLE hr.employees (
+		// Case 1: Extension type in custom schema
+		// Tests that "custom_ext.hstore" from catalog matches "HSTORE" in unsupported list
+		`CREATE TABLE custom_ext.ext_table (
 			id SERIAL PRIMARY KEY,
 			name VARCHAR,
-			age INT,
-			contact_info hr.contact,
-			department VARCHAR
+			metadata custom_ext.hstore,
+			description TEXT
 		);`,
 
-		// Case 2: Cross-schema usage with multiple column types
+		// Case 2: Mixed - UDT + extension type + ENUM + regular columns
+		// Tests both same-schema and cross-schema usage for UDTs: hr.contact and inventory.device_specs
 		`CREATE TABLE hr.employee_devices (
 			employee_id INT,
 			device_name VARCHAR,
+			contact_info hr.contact,
 			device_details inventory.device_specs,
-			status hr.status_enum
+			settings custom_ext.hstore,
+			status hr.status_enum,
+			notes TEXT
 		);`,
 
-		// Case 3: Table with only regular columns (no UDTs)
+		// Case 3: TSVECTOR - only unsupported in GRPC mode
+		`CREATE TABLE custom_ext.search_table (
+			id INT PRIMARY KEY,
+			content TEXT,
+			search_vector TSVECTOR
+		);`,
+
+		// Case 4: All regular columns (baseline)
 		`CREATE TABLE hr.projects (
 			id INT PRIMARY KEY,
 			name VARCHAR,
@@ -573,47 +590,96 @@ func TestYugabyteGetColumnsWithSupportedTypes_UDT(t *testing.T) {
 		);`,
 	)
 	defer testYugabyteDBSource.TestContainer.ExecuteSqls(
+		`DROP SCHEMA custom_ext CASCADE;`,
 		`DROP SCHEMA hr CASCADE;`,
 		`DROP SCHEMA inventory CASCADE;`,
 	)
 
 	ybDB := testYugabyteDBSource.DB().(*YugabyteDB)
 	tableList := []sqlname.NameTuple{
-		testutils.CreateNameTupleWithSourceName("hr.employees", "hr", constants.YUGABYTEDB),
+		testutils.CreateNameTupleWithSourceName("custom_ext.ext_table", "custom_ext", constants.YUGABYTEDB),
 		testutils.CreateNameTupleWithSourceName("hr.employee_devices", "hr", constants.YUGABYTEDB),
+		testutils.CreateNameTupleWithSourceName("custom_ext.search_table", "custom_ext", constants.YUGABYTEDB),
 		testutils.CreateNameTupleWithSourceName("hr.projects", "hr", constants.YUGABYTEDB),
 	}
 
-	// Test with useDebezium=true (where UDTs are unsupported)
-	supportedCols, unsupportedCols, err := ybDB.GetColumnsWithSupportedTypes(tableList, true, false)
-	assert.NilError(t, err, "Expected no error")
+	// ========== Test 1: Logical Connector (TSVECTOR supported) ==========
+	t.Run("LogicalConnector", func(t *testing.T) {
+		ybDB.source.IsYBGrpcConnector = false
+		supportedCols, unsupportedCols, err := ybDB.GetColumnsWithSupportedTypes(tableList, true, false)
+		assert.NilError(t, err, "Expected no error")
 
-	// hr.employees: contact_info should be unsupported, rest should be supported
-	employeesTable := tableList[0]
-	supported, exists := supportedCols.Get(employeesTable)
-	assert.Equal(t, true, exists, "Expected hr.employees in supported columns map")
-	testutils.AssertEqualStringSlices(t, []string{"id", "name", "age", "department"}, supported)
+		// Case 1: ext_table - hstore should be unsupported despite custom schema
+		extTable := tableList[0]
+		supported, exists := supportedCols.Get(extTable)
+		assert.Equal(t, true, exists, "Expected custom_ext.ext_table in supported map")
+		testutils.AssertEqualStringSlices(t, []string{"id", "name", "description"}, supported)
 
-	unsupported, exists := unsupportedCols.Get(employeesTable)
-	assert.Equal(t, true, exists, "Expected hr.employees in unsupported columns map")
-	testutils.AssertEqualStringSlices(t, []string{"contact_info"}, unsupported) // contact_info is a UDT
+		unsupported, exists := unsupportedCols.Get(extTable)
+		assert.Equal(t, true, exists, "Expected custom_ext.ext_table in unsupported map")
+		testutils.AssertEqualStringSlices(t, []string{"metadata"}, unsupported) // hstore column
 
-	// hr.employee_devices: device_details should be unsupported
-	devicesTable := tableList[1]
-	supported, exists = supportedCols.Get(devicesTable)
-	assert.Equal(t, true, exists, "Expected hr.employee_devices in supported columns map")
-	testutils.AssertEqualStringSlices(t, []string{"employee_id", "device_name", "status"}, supported)
+		// Case 2: employee_devices - UDTs and hstore unsupported, ENUM supported
+		// Tests same-schema UDT (hr.contact), cross-schema UDT (inventory.device_specs),
+		// cross-schema extension (custom_ext.hstore), and same-schema ENUM (hr.status_enum)
+		devicesTable := tableList[1]
+		supported, exists = supportedCols.Get(devicesTable)
+		assert.Equal(t, true, exists, "Expected hr.employee_devices in supported map")
+		testutils.AssertEqualStringSlices(t, []string{"employee_id", "device_name", "status", "notes"}, supported) // status (ENUM) is supported
 
-	unsupported, exists = unsupportedCols.Get(devicesTable)
-	assert.Equal(t, true, exists, "Expected hr.employee_devices in unsupported columns map")
-	testutils.AssertEqualStringSlices(t, []string{"device_details"}, unsupported)
+		unsupported, exists = unsupportedCols.Get(devicesTable)
+		assert.Equal(t, true, exists, "Expected hr.employee_devices in unsupported map")
+		testutils.AssertEqualStringSlices(t, []string{"contact_info", "device_details", "settings"}, unsupported) // 2 UDTs + hstore
 
-	// hr.projects: all columns should be supported (no UDTs)
-	projectsTable := tableList[2]
-	supported, exists = supportedCols.Get(projectsTable)
-	assert.Equal(t, true, exists, "Expected hr.projects in supported columns map")
-	testutils.AssertEqualStringSlices(t, []string{"*"}, supported)
+		// Case 3: search_table - TSVECTOR is SUPPORTED in logical mode
+		searchTable := tableList[2]
+		supported, exists = supportedCols.Get(searchTable)
+		assert.Equal(t, true, exists, "Expected custom_ext.search_table in supported map")
+		testutils.AssertEqualStringSlices(t, []string{"*"}, supported) // All columns supported
 
-	_, exists = unsupportedCols.Get(projectsTable)
-	assert.Equal(t, false, exists, "Expected hr.projects NOT in unsupported columns map")
+		_, exists = unsupportedCols.Get(searchTable)
+		assert.Equal(t, false, exists, "Expected custom_ext.search_table NOT in unsupported map")
+
+		// Case 4: projects - all supported
+		projectsTable := tableList[3]
+		supported, exists = supportedCols.Get(projectsTable)
+		assert.Equal(t, true, exists, "Expected hr.projects in supported map")
+		testutils.AssertEqualStringSlices(t, []string{"*"}, supported)
+
+		_, exists = unsupportedCols.Get(projectsTable)
+		assert.Equal(t, false, exists, "Expected hr.projects NOT in unsupported map")
+	})
+
+	// ========== Test 2: GRPC Connector (TSVECTOR unsupported) ==========
+	t.Run("GRPCConnector", func(t *testing.T) {
+		ybDB.source.IsYBGrpcConnector = true
+		supportedCols, unsupportedCols, err := ybDB.GetColumnsWithSupportedTypes(tableList, true, false)
+		assert.NilError(t, err, "Expected no error")
+
+		// Case 3: search_table - TSVECTOR is UNSUPPORTED in GRPC mode
+		searchTable := tableList[2]
+		supported, exists := supportedCols.Get(searchTable)
+		assert.Equal(t, true, exists, "Expected custom_ext.search_table in supported map")
+		testutils.AssertEqualStringSlices(t, []string{"id", "content"}, supported)
+
+		unsupported, exists := unsupportedCols.Get(searchTable)
+		assert.Equal(t, true, exists, "Expected custom_ext.search_table in unsupported map")
+		testutils.AssertEqualStringSlices(t, []string{"search_vector"}, unsupported) // TSVECTOR unsupported in GRPC
+
+		// Verify hstore still unsupported in GRPC mode
+		extTable := tableList[0]
+		unsupported, exists = unsupportedCols.Get(extTable)
+		assert.Equal(t, true, exists, "Expected custom_ext.ext_table in unsupported map")
+		testutils.AssertEqualStringSlices(t, []string{"metadata"}, unsupported)
+	})
+
+	// ========== Test 3: Offline Migration (all types supported) ==========
+	t.Run("OfflineMigration", func(t *testing.T) {
+		supportedCols, unsupportedCols, err := ybDB.GetColumnsWithSupportedTypes(tableList, false, false)
+		assert.NilError(t, err, "Expected no error")
+
+		// In offline migration, all columns should be supported (empty maps returned)
+		assert.Equal(t, 0, len(supportedCols.Keys()), "Expected empty supported map for offline migration")
+		assert.Equal(t, 0, len(unsupportedCols.Keys()), "Expected empty unsupported map for offline migration")
+	})
 }
