@@ -45,7 +45,6 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/monitor"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/prometheus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/types"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -57,9 +56,6 @@ var batchSizeInNumRows = int64(0)
 var batchImportPool *pool.Pool
 var colocatedBatchImportPool *pool.Pool
 var colocatedBatchImportQueue chan func()
-
-// Prometheus metrics configuration
-const PROMETHEUS_METRICS_PORT = "8080"
 
 var tablesProgressMetadata map[string]*utils.TableProgressMetadata
 var importerRole string
@@ -194,12 +190,6 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 		utils.ErrExit("--table-list and --exclude-table-list are not supported for live migration. Re-run the command without these flags.")
 	} else {
 		importFileTasks = applyTableListFilter(importFileTasks)
-	}
-
-	// Start Prometheus metrics server
-	err = prometheus.StartMetricsServer(PROMETHEUS_METRICS_PORT)
-	if err != nil {
-		log.Errorf("Failed to start Prometheus metrics server: %v", err)
 	}
 
 	if importerRole == TARGET_DB_IMPORTER_ROLE && tconf.EnableUpsert {
@@ -654,7 +644,13 @@ func updateImportDataStartedInMetaDB() error {
 
 func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorPolicy) {
 
-	err := updateImportDataStartedInMetaDB()
+	// Start Prometheus metrics server
+	err := importdata.StartPrometheusMetricsServer()
+	if err != nil {
+		utils.ErrExit("Failed to start Prometheus metrics server: %v", err)
+	}
+
+	err = updateImportDataStartedInMetaDB()
 	if err != nil {
 		utils.ErrExit("Failed to update import data started in meta DB: %s", err)
 	}

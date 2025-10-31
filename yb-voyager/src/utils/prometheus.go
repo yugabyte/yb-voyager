@@ -13,7 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package prometheus
+package utils
 
 import (
 	"net/http"
@@ -22,8 +22,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// StartMetricsServer starts an HTTP server to expose Prometheus metrics
-func StartMetricsServer(port string) error {
+func StartPrometheusMetricsServer(port string) error {
 	// Create HTTP handler for /metrics endpoint
 	http.Handle("/metrics", promhttp.Handler())
 
@@ -32,7 +31,6 @@ func StartMetricsServer(port string) error {
 		addr := ":" + port
 		log.Infof("Starting Prometheus metrics server on port %s", port)
 		log.Infof("Metrics available at http://localhost%s/metrics", addr)
-		log.Infof("Session ID for this run: %s", GetSessionID())
 
 		if err := http.ListenAndServe(addr, nil); err != nil {
 			log.Errorf("Failed to start Prometheus metrics server: %v", err)

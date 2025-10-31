@@ -13,15 +13,19 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package prometheus
+package importdata
 
 import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
+
+// Prometheus metrics configuration
+const IMPORT_DATA_PROMETHEUS_METRICS_PORT = "9102"
 
 // sessionID is created on package init and used for all metrics
 var sessionID string
@@ -77,6 +81,10 @@ var (
 		[]string{"session_id", "importer_role", "table_name", "schema_name"},
 	)
 )
+
+func StartPrometheusMetricsServer() error {
+	return utils.StartPrometheusMetricsServer(IMPORT_DATA_PROMETHEUS_METRICS_PORT)
+}
 
 // RecordSnapshotBatchIngested records metrics for a completed batch import
 func RecordSnapshotBatchIngested(tableNameTup sqlname.NameTuple, importerRole string, rows, bytes int64) {

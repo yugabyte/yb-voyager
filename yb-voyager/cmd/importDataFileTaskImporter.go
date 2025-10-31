@@ -31,7 +31,6 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/prometheus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -138,7 +137,7 @@ func (fti *FileTaskImporter) submitBatch(batch *Batch) error {
 		fti.workerPool.Go(importBatchFunc)
 	}
 
-	prometheus.RecordSnapshotBatchSubmitted(fti.task.TableNameTup, importerRole)
+	importdata.RecordSnapshotBatchSubmitted(fti.task.TableNameTup, importerRole)
 
 	log.Infof("Queued batch: %s", spew.Sdump(batch))
 	return nil
@@ -257,7 +256,7 @@ func (fti *FileTaskImporter) updateProgressForCompletedBatch(batch *Batch) {
 	}
 
 	// update prometheus metrics
-	prometheus.RecordSnapshotBatchIngested(fti.task.TableNameTup, importerRole, batch.RecordCount, batch.ByteCount)
+	importdata.RecordSnapshotBatchIngested(fti.task.TableNameTup, importerRole, batch.RecordCount, batch.ByteCount)
 }
 
 func (fti *FileTaskImporter) PostProcess() {
