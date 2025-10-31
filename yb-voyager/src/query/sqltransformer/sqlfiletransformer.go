@@ -52,6 +52,9 @@ type IndexFileTransformer struct {
 
 	//list of modified secondary indexes to range-sharded indexes
 	ModifiedIndexesToRange []*sqlname.ObjectNameQualifiedWithTableName
+
+	//backup file path of the index file
+	backupFilePath string
 }
 
 func NewIndexFileTransformer(redundantIndexesToRemove *utils.StructMap[*sqlname.ObjectNameQualifiedWithTableName, string], skipPerformanceOptimizations bool, sourceDBType string) *IndexFileTransformer {
@@ -125,7 +128,13 @@ func (t *IndexFileTransformer) Transform(file string) (string, error) {
 		return "", fmt.Errorf("failed to write transformed stmts to %s file: %w", file, err)
 	}
 
+	t.backupFilePath = backUpFile
+
 	return backUpFile, nil
+}
+
+func (t *IndexFileTransformer) GetBackupFilePath() string {
+	return t.backupFilePath
 }
 
 func (t *IndexFileTransformer) writeRemovedRedundantIndexesToFile(removedIndexToStmtMap *utils.StructMap[*sqlname.ObjectNameQualifiedWithTableName, *pg_query.RawStmt]) error {
@@ -168,6 +177,12 @@ type TableFileTransformer struct {
 	PKTablesOnTimestampWithRangeSharded             []string
 	PKTablesWithHashSharded                         []string
 	AppliedHashOrRangeShardingStrategyToConstraints bool
+
+	//Colocation recommendation related information - currently this change is done outside of this transformer but whenever we merge it will be easier for consumers of transformer t o rely on same informaiton
+	ShardedTables                    []string
+	ColocatedTables                  []string
+	ColocationRecommendationsApplied bool
+	BackupFilePath                   string
 }
 
 func NewTableFileTransformer(skipMergeConstraints bool, sourceDBType string, skipPerformanceOptimizations bool) *TableFileTransformer {
@@ -223,7 +238,15 @@ func (t *TableFileTransformer) Transform(file string) (string, error) {
 		return "", fmt.Errorf("failed to write transformed table.sql file: %w", err)
 	}
 
+	t.BackupFilePath = backUpFile
+
 	return backUpFile, nil
+}
+
+func (t *TableFileTransformer) GetBackupFilePath() string {
+	//todo this should be the  backupFile in Transform method but the original Tables are dumpes here before colocation recommendation so keeping it like that right now
+	//we can change this once we merge the colocation recommendation changes with the table file transformation
+	return t.BackupFilePath
 }
 
 func (t *TableFileTransformer) shouldConfigureShardingStrategyForConstraints() bool {
@@ -231,4 +254,25 @@ func (t *TableFileTransformer) shouldConfigureShardingStrategyForConstraints() b
 		return false
 	}
 	return !t.skipPerformanceOptimizations
+}
+
+//=========================MVIEW FILE TRANSFORMER=====================================
+
+type MviewFileTransformer struct {
+	ShardedMviews                                 []string
+	ColocatedMviews                               []string
+	BackupFilePath string
+	ColocationRecommendationsApplied              bool
+}
+
+func NewMviewFileTransformer() *MviewFileTransformer {
+	return &MviewFileTransformer{}
+}
+
+func (t *MviewFileTransformer) Transform(file string) (string, error) {
+	return file, nil
+}
+
+func (t *MviewFileTransformer) GetBackupFilePath() string {
+	return t.BackupFilePath
 }

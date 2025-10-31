@@ -203,30 +203,36 @@ func exportSchema(cmd *cobra.Command) error {
 		return fmt.Errorf("failed to apply table file transformations: %w", err)
 	}
 
+	//storing the colocation recommendation related information in the transformer
+	//since we are already passing the transformer and in future whenever we merge it we will rely on the transformer for any such information
+	tableTransformer.ShardedTables = modifiedTables
+	tableTransformer.ColocatedTables = colocatedTables
+	if tableBackupPath != "" {
+		//In cases if the colocation recommendation is applied then only we update the original backup file path to be the colocation one
+		tableTransformer.BackupFilePath = tableBackupPath
+	}
+	tableTransformer.ColocationRecommendationsApplied = assessmentRecommendationsApplied
+
+	mviewTransformer := sqltransformer.NewMviewFileTransformer()
+	mviewTransformer.ShardedMviews = modifiedMviews
+	mviewTransformer.ColocatedMviews = colocatedMviews
+	mviewTransformer.BackupFilePath = mviewBackupPath
+	mviewTransformer.ColocationRecommendationsApplied = assessmentRecommendationsApplied
+
 	if tableTransformer.MergedConstraints {
 		utils.PrintAndLogfInfo("\nMerged Primary Key and Check constraint definitions into CREATE TABLE statements of the exported tables for improving the import schema performance.")
 	}
 
-	indexTransformer, indexBackupPath, err := applyIndexFileTransformations()
+	indexTransformer, err := applyIndexFileTransformations()
 	if err != nil {
 		return fmt.Errorf("failed to apply index file transformations: %w", err)
 	}
-	err = generatePerformanceOptimizationReport(indexTransformer, modifiedTables, modifiedMviews, colocatedTables, colocatedMviews, tableTransformer)
+	err = generatePerformanceOptimizationReport(indexTransformer, tableTransformer, mviewTransformer)
 	if err != nil {
 		return fmt.Errorf("failed to generate performance optimization %w", err)
 	}
-	utils.PrintAndLogfSuccess("\nExported schema files created under directory: %s\n\n", utils.PathColor.Sprintf(filepath.Join(exportDir, "schema")))
-	if utils.FileOrFolderExists(tableBackupPath) {
-		utils.PrintAndLogfInfo("Original TABLE DDLs are backed up at: %s", utils.PathColor.Sprintf(tableBackupPath))
-	}
-	if utils.FileOrFolderExists(mviewBackupPath) {
-		utils.PrintAndLogfInfo("Original MVIEW DDLs are backed up at: %s", utils.PathColor.Sprintf(mviewBackupPath))
-	}
-	if utils.FileOrFolderExists(indexBackupPath) {
-		utils.PrintAndLogfInfo("Original INDEX DDLs are backed up at: %s", utils.PathColor.Sprintf(indexBackupPath))
-	}
-	fmt.Println()
-	
+	printSchemaFilesPaths(tableTransformer, mviewTransformer, indexTransformer)
+
 	packAndSendExportSchemaPayload(COMPLETE, nil)
 
 	saveSourceDBConfInMSR()
@@ -235,6 +241,20 @@ func exportSchema(cmd *cobra.Command) error {
 	exportSchemaCompleteEvent := createExportSchemaCompletedEvent()
 	controlPlane.ExportSchemaCompleted(&exportSchemaCompleteEvent)
 	return nil
+}
+
+func printSchemaFilesPaths(tableTransformer *sqltransformer.TableFileTransformer, mviewTransformer *sqltransformer.MviewFileTransformer, indexTransformer *sqltransformer.IndexFileTransformer) {
+	utils.PrintAndLogfSuccess("\nExported schema files created under directory: %s\n\n", utils.PathColor.Sprintf(filepath.Join(exportDir, "schema")))
+	if tableTransformer != nil && utils.FileOrFolderExists(tableTransformer.GetBackupFilePath()) {
+		utils.PrintAndLogfInfo("Original TABLE DDLs are backed up at: %s", utils.PathColor.Sprintf(tableTransformer.GetBackupFilePath()))
+	}
+	if mviewTransformer != nil && utils.FileOrFolderExists(mviewTransformer.GetBackupFilePath()) {
+		utils.PrintAndLogfInfo("Original MVIEW DDLs are backed up at: %s", utils.PathColor.Sprintf(mviewTransformer.GetBackupFilePath()))
+	}
+	if indexTransformer != nil && utils.FileOrFolderExists(indexTransformer.GetBackupFilePath()) {
+		utils.PrintAndLogfInfo("Original INDEX DDLs are backed up at: %s", utils.PathColor.Sprintf(indexTransformer.GetBackupFilePath()))
+	}
+	fmt.Println()
 }
 
 func runAssessMigrationCmdBeforExportSchemaIfRequired(exportSchemaCmd *cobra.Command) error {
@@ -540,7 +560,7 @@ func applyShardedTablesRecommendation(shardedTables []string, objType string) ([
 	if err = file.Close(); err != nil {
 		return modifiedObjects, colocatedObjects, "", fmt.Errorf("error closing file '%q' storing the modified recommended schema: %w", filePath, err)
 	}
-	
+
 	return modifiedObjects, colocatedObjects, backupPath, nil
 }
 
@@ -703,15 +723,16 @@ func clearAssessmentRecommendationsApplied() {
 }
 
 func applyTableFileTransformations() (*sqltransformer.TableFileTransformer, error) {
-	tableFilePath := utils.GetObjectFilePath(schemaDir, TABLE)
-	if !utils.FileOrFolderExists(tableFilePath) {
-		log.Infof("TABLE file doesn't exists, skipping table file transformations")
-		return nil, nil
-	}
 
 	skipMergeConstraints := utils.GetEnvAsBool("YB_VOYAGER_SKIP_MERGE_CONSTRAINTS_TRANSFORMATIONS", false)
 
 	tableTransformer := sqltransformer.NewTableFileTransformer(skipMergeConstraints, source.DBType, bool(skipPerfOptimizations))
+
+	tableFilePath := utils.GetObjectFilePath(schemaDir, TABLE)
+	if !utils.FileOrFolderExists(tableFilePath) {
+		log.Infof("TABLE file doesn't exists, skipping table file transformations")
+		return tableTransformer, nil
+	}
 
 	backUpFile, err := tableTransformer.Transform(tableFilePath)
 	if err != nil {
@@ -719,23 +740,23 @@ func applyTableFileTransformations() (*sqltransformer.TableFileTransformer, erro
 		//And for PG the error scenario is rare so keeping the behavior same earlier Merge constraints transformation code path
 		//TODO: revisit this once we have more transformations - like PRIMARY KEY HASH performance optimization, sharded/colocated recommendations, etc..
 		log.Infof("skipping error while transforming file %s: %v", tableFilePath, err)
-		return nil, nil
+		return tableTransformer, nil
 	}
 	log.Infof("Schema modifications are applied to TABLE DDLs and the original DDLs are backed up to %s", backUpFile)
 	return tableTransformer, nil
 }
 
-func applyIndexFileTransformations() (*sqltransformer.IndexFileTransformer, string, error) {
+func applyIndexFileTransformations() (*sqltransformer.IndexFileTransformer, error) {
 
 	if source.DBType != POSTGRESQL {
 		log.Infof("skipping index file transformations for source db type %s", source.DBType)
-		return nil, "", nil
+		return nil, nil
 	}
 
 	indexFilePath := utils.GetObjectFilePath(schemaDir, INDEX)
 	if !utils.FileOrFolderExists(indexFilePath) {
 		log.Infof("INDEX file doesn't exists, skipping index file transformations")
-		return nil, "", nil
+		return nil, nil
 	}
 
 	//fetching redundanant indexes from assessment db
@@ -747,9 +768,9 @@ func applyIndexFileTransformations() (*sqltransformer.IndexFileTransformer, stri
 	if err != nil {
 		if skipPerfOptimizations {
 			log.Infof("skipping error while fetching redundant index map from assessment db: %v", err)
-			return nil, "", nil
+			return nil, nil
 		}
-		return nil, "", fmt.Errorf("failed to fetch redundant index map from assessment db: %w\n%s", err, sqltransformer.SUGGESTION_TO_USE_SKIP_PERF_OPTIMIZATIONS_FLAG)
+		return nil, fmt.Errorf("failed to fetch redundant index map from assessment db: %w\n%s", err, sqltransformer.SUGGESTION_TO_USE_SKIP_PERF_OPTIMIZATIONS_FLAG)
 	}
 	indexTransformer := sqltransformer.NewIndexFileTransformer(redundantIndexToResolvedExistingIndex, bool(skipPerfOptimizations), source.DBType)
 
@@ -762,11 +783,11 @@ func applyIndexFileTransformations() (*sqltransformer.IndexFileTransformer, stri
 			log.Infof("skipping error while transforming file %s: %v", indexFilePath, err)
 			errMsg = nil
 		}
-		return nil, "", errMsg
+		return nil, errMsg
 	}
 	log.Infof("Schema modifications are applied to INDEX DDLs and the original file is backed up to %s", backUpFile)
 
-	return indexTransformer, backUpFile, nil
+	return indexTransformer, nil
 }
 
 func fetchRedundantIndexMapFromAssessmentDB() (*utils.StructMap[*sqlname.ObjectNameQualifiedWithTableName, string], error) {
