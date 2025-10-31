@@ -603,21 +603,20 @@ func TestYugabyteGetColumnsWithSupportedTypes_AllScenarios(t *testing.T) {
 		testutils.CreateNameTupleWithSourceName("hr.projects", "hr", constants.YUGABYTEDB),
 	}
 
-	// ========== Test 1: Logical Connector (TSVECTOR supported) ==========
+	// ========== Test 1: Logical Connector (TSVECTOR and HSTORE supported) ==========
 	t.Run("LogicalConnector", func(t *testing.T) {
 		ybDB.source.IsYBGrpcConnector = false
 		supportedCols, unsupportedCols, err := ybDB.GetColumnsWithSupportedTypes(tableList, true, false)
 		assert.NilError(t, err, "Expected no error")
 
-		// Case 1: ext_table - hstore should be unsupported despite custom schema
+		// Case 1: ext_table - hstore is SUPPORTED in logical connector
 		extTable := tableList[0]
 		supported, exists := supportedCols.Get(extTable)
 		assert.Equal(t, true, exists, "Expected custom_ext.ext_table in supported map")
-		testutils.AssertEqualStringSlices(t, []string{"id", "name", "description"}, supported)
+		testutils.AssertEqualStringSlices(t, []string{"*"}, supported)
 
-		unsupported, exists := unsupportedCols.Get(extTable)
-		assert.Equal(t, true, exists, "Expected custom_ext.ext_table in unsupported map")
-		testutils.AssertEqualStringSlices(t, []string{"metadata"}, unsupported) // hstore column
+		_, exists = unsupportedCols.Get(extTable)
+		assert.Equal(t, false, exists, "Expected custom_ext.ext_table NOT in unsupported map")
 
 		// Case 2: employee_devices - UDTs and hstore unsupported, ENUM supported
 		// Tests same-schema UDT (hr.contact), cross-schema UDT (inventory.device_specs),
@@ -625,11 +624,11 @@ func TestYugabyteGetColumnsWithSupportedTypes_AllScenarios(t *testing.T) {
 		devicesTable := tableList[1]
 		supported, exists = supportedCols.Get(devicesTable)
 		assert.Equal(t, true, exists, "Expected hr.employee_devices in supported map")
-		testutils.AssertEqualStringSlices(t, []string{"employee_id", "device_name", "status", "notes"}, supported) // status (ENUM) is supported
+		testutils.AssertEqualStringSlices(t, []string{"employee_id", "device_name", "settings", "status", "notes"}, supported)
 
-		unsupported, exists = unsupportedCols.Get(devicesTable)
+		unsupported, exists := unsupportedCols.Get(devicesTable)
 		assert.Equal(t, true, exists, "Expected hr.employee_devices in unsupported map")
-		testutils.AssertEqualStringSlices(t, []string{"contact_info", "device_details", "settings"}, unsupported) // 2 UDTs + hstore
+		testutils.AssertEqualStringSlices(t, []string{"contact_info", "device_details"}, unsupported) // both UDTs
 
 		// Case 3: search_table - TSVECTOR is SUPPORTED in logical mode
 		searchTable := tableList[2]
@@ -650,27 +649,41 @@ func TestYugabyteGetColumnsWithSupportedTypes_AllScenarios(t *testing.T) {
 		assert.Equal(t, false, exists, "Expected hr.projects NOT in unsupported map")
 	})
 
-	// ========== Test 2: GRPC Connector (TSVECTOR unsupported) ==========
+	// ========== Test 2: GRPC Connector (TSVECTOR and HSTORE unsupported) ==========
 	t.Run("GRPCConnector", func(t *testing.T) {
 		ybDB.source.IsYBGrpcConnector = true
 		supportedCols, unsupportedCols, err := ybDB.GetColumnsWithSupportedTypes(tableList, true, false)
 		assert.NilError(t, err, "Expected no error")
 
+		// Case 1: ext_table - hstore is UNSUPPORTED in GRPC connector
+		extTable := tableList[0]
+		supported, exists := supportedCols.Get(extTable)
+		assert.Equal(t, true, exists, "Expected custom_ext.ext_table in supported map")
+		testutils.AssertEqualStringSlices(t, []string{"id", "name", "description"}, supported)
+
+		unsupported, exists := unsupportedCols.Get(extTable)
+		assert.Equal(t, true, exists, "Expected custom_ext.ext_table in unsupported map")
+		testutils.AssertEqualStringSlices(t, []string{"metadata"}, unsupported)
+
+		// Case 2: employee_devices - UDTs and hstore both unsupported in GRPC mode
+		devicesTable := tableList[1]
+		supported, exists = supportedCols.Get(devicesTable)
+		assert.Equal(t, true, exists, "Expected hr.employee_devices in supported map")
+		testutils.AssertEqualStringSlices(t, []string{"employee_id", "device_name", "status", "notes"}, supported)
+
+		unsupported, exists = unsupportedCols.Get(devicesTable)
+		assert.Equal(t, true, exists, "Expected hr.employee_devices in unsupported map")
+		testutils.AssertEqualStringSlices(t, []string{"contact_info", "device_details", "settings"}, unsupported)
+
 		// Case 3: search_table - TSVECTOR is UNSUPPORTED in GRPC mode
 		searchTable := tableList[2]
-		supported, exists := supportedCols.Get(searchTable)
+		supported, exists = supportedCols.Get(searchTable)
 		assert.Equal(t, true, exists, "Expected custom_ext.search_table in supported map")
 		testutils.AssertEqualStringSlices(t, []string{"id", "content"}, supported)
 
-		unsupported, exists := unsupportedCols.Get(searchTable)
+		unsupported, exists = unsupportedCols.Get(searchTable)
 		assert.Equal(t, true, exists, "Expected custom_ext.search_table in unsupported map")
 		testutils.AssertEqualStringSlices(t, []string{"search_vector"}, unsupported) // TSVECTOR unsupported in GRPC
-
-		// Verify hstore still unsupported in GRPC mode
-		extTable := tableList[0]
-		unsupported, exists = unsupportedCols.Get(extTable)
-		assert.Equal(t, true, exists, "Expected custom_ext.ext_table in unsupported map")
-		testutils.AssertEqualStringSlices(t, []string{"metadata"}, unsupported)
 	})
 
 	// ========== Test 3: Offline Migration (all types supported) ==========
@@ -678,7 +691,7 @@ func TestYugabyteGetColumnsWithSupportedTypes_AllScenarios(t *testing.T) {
 		supportedCols, unsupportedCols, err := ybDB.GetColumnsWithSupportedTypes(tableList, false, false)
 		assert.NilError(t, err, "Expected no error")
 
-		// In offline migration, all columns should be supported (empty maps returned)
+		// In offline migration, all columns should be supported for all tables (empty maps returned)
 		assert.Equal(t, 0, len(supportedCols.Keys()), "Expected empty supported map for offline migration")
 		assert.Equal(t, 0, len(unsupportedCols.Keys()), "Expected empty unsupported map for offline migration")
 	})
