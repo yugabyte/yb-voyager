@@ -154,11 +154,7 @@ func NewRedundantIndexChange(applied bool, referenceFile string, tableToRemovedI
 }
 
 func (r *RedundantIndexChange) Summary() string {
-	splits := strings.Split(r.Title, " - ")
-	if len(splits) < 2 {
-		return r.Title
-	}
-	return fmt.Sprintf("%s - %s", splits[0], lo.Ternary(r.IsApplied, utils.SuccessColor.Sprint(splits[1]), utils.ErrorColor.Sprint(splits[1])))
+	return modifyTitleColorBasedOnIsApplied(r.Title, r.IsApplied)
 }
 
 // ColocationRecommendationChange represents the application of Colocation recommendations
@@ -207,11 +203,7 @@ func NewAppliedColocationRecommendationChange(objectType string, applied bool, r
 }
 
 func (c *ColocationRecommendationChange) Summary() string {
-	splits := strings.Split(c.Title, " - ")
-	if len(splits) < 2 {
-		return c.Title
-	}
-	return fmt.Sprintf("%s - %s", splits[0], lo.Ternary(c.IsApplied, utils.SuccessColor.Sprint(splits[1]), utils.ErrorColor.Sprint(splits[1])))
+	return modifyTitleColorBasedOnIsApplied(c.Title, c.IsApplied)
 }
 
 func NewNotAppliedColocationRecommendationChangeWhenAssessNotDoneDirectly() *ColocationRecommendationChange {
@@ -263,11 +255,7 @@ func (s *SecondaryIndexToRangeChange) Exist() bool {
 }
 
 func (s *SecondaryIndexToRangeChange) Summary() string {
-	splits := strings.Split(s.Title, " - ")
-	if len(splits) < 2 {
-		return s.Title
-	}
-	return fmt.Sprintf("%s - %s", splits[0], lo.Ternary(s.IsApplied, utils.SuccessColor.Sprint(splits[1]), utils.ErrorColor.Sprint(splits[1])))
+	return modifyTitleColorBasedOnIsApplied(s.Title, s.IsApplied)
 }
 
 type PKHashShardingChange struct {
@@ -301,11 +289,7 @@ func (p *PKHashShardingChange) Exist() bool {
 }
 
 func (p *PKHashShardingChange) Summary() string {
-	splits := strings.Split(p.Title, " - ")
-	if len(splits) < 2 {
-		return p.Title
-	}
-	return fmt.Sprintf("%s - %s", splits[0], lo.Ternary(p.IsApplied, utils.SuccessColor.Sprint(splits[1]), utils.ErrorColor.Sprint(splits[1])))
+	return modifyTitleColorBasedOnIsApplied(p.Title, p.IsApplied)
 }
 
 type PKOnTimestampRangeShardingChange struct {
@@ -340,11 +324,7 @@ func (p *PKOnTimestampRangeShardingChange) Exist() bool {
 }
 
 func (p *PKOnTimestampRangeShardingChange) Summary() string {
-	splits := strings.Split(p.Title, " - ")
-	if len(splits) < 2 {
-		return p.Title
-	}
-	return fmt.Sprintf("%s - %s", splits[0], lo.Ternary(p.IsApplied, utils.SuccessColor.Sprint(splits[1]), utils.ErrorColor.Sprint(splits[1])))
+	return modifyTitleColorBasedOnIsApplied(p.Title, p.IsApplied)
 }
 
 type UKRangeSplittingChange struct {
@@ -378,11 +358,7 @@ func (p *UKRangeSplittingChange) Exist() bool {
 }
 
 func (u *UKRangeSplittingChange) Summary() string {
-	splits := strings.Split(u.Title, " - ")
-	if len(splits) < 2 {
-		return u.Title
-	}
-	return fmt.Sprintf("%s - %s", splits[0], lo.Ternary(u.IsApplied, utils.SuccessColor.Sprint(splits[1]), utils.ErrorColor.Sprint(splits[1])))
+	return modifyTitleColorBasedOnIsApplied(u.Title, u.IsApplied)
 }
 
 /*
@@ -577,4 +553,12 @@ func getRelativePathWithReportsDir(filePath string) string {
 		filePath = relativePath
 	}
 	return filePath
+}
+
+func modifyTitleColorBasedOnIsApplied(title string, isApplied bool) string {
+	splits := strings.Split(title, " - ")
+	if len(splits) < 2 {
+		return title
+	}
+	return fmt.Sprintf("%s - %s", splits[0], lo.Ternary(isApplied, utils.SuccessColor.Sprint(splits[1]), utils.ErrorColor.Sprint(splits[1])))
 }

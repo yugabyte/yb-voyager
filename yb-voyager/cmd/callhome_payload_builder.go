@@ -475,14 +475,14 @@ func buildCallhomeSchemaOptimizationChanges() []callhome.SchemaOptimizationChang
 			Objects:          anonymizeQualifiedTableNames(schemaOptimizationReport.PKHashShardingChange.ModifiedTables),
 		})
 	}
-	if schemaOptimizationReport.PKOnTimestampRangeShardingChange != nil && schemaOptimizationReport.PKOnTimestampRangeShardingChange.Exist() {
+	if schemaOptimizationReport.PKOnTimestampRangeShardingChange != nil {
 		schemaOptimizationChanges = append(schemaOptimizationChanges, callhome.SchemaOptimizationChange{
 			OptimizationType: PK_ON_TIMESTAMP_OR_DATE_RANGE_SPLITTING_CHANGE_TYPE,
 			IsApplied:        schemaOptimizationReport.PKOnTimestampRangeShardingChange.IsApplied,
 			Objects:          anonymizeQualifiedTableNames(schemaOptimizationReport.PKOnTimestampRangeShardingChange.ModifiedTables),
 		})
 	}
-	if schemaOptimizationReport.UKRangeShardingChange != nil && schemaOptimizationReport.UKRangeShardingChange.Exist() {
+	if schemaOptimizationReport.UKRangeShardingChange != nil {
 		schemaOptimizationChanges = append(schemaOptimizationChanges, callhome.SchemaOptimizationChange{
 			OptimizationType: UK_RANGE_SPLITTING_CHANGE_TYPE,
 			IsApplied:        schemaOptimizationReport.UKRangeShardingChange.IsApplied,
