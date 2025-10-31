@@ -7,42 +7,45 @@ on:
     branches: [main]
 
 jobs:
+  prepare-versions:
+    uses: ./.github/workflows/prepare-versions.yml
 
   test-issues-against-all-yb-versions:
+    needs: [prepare-versions]
     strategy:
       fail-fast: false
       matrix:
-        version: [2.25.2.0-b359, LATEST_STABLE, 2.20.10.0-b29, "2024.2.4.0-b89", "2024.1.6.1-b2"]
+        yb_version: ${{ fromJSON(needs.prepare-versions.outputs.yb_versions) }}
     env:
-      YB_VERSION: ${{ matrix.version }}
+      YB_VERSION: ${{ matrix.yb_version }} # required by tests; for eg - TestDDLIssuesInYBVersion()
+      YB_LATEST_STABLE: ${{ needs.prepare-versions.outputs.yb_latest_stable }}
       YB_CONN_STR: "postgres://yugabyte:yugabyte@127.0.0.1:5433/yugabyte"
       YB_VOYAGER_SEND_DIAGNOSTICS: 0
 
     runs-on: ubuntu-22.04
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: Set up Go
-      uses: actions/setup-go@v3
+      uses: actions/setup-go@v4
       with:
-        go-version: "1.23.1"
+        go-version: ${{ needs.prepare-versions.outputs.go_version }}
 
     - name: Setup YugabyteDB
       run: |
-        # Note: Update val for LATEST_STABLE here along with 'src/ybversion/constants.go/LATEST_STABLE' variable
-        if [ "${YB_VERSION}" == "LATEST_STABLE" ]; then
-          YB_VERSION="2025.1.0.0-b168"
-
-          # write it to GitHub's environment to override previous value
-          echo "YB_VERSION=${YB_VERSION}" >> $GITHUB_ENV
-        fi
-
         # using s3 release instead of docker image to allow testing against un-released versions
-        wget https://s3.us-west-2.amazonaws.com/releases.yugabyte.com/${YB_VERSION}/yugabyte-${YB_VERSION}-centos-x86_64.tar.gz
-        mkdir -p yugabyte-${YB_VERSION}
-        tar -xvzf yugabyte-${YB_VERSION}-centos-x86_64.tar.gz -C yugabyte-${YB_VERSION} --strip-components=1
-        yugabyte-${YB_VERSION}/bin/yugabyted start --advertise_address 127.0.0.1 --callhome=false
-        sleep 20
+        wget https://s3.us-west-2.amazonaws.com/releases.yugabyte.com/${{ matrix.yb_version }}/yugabyte-${{ matrix.yb_version }}-centos-x86_64.tar.gz
+        mkdir -p yugabyte-${{ matrix.yb_version }}
+        tar -xvzf yugabyte-${{ matrix.yb_version }}-centos-x86_64.tar.gz -C yugabyte-${{ matrix.yb_version }} --strip-components=1
+        yugabyte-${{ matrix.yb_version }}/bin/yugabyted start --advertise_address 127.0.0.1 --callhome=false
+        
+        # Wait for YugabyteDB to be ready with health check instead of fixed sleep
+        echo "Waiting for YugabyteDB to be ready..."
+        timeout 60s bash -c 'until psql "${YB_CONN_STR}" -c "SELECT 1" > /dev/null 2>&1; do 
+          echo "YugabyteDB not ready yet, waiting 2 seconds..."
+          sleep 2
+        done'
+        echo "YugabyteDB is ready!"
     
     - name: Test YugabyteDB connection
       run: |
@@ -59,7 +62,7 @@ jobs:
         go test -v ./... -tags 'issues_integration'
 
     - name: Test Latest Stable YB Version
-      if: ${{ matrix.version == 'LATEST_STABLE' }}
+      if: ${{ matrix.yb_version == env.YB_LATEST_STABLE }}
       run: |
         cd yb-voyager
         go test -v ./... -tags 'yb_version_latest_stable'

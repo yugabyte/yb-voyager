@@ -85,6 +85,11 @@ main() {
 	    echo "Skipping database creation as SKIP_DB_CREATION is set to true."
 	fi
 	./init-db
+	
+	if [ "${SOURCE_DB_TYPE}" = "postgresql" ]; then
+		step "Creating pg_stat_statements for the compare-performance command"
+		run_psql ${SOURCE_DB_NAME} "CREATE EXTENSION IF NOT EXISTS pg_stat_statements;"
+	fi
 
 	step "Grant source database user permissions"
 	grant_permissions ${SOURCE_DB_NAME} ${SOURCE_DB_TYPE} ${SOURCE_DB_SCHEMA}
@@ -171,6 +176,13 @@ main() {
 	run_ysql ${TARGET_DB_NAME} "\dt"
 
 	step "Run Schema validations."
+	if [ -f "${EXPORT_DIR}/schema/failed.sql" ]
+        then
+			echo "Unexpected failed.sql file found in the export directory"
+            cat "${EXPORT_DIR}/schema/failed.sql"
+            exit 1
+    fi
+
 	if [ -x "${TEST_DIR}/validate-schema" ]
 	then
 		 "${TEST_DIR}/validate-schema"
@@ -200,7 +212,7 @@ main() {
 	step "Run export-data-status"
 	export_data_status
 
-	expected_file="${TEST_DIR}/export_data_status-report.json"
+	expected_file="${TEST_DIR}/export-data-status-report.json"
 	actual_file="${EXPORT_DIR}/reports/export-data-status-report.json"
 
 	if [ "${EXPORT_TABLE_LIST}" != "" ]
@@ -214,7 +226,7 @@ main() {
 	step "Run import-data-status"
 	import_data_status
 
-	expected_file="${TEST_DIR}/import_data_status-report.json"
+	expected_file="${TEST_DIR}/import-data-status-report.json"
 	actual_file="${EXPORT_DIR}/reports/import-data-status-report.json"
 
     if [ "${EXPORT_TABLE_LIST}" != "" ]
@@ -223,6 +235,23 @@ main() {
 	fi
 	step "Verify import-data-status report"
 	verify_report ${expected_file} ${actual_file}
+
+	step "Run performance comparison."
+	if [ "${SOURCE_DB_TYPE}" = "postgresql" ]; then
+		compare_performance || {
+			cat_log_file "yb-voyager-compare-performance.log"
+		}
+
+		step "Validate Performance Reports"
+		# Checking if the performance comparison reports were created
+		if [ -f "${EXPORT_DIR}/reports/performance_comparison_report.html" ] && [ -f "${EXPORT_DIR}/reports/performance_comparison_report.json" ]; then
+			echo "Performance comparison reports created successfully."
+		else
+			echo "Error: Performance comparison reports were not created successfully."
+			cat_log_file "yb-voyager-compare-performance.log"
+			exit 1
+		fi
+	fi
 
 	step "End Migration: clearing metainfo about state of migration from everywhere."
 	end_migration --yes

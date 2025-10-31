@@ -88,16 +88,16 @@ END $$;`)
 		}
 	}
 
-	expectedColocatedTables := []string{"test_schema.test_data"}
+	expectedColocatedTables := []string(nil)
 	expectedSizingAssessmentReport := migassessment.SizingAssessmentReport{
 		SizingRecommendation: migassessment.SizingRecommendation{
-			ColocatedTables:                 []string{"test_schema.test_data"},
-			ColocatedReasoning:              "Recommended instance type with 4 vCPU and 16 GiB memory could fit 1 objects (1 tables/materialized views and 0 explicit/implicit indexes) with 6.52 MB size and throughput requirement of 10 reads/sec and 0 writes/sec as colocated. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
-			ShardedTables:                   nil,
+			ColocatedTables:                 nil,
+			ColocatedReasoning:              "Recommended instance type with 4 vCPU and 16 GiB memory could fit 1 objects (1 tables/materialized views and 0 explicit/implicit indexes) with 6.52 MB size and throughput requirement of 10 reads/sec and 0 writes/sec as sharded. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
+			ShardedTables:                   []string{"test_schema.test_data"},
 			NumNodes:                        3,
 			VCPUsPerInstance:                4,
 			MemoryPerInstance:               16,
-			OptimalSelectConnectionsPerNode: 8,
+			OptimalSelectConnectionsPerNode: 10,
 			OptimalInsertConnectionsPerNode: 12,
 			EstimatedTimeInMinForImport:     1,
 			EstimatedTimeInMinForImportWithoutRedundantIndexes: 1,
@@ -169,4 +169,136 @@ func int64Ptr(i int64) *int64 {
 
 func stringPtr(s string) *string {
 	return &s
+}
+
+func Test_AssessMigration_UsageCategory(t *testing.T) {
+	// create temp export dir and setting global exportDir variable
+	exportDir = testutils.CreateTempExportDir()
+	// defer testutils.RemoveTempExportDir(exportDir)
+
+	// setting up source test container and source params for assessment
+	postgresContainer := testcontainers.NewTestContainer("postgresql", nil)
+	err := postgresContainer.Start(context.Background())
+	if err != nil {
+		utils.ErrExit("Failed to start postgres container: %v", err)
+	}
+	/*
+		test_data: scans 3, writes 100000 ( PK hotspot, index on particular value) FREQUENT
+		idx_test_data_value ON test_schema.test_data
+		test_data2: scans 5000, writes 0 ( FK with  datatype mismatch, Missing index on foreign key columns) FREQUENT
+		test_partitions_l: scans 4000, writes 25000 ( Index hotspot, ) MODERATE
+		test_partitions_s: scans 4596, writes 25000 ( Index hotspot) MODERATE
+		test_partitions_b: scans , writes 10 ( Index hotspot) RARE
+		test_unused: scans 3, writes 0 ( PK if UNIQUE NOT NULL column present) UNUSED
+	*/
+	postgresContainer.ExecuteSqls(
+		`CREATE SCHEMA test_schema;`,
+		//PK Hotspot with timestamp type
+		`CREATE TABLE test_schema.test_data (
+			id bigint UNIQUE,
+			created_at timestamp with time zone PRIMARY KEY,
+			value TEXT
+		);`,
+		//index on a particular value
+		`CREATE INDEX idx_test_data_value ON test_schema.test_data (value);`,
+		`INSERT INTO test_schema.test_data
+			SELECT i, 
+				now() + (i || ' days')::interval, 
+				'a particular value' 
+			FROM generate_series(1, 100000) AS i;`,
+		//table with no indexes
+		//FK with  datatype mismatch
+		//Missing index on foreign key columns
+		`CREATE TABLE test_schema.test_data2 (
+			id int,
+			val text,
+			FOREIGN KEY (id) REFERENCES test_schema.test_data (id)
+		);`,
+		//PK not present but UNIQUE NOT NULL column present
+		//partition table
+		//Index hotspot
+		`CREATE TABLE test_schema.test_partitions(
+			id int,
+			region text,
+			created_at date
+		) PARTITION BY LIST (region);`,
+		`CREATE TABLE test_schema.test_partitions_l PARTITION OF test_schema.test_partitions FOR VALUES IN ('London');`,
+		`CREATE TABLE test_schema.test_partitions_s PARTITION OF test_schema.test_partitions FOR VALUES IN ('Sydney');`,
+		`CREATE TABLE test_schema.test_partitions_b PARTITION OF test_schema.test_partitions FOR VALUES IN ('Boston');`,
+		`INSERT INTO test_schema.test_partitions (id, region, created_at) 
+		SELECT i, 
+			CASE 
+				WHEN i%2 =0 THEN 'London'
+				ELSE 'Sydney'
+			END,
+			now() + (i || ' days')::interval FROM generate_series(1, 50000) as i;`,
+		`INSERT INTO test_schema.test_partitions (id, region, created_at) 
+		SELECT i, 'Boston', now() + (i || ' days')::interval  FROM generate_series(50001, 50010) as i;`,
+		`CREATE INDEX idx_test_partitions_created_at ON test_schema.test_partitions (created_at);`,
+		`CREATE TABLE test_schema.test_unused (id int UNIQUE NOT NULL,value text);`,
+		`DO $$ 
+DECLARE i INT;
+BEGIN
+	FOR i IN 1..3 LOOP
+		PERFORM COUNT(*) FROM test_schema.test_unused;
+	END LOOP;
+END $$;`,
+		`DO $$ 
+DECLARE i INT;
+BEGIN
+	FOR i IN 1..6000 LOOP
+		PERFORM * FROM test_schema.test_data2 LIMIT 1;
+	END LOOP;
+END $$;`,
+		`DO $$
+DECLARE i INT;
+BEGIN
+	FOR i IN 1..4899 LOOP
+		PERFORM COUNT(*) FROM test_schema.test_partitions where region='London' and created_at = CURRENT_DATE;
+	END LOOP;
+END $$;`,
+		`ANALYZE;`)
+
+	defer postgresContainer.ExecuteSqls(
+		`DROP SCHEMA test_schema CASCADE;`)
+
+	_, err = testutils.RunVoyagerCommand(postgresContainer, "assess-migration", []string{
+		"--source-db-schema", "test_schema", // overriding the flag value
+		"--iops-capture-interval", "10",
+		"--export-dir", exportDir,
+		"--yes",
+	}, nil, false)
+
+	testutils.FatalIfError(t, err, "Failed to run assess-migration command")
+
+	assessmentReportPath := filepath.Join(exportDir, "assessment", "reports", fmt.Sprintf("%s.json", ASSESSMENT_FILE_NAME))
+	report, err := ParseJSONToAssessmentReport(assessmentReportPath)
+	if err != nil {
+		t.Errorf("failed to parse json report file %q: %v", assessmentReportPath, err)
+	}
+
+	assert.NotNil(t, report)
+	assert.Equal(t, 9, len(report.Issues))
+	expectedObjectToUsageCategory := map[string]string{
+		"test_schema.test_data":                                             "FREQUENT", //3 scan 100000 writes
+		"test_schema.test_data2":                                            "FREQUENT", //6000 scans 0 writes
+		"idx_test_data_value ON test_schema.test_data":                      "FREQUENT", //0 scans 100000 writes
+		"test_partitions_l_created_at_idx ON test_schema.test_partitions_l": "FREQUENT", //4899 scans 25000 writes
+		"test_schema.test_partitions_l":                                     "FREQUENT", //4900 scans 25000 writes
+		"test_schema.test_partitions_s":                                     "MODERATE", //4597 scans 25000 writes
+		"test_partitions_s_created_at_idx ON test_schema.test_partitions_s": "MODERATE", //0 scans 25000 writes
+		"test_schema.test_partitions_b":                                     "RARE",     //1 scan 10 writes
+		"test_partitions_b_created_at_idx ON test_schema.test_partitions_b": "RARE",     //0 scans 10 writes
+		"test_schema.test_partitions":                                       "UNUSED",   // 0 scans 0 writes
+		"test_schema.test_unused":                                           "UNUSED",   // 0 scans 0 writes
+		"idx_test_partitions_created_at ON test_schema.test_partitions":     "UNUSED",   // 0 scans 0 writes
+	}
+	for _, issue := range report.Issues {
+		assert.Equal(t, issue.Category, PERFORMANCE_OPTIMIZATIONS_CATEGORY)
+		expectedUsageCategory, ok := expectedObjectToUsageCategory[issue.ObjectName]
+		if !ok {
+			t.Errorf("unexpected object name: %s", issue.ObjectName)
+		}
+		assert.Equal(t, expectedUsageCategory, issue.ObjectUsage, "expected usage category: %s, actual usage category: %s for object: %s", expectedUsageCategory, issue.ObjectUsage, issue.ObjectName)
+	}
 }

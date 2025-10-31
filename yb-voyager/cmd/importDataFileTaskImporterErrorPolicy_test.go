@@ -79,7 +79,7 @@ func assertBatchErrored(t *testing.T, batch *Batch, expectedRecordCount int64, e
 
 func assertBatchErrorFileContents(t *testing.T, batch *Batch, lexportDir string, state *ImportDataState, task *ImportFileTask, rows string, expectedErrorSubstring string) {
 	taskFolderPath := fmt.Sprintf("file::%s:%s", filepath.Base(task.FilePath), importdata.ComputePathHash(task.FilePath))
-	tableFolderPath := fmt.Sprintf("table::%s", task.TableNameTup.ForMinOutput())
+	tableFolderPath := fmt.Sprintf("table::%s", task.TableNameTup.ForKey())
 	batchErrorBaseFilePath := getBatchErrorBaseFilePath(filepath.Base(batch.GetFilePath()))
 	batchErrorFilePath := filepath.Join(getErrorsParentDir(lexportDir), "errors", tableFolderPath, taskFolderPath, batchErrorBaseFilePath)
 	errorFileContentsBytes, err := os.ReadFile(batchErrorFilePath)
@@ -91,7 +91,7 @@ func assertBatchErrorFileContents(t *testing.T, batch *Batch, lexportDir string,
 }
 
 func TestBasicTaskImportStachAndContinueErrorPolicy(t *testing.T) {
-	ldataDir, lexportDir, state, _, err := setupExportDirAndImportDependencies(2, 1024)
+	ldataDir, lexportDir, state, _, progressReporter, err := setupExportDirAndImportDependencies(2, 1024)
 	testutils.FatalIfError(t, err)
 	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir))
 	testutils.FatalIfError(t, err)
@@ -116,7 +116,6 @@ func TestBasicTaskImportStachAndContinueErrorPolicy(t *testing.T) {
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table_error", 1)
 	testutils.FatalIfError(t, err)
 
-	progressReporter := NewImportDataProgressReporter(true)
 	workerPool := pool.New().WithMaxGoroutines(2)
 	taskImporter, err := NewFileTaskImporter(task, state, workerPool, progressReporter, nil, false, scErrorHandler, nil)
 	testutils.FatalIfError(t, err)
@@ -143,7 +142,7 @@ func TestBasicTaskImportStachAndContinueErrorPolicy(t *testing.T) {
 }
 
 func TestTaskImportStachAndContinueErrorPolicy_NoErrors(t *testing.T) {
-	ldataDir, lexportDir, state, _, err := setupExportDirAndImportDependencies(2, 1024)
+	ldataDir, lexportDir, state, _, progressReporter, err := setupExportDirAndImportDependencies(2, 1024)
 	testutils.FatalIfError(t, err)
 	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir))
 	testutils.FatalIfError(t, err)
@@ -167,7 +166,6 @@ func TestTaskImportStachAndContinueErrorPolicy_NoErrors(t *testing.T) {
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table_error", 1)
 	testutils.FatalIfError(t, err)
 
-	progressReporter := NewImportDataProgressReporter(true)
 	workerPool := pool.New().WithMaxGoroutines(2)
 	taskImporter, err := NewFileTaskImporter(task, state, workerPool, progressReporter, nil, false, scErrorHandler, nil)
 	testutils.FatalIfError(t, err)
@@ -187,7 +185,7 @@ func TestTaskImportStachAndContinueErrorPolicy_NoErrors(t *testing.T) {
 }
 
 func TestTaskImportStachAndContinueErrorPolicy_SingleBatchWithError(t *testing.T) {
-	ldataDir, lexportDir, state, _, err := setupExportDirAndImportDependencies(2, 1024)
+	ldataDir, lexportDir, state, _, progressReporter, err := setupExportDirAndImportDependencies(2, 1024)
 	testutils.FatalIfError(t, err)
 	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir))
 	testutils.FatalIfError(t, err)
@@ -210,7 +208,6 @@ func TestTaskImportStachAndContinueErrorPolicy_SingleBatchWithError(t *testing.T
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table_error", 1)
 	testutils.FatalIfError(t, err)
 
-	progressReporter := NewImportDataProgressReporter(true)
 	workerPool := pool.New().WithMaxGoroutines(2)
 	taskImporter, err := NewFileTaskImporter(task, state, workerPool, progressReporter, nil, false, scErrorHandler, nil)
 	testutils.FatalIfError(t, err)
@@ -237,7 +234,7 @@ func TestTaskImportStachAndContinueErrorPolicy_SingleBatchWithError(t *testing.T
 }
 
 func TestTaskImportStachAndContinueErrorPolicy_SingleBatch_OnPkConflictIgnore(t *testing.T) {
-	ldataDir, lexportDir, state, _, err := setupExportDirAndImportDependencies(2, 1024)
+	ldataDir, lexportDir, state, _, progressReporter, err := setupExportDirAndImportDependencies(2, 1024)
 	testutils.FatalIfError(t, err)
 	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir))
 	testutils.FatalIfError(t, err)
@@ -246,7 +243,7 @@ func TestTaskImportStachAndContinueErrorPolicy_SingleBatch_OnPkConflictIgnore(t 
 	setupYugabyteTestDb(t)
 	tconf.OnPrimaryKeyConflictAction = constants.PRIMARY_KEY_CONFLICT_ACTION_IGNORE
 	t.Cleanup(func() {
-		tconf.OnPrimaryKeyConflictAction = constants.PRIMARY_KEY_CONFLICT_ACTION_ERROR
+		tconf.OnPrimaryKeyConflictAction = constants.PRIMARY_KEY_CONFLICT_ACTION_ERROR_POLICY
 	})
 
 	defer testYugabyteDBTarget.Finalize()
@@ -265,7 +262,6 @@ func TestTaskImportStachAndContinueErrorPolicy_SingleBatch_OnPkConflictIgnore(t 
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table_unique_error", 1)
 	testutils.FatalIfError(t, err)
 
-	progressReporter := NewImportDataProgressReporter(true)
 	workerPool := pool.New().WithMaxGoroutines(2)
 	taskImporter, err := NewFileTaskImporter(task, state, workerPool, progressReporter, nil, false, scErrorHandler, nil)
 	testutils.FatalIfError(t, err)
@@ -297,7 +293,7 @@ func TestTaskImportStachAndContinueErrorPolicy_SingleBatch_OnPkConflictIgnore(t 
 
 func TestTaskImportStachAndContinueErrorPolicy_MultipleBatchesWithDifferentErrors(t *testing.T) {
 	COPY_MAX_RETRY_COUNT = 1 // Disable retry for COPY command to test error handling
-	ldataDir, lexportDir, state, _, err := setupExportDirAndImportDependencies(2, 1024)
+	ldataDir, lexportDir, state, _, progressReporter, err := setupExportDirAndImportDependencies(2, 1024)
 	testutils.FatalIfError(t, err)
 	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir))
 	testutils.FatalIfError(t, err)
@@ -330,7 +326,6 @@ func TestTaskImportStachAndContinueErrorPolicy_MultipleBatchesWithDifferentError
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table_error", 1)
 	testutils.FatalIfError(t, err)
 
-	progressReporter := NewImportDataProgressReporter(true)
 	workerPool := pool.New().WithMaxGoroutines(2)
 	taskImporter, err := NewFileTaskImporter(task, state, workerPool, progressReporter, nil, false, scErrorHandler, nil)
 	testutils.FatalIfError(t, err)
@@ -381,7 +376,7 @@ func TestTaskImportStachAndContinueErrorPolicy_MultipleBatchesWithDifferentError
 }
 
 func TestTaskImportStachAndContinueErrorPolicy_TaskResumptionAfterBatchError(t *testing.T) {
-	ldataDir, lexportDir, state, _, err := setupExportDirAndImportDependencies(2, 1024)
+	ldataDir, lexportDir, state, _, progressReporter, err := setupExportDirAndImportDependencies(2, 1024)
 	testutils.FatalIfError(t, err)
 	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir))
 	testutils.FatalIfError(t, err)
@@ -407,7 +402,6 @@ func TestTaskImportStachAndContinueErrorPolicy_TaskResumptionAfterBatchError(t *
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table_error", 1)
 	testutils.FatalIfError(t, err)
 
-	progressReporter := NewImportDataProgressReporter(true)
 	workerPool := pool.New().WithMaxGoroutines(2)
 	taskImporter, err := NewFileTaskImporter(task, state, workerPool, progressReporter, nil, false, scErrorHandler, nil)
 	testutils.FatalIfError(t, err)
@@ -430,7 +424,6 @@ func TestTaskImportStachAndContinueErrorPolicy_TaskResumptionAfterBatchError(t *
 		`ERROR: duplicate key value violates unique constraint "test_table_error_pkey" (SQLSTATE 23505)`)
 
 	// simulate resumption
-	progressReporter = NewImportDataProgressReporter(true)
 	workerPool = pool.New().WithMaxGoroutines(2)
 	taskImporter, err = NewFileTaskImporter(task, state, workerPool, progressReporter, nil, false, scErrorHandler, nil)
 	testutils.FatalIfError(t, err)

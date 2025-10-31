@@ -2,6 +2,7 @@ package anon
 
 import (
 	"fmt"
+	"strings"
 
 	pg_query "github.com/pganalyze/pg_query_go/v6"
 	"github.com/samber/lo"
@@ -372,6 +373,17 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) (err 
 		err = a.handleGenericAlterObjectSchemaStmt(aos)
 		if err != nil {
 			return fmt.Errorf("anon alter object schema stmt: %w", err)
+		}
+
+	// ─── FUNCTION CALL PROCESSOR ─────────────────────────────────────────────
+	case queryparser.PG_QUERY_FUNCCALL_NODE:
+		fc, ok := queryparser.ProtoAsFuncCallNode(msg)
+		if !ok {
+			return fmt.Errorf("expected FuncCall, got %T", msg.Interface())
+		}
+		err = a.anonymizeFuncCall(fc)
+		if err != nil {
+			return fmt.Errorf("anon function call: %w", err)
 		}
 	}
 	return nil
@@ -1499,7 +1511,6 @@ func (a *SqlAnonymizer) handleConversionObjectNodes(msg protoreflect.Message) (e
 	SQL:    CREATE FOREIGN TABLE sales.external_orders (id int, customer_id int, amount numeric) SERVER external_server OPTIONS (schema_name 'public', table_name 'orders');
 			ParseTree: stmt:{create_foreign_table_stmt:{base_stmt:{relation:{schemaname:"sales" relname:"external_orders" }
 			table_elts:{column_def:{colname:"id" type_name:{names:{string:{sval:"pg_catalog"}} names:{string:{sval:"int4"}}}}}
-			table_elts:{column_def:{colname:"customer_id" type_name:{names:{string:{sval:"pg_catalog"}} names:{string:{sval:"int4"}}}}}
 			table_elts:{column_def:{colname:"amount" type_name:{names:{string:{sval:"pg_catalog"}} names:{string:{sval:"numeric"}} } }} oncommit:ONCOMMIT_NOOP}
 			servername:"external_server" options:{def_elem:{defname:"schema_name" arg:{string:{sval:"public"}} defaction:DEFELEM_UNSPEC location:117}}
 			options:{def_elem:{defname:"table_name" arg:{string:{sval:"orders"}} defaction:DEFELEM_UNSPEC location:139}}}}
@@ -1940,6 +1951,43 @@ func (a *SqlAnonymizer) anonymizeStringNodes(nodes []*pg_query.Node, finalPrefix
 	return nil
 }
 
+// anonymizeQualifiedStringLiteral is similar to anonymizeStringNodes() but works with string(qualified/unqualified) values instead of Node objects
+func (a *SqlAnonymizer) anonymizeQualifiedStringLiteral(input string, finalPrefix string) (string, error) {
+	if input == "" {
+		return "", nil
+	}
+
+	parts := strings.Split(input, ".")
+	if len(parts) == 0 {
+		return "", nil
+	}
+
+	// Build prefix slice based on number of parts (same logic as anonymizeStringNodes)
+	var prefixes []string
+	switch len(parts) {
+	case 1:
+		prefixes = []string{finalPrefix} // [obj]
+	case 2:
+		prefixes = []string{SCHEMA_KIND_PREFIX, finalPrefix} // [schema,obj]
+	case 3:
+		prefixes = []string{DATABASE_KIND_PREFIX, SCHEMA_KIND_PREFIX, finalPrefix} // [db,schema,obj]
+	default:
+		return "", fmt.Errorf("qualified name with %d parts not supported", len(parts))
+	}
+
+	// Apply prefixes to each part
+	var anonymizedParts []string
+	for i, part := range parts {
+		anonymizedPart, err := a.registry.GetHash(prefixes[i], part)
+		if err != nil {
+			return "", fmt.Errorf("failed to anonymize part %d (%s): %w", i, part, err)
+		}
+		anonymizedParts = append(anonymizedParts, anonymizedPart)
+	}
+
+	return strings.Join(anonymizedParts, "."), nil
+}
+
 // anonymizeColumnRefNode rewrites the String parts of a ColumnRef
 // The slice may have 1–4 parts but the *last* one is always a column.
 func (a *SqlAnonymizer) anonymizeColumnRefNode(strNodes []*pg_query.Node) error {
@@ -2203,6 +2251,80 @@ func (a *SqlAnonymizer) anonymizeConstantValue(node *pg_query.Node, prefix strin
 		return nil
 	}
 
+	return nil
+}
+
+// anonymizeFuncCall handles anonymization of function calls in all contexts
+func (a *SqlAnonymizer) anonymizeFuncCall(funcCall *pg_query.FuncCall) error {
+	if funcCall == nil || funcCall.Funcname == nil {
+		return nil
+	}
+
+	// Special case: sequence functions - builtin functions but sequence name arguments should be anonymized
+	if IsSequenceFunction(funcCall.Funcname) {
+		return a.anonymizeSequenceFunctionArgs(funcCall)
+	}
+
+	// General case: check if user-defined function that should be anonymized
+	if ShouldAnonymizeFunction(funcCall.Funcname) {
+		return a.anonymizeStringNodes(funcCall.Funcname, FUNCTION_KIND_PREFIX)
+	}
+
+	return nil // Don't anonymize builtin functions
+}
+
+/*
+anonymizeSequenceFunctionArgs handles sequence functions where the function is builtin
+but the sequence name argument should be anonymized (nextval, currval, setval)
+
+CREATE TABLE orders.order_items (
+
+	item_id      bigint PRIMARY KEY DEFAULT nextval('orders.item_seq'::regclass),
+	order_id     bigint NOT NULL,
+	product_name text DEFAULT 'Unknown Product'
+
+);
+
+stmt:{create_stmt:{relation:{schemaname:"orders" relname:"order_items"  } table_elts:{column_def:{colname:"item_id" type_name:{names:{string:{sval:"pg_catalog"}} names:{string:{sval:"int8"}} typemod:-1 location:49} }
+
+	constraints:{constraint:{contype:CONSTR_DEFAULT location:68 raw_expr:{func_call:{funcname:{string:{sval:"nextval"}}
+	args:{type_cast:{arg:{a_const:{sval:{sval:"orders.item_seq"} location:84}} type_name:{names:{string:{sval:"regclass"}}} }}
+	funcformat:COERCE_EXPLICIT_CALL location:76}}}} location:36}} table_elts:{column_def:{colname:"order_id" type_name:{names:{string:{sval:"pg_catalog"}}
+	names:{string:{sval:"int8"}} typemod:-1 location:129} is_local:true constraints:{constraint:{contype:CONSTR_NOTNULL }} }}
+	table_elts:{column_def:{colname:"product_name" type_name:{names:{string:{sval:"text"}} typemod:-1 location:161} is_local:true
+	constraints:{constraint:{contype:CONSTR_DEFAULT location:166 raw_expr:{a_const:{sval:{sval:"Unknown Product"} location:174}}}} location:148}} oncommit:ONCOMMIT_NOOP}} stmt_len:193
+*/
+func (a *SqlAnonymizer) anonymizeSequenceFunctionArgs(funcCall *pg_query.FuncCall) error {
+	var err error
+	if len(funcCall.Args) == 0 {
+		return nil
+	}
+
+	// The first argument should be the sequence name (as string literal)
+	firstArg := funcCall.Args[0]
+	if firstArg == nil {
+		return nil
+	}
+
+	// Postgres allows both forms for the sequence function arguments:
+	// 1. nextval('orders.item_seq'::regclass) - type casted to regclass
+	// 2. nextval('orders.item_seq') - implicit type cast to regclass
+	var aConst *pg_query.A_Const
+	if typeCastNode := firstArg.GetTypeCast(); typeCastNode != nil {
+		if argNode := typeCastNode.GetArg(); argNode != nil {
+			aConst = argNode.GetAConst()
+		}
+	} else {
+		aConst = firstArg.GetAConst()
+	}
+
+	if aConst == nil || aConst.GetSval() == nil {
+		return nil
+	}
+	aConst.GetSval().Sval, err = a.anonymizeQualifiedStringLiteral(aConst.GetSval().Sval, SEQUENCE_KIND_PREFIX)
+	if err != nil {
+		return fmt.Errorf("anon sequence function sequence name: %w", err)
+	}
 	return nil
 }
 

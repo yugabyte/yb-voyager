@@ -22,8 +22,10 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/fatih/color"
 	log "github.com/sirupsen/logrus"
 	"github.com/sourcegraph/conc/pool"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
@@ -67,14 +69,14 @@ type FileTaskImporter struct {
 func NewFileTaskImporter(task *ImportFileTask, state *ImportDataState, workerPool *pool.Pool,
 	progressReporter *ImportDataProgressReporter, colocatedImportBatchQueue chan func(), isTableColocated bool,
 	errorHandler importdata.ImportDataErrorHandler, callhomeMetricsCollector *callhome.ImportDataMetricsCollector) (*FileTaskImporter, error) {
-	batchProducer, err := NewFileBatchProducer(task, state, errorHandler)
-	if err != nil {
-		return nil, fmt.Errorf("creating file batch producer: %s", err)
-	}
 	totalProgressAmount := getTotalProgressAmount(task)
 	progressReporter.ImportFileStarted(task, totalProgressAmount)
 	currentProgressAmount := getImportedProgressAmount(task, state)
 	progressReporter.AddProgressAmount(task, currentProgressAmount)
+	batchProducer, err := NewFileBatchProducer(task, state, errorHandler, progressReporter)
+	if err != nil {
+		return nil, fmt.Errorf("creating file batch producer: %s", err)
+	}
 
 	fti := &FileTaskImporter{
 		state:                     state,
@@ -212,9 +214,9 @@ func (fti *FileTaskImporter) importBatch(batch *Batch) {
 			if errors.As(err, &ibe) {
 				// If the error is an ImportBatchError, we abort directly because the string
 				// representation of the error is already formatted with all the details.
-				utils.ErrExit("%w", err)
+				utils.ErrExit("%w\n%s", err, color.YellowString(importdata.STASH_AND_CONTINUE_RECOMMENDATION_MESSAGE))
 			}
-			utils.ErrExit("import batch: %q into %s: %w", batch.FilePath, batch.TableNameTup.ForOutput(), err)
+			utils.ErrExit("import batch: %q into %s: %w\n%s", batch.FilePath, batch.TableNameTup.ForOutput(), err, color.YellowString(importdata.STASH_AND_CONTINUE_RECOMMENDATION_MESSAGE))
 		}
 
 		// Handle the error

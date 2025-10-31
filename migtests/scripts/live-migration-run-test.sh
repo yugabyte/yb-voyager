@@ -82,6 +82,11 @@ main() {
 	fi
 	./init-db
 
+	if [ "${SOURCE_DB_TYPE}" = "postgresql" ]; then
+		step "Creating pg_stat_statements for the compare-performance command"
+		run_psql ${SOURCE_DB_NAME} "CREATE EXTENSION IF NOT EXISTS pg_stat_statements;"
+	fi
+	
 	step "Grant source database user permissions for live migration"
 	grant_permissions_for_live_migration
 
@@ -183,7 +188,13 @@ main() {
 	step "Archive Changes."
 	archive_changes &
 
-	sleep 60 
+
+	# Note: For Live migration snapshot completion detection
+	# Note: We cannot use 'import data status' or 'get data-migration-report' commands for this purpose because:
+	# 1. 'import data status' is designed for offline migration and returns exit code 1 in live migration mode
+	# 2. 'get data-migration-report' is for final reporting but doesn't indicate snapshot completion status
+	wait_for_string_in_file "${EXPORT_DIR}/logs/yb-voyager-import-data.log" "snapshot data import complete"
+	echo "Snapshot data import complete"
 
 	step "Import remaining schema (FK, index, and trigger) and Refreshing MViews if present."
 	finalize_schema_post_data_import
@@ -191,10 +202,11 @@ main() {
 	step "Run snapshot validations."
 	"${TEST_DIR}/validate" --live_migration 'true' --ff_enabled 'false' --fb_enabled 'false'
 
-	step "Inserting new events"
+	step "Inserting new events to source"
 	run_sql_file source_delta.sql
 
-	sleep 120
+	step "Wait for source exporter to start capturing changes"
+	wait_for_exporter_event "source"
 
 	# Resetting the trap command
 	trap - SIGINT SIGTERM EXIT SIGSEGV SIGHUP
@@ -213,6 +225,7 @@ main() {
 			exit 1
         fi
     else
+		echo "Cutover to target COMPLETED"
         break
     fi
 	done
@@ -232,6 +245,23 @@ main() {
 
 	step "Verify data-migration-report report"
 	verify_report ${expected_file} ${actual_file}
+
+	step "Run performance comparison."
+	if [ "${SOURCE_DB_TYPE}" = "postgresql" ]; then
+		compare_performance || {
+			cat_log_file "yb-voyager-compare-performance.log"
+		}
+
+		step "Validate Performance Reports"
+		# Checking if the performance comparison reports were created
+		if [ -f "${EXPORT_DIR}/reports/performance_comparison_report.html" ] && [ -f "${EXPORT_DIR}/reports/performance_comparison_report.json" ]; then
+			echo "Performance comparison reports created successfully."
+		else
+			echo "Error: Performance comparison reports were not created successfully."
+			cat_log_file "yb-voyager-compare-performance.log"
+			exit 1
+		fi
+	fi
 
 	step "End Migration: clearing metainfo about state of migration from everywhere"
 	end_migration --yes

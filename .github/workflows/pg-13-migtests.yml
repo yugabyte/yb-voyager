@@ -7,15 +7,22 @@ on:
     branches: [main]
 
 jobs:
+  prepare-versions:
+    uses: ./.github/workflows/prepare-versions.yml
+
   run-pg-13-migration-tests:
+    needs: [prepare-versions]
     strategy:
       matrix:
-        version: [2024.2.4.0-b89, 2.20.10.0-b29, 2.25.2.0-b359, 2025.1.0.0-b168, 2024.1.6.1-b2]
+        yb_version: ${{ fromJSON(needs.prepare-versions.outputs.yb_versions) }}
         BETA_FAST_DATA_EXPORT: [0, 1]
         test_group:
           - offline
-          - live_basic
-          - live_advanced
+          - live-migration
+        exclude:
+          # Exclude BETA_FAST_DATA_EXPORT=1 for live migration tests (redundant, Debezium forced)
+          - BETA_FAST_DATA_EXPORT: 1
+            test_group: live-migration
 
     env:
       BETA_FAST_DATA_EXPORT: ${{ matrix.BETA_FAST_DATA_EXPORT }}
@@ -37,16 +44,16 @@ jobs:
           - 5432:5432
 
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-java@v3
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
         # https://github.com/actions/setup-java
         with:
           distribution: "temurin"
-          java-version: "17"
+          java-version: ${{ needs.prepare-versions.outputs.java_version }}
           check-latest: true
 
       - name: Cache local Maven repository
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ~/.m2/repository
           key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
@@ -56,9 +63,18 @@ jobs:
       - name: "Enable postgres with wal_level as logical and install postgis"
         run: |
           docker exec ${{ job.services.postgres.id }} sh -c "echo 'wal_level=logical' >> /var/lib/postgresql/data/postgresql.conf"
-          docker exec ${{ job.services.postgres.id }} sh -c "apt-get update && apt-get install -y postgresql-13-postgis postgresql-13-postgis-3"
+          docker exec ${{ job.services.postgres.id }} sh -c "apt-get update && apt-get install -y postgresql-13-postgis-3 postgresql-contrib-13"
+          # adding pg_stat_statements to shared_preload_libraries to enable the extension
+          docker exec ${{ job.services.postgres.id }} sh -c "echo \"shared_preload_libraries = 'pg_stat_statements'\" >> /var/lib/postgresql/data/postgresql.conf"
           docker restart ${{ job.services.postgres.id }}
-          sleep 10
+          
+          # Wait for PostgreSQL to be ready with health check
+          echo "Waiting for PostgreSQL to be ready after restart..."
+          timeout 30s bash -c 'until docker exec ${{ job.services.postgres.id }} pg_isready > /dev/null 2>&1; do 
+            echo "PostgreSQL not ready yet, waiting 1 second..."
+            sleep 1
+          done'
+          echo "PostgreSQL is ready!"
 
       - name: Install python3 and psycopg2
         run: |
@@ -90,11 +106,17 @@ jobs:
 
       - name: Start YugabyteDB cluster
         run: |
-          docker run -d --name yugabytedb --hostname yb-cluster-test\
-            -p7000:7000 -p9000:9000 -p15433:15433 -p5433:5433 -p9042:9042 \
-            yugabytedb/yugabyte:${{ matrix.version }} \
-            bin/yugabyted start --tserver_flags="ysql_hba_conf_csv={host all yugabyte all trust,host all all all md5}" --background=false --ui=false --callhome=false 
-          sleep 20
+          docker run -d --network=host --name yugabytedb-$version --hostname yb-cluster-test-$version\
+            yugabytedb/yugabyte:${{ matrix.yb_version }} \
+            bin/yugabyted start --tserver_flags="ysql_hba_conf_csv={host all yugabyte all trust,host all all all md5}" --advertise_address=localhost --background=false --ui=false --callhome=false 
+          
+          # Wait for YugabyteDB to be ready with health check
+          echo "Waiting for YugabyteDB to be ready..."
+          timeout 60s bash -c 'until psql "postgresql://yugabyte:@127.0.0.1:5433/yugabyte" -c "SELECT 1" > /dev/null 2>&1; do 
+            echo "YugabyteDB not ready yet, waiting 2 seconds..."
+            sleep 2
+          done'
+          echo "YugabyteDB is ready!"
 
       - name: Test YugabyteDB connection
         run: |
@@ -103,12 +125,6 @@ jobs:
       - name: Create YugabyteDB user
         run: |
           ./migtests/scripts/yugabytedb/create_yb_user
-
-      - name: Enable yb-cluster-test name resolution
-        run: |
-          docker_ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' yugabytedb)
-          echo "$docker_ip	yb-cluster-test" | sudo tee -a /etc/hosts
-          psql "postgresql://yugabyte@yb-cluster-test:5433/yugabyte" -c "SELECT version();"
 
       - name: "TEST: pg-table-list-flags-test (table-list and exclude-table-list)"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
@@ -193,34 +209,34 @@ jobs:
         run: migtests/scripts/run-test.sh pg/case-sensitivity-reserved-words
 
       - name: "TEST: pg-basic-non-public-live-migration-test"
-        if: ${{ !cancelled() && matrix.test_group == 'live_basic' }}
+        if: ${{ !cancelled() && matrix.test_group == 'live-migration' }}
         run: migtests/scripts/live-migration-run-test.sh pg/basic-non-public-live-test
 
       - name: "TEST: pg-basic-public-fall-forward-test"
-        if: ${{ !cancelled() && matrix.test_group == 'live_basic' }}
+        if: ${{ !cancelled() && matrix.test_group == 'live-migration' }}
         run: migtests/scripts/live-migration-fallf-run-test.sh pg/basic-public-live-test
 
       - name: "TEST: pg-datatypes-fall-forward-test"
-        if: ${{ !cancelled() && matrix.test_group == 'live_basic' }}
+        if: ${{ !cancelled() && matrix.test_group == 'live-migration' }}
         run: migtests/scripts/live-migration-fallf-run-test.sh pg/datatypes
 
       # - name: "TEST: pg-basic-non-public-fall-back-test"
       #   run: migtests/scripts/live-migration-fallb-run-test.sh pg/basic-non-public-live-test
 
       - name: "TEST: pg-datatypes-fall-back-test"
-        if: ${{ !cancelled() && matrix.test_group == 'live_basic' }}
+        if: ${{ !cancelled() && matrix.test_group == 'live-migration' }}
         run: migtests/scripts/live-migration-fallb-run-test.sh pg/datatypes
 
       # case sensitive table names are not yet supported in live migration, to restricting test only to a few tables.
       - name: "TEST: pg-live-migration-multiple-schemas"
-        if: ${{ !cancelled() && matrix.test_group == 'live_advanced' }}
+        if: ${{ !cancelled() && matrix.test_group == 'live-migration' }}
         run: EXPORT_TABLE_LIST="ext_test,tt,audit,recipients,session_log,schema2.ext_test,schema2.tt,schema2.audit,schema2.recipients,schema2.session_log" migtests/scripts/live-migration-run-test.sh  pg/multiple-schemas
 
       - name: "TEST: pg-unique-key-conflicts-test"
-        if: ${{ !cancelled() && matrix.test_group == 'live_advanced' }}
+        if: ${{ !cancelled() && matrix.test_group == 'live-migration' }}
         run: migtests/scripts/live-migration-fallf-run-test.sh pg/unique-key-conflicts-test
 
       - name: "TEST: pg-live-migration-partitions-fall-forward"
-        if: ${{ !cancelled() && matrix.test_group == 'live_advanced' }}
+        if: ${{ !cancelled() && matrix.test_group == 'live-migration' }}
         run: migtests/scripts/live-migration-fallf-run-test.sh pg/partitions
       

@@ -1,0 +1,11 @@
+{
+    "parallel_jobs": 4,
+    "total_rows_exported": 45,
+    "largest_table_rows_exported": 26,
+    "start_clean": false,
+    "export_snapshot_mechanism": "pg_dump",
+    "phase": "SNAPSHOT",
+    "error": "",
+    "control_plane_type": "",
+    "allow_oracle_clob_data_export": false
+}

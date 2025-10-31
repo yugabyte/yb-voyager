@@ -22,25 +22,29 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	log "github.com/sirupsen/logrus"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 const (
+	PROCESSING_ERRORS_BASE_NAME               = "processing-errors"
 	PROCESSING_ERRORS_LOG_FILE                = "processing-errors.log"
 	INGESTION_ERROR_PREFIX                    = "ingestion-error"
-	STASH_AND_CONTINUE_RECOMMENDATION_MESSAGE = "To continue with the import without aborting, set the configuration parameter `error-policy`/`error-policy-snapshot` to `stash-and-continue`"
+	STASH_AND_CONTINUE_RECOMMENDATION_MESSAGE = "To stash the errored rows and continue importing data without aborting, set the configuration parameter error-policy/error-policy-snapshot to `stash-and-continue`"
 )
-
-var defaultProcessingErrorFileSize int64 = 5 * 1024 * 1024 // 5MB
 
 type ImportDataErrorHandler interface {
 	ShouldAbort() bool
-	HandleRowProcessingError(row string, rowErr error, tableName sqlname.NameTuple, taskFilePath string) error
+	HandleRowProcessingError(row string, rowByteCount int64, rowErr error, tableName sqlname.NameTuple, taskFilePath string, batchNumber int64) error
 	HandleBatchIngestionError(batch ErroredBatch, taskFilePath string, batchErr error, isPartialBatchIngestionPossible bool) error
 	CleanUpStoredErrors(tableName sqlname.NameTuple, taskFilePath string) error
 	GetErrorsLocation() string
+	FinalizeRowProcessingErrorsForBatch(batchNumber int64, isLastBatch bool, tableName sqlname.NameTuple, taskFilePath string) error
+	GetProcessingErrorCountSize(tableName sqlname.NameTuple, taskFilePath string) (int64, int64, error)
 }
 
 type ErroredBatch interface {
@@ -62,7 +66,7 @@ func (handler *ImportDataAbortHandler) ShouldAbort() bool {
 	return true
 }
 
-func (handler *ImportDataAbortHandler) HandleRowProcessingError(row string, rowErr error, tableName sqlname.NameTuple, taskFilePath string) error {
+func (handler *ImportDataAbortHandler) HandleRowProcessingError(row string, rowByteCount int64, rowErr error, tableName sqlname.NameTuple, taskFilePath string, batchNumber int64) error {
 	// nothing to do.
 	return nil
 }
@@ -81,20 +85,34 @@ func (handler *ImportDataAbortHandler) GetErrorsLocation() string {
 	return ""
 }
 
+func (handler *ImportDataAbortHandler) FinalizeRowProcessingErrorsForBatch(batchNumber int64, isLastBatch bool, tableName sqlname.NameTuple, taskFilePath string) error {
+	// nothing to do for abort handler
+	return nil
+}
+
+func (handler *ImportDataAbortHandler) GetProcessingErrorCountSize(tableName sqlname.NameTuple, taskFilePath string) (int64, int64, error) {
+	// nothing to do for abort handler
+	return 0, 0, nil
+}
+
 // -----------------------------------------------------------------------------------------------------//
 
 /*
 Stash the error to some file(s) with the relevant error information
 */
 type ImportDataStashAndContinueHandler struct {
-	dataDir                 string
-	rowProcessingErrorFiles map[string]*utils.RotatableFile // one per table/task file
+	dataDir                     string
+	rowProcessingErrorFiles     map[string]*os.File // key is table-task-batch
+	rowProcessingErrorRowCount  map[string]int64    // key is table-task-batch
+	rowProcessingErrorByteCount map[string]int64    // key is table-task-batch
 }
 
 func NewImportDataStashAndContinueHandler(dataDir string) *ImportDataStashAndContinueHandler {
 	return &ImportDataStashAndContinueHandler{
-		dataDir:                 dataDir,
-		rowProcessingErrorFiles: make(map[string]*utils.RotatableFile),
+		dataDir:                     dataDir,
+		rowProcessingErrorFiles:     make(map[string]*os.File),
+		rowProcessingErrorRowCount:  make(map[string]int64),
+		rowProcessingErrorByteCount: make(map[string]int64),
 	}
 }
 
@@ -102,12 +120,13 @@ func (handler *ImportDataStashAndContinueHandler) ShouldAbort() bool {
 	return false
 }
 
-// HandleRowProcessingError writes the row and error to a processing-errors.log roratingFile.
-// <export-dir>/data/errors/table::<table-name>/file::<base-path>:<hash>/processing-errors.log
-// On rotation, new files of the format processing-errors-<timestamp>.log will be created.
-func (handler *ImportDataStashAndContinueHandler) HandleRowProcessingError(row string, rowErr error, tableName sqlname.NameTuple, taskFilePath string) error {
+// HandleRowProcessingError writes the row and error to a processing-errors.<batchNumber>.log.tmp file.
+// and stores the row count and byte count in-memory.
+// FinalizeRowProcessingErrorsForBatch() will rename the file to include the row count and byte count.
+// <export-dir>/data/errors/table::<table-name>/file::<base-path>:<hash>/processing-errors.<batchNumber>.log.tmp
+func (handler *ImportDataStashAndContinueHandler) HandleRowProcessingError(row string, rowByteCount int64, rowErr error, tableName sqlname.NameTuple, taskFilePath string, batchNumber int64) error {
 	var err error
-	if row == "" && rowErr == nil {
+	if rowErr == nil {
 		return nil
 	}
 	errorsDir := handler.getErrorsFolderPathForTableTask(tableName, taskFilePath)
@@ -115,16 +134,19 @@ func (handler *ImportDataStashAndContinueHandler) HandleRowProcessingError(row s
 		return fmt.Errorf("creating errors dir: %w", err)
 	}
 
-	tableFilePathKey := fmt.Sprintf("%s::%s", tableName.ForMinOutput(), ComputePathHash(taskFilePath))
-	errorFile, ok := handler.rowProcessingErrorFiles[tableFilePathKey]
+	tableTaskBatchKey := handler.generateTableTaskBatchKey(tableName, taskFilePath, batchNumber)
+	errorFile, ok := handler.rowProcessingErrorFiles[tableTaskBatchKey]
 	if !ok {
-		errorFilePath := filepath.Join(errorsDir, PROCESSING_ERRORS_LOG_FILE)
-		errorFile, err = utils.NewRotatableFile(errorFilePath, defaultProcessingErrorFileSize)
+		errorFileName := fmt.Sprintf("%s.%d.log.tmp", PROCESSING_ERRORS_BASE_NAME, batchNumber)
+		errorFilePath := filepath.Join(errorsDir, errorFileName)
+		errorFile, err = os.OpenFile(errorFilePath, os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
-			return fmt.Errorf("creating file rotator: %w", err)
+			return fmt.Errorf("creating error file %s: %w", errorFilePath, err)
 		}
-		handler.rowProcessingErrorFiles[tableFilePathKey] = errorFile
+		handler.rowProcessingErrorFiles[tableTaskBatchKey] = errorFile
 	}
+	handler.rowProcessingErrorRowCount[tableTaskBatchKey]++
+	handler.rowProcessingErrorByteCount[tableTaskBatchKey] += rowByteCount
 
 	/*
 		ERROR: <error message>
@@ -133,8 +155,122 @@ func (handler *ImportDataStashAndContinueHandler) HandleRowProcessingError(row s
 	msg := fmt.Sprintf("ERROR: %s\nROW: %s\n\n", rowErr, row)
 	_, err = errorFile.Write([]byte(msg))
 	if err != nil {
-		return fmt.Errorf("writing to %s: %w", PROCESSING_ERRORS_LOG_FILE, err)
+		return fmt.Errorf("writing to error file %s: %w", errorFile.Name(), err)
 	}
+	return nil
+}
+
+// generateTableTaskBatchKey creates a unique key for identifying data by table, task, and batch
+func (handler *ImportDataStashAndContinueHandler) generateTableTaskBatchKey(tableName sqlname.NameTuple, taskFilePath string, batchNumber int64) string {
+	return fmt.Sprintf("%s-%s-%d", tableName.ForKey(), ComputePathHash(taskFilePath), batchNumber)
+}
+
+// GetProcessingErrorCountSize extracts row count and byte count from existing processing error file names
+// Returns the total row count and byte count across all error files for the given table and task
+func (handler *ImportDataStashAndContinueHandler) GetProcessingErrorCountSize(tableName sqlname.NameTuple, taskFilePath string) (int64, int64, error) {
+	errorsDir := handler.getErrorsFolderPathForTableTask(tableName, taskFilePath)
+
+	// Pattern to match processing error files: processing-errors.<batchNumber>.<rowCount>.<byteCount>.log
+	globPattern := fmt.Sprintf("%s.*.*.*.log", PROCESSING_ERRORS_BASE_NAME)
+	searchPath := filepath.Join(errorsDir, globPattern)
+
+	files, err := filepath.Glob(searchPath)
+	if err != nil {
+		return 0, 0, fmt.Errorf("error globbing for processing error files with pattern %s: %w", searchPath, err)
+	}
+
+	var totalRowCount, totalByteCount int64
+
+	for _, file := range files {
+		fileName := filepath.Base(file)
+		// Extract row count and byte count from filename: processing-errors.<batchNumber>.<rowCount>.<byteCount>.log
+		parts := strings.Split(fileName, ".")
+		if len(parts) < 4 {
+			return 0, 0, fmt.Errorf("filename %s does not have enough parts to parse (expected 4, got %d)", fileName, len(parts))
+		}
+
+		// parts[0] = "processing-errors", parts[1] = batchNumber, parts[2] = rowCount, parts[3] = byteCount
+		rowCount, err := strconv.ParseInt(parts[2], 10, 64)
+		if err != nil {
+			return 0, 0, fmt.Errorf("failed to parse row count from filename %s: %w", fileName, err)
+		}
+		totalRowCount += rowCount
+
+		byteCount, err := strconv.ParseInt(parts[3], 10, 64)
+		if err != nil {
+			return 0, 0, fmt.Errorf("failed to parse byte count from filename %s: %w", fileName, err)
+		}
+		totalByteCount += byteCount
+	}
+
+	return totalRowCount, totalByteCount, nil
+}
+
+// FinalizeRowProcessingErrorsForBatch renames the temporary error file to include statistics
+// from processing-errors.<batchNumber>.log.tmp to processing-errors.<batchNumber>.<rowCount>.<batchByteCount>.log
+func (handler *ImportDataStashAndContinueHandler) FinalizeRowProcessingErrorsForBatch(batchNumber int64, isLastBatch bool, tableName sqlname.NameTuple, taskFilePath string) error {
+	tableTaskBatchKey := handler.generateTableTaskBatchKey(tableName, taskFilePath, batchNumber)
+
+	// Get the current error file
+	errorFile, ok := handler.rowProcessingErrorFiles[tableTaskBatchKey]
+	if !ok {
+		return nil
+	}
+	if errorFile != nil {
+		errorFile.Close()
+	}
+
+	// Delete old error files potentially left over from previous run.
+	errorsDir := handler.getErrorsFolderPathForTableTask(tableName, taskFilePath)
+	globPattern := fmt.Sprintf("%s.%d.*.log", PROCESSING_ERRORS_BASE_NAME, batchNumber)
+	searchPath := filepath.Join(errorsDir, globPattern)
+
+	// ideally this should only be a single file at worst.
+	filesToDelete, err := filepath.Glob(searchPath)
+	if err != nil {
+		// Log the error but don't return, as the main task (renaming the current file) can still proceed.
+		log.Errorf("Error globbing for old error files with pattern %s: %v", searchPath, err)
+	} else {
+		for _, file := range filesToDelete {
+			err := os.Remove(file)
+			if err != nil {
+				log.Errorf("Error deleting old error file %s: %v", file, err)
+			} else {
+				log.Infof("Deleted old error file for batch %d: %s", batchNumber, file)
+			}
+		}
+	}
+
+	// 	rename to the new filename with row count and byte count
+	rowCount := handler.rowProcessingErrorRowCount[tableTaskBatchKey]
+	byteCount := handler.rowProcessingErrorByteCount[tableTaskBatchKey]
+
+	if rowCount == 0 && byteCount == 0 {
+		log.Debugf("No row processing errors for batch %d. Skipping renaming.", batchNumber)
+		return nil
+	}
+
+	if isLastBatch {
+		// new filename should be processing-errors.0.<rowCount>.<byteCount>.log
+		batchNumber = 0
+	}
+
+	newFileName := fmt.Sprintf("%s.%d.%d.%d.log", PROCESSING_ERRORS_BASE_NAME, batchNumber, rowCount, byteCount)
+	newFilePath := filepath.Join(errorsDir, newFileName)
+
+	oldFilePath := errorFile.Name()
+	err = os.Rename(oldFilePath, newFilePath)
+	if err != nil {
+		return fmt.Errorf("renaming error file from %s to %s: %w", filepath.Base(oldFilePath), newFileName, err)
+	}
+
+	// Clean up the maps
+	delete(handler.rowProcessingErrorFiles, tableTaskBatchKey)
+	delete(handler.rowProcessingErrorRowCount, tableTaskBatchKey)
+	delete(handler.rowProcessingErrorByteCount, tableTaskBatchKey)
+
+	log.Infof("Finalized row processing errors for batch %d: %d rows, %d bytes. File: %s", batchNumber, rowCount, byteCount, newFilePath)
+
 	return nil
 }
 
@@ -180,7 +316,7 @@ func (handler *ImportDataStashAndContinueHandler) createBatchSymlinkInErrorsFold
 
 // <export-dir>/data/errors/table::<table-name>/file::<base-path>:<hash>/
 func (handler *ImportDataStashAndContinueHandler) getErrorsFolderPathForTableTask(tableName sqlname.NameTuple, taskFilePath string) string {
-	tableFolder := fmt.Sprintf("table::%s", tableName.ForMinOutput())
+	tableFolder := fmt.Sprintf("table::%s", tableName.ForKey())
 	// the entire path of the file can be long, so to make it shorter,
 	// we compute a hash of the file path and also include the base file name of the file.
 	taskFolder := fmt.Sprintf("file::%s:%s", filepath.Base(taskFilePath), ComputePathHash(taskFilePath))

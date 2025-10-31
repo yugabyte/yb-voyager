@@ -26,8 +26,11 @@ import (
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/reflect/protoreflect"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/types"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
 
@@ -65,6 +68,7 @@ type ConstraintMetadata struct {
 type TableMetadata struct {
 	TableName          string
 	SchemaName         string
+	Usage              string
 	Columns            map[string]*ColumnMetadata
 	Constraints        []ConstraintMetadata
 	Indexes            []*queryparser.Index
@@ -147,15 +151,31 @@ func (tm *TableMetadata) HasAnyRelatedTablePrimaryKey() bool {
 	return false
 }
 
-// GetUniqueConstraints returns all unique constraints as a slice of column name slices.
-// Returns empty slice if no unique constraints exist.
-func (tm *TableMetadata) GetUniqueConstraints() [][]string {
-	constraints := tm.GetConstraintsByType("UNIQUE")
-	var uniqueConstraints [][]string
-	for _, constraint := range constraints {
-		uniqueConstraints = append(uniqueConstraints, constraint.Columns)
+// GetUniqueColumnBasedIndexes returns unique indexes that are purely column-based (no expressions)
+// as a slice of column name slices. Returns empty slice if no such indexes exist.
+// This is used for PK recommendations since primary keys can only be defined on actual columns.
+func (tm *TableMetadata) GetUniqueColumnBasedIndexes() [][]string {
+	var uniqueIndexes [][]string
+	for _, index := range tm.Indexes {
+		if !index.IsUnique {
+			continue
+		}
+		// Extract column names from index parameters
+		var columns []string
+		hasExpression := false
+		for _, param := range index.Params {
+			if param.IsExpression {
+				hasExpression = true
+				break // If any parameter is an expression, skip this index
+			}
+			columns = append(columns, param.ColName)
+		}
+		// Only consider purely column-based unique indexes
+		if !hasExpression && len(columns) > 0 {
+			uniqueIndexes = append(uniqueIndexes, columns)
+		}
 	}
-	return uniqueConstraints
+	return uniqueIndexes
 }
 
 // GetPrimaryKeyConstraints returns all primary key constraints.
@@ -251,6 +271,9 @@ type ParserIssueDetector struct {
 	// Table metadata consolidated into a single structure
 	// Key is qualified table name (schema.table), value is TableMetadata
 	tablesMetadata map[string]*TableMetadata
+
+	// object usages
+	objectUsages map[string]*ObjectUsageCategory
 }
 
 func NewParserIssueDetector() *ParserIssueDetector {
@@ -282,10 +305,11 @@ func (p *ParserIssueDetector) getOrCreateTableMetadata(tableName string) *TableM
 		schemaName = parts[0]
 		tableNameOnly = parts[1]
 	}
-
+	usageCategory := p.getUsageCategoryForTable(schemaName, tableNameOnly)
 	tm := &TableMetadata{
 		TableName:   tableNameOnly,
 		SchemaName:  schemaName,
+		Usage:       usageCategory,
 		Columns:     make(map[string]*ColumnMetadata),
 		Constraints: make([]ConstraintMetadata, 0),
 		Indexes:     make([]*queryparser.Index, 0),
@@ -489,6 +513,27 @@ func (p *ParserIssueDetector) getPLPGSQLIssues(query string) ([]QueryIssue, erro
 	}), nil
 }
 
+func (p *ParserIssueDetector) PopulateObjectUsages(objectUsagesStats []*types.ObjectUsageStats) {
+	var maxReads, maxWrites int64
+	for _, objectUsageStat := range objectUsagesStats {
+		if objectUsageStat.Scans > maxReads {
+			maxReads = objectUsageStat.Scans
+		}
+		if objectUsageStat.TotalWrites() > maxWrites {
+			maxWrites = objectUsageStat.TotalWrites()
+		}
+	}
+	objectUsageStatsMap := make(map[string]*ObjectUsageCategory)
+	for _, objectUsageStat := range objectUsagesStats {
+		objectUsage := NewObjectUsage(objectUsageStat.SchemaName, objectUsageStat.ObjectName, objectUsageStat.ObjectType, objectUsageStat.ParentTableName, objectUsageStat.Scans, objectUsageStat.Inserts, objectUsageStat.Updates, objectUsageStat.Deletes)
+		objectUsage.ReadUsage = GetReadUsageCategory(objectUsageStat.Scans, maxReads)
+		objectUsage.WriteUsage = GetWriteUsageCategory(objectUsageStat.TotalWrites(), maxWrites)
+		objectUsage.Usage = GetCombinedUsageCategory(objectUsage.ReadUsage, objectUsage.WriteUsage)
+		objectUsageStatsMap[objectUsageStat.GetObjectName()] = objectUsage
+	}
+	p.objectUsages = objectUsageStatsMap
+}
+
 // FinalizeColumnMetadata processes the column metadata after all DDL statements have been parsed.
 func (p *ParserIssueDetector) FinalizeColumnMetadata() {
 	// Finalize column metadata for inherited tables - copying columns from parent tables to child tables
@@ -670,7 +715,7 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 
 			// Process primary key as index for foreign key detection
 			if len(alter.ConstraintColumns) > 0 {
-				p.addConstraintAsIndex(alter.SchemaName, alter.TableName, alter.ConstraintColumns, alter.ConstraintName)
+				p.addConstraintAsIndex(alter.SchemaName, alter.TableName, alter.ConstraintColumns, alter.ConstraintName, true)
 			}
 
 			// Track PK columns
@@ -682,7 +727,7 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 		if alter.ConstraintType == queryparser.UNIQUE_CONSTR_TYPE {
 			// Process unique constraint as index for foreign key detection
 			if len(alter.ConstraintColumns) > 0 {
-				p.addConstraintAsIndex(alter.SchemaName, alter.TableName, alter.ConstraintColumns, alter.ConstraintName)
+				p.addConstraintAsIndex(alter.SchemaName, alter.TableName, alter.ConstraintColumns, alter.ConstraintName, true)
 			}
 			// Track UNIQUE columns
 			if len(alter.ConstraintColumns) > 0 {
@@ -1061,13 +1106,48 @@ func (p *ParserIssueDetector) DetectMissingForeignKeyIndexes() []QueryIssue {
 			// Check if this FK has proper index coverage using existing logic
 			if !p.hasProperIndexCoverage(constraint, tableName) {
 				// Create and add the issue
-				issue := p.createMissingFKIndexIssue(constraint, tableName)
+				issue := p.createMissingFKIndexIssue(constraint, tableName, tm.Usage)
 				issues = append(issues, issue)
 			}
 		}
 	}
 
 	return issues
+}
+
+func (p *ParserIssueDetector) getUsageCategoryForTable(schemaName, tableName string) string {
+	objName := sqlname.NewObjectName(constants.POSTGRESQL, "", schemaName, tableName)
+	qualifiedObjName := objName.Qualified.Unquoted
+	stat, ok := p.objectUsages[qualifiedObjName]
+	if !ok {
+		log.Infof("No object usage stats found for table: %s", qualifiedObjName)
+		return ObjectUsageCategoryUnused
+	}
+	usageCategory := stat.Usage
+
+	return usageCategory
+}
+
+// For indexes we don't have any writes related information, so we get a writes usage for the table associated with that index
+// and use a combined usage of index reads and table writes
+func (p *ParserIssueDetector) getUsageCategoryForIndex(schemaName, tableName, indexName string) string {
+	objName := sqlname.NewObjectNameQualifiedWithTableName(constants.POSTGRESQL, "", indexName, schemaName, tableName)
+	qualifiedObjName := objName.Qualified.Unquoted
+	indexStat, ok := p.objectUsages[qualifiedObjName]
+	if !ok {
+		log.Infof("No object usage stats found for index: %s", qualifiedObjName)
+		return ObjectUsageCategoryUnused
+	}
+	indexReadCategory := indexStat.ReadUsage
+	tableObjName := sqlname.NewObjectName(constants.POSTGRESQL, "", schemaName, tableName)
+	qualifiedObjName = tableObjName.Qualified.Unquoted
+	tableStat, ok := p.objectUsages[qualifiedObjName]
+	if !ok {
+		log.Infof("No object usage stats found for table: %s", qualifiedObjName)
+		return ObjectUsageCategoryUnused
+	}
+	tableWritesCategory := tableStat.WriteUsage
+	return GetCombinedUsageCategory(indexReadCategory, tableWritesCategory)
 }
 
 // DetectPrimaryKeyRecommendations recommends adding a PK when there's a UNIQUE constraint with all NOT NULL columns and no PK
@@ -1121,10 +1201,10 @@ func (p *ParserIssueDetector) detectTablePKRecommendations(tm *TableMetadata) []
 
 	// Collect all qualifying UNIQUE column sets where all columns are NOT NULL
 	var options [][]string
-	// Currently we only detect PK recommendations for UNIQUE constraints
-	// TODO: We should also consider UNIQUE INDEXES for PK recommendations
-	// https://yugabyte.atlassian.net/browse/DB-18078
-	for _, uniqueCols := range tm.GetUniqueConstraints() {
+
+	// Process UNIQUE constraints and indexes (column-based only)
+	// This also fetches the unique constraints as they have been converted to mock indexes with IsUnique=true
+	for _, uniqueCols := range tm.GetUniqueColumnBasedIndexes() {
 		// Check if all unique columns are NOT NULL
 		allNN := true
 		for _, col := range uniqueCols {
@@ -1134,27 +1214,34 @@ func (p *ParserIssueDetector) detectTablePKRecommendations(tm *TableMetadata) []
 			}
 		}
 
-		if allNN {
-			// For partitioned tables, ensure partition columns are included as the PKs must include
-			// all partition columns down the entire hierarchy
-			if isPartitioned {
-				missingPartitionCols, _ := lo.Difference(partitionColumns, uniqueCols)
-				if len(missingPartitionCols) > 0 {
-					continue
-				}
-			}
-
-			// Create fully qualified column names for this option
-			qualifiedCols := make([]string, len(uniqueCols))
-			for i, col := range uniqueCols {
-				qualifiedCols[i] = fmt.Sprintf("%s.%s", tm.GetObjectName(), col)
-			}
-			options = append(options, qualifiedCols)
+		if !allNN {
+			continue
 		}
+
+		// For partitioned tables, ensure partition columns are included as the PKs must include
+		// all partition columns down the entire hierarchy
+		if isPartitioned {
+			missingPartitionCols, _ := lo.Difference(partitionColumns, uniqueCols)
+			if len(missingPartitionCols) > 0 {
+				continue
+			}
+		}
+
+		// Create fully qualified column names for this option
+		qualifiedCols := make([]string, len(uniqueCols))
+		for i, col := range uniqueCols {
+			qualifiedCols[i] = fmt.Sprintf("%s.%s", tm.GetObjectName(), col)
+		}
+		options = append(options, qualifiedCols)
 	}
 
-	if len(options) > 0 {
-		issues = append(issues, NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", tm.GetObjectName(), options))
+	// Remove duplicates from options using lo.UniqBy
+	uniqueOptions := lo.UniqBy(options, func(option []string) string {
+		return strings.Join(option, ",")
+	})
+
+	if len(uniqueOptions) > 0 {
+		issues = append(issues, NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", tm.GetObjectName(), uniqueOptions, tm.Usage))
 	}
 
 	return issues
@@ -1210,7 +1297,7 @@ func (p *ParserIssueDetector) hasIndexCoverage(index *queryparser.Index, fkColum
 }
 
 // createMissingFKIndexIssue creates a QueryIssue from a foreign key constraint
-func (p *ParserIssueDetector) createMissingFKIndexIssue(constraint ConstraintMetadata, tableName string) QueryIssue {
+func (p *ParserIssueDetector) createMissingFKIndexIssue(constraint ConstraintMetadata, tableName string, usageCategory string) QueryIssue {
 	// Create fully qualified column names
 	qualifiedColumnNames := make([]string, len(constraint.Columns))
 	for i, colName := range constraint.Columns {
@@ -1223,6 +1310,7 @@ func (p *ParserIssueDetector) createMissingFKIndexIssue(constraint ConstraintMet
 		"", // sqlStatement - we don't have this in stored constraint
 		strings.Join(qualifiedColumnNames, ", "),
 		constraint.ReferencedTable,
+		usageCategory,
 	)
 }
 
@@ -1241,7 +1329,7 @@ func (p *ParserIssueDetector) addIndexToCoverage(index *queryparser.Index) {
 
 // addConstraintAsIndex creates a mock index object from a constraint and adds it to the table indexes map.
 // This is used for primary keys and unique constraints which are also indexes for missing foreign key index detection.
-func (p *ParserIssueDetector) addConstraintAsIndex(schemaName, tableName string, columns []string, constraintName string) {
+func (p *ParserIssueDetector) addConstraintAsIndex(schemaName, tableName string, columns []string, constraintName string, isUnique bool) {
 	// Create mock index parameters from columns
 	indexParams := make([]queryparser.IndexParam, len(columns))
 	for i, colName := range columns {
@@ -1256,6 +1344,7 @@ func (p *ParserIssueDetector) addConstraintAsIndex(schemaName, tableName string,
 		SchemaName: schemaName,
 		IndexName:  constraintName,
 		TableName:  tableName,
+		IsUnique:   isUnique,
 		// Primary keys and unique constraints use btree by default.
 		//  Mentioned in the docs here:https://www.postgresql.org/docs/current/sql-createtable.html#:~:text=Adding%20a%20PRIMARY%20KEY%20constraint%20will%20automatically%20create%20a%20unique%20btree%20index%20on%20the%20column%20or%20group%20of%20columns%20used%20in%20the%20constraint.%20That%20index%20has%20the%20same%20name%20as%20the%20primary%20key%20constraint
 		AccessMethod: BTREE_ACCESS_METHOD,
@@ -1275,7 +1364,7 @@ func (p *ParserIssueDetector) processTableConstraintsAsIndexes(table *queryparse
 			// We need to ensure the index is processed and covered
 			primaryKeyColumns := constraint.Columns
 			if len(primaryKeyColumns) > 0 {
-				p.addConstraintAsIndex(table.SchemaName, table.TableName, primaryKeyColumns, constraint.ConstraintName)
+				p.addConstraintAsIndex(table.SchemaName, table.TableName, primaryKeyColumns, constraint.ConstraintName, true)
 			}
 		}
 	}
@@ -1287,7 +1376,7 @@ func (p *ParserIssueDetector) processTableConstraintsAsIndexes(table *queryparse
 			// We need to ensure the index is processed and covered
 			uniqueColumns := constraint.Columns
 			if len(uniqueColumns) > 0 {
-				p.addConstraintAsIndex(table.SchemaName, table.TableName, uniqueColumns, constraint.ConstraintName)
+				p.addConstraintAsIndex(table.SchemaName, table.TableName, uniqueColumns, constraint.ConstraintName, true)
 			}
 		}
 	}

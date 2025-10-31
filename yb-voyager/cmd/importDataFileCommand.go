@@ -21,6 +21,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/fatih/color"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/maps"
@@ -32,6 +33,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/types"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/az"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/gcs"
@@ -64,6 +66,9 @@ var importDataFileCmd = &cobra.Command{
 		if tconf.TargetDBType == "" {
 			tconf.TargetDBType = YUGABYTEDB
 		}
+		if tconf.AdaptiveParallelismMode == "" {
+			tconf.AdaptiveParallelismMode = types.BalancedAdaptiveParallelismMode
+		}
 		importerRole = IMPORT_FILE_ROLE
 		reportProgressInBytes = true
 		validateBatchSizeFlag(batchSizeInNumRows)
@@ -83,7 +88,7 @@ var importDataFileCmd = &cobra.Command{
 			utils.ErrExit("Failed to initialize the target DB: %s", err)
 		}
 		targetDBDetails = tdb.GetCallhomeTargetDBInfo()
-		err = InitNameRegistry(exportDir, importerRole, nil, nil, &tconf, tdb, bool(startClean))
+		err = InitNameRegistry(exportDir, importerRole, nil, nil, &tconf, tdb, shouldReregisterYBNames())
 		if err != nil {
 			utils.ErrExit("initialize name registry: %v", err)
 		}
@@ -95,6 +100,13 @@ var importDataFileCmd = &cobra.Command{
 		storeFileTableMapAndDataDirInMSR()
 		importFileTasks := getImportFileTasks(fileTableMapping)
 		prepareForImportDataCmd(importFileTasks)
+
+		if tconf.EnableUpsert {
+			if !utils.AskPrompt(color.RedString("WARNING: Ensure that tables on target YugabyteDB do not have secondary indexes. " +
+				"If a table has secondary indexes, setting --enable-upsert to true may lead to corruption of the indexes. Are you sure you want to proceed?")) {
+				utils.ErrExit("Aborting import.")
+			}
+		}
 		importData(importFileTasks, errorPolicySnapshotFlag)
 		packAndSendImportDataFilePayload(COMPLETE, nil)
 
@@ -368,6 +380,7 @@ func packAndSendImportDataFilePayload(status string, errorMsg error) {
 	if callhomeMetricsCollector != nil {
 		dataMetrics.SnapshotTotalRows = callhomeMetricsCollector.GetSnapshotTotalRows()
 		dataMetrics.SnapshotTotalBytes = callhomeMetricsCollector.GetSnapshotTotalBytes()
+		dataMetrics.CurrentParallelConnections = callhomeMetricsCollector.GetCurrentParallelConnections()
 	}
 
 	// Get migration-related metrics from existing logic

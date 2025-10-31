@@ -1,0 +1,13 @@
+coalesce
+current_catalog
+current_date
+current_role
+current_time
+current_timestamp
+greatest
+least
+localtime
+localtimestamp
+nullif
+trim
+user

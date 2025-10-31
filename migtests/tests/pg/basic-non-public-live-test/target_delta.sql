@@ -4,7 +4,7 @@ insert into x values(9,10);
 insert into x values(11,15);
 update x set id2=10 where id=9;
 delete from x where id=5;
-update x set id2=60 where id=5;
+update x set id2=60 where id=5; -- no-op
 insert into x values(100,5);
 
 
@@ -27,7 +27,7 @@ UPDATE user_table SET email = 'updated_twice_user4@example.com' WHERE id = 6;
 UPDATE user_table SET email = 'user4@example.com' WHERE id = 4;
 
 -- events with NULL value for unique key columns
-UPDATE user_table SET status = 'active' where id > 0;
+UPDATE user_table SET status = 'active' where id > 0; -- affects 8 rows
 
 --events for test_enum table 
 INSERT INTO test_enum values(7, 'duplicate_payment_method');

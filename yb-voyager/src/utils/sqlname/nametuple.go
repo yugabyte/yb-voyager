@@ -73,6 +73,10 @@ func (nv *ObjectName) String() string {
 	return nv.MinQualified.MinQuoted
 }
 
+func (o *ObjectName) Key() string {
+	return o.Qualified.Unquoted
+}
+
 func (nv *ObjectName) MatchesPattern(pattern string) (bool, error) {
 	parts := strings.Split(pattern, ".")
 	switch true {
@@ -143,6 +147,10 @@ func (t NameTuple) MatchesPattern(pattern string) (bool, error) {
 		}
 	}
 	return false, nil
+}
+
+func (t NameTuple) TargetTableAvailable() bool {
+	return t.TargetName != nil
 }
 
 func (t NameTuple) ForUserQuery() string {

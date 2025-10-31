@@ -37,7 +37,13 @@ import (
 
 const CONTINUE_ON_ERROR_IGNORE_EXIST_MSG = "If you wish to ignore the errors and continue, use the '--continue-on-error true' flag. If you wish to ignore 'already exists' errors, use the '--ignore-exist true' flag."
 
-var deferredSqlStmts []sqlInfo
+var deferredSqlStmts []DefferedSqlStmt
+
+type DefferedSqlStmt struct {
+	sqlStmt          sqlInfo
+	sessionVariables []sqlInfo // session variables to be set before executing the file of this sqlStmt
+}
+
 var finalFailedSqlStmts []string
 
 // The client message (NOTICE/WARNING) from psql is stored in this global variable.
@@ -113,23 +119,30 @@ func isNotValidConstraint(stmt string) (bool, error) {
 
 func executeSqlFile(file string, objType string, skipFn func(string, string) bool) error {
 	log.Infof("Execute SQL file %q on target %q", file, tconf.Host)
-	conn := newTargetConn()
-
-	defer func() {
-		if conn != nil {
-			conn.Close(context.Background())
-		}
-	}()
 
 	sqlInfoArr := parseSqlFileForObjectType(file, objType)
+
+	/*
+		session variables are treated in the same manner as any other statement.
+		we are storing the session variables executed in the order in this list to use this list
+		to create a new connection with the same session variables for the particular point in the file.
+		For the deffered logic, we are storing the sessions variables with the statment to execute them whenever we are creating
+		connection.
+	*/
+	sessionVariables := make([]sqlInfo, 0)
+	tgtConn := newTargetConn()
+
+	defer func() {
+		if tgtConn != nil {
+			tgtConn.Close(context.Background())
+		}
+	}()
 	for _, sqlInfo := range sqlInfoArr {
-		if conn == nil {
-			conn = newTargetConn()
+		if tgtConn == nil {
+			tgtConn = newTargetConn()
 		}
 
-		setOrSelectStmt := strings.HasPrefix(strings.ToUpper(sqlInfo.stmt), "SET ") ||
-			strings.HasPrefix(strings.ToUpper(sqlInfo.stmt), "SELECT ")
-		if !setOrSelectStmt && skipFn != nil && skipFn(objType, sqlInfo.stmt) {
+		if skipFn != nil && skipFn(objType, sqlInfo.stmt) {
 			continue
 		}
 		// Check if the statement should be skipped
@@ -142,12 +155,32 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 			continue
 		}
 
-		err = executeSqlStmtWithRetries(&conn, sqlInfo, objType)
+		ok, err := isSessionVariable(sqlInfo.stmt)
+		if err != nil {
+			return fmt.Errorf("error checking whether statement is a session variable: %v", err)
+		}
+		if ok {
+			sessionVariables = append(sessionVariables, sqlInfo)
+			continue
+		}
+
+		err = executeSqlStmtWithRetries(&tgtConn, sqlInfo, objType, sessionVariables)
 		if err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func isSessionVariable(stmt string) (bool, error) {
+	parseTree, err := queryparser.Parse(stmt)
+	if err != nil {
+		return false, fmt.Errorf("error parsing statement: %w", err)
+	}
+	if len(parseTree.Stmts) == 0 {
+		return false, nil
+	}
+	return queryparser.IsSetStmt(parseTree.Stmts[0]), nil
 }
 
 func shouldSkipDDL(stmt string, objType string) (bool, error) {
@@ -157,9 +190,13 @@ func shouldSkipDDL(stmt string, objType string) (bool, error) {
 	// pg_dump generate `SET client_min_messages = 'warning';`, but we want to get
 	// NOTICE severity as well (which is the default), hence skipping this.
 	//pg_dump 17 gives this SET transaction_timeout = 0;
-	if strings.Contains(stmt, CLIENT_MESSAGES_SESSION_VAR) || strings.Contains(stmt, TRANSACTION_TIMEOUT_SESSION_VAR) {
+	if strings.Contains(stmt, CLIENT_MESSAGES_SESSION_VAR) ||
+		strings.Contains(stmt, TRANSACTION_TIMEOUT_SESSION_VAR) {
+		//skip these session variables
+		log.Infof("Skipping session variable: %s", stmt)
 		return true, nil
 	}
+
 	if objType != TABLE {
 		return false, nil
 	}
@@ -181,10 +218,31 @@ func shouldSkipDDL(stmt string, objType string) (bool, error) {
 	return false, nil
 }
 
-func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string) error {
+func executeSqlStmtWithRetries(tgtConn **ImportSchemaTargetConn, sqlInfo sqlInfo, objType string, sessionVariables []sqlInfo) error {
 	var err error
 	var stmtNotice *pgconn.Notice
 	log.Infof("On %s run query:\n%s\n", tconf.Host, sqlInfo.formattedStmt)
+	// Apply session variables on the connection for this statement
+	log.Infof("Applying session variables on the connection for this statement")
+
+	err = (*tgtConn).ApplySessionVariables(sessionVariables)
+	if err != nil {
+		return fmt.Errorf("error applying session variable: %v", err)
+	}
+
+	defer func(conn *ImportSchemaTargetConn) error {
+		if conn != nil {
+			return nil
+		}
+		// Reset all session variables on the connection for next stmt
+		log.Infof("Resetting all session variables on the connection for next stmt")
+		err = conn.ResetSessionVariables(sessionVariables)
+		if err != nil {
+			return fmt.Errorf("error resetting all session variables on connection: %v", err)
+		}
+		return nil
+	}((*tgtConn))
+
 	for retryCount := 0; retryCount <= DDL_MAX_RETRY_COUNT; retryCount++ {
 		if retryCount > 0 { // Not the first iteration.
 			log.Infof("Sleep for 5 seconds before retrying for %dth time", retryCount)
@@ -193,14 +251,14 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 		}
 
 		if bool(flagPostSnapshotImport) && strings.Contains(objType, "INDEX") {
-			err = beforeIndexCreation(sqlInfo, conn, objType)
+			err = beforeIndexCreation(sqlInfo, (*tgtConn).GetConn(), objType)
 			if err != nil {
-				(*conn).Close(context.Background())
-				*conn = nil
+				(*tgtConn).Close(context.Background())
+				(*tgtConn) = nil
 				return fmt.Errorf("before index creation: %w", err)
 			}
 		}
-		stmtNotice, err = execStmtAndGetNotice(*conn, sqlInfo.formattedStmt)
+		stmtNotice, err = (*tgtConn).ExecStmtAndGetNotice(sqlInfo.formattedStmt)
 		if err == nil {
 			utils.PrintSqlStmtIfDDL(sqlInfo.stmt, utils.GetObjectFileName(filepath.Join(exportDir, "schema"), objType),
 				getNoticeMessage(stmtNotice))
@@ -210,35 +268,38 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 		log.Errorf("DDL Execution Failed for %q: %s", sqlInfo.formattedStmt, err)
 		if strings.Contains(strings.ToLower(err.Error()), "conflicts with higher priority transaction") {
 			// creating fresh connection
-			(*conn).Close(context.Background())
-			*conn = newTargetConn()
+			(*tgtConn).Close(context.Background())
+			(*tgtConn) = newTargetConn()
 			continue
 		} else if strings.Contains(strings.ToLower(err.Error()), strings.ToLower(SCHEMA_VERSION_MISMATCH_ERR)) &&
 			(objType == "INDEX" || objType == "PARTITION_INDEX") { // retriable error
 			// creating fresh connection
-			(*conn).Close(context.Background())
-			*conn = newTargetConn()
+			(*tgtConn).Close(context.Background())
+			(*tgtConn) = newTargetConn()
 
 			// Extract the schema name and add to the index name
 			fullyQualifiedObjName, err := getIndexName(sqlInfo.stmt, sqlInfo.objName)
 			if err != nil {
-				(*conn).Close(context.Background())
-				*conn = nil
+				(*tgtConn).Close(context.Background())
+				(*tgtConn) = nil
 				return fmt.Errorf("extract qualified index name from DDL [%v]: %v", sqlInfo.stmt, err)
 			}
 
 			// DROP INDEX in case INVALID index got created
 			// `err` is already being used for retries, so using `err2`
-			err2 := dropIdx(*conn, fullyQualifiedObjName)
+			err2 := dropIdx((*tgtConn).GetConn(), fullyQualifiedObjName)
 			if err2 != nil {
-				(*conn).Close(context.Background())
-				*conn = nil
+				(*tgtConn).Close(context.Background())
+				(*tgtConn) = nil
 				return fmt.Errorf("drop invalid index %q: %w", fullyQualifiedObjName, err2)
 			}
 			continue
 		} else if missingRequiredSchemaObject(err) {
 			log.Infof("deffering execution of SQL: %s", sqlInfo.formattedStmt)
-			deferredSqlStmts = append(deferredSqlStmts, sqlInfo)
+			deferredSqlStmts = append(deferredSqlStmts, DefferedSqlStmt{
+				sqlStmt:          sqlInfo,
+				sessionVariables: sessionVariables,
+			})
 		} else if isAlreadyExists(err.Error()) {
 			// pg_dump generates `CREATE SCHEMA public;` in the schemas.sql. Because the `public`
 			// schema already exists on the target YB db, the create schema statement fails with
@@ -250,8 +311,8 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 		break // no more iteration in case of non retriable error
 	}
 	if err != nil {
-		(*conn).Close(context.Background())
-		*conn = nil
+		(*tgtConn).Close(context.Background())
+		(*tgtConn) = nil
 		if missingRequiredSchemaObject(err) {
 			// Do nothing for deferred case
 		} else {
@@ -285,20 +346,40 @@ func importDeferredStatements() {
 
 	utils.PrintAndLog("\nExecuting the remaining SQL statements...\n\n")
 	maxIterations := len(deferredSqlStmts)
-	conn := newTargetConn()
-	defer func() { conn.Close(context.Background()) }()
 
 	var err error
+	var tgtConn *ImportSchemaTargetConn
 	var finalFailedDeferredStmts []string
+	var sessionVariablesOfPreviousDeferredStmt []sqlInfo
+
 	// max loop iterations to remove all errors
 	for i := 1; i <= maxIterations && len(deferredSqlStmts) > 0; i++ {
 		beforeDeferredSqlCount := len(deferredSqlStmts)
 		var failedSqlStmtInIthIteration []string
 		for j := 0; j < len(deferredSqlStmts); j++ {
+			if tgtConn == nil {
+				tgtConn = newTargetConn()
+			} else {
+				log.Infof("Resetting all session variables on the connection for previous deferred statement")
+
+				err = tgtConn.ResetSessionVariables(sessionVariablesOfPreviousDeferredStmt)
+				if err != nil {
+					log.Errorf("error resetting all session variables on connection: %v", err)
+				}
+			}
+
+			// Apply session variables on the connection for this deferred statement
+			log.Infof("Applying session variables on the connection for this deferred statement")
+			err = tgtConn.ApplySessionVariables(deferredSqlStmts[j].sessionVariables)
+			if err != nil {
+				log.Errorf("error applying session variable: %v", err)
+			}
+			sessionVariablesOfPreviousDeferredStmt = deferredSqlStmts[j].sessionVariables
+
 			var stmtNotice *pgconn.Notice
-			stmtNotice, err = execStmtAndGetNotice(conn, deferredSqlStmts[j].formattedStmt)
+			stmtNotice, err = tgtConn.ExecStmtAndGetNotice(deferredSqlStmts[j].sqlStmt.formattedStmt)
 			if err == nil {
-				utils.PrintAndLog("%s\n", utils.GetSqlStmtToPrint(deferredSqlStmts[j].stmt))
+				utils.PrintAndLog("%s\n", utils.GetSqlStmtToPrint(deferredSqlStmts[j].sqlStmt.stmt))
 				noticeMsg := getNoticeMessage(stmtNotice)
 				if noticeMsg != "" {
 					utils.PrintAndLog(color.YellowString("%s\n", noticeMsg))
@@ -307,14 +388,14 @@ func importDeferredStatements() {
 				deferredSqlStmts = append(deferredSqlStmts[:j], deferredSqlStmts[j+1:]...)
 				break
 			} else {
-				log.Infof("failed retry of deferred stmt: %s\n%v", utils.GetSqlStmtToPrint(deferredSqlStmts[j].stmt), err)
-				errString := fmt.Sprintf("/*\n%s\nFile :%s\n*/\n", err.Error(), deferredSqlStmts[j].fileName)
-				failedSqlStmtInIthIteration = append(failedSqlStmtInIthIteration, errString+deferredSqlStmts[j].formattedStmt)
-				err = conn.Close(context.Background())
+				log.Infof("failed retry of deferred stmt: %s\n%v", utils.GetSqlStmtToPrint(deferredSqlStmts[j].sqlStmt.stmt), err)
+				errString := fmt.Sprintf("/*\n%s\nFile :%s\n*/\n", err.Error(), deferredSqlStmts[j].sqlStmt.fileName)
+				failedSqlStmtInIthIteration = append(failedSqlStmtInIthIteration, errString+deferredSqlStmts[j].sqlStmt.formattedStmt)
+				err = tgtConn.Close(context.Background())
 				if err != nil {
 					log.Warnf("error while closing the connection due to failed deferred stmt: %v", err)
 				}
-				conn = newTargetConn()
+				tgtConn = newTargetConn()
 			}
 		}
 
@@ -370,12 +451,12 @@ func applySchemaObjectFilterFlags(importObjectOrderList []string) []string {
 	return finalImportObjectList
 }
 
-func getInvalidIndexes(conn **pgx.Conn) (map[string]bool, error) {
+func getInvalidIndexes(conn *pgx.Conn) (map[string]bool, error) {
 	var result = make(map[string]bool)
 	// NOTE: this shouldn't fetch any predefined indexes of pg_catalog schema (assuming they can't be invalid) or indexes of other successful migrations
 	query := "SELECT indexrelid::regclass FROM pg_index WHERE indisvalid = false"
 
-	rows, err := (*conn).Query(context.Background(), query)
+	rows, err := conn.Query(context.Background(), query)
 	if err != nil {
 		return nil, fmt.Errorf("querying invalid indexes: %w", err)
 	}
@@ -397,7 +478,7 @@ func getInvalidIndexes(conn **pgx.Conn) (map[string]bool, error) {
 }
 
 // TODO: need automation tests for this, covering cases like schema(public vs non-public) or case sensitive names
-func beforeIndexCreation(sqlInfo sqlInfo, conn **pgx.Conn, objType string) error {
+func beforeIndexCreation(sqlInfo sqlInfo, conn *pgx.Conn, objType string) error {
 	if !strings.Contains(strings.ToUpper(sqlInfo.stmt), "CREATE INDEX") {
 		return nil
 	}
@@ -416,7 +497,7 @@ func beforeIndexCreation(sqlInfo sqlInfo, conn **pgx.Conn, objType string) error
 	// check index valid or not
 	if invalidTargetIndexesCache[fullyQualifiedObjName] {
 		log.Infof("index %q already exists but in invalid state, dropping it", fullyQualifiedObjName)
-		err = dropIdx(*conn, fullyQualifiedObjName)
+		err = dropIdx(conn, fullyQualifiedObjName)
 		if err != nil {
 			return fmt.Errorf("drop invalid index %q: %w", fullyQualifiedObjName, err)
 		}
@@ -437,7 +518,63 @@ func dropIdx(conn *pgx.Conn, idxName string) error {
 	return nil
 }
 
-func newTargetConn() *pgx.Conn {
+type ImportSchemaTargetConn struct {
+	conn **pgx.Conn
+}
+
+func (tc *ImportSchemaTargetConn) GetConn() *pgx.Conn {
+	return *tc.conn
+}
+
+func (tc *ImportSchemaTargetConn) Close(ctx context.Context) error {
+	return (*tc.conn).Close(ctx)
+}
+func (tc *ImportSchemaTargetConn) ResetSessionVariables(sessionVariables []sqlInfo) error {
+	for _, sessionVariable := range sessionVariables {
+		sessionVarName, err := queryparser.GetSessionVariableName(sessionVariable.stmt)
+		if err != nil {
+			return fmt.Errorf("error getting session variable name: %v", err)
+		}
+		resetSessionVariable := fmt.Sprintf("RESET %s", sessionVarName)
+		_, err = (*tc.conn).Exec(context.Background(), resetSessionVariable)
+		if err != nil {
+			if strings.Contains(err.Error(), "unrecognized configuration") {
+				//Skipping unrecognized configuration
+				log.Warnf("Skipping resetting unrecognized configuration: %s", sessionVariable.stmt)
+				continue
+			}
+			return fmt.Errorf("error resetting session variable: %v", err)
+		}
+	}
+	return nil
+}
+func (tc *ImportSchemaTargetConn) ApplySessionVariables(sessionVariables []sqlInfo) error {
+	for _, sessionVariable := range sessionVariables {
+		_, err := (*tc.conn).Exec(context.Background(), sessionVariable.stmt)
+		if err != nil {
+			if strings.Contains(err.Error(), "unrecognized configuration") {
+				//Skipping unrecognized configuration
+				log.Warnf("Skipping unrecognized configuration: %s", sessionVariable.stmt)
+				return nil
+			}
+			return fmt.Errorf("run query: %q on target %q: %s", sessionVariable.stmt, tconf.Host, err)
+		}
+	}
+	return nil
+}
+
+func (tc *ImportSchemaTargetConn) Exec(stmt string) error {
+	_, err := (*tc.conn).Exec(context.Background(), stmt)
+	return err
+}
+
+func (tc *ImportSchemaTargetConn) ExecStmtAndGetNotice(stmt string) (*pgconn.Notice, error) {
+	notice = nil // reset notice.
+	_, err := (*tc.conn).Exec(context.Background(), stmt)
+	return notice, err
+}
+
+func newTargetConn() *ImportSchemaTargetConn {
 	// save notice in global variable
 	noticeHandler := func(conn *pgconn.PgConn, n *pgconn.Notice) {
 		// ALTER TABLE .. ADD PRIMARY KEY throws the following notice in YugabyteDB.
@@ -484,7 +621,7 @@ func newTargetConn() *pgx.Conn {
 		setOrafceSearchPath(conn)
 	}
 
-	return conn
+	return &ImportSchemaTargetConn{conn: &conn}
 }
 
 func getNoticeMessage(n *pgconn.Notice) string {
@@ -524,10 +661,4 @@ func setOrafceSearchPath(conn *pgx.Conn) {
 	if err != nil {
 		utils.ErrExit("unable to update search_path for orafce extension: %v", err)
 	}
-}
-
-func execStmtAndGetNotice(conn *pgx.Conn, stmt string) (*pgconn.Notice, error) {
-	notice = nil // reset notice.
-	_, err := conn.Exec(context.Background(), stmt)
-	return notice, err
 }

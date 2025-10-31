@@ -19,7 +19,6 @@ package cmd
 import (
 	"bufio"
 	_ "embed"
-	"encoding/csv"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -43,6 +42,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryissue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/types"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
@@ -296,6 +296,13 @@ func assessMigration() (err error) {
 		return fmt.Errorf("failed to populate metadata CSV into SQLite DB: %w", err)
 	}
 
+	objectUsagesStats, err := fetchObjectUsageStats()
+	if err != nil {
+		return fmt.Errorf("failed to populate object usage stats: %w", err)
+	}
+
+	parserIssueDetector.PopulateObjectUsages(objectUsagesStats)
+
 	err = validateSourceDBIOPSForAssessMigration()
 	if err != nil {
 		return fmt.Errorf("failed to validate source database IOPS: %w", err)
@@ -316,11 +323,38 @@ func assessMigration() (err error) {
 	utils.PrintAndLog("Migration assessment completed successfully.")
 	completedEvent := createMigrationAssessmentCompletedEvent()
 	controlPlane.MigrationAssessmentCompleted(completedEvent)
+	saveSourceDBConfInMSR()
 	err = SetMigrationAssessmentDoneInMSR()
 	if err != nil {
 		return fmt.Errorf("failed to set migration assessment completed in MSR: %w", err)
 	}
 	return nil
+}
+
+func fetchObjectUsageStats() ([]*types.ObjectUsageStats, error) {
+	query := fmt.Sprintf(`SELECT schema_name,object_name,object_type,parent_table_name,scans,inserts,updates,deletes from %s`,
+		migassessment.TABLE_INDEX_USAGE_STATS)
+	rows, err := assessmentDB.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("error querying-%s on assessmentDB for object usage stats: %w", query, err)
+	}
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			log.Warnf("error closing rows while fetching object usage stats %v", err)
+		}
+	}()
+
+	var objectUsagesStats []*types.ObjectUsageStats
+	for rows.Next() {
+		var objectUsage types.ObjectUsageStats
+		err = rows.Scan(&objectUsage.SchemaName, &objectUsage.ObjectName, &objectUsage.ObjectType, &objectUsage.ParentTableName, &objectUsage.Scans, &objectUsage.Inserts, &objectUsage.Updates, &objectUsage.Deletes)
+		if err != nil {
+			return nil, fmt.Errorf("error scanning object usage stat: %w", err)
+		}
+		objectUsagesStats = append(objectUsagesStats, &objectUsage)
+	}
+	return objectUsagesStats, nil
 }
 
 func fetchSourceInfo() {
@@ -399,6 +433,7 @@ func convertAssessmentIssueToYugabyteDAssessmentIssue(ar AssessmentReport) []Ass
 			Impact:                 issue.Impact,
 			ObjectType:             issue.ObjectType,
 			ObjectName:             issue.ObjectName,
+			ObjectUsage:            issue.ObjectUsage,
 			SqlStatement:           issue.SqlStatement,
 			DocsLink:               issue.DocsLink,
 			MinimumVersionsFixedIn: issue.MinimumVersionsFixedIn,
@@ -639,24 +674,19 @@ func populateMetadataCSVIntoAssessmentDB() error {
 		tableName = lo.Ternary(strings.Contains(tableName, migassessment.TABLE_INDEX_IOPS),
 			migassessment.TABLE_INDEX_IOPS, tableName)
 
-		log.Infof("populating metadata from file %s into table %s", metadataFilePath, tableName)
-		file, err := os.Open(metadataFilePath)
+		// check if the table exist in the assessment db or not
+		// possible scenario: if gather scripts are run manually, not via voyager
+		err := assessmentDB.CheckIfTableExists(tableName)
 		if err != nil {
-			log.Warnf("error opening file %s: %v", metadataFilePath, err)
-			return nil
-		}
-		csvReader := csv.NewReader(file)
-		csvReader.ReuseRecord = true
-		rows, err := csvReader.ReadAll()
-		if err != nil {
-			log.Errorf("error reading csv file %s: %v", metadataFilePath, err)
-			return fmt.Errorf("error reading csv file %s: %w", metadataFilePath, err)
+			return fmt.Errorf("error checking if table %s exists: %w", tableName, err)
 		}
 
-		err = assessmentDB.BulkInsert(tableName, rows)
+		log.Infof("populating metadata from file %s into table %s", metadataFilePath, tableName)
+		err = assessmentDB.LoadCSVFileIntoTable(metadataFilePath, tableName)
 		if err != nil {
-			return fmt.Errorf("error bulk inserting data into %s table: %w", tableName, err)
+			return fmt.Errorf("error loading CSV file %s: %w", metadataFilePath, err)
 		}
+
 		log.Infof("populated metadata from file %s into table %s", metadataFilePath, tableName)
 	}
 
@@ -973,6 +1003,7 @@ func convertAnalyzeSchemaIssueToAssessmentIssue(analyzeSchemaIssue utils.Analyze
 		Impact:                 analyzeSchemaIssue.Impact,
 		ObjectType:             analyzeSchemaIssue.ObjectType,
 		ObjectName:             analyzeSchemaIssue.ObjectName,
+		ObjectUsage:            analyzeSchemaIssue.ObjectUsage,
 		SqlStatement:           analyzeSchemaIssue.SqlStatement,
 		DocsLink:               analyzeSchemaIssue.DocsLink,
 		MinimumVersionsFixedIn: minVersionsFixedIn,
@@ -1412,6 +1443,11 @@ func addAssessmentIssuesForUnsupportedDatatypes(unsupportedDatatypes []utils.Tab
 				DocsLink:               "",  // TODO
 				MinimumVersionsFixedIn: nil, // TODO
 			}
+			// Handle CLOB datatype issue se
+			if strings.EqualFold(colInfo.DataType, "CLOB") {
+				issue.Description = "Oracle CLOB data export is now supported via the experimental flag --allow-oracle-clob-data-export. This is supported only for offline migration (not Live or BETA_FAST_DATA_EXPORT) and large CLOBs may impact performance during export and import."
+				issue.DocsLink = "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/oracle/#large-sized-clob-data-is-not-supported"
+			}
 			assessmentReport.AppendIssues(issue)
 		case POSTGRESQL:
 			// Datatypes can be of form public.geometry, so we need to extract the datatype from it
@@ -1490,11 +1526,6 @@ var (
 		Type: GeneralNotes,
 		Text: `Some features listed in this report may be supported under a preview flag in the specified target-db-version of YugabyteDB. Please refer to the official <a class="highlight-link" target="_blank" href="https://docs.yugabyte.com/preview/releases/ybdb-releases/">release notes</a> for detailed information and usage guidelines.`,
 	}
-	RANGE_SHARDED_INDEXES_RECOMMENDATION = NoteInfo{
-		Type: GeneralNotes,
-		Text: `If indexes are created on columns commonly used in range-based queries (e.g. timestamp columns), it is recommended to explicitly configure these indexes with range sharding. This ensures efficient data access for range queries.
-By default, YugabyteDB uses hash sharding for indexes, which distributes data randomly and is not ideal for range-based predicates potentially degrading query performance. Note that range sharding is enabled by default only in <a class="highlight-link" target="_blank" href="https://docs.yugabyte.com/preview/develop/postgresql-compatibility/">PostgreSQL compatibility mode</a> in YugabyteDB.`,
-	}
 	GIN_INDEXES = NoteInfo{
 		Type: GeneralNotes,
 		Text: `There are some BITMAP indexes present in the schema that will get converted to GIN indexes, but GIN indexes are partially supported in YugabyteDB as mentioned in <a class="highlight-link" href="https://github.com/yugabyte/yugabyte-db/issues/7850">https://github.com/yugabyte/yugabyte-db/issues/7850</a> so take a look and modify them if not supported.`,
@@ -1516,7 +1547,7 @@ By default, YugabyteDB uses hash sharding for indexes, which distributes data ra
 	COLOCATED_TABLE_RECOMMENDATION_CAVEAT = NoteInfo{
 		Type: ColocatedShardedNotes,
 		Text: `If there are any tables that receive disproportionately high load, ensure that they are NOT colocated to avoid the colocated tablet becoming a hotspot.
-For additional considerations related to colocated tables, refer to the documentation at: https://docs.yugabyte.com/preview/explore/colocation/#limitations-and-considerations`,
+For additional considerations related to colocated tables, refer to the documentation at: <a class="highlight-link" target="_blank" href="https://docs.yugabyte.com/preview/explore/colocation/#limitations-and-considerations">https://docs.yugabyte.com/preview/explore/colocation/#limitations-and-considerations</a>`,
 	}
 	ORACLE_PARTITION_DEFAULT_COLOCATION = NoteInfo{
 		Type: ColocatedShardedNotes,
@@ -1529,9 +1560,13 @@ To manually modify the schema, please refer: <a class="highlight-link" href="htt
 		Type: SizingNotes,
 		Text: `Reference and System Partitioned tables are created as normal tables, but are not considered for target cluster sizing recommendations.`,
 	}
+
+	REDUNDANT_INDEX_ESTIMATED_TIME = NoteInfo{
+		Type: SizingNotes,
+		Text: `Import data time estimates exclude redundant indexes since they are automatically removed during export schema phase.`,
+	}
 )
 
-// TODO: fix notes handling for html tags just for html and not for json
 func addNotesToAssessmentReport() {
 	log.Infof("adding notes to assessment report")
 
@@ -1540,12 +1575,7 @@ func addNotesToAssessmentReport() {
 	if len(assessmentReport.Sizing.SizingRecommendation.ColocatedTables) > 0 {
 		assessmentReport.Notes = append(assessmentReport.Notes, COLOCATED_TABLE_RECOMMENDATION_CAVEAT)
 	}
-	for _, dbObj := range schemaAnalysisReport.SchemaSummary.DBObjects {
-		if dbObj.ObjectType == "INDEX" && dbObj.TotalCount > 0 {
-			assessmentReport.Notes = append(assessmentReport.Notes, RANGE_SHARDED_INDEXES_RECOMMENDATION)
-			break
-		}
-	}
+
 	switch source.DBType {
 	case ORACLE:
 		partitionSqlFPath := filepath.Join(assessmentMetadataDir, "schema", "partitions", "partition.sql")
@@ -1571,6 +1601,7 @@ func addNotesToAssessmentReport() {
 			assessmentReport.Notes = append(assessmentReport.Notes, UNLOGGED_TABLE_NOTE)
 		}
 		assessmentReport.Notes = append(assessmentReport.Notes, REPORTING_LIMITATIONS_NOTE)
+		assessmentReport.Notes = append(assessmentReport.Notes, REDUNDANT_INDEX_ESTIMATED_TIME)
 	}
 
 }
@@ -1806,6 +1837,8 @@ func generateAssessmentReportHtml(reportDir string) error {
 		"filterOutPerformanceOptimizationIssues": filterOutPerformanceOptimizationIssues,
 		"getPerformanceOptimizationIssues":       getPerformanceOptimizationIssues,
 		"dict":                                   dict,
+		"hasNotesByType":                         hasNotesByType,
+		"filterNotesByType":                      filterNotesByType,
 	}
 
 	tmpl := template.Must(template.New("report").Funcs(funcMap).Parse(string(bytesTemplate)))
@@ -1860,6 +1893,12 @@ func getPerformanceOptimizationIssues(issues []AssessmentIssue) []AssessmentIssu
 	perfOptimzationIssues := lo.Filter(issues, func(issue AssessmentIssue, _ int) bool {
 		return issue.Category == PERFORMANCE_OPTIMIZATIONS_CATEGORY
 	})
+	sort.Slice(perfOptimzationIssues, func(i, j int) bool {
+		ordStates := map[string]int{"FREQUENT": 1, "MODERATE": 2, "RARE": 3, "UNUSED": 4}
+		p1 := perfOptimzationIssues[i]
+		p2 := perfOptimzationIssues[j]
+		return ordStates[p1.ObjectUsage] < ordStates[p2.ObjectUsage]
+	})
 	return perfOptimzationIssues
 }
 
@@ -1889,6 +1928,27 @@ func numKeysInMapStringObjectInfo(m map[string][]ObjectInfo) int {
 
 func split(value string, delimiter string) []string {
 	return strings.Split(value, delimiter)
+}
+
+// hasNotesByType checks if there are any notes of the specified type
+func hasNotesByType(notes []NoteInfo, noteType NoteType) bool {
+	for _, note := range notes {
+		if note.Type == noteType {
+			return true
+		}
+	}
+	return false
+}
+
+// filterNotesByType returns only notes of the specified type
+func filterNotesByType(notes []NoteInfo, noteType NoteType) []NoteInfo {
+	var filtered []NoteInfo
+	for _, note := range notes {
+		if note.Type == noteType {
+			filtered = append(filtered, note)
+		}
+	}
+	return filtered
 }
 
 func getSupportedVersionString(minimumVersionsFixedIn map[string]*ybversion.YBVersion) string {

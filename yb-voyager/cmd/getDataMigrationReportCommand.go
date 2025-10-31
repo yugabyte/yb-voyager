@@ -198,7 +198,11 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 	var targetImportedSnapshotRowsMap *utils.StructMap[sqlname.NameTuple, RowCountPair]
 	var targetEventsImportedMap *utils.StructMap[sqlname.NameTuple, *tgtdb.EventCounter]
 	if msr.TargetDBConf != nil {
-		targetImportedSnapshotRowsMap, err = getImportedSnapshotRowsMap("target")
+		errorHandler, err := getImportDataErrorHandlerUsed()
+		if err != nil {
+			utils.ErrExit("error while getting import data error handler: %w\n", err)
+		}
+		targetImportedSnapshotRowsMap, err = getImportedSnapshotRowsMap("target", tableNameTups, errorHandler)
 		if err != nil {
 			utils.ErrExit("error while getting imported snapshot rows for target DB: %w\n", err)
 		}
@@ -215,7 +219,8 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 		// look up happens properly for source_replica names as here reg is the map of target->source-replica tablename
 		oldNameReg := namereg.NameReg
 		namereg.NameReg = *nameRegistryForSourceReplicaRole
-		replicaImportedSnapshotRowsMap, err = getImportedSnapshotRowsMap("source-replica")
+		replicaImportedSnapshotRowsMap, err = getImportedSnapshotRowsMap("source-replica", tableNameTups, nil)
+
 		if err != nil {
 			utils.ErrExit("error while getting imported snapshot rows for source-replica DB: %w\n", err)
 		}
@@ -432,8 +437,7 @@ func init() {
 	getDataMigrationReportCmd.PersistentFlags().StringVarP(&config.LogLevel, "log-level", "l", "info",
 		"log level for yb-voyager. Accepted values: (trace, debug, info, warn, error, fatal, panic)")
 	getDataMigrationReportCmd.Flags().StringVar(&reportOrStatusCmdOutputFormat, "output-format", "table",
-		"format in which report will be generated: (table, json)")
-	getDataMigrationReportCmd.Flags().MarkHidden("output-format") //confirm this if should be hidden or not
+		"format in which report will be generated: (table, json) (default: table)")
 
 	getDataMigrationReportCmd.Flags().StringVar(&sourceReplicaDbPassword, "source-replica-db-password", "",
 		"password with which to connect to the target Source-Replica DB server. Alternatively, you can also specify the password by setting the environment variable SOURCE_REPLICA_DB_PASSWORD. If you don't provide a password via the CLI, yb-voyager will prompt you at runtime for a password. If the password contains special characters that are interpreted by the shell (for example, # and $), enclose the password in single quotes.")

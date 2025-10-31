@@ -3,140 +3,236 @@
 import common
 import os
 import yb
-import collections
-
-def main():
-	test_type_flags = common.valparser()
-
-	if test_type_flags['ff_enabled'] == 'true':
-		change_expected_values()
-		migration_completed_checks_yb()
-		migration_completed_checks_ff()
-	elif test_type_flags['fb_enabled'] == 'true':
-		change_expected_values()
-		migration_completed_checks_yb()
-		migration_completed_checks_fb()
-	else:
-		migration_completed_checks_yb()
 
 #=============================================================================
 
-EXPECTED_ROW_COUNT = {
- 	'num_types': 3,   
-	'datatypes1': 3,  
-	'datetime_type': 3, 
-	'datatypes2': 5,
-	'datetime_type2': 2, 
-	'null_and_default' :2,
-	'decimal_types': 4,
-	'hstore_example': 16,
+def is_logical_replication_connector():
+    """Check if logical replication connector is being used"""
+    return os.environ.get('USE_YB_LOGICAL_REPLICATION_CONNECTOR', 'false').lower() == 'true'
+
+#=============================================================================
+# Base expected row counts (for gRPC connector)
+BASE_EXPECTED_ROW_COUNT = {
+    'num_types': 3,
+    'datatypes1': 3,
+    'datetime_type': 3,
+    'datatypes2': 5,
+    'datetime_type2': 2,
+    'null_and_default': 2,
+    'decimal_types': 4,
+    'hstore_example': 27,
+    'tsvector_table': 4,
+    'enum_array_table': 4,
+}
+
+# Base expected row counts for FF (for gRPC connector)
+BASE_EXPECTED_ROW_COUNT_FF = {
+    'num_types': 3,
+    'datatypes1': 2,
+    'datetime_type': 1,
+    'datatypes2': 6,
+    'datetime_type2': 3,
+    'null_and_default': 2,
+    'decimal_types': 4,
+    'hstore_example': 27,
+    'tsvector_table': 4,
+    'enum_array_table': 4,
+}
+
+# Replacement row counts when logical replication connector is used
+LOGICAL_REPLICATION_ROW_OVERRIDES = {
+    'hstore_example': 29,
+    'tsvector_table': 5,
+    'enum_array_table': 5,
 }
 
 EXPECTED_SUM_OF_COLUMN = {
-	'num_types': {
-		'v1': '32556',
-		'v2': '211369200',
-		'v3': '1844675717304493978',
-		'v4': '1570.685',
-		'v5': '39691.3578',
-		'v6': '$217,175.38'
-	},
-	'decimal_types': {
-		'n1':'2853392251566501749938533440831300954025170802737098078636711923415133694412160070629816221840337665.109639922',
-		'n2':'180349583731554025.26'
-	},
-}
-
-EXPECTED_DISNTICT_VALUES = {
-	'v2' : ['1001100101','0001010101','0101010101','1010101010','0000101010'],
-	'v5': ['0001010101','0001010','101010101010101010101010101010','001010101','1010101010101010101010']
-}
-
-EXPECTED_DISNTICT_VALUES_FF = {
-	'v2' : ['1001100101','0001010101','0101010101','1111000011','0000101010','1101010101'],
-	'v5': ['0001010101','0001010','00101010010101010101010101001','1010101010101010101010','10101010101010101','01001010101010101000101010']
-}
-
-EXPECTED_ROW_COUNT_FF = {
- 	'num_types': 3,   
-	'datatypes1': 2,  
-	'datetime_type': 1, 
-	'datatypes2': 6,
-	'datetime_type2': 3, 
-	'null_and_default' :2,
-	'decimal_types': 4,
-	'hstore_example': 16,
+    'num_types': {
+        'v1': '32556',
+        'v2': '211369200',
+        'v3': '1844675717304493978',
+        'v4': '1570.685',
+        'v5': '39691.3578',
+        'v6': '$217,175.38'
+    },
+    'decimal_types': {
+        'n1': '2853392251566501749938533440831300954025170802737098078636711923415133694412160070629816221840337665.109639922',
+        'n2': '180349583731554025.26'
+    },
 }
 
 EXPECTED_SUM_OF_COLUMN_FF = {
-	'num_types': {
-		'v1': '16401',
-		'v2': '214783737',
-		'v3': '1844674408679724160',
-		'v4': '574.686',
-		'v5': '79444.4418',
-		'v6': '$227,070.58'
-	},
-	'decimal_types': {
-		'n1':'531349381567983913051474631101346872050803974030268278014088484327035860106983140443622806995814770.993622164',
-		'n2':'111797748546368966.60'
-	},
+    'num_types': {
+        'v1': '16401',
+        'v2': '214783737',
+        'v3': '1844674408679724160',
+        'v4': '574.686',
+        'v5': '79444.4418',
+        'v6': '$227,070.58'
+    },
+    'decimal_types': {
+        'n1': '531349381567983913051474631101346872050803974030268278014088484327035860106983140443622806995814770.993622164',
+        'n2': '111797748546368966.60'
+    },
 }
 
-def change_expected_values():
-	for table_name, row_count in EXPECTED_ROW_COUNT_FF.items():
-		EXPECTED_ROW_COUNT[table_name] = row_count
+EXPECTED_DISTINCT_VALUES = {
+    'v2': ['1001100101', '0001010101', '0101010101', '1010101010', '0000101010'],
+    'v5': ['0001010101', '0001010', '101010101010101010101010101010', '001010101', '1010101010101010101010']
+}
 
-	for table_name, column_names_with_sum in EXPECTED_SUM_OF_COLUMN_FF.items():
-		for column, sum in column_names_with_sum.items():
-			EXPECTED_SUM_OF_COLUMN[table_name][column] = sum
+EXPECTED_DISTINCT_VALUES_FF = {
+    'v2': ['1001100101', '0001010101', '0101010101', '1111000011', '0000101010', '1101010101'],
+    'v5': ['0001010101', '0001010', '00101010010101010101010101001', '1010101010101010101010',
+           '10101010101010101', '01001010101010101000101010']
+}
 
-	for column_name, distinct_values in EXPECTED_DISNTICT_VALUES_FF.items():
-		EXPECTED_DISNTICT_VALUES[column_name] = distinct_values
+# Base expected hstore values (for gRPC connector and regular live migration)
+EXPECTED_HSTORE_VALUES = [
+    '"key1"=>"value1", "key2"=>"value2", "key3"=>"value3"',
+    None,
+    '',
+    '"{\\"key1=value1, key2=value2\\"}"=>"{\\"key1=value1, key2={\\"key1=value1, key2=value2\\"}\\"}"',
+    '""=>"emptykey"',
+    '"emptyvalue"=>""',
+    '"longkey"=>"{}"'.format('x'*10000),
+    '"ключ"=>"значение"',
+    '"emoji_😀"=>"😎🔥"',
+    '"café"=>"naïve"',
+    '"select"=>"statement"',
+    '"dup"=>"first"',
+    '"key with spaces"=>"value with spaces"',
+    '" space_key "=>" space_value "',
+    '"key\\"quote"=>"value\\"quote"',
+    '"key\'single"=>"value\'single"',
+    '"{\\"json_like_key\\":1}"=>"{\\"json_like_value\\":2}"',
+	'"\\"{key1:value1,key2:value2}\\""=>"{\\"key1=value1, key2={\\"key1=value1, key2=value2\\"}\\"}"',
+	'"\\"{\\"\\"key1\\"\\":\\"\\"value1\\"\\",\\"\\"key2\\"\\":\\"\\"value2\\"\\"}\\""=>"{\\"key1=value1, key2={\\"key1=value1, key2=value2\\"}\\"}"',
+	'"key=,=>"=>"value\\\\n\\\\t"',
+    '"k1"=>"v1", "k2"=>"v2", "k3"=>"v3"',
+    '"key5"=>"value5", "key6"=>"value6"',
+    '"multi_key1"=>"val1", "multi key 2"=>"value with spaces", "unicode_αβ"=>"Ωmega", "escaped\\"quote"=>"line1nline2"'
+	]
 
-def migration_completed_checks_yb():
-	print("Running tests on YB")
-	yb.run_checks(migration_completed_checks)
-	
-def migration_completed_checks_ff():
-	print("Running tests on PG source replica")
-	yb.run_checks(migration_completed_checks, db_type="source_replica")
+# Logical replication hstore values for fall-forward/fall-back scenarios
+EXPECTED_HSTORE_VALUES_LOGICAL_FF_FB = [
+    '"key1"=>"value1", "key2"=>"value2", "key3"=>"value3"',
+    None,
+    '',
+    '"{\\"key1=value1, key2=value2\\"}"=>"{\\"key1=value1, key2={\\"key1=value1, key2=value2\\"}\\"}"',
+    '"longkey"=>"{}"'.format('x'*10000),
+    '"ключ"=>"значение"',
+    '"emoji_😀"=>"😎🔥"',
+    '"café"=>"naïve"',
+    '"select"=>"statement"',
+    '"dup"=>"first"',
+    '"key with spaces"=>"value with spaces"',
+    '" space_key "=>" space_value "',
+    '"key\\"quote"=>"value\\"quote"',
+    '"key\'single"=>"value\'single"',
+    '"{\\"json_like_key\\":1}"=>"{\\"json_like_value\\":2}"',
+	'"\\"{\\"\\"key1\\"\\":\\"\\"value1\\"\\",\\"\\"key2\\"\\":\\"\\"value2\\"\\"}\\""=>"{\\"key1=value1, key2={\\"key1=value1, key2=value2\\"}\\"}"',
+    '"key7"=>"value7", "key8"=>"value8"',
+    '"multi_key1"=>"val1", "multi key 2"=>"value with spaces", "unicode_αβ"=>"Ωmega", "escaped\\"quote"=>"line1nline2"',
+    '"f1"=>"1", "f2"=>"{\\"key1=value1, key2=value2\\"}"',
+    '"empty_row"=>""',
+    '"new_key"=>"new_val", "{\\"key1=value1, key2=value2\\"}"=>"{\\"key1=value1, key2={\\"key1=value1, key2=value2\\"}\\"}"'
+	]
 
-def migration_completed_checks_fb():
-	print("Running tests on PG source")
-	yb.run_checks(migration_completed_checks, db_type="source")
+#=============================================================================
 
-def migration_completed_checks(tgt):
+def build_expected_values(ff_fb_enabled: bool):
+    """Return expected values depending on migration type and connector"""
+    if not ff_fb_enabled:
+        return {
+            "row_count": BASE_EXPECTED_ROW_COUNT.copy(),
+            "sum_of_column": EXPECTED_SUM_OF_COLUMN.copy(),
+            "distinct_values": EXPECTED_DISTINCT_VALUES.copy(),
+            "hstore_values": EXPECTED_HSTORE_VALUES,
+        }
 
-	got_row_count = tgt.row_count_of_all_tables("public")
-	for table_name, row_count in EXPECTED_ROW_COUNT.items():
-		print(f"table_name: {table_name}, row_count: {got_row_count[table_name]}")
-		assert row_count == got_row_count[table_name]
+    # FF/FB expected values
+    expected = {
+        "row_count": BASE_EXPECTED_ROW_COUNT_FF.copy(),
+        "sum_of_column": EXPECTED_SUM_OF_COLUMN_FF.copy(),
+        "distinct_values": EXPECTED_DISTINCT_VALUES_FF.copy(),
+        "hstore_values": EXPECTED_HSTORE_VALUES,
+    }
 
-	for table_name, column_names_with_sum in EXPECTED_SUM_OF_COLUMN.items():
-		print(f"table_name: {table_name} ---- ")
-		for column, sum in column_names_with_sum.items():
-			col_sum = tgt.get_sum_of_column_of_table(table_name, column, "public")
-			print(f"column_name: {column}, sum: {col_sum}")
-			assert sum == str(col_sum)
+    # Override for logical replication
+    if is_logical_replication_connector():
+        for table, replacement in LOGICAL_REPLICATION_ROW_OVERRIDES.items():
+            expected["row_count"][table] = replacement
+        expected["hstore_values"] = EXPECTED_HSTORE_VALUES_LOGICAL_FF_FB
 
-	print(f"distinct_bit10_values:")
-	expected_distinct_values = EXPECTED_DISNTICT_VALUES['v2']
-	tgt.assert_distinct_values_of_col("datatypes2", "v2", "public", 
-		transform_func=str, expected_distinct_values = expected_distinct_values)
-	
-	print(f"distinct_bit_varying_values:")
-	expected_distinct_values = EXPECTED_DISNTICT_VALUES['v5']
-	tgt.assert_distinct_values_of_col("datatypes2", "v5", "public", 
-		None, expected_distinct_values = expected_distinct_values)
-	
-	print("hstore_example:")
-	expected_hstore_values=['"f1"=>"1", "f2"=>"{\\"key1=value1, key2=value2\\"}"', None, '"json_field"=>"{\\"key1=value1, key2={\\"key1=value1, key2=value2\\"}\\"}"', 
-	'"weight"=>"11.2 ounces", "ISBN-13"=>"978-1449370000", "language"=>"English", "paperback"=>"243", "publisher"=>"postgresqltutorial.com"', 
-	'"key1"=>"value1", "key2"=>"value2", "key3"=>"value3"', '"\\"{key1:value1,key2:value2}\\""=>"{\\"key1=value1, key2={\\"key1=value1, key2=value2\\"}\\"}"',
-	'"a\\"b"=>"d\\\\\\"a"', '"{\\"key1=value1, key2=value2\\"}"=>"{\\"key1=value1, key2={\\"key1=value1, key2=value2\\"}\\"}"', '"key5"=>"value5", "key6"=>"value6"', 
-	'"\\"{\\"\\"key1\\"\\":\\"\\"value1\\"\\",\\"\\"key2\\"\\":\\"\\"value2\\"\\"}\\""=>"{\\"key1=value1, key2={\\"key1=value1, key2=value2\\"}\\"}"', '']
-	tgt.assert_distinct_values_of_col("hstore_example", "data", "public", expected_distinct_values=expected_hstore_values)
+    return expected
+
+#=============================================================================
+
+def run_migration_checks(db_type: str, expected, ff_fb_enabled: bool = False):
+    """Run validation checks on the given db_type (yb, source, source_replica)"""
+    connector_type = "logical replication" if is_logical_replication_connector() else "gRPC"
+    msg = f"Running validation on {db_type}"
+    if ff_fb_enabled:
+        msg += f" with {connector_type} connector expectations"
+    print(msg)
+
+    yb.run_checks(lambda tgt: migration_completed_checks(tgt, expected), db_type=db_type)
+
+def migration_completed_checks(tgt, expected):
+    got_row_count = tgt.row_count_of_all_tables("public")
+    for table_name, row_count in expected["row_count"].items():
+        print(f"table_name: {table_name}, row_count: {got_row_count[table_name]}, expected: {row_count}")
+        assert row_count == got_row_count[table_name]
+
+    for table_name, column_names_with_sum in expected["sum_of_column"].items():
+        print(f"table_name: {table_name} ---- ")
+        for column, sum_val in column_names_with_sum.items():
+            col_sum = tgt.get_sum_of_column_of_table(table_name, column, "public")
+            print(f"column_name: {column}, sum: {col_sum}")
+            assert sum_val == str(col_sum)
+
+    print("distinct_bit10_values:")
+    expected_distinct_values = expected["distinct_values"]["v2"]
+    tgt.assert_distinct_values_of_col(
+        "datatypes2", "v2", "public",
+        transform_func=str,
+        expected_distinct_values=expected_distinct_values
+    )
+
+    print("distinct_bit_varying_values:")
+    expected_distinct_values = expected["distinct_values"]["v5"]
+    tgt.assert_distinct_values_of_col(
+        "datatypes2", "v5", "public",
+        None,
+        expected_distinct_values=expected_distinct_values
+    )
+
+    print("hstore_example:")
+    expected_hstore_values = expected["hstore_values"]
+    tgt.assert_distinct_values_of_col("hstore_example", "data", "public",
+                                      expected_distinct_values=expected_hstore_values)
+
+#=============================================================================
+
+def main():
+    test_type_flags = common.valparser()
+
+    if test_type_flags['ff_enabled'] == 'true':
+        expected = build_expected_values(ff_fb_enabled=True)
+        run_migration_checks("yb", expected, ff_fb_enabled=True)
+        run_migration_checks("source_replica", expected, ff_fb_enabled=True)
+
+    elif test_type_flags['fb_enabled'] == 'true':
+        expected = build_expected_values(ff_fb_enabled=True)
+        run_migration_checks("yb", expected, ff_fb_enabled=True)
+        run_migration_checks("source", expected, ff_fb_enabled=True)
+
+    else:
+        expected = build_expected_values(ff_fb_enabled=False)
+        run_migration_checks("yb", expected, ff_fb_enabled=False)
+
+#=============================================================================
 
 if __name__ == "__main__":
 	main()

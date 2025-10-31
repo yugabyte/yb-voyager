@@ -49,13 +49,13 @@ var hotspotsOnDateIndexes = issue.Issue{
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 }
 
-func NewHotspotOnDateIndexIssue(objectType string, objectName string, sqlStatement string, colName string) QueryIssue {
+func NewHotspotOnDateIndexIssue(objectType string, objectName string, sqlStatement string, colName string, usageCategory string) QueryIssue {
 	issue := hotspotsOnDateIndexes
 	details := map[string]interface{}{
 		COLUMN_NAME: colName,
 	}
 
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+	return newQueryIssueWithUsageCategory(issue, objectType, objectName, sqlStatement, details, usageCategory)
 }
 
 var hotspotsOnTimestampPrimaryOrUniqueKeyConstraint = issue.Issue{
@@ -67,13 +67,13 @@ var hotspotsOnTimestampPrimaryOrUniqueKeyConstraint = issue.Issue{
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 }
 
-func NewHotspotOnTimestampPKOrUKIssue(objectType string, objectName string, sqlStatement string, colName string) QueryIssue {
+func NewHotspotOnTimestampPKOrUKIssue(objectType string, objectName string, sqlStatement string, colName string, usageCategory string) QueryIssue {
 	issue := hotspotsOnTimestampPrimaryOrUniqueKeyConstraint
 	details := map[string]interface{}{
 		COLUMN_NAME: colName,
 	}
 
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+	return newQueryIssueWithUsageCategory(issue, objectType, objectName, sqlStatement, details, usageCategory)
 }
 
 var hotspotsOnDatePrimaryOrUniqueKeyConstraint = issue.Issue{
@@ -85,13 +85,13 @@ var hotspotsOnDatePrimaryOrUniqueKeyConstraint = issue.Issue{
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 }
 
-func NewHotspotOnDatePKOrUKIssue(objectType string, objectName string, sqlStatement string, colName string) QueryIssue {
+func NewHotspotOnDatePKOrUKIssue(objectType string, objectName string, sqlStatement string, colName string, usageCategory string) QueryIssue {
 	issue := hotspotsOnDatePrimaryOrUniqueKeyConstraint
 	details := map[string]interface{}{
 		COLUMN_NAME: colName,
 	}
 
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+	return newQueryIssueWithUsageCategory(issue, objectType, objectName, sqlStatement, details, usageCategory)
 }
 
 var hotspotsOnTimestampIndexes = issue.Issue{
@@ -103,13 +103,13 @@ var hotspotsOnTimestampIndexes = issue.Issue{
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 }
 
-func NewHotspotOnTimestampIndexIssue(objectType string, objectName string, sqlStatement string, colName string) QueryIssue {
+func NewHotspotOnTimestampIndexIssue(objectType string, objectName string, sqlStatement string, colName string, usageCategory string) QueryIssue {
 	issue := hotspotsOnTimestampIndexes
 	details := map[string]interface{}{
 		COLUMN_NAME: colName,
 	}
 
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+	return newQueryIssueWithUsageCategory(issue, objectType, objectName, sqlStatement, details, usageCategory)
 }
 
 var redundantIndexesIssue = issue.Issue{
@@ -120,13 +120,13 @@ var redundantIndexesIssue = issue.Issue{
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#redundant-indexes",
 }
 
-func NewRedundantIndexIssue(objectType string, objectName string, sqlStatement string, existingDDL string) QueryIssue {
+func NewRedundantIndexIssue(objectType string, objectName string, sqlStatement string, existingDDL string, usageCategory string) QueryIssue {
 	issue := redundantIndexesIssue
 	details := map[string]interface{}{
 		EXISTING_INDEX_SQL_STATEMENT: existingDDL,
 	}
 
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+	return newQueryIssueWithUsageCategory(issue, objectType, objectName, sqlStatement, details, usageCategory)
 }
 
 var lowCardinalityIndexIssue = issue.Issue{
@@ -136,7 +136,7 @@ var lowCardinalityIndexIssue = issue.Issue{
 	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-low-cardinality-column",
 }
 
-func NewLowCardinalityIndexesIssue(objectType string, objectName string, sqlStatement string, isSingleColumnIndex bool, cardinality int64, columnName string) QueryIssue {
+func NewLowCardinalityIndexesIssue(objectType string, objectName string, sqlStatement string, isSingleColumnIndex bool, cardinality int64, columnName string, usageCategory string) QueryIssue {
 	issue := lowCardinalityIndexIssue
 	if isSingleColumnIndex {
 		issue.Description = fmt.Sprintf("%s %s", LOW_CARDINALITY_DESCRIPTION, LOW_CARDINALITY_DESCRIPTION_SINGLE_COLUMN)
@@ -148,7 +148,7 @@ func NewLowCardinalityIndexesIssue(objectType string, objectName string, sqlStat
 		COLUMN_NAME: columnName,
 		CARDINALITY: cardinality,
 	}
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+	return newQueryIssueWithUsageCategory(issue, objectType, objectName, sqlStatement, details, usageCategory)
 }
 
 var nullValueIndexes = issue.Issue{
@@ -158,7 +158,7 @@ var nullValueIndexes = issue.Issue{
 	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-column-with-a-high-percentage-of-null-values",
 }
 
-func NewNullValueIndexesIssue(objectType string, objectName string, sqlStatement string, isSingleColumnIndex bool, nullFrequency int, columnName string) QueryIssue {
+func NewNullValueIndexesIssue(objectType string, objectName string, sqlStatement string, isSingleColumnIndex bool, nullFrequency int, columnName string, usageCategory string) QueryIssue {
 	issue := nullValueIndexes
 	if isSingleColumnIndex {
 		issue.Description = fmt.Sprintf("%s %s", NULL_VALUE_INDEXES_DESCRIPTION, NULL_VALUE_INDEXES_DESCRIPTION_SINGLE_COLUMN)
@@ -170,7 +170,7 @@ func NewNullValueIndexesIssue(objectType string, objectName string, sqlStatement
 		FREQUENCY_OF_NULLS: fmt.Sprintf("%d%%", nullFrequency),
 		COLUMN_NAME:        columnName,
 	}
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+	return newQueryIssueWithUsageCategory(issue, objectType, objectName, sqlStatement, details, usageCategory)
 }
 
 var mostFrequentValueIndexIssue = issue.Issue{
@@ -180,7 +180,7 @@ var mostFrequentValueIndexIssue = issue.Issue{
 	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-column-with-high-percentage-of-a-particular-value",
 }
 
-func NewMostFrequentValueIndexesIssue(objectType string, objectName string, sqlStatement string, isSingleColumnIndex bool, value string, frequency int, columnName string) QueryIssue {
+func NewMostFrequentValueIndexesIssue(objectType string, objectName string, sqlStatement string, isSingleColumnIndex bool, value string, frequency int, columnName string, usageCategory string) QueryIssue {
 	issue := mostFrequentValueIndexIssue
 	if isSingleColumnIndex {
 		issue.Description = fmt.Sprintf("%s %s", MOST_FREQUENT_VALUE_INDEX_DESCRIPTION, MOST_FREQUENT_VALUE_INDEX_DESCRIPTION_SINGLE_COLUMN)
@@ -193,7 +193,7 @@ func NewMostFrequentValueIndexesIssue(objectType string, objectName string, sqlS
 		FREQUENCY_OF_VALUE: fmt.Sprintf("%d%%", frequency),
 		COLUMN_NAME:        columnName,
 	}
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+	return newQueryIssueWithUsageCategory(issue, objectType, objectName, sqlStatement, details, usageCategory)
 }
 
 var foreignKeyDatatypeMismatchIssue = issue.Issue{
@@ -203,7 +203,7 @@ var foreignKeyDatatypeMismatchIssue = issue.Issue{
 	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#foreign-key-datatype-mismatch", // TODO add link to docs
 }
 
-func NewForeignKeyDatatypeMismatchIssue(objectType string, objectName string, sqlStatement string, fkColumnName string, refColumnName string, fkColumnType string, refColumnType string) QueryIssue {
+func NewForeignKeyDatatypeMismatchIssue(objectType string, objectName string, sqlStatement string, fkColumnName string, refColumnName string, fkColumnType string, refColumnType string, usageCategory string) QueryIssue {
 	issue := foreignKeyDatatypeMismatchIssue
 
 	issue.Description = fmt.Sprintf(FOREIGN_KEY_DATATYPE_MISMATCH_DESCRIPTION, fkColumnType, refColumnType)
@@ -215,7 +215,7 @@ func NewForeignKeyDatatypeMismatchIssue(objectType string, objectName string, sq
 		REFERENCED_COLUMN_TYPE: refColumnType,
 	}
 
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+	return newQueryIssueWithUsageCategory(issue, objectType, objectName, sqlStatement, details, usageCategory)
 }
 
 var missingForeignKeyIndexIssue = issue.Issue{
@@ -226,7 +226,7 @@ var missingForeignKeyIndexIssue = issue.Issue{
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-foreign-key-indexes", // TODO add link to docs
 }
 
-func NewMissingForeignKeyIndexIssue(objectType string, objectName string, sqlStatement string, fkColumns string, referencedTable string) QueryIssue {
+func NewMissingForeignKeyIndexIssue(objectType string, objectName string, sqlStatement string, fkColumns string, referencedTable string, usageCategory string) QueryIssue {
 	issue := missingForeignKeyIndexIssue
 
 	details := map[string]interface{}{
@@ -234,7 +234,7 @@ func NewMissingForeignKeyIndexIssue(objectType string, objectName string, sqlSta
 		REFERENCED_TABLE_NAME: referencedTable,
 	}
 
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+	return newQueryIssueWithUsageCategory(issue, objectType, objectName, sqlStatement, details, usageCategory)
 }
 
 // NewMissingPrimaryKeyWhenUniqueNotNullIssue returns a recommendation to add a PK when a UNIQUE constraint's columns are all NOT NULL
@@ -243,13 +243,13 @@ var missingPrimaryKeyWhenUniqueNotNullIssue = issue.Issue{
 	Type:        MISSING_PRIMARY_KEY_WHEN_UNIQUE_NOT_NULL,
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: MISSING_PRIMARY_KEY_WHEN_UNIQUE_NOT_NULL_DESCRIPTION,
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-primary-key-when-unique-not-null",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-primary-key-for-table-when-unique-and-not-null-columns-exist",
 }
 
-func NewMissingPrimaryKeyWhenUniqueNotNullIssue(objectType string, objectName string, options [][]string) QueryIssue {
+func NewMissingPrimaryKeyWhenUniqueNotNullIssue(objectType string, objectName string, options [][]string, usageCategory string) QueryIssue {
 	issue := missingPrimaryKeyWhenUniqueNotNullIssue
 	details := map[string]interface{}{
 		"PrimaryKeyColumnOptions": options,
 	}
-	return newQueryIssue(issue, objectType, objectName, "", details)
+	return newQueryIssueWithUsageCategory(issue, objectType, objectName, "", details, usageCategory)
 }

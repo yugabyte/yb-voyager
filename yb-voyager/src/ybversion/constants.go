@@ -15,6 +15,8 @@ limitations under the License.
 */
 package ybversion
 
+import "github.com/yugabyte/yb-voyager/yb-voyager/versions"
+
 const (
 	SERIES_2_14   = "2.14"
 	SERIES_2_18   = "2.18"
@@ -40,7 +42,7 @@ var V2024_2_3_1 *YBVersion
 var V2024_2_4_0 *YBVersion
 var V2025_1_0_0 *YBVersion
 var V2_23_0_0 *YBVersion
-
+var V2025_1_1_1 *YBVersion
 var V2_25_0_0 *YBVersion
 var V2_25_1_0 *YBVersion
 
@@ -108,7 +110,10 @@ func init() {
 		panic("could not create version 2025.1.0.0")
 	}
 
-	// Note: Whenever LatestStable is updated, modify in issues-test.yml as well
-	// And in the config file templates as well.
-	LatestStable = V2025_1_0_0
+	// Whenever latest_stable version is updated in yb-versions.json, it will be reflected here as well.
+	latestStableVersionString := versions.GetLatestStableYBVersionWithoutBuildNumber()
+	LatestStable, err = NewYBVersion(latestStableVersionString)
+	if err != nil {
+		panic("could not create version " + latestStableVersionString)
+	}
 }

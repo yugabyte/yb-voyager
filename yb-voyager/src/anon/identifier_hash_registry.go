@@ -101,15 +101,32 @@ func (r *IdentifierHashRegistry) GetHash(kind string, identifier string) (string
 // IsAnonymized checks if an identifier has already been anonymized
 // An anonymized identifier has the format: <prefix><HASH_LENGTH_hex_chars>
 // where prefix is one of the *_KIND_PREFIX constants defined in this package
+// For qualified names (e.g., "schema.table"), it checks if any part is anonymized
 func IsAnonymized(identifier string) bool {
 	if identifier == "" {
 		return false
 	}
 
-	// Use the centralized AllKindPrefixes slice
+	// Handle qualified names by checking each part separately
+	// Only multi part case for now: sequence function arguments like nextval('schema.table.sequence')
+	parts := strings.Split(identifier, ".")
+	for _, part := range parts {
+		if part == "" {
+			continue
+		}
+		if isPartAnonymized(part) {
+			return true // If any part is anonymized, assuming the whole thing anonymized
+		}
+	}
+
+	return false
+}
+
+// isPartAnonymized checks if a single identifier part is anonymized
+func isPartAnonymized(part string) bool {
 	for _, prefix := range AllKindPrefixes {
-		if strings.HasPrefix(identifier, prefix) {
-			remaining := identifier[len(prefix):]
+		if strings.HasPrefix(part, prefix) {
+			remaining := part[len(prefix):]
 			if len(remaining) == HASH_LENGTH && isHexString(remaining) {
 				return true
 			}

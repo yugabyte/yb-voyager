@@ -87,13 +87,23 @@ type Payload struct {
 
 // SHOULD NOT REMOVE THESE (host, db_type, db_version, total_db_size_bytes) FIELDS of SourceDBDetails as parsing these specifically here
 // https://github.com/yugabyte/yugabyte-growth/blob/ad5df306c50c05136df77cd6548a1091ae577046/diagnostics_v2/main.py#L549
+
+/*
+Version History
+1.0: Introduced DBName and SchemaNames fields
+*/
+var SOURCE_DB_DETAILS_PAYLOAD_VERSION = "1.0"
+
 type SourceDBDetails struct {
-	Host               string `json:"host"` //keeping it empty for now, as field is parsed in big query app
-	DBType             string `json:"db_type"`
-	DBVersion          string `json:"db_version"`
-	DBSize             int64  `json:"total_db_size_bytes"`            //bytes
-	Role               string `json:"role,omitempty"`                 //for differentiating replica details
-	DBSystemIdentifier int64  `json:"db_system_identifier,omitempty"` //Database system identifier for unique instance identification (currently only implemented for PostgreSQL)
+	PayloadVersion     string   `json:"payload_version"`
+	Host               string   `json:"host"` //keeping it empty for now, as field is parsed in big query app
+	DBType             string   `json:"db_type"`
+	DBVersion          string   `json:"db_version"`
+	DBSize             int64    `json:"total_db_size_bytes"`            //bytes
+	Role               string   `json:"role,omitempty"`                 //for differentiating replica details
+	DBSystemIdentifier int64    `json:"db_system_identifier,omitempty"` //Database system identifier for unique instance identification (currently only implemented for PostgreSQL)
+	DBName             string   `json:"db_name,omitempty"`              //Anonymized database name
+	SchemaNames        []string `json:"schema_names,omitempty"`         //Anonymized schema names
 }
 
 // SHOULD NOT REMOVE THESE (host, db_version, node_count, total_cores) FIELDS of TargetDBDetails as parsing these specifically here
@@ -106,6 +116,8 @@ type TargetDBDetails struct {
 	DBSystemIdentifier string `json:"db_system_identifier,omitempty"` // Database system identifier (currently only implemented for YugabyteDB cluster UUID from v2024.2.3.0+)
 }
 
+// =============================== Assess Migration ===============================
+
 /*
 Version History
 1.0: Introduced Issues field for storing assessment issues in flattened format and removed the other fields like UnsupportedFeatures, UnsupportedDatatypes,etc..
@@ -117,8 +129,9 @@ Version History
 1.6: Added ObjectName field in AssessmentIssueCallhome struct
 1.7 Changed NumShardedTables and NumColocatedTables to ShardedTables and ColocatedTables respectively with anonymized names
 1.8 Added EstimatedTimeInMinForImportWithoutRedundantIndexes to SizingCallhome
+1.9 Added ObjectUsage field to AssessmentIssueCallhome struct
 */
-var ASSESS_MIGRATION_CALLHOME_PAYLOAD_VERSION = "1.8"
+var ASSESS_MIGRATION_CALLHOME_PAYLOAD_VERSION = "1.9"
 
 type AssessMigrationPhasePayload struct {
 	PayloadVersion                 string                    `json:"payload_version"`
@@ -145,11 +158,12 @@ type AssessmentIssueCallhome struct {
 	Impact              string                 `json:"impact"`
 	ObjectType          string                 `json:"object_type"`
 	ObjectName          string                 `json:"object_name"`
+	ObjectUsage         string                 `json:"object_usage,omitempty"`
 	SqlStatement        string                 `json:"sql_statement,omitempty"`
 	Details             map[string]interface{} `json:"details,omitempty"`
 }
 
-func NewAssessmentIssueCallhome(category string, categoryDesc string, issueType string, issueName string, issueImpact string, objectType string, details map[string]interface{}) AssessmentIssueCallhome {
+func NewAssessmentIssueCallhome(category string, categoryDesc string, issueType string, issueName string, issueImpact string, objectType string, details map[string]interface{}, objectUsage string) AssessmentIssueCallhome {
 	return AssessmentIssueCallhome{
 		Category:            category,
 		CategoryDescription: categoryDesc,
@@ -157,6 +171,7 @@ func NewAssessmentIssueCallhome(category string, categoryDesc string, issueType 
 		Name:                issueName,
 		Impact:              issueImpact,
 		ObjectType:          objectType,
+		ObjectUsage:         objectUsage,
 		Details:             lo.OmitByKeys(details, queryissue.SensitiveKeysInIssueDetailsMap),
 	}
 }
@@ -194,6 +209,8 @@ type SchemaOptimizationChange struct {
 	Objects          []string `json:"objects"`
 }
 
+// =============================== Export Schema ===============================
+
 /*
 Version History
 1.0: Added a new field as PayloadVersion and SchemaOptimizationChanges
@@ -214,6 +231,8 @@ type ExportSchemaPhasePayload struct {
 	ControlPlaneType          string                     `json:"control_plane_type"`
 	SchemaOptimizationChanges []SchemaOptimizationChange `json:"schema_optimization_changes"`
 }
+
+// =============================== Analyze ===============================
 
 /*
 Version History
@@ -242,6 +261,8 @@ type AnalyzeIssueCallhome struct {
 	ObjectName string `json:"object_name"`
 }
 
+// =============================== Export Data ===============================
+
 type ExportDataPhasePayload struct {
 	ParallelJobs            int64  `json:"parallel_jobs"`
 	TotalRows               int64  `json:"total_rows_exported"`
@@ -258,6 +279,8 @@ type ExportDataPhasePayload struct {
 	AllowOracleClobDataExport bool   `json:"allow_oracle_clob_data_export"`
 }
 
+// =============================== Import Schema ===============================
+
 type ImportSchemaPhasePayload struct {
 	ContinueOnError    bool   `json:"continue_on_error"`
 	EnableOrafce       bool   `json:"enable_orafce"`
@@ -270,13 +293,16 @@ type ImportSchemaPhasePayload struct {
 	ControlPlaneType   string `json:"control_plane_type"`
 }
 
+// =============================== Import Data ===============================
+
 /*
 Version History:
 1.0: Added fields for BatchSize, OnPrimaryKeyConflictAction, EnableYBAdaptiveParallelism, AdaptiveParallelismMax
 1.1: Added YBClusterMetrics field, and corresponding struct - YBClusterMetrics, NodeMetric
 1.2: Split out the data metrics into a separate struct - ImportDataMetrics
+1.3: Added CurrentParallelConnections field to ImportDataMetrics
 */
-var IMPORT_DATA_CALLHOME_PAYLOAD_VERSION = "1.2"
+var IMPORT_DATA_CALLHOME_PAYLOAD_VERSION = "1.3"
 
 type ImportDataPhasePayload struct {
 	PayloadVersion              string            `json:"payload_version"`
@@ -298,6 +324,8 @@ type ImportDataPhasePayload struct {
 }
 
 type ImportDataMetrics struct {
+	CurrentParallelConnections int `json:"current_parallel_connections"`
+
 	// for the entire migration, across command runs. would be sensitive to start-clean.
 	MigrationSnapshotTotalRows        int64 `json:"migration_snapshot_total_rows"`
 	MigrationSnapshotLargestTableRows int64 `json:"migration_snapshot_largest_table_rows"`
@@ -339,6 +367,8 @@ type ImportDataFilePhasePayload struct {
 }
 
 type ImportDataFileMetrics struct {
+	CurrentParallelConnections int `json:"current_parallel_connections"`
+
 	// for the entire migration, across command runs. would be sensitive to start-clean.
 	MigrationSnapshotTotalBytes        int64 `json:"migration_snapshot_total_bytes"`
 	MigrationSnapshotLargestTableBytes int64 `json:"migration_snapshot_largest_table_bytes"`
@@ -357,6 +387,45 @@ type DataFileParameters struct {
 	NullString string `json:"NullString,omitempty"`
 }
 
+// =============================== Compare Performance ===============================
+/*
+Version History
+1.0: Initial version
+*/
+var COMPARE_PERFORMANCE_PAYLOAD_VERSION = "1.0"
+
+type ComparePerformancePhasePayload struct {
+	PayloadVersion    string        `json:"payload_version"`
+	TotalQueries      int           `json:"total_queries"`
+	MatchedQueries    int           `json:"matched_queries"`
+	SourceOnlyQueries int           `json:"source_only_queries"`
+	TargetOnlyQueries int           `json:"target_only_queries"`
+	QueryMetrics      []QueryMetric `json:"query_metrics"`
+	Error             string        `json:"error"`
+	ControlPlaneType  string        `json:"control_plane_type"`
+}
+
+// QueryMetric holds performance metrics for matched queries included for callhome
+type QueryMetric struct {
+	QueryLabel    string             `json:"query_label"` // "SELECT_SIMPLE", "INSERT_COMPLEX", etc.
+	SlowdownRatio float64            `json:"slowdown_ratio"`
+	ImpactScore   float64            `json:"impact_score"`
+	SourceStats   QueryStatsCallhome `json:"source_stats"`
+	TargetStats   QueryStatsCallhome `json:"target_stats"`
+}
+
+// Query statistics for callhome (callhome version of types.QueryStats)
+// all times are in milliseconds
+type QueryStatsCallhome struct {
+	ExecutionCount  int64   `json:"execution_count"`
+	RowsProcessed   int64   `json:"rows_processed"`
+	TotalExecTime   float64 `json:"total_exec_time_ms"`
+	AverageExecTime float64 `json:"average_exec_time_ms"`
+	MinExecTime     float64 `json:"min_exec_time_ms"`
+	MaxExecTime     float64 `json:"max_exec_time_ms"`
+}
+
+// =============================== End Migration ===============================
 type EndMigrationPhasePayload struct {
 	BackupDataFiles      bool   `json:"backup_data_files"`
 	BackupLogFiles       bool   `json:"backup_log_files"`

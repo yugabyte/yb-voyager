@@ -32,7 +32,6 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
 
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
@@ -197,7 +196,7 @@ func exportSchema(cmd *cobra.Command) error {
 	//We can probably use the mix of both regex parser and file parser in the tranformer based on source tpyes
 	//and for that we can move our logic from the cmd package to the queryparser package
 	//Skipping that for now
-	_, err = applyTableFileTransformations()
+	tableTransformer, err := applyTableFileTransformations()
 	if err != nil {
 		return fmt.Errorf("failed to apply table file transformations: %w", err)
 	}
@@ -206,7 +205,7 @@ func exportSchema(cmd *cobra.Command) error {
 	if err != nil {
 		return fmt.Errorf("failed to apply index file transformations: %w", err)
 	}
-	err = generatePerformanceOptimizationReport(indexTransformer, modifiedTables, modifiedMviews, colocatedTables, colocatedMviews)
+	err = generatePerformanceOptimizationReport(indexTransformer, modifiedTables, modifiedMviews, colocatedTables, colocatedMviews, tableTransformer)
 	if err != nil {
 		return fmt.Errorf("failed to generate performance optimization %w", err)
 	}
@@ -314,47 +313,6 @@ func runAssessMigrationCmdBeforExportSchemaIfRequired(exportSchemaCmd *cobra.Com
 
 	fmt.Println()
 	return nil
-}
-
-func packAndSendExportSchemaPayload(status string, errorMsg error) {
-	if !shouldSendCallhome() {
-		return
-	}
-	payload := createCallhomePayload()
-	payload.MigrationPhase = EXPORT_SCHEMA_PHASE
-	payload.Status = status
-	sourceDBDetails := callhome.SourceDBDetails{
-		DBType:             source.DBType,
-		DBVersion:          source.DBVersion,
-		DBSize:             source.DBSize,
-		DBSystemIdentifier: source.DBSystemIdentifier,
-	}
-	schemaOptimizationChanges := buildCallhomeSchemaOptimizationChanges()
-
-	payload.SourceDBDetails = callhome.MarshalledJsonString(sourceDBDetails)
-	assessRunInExportSchema, err := IsMigrationAssessmentDoneViaExportSchema()
-	if err != nil {
-		log.Infof("callhome: failed to get migration assessment done via export schema: %v", err)
-	}
-	exportSchemaPayload := callhome.ExportSchemaPhasePayload{
-		StartClean:                bool(startClean),
-		AppliedRecommendations:    assessmentRecommendationsApplied,
-		UseOrafce:                 bool(source.UseOrafce),
-		CommentsOnObjects:         bool(source.CommentsOnObjects),
-		Error:                     callhome.SanitizeErrorMsg(errorMsg, anonymizer),
-		SkipRecommendations:       bool(skipRecommendations),
-		AssessRunInExportSchema:   assessRunInExportSchema,
-		SkipPerfOptimizations:     bool(skipPerfOptimizations),
-		ControlPlaneType:          getControlPlaneType(),
-		SchemaOptimizationChanges: schemaOptimizationChanges,
-	}
-
-	payload.PhasePayload = callhome.MarshalledJsonString(exportSchemaPayload)
-
-	err = callhome.SendPayload(&payload)
-	if err == nil && (status == COMPLETE || status == ERROR) {
-		callHomeErrorOrCompletePayloadSent = true
-	}
 }
 
 func init() {
@@ -751,7 +709,7 @@ func applyTableFileTransformations() (*sqltransformer.TableFileTransformer, erro
 
 	skipMergeConstraints := utils.GetEnvAsBool("YB_VOYAGER_SKIP_MERGE_CONSTRAINTS_TRANSFORMATIONS", false)
 
-	tableTransformer := sqltransformer.NewTableFileTransformer(skipMergeConstraints, source.DBType)
+	tableTransformer := sqltransformer.NewTableFileTransformer(skipMergeConstraints, source.DBType, bool(skipPerfOptimizations))
 
 	backUpFile, err := tableTransformer.Transform(tableFilePath)
 	if err != nil {
@@ -814,7 +772,7 @@ func fetchRedundantIndexMapFromAssessmentDB() (*utils.StructMap[*sqlname.ObjectN
 	var err error
 	migassessment.AssessmentDir = filepath.Join(exportDir, "assessment")
 
-	assessmentDB, err = migassessment.NewAssessmentDB(source.DBType)
+	assessmentDB, err = migassessment.NewAssessmentDB()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create assessment db: %w", err)
 	}

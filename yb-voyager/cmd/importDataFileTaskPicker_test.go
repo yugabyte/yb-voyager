@@ -27,6 +27,7 @@ import (
 	"github.com/mroth/weightedrand/v2"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
@@ -57,7 +58,7 @@ func (d *dummyYb) ImportBatch(batch tgtdb.Batch, args *tgtdb.ImportBatchArgs, ex
 }
 
 func TestSequentialTaskPickerBasic(t *testing.T) {
-	ldataDir, lexportDir, state, _, err := setupExportDirAndImportDependencies(2, 1024)
+	ldataDir, lexportDir, state, _, _, err := setupExportDirAndImportDependencies(2, 1024)
 	testutils.FatalIfError(t, err)
 
 	if ldataDir != "" {
@@ -91,7 +92,7 @@ func TestSequentialTaskPickerBasic(t *testing.T) {
 }
 
 func TestSequentialTaskPickerMarkTaskDone(t *testing.T) {
-	ldataDir, lexportDir, state, _, err := setupExportDirAndImportDependencies(2, 1024)
+	ldataDir, lexportDir, state, _, _, err := setupExportDirAndImportDependencies(2, 1024)
 	testutils.FatalIfError(t, err)
 
 	if ldataDir != "" {
@@ -148,7 +149,7 @@ func TestSequentialTaskPickerMarkTaskDone(t *testing.T) {
 }
 
 func TestSequentialTaskPickerResumePicksInProgressTask(t *testing.T) {
-	ldataDir, lexportDir, state, errorHandler, err := setupExportDirAndImportDependencies(2, 1024)
+	ldataDir, lexportDir, state, errorHandler, progressReporter, err := setupExportDirAndImportDependencies(2, 1024)
 	testutils.FatalIfError(t, err)
 
 	if ldataDir != "" {
@@ -181,7 +182,7 @@ func TestSequentialTaskPickerResumePicksInProgressTask(t *testing.T) {
 	}
 
 	// update the state of the first task to in progress
-	fbp, err := NewFileBatchProducer(task1, state, errorHandler)
+	fbp, err := NewFileBatchProducer(task1, state, errorHandler, progressReporter)
 	testutils.FatalIfError(t, err)
 	batch, err := fbp.NextBatch()
 	assert.NoError(t, err)
@@ -223,7 +224,7 @@ func TestSequentialTaskPickerResumePicksInProgressTask(t *testing.T) {
 }
 
 func TestColocatedAwareRandomTaskPickerAdheresToMaxTasksInProgress(t *testing.T) {
-	ldataDir, lexportDir, state, _, err := setupExportDirAndImportDependencies(2, 1024)
+	ldataDir, lexportDir, state, _, _, err := setupExportDirAndImportDependencies(2, 1024)
 	testutils.FatalIfError(t, err)
 
 	if ldataDir != "" {
@@ -320,7 +321,7 @@ func TestColocatedAwareRandomTaskPickerAdheresToMaxTasksInProgress(t *testing.T)
 }
 
 func TestColocatedAwareRandomTaskPickerMultipleTasksPerTableAdheresToMaxTasksInProgress(t *testing.T) {
-	ldataDir, lexportDir, state, _, err := setupExportDirAndImportDependencies(2, 1024)
+	ldataDir, lexportDir, state, _, _, err := setupExportDirAndImportDependencies(2, 1024)
 	testutils.FatalIfError(t, err)
 
 	if ldataDir != "" {
@@ -427,7 +428,7 @@ func TestColocatedAwareRandomTaskPickerMultipleTasksPerTableAdheresToMaxTasksInP
 }
 
 func TestColocatedAwareRandomTaskPickerSingleTask(t *testing.T) {
-	ldataDir, lexportDir, state, _, err := setupExportDirAndImportDependencies(2, 1024)
+	ldataDir, lexportDir, state, _, _, err := setupExportDirAndImportDependencies(2, 1024)
 	testutils.FatalIfError(t, err)
 
 	if ldataDir != "" {
@@ -475,7 +476,7 @@ func TestColocatedAwareRandomTaskPickerSingleTask(t *testing.T) {
 }
 
 func TestColocatedAwareRandomTaskPickerTasksEqualToMaxTasksInProgress(t *testing.T) {
-	ldataDir, lexportDir, state, _, err := setupExportDirAndImportDependencies(2, 1024)
+	ldataDir, lexportDir, state, _, _, err := setupExportDirAndImportDependencies(2, 1024)
 	testutils.FatalIfError(t, err)
 
 	if ldataDir != "" {
@@ -544,7 +545,7 @@ func TestColocatedAwareRandomTaskPickerTasksEqualToMaxTasksInProgress(t *testing
 }
 
 func TestColocatedAwareRandomTaskPickerMultipleTasksPerTableTasksEqualToMaxTasksInProgress(t *testing.T) {
-	ldataDir, lexportDir, state, _, err := setupExportDirAndImportDependencies(2, 1024)
+	ldataDir, lexportDir, state, _, _, err := setupExportDirAndImportDependencies(2, 1024)
 	testutils.FatalIfError(t, err)
 
 	if ldataDir != "" {
@@ -613,7 +614,7 @@ func TestColocatedAwareRandomTaskPickerMultipleTasksPerTableTasksEqualToMaxTasks
 }
 
 func TestColocatedAwareRandomTaskPickerTasksLessThanMaxTasksInProgress(t *testing.T) {
-	ldataDir, lexportDir, state, _, err := setupExportDirAndImportDependencies(2, 1024)
+	ldataDir, lexportDir, state, _, _, err := setupExportDirAndImportDependencies(2, 1024)
 	testutils.FatalIfError(t, err)
 
 	if ldataDir != "" {
@@ -682,7 +683,7 @@ func TestColocatedAwareRandomTaskPickerTasksLessThanMaxTasksInProgress(t *testin
 }
 
 func TestColocatedAwareRandomTaskPickerMultipleTasksPerTableTasksLessThanMaxTasksInProgress(t *testing.T) {
-	ldataDir, lexportDir, state, _, err := setupExportDirAndImportDependencies(2, 1024)
+	ldataDir, lexportDir, state, _, _, err := setupExportDirAndImportDependencies(2, 1024)
 	testutils.FatalIfError(t, err)
 
 	if ldataDir != "" {
@@ -751,7 +752,7 @@ func TestColocatedAwareRandomTaskPickerMultipleTasksPerTableTasksLessThanMaxTask
 }
 
 func TestColocatedAwareRandomTaskPickerAllShardedTasks(t *testing.T) {
-	ldataDir, lexportDir, state, _, err := setupExportDirAndImportDependencies(2, 1024)
+	ldataDir, lexportDir, state, _, _, err := setupExportDirAndImportDependencies(2, 1024)
 	testutils.FatalIfError(t, err)
 
 	if ldataDir != "" {
@@ -796,7 +797,7 @@ func TestColocatedAwareRandomTaskPickerAllShardedTasks(t *testing.T) {
 }
 
 func TestColocatedAwareRandomTaskPickerAllShardedTasksChooser(t *testing.T) {
-	ldataDir, lexportDir, state, _, err := setupExportDirAndImportDependencies(2, 1024)
+	ldataDir, lexportDir, state, _, _, err := setupExportDirAndImportDependencies(2, 1024)
 	testutils.FatalIfError(t, err)
 
 	if ldataDir != "" {
@@ -915,7 +916,7 @@ func assertTableChooserPicksShardedAndColocatedAsExpected(t *testing.T, chooser 
 }
 
 func TestColocatedAwareRandomTaskPickerAllColocatedTasks(t *testing.T) {
-	ldataDir, lexportDir, state, _, err := setupExportDirAndImportDependencies(2, 1024)
+	ldataDir, lexportDir, state, _, _, err := setupExportDirAndImportDependencies(2, 1024)
 	testutils.FatalIfError(t, err)
 
 	if ldataDir != "" {
@@ -960,7 +961,7 @@ func TestColocatedAwareRandomTaskPickerAllColocatedTasks(t *testing.T) {
 }
 
 func TestColocatedAwareRandomTaskPickerAllColocatedTasksChooser(t *testing.T) {
-	ldataDir, lexportDir, state, _, err := setupExportDirAndImportDependencies(2, 1024)
+	ldataDir, lexportDir, state, _, _, err := setupExportDirAndImportDependencies(2, 1024)
 	testutils.FatalIfError(t, err)
 
 	if ldataDir != "" {
@@ -1014,7 +1015,7 @@ func TestColocatedAwareRandomTaskPickerAllColocatedTasksChooser(t *testing.T) {
 }
 
 func TestColocatedAwareRandomTaskPickerMixShardedColocatedTasks(t *testing.T) {
-	ldataDir, lexportDir, state, _, err := setupExportDirAndImportDependencies(2, 1024)
+	ldataDir, lexportDir, state, _, _, err := setupExportDirAndImportDependencies(2, 1024)
 	testutils.FatalIfError(t, err)
 
 	if ldataDir != "" {
@@ -1069,7 +1070,7 @@ func TestColocatedAwareRandomTaskPickerMixShardedColocatedTasks(t *testing.T) {
 }
 
 func TestColocatedAwareRandomTaskPickerMixShardedColocatedTasksChooser(t *testing.T) {
-	ldataDir, lexportDir, state, _, err := setupExportDirAndImportDependencies(2, 1024)
+	ldataDir, lexportDir, state, _, _, err := setupExportDirAndImportDependencies(2, 1024)
 	testutils.FatalIfError(t, err)
 
 	if ldataDir != "" {
@@ -1140,7 +1141,7 @@ func TestColocatedAwareRandomTaskPickerMixShardedColocatedTasksChooser(t *testin
 }
 
 func TestColocatedAwareRandomTaskPickerResumable(t *testing.T) {
-	ldataDir, lexportDir, state, errorHandler, err := setupExportDirAndImportDependencies(2, 1024)
+	ldataDir, lexportDir, state, errorHandler, progressReporter, err := setupExportDirAndImportDependencies(2, 1024)
 	testutils.FatalIfError(t, err)
 
 	if ldataDir != "" {
@@ -1188,21 +1189,21 @@ func TestColocatedAwareRandomTaskPickerResumable(t *testing.T) {
 	// pick 3 tasks and start the process.
 	task1, err := picker.Pick()
 	assert.NoError(t, err)
-	fbp1, err := NewFileBatchProducer(task1, state, errorHandler)
+	fbp1, err := NewFileBatchProducer(task1, state, errorHandler, progressReporter)
 	batch1, err := fbp1.NextBatch()
 	assert.NoError(t, err)
 	batch1.MarkInProgress()
 
 	task2, err := picker.Pick()
 	assert.NoError(t, err)
-	fbp2, err := NewFileBatchProducer(task2, state, errorHandler)
+	fbp2, err := NewFileBatchProducer(task2, state, errorHandler, progressReporter)
 	batch2, err := fbp2.NextBatch()
 	assert.NoError(t, err)
 	batch2.MarkInProgress()
 
 	task3, err := picker.Pick()
 	assert.NoError(t, err)
-	fbp3, err := NewFileBatchProducer(task3, state, errorHandler)
+	fbp3, err := NewFileBatchProducer(task3, state, errorHandler, progressReporter)
 	batch3, err := fbp3.NextBatch()
 	assert.NoError(t, err)
 	batch3.MarkInProgress()
@@ -1228,7 +1229,7 @@ func TestColocatedAwareRandomTaskPickerResumable(t *testing.T) {
 }
 
 func TestColocatedCappedRandomTaskPickerSingleTaskSharded(t *testing.T) {
-	ldataDir, lexportDir, state, _, err := setupExportDirAndImportDependencies(1, 1024)
+	ldataDir, lexportDir, state, _, _, err := setupExportDirAndImportDependencies(1, 1024)
 	testutils.FatalIfError(t, err)
 
 	if ldataDir != "" {
@@ -1288,7 +1289,7 @@ func TestColocatedCappedRandomTaskPickerSingleTaskSharded(t *testing.T) {
 }
 
 func TestColocatedCappedRandomTaskPickerSingleTaskColocated(t *testing.T) {
-	ldataDir, lexportDir, state, _, err := setupExportDirAndImportDependencies(1, 1024)
+	ldataDir, lexportDir, state, _, _, err := setupExportDirAndImportDependencies(1, 1024)
 	testutils.FatalIfError(t, err)
 
 	if ldataDir != "" {
@@ -1348,7 +1349,7 @@ func TestColocatedCappedRandomTaskPickerSingleTaskColocated(t *testing.T) {
 }
 
 func TestColocatedCappedRandomTaskPickerMultipleTasksSharded(t *testing.T) {
-	ldataDir, lexportDir, state, _, err := setupExportDirAndImportDependencies(3, 1024)
+	ldataDir, lexportDir, state, _, _, err := setupExportDirAndImportDependencies(3, 1024)
 	testutils.FatalIfError(t, err)
 
 	if ldataDir != "" {
@@ -1465,7 +1466,7 @@ func TestColocatedCappedRandomTaskPickerMultipleTasksSharded(t *testing.T) {
 }
 
 func TestColocatedCappedRandomTaskPickerMultipleTasksColocated(t *testing.T) {
-	ldataDir, lexportDir, state, _, err := setupExportDirAndImportDependencies(3, 1024)
+	ldataDir, lexportDir, state, _, _, err := setupExportDirAndImportDependencies(3, 1024)
 	testutils.FatalIfError(t, err)
 
 	if ldataDir != "" {
@@ -1582,7 +1583,7 @@ func TestColocatedCappedRandomTaskPickerMultipleTasksColocated(t *testing.T) {
 }
 
 func TestColocatedCappedRandomTaskPickerMultipleTasksColocatedAndSharded(t *testing.T) {
-	ldataDir, lexportDir, state, _, err := setupExportDirAndImportDependencies(5, 1024)
+	ldataDir, lexportDir, state, _, _, err := setupExportDirAndImportDependencies(5, 1024)
 	testutils.FatalIfError(t, err)
 
 	if ldataDir != "" {
@@ -1759,7 +1760,7 @@ func TestColocatedCappedRandomTaskPickerMultipleTasksColocatedAndSharded(t *test
 }
 
 func TestColocatedCappedRandomTaskPickerMultipleTasksSameTableColocated(t *testing.T) {
-	ldataDir, lexportDir, state, _, err := setupExportDirAndImportDependencies(3, 1024)
+	ldataDir, lexportDir, state, _, _, err := setupExportDirAndImportDependencies(3, 1024)
 	testutils.FatalIfError(t, err)
 
 	if ldataDir != "" {
@@ -1876,7 +1877,7 @@ func TestColocatedCappedRandomTaskPickerMultipleTasksSameTableColocated(t *testi
 }
 
 func TestColocatedCappedRandomTaskPickerMultipleTasksSameTableSharded(t *testing.T) {
-	ldataDir, lexportDir, state, _, err := setupExportDirAndImportDependencies(3, 1024)
+	ldataDir, lexportDir, state, _, _, err := setupExportDirAndImportDependencies(3, 1024)
 	testutils.FatalIfError(t, err)
 
 	if ldataDir != "" {
@@ -1993,7 +1994,7 @@ func TestColocatedCappedRandomTaskPickerMultipleTasksSameTableSharded(t *testing
 }
 
 func TestColocatedCappedRandomTaskPickeResumable(t *testing.T) {
-	ldataDir, lexportDir, state, errorHandler, err := setupExportDirAndImportDependencies(2, 1024)
+	ldataDir, lexportDir, state, errorHandler, progressReporter, err := setupExportDirAndImportDependencies(2, 1024)
 	testutils.FatalIfError(t, err)
 
 	if ldataDir != "" {
@@ -2048,28 +2049,28 @@ func TestColocatedCappedRandomTaskPickeResumable(t *testing.T) {
 	// pick 4 tasks and start the process.
 	task1, err := picker.Pick()
 	assert.NoError(t, err)
-	fbp1, err := NewFileBatchProducer(task1, state, errorHandler)
+	fbp1, err := NewFileBatchProducer(task1, state, errorHandler, progressReporter)
 	batch1, err := fbp1.NextBatch()
 	assert.NoError(t, err)
 	batch1.MarkInProgress()
 
 	task2, err := picker.Pick()
 	assert.NoError(t, err)
-	fbp2, err := NewFileBatchProducer(task2, state, errorHandler)
+	fbp2, err := NewFileBatchProducer(task2, state, errorHandler, progressReporter)
 	batch2, err := fbp2.NextBatch()
 	assert.NoError(t, err)
 	batch2.MarkInProgress()
 
 	task3, err := picker.Pick()
 	assert.NoError(t, err)
-	fbp3, err := NewFileBatchProducer(task3, state, errorHandler)
+	fbp3, err := NewFileBatchProducer(task3, state, errorHandler, progressReporter)
 	batch3, err := fbp3.NextBatch()
 	assert.NoError(t, err)
 	batch3.MarkInProgress()
 
 	task4, err := picker.Pick()
 	assert.NoError(t, err)
-	fbp4, err := NewFileBatchProducer(task4, state, errorHandler)
+	fbp4, err := NewFileBatchProducer(task4, state, errorHandler, progressReporter)
 	batch4, err := fbp4.NextBatch()
 	assert.NoError(t, err)
 	batch4.MarkInProgress()
@@ -2091,7 +2092,7 @@ func TestColocatedCappedRandomTaskPickeResumable(t *testing.T) {
 }
 
 func TestColocatedCappedRandomTaskPickerWaitForTasksBatchesTobeImported(t *testing.T) {
-	ldataDir, lexportDir, state, _, err := setupExportDirAndImportDependencies(3, 1024)
+	ldataDir, lexportDir, state, _, _, err := setupExportDirAndImportDependencies(3, 1024)
 	testutils.FatalIfError(t, err)
 
 	if ldataDir != "" {

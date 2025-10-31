@@ -460,7 +460,8 @@ func (pg *PostgreSQL) getExportedColumnsMap(
 		if tableMetadata.IsPartition {
 			rootTable = tableMetadata.ParentTable
 		}
-		result[rootTable.ForMinOutput()] = pg.getExportedColumnsListForTable(exportDir, rootTable)
+		//using ForKey here as this map is stored in the datafile descriptor and for correctness we should use ForKey only
+		result[rootTable.ForKey()] = pg.getExportedColumnsListForTable(exportDir, rootTable)
 	}
 	return result
 }
@@ -712,11 +713,9 @@ func (pg *PostgreSQL) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple
 		var supportedColumnNames []string
 		for i, column := range columns {
 			if useDebezium || isStreamingEnabled {
-				//Using this ContainsAnyStringFromSlice as the catalog we use for fetching datatypes uses the data_type only
-				// which just contains the base type for example VARCHARs it won't include any length, precision or scale information
-				//of these types there are other columns available for these information so we just do string match of types with our list
-				//And also for geometry or complex types like if a column is defined with  public.geometry(Point,4326) then also only geometry is available
-				//in the typname column of those catalog tables  and further details (Point,4326) is managed by Postgis extension.
+				// Use ContainsAnyStringFromSlice for string matching here because catalog table only contain base type names without modifiers. For example:
+				// - For VARCHAR(255), only "VARCHAR" is reported (no length/precision/scale in data_type column) in data_type column of the catalog table
+				// - For public.geometry(Point,4326), only "geometry" is reported in typename column of the catalog table
 				if utils.ContainsAnyStringFromSlice(PostgresUnsupportedDataTypesForDbzm, dataTypes[i]) {
 					unsupportedColumnNames = append(unsupportedColumnNames, column)
 				} else {

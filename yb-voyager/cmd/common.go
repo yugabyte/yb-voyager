@@ -16,6 +16,7 @@ limitations under the License.
 package cmd
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -392,7 +393,7 @@ func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFile
 		dbType = "target"
 	}
 
-	snapshotRowCount, err := getImportedSnapshotRowsMap(dbType)
+	snapshotRowCount, err := getImportedSnapshotRowsMap(dbType, tableList, errorHandler)
 	if err != nil {
 		utils.ErrExit("failed to get imported snapshot rows map: %v", err)
 	}
@@ -501,6 +502,14 @@ func initMetaDB(migrationExportDir string) *metadb.MetaDB {
 	err = metaDBInstance.InitMigrationStatusRecord()
 	if err != nil {
 		utils.ErrExit("could not init migration status record: %w", err)
+	}
+	err = metaDBInstance.InitImportDataStatusRecord()
+	if err != nil {
+		utils.ErrExit("could not init import data status record: %w", err)
+	}
+	err = metaDBInstance.InitImportDataFileStatusRecord()
+	if err != nil {
+		utils.ErrExit("could not init import data file status record: %w", err)
 	}
 
 	// TODO: initialising anonymizer should be a top-level function call, like in root.go
@@ -649,7 +658,7 @@ func initAssessmentDB() {
 		utils.ErrExit("error creating and initializing assessment DB: %v", err)
 	}
 
-	assessmentDB, err = migassessment.NewAssessmentDB(source.DBType)
+	assessmentDB, err = migassessment.NewAssessmentDB()
 	if err != nil {
 		utils.ErrExit("error creating assessment DB instance: %v", err)
 	}
@@ -840,6 +849,9 @@ func GetSourceDBTypeFromMSR() string {
 	}
 	if msr == nil {
 		utils.ErrExit("migration status record not found")
+	}
+	if msr.SourceDBConf == nil {
+		utils.ErrExit("source DB conf not found in migration status record")
 	}
 	return msr.SourceDBConf.DBType
 }
@@ -1062,7 +1074,9 @@ func getExportedSnapshotRowsMap(exportSnapshotStatus *ExportSnapshotStatus) (*ut
 	snapshotStatusMap := utils.NewStructMap[sqlname.NameTuple, []string]()
 
 	for _, tableStatus := range exportSnapshotStatus.Tables {
-		nt, err := namereg.NameReg.LookupTableName(tableStatus.TableName)
+		//using LookupTableNameAndIgnoreIfTargetNotFound in case if the export status is run after import data in which case
+		// if there is some table not present in target this should work
+		nt, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole(tableStatus.TableName)
 		if err != nil {
 			return nil, nil, fmt.Errorf("lookup table [%s] from name registry: %v", tableStatus.TableName, err)
 		}
@@ -1076,7 +1090,9 @@ func getExportedSnapshotRowsMap(exportSnapshotStatus *ExportSnapshotStatus) (*ut
 	return snapshotRowsMap, snapshotStatusMap, nil
 }
 
-func getImportedSnapshotRowsMap(dbType string) (*utils.StructMap[sqlname.NameTuple, RowCountPair], error) {
+func getImportedSnapshotRowsMap(dbType string, tableList []sqlname.NameTuple, errorHandler importdata.ImportDataErrorHandler) (*utils.StructMap[sqlname.NameTuple, RowCountPair], error) {
+
+	var err error
 	switch dbType {
 	case "target":
 		importerRole = TARGET_DB_IMPORTER_ROLE
@@ -1101,23 +1117,38 @@ func getImportedSnapshotRowsMap(dbType string) (*utils.StructMap[sqlname.NameTup
 		}
 	}
 	snapshotRowsMap := utils.NewStructMap[sqlname.NameTuple, RowCountPair]()
+	nameTupleTodataFileEntry := utils.NewStructMap[sqlname.NameTuple, []*datafile.FileEntry]()
 	nameTupleTodataFilesMap := utils.NewStructMap[sqlname.NameTuple, []string]()
 	if snapshotDataFileDescriptor != nil {
 		for _, fileEntry := range snapshotDataFileDescriptor.DataFileList {
-			nt, err := namereg.NameReg.LookupTableName(fileEntry.TableName)
+			//ignoring target as the dataFileDescriptor can contain tables that exported but not present in target
+			nt, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole(fileEntry.TableName)
 			if err != nil {
 				return nil, fmt.Errorf("lookup table name from data file descriptor %s : %v", fileEntry.TableName, err)
 			}
-			list, ok := nameTupleTodataFilesMap.Get(nt)
+			fileEntries, ok := nameTupleTodataFileEntry.Get(nt)
 			if !ok {
-				list = []string{}
+				fileEntries = []*datafile.FileEntry{}
 			}
-			list = append(list, fileEntry.FilePath)
-			nameTupleTodataFilesMap.Put(nt, list)
+			fileEntries = append(fileEntries, fileEntry)
+			nameTupleTodataFileEntry.Put(nt, fileEntries)
+		}
+		for _, table := range tableList {
+			fileEntries, ok := nameTupleTodataFileEntry.Get(table)
+			if !ok {
+				//We can't error out here as this is possible in case there are empty tables in live migraton scenario and
+				//In get data-migration-report, table list can consist that table name but it won't be present in dataFileDescriptor
+				log.Warnf("table %s not found in data file descriptor", table.ForKey())
+				continue
+			}
+			list := lo.Map(fileEntries, func(fileEntry *datafile.FileEntry, _ int) string {
+				return fileEntry.FilePath
+			})
+			nameTupleTodataFilesMap.Put(table, list)
 		}
 	}
 
-	err := nameTupleTodataFilesMap.IterKV(func(nt sqlname.NameTuple, dataFilePaths []string) (bool, error) {
+	err = nameTupleTodataFilesMap.IterKV(func(nt sqlname.NameTuple, dataFilePaths []string) (bool, error) {
 		for _, dataFilePath := range dataFilePaths {
 			importedRowCount, err := state.GetImportedRowCount(dataFilePath, nt)
 			if err != nil {
@@ -1130,7 +1161,17 @@ func getImportedSnapshotRowsMap(dbType string) (*utils.StructMap[sqlname.NameTup
 			existingRowCountPair, _ := snapshotRowsMap.Get(nt)
 			existingRowCountPair.Imported += importedRowCount
 			existingRowCountPair.Errored += erroredRowCount
+
+			if isTargetDBImporter(importerRole) && errorHandler != nil {
+				// error handler will be nil if import-data/import-data-file was not run yet
+				processingErrorRowCount, _, err := errorHandler.GetProcessingErrorCountSize(nt, dataFilePath)
+				if err != nil {
+					return false, fmt.Errorf("get processing error count size: %w", err)
+				}
+				existingRowCountPair.Errored += processingErrorRowCount
+			}
 			snapshotRowsMap.Put(nt, existingRowCountPair)
+
 		}
 		return true, nil
 	})
@@ -1223,6 +1264,7 @@ type AssessmentIssue struct {
 	Impact                 string                          `json:"Impact"`     // // Level-1, Level-2, Level-3 (no default: need to be assigned for each issue)
 	ObjectType             string                          `json:"ObjectType"` // For datatype category, ObjectType will be datatype (for eg "geometry")
 	ObjectName             string                          `json:"ObjectName"`
+	ObjectUsage            string                          `json:"ObjectUsage,omitempty"`
 	SqlStatement           string                          `json:"SqlStatement"`
 	DocsLink               string                          `json:"DocsLink"`
 	MinimumVersionsFixedIn map[string]*ybversion.YBVersion `json:"MinimumVersionsFixedIn"` // key: series (2024.1, 2.21, etc)
@@ -1257,6 +1299,47 @@ const (
 type NoteInfo struct {
 	Type NoteType `json:"Type"`
 	Text string   `json:"Text"`
+}
+
+// MarshalJSON implements custom JSON marshaling for NoteInfo to strip HTML tags from Text field
+func (ni NoteInfo) MarshalJSON() ([]byte, error) {
+	type Alias NoteInfo
+	return json.Marshal(&struct {
+		Type NoteType `json:"Type"`
+		Text string   `json:"Text"`
+	}{
+		Type: ni.Type,
+		Text: stripHTMLTags(ni.Text),
+	})
+}
+
+// stripHTMLTags removes <a> tags but preserves both link text and URL
+func stripHTMLTags(htmlText string) string {
+	if htmlText == "" {
+		return ""
+	}
+
+	// Extract href and text from <a> tags: <a href="URL">text</a> → "text (URL)"
+	linkPattern := regexp.MustCompile(`<a[^>]*href=["']([^"']*)["'][^>]*>(.*?)</a>`)
+	result := linkPattern.ReplaceAllStringFunc(htmlText, func(match string) string {
+		submatch := linkPattern.FindStringSubmatch(match)
+		if len(submatch) >= 3 {
+			url := submatch[1]
+			text := submatch[2]
+			// If text is the same as URL, just return the URL
+			if text == url {
+				return url
+			}
+			// Otherwise return "text (URL)"
+			return text + " (" + url + ")"
+		}
+		return match
+	})
+
+	// Clean up whitespace
+	result = strings.TrimSpace(result)
+
+	return result
 }
 
 // ======================================================================
@@ -1298,8 +1381,9 @@ Version History
 1.6:
   - Add EstimatedTimeInMinForImportWithoutRedundantIndexes in SizingRecommendation struct
   - Added separate fields for notes: GeneralNotes, ColocatedShardedNotes, SizingNotes; deprecated Notes field
-*/
-var ASSESS_MIGRATION_YBD_PAYLOAD_VERSION = "1.6"
+1.7: Added ObjectUsage field to AssessmentIssueYugabyteD struct
+  */
+var ASSESS_MIGRATION_YBD_PAYLOAD_VERSION = "1.7"
 
 // TODO: decouple this struct from utils.AnalyzeSchemaIssue struct, right now its tightly coupled;
 // Similarly for migassessment.SizingAssessmentReport and migassessment.TableIndexStats
@@ -1333,6 +1417,7 @@ type AssessmentIssueYugabyteD struct {
 	Impact                 string                          `json:"Impact"`                 // Level-1, Level-2, Level-3 (no default: need to be assigned for each issue)
 	ObjectType             string                          `json:"ObjectType"`             // For datatype category, ObjectType will be datatype (for eg "geometry")
 	ObjectName             string                          `json:"ObjectName"`             // Fully qualified object name(empty if NA, eg UQC)
+	ObjectUsage            string                          `json:"ObjectUsage"`            // For datatype category, ObjectUsage will be unused (for eg "unused")
 	SqlStatement           string                          `json:"SqlStatement"`           // DDL or DML(UQC)
 	DocsLink               string                          `json:"DocsLink"`               // docs link based on the subtype
 	MinimumVersionsFixedIn map[string]*ybversion.YBVersion `json:"MinimumVersionsFixedIn"` // key: series (2024.1, 2.21, etc)
@@ -1665,6 +1750,8 @@ func PackAndSendCallhomePayloadOnExit() {
 		packAndSendEndMigrationPayload(status, exitErr)
 	case importDataFileCmd.CommandPath():
 		packAndSendImportDataFilePayload(status, exitErr)
+	case comparePerformanceCmd.CommandPath():
+		packAndSendComparePerformancePayload(status, exitErr, nil)
 	}
 }
 

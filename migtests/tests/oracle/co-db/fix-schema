@@ -14,12 +14,23 @@ sed -i -E '/CREATE OR REPLACE VIEW product_reviews/,/;/d' views/view.sql
 
 # Changing numeric(38) to bigint as FKeys fail due to datatype mismatch
 
-sed -i '/CREATE TABLE inventory/,/)/ s/product_id numeric(38)/product_id BIGINT/' tables/table.sql
-sed -i '/CREATE TABLE inventory/,/)/ s/store_id numeric(38)/store_id BIGINT/' tables/table.sql
-sed -i '/CREATE TABLE orders/,/)/ s/customer_id numeric(38)/customer_id BIGINT/' tables/table.sql
-sed -i '/CREATE TABLE order_items/,/)/ s/order_id numeric(38)/order_id BIGINT/' tables/table.sql
-sed -i '/CREATE TABLE order_items/,/)/ s/product_id numeric(38)/product_id BIGINT/' tables/table.sql
-sed -i '/CREATE TABLE order_items/,/)/ s/shipment_id numeric(38)/shipment_id BIGINT/' tables/table.sql
-sed -i '/CREATE TABLE shipments/,/)/ s/customer_id numeric(38)/customer_id BIGINT/' tables/table.sql
-sed -i '/CREATE TABLE shipments/,/)/ s/store_id numeric(38)/store_id BIGINT/' tables/table.sql
 
+# Fix inventory table - change numeric(38) to BIGINT for foreign key compatibility
+sed -i '/^CREATE TABLE inventory.*);$/ s/product_id numeric(38)/product_id BIGINT/' tables/table.sql
+sed -i '/^CREATE TABLE inventory.*);$/ s/store_id numeric(38)/store_id BIGINT/' tables/table.sql
+
+# Fix orders table - change numeric(38) to BIGINT for foreign key compatibility  
+sed -i '/^CREATE TABLE orders.*);$/ s/customer_id numeric(38)/customer_id BIGINT/' tables/table.sql
+sed -i '/^CREATE TABLE orders.*);$/ s/store_id numeric(38)/store_id BIGINT/' tables/table.sql
+
+# Fix order_items table - change numeric(38) to BIGINT for foreign key compatibility
+sed -i '/^CREATE TABLE order_items.*);$/ s/order_id numeric(38)/order_id BIGINT/' tables/table.sql
+sed -i '/^CREATE TABLE order_items.*);$/ s/product_id numeric(38)/product_id BIGINT/' tables/table.sql
+sed -i '/^CREATE TABLE order_items.*);$/ s/shipment_id numeric(38)/shipment_id BIGINT/' tables/table.sql
+
+# Fix shipments table - change numeric(38) to BIGINT for foreign key compatibility
+sed -i '/^CREATE TABLE shipments.*);$/ s/customer_id numeric(38)/customer_id BIGINT/' tables/table.sql
+sed -i '/^CREATE TABLE shipments.*);$/ s/store_id numeric(38)/store_id BIGINT/' tables/table.sql
+
+# Removing the store_orders view creation as it falls under failed.sql due to grouping_id() Oracle specific syntax
+sed -i -E '/CREATE OR REPLACE VIEW store_orders/,/;/d' views/view.sql

@@ -7,25 +7,30 @@ on:
     branches: [main]
 
 jobs:
+  prepare-versions:
+    uses: ./.github/workflows/prepare-versions.yml
+
   run-mysql-migration-tests:
+    needs: [prepare-versions]
     strategy:
       matrix:
-        version: [2024.2.4.0-b89, 2.20.10.0-b29, 2.25.2.0-b359, 2025.1.0.0-b168, 2024.1.6.1-b2]
+        yb_version: ${{ fromJSON(needs.prepare-versions.outputs.yb_versions) }}
         BETA_FAST_DATA_EXPORT: [0, 1]
     env:
       BETA_FAST_DATA_EXPORT: ${{ matrix.BETA_FAST_DATA_EXPORT }}
       YB_VOYAGER_SEND_DIAGNOSTICS: 0
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-java@v3
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
         # https://github.com/actions/setup-java
         with:
           distribution: "temurin"
-          java-version: "17"
+          java-version: ${{ needs.prepare-versions.outputs.java_version }}
           check-latest: true
+      
       - name: Cache local Maven repository
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ~/.m2/repository
           key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
@@ -49,7 +54,14 @@ jobs:
       - name: Start MySQL
         run: |
           sudo /etc/init.d/mysql start
-          sleep 10
+          
+          # Wait for MySQL to be ready with health check instead of fixed sleep
+          echo "Waiting for MySQL to be ready..."
+          timeout 30s bash -c 'until mysqladmin ping -h localhost --silent; do
+            echo "MySQL not ready yet, waiting 1 second..."
+            sleep 1
+          done'
+          echo "MySQL is ready!"
 
       - name: Test MySQL connection
         run: |
@@ -63,9 +75,16 @@ jobs:
         run: |
           docker run -d --name yugabytedb --hostname yb-cluster-test\
             -p7000:7000 -p9000:9000 -p15433:15433 -p5433:5433 -p9042:9042 \
-            yugabytedb/yugabyte:${{ matrix.version }} \
+            yugabytedb/yugabyte:${{ matrix.yb_version }} \
             bin/yugabyted start --tserver_flags="ysql_hba_conf_csv={host all yugabyte all trust,host all all all md5}" --background=false --ui=false --callhome=false 
-          sleep 20
+          
+          # Wait for YugabyteDB to be ready with health check instead of fixed sleep
+          echo "Waiting for YugabyteDB to be ready..."
+          timeout 60s bash -c 'until psql "postgresql://yugabyte:@127.0.0.1:5433/yugabyte" -c "SELECT 1" > /dev/null 2>&1; do 
+            echo "YugabyteDB not ready yet, waiting 2 seconds..."
+            sleep 2
+          done'
+          echo "YugabyteDB is ready!"
 
       - name: Test YugabyteDB connection
         run: |

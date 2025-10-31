@@ -159,13 +159,13 @@ target:
 assess-migration:
 
   ### Target YugabyteDB version to assess migration for (in format A.B.C.D). 
-  ### Default - latest stable version i.e. 2025.1.0.0
-  target-db-version: 2025.1.0.0
+  ### Default - latest stable version
+  # target-db-version: <target-db-version>
 
   ### Interval (in seconds) at which voyager will gather IOPS metadata from source database for the given schema(s). 
   ### Note: Only valid for PostgreSQL
   ### Default - 120                         
-  # iops-capture-interval: 120     
+  iops-capture-interval: 120
 
   ### Directory path where assessment metadata like source DB metadata and statistics are stored. 
   ### Optional flag, if not provided, it will be assumed to be present at default path inside the export directory.
@@ -243,15 +243,15 @@ export-schema:
 ### Analyze converted source database schema and generate a report about YB incompatible constructs.
 
 ### Uncomment the respective parameters when you want to configure additional analyze schema options.
-analyze-schema:
+# analyze-schema:
 
   ### Format in which report can be generated: ('html', 'txt', 'json', 'xml'). 
   ### If not provided, reports will be generated in both 'json' and 'html' formats by default.
   # output-format: txt    
 
   ### Target YugabyteDB version to analyze schema for (in format A.B.C.D). 
-  ### Default - latest stable version i.e. 2025.1.0.0
-  target-db-version: 2025.1.0.0
+  ### Default - latest stable version
+  # target-db-version: <target-db-version>
 
   ### Log level for the command
   ### Note: This overrides the global log-level parameter for this command only.
@@ -370,29 +370,32 @@ import-data-to-target:
   ### of parallel jobs based on the resource usage (CPU, memory) of the target 
   ### YugabyteDB cluster.
   ### The following flags are available to control parallelism:
-  ### - enable-adaptive-parallelism: Enables adaptive adjustment of parallel jobs.
-  ###   Accepted values: true, false, yes, no, 1, 0 
-  ###   Default: true
+  ### - adaptive-parallelism: Choose the mode for adaptive parallelism behavior.
+  ###     balanced: Operate with moderate thresholds. Recommended to be used when there are other workloads running on the cluster.
+  ###     aggressive: Operate with aggressive max-CPU thresholds for better performance. Recommended to be used when there are no other workloads running on the cluster.
+  ###     disabled: Disable adaptive parallelism.
+  ###   Accepted values: disabled, balanced, aggressive
+  ###   Default: balanced
   ### - adaptive-parallelism-max: Optional upper limit on parallel jobs when
   ###   adaptive parallelism is enabled. If not set, Voyager will use N/2,
   ###   where N is the number of available CPU cores.
   ### - parallel-jobs: If set, overrides adaptive parallelism entirely.
   ###   Voyager will use the given number of parallel jobs.
   ###   Any value < 1 falls back to N/4 or 2×node count if N is not available.
-  ###   Note: Do not set this if enable-adaptive-parallelism is true.
-  enable-adaptive-parallelism: true
+  ###   Note: Do not set this if adaptive-parallelism is enabled (balanced/aggressive).
+  adaptive-parallelism: balanced
   # adaptive-parallelism-max: <integer>
-  # parallel-jobs: <integer>   # Do not set if adaptive parallelism is enabled  
+  # parallel-jobs: <integer>   # Do not set if adaptive parallelism is enabled   
 
   ### Size of batches in the number of rows generated for ingestion during import.
   ### Default - 20000
   # batch-size: 20000  
 
-  ### Action to take on primary key conflict during data import.
+  ### Action to take on primary key conflict during data import in snapshot phase.
   ### Accepted values:
-  ###   ERROR   : fail on any PK conflict (default)
-  ###   IGNORE  : skip rows where the primary key already exists and continue importing remaining data
-  # on-primary-key-conflict: ERROR
+  ###   ERROR-POLICY   : handle error as per configured error policy on any PK conflict (default)
+  ###   IGNORE         : skip rows where the primary key already exists and continue importing remaining data
+  # on-primary-key-conflict: ERROR-POLICY
 
   ### Truncate tables on target YugabyteDB before importing data. 
   ### Only applicable along with --start-clean true
@@ -446,7 +449,12 @@ import-data-to-target:
   ### Note: This overrides the global log-level parameter for this command only.
   ### Accepted values - (trace, debug, info, warn, error, fatal, panic) 
   ### Default - info
-  # log-level: info    
+  # log-level: info 
+
+  ### Maximum number of retries for the streaming change events during live migration
+  ### Note: This overrides the value of the number of retries to happen for streaming phase 
+  ## Accepted value - <integer>, default - 15
+  # max-retries-streaming: 15
 
 # ---------------------------------------------------------
 # Archive Changes

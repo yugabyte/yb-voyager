@@ -240,7 +240,7 @@ func (yb *YugabyteDBContainer) Query(sql string, args ...interface{}) (*sql.Rows
 	if err != nil {
 		return nil, fmt.Errorf("failed to get connection for yugabytedb query: %w", err)
 	}
-
+	defer conn.Close()
 	rows, err := conn.Query(sql, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute query '%s': %w", sql, err)
@@ -249,9 +249,9 @@ func (yb *YugabyteDBContainer) Query(sql string, args ...interface{}) (*sql.Rows
 	return rows, nil
 }
 
-// No need to ping after this, as the wait strategy will ensure that the DB is ready to accept connections
+// yugabyteWait returns a wait strategy for YugabyteDB node(s)
 func yugabyteWait() wait.Strategy {
-	return wait.ForSQL("5433/tcp", "pgx",
+	return wait.ForSQL(nat.Port("5433/tcp"), "pgx",
 		func(host string, port nat.Port) string {
 			return fmt.Sprintf(
 				"postgres://yugabyte:password@%s:%s/yugabyte?sslmode=disable",

@@ -81,6 +81,11 @@ main() {
 	fi
 	./init-db
 
+	if [ "${SOURCE_DB_TYPE}" = "postgresql" ]; then
+		step "Creating pg_stat_statements for the compare-performance command"
+		run_psql ${SOURCE_DB_NAME} "CREATE EXTENSION IF NOT EXISTS pg_stat_statements;"
+	fi
+
 	step "Grant source database user permissions for live migration"	
 	grant_permissions_for_live_migration
 
@@ -193,7 +198,8 @@ main() {
 	step "Archive Changes."
 	archive_changes &
 
-	sleep 60 
+	wait_for_string_in_file "${EXPORT_DIR}/logs/yb-voyager-import-data.log" "snapshot data import complete"
+	echo "Snapshot data import complete"
 
 	step "Import remaining schema (FK, index, and trigger) and Refreshing MViews if present."
 	finalize_schema_post_data_import
@@ -205,11 +211,12 @@ main() {
 			exit 1
 		} 
 
-	step "Inserting new events"
+	step "Inserting new events to source"
 	run_sql_file source_delta.sql
 
-	sleep 120
-	
+
+	wait_for_exporter_event "source"
+
 	# Resetting the trap command
 	trap - SIGINT SIGTERM EXIT SIGSEGV SIGHUP
 
@@ -231,11 +238,10 @@ main() {
 			exit 1
         fi
     else
+		echo "Cutover to target COMPLETED"
         break
     fi
 	done
-	
-	sleep 120
 
 	if [ -f ${TEST_DIR}/validateAfterCutoverToTarget ]; then
 		step "Run validations after cutover to target."
@@ -245,7 +251,11 @@ main() {
 	step "Inserting new events to YB"
 	ysql_import_file ${TARGET_DB_NAME} target_delta.sql
 
-	sleep 120
+	# Execute logical replication specific DMLs if connector is enabled
+	execute_logical_replication_target_delta
+
+	step "Wait for target exporter to start capturing changes"
+	wait_for_exporter_event "target"
 
 	step "Resetting the trap command"
 	trap - SIGINT SIGTERM EXIT SIGSEGV SIGHUP
@@ -264,6 +274,7 @@ main() {
 			exit 1
         fi
     else
+		echo "Cutover to source COMPLETED"
         break
     fi
 	done
@@ -288,11 +299,35 @@ main() {
 	step "Run get data-migration-report"
 	get_data_migration_report
 
-	expected_file="${TEST_DIR}/data-migration-report-live-migration-fallb.json"
+	# Choose expected report file based on connector type
+	if [ "${USE_YB_LOGICAL_REPLICATION_CONNECTOR}" = true ]; then
+		expected_file="${TEST_DIR}/data-migration-report-live-migration-fallb-logical-connector.json"
+		echo "Using logical replication connector expected report"
+	else
+		expected_file="${TEST_DIR}/data-migration-report-live-migration-fallb.json"
+		echo "Using gRPC connector expected report"
+	fi
 	actual_file="${EXPORT_DIR}/reports/data-migration-report.json"
 
 	step "Verify data-migration-report report"
 	verify_report ${expected_file} ${actual_file}
+
+	step "Run performance comparison."
+	if [ "${SOURCE_DB_TYPE}" = "postgresql" ]; then
+		compare_performance || {
+			cat_log_file "yb-voyager-compare-performance.log"
+		}
+
+		step "Validate Performance Reports"
+		# Checking if the performance comparison reports were created
+		if [ -f "${EXPORT_DIR}/reports/performance_comparison_report.html" ] && [ -f "${EXPORT_DIR}/reports/performance_comparison_report.json" ]; then
+			echo "Performance comparison reports created successfully."
+		else
+			echo "Error: Performance comparison reports were not created successfully."
+			cat_log_file "yb-voyager-compare-performance.log"
+			exit 1
+		fi
+	fi
 
 	step "End Migration: clearing metainfo about state of migration from everywhere"
 	end_migration --yes

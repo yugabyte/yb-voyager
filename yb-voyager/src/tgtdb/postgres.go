@@ -28,6 +28,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/google/uuid"
 	"github.com/jackc/pgconn"
+	"github.com/jackc/pgtype"
 	"github.com/jackc/pgx/v4"
 	pgconn5 "github.com/jackc/pgx/v5/pgconn"
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -37,7 +38,6 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
@@ -512,25 +512,20 @@ func (pg *TargetPostgreSQL) IsNonRetryableCopyError(err error) bool {
 	return utils.ContainsAnySubstringFromSlice(NonRetryCopyErrors, err.Error())
 }
 
-func (pg *TargetPostgreSQL) RestoreSequences(sequencesLastVal map[string]int64) error {
+func (pg *TargetPostgreSQL) RestoreSequences(sequencesLastVal *utils.StructMap[sqlname.NameTuple, int64]) error {
 	log.Infof("restoring sequences on target")
 	batch := pgx.Batch{}
 	restoreStmt := "SELECT pg_catalog.setval('%s', %d, true)"
-	for sequenceName, lastValue := range sequencesLastVal {
+	sequencesLastVal.IterKV(func(sequenceTuple sqlname.NameTuple, lastValue int64) (bool, error) {
 		if lastValue == 0 {
 			// TODO: can be valid for cases like cyclic sequences
-			continue
+			return true, nil
 		}
-		// same function logic will work for sequences as well
-		// sequenceName, err := pg.qualifyTableName(sequenceName)
-		seqName, err := namereg.NameReg.LookupTableName(sequenceName)
-		if err != nil {
-			return fmt.Errorf("error looking up sequence name %q: %w", sequenceName, err)
-		}
-		sequenceName := seqName.ForUserQuery()
+		sequenceName := sequenceTuple.ForUserQuery()
 		log.Infof("restore sequence %s to %d", sequenceName, lastValue)
 		batch.Queue(fmt.Sprintf(restoreStmt, sequenceName, lastValue))
-	}
+		return true, nil
+	})
 
 	err := pg.connPool.WithConn(func(conn *pgx.Conn) (retry bool, err error) {
 		br := conn.SendBatch(context.Background(), &batch)
@@ -742,47 +737,90 @@ func (pg *TargetPostgreSQL) MaxBatchSizeInBytes() int64 {
 	return utils.GetEnvAsInt64("MAX_BATCH_SIZE_BYTES", 200*1024*1024) // default: 200 * 1024 * 1024 MB
 }
 
-func (pg *TargetPostgreSQL) GetIdentityColumnNamesForTable(tableNameTup sqlname.NameTuple, identityType string) ([]string, error) {
-	sname, tname := tableNameTup.ForCatalogQuery()
-	query := fmt.Sprintf(`SELECT column_name FROM information_schema.columns where table_schema='%s' AND
-		table_name='%s' AND is_identity='YES' AND identity_generation='%s'`, sname, tname, identityType)
-	log.Infof("query of identity(%s) columns for table(%s): %s", identityType, tableNameTup, query)
-	var identityColumns []string
-	err := pg.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
-		rows, err := conn.Query(context.Background(), query)
+func (pg *TargetPostgreSQL) GetIdentityColumnNamesForTables(tableNameTuples []sqlname.NameTuple, identityType string) (*utils.StructMap[sqlname.NameTuple, []string], error) {
+	result := utils.NewStructMap[sqlname.NameTuple, []string]()
+	if len(tableNameTuples) == 0 {
+		return result, nil
+	}
+
+	// Build a single query to fetch identity columns for all tables at once
+	// Example query:
+	// SELECT table_schema, table_name, array_agg(column_name ORDER BY column_name) AS identity_columns
+	// FROM information_schema.columns
+	// WHERE (table_schema, table_name) IN (('public', 'users'), ('public', 'orders'), ('inventory', 'products'))
+	//   AND is_identity = 'YES'
+	//   AND identity_generation = 'ALWAYS'
+	// GROUP BY table_schema, table_name
+
+	var valuesClauses []string
+	tableNameMap := make(map[string]sqlname.NameTuple) // map to lookup table name tuples by schema and table name
+
+	for _, t := range tableNameTuples {
+		schema, table := t.ForCatalogQuery()
+		// Add to values for IN clause, e.g., "('my_schema','my_table')"
+		valuesClauses = append(valuesClauses, fmt.Sprintf("('%s', '%s')", schema, table))
+		tableNameMap[fmt.Sprintf("%s.%s", schema, table)] = t
+	}
+
+	query := fmt.Sprintf(`
+		SELECT table_schema, table_name, array_agg(column_name ORDER BY column_name) AS identity_columns
+		FROM information_schema.columns
+		WHERE (table_schema, table_name) IN (%s)
+		  AND is_identity = 'YES'
+		  AND identity_generation = '%s'
+		GROUP BY table_schema, table_name`,
+		strings.Join(valuesClauses, ", "), identityType)
+
+	log.Infof("Querying for identity columns for %d tables with type '%s'", len(tableNameTuples), identityType)
+	log.Debugf("Identity column query: %s", query)
+
+	rows, err := pg.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("error in getting identity(%s) columns for tables: %w", identityType, err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var schemaName, tableName string
+		var identityColumnsPgTypeArray pgtype.TextArray
+		err = rows.Scan(&schemaName, &tableName, &identityColumnsPgTypeArray)
 		if err != nil {
-			log.Errorf("querying identity(%s) columns: %v", identityType, err)
-			return false, fmt.Errorf("querying identity(%s) columns: %w", identityType, err)
+			return nil, fmt.Errorf("error in scanning row for identity(%s) columns: %w", identityType, err)
 		}
-		defer rows.Close()
-		for rows.Next() {
-			var colName string
-			err = rows.Scan(&colName)
-			if err != nil {
-				log.Errorf("scanning row for identity(%s) column name: %v", identityType, err)
-				return false, fmt.Errorf("scanning row for identity(%s) column name: %w", identityType, err)
-			}
-			identityColumns = append(identityColumns, colName)
+
+		identityColumns := utils.ConvertPgTextArrayToStringSlice(identityColumnsPgTypeArray)
+
+		key := fmt.Sprintf("%s.%s", schemaName, tableName)
+		tableNameTuple, ok := tableNameMap[key]
+		if !ok {
+			// This should not happen if the query is correct.
+			log.Warnf("Found identity columns for table '%s' which was not in the original request", key)
+			continue
 		}
-		return false, nil
-	})
-	return identityColumns, err
+
+		result.Put(tableNameTuple, identityColumns)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating over identity column results: %w", err)
+	}
+	return result, nil
+
 }
 
 func (pg *TargetPostgreSQL) DisableGeneratedAlwaysAsIdentityColumns(tableColumnsMap *utils.StructMap[sqlname.NameTuple, []string]) error {
 	log.Infof("disabling generated always as identity columns")
-	return pg.alterColumns(tableColumnsMap, "SET GENERATED BY DEFAULT")
+	return pg.alterColumns(tableColumnsMap, constants.PG_SET_GENERATED_BY_DEFAULT)
 }
 
 func (pg *TargetPostgreSQL) EnableGeneratedAlwaysAsIdentityColumns(tableColumnsMap *utils.StructMap[sqlname.NameTuple, []string]) error {
 	log.Infof("enabling generated always as identity columns")
 	// pg automatically resumes the value for further inserts due to sequence attached
-	return pg.alterColumns(tableColumnsMap, "SET GENERATED ALWAYS")
+	return pg.alterColumns(tableColumnsMap, constants.PG_SET_GENERATED_ALWAYS)
 }
 
 func (pg *TargetPostgreSQL) EnableGeneratedByDefaultAsIdentityColumns(tableColumnsMap *utils.StructMap[sqlname.NameTuple, []string]) error {
 	log.Infof("enabling generated by default as identity columns")
-	return pg.alterColumns(tableColumnsMap, "SET GENERATED BY DEFAULT")
+	return pg.alterColumns(tableColumnsMap, constants.PG_SET_GENERATED_BY_DEFAULT)
 }
 
 func (pg *TargetPostgreSQL) alterColumns(tableColumnsMap *utils.StructMap[sqlname.NameTuple, []string], alterAction string) error {

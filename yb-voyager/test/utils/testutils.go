@@ -431,9 +431,16 @@ func CreateTempFile(dir string, fileContents string, fileFormat string) (string,
 	return file.Name(), nil
 }
 
-func CreateNameTupleWithSourceName(s string, defaultSchema string, dbType string) sqlname.NameTuple {
+func CreateNameTupleWithSourceName(qualifiedName string, defaultSchema string, dbType string) sqlname.NameTuple {
 	return sqlname.NameTuple{
-		SourceName:  sqlname.NewObjectNameWithQualifiedName(dbType, defaultSchema, s),
+		SourceName:  sqlname.NewObjectNameWithQualifiedName(dbType, defaultSchema, qualifiedName),
+		CurrentName: sqlname.NewObjectNameWithQualifiedName(dbType, defaultSchema, qualifiedName),
+	}
+}
+
+func CreateNameTupleWithTargetName(s string, defaultSchema string, dbType string) sqlname.NameTuple {
+	return sqlname.NameTuple{
+		TargetName:  sqlname.NewObjectNameWithQualifiedName(dbType, defaultSchema, s),
 		CurrentName: sqlname.NewObjectNameWithQualifiedName(dbType, defaultSchema, s),
 	}
 }
@@ -560,4 +567,24 @@ func GetYBVersionFromTestContainer(t *testing.T, ybContainer testcontainers.Test
 	tgtYBVersion, err := ybversion.NewYBVersion(tgtVersion)
 	FatalIfError(t, err)
 	return tgtYBVersion
+}
+
+// CreateTempCSVFile creates a temporary CSV file with the given data and returns the file path.
+// This is useful for testing CSV parsing functionality.
+func CreateTempCSVFile(t *testing.T, csvData string) string {
+	t.Helper()
+
+	// Create a temporary directory
+	tempDir := t.TempDir()
+
+	// Create the CSV file path
+	csvPath := fmt.Sprintf("%s/test.csv", tempDir)
+
+	// Write the CSV data to the file
+	err := os.WriteFile(csvPath, []byte(csvData), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create temporary CSV file: %v", err)
+	}
+
+	return csvPath
 }

@@ -28,6 +28,7 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/jsonfile"
@@ -57,7 +58,7 @@ var importDataStatusCmd = &cobra.Command{
 			importerRole = IMPORT_FILE_ROLE
 		}
 
-		err = InitNameRegistry(exportDir, "", nil, nil, nil, nil, false)
+		err = InitNameRegistry(exportDir, importerRole, nil, nil, nil, nil, false)
 		if err != nil {
 			utils.ErrExit("initialize name registry: %w", err)
 		}
@@ -72,8 +73,7 @@ var reportOrStatusCmdOutputFormat string
 func init() {
 	importDataCmd.AddCommand(importDataStatusCmd)
 	importDataStatusCmd.Flags().StringVar(&reportOrStatusCmdOutputFormat, "output-format", "table",
-		"format in which report will be generated: (table, json)")
-	importDataStatusCmd.Flags().MarkHidden("output-format") //confirm this if should be hidden or not
+		"format in which report will be generated: (table, json) (default: table)")
 }
 
 const (
@@ -257,14 +257,28 @@ func prepareImportDataStatusTable() ([]*tableMigStatusOutputRow, error) {
 }
 
 func prepareRowWithDatafile(dataFile *datafile.FileEntry, state *ImportDataState) (*tableMigStatusOutputRow, error) {
-	var totalCount, importedCount, erroredCount int64
+	var totalCount, importedCount, erroredCount, processingErrorRowCount, processingErrorByteCount int64
 	var err error
 	var perc float64
 	var status string
 	reportProgressInBytes = reportProgressInBytes || dataFile.RowCount == -1
-	dataFileNt, err := namereg.NameReg.LookupTableName(dataFile.TableName)
+	//We are ignoring the target side name if not found as it might not be used to import data
+	//for these tables we are anyways going to report status as NOT_STARTED
+	dataFileNt, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole(dataFile.TableName)
 	if err != nil {
 		return nil, fmt.Errorf("lookup %s from name registry: %w", dataFile.TableName, err)
+	}
+
+	errorHandler, err := getErrorHandlerUsed()
+	if err != nil {
+		return nil, fmt.Errorf("get error handler: %w", err)
+	}
+	if errorHandler != nil {
+		// if import-data/import-data-file was not run yet, errorHandler will be nil
+		processingErrorRowCount, processingErrorByteCount, err = errorHandler.GetProcessingErrorCountSize(dataFileNt, dataFile.FilePath)
+		if err != nil {
+			return nil, fmt.Errorf("get processing error count size: %w", err)
+		}
 	}
 
 	if reportProgressInBytes {
@@ -277,6 +291,7 @@ func prepareRowWithDatafile(dataFile *datafile.FileEntry, state *ImportDataState
 		if err != nil {
 			return nil, fmt.Errorf("compute errored data size: %w", err)
 		}
+		erroredCount += processingErrorByteCount
 	} else {
 		totalCount = dataFile.RowCount
 		importedCount, err = state.GetImportedRowCount(dataFile.FilePath, dataFileNt)
@@ -287,6 +302,7 @@ func prepareRowWithDatafile(dataFile *datafile.FileEntry, state *ImportDataState
 		if err != nil {
 			return nil, fmt.Errorf("compute errored data size: %w", err)
 		}
+		erroredCount += processingErrorRowCount
 	}
 
 	if totalCount != 0 {
@@ -303,4 +319,61 @@ func prepareRowWithDatafile(dataFile *datafile.FileEntry, state *ImportDataState
 		PercentageComplete: perc,
 	}
 	return row, nil
+}
+
+func getErrorHandlerUsed() (importdata.ImportDataErrorHandler, error) {
+	switch importerRole {
+	case IMPORT_FILE_ROLE:
+		return getImportDataFileErrorHandlerUsed()
+	case TARGET_DB_IMPORTER_ROLE:
+		return getImportDataErrorHandlerUsed()
+	default:
+		return nil, fmt.Errorf("unknown importer role: %s", importerRole)
+	}
+}
+
+/*
+retrieves the error policy used for import data from metaDB and
+returns the corresponding error handler.
+
+if import-data was not run yet, it will return nil
+*/
+func getImportDataErrorHandlerUsed() (importdata.ImportDataErrorHandler, error) {
+	errorPolicyUsedStr, err := metaDB.GetImportDataErrorPolicySnapshotUsed()
+	if err != nil {
+		return nil, fmt.Errorf("error while getting import data error policy snapshot used: %w", err)
+	}
+	if errorPolicyUsedStr == "" {
+		// it's possible import-data wasn't run yet.
+		return nil, nil
+	}
+	errorPolicyUsed, err := importdata.NewErrorPolicy(errorPolicyUsedStr)
+	if err != nil {
+		return nil, fmt.Errorf("error while initializing error policy: %w", err)
+	}
+	dataDir := filepath.Join(exportDir, "data")
+	return importdata.GetImportDataErrorHandler(errorPolicyUsed, dataDir)
+}
+
+/*
+retrieves the error policy used for import data file from metaDB and
+returns the corresponding error handler.
+
+if import-data-file was not run yet, it will return nil
+*/
+func getImportDataFileErrorHandlerUsed() (importdata.ImportDataErrorHandler, error) {
+	errorPolicyUsedStr, err := metaDB.GetImportDataFileErrorPolicyUsed()
+	if err != nil {
+		return nil, fmt.Errorf("error while getting import data file error policy used: %w", err)
+	}
+	if errorPolicyUsedStr == "" {
+		// it's possible import-data-file wasn't run yet.
+		return nil, nil
+	}
+	errorPolicyUsed, err := importdata.NewErrorPolicy(errorPolicyUsedStr)
+	if err != nil {
+		return nil, fmt.Errorf("error while initializing error policy: %w", err)
+	}
+	dataDir := filepath.Join(exportDir, "data")
+	return importdata.GetImportDataErrorHandler(errorPolicyUsed, dataDir)
 }
