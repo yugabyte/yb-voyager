@@ -25,6 +25,7 @@ import (
 	"gotest.tools/assert"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
@@ -694,5 +695,127 @@ func TestYugabyteGetColumnsWithSupportedTypes_AllScenarios(t *testing.T) {
 		// In offline migration, all columns should be supported for all tables (empty maps returned)
 		assert.Equal(t, 0, len(supportedCols.Keys()), "Expected empty supported map for offline migration")
 		assert.Equal(t, 0, len(unsupportedCols.Keys()), "Expected empty unsupported map for offline migration")
+	})
+}
+
+// TestYugabyteFilterUnsupportedTables tests:
+// 1. Tables with arrays of composite types (UDTs) are always unsupported
+// 2. Tables with arrays of enums are unsupported only with YBGrpcConnector and supported with Logical connector
+// 3. Tables with regular arrays (int[], text[], etc.) are supported
+// . Tables without arrays are always supported
+func TestYugabyteFilterUnsupportedTables(t *testing.T) {
+	testYugabyteDBSource.TestContainer.ExecuteSqls(
+		`CREATE SCHEMA test_schema;`,
+
+		// Create composite UDT type
+		`CREATE TYPE test_schema.contact AS (
+			phone VARCHAR,
+			email VARCHAR
+		);`,
+
+		// Create ENUM type
+		`CREATE TYPE test_schema.status_enum AS ENUM ('active', 'inactive', 'pending');`,
+
+		// Case 1: Table with array of composite type (always unsupported)
+		`CREATE TABLE test_schema.composite_array_table (
+			id SERIAL PRIMARY KEY,
+			name VARCHAR,
+			contact_list test_schema.contact[]
+		);`,
+
+		// Case 2: Table with array of composite type and case-sensitive table name
+		`CREATE TABLE test_schema."CaseSensitiveTable" (
+			"ID" INT PRIMARY KEY,
+			contact_list test_schema.contact[]
+		);`,
+
+		// Case 3: Table with array of enum (unsupported with GRPC, supported with Logical)
+		`CREATE TABLE test_schema.enum_array_table (
+			id INT PRIMARY KEY,
+			name VARCHAR,
+			status_list test_schema.status_enum[]
+		);`,
+
+		// Case 4: Table with regular array (supported)
+		`CREATE TABLE test_schema.regular_array_table (
+			id INT PRIMARY KEY,
+			name VARCHAR,
+			tags INT[]
+		);`,
+	)
+	defer testYugabyteDBSource.TestContainer.ExecuteSqls(
+		`DROP SCHEMA test_schema CASCADE;`,
+	)
+
+	compositeArrayTableTuple := testutils.CreateNameTupleWithSourceName("test_schema.composite_array_table", "test_schema", constants.YUGABYTEDB)
+	caseSensitiveTableTuple := testutils.CreateNameTupleWithSourceName("test_schema.\"CaseSensitiveTable\"", "test_schema", constants.YUGABYTEDB)
+	enumArrayTableTuple := testutils.CreateNameTupleWithSourceName("test_schema.enum_array_table", "test_schema", constants.YUGABYTEDB)
+	regularArrayTableTuple := testutils.CreateNameTupleWithSourceName("test_schema.regular_array_table", "test_schema", constants.YUGABYTEDB)
+	tableList := []sqlname.NameTuple{
+		compositeArrayTableTuple,
+		caseSensitiveTableTuple,
+		enumArrayTableTuple,
+		regularArrayTableTuple,
+	}
+
+	// Set DoNotPrompt to avoid interactive prompts in tests
+	originalDoNotPrompt := utils.DoNotPrompt
+	utils.DoNotPrompt = true
+	defer func() {
+		utils.DoNotPrompt = originalDoNotPrompt
+	}()
+
+	ybDB := testYugabyteDBSource.DB().(*YugabyteDB)
+
+	// ========== Test 1: Logical Connector (arrays of enums are supported) ==========
+	t.Run("LogicalConnector", func(t *testing.T) {
+		ybDB.source.IsYBGrpcConnector = false
+		filteredTables, unsupportedTables := ybDB.FilterUnsupportedTables(tableList, true)
+
+		// Expected unsupported: tables with arrays of composite types (including case-sensitive)
+		expectedUnsupported := []sqlname.NameTuple{
+			compositeArrayTableTuple,
+			caseSensitiveTableTuple,
+		}
+
+		// Expected supported: tables with arrays of enums, regular arrays, or no arrays
+		expectedFiltered := []sqlname.NameTuple{
+			enumArrayTableTuple,
+			regularArrayTableTuple,
+		}
+
+		testutils.AssertEqualNameTuplesSlice(t, expectedUnsupported, unsupportedTables)
+		testutils.AssertEqualNameTuplesSlice(t, expectedFiltered, filteredTables)
+	})
+
+	// ========== Test 2: GRPC Connector (arrays of enums are unsupported) ==========
+	t.Run("GRPCConnector", func(t *testing.T) {
+		ybDB.source.IsYBGrpcConnector = true
+		filteredTables, unsupportedTables := ybDB.FilterUnsupportedTables(tableList, true)
+
+		// Expected unsupported: tables with arrays of composite types OR arrays of enums (including case-sensitive)
+		expectedUnsupported := []sqlname.NameTuple{
+			compositeArrayTableTuple,
+			caseSensitiveTableTuple,
+			enumArrayTableTuple,
+		}
+
+		// Expected supported: tables with regular arrays or no arrays
+		expectedFiltered := []sqlname.NameTuple{
+			regularArrayTableTuple,
+		}
+
+		testutils.AssertEqualNameTuplesSlice(t, expectedUnsupported, unsupportedTables)
+		testutils.AssertEqualNameTuplesSlice(t, expectedFiltered, filteredTables)
+	})
+
+	// ========== Test 3: Edge case - Empty table list ==========
+	t.Run("EmptyTableList", func(t *testing.T) {
+		ybDB.source.IsYBGrpcConnector = false
+		emptyList := []sqlname.NameTuple{}
+		filteredTables, unsupportedTables := ybDB.FilterUnsupportedTables(emptyList, true)
+
+		assert.Equal(t, 0, len(unsupportedTables), "Expected no unsupported tables")
+		assert.Equal(t, 0, len(filteredTables), "Expected no filtered tables")
 	})
 }
