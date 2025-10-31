@@ -63,7 +63,9 @@ jobs:
       - name: "Enable postgres with wal_level as logical and install postgis"
         run: |
           docker exec ${{ job.services.postgres.id }} sh -c "echo 'wal_level=logical' >> /var/lib/postgresql/data/postgresql.conf"
-          docker exec ${{ job.services.postgres.id }} sh -c "apt-get update && apt-get install -y postgresql-13-postgis postgresql-13-postgis-3"
+          docker exec ${{ job.services.postgres.id }} sh -c "apt-get update && apt-get install -y postgresql-13-postgis-3 postgresql-contrib-13"
+          # adding pg_stat_statements to shared_preload_libraries to enable the extension
+          docker exec ${{ job.services.postgres.id }} sh -c "echo \"shared_preload_libraries = 'pg_stat_statements'\" >> /var/lib/postgresql/data/postgresql.conf"
           docker restart ${{ job.services.postgres.id }}
           
           # Wait for PostgreSQL to be ready with health check
@@ -104,10 +106,9 @@ jobs:
 
       - name: Start YugabyteDB cluster
         run: |
-          docker run -d --name yugabytedb --hostname yb-cluster-test\
-            -p7000:7000 -p9000:9000 -p15433:15433 -p5433:5433 -p9042:9042 \
+          docker run -d --network=host --name yugabytedb-$version --hostname yb-cluster-test-$version\
             yugabytedb/yugabyte:${{ matrix.yb_version }} \
-            bin/yugabyted start --tserver_flags="ysql_hba_conf_csv={host all yugabyte all trust,host all all all md5}" --background=false --ui=false --callhome=false 
+            bin/yugabyted start --tserver_flags="ysql_hba_conf_csv={host all yugabyte all trust,host all all all md5}" --advertise_address=localhost --background=false --ui=false --callhome=false 
           
           # Wait for YugabyteDB to be ready with health check
           echo "Waiting for YugabyteDB to be ready..."
@@ -124,12 +125,6 @@ jobs:
       - name: Create YugabyteDB user
         run: |
           ./migtests/scripts/yugabytedb/create_yb_user
-
-      - name: Enable yb-cluster-test name resolution
-        run: |
-          docker_ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' yugabytedb)
-          echo "$docker_ip	yb-cluster-test" | sudo tee -a /etc/hosts
-          psql "postgresql://yugabyte@yb-cluster-test:5433/yugabyte" -c "SELECT version();"
 
       - name: "TEST: pg-table-list-flags-test (table-list and exclude-table-list)"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}

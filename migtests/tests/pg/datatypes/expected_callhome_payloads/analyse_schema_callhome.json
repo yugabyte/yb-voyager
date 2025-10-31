@@ -11,7 +11,7 @@
             "object_name": "XXXXX"
         }
     ],
-    "database_objects": "[{\"ObjectType\":\"SCHEMA\",\"TotalCount\":1,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"EXTENSION\",\"TotalCount\":1,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"TYPE\",\"TotalCount\":1,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"SEQUENCE\",\"TotalCount\":6,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"TABLE\",\"TotalCount\":8,\"InvalidCount\":1,\"ObjectNames\":\"\"}]",
+    "database_objects": "[{\"ObjectType\":\"SCHEMA\",\"TotalCount\":1,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"EXTENSION\",\"TotalCount\":2,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"TYPE\",\"TotalCount\":1,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"SEQUENCE\",\"TotalCount\":6,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"TABLE\",\"TotalCount\":8,\"InvalidCount\":1,\"ObjectNames\":\"\"}]",
     "error": "",
     "control_plane_type": ""
 }

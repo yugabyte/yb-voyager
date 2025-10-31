@@ -644,34 +644,66 @@ func (tdb *TargetOracleDB) MaxBatchSizeInBytes() int64 {
 	return utils.GetEnvAsInt64("MAX_BATCH_SIZE_BYTES", int64(2)*1024*1024*1024) //default: 2 * 1024 * 1024 * 1024 2GB
 }
 
-func (tdb *TargetOracleDB) GetIdentityColumnNamesForTable(tableNameTup sqlname.NameTuple, identityType string) ([]string, error) {
-	sname, tname := tableNameTup.ForCatalogQuery()
-	query := fmt.Sprintf(`Select COLUMN_NAME from ALL_TAB_IDENTITY_COLS where OWNER = '%s'
-	AND TABLE_NAME = '%s' AND GENERATION_TYPE='%s'`, sname, tname, identityType)
-	log.Infof("query of identity(%s) columns for table(%s): %s", identityType, tableNameTup, query)
-	var identityColumns []string
-	err := tdb.WithConnFromPool(func(conn *sql.Conn) (bool, error) {
-		rows, err := conn.QueryContext(context.Background(), query)
+func (tdb *TargetOracleDB) GetIdentityColumnNamesForTables(tableNameTuples []sqlname.NameTuple, identityType string) (*utils.StructMap[sqlname.NameTuple, []string], error) {
+	result := utils.NewStructMap[sqlname.NameTuple, []string]()
+	if len(tableNameTuples) == 0 {
+		return result, nil
+	}
+
+	// Build table name list and lookup map
+	var tableNames []string
+	tableNameMap := make(map[string]sqlname.NameTuple) // map to lookup table name tuples by table name
+
+	for _, t := range tableNameTuples {
+		_, tableName := t.ForCatalogQuery()
+		tableNames = append(tableNames, fmt.Sprintf("'%s'", tableName))
+		tableNameMap[tableName] = t
+	}
+
+	query := fmt.Sprintf(`
+		SELECT TABLE_NAME, COLUMN_NAME
+		FROM ALL_TAB_IDENTITY_COLS
+		WHERE TABLE_NAME IN (%s)
+			AND OWNER = '%s'
+			AND GENERATION_TYPE = '%s'
+		ORDER BY TABLE_NAME, COLUMN_NAME`,
+		strings.Join(tableNames, ", "), tdb.tconf.Schema, identityType)
+
+	log.Infof("Querying for identity columns for %d tables with type '%s'", len(tableNameTuples), identityType)
+	log.Debugf("Identity column query: %s", query)
+
+	rows, err := tdb.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("error in getting identity(%s) columns for tables: %w", identityType, err)
+	}
+	defer rows.Close()
+
+	tableToColumns := make(map[string][]string)
+	for rows.Next() {
+		var tableName, columnName string
+		err = rows.Scan(&tableName, &columnName)
 		if err != nil {
-			if err == sql.ErrNoRows {
-				return false, nil
-			}
-			log.Errorf("querying identity(%s) columns: %v", identityType, err)
-			return false, fmt.Errorf("querying identity(%s) columns: %w", identityType, err)
+			return nil, fmt.Errorf("error in scanning row for identity(%s) columns: %w", identityType, err)
 		}
-		defer rows.Close()
-		for rows.Next() {
-			var colName string
-			err := rows.Scan(&colName)
-			if err != nil {
-				log.Errorf("scanning row for identity(%s) column name: %v", identityType, err)
-				return false, fmt.Errorf("scanning row for identity(%s) column name: %w", identityType, err)
-			}
-			identityColumns = append(identityColumns, colName)
+
+		tableToColumns[tableName] = append(tableToColumns[tableName], columnName)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating over identity column results: %w", err)
+	}
+
+	for tableName, columns := range tableToColumns {
+		tableNameTuple, ok := tableNameMap[tableName]
+		if !ok {
+			// This should not happen if the query is correct
+			log.Warnf("Found identity columns for table '%s' which was not in the original request", tableName)
+			continue
 		}
-		return false, nil
-	})
-	return identityColumns, err
+
+		result.Put(tableNameTuple, columns)
+	}
+
+	return result, nil
 }
 
 func (tdb *TargetOracleDB) DisableGeneratedAlwaysAsIdentityColumns(tableColumnsMap *utils.StructMap[sqlname.NameTuple, []string]) error {

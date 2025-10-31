@@ -50,7 +50,7 @@ type TargetDB interface {
 	QuoteAttributeName(tableNameTup sqlname.NameTuple, columnName string) (string, error)
 	MaxBatchSizeInBytes() int64
 	RestoreSequences(sequencesNameToLastValue *utils.StructMap[sqlname.NameTuple, int64]) error
-	GetIdentityColumnNamesForTable(tableNameTup sqlname.NameTuple, identityType string) ([]string, error)
+	GetIdentityColumnNamesForTables(tableNames []sqlname.NameTuple, identityType string) (*utils.StructMap[sqlname.NameTuple, []string], error)
 	DisableGeneratedAlwaysAsIdentityColumns(tableColumnsMap *utils.StructMap[sqlname.NameTuple, []string]) error
 	EnableGeneratedAlwaysAsIdentityColumns(tableColumnsMap *utils.StructMap[sqlname.NameTuple, []string]) error
 	EnableGeneratedByDefaultAsIdentityColumns(tableColumnsMap *utils.StructMap[sqlname.NameTuple, []string]) error
@@ -189,7 +189,7 @@ func (args *ImportBatchArgs) GetInsertPreparedStmtForBatchImport() string {
 		args.TableNameTup.ForUserQuery(), columns, values)
 
 	switch args.PKConflictAction {
-	case constants.PRIMARY_KEY_CONFLICT_ACTION_ERROR:
+	case constants.PRIMARY_KEY_CONFLICT_ACTION_ERROR_POLICY:
 		return baseStmt // no additional clause - although this is not going to be called ever.
 
 	case constants.PRIMARY_KEY_CONFLICT_ACTION_IGNORE:

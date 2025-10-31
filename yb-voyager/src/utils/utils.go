@@ -39,6 +39,7 @@ import (
 	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/fatih/color"
 	"github.com/google/uuid"
+	"github.com/jackc/pgtype"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -1011,4 +1012,22 @@ func IsSetEqual(a, b []string) bool {
 	setB := mapset.NewThreadUnsafeSet(b...)
 
 	return setA.Equal(setB)
+}
+
+// ConvertPgTextArrayToStringSlice converts a pgtype.TextArray to a []string.
+// This utility function handles PostgreSQL text arrays returned from queries using array_agg() or similar functions.
+func ConvertPgTextArrayToStringSlice(textArray pgtype.TextArray) []string {
+	if textArray.Status != pgtype.Present {
+		return []string{}
+	}
+
+	result := make([]string, 0, len(textArray.Elements))
+	for _, elem := range textArray.Elements {
+		if elem.Status == pgtype.Present {
+			result = append(result, elem.String)
+		}
+		// Skip null elements - they won't be added to the result slice
+	}
+
+	return result
 }

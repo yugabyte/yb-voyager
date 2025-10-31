@@ -1,5 +1,5 @@
 {
-    "payload_version": "1.8",
+    "payload_version": "1.9",
     "target_db_version": "2025.1.0.0",
     "sizing": {
         "colocated_tables": [],
@@ -24,7 +24,7 @@
     },
     "migration_complexity": "LOW",
     "migration_complexity_explanation": "Found 1 Level 1 issue(s) and 0 Level 2 issue(s), resulting in LOW migration complexity",
-    "schema_summary": "{\"Description\":\"\",\"DbName\":\"\",\"SchemaNames\":null,\"DbVersion\":\"\",\"DatabaseObjects\":[{\"ObjectType\":\"SCHEMA\",\"TotalCount\":1,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"EXTENSION\",\"TotalCount\":1,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"TYPE\",\"TotalCount\":1,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"SEQUENCE\",\"TotalCount\":6,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"TABLE\",\"TotalCount\":8,\"InvalidCount\":1,\"ObjectNames\":\"\"}]}",
+    "schema_summary": "{\"Description\":\"\",\"DbName\":\"\",\"SchemaNames\":null,\"DbVersion\":\"\",\"DatabaseObjects\":[{\"ObjectType\":\"SCHEMA\",\"TotalCount\":1,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"EXTENSION\",\"TotalCount\":2,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"TYPE\",\"TotalCount\":1,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"SEQUENCE\",\"TotalCount\":6,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"TABLE\",\"TotalCount\":8,\"InvalidCount\":1,\"ObjectNames\":\"\"}]}",
     "assessment_issues": [
         {
             "category": "migration_caveats",
@@ -65,6 +65,7 @@
       "SET client_min_messages TO const_563f6696b968b91b",
       "SET row_security TO const_07d6bc1c9f7d53f9",
       "CREATE EXTENSION IF NOT EXISTS hstore SCHEMA schema_d7108fd530c9b1c2",
+      "CREATE EXTENSION IF NOT EXISTS pg_stat_statements SCHEMA schema_d7108fd530c9b1c2",
       "SET statement_timeout TO const_8cdf78e3c03b90f9",
       "SET lock_timeout TO const_8cdf78e3c03b90f9",
       "SET idle_in_transaction_session_timeout TO const_8cdf78e3c03b90f9",

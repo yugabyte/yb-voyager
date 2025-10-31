@@ -1,5 +1,5 @@
 {
-    "payload_version": "1.8",
+    "payload_version": "1.9",
     "target_db_version": "2025.1.0.0",
     "sizing": {
         "colocated_tables": [],
@@ -1160,6 +1160,7 @@
         "name": "Hotspots with indexes on timestamp as first column",
         "object_name": "",
         "object_type": "INDEX",
+        "object_usage": "RARE",
         "sql_statement": "CREATE INDEX index_ba6b491f8e777839 ON schema_d7108fd530c9b1c2.table_559de2c8ffa2acc0 USING btree (col_d4965197dd40998a)",
         "type": "HOTSPOTS_ON_TIMESTAMP_INDEX"
       },
@@ -1173,6 +1174,7 @@
         "name": "Missing index on foreign key columns",
         "object_name": "",
         "object_type": "TABLE",
+        "object_usage": "UNUSED",
         "type": "MISSING_FOREIGN_KEY_INDEX"
       },
       {
@@ -1182,6 +1184,7 @@
         "name": "Hotspots with indexes on date as first column",
         "object_name": "",
         "object_type": "INDEX",
+        "object_usage": "UNUSED",
         "sql_statement": "CREATE INDEX index_bdb3cc5272e0cdc2 ON schema_d7108fd530c9b1c2.table_e2d2370afa4b58aa USING btree (col_da9a2f6cea6d4e61)",
         "type": "HOTSPOTS_ON_DATE_INDEX"
       }
