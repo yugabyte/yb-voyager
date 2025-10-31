@@ -647,7 +647,7 @@ GROUP BY
 	return totalSchemasSize, nil
 }
 
-func (pg *PostgreSQL) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []sqlname.NameTuple, useDebezium bool) ([]sqlname.NameTuple, []sqlname.NameTuple) {
+func (pg *PostgreSQL) FilterUnsupportedTables(tableList []sqlname.NameTuple, useDebezium bool) ([]sqlname.NameTuple, []sqlname.NameTuple) {
 	return tableList, nil
 }
 

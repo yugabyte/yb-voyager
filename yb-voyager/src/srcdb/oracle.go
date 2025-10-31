@@ -343,7 +343,7 @@ func (ora *Oracle) GetDatabaseSize() (int64, error) {
 	return dbSize.Int64, nil
 }
 
-func (ora *Oracle) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []sqlname.NameTuple, useDebezium bool) ([]sqlname.NameTuple, []sqlname.NameTuple) {
+func (ora *Oracle) FilterUnsupportedTables(tableList []sqlname.NameTuple, useDebezium bool) ([]sqlname.NameTuple, []sqlname.NameTuple) {
 	var filteredTableList, unsupportedTableList []sqlname.NameTuple
 
 	// query to find unsupported queue tables

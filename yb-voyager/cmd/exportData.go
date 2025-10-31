@@ -1600,9 +1600,9 @@ func finalizeTableAndColumnList(finalTableList []sqlname.NameTuple) ([]sqlname.N
 		}
 	}
 
-	// 2. filtering unsupported tables(mostly oracle specific)
+	// 2. filtering unsupported tables
 	var unsupportedTableList []sqlname.NameTuple
-	finalTableList, unsupportedTableList = source.DB().FilterUnsupportedTables(migrationUUID, finalTableList, useDebezium)
+	finalTableList, unsupportedTableList = source.DB().FilterUnsupportedTables(finalTableList, useDebezium)
 	if len(unsupportedTableList) != 0 {
 		utils.PrintAndLogf("skipping unsupported tables: %v", lo.Map(unsupportedTableList, func(table sqlname.NameTuple, _ int) string {
 			return table.ForOutput()

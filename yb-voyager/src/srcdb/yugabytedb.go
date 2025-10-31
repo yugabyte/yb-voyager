@@ -542,7 +542,14 @@ func (yb *YugabyteDB) getTypesOfAllArraysInATable(schemaName, tableName string) 
 	return tableColumnUdtTypes
 }
 
-func (yb *YugabyteDB) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []sqlname.NameTuple, useDebezium bool) ([]sqlname.NameTuple, []sqlname.NameTuple) {
+// FilterUnsupportedTables removes entire tables containing array columns of composite types or enums that YBCDC/Debezium cannot replicate.
+// Arrays of composite types are always unsupported; arrays of enums are unsupported only with YBGrpcConnector (supported with logical connector).
+// Unlike GetColumnsWithSupportedTypes which excludes individual unsupported columns this method removes entire tables
+func (yb *YugabyteDB) FilterUnsupportedTables(tableList []sqlname.NameTuple, useDebezium bool) ([]sqlname.NameTuple, []sqlname.NameTuple) {
+	if len(tableList) == 0 {
+		return nil, nil
+	}
+
 	var unsupportedTables []sqlname.NameTuple
 	var filteredTableList []sqlname.NameTuple
 	for _, table := range tableList {

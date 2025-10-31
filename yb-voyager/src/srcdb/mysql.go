@@ -289,7 +289,7 @@ func (ms *MySQL) GetDatabaseSize() (int64, error) {
 	return dbSize.Int64, nil
 }
 
-func (ms *MySQL) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []sqlname.NameTuple, useDebezium bool) ([]sqlname.NameTuple, []sqlname.NameTuple) {
+func (ms *MySQL) FilterUnsupportedTables(tableList []sqlname.NameTuple, useDebezium bool) ([]sqlname.NameTuple, []sqlname.NameTuple) {
 	return tableList, nil
 }
 
