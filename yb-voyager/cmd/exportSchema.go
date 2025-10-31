@@ -244,15 +244,15 @@ func exportSchema(cmd *cobra.Command) error {
 }
 
 func printSchemaFilesPaths(tableTransformer *sqltransformer.TableFileTransformer, mviewTransformer *sqltransformer.MviewFileTransformer, indexTransformer *sqltransformer.IndexFileTransformer) {
-	utils.PrintAndLogfSuccess("\nExported schema files created under directory: %s\n\n", utils.PathColor.Sprintf(filepath.Join(exportDir, "schema")))
+	utils.PrintAndLogfSuccess("\nExported schema files created under directory: %s\n\n", utils.Path.Sprintf(filepath.Join(exportDir, "schema")))
 	if tableTransformer != nil && utils.FileOrFolderExists(tableTransformer.GetBackupFilePath()) {
-		utils.PrintAndLogfInfo("Original TABLE DDLs are backed up at: %s", utils.PathColor.Sprintf(tableTransformer.GetBackupFilePath()))
+		utils.PrintAndLogfInfo("Original TABLE DDLs are backed up at: %s", utils.Path.Sprintf(tableTransformer.GetBackupFilePath()))
 	}
 	if mviewTransformer != nil && utils.FileOrFolderExists(mviewTransformer.GetBackupFilePath()) {
-		utils.PrintAndLogfInfo("Original MVIEW DDLs are backed up at: %s", utils.PathColor.Sprintf(mviewTransformer.GetBackupFilePath()))
+		utils.PrintAndLogfInfo("Original MVIEW DDLs are backed up at: %s", utils.Path.Sprintf(mviewTransformer.GetBackupFilePath()))
 	}
 	if indexTransformer != nil && utils.FileOrFolderExists(indexTransformer.GetBackupFilePath()) {
-		utils.PrintAndLogfInfo("Original INDEX DDLs are backed up at: %s", utils.PathColor.Sprintf(indexTransformer.GetBackupFilePath()))
+		utils.PrintAndLogfInfo("Original INDEX DDLs are backed up at: %s", utils.Path.Sprintf(indexTransformer.GetBackupFilePath()))
 	}
 	fmt.Println()
 }

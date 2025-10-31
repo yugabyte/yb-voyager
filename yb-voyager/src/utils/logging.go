@@ -54,7 +54,7 @@ var (
 	InfoColor    = color.New(color.FgCyan)
 	WarningColor = color.New(color.FgYellow)
 	ErrorColor   = color.New(color.FgRed)
-	PathColor    = color.New(color.FgYellow, color.Underline)
+	Path         = color.New(color.Underline)
 	TitleColor   = color.New(color.FgBlue)
 )
 

@@ -23,6 +23,7 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/sqltransformer"
@@ -90,31 +91,31 @@ func (s *SchemaOptimizationReport) Summary() string {
 	summary := ""
 	idx := 1
 	if s.RedundantIndexChange != nil {
-		summary += fmt.Sprintf("%d. %s\n", idx, s.RedundantIndexChange.Title)
+		summary += fmt.Sprintf("%d. %s\n", idx, s.RedundantIndexChange.Summary())
 		idx++
 	}
 	if s.TableColocationRecommendation != nil {
-		summary += fmt.Sprintf("%d. %s\n", idx, s.TableColocationRecommendation.Title)
+		summary += fmt.Sprintf("%d. %s\n", idx, s.TableColocationRecommendation.Summary())
 		idx++
 	}
 	if s.MviewColocationRecommendation != nil {
-		summary += fmt.Sprintf("%d. %s\n", idx, s.MviewColocationRecommendation.Title)
+		summary += fmt.Sprintf("%d. %s\n", idx, s.MviewColocationRecommendation.Summary())
 		idx++
 	}
 	if s.SecondaryIndexToRangeChange != nil {
-		summary += fmt.Sprintf("%d. %s\n", idx, s.SecondaryIndexToRangeChange.Title)
+		summary += fmt.Sprintf("%d. %s\n", idx, s.SecondaryIndexToRangeChange.Summary())
 		idx++
 	}
 	if s.PKHashShardingChange != nil {
-		summary += fmt.Sprintf("%d. %s\n", idx, s.PKHashShardingChange.Title)
+		summary += fmt.Sprintf("%d. %s\n", idx, s.PKHashShardingChange.Summary())
 		idx++
 	}
 	if s.PKOnTimestampRangeShardingChange != nil {
-		summary += fmt.Sprintf("%d. %s\n", idx, s.PKOnTimestampRangeShardingChange.Title)
+		summary += fmt.Sprintf("%d. %s\n", idx, s.PKOnTimestampRangeShardingChange.Summary())
 		idx++
 	}
 	if s.UKRangeShardingChange != nil {
-		summary += fmt.Sprintf("%d. %s\n", idx, s.UKRangeShardingChange.Title)
+		summary += fmt.Sprintf("%d. %s\n", idx, s.UKRangeShardingChange.Summary())
 		idx++
 	}
 	return summary
@@ -150,6 +151,14 @@ func NewRedundantIndexChange(applied bool, referenceFile string, tableToRemovedI
 		TableToRemovedIndexesMap: tableToRemovedIndexesMap,
 		IsApplied:                applied,
 	}
+}
+
+func (r *RedundantIndexChange) Summary() string {
+	splits := strings.Split(r.Title, " - ")
+	if len(splits) < 2 {
+		return r.Title
+	}
+	return fmt.Sprintf("%s - %s", splits[0], lo.Ternary(r.IsApplied, utils.SuccessColor.Sprint(splits[1]), utils.ErrorColor.Sprint(splits[1])))
 }
 
 // ColocationRecommendationChange represents the application of Colocation recommendations
@@ -195,6 +204,14 @@ func NewAppliedColocationRecommendationChange(objectType string, applied bool, r
 		CollocatedObjects: colocatedObjects,
 		IsApplied:         applied,
 	}
+}
+
+func (c *ColocationRecommendationChange) Summary() string {
+	splits := strings.Split(c.Title, " - ")
+	if len(splits) < 2 {
+		return c.Title
+	}
+	return fmt.Sprintf("%s - %s", splits[0], lo.Ternary(c.IsApplied, utils.SuccessColor.Sprint(splits[1]), utils.ErrorColor.Sprint(splits[1])))
 }
 
 func NewNotAppliedColocationRecommendationChangeWhenAssessNotDoneDirectly() *ColocationRecommendationChange {
@@ -245,6 +262,14 @@ func (s *SecondaryIndexToRangeChange) Exist() bool {
 	return len(s.ModifiedIndexes) > 0
 }
 
+func (s *SecondaryIndexToRangeChange) Summary() string {
+	splits := strings.Split(s.Title, " - ")
+	if len(splits) < 2 {
+		return s.Title
+	}
+	return fmt.Sprintf("%s - %s", splits[0], lo.Ternary(s.IsApplied, utils.SuccessColor.Sprint(splits[1]), utils.ErrorColor.Sprint(splits[1])))
+}
+
 type PKHashShardingChange struct {
 	Title                   string            `json:"title"`
 	Description             string            `json:"description"`
@@ -273,6 +298,14 @@ func NewPKHashShardingChange(applied bool, modifiedTables []string) *PKHashShard
 
 func (p *PKHashShardingChange) Exist() bool {
 	return true
+}
+
+func (p *PKHashShardingChange) Summary() string {
+	splits := strings.Split(p.Title, " - ")
+	if len(splits) < 2 {
+		return p.Title
+	}
+	return fmt.Sprintf("%s - %s", splits[0], lo.Ternary(p.IsApplied, utils.SuccessColor.Sprint(splits[1]), utils.ErrorColor.Sprint(splits[1])))
 }
 
 type PKOnTimestampRangeShardingChange struct {
@@ -306,6 +339,14 @@ func (p *PKOnTimestampRangeShardingChange) Exist() bool {
 	return true
 }
 
+func (p *PKOnTimestampRangeShardingChange) Summary() string {
+	splits := strings.Split(p.Title, " - ")
+	if len(splits) < 2 {
+		return p.Title
+	}
+	return fmt.Sprintf("%s - %s", splits[0], lo.Ternary(p.IsApplied, utils.SuccessColor.Sprint(splits[1]), utils.ErrorColor.Sprint(splits[1])))
+}
+
 type UKRangeSplittingChange struct {
 	Title                   string            `json:"title"`
 	Description             string            `json:"description"`
@@ -334,6 +375,14 @@ func NewUKRangeSplittingChange(applied bool) *UKRangeSplittingChange {
 
 func (p *UKRangeSplittingChange) Exist() bool {
 	return p != nil
+}
+
+func (u *UKRangeSplittingChange) Summary() string {
+	splits := strings.Split(u.Title, " - ")
+	if len(splits) < 2 {
+		return u.Title
+	}
+	return fmt.Sprintf("%s - %s", splits[0], lo.Ternary(u.IsApplied, utils.SuccessColor.Sprint(splits[1]), utils.ErrorColor.Sprint(splits[1])))
 }
 
 /*
@@ -504,7 +553,7 @@ func generatePerformanceOptimizationReport(indexTransformer *sqltransformer.Inde
 
 		utils.PrintAndLogfInfo("\nSchema optimization changes\n\n")
 		utils.PrintAndLog(schemaOptimizationReport.Summary())
-		utils.PrintAndLog("Refer to the detailed report for more information: %s\n", utils.PathColor.Sprintf(htmlReportFilePath))
+		utils.PrintAndLog("Refer to the detailed report for more information: %s\n", utils.Path.Sprintf(htmlReportFilePath))
 	}
 
 	return nil
