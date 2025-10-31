@@ -599,7 +599,7 @@ func TestYugabyteGetColumnsWithSupportedTypes_AllScenarios(t *testing.T) {
 	tableList := []sqlname.NameTuple{
 		testutils.CreateNameTupleWithSourceName("custom_ext.ext_table", "custom_ext", constants.YUGABYTEDB),
 		testutils.CreateNameTupleWithSourceName("hr.employee_devices", "hr", constants.YUGABYTEDB),
-		testutils.CreateNameTupleWithSourceName("custom_ext.SearchTable", "custom_ext", constants.YUGABYTEDB),
+		testutils.CreateNameTupleWithSourceName("custom_ext.\"SearchTable\"", "custom_ext", constants.YUGABYTEDB),
 		testutils.CreateNameTupleWithSourceName("hr.projects", "hr", constants.YUGABYTEDB),
 	}
 
