@@ -207,6 +207,9 @@ func (ybm *YBM) createAndSendEvent(event *controlPlane.BaseEvent, status string,
 		return
 	}
 
+	fmt.Printf("Invocation sequence: %d\n", invocationSequence)
+	fmt.Printf("Migration Phase: %d\n", controlPlane.MIGRATION_PHASE_MAP[event.EventType])
+
 	// Build host_ip JSON string (same format as yugabyted)
 	jsonData := make(map[string]string)
 	if controlPlane.IsExportPhase(event.EventType) {
