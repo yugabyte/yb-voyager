@@ -68,7 +68,14 @@ func Test_AssessMigration(t *testing.T) {
 			value TEXT
 		);`,
 		`INSERT INTO test_schema.test_data (value)
-	SELECT md5(random()::text) FROM generate_series(1, 100000);`)
+	SELECT md5(random()::text) FROM generate_series(1, 100000);`,
+		`CREATE TABLE test_schema.test_data2 (
+			id SERIAL,
+			value TEXT
+		);`,
+		`INSERT INTO test_schema.test_data2 (value)
+		SELECT md5(random()::text) FROM generate_series(1, 100000);`)
+
 	defer postgresContainer.ExecuteSqls(
 		`DROP SCHEMA test_schema CASCADE;`)
 
@@ -81,6 +88,7 @@ DECLARE i INT;
 BEGIN
 	FOR i IN 1..100 LOOP
 		PERFORM COUNT(*) FROM test_schema.test_data;
+		PERFORM COUNT(*) FROM test_schema.test_data2;
 	END LOOP;
 END $$;`)
 		if err != nil {
@@ -92,8 +100,8 @@ END $$;`)
 	expectedSizingAssessmentReport := migassessment.SizingAssessmentReport{
 		SizingRecommendation: migassessment.SizingRecommendation{
 			ColocatedTables:                 nil,
-			ColocatedReasoning:              "Recommended instance type with 4 vCPU and 16 GiB memory could fit 1 objects (1 tables/materialized views and 0 explicit/implicit indexes) with 6.52 MB size and throughput requirement of 10 reads/sec and 0 writes/sec as sharded. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
-			ShardedTables:                   []string{"test_schema.test_data"},
+			ColocatedReasoning:              "Recommended instance type with 4 vCPU and 16 GiB memory could fit 2 objects (2 tables/materialized views and 0 explicit/implicit indexes) with 13.03 MB size and throughput requirement of 20 reads/sec and 0 writes/sec as sharded. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
+			ShardedTables:                   []string{"test_schema.test_data2", "test_schema.test_data"},
 			NumNodes:                        3,
 			VCPUsPerInstance:                4,
 			MemoryPerInstance:               16,
@@ -105,6 +113,18 @@ END $$;`)
 		FailureReasoning: "",
 	}
 	expectedTableIndexStats := []migassessment.TableIndexStats{
+		{
+			SchemaName:      "test_schema",
+			ObjectName:      "test_data2",
+			RowCount:        int64Ptr(100000),
+			ColumnCount:     int64Ptr(2),
+			ReadsPerSecond:  int64Ptr(10),
+			WritesPerSecond: int64Ptr(0),
+			IsIndex:         false,
+			ObjectType:      "table",
+			ParentTableName: nil,
+			SizeInBytes:     int64Ptr(6832128),
+		},
 		{
 			SchemaName:      "test_schema",
 			ObjectName:      "test_data",
