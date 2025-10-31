@@ -575,11 +575,11 @@ func TestYugabyteGetColumnsWithSupportedTypes_AllScenarios(t *testing.T) {
 			notes TEXT
 		);`,
 
-		// Case 3: TSVECTOR - only unsupported in GRPC mode
-		`CREATE TABLE custom_ext.search_table (
-			id INT PRIMARY KEY,
-			content TEXT,
-			search_vector TSVECTOR
+		// Case 3: TSVECTOR with mixed case columns (tests case sensitivity and GRPC unsupported type)
+		`CREATE TABLE custom_ext."SearchTable" (
+			"ID" INT PRIMARY KEY,
+			"Content" TEXT,
+			"SearchVector" TSVECTOR
 		);`,
 
 		// Case 4: All regular columns (baseline)
@@ -599,7 +599,7 @@ func TestYugabyteGetColumnsWithSupportedTypes_AllScenarios(t *testing.T) {
 	tableList := []sqlname.NameTuple{
 		testutils.CreateNameTupleWithSourceName("custom_ext.ext_table", "custom_ext", constants.YUGABYTEDB),
 		testutils.CreateNameTupleWithSourceName("hr.employee_devices", "hr", constants.YUGABYTEDB),
-		testutils.CreateNameTupleWithSourceName("custom_ext.search_table", "custom_ext", constants.YUGABYTEDB),
+		testutils.CreateNameTupleWithSourceName("custom_ext.SearchTable", "custom_ext", constants.YUGABYTEDB),
 		testutils.CreateNameTupleWithSourceName("hr.projects", "hr", constants.YUGABYTEDB),
 	}
 
@@ -630,16 +630,16 @@ func TestYugabyteGetColumnsWithSupportedTypes_AllScenarios(t *testing.T) {
 		assert.Equal(t, true, exists, "Expected hr.employee_devices in unsupported map")
 		testutils.AssertEqualStringSlices(t, []string{"contact_info", "device_details"}, unsupported) // both UDTs
 
-		// Case 3: search_table - TSVECTOR is SUPPORTED in logical mode
+		// Case 3: SearchTable (mixed case) - TSVECTOR is SUPPORTED in logical mode, tests case sensitivity
 		searchTable := tableList[2]
 		supported, exists = supportedCols.Get(searchTable)
-		assert.Equal(t, true, exists, "Expected custom_ext.search_table in supported map")
+		assert.Equal(t, true, exists, "Expected custom_ext.SearchTable in supported map")
 		testutils.AssertEqualStringSlices(t, []string{"*"}, supported) // All columns supported
 
 		_, exists = unsupportedCols.Get(searchTable)
-		assert.Equal(t, false, exists, "Expected custom_ext.search_table NOT in unsupported map")
+		assert.Equal(t, false, exists, "Expected custom_ext.SearchTable NOT in unsupported map")
 
-		// Case 4: projects - all supported
+		// Case 4: projects - all columns supported
 		projectsTable := tableList[3]
 		supported, exists = supportedCols.Get(projectsTable)
 		assert.Equal(t, true, exists, "Expected hr.projects in supported map")
@@ -675,15 +675,15 @@ func TestYugabyteGetColumnsWithSupportedTypes_AllScenarios(t *testing.T) {
 		assert.Equal(t, true, exists, "Expected hr.employee_devices in unsupported map")
 		testutils.AssertEqualStringSlices(t, []string{"contact_info", "device_details", "settings"}, unsupported)
 
-		// Case 3: search_table - TSVECTOR is UNSUPPORTED in GRPC mode
+		// Case 3: SearchTable (mixed case) - TSVECTOR is UNSUPPORTED in GRPC mode, tests case sensitivity
 		searchTable := tableList[2]
 		supported, exists = supportedCols.Get(searchTable)
-		assert.Equal(t, true, exists, "Expected custom_ext.search_table in supported map")
-		testutils.AssertEqualStringSlices(t, []string{"id", "content"}, supported)
+		assert.Equal(t, true, exists, "Expected custom_ext.SearchTable in supported map")
+		testutils.AssertEqualStringSlices(t, []string{"ID", "Content"}, supported) // Mixed case column names
 
 		unsupported, exists = unsupportedCols.Get(searchTable)
-		assert.Equal(t, true, exists, "Expected custom_ext.search_table in unsupported map")
-		testutils.AssertEqualStringSlices(t, []string{"search_vector"}, unsupported) // TSVECTOR unsupported in GRPC
+		assert.Equal(t, true, exists, "Expected custom_ext.SearchTable in unsupported map")
+		testutils.AssertEqualStringSlices(t, []string{"SearchVector"}, unsupported) // TSVECTOR unsupported in GRPC, mixed case
 	})
 
 	// ========== Test 3: Offline Migration (all types supported) ==========
