@@ -17,6 +17,7 @@ package importdata
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/google/uuid"
@@ -28,10 +29,12 @@ import (
 )
 
 // Prometheus metrics configuration
-const IMPORT_DATA_TARGET_PROMETHEUS_METRICS_PORT = "9101"
-const IMPORT_DATA_FILE_PROMETHEUS_METRICS_PORT = "9102"
-const IMPORT_DATA_SOURCE_REPLICA_PROMETHEUS_METRICS_PORT = "9103"
-const IMPORT_DATA_SOURCE_PROMETHEUS_METRICS_PORT = "9104"
+var (
+	IMPORT_DATA_TARGET_PROMETHEUS_METRICS_PORT         = "9101"
+	IMPORT_DATA_FILE_PROMETHEUS_METRICS_PORT           = "9102"
+	IMPORT_DATA_SOURCE_REPLICA_PROMETHEUS_METRICS_PORT = "9103"
+	IMPORT_DATA_SOURCE_PROMETHEUS_METRICS_PORT         = "9104"
+)
 
 // promSessionID is created on package init and used for all metrics
 var promSessionID string
@@ -40,6 +43,17 @@ var promMigrationUUID uuid.UUID
 func init() {
 	// Create a unique session ID based on formatted timestamp
 	promSessionID = time.Now().Format("20060102-150405")
+
+	// override ports from env variables if set
+	if port, ok := os.LookupEnv("IMPORT_DATA_TARGET_PROMETHEUS_METRICS_PORT"); ok {
+		IMPORT_DATA_TARGET_PROMETHEUS_METRICS_PORT = port
+	}
+	if port, ok := os.LookupEnv("IMPORT_DATA_FILE_PROMETHEUS_METRICS_PORT"); ok {
+		IMPORT_DATA_FILE_PROMETHEUS_METRICS_PORT = port
+	}
+	if port, ok := os.LookupEnv("IMPORT_DATA_SOURCE_REPLICA_PROMETHEUS_METRICS_PORT"); ok {
+		IMPORT_DATA_SOURCE_REPLICA_PROMETHEUS_METRICS_PORT = port
+	}
 }
 
 func StartPrometheusMetricsServer(importerRole string, migrationUUID uuid.UUID) error {
