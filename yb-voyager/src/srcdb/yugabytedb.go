@@ -545,7 +545,7 @@ func (yb *YugabyteDB) getTypesOfAllArraysInATable(schemaName, tableName string) 
 // FilterUnsupportedTables removes entire tables containing array columns of composite types or enums that YBCDC/Debezium cannot replicate.
 // Arrays of composite types are always unsupported; arrays of enums are unsupported only with YBGrpcConnector (supported with logical connector).
 // Unlike GetColumnsWithSupportedTypes which excludes individual unsupported columns this method removes entire tables
-func (yb *YugabyteDB) FilterUnsupportedTables(tableList []sqlname.NameTuple, useDebezium bool) ([]sqlname.NameTuple, []sqlname.NameTuple) {
+func (yb *YugabyteDB) FilterUnsupportedTablesOld(tableList []sqlname.NameTuple, useDebezium bool) ([]sqlname.NameTuple, []sqlname.NameTuple) {
 	if len(tableList) == 0 {
 		return nil, nil
 	}
@@ -564,6 +564,11 @@ func (yb *YugabyteDB) FilterUnsupportedTables(tableList []sqlname.NameTuple, use
 			continue
 		}
 
+		fmt.Printf("table: %v\n", table)
+		fmt.Printf("userDefinedTypes: %v\n", userDefinedTypes)
+		fmt.Printf("enumTypes: %v\n", enumTypes)
+		fmt.Printf("tableColumnArrayTypes: %v\n", tableColumnArrayTypes)
+
 		// Build list of unsupported types based on connector type
 		// UDT types without enums are always unsupported
 		udtTypes := utils.SetDifference(userDefinedTypes, enumTypes)
@@ -581,7 +586,6 @@ func (yb *YugabyteDB) FilterUnsupportedTables(tableList []sqlname.NameTuple, use
 			for _, unsupportedType := range unsupportedTableTypes {
 				if strings.EqualFold(baseType, unsupportedType) {
 					// as the array_type is determined by an underscore at the first place
-					//ref - https://www.postgresql.org/docs/current/xtypes.html#:~:text=The%20array%20type%20typically%20has%20the%20same%20name%20as%20the%20base%20type%20with%20the%20underscore%20character%20(_)%20prepended
 					unsupportedTables = append(unsupportedTables, table)
 					break outer
 				}
@@ -615,6 +619,121 @@ func (yb *YugabyteDB) FilterUnsupportedTables(tableList []sqlname.NameTuple, use
 	}
 
 	return filteredTableList, unsupportedTables
+}
+
+// FilterUnsupportedTables removes entire tables containing array columns of composite types or enums that YBCDC/Debezium cannot replicate.
+// Arrays of composite types are always unsupported; arrays of enums are unsupported only with YBGrpcConnector (supported with logical connector).
+// Unlike GetColumnsWithSupportedTypes which excludes individual unsupported columns this method removes entire tables
+func (yb *YugabyteDB) FilterUnsupportedTables(tableList []sqlname.NameTuple, useDebezium bool) ([]sqlname.NameTuple, []sqlname.NameTuple) {
+	if len(tableList) == 0 {
+		return nil, nil
+	}
+
+	// TODO: do we need to check for useDebezium here? and early return if false?
+
+	// Build IN clause for all tables and create lookup map
+	var tableTuples []string
+	tableLookup := make(map[string]sqlname.NameTuple)
+	for _, table := range tableList {
+		schema, name := table.ForCatalogQuery()
+		tableTuples = append(tableTuples, fmt.Sprintf("('%s', '%s')", schema, name))
+		lookupKey := table.AsQualifiedCatalogName()
+		tableLookup[lookupKey] = table
+	}
+	inClause := strings.Join(tableTuples, ", ")
+
+	// Build the type condition based on connector type
+	// PostgreSQL typtype values: 'c' = composite type (struct-like with fields), 'e' = enum type (list of values)
+	// Both are UDTs, but have different replication support:
+	// - Arrays of composite types: ALWAYS unsupported (both connectors)
+	// - Arrays of enum types: unsupported ONLY in YBGrpcConnector (supported in logical connector)
+	var typeCondition string
+	if yb.source.IsYBGrpcConnector {
+		typeCondition = "(base_type.typtype = 'c' OR base_type.typtype = 'e')"
+	} else {
+		typeCondition = "base_type.typtype = 'c'"
+	}
+
+	// Single query to identify tables with unsupported array columns
+	// Query logic:
+	// 1. Finds all ARRAY columns in target tables via information_schema
+	// 2. Joins with pg_type to get the array type (e.g., _text, _status_enum)
+	// 3. Joins with pg_namespace to match array type's schema, resolving namespace collisions
+	// 4. Joins again with pg_type to get the base type by stripping underscore prefix
+	//    (PostgreSQL array types are automatically created when you define a new base type, and are named with underscore prefix: https://www.postgresql.org/docs/current/xtypes.html)
+	// 5. Filters where base type is composite ('c') or enum ('e') based on connector type
+	query := fmt.Sprintf(`
+		SELECT DISTINCT
+			col.table_schema,
+			col.table_name
+		FROM information_schema.columns col
+		JOIN pg_type array_type ON array_type.typname = col.udt_name
+		JOIN pg_namespace array_ns ON array_ns.oid = array_type.typnamespace
+			AND array_ns.nspname = col.udt_schema
+		JOIN pg_type base_type
+			ON base_type.typname = ltrim(array_type.typname, '_')::name
+			AND base_type.typnamespace = array_type.typnamespace
+		WHERE (col.table_schema, col.table_name) IN (%s)
+			AND col.data_type = 'ARRAY'
+			AND %s
+		ORDER BY col.table_schema, col.table_name;`,
+		inClause, typeCondition)
+
+	rows, err := yb.db.Query(query)
+	if err != nil {
+		utils.ErrExit("error in querying source database for unsupported tables: %q: %w\n", query, err)
+	}
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			log.Warnf("close rows for query %q: %v", query, closeErr)
+		}
+	}()
+
+	var unsupportedTables []sqlname.NameTuple
+	for rows.Next() {
+		var schema, tableName string
+		err = rows.Scan(&schema, &tableName)
+		if err != nil {
+			utils.ErrExit("error in scanning query rows for unsupported tables: %w\n", err)
+		}
+		lookupKey := fmt.Sprintf("%s.%s", schema, tableName)
+		table, ok := tableLookup[lookupKey]
+		if !ok { // should never happen
+			log.Warnf("table %s not found in lookup map for unsupported tables query", lookupKey)
+			continue
+		}
+		unsupportedTables = append(unsupportedTables, table)
+	}
+
+	yb.promptForUnsupportedTables(unsupportedTables)
+	filteredTableList := lo.Filter(tableList, func(table sqlname.NameTuple, _ int) bool {
+		return !slices.Contains(unsupportedTables, table)
+	})
+	return filteredTableList, unsupportedTables
+}
+
+// promptForUnsupportedTables shows a user prompt if there are unsupported tables and exits if user declines to continue
+func (yb *YugabyteDB) promptForUnsupportedTables(unsupportedTables []sqlname.NameTuple) {
+	if len(unsupportedTables) == 0 {
+		return
+	}
+
+	unsupportedTablesStringList := lo.Map(unsupportedTables, func(table sqlname.NameTuple, _ int) string {
+		return table.ForMinOutput()
+	})
+
+	var unsupportedReason string
+	if yb.source.IsYBGrpcConnector {
+		unsupportedReason = "an array of UDTs (enums or composite types)"
+	} else {
+		unsupportedReason = "an array of composite types"
+	}
+
+	if !utils.AskPrompt("\nThe following tables are unsupported since they contain " + unsupportedReason + ":\n" + strings.Join(unsupportedTablesStringList, "\n") +
+		"\nDo you want to skip these tables' data and continue with export") {
+		utils.ErrExit("Exiting at user's request. Use `--exclude-table-list` flag to continue without these tables")
+	}
 }
 
 func (yb *YugabyteDB) FilterEmptyTables(tableList []sqlname.NameTuple) ([]sqlname.NameTuple, []sqlname.NameTuple) {
