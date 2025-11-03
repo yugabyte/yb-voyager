@@ -88,7 +88,9 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 
 	tm, ok := d.tablesMetadata[table.GetObjectName()]
 	if !ok {
-		return nil, fmt.Errorf("table metadata not found for table: %s", table.GetObjectName())
+		log.Warnf("table metadata not found for table: %s", table.GetObjectName())
+		//Just to handle any case where TABLE DDL present in PLPGSQL and not present in actual schema so we need to report issues
+		tm = d.getOrCreateTableMetadata(table.GetObjectName())
 	}
 
 	// Check for generated columns
@@ -721,7 +723,9 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 
 	tm, ok := d.tablesMetadata[index.GetTableName()]
 	if !ok {
-		return nil, fmt.Errorf("table metadata not found for table: %s", index.GetTableName())
+		log.Warnf("table metadata not found for table: %s", index.GetTableName())
+		//Just to handle any case where TABLE DDL present in PLPGSQL and not present in actual schema so we need to report issues 
+		tm = d.getOrCreateTableMetadata(index.GetTableName())
 	}
 
 	//Index on complex datatypes
@@ -1025,7 +1029,9 @@ func (aid *AlterTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Q
 	}
 	tm, ok := aid.tablesMetadata[alter.GetObjectName()]
 	if !ok {
-		return nil, fmt.Errorf("table metadata not found for table: %s", alter.GetObjectName())
+		log.Warnf("table metadata not found for table: %s", alter.GetObjectName())
+		//Just to handle any case where TABLE DDL present in PLPGSQL and not present in actual schema so we need to report issues
+		tm = aid.getOrCreateTableMetadata(alter.GetObjectName())
 	}
 	var issues []QueryIssue
 

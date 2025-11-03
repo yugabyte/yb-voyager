@@ -304,7 +304,24 @@ func modifiedIssuesforPLPGSQL(issues []QueryIssue, objType string, objName strin
 	})
 }
 func TestAllIssues(t *testing.T) {
-	requiredDDLs := []string{stmt12}
+	requiredDDLs := []string{`
+		CREATE TABLE employees (
+			id INT PRIMARY KEY,
+			name VARCHAR(100),
+			salary INT
+		);`,
+		`CREATE TABLE example_table (
+			id INT PRIMARY KEY,
+			name VARCHAR(100),
+			salary INT
+		);
+	`,
+	`CREATE TABLE schema1.example_table(
+		id INT PRIMARY KEY,
+		name VARCHAR(100),
+		salary INT
+	);`,
+		stmt1, stmt2, stmt3, stmt4, stmt5, stmt6, stmt7, stmt8, stmt9, stmt10, stmt11, stmt12, stmt13}
 	parserIssueDetector := NewParserIssueDetector()
 	stmtsWithExpectedIssues := map[string][]QueryIssue{
 		stmt1: []QueryIssue{
@@ -386,7 +403,7 @@ func TestAllIssues(t *testing.T) {
 }
 
 func TestDDLIssues(t *testing.T) {
-	requiredDDLs := []string{stmt16, stmt28, stmt29, stmt30, stmt31, stmt32, stmt33, stmt34, stmt35, stmt36, stmt37, stmt38, stmt39, stmt40, stmt41, stmt42, stmt43, stmt44, stmt45, stmt46, stmt47, stmt48, stmt49, stmt50, stmt51, stmt52, stmt53, stmt54, stmt55, stmt56, stmt57, stmt58, stmt59, stmt60, stmt61, stmt62, stmt63, stmt64, stmt65, stmt66, stmt67, stmt68, stmt69, stmt70, stmt71, stmt72, stmt73, stmt74, stmt75, stmt76, stmt77, stmt78, stmt79, stmt80, stmt81, stmt82, stmt83, stmt84, stmt85, stmt86, stmt87, stmt88, stmt89, stmt90, stmt91, stmt92, stmt93, stmt94, stmt95}
+	requiredDDLs := []string{stmt14, stmt15, stmt16, stmt17, stmt18, stmt19, stmt20, stmt21, stmt22, stmt23, stmt24, stmt25, stmt26, stmt27, stmt28, stmt29, stmt30, stmt31, stmt32, stmt33, stmt34, stmt35, stmt36, stmt37, stmt38, stmt39, stmt40, stmt41, stmt42, stmt43, stmt44, stmt45, stmt46, stmt47, stmt48, stmt49, stmt50, stmt51, stmt52, stmt53, stmt54, stmt55, stmt56, stmt57, stmt58, stmt59, stmt60, stmt61, stmt62, stmt63, stmt64, stmt65, stmt66, stmt67, stmt68, stmt69, stmt70, stmt71, stmt72, stmt73, stmt74, stmt75, stmt76, stmt77, stmt78, stmt79, stmt80, stmt81, stmt82, stmt83, stmt84, stmt85, stmt86, stmt87, stmt88, stmt89, stmt90, stmt91, stmt92, stmt93, stmt94, stmt95}
 	parserIssueDetector := NewParserIssueDetector()
 	stmtsWithExpectedIssues := map[string][]QueryIssue{
 		stmt14: []QueryIssue{
@@ -529,7 +546,8 @@ func TestDDLIssues(t *testing.T) {
 func TestUnloggedTableIssueReportedInOlderVersion(t *testing.T) {
 	stmt := "CREATE UNLOGGED TABLE tbl_unlog (id int, val text);"
 	parserIssueDetector := NewParserIssueDetector()
-
+	err := parserIssueDetector.ParseAndProcessDDL(stmt)
+	assert.NoError(t, err, "Error parsing required ddl: %s", stmt)
 	// Not reported by default
 	issues, err := parserIssueDetector.GetDDLIssues(stmt, ybversion.V2024_2_3_1)
 	testutils.FatalIfError(t, err)
@@ -1183,10 +1201,6 @@ func TestCopyUnsupportedConstructIssuesDetected(t *testing.T) {
 }
 
 func TestForeignKeyReferencesPartitionedTableIssues(t *testing.T) {
-	requiredDDLs := []string{
-		`CREATE TABLE abc1(id int PRIMARY KEY, val text) PARTITION BY RANGE (id);`,
-		`CREATE TABLE schema1.abc(id int PRIMARY KEY, val text) PARTITION BY RANGE (id);`,
-	}
 	stmt1 := `CREATE TABLE abc_fk(id int PRIMARY KEY, abc_id INT REFERENCES abc1(id), val text) ;`
 	stmt2 := `ALTER TABLE schema1.abc_fk1
 ADD CONSTRAINT fk FOREIGN KEY (abc1_id)
@@ -1197,8 +1211,15 @@ REFERENCES schema1.abc (id);
     abc_id INT,
     val TEXT,
     CONSTRAINT fk_abc FOREIGN KEY (abc_id) REFERENCES abc1(id)
-);
-`
+);`
+
+	requiredDDLs := []string{
+		`CREATE TABLE abc1(id int PRIMARY KEY, val text) PARTITION BY RANGE (id);`,
+		`CREATE TABLE schema1.abc(id int PRIMARY KEY, val text) PARTITION BY RANGE (id);`,
+		stmt1,
+		stmt2,
+		stmt3,
+	}
 
 	stmt4 := `CREATE TABLE schema1.abc_fk(id int PRIMARY KEY, abc_id INT, val text, FOREIGN KEY (abc_id) REFERENCES schema1.abc(id));`
 
@@ -1622,6 +1643,10 @@ func TestCompressionClause(t *testing.T) {
 		},
 	}
 	parserIssueDetector := NewParserIssueDetector()
+	for _, stmt := range stmts {
+		err := parserIssueDetector.ParseAndProcessDDL(stmt)
+		assert.NoError(t, err, "Error parsing required ddl: %s", stmt)
+	}
 	for stmt, expectedIssues := range sqlsWithExpectedIssues {
 		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.V2024_2_3_1)
 		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
@@ -1685,15 +1710,7 @@ func TestTimestampOrDateHotspotsIssues(t *testing.T) {
 		stmts[16]: []QueryIssue{},
 	}
 	parserIssueDetector := NewParserIssueDetector()
-	statementsToParseFirst := []string{
-		stmts[0],
-		stmts[7],
-		stmts[8],
-		stmts[9],
-		stmts[12],
-		stmts[14],
-	}
-	for _, stmt := range statementsToParseFirst {
+	for _, stmt := range stmts {
 		err := parserIssueDetector.ParseAndProcessDDL(stmt)
 		assert.Nil(t, err)
 	}
