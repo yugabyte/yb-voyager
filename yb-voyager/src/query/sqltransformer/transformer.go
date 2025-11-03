@@ -67,7 +67,6 @@ Note: Need to keep the relative ordering of statements(tables) intact.
 Because there can be cases like Foreign Key constraints that depend on the order of tables.
 */
 func (t *Transformer) MergeConstraints(stmts []*pg_query.RawStmt) ([]*pg_query.RawStmt, error) {
-	utils.PrintAndLogf("Applying merge constraints transformation to the exported schema")
 	createStmtMap := make(map[string]*pg_query.RawStmt)
 	for _, stmt := range stmts {
 		stmtType := queryparser.GetStatementType(stmt.Stmt.ProtoReflect())

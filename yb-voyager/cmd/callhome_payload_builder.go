@@ -422,14 +422,14 @@ func buildCallhomeSchemaOptimizationChanges() []callhome.SchemaOptimizationChang
 	}
 	//For individual change, adding the anonymized object names to the callhome payload
 	schemaOptimizationChanges := make([]callhome.SchemaOptimizationChange, 0)
-	if schemaOptimizationReport.RedundantIndexChange.Exist() {
+	if schemaOptimizationReport.RedundantIndexChange != nil {
 		schemaOptimizationChanges = append(schemaOptimizationChanges, callhome.SchemaOptimizationChange{
 			OptimizationType: REDUNDANT_INDEX_CHANGE_TYPE,
 			IsApplied:        schemaOptimizationReport.RedundantIndexChange.IsApplied,
 			Objects:          getAnonymizedIndexObjectsFromIndexToTableMap(schemaOptimizationReport.RedundantIndexChange.TableToRemovedIndexesMap),
 		})
 	}
-	if schemaOptimizationReport.TableColocationRecommendation.Exist() {
+	if schemaOptimizationReport.TableColocationRecommendation != nil {
 		objects := make([]string, 0)
 		for _, obj := range schemaOptimizationReport.TableColocationRecommendation.ShardedObjects {
 			anonymizedObj, err := anonymizer.AnonymizeQualifiedTableName(obj)
@@ -445,7 +445,7 @@ func buildCallhomeSchemaOptimizationChanges() []callhome.SchemaOptimizationChang
 			Objects:          objects,
 		})
 	}
-	if schemaOptimizationReport.MviewColocationRecommendation.Exist() {
+	if schemaOptimizationReport.MviewColocationRecommendation != nil {
 		objects := make([]string, 0)
 		for _, obj := range schemaOptimizationReport.MviewColocationRecommendation.ShardedObjects {
 			anonymizedObj, err := anonymizer.AnonymizeQualifiedMViewName(obj)
@@ -461,28 +461,28 @@ func buildCallhomeSchemaOptimizationChanges() []callhome.SchemaOptimizationChang
 			Objects:          schemaOptimizationReport.MviewColocationRecommendation.ShardedObjects,
 		})
 	}
-	if schemaOptimizationReport.SecondaryIndexToRangeChange.Exist() {
+	if schemaOptimizationReport.SecondaryIndexToRangeChange != nil {
 		schemaOptimizationChanges = append(schemaOptimizationChanges, callhome.SchemaOptimizationChange{
 			OptimizationType: SECONDARY_INDEX_TO_RANGE_CHANGE_TYPE,
 			IsApplied:        schemaOptimizationReport.SecondaryIndexToRangeChange.IsApplied,
 			Objects:          getAnonymizedIndexObjectsFromIndexToTableMap(schemaOptimizationReport.SecondaryIndexToRangeChange.ModifiedIndexes),
 		})
 	}
-	if schemaOptimizationReport.PKHashShardingChange.Exist() {
+	if schemaOptimizationReport.PKHashShardingChange != nil {
 		schemaOptimizationChanges = append(schemaOptimizationChanges, callhome.SchemaOptimizationChange{
 			OptimizationType: PK_HASH_SPLITTING_CHANGE_TYPE,
 			IsApplied:        schemaOptimizationReport.PKHashShardingChange.IsApplied,
 			Objects:          anonymizeQualifiedTableNames(schemaOptimizationReport.PKHashShardingChange.ModifiedTables),
 		})
 	}
-	if schemaOptimizationReport.PKOnTimestampRangeShardingChange.Exist() {
+	if schemaOptimizationReport.PKOnTimestampRangeShardingChange != nil {
 		schemaOptimizationChanges = append(schemaOptimizationChanges, callhome.SchemaOptimizationChange{
 			OptimizationType: PK_ON_TIMESTAMP_OR_DATE_RANGE_SPLITTING_CHANGE_TYPE,
 			IsApplied:        schemaOptimizationReport.PKOnTimestampRangeShardingChange.IsApplied,
 			Objects:          anonymizeQualifiedTableNames(schemaOptimizationReport.PKOnTimestampRangeShardingChange.ModifiedTables),
 		})
 	}
-	if schemaOptimizationReport.UKRangeShardingChange.Exist() {
+	if schemaOptimizationReport.UKRangeShardingChange != nil {
 		schemaOptimizationChanges = append(schemaOptimizationChanges, callhome.SchemaOptimizationChange{
 			OptimizationType: UK_RANGE_SPLITTING_CHANGE_TYPE,
 			IsApplied:        schemaOptimizationReport.UKRangeShardingChange.IsApplied,
