@@ -86,6 +86,11 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 
 	var issues []QueryIssue
 
+	tm, ok := d.tablesMetadata[table.GetObjectName()]
+	if !ok {
+		return nil, fmt.Errorf("table metadata not found for table: %s", table.GetObjectName())
+	}
+
 	// Check for generated columns
 	if len(table.GeneratedColumns) > 0 {
 		issues = append(issues, NewGeneratedColumnsIssue(
@@ -176,7 +181,7 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 				}
 				usageCategory := d.getUsageCategoryForTable(table.GetSchemaName(), table.GetTableName())
 				//Report PRIMARY KEY (createdat timestamp) as hotspot issue
-				hotspotIssues, err := detectHotspotIssueOnConstraint(c.ConstraintType.String(), c.ConstraintName, c.Columns, d.columnsWithHotspotRangeIndexesDatatypes, obj, usageCategory)
+				hotspotIssues, err := detectHotspotIssueOnConstraint(tm.IsPartitioned(), c.ConstraintType.String(), c.ConstraintName, c.Columns, d.columnsWithHotspotRangeIndexesDatatypes, obj, usageCategory)
 				if err != nil {
 					return nil, err
 				}
@@ -335,7 +340,10 @@ func detectForeignKeyDatatypeMismatch(objectType string, objectName string, colu
 	}
 }
 
-func detectHotspotIssueOnConstraint(constraintType string, constraintName string, constraintColumns []string, columnsWithHotspotRangeIndexesDatatypes map[string]map[string]string, obj queryparser.DDLObject, usageCategory string) ([]QueryIssue, error) {
+func detectHotspotIssueOnConstraint(isPartitionedTable bool, constraintType string, constraintName string, constraintColumns []string, columnsWithHotspotRangeIndexesDatatypes map[string]map[string]string, obj queryparser.DDLObject, usageCategory string) ([]QueryIssue, error) {
+	if isPartitionedTable {
+		return nil, nil
+	}
 	if len(constraintColumns) <= 0 {
 		log.Warnf("empty columns list for %s constraint %s", constraintType, constraintName)
 		return nil, nil
@@ -711,6 +719,11 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 		}
 	}
 
+	tm, ok := d.tablesMetadata[index.GetTableName()]
+	if !ok {
+		return nil, fmt.Errorf("table metadata not found for table: %s", index.GetTableName())
+	}
+
 	//Index on complex datatypes
 	/*
 	   cases covered
@@ -747,7 +760,7 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 						false,
 						"",
 					))
-				} else if isHotspotType && idx == 0 {
+				} else if isHotspotType && idx == 0 && !tm.IsPartitioned() {
 					//If first column is hotspot type then only report hotspot issue
 					//For expression case not adding any colName for now in the issue
 					hotspotIssues, err := reportHotspotsOnTimestampTypes(param.ExprCastTypeName, obj.GetObjectType(), obj.GetObjectName(), "", true, usageCategory)
@@ -773,7 +786,7 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 					}
 				}
 				//TODO: separate out the Types check of Hotspot problem and the Range sharding recommendation
-				if tableHasHotspotTypes && idx == 0 {
+				if tableHasHotspotTypes && idx == 0 && !tm.IsPartitioned() {
 					//If first column is hotspot type then only report hotspot issue
 					hotspotTypeName, isHotspotType := columnWithHotspotTypes[colName]
 					if isHotspotType {
@@ -799,6 +812,13 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 }
 
 func (i *IndexIssueDetector) reportVariousIndexPerfOptimizationsOnFirstColumnOfIndex(index *queryparser.Index) ([]QueryIssue, error) {
+	tm, ok := i.tablesMetadata[index.GetTableName()]
+	if !ok {
+		return nil, fmt.Errorf("table metadata not found for table: %s", index.GetTableName())
+	}
+	if tm.IsPartitioned() {
+		return nil, nil
+	}
 	var issues []QueryIssue
 
 	firstColumnParam := index.Params[0]
@@ -1003,7 +1023,10 @@ func (aid *AlterTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Q
 	if !ok {
 		return nil, fmt.Errorf("invalid object type: expected AlterTable")
 	}
-
+	tm, ok := aid.tablesMetadata[alter.GetObjectName()]
+	if !ok {
+		return nil, fmt.Errorf("table metadata not found for table: %s", alter.GetObjectName())
+	}
 	var issues []QueryIssue
 
 	switch alter.AlterType {
@@ -1093,7 +1116,7 @@ func (aid *AlterTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Q
 			}
 			usageCategory := aid.getUsageCategoryForTable(alter.GetSchemaName(), alter.GetTableName())
 			//Report PRIMARY KEY (createdat timestamp) as hotspot issue
-			hotspotIssues, err := detectHotspotIssueOnConstraint(alter.ConstraintType.String(), alter.ConstraintName, alter.ConstraintColumns, aid.columnsWithHotspotRangeIndexesDatatypes, obj, usageCategory)
+			hotspotIssues, err := detectHotspotIssueOnConstraint(tm.IsPartitioned(), alter.ConstraintType.String(), alter.ConstraintName, alter.ConstraintColumns, aid.columnsWithHotspotRangeIndexesDatatypes, obj, usageCategory)
 			if err != nil {
 				return nil, err
 			}

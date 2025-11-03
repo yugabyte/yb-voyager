@@ -1125,6 +1125,22 @@ func (p *ParserIssueDetector) getUsageCategoryForTable(schemaName, tableName str
 	}
 	usageCategory := stat.Usage
 
+	//For the cases we can only report the issues on the partitioned tables
+	//we need to combine the usage categories of all the partitions to get the overall usage category of the partitioned table
+	tm, ok := p.tablesMetadata[qualifiedObjName]
+	if !ok {
+		return usageCategory
+	}
+	if !tm.IsPartitioned() {
+		return usageCategory
+	}
+
+	//If partitioned table, we need to check the usage of the partitions
+	for _, partition := range tm.Partitions {
+		partitionUsage := p.getUsageCategoryForTable(partition.SchemaName, partition.TableName)
+		usageCategory = GetCombinedUsageCategory(usageCategory, partitionUsage)
+	}
+
 	return usageCategory
 }
 
