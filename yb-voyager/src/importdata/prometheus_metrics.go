@@ -54,6 +54,9 @@ func init() {
 	if port, ok := os.LookupEnv("IMPORT_DATA_SOURCE_REPLICA_PROMETHEUS_METRICS_PORT"); ok {
 		IMPORT_DATA_SOURCE_REPLICA_PROMETHEUS_METRICS_PORT = port
 	}
+	if port, ok := os.LookupEnv("IMPORT_DATA_SOURCE_PROMETHEUS_METRICS_PORT"); ok {
+		IMPORT_DATA_SOURCE_PROMETHEUS_METRICS_PORT = port
+	}
 }
 
 func StartPrometheusMetricsServer(importerRole string, migrationUUID uuid.UUID) error {
