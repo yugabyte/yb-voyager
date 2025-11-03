@@ -434,7 +434,7 @@ func bindEnvVarsToViper(cmd *cobra.Command, v *viper.Viper) ([]EnvVarSetViaConfi
 
 	// Iterate over known config-to-env-var mappings and set env vars
 	// only if:
-	// - the config key is relevant to this command (matches configKeyPrefix or known sections like source./target.)
+	// - the config key is relevant to this command (matches configKeyPrefix or known sections like source./target./yugabyted-control-plane.)
 	// - the env var is not already exported in the shell
 	// - the config key is explicitly set in the config file (non-empty value)
 	// This ensures the correct config values are surfaced to os.Getenv consumers,
@@ -445,6 +445,7 @@ func bindEnvVarsToViper(cmd *cobra.Command, v *viper.Viper) ([]EnvVarSetViaConfi
 			strings.HasPrefix(confKey, "source.") ||
 			strings.HasPrefix(confKey, "source-replica.") ||
 			strings.HasPrefix(confKey, "target.") ||
+			strings.HasPrefix(confKey, "yugabyted-control-plane.") ||
 			len(strings.Split(confKey, ".")) == 1 {
 
 			// Skip if env var already exported

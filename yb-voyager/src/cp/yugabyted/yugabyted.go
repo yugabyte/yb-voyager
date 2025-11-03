@@ -39,7 +39,7 @@ type YugabyteD struct {
 	voyagerInfo              *controlPlane.VoyagerInstance
 	waitGroup                sync.WaitGroup
 	eventChan                chan (MigrationEvent)
-	rowCountUpdateEventChan  chan ([]VisualizerTableMetrics)
+	rowCountUpdateEventChan  chan ([]controlPlane.TableMetrics)
 	connPool                 *pgxpool.Pool
 	lastRowCountUpdate       map[string]time.Time
 	latestInvocationSequence int
@@ -56,7 +56,7 @@ func New(exportDir string) *YugabyteD {
 // Initialize the yugabyted DB for visualisation metadata
 func (cp *YugabyteD) Init() error {
 	cp.eventChan = make(chan MigrationEvent, 100)
-	cp.rowCountUpdateEventChan = make(chan []VisualizerTableMetrics, 200)
+	cp.rowCountUpdateEventChan = make(chan []controlPlane.TableMetrics, 200)
 
 	err := cp.connect()
 	if err != nil {
@@ -164,13 +164,13 @@ func (cp *YugabyteD) createAndSendUpdateRowCountEvent(events []*controlPlane.Bas
 
 	timestamp := time.Now().Format("2006-01-02 15:04:05")
 
-	var rowCountUpdateEvent []VisualizerTableMetrics
+	var rowCountUpdateEvent []controlPlane.TableMetrics
 
 	for _, event := range events {
-		snapshotMigrateTableMetrics := VisualizerTableMetrics{
+		snapshotMigrateTableMetrics := controlPlane.TableMetrics{
 			MigrationUUID:       event.MigrationUUID,
 			TableName:           event.TableName,
-			Schema:              strings.Join(event.SchemaNames, "|"),
+			SchemaName:          strings.Join(event.SchemaNames, "|"),
 			MigrationPhase:      controlPlane.MIGRATION_PHASE_MAP[event.EventType],
 			Status:              controlPlane.UPDATE_ROW_COUNT_STATUS_STR_TO_INT[event.Status],
 			CountLiveRows:       event.CompletedRowCount,
@@ -561,7 +561,7 @@ func (cp *YugabyteD) sendMigrationEvent(
 
 // Send Table metrics
 func (cp *YugabyteD) sendVisualizerTableMetrics(
-	visualizerTableMetricsList []VisualizerTableMetrics) error {
+	visualizerTableMetricsList []controlPlane.TableMetrics) error {
 
 	cmd := fmt.Sprintf("INSERT INTO %s ("+
 		"migration_uuid, "+
@@ -579,7 +579,7 @@ func (cp *YugabyteD) sendVisualizerTableMetrics(
 		value := fmt.Sprintf("('%s', '%s', '%s', %d, %d, %d, %d, '%s')",
 			metrics.MigrationUUID,
 			metrics.TableName,
-			metrics.Schema,
+			metrics.SchemaName,
 			metrics.MigrationPhase,
 			metrics.Status,
 			metrics.CountLiveRows,

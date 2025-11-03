@@ -15,7 +15,8 @@ limitations under the License.
 */
 package ybm
 
-// This is a manual test file to verify YBM API integration.
+//  This is currently in the codebase for testing YBM API easily.
+//  This is a manual test file to verify YBM API integration.
 // To run these tests:
 // 1. Update the configuration variables below with your YBM credentials
 // 2. Update the payload variables as needed
@@ -80,7 +81,7 @@ var testMetadataPayload = MigrationEvent{
 }
 
 // Table Metrics Payload - Modify as needed
-var testTableMetrics = TableMetrics{
+var testTableMetrics = cp.TableMetrics{
 	MigrationUUID:       testMigrationUUID,
 	TableName:           "users_test_table",
 	SchemaName:          "public",
@@ -189,7 +190,7 @@ func TestYBMAPIIntegration(t *testing.T) {
 			testTableMetrics.CountLiveRows,
 			testTableMetrics.CountTotalRows)
 
-		metricsList := []TableMetrics{testTableMetrics}
+		metricsList := []cp.TableMetrics{testTableMetrics}
 		err := ybm.sendTableMetrics(metricsList)
 		if err != nil {
 			t.Errorf("❌ Failed to send table metrics: %v", err)
@@ -231,7 +232,7 @@ func TestYBMAPIIntegration(t *testing.T) {
 			completedMetrics.CountLiveRows,
 			completedMetrics.CountTotalRows)
 
-		err := ybm.sendTableMetrics([]TableMetrics{completedMetrics})
+		err := ybm.sendTableMetrics([]cp.TableMetrics{completedMetrics})
 		if err != nil {
 			t.Errorf("❌ Failed to send completed table metrics: %v", err)
 			t.Logf("Error details: %v", err)
@@ -268,7 +269,7 @@ func TestYBMTableMetricsOnly(t *testing.T) {
 		testTableMetrics.CountTotalRows)
 
 	// Send only table metrics
-	err := ybm.sendTableMetrics([]TableMetrics{testTableMetrics})
+	err := ybm.sendTableMetrics([]cp.TableMetrics{testTableMetrics})
 	if err != nil {
 		t.Logf("❌ Failed to send table metrics")
 		t.Logf("Error: %v", err)
@@ -366,7 +367,7 @@ func TestYBMResponseDetails(t *testing.T) {
 		testTableMetrics.CountLiveRows,
 		testTableMetrics.CountTotalRows)
 
-	err = ybm.sendTableMetrics([]TableMetrics{testTableMetrics})
+	err = ybm.sendTableMetrics([]cp.TableMetrics{testTableMetrics})
 	if err != nil {
 		t.Logf("❌ Response: ERROR")
 		t.Logf("   Error Message: %v", err)

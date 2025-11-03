@@ -48,7 +48,8 @@ func isRetryableError(err error) bool {
 	// Don't retry client errors (4xx except 429)
 	if strings.Contains(errStr, "400") || // Bad Request - validation error
 		strings.Contains(errStr, "401") || // Unauthorized - invalid API key
-		strings.Contains(errStr, "403") { // Forbidden - no permissions
+		strings.Contains(errStr, "403") || // Forbidden - no permissions
+		strings.Contains(errStr, "404") { // Not Found - resource doesn't exist
 		return false
 	}
 
@@ -75,15 +76,15 @@ func isRetryableError(err error) bool {
 
 type YBM struct {
 	sync.Mutex
-	config                   *YBMConfig                    // The YBM configuration
-	httpClient               *http.Client                  // HTTP client to send requests to YBM API
-	voyagerInfo              *controlPlane.VoyagerInstance // The Voyager instance information
-	migrationDirectory       string                        // The directory where the migration is being done
-	waitGroup                sync.WaitGroup                // Wait group to track pending events
-	eventChan                chan MigrationEvent           // Buffered channel to send migration events
-	rowCountUpdateEventChan  chan []TableMetrics           // Buffered channel to send table metrics updates in batches
-	lastRowCountUpdate       map[string]time.Time          // Tracks last update time per table to throttle row count updates (limit to 1 update per 5 seconds per table)
-	latestInvocationSequence int                           // Tracks the latest invocation sequence for a migration phase to avoid duplicates
+	config                   *YBMConfig                       // The YBM configuration
+	httpClient               *http.Client                     // HTTP client to send requests to YBM API
+	voyagerInfo              *controlPlane.VoyagerInstance    // The Voyager instance information
+	migrationDirectory       string                           // The directory where the migration is being done
+	waitGroup                sync.WaitGroup                   // Wait group to track pending events
+	eventChan                chan MigrationEvent              // Buffered channel to send migration events
+	rowCountUpdateEventChan  chan []controlPlane.TableMetrics // Buffered channel to send table metrics updates in batches
+	lastRowCountUpdate       map[string]time.Time             // Tracks last update time per table to throttle row count updates (limit to 1 update per 5 seconds per table)
+	latestInvocationSequence int                              // Tracks the latest invocation sequence for a migration phase to avoid duplicates
 }
 
 // New creates a new YBM control plane instance
@@ -105,7 +106,7 @@ func (ybm *YBM) Init() error {
 
 	// Create buffered channels
 	ybm.eventChan = make(chan MigrationEvent, 100)
-	ybm.rowCountUpdateEventChan = make(chan []TableMetrics, 200)
+	ybm.rowCountUpdateEventChan = make(chan []controlPlane.TableMetrics, 200)
 
 	// Initialize HTTP client with timeout and connection pooling
 	// - Timeout (30s): Overall request timeout; prevents hanging on slow YBM responses while allowing large payload transmission
@@ -207,9 +208,6 @@ func (ybm *YBM) createAndSendEvent(event *controlPlane.BaseEvent, status string,
 		return
 	}
 
-	fmt.Printf("Invocation sequence: %d\n", invocationSequence)
-	fmt.Printf("Migration Phase: %d\n", controlPlane.MIGRATION_PHASE_MAP[event.EventType])
-
 	// Build host_ip JSON string (same format as yugabyted)
 	jsonData := make(map[string]string)
 	if controlPlane.IsExportPhase(event.EventType) {
@@ -263,10 +261,10 @@ func (ybm *YBM) createAndSendEvent(event *controlPlane.BaseEvent, status string,
 func (ybm *YBM) createAndSendUpdateRowCountEvent(events []*controlPlane.BaseUpdateRowCountEvent) {
 	timestamp := time.Now().Format(time.RFC3339)
 
-	var tableMetricsList []TableMetrics
+	var tableMetricsList []controlPlane.TableMetrics
 
 	for _, event := range events {
-		metrics := TableMetrics{
+		metrics := controlPlane.TableMetrics{
 			MigrationUUID:       event.MigrationUUID,
 			TableName:           event.TableName,
 			SchemaName:          strings.Join(event.SchemaNames, "|"),
@@ -460,7 +458,7 @@ func (ybm *YBM) sendMigrationEvent(event MigrationEvent) error {
 }
 
 // sendTableMetrics sends table metrics to YBM API with retries
-func (ybm *YBM) sendTableMetrics(metricsList []TableMetrics) error {
+func (ybm *YBM) sendTableMetrics(metricsList []controlPlane.TableMetrics) error {
 	urlPath := fmt.Sprintf("%s/api/public/v1/accounts/%s/projects/%s/clusters/%s/voyager/table-metrics",
 		ybm.config.Domain, ybm.config.AccountID, ybm.config.ProjectID, ybm.config.ClusterID)
 

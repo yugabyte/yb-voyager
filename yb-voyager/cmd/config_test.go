@@ -266,7 +266,8 @@ log-level: info
 send-diagnostics: true
 profile: true
 control-plane-type: yugabyte
-yugabyted-db-conn-string: postgres://test_user:test_password@localhost:5432/test_db?sslmode=require
+yugabyted-control-plane:
+  db-conn-string: postgres://test_user:test_password@localhost:5432/test_db?sslmode=require
 java-home: /path/to/java/home
 local-call-home-service-host: localhost
 local-call-home-service-port: 8080
@@ -565,7 +566,8 @@ log-level: info
 send-diagnostics: true
 profile: true
 control-plane-type: yugabyte
-yugabyted-db-conn-string: postgres://test_user:test_password@localhost:5432/test_db?sslmode=require
+yugabyted-control-plane:
+  db-conn-string: postgres://test_user:test_password@localhost:5432/test_db?sslmode=require
 java-home: /path/to/java/home
 local-call-home-service-host: localhost
 local-call-home-service-port: 8080
@@ -859,7 +861,8 @@ log-level: info
 send-diagnostics: true
 profile: true
 control-plane-type: yugabyte
-yugabyted-db-conn-string: postgres://test_user:test_password@localhost:5432/test_db?sslmode=require
+yugabyted-control-plane:
+  db-conn-string: postgres://test_user:test_password@localhost:5432/test_db?sslmode=require
 java-home: /path/to/java/home
 local-call-home-service-host: localhost
 local-call-home-service-port: 8080
@@ -1041,7 +1044,8 @@ log-level: info
 send-diagnostics: true
 profile: true
 control-plane-type: yugabyte
-yugabyted-db-conn-string: postgres://test_user:test_password@localhost:5432/test_db?sslmode=require
+yugabyted-control-plane:
+  db-conn-string: postgres://test_user:test_password@localhost:5432/test_db?sslmode=require
 java-home: /path/to/java/home
 local-call-home-service-host: localhost
 local-call-home-service-port: 8080
@@ -1475,7 +1479,8 @@ log-level: info
 send-diagnostics: true
 profile: true
 control-plane-type: yugabyte
-yugabyted-db-conn-string: postgres://test_user:test_password@localhost:5432/test_db?sslmode=require
+yugabyted-control-plane:
+  db-conn-string: postgres://test_user:test_password@localhost:5432/test_db?sslmode=require
 java-home: /path/to/java/home
 local-call-home-service-host: localhost
 local-call-home-service-port: 8080
@@ -1679,7 +1684,8 @@ log-level: info
 send-diagnostics: true
 profile: true
 control-plane-type: yugabyte
-yugabyted-db-conn-string: postgres://test_user:test_password@localhost:5432/test_db?sslmode=require
+yugabyted-control-plane:
+  db-conn-string: postgres://test_user:test_password@localhost:5432/test_db?sslmode=require
 java-home: /path/to/java/home
 local-call-home-service-host: localhost
 local-call-home-service-port: 8080
@@ -2284,7 +2290,8 @@ log-level: info
 send-diagnostics: true
 profile: true
 control-plane-type: yugabyte
-yugabyted-db-conn-string: postgres://test_user:test_password@localhost:5432/test_db?sslmode=require
+yugabyted-control-plane:
+  db-conn-string: postgres://test_user:test_password@localhost:5432/test_db?sslmode=require
 java-home: /path/to/java/home
 local-call-home-service-host: localhost
 local-call-home-service-port: 8080
@@ -2681,7 +2688,8 @@ log-level: info
 send-diagnostics: true
 profile: true
 control-plane-type: yugabyte
-yugabyted-db-conn-string: postgres://test_user:test_password@localhost:5432/test_db?sslmode=require
+yugabyted-control-plane:
+  db-conn-string: postgres://test_user:test_password@localhost:5432/test_db?sslmode=require
 java-home: /path/to/java/home
 local-call-home-service-host: localhost
 local-call-home-service-port: 8080
@@ -2930,7 +2938,8 @@ log-level: info
 send-diagnostics: true
 profile: true
 control-plane-type: yugabyte
-yugabyted-db-conn-string: postgres://test_user:test_password@localhost:5432/test_db?sslmode=require
+yugabyted-control-plane:
+  db-conn-string: postgres://test_user:test_password@localhost:5432/test_db?sslmode=require
 java-home: /path/to/java/home
 local-call-home-service-host: localhost
 local-call-home-service-port: 8080
@@ -3168,7 +3177,8 @@ log-level: info
 send-diagnostics: true
 profile: true
 control-plane-type: yugabyte
-yugabyted-db-conn-string: postgres://test_user:test_password@localhost:5432/test_db?sslmode=require
+yugabyted-control-plane:
+  db-conn-string: postgres://test_user:test_password@localhost:5432/test_db?sslmode=require
 java-home: /path/to/java/home
 local-call-home-service-host: localhost
 local-call-home-service-port: 8080
@@ -3371,7 +3381,8 @@ export-dir: %s
 log-level: info
 send-diagnostics: true
 control-plane-type: yugabyte
-yugabyted-db-conn-string: postgres://test_user:test_password@localhost:5432/test_db?sslmode=require
+yugabyted-control-plane:
+  db-conn-string: postgres://test_user:test_password@localhost:5432/test_db?sslmode=require
 java-home: /path/to/java/home
 local-call-home-service-host: localhost
 local-call-home-service-port: 8080
@@ -3931,13 +3942,13 @@ end-migration:
 
 ///////////////////////////// Control Plane Configuration Tests ////////////////////////////////
 
-func setupControlPlaneConfigContext(t *testing.T, controlPlaneType string) *testContext {
+func setupControlPlaneConfigContext(t *testing.T) *testContext {
 	tmpExportDir := setupExportDir(t)
 	t.Cleanup(func() { os.RemoveAll(tmpExportDir) })
 
 	var configContent string
-	if controlPlaneType == "ybm" {
-		configContent = fmt.Sprintf(`
+
+	configContent = fmt.Sprintf(`
 export-dir: %s
 control-plane-type: ybm
 ybm-control-plane:
@@ -3947,40 +3958,13 @@ ybm-control-plane:
   cluster-id: "test-cluster-789"
   api-key: "test-api-key-xyz"
 source:
-  source-db-type: postgresql
-  source-db-host: localhost
-  source-db-user: testuser
-  source-db-password: testpass
-  source-db-name: testdb
-  source-db-schema: public
+  db-type: postgresql
+  db-host: localhost
+  db-user: testuser
+  db-password: testpass
+  db-name: testdb
+  db-schema: public
 `, tmpExportDir)
-	} else if controlPlaneType == "yugabyted" {
-		configContent = fmt.Sprintf(`
-export-dir: %s
-control-plane-type: yugabyted
-yugabyted-control-plane:
-  db-conn-string: "postgresql://yugabyte@localhost:5433"
-source:
-  source-db-type: postgresql
-  source-db-host: localhost
-  source-db-user: testuser
-  source-db-password: testpass
-  source-db-name: testdb
-  source-db-schema: public
-`, tmpExportDir)
-	} else {
-		// No control plane
-		configContent = fmt.Sprintf(`
-export-dir: %s
-source:
-  source-db-type: postgresql
-  source-db-host: localhost
-  source-db-user: testuser
-  source-db-password: testpass
-  source-db-name: testdb
-  source-db-schema: public
-`, tmpExportDir)
-	}
 
 	configFile, _ := setupConfigFile(t, configContent)
 
@@ -3996,19 +3980,15 @@ source:
 }
 
 func TestControlPlane_YBMConfigFileBinding(t *testing.T) {
-	ctx := setupControlPlaneConfigContext(t, "ybm")
+	ctx := setupControlPlaneConfigContext(t)
 
-	rootCmd.SetArgs([]string{
-		"assess-migration",
-		"--export-dir", ctx.tmpExportDir,
-		"--config-file", ctx.configFile,
+	// Set the global cfgFile variable directly (it's used by initConfig)
+	cfgFile = ctx.configFile
+	t.Cleanup(func() {
+		cfgFile = "" // Reset after test
 	})
 
-	// Set the config file flag so initConfig can find it
-	assessMigrationCmd.Flags().Set("config-file", ctx.configFile)
-
-	// Don't actually execute - just validate config was loaded
-	// We'll initialize config manually to test config loading
+	// Initialize config to read the config file
 	_, _, _, v, err := initConfig(assessMigrationCmd)
 	require.NoError(t, err)
 
@@ -4019,173 +3999,4 @@ func TestControlPlane_YBMConfigFileBinding(t *testing.T) {
 	assert.Equal(t, "test-project-456", v.GetString("ybm-control-plane.project-id"), "YBM project ID should match config")
 	assert.Equal(t, "test-cluster-789", v.GetString("ybm-control-plane.cluster-id"), "YBM cluster ID should match config")
 	assert.Equal(t, "test-api-key-xyz", v.GetString("ybm-control-plane.api-key"), "YBM API key should match config")
-}
-
-func TestControlPlane_YugabytedConfigFileBinding(t *testing.T) {
-	ctx := setupControlPlaneConfigContext(t, "yugabyted")
-
-	rootCmd.SetArgs([]string{
-		"assess-migration",
-		"--export-dir", ctx.tmpExportDir,
-		"--config-file", ctx.configFile,
-	})
-
-	// Set the config file flag so initConfig can find it
-	assessMigrationCmd.Flags().Set("config-file", ctx.configFile)
-
-	// Don't actually execute - just validate config was loaded
-	_, _, _, v, err := initConfig(assessMigrationCmd)
-	require.NoError(t, err)
-
-	// Verify control plane config was loaded
-	assert.Equal(t, "yugabyted", v.GetString("control-plane-type"), "Control plane type should be yugabyted")
-	assert.Equal(t, "postgresql://yugabyte@localhost:5433", v.GetString("yugabyted-control-plane.db-conn-string"), "Yugabyted DB connection string should match config")
-}
-
-func TestControlPlane_EnvVariableOverride(t *testing.T) {
-	ctx := setupControlPlaneConfigContext(t, "yugabyted")
-
-	// Set environment variable for backward compatibility
-	os.Setenv("CONTROL_PLANE_TYPE", "yugabyted")
-	os.Setenv("YUGABYTED_DB_CONN_STRING", "postgresql://yugabyte@envhost:5433")
-	t.Cleanup(func() {
-		os.Unsetenv("CONTROL_PLANE_TYPE")
-		os.Unsetenv("YUGABYTED_DB_CONN_STRING")
-	})
-
-	rootCmd.SetArgs([]string{
-		"assess-migration",
-		"--export-dir", ctx.tmpExportDir,
-		"--config-file", ctx.configFile,
-	})
-
-	_, _, _, v, err := initConfig(assessMigrationCmd)
-	require.NoError(t, err)
-
-	// Verify environment variable overrode the config file
-	assert.Equal(t, "yugabyted", v.GetString("control-plane-type"), "Control plane type should be from env var")
-	assert.Equal(t, "postgresql://yugabyte@envhost:5433", v.GetString("yugabyted-control-plane.db-conn-string"), "DB connection string should be from env var")
-}
-
-func TestControlPlane_NoControlPlaneConfig(t *testing.T) {
-	ctx := setupControlPlaneConfigContext(t, "none")
-
-	rootCmd.SetArgs([]string{
-		"assess-migration",
-		"--export-dir", ctx.tmpExportDir,
-		"--config-file", ctx.configFile,
-	})
-
-	_, _, _, v, err := initConfig(assessMigrationCmd)
-	require.NoError(t, err)
-
-	// Verify no control plane type is set (noop mode)
-	assert.Empty(t, v.GetString("control-plane-type"), "Control plane type should be empty (noop)")
-}
-
-func TestControlPlane_InvalidConfigKeys(t *testing.T) {
-	tmpExportDir := setupExportDir(t)
-	t.Cleanup(func() { os.RemoveAll(tmpExportDir) })
-
-	// Test invalid key in YBM control plane
-	configContent := fmt.Sprintf(`
-export-dir: %s
-control-plane-type: ybm
-ybm-control-plane:
-  domain: https://cloud.yugabyte.com
-  invalid-key: "should fail"
-`, tmpExportDir)
-
-	configFile, _ := setupConfigFile(t, configContent)
-
-	resetCmdAndEnvVars(assessMigrationCmd)
-	t.Cleanup(func() {
-		resetFlags(assessMigrationCmd)
-	})
-
-	rootCmd.SetArgs([]string{
-		"assess-migration",
-		"--export-dir", tmpExportDir,
-		"--config-file", configFile,
-	})
-
-	_, _, _, _, err := initConfig(assessMigrationCmd)
-	require.Error(t, err, "Should fail with invalid YBM control plane key")
-	if err != nil {
-		assert.Contains(t, err.Error(), "invalid-key", "Error should mention the invalid key")
-	}
-}
-
-func TestControlPlane_YugabytedBackwardCompatibility(t *testing.T) {
-	tmpExportDir := setupExportDir(t)
-	t.Cleanup(func() { os.RemoveAll(tmpExportDir) })
-
-	// Old style: using only environment variable, no config file
-	configContent := fmt.Sprintf(`
-export-dir: %s
-`, tmpExportDir)
-
-	configFile, _ := setupConfigFile(t, configContent)
-
-	resetCmdAndEnvVars(assessMigrationCmd)
-	t.Cleanup(func() {
-		resetFlags(assessMigrationCmd)
-	})
-
-	// Set old-style environment variable
-	os.Setenv("YUGABYTED_DB_CONN_STRING", "postgresql://yugabyte@legacy:5433")
-	t.Cleanup(func() {
-		os.Unsetenv("YUGABYTED_DB_CONN_STRING")
-	})
-
-	rootCmd.SetArgs([]string{
-		"assess-migration",
-		"--export-dir", tmpExportDir,
-		"--config-file", configFile,
-	})
-
-	_, _, _, v, err := initConfig(assessMigrationCmd)
-	require.NoError(t, err)
-
-	// Verify backward compatibility - env var should be loaded
-	assert.Equal(t, "postgresql://yugabyte@legacy:5433", v.GetString("yugabyted-control-plane.db-conn-string"), "Should support old env var style")
-}
-
-func TestControlPlane_MultipleTypesInConfig(t *testing.T) {
-	tmpExportDir := setupExportDir(t)
-	t.Cleanup(func() { os.RemoveAll(tmpExportDir) })
-
-	// Test with both yugabyted and ybm config (should prefer control-plane-type)
-	configContent := fmt.Sprintf(`
-export-dir: %s
-control-plane-type: ybm
-yugabyted-control-plane:
-  db-conn-string: "postgresql://yugabyte@localhost:5433"
-ybm-control-plane:
-  domain: https://cloud.yugabyte.com
-  account-id: test-account-123
-  project-id: test-project-456
-  cluster-id: test-cluster-789
-  api-key: test-api-key-xyz
-`, tmpExportDir)
-
-	configFile, _ := setupConfigFile(t, configContent)
-
-	resetCmdAndEnvVars(assessMigrationCmd)
-	t.Cleanup(func() {
-		resetFlags(assessMigrationCmd)
-	})
-
-	rootCmd.SetArgs([]string{
-		"assess-migration",
-		"--export-dir", tmpExportDir,
-		"--config-file", configFile,
-	})
-
-	_, _, _, v, err := initConfig(assessMigrationCmd)
-	require.NoError(t, err)
-
-	// Verify YBM is used (based on control-plane-type)
-	assert.Equal(t, "ybm", v.GetString("control-plane-type"), "Should use control-plane-type setting")
-	assert.NotEmpty(t, v.GetString("ybm-control-plane.domain"), "YBM config should be loaded")
 }

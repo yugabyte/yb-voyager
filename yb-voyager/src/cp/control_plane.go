@@ -125,6 +125,19 @@ type VoyagerInstance struct {
 	ExportDirectory    string
 }
 
+// TableMetrics represents table-level metrics for both export and import phases
+// This is used by both YBM and Yugabyted control plane implementations
+type TableMetrics struct {
+	MigrationUUID       uuid.UUID `json:"migration_uuid"`
+	TableName           string    `json:"table_name"`
+	SchemaName          string    `json:"schema_name"`
+	MigrationPhase      int       `json:"migration_phase"`
+	Status              int       `json:"status"` // 0: NOT-STARTED, 1: IN-PROGRESS, 2: DONE, 3: COMPLETED
+	CountLiveRows       int64     `json:"count_live_rows"`
+	CountTotalRows      int64     `json:"count_total_rows"`
+	InvocationTimestamp string    `json:"invocation_timestamp"`
+}
+
 // PrepareVoyagerInstance gathers information about the Voyager instance
 func PrepareVoyagerInstance(exportDir string) *VoyagerInstance {
 	ip, err := utils.GetLocalIP()

@@ -39,20 +39,9 @@ type MigrationEvent struct {
 	InvocationTimestamp string                 `json:"invocation_timestamp"`
 }
 
-// TableMetrics represents the payload for voyager-table-metrics API
-type TableMetrics struct {
-	MigrationUUID       uuid.UUID `json:"migration_uuid"`
-	TableName           string    `json:"table_name"`
-	SchemaName          string    `json:"schema_name"`
-	MigrationPhase      int       `json:"migration_phase"`
-	Status              int       `json:"status"` // 0: NOT-STARTED, 1: IN-PROGRESS, 2: DONE, 3: COMPLETED
-	CountLiveRows       int64     `json:"count_live_rows"`
-	CountTotalRows      int64     `json:"count_total_rows"`
-	InvocationTimestamp string    `json:"invocation_timestamp"`
-}
-
 // MaxSequenceResponse represents the response from GET max-sequence endpoint
 // DEPRECATED: Old endpoint, kept for reference
+// TODO: Remove this once we have a decision on the new endpoint.
 type MaxSequenceResponse struct {
 	MigrationUUID         string  `json:"migration_uuid"`
 	MigrationPhase        int     `json:"migration_phase"`
