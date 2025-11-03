@@ -42,7 +42,7 @@ func main() {
 	cmd.Execute()
 	cmd.PrintElapsedDuration()
 	if cmd.ProcessShutdownRequested {
-		utils.PrintAndLog("waiting for exit handlers to complete the cleanup")
+		utils.PrintAndLogf("waiting for exit handlers to complete the cleanup")
 		time.Sleep(time.Second * 120) // using here larger value than what we have for debezium(100sec)
 	}
 }
@@ -54,10 +54,10 @@ func registerSignalHandlers() {
 		sig := <-sigs
 		switch sig {
 		case syscall.SIGINT, syscall.SIGTERM:
-			utils.PrintAndLog("\nReceived signal %s. Exiting...", sig)
+			utils.PrintAndLogf("\nReceived signal %s. Exiting...", sig)
 			cmd.ProcessShutdownRequested = true
 		case syscall.SIGUSR2:
-			utils.PrintAndLog("\nReceived signal to terminate due to end migration command. Exiting...")
+			utils.PrintAndLogf("\nReceived signal to terminate due to end migration command. Exiting...")
 			cmd.ProcessShutdownRequested = true
 		case syscall.SIGUSR1:
 			cmd.StopArchiverSignal = true

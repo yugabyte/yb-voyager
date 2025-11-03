@@ -280,7 +280,7 @@ func (yb *TargetYugabyteDB) InitConnPool() error {
 		return fmt.Errorf("error fetching the yb servers: %w", err)
 	}
 	if loadBalancerUsed {
-		utils.PrintAndLog(LB_WARN_MSG)
+		utils.PrintAndLogf(LB_WARN_MSG)
 	}
 	tconfs := yb.getTargetConfsAsPerLoadBalancerUsed(loadBalancerUsed, confs)
 	var targetUriList []string
@@ -1220,7 +1220,7 @@ func (yb *TargetYugabyteDB) GetYBServers() (bool, []*TargetConf, error) {
 
 	if yb.Tconf.TargetEndpoints != "" {
 		msg := fmt.Sprintf("given yb-servers for import data: %q\n", yb.Tconf.TargetEndpoints)
-		log.Infof(msg)
+		log.Info(msg)
 
 		ybServers := utils.CsvStringToSlice(yb.Tconf.TargetEndpoints)
 		for _, ybServer := range ybServers {
@@ -1369,7 +1369,7 @@ func testAndFilterYbServers(tconfs []*TargetConf) []*TargetConf {
 		log.Infof("testing server: %s\n", spew.Sdump(GetRedactedTargetConf(tconf)))
 		conn, err := pgx.Connect(context.Background(), tconf.GetConnectionUri())
 		if err != nil {
-			utils.PrintAndLog("unable to use yb-server %q: %v", tconf.Host, err)
+			utils.PrintAndLogf("unable to use yb-server %q: %v", tconf.Host, err)
 		} else {
 			availableTargets = append(availableTargets, tconf)
 			conn.Close(context.Background())
@@ -1501,7 +1501,7 @@ func getYBSessionInitScript(tconf *TargetConf) []string {
 
 	varsFile, err := os.Open(sessionVarsPath)
 	if err != nil {
-		utils.PrintAndLog("Unable to open %s : %v. Using default values.", sessionVarsPath, err)
+		utils.PrintAndLogf("Unable to open %s : %v. Using default values.", sessionVarsPath, err)
 		log.Infof("YBSessionInitScript: %v\n", sessionVars)
 		return sessionVars
 	}
@@ -1530,7 +1530,7 @@ func checkSessionVariableSupport(tconf *TargetConf, sqlStmt string) bool {
 	if err != nil {
 		if !strings.Contains(err.Error(), "unrecognized configuration parameter") {
 			if strings.Contains(err.Error(), ERROR_MSG_PERMISSION_DENIED) {
-				utils.PrintAndLog("Superuser privileges are required on the target database user.\nAttempted operation: %q. Error message: %s", sqlStmt, err.Error())
+				utils.PrintAndLogf("Superuser privileges are required on the target database user.\nAttempted operation: %q. Error message: %s", sqlStmt, err.Error())
 				if !utils.AskPrompt("Are you sure you want to proceed?") {
 					utils.ErrExit("Aborting import.")
 				}
@@ -1900,11 +1900,11 @@ func (yb *TargetYugabyteDB) ClearMigrationState(migrationUUID uuid.UUID, exportD
 	nonEmptyTables := yb.GetNonEmptyTables(tables)
 	if len(nonEmptyTables) != 0 {
 		log.Infof("tables %v are not empty in schema %s", nonEmptyTables, schema)
-		utils.PrintAndLog("removed the current migration state from the target DB. "+
+		utils.PrintAndLogf("removed the current migration state from the target DB. "+
 			"But could not remove the schema '%s' as it still contains state of other migrations in '%s' database", schema, yb.Tconf.DBName)
 		return nil
 	}
-	utils.PrintAndLog("dropping schema %s", schema)
+	utils.PrintAndLogf("dropping schema %s", schema)
 	query := fmt.Sprintf("DROP SCHEMA %s CASCADE", schema)
 	_, err := yb.Exec(query)
 	if err != nil {

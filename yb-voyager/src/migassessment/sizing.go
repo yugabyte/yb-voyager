@@ -188,7 +188,7 @@ func SizingAssessment(targetDbVersion *ybversion.YBVersion, sourceDBType string)
 		// find closest yb version from experiment data to targetYbVersion or default
 		ybVersionIdToUse = findClosestVersion(targetDbVersion, experimentDbAvailableYbVersions, defaultYbVersionId)
 	}
-	log.Infof(fmt.Sprintf("Experiment data yb version id used for sizing assessment: %v\n", ybVersionIdToUse))
+	log.Infof("Experiment data yb version id used for sizing assessment: %v\n", ybVersionIdToUse)
 
 	colocatedLimits, err := loadColocatedLimit(experimentDB, ybVersionIdToUse)
 	if err != nil {
@@ -366,7 +366,7 @@ func pickBestRecommendation(recommendations map[int]IntermediateRecommendation) 
 		if rec.FailureReasoning == "" {
 			foundRecommendation = true
 			// Update finalRecommendation if the current recommendation has fewer cores.
-			log.Infof(fmt.Sprintf("vCPU: %v & cores required: %v gives nodes required: %v\n", rec.VCPUsPerInstance, rec.CoresNeeded, rec.NumNodes))
+			log.Infof("vCPU: %v & cores required: %v gives nodes required: %v\n", rec.VCPUsPerInstance, rec.CoresNeeded, rec.NumNodes)
 			if minCores > int(rec.CoresNeeded) {
 				finalRecommendation = rec
 				minCores = int(rec.CoresNeeded)

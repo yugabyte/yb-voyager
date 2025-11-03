@@ -275,10 +275,10 @@ func checkImportDataPermissions() {
 		}
 		if len(enabledTriggers) > 0 || len(enabledFks) > 0 {
 			if len(enabledTriggers) > 0 {
-				utils.PrintAndLog("%s [%s]", color.RedString("\nEnabled Triggers:"), strings.Join(enabledTriggers, ", "))
+				utils.PrintAndLogf("%s [%s]", color.RedString("\nEnabled Triggers:"), strings.Join(enabledTriggers, ", "))
 			}
 			if len(enabledFks) > 0 {
-				utils.PrintAndLog("%s [%s]", color.RedString("\nEnabled Foreign Keys:"), strings.Join(enabledFks, ", "))
+				utils.PrintAndLogf("%s [%s]", color.RedString("\nEnabled Foreign Keys:"), strings.Join(enabledFks, ", "))
 			}
 			fmt.Printf("\n%s", color.RedString("Disable the above triggers and FKs before importing data.\n"))
 			fkAndTriggersCheckFailed = true
@@ -340,7 +340,7 @@ func startExportDataFromTargetIfRequired() {
 		utils.ErrExit("could not fetch MigrationStatusRecord: %w", err)
 	}
 	if !msr.FallForwardEnabled && !msr.FallbackEnabled {
-		utils.PrintAndLog("No fall-forward/back enabled. Exiting.")
+		utils.PrintAndLogf("No fall-forward/back enabled. Exiting.")
 		return
 	}
 	tableListExportedFromSource := msr.TableListExportedFromSource
@@ -411,7 +411,7 @@ func startExportDataFromTargetIfRequired() {
 
 	cmdStr := "TARGET_DB_PASSWORD=*** " + strings.Join(cmd, " ")
 
-	utils.PrintAndLog("Starting export data from target with command:\n %s", color.GreenString(cmdStr))
+	utils.PrintAndLogf("Starting export data from target with command:\n %s", color.GreenString(cmdStr))
 
 	// If error had occurred while reading the config file, display the command and exit
 	if displayCmdAndExit {
@@ -559,11 +559,11 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 	excludeList, unknownExclude := extractTableList(tconf.ExcludeTableList, "exclude")
 	allUnknown := append(unknownInclude, unknownExclude...)
 	if len(allUnknown) > 0 {
-		utils.PrintAndLog("Unknown table names in the table-list: %v", allUnknown)
+		utils.PrintAndLogf("Unknown table names in the table-list: %v", allUnknown)
 		tablesPresentInTarget := lo.Filter(allTables, func(t sqlname.NameTuple, _ int) bool {
 			return t.TargetTableAvailable()
 		})
-		utils.PrintAndLog("Valid table names are: %v", lo.Map(tablesPresentInTarget, func(t sqlname.NameTuple, _ int) string {
+		utils.PrintAndLogf("Valid table names are: %v", lo.Map(tablesPresentInTarget, func(t sqlname.NameTuple, _ int) string {
 			//For the tables that are present in target, we will display the current table name (i.e. as per target table name) properly
 			return t.ForOutput()
 		}))
@@ -591,7 +591,7 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 		result = append(result, task)
 	}
 	if len(tablesNotPresentInTarget) > 0 {
-		utils.PrintAndLog("Following source tables are not present in the target database:\n%v", strings.Join(lo.Map(tablesNotPresentInTarget, func(t sqlname.NameTuple, _ int) string {
+		utils.PrintAndLogf("Following source tables are not present in the target database:\n%v", strings.Join(lo.Map(tablesNotPresentInTarget, func(t sqlname.NameTuple, _ int) string {
 			return t.ForKey()
 		}), ","))
 		utils.ErrExit("Create these tables in the target database or exclude the tables in table-list flags if you don't want to import them.")
@@ -691,9 +691,9 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 		utils.ErrExit("Failed to start monitoring health: %s", err)
 	}
 	if adaptiveParallelismStarted {
-		utils.PrintAndLog("Using 1-%d parallel jobs (adaptive)", tconf.MaxParallelism)
+		utils.PrintAndLogf("Using 1-%d parallel jobs (adaptive)", tconf.MaxParallelism)
 	} else {
-		utils.PrintAndLog("Using %d parallel jobs.", tconf.Parallelism)
+		utils.PrintAndLogf("Using %d parallel jobs.", tconf.Parallelism)
 	}
 
 	targetDBVersion := tdb.GetVersion()
@@ -704,7 +704,7 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 		utils.ErrExit("Failed to create voyager metadata schema on target DB: %s", err)
 	}
 
-	utils.PrintAndLog("\nimport of data in %q database started", tconf.DBName)
+	utils.PrintAndLogf("\nimport of data in %q database started", tconf.DBName)
 	var pendingTasks, completedTasks []*ImportFileTask
 	state := NewImportDataState(exportDir)
 	if startClean {
@@ -773,11 +773,11 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 	}
 	// Import snapshots
 	if importerRole != SOURCE_DB_IMPORTER_ROLE {
-		utils.PrintAndLog("Already imported tables: %v", importFileTasksToTableNames(completedTasks))
+		utils.PrintAndLogf("Already imported tables: %v", importFileTasksToTableNames(completedTasks))
 		if len(pendingTasks) == 0 {
-			utils.PrintAndLog("All the tables are already imported, nothing left to import\n")
+			utils.PrintAndLogf("All the tables are already imported, nothing left to import\n")
 		} else {
-			utils.PrintAndLog("Tables to import: %v", importFileTasksToTableNames(pendingTasks))
+			utils.PrintAndLogf("Tables to import: %v", importFileTasksToTableNames(pendingTasks))
 			err = prepareTableToColumns(pendingTasks) //prepare the tableToColumns map
 			if err != nil {
 				utils.ErrExit("failed to prepare table to columns: %s", err)
@@ -826,7 +826,7 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 				time.Sleep(time.Second * 2)
 			}
 		}
-		utils.PrintAndLog("snapshot data import complete\n\n")
+		utils.PrintAndLogf("snapshot data import complete\n\n")
 	}
 
 	if changeStreamingIsEnabled(importType) {
@@ -866,7 +866,7 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 			utils.ErrExit("failed to restore generated columns: %s", err)
 		}
 
-		utils.PrintAndLog("Completed streaming all relevant changes to %s", tconf.TargetDBType)
+		utils.PrintAndLogf("Completed streaming all relevant changes to %s", tconf.TargetDBType)
 		err = markCutoverProcessed(importerRole)
 		if err != nil {
 			utils.ErrExit("failed to mark cutover as processed: %s", err)
@@ -930,7 +930,7 @@ func runPKConflictModeGuardrails(state *ImportDataState, allTasks []*ImportFileT
 		return nil
 	}
 
-	utils.PrintAndLog(
+	utils.PrintAndLogf(
 		"\nTarget tables with pre-existing data: %v\n"+
 			"Note that because of the config on-primary-key-conflict as 'IGNORE', rows that have a primary key conflict "+
 			"with an existing row in the above set of tables will be silently ignored.\n",
@@ -1519,15 +1519,15 @@ func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 		})
 		if truncateTables {
 			// truncate tables only supported for import-data-to-target.
-			utils.PrintAndLog("Truncating non-empty tables on DB: %v", nonEmptyTableNames)
+			utils.PrintAndLogf("Truncating non-empty tables on DB: %v", nonEmptyTableNames)
 			err := tdb.TruncateTables(nonEmptyNts)
 			if err != nil {
 				utils.ErrExit("failed to truncate tables: %s", err)
 			}
 		} else {
-			utils.PrintAndLog("Non-Empty tables: [%s]", strings.Join(nonEmptyTableNames, ", "))
-			utils.PrintAndLog("The above list of tables on DB are not empty.")
-			utils.PrintAndLog("If you wish to truncate them, re-run the import command with --truncate-tables true")
+			utils.PrintAndLogf("Non-Empty tables: [%s]", strings.Join(nonEmptyTableNames, ", "))
+			utils.PrintAndLogf("The above list of tables on DB are not empty.")
+			utils.PrintAndLogf("If you wish to truncate them, re-run the import command with --truncate-tables true")
 			yes := utils.AskPrompt("Do you want to start afresh without truncating tables")
 			if !yes {
 				utils.ErrExit("Aborting import.")
@@ -1666,11 +1666,11 @@ func checkExportDataDoneFlag() {
 		return
 	}
 
-	utils.PrintAndLog("Waiting for snapshot data export to complete...")
+	utils.PrintAndLogf("Waiting for snapshot data export to complete...")
 	for !dataIsExported() {
 		time.Sleep(time.Second * 2)
 	}
-	utils.PrintAndLog("Snapshot data export is complete.")
+	utils.PrintAndLogf("Snapshot data export is complete.")
 }
 
 func init() {

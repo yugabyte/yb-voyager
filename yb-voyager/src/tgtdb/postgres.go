@@ -913,11 +913,11 @@ func (pg *TargetPostgreSQL) ClearMigrationState(migrationUUID uuid.UUID, exportD
 	nonEmptyTables := pg.GetNonEmptyTables(tables)
 	if len(nonEmptyTables) != 0 {
 		log.Infof("tables %v are not empty in schema %s", nonEmptyTables, schema)
-		utils.PrintAndLog("removed the current migration state from the target DB. "+
+		utils.PrintAndLogf("removed the current migration state from the target DB. "+
 			"But could not remove the schema '%s' as it still contains state of other migrations in '%s' database", schema, pg.tconf.DBName)
 		return nil
 	}
-	utils.PrintAndLog("dropping schema %s", schema)
+	utils.PrintAndLogf("dropping schema %s", schema)
 	query := fmt.Sprintf("DROP SCHEMA %s CASCADE", schema)
 	_, err := pg.Exec(query)
 	if err != nil {

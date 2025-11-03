@@ -74,7 +74,7 @@ func Wait(args ...string) {
 			WaitChannel <- -1
 			return
 		default:
-			fmt.Printf("\b" + string(chars[i%4]))
+			fmt.Print("\b" + string(chars[i%4]))
 			time.Sleep(100 * time.Millisecond)
 		}
 	}
@@ -493,7 +493,7 @@ func PrintSqlStmtIfDDL(stmt string, fileName string, noticeMsg string) {
 	if !setOrSelectStmt {
 		fmt.Printf("%s: %s\n", fileName, GetSqlStmtToPrint(stmt))
 		if noticeMsg != "" {
-			fmt.Printf(color.YellowString("%s\n", noticeMsg))
+			fmt.Print(color.YellowString("%s\n", noticeMsg))
 			log.Infof("notice for %q: %s", GetSqlStmtToPrint(stmt), noticeMsg)
 		}
 	}
@@ -571,7 +571,7 @@ func GetEnvAsInt(key string, fallback int) int {
 	}
 	valueInt, err := strconv.ParseInt(valueStr, 10, 32)
 	if err != nil {
-		PrintAndLog("Couldn't interpret env var %v=%v. Defaulting to %v", key, valueStr, fallback)
+		PrintAndLogf("Couldn't interpret env var %v=%v. Defaulting to %v", key, valueStr, fallback)
 		return fallback
 	}
 	return int(valueInt)
@@ -585,7 +585,7 @@ func GetEnvAsInt64(key string, fallback int64) int64 {
 
 	valueInt, err := strconv.ParseInt(valueStr, 10, 64)
 	if err != nil {
-		PrintAndLog("Couldn't interpret env var %v=%v. Defaulting to %v", key, valueStr, fallback)
+		PrintAndLogf("Couldn't interpret env var %v=%v. Defaulting to %v", key, valueStr, fallback)
 		return fallback
 	}
 	return valueInt

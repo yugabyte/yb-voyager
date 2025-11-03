@@ -162,10 +162,10 @@ func assessMigrationBulk() error {
 	}
 
 	for _, dbConfig := range bulkAssessmentDBConfigs {
-		utils.PrintAndLog("\nAssessing '%s' schema", dbConfig.GetSchemaIdentifier())
+		utils.PrintAndLogf("\nAssessing '%s' schema", dbConfig.GetSchemaIdentifier())
 
 		if isMigrationAssessmentDoneForConfig(dbConfig) {
-			utils.PrintAndLog("assessment report for schema %s already exists, skipping...", dbConfig.GetSchemaIdentifier())
+			utils.PrintAndLogf("assessment report for schema %s already exists, skipping...", dbConfig.GetSchemaIdentifier())
 			continue
 		}
 
@@ -403,7 +403,7 @@ func generateBulkAssessmentJsonReport() error {
 		return fmt.Errorf("failed to write bulk assessment report to file: %w", err)
 	}
 
-	utils.PrintAndLog("generated bulk assessment JSON report at: %s", reportPath)
+	utils.PrintAndLogf("generated bulk assessment JSON report at: %s", reportPath)
 	return nil
 }
 
@@ -433,7 +433,7 @@ func generateBulkAssessmentHtmlReport() error {
 	if err != nil {
 		return fmt.Errorf("failed to execute parsed template file: %w", err)
 	}
-	utils.PrintAndLog("generated bulk assessment HTML report at: %s", reportPath)
+	utils.PrintAndLogf("generated bulk assessment HTML report at: %s", reportPath)
 	return nil
 }
 
