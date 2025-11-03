@@ -207,7 +207,7 @@ func assessMigration() (err error) {
 	if err != nil {
 		return err
 	}
-	utils.PrintAndLog("Assessing for migration to target YugabyteDB version %s\n", targetDbVersion)
+	utils.PrintAndLogf("Assessing for migration to target YugabyteDB version %s\n", targetDbVersion)
 
 	assessmentDir := filepath.Join(exportDir, "assessment")
 	migassessment.AssessmentDir = assessmentDir
@@ -262,7 +262,7 @@ func assessMigration() (err error) {
 			if len(missingPerms) > 0 {
 				color.Red("\nPermissions missing in the source database for assess migration:\n")
 				output := strings.Join(missingPerms, "\n")
-				utils.PrintAndLog("%s\n\n", output)
+				utils.PrintAndLogf("%s\n\n", output)
 
 				link := "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/migrate-steps/#prepare-the-source-database"
 				fmt.Println("Check the documentation to prepare the database for migration:", color.BlueString(link))
@@ -310,7 +310,7 @@ func assessMigration() (err error) {
 
 	err = runAssessment()
 	if err != nil {
-		utils.PrintAndLog("failed to run assessment: %v", err)
+		utils.PrintAndLogf("failed to run assessment: %v", err)
 	}
 
 	err = generateAssessmentReport()
@@ -320,7 +320,7 @@ func assessMigration() (err error) {
 
 	log.Infof("number of assessment issues detected: %d\n", len(assessmentReport.Issues))
 
-	utils.PrintAndLog("Migration assessment completed successfully.")
+	utils.PrintAndLogf("Migration assessment completed successfully.")
 	completedEvent := createMigrationAssessmentCompletedEvent()
 	controlPlane.MigrationAssessmentCompleted(completedEvent)
 	saveSourceDBConfInMSR()
@@ -507,7 +507,7 @@ func gatherAssessmentMetadata() (err error) {
 	source.ExportObjectTypeList = utils.GetExportSchemaObjectList(source.DBType)
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 
-	utils.PrintAndLog("gathering metadata and stats from '%s' source database...", source.DBType)
+	utils.PrintAndLogf("gathering metadata and stats from '%s' source database...", source.DBType)
 	switch source.DBType {
 	case POSTGRESQL:
 		err := gatherAssessmentMetadataFromPG()
@@ -522,7 +522,7 @@ func gatherAssessmentMetadata() (err error) {
 	default:
 		return fmt.Errorf("source DB Type %s is not yet supported for metadata and stats gathering", source.DBType)
 	}
-	utils.PrintAndLog("gathered assessment metadata files at '%s'", assessmentMetadataDir)
+	utils.PrintAndLogf("gathered assessment metadata files at '%s'", assessmentMetadataDir)
 	return nil
 }
 
@@ -701,7 +701,7 @@ func populateMetadataCSVIntoAssessmentDB() error {
 var bytesTemplate []byte
 
 func generateAssessmentReport() (err error) {
-	utils.PrintAndLog("Generating assessment report...")
+	utils.PrintAndLogf("Generating assessment report...")
 
 	assessmentReport.VoyagerVersion = utils.YB_VOYAGER_VERSION
 	assessmentReport.TargetDBVersion = targetDbVersion
@@ -1744,7 +1744,7 @@ func generateAssessmentReportJson(reportDir string) error {
 		return fmt.Errorf("failed to write assessment report to file: %w", err)
 	}
 
-	utils.PrintAndLog("generated JSON assessment report at: %s", jsonReportFilePath)
+	utils.PrintAndLogf("generated JSON assessment report at: %s", jsonReportFilePath)
 	return nil
 }
 
@@ -1863,7 +1863,7 @@ func generateAssessmentReportHtml(reportDir string) error {
 		return fmt.Errorf("failed to render the assessment report: %w", err)
 	}
 
-	utils.PrintAndLog("generated HTML assessment report at: %s", htmlReportFilePath)
+	utils.PrintAndLogf("generated HTML assessment report at: %s", htmlReportFilePath)
 	return nil
 }
 
@@ -2006,7 +2006,7 @@ func validateAndSetTargetDbVersionFlag() error {
 	}
 
 	// error is ErrUnsupportedSeries
-	utils.PrintAndLog("%v", err)
+	utils.PrintAndLogf("%v", err)
 	if utils.AskPrompt("Do you want to continue with the latest stable YugabyteDB version:", ybversion.LatestStable.String()) {
 		targetDbVersion = ybversion.LatestStable
 		return nil

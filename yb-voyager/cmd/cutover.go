@@ -55,7 +55,7 @@ func init() {
 func InitiateCutover(dbRole string, prepareforFallback bool, useYBgRPCConnector bool) error {
 	userFacingActionMsg := fmt.Sprintf("cutover to %s", dbRole)
 	if !utils.AskPrompt(fmt.Sprintf("Are you sure you want to initiate %s? (y/n)", userFacingActionMsg)) {
-		utils.PrintAndLog("Aborting %s", userFacingActionMsg)
+		utils.PrintAndLogf("Aborting %s", userFacingActionMsg)
 		return nil
 	}
 	alreadyInitiated := false
@@ -96,7 +96,7 @@ func InitiateCutover(dbRole string, prepareforFallback bool, useYBgRPCConnector 
 	if alreadyInitiated {
 		utils.PrintAndLog(alreadyInitiatedMsg)
 	} else {
-		utils.PrintAndLog("%s initiated, wait for it to complete", userFacingActionMsg)
+		utils.PrintAndLogf("%s initiated, wait for it to complete", userFacingActionMsg)
 	}
 	return nil
 }
@@ -164,4 +164,3 @@ func ExitIfAlreadyCutover(importerOrExporterRole string) {
 		panic(fmt.Sprintf("invalid role %s", importerOrExporterRole))
 	}
 }
-

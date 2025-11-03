@@ -226,7 +226,7 @@ func generateOrGetStreamIDForYugabyteCDCClient(config *dbzm.Config) error {
 			if err != nil {
 				return fmt.Errorf("failed to generate stream id: %w", err)
 			}
-			utils.PrintAndLog("Generated new YugabyteDB CDC stream-id: %s", config.YBStreamID)
+			utils.PrintAndLogf("Generated new YugabyteDB CDC stream-id: %s", config.YBStreamID)
 		} else {
 			config.YBStreamID, err = ybCDCClient.GetStreamID()
 			if err != nil {
@@ -298,7 +298,7 @@ func prepareSSLParamsForDebezium(exportDir string) error {
 			if err != nil {
 				return fmt.Errorf("could not write private key PEM as DER: %w", err)
 			}
-			utils.PrintAndLog("Converted SSL key from PEM to DER format. File saved at %s", targetSslKeyPath)
+			utils.PrintAndLogf("Converted SSL key from PEM to DER format. File saved at %s", targetSslKeyPath)
 			source.SSLKey = targetSslKeyPath
 		}
 	case "mysql":
@@ -321,7 +321,7 @@ func prepareSSLParamsForDebezium(exportDir string) error {
 			if err != nil {
 				return fmt.Errorf("failed to write java keystore for debezium: %w", err)
 			}
-			utils.PrintAndLog("Converted SSL key, cert to java keystore. File saved at %s", keyStorePath)
+			utils.PrintAndLogf("Converted SSL key, cert to java keystore. File saved at %s", keyStorePath)
 			source.SSLKeyStore = keyStorePath
 			source.SSLKeyStorePassword = keyStorePassword
 		}
@@ -332,7 +332,7 @@ func prepareSSLParamsForDebezium(exportDir string) error {
 			if err != nil {
 				return fmt.Errorf("failed to write java truststore for debezium: %w", err)
 			}
-			utils.PrintAndLog("Converted SSL root cert to java truststore. File saved at %s", trustStorePath)
+			utils.PrintAndLogf("Converted SSL root cert to java truststore. File saved at %s", trustStorePath)
 			source.SSLTrustStore = trustStorePath
 			source.SSLTrustStorePassword = trustStorePassword
 		}
@@ -525,7 +525,7 @@ func checkAndHandleSnapshotComplete(config *dbzm.Config, status *dbzm.ExportStat
 				// In the case of the old connector, there is no such explicit operation to 'start' CDC.
 				// It used to happen implicitly, which is why we have to wait for a log message.
 				if msr.UseYBgRPCConnector {
-					utils.PrintAndLog("Waiting to initialize export of change data from target DB...")
+					utils.PrintAndLogf("Waiting to initialize export of change data from target DB...")
 					logFilePath := filepath.Join(exportDir, "logs", fmt.Sprintf("debezium-%s.log", exporterRole))
 					pollingMessage := "Beginning to poll the changes from the server"
 					err := utils.WaitForLineInLogFile(logFilePath, pollingMessage, 3*time.Minute)

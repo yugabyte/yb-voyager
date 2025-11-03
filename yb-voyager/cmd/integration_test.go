@@ -133,5 +133,5 @@ func Test_ContainerResumption(t *testing.T) {
 	if id != 9999 || name != "test_name" {
 		t.Fatalf("Expected row (1, 'test_name'), but got (%d, '%s')", id, name)
 	}
-	utils.PrintAndLog("PostgreSQL container resumed successfully with data intact")
+	utils.PrintAndLogf("PostgreSQL container resumed successfully with data intact")
 }

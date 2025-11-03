@@ -145,7 +145,7 @@ func printAndCheckFilteredObjects(allowedObjects []string, filteredObjects []str
 	}
 	if !utils.ContainsString(s.ExportObjectTypeList, "TABLE") && utils.ContainsString(s.ExportObjectTypeList, "INDEX") {
 		s.ExportObjectTypeList = lo.Filter(s.ExportObjectTypeList, func(objType string, _ int) bool { return objType != "INDEX" })
-		utils.PrintAndLog("Ignoring INDEX object type as TABLE object type is not selected\n")
+		utils.PrintAndLogf("Ignoring INDEX object type as TABLE object type is not selected\n")
 	}
 	if s.DBType == "oracle" {
 		includeObjectsIfCertainObjectIsSelected(s, "TABLE", []string{"TYPE", "SEQUENCE", "PARTITION", "INDEX"})
@@ -163,7 +163,7 @@ func includeObjectsIfCertainObjectIsSelected(s *Source, objectIncluded string, o
 		objectsToAdd, _ := lo.Difference(objectsToBeIncluded, s.ExportObjectTypeList)
 		if len(objectsToAdd) > 0 {
 			if s.StrExportObjectTypeList != "" || s.StrExcludeObjectTypeList != "" {
-				utils.PrintAndLog("Including %s object type as %s object type is selected\n", strings.Join(objectsToAdd, ", "), objectIncluded)
+				utils.PrintAndLogf("Including %s object type as %s object type is selected\n", strings.Join(objectsToAdd, ", "), objectIncluded)
 			}
 			s.ExportObjectTypeList = append(s.ExportObjectTypeList, objectsToAdd...)
 		}

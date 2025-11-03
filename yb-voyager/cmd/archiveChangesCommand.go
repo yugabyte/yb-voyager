@@ -93,7 +93,7 @@ func archiveChangesCommandFn(cmd *cobra.Command, args []string) {
 
 	wg.Wait()
 	if StopArchiverSignal {
-		utils.PrintAndLog("\n\nReceived signal to terminate due to end migration command.\nArchiving changes completed. Exiting...")
+		utils.PrintAndLogf("\n\nReceived signal to terminate due to end migration command.\nArchiving changes completed. Exiting...")
 	}
 }
 
@@ -151,7 +151,7 @@ func (d *EventSegmentDeleter) deleteSegment(segment utils.Segment) error {
 	if err != nil {
 		return fmt.Errorf("mark segment %d as deleted: %v", segment.Num, err)
 	}
-	utils.PrintAndLog("event queue segment file %s deleted", segment.FilePath)
+	utils.PrintAndLogf("event queue segment file %s deleted", segment.FilePath)
 	return nil
 }
 
@@ -259,7 +259,7 @@ func (m *EventSegmentCopier) Run() error {
 		}
 		if newImportCount != importCount {
 			importCount = newImportCount
-			utils.PrintAndLog("Importer count: %d", importCount)
+			utils.PrintAndLogf("Importer count: %d", importCount)
 		}
 
 		segmentsToArchive, err := metaDB.GetSegmentsToBeArchived(importCount)
@@ -294,7 +294,7 @@ func (m *EventSegmentCopier) Run() error {
 				if err != nil {
 					return fmt.Errorf("copy file %s : %v", segment.FilePath, err)
 				}
-				utils.PrintAndLog("event queue segment file %s archived to %s", segment.FilePath, segmentNewPath)
+				utils.PrintAndLogf("event queue segment file %s archived to %s", segment.FilePath, segmentNewPath)
 			}
 			err = metaDB.UpdateSegmentArchiveLocation(segment.Num, segmentNewPath)
 			if err != nil {

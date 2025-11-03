@@ -323,27 +323,27 @@ func validateOracleParams() {
 	} else if source.TNSAlias != "" {
 		//Priority order for Oracle: oracle-tns-alias > source-db-name > oracle-db-sid
 		// TODO: revisit voyager code wrt the priority among: sid, tnsalias, dbname
-		utils.PrintAndLog("Using TNS Alias for export.")
+		utils.PrintAndLogf("Using TNS Alias for export.")
 		source.DBName = ""
 		source.DBSid = ""
 	} else if source.DBName != "" {
-		utils.PrintAndLog("Using DB Name for export.")
+		utils.PrintAndLogf("Using DB Name for export.")
 		source.DBSid = ""
 	} else if source.DBSid != "" {
-		utils.PrintAndLog("Using SID for export.")
+		utils.PrintAndLogf("Using SID for export.")
 	}
 	if source.IsOracleCDBSetup() {
 		//Priority order for Oracle: oracle-tns-alias > source-db-name > oracle-db-sid
 		if source.CDBTNSAlias != "" {
 			//Priority order for Oracle: oracle-tns-alias > source-db-name > oracle-db-sid
-			utils.PrintAndLog("Using CDB TNS Alias for export.")
+			utils.PrintAndLogf("Using CDB TNS Alias for export.")
 			source.CDBName = ""
 			source.CDBSid = ""
 		} else if source.CDBName != "" {
-			utils.PrintAndLog("Using CDB Name for export.")
+			utils.PrintAndLogf("Using CDB Name for export.")
 			source.CDBSid = ""
 		} else if source.CDBSid != "" {
-			utils.PrintAndLog("Using CDB SID for export.")
+			utils.PrintAndLogf("Using CDB SID for export.")
 		}
 		if source.DBName == "" {
 			utils.ErrExit(`Error when using Container DB setup, specifying PDB via oracle-tns-alias or oracle-db-sid is not allowed. Please specify PDB name via source-db-name`)

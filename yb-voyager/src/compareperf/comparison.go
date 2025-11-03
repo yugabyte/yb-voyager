@@ -276,7 +276,7 @@ func (c *QueryPerformanceComparator) generateHTMLReport(exportDir string) error 
 		return fmt.Errorf("failed to execute HTML template: %w", err)
 	}
 
-	utils.PrintAndLog("HTML report generated at: %s", htmlPath)
+	utils.PrintAndLogf("HTML report generated at: %s", htmlPath)
 	return nil
 }
 
@@ -301,6 +301,6 @@ func (c *QueryPerformanceComparator) generateJSONReport(exportDir string) error 
 		return fmt.Errorf("failed to write JSON report: %w", err)
 	}
 
-	utils.PrintAndLog("JSON report generated at: %s", jsonPath)
+	utils.PrintAndLogf("JSON report generated at: %s", jsonPath)
 	return nil
 }

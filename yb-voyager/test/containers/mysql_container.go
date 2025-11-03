@@ -28,11 +28,11 @@ func (ms *MysqlContainer) Start(ctx context.Context) (err error) {
 	if ms.container != nil {
 		// already running, do nothing.
 		if ms.container.IsRunning() {
-			utils.PrintAndLog("MySQL-%s container already running", ms.DBVersion)
+			utils.PrintAndLogf("MySQL-%s container already running", ms.DBVersion)
 			return nil
 		}
 		// but if it’s stopped, so start it back up in place
-		utils.PrintAndLog("Restarting MySQL-%s container", ms.DBVersion)
+		utils.PrintAndLogf("Restarting MySQL-%s container", ms.DBVersion)
 		if err := ms.container.Start(ctx); err != nil {
 			return fmt.Errorf("failed to restart mysql container: %w", err)
 		}
@@ -99,7 +99,7 @@ func (ms *MysqlContainer) Stop(ctx context.Context) error {
 	if ms.container == nil {
 		return nil
 	} else if !ms.container.IsRunning() {
-		utils.PrintAndLog("MySQL-%s container already stopped", ms.DBVersion)
+		utils.PrintAndLogf("MySQL-%s container already stopped", ms.DBVersion)
 		return nil
 	}
 

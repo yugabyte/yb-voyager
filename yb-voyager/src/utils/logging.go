@@ -36,12 +36,20 @@ var ErrExit = func(formatString string, args ...interface{}) {
 	atexit.Exit(1)
 }
 
-func PrintAndLog(formatString string, args ...interface{}) {
+func PrintAndLogf(formatString string, args ...interface{}) {
 	log.Infof(formatString, args...)
 	if !strings.HasSuffix(formatString, "\n") {
 		formatString = formatString + "\n"
 	}
 	fmt.Printf(formatString, args...)
+}
+
+func PrintAndLog(message string) {
+	log.Info(message)
+	if !strings.HasSuffix(message, "\n") {
+		message = message + "\n"
+	}
+	fmt.Print(message)
 }
 
 func MonkeyPatchUtilsErrExitWithPanic() {

@@ -148,7 +148,7 @@ func importSchema() error {
 	if err != nil {
 		return fmt.Errorf("failed to get target db version: %w", err)
 	}
-	utils.PrintAndLog("YugabyteDB version: %s\n", importTargetDBVersion)
+	utils.PrintAndLogf("YugabyteDB version: %s\n", importTargetDBVersion)
 
 	migrationAssessmentDoneAndApplied, err := MigrationAssessmentDoneAndApplied()
 	if err != nil {
@@ -268,7 +268,7 @@ func importSchema() error {
 			refreshMViews(conn)
 		}
 	} else {
-		utils.PrintAndLog("\nNOTE: Materialized Views are not populated by default. To populate them, pass --refresh-mviews while executing `finalize-schema-post-data-import`.")
+		utils.PrintAndLogf("\nNOTE: Materialized Views are not populated by default. To populate them, pass --refresh-mviews while executing `finalize-schema-post-data-import`.")
 	}
 
 	importSchemaCompleteEvent := createImportSchemaCompletedEvent()
@@ -398,7 +398,7 @@ func installOrafceIfRequired(conn *pgx.Conn) {
 		return
 	}
 
-	utils.PrintAndLog("Installing Orafce extension in target YugabyteDB")
+	utils.PrintAndLogf("Installing Orafce extension in target YugabyteDB")
 	_, err := conn.Exec(context.Background(), "CREATE EXTENSION IF NOT EXISTS orafce")
 	if err != nil {
 		utils.ErrExit("failed to install Orafce extension: %w", err)
@@ -406,7 +406,7 @@ func installOrafceIfRequired(conn *pgx.Conn) {
 }
 
 func refreshMViews(conn *pgx.Conn) {
-	utils.PrintAndLog("\nRefreshing Materialized Views..\n\n")
+	utils.PrintAndLogf("\nRefreshing Materialized Views..\n\n")
 	var mViewNames []string
 	mViewsSqlInfoArr := getDDLStmts("MVIEW")
 	for _, eachMviewSql := range mViewsSqlInfoArr {
@@ -436,7 +436,7 @@ func refreshMViews(conn *pgx.Conn) {
 		rows.Close()
 	}
 	if len(mviewsNotRefreshed) > 0 {
-		utils.PrintAndLog("\nNOTE: Following Materialized Views might not be refreshed - %v, Please verify and refresh them manually if required!", mviewsNotRefreshed)
+		utils.PrintAndLogf("\nNOTE: Following Materialized Views might not be refreshed - %v, Please verify and refresh them manually if required!", mviewsNotRefreshed)
 	}
 }
 
@@ -474,7 +474,7 @@ func createTargetSchemas(conn *pgx.Conn) {
 	}
 	targetSchemas = utils.ToCaseInsensitiveNames(targetSchemas)
 
-	utils.PrintAndLog("schemas to be present in target database %q: %v\n", tconf.DBName, targetSchemas)
+	utils.PrintAndLogf("schemas to be present in target database %q: %v\n", tconf.DBName, targetSchemas)
 	for _, targetSchema := range targetSchemas {
 		//check if target schema exists or not
 		schemaExists := checkIfTargetSchemaExists(conn, targetSchema)
@@ -487,13 +487,13 @@ func createTargetSchemas(conn *pgx.Conn) {
 					continue
 				}
 
-				utils.PrintAndLog("dropping schema '%s' in target database", targetSchema)
+				utils.PrintAndLogf("dropping schema '%s' in target database", targetSchema)
 				_, err := conn.Exec(context.Background(), dropSchemaQuery)
 				if err != nil {
 					utils.ErrExit("Failed to drop schema: %q: %s", targetSchema, err)
 				}
 			} else {
-				utils.PrintAndLog("schema '%s' already present in target database, continuing with it..\n", targetSchema)
+				utils.PrintAndLogf("schema '%s' already present in target database, continuing with it..\n", targetSchema)
 			}
 		}
 	}
@@ -504,7 +504,7 @@ func createTargetSchemas(conn *pgx.Conn) {
 		/* --target-db-schema(or target.Schema) flag valid for Oracle & MySQL
 		only create target.Schema, other required schemas are created via .sql files */
 		if !schemaExists {
-			utils.PrintAndLog("creating schema '%s' in target database...", tconf.Schema)
+			utils.PrintAndLogf("creating schema '%s' in target database...", tconf.Schema)
 			_, err := conn.Exec(context.Background(), createSchemaQuery)
 			if err != nil {
 				utils.ErrExit("Failed to create schema in the target DB: %q: %s", tconf.Schema, err)
