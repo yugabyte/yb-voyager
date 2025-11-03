@@ -1,10 +1,28 @@
 {
-    "control_plane_type": "",
-    "error": "",
-    "matched_queries": 0,
-    "payload_version": "1.0",
-    "query_metrics": null,
-    "source_only_queries": 84,
-    "target_only_queries": 99,
-    "total_queries": 183
-}
+    "collected_at": "2025-11-03 16:23:38.079906",
+    "migration_phase": "compare-performance",
+    "migration_type": "",
+    "migration_uuid": "4108c064-55c1-41e7-ae88-43eed2eb0788",
+    "phase_payload": {
+      "control_plane_type": "",
+      "error": "",
+      "matched_queries": 0,
+      "payload_version": 1,
+      "query_metrics": null,
+      "source_only_queries": 84,
+      "target_only_queries": 99,
+      "total_queries": 183
+    },
+    "phase_start_time": "2025-11-03 16:23:37.503733",
+    "source_db_details": "",
+    "status": "COMPLETE",
+    "target_db_details": {
+      "db_system_identifier": "3ab1df03-153e-4d76-b84a-6623da2cd352",
+      "db_version": "15.12-YB-2025.1.0.1-b0",
+      "host": "",
+      "node_count": 1,
+      "total_cores": 4
+    },
+    "time_taken_sec": 1,
+    "yb_voyager_version": "main"
+  }

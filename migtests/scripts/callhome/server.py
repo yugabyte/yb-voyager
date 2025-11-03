@@ -19,6 +19,21 @@ def api_response(status_code, message):
     resp.status_code = status_code
     return resp
 
+def clean_payload(payload):
+    # If the payload is a string, check if it contains JSON
+    if isinstance(payload, str):
+        try:
+            # Attempt to parse the string as JSON
+            parsed = json.loads(payload)
+            return clean_payload(parsed)
+        except json.JSONDecodeError:
+            return payload
+    # If the payload is a dictionary, clean each key-value pair
+    elif isinstance(payload, dict):
+        return {k: clean_payload(v) for k, v in payload.items()}
+    else:
+        return payload
+
 # Endpoint to retrieve stored payload for migration phase
 @application.route("/get_payload/<phase>", methods=["GET"])
 def get_payload(phase):
@@ -36,7 +51,7 @@ def diagnostics():
 
         try:
             # Parse nested payload
-            payload = json.loads(data['phase_payload'])
+            payload = clean_payload(data)
             if data['migration_phase'] in callhome_payload and data['migration_phase'] == "import-schema":
                 # Avoid overwriting existing import-schema payload as finalize-schema command has the same migration phase as import-schema
                 data['migration_phase'] = "finalize-schema"

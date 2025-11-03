@@ -1,41 +1,84 @@
 {
-    "payload_version": "1.1",
-    "target_db_version": "2025.1.0.0",
-    "issues": [
-        {
-            "category": "migration_caveats",
-            "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_HSTORE",
-            "name": "Unsupported datatype for Live migration with fall-forward/fallback - hstore Datatype",
-            "impact": "LEVEL_1",
-            "object_type": "TABLE",
-            "object_name": "XXXXX"
-        },
-        {
-            "category": "migration_caveats",
-            "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_TSVECTOR",
-            "name": "Unsupported datatype for Live migration with fall-forward/fallback - tsvector Datatype",
-            "impact": "LEVEL_1",
-            "object_type": "TABLE",
-            "object_name": "XXXXX"
-          },
-          {
-            "category": "migration_caveats",
-            "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_TSVECTOR",
-            "name": "Unsupported datatype for Live migration with fall-forward/fallback - tsvector Datatype",
-            "impact": "LEVEL_1",
-            "object_type": "TABLE",
-            "object_name": "XXXXX"
-          },
-          {
-            "category": "migration_caveats",
-            "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_ARRAY_OF_ENUM",
-            "name": "Unsupported datatype for Live migration with fall-forward/fallback - Array of Enum Datatype",
-            "impact": "LEVEL_1",
-            "object_type": "TABLE",
-            "object_name": "XXXXX"
-          }
+  "collected_at": "2025-11-03 16:15:46.728133",
+  "migration_phase": "analyze-schema",
+  "migration_type": "",
+  "migration_uuid": "d6886a33-a194-4401-b30d-49e5a70feb90",
+  "phase_payload": {
+    "control_plane_type": "",
+    "database_objects": [
+      {
+        "InvalidCount": 0,
+        "ObjectNames": "",
+        "ObjectType": "SCHEMA",
+        "TotalCount": 1
+      },
+      {
+        "InvalidCount": 0,
+        "ObjectNames": "",
+        "ObjectType": "EXTENSION",
+        "TotalCount": 2
+      },
+      {
+        "InvalidCount": 0,
+        "ObjectNames": "",
+        "ObjectType": "TYPE",
+        "TotalCount": 1
+      },
+      {
+        "InvalidCount": 0,
+        "ObjectNames": "",
+        "ObjectType": "SEQUENCE",
+        "TotalCount": 8
+      },
+      {
+        "InvalidCount": 3,
+        "ObjectNames": "",
+        "ObjectType": "TABLE",
+        "TotalCount": 10
+      }
     ],
-    "database_objects": "[{\"ObjectType\":\"EXTENSION\",\"TotalCount\":2,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"SCHEMA\",\"TotalCount\":1,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"SEQUENCE\",\"TotalCount\":8,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"TABLE\",\"TotalCount\":10,\"InvalidCount\":3,\"ObjectNames\":\"\"},{\"ObjectType\":\"TYPE\",\"TotalCount\":1,\"InvalidCount\":0,\"ObjectNames\":\"\"}]",
     "error": "",
-    "control_plane_type": ""
+    "issues": [
+      {
+        "category": "migration_caveats",
+        "impact": "LEVEL_1",
+        "name": "Unsupported datatype for Live migration with fall-forward/fallback - Array of Enum Datatype",
+        "object_name": "XXXXX",
+        "object_type": "TABLE",
+        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_ARRAY_OF_ENUM"
+      },
+      {
+        "category": "migration_caveats",
+        "impact": "LEVEL_1",
+        "name": "Unsupported datatype for Live migration with fall-forward/fallback - hstore Datatype",
+        "object_name": "XXXXX",
+        "object_type": "TABLE",
+        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_HSTORE"
+      },
+      {
+        "category": "migration_caveats",
+        "impact": "LEVEL_1",
+        "name": "Unsupported datatype for Live migration with fall-forward/fallback - tsvector Datatype",
+        "object_name": "XXXXX",
+        "object_type": "TABLE",
+        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_TSVECTOR"
+      },
+      {
+        "category": "migration_caveats",
+        "impact": "LEVEL_1",
+        "name": "Unsupported datatype for Live migration with fall-forward/fallback - tsvector Datatype",
+        "object_name": "XXXXX",
+        "object_type": "TABLE",
+        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_TSVECTOR"
+      }
+    ],
+    "payload_version": 1.1,
+    "target_db_version": "2025.1.1.1"
+  },
+  "phase_start_time": "2025-11-03 16:15:46.692005",
+  "source_db_details": "",
+  "status": "COMPLETE",
+  "target_db_details": "",
+  "time_taken_sec": 1,
+  "yb_voyager_version": "main"
 }
