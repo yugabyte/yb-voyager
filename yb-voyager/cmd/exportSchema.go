@@ -198,26 +198,15 @@ func exportSchema(cmd *cobra.Command) error {
 	//We can probably use the mix of both regex parser and file parser in the tranformer based on source tpyes
 	//and for that we can move our logic from the cmd package to the queryparser package
 	//Skipping that for now
-	tableTransformer, err := applyTableFileTransformations()
+	tableTransformer, err := applyTableFileTransformations(modifiedTables, colocatedTables, tableBackupPath)
 	if err != nil {
 		return fmt.Errorf("failed to apply table file transformations: %w", err)
 	}
 
-	//storing the colocation recommendation related information in the transformer
-	//since we are already passing the transformer and in future whenever we merge it we will rely on the transformer for any such information
-	tableTransformer.ShardedTables = modifiedTables
-	tableTransformer.ColocatedTables = colocatedTables
-	if tableBackupPath != "" {
-		//In cases if the colocation recommendation is applied then only we update the original backup file path to be the colocation one
-		tableTransformer.BackupFilePath = tableBackupPath
+	mviewTransformer, err := applyMviewFileTransformations(modifiedMviews, colocatedMviews, mviewBackupPath)
+	if err != nil {
+		return fmt.Errorf("failed to apply mview file transformations: %w", err)
 	}
-	tableTransformer.ColocationRecommendationsApplied = assessmentRecommendationsApplied
-
-	mviewTransformer := sqltransformer.NewMviewFileTransformer()
-	mviewTransformer.ShardedMviews = modifiedMviews
-	mviewTransformer.ColocatedMviews = colocatedMviews
-	mviewTransformer.BackupFilePath = mviewBackupPath
-	mviewTransformer.ColocationRecommendationsApplied = assessmentRecommendationsApplied
 
 	if tableTransformer.MergedConstraints {
 		utils.PrintAndLogfInfo("\nMerged Primary Key and Check constraint definitions into CREATE TABLE statements of the exported tables for improving the import schema performance.")
@@ -720,11 +709,21 @@ func clearAssessmentRecommendationsApplied() {
 	}
 }
 
-func applyTableFileTransformations() (*sqltransformer.TableFileTransformer, error) {
+func applyTableFileTransformations(modifiedTables []string, colocatedTables []string, tableBackupPath string) (*sqltransformer.TableFileTransformer, error) {
 
 	skipMergeConstraints := utils.GetEnvAsBool("YB_VOYAGER_SKIP_MERGE_CONSTRAINTS_TRANSFORMATIONS", false)
 
 	tableTransformer := sqltransformer.NewTableFileTransformer(skipMergeConstraints, source.DBType, bool(skipPerfOptimizations))
+
+	//storing the colocation recommendation related information in the transformer
+	//since we are already passing the transformer and in future whenever we merge it we will rely on the transformer for any such information
+	tableTransformer.ShardedTables = modifiedTables
+	tableTransformer.ColocatedTables = colocatedTables
+	if tableBackupPath != "" {
+		//In cases if the colocation recommendation is applied then only we update the original backup file path to be the colocation one
+		tableTransformer.BackupFilePath = tableBackupPath
+	}
+	tableTransformer.ColocationRecommendationsApplied = assessmentRecommendationsApplied
 
 	tableFilePath := utils.GetObjectFilePath(schemaDir, TABLE)
 	if !utils.FileOrFolderExists(tableFilePath) {
@@ -744,6 +743,14 @@ func applyTableFileTransformations() (*sqltransformer.TableFileTransformer, erro
 	return tableTransformer, nil
 }
 
+func applyMviewFileTransformations(modifiedMviews []string, colocatedMviews []string, mviewBackupPath string) (*sqltransformer.MviewFileTransformer, error) {
+	mviewTransformer := sqltransformer.NewMviewFileTransformer()
+	mviewTransformer.ShardedMviews = modifiedMviews
+	mviewTransformer.ColocatedMviews = colocatedMviews
+	mviewTransformer.BackupFilePath = mviewBackupPath
+	mviewTransformer.ColocationRecommendationsApplied = assessmentRecommendationsApplied
+	return mviewTransformer, nil
+}
 func applyIndexFileTransformations() (*sqltransformer.IndexFileTransformer, error) {
 
 	if source.DBType != POSTGRESQL {
