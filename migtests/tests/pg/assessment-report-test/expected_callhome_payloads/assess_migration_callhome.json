@@ -45,6 +45,10 @@
       "CREATE EXTENSION IF NOT EXISTS lo SCHEMA schema_d7108fd530c9b1c2",
       "CREATE EXTENSION IF NOT EXISTS pg_stat_statements SCHEMA schema_d7108fd530c9b1c2",
       "CREATE EXTENSION IF NOT EXISTS pgcrypto SCHEMA schema_d7108fd530c9b1c2",
+      "CREATE EXTENSION IF NOT EXISTS pglogical SCHEMA schema_68ec2ae613c42996",
+      "CREATE EXTENSION IF NOT EXISTS plperl SCHEMA schema_ef0e5bb64d3991e2",
+      "CREATE EXTENSION IF NOT EXISTS plpython3u SCHEMA schema_ef0e5bb64d3991e2",
+      "CREATE EXTENSION IF NOT EXISTS postgis SCHEMA schema_d7108fd530c9b1c2",
       "SET statement_timeout TO const_8cdf78e3c03b90f9",
       "SET lock_timeout TO const_8cdf78e3c03b90f9",
       "SET idle_in_transaction_session_timeout TO const_8cdf78e3c03b90f9",
@@ -1167,6 +1171,46 @@
         "type": "XML_FUNCTIONS"
       },
       {
+        "category": "unsupported_features",
+        "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_3",
+        "name": "Unsupported Extension - pglogical",
+        "object_name": "",
+        "object_type": "EXTENSION",
+        "sql_statement": "CREATE EXTENSION IF NOT EXISTS pglogical SCHEMA schema_68ec2ae613c42996",
+        "type": "UNSUPPORTED_EXTENSION"
+      },
+      {
+        "category": "unsupported_features",
+        "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_3",
+        "name": "Unsupported Extension - plperl",
+        "object_name": "",
+        "object_type": "EXTENSION",
+        "sql_statement": "CREATE EXTENSION IF NOT EXISTS plperl SCHEMA schema_ef0e5bb64d3991e2",
+        "type": "UNSUPPORTED_EXTENSION"
+      },
+      {
+        "category": "unsupported_features",
+        "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_3",
+        "name": "Unsupported Extension - plpython3u",
+        "object_name": "",
+        "object_type": "EXTENSION",
+        "sql_statement": "CREATE EXTENSION IF NOT EXISTS plpython3u SCHEMA schema_ef0e5bb64d3991e2",
+        "type": "UNSUPPORTED_EXTENSION"
+      },
+      {
+        "category": "unsupported_features",
+        "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_3",
+        "name": "Unsupported Extension - postgis",
+        "object_name": "",
+        "object_type": "EXTENSION",
+        "sql_statement": "CREATE EXTENSION IF NOT EXISTS postgis SCHEMA schema_d7108fd530c9b1c2",
+        "type": "UNSUPPORTED_EXTENSION"
+      },
+      {
         "category": "unsupported_plpgsql_objects",
         "category_description": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
         "impact": "LEVEL_2",
@@ -2041,6 +2085,13 @@
         "writes_per_second": 0
       },
       {
+        "object_name": "index_60a555ed746e4195",
+        "reads_per_second": 0,
+        "schema_name": "schema_d7108fd530c9b1c2",
+        "size_in_bytes": 212992,
+        "writes_per_second": 0
+      },
+      {
         "object_name": "index_61805f1235a3c4dd",
         "reads_per_second": 0,
         "schema_name": "schema_d7108fd530c9b1c2",
@@ -2225,7 +2276,7 @@
     ],
     "iops_interval": 0,
     "migration_complexity": "HIGH",
-    "migration_complexity_explanation": "Found 32 Level 2 issue(s) and 18 Level 3 issue(s), resulting in HIGH migration complexity",
+    "migration_complexity_explanation": "Found 32 Level 2 issue(s) and 22 Level 3 issue(s), resulting in HIGH migration complexity",
     "payload_version": 1.9,
     "schema_summary": {
       "DatabaseObjects": [
@@ -2242,10 +2293,10 @@
           "TotalCount": 2
         },
         {
-          "InvalidCount": 0,
+          "InvalidCount": 4,
           "ObjectNames": "",
           "ObjectType": "EXTENSION",
-          "TotalCount": 5
+          "TotalCount": 9
         },
         {
           "InvalidCount": 0,
@@ -2332,7 +2383,7 @@
       "SchemaNames": null
     },
     "sizing": {
-      "colocated_reasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 139 objects (96 tables/materialized views and 43 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as sharded. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
+      "colocated_reasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 140 objects (97 tables/materialized views and 43 explicit/implicit indexes) with 6.73 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as sharded. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
       "colocated_tables": [],
       "estimated_time_in_min_for_import": 1,
       "estimated_time_in_min_for_import_without_redundant_indexes": 1,
@@ -2347,6 +2398,7 @@
         "schema_d7108fd530c9b1c2.table_17f74a26372ced11",
         "schema_d7108fd530c9b1c2.table_28d75042790195db",
         "schema_d7108fd530c9b1c2.table_c6570e4a0d899eb5",
+        "schema_d7108fd530c9b1c2.table_db8b73b0ff6d5ca4",
         "schema_d7108fd530c9b1c2.table_25879988a02f2711",
         "schema_d7108fd530c9b1c2.table_a84d78d2ae709c44",
         "schema_d7108fd530c9b1c2.table_05178023b253f63f",
@@ -2587,6 +2639,13 @@
         "reads_per_second": 0,
         "schema_name": "schema_d7108fd530c9b1c2",
         "size_in_bytes": 8192,
+        "writes_per_second": 0
+      },
+      {
+        "object_name": "table_db8b73b0ff6d5ca4",
+        "reads_per_second": 0,
+        "schema_name": "schema_d7108fd530c9b1c2",
+        "size_in_bytes": 7061504,
         "writes_per_second": 0
       },
       {
@@ -3130,7 +3189,7 @@
       "schema_a1717e859fc83d39",
       "schema_ae9b85f2c9255e63"
     ],
-    "total_db_size_bytes": 3334144
+    "total_db_size_bytes": 10854400
   },
   "status": "COMPLETE",
   "target_db_details": "",
