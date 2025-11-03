@@ -25,7 +25,6 @@ import (
 	"gotest.tools/assert"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
@@ -757,9 +756,6 @@ func TestYugabyteFilterUnsupportedTables_BasicScenarios(t *testing.T) {
 		regularArrayTableTuple,
 	}
 
-	// Set DoNotPrompt to avoid interactive prompts in tests
-	utils.DoNotPrompt = true
-
 	ybDB := testYugabyteDBSource.DB().(*YugabyteDB)
 
 	// ========== Test 1: Logical Connector (arrays of enums are supported) ==========
@@ -892,9 +888,6 @@ func TestYugabyteFilterUnsupportedTables_AdvancedScenarios(t *testing.T) {
 		regularArrayTableTuple,
 	}
 
-	// Set DoNotPrompt to avoid interactive prompts in tests
-	utils.DoNotPrompt = true
-
 	ybDB := testYugabyteDBSource.DB().(*YugabyteDB)
 
 	// ========== Subtest 1: Logical Connector ==========
@@ -987,13 +980,8 @@ func TestYugabyteFilterUnsupportedTables_CornerCases(t *testing.T) {
 		udtInt4ArrayTableTuple,
 	}
 
-	// Set DoNotPrompt to avoid interactive prompts in tests
-	utils.DoNotPrompt = true
-
-	ybDB := testYugabyteDBSource.DB().(*YugabyteDB)
-
 	// Connector type is irrelevant here
-	filteredTables, unsupportedTables := ybDB.FilterUnsupportedTables(tableList, true)
+	filteredTables, unsupportedTables := testYugabyteDBSource.DB().FilterUnsupportedTables(tableList, true)
 
 	expectedUnsupported := []sqlname.NameTuple{
 		udtTextArrayTableTuple,
