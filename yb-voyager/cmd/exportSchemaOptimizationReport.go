@@ -529,7 +529,7 @@ func generatePerformanceOptimizationReport(indexTransformer *sqltransformer.Inde
 
 		utils.PrintAndLogfInfo("\nSchema optimization changes\n\n")
 		utils.PrintAndLog(schemaOptimizationReport.Summary())
-		utils.PrintAndLog("Refer to the detailed report for more information: %s\n", utils.Path.Sprintf(htmlReportFilePath))
+		utils.PrintAndLogf("Refer to the detailed report for more information: %s\n", utils.Path.Sprintf(htmlReportFilePath))
 	}
 
 	return nil
