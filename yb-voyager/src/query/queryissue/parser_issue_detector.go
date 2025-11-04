@@ -305,11 +305,10 @@ func (p *ParserIssueDetector) getOrCreateTableMetadata(tableName string) *TableM
 		schemaName = parts[0]
 		tableNameOnly = parts[1]
 	}
-	usageCategory := p.getUsageCategoryForTable(schemaName, tableNameOnly)
 	tm := &TableMetadata{
 		TableName:   tableNameOnly,
 		SchemaName:  schemaName,
-		Usage:       usageCategory,
+		Usage:       ObjectUsageCategoryUnused, //start with  unused and populating it in FinalizeColumnMetadata->buildUsageCategoryForAllTables()
 		Columns:     make(map[string]*ColumnMetadata),
 		Constraints: make([]ConstraintMetadata, 0),
 		Indexes:     make([]*queryparser.Index, 0),
@@ -553,6 +552,35 @@ func (p *ParserIssueDetector) FinalizeColumnMetadata() {
 
 	// Build partition hierarchies
 	p.buildPartitionHierarchies()
+
+	p.buildUsageCategoryForAllTables()
+}
+
+func (p *ParserIssueDetector) buildUsageCategoryForAllTables() {
+	for _, tm := range p.tablesMetadata {
+		tm.Usage = p.getUsageCategoryForTable(tm)
+	}
+}
+
+func (p *ParserIssueDetector) getUsageCategoryForTable(tm *TableMetadata) string {
+	objName := sqlname.NewObjectName(constants.POSTGRESQL, "", tm.SchemaName, tm.TableName)
+	qualifiedObjName := objName.Qualified.Unquoted
+	stat, ok := p.objectUsages[qualifiedObjName]
+	if !ok {
+		log.Infof("No object usage stats found for table: %s", qualifiedObjName)
+		return ObjectUsageCategoryUnused
+	}
+	usageCategory := stat.Usage
+
+	if !tm.IsPartitioned() {
+		return usageCategory
+	}
+
+	for _, partition := range tm.Partitions {
+		partitionUsageCategory := p.getUsageCategoryForTable(partition)
+		usageCategory = GetCombinedUsageCategory(usageCategory, partitionUsageCategory)
+	}
+	return usageCategory
 }
 
 // buildPartitionHierarchies builds the direct child relationships for all tables
@@ -574,7 +602,6 @@ func (p *ParserIssueDetector) buildPartitionHierarchies() {
 				// TODO: Use sqlname for proper naming handling for qualified and unqualified names.
 				if parentTM.TableName == tm.PartitionedFrom || parentTM.GetObjectName() == tm.PartitionedFrom {
 					parentTM.Partitions = append(parentTM.Partitions, tm)
-					parentTM.Usage = GetCombinedUsageCategory(parentTM.Usage, tm.Usage) //combined usage of all the partitions
 					break
 				}
 			}
@@ -1114,19 +1141,6 @@ func (p *ParserIssueDetector) DetectMissingForeignKeyIndexes() []QueryIssue {
 	}
 
 	return issues
-}
-
-func (p *ParserIssueDetector) getUsageCategoryForTable(schemaName, tableName string) string {
-	objName := sqlname.NewObjectName(constants.POSTGRESQL, "", schemaName, tableName)
-	qualifiedObjName := objName.Qualified.Unquoted
-	stat, ok := p.objectUsages[qualifiedObjName]
-	if !ok {
-		log.Infof("No object usage stats found for table: %s", qualifiedObjName)
-		return ObjectUsageCategoryUnused
-	}
-	usageCategory := stat.Usage
-
-	return usageCategory
 }
 
 // For indexes we don't have any writes related information, so we get a writes usage for the table associated with that index
