@@ -175,18 +175,15 @@ def fetch_enum_labels(cursor: Any, table_name: str, column_name: str, schema_nam
 
 def get_table_list(cursor: Any, schema_name: Optional[str] = None, exclude_table_list: Optional[List[str]] = None) -> List[str]:
     """List base tables in a schema (or all schemas), excluding given names."""
-    if schema_name:
-        cursor.execute("""
+    where_prefix, where_params = _schema_filter(schema_name)
+    cursor.execute(
+        f"""
             SELECT table_name 
             FROM information_schema.tables 
-            WHERE table_schema = %s AND table_type = 'BASE TABLE'
-        """, (schema_name,))
-    else:
-        cursor.execute("""
-            SELECT table_name 
-            FROM information_schema.tables 
-            WHERE table_type = 'BASE TABLE'
-        """)
+            WHERE {where_prefix} table_type = 'BASE TABLE'
+        """,
+        where_params,
+    )
 
     # Always return a flat list of table names
     tables = [row[0] for row in cursor.fetchall()]
