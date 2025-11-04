@@ -32,8 +32,8 @@ import (
 var prepareForFallBack utils.BoolStr
 var useYBgRPCConnector utils.BoolStr
 
-// validateYBVersionForLogicalConnector checks if the YugabyteDB version is greater than MIN_SUPPORTED_LOGICAL_CONNECTOR_VERSION
-// Logical connector is only supported in YugabyteDB versions greater than MIN_SUPPORTED_LOGICAL_CONNECTOR_VERSION
+// validateYBVersionForLogicalConnector checks if the YugabyteDB version is greater than minSupportedLogicalConnectorVersion¯
+// Logical connector is only supported in YugabyteDB versions greater than minSupportedLogicalConnectorVersion
 func validateYBVersionForLogicalConnector(tconf *tgtdb.TargetConf) error {
 	if tconf == nil {
 		return fmt.Errorf("target database configuration is not available")
@@ -67,7 +67,7 @@ func validateYBVersionForLogicalConnector(tconf *tgtdb.TargetConf) error {
 
 	// Check if version is greater or equal to 2024.1.1.0 or 2.25.0.0
 	if !currentVersion.GreaterThanOrEqual(minSupportedLogicalConnectorVersion) {
-		return fmt.Errorf("YugabyteDB logical replication connector is only supported in versions greater than or equal to %s. Current version: %s. Please use --use-yb-grpc-connector=true", MIN_SUPPORTED_LOGICAL_CONNECTOR_VERSION, ybVersion)
+		return fmt.Errorf("YugabyteDB logical replication connector is only supported in versions greater than or equal to %s. Current version: %s. Please use --use-yb-grpc-connector=true", minSupportedLogicalConnectorVersion.String(), ybVersion)
 	}
 
 	return nil
