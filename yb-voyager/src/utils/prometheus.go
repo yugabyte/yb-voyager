@@ -30,9 +30,10 @@ func StartPrometheusMetricsServer(port string) error {
 	go func() {
 		addr := ":" + port
 		log.Infof("Starting Prometheus metrics server on port %s", port)
-		log.Infof("Metrics available at http://localhost%s/metrics", addr)
+		log.Infof("Metrics available at http://%s/metrics", addr)
 
 		if err := http.ListenAndServe(addr, nil); err != nil {
+			// don't exit the program if the server fails to start
 			log.Errorf("Failed to start Prometheus metrics server: %v", err)
 		}
 	}()
