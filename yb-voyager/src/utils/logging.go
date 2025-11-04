@@ -55,7 +55,7 @@ var (
 	WarningColor = color.New(color.FgYellow)
 	ErrorColor   = color.New(color.FgRed)
 	Path         = color.New(color.Underline)
-	TitleColor   = color.New(color.FgMagenta)
+	TitleColor   = color.New(color.Bold)
 )
 
 // PrintAndLogFormatted prints a formatted message to console with specified log level and also logs it
