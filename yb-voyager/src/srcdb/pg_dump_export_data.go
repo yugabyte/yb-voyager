@@ -75,7 +75,7 @@ func pgdumpExportDataOffline(ctx context.Context, source *Source, connectionUri 
 		quitChan <- true
 		runtime.Goexit()
 	}
-	utils.PrintAndLog("Data export started.")
+	utils.PrintAndLogf("Data export started.")
 	exportDataStart <- true
 
 	// Parsing the main toc.dat file in parallel.

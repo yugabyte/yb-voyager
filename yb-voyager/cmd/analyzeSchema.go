@@ -1197,7 +1197,7 @@ func checkConversions(sqlInfoArr []sqlInfo, filePath string) {
 
 func analyzeSchema() {
 
-	utils.PrintAndLog("Analyzing schema for target YugabyteDB version %s\n", targetDbVersion)
+	utils.PrintAndLogf("Analyzing schema for target YugabyteDB version %s\n", targetDbVersion)
 	schemaAnalysisStartedEvent := createSchemaAnalysisStartedEvent()
 	controlPlane.SchemaAnalysisStarted(&schemaAnalysisStartedEvent)
 

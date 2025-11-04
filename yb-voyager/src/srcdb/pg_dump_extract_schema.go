@@ -89,8 +89,8 @@ SET transaction_timeout = 0;
 --
 
 ALTER TABLE ONLY public.foreign_test
-    ADD CONSTRAINT foreign_test_pid_fkey FOREIGN KEY (pid) REFERENCES public.primary_test(id);
 
+	ADD CONSTRAINT foreign_test_pid_fkey FOREIGN KEY (pid) REFERENCES public.primary_test(id);
 
 --
 -- PostgreSQL database dump complete
@@ -105,12 +105,13 @@ so we add the unrestrict with the last sql statement.
 and it comes in table.sql like this:
 
 ALTER TABLE ONLY public.foreign_test
-    ADD CONSTRAINT foreign_test_pid_fkey FOREIGN KEY (pid) REFERENCES public.primary_test(id);
+
+	ADD CONSTRAINT foreign_test_pid_fkey FOREIGN KEY (pid) REFERENCES public.primary_test(id);
+
 -- PostgreSQL database dump complete
 \unrestrict QMyXdT2hNspUPgIayBgPRbKUlNirJvdnQcHsdygouy4b3L7lucGqm9HWObJ8UNe
 
 so the fix is to stop the reading if we reach the comment line -- PostgreSQL database dump complete
-
 */
 func readSchemaFile(path string) []string {
 	file, err := os.Open(path)
@@ -238,7 +239,7 @@ func parseSchemaFile(exportDir string, schemaDir string, exportObjectTypesList [
 		// TODO: add it to the analyze-schema report in case of postgresql
 		msg := fmt.Sprintf("\nIMPORTANT NOTE: Please, review and manually import the DDL statements from the %q\n", filePath)
 		color.Red(msg)
-		log.Infof(msg)
+		log.Info(msg)
 		os.WriteFile(filePath, []byte(setSessionVariables.String()+uncategorizedSqls.String()), 0644)
 		return 1
 	}
@@ -270,7 +271,7 @@ func shouldSkipLine(line string) bool {
 }
 
 func isCompleteLine(line string) bool {
-	return strings.EqualFold(strings.TrimSpace(line),"-- PostgreSQL database dump complete")
+	return strings.EqualFold(strings.TrimSpace(line), "-- PostgreSQL database dump complete")
 }
 
 func isDelimiterLine(line string) bool {

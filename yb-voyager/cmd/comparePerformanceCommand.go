@@ -67,7 +67,7 @@ Prerequisites:
 }
 
 func comparePerformanceCommandFn(cmd *cobra.Command, args []string) {
-	utils.PrintAndLog("starting performance comparison...")
+	utils.PrintAndLogf("starting performance comparison...")
 
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
@@ -101,7 +101,7 @@ func comparePerformanceCommandFn(cmd *cobra.Command, args []string) {
 	if err != nil {
 		utils.ErrExit("Failed to perform performance comparison: %v", err)
 	}
-	utils.PrintAndLog("generating performance reports...\n")
+	utils.PrintAndLogf("generating performance reports...\n")
 	err = comparator.GenerateReport(exportDir)
 	if err != nil {
 		utils.ErrExit("Failed to generate performance reports: %v", err)
@@ -116,7 +116,7 @@ func comparePerformanceCommandFn(cmd *cobra.Command, args []string) {
 	// Send successful callhome payload
 	packAndSendComparePerformancePayload("COMPLETE", nil, comparator)
 
-	utils.PrintAndLog("Performance comparison completed successfully!")
+	utils.PrintAndLogf("Performance comparison completed successfully!")
 }
 
 func validateComparePerfPrerequisites() {
@@ -126,7 +126,7 @@ func validateComparePerfPrerequisites() {
 		utils.ErrExit("Failed to handle start-clean: %v", err)
 	}
 
-	utils.PrintAndLog("validating the setup for performance comparison...")
+	utils.PrintAndLogf("validating the setup for performance comparison...")
 
 	// Check 1: assess-migration must have been run
 	hasAssessment, err := IsMigrationAssessmentDoneDirectly(metaDB)
@@ -245,9 +245,9 @@ func handleStartCleanForComparePerf() error {
 		}
 
 		if bool(startClean) {
-			utils.PrintAndLog("cleaned up existing performance comparison reports")
+			utils.PrintAndLogf("cleaned up existing performance comparison reports")
 		} else {
-			utils.PrintAndLog("cleaned up leftover performance comparison files from previous incomplete run")
+			utils.PrintAndLogf("cleaned up leftover performance comparison files from previous incomplete run")
 		}
 	} else if reportsExist {
 		return fmt.Errorf("performance comparison reports already exist. Use --start-clean flag to remove them and re-run the command")
