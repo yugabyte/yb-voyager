@@ -32,8 +32,6 @@ import (
 var prepareForFallBack utils.BoolStr
 var useYBgRPCConnector utils.BoolStr
 
-const MIN_SUPPORTED_LOGICAL_CONNECTOR_VERSION = "2024.1.1.0"
-
 // validateYBVersionForLogicalConnector checks if the YugabyteDB version is greater than MIN_SUPPORTED_LOGICAL_CONNECTOR_VERSION
 // Logical connector is only supported in YugabyteDB versions greater than MIN_SUPPORTED_LOGICAL_CONNECTOR_VERSION
 func validateYBVersionForLogicalConnector(tconf *tgtdb.TargetConf) error {
@@ -55,18 +53,20 @@ func validateYBVersionForLogicalConnector(tconf *tgtdb.TargetConf) error {
 	}
 
 	// Parse the version
-	targetVersion, err := ybversion.NewYBVersion(MIN_SUPPORTED_LOGICAL_CONNECTOR_VERSION)
-	if err != nil {
-		return fmt.Errorf("failed to parse min supported logical connector version: %s: %w", MIN_SUPPORTED_LOGICAL_CONNECTOR_VERSION, err)
-	}
-
 	currentVersion, err := ybversion.NewYBVersion(ybVersion)
 	if err != nil {
 		return fmt.Errorf("failed to parse current YugabyteDB version '%s': %w.", ybVersion, err)
 	}
 
-	// Check if version is greater or equal to 2024.1.1
-	if !currentVersion.GreaterThanOrEqual(targetVersion) {
+	var minSupportedLogicalConnectorVersion *ybversion.YBVersion
+	if currentVersion.ReleaseType() == ybversion.PREVIEW {
+		minSupportedLogicalConnectorVersion = ybversion.V2_25_0_0
+	} else {
+		minSupportedLogicalConnectorVersion = ybversion.V2024_1_1_0
+	}
+
+	// Check if version is greater or equal to 2024.1.1.0 or 2.25.0.0
+	if !currentVersion.GreaterThanOrEqual(minSupportedLogicalConnectorVersion) {
 		return fmt.Errorf("YugabyteDB logical replication connector is only supported in versions greater than or equal to %s. Current version: %s. Please use --use-yb-grpc-connector=true", MIN_SUPPORTED_LOGICAL_CONNECTOR_VERSION, ybVersion)
 	}
 
