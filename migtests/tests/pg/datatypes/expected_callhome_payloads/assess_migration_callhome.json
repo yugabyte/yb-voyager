@@ -95,10 +95,6 @@
       "CREATE SEQUENCE schema_d7108fd530c9b1c2.seq_cb6e3c668b892b75 AS int START 1 INCREMENT 1 NO MINVALUE NO MAXVALUE CACHE 1",
       "CREATE SEQUENCE schema_d7108fd530c9b1c2.seq_1339f6393a682752 AS int START 1 INCREMENT 1 NO MINVALUE NO MAXVALUE CACHE 1",
       "ALTER SEQUENCE schema_d7108fd530c9b1c2.seq_1339f6393a682752 OWNED BY schema_d7108fd530c9b1c2.table_9dd5bddb143fd318.col_190e9d7fd2ee599f",
-      "CREATE SEQUENCE schema_d7108fd530c9b1c2.seq_cb6e3c668b892b75 AS int START 1 INCREMENT 1 NO MINVALUE NO MAXVALUE CACHE 1",
-      "ALTER SEQUENCE schema_d7108fd530c9b1c2.seq_cb6e3c668b892b75 OWNED BY schema_d7108fd530c9b1c2.table_e46e6ee4317473c9.col_190e9d7fd2ee599f",
-      "CREATE SEQUENCE schema_d7108fd530c9b1c2.seq_e780fb0a3431dab4 AS int START 1 INCREMENT 1 NO MINVALUE NO MAXVALUE CACHE 1",
-      "ALTER SEQUENCE schema_d7108fd530c9b1c2.seq_e780fb0a3431dab4 OWNED BY schema_d7108fd530c9b1c2.table_19b43db2c11e31ef.col_190e9d7fd2ee599f",
       "SET statement_timeout TO const_8cdf78e3c03b90f9",
       "SET lock_timeout TO const_8cdf78e3c03b90f9",
       "SET idle_in_transaction_session_timeout TO const_8cdf78e3c03b90f9",
@@ -119,8 +115,6 @@
       "CREATE TABLE schema_d7108fd530c9b1c2.table_19b43db2c11e31ef (col_190e9d7fd2ee599f int NOT NULL, col_00d2df248ccd6347 schema_d7108fd530c9b1c2.type_b08e666a04db9c51, col_4021933cd4d736fa schema_d7108fd530c9b1c2.type_b08e666a04db9c51[], col_1a1a54b11951dfbe text)",
       "CREATE TABLE schema_d7108fd530c9b1c2.table_1b6e8818ac9f79cd (col_190e9d7fd2ee599f int NOT NULL, col_7d5f4628407fbb59 boolean DEFAULT '', col_1e0a799d14967006 int DEFAULT 'const_42f2ebd18e0df8df', col_8f2cbbe29ef363a9 varchar DEFAULT ('const_7b49b96211f498b3'::varchar))",
       "CREATE TABLE schema_d7108fd530c9b1c2.table_9dd5bddb143fd318 (col_190e9d7fd2ee599f int NOT NULL, col_8b3f2e585b060435 smallint, col_343308a88767ace5 int, col_9bf483accb11a507 bigint, col_53d0322d88044aac numeric('const_58d49af83fb8a3e0', 'const_3235782f97421b87'), col_c9acd60f742d43f8 numeric, col_8dd497b18eaffa5f money)",
-      "CREATE TABLE schema_d7108fd530c9b1c2.table_19b43db2c11e31ef (col_190e9d7fd2ee599f int NOT NULL, col_00d2df248ccd6347 schema_d7108fd530c9b1c2.type_b08e666a04db9c51, col_4021933cd4d736fa schema_d7108fd530c9b1c2.type_b08e666a04db9c51[], col_1a1a54b11951dfbe text)",
-      "CREATE TABLE schema_d7108fd530c9b1c2.table_e46e6ee4317473c9 (col_190e9d7fd2ee599f int NOT NULL, col_bd26a010984c9aa6 text, col_bd9501e1f443c366 text, col_07c422453d2e53cc tsvector, col_be9009b60a1a7e86 tsvector)",
       "ALTER TABLE ONLY schema_d7108fd530c9b1c2.table_269b49de7ff38a13 ALTER COLUMN col_190e9d7fd2ee599f SET DEFAULT nextval('schema_d7108fd530c9b1c2.seq_4d6c7fbb23862b02'::regclass)",
       "ALTER TABLE ONLY schema_d7108fd530c9b1c2.table_9fa19d27ea64c7a6 ALTER COLUMN col_190e9d7fd2ee599f SET DEFAULT nextval('schema_d7108fd530c9b1c2.seq_89a6722d77751714'::regclass)",
       "ALTER TABLE ONLY schema_d7108fd530c9b1c2.table_e46e6ee4317473c9 ADD CONSTRAINT constraint_b68e23ed92f02484 PRIMARY KEY (col_190e9d7fd2ee599f)",
@@ -138,10 +132,6 @@
       "ALTER TABLE ONLY schema_d7108fd530c9b1c2.table_834e77f39ce395fc ADD CONSTRAINT constraint_af3cc8ea370e5265 PRIMARY KEY (col_190e9d7fd2ee599f)",
       "ALTER TABLE ONLY schema_d7108fd530c9b1c2.table_02c317b0d719af0a ADD CONSTRAINT constraint_3ec8f5e1c99d9993 PRIMARY KEY (col_190e9d7fd2ee599f)",
       "ALTER TABLE ONLY schema_d7108fd530c9b1c2.table_1b6e8818ac9f79cd ADD CONSTRAINT constraint_1b9ffa36f0072665 PRIMARY KEY (col_190e9d7fd2ee599f)",
-      "ALTER TABLE ONLY schema_d7108fd530c9b1c2.table_9dd5bddb143fd318 ADD CONSTRAINT constraint_4893da97e0a8d106 PRIMARY KEY (col_190e9d7fd2ee599f)",
-      "ALTER TABLE ONLY schema_d7108fd530c9b1c2.table_19b43db2c11e31ef ADD CONSTRAINT constraint_ad7d8cddc44c609d PRIMARY KEY (col_190e9d7fd2ee599f)",
-      "ALTER TABLE ONLY schema_d7108fd530c9b1c2.table_19b43db2c11e31ef ALTER COLUMN col_190e9d7fd2ee599f SET DEFAULT nextval('schema_d7108fd530c9b1c2.seq_e780fb0a3431dab4'::regclass)",
-      "ALTER TABLE ONLY schema_d7108fd530c9b1c2.table_e46e6ee4317473c9 ADD CONSTRAINT constraint_b68e23ed92f02484 PRIMARY KEY (col_190e9d7fd2ee599f)",
-      "ALTER TABLE ONLY schema_d7108fd530c9b1c2.table_e46e6ee4317473c9 ALTER COLUMN col_190e9d7fd2ee599f SET DEFAULT nextval('schema_d7108fd530c9b1c2.seq_cb6e3c668b892b75'::regclass)"
+      "ALTER TABLE ONLY schema_d7108fd530c9b1c2.table_9dd5bddb143fd318 ADD CONSTRAINT constraint_4893da97e0a8d106 PRIMARY KEY (col_190e9d7fd2ee599f)"
     ]
 }
