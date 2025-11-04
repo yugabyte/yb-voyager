@@ -55,7 +55,7 @@ var (
 	WarningColor = color.New(color.FgYellow)
 	ErrorColor   = color.New(color.FgRed)
 	Path         = color.New(color.Underline)
-	TitleColor   = color.New(color.FgBlue)
+	TitleColor   = color.New(color.FgMagenta)
 )
 
 // PrintAndLogFormatted prints a formatted message to console with specified log level and also logs it
@@ -98,8 +98,30 @@ func PrintAndLogFormatted(OutputLogLevel OutputLogLevel, formatString string, ar
 		return
 	}
 
-	printer.Print(message)
+	if OutputLogLevel == OutputLogLevelTitle {
+		printTitle(message, printer)
+	} else {
+		printer.Print(message)
+	}
 	return
+}
+
+// printTitle formats and prints a title message with separators
+/*
+e.g.
+=============
+Title Message
+=============
+
+*/
+func printTitle(message string, printer *color.Color) {
+	// Remove trailing newline if present for formatting
+	message = strings.TrimSuffix(message, "\n")
+	borderLen := len(message)
+	border := strings.Repeat("=", borderLen)
+	printer.Printf("\n%s", border)
+	printer.Printf("%s\n",message)
+	printer.Printf("%s\n", border)
 }
 
 // Convenience functions for common use cases
