@@ -339,7 +339,7 @@
             "Impact": "LEVEL_1",
             "ObjectType": "TABLE",
             "ObjectName": "public.partitioned_unique_index",
-            "ObjectUsage": "UNUSED",
+            "ObjectUsage": "RARE",
             "SqlStatement": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-primary-key-for-table-when-unique-and-not-null-columns-exist",
             "MinimumVersionsFixedIn": null,
