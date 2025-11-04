@@ -181,9 +181,8 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 							c.ConstraintName,
 						))
 				}
-				usageCategory := d.getUsageCategoryForTable(table.GetSchemaName(), table.GetTableName())
 				//Report PRIMARY KEY (createdat timestamp) as hotspot issue
-				hotspotIssues, err := detectHotspotIssueOnConstraint(tm.IsPartitioned(), c.ConstraintType.String(), c.ConstraintName, c.Columns, d.columnsWithHotspotRangeIndexesDatatypes, obj, usageCategory)
+				hotspotIssues, err := detectHotspotIssueOnConstraint(tm.IsPartitioned(), c.ConstraintType.String(), c.ConstraintName, c.Columns, d.columnsWithHotspotRangeIndexesDatatypes, obj, tm.Usage)
 				if err != nil {
 					return nil, err
 				}
@@ -1120,9 +1119,8 @@ func (aid *AlterTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Q
 					alter.ConstraintName,
 				))
 			}
-			usageCategory := aid.getUsageCategoryForTable(alter.GetSchemaName(), alter.GetTableName())
 			//Report PRIMARY KEY (createdat timestamp) as hotspot issue
-			hotspotIssues, err := detectHotspotIssueOnConstraint(tm.IsPartitioned(), alter.ConstraintType.String(), alter.ConstraintName, alter.ConstraintColumns, aid.columnsWithHotspotRangeIndexesDatatypes, obj, usageCategory)
+			hotspotIssues, err := detectHotspotIssueOnConstraint(tm.IsPartitioned(), alter.ConstraintType.String(), alter.ConstraintName, alter.ConstraintColumns, aid.columnsWithHotspotRangeIndexesDatatypes, obj, tm.Usage)
 			if err != nil {
 				return nil, err
 			}
