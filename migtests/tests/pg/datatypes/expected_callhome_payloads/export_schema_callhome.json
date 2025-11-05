@@ -1,56 +1,79 @@
 {
-    "payload_version": "",
-    "start_clean": false,
-    "applied_recommendations": true,
-    "use_orafce": true,
-    "comments_on_objects": false,
-    "skip_recommendations": false,
-    "assess_run_in_export_schema": false,
-    "skip_performance_optimizations": false,
-    "error": "",
-    "control_plane_type": "",
-    "schema_optimization_changes": [
+    "collected_at": "2025-11-03 16:11:23.344035",
+    "migration_phase": "export-schema",
+    "migration_type": "",
+    "migration_uuid": "1ca1164d-151c-40d2-bb1b-f33b5ed4fad3",
+    "phase_payload": {
+      "applied_recommendations": true,
+      "assess_run_in_export_schema": false,
+      "comments_on_objects": false,
+      "control_plane_type": "",
+      "error": "",
+      "payload_version": "",
+      "schema_optimization_changes": [
         {
-            "is_applied": true,
-            "objects": [
-                "schema_d7108fd530c9b1c2.table_269b49de7ff38a13",
-                "schema_d7108fd530c9b1c2.table_9fa19d27ea64c7a6",
-                "schema_d7108fd530c9b1c2.table_21db0ebbe3eff1c5",
-                "schema_d7108fd530c9b1c2.table_8dfb93d104511155",
-                "schema_d7108fd530c9b1c2.table_834e77f39ce395fc",
-                "schema_d7108fd530c9b1c2.table_19b43db2c11e31ef",
-                "schema_d7108fd530c9b1c2.table_02c317b0d719af0a",
-                "schema_d7108fd530c9b1c2.table_1b6e8818ac9f79cd",
-                "schema_d7108fd530c9b1c2.table_9dd5bddb143fd318",
-                "schema_d7108fd530c9b1c2.table_e46e6ee4317473c9"
-            ],
-            "optimization_type": "table_sharding_recommendation"
+          "is_applied": true,
+          "objects": [
+            "schema_d7108fd530c9b1c2.table_269b49de7ff38a13",
+            "schema_d7108fd530c9b1c2.table_9fa19d27ea64c7a6",
+            "schema_d7108fd530c9b1c2.table_21db0ebbe3eff1c5",
+            "schema_d7108fd530c9b1c2.table_8dfb93d104511155",
+            "schema_d7108fd530c9b1c2.table_834e77f39ce395fc",
+            "schema_d7108fd530c9b1c2.table_19b43db2c11e31ef",
+            "schema_d7108fd530c9b1c2.table_02c317b0d719af0a",
+            "schema_d7108fd530c9b1c2.table_1b6e8818ac9f79cd",
+            "schema_d7108fd530c9b1c2.table_9dd5bddb143fd318",
+            "schema_d7108fd530c9b1c2.table_e46e6ee4317473c9"
+          ],
+          "optimization_type": "table_sharding_recommendation"
         },
         {
-            "is_applied": true,
-            "objects": [
-                "schema_d7108fd530c9b1c2.table_269b49de7ff38a13",
-                "schema_d7108fd530c9b1c2.table_9fa19d27ea64c7a6",
-                "schema_d7108fd530c9b1c2.table_21db0ebbe3eff1c5",
-                "schema_d7108fd530c9b1c2.table_8dfb93d104511155",
-                "schema_d7108fd530c9b1c2.table_834e77f39ce395fc",
-                "schema_d7108fd530c9b1c2.table_19b43db2c11e31ef",
-                "schema_d7108fd530c9b1c2.table_02c317b0d719af0a",
-                "schema_d7108fd530c9b1c2.table_1b6e8818ac9f79cd",
-                "schema_d7108fd530c9b1c2.table_9dd5bddb143fd318",
-                "schema_d7108fd530c9b1c2.table_e46e6ee4317473c9"
-            ],
-            "optimization_type": "pk_hash_splitting"
+          "is_applied": true,
+          "objects": [
+            "schema_d7108fd530c9b1c2.table_269b49de7ff38a13",
+            "schema_d7108fd530c9b1c2.table_9fa19d27ea64c7a6",
+            "schema_d7108fd530c9b1c2.table_21db0ebbe3eff1c5",
+            "schema_d7108fd530c9b1c2.table_8dfb93d104511155",
+            "schema_d7108fd530c9b1c2.table_834e77f39ce395fc",
+            "schema_d7108fd530c9b1c2.table_19b43db2c11e31ef",
+            "schema_d7108fd530c9b1c2.table_02c317b0d719af0a",
+            "schema_d7108fd530c9b1c2.table_1b6e8818ac9f79cd",
+            "schema_d7108fd530c9b1c2.table_9dd5bddb143fd318",
+            "schema_d7108fd530c9b1c2.table_e46e6ee4317473c9"
+          ],
+          "optimization_type": "pk_hash_splitting"
         },
         {
-            "is_applied": true,
-            "objects": [],
-            "optimization_type": "pk_on_timestamp_or_date_range_sharding"
+          "is_applied": true,
+          "objects": [],
+          "optimization_type": "pk_on_timestamp_or_date_range_sharding"
         },
         {
-            "is_applied": true,
-            "objects": [],
-            "optimization_type": "uk_range_splitting"
+          "is_applied": true,
+          "objects": [],
+          "optimization_type": "uk_range_splitting"
         }
-    ]
-}
+      ],
+      "skip_performance_optimizations": false,
+      "skip_recommendations": false,
+      "start_clean": false,
+      "use_orafce": true
+    },
+    "phase_start_time": "2025-11-03 16:11:22.959804",
+    "source_db_details": {
+      "db_name": "db_80f09b735e608f36",
+      "db_system_identifier": 7566643643304036000,
+      "db_type": "postgresql",
+      "db_version": "17.6 (Ubuntu 17.6-2.pgdg22.04+1)",
+      "host": "",
+      "payload_version": "",
+      "schema_names": [
+        "schema_d7108fd530c9b1c2"
+      ],
+      "total_db_size_bytes": 532480
+    },
+    "status": "COMPLETE",
+    "target_db_details": "",
+    "time_taken_sec": 1,
+    "yb_voyager_version": "main"
+  }

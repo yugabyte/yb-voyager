@@ -1,24 +1,58 @@
 {
-    "payload_version": "1.3",
-    "batch_size": 20000,
-    "parallel_jobs": 1,
-    "on_primary_key_conflict_action": "ERROR-POLICY",
-    "enable_yb_adaptive_parallelism": true,
-    "adaptive_parallelism_max": 2,
-    "error_policy_snapshot": "abort",
-    "start_clean": false,
-    "yb_cluster_metrics": "{}",
-    "data_metrics": {
-        "migration_snapshot_total_rows": 51,
-        "migration_snapshot_largest_table_rows": 26,
-        "migration_cdc_total_imported_events": 0,
-        "snapshot_total_rows": 51,
-        "snapshot_total_bytes": 12553,
+    "collected_at": "2025-11-03 16:19:10.855386",
+    "migration_phase": "import-data",
+    "migration_type": "offline",
+    "migration_uuid": "507f2869-f4bb-4459-b776-79c2f85f8d7e",
+    "phase_payload": {
+      "adaptive_parallelism_max": 2,
+      "batch_size": 20000,
+      "control_plane_type": "",
+      "data_metrics": {
         "cdc_events_import_rate_3min": 0,
-        "current_parallel_connections": 0
+        "current_parallel_connections": 0,
+        "migration_cdc_total_imported_events": 0,
+        "migration_snapshot_largest_table_rows": 26,
+        "migration_snapshot_total_rows": 51,
+        "snapshot_total_bytes": 13189,
+        "snapshot_total_rows": 51
+      },
+      "enable_upsert": false,
+      "enable_yb_adaptive_parallelism": true,
+      "error": "",
+      "error_policy_snapshot": "abort",
+      "on_primary_key_conflict_action": "ERROR-POLICY",
+      "parallel_jobs": 1,
+      "payload_version": 1.3,
+      "phase": "SNAPSHOT",
+      "start_clean": false,
+      "yb_cluster_metrics": {
+        "avg_cpu_pct": 9.7938,
+        "max_cpu_pct": 9.7938,
+        "nodes": [
+          {
+            "error": "",
+            "memory_available": 5459185664,
+            "memory_free": 4437356544,
+            "memory_total": 8055357440,
+            "status": "OK",
+            "total_cpu_pct": 9.7938,
+            "tserver_mem_soft_limit_pct": 19.815627179565205,
+            "uuid": "960fbb950ffe472fb892368c44f70db4"
+          }
+        ],
+        "timestamp": "2025-11-03T16:19:11.359136362Z"
+      }
     },
-    "phase": "SNAPSHOT",
-    "enable_upsert": false,
-    "error": "",
-    "control_plane_type": ""
-}
+    "phase_start_time": "2025-11-03 16:19:08.301923",
+    "source_db_details": "",
+    "status": "COMPLETE",
+    "target_db_details": {
+      "db_system_identifier": "3ab1df03-153e-4d76-b84a-6623da2cd352",
+      "db_version": "15.12-YB-2025.1.0.1-b0",
+      "host": "",
+      "node_count": 1,
+      "total_cores": 4
+    },
+    "time_taken_sec": 3,
+    "yb_voyager_version": "main"
+  }

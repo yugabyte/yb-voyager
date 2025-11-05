@@ -1494,7 +1494,15 @@ normalize_callhome_json() {
             .yb_cluster_metrics = "IGNORED" |
             .parallel_jobs = "IGNORED" |
             .adaptive_parallelism_max = "IGNORED" |
-            .snapshot_total_bytes = "IGNORED"
+            .snapshot_total_bytes = "IGNORED" |
+            .collected_at = "IGNORED" |
+            .phase_start_time = "IGNORED" |
+            .time_taken_sec = "IGNORED" |
+            .yb_voyager_version = "IGNORED" |
+            .migration_uuid = "IGNORED" |
+            .db_version = "IGNORED" |
+            .db_system_identifier = "IGNORED" |
+            .target_db_details = "IGNORED"
         elif type == "array" then
 			sort_by(tostring)
         elif type == "string" and (
