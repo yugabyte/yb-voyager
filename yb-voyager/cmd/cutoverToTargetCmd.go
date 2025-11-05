@@ -16,6 +16,7 @@ limitations under the License.
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -79,12 +80,12 @@ func validateYBVersionForLogicalConnector(tconf *tgtdb.TargetConf) error {
 		docsURL)
 
 	if currentVersion.ReleaseType() == ybversion.PREVIEW {
-		return fmt.Errorf("YugabyteDB logical replication connector is not supported for preview versions." + versionErrorTemplate)
+		return errors.New("YugabyteDB logical replication connector is not supported for preview versions." + versionErrorTemplate)
 	}
 
 	// Check if version is greater or equal to 2024.2.4.0
 	if !currentVersion.GreaterThanOrEqual(minSupportedLogicalConnectorVersion) {
-		return fmt.Errorf("YugabyteDB logical replication connector requires version >= %s."+versionErrorTemplate, utils.SuccessColor.Sprint(minSupportedLogicalConnectorVersion.String()))
+		return errors.New(fmt.Sprintf("YugabyteDB logical replication connector requires version >= %s.", utils.SuccessColor.Sprint(minSupportedLogicalConnectorVersion.String())) + versionErrorTemplate)
 	}
 
 	return nil
