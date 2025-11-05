@@ -313,7 +313,9 @@ func (p *ParserIssueDetector) getOrCreateTableMetadata(tableName string) *TableM
 		Constraints: make([]ConstraintMetadata, 0),
 		Indexes:     make([]*queryparser.Index, 0),
 	}
+	tm.Usage = p.getUsageCategoryForTable(tm)
 	p.tablesMetadata[tableName] = tm
+
 	return tm
 }
 
@@ -533,8 +535,8 @@ func (p *ParserIssueDetector) PopulateObjectUsages(objectUsagesStats []*types.Ob
 	p.objectUsages = objectUsageStatsMap
 }
 
-// FinalizeColumnMetadata processes the column metadata after all DDL statements have been parsed.
-func (p *ParserIssueDetector) FinalizeColumnMetadata() {
+// FinalizeTablesMetadata processes the column metadata after all DDL statements have been parsed.
+func (p *ParserIssueDetector) FinalizeTablesMetadata() {
 	// Finalize column metadata for inherited tables - copying columns from parent tables to child tables
 	p.finalizeColumnsFromParentMap(p.getInheritedFrom())
 
@@ -576,6 +578,8 @@ func (p *ParserIssueDetector) getUsageCategoryForTable(tm *TableMetadata) string
 		return usageCategory
 	}
 
+	//for the partitioned tables the usage is only stored per partition level
+	//so we need to combine the usage of all the partitions to get the usage for the partitioned table
 	for _, partition := range tm.Partitions {
 		partitionUsageCategory := p.getUsageCategoryForTable(partition)
 		usageCategory = GetCombinedUsageCategory(usageCategory, partitionUsageCategory)

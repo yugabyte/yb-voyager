@@ -86,12 +86,7 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 
 	var issues []QueryIssue
 
-	tm, ok := d.tablesMetadata[table.GetObjectName()]
-	if !ok {
-		log.Warnf("table metadata not found for table: %s", table.GetObjectName())
-		//Just to handle any case where TABLE DDL present in PLPGSQL and not present in actual schema so we need to report issues
-		tm = d.getOrCreateTableMetadata(table.GetObjectName())
-	}
+	tm := d.getOrCreateTableMetadata(table.GetObjectName())
 
 	// Check for generated columns
 	if len(table.GeneratedColumns) > 0 {
@@ -342,6 +337,7 @@ func detectForeignKeyDatatypeMismatch(objectType string, objectName string, colu
 }
 
 func detectHotspotIssueOnConstraint(isPartitionedTable bool, constraintType string, constraintName string, constraintColumns []string, columnsWithHotspotRangeIndexesDatatypes map[string]map[string]string, obj queryparser.DDLObject, usageCategory string) ([]QueryIssue, error) {
+	//not reporting the hotspot issue for partitioned table since we are already reporting it on all the partitions 
 	if isPartitionedTable {
 		return nil, nil
 	}
@@ -764,6 +760,7 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 						"",
 					))
 				} else if isHotspotType && idx == 0 && !tm.IsPartitioned() {
+					//not reporting the hotspot issue for partitioned table since we are already reporting it on all the partitions 
 					//If first column is hotspot type then only report hotspot issue
 					//For expression case not adding any colName for now in the issue
 					hotspotIssues, err := reportHotspotsOnTimestampTypes(param.ExprCastTypeName, obj.GetObjectType(), obj.GetObjectName(), "", true, usageCategory)
@@ -790,6 +787,7 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 				}
 				//TODO: separate out the Types check of Hotspot problem and the Range sharding recommendation
 				if tableHasHotspotTypes && idx == 0 && !tm.IsPartitioned() {
+					//not reporting the hotspot issue for partitioned table since we are already reporting it on all the partitions 
 					//If first column is hotspot type then only report hotspot issue
 					hotspotTypeName, isHotspotType := columnWithHotspotTypes[colName]
 					if isHotspotType {
@@ -820,6 +818,7 @@ func (i *IndexIssueDetector) reportVariousIndexPerfOptimizationsOnFirstColumnOfI
 		return nil, fmt.Errorf("table metadata not found for table: %s", index.GetTableName())
 	}
 	if tm.IsPartitioned() {
+		//not reporting the hotspot issue for partitioned table since we are already reporting it on all the partitions 
 		return nil, nil
 	}
 	var issues []QueryIssue
