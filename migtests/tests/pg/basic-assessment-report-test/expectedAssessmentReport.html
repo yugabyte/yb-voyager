@@ -1714,7 +1714,7 @@ FROM schema1.employees2</pre>
   
 
         
-            <h2>Performance Optimzations</h2>
+            <h2>Performance Optimizations</h2>
             <div class="assessment-issues-header">
                 <!-- Left area: text about total issues -->
                 <div>
@@ -1733,7 +1733,8 @@ FROM schema1.employees2</pre>
                     
                     
                     <col style="width: 40%;"> <!-- Issue Name -->
-                    <col style="width: 50%;"> <!-- Object/SQL Preview -->
+                    <col style="width: 40%;"> <!-- Object/SQL Preview -->
+                    <col style="width: 10%;"> <!-- Object Usage -->
                     <col style="width: 10%;"> <!-- Impact -->
                 </colgroup>
                 <thead>
@@ -1743,6 +1744,7 @@ FROM schema1.employees2</pre>
                             Optimization <span class="sort-indicator">&#8597;</span>
                         </th>
                         <th class="centered-cell">Object/SQL Preview</th>
+                        <th class="centered-cell" style="cursor: pointer; text-align: center;" >Object Usage</th>
                         <th class="centered-cell" style="cursor: pointer; text-align: center;" onclick="sortTableBy('impact', true)">
                             Impact <span class="sort-indicator">&#8597;</span>
                         </th>
@@ -1779,6 +1781,7 @@ FROM schema1.employees2</pre>
                                     idx_test_hotspot_timestamp ON schema1.test_hotspot_timestamp
                                 
                             </td>
+                            <td class="centered-cell" style="text-align: center;">FREQUENT</td>
                             <td class="centered-cell" style="text-align: center;">Level 1</td>
                         </tr>
 
@@ -1859,6 +1862,26 @@ Note: If the table is created as colocated, this hotspot concern can safely be i
                 
             </table>
 
+            <div style="margin-top: 10px; line-height: 1.6;">
+                <strong>Object Usage Categories:</strong>
+                <ul style="margin-top: 6px; padding-left: 20px;">
+                    <li>
+                    <strong>FREQUENT:</strong> High-priority objects that account for the majority of workload activity 
+                    <em>(top ~70%)</em>
+                    </li>
+                    <li>
+                    <strong>MODERATE:</strong> Medium-priority objects with a balanced level of workload activity 
+                    <em>(within the 10-70% activity range)</em>
+                    </li>
+                    <li>
+                    <strong>RARE:</strong> Low-priority objects with infrequent access or minimal workload activity
+                    <em>(less than 10% of activity range)</em>
+                    </li>
+                    <li>
+                    <strong>UNUSED:</strong> Objects that show no workload activity.
+                    </li>
+                </ul>
+            </div>
         
    
 

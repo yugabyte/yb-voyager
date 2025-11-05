@@ -406,8 +406,8 @@ func TestExportSchemaSchemaOptimizationReportPerfOptimizationsAutofix(t *testing
 	assert.NotNil(t, schemaOptimizationReport)
 	assert.NotNil(t, schemaOptimizationReport.RedundantIndexChange)
 	assert.True(t, schemaOptimizationReport.RedundantIndexChange.IsApplied)
-	assert.Nil(t, schemaOptimizationReport.TableColocationRecommendation)
-	assert.Nil(t, schemaOptimizationReport.MviewColocationRecommendation)
+	assert.NotNil(t, schemaOptimizationReport.TableColocationRecommendation)
+	assert.False(t, schemaOptimizationReport.TableColocationRecommendation.IsApplied)
 	assert.Equal(t, 1, len(schemaOptimizationReport.RedundantIndexChange.TableToRemovedIndexesMap))
 	assert.Equal(t, 2, len(schemaOptimizationReport.RedundantIndexChange.TableToRemovedIndexesMap["test_schema.test_data"]))
 	assert.NotNil(t, schemaOptimizationReport.SecondaryIndexToRangeChange)
@@ -501,8 +501,8 @@ func TestExportSchemaSchemaOptimizationReportWithSkipPerfOptimizations(t *testin
 	assert.NotNil(t, schemaOptimizationReport)
 	assert.NotNil(t, schemaOptimizationReport.RedundantIndexChange)
 	assert.False(t, schemaOptimizationReport.RedundantIndexChange.IsApplied) //Not applied because of --skip-perf-optimizations flag
-	assert.Nil(t, schemaOptimizationReport.TableColocationRecommendation)
-	assert.Nil(t, schemaOptimizationReport.MviewColocationRecommendation)
+	assert.NotNil(t, schemaOptimizationReport.TableColocationRecommendation)
+	assert.False(t, schemaOptimizationReport.TableColocationRecommendation.IsApplied)
 	assert.Equal(t, 1, len(schemaOptimizationReport.RedundantIndexChange.TableToRemovedIndexesMap))
 	assert.Equal(t, 2, len(schemaOptimizationReport.RedundantIndexChange.TableToRemovedIndexesMap["test_schema.test_data"]))
 

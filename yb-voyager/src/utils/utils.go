@@ -39,6 +39,7 @@ import (
 	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/fatih/color"
 	"github.com/google/uuid"
+	"github.com/jackc/pgtype"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -73,7 +74,7 @@ func Wait(args ...string) {
 			WaitChannel <- -1
 			return
 		default:
-			fmt.Printf("\b" + string(chars[i%4]))
+			fmt.Print("\b" + string(chars[i%4]))
 			time.Sleep(100 * time.Millisecond)
 		}
 	}
@@ -492,7 +493,7 @@ func PrintSqlStmtIfDDL(stmt string, fileName string, noticeMsg string) {
 	if !setOrSelectStmt {
 		fmt.Printf("%s: %s\n", fileName, GetSqlStmtToPrint(stmt))
 		if noticeMsg != "" {
-			fmt.Printf(color.YellowString("%s\n", noticeMsg))
+			fmt.Print(color.YellowString("%s\n", noticeMsg))
 			log.Infof("notice for %q: %s", GetSqlStmtToPrint(stmt), noticeMsg)
 		}
 	}
@@ -570,7 +571,7 @@ func GetEnvAsInt(key string, fallback int) int {
 	}
 	valueInt, err := strconv.ParseInt(valueStr, 10, 32)
 	if err != nil {
-		PrintAndLog("Couldn't interpret env var %v=%v. Defaulting to %v", key, valueStr, fallback)
+		PrintAndLogf("Couldn't interpret env var %v=%v. Defaulting to %v", key, valueStr, fallback)
 		return fallback
 	}
 	return int(valueInt)
@@ -584,7 +585,7 @@ func GetEnvAsInt64(key string, fallback int64) int64 {
 
 	valueInt, err := strconv.ParseInt(valueStr, 10, 64)
 	if err != nil {
-		PrintAndLog("Couldn't interpret env var %v=%v. Defaulting to %v", key, valueStr, fallback)
+		PrintAndLogf("Couldn't interpret env var %v=%v. Defaulting to %v", key, valueStr, fallback)
 		return fallback
 	}
 	return valueInt
@@ -1011,4 +1012,22 @@ func IsSetEqual(a, b []string) bool {
 	setB := mapset.NewThreadUnsafeSet(b...)
 
 	return setA.Equal(setB)
+}
+
+// ConvertPgTextArrayToStringSlice converts a pgtype.TextArray to a []string.
+// This utility function handles PostgreSQL text arrays returned from queries using array_agg() or similar functions.
+func ConvertPgTextArrayToStringSlice(textArray pgtype.TextArray) []string {
+	if textArray.Status != pgtype.Present {
+		return []string{}
+	}
+
+	result := make([]string, 0, len(textArray.Elements))
+	for _, elem := range textArray.Elements {
+		if elem.Status == pgtype.Present {
+			result = append(result, elem.String)
+		}
+		// Skip null elements - they won't be added to the result slice
+	}
+
+	return result
 }

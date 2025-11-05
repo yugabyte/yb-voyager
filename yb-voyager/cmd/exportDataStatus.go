@@ -221,7 +221,7 @@ func startExportPB(progressContainer *mpb.Progress, mapKey string, quitChan chan
 	}
 	tableDataFile, err := os.Open(tableDataFileName)
 	if err != nil {
-		utils.PrintAndLog("failed to open the data file %s for progress reporting: %q", tableDataFileName, err)
+		utils.PrintAndLogf("failed to open the data file %s for progress reporting: %q", tableDataFileName, err)
 		quitChan <- true
 		runtime.Goexit()
 	}

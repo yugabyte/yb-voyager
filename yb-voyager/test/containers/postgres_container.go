@@ -31,11 +31,11 @@ func (pg *PostgresContainer) Start(ctx context.Context) (err error) {
 	if pg.container != nil {
 		// already running, do nothing.
 		if pg.container.IsRunning() {
-			utils.PrintAndLog("Postgres-%s container already running", pg.DBVersion)
+			utils.PrintAndLogf("Postgres-%s container already running", pg.DBVersion)
 			return nil
 		}
 		// but if it’s stopped, so start it back up in place
-		utils.PrintAndLog("Restarting Postgres-%s container", pg.DBVersion)
+		utils.PrintAndLogf("Restarting Postgres-%s container", pg.DBVersion)
 		if err := pg.container.Start(ctx); err != nil {
 			return fmt.Errorf("failed to restart postgres container: %w", err)
 		}
@@ -112,7 +112,7 @@ func (pg *PostgresContainer) Stop(ctx context.Context) error {
 	if pg.container == nil {
 		return nil
 	} else if !pg.container.IsRunning() {
-		utils.PrintAndLog("Postgres-%s container already stopped", pg.DBVersion)
+		utils.PrintAndLogf("Postgres-%s container already stopped", pg.DBVersion)
 		return nil
 	}
 
@@ -235,7 +235,7 @@ func (pg *PostgresContainer) Query(sql string, args ...interface{}) (*sql.Rows, 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get connection for postgres query: %w", err)
 	}
-
+	defer conn.Close()
 	rows, err := conn.Query(sql, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute query '%s': %w", sql, err)

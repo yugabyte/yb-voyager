@@ -731,6 +731,7 @@ func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fil
 		Name:                   issueInstance.Name,
 		Reason:                 issueInstance.Description,
 		Impact:                 issueInstance.Impact,
+		ObjectUsage:            issueInstance.ObjectUsage,
 		SqlStatement:           issueInstance.SqlStatement,
 		DocsLink:               issueInstance.DocsLink,
 		FilePath:               fileName,
@@ -1196,7 +1197,7 @@ func checkConversions(sqlInfoArr []sqlInfo, filePath string) {
 
 func analyzeSchema() {
 
-	utils.PrintAndLog("Analyzing schema for target YugabyteDB version %s\n", targetDbVersion)
+	utils.PrintAndLogf("Analyzing schema for target YugabyteDB version %s\n", targetDbVersion)
 	schemaAnalysisStartedEvent := createSchemaAnalysisStartedEvent()
 	controlPlane.SchemaAnalysisStarted(&schemaAnalysisStartedEvent)
 

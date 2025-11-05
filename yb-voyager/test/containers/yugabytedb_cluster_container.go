@@ -50,7 +50,7 @@ func (cluster *YugabyteDBClusterContainer) Start(ctx context.Context) (err error
 	if len(cluster.nodes) > 0 {
 		for _, node := range cluster.nodes {
 			if node.container != nil && node.container.IsRunning() {
-				utils.PrintAndLog("YugabyteDB cluster already running")
+				utils.PrintAndLogf("YugabyteDB cluster already running")
 				return nil
 			}
 		}
@@ -86,7 +86,7 @@ func (cluster *YugabyteDBClusterContainer) Start(ctx context.Context) (err error
 		return fmt.Errorf("cluster not ready: %w", err)
 	}
 
-	utils.PrintAndLog("YugabyteDB cluster with %d nodes started successfully", cluster.NodeCount)
+	utils.PrintAndLogf("YugabyteDB cluster with %d nodes started successfully", cluster.NodeCount)
 	return nil
 }
 
@@ -128,7 +128,7 @@ func (cluster *YugabyteDBClusterContainer) Stop(ctx context.Context) error {
 	defer cluster.mutex.Unlock()
 
 	if len(cluster.nodes) == 0 {
-		utils.PrintAndLog("YugabyteDB cluster already stopped")
+		utils.PrintAndLogf("YugabyteDB cluster already stopped")
 		return nil
 	}
 
@@ -140,7 +140,7 @@ func (cluster *YugabyteDBClusterContainer) Stop(ctx context.Context) error {
 		}
 	}
 
-	utils.PrintAndLog("YugabyteDB cluster stopped")
+	utils.PrintAndLogf("YugabyteDB cluster stopped")
 	return nil
 }
 

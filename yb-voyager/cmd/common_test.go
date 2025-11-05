@@ -25,6 +25,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
@@ -140,6 +141,7 @@ func TestAssessmentReportStructs(t *testing.T) {
 				Impact                 string                          `json:"Impact"`
 				ObjectType             string                          `json:"ObjectType"`
 				ObjectName             string                          `json:"ObjectName"`
+				ObjectUsage            string                          `json:"ObjectUsage,omitempty"`
 				SqlStatement           string                          `json:"SqlStatement"`
 				DocsLink               string                          `json:"DocsLink"`
 				MinimumVersionsFixedIn map[string]*ybversion.YBVersion `json:"MinimumVersionsFixedIn"`
