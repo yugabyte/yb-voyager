@@ -1025,12 +1025,7 @@ func (aid *AlterTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Q
 	if !ok {
 		return nil, fmt.Errorf("invalid object type: expected AlterTable")
 	}
-	tm, ok := aid.tablesMetadata[alter.GetObjectName()]
-	if !ok {
-		log.Warnf("table metadata not found for table: %s", alter.GetObjectName())
-		//Just to handle any case where TABLE DDL present in PLPGSQL and not present in actual schema so we need to report issues
-		tm = aid.getOrCreateTableMetadata(alter.GetObjectName())
-	}
+	tm := aid.getOrCreateTableMetadata(alter.GetObjectName())
 	var issues []QueryIssue
 
 	switch alter.AlterType {
