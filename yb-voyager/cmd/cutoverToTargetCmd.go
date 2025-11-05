@@ -20,6 +20,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/fatih/color"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
@@ -59,17 +60,31 @@ func validateYBVersionForLogicalConnector(tconf *tgtdb.TargetConf) error {
 	}
 
 	var minSupportedLogicalConnectorVersion *ybversion.YBVersion
-	// We dont support old format of YugabyteDB stable versions for logical connector i.e. 2.20 etc.
-	// So, we only support preview versions >= 2.29.0.0 and stable versions >= 2024.2.4.0
+	// We dont support old format of YugabyteDB stable versions for logical connector i.e. 2.20 etc. and we dont support preview versions < 2.29.0.0
+	// But 2.29.0.0 is not released yet, so we don't support any preview versions either for now.
+	// So, we only support stable versions >= 2024.2.4.0
+	// TODO: Once 2.29.0.0 is released, add support for preview versions >= 2.29.0.0
+
+	minSupportedLogicalConnectorVersion = ybversion.V2024_2_4_0
+
+	// Common error message components
+	docsURL := utils.InfoColor.Add(color.Underline).Sprint("https://docs.yugabyte.com/preview/yugabyte-voyager/reference/cutover-archive/cutover/#yugabytedb-grpc-vs-yugabytedb-connector")
+	versionErrorTemplate := fmt.Sprintf("\nCurrent version: %s\n"+
+		"Please use:\n"+
+		"   - Supported stable versions >= %s, OR\n"+
+		"   - YugabyteDB gRPC connector with --use-yb-grpc-connector=true\n"+
+		"For more details, refer to: %s",
+		utils.WarningColor.Sprint(currentVersion.String()),
+		utils.SuccessColor.Sprint(minSupportedLogicalConnectorVersion.String()),
+		docsURL)
+
 	if currentVersion.ReleaseType() == ybversion.PREVIEW {
-		minSupportedLogicalConnectorVersion = ybversion.V2_29_0_0
-	} else {
-		minSupportedLogicalConnectorVersion = ybversion.V2024_2_4_0
+		return fmt.Errorf("YugabyteDB logical replication connector is not supported for preview versions." + versionErrorTemplate)
 	}
 
-	// Check if version is greater or equal to 2024.1.1.0 or 2.25.0.0
+	// Check if version is greater or equal to 2024.2.4.0
 	if !currentVersion.GreaterThanOrEqual(minSupportedLogicalConnectorVersion) {
-		return fmt.Errorf("YugabyteDB logical replication connector is only supported in versions greater than or equal to %s. Current version: %s. Please use --use-yb-grpc-connector=true", minSupportedLogicalConnectorVersion.String(), ybVersion)
+		return fmt.Errorf("YugabyteDB logical replication connector requires version >= %s."+versionErrorTemplate, utils.SuccessColor.Sprint(minSupportedLogicalConnectorVersion.String()))
 	}
 
 	return nil
