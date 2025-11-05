@@ -120,15 +120,3 @@ func (rbp *RandomBatchProducer) startProducingBatches() error {
 	log.Infof("Sequential file batch producer finished producing all batches for file: %s", rbp.sequentialFileBatchProducer.task.FilePath)
 	return nil
 }
-
-// // BatchProducer defines the interface for producing batches from a file.
-// type BatchProducer interface {
-// 	// Done returns true if all batches have been produced.
-// 	Done() bool
-
-// 	// NextBatch returns the next batch to be processed, or an error if no more batches are available.
-// 	NextBatch() (*Batch, error)
-
-// 	// Close cleans up any resources used by the batch producer.
-// 	Close()
-// }
