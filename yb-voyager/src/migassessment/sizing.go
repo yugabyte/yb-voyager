@@ -1495,11 +1495,12 @@ func getMultiplicationFactorForImportTimeBasedOnIndexesFromMap(table SourceDBMet
 
 	// impact on load time for given table would be relative to the closest record's impact
 	var multiplicationFactor float64
-	if objectType == COLOCATED {
+	switch objectType {
+	case COLOCATED:
 		multiplicationFactor = (closest.multiplicationFactorColocated.Float64 / closest.numIndexes.Float64) * numberOfIndexesOnTable
-	} else if objectType == SHARDED {
+	case SHARDED:
 		multiplicationFactor = (closest.multiplicationFactorSharded.Float64 / closest.numIndexes.Float64) * numberOfIndexesOnTable
-	} else {
+	default:
 		multiplicationFactor = 1
 	}
 
