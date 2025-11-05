@@ -230,3 +230,98 @@ func TestFileWithOnlyHeader(t *testing.T) {
 	assert.True(t, producer.Done(), "Done() should be true after consuming the batch")
 	assert.False(t, producer.IsBatchAvailable(), "IsBatchAvailable() should be false after consuming the batch")
 }
+
+// assertBatchesMatch verifies that two batches are identical by checking:
+// - File contents match
+// - All metadata matches (batch number, record count, table name, schema name, offsets, byte count, interrupted flag)
+// Note: BaseFilePath is not compared as it's expected to differ between sequential and random producers
+func assertBatchesMatch(t *testing.T, batch1 *Batch, batch2 *Batch, msgAndArgs ...interface{}) {
+	require.NotNil(t, batch1, "Batch1 should not be nil")
+	require.NotNil(t, batch2, "Batch2 should not be nil")
+
+	// Verify batch number matches
+	assert.Equal(t, batch1.Number, batch2.Number, append(msgAndArgs, "Batch number should match")...)
+
+	// Verify record count matches
+	assert.Equal(t, batch1.RecordCount, batch2.RecordCount, append(msgAndArgs, "Record count should match")...)
+
+	// Verify batch contents match
+	batch1Contents, err := os.ReadFile(batch1.GetFilePath())
+	require.NoError(t, err, append(msgAndArgs, "Should be able to read batch1 file")...)
+	batch2Contents, err := os.ReadFile(batch2.GetFilePath())
+	require.NoError(t, err, append(msgAndArgs, "Should be able to read batch2 file")...)
+	assert.Equal(t, string(batch1Contents), string(batch2Contents), append(msgAndArgs, "Batch file contents should match")...)
+
+	// Verify batch metadata matches
+	// Note: BaseFilePath is not compared as it's expected to differ between sequential and random producers
+	assert.Equal(t, batch1.TableNameTup, batch2.TableNameTup, append(msgAndArgs, "Table name should match")...)
+	assert.Equal(t, batch1.SchemaName, batch2.SchemaName, append(msgAndArgs, "Schema name should match")...)
+	assert.Equal(t, batch1.OffsetStart, batch2.OffsetStart, append(msgAndArgs, "Offset start should match")...)
+	assert.Equal(t, batch1.OffsetEnd, batch2.OffsetEnd, append(msgAndArgs, "Offset end should match")...)
+	assert.Equal(t, batch1.ByteCount, batch2.ByteCount, append(msgAndArgs, "Byte count should match")...)
+	assert.Equal(t, batch1.Interrupted, batch2.Interrupted, append(msgAndArgs, "Interrupted flag should match")...)
+}
+
+// TestSingleBatchMatchVerification tests test case 2.1:
+// Create producer with a file that produces exactly 1 batch and verify it matches sequential producer
+func TestSingleBatchMatchVerification(t *testing.T) {
+	ldataDir, lexportDir, state, errorHandler, progressReporter, err := setupExportDirAndImportDependencies(2, 1024)
+	require.NoError(t, err)
+
+	if ldataDir != "" {
+		defer os.RemoveAll(fmt.Sprintf("%s/", ldataDir))
+	}
+	if lexportDir != "" {
+		defer os.RemoveAll(fmt.Sprintf("%s/", lexportDir))
+	}
+
+	// Create a file that produces exactly 1 batch (header + 1 row)
+	fileContents := `id,val
+1, "hello"`
+
+	// Create two separate tasks - one for sequential producer, one for random producer
+	_, sequentialTask, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
+	require.NoError(t, err)
+	_, randomTask, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 2)
+	require.NoError(t, err)
+
+	// Create SequentialFileBatchProducer to get the expected batch
+	sequentialProducer, err := NewSequentialFileBatchProducer(sequentialTask, state, errorHandler, progressReporter)
+	require.NoError(t, err)
+	defer sequentialProducer.Close()
+
+	sequentialBatch, err := sequentialProducer.NextBatch()
+	require.NoError(t, err, "Sequential producer should produce a batch")
+	require.NotNil(t, sequentialBatch, "Sequential batch should not be nil")
+	require.True(t, sequentialProducer.Done(), "Sequential producer should be done after producing 1 batch")
+
+	// Create RandomBatchProducer with separate task
+	randomProducer, err := NewRandomFileBatchProducer(randomTask, state, errorHandler, progressReporter)
+	require.NoError(t, err)
+	defer randomProducer.Close()
+
+	// Verify initial state: Done() should be false, IsBatchAvailable() should be false
+	assert.False(t, randomProducer.Done(), "Done() should be false initially")
+	assert.False(t, randomProducer.IsBatchAvailable(), "IsBatchAvailable() should be false initially")
+
+	// Wait for batch to become available
+	available := waitForBatchAvailable(randomProducer, 5*time.Second)
+	require.True(t, available, "Batch should become available within timeout")
+
+	// Verify state when batch is available: IsBatchAvailable() should be true, Done() should be false
+	assert.True(t, randomProducer.IsBatchAvailable(), "IsBatchAvailable() should be true when batch is available")
+	assert.False(t, randomProducer.Done(), "Done() should be false when batch is available")
+
+	// Get batch from random producer
+	randomBatch, err := randomProducer.NextBatch()
+	require.NoError(t, err, "NextBatch() should return a batch without error")
+	require.NotNil(t, randomBatch, "NextBatch() should return a non-nil batch")
+
+	// After consuming the batch, Done() should be true, IsBatchAvailable() should be false
+	assert.True(t, randomProducer.Done(), "Done() should be true after consuming the batch")
+	assert.False(t, randomProducer.IsBatchAvailable(), "IsBatchAvailable() should be false after consuming the batch")
+
+	// Verify batches match (contents and all metadata)
+	assertBatchesMatch(t, sequentialBatch, randomBatch, "Sequential and random batches should match")
+
+}
