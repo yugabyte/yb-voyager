@@ -59,10 +59,12 @@ func validateYBVersionForLogicalConnector(tconf *tgtdb.TargetConf) error {
 	}
 
 	var minSupportedLogicalConnectorVersion *ybversion.YBVersion
+	// We dont support old format of YugabyteDB stable versions for logical connector i.e. 2.20 etc.
+	// So, we only support preview versions >= 2.29.0.0 and stable versions >= 2024.2.4.0
 	if currentVersion.ReleaseType() == ybversion.PREVIEW {
-		minSupportedLogicalConnectorVersion = ybversion.V2_25_0_0
+		minSupportedLogicalConnectorVersion = ybversion.V2_29_0_0
 	} else {
-		minSupportedLogicalConnectorVersion = ybversion.V2024_1_1_0
+		minSupportedLogicalConnectorVersion = ybversion.V2024_2_4_0
 	}
 
 	// Check if version is greater or equal to 2024.1.1.0 or 2.25.0.0
