@@ -32,6 +32,7 @@ const (
 var LatestStable *YBVersion
 
 var V2024_1_0_0 *YBVersion
+var V2024_1_1_0 *YBVersion
 var V2024_1_3_1 *YBVersion
 var V2024_2_0_0 *YBVersion
 var V2024_2_1_0 *YBVersion
@@ -51,6 +52,10 @@ func init() {
 	V2024_1_0_0, err = NewYBVersion("2024.1.0.0")
 	if err != nil {
 		panic("could not create version 2024.1.0.0")
+	}
+	V2024_1_1_0, err = NewYBVersion("2024.1.1.0")
+	if err != nil {
+		panic("could not create version 2024.1.1.0")
 	}
 	V2024_1_3_1, err = NewYBVersion("2024.1.3.1")
 	if err != nil {

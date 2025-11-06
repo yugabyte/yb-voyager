@@ -37,7 +37,7 @@
             {
                 "ObjectType": "TABLE",
                 "TotalCount": 21,
-                "InvalidCount": 13,
+                "InvalidCount": 12,
                 "ObjectNames": "public.customer, public.actor, public.category, public.film, public.film_actor, public.film_category, public.address, public.city, public.country, public.inventory, public.language, public.payment, public.payment_p2007_01, public.payment_p2007_02, public.payment_p2007_03, public.payment_p2007_04, public.payment_p2007_05, public.payment_p2007_06, public.rental, public.staff, public.store"
             },
             {
@@ -222,19 +222,6 @@
             "ObjectName": "public.payment_p2007_06",
             "SqlStatement": "CREATE TABLE public.payment_p2007_06 (\n    CONSTRAINT payment_p2007_06_payment_date_check CHECK (((payment_date >= '2007-06-01 00:00:00'::timestamp without time zone) AND (payment_date < '2007-07-01 00:00:00'::timestamp without time zone)))\n)\nINHERITS (public.payment);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "Category": "migration_caveats",
-            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_TSVECTOR",
-            "Name": "Unsupported datatype for Live migration with fall-forward/fallback - tsvector Datatype",
-            "Description": "TSVECTOR datatype not yet supported by voyager in live migration with fall-forward/fallback. Affected column: fulltext. These columns will be excluded when exporting and importing data in live migration workflows.",
-            "Impact": "LEVEL_1",
-            "ObjectType": "COLUMN",
-            "ObjectName": "public.film.fulltext",
-            "SqlStatement": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
             "MinimumVersionsFixedIn": null
         },
         {
