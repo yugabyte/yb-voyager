@@ -445,7 +445,7 @@ CREATE TABLE public.partitioned_unique_index (
 CREATE UNIQUE INDEX idx_partitioned_unique ON public.partitioned_unique_index(id, region, year);
 
 CREATE TABLE public.partitioned_unique_index_2023 PARTITION OF public.partitioned_unique_index 
-FOR VALUES FROM (2023) TO (2024);
+FOR VALUES FROM (2023) TO (2024) PARTITION BY LIST (region);
 
 CREATE TABLE public.partitioned_unique_index_2023_us PARTITION OF public.partitioned_unique_index_2023 
 FOR VALUES IN ('US');
@@ -643,13 +643,13 @@ CREATE TABLE public.partitioned_unique_index_missing (
     amount numeric
 ) PARTITION BY RANGE (year);
 
-CREATE UNIQUE INDEX idx_partitioned_missing ON public.partitioned_unique_index_missing(id, region);
+CREATE UNIQUE INDEX idx_partitioned_missing ON public.partitioned_unique_index_missing(id, region, year);
 
 CREATE TABLE public.partitioned_unique_index_missing_2023 PARTITION OF public.partitioned_unique_index_missing 
-FOR VALUES FROM (2023) TO (2024);
+FOR VALUES FROM (2023) TO (2024) PARTITION BY LIST (region);
 
 CREATE TABLE public.partitioned_unique_index_missing_2023_us PARTITION OF public.partitioned_unique_index_missing_2023 
-FOR VALUES IN ('US');
+FOR VALUES IN ('US') ;
 
 -- Insert test data for negative test cases
 INSERT INTO public.no_pk_nullable (id, name, email) 
