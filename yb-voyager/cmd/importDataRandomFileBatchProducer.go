@@ -47,7 +47,7 @@ func NewRandomFileBatchProducer(task *ImportFileTask, state *ImportDataState, er
 
 // newRandomFileBatchProducer creates a RandomBatchProducer with the provided SequentialFileBatchProducer.
 // This unexported function allows tests to inject a testable sequential producer.
-func newRandomFileBatchProducer(sequentialFileBatchProducer *SequentialFileBatchProducer, task *ImportFileTask) *RandomBatchProducer {
+func newRandomFileBatchProducer(sequentialFileBatchProducer BatchProducer, task *ImportFileTask) *RandomBatchProducer {
 	producerCtx, producerCtxCancel := context.WithCancel(context.Background())
 	rbp := &RandomBatchProducer{
 		sequentialFileBatchProducer: sequentialFileBatchProducer,
@@ -79,9 +79,6 @@ func (rbp *RandomBatchProducer) Done() bool {
 // Close cleans up resources used by the RandomBatchProducer.
 // TODO: close sequential file batch producer after it's done instead of waiting for Close() to be called
 func (rbp *RandomBatchProducer) Close() {
-	rbp.mu.Lock()
-	defer rbp.mu.Unlock()
-
 	// stop producer goroutine
 	rbp.producerCtxCancel()
 	rbp.producerWaitGroup.Wait()
