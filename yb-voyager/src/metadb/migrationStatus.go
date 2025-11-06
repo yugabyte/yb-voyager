@@ -17,6 +17,7 @@ package metadb
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -63,6 +64,25 @@ type MigrationStatusRecord struct {
 
 	ExportFromTargetFallForwardStarted bool `json:"ExportFromTargetFallForwardStarted"`
 	ExportFromTargetFallBackStarted    bool `json:"ExportFromTargetFallBackStarted"`
+
+	// Cutover timing fields
+	CutoverToTargetRequestedAt        time.Time `json:"CutoverToTargetRequestedAt,omitempty"`
+	CutoverToSourceRequestedAt        time.Time `json:"CutoverToSourceRequestedAt,omitempty"`
+	CutoverToSourceReplicaRequestedAt time.Time `json:"CutoverToSourceReplicaRequestedAt,omitempty"`
+
+	CutoverDetectedByTargetImporterAt        time.Time `json:"CutoverDetectedByTargetImporterAt,omitempty"`
+	CutoverDetectedBySourceImporterAt        time.Time `json:"CutoverDetectedBySourceImporterAt,omitempty"`
+	CutoverDetectedBySourceReplicaImporterAt time.Time `json:"CutoverDetectedBySourceReplicaImporterAt,omitempty"`
+
+	CutoverProcessedBySourceExporterAt                time.Time `json:"CutoverProcessedBySourceExporterAt,omitempty"`
+	CutoverProcessedByTargetImporterAt                time.Time `json:"CutoverProcessedByTargetImporterAt,omitempty"`
+	CutoverToSourceReplicaProcessedByTargetExporterAt time.Time `json:"CutoverToSourceReplicaProcessedByTargetExporterAt,omitempty"`
+	CutoverToSourceProcessedByTargetExporterAt        time.Time `json:"CutoverToSourceProcessedByTargetExporterAt,omitempty"`
+	CutoverToSourceReplicaProcessedBySRImporterAt     time.Time `json:"CutoverToSourceReplicaProcessedBySRImporterAt,omitempty"`
+	CutoverToSourceProcessedBySourceImporterAt        time.Time `json:"CutoverToSourceProcessedBySourceImporterAt,omitempty"`
+
+	ExportFromTargetFallForwardStartedAt time.Time `json:"ExportFromTargetFallForwardStartedAt,omitempty"`
+	ExportFromTargetFallBackStartedAt    time.Time `json:"ExportFromTargetFallBackStartedAt,omitempty"`
 
 	ExportSchemaDone                bool `json:"ExportSchemaDone"`
 	ExportDataDone                  bool `json:"ExportDataDone"` // to be interpreted as export of snapshot data from source is complete

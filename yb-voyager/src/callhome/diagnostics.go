@@ -270,13 +270,21 @@ type ExportDataPhasePayload struct {
 	StartClean              bool   `json:"start_clean"`
 	ExportSnapshotMechanism string `json:"export_snapshot_mechanism,omitempty"`
 	//TODO: see if these three can be changed to not use omitempty to put the data for 0 rate or total events
-	Phase                     string `json:"phase,omitempty"`
-	TotalExportedEvents       int64  `json:"total_exported_events,omitempty"`
-	EventsExportRate          int64  `json:"events_export_rate_3m,omitempty"`
-	LiveWorkflowType          string `json:"live_workflow_type,omitempty"`
-	Error                     string `json:"error"`
-	ControlPlaneType          string `json:"control_plane_type"`
-	AllowOracleClobDataExport bool   `json:"allow_oracle_clob_data_export"`
+	Phase                     string          `json:"phase,omitempty"`
+	TotalExportedEvents       int64           `json:"total_exported_events,omitempty"`
+	EventsExportRate          int64           `json:"events_export_rate_3m,omitempty"`
+	LiveWorkflowType          string          `json:"live_workflow_type,omitempty"`
+	Error                     string          `json:"error"`
+	ControlPlaneType          string          `json:"control_plane_type"`
+	AllowOracleClobDataExport bool            `json:"allow_oracle_clob_data_export"`
+	CutoverTimings            *CutoverTimings `json:"cutover_timings,omitempty"`
+}
+
+// =============================== Cutover Timings ===============================
+
+type CutoverTimings struct {
+	TotalCutoverTimeSec int64  `json:"total_cutover_time_sec"`
+	CutoverType         string `json:"cutover_type"`
 }
 
 // =============================== Import Schema ===============================
@@ -316,11 +324,12 @@ type ImportDataPhasePayload struct {
 	YBClusterMetrics            YBClusterMetrics  `json:"yb_cluster_metrics"`
 	DataMetrics                 ImportDataMetrics `json:"data_metrics"`
 	//TODO: see if these three can be changed to not use omitempty to put the data for 0 rate or total events
-	Phase            string `json:"phase,omitempty"`
-	LiveWorkflowType string `json:"live_workflow_type,omitempty"`
-	EnableUpsert     bool   `json:"enable_upsert"`
-	Error            string `json:"error"`
-	ControlPlaneType string `json:"control_plane_type"`
+	Phase            string          `json:"phase,omitempty"`
+	LiveWorkflowType string          `json:"live_workflow_type,omitempty"`
+	EnableUpsert     bool            `json:"enable_upsert"`
+	Error            string          `json:"error"`
+	ControlPlaneType string          `json:"control_plane_type"`
+	CutoverTimings   *CutoverTimings `json:"cutover_timings,omitempty"`
 }
 
 type ImportDataMetrics struct {

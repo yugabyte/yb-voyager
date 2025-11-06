@@ -17,9 +17,11 @@ package cmd
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/spf13/cobra"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -69,6 +71,7 @@ func InitiateCutover(dbRole string, prepareforFallback bool, useYBgRPCConnector 
 				return
 			}
 			record.CutoverToTargetRequested = true
+			record.CutoverToTargetRequestedAt = utils.GetCurrentTimestamp()
 			if prepareforFallback {
 				record.FallbackEnabled = true
 			}
@@ -81,12 +84,14 @@ func InitiateCutover(dbRole string, prepareforFallback bool, useYBgRPCConnector 
 				return
 			}
 			record.CutoverToSourceReplicaRequested = true
+			record.CutoverToSourceReplicaRequestedAt = utils.GetCurrentTimestamp()
 		case "source":
 			if record.CutoverToSourceRequested {
 				alreadyInitiated = true
 				return
 			}
 			record.CutoverToSourceRequested = true
+			record.CutoverToSourceRequestedAt = utils.GetCurrentTimestamp()
 		}
 	})
 	if err != nil {
@@ -106,16 +111,22 @@ func markCutoverProcessed(importerOrExporterRole string) error {
 		switch importerOrExporterRole {
 		case SOURCE_DB_EXPORTER_ROLE:
 			record.CutoverProcessedBySourceExporter = true
+			record.CutoverProcessedBySourceExporterAt = utils.GetCurrentTimestamp()
 		case TARGET_DB_IMPORTER_ROLE:
 			record.CutoverProcessedByTargetImporter = true
+			record.CutoverProcessedByTargetImporterAt = utils.GetCurrentTimestamp()
 		case TARGET_DB_EXPORTER_FF_ROLE:
 			record.CutoverToSourceReplicaProcessedByTargetExporter = true
+			record.CutoverToSourceReplicaProcessedByTargetExporterAt = utils.GetCurrentTimestamp()
 		case TARGET_DB_EXPORTER_FB_ROLE:
 			record.CutoverToSourceProcessedByTargetExporter = true
+			record.CutoverToSourceProcessedByTargetExporterAt = utils.GetCurrentTimestamp()
 		case SOURCE_REPLICA_DB_IMPORTER_ROLE:
 			record.CutoverToSourceReplicaProcessedBySRImporter = true
+			record.CutoverToSourceReplicaProcessedBySRImporterAt = utils.GetCurrentTimestamp()
 		case SOURCE_DB_IMPORTER_ROLE:
 			record.CutoverToSourceProcessedBySourceImporter = true
+			record.CutoverToSourceProcessedBySourceImporterAt = utils.GetCurrentTimestamp()
 		default:
 			panic(fmt.Sprintf("invalid role %s", importerOrExporterRole))
 		}
@@ -162,5 +173,74 @@ func ExitIfAlreadyCutover(importerOrExporterRole string) {
 		}
 	default:
 		panic(fmt.Sprintf("invalid role %s", importerOrExporterRole))
+	}
+}
+
+// CalculateCutoverTimingsForTarget calculates cutover timing metrics for cutover to target
+func CalculateCutoverTimingsForTarget(record *metadb.MigrationStatusRecord) *callhome.CutoverTimings {
+	if !record.CutoverToTargetRequested {
+		return nil
+	}
+
+	requestedAt := record.CutoverToTargetRequestedAt
+	var completedAt time.Time
+
+	// Determine completion time based on whether fall-forward/fall-back is enabled
+	if record.FallForwardEnabled && !record.ExportFromTargetFallForwardStartedAt.IsZero() {
+		completedAt = record.ExportFromTargetFallForwardStartedAt
+	} else if record.FallbackEnabled && !record.ExportFromTargetFallBackStartedAt.IsZero() {
+		completedAt = record.ExportFromTargetFallBackStartedAt
+	} else if !record.FallForwardEnabled && !record.FallbackEnabled && !record.CutoverProcessedByTargetImporterAt.IsZero() {
+		// No fall-forward/fall-back, cutover completes when target importer is done
+		completedAt = record.CutoverProcessedByTargetImporterAt
+	} else {
+		// Cutover probably not yet complete
+		return nil
+	}
+
+	// Check if timestamps are valid
+	if requestedAt.IsZero() || completedAt.IsZero() {
+		return nil
+	}
+
+	return &callhome.CutoverTimings{
+		TotalCutoverTimeSec: int64(completedAt.Sub(requestedAt).Seconds()),
+		CutoverType:         "target",
+	}
+}
+
+// CalculateCutoverTimingsForSource calculates cutover timing metrics for cutover to source
+func CalculateCutoverTimingsForSource(record *metadb.MigrationStatusRecord) *callhome.CutoverTimings {
+	if !record.CutoverToSourceRequested || !record.CutoverToSourceProcessedBySourceImporter {
+		return nil
+	}
+
+	requestedAt := record.CutoverToSourceRequestedAt
+	completedAt := record.CutoverToSourceProcessedBySourceImporterAt
+	if requestedAt.IsZero() || completedAt.IsZero() {
+		return nil
+	}
+
+	return &callhome.CutoverTimings{
+		TotalCutoverTimeSec: int64(completedAt.Sub(requestedAt).Seconds()),
+		CutoverType:         "source",
+	}
+}
+
+// CalculateCutoverTimingsForSourceReplica calculates cutover timing metrics for cutover to source-replica
+func CalculateCutoverTimingsForSourceReplica(record *metadb.MigrationStatusRecord) *callhome.CutoverTimings {
+	if !record.CutoverToSourceReplicaRequested || !record.CutoverToSourceReplicaProcessedBySRImporter {
+		return nil
+	}
+
+	requestedAt := record.CutoverToSourceReplicaRequestedAt
+	completedAt := record.CutoverToSourceReplicaProcessedBySRImporterAt
+	if requestedAt.IsZero() || completedAt.IsZero() {
+		return nil
+	}
+
+	return &callhome.CutoverTimings{
+		TotalCutoverTimeSec: int64(completedAt.Sub(requestedAt).Seconds()),
+		CutoverType:         "source-replica",
 	}
 }

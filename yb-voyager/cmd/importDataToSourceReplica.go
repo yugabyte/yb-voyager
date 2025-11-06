@@ -148,6 +148,14 @@ func packAndSendImportDataToSrcReplicaPayload(status string, errorMsg error) {
 		Phase:            importPhase,
 	}
 
+	// Add cutover timings if applicable
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err == nil {
+		importDataPayload.CutoverTimings = CalculateCutoverTimingsForSourceReplica(msr)
+	} else {
+		log.Infof("callhome: error getting MSR for cutover timings: %v", err)
+	}
+
 	payload.PhasePayload = callhome.MarshalledJsonString(importDataPayload)
 	payload.Status = status
 

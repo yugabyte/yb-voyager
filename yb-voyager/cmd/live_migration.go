@@ -207,10 +207,13 @@ func streamChangesFromSegment(
 				switch importerRole {
 				case TARGET_DB_IMPORTER_ROLE:
 					record.CutoverDetectedByTargetImporter = true
+					record.CutoverDetectedByTargetImporterAt = utils.GetCurrentTimestamp()
 				case SOURCE_REPLICA_DB_IMPORTER_ROLE:
 					record.CutoverDetectedBySourceReplicaImporter = true
+					record.CutoverDetectedBySourceReplicaImporterAt = utils.GetCurrentTimestamp()
 				case SOURCE_DB_IMPORTER_ROLE:
 					record.CutoverDetectedBySourceImporter = true
+					record.CutoverDetectedBySourceImporterAt = utils.GetCurrentTimestamp()
 				}
 			})
 			if err != nil {
