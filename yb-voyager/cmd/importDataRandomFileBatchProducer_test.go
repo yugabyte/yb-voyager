@@ -687,97 +687,6 @@ func (d *delayedSequentialFileBatchProducer) NextBatch() (*Batch, error) {
 	return d.SequentialFileBatchProducer.NextBatch()
 }
 
-func TestRandomBatchProducer_Resumption_SingleBatchProduced_NotConsumed(t *testing.T) {
-	// Create a file with 10 batches (20 rows, 2 rows per batch)
-	ldataDir, lexportDir, state, errorHandler, progressReporter, err := setupExportDirAndImportDependencies(2, 1024)
-	require.NoError(t, err)
-
-	if ldataDir != "" {
-		defer os.RemoveAll(fmt.Sprintf("%s/", ldataDir))
-	}
-	if lexportDir != "" {
-		defer os.RemoveAll(fmt.Sprintf("%s/", lexportDir))
-	}
-
-	// Create file with 1 data rows (1 batches)
-	fileContents := "id,val\n"
-	for i := 1; i <= 1; i++ {
-		fileContents += fmt.Sprintf("%d,value%d\n", i, i)
-	}
-	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
-	require.NoError(t, err)
-
-	// Create sequential producer
-
-	producer, err := NewRandomFileBatchProducer(task, state, errorHandler, progressReporter)
-	require.NoError(t, err)
-
-	// Wait for all batches to be produced
-	var batchesProduced int
-	deadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) {
-		producer.mu.Lock()
-		batchesProduced = len(producer.sequentiallyProducedBatches)
-		producer.mu.Unlock()
-
-		// Wait until all 10 batches are produced
-		if batchesProduced >= 10 {
-			break
-		}
-		time.Sleep(50 * time.Millisecond)
-	}
-
-	// Verify 1 batch is produced
-	require.Equal(t, 1, batchesProduced, "Should have all 10 batches produced")
-
-	// Verify producer is not done yet (batches are in memory but not consumed)
-	assert.False(t, producer.Done(), "Producer should not be done yet (batches in memory)")
-
-	// Note: The batches produced are saved to state(disk) by SequentialFileBatchProducer.
-	// When we close, the batches in memory (sequentiallyProducedBatches) are lost,
-	// but the batches already saved to state(disk) will be recovered on resumption.
-
-	// Close the producer to simulate interruption
-	producer.Close()
-
-	// // Create a new producer (simulating resumption)
-	// // This should recover the batche that were already produced
-
-	producer2, err := NewRandomFileBatchProducer(task, state, errorHandler, progressReporter)
-	require.NoError(t, err)
-	defer producer2.Close()
-
-	// Collect all batches from the resumed producer
-	allBatches := make([]*Batch, 0)
-	for !producer2.Done() {
-		// Wait for batch to become available
-		available := waitForBatchAvailable(producer2, 5*time.Second)
-		if !available {
-			// If no batch available and producer is done, break
-			if producer2.Done() {
-				break
-			}
-			// Otherwise timeout occurred, which shouldn't happen
-			require.Fail(t, "Batch should become available within timeout")
-		}
-
-		batch, err := producer2.NextBatch()
-		require.NoError(t, err, "Should be able to get batch")
-		require.NotNil(t, batch, "Batch should not be nil")
-		allBatches = append(allBatches, batch)
-	}
-
-	// Verify we got all 10 batches
-	require.Equal(t, 1, len(allBatches), "Should have recovered all 10 batches")
-
-	// Verify batch number is 0 (last batch)
-	require.Equal(t, int64(0), allBatches[0].Number, "Batch number should be 1")
-
-	// Verify final state
-	assert.True(t, producer2.Done(), "Producer should be done after consuming all batches")
-	assert.False(t, producer2.IsBatchAvailable(), "No batches should be available after done")
-}
-
 func TestRandomBatchProducer_Resumption_PartialBatchesProduced_NoneConsumed(t *testing.T) {
 	// Create a file with 10 batches (20 rows, 2 rows per batch)
 	ldataDir, lexportDir, state, errorHandler, progressReporter, err := setupExportDirAndImportDependencies(2, 1024)
@@ -1135,6 +1044,97 @@ func TestRandomBatchProducer_Resumption_PartialBatchesProduced_AllConsumed(t *te
 	}
 	// Finally verify that we have all 10 unique batch numbers
 	require.Equal(t, 10, len(consumedBatchNumbers), "Should have all 10 unique batch numbers")
+
+	// Verify final state
+	assert.True(t, producer2.Done(), "Producer should be done after consuming all batches")
+	assert.False(t, producer2.IsBatchAvailable(), "No batches should be available after done")
+}
+
+func TestRandomBatchProducer_Resumption_SingleBatchProduced_NotConsumed(t *testing.T) {
+	// Create a file with 10 batches (20 rows, 2 rows per batch)
+	ldataDir, lexportDir, state, errorHandler, progressReporter, err := setupExportDirAndImportDependencies(2, 1024)
+	require.NoError(t, err)
+
+	if ldataDir != "" {
+		defer os.RemoveAll(fmt.Sprintf("%s/", ldataDir))
+	}
+	if lexportDir != "" {
+		defer os.RemoveAll(fmt.Sprintf("%s/", lexportDir))
+	}
+
+	// Create file with 1 data rows (1 batches)
+	fileContents := "id,val\n"
+	for i := 1; i <= 1; i++ {
+		fileContents += fmt.Sprintf("%d,value%d\n", i, i)
+	}
+	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
+	require.NoError(t, err)
+
+	// Create sequential producer
+
+	producer, err := NewRandomFileBatchProducer(task, state, errorHandler, progressReporter)
+	require.NoError(t, err)
+
+	// Wait for all batches to be produced
+	var batchesProduced int
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		producer.mu.Lock()
+		batchesProduced = len(producer.sequentiallyProducedBatches)
+		producer.mu.Unlock()
+
+		// Wait until all 10 batches are produced
+		if batchesProduced >= 10 {
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	// Verify 1 batch is produced
+	require.Equal(t, 1, batchesProduced, "Should have all 10 batches produced")
+
+	// Verify producer is not done yet (batches are in memory but not consumed)
+	assert.False(t, producer.Done(), "Producer should not be done yet (batches in memory)")
+
+	// Note: The batches produced are saved to state(disk) by SequentialFileBatchProducer.
+	// When we close, the batches in memory (sequentiallyProducedBatches) are lost,
+	// but the batches already saved to state(disk) will be recovered on resumption.
+
+	// Close the producer to simulate interruption
+	producer.Close()
+
+	// // Create a new producer (simulating resumption)
+	// // This should recover the batche that were already produced
+
+	producer2, err := NewRandomFileBatchProducer(task, state, errorHandler, progressReporter)
+	require.NoError(t, err)
+	defer producer2.Close()
+
+	// Collect all batches from the resumed producer
+	allBatches := make([]*Batch, 0)
+	for !producer2.Done() {
+		// Wait for batch to become available
+		available := waitForBatchAvailable(producer2, 5*time.Second)
+		if !available {
+			// If no batch available and producer is done, break
+			if producer2.Done() {
+				break
+			}
+			// Otherwise timeout occurred, which shouldn't happen
+			require.Fail(t, "Batch should become available within timeout")
+		}
+
+		batch, err := producer2.NextBatch()
+		require.NoError(t, err, "Should be able to get batch")
+		require.NotNil(t, batch, "Batch should not be nil")
+		allBatches = append(allBatches, batch)
+	}
+
+	// Verify we got all 10 batches
+	require.Equal(t, 1, len(allBatches), "Should have recovered all 10 batches")
+
+	// Verify batch number is 0 (last batch)
+	require.Equal(t, int64(0), allBatches[0].Number, "Batch number should be 1")
 
 	// Verify final state
 	assert.True(t, producer2.Done(), "Producer should be done after consuming all batches")
