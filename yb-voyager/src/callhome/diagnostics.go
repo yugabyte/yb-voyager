@@ -263,7 +263,14 @@ type AnalyzeIssueCallhome struct {
 
 // =============================== Export Data ===============================
 
+/*
+Version History
+1.0: Added CutoverTimings field
+*/
+var EXPORT_DATA_CALLHOME_PAYLOAD_VERSION = "1.0"
+
 type ExportDataPhasePayload struct {
+	PayloadVersion          string `json:"payload_version"`
 	ParallelJobs            int64  `json:"parallel_jobs"`
 	TotalRows               int64  `json:"total_rows_exported"`
 	LargestTableRows        int64  `json:"largest_table_rows_exported"`
@@ -309,8 +316,9 @@ Version History:
 1.1: Added YBClusterMetrics field, and corresponding struct - YBClusterMetrics, NodeMetric
 1.2: Split out the data metrics into a separate struct - ImportDataMetrics
 1.3: Added CurrentParallelConnections field to ImportDataMetrics
+1.4: Added CutoverTimings field
 */
-var IMPORT_DATA_CALLHOME_PAYLOAD_VERSION = "1.3"
+var IMPORT_DATA_CALLHOME_PAYLOAD_VERSION = "1.4"
 
 type ImportDataPhasePayload struct {
 	PayloadVersion              string            `json:"payload_version"`
