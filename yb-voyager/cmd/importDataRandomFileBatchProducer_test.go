@@ -800,7 +800,7 @@ func TestRandomBatchProducer_Resumption_PartialBatchesProduced_NoneConsumed(t *t
 	assert.False(t, producer2.IsBatchAvailable(), "No batches should be available after done")
 }
 
-func TestRandomBatchProducer_Resumption_PartialBatchesProduced_PartialConsumed(t *testing.T) {
+func TestRandomBatchProducer_Resumption_PartialBatchesProduced_AllConsumed(t *testing.T) {
 	// Create a file with 10 batches (20 rows, 2 rows per batch)
 	ldataDir, lexportDir, state, errorHandler, progressReporter, err := setupExportDirAndImportDependencies(2, 1024)
 	require.NoError(t, err)
@@ -867,7 +867,7 @@ func TestRandomBatchProducer_Resumption_PartialBatchesProduced_PartialConsumed(t
 	// Close the producer to simulate interruption
 	producer.Close()
 
-	// mark the produced batches as consumed
+	// mark all the produced batches as consumed
 	consumedBatchNumbers := make(map[int64]bool)
 	for _, batch := range producer.sequentiallyProducedBatches {
 		consumedBatchNumbers[batch.Number] = true
@@ -1137,3 +1137,8 @@ func TestRandomBatchProducer_Resumption_AllBatchesProduced_PartialConsumed(t *te
 	assert.True(t, producer2.Done(), "Producer should be done after consuming all batches")
 	assert.False(t, producer2.IsBatchAvailable(), "No batches should be available after done")
 }
+
+// TODO:
+// TestRandomBatchProducer_Resumption_PartialBatchesProduced_PartialConsumed (not all of the produced batches are consumed. consumed ones in random order)
+// TestRandomBatchProducer_Resumption_AllBatchesProduced_AllConsumed (should not really happen. produce.Done will be true immediately)
+// Resumption with single batch (produces just one batch, and closes before consuming it).
