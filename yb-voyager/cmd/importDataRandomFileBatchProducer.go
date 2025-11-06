@@ -16,6 +16,7 @@ limitations under the License.
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"sync"
 
@@ -30,6 +31,8 @@ type RandomBatchProducer struct {
 	sequentiallyProducedBatches         []*Batch
 	mu                                  sync.Mutex
 	sequentialFileBatchProducerFinished bool
+	producerWaitGroup                   sync.WaitGroup
+	producerCtx                         context.Context
 }
 
 func NewRandomFileBatchProducer(task *ImportFileTask, state *ImportDataState, errorHandler importdata.ImportDataErrorHandler, progressReporter *ImportDataProgressReporter) (*RandomBatchProducer, error) {
@@ -41,12 +44,14 @@ func NewRandomFileBatchProducer(task *ImportFileTask, state *ImportDataState, er
 		sequentialFileBatchProducer: sequentialFileBatchProducer,
 		sequentiallyProducedBatches: make([]*Batch, 0),
 	}
+	rbp.producerWaitGroup.Add(1)
 
 	go func() {
 		err := rbp.startProducingBatches()
 		if err != nil {
 			utils.ErrExit("error producing batches for table: %s, file: %s, err: %w", rbp.sequentialFileBatchProducer.task.TableNameTup, rbp.sequentialFileBatchProducer.task.FilePath, err)
 		}
+		rbp.producerWaitGroup.Done()
 	}()
 	return rbp, nil
 }
@@ -65,6 +70,12 @@ func (rbp *RandomBatchProducer) Done() bool {
 func (rbp *RandomBatchProducer) Close() {
 	rbp.mu.Lock()
 	defer rbp.mu.Unlock()
+
+	// stop producer goroutine
+	rbp.producerCtx.Done()
+	rbp.producerWaitGroup.Wait()
+
+	// close sequential file batch producer
 	if rbp.sequentialFileBatchProducer != nil {
 		rbp.sequentialFileBatchProducer.Close()
 	}
@@ -116,7 +127,18 @@ func (rbp *RandomBatchProducer) startProducingBatches() error {
 			rbp.sequentialFileBatchProducerFinished = true
 		}
 		rbp.mu.Unlock()
+
+		// handle closed ctx
+		select {
+		case <-rbp.producerCtx.Done():
+			log.Infof("Producer context done, stopping production of batches for file: %s", rbp.sequentialFileBatchProducer.task.FilePath)
+			return nil
+		default:
+			// continue
+		}
 	}
+
+	rbp.sequentialFileBatchProducer.Close()
 	log.Infof("Sequential file batch producer finished producing all batches for file: %s", rbp.sequentialFileBatchProducer.task.FilePath)
 	return nil
 }
