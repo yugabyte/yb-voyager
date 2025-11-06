@@ -568,6 +568,8 @@ func TestNextBatchCalledWhenNoBatchesAvailableProducerFinished(t *testing.T) {
 	assert.Nil(t, batch, "NextBatch() should return nil batch when error occurs")
 }
 
+// ================================ Error Policy Tests ================================
+
 // TestRandomBatchProducer_AbortHandler tests that abort error policy works with random batch producer
 // Note: With abort policy, errors from the sequential producer cause utils.ErrExit to be called,
 // which exits the process.
@@ -669,6 +671,8 @@ func TestRandomBatchProducer_StashAndContinue(t *testing.T) {
 	assert.True(t, producer.Done(), "Done() should be true after producer finishes")
 }
 
+// ================================ Resumption Tests ================================
+
 // delayedSequentialFileBatchProducer wraps SequentialFileBatchProducer and adds a delay in NextBatch()
 // to control timing in tests.
 type delayedSequentialFileBatchProducer struct {
@@ -682,14 +686,6 @@ func (d *delayedSequentialFileBatchProducer) NextBatch() (*Batch, error) {
 	}
 	return d.SequentialFileBatchProducer.NextBatch()
 }
-
-// func (d *delayedSequentialFileBatchProducer) Done() bool {
-// 	return d.SequentialFileBatchProducer.Done()
-// }
-
-// func (d *delayedSequentialFileBatchProducer) Close() {
-// 	d.SequentialFileBatchProducer.Close()
-// }
 
 func TestRandomBatchProducer_Resumption_PartialBatchesProduced_NoneConsumed(t *testing.T) {
 	// Create a file with 10 batches (20 rows, 2 rows per batch)
