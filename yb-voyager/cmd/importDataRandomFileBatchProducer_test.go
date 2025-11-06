@@ -325,3 +325,120 @@ func TestSingleBatchMatchVerification(t *testing.T) {
 	assertBatchesMatch(t, sequentialBatch, randomBatch, "Sequential and random batches should match")
 
 }
+
+// TestMultipleBatchesMatchVerification tests test case 2.2:
+// Create producer with a file that produces N batches and verify they match sequential producer
+func TestMultipleBatchesMatchVerification(t *testing.T) {
+	ldataDir, lexportDir, state, errorHandler, progressReporter, err := setupExportDirAndImportDependencies(2, 1024)
+	require.NoError(t, err)
+
+	if ldataDir != "" {
+		defer os.RemoveAll(fmt.Sprintf("%s/", ldataDir))
+	}
+	if lexportDir != "" {
+		defer os.RemoveAll(fmt.Sprintf("%s/", lexportDir))
+	}
+
+	// Create a file that produces 5 batches (batch size is 2 rows, so 10 rows = 5 batches)
+	fileContents := `id,val
+1, "hello"
+2, "world"
+3, "foo"
+4, "bar"
+5, "baz"
+6, "qux"
+7, "quux"
+8, "corge"
+9, "grault"
+10, "waldo"`
+
+	// Create two separate tasks - one for sequential producer, one for random producer
+	_, sequentialTask, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
+	require.NoError(t, err)
+	_, randomTask, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 2)
+	require.NoError(t, err)
+
+	// Create SequentialFileBatchProducer and collect all batches
+	sequentialProducer, err := NewSequentialFileBatchProducer(sequentialTask, state, errorHandler, progressReporter)
+	require.NoError(t, err)
+	defer sequentialProducer.Close()
+
+	var sequentialBatches []*Batch
+	var sequentialBatchMap = make(map[int64]*Batch)
+	for !sequentialProducer.Done() {
+		batch, err := sequentialProducer.NextBatch()
+		require.NoError(t, err, "Sequential producer should produce batches")
+		require.NotNil(t, batch, "Sequential batch should not be nil")
+		sequentialBatches = append(sequentialBatches, batch)
+		sequentialBatchMap[batch.Number] = batch
+	}
+	require.True(t, sequentialProducer.Done(), "Sequential producer should be done after producing all batches")
+	totalExpectedBatches := len(sequentialBatches)
+
+	// Create RandomBatchProducer
+	randomProducer, err := NewRandomFileBatchProducer(randomTask, state, errorHandler, progressReporter)
+	require.NoError(t, err)
+	defer randomProducer.Close()
+
+	// Verify initial state: Done() should be false, IsBatchAvailable() should be false
+	assert.False(t, randomProducer.Done(), "Done() should be false initially")
+	assert.False(t, randomProducer.IsBatchAvailable(), "IsBatchAvailable() should be false initially")
+
+	// Collect all batches from random producer
+	var randomBatches []*Batch
+	var randomBatchMap = make(map[int64]*Batch)
+	batchNumbersSeen := make(map[int64]bool)
+
+	// Consume all batches
+	for !randomProducer.Done() {
+		// Wait for batch to become available
+		available := waitForBatchAvailable(randomProducer, 5*time.Second)
+		if !available {
+			// If no batch available and producer is done, break
+			if randomProducer.Done() {
+				break
+			}
+			// Otherwise timeout occurred, which shouldn't happen
+			require.Fail(t, "Batch should become available within timeout")
+		}
+
+		// Verify state consistency: If IsBatchAvailable() is true, Done() must be false
+		assert.False(t, randomProducer.Done(), "State consistency: Done() must be false when IsBatchAvailable() is true")
+
+		// Consume the batch
+		batch, err := randomProducer.NextBatch()
+		require.NoError(t, err, "NextBatch() should return a batch without error")
+		require.NotNil(t, batch, "NextBatch() should return a non-nil batch")
+
+		randomBatches = append(randomBatches, batch)
+		randomBatchMap[batch.Number] = batch
+
+		// Verify batch is unique (no duplicate batch numbers)
+		require.False(t, batchNumbersSeen[batch.Number], "Batch number %d should be unique", batch.Number)
+		batchNumbersSeen[batch.Number] = true
+	}
+
+	// Verify batch count from random producer matches sequential producer
+	assert.Equal(t, totalExpectedBatches, len(randomBatches), "Batch count from random producer should match sequential producer")
+	assert.Equal(t, totalExpectedBatches, len(randomBatchMap), "Batch map size should match expected count")
+	assert.Equal(t, totalExpectedBatches, len(batchNumbersSeen), "Unique batch numbers should match expected count")
+
+	// Verify all batches from sequential producer are present in random producer (by batch number)
+	for batchNum, sequentialBatch := range sequentialBatchMap {
+		randomBatch, exists := randomBatchMap[batchNum]
+		require.True(t, exists, "Batch number %d from sequential producer should be present in random producer", batchNum)
+		// Verify batch contents and metadata match
+		assertBatchesMatch(t, sequentialBatch, randomBatch, "Batches with number %d should match", batchNum)
+	}
+
+	// Verify all batch numbers from sequential producer appear in random producer
+	// (This ensures no gaps - if sequential has batches 0,1,2,3,4 then random should have the same)
+	for batchNum := range sequentialBatchMap {
+		_, exists := randomBatchMap[batchNum]
+		require.True(t, exists, "Batch number %d should be present in random producer", batchNum)
+	}
+
+	// Verify final state: Done() should be true, IsBatchAvailable() should be false
+	assert.True(t, randomProducer.Done(), "Done() should be true after consuming all batches")
+	assert.False(t, randomProducer.IsBatchAvailable(), "IsBatchAvailable() should be false when Done() is true")
+}
