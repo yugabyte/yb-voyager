@@ -140,20 +140,20 @@ func PrintAndLog(message string) {
 }
 
 func MonkeyPatchUtilsErrExitWithPanic() {
-	monkeyPatchUtilsErrExit(func(formatString string, args ...interface{}) {
+	MonkeyPatchUtilsErrExit(func(formatString string, args ...interface{}) {
 		panic("utils.ErrExit was called with: " + fmt.Sprintf(formatString, args...))
 	})
 }
 
 func MonkeyPatchUtilsErrExitToIgnore() {
-	monkeyPatchUtilsErrExit(func(formatString string, args ...interface{}) {
+	MonkeyPatchUtilsErrExit(func(formatString string, args ...interface{}) {
 		// do nothing
 	})
 }
 
-// monkeyPatchUtilsErrExit allows monkey patching of the utils.ErrExit function for testing purposes.
+// MonkeyPatchUtilsErrExit allows monkey patching of the utils.ErrExit function for testing purposes.
 // It replaces the original function with a new one provided by the caller.
-func monkeyPatchUtilsErrExit(newErrExit func(formatString string, args ...interface{})) {
+func MonkeyPatchUtilsErrExit(newErrExit func(formatString string, args ...interface{})) {
 	originalErrExit = ErrExit
 	ErrExit = newErrExit
 }
