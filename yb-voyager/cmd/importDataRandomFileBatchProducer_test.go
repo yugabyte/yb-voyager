@@ -691,9 +691,7 @@ func (d *delayedSequentialFileBatchProducer) NextBatch() (*Batch, error) {
 // 	d.SequentialFileBatchProducer.Close()
 // }
 
-// TestRandomBatchProducer_Resumption tests that resumption works correctly with RandomBatchProducer.
-// It ensures that when the producer is closed with partial batches produced, a new producer can resume correctly.
-func TestRandomBatchProducer_Resumption_PartialBatchesProduced(t *testing.T) {
+func TestRandomBatchProducer_Resumption_PartialBatchesProduced_NoneConsumed(t *testing.T) {
 	// Create a file with 10 batches (20 rows, 2 rows per batch)
 	ldataDir, lexportDir, state, errorHandler, progressReporter, err := setupExportDirAndImportDependencies(2, 1024)
 	require.NoError(t, err)
@@ -806,8 +804,6 @@ func TestRandomBatchProducer_Resumption_PartialBatchesProduced(t *testing.T) {
 	assert.False(t, producer2.IsBatchAvailable(), "No batches should be available after done")
 }
 
-// TestRandomBatchProducer_Resumption_PartialBatchesProduced_PartialConsumed tests that resumption works correctly with RandomBatchProducer.
-// It ensures that when the producer is closed with partial batches produced and some consumed, a new producer can resume correctly.
 func TestRandomBatchProducer_Resumption_PartialBatchesProduced_PartialConsumed(t *testing.T) {
 	// Create a file with 10 batches (20 rows, 2 rows per batch)
 	ldataDir, lexportDir, state, errorHandler, progressReporter, err := setupExportDirAndImportDependencies(2, 1024)
@@ -875,7 +871,7 @@ func TestRandomBatchProducer_Resumption_PartialBatchesProduced_PartialConsumed(t
 	// Close the producer to simulate interruption
 	producer.Close()
 
-	// mark the consumed batches as consumed
+	// mark the produced batches as consumed
 	consumedBatchNumbers := make(map[int64]bool)
 	for _, batch := range producer.sequentiallyProducedBatches {
 		consumedBatchNumbers[batch.Number] = true
@@ -931,9 +927,7 @@ func TestRandomBatchProducer_Resumption_PartialBatchesProduced_PartialConsumed(t
 	assert.False(t, producer2.IsBatchAvailable(), "No batches should be available after done")
 }
 
-// TestRandomBatchProducer_Resumption_AllBatchesProduced tests that resumption works correctly with RandomBatchProducer
-// when all batches have been produced before closing. It ensures that a new producer can resume and consume all batches.
-func TestRandomBatchProducer_Resumption_AllBatchesProduced(t *testing.T) {
+func TestRandomBatchProducer_Resumption_AllBatchesProduced_NoneConsumed(t *testing.T) {
 	// Create a file with 10 batches (20 rows, 2 rows per batch)
 	ldataDir, lexportDir, state, errorHandler, progressReporter, err := setupExportDirAndImportDependencies(2, 1024)
 	require.NoError(t, err)
@@ -1035,8 +1029,6 @@ func TestRandomBatchProducer_Resumption_AllBatchesProduced(t *testing.T) {
 	assert.False(t, producer2.IsBatchAvailable(), "No batches should be available after done")
 }
 
-// TestRandomBatchProducer_Resumption_AllBatchesProduced_PartialConsumed tests that resumption works correctly with RandomBatchProducer
-// when all batches have been produced and some consumed before closing. It ensures that a new producer can resume and consume all batches.
 func TestRandomBatchProducer_Resumption_AllBatchesProduced_PartialConsumed(t *testing.T) {
 	// Create a file with 10 batches (20 rows, 2 rows per batch)
 	ldataDir, lexportDir, state, errorHandler, progressReporter, err := setupExportDirAndImportDependencies(2, 1024)
