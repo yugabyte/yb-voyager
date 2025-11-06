@@ -1076,22 +1076,16 @@ func TestRandomBatchProducer_Resumption_SingleBatchProduced_NotConsumed(t *testi
 	require.NoError(t, err)
 
 	// Wait for all batches to be produced
-	var batchesProduced int
-	deadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) {
-		producer.mu.Lock()
-		batchesProduced = len(producer.sequentiallyProducedBatches)
-		producer.mu.Unlock()
-
-		// Wait until all 10 batches are produced
-		if batchesProduced >= 10 {
-			break
-		}
+	// The sequential producer is done when it has finished producing all batches
+	for !producer.sequentialFileBatchProducer.Done() {
 		time.Sleep(50 * time.Millisecond)
 	}
 
 	// Verify 1 batch is produced
-	require.Equal(t, 1, batchesProduced, "Should have all 10 batches produced")
+	producer.mu.Lock()
+	batchesProduced := len(producer.sequentiallyProducedBatches)
+	producer.mu.Unlock()
+	require.Equal(t, 1, batchesProduced, "Should have 1 batch produced")
 
 	// Verify producer is not done yet (batches are in memory but not consumed)
 	assert.False(t, producer.Done(), "Producer should not be done yet (batches in memory)")
@@ -1170,21 +1164,15 @@ func TestRandomBatchProducer_Resumption_AllBatchesProduced_NoneConsumed(t *testi
 	producer := newRandomFileBatchProducer(sequentialProducer, task)
 
 	// Wait for all batches to be produced
-	var batchesProduced int
-	deadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) {
-		producer.mu.Lock()
-		batchesProduced = len(producer.sequentiallyProducedBatches)
-		producer.mu.Unlock()
-
-		// Wait until all 10 batches are produced
-		if batchesProduced >= 10 {
-			break
-		}
+	// The sequential producer is done when it has finished producing all batches
+	for !producer.sequentialFileBatchProducer.Done() {
 		time.Sleep(50 * time.Millisecond)
 	}
 
 	// Verify all batches are produced
+	producer.mu.Lock()
+	batchesProduced := len(producer.sequentiallyProducedBatches)
+	producer.mu.Unlock()
 	require.Equal(t, 10, batchesProduced, "Should have all 10 batches produced")
 
 	// Verify producer is not done yet (batches are in memory but not consumed)
@@ -1272,21 +1260,15 @@ func TestRandomBatchProducer_Resumption_AllBatchesProduced_PartialConsumed(t *te
 	producer := newRandomFileBatchProducer(sequentialProducer, task)
 
 	// Wait for all batches to be produced
-	var batchesProduced int
-	deadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) {
-		producer.mu.Lock()
-		batchesProduced = len(producer.sequentiallyProducedBatches)
-		producer.mu.Unlock()
-
-		// Wait until all 10 batches are produced
-		if batchesProduced >= 10 {
-			break
-		}
+	// The sequential producer is done when it has finished producing all batches
+	for !producer.sequentialFileBatchProducer.Done() {
 		time.Sleep(50 * time.Millisecond)
 	}
 
 	// Verify all batches are produced
+	producer.mu.Lock()
+	batchesProduced := len(producer.sequentiallyProducedBatches)
+	producer.mu.Unlock()
 	require.Equal(t, 10, batchesProduced, "Should have all 10 batches produced")
 
 	// Verify producer is not done yet (batches are in memory but not consumed)
@@ -1385,21 +1367,15 @@ func TestRandomBatchProducer_Resumption_AllBatchesProduced_AllConsumed(t *testin
 	producer := newRandomFileBatchProducer(sequentialProducer, task)
 
 	// Wait for all batches to be produced
-	var batchesProduced int
-	deadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) {
-		producer.mu.Lock()
-		batchesProduced = len(producer.sequentiallyProducedBatches)
-		producer.mu.Unlock()
-
-		// Wait until all 10 batches are produced
-		if batchesProduced >= 10 {
-			break
-		}
+	// The sequential producer is done when it has finished producing all batches
+	for !producer.sequentialFileBatchProducer.Done() {
 		time.Sleep(50 * time.Millisecond)
 	}
 
 	// Verify all batches are produced
+	producer.mu.Lock()
+	batchesProduced := len(producer.sequentiallyProducedBatches)
+	producer.mu.Unlock()
 	require.Equal(t, 10, batchesProduced, "Should have all 10 batches produced")
 
 	// Verify producer is not done yet (batches are in memory but not consumed)
@@ -1436,7 +1412,7 @@ func TestRandomBatchProducer_Resumption_AllBatchesProduced_AllConsumed(t *testin
 	producer2 := newRandomFileBatchProducer(sequentialProducer2, task)
 	defer producer2.Close()
 
-	deadline = time.Now().Add(5 * time.Second)
+	deadline := time.Now().Add(5 * time.Second)
 	for !errExitCalled && time.Now().Before(deadline) {
 		time.Sleep(10 * time.Millisecond)
 	}
