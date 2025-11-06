@@ -507,3 +507,60 @@ func TestNextBatchCalledWhenNoBatchesAvailableProducerRunning(t *testing.T) {
 		}
 	}
 }
+
+// TestNextBatchCalledWhenNoBatchesAvailableProducerFinished tests test case 3.2:
+// Call NextBatch() after all batches consumed (producer finished)
+func TestNextBatchCalledWhenNoBatchesAvailableProducerFinished(t *testing.T) {
+	ldataDir, lexportDir, state, errorHandler, progressReporter, err := setupExportDirAndImportDependencies(2, 1024)
+	require.NoError(t, err)
+
+	if ldataDir != "" {
+		defer os.RemoveAll(fmt.Sprintf("%s/", ldataDir))
+	}
+	if lexportDir != "" {
+		defer os.RemoveAll(fmt.Sprintf("%s/", lexportDir))
+	}
+
+	// Create a file that produces multiple batches
+	fileContents := `id,val
+1, "hello"
+2, "world"
+3, "foo"
+4, "bar"`
+	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
+	require.NoError(t, err)
+
+	// Create RandomBatchProducer
+	producer, err := NewRandomFileBatchProducer(task, state, errorHandler, progressReporter)
+	require.NoError(t, err)
+	defer producer.Close()
+
+	// Consume all batches
+	for !producer.Done() {
+		// Wait for batch to become available
+		available := waitForBatchAvailable(producer, 5*time.Second)
+		if !available {
+			// If no batch available and producer is done, break
+			if producer.Done() {
+				break
+			}
+			// Otherwise timeout occurred, which shouldn't happen
+			require.Fail(t, "Batch should become available within timeout")
+		}
+
+		// Consume the batch
+		batch, err := producer.NextBatch()
+		require.NoError(t, err, "NextBatch() should return a batch without error")
+		require.NotNil(t, batch, "NextBatch() should return a non-nil batch")
+	}
+
+	// Verify producer is done after consuming all batches
+	assert.True(t, producer.Done(), "Done() should be true after consuming all batches")
+	assert.False(t, producer.IsBatchAvailable(), "IsBatchAvailable() should be false when Done() is true")
+
+	// Call NextBatch() after all batches consumed - should return error
+	batch, err := producer.NextBatch()
+	require.Error(t, err, "NextBatch() should return error when no batches available after producer finished")
+	assert.Contains(t, err.Error(), "no batches available", "Error message should indicate no batches available")
+	assert.Nil(t, batch, "NextBatch() should return nil batch when error occurs")
+}
