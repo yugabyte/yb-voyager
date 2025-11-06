@@ -86,6 +86,8 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 
 	var issues []QueryIssue
 
+	//For the cases where the table DDL is present in PLPGSQL and not present in actual schema so we need to report issues
+	//the TableMetadata will only have the basic information and usage category will be set to unused
 	tm := d.getOrCreateTableMetadata(table.GetObjectName())
 
 	// Check for generated columns
