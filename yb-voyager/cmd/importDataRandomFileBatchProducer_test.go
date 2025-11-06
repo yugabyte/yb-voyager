@@ -722,7 +722,7 @@ func TestRandomBatchProducer_Resumption_PartialBatchesProduced(t *testing.T) {
 	// This ensures we have time to observe partial batches
 	delayedSequential := &delayedSequentialFileBatchProducer{
 		SequentialFileBatchProducer: sequentialProducer,
-		sleepDuration:               100 * time.Millisecond,
+		sleepDuration:               500 * time.Millisecond,
 	}
 
 	// Create random producer using the delayed sequential producer
@@ -732,13 +732,15 @@ func TestRandomBatchProducer_Resumption_PartialBatchesProduced(t *testing.T) {
 	// We want to ensure we have partial batches (more than 0, less than 10)
 	// Don't consume any batches yet - we want to test resumption with batches in memory
 	var batchesProduced int
-	deadline := time.Now().Add(3 * time.Second)
+	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
 		producer.mu.Lock()
 		batchesProduced = len(producer.sequentiallyProducedBatches)
 		producer.mu.Unlock()
 		// We want at least 3 batches but not all 10
-		if batchesProduced >= 3 && batchesProduced < 10 {
+		// keeping it to below 7 because this is potential
+		// race condition between here and when we close the producer.
+		if batchesProduced >= 3 && batchesProduced < 7 {
 			// do not unlock because we don't want producer to add more batches.
 			// we are going to close the producer anyway.
 			break
@@ -749,7 +751,7 @@ func TestRandomBatchProducer_Resumption_PartialBatchesProduced(t *testing.T) {
 
 	// Verify we have partial batches
 	require.GreaterOrEqual(t, batchesProduced, 3, "Should have at least 3 batches produced")
-	require.Less(t, batchesProduced, 10, "Should have less than 10 batches produced (partial)")
+	require.Less(t, batchesProduced, 7, "Should have less than 10 batches produced (partial)")
 
 	// Note: The batches produced are saved to state(disk) by SequentialFileBatchProducer.
 	// When we close, the batches in memory (sequentiallyProducedBatches) are lost,
