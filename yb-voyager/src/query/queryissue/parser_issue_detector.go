@@ -313,7 +313,6 @@ func (p *ParserIssueDetector) getOrCreateTableMetadata(tableName string) *TableM
 		Constraints: make([]ConstraintMetadata, 0),
 		Indexes:     make([]*queryparser.Index, 0),
 	}
-	tm.Usage = p.getUsageCategoryForTable(tm)
 	p.tablesMetadata[tableName] = tm
 
 	return tm
@@ -558,6 +557,12 @@ func (p *ParserIssueDetector) FinalizeTablesMetadata() {
 	p.buildUsageCategoryForAllTables()
 }
 
+/*
+Building the usage category for all the tables beforehand in the finalize step
+to populate the usage category for all the partitions once the partitions are populated in the buildPartitionHierarchies step
+for the partitioned tables.
+This is not required for indexes because the indexes are only reported per partitions level 
+*/
 func (p *ParserIssueDetector) buildUsageCategoryForAllTables() {
 	for _, tm := range p.tablesMetadata {
 		tm.Usage = p.getUsageCategoryForTable(tm)
