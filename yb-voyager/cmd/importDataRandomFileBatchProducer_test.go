@@ -20,6 +20,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -441,4 +442,68 @@ func TestMultipleBatchesMatchVerification(t *testing.T) {
 	// Verify final state: Done() should be true, IsBatchAvailable() should be false
 	assert.True(t, randomProducer.Done(), "Done() should be true after consuming all batches")
 	assert.False(t, randomProducer.IsBatchAvailable(), "IsBatchAvailable() should be false when Done() is true")
+}
+
+// TestNextBatchCalledWhenNoBatchesAvailableProducerRunning tests test case 3.1:
+// Call NextBatch() before any batches are produced (producer still running)
+// Non-deterministic test case, it depends on the speed of the batch production, but test assertions
+// are still valid for all scenarios.
+func TestNextBatchCalledWhenNoBatchesAvailableProducerRunning(t *testing.T) {
+	ldataDir, lexportDir, state, errorHandler, progressReporter, err := setupExportDirAndImportDependencies(1000, 1000000)
+	require.NoError(t, err)
+
+	if ldataDir != "" {
+		defer os.RemoveAll(fmt.Sprintf("%s/", ldataDir))
+	}
+	if lexportDir != "" {
+		defer os.RemoveAll(fmt.Sprintf("%s/", lexportDir))
+	}
+
+	// Programmatically create a large file with many rows to slow down batch production
+	// This increases the chance that NextBatch() will be called before any batches are available
+	var fileContentsBuilder strings.Builder
+	fileContentsBuilder.WriteString("id,val\n")
+	// Create 100 rows to make batch production take longer
+	for i := 1; i <= 100; i++ {
+		fileContentsBuilder.WriteString(fmt.Sprintf("%d, \"value%d\"\n", i, i))
+	}
+	fileContents := fileContentsBuilder.String()
+
+	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
+	require.NoError(t, err)
+
+	// Create RandomBatchProducer
+	producer, err := NewRandomFileBatchProducer(task, state, errorHandler, progressReporter)
+	require.NoError(t, err)
+	defer producer.Close()
+
+	// Verify initial state
+	assert.False(t, producer.Done(), "Done() should be false initially")
+	assert.False(t, producer.IsBatchAvailable(), "IsBatchAvailable() should be false initially")
+
+	// Immediately call NextBatch() - this may return error if no batches available yet,
+	// or may return a batch if batch production was very fast (race condition)
+	batch, err := producer.NextBatch()
+
+	// Verify behavior based on what happened
+	if err != nil {
+		// Error path: no batches were available yet
+		require.Error(t, err, "NextBatch() should return error when no batches available")
+		assert.Contains(t, err.Error(), "no batches available", "Error message should indicate no batches available")
+		assert.Nil(t, batch, "NextBatch() should return nil batch when error occurs")
+
+		// Verify producer continues running in background by waiting for a batch to become available
+		available := waitForBatchAvailable(producer, 10*time.Second)
+		require.True(t, available, "Producer should continue running and produce batches in background")
+	} else {
+		// Batch was returned (race condition - batch was produced very quickly)
+		// This is also valid - verify the producer continues correctly
+		require.NotNil(t, batch, "If no error, batch should not be nil")
+		// Producer continues running, verify we can get more batches or it completes
+		if !producer.Done() {
+			// Wait for more batches or completion
+			done := waitForProducerDone(producer, 10*time.Second)
+			require.True(t, done, "Producer should eventually complete")
+		}
+	}
 }
