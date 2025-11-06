@@ -27,7 +27,8 @@ import (
 )
 
 type RandomBatchProducer struct {
-	sequentialFileBatchProducer         *SequentialFileBatchProducer
+	sequentialFileBatchProducer         BatchProducer
+	task                                *ImportFileTask
 	sequentiallyProducedBatches         []*Batch
 	mu                                  sync.Mutex
 	sequentialFileBatchProducerFinished bool
@@ -41,9 +42,16 @@ func NewRandomFileBatchProducer(task *ImportFileTask, state *ImportDataState, er
 		return nil, fmt.Errorf("creating sequential file batch producer: %w", err)
 	}
 
+	return newRandomFileBatchProducer(sequentialFileBatchProducer, task), nil
+}
+
+// newRandomFileBatchProducer creates a RandomBatchProducer with the provided SequentialFileBatchProducer.
+// This unexported function allows tests to inject a testable sequential producer.
+func newRandomFileBatchProducer(sequentialFileBatchProducer *SequentialFileBatchProducer, task *ImportFileTask) *RandomBatchProducer {
 	producerCtx, producerCtxCancel := context.WithCancel(context.Background())
 	rbp := &RandomBatchProducer{
 		sequentialFileBatchProducer: sequentialFileBatchProducer,
+		task:                        task,
 		sequentiallyProducedBatches: make([]*Batch, 0),
 		producerCtxCancel:           producerCtxCancel,
 	}
@@ -53,10 +61,10 @@ func NewRandomFileBatchProducer(task *ImportFileTask, state *ImportDataState, er
 		defer rbp.producerWaitGroup.Done()
 		err := rbp.startProducingBatches(producerCtx)
 		if err != nil {
-			utils.ErrExit("error producing batches for table: %s, file: %s, err: %w", rbp.sequentialFileBatchProducer.task.TableNameTup, rbp.sequentialFileBatchProducer.task.FilePath, err)
+			utils.ErrExit("error producing batches for table: %s, file: %s, err: %w", rbp.task.TableNameTup, rbp.task.FilePath, err)
 		}
 	}()
-	return rbp, nil
+	return rbp
 }
 
 /*
@@ -111,12 +119,12 @@ func (rbp *RandomBatchProducer) NextBatch() (*Batch, error) {
 	batch := rbp.sequentiallyProducedBatches[idx]
 	rbp.sequentiallyProducedBatches = append(rbp.sequentiallyProducedBatches[:idx], rbp.sequentiallyProducedBatches[idx+1:]...)
 
-	log.Infof("Returning batch %d from random batch producer for file: %s", batch.Number, rbp.sequentialFileBatchProducer.task.FilePath)
+	log.Infof("Returning batch %d from random batch producer for file: %s", batch.Number, rbp.task.FilePath)
 	return batch, nil
 }
 
 func (rbp *RandomBatchProducer) startProducingBatches(ctx context.Context) error {
-	log.Infof("Starting to produce batches for file: %s", rbp.sequentialFileBatchProducer.task.FilePath)
+	log.Infof("Starting to produce batches for file: %s", rbp.task.FilePath)
 	for !rbp.sequentialFileBatchProducerFinished {
 		batch, err := rbp.sequentialFileBatchProducer.NextBatch()
 		if err != nil {
@@ -134,7 +142,7 @@ func (rbp *RandomBatchProducer) startProducingBatches(ctx context.Context) error
 		// handle closed ctx
 		select {
 		case <-ctx.Done():
-			log.Infof("Producer context done, stopping production of batches for file: %s", rbp.sequentialFileBatchProducer.task.FilePath)
+			log.Infof("Producer context done, stopping production of batches for file: %s", rbp.task.FilePath)
 			return nil
 		default:
 			// continue
@@ -142,6 +150,6 @@ func (rbp *RandomBatchProducer) startProducingBatches(ctx context.Context) error
 	}
 
 	rbp.sequentialFileBatchProducer.Close()
-	log.Infof("Sequential file batch producer finished producing all batches for file: %s", rbp.sequentialFileBatchProducer.task.FilePath)
+	log.Infof("Sequential file batch producer finished producing all batches for file: %s", rbp.task.FilePath)
 	return nil
 }
