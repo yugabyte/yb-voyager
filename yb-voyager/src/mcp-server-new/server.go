@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -1092,6 +1093,9 @@ func (s *Server) importSchemaHandler(ctx context.Context, req mcp.CallToolReques
 
 	additionalArgs := req.GetString("additional_args", "")
 
+	// 🔧 DEBUG: Log when import schema handler is called
+	log.Infof("🔧 MCP: importSchemaHandler called with config: %s, args: %s", configPath, additionalArgs)
+
 	// Create a cancellable context for this command
 	cmdCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -1101,6 +1105,8 @@ func (s *Server) importSchemaHandler(ctx context.Context, req mcp.CallToolReques
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to start import schema: %v", err)), nil
 	}
+
+	log.Infof("🔧 MCP: import schema command started with execution ID: %s", result.ExecutionID)
 
 	// Store the running command and cancel function
 	s.mu.Lock()
@@ -1112,12 +1118,15 @@ func (s *Server) importSchemaHandler(ctx context.Context, req mcp.CallToolReques
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 
+	pollCount := 0
 	for {
 		select {
 		case <-ctx.Done():
 			// Context was cancelled
+			log.Warnf("⚠️  MCP: import schema context cancelled")
 			return mcp.NewToolResultError("Command was cancelled by context"), nil
 		case <-ticker.C:
+			pollCount++
 			// Check command status by directly accessing the CommandResult
 			s.mu.RLock()
 			commandResult, exists := s.runningCommands[result.ExecutionID]
@@ -1127,8 +1136,27 @@ func (s *Server) importSchemaHandler(ctx context.Context, req mcp.CallToolReques
 				return mcp.NewToolResultError(fmt.Sprintf("Command with execution ID '%s' not found", result.ExecutionID)), nil
 			}
 
+			// 🔧 DEBUG: Log polling status with last 3 lines
+			progressLines := len(commandResult.Progress)
+			lastProgress := ""
+			if progressLines > 0 {
+				// Show last 3 lines to give context
+				startIdx := progressLines - 3
+				if startIdx < 0 {
+					startIdx = 0
+				}
+				var recentLines []string
+				for i := startIdx; i < progressLines; i++ {
+					recentLines = append(recentLines, commandResult.Progress[i])
+				}
+				lastProgress = strings.Join(recentLines, " | ")
+			}
+			log.Infof("🔧 MCP: Poll #%d - Status: %s, Progress lines: %d\n   Recent: %s", 
+				pollCount, commandResult.Status, progressLines, lastProgress)
+
 			// Check if command has completed
 			if commandResult.Status == "completed" || commandResult.Status == "failed" || commandResult.Status == "timeout" {
+				log.Infof("🔧 MCP: import schema %s after %d polls", commandResult.Status, pollCount)
 				// Clean up the command from running commands
 				s.mu.Lock()
 				delete(s.runningCommands, result.ExecutionID)
@@ -1238,12 +1266,14 @@ func (s *Server) importDataHandler(ctx context.Context, req mcp.CallToolRequest)
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 
+	pollCount := 0
 	for {
 		select {
 		case <-ctx.Done():
 			// Context was cancelled
 			return mcp.NewToolResultError("Command was cancelled by context"), nil
 		case <-ticker.C:
+			pollCount++
 			// Check command status by directly accessing the CommandResult
 			s.mu.RLock()
 			commandResult, exists := s.runningCommands[result.ExecutionID]
@@ -1253,8 +1283,27 @@ func (s *Server) importDataHandler(ctx context.Context, req mcp.CallToolRequest)
 				return mcp.NewToolResultError(fmt.Sprintf("Command with execution ID '%s' not found", result.ExecutionID)), nil
 			}
 
+			// 🔧 DEBUG: Log polling status with last 3 lines
+			progressLines := len(commandResult.Progress)
+			lastProgress := ""
+			if progressLines > 0 {
+				// Show last 3 lines to give context
+				startIdx := progressLines - 3
+				if startIdx < 0 {
+					startIdx = 0
+				}
+				var recentLines []string
+				for i := startIdx; i < progressLines; i++ {
+					recentLines = append(recentLines, commandResult.Progress[i])
+				}
+				lastProgress = strings.Join(recentLines, " | ")
+			}
+			log.Infof("🔧 MCP: Poll #%d - Status: %s, Progress lines: %d\n   Recent: %s", 
+				pollCount, commandResult.Status, progressLines, lastProgress)
+
 			// Check if command has completed
 			if commandResult.Status == "completed" || commandResult.Status == "failed" || commandResult.Status == "timeout" {
+				log.Infof("🔧 MCP: import data %s after %d polls", commandResult.Status, pollCount)
 				// Clean up the command from running commands
 				s.mu.Lock()
 				delete(s.runningCommands, result.ExecutionID)

@@ -75,6 +75,9 @@ func (ce *CommandExecutor) runCommand(ctx context.Context, command string, confi
 	cmdArgs := ce.buildCommandArgs(command, configPath, additionalArgs)
 	voyagerPath := ce.findYbVoyagerPath(configPath)
 
+	// 🔧 DEBUG: Log the exact command being executed
+	log.Infof("🔧 MCP: Executing command: %s %v", voyagerPath, cmdArgs)
+
 	cmd := exec.CommandContext(ctx, voyagerPath, cmdArgs...)
 	cmd.Env = ce.buildEnvironment(additionalArgs)
 
@@ -163,19 +166,79 @@ func (ce *CommandExecutor) buildEnvironment(additionalArgs string) []string {
 func (ce *CommandExecutor) streamOutput(pipe io.ReadCloser, result *CommandResult, streamType string) {
 	defer pipe.Close()
 
-	scanner := bufio.NewScanner(pipe)
-	for scanner.Scan() {
-		line := scanner.Text()
-		timestamp := time.Now().Format("15:04:05")
-		formattedLine := fmt.Sprintf("[%s] %s: %s", timestamp, streamType, line)
-		result.Progress = append(result.Progress, formattedLine)
-
-		// Check for interactive prompts
-		if ce.isInteractivePrompt(line) {
-			promptLine := fmt.Sprintf("[%s] INTERACTIVE_PROMPT: %s", timestamp, line)
-			result.Progress = append(result.Progress, promptLine)
+	reader := bufio.NewReader(pipe)
+	var currentLine strings.Builder
+	buffer := make([]byte, 1)
+	lastReadTime := time.Now()
+	
+	for {
+		// Set a read deadline to detect stalled prompts
+		if readCloser, ok := pipe.(interface{ SetReadDeadline(time.Time) error }); ok {
+			readCloser.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
+		}
+		
+		n, err := reader.Read(buffer)
+		if n > 0 {
+			lastReadTime = time.Now()
+			char := buffer[0]
+			
+			if char == '\n' {
+				// Complete line - process it
+				line := currentLine.String()
+				timestamp := time.Now().Format("15:04:05")
+				formattedLine := fmt.Sprintf("[%s] %s: %s", timestamp, streamType, line)
+				result.Progress = append(result.Progress, formattedLine)
+				
+				log.Infof("🔧 MCP STREAM [%s]: %s", streamType, line)
+				
+				if ce.isInteractivePrompt(line) {
+					promptLine := fmt.Sprintf("[%s] INTERACTIVE_PROMPT: %s", timestamp, line)
+					result.Progress = append(result.Progress, promptLine)
+					log.Warnf("⚠️  MCP INTERACTIVE PROMPT DETECTED: %s", line)
+				}
+				
+				currentLine.Reset()
+			} else {
+				currentLine.WriteByte(char)
+			}
+		}
+		
+		if err != nil {
+			if err == io.EOF {
+				// Check if there's a partial line (prompt without newline)
+				if currentLine.Len() > 0 {
+					line := currentLine.String()
+					timestamp := time.Now().Format("15:04:05")
+					formattedLine := fmt.Sprintf("[%s] %s: %s (NO NEWLINE)", timestamp, streamType, line)
+					result.Progress = append(result.Progress, formattedLine)
+					
+					log.Warnf("⚠️  MCP STREAM [%s] PARTIAL LINE (LIKELY PROMPT): %s", streamType, line)
+					
+					promptLine := fmt.Sprintf("[%s] INTERACTIVE_PROMPT_NO_NEWLINE: %s", timestamp, line)
+					result.Progress = append(result.Progress, promptLine)
+				}
+				break
+			}
+			
+			// Timeout or other error - check for partial line
+			if currentLine.Len() > 0 && time.Since(lastReadTime) > 400*time.Millisecond {
+				line := currentLine.String()
+				timestamp := time.Now().Format("15:04:05")
+				formattedLine := fmt.Sprintf("[%s] %s: %s (WAITING FOR INPUT?)", timestamp, streamType, line)
+				result.Progress = append(result.Progress, formattedLine)
+				
+				log.Warnf("⚠️  MCP STREAM [%s] STALLED WITH PARTIAL LINE: %s", streamType, line)
+				
+				promptLine := fmt.Sprintf("[%s] INTERACTIVE_PROMPT_STALLED: %s", timestamp, line)
+				result.Progress = append(result.Progress, promptLine)
+				
+				// Continue reading to see if more data comes
+				continue
+			}
 		}
 	}
+	
+	log.Infof("🔧 MCP STREAM [%s]: Scanner finished", streamType)
 }
 
 // isInteractivePrompt checks if a line contains an interactive prompt
