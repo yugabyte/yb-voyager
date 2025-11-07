@@ -1,7 +1,7 @@
 {
     "VoyagerVersion": "IGNORED",
     "MigrationComplexity": "LOW",
-    "MigrationComplexityExplanation": "Found 5 Level 1 issue(s) and 0 Level 2 issue(s), resulting in LOW migration complexity",
+    "MigrationComplexityExplanation": "Found 3 Level 1 issue(s) and 0 Level 2 issue(s), resulting in LOW migration complexity",
     "SchemaSummary": {
         "Description": "Objects that will be created on the target YugabyteDB.",
         "DbName": "test_is",
@@ -31,7 +31,7 @@
             {
                 "ObjectType": "TABLE",
                 "TotalCount": 9,
-                "InvalidCount": 2,
+                "InvalidCount": 1,
                 "ObjectNames": "public.agent_statuses, public.agents, public.countries, public.expenses, public.expensive_items, public.gear_names, public.points, public.reports, public.secret_missions"
             },
             {
@@ -90,32 +90,6 @@
             "Details": {
                 "ConstraintName": "cnt_solo_agent"
             }
-        },
-        {
-            "Category": "migration_caveats",
-            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_HSTORE",
-            "Name": "Unsupported datatype for Live migration with fall-forward/fallback - hstore Datatype",
-            "Description": "HSTORE datatype not yet supported by voyager in live migration with fall-forward/fallback. Affected column: attrs. These columns will be excluded when exporting and importing data in live migration workflows.",
-            "Impact": "LEVEL_1",
-            "ObjectType": "COLUMN",
-            "ObjectName": "public.reports.attrs",
-            "SqlStatement": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "Category": "migration_caveats",
-            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_TSVECTOR",
-            "Name": "Unsupported datatype for Live migration with fall-forward/fallback - tsvector Datatype",
-            "Description": "TSVECTOR datatype not yet supported by voyager in live migration with fall-forward/fallback. Affected column: report_tsv. These columns will be excluded when exporting and importing data in live migration workflows.",
-            "Impact": "LEVEL_1",
-            "ObjectType": "COLUMN",
-            "ObjectName": "public.reports.report_tsv",
-            "SqlStatement": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
         },
         {
             "Category": "performance_optimizations",

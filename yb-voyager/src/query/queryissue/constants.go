@@ -68,11 +68,8 @@ const (
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_POLYGON = "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_POLYGON"
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_CIRCLE  = "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_CIRCLE"
 
-	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_ARRAY_OF_ENUM = "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_ARRAY_OF_ENUM"
-	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED  = "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED"
-	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_TSQUERY       = "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_TSQUERY"
-	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_TSVECTOR      = "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_TSVECTOR"
-	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_HSTORE        = "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_HSTORE"
+	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED = "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED"
+	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_TSQUERY      = "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_TSQUERY"
 
 	PK_UK_ON_CITEXT_DATATYPE        = "PK_UK_ON_CITEXT_DATATYPE"
 	PK_UK_ON_TSVECTOR_DATATYPE      = "PK_UK_ON_TSVECTOR_DATATYPE"
@@ -265,12 +262,9 @@ const (
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_POLYGON_ISSUE_NAME = "Unsupported datatype for Live migration - polygon"
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_CIRCLE_ISSUE_NAME  = "Unsupported datatype for Live migration - circle"
 
-	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_ARRAY_OF_ENUM_ISSUE_NAME = "Unsupported datatype for Live migration with fall-forward/fallback - Array of Enum Datatype"
-	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED_ISSUE_NAME  = "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype"
-	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_TSQUERY_ISSUE_NAME       = "Unsupported datatype for Live migration with fall-forward/fallback - tsquery Datatype"
-	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_TSVECTOR_ISSUE_NAME      = "Unsupported datatype for Live migration with fall-forward/fallback - tsvector Datatype"
-	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_HSTORE_ISSUE_NAME        = "Unsupported datatype for Live migration with fall-forward/fallback - hstore Datatype"
-	UNSUPPORTED_EXTENSION_ISSUE_NAME                                        = "Unsupported Extension"
+	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED_ISSUE_NAME = "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype"
+	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_TSQUERY_ISSUE_NAME      = "Unsupported datatype for Live migration with fall-forward/fallback - tsquery Datatype"
+	UNSUPPORTED_EXTENSION_ISSUE_NAME                                       = "Unsupported Extension"
 
 	FOREIGN_KEY_REFERENCES_PARTITIONED_TABLE_ISSUE_NAME = "Foreign key constraint references partitioned table"
 	SQL_BODY_IN_FUNCTION_ISSUE_NAME                     = "SQL Body in function"
@@ -352,7 +346,6 @@ const (
 	UNSUPPORTED_DATATYPE_ISSUE_DESCRIPTION                                                 = "%v datatype is not yet supported in YugabyteDB. Affected column: %s."
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_ISSUE_DESCRIPTION                                  = "%v datatype not yet supported by voyager in live migration. Affected column: %s. This column will be excluded when exporting and importing data in live migration workflows."
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_ISSUE_DESCRIPTION                       = "%v datatype not yet supported by voyager in live migration with fall-forward/fallback. Affected column: %s. These columns will be excluded when exporting and importing data in live migration workflows."
-	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_ARRAY_OF_ENUM_ISSUE_DESCRIPTION         = "Array of enum type %v not yet supported by voyager in live migration with fall-forward/fallback. Affected column: %s. These columns will be excluded when exporting and importing data in live migration workflows."
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED_DATATYPE_ISSUE_DESCRIPTION = "User defined datatype %v not yet supported by voyager in live migration with fall-forward/fallback. Affected column: %s. These columns will be excluded when exporting and importing data in live migration workflows."
 	DATABASE_OPTIONS_DESCRIPTION                                                           = "Database options (%s) introduced in PostgreSQL 12 and later are not supported yet in YugabyteDB."
 

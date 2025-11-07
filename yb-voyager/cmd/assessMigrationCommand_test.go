@@ -68,7 +68,14 @@ func Test_AssessMigration(t *testing.T) {
 			value TEXT
 		);`,
 		`INSERT INTO test_schema.test_data (value)
-	SELECT md5(random()::text) FROM generate_series(1, 100000);`)
+	SELECT md5(random()::text) FROM generate_series(1, 100000);`,
+		`CREATE TABLE test_schema.test_data2 (
+			id SERIAL,
+			value TEXT
+		);`,
+		`INSERT INTO test_schema.test_data2 (value)
+		SELECT md5(random()::text) FROM generate_series(1, 100000);`)
+
 	defer postgresContainer.ExecuteSqls(
 		`DROP SCHEMA test_schema CASCADE;`)
 
@@ -81,6 +88,7 @@ DECLARE i INT;
 BEGIN
 	FOR i IN 1..100 LOOP
 		PERFORM COUNT(*) FROM test_schema.test_data;
+		PERFORM COUNT(*) FROM test_schema.test_data2;
 	END LOOP;
 END $$;`)
 		if err != nil {
@@ -92,8 +100,8 @@ END $$;`)
 	expectedSizingAssessmentReport := migassessment.SizingAssessmentReport{
 		SizingRecommendation: migassessment.SizingRecommendation{
 			ColocatedTables:                 nil,
-			ColocatedReasoning:              "Recommended instance type with 4 vCPU and 16 GiB memory could fit 1 objects (1 tables/materialized views and 0 explicit/implicit indexes) with 6.52 MB size and throughput requirement of 10 reads/sec and 0 writes/sec as sharded. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
-			ShardedTables:                   []string{"test_schema.test_data"},
+			ColocatedReasoning:              "Recommended instance type with 4 vCPU and 16 GiB memory could fit 2 objects (2 tables/materialized views and 0 explicit/implicit indexes) with 13.03 MB size and throughput requirement of 20 reads/sec and 0 writes/sec as sharded. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
+			ShardedTables:                   []string{"test_schema.test_data2", "test_schema.test_data"},
 			NumNodes:                        3,
 			VCPUsPerInstance:                4,
 			MemoryPerInstance:               16,
@@ -105,6 +113,18 @@ END $$;`)
 		FailureReasoning: "",
 	}
 	expectedTableIndexStats := []migassessment.TableIndexStats{
+		{
+			SchemaName:      "test_schema",
+			ObjectName:      "test_data2",
+			RowCount:        int64Ptr(100000),
+			ColumnCount:     int64Ptr(2),
+			ReadsPerSecond:  int64Ptr(10),
+			WritesPerSecond: int64Ptr(0),
+			IsIndex:         false,
+			ObjectType:      "table",
+			ParentTableName: nil,
+			SizeInBytes:     int64Ptr(6832128),
+		},
 		{
 			SchemaName:      "test_schema",
 			ObjectName:      "test_data",
@@ -183,12 +203,13 @@ func Test_AssessMigration_UsageCategory(t *testing.T) {
 		utils.ErrExit("Failed to start postgres container: %v", err)
 	}
 	/*
-		test_data: scans 3, writes 100000 ( PK hotspot, index on particular value) FREQUENT
+		test_data: scans 50013, writes 100000 ( PK hotspot, index on particular value) FREQUENT
 		idx_test_data_value ON test_schema.test_data
-		test_data2: scans 5000, writes 0 ( FK with  datatype mismatch, Missing index on foreign key columns) FREQUENT
-		test_partitions_l: scans 4000, writes 25000 ( Index hotspot, ) MODERATE
-		test_partitions_s: scans 4596, writes 25000 ( Index hotspot) MODERATE
-		test_partitions_b: scans , writes 10 ( Index hotspot) RARE
+		test_data2: scans 60000, writes 0 ( FK with  datatype mismatch, Missing index on foreign key columns) FREQUENT
+		test_partitions_l: scans 49000, writes 25000 ( Index hotspot, ) MODERATE
+		test_partitions_s: scans 1, writes 25000 ( Index hotspot) MODERATE
+		test_partitions_b: scans 1, writes 10 ( Index hotspot) RARE
+		test_partitions:  MODERATE combined usage of all the partitions
 		test_unused: scans 3, writes 0 ( PK if UNIQUE NOT NULL column present) UNUSED
 	*/
 	postgresContainer.ExecuteSqls(
@@ -220,7 +241,8 @@ func Test_AssessMigration_UsageCategory(t *testing.T) {
 		`CREATE TABLE test_schema.test_partitions(
 			id int,
 			region text,
-			created_at date
+			created_at date,
+			FOREIGN KEY (id) REFERENCES test_schema.test_data (id)
 		) PARTITION BY LIST (region);`,
 		`CREATE TABLE test_schema.test_partitions_l PARTITION OF test_schema.test_partitions FOR VALUES IN ('London');`,
 		`CREATE TABLE test_schema.test_partitions_s PARTITION OF test_schema.test_partitions FOR VALUES IN ('Sydney');`,
@@ -246,14 +268,14 @@ END $$;`,
 		`DO $$ 
 DECLARE i INT;
 BEGIN
-	FOR i IN 1..6000 LOOP
+	FOR i IN 1..60000 LOOP
 		PERFORM * FROM test_schema.test_data2 LIMIT 1;
 	END LOOP;
 END $$;`,
 		`DO $$
 DECLARE i INT;
 BEGIN
-	FOR i IN 1..4899 LOOP
+	FOR i IN 1..48990 LOOP
 		PERFORM COUNT(*) FROM test_schema.test_partitions where region='London' and created_at = CURRENT_DATE;
 	END LOOP;
 END $$;`,
@@ -278,18 +300,18 @@ END $$;`,
 	}
 
 	assert.NotNil(t, report)
-	assert.Equal(t, 9, len(report.Issues))
+	assert.Equal(t, 10, len(report.Issues))
 	expectedObjectToUsageCategory := map[string]string{
 		"test_schema.test_data":                                             "FREQUENT", //3 scan 100000 writes
 		"test_schema.test_data2":                                            "FREQUENT", //6000 scans 0 writes
 		"idx_test_data_value ON test_schema.test_data":                      "FREQUENT", //0 scans 100000 writes
 		"test_partitions_l_created_at_idx ON test_schema.test_partitions_l": "FREQUENT", //4899 scans 25000 writes
 		"test_schema.test_partitions_l":                                     "FREQUENT", //4900 scans 25000 writes
+		"test_schema.test_partitions":                                       "FREQUENT",   // combined usage of all the partitions
 		"test_schema.test_partitions_s":                                     "MODERATE", //4597 scans 25000 writes
 		"test_partitions_s_created_at_idx ON test_schema.test_partitions_s": "MODERATE", //0 scans 25000 writes
 		"test_schema.test_partitions_b":                                     "RARE",     //1 scan 10 writes
 		"test_partitions_b_created_at_idx ON test_schema.test_partitions_b": "RARE",     //0 scans 10 writes
-		"test_schema.test_partitions":                                       "UNUSED",   // 0 scans 0 writes
 		"test_schema.test_unused":                                           "UNUSED",   // 0 scans 0 writes
 		"idx_test_partitions_created_at ON test_schema.test_partitions":     "UNUSED",   // 0 scans 0 writes
 	}

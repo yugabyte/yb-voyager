@@ -354,7 +354,7 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string, d
 	// such as foreign key constraints, inherited columns, and partitioned table columns.
 	// Run this only if object type is TABLE, as it is the only one that has columns.
 	if objType == "TABLE" {
-		parserIssueDetector.FinalizeColumnMetadata()
+		parserIssueDetector.FinalizeTablesMetadata()
 	}
 
 	for _, sqlStmtInfo := range sqlInfoArr {

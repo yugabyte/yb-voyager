@@ -16,7 +16,9 @@ limitations under the License.
 
 package queryissue
 
-import "github.com/yugabyte/yb-voyager/yb-voyager/src/types"
+import (
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/types"
+)
 
 /*
 ObjectUsage - refers to the usage of a specific object in the database under any of these buckets
@@ -51,7 +53,7 @@ const (
 	OBJECT_USAGE_THRESHOLD_MODERATE = 0.10 // >= 10% of max usage and < 70% of max usage
 	//anything between 0 and 10% is considered as rare
 	OBJECT_SCAN_THRESHOLD_UNUSED  = 20 // <= 20 scan is considered as unused
-	OBJECT_USAGE_THRESHOLD_UNUSED = 0 // 0 usage is considered as unused
+	OBJECT_USAGE_THRESHOLD_UNUSED = 0  // 0 usage is considered as unused
 )
 
 type ObjectUsageCategory struct {
