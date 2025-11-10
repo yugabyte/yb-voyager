@@ -158,6 +158,67 @@ func verifyBatchAvailableState(t *testing.T, producer *RandomBatchProducer) {
 		"Done() should be false when batch is available")
 }
 
+// verifyBatchesComplete verifies batches are unique, have expected count, and fall within range
+// Returns map of batch numbers for further verification if needed
+func verifyBatchesComplete(t *testing.T, batches []*Batch, expectedCount int, minInclusive, maxExclusive int64) map[int64]bool {
+	t.Helper()
+
+	// Verify count
+	require.Equal(t, expectedCount, len(batches),
+		"Expected %d batches but got %d", expectedCount, len(batches))
+
+	// Verify uniqueness and range in one pass
+	batchNumbers := make(map[int64]bool)
+	for _, batch := range batches {
+		// Uniqueness
+		require.False(t, batchNumbers[batch.Number],
+			"Batch number %d should be unique", batch.Number)
+		batchNumbers[batch.Number] = true
+
+		// Range
+		require.GreaterOrEqual(t, batch.Number, minInclusive,
+			"Batch number should be >= %d", minInclusive)
+		require.Less(t, batch.Number, maxExclusive,
+			"Batch number should be < %d", maxExclusive)
+	}
+
+	// Final uniqueness count check
+	require.Equal(t, expectedCount, len(batchNumbers),
+		"Should have %d unique batch numbers", expectedCount)
+
+	return batchNumbers
+}
+
+// verifyBatchesWithPreviousConsumption verifies batches with previously consumed batches
+// Updates consumedBatchNumbers map with newly consumed batches
+// Verifies final total matches expectedTotal
+func verifyBatchesWithPreviousConsumption(t *testing.T, batches []*Batch, consumedBatchNumbers map[int64]bool, expectedTotal int, minInclusive, maxExclusive int64) {
+	t.Helper()
+
+	// Calculate expected count for this run
+	expectedCount := expectedTotal - len(consumedBatchNumbers)
+	require.Equal(t, expectedCount, len(batches),
+		"Expected %d new batches but got %d", expectedCount, len(batches))
+
+	// Verify uniqueness (against previously consumed) and range in one pass
+	for _, batch := range batches {
+		// Uniqueness (including previously consumed)
+		require.False(t, consumedBatchNumbers[batch.Number],
+			"Batch number %d should be unique (or was already consumed)", batch.Number)
+		consumedBatchNumbers[batch.Number] = true
+
+		// Range
+		require.GreaterOrEqual(t, batch.Number, minInclusive,
+			"Batch number should be >= %d", minInclusive)
+		require.Less(t, batch.Number, maxExclusive,
+			"Batch number should be < %d", maxExclusive)
+	}
+
+	// Verify final total
+	require.Equal(t, expectedTotal, len(consumedBatchNumbers),
+		"Should have %d total unique batch numbers after resumption", expectedTotal)
+}
+
 // TestMultipleBatchesProductionAndConsumption tests test case 1.2:
 // Create producer with a file that produces N batches (e.g., 5, 10, 20)
 func TestMultipleBatchesProductionAndConsumption(t *testing.T) {
@@ -194,19 +255,8 @@ func TestMultipleBatchesProductionAndConsumption(t *testing.T) {
 	verifyProducerInitialState(t, producer)
 
 	// Collect all batches
-	totalExpectedBatches := 5
 	batches := consumeAllBatches(t, producer, 5*time.Second)
-
-	// Verify batch is unique (no duplicate batch numbers)
-	batchNumbers := make(map[int64]bool)
-	for _, batch := range batches {
-		require.False(t, batchNumbers[batch.Number], "Batch number %d should be unique", batch.Number)
-		batchNumbers[batch.Number] = true
-	}
-
-	// Verify all N batches are eventually consumed
-	assert.Equal(t, totalExpectedBatches, len(batches), "Total batches consumed should equal %d", totalExpectedBatches)
-	assert.Equal(t, totalExpectedBatches, len(batchNumbers), "Total unique batch numbers should equal %d", totalExpectedBatches)
+	verifyBatchesComplete(t, batches, 5, 0, 5)
 
 	verifyProducerFinalState(t, producer)
 }
@@ -398,20 +448,13 @@ func TestMultipleBatchesMatchVerification(t *testing.T) {
 
 	// Collect all batches from random producer
 	randomBatches := consumeAllBatches(t, randomProducer, 5*time.Second)
+	verifyBatchesComplete(t, randomBatches, totalExpectedBatches, 0, int64(totalExpectedBatches))
 
-	// Build map and verify uniqueness
+	// Build map for comparison with sequential batches
 	randomBatchMap := make(map[int64]*Batch)
-	batchNumbersSeen := make(map[int64]bool)
 	for _, batch := range randomBatches {
-		require.False(t, batchNumbersSeen[batch.Number], "Batch number %d should be unique", batch.Number)
-		batchNumbersSeen[batch.Number] = true
 		randomBatchMap[batch.Number] = batch
 	}
-
-	// Verify batch count from random producer matches sequential producer
-	assert.Equal(t, totalExpectedBatches, len(randomBatches), "Batch count from random producer should match sequential producer")
-	assert.Equal(t, totalExpectedBatches, len(randomBatchMap), "Batch map size should match expected count")
-	assert.Equal(t, totalExpectedBatches, len(batchNumbersSeen), "Unique batch numbers should match expected count")
 
 	// Verify all batches from sequential producer are present in random producer (by batch number)
 	for batchNum, sequentialBatch := range sequentialBatchMap {
@@ -729,19 +772,7 @@ func TestRandomBatchProducer_Resumption_PartialBatchesProduced_NoneConsumed(t *t
 
 	// Collect all batches from the resumed producer
 	allBatches := consumeAllBatches(t, producer2, 5*time.Second)
-
-	// Verify we got all 10 batches
-	require.Equal(t, 10, len(allBatches), "Should have recovered all 10 batches")
-
-	// Verify batch numbers are unique and cover 1-10
-	batchNumbers := make(map[int64]bool)
-	for _, batch := range allBatches {
-		require.False(t, batchNumbers[batch.Number], "Batch numbers should be unique, found duplicate: %d", batch.Number)
-		batchNumbers[batch.Number] = true
-		require.GreaterOrEqual(t, batch.Number, int64(0), "Batch number should be >= 1")
-		require.Less(t, batch.Number, int64(10), "Batch number should be <= 10")
-	}
-	require.Equal(t, 10, len(batchNumbers), "Should have all 10 unique batch numbers")
+	verifyBatchesComplete(t, allBatches, 10, 0, 10)
 
 	verifyProducerFinalState(t, producer2)
 }
@@ -837,19 +868,7 @@ func TestRandomBatchProducer_Resumption_PartialBatchesProduced_PartialConsumed(t
 
 	// Collect all batches from the resumed producer
 	allBatches := consumeAllBatches(t, producer2, 5*time.Second)
-
-	// Verify we got all 10 batches minus batches consumed in previous run
-	require.Equal(t, 10-len(consumedBatchNumbers), len(allBatches), "Should have recovered all 10 batches")
-
-	// Verify batch numbers are unique and cover 1-10 and don't contain batches consumed in previous run
-	for _, batch := range allBatches {
-		require.False(t, consumedBatchNumbers[batch.Number], "Batch numbers should be unique, found duplicate: %d", batch.Number)
-		consumedBatchNumbers[batch.Number] = true
-		require.GreaterOrEqual(t, batch.Number, int64(0), "Batch number should be >= 1")
-		require.Less(t, batch.Number, int64(10), "Batch number should be <= 10")
-	}
-	// Finally verify that we have all 10 unique batch numbers
-	require.Equal(t, 10, len(consumedBatchNumbers), "Should have all 10 unique batch numbers")
+	verifyBatchesWithPreviousConsumption(t, allBatches, consumedBatchNumbers, 10, 0, 10)
 
 	verifyProducerFinalState(t, producer2)
 }
@@ -941,19 +960,7 @@ func TestRandomBatchProducer_Resumption_PartialBatchesProduced_AllConsumed(t *te
 
 	// Collect all batches from the resumed producer
 	allBatches := consumeAllBatches(t, producer2, 5*time.Second)
-
-	// Verify we got all 10 batches minus batches consumed in previous run
-	require.Equal(t, 10-len(consumedBatchNumbers), len(allBatches), "Should have recovered all 10 batches")
-
-	// Verify batch numbers are unique and cover 1-10 and don't contain batches consumed in previous run
-	for _, batch := range allBatches {
-		require.False(t, consumedBatchNumbers[batch.Number], "Batch numbers should be unique, found duplicate: %d", batch.Number)
-		consumedBatchNumbers[batch.Number] = true
-		require.GreaterOrEqual(t, batch.Number, int64(0), "Batch number should be >= 1")
-		require.Less(t, batch.Number, int64(10), "Batch number should be <= 10")
-	}
-	// Finally verify that we have all 10 unique batch numbers
-	require.Equal(t, 10, len(consumedBatchNumbers), "Should have all 10 unique batch numbers")
+	verifyBatchesWithPreviousConsumption(t, allBatches, consumedBatchNumbers, 10, 0, 10)
 
 	verifyProducerFinalState(t, producer2)
 }
@@ -1084,19 +1091,7 @@ func TestRandomBatchProducer_Resumption_AllBatchesProduced_NoneConsumed(t *testi
 
 	// Collect all batches from the resumed producer
 	allBatches := consumeAllBatches(t, producer2, 5*time.Second)
-
-	// Verify we got all 10 batches
-	require.Equal(t, 10, len(allBatches), "Should have recovered all 10 batches")
-
-	// Verify batch numbers are unique and cover 1-10
-	batchNumbers := make(map[int64]bool)
-	for _, batch := range allBatches {
-		require.False(t, batchNumbers[batch.Number], "Batch numbers should be unique, found duplicate: %d", batch.Number)
-		batchNumbers[batch.Number] = true
-		require.GreaterOrEqual(t, batch.Number, int64(0), "Batch number should be >= 0")
-		require.Less(t, batch.Number, int64(10), "Batch number should be < 10")
-	}
-	require.Equal(t, 10, len(batchNumbers), "Should have all 10 unique batch numbers")
+	verifyBatchesComplete(t, allBatches, 10, 0, 10)
 
 	verifyProducerFinalState(t, producer2)
 }
@@ -1172,19 +1167,7 @@ func TestRandomBatchProducer_Resumption_AllBatchesProduced_PartialConsumed(t *te
 
 	// Collect all batches from the resumed producer
 	allBatches := consumeAllBatches(t, producer2, 5*time.Second)
-
-	// Verify we got all 10 batches minus batches consumed in previous run.
-	require.Equal(t, 10-len(consumedBatchesNumbers), len(allBatches), "Should have recovered all 10 batches")
-
-	// Verify batch numbers are unique and cover 1-10
-	for _, batch := range allBatches {
-		require.False(t, consumedBatchesNumbers[batch.Number], "Batch numbers should be unique, found duplicate: %d", batch.Number)
-		consumedBatchesNumbers[batch.Number] = true
-		require.GreaterOrEqual(t, batch.Number, int64(0), "Batch number should be >= 0")
-		require.Less(t, batch.Number, int64(10), "Batch number should be < 10")
-	}
-	// Finally verify that we have all 10 unique batch numbers
-	require.Equal(t, 10, len(consumedBatchesNumbers), "Should have all 10 unique batch numbers")
+	verifyBatchesWithPreviousConsumption(t, allBatches, consumedBatchesNumbers, 10, 0, 10)
 
 	verifyProducerFinalState(t, producer2)
 }
