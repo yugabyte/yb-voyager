@@ -108,6 +108,32 @@ func waitForProducerDone(producer *RandomBatchProducer, timeout time.Duration) b
 	return false
 }
 
+// consumeAllBatches waits for and collects all batches from the producer
+func consumeAllBatches(t *testing.T, producer *RandomBatchProducer, timeout time.Duration) []*Batch {
+	t.Helper()
+
+	var batches []*Batch
+	for !producer.Done() {
+		available := waitForBatchAvailable(producer, timeout)
+		if !available {
+			if producer.Done() {
+				break
+			}
+			require.Fail(t, "Batch should become available within timeout")
+		}
+
+		// Verify state consistency: If IsBatchAvailable() should be true, when Done() is false
+		assert.True(t, producer.IsBatchAvailable(), "IsBatchAvailable() must be true when Done() is false")
+
+		batch, err := producer.NextBatch()
+		require.NoError(t, err)
+		require.NotNil(t, batch)
+		batches = append(batches, batch)
+	}
+
+	return batches
+}
+
 // TestMultipleBatchesProductionAndConsumption tests test case 1.2:
 // Create producer with a file that produces N batches (e.g., 5, 10, 20)
 func TestMultipleBatchesProductionAndConsumption(t *testing.T) {
@@ -146,34 +172,12 @@ func TestMultipleBatchesProductionAndConsumption(t *testing.T) {
 	assert.False(t, producer.IsBatchAvailable(), "IsBatchAvailable() should be false initially")
 
 	// Collect all batches
-	var batches []*Batch
-	batchNumbers := make(map[int64]bool)
 	totalExpectedBatches := 5
+	batches := consumeAllBatches(t, producer, 5*time.Second)
 
-	// Consume all batches
-	for !producer.Done() {
-		// Wait for batch to become available
-		available := waitForBatchAvailable(producer, 5*time.Second)
-		if !available {
-			// If no batch available and producer is done, break
-			if producer.Done() {
-				break
-			}
-			// Otherwise timeout occurred, which shouldn't happen
-			require.Fail(t, "Batch should become available within timeout")
-		}
-
-		// Verify state consistency: If IsBatchAvailable() is true, Done() must be false
-		assert.False(t, producer.Done(), "State consistency: Done() must be false when IsBatchAvailable() is true")
-
-		// Consume the batch
-		batch, err := producer.NextBatch()
-		require.NoError(t, err, "NextBatch() should return a batch without error")
-		require.NotNil(t, batch, "NextBatch() should return a non-nil batch")
-
-		batches = append(batches, batch)
-
-		// Verify batch is unique (no duplicate batch numbers)
+	// Verify batch is unique (no duplicate batch numbers)
+	batchNumbers := make(map[int64]bool)
+	for _, batch := range batches {
 		require.False(t, batchNumbers[batch.Number], "Batch number %d should be unique", batch.Number)
 		batchNumbers[batch.Number] = true
 	}
@@ -389,37 +393,15 @@ func TestMultipleBatchesMatchVerification(t *testing.T) {
 	assert.False(t, randomProducer.IsBatchAvailable(), "IsBatchAvailable() should be false initially")
 
 	// Collect all batches from random producer
-	var randomBatches []*Batch
-	var randomBatchMap = make(map[int64]*Batch)
+	randomBatches := consumeAllBatches(t, randomProducer, 5*time.Second)
+
+	// Build map and verify uniqueness
+	randomBatchMap := make(map[int64]*Batch)
 	batchNumbersSeen := make(map[int64]bool)
-
-	// Consume all batches
-	for !randomProducer.Done() {
-		// Wait for batch to become available
-		available := waitForBatchAvailable(randomProducer, 5*time.Second)
-		if !available {
-			// If no batch available and producer is done, break
-			if randomProducer.Done() {
-				break
-			}
-			// Otherwise timeout occurred, which shouldn't happen
-			require.Fail(t, "Batch should become available within timeout")
-		}
-
-		// Verify state consistency: If IsBatchAvailable() is true, Done() must be false
-		assert.False(t, randomProducer.Done(), "State consistency: Done() must be false when IsBatchAvailable() is true")
-
-		// Consume the batch
-		batch, err := randomProducer.NextBatch()
-		require.NoError(t, err, "NextBatch() should return a batch without error")
-		require.NotNil(t, batch, "NextBatch() should return a non-nil batch")
-
-		randomBatches = append(randomBatches, batch)
-		randomBatchMap[batch.Number] = batch
-
-		// Verify batch is unique (no duplicate batch numbers)
+	for _, batch := range randomBatches {
 		require.False(t, batchNumbersSeen[batch.Number], "Batch number %d should be unique", batch.Number)
 		batchNumbersSeen[batch.Number] = true
+		randomBatchMap[batch.Number] = batch
 	}
 
 	// Verify batch count from random producer matches sequential producer
@@ -539,23 +521,7 @@ func TestNextBatchCalledWhenNoBatchesAvailableProducerFinished(t *testing.T) {
 	defer producer.Close()
 
 	// Consume all batches
-	for !producer.Done() {
-		// Wait for batch to become available
-		available := waitForBatchAvailable(producer, 5*time.Second)
-		if !available {
-			// If no batch available and producer is done, break
-			if producer.Done() {
-				break
-			}
-			// Otherwise timeout occurred, which shouldn't happen
-			require.Fail(t, "Batch should become available within timeout")
-		}
-
-		// Consume the batch
-		batch, err := producer.NextBatch()
-		require.NoError(t, err, "NextBatch() should return a batch without error")
-		require.NotNil(t, batch, "NextBatch() should return a non-nil batch")
-	}
+	_ = consumeAllBatches(t, producer, 5*time.Second)
 
 	// Verify producer is done after consuming all batches
 	assert.True(t, producer.Done(), "Done() should be true after consuming all batches")
@@ -754,8 +720,8 @@ func TestRandomBatchProducer_Resumption_PartialBatchesProduced_NoneConsumed(t *t
 	// Close the producer to simulate interruption
 	producer.Close()
 
-	// // Create a new producer (simulating resumption)
-	// // This should recover the batches that were already produced
+	// Create a new producer (simulating resumption)
+	// This should recover the batches that were already produced
 	sequentialProducer2, err := NewSequentialFileBatchProducer(task, state, errorHandler, progressReporter)
 	require.NoError(t, err)
 
@@ -763,24 +729,7 @@ func TestRandomBatchProducer_Resumption_PartialBatchesProduced_NoneConsumed(t *t
 	defer producer2.Close()
 
 	// Collect all batches from the resumed producer
-	allBatches := make([]*Batch, 0)
-	for !producer2.Done() {
-		// Wait for batch to become available
-		available := waitForBatchAvailable(producer2, 5*time.Second)
-		if !available {
-			// If no batch available and producer is done, break
-			if producer2.Done() {
-				break
-			}
-			// Otherwise timeout occurred, which shouldn't happen
-			require.Fail(t, "Batch should become available within timeout")
-		}
-
-		batch, err := producer2.NextBatch()
-		require.NoError(t, err, "Should be able to get batch")
-		require.NotNil(t, batch, "Batch should not be nil")
-		allBatches = append(allBatches, batch)
-	}
+	allBatches := consumeAllBatches(t, producer2, 5*time.Second)
 
 	// Verify we got all 10 batches
 	require.Equal(t, 10, len(allBatches), "Should have recovered all 10 batches")
@@ -881,8 +830,8 @@ func TestRandomBatchProducer_Resumption_PartialBatchesProduced_PartialConsumed(t
 		require.NoError(t, err)
 	}
 
-	// // Create a new producer (simulating resumption)
-	// // This should recover the batches that were already produced
+	// Create a new producer (simulating resumption)
+	// This should recover the batches that were already produced
 	sequentialProducer2, err := NewSequentialFileBatchProducer(task, state, errorHandler, progressReporter)
 	require.NoError(t, err)
 
@@ -890,24 +839,7 @@ func TestRandomBatchProducer_Resumption_PartialBatchesProduced_PartialConsumed(t
 	defer producer2.Close()
 
 	// Collect all batches from the resumed producer
-	allBatches := make([]*Batch, 0)
-	for !producer2.Done() {
-		// Wait for batch to become available
-		available := waitForBatchAvailable(producer2, 5*time.Second)
-		if !available {
-			// If no batch available and producer is done, break
-			if producer2.Done() {
-				break
-			}
-			// Otherwise timeout occurred, which shouldn't happen
-			require.Fail(t, "Batch should become available within timeout")
-		}
-
-		batch, err := producer2.NextBatch()
-		require.NoError(t, err, "Should be able to get batch")
-		require.NotNil(t, batch, "Batch should not be nil")
-		allBatches = append(allBatches, batch)
-	}
+	allBatches := consumeAllBatches(t, producer2, 5*time.Second)
 
 	// Verify we got all 10 batches minus batches consumed in previous run
 	require.Equal(t, 10-len(consumedBatchNumbers), len(allBatches), "Should have recovered all 10 batches")
@@ -1004,8 +936,8 @@ func TestRandomBatchProducer_Resumption_PartialBatchesProduced_AllConsumed(t *te
 		require.NoError(t, err)
 	}
 
-	// // Create a new producer (simulating resumption)
-	// // This should recover the batches that were already produced
+	// Create a new producer (simulating resumption)
+	// This should recover the batches that were already produced
 	sequentialProducer2, err := NewSequentialFileBatchProducer(task, state, errorHandler, progressReporter)
 	require.NoError(t, err)
 
@@ -1013,24 +945,7 @@ func TestRandomBatchProducer_Resumption_PartialBatchesProduced_AllConsumed(t *te
 	defer producer2.Close()
 
 	// Collect all batches from the resumed producer
-	allBatches := make([]*Batch, 0)
-	for !producer2.Done() {
-		// Wait for batch to become available
-		available := waitForBatchAvailable(producer2, 5*time.Second)
-		if !available {
-			// If no batch available and producer is done, break
-			if producer2.Done() {
-				break
-			}
-			// Otherwise timeout occurred, which shouldn't happen
-			require.Fail(t, "Batch should become available within timeout")
-		}
-
-		batch, err := producer2.NextBatch()
-		require.NoError(t, err, "Should be able to get batch")
-		require.NotNil(t, batch, "Batch should not be nil")
-		allBatches = append(allBatches, batch)
-	}
+	allBatches := consumeAllBatches(t, producer2, 5*time.Second)
 
 	// Verify we got all 10 batches minus batches consumed in previous run
 	require.Equal(t, 10-len(consumedBatchNumbers), len(allBatches), "Should have recovered all 10 batches")
@@ -1097,32 +1012,15 @@ func TestRandomBatchProducer_Resumption_SingleBatchProduced_NotConsumed(t *testi
 	// Close the producer to simulate interruption
 	producer.Close()
 
-	// // Create a new producer (simulating resumption)
-	// // This should recover the batche that were already produced
+	// Create a new producer (simulating resumption)
+	// This should recover the batche that were already produced
 
 	producer2, err := NewRandomFileBatchProducer(task, state, errorHandler, progressReporter)
 	require.NoError(t, err)
 	defer producer2.Close()
 
 	// Collect all batches from the resumed producer
-	allBatches := make([]*Batch, 0)
-	for !producer2.Done() {
-		// Wait for batch to become available
-		available := waitForBatchAvailable(producer2, 5*time.Second)
-		if !available {
-			// If no batch available and producer is done, break
-			if producer2.Done() {
-				break
-			}
-			// Otherwise timeout occurred, which shouldn't happen
-			require.Fail(t, "Batch should become available within timeout")
-		}
-
-		batch, err := producer2.NextBatch()
-		require.NoError(t, err, "Should be able to get batch")
-		require.NotNil(t, batch, "Batch should not be nil")
-		allBatches = append(allBatches, batch)
-	}
+	allBatches := consumeAllBatches(t, producer2, 5*time.Second)
 
 	// Verify we got all 10 batches
 	require.Equal(t, 1, len(allBatches), "Should have recovered all 10 batches")
@@ -1194,24 +1092,7 @@ func TestRandomBatchProducer_Resumption_AllBatchesProduced_NoneConsumed(t *testi
 	defer producer2.Close()
 
 	// Collect all batches from the resumed producer
-	allBatches := make([]*Batch, 0)
-	for !producer2.Done() {
-		// Wait for batch to become available
-		available := waitForBatchAvailable(producer2, 5*time.Second)
-		if !available {
-			// If no batch available and producer is done, break
-			if producer2.Done() {
-				break
-			}
-			// Otherwise timeout occurred, which shouldn't happen
-			require.Fail(t, "Batch should become available within timeout")
-		}
-
-		batch, err := producer2.NextBatch()
-		require.NoError(t, err, "Should be able to get batch")
-		require.NotNil(t, batch, "Batch should not be nil")
-		allBatches = append(allBatches, batch)
-	}
+	allBatches := consumeAllBatches(t, producer2, 5*time.Second)
 
 	// Verify we got all 10 batches
 	require.Equal(t, 10, len(allBatches), "Should have recovered all 10 batches")
@@ -1301,24 +1182,7 @@ func TestRandomBatchProducer_Resumption_AllBatchesProduced_PartialConsumed(t *te
 	defer producer2.Close()
 
 	// Collect all batches from the resumed producer
-	allBatches := make([]*Batch, 0)
-	for !producer2.Done() {
-		// Wait for batch to become available
-		available := waitForBatchAvailable(producer2, 5*time.Second)
-		if !available {
-			// If no batch available and producer is done, break
-			if producer2.Done() {
-				break
-			}
-			// Otherwise timeout occurred, which shouldn't happen
-			require.Fail(t, "Batch should become available within timeout")
-		}
-
-		batch, err := producer2.NextBatch()
-		require.NoError(t, err, "Should be able to get batch")
-		require.NotNil(t, batch, "Batch should not be nil")
-		allBatches = append(allBatches, batch)
-	}
+	allBatches := consumeAllBatches(t, producer2, 5*time.Second)
 
 	// Verify we got all 10 batches minus batches consumed in previous run.
 	require.Equal(t, 10-len(consumedBatchesNumbers), len(allBatches), "Should have recovered all 10 batches")
@@ -1418,8 +1282,3 @@ func TestRandomBatchProducer_Resumption_AllBatchesProduced_AllConsumed(t *testin
 	}
 	require.True(t, errExitCalled, "utils.ErrExit should be called within timeout")
 }
-
-// TODO:
-// TestRandomBatchProducer_Resumption_PartialBatchesProduced_PartialConsumed (not all of the produced batches are consumed. consumed ones in random order)
-// TestRandomBatchProducer_Resumption_AllBatchesProduced_AllConsumed (should not really happen. produce.Done will be true immediately)
-// Resumption with single batch (produces just one batch, and closes before consuming it).
