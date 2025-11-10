@@ -68,18 +68,14 @@ func TestSingleBatchProductionAndConsumption(t *testing.T) {
 	require.NoError(t, err)
 	defer producer.Close()
 
-	// Verify initial state: Done() should be false, IsBatchAvailable() should be false
-	assert.False(t, producer.Done(), "Done() should be false initially")
-	assert.False(t, producer.IsBatchAvailable(), "IsBatchAvailable() should be false initially")
+	verifyProducerInitialState(t, producer)
 
 	// Wait for batch to become available (producer goroutine is producing in background)
 	// Use a reasonable timeout (e.g., 5 seconds)
 	available := waitForBatchAvailable(producer, 5*time.Second)
 	require.True(t, available, "Batch should become available within timeout")
 
-	// Verify state when batch is available: IsBatchAvailable() should be true, Done() should be false
-	assert.True(t, producer.IsBatchAvailable(), "IsBatchAvailable() should be true when batch is available")
-	assert.False(t, producer.Done(), "Done() should be false when batch is available")
+	verifyBatchAvailableState(t, producer)
 
 	// Call NextBatch() and verify it returns a batch
 	batch, err := producer.NextBatch()
@@ -90,9 +86,7 @@ func TestSingleBatchProductionAndConsumption(t *testing.T) {
 	assert.Equal(t, int64(0), batch.Number, "Batch number should be 0")
 	assert.Equal(t, int64(1), batch.RecordCount, "Batch should contain 1 record")
 
-	// After consuming the batch, Done() should be true, IsBatchAvailable() should be false
-	assert.True(t, producer.Done(), "Done() should be true after consuming the batch")
-	assert.False(t, producer.IsBatchAvailable(), "IsBatchAvailable() should be false after consuming the batch")
+	verifyProducerFinalState(t, producer)
 }
 
 // waitForProducerDone waits for the producer to finish producing all batches, with a timeout.
@@ -134,6 +128,36 @@ func consumeAllBatches(t *testing.T, producer *RandomBatchProducer, timeout time
 	return batches
 }
 
+// verifyProducerInitialState verifies the producer starts in the correct state
+func verifyProducerInitialState(t *testing.T, producer *RandomBatchProducer) {
+	t.Helper()
+
+	assert.False(t, producer.Done(),
+		"Done() should be false initially")
+	assert.False(t, producer.IsBatchAvailable(),
+		"IsBatchAvailable() should be false initially")
+}
+
+// verifyProducerFinalState verifies the producer ends in the correct state
+func verifyProducerFinalState(t *testing.T, producer *RandomBatchProducer) {
+	t.Helper()
+
+	assert.True(t, producer.Done(),
+		"Done() should be true after consuming all batches")
+	assert.False(t, producer.IsBatchAvailable(),
+		"IsBatchAvailable() should be false when Done() is true")
+}
+
+// verifyBatchAvailableState verifies the producer state when a batch is available
+func verifyBatchAvailableState(t *testing.T, producer *RandomBatchProducer) {
+	t.Helper()
+
+	assert.True(t, producer.IsBatchAvailable(),
+		"IsBatchAvailable() should be true when batch is available")
+	assert.False(t, producer.Done(),
+		"Done() should be false when batch is available")
+}
+
 // TestMultipleBatchesProductionAndConsumption tests test case 1.2:
 // Create producer with a file that produces N batches (e.g., 5, 10, 20)
 func TestMultipleBatchesProductionAndConsumption(t *testing.T) {
@@ -167,9 +191,7 @@ func TestMultipleBatchesProductionAndConsumption(t *testing.T) {
 	require.NoError(t, err)
 	defer producer.Close()
 
-	// Verify initial state: Done() should be false, IsBatchAvailable() should be false
-	assert.False(t, producer.Done(), "Done() should be false initially")
-	assert.False(t, producer.IsBatchAvailable(), "IsBatchAvailable() should be false initially")
+	verifyProducerInitialState(t, producer)
 
 	// Collect all batches
 	totalExpectedBatches := 5
@@ -186,11 +208,7 @@ func TestMultipleBatchesProductionAndConsumption(t *testing.T) {
 	assert.Equal(t, totalExpectedBatches, len(batches), "Total batches consumed should equal %d", totalExpectedBatches)
 	assert.Equal(t, totalExpectedBatches, len(batchNumbers), "Total unique batch numbers should equal %d", totalExpectedBatches)
 
-	// Verify Done() returns true only after all batches consumed
-	assert.True(t, producer.Done(), "Done() should be true after all batches consumed")
-
-	// Verify IsBatchAvailable() returns false when Done() is true
-	assert.False(t, producer.IsBatchAvailable(), "IsBatchAvailable() should be false when Done() is true")
+	verifyProducerFinalState(t, producer)
 }
 
 // TestFileWithOnlyHeader tests test case 1.4:
@@ -216,17 +234,13 @@ func TestFileWithOnlyHeader(t *testing.T) {
 	require.NoError(t, err)
 	defer producer.Close()
 
-	// Verify initial state: Done() should be false, IsBatchAvailable() should be false
-	assert.False(t, producer.Done(), "Done() should be false initially")
-	assert.False(t, producer.IsBatchAvailable(), "IsBatchAvailable() should be false initially")
+	verifyProducerInitialState(t, producer)
 
 	// Wait for batch to become available (producer creates a batch with 0 records)
 	available := waitForBatchAvailable(producer, 5*time.Second)
 	require.True(t, available, "Batch should become available within timeout")
 
-	// Verify state when batch is available: IsBatchAvailable() should be true, Done() should be false
-	assert.True(t, producer.IsBatchAvailable(), "IsBatchAvailable() should be true when batch is available")
-	assert.False(t, producer.Done(), "Done() should be false when batch is available")
+	verifyBatchAvailableState(t, producer)
 
 	// Verify a batch is produced with 0 record count
 	batch, err := producer.NextBatch()
@@ -234,9 +248,7 @@ func TestFileWithOnlyHeader(t *testing.T) {
 	require.NotNil(t, batch, "NextBatch() should return a non-nil batch")
 	assert.Equal(t, int64(0), batch.RecordCount, "Batch should contain 0 records (only header, no data)")
 
-	// After consuming the batch, Done() should be true, IsBatchAvailable() should be false
-	assert.True(t, producer.Done(), "Done() should be true after consuming the batch")
-	assert.False(t, producer.IsBatchAvailable(), "IsBatchAvailable() should be false after consuming the batch")
+	verifyProducerFinalState(t, producer)
 }
 
 // assertBatchesMatch verifies that two batches are identical by checking:
@@ -308,26 +320,20 @@ func TestSingleBatchMatchVerification(t *testing.T) {
 	require.NoError(t, err)
 	defer randomProducer.Close()
 
-	// Verify initial state: Done() should be false, IsBatchAvailable() should be false
-	assert.False(t, randomProducer.Done(), "Done() should be false initially")
-	assert.False(t, randomProducer.IsBatchAvailable(), "IsBatchAvailable() should be false initially")
+	verifyProducerInitialState(t, randomProducer)
 
 	// Wait for batch to become available
 	available := waitForBatchAvailable(randomProducer, 5*time.Second)
 	require.True(t, available, "Batch should become available within timeout")
 
-	// Verify state when batch is available: IsBatchAvailable() should be true, Done() should be false
-	assert.True(t, randomProducer.IsBatchAvailable(), "IsBatchAvailable() should be true when batch is available")
-	assert.False(t, randomProducer.Done(), "Done() should be false when batch is available")
+	verifyBatchAvailableState(t, randomProducer)
 
 	// Get batch from random producer
 	randomBatch, err := randomProducer.NextBatch()
 	require.NoError(t, err, "NextBatch() should return a batch without error")
 	require.NotNil(t, randomBatch, "NextBatch() should return a non-nil batch")
 
-	// After consuming the batch, Done() should be true, IsBatchAvailable() should be false
-	assert.True(t, randomProducer.Done(), "Done() should be true after consuming the batch")
-	assert.False(t, randomProducer.IsBatchAvailable(), "IsBatchAvailable() should be false after consuming the batch")
+	verifyProducerFinalState(t, randomProducer)
 
 	// Verify batches match (contents and all metadata)
 	assertBatchesMatch(t, sequentialBatch, randomBatch, "Sequential and random batches should match")
@@ -388,9 +394,7 @@ func TestMultipleBatchesMatchVerification(t *testing.T) {
 	require.NoError(t, err)
 	defer randomProducer.Close()
 
-	// Verify initial state: Done() should be false, IsBatchAvailable() should be false
-	assert.False(t, randomProducer.Done(), "Done() should be false initially")
-	assert.False(t, randomProducer.IsBatchAvailable(), "IsBatchAvailable() should be false initially")
+	verifyProducerInitialState(t, randomProducer)
 
 	// Collect all batches from random producer
 	randomBatches := consumeAllBatches(t, randomProducer, 5*time.Second)
@@ -424,9 +428,7 @@ func TestMultipleBatchesMatchVerification(t *testing.T) {
 		require.True(t, exists, "Batch number %d should be present in random producer", batchNum)
 	}
 
-	// Verify final state: Done() should be true, IsBatchAvailable() should be false
-	assert.True(t, randomProducer.Done(), "Done() should be true after consuming all batches")
-	assert.False(t, randomProducer.IsBatchAvailable(), "IsBatchAvailable() should be false when Done() is true")
+	verifyProducerFinalState(t, randomProducer)
 }
 
 // TestNextBatchCalledWhenNoBatchesAvailableProducerRunning tests test case 3.1:
@@ -462,9 +464,7 @@ func TestNextBatchCalledWhenNoBatchesAvailableProducerRunning(t *testing.T) {
 	require.NoError(t, err)
 	defer producer.Close()
 
-	// Verify initial state
-	assert.False(t, producer.Done(), "Done() should be false initially")
-	assert.False(t, producer.IsBatchAvailable(), "IsBatchAvailable() should be false initially")
+	verifyProducerInitialState(t, producer)
 
 	// Immediately call NextBatch() - this may return error if no batches available yet,
 	// or may return a batch if batch production was very fast (race condition)
@@ -524,8 +524,7 @@ func TestNextBatchCalledWhenNoBatchesAvailableProducerFinished(t *testing.T) {
 	_ = consumeAllBatches(t, producer, 5*time.Second)
 
 	// Verify producer is done after consuming all batches
-	assert.True(t, producer.Done(), "Done() should be true after consuming all batches")
-	assert.False(t, producer.IsBatchAvailable(), "IsBatchAvailable() should be false when Done() is true")
+	verifyProducerFinalState(t, producer)
 
 	// Call NextBatch() after all batches consumed - should return error
 	batch, err := producer.NextBatch()
@@ -744,9 +743,7 @@ func TestRandomBatchProducer_Resumption_PartialBatchesProduced_NoneConsumed(t *t
 	}
 	require.Equal(t, 10, len(batchNumbers), "Should have all 10 unique batch numbers")
 
-	// Verify final state
-	assert.True(t, producer2.Done(), "Producer should be done after consuming all batches")
-	assert.False(t, producer2.IsBatchAvailable(), "No batches should be available after done")
+	verifyProducerFinalState(t, producer2)
 }
 
 func TestRandomBatchProducer_Resumption_PartialBatchesProduced_PartialConsumed(t *testing.T) {
@@ -854,9 +851,7 @@ func TestRandomBatchProducer_Resumption_PartialBatchesProduced_PartialConsumed(t
 	// Finally verify that we have all 10 unique batch numbers
 	require.Equal(t, 10, len(consumedBatchNumbers), "Should have all 10 unique batch numbers")
 
-	// Verify final state
-	assert.True(t, producer2.Done(), "Producer should be done after consuming all batches")
-	assert.False(t, producer2.IsBatchAvailable(), "No batches should be available after done")
+	verifyProducerFinalState(t, producer2)
 }
 
 func TestRandomBatchProducer_Resumption_PartialBatchesProduced_AllConsumed(t *testing.T) {
@@ -960,9 +955,7 @@ func TestRandomBatchProducer_Resumption_PartialBatchesProduced_AllConsumed(t *te
 	// Finally verify that we have all 10 unique batch numbers
 	require.Equal(t, 10, len(consumedBatchNumbers), "Should have all 10 unique batch numbers")
 
-	// Verify final state
-	assert.True(t, producer2.Done(), "Producer should be done after consuming all batches")
-	assert.False(t, producer2.IsBatchAvailable(), "No batches should be available after done")
+	verifyProducerFinalState(t, producer2)
 }
 
 func TestRandomBatchProducer_Resumption_SingleBatchProduced_NotConsumed(t *testing.T) {
@@ -1028,9 +1021,7 @@ func TestRandomBatchProducer_Resumption_SingleBatchProduced_NotConsumed(t *testi
 	// Verify batch number is 0 (last batch)
 	require.Equal(t, int64(0), allBatches[0].Number, "Batch number should be 1")
 
-	// Verify final state
-	assert.True(t, producer2.Done(), "Producer should be done after consuming all batches")
-	assert.False(t, producer2.IsBatchAvailable(), "No batches should be available after done")
+	verifyProducerFinalState(t, producer2)
 }
 
 func TestRandomBatchProducer_Resumption_AllBatchesProduced_NoneConsumed(t *testing.T) {
@@ -1107,9 +1098,7 @@ func TestRandomBatchProducer_Resumption_AllBatchesProduced_NoneConsumed(t *testi
 	}
 	require.Equal(t, 10, len(batchNumbers), "Should have all 10 unique batch numbers")
 
-	// Verify final state
-	assert.True(t, producer2.Done(), "Producer should be done after consuming all batches")
-	assert.False(t, producer2.IsBatchAvailable(), "No batches should be available after done")
+	verifyProducerFinalState(t, producer2)
 }
 
 func TestRandomBatchProducer_Resumption_AllBatchesProduced_PartialConsumed(t *testing.T) {
@@ -1197,9 +1186,7 @@ func TestRandomBatchProducer_Resumption_AllBatchesProduced_PartialConsumed(t *te
 	// Finally verify that we have all 10 unique batch numbers
 	require.Equal(t, 10, len(consumedBatchesNumbers), "Should have all 10 unique batch numbers")
 
-	// Verify final state
-	assert.True(t, producer2.Done(), "Producer should be done after consuming all batches")
-	assert.False(t, producer2.IsBatchAvailable(), "No batches should be available after done")
+	verifyProducerFinalState(t, producer2)
 }
 
 func TestRandomBatchProducer_Resumption_AllBatchesProduced_AllConsumed(t *testing.T) {
