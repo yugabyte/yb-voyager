@@ -26,6 +26,11 @@ import (
 	"golang.org/x/exp/rand"
 )
 
+/*
+RandomBatchProducer is a batch producer that produces batches in random order.
+It wraps a SequentialFileBatchProducer, which keeps producing batches sequentially and saves them in a buffer.
+Whenever the next batch is requested, RandomBatchProducer picks a batch from the buffer at random and returns it.
+*/
 type RandomBatchProducer struct {
 	sequentialFileBatchProducer         BatchProducer
 	task                                *ImportFileTask
@@ -68,7 +73,7 @@ func newRandomFileBatchProducer(sequentialFileBatchProducer BatchProducer, task 
 }
 
 /*
-sequential batch producer is done producing all batches, and all batches in memory(metadata) have been consumed (in random order)
+sequential batch producer is done producing all batches, and all batches(metadata) in memory have been consumed (in random order)
 */
 func (rbp *RandomBatchProducer) Done() bool {
 	rbp.mu.Lock()
@@ -77,7 +82,6 @@ func (rbp *RandomBatchProducer) Done() bool {
 }
 
 // Close cleans up resources used by the RandomBatchProducer.
-// TODO: close sequential file batch producer after it's done instead of waiting for Close() to be called
 func (rbp *RandomBatchProducer) Close() {
 	// stop producer goroutine
 	rbp.producerCtxCancel()
@@ -93,7 +97,7 @@ func (rbp *RandomBatchProducer) IsBatchAvailable() bool {
 	if rbp.Done() {
 		return false
 	}
-	// not done. producer is still be producing batches in parallel
+	// not done. producer may still be producing batches in parallel
 	rbp.mu.Lock()
 	defer rbp.mu.Unlock()
 	return len(rbp.sequentiallyProducedBatches) > 0
@@ -116,7 +120,7 @@ func (rbp *RandomBatchProducer) NextBatch() (*Batch, error) {
 	batch := rbp.sequentiallyProducedBatches[idx]
 	rbp.sequentiallyProducedBatches = append(rbp.sequentiallyProducedBatches[:idx], rbp.sequentiallyProducedBatches[idx+1:]...)
 
-	log.Infof("Returning batch %d from random batch producer for file: %s", batch.Number, rbp.task.FilePath)
+	log.Infof("Returning batch %d from random batch producer for table: %s, file: %s", batch.Number, rbp.task.TableNameTup.ForOutput(), rbp.task.FilePath)
 	return batch, nil
 }
 
