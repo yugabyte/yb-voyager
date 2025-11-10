@@ -368,7 +368,7 @@ func TestAllIssues(t *testing.T) {
 		assert.NoError(t, err, "Error parsing required ddl: %s", stmt)
 	}
 
-	parserIssueDetector.FinalizeColumnMetadata()
+	parserIssueDetector.FinalizeTablesMetadata()
 
 	for stmt, expectedIssues := range stmtsWithExpectedIssues {
 		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.V2024_2_3_1)
@@ -493,7 +493,7 @@ func TestDDLIssues(t *testing.T) {
 		assert.NoError(t, err, "Error parsing required ddl: %s", stmt)
 	}
 
-	parserIssueDetector.FinalizeColumnMetadata()
+	parserIssueDetector.FinalizeTablesMetadata()
 
 	for stmt, expectedIssues := range stmtsWithExpectedIssues {
 		issues, err := parserIssueDetector.GetDDLIssues(stmt, ybversion.V2024_2_3_1)
@@ -529,7 +529,6 @@ func TestDDLIssues(t *testing.T) {
 func TestUnloggedTableIssueReportedInOlderVersion(t *testing.T) {
 	stmt := "CREATE UNLOGGED TABLE tbl_unlog (id int, val text);"
 	parserIssueDetector := NewParserIssueDetector()
-
 	// Not reported by default
 	issues, err := parserIssueDetector.GetDDLIssues(stmt, ybversion.V2024_2_3_1)
 	testutils.FatalIfError(t, err)
@@ -979,7 +978,7 @@ FROM test_jsonb1;`,
 	}
 
 	// Finalize column metadata after processing all DDLs
-	parserIssueDetector.FinalizeColumnMetadata()
+	parserIssueDetector.FinalizeTablesMetadata()
 
 	for stmt, expectedIssues := range stmtsWithExpectedIssues {
 		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.V2024_2_3_1)
@@ -1197,8 +1196,7 @@ REFERENCES schema1.abc (id);
     abc_id INT,
     val TEXT,
     CONSTRAINT fk_abc FOREIGN KEY (abc_id) REFERENCES abc1(id)
-);
-`
+);`
 
 	stmt4 := `CREATE TABLE schema1.abc_fk(id int PRIMARY KEY, abc_id INT, val text, FOREIGN KEY (abc_id) REFERENCES schema1.abc(id));`
 
@@ -1222,7 +1220,7 @@ REFERENCES schema1.abc (id);
 		assert.NoError(t, err, "Error parsing required ddl: %s", stmt)
 	}
 
-	parserIssueDetector.FinalizeColumnMetadata()
+	parserIssueDetector.FinalizeTablesMetadata()
 
 	for stmt, expectedIssues := range ddlStmtsWithIssues {
 		issues, err := parserIssueDetector.GetDDLIssues(stmt, ybversion.V2024_2_3_1)
@@ -1698,7 +1696,7 @@ func TestTimestampOrDateHotspotsIssues(t *testing.T) {
 		assert.Nil(t, err)
 	}
 
-	parserIssueDetector.FinalizeColumnMetadata()
+	parserIssueDetector.FinalizeTablesMetadata()
 
 	for stmt, expectedIssues := range sqlsWithExpectedIssues {
 		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.V2024_2_3_1)
@@ -1722,7 +1720,7 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 		assert.NoError(t, err)
 		err = detector.ParseAndProcessDDL(childTable)
 		assert.NoError(t, err)
-		detector.FinalizeColumnMetadata()
+		detector.FinalizeTablesMetadata()
 		return detector
 	}
 
@@ -1737,7 +1735,7 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 			err = detector.ParseAndProcessDDL(indexStmt)
 			assert.NoError(t, err)
 		}
-		detector.FinalizeColumnMetadata()
+		detector.FinalizeTablesMetadata()
 		return detector
 	}
 
@@ -1878,7 +1876,7 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 		assert.NoError(t, err)
 		err = detector.ParseAndProcessDDL(stmt_alter)
 		assert.NoError(t, err)
-		detector.FinalizeColumnMetadata()
+		detector.FinalizeTablesMetadata()
 
 		issues := detector.DetectMissingForeignKeyIndexes()
 
@@ -1921,7 +1919,7 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 		assert.NoError(t, err)
 		err = detector.ParseAndProcessDDL(stmt_alter)
 		assert.NoError(t, err)
-		detector.FinalizeColumnMetadata()
+		detector.FinalizeTablesMetadata()
 
 		issues := detector.DetectMissingForeignKeyIndexes()
 		assert.Equal(t, 0, len(issues))
@@ -2355,7 +2353,7 @@ func runPKRec(t *testing.T, name string, ddls []string, expected []QueryIssue) {
 			}
 			_ = d.ParseAndProcessDDL(s)
 		}
-		d.FinalizeColumnMetadata()
+		d.FinalizeTablesMetadata()
 		return d
 	}
 

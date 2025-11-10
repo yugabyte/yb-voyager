@@ -1396,13 +1396,13 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, []ut
 		isUDTDatatype := utils.ContainsAnyStringFromSlice(parserIssueDetector.GetCompositeTypes(), allColumnsDataTypes[i].DataType)
 		isArrayDatatype := strings.HasSuffix(allColumnsDataTypes[i].DataType, "[]")                                                                       //if type is array
 		isEnumDatatype := utils.ContainsAnyStringFromSlice(parserIssueDetector.GetEnumTypes(), strings.TrimSuffix(allColumnsDataTypes[i].DataType, "[]")) //is ENUM type
-		isArrayOfEnumsDatatype := isArrayDatatype && isEnumDatatype
 
 		allColumnsDataTypes[i].IsArrayType = isArrayDatatype
 		allColumnsDataTypes[i].IsEnumType = isEnumDatatype
 		allColumnsDataTypes[i].IsUDTType = isUDTDatatype
 
-		isUnsupportedDatatypeInLiveWithFFOrFB := isUnsupportedDatatypeInLiveWithFFOrFBList || isUDTDatatype || isArrayOfEnumsDatatype
+		// Array of enums are now supported with logical connector (default), so not including them as unsupported
+		isUnsupportedDatatypeInLiveWithFFOrFB := isUnsupportedDatatypeInLiveWithFFOrFBList || isUDTDatatype
 
 		switch true {
 		case isUnsupportedDatatype:
@@ -1417,7 +1417,8 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, []ut
 				we are still using from Source which might need a better way in case of Oracle as for PG it doesn't really makes a difference in
 				source or analyzeSchema's results.
 			*/
-			//reporting types in the list YugabyteUnsupportedDataTypesForDbzm, UDT and array on ENUMs columns as unsupported with live migration with ff/fb
+			//reporting types in the list YugabyteUnsupportedDataTypesForDbzm and UDT columns as unsupported with live migration with ff/fb
+			//Note: hstore, tsvector, and array of enums are now supported with logical connector (default)
 			unsupportedDataTypesForLiveMigrationWithFForFB = append(unsupportedDataTypesForLiveMigrationWithFForFB, allColumnsDataTypes[i])
 
 		}
@@ -1646,15 +1647,7 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 
 				var queryIssue queryissue.QueryIssue
 
-				if colInfo.IsArrayType && colInfo.IsEnumType {
-					queryIssue = queryissue.NewArrayOfEnumDatatypeIssue(
-						constants.COLUMN,
-						qualifiedColName,
-						"",
-						fmt.Sprintf("%s[]", baseTypeName), //so the user can understand this is an array type
-						colInfo.ColumnName,
-					)
-				} else if colInfo.IsUDTType {
+				if colInfo.IsUDTType {
 					queryIssue = queryissue.NewUserDefinedDatatypeIssue(
 						constants.COLUMN,
 						qualifiedColName,
