@@ -15,7 +15,7 @@ ERROR: ALTER TABLE CLUSTER not supported yet (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/table.sql
 */
 ALTER TABLE mgd.all_label CLUSTER ON all_label_pkey;
-test-text
+
 /*
 ERROR: ALTER TABLE CLUSTER not supported yet (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/table.sql
