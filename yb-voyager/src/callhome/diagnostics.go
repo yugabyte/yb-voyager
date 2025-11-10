@@ -87,13 +87,23 @@ type Payload struct {
 
 // SHOULD NOT REMOVE THESE (host, db_type, db_version, total_db_size_bytes) FIELDS of SourceDBDetails as parsing these specifically here
 // https://github.com/yugabyte/yugabyte-growth/blob/ad5df306c50c05136df77cd6548a1091ae577046/diagnostics_v2/main.py#L549
+
+/*
+Version History
+1.0: Introduced DBName and SchemaNames fields
+*/
+var SOURCE_DB_DETAILS_PAYLOAD_VERSION = "1.0"
+
 type SourceDBDetails struct {
-	Host               string `json:"host"` //keeping it empty for now, as field is parsed in big query app
-	DBType             string `json:"db_type"`
-	DBVersion          string `json:"db_version"`
-	DBSize             int64  `json:"total_db_size_bytes"`            //bytes
-	Role               string `json:"role,omitempty"`                 //for differentiating replica details
-	DBSystemIdentifier int64  `json:"db_system_identifier,omitempty"` //Database system identifier for unique instance identification (currently only implemented for PostgreSQL)
+	PayloadVersion     string   `json:"payload_version"`
+	Host               string   `json:"host"` //keeping it empty for now, as field is parsed in big query app
+	DBType             string   `json:"db_type"`
+	DBVersion          string   `json:"db_version"`
+	DBSize             int64    `json:"total_db_size_bytes"`            //bytes
+	Role               string   `json:"role,omitempty"`                 //for differentiating replica details
+	DBSystemIdentifier int64    `json:"db_system_identifier,omitempty"` //Database system identifier for unique instance identification (currently only implemented for PostgreSQL)
+	DBName             string   `json:"db_name,omitempty"`              //Anonymized database name
+	SchemaNames        []string `json:"schema_names,omitempty"`         //Anonymized schema names
 }
 
 // SHOULD NOT REMOVE THESE (host, db_version, node_count, total_cores) FIELDS of TargetDBDetails as parsing these specifically here
@@ -119,8 +129,9 @@ Version History
 1.6: Added ObjectName field in AssessmentIssueCallhome struct
 1.7 Changed NumShardedTables and NumColocatedTables to ShardedTables and ColocatedTables respectively with anonymized names
 1.8 Added EstimatedTimeInMinForImportWithoutRedundantIndexes to SizingCallhome
+1.9 Added ObjectUsage field to AssessmentIssueCallhome struct
 */
-var ASSESS_MIGRATION_CALLHOME_PAYLOAD_VERSION = "1.8"
+var ASSESS_MIGRATION_CALLHOME_PAYLOAD_VERSION = "1.9"
 
 type AssessMigrationPhasePayload struct {
 	PayloadVersion                 string                    `json:"payload_version"`
@@ -147,11 +158,12 @@ type AssessmentIssueCallhome struct {
 	Impact              string                 `json:"impact"`
 	ObjectType          string                 `json:"object_type"`
 	ObjectName          string                 `json:"object_name"`
+	ObjectUsage         string                 `json:"object_usage,omitempty"`
 	SqlStatement        string                 `json:"sql_statement,omitempty"`
 	Details             map[string]interface{} `json:"details,omitempty"`
 }
 
-func NewAssessmentIssueCallhome(category string, categoryDesc string, issueType string, issueName string, issueImpact string, objectType string, details map[string]interface{}) AssessmentIssueCallhome {
+func NewAssessmentIssueCallhome(category string, categoryDesc string, issueType string, issueName string, issueImpact string, objectType string, details map[string]interface{}, objectUsage string) AssessmentIssueCallhome {
 	return AssessmentIssueCallhome{
 		Category:            category,
 		CategoryDescription: categoryDesc,
@@ -159,6 +171,7 @@ func NewAssessmentIssueCallhome(category string, categoryDesc string, issueType 
 		Name:                issueName,
 		Impact:              issueImpact,
 		ObjectType:          objectType,
+		ObjectUsage:         objectUsage,
 		Details:             lo.OmitByKeys(details, queryissue.SensitiveKeysInIssueDetailsMap),
 	}
 }

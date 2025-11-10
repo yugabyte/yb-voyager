@@ -26,8 +26,11 @@ import (
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/reflect/protoreflect"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/types"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
 
@@ -65,6 +68,7 @@ type ConstraintMetadata struct {
 type TableMetadata struct {
 	TableName          string
 	SchemaName         string
+	Usage              string
 	Columns            map[string]*ColumnMetadata
 	Constraints        []ConstraintMetadata
 	Indexes            []*queryparser.Index
@@ -267,6 +271,9 @@ type ParserIssueDetector struct {
 	// Table metadata consolidated into a single structure
 	// Key is qualified table name (schema.table), value is TableMetadata
 	tablesMetadata map[string]*TableMetadata
+
+	// object usages
+	objectUsages map[string]*ObjectUsageCategory
 }
 
 func NewParserIssueDetector() *ParserIssueDetector {
@@ -298,15 +305,16 @@ func (p *ParserIssueDetector) getOrCreateTableMetadata(tableName string) *TableM
 		schemaName = parts[0]
 		tableNameOnly = parts[1]
 	}
-
 	tm := &TableMetadata{
 		TableName:   tableNameOnly,
 		SchemaName:  schemaName,
+		Usage:       ObjectUsageCategoryUnused, //start with  unused and populating it in FinalizeColumnMetadata->buildUsageCategoryForAllTables()
 		Columns:     make(map[string]*ColumnMetadata),
 		Constraints: make([]ConstraintMetadata, 0),
 		Indexes:     make([]*queryparser.Index, 0),
 	}
 	p.tablesMetadata[tableName] = tm
+
 	return tm
 }
 
@@ -505,8 +513,29 @@ func (p *ParserIssueDetector) getPLPGSQLIssues(query string) ([]QueryIssue, erro
 	}), nil
 }
 
-// FinalizeColumnMetadata processes the column metadata after all DDL statements have been parsed.
-func (p *ParserIssueDetector) FinalizeColumnMetadata() {
+func (p *ParserIssueDetector) PopulateObjectUsages(objectUsagesStats []*types.ObjectUsageStats) {
+	var maxReads, maxWrites int64
+	for _, objectUsageStat := range objectUsagesStats {
+		if objectUsageStat.Scans > maxReads {
+			maxReads = objectUsageStat.Scans
+		}
+		if objectUsageStat.TotalWrites() > maxWrites {
+			maxWrites = objectUsageStat.TotalWrites()
+		}
+	}
+	objectUsageStatsMap := make(map[string]*ObjectUsageCategory)
+	for _, objectUsageStat := range objectUsagesStats {
+		objectUsage := NewObjectUsage(objectUsageStat.SchemaName, objectUsageStat.ObjectName, objectUsageStat.ObjectType, objectUsageStat.ParentTableName, objectUsageStat.Scans, objectUsageStat.Inserts, objectUsageStat.Updates, objectUsageStat.Deletes)
+		objectUsage.ReadUsage = GetReadUsageCategory(objectUsageStat.Scans, maxReads)
+		objectUsage.WriteUsage = GetWriteUsageCategory(objectUsageStat.TotalWrites(), maxWrites)
+		objectUsage.Usage = GetCombinedUsageCategory(objectUsage.ReadUsage, objectUsage.WriteUsage)
+		objectUsageStatsMap[objectUsageStat.GetObjectName()] = objectUsage
+	}
+	p.objectUsages = objectUsageStatsMap
+}
+
+// FinalizeTablesMetadata processes the column metadata after all DDL statements have been parsed.
+func (p *ParserIssueDetector) FinalizeTablesMetadata() {
 	// Finalize column metadata for inherited tables - copying columns from parent tables to child tables
 	p.finalizeColumnsFromParentMap(p.getInheritedFrom())
 
@@ -524,6 +553,43 @@ func (p *ParserIssueDetector) FinalizeColumnMetadata() {
 
 	// Build partition hierarchies
 	p.buildPartitionHierarchies()
+
+	p.buildUsageCategoryForAllTables()
+}
+
+/*
+Building the usage category for all the tables beforehand in the finalize step
+to populate the usage category for all the partitions once the partitions are populated in the buildPartitionHierarchies step
+for the partitioned tables.
+This is not required for indexes because the indexes are only reported per partitions level 
+*/
+func (p *ParserIssueDetector) buildUsageCategoryForAllTables() {
+	for _, tm := range p.tablesMetadata {
+		tm.Usage = p.getUsageCategoryForTable(tm)
+	}
+}
+
+func (p *ParserIssueDetector) getUsageCategoryForTable(tm *TableMetadata) string {
+	objName := sqlname.NewObjectName(constants.POSTGRESQL, "", tm.SchemaName, tm.TableName)
+	qualifiedObjName := objName.Qualified.Unquoted
+	stat, ok := p.objectUsages[qualifiedObjName]
+	if !ok {
+		log.Infof("No object usage stats found for table: %s", qualifiedObjName)
+		return ObjectUsageCategoryUnused
+	}
+	usageCategory := stat.Usage
+
+	if !tm.IsPartitioned() {
+		return usageCategory
+	}
+
+	//for the partitioned tables the usage is only stored per partition level
+	//so we need to combine the usage of all the partitions to get the usage for the partitioned table
+	for _, partition := range tm.Partitions {
+		partitionUsageCategory := p.getUsageCategoryForTable(partition)
+		usageCategory = GetCombinedUsageCategory(usageCategory, partitionUsageCategory)
+	}
+	return usageCategory
 }
 
 // buildPartitionHierarchies builds the direct child relationships for all tables
@@ -1077,13 +1143,35 @@ func (p *ParserIssueDetector) DetectMissingForeignKeyIndexes() []QueryIssue {
 			// Check if this FK has proper index coverage using existing logic
 			if !p.hasProperIndexCoverage(constraint, tableName) {
 				// Create and add the issue
-				issue := p.createMissingFKIndexIssue(constraint, tableName)
+				issue := p.createMissingFKIndexIssue(constraint, tableName, tm.Usage)
 				issues = append(issues, issue)
 			}
 		}
 	}
 
 	return issues
+}
+
+// For indexes we don't have any writes related information, so we get a writes usage for the table associated with that index
+// and use a combined usage of index reads and table writes
+func (p *ParserIssueDetector) getUsageCategoryForIndex(schemaName, tableName, indexName string) string {
+	objName := sqlname.NewObjectNameQualifiedWithTableName(constants.POSTGRESQL, "", indexName, schemaName, tableName)
+	qualifiedObjName := objName.Qualified.Unquoted
+	indexStat, ok := p.objectUsages[qualifiedObjName]
+	if !ok {
+		log.Infof("No object usage stats found for index: %s", qualifiedObjName)
+		return ObjectUsageCategoryUnused
+	}
+	indexReadCategory := indexStat.ReadUsage
+	tableObjName := sqlname.NewObjectName(constants.POSTGRESQL, "", schemaName, tableName)
+	qualifiedObjName = tableObjName.Qualified.Unquoted
+	tableStat, ok := p.objectUsages[qualifiedObjName]
+	if !ok {
+		log.Infof("No object usage stats found for table: %s", qualifiedObjName)
+		return ObjectUsageCategoryUnused
+	}
+	tableWritesCategory := tableStat.WriteUsage
+	return GetCombinedUsageCategory(indexReadCategory, tableWritesCategory)
 }
 
 // DetectPrimaryKeyRecommendations recommends adding a PK when there's a UNIQUE constraint with all NOT NULL columns and no PK
@@ -1177,7 +1265,7 @@ func (p *ParserIssueDetector) detectTablePKRecommendations(tm *TableMetadata) []
 	})
 
 	if len(uniqueOptions) > 0 {
-		issues = append(issues, NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", tm.GetObjectName(), uniqueOptions))
+		issues = append(issues, NewMissingPrimaryKeyWhenUniqueNotNullIssue("TABLE", tm.GetObjectName(), uniqueOptions, tm.Usage))
 	}
 
 	return issues
@@ -1233,7 +1321,7 @@ func (p *ParserIssueDetector) hasIndexCoverage(index *queryparser.Index, fkColum
 }
 
 // createMissingFKIndexIssue creates a QueryIssue from a foreign key constraint
-func (p *ParserIssueDetector) createMissingFKIndexIssue(constraint ConstraintMetadata, tableName string) QueryIssue {
+func (p *ParserIssueDetector) createMissingFKIndexIssue(constraint ConstraintMetadata, tableName string, usageCategory string) QueryIssue {
 	// Create fully qualified column names
 	qualifiedColumnNames := make([]string, len(constraint.Columns))
 	for i, colName := range constraint.Columns {
@@ -1246,6 +1334,7 @@ func (p *ParserIssueDetector) createMissingFKIndexIssue(constraint ConstraintMet
 		"", // sqlStatement - we don't have this in stored constraint
 		strings.Join(qualifiedColumnNames, ", "),
 		constraint.ReferencedTable,
+		usageCategory,
 	)
 }
 

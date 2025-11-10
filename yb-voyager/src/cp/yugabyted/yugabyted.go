@@ -343,8 +343,8 @@ func (cp *YugabyteD) MigrationEnded(migrationEndedEvent *controlPlane.MigrationE
 func (cp *YugabyteD) panicHandler() {
 	if r := recover(); r != nil {
 		// Handle the panic for eventPublishers
-		log.Errorf(fmt.Sprintf("Panic occurred: %v. No further events will be published to YugabyteD DB.\n"+
-			"Stack trace of panic location:\n%s", r, string(debug.Stack())))
+		log.Errorf("Panic occurred: %v. No further events will be published to YugabyteD DB.\n"+
+			"Stack trace of panic location:\n%s", r, string(debug.Stack()))
 	}
 }
 

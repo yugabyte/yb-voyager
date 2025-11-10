@@ -73,12 +73,12 @@ func (ybc *YugabyteDBCDCClient) GetStreamID() (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("failed to generate and store stream id: %w", err)
 		}
-		utils.PrintAndLog("Generated YugabyteDB CDC stream-id: %s", streamID)
+		utils.PrintAndLogf("Generated YugabyteDB CDC stream-id: %s", streamID)
 		return streamID, nil
 	} else if err != nil {
 		return "", fmt.Errorf("failed to read stream id: %w", err)
 	}
-	utils.PrintAndLog("Using YugabyteDB CDC stream-id: %s", streamID)
+	utils.PrintAndLogf("Using YugabyteDB CDC stream-id: %s", streamID)
 	return streamID, nil
 }
 
@@ -145,7 +145,7 @@ func (ybc *YugabyteDBCDCClient) DeleteStreamID() error {
 	if err != nil {
 		return fmt.Errorf("failed to clear CDC stream id from the msr: %w", err)
 	}
-	utils.PrintAndLog("Deleted YugabyteDB CDC stream-id: %s", streamID)
+	utils.PrintAndLogf("Deleted YugabyteDB CDC stream-id: %s", streamID)
 	return nil
 }
 

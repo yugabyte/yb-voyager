@@ -406,8 +406,8 @@ func TestExportSchemaSchemaOptimizationReportPerfOptimizationsAutofix(t *testing
 	assert.NotNil(t, schemaOptimizationReport)
 	assert.NotNil(t, schemaOptimizationReport.RedundantIndexChange)
 	assert.True(t, schemaOptimizationReport.RedundantIndexChange.IsApplied)
-	assert.Nil(t, schemaOptimizationReport.TableColocationRecommendation)
-	assert.Nil(t, schemaOptimizationReport.MviewColocationRecommendation)
+	assert.NotNil(t, schemaOptimizationReport.TableColocationRecommendation)
+	assert.False(t, schemaOptimizationReport.TableColocationRecommendation.IsApplied)
 	assert.Equal(t, 1, len(schemaOptimizationReport.RedundantIndexChange.TableToRemovedIndexesMap))
 	assert.Equal(t, 2, len(schemaOptimizationReport.RedundantIndexChange.TableToRemovedIndexesMap["test_schema.test_data"]))
 	assert.NotNil(t, schemaOptimizationReport.SecondaryIndexToRangeChange)
@@ -501,8 +501,8 @@ func TestExportSchemaSchemaOptimizationReportWithSkipPerfOptimizations(t *testin
 	assert.NotNil(t, schemaOptimizationReport)
 	assert.NotNil(t, schemaOptimizationReport.RedundantIndexChange)
 	assert.False(t, schemaOptimizationReport.RedundantIndexChange.IsApplied) //Not applied because of --skip-perf-optimizations flag
-	assert.Nil(t, schemaOptimizationReport.TableColocationRecommendation)
-	assert.Nil(t, schemaOptimizationReport.MviewColocationRecommendation)
+	assert.NotNil(t, schemaOptimizationReport.TableColocationRecommendation)
+	assert.False(t, schemaOptimizationReport.TableColocationRecommendation.IsApplied)
 	assert.Equal(t, 1, len(schemaOptimizationReport.RedundantIndexChange.TableToRemovedIndexesMap))
 	assert.Equal(t, 2, len(schemaOptimizationReport.RedundantIndexChange.TableToRemovedIndexesMap["test_schema.test_data"]))
 
@@ -526,6 +526,204 @@ func TestExportSchemaSchemaOptimizationReportWithSkipPerfOptimizations(t *testin
 	assert.Equal(t, "HASH", indexesToShardingStrategy["idx_test_data_value_3"])
 	assert.Equal(t, "DESC", indexesToShardingStrategy["idx_test_data_id1"])
 	assert.Equal(t, "HASH", indexesToShardingStrategy["test_data_pkey"])
+}
+
+func TestExportSchemaSchemaOptimizationReportWithHashSplitting(t *testing.T) {
+	// create temp export dir and setting global exportDir variable
+	tempExportDir := testutils.CreateTempExportDir()
+	defer testutils.RemoveTempExportDir(tempExportDir)
+
+	// setting up source test container and source params for assessment
+	postgresContainer := testcontainers.NewTestContainer("postgresql", nil)
+	err := postgresContainer.Start(context.Background())
+	if err != nil {
+		utils.ErrExit("Failed to start postgres container: %v", err)
+	}
+	defer postgresContainer.Stop(context.Background())
+
+	yugabyteContainer := testcontainers.NewTestContainer("yugabytedb", nil)
+	err = yugabyteContainer.Start(context.Background())
+	if err != nil {
+		utils.ErrExit("Failed to start yugabyte container: %v", err)
+	}
+	defer yugabyteContainer.Stop(context.Background())
+
+	// create table and initial data in it
+	postgresContainer.ExecuteSqls(
+		`CREATE SCHEMA test_schema;`,
+		`CREATE TABLE test_schema.test_data (
+				id SERIAL PRIMARY KEY,
+				value TEXT,
+				value_2 TEXT,
+				id1 int UNIQUE
+			);`,
+		`CREATE TABLE test_schema.test_data_2 (
+				id SERIAL PRIMARY KEY,
+				value TEXT,
+				value_2 TEXT,
+				id1 int
+			);`,
+		`CREATE TABLE test_schema.test_data_3 (
+				created_at timestamp PRIMARY KEY,
+				value TEXT,
+				value_2 TEXT,
+				id1 int UNIQUE
+			);`,
+		`ALTER TABLE test_schema.test_data_2 ADD CONSTRAINT fk_test_data FOREIGN KEY (id1) REFERENCES test_schema.test_data (id);`,
+	)
+	if err != nil {
+		t.Errorf("Failed to create test table: %v", err)
+	}
+	defer postgresContainer.ExecuteSqls(`
+			DROP SCHEMA test_schema CASCADE;`)
+
+	_, err = testutils.RunVoyagerCommand(postgresContainer, "export schema", []string{
+		"--source-db-schema", "test_schema",
+		"--export-dir", tempExportDir,
+		"--yes",
+	}, nil, false)
+	if err != nil {
+		t.Errorf("Failed to run export schema command: %v", err)
+	}
+
+	// check if schema optimization report json file exists
+	schemaOptimizationReportFilePath := filepath.Join(tempExportDir, "reports", "schema_optimization_report.json")
+	if !utils.FileOrFolderExists(schemaOptimizationReportFilePath) {
+		t.Errorf("Expected schema optimization report file does not exist: %s", schemaOptimizationReportFilePath)
+	}
+
+	jsonFile := jsonfile.NewJsonFile[SchemaOptimizationReport](schemaOptimizationReportFilePath)
+	schemaOptimizationReport, err := jsonFile.Read()
+	if err != nil {
+		t.Errorf("Failed to read schema optimization report file: %v", err)
+	}
+	assert.NotNil(t, schemaOptimizationReport)
+	assert.NotNil(t, schemaOptimizationReport.PKHashShardingChange)
+	assert.True(t, schemaOptimizationReport.PKHashShardingChange.IsApplied)
+	assert.Equal(t, 2, len(schemaOptimizationReport.PKHashShardingChange.ModifiedTables))
+	assert.NotNil(t, schemaOptimizationReport.PKOnTimestampRangeShardingChange)
+	assert.True(t, schemaOptimizationReport.PKOnTimestampRangeShardingChange.IsApplied)
+	assert.Equal(t, 1, len(schemaOptimizationReport.PKOnTimestampRangeShardingChange.ModifiedTables))
+	assert.NotNil(t, schemaOptimizationReport.UKRangeShardingChange)
+	assert.True(t, schemaOptimizationReport.UKRangeShardingChange.IsApplied)
+
+	_, err = testutils.RunVoyagerCommand(yugabyteContainer, "import schema", []string{
+		"--export-dir", tempExportDir,
+	}, func() {
+		time.Sleep(10 * time.Second)
+	}, true)
+	if err != nil {
+		t.Errorf("Failed to run import schema command: %v", err)
+	}
+	indexesToShardingStrategy := getIndexesToShardingStrategy(t, yugabyteContainer, "test_schema", "test_data")
+	indexesToShardingStrategy2 := getIndexesToShardingStrategy(t, yugabyteContainer, "test_schema", "test_data_2")
+	indexesToShardingStrategy3 := getIndexesToShardingStrategy(t, yugabyteContainer, "test_schema", "test_data_3")
+
+	assert.Equal(t, "HASH", indexesToShardingStrategy["test_data_pkey"])      //PK
+	assert.Equal(t, "ASC", indexesToShardingStrategy["test_data_id1_key"])    // UNIQUE
+	assert.Equal(t, "HASH", indexesToShardingStrategy2["test_data_2_pkey"])   // PK
+	assert.Equal(t, "ASC", indexesToShardingStrategy3["test_data_3_pkey"])    // PK on timestamp column
+	assert.Equal(t, "ASC", indexesToShardingStrategy3["test_data_3_id1_key"]) // UNIQUE
+
+}
+
+func TestExportSchemaSchemaOptimizationReportForHashSplittingWithoutPerfOptimizations(t *testing.T) {
+	// create temp export dir and setting global exportDir variable
+	tempExportDir := testutils.CreateTempExportDir()
+	defer testutils.RemoveTempExportDir(tempExportDir)
+
+	// setting up source test container and source params for assessment
+	postgresContainer := testcontainers.NewTestContainer("postgresql", nil)
+	err := postgresContainer.Start(context.Background())
+	if err != nil {
+		utils.ErrExit("Failed to start postgres container: %v", err)
+	}
+	defer postgresContainer.Stop(context.Background())
+
+	yugabyteContainer := testcontainers.NewTestContainer("yugabytedb", nil)
+	err = yugabyteContainer.Start(context.Background())
+	if err != nil {
+		utils.ErrExit("Failed to start yugabyte container: %v", err)
+	}
+	defer yugabyteContainer.Stop(context.Background())
+
+	// create table and initial data in it
+	postgresContainer.ExecuteSqls(
+		`CREATE SCHEMA test_schema;`,
+		`CREATE TABLE test_schema.test_data (
+				id SERIAL PRIMARY KEY,
+				value TEXT,
+				value_2 TEXT,
+				id1 int UNIQUE
+			);`,
+		`CREATE TABLE test_schema.test_data_2 (
+				id SERIAL PRIMARY KEY,
+				value TEXT,
+				value_2 TEXT,
+				id1 int
+			);`,
+		`CREATE TABLE test_schema.test_data_3 (
+				created_at timestamp PRIMARY KEY,
+				value TEXT,
+				value_2 TEXT,
+				id1 int UNIQUE
+			);`,
+		`ALTER TABLE test_schema.test_data_2 ADD CONSTRAINT fk_test_data FOREIGN KEY (id1) REFERENCES test_schema.test_data (id);`,
+	)
+	if err != nil {
+		t.Errorf("Failed to create test table: %v", err)
+	}
+	defer postgresContainer.ExecuteSqls(`
+			DROP SCHEMA test_schema CASCADE;`)
+
+	_, err = testutils.RunVoyagerCommand(postgresContainer, "export schema", []string{
+		"--source-db-schema", "test_schema",
+		"--export-dir", tempExportDir,
+		"--skip-performance-recommendations", "true",
+		"--yes",
+	}, nil, false)
+	if err != nil {
+		t.Errorf("Failed to run export schema command: %v", err)
+	}
+
+	// check if schema optimization report json file exists
+	schemaOptimizationReportFilePath := filepath.Join(tempExportDir, "reports", "schema_optimization_report.json")
+	if !utils.FileOrFolderExists(schemaOptimizationReportFilePath) {
+		t.Errorf("Expected schema optimization report file does not exist: %s", schemaOptimizationReportFilePath)
+	}
+
+	jsonFile := jsonfile.NewJsonFile[SchemaOptimizationReport](schemaOptimizationReportFilePath)
+	schemaOptimizationReport, err := jsonFile.Read()
+	if err != nil {
+		t.Errorf("Failed to read schema optimization report file: %v", err)
+	}
+	assert.NotNil(t, schemaOptimizationReport)
+	assert.NotNil(t, schemaOptimizationReport.PKHashShardingChange)
+	assert.False(t, schemaOptimizationReport.PKHashShardingChange.IsApplied)
+	assert.NotNil(t, schemaOptimizationReport.PKOnTimestampRangeShardingChange)
+	assert.False(t, schemaOptimizationReport.PKOnTimestampRangeShardingChange.IsApplied)
+	assert.NotNil(t, schemaOptimizationReport.UKRangeShardingChange)
+	assert.False(t, schemaOptimizationReport.UKRangeShardingChange.IsApplied)
+
+	_, err = testutils.RunVoyagerCommand(yugabyteContainer, "import schema", []string{
+		"--export-dir", tempExportDir,
+	}, func() {
+		time.Sleep(10 * time.Second)
+	}, true)
+	if err != nil {
+		t.Errorf("Failed to run import schema command: %v", err)
+	}
+	indexesToShardingStrategy := getIndexesToShardingStrategy(t, yugabyteContainer, "test_schema", "test_data")
+	indexesToShardingStrategy2 := getIndexesToShardingStrategy(t, yugabyteContainer, "test_schema", "test_data_2")
+	indexesToShardingStrategy3 := getIndexesToShardingStrategy(t, yugabyteContainer, "test_schema", "test_data_3")
+
+	//Since performance optimizations are not applied, the indexes should be hash-sharded as the default behavior right now
+	assert.Equal(t, "HASH", indexesToShardingStrategy["test_data_pkey"])       //PK
+	assert.Equal(t, "HASH", indexesToShardingStrategy["test_data_id1_key"])    // UNIQUE
+	assert.Equal(t, "HASH", indexesToShardingStrategy2["test_data_2_pkey"])    // PK
+	assert.Equal(t, "HASH", indexesToShardingStrategy3["test_data_3_pkey"])    // PK
+	assert.Equal(t, "HASH", indexesToShardingStrategy3["test_data_3_id1_key"]) // UNIQUE
+
 }
 
 func getIndexesToShardingStrategy(t *testing.T, yugabyteContainer testcontainers.TestContainer, schemaName, tableName string) map[string]string {

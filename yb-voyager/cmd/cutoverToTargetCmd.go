@@ -16,15 +16,98 @@ limitations under the License.
 package cmd
 
 import (
+	"errors"
+	"fmt"
+	"regexp"
+	"strings"
+
+	"github.com/fatih/color"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
 
 var prepareForFallBack utils.BoolStr
 var useYBgRPCConnector utils.BoolStr
+
+// validateYBVersionForLogicalConnector checks if the YugabyteDB version is greater than minSupportedLogicalConnectorVersion¯
+// Logical connector is only supported in YugabyteDB versions greater than minSupportedLogicalConnectorVersion
+func validateYBVersionForLogicalConnector(tconf *tgtdb.TargetConf) error {
+	if tconf == nil {
+		return fmt.Errorf("target database configuration is not available")
+	}
+
+	// Version should already be stored in metadata from previous import commands
+	if tconf.DBVersion == "" {
+		return fmt.Errorf("YugabyteDB version not found in metadata.")
+	}
+	versionStr := tconf.DBVersion
+
+	// Extract YB version from PostgreSQL version string
+	// Format: PostgreSQL x.x-YB-version-bxxx or version
+	ybVersion, err := extractYBVersion(versionStr)
+	if err != nil {
+		return fmt.Errorf("failed to extract YugabyteDB version from '%s': %w", versionStr, err)
+	}
+
+	// Parse the version
+	currentVersion, err := ybversion.NewYBVersion(ybVersion)
+	if err != nil {
+		return fmt.Errorf("failed to parse current YugabyteDB version '%s': %w.", ybVersion, err)
+	}
+
+	var minSupportedLogicalConnectorVersion *ybversion.YBVersion
+	// We dont support old format of YugabyteDB stable versions for logical connector i.e. 2.20 etc. and we dont support preview versions < 2.29.0.0
+	// But 2.29.0.0 is not released yet, so we don't support any preview versions either for now.
+	// So, we only support stable versions >= 2024.2.4.0
+	// TODO: Once 2.29.0.0 is released, add support for preview versions >= 2.29.0.0
+
+	minSupportedLogicalConnectorVersion = ybversion.V2024_2_4_0
+
+	// Common error message components
+	docsURL := utils.InfoColor.Add(color.Underline).Sprint("https://docs.yugabyte.com/preview/yugabyte-voyager/reference/cutover-archive/cutover/#yugabytedb-grpc-vs-yugabytedb-connector")
+	versionErrorTemplate := fmt.Sprintf("\nCurrent version: %s\n"+
+		"Please use:\n"+
+		"   - Supported stable versions >= %s, OR\n"+
+		"   - YugabyteDB gRPC connector with --use-yb-grpc-connector=true\n"+
+		"For more details, refer to: %s",
+		utils.WarningColor.Sprint(currentVersion.String()),
+		utils.SuccessColor.Sprint(minSupportedLogicalConnectorVersion.String()),
+		docsURL)
+
+	if currentVersion.ReleaseType() == ybversion.PREVIEW {
+		return errors.New("YugabyteDB logical replication connector is not supported for preview versions." + versionErrorTemplate)
+	}
+
+	// Check if version is greater or equal to 2024.2.4.0
+	if !currentVersion.GreaterThanOrEqual(minSupportedLogicalConnectorVersion) {
+		return errors.New(fmt.Sprintf("YugabyteDB logical replication connector requires version >= %s.", utils.SuccessColor.Sprint(minSupportedLogicalConnectorVersion.String())) + versionErrorTemplate)
+	}
+
+	return nil
+}
+
+// extractYBVersion extracts YugabyteDB version from PostgreSQL server_version string
+// Examples: "14.6-YB-2.18.1.0-b89" or "14.6-YB-2024.1.1.0"
+func extractYBVersion(versionStr string) (string, error) {
+	// Try to match pattern like "14.6-YB-2.18.1.0-b89"
+	re := regexp.MustCompile(`YB-([0-9.]+)`)
+	match := re.FindStringSubmatch(versionStr)
+	if len(match) >= 2 {
+		version := match[1]
+		// Remove build suffix if present (e.g., "-b89")
+		if idx := strings.Index(version, "-"); idx != -1 {
+			version = version[:idx]
+		}
+		return version, nil
+	}
+
+	return "", fmt.Errorf("unable to extract YugabyteDB version from PostgreSQL server_version string: %s. Expected format 'PostgreSQL_VERSION-YB-YUGABYTEDB_VERSION'", versionStr)
+}
 
 var cutoverToTargetCmd = &cobra.Command{
 	Use:   "target",
@@ -63,10 +146,13 @@ var cutoverToTargetCmd = &cobra.Command{
 			} else if msr.FallForwardEnabled {
 				log.Infof("Migration workflow opted is live migration with fall-forward.")
 			}
-			// --use-yb-grpc-connector is mandatory in this case.
-			useYBgRPCConnectorSpecified := cmd.Flags().Changed("use-yb-grpc-connector")
-			if !useYBgRPCConnectorSpecified {
-				utils.ErrExit(`missing required flag "--use-yb-grpc-connector [true|false]"`)
+
+			// Validate YugabyteDB version for logical connector
+			if !useYBgRPCConnector {
+				err = validateYBVersionForLogicalConnector(msr.TargetDBConf)
+				if err != nil {
+					utils.ErrExit("%w", err)
+				}
 			}
 			if useYBgRPCConnector {
 				utils.PrintAndLog("Using YB gRPC connector for export data from target")
@@ -89,8 +175,7 @@ func init() {
 	registerConfigFileFlag(cutoverToTargetCmd)
 	BoolVar(cutoverToTargetCmd.Flags(), &prepareForFallBack, "prepare-for-fall-back", false,
 		"prepare for fallback by streaming changes from target DB back to source DB. Not applicable for fall-forward workflow.")
-	//Keeping the default as false here as the default value as false, 0 etc.. is not added to the usage msg by cobra and as the flag is mandatory there is no default value.
-	BoolVar(cutoverToTargetCmd.Flags(), &useYBgRPCConnector, "use-yb-grpc-connector", BOOL_FLAG_ZERO_VALUE,
+	BoolVar(cutoverToTargetCmd.Flags(), &useYBgRPCConnector, "use-yb-grpc-connector", false,
 		`Applicable to Fall-forward/fall-back workflows where it is required to export changes from YugabyteDB during 'export data from target'. YugabyteDB provides two types of CDC (Change Data Capture) connectors:
 gRPC Connector: Requires direct access to the cluster's internal ports—specifically, TServer (9100) and Master (7100). This connector is suitable for deployments where these ports are accessible.
 Logical Connector: It does not require access to internal ports. It is recommended for deployments where the gRPC connector cannot be used—such as with YBAeon or other restricted environments.

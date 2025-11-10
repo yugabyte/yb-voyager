@@ -59,7 +59,13 @@ func (p *PgStatStatements) Merge(second *PgStatStatements) {
 	p.TotalExecTime = first.TotalExecTime + second.TotalExecTime
 
 	// Recalculate mean_exec_time after merging: mean = combined_total_exec_time / combined_calls
-	p.MeanExecTime = p.TotalExecTime / float64(p.Calls)
+	if p.Calls == 0 {
+		// ideally this is not expected but since we have observed this in YB, we should handle it
+		log.Warnf("calls is 0 for pg_stat_statements entry: %+v", p)
+		p.MeanExecTime = 0
+	} else {
+		p.MeanExecTime = p.TotalExecTime / float64(p.Calls)
+	}
 
 	p.MinExecTime = math.Min(first.MinExecTime, second.MinExecTime)
 	p.MaxExecTime = math.Max(first.MaxExecTime, second.MaxExecTime)

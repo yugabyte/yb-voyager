@@ -61,12 +61,7 @@ func packAndSendAssessMigrationPayload(status string, errMsg error) {
 	payload.MigrationPhase = ASSESS_MIGRATION_PHASE
 	payload.Status = status
 	if assessmentMetadataDirFlag == "" {
-		sourceDBDetails := callhome.SourceDBDetails{
-			DBType:             source.DBType,
-			DBVersion:          source.DBVersion,
-			DBSize:             source.DBSize,
-			DBSystemIdentifier: source.DBSystemIdentifier,
-		}
+		sourceDBDetails := anonymizeSourceDBDetails(&source)
 		payload.SourceDBDetails = callhome.MarshalledJsonString(sourceDBDetails)
 	}
 
@@ -172,6 +167,48 @@ func anonymizeQualifiedTableNames(tableNames []string) []string {
 	})
 }
 
+// anonymizeSourceDBDetails creates anonymized source DB details for callhome
+func anonymizeSourceDBDetails(source *srcdb.Source) callhome.SourceDBDetails {
+	details := callhome.SourceDBDetails{
+		DBType:             source.DBType,
+		DBVersion:          source.DBVersion,
+		DBSize:             source.DBSize,
+		DBSystemIdentifier: source.DBSystemIdentifier,
+	}
+
+	// Anonymize database name
+	if source.DBName != "" {
+		anonymizedDBName, err := anonymizer.AnonymizeDatabaseName(source.DBName)
+		if err != nil {
+			log.Warnf("failed to anonymize database name %s: %v", source.DBName, err)
+			details.DBName = constants.OBFUSCATE_STRING
+		} else {
+			details.DBName = anonymizedDBName
+		}
+	}
+
+	// Anonymize schema names
+	if source.Schema != "" {
+		schemaList := source.GetSchemaList()
+		anonymizedSchemas := make([]string, 0, len(schemaList))
+		for _, schemaName := range schemaList {
+			if schemaName == "" {
+				continue
+			}
+			anonymizedSchema, err := anonymizer.AnonymizeSchemaName(schemaName)
+			if err != nil {
+				log.Warnf("failed to anonymize schema name %s: %v", schemaName, err)
+				anonymizedSchemas = append(anonymizedSchemas, constants.OBFUSCATE_STRING)
+			} else {
+				anonymizedSchemas = append(anonymizedSchemas, anonymizedSchema)
+			}
+		}
+		details.SchemaNames = anonymizedSchemas
+	}
+
+	return details
+}
+
 // ============================assess migration callhome payload information============================
 
 func anonymizeAssessmentIssuesForCallhomePayload(assessmentIssues []AssessmentIssue) []callhome.AssessmentIssueCallhome {
@@ -188,7 +225,7 @@ func anonymizeAssessmentIssuesForCallhomePayload(assessmentIssues []AssessmentIs
 	var err error
 	anonymizedIssues := make([]callhome.AssessmentIssueCallhome, len(assessmentIssues))
 	for i, issue := range assessmentIssues {
-		anonymizedIssues[i] = callhome.NewAssessmentIssueCallhome(issue.Category, issue.CategoryDescription, issue.Type, issue.Name, issue.Impact, issue.ObjectType, issue.Details)
+		anonymizedIssues[i] = callhome.NewAssessmentIssueCallhome(issue.Category, issue.CategoryDescription, issue.Type, issue.Name, issue.Impact, issue.ObjectType, issue.Details, issue.ObjectUsage)
 
 		if shouldSkipAnonymization(issue) {
 			continue
@@ -334,10 +371,13 @@ func getAnonymizedDDLs(sourceDBConf *srcdb.Source) []string {
 // ============================export schema callhome payload information============================
 
 const (
-	REDUNDANT_INDEX_CHANGE_TYPE                 = "redundant_index"
-	TABLE_COLOCATION_RECOMMENDATION_CHANGE_TYPE = "table_sharding_recommendation"
-	MVIEW_COLOCATION_RECOMMENDATION_CHANGE_TYPE = "mview_sharding_recommendation"
-	SECONDARY_INDEX_TO_RANGE_CHANGE_TYPE        = "secondary_index_to_range"
+	REDUNDANT_INDEX_CHANGE_TYPE                         = "redundant_index"
+	TABLE_COLOCATION_RECOMMENDATION_CHANGE_TYPE         = "table_sharding_recommendation"
+	MVIEW_COLOCATION_RECOMMENDATION_CHANGE_TYPE         = "mview_sharding_recommendation"
+	SECONDARY_INDEX_TO_RANGE_CHANGE_TYPE                = "secondary_index_to_range"
+	PK_HASH_SPLITTING_CHANGE_TYPE                       = "pk_hash_splitting"
+	UK_RANGE_SPLITTING_CHANGE_TYPE                      = "uk_range_splitting"
+	PK_ON_TIMESTAMP_OR_DATE_RANGE_SPLITTING_CHANGE_TYPE = "pk_on_timestamp_or_date_range_sharding"
 )
 
 func packAndSendExportSchemaPayload(status string, errorMsg error) {
@@ -347,12 +387,7 @@ func packAndSendExportSchemaPayload(status string, errorMsg error) {
 	payload := createCallhomePayload()
 	payload.MigrationPhase = EXPORT_SCHEMA_PHASE
 	payload.Status = status
-	sourceDBDetails := callhome.SourceDBDetails{
-		DBType:             source.DBType,
-		DBVersion:          source.DBVersion,
-		DBSize:             source.DBSize,
-		DBSystemIdentifier: source.DBSystemIdentifier,
-	}
+	sourceDBDetails := anonymizeSourceDBDetails(&source)
 	schemaOptimizationChanges := buildCallhomeSchemaOptimizationChanges()
 
 	payload.SourceDBDetails = callhome.MarshalledJsonString(sourceDBDetails)
@@ -433,9 +468,43 @@ func buildCallhomeSchemaOptimizationChanges() []callhome.SchemaOptimizationChang
 			Objects:          getAnonymizedIndexObjectsFromIndexToTableMap(schemaOptimizationReport.SecondaryIndexToRangeChange.ModifiedIndexes),
 		})
 	}
+	if schemaOptimizationReport.PKHashShardingChange != nil {
+		schemaOptimizationChanges = append(schemaOptimizationChanges, callhome.SchemaOptimizationChange{
+			OptimizationType: PK_HASH_SPLITTING_CHANGE_TYPE,
+			IsApplied:        schemaOptimizationReport.PKHashShardingChange.IsApplied,
+			Objects:          anonymizeQualifiedTableNames(schemaOptimizationReport.PKHashShardingChange.ModifiedTables),
+		})
+	}
+	if schemaOptimizationReport.PKOnTimestampRangeShardingChange != nil {
+		schemaOptimizationChanges = append(schemaOptimizationChanges, callhome.SchemaOptimizationChange{
+			OptimizationType: PK_ON_TIMESTAMP_OR_DATE_RANGE_SPLITTING_CHANGE_TYPE,
+			IsApplied:        schemaOptimizationReport.PKOnTimestampRangeShardingChange.IsApplied,
+			Objects:          anonymizeQualifiedTableNames(schemaOptimizationReport.PKOnTimestampRangeShardingChange.ModifiedTables),
+		})
+	}
+	if schemaOptimizationReport.UKRangeShardingChange != nil {
+		schemaOptimizationChanges = append(schemaOptimizationChanges, callhome.SchemaOptimizationChange{
+			OptimizationType: UK_RANGE_SPLITTING_CHANGE_TYPE,
+			IsApplied:        schemaOptimizationReport.UKRangeShardingChange.IsApplied,
+			Objects:          []string{},
+		})
+	}
 	return schemaOptimizationChanges
 }
 
+func getAnonymizedConstraintNamesFromConstraints(constraints []string) []string {
+	anonymizedConstraints := make([]string, 0)
+	for _, constraint := range constraints {
+		anonymizedConstraint, err := anonymizer.AnonymizeConstraintName(constraint)
+		if err != nil {
+			log.Errorf("callhome: failed to anonymise constraint-%s: %v", constraint, err)
+			anonymizedConstraints = append(anonymizedConstraints, constants.OBFUSCATE_STRING)
+			continue
+		}
+		anonymizedConstraints = append(anonymizedConstraints, anonymizedConstraint)
+	}
+	return anonymizedConstraints
+}
 func getAnonymizedIndexObjectsFromIndexToTableMap(indexToTableMap map[string][]string) []string {
 	objects := make([]string, 0)
 	for tbl, indexes := range indexToTableMap {
@@ -466,6 +535,7 @@ func packAndSendComparePerformancePayload(status string, errorMsg error, compara
 	payload := createCallhomePayload()
 	payload.MigrationPhase = COMPARE_PERFORMANCE_PHASE
 	payload.Status = status
+	payload.TargetDBDetails = callhome.MarshalledJsonString(targetDBDetails)
 
 	comparePerformancePayload := buildCallhomeComparePerformancePayload(comparator, errorMsg)
 	payload.PhasePayload = callhome.MarshalledJsonString(comparePerformancePayload)

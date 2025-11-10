@@ -354,7 +354,7 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string, d
 	// such as foreign key constraints, inherited columns, and partitioned table columns.
 	// Run this only if object type is TABLE, as it is the only one that has columns.
 	if objType == "TABLE" {
-		parserIssueDetector.FinalizeColumnMetadata()
+		parserIssueDetector.FinalizeTablesMetadata()
 	}
 
 	for _, sqlStmtInfo := range sqlInfoArr {
@@ -731,6 +731,7 @@ func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fil
 		Name:                   issueInstance.Name,
 		Reason:                 issueInstance.Description,
 		Impact:                 issueInstance.Impact,
+		ObjectUsage:            issueInstance.ObjectUsage,
 		SqlStatement:           issueInstance.SqlStatement,
 		DocsLink:               issueInstance.DocsLink,
 		FilePath:               fileName,
@@ -1196,7 +1197,7 @@ func checkConversions(sqlInfoArr []sqlInfo, filePath string) {
 
 func analyzeSchema() {
 
-	utils.PrintAndLog("Analyzing schema for target YugabyteDB version %s\n", targetDbVersion)
+	utils.PrintAndLogf("Analyzing schema for target YugabyteDB version %s\n", targetDbVersion)
 	schemaAnalysisStartedEvent := createSchemaAnalysisStartedEvent()
 	controlPlane.SchemaAnalysisStarted(&schemaAnalysisStartedEvent)
 

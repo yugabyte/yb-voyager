@@ -21,6 +21,8 @@ BASE_EXPECTED_ROW_COUNT = {
     'null_and_default': 2,
     'decimal_types': 4,
     'hstore_example': 27,
+    'tsvector_table': 4,
+    'enum_array_table': 4,
 }
 
 # Base expected row counts for FF (for gRPC connector)
@@ -33,11 +35,15 @@ BASE_EXPECTED_ROW_COUNT_FF = {
     'null_and_default': 2,
     'decimal_types': 4,
     'hstore_example': 27,
+    'tsvector_table': 4,
+    'enum_array_table': 4,
 }
 
 # Replacement row counts when logical replication connector is used
 LOGICAL_REPLICATION_ROW_OVERRIDES = {
     'hstore_example': 29,
+    'tsvector_table': 5,
+    'enum_array_table': 5,
 }
 
 EXPECTED_SUM_OF_COLUMN = {
@@ -176,7 +182,7 @@ def run_migration_checks(db_type: str, expected, ff_fb_enabled: bool = False):
 def migration_completed_checks(tgt, expected):
     got_row_count = tgt.row_count_of_all_tables("public")
     for table_name, row_count in expected["row_count"].items():
-        print(f"table_name: {table_name}, row_count: {got_row_count[table_name]}")
+        print(f"table_name: {table_name}, row_count: {got_row_count[table_name]}, expected: {row_count}")
         assert row_count == got_row_count[table_name]
 
     for table_name, column_names_with_sum in expected["sum_of_column"].items():

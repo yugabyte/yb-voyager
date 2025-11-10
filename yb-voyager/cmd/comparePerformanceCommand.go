@@ -46,6 +46,11 @@ Prerequisites:
   - stats collection(pg_stat_statements) must be enabled on the target YugabyteDB database`,
 
 	PreRun: func(cmd *cobra.Command, args []string) {
+		err := retrieveMigrationUUID()
+		if err != nil {
+			utils.ErrExit("failed to get migration UUID: %w", err)
+		}
+
 		// required to decide the defaults values for default ssl mode, port, schema, etc.
 		tconf.TargetDBType = YUGABYTEDB
 		importerRole = TARGET_DB_IMPORTER_ROLE
@@ -62,7 +67,7 @@ Prerequisites:
 }
 
 func comparePerformanceCommandFn(cmd *cobra.Command, args []string) {
-	utils.PrintAndLog("starting performance comparison...")
+	utils.PrintAndLogf("starting performance comparison...")
 
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
@@ -96,7 +101,7 @@ func comparePerformanceCommandFn(cmd *cobra.Command, args []string) {
 	if err != nil {
 		utils.ErrExit("Failed to perform performance comparison: %v", err)
 	}
-	utils.PrintAndLog("generating performance reports...\n")
+	utils.PrintAndLogf("generating performance reports...\n")
 	err = comparator.GenerateReport(exportDir)
 	if err != nil {
 		utils.ErrExit("Failed to generate performance reports: %v", err)
@@ -107,10 +112,11 @@ func comparePerformanceCommandFn(cmd *cobra.Command, args []string) {
 		utils.ErrExit("Failed to mark performance comparison as done: %v", err)
 	}
 
+	targetDBDetails = targetDB.GetCallhomeTargetDBInfo()
 	// Send successful callhome payload
 	packAndSendComparePerformancePayload("COMPLETE", nil, comparator)
 
-	utils.PrintAndLog("Performance comparison completed successfully!")
+	utils.PrintAndLogf("Performance comparison completed successfully!")
 }
 
 func validateComparePerfPrerequisites() {
@@ -120,7 +126,7 @@ func validateComparePerfPrerequisites() {
 		utils.ErrExit("Failed to handle start-clean: %v", err)
 	}
 
-	utils.PrintAndLog("validating the setup for performance comparison...")
+	utils.PrintAndLogf("validating the setup for performance comparison...")
 
 	// Check 1: assess-migration must have been run
 	hasAssessment, err := IsMigrationAssessmentDoneDirectly(metaDB)
@@ -239,9 +245,9 @@ func handleStartCleanForComparePerf() error {
 		}
 
 		if bool(startClean) {
-			utils.PrintAndLog("cleaned up existing performance comparison reports")
+			utils.PrintAndLogf("cleaned up existing performance comparison reports")
 		} else {
-			utils.PrintAndLog("cleaned up leftover performance comparison files from previous incomplete run")
+			utils.PrintAndLogf("cleaned up leftover performance comparison files from previous incomplete run")
 		}
 	} else if reportsExist {
 		return fmt.Errorf("performance comparison reports already exist. Use --start-clean flag to remove them and re-run the command")

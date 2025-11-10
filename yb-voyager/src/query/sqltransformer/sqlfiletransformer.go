@@ -24,6 +24,7 @@ import (
 	pg_query "github.com/pganalyze/pg_query_go/v6"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -31,7 +32,9 @@ import (
 
 const (
 	REMOVED_REDUNDANT_INDEXES_FILE_NAME            = "redundant_indexes.sql"
-	SUGGESTION_TO_USE_SKIP_PERF_OPTIMIZATIONS_FLAG = "Use --skip-performance-recommendations true flag to skip applying performance optimizations to the index file"
+	SUGGESTION_TO_USE_SKIP_PERF_OPTIMIZATIONS_FLAG = "Use --skip-performance-optimizations true flag to skip applying performance optimizations to the index file"
+	HASH_SPLITTING_SESSION_VARIABLE_ON             = "set yb_use_hash_splitting_by_default=on;"
+	HASH_SPLITTING_SESSION_VARIABLE_OFF            = "set yb_use_hash_splitting_by_default=off;"
 )
 
 // =========================INDEX FILE TRANSFORMER=====================================
@@ -49,6 +52,9 @@ type IndexFileTransformer struct {
 
 	//list of modified secondary indexes to range-sharded indexes
 	ModifiedIndexesToRange []*sqlname.ObjectNameQualifiedWithTableName
+
+	//backup file path of the index file
+	backupFilePath string
 }
 
 func NewIndexFileTransformer(redundantIndexesToRemove *utils.StructMap[*sqlname.ObjectNameQualifiedWithTableName, string], skipPerformanceOptimizations bool, sourceDBType string) *IndexFileTransformer {
@@ -122,7 +128,13 @@ func (t *IndexFileTransformer) Transform(file string) (string, error) {
 		return "", fmt.Errorf("failed to write transformed stmts to %s file: %w", file, err)
 	}
 
+	t.backupFilePath = backUpFile
+
 	return backUpFile, nil
+}
+
+func (t *IndexFileTransformer) GetBackupFilePath() string {
+	return t.backupFilePath
 }
 
 func (t *IndexFileTransformer) writeRemovedRedundantIndexesToFile(removedIndexToStmtMap *utils.StructMap[*sqlname.ObjectNameQualifiedWithTableName, *pg_query.RawStmt]) error {
@@ -158,14 +170,26 @@ func (t *IndexFileTransformer) writeRemovedRedundantIndexesToFile(removedIndexTo
 // TODO: merge the sharding/colocated recommendation changes with this Table file transformation
 type TableFileTransformer struct {
 	//skipping the merge constraints with this parameter
-	skipMergeConstraints bool
-	sourceDBType         string
+	skipMergeConstraints                            bool
+	MergedConstraints                               bool
+	sourceDBType                                    string
+	skipPerformanceOptimizations                    bool
+	PKTablesOnTimestampWithRangeSharded             []string
+	PKTablesWithHashSharded                         []string
+	AppliedHashOrRangeShardingStrategyToConstraints bool
+
+	//Colocation recommendation related information - currently this change is done outside of this transformer but whenever we merge it will be easier for consumers of transformer t o rely on same informaiton
+	ShardedTables                    []string
+	ColocatedTables                  []string
+	ColocationRecommendationsApplied bool
+	BackupFilePath                   string
 }
 
-func NewTableFileTransformer(skipMergeConstraints bool, sourceDBType string) *TableFileTransformer {
+func NewTableFileTransformer(skipMergeConstraints bool, sourceDBType string, skipPerformanceOptimizations bool) *TableFileTransformer {
 	return &TableFileTransformer{
-		skipMergeConstraints: skipMergeConstraints,
-		sourceDBType:         sourceDBType,
+		skipMergeConstraints:         skipMergeConstraints,
+		sourceDBType:                 sourceDBType,
+		skipPerformanceOptimizations: skipPerformanceOptimizations,
 	}
 }
 
@@ -191,6 +215,15 @@ func (t *TableFileTransformer) Transform(file string) (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("error while merging constraints: %w", err)
 		}
+		t.MergedConstraints = true
+	}
+
+	if t.shouldConfigureShardingStrategyForConstraints() {
+		parseTree.Stmts, t.PKTablesOnTimestampWithRangeSharded, t.PKTablesWithHashSharded, err = transformer.AddShardingStrategyForConstraints(parseTree.Stmts)
+		if err != nil {
+			return "", fmt.Errorf("failed to add hash splitting on for pk constraints: %w", err)
+		}
+		t.AppliedHashOrRangeShardingStrategyToConstraints = true
 	}
 
 	sqlStmts, err := queryparser.DeparseRawStmts(parseTree.Stmts)
@@ -205,5 +238,41 @@ func (t *TableFileTransformer) Transform(file string) (string, error) {
 		return "", fmt.Errorf("failed to write transformed table.sql file: %w", err)
 	}
 
+	t.BackupFilePath = backUpFile
+
 	return backUpFile, nil
+}
+
+func (t *TableFileTransformer) GetBackupFilePath() string {
+	//todo this should be the  backupFile in Transform method but the original Tables are dumpes here before colocation recommendation so keeping it like that right now
+	//we can change this once we merge the colocation recommendation changes with the table file transformation
+	return t.BackupFilePath
+}
+
+func (t *TableFileTransformer) shouldConfigureShardingStrategyForConstraints() bool {
+	if t.sourceDBType != constants.POSTGRESQL {
+		return false
+	}
+	return !t.skipPerformanceOptimizations
+}
+
+//=========================MVIEW FILE TRANSFORMER=====================================
+
+type MviewFileTransformer struct {
+	ShardedMviews                                 []string
+	ColocatedMviews                               []string
+	BackupFilePath string
+	ColocationRecommendationsApplied              bool
+}
+
+func NewMviewFileTransformer() *MviewFileTransformer {
+	return &MviewFileTransformer{}
+}
+
+func (t *MviewFileTransformer) Transform(file string) (string, error) {
+	return file, nil
+}
+
+func (t *MviewFileTransformer) GetBackupFilePath() string {
+	return t.BackupFilePath
 }

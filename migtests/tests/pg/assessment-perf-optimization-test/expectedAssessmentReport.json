@@ -2,7 +2,7 @@
     "VoyagerVersion": "main",
     "TargetDBVersion": "2024.2.2.3",
     "MigrationComplexity": "LOW",
-    "MigrationComplexityExplanation": "Found 16 Level 1 issue(s) and 0 Level 2 issue(s), resulting in LOW migration complexity",
+    "MigrationComplexityExplanation": "Found 17 Level 1 issue(s) and 0 Level 2 issue(s), resulting in LOW migration complexity",
     "SchemaSummary": {
         "Description": "Objects that will be created on the target YugabyteDB.",
         "DbName": "pg_assessment_perf_optimizations",
@@ -20,15 +20,15 @@
             },
             {
                 "ObjectType": "TABLE",
-                "TotalCount": 49,
-                "InvalidCount": 11,
-                "ObjectNames": "public.\"Test_caseSensitive\", public.parent_partitioned, public.child_partition_skipped, public.has_pk_already, public.has_pk_with_unique_index, public.mix_constraint_index, public.mix_constraint_index_same, public.multiple_unique_options, public.no_pk_nullable, public.no_pk_table, public.partitioned_multiple_unique, public.partitioned_multiple_unique_2023, public.partitioned_multiple_unique_2023_us, public.partitioned_no_pk, public.partitioned_no_pk_2023, public.partitioned_no_pk_2023_us, public.partitioned_no_unique, public.partitioned_no_unique_2023, public.partitioned_no_unique_2023_us, public.partitioned_unique_index, public.partitioned_unique_index_2023, public.partitioned_unique_index_missing, public.partitioned_unique_index_missing_2023, public.sales_hierarchy, public.sales_hierarchy_2023, public.sales_hierarchy_2023_q1, public.sales_hierarchy_2023_q1_us, public.sales_hierarchy_no_unique, public.sales_hierarchy_no_unique_2023, public.sales_hierarchy_no_unique_2023_q1, public.sales_hierarchy_no_unique_2023_q1_us, public.sales_with_mid_pk, public.sales_with_mid_pk_2024, public.sales_with_mid_pk_2024_asia, public.t, public.tbl, public.test_low_card, public.test_most_freq, public.test_multi_col_idx, public.unique_index_composite, public.unique_index_expression, public.unique_index_mixed, public.unique_index_multiple, public.unique_index_nullable, public.unique_index_simple, public.users, test.t, test.t_low_most, test.test_mostcomm_status"
+                "TotalCount": 51,
+                "InvalidCount": 12,
+				"ObjectNames": "public.\"Test_caseSensitive\", public.parent_partitioned, public.child_partition_skipped, public.has_pk_already, public.has_pk_with_unique_index, public.mix_constraint_index, public.mix_constraint_index_same, public.multiple_unique_options, public.no_pk_nullable, public.no_pk_table, public.partitioned_multiple_unique, public.partitioned_multiple_unique_2023, public.partitioned_multiple_unique_2023_us, public.partitioned_no_pk, public.partitioned_no_pk_2023, public.partitioned_no_pk_2023_us, public.partitioned_no_unique, public.partitioned_no_unique_2023, public.partitioned_no_unique_2023_us, public.partitioned_unique_index, public.partitioned_unique_index_2023, public.partitioned_unique_index_2023_us, public.partitioned_unique_index_missing, public.partitioned_unique_index_missing_2023, public.partitioned_unique_index_missing_2023_us, public.sales_hierarchy, public.sales_hierarchy_2023, public.sales_hierarchy_2023_q1, public.sales_hierarchy_2023_q1_us, public.sales_hierarchy_no_unique, public.sales_hierarchy_no_unique_2023, public.sales_hierarchy_no_unique_2023_q1, public.sales_hierarchy_no_unique_2023_q1_us, public.sales_with_mid_pk, public.sales_with_mid_pk_2024, public.sales_with_mid_pk_2024_asia, public.t, public.tbl, public.test_low_card, public.test_most_freq, public.test_multi_col_idx, public.unique_index_composite, public.unique_index_expression, public.unique_index_mixed, public.unique_index_multiple, public.unique_index_nullable, public.unique_index_simple, public.users, test.t, test.t_low_most, test.test_mostcomm_status"
             },
             {
                 "ObjectType": "INDEX",
-                "TotalCount": 36,
+                "TotalCount": 40,
                 "InvalidCount": 5,
-                "ObjectNames": "idx ON public.test_low_card, idx_has_pk_unique ON public.has_pk_with_unique_index, idx_mix_email ON public.mix_constraint_index, idx_mix_phone ON public.mix_constraint_index, idx_mix_same ON public.mix_constraint_index_same, idx_muli_col_key_first_col ON public.test_multi_col_idx, idx_muli_col_key_first_col1 ON public.test_multi_col_idx, idx_name ON public.users, idx_name1 ON public.users, idx_partitioned_unique ON public.partitioned_unique_index, idx_test_case_sensitive ON public.\"Test_caseSensitive\", idx_test_multi_id ON public.test_multi_col_idx, idx_test_multi_id1 ON public.test_multi_col_idx, idx_test_multi_id1_id2 ON public.test_multi_col_idx, idx_test_multi_id2 ON public.test_multi_col_idx, idx_test_multi_val ON public.test_multi_col_idx, idx_try ON public.tbl, idx_unique_composite ON public.unique_index_composite, idx_unique_expression ON public.unique_index_expression, idx_unique_mixed ON public.unique_index_mixed, idx_unique_multiple_1 ON public.unique_index_multiple, idx_unique_multiple_2 ON public.unique_index_multiple, idx_unique_multiple_3 ON public.unique_index_multiple, idx_unique_nullable ON public.unique_index_nullable, idx_unique_simple ON public.unique_index_simple, idxtt ON public.t, idxtt1 ON public.t, indx ON public.test_most_freq, indx1 ON public.test_most_freq, indx34 ON public.test_most_freq, partitioned_unique_index_2023_id_region_year_idx ON public.partitioned_unique_index_2023, idx ON test.t, idx2 ON test.t, idx_normal ON test.test_mostcomm_status, idx_partial_high ON test.test_mostcomm_status, idx_try ON test.t_low_most"
+				"ObjectNames": "idx ON public.test_low_card, idx_has_pk_unique ON public.has_pk_with_unique_index, idx_mix_email ON public.mix_constraint_index, idx_mix_phone ON public.mix_constraint_index, idx_mix_same ON public.mix_constraint_index_same, idx_muli_col_key_first_col ON public.test_multi_col_idx, idx_muli_col_key_first_col1 ON public.test_multi_col_idx, idx_name ON public.users, idx_name1 ON public.users, idx_partitioned_missing ON public.partitioned_unique_index_missing, idx_partitioned_unique ON public.partitioned_unique_index, idx_test_case_sensitive ON public.\"Test_caseSensitive\", idx_test_multi_id ON public.test_multi_col_idx, idx_test_multi_id1 ON public.test_multi_col_idx, idx_test_multi_id1_id2 ON public.test_multi_col_idx, idx_test_multi_id2 ON public.test_multi_col_idx, idx_test_multi_val ON public.test_multi_col_idx, idx_try ON public.tbl, idx_unique_composite ON public.unique_index_composite, idx_unique_expression ON public.unique_index_expression, idx_unique_mixed ON public.unique_index_mixed, idx_unique_multiple_1 ON public.unique_index_multiple, idx_unique_multiple_2 ON public.unique_index_multiple, idx_unique_multiple_3 ON public.unique_index_multiple, idx_unique_nullable ON public.unique_index_nullable, idx_unique_simple ON public.unique_index_simple, idxtt ON public.t, idxtt1 ON public.t, indx ON public.test_most_freq, indx1 ON public.test_most_freq, indx34 ON public.test_most_freq, partitioned_unique_index_2023_id_region_year_idx ON public.partitioned_unique_index_2023, partitioned_unique_index_2023_us_id_region_year_idx ON public.partitioned_unique_index_2023_us, partitioned_unique_index_missing_2023_id_region_year_idx ON public.partitioned_unique_index_missing_2023, partitioned_unique_index_missing_2023_us_id_region_year_idx ON public.partitioned_unique_index_missing_2023_us, idx ON test.t, idx2 ON test.t, idx_normal ON test.test_mostcomm_status, idx_partial_high ON test.test_mostcomm_status, idx_try ON test.t_low_most"
             },
             {
                 "ObjectType": "FUNCTION",
@@ -50,19 +50,19 @@
                 "public.mix_constraint_index",
                 "public.unique_index_expression",
                 "public.partitioned_multiple_unique_2023_us",
+                "public.partitioned_unique_index_2023_us",
+                "public.partitioned_unique_index_missing_2023_us",
                 "public.no_pk_nullable",
                 "public.unique_index_mixed",
                 "public.test_low_card",
                 "public.unique_index_nullable",
                 "public.partitioned_no_pk_2023_us",
                 "public.unique_index_composite",
-                "public.partitioned_unique_index_2023",
                 "public.mix_constraint_index_same",
                 "public.sales_with_mid_pk_2024_asia",
                 "public.test_most_freq",
                 "public.unique_index_multiple",
                 "public.no_pk_table",
-                "public.partitioned_unique_index_missing_2023",
                 "public.unique_index_simple",
                 "public.partitioned_no_unique_2023_us",
                 "public.child_partition_skipped",
@@ -85,7 +85,7 @@
             "EstimatedTimeInMinForImportWithoutRedundantIndexes": 1
         },
         "FailureReasoning": ""
-    },
+    },  
     "AssessmentIssues": [
         {
             "Category": "performance_optimizations",
@@ -96,6 +96,7 @@
             "Impact": "LEVEL_1",
             "ObjectType": "INDEX",
             "ObjectName": "idx_normal ON test.test_mostcomm_status",
+            "ObjectUsage": "RARE",
             "SqlStatement": "CREATE INDEX idx_normal ON test.test_mostcomm_status USING btree (status);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-column-with-high-percentage-of-a-particular-value",
             "MinimumVersionsFixedIn": null,
@@ -114,6 +115,7 @@
             "Impact": "LEVEL_1",
             "ObjectType": "INDEX",
             "ObjectName": "indx1 ON public.test_most_freq",
+            "ObjectUsage": "RARE",
             "SqlStatement": "CREATE INDEX indx1 ON public.test_most_freq USING btree (status, id);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-column-with-high-percentage-of-a-particular-value",
             "MinimumVersionsFixedIn": null,
@@ -132,6 +134,7 @@
             "Impact": "LEVEL_1",
             "ObjectType": "INDEX",
             "ObjectName": "idx_name ON public.users",
+            "ObjectUsage": "MODERATE",
             "SqlStatement": "CREATE INDEX idx_name ON public.users USING btree (name);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-column-with-high-percentage-of-a-particular-value",
             "MinimumVersionsFixedIn": null,
@@ -150,6 +153,7 @@
             "Impact": "LEVEL_1",
             "ObjectType": "INDEX",
             "ObjectName": "idxtt ON public.t",
+            "ObjectUsage": "RARE",
             "SqlStatement": "CREATE INDEX idxtt ON public.t USING btree (id2);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-column-with-a-high-percentage-of-null-values",
             "MinimumVersionsFixedIn": null,
@@ -167,6 +171,7 @@
             "Impact": "LEVEL_1",
             "ObjectType": "INDEX",
             "ObjectName": "idx2 ON test.t",
+            "ObjectUsage": "RARE",
             "SqlStatement": "CREATE INDEX idx2 ON test.t USING btree (val1);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-column-with-a-high-percentage-of-null-values",
             "MinimumVersionsFixedIn": null,
@@ -176,6 +181,29 @@
             }
         },
         {
+			"Category": "performance_optimizations",
+			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
+			"Type": "MISSING_PRIMARY_KEY_WHEN_UNIQUE_NOT_NULL",
+			"Name": "Missing primary key for table when unique and not null columns exist",
+			"Description": "YugabyteDB's table storage is index-oriented. So, a table without a primary key is not viable in YugabyteDB. If you don't specify a primary key, YugabyteDB will use the internal ybrowid column as PRIMARY KEY and the table will be sharded on ybrowid HASH. However, if there are candidate primary keys (unique + NOT NULL), it is recommended to define them as a Primary Key to avoid secondary index structures.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "TABLE",
+			"ObjectName": "public.partitioned_unique_index_missing",
+			"ObjectUsage": "RARE",
+			"SqlStatement": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-primary-key-for-table-when-unique-and-not-null-columns-exist",
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"PrimaryKeyColumnOptions": [
+					[
+						"public.partitioned_unique_index_missing.id",
+						"public.partitioned_unique_index_missing.region",
+						"public.partitioned_unique_index_missing.year"
+					]
+				]
+			}
+		},
+        {
             "Category": "performance_optimizations",
             "CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
             "Type": "MISSING_PRIMARY_KEY_WHEN_UNIQUE_NOT_NULL",
@@ -184,6 +212,7 @@
             "Impact": "LEVEL_1",
             "ObjectType": "TABLE",
             "ObjectName": "public.no_pk_table",
+            "ObjectUsage": "RARE",
             "SqlStatement": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-primary-key-for-table-when-unique-and-not-null-columns-exist",
             "MinimumVersionsFixedIn": null,
@@ -205,6 +234,7 @@
             "Impact": "LEVEL_1",
             "ObjectType": "TABLE",
             "ObjectName": "public.partitioned_multiple_unique",
+            "ObjectUsage": "RARE",
             "SqlStatement": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-primary-key-for-table-when-unique-and-not-null-columns-exist",
             "MinimumVersionsFixedIn": null,
@@ -234,6 +264,7 @@
             "Impact": "LEVEL_1",
             "ObjectType": "TABLE",
             "ObjectName": "public.partitioned_no_pk",
+            "ObjectUsage": "RARE",
             "SqlStatement": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-primary-key-for-table-when-unique-and-not-null-columns-exist",
             "MinimumVersionsFixedIn": null,
@@ -256,6 +287,7 @@
             "Impact": "LEVEL_1",
             "ObjectType": "TABLE",
             "ObjectName": "public.multiple_unique_options",
+            "ObjectUsage": "RARE",
             "SqlStatement": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-primary-key-for-table-when-unique-and-not-null-columns-exist",
             "MinimumVersionsFixedIn": null,
@@ -284,6 +316,7 @@
             "Impact": "LEVEL_1",
             "ObjectType": "TABLE",
             "ObjectName": "public.sales_hierarchy",
+            "ObjectUsage": "RARE",
             "SqlStatement": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-primary-key-for-table-when-unique-and-not-null-columns-exist",
             "MinimumVersionsFixedIn": null,
@@ -307,6 +340,7 @@
             "Impact": "LEVEL_1",
             "ObjectType": "TABLE",
             "ObjectName": "public.unique_index_composite",
+            "ObjectUsage": "RARE",
             "SqlStatement": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-primary-key-for-table-when-unique-and-not-null-columns-exist",
             "MinimumVersionsFixedIn": null,
@@ -328,6 +362,7 @@
             "Impact": "LEVEL_1",
             "ObjectType": "TABLE",
             "ObjectName": "public.partitioned_unique_index",
+            "ObjectUsage": "RARE",
             "SqlStatement": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-primary-key-for-table-when-unique-and-not-null-columns-exist",
             "MinimumVersionsFixedIn": null,
@@ -350,6 +385,7 @@
             "Impact": "LEVEL_1",
             "ObjectType": "TABLE",
             "ObjectName": "public.mix_constraint_index_same",
+            "ObjectUsage": "RARE",
             "SqlStatement": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-primary-key-for-table-when-unique-and-not-null-columns-exist",
             "MinimumVersionsFixedIn": null,
@@ -371,6 +407,7 @@
             "Impact": "LEVEL_1",
             "ObjectType": "TABLE",
             "ObjectName": "public.unique_index_multiple",
+            "ObjectUsage": "RARE",
             "SqlStatement": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-primary-key-for-table-when-unique-and-not-null-columns-exist",
             "MinimumVersionsFixedIn": null,
@@ -398,6 +435,7 @@
             "Impact": "LEVEL_1",
             "ObjectType": "TABLE",
             "ObjectName": "public.mix_constraint_index",
+            "ObjectUsage": "RARE",
             "SqlStatement": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-primary-key-for-table-when-unique-and-not-null-columns-exist",
             "MinimumVersionsFixedIn": null,
@@ -425,6 +463,7 @@
             "Impact": "LEVEL_1",
             "ObjectType": "TABLE",
             "ObjectName": "public.unique_index_simple",
+            "ObjectUsage": "RARE",
             "SqlStatement": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-primary-key-for-table-when-unique-and-not-null-columns-exist",
             "MinimumVersionsFixedIn": null,
@@ -451,17 +490,29 @@
             "SizeInBytes": 40960
         },
         {
-            "SchemaName": "public",
-            "ObjectName": "unique_index_composite",
-            "RowCount": 100,
-            "ColumnCount": 4,
-            "ReadsPerSecond": 0,
-            "WritesPerSecond": 0,
-            "IsIndex": false,
-            "ObjectType": "table",
-            "ParentTableName": null,
-            "SizeInBytes": 8192
-        },
+			"SchemaName": "public",
+			"ObjectName": "unique_index_composite",
+			"RowCount": 100,
+			"ColumnCount": 4,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "table",
+			"ParentTableName": null,
+			"SizeInBytes": 8192
+		},
+        {
+			"SchemaName": "public",
+			"ObjectName": "unique_index_expression",
+			"RowCount": 100,
+			"ColumnCount": 3,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "table",
+			"ParentTableName": null,
+			"SizeInBytes": 8192
+		},
         {
             "SchemaName": "public",
             "ObjectName": "mix_constraint_index_same",
@@ -513,18 +564,6 @@
         {
             "SchemaName": "public",
             "ObjectName": "partitioned_no_unique_2023_us",
-            "RowCount": 50,
-            "ColumnCount": 4,
-            "ReadsPerSecond": 0,
-            "WritesPerSecond": 0,
-            "IsIndex": false,
-            "ObjectType": "table",
-            "ParentTableName": null,
-            "SizeInBytes": 8192
-        },
-        {
-            "SchemaName": "public",
-            "ObjectName": "partitioned_unique_index_missing_2023",
             "RowCount": 50,
             "ColumnCount": 4,
             "ReadsPerSecond": 0,
@@ -644,14 +683,26 @@
         },
         {
             "SchemaName": "public",
-            "ObjectName": "unique_index_expression",
-            "RowCount": 100,
-            "ColumnCount": 3,
+            "ObjectName": "partitioned_unique_index_2023_us",
+            "RowCount": 40,
+            "ColumnCount": 4,
             "ReadsPerSecond": 0,
             "WritesPerSecond": 0,
             "IsIndex": false,
             "ObjectType": "table",
             "ParentTableName": null,
+            "SizeInBytes": 8192
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "partitioned_unique_index_missing_2023_us_id_region_year_idx",
+            "RowCount": 40,
+            "ColumnCount": 3,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "index",
+            "ParentTableName": "public.partitioned_unique_index_missing_2023_us",
             "SizeInBytes": 8192
         },
         {
@@ -680,7 +731,7 @@
         },
         {
             "SchemaName": "public",
-            "ObjectName": "partitioned_unique_index_2023",
+            "ObjectName": "partitioned_unique_index_missing_2023_us",
             "RowCount": 50,
             "ColumnCount": 4,
             "ReadsPerSecond": 0,
@@ -927,6 +978,7 @@
             "WritesPerSecond": 0,
             "IsIndex": true,
             "ObjectType": "index",
+
             "ParentTableName": "public.mix_constraint_index",
             "SizeInBytes": 16384
         },
@@ -1352,14 +1404,14 @@
         },
         {
             "SchemaName": "public",
-            "ObjectName": "partitioned_unique_index_2023_id_region_year_idx",
+            "ObjectName": "partitioned_unique_index_2023_us_id_region_year_idx",
             "RowCount": null,
             "ColumnCount": 3,
             "ReadsPerSecond": 0,
             "WritesPerSecond": 0,
             "IsIndex": true,
             "ObjectType": "index",
-            "ParentTableName": "public.partitioned_unique_index_2023",
+            "ParentTableName": "public.partitioned_unique_index_2023_us",
             "SizeInBytes": 16384
         },
         {

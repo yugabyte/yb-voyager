@@ -122,7 +122,7 @@ func updateFilePaths(source *srcdb.Source, exportDir string, tablesProgressMetad
 	for _, key := range sortedKeys {
 		logMsg += fmt.Sprintf("%+v\n", tablesProgressMetadata[key])
 	}
-	log.Infof(logMsg)
+	log.Info(logMsg)
 }
 
 func getMappingForTableNameVsTableFileName(dataDirPath string, noWait bool) map[string]string {
@@ -197,7 +197,7 @@ func getMappingForTableNameVsTableFileName(dataDirPath string, noWait bool) map[
 }
 
 func UpdateTableApproxRowCount(source *srcdb.Source, exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
-	utils.PrintAndLog("calculating approx num of rows to export for each table...")
+	utils.PrintAndLogf("calculating approx num of rows to export for each table...")
 	sortedKeys := utils.GetSortedKeys(tablesProgressMetadata)
 	for _, key := range sortedKeys {
 		approxRowCount := source.DB().GetTableApproxRowCount(tablesProgressMetadata[key].TableName)
@@ -624,14 +624,14 @@ func detectVersionCompatibility(msrVoyagerVersionString string, migrationExportD
 				// In this case we won't be able to convert the version using version.NewVersion() as "main" is not a valid version.
 				// Moreover, we know here that the msrVoyagerVersion is not "main" as we have already handled that case above.
 				// Therefore, the current version and the msrVoyagerVersion will not be equal.
-				utils.PrintAndLog("%s", noteString)
+				utils.PrintAndLogf("%s", noteString)
 			} else {
 				currentVersion, err := version.NewVersion(utils.YB_VOYAGER_VERSION)
 				if err != nil {
 					utils.ErrExit("could not create version from %q: %v", utils.YB_VOYAGER_VERSION, err)
 				}
 				if !currentVersion.Equal(msrVoyagerVersion) {
-					utils.PrintAndLog("%s", noteString)
+					utils.PrintAndLogf("%s", noteString)
 				}
 			}
 		}
@@ -737,7 +737,7 @@ func retrieveMigrationUUID() error {
 	}
 
 	migrationUUID = uuid.MustParse(msr.MigrationUUID)
-	utils.PrintAndLog("migrationID: %s", migrationUUID)
+	utils.PrintAndLogf("migrationID: %s", migrationUUID)
 	return nil
 }
 
@@ -1264,6 +1264,7 @@ type AssessmentIssue struct {
 	Impact                 string                          `json:"Impact"`     // // Level-1, Level-2, Level-3 (no default: need to be assigned for each issue)
 	ObjectType             string                          `json:"ObjectType"` // For datatype category, ObjectType will be datatype (for eg "geometry")
 	ObjectName             string                          `json:"ObjectName"`
+	ObjectUsage            string                          `json:"ObjectUsage,omitempty"`
 	SqlStatement           string                          `json:"SqlStatement"`
 	DocsLink               string                          `json:"DocsLink"`
 	MinimumVersionsFixedIn map[string]*ybversion.YBVersion `json:"MinimumVersionsFixedIn"` // key: series (2024.1, 2.21, etc)
@@ -1380,8 +1381,9 @@ Version History
 1.6:
   - Add EstimatedTimeInMinForImportWithoutRedundantIndexes in SizingRecommendation struct
   - Added separate fields for notes: GeneralNotes, ColocatedShardedNotes, SizingNotes; deprecated Notes field
-*/
-var ASSESS_MIGRATION_YBD_PAYLOAD_VERSION = "1.6"
+1.7: Added ObjectUsage field to AssessmentIssueYugabyteD struct
+  */
+var ASSESS_MIGRATION_YBD_PAYLOAD_VERSION = "1.7"
 
 // TODO: decouple this struct from utils.AnalyzeSchemaIssue struct, right now its tightly coupled;
 // Similarly for migassessment.SizingAssessmentReport and migassessment.TableIndexStats
@@ -1415,6 +1417,7 @@ type AssessmentIssueYugabyteD struct {
 	Impact                 string                          `json:"Impact"`                 // Level-1, Level-2, Level-3 (no default: need to be assigned for each issue)
 	ObjectType             string                          `json:"ObjectType"`             // For datatype category, ObjectType will be datatype (for eg "geometry")
 	ObjectName             string                          `json:"ObjectName"`             // Fully qualified object name(empty if NA, eg UQC)
+	ObjectUsage            string                          `json:"ObjectUsage"`            // For datatype category, ObjectUsage will be unused (for eg "unused")
 	SqlStatement           string                          `json:"SqlStatement"`           // DDL or DML(UQC)
 	DocsLink               string                          `json:"DocsLink"`               // docs link based on the subtype
 	MinimumVersionsFixedIn map[string]*ybversion.YBVersion `json:"MinimumVersionsFixedIn"` // key: series (2024.1, 2.21, etc)

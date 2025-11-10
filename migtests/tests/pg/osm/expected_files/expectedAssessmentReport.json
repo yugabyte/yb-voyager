@@ -1,7 +1,7 @@
 {
     "VoyagerVersion": "IGNORED",
     "MigrationComplexity": "MEDIUM",
-    "MigrationComplexityExplanation": "Found 3 Level 1 issue(s), 0 Level 2 issue(s) and 2 Level 3 issue(s), resulting in MEDIUM migration complexity",
+    "MigrationComplexityExplanation": "Found 2 Level 1 issue(s), 0 Level 2 issue(s) and 2 Level 3 issue(s), resulting in MEDIUM migration complexity",
     "SchemaSummary": {
         "Description": "Objects that will be created on the target YugabyteDB.",
         "DbName": "test_osm",
@@ -98,6 +98,7 @@
             "Description": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, the recommendation is to change the sharding key to a modulo of hash of timestamp column value while keeping the timestamp column value as clustering key. Ensure that the index on the column is configured to be range-sharded on timestamp column.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.",
             "Impact": "LEVEL_1",
             "ObjectType": "INDEX",
+            "ObjectUsage": "UNUSED",
             "ObjectName": "created_idx ON public.osm_changeset",
             "SqlStatement": "CREATE INDEX created_idx ON public.osm_changeset USING btree (created_at);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
@@ -117,19 +118,6 @@
             "ObjectName": "public.osm_changeset.geom",
             "SqlStatement": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-yugabytedb",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "Category": "migration_caveats",
-            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_HSTORE",
-            "Name": "Unsupported datatype for Live migration with fall-forward/fallback - hstore Datatype",
-            "Description": "HSTORE datatype not yet supported by voyager in live migration with fall-forward/fallback. Affected column: tags. These columns will be excluded when exporting and importing data in live migration workflows.",
-            "Impact": "LEVEL_1",
-            "ObjectType": "COLUMN",
-            "ObjectName": "public.osm_changeset.tags",
-            "SqlStatement": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
             "MinimumVersionsFixedIn": null
         }
     ],

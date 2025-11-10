@@ -63,7 +63,9 @@ jobs:
       - name: "Enable postgres with wal_level as logical and install postgis"
         run: |
           docker exec ${{ job.services.postgres.id }} sh -c "echo 'wal_level=logical' >> /var/lib/postgresql/data/postgresql.conf"
-          docker exec ${{ job.services.postgres.id }} sh -c "apt-get update && apt-get install -y postgresql-17-postgis-3"
+          docker exec ${{ job.services.postgres.id }} sh -c "apt-get update && apt-get install -y postgresql-17-postgis-3 postgresql-contrib-17"
+          # adding pg_stat_statements to shared_preload_libraries to enable the extension
+          docker exec ${{ job.services.postgres.id }} sh -c "echo \"shared_preload_libraries = 'pg_stat_statements'\" >> /var/lib/postgresql/data/postgresql.conf"
           docker restart ${{ job.services.postgres.id }}
           
           # Wait for PostgreSQL to be ready with health check instead of fixed sleep
@@ -104,10 +106,9 @@ jobs:
 
       - name: Start YugabyteDB cluster
         run: |
-          docker run -d --name yugabytedb --hostname yb-cluster-test\
-            -p7000:7000 -p9000:9000 -p15433:15433 -p5433:5433 -p9042:9042 \
+          docker run -d --network=host --name yugabytedb --hostname yb-cluster-test\
             yugabytedb/yugabyte:${{ matrix.yb_version }} \
-            bin/yugabyted start --tserver_flags="ysql_hba_conf_csv={host all yugabyte all trust,host all all all md5}" --background=false --ui=false --callhome=false 
+            bin/yugabyted start --tserver_flags="ysql_hba_conf_csv={host all yugabyte all trust,host all all all md5}" --advertise_address=localhost --background=false --ui=false --callhome=false 
           
           # Wait for YugabyteDB to be ready with health check
           echo "Waiting for YugabyteDB to be ready..."
@@ -124,12 +125,6 @@ jobs:
       - name: Create YugabyteDB user
         run: |
           ./migtests/scripts/yugabytedb/create_yb_user
-
-      - name: Enable yb-cluster-test name resolution
-        run: |
-          docker_ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' yugabytedb)
-          echo "$docker_ip	yb-cluster-test" | sudo tee -a /etc/hosts
-          psql "postgresql://yugabyte@yb-cluster-test:5433/yugabyte" -c "SELECT version();"
 
       - name: "TEST: PG sample schemas (sakila)"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
@@ -245,34 +240,76 @@ jobs:
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
         run: migtests/scripts/run-test.sh pg/case-sensitivity-reserved-words --run-via-config-file
 
+      - name: "TEST: pg-basic-non-public-live-migration-test (2.20/2.25/2024.1 with gRPC)"
+        if: ${{ !cancelled() && matrix.test_group == 'live-migration' && (matrix.yb_version == '2.20.10.0-b29' || matrix.yb_version == '2.25.2.0-b359' || matrix.yb_version == '2024.1.6.1-b2') }}
+        run: |
+          export USE_YB_LOGICAL_REPLICATION_CONNECTOR=false
+          migtests/scripts/live-migration-run-test.sh pg/basic-non-public-live-test --run-via-config-file
+
       - name: "TEST: pg-basic-non-public-live-migration-test"
-        if: ${{ !cancelled() && matrix.test_group == 'live-migration' }}
+        if: ${{ !cancelled() && matrix.test_group == 'live-migration' && matrix.yb_version != '2.20.10.0-b29' && matrix.yb_version != '2.25.2.0-b359' && matrix.yb_version != '2024.1.6.1-b2' }}
         run: migtests/scripts/live-migration-run-test.sh pg/basic-non-public-live-test --run-via-config-file
 
+      - name: "TEST: pg-basic-public-fall-forward-test (2.20/2.25/2024.1 with gRPC)"
+        if: ${{ !cancelled() && matrix.test_group == 'live-migration' && (matrix.yb_version == '2.20.10.0-b29' || matrix.yb_version == '2.25.2.0-b359' || matrix.yb_version == '2024.1.6.1-b2') }}
+        run: |
+          export USE_YB_LOGICAL_REPLICATION_CONNECTOR=false
+          migtests/scripts/live-migration-fallf-run-test.sh pg/basic-public-live-test --run-via-config-file
+
       - name: "TEST: pg-basic-public-fall-forward-test"
-        if: ${{ !cancelled() && matrix.test_group == 'live-migration' }}
+        if: ${{ !cancelled() && matrix.test_group == 'live-migration' && matrix.yb_version != '2.20.10.0-b29' && matrix.yb_version != '2.25.2.0-b359' && matrix.yb_version != '2024.1.6.1-b2' }}
         run: migtests/scripts/live-migration-fallf-run-test.sh pg/basic-public-live-test --run-via-config-file
 
+      - name: "TEST: pg-datatypes-fall-forward-test (2.20/2.25/2024.1 with gRPC)"
+        if: ${{ !cancelled() && matrix.test_group == 'live-migration' && (matrix.yb_version == '2.20.10.0-b29' || matrix.yb_version == '2.25.2.0-b359' || matrix.yb_version == '2024.1.6.1-b2') }}
+        run: |
+          export USE_YB_LOGICAL_REPLICATION_CONNECTOR=false
+          migtests/scripts/live-migration-fallf-run-test.sh pg/datatypes --run-via-config-file
+
       - name: "TEST: pg-datatypes-fall-forward-test"
-        if: ${{ !cancelled() && matrix.test_group == 'live-migration' }}
+        if: ${{ !cancelled() && matrix.test_group == 'live-migration' && matrix.yb_version != '2.20.10.0-b29' && matrix.yb_version != '2.25.2.0-b359' && matrix.yb_version != '2024.1.6.1-b2' }}
         run: migtests/scripts/live-migration-fallf-run-test.sh pg/datatypes --run-via-config-file
 
       # - name: "TEST: pg-basic-non-public-fall-back-test"
       #   run: migtests/scripts/live-migration-fallb-run-test.sh pg/basic-non-public-live-test --run-via-config-file
 
+      - name: "TEST: pg-datatypes-fall-back-test (2.20/2.25/2024.1 with gRPC)"
+        if: ${{ !cancelled() && matrix.test_group == 'live-migration' && (matrix.yb_version == '2.20.10.0-b29' || matrix.yb_version == '2.25.2.0-b359' || matrix.yb_version == '2024.1.6.1-b2') }}
+        run: |
+          export USE_YB_LOGICAL_REPLICATION_CONNECTOR=false
+          migtests/scripts/live-migration-fallb-run-test.sh pg/datatypes --run-via-config-file
+
       - name: "TEST: pg-datatypes-fall-back-test"
-        if: ${{ !cancelled() && matrix.test_group == 'live-migration' }}
+        if: ${{ !cancelled() && matrix.test_group == 'live-migration' && matrix.yb_version != '2.20.10.0-b29' && matrix.yb_version != '2.25.2.0-b359' && matrix.yb_version != '2024.1.6.1-b2' }}
         run: migtests/scripts/live-migration-fallb-run-test.sh pg/datatypes --run-via-config-file
 
       # case sensitive table names are not yet supported in live migration, to restricting test only to a few tables.
+      - name: "TEST: pg-live-migration-multiple-schemas (2.20/2.25/2024.1 with gRPC)"
+        if: ${{ !cancelled() && matrix.test_group == 'live-migration' && (matrix.yb_version == '2.20.10.0-b29' || matrix.yb_version == '2.25.2.0-b359' || matrix.yb_version == '2024.1.6.1-b2') }}
+        run: |
+          export USE_YB_LOGICAL_REPLICATION_CONNECTOR=false
+          EXPORT_TABLE_LIST="ext_test,tt,audit,recipients,session_log,schema2.ext_test,schema2.tt,schema2.audit,schema2.recipients,schema2.session_log" migtests/scripts/live-migration-run-test.sh  pg/multiple-schemas --run-via-config-file
+
       - name: "TEST: pg-live-migration-multiple-schemas"
-        if: ${{ !cancelled() && matrix.test_group == 'live-migration' }}
+        if: ${{ !cancelled() && matrix.test_group == 'live-migration' && matrix.yb_version != '2.20.10.0-b29' && matrix.yb_version != '2.25.2.0-b359' && matrix.yb_version != '2024.1.6.1-b2' }}
         run: EXPORT_TABLE_LIST="ext_test,tt,audit,recipients,session_log,schema2.ext_test,schema2.tt,schema2.audit,schema2.recipients,schema2.session_log" migtests/scripts/live-migration-run-test.sh  pg/multiple-schemas --run-via-config-file
 
+      - name: "TEST: pg-unique-key-conflicts-test (2.20/2.25/2024.1 with gRPC)"
+        if: ${{ !cancelled() && matrix.test_group == 'live-migration' && (matrix.yb_version == '2.20.10.0-b29' || matrix.yb_version == '2.25.2.0-b359' || matrix.yb_version == '2024.1.6.1-b2') }}
+        run: |
+          export USE_YB_LOGICAL_REPLICATION_CONNECTOR=false
+          migtests/scripts/live-migration-fallf-run-test.sh pg/unique-key-conflicts-test --run-via-config-file
+
       - name: "TEST: pg-unique-key-conflicts-test"
-        if: ${{ !cancelled() && matrix.test_group == 'live-migration' }}
+        if: ${{ !cancelled() && matrix.test_group == 'live-migration' && matrix.yb_version != '2.20.10.0-b29' && matrix.yb_version != '2.25.2.0-b359' && matrix.yb_version != '2024.1.6.1-b2' }}
         run: migtests/scripts/live-migration-fallf-run-test.sh pg/unique-key-conflicts-test --run-via-config-file
 
+      - name: "TEST: pg-live-migration-partitions-fall-forward (2.20/2.25/2024.1 with gRPC)"
+        if: ${{ !cancelled() && matrix.test_group == 'live-migration' && (matrix.yb_version == '2.20.10.0-b29' || matrix.yb_version == '2.25.2.0-b359' || matrix.yb_version == '2024.1.6.1-b2') }}
+        run: |
+          export USE_YB_LOGICAL_REPLICATION_CONNECTOR=false
+          migtests/scripts/live-migration-fallf-run-test.sh pg/partitions --run-via-config-file
+
       - name: "TEST: pg-live-migration-partitions-fall-forward"
-        if: ${{ !cancelled() && matrix.test_group == 'live-migration' }}
+        if: ${{ !cancelled() && matrix.test_group == 'live-migration' && matrix.yb_version != '2.20.10.0-b29' && matrix.yb_version != '2.25.2.0-b359' && matrix.yb_version != '2024.1.6.1-b2' }}
         run: migtests/scripts/live-migration-fallf-run-test.sh pg/partitions --run-via-config-file

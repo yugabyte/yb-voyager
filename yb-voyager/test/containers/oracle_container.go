@@ -27,12 +27,12 @@ func (ora *OracleContainer) Start(ctx context.Context) (err error) {
 
 	if ora.container != nil {
 		if ora.container.IsRunning() {
-			utils.PrintAndLog("Oracle-%s container already running", ora.DBVersion)
+			utils.PrintAndLogf("Oracle-%s container already running", ora.DBVersion)
 			return nil
 		}
 
 		// but if it’s stopped, so start it back up in place
-		utils.PrintAndLog("Restarting Oracle-%s container", ora.DBVersion)
+		utils.PrintAndLogf("Restarting Oracle-%s container", ora.DBVersion)
 		if err := ora.container.Start(ctx); err != nil {
 			return fmt.Errorf("failed to restart oracle container: %w", err)
 		}
@@ -98,7 +98,7 @@ func (ora *OracleContainer) Stop(ctx context.Context) error {
 	if ora.container == nil {
 		return nil
 	} else if !ora.container.IsRunning() {
-		utils.PrintAndLog("Oracle-%s container already stopped", ora.DBVersion)
+		utils.PrintAndLogf("Oracle-%s container already stopped", ora.DBVersion)
 		return nil
 	}
 
@@ -191,7 +191,22 @@ func (ora *OracleContainer) GetVersion() (string, error) {
 }
 
 func (ora *OracleContainer) ExecuteSqls(sqls ...string) {
-	panic("ExecuteSqls not implemented for OracleContainer")
+	if ora == nil {
+		utils.ErrExit("oracle container is not started: nil")
+	}
+
+	conn, err := ora.GetConnection()
+	if err != nil {
+		utils.ErrExit("failed to connect to oracle for executing sqls: %w", err)
+	}
+	defer conn.Close()
+
+	for _, sqlStmt := range sqls {
+		_, err := conn.Exec(sqlStmt)
+		if err != nil {
+			utils.ErrExit("failed to execute sql '%s': %w", sqlStmt, err)
+		}
+	}
 }
 
 func (ora *OracleContainer) Query(sql string, args ...interface{}) (*sql.Rows, error) {

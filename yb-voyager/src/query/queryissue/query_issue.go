@@ -30,6 +30,7 @@ type QueryIssue struct {
 	ObjectType   string // TABLE, FUNCTION, DML_QUERY?
 	ObjectName   string // table name/function name/etc
 	SqlStatement string
+	ObjectUsage  string                 //FREQUENT, MODERATE, RARE, UNUSED
 	Details      map[string]interface{} // additional details about the issue
 }
 
@@ -40,6 +41,17 @@ func newQueryIssue(issue issue.Issue, objectType string, objectName string, sqlS
 		ObjectName:   objectName,
 		SqlStatement: sqlStatement,
 		Details:      details,
+	}
+}
+
+func newQueryIssueWithUsageCategory(issue issue.Issue, objectType string, objectName string, sqlStatement string, details map[string]interface{}, usageCategory string) QueryIssue {
+	return QueryIssue{
+		Issue:        issue,
+		ObjectType:   objectType,
+		ObjectName:   objectName,
+		SqlStatement: sqlStatement,
+		Details:      details,
+		ObjectUsage:  usageCategory,
 	}
 }
 
@@ -60,11 +72,8 @@ var UnsupportedDatatypesInLiveMigrationIssues = []string{
 }
 
 var UnsupportedDatatypesInLiveMigrationIssuesWithFForFBIssues = []string{
-	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_ARRAY_OF_ENUM,
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED,
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_TSQUERY,
-	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_TSVECTOR,
-	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_HSTORE,
 }
 
 var PerformanceOptimizationIssues = []string{

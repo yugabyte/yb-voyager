@@ -1385,9 +1385,7 @@ cutover_to_target() {
     "
 
     # Set grpc connector flag
-    if [ "${USE_YB_LOGICAL_REPLICATION_CONNECTOR}" = true ]; then
-        args="${args} --use-yb-grpc-connector false"
-    else 
+    if [ "${USE_YB_LOGICAL_REPLICATION_CONNECTOR}" = false ]; then
         args="${args} --use-yb-grpc-connector true"
     fi
 
@@ -1487,7 +1485,7 @@ normalize_callhome_json() {
 				end
 			) |
             .VoyagerVersion? = "IGNORED" |
-			.TargetDBVersion? = "IGNORED" |
+			.target_db_version? = "IGNORED" |
             .OptimalSelectConnectionsPerNode? = "IGNORED" |
             .OptimalInsertConnectionsPerNode? = "IGNORED" |
 			.SizeInBytes? = "IGNORED" |
@@ -1561,3 +1559,36 @@ execute_logical_replication_target_delta() {
 	ysql_import_file ${TARGET_DB_NAME} target_delta_logical_connector.sql
 }
 
+compare_performance() {
+    if [ "${run_via_config_file}" = "true" ]; then
+        # Run using the generated config file
+        yb-voyager compare-performance -c "${GENERATED_CONFIG}" --yes
+        return $?
+    fi
+
+    args="--export-dir ${EXPORT_DIR}
+        --target-db-host ${TARGET_DB_HOST}
+        --target-db-user ${TARGET_DB_USER}
+        --target-db-password ${TARGET_DB_PASSWORD}
+        --target-db-name ${TARGET_DB_NAME}
+        --send-diagnostics=false --yes
+    "
+
+    if [ "${TARGET_DB_SCHEMA}" != "" ]; then
+        args="${args} --target-db-schema ${TARGET_DB_SCHEMA}"
+    fi
+    if [ "${TARGET_DB_SSL_MODE}" != "" ]; then
+        args="${args} --target-ssl-mode ${TARGET_DB_SSL_MODE}"
+    fi
+    if [ "${TARGET_DB_SSL_CERT}" != "" ]; then
+        args="${args} --target-ssl-cert ${TARGET_DB_SSL_CERT}"
+    fi
+    if [ "${TARGET_DB_SSL_KEY}" != "" ]; then
+        args="${args} --target-ssl-key ${TARGET_DB_SSL_KEY}"
+    fi
+    if [ "${TARGET_DB_SSL_ROOT_CERT}" != "" ]; then
+        args="${args} --target-ssl-root-cert ${TARGET_DB_SSL_ROOT_CERT}"
+    fi
+
+    yb-voyager compare-performance ${args} "$@"
+}

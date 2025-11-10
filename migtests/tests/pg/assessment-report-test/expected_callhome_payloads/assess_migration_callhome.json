@@ -1,5 +1,5 @@
 {
-    "payload_version": "1.8",
+    "payload_version": "1.9",
     "target_db_version": "2025.1.0.0",
     "sizing": {
         "colocated_tables": [],
@@ -113,7 +113,7 @@
     },
     "migration_complexity": "HIGH",
     "migration_complexity_explanation": "Found 32 Level 2 issue(s) and 22 Level 3 issue(s), resulting in HIGH migration complexity",
-    "schema_summary": "{\"Description\":\"\",\"DbName\":\"\",\"SchemaNames\":null,\"DbVersion\":\"\",\"DatabaseObjects\":[{\"ObjectType\":\"SCHEMA\",\"TotalCount\":3,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"COLLATION\",\"TotalCount\":2,\"InvalidCount\":1,\"ObjectNames\":\"\"},{\"ObjectType\":\"EXTENSION\",\"TotalCount\":9,\"InvalidCount\":4,\"ObjectNames\":\"\"},{\"ObjectType\":\"TYPE\",\"TotalCount\":5,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"DOMAIN\",\"TotalCount\":2,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"SEQUENCE\",\"TotalCount\":42,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"TABLE\",\"TotalCount\":93,\"InvalidCount\":23,\"ObjectNames\":\"\"},{\"ObjectType\":\"INDEX\",\"TotalCount\":30,\"InvalidCount\":24,\"ObjectNames\":\"\"},{\"ObjectType\":\"FUNCTION\",\"TotalCount\":19,\"InvalidCount\":6,\"ObjectNames\":\"\"},{\"ObjectType\":\"AGGREGATE\",\"TotalCount\":2,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"PROCEDURE\",\"TotalCount\":3,\"InvalidCount\":1,\"ObjectNames\":\"\"},{\"ObjectType\":\"VIEW\",\"TotalCount\":10,\"InvalidCount\":5,\"ObjectNames\":\"\"},{\"ObjectType\":\"TRIGGER\",\"TotalCount\":4,\"InvalidCount\":3,\"ObjectNames\":\"\"},{\"ObjectType\":\"MVIEW\",\"TotalCount\":3,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"RULE\",\"TotalCount\":4,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"POLICY\",\"TotalCount\":4,\"InvalidCount\":2,\"ObjectNames\":\"\"}]}",
+    "schema_summary": "{\"Description\":\"\",\"DbName\":\"\",\"SchemaNames\":null,\"DbVersion\":\"\",\"DatabaseObjects\":[{\"ObjectType\":\"SCHEMA\",\"TotalCount\":3,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"COLLATION\",\"TotalCount\":2,\"InvalidCount\":1,\"ObjectNames\":\"\"},{\"ObjectType\":\"EXTENSION\",\"TotalCount\":9,\"InvalidCount\":4,\"ObjectNames\":\"\"},{\"ObjectType\":\"TYPE\",\"TotalCount\":5,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"DOMAIN\",\"TotalCount\":2,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"SEQUENCE\",\"TotalCount\":42,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"TABLE\",\"TotalCount\":93,\"InvalidCount\":22,\"ObjectNames\":\"\"},{\"ObjectType\":\"INDEX\",\"TotalCount\":30,\"InvalidCount\":24,\"ObjectNames\":\"\"},{\"ObjectType\":\"FUNCTION\",\"TotalCount\":19,\"InvalidCount\":6,\"ObjectNames\":\"\"},{\"ObjectType\":\"AGGREGATE\",\"TotalCount\":2,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"PROCEDURE\",\"TotalCount\":3,\"InvalidCount\":1,\"ObjectNames\":\"\"},{\"ObjectType\":\"VIEW\",\"TotalCount\":10,\"InvalidCount\":5,\"ObjectNames\":\"\"},{\"ObjectType\":\"TRIGGER\",\"TotalCount\":4,\"InvalidCount\":3,\"ObjectNames\":\"\"},{\"ObjectType\":\"MVIEW\",\"TotalCount\":3,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"RULE\",\"TotalCount\":4,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"POLICY\",\"TotalCount\":4,\"InvalidCount\":2,\"ObjectNames\":\"\"}]}",
     "assessment_issues": [
       {
         "category": "unsupported_datatypes",
@@ -975,15 +975,6 @@
         "category": "migration_caveats",
         "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
         "impact": "LEVEL_1",
-        "name": "Unsupported datatype for Live migration with fall-forward/fallback - tsvector Datatype",
-        "object_name": "",
-        "object_type": "COLUMN",
-        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_TSVECTOR"
-      },
-      {
-        "category": "migration_caveats",
-        "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
-        "impact": "LEVEL_1",
         "name": "Policy with Roles",
         "object_name": "",
         "object_type": "POLICY",
@@ -1094,15 +1085,6 @@
         "category": "migration_caveats",
         "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
         "impact": "LEVEL_1",
-        "name": "Unsupported datatype for Live migration with fall-forward/fallback - Array of Enum Datatype",
-        "object_name": "",
-        "object_type": "COLUMN",
-        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_ARRAY_OF_ENUM"
-      },
-      {
-        "category": "migration_caveats",
-        "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
-        "impact": "LEVEL_1",
         "name": "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype",
         "object_name": "",
         "object_type": "COLUMN",
@@ -1121,15 +1103,6 @@
         "category": "migration_caveats",
         "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
         "impact": "LEVEL_1",
-        "name": "Unsupported datatype for Live migration with fall-forward/fallback - tsvector Datatype",
-        "object_name": "",
-        "object_type": "COLUMN",
-        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_TSVECTOR"
-      },
-      {
-        "category": "migration_caveats",
-        "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
-        "impact": "LEVEL_1",
         "name": "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype",
         "object_name": "",
         "object_type": "COLUMN",
@@ -1143,15 +1116,6 @@
         "object_name": "",
         "object_type": "COLUMN",
         "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED"
-      },
-      {
-        "category": "migration_caveats",
-        "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
-        "impact": "LEVEL_1",
-        "name": "Unsupported datatype for Live migration with fall-forward/fallback - hstore Datatype",
-        "object_name": "",
-        "object_type": "COLUMN",
-        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_HSTORE"
       },
       {
         "category": "performance_optimizations",
@@ -1160,6 +1124,7 @@
         "name": "Hotspots with indexes on timestamp as first column",
         "object_name": "",
         "object_type": "INDEX",
+        "object_usage": "RARE",
         "sql_statement": "CREATE INDEX index_ba6b491f8e777839 ON schema_d7108fd530c9b1c2.table_559de2c8ffa2acc0 USING btree (col_d4965197dd40998a)",
         "type": "HOTSPOTS_ON_TIMESTAMP_INDEX"
       },
@@ -1173,6 +1138,7 @@
         "name": "Missing index on foreign key columns",
         "object_name": "",
         "object_type": "TABLE",
+        "object_usage": "UNUSED",
         "type": "MISSING_FOREIGN_KEY_INDEX"
       },
       {
@@ -1182,6 +1148,7 @@
         "name": "Hotspots with indexes on date as first column",
         "object_name": "",
         "object_type": "INDEX",
+        "object_usage": "UNUSED",
         "sql_statement": "CREATE INDEX index_bdb3cc5272e0cdc2 ON schema_d7108fd530c9b1c2.table_e2d2370afa4b58aa USING btree (col_da9a2f6cea6d4e61)",
         "type": "HOTSPOTS_ON_DATE_INDEX"
       }

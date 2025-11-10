@@ -12,7 +12,7 @@ SELECT
         ELSE 'unknown'
     END AS object_type,
     CASE 
-        WHEN c.relkind IN ('r', 'm') THEN COALESCE(psut.seq_scan + psut.idx_scan, 0)
+        WHEN c.relkind IN ('r', 'm') THEN COALESCE(psut.seq_scan, 0) + COALESCE(psut.idx_scan, 0)
         WHEN c.relkind = 'i' THEN 0::bigint -- just a placeholder so that sizing algorithm doesn't fail
     END AS seq_reads,
     CASE

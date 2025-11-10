@@ -92,3 +92,30 @@ VALUES
     (hstore('key''single', 'value''single')),
     -- 26 JSON-like key/value stored as text
     (hstore('{"json_like_key":1}', '{"json_like_value":2}'));
+
+-- TSVECTOR table data
+INSERT INTO tsvector_table (title, content, title_tsv, content_tsv)
+VALUES 
+    ('PostgreSQL Tutorial', 
+     'PostgreSQL is a powerful open-source database system',
+     to_tsvector('english', 'PostgreSQL Tutorial'),
+     to_tsvector('english', 'PostgreSQL is a powerful open-source database system')),
+    ('Advanced SQL', 
+     'Learn advanced SQL queries and optimization techniques',
+     to_tsvector('english', 'Advanced SQL'),
+     to_tsvector('english', 'Learn advanced SQL queries and optimization techniques')),
+    ('Data Migration', 
+     'Migrating data from one database to another requires careful planning',
+     to_tsvector('english', 'Data Migration'),
+     to_tsvector('english', 'Migrating data from one database to another requires careful planning'));
+
+select * from tsvector_table;
+
+-- Enum array table data
+INSERT INTO enum_array_table (day_name, week_days, description)
+VALUES 
+    ('Mon', ARRAY['Mon', 'Wed', 'Fri']::week[], 'Work days example 1'),
+    ('Tue', ARRAY['Tue', 'Thu']::week[], 'Work days example 2'),
+    ('Sat', ARRAY['Sat', 'Sun']::week[], 'Weekend days');
+
+select * from enum_array_table;
