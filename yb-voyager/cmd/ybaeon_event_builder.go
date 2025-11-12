@@ -56,12 +56,12 @@ func createMigrationAssessmentCompletedEventForYBAeon() *cp.MigrationAssessmentC
 	// Calculate sizing details (same as yugabyted, but without legacy fields)
 	totalColocatedSize, err := assessmentReport.GetTotalColocatedSize(source.DBType)
 	if err != nil {
-		utils.PrintAndLog("failed to calculate the total colocated table size from tableIndexStats: %v", err)
+		utils.PrintAndLogf("failed to calculate the total colocated table size from tableIndexStats: %v", err)
 	}
 
 	totalShardedSize, err := assessmentReport.GetTotalShardedSize(source.DBType)
 	if err != nil {
-		utils.PrintAndLog("failed to calculate the total sharded table size from tableIndexStats: %v", err)
+		utils.PrintAndLogf("failed to calculate the total sharded table size from tableIndexStats: %v", err)
 	}
 
 	// Convert assessment issues to YBM format (similar to yugabyted conversion)
