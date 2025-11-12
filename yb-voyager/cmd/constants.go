@@ -122,7 +122,7 @@ const (
 	MVIEW     = "MVIEW"
 	INDEX     = "INDEX"
 	YUGABYTED = "yugabyted"
-	YBM       = "ybm"
+	YBAEON    = "ybaeon"
 
 	// assess-migration-bulk
 	SOURCE_DB_TYPE     = "source-db-type"

@@ -13,20 +13,20 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package ybm
+package ybaeon
 
-//  This is currently in the codebase for testing YBM API easily.
-//  This is a manual test file to verify YBM API integration.
+//  This is currently in the codebase for testing YB-Aeon API easily.
+//  This is a manual test file to verify YB-Aeon API integration.
 // To run these tests:
-// 1. Update the configuration variables below with your YBM credentials
+// 1. Update the configuration variables below with your YB-Aeon credentials
 // 2. Update the payload variables as needed
 // 3. Run specific tests:
-//    - Full integration:    go test -v -run TestYBMAPIIntegration ./src/cp/ybm/
-//    - Metadata only:       go test -v -run TestYBMMetadataOnly ./src/cp/ybm/
-//    - Table metrics only:  go test -v -run TestYBMTableMetricsOnly ./src/cp/ybm/
-//    - Get max sequence:    go test -v -run TestYBMGetMaxSequence ./src/cp/ybm/
-//    - Multiple phases:     go test -v -run TestYBMGetMaxSequenceMultiplePhases ./src/cp/ybm/
-//    - Response details:    go test -v -run TestYBMResponseDetails ./src/cp/ybm/
+//    - Full integration:    go test -v -run TestYBAeonAPIIntegration ./src/cp/ybaeon/
+//    - Metadata only:       go test -v -run TestYBAeonMetadataOnly ./src/cp/ybaeon/
+//    - Table metrics only:  go test -v -run TestYBAeonTableMetricsOnly ./src/cp/ybaeon/
+//    - Get max sequence:    go test -v -run TestYBAeonGetMaxSequence ./src/cp/ybaeon/
+//    - Multiple phases:     go test -v -run TestYBAeonGetMaxSequenceMultiplePhases ./src/cp/ybaeon/
+//    - Response details:    go test -v -run TestYBAeonResponseDetails ./src/cp/ybaeon/
 
 import (
 	"testing"
@@ -95,10 +95,10 @@ var testTableMetrics = cp.TableMetrics{
 // ==================== TEST FUNCTIONS ====================
 
 // TestYBMMetadataOnly tests only the metadata endpoint
-func TestYBMMetadataOnly(t *testing.T) {
+func TestYBAeonMetadataOnly(t *testing.T) {
 	log.SetLevel(log.DebugLevel)
 
-	config := &YBMConfig{
+	config := &YBAeonConfig{
 		Domain:    testDomain,
 		AccountID: testAccountID,
 		ProjectID: testProjectID,
@@ -106,8 +106,8 @@ func TestYBMMetadataOnly(t *testing.T) {
 		APIKey:    testAPIKey,
 	}
 
-	ybm := New(testExportDir, config)
-	if err := ybm.Init(); err != nil {
+	ybaeon := New(testExportDir, config)
+	if err := ybaeon.Init(); err != nil {
 		t.Fatalf("Failed to initialize YBM: %v", err)
 	}
 
@@ -117,7 +117,7 @@ func TestYBMMetadataOnly(t *testing.T) {
 		testMetadataPayload.Status)
 
 	// Send only metadata
-	err := ybm.sendMigrationEvent(testMetadataPayload)
+	err := ybaeon.sendMigrationEvent(testMetadataPayload)
 	if err != nil {
 		t.Logf("❌ Failed to send migration metadata")
 		t.Logf("Error: %v", err)
@@ -142,11 +142,11 @@ func TestYBMMetadataOnly(t *testing.T) {
 }
 
 // TestYBMAPIIntegration tests the actual YBM API calls
-func TestYBMAPIIntegration(t *testing.T) {
+func TestYBAeonAPIIntegration(t *testing.T) {
 	log.SetLevel(log.DebugLevel) // Enable debug logging to see API calls
 
 	// Create YBM configuration
-	config := &YBMConfig{
+	config := &YBAeonConfig{
 		Domain:    testDomain,
 		AccountID: testAccountID,
 		ProjectID: testProjectID,
@@ -155,10 +155,10 @@ func TestYBMAPIIntegration(t *testing.T) {
 	}
 
 	// Create YBM instance
-	ybm := New(testExportDir, config)
+	ybaeon := New(testExportDir, config)
 
 	// Initialize YBM (validates config, sets up HTTP client)
-	err := ybm.Init()
+	err := ybaeon.Init()
 	if err != nil {
 		t.Fatalf("Failed to initialize YBM: %v", err)
 	}
@@ -172,7 +172,7 @@ func TestYBMAPIIntegration(t *testing.T) {
 			testMetadataPayload.InvocationSequence,
 			testMetadataPayload.Status)
 
-		err := ybm.sendMigrationEvent(testMetadataPayload)
+		err := ybaeon.sendMigrationEvent(testMetadataPayload)
 		if err != nil {
 			t.Errorf("❌ Failed to send migration metadata: %v", err)
 			t.Logf("Error details: %v", err)
@@ -191,7 +191,7 @@ func TestYBMAPIIntegration(t *testing.T) {
 			testTableMetrics.CountTotalRows)
 
 		metricsList := []cp.TableMetrics{testTableMetrics}
-		err := ybm.sendTableMetrics(metricsList)
+		err := ybaeon.sendTableMetrics(metricsList)
 		if err != nil {
 			t.Errorf("❌ Failed to send table metrics: %v", err)
 			t.Logf("Error details: %v", err)
@@ -211,7 +211,7 @@ func TestYBMAPIIntegration(t *testing.T) {
 			completedPayload.MigrationPhase,
 			completedPayload.InvocationSequence)
 
-		err := ybm.sendMigrationEvent(completedPayload)
+		err := ybaeon.sendMigrationEvent(completedPayload)
 		if err != nil {
 			t.Errorf("❌ Failed to send completed metadata: %v", err)
 			t.Logf("Error details: %v", err)
@@ -232,7 +232,7 @@ func TestYBMAPIIntegration(t *testing.T) {
 			completedMetrics.CountLiveRows,
 			completedMetrics.CountTotalRows)
 
-		err := ybm.sendTableMetrics([]cp.TableMetrics{completedMetrics})
+		err := ybaeon.sendTableMetrics([]cp.TableMetrics{completedMetrics})
 		if err != nil {
 			t.Errorf("❌ Failed to send completed table metrics: %v", err)
 			t.Logf("Error details: %v", err)
@@ -245,10 +245,10 @@ func TestYBMAPIIntegration(t *testing.T) {
 }
 
 // TestYBMTableMetricsOnly tests only the table metrics endpoint
-func TestYBMTableMetricsOnly(t *testing.T) {
+func TestYBAeonTableMetricsOnly(t *testing.T) {
 	log.SetLevel(log.DebugLevel)
 
-	config := &YBMConfig{
+	config := &YBAeonConfig{
 		Domain:    testDomain,
 		AccountID: testAccountID,
 		ProjectID: testProjectID,
@@ -256,8 +256,8 @@ func TestYBMTableMetricsOnly(t *testing.T) {
 		APIKey:    testAPIKey,
 	}
 
-	ybm := New(testExportDir, config)
-	if err := ybm.Init(); err != nil {
+	ybaeon := New(testExportDir, config)
+	if err := ybaeon.Init(); err != nil {
 		t.Fatalf("Failed to initialize YBM: %v", err)
 	}
 
@@ -269,7 +269,7 @@ func TestYBMTableMetricsOnly(t *testing.T) {
 		testTableMetrics.CountTotalRows)
 
 	// Send only table metrics
-	err := ybm.sendTableMetrics([]cp.TableMetrics{testTableMetrics})
+	err := ybaeon.sendTableMetrics([]cp.TableMetrics{testTableMetrics})
 	if err != nil {
 		t.Logf("❌ Failed to send table metrics")
 		t.Logf("Error: %v", err)
@@ -303,10 +303,10 @@ func TestGenerateNewUUID(t *testing.T) {
 // ==================== TEST RESPONSE STATUS CODES ====================
 
 // TestYBMResponseDetails tests and displays detailed response information
-func TestYBMResponseDetails(t *testing.T) {
+func TestYBAeonResponseDetails(t *testing.T) {
 	log.SetLevel(log.DebugLevel) // Enable debug to see full responses
 
-	config := &YBMConfig{
+	config := &YBAeonConfig{
 		Domain:    testDomain,
 		AccountID: testAccountID,
 		ProjectID: testProjectID,
@@ -314,8 +314,8 @@ func TestYBMResponseDetails(t *testing.T) {
 		APIKey:    testAPIKey,
 	}
 
-	ybm := New(testExportDir, config)
-	if err := ybm.Init(); err != nil {
+	ybaeon := New(testExportDir, config)
+	if err := ybaeon.Init(); err != nil {
 		t.Fatalf("Failed to initialize YBM: %v", err)
 	}
 
@@ -329,7 +329,7 @@ func TestYBMResponseDetails(t *testing.T) {
 		testMetadataPayload.InvocationSequence,
 		testMetadataPayload.Status)
 
-	err := ybm.sendMigrationEvent(testMetadataPayload)
+	err := ybaeon.sendMigrationEvent(testMetadataPayload)
 	if err != nil {
 		t.Logf("❌ Response: ERROR")
 		t.Logf("   Error Message: %v", err)
@@ -367,7 +367,7 @@ func TestYBMResponseDetails(t *testing.T) {
 		testTableMetrics.CountLiveRows,
 		testTableMetrics.CountTotalRows)
 
-	err = ybm.sendTableMetrics([]cp.TableMetrics{testTableMetrics})
+	err = ybaeon.sendTableMetrics([]cp.TableMetrics{testTableMetrics})
 	if err != nil {
 		t.Logf("❌ Response: ERROR")
 		t.Logf("   Error Message: %v", err)
@@ -399,10 +399,10 @@ func TestYBMResponseDetails(t *testing.T) {
 }
 
 // TestYBMGetMaxSequence tests the GET /voyager/migrations endpoint for fetching max sequence
-func TestYBMGetMaxSequence(t *testing.T) {
+func TestYBAeonGetMaxSequence(t *testing.T) {
 	log.SetLevel(log.DebugLevel)
 
-	config := &YBMConfig{
+	config := &YBAeonConfig{
 		Domain:    testDomain,
 		AccountID: testAccountID,
 		ProjectID: testProjectID,
@@ -410,8 +410,8 @@ func TestYBMGetMaxSequence(t *testing.T) {
 		APIKey:    testAPIKey,
 	}
 
-	ybm := New(testExportDir, config)
-	if err := ybm.Init(); err != nil {
+	ybaeon := New(testExportDir, config)
+	if err := ybaeon.Init(); err != nil {
 		t.Fatalf("Failed to initialize YBM: %v", err)
 	}
 
@@ -425,7 +425,7 @@ func TestYBMGetMaxSequence(t *testing.T) {
 	t.Log("")
 
 	// Call the actual function
-	maxSeq, err := ybm.getMaxSequenceFromAPI(migrationUUID, testPhase)
+	maxSeq, err := ybaeon.getMaxSequenceFromAPI(migrationUUID, testPhase)
 
 	if err != nil {
 		t.Logf("❌ Failed to get max sequence")
@@ -473,10 +473,10 @@ func TestYBMGetMaxSequence(t *testing.T) {
 }
 
 // TestYBMGetMaxSequenceMultiplePhases tests max sequence for different phases
-func TestYBMGetMaxSequenceMultiplePhases(t *testing.T) {
+func TestYBAeonGetMaxSequenceMultiplePhases(t *testing.T) {
 	log.SetLevel(log.DebugLevel)
 
-	config := &YBMConfig{
+	config := &YBAeonConfig{
 		Domain:    testDomain,
 		AccountID: testAccountID,
 		ProjectID: testProjectID,
@@ -484,8 +484,8 @@ func TestYBMGetMaxSequenceMultiplePhases(t *testing.T) {
 		APIKey:    testAPIKey,
 	}
 
-	ybm := New(testExportDir, config)
-	if err := ybm.Init(); err != nil {
+	ybaeon := New(testExportDir, config)
+	if err := ybaeon.Init(); err != nil {
 		t.Fatalf("Failed to initialize YBM: %v", err)
 	}
 
@@ -507,7 +507,7 @@ func TestYBMGetMaxSequenceMultiplePhases(t *testing.T) {
 	for phase, phaseName := range phases {
 		t.Logf("--- Testing Phase %d (%s) ---", phase, phaseName)
 
-		maxSeq, err := ybm.getMaxSequenceFromAPI(migrationUUID, phase)
+		maxSeq, err := ybaeon.getMaxSequenceFromAPI(migrationUUID, phase)
 
 		if err != nil {
 			errStr := err.Error()

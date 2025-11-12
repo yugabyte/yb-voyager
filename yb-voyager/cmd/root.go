@@ -37,7 +37,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/config"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp/noopcp"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp/ybm"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp/ybaeon"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp/yugabyted"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/lockfile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -431,15 +431,15 @@ func setControlPlane(cpType string) error {
 			return fmt.Errorf("initialize yugabyted control plane for visualization: %w", err)
 		}
 		log.Infof("Yugabyted control plane initialized successfully")
-	case YBM:
-		// Get YBM config from nested section
-		domain := controlPlaneConfig["ybm-control-plane.domain"]
-		accountID := controlPlaneConfig["ybm-control-plane.account-id"]
-		projectID := controlPlaneConfig["ybm-control-plane.project-id"]
-		clusterID := controlPlaneConfig["ybm-control-plane.cluster-id"]
-		apiKey := controlPlaneConfig["ybm-control-plane.api-key"]
+	case YBAEON:
+		// Get YB-Aeon config from nested section
+		domain := controlPlaneConfig["ybaeon-control-plane.domain"]
+		accountID := controlPlaneConfig["ybaeon-control-plane.account-id"]
+		projectID := controlPlaneConfig["ybaeon-control-plane.project-id"]
+		clusterID := controlPlaneConfig["ybaeon-control-plane.cluster-id"]
+		apiKey := controlPlaneConfig["ybaeon-control-plane.api-key"]
 
-		ybmConfig := &ybm.YBMConfig{
+		ybaeonConfig := &ybaeon.YBAeonConfig{
 			Domain:    domain,
 			AccountID: accountID,
 			ProjectID: projectID,
@@ -447,15 +447,15 @@ func setControlPlane(cpType string) error {
 			APIKey:    apiKey,
 		}
 
-		controlPlane = ybm.New(exportDir, ybmConfig)
+		controlPlane = ybaeon.New(exportDir, ybaeonConfig)
 		log.Infof("Migration UUID %s", migrationUUID)
 		err := controlPlane.Init()
 		if err != nil {
-			return fmt.Errorf("initialize YBM control plane for visualization: %w", err)
+			return fmt.Errorf("initialize YB-Aeon control plane for visualization: %w", err)
 		}
-		log.Infof("YBM control plane initialized successfully")
+		log.Infof("YB-Aeon control plane initialized successfully")
 	default:
-		return fmt.Errorf("invalid value of control plane type: %q. Allowed values: %v", cpType, []string{YUGABYTED, YBM})
+		return fmt.Errorf("invalid value of control plane type: %q. Allowed values: %v", cpType, []string{YUGABYTED, YBAEON})
 	}
 	return nil
 }

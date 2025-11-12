@@ -334,8 +334,8 @@ func assessMigration() (err error) {
 	// Call the appropriate event builder based on control plane type
 	var completedEvent *cp.MigrationAssessmentCompletedEvent
 	controlPlaneType := os.Getenv("CONTROL_PLANE_TYPE")
-	if controlPlaneType == YBM {
-		completedEvent = createMigrationAssessmentCompletedEventForYBM()
+	if controlPlaneType == YBAEON {
+		completedEvent = createMigrationAssessmentCompletedEventForYBAeon()
 	} else {
 		// Default to yugabyted format (backwards compatible)
 		completedEvent = createMigrationAssessmentCompletedEventForYugabyteD()

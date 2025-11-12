@@ -23,33 +23,33 @@ import (
 )
 
 /*
-YBM DATA FLOW - Migration Assessment Completed Event:
+YB-AEON DATA FLOW - Migration Assessment Completed Event:
 
-1. createMigrationAssessmentCompletedEventForYBM() (here)
+1. createMigrationAssessmentCompletedEventForYBAeon() (here)
    - Creates AssessMigrationPayloadYBM struct with all assessment data
    - NO marshaling - sets ev.Report = payload (type: interface{})
    - Struct is passed directly
 
-2. MigrationAssessmentCompletedEvent.Report flows to ybm.go
+2. MigrationAssessmentCompletedEvent.Report flows to ybaeon.go
    - Report field type: interface{} (containing AssessMigrationPayloadYBM struct)
 
-3. ybm.MigrationAssessmentCompleted() in src/cp/ybm/ybm.go
+3. ybaeon.MigrationAssessmentCompleted() in src/cp/ybaeon/ybaeon.go
    - Receives ev.Report as interface{} (still a struct)
    - Passes it to createAndSendEvent() as payload parameter
 
-4. ybm.createAndSendEvent() in src/cp/ybm/ybm.go
+4. ybaeon.createAndSendEvent() in src/cp/ybaeon/ybaeon.go
    - Assigns payload to MigrationEvent.Payload field (type: interface{})
    - MARSHALS entire MigrationEvent (including nested payload struct) to JSON: json.Marshal(migrationEvent)
-   - Sends JSON bytes to YBM API via HTTP POST
+   - Sends JSON bytes to YB-Aeon API via HTTP POST
 
 Result: Single marshal (entire event with nested struct -> JSON), no unmarshal
 Fully decoupled from Yugabyted - different payload struct, different flow, no redundant marshal cycles
 */
 
-// createMigrationAssessmentCompletedEventForYBM creates an event optimized for YBM
-// Unlike yugabyted, YBM passes the payload struct directly without pre-marshaling
+// createMigrationAssessmentCompletedEventForYBAeon creates an event optimized for YB-Aeon
+// Unlike yugabyted, YB-Aeon passes the payload struct directly without pre-marshaling
 // Contains all current features without legacy/backward compatibility fields
-func createMigrationAssessmentCompletedEventForYBM() *cp.MigrationAssessmentCompletedEvent {
+func createMigrationAssessmentCompletedEventForYBAeon() *cp.MigrationAssessmentCompletedEvent {
 	ev := &cp.MigrationAssessmentCompletedEvent{}
 	initBaseSourceEvent(&ev.BaseEvent, "ASSESS MIGRATION")
 

@@ -33,7 +33,7 @@ log-level: info
 
 ### YBM Control Plane Configuration (for YugabyteDB Managed clusters)
 ### Uncomment the section below if control-plane-type is 'ybm'
-# ybm-control-plane:
+# ybaeon-control-plane:
 #   ### YBM environment domain
 #   ### Options: https://cloud.yugabyte.com (production), https://cloudportal.yugabyte.com (portal), https://devcloud.yugabyte.com (dev)
 #   domain: https://cloud.yugabyte.com

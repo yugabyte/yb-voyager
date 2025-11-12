@@ -3951,7 +3951,7 @@ func setupControlPlaneConfigContext(t *testing.T) *testContext {
 	configContent = fmt.Sprintf(`
 export-dir: %s
 control-plane-type: ybm
-ybm-control-plane:
+ybaeon-control-plane:
   domain: "https://cloud.yugabyte.com"
   account-id: "test-account-123"
   project-id: "test-project-456"
@@ -3994,9 +3994,9 @@ func TestControlPlane_YBMConfigFileBinding(t *testing.T) {
 
 	// Verify control plane config was loaded
 	assert.Equal(t, "ybm", v.GetString("control-plane-type"), "Control plane type should be ybm")
-	assert.Equal(t, "https://cloud.yugabyte.com", v.GetString("ybm-control-plane.domain"), "YBM domain should match config")
-	assert.Equal(t, "test-account-123", v.GetString("ybm-control-plane.account-id"), "YBM account ID should match config")
-	assert.Equal(t, "test-project-456", v.GetString("ybm-control-plane.project-id"), "YBM project ID should match config")
-	assert.Equal(t, "test-cluster-789", v.GetString("ybm-control-plane.cluster-id"), "YBM cluster ID should match config")
-	assert.Equal(t, "test-api-key-xyz", v.GetString("ybm-control-plane.api-key"), "YBM API key should match config")
+	assert.Equal(t, "https://cloud.yugabyte.com", v.GetString("ybaeon-control-plane.domain"), "YB-Aeon domain should match config")
+	assert.Equal(t, "test-account-123", v.GetString("ybaeon-control-plane.account-id"), "YB-Aeon account ID should match config")
+	assert.Equal(t, "test-project-456", v.GetString("ybaeon-control-plane.project-id"), "YB-Aeon project ID should match config")
+	assert.Equal(t, "test-cluster-789", v.GetString("ybaeon-control-plane.cluster-id"), "YB-Aeon cluster ID should match config")
+	assert.Equal(t, "test-api-key-xyz", v.GetString("ybaeon-control-plane.api-key"), "YB-Aeon API key should match config")
 }

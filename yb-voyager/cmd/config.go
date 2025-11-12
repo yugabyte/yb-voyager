@@ -79,7 +79,7 @@ var allowedYugabytedControlPlaneConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"db-conn-string",
 )
 
-var allowedYBMControlPlaneConfigKeys = mapset.NewThreadUnsafeSet[string](
+var allowedYBAeonControlPlaneConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"domain", "account-id", "project-id", "cluster-id", "api-key",
 )
 
@@ -207,7 +207,7 @@ var allowedConfigSections = map[string]mapset.Set[string]{
 	"source-replica":                   allowedSourceReplicaConfigKeys,
 	"target":                           allowedTargetConfigKeys,
 	"yugabyted-control-plane":          allowedYugabytedControlPlaneConfigKeys,
-	"ybm-control-plane":                allowedYBMControlPlaneConfigKeys,
+	"ybaeon-control-plane":             allowedYBAeonControlPlaneConfigKeys,
 	"assess-migration":                 allowedAssessMigrationConfigKeys,
 	"analyze-schema":                   allowedAnalyzeSchemaConfigKeys,
 	"export-schema":                    allowedExportSchemaConfigKeys,

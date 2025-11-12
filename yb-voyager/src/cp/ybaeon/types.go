@@ -13,7 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package ybm
+package ybaeon
 
 import (
 	"github.com/google/uuid"
@@ -39,8 +39,8 @@ type MigrationEvent struct {
 	InvocationTimestamp string             `json:"invocation_timestamp"`
 }
 
-// YBMConfig holds the YBM control plane configuration
-type YBMConfig struct {
+// YBAeonConfig holds the YB-Aeon control plane configuration
+type YBAeonConfig struct {
 	Domain    string
 	AccountID string
 	ProjectID string
