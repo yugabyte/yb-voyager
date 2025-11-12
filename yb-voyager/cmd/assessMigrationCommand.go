@@ -37,6 +37,7 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryissue"
@@ -197,6 +198,14 @@ func init() {
 	assessMigrationCmd.Flags().MarkHidden("invoked-by-export-schema") // mark hidden
 }
 
+// createMigrationAssessmentStartedEvent creates a migration assessment started event
+// This is common for both YBM and Yugabyted control planes
+func createMigrationAssessmentStartedEvent() *cp.MigrationAssessmentStartedEvent {
+	ev := &cp.MigrationAssessmentStartedEvent{}
+	initBaseSourceEvent(&ev.BaseEvent, "ASSESS MIGRATION")
+	return ev
+}
+
 func assessMigration() (err error) {
 	assessmentMetadataDir = lo.Ternary(assessmentMetadataDirFlag != "", assessmentMetadataDirFlag,
 		filepath.Join(exportDir, "assessment", "metadata"))
@@ -320,8 +329,18 @@ func assessMigration() (err error) {
 
 	log.Infof("number of assessment issues detected: %d\n", len(assessmentReport.Issues))
 
-	utils.PrintAndLogf("Migration assessment completed successfully.")
-	completedEvent := createMigrationAssessmentCompletedEvent()
+	utils.PrintAndLog("Migration assessment completed successfully.")
+
+	// Call the appropriate event builder based on control plane type
+	var completedEvent *cp.MigrationAssessmentCompletedEvent
+	controlPlaneType := os.Getenv("CONTROL_PLANE_TYPE")
+	if controlPlaneType == YBM {
+		completedEvent = createMigrationAssessmentCompletedEventForYBM()
+	} else {
+		// Default to yugabyted format (backwards compatible)
+		completedEvent = createMigrationAssessmentCompletedEventForYugabyteD()
+	}
+
 	controlPlane.MigrationAssessmentCompleted(completedEvent)
 	saveSourceDBConfInMSR()
 	err = SetMigrationAssessmentDoneInMSR()
@@ -420,6 +439,7 @@ func ClearMigrationAssessmentDone() error {
 	return nil
 }
 
+// convertAssessmentIssueToYugabyteDAssessmentIssue converts common AssessmentIssue to Yugabyted format
 func convertAssessmentIssueToYugabyteDAssessmentIssue(ar AssessmentReport) []AssessmentIssueYugabyteD {
 	var result []AssessmentIssueYugabyteD
 	for _, issue := range ar.Issues {
@@ -441,6 +461,29 @@ func convertAssessmentIssueToYugabyteDAssessmentIssue(ar AssessmentReport) []Ass
 			Details: issue.Details,
 		}
 		result = append(result, ybdIssue)
+	}
+	return result
+}
+
+// convertAssessmentIssueToYBMAssessmentIssue converts common AssessmentIssue to YBM format
+func convertAssessmentIssueToYBMAssessmentIssue(ar AssessmentReport) []AssessmentIssueYBM {
+	var result []AssessmentIssueYBM
+	for _, issue := range ar.Issues {
+		ybmIssue := AssessmentIssueYBM{
+			Category:               issue.Category,
+			CategoryDescription:    issue.CategoryDescription,
+			Type:                   issue.Type,
+			Name:                   issue.Name,
+			Description:            issue.Description,
+			Impact:                 issue.Impact,
+			ObjectType:             issue.ObjectType,
+			ObjectName:             issue.ObjectName,
+			SqlStatement:           issue.SqlStatement,
+			DocsLink:               issue.DocsLink,
+			MinimumVersionsFixedIn: issue.MinimumVersionsFixedIn,
+			Details:                issue.Details,
+		}
+		result = append(result, ybmIssue)
 	}
 	return result
 }

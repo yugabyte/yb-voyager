@@ -107,6 +107,9 @@ func (cp *YugabyteD) rowCountUpdateEventPublisher() {
 	}
 }
 
+// createAndSendEvent inserts event data into Yugabyted's local database
+// YUGABYTED: payload parameter is a JSON string (pre-marshaled)
+// The JSON string is stored directly in the database as TEXT
 func (cp *YugabyteD) createAndSendEvent(event *controlPlane.BaseEvent, status string, payload string) {
 
 	timestamp := time.Now().Format("2006-01-02 15:04:05")
@@ -195,7 +198,14 @@ func (cp *YugabyteD) MigrationAssessmentStarted(ev *controlPlane.MigrationAssess
 }
 
 func (cp *YugabyteD) MigrationAssessmentCompleted(ev *controlPlane.MigrationAssessmentCompletedEvent) {
-	cp.createAndSendEvent(&ev.BaseEvent, "COMPLETED", ev.Report)
+	// YUGABYTED: ev.Report is a JSON string (already marshaled by yugabyted_event_builder.go)
+	// The string is directly inserted into the database without any unmarshaling
+	payloadStr, ok := ev.Report.(string)
+	if !ok {
+		log.Warnf("Expected Report to be a string for Yugabyted, got %T", ev.Report)
+		payloadStr = ""
+	}
+	cp.createAndSendEvent(&ev.BaseEvent, "COMPLETED", payloadStr)
 }
 
 func (cp *YugabyteD) ExportSchemaStarted(exportSchemaEvent *controlPlane.ExportSchemaStartedEvent) {
@@ -210,6 +220,11 @@ func (cp *YugabyteD) SchemaAnalysisStarted(schemaAnalysisEvent *controlPlane.Sch
 	cp.createAndSendEvent(&schemaAnalysisEvent.BaseEvent, "IN PROGRESS", "")
 }
 
+// YUGABYTED DATA FLOW - Schema Analysis Iteration Completed Event:
+// 1. Event contains AnalysisReport struct (utils.SchemaReport)
+// 2. MARSHAL struct to JSON string here: json.Marshal(AnalysisReport) -> string
+// 3. Store JSON string directly in database as TEXT
+// Result: Single marshal (struct -> JSON string), no unmarshal
 func (cp *YugabyteD) SchemaAnalysisIterationCompleted(schemaAnalysisReport *controlPlane.SchemaAnalysisIterationCompletedEvent) {
 
 	jsonBytes, err := json.Marshal(schemaAnalysisReport.AnalysisReport)

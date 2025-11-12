@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"runtime/debug"
 	"strings"
 	"sync"
@@ -197,8 +196,12 @@ func (ybm *YBM) panicHandler() {
 	}
 }
 
-// createAndSendEvent builds and queues a migration event
-func (ybm *YBM) createAndSendEvent(event *controlPlane.BaseEvent, status string, payload string) {
+// createAndSendEvent builds and queues a migration event for YBM API
+// YBM: payload parameter is interface{} - can be a struct, map, or nil
+// For MigrationAssessmentCompleted: receives AssessMigrationPayloadYBM struct
+// The struct is assigned to MigrationEvent.Payload and marshaled as part of the entire event
+// Single marshal happens when sending to YBM API - no pre-marshaling or unmarshal cycles
+func (ybm *YBM) createAndSendEvent(event *controlPlane.BaseEvent, status string, payload interface{}) {
 	timestamp := time.Now().Format(time.RFC3339)
 
 	invocationSequence, err := ybm.getInvocationSequence(event.MigrationUUID,
@@ -221,14 +224,14 @@ func (ybm *YBM) createAndSendEvent(event *controlPlane.BaseEvent, status string,
 		log.Warnf("failed to marshal host_ip to JSON format: %s", err)
 	}
 
-	// Convert payload string to structured map
-	payloadMap := make(map[string]interface{})
-	if payload != "" {
-		// Try to unmarshal if it's JSON, otherwise leave empty
-		if err := json.Unmarshal([]byte(payload), &payloadMap); err != nil {
-			log.Debugf("Payload is not JSON, sending empty payload object: %v", err)
-			// Keep payloadMap as empty map
-		}
+	// Payload can be any type - struct, map, nil, etc.
+	// json.Marshal in postJSON will handle it correctly
+	// This is fully decoupled - each control plane passes data in its native format
+	var eventPayload interface{}
+	if payload != nil {
+		eventPayload = payload
+	} else {
+		eventPayload = make(map[string]interface{})
 	}
 
 	migrationEvent := MigrationEvent{
@@ -240,7 +243,7 @@ func (ybm *YBM) createAndSendEvent(event *controlPlane.BaseEvent, status string,
 		HostIP:              string(dbIps), // JSON string format: '{"SourceDBIP":"..."}'  or '{"TargetDBIP":"..."}'
 		Port:                event.Port,
 		DBVersion:           event.DBVersion,
-		Payload:             payloadMap,
+		Payload:             eventPayload,
 		PayloadVersion:      PAYLOAD_VERSION,
 		VoyagerClientInfo:   *ybm.voyagerInfo,
 		DBType:              event.DBType,
@@ -305,95 +308,27 @@ func (ybm *YBM) getInvocationSequence(migrationUUID uuid.UUID, phase int) (int, 
 	return ybm.latestInvocationSequence, nil
 }
 
-// OLD IMPLEMENTATION - COMMENTED OUT
-// This was the original implementation using /voyager/metadata/max-sequence endpoint
-// Replaced with getMaxSequenceFromAPI which uses /voyager/migrations endpoint
-/*
-func (ybm *YBM) getMaxSequenceFromAPI_OLD(migrationUUID uuid.UUID, phase int) (int, error) {
-	urlPath := fmt.Sprintf("%s/api/public/v1/accounts/%s/projects/%s/clusters/%s/voyager/metadata/max-sequence",
-		ybm.config.Domain, ybm.config.AccountID, ybm.config.ProjectID, ybm.config.ClusterID)
-
-	params := url.Values{}
-	params.Add("migration_uuid", migrationUUID.String())
-	params.Add("migration_phase", fmt.Sprintf("%d", phase))
-
-	fullURL := urlPath + "?" + params.Encode()
-
-	var maxAttempts = 5
-	var lastErr error
-
-	for attempt := 1; attempt <= maxAttempts; attempt++ {
-		var response MaxSequenceResponse
-		err := ybm.getJSON(fullURL, &response)
-		if err == nil {
-			log.Infof("YBM API returned max sequence: %d", response.MaxInvocationSequence)
-			return response.MaxInvocationSequence, nil
-		}
-
-		// Check if it's a 404 (endpoint not implemented yet or no prior data)
-		// TODO: Remove this once the endpoint is implemented
-		if strings.Contains(err.Error(), "404") {
-			log.Infof("GET max-sequence endpoint returned 404, using sequence 0 (first run or endpoint not available)")
-			return 0, nil
-		}
-
-		lastErr = err
-
-		// Check if error is retryable
-		if !isRetryableError(err) {
-			log.Warnf("Non-retryable error getting max sequence from YBM: %v. Falling back to sequence 0", err)
-			return 0, nil
-		}
-
-		log.Warnf("Attempt %d/%d failed to get max sequence from YBM: %v", attempt, maxAttempts, err)
-
-		if attempt < maxAttempts {
-			// Exponential backoff: 1s, 2s, 4s, 8s
-			backoff := time.Duration(1<<uint(attempt-1)) * time.Second
-			time.Sleep(backoff)
-		}
-	}
-
-	// After all retries failed, log warning and fallback to sequence 0
-	log.Warnf("Failed to get max sequence from YBM after %d attempts: %v. Falling back to sequence 0", maxAttempts, lastErr)
-	return 0, nil
-}
-*/
-
-// getMaxSequenceFromAPI calls the GET /voyager/migrations endpoint with retries
-// This endpoint returns the latest migration entry which contains the max invocation_sequence
+// getMaxSequenceFromAPI calls the GET /voyager/migrations/{migrationId}/phases/{phase}/latest-sequence endpoint with retries
+// This endpoint returns the latest sequence number for a specific migration and phase
 func (ybm *YBM) getMaxSequenceFromAPI(migrationUUID uuid.UUID, phase int) (int, error) {
-	urlPath := fmt.Sprintf("%s/api/public/v1/accounts/%s/projects/%s/clusters/%s/voyager/migrations",
-		ybm.config.Domain, ybm.config.AccountID, ybm.config.ProjectID, ybm.config.ClusterID)
-
-	params := url.Values{}
-	params.Add("migrationId", migrationUUID.String())
-	params.Add("migration_phase", fmt.Sprintf("%d", phase))
-
-	fullURL := urlPath + "?" + params.Encode()
+	urlPath := fmt.Sprintf("%s/api/public/v1/accounts/%s/projects/%s/clusters/%s/voyager/migrations/%s/phases/%d/latest-sequence",
+		ybm.config.Domain, ybm.config.AccountID, ybm.config.ProjectID, ybm.config.ClusterID, migrationUUID.String(), phase)
 
 	var maxAttempts = 5
 	var lastErr error
 
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
-		var response MigrationListResponse
-		err := ybm.getJSON(fullURL, &response)
+		var response LatestSequenceResponse
+		err := ybm.getJSON(urlPath, &response)
 		if err == nil {
-			// Check if data array is empty (no prior migrations for this phase)
-			if len(response.Data) == 0 {
-				log.Infof("YBM API returned empty migration list for phase %d, using sequence 0 (first run)", phase)
-				return 0, nil
-			}
-
-			// The API returns the latest entry, extract invocation_sequence
-			maxSeq := response.Data[0].InvocationSequence
-			log.Infof("YBM API returned max sequence: %d for phase %d", maxSeq, phase)
+			maxSeq := response.Data.LatestSequence
+			log.Infof("YBM API returned latest sequence: %d for phase %d", maxSeq, phase)
 			return maxSeq, nil
 		}
 
 		// Check if it's a 404 (no prior data)
 		if strings.Contains(err.Error(), "404") {
-			log.Infof("GET migrations endpoint returned 404, using sequence 0 (first run or no data)")
+			log.Infof("GET latest-sequence endpoint returned 404, using sequence 0 (first run or no data)")
 			return 0, nil
 		}
 
@@ -617,41 +552,48 @@ func (ybm *YBM) executeHTTPRequest(req *http.Request, method string) ([]byte, in
 // ControlPlane interface implementation
 
 func (ybm *YBM) MigrationAssessmentStarted(ev *controlPlane.MigrationAssessmentStartedEvent) {
-	ybm.createAndSendEvent(&ev.BaseEvent, "IN PROGRESS", "")
+	ybm.createAndSendEvent(&ev.BaseEvent, "IN PROGRESS", nil)
 }
 
 func (ybm *YBM) MigrationAssessmentCompleted(ev *controlPlane.MigrationAssessmentCompletedEvent) {
+	// YBM: ev.Report is an AssessMigrationPayloadYBM struct (NOT a JSON string)
+	// The struct is passed directly and will be marshaled only once by createAndSendEvent
+	// when constructing the full MigrationEvent for the API call
+	// Fully decoupled from Yugabyted - no redundant marshal/unmarshal cycles
 	ybm.createAndSendEvent(&ev.BaseEvent, "COMPLETED", ev.Report)
 }
 
 func (ybm *YBM) ExportSchemaStarted(event *controlPlane.ExportSchemaStartedEvent) {
-	ybm.createAndSendEvent(&event.BaseEvent, "IN PROGRESS", "")
+	ybm.createAndSendEvent(&event.BaseEvent, "IN PROGRESS", nil)
 }
 
 func (ybm *YBM) ExportSchemaCompleted(event *controlPlane.ExportSchemaCompletedEvent) {
-	ybm.createAndSendEvent(&event.BaseEvent, "COMPLETED", "")
+	ybm.createAndSendEvent(&event.BaseEvent, "COMPLETED", nil)
 }
 
 func (ybm *YBM) SchemaAnalysisStarted(event *controlPlane.SchemaAnalysisStartedEvent) {
-	ybm.createAndSendEvent(&event.BaseEvent, "IN PROGRESS", "")
+	ybm.createAndSendEvent(&event.BaseEvent, "IN PROGRESS", nil)
 }
 
+// YBM DATA FLOW - Schema Analysis Iteration Completed Event:
+// 1. Event contains AnalysisReport struct (utils.SchemaReport)
+// 2. Pass struct directly to createAndSendEvent - NO marshaling here
+// 3. Struct assigned to MigrationEvent.Payload field
+// 4. MARSHAL entire MigrationEvent (including AnalysisReport struct) when sending to YBM API
+// Result: Single marshal (entire event with nested struct -> JSON), no unmarshal
 func (ybm *YBM) SchemaAnalysisIterationCompleted(event *controlPlane.SchemaAnalysisIterationCompletedEvent) {
-	jsonBytes, err := json.Marshal(event.AnalysisReport)
-	if err != nil {
-		log.Warnf("Failed to marshal analysis report: %v", err)
-		return
-	}
-	payload := string(jsonBytes)
-	ybm.createAndSendEvent(&event.BaseEvent, "COMPLETED", payload)
+	// Pass the AnalysisReport struct directly - NO marshaling needed
+	// json.Marshal in postJSON will handle it when sending to YBM API
+	// This eliminates the marshal → string → unmarshal → marshal cycle
+	ybm.createAndSendEvent(&event.BaseEvent, "COMPLETED", event.AnalysisReport)
 }
 
 func (ybm *YBM) SnapshotExportStarted(event *controlPlane.SnapshotExportStartedEvent) {
-	ybm.createAndSendEvent(&event.BaseEvent, "IN PROGRESS", "")
+	ybm.createAndSendEvent(&event.BaseEvent, "IN PROGRESS", nil)
 }
 
 func (ybm *YBM) SnapshotExportCompleted(event *controlPlane.SnapshotExportCompletedEvent) {
-	ybm.createAndSendEvent(&event.BaseEvent, "COMPLETED", "")
+	ybm.createAndSendEvent(&event.BaseEvent, "COMPLETED", nil)
 }
 
 func (ybm *YBM) UpdateExportedRowCount(events []*controlPlane.UpdateExportedRowCountEvent) {
@@ -681,19 +623,19 @@ func (ybm *YBM) UpdateExportedRowCount(events []*controlPlane.UpdateExportedRowC
 }
 
 func (ybm *YBM) ImportSchemaStarted(event *controlPlane.ImportSchemaStartedEvent) {
-	ybm.createAndSendEvent(&event.BaseEvent, "IN PROGRESS", "")
+	ybm.createAndSendEvent(&event.BaseEvent, "IN PROGRESS", nil)
 }
 
 func (ybm *YBM) ImportSchemaCompleted(event *controlPlane.ImportSchemaCompletedEvent) {
-	ybm.createAndSendEvent(&event.BaseEvent, "COMPLETED", "")
+	ybm.createAndSendEvent(&event.BaseEvent, "COMPLETED", nil)
 }
 
 func (ybm *YBM) SnapshotImportStarted(event *controlPlane.SnapshotImportStartedEvent) {
-	ybm.createAndSendEvent(&event.BaseEvent, "IN PROGRESS", "")
+	ybm.createAndSendEvent(&event.BaseEvent, "IN PROGRESS", nil)
 }
 
 func (ybm *YBM) SnapshotImportCompleted(event *controlPlane.SnapshotImportCompletedEvent) {
-	ybm.createAndSendEvent(&event.BaseEvent, "COMPLETED", "")
+	ybm.createAndSendEvent(&event.BaseEvent, "COMPLETED", nil)
 }
 
 func (ybm *YBM) UpdateImportedRowCount(events []*controlPlane.UpdateImportedRowCountEvent) {

@@ -1367,7 +1367,7 @@ type AssessMigrationDBConfig struct {
 	Schema   string
 }
 
-// =============== For YUGABYTEDB CONTROL PLANE ==============//
+// =============== For CONTROL PLANE ==============//
 // TODO: see if this can be accommodated in controlplane pkg, facing pkg cyclic dependency issue
 
 /*
@@ -1385,9 +1385,17 @@ Version History
   */
 var ASSESS_MIGRATION_YBD_PAYLOAD_VERSION = "1.7"
 
+/*
+Version History
+1.0: Introduced AssessMigrationPayloadYBM struct for YBM-specific payload
+*/
+var ASSESS_MIGRATION_YBM_PAYLOAD_VERSION = "1.0"
+
+// ======================= PAYLOAD FOR YUGABYTED =======================
+
 // TODO: decouple this struct from utils.AnalyzeSchemaIssue struct, right now its tightly coupled;
 // Similarly for migassessment.SizingAssessmentReport and migassessment.TableIndexStats
-type AssessMigrationPayload struct {
+type AssessMigrationPayloadYugabyteD struct {
 	PayloadVersion                 string
 	VoyagerVersion                 string
 	TargetDBVersion                *ybversion.YBVersion
@@ -1407,6 +1415,8 @@ type AssessMigrationPayload struct {
 	AssessmentJsonReport AssessmentReportYugabyteD // Depreacted: AssessmentJsonReport is deprecated; use the fields directly inside struct
 	Notes                []string                  // Depreacted: Notes is deprecated; use the new fields for notes: GeneralNotes, ColocatedShardedNotes, SizingNotes
 }
+
+// ======================= YUGABYTED-SPECIFIC TYPES =======================
 
 type AssessmentIssueYugabyteD struct {
 	Category               string                          `json:"Category"` // expected values: unsupported_features, unsupported_query_constructs, migration_caveats, unsupported_plpgsql_objects, unsupported_datatype
@@ -1442,6 +1452,44 @@ type AssessmentReportYugabyteD struct {
 	UnsupportedQueryConstructs []utils.UnsupportedQueryConstruct     `json:"UnsupportedQueryConstructs"`
 	UnsupportedPlPgSqlObjects  []UnsupportedFeature                  `json:"UnsupportedPlPgSqlObjects"`
 	MigrationCaveats           []UnsupportedFeature                  `json:"MigrationCaveats"`
+}
+
+// ======================= PAYLOAD FOR YBM =======================
+
+// AssessMigrationPayloadYBM represents the YBM-specific payload for migration assessment
+// Contains all current features without yugabyted's legacy/backward compatibility fields
+type AssessMigrationPayloadYBM struct {
+	PayloadVersion                 string                                `json:"PayloadVersion"`
+	VoyagerVersion                 string                                `json:"VoyagerVersion"`
+	TargetDBVersion                *ybversion.YBVersion                  `json:"TargetDBVersion"`
+	MigrationComplexity            string                                `json:"MigrationComplexity"`
+	MigrationComplexityExplanation string                                `json:"MigrationComplexityExplanation"`
+	SchemaSummary                  utils.SchemaSummary                   `json:"SchemaSummary"`
+	AssessmentIssues               []AssessmentIssueYBM                  `json:"AssessmentIssues"`
+	SourceSizeDetails              SourceDBSizeDetails                   `json:"SourceSizeDetails"`
+	TargetRecommendations          TargetSizingRecommendations           `json:"TargetRecommendations"`
+	ConversionIssues               []utils.AnalyzeSchemaIssue            `json:"ConversionIssues"`
+	Sizing                         *migassessment.SizingAssessmentReport `json:"Sizing"`
+	TableIndexStats                *[]migassessment.TableIndexStats      `json:"TableIndexStats"`
+	GeneralNotes                   []string                              `json:"GeneralNotes"`
+	ColocatedShardedNotes          []string                              `json:"ColocatedShardedNotes"`
+	SizingNotes                    []string                              `json:"SizingNotes"`
+}
+
+// AssessmentIssueYBM represents YBM-specific format for assessment issues
+type AssessmentIssueYBM struct {
+	Category               string                          `json:"Category"`
+	CategoryDescription    string                          `json:"CategoryDescription"`
+	Type                   string                          `json:"Type"`
+	Name                   string                          `json:"Name"`
+	Description            string                          `json:"Description"`
+	Impact                 string                          `json:"Impact"`
+	ObjectType             string                          `json:"ObjectType"`
+	ObjectName             string                          `json:"ObjectName"`
+	SqlStatement           string                          `json:"SqlStatement"`
+	DocsLink               string                          `json:"DocsLink"`
+	MinimumVersionsFixedIn map[string]*ybversion.YBVersion `json:"MinimumVersionsFixedIn"`
+	Details                map[string]interface{}          `json:"Details,omitempty"`
 }
 
 // RowCountPair holds imported and errored row counts for a table.

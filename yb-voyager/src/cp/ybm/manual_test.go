@@ -48,15 +48,15 @@ var (
 	testAPIKey    = "eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiJBcGlKd3QiLCJzdWIiOiJjOTVkNWIxMy0zN2IyLTQ4MjQtYWU3Yi04MTA1YjM5YmRmNGYiLCJhY2NvdW50SWQiOiIwZTVkYzhhNy03OTA0LTRiMGUtYTYzNS0wOTUxNzAxYmRiMmEiLCJpc3MiOiJzZ2FobG90K3ZveWFnZXJAeXVnYWJ5dGUuY29tIiwiZXhwIjo0MTAyMzU4NDAwLCJpYXQiOjE3NjE3MzUyMzUsImp0aSI6IjRkMzE5NGU1LTIzNDUtNGM3OS04M2Q0LTFhM2NkMDEyYTYwMCJ9.iPHRZynWWaRfuotrwqrZv0RtlLRawEc7fGO5fbhgQ1I" // From Security -> API Keys
 
 	// Migration Configuration
-	testMigrationUUID = uuid.MustParse("15925c87-ec80-4018-b9db-9b872efdb692") // Generate a new UUID or use existing
+	testMigrationUUID = uuid.MustParse("055d4355-fca1-4a6e-aa1a-25ed452361f1") // Generate a new UUID or use existing
 	testExportDir     = "/home/sunil/voyager_export"
 )
 
 // Metadata Event Payload - Modify as needed
 var testMetadataPayload = MigrationEvent{
 	MigrationUUID:      testMigrationUUID,
-	MigrationPhase:     1, // 1=ASSESS, 2=EXPORT_SCHEMA, 3=ANALYZE_SCHEMA, 4=EXPORT_DATA, etc.
-	InvocationSequence: 4, // Will be auto-managed by the code, but you can override
+	MigrationPhase:     4, // 1=ASSESS, 2=EXPORT_SCHEMA, 3=ANALYZE_SCHEMA, 4=EXPORT_DATA, etc.
+	InvocationSequence: 5, // Will be auto-managed by the code, but you can override
 	MigrationDirectory: testExportDir,
 	DatabaseName:       "alter_ddls",
 	SchemaName:         "public",
@@ -416,7 +416,7 @@ func TestYBMGetMaxSequence(t *testing.T) {
 	}
 
 	// Test configuration
-	testPhase := 1 // ASSESS phase
+	testPhase := 4 // ASSESS phase
 	migrationUUID := testMigrationUUID
 
 	t.Logf("Testing GET /voyager/migrations endpoint")

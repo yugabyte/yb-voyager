@@ -22,21 +22,21 @@ import (
 
 // MigrationEvent represents the payload for voyager-metadata API
 type MigrationEvent struct {
-	MigrationUUID       uuid.UUID              `json:"migration_uuid"`
-	MigrationPhase      int                    `json:"migration_phase"`
-	InvocationSequence  int                    `json:"invocation_sequence"`
-	MigrationDirectory  string                 `json:"migration_dir"`
-	DatabaseName        string                 `json:"database_name"`
-	SchemaName          string                 `json:"schema_name"`
-	HostIP              string                 `json:"host_ip"` // Plain IP address string, e.g., "10.9.72.172"
-	Port                int                    `json:"port"`
-	DBVersion           string                 `json:"db_version"`
-	Payload             map[string]interface{} `json:"payload"`             // Structured payload object with phase-specific data
-	PayloadVersion      string                 `json:"payload_version"`     // Version string, e.g., "1.0"
-	VoyagerClientInfo   cp.VoyagerInstance     `json:"voyager_client_info"` // API uses "voyager_client_info"
-	DBType              string                 `json:"db_type"`
-	Status              string                 `json:"status"`
-	InvocationTimestamp string                 `json:"invocation_timestamp"`
+	MigrationUUID       uuid.UUID          `json:"migration_uuid"`
+	MigrationPhase      int                `json:"migration_phase"`
+	InvocationSequence  int                `json:"invocation_sequence"`
+	MigrationDirectory  string             `json:"migration_dir"`
+	DatabaseName        string             `json:"database_name"`
+	SchemaName          string             `json:"schema_name"`
+	HostIP              string             `json:"host_ip"` // Plain IP address string, e.g., "10.9.72.172"
+	Port                int                `json:"port"`
+	DBVersion           string             `json:"db_version"`
+	Payload             interface{}        `json:"payload"`             // Can accept any type - structs, maps, etc. - json.Marshal will handle it
+	PayloadVersion      string             `json:"payload_version"`     // Version string, e.g., "1.0"
+	VoyagerClientInfo   cp.VoyagerInstance `json:"voyager_client_info"` // API uses "voyager_client_info"
+	DBType              string             `json:"db_type"`
+	Status              string             `json:"status"`
+	InvocationTimestamp string             `json:"invocation_timestamp"`
 }
 
 // MaxSequenceResponse represents the response from GET max-sequence endpoint
@@ -51,19 +51,15 @@ type MaxSequenceResponse struct {
 	LastStatus            *string `json:"last_status"`
 }
 
-// MigrationListResponse represents the response from GET /voyager/migrations endpoint
-type MigrationListResponse struct {
-	Data []MigrationEntry `json:"data"`
+// LatestSequenceResponse represents the response from GET /voyager/migrations/{migrationId}/phases/{phase}/latest-sequence endpoint
+type LatestSequenceResponse struct {
+	Data LatestSequenceData `json:"data"`
 }
 
-// MigrationEntry represents a single migration entry in the list
-// We only extract fields needed for sequence tracking
-type MigrationEntry struct {
-	MigrationUUID      string `json:"migration_uuid"`
-	MigrationPhase     int    `json:"migration_phase"`
-	InvocationSequence int    `json:"invocation_sequence"`
-	Status             string `json:"status"`
-	// Other fields omitted for brevity (not needed for sequence tracking)
+type LatestSequenceData struct {
+	MigrationID    string `json:"migration_id"`
+	Phase          int    `json:"phase"`
+	LatestSequence int    `json:"latest_sequence"`
 }
 
 // YBMConfig holds the YBM control plane configuration

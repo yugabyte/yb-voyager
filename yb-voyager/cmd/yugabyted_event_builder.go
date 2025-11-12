@@ -25,13 +25,26 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-func createMigrationAssessmentStartedEvent() *cp.MigrationAssessmentStartedEvent {
-	ev := &cp.MigrationAssessmentStartedEvent{}
-	initBaseSourceEvent(&ev.BaseEvent, "ASSESS MIGRATION")
-	return ev
-}
+/*
+YUGABYTED DATA FLOW - Migration Assessment Completed Event:
 
-func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedEvent {
+1. createMigrationAssessmentCompletedEventForYugabyteD() (here)
+   - Creates AssessMigrationPayloadYugabyteD struct with all assessment data
+   - MARSHALS struct to JSON string: json.Marshal(payload) -> string
+   - Sets ev.Report = payloadStr (type: string)
+
+2. MigrationAssessmentCompletedEvent.Report flows to yugabyted.go
+   - Report field type: string (already marshaled JSON)
+
+3. yugabyted.MigrationAssessmentCompleted() in src/cp/yugabyted/yugabyted.go
+   - Receives ev.Report as JSON string
+   - Directly inserts the JSON string into SQL database
+   - NO unmarshaling - database stores it as TEXT/JSON column
+
+Result: Single marshal (struct -> JSON string), no unmarshal
+*/
+
+func createMigrationAssessmentCompletedEventForYugabyteD() *cp.MigrationAssessmentCompletedEvent {
 	ev := &cp.MigrationAssessmentCompletedEvent{}
 	initBaseSourceEvent(&ev.BaseEvent, "ASSESS MIGRATION")
 
@@ -51,7 +64,7 @@ func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedE
 		return note.Text
 	})
 
-	payload := AssessMigrationPayload{
+	payload := AssessMigrationPayloadYugabyteD{
 		PayloadVersion:                 ASSESS_MIGRATION_YBD_PAYLOAD_VERSION,
 		VoyagerVersion:                 assessmentReport.VoyagerVersion,
 		TargetDBVersion:                assessmentReport.TargetDBVersion,

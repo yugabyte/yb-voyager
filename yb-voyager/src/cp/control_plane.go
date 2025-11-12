@@ -185,7 +185,11 @@ type MigrationAssessmentStartedEvent struct {
 
 type MigrationAssessmentCompletedEvent struct {
 	BaseEvent
-	Report string
+	// Report field allows control plane decoupling:
+	// - Yugabyted: receives a JSON string (pre-marshaled in yugabyted_event_builder.go)
+	// - YBM: receives AssessMigrationPayloadYBM struct (marshaled once when sending to API)
+	// This enables each control plane to optimize its data flow independently
+	Report interface{}
 }
 
 type SchemaAnalysisStartedEvent struct {
@@ -194,6 +198,10 @@ type SchemaAnalysisStartedEvent struct {
 
 type SchemaAnalysisIterationCompletedEvent struct {
 	BaseEvent
+	// AnalysisReport is a common struct (utils.SchemaReport) used by both control planes
+	// - Yugabyted: marshals it to JSON string before storing in database
+	// - YBM: passes struct directly, marshaled once when sending to API
+	// Both achieve single marshal, different patterns based on storage mechanism
 	AnalysisReport utils.SchemaReport
 }
 
