@@ -17,7 +17,7 @@ package importdata
 
 import (
 	"fmt"
-	"os"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -28,14 +28,6 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
-// Prometheus metrics configuration
-var (
-	IMPORT_DATA_TARGET_PROMETHEUS_METRICS_PORT         = "9101"
-	IMPORT_DATA_FILE_PROMETHEUS_METRICS_PORT           = "9102"
-	IMPORT_DATA_SOURCE_REPLICA_PROMETHEUS_METRICS_PORT = "9103"
-	IMPORT_DATA_SOURCE_PROMETHEUS_METRICS_PORT         = "9104"
-)
-
 // promSessionID is created on package init and used for all metrics
 var promSessionID string
 var promMigrationUUID uuid.UUID
@@ -43,37 +35,29 @@ var promMigrationUUID uuid.UUID
 func init() {
 	// Create a unique session ID based on formatted timestamp
 	promSessionID = time.Now().Format("20060102-150405")
-
-	// override ports from env variables if set
-	if port, ok := os.LookupEnv("IMPORT_DATA_TARGET_PROMETHEUS_METRICS_PORT"); ok {
-		IMPORT_DATA_TARGET_PROMETHEUS_METRICS_PORT = port
-	}
-	if port, ok := os.LookupEnv("IMPORT_DATA_FILE_PROMETHEUS_METRICS_PORT"); ok {
-		IMPORT_DATA_FILE_PROMETHEUS_METRICS_PORT = port
-	}
-	if port, ok := os.LookupEnv("IMPORT_DATA_SOURCE_REPLICA_PROMETHEUS_METRICS_PORT"); ok {
-		IMPORT_DATA_SOURCE_REPLICA_PROMETHEUS_METRICS_PORT = port
-	}
-	if port, ok := os.LookupEnv("IMPORT_DATA_SOURCE_PROMETHEUS_METRICS_PORT"); ok {
-		IMPORT_DATA_SOURCE_PROMETHEUS_METRICS_PORT = port
-	}
 }
 
-func StartPrometheusMetricsServer(importerRole string, migrationUUID uuid.UUID) error {
+func StartPrometheusMetricsServer(importerRole string, migrationUUID uuid.UUID, port int) error {
 	promMigrationUUID = migrationUUID
-	return utils.StartPrometheusMetricsServer(getPrometheusPort(importerRole))
+	return utils.StartPrometheusMetricsServer(getPrometheusPort(importerRole, port))
 }
 
-func getPrometheusPort(importerRole string) string {
+func getPrometheusPort(importerRole string, port int) string {
+	// If user specified a port, use it
+	if port != 0 {
+		return strconv.Itoa(port)
+	}
+
+	// Otherwise, use default based on importerRole
 	switch importerRole {
 	case constants.TARGET_DB_IMPORTER_ROLE:
-		return IMPORT_DATA_TARGET_PROMETHEUS_METRICS_PORT
+		return "9101"
 	case constants.IMPORT_FILE_ROLE:
-		return IMPORT_DATA_FILE_PROMETHEUS_METRICS_PORT
+		return "9102"
 	case constants.SOURCE_REPLICA_DB_IMPORTER_ROLE:
-		return IMPORT_DATA_SOURCE_REPLICA_PROMETHEUS_METRICS_PORT
+		return "9103"
 	case constants.SOURCE_DB_IMPORTER_ROLE:
-		return IMPORT_DATA_SOURCE_PROMETHEUS_METRICS_PORT
+		return "9104"
 	default:
 		panic(fmt.Sprintf("unsupported importer role: %s", importerRole))
 	}

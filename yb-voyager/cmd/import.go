@@ -31,6 +31,7 @@ import (
 var sourceDBType string
 var enableOrafce utils.BoolStr
 var importType string
+var prometheusMetricsPort int
 
 var supportedSSLModesOnTargetForImport = AllSSLModes // supported SSL modes for YugabyteDB is different for import VS export data from target(streaming phase)
 var supportedSSLModesOnSourceOrSourceReplica = AllSSLModes
@@ -265,6 +266,10 @@ Note that for the cases where a table doesn't have a primary key, this may lead 
 		"The desired behavior when there is an error while processing and importing rows to target YugabyteDB in the snapshot phase. The errors can be while reading from file, transforming rows, or ingesting rows into YugabyteDB.\n"+
 			"\tabort: immediately abort the process. (default)\n"+
 			"\tstash-and-continue: stash the errored rows to a file and continue with the import")
+
+	cmd.Flags().IntVar(&prometheusMetricsPort, "prometheus-metrics-port", 0,
+		"Port for Prometheus metrics server (default: 9101)")
+	cmd.Flags().MarkHidden("prometheus-metrics-port")
 }
 
 func registerImportSchemaFlags(cmd *cobra.Command) {

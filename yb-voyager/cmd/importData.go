@@ -645,7 +645,7 @@ func updateImportDataStartedInMetaDB() error {
 func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorPolicy) {
 	if perfProfile {
 		// Start Prometheus metrics server
-		err := importdata.StartPrometheusMetricsServer(importerRole, migrationUUID)
+		err := importdata.StartPrometheusMetricsServer(importerRole, migrationUUID, prometheusMetricsPort)
 		if err != nil {
 			utils.ErrExit("Failed to start Prometheus metrics server: %v", err)
 		}
