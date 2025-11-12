@@ -160,8 +160,8 @@ func (ybaeon *YBAeon) rowCountUpdateEventPublisher() {
 // panicHandler recovers from panics in goroutines
 func (ybaeon *YBAeon) panicHandler() {
 	if r := recover(); r != nil {
-		log.Errorf(fmt.Sprintf("Panic occurred in YB-Aeon event publisher: %v. No further events will be published to YB-Aeon.\n"+
-			"Stack trace of panic location:\n%s", r, string(debug.Stack())))
+		log.Errorf("Panic occurred in YB-Aeon event publisher: %v. No further events will be published to YB-Aeon.\nStack trace of panic location:\n%s",
+			r, string(debug.Stack()))
 	}
 }
 
