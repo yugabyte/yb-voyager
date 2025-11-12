@@ -255,7 +255,6 @@ func (fti *FileTaskImporter) updateProgressForCompletedBatch(batch *Batch) {
 		fti.callhomeMetricsCollector.IncrementSnapshotProgress(batch.RecordCount, batch.ByteCount)
 	}
 
-	// update prometheus metrics
 	importdata.RecordPrometheusSnapshotBatchIngested(fti.task.TableNameTup, importerRole, batch.RecordCount, batch.ByteCount)
 }
 

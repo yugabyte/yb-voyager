@@ -182,11 +182,11 @@ func (t NameTuple) ForKey() string {
 }
 
 func (t NameTuple) ForKeyTableSchema() (string, string) {
-	on := t.SourceName
-	if on == nil {
-		on = t.TargetName
+	objName := t.SourceName
+	if objName == nil {
+		objName = t.TargetName
 	}
-	return on.SchemaName, on.Unqualified.Unquoted
+	return objName.SchemaName, objName.Unqualified.Unquoted
 }
 
 func SetDifferenceNameTuples(a, b []NameTuple) []NameTuple {

@@ -306,7 +306,6 @@ func (p *FileBatchProducer) finalizeBatch(batchWriter *BatchWriter, isLastBatch 
 		utils.ErrExit("finalizing batch %d: %s", batchNum, err)
 	}
 
-	// Record batch created metric
 	importdata.RecordPrometheusSnapshotBatchCreated(p.task.TableNameTup, importerRole)
 
 	batchWriter = nil
