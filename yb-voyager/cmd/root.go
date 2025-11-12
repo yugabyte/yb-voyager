@@ -471,11 +471,11 @@ func loadControlPlaneConfig(v *viper.Viper) {
 	// Read all control plane config keys directly from viper
 	controlPlaneKeys := []string{
 		"yugabyted-control-plane.db-conn-string",
-		"ybm-control-plane.domain",
-		"ybm-control-plane.account-id",
-		"ybm-control-plane.project-id",
-		"ybm-control-plane.cluster-id",
-		"ybm-control-plane.api-key",
+		"ybaeon-control-plane.domain",
+		"ybaeon-control-plane.account-id",
+		"ybaeon-control-plane.project-id",
+		"ybaeon-control-plane.cluster-id",
+		"ybaeon-control-plane.api-key",
 	}
 
 	for _, key := range controlPlaneKeys {
