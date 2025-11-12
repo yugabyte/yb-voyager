@@ -435,7 +435,7 @@ IGNORE		: Skip rows where the primary key already exists and continue importing 
 	cmd.Flags().MarkHidden("skip-node-health-checks")
 }
 
-func registerFlagsForSourceReplica(cmd *cobra.Command) {
+func registerFlagsForSourceAndSourceReplica(cmd *cobra.Command) {
 	cmd.Flags().Int64Var(&batchSizeInNumRows, "batch-size", 0,
 		fmt.Sprintf("Size of batches in the number of rows generated for ingestion during import. default: ORACLE(%d), POSTGRESQL(%d)", DEFAULT_BATCH_SIZE_ORACLE, DEFAULT_BATCH_SIZE_POSTGRESQL))
 	cmd.Flags().IntVar(&tconf.Parallelism, "parallel-jobs", 0,
