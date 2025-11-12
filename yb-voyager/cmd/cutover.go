@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"time"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
@@ -203,6 +204,7 @@ func CalculateCutoverTimingsForTarget(record *metadb.MigrationStatusRecord) *cal
 		return nil
 	}
 
+	log.Infof("CalculateCutoverTimingsForTarget: total cutover to target time: %d seconds", int64(completedAt.Sub(requestedAt).Seconds()))
 	return &callhome.CutoverTimings{
 		TotalCutoverTimeSec: int64(completedAt.Sub(requestedAt).Seconds()),
 		CutoverType:         "target",
@@ -221,6 +223,7 @@ func CalculateCutoverTimingsForSource(record *metadb.MigrationStatusRecord) *cal
 		return nil
 	}
 
+	log.Infof("CalculateCutoverTimingsForSource: total cutover to source time: %d seconds", int64(completedAt.Sub(requestedAt).Seconds()))
 	return &callhome.CutoverTimings{
 		TotalCutoverTimeSec: int64(completedAt.Sub(requestedAt).Seconds()),
 		CutoverType:         "source",
@@ -239,6 +242,7 @@ func CalculateCutoverTimingsForSourceReplica(record *metadb.MigrationStatusRecor
 		return nil
 	}
 
+	log.Infof("CalculateCutoverTimingsForSourceReplica: total cutover to source-replica time: %d seconds", int64(completedAt.Sub(requestedAt).Seconds()))
 	return &callhome.CutoverTimings{
 		TotalCutoverTimeSec: int64(completedAt.Sub(requestedAt).Seconds()),
 		CutoverType:         "source-replica",
