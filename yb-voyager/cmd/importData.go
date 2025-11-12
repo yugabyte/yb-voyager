@@ -643,14 +643,15 @@ func updateImportDataStartedInMetaDB() error {
 }
 
 func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorPolicy) {
-
-	// Start Prometheus metrics server
-	err := importdata.StartPrometheusMetricsServer(importerRole, migrationUUID)
-	if err != nil {
-		utils.ErrExit("Failed to start Prometheus metrics server: %v", err)
+	if perfProfile {
+		// Start Prometheus metrics server
+		err := importdata.StartPrometheusMetricsServer(importerRole, migrationUUID)
+		if err != nil {
+			utils.ErrExit("Failed to start Prometheus metrics server: %v", err)
+		}
 	}
 
-	err = updateImportDataStartedInMetaDB()
+	err := updateImportDataStartedInMetaDB()
 	if err != nil {
 		utils.ErrExit("Failed to update import data started in meta DB: %s", err)
 	}
