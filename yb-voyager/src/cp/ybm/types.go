@@ -39,29 +39,6 @@ type MigrationEvent struct {
 	InvocationTimestamp string             `json:"invocation_timestamp"`
 }
 
-// MaxSequenceResponse represents the response from GET max-sequence endpoint
-// DEPRECATED: Old endpoint, kept for reference
-// TODO: Remove this once we have a decision on the new endpoint.
-type MaxSequenceResponse struct {
-	MigrationUUID         string  `json:"migration_uuid"`
-	MigrationPhase        int     `json:"migration_phase"`
-	MaxInvocationSequence int     `json:"max_invocation_sequence"`
-	TotalInvocations      int     `json:"total_invocations"`
-	LastInvocationTime    *string `json:"last_invocation_timestamp"`
-	LastStatus            *string `json:"last_status"`
-}
-
-// LatestSequenceResponse represents the response from GET /voyager/migrations/{migrationId}/phases/{phase}/latest-sequence endpoint
-type LatestSequenceResponse struct {
-	Data LatestSequenceData `json:"data"`
-}
-
-type LatestSequenceData struct {
-	MigrationID    string `json:"migration_id"`
-	Phase          int    `json:"phase"`
-	LatestSequence int    `json:"latest_sequence"`
-}
-
 // YBMConfig holds the YBM control plane configuration
 type YBMConfig struct {
 	Domain    string
