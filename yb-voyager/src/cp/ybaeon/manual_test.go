@@ -1,3 +1,5 @@
+//go:build manual
+
 /*
 Copyright (c) YugabyteDB, Inc.
 
