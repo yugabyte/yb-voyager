@@ -1,6 +1,7 @@
 -- gathering schema_name, table_name, column_name, data_type
 CREATE TEMP TABLE temp_column_info AS
 SELECT
+    :'source_node_name' AS source_node,
     c.table_schema AS schema_name,
     c.table_name,
     c.column_name,

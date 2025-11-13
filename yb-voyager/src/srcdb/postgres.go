@@ -23,6 +23,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -1734,4 +1735,239 @@ func (pg *PostgreSQL) GetSchemasMissingUsagePermissions() ([]string, error) {
 
 func (pg *PostgreSQL) CheckIfReplicationSlotsAreAvailable() (isAvailable bool, usedCount int, maxCount int, err error) {
 	return checkReplicationSlotsForPGAndYB(pg.db)
+}
+
+// ReplicaInfo represents information about a discovered replica
+type ReplicaInfo struct {
+	ApplicationName string
+	State           string
+	SyncState       string
+	ClientAddr      string
+	ClientPort      int
+}
+
+// ReplicaEndpoint represents a validated replica endpoint
+type ReplicaEndpoint struct {
+	Host          string
+	Port          int
+	Name          string // identifier for the replica (from application_name or endpoint)
+	ConnectionUri string // full connection URI for this replica
+}
+
+// DiscoverReplicas queries pg_stat_replication on the primary to discover physical streaming replicas
+func (pg *PostgreSQL) DiscoverReplicas() ([]ReplicaInfo, error) {
+	query := `
+		SELECT 
+			COALESCE(application_name, '') AS application_name,
+			state,
+			COALESCE(sync_state, '') AS sync_state,
+			COALESCE(client_addr::text, '') AS client_addr,
+			COALESCE(client_port, 0) AS client_port
+		FROM pg_stat_replication
+		WHERE state = 'streaming'
+		ORDER BY application_name, client_addr
+	`
+
+	rows, err := pg.db.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("error querying pg_stat_replication: %w", err)
+	}
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			log.Warnf("error closing rows for pg_stat_replication query: %v", closeErr)
+		}
+	}()
+
+	var replicas []ReplicaInfo
+	for rows.Next() {
+		var replica ReplicaInfo
+		err := rows.Scan(&replica.ApplicationName, &replica.State, &replica.SyncState,
+			&replica.ClientAddr, &replica.ClientPort)
+		if err != nil {
+			return nil, fmt.Errorf("error scanning replica info: %w", err)
+		}
+		replicas = append(replicas, replica)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating replica rows: %w", err)
+	}
+
+	return replicas, nil
+}
+
+// ParseReplicaEndpoints parses a comma-separated list of replica endpoints
+// Each endpoint is host[:port]. Default port is 5432.
+// The Name field is initially set to host:port, but should be enriched with application_name
+// from discovered replicas using EnrichReplicaEndpointsWithDiscovery()
+func (pg *PostgreSQL) ParseReplicaEndpoints(endpointsStr string) ([]ReplicaEndpoint, error) {
+	if endpointsStr == "" {
+		return nil, nil
+	}
+
+	endpoints := strings.Split(endpointsStr, ",")
+	var replicaEndpoints []ReplicaEndpoint
+
+	for i, endpoint := range endpoints {
+		endpoint = strings.TrimSpace(endpoint)
+		if endpoint == "" {
+			continue
+		}
+
+		var host string
+		var port int = 5432 // default port
+
+		// Simple host:port parsing (consistent with primary connection)
+		parts := strings.Split(endpoint, ":")
+		if len(parts) == 1 {
+			host = parts[0]
+		} else if len(parts) == 2 {
+			host = parts[0]
+			var err error
+			port, err = strconv.Atoi(parts[1])
+			if err != nil || port <= 0 || port > 65535 {
+				return nil, fmt.Errorf("invalid port in endpoint at position %d: %s", i+1, parts[1])
+			}
+		} else {
+			return nil, fmt.Errorf("malformed endpoint at position %d: %s (expected format: host[:port])", i+1, endpoint)
+		}
+
+		if host == "" {
+			return nil, fmt.Errorf("empty host in endpoint at position %d", i+1)
+		}
+
+		// Use endpoint string as default name (will be enriched with application_name if available)
+		name := fmt.Sprintf("%s:%d", host, port)
+		replicaEndpoints = append(replicaEndpoints, ReplicaEndpoint{
+			Host:          host,
+			Port:          port,
+			Name:          name,
+			ConnectionUri: pg.getReplicaConnectionUri(host, port),
+		})
+	}
+
+	// De-duplicate endpoints
+	seen := make(map[string]bool)
+	var uniqueEndpoints []ReplicaEndpoint
+	for _, ep := range replicaEndpoints {
+		key := fmt.Sprintf("%s:%d", ep.Host, ep.Port)
+		if !seen[key] {
+			seen[key] = true
+			uniqueEndpoints = append(uniqueEndpoints, ep)
+		}
+	}
+
+	return uniqueEndpoints, nil
+}
+
+// EnrichReplicaEndpointsWithDiscovery matches provided endpoints with discovered replicas
+// and enriches the Name field with application_name when available.
+// Note: We cannot assume discovered replicas and provided endpoints are in the same sequence.
+// Matching strategy: Try exact match by host address (client_addr from discovery vs host from endpoint).
+// If a match is found and application_name is available, use it; otherwise keep endpoint string (host:port).
+func EnrichReplicaEndpointsWithDiscovery(endpoints []ReplicaEndpoint, discoveredReplicas []ReplicaInfo) []ReplicaEndpoint {
+	enriched := make([]ReplicaEndpoint, len(endpoints))
+	copy(enriched, endpoints)
+
+	// Create a map of discovered replicas by client_addr for quick lookup
+	// Key: client_addr, Value: ReplicaInfo
+	replicaByAddr := make(map[string]ReplicaInfo)
+	for _, replica := range discoveredReplicas {
+		if replica.ClientAddr != "" {
+			replicaByAddr[replica.ClientAddr] = replica
+		}
+	}
+
+	// Try to match each endpoint with discovered replicas by exact address match
+	for i := range enriched {
+		ep := enriched[i]
+
+		// Try exact match by host address
+		if replica, found := replicaByAddr[ep.Host]; found {
+			if replica.ApplicationName != "" {
+				enriched[i].Name = replica.ApplicationName
+			}
+		}
+
+		// If no match found, keep the endpoint-based name (host:port)
+		// This is the default set in ParseReplicaEndpoints
+	}
+
+	return enriched
+}
+
+// ValidateReplicaEndpoint connects to a replica endpoint and verifies it's in recovery
+func (pg *PostgreSQL) ValidateReplicaEndpoint(endpoint ReplicaEndpoint) error {
+	// Create a connection URI for the replica using the same credentials as primary
+	replicaURI := pg.getReplicaConnectionUri(endpoint.Host, endpoint.Port)
+
+	replicaDB, err := sql.Open("pgx", replicaURI)
+	if err != nil {
+		return fmt.Errorf("failed to open connection to replica %s:%d: %w", endpoint.Host, endpoint.Port, err)
+	}
+	defer replicaDB.Close()
+
+	// Set connection timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Verify replica is in recovery
+	var inRecovery bool
+	err = replicaDB.QueryRowContext(ctx, "SELECT pg_is_in_recovery()").Scan(&inRecovery)
+	if err != nil {
+		return fmt.Errorf("failed to query pg_is_in_recovery() on replica %s:%d: %w", endpoint.Host, endpoint.Port, err)
+	}
+
+	if !inRecovery {
+		return fmt.Errorf("endpoint %s:%d is not a replica (pg_is_in_recovery() = false)", endpoint.Host, endpoint.Port)
+	}
+
+	return nil
+}
+
+// getReplicaConnectionUri creates a connection URI for a replica using the same credentials as primary
+func (pg *PostgreSQL) getReplicaConnectionUri(host string, port int) string {
+	hostAndPort := fmt.Sprintf("%s:%d", host, port)
+	sourceUrl := &url.URL{
+		Scheme:   "postgresql",
+		User:     url.UserPassword(pg.source.User, pg.source.Password),
+		Host:     hostAndPort,
+		Path:     pg.source.DBName,
+		RawQuery: generateSSLQueryStringIfNotExists(pg.source),
+	}
+	return sourceUrl.String()
+}
+
+// TryConnectReplica attempts to connect to a replica using discovered client_addr
+// This is a best-effort validation that may fail in cloud/proxy environments
+func (pg *PostgreSQL) TryConnectReplica(clientAddr string, port int) error {
+	replicaURI := pg.getReplicaConnectionUri(clientAddr, port)
+
+	replicaDB, err := sql.Open("pgx", replicaURI)
+	if err != nil {
+		return fmt.Errorf("failed to open connection: %w", err)
+	}
+	defer replicaDB.Close()
+
+	// Smaller timeout as we are doing a best-effort validation and we expect it to fail in most cases
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	err = replicaDB.PingContext(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to ping replica: %w", err)
+	}
+
+	var inRecovery bool
+	err = replicaDB.QueryRowContext(ctx, "SELECT pg_is_in_recovery()").Scan(&inRecovery)
+	if err != nil {
+		return fmt.Errorf("failed to query pg_is_in_recovery(): %w", err)
+	}
+
+	if !inRecovery {
+		return fmt.Errorf("endpoint is not a replica (pg_is_in_recovery() = false)")
+	}
+
+	return nil
 }

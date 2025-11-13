@@ -1243,6 +1243,7 @@ type AssessmentReport struct {
 	Issues                         []AssessmentIssue                     `json:"AssessmentIssues"`
 	TableIndexStats                *[]migassessment.TableIndexStats      `json:"TableIndexStats"`
 	Notes                          []NoteInfo                            `json:"Notes"`
+	AssessmentTopology             string                                `json:"AssessmentTopology"` // Multi-node assessment info
 
 	// fields going to be deprecated
 	UnsupportedDataTypes       []utils.TableColumnsDataTypes     `json:"-"`
@@ -1381,8 +1382,9 @@ Version History
 1.6:
   - Add EstimatedTimeInMinForImportWithoutRedundantIndexes in SizingRecommendation struct
   - Added separate fields for notes: GeneralNotes, ColocatedShardedNotes, SizingNotes; deprecated Notes field
+
 1.7: Added ObjectUsage field to AssessmentIssueYugabyteD struct
-  */
+*/
 var ASSESS_MIGRATION_YBD_PAYLOAD_VERSION = "1.7"
 
 // TODO: decouple this struct from utils.AnalyzeSchemaIssue struct, right now its tightly coupled;

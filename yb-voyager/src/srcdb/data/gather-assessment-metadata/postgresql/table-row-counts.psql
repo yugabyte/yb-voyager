@@ -1,16 +1,19 @@
 -- Create a temporary table to store the row counts
 CREATE TEMP TABLE temp_table (
+    source_node TEXT,
     schema_name TEXT,
     table_name TEXT,
     row_count BIGINT
 );
 
--- Set the schema_list variable
+-- Set the schema_list and source_node_name variables
 SET vars.schema_list TO :'schema_list';
+SET vars.source_node_name TO :'source_node_name';
 
 DO $$
 DECLARE
     schema_list TEXT[] := string_to_array(current_setting('vars.schema_list'), '|');
+    source_node_name TEXT := current_setting('vars.source_node_name');
     schema_name TEXT;
     table_record RECORD;
 BEGIN
@@ -27,7 +30,8 @@ BEGIN
         LOOP
             -- Insert estimated row count data into temp_table
             EXECUTE format(
-                'INSERT INTO temp_table (schema_name, table_name, row_count) VALUES (%L, %L, %s)',
+                'INSERT INTO temp_table (source_node, schema_name, table_name, row_count) VALUES (%L, %L, %L, %s)',
+                source_node_name,
                 table_record.table_schema,
                 table_record.table_name,
                 table_record.estimated_row_count

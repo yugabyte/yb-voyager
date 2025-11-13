@@ -1,5 +1,6 @@
 CREATE TEMP TABLE temp_table AS
 SELECT
+    :'source_node_name' AS source_node,
     n.nspname AS schema_name,
     c.relname AS object_name,
     CASE 

@@ -1,9 +1,11 @@
 -- make the psql var a server setting
 SET my.vars.pgss_schema = :'schema_name';
+SET my.vars.source_node_name = :'source_node_name';
 
 DO $do$
 DECLARE
     pgss_schema  text := current_setting('my.vars.pgss_schema', true);
+    source_node_name text := current_setting('my.vars.source_node_name', true);
     column_list  text;
     sql_query    text;
 BEGIN
@@ -28,10 +30,10 @@ BEGIN
 
     sql_query := format(
       'CREATE TEMP TABLE temp_table AS
-         SELECT %s
+         SELECT %L AS source_node, %s
            FROM %I.pg_stat_statements
           WHERE dbid = (SELECT oid FROM pg_database WHERE datname = current_database())',
-      column_list, pgss_schema);
+      source_node_name, column_list, pgss_schema);
 
     EXECUTE sql_query;
 END

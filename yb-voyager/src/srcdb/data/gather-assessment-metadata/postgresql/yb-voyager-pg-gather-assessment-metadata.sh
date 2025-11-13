@@ -42,9 +42,11 @@ Arguments:
 
   yes                         Answer yes for all questions during gathering metadata (default 'false') (accepted values: 'false' and 'true')
 
+  source_node_name            The name of the source node (default 'primary'). Used to tag collected metrics in multi-node assessments.
+
 
 Example:
-  PGPASSWORD=<password> $SCRIPT_NAME 'postgresql://user@localhost:5432/mydatabase' 'public|sales' '/path/to/assessment/metadata' 'true' '60' 'true'
+  PGPASSWORD=<password> $SCRIPT_NAME 'postgresql://user@localhost:5432/mydatabase' 'public|sales' '/path/to/assessment/metadata' 'true' '60' 'true' 'primary'
 
 Please ensure to replace the placeholders with actual values suited to your environment.
 "
@@ -57,10 +59,10 @@ fi
 
 # Check if all required arguments are provided
 if [ "$#" -lt 4 ]; then
-    echo "Usage: $0 <pg_connection_string> <schema_list> <assessment_metadata_dir> <pgss_enabled> [iops_capture_interval] [yes]"
+    echo "Usage: $0 <pg_connection_string> <schema_list> <assessment_metadata_dir> <pgss_enabled> [iops_capture_interval] [yes] [source_node_name]"
     exit 1
-elif [ "$#" -gt 6 ]; then
-    echo "Usage: $0 <pg_connection_string> <schema_list> <assessment_metadata_dir> <pgss_enabled> [iops_capture_interval] [yes]"
+elif [ "$#" -gt 7 ]; then
+    echo "Usage: $0 <pg_connection_string> <schema_list> <assessment_metadata_dir> <pgss_enabled> [iops_capture_interval] [yes] [source_node_name]"
     exit 1
 fi
 
@@ -84,12 +86,19 @@ if [ "$#" -ge 5 ]; then
 fi
 
 # override default yes if 6th arg is given
-if [ "$#" -eq 6 ]; then
+if [ "$#" -ge 6 ]; then
     yes=$6
     if [[ "$yes" != false && "$yes" != true ]]; then 
         echo "accepted values for the yes parameter are only ('true' and 'false')"
         exit 1
     fi
+fi
+
+# Set source_node_name (default: 'primary' for backward compatibility)
+source_node_name="primary"
+if [ "$#" -eq 7 ]; then
+    source_node_name=$7
+    echo "source_node_name: $source_node_name"
 fi
 
 
@@ -235,7 +244,7 @@ WHERE schemaname = ANY(ARRAY[string_to_array('$schema_list', '|')])
         
         case $script_name in
             "table-index-iops")
-                psql_command="psql -q $pg_connection_string -f $script -v schema_list=$schema_list -v ON_ERROR_STOP=on -v measurement_type=initial"
+                psql_command="psql -q $pg_connection_string -f $script -v schema_list=$schema_list -v source_node_name=$source_node_name -v ON_ERROR_STOP=on -v measurement_type=initial"
                 log "INFO" "Executing initial IOPS collection: $psql_command"
                 run_command "$psql_command"
                 mv table-index-iops.csv table-index-iops-initial.csv
@@ -244,7 +253,7 @@ WHERE schemaname = ANY(ARRAY[string_to_array('$schema_list', '|')])
                 # sleeping to calculate the iops reading two different time intervals, to calculate reads_per_second and writes_per_second
                 sleep $iops_capture_interval
 
-                psql_command="psql -q $pg_connection_string -f $script -v schema_list=$schema_list -v ON_ERROR_STOP=on -v measurement_type=final"
+                psql_command="psql -q $pg_connection_string -f $script -v schema_list=$schema_list -v source_node_name=$source_node_name -v ON_ERROR_STOP=on -v measurement_type=final"
                 log "INFO" "Executing final IOPS collection: $psql_command"
                 run_command "$psql_command"
                 mv table-index-iops.csv table-index-iops-final.csv
@@ -261,12 +270,12 @@ WHERE schemaname = ANY(ARRAY[string_to_array('$schema_list', '|')])
                     continue
                 fi
 
-                psql_command="psql -q $pg_connection_string -f $script -v schema_name=$pgss_ext_schema -v ON_ERROR_STOP=on"
+                psql_command="psql -q $pg_connection_string -f $script -v schema_name=$pgss_ext_schema -v source_node_name=$source_node_name -v ON_ERROR_STOP=on"
                 log "INFO" "Executing script: $psql_command"
                 run_command "$psql_command"
             ;;
             *)
-                psql_command="psql -q $pg_connection_string -f $script -v schema_list=$schema_list -v ON_ERROR_STOP=on"
+                psql_command="psql -q $pg_connection_string -f $script -v schema_list=$schema_list -v source_node_name=$source_node_name -v ON_ERROR_STOP=on"
                 log "INFO" "Executing script: $psql_command"
                 run_command "$psql_command"
             ;;

@@ -1,5 +1,6 @@
 CREATE TEMP TABLE column_statistics AS 
     SELECT
+        :'source_node_name' AS source_node,
         st.schemaname as schema_name,
         st.tablename as table_name,
         st.attname as column_name,

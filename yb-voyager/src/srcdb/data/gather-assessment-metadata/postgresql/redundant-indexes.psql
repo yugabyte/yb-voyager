@@ -148,6 +148,7 @@ CREATE TEMP TABLE indexes_no_constraints AS
 
 CREATE TEMP TABLE temp_table AS
 SELECT DISTINCT ON (redundant.schema_name, redundant.table_name, redundant.index_name)
+    :'source_node_name'                   AS "source_node",
     redundant.schema_name                 AS "redundant_schema_name",
     redundant.table_name                  AS "redundant_table_name",
     redundant.index_name                  AS "redundant_index_name",
