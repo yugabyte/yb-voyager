@@ -456,15 +456,18 @@ func applyMigrationAssessmentRecommendations() ([]string, []string, []string, []
 	shardedTables, err := report.GetShardedTablesRecommendation()
 	if err != nil {
 		return nil, nil, nil, nil, "", "", fmt.Errorf("failed to fetch sharded tables recommendation: %w", err)
-	} else {
-		modifiedTables, colocatedTables, tableBackupPath, err = applyShardedTablesRecommendation(shardedTables, TABLE)
-		if err != nil {
-			return nil, nil, nil, nil, "", "", fmt.Errorf("failed to apply colocated vs sharded table recommendation: %w", err)
-		}
-		modifiedMviews, colocatedMviews, mviewBackupPath, err = applyShardedTablesRecommendation(shardedTables, MVIEW)
-		if err != nil {
-			return nil, nil, nil, nil, "", "", fmt.Errorf("failed to apply colocated vs sharded table recommendation: %w", err)
-		}
+	}
+	reportedColocatedTables, err := report.GetColocatedTablesRecommendation()
+	if err != nil {
+		return nil, nil, nil, nil, "", "", fmt.Errorf("failed to fetch colocated tables recommendation: %w", err)
+	}
+	modifiedTables, colocatedTables, tableBackupPath, err = applyShardedTablesRecommendation(shardedTables, reportedColocatedTables, TABLE)
+	if err != nil {
+		return nil, nil, nil, nil, "", "", fmt.Errorf("failed to apply colocated vs sharded table recommendation: %w", err)
+	}
+	modifiedMviews, colocatedMviews, mviewBackupPath, err = applyShardedTablesRecommendation(shardedTables, reportedColocatedTables, MVIEW)
+	if err != nil {
+		return nil, nil, nil, nil, "", "", fmt.Errorf("failed to apply colocated vs sharded table recommendation: %w", err)
 	}
 
 	assessmentRecommendationsApplied = true
@@ -473,7 +476,7 @@ func applyMigrationAssessmentRecommendations() ([]string, []string, []string, []
 	return modifiedTables, modifiedMviews, colocatedTables, colocatedMviews, tableBackupPath, mviewBackupPath, nil
 }
 
-func applyShardedTablesRecommendation(shardedTables []string, objType string) ([]string, []string, string, error) {
+func applyShardedTablesRecommendation(shardedTables []string, colocatedTables []string, objType string) ([]string, []string, string, error) {
 	if shardedTables == nil {
 		log.Info("list of sharded tables is null hence all the tables are recommended as colocated")
 		return nil, nil, "", nil
@@ -503,7 +506,7 @@ func applyShardedTablesRecommendation(shardedTables []string, objType string) ([
 			We can pass the whole .sql file as a string also to pg_query.Parse() all the statements at once.
 			But avoiding that also specially for cases where the SQL syntax can be invalid
 		*/
-		modifiedSqlStmt, match, isColocated, objectName, err := applyShardingRecommendationIfMatching(&sqlInfo, shardedTables, objType)
+		modifiedSqlStmt, match, isColocated, objectName, err := applyShardingRecommendationIfMatching(&sqlInfo, shardedTables, colocatedTables, objType)
 		if err != nil {
 			log.Errorf("failed to apply sharding recommendation for table=%q: %v", sqlInfo.objName, err)
 			if match {
@@ -571,7 +574,7 @@ if the table is sharded then match will be true and isColocated will be false
 Drawback: pg_query module doesn't have functionality to format the query after parsing
 so the CREATE TABLE for sharding recommended tables will be one-liner
 */
-func applyShardingRecommendationIfMatching(sqlInfo *sqlInfo, shardedTables []string, objType string) (string, bool, bool, string, error) {
+func applyShardingRecommendationIfMatching(sqlInfo *sqlInfo, shardedTables []string, colocatedTables []string, objType string) (string, bool, bool, string, error) {
 
 	stmt := sqlInfo.stmt
 	formattedStmt := sqlInfo.formattedStmt
@@ -610,27 +613,34 @@ func applyShardingRecommendationIfMatching(sqlInfo *sqlInfo, shardedTables []str
 	// true -> oracle, false -> PG
 	parsedObjectName := utils.BuildObjectName(relation.Schemaname, relation.Relname)
 
-	match := false
+	matchSharded := false
+	matchColocated := false
 	switch source.DBType {
 	case POSTGRESQL:
-		match = slices.Contains(shardedTables, parsedObjectName)
+		matchSharded = slices.Contains(shardedTables, parsedObjectName)
+		matchColocated = slices.Contains(colocatedTables, parsedObjectName)
 	case ORACLE:
 		// TODO: handle case-sensitivity properly
 		for _, shardedTable := range shardedTables {
 			// in case of oracle, shardedTable is unqualified.
 			if strings.ToLower(shardedTable) == parsedObjectName {
-				match = true
+				matchSharded = true
 				break
 			}
 		}
 	default:
 		panic(fmt.Sprintf("unsupported source db type %s for applying sharding recommendations", source.DBType))
 	}
-	if !match {
-		log.Infof("%q not present in the sharded table list", parsedObjectName)
-		return formattedStmt, false, true, parsedObjectName, nil //It a colocated table
-	} else {
+
+	switch {
+	case matchSharded:
 		log.Infof("%q present in the sharded table list", parsedObjectName)
+	case matchColocated:
+		log.Infof("%q present in the colocated table list", parsedObjectName)
+		return formattedStmt, false, true, parsedObjectName, nil
+	default:
+		log.Infof("%q not present in the sharded or colocated table list", parsedObjectName)
+		return formattedStmt, false, false, parsedObjectName, nil
 	}
 
 	colocationOption := &pg_query.DefElem{
