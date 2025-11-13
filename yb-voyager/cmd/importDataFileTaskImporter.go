@@ -124,7 +124,7 @@ func (fti *FileTaskImporter) TableHasPrimaryKey() bool {
 }
 
 func (fti *FileTaskImporter) IsNextBatchAvailable() bool {
-	return !fti.batchProducer.IsNextBatchAvailable()
+	return fti.batchProducer.IsNextBatchAvailable()
 }
 
 func (fti *FileTaskImporter) ProduceAndSubmitNextBatchToWorkerPool() error {
