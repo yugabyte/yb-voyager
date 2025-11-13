@@ -17,6 +17,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 
@@ -24,6 +25,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"golang.org/x/exp/rand"
+	"golang.org/x/sync/semaphore"
 )
 
 /*
@@ -39,26 +41,28 @@ type RandomBatchProducer struct {
 	sequentialFileBatchProducerFinished bool
 	producerWaitGroup                   sync.WaitGroup
 	producerCtxCancel                   context.CancelFunc
+	concurrentBatchProductionSem        *semaphore.Weighted
 }
 
-func NewRandomFileBatchProducer(task *ImportFileTask, state *ImportDataState, errorHandler importdata.ImportDataErrorHandler, progressReporter *ImportDataProgressReporter) (*RandomBatchProducer, error) {
+func NewRandomFileBatchProducer(task *ImportFileTask, state *ImportDataState, errorHandler importdata.ImportDataErrorHandler, progressReporter *ImportDataProgressReporter, concurrentBatchProductionSem *semaphore.Weighted) (*RandomBatchProducer, error) {
 	sequentialFileBatchProducer, err := NewSequentialFileBatchProducer(task, state, errorHandler, progressReporter)
 	if err != nil {
 		return nil, fmt.Errorf("creating sequential file batch producer: %w", err)
 	}
 
-	return newRandomFileBatchProducer(sequentialFileBatchProducer, task), nil
+	return newRandomFileBatchProducer(sequentialFileBatchProducer, task, concurrentBatchProductionSem), nil
 }
 
 // newRandomFileBatchProducer creates a RandomBatchProducer with the provided SequentialFileBatchProducer.
 // This unexported function allows tests to inject a testable sequential producer.
-func newRandomFileBatchProducer(sequentialFileBatchProducer BatchProducer, task *ImportFileTask) *RandomBatchProducer {
+func newRandomFileBatchProducer(sequentialFileBatchProducer BatchProducer, task *ImportFileTask, concurrentBatchProductionSem *semaphore.Weighted) *RandomBatchProducer {
 	producerCtx, producerCtxCancel := context.WithCancel(context.Background())
 	rbp := &RandomBatchProducer{
-		sequentialFileBatchProducer: sequentialFileBatchProducer,
-		task:                        task,
-		sequentiallyProducedBatches: make([]*Batch, 0),
-		producerCtxCancel:           producerCtxCancel,
+		sequentialFileBatchProducer:  sequentialFileBatchProducer,
+		task:                         task,
+		sequentiallyProducedBatches:  make([]*Batch, 0),
+		producerCtxCancel:            producerCtxCancel,
+		concurrentBatchProductionSem: concurrentBatchProductionSem,
 	}
 	rbp.producerWaitGroup.Add(1)
 
@@ -131,7 +135,22 @@ func (rbp *RandomBatchProducer) NextBatch() (*Batch, error) {
 func (rbp *RandomBatchProducer) startProducingBatches(ctx context.Context) error {
 	log.Infof("Starting to produce batches for file: %s", rbp.task.FilePath)
 	for !rbp.sequentialFileBatchProducerFinished {
+		// Acquire semaphore before producing batch
+		err := rbp.concurrentBatchProductionSem.Acquire(ctx, 1)
+		if err != nil {
+			// Check if error is due to context cancellation (graceful shutdown)
+			if errors.Is(err, context.Canceled) {
+				log.Infof("Producer context cancelled while acquiring semaphore, stopping production of batches for file: %s", rbp.task.FilePath)
+				return nil
+			}
+			// For any other error from Acquire, return it wrapped
+			return fmt.Errorf("acquiring semaphore for batch production: %w", err)
+		}
+
 		batch, err := rbp.sequentialFileBatchProducer.NextBatch()
+		// Release semaphore immediately after producing batch
+		rbp.concurrentBatchProductionSem.Release(1)
+
 		if err != nil {
 			return err
 		}

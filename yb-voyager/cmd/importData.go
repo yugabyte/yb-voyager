@@ -32,6 +32,7 @@ import (
 	"github.com/sourcegraph/conc/pool"
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
+	"golang.org/x/sync/semaphore"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/adaptiveparallelism"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
@@ -794,8 +795,9 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 			useTaskPicker := utils.GetEnvAsBool("YBVOYAGER_USE_TASK_PICKER_FOR_IMPORT", true)
 			if useTaskPicker {
 				maxColocatedBatchesInProgress := utils.GetEnvAsInt("YBVOYAGER_MAX_COLOCATED_BATCHES_IN_PROGRESS", 3)
+				maxConcurrentBatchProductions := utils.GetEnvAsInt("YBVOYAGER_MAX_CONCURRENT_BATCH_PRODUCTIONS", 10)
 				err := importTasksViaTaskPicker(pendingTasks, state, progressReporter,
-					maxParallelConns, maxParallelConns, maxColocatedBatchesInProgress,
+					maxParallelConns, maxParallelConns, maxColocatedBatchesInProgress, maxConcurrentBatchProductions,
 					errorHandler, callhomeMetricsCollector)
 				if err != nil {
 					utils.ErrExit("Failed to import tasks via task picker. %s", err)
@@ -1003,7 +1005,7 @@ func getMaxParallelConnections() (int, error) {
   - If task is done, mark it as done in the task picker.
 */
 func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataState, progressReporter *ImportDataProgressReporter, maxParallelConns int,
-	maxShardedTasksInProgress int, maxColocatedBatchesInProgress int, errorHandler importdata.ImportDataErrorHandler, callhomeMetricsCollector *callhome.ImportDataMetricsCollector) error {
+	maxShardedTasksInProgress int, maxColocatedBatchesInProgress int, maxConcurrentBatchProductions int, errorHandler importdata.ImportDataErrorHandler, callhomeMetricsCollector *callhome.ImportDataMetricsCollector) error {
 
 	var err error
 	setupWorkerPoolAndQueue(maxParallelConns, maxColocatedBatchesInProgress)
@@ -1012,6 +1014,9 @@ func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataS
 	if err != nil {
 		return fmt.Errorf("get table types: %w", err)
 	}
+
+	// Initialize semaphore to limit concurrent batch productions
+	concurrentBatchProductionSem := semaphore.NewWeighted(int64(maxConcurrentBatchProductions))
 
 	var taskPicker FileTaskPicker
 	var yb *tgtdb.TargetYugabyteDB
@@ -1042,7 +1047,7 @@ func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataS
 		var ok bool
 		taskImporter, ok = taskImporters[task.ID]
 		if !ok {
-			taskImporter, err = createFileTaskImporter(task, state, batchImportPool, progressReporter, colocatedBatchImportQueue, tableTypes, errorHandler, callhomeMetricsCollector)
+			taskImporter, err = createFileTaskImporter(task, state, batchImportPool, progressReporter, colocatedBatchImportQueue, tableTypes, concurrentBatchProductionSem, errorHandler, callhomeMetricsCollector)
 			if err != nil {
 				return fmt.Errorf("create file task importer: %w", err)
 			}
@@ -1158,7 +1163,7 @@ and colocated table batches to the colocatedBatchImportQueue.
 Otherwise, we simply pass the batchImportPool to the FileTaskImporter.
 */
 func createFileTaskImporter(task *ImportFileTask, state *ImportDataState, batchImportPool *pool.Pool, progressReporter *ImportDataProgressReporter, colocatedBatchImportQueue chan func(),
-	tableTypes *utils.StructMap[sqlname.NameTuple, string], errorHandler importdata.ImportDataErrorHandler, callhomeMetricsCollector *callhome.ImportDataMetricsCollector) (*FileTaskImporter, error) {
+	tableTypes *utils.StructMap[sqlname.NameTuple, string], concurrentBatchProductionSem *semaphore.Weighted, errorHandler importdata.ImportDataErrorHandler, callhomeMetricsCollector *callhome.ImportDataMetricsCollector) (*FileTaskImporter, error) {
 	var taskImporter *FileTaskImporter
 	var err error
 	var batchProducer BatchProducer
@@ -1169,7 +1174,7 @@ func createFileTaskImporter(task *ImportFileTask, state *ImportDataState, batchI
 			return nil, fmt.Errorf("table type not found for table: %s", task.TableNameTup.ForOutput())
 		}
 
-		batchProducer, err = NewRandomFileBatchProducer(task, state, errorHandler, progressReporter)
+		batchProducer, err = NewRandomFileBatchProducer(task, state, errorHandler, progressReporter, concurrentBatchProductionSem)
 		if err != nil {
 			return nil, fmt.Errorf("creating random batch producer: %w", err)
 		}
