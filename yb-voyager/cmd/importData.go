@@ -187,8 +187,13 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 		utils.ErrExit("error while setting import type or identity column metadb key: %v", err)
 	}
 
-	if changeStreamingIsEnabled(importType) && (tconf.TableList != "" || tconf.ExcludeTableList != "") {
-		utils.ErrExit("--table-list and --exclude-table-list are not supported for live migration. Re-run the command without these flags.")
+	if changeStreamingIsEnabled(importType) {
+		if tconf.TableList != "" || tconf.ExcludeTableList != "" {
+			utils.ErrExit("--table-list and --exclude-table-list are not supported for live migration. Re-run the command without these flags.")
+		}
+		//for live we don't support table-list and exclude-table-list flags, so we need to check if all the tables in the importFileTasks are present in the target
+		//and if not, we need to exit with an error
+		checkTablesPresentInTarget(importFileTasks)
 	} else {
 		importFileTasks = applyTableListFilter(importFileTasks)
 	}
@@ -215,6 +220,21 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 
 	if changeStreamingIsEnabled(importType) {
 		startExportDataFromTargetIfRequired()
+	}
+}
+
+func checkTablesPresentInTarget(importFileTasks []*ImportFileTask) {
+	tablesNotPresentInTarget := []sqlname.NameTuple{}
+	for _, task := range importFileTasks {
+		if !task.TableNameTup.TargetTableAvailable() {
+			tablesNotPresentInTarget = append(tablesNotPresentInTarget, task.TableNameTup)
+		}
+	}
+	if len(tablesNotPresentInTarget) > 0 {
+		utils.PrintAndLogf("Following source tables are not present in the target database:\n%v", strings.Join(lo.Map(tablesNotPresentInTarget, func(t sqlname.NameTuple, _ int) string {
+			return t.ForKey()
+		}), ","))
+		utils.ErrExit("Create these tables in the target database to continue with the import.")
 	}
 }
 
@@ -1421,7 +1441,6 @@ func restoreGeneratedByDefaultAsIdentityColumns(tables []sqlname.NameTuple) erro
 	}
 	return nil
 }
-
 
 func importFileTasksToTableNames(tasks []*ImportFileTask) []string {
 	tableNames := []string{}
