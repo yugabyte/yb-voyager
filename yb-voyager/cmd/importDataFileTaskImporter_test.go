@@ -60,8 +60,11 @@ func TestBasicTaskImport(t *testing.T) {
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table_basic", 1)
 	testutils.FatalIfError(t, err)
 
+	batchProducer, err := NewSequentialFileBatchProducer(task, state, errorHandler, progressReporter)
+	testutils.FatalIfError(t, err)
+
 	workerPool := pool.New().WithMaxGoroutines(2)
-	taskImporter, err := NewFileTaskImporter(task, state, workerPool, progressReporter, nil, false, errorHandler, nil)
+	taskImporter, err := NewFileTaskImporter(task, state, batchProducer, workerPool, progressReporter, nil, false, errorHandler, nil)
 	testutils.FatalIfError(t, err)
 
 	for !taskImporter.AllBatchesSubmitted() {
@@ -100,8 +103,12 @@ func TestImportAllBatchesAndResume(t *testing.T) {
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table_all", 1)
 	testutils.FatalIfError(t, err)
 
+	batchProducer, err := NewSequentialFileBatchProducer(task, state, errorHandler, progressReporter)
+	testutils.FatalIfError(t, err)
+
 	workerPool := pool.New().WithMaxGoroutines(2)
-	taskImporter, err := NewFileTaskImporter(task, state, workerPool, progressReporter, nil, false, errorHandler, nil)
+	taskImporter, err := NewFileTaskImporter(task, state, batchProducer, workerPool, progressReporter, nil, false, errorHandler, nil)
+	testutils.FatalIfError(t, err)
 
 	for !taskImporter.AllBatchesSubmitted() {
 		err := taskImporter.ProduceAndSubmitNextBatchToWorkerPool()
@@ -116,8 +123,11 @@ func TestImportAllBatchesAndResume(t *testing.T) {
 
 	// simulate restart
 	progressReporter = NewImportDataProgressReporter(true)
+	batchProducer, err = NewSequentialFileBatchProducer(task, state, errorHandler, progressReporter)
+	testutils.FatalIfError(t, err)
+
 	workerPool = pool.New().WithMaxGoroutines(2)
-	taskImporter, err = NewFileTaskImporter(task, state, workerPool, progressReporter, nil, false, errorHandler, nil)
+	taskImporter, err = NewFileTaskImporter(task, state, batchProducer, workerPool, progressReporter, nil, false, errorHandler, nil)
 	testutils.FatalIfError(t, err)
 
 	assert.Equal(t, true, taskImporter.AllBatchesSubmitted())
@@ -150,8 +160,11 @@ func TestTaskImportResumable(t *testing.T) {
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table_resume", 1)
 	testutils.FatalIfError(t, err)
 
+	batchProducer, err := NewSequentialFileBatchProducer(task, state, errorHandler, progressReporter)
+	testutils.FatalIfError(t, err)
+
 	workerPool := pool.New().WithMaxGoroutines(2)
-	taskImporter, err := NewFileTaskImporter(task, state, workerPool, progressReporter, nil, false, errorHandler, nil)
+	taskImporter, err := NewFileTaskImporter(task, state, batchProducer, workerPool, progressReporter, nil, false, errorHandler, nil)
 	testutils.FatalIfError(t, err)
 
 	// submit 1 batch
@@ -167,8 +180,11 @@ func TestTaskImportResumable(t *testing.T) {
 
 	// simulate restart
 	progressReporter = NewImportDataProgressReporter(true)
+	batchProducer, err = NewSequentialFileBatchProducer(task, state, errorHandler, progressReporter)
+	testutils.FatalIfError(t, err)
+
 	workerPool = pool.New().WithMaxGoroutines(2)
-	taskImporter, err = NewFileTaskImporter(task, state, workerPool, progressReporter, nil, false, errorHandler, nil)
+	taskImporter, err = NewFileTaskImporter(task, state, batchProducer, workerPool, progressReporter, nil, false, errorHandler, nil)
 	testutils.FatalIfError(t, err)
 
 	// submit second batch, not first batch again as it was already imported
@@ -208,8 +224,11 @@ func TestTaskImportResumableNoPK(t *testing.T) {
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table_resume_no_pk", 1)
 	testutils.FatalIfError(t, err)
 
+	batchProducer, err := NewSequentialFileBatchProducer(task, state, errorHandler, progressReporter)
+	testutils.FatalIfError(t, err)
+
 	workerPool := pool.New().WithMaxGoroutines(2)
-	taskImporter, err := NewFileTaskImporter(task, state, workerPool, progressReporter, nil, false, errorHandler, nil)
+	taskImporter, err := NewFileTaskImporter(task, state, batchProducer, workerPool, progressReporter, nil, false, errorHandler, nil)
 	testutils.FatalIfError(t, err)
 
 	// submit 1 batch
@@ -225,8 +244,11 @@ func TestTaskImportResumableNoPK(t *testing.T) {
 
 	// simulate restart
 	progressReporter = NewImportDataProgressReporter(true)
+	batchProducer, err = NewSequentialFileBatchProducer(task, state, errorHandler, progressReporter)
+	testutils.FatalIfError(t, err)
+
 	workerPool = pool.New().WithMaxGoroutines(2)
-	taskImporter, err = NewFileTaskImporter(task, state, workerPool, progressReporter, nil, false, errorHandler, nil)
+	taskImporter, err = NewFileTaskImporter(task, state, batchProducer, workerPool, progressReporter, nil, false, errorHandler, nil)
 	testutils.FatalIfError(t, err)
 
 	// submit second batch, not first batch again as it was already imported
@@ -268,8 +290,11 @@ func TestTaskImportErrorsOutWithAbortErrorPolicy(t *testing.T) {
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table_error", 1)
 	testutils.FatalIfError(t, err)
 
+	batchProducer, err := NewSequentialFileBatchProducer(task, state, errorHandler, progressReporter)
+	testutils.FatalIfError(t, err)
+
 	workerPool := pool.New().WithMaxGoroutines(2)
-	taskImporter, err := NewFileTaskImporter(task, state, workerPool, progressReporter, nil, false, errorHandler, nil)
+	taskImporter, err := NewFileTaskImporter(task, state, batchProducer, workerPool, progressReporter, nil, false, errorHandler, nil)
 	testutils.FatalIfError(t, err)
 
 	utils.MonkeyPatchUtilsErrExitWithPanic()

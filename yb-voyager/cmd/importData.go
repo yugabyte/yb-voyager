@@ -808,7 +808,12 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 					batchImportPool = pool.New().WithMaxGoroutines(poolSize)
 					log.Infof("created batch import pool of size: %d", poolSize)
 
-					taskImporter, err := NewFileTaskImporter(task, state, batchImportPool, progressReporter, nil, false, errorHandler, callhomeMetricsCollector)
+					batchProducer, err := NewSequentialFileBatchProducer(task, state, errorHandler, progressReporter)
+					if err != nil {
+						utils.ErrExit("Failed to create batch producer: %s", err)
+					}
+
+					taskImporter, err := NewFileTaskImporter(task, state, batchProducer, batchImportPool, progressReporter, nil, false, errorHandler, callhomeMetricsCollector)
 					if err != nil {
 						utils.ErrExit("Failed to create file task importer: %s", err)
 					}
@@ -1152,18 +1157,30 @@ func createFileTaskImporter(task *ImportFileTask, state *ImportDataState, batchI
 	tableTypes *utils.StructMap[sqlname.NameTuple, string], errorHandler importdata.ImportDataErrorHandler, callhomeMetricsCollector *callhome.ImportDataMetricsCollector) (*FileTaskImporter, error) {
 	var taskImporter *FileTaskImporter
 	var err error
+	var batchProducer BatchProducer
+
 	if importerRole == TARGET_DB_IMPORTER_ROLE || importerRole == IMPORT_FILE_ROLE {
 		tableType, ok := tableTypes.Get(task.TableNameTup)
 		if !ok {
 			return nil, fmt.Errorf("table type not found for table: %s", task.TableNameTup.ForOutput())
 		}
 
-		taskImporter, err = NewFileTaskImporter(task, state, batchImportPool, progressReporter, colocatedBatchImportQueue, tableType == COLOCATED, errorHandler, callhomeMetricsCollector)
+		batchProducer, err = NewRandomFileBatchProducer(task, state, errorHandler, progressReporter)
+		if err != nil {
+			return nil, fmt.Errorf("creating random batch producer: %w", err)
+		}
+
+		taskImporter, err = NewFileTaskImporter(task, state, batchProducer, batchImportPool, progressReporter, colocatedBatchImportQueue, tableType == COLOCATED, errorHandler, callhomeMetricsCollector)
 		if err != nil {
 			return nil, fmt.Errorf("create file task importer: %w", err)
 		}
 	} else {
-		taskImporter, err = NewFileTaskImporter(task, state, batchImportPool, progressReporter, nil, false, errorHandler, callhomeMetricsCollector)
+		batchProducer, err = NewSequentialFileBatchProducer(task, state, errorHandler, progressReporter)
+		if err != nil {
+			return nil, fmt.Errorf("creating sequential batch producer: %w", err)
+		}
+
+		taskImporter, err = NewFileTaskImporter(task, state, batchProducer, batchImportPool, progressReporter, nil, false, errorHandler, callhomeMetricsCollector)
 		if err != nil {
 			return nil, fmt.Errorf("create file task importer: %w", err)
 		}
@@ -1421,7 +1438,6 @@ func restoreGeneratedByDefaultAsIdentityColumns(tables []sqlname.NameTuple) erro
 	}
 	return nil
 }
-
 
 func importFileTasksToTableNames(tasks []*ImportFileTask) []string {
 	tableNames := []string{}
