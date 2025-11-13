@@ -451,6 +451,11 @@ func applyMigrationAssessmentRecommendations() ([]string, []string, []string, []
 		return nil, nil, nil, nil, "", "", fmt.Errorf("failed to parse json report file %q: %w", assessmentReportPath, err)
 	}
 
+	if report.Sizing != nil && report.Sizing.FailureReasoning != "" {
+		log.Infof("skipping apply recommendations due to failure reasoning: %s", report.Sizing.FailureReasoning)
+		return nil, nil, nil, nil, "", "", nil
+	}
+
 	var modifiedTables, modifiedMviews, colocatedTables, colocatedMviews []string
 	var tableBackupPath, mviewBackupPath string
 	shardedTables, err := report.GetShardedTablesRecommendation()
