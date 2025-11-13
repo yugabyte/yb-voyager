@@ -1079,6 +1079,10 @@ func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataS
 			}
 
 		}
+		if !taskImporter.IsNextBatchAvailable() {
+			log.Infof("No next batch available for table: %s. Continuing.", task.TableNameTup.ForOutput())
+			continue
+		}
 		err = taskImporter.ProduceAndSubmitNextBatchToWorkerPool()
 		if err != nil {
 			return fmt.Errorf("submit next batch: task:%v err: %s", task, err)

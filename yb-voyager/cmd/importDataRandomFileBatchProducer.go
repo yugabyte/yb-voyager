@@ -93,7 +93,11 @@ func (rbp *RandomBatchProducer) Close() {
 	}
 }
 
-func (rbp *RandomBatchProducer) IsBatchAvailable() bool {
+/*
+Batches are produced in parallel in a separate goroutine.
+So if we're not done, we check if there are already produced batches available in memory.
+*/
+func (rbp *RandomBatchProducer) IsNextBatchAvailable() bool {
 	if rbp.Done() {
 		return false
 	}

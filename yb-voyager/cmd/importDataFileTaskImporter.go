@@ -46,6 +46,9 @@ type BatchProducer interface {
 	// Done returns true if all batches have been produced.
 	Done() bool
 
+	// IsNextBatchAvailable returns true if a batch is available for immediate consumption.
+	IsNextBatchAvailable() bool
+
 	// NextBatch returns the next batch to be processed, or an error if no more batches are available.
 	NextBatch() (*Batch, error)
 
@@ -118,6 +121,10 @@ func (fti *FileTaskImporter) AllBatchesSubmitted() bool {
 
 func (fti *FileTaskImporter) TableHasPrimaryKey() bool {
 	return len(fti.importBatchArgsProto.PrimaryKeyColumns) > 0
+}
+
+func (fti *FileTaskImporter) IsNextBatchAvailable() bool {
+	return !fti.batchProducer.IsNextBatchAvailable()
 }
 
 func (fti *FileTaskImporter) ProduceAndSubmitNextBatchToWorkerPool() error {

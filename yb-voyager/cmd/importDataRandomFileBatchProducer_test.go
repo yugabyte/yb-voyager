@@ -36,7 +36,7 @@ import (
 func waitForBatchAvailable(producer *RandomBatchProducer, timeout time.Duration) bool {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
-		if producer.IsBatchAvailable() {
+		if producer.IsNextBatchAvailable() {
 			return true
 		}
 		time.Sleep(10 * time.Millisecond)
@@ -116,8 +116,8 @@ func consumeAllBatches(t *testing.T, producer *RandomBatchProducer, timeout time
 			require.Fail(t, "Batch should become available within timeout")
 		}
 
-		// Verify state consistency: If IsBatchAvailable() should be true, when Done() is false
-		assert.True(t, producer.IsBatchAvailable(), "IsBatchAvailable() must be true when Done() is false")
+		// Verify state consistency: If IsNextBatchAvailable() should be true, when Done() is false
+		assert.True(t, producer.IsNextBatchAvailable(), "IsNextBatchAvailable() must be true when Done() is false")
 
 		batch, err := producer.NextBatch()
 		require.NoError(t, err)
@@ -134,8 +134,8 @@ func verifyProducerInitialState(t *testing.T, producer *RandomBatchProducer) {
 
 	assert.False(t, producer.Done(),
 		"Done() should be false initially")
-	assert.False(t, producer.IsBatchAvailable(),
-		"IsBatchAvailable() should be false initially")
+	assert.False(t, producer.IsNextBatchAvailable(),
+		"IsNextBatchAvailable() should be false initially")
 }
 
 // verifyProducerFinalState verifies the producer ends in the correct state
@@ -144,16 +144,16 @@ func verifyProducerFinalState(t *testing.T, producer *RandomBatchProducer) {
 
 	assert.True(t, producer.Done(),
 		"Done() should be true after consuming all batches")
-	assert.False(t, producer.IsBatchAvailable(),
-		"IsBatchAvailable() should be false when Done() is true")
+	assert.False(t, producer.IsNextBatchAvailable(),
+		"IsNextBatchAvailable() should be false when Done() is true")
 }
 
 // verifyBatchAvailableState verifies the producer state when a batch is available
 func verifyBatchAvailableState(t *testing.T, producer *RandomBatchProducer) {
 	t.Helper()
 
-	assert.True(t, producer.IsBatchAvailable(),
-		"IsBatchAvailable() should be true when batch is available")
+	assert.True(t, producer.IsNextBatchAvailable(),
+		"IsNextBatchAvailable() should be true when batch is available")
 	assert.False(t, producer.Done(),
 		"Done() should be false when batch is available")
 }
