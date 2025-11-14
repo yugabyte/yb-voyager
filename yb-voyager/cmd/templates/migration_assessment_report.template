@@ -401,7 +401,6 @@
             sortState[field] = newDirection;
 
             issuePairs.sort((a, b) => {
-                console.log(a.dataset)
                 let aValue = a.dataset[field] || "";
                 let bValue = b.dataset[field] || "";
                 if (aValue < bValue) return newDirection === 'asc' ? -1 : 1;
