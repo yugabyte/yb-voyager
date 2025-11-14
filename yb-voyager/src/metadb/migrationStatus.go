@@ -65,24 +65,8 @@ type MigrationStatusRecord struct {
 	ExportFromTargetFallForwardStarted bool `json:"ExportFromTargetFallForwardStarted"`
 	ExportFromTargetFallBackStarted    bool `json:"ExportFromTargetFallBackStarted"`
 
-	// Cutover timing fields
-	CutoverToTargetRequestedAt        time.Time `json:"CutoverToTargetRequestedAt,omitempty"`
-	CutoverToSourceRequestedAt        time.Time `json:"CutoverToSourceRequestedAt,omitempty"`
-	CutoverToSourceReplicaRequestedAt time.Time `json:"CutoverToSourceReplicaRequestedAt,omitempty"`
-
-	CutoverDetectedByTargetImporterAt        time.Time `json:"CutoverDetectedByTargetImporterAt,omitempty"`
-	CutoverDetectedBySourceImporterAt        time.Time `json:"CutoverDetectedBySourceImporterAt,omitempty"`
-	CutoverDetectedBySourceReplicaImporterAt time.Time `json:"CutoverDetectedBySourceReplicaImporterAt,omitempty"`
-
-	CutoverProcessedBySourceExporterAt                time.Time `json:"CutoverProcessedBySourceExporterAt,omitempty"`
-	CutoverProcessedByTargetImporterAt                time.Time `json:"CutoverProcessedByTargetImporterAt,omitempty"`
-	CutoverToSourceReplicaProcessedByTargetExporterAt time.Time `json:"CutoverToSourceReplicaProcessedByTargetExporterAt,omitempty"`
-	CutoverToSourceProcessedByTargetExporterAt        time.Time `json:"CutoverToSourceProcessedByTargetExporterAt,omitempty"`
-	CutoverToSourceReplicaProcessedBySRImporterAt     time.Time `json:"CutoverToSourceReplicaProcessedBySRImporterAt,omitempty"`
-	CutoverToSourceProcessedBySourceImporterAt        time.Time `json:"CutoverToSourceProcessedBySourceImporterAt,omitempty"`
-
-	ExportFromTargetFallForwardStartedAt time.Time `json:"ExportFromTargetFallForwardStartedAt,omitempty"`
-	ExportFromTargetFallBackStartedAt    time.Time `json:"ExportFromTargetFallBackStartedAt,omitempty"`
+	// Cutover timing data
+	CutoverTimings CutoverTimingRecord `json:"CutoverTimings,omitempty"`
 
 	ExportSchemaDone                bool `json:"ExportSchemaDone"`
 	ExportDataDone                  bool `json:"ExportDataDone"` // to be interpreted as export of snapshot data from source is complete
@@ -112,6 +96,30 @@ type MigrationStatusRecord struct {
 
 	SourceColumnToSequenceMapping map[string]string `json:"SourceColumnToSequenceMapping"`
 	TargetColumnToSequenceMapping map[string]string `json:"TargetColumnToSequenceMapping"`
+}
+
+type CutoverTimingRecord struct {
+	// Request timestamps
+	ToTargetRequestedAt        time.Time `json:"ToTargetRequestedAt,omitempty"`
+	ToSourceRequestedAt        time.Time `json:"ToSourceRequestedAt,omitempty"`
+	ToSourceReplicaRequestedAt time.Time `json:"ToSourceReplicaRequestedAt,omitempty"`
+
+	// Detection timestamps
+	DetectedByTargetImporterAt        time.Time `json:"DetectedByTargetImporterAt,omitempty"`
+	DetectedBySourceImporterAt        time.Time `json:"DetectedBySourceImporterAt,omitempty"`
+	DetectedBySourceReplicaImporterAt time.Time `json:"DetectedBySourceReplicaImporterAt,omitempty"`
+
+	// Processing timestamps
+	ProcessedBySourceExporterAt                time.Time `json:"ProcessedBySourceExporterAt,omitempty"`
+	ProcessedByTargetImporterAt                time.Time `json:"ProcessedByTargetImporterAt,omitempty"`
+	ToSourceReplicaProcessedByTargetExporterAt time.Time `json:"ToSourceReplicaProcessedByTargetExporterAt,omitempty"`
+	ToSourceProcessedByTargetExporterAt        time.Time `json:"ToSourceProcessedByTargetExporterAt,omitempty"`
+	ToSourceReplicaProcessedBySRImporterAt     time.Time `json:"ToSourceReplicaProcessedBySRImporterAt,omitempty"`
+	ToSourceProcessedBySourceImporterAt        time.Time `json:"ToSourceProcessedBySourceImporterAt,omitempty"`
+
+	// Export from target timestamps
+	ExportFromTargetFallForwardStartedAt time.Time `json:"ExportFromTargetFallForwardStartedAt,omitempty"`
+	ExportFromTargetFallBackStartedAt    time.Time `json:"ExportFromTargetFallBackStartedAt,omitempty"`
 }
 
 const MIGRATION_STATUS_KEY = "migration_status"
