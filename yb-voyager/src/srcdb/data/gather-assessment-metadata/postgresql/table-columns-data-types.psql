@@ -1,22 +1,19 @@
 -- gathering schema_name, table_name, column_name, data_type
-CREATE TEMP TABLE temp_column_info AS
-SELECT
-    :'source_node_name' AS source_node,
-    c.table_schema AS schema_name,
-    c.table_name,
-    c.column_name,
-    CASE
-        WHEN c.data_type = 'ARRAY' THEN c.udt_schema || '.' || SUBSTRING(c.udt_name FROM 2) || '[]'  -- Removes leading _ for array types and appends []
-        WHEN c.data_type = 'USER-DEFINED' THEN c.udt_schema || '.' || c.udt_name -- in case of User defined types using udt_name
-        WHEN c.domain_name <> '' THEN c.domain_name -- in case of datatype is a domain name expected type is domain_name e.g "lo" is a domain name over oid https://www.postgresql.org/docs/current/lo.html#LO-RATIONALE:~:text=The%20module%20also%20provides%20a%20data%20type%20lo%2C%20which%20is%20really%20just%20a%20domain%20over%20the%20oid%20type
-        ELSE c.data_type -- in native type cases using data_type
-    END AS data_type
-FROM
-    information_schema.columns c
-WHERE
-    c.table_schema =ANY(ARRAY[string_to_array(:'schema_list', '|')]);
-
--- Now you can use the temporary table to fetch and export the data
-\copy temp_column_info TO 'table-columns-data-types.csv' WITH CSV HEADER;
-
-DROP TABLE temp_column_info;
+-- Direct COPY to support read-only replicas (no temp table needed)
+\o table-columns-data-types.csv
+COPY (
+    SELECT
+        :'source_node_name' AS source_node,
+        c.table_schema AS schema_name,
+        c.table_name,
+        c.column_name,
+        CASE
+            WHEN c.data_type = 'ARRAY' THEN c.udt_schema || '.' || SUBSTRING(c.udt_name FROM 2) || '[]'
+            WHEN c.data_type = 'USER-DEFINED' THEN c.udt_schema || '.' || c.udt_name
+            WHEN c.domain_name <> '' THEN c.domain_name
+            ELSE c.data_type
+        END AS data_type
+    FROM information_schema.columns c
+    WHERE c.table_schema =ANY(ARRAY[string_to_array(:'schema_list', '|')])
+) TO STDOUT WITH CSV HEADER;
+\o

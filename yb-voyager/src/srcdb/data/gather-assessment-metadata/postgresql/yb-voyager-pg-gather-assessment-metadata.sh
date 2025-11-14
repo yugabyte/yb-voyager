@@ -175,6 +175,18 @@ main() {
     log "INFO" "switch to assessment_metadata_dir='$assessment_metadata_dir'"
     pushd "$assessment_metadata_dir" > /dev/null || exit
 
+    # Create node-specific subdirectory to prevent file overwrites in multi-node assessments
+    # For backward compatibility: 'primary' writes directly to assessment_metadata_dir
+    # Replicas write to 'node-<node_name>' subdirectories
+    if [ "$source_node_name" != "primary" ]; then
+        node_data_dir="node-${source_node_name}"
+        mkdir -p "$node_data_dir"
+        log "INFO" "Using node-specific data directory: $node_data_dir"
+        cd "$node_data_dir" || exit
+    else
+        log "INFO" "Writing primary node data to assessment_metadata_dir"
+    fi
+
     if [ -z "$PGPASSWORD" ]; then 
         echo -n "Enter PostgreSQL password: "
         read -s PGPASSWORD

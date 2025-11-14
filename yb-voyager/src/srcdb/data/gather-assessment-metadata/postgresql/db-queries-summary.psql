@@ -1,43 +1,54 @@
--- make the psql var a server setting
-SET my.vars.pgss_schema = :'schema_name';
-SET my.vars.source_node_name = :'source_node_name';
-
-DO $do$
-DECLARE
-    pgss_schema  text := current_setting('my.vars.pgss_schema', true);
-    source_node_name text := current_setting('my.vars.source_node_name', true);
-    column_list  text;
-    sql_query    text;
-BEGIN
-    -- Build column list: alias only time columns, keep everything else as-is
-    -- so if there are new columns in future PG version they will get dumped into CSV
-    SELECT string_agg(
-             CASE column_name
-               WHEN 'total_time'  THEN 'total_time AS total_exec_time'
-               WHEN 'mean_time'   THEN 'mean_time AS mean_exec_time'
-               WHEN 'min_time'    THEN 'min_time AS min_exec_time'
-               WHEN 'max_time'    THEN 'max_time AS max_exec_time'
-               WHEN 'stddev_time' THEN 'stddev_time AS stddev_exec_time'
-               ELSE quote_ident(column_name)
-             END,
-             ', '
-             ORDER BY ordinal_position  -- Maintain original column order
-           )
-      INTO column_list
-      FROM information_schema.columns
-     WHERE table_schema = pgss_schema
-       AND table_name   = 'pg_stat_statements';
-
-    sql_query := format(
-      'CREATE TEMP TABLE temp_table AS
-         SELECT %L AS source_node, %s
-           FROM %I.pg_stat_statements
-          WHERE dbid = (SELECT oid FROM pg_database WHERE datname = current_database())',
-      source_node_name, column_list, pgss_schema);
-
-    EXECUTE sql_query;
-END
-$do$;
-
-\copy temp_table TO 'db-queries-summary.csv' CSV HEADER;
-DROP TABLE temp_table;
+-- Direct COPY to support read-only replicas (no temp table needed)
+-- Note: Explicitly lists pg_stat_statements columns for PostgreSQL 13+
+-- Older versions may have fewer columns (will fail gracefully if column doesn't exist)
+\o db-queries-summary.csv
+COPY (
+    SELECT
+        :'source_node_name' AS source_node,
+        userid,
+        dbid,
+        toplevel,
+        queryid,
+        query,
+        plans,
+        total_plan_time,
+        min_plan_time,
+        max_plan_time,
+        mean_plan_time,
+        stddev_plan_time,
+        calls,
+        total_exec_time,
+        min_exec_time,
+        max_exec_time,
+        mean_exec_time,
+        stddev_exec_time,
+        rows,
+        shared_blks_hit,
+        shared_blks_read,
+        shared_blks_dirtied,
+        shared_blks_written,
+        local_blks_hit,
+        local_blks_read,
+        local_blks_dirtied,
+        local_blks_written,
+        temp_blks_read,
+        temp_blks_written,
+        blk_read_time,
+        blk_write_time,
+        temp_blk_read_time,
+        temp_blk_write_time,
+        wal_records,
+        wal_fpi,
+        wal_bytes,
+        jit_functions,
+        jit_generation_time,
+        jit_inlining_count,
+        jit_inlining_time,
+        jit_optimization_count,
+        jit_optimization_time,
+        jit_emission_count,
+        jit_emission_time
+    FROM :schema_name.pg_stat_statements
+    WHERE dbid = (SELECT oid FROM pg_database WHERE datname = current_database())
+) TO STDOUT WITH CSV HEADER;
+\o

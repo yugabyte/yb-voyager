@@ -582,40 +582,41 @@ func gatherAssessmentMetadataFromPG() (err error) {
 
 	yesParam := lo.Ternary(utils.DoNotPrompt, "true", "false")
 
-	// Multi-node collection: primary + replicas in parallel
+	// Step 1: Collect from primary first (synchronously)
+	// This allows user prompts (e.g., ANALYZE) to happen cleanly before parallel replica collection
+	utils.PrintAndLogf("Collecting metadata from primary...")
+	err = runGatherAssessmentMetadataScript(
+		scriptPath,
+		[]string{fmt.Sprintf("PGPASSWORD=%s", source.Password)},
+		source.DB().GetConnectionUriWithoutPassword(),
+		source.Schema,
+		assessmentMetadataDir,
+		fmt.Sprintf("%t", pgssEnabledForAssessment),
+		fmt.Sprintf("%d", intervalForCapturingIOPS),
+		yesParam,
+		"primary", // source_node_name
+	)
+	if err != nil {
+		return fmt.Errorf("metadata collection failed on primary database (critical): %w", err)
+	}
+	utils.PrintAndLogf("Successfully collected metadata from primary")
+
+	// Step 2: Collect from replicas in parallel (if any)
+	if len(validatedReplicaEndpoints) == 0 {
+		utils.PrintAndLogf("Successfully completed metadata collection from 1 node (primary)")
+		return nil
+	}
+
+	utils.PrintAndLogf("\nCollecting metadata from %d replica(s) in parallel...", len(validatedReplicaEndpoints))
+
 	var wg sync.WaitGroup
-	resultChan := make(chan CollectionResult, 1+len(validatedReplicaEndpoints))
+	resultChan := make(chan CollectionResult, len(validatedReplicaEndpoints))
 
-	// Collect from primary
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		utils.PrintAndLogf("Collecting metadata from primary...")
-		err := runGatherAssessmentMetadataScript(
-			scriptPath,
-			[]string{fmt.Sprintf("PGPASSWORD=%s", source.Password)},
-			source.DB().GetConnectionUriWithoutPassword(),
-			source.Schema,
-			assessmentMetadataDir,
-			fmt.Sprintf("%t", pgssEnabledForAssessment),
-			fmt.Sprintf("%d", intervalForCapturingIOPS),
-			yesParam,
-			"primary", // source_node_name
-		)
-		if err != nil {
-			resultChan <- CollectionResult{NodeName: "primary", IsPrimary: true, Success: false, Error: err}
-		} else {
-			utils.PrintAndLogf("Successfully collected metadata from primary")
-			resultChan <- CollectionResult{NodeName: "primary", IsPrimary: true, Success: true, Error: nil}
-		}
-	}()
-
-	// Collect from replicas in parallel
 	for _, replica := range validatedReplicaEndpoints {
 		wg.Add(1)
 		go func(r srcdb.ReplicaEndpoint) {
 			defer wg.Done()
-			utils.PrintAndLogf("Collecting metadata from replica: %s...", r.Name)
+			log.Infof("Collecting metadata from replica: %s", r.Name)
 			err := runGatherAssessmentMetadataScript(
 				scriptPath,
 				[]string{fmt.Sprintf("PGPASSWORD=%s", source.Password)},
@@ -624,62 +625,46 @@ func gatherAssessmentMetadataFromPG() (err error) {
 				assessmentMetadataDir,
 				fmt.Sprintf("%t", pgssEnabledForAssessment),
 				fmt.Sprintf("%d", intervalForCapturingIOPS),
-				yesParam,
+				"true", // Always use --yes for replicas to avoid concurrent prompts
 				r.Name, // source_node_name
 			)
 			if err != nil {
 				resultChan <- CollectionResult{NodeName: r.Name, IsPrimary: false, Success: false, Error: err}
 			} else {
-				utils.PrintAndLogf("Successfully collected metadata from replica: %s", r.Name)
+				log.Infof("Successfully collected metadata from replica: %s", r.Name)
 				resultChan <- CollectionResult{NodeName: r.Name, IsPrimary: false, Success: true, Error: nil}
 			}
 		}(replica)
 	}
 
-	// Wait for all collections to complete
+	// Wait for all replica collections to complete
 	wg.Wait()
 	close(resultChan)
 
-	// Process results with graceful degradation
-	var results []CollectionResult
-	var primaryFailed bool
-	var successfulNodes []string
+	// Process replica results with graceful degradation
+	var successfulReplicas []string
 	var failedReplicas []string
 
 	for result := range resultChan {
-		results = append(results, result)
-
 		if result.Success {
-			successfulNodes = append(successfulNodes, result.NodeName)
+			successfulReplicas = append(successfulReplicas, result.NodeName)
 		} else {
-			if result.IsPrimary {
-				primaryFailed = true
-				log.Errorf("CRITICAL: Primary collection failed: %v", result.Error)
-			} else {
-				failedReplicas = append(failedReplicas, result.NodeName)
-				log.Warnf("WARNING: Replica '%s' collection failed: %v", result.NodeName, result.Error)
-			}
+			failedReplicas = append(failedReplicas, result.NodeName)
+			log.Warnf("WARNING: Replica '%s' collection failed: %v", result.NodeName, result.Error)
 		}
-	}
-
-	// Primary failure is critical - cannot continue
-	if primaryFailed {
-		return fmt.Errorf("metadata collection failed on primary database (critical): assessment cannot continue without primary data")
 	}
 
 	// Some replicas failed - warn user but continue
 	if len(failedReplicas) > 0 {
 		color.Yellow("\nWARNING: Metadata collection failed on %d replica(s): %v", len(failedReplicas), failedReplicas)
-		utils.PrintAndLogf("Continuing assessment with data from: %v", successfulNodes)
+		utils.PrintAndLogf("Continuing assessment with data from primary + %d successful replica(s)", len(successfulReplicas))
 		utils.PrintAndLogf("Note: Sizing and metrics will reflect only the nodes that succeeded.")
 
 		// Store failed replicas for report generation
 		failedReplicaNodes = failedReplicas
-	}
 
-	// Update global list to reflect only successful replicas (for reporting)
-	if len(failedReplicas) > 0 {
-		var successfulReplicas []srcdb.ReplicaEndpoint
+		// Update global list to reflect only successful replicas (for reporting)
+		var validReplicas []srcdb.ReplicaEndpoint
 		for _, replica := range validatedReplicaEndpoints {
 			failed := false
 			for _, failedName := range failedReplicas {
@@ -689,13 +674,14 @@ func gatherAssessmentMetadataFromPG() (err error) {
 				}
 			}
 			if !failed {
-				successfulReplicas = append(successfulReplicas, replica)
+				validReplicas = append(validReplicas, replica)
 			}
 		}
-		validatedReplicaEndpoints = successfulReplicas
+		validatedReplicaEndpoints = validReplicas
 	}
 
-	utils.PrintAndLogf("Successfully completed metadata collection from %d node(s)", len(successfulNodes))
+	utils.PrintAndLogf("Successfully completed metadata collection from %d node(s) (primary + %d replica(s))",
+		1+len(validatedReplicaEndpoints), len(validatedReplicaEndpoints))
 	return nil
 }
 
@@ -796,10 +782,32 @@ func parseExportedSchemaFileForAssessmentIfRequired() {
 }
 
 func populateMetadataCSVIntoAssessmentDB() error {
-	metadataFilesPath, err := filepath.Glob(filepath.Join(assessmentMetadataDir, "*.csv"))
+	// Collect CSV files from all node-specific subdirectories
+	// For backward compatibility: primary CSVs are in assessmentMetadataDir/*.csv
+	// Replicas: CSVs are in assessmentMetadataDir/node-*/*.csv
+	var metadataFilesPath []string
+
+	// Primary node data (backward compatible path - CSVs directly in assessmentMetadataDir)
+	primaryFiles, err := filepath.Glob(filepath.Join(assessmentMetadataDir, "*.csv"))
 	if err != nil {
 		return fmt.Errorf("error looking for csv files in directory %s: %w", assessmentMetadataDir, err)
 	}
+	metadataFilesPath = append(metadataFilesPath, primaryFiles...)
+
+	// Replica node data (new multi-node paths: node-<replica_name>/)
+	replicaDirs, err := filepath.Glob(filepath.Join(assessmentMetadataDir, "node-*"))
+	if err != nil {
+		return fmt.Errorf("error looking for replica data directories in %s: %w", assessmentMetadataDir, err)
+	}
+	for _, replicaDir := range replicaDirs {
+		replicaFiles, err := filepath.Glob(filepath.Join(replicaDir, "*.csv"))
+		if err != nil {
+			return fmt.Errorf("error looking for csv files in directory %s: %w", replicaDir, err)
+		}
+		metadataFilesPath = append(metadataFilesPath, replicaFiles...)
+	}
+
+	log.Infof("Found %d CSV files across all nodes for population into assessment DB", len(metadataFilesPath))
 
 	for _, metadataFilePath := range metadataFilesPath {
 		baseFileName := filepath.Base(metadataFilePath)
