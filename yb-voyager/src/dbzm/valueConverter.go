@@ -234,20 +234,20 @@ type RowCsvReaderWriter struct {
 	tableNameTup sqlname.NameTuple
 	// readers to help read from a csv string to slice of strings (columns)
 	csvReader *stdlibcsv.Reader
-	bufReader bufio.Reader
+	bufReader *bufio.Reader
 
 	// writer to help write a csv string from a slice of strings (columns)
-	bufWriter bufio.Writer
-	wbuf      bytes.Buffer
+	bufWriter *bufio.Writer
+	wbuf      *bytes.Buffer
 }
 
 func NewRowCsvReaderWriter(tableNameTup sqlname.NameTuple) *RowCsvReaderWriter {
-	bufReader := bufio.Reader{}
-	csvReader := stdlibcsv.NewReader(&bufReader)
+	bufReader := &bufio.Reader{}
+	csvReader := stdlibcsv.NewReader(bufReader)
 	csvReader.ReuseRecord = true
 
-	bufWriter := bufio.Writer{}
-	wbuf := bytes.Buffer{}
+	bufWriter := &bufio.Writer{}
+	wbuf := &bytes.Buffer{}
 
 	return &RowCsvReaderWriter{
 		tableNameTup: tableNameTup,
@@ -267,8 +267,8 @@ func (rcrw *RowCsvReaderWriter) ReadRow(row string) ([]string, error) {
 }
 
 func (rcrw *RowCsvReaderWriter) WriteRow(columnValues []string) (string, error) {
-	rcrw.bufWriter.Reset(&rcrw.wbuf)
-	csvWriter := csv.NewWriter(&rcrw.bufWriter)
+	rcrw.bufWriter.Reset(rcrw.wbuf)
+	csvWriter := csv.NewWriter(rcrw.bufWriter)
 	csvWriter.Write(columnValues)
 	csvWriter.Flush()
 	row := strings.TrimSuffix(rcrw.wbuf.String(), "\n")
