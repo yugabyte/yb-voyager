@@ -657,7 +657,7 @@ get_expected_event_count() {
             return 0
             ;;
         "target")
-            if [ "${USE_YB_LOGICAL_REPLICATION_CONNECTOR}" = true ] \
+            if [ "${USE_YB_GRPC_CONNECTOR}" != true ] \
                && jq -e 'has("target_delta_events_logical_replication")' "$metadata_file" >/dev/null 2>&1; then
                 jq -r '.target_delta_events_logical_replication' "$metadata_file"
                 return 0
@@ -1385,7 +1385,7 @@ cutover_to_target() {
     "
 
     # Set grpc connector flag
-    if [ "${USE_YB_LOGICAL_REPLICATION_CONNECTOR}" = false ]; then
+    if [ "${USE_YB_GRPC_CONNECTOR}" = true ]; then
         args="${args} --use-yb-grpc-connector true"
     fi
 
@@ -1545,7 +1545,7 @@ compare_callhome_json_reports() {
 
 # Function to execute logical replication connector specific DMLs
 execute_logical_replication_target_delta() {
-	if [ "${USE_YB_LOGICAL_REPLICATION_CONNECTOR}" != true ]; then
+	if [ "${USE_YB_GRPC_CONNECTOR}" = true ]; then
 		echo "Skipping logical replication specific DMLs (gRPC connector)"
 		return 0
 	fi
