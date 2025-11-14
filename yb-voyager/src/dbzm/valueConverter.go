@@ -100,14 +100,15 @@ func NewSnapshotPhaseDebeziumValueConverter(tableList []sqlname.NameTuple, expor
 	}
 
 	conv := &SnapshotPhaseDebeziumValueConverter{
-		exportDir:              exportDir,
-		schemaRegistrySource:   schemaRegistrySource,
-		valueConverterSuite:    tdbValueConverterSuite,
-		converterFnCache:       utils.NewStructMap[sqlname.NameTuple, []tgtdbsuite.ConverterFn](),
-		dbzmColumnSchemasCache: utils.NewStructMap[sqlname.NameTuple, []*schemareg.ColumnSchema](),
-		targetDBType:           targetConf.TargetDBType,
-		tdb:                    tdb,
-		tableMutexes:           tableMutexes,
+		exportDir:               exportDir,
+		schemaRegistrySource:    schemaRegistrySource,
+		valueConverterSuite:     tdbValueConverterSuite,
+		converterFnCache:        utils.NewStructMap[sqlname.NameTuple, []tgtdbsuite.ConverterFn](),
+		dbzmColumnSchemasCache:  utils.NewStructMap[sqlname.NameTuple, []*schemareg.ColumnSchema](),
+		tableRowCsvReaderWriter: tableRowCsvReaderWriter,
+		targetDBType:            targetConf.TargetDBType,
+		tdb:                     tdb,
+		tableMutexes:            tableMutexes,
 	}
 
 	return conv, nil
