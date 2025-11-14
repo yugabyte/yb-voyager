@@ -191,7 +191,7 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 		if tconf.TableList != "" || tconf.ExcludeTableList != "" {
 			utils.ErrExit("--table-list and --exclude-table-list are not supported for live migration. Re-run the command without these flags.")
 		}
-		//for live we don't support table-list and exclude-table-list flags, so we need to check if all the tables in the importFileTasks are present in the target
+		//for live target db importer we don't support table-list and exclude-table-list flags, so we need to check if all the tables in the importFileTasks are present in the target
 		//and if not, we need to exit with an error
 		checkTablesPresentInTarget(importFileTasks)
 	} else {
@@ -224,6 +224,9 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 }
 
 func checkTablesPresentInTarget(importFileTasks []*ImportFileTask) {
+	if importerRole != TARGET_DB_IMPORTER_ROLE {
+		return
+	}
 	tablesNotPresentInTarget := []sqlname.NameTuple{}
 	for _, task := range importFileTasks {
 		if !task.TableNameTup.TargetTableAvailable() {
