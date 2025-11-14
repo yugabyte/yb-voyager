@@ -63,24 +63,20 @@ func (nvc *NoOpValueConverter) GetTableNameToSchema() (*utils.StructMap[sqlname.
 //============================================================================
 
 type DebeziumValueConverter struct {
-	exportDir              string
-	schemaRegistrySource   *schemareg.SchemaRegistry
-	schemaRegistryTarget   *schemareg.SchemaRegistry
-	targetSchema           string
-	tdb                    tgtdb.TargetDB
-	valueConverterSuite    map[string]tgtdbsuite.ConverterFn
-	converterFnCache       *utils.StructMap[sqlname.NameTuple, []tgtdbsuite.ConverterFn] //stores table name to converter functions for each column
-	dbzmColumnSchemasCache *utils.StructMap[sqlname.NameTuple, []*schemareg.ColumnSchema]
-	targetDBType           string
-	csvReader              *stdlibcsv.Reader
-	bufReader              bufio.Reader
-	bufWriter              bufio.Writer
-	wbuf                   bytes.Buffer
-	prevTableName          sqlname.NameTuple
-	sourceDBType           string
+	exportDir               string
+	schemaRegistrySource    *schemareg.SchemaRegistry
+	schemaRegistryTarget    *schemareg.SchemaRegistry
+	targetSchema            string
+	tdb                     tgtdb.TargetDB
+	valueConverterSuite     map[string]tgtdbsuite.ConverterFn
+	converterFnCache        *utils.StructMap[sqlname.NameTuple, []tgtdbsuite.ConverterFn] //stores table name to converter functions for each column
+	dbzmColumnSchemasCache  *utils.StructMap[sqlname.NameTuple, []*schemareg.ColumnSchema]
+	targetDBType            string
+	tableRowCsvReaderWriter *utils.StructMap[sqlname.NameTuple, *RowCsvReaderWriter]
+	sourceDBType            string
 }
 
-//Initialize debezium value converter with the given table list
+// Initialize debezium value converter with the given table list
 func NewDebeziumValueConverter(tableList []sqlname.NameTuple, exportDir string, tdb tgtdb.TargetDB, targetConf tgtdb.TargetConf, importerRole string, sourceDBType string) (*DebeziumValueConverter, error) {
 	schemaRegistrySource := schemareg.NewSchemaRegistry(tableList, exportDir, "source_db_exporter", importerRole)
 	err := schemaRegistrySource.Init()
@@ -98,6 +94,12 @@ func NewDebeziumValueConverter(tableList []sqlname.NameTuple, exportDir string, 
 	tdbValueConverterSuite, err := getDebeziumValueConverterSuite(targetConf)
 	if err != nil {
 		return nil, err
+	}
+
+	// initialize table row csv reader writer map
+	tableRowCsvReaderWriter := utils.NewStructMap[sqlname.NameTuple, *RowCsvReaderWriter]()
+	for _, tableNameTup := range tableList {
+		tableRowCsvReaderWriter.Put(tableNameTup, NewRowCsvReaderWriter(tableNameTup))
 	}
 
 	conv := &DebeziumValueConverter{
@@ -143,14 +145,13 @@ func (conv *DebeziumValueConverter) ConvertRow(tableNameTup sqlname.NameTuple, c
 	if err != nil {
 		return "", fmt.Errorf("fetching converter functions: %w", err)
 	}
-	if conv.prevTableName != tableNameTup {
-		conv.csvReader = stdlibcsv.NewReader(&conv.bufReader)
-		conv.csvReader.ReuseRecord = true
+	rcrw, ok := conv.tableRowCsvReaderWriter.Get(tableNameTup)
+	if !ok {
+		return "", fmt.Errorf("table row csv reader writer not found for table %s", tableNameTup)
 	}
-	conv.bufReader.Reset(strings.NewReader(row))
-	columnValues, err := conv.csvReader.Read()
+	columnValues, err := rcrw.ReadRow(row)
 	if err != nil {
-		return "", fmt.Errorf("reading row: %w", err)
+		return "", fmt.Errorf("reading input row to columns: %w", err)
 	}
 	for i, columnValue := range columnValues {
 		if columnValue == utils.YB_VOYAGER_NULL_STRING || converterFns[i] == nil { // TODO: make nullstring condition Target specific tdb.NullString()
@@ -162,13 +163,10 @@ func (conv *DebeziumValueConverter) ConvertRow(tableNameTup sqlname.NameTuple, c
 		}
 		columnValues[i] = transformedValue
 	}
-	conv.bufWriter.Reset(&conv.wbuf)
-	csvWriter := csv.NewWriter(&conv.bufWriter)
-	csvWriter.Write(columnValues)
-	csvWriter.Flush()
-	transformedRow := strings.TrimSuffix(conv.wbuf.String(), "\n")
-	conv.wbuf.Reset()
-	conv.prevTableName = tableNameTup
+	transformedRow, err := rcrw.WriteRow(columnValues)
+	if err != nil {
+		return "", fmt.Errorf("writing transformed row to csv: %w", err)
+	}
 	return transformedRow, nil
 }
 
@@ -271,4 +269,50 @@ func (conv *DebeziumValueConverter) GetTableNameToSchema() (*utils.StructMap[sql
 		return nil, err
 	}
 	return tableToSchema, nil
+}
+
+type RowCsvReaderWriter struct {
+	tableNameTup sqlname.NameTuple
+	// readers to help read from a csv string to slice of strings (columns)
+	csvReader *stdlibcsv.Reader
+	bufReader bufio.Reader
+
+	// writer to help write a csv string from a slice of strings (columns)
+	bufWriter bufio.Writer
+	wbuf      bytes.Buffer
+}
+
+func NewRowCsvReaderWriter(tableNameTup sqlname.NameTuple) *RowCsvReaderWriter {
+	bufReader := bufio.Reader{}
+	csvReader := stdlibcsv.NewReader(&bufReader)
+	csvReader.ReuseRecord = true
+
+	bufWriter := bufio.Writer{}
+	wbuf := bytes.Buffer{}
+
+	return &RowCsvReaderWriter{
+		tableNameTup: tableNameTup,
+		csvReader:    csvReader,
+		bufReader:    bufReader,
+		bufWriter:    bufWriter,
+		wbuf:         wbuf,
+	}
+}
+func (rcrw *RowCsvReaderWriter) ReadRow(row string) ([]string, error) {
+	rcrw.bufReader.Reset(strings.NewReader(row))
+	columnValues, err := rcrw.csvReader.Read()
+	if err != nil {
+		return nil, fmt.Errorf("reading row: %w", err)
+	}
+	return columnValues, nil
+}
+
+func (rcrw *RowCsvReaderWriter) WriteRow(columnValues []string) (string, error) {
+	rcrw.bufWriter.Reset(&rcrw.wbuf)
+	csvWriter := csv.NewWriter(&rcrw.bufWriter)
+	csvWriter.Write(columnValues)
+	csvWriter.Flush()
+	row := strings.TrimSuffix(rcrw.wbuf.String(), "\n")
+	rcrw.wbuf.Reset()
+	return row, nil
 }
