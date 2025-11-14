@@ -21,6 +21,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	tgtdbsuite "github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb/suites"
@@ -30,65 +31,56 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/stdlibcsv"
 )
 
-type ValueConverter interface {
+type SnapshotPhaseValueConverter interface {
 	ConvertRow(tableNameTup sqlname.NameTuple, columnNames []string, row string) (string, error)
-	ConvertEvent(ev *tgtdb.Event, tableNameTup sqlname.NameTuple, formatIfRequired bool) error
+	// ConvertEvent(ev *tgtdb.Event, tableNameTup sqlname.NameTuple, formatIfRequired bool) error
 	GetTableNameToSchema() (*utils.StructMap[sqlname.NameTuple, map[string]map[string]string], error) //returns table name to schema mapping
 }
 
-func NewValueConverter(exportDir string, tdb tgtdb.TargetDB, targetConf tgtdb.TargetConf, importerRole string, sourceDBType string, tableList []sqlname.NameTuple) (ValueConverter, error) {
-	return NewDebeziumValueConverter(tableList, exportDir, tdb, targetConf, importerRole, sourceDBType)
+func NewSnapshotPhaseValueConverter(exportDir string, tdb tgtdb.TargetDB, targetConf tgtdb.TargetConf, importerRole string, sourceDBType string, tableList []sqlname.NameTuple) (SnapshotPhaseValueConverter, error) {
+	return NewSnapshotPhaseDebeziumValueConverter(tableList, exportDir, tdb, targetConf, importerRole, sourceDBType)
 }
 
-func NewNoOpValueConverter() (ValueConverter, error) {
-	return &NoOpValueConverter{}, nil
+func NewSnapshotPhaseNoOpValueConverter() (SnapshotPhaseValueConverter, error) {
+	return &SnapshotPhaseNoOpValueConverter{}, nil
 }
 
 //============================================================================
 
-type NoOpValueConverter struct{}
+type SnapshotPhaseNoOpValueConverter struct{}
 
-func (nvc *NoOpValueConverter) ConvertRow(tableName sqlname.NameTuple, columnNames []string, row string) (string, error) {
+func (nvc *SnapshotPhaseNoOpValueConverter) ConvertRow(tableName sqlname.NameTuple, columnNames []string, row string) (string, error) {
 	return row, nil
 }
 
-func (nvc *NoOpValueConverter) ConvertEvent(ev *tgtdb.Event, table sqlname.NameTuple, formatIfRequired bool) error {
-	return nil
-}
+// func (nvc *SnapshotPhaseNoOpValueConverter) ConvertEvent(ev *tgtdb.Event, table sqlname.NameTuple, formatIfRequired bool) error {
+// 	return nil
+// }
 
-func (nvc *NoOpValueConverter) GetTableNameToSchema() (*utils.StructMap[sqlname.NameTuple, map[string]map[string]string], error) {
+func (nvc *SnapshotPhaseNoOpValueConverter) GetTableNameToSchema() (*utils.StructMap[sqlname.NameTuple, map[string]map[string]string], error) {
 	return utils.NewStructMap[sqlname.NameTuple, map[string]map[string]string](), nil
 }
 
 //============================================================================
 
-type DebeziumValueConverter struct {
+type SnapshotPhaseDebeziumValueConverter struct {
 	exportDir               string
-	schemaRegistrySource    *schemareg.SchemaRegistry
-	schemaRegistryTarget    *schemareg.SchemaRegistry
-	targetSchema            string
+	targetDBType            string
 	tdb                     tgtdb.TargetDB
+	schemaRegistrySource    *schemareg.SchemaRegistry
 	valueConverterSuite     map[string]tgtdbsuite.ConverterFn
 	converterFnCache        *utils.StructMap[sqlname.NameTuple, []tgtdbsuite.ConverterFn] //stores table name to converter functions for each column
 	dbzmColumnSchemasCache  *utils.StructMap[sqlname.NameTuple, []*schemareg.ColumnSchema]
-	targetDBType            string
 	tableRowCsvReaderWriter *utils.StructMap[sqlname.NameTuple, *RowCsvReaderWriter]
-	sourceDBType            string
+	tableMutexes            *utils.StructMap[sqlname.NameTuple, sync.Mutex]
 }
 
 // Initialize debezium value converter with the given table list
-func NewDebeziumValueConverter(tableList []sqlname.NameTuple, exportDir string, tdb tgtdb.TargetDB, targetConf tgtdb.TargetConf, importerRole string, sourceDBType string) (*DebeziumValueConverter, error) {
+func NewSnapshotPhaseDebeziumValueConverter(tableList []sqlname.NameTuple, exportDir string, tdb tgtdb.TargetDB, targetConf tgtdb.TargetConf, importerRole string, sourceDBType string) (*SnapshotPhaseDebeziumValueConverter, error) {
 	schemaRegistrySource := schemareg.NewSchemaRegistry(tableList, exportDir, "source_db_exporter", importerRole)
 	err := schemaRegistrySource.Init()
 	if err != nil {
 		return nil, fmt.Errorf("initializing schema registry: %w", err)
-	}
-	var schemaRegistryTarget *schemareg.SchemaRegistry
-	switch importerRole {
-	case "source_replica_db_importer":
-		schemaRegistryTarget = schemareg.NewSchemaRegistry(tableList, exportDir, "target_db_exporter_ff", importerRole)
-	case "source_db_importer":
-		schemaRegistryTarget = schemareg.NewSchemaRegistry(tableList, exportDir, "target_db_exporter_fb", importerRole)
 	}
 
 	tdbValueConverterSuite, err := getDebeziumValueConverterSuite(targetConf)
@@ -102,17 +94,20 @@ func NewDebeziumValueConverter(tableList []sqlname.NameTuple, exportDir string, 
 		tableRowCsvReaderWriter.Put(tableNameTup, NewRowCsvReaderWriter(tableNameTup))
 	}
 
-	conv := &DebeziumValueConverter{
+	tableMutexes := utils.NewStructMap[sqlname.NameTuple, sync.Mutex]()
+	for _, tableNameTup := range tableList {
+		tableMutexes.Put(tableNameTup, sync.Mutex{})
+	}
+
+	conv := &SnapshotPhaseDebeziumValueConverter{
 		exportDir:              exportDir,
 		schemaRegistrySource:   schemaRegistrySource,
-		schemaRegistryTarget:   schemaRegistryTarget,
 		valueConverterSuite:    tdbValueConverterSuite,
 		converterFnCache:       utils.NewStructMap[sqlname.NameTuple, []tgtdbsuite.ConverterFn](),
 		dbzmColumnSchemasCache: utils.NewStructMap[sqlname.NameTuple, []*schemareg.ColumnSchema](),
 		targetDBType:           targetConf.TargetDBType,
-		targetSchema:           targetConf.Schema,
 		tdb:                    tdb,
-		sourceDBType:           sourceDBType,
+		tableMutexes:           tableMutexes,
 	}
 
 	return conv, nil
@@ -140,7 +135,22 @@ func getDebeziumValueConverterSuite(tconf tgtdb.TargetConf) (map[string]tgtdbsui
 	}
 }
 
-func (conv *DebeziumValueConverter) ConvertRow(tableNameTup sqlname.NameTuple, columnNames []string, row string) (string, error) {
+/*
+Used by every batch producer to convert csv row string to transformed csv row string
+*/
+func (conv *SnapshotPhaseDebeziumValueConverter) ConvertRow(tableNameTup sqlname.NameTuple, columnNames []string, row string) (string, error) {
+	/*
+		There can be multiple batch producers running concurrently.
+		All required data to convert is stored per table, therefore, we need to only lock the table mutex.
+		Import-data-file can have multiple batch producers for the same table, but they won't ever use the dbzm value converter to begin with.
+	*/
+	tblMutex, ok := conv.tableMutexes.Get(tableNameTup)
+	if !ok {
+		return "", fmt.Errorf("table mutex not found for table %s", tableNameTup)
+	}
+	tblMutex.Lock()
+	defer tblMutex.Unlock()
+
 	converterFns, dbzmColumnSchemas, err := conv.getConverterFns(tableNameTup, columnNames)
 	if err != nil {
 		return "", fmt.Errorf("fetching converter functions: %w", err)
@@ -170,7 +180,7 @@ func (conv *DebeziumValueConverter) ConvertRow(tableNameTup sqlname.NameTuple, c
 	return transformedRow, nil
 }
 
-func (conv *DebeziumValueConverter) getConverterFns(tableNameTup sqlname.NameTuple, columnNames []string) ([]tgtdbsuite.ConverterFn, []*schemareg.ColumnSchema, error) {
+func (conv *SnapshotPhaseDebeziumValueConverter) getConverterFns(tableNameTup sqlname.NameTuple, columnNames []string) ([]tgtdbsuite.ConverterFn, []*schemareg.ColumnSchema, error) {
 	result, _ := conv.converterFnCache.Get(tableNameTup)
 	colSchemas, _ := conv.dbzmColumnSchemasCache.Get(tableNameTup)
 	var colTypes []string
@@ -190,63 +200,11 @@ func (conv *DebeziumValueConverter) getConverterFns(tableNameTup sqlname.NameTup
 	return result, colSchemas, nil
 }
 
-func (conv *DebeziumValueConverter) shouldFormatAsPerSourceDatatypes() bool {
+func (conv *SnapshotPhaseDebeziumValueConverter) shouldFormatAsPerSourceDatatypes() bool {
 	return conv.targetDBType == tgtdb.ORACLE
 }
 
-func (conv *DebeziumValueConverter) ConvertEvent(ev *tgtdb.Event, tableNameTup sqlname.NameTuple, formatIfRequired bool) error {
-	err := conv.convertMap(tableNameTup, ev.Key, ev.ExporterRole, formatIfRequired)
-	if err != nil {
-		return fmt.Errorf("convert event(vsn=%d) key: %w", ev.Vsn, err)
-	}
-
-	err = conv.convertMap(tableNameTup, ev.Fields, ev.ExporterRole, formatIfRequired)
-	if err != nil {
-		return fmt.Errorf("convert event fields: %w", err)
-	}
-	return nil
-}
-
-func checkSourceExporter(exporterRole string) bool {
-	return exporterRole == "source_db_exporter"
-}
-
-func (conv *DebeziumValueConverter) convertMap(tableNameTup sqlname.NameTuple, m map[string]*string, exportSourceType string, formatIfRequired bool) error {
-	var schemaRegistry *schemareg.SchemaRegistry
-	if checkSourceExporter(exportSourceType) {
-		schemaRegistry = conv.schemaRegistrySource
-	} else {
-		schemaRegistry = conv.schemaRegistryTarget
-	}
-	for column, value := range m {
-		if value == nil {
-			continue
-		}
-		columnValue := *value
-		colType, colDbzmSchema, err := schemaRegistry.GetColumnType(tableNameTup, column, conv.shouldFormatAsPerSourceDatatypes())
-		if err != nil {
-			return fmt.Errorf("fetch column schema: %w", err)
-		}
-		if !checkSourceExporter(exportSourceType) && strings.EqualFold(colType, "io.debezium.time.Interval") {
-			colType, colDbzmSchema, err = conv.schemaRegistrySource.GetColumnType(tableNameTup, strings.ToUpper(column), conv.shouldFormatAsPerSourceDatatypes())
-			//assuming table name/column name is case insensitive TODO: handle this case sensitivity properly
-			if err != nil {
-				return fmt.Errorf("fetch column schema: %w", err)
-			}
-		}
-		converterFn := conv.valueConverterSuite[colType]
-		if converterFn != nil {
-			columnValue, err = converterFn(columnValue, formatIfRequired, colDbzmSchema)
-			if err != nil {
-				return fmt.Errorf("error while converting %s.%s of type %s in event: %w", tableNameTup, column, colType, err) // TODO - add event id in log msg
-			}
-		}
-		m[column] = &columnValue
-	}
-	return nil
-}
-
-func (conv *DebeziumValueConverter) GetTableNameToSchema() (*utils.StructMap[sqlname.NameTuple, map[string]map[string]string], error) {
+func (conv *SnapshotPhaseDebeziumValueConverter) GetTableNameToSchema() (*utils.StructMap[sqlname.NameTuple, map[string]map[string]string], error) {
 
 	//need to create explicit map with required details only as can't use TableSchema directly in import area because of cyclic dependency
 	//TODO: fix this cyclic dependency maybe using DataFileDescriptor
@@ -315,4 +273,104 @@ func (rcrw *RowCsvReaderWriter) WriteRow(columnValues []string) (string, error) 
 	row := strings.TrimSuffix(rcrw.wbuf.String(), "\n")
 	rcrw.wbuf.Reset()
 	return row, nil
+}
+
+//====================================================StreamingPhaseValueConverter====================================================
+
+type StreamingPhaseValueConverter interface {
+	ConvertEvent(ev *tgtdb.Event, tableNameTup sqlname.NameTuple, formatIfRequired bool) error
+}
+
+type StreamingPhaseDebeziumValueConverter struct {
+	exportDir            string
+	schemaRegistrySource *schemareg.SchemaRegistry
+	schemaRegistryTarget *schemareg.SchemaRegistry
+	valueConverterSuite  map[string]tgtdbsuite.ConverterFn
+	targetDBType         string
+}
+
+func NewStreamingPhaseDebeziumValueConverter(tableList []sqlname.NameTuple, exportDir string, targetConf tgtdb.TargetConf, importerRole string) (*StreamingPhaseDebeziumValueConverter, error) {
+	schemaRegistrySource := schemareg.NewSchemaRegistry(tableList, exportDir, "source_db_exporter", importerRole)
+	err := schemaRegistrySource.Init()
+	if err != nil {
+		return nil, fmt.Errorf("initializing schema registry: %w", err)
+	}
+	var schemaRegistryTarget *schemareg.SchemaRegistry
+	switch importerRole {
+	case "source_replica_db_importer":
+		schemaRegistryTarget = schemareg.NewSchemaRegistry(tableList, exportDir, "target_db_exporter_ff", importerRole)
+	case "source_db_importer":
+		schemaRegistryTarget = schemareg.NewSchemaRegistry(tableList, exportDir, "target_db_exporter_fb", importerRole)
+	}
+
+	tdbValueConverterSuite, err := getDebeziumValueConverterSuite(targetConf)
+	if err != nil {
+		return nil, err
+	}
+
+	conv := &StreamingPhaseDebeziumValueConverter{
+		exportDir:            exportDir,
+		schemaRegistrySource: schemaRegistrySource,
+		schemaRegistryTarget: schemaRegistryTarget,
+		valueConverterSuite:  tdbValueConverterSuite,
+		targetDBType:         targetConf.TargetDBType,
+	}
+
+	return conv, nil
+}
+
+func (conv *StreamingPhaseDebeziumValueConverter) ConvertEvent(ev *tgtdb.Event, tableNameTup sqlname.NameTuple, formatIfRequired bool) error {
+	err := conv.convertMap(tableNameTup, ev.Key, ev.ExporterRole, formatIfRequired)
+	if err != nil {
+		return fmt.Errorf("convert event(vsn=%d) key: %w", ev.Vsn, err)
+	}
+
+	err = conv.convertMap(tableNameTup, ev.Fields, ev.ExporterRole, formatIfRequired)
+	if err != nil {
+		return fmt.Errorf("convert event fields: %w", err)
+	}
+	return nil
+}
+
+func checkSourceExporter(exporterRole string) bool {
+	return exporterRole == "source_db_exporter"
+}
+
+func (conv *StreamingPhaseDebeziumValueConverter) convertMap(tableNameTup sqlname.NameTuple, m map[string]*string, exportSourceType string, formatIfRequired bool) error {
+	var schemaRegistry *schemareg.SchemaRegistry
+	if checkSourceExporter(exportSourceType) {
+		schemaRegistry = conv.schemaRegistrySource
+	} else {
+		schemaRegistry = conv.schemaRegistryTarget
+	}
+	for column, value := range m {
+		if value == nil {
+			continue
+		}
+		columnValue := *value
+		colType, colDbzmSchema, err := schemaRegistry.GetColumnType(tableNameTup, column, conv.shouldFormatAsPerSourceDatatypes())
+		if err != nil {
+			return fmt.Errorf("fetch column schema: %w", err)
+		}
+		if !checkSourceExporter(exportSourceType) && strings.EqualFold(colType, "io.debezium.time.Interval") {
+			colType, colDbzmSchema, err = conv.schemaRegistrySource.GetColumnType(tableNameTup, strings.ToUpper(column), conv.shouldFormatAsPerSourceDatatypes())
+			//assuming table name/column name is case insensitive TODO: handle this case sensitivity properly
+			if err != nil {
+				return fmt.Errorf("fetch column schema: %w", err)
+			}
+		}
+		converterFn := conv.valueConverterSuite[colType]
+		if converterFn != nil {
+			columnValue, err = converterFn(columnValue, formatIfRequired, colDbzmSchema)
+			if err != nil {
+				return fmt.Errorf("error while converting %s.%s of type %s in event: %w", tableNameTup, column, colType, err) // TODO - add event id in log msg
+			}
+		}
+		m[column] = &columnValue
+	}
+	return nil
+}
+
+func (conv *StreamingPhaseDebeziumValueConverter) shouldFormatAsPerSourceDatatypes() bool {
+	return conv.targetDBType == tgtdb.ORACLE
 }

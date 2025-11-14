@@ -31,6 +31,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	reporter "github.com/yugabyte/yb-voyager/yb-voyager/src/reporter/stats"
@@ -72,7 +73,7 @@ func cutoverInitiatedAndCutoverEventProcessed() (bool, error) {
 	return false, nil
 }
 
-func streamChanges(state *ImportDataState, tableNames []sqlname.NameTuple) error {
+func streamChanges(state *ImportDataState, tableNames []sqlname.NameTuple, streamingPhaseValueConverter dbzm.StreamingPhaseValueConverter) error {
 	ok, err := cutoverInitiatedAndCutoverEventProcessed()
 	if err != nil {
 		return err
@@ -135,7 +136,7 @@ func streamChanges(state *ImportDataState, tableNames []sqlname.NameTuple) error
 		}
 		log.Infof("got next segment to stream: %v", segment)
 
-		err = streamChangesFromSegment(segment, evChans, processingDoneChans, eventChannelsMetaInfo, statsReporter, state)
+		err = streamChangesFromSegment(segment, evChans, processingDoneChans, eventChannelsMetaInfo, statsReporter, state, streamingPhaseValueConverter)
 		if err != nil {
 			return fmt.Errorf("error streaming changes for segment %s: %v", segment.FilePath, err)
 		}
@@ -152,7 +153,8 @@ func streamChangesFromSegment(
 	processingDoneChans []chan bool,
 	eventChannelsMetaInfo map[int]EventChannelMetaInfo,
 	statsReporter *reporter.StreamImportStatsReporter,
-	state *ImportDataState) error {
+	state *ImportDataState,
+	streamingPhaseValueConverter dbzm.StreamingPhaseValueConverter) error {
 
 	err := segment.Open()
 	if err != nil {
@@ -223,7 +225,7 @@ func streamChangesFromSegment(
 			break
 		}
 
-		err = handleEvent(event, evChans)
+		err = handleEvent(event, evChans, streamingPhaseValueConverter)
 		if err != nil {
 			return fmt.Errorf("error handling event: %v", err)
 		}
@@ -269,7 +271,7 @@ func shouldFormatValues(event *tgtdb.Event) bool {
 	}
 	return false
 }
-func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
+func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event, streamingPhaseValueConverter dbzm.StreamingPhaseValueConverter) error {
 	if event.IsCutoverEvent() {
 		// nil in case of cutover or fall_forward events for unconcerned importer
 		return nil
@@ -299,7 +301,7 @@ func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
 	}
 
 	// preparing value converters for the streaming mode
-	err := valueConverter.ConvertEvent(event, event.TableNameTup, shouldFormatValues(event))
+	err := streamingPhaseValueConverter.ConvertEvent(event, event.TableNameTup, shouldFormatValues(event))
 	if err != nil {
 		return fmt.Errorf("error transforming event key fields: %v", err)
 	}

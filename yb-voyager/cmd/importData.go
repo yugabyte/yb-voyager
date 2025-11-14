@@ -67,7 +67,7 @@ var dataFileDescriptor *datafile.Descriptor
 var truncateSplits utils.BoolStr                                             // to truncate *.D splits after import
 var TableToColumnNames = utils.NewStructMap[sqlname.NameTuple, []string]()   // map of table name to columnNames
 var TableToIdentityColumnNames *utils.StructMap[sqlname.NameTuple, []string] // map of table name to generated always as identity column's names
-var valueConverter dbzm.ValueConverter
+var valueConverter dbzm.SnapshotPhaseValueConverter
 
 var TableNameToSchema *utils.StructMap[sqlname.NameTuple, map[string]map[string]string]
 var conflictDetectionCache *ConflictDetectionCache
@@ -757,9 +757,9 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 		importTableList = importFileTasksToTableNameTuples(importFileTasks)
 	}
 	if msr.IsSnapshotExportedViaDebezium() {
-		valueConverter, err = dbzm.NewValueConverter(exportDir, tdb, tconf, importerRole, msr.SourceDBConf.DBType, importTableList)
+		valueConverter, err = dbzm.NewSnapshotPhaseValueConverter(exportDir, tdb, tconf, importerRole, msr.SourceDBConf.DBType, importTableList)
 	} else {
-		valueConverter, err = dbzm.NewNoOpValueConverter()
+		valueConverter, err = dbzm.NewSnapshotPhaseNoOpValueConverter()
 	}
 	if err != nil {
 		utils.ErrExit("create value converter: %s", err)
@@ -847,11 +847,15 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 		if err != nil {
 			utils.ErrExit("failed to get table unique key columns map: %s", err)
 		}
-		valueConverter, err = dbzm.NewValueConverter(exportDir, tdb, tconf, importerRole, source.DBType, importTableList)
+		valueConverter, err = dbzm.NewSnapshotPhaseValueConverter(exportDir, tdb, tconf, importerRole, source.DBType, importTableList)
 		if err != nil {
 			utils.ErrExit("Failed to create value converter: %s", err)
 		}
-		err = streamChanges(state, importTableList)
+		streamingPhaseValueConverter, err := dbzm.NewStreamingPhaseDebeziumValueConverter(importTableList, exportDir, tconf, importerRole)
+		if err != nil {
+			utils.ErrExit("Failed to create streaming phase value converter: %s", err)
+		}
+		err = streamChanges(state, importTableList, streamingPhaseValueConverter)
 		if err != nil {
 			utils.ErrExit("Failed to stream changes to %s: %s", tconf.TargetDBType, err)
 		}
