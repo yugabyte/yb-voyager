@@ -181,6 +181,14 @@ func (t NameTuple) ForKey() string {
 	return t.TargetName.Qualified.Quoted
 }
 
+func (t NameTuple) ForKeyTableSchema() (string, string) {
+	objName := t.SourceName
+	if objName == nil {
+		objName = t.TargetName
+	}
+	return objName.SchemaName, objName.Unqualified.Unquoted
+}
+
 func SetDifferenceNameTuples(a, b []NameTuple) []NameTuple {
 	m := make(map[string]bool)
 	for _, x := range b {

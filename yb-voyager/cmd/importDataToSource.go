@@ -52,10 +52,14 @@ func init() {
 	registerCommonGlobalFlags(importDataToSourceCmd)
 	registerCommonImportFlags(importDataToSourceCmd)
 	registerSourceDBAsTargetConnFlags(importDataToSourceCmd)
-	registerFlagsForSourceReplica(importDataToSourceCmd)
+	registerFlagsForSourceAndSourceReplica(importDataToSourceCmd)
 	registerImportDataCommonFlags(importDataToSourceCmd)
 	hideImportFlagsInFallForwardOrBackCmds(importDataToSourceCmd)
 	importDataToSourceCmd.Flags().MarkHidden("batch-size")
+
+	importDataToSourceCmd.Flags().IntVar(&prometheusMetricsPort, "prometheus-metrics-port", 0,
+		"Port for Prometheus metrics server (default: 9104)")
+	importDataToSourceCmd.Flags().MarkHidden("prometheus-metrics-port")
 }
 
 func initTargetConfFromSourceConf() error {

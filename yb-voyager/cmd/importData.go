@@ -140,7 +140,6 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	reportProgressInBytes = false
 	tconf.ImportMode = true
 	checkExportDataDoneFlag()
-
 	/*
 		Before this point MSR won't not be initialised in case of importDataFileCmd
 		In case of importDataCmd, MSR would be initialised already by previous commands
@@ -644,6 +643,13 @@ func updateImportDataStartedInMetaDB() error {
 }
 
 func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorPolicy) {
+	if perfProfile {
+		// Start Prometheus metrics server
+		err := importdata.StartPrometheusMetricsServer(importerRole, migrationUUID, prometheusMetricsPort)
+		if err != nil {
+			utils.ErrExit("Failed to start Prometheus metrics server: %v", err)
+		}
+	}
 
 	err := updateImportDataStartedInMetaDB()
 	if err != nil {
@@ -1421,7 +1427,6 @@ func restoreGeneratedByDefaultAsIdentityColumns(tables []sqlname.NameTuple) erro
 	}
 	return nil
 }
-
 
 func importFileTasksToTableNames(tasks []*ImportFileTask) []string {
 	tableNames := []string{}
