@@ -381,12 +381,16 @@
         let sortState = {
             category: 'asc',
             name: 'asc',
-            impact: 'asc'
+            impact: 'asc',
+            usage: 'asc'
         };
 
         function sortTableBy(field, isPerf) {
+            let tableClass = ".issues-table-highlight"
+            if (isPerf) tableClass = ".perf-table-highlight"
+
             // Grab the table element
-            const table = document.querySelector(".table-highlight");
+            const table = document.querySelector(tableClass);
 
             // Collect all the .issue-pair <tbody> elements
             const issuePairs = Array.from(table.querySelectorAll("tbody.issue-summary-detail-pair"));
@@ -408,7 +412,7 @@
             issuePairs.forEach(pair => table.appendChild(pair));
 
             // Update the sort indicator in the table header
-            const sortIndicator = table.querySelector(`th[onclick="sortTableBy('${field}', isPerf)"] .sort-indicator`);
+            const sortIndicator = table.querySelector(`th[onclick="sortTableBy('${field}', ${isPerf})"] .sort-indicator`);
             if (sortIndicator) {
                 sortIndicator.innerHTML = newDirection === 'asc' ? '&#8593;' : '&#8595;'; // &#8593; is up arrow, &#8595; is down arrow
             }
@@ -594,6 +598,7 @@
   {{ $issueKeyword := "Issue" }}
   {{ $expandButton := "expandAllButton" }}
   {{ $collapseButton := "collapseAllButton" }}
+  {{ $tableClass := "issues-table-highlight" }}
 
   {{ if .onlyPerf }}
     {{ $heading = "Performance Optimizations" }}
@@ -602,6 +607,7 @@
     {{ $issueKeyword = "Optimization" }}
     {{ $expandButton = "expandAllButton-perf" }}
     {{ $collapseButton = "collapseAllButton-perf" }}
+    {{ $tableClass = "perf-table-highlight" }}
   {{ end }}
 
         {{ if $issues }}
@@ -618,7 +624,7 @@
                     <button class="rounded-button" id={{ $collapseButton}} onclick="collapseAllIssues({{ .onlyPerf }})">Collapse All</button>
                 </div>
             </div>
-            <table class="table-highlight">
+            <table class={{ $tableClass }}>
                 <!-- Summary Row Header for the issue -->
                 <colgroup>
                     {{ $issueWidth := "40%" }}
@@ -647,8 +653,8 @@
                         </th>
                         <th class="centered-cell">Object/SQL Preview</th>
                         {{ if .onlyPerf }}
-                            <th class="centered-cell" style="cursor: pointer; text-align: center;"">
-                                Object Usage
+                            <th class="centered-cell" style="cursor: pointer; text-align: center;" onclick="sortTableBy('usage', {{ .onlyPerf }})">
+                                Object Usage <span class="sort-indicator">&#8593;</span>
                             </th>
                         {{ end }}
                         <th class="centered-cell" style="cursor: pointer; text-align: center;" onclick="sortTableBy('impact', {{ .onlyPerf }})">
@@ -667,7 +673,8 @@
                     <tbody class="issue-summary-detail-pair"
                         data-category="{{ $issue.Category }}"
                         data-name="{{ $issue.Name }}"
-                        data-impact="{{ $issue.Impact }}">
+                        data-impact="{{ $issue.Impact }}" 
+                        data-usage="{{$issue.ObjectUsage}}">
                         
                         <!-- Summary Row -->
                         <tr class="summary-row" onclick="toggleDetails('{{ $detailsId }}-{{ $idx }}', '{{ $arrowId }}-{{ $idx }}', {{ $onlyPerf }})">
