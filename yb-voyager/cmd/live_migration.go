@@ -74,6 +74,13 @@ func cutoverInitiatedAndCutoverEventProcessed() (bool, error) {
 }
 
 func streamChanges(state *ImportDataState, tableNames []sqlname.NameTuple) error {
+	log.Infof("cdc partitioning strategy: %s", cdcPartitioningStrategy)
+	err := metaDB.UpdateImportDataStatusRecord(func(record *metadb.ImportDataStatusRecord) {
+		record.CdcPartitioningStrategy = cdcPartitioningStrategy
+	})
+	if err != nil {
+		return fmt.Errorf("error updating cdc partitioning strategy in metadb: %w", err)
+	}
 	ok, err := cutoverInitiatedAndCutoverEventProcessed()
 	if err != nil {
 		return err
@@ -242,7 +249,7 @@ func handleCdcPartitioningStrategy(tableNames []sqlname.NameTuple) error {
 	if err != nil {
 		return fmt.Errorf("error updating cdc partitioning strategy in metadb: %w", err)
 	}
-	log.Infof("updated cdc partitioning strategy in metadb: %v", metadb.TARGET_DB_IMPORTER_CDC_PARTITIONING_STRATEGY_KEY)
+	log.Infof("updated cdc partitioning strategy in metadb: %v", metadb.IMPORT_DATA_STATUS_KEY)
 	return nil
 }
 
