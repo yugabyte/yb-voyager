@@ -1424,7 +1424,6 @@ func restoreGeneratedByDefaultAsIdentityColumns(tables []sqlname.NameTuple) erro
 	return nil
 }
 
-
 func importFileTasksToTableNames(tasks []*ImportFileTask) []string {
 	tableNames := []string{}
 	for _, t := range tasks {
@@ -1761,10 +1760,10 @@ func cleanMSRForImportDataStartClean() error {
 		metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 			msr.OnPrimaryKeyConflictAction = ""
 		})
-		err = metaDB.DeleteJsonObject(metadb.TARGET_DB_IMPORTER_CDC_PARTITIONING_STRATEGY_KEY)
-		if err != nil {
-			return fmt.Errorf("failed to delete cdc partitioning strategy from meta db: %s", err)
-		}
+		err = metaDB.UpdateImportDataStatusRecord(func(record *metadb.ImportDataStatusRecord) {
+			record.CdcPartitioningStrategy = ""
+			record.TableToPartitioningStrategyMap = nil
+		})
 	}
 	return nil
 }

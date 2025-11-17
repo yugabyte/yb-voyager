@@ -44,7 +44,6 @@ var (
 	SOURCE_DB_IDENTITY_COLUMNS_KEY                   = "source_db_identity_columns_key"
 	SOURCE_INDEXES_INFO_KEY                          = "source_indexes_info_key"
 	TABLE_TO_UNIQUE_KEY_COLUMNS_KEY                  = "table_to_unique_key_columns_key"
-	TARGET_DB_IMPORTER_CDC_PARTITIONING_STRATEGY_KEY = "target_db_importer_cdc_partitioning_strategy_key"
 	ErrNoQueueSegmentsFound                          = errors.New("no queue segments found")
 )
 
