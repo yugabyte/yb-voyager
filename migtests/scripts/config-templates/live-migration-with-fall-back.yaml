@@ -86,7 +86,7 @@ finalize-schema-post-data-import:
 
 initiate-cutover-to-target:
   prepare-for-fall-back: true
-  use-yb-grpc-connector: {% if USE_YB_LOGICAL_REPLICATION_CONNECTOR is defined and USE_YB_LOGICAL_REPLICATION_CONNECTOR == "true" %}false{% else %}true{% endif %}
+  use-yb-grpc-connector: {% if USE_YB_GRPC_CONNECTOR is defined and USE_YB_GRPC_CONNECTOR == "true" %}true{% else %}false{% endif %}
 
 export-data-from-target:
   disable-pb: true
