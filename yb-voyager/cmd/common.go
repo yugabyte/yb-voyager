@@ -1243,7 +1243,6 @@ type AssessmentReport struct {
 	Issues                         []AssessmentIssue                     `json:"AssessmentIssues"`
 	TableIndexStats                *[]migassessment.TableIndexStats      `json:"TableIndexStats"`
 	Notes                          []NoteInfo                            `json:"Notes"`
-	AssessmentTopology             string                                `json:"AssessmentTopology"` // Multi-node assessment info
 
 	// fields going to be deprecated
 	UnsupportedDataTypes       []utils.TableColumnsDataTypes     `json:"-"`

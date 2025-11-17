@@ -443,10 +443,6 @@
         {{ with .SchemaSummary.DBVersion }}
             <p><strong>Database Version:</strong> {{ . }}</p>
         {{ end }}
-        
-        {{ if .AssessmentTopology }}
-            <p><strong>Assessment Topology:</strong> {{ .AssessmentTopology }}</p>
-        {{ end }}
 
         <p><strong>Target YB Version:</strong> {{ .TargetDBVersion }}</p>
 

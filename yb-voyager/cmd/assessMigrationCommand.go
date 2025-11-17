@@ -874,17 +874,6 @@ func generateAssessmentReport() (err error) {
 	addNotesToAssessmentReport()
 	postProcessingOfAssessmentReport()
 
-	// Add assessment topology information (multi-node if replicas were assessed)
-	if len(validatedReplicaEndpoints) > 0 {
-		topology := fmt.Sprintf("Multi-node: 1 primary + %d read replica(s)", len(validatedReplicaEndpoints))
-		if len(failedReplicaNodes) > 0 {
-			topology += fmt.Sprintf(" [%d replica(s) failed: %v]", len(failedReplicaNodes), failedReplicaNodes)
-		}
-		assessmentReport.AssessmentTopology = topology
-	} else {
-		assessmentReport.AssessmentTopology = "Single-node (primary only)"
-	}
-
 	assessmentReportDir := filepath.Join(exportDir, "assessment", "reports")
 	err = generateAssessmentReportJson(assessmentReportDir)
 	if err != nil {
@@ -1704,7 +1693,7 @@ To manually modify the schema, please refer: <a class="highlight-link" href="htt
 
 	PARTIAL_MULTI_NODE_ASSESSMENT = NoteInfo{
 		Type: SizingNotes,
-		Text: `This assessment includes partial multi-node data. Some replicas failed during metadata collection and are excluded from sizing calculations. See assessment topology for details.`,
+		Text: `This assessment includes partial multi-node data. Some replicas failed during metadata collection and are excluded from sizing calculations.`,
 	}
 )
 
