@@ -45,6 +45,7 @@ var MAX_EVENTS_PER_BATCH int
 var MAX_INTERVAL_BETWEEN_BATCHES int //ms
 var END_OF_QUEUE_SEGMENT_EVENT = &tgtdb.Event{Op: "end_of_source_queue_segment"}
 var FLUSH_BATCH_EVENT = &tgtdb.Event{Op: "flush_batch"}
+var tableToPartitioningStrategyMap *utils.StructMap[sqlname.NameTuple, string]
 var eventQueue *EventQueue
 var statsReporter *reporter.StreamImportStatsReporter
 
@@ -107,6 +108,12 @@ func streamChanges(state *ImportDataState, tableNames []sqlname.NameTuple) error
 		return fmt.Errorf("failed to initialize stats reporter: %w", err)
 	}
 
+	err = handleCdcPartitioningStrategy(tableNames)
+	if err != nil {
+		return fmt.Errorf("error handling cdc partitioning strategy: %w", err)
+	}
+	fmt.Printf("tableToPartitioningStrategyMap: %v\n", tableToPartitioningStrategyMap)
+
 	if !disablePb {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -140,6 +147,102 @@ func streamChanges(state *ImportDataState, tableNames []sqlname.NameTuple) error
 			return fmt.Errorf("error streaming changes for segment %s: %v", segment.FilePath, err)
 		}
 	}
+	return nil
+}
+
+const (
+	PARTITION_BY_PK    = "pk"
+	PARTITION_BY_TABLE = "table"
+)
+
+/*
+TODO
+Add a hidden param for the  partitioning strategy to  override the auto strategy
+Add guadrails around changing that in between the migration
+
+*/
+
+func handleCdcPartitioningStrategy(tableNames []sqlname.NameTuple) error {
+	tableToPartitioningStrategyMap = utils.NewStructMap[sqlname.NameTuple, string]()
+
+	if importerRole != TARGET_DB_IMPORTER_ROLE {
+		// source or source-replica importer
+		msr, err := metaDB.GetMigrationStatusRecord()
+		if err != nil {
+			return fmt.Errorf("error getting migration status record: %w", err)
+		}
+		switch msr.SourceDBConf.DBType {
+		case ORACLE:
+			//For oracle old behaviour same as partitioning by pk
+			for _, t := range tableNames {
+				tableToPartitioningStrategyMap.Put(t, PARTITION_BY_PK)
+			}
+		case POSTGRESQL:
+			//For pg partitioning by table since there is no huge difference in performance between the two strategies
+			//and Parititon by table is better from data correctness perspective
+			for _, t := range tableNames {
+				tableToPartitioningStrategyMap.Put(t, PARTITION_BY_TABLE)
+			}
+		}
+	}
+
+	// target db importer
+	//fetch and check if metadb key is presetn TARGET_DB_IMPORTER_CDC_PARTITIONING_STRATEGY_KEY
+	importDataStatus, err := metaDB.GetImportDataStatusRecord()
+	if err != nil {
+		return fmt.Errorf("error getting cdc partitioning strategy: %w", err)
+	}
+	if importDataStatus != nil && importDataStatus.TableToPartitioningStrategyMap != nil {
+		log.Infof("cdc partitioning strategy found in metadb: %v, strategy: %v", metadb.IMPORT_DATA_STATUS_KEY, importDataStatus.TableToPartitioningStrategyMap)
+		//if found already in metadb key, use it to update tableToPartitioningStrategyMap
+		for tableName, strategy := range importDataStatus.TableToPartitioningStrategyMap {
+			tuple, err := namereg.NameReg.LookupTableName(tableName)
+			if err != nil {
+				return fmt.Errorf("error looking up table name: %w", err)
+			}
+			tableToPartitioningStrategyMap.Put(tuple, strategy)
+		}
+		return nil
+	}
+
+	if cdcPartitioningStrategy != "auto" {
+		//If the cdc partitioning strategy is not auto-detect, use the strategy specified in the flag
+		for _, t := range tableNames {
+			tableToPartitioningStrategyMap.Put(t, cdcPartitioningStrategy)
+		}
+		return nil
+	}
+
+	//if not found in metadb key, use the auto strategy
+	//find the tables having expression or normal unique indexes
+	expressionUniqueIndexes, err := tdb.GetTablesHavingExpressionUniqueIndexes(tableNames)
+	if err != nil {
+		return fmt.Errorf("error getting tables having expression or normal unique indexes: %w", err)
+	}
+
+	for _, t := range tableNames {
+		if lo.Contains(expressionUniqueIndexes, t) {
+			tableToPartitioningStrategyMap.Put(t, PARTITION_BY_TABLE)
+		} else {
+			tableToPartitioningStrategyMap.Put(t, PARTITION_BY_PK)
+		}
+	}
+
+	fmt.Printf("tableToPartitioningStrategyMap: %v\n", tableToPartitioningStrategyMap)
+	//save the tableToPartitioningStrategyMap to metadb key
+	storageableMap := make(map[string]string)
+	tableToPartitioningStrategyMap.IterKV(func(key sqlname.NameTuple, value string) (bool, error) {
+		storageableMap[key.ForKey()] = value
+		return true, nil
+	})
+	fmt.Printf("storageableMap: %v\n", storageableMap)
+	err = metaDB.UpdateImportDataStatusRecord(func(obj *metadb.ImportDataStatusRecord) {
+		obj.TableToPartitioningStrategyMap = storageableMap
+	})
+	if err != nil {
+		return fmt.Errorf("error updating cdc partitioning strategy in metadb: %w", err)
+	}
+	log.Infof("updated cdc partitioning strategy in metadb: %v", metadb.TARGET_DB_IMPORTER_CDC_PARTITIONING_STRATEGY_KEY)
 	return nil
 }
 
@@ -314,15 +417,18 @@ func hashEvent(e *tgtdb.Event) int {
 	hash := fnv.New64a()
 	hash.Write([]byte(e.TableNameTup.ForKey()))
 
-	keyColumns := make([]string, 0)
-	for k := range e.Key {
-		keyColumns = append(keyColumns, k)
-	}
+	if strategy, ok := tableToPartitioningStrategyMap.Get(e.TableNameTup); ok && strategy == PARTITION_BY_PK {
+		//include key columns in the hash
+		keyColumns := make([]string, 0)
+		for k := range e.Key {
+			keyColumns = append(keyColumns, k)
+		}
 
-	// sort to ensure input to hash is consistent.
-	sort.Strings(keyColumns)
-	for _, k := range keyColumns {
-		hash.Write([]byte(*e.Key[k]))
+		// sort to ensure input to hash is consistent.
+		sort.Strings(keyColumns)
+		for _, k := range keyColumns {
+			hash.Write([]byte(*e.Key[k]))
+		}
 	}
 	return int(hash.Sum64() % (uint64(NUM_EVENT_CHANNELS)))
 }

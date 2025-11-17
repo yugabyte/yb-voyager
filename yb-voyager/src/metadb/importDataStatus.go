@@ -20,8 +20,10 @@ import (
 )
 
 type ImportDataStatusRecord struct {
-	ErrorPolicySnapshot string `json:"errorPolicySnapshot"`
-	ImportDataStarted   bool   `json:"importDataStarted"`
+	ErrorPolicySnapshot            string            `json:"errorPolicySnapshot"`
+	ImportDataStarted              bool              `json:"importDataStarted"`
+	TableToPartitioningStrategyMap map[string]string `json:"tableToPartitioningStrategyMap"`
+	CdcPartitioningStrategy        string            `json:"cdcPartitioningStrategy"`
 }
 
 const IMPORT_DATA_STATUS_KEY = "import_data_status"

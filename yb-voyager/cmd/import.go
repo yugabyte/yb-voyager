@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
@@ -109,6 +110,36 @@ func validateImportDataFlags() error {
 	if err != nil {
 		return err
 	}
+
+	err = validateCdcPartitioningStrategyFlag()
+	if err != nil {
+		return fmt.Errorf("error validating --cdc-partitioning-strategy flag: %w", err)
+	}
+	return nil
+}
+
+var validCdcPartitioningStrategies = []string{"pk", "table", "auto"}
+
+func validateCdcPartitioningStrategyFlag() error {
+	importDataStatus, err := metaDB.GetImportDataStatusRecord()
+	if err != nil {
+		return fmt.Errorf("error getting import data status record: %w", err)
+	}
+	if importDataStatus == nil || !importDataStatus.ImportDataStarted {
+		//if import data has not started, allow the change in cdc partitioning strategy
+		return nil
+	}
+	if cdcPartitioningStrategy == "" {
+		return fmt.Errorf("cdc partitioning strategy is required")
+	}
+
+	if !lo.Contains(validCdcPartitioningStrategies, cdcPartitioningStrategy) {
+		return fmt.Errorf("invalid cdc partitioning strategy: %s. Supported values are: %s", cdcPartitioningStrategy, strings.Join(validCdcPartitioningStrategies, ", "))
+	}
+	if cdcPartitioningStrategy != importDataStatus.CdcPartitioningStrategy {
+		return fmt.Errorf("changing the cdc partitioning strategy is not allowed after the import data has started. Current strategy: %s, new strategy: %s", importDataStatus.CdcPartitioningStrategy, cdcPartitioningStrategy)
+	}
+	log.Infof("cdc partitioning strategy: %s", cdcPartitioningStrategy)
 	return nil
 }
 
@@ -265,6 +296,13 @@ Note that for the cases where a table doesn't have a primary key, this may lead 
 		"The desired behavior when there is an error while processing and importing rows to target YugabyteDB in the snapshot phase. The errors can be while reading from file, transforming rows, or ingesting rows into YugabyteDB.\n"+
 			"\tabort: immediately abort the process. (default)\n"+
 			"\tstash-and-continue: stash the errored rows to a file and continue with the import")
+
+	cmd.Flags().StringVar(&cdcPartitioningStrategy, "cdc-partitioning-strategy", "auto",
+		`The desired partitioning strategy to use while importing cdc events parallelly. The supported values are: pk, table. (default auto-detect)
+		\tauto: Automatically detect the partitioning strategy based on the table having expression or normal unique indexes.
+		\tpk: Partition the cdc events by primary key.
+		\ttable: Partition the cdc events by table.`)
+	cmd.Flags().MarkHidden("cdc-partitioning-strategy")
 }
 
 func registerImportSchemaFlags(cmd *cobra.Command) {

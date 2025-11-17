@@ -82,6 +82,8 @@ var importTableList []sqlname.NameTuple
 // Error policy
 var errorPolicySnapshotFlag importdata.ErrorPolicy = importdata.AbortErrorPolicy
 
+var cdcPartitioningStrategy string
+
 var importDataCmd = &cobra.Command{
 	Use: "data",
 	Short: "Import data from compatible source database to target database.\n" +
@@ -1759,6 +1761,10 @@ func cleanMSRForImportDataStartClean() error {
 		metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 			msr.OnPrimaryKeyConflictAction = ""
 		})
+		err = metaDB.DeleteJsonObject(metadb.TARGET_DB_IMPORTER_CDC_PARTITIONING_STRATEGY_KEY)
+		if err != nil {
+			return fmt.Errorf("failed to delete cdc partitioning strategy from meta db: %s", err)
+		}
 	}
 	return nil
 }
