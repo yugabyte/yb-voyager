@@ -364,6 +364,12 @@ func (p *FileBatchProducer) finalizeBatch(batchWriter *BatchWriter, isLastBatch 
 }
 
 func (p *FileBatchProducer) Close() {
+	if p.rowProcessor != nil {
+		err := p.rowProcessor.ResetBuffers()
+		if err != nil {
+			log.Errorf("error resetting rowProcessor buffers: %v", err)
+		}
+	}
 	if p.dataFile != nil {
 		p.dataFile.Close()
 	}
