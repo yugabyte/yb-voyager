@@ -32,7 +32,7 @@ import (
 )
 
 type SnapshotPhaseValueConverter interface {
-	ConvertRow(tableNameTup sqlname.NameTuple, columnNames []string, row string) (string, error)
+	ConvertRow(tableNameTup sqlname.NameTuple, columnNames []string, columnValues []string) error
 	// ConvertEvent(ev *tgtdb.Event, tableNameTup sqlname.NameTuple, formatIfRequired bool) error
 	GetTableNameToSchema() (*utils.StructMap[sqlname.NameTuple, map[string]map[string]string], error) //returns table name to schema mapping
 }
@@ -49,8 +49,8 @@ func NewSnapshotPhaseNoOpValueConverter() (SnapshotPhaseValueConverter, error) {
 
 type SnapshotPhaseNoOpValueConverter struct{}
 
-func (nvc *SnapshotPhaseNoOpValueConverter) ConvertRow(tableName sqlname.NameTuple, columnNames []string, row string) (string, error) {
-	return row, nil
+func (nvc *SnapshotPhaseNoOpValueConverter) ConvertRow(tableName sqlname.NameTuple, columnNames []string, columnValues []string) error {
+	return nil
 }
 
 // func (nvc *SnapshotPhaseNoOpValueConverter) ConvertEvent(ev *tgtdb.Event, table sqlname.NameTuple, formatIfRequired bool) error {
@@ -64,15 +64,15 @@ func (nvc *SnapshotPhaseNoOpValueConverter) GetTableNameToSchema() (*utils.Struc
 //============================================================================
 
 type SnapshotPhaseDebeziumValueConverter struct {
-	exportDir               string
-	targetDBType            string
-	tdb                     tgtdb.TargetDB
-	schemaRegistrySource    *schemareg.SchemaRegistry
-	valueConverterSuite     map[string]tgtdbsuite.ConverterFn
-	converterFnCache        *utils.StructMap[sqlname.NameTuple, []tgtdbsuite.ConverterFn] //stores table name to converter functions for each column
-	dbzmColumnSchemasCache  *utils.StructMap[sqlname.NameTuple, []*schemareg.ColumnSchema]
-	tableRowCsvReaderWriter *utils.StructMap[sqlname.NameTuple, *RowCsvReaderWriter]
-	tableMutexes            *utils.StructMap[sqlname.NameTuple, sync.Mutex]
+	exportDir              string
+	targetDBType           string
+	tdb                    tgtdb.TargetDB
+	schemaRegistrySource   *schemareg.SchemaRegistry
+	valueConverterSuite    map[string]tgtdbsuite.ConverterFn
+	converterFnCache       *utils.StructMap[sqlname.NameTuple, []tgtdbsuite.ConverterFn] //stores table name to converter functions for each column
+	dbzmColumnSchemasCache *utils.StructMap[sqlname.NameTuple, []*schemareg.ColumnSchema]
+	// tableRowCsvReaderWriter *utils.StructMap[sqlname.NameTuple, *CsvRowProcessor]
+	tableMutexes *utils.StructMap[sqlname.NameTuple, sync.Mutex]
 }
 
 // Initialize debezium value converter with the given table list
@@ -88,11 +88,11 @@ func NewSnapshotPhaseDebeziumValueConverter(tableList []sqlname.NameTuple, expor
 		return nil, err
 	}
 
-	// initialize table row csv reader writer map
-	tableRowCsvReaderWriter := utils.NewStructMap[sqlname.NameTuple, *RowCsvReaderWriter]()
-	for _, tableNameTup := range tableList {
-		tableRowCsvReaderWriter.Put(tableNameTup, NewRowCsvReaderWriter(tableNameTup))
-	}
+	// // initialize table row csv reader writer map
+	// tableRowCsvReaderWriter := utils.NewStructMap[sqlname.NameTuple, *CsvRowProcessor]()
+	// for _, tableNameTup := range tableList {
+	// 	tableRowCsvReaderWriter.Put(tableNameTup, NewCsvRowProcessor(tableNameTup))
+	// }
 
 	tableMutexes := utils.NewStructMap[sqlname.NameTuple, sync.Mutex]()
 	for _, tableNameTup := range tableList {
@@ -100,15 +100,14 @@ func NewSnapshotPhaseDebeziumValueConverter(tableList []sqlname.NameTuple, expor
 	}
 
 	conv := &SnapshotPhaseDebeziumValueConverter{
-		exportDir:               exportDir,
-		schemaRegistrySource:    schemaRegistrySource,
-		valueConverterSuite:     tdbValueConverterSuite,
-		converterFnCache:        utils.NewStructMap[sqlname.NameTuple, []tgtdbsuite.ConverterFn](),
-		dbzmColumnSchemasCache:  utils.NewStructMap[sqlname.NameTuple, []*schemareg.ColumnSchema](),
-		tableRowCsvReaderWriter: tableRowCsvReaderWriter,
-		targetDBType:            targetConf.TargetDBType,
-		tdb:                     tdb,
-		tableMutexes:            tableMutexes,
+		exportDir:              exportDir,
+		schemaRegistrySource:   schemaRegistrySource,
+		valueConverterSuite:    tdbValueConverterSuite,
+		converterFnCache:       utils.NewStructMap[sqlname.NameTuple, []tgtdbsuite.ConverterFn](),
+		dbzmColumnSchemasCache: utils.NewStructMap[sqlname.NameTuple, []*schemareg.ColumnSchema](),
+		targetDBType:           targetConf.TargetDBType,
+		tdb:                    tdb,
+		tableMutexes:           tableMutexes,
 	}
 
 	return conv, nil
@@ -139,7 +138,7 @@ func getDebeziumValueConverterSuite(tconf tgtdb.TargetConf) (map[string]tgtdbsui
 /*
 Used by every batch producer to convert csv row string to transformed csv row string
 */
-func (conv *SnapshotPhaseDebeziumValueConverter) ConvertRow(tableNameTup sqlname.NameTuple, columnNames []string, row string) (string, error) {
+func (conv *SnapshotPhaseDebeziumValueConverter) ConvertRow(tableNameTup sqlname.NameTuple, columnNames []string, columnValues []string) error {
 	/*
 		There can be multiple batch producers running concurrently.
 		All required data to convert is stored per table, therefore, we need to only lock the table mutex.
@@ -147,38 +146,28 @@ func (conv *SnapshotPhaseDebeziumValueConverter) ConvertRow(tableNameTup sqlname
 	*/
 	tblMutex, ok := conv.tableMutexes.Get(tableNameTup)
 	if !ok {
-		return "", fmt.Errorf("table mutex not found for table %s", tableNameTup)
+		return fmt.Errorf("table mutex not found for table %s", tableNameTup)
 	}
 	tblMutex.Lock()
 	defer tblMutex.Unlock()
 
 	converterFns, dbzmColumnSchemas, err := conv.getConverterFns(tableNameTup, columnNames)
 	if err != nil {
-		return "", fmt.Errorf("fetching converter functions: %w", err)
+		return fmt.Errorf("fetching converter functions: %w", err)
 	}
-	rcrw, ok := conv.tableRowCsvReaderWriter.Get(tableNameTup)
-	if !ok {
-		return "", fmt.Errorf("table row csv reader writer not found for table %s", tableNameTup)
-	}
-	columnValues, err := rcrw.ReadRow(row)
-	if err != nil {
-		return "", fmt.Errorf("reading input row to columns: %w", err)
-	}
+
 	for i, columnValue := range columnValues {
 		if columnValue == utils.YB_VOYAGER_NULL_STRING || converterFns[i] == nil { // TODO: make nullstring condition Target specific tdb.NullString()
 			continue
 		}
 		transformedValue, err := converterFns[i](columnValue, false, dbzmColumnSchemas[i])
 		if err != nil {
-			return "", fmt.Errorf("converting value for %s, column %d and value %s : %w", tableNameTup, i, columnValue, err)
+			return fmt.Errorf("converting value for %s, column %d and value %s : %w", tableNameTup, i, columnValue, err)
 		}
 		columnValues[i] = transformedValue
 	}
-	transformedRow, err := rcrw.WriteRow(columnValues)
-	if err != nil {
-		return "", fmt.Errorf("writing transformed row to csv: %w", err)
-	}
-	return transformedRow, nil
+
+	return nil
 }
 
 func (conv *SnapshotPhaseDebeziumValueConverter) getConverterFns(tableNameTup sqlname.NameTuple, columnNames []string) ([]tgtdbsuite.ConverterFn, []*schemareg.ColumnSchema, error) {
@@ -230,7 +219,7 @@ func (conv *SnapshotPhaseDebeziumValueConverter) GetTableNameToSchema() (*utils.
 	return tableToSchema, nil
 }
 
-type RowCsvReaderWriter struct {
+type CsvRowProcessor struct {
 	tableNameTup sqlname.NameTuple
 	// readers to help read from a csv string to slice of strings (columns)
 	csvReader *stdlibcsv.Reader
@@ -241,7 +230,7 @@ type RowCsvReaderWriter struct {
 	wbuf      *bytes.Buffer
 }
 
-func NewRowCsvReaderWriter(tableNameTup sqlname.NameTuple) *RowCsvReaderWriter {
+func NewCsvRowProcessor(tableNameTup sqlname.NameTuple) *CsvRowProcessor {
 	bufReader := &bufio.Reader{}
 	csvReader := stdlibcsv.NewReader(bufReader)
 	csvReader.ReuseRecord = true
@@ -249,7 +238,7 @@ func NewRowCsvReaderWriter(tableNameTup sqlname.NameTuple) *RowCsvReaderWriter {
 	bufWriter := &bufio.Writer{}
 	wbuf := &bytes.Buffer{}
 
-	return &RowCsvReaderWriter{
+	return &CsvRowProcessor{
 		tableNameTup: tableNameTup,
 		csvReader:    csvReader,
 		bufReader:    bufReader,
@@ -257,7 +246,7 @@ func NewRowCsvReaderWriter(tableNameTup sqlname.NameTuple) *RowCsvReaderWriter {
 		wbuf:         wbuf,
 	}
 }
-func (rcrw *RowCsvReaderWriter) ReadRow(row string) ([]string, error) {
+func (rcrw *CsvRowProcessor) ReadRow(row string) ([]string, error) {
 	rcrw.bufReader.Reset(strings.NewReader(row))
 	columnValues, err := rcrw.csvReader.Read()
 	if err != nil {
@@ -266,7 +255,7 @@ func (rcrw *RowCsvReaderWriter) ReadRow(row string) ([]string, error) {
 	return columnValues, nil
 }
 
-func (rcrw *RowCsvReaderWriter) WriteRow(columnValues []string) (string, error) {
+func (rcrw *CsvRowProcessor) WriteRow(columnValues []string) (string, error) {
 	rcrw.bufWriter.Reset(rcrw.wbuf)
 	csvWriter := csv.NewWriter(rcrw.bufWriter)
 	csvWriter.Write(columnValues)

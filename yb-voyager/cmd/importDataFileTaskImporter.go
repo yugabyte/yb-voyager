@@ -66,13 +66,13 @@ type FileTaskImporter struct {
 }
 
 func NewFileTaskImporter(task *ImportFileTask, state *ImportDataState, workerPool *pool.Pool,
-	progressReporter *ImportDataProgressReporter, colocatedImportBatchQueue chan func(), isTableColocated bool,
+	progressReporter *ImportDataProgressReporter, colocatedImportBatchQueue chan func(), isTableColocated bool, isRowTransformationRequired bool,
 	errorHandler importdata.ImportDataErrorHandler, callhomeMetricsCollector *callhome.ImportDataMetricsCollector) (*FileTaskImporter, error) {
 	totalProgressAmount := getTotalProgressAmount(task)
 	progressReporter.ImportFileStarted(task, totalProgressAmount)
 	currentProgressAmount := getImportedProgressAmount(task, state)
 	progressReporter.AddProgressAmount(task, currentProgressAmount)
-	batchProducer, err := NewFileBatchProducer(task, state, errorHandler, progressReporter)
+	batchProducer, err := NewFileBatchProducer(task, state, isRowTransformationRequired, errorHandler, progressReporter)
 	if err != nil {
 		return nil, fmt.Errorf("creating file batch producer: %s", err)
 	}
