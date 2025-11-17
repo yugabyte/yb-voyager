@@ -2219,18 +2219,30 @@ func checkPermissionsOnAllNodes() error {
 	var nodesWithoutPgss []string
 	var nodesMissingPerms []string
 
-	utils.PrintAndLogf("\n=== Permission Check Results ===")
+	utils.PrintAndLogf("\n=== Permission Check Results ===\n")
+
+	replicaCounter := 1
 	for _, result := range results {
+		// Format node display name
+		var displayName string
+		if result.IsPrimary {
+			displayName = "Primary"
+		} else {
+			displayName = fmt.Sprintf("Replica %d (%s)", replicaCounter, result.NodeName)
+			replicaCounter++
+		}
+
 		if result.Error != nil {
-			utils.PrintAndLogf("❌ %s: %v", result.NodeName, result.Error)
+			color.Red("\n%s:", displayName)
+			color.Red("  ✗ Connection failed: %v", result.Error)
 			nodesWithIssues = append(nodesWithIssues, result.NodeName)
 			continue
 		}
 
 		if len(result.MissingPerms) > 0 {
-			color.Red("\n%s - Permissions missing:", result.NodeName)
+			fmt.Printf("\n%s:\n", displayName)
 			for _, perm := range result.MissingPerms {
-				fmt.Println(perm)
+				fmt.Printf("  %s %s\n", color.YellowString("⚠"), strings.TrimSpace(perm))
 			}
 			nodesMissingPerms = append(nodesMissingPerms, result.NodeName)
 			nodesWithIssues = append(nodesWithIssues, result.NodeName)
@@ -2240,11 +2252,12 @@ func checkPermissionsOnAllNodes() error {
 			}
 		} else {
 			// No permission issues - show success
-			color.Green("✓ %s: All required permissions present", result.NodeName)
+			fmt.Printf("\n%s:\n", displayName)
+			fmt.Printf("  %s All required permissions present\n", color.GreenString("✓"))
 
 			// Show pg_stat_statements status separately only when there are no other permission issues
 			if !result.PgssEnabled {
-				color.Yellow("  Note: pg_stat_statements not available on this node (query-level analysis will be limited)")
+				fmt.Printf("  %s pg_stat_statements not available (query-level analysis will be limited)\n", color.YellowString("⚠"))
 				nodesWithoutPgss = append(nodesWithoutPgss, result.NodeName)
 			}
 		}
