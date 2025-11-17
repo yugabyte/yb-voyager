@@ -545,6 +545,14 @@ func (yb *YugabyteDB) getTypesOfAllArraysInATable(schemaName, tableName string) 
 func (yb *YugabyteDB) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []sqlname.NameTuple, useDebezium bool) ([]sqlname.NameTuple, []sqlname.NameTuple) {
 	var unsupportedTables []sqlname.NameTuple
 	var filteredTableList []sqlname.NameTuple
+
+	// Check if unsupported tables check should be skipped via environment variable
+	// This is useful when YB is the target and exporting from it (fall-back/fall-forward scenarios)
+	if utils.GetEnvAsBool("YB_VOYAGER_SKIP_YBDB_UNSUPPORTED_TABLES_CHECK", false) {
+		log.Info("Skipping unsupported tables check as YB_VOYAGER_SKIP_YBDB_UNSUPPORTED_TABLES_CHECK is set to true")
+		return tableList, unsupportedTables
+	}
+
 	for _, table := range tableList {
 		sname, tname := table.ForCatalogQuery()
 		userDefinedTypes := yb.getAllUserDefinedTypesInSchema(sname)
