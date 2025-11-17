@@ -2202,7 +2202,7 @@ func checkPermissionsOnAllNodes() error {
 			continue
 		}
 
-		missingPerms, pgssEnabled, err := replicaDB.GetMissingAssessMigrationPermissions()
+		missingPerms, pgssEnabled, err := replicaDB.GetMissingAssessMigrationPermissionsForNode(true) // isReplica=true
 		replicaDB.Disconnect()
 
 		results = append(results, NodePermissionResult{

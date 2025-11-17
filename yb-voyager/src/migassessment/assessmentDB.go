@@ -531,12 +531,15 @@ func (adb *AssessmentDB) InsertPgssEntries(entries []*pgss.PgStatStatements) err
 }
 
 // GetSourceQueryStats retrieves all the source PGSS data from the assessment database
+// For multi-node setups, only returns query stats from the primary node to avoid
+// mixing workload patterns from read replicas with primary writes.
 func (adb *AssessmentDB) GetSourceQueryStats() ([]*types.QueryStats, error) {
 	query := `
 		SELECT queryid, query, calls, rows,
 		       total_exec_time, mean_exec_time,
 		       min_exec_time, max_exec_time
-		FROM db_queries_summary;`
+		FROM db_queries_summary
+		WHERE source_node = 'primary';`
 
 	rows, err := adb.db.Query(query)
 	if err != nil {

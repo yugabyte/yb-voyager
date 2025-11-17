@@ -1221,6 +1221,14 @@ func (pg *PostgreSQL) GetMissingExportDataPermissions(exportType string, finalTa
 }
 
 func (pg *PostgreSQL) GetMissingAssessMigrationPermissions() ([]string, bool, error) {
+	return pg.GetMissingAssessMigrationPermissionsForNode(false)
+}
+
+// GetMissingAssessMigrationPermissionsForNode checks for missing permissions and configuration issues.
+// The isReplica parameter controls which checks are performed:
+// - If isReplica=true, skips ANALYZE check (pg_stat_all_tables metadata is not replicated)
+// - If isReplica=false, performs all checks including ANALYZE
+func (pg *PostgreSQL) GetMissingAssessMigrationPermissionsForNode(isReplica bool) ([]string, bool, error) {
 	var combinedResult []string
 
 	// Check if tables have SELECT permission
@@ -1242,15 +1250,20 @@ func (pg *PostgreSQL) GetMissingAssessMigrationPermissions() ([]string, bool, er
 			"\n"+color.YellowString("track_counts is disabled")+" (IOPS metrics will be unavailable)")
 	}
 
-	// Check ANALYZE statistics
-	schemas := pg.getTrimmedSchemaList()
-	missingAnalyze, err := pg.CheckMissingAnalyzeStats(schemas)
-	if err != nil {
-		return nil, false, fmt.Errorf("error checking ANALYZE statistics: %w", err)
-	}
-	if len(missingAnalyze) > 0 {
-		combinedResult = append(combinedResult,
-			fmt.Sprintf("\n"+color.YellowString("Schemas without ANALYZE:")+" %v (some optimizations may not be detected)", missingAnalyze))
+	// Check ANALYZE statistics (only on primary)
+	// Note: pg_stat_all_tables metadata (last_analyze, last_autoanalyze) is NOT replicated
+	// to read replicas, even though the actual table statistics are replicated.
+	// Replicas cannot run ANALYZE (they're read-only), so this check is meaningless on replicas.
+	if !isReplica {
+		schemas := pg.getTrimmedSchemaList()
+		missingAnalyze, err := pg.CheckMissingAnalyzeStats(schemas)
+		if err != nil {
+			return nil, false, fmt.Errorf("error checking ANALYZE statistics: %w", err)
+		}
+		if len(missingAnalyze) > 0 {
+			combinedResult = append(combinedResult,
+				fmt.Sprintf("\n"+color.YellowString("Schemas without ANALYZE:")+" %v (some optimizations may not be detected)", missingAnalyze))
+		}
 	}
 
 	result, err := pg.checkPgStatStatementsSetup()
