@@ -218,6 +218,10 @@ class KafkaConnectRecordParser implements RecordParser {
         r.t = t;
     }
 
+    /*
+    import data to source-replica 
+    from source/from target 
+    */
     protected void parseKeyFields(Struct key, Record r) {
         for (Field f : key.schema().fields()) {
             Object fieldValue;
@@ -262,7 +266,6 @@ class KafkaConnectRecordParser implements RecordParser {
         if (after == null) {
             return;
         }
-
         for (Field f : after.schema().fields()) {
             // TODO: write a proper transformer for this logic
             // values in the debezium connector are as follows:
@@ -288,12 +291,19 @@ class KafkaConnectRecordParser implements RecordParser {
     }
 
     private void parseValueFieldsForOthers(Struct after, Struct before, Record r) {
-        if (r.op.equals("d")){ // after is null for delete events
+        if (r.op.equals("d")) { // after is null for delete events
             for (Field f : before.schema().fields()) {
                 Object beforeFieldValue = before.getWithoutDefault(f.name());
                 r.addBeforeValueField(f.name(), beforeFieldValue);
             }
             return;
+        }
+        if (before != null) {
+            //add all the before fields to the record
+            for (Field f : before.schema().fields()) {
+                Object beforeFieldValue = before.getWithoutDefault(f.name());
+                r.addBeforeValueField(f.name(), beforeFieldValue);
+            }
         }
         for (Field f : after.schema().fields()) {
             if (r.op.equals("u")) {
@@ -303,14 +313,8 @@ class KafkaConnectRecordParser implements RecordParser {
                 }
             }
             Object afterFieldValue = after.getWithoutDefault(f.name());
-            Object beforeFieldValue = null;
 
             r.addAfterValueField(f.name(), afterFieldValue);
-            if (!(r.op.equals("c") || r.op.equals("r"))){ 
-                // before is null for create events
-                beforeFieldValue = before.getWithoutDefault(f.name());
-            }
-            r.addBeforeValueField(f.name(), beforeFieldValue);
         }
     }
 }
