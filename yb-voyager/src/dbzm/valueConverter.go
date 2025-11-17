@@ -246,23 +246,36 @@ func NewCsvRowProcessor(tableNameTup sqlname.NameTuple) *CsvRowProcessor {
 		wbuf:         wbuf,
 	}
 }
-func (rcrw *CsvRowProcessor) ReadRow(row string) ([]string, error) {
-	rcrw.bufReader.Reset(strings.NewReader(row))
-	columnValues, err := rcrw.csvReader.Read()
+func (crp *CsvRowProcessor) ReadRow(row string) ([]string, error) {
+	crp.bufReader.Reset(strings.NewReader(row))
+	columnValues, err := crp.csvReader.Read()
 	if err != nil {
 		return nil, fmt.Errorf("reading row: %w", err)
 	}
 	return columnValues, nil
 }
 
-func (rcrw *CsvRowProcessor) WriteRow(columnValues []string) (string, error) {
-	rcrw.bufWriter.Reset(rcrw.wbuf)
-	csvWriter := csv.NewWriter(rcrw.bufWriter)
+func (crp *CsvRowProcessor) WriteRow(columnValues []string) (string, error) {
+	crp.bufWriter.Reset(crp.wbuf)
+	csvWriter := csv.NewWriter(crp.bufWriter)
 	csvWriter.Write(columnValues)
 	csvWriter.Flush()
-	row := strings.TrimSuffix(rcrw.wbuf.String(), "\n")
-	rcrw.wbuf.Reset()
+	row := strings.TrimSuffix(crp.wbuf.String(), "\n")
+	crp.wbuf.Reset()
 	return row, nil
+}
+
+func (crp *CsvRowProcessor) ResetBuffers() error {
+	crp.bufReader.Reset(nil)
+
+	// re-initialize csv reader
+	crp.csvReader = stdlibcsv.NewReader(crp.bufReader)
+	crp.csvReader.ReuseRecord = true
+
+	// wbuf.Reset does not de-allocate the underlying buffer, so we need to create a new one
+	crp.wbuf = &bytes.Buffer{}
+	crp.bufWriter.Reset(crp.wbuf)
+	return nil
 }
 
 //====================================================StreamingPhaseValueConverter====================================================
