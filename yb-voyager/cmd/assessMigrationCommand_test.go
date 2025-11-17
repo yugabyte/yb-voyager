@@ -307,7 +307,7 @@ END $$;`,
 		"idx_test_data_value ON test_schema.test_data":                      "FREQUENT", //0 scans 100000 writes
 		"test_partitions_l_created_at_idx ON test_schema.test_partitions_l": "FREQUENT", //4899 scans 25000 writes
 		"test_schema.test_partitions_l":                                     "FREQUENT", //4900 scans 25000 writes
-		"test_schema.test_partitions":                                       "FREQUENT",   // combined usage of all the partitions
+		"test_schema.test_partitions":                                       "FREQUENT", // combined usage of all the partitions
 		"test_schema.test_partitions_s":                                     "MODERATE", //4597 scans 25000 writes
 		"test_partitions_s_created_at_idx ON test_schema.test_partitions_s": "MODERATE", //0 scans 25000 writes
 		"test_schema.test_partitions_b":                                     "RARE",     //1 scan 10 writes
