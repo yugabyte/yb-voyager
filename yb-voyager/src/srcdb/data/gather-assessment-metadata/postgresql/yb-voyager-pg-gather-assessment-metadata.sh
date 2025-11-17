@@ -44,9 +44,17 @@ Arguments:
 
   source_node_name            The name of the source node (default 'primary'). Used to tag collected metrics in multi-node assessments.
 
+  skip_checks                 Skip pre-flight checks (track_counts, ANALYZE statistics) that are already performed by guardrails. 
+                              (default 'false') (accepted values: 'false' and 'true')
+                              Use 'true' when running via yb-voyager orchestration (guardrails already validated).
+                              Use 'false' when running script manually.
 
-Example:
-  PGPASSWORD=<password> $SCRIPT_NAME 'postgresql://user@localhost:5432/mydatabase' 'public|sales' '/path/to/assessment/metadata' 'true' '60' 'true' 'primary'
+
+Example (Manual execution with all checks):
+  PGPASSWORD=<password> $SCRIPT_NAME 'postgresql://user@localhost:5432/mydatabase' 'public|sales' '/path/to/assessment/metadata' 'true' '60' 'false' 'primary'
+
+Example (Orchestrated by yb-voyager with guardrails):
+  PGPASSWORD=<password> $SCRIPT_NAME 'postgresql://user@localhost:5432/mydatabase' 'public|sales' '/path/to/assessment/metadata' 'true' '60' 'true' 'primary' 'true'
 
 Please ensure to replace the placeholders with actual values suited to your environment.
 "
@@ -59,10 +67,10 @@ fi
 
 # Check if all required arguments are provided
 if [ "$#" -lt 4 ]; then
-    echo "Usage: $0 <pg_connection_string> <schema_list> <assessment_metadata_dir> <pgss_enabled> [iops_capture_interval] [yes] [source_node_name]"
+    echo "Usage: $0 <pg_connection_string> <schema_list> <assessment_metadata_dir> <pgss_enabled> [iops_capture_interval] [yes] [source_node_name] [skip_checks]"
     exit 1
-elif [ "$#" -gt 7 ]; then
-    echo "Usage: $0 <pg_connection_string> <schema_list> <assessment_metadata_dir> <pgss_enabled> [iops_capture_interval] [yes] [source_node_name]"
+elif [ "$#" -gt 8 ]; then
+    echo "Usage: $0 <pg_connection_string> <schema_list> <assessment_metadata_dir> <pgss_enabled> [iops_capture_interval] [yes] [source_node_name] [skip_checks]"
     exit 1
 fi
 
@@ -96,9 +104,19 @@ fi
 
 # Set source_node_name (default: 'primary' for backward compatibility)
 source_node_name="primary"
-if [ "$#" -eq 7 ]; then
+if [ "$#" -ge 7 ]; then
     source_node_name=$7
-    echo "source_node_name: $source_node_name"
+fi
+
+# Set skip_checks (default: 'false' for backward compatibility)
+# When true, skips track_counts and ANALYZE checks (assumes guardrails already validated)
+skip_checks=false
+if [ "$#" -eq 8 ]; then
+    skip_checks=$8
+    if [[ "$skip_checks" != false && "$skip_checks" != true ]]; then
+        echo "accepted values for skip_checks parameter are only ('true' and 'false')"
+        exit 1
+    fi
 fi
 
 
@@ -195,19 +213,24 @@ main() {
     # exporting irrespective it was set or not
     export PGPASSWORD
 
-    track_counts_on=$(psql $pg_connection_string -tAqc "SELECT setting FROM pg_settings WHERE name = 'track_counts';")
-    if [ "$track_counts_on" != "on" ]; then
-        print_and_log "WARN" "Warning: track_counts is not enabled in the PostgreSQL configuration."
-        echo "It's required for calculating reads/writes per second stats of tables/indexes. Do you still want to continue? (Y/N): "
-        read continue_execution
-        continue_execution=$(echo "$continue_execution" | tr '[:upper:]' '[:lower:]') # converting to lower case for easier comparison
-        if [ "$continue_execution" != "yes" ] && [ "$continue_execution" != "y" ]; then
-            print_and_log "INFO" "Exiting..."
-            exit 2
+    # Check track_counts setting (only if guardrails haven't already checked)
+    if [ "$skip_checks" == false ]; then
+        track_counts_on=$(psql $pg_connection_string -tAqc "SELECT setting FROM pg_settings WHERE name = 'track_counts';")
+        if [ "$track_counts_on" != "on" ]; then
+            print_and_log "WARN" "Warning: track_counts is not enabled in the PostgreSQL configuration."
+            echo "It's required for calculating reads/writes per second stats of tables/indexes. Do you still want to continue? (Y/N): "
+            read continue_execution
+            continue_execution=$(echo "$continue_execution" | tr '[:upper:]' '[:lower:]') # converting to lower case for easier comparison
+            if [ "$continue_execution" != "yes" ] && [ "$continue_execution" != "y" ]; then
+                print_and_log "INFO" "Exiting..."
+                exit 2
+            fi
         fi
     fi
 
-    null_analyze_schemas=$(psql $pg_connection_string -tAqc "SELECT DISTINCT schemaname 
+    # Check ANALYZE statistics (only if guardrails haven't already checked)
+    if [ "$skip_checks" == false ]; then
+        null_analyze_schemas=$(psql $pg_connection_string -tAqc "SELECT DISTINCT schemaname 
 FROM pg_stat_all_tables pgst1 
 WHERE schemaname = ANY(ARRAY[string_to_array('$schema_list', '|')])
   AND NOT EXISTS (
@@ -217,21 +240,22 @@ WHERE schemaname = ANY(ARRAY[string_to_array('$schema_list', '|')])
       AND (pgst2.last_analyze IS NOT NULL OR pgst2.last_autoanalyze IS NOT NULL)
   );")
 
-    if [[ -n "$null_analyze_schemas" ]]; then
-        echo ""
-        echo "The following schemas do not have ANALYZE statistics:"
-        for s in "${null_analyze_schemas[@]}"; do
-            echo "  - $s"
-        done
-        echo ""
-        echo "Some performance optimizations cannot be detected accurately without ANALYZE statistics."
-        echo "Do you want to continue without analyzing these schemas? (Y/N)"
-        if [ "$yes" == false ]; then
-            read -r user_input
-            if [[ "$user_input" != "y" && "$user_input" != "Y" ]]; then
-                echo "You can run ANALYZE manually on the affected schemas before retrying."
-                echo "Aborting..."
-                exit 2 # error code for gracefullly error out the assess command 
+        if [[ -n "$null_analyze_schemas" ]]; then
+            echo ""
+            echo "The following schemas do not have ANALYZE statistics:"
+            for s in "${null_analyze_schemas[@]}"; do
+                echo "  - $s"
+            done
+            echo ""
+            echo "Some performance optimizations cannot be detected accurately without ANALYZE statistics."
+            echo "Do you want to continue without analyzing these schemas? (Y/N)"
+            if [ "$yes" == false ]; then
+                read -r user_input
+                if [[ "$user_input" != "y" && "$user_input" != "Y" ]]; then
+                    echo "You can run ANALYZE manually on the affected schemas before retrying."
+                    echo "Aborting..."
+                    exit 2 # error code for gracefullly error out the assess command 
+                fi
             fi
         fi
     fi

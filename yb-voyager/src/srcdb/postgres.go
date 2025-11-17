@@ -1232,6 +1232,27 @@ func (pg *PostgreSQL) GetMissingAssessMigrationPermissions() ([]string, bool, er
 		combinedResult = append(combinedResult, fmt.Sprintf("\n%s[%s]", color.RedString("Missing SELECT permission for user %s on Tables: ", pg.source.User), strings.Join(missingTables, ", ")))
 	}
 
+	// Check track_counts setting
+	trackCounts, err := pg.CheckTrackCounts()
+	if err != nil {
+		return nil, false, fmt.Errorf("error checking track_counts setting: %w", err)
+	}
+	if !trackCounts {
+		combinedResult = append(combinedResult,
+			"\n"+color.YellowString("track_counts is disabled")+" (IOPS metrics will be unavailable)")
+	}
+
+	// Check ANALYZE statistics
+	schemas := pg.getTrimmedSchemaList()
+	missingAnalyze, err := pg.CheckMissingAnalyzeStats(schemas)
+	if err != nil {
+		return nil, false, fmt.Errorf("error checking ANALYZE statistics: %w", err)
+	}
+	if len(missingAnalyze) > 0 {
+		combinedResult = append(combinedResult,
+			fmt.Sprintf("\n"+color.YellowString("Schemas without ANALYZE:")+" %v (some optimizations may not be detected)", missingAnalyze))
+	}
+
 	result, err := pg.checkPgStatStatementsSetup()
 	if err != nil {
 		return nil, false, fmt.Errorf("error checking pg_stat_statement extension installed with read permissions: %w", err)
@@ -1243,6 +1264,60 @@ func (pg *PostgreSQL) GetMissingAssessMigrationPermissions() ([]string, bool, er
 		combinedResult = append(combinedResult, result)
 	}
 	return combinedResult, pgssEnabled, nil
+}
+
+// CheckTrackCounts checks if the track_counts setting is enabled in PostgreSQL.
+// This setting is required for collecting IOPS metrics from pg_stat_user_tables.
+func (pg *PostgreSQL) CheckTrackCounts() (bool, error) {
+	query := "SELECT setting FROM pg_settings WHERE name = 'track_counts'"
+	var setting string
+	err := pg.db.QueryRow(query).Scan(&setting)
+	if err != nil {
+		return false, fmt.Errorf("failed to check track_counts setting: %w", err)
+	}
+	return setting == "on", nil
+}
+
+// CheckMissingAnalyzeStats checks which schemas in the provided list are missing ANALYZE statistics.
+// ANALYZE statistics are needed for accurate performance optimization detection.
+func (pg *PostgreSQL) CheckMissingAnalyzeStats(schemas []string) ([]string, error) {
+	if len(schemas) == 0 {
+		return nil, nil
+	}
+
+	schemaList := strings.Join(schemas, "','")
+	query := fmt.Sprintf(`
+		SELECT DISTINCT schemaname 
+		FROM pg_stat_all_tables pgst1 
+		WHERE schemaname IN ('%s')
+		  AND NOT EXISTS (
+			SELECT 1 
+			FROM pg_stat_all_tables pgst2 
+			WHERE pgst2.schemaname = pgst1.schemaname 
+			  AND (pgst2.last_analyze IS NOT NULL OR pgst2.last_autoanalyze IS NOT NULL)
+		  )
+	`, schemaList)
+
+	rows, err := pg.db.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check ANALYZE statistics: %w", err)
+	}
+	defer rows.Close()
+
+	var missingSchemas []string
+	for rows.Next() {
+		var schema string
+		if err := rows.Scan(&schema); err != nil {
+			return nil, fmt.Errorf("failed to scan schema name: %w", err)
+		}
+		missingSchemas = append(missingSchemas, schema)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating ANALYZE statistics results: %w", err)
+	}
+
+	return missingSchemas, nil
 }
 
 const (

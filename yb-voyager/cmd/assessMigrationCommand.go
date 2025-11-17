@@ -27,7 +27,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"sync"
 	"syscall"
 	"text/template"
 
@@ -582,8 +581,7 @@ func gatherAssessmentMetadataFromPG() (err error) {
 
 	yesParam := lo.Ternary(utils.DoNotPrompt, "true", "false")
 
-	// Step 1: Collect from primary first (synchronously)
-	// This allows user prompts (e.g., ANALYZE) to happen cleanly before parallel replica collection
+	// Step 1: Collect from primary (guardrails already checked, skip redundant checks in script)
 	utils.PrintAndLogf("Collecting metadata from primary...")
 	err = runGatherAssessmentMetadataScript(
 		scriptPath,
@@ -595,62 +593,45 @@ func gatherAssessmentMetadataFromPG() (err error) {
 		fmt.Sprintf("%d", intervalForCapturingIOPS),
 		yesParam,
 		"primary", // source_node_name
+		"true",    // skip_checks - guardrails already validated
 	)
 	if err != nil {
 		return fmt.Errorf("metadata collection failed on primary database (critical): %w", err)
 	}
-	utils.PrintAndLogf("Successfully collected metadata from primary")
+	utils.PrintAndLogf("✓ Primary complete\n")
 
-	// Step 2: Collect from replicas in parallel (if any)
+	// Step 2: Collect from replicas sequentially (if any) - Phase 1: clean sequential output
 	if len(validatedReplicaEndpoints) == 0 {
 		utils.PrintAndLogf("Successfully completed metadata collection from 1 node (primary)")
 		return nil
 	}
 
-	utils.PrintAndLogf("\nCollecting metadata from %d replica(s) in parallel...", len(validatedReplicaEndpoints))
-
-	var wg sync.WaitGroup
-	resultChan := make(chan CollectionResult, len(validatedReplicaEndpoints))
-
-	for _, replica := range validatedReplicaEndpoints {
-		wg.Add(1)
-		go func(r srcdb.ReplicaEndpoint) {
-			defer wg.Done()
-			log.Infof("Collecting metadata from replica: %s", r.Name)
-			err := runGatherAssessmentMetadataScript(
-				scriptPath,
-				[]string{fmt.Sprintf("PGPASSWORD=%s", source.Password)},
-				r.ConnectionUri,
-				source.Schema,
-				assessmentMetadataDir,
-				fmt.Sprintf("%t", pgssEnabledForAssessment),
-				fmt.Sprintf("%d", intervalForCapturingIOPS),
-				"true", // Always use --yes for replicas to avoid concurrent prompts
-				r.Name, // source_node_name
-			)
-			if err != nil {
-				resultChan <- CollectionResult{NodeName: r.Name, IsPrimary: false, Success: false, Error: err}
-			} else {
-				log.Infof("Successfully collected metadata from replica: %s", r.Name)
-				resultChan <- CollectionResult{NodeName: r.Name, IsPrimary: false, Success: true, Error: nil}
-			}
-		}(replica)
-	}
-
-	// Wait for all replica collections to complete
-	wg.Wait()
-	close(resultChan)
-
-	// Process replica results with graceful degradation
+	// Sequential collection from replicas for clean output
 	var successfulReplicas []string
 	var failedReplicas []string
 
-	for result := range resultChan {
-		if result.Success {
-			successfulReplicas = append(successfulReplicas, result.NodeName)
+	for _, replica := range validatedReplicaEndpoints {
+		utils.PrintAndLogf("\nCollecting metadata from %s...", replica.Name)
+		err := runGatherAssessmentMetadataScript(
+			scriptPath,
+			[]string{fmt.Sprintf("PGPASSWORD=%s", source.Password)},
+			replica.ConnectionUri,
+			source.Schema,
+			assessmentMetadataDir,
+			fmt.Sprintf("%t", pgssEnabledForAssessment),
+			fmt.Sprintf("%d", intervalForCapturingIOPS),
+			"true",       // Always use --yes for replicas
+			replica.Name, // source_node_name
+			"true",       // skip_checks - guardrails already validated
+		)
+		if err != nil {
+			log.Warnf("Failed to collect metadata from replica %s: %v", replica.Name, err)
+			utils.PrintAndLogf("⚠ %s failed (will be excluded from assessment)\n", replica.Name)
+			failedReplicas = append(failedReplicas, replica.Name)
 		} else {
-			failedReplicas = append(failedReplicas, result.NodeName)
-			log.Warnf("WARNING: Replica '%s' collection failed: %v", result.NodeName, result.Error)
+			log.Infof("Successfully collected metadata from replica: %s", replica.Name)
+			utils.PrintAndLogf("✓ %s complete\n", replica.Name)
+			successfulReplicas = append(successfulReplicas, replica.Name)
 		}
 	}
 
