@@ -1,4 +1,3 @@
--- Direct COPY to support read-only replicas (no temp table needed)
 \o object-type-mapping.csv
 COPY (
     SELECT

@@ -1,5 +1,4 @@
 -- gathering schema_name, table_name, column_name, data_type
--- Direct COPY to support read-only replicas (no temp table needed)
 \o table-columns-data-types.csv
 COPY (
     SELECT

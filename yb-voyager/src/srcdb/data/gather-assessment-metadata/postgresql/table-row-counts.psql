@@ -1,4 +1,3 @@
--- Direct COPY to support read-only replicas (no temp table or PL/pgSQL needed)
 \o table-row-counts.csv
 COPY (
     SELECT

@@ -1,4 +1,3 @@
--- Direct COPY using CTEs to support read-only replicas (no temp tables needed)
 \o redundant-indexes.csv
 COPY (
     WITH ind_att AS (

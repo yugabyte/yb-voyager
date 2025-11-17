@@ -1,4 +1,3 @@
--- Direct COPY to support read-only replicas (no temp table needed)
 \o index-to-table-mapping.csv
 COPY (
     SELECT

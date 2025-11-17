@@ -1,4 +1,3 @@
--- Direct COPY to support read-only replicas (no temp table needed)
 -- Use COPY TO STDOUT with psql output redirection since \copy doesn't support variable substitution well
 \o column_statistics.csv
 COPY (

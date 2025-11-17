@@ -1,4 +1,3 @@
--- Direct COPY to support read-only replicas (no temp table needed)
 -- Note: Explicitly lists pg_stat_statements columns for PostgreSQL 13+
 -- Older versions may have fewer columns (will fail gracefully if column doesn't exist)
 \o db-queries-summary.csv

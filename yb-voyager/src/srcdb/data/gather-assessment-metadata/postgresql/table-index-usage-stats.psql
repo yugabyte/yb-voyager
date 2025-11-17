@@ -3,7 +3,6 @@
 -- for partitioned table - data is always 0 since the stats are stored for leaf partitions only
 -- for index reads - index scans and writes 0
 -- for partitioned index - data is always 0 since the stats are stored for leaf partitions only
--- Direct COPY to support read-only replicas (no temp table needed)
 \o table-index-usage-stats.csv
 COPY (
     SELECT

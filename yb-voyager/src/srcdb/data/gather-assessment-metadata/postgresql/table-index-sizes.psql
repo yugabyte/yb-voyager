@@ -1,4 +1,3 @@
--- Direct COPY to support read-only replicas (no temp table needed)
 \o table-index-sizes.csv
 COPY (
     SELECT
