@@ -193,17 +193,12 @@ main() {
     log "INFO" "switch to assessment_metadata_dir='$assessment_metadata_dir'"
     pushd "$assessment_metadata_dir" > /dev/null || exit
 
-    # Create node-specific subdirectory to prevent file overwrites in multi-node assessments
-    # For backward compatibility: 'primary' writes directly to assessment_metadata_dir
-    # Replicas write to 'node-<node_name>' subdirectories
-    if [ "$source_node_name" != "primary" ]; then
-        node_data_dir="node-${source_node_name}"
-        mkdir -p "$node_data_dir"
-        log "INFO" "Using node-specific data directory: $node_data_dir"
-        cd "$node_data_dir" || exit
-    else
-        log "INFO" "Writing primary node data to assessment_metadata_dir"
-    fi
+    # Create node-specific subdirectory for consistent structure across all nodes
+    # All nodes (primary + replicas) write to their own 'node-<node_name>' subdirectories
+    node_data_dir="node-${source_node_name}"
+    mkdir -p "$node_data_dir"
+    log "INFO" "Using node-specific data directory: $node_data_dir"
+    cd "$node_data_dir" || exit
 
     if [ -z "$PGPASSWORD" ]; then 
         echo -n "Enter PostgreSQL password: "
@@ -318,19 +313,27 @@ WHERE schemaname = ANY(ARRAY[string_to_array('$schema_list', '|')])
         esac
     done
 
-    # check for pg_dump version
-    pg_dump_version=$(pg_dump --version | awk '{print $3}' | awk -F. '{print $1}')
-    log "INFO" "extracted pg_dump version: $pg_dump_version"
-    if [ "$pg_dump_version" -lt 14 ]; then
-        print_and_log "ERROR" "pg_dump version is less than 14. Please upgrade to version 14 or higher."
-        exit 1
-    fi
+    # Schema collection: only for primary node, placed at root of assessment_metadata_dir
+    # (Schema is identical across all nodes, so we don't need per-node schema collection)
+    if [ "$source_node_name" == "primary" ]; then
+        # check for pg_dump version
+        pg_dump_version=$(pg_dump --version | awk '{print $3}' | awk -F. '{print $1}')
+        log "INFO" "extracted pg_dump version: $pg_dump_version"
+        if [ "$pg_dump_version" -lt 14 ]; then
+            print_and_log "ERROR" "pg_dump version is less than 14. Please upgrade to version 14 or higher."
+            exit 1
+        fi
 
-    mkdir -p schema
-    print_and_log "INFO" "Collecting schema information..."
-    pg_dump_command="pg_dump $pg_connection_string --schema-only --schema=$schema_list --extension=\"*\" --no-comments --no-owner --no-privileges --no-tablespaces --load-via-partition-root --file='schema/schema.sql'"
-    log "INFO" "Executing pg_dump: $pg_dump_command"
-    run_command "$pg_dump_command"
+        # Go back to parent (assessmentMetadataDir) to create schema at root level, not inside node dir
+        cd ..
+        mkdir -p schema
+        print_and_log "INFO" "Collecting schema information..."
+        pg_dump_command="pg_dump $pg_connection_string --schema-only --schema=$schema_list --extension=\"*\" --no-comments --no-owner --no-privileges --no-tablespaces --load-via-partition-root --file='schema/schema.sql'"
+        log "INFO" "Executing pg_dump: $pg_dump_command"
+        run_command "$pg_dump_command"
+    else
+        log "INFO" "Skipping schema collection for replica '$source_node_name' (schema already collected from primary)"
+    fi
 
     # Return to the original directory after operations are done
     popd > /dev/null

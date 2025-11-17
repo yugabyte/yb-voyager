@@ -274,8 +274,6 @@ func assessMigration() (err error) {
 		}
 
 		fetchSourceInfo()
-
-		source.DB().Disconnect()
 	}
 
 	startEvent := createMigrationAssessmentStartedEvent()
@@ -289,6 +287,12 @@ func assessMigration() (err error) {
 	}
 
 	parseExportedSchemaFileForAssessmentIfRequired()
+
+	// Disconnect from primary DB only after all direct DB operations are complete
+	// (including schema export which may check schema existence)
+	if assessmentMetadataDirFlag == "" {
+		source.DB().Disconnect()
+	}
 
 	err = populateMetadataCSVIntoAssessmentDB()
 	if err != nil {
@@ -479,8 +483,8 @@ func runAssessment() error {
 func handleStartCleanIfNeededForAssessMigration(metadataDirPassedByUser bool) error {
 	assessmentDir := filepath.Join(exportDir, "assessment")
 	reportsFilePattern := filepath.Join(assessmentDir, "reports", fmt.Sprintf("%s.*", ASSESSMENT_FILE_NAME))
-	metadataFilesPattern := filepath.Join(assessmentMetadataDir, "*.csv")
-	schemaFilesPattern := filepath.Join(assessmentMetadataDir, "schema", "*", "*.sql")
+	metadataFilesPattern := filepath.Join(assessmentMetadataDir, "node-*", "*.csv")
+	schemaFilesPattern := filepath.Join(assessmentMetadataDir, "node-*", "schema", "*", "*.sql")
 	dbsFilePattern := filepath.Join(assessmentDir, "dbs", "*.db")
 
 	assessmentFilesExists := utils.FileOrFolderExistsWithGlobPattern(reportsFilePattern) || utils.FileOrFolderExistsWithGlobPattern(dbsFilePattern)
@@ -764,31 +768,27 @@ func parseExportedSchemaFileForAssessmentIfRequired() {
 
 func populateMetadataCSVIntoAssessmentDB() error {
 	// Collect CSV files from all node-specific subdirectories
-	// For backward compatibility: primary CSVs are in assessmentMetadataDir/*.csv
-	// Replicas: CSVs are in assessmentMetadataDir/node-*/*.csv
+	// All nodes (primary + replicas) store data in node-* subdirectories:
+	//   - Primary: assessmentMetadataDir/node-primary/*.csv
+	//   - Replicas: assessmentMetadataDir/node-<replica_name>/*.csv
 	var metadataFilesPath []string
 
-	// Primary node data (backward compatible path - CSVs directly in assessmentMetadataDir)
-	primaryFiles, err := filepath.Glob(filepath.Join(assessmentMetadataDir, "*.csv"))
+	// Find all node directories (includes primary and all replicas)
+	nodeDirs, err := filepath.Glob(filepath.Join(assessmentMetadataDir, "node-*"))
 	if err != nil {
-		return fmt.Errorf("error looking for csv files in directory %s: %w", assessmentMetadataDir, err)
+		return fmt.Errorf("error looking for node data directories in %s: %w", assessmentMetadataDir, err)
 	}
-	metadataFilesPath = append(metadataFilesPath, primaryFiles...)
 
-	// Replica node data (new multi-node paths: node-<replica_name>/)
-	replicaDirs, err := filepath.Glob(filepath.Join(assessmentMetadataDir, "node-*"))
-	if err != nil {
-		return fmt.Errorf("error looking for replica data directories in %s: %w", assessmentMetadataDir, err)
-	}
-	for _, replicaDir := range replicaDirs {
-		replicaFiles, err := filepath.Glob(filepath.Join(replicaDir, "*.csv"))
+	// Collect CSV files from each node directory
+	for _, nodeDir := range nodeDirs {
+		nodeFiles, err := filepath.Glob(filepath.Join(nodeDir, "*.csv"))
 		if err != nil {
-			return fmt.Errorf("error looking for csv files in directory %s: %w", replicaDir, err)
+			return fmt.Errorf("error looking for csv files in directory %s: %w", nodeDir, err)
 		}
-		metadataFilesPath = append(metadataFilesPath, replicaFiles...)
+		metadataFilesPath = append(metadataFilesPath, nodeFiles...)
 	}
 
-	log.Infof("Found %d CSV files across all nodes for population into assessment DB", len(metadataFilesPath))
+	log.Infof("Found %d CSV files across %d node(s) for population into assessment DB", len(metadataFilesPath), len(nodeDirs))
 
 	for _, metadataFilePath := range metadataFilesPath {
 		baseFileName := filepath.Base(metadataFilePath)
