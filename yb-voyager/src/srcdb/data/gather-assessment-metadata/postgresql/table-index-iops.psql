@@ -22,13 +22,24 @@ COPY (
             WHEN c.relkind = 'i' THEN 0::bigint
         END AS row_writes,
         :'measurement_type' AS measurement_type
-    FROM pg_class c
-    JOIN pg_namespace n ON c.relnamespace = n.oid
-    LEFT JOIN pg_stat_user_tables psut ON psut.relid = c.oid AND c.relkind IN ('r', 'm')
-    LEFT JOIN pg_stat_all_indexes psi ON psi.indexrelid = c.oid AND c.relkind = 'i'
-    LEFT JOIN pg_index pi ON pi.indexrelid = c.oid
-    WHERE n.nspname = ANY(ARRAY[string_to_array(:'schema_list', '|')])
-      AND (c.relkind IN ('r', 'p', 'i', 'I', 'm')) 
-      AND NOT (c.relkind='I' AND pi.indisprimary)
+    FROM
+        pg_class c
+    JOIN
+        pg_namespace n ON c.relnamespace = n.oid
+    LEFT JOIN
+        pg_stat_user_tables psut
+           ON psut.relid = c.oid
+          AND c.relkind IN ('r', 'm')
+    LEFT JOIN
+        pg_stat_all_indexes psi
+           ON psi.indexrelid = c.oid
+          AND c.relkind = 'i'
+    LEFT JOIN
+        pg_index pi
+           ON pi.indexrelid = c.oid
+    WHERE
+        n.nspname = ANY(ARRAY[string_to_array(:'schema_list', '|')])
+        AND (c.relkind IN ('r', 'p', 'i', 'I', 'm'))
+        AND NOT (c.relkind = 'I' AND pi.indisprimary)
 ) TO STDOUT WITH CSV HEADER;
 \o

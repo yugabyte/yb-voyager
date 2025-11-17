@@ -1,5 +1,13 @@
 \o redundant-indexes.csv
 COPY (
+    /*
+     * =========================================
+     *  INDEX ATTRIBUTE EXPANSION (ind_att)
+     * =========================================
+     *
+     * Expand each index row into per-attribute rows with ordinal positions,
+     * operator-class, collation, and reconstructed key text using pg_get_indexdef.
+     */
     WITH ind_att AS (
         SELECT
             pg_idx.indrelid,
@@ -32,6 +40,16 @@ COPY (
         LEFT JOIN pg_collation coll ON idx_att.attcollation = coll.oid
         JOIN pg_am am ON am.oid = idx.relam
     ),
+
+    /*
+     * =========================================
+     *  INDEX DETAILS
+     * =========================================
+     *
+     * Retrieve the per-index metadata and aggregate the per-attribute metadata
+     * into arrays for each index. This allows us to easily compare indexes
+     * for redundancy.
+     */
     indexes AS (
         SELECT
             i.indrelid,
@@ -45,80 +63,220 @@ COPY (
             pg_get_expr(i.indpred, i.indrelid) AS partial_pred,
             am.amname AS access_method,
             i.nullsnotdistinct AS indnullsnotdistinct,
-            ARRAY_AGG(ao.index_key_def ORDER BY ao.key_position) AS columns_expressions,
-            ARRAY_AGG(ao.collation_name ORDER BY ao.key_position) AS colcollations,
-            ARRAY_AGG(oc.opcname ORDER BY ao.key_position) AS operator_classes,
-            ARRAY_AGG(ao.options ORDER BY ao.key_position) AS column_options,
-            ARRAY_AGG(ao.index_key_def ORDER BY ao.key_position) AS all_columns,
-            (ARRAY_AGG(ao.index_key_def ORDER BY ao.key_position))[1:i.indnkeyatts] AS key_columns,
+
+            /*
+             * Make operator class a LEFT JOIN so that included columns
+             * (which have no opclass) do not get dropped.
+             */
+            ARRAY_AGG(ao.index_key_def ORDER BY ao.key_position)      AS columns_expressions,
+            ARRAY_AGG(ao.collation_name ORDER BY ao.key_position)     AS colcollations,
+            ARRAY_AGG(oc.opcname ORDER BY ao.key_position)            AS operator_classes,
+            ARRAY_AGG(ao.options ORDER BY ao.key_position)            AS column_options,
+            ARRAY_AGG(ao.index_key_def ORDER BY ao.key_position)      AS all_columns,
+
+            /* Key columns only (first indnkeyatts) */
+            (ARRAY_AGG(ao.index_key_def ORDER BY ao.key_position))[1:i.indnkeyatts]
+                AS key_columns,
+
+            /* Included columns only (everything after the key) */
             CASE
                 WHEN i.indnkeyatts < i.indnatts
-                THEN (ARRAY_AGG(ao.index_key_def ORDER BY ao.key_position))[(i.indnkeyatts+1):]
+                THEN (ARRAY_AGG(ao.index_key_def ORDER BY ao.key_position))[
+                         (i.indnkeyatts+1):
+                     ]
                 ELSE ARRAY[]::text[]
-            END AS included_columns
+            END
+                AS included_columns
+
         FROM ind_att ao
         JOIN (SELECT *, (row_to_json(pg_index)->>'indnullsnotdistinct')::boolean AS nullsnotdistinct FROM pg_index) i
-            ON i.indexrelid = ao.indexrelid
-        JOIN pg_class irel ON irel.oid = i.indexrelid
-        JOIN pg_namespace n ON n.oid = irel.relnamespace
-        JOIN pg_class t ON t.oid = i.indrelid
-        JOIN pg_am am ON am.oid = irel.relam
+          ON i.indexrelid = ao.indexrelid
+        JOIN pg_class irel
+          ON irel.oid = i.indexrelid
+        JOIN pg_namespace n
+          ON n.oid = irel.relnamespace
+        JOIN pg_class t
+          ON t.oid = i.indrelid
+        JOIN pg_am am
+          ON am.oid = irel.relam
+
         LEFT OUTER JOIN LATERAL unnest(i.indclass) WITH ORDINALITY AS opcls(opc, pos)
-            ON ao.key_position = pos
-        LEFT OUTER JOIN pg_opclass oc ON oc.oid = opcls.opc
-        WHERE ao.schemaname = ANY(ARRAY[string_to_array(:'schema_list', '|')])
+          ON ao.key_position = pos
+        LEFT OUTER JOIN pg_opclass oc
+          ON oc.oid = opcls.opc
+
+        /* Filter on the schema list at this point */
+        WHERE ao.schemaname = ANY(ARRAY[string_to_array(:'schema_list', '|')]) --schema_list
+
         GROUP BY
-            i.indrelid, i.indexrelid, n.nspname, t.relname, irel.relname,
-            i.indisunique, i.indnkeyatts, i.indpred, am.amname, i.indnatts, i.nullsnotdistinct
+            i.indrelid,
+            i.indexrelid,
+            n.nspname,
+            t.relname,
+            irel.relname,
+            i.indisunique,
+            i.indnkeyatts,
+            i.indpred,
+            am.amname,
+            i.indnatts,
+            i.nullsnotdistinct
     ),
+
     indexes_no_constraints AS (
         SELECT idx.*
         FROM indexes idx
         LEFT JOIN pg_constraint c
-            ON c.conindid = (
-                SELECT cc.oid
-                FROM pg_class cc
-                WHERE cc.relname = idx.index_name
-                  AND cc.relnamespace = (
-                      SELECT ns.oid FROM pg_namespace ns WHERE ns.nspname = idx.schema_name
-                  )
-            )
+               ON c.conindid = (
+                    SELECT cc.oid
+                      FROM pg_class cc
+                     WHERE cc.relname = idx.index_name
+                       AND cc.relnamespace = (
+                           SELECT ns.oid
+                             FROM pg_namespace ns
+                            WHERE ns.nspname = idx.schema_name
+                       )
+               )
         WHERE c.conindid IS NULL
     )
+
+    /*
+     * =========================================
+     *  REDUNDANCY LOGIC
+     * =========================================
+     *
+     * This final query performs the redundancy check.
+     * We join together two versions of the index metadata
+     * CTE, looking for pairs of indexes where one (the "redundant")
+     * is redundant with respect to the other (the "existing").
+     */
     SELECT DISTINCT ON (redundant.schema_name, redundant.table_name, redundant.index_name)
         :'source_node_name' AS source_node,
-        redundant.schema_name AS redundant_schema_name,
-        redundant.table_name AS redundant_table_name,
-        redundant.index_name AS redundant_index_name,
-        existing.schema_name AS existing_schema_name,
-        existing.table_name AS existing_table_name,
-        existing.index_name AS existing_index_name,
+        redundant.schema_name                 AS redundant_schema_name,
+        redundant.table_name                  AS redundant_table_name,
+        redundant.index_name                  AS redundant_index_name,
+        existing.schema_name                  AS existing_schema_name,
+        existing.table_name                   AS existing_table_name,
+        existing.index_name                   AS existing_index_name, 
         pg_get_indexdef(redundant.indexrelid) AS redundant_ddl,
-        pg_get_indexdef(existing.indexrelid) AS existing_ddl
+        pg_get_indexdef(existing.indexrelid)  AS existing_ddl
     FROM indexes_no_constraints redundant
     JOIN indexes existing
-        ON redundant.schema_name = existing.schema_name
-       AND redundant.table_name = existing.table_name
-       AND redundant.index_name <> existing.index_name
-       AND redundant.access_method = existing.access_method
-       AND redundant.indnkeyatts <= existing.indnkeyatts
-       AND (existing.partial_pred IS NULL AND redundant.partial_pred IS NULL)
-       AND existing.operator_classes[1:redundant.indnkeyatts] = redundant.operator_classes[1:redundant.indnkeyatts]
-       AND existing.colcollations[1:redundant.indnkeyatts] = redundant.colcollations[1:redundant.indnkeyatts]
-       AND (SELECT bool_and(redundant.column_options[i] = existing.column_options[i]) 
-            FROM generate_series(1, redundant.indnkeyatts) AS g(i))
-       AND (existing.key_columns[1:redundant.indnkeyatts] = redundant.key_columns
-            AND redundant.included_columns <@ existing.all_columns[(redundant.indnkeyatts+1):]
-            AND ((redundant.is_unique AND existing.is_unique 
-                  AND redundant.key_columns = existing.key_columns
-                  AND (NOT redundant.indnullsnotdistinct OR existing.indnullsnotdistinct))
-                 OR (NOT redundant.is_unique AND NOT existing.is_unique)
-                 OR (NOT redundant.is_unique AND existing.is_unique)))
-       AND NOT (redundant.key_columns = existing.key_columns
-                AND redundant.included_columns = existing.included_columns
-                AND redundant.is_unique = existing.is_unique
-                AND redundant.indnullsnotdistinct = existing.indnullsnotdistinct
-                AND redundant.index_name < existing.index_name)
-    ORDER BY redundant.schema_name, redundant.table_name, redundant.index_name, existing.index_name
+      ON redundant.schema_name   = existing.schema_name
+     AND redundant.table_name    = existing.table_name
+     AND redundant.index_name   <> existing.index_name
+     AND redundant.access_method = existing.access_method
+
+     /*
+      * Redundant must be same length or "smaller" in actual keyed columns 
+      * to be overshadowed by the existing. 
+      */
+     AND redundant.indnkeyatts <= existing.indnkeyatts
+
+     /*
+      * Partial index logic: not consider any partial indexes in the check for
+      * redundant with existing.
+      */
+     AND (
+        existing.partial_pred IS NULL
+        AND redundant.partial_pred IS NULL
+     )
+
+     /*
+      * Operator classes, collations, etc. must match for the key columns.
+      * The column_options array is defined in the ind_att CTE and contains
+      * ASC/DESC and NULLS FIRST/NULLS LAST information.
+      */
+     AND existing.operator_classes[1 : redundant.indnkeyatts]
+         = redundant.operator_classes[1 : redundant.indnkeyatts]
+     AND existing.colcollations[1 : redundant.indnkeyatts]
+         = redundant.colcollations[1 : redundant.indnkeyatts]
+
+     /*
+      * Column options must match for the key columns.
+      */
+     AND (
+      SELECT bool_and(
+        redundant.column_options[i] = existing.column_options[i]
+      )
+      FROM generate_series(1, redundant.indnkeyatts) AS g(i)
+      )
+
+     /*
+      * ============================
+      *  KEY vs. INCLUDED LOGIC
+      * ============================
+      *
+      * Basic idea:
+      *  - If Redundant's key columns are a prefix of existing's key columns,
+      *    and all of redundant's included columns appear in existing’s remaining columns,
+      *    then redundant is redundant.
+      *
+      *  - Or if they are exactly the same key columns, and existing includes at least
+      *    the same included columns, redundant is also redundant.
+      */
+     AND (
+        -- Redundant's key columns are prefix of existing's key columns
+        -- this includes the case where they are the same
+        existing.key_columns[1 : redundant.indnkeyatts] 
+          = redundant.key_columns
+
+        /*
+         * Redundant's included columns are contained in the remainder of existing's columns.
+         * The remainder is defined as the included columns of the existing, plus any
+         * key columns that are not in the redundant's key columns.
+         */
+        AND redundant.included_columns <@ existing.all_columns[(redundant.indnkeyatts+1):]
+
+        /*
+         * One of the following must be true:
+         *  - Both indexes are unique
+         *  - Both indexes are not unique
+         *  - The redundant index is not unique, and the existing is unique
+         */
+        AND (
+          (
+            redundant.is_unique AND existing.is_unique
+
+            /*
+             * If both indexes are unique, their key columns must be the same.
+             *
+             * For example, if we have UNIQUE (a, b) and UNIQUE (a, b, c),
+             * we can't drop UNIQUE (a, b) because it enforces a stronger
+             * constraint than UNIQUE (a, b, c), and we can't drop UNIQUE (a, b, c)
+             * because it has more key columns.
+             */
+            AND redundant.key_columns = existing.key_columns
+
+            /*
+             * NULLS NOT DISTINCT is a stronger guarantee than NULLS DISTINCT (default).
+             * If the redundant index has NULLS NOT DISTINCT, the existing must also have NULLS NOT DISTINCT.
+             */
+            AND (NOT redundant.indnullsnotdistinct OR existing.indnullsnotdistinct)
+          )
+          OR (
+            NOT redundant.is_unique AND NOT existing.is_unique
+          )
+          OR (
+            NOT redundant.is_unique AND existing.is_unique
+          )
+        )
+     )
+
+     /*
+      * If both indexes are exactly the same, break ties deterministically.
+      * We do this by picking the larger name to drop.
+      */
+     AND NOT (
+      redundant.key_columns = existing.key_columns
+      AND redundant.included_columns = existing.included_columns
+      AND redundant.is_unique = existing.is_unique
+      AND redundant.indnullsnotdistinct = existing.indnullsnotdistinct
+      AND redundant.index_name < existing.index_name
+     )
+    ORDER BY
+        redundant.schema_name,
+        redundant.table_name,
+        redundant.index_name,
+        existing.index_name
 ) TO STDOUT WITH CSV HEADER;
 \o

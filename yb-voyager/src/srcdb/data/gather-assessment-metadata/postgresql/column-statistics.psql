@@ -1,22 +1,21 @@
--- Use COPY TO STDOUT with psql output redirection since \copy doesn't support variable substitution well
 \o column_statistics.csv
 COPY (
     SELECT
-        :'source_node_name' AS source_node,
+        :'source_node_name' AS source_node, -- new column for source node (this was added in the second script)
         st.schemaname as schema_name,
         st.tablename as table_name,
         st.attname as column_name,
         st.null_frac as null_frac,
         CASE 
-            WHEN st.n_distinct < 0 THEN ROUND(-1 * st.n_distinct * c.reltuples)
+            WHEN st.n_distinct < 0 THEN ROUND(-1 * st.n_distinct * c.reltuples) --negative number is the number of distinct values divided by the total rows (reltuples) when ANALYZE believes that the number can change once the table grows
             ELSE st.n_distinct
         END AS effective_n_distinct,
-        COALESCE((st.most_common_freqs::float8[])[1], 0) as most_common_freq,
-        (st.most_common_vals::text::text[])[1] as most_common_val
+        COALESCE((st.most_common_freqs::float8[])[1], 0) as most_common_freq, --most_common_freqs is always sorted where maximum one appears first
+        (st.most_common_vals::text::text[])[1] as most_common_val --corresponding value is most_common_value
     FROM pg_stats st
     JOIN pg_class c ON c.relname = st.tablename
     JOIN pg_namespace ns ON ns.nspname = st.schemaname AND ns.oid = c.relnamespace
-    WHERE st.schemaname=ANY(ARRAY[string_to_array(:'schema_list', '|')])
+    WHERE st.schemaname=ANY(ARRAY[string_to_array(:'schema_list', '|')]) --schema_list
     ORDER BY st.schemaname, st.tablename, st.attname
 ) TO STDOUT WITH CSV HEADER;
 \o

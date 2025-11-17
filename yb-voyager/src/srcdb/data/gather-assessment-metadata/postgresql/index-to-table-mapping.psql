@@ -6,11 +6,17 @@ COPY (
         idx.relname AS index_name,
         tbl_nsp.nspname AS table_schema,
         tbl.relname AS table_name
-    FROM pg_index i
-    JOIN pg_class idx ON i.indexrelid = idx.oid
-    JOIN pg_class tbl ON i.indrelid = tbl.oid
-    JOIN pg_namespace idx_nsp ON idx.relnamespace = idx_nsp.oid
-    JOIN pg_namespace tbl_nsp ON tbl.relnamespace = tbl_nsp.oid
-    WHERE idx_nsp.nspname = ANY(ARRAY[string_to_array(:'schema_list', '|')])
+    FROM
+        pg_index i
+    JOIN
+        pg_class idx ON i.indexrelid = idx.oid
+    JOIN
+        pg_class tbl ON i.indrelid = tbl.oid
+    JOIN
+        pg_namespace idx_nsp ON idx.relnamespace = idx_nsp.oid
+    JOIN
+        pg_namespace tbl_nsp ON tbl.relnamespace = tbl_nsp.oid
+    WHERE
+        idx_nsp.nspname = ANY(ARRAY[string_to_array(:'schema_list', '|')])
 ) TO STDOUT WITH CSV HEADER;
 \o

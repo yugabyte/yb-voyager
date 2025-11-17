@@ -1,3 +1,8 @@
+-- Set the schema_list variable
+SET vars.schema_list TO :'schema_list';
+
+-- Iterate over each schema in the schema list
+-- (Original DO block inserted row counts; this SELECT returns the same rows without writes)
 \o table-row-counts.csv
 COPY (
     SELECT

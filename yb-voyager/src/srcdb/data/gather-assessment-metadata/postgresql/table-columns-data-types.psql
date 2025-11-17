@@ -7,12 +7,18 @@ COPY (
         c.table_name,
         c.column_name,
         CASE
-            WHEN c.data_type = 'ARRAY' THEN c.udt_schema || '.' || SUBSTRING(c.udt_name FROM 2) || '[]'
-            WHEN c.data_type = 'USER-DEFINED' THEN c.udt_schema || '.' || c.udt_name
-            WHEN c.domain_name <> '' THEN c.domain_name
-            ELSE c.data_type
+            WHEN c.data_type = 'ARRAY' THEN
+                c.udt_schema || '.' || SUBSTRING(c.udt_name FROM 2) || '[]'  -- Removes leading _ for array types and appends []
+            WHEN c.data_type = 'USER-DEFINED' THEN
+                c.udt_schema || '.' || c.udt_name  -- for user-defined types
+            WHEN c.domain_name <> '' THEN
+                c.domain_name  -- domain type (e.g. lo domain)
+            ELSE
+                c.data_type  -- native type
         END AS data_type
-    FROM information_schema.columns c
-    WHERE c.table_schema =ANY(ARRAY[string_to_array(:'schema_list', '|')])
+    FROM
+        information_schema.columns c
+    WHERE
+        c.table_schema = ANY(ARRAY[string_to_array(:'schema_list', '|')])
 ) TO STDOUT WITH CSV HEADER;
 \o
