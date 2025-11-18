@@ -381,11 +381,27 @@ func getMapValuesForQuery(m map[string]*string) []interface{} {
 }
 
 func (event *Event) IsUniqueKeyPresent(uniqueKeyCols []string) bool {
-	return event.Op == "u" &&
-		len(uniqueKeyCols) > 0 &&
-		// check if any of the unique key columns are present in the before fields instead of fields since there can be cases where unique key
-		// column is not changed but the unique key is remove the index  because of partial predicate
-		lo.Some(lo.Keys(event.BeforeFields), uniqueKeyCols)
+	// return event.Op == "u" &&
+	// 	len(uniqueKeyCols) > 0 &&
+	// 	// check if any of the unique key columns are present in the before fields instead of fields since there can be cases where unique key
+	// 	// column is not changed but the unique key is remove the index  because of partial predicate
+	// 	lo.Some(lo.Keys(event.BeforeFields), uniqueKeyCols)
+
+	if event.Op != "u" {
+		return false
+	}
+	if len(uniqueKeyCols) == 0 {
+		return false
+	}
+	if event.BeforeFields == nil {
+		//In case before fields are not present, we need to check the fields since for now with gRPC before fields doesn't come up 
+		//but this won't really be required as we are planning to have partition by table for source/source-replica importers
+		return lo.Some(lo.Keys(event.Fields), uniqueKeyCols)
+	}
+	// check if any of the unique key columns are present in the before fields instead of fields since there can be cases where unique key
+	// column is not changed but the unique key is remove the index  because of partial predicate
+	return lo.Some(lo.Keys(event.BeforeFields), uniqueKeyCols)
+
 }
 
 // ==============================================================================================================================
