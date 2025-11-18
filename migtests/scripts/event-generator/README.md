@@ -52,8 +52,14 @@ Notes:
 ### Run
 From the folder:
 ```bash
+# Default: uses event-generator.yaml in this folder
 python3 generator.py
+
+# Provide a custom config path
+python3 generator.py -c /path/to/event-generator.yaml
+python3 generator.py --config ./configs/dev.yaml
 ```
+- When not provided, the script loads `event-generator.yaml` that sits next to `generator.py`.
 - The script ensures `tsm_system_rows` exists:
   - Requires `CREATE EXTENSION tsm_system_rows;` privileges (superuser or granted).
 - Stop anytime with Ctrl+C. The connection is closed cleanly.

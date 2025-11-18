@@ -81,12 +81,16 @@ def validate_section(section: Dict[str, Any], schema: Dict[str, Any], section_na
 # ---------------------
 # Top-level loader
 # ---------------------
-def load_event_generator_config() -> Dict[str, Any]:
+def load_event_generator_config(path_override: Optional[str] = None) -> Dict[str, Any]:
     """
     Load event-generator.yaml and validate against CONFIG_SCHEMA.
     Returns the loaded config dict as-is.
     """
-    config_path = os.path.join(os.path.dirname(__file__), "event-generator.yaml")
+    if path_override:
+        # Support relative paths and '~' expansion
+        config_path = os.path.abspath(os.path.expanduser(path_override))
+    else:
+        config_path = os.path.join(os.path.dirname(__file__), "event-generator.yaml")
     config = load_yaml_file(config_path)
 
     for section_name, schema in CONFIG_SCHEMA.items():

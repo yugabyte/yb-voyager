@@ -14,9 +14,21 @@ from utils import (
 from utils import load_event_generator_config, get_connection_kwargs_from_config
 import time
 from utils import set_faker_seed
+import argparse
+import os
+
+# ----- CLI arguments -----
+parser = argparse.ArgumentParser(description="Event Generator for PostgreSQL")
+parser.add_argument(
+    "-c",
+    "--config",
+    default=None,
+    help="Path to event-generator YAML config (defaults to event-generator.yaml in this folder)",
+)
+args = parser.parse_args()
 
 # ----- Config knobs (tuning) from YAML config -----
-CONFIG = load_event_generator_config()
+CONFIG = load_event_generator_config(args.config)
 GEN = CONFIG["generator"]
 
 SCHEMA_NAME = GEN["schema_name"]
