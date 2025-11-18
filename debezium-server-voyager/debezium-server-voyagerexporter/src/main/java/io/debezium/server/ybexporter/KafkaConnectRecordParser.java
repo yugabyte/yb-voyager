@@ -218,10 +218,6 @@ class KafkaConnectRecordParser implements RecordParser {
         r.t = t;
     }
 
-    /*
-    import data to source-replica 
-    from source/from target 
-    */
     protected void parseKeyFields(Struct key, Record r) {
         for (Field f : key.schema().fields()) {
             Object fieldValue;
