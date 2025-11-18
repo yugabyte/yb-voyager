@@ -55,7 +55,7 @@ var (
 )
 
 // Metadata Event Payload - Modify as needed
-var testMetadataPayload = MigrationEvent{
+var testMetadataPayload = MigrationEventPayload{
 	MigrationUUID:      testMigrationUUID,
 	MigrationPhase:     4, // 1=ASSESS, 2=EXPORT_SCHEMA, 3=ANALYZE_SCHEMA, 4=EXPORT_DATA, etc.
 	InvocationSequence: 5, // Will be auto-managed by the code, but you can override

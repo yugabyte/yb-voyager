@@ -20,8 +20,8 @@ import (
 	cp "github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 )
 
-// MigrationEvent represents the payload for voyager-metadata API
-type MigrationEvent struct {
+// MigrationEventPayload represents the payload for voyager-metadata API
+type MigrationEventPayload struct {
 	MigrationUUID       uuid.UUID          `json:"migration_uuid"`
 	MigrationPhase      int                `json:"migration_phase"`
 	InvocationSequence  int                `json:"invocation_sequence"`

@@ -41,7 +41,7 @@ type YBAeon struct {
 	voyagerInfo              *controlPlane.VoyagerInstance    // The Voyager instance information
 	migrationDirectory       string                           // The directory where the migration is being done
 	waitGroup                sync.WaitGroup                   // Wait group to track pending events
-	eventChan                chan MigrationEvent              // Buffered channel to send migration events
+	eventChan                chan MigrationEventPayload       // Buffered channel to send migration events
 	rowCountUpdateEventChan  chan []controlPlane.TableMetrics // Buffered channel to send table metrics updates in batches
 	lastRowCountUpdate       map[string]time.Time             // Tracks last update time per table to throttle row count updates (limit to 1 update per 5 seconds per table)
 	latestInvocationSequence int                              // Tracks the latest invocation sequence for a migration phase to avoid duplicates
@@ -65,7 +65,7 @@ func (ybaeon *YBAeon) Init() error {
 	}
 
 	// Create buffered channels
-	ybaeon.eventChan = make(chan MigrationEvent, 100)
+	ybaeon.eventChan = make(chan MigrationEventPayload, 100)
 	ybaeon.rowCountUpdateEventChan = make(chan []controlPlane.TableMetrics, 200)
 
 	// Initialize HTTP client with retry logic
@@ -168,7 +168,7 @@ func (ybaeon *YBAeon) panicHandler() {
 // createAndSendEvent builds and queues a migration event for YB-Aeon API
 // YB-Aeon: payload parameter is interface{} - can be a struct, map, or nil
 // For MigrationAssessmentCompleted: receives AssessMigrationPayloadYB-Aeon struct
-// The struct is assigned to MigrationEvent.Payload and marshaled as part of the entire event
+// The struct is assigned to MigrationEventPayload.Payload and marshaled as part of the entire event
 // Single marshal happens when sending to YB-Aeon API - no pre-marshaling or unmarshal cycles
 func (ybaeon *YBAeon) createAndSendEvent(event *controlPlane.BaseEvent, status string, payload interface{}) {
 	timestamp := time.Now().Format(time.RFC3339)
@@ -193,7 +193,7 @@ func (ybaeon *YBAeon) createAndSendEvent(event *controlPlane.BaseEvent, status s
 		eventPayload = make(map[string]interface{})
 	}
 
-	migrationEvent := MigrationEvent{
+	migrationEvent := MigrationEventPayload{
 		MigrationUUID:       event.MigrationUUID,
 		MigrationPhase:      controlPlane.MIGRATION_PHASE_MAP[event.EventType],
 		InvocationSequence:  invocationSequence,
@@ -300,7 +300,7 @@ func (ybaeon *YBAeon) getMaxSequenceFromAPI(migrationUUID uuid.UUID, phase int) 
 
 // sendMigrationEvent sends a migration event to YB-Aeon API
 // HTTP client handles retries automatically with exponential backoff
-func (ybaeon *YBAeon) sendMigrationEvent(event MigrationEvent) error {
+func (ybaeon *YBAeon) sendMigrationEvent(event MigrationEventPayload) error {
 	path := fmt.Sprintf("/api/public/v1/accounts/%s/projects/%s/clusters/%s/voyager/metadata",
 		ybaeon.config.AccountID, ybaeon.config.ProjectID, ybaeon.config.ClusterID)
 
@@ -342,7 +342,7 @@ func (ybaeon *YBAeon) MigrationAssessmentStarted(ev *controlPlane.MigrationAsses
 func (ybaeon *YBAeon) MigrationAssessmentCompleted(ev *controlPlane.MigrationAssessmentCompletedEvent) {
 	// YB-Aeon: ev.Report is an AssessMigrationPayloadYB-Aeon struct (NOT a JSON string)
 	// The struct is passed directly and will be marshaled only once by createAndSendEvent
-	// when constructing the full MigrationEvent for the API call
+	// when constructing the full MigrationEventPayload for the API call
 	// Fully decoupled from Yugabyted - no redundant marshal/unmarshal cycles
 	ybaeon.createAndSendEvent(&ev.BaseEvent, "COMPLETED", ev.Report)
 }
@@ -362,8 +362,8 @@ func (ybaeon *YBAeon) SchemaAnalysisStarted(event *controlPlane.SchemaAnalysisSt
 // YB-Aeon DATA FLOW - Schema Analysis Iteration Completed Event:
 // 1. Event contains AnalysisReport struct (utils.SchemaReport)
 // 2. Pass struct directly to createAndSendEvent - NO marshaling here
-// 3. Struct assigned to MigrationEvent.Payload field
-// 4. MARSHAL entire MigrationEvent (including AnalysisReport struct) when sending to YB-Aeon API
+// 3. Struct assigned to MigrationEventPayload.Payload field
+// 4. MARSHAL entire MigrationEventPayload (including AnalysisReport struct) when sending to YB-Aeon API
 // Result: Single marshal (entire event with nested struct -> JSON), no unmarshal
 func (ybaeon *YBAeon) SchemaAnalysisIterationCompleted(event *controlPlane.SchemaAnalysisIterationCompletedEvent) {
 	// Pass the AnalysisReport struct directly - NO marshaling needed
