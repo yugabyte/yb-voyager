@@ -270,7 +270,9 @@ func customRetryPolicy(ctx context.Context, resp *http.Response, err error) (boo
 
 // requestLogHook logs each request attempt for observability
 func requestLogHook(logger retryablehttp.Logger, req *http.Request, attemptNum int) {
-	if attemptNum > 0 {
+	if attemptNum == 0 {
+		log.Infof("Attempting request: method=%s, url=%s", req.Method, req.URL.String())
+	} else {
 		log.Infof("Retrying request: attempt=%d, method=%s, url=%s", attemptNum+1, req.Method, req.URL.String())
 	}
 }
