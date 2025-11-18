@@ -27,7 +27,7 @@ def extract_divs(soup):
     for div in all_divs:
         # Sorting the content within "Sharding Recommendations" since the tables can be in different order
         prev_h2 = div.find_previous("h2")
-        if prev_h2 and "Sharding Recommendations" in prev_h2.get_text():
+        if prev_h2 and "Colocation Recommendations" in prev_h2.get_text():
             should_sort = True
         else:
             should_sort = False  # Reset should_sort for each div

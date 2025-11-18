@@ -523,7 +523,7 @@ func gatherAssessmentMetadata() (err error) {
 	source.ExportObjectTypeList = utils.GetExportSchemaObjectList(source.DBType)
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 
-	utils.PrintAndLogf("gathering metadata and stats from '%s' source database...", source.DBType)
+	utils.PrintAndLogf("\ngathering metadata and stats from '%s' source database...\n", source.DBType)
 	switch source.DBType {
 	case POSTGRESQL:
 		err := gatherAssessmentMetadataFromPG()
@@ -606,7 +606,7 @@ func gatherAssessmentMetadataFromPG() (err error) {
 
 	// Step 2: Collect from replicas sequentially (if any) - Phase 1: clean sequential output
 	if len(validatedReplicaEndpoints) == 0 {
-		utils.PrintAndLogf("Successfully completed metadata collection from 1 node (primary)")
+		utils.PrintAndLogf("\nSuccessfully completed metadata collection from 1 node (primary)")
 		return nil
 	}
 
@@ -665,7 +665,7 @@ func gatherAssessmentMetadataFromPG() (err error) {
 		validatedReplicaEndpoints = validReplicas
 	}
 
-	utils.PrintAndLogf("Successfully completed metadata collection from %d node(s) (primary + %d replica(s))",
+	utils.PrintAndLogf("\nSuccessfully completed metadata collection from %d node(s) (primary + %d replica(s))",
 		1+len(validatedReplicaEndpoints), len(validatedReplicaEndpoints))
 	return nil
 }
