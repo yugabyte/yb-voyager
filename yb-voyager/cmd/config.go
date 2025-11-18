@@ -8,6 +8,7 @@ import (
 
 	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/fatih/color"
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
@@ -261,19 +262,19 @@ initConfig initializes the configuration for the given Cobra command.
 
 	This setup ensures CLI > Config precedence
 */
-func initConfig(cmd *cobra.Command) ([]ConfigFlagOverride, []EnvVarSetViaConfig, map[string]string, *viper.Viper, error) {
+func initConfig(cmd *cobra.Command) ([]ConfigFlagOverride, []EnvVarSetViaConfig, map[string]string, error) {
 	v := viper.New()
 	v.SetConfigType("yaml")
 
 	if cfgFile != "" {
 		// Use config file from the flag.
 		if !utils.FileOrFolderExists(cfgFile) {
-			return nil, nil, nil, nil, fmt.Errorf("config file does not exist: %s", cfgFile)
+			return nil, nil, nil, fmt.Errorf("config file does not exist: %s", cfgFile)
 		}
 
 		cfgFile, err := filepath.Abs(cfgFile)
 		if err != nil {
-			return nil, nil, nil, nil, fmt.Errorf("failed to get absolute path for config file: %s: %w", cfgFile, err)
+			return nil, nil, nil, fmt.Errorf("failed to get absolute path for config file: %s: %w", cfgFile, err)
 		}
 		cfgFile = filepath.Clean(cfgFile)
 
@@ -286,28 +287,31 @@ func initConfig(cmd *cobra.Command) ([]ConfigFlagOverride, []EnvVarSetViaConfig,
 		fmt.Println("Using config file:", color.BlueString(v.ConfigFileUsed()))
 	} else {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-			return nil, nil, nil, nil, fmt.Errorf("%w\nHint: Check for YAML issues like missing colons, missing spaces after colons, or inconsistent indentation.", err)
+			return nil, nil, nil, fmt.Errorf("%w\nHint: Check for YAML issues like missing colons, missing spaces after colons, or inconsistent indentation.", err)
 		}
 	}
 
 	// Validate the config file for allowed keys and sections
 	err := validateConfigFile(v)
 	if err != nil {
-		return nil, nil, nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	// Bind the config values to the Cobra command flags
 	overrides, err := bindCobraFlagsToViper(cmd, v)
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("failed to bind cobra flags to viper: %w", err)
+		return nil, nil, nil, fmt.Errorf("failed to bind cobra flags to viper: %w", err)
 	}
 
 	envVarsSetViaConfig, envVarsAlreadyExported, err := bindEnvVarsToViper(cmd, v)
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("failed to bind environment variables to viper: %w", err)
+		return nil, nil, nil, fmt.Errorf("failed to bind environment variables to viper: %w", err)
 	}
 
-	return overrides, envVarsSetViaConfig, envVarsAlreadyExported, v, nil
+	// Load control plane configuration from the config file
+	loadControlPlaneConfig(v)
+
+	return overrides, envVarsSetViaConfig, envVarsAlreadyExported, nil
 }
 
 // map of string environment variable names to their config keys
@@ -900,4 +904,28 @@ func readConfigFileAndGetImportDataToSourceKeys() ([]string, error) {
 	}
 
 	return importDataToSourceKeys, nil
+}
+
+// loadControlPlaneConfig reads control plane configuration from viper instance
+// This is called internally by initConfig() to load control plane settings
+func loadControlPlaneConfig(v *viper.Viper) {
+	controlPlaneConfig = make(map[string]string)
+
+	// Read all control plane config keys directly from viper
+	controlPlaneKeys := []string{
+		"yugabyted-control-plane.db-conn-string",
+		"ybaeon-control-plane.domain",
+		"ybaeon-control-plane.account-id",
+		"ybaeon-control-plane.project-id",
+		"ybaeon-control-plane.cluster-id",
+		"ybaeon-control-plane.api-key",
+	}
+
+	for _, key := range controlPlaneKeys {
+		if v.IsSet(key) {
+			controlPlaneConfig[key] = v.GetString(key)
+		}
+	}
+
+	log.Debugf("Control plane config loaded: %d keys", len(controlPlaneConfig))
 }

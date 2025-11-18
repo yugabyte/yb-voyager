@@ -29,7 +29,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
-	"github.com/spf13/viper"
 	"github.com/tebeka/atexit"
 	"golang.org/x/exp/slices"
 
@@ -78,8 +77,8 @@ var rootCmd = &cobra.Command{
 Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like setting up source/target, migration workflow etc.`,
 
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		// Initialize the config file
-		overrides, envVarsSetViaConfig, envVarsAlreadyExported, viperInstance, err := initConfig(cmd)
+		// Initialize the config file (also loads control plane config)
+		overrides, envVarsSetViaConfig, envVarsAlreadyExported, err := initConfig(cmd)
 		if err != nil {
 			// not using utils.ErrExit as logging is not initialized yet
 			fmt.Printf("ERROR: Failed to initialize config: %v\n", err)
@@ -166,8 +165,7 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			if perfProfile {
 				go startPprofServer()
 			}
-			// Load control plane configuration from config file
-			loadControlPlaneConfig(viperInstance)
+			// Set up the control plane
 			err = setControlPlane(getControlPlaneType())
 			if err != nil {
 				utils.ErrExit("ERROR: setting up control plane: %w", err)
@@ -462,27 +460,4 @@ func setControlPlane(cpType string) error {
 
 func getControlPlaneType() string {
 	return os.Getenv("CONTROL_PLANE_TYPE")
-}
-
-// loadControlPlaneConfig reads control plane configuration from viper instance
-func loadControlPlaneConfig(v *viper.Viper) {
-	controlPlaneConfig = make(map[string]string)
-
-	// Read all control plane config keys directly from viper
-	controlPlaneKeys := []string{
-		"yugabyted-control-plane.db-conn-string",
-		"ybaeon-control-plane.domain",
-		"ybaeon-control-plane.account-id",
-		"ybaeon-control-plane.project-id",
-		"ybaeon-control-plane.cluster-id",
-		"ybaeon-control-plane.api-key",
-	}
-
-	for _, key := range controlPlaneKeys {
-		if v.IsSet(key) {
-			controlPlaneConfig[key] = v.GetString(key)
-		}
-	}
-
-	log.Debugf("Control plane config loaded: %d keys", len(controlPlaneConfig))
 }

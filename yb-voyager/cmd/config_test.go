@@ -3988,15 +3988,17 @@ func TestControlPlane_YBMConfigFileBinding(t *testing.T) {
 		cfgFile = "" // Reset after test
 	})
 
-	// Initialize config to read the config file
-	_, _, _, v, err := initConfig(assessMigrationCmd)
+	// Initialize config to read the config file (now also loads control plane config internally)
+	_, _, _, err := initConfig(assessMigrationCmd)
 	require.NoError(t, err)
 
-	// Verify control plane config was loaded
-	assert.Equal(t, "ybm", v.GetString("control-plane-type"), "Control plane type should be ybm")
-	assert.Equal(t, "https://cloud.yugabyte.com", v.GetString("ybaeon-control-plane.domain"), "YB-Aeon domain should match config")
-	assert.Equal(t, "test-account-123", v.GetString("ybaeon-control-plane.account-id"), "YB-Aeon account ID should match config")
-	assert.Equal(t, "test-project-456", v.GetString("ybaeon-control-plane.project-id"), "YB-Aeon project ID should match config")
-	assert.Equal(t, "test-cluster-789", v.GetString("ybaeon-control-plane.cluster-id"), "YB-Aeon cluster ID should match config")
-	assert.Equal(t, "test-api-key-xyz", v.GetString("ybaeon-control-plane.api-key"), "YB-Aeon API key should match config")
+	// Verify control plane config was loaded into the global controlPlaneConfig map
+	assert.Equal(t, "https://cloud.yugabyte.com", controlPlaneConfig["ybaeon-control-plane.domain"], "YB-Aeon domain should match config")
+	assert.Equal(t, "test-account-123", controlPlaneConfig["ybaeon-control-plane.account-id"], "YB-Aeon account ID should match config")
+	assert.Equal(t, "test-project-456", controlPlaneConfig["ybaeon-control-plane.project-id"], "YB-Aeon project ID should match config")
+	assert.Equal(t, "test-cluster-789", controlPlaneConfig["ybaeon-control-plane.cluster-id"], "YB-Aeon cluster ID should match config")
+	assert.Equal(t, "test-api-key-xyz", controlPlaneConfig["ybaeon-control-plane.api-key"], "YB-Aeon API key should match config")
+
+	// Verify control plane type via environment variable (set by initConfig)
+	assert.Equal(t, "ybm", os.Getenv("CONTROL_PLANE_TYPE"), "Control plane type should be ybm")
 }
