@@ -399,7 +399,7 @@ func (adb *AssessmentDB) PopulateMigrationAssessmentStats() error {
 func (adb *AssessmentDB) FetchAllStats() (*[]TableIndexStats, error) {
 	log.Infof("fetching all stats info from %q table", TABLE_INDEX_STATS)
 	query := fmt.Sprintf(`SELECT schema_name, object_name, row_count, column_count, reads_per_second, writes_per_second, 
-	is_index, object_type, parent_table_name, size_in_bytes FROM %s;`, TABLE_INDEX_STATS)
+	is_index, object_type, parent_table_name, size_in_bytes FROM %s ORDER BY schema_name, object_name;`, TABLE_INDEX_STATS)
 	rows, err := adb.db.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("error querying all stats-%s: %w", query, err)

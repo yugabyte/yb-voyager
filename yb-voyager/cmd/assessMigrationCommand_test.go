@@ -101,7 +101,7 @@ END $$;`)
 		SizingRecommendation: migassessment.SizingRecommendation{
 			ColocatedTables:                 nil,
 			ColocatedReasoning:              "Recommended instance type with 4 vCPU and 16 GiB memory could fit 2 objects (2 tables/materialized views and 0 explicit/implicit indexes) with 13.03 MB size and throughput requirement of 20 reads/sec and 0 writes/sec as sharded. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
-			ShardedTables:                   []string{"test_schema.test_data2", "test_schema.test_data"},
+			ShardedTables:                   []string{"test_schema.test_data", "test_schema.test_data2"},
 			NumNodes:                        3,
 			VCPUsPerInstance:                4,
 			MemoryPerInstance:               16,
@@ -115,7 +115,7 @@ END $$;`)
 	expectedTableIndexStats := []migassessment.TableIndexStats{
 		{
 			SchemaName:      "test_schema",
-			ObjectName:      "test_data2",
+			ObjectName:      "test_data",
 			RowCount:        int64Ptr(100000),
 			ColumnCount:     int64Ptr(2),
 			ReadsPerSecond:  int64Ptr(10),
@@ -127,7 +127,7 @@ END $$;`)
 		},
 		{
 			SchemaName:      "test_schema",
-			ObjectName:      "test_data",
+			ObjectName:      "test_data2",
 			RowCount:        int64Ptr(100000),
 			ColumnCount:     int64Ptr(2),
 			ReadsPerSecond:  int64Ptr(10),
