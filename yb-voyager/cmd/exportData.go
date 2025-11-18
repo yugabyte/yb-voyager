@@ -190,6 +190,7 @@ func packAndSendExportDataPayload(status string, errorMsg error) {
 
 	payload.MigrationPhase = EXPORT_DATA_PHASE
 	exportDataPayload := callhome.ExportDataPhasePayload{
+		PayloadVersion:            callhome.EXPORT_DATA_CALLHOME_PAYLOAD_VERSION,
 		ParallelJobs:              int64(source.NumConnections),
 		StartClean:                bool(startClean),
 		Error:                     callhome.SanitizeErrorMsg(errorMsg, anonymizer),
