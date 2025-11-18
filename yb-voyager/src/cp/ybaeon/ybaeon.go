@@ -258,9 +258,7 @@ func (ybaeon *YBAeon) getInvocationSequence(migrationUUID uuid.UUID, phase int) 
 	// Query YB-Aeon API for max sequence
 	maxSeq, err := ybaeon.getMaxSequenceFromAPI(migrationUUID, phase)
 	if err != nil {
-		log.Warnf("Failed to get max sequence from YB-Aeon API: %v. Falling back to sequence 1", err)
-		ybaeon.latestInvocationSequence = 1
-		return ybaeon.latestInvocationSequence, nil
+		return 0, err
 	}
 
 	ybaeon.latestInvocationSequence = maxSeq + 1
@@ -288,9 +286,7 @@ func (ybaeon *YBAeon) getMaxSequenceFromAPI(migrationUUID uuid.UUID, phase int) 
 	}
 
 	if err != nil {
-		// After all retries failed, fallback to sequence 0 to allow migration to proceed
-		log.Warnf("Failed to get max sequence from YB-Aeon: %v. Falling back to sequence 0", err)
-		return 0, nil
+		return 0, fmt.Errorf("failed to get max sequence from YB-Aeon API: %w", err)
 	}
 
 	maxSeq := response.Data.LatestSequence
