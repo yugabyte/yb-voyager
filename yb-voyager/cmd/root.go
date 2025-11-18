@@ -431,11 +431,33 @@ func setControlPlane(cpType string) error {
 		log.Infof("Yugabyted control plane initialized successfully")
 	case YBAEON:
 		// Get YB-Aeon config from nested section
+		// Default to production domain if not specified in config
 		domain := controlPlaneConfig["ybaeon-control-plane.domain"]
+		if domain == "" {
+			domain = "https://cloud.yugabyte.com"
+		}
 		accountID := controlPlaneConfig["ybaeon-control-plane.account-id"]
 		projectID := controlPlaneConfig["ybaeon-control-plane.project-id"]
 		clusterID := controlPlaneConfig["ybaeon-control-plane.cluster-id"]
 		apiKey := controlPlaneConfig["ybaeon-control-plane.api-key"]
+
+		// Validate required YB-Aeon configuration
+		var missingKeys []string
+		if accountID == "" {
+			missingKeys = append(missingKeys, "ybaeon-control-plane.account-id")
+		}
+		if projectID == "" {
+			missingKeys = append(missingKeys, "ybaeon-control-plane.project-id")
+		}
+		if clusterID == "" {
+			missingKeys = append(missingKeys, "ybaeon-control-plane.cluster-id")
+		}
+		if apiKey == "" {
+			missingKeys = append(missingKeys, "ybaeon-control-plane.api-key")
+		}
+		if len(missingKeys) > 0 {
+			return fmt.Errorf("YB-Aeon control plane requires the following configuration keys: %v", missingKeys)
+		}
 
 		ybaeonConfig := &ybaeon.YBAeonConfig{
 			Domain:    domain,
