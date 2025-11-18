@@ -26,3 +26,12 @@ UPDATE user_table SET email = 'user4@example.com' WHERE id = 4;
 
 -- events with NULL value for unique key columns
 UPDATE user_table SET status = 'active' where id > 0;
+
+
+-- events for test_partial_unique_index table
+-- will uncomment in another PR as part of cdc partitioning strategy changes
+-- UPDATE test_partial_unique_index SET most_recent = false WHERE check_id = 1;
+-- INSERT INTO test_partial_unique_index (check_id, most_recent) VALUES (1, true);
+
+-- UPDATE test_partial_unique_index SET most_recent = false WHERE check_id = 2;
+-- INSERT INTO test_partial_unique_index (check_id, most_recent) VALUES (2, true);

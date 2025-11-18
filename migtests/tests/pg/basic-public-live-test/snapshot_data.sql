@@ -10,3 +10,14 @@ INSERT INTO user_table (email) VALUES
     ('user6@example.com'),
     ('user7@example.com'),
     ('user8@example.com');
+
+
+INSERT INTO test_partial_unique_index (check_id, most_recent) VALUES
+    (1, true),
+    (2, true),
+    (3, true),
+    (4, true),
+    (5, true),
+    (6, true),
+    (7, true),
+    (8, true);
