@@ -1,4 +1,5 @@
 {
+    "payload_version": "1.0",
     "parallel_jobs": 4,
     "total_rows_exported": 51,
     "largest_table_rows_exported": 26,

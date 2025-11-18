@@ -1348,6 +1348,14 @@ func packAndSendImportDataToTargetPayload(status string, errorMsg error) {
 		log.Infof("callhome: error in getting the YB cluster metrics: %v", err2)
 	}
 
+	// Below adds cutover timings if applicable
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err == nil {
+		importDataPayload.CutoverTimings = CalculateCutoverTimingsForTarget(msr)
+	} else {
+		log.Infof("callhome: error getting MSR for cutover timings: %v", err)
+	}
+
 	payload.PhasePayload = callhome.MarshalledJsonString(importDataPayload)
 	payload.Status = status
 
