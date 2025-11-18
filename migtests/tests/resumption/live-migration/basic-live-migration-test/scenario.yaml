@@ -1,0 +1,123 @@
+version: 1
+name: basic-live-migration-test
+workflow: normal
+run_id: run
+
+env:
+  LOG_LEVEL: info
+
+export_dir: ./export-dir
+artifacts_dir: ./artifacts
+
+voyager:
+  cutover_to_target:
+    flags:
+      prepare-for-fall-back: false
+  import_schema:
+    flags:
+      start-clean: true
+
+source:
+  type: postgresql
+  host: 127.0.0.1
+  port: 5432
+  database: sakila
+  user: postgres
+  password: postgres
+  schema: public
+
+target:
+  type: yugabytedb
+  host: 10.9.2.132
+  port: 5433
+  database: idx
+  user: yugabyte
+  password: yugabyte
+
+stages:
+  - name: create_source_schema
+    action: run_sql
+    sql_path: ./init.sql
+
+  - name: export_schema_from_source
+    action: voyager_export_schema
+
+  - name: import_schema_on_target
+    action: voyager_import_schema
+
+  - name: start_event_generator
+    action: generator_start
+
+  - name: start_exporter
+    action: voyager_export_start
+
+  - name: start_importer
+    action: voyager_import_start
+
+  - name: start_import_resumptions
+    action: start_resumptions
+    resumption:
+      import_data:
+        max_restarts: 5
+        min_interrupt_seconds: 15
+        max_interrupt_seconds: 30
+        min_restart_wait_seconds: 5
+        max_restart_wait_seconds: 15
+
+  - name: wait_exporter_streaming
+    action: wait_for
+    condition: exporter_in_streaming_phase
+    timeout_sec: 60
+
+  - name: start_export_resumptions
+    action: start_resumptions
+    resumption:
+      export_data:
+        max_restarts: 3
+        min_interrupt_seconds: 20
+        max_interrupt_seconds: 40
+        min_restart_wait_seconds: 10
+        max_restart_wait_seconds: 20
+
+  - name: soak_with_resumptions
+    action: sleep
+    seconds: 60
+
+  - name: stop_event_generator
+    action: generator_stop
+    graceful_timeout_sec: 60
+
+  - name: insert_backlog_marker
+    action: run_sql
+    target: source
+    sql_path: ./insert_marker.sql
+
+  - name: wait_backlog_zero
+    action: wait_for
+    condition: remaining_events_eq_0
+    timeout_sec: 600
+
+  - name: stop_export_resumptions
+    action: voyager_stop_resumptions
+    command: export_data
+    timeout_sec: 60
+
+  - name: stop_import_resumptions
+    action: voyager_stop_resumptions
+    command: import_data
+    timeout_sec: 60
+
+  - name: cutover_to_target
+    action: voyager_cutover
+
+  - name: wait_cutover_completed
+    action: wait_for
+    condition: cutover_status_completed
+    timeout_sec: 900
+
+  - name: validate
+    action: dvt_run
+
+  - name: cleanup_source_cutover_table
+    action: run_sql
+    sql_path: ./cleanup.sql
