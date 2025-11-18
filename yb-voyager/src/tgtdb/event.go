@@ -380,10 +380,12 @@ func getMapValuesForQuery(m map[string]*string) []interface{} {
 	return values
 }
 
-func (event *Event) IsUniqueKeyChanged(uniqueKeyCols []string) bool {
+func (event *Event) IsUniqueKeyPresent(uniqueKeyCols []string) bool {
 	return event.Op == "u" &&
 		len(uniqueKeyCols) > 0 &&
-		lo.Some(lo.Keys(event.Fields), uniqueKeyCols)
+		// check if any of the unique key columns are present in the before fields instead of fields since there can be cases where unique key
+		// column is not changed but the unique key is remove the index  because of partial predicate
+		lo.Some(lo.Keys(event.BeforeFields), uniqueKeyCols)
 }
 
 // ==============================================================================================================================
