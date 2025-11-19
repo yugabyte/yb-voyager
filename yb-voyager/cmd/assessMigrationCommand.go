@@ -268,7 +268,7 @@ func assessMigration() (err error) {
 
 		// Check permissions on all nodes (primary + replicas) after validation
 		if source.RunGuardrailsChecks {
-			err = checkPermissionsOnAllNodes()
+			err = checkAssessmentPermissionsOnAllNodes()
 			if err != nil {
 				return fmt.Errorf("permission check failed: %w", err)
 			}
@@ -2093,35 +2093,49 @@ func getSupportedVersionString(minimumVersionsFixedIn map[string]*ybversion.YBVe
 	return strings.Join(supportedVersions, ", ")
 }
 
-// checkPermissionsOnAllNodes checks permissions on primary and all validated replicas.
-// It reports which nodes have permission issues or missing pg_stat_statements.
-func checkPermissionsOnAllNodes() error {
+// NodePermissionResult tracks permission check results for a single node
+type NodePermissionResult struct {
+	NodeName         string
+	IsPrimary        bool
+	MissingPerms     []string
+	PgssEnabled      bool
+	ConnectionFailed bool  // Explicitly tracks if connection to this node failed
+	Error            error // Any error during permission check (can be connection or other errors)
+}
+
+func checkAssessmentPermissionsOnAllNodes() error {
 	if source.DBType != POSTGRESQL {
-		// For non-PostgreSQL, use original logic (already connected to primary)
-		checkIfSchemasHaveUsagePermissions()
-		var missingPerms []string
-		var err error
-		missingPerms, pgssEnabledForAssessment, err = source.DB().GetMissingAssessMigrationPermissions()
-		if err != nil {
-			return fmt.Errorf("failed to get missing assess migration permissions: %w", err)
-		}
-		if len(missingPerms) > 0 {
-			color.Red("\nPermissions missing in the source database for assess migration:\n")
-			output := strings.Join(missingPerms, "\n")
-			utils.PrintAndLogf("%s\n\n", output)
-
-			link := "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/migrate-steps/#prepare-the-source-database"
-			fmt.Println("Check the documentation to prepare the database for migration:", color.BlueString(link))
-
-			reply := utils.AskPrompt("\nDo you want to continue anyway")
-			if !reply {
-				return fmt.Errorf("grant the required permissions and try again")
-			}
-		}
-		return nil
+		return checkPermissionsForNonPostgreSQL()
 	}
+	return checkPermissionsForPostgreSQL()
+}
 
-	// PostgreSQL multi-node: check primary + all replicas
+func checkPermissionsForNonPostgreSQL() error {
+	checkIfSchemasHaveUsagePermissions()
+	var missingPerms []string
+	var err error
+	missingPerms, pgssEnabledForAssessment, err = source.DB().GetMissingAssessMigrationPermissions()
+	if err != nil {
+		return fmt.Errorf("failed to get missing assess migration permissions: %w", err)
+	}
+	if len(missingPerms) > 0 {
+		color.Red("\nPermissions missing in the source database for assess migration:\n")
+		output := strings.Join(missingPerms, "\n")
+		utils.PrintAndLogf("%s\n\n", output)
+
+		link := "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/migrate-steps/#prepare-the-source-database"
+		fmt.Println("Check the documentation to prepare the database for migration:", color.BlueString(link))
+
+		reply := utils.AskPrompt("\nDo you want to continue anyway")
+		if !reply {
+			return fmt.Errorf("grant the required permissions and try again")
+		}
+	}
+	return nil
+}
+
+func checkPermissionsForPostgreSQL() error {
+
 	pg, ok := source.DB().(*srcdb.PostgreSQL)
 	if !ok {
 		return fmt.Errorf("source database is not PostgreSQL")
@@ -2134,77 +2148,86 @@ func checkPermissionsOnAllNodes() error {
 		utils.PrintAndLogfInfo("\nChecking permissions on all nodes (primary + %d replica(s))...", len(validatedReplicaEndpoints))
 	}
 
-	type NodePermissionResult struct {
-		NodeName     string
-		IsPrimary    bool
-		MissingPerms []string
-		PgssEnabled  bool
-		Error        error
-	}
-
 	var results []NodePermissionResult
 
 	// Check primary
-	checkIfSchemasHaveUsagePermissions()
-	missingPerms, pgssEnabled, err := pg.GetMissingAssessMigrationPermissions()
+	primaryResult, err := checkPermissionsOnPrimaryNode(pg)
 	if err != nil {
-		return fmt.Errorf("failed to check permissions on primary: %w", err)
+		return err
 	}
-	results = append(results, NodePermissionResult{
-		NodeName:     "primary",
-		IsPrimary:    true,
-		MissingPerms: missingPerms,
-		PgssEnabled:  pgssEnabled,
-		Error:        nil,
-	})
-	pgssEnabledForAssessment = pgssEnabled // Set global flag based on primary
+	results = append(results, primaryResult)
+	pgssEnabledForAssessment = primaryResult.PgssEnabled // Set global flag based on primary
 
 	// Check each replica
 	for _, replica := range validatedReplicaEndpoints {
-		// Create a new Source with replica's host/port
-		replicaSource := srcdb.Source{
-			DBType:         source.DBType,
-			Host:           replica.Host,
-			Port:           replica.Port,
-			DBName:         source.DBName,
-			User:           source.User,
-			Password:       source.Password,
-			Schema:         source.Schema,
-			SSLMode:        source.SSLMode,
-			SSLCertPath:    source.SSLCertPath,
-			SSLKey:         source.SSLKey,
-			SSLRootCert:    source.SSLRootCert,
-			SSLCRL:         source.SSLCRL,
-			NumConnections: source.NumConnections,
-		}
-
-		// Create a new PostgreSQL connection for this replica
-		replicaDB := replicaSource.DB().(*srcdb.PostgreSQL)
-
-		err := replicaDB.Connect()
-		if err != nil {
-			results = append(results, NodePermissionResult{
-				NodeName:  replica.Name,
-				IsPrimary: false,
-				Error:     fmt.Errorf("failed to connect: %w", err),
-			})
-			continue
-		}
-
-		missingPerms, pgssEnabled, err := replicaDB.GetMissingAssessMigrationPermissionsForNode(true) // isReplica=true
-		replicaDB.Disconnect()
-
-		results = append(results, NodePermissionResult{
-			NodeName:     replica.Name,
-			IsPrimary:    false,
-			MissingPerms: missingPerms,
-			PgssEnabled:  pgssEnabled,
-			Error:        err,
-		})
+		replicaResult := checkPermissionsOnReplicaNode(replica)
+		results = append(results, replicaResult)
 	}
 
-	// Analyze results and report
-	var nodesWithIssues []string
+	return displayPermissionCheckResults(results)
+}
+
+func checkPermissionsOnPrimaryNode(pg *srcdb.PostgreSQL) (NodePermissionResult, error) {
+	checkIfSchemasHaveUsagePermissions()
+	missingPerms, pgssEnabled, err := pg.GetMissingAssessMigrationPermissions()
+	if err != nil {
+		return NodePermissionResult{}, fmt.Errorf("failed to check permissions on primary: %w", err)
+	}
+	return NodePermissionResult{
+		NodeName:         "primary",
+		IsPrimary:        true,
+		MissingPerms:     missingPerms,
+		PgssEnabled:      pgssEnabled,
+		ConnectionFailed: false,
+		Error:            nil,
+	}, nil
+}
+
+func checkPermissionsOnReplicaNode(replica srcdb.ReplicaEndpoint) NodePermissionResult {
+	// Create a new Source with replica's host/port
+	replicaSource := srcdb.Source{
+		DBType:         source.DBType,
+		Host:           replica.Host,
+		Port:           replica.Port,
+		DBName:         source.DBName,
+		User:           source.User,
+		Password:       source.Password,
+		Schema:         source.Schema,
+		SSLMode:        source.SSLMode,
+		SSLCertPath:    source.SSLCertPath,
+		SSLKey:         source.SSLKey,
+		SSLRootCert:    source.SSLRootCert,
+		SSLCRL:         source.SSLCRL,
+		NumConnections: source.NumConnections,
+	}
+
+	// Create a new PostgreSQL connection for this replica
+	replicaDB := replicaSource.DB().(*srcdb.PostgreSQL)
+
+	err := replicaDB.Connect()
+	if err != nil {
+		return NodePermissionResult{
+			NodeName:         replica.Name,
+			IsPrimary:        false,
+			ConnectionFailed: true,
+			Error:            fmt.Errorf("failed to connect: %w", err),
+		}
+	}
+
+	missingPerms, pgssEnabled, err := replicaDB.GetMissingAssessMigrationPermissionsForNode(true) // isReplica=true
+	replicaDB.Disconnect()
+
+	return NodePermissionResult{
+		NodeName:         replica.Name,
+		IsPrimary:        false,
+		MissingPerms:     missingPerms,
+		PgssEnabled:      pgssEnabled,
+		ConnectionFailed: false,
+		Error:            err,
+	}
+}
+
+func displayPermissionCheckResults(results []NodePermissionResult) error {
 	var nodesWithoutPgss []string
 	var nodesMissingPerms []string
 
@@ -2221,10 +2244,16 @@ func checkPermissionsOnAllNodes() error {
 			replicaCounter++
 		}
 
-		if result.Error != nil {
+		if result.ConnectionFailed {
 			utils.PrintAndLogfError("\n%s:", displayName)
 			utils.PrintAndLogfError("  ✗ Connection failed: %v", result.Error)
-			nodesWithIssues = append(nodesWithIssues, result.NodeName)
+			continue
+		}
+
+		// Handle other errors during permission checks (non-connection errors)
+		if result.Error != nil {
+			utils.PrintAndLogfError("\n%s:", displayName)
+			utils.PrintAndLogfError("  ✗ Permission check failed: %v", result.Error)
 			continue
 		}
 
@@ -2234,7 +2263,6 @@ func checkPermissionsOnAllNodes() error {
 				utils.PrintAndLogfWarning("  ⚠ %s", strings.TrimSpace(perm))
 			}
 			nodesMissingPerms = append(nodesMissingPerms, result.NodeName)
-			nodesWithIssues = append(nodesWithIssues, result.NodeName)
 			// Track if pg_stat_statements is missing (already shown in permissions list above)
 			if !result.PgssEnabled {
 				nodesWithoutPgss = append(nodesWithoutPgss, result.NodeName)
