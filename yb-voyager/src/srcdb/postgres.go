@@ -1849,7 +1849,7 @@ func (pg *PostgreSQL) DiscoverReplicas() ([]ReplicaInfo, error) {
 			COALESCE(application_name, '') AS application_name,
 			state,
 			COALESCE(sync_state, '') AS sync_state,
-			COALESCE(client_addr::text, '') AS client_addr,
+			COALESCE(host(client_addr), '') AS client_addr,
 			COALESCE(client_port, 0) AS client_port
 		FROM pg_stat_replication
 		WHERE state = 'streaming'
