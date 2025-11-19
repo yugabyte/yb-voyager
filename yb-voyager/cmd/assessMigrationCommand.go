@@ -2300,6 +2300,14 @@ func displayPermissionCheckResults(results []NodePermissionResult) error {
 	return nil
 }
 
+func displayDiscoveredReplicas(replicas []srcdb.ReplicaInfo) {
+	for _, replica := range replicas {
+		appName := lo.Ternary(replica.ApplicationName == "", "(unnamed)", replica.ApplicationName)
+		utils.PrintAndLogf("  - application_name=%s, state=%s, sync_state=%s",
+			appName, replica.State, replica.SyncState)
+	}
+}
+
 func handleReplicaDiscoveryAndValidation() error {
 	pg, ok := source.DB().(*srcdb.PostgreSQL)
 	if !ok {
@@ -2356,11 +2364,7 @@ func handleReplicaDiscoveryAndValidation() error {
 func handleDiscoveredReplicasWithoutEndpoints(pg *srcdb.PostgreSQL, discoveredReplicas []srcdb.ReplicaInfo) error {
 	// Display discovered replicas
 	utils.PrintAndLogfInfo("\nDiscovered %d replica(s) via pg_stat_replication:", len(discoveredReplicas))
-	for _, replica := range discoveredReplicas {
-		appName := lo.Ternary(replica.ApplicationName == "", "(unnamed)", replica.ApplicationName)
-		utils.PrintAndLogf("  - application_name=%s, state=%s, sync_state=%s",
-			appName, replica.State, replica.SyncState)
-	}
+	displayDiscoveredReplicas(discoveredReplicas)
 
 	// Try best-effort validation on discovered client_addr
 	var connectableReplicas []srcdb.ReplicaEndpoint
@@ -2480,11 +2484,7 @@ func handleProvidedReplicaEndpoints(pg *srcdb.PostgreSQL, discoveredReplicas []s
 			}
 
 			utils.PrintAndLogfInfo("\nDiscovered replicas:")
-			for _, replica := range discoveredReplicas {
-				appName := lo.Ternary(replica.ApplicationName == "", "(unnamed)", replica.ApplicationName)
-				utils.PrintAndLogf("  - application_name=%s, state=%s, sync_state=%s",
-					appName, replica.State, replica.SyncState)
-			}
+			displayDiscoveredReplicas(discoveredReplicas)
 
 			if !utils.AskPrompt("\nDo you want to proceed with the provided endpoints") {
 				return fmt.Errorf("please update --source-db-replica-endpoints to match the topology")
