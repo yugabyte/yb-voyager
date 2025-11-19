@@ -223,8 +223,8 @@ main() {
         fi
     fi
 
-    # Check ANALYZE statistics (only if guardrails haven't already checked)
-    if [ "$skip_checks" == false ]; then
+    # Check ANALYZE statistics (only on primary and if guardrails haven't already checked)
+    if [ "$skip_checks" == false ] && [ "$source_node_name" == "primary" ]; then
         null_analyze_schemas=$(psql $pg_connection_string -tAqc "SELECT DISTINCT schemaname 
 FROM pg_stat_all_tables pgst1 
 WHERE schemaname = ANY(ARRAY[string_to_array('$schema_list', '|')])
