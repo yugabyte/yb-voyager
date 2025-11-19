@@ -34,7 +34,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/stretchr/testify/assert"
 
-	controlPlane "github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
+	cp "github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	testcontainers "github.com/yugabyte/yb-voyager/yb-voyager/test/containers"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
@@ -76,7 +76,7 @@ func TestYugabyteDTableSchema(t *testing.T) {
 
 	controlPlane := New(exportDir)
 	controlPlane.eventChan = make(chan MigrationEvent, 100)
-	controlPlane.rowCountUpdateEventChan = make(chan []VisualizerTableMetrics, 200)
+	controlPlane.rowCountUpdateEventChan = make(chan []cp.TableMetrics, 200)
 
 	err = controlPlane.connect()
 	assert.NoError(t, err, "Failed to connect to YugabyteDB")
@@ -139,7 +139,7 @@ func TestYugabyteDStructs(t *testing.T) {
 	}{}
 
 	t.Run("Validate VoyagerInstance Struct Definition", func(t *testing.T) {
-		testutils.CompareStructs(t, reflect.TypeOf(controlPlane.VoyagerInstance{}), reflect.TypeOf(expectedVoyagerInstance), "VoyagerInstance")
+		testutils.CompareStructs(t, reflect.TypeOf(cp.VoyagerInstance{}), reflect.TypeOf(expectedVoyagerInstance), "VoyagerInstance")
 	})
 
 	expectedMigrationEvent := struct {
@@ -163,10 +163,10 @@ func TestYugabyteDStructs(t *testing.T) {
 		testutils.CompareStructs(t, reflect.TypeOf(MigrationEvent{}), reflect.TypeOf(expectedMigrationEvent), "MigrationEvent")
 	})
 
-	expectedVisualizerTableMetrics := struct {
+	expectedTableMetrics := struct {
 		MigrationUUID       uuid.UUID `json:"migration_uuid"`
 		TableName           string    `json:"table_name"`
-		Schema              string    `json:"schema_name"`
+		SchemaName          string    `json:"schema_name"`
 		MigrationPhase      int       `json:"migration_phase"`
 		Status              int       `json:"status"`
 		CountLiveRows       int64     `json:"count_live_rows"`
@@ -174,17 +174,17 @@ func TestYugabyteDStructs(t *testing.T) {
 		InvocationTimestamp string    `json:"invocation_timestamp"`
 	}{}
 
-	t.Run("Validate VisualizerTableMetrics Struct Definition", func(t *testing.T) {
-		testutils.CompareStructs(t, reflect.TypeOf(VisualizerTableMetrics{}), reflect.TypeOf(expectedVisualizerTableMetrics), "VisualizerTableMetrics")
+	t.Run("Validate TableMetrics Struct Definition", func(t *testing.T) {
+		testutils.CompareStructs(t, reflect.TypeOf(cp.TableMetrics{}), reflect.TypeOf(expectedTableMetrics), "TableMetrics")
 	})
 
 	expectedYugabyteD := struct {
 		sync.Mutex
 		migrationDirectory       string
-		voyagerInfo              *controlPlane.VoyagerInstance
+		voyagerInfo              *cp.VoyagerInstance
 		waitGroup                sync.WaitGroup
 		eventChan                chan (MigrationEvent)
-		rowCountUpdateEventChan  chan ([]VisualizerTableMetrics)
+		rowCountUpdateEventChan  chan ([]cp.TableMetrics)
 		connPool                 *pgxpool.Pool
 		lastRowCountUpdate       map[string]time.Time
 		latestInvocationSequence int
