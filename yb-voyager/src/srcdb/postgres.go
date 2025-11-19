@@ -1935,18 +1935,10 @@ func (pg *PostgreSQL) ParseReplicaEndpoints(endpointsStr string) ([]ReplicaEndpo
 		})
 	}
 
-	// De-duplicate endpoints
-	seen := make(map[string]bool)
-	var uniqueEndpoints []ReplicaEndpoint
-	for _, ep := range replicaEndpoints {
-		key := fmt.Sprintf("%s:%d", ep.Host, ep.Port)
-		if !seen[key] {
-			seen[key] = true
-			uniqueEndpoints = append(uniqueEndpoints, ep)
-		}
-	}
-
-	return uniqueEndpoints, nil
+	// De-duplicate endpoints by host:port
+	return lo.UniqBy(replicaEndpoints, func(ep ReplicaEndpoint) string {
+		return fmt.Sprintf("%s:%d", ep.Host, ep.Port)
+	}), nil
 }
 
 // EnrichReplicaEndpointsWithDiscovery matches provided endpoints with discovered replicas
