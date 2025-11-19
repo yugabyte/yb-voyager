@@ -93,6 +93,7 @@ var assessMigrationCmd = &cobra.Command{
 		validatePortRange()
 		validateSSLMode()
 		validateOracleParams()
+		validateReplicaEndpointsFlag()
 		err = validateAndSetTargetDbVersionFlag()
 		if err != nil {
 			utils.ErrExit("failed to validate target db version: %w", err)
@@ -200,7 +201,7 @@ func init() {
 	assessMigrationCmd.Flags().MarkHidden("invoked-by-export-schema") // mark hidden
 
 	assessMigrationCmd.Flags().StringVar(&sourceDBReplicaEndpoints, "source-db-replica-endpoints", "",
-		"Comma-separated list of replica endpoints. Each endpoint is host[:port]. Default port 5432. (only valid for PostgreSQL)")
+		"Comma-separated list of replica endpoints. Each endpoint is host:port. Default port 5432. (only valid for PostgreSQL)")
 }
 
 func assessMigration() (err error) {
@@ -586,7 +587,7 @@ func gatherAssessmentMetadataFromPG() (err error) {
 	yesParam := lo.Ternary(utils.DoNotPrompt, "true", "false")
 
 	// Step 1: Collect from primary (guardrails already checked, skip redundant checks in script)
-	utils.PrintAndLogf("Collecting metadata from primary...")
+	utils.PrintAndLogfInfo("\nCollecting metadata from primary...")
 	err = runGatherAssessmentMetadataScript(
 		scriptPath,
 		[]string{fmt.Sprintf("PGPASSWORD=%s", source.Password)},
@@ -602,11 +603,11 @@ func gatherAssessmentMetadataFromPG() (err error) {
 	if err != nil {
 		return fmt.Errorf("metadata collection failed on primary database (critical): %w", err)
 	}
-	utils.PrintAndLogf("✓ Primary complete\n")
+	utils.PrintAndLogfSuccess("✓ Primary complete\n")
 
 	// Step 2: Collect from replicas sequentially (if any) - Phase 1: clean sequential output
 	if len(validatedReplicaEndpoints) == 0 {
-		utils.PrintAndLogf("\nSuccessfully completed metadata collection from 1 node (primary)")
+		utils.PrintAndLogfSuccess("\nSuccessfully completed metadata collection from 1 node (primary)")
 		return nil
 	}
 
@@ -615,7 +616,7 @@ func gatherAssessmentMetadataFromPG() (err error) {
 	var failedReplicas []string
 
 	for _, replica := range validatedReplicaEndpoints {
-		utils.PrintAndLogf("\nCollecting metadata from %s...", replica.Name)
+		utils.PrintAndLogfInfo("\nCollecting metadata from %s...", replica.Name)
 		err := runGatherAssessmentMetadataScript(
 			scriptPath,
 			[]string{fmt.Sprintf("PGPASSWORD=%s", source.Password)},
@@ -630,11 +631,11 @@ func gatherAssessmentMetadataFromPG() (err error) {
 		)
 		if err != nil {
 			log.Warnf("Failed to collect metadata from replica %s: %v", replica.Name, err)
-			utils.PrintAndLogf("⚠ %s failed (will be excluded from assessment)\n", replica.Name)
+			utils.PrintAndLogfWarning("⚠ %s failed (will be excluded from assessment)\n", replica.Name)
 			failedReplicas = append(failedReplicas, replica.Name)
 		} else {
 			log.Infof("Successfully collected metadata from replica: %s", replica.Name)
-			utils.PrintAndLogf("✓ %s complete\n", replica.Name)
+			utils.PrintAndLogfSuccess("✓ %s complete\n", replica.Name)
 			successfulReplicas = append(successfulReplicas, replica.Name)
 		}
 	}
@@ -642,8 +643,8 @@ func gatherAssessmentMetadataFromPG() (err error) {
 	// Some replicas failed - warn user but continue
 	if len(failedReplicas) > 0 {
 		color.Yellow("\nWARNING: Metadata collection failed on %d replica(s): %v", len(failedReplicas), failedReplicas)
-		utils.PrintAndLogf("Continuing assessment with data from primary + %d successful replica(s)", len(successfulReplicas))
-		utils.PrintAndLogf("Note: Sizing and metrics will reflect only the nodes that succeeded.")
+		utils.PrintAndLogfInfo("Continuing assessment with data from primary + %d successful replica(s)", len(successfulReplicas))
+		utils.PrintAndLogfWarning("Note: Sizing and metrics will reflect only the nodes that succeeded.")
 
 		// Store failed replicas for report generation
 		failedReplicaNodes = failedReplicas
@@ -665,7 +666,7 @@ func gatherAssessmentMetadataFromPG() (err error) {
 		validatedReplicaEndpoints = validReplicas
 	}
 
-	utils.PrintAndLogf("\nSuccessfully completed metadata collection from %d node(s) (primary + %d replica(s))",
+	utils.PrintAndLogfSuccess("\nSuccessfully completed metadata collection from %d node(s) (primary + %d replica(s))",
 		1+len(validatedReplicaEndpoints), len(validatedReplicaEndpoints))
 	return nil
 }
@@ -2129,9 +2130,9 @@ func checkPermissionsOnAllNodes() error {
 
 	// Print appropriate message based on replica count
 	if len(validatedReplicaEndpoints) == 0 {
-		utils.PrintAndLogf("\nChecking permissions on database...")
+		utils.PrintAndLogfInfo("\nChecking permissions on database...")
 	} else {
-		utils.PrintAndLogf("\nChecking permissions on all nodes (primary + %d replica(s))...", len(validatedReplicaEndpoints))
+		utils.PrintAndLogfInfo("\nChecking permissions on all nodes (primary + %d replica(s))...", len(validatedReplicaEndpoints))
 	}
 
 	type NodePermissionResult struct {
@@ -2208,7 +2209,7 @@ func checkPermissionsOnAllNodes() error {
 	var nodesWithoutPgss []string
 	var nodesMissingPerms []string
 
-	utils.PrintAndLogf("\n=== Permission Check Results ===\n")
+	utils.PrintAndLogfPhase("\n=== Permission Check Results ===\n")
 
 	replicaCounter := 1
 	for _, result := range results {
@@ -2222,16 +2223,16 @@ func checkPermissionsOnAllNodes() error {
 		}
 
 		if result.Error != nil {
-			color.Red("\n%s:", displayName)
-			color.Red("  ✗ Connection failed: %v", result.Error)
+			utils.PrintAndLogfError("\n%s:", displayName)
+			utils.PrintAndLogfError("  ✗ Connection failed: %v", result.Error)
 			nodesWithIssues = append(nodesWithIssues, result.NodeName)
 			continue
 		}
 
 		if len(result.MissingPerms) > 0 {
-			fmt.Printf("\n%s:\n", displayName)
+			utils.PrintAndLogf("\n%s:", displayName)
 			for _, perm := range result.MissingPerms {
-				fmt.Printf("  %s %s\n", color.YellowString("⚠"), strings.TrimSpace(perm))
+				utils.PrintAndLogfWarning("  ⚠ %s", strings.TrimSpace(perm))
 			}
 			nodesMissingPerms = append(nodesMissingPerms, result.NodeName)
 			nodesWithIssues = append(nodesWithIssues, result.NodeName)
@@ -2241,12 +2242,12 @@ func checkPermissionsOnAllNodes() error {
 			}
 		} else {
 			// No permission issues - show success
-			fmt.Printf("\n%s:\n", displayName)
-			fmt.Printf("  %s All required permissions present\n", color.GreenString("✓"))
+			utils.PrintAndLogf("\n%s:", displayName)
+			utils.PrintAndLogfSuccess("  ✓ All required permissions present")
 
 			// Show pg_stat_statements status separately only when there are no other permission issues
 			if !result.PgssEnabled {
-				fmt.Printf("  %s pg_stat_statements not available (query-level analysis will be limited)\n", color.YellowString("⚠"))
+				utils.PrintAndLogfWarning("  ⚠ pg_stat_statements not available (query-level analysis will be limited)")
 				nodesWithoutPgss = append(nodesWithoutPgss, result.NodeName)
 			}
 		}
@@ -2266,7 +2267,7 @@ func checkPermissionsOnAllNodes() error {
 
 	// If some nodes have pg_stat_statements and some don't, inform user
 	if len(nodesWithoutPgss) > 0 && len(nodesWithoutPgss) < len(results) {
-		utils.PrintAndLogf("\nNote: Query-level analysis (Unsupported Query Constructs) will only include data from nodes with pg_stat_statements.")
+		utils.PrintAndLogfInfo("\nNote: Query-level analysis (Unsupported Query Constructs) will only include data from nodes with pg_stat_statements.")
 	}
 
 	return nil
@@ -2296,7 +2297,7 @@ func handleReplicaDiscoveryAndValidation() error {
 
 	// Case 1: No replicas discovered and none provided
 	if len(discoveredReplicas) == 0 && len(providedEndpoints) == 0 {
-		utils.PrintAndLogf("No read replicas detected. Proceeding with single-node assessment.")
+		utils.PrintAndLogfInfo("No read replicas detected. Proceeding with single-node assessment.")
 		return nil
 	}
 
@@ -2327,7 +2328,7 @@ func handleReplicaDiscoveryAndValidation() error {
 // environments (RDS, Aurora), container setups (Docker, K8s), or behind proxies.
 func handleDiscoveredReplicasWithoutEndpoints(pg *srcdb.PostgreSQL, discoveredReplicas []srcdb.ReplicaInfo) error {
 	// Display discovered replicas
-	utils.PrintAndLogf("\nDiscovered %d replica(s) via pg_stat_replication:", len(discoveredReplicas))
+	utils.PrintAndLogfInfo("\nDiscovered %d replica(s) via pg_stat_replication:", len(discoveredReplicas))
 	for _, replica := range discoveredReplicas {
 		appName := replica.ApplicationName
 		if appName == "" {
@@ -2341,7 +2342,7 @@ func handleDiscoveredReplicasWithoutEndpoints(pg *srcdb.PostgreSQL, discoveredRe
 	var connectableReplicas []srcdb.ReplicaEndpoint
 	var failedReplicas []string
 
-	utils.PrintAndLogf("\nAttempting to validate discovered replica addresses...")
+	utils.PrintAndLogfInfo("\nAttempting to validate discovered replica addresses...")
 	for _, replica := range discoveredReplicas {
 		if replica.ClientAddr == "" {
 			appName := replica.ApplicationName
@@ -2365,7 +2366,7 @@ func handleDiscoveredReplicasWithoutEndpoints(pg *srcdb.PostgreSQL, discoveredRe
 				Name:          name,
 				ConnectionUri: pg.GetReplicaConnectionUri(replica.ClientAddr, 5432),
 			})
-			utils.PrintAndLogf("  ✓ Successfully connected to %s (%s)", name, replica.ClientAddr)
+			utils.PrintAndLogfSuccess("  ✓ Successfully connected to %s (%s)", name, replica.ClientAddr)
 		} else {
 			appName := replica.ApplicationName
 			if appName == "" {
@@ -2378,32 +2379,32 @@ func handleDiscoveredReplicasWithoutEndpoints(pg *srcdb.PostgreSQL, discoveredRe
 
 	// Scenario: All replicas validated successfully
 	if len(connectableReplicas) > 0 && len(failedReplicas) == 0 {
-		utils.PrintAndLogf("\nSuccessfully validated all %d replica(s) for connection.", len(connectableReplicas))
+		utils.PrintAndLogfSuccess("\nSuccessfully validated all %d replica(s) for connection.", len(connectableReplicas))
 		if utils.AskPrompt("\nDo you want to include these replicas in this assessment") {
 			validatedReplicaEndpoints = connectableReplicas
-			utils.PrintAndLogf("Proceeding with multi-node assessment using discovered replicas.")
+			utils.PrintAndLogfInfo("Proceeding with multi-node assessment using discovered replicas.")
 			return nil
 		}
-		utils.PrintAndLogf("Continuing with primary-only assessment.")
+		utils.PrintAndLogfInfo("Continuing with primary-only assessment.")
 		return nil
 	}
 
 	// Scenario: Some replicas validated, some failed
 	if len(connectableReplicas) > 0 && len(failedReplicas) > 0 {
-		utils.PrintAndLogf("\nPartial validation result:")
-		utils.PrintAndLogf("  ✓ %d replica(s) successfully validated", len(connectableReplicas))
-		utils.PrintAndLogf("  ✗ %d replica(s) could not be validated:", len(failedReplicas))
+		utils.PrintAndLogfWarning("\nPartial validation result:")
+		utils.PrintAndLogfSuccess("  ✓ %d replica(s) successfully validated", len(connectableReplicas))
+		utils.PrintAndLogfWarning("  ✗ %d replica(s) could not be validated:", len(failedReplicas))
 		for _, failed := range failedReplicas {
 			utils.PrintAndLogf("      - %s", failed)
 		}
-		utils.PrintAndLogf("\nYou can either:")
-		utils.PrintAndLogf("  1. Proceed with the %d validated replica(s)", len(connectableReplicas))
-		utils.PrintAndLogf("  2. Exit and provide all replica endpoints via --source-db-replica-endpoints")
-		utils.PrintAndLogf("  3. Continue with primary-only assessment")
+		utils.PrintAndLogfInfo("\nYou can either:")
+		utils.PrintAndLogfInfo("  1. Proceed with the %d validated replica(s)", len(connectableReplicas))
+		utils.PrintAndLogfInfo("  2. Exit and provide all replica endpoints via --source-db-replica-endpoints")
+		utils.PrintAndLogfInfo("  3. Continue with primary-only assessment")
 
 		if utils.AskPrompt(fmt.Sprintf("\nDo you want to proceed with the %d validated replica(s)", len(connectableReplicas))) {
 			validatedReplicaEndpoints = connectableReplicas
-			utils.PrintAndLogf("Proceeding with multi-node assessment using %d validated replica(s).", len(connectableReplicas))
+			utils.PrintAndLogfInfo("Proceeding with multi-node assessment using %d validated replica(s).", len(connectableReplicas))
 			return nil
 		}
 
@@ -2411,16 +2412,16 @@ func handleDiscoveredReplicasWithoutEndpoints(pg *srcdb.PostgreSQL, discoveredRe
 			return fmt.Errorf("please rerun with --source-db-replica-endpoints flag")
 		}
 
-		utils.PrintAndLogf("Continuing with primary-only assessment.")
+		utils.PrintAndLogfInfo("Continuing with primary-only assessment.")
 		return nil
 	}
 
 	// Scenario: All validation attempts failed
-	utils.PrintAndLogf("\nThe addresses shown in pg_stat_replication are not directly connectable from this environment.")
-	utils.PrintAndLogf("This is common in cloud environments (RDS, Aurora), Docker, Kubernetes, or proxy setups.")
-	utils.PrintAndLogf("\nTo include replicas in the assessment, you can:")
-	utils.PrintAndLogf("  1. Exit and rerun with --source-db-replica-endpoints flag")
-	utils.PrintAndLogf("  2. Continue with primary-only assessment")
+	utils.PrintAndLogfWarning("\nThe addresses shown in pg_stat_replication are not directly connectable from this environment.")
+	utils.PrintAndLogfInfo("This is common in cloud environments (RDS, Aurora), Docker, Kubernetes, or proxy setups.")
+	utils.PrintAndLogfInfo("\nTo include replicas in the assessment, you can:")
+	utils.PrintAndLogfInfo("  1. Exit and rerun with --source-db-replica-endpoints flag")
+	utils.PrintAndLogfInfo("  2. Continue with primary-only assessment")
 
 	if utils.AskPrompt("\nDo you want to exit and provide replica endpoints") {
 		return fmt.Errorf("please rerun with --source-db-replica-endpoints flag")
@@ -2449,21 +2450,21 @@ func handleProvidedReplicaEndpoints(pg *srcdb.PostgreSQL, discoveredReplicas []s
 
 	// Display discovery status
 	if len(discoveredReplicas) > 0 {
-		utils.PrintAndLogf("Discovered %d replica(s) via pg_stat_replication", len(discoveredReplicas))
+		utils.PrintAndLogfInfo("Discovered %d replica(s) via pg_stat_replication", len(discoveredReplicas))
 
 		// Warn if count mismatch between discovered replicas and provided endpoints
 		if len(discoveredReplicas) != len(providedEndpoints) {
-			utils.PrintAndLogf("\nWarning: Replica count mismatch detected")
-			utils.PrintAndLogf("  Discovered on primary: %d replica(s)", len(discoveredReplicas))
-			utils.PrintAndLogf("  Provided via flag:     %d endpoint(s)", len(providedEndpoints))
+			utils.PrintAndLogfWarning("\nWarning: Replica count mismatch detected")
+			utils.PrintAndLogfWarning("  Discovered on primary: %d replica(s)", len(discoveredReplicas))
+			utils.PrintAndLogfWarning("  Provided via flag:     %d endpoint(s)", len(providedEndpoints))
 
 			if len(discoveredReplicas) > len(providedEndpoints) {
-				utils.PrintAndLogf("\nNote: Some replicas discovered on the primary are not included in your endpoint list.")
+				utils.PrintAndLogfWarning("\nNote: Some replicas discovered on the primary are not included in your endpoint list.")
 			} else {
-				utils.PrintAndLogf("\nNote: You provided more endpoints than replicas discovered on the primary.")
+				utils.PrintAndLogfWarning("\nNote: You provided more endpoints than replicas discovered on the primary.")
 			}
 
-			utils.PrintAndLogf("\nDiscovered replicas:")
+			utils.PrintAndLogfInfo("\nDiscovered replicas:")
 			for _, replica := range discoveredReplicas {
 				appName := replica.ApplicationName
 				if appName == "" {
@@ -2482,7 +2483,7 @@ func handleProvidedReplicaEndpoints(pg *srcdb.PostgreSQL, discoveredReplicas []s
 	}
 
 	// Validate each provided endpoint by connecting and checking pg_is_in_recovery()
-	utils.PrintAndLogf("\nValidating %d replica endpoint(s)...", len(enrichedEndpoints))
+	utils.PrintAndLogfInfo("\nValidating %d replica endpoint(s)...", len(enrichedEndpoints))
 	var validEndpoints []srcdb.ReplicaEndpoint
 	var failedEndpoints []string
 
@@ -2493,7 +2494,7 @@ func handleProvidedReplicaEndpoints(pg *srcdb.PostgreSQL, discoveredReplicas []s
 			log.Errorf("Failed to validate replica %s:%d: %v", endpoint.Host, endpoint.Port, err)
 		} else {
 			validEndpoints = append(validEndpoints, endpoint)
-			utils.PrintAndLogf("  ✓ Validated replica: %s", endpoint.Name)
+			utils.PrintAndLogfSuccess("  ✓ Validated replica: %s", endpoint.Name)
 		}
 	}
 
@@ -2508,7 +2509,7 @@ func handleProvidedReplicaEndpoints(pg *srcdb.PostgreSQL, discoveredReplicas []s
 
 	// All endpoints validated successfully
 	validatedReplicaEndpoints = validEndpoints
-	utils.PrintAndLogf("\nProceeding with multi-node assessment...")
+	utils.PrintAndLogfInfo("\nProceeding with multi-node assessment...")
 	return nil
 }
 
@@ -2521,6 +2522,12 @@ func validateSourceDBTypeForAssessMigration() {
 	if !slices.Contains(assessMigrationSupportedDBTypes, source.DBType) {
 		utils.ErrExit("Error Invalid source-db-type: %q. Supported source db types for assess-migration are: [%v]",
 			source.DBType, strings.Join(assessMigrationSupportedDBTypes, ", "))
+	}
+}
+
+func validateReplicaEndpointsFlag() {
+	if sourceDBReplicaEndpoints != "" && source.DBType != POSTGRESQL {
+		utils.ErrExit("Error --source-db-replica-endpoints flag / source.db-replica-endpoints config parameter is only valid for 'postgresql' db type")
 	}
 }
 
