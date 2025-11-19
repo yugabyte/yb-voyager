@@ -2360,9 +2360,10 @@ func handleDiscoveredReplicasWithoutEndpoints(pg *srcdb.PostgreSQL, discoveredRe
 				name = fmt.Sprintf("%s:5432", replica.ClientAddr)
 			}
 			connectableReplicas = append(connectableReplicas, srcdb.ReplicaEndpoint{
-				Host: replica.ClientAddr,
-				Port: 5432,
-				Name: name,
+				Host:          replica.ClientAddr,
+				Port:          5432,
+				Name:          name,
+				ConnectionUri: pg.GetReplicaConnectionUri(replica.ClientAddr, 5432),
 			})
 			utils.PrintAndLogf("  ✓ Successfully connected to %s (%s)", name, replica.ClientAddr)
 		} else {

@@ -1931,7 +1931,7 @@ func (pg *PostgreSQL) ParseReplicaEndpoints(endpointsStr string) ([]ReplicaEndpo
 			Host:          host,
 			Port:          port,
 			Name:          name,
-			ConnectionUri: pg.getReplicaConnectionUri(host, port),
+			ConnectionUri: pg.GetReplicaConnectionUri(host, port),
 		})
 	}
 
@@ -1988,7 +1988,7 @@ func EnrichReplicaEndpointsWithDiscovery(endpoints []ReplicaEndpoint, discovered
 // ValidateReplicaEndpoint connects to a replica endpoint and verifies it's in recovery
 func (pg *PostgreSQL) ValidateReplicaEndpoint(endpoint ReplicaEndpoint) error {
 	// Create a connection URI for the replica using the same credentials as primary
-	replicaURI := pg.getReplicaConnectionUri(endpoint.Host, endpoint.Port)
+	replicaURI := pg.GetReplicaConnectionUri(endpoint.Host, endpoint.Port)
 
 	replicaDB, err := sql.Open("pgx", replicaURI)
 	if err != nil {
@@ -2014,8 +2014,8 @@ func (pg *PostgreSQL) ValidateReplicaEndpoint(endpoint ReplicaEndpoint) error {
 	return nil
 }
 
-// getReplicaConnectionUri creates a connection URI for a replica using the same credentials as primary
-func (pg *PostgreSQL) getReplicaConnectionUri(host string, port int) string {
+// GetReplicaConnectionUri creates a connection URI for a replica using the same credentials as primary
+func (pg *PostgreSQL) GetReplicaConnectionUri(host string, port int) string {
 	hostAndPort := fmt.Sprintf("%s:%d", host, port)
 	sourceUrl := &url.URL{
 		Scheme:   "postgresql",
@@ -2030,7 +2030,7 @@ func (pg *PostgreSQL) getReplicaConnectionUri(host string, port int) string {
 // TryConnectReplica attempts to connect to a replica using discovered client_addr
 // This is a best-effort validation that may fail in cloud/proxy environments
 func (pg *PostgreSQL) TryConnectReplica(clientAddr string, port int) error {
-	replicaURI := pg.getReplicaConnectionUri(clientAddr, port)
+	replicaURI := pg.GetReplicaConnectionUri(clientAddr, port)
 
 	replicaDB, err := sql.Open("pgx", replicaURI)
 	if err != nil {
