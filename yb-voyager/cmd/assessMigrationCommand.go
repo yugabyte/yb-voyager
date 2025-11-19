@@ -661,13 +661,9 @@ func gatherAssessmentMetadataFromPG() (err error) {
 		failedReplicaNodes = failedReplicasList
 
 		// Update global list to reflect only successful replicas (for reporting)
-		var validReplicas []srcdb.ReplicaEndpoint
-		for _, replica := range validatedReplicaEndpoints {
-			if replicaResults[replica.Name] {
-				validReplicas = append(validReplicas, replica)
-			}
-		}
-		validatedReplicaEndpoints = validReplicas
+		validatedReplicaEndpoints = lo.Filter(validatedReplicaEndpoints, func(replica srcdb.ReplicaEndpoint, _ int) bool {
+			return replicaResults[replica.Name]
+		})
 	}
 
 	utils.PrintAndLogfSuccess("\nSuccessfully completed metadata collection from %d node(s) (primary + %d replica(s))",
@@ -1672,6 +1668,10 @@ var (
 		Type: GeneralNotes,
 		Text: `There are some Foreign tables in the schema, but during the export schema phase, exported schema does not include the SERVER and USER MAPPING objects. Therefore, you must manually create these objects before import schema. For more information on each of them, run analyze-schema. `,
 	}
+	PARTIAL_MULTI_NODE_ASSESSMENT = NoteInfo{
+		Type: GeneralNotes,
+		Text: `This assessment includes partial multi-node data. Some replicas failed during metadata collection and are excluded from all sections of this report.`,
+	}
 
 	// ColocatedShardedNotes
 	COLOCATED_TABLE_RECOMMENDATION_CAVEAT = NoteInfo{
@@ -1694,11 +1694,6 @@ To manually modify the schema, please refer: <a class="highlight-link" href="htt
 	REDUNDANT_INDEX_ESTIMATED_TIME = NoteInfo{
 		Type: SizingNotes,
 		Text: `Import data time estimates exclude redundant indexes since they are automatically removed during export schema phase.`,
-	}
-
-	PARTIAL_MULTI_NODE_ASSESSMENT = NoteInfo{
-		Type: SizingNotes,
-		Text: `This assessment includes partial multi-node data. Some replicas failed during metadata collection and are excluded from sizing calculations.`,
 	}
 )
 
