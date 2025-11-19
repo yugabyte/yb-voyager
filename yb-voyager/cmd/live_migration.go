@@ -292,8 +292,8 @@ func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
 			conflictDetectionCache.Put(event)
 		} else { // "i" or "u"
 			conflictDetectionCache.WaitUntilNoConflict(event)
-			if event.IsUniqueKeyPresent(uniqueKeyCols) { // This is just checking if any of the unique key columns are present in the before fields instead of fields since there can be cases where unique key 
-				// column is not changed but the unique key is remove the index  because of partial predicate 
+			if event.IsUniqueKeyPresent(uniqueKeyCols) { // This is just checking if any of the unique key columns are present in the before fields instead of fields since there can be cases where unique key
+				// column is not changed but the unique key is remove the index  because of partial predicate
 				//This condition is not neccessary now as such we can put all the update events in cache if the table has the unique key columns
 				//As this will essentially be true for all such cases as we are checking before fields instead of fields
 				conflictDetectionCache.Put(event)

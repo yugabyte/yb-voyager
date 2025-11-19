@@ -393,9 +393,7 @@ func (event *Event) IsUniqueKeyPresent(uniqueKeyCols []string) bool {
 	if len(uniqueKeyCols) == 0 {
 		return false
 	}
-	if event.BeforeFields == nil {
-		//In case before fields are not present, we need to check the fields since for now with gRPC before fields doesn't come up 
-		//but this won't really be required as we are planning to have partition by table for source/source-replica importers
+	if len(lo.Keys(event.BeforeFields)) == 0 {
 		return lo.Some(lo.Keys(event.Fields), uniqueKeyCols)
 	}
 	// check if any of the unique key columns are present in the before fields instead of fields since there can be cases where unique key
