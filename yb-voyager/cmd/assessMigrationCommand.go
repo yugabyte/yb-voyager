@@ -607,13 +607,13 @@ func gatherAssessmentMetadataFromPG() (err error) {
 
 	// Step 2: Collect from replicas sequentially (if any) - Phase 1: clean sequential output
 	if len(validatedReplicaEndpoints) == 0 {
-		utils.PrintAndLogfSuccess("\nSuccessfully completed metadata collection from 1 node (primary)")
+		utils.PrintAndLogfSuccess("\nSuccessfully completed metadata collection from primary node")
 		return nil
 	}
 
 	// Sequential collection from replicas for clean output
-	var successfulReplicas []string
-	var failedReplicas []string
+	// Map: replica name -> true (success) / false (failure)
+	replicaResults := make(map[string]bool)
 
 	for _, replica := range validatedReplicaEndpoints {
 		utils.PrintAndLogfInfo("\nCollecting metadata from %s...", replica.Name)
@@ -632,34 +632,38 @@ func gatherAssessmentMetadataFromPG() (err error) {
 		if err != nil {
 			log.Warnf("Failed to collect metadata from replica %s: %v", replica.Name, err)
 			utils.PrintAndLogfWarning("⚠ %s failed (will be excluded from assessment)\n", replica.Name)
-			failedReplicas = append(failedReplicas, replica.Name)
+			replicaResults[replica.Name] = false
 		} else {
 			log.Infof("Successfully collected metadata from replica: %s", replica.Name)
 			utils.PrintAndLogfSuccess("✓ %s complete\n", replica.Name)
-			successfulReplicas = append(successfulReplicas, replica.Name)
+			replicaResults[replica.Name] = true
+		}
+	}
+
+	// Check if any replicas failed
+	var failedReplicasList []string
+	var successCount int
+	for name, success := range replicaResults {
+		if !success {
+			failedReplicasList = append(failedReplicasList, name)
+		} else {
+			successCount++
 		}
 	}
 
 	// Some replicas failed - warn user but continue
-	if len(failedReplicas) > 0 {
-		color.Yellow("\nWARNING: Metadata collection failed on %d replica(s): %v", len(failedReplicas), failedReplicas)
-		utils.PrintAndLogfInfo("Continuing assessment with data from primary + %d successful replica(s)", len(successfulReplicas))
+	if len(failedReplicasList) > 0 {
+		color.Yellow("\nWARNING: Metadata collection failed on %d replica(s): %v", len(failedReplicasList), failedReplicasList)
+		utils.PrintAndLogfInfo("Continuing assessment with data from primary + %d successful replica(s)", successCount)
 		utils.PrintAndLogfWarning("Note: Sizing and metrics will reflect only the nodes that succeeded.")
 
 		// Store failed replicas for report generation
-		failedReplicaNodes = failedReplicas
+		failedReplicaNodes = failedReplicasList
 
 		// Update global list to reflect only successful replicas (for reporting)
 		var validReplicas []srcdb.ReplicaEndpoint
 		for _, replica := range validatedReplicaEndpoints {
-			failed := false
-			for _, failedName := range failedReplicas {
-				if replica.Name == failedName {
-					failed = true
-					break
-				}
-			}
-			if !failed {
+			if replicaResults[replica.Name] {
 				validReplicas = append(validReplicas, replica)
 			}
 		}
