@@ -51,7 +51,7 @@ EXPECTED_SUM_OF_COLUMN = {
 		'id': '51',
 	},
 	'test_partial_unique_index': {
-		'id': '36',
+		'id': '55',
 	}
 }
 
