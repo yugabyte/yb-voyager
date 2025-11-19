@@ -2357,10 +2357,7 @@ func handleDiscoveredReplicasWithoutEndpoints(pg *srcdb.PostgreSQL, discoveredRe
 	// Display discovered replicas
 	utils.PrintAndLogfInfo("\nDiscovered %d replica(s) via pg_stat_replication:", len(discoveredReplicas))
 	for _, replica := range discoveredReplicas {
-		appName := replica.ApplicationName
-		if appName == "" {
-			appName = "(unnamed)"
-		}
+		appName := lo.Ternary(replica.ApplicationName == "", "(unnamed)", replica.ApplicationName)
 		utils.PrintAndLogf("  - application_name=%s, state=%s, sync_state=%s",
 			appName, replica.State, replica.SyncState)
 	}
@@ -2372,10 +2369,7 @@ func handleDiscoveredReplicasWithoutEndpoints(pg *srcdb.PostgreSQL, discoveredRe
 	utils.PrintAndLogfInfo("\nAttempting to validate discovered replica addresses...")
 	for _, replica := range discoveredReplicas {
 		if replica.ClientAddr == "" {
-			appName := replica.ApplicationName
-			if appName == "" {
-				appName = "(unnamed)"
-			}
+			appName := lo.Ternary(replica.ApplicationName == "", "(unnamed)", replica.ApplicationName)
 			failedReplicas = append(failedReplicas, fmt.Sprintf("%s (no client_addr)", appName))
 			continue
 		}
@@ -2383,10 +2377,7 @@ func handleDiscoveredReplicasWithoutEndpoints(pg *srcdb.PostgreSQL, discoveredRe
 		// Try to connect to client_addr on port 5432
 		err := pg.TryConnectReplica(replica.ClientAddr, 5432)
 		if err == nil {
-			name := replica.ApplicationName
-			if name == "" {
-				name = fmt.Sprintf("%s:5432", replica.ClientAddr)
-			}
+			name := lo.Ternary(replica.ApplicationName == "", fmt.Sprintf("%s:5432", replica.ClientAddr), replica.ApplicationName)
 			connectableReplicas = append(connectableReplicas, srcdb.ReplicaEndpoint{
 				Host:          replica.ClientAddr,
 				Port:          5432,
@@ -2395,17 +2386,14 @@ func handleDiscoveredReplicasWithoutEndpoints(pg *srcdb.PostgreSQL, discoveredRe
 			})
 			utils.PrintAndLogfSuccess("  ✓ Successfully connected to %s (%s)", name, replica.ClientAddr)
 		} else {
-			appName := replica.ApplicationName
-			if appName == "" {
-				appName = replica.ClientAddr
-			}
+			appName := lo.Ternary(replica.ApplicationName == "", replica.ClientAddr, replica.ApplicationName)
 			failedReplicas = append(failedReplicas, fmt.Sprintf("%s (%s)", appName, replica.ClientAddr))
 			log.Infof("Failed to connect to replica %s (%s): %v", appName, replica.ClientAddr, err)
 		}
 	}
 
 	// Scenario: All replicas validated successfully
-	if len(connectableReplicas) > 0 && len(failedReplicas) == 0 {
+	if len(failedReplicas) == 0 {
 		utils.PrintAndLogfSuccess("\nSuccessfully validated all %d replica(s) for connection.", len(connectableReplicas))
 		if utils.AskPrompt("\nDo you want to include these replicas in this assessment") {
 			validatedReplicaEndpoints = connectableReplicas
@@ -2436,7 +2424,7 @@ func handleDiscoveredReplicasWithoutEndpoints(pg *srcdb.PostgreSQL, discoveredRe
 		}
 
 		if utils.AskPrompt("Do you want to exit and provide replica endpoints") {
-			return fmt.Errorf("please rerun with --source-db-replica-endpoints flag")
+			return fmt.Errorf("Aborting, please rerun with --source-db-replica-endpoints flag")
 		}
 
 		utils.PrintAndLogfInfo("Continuing with primary-only assessment.")
@@ -2451,7 +2439,7 @@ func handleDiscoveredReplicasWithoutEndpoints(pg *srcdb.PostgreSQL, discoveredRe
 	utils.PrintAndLogfInfo("  2. Continue with primary-only assessment")
 
 	if utils.AskPrompt("\nDo you want to exit and provide replica endpoints") {
-		return fmt.Errorf("please rerun with --source-db-replica-endpoints flag")
+		return fmt.Errorf("Aborting, please rerun with --source-db-replica-endpoints flag")
 	}
 
 	utils.PrintAndLogf("Continuing with primary-only assessment.")
@@ -2493,10 +2481,7 @@ func handleProvidedReplicaEndpoints(pg *srcdb.PostgreSQL, discoveredReplicas []s
 
 			utils.PrintAndLogfInfo("\nDiscovered replicas:")
 			for _, replica := range discoveredReplicas {
-				appName := replica.ApplicationName
-				if appName == "" {
-					appName = "(unnamed)"
-				}
+				appName := lo.Ternary(replica.ApplicationName == "", "(unnamed)", replica.ApplicationName)
 				utils.PrintAndLogf("  - application_name=%s, state=%s, sync_state=%s",
 					appName, replica.State, replica.SyncState)
 			}
