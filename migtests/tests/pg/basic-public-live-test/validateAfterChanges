@@ -22,7 +22,7 @@ def main():
 EXPECTED_ROW_COUNT = {
 	'x':5,
 	'user_table': 8,
-	'test_partial_unique_index':8
+	'test_partial_unique_index':10
 }
 
 EXPECTED_DATA_TYPES = {
