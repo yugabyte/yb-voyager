@@ -199,7 +199,8 @@ func init() {
 	assessMigrationCmd.Flags().MarkHidden("invoked-by-export-schema") // mark hidden
 
 	assessMigrationCmd.Flags().StringVar(&sourceDBReplicaEndpoints, "source-db-replica-endpoints", "",
-		"Comma-separated list of replica endpoints. Each endpoint is host:port. Default port 5432. (only valid for PostgreSQL)")
+		"Comma-separated list of replica endpoints. Each endpoint is host:port. Default port 5432. "+
+			"Example: \"host1:5432, host2:5433\". (only valid for PostgreSQL)")
 }
 
 func assessMigration() (err error) {
