@@ -234,10 +234,10 @@ func checkTablesPresentInTarget(importFileTasks []*ImportFileTask) {
 		}
 	}
 	if len(tablesNotPresentInTarget) > 0 {
-		utils.PrintAndLogf("Following source tables are not present in the target database:\n%v", strings.Join(lo.Map(tablesNotPresentInTarget, func(t sqlname.NameTuple, _ int) string {
+		utils.PrintAndLogfInfo("\nFollowing source tables are not present in the target database:\n%v", strings.Join(lo.Map(tablesNotPresentInTarget, func(t sqlname.NameTuple, _ int) string {
 			return t.ForKey()
-		}), ","))
-		utils.ErrExit("Create these tables in the target database to continue with the import.")
+		}), ", "))
+		utils.ErrExit(utils.ErrorColor.Sprint("Create these tables in the target database to continue with the import."))
 	}
 }
 
@@ -614,10 +614,10 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 		result = append(result, task)
 	}
 	if len(tablesNotPresentInTarget) > 0 {
-		utils.PrintAndLogf("Following source tables are not present in the target database:\n%v", strings.Join(lo.Map(tablesNotPresentInTarget, func(t sqlname.NameTuple, _ int) string {
+		utils.PrintAndLogfInfo("\nFollowing source tables are not present in the target database:\n%v", strings.Join(lo.Map(tablesNotPresentInTarget, func(t sqlname.NameTuple, _ int) string {
 			return t.ForKey()
 		}), ","))
-		utils.ErrExit("Create these tables in the target database or exclude the tables in table-list flags if you don't want to import them.")
+		utils.ErrExit(utils.ErrorColor.Sprint("Create these tables in the target database or exclude the tables in table-list flags if you don't want to import them."))
 	}
 	return result
 }
