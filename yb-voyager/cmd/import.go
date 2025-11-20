@@ -32,6 +32,7 @@ import (
 var sourceDBType string
 var enableOrafce utils.BoolStr
 var importType string
+var prometheusMetricsPort int
 
 var supportedSSLModesOnTargetForImport = AllSSLModes // supported SSL modes for YugabyteDB is different for import VS export data from target(streaming phase)
 var supportedSSLModesOnSourceOrSourceReplica = AllSSLModes
@@ -142,7 +143,7 @@ func validateCdcPartitioningStrategyFlag() error {
 		//if the first run or the start-clean flag is used, allow the change in cdc partitioning strategy
 		return nil
 	}
-	if  cdcPartitioningStrategy != importDataStatus.CdcPartitioningStrategy {
+	if cdcPartitioningStrategy != importDataStatus.CdcPartitioningStrategy {
 		utils.ErrExit("changing the cdc partitioning strategy is not allowed after the import data has started. Current strategy: %s, new strategy: %s", importDataStatus.CdcPartitioningStrategy, cdcPartitioningStrategy)
 	}
 	log.Infof("cdc partitioning strategy: %s", cdcPartitioningStrategy)
@@ -309,6 +310,10 @@ Note that for the cases where a table doesn't have a primary key, this may lead 
 		\tpk: Partition the cdc events by primary key.
 		\ttable: Partition the cdc events by table.`)
 	cmd.Flags().MarkHidden("cdc-partitioning-strategy")
+
+	cmd.Flags().IntVar(&prometheusMetricsPort, "prometheus-metrics-port", 0,
+		"Port for Prometheus metrics server (default: 9101)")
+	cmd.Flags().MarkHidden("prometheus-metrics-port")
 }
 
 func registerImportSchemaFlags(cmd *cobra.Command) {
@@ -474,7 +479,7 @@ IGNORE		: Skip rows where the primary key already exists and continue importing 
 	cmd.Flags().MarkHidden("skip-node-health-checks")
 }
 
-func registerFlagsForSourceReplica(cmd *cobra.Command) {
+func registerFlagsForSourceAndSourceReplica(cmd *cobra.Command) {
 	cmd.Flags().Int64Var(&batchSizeInNumRows, "batch-size", 0,
 		fmt.Sprintf("Size of batches in the number of rows generated for ingestion during import. default: ORACLE(%d), POSTGRESQL(%d)", DEFAULT_BATCH_SIZE_ORACLE, DEFAULT_BATCH_SIZE_POSTGRESQL))
 	cmd.Flags().IntVar(&tconf.Parallelism, "parallel-jobs", 0,

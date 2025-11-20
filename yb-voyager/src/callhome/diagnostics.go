@@ -263,20 +263,35 @@ type AnalyzeIssueCallhome struct {
 
 // =============================== Export Data ===============================
 
+/*
+Version History
+1.0: Added CutoverTimings field
+*/
+var EXPORT_DATA_CALLHOME_PAYLOAD_VERSION = "1.0"
+
 type ExportDataPhasePayload struct {
+	PayloadVersion          string `json:"payload_version"`
 	ParallelJobs            int64  `json:"parallel_jobs"`
 	TotalRows               int64  `json:"total_rows_exported"`
 	LargestTableRows        int64  `json:"largest_table_rows_exported"`
 	StartClean              bool   `json:"start_clean"`
 	ExportSnapshotMechanism string `json:"export_snapshot_mechanism,omitempty"`
 	//TODO: see if these three can be changed to not use omitempty to put the data for 0 rate or total events
-	Phase                     string `json:"phase,omitempty"`
-	TotalExportedEvents       int64  `json:"total_exported_events,omitempty"`
-	EventsExportRate          int64  `json:"events_export_rate_3m,omitempty"`
-	LiveWorkflowType          string `json:"live_workflow_type,omitempty"`
-	Error                     string `json:"error"`
-	ControlPlaneType          string `json:"control_plane_type"`
-	AllowOracleClobDataExport bool   `json:"allow_oracle_clob_data_export"`
+	Phase                     string          `json:"phase,omitempty"`
+	TotalExportedEvents       int64           `json:"total_exported_events,omitempty"`
+	EventsExportRate          int64           `json:"events_export_rate_3m,omitempty"`
+	LiveWorkflowType          string          `json:"live_workflow_type,omitempty"`
+	Error                     string          `json:"error"`
+	ControlPlaneType          string          `json:"control_plane_type"`
+	AllowOracleClobDataExport bool            `json:"allow_oracle_clob_data_export"`
+	CutoverTimings            *CutoverTimings `json:"cutover_timings,omitempty"`
+}
+
+// =============================== Cutover Timings ===============================
+
+type CutoverTimings struct {
+	TotalCutoverTimeSec int64  `json:"total_cutover_time_sec"`
+	CutoverType         string `json:"cutover_type"`
 }
 
 // =============================== Import Schema ===============================
@@ -301,8 +316,9 @@ Version History:
 1.1: Added YBClusterMetrics field, and corresponding struct - YBClusterMetrics, NodeMetric
 1.2: Split out the data metrics into a separate struct - ImportDataMetrics
 1.3: Added CurrentParallelConnections field to ImportDataMetrics
+1.4: Added CutoverTimings field
 */
-var IMPORT_DATA_CALLHOME_PAYLOAD_VERSION = "1.3"
+var IMPORT_DATA_CALLHOME_PAYLOAD_VERSION = "1.4"
 
 type ImportDataPhasePayload struct {
 	PayloadVersion              string            `json:"payload_version"`
@@ -316,11 +332,12 @@ type ImportDataPhasePayload struct {
 	YBClusterMetrics            YBClusterMetrics  `json:"yb_cluster_metrics"`
 	DataMetrics                 ImportDataMetrics `json:"data_metrics"`
 	//TODO: see if these three can be changed to not use omitempty to put the data for 0 rate or total events
-	Phase            string `json:"phase,omitempty"`
-	LiveWorkflowType string `json:"live_workflow_type,omitempty"`
-	EnableUpsert     bool   `json:"enable_upsert"`
-	Error            string `json:"error"`
-	ControlPlaneType string `json:"control_plane_type"`
+	Phase            string          `json:"phase,omitempty"`
+	LiveWorkflowType string          `json:"live_workflow_type,omitempty"`
+	EnableUpsert     bool            `json:"enable_upsert"`
+	Error            string          `json:"error"`
+	ControlPlaneType string          `json:"control_plane_type"`
+	CutoverTimings   *CutoverTimings `json:"cutover_timings,omitempty"`
 }
 
 type ImportDataMetrics struct {

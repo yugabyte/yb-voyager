@@ -6,9 +6,9 @@ import yb
 
 #=============================================================================
 
-def is_logical_replication_connector():
-    """Check if logical replication connector is being used"""
-    return os.environ.get('USE_YB_LOGICAL_REPLICATION_CONNECTOR', 'false').lower() == 'true'
+def is_grpc_connector():
+    """Check if gRPC connector is being used"""
+    return os.environ.get('USE_YB_GRPC_CONNECTOR', 'false').lower() == 'true'
 
 #=============================================================================
 # Base expected row counts (for gRPC connector)
@@ -160,7 +160,7 @@ def build_expected_values(ff_fb_enabled: bool):
     }
 
     # Override for logical replication
-    if is_logical_replication_connector():
+    if not is_grpc_connector():
         for table, replacement in LOGICAL_REPLICATION_ROW_OVERRIDES.items():
             expected["row_count"][table] = replacement
         expected["hstore_values"] = EXPECTED_HSTORE_VALUES_LOGICAL_FF_FB
@@ -171,7 +171,7 @@ def build_expected_values(ff_fb_enabled: bool):
 
 def run_migration_checks(db_type: str, expected, ff_fb_enabled: bool = False):
     """Run validation checks on the given db_type (yb, source, source_replica)"""
-    connector_type = "logical replication" if is_logical_replication_connector() else "gRPC"
+    connector_type = "gRPC" if is_grpc_connector() else "logical replication"
     msg = f"Running validation on {db_type}"
     if ff_fb_enabled:
         msg += f" with {connector_type} connector expectations"

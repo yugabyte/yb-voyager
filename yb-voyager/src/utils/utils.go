@@ -48,6 +48,11 @@ import (
 	"golang.org/x/text/language"
 )
 
+// GetCurrentTimestamp returns current UTC timestamp
+func GetCurrentTimestamp() time.Time {
+	return time.Now().UTC()
+}
+
 var DoNotPrompt bool
 
 func Wait(args ...string) {
