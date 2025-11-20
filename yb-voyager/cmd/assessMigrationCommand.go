@@ -621,10 +621,16 @@ func gatherAssessmentMetadataFromPG(validatedReplicas []srcdb.ReplicaEndpoint) (
 	}
 
 	// Sequential collection from replicas for clean output
-	// Map: replica name -> true (success) / false (failure)
-	replicaResults := make(map[string]bool)
+	// Map: replica host:port -> replica name (for tracking unique replicas and display name)
+	// Using host:port as key ensures uniqueness even if multiple replicas share the same application_name
+	type replicaResult struct {
+		name    string // Display name (user-friendly)
+		success bool
+	}
+	replicaResults := make(map[string]*replicaResult) // key: host:port
 
 	for _, replica := range validatedReplicas {
+		key := fmt.Sprintf("%s:%d", replica.Host, replica.Port) // Unique key
 		utils.PrintAndLogfInfo("\nCollecting metadata from %s...", replica.Name)
 		err := runGatherAssessmentMetadataScript(
 			scriptPath,
@@ -641,20 +647,21 @@ func gatherAssessmentMetadataFromPG(validatedReplicas []srcdb.ReplicaEndpoint) (
 		if err != nil {
 			log.Warnf("Failed to collect metadata from replica %s: %v", replica.Name, err)
 			utils.PrintAndLogfWarning("⚠ %s failed (will be excluded from assessment)\n", replica.Name)
-			replicaResults[replica.Name] = false
+			replicaResults[key] = &replicaResult{name: replica.Name, success: false}
 		} else {
 			log.Infof("Successfully collected metadata from replica: %s", replica.Name)
 			utils.PrintAndLogfSuccess("✓ %s complete\n", replica.Name)
-			replicaResults[replica.Name] = true
+			replicaResults[key] = &replicaResult{name: replica.Name, success: true}
 		}
 	}
 
 	// Check if any replicas failed
 	var failedReplicasList []string
 	var successCount int
-	for name, success := range replicaResults {
-		if !success {
-			failedReplicasList = append(failedReplicasList, name)
+
+	for _, result := range replicaResults {
+		if !result.success {
+			failedReplicasList = append(failedReplicasList, result.name) // Use display name
 		} else {
 			successCount++
 		}
