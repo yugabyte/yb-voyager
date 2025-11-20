@@ -2501,30 +2501,35 @@ func handleDiscoveredReplicasWithoutEndpoints(pg *srcdb.PostgreSQL, discoveredRe
 // checkDiscoveryMismatch displays discovery status and warns if the count of discovered
 // replicas doesn't match the provided endpoints. Returns error if user aborts.
 func checkDiscoveryMismatch(discoveredReplicas []srcdb.ReplicaInfo, providedEndpoints []srcdb.ReplicaEndpoint) error {
-	if len(discoveredReplicas) > 0 {
-		utils.PrintAndLogfInfo("Discovered %d replica(s) via pg_stat_replication", len(discoveredReplicas))
-
-		// Warn if count mismatch between discovered replicas and provided endpoints
-		if len(discoveredReplicas) != len(providedEndpoints) {
-			utils.PrintAndLogfWarning("\nWarning: Replica count mismatch detected")
-			utils.PrintAndLogfWarning("  Discovered on primary: %d replica(s)", len(discoveredReplicas))
-			utils.PrintAndLogfWarning("  Provided via flag:     %d endpoint(s)", len(providedEndpoints))
-
-			if len(discoveredReplicas) > len(providedEndpoints) {
-				utils.PrintAndLogfWarning("\nNote: Some replicas discovered on the primary are not included in your endpoint list.")
-			} else {
-				utils.PrintAndLogfWarning("\nNote: You provided more endpoints than replicas discovered on the primary.")
-			}
-
-			utils.PrintAndLogfInfo("\nDiscovered replicas:")
-			displayDiscoveredReplicas(discoveredReplicas)
-
-			if !utils.AskPrompt("\nDo you want to proceed with the provided endpoints") {
-				return fmt.Errorf("please update --source-db-replica-endpoints to match the topology")
-			}
-		}
-	} else {
+	// Early return: No replicas discovered
+	if len(discoveredReplicas) == 0 {
 		utils.PrintAndLogf("No replicas discovered via pg_stat_replication")
+		return nil
+	}
+
+	utils.PrintAndLogfInfo("Discovered %d replica(s) via pg_stat_replication", len(discoveredReplicas))
+
+	// Early return: Counts match, no mismatch warning needed
+	if len(discoveredReplicas) == len(providedEndpoints) {
+		return nil
+	}
+
+	// Count mismatch - warn user and get confirmation
+	utils.PrintAndLogfWarning("\nWarning: Replica count mismatch detected")
+	utils.PrintAndLogfWarning("  Discovered on primary: %d replica(s)", len(discoveredReplicas))
+	utils.PrintAndLogfWarning("  Provided via flag:     %d endpoint(s)", len(providedEndpoints))
+
+	if len(discoveredReplicas) > len(providedEndpoints) {
+		utils.PrintAndLogfWarning("\nNote: Some replicas discovered on the primary are not included in your endpoint list.")
+	} else {
+		utils.PrintAndLogfWarning("\nNote: You provided more endpoints than replicas discovered on the primary.")
+	}
+
+	utils.PrintAndLogfInfo("\nDiscovered replicas:")
+	displayDiscoveredReplicas(discoveredReplicas)
+
+	if !utils.AskPrompt("\nDo you want to proceed with the provided endpoints") {
+		return fmt.Errorf("please update --source-db-replica-endpoints to match the topology")
 	}
 
 	return nil
