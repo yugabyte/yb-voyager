@@ -500,6 +500,7 @@ func (adb *AssessmentDB) InsertPgssEntries(entries []*pgss.PgStatStatements) err
 	// Prepared statement for faster insertion
 	insertSQL := fmt.Sprintf(`
 		INSERT INTO %s (
+			source_node,
 			queryid,
 			query,
 			calls,
@@ -510,7 +511,7 @@ func (adb *AssessmentDB) InsertPgssEntries(entries []*pgss.PgStatStatements) err
 			max_exec_time,
 			stddev_exec_time
 		) VALUES (
-			?, ?, ?, ?, ?, ?, ?, ?, ?
+			?, ?, ?, ?, ?, ?, ?, ?, ?, ?
 		)`, DB_QUERIES_SUMMARY)
 
 	stmt, err := adb.db.Prepare(insertSQL)
@@ -520,7 +521,7 @@ func (adb *AssessmentDB) InsertPgssEntries(entries []*pgss.PgStatStatements) err
 	defer stmt.Close()
 
 	for _, entry := range entries {
-		_, err = stmt.Exec(entry.QueryID, entry.Query, entry.Calls, entry.Rows, entry.TotalExecTime, entry.MeanExecTime,
+		_, err = stmt.Exec(entry.SourceNode, entry.QueryID, entry.Query, entry.Calls, entry.Rows, entry.TotalExecTime, entry.MeanExecTime,
 			entry.MinExecTime, entry.MaxExecTime, entry.StddevExecTime)
 		if err != nil {
 			return fmt.Errorf("failed to insert PGSS entry for queryid %d: %w", entry.QueryID, err)

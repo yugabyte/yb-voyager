@@ -76,11 +76,28 @@ func parseCSVRecord(headers []string, record []string) (*PgStatStatements, error
 	entry := &PgStatStatements{}
 
 	// Check if this is the new JSONB format (has pgss_data column)
+	var sourceNodeValue string
+	var pgssDataIndex = -1
 	for i, header := range headers {
-		if header == "pgss_data" {
-			// New JSONB format
-			return parseJSONBRecord(record[i])
+		if header == "source_node" {
+			sourceNodeValue = strings.TrimSpace(record[i])
+		} else if header == "pgss_data" {
+			pgssDataIndex = i
 		}
+	}
+
+	if pgssDataIndex >= 0 {
+		// New JSONB format
+		entry, err = parseJSONBRecord(record[pgssDataIndex])
+		if err != nil {
+			return nil, err
+		}
+		// Set source_node from CSV column (not from JSONB)
+		entry.SourceNode = sourceNodeValue
+		if entry.SourceNode == "" {
+			entry.SourceNode = "primary" // Default for backward compatibility
+		}
+		return entry, nil
 	}
 
 	// Old CSV format - keep existing parsing logic for backward compatibility
@@ -88,8 +105,10 @@ func parseCSVRecord(headers []string, record []string) (*PgStatStatements, error
 		value := record[i]
 		switch header {
 		case "source_node":
-			// Skip source_node, we don't need it in the struct
-			continue
+			entry.SourceNode = strings.TrimSpace(value)
+			if entry.SourceNode == "" {
+				entry.SourceNode = "primary" // Default for backward compatibility
+			}
 		case "queryid":
 			if value == "" {
 				return nil, fmt.Errorf("missing queryid")
