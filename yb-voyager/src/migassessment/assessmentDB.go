@@ -533,13 +533,29 @@ func (adb *AssessmentDB) InsertPgssEntries(entries []*pgss.PgStatStatements) err
 // GetSourceQueryStats retrieves all the source PGSS data from the assessment database
 // For multi-node setups, only returns query stats from the primary node to avoid
 // mixing workload patterns from read replicas with primary writes.
+// Backward compatible: works with older assessment DBs that don't have the source_node column.
 func (adb *AssessmentDB) GetSourceQueryStats() ([]*types.QueryStats, error) {
+	// Check if source_node column exists (for backward compatibility with older assessment DBs)
+	hasSourceNode, err := adb.columnExists(DB_QUERIES_SUMMARY, "source_node")
+	if err != nil {
+		return nil, fmt.Errorf("failed to check schema version: %w", err)
+	}
+
+	// Build query based on schema version
 	query := `
 		SELECT queryid, query, calls, rows,
 		       total_exec_time, mean_exec_time,
 		       min_exec_time, max_exec_time
-		FROM db_queries_summary
-		WHERE source_node = 'primary';`
+		FROM db_queries_summary`
+
+	if hasSourceNode {
+		// New schema (with replicas support): filter to primary only
+		query += `
+		WHERE source_node = 'primary'`
+	}
+	// Old schema: no filter needed (only primary data exists)
+
+	query += ";"
 
 	rows, err := adb.db.Query(query)
 	if err != nil {
@@ -583,6 +599,17 @@ func (adb *AssessmentDB) CheckIfTableExists(tableName string) error {
 	}
 
 	return nil
+}
+
+// columnExists checks if a column exists in a SQLite table (for backward compatibility checks)
+func (adb *AssessmentDB) columnExists(tableName, columnName string) (bool, error) {
+	query := `SELECT COUNT(*) FROM pragma_table_info(?) WHERE name = ?`
+	var count int
+	err := adb.db.QueryRow(query, tableName, columnName).Scan(&count)
+	if err != nil {
+		return false, fmt.Errorf("failed to check if column %s exists in table %s: %w", columnName, tableName, err)
+	}
+	return count > 0, nil
 }
 
 // HasSourceQueryStats checks if query stats data exists in the assessment database (source-db type agnostic)
