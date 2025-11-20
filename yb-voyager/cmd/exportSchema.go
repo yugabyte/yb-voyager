@@ -633,6 +633,12 @@ func applyShardingRecommendationIfMatching(sqlInfo *sqlInfo, shardedTables []str
 				break
 			}
 		}
+		for _, colocatedTable := range colocatedTables {
+			if strings.ToLower(colocatedTable) == parsedObjectName {
+				matchColocated = true
+				break
+			}
+		}
 	default:
 		panic(fmt.Sprintf("unsupported source db type %s for applying sharding recommendations", source.DBType))
 	}
