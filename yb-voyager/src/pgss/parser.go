@@ -79,9 +79,10 @@ func parseCSVRecord(headers []string, record []string) (*PgStatStatements, error
 	var sourceNodeValue string
 	var pgssDataIndex = -1
 	for i, header := range headers {
-		if header == "source_node" {
+		switch header {
+		case "source_node":
 			sourceNodeValue = strings.TrimSpace(record[i])
-		} else if header == "pgss_data" {
+		case "pgss_data":
 			pgssDataIndex = i
 		}
 	}
