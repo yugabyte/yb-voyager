@@ -101,6 +101,13 @@ source:
   ### [For Oracle Only] Name of TNS Alias you wish to use to connect to Oracle Container Database in case you are using a multitenant container database. Refer to documentation to learn more about configuring tnsnames.ora and aliases.
   # oracle-cdb-tns-alias: <oracle-cdb-tns-alias>
 
+### *********** PostgreSQL Read Replica Configuration ************
+
+  ### [For PostgreSQL Only] Comma-separated list of read replica endpoints for assessment. Each endpoint is host:port. Default port 5432.
+  ### Example: "host1:5432, host2:5433"
+  ### Optional - only used for assess-migration command 
+  # read-replica-endpoints: "host1:5432, host2:5433"
+
 
 # ---------------------------------------------------------
 # Target Database Configuration

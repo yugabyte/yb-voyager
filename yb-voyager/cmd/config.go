@@ -60,7 +60,7 @@ var allowedSourceConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"name", "db-type", "db-host", "db-port", "db-user", "db-name", "db-password",
 	"db-schema", "ssl-cert", "ssl-mode", "ssl-key", "ssl-root-cert",
 	"ssl-crl", "oracle-db-sid", "oracle-home", "oracle-tns-alias", "oracle-cdb-name",
-	"oracle-cdb-sid", "oracle-cdb-tns-alias", "db-replica-endpoints",
+	"oracle-cdb-sid", "oracle-cdb-tns-alias", "read-replica-endpoints",
 )
 
 var allowedSourceReplicaConfigKeys = mapset.NewThreadUnsafeSet[string](
@@ -78,7 +78,7 @@ var allowedTargetConfigKeys = mapset.NewThreadUnsafeSet[string](
 var allowedAssessMigrationConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"log-level", "run-guardrails-checks",
 	"iops-capture-interval", "target-db-version", "assessment-metadata-dir",
-	"invoked-by-export-schema", "db-replica-endpoints",
+	"invoked-by-export-schema",
 	// environment variables keys
 	"report-unsupported-query-constructs", "report-unsupported-plpgsql-objects",
 )

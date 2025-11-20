@@ -57,7 +57,7 @@ var (
 	referenceOrTablePartitionPresent = false
 	pgssEnabledForAssessment         = false
 	invokedByExportSchema            utils.BoolStr
-	sourceDBReplicaEndpoints         string // CLI flag - package variable for Cobra binding
+	sourceReadReplicaEndpoints       string // CLI flag - package variable for Cobra binding
 )
 
 var sourceConnectionFlags = []string{
@@ -198,8 +198,8 @@ func init() {
 		"Flag to indicate if the assessment is invoked by export schema command. ")
 	assessMigrationCmd.Flags().MarkHidden("invoked-by-export-schema") // mark hidden
 
-	assessMigrationCmd.Flags().StringVar(&sourceDBReplicaEndpoints, "source-db-replica-endpoints", "",
-		"Comma-separated list of replica endpoints. Each endpoint is host:port. Default port 5432. "+
+	assessMigrationCmd.Flags().StringVar(&sourceReadReplicaEndpoints, "source-read-replica-endpoints", "",
+		"Comma-separated list of read replica endpoints. Each endpoint is host:port. Default port 5432. "+
 			"Example: \"host1:5432, host2:5433\". (only valid for PostgreSQL)")
 }
 
@@ -262,7 +262,7 @@ func assessMigration() (err error) {
 
 		// Handle replica discovery and validation (PostgreSQL only)
 		if source.DBType == POSTGRESQL {
-			validatedReplicaEndpoints, err = handleReplicaDiscoveryAndValidation(sourceDBReplicaEndpoints)
+			validatedReplicaEndpoints, err = handleReplicaDiscoveryAndValidation(sourceReadReplicaEndpoints)
 			if err != nil {
 				return fmt.Errorf("failed to handle replica discovery and validation: %w", err)
 			}
@@ -2423,7 +2423,7 @@ func handlePartialReplicaValidation(connectableReplicas []srcdb.ReplicaEndpoint,
 	}
 	utils.PrintAndLogfInfo("\nYou can either:")
 	utils.PrintAndLogfInfo("  1. Proceed with the %d validated replica(s)", len(connectableReplicas))
-	utils.PrintAndLogfInfo("  2. Exit and provide all replica endpoints via --source-db-replica-endpoints")
+	utils.PrintAndLogfInfo("  2. Exit and provide all replica endpoints via --source-read-replica-endpoints")
 	utils.PrintAndLogfInfo("  3. Continue with primary-only assessment")
 
 	if utils.AskPrompt(fmt.Sprintf("\nDo you want to proceed with the %d validated replica(s)", len(connectableReplicas))) {
@@ -2432,7 +2432,7 @@ func handlePartialReplicaValidation(connectableReplicas []srcdb.ReplicaEndpoint,
 	}
 
 	if utils.AskPrompt("Do you want to exit and provide replica endpoints") {
-		return nil, fmt.Errorf("Aborting, please rerun with --source-db-replica-endpoints flag")
+		return nil, fmt.Errorf("Aborting, please rerun with --source-read-replica-endpoints flag")
 	}
 
 	utils.PrintAndLogfInfo("Continuing with primary-only assessment.")
@@ -2446,11 +2446,11 @@ func handleNoReplicasValidated() ([]srcdb.ReplicaEndpoint, error) {
 	utils.PrintAndLogfWarning("\nThe addresses shown in pg_stat_replication are not directly connectable from this environment.")
 	utils.PrintAndLogfInfo("This is common in cloud environments (RDS, Aurora), Docker, Kubernetes, or proxy setups.")
 	utils.PrintAndLogfInfo("\nTo include replicas in the assessment, you can:")
-	utils.PrintAndLogfInfo("  1. Exit and rerun with --source-db-replica-endpoints flag")
+	utils.PrintAndLogfInfo("  1. Exit and rerun with --source-read-replica-endpoints flag")
 	utils.PrintAndLogfInfo("  2. Continue with primary-only assessment")
 
 	if utils.AskPrompt("\nDo you want to exit and provide replica endpoints") {
-		return nil, fmt.Errorf("Aborting, please rerun with --source-db-replica-endpoints flag")
+		return nil, fmt.Errorf("Aborting, please rerun with --source-read-replica-endpoints flag")
 	}
 
 	utils.PrintAndLogf("Continuing with primary-only assessment.")
@@ -2556,7 +2556,7 @@ func checkDiscoveryMismatch(discoveredReplicas []srcdb.ReplicaInfo, providedEndp
 	displayDiscoveredReplicas(discoveredReplicas)
 
 	if !utils.AskPrompt("\nDo you want to proceed with the provided endpoints") {
-		return fmt.Errorf("please update --source-db-replica-endpoints to match the topology")
+		return fmt.Errorf("please update --source-read-replica-endpoints to match the topology")
 	}
 
 	return nil
@@ -2594,7 +2594,7 @@ func reportValidationFailures(failedEndpoints []string) error {
 }
 
 // handleProvidedReplicaEndpoints handles scenarios where the user provided explicit replica
-// endpoints via the --source-db-replica-endpoints flag.
+// endpoints via the --source-read-replica-endpoints flag.
 //
 // This function handles multiple scenarios:
 //
@@ -2642,8 +2642,8 @@ func validateSourceDBTypeForAssessMigration() {
 }
 
 func validateReplicaEndpointsFlag() {
-	if sourceDBReplicaEndpoints != "" && source.DBType != POSTGRESQL {
-		utils.ErrExit("Error --source-db-replica-endpoints flag / source.db-replica-endpoints config parameter is only valid for 'postgresql' db type")
+	if sourceReadReplicaEndpoints != "" && source.DBType != POSTGRESQL {
+		utils.ErrExit("Error --source-read-replica-endpoints flag / source.read-replica-endpoints config parameter is only valid for 'postgresql' db type")
 	}
 }
 
