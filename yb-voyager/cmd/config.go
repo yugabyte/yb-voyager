@@ -61,7 +61,7 @@ var allowedSourceConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"name", "db-type", "db-host", "db-port", "db-user", "db-name", "db-password",
 	"db-schema", "ssl-cert", "ssl-mode", "ssl-key", "ssl-root-cert",
 	"ssl-crl", "oracle-db-sid", "oracle-home", "oracle-tns-alias", "oracle-cdb-name",
-	"oracle-cdb-sid", "oracle-cdb-tns-alias",
+	"oracle-cdb-sid", "oracle-cdb-tns-alias", "read-replica-endpoints",
 )
 
 var allowedSourceReplicaConfigKeys = mapset.NewThreadUnsafeSet[string](

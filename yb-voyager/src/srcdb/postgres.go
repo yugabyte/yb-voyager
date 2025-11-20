@@ -23,6 +23,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -1220,6 +1221,14 @@ func (pg *PostgreSQL) GetMissingExportDataPermissions(exportType string, finalTa
 }
 
 func (pg *PostgreSQL) GetMissingAssessMigrationPermissions() ([]string, bool, error) {
+	return pg.GetMissingAssessMigrationPermissionsForNode(false)
+}
+
+// GetMissingAssessMigrationPermissionsForNode checks for missing permissions and configuration issues.
+// The isReplica parameter controls which checks are performed:
+// - If isReplica=true, skips ANALYZE check (pg_stat_all_tables metadata is not replicated)
+// - If isReplica=false, performs all checks including ANALYZE
+func (pg *PostgreSQL) GetMissingAssessMigrationPermissionsForNode(isReplica bool) ([]string, bool, error) {
 	var combinedResult []string
 
 	// Check if tables have SELECT permission
@@ -1229,6 +1238,32 @@ func (pg *PostgreSQL) GetMissingAssessMigrationPermissions() ([]string, bool, er
 	}
 	if len(missingTables) > 0 {
 		combinedResult = append(combinedResult, fmt.Sprintf("\n%s[%s]", color.RedString("Missing SELECT permission for user %s on Tables: ", pg.source.User), strings.Join(missingTables, ", ")))
+	}
+
+	// Check track_counts setting
+	trackCounts, err := pg.CheckTrackCounts()
+	if err != nil {
+		return nil, false, fmt.Errorf("error checking track_counts setting: %w", err)
+	}
+	if !trackCounts {
+		combinedResult = append(combinedResult,
+			"\n"+color.YellowString("track_counts is disabled")+" (IOPS metrics will be unavailable)")
+	}
+
+	// Check ANALYZE statistics (only on primary)
+	// Note: pg_stat_all_tables metadata (last_analyze, last_autoanalyze) is NOT replicated
+	// to read replicas, even though the actual table statistics are replicated.
+	// Replicas cannot run ANALYZE (they're read-only), so this check is meaningless on replicas.
+	if !isReplica {
+		schemas := pg.getTrimmedSchemaList()
+		missingAnalyze, err := pg.CheckMissingAnalyzeStats(schemas)
+		if err != nil {
+			return nil, false, fmt.Errorf("error checking ANALYZE statistics: %w", err)
+		}
+		if len(missingAnalyze) > 0 {
+			combinedResult = append(combinedResult,
+				fmt.Sprintf("\n"+color.YellowString("Schemas without ANALYZE:")+" %v (some optimizations may not be detected)", missingAnalyze))
+		}
 	}
 
 	result, err := pg.checkPgStatStatementsSetup()
@@ -1242,6 +1277,60 @@ func (pg *PostgreSQL) GetMissingAssessMigrationPermissions() ([]string, bool, er
 		combinedResult = append(combinedResult, result)
 	}
 	return combinedResult, pgssEnabled, nil
+}
+
+// CheckTrackCounts checks if the track_counts setting is enabled in PostgreSQL.
+// This setting is required for collecting IOPS metrics from pg_stat_user_tables.
+func (pg *PostgreSQL) CheckTrackCounts() (bool, error) {
+	query := "SELECT setting FROM pg_settings WHERE name = 'track_counts'"
+	var setting string
+	err := pg.db.QueryRow(query).Scan(&setting)
+	if err != nil {
+		return false, fmt.Errorf("failed to check track_counts setting: %w", err)
+	}
+	return setting == "on", nil
+}
+
+// CheckMissingAnalyzeStats checks which schemas in the provided list are missing ANALYZE statistics.
+// ANALYZE statistics are needed for accurate performance optimization detection.
+func (pg *PostgreSQL) CheckMissingAnalyzeStats(schemas []string) ([]string, error) {
+	if len(schemas) == 0 {
+		return nil, nil
+	}
+
+	schemaList := strings.Join(schemas, "','")
+	query := fmt.Sprintf(`
+		SELECT DISTINCT schemaname 
+		FROM pg_stat_all_tables pgst1 
+		WHERE schemaname IN ('%s')
+		  AND NOT EXISTS (
+			SELECT 1 
+			FROM pg_stat_all_tables pgst2 
+			WHERE pgst2.schemaname = pgst1.schemaname 
+			  AND (pgst2.last_analyze IS NOT NULL OR pgst2.last_autoanalyze IS NOT NULL)
+		  )
+	`, schemaList)
+
+	rows, err := pg.db.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check ANALYZE statistics: %w", err)
+	}
+	defer rows.Close()
+
+	var missingSchemas []string
+	for rows.Next() {
+		var schema string
+		if err := rows.Scan(&schema); err != nil {
+			return nil, fmt.Errorf("failed to scan schema name: %w", err)
+		}
+		missingSchemas = append(missingSchemas, schema)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating ANALYZE statistics results: %w", err)
+	}
+
+	return missingSchemas, nil
 }
 
 const (
@@ -1734,4 +1823,195 @@ func (pg *PostgreSQL) GetSchemasMissingUsagePermissions() ([]string, error) {
 
 func (pg *PostgreSQL) CheckIfReplicationSlotsAreAvailable() (isAvailable bool, usedCount int, maxCount int, err error) {
 	return checkReplicationSlotsForPGAndYB(pg.db)
+}
+
+// ReplicaInfo represents information about a discovered replica
+type ReplicaInfo struct {
+	ApplicationName string
+	State           string
+	SyncState       string
+	ClientAddr      string
+	ClientPort      int
+}
+
+// ReplicaEndpoint represents a validated replica endpoint
+type ReplicaEndpoint struct {
+	Host          string
+	Port          int
+	Name          string // identifier for the replica (from application_name or endpoint)
+	ConnectionUri string // full connection URI for this replica
+}
+
+// DiscoverReplicas queries pg_stat_replication on the primary to discover physical streaming replicas
+func (pg *PostgreSQL) DiscoverReplicas() ([]ReplicaInfo, error) {
+	query := `
+		SELECT 
+			COALESCE(application_name, '') AS application_name,
+			state,
+			COALESCE(sync_state, '') AS sync_state,
+			COALESCE(host(client_addr), '') AS client_addr,
+			COALESCE(client_port, 0) AS client_port
+		FROM pg_stat_replication
+		WHERE state = 'streaming'
+		ORDER BY application_name, client_addr
+	`
+
+	rows, err := pg.db.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("error querying pg_stat_replication: %w", err)
+	}
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			log.Warnf("error closing rows for pg_stat_replication query: %v", closeErr)
+		}
+	}()
+
+	var replicas []ReplicaInfo
+	for rows.Next() {
+		var replica ReplicaInfo
+		err := rows.Scan(&replica.ApplicationName, &replica.State, &replica.SyncState,
+			&replica.ClientAddr, &replica.ClientPort)
+		if err != nil {
+			return nil, fmt.Errorf("error scanning replica info: %w", err)
+		}
+		replicas = append(replicas, replica)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating replica rows: %w", err)
+	}
+
+	return replicas, nil
+}
+
+// ParseReplicaEndpoints parses a comma-separated list of replica endpoints
+// Each endpoint is host[:port]. Default port is 5432.
+// The Name field is initially set to host:port, and can be enriched with application_name
+// from discovered replicas in the assessment workflow.
+func (pg *PostgreSQL) ParseReplicaEndpoints(endpointsStr string) ([]ReplicaEndpoint, error) {
+	if endpointsStr == "" {
+		return nil, nil
+	}
+
+	endpoints := strings.Split(endpointsStr, ",")
+	var replicaEndpoints []ReplicaEndpoint
+
+	for i, endpoint := range endpoints {
+		endpoint = strings.TrimSpace(endpoint)
+		if endpoint == "" {
+			continue
+		}
+
+		var host string
+		var port int = 5432 // default port
+
+		// Simple host:port parsing (consistent with primary connection)
+		parts := strings.Split(endpoint, ":")
+		if len(parts) == 1 {
+			host = parts[0]
+		} else if len(parts) == 2 {
+			host = parts[0]
+			var err error
+			port, err = strconv.Atoi(parts[1])
+			if err != nil || port <= 0 || port > 65535 {
+				return nil, fmt.Errorf("invalid port in endpoint at position %d: %s", i+1, parts[1])
+			}
+		} else {
+			return nil, fmt.Errorf("malformed endpoint at position %d: %s (expected format: host[:port])", i+1, endpoint)
+		}
+
+		if host == "" {
+			return nil, fmt.Errorf("empty host in endpoint at position %d", i+1)
+		}
+
+		// Use endpoint string as default name (will be enriched with application_name if available)
+		name := fmt.Sprintf("%s:%d", host, port)
+		replicaEndpoints = append(replicaEndpoints, ReplicaEndpoint{
+			Host:          host,
+			Port:          port,
+			Name:          name,
+			ConnectionUri: pg.GetReplicaConnectionUri(host, port),
+		})
+	}
+
+	// De-duplicate endpoints by host:port
+	return lo.UniqBy(replicaEndpoints, func(ep ReplicaEndpoint) string {
+		return fmt.Sprintf("%s:%d", ep.Host, ep.Port)
+	}), nil
+}
+
+// ValidateReplicaEndpoint connects to a replica endpoint and verifies it's in recovery
+func (pg *PostgreSQL) ValidateReplicaEndpoint(endpoint ReplicaEndpoint) error {
+	// Create a connection URI for the replica using the same credentials as primary
+	replicaURI := pg.GetReplicaConnectionUri(endpoint.Host, endpoint.Port)
+
+	replicaDB, err := sql.Open("pgx", replicaURI)
+	if err != nil {
+		return fmt.Errorf("failed to open connection to replica %s:%d: %w", endpoint.Host, endpoint.Port, err)
+	}
+	defer replicaDB.Close()
+
+	// Set connection timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Verify replica is in recovery
+	var inRecovery bool
+	err = replicaDB.QueryRowContext(ctx, "SELECT pg_is_in_recovery()").Scan(&inRecovery)
+	if err != nil {
+		return fmt.Errorf("failed to query pg_is_in_recovery() on replica %s:%d: %w", endpoint.Host, endpoint.Port, err)
+	}
+
+	if !inRecovery {
+		return fmt.Errorf("endpoint %s:%d is not a replica (pg_is_in_recovery() = false)", endpoint.Host, endpoint.Port)
+	}
+
+	return nil
+}
+
+// GetReplicaConnectionUri creates a connection URI for a replica using the same credentials as primary
+func (pg *PostgreSQL) GetReplicaConnectionUri(host string, port int) string {
+	hostAndPort := fmt.Sprintf("%s:%d", host, port)
+	sourceUrl := &url.URL{
+		Scheme:   "postgresql",
+		User:     url.UserPassword(pg.source.User, pg.source.Password),
+		Host:     hostAndPort,
+		Path:     pg.source.DBName,
+		RawQuery: generateSSLQueryStringIfNotExists(pg.source),
+	}
+	return sourceUrl.String()
+}
+
+// TryConnectReplica attempts to connect to a replica using discovered client_addr
+// This is a best-effort validation that may fail in cloud/proxy environments
+func (pg *PostgreSQL) TryConnectReplica(clientAddr string, port int) error {
+	replicaURI := pg.GetReplicaConnectionUri(clientAddr, port)
+
+	replicaDB, err := sql.Open("pgx", replicaURI)
+	if err != nil {
+		return fmt.Errorf("failed to open connection: %w", err)
+	}
+	defer replicaDB.Close()
+
+	// Smaller timeout as we are doing a best-effort validation and we expect it to fail in most cases
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	err = replicaDB.PingContext(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to ping replica: %w", err)
+	}
+
+	var inRecovery bool
+	err = replicaDB.QueryRowContext(ctx, "SELECT pg_is_in_recovery()").Scan(&inRecovery)
+	if err != nil {
+		return fmt.Errorf("failed to query pg_is_in_recovery(): %w", err)
+	}
+
+	if !inRecovery {
+		return fmt.Errorf("endpoint is not a replica (pg_is_in_recovery() = false)")
+	}
+
+	return nil
 }

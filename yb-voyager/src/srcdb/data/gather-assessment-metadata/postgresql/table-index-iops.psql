@@ -1,40 +1,45 @@
-CREATE TEMP TABLE temp_table AS
-SELECT
-    n.nspname AS schema_name,
-    c.relname AS object_name,
-    CASE 
-        WHEN c.relkind = 'r' THEN 'table' 
-        WHEN c.relkind = 'p' THEN 'partitioned table'
-        WHEN (c.relkind = 'i' AND pi.indisprimary) THEN 'primary key'
-        WHEN c.relkind = 'i' THEN 'index'
-        WHEN c.relkind = 'I' THEN 'partitioned index'
-        WHEN c.relkind = 'm' THEN 'materialized view'
-        ELSE 'unknown'
-    END AS object_type,
-    CASE 
-        WHEN c.relkind IN ('r', 'm') THEN COALESCE(psut.seq_scan, 0) + COALESCE(psut.idx_scan, 0)
-        WHEN c.relkind = 'i' THEN 0::bigint -- just a placeholder so that sizing algorithm doesn't fail
-    END AS seq_reads,
-    CASE
-        WHEN c.relkind IN ('r', 'm') THEN psut.n_tup_ins + psut.n_tup_upd + psut.n_tup_del
-        WHEN c.relkind = 'i' THEN 0::bigint
-    END AS row_writes,
-    :'measurement_type' AS measurement_type
-FROM
-    pg_class c
-JOIN
-    pg_namespace n ON c.relnamespace = n.oid
-LEFT JOIN
-    pg_stat_user_tables psut ON psut.relid = c.oid AND c.relkind IN ( 'r', 'm')
-LEFT JOIN
-    pg_stat_all_indexes psi ON psi.indexrelid = c.oid AND c.relkind = 'i'
-LEFT JOIN
-    pg_index pi ON pi.indexrelid = c.oid
-WHERE
-    n.nspname = ANY(ARRAY[string_to_array(:'schema_list', '|')])
-    AND (c.relkind IN ('r', 'p', 'i', 'I', 'm')) AND NOT (c.relkind='I' AND pi.indisprimary);
-
--- Now you can use the temporary table to fetch the data
-\copy temp_table TO 'table-index-iops.csv' WITH CSV HEADER;
-
-DROP TABLE temp_table;
+\o table-index-iops.csv
+COPY (
+    SELECT
+        :'source_node_name' AS source_node,
+        n.nspname AS schema_name,
+        c.relname AS object_name,
+        CASE 
+            WHEN c.relkind = 'r' THEN 'table' 
+            WHEN c.relkind = 'p' THEN 'partitioned table'
+            WHEN (c.relkind = 'i' AND pi.indisprimary) THEN 'primary key'
+            WHEN c.relkind = 'i' THEN 'index'
+            WHEN c.relkind = 'I' THEN 'partitioned index'
+            WHEN c.relkind = 'm' THEN 'materialized view'
+            ELSE 'unknown'
+        END AS object_type,
+        CASE 
+            WHEN c.relkind IN ('r', 'm') THEN COALESCE(psut.seq_scan, 0) + COALESCE(psut.idx_scan, 0)
+            WHEN c.relkind = 'i' THEN 0::bigint
+        END AS seq_reads,
+        CASE
+            WHEN c.relkind IN ('r', 'm') THEN psut.n_tup_ins + psut.n_tup_upd + psut.n_tup_del
+            WHEN c.relkind = 'i' THEN 0::bigint
+        END AS row_writes,
+        :'measurement_type' AS measurement_type
+    FROM
+        pg_class c
+    JOIN
+        pg_namespace n ON c.relnamespace = n.oid
+    LEFT JOIN
+        pg_stat_user_tables psut
+           ON psut.relid = c.oid
+          AND c.relkind IN ('r', 'm')
+    LEFT JOIN
+        pg_stat_all_indexes psi
+           ON psi.indexrelid = c.oid
+          AND c.relkind = 'i'
+    LEFT JOIN
+        pg_index pi
+           ON pi.indexrelid = c.oid
+    WHERE
+        n.nspname = ANY(ARRAY[string_to_array(:'schema_list', '|')])
+        AND (c.relkind IN ('r', 'p', 'i', 'I', 'm'))
+        AND NOT (c.relkind = 'I' AND pi.indisprimary)
+) TO STDOUT WITH CSV HEADER;
+\o

@@ -1036,3 +1036,73 @@ func ConvertPgTextArrayToStringSlice(textArray pgtype.TextArray) []string {
 
 	return result
 }
+
+// ============================================================================
+// JSON Map Extraction Utilities
+// ============================================================================
+
+// GetInt64FromJSON extracts an int64 value from JSON map data with type conversion.
+// Supports conversion from float64, int64, int, and string types.
+func GetInt64FromJSON(data map[string]interface{}, key string) (int64, error) {
+	val, ok := data[key]
+	if !ok {
+		return 0, fmt.Errorf("missing required field: %s", key)
+	}
+
+	switch v := val.(type) {
+	case float64:
+		return int64(v), nil
+	case int64:
+		return v, nil
+	case int:
+		return int64(v), nil
+	case string:
+		return strconv.ParseInt(v, 10, 64)
+	default:
+		return 0, fmt.Errorf("invalid type for %s: %T", key, val)
+	}
+}
+
+// GetStringFromJSON extracts a string value from JSON map data with validation.
+// Returns error if key is missing, value is not a string, or string is empty after trimming.
+func GetStringFromJSON(data map[string]interface{}, key string) (string, error) {
+	val, ok := data[key]
+	if !ok {
+		return "", fmt.Errorf("missing required field: %s", key)
+	}
+
+	str, ok := val.(string)
+	if !ok {
+		return "", fmt.Errorf("invalid type for %s: expected string, got %T", key, val)
+	}
+
+	str = strings.TrimSpace(str)
+	if str == "" {
+		return "", fmt.Errorf("empty value for %s", key)
+	}
+
+	return str, nil
+}
+
+// GetFloat64OrZero extracts a float64 value from JSON map data, trying multiple keys.
+// Returns 0.0 if none of the keys exist (for optional fields with fallback behavior).
+// Useful for handling version compatibility where field names may have changed.
+func GetFloat64OrZero(data map[string]interface{}, keys ...string) float64 {
+	for _, key := range keys {
+		if val, ok := data[key]; ok {
+			switch v := val.(type) {
+			case float64:
+				return v
+			case int64:
+				return float64(v)
+			case int:
+				return float64(v)
+			case string:
+				if f, err := strconv.ParseFloat(v, 64); err == nil {
+					return f
+				}
+			}
+		}
+	}
+	return 0.0
+}
