@@ -1887,8 +1887,8 @@ func (pg *PostgreSQL) DiscoverReplicas() ([]ReplicaInfo, error) {
 
 // ParseReplicaEndpoints parses a comma-separated list of replica endpoints
 // Each endpoint is host[:port]. Default port is 5432.
-// The Name field is initially set to host:port, but should be enriched with application_name
-// from discovered replicas using EnrichReplicaEndpointsWithDiscovery()
+// The Name field is initially set to host:port, and can be enriched with application_name
+// from discovered replicas in the assessment workflow.
 func (pg *PostgreSQL) ParseReplicaEndpoints(endpointsStr string) ([]ReplicaEndpoint, error) {
 	if endpointsStr == "" {
 		return nil, nil
@@ -1939,42 +1939,6 @@ func (pg *PostgreSQL) ParseReplicaEndpoints(endpointsStr string) ([]ReplicaEndpo
 	return lo.UniqBy(replicaEndpoints, func(ep ReplicaEndpoint) string {
 		return fmt.Sprintf("%s:%d", ep.Host, ep.Port)
 	}), nil
-}
-
-// EnrichReplicaEndpointsWithDiscovery matches provided endpoints with discovered replicas
-// and enriches the Name field with application_name when available.
-// Note: We cannot assume discovered replicas and provided endpoints are in the same sequence.
-// Matching strategy: Try exact match by host address (client_addr from discovery vs host from endpoint).
-// If a match is found and application_name is available, use it; otherwise keep endpoint string (host:port).
-func EnrichReplicaEndpointsWithDiscovery(endpoints []ReplicaEndpoint, discoveredReplicas []ReplicaInfo) []ReplicaEndpoint {
-	enriched := make([]ReplicaEndpoint, len(endpoints))
-	copy(enriched, endpoints)
-
-	// Create a map of discovered replicas by client_addr for quick lookup
-	// Key: client_addr, Value: ReplicaInfo
-	replicaByAddr := make(map[string]ReplicaInfo)
-	for _, replica := range discoveredReplicas {
-		if replica.ClientAddr != "" {
-			replicaByAddr[replica.ClientAddr] = replica
-		}
-	}
-
-	// Try to match each endpoint with discovered replicas by exact address match
-	for i := range enriched {
-		ep := enriched[i]
-
-		// Try exact match by host address
-		if replica, found := replicaByAddr[ep.Host]; found {
-			if replica.ApplicationName != "" {
-				enriched[i].Name = replica.ApplicationName
-			}
-		}
-
-		// If no match found, keep the endpoint-based name (host:port)
-		// This is the default set in ParseReplicaEndpoints
-	}
-
-	return enriched
 }
 
 // ValidateReplicaEndpoint connects to a replica endpoint and verifies it's in recovery

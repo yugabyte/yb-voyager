@@ -2498,6 +2498,32 @@ func handleDiscoveredReplicasWithoutEndpoints(pg *srcdb.PostgreSQL, discoveredRe
 	return handleBestEffortValidationOutcome(connectableReplicas, failedReplicas)
 }
 
+// enrichReplicaEndpoints matches provided endpoints with discovered replicas
+// and uses application_name as the replica name when available.
+func enrichReplicaEndpoints(endpoints []srcdb.ReplicaEndpoint, discoveredReplicas []srcdb.ReplicaInfo) []srcdb.ReplicaEndpoint {
+	enriched := make([]srcdb.ReplicaEndpoint, len(endpoints))
+	copy(enriched, endpoints)
+
+	// Create a map of discovered replicas by client_addr for quick lookup
+	replicaByAddr := make(map[string]srcdb.ReplicaInfo)
+	for _, replica := range discoveredReplicas {
+		if replica.ClientAddr != "" {
+			replicaByAddr[replica.ClientAddr] = replica
+		}
+	}
+
+	// Match each endpoint with discovered replicas by address
+	for i := range enriched {
+		if replica, found := replicaByAddr[enriched[i].Host]; found {
+			if replica.ApplicationName != "" {
+				enriched[i].Name = replica.ApplicationName
+			}
+		}
+	}
+
+	return enriched
+}
+
 // checkDiscoveryMismatch displays discovery status and warns if the count of discovered
 // replicas doesn't match the provided endpoints. Returns error if user aborts.
 func checkDiscoveryMismatch(discoveredReplicas []srcdb.ReplicaInfo, providedEndpoints []srcdb.ReplicaEndpoint) error {
@@ -2582,7 +2608,7 @@ func reportValidationFailures(failedEndpoints []string) error {
 // Returns the validated replica endpoints to include in assessment.
 func handleProvidedReplicaEndpoints(pg *srcdb.PostgreSQL, discoveredReplicas []srcdb.ReplicaInfo, providedEndpoints []srcdb.ReplicaEndpoint) ([]srcdb.ReplicaEndpoint, error) {
 	// Enrich endpoints with application_name from discovered replicas if possible
-	enrichedEndpoints := srcdb.EnrichReplicaEndpointsWithDiscovery(providedEndpoints, discoveredReplicas)
+	enrichedEndpoints := enrichReplicaEndpoints(providedEndpoints, discoveredReplicas)
 
 	// Check for discovery mismatch and get user confirmation if needed
 	if err := checkDiscoveryMismatch(discoveredReplicas, providedEndpoints); err != nil {
