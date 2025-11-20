@@ -1381,8 +1381,9 @@ Version History
 1.6:
   - Add EstimatedTimeInMinForImportWithoutRedundantIndexes in SizingRecommendation struct
   - Added separate fields for notes: GeneralNotes, ColocatedShardedNotes, SizingNotes; deprecated Notes field
+
 1.7: Added ObjectUsage field to AssessmentIssueYugabyteD struct
-  */
+*/
 var ASSESS_MIGRATION_YBD_PAYLOAD_VERSION = "1.7"
 
 /*
