@@ -74,13 +74,6 @@ func cutoverInitiatedAndCutoverEventProcessed() (bool, error) {
 }
 
 func streamChanges(state *ImportDataState, tableNames []sqlname.NameTuple) error {
-	log.Infof("cdc partitioning strategy: %s", cdcPartitioningStrategy)
-	err := metaDB.UpdateImportDataStatusRecord(func(record *metadb.ImportDataStatusRecord) {
-		record.CdcPartitioningStrategy = cdcPartitioningStrategy
-	})
-	if err != nil {
-		return fmt.Errorf("error updating cdc partitioning strategy in metadb: %w", err)
-	}
 	ok, err := cutoverInitiatedAndCutoverEventProcessed()
 	if err != nil {
 		return err
@@ -164,9 +157,7 @@ const (
 
 /*
 TODO
-Add a hidden param for the  partitioning strategy to  override the auto strategy
-Add guadrails around changing that in between the migration
-
+Upgrade scenario with 
 */
 
 func handleCdcPartitioningStrategy(tableNames []sqlname.NameTuple) error {
@@ -194,7 +185,7 @@ func handleCdcPartitioningStrategy(tableNames []sqlname.NameTuple) error {
 	}
 
 	// target db importer
-	//fetch and check if metadb key is presetn TARGET_DB_IMPORTER_CDC_PARTITIONING_STRATEGY_KEY
+	//fetch and check if metadb key IMPORT_DATA_STATUS_KEY is present and has TableToPartitioningStrategyMap
 	importDataStatus, err := metaDB.GetImportDataStatusRecord()
 	if err != nil {
 		return fmt.Errorf("error getting cdc partitioning strategy: %w", err)
@@ -213,7 +204,7 @@ func handleCdcPartitioningStrategy(tableNames []sqlname.NameTuple) error {
 	}
 
 	if cdcPartitioningStrategy != "auto" {
-		//If the cdc partitioning strategy is not auto-detect, use the strategy specified in the flag
+		//If the cdc partitioning strategy is not auto, use the strategy specified in the flag
 		for _, t := range tableNames {
 			tableToPartitioningStrategyMap.Put(t, cdcPartitioningStrategy)
 		}

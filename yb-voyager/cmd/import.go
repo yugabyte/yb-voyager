@@ -112,17 +112,21 @@ func validateImportDataFlags() error {
 		return err
 	}
 
-	err = validateCdcPartitioningStrategyFlag()
-	if err != nil {
-		return fmt.Errorf("error validating --cdc-partitioning-strategy flag: %w", err)
-	}
 	return nil
 }
 
 var validCdcPartitioningStrategies = []string{"pk", "table", "auto"}
 
-func validateCdcPartitioningStrategyFlag() error {
-	fmt.Printf("cdcPartitioningStrategy: %s\n", cdcPartitioningStrategy)
+func validateCdcPartitioningStrategyFlag(cmd *cobra.Command) error {
+	if importerRole != TARGET_DB_IMPORTER_ROLE {
+		return nil
+	}
+	if changeStreamingIsEnabled(importType) {
+		if cmd.Flags().Changed("cdc-partitioning-strategy") {
+			utils.ErrExit("--cdc-partitioning-strategy is not supported for live migration. Re-run the command without this flag.")
+		}
+		return nil
+	}
 	importDataStatus, err := metaDB.GetImportDataStatusRecord()
 	if err != nil {
 		return fmt.Errorf("error getting import data status record: %w", err)
@@ -135,12 +139,15 @@ func validateCdcPartitioningStrategyFlag() error {
 	if !lo.Contains(validCdcPartitioningStrategies, cdcPartitioningStrategy) {
 		utils.ErrExit("invalid cdc partitioning strategy: %s. Supported values are: %s", cdcPartitioningStrategy, strings.Join(validCdcPartitioningStrategies, ", "))
 	}
-	if importDataStatus == nil || !importDataStatus.ImportDataStarted {
-		//if import data has not started, allow the change in cdc partitioning strategy
+	if importDataStatus == nil || !importDataStatus.ImportDataStarted || bool(startClean) {
+		//if import data has not started or start-clean flag is used, allow the change in cdc partitioning strategy
 		return nil
 	}
-	if importDataStatus.CdcPartitioningStrategy == "" || startClean {
-		//if the first run or the start-clean flag is used, allow the change in cdc partitioning strategy
+	if importDataStatus.CdcPartitioningStrategy == "" {
+		//if not a first run and the cdc partitioning strategy is not set
+		//this can be the case when the import data is resumed from an earlier version of yb-voyager
+		//So we should use the cdc partitioning strategy as pk to be upgrade safe
+		cdcPartitioningStrategy = PARTITION_BY_PK
 		return nil
 	}
 	if cdcPartitioningStrategy != importDataStatus.CdcPartitioningStrategy {

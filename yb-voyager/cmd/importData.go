@@ -188,6 +188,11 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 		utils.ErrExit("error while setting import type or identity column metadb key: %v", err)
 	}
 
+	err = validateCdcPartitioningStrategyFlag(cmd)
+	if err != nil {
+		utils.ErrExit("error validating --cdc-partitioning-strategy flag: %v", err)
+	}
+
 	if changeStreamingIsEnabled(importType) {
 		if tconf.TableList != "" || tconf.ExcludeTableList != "" {
 			utils.ErrExit("--table-list and --exclude-table-list are not supported for live migration. Re-run the command without these flags.")
@@ -650,12 +655,15 @@ func updateTargetConfInMigrationStatus() {
 func updateImportDataStartedInMetaDB() error {
 	switch importerRole {
 	case TARGET_DB_IMPORTER_ROLE:
+		log.Infof("updating import data started in meta db with cdc partitioning strategy: %s", cdcPartitioningStrategy)
 		err := metaDB.UpdateImportDataStatusRecord(func(record *metadb.ImportDataStatusRecord) {
 			record.ImportDataStarted = true
+			record.CdcPartitioningStrategy = cdcPartitioningStrategy
 		})
 		if err != nil {
 			return fmt.Errorf("Failed to update import data status record: %s", err)
 		}
+
 	case IMPORT_FILE_ROLE:
 		err := metaDB.UpdateImportDataFileStatusRecord(func(record *metadb.ImportDataFileStatusRecord) {
 			record.ImportDataStarted = true
