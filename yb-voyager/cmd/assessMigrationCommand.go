@@ -621,16 +621,17 @@ func gatherAssessmentMetadataFromPG(validatedReplicas []srcdb.ReplicaEndpoint) (
 	}
 
 	// Sequential collection from replicas for clean output
-	// Map: replica host:port -> replica name (for tracking unique replicas and display name)
-	// Using host:port as key ensures uniqueness even if multiple replicas share the same application_name
+	// Map: replica host-port -> replica result (for tracking unique replicas and display name)
+	// Using host-port as key ensures uniqueness even if multiple replicas share the same application_name
 	type replicaResult struct {
-		name    string // Display name (user-friendly)
+		name    string // Display name (user-friendly, e.g., application_name)
 		success bool
 	}
-	replicaResults := make(map[string]*replicaResult) // key: host:port
+	replicaResults := make(map[string]*replicaResult) // key: host-port (filesystem-safe)
 
 	for _, replica := range validatedReplicas {
-		key := fmt.Sprintf("%s:%d", replica.Host, replica.Port) // Unique key
+		// Create filesystem-safe unique identifier (host-port, no colon for cross-platform compatibility)
+		uniqueNodeName := fmt.Sprintf("%s-%d", replica.Host, replica.Port)
 		utils.PrintAndLogfInfo("\nCollecting metadata from %s...", replica.Name)
 		err := runGatherAssessmentMetadataScript(
 			scriptPath,
@@ -640,18 +641,18 @@ func gatherAssessmentMetadataFromPG(validatedReplicas []srcdb.ReplicaEndpoint) (
 			assessmentMetadataDir,
 			fmt.Sprintf("%t", pgssEnabledForAssessment),
 			fmt.Sprintf("%d", intervalForCapturingIOPS),
-			"true",       // Always use --yes for replicas
-			replica.Name, // source_node_name
-			"true",       // skip_checks - guardrails already validated
+			"true",         // Always use --yes for replicas
+			uniqueNodeName, // source_node_name - unique identifier for directory naming
+			"true",         // skip_checks - guardrails already validated
 		)
 		if err != nil {
 			log.Warnf("Failed to collect metadata from replica %s: %v", replica.Name, err)
 			utils.PrintAndLogfWarning("⚠ %s failed (will be excluded from assessment)\n", replica.Name)
-			replicaResults[key] = &replicaResult{name: replica.Name, success: false}
+			replicaResults[uniqueNodeName] = &replicaResult{name: replica.Name, success: false}
 		} else {
 			log.Infof("Successfully collected metadata from replica: %s", replica.Name)
 			utils.PrintAndLogfSuccess("✓ %s complete\n", replica.Name)
-			replicaResults[key] = &replicaResult{name: replica.Name, success: true}
+			replicaResults[uniqueNodeName] = &replicaResult{name: replica.Name, success: true}
 		}
 	}
 
