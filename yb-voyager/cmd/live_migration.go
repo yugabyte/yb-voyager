@@ -112,7 +112,6 @@ func streamChanges(state *ImportDataState, tableNames []sqlname.NameTuple) error
 	if err != nil {
 		return fmt.Errorf("error handling cdc partitioning strategy: %w", err)
 	}
-	fmt.Printf("tableToPartitioningStrategyMap: %v\n", tableToPartitioningStrategyMap)
 
 	if !disablePb {
 		ctx, cancel := context.WithCancel(context.Background())
@@ -157,7 +156,7 @@ const (
 
 /*
 TODO
-Upgrade scenario with 
+Upgrade scenario with
 */
 
 func handleCdcPartitioningStrategy(tableNames []sqlname.NameTuple) error {
@@ -182,6 +181,7 @@ func handleCdcPartitioningStrategy(tableNames []sqlname.NameTuple) error {
 				tableToPartitioningStrategyMap.Put(t, PARTITION_BY_TABLE)
 			}
 		}
+		return nil
 	}
 
 	// target db importer
@@ -226,14 +226,12 @@ func handleCdcPartitioningStrategy(tableNames []sqlname.NameTuple) error {
 		}
 	}
 
-	fmt.Printf("tableToPartitioningStrategyMap: %v\n", tableToPartitioningStrategyMap)
 	//save the tableToPartitioningStrategyMap to metadb key
 	storageableMap := make(map[string]string)
 	tableToPartitioningStrategyMap.IterKV(func(key sqlname.NameTuple, value string) (bool, error) {
 		storageableMap[key.ForKey()] = value
 		return true, nil
 	})
-	fmt.Printf("storageableMap: %v\n", storageableMap)
 	err = metaDB.UpdateImportDataStatusRecord(func(obj *metadb.ImportDataStatusRecord) {
 		obj.TableToPartitioningStrategyMap = storageableMap
 	})
@@ -417,19 +415,23 @@ func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
 func hashEvent(e *tgtdb.Event) int {
 	hash := fnv.New64a()
 	hash.Write([]byte(e.TableNameTup.ForKey()))
-
-	if strategy, ok := tableToPartitioningStrategyMap.Get(e.TableNameTup); ok && strategy == PARTITION_BY_PK {
-		//include key columns in the hash
-		keyColumns := make([]string, 0)
-		for k := range e.Key {
-			keyColumns = append(keyColumns, k)
+	if tableToPartitioningStrategyMap != nil {
+		if strategy, ok := tableToPartitioningStrategyMap.Get(e.TableNameTup); ok && strategy == PARTITION_BY_TABLE {
+			return int(hash.Sum64() % (uint64(NUM_EVENT_CHANNELS)))
 		}
+	}
+	//else if tableToPartitioningStrategyMap is nil or the strategy is not PARTITION_BY_PK, then use the PARTITION_BY_PK strategy
 
-		// sort to ensure input to hash is consistent.
-		sort.Strings(keyColumns)
-		for _, k := range keyColumns {
-			hash.Write([]byte(*e.Key[k]))
-		}
+	//include key columns in the hash
+	keyColumns := make([]string, 0)
+	for k := range e.Key {
+		keyColumns = append(keyColumns, k)
+	}
+
+	// sort to ensure input to hash is consistent.
+	sort.Strings(keyColumns)
+	for _, k := range keyColumns {
+		hash.Write([]byte(*e.Key[k]))
 	}
 	return int(hash.Sum64() % (uint64(NUM_EVENT_CHANNELS)))
 }
