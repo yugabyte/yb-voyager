@@ -21,7 +21,8 @@ EXPECTED_ROW_COUNT = {
     'subset_columns_unique_constraint_and_index': 5,
     'single_unique_constraint': 5,
     'multi_unique_constraint': 5,
-    'same_column_unique_constraint_and_index': 5
+    'same_column_unique_constraint_and_index': 5,
+    'expression_based_unique_index': 5,
 }
 
 def migration_completed_checks_yb():

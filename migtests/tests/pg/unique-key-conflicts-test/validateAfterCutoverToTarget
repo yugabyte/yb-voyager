@@ -24,7 +24,8 @@ EXPECTED_ROW_COUNT = {
     'subset_columns_unique_constraint_and_index': 6,
     'single_unique_constraint': 6,
     'multi_unique_constraint': 6,
-    'same_column_unique_constraint_and_index': 6
+    'same_column_unique_constraint_and_index': 6,
+    'expression_based_unique_index': 6
 }
 
 # Define expected final varchar state for all unique constraint/index columns
@@ -89,6 +90,16 @@ EXPECTED_FINAL_STATE_VARCHAR = {
         'first_name': ['John', 'Updated_Bob', 'Bob', 'Updated_Alice', 'Alice', 'Updated_Non_John'],
         'last_name': ['Doe', 'Smith', 'Johnson', 'Williams', 'Updated_Non_Doe'],
         'phone_number': ['123-456-7890', '123-456-7892', '123-456-7893']
+    },
+    'expression_based_unique_index':{
+        'email': [
+            'user1@example.com', 
+            'usER2@example.com', 
+            'usER3@example.com', 
+            'updated_user4@example.com', 
+            'updated_user5@example.com',
+            'user5@example.com'
+        ]
     }
 }
 
