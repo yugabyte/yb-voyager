@@ -353,6 +353,7 @@ func (p *FileBatchProducer) finalizeBatch(batchWriter *BatchWriter, isLastBatch 
 }
 
 func (p *FileBatchProducer) Close() {
+	p.rowProcessor = nil // free up the memory in buffers.
 	if p.dataFile != nil {
 		p.dataFile.Close()
 	}
