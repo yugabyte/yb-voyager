@@ -121,9 +121,9 @@ func validateCdcPartitioningStrategyFlag(cmd *cobra.Command) error {
 	if importerRole != TARGET_DB_IMPORTER_ROLE {
 		return nil
 	}
-	if changeStreamingIsEnabled(importType) {
+	if !changeStreamingIsEnabled(importType) {
 		if cmd.Flags().Changed("cdc-partitioning-strategy") {
-			utils.ErrExit("--cdc-partitioning-strategy is not supported for live migration. Re-run the command without this flag.")
+			utils.ErrExit("--cdc-partitioning-strategy is not supported for offline migration. Re-run the command without this flag.")
 		}
 		return nil
 	}
