@@ -227,13 +227,13 @@ func handleCdcPartitioningStrategy(tableNames []sqlname.NameTuple) error {
 	}
 
 	//save the tableToPartitioningStrategyMap to metadb key
-	storageableMap := make(map[string]string)
+	metadbMap := make(map[string]string)
 	tableToPartitioningStrategyMap.IterKV(func(key sqlname.NameTuple, value string) (bool, error) {
-		storageableMap[key.ForKey()] = value
+		metadbMap[key.ForKey()] = value
 		return true, nil
 	})
 	err = metaDB.UpdateImportDataStatusRecord(func(obj *metadb.ImportDataStatusRecord) {
-		obj.TableToPartitioningStrategyMap = storageableMap
+		obj.TableToPartitioningStrategyMap = metadbMap
 	})
 	if err != nil {
 		return fmt.Errorf("error updating cdc partitioning strategy in metadb: %w", err)
