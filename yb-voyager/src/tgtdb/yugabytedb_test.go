@@ -30,6 +30,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -875,6 +876,66 @@ func TestYugabyteAlterActionMultipleColumns_IdentityDefault(t *testing.T) {
 	assert.Equal(t, constants.IDENTITY_GENERATION_BY_DEFAULT, table2TypesDefault["col_int"])
 	assert.Equal(t, constants.IDENTITY_GENERATION_BY_DEFAULT, table2TypesDefault["col_bigint"])
 	assert.Equal(t, constants.IDENTITY_GENERATION_BY_DEFAULT, table2TypesDefault["col_smallint"])
+}
+
+func TestGetTablesHavingExpressionIndexes(t *testing.T) {
+	testYugabyteDBTarget.ExecuteSqls(
+		`CREATE SCHEMA test_expression_indexes;`,
+		`CREATE TABLE test_expression_indexes.table1 (
+			id INT,
+			data TEXT,
+			val text,
+			val2 text
+		);`,
+		`CREATE TABLE test_expression_indexes.table2 (
+			id INT,
+			data TEXT,
+			val text,
+			val2 text
+		);`,
+		`CREATE TABLE test_expression_indexes.table3 (
+			id INT,
+			data TEXT,
+			val text,
+			val2 text
+		);`,
+		`CREATE TABLE test_expression_indexes.table4 (
+			id INT,
+			data TEXT,
+			val text,
+			val2 text
+		);`,
+		`CREATE TABLE test_expression_indexes.table5 (
+			id INT,
+			data TEXT,
+			val text,
+			val2 text
+		);`,
+		`CREATE UNIQUE INDEX idx_expression_indexes ON test_expression_indexes.table1 ((val || val2));`,
+		`CREATE UNIQUE INDEX idx_expression_indexes_2 ON test_expression_indexes.table2 (lower(val));`,
+		`CREATE UNIQUE INDEX idx_expression_indexes_3 ON test_expression_indexes.table3 (lower(val || val2), data);`,
+		`CREATE INDEX idx_expression_indexes_4 ON test_expression_indexes.table4 (lower(val || val2), id, data);`, //normal index
+		`CREATE UNIQUE INDEX idx_expression_indexes_5 ON test_expression_indexes.table5 (data);`,                  //normal unique index
+	)
+	defer testYugabyteDBTarget.ExecuteSqls(`DROP SCHEMA test_expression_indexes CASCADE;`)
+
+	tableTuplesList := []sqlname.NameTuple{
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table1", "public", YUGABYTEDB),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table2", "public", YUGABYTEDB),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table3", "public", YUGABYTEDB),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table4", "public", YUGABYTEDB),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table5", "public", YUGABYTEDB),
+	}
+
+	tableTuplesHavingExpressionIndexes, err := testYugabyteDBTarget.GetTablesHavingExpressionIndexes(tableTuplesList)
+	require.NoError(t, err)
+	assert.Equal(t, 3, len(tableTuplesHavingExpressionIndexes))
+	expectedTableTuplesHavingExpressionIndexes := []sqlname.NameTuple{
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table1", "public", YUGABYTEDB),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table2", "public", YUGABYTEDB),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table3", "public", YUGABYTEDB),
+	}
+	assert.Equal(t, expectedTableTuplesHavingExpressionIndexes, tableTuplesHavingExpressionIndexes)
 }
 
 // ============================================================================
