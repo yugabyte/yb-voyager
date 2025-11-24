@@ -1621,7 +1621,7 @@ func getSourceMetadataTableIndexStats(sourceDB *sql.DB, sourceTableName string) 
 			   column_count 
 		FROM %v 
 		WHERE %s
-		ORDER BY IFNULL(size_in_bytes, 0) ASC
+		ORDER BY IFNULL(size_in_bytes, 0) ASC, schema_name, object_name
 	`, sourceTableName, whereClause)
 	rows, err := sourceDB.Query(query)
 	if err != nil {
