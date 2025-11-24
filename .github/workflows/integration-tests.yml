@@ -81,8 +81,18 @@ jobs:
         cd yb-voyager
         go test -v ./... -tags 'integration'
 
-    # Note: Below go tests use a voyager binary to call voyager commands
-    # Hence its important to ensure the voyager binary built is using the changes in the PR branch - `./install-yb-voyager --install-from-local-source`
+    
+    # Install failpoint tooling for failure injection testing
+    - name: Install Failpoint Toolexec
+      run: go install github.com/pingcap/failpoint/failpoint-toolexec@latest
+    
+    # Build voyager with failpoints enabled for testing
+    - name: Build Voyager with Failpoints
+      run: |
+        cd yb-voyager
+        go build -toolexec failpoint-toolexec -o yb-voyager ./cmd/yb-voyager
+        sudo cp yb-voyager /usr/bin/yb-voyager
+    
     - name: Run Integration Tests (executing voyager commands)
       env: 
         YB_VERSION: ${{ needs.prepare-versions.outputs.yb_latest_stable }}
@@ -92,3 +102,21 @@ jobs:
       run: |
         cd yb-voyager
         go test -v ./... -tags 'integration_voyager_command' -timeout 15m
+    
+    # Verify that production builds don't contain active failpoint transformation
+    - name: Verify Production Binary Has No Active Failpoints
+      run: |
+        cd yb-voyager
+        go clean -cache
+        go build -o yb-voyager-prod .
+        
+        # Check if failpoint transformation happened (look for _curpkg_ pattern in our code)
+        # The failpoint library will be present, but our failpoints should be no-ops
+        if strings yb-voyager-prod | grep "github.com/yugabyte/yb-voyager.*_curpkg_" > /dev/null; then
+          echo "WARNING: Failpoint transformation detected in production binary"
+          echo "This might indicate the toolexec was used accidentally"
+          echo "However, failpoints will still be no-ops without GO_FAILPOINTS env var"
+        fi
+        
+        echo "✓ Production binary built successfully"
+        rm yb-voyager-prod

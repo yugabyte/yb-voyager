@@ -48,6 +48,9 @@ type VoyagerCommandRunner struct {
 	StdoutBuf *bytes.Buffer
 	StderrBuf *bytes.Buffer
 	exitCode  ExitCode
+
+	// additional environment variables for testing
+	testEnvVars []string
 }
 
 func NewVoyagerCommandRunner(container testcontainers.TestContainer, cmdName string, cmdArgs []string, doDuringCmd func(), isAsync bool) *VoyagerCommandRunner {
@@ -132,6 +135,11 @@ func (v *VoyagerCommandRunner) newCmd() {
 	v.Cmd.Stderr = io.MultiWriter(os.Stderr, v.StderrBuf)
 	// disable callhome diagnostics during tests
 	v.Cmd.Env = append(os.Environ(), "YB_VOYAGER_SEND_DIAGNOSTICS=false")
+
+	// Add test-specific environment variables if provided
+	if len(v.testEnvVars) > 0 {
+		v.Cmd.Env = append(v.Cmd.Env, v.testEnvVars...)
+	}
 }
 
 func (v *VoyagerCommandRunner) Run() error {
@@ -213,4 +221,16 @@ func (v *VoyagerCommandRunner) Stderr() string {
 
 func (v *VoyagerCommandRunner) SetAsync(async bool) {
 	v.isAsync = async
+}
+
+// WithEnv adds custom environment variables to the command.
+// This is useful for testing scenarios like failpoint injection.
+// Returns the VoyagerCommandRunner for method chaining.
+//
+// Example:
+//
+//	runner := NewVoyagerCommandRunner(...).WithEnv("GO_FAILPOINTS=pkg/fp1=return()")
+func (v *VoyagerCommandRunner) WithEnv(envVars ...string) *VoyagerCommandRunner {
+	v.testEnvVars = append(v.testEnvVars, envVars...)
+	return v
 }
