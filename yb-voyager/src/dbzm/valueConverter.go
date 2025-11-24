@@ -265,19 +265,6 @@ func (crp *CsvRowProcessor) WriteRow(columnValues []string) (string, error) {
 	return row, nil
 }
 
-func (crp *CsvRowProcessor) ResetBuffers() error {
-	crp.bufReader.Reset(nil)
-
-	// re-initialize csv reader
-	crp.csvReader = stdlibcsv.NewReader(crp.bufReader)
-	crp.csvReader.ReuseRecord = true
-
-	// wbuf.Reset does not de-allocate the underlying buffer, so we need to create a new one
-	crp.wbuf = &bytes.Buffer{}
-	crp.bufWriter.Reset(crp.wbuf)
-	return nil
-}
-
 //====================================================StreamingPhaseValueConverter====================================================
 
 type StreamingPhaseValueConverter interface {

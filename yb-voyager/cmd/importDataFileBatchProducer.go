@@ -30,7 +30,6 @@ import (
 )
 
 const FIRST_BATCH_NUM = 1
-const BUFFER_RESET_FREQUENCY = 100000 // Reset rowProcessor buffers every N rows
 
 type FileBatchProducer struct {
 	task  *ImportFileTask
@@ -63,7 +62,6 @@ type FileBatchProducer struct {
 type rowProcessor interface {
 	ReadRow(row string) ([]string, error)
 	WriteRow(columnValues []string) (string, error)
-	ResetBuffers() error
 }
 
 func NewFileBatchProducer(task *ImportFileTask, state *ImportDataState, isRowTransformationRequired bool, errorHandler importdata.ImportDataErrorHandler, progressReporter *ImportDataProgressReporter) (*FileBatchProducer, error) {
@@ -261,15 +259,6 @@ func (p *FileBatchProducer) transformRow(row string, columnNames []string) (stri
 		return row, nil
 	}
 
-	// Reset rowProcessor buffers periodically to prevent memory buildup from large rows
-	if p.numLinesTaken%BUFFER_RESET_FREQUENCY == 0 {
-		err := p.rowProcessor.ResetBuffers()
-		if err != nil {
-			return "", fmt.Errorf("resetting rowProcessor buffers: %w", err)
-		}
-		log.Debugf("Reset rowProcessor buffers after %d rows for table %q", p.numLinesTaken, p.task.TableNameTup.ForOutput())
-	}
-
 	columnValues, err := p.rowProcessor.ReadRow(row)
 	if err != nil {
 		return "", fmt.Errorf("reading input row to columns: %w", err)
@@ -364,12 +353,6 @@ func (p *FileBatchProducer) finalizeBatch(batchWriter *BatchWriter, isLastBatch 
 }
 
 func (p *FileBatchProducer) Close() {
-	if p.rowProcessor != nil {
-		err := p.rowProcessor.ResetBuffers()
-		if err != nil {
-			log.Errorf("error resetting rowProcessor buffers: %v", err)
-		}
-	}
 	if p.dataFile != nil {
 		p.dataFile.Close()
 	}
