@@ -228,6 +228,20 @@ type CsvRowProcessor struct {
 	// writer to help write a csv string from a slice of strings (columns)
 	bufWriter *bufio.Writer
 	wbuf      *bytes.Buffer
+
+	// Note: One concern with these buffers (csv reader's rawBuffer and writer's wbuf)
+	// is that they will grow to accomodate large rows, but will never shrunk in size later on.
+	// We support up to ~250MB of row size, so if multiple row processors are initialized anr running
+	// in parallel, and if we encounter occasional large rows, they could easily eat up memory.
+	// However, on testing, it was observed that due to operations like buf = buf[:0], the RSS memory (physical RAM)
+	// eventually gets freed up  after having processed large rows.
+	// This is because golang tells the OS that it can free up those pages. However those still
+	// remain allocated in virtual memory.
+	//
+	// Therefore, it is not really a concern if we have to accomodate
+	// occasional large rows for multiple batch producers in parallel.
+	// If this becomes a problem, we can easily solve it by periodically (every so 100k records for example),
+	// resetting the buffers by re-initializing them.
 }
 
 func NewCsvRowProcessor(tableNameTup sqlname.NameTuple) *CsvRowProcessor {
