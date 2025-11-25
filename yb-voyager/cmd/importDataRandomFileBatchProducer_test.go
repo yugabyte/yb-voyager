@@ -761,7 +761,7 @@ func TestRandomBatchProducer_Resumption_PartialBatchesProduced_NoneConsumed(t *t
 	sequentialProducer, err := NewSequentialFileBatchProducer(task, state, errorHandler, progressReporter)
 	require.NoError(t, err)
 
-	// Wrap it with a delayed version that sleeps 100ms per batch
+	// Wrap it with a delayed version that sleeps 500ms per batch
 	// This ensures we have time to observe partial batches
 	delayedSequential := &delayedSequentialFileBatchProducer{
 		SequentialFileBatchProducer: sequentialProducer,
@@ -816,7 +816,7 @@ func TestRandomBatchProducer_Resumption_PartialBatchesProduced_PartialConsumed(t
 	sequentialProducer, err := NewSequentialFileBatchProducer(task, state, errorHandler, progressReporter)
 	require.NoError(t, err)
 
-	// Wrap it with a delayed version that sleeps 100ms per batch
+	// Wrap it with a delayed version that sleeps 500ms per batch
 	// This ensures we have time to observe partial batches
 	delayedSequential := &delayedSequentialFileBatchProducer{
 		SequentialFileBatchProducer: sequentialProducer,
@@ -885,7 +885,7 @@ func TestRandomBatchProducer_Resumption_PartialBatchesProduced_AllConsumed(t *te
 	sequentialProducer, err := NewSequentialFileBatchProducer(task, state, errorHandler, progressReporter)
 	require.NoError(t, err)
 
-	// Wrap it with a delayed version that sleeps 100ms per batch
+	// Wrap it with a delayed version that sleeps 500ms per batch
 	// This ensures we have time to observe partial batches
 	delayedSequential := &delayedSequentialFileBatchProducer{
 		SequentialFileBatchProducer: sequentialProducer,
@@ -926,7 +926,7 @@ func TestRandomBatchProducer_Resumption_PartialBatchesProduced_AllConsumed(t *te
 }
 
 func TestRandomBatchProducer_Resumption_SingleBatchProduced_NotConsumed(t *testing.T) {
-	// Create a file with 10 batches (20 rows, 2 rows per batch)
+	// Create a file with 1 batch (1 row)
 	ldataDir, lexportDir, state, errorHandler, progressReporter, err := setupExportDirAndImportDependencies(2, 1024)
 	require.NoError(t, err)
 
@@ -937,15 +937,11 @@ func TestRandomBatchProducer_Resumption_SingleBatchProduced_NotConsumed(t *testi
 		defer os.RemoveAll(fmt.Sprintf("%s/", lexportDir))
 	}
 
-	// Create file with 1 data rows (1 batches)
-	fileContents := "id,val\n"
-	for i := 1; i <= 1; i++ {
-		fileContents += fmt.Sprintf("%d,value%d\n", i, i)
-	}
+	// Create file with 1 data row (1 batch)
+	fileContents := `id,val
+1,value1`
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
 	require.NoError(t, err)
-
-	// Create sequential producer
 
 	producer, err := NewRandomFileBatchProducer(task, state, errorHandler, progressReporter)
 	require.NoError(t, err)
