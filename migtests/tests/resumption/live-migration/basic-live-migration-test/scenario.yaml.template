@@ -36,14 +36,6 @@ target:
 
 stages:
 
-  - name: init_source_db
-    action: run_sql
-    sql_path: ./init.sql
-
-  - name: init_target_db
-    action: run_sql
-    sql_path: ./init.sql
-
   - name: create_source_schema
     action: run_sql
     sql_path: ./init.sql
