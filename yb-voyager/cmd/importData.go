@@ -658,7 +658,7 @@ func updateImportDataStartedInMetaDB() error {
 		log.Infof("updating import data started in meta db with cdc partitioning strategy: %s", cdcPartitioningStrategy)
 		err := metaDB.UpdateImportDataStatusRecord(func(record *metadb.ImportDataStatusRecord) {
 			record.ImportDataStarted = true
-			record.CdcPartitioningStrategy = cdcPartitioningStrategy
+			record.CdcPartitioningStrategyConfig = cdcPartitioningStrategy
 		})
 		if err != nil {
 			return fmt.Errorf("Failed to update import data status record: %s", err)
@@ -1806,7 +1806,7 @@ func cleanMSRForImportDataStartClean() error {
 			msr.OnPrimaryKeyConflictAction = ""
 		})
 		err = metaDB.UpdateImportDataStatusRecord(func(record *metadb.ImportDataStatusRecord) {
-			record.CdcPartitioningStrategy = ""
+			record.CdcPartitioningStrategyConfig = ""
 			record.TableToPartitioningStrategyMap = nil
 		})
 	}
