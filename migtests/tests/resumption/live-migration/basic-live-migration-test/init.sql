@@ -1,6 +1,3 @@
-CREATE DATABASE IF NOT EXISTS test_db;
-\c test_db;	
-
 DROP TABLE IF EXISTS public.test_table;
 
 CREATE TABLE public.test_table (

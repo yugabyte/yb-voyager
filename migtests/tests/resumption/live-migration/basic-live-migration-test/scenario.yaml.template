@@ -21,7 +21,7 @@ source:
   type: postgresql
   host: ${SOURCE_DB_HOST}
   port: ${SOURCE_DB_PORT}
-  database: test_db
+  database: postgres
   user: ${SOURCE_DB_USER}
   password: ${SOURCE_DB_PASSWORD}
   schema: ${SOURCE_DB_SCHEMA}
