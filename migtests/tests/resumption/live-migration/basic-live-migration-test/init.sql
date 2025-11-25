@@ -5,6 +5,8 @@ CREATE TABLE public.test_table (
 	name varchar(255)
 );
 
+ALTER TABLE public.test_table REPLICA IDENTITY FULL;
+
 -- table for cutover/backlog checks
 DROP TABLE IF EXISTS public.cutover_table;
 CREATE TABLE public.cutover_table (
