@@ -495,7 +495,8 @@ def resolve_generator_config(gen_cfg: Dict[str, Any] | None, run_id: str, test_r
 
 
 def start_generator(final_cfg_path: str, env: Dict[str, str]) -> subprocess.Popen:
-    generator_dir = "/home/ubuntu/yb-voyager/migtests/scripts/event-generator"
+    helper_dir = os.path.dirname(__file__)
+    generator_dir = os.path.abspath(os.path.join(helper_dir, "..", "event-generator"))
     generator_main = os.path.join(generator_dir, "generator.py")
     log(f"starting generator with --config {final_cfg_path}")
     return subprocess.Popen(
