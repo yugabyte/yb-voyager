@@ -927,7 +927,7 @@ func TestGetTablesHavingExpressionIndexes(t *testing.T) {
 		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table5", "public", YUGABYTEDB),
 	}
 
-	tableTuplesHavingExpressionIndexes, err := testYugabyteDBTarget.GetTablesHavingExpressionIndexes(tableTuplesList)
+	tableTuplesHavingExpressionIndexes, err := testYugabyteDBTarget.GetTablesHavingExpressionUniqueIndexes(tableTuplesList)
 	require.NoError(t, err)
 	assert.Equal(t, 3, len(tableTuplesHavingExpressionIndexes))
 	expectedTableTuplesHavingExpressionIndexes := []sqlname.NameTuple{
