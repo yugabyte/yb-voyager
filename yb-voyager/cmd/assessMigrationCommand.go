@@ -2392,11 +2392,17 @@ func handleReplicaDiscoveryAndValidation(replicaEndpointsFlag string) ([]srcdb.R
 	}
 
 	// Step 1: Discover replicas from pg_stat_replication
-	utils.PrintAndLogf("Checking for read replicas...")
-	discoveredReplicas, err := pg.DiscoverReplicas()
-	if err != nil {
-		return nil, fmt.Errorf("failed to discover replicas: %w", err)
-	}
+	// TODO: Uncomment this once we enable replica discovery
+	// utils.PrintAndLogf("Checking for read replicas...")
+	// discoveredReplicas, err := pg.DiscoverReplicas()
+	// if err != nil {
+	// 	return nil, fmt.Errorf("failed to discover replicas: %w", err)
+	// }
+
+	// TODO: Remove this once we enable replica discovery
+	discoveredReplicas := []srcdb.ReplicaInfo{}
+	var err error
+	err = nil
 
 	// Step 2: Parse user-provided replica endpoints if any
 	var providedEndpoints []srcdb.ReplicaEndpoint
@@ -2409,7 +2415,8 @@ func handleReplicaDiscoveryAndValidation(replicaEndpointsFlag string) ([]srcdb.R
 
 	// Case 1: No replicas discovered and none provided
 	if len(discoveredReplicas) == 0 && len(providedEndpoints) == 0 {
-		utils.PrintAndLogfInfo("No read replicas detected. Proceeding with single-node assessment.")
+		// TODO: Uncomment this once we enable replica discovery
+		// utils.PrintAndLogfInfo("No read replicas detected. Proceeding with single-node assessment.")
 		return nil, nil
 	}
 
@@ -2675,9 +2682,10 @@ func handleProvidedReplicaEndpoints(pg *srcdb.PostgreSQL, discoveredReplicas []s
 	enrichedEndpoints := enrichReplicaEndpoints(providedEndpoints, discoveredReplicas)
 
 	// Check for discovery mismatch and get user confirmation if needed
-	if err := checkDiscoveryMismatch(discoveredReplicas, providedEndpoints); err != nil {
-		return nil, err
-	}
+	// TODO: Uncomment this once we enable replica discovery
+	// if err := checkDiscoveryMismatch(discoveredReplicas, providedEndpoints); err != nil {
+	// 	return nil, err
+	// }
 
 	// Validate all provided endpoints
 	validEndpoints, failedEndpoints := validateProvidedEndpoints(pg, enrichedEndpoints)
