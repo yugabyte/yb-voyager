@@ -41,8 +41,8 @@ var (
 	MAX_SLEEP_SECOND     = 60
 )
 
-// BatchProducer defines the interface for producing batches from a file.
-type BatchProducer interface {
+// FileBatchProducer defines the interface for producing batches from a file.
+type FileBatchProducer interface {
 	// Done returns true if all batches have been produced.
 	Done() bool
 
@@ -62,7 +62,7 @@ type FileTaskImporter struct {
 	state *ImportDataState
 
 	task                 *ImportFileTask
-	batchProducer        BatchProducer
+	batchProducer        FileBatchProducer
 	importBatchArgsProto *tgtdb.ImportBatchArgs
 	workerPool           *pool.Pool // worker pool to submit batches for import. Shared across all tasks.
 
