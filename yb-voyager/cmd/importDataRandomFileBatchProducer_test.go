@@ -102,9 +102,10 @@ func waitForProducerDone(producer *RandomBatchProducer, timeout time.Duration) b
 	return false
 }
 
-// waitForPartialBatchesProduced waits for batches to be produced within a specified range, with a timeout.
-// Returns the number of batches produced.
-func waitForPartialBatchesProduced(t *testing.T, producer *RandomBatchProducer, minBatches, maxBatches int, timeout time.Duration) int {
+// waitForPartialBatchesAndClose waits for batches to be produced within a specified range,
+// then closes the producer to simulate interruption. After closing, it verifies that the
+// batches were saved to state(disk). Returns the number of batches produced.
+func waitForPartialBatchesAndClose(t *testing.T, producer *RandomBatchProducer, state *ImportDataState, task *ImportFileTask, minBatches, maxBatches int, timeout time.Duration) int {
 	t.Helper()
 
 	var batchesProduced int
@@ -125,6 +126,20 @@ func waitForPartialBatchesProduced(t *testing.T, producer *RandomBatchProducer, 
 		"Should have at least %d batches produced", minBatches)
 	require.Less(t, batchesProduced, maxBatches,
 		"Should have less than %d batches produced (partial)", maxBatches)
+
+	// Close the producer to simulate interruption
+	// Note: The batches produced are saved to state(disk) by SequentialFileBatchProducer.
+	// When we close, the batches in memory (sequentiallyProducedBatches) are lost,
+	// but the batches already saved to state(disk) will be recovered on resumption.
+	producer.Close()
+
+	// Verify batches were saved to state
+	batchesInState, err := state.GetAllBatches(task.FilePath, task.TableNameTup)
+	require.NoError(t, err, "Should be able to get batches from state")
+	require.GreaterOrEqual(t, len(batchesInState), minBatches,
+		"State should have at least %d batches saved", minBatches)
+	require.Less(t, len(batchesInState), maxBatches,
+		"State should have less than %d batches saved (partial)", maxBatches)
 
 	return batchesProduced
 }
@@ -759,14 +774,7 @@ func TestRandomBatchProducer_Resumption_PartialBatchesProduced_NoneConsumed(t *t
 	// Wait for some batches to be produced (but not all)
 	// We want to ensure we have partial batches (more than 0, less than 10)
 	// Don't consume any batches yet - we want to test resumption with batches in memory
-	_ = waitForPartialBatchesProduced(t, producer, 3, 7, 5*time.Second)
-
-	// Note: The batches produced are saved to state(disk) by SequentialFileBatchProducer.
-	// When we close, the batches in memory (sequentiallyProducedBatches) are lost,
-	// but the batches already saved to state(disk) will be recovered on resumption.
-
-	// Close the producer to simulate interruption
-	producer.Close()
+	_ = waitForPartialBatchesAndClose(t, producer, state, task, 3, 7, 5*time.Second)
 
 	// Create a new producer (simulating resumption)
 	// This should recover the batches that were already produced
@@ -821,14 +829,7 @@ func TestRandomBatchProducer_Resumption_PartialBatchesProduced_PartialConsumed(t
 	// Wait for some batches to be produced (but not all)
 	// We want to ensure we have partial batches (more than 0, less than 10)
 	// Don't consume any batches yet - we want to test resumption with batches in memory
-	_ = waitForPartialBatchesProduced(t, producer, 3, 7, 5*time.Second)
-
-	// Note: The batches produced are saved to state(disk) by SequentialFileBatchProducer.
-	// When we close, the batches in memory (sequentiallyProducedBatches) are lost,
-	// but the batches already saved to state(disk) will be recovered on resumption.
-
-	// Close the producer to simulate interruption
-	producer.Close()
+	_ = waitForPartialBatchesAndClose(t, producer, state, task, 3, 7, 5*time.Second)
 
 	// mark some (at random) of the produced batches as consumed
 	consumedBatchNumbers := make(map[int64]bool)
@@ -897,14 +898,7 @@ func TestRandomBatchProducer_Resumption_PartialBatchesProduced_AllConsumed(t *te
 	// Wait for some batches to be produced (but not all)
 	// We want to ensure we have partial batches (more than 0, less than 10)
 	// Don't consume any batches yet - we want to test resumption with batches in memory
-	_ = waitForPartialBatchesProduced(t, producer, 3, 7, 5*time.Second)
-
-	// Note: The batches produced are saved to state(disk) by SequentialFileBatchProducer.
-	// When we close, the batches in memory (sequentiallyProducedBatches) are lost,
-	// but the batches already saved to state(disk) will be recovered on resumption.
-
-	// Close the producer to simulate interruption
-	producer.Close()
+	_ = waitForPartialBatchesAndClose(t, producer, state, task, 3, 7, 5*time.Second)
 
 	// mark all the produced batches as consumed
 	consumedBatchNumbers := make(map[int64]bool)
