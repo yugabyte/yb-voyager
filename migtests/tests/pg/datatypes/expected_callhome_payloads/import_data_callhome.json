@@ -1,5 +1,5 @@
 {
-    "payload_version": "1.3",
+    "payload_version": "1.4",
     "batch_size": 20000,
     "parallel_jobs": 1,
     "on_primary_key_conflict_action": "ERROR-POLICY",
