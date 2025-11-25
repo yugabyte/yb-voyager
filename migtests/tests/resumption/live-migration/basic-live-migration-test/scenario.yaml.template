@@ -19,22 +19,31 @@ voyager:
 
 source:
   type: postgresql
-  host: 127.0.0.1
-  port: 5432
-  database: sakila
-  user: postgres
-  password: postgres
-  schema: public
+  host: ${SOURCE_DB_HOST}
+  port: ${SOURCE_DB_PORT}
+  database: test_db
+  user: ${SOURCE_DB_USER}
+  password: ${SOURCE_DB_PASSWORD}
+  schema: ${SOURCE_DB_SCHEMA}
 
 target:
   type: yugabytedb
-  host: 10.9.2.132
-  port: 5433
-  database: idx
-  user: yugabyte
-  password: yugabyte
+  host: ${TARGET_DB_HOST}
+  port: ${TARGET_DB_PORT}
+  database: yugabyte
+  user: ${TARGET_DB_USER}
+  password: ${TARGET_DB_PASSWORD}
 
 stages:
+
+  - name: init_source_db
+    action: run_sql
+    sql_path: ./init.sql
+
+  - name: init_target_db
+    action: run_sql
+    sql_path: ./init.sql
+
   - name: create_source_schema
     action: run_sql
     sql_path: ./init.sql

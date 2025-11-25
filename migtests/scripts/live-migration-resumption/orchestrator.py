@@ -111,7 +111,7 @@ def cutover_action(stage: Dict[str, Any], ctx: Any) -> None:
 
 @action("dvt_run")
 def dvt_run_action(stage: Dict[str, Any], ctx: Any) -> None:
-    H.run_dvt(ctx.cfg.get("dvt", {}), ctx.env)
+    H.run_dvt(ctx)
 
 
 @action("start_resumptions")

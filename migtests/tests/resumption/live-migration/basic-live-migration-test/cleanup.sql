@@ -1,2 +1,1 @@
-TRUNCATE TABLE public.cutover_table;
-
+DROP TABLE public.cutover_table;

@@ -1,8 +1,18 @@
--- smoke DDL/DDL-neutral command
-SELECT 1;
+CREATE DATABASE IF NOT EXISTS test_db;
+\c test_db;	
+
+DROP TABLE IF EXISTS public.test_table;
+
+CREATE TABLE public.test_table (
+	id int PRIMARY KEY,
+	name varchar(255)
+);
 
 -- table for cutover/backlog checks
 DROP TABLE IF EXISTS public.cutover_table;
 CREATE TABLE public.cutover_table (
 	id TEXT PRIMARY KEY
 );
+
+-- smoke DDL/DDL-neutral command
+SELECT 1;
