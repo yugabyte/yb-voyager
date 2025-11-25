@@ -17,6 +17,7 @@ package metadb
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -64,6 +65,9 @@ type MigrationStatusRecord struct {
 	ExportFromTargetFallForwardStarted bool `json:"ExportFromTargetFallForwardStarted"`
 	ExportFromTargetFallBackStarted    bool `json:"ExportFromTargetFallBackStarted"`
 
+	// Cutover timing data
+	CutoverTimings CutoverTimingRecord `json:"CutoverTimings,omitempty"`
+
 	ExportSchemaDone                bool `json:"ExportSchemaDone"`
 	ExportDataDone                  bool `json:"ExportDataDone"` // to be interpreted as export of snapshot data from source is complete
 	ExportDataSourceDebeziumStarted bool `json:"ExportDataSourceDebeziumStarted"`
@@ -92,6 +96,30 @@ type MigrationStatusRecord struct {
 
 	SourceColumnToSequenceMapping map[string]string `json:"SourceColumnToSequenceMapping"`
 	TargetColumnToSequenceMapping map[string]string `json:"TargetColumnToSequenceMapping"`
+}
+
+type CutoverTimingRecord struct {
+	// Request timestamps
+	ToTargetRequestedAt        time.Time `json:"ToTargetRequestedAt,omitempty"`
+	ToSourceRequestedAt        time.Time `json:"ToSourceRequestedAt,omitempty"`
+	ToSourceReplicaRequestedAt time.Time `json:"ToSourceReplicaRequestedAt,omitempty"`
+
+	// Detection timestamps
+	DetectedByTargetImporterAt        time.Time `json:"DetectedByTargetImporterAt,omitempty"`
+	DetectedBySourceImporterAt        time.Time `json:"DetectedBySourceImporterAt,omitempty"`
+	DetectedBySourceReplicaImporterAt time.Time `json:"DetectedBySourceReplicaImporterAt,omitempty"`
+
+	// Processing timestamps
+	ProcessedBySourceExporterAt                time.Time `json:"ProcessedBySourceExporterAt,omitempty"`
+	ProcessedByTargetImporterAt                time.Time `json:"ProcessedByTargetImporterAt,omitempty"`
+	ToSourceReplicaProcessedByTargetExporterAt time.Time `json:"ToSourceReplicaProcessedByTargetExporterAt,omitempty"`
+	ToSourceProcessedByTargetExporterAt        time.Time `json:"ToSourceProcessedByTargetExporterAt,omitempty"`
+	ToSourceReplicaProcessedBySRImporterAt     time.Time `json:"ToSourceReplicaProcessedBySRImporterAt,omitempty"`
+	ToSourceProcessedBySourceImporterAt        time.Time `json:"ToSourceProcessedBySourceImporterAt,omitempty"`
+
+	// Export from target timestamps
+	ExportFromTargetFallForwardStartedAt time.Time `json:"ExportFromTargetFallForwardStartedAt,omitempty"`
+	ExportFromTargetFallBackStartedAt    time.Time `json:"ExportFromTargetFallBackStartedAt,omitempty"`
 }
 
 const MIGRATION_STATUS_KEY = "migration_status"

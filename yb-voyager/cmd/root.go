@@ -36,6 +36,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/config"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp/noopcp"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp/ybaeon"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp/yugabyted"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/lockfile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -54,6 +55,7 @@ var (
 	controlPlane                       cp.ControlPlane
 	currentCommand                     string
 	callHomeErrorOrCompletePayloadSent bool
+	controlPlaneConfig                 map[string]string // Holds control plane configuration from config file
 )
 
 var envVarValuesToObfuscateInLogs = []string{
@@ -75,7 +77,7 @@ var rootCmd = &cobra.Command{
 Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like setting up source/target, migration workflow etc.`,
 
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		// Initialize the config file
+		// Initialize the config file (also loads control plane config)
 		overrides, envVarsSetViaConfig, envVarsAlreadyExported, err := initConfig(cmd)
 		if err != nil {
 			// not using utils.ErrExit as logging is not initialized yet
@@ -163,6 +165,7 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			if perfProfile {
 				go startPprofServer()
 			}
+			// Set up the control plane
 			err = setControlPlane(getControlPlaneType())
 			if err != nil {
 				utils.ErrExit("ERROR: setting up control plane: %w", err)
@@ -412,21 +415,67 @@ func metaDBIsCreated(exportDir string) bool {
 func setControlPlane(cpType string) error {
 	switch cpType {
 	case "":
-		log.Infof("'CONTROL_PLANE_TYPE' environment variable not set. Setting cp to NoopControlPlane.")
+		log.Infof("'control-plane-type' not set. Setting cp to NoopControlPlane.")
 		controlPlane = noopcp.New()
 	case YUGABYTED:
 		ybdConnString := os.Getenv("YUGABYTED_DB_CONN_STRING")
 		if ybdConnString == "" {
-			return fmt.Errorf("yugabyted-db-conn-string config param (or YUGABYTED_DB_CONN_STRING environment variable) needs to be set if control plane type is 'yugabyted'.")
+			return fmt.Errorf("yugabyted-control-plane.db-conn-string config param (or YUGABYTED_DB_CONN_STRING environment variable) needs to be set if control plane type is 'yugabyted'.")
 		}
 		controlPlane = yugabyted.New(exportDir)
 		log.Infof("Migration UUID %s", migrationUUID)
 		err := controlPlane.Init()
 		if err != nil {
-			return fmt.Errorf("initialize the target DB for visualization. %w", err)
+			return fmt.Errorf("initialize yugabyted control plane for visualization: %w", err)
 		}
+		log.Infof("Yugabyted control plane initialized successfully")
+	case YBAEON:
+		// Get YB-Aeon config from nested section
+		// Default to production domain if not specified in config
+		domain := controlPlaneConfig["ybaeon-control-plane.domain"]
+		if domain == "" {
+			domain = "https://cloud.yugabyte.com"
+		}
+		accountID := controlPlaneConfig["ybaeon-control-plane.account-id"]
+		projectID := controlPlaneConfig["ybaeon-control-plane.project-id"]
+		clusterID := controlPlaneConfig["ybaeon-control-plane.cluster-id"]
+		apiKey := controlPlaneConfig["ybaeon-control-plane.api-key"]
+
+		// Validate required YB-Aeon configuration
+		var missingKeys []string
+		if accountID == "" {
+			missingKeys = append(missingKeys, "ybaeon-control-plane.account-id")
+		}
+		if projectID == "" {
+			missingKeys = append(missingKeys, "ybaeon-control-plane.project-id")
+		}
+		if clusterID == "" {
+			missingKeys = append(missingKeys, "ybaeon-control-plane.cluster-id")
+		}
+		if apiKey == "" {
+			missingKeys = append(missingKeys, "ybaeon-control-plane.api-key")
+		}
+		if len(missingKeys) > 0 {
+			return fmt.Errorf("YB-Aeon control plane requires the following configuration keys: %v", missingKeys)
+		}
+
+		ybaeonConfig := &ybaeon.YBAeonConfig{
+			Domain:    domain,
+			AccountID: accountID,
+			ProjectID: projectID,
+			ClusterID: clusterID,
+			APIKey:    apiKey,
+		}
+
+		controlPlane = ybaeon.New(exportDir, ybaeonConfig)
+		log.Infof("Migration UUID %s", migrationUUID)
+		err := controlPlane.Init()
+		if err != nil {
+			return fmt.Errorf("initialize YB-Aeon control plane for visualization: %w", err)
+		}
+		log.Infof("YB-Aeon control plane initialized successfully")
 	default:
-		return fmt.Errorf("invalid value of control plane type: %q. Allowed values: %v", cpType, []string{YUGABYTED})
+		return fmt.Errorf("invalid value of control plane type: %q. Allowed values: %v", cpType, []string{YUGABYTED, YBAEON})
 	}
 	return nil
 }

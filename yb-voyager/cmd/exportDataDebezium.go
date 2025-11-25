@@ -537,8 +537,10 @@ func checkAndHandleSnapshotComplete(config *dbzm.Config, status *dbzm.ExportStat
 				err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 					if exporterRole == TARGET_DB_EXPORTER_FB_ROLE {
 						record.ExportFromTargetFallBackStarted = true
+						record.CutoverTimings.ExportFromTargetFallBackStartedAt = utils.GetCurrentTimestamp()
 					} else {
 						record.ExportFromTargetFallForwardStarted = true
+						record.CutoverTimings.ExportFromTargetFallForwardStartedAt = utils.GetCurrentTimestamp()
 					}
 
 				})

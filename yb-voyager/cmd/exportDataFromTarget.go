@@ -19,6 +19,7 @@ import (
 	"fmt"
 
 	"github.com/samber/lo"
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
@@ -176,6 +177,7 @@ func packAndSendExportDataFromTargetPayload(status string, errorMsg error) {
 
 	payload.MigrationPhase = EXPORT_DATA_FROM_TARGET_PHASE
 	exportDataPayload := callhome.ExportDataPhasePayload{
+		PayloadVersion:   callhome.EXPORT_DATA_CALLHOME_PAYLOAD_VERSION,
 		ParallelJobs:     int64(source.NumConnections),
 		StartClean:       bool(startClean),
 		Error:            callhome.SanitizeErrorMsg(errorMsg, anonymizer),
@@ -194,10 +196,18 @@ func packAndSendExportDataFromTargetPayload(status string, errorMsg error) {
 		exportDataPayload.LiveWorkflowType = FALL_BACK
 	}
 
+	// Add cutover timings if applicable
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err == nil {
+		exportDataPayload.CutoverTimings = CalculateCutoverTimingsForTarget(msr)
+	} else {
+		log.Infof("callhome: error getting MSR for cutover timings: %v", err)
+	}
+
 	payload.PhasePayload = callhome.MarshalledJsonString(exportDataPayload)
 	payload.Status = status
 
-	err := callhome.SendPayload(&payload)
+	err = callhome.SendPayload(&payload)
 	if err == nil && (status == COMPLETE || status == ERROR) {
 		callHomeErrorOrCompletePayloadSent = true
 	}

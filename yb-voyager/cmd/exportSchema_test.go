@@ -54,21 +54,21 @@ func TestShardingRecommendations(t *testing.T) {
 		fileName:      "",
 	}
 	source.DBType = POSTGRESQL
-	modifiedSqlStmt, match, _, _, _ := applyShardingRecommendationIfMatching(&sqlInfo_mview1, []string{"m1"}, MVIEW)
+	modifiedSqlStmt, match, _, _, _ := applyShardingRecommendationIfMatching(&sqlInfo_mview1, []string{"m1"}, []string{}, MVIEW)
 	assert.Equal(t, strings.ToLower(modifiedSqlStmt),
 		strings.ToLower("create materialized view m1 with (colocation=false) as select * from t1 where a = 3;"))
 	assert.Equal(t, match, true)
 
-	modifiedSqlStmt, match, _, _, _ = applyShardingRecommendationIfMatching(&sqlInfo_mview2, []string{"m1"}, MVIEW)
+	modifiedSqlStmt, match, _, _, _ = applyShardingRecommendationIfMatching(&sqlInfo_mview2, []string{"m1"}, []string{}, MVIEW)
 	assert.Equal(t, strings.ToLower(modifiedSqlStmt),
 		strings.ToLower("create materialized view m1 with (colocation=false) as select * from t1 where a = 3 with no data;"))
 	assert.Equal(t, match, true)
 
-	modifiedSqlStmt, match, _, _, _ = applyShardingRecommendationIfMatching(&sqlInfo_mview2, []string{"m1_notfound"}, MVIEW)
+	modifiedSqlStmt, match, _, _, _ = applyShardingRecommendationIfMatching(&sqlInfo_mview2, []string{"m1_notfound"}, []string{}, MVIEW)
 	assert.Equal(t, modifiedSqlStmt, sqlInfo_mview2.stmt)
 	assert.Equal(t, match, false)
 
-	modifiedSqlStmt, match, _, _, _ = applyShardingRecommendationIfMatching(&sqlInfo_mview3, []string{"m1"}, MVIEW)
+	modifiedSqlStmt, match, _, _, _ = applyShardingRecommendationIfMatching(&sqlInfo_mview3, []string{"m1"}, []string{}, MVIEW)
 	assert.Equal(t, strings.ToLower(modifiedSqlStmt),
 		strings.ToLower("create materialized view m1 with (fillfactor=70, colocation=false) "+
 			"as select * from t1 where a = 3 with no data;"))
@@ -92,21 +92,21 @@ func TestShardingRecommendations(t *testing.T) {
 		formattedStmt: "alter table a add col text;",
 		fileName:      "",
 	}
-	modifiedTableStmt, matchTable, _, _, _ := applyShardingRecommendationIfMatching(&sqlInfo_table1, []string{"a"}, TABLE)
+	modifiedTableStmt, matchTable, _, _, _ := applyShardingRecommendationIfMatching(&sqlInfo_table1, []string{"a"}, []string{}, TABLE)
 	assert.Equal(t, strings.ToLower(modifiedTableStmt),
 		strings.ToLower("create table a (a int, b int) WITH (colocation=false);"))
 	assert.Equal(t, matchTable, true)
 
-	modifiedTableStmt, matchTable, _, _, _ = applyShardingRecommendationIfMatching(&sqlInfo_table2, []string{"a"}, TABLE)
+	modifiedTableStmt, matchTable, _, _, _ = applyShardingRecommendationIfMatching(&sqlInfo_table2, []string{"a"}, []string{}, TABLE)
 	assert.Equal(t, strings.ToLower(modifiedTableStmt),
 		strings.ToLower("create table a (a int, b int) WITH (fillfactor=70, colocation=false);"))
 	assert.Equal(t, matchTable, true)
 
-	modifiedSqlStmt, matchTable, _, _, _ = applyShardingRecommendationIfMatching(&sqlInfo_table2, []string{"m1_notfound"}, TABLE)
+	modifiedSqlStmt, matchTable, _, _, _ = applyShardingRecommendationIfMatching(&sqlInfo_table2, []string{"m1_notfound"}, []string{}, TABLE)
 	assert.Equal(t, modifiedSqlStmt, sqlInfo_table2.stmt)
 	assert.Equal(t, matchTable, false)
 
-	modifiedTableStmt, matchTable, _, _, _ = applyShardingRecommendationIfMatching(&sqlInfo_table3, []string{"a"}, TABLE)
+	modifiedTableStmt, matchTable, _, _, _ = applyShardingRecommendationIfMatching(&sqlInfo_table3, []string{"a"}, []string{}, TABLE)
 	assert.Equal(t, strings.ToLower(modifiedTableStmt),
 		strings.ToLower(sqlInfo_table3.stmt))
 	assert.Equal(t, matchTable, false)
@@ -372,6 +372,14 @@ func TestExportSchemaSchemaOptimizationReportPerfOptimizationsAutofix(t *testing
 			value_2 TEXT,
 			id1 int
 		);`,
+		`CREATE TABLE test_schema.test_partition_table (
+			id SERIAL,
+			value TEXT,
+			value_2 TEXT,
+			id1 int
+		) PARTITION BY LIST (value);`,
+		`CREATE TABLE test_schema.test_partition_table_p1 PARTITION OF test_schema.test_partition_table FOR VALUES IN ('p1');`,
+		`CREATE TABLE test_schema.test_partition_table_p2 PARTITION OF test_schema.test_partition_table FOR VALUES IN ('p2');`,
 		`CREATE INDEX idx_test_data_value ON test_schema.test_data (value);`,
 		`CREATE INDEX idx_test_data_value_2 ON test_schema.test_data (value_2 DESC);`,
 		`CREATE INDEX idx_test_data_value_3 ON test_schema.test_data (value, value_2);`,
@@ -382,6 +390,16 @@ func TestExportSchemaSchemaOptimizationReportPerfOptimizationsAutofix(t *testing
 	}
 	defer postgresContainer.ExecuteSqls(`
 		DROP SCHEMA test_schema CASCADE;`)
+
+	_, err = testutils.RunVoyagerCommand(postgresContainer, "assess-migration", []string{
+		"--source-db-schema", "test_schema",
+		"--iops-capture-interval", "0",
+		"--export-dir", tempExportDir,
+		"--yes",
+	}, nil, false)
+	if err != nil {
+		t.Errorf("Failed to run assess-migration command: %v", err)
+	}
 
 	_, err = testutils.RunVoyagerCommand(postgresContainer, "export schema", []string{
 		"--source-db-schema", "test_schema",
@@ -407,7 +425,13 @@ func TestExportSchemaSchemaOptimizationReportPerfOptimizationsAutofix(t *testing
 	assert.NotNil(t, schemaOptimizationReport.RedundantIndexChange)
 	assert.True(t, schemaOptimizationReport.RedundantIndexChange.IsApplied)
 	assert.NotNil(t, schemaOptimizationReport.TableColocationRecommendation)
-	assert.False(t, schemaOptimizationReport.TableColocationRecommendation.IsApplied)
+	assert.True(t, schemaOptimizationReport.TableColocationRecommendation.IsApplied)
+	assert.Equal(t, 3, len(schemaOptimizationReport.TableColocationRecommendation.ShardedObjects))
+	expectedShardedObjects := []string{"test_schema.test_data", "test_schema.test_partition_table_p1", "test_schema.test_partition_table_p2"}
+	assert.ElementsMatch(t, expectedShardedObjects, schemaOptimizationReport.TableColocationRecommendation.ShardedObjects)
+
+	assert.Equal(t, 0, len(schemaOptimizationReport.TableColocationRecommendation.CollocatedObjects))
+
 	assert.Equal(t, 1, len(schemaOptimizationReport.RedundantIndexChange.TableToRemovedIndexesMap))
 	assert.Equal(t, 2, len(schemaOptimizationReport.RedundantIndexChange.TableToRemovedIndexesMap["test_schema.test_data"]))
 	assert.NotNil(t, schemaOptimizationReport.SecondaryIndexToRangeChange)
@@ -418,6 +442,7 @@ func TestExportSchemaSchemaOptimizationReportPerfOptimizationsAutofix(t *testing
 
 	_, err = testutils.RunVoyagerCommand(yugabyteContainer, "import schema", []string{
 		"--export-dir", tempExportDir,
+		"--yes",
 	}, func() {
 		time.Sleep(10 * time.Second)
 	}, true)

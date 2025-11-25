@@ -305,6 +305,9 @@ func (p *SequentialFileBatchProducer) finalizeBatch(batchWriter *BatchWriter, is
 	if err != nil {
 		utils.ErrExit("finalizing batch %d: %s", batchNum, err)
 	}
+
+	importdata.RecordPrometheusSnapshotBatchCreated(p.task.TableNameTup, importerRole)
+
 	batchWriter = nil
 	p.lastBatchNumber = batchNum
 	return batch, nil
