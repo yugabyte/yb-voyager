@@ -22,7 +22,7 @@ def main():
 EXPECTED_ROW_COUNT = {
 	'x':5,
 	'user_table': 8,
-	'test_partial_unique_index':10
+	'test_partial_unique_index':11
 }
 
 EXPECTED_DATA_TYPES = {
@@ -51,14 +51,14 @@ EXPECTED_SUM_OF_COLUMN = {
 		'id': '51',
 	},
 	'test_partial_unique_index': {
-		'id': '55',
+		'id': '66',
 	}
 }
 
 EXPECTED_ROW_COUNT_FF = {
 	'x':7,
 	'user_table': 8,
-	'test_partial_unique_index': 10
+	'test_partial_unique_index': 11
 }
 
 EXPECTED_SUM_OF_COLUMN_FF = {
@@ -70,7 +70,7 @@ EXPECTED_SUM_OF_COLUMN_FF = {
 		'id': '49',
 	},
 	'test_partial_unique_index': {
-		'id':'55'
+		'id':'66'
 	}
 }
 

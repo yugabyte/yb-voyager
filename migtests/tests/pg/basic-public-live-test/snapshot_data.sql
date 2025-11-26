@@ -13,11 +13,14 @@ INSERT INTO user_table (email) VALUES
 
 
 INSERT INTO test_partial_unique_index (check_id, most_recent) VALUES
-    (1, true),
-    (2, true),
-    (3, true),
-    (4, true),
-    (5, true),
-    (6, true),
-    (7, true),
-    (8, true);
+    (1, true), --1
+    (1, true), -- 1
+    (2, true), --2
+    (3, true), --3
+    (4, true), --4
+    (4, false), --5
+    (5, true), --6
+    (6, true), --7
+    (6, false), --8
+    (7, true), --9    
+    (8, true); --10

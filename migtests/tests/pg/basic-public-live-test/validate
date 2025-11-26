@@ -19,7 +19,7 @@ def main():
 EXPECTED_ROW_COUNT = {
 	'x':3,
  	'user_table': 8,
-	'test_partial_unique_index':8
+	'test_partial_unique_index':10
 }
 
 EXPECTED_DATA_TYPES = {
@@ -48,7 +48,7 @@ EXPECTED_SUM_OF_COLUMN = {
 		'id': '36',
 	},
 	'test_partial_unique_index': {
-		'id': '36',
+		'id': '55',
 	}
 }
 
