@@ -192,6 +192,66 @@ func (c *ConflictDetectionCache) RemoveEvents(events ...*tgtdb.Event) {
 	}
 }
 
+/*
+CASES
+
+c->cached
+i->incoming
+
+if UK changed
+PK - id
+UK - email
+UPDATE-UPDATE
+	1 abc
+	2 def
+	UPDATE 1 abc to def
+	UPDATE 2 def to abc
+	c.before-i.after
+UPDATE-INSERT
+	1 abc
+	UPDATE 1 abc to def
+	INSERT 2 abc
+	c.before-i.after
+DELETE-INSERT
+	1 abc
+	DELETE 1
+	INSERT 2 abc
+	c.before-i.after
+DELETE-UPDATE
+	1 abc
+	2 def
+	DELETE 1
+	UPDATE 2 def to abc
+	c.before-i.after
+
+if uk not changed but two events operating on same uk
+PK - id
+UK - check_id WHERE most_recent
+UPDATE-UPDATE
+	1 10 t
+	2 10 f
+	UPDATE 1 to false
+	UPDATE 2 to true
+	c.before-i.before
+UPDATE-INSERT
+	1 10 t
+	UPDATE 1 to false
+	INSERT 2 10 t
+	c.before-i.after
+DELETE-INSERT
+	1 10 t
+	DELETE 1
+	INSERT 2 10 t
+	c.before-i.after
+DELETE-UPDATE
+	1 10 t
+	2 10 f
+	DELETE 1
+	UPDATE 2 to true
+	c.before-i.before
+
+*/
+
 func (c *ConflictDetectionCache) eventsConfict(cachedEvent *tgtdb.Event, incomingEvent *tgtdb.Event) bool {
 	if !c.eventsAreOfSameTable(cachedEvent, incomingEvent) {
 		return false
@@ -229,8 +289,23 @@ func (c *ConflictDetectionCache) eventsConfict(cachedEvent *tgtdb.Event, incomin
 		if cachedEvent.BeforeFields[column] == nil || incomingEvent.Fields[column] == nil {
 			continue // check for the other columns(case: multiple unique keys)
 		}
+		cachedEventBefore := *cachedEvent.BeforeFields[column]
+		incomingEventBefore := *incomingEvent.BeforeFields[column]
+		incomingEventAfter := *incomingEvent.Fields[column]
 
-		if *cachedEvent.BeforeFields[column] == *incomingEvent.Fields[column] {
+		switch true {
+		case cachedEventBefore == incomingEventAfter:
+			//If uk column is changes then it is a pure conflict
+			//Handles all cases of UPDATE-UPDATE, UPDATE-INSERT, DELETE-INSERT, DELETE-UPDATE
+
+			//If uk is not changed but the partial predicate is updated in cached and the same uk with before predicate is inserted in the incoming event then it is a partial conflict
+			//handles UPDATE-INSERT, DELETE-INSERT
+			log.Infof("conflict detected for table %s, column %s, between value of event1(vsn=%d, colVal=%s) and event2(vsn=%d, colVal=%s)",
+				cachedEvent.TableNameTup.ForKey(), column, cachedEvent.Vsn, *cachedEvent.BeforeFields[column], incomingEvent.Vsn, *incomingEvent.Fields[column])
+			return true
+		case cachedEventBefore == incomingEventBefore:
+			//If two events are operating on same uk then it is a partial conflict
+			//handles UPDATE-UPDATE, DELETE-UPDATE
 			log.Infof("conflict detected for table %s, column %s, between value of event1(vsn=%d, colVal=%s) and event2(vsn=%d, colVal=%s)",
 				cachedEvent.TableNameTup.ForKey(), column, cachedEvent.Vsn, *cachedEvent.BeforeFields[column], incomingEvent.Vsn, *incomingEvent.Fields[column])
 			return true
