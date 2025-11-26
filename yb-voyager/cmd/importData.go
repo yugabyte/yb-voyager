@@ -1195,7 +1195,7 @@ func createFileTaskImporter(task *ImportFileTask, state *ImportDataState, batchI
 	tableTypes *utils.StructMap[sqlname.NameTuple, string], concurrentBatchProductionSem *semaphore.Weighted, errorHandler importdata.ImportDataErrorHandler, callhomeMetricsCollector *callhome.ImportDataMetricsCollector) (*FileTaskImporter, error) {
 	var taskImporter *FileTaskImporter
 	var err error
-	var batchProducer BatchProducer
+	var batchProducer FileBatchProducer
 
 	if importerRole == TARGET_DB_IMPORTER_ROLE || importerRole == IMPORT_FILE_ROLE {
 		tableType, ok := tableTypes.Get(task.TableNameTup)
