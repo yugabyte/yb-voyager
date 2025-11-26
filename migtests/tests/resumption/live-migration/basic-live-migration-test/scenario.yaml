@@ -48,6 +48,7 @@ stages:
   - name: create_source_schema
     action: run_sql
     sql_path: ./init.sql
+    use_admin: true
 
   - name: grant_source_permissions
     action: grant_source_permissions

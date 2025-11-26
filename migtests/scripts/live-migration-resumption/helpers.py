@@ -1042,9 +1042,14 @@ def _target_connection(cfg: Dict[str, Any]) -> psycopg2.extensions.connection:
     return db_connection(cfg, "target")
 
 
-def run_sql_file(ctx, sql_path: str, target: str = "source") -> None:
+def run_sql_file(ctx, sql_path: str, target: str = "source", *, use_admin: bool = False) -> None:
     """Executes SQL against source/target using psql."""
-    run_psql(ctx, target, "-f", sql_path)
+    user_override = password_override = None
+    if use_admin:
+        admin_cfg = ctx.cfg[target].get("admin")
+        user_override = admin_cfg["user"]
+        password_override = admin_cfg.get("password")
+    run_psql(ctx, target, "-f", sql_path, user_override=user_override, password_override=password_override)
 
 
 def grant_postgres_live_migration_permissions(ctx) -> None:

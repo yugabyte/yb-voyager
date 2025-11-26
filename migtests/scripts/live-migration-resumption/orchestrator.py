@@ -43,12 +43,13 @@ def run_sql_action(stage: Dict[str, Any], ctx: Any) -> None:
     # Execute SQL against source/target based on stage params (placeholder)
     sql_path = stage.get("sql_path")
     target = stage.get("target", "source")
+    use_admin = bool(stage.get("use_admin"))
     if not sql_path:
         return
     # Resolve relative to test_root if provided
     if ctx.test_root and not os.path.isabs(sql_path):
         sql_path = os.path.join(ctx.test_root, sql_path)
-    H.run_sql_file(ctx, sql_path, target)
+    H.run_sql_file(ctx, sql_path, target, use_admin=use_admin)
 
 
 @action("voyager_export_schema")
