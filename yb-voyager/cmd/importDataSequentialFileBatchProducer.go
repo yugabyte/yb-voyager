@@ -30,7 +30,7 @@ import (
 
 const FIRST_BATCH_NUM = 1
 
-type FileBatchProducer struct {
+type SequentialFileBatchProducer struct {
 	task  *ImportFileTask
 	state *ImportDataState
 
@@ -54,7 +54,7 @@ type FileBatchProducer struct {
 	progressReporter *ImportDataProgressReporter
 }
 
-func NewFileBatchProducer(task *ImportFileTask, state *ImportDataState, errorHandler importdata.ImportDataErrorHandler, progressReporter *ImportDataProgressReporter) (*FileBatchProducer, error) {
+func NewSequentialFileBatchProducer(task *ImportFileTask, state *ImportDataState, errorHandler importdata.ImportDataErrorHandler, progressReporter *ImportDataProgressReporter) (*SequentialFileBatchProducer, error) {
 	if errorHandler == nil {
 		return nil, fmt.Errorf("errorHandler must not be nil")
 	}
@@ -76,7 +76,7 @@ func NewFileBatchProducer(task *ImportFileTask, state *ImportDataState, errorHan
 		return pendingBatches[i].IsInterrupted()
 	})
 
-	return &FileBatchProducer{
+	return &SequentialFileBatchProducer{
 		task:             task,
 		state:            state,
 		pendingBatches:   pendingBatches,
@@ -90,11 +90,11 @@ func NewFileBatchProducer(task *ImportFileTask, state *ImportDataState, errorHan
 	}, nil
 }
 
-func (p *FileBatchProducer) Done() bool {
+func (p *SequentialFileBatchProducer) Done() bool {
 	return p.completed
 }
 
-func (p *FileBatchProducer) NextBatch() (*Batch, error) {
+func (p *SequentialFileBatchProducer) NextBatch() (*Batch, error) {
 	if p.Done() {
 		return nil, fmt.Errorf("already completed producing all batches")
 	}
@@ -111,7 +111,7 @@ func (p *FileBatchProducer) NextBatch() (*Batch, error) {
 	return p.produceNextBatch()
 }
 
-func (p *FileBatchProducer) produceNextBatch() (*Batch, error) {
+func (p *SequentialFileBatchProducer) produceNextBatch() (*Batch, error) {
 	if p.dataFile == nil {
 		err := p.openDataFile()
 		if err != nil {
@@ -236,7 +236,7 @@ func (p *FileBatchProducer) produceNextBatch() (*Batch, error) {
 	return nil, fmt.Errorf("could not produce next batch: err: %w", readLineErr)
 }
 
-func (p *FileBatchProducer) openDataFile() error {
+func (p *SequentialFileBatchProducer) openDataFile() error {
 	reader, err := dataStore.Open(p.task.FilePath)
 	if err != nil {
 		return fmt.Errorf("preparing reader for split generation on file: %q: %v", p.task.FilePath, err)
@@ -266,7 +266,7 @@ func (p *FileBatchProducer) openDataFile() error {
 	return nil
 }
 
-func (p *FileBatchProducer) newBatchWriter() (*BatchWriter, error) {
+func (p *SequentialFileBatchProducer) newBatchWriter() (*BatchWriter, error) {
 	batchNum := p.lastBatchNumber + 1
 	batchWriter := p.state.NewBatchWriter(p.task.FilePath, p.task.TableNameTup, batchNum)
 	err := batchWriter.Init()
@@ -283,7 +283,7 @@ func (p *FileBatchProducer) newBatchWriter() (*BatchWriter, error) {
 	return batchWriter, nil
 }
 
-func (p *FileBatchProducer) finalizeBatch(batchWriter *BatchWriter, isLastBatch bool, offsetEnd int64, bytesInBatch int64) (*Batch, error) {
+func (p *SequentialFileBatchProducer) finalizeBatch(batchWriter *BatchWriter, isLastBatch bool, offsetEnd int64, bytesInBatch int64) (*Batch, error) {
 	batchNum := p.lastBatchNumber + 1
 
 	// before we write the batch, we also store the processing errors that were encountered and stashed while
@@ -313,13 +313,13 @@ func (p *FileBatchProducer) finalizeBatch(batchWriter *BatchWriter, isLastBatch 
 	return batch, nil
 }
 
-func (p *FileBatchProducer) Close() {
+func (p *SequentialFileBatchProducer) Close() {
 	if p.dataFile != nil {
 		p.dataFile.Close()
 	}
 }
 
-func (p *FileBatchProducer) handleRowProcessingErrorAndResetBytes(currentBatchNumber int64, row string, rowErr error, currentBytesRead int64) error {
+func (p *SequentialFileBatchProducer) handleRowProcessingErrorAndResetBytes(currentBatchNumber int64, row string, rowErr error, currentBytesRead int64) error {
 	handleErr := p.errorHandler.HandleRowProcessingError(row, currentBytesRead, rowErr, p.task.TableNameTup, p.task.FilePath, currentBatchNumber)
 	if handleErr != nil {
 		return fmt.Errorf("failed to handle row processing error: %w", handleErr)
