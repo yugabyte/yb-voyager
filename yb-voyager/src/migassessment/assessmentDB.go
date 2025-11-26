@@ -91,47 +91,54 @@ func InitAssessmentDB() error {
 
 	cmds := []string{
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			source_node		TEXT DEFAULT 'primary',
 			schema_name		TEXT,
 			object_name		TEXT,
 			object_type		TEXT,
 			seq_reads		INTEGER,
 			row_writes		INTEGER,
 			measurement_type TEXT,
-			PRIMARY KEY (schema_name, object_name, measurement_type));`, TABLE_INDEX_IOPS),
+			PRIMARY KEY (source_node, schema_name, object_name, measurement_type));`, TABLE_INDEX_IOPS),
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			source_node		TEXT DEFAULT 'primary',
 			schema_name		TEXT,
 			object_name		TEXT,
 			object_type		TEXT,
 			size_in_bytes	INTEGER,
-			PRIMARY KEY (schema_name, object_name));`, TABLE_INDEX_SIZES),
+			PRIMARY KEY (source_node, schema_name, object_name));`, TABLE_INDEX_SIZES),
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			source_node		TEXT DEFAULT 'primary',
 			schema_name		TEXT,
 			table_name		TEXT,
 			row_count		INTEGER,
-			PRIMARY KEY (schema_name, table_name));`, TABLE_ROW_COUNTS),
+			PRIMARY KEY (source_node, schema_name, table_name));`, TABLE_ROW_COUNTS),
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			source_node		TEXT DEFAULT 'primary',
 			schema_name		TEXT,
 			object_name		TEXT,
 			object_type		TEXT,
 			column_count	INTEGER,
-			PRIMARY KEY (schema_name, object_name));`, TABLE_COLUMNS_COUNT),
+			PRIMARY KEY (source_node, schema_name, object_name));`, TABLE_COLUMNS_COUNT),
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			source_node		TEXT DEFAULT 'primary',
 			index_schema	TEXT,
 			index_name		TEXT,
 			table_schema	TEXT,
 			table_name		TEXT,
-			PRIMARY KEY (index_schema, index_name));`, INDEX_TO_TABLE_MAPPING),
+			PRIMARY KEY (source_node, index_schema, index_name));`, INDEX_TO_TABLE_MAPPING),
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			source_node		TEXT DEFAULT 'primary',
 			schema_name     TEXT,
 			object_name     TEXT,
 			object_type     TEXT,
-			PRIMARY KEY (schema_name, object_name));`, OBJECT_TYPE_MAPPING),
+			PRIMARY KEY (source_node, schema_name, object_name));`, OBJECT_TYPE_MAPPING),
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			source_node		TEXT DEFAULT 'primary',
 			schema_name		TEXT,
 			table_name		TEXT,
 			column_name		TEXT,
 			data_type		TEXT,
-			PRIMARY KEY (schema_name, table_name, column_name));`, TABLE_COLUMNS_DATA_TYPES),
+			PRIMARY KEY (source_node, schema_name, table_name, column_name));`, TABLE_COLUMNS_DATA_TYPES),
 		// derived from the above metric tables
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
 			schema_name         TEXT,
@@ -150,6 +157,7 @@ func InitAssessmentDB() error {
 		// Schema exactly matches src/pgss.PgStatStatements struct for consistency
 		// Future: might have to change/adapt this for Oracle/MySQL stats
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			source_node			TEXT DEFAULT 'primary',
 			queryid				BIGINT,
 			query				TEXT,
 			calls				BIGINT,
@@ -160,6 +168,7 @@ func InitAssessmentDB() error {
 			max_exec_time		REAL,
 			stddev_exec_time	REAL);`, DB_QUERIES_SUMMARY),
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			source_node TEXT DEFAULT 'primary',
 			redundant_schema_name TEXT,
 			redundant_table_name TEXT,
 			redundant_index_name TEXT,
@@ -168,8 +177,9 @@ func InitAssessmentDB() error {
 			existing_index_name TEXT,
 			redundant_ddl TEXT,
 			existing_ddl TEXT,
-			PRIMARY KEY(redundant_schema_name,redundant_table_name,redundant_index_name));`, REDUNDANT_INDEXES),
+			PRIMARY KEY(source_node,redundant_schema_name,redundant_table_name,redundant_index_name));`, REDUNDANT_INDEXES),
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			source_node TEXT DEFAULT 'primary',
 			schema_name TEXT,
 			table_name TEXT,
 			column_name TEXT,
@@ -177,13 +187,14 @@ func InitAssessmentDB() error {
 			effective_n_distinct INTEGER,
 			most_common_freq REAL,
 			most_common_val TEXT,
-			PRIMARY KEY(schema_name, table_name, column_name));`, COLUMN_STATISTICS),
+			PRIMARY KEY(source_node, schema_name, table_name, column_name));`, COLUMN_STATISTICS),
 		/*
-		object info - schema, object name and type
-		parent table name - only available for indexes else empty string
-		scans, inserts, updates, deletes - usage stats
+			object info - schema, object name and type
+			parent table name - only available for indexes else empty string
+			scans, inserts, updates, deletes - usage stats
 		*/
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			source_node TEXT DEFAULT 'primary',
 			schema_name TEXT,
 			object_name TEXT,
 			object_type TEXT,
@@ -192,7 +203,7 @@ func InitAssessmentDB() error {
 			inserts INTEGER,
 			updates INTEGER,
 			deletes INTEGER, 
-			PRIMARY KEY(schema_name, object_name));`, TABLE_INDEX_USAGE_STATS), 
+			PRIMARY KEY(source_node, schema_name, object_name));`, TABLE_INDEX_USAGE_STATS),
 	}
 
 	for _, cmd := range cmds {
@@ -201,6 +212,11 @@ func InitAssessmentDB() error {
 			return fmt.Errorf("error while initializing assessment db with query-%s: %w", cmd, err)
 		}
 	}
+
+	// Note: Assessment DB is always created fresh (either new run or --start-clean)
+	// Backward compatibility for loading old CSVs (without source_node column) is handled by:
+	// 1. DEFAULT 'primary' in CREATE TABLE statements above
+	// 2. BulkInsert() dynamic SQL which builds INSERT based on CSV headers
 
 	err = conn.Close()
 	if err != nil {
@@ -278,11 +294,11 @@ const (
 		NULL AS parent_table_name,
 		tis.size_in_bytes
 	FROM %s trc
-	LEFT JOIN %s tii ON trc.schema_name = tii.schema_name AND trc.table_name = tii.object_name and tii.measurement_type='initial'
-	LEFT JOIN %s tis ON trc.schema_name = tis.schema_name AND trc.table_name = tis.object_name
-	LEFT JOIN %s tcc ON trc.schema_name = tcc.schema_name AND trc.table_name = tcc.object_name
-	LEFT JOIN %s otm ON trc.schema_name = otm.schema_name AND trc.table_name = otm.object_name
-	WHERE otm.object_type NOT IN ('%s', '%s');`
+	LEFT JOIN %s tii ON trc.schema_name = tii.schema_name AND trc.table_name = tii.object_name and tii.measurement_type='initial' AND tii.source_node = 'primary'
+	LEFT JOIN %s tis ON trc.schema_name = tis.schema_name AND trc.table_name = tis.object_name AND tis.source_node = 'primary'
+	LEFT JOIN %s tcc ON trc.schema_name = tcc.schema_name AND trc.table_name = tcc.object_name AND tcc.source_node = 'primary'
+	LEFT JOIN %s otm ON trc.schema_name = otm.schema_name AND trc.table_name = otm.object_name AND otm.source_node = 'primary'
+	WHERE trc.source_node = 'primary' AND otm.object_type NOT IN ('%s', '%s');`
 
 	// No insertion into 'column_count' for indexes
 	InsertIndexStats = `INSERT INTO %s (schema_name, object_name, row_count, column_count, reads_per_second, writes_per_second, is_index, object_type, parent_table_name, size_in_bytes)
@@ -298,27 +314,32 @@ const (
 		itm.table_schema || '.' || itm.table_name AS parent_table_name,
 		tis.size_in_bytes
 	FROM %s itm
-	LEFT JOIN %s tii ON itm.index_schema = tii.schema_name AND itm.index_name = tii.object_name and tii.measurement_type='initial'
-	LEFT JOIN %s tis ON itm.index_schema = tis.schema_name AND itm.index_name = tis.object_name
-	LEFT JOIN %s tcc ON itm.index_schema = tcc.schema_name AND itm.index_name = tcc.object_name
-	LEFT JOIN %s otm ON itm.index_schema = otm.schema_name AND itm.index_name = otm.object_name
-	WHERE otm.object_type NOT IN ('%s', '%s');`
+	LEFT JOIN %s tii ON itm.index_schema = tii.schema_name AND itm.index_name = tii.object_name and tii.measurement_type='initial' AND tii.source_node = 'primary'
+	LEFT JOIN %s tis ON itm.index_schema = tis.schema_name AND itm.index_name = tis.object_name AND tis.source_node = 'primary'
+	LEFT JOIN %s tcc ON itm.index_schema = tcc.schema_name AND itm.index_name = tcc.object_name AND tcc.source_node = 'primary'
+	LEFT JOIN %s otm ON itm.index_schema = otm.schema_name AND itm.index_name = otm.object_name AND otm.source_node = 'primary'
+	WHERE itm.source_node = 'primary' AND otm.object_type NOT IN ('%s', '%s');`
 
 	CreateTempTable = `CREATE TEMP TABLE read_write_rates AS
 	SELECT
 		initial.schema_name,
 		initial.object_name,
 		initial.object_type,
-		(final.seq_reads - initial.seq_reads) / %d AS seq_reads_per_second, -- iops capture interval(default: 120)
-		(final.row_writes - initial.row_writes) / %d AS row_writes_per_second
+		-- Sum reads across ALL nodes (primary + replicas)
+		(SUM(final.seq_reads) - SUM(initial.seq_reads)) / %d AS seq_reads_per_second, -- iops capture interval(default: 120)
+		-- Take writes from PRIMARY only
+		(SUM(CASE WHEN final.source_node = 'primary' THEN final.row_writes ELSE 0 END) - 
+		 SUM(CASE WHEN initial.source_node = 'primary' THEN initial.row_writes ELSE 0 END)) / %d AS row_writes_per_second
 	FROM
 		%s AS initial
 	JOIN
 		%s AS final ON initial.schema_name = final.schema_name
 									AND initial.object_name = final.object_name
+									AND initial.source_node = final.source_node -- Match snapshots from same node (primary↔primary, replica1↔replica1, etc.)
 									AND final.measurement_type = 'final'
 	WHERE
-		initial.measurement_type = 'initial';`
+		initial.measurement_type = 'initial'
+	GROUP BY initial.schema_name, initial.object_name, initial.object_type; -- Collapse multi-node data into single row per object`
 
 	UpdateStatsWithRates = `UPDATE table_index_stats
 	SET
@@ -378,7 +399,7 @@ func (adb *AssessmentDB) PopulateMigrationAssessmentStats() error {
 func (adb *AssessmentDB) FetchAllStats() (*[]TableIndexStats, error) {
 	log.Infof("fetching all stats info from %q table", TABLE_INDEX_STATS)
 	query := fmt.Sprintf(`SELECT schema_name, object_name, row_count, column_count, reads_per_second, writes_per_second, 
-	is_index, object_type, parent_table_name, size_in_bytes FROM %s;`, TABLE_INDEX_STATS)
+	is_index, object_type, parent_table_name, size_in_bytes FROM %s ORDER BY schema_name, object_name;`, TABLE_INDEX_STATS)
 	rows, err := adb.db.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("error querying all stats-%s: %w", query, err)
@@ -479,6 +500,7 @@ func (adb *AssessmentDB) InsertPgssEntries(entries []*pgss.PgStatStatements) err
 	// Prepared statement for faster insertion
 	insertSQL := fmt.Sprintf(`
 		INSERT INTO %s (
+			source_node,
 			queryid,
 			query,
 			calls,
@@ -489,7 +511,7 @@ func (adb *AssessmentDB) InsertPgssEntries(entries []*pgss.PgStatStatements) err
 			max_exec_time,
 			stddev_exec_time
 		) VALUES (
-			?, ?, ?, ?, ?, ?, ?, ?, ?
+			?, ?, ?, ?, ?, ?, ?, ?, ?, ?
 		)`, DB_QUERIES_SUMMARY)
 
 	stmt, err := adb.db.Prepare(insertSQL)
@@ -499,7 +521,7 @@ func (adb *AssessmentDB) InsertPgssEntries(entries []*pgss.PgStatStatements) err
 	defer stmt.Close()
 
 	for _, entry := range entries {
-		_, err = stmt.Exec(entry.QueryID, entry.Query, entry.Calls, entry.Rows, entry.TotalExecTime, entry.MeanExecTime,
+		_, err = stmt.Exec(entry.SourceNode, entry.QueryID, entry.Query, entry.Calls, entry.Rows, entry.TotalExecTime, entry.MeanExecTime,
 			entry.MinExecTime, entry.MaxExecTime, entry.StddevExecTime)
 		if err != nil {
 			return fmt.Errorf("failed to insert PGSS entry for queryid %d: %w", entry.QueryID, err)
@@ -510,12 +532,31 @@ func (adb *AssessmentDB) InsertPgssEntries(entries []*pgss.PgStatStatements) err
 }
 
 // GetSourceQueryStats retrieves all the source PGSS data from the assessment database
+// For multi-node setups, only returns query stats from the primary node to avoid
+// mixing workload patterns from read replicas with primary writes.
+// Backward compatible: works with older assessment DBs that don't have the source_node column.
 func (adb *AssessmentDB) GetSourceQueryStats() ([]*types.QueryStats, error) {
+	// Check if source_node column exists (for backward compatibility with older assessment DBs)
+	hasSourceNode, err := adb.columnExists(DB_QUERIES_SUMMARY, "source_node")
+	if err != nil {
+		return nil, fmt.Errorf("failed to check schema version: %w", err)
+	}
+
+	// Build query based on schema version
 	query := `
 		SELECT queryid, query, calls, rows,
 		       total_exec_time, mean_exec_time,
 		       min_exec_time, max_exec_time
-		FROM db_queries_summary;`
+		FROM db_queries_summary`
+
+	if hasSourceNode {
+		// New schema (with replicas support): filter to primary only
+		query += `
+		WHERE source_node = 'primary'`
+	}
+	// Old schema: no filter needed (only primary data exists)
+
+	query += ";"
 
 	rows, err := adb.db.Query(query)
 	if err != nil {
@@ -559,6 +600,17 @@ func (adb *AssessmentDB) CheckIfTableExists(tableName string) error {
 	}
 
 	return nil
+}
+
+// columnExists checks if a column exists in a SQLite table (for backward compatibility checks)
+func (adb *AssessmentDB) columnExists(tableName, columnName string) (bool, error) {
+	query := `SELECT COUNT(*) FROM pragma_table_info(?) WHERE name = ?`
+	var count int
+	err := adb.db.QueryRow(query, tableName, columnName).Scan(&count)
+	if err != nil {
+		return false, fmt.Errorf("failed to check if column %s exists in table %s: %w", columnName, tableName, err)
+	}
+	return count > 0, nil
 }
 
 // HasSourceQueryStats checks if query stats data exists in the assessment database (source-db type agnostic)

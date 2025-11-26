@@ -14,13 +14,14 @@ require (
 	github.com/deckarep/golang-set/v2 v2.7.0
 	github.com/docker/go-connections v0.5.0
 	github.com/dustin/go-humanize v1.0.1
-	github.com/fatih/color v1.13.0
+	github.com/fatih/color v1.16.0
 	github.com/go-sql-driver/mysql v1.7.0
 	github.com/godror/godror v0.30.2
 	github.com/golang-collections/collections v0.0.0-20130729185459-604e922904d3
 	github.com/google/uuid v1.6.0
 	github.com/gosuri/uilive v0.0.4
 	github.com/gosuri/uitable v0.0.4
+	github.com/hashicorp/go-retryablehttp v0.7.8
 	github.com/hashicorp/go-version v1.7.0
 	github.com/jackc/pgconn v1.14.3
 	github.com/jackc/pgx/v4 v4.18.3
@@ -69,6 +70,7 @@ require (
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
+	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/jackc/puddle v1.3.0 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
@@ -158,7 +160,7 @@ require (
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/magiconair/properties v1.8.7
 	github.com/mattn/go-colorable v0.1.13 // indirect
-	github.com/mattn/go-isatty v0.0.17 // indirect
+	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-runewidth v0.0.14 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/pavlo-v-chernykh/keystore-go/v4 v4.4.1

@@ -41,6 +41,18 @@ var (
 	MAX_SLEEP_SECOND     = 60
 )
 
+// FileBatchProducer defines the interface for producing batches from a file.
+type FileBatchProducer interface {
+	// Done returns true if all batches have been produced.
+	Done() bool
+
+	// NextBatch returns the next batch to be processed, or an error if no more batches are available.
+	NextBatch() (*Batch, error)
+
+	// Close cleans up any resources used by the batch producer.
+	Close()
+}
+
 /*
 FileTaskImporter is responsible for importing an ImportFileTask.
 It uses a FileBatchProducer to produce batches. It submits each batch to a provided
@@ -50,7 +62,7 @@ type FileTaskImporter struct {
 	state *ImportDataState
 
 	task                 *ImportFileTask
-	batchProducer        *FileBatchProducer
+	batchProducer        FileBatchProducer
 	importBatchArgsProto *tgtdb.ImportBatchArgs
 	workerPool           *pool.Pool // worker pool to submit batches for import. Shared across all tasks.
 
@@ -72,7 +84,8 @@ func NewFileTaskImporter(task *ImportFileTask, state *ImportDataState, workerPoo
 	progressReporter.ImportFileStarted(task, totalProgressAmount)
 	currentProgressAmount := getImportedProgressAmount(task, state)
 	progressReporter.AddProgressAmount(task, currentProgressAmount)
-	batchProducer, err := NewFileBatchProducer(task, state, isRowTransformationRequired, errorHandler, progressReporter)
+	batchProducer, err := NewSequentialFileBatchProducer(task, state, isRowTransformationRequired, errorHandler, progressReporter)
+
 	if err != nil {
 		return nil, fmt.Errorf("creating file batch producer: %s", err)
 	}
