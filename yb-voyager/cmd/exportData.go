@@ -551,7 +551,13 @@ func checkExportDataPermissions(finalTableList []sqlname.NameTuple) {
 }
 
 func checkIfSchemasHaveUsagePermissions() {
-	schemasMissingUsage, err := source.DB().GetSchemasMissingUsagePermissions()
+	// Only PostgreSQL requires schema USAGE permission checks
+	pg, ok := source.DB().(*srcdb.PostgreSQL)
+	if !ok {
+		return // no-op for non-PostgreSQL databases
+	}
+
+	schemasMissingUsage, err := pg.GetSchemasMissingUsagePermissions()
 	if err != nil {
 		utils.ErrExit("get schemas missing usage permissions: %w", err)
 	}

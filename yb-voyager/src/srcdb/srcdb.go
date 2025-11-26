@@ -59,7 +59,6 @@ type SourceDB interface {
 	GetMissingExportDataPermissions(exportType string, finalTableList []sqlname.NameTuple) ([]string, error)
 	GetMissingAssessMigrationPermissions() ([]string, bool, error)
 	CheckIfReplicationSlotsAreAvailable() (isAvailable bool, usedCount int, maxCount int, err error)
-	GetSchemasMissingUsagePermissions() ([]string, error)
 	Query(query string) (*sql.Rows, error)
 	QueryRow(query string) *sql.Row
 }
