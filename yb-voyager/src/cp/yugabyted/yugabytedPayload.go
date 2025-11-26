@@ -15,7 +15,9 @@ limitations under the License.
 */
 package yugabyted
 
-import "github.com/google/uuid"
+import (
+	"github.com/google/uuid"
+)
 
 type MigrationEvent struct {
 	MigrationUUID       uuid.UUID `json:"migration_uuid"`
@@ -32,21 +34,4 @@ type MigrationEvent struct {
 	DBType              string    `json:"db_type"`
 	Status              string    `json:"status"`
 	InvocationTimestamp string    `json:"invocation_timestamp"`
-}
-
-var MIGRATION_PHASE_MAP = map[string]int{
-	"ASSESS MIGRATION": 1,
-	"EXPORT SCHEMA":    2,
-	"ANALYZE SCHEMA":   3,
-	"EXPORT DATA":      4,
-	"IMPORT SCHEMA":    5,
-	"IMPORT DATA":      6,
-}
-
-func isExportPhase(eventType string) bool {
-	return MIGRATION_PHASE_MAP[eventType] <= 4
-}
-
-func isImportPhase(eventType string) bool {
-	return MIGRATION_PHASE_MAP[eventType] > 4
 }

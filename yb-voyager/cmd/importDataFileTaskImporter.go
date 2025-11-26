@@ -41,8 +41,8 @@ var (
 	MAX_SLEEP_SECOND     = 60
 )
 
-// BatchProducer defines the interface for producing batches from a file.
-type BatchProducer interface {
+// FileBatchProducer defines the interface for producing batches from a file.
+type FileBatchProducer interface {
 	// Done returns true if all batches have been produced.
 	Done() bool
 
@@ -65,7 +65,7 @@ type FileTaskImporter struct {
 	state *ImportDataState
 
 	task                 *ImportFileTask
-	batchProducer        BatchProducer
+	batchProducer        FileBatchProducer
 	importBatchArgsProto *tgtdb.ImportBatchArgs
 	workerPool           *pool.Pool // worker pool to submit batches for import. Shared across all tasks.
 
@@ -80,7 +80,7 @@ type FileTaskImporter struct {
 	callhomeMetricsCollector *callhome.ImportDataMetricsCollector
 }
 
-func NewFileTaskImporter(task *ImportFileTask, state *ImportDataState, batchProducer BatchProducer, workerPool *pool.Pool,
+func NewFileTaskImporter(task *ImportFileTask, state *ImportDataState, batchProducer FileBatchProducer, workerPool *pool.Pool,
 	progressReporter *ImportDataProgressReporter, colocatedImportBatchQueue chan func(), isTableColocated bool,
 	errorHandler importdata.ImportDataErrorHandler, callhomeMetricsCollector *callhome.ImportDataMetricsCollector) (*FileTaskImporter, error) {
 	totalProgressAmount := getTotalProgressAmount(task)
@@ -151,6 +151,8 @@ func (fti *FileTaskImporter) submitBatch(batch *Batch) error {
 	} else {
 		fti.workerPool.Go(importBatchFunc)
 	}
+
+	importdata.RecordPrometheusSnapshotBatchSubmitted(fti.task.TableNameTup, importerRole)
 
 	log.Infof("Queued batch: %s", spew.Sdump(batch))
 	return nil
@@ -267,6 +269,8 @@ func (fti *FileTaskImporter) updateProgressForCompletedBatch(batch *Batch) {
 	if fti.callhomeMetricsCollector != nil {
 		fti.callhomeMetricsCollector.IncrementSnapshotProgress(batch.RecordCount, batch.ByteCount)
 	}
+
+	importdata.RecordPrometheusSnapshotBatchIngested(fti.task.TableNameTup, importerRole, batch.RecordCount, batch.ByteCount)
 }
 
 func (fti *FileTaskImporter) PostProcess() {

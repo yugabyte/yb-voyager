@@ -28,48 +28,57 @@ import (
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
+var defaultPrimary = sql.NullString{String: "'primary'", Valid: true}
+
 func TestInitAssessmentDB(t *testing.T) {
 	expectedTables := map[string]map[string]testutils.ColumnPropertiesSqlite{
 		TABLE_INDEX_IOPS: {
-			"schema_name":      {Type: "TEXT", PrimaryKey: 1},
-			"object_name":      {Type: "TEXT", PrimaryKey: 2},
+			"source_node":      {Type: "TEXT", PrimaryKey: 1, Default: defaultPrimary},
+			"schema_name":      {Type: "TEXT", PrimaryKey: 2},
+			"object_name":      {Type: "TEXT", PrimaryKey: 3},
 			"object_type":      {Type: "TEXT"},
 			"seq_reads":        {Type: "INTEGER"},
 			"row_writes":       {Type: "INTEGER"},
-			"measurement_type": {Type: "TEXT", PrimaryKey: 3},
+			"measurement_type": {Type: "TEXT", PrimaryKey: 4},
 		},
 		TABLE_INDEX_SIZES: {
-			"schema_name":   {Type: "TEXT", PrimaryKey: 1},
-			"object_name":   {Type: "TEXT", PrimaryKey: 2},
+			"source_node":   {Type: "TEXT", PrimaryKey: 1, Default: defaultPrimary},
+			"schema_name":   {Type: "TEXT", PrimaryKey: 2},
+			"object_name":   {Type: "TEXT", PrimaryKey: 3},
 			"object_type":   {Type: "TEXT"},
 			"size_in_bytes": {Type: "INTEGER"},
 		},
 		TABLE_ROW_COUNTS: {
-			"schema_name": {Type: "TEXT", PrimaryKey: 1},
-			"table_name":  {Type: "TEXT", PrimaryKey: 2},
+			"source_node": {Type: "TEXT", PrimaryKey: 1, Default: defaultPrimary},
+			"schema_name": {Type: "TEXT", PrimaryKey: 2},
+			"table_name":  {Type: "TEXT", PrimaryKey: 3},
 			"row_count":   {Type: "INTEGER"},
 		},
 		TABLE_COLUMNS_COUNT: {
-			"schema_name":  {Type: "TEXT", PrimaryKey: 1},
-			"object_name":  {Type: "TEXT", PrimaryKey: 2},
+			"source_node":  {Type: "TEXT", PrimaryKey: 1, Default: defaultPrimary},
+			"schema_name":  {Type: "TEXT", PrimaryKey: 2},
+			"object_name":  {Type: "TEXT", PrimaryKey: 3},
 			"object_type":  {Type: "TEXT"},
 			"column_count": {Type: "INTEGER"},
 		},
 		INDEX_TO_TABLE_MAPPING: {
-			"index_schema": {Type: "TEXT", PrimaryKey: 1},
-			"index_name":   {Type: "TEXT", PrimaryKey: 2},
+			"source_node":  {Type: "TEXT", PrimaryKey: 1, Default: defaultPrimary},
+			"index_schema": {Type: "TEXT", PrimaryKey: 2},
+			"index_name":   {Type: "TEXT", PrimaryKey: 3},
 			"table_schema": {Type: "TEXT"},
 			"table_name":   {Type: "TEXT"},
 		},
 		OBJECT_TYPE_MAPPING: {
-			"schema_name": {Type: "TEXT", PrimaryKey: 1},
-			"object_name": {Type: "TEXT", PrimaryKey: 2},
+			"source_node": {Type: "TEXT", PrimaryKey: 1, Default: defaultPrimary},
+			"schema_name": {Type: "TEXT", PrimaryKey: 2},
+			"object_name": {Type: "TEXT", PrimaryKey: 3},
 			"object_type": {Type: "TEXT"},
 		},
 		TABLE_COLUMNS_DATA_TYPES: {
-			"schema_name": {Type: "TEXT", PrimaryKey: 1},
-			"table_name":  {Type: "TEXT", PrimaryKey: 2},
-			"column_name": {Type: "TEXT", PrimaryKey: 3},
+			"source_node": {Type: "TEXT", PrimaryKey: 1, Default: defaultPrimary},
+			"schema_name": {Type: "TEXT", PrimaryKey: 2},
+			"table_name":  {Type: "TEXT", PrimaryKey: 3},
+			"column_name": {Type: "TEXT", PrimaryKey: 4},
 			"data_type":   {Type: "TEXT"},
 		},
 		TABLE_INDEX_STATS: {
@@ -85,6 +94,7 @@ func TestInitAssessmentDB(t *testing.T) {
 			"size_in_bytes":     {Type: "INTEGER"},
 		},
 		DB_QUERIES_SUMMARY: {
+			"source_node":      {Type: "TEXT", Default: defaultPrimary},
 			"queryid":          {Type: "BIGINT"},
 			"query":            {Type: "TEXT"},
 			"calls":            {Type: "BIGINT"},
@@ -96,9 +106,10 @@ func TestInitAssessmentDB(t *testing.T) {
 			"stddev_exec_time": {Type: "REAL"},
 		},
 		REDUNDANT_INDEXES: {
-			"redundant_schema_name": {Type: "TEXT", PrimaryKey: 1},
-			"redundant_table_name":  {Type: "TEXT", PrimaryKey: 2},
-			"redundant_index_name":  {Type: "TEXT", PrimaryKey: 3},
+			"source_node":           {Type: "TEXT", PrimaryKey: 1, Default: defaultPrimary},
+			"redundant_schema_name": {Type: "TEXT", PrimaryKey: 2},
+			"redundant_table_name":  {Type: "TEXT", PrimaryKey: 3},
+			"redundant_index_name":  {Type: "TEXT", PrimaryKey: 4},
 			"existing_schema_name":  {Type: "TEXT"},
 			"existing_table_name":   {Type: "TEXT"},
 			"existing_index_name":   {Type: "TEXT"},
@@ -106,23 +117,25 @@ func TestInitAssessmentDB(t *testing.T) {
 			"existing_ddl":          {Type: "TEXT"},
 		},
 		COLUMN_STATISTICS: {
-			"schema_name":          {Type: "TEXT", PrimaryKey: 1},
-			"table_name":           {Type: "TEXT", PrimaryKey: 2},
-			"column_name":          {Type: "TEXT", PrimaryKey: 3},
+			"source_node":          {Type: "TEXT", PrimaryKey: 1, Default: defaultPrimary},
+			"schema_name":          {Type: "TEXT", PrimaryKey: 2},
+			"table_name":           {Type: "TEXT", PrimaryKey: 3},
+			"column_name":          {Type: "TEXT", PrimaryKey: 4},
 			"null_frac":            {Type: "REAL"},
 			"effective_n_distinct": {Type: "INTEGER"},
 			"most_common_freq":     {Type: "REAL"},
 			"most_common_val":      {Type: "TEXT"},
 		},
 		TABLE_INDEX_USAGE_STATS: {
-			"schema_name": {Type: "TEXT", PrimaryKey: 1},
-			"object_name": {Type: "TEXT", PrimaryKey: 2},
-			"object_type": {Type: "TEXT"},
+			"source_node":       {Type: "TEXT", PrimaryKey: 1, Default: defaultPrimary},
+			"schema_name":       {Type: "TEXT", PrimaryKey: 2},
+			"object_name":       {Type: "TEXT", PrimaryKey: 3},
+			"object_type":       {Type: "TEXT"},
 			"parent_table_name": {Type: "TEXT"},
-			"scans": {Type: "INTEGER"},
-			"inserts": {Type: "INTEGER"},
-			"updates": {Type: "INTEGER"},
-			"deletes": {Type: "INTEGER"},
+			"scans":             {Type: "INTEGER"},
+			"inserts":           {Type: "INTEGER"},
+			"updates":           {Type: "INTEGER"},
+			"deletes":           {Type: "INTEGER"},
 		},
 	}
 
@@ -175,9 +188,4 @@ func TestInitAssessmentDB(t *testing.T) {
 		})
 	}
 
-}
-
-// Helper function to create a string pointer
-func stringPointer(s string) *string {
-	return &s
 }

@@ -67,10 +67,14 @@ func init() {
 	registerCommonGlobalFlags(importDataToSourceReplicaCmd)
 	registerCommonImportFlags(importDataToSourceReplicaCmd)
 	registerSourceReplicaDBAsTargetConnFlags(importDataToSourceReplicaCmd)
-	registerFlagsForSourceReplica(importDataToSourceReplicaCmd)
+	registerFlagsForSourceAndSourceReplica(importDataToSourceReplicaCmd)
 	registerStartCleanFlags(importDataToSourceReplicaCmd)
 	registerImportDataCommonFlags(importDataToSourceReplicaCmd)
 	hideImportFlagsInFallForwardOrBackCmds(importDataToSourceReplicaCmd)
+
+	importDataToSourceReplicaCmd.Flags().IntVar(&prometheusMetricsPort, "prometheus-metrics-port", 0,
+		"Port for Prometheus metrics server (default: 9103)")
+	importDataToSourceReplicaCmd.Flags().MarkHidden("prometheus-metrics-port")
 }
 
 func registerStartCleanFlags(cmd *cobra.Command) {
@@ -146,6 +150,14 @@ func packAndSendImportDataToSrcReplicaPayload(status string, errorMsg error) {
 		ControlPlaneType: getControlPlaneType(),
 		DataMetrics:      dataMetrics,
 		Phase:            importPhase,
+	}
+
+	// Add cutover timings if applicable
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err == nil {
+		importDataPayload.CutoverTimings = CalculateCutoverTimingsForSourceReplica(msr)
+	} else {
+		log.Infof("callhome: error getting MSR for cutover timings: %v", err)
 	}
 
 	payload.PhasePayload = callhome.MarshalledJsonString(importDataPayload)

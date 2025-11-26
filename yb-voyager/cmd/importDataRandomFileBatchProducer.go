@@ -34,7 +34,7 @@ It wraps a SequentialFileBatchProducer, which keeps producing batches sequential
 Whenever the next batch is requested, RandomBatchProducer picks a batch from the buffer at random and returns it.
 */
 type RandomBatchProducer struct {
-	sequentialFileBatchProducer         BatchProducer
+	sequentialFileBatchProducer         FileBatchProducer
 	task                                *ImportFileTask
 	sequentiallyProducedBatches         []*Batch
 	mu                                  sync.Mutex
@@ -55,7 +55,7 @@ func NewRandomFileBatchProducer(task *ImportFileTask, state *ImportDataState, er
 
 // newRandomFileBatchProducer creates a RandomBatchProducer with the provided SequentialFileBatchProducer.
 // This unexported function allows tests to inject a testable sequential producer.
-func newRandomFileBatchProducer(sequentialFileBatchProducer BatchProducer, task *ImportFileTask, concurrentBatchProductionSem *semaphore.Weighted) *RandomBatchProducer {
+func newRandomFileBatchProducer(sequentialFileBatchProducer FileBatchProducer, task *ImportFileTask, concurrentBatchProductionSem *semaphore.Weighted) *RandomBatchProducer {
 	producerCtx, producerCtxCancel := context.WithCancel(context.Background())
 	rbp := &RandomBatchProducer{
 		sequentialFileBatchProducer:  sequentialFileBatchProducer,

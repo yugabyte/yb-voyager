@@ -37,6 +37,7 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryissue"
@@ -57,6 +58,7 @@ var (
 	referenceOrTablePartitionPresent = false
 	pgssEnabledForAssessment         = false
 	invokedByExportSchema            utils.BoolStr
+	sourceReadReplicaEndpoints       string // CLI flag - package variable for Cobra binding
 )
 
 var sourceConnectionFlags = []string{
@@ -90,6 +92,7 @@ var assessMigrationCmd = &cobra.Command{
 		validatePortRange()
 		validateSSLMode()
 		validateOracleParams()
+		validateReplicaEndpointsFlag()
 		err = validateAndSetTargetDbVersionFlag()
 		if err != nil {
 			utils.ErrExit("failed to validate target db version: %w", err)
@@ -195,6 +198,18 @@ func init() {
 	BoolVar(assessMigrationCmd.Flags(), &invokedByExportSchema, "invoked-by-export-schema", false,
 		"Flag to indicate if the assessment is invoked by export schema command. ")
 	assessMigrationCmd.Flags().MarkHidden("invoked-by-export-schema") // mark hidden
+
+	assessMigrationCmd.Flags().StringVar(&sourceReadReplicaEndpoints, "source-read-replica-endpoints", "",
+		"Comma-separated list of read replica endpoints. Each endpoint is host:port. Default port 5432. "+
+			"Example: \"host1:5432, host2:5433\". (only valid for PostgreSQL)")
+}
+
+// createMigrationAssessmentStartedEvent creates a migration assessment started event
+// This is common for both YBM and Yugabyted control planes
+func createMigrationAssessmentStartedEvent() *cp.MigrationAssessmentStartedEvent {
+	ev := &cp.MigrationAssessmentStartedEvent{}
+	initBaseSourceEvent(&ev.BaseEvent, "ASSESS MIGRATION")
+	return ev
 }
 
 func assessMigration() (err error) {
@@ -220,6 +235,9 @@ func assessMigration() (err error) {
 			return fmt.Errorf("failed to get source DB password for assessing migration: %w", err)
 		}
 	}
+
+	var validatedReplicaEndpoints []srcdb.ReplicaEndpoint
+	var failedReplicaNodes []string
 
 	if assessmentMetadataDirFlag == "" { // only in case of source connectivity
 		err := source.DB().Connect()
@@ -251,32 +269,23 @@ func assessMigration() (err error) {
 			return fmt.Errorf("failed to check if source schema exist: %q", source.Schema)
 		}
 
-		// Check if source db has permissions to assess migration
-		if source.RunGuardrailsChecks {
-			checkIfSchemasHaveUsagePermissions()
-			var missingPerms []string
-			missingPerms, pgssEnabledForAssessment, err = source.DB().GetMissingAssessMigrationPermissions()
+		// Handle replica discovery and validation (PostgreSQL only)
+		if source.DBType == POSTGRESQL {
+			validatedReplicaEndpoints, err = handleReplicaDiscoveryAndValidation(sourceReadReplicaEndpoints)
 			if err != nil {
-				return fmt.Errorf("failed to get missing assess migration permissions: %w", err)
+				return fmt.Errorf("failed to handle replica discovery and validation: %w", err)
 			}
-			if len(missingPerms) > 0 {
-				color.Red("\nPermissions missing in the source database for assess migration:\n")
-				output := strings.Join(missingPerms, "\n")
-				utils.PrintAndLogf("%s\n\n", output)
+		}
 
-				link := "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/migrate-steps/#prepare-the-source-database"
-				fmt.Println("Check the documentation to prepare the database for migration:", color.BlueString(link))
-
-				reply := utils.AskPrompt("\nDo you want to continue anyway")
-				if !reply {
-					return fmt.Errorf("grant the required permissions and try again")
-				}
+		// Check permissions on all nodes (primary + replicas) after validation
+		if source.RunGuardrailsChecks {
+			err = checkAssessmentPermissionsOnAllNodes(validatedReplicaEndpoints)
+			if err != nil {
+				return fmt.Errorf("permission check failed: %w", err)
 			}
 		}
 
 		fetchSourceInfo()
-
-		source.DB().Disconnect()
 	}
 
 	startEvent := createMigrationAssessmentStartedEvent()
@@ -284,12 +293,18 @@ func assessMigration() (err error) {
 
 	initAssessmentDB() // Note: migassessment.AssessmentDir needs to be set beforehand
 
-	err = gatherAssessmentMetadata()
+	failedReplicaNodes, err = gatherAssessmentMetadata(validatedReplicaEndpoints)
 	if err != nil {
 		return fmt.Errorf("failed to gather assessment metadata: %w", err)
 	}
 
 	parseExportedSchemaFileForAssessmentIfRequired()
+
+	// Disconnect from primary DB only after all direct DB operations are complete
+	// (including schema export which may check schema existence)
+	if assessmentMetadataDirFlag == "" {
+		source.DB().Disconnect()
+	}
 
 	err = populateMetadataCSVIntoAssessmentDB()
 	if err != nil {
@@ -313,15 +328,25 @@ func assessMigration() (err error) {
 		utils.PrintAndLogf("failed to run assessment: %v", err)
 	}
 
-	err = generateAssessmentReport()
+	err = generateAssessmentReport(failedReplicaNodes)
 	if err != nil {
 		return fmt.Errorf("failed to generate assessment report: %w", err)
 	}
 
 	log.Infof("number of assessment issues detected: %d\n", len(assessmentReport.Issues))
 
-	utils.PrintAndLogf("Migration assessment completed successfully.")
-	completedEvent := createMigrationAssessmentCompletedEvent()
+	utils.PrintAndLog("Migration assessment completed successfully.")
+
+	// Call the appropriate event builder based on control plane type
+	var completedEvent *cp.MigrationAssessmentCompletedEvent
+	controlPlaneType := os.Getenv("CONTROL_PLANE_TYPE")
+	if controlPlaneType == YBAEON {
+		completedEvent = createMigrationAssessmentCompletedEventForYBAeon()
+	} else {
+		// Default to yugabyted format (backwards compatible)
+		completedEvent = createMigrationAssessmentCompletedEventForYugabyteD()
+	}
+
 	controlPlane.MigrationAssessmentCompleted(completedEvent)
 	saveSourceDBConfInMSR()
 	err = SetMigrationAssessmentDoneInMSR()
@@ -332,7 +357,20 @@ func assessMigration() (err error) {
 }
 
 func fetchObjectUsageStats() ([]*types.ObjectUsageStats, error) {
-	query := fmt.Sprintf(`SELECT schema_name,object_name,object_type,parent_table_name,scans,inserts,updates,deletes from %s`,
+	// Aggregate usage stats across multiple nodes:
+	// - scans: SUM across all nodes (reads happen on primary + replicas)
+	// - inserts/updates/deletes: SUM from primary only (writes only on primary)
+	query := fmt.Sprintf(`SELECT 
+		schema_name,
+		object_name,
+		object_type,
+		parent_table_name,
+		SUM(scans) as scans,
+		SUM(CASE WHEN source_node = 'primary' THEN inserts ELSE 0 END) as inserts,
+		SUM(CASE WHEN source_node = 'primary' THEN updates ELSE 0 END) as updates,
+		SUM(CASE WHEN source_node = 'primary' THEN deletes ELSE 0 END) as deletes
+	FROM %s
+	GROUP BY schema_name, object_name, object_type, parent_table_name`,
 		migassessment.TABLE_INDEX_USAGE_STATS)
 	rows, err := assessmentDB.Query(query)
 	if err != nil {
@@ -420,6 +458,7 @@ func ClearMigrationAssessmentDone() error {
 	return nil
 }
 
+// convertAssessmentIssueToYugabyteDAssessmentIssue converts common AssessmentIssue to Yugabyted format
 func convertAssessmentIssueToYugabyteDAssessmentIssue(ar AssessmentReport) []AssessmentIssueYugabyteD {
 	var result []AssessmentIssueYugabyteD
 	for _, issue := range ar.Issues {
@@ -441,6 +480,29 @@ func convertAssessmentIssueToYugabyteDAssessmentIssue(ar AssessmentReport) []Ass
 			Details: issue.Details,
 		}
 		result = append(result, ybdIssue)
+	}
+	return result
+}
+
+// convertAssessmentIssueToYBMAssessmentIssue converts common AssessmentIssue to YBM format
+func convertAssessmentIssueToYBMAssessmentIssue(ar AssessmentReport) []AssessmentIssueYBM {
+	var result []AssessmentIssueYBM
+	for _, issue := range ar.Issues {
+		ybmIssue := AssessmentIssueYBM{
+			Category:               issue.Category,
+			CategoryDescription:    issue.CategoryDescription,
+			Type:                   issue.Type,
+			Name:                   issue.Name,
+			Description:            issue.Description,
+			Impact:                 issue.Impact,
+			ObjectType:             issue.ObjectType,
+			ObjectName:             issue.ObjectName,
+			SqlStatement:           issue.SqlStatement,
+			DocsLink:               issue.DocsLink,
+			MinimumVersionsFixedIn: issue.MinimumVersionsFixedIn,
+			Details:                issue.Details,
+		}
+		result = append(result, ybmIssue)
 	}
 	return result
 }
@@ -467,13 +529,17 @@ func runAssessment() error {
 func handleStartCleanIfNeededForAssessMigration(metadataDirPassedByUser bool) error {
 	assessmentDir := filepath.Join(exportDir, "assessment")
 	reportsFilePattern := filepath.Join(assessmentDir, "reports", fmt.Sprintf("%s.*", ASSESSMENT_FILE_NAME))
-	metadataFilesPattern := filepath.Join(assessmentMetadataDir, "*.csv")
+	// Check both multi-node (node-*/*.csv) and single-node (*.csv) metadata file patterns
+	multiNodeMetadataPattern := filepath.Join(assessmentMetadataDir, "node-*", "*.csv")
+	singleNodeMetadataPattern := filepath.Join(assessmentMetadataDir, "*.csv")
 	schemaFilesPattern := filepath.Join(assessmentMetadataDir, "schema", "*", "*.sql")
 	dbsFilePattern := filepath.Join(assessmentDir, "dbs", "*.db")
 
 	assessmentFilesExists := utils.FileOrFolderExistsWithGlobPattern(reportsFilePattern) || utils.FileOrFolderExistsWithGlobPattern(dbsFilePattern)
 	if !metadataDirPassedByUser {
-		assessmentFilesExists = assessmentFilesExists || utils.FileOrFolderExistsWithGlobPattern(metadataFilesPattern) ||
+		assessmentFilesExists = assessmentFilesExists ||
+			utils.FileOrFolderExistsWithGlobPattern(multiNodeMetadataPattern) ||
+			utils.FileOrFolderExistsWithGlobPattern(singleNodeMetadataPattern) ||
 			utils.FileOrFolderExistsWithGlobPattern(schemaFilesPattern)
 	}
 
@@ -498,32 +564,36 @@ func handleStartCleanIfNeededForAssessMigration(metadataDirPassedByUser bool) er
 	return nil
 }
 
-func gatherAssessmentMetadata() (err error) {
+// gatherAssessmentMetadata collects metadata from the source database.
+// For PostgreSQL, it accepts validated replicas and returns the list of failed replica nodes
+// (for reporting partial multi-node assessments).
+func gatherAssessmentMetadata(validatedReplicas []srcdb.ReplicaEndpoint) (failedReplicaNodes []string, err error) {
 	if assessmentMetadataDirFlag != "" {
-		return nil // assessment metadata files are provided by the user inside assessmentMetadataDir
+		return nil, nil // assessment metadata files are provided by the user inside assessmentMetadataDir
 	}
 
 	// setting schema objects types to export before creating the project directories
 	source.ExportObjectTypeList = utils.GetExportSchemaObjectList(source.DBType)
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 
-	utils.PrintAndLogf("gathering metadata and stats from '%s' source database...", source.DBType)
+	utils.PrintAndLogf("\ngathering metadata and stats from '%s' source database...\n", source.DBType)
 	switch source.DBType {
 	case POSTGRESQL:
-		err := gatherAssessmentMetadataFromPG()
+		failedReplicaNodes, err = gatherAssessmentMetadataFromPG(validatedReplicas)
 		if err != nil {
-			return fmt.Errorf("error gathering metadata and stats from source PG database: %w", err)
+			return nil, fmt.Errorf("error gathering metadata and stats from source PG database: %w", err)
 		}
+		return failedReplicaNodes, nil
 	case ORACLE:
-		err := gatherAssessmentMetadataFromOracle()
+		err = gatherAssessmentMetadataFromOracle()
 		if err != nil {
-			return fmt.Errorf("error gathering metadata and stats from source Oracle database: %w", err)
+			return nil, fmt.Errorf("error gathering metadata and stats from source Oracle database: %w", err)
 		}
 	default:
-		return fmt.Errorf("source DB Type %s is not yet supported for metadata and stats gathering", source.DBType)
+		return nil, fmt.Errorf("source DB Type %s is not yet supported for metadata and stats gathering", source.DBType)
 	}
 	utils.PrintAndLogf("gathered assessment metadata files at '%s'", assessmentMetadataDir)
-	return nil
+	return nil, nil
 }
 
 func gatherAssessmentMetadataFromOracle() (err error) {
@@ -549,19 +619,112 @@ func gatherAssessmentMetadataFromOracle() (err error) {
 		source.DB().GetConnectionUriWithoutPassword(), strings.ToUpper(source.Schema), assessmentMetadataDir)
 }
 
-func gatherAssessmentMetadataFromPG() (err error) {
+// CollectionResult tracks success/failure of metadata collection from a single node
+type CollectionResult struct {
+	NodeName  string
+	IsPrimary bool
+	Success   bool
+	Error     error
+}
+
+// gatherAssessmentMetadataFromPG collects metadata from PostgreSQL primary and replicas.
+// Accepts the validated replicas to collect from, and returns the list of failed replica names
+// (for reporting partial multi-node assessment).
+func gatherAssessmentMetadataFromPG(validatedReplicas []srcdb.ReplicaEndpoint) (failedReplicaNodes []string, err error) {
 	if assessmentMetadataDirFlag != "" {
-		return nil
+		return nil, nil
 	}
 
 	scriptPath, err := findGatherMetadataScriptPath(POSTGRESQL)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	yesParam := lo.Ternary(utils.DoNotPrompt, "true", "false")
-	return runGatherAssessmentMetadataScript(scriptPath, []string{fmt.Sprintf("PGPASSWORD=%s", source.Password)},
-		source.DB().GetConnectionUriWithoutPassword(), source.Schema, assessmentMetadataDir, fmt.Sprintf("%t", pgssEnabledForAssessment), fmt.Sprintf("%d", intervalForCapturingIOPS), yesParam)
+
+	// Step 1: Collect from primary (guardrails already checked, skip redundant checks in script)
+	utils.PrintAndLogfInfo("\nCollecting metadata from primary...")
+	err = runGatherAssessmentMetadataScript(
+		scriptPath,
+		[]string{fmt.Sprintf("PGPASSWORD=%s", source.Password)},
+		source.DB().GetConnectionUriWithoutPassword(),
+		source.Schema,
+		assessmentMetadataDir,
+		fmt.Sprintf("%t", pgssEnabledForAssessment),
+		fmt.Sprintf("%d", intervalForCapturingIOPS),
+		yesParam,
+		"primary", // source_node_name
+		"true",    // skip_checks - guardrails already validated
+	)
+	if err != nil {
+		return nil, fmt.Errorf("metadata collection failed on primary database (critical): %w", err)
+	}
+	utils.PrintAndLogfSuccess("✓ Primary complete\n")
+
+	// Step 2: Collect from replicas sequentially (if any) - Phase 1: clean sequential output
+	if len(validatedReplicas) == 0 {
+		utils.PrintAndLogfSuccess("\nSuccessfully completed metadata collection from primary node")
+		return nil, nil
+	}
+
+	// Sequential collection from replicas for clean output
+	// Map: replica host-port -> replica result (for tracking unique replicas and display name)
+	// Using host-port as key ensures uniqueness even if multiple replicas share the same application_name
+	type replicaResult struct {
+		name    string // Display name (user-friendly, e.g., application_name)
+		success bool
+	}
+	replicaResults := make(map[string]*replicaResult) // key: host-port (filesystem-safe)
+
+	for _, replica := range validatedReplicas {
+		// Create filesystem-safe unique identifier (host-port, no colon for cross-platform compatibility)
+		uniqueNodeName := fmt.Sprintf("%s-%d", replica.Host, replica.Port)
+		utils.PrintAndLogfInfo("\nCollecting metadata from %s...", replica.Name)
+		err := runGatherAssessmentMetadataScript(
+			scriptPath,
+			[]string{fmt.Sprintf("PGPASSWORD=%s", source.Password)},
+			replica.ConnectionUri,
+			source.Schema,
+			assessmentMetadataDir,
+			fmt.Sprintf("%t", pgssEnabledForAssessment),
+			fmt.Sprintf("%d", intervalForCapturingIOPS),
+			"true",         // Always use --yes for replicas
+			uniqueNodeName, // source_node_name - unique identifier for directory naming
+			"true",         // skip_checks - guardrails already validated
+		)
+		if err != nil {
+			log.Warnf("Failed to collect metadata from replica %s: %v", replica.Name, err)
+			utils.PrintAndLogfWarning("⚠ %s failed (will be excluded from assessment)\n", replica.Name)
+			replicaResults[uniqueNodeName] = &replicaResult{name: replica.Name, success: false}
+		} else {
+			log.Infof("Successfully collected metadata from replica: %s", replica.Name)
+			utils.PrintAndLogfSuccess("✓ %s complete\n", replica.Name)
+			replicaResults[uniqueNodeName] = &replicaResult{name: replica.Name, success: true}
+		}
+	}
+
+	// Check if any replicas failed
+	var failedReplicasList []string
+	var successCount int
+
+	for _, result := range replicaResults {
+		if !result.success {
+			failedReplicasList = append(failedReplicasList, result.name) // Use display name
+		} else {
+			successCount++
+		}
+	}
+
+	// Some replicas failed - warn user but continue
+	if len(failedReplicasList) > 0 {
+		color.Yellow("\nWARNING: Metadata collection failed on %d replica(s): %v", len(failedReplicasList), failedReplicasList)
+		utils.PrintAndLogfInfo("Continuing assessment with data from primary + %d successful replica(s)", successCount)
+		utils.PrintAndLogfWarning("Note: Sizing and metrics will reflect only the nodes that succeeded.")
+	}
+
+	utils.PrintAndLogfSuccess("\nSuccessfully completed metadata collection from %d node(s) (primary + %d replica(s))",
+		1+successCount, successCount)
+	return failedReplicasList, nil
 }
 
 func findGatherMetadataScriptPath(dbType string) (string, error) {
@@ -661,9 +824,35 @@ func parseExportedSchemaFileForAssessmentIfRequired() {
 }
 
 func populateMetadataCSVIntoAssessmentDB() error {
-	metadataFilesPath, err := filepath.Glob(filepath.Join(assessmentMetadataDir, "*.csv"))
+	// Collect CSV files from metadata directory
+	// Two supported structures:
+	//   1. Multi-node (PostgreSQL): assessmentMetadataDir/node-*/*.csv
+	//   2. Single-node (Oracle, MySQL, etc.): assessmentMetadataDir/*.csv
+	var metadataFilesPath []string
+
+	// Check for multi-node structure first (node-* directories)
+	nodeDirs, err := filepath.Glob(filepath.Join(assessmentMetadataDir, "node-*"))
 	if err != nil {
-		return fmt.Errorf("error looking for csv files in directory %s: %w", assessmentMetadataDir, err)
+		return fmt.Errorf("error looking for node data directories in %s: %w", assessmentMetadataDir, err)
+	}
+
+	if len(nodeDirs) > 0 {
+		// Multi-node structure: Collect CSV files from each node directory
+		for _, nodeDir := range nodeDirs {
+			nodeFiles, err := filepath.Glob(filepath.Join(nodeDir, "*.csv"))
+			if err != nil {
+				return fmt.Errorf("error looking for csv files in directory %s: %w", nodeDir, err)
+			}
+			metadataFilesPath = append(metadataFilesPath, nodeFiles...)
+		}
+		log.Infof("Found %d CSV files across %d node(s) for population into assessment DB", len(metadataFilesPath), len(nodeDirs))
+	} else {
+		// Single-node structure: Collect CSV files directly from metadata directory
+		metadataFilesPath, err = filepath.Glob(filepath.Join(assessmentMetadataDir, "*.csv"))
+		if err != nil {
+			return fmt.Errorf("error looking for csv files in directory %s: %w", assessmentMetadataDir, err)
+		}
+		log.Infof("Found %d CSV files in metadata directory for population into assessment DB", len(metadataFilesPath))
 	}
 
 	for _, metadataFilePath := range metadataFilesPath {
@@ -700,7 +889,7 @@ func populateMetadataCSVIntoAssessmentDB() error {
 //go:embed templates/migration_assessment_report.template
 var bytesTemplate []byte
 
-func generateAssessmentReport() (err error) {
+func generateAssessmentReport(failedReplicaNodes []string) (err error) {
 	utils.PrintAndLogf("Generating assessment report...")
 
 	assessmentReport.VoyagerVersion = utils.YB_VOYAGER_VERSION
@@ -747,7 +936,7 @@ func generateAssessmentReport() (err error) {
 		return fmt.Errorf("fetching all stats info from AssessmentDB: %w", err)
 	}
 
-	addNotesToAssessmentReport()
+	addNotesToAssessmentReport(failedReplicaNodes)
 	postProcessingOfAssessmentReport()
 
 	assessmentReportDir := filepath.Join(exportDir, "assessment", "reports")
@@ -1543,6 +1732,10 @@ var (
 		Type: GeneralNotes,
 		Text: `There are some Foreign tables in the schema, but during the export schema phase, exported schema does not include the SERVER and USER MAPPING objects. Therefore, you must manually create these objects before import schema. For more information on each of them, run analyze-schema. `,
 	}
+	PARTIAL_MULTI_NODE_ASSESSMENT = NoteInfo{
+		Type: GeneralNotes,
+		Text: `This assessment includes partial multi-node data. Some replicas failed during metadata collection and are excluded from all sections of this report.`,
+	}
 
 	// ColocatedShardedNotes
 	COLOCATED_TABLE_RECOMMENDATION_CAVEAT = NoteInfo{
@@ -1568,10 +1761,16 @@ To manually modify the schema, please refer: <a class="highlight-link" href="htt
 	}
 )
 
-func addNotesToAssessmentReport() {
+func addNotesToAssessmentReport(failedReplicaNodes []string) {
 	log.Infof("adding notes to assessment report")
 
 	assessmentReport.Notes = append(assessmentReport.Notes, PREVIEW_FEATURES_NOTE)
+
+	// Add note if some replicas failed during collection
+	if len(failedReplicaNodes) > 0 {
+		assessmentReport.Notes = append(assessmentReport.Notes, PARTIAL_MULTI_NODE_ASSESSMENT)
+	}
+
 	// keep it as the first point in Notes
 	if len(assessmentReport.Sizing.SizingRecommendation.ColocatedTables) > 0 {
 		assessmentReport.Notes = append(assessmentReport.Notes, COLOCATED_TABLE_RECOMMENDATION_CAVEAT)
@@ -1958,6 +2157,549 @@ func getSupportedVersionString(minimumVersionsFixedIn map[string]*ybversion.YBVe
 	return strings.Join(supportedVersions, ", ")
 }
 
+// NodePermissionResult tracks permission check results for a single node
+type NodePermissionResult struct {
+	NodeName         string
+	IsPrimary        bool
+	MissingPerms     []string
+	PgssEnabled      bool
+	ConnectionFailed bool  // Explicitly tracks if connection to this node failed
+	Error            error // Any error during permission check (can be connection or other errors)
+}
+
+// checkAssessmentPermissionsOnAllNodes verifies that the source database has the required
+// permissions for assess-migration command.
+//
+// For PostgreSQL: Checks permissions on the primary and all provided replica nodes. This includes
+// verifying access to system catalogs, pg_stat_statements extension, and other metadata tables.
+//
+// For other databases (Oracle, etc.): Checks permissions on the primary database only.
+//
+// The validatedReplicas parameter is only used for PostgreSQL multi-node assessments and is
+// ignored for other database types.
+func checkAssessmentPermissionsOnAllNodes(validatedReplicas []srcdb.ReplicaEndpoint) error {
+	if source.DBType != POSTGRESQL {
+		return checkPermissionsForNonPostgreSQL()
+	}
+	return checkPermissionsForPostgreSQL(validatedReplicas)
+}
+
+func checkPermissionsForNonPostgreSQL() error {
+	checkIfSchemasHaveUsagePermissions()
+	var missingPerms []string
+	var err error
+	missingPerms, pgssEnabledForAssessment, err = source.DB().GetMissingAssessMigrationPermissions()
+	if err != nil {
+		return fmt.Errorf("failed to get missing assess migration permissions: %w", err)
+	}
+	if len(missingPerms) > 0 {
+		color.Red("\nPermissions missing in the source database for assess migration:\n")
+		output := strings.Join(missingPerms, "\n")
+		utils.PrintAndLogf("%s\n\n", output)
+
+		link := "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/migrate-steps/#prepare-the-source-database"
+		fmt.Println("Check the documentation to prepare the database for migration:", color.BlueString(link))
+
+		reply := utils.AskPrompt("\nDo you want to continue anyway")
+		if !reply {
+			return fmt.Errorf("grant the required permissions and try again")
+		}
+	}
+	return nil
+}
+
+func checkPermissionsForPostgreSQL(validatedReplicas []srcdb.ReplicaEndpoint) error {
+
+	pg, ok := source.DB().(*srcdb.PostgreSQL)
+	if !ok {
+		return fmt.Errorf("source database is not PostgreSQL")
+	}
+
+	// Print appropriate message based on replica count
+	if len(validatedReplicas) == 0 {
+		utils.PrintAndLogfInfo("\nChecking permissions on database...")
+	} else {
+		utils.PrintAndLogfInfo("\nChecking permissions on all nodes (primary + %d replica(s))...", len(validatedReplicas))
+	}
+
+	var results []NodePermissionResult
+
+	// Check primary
+	primaryResult, err := checkPermissionsOnPrimaryNode(pg)
+	if err != nil {
+		return err
+	}
+	results = append(results, primaryResult)
+	pgssEnabledForAssessment = primaryResult.PgssEnabled // Set global flag based on primary
+
+	// Check each replica
+	for _, replica := range validatedReplicas {
+		replicaResult := checkPermissionsOnReplicaNode(replica)
+		results = append(results, replicaResult)
+	}
+
+	return displayPermissionCheckResults(results)
+}
+
+func checkPermissionsOnPrimaryNode(pg *srcdb.PostgreSQL) (NodePermissionResult, error) {
+	checkIfSchemasHaveUsagePermissions()
+	missingPerms, pgssEnabled, err := pg.GetMissingAssessMigrationPermissions()
+	if err != nil {
+		return NodePermissionResult{}, fmt.Errorf("failed to check permissions on primary: %w", err)
+	}
+	return NodePermissionResult{
+		NodeName:         "primary",
+		IsPrimary:        true,
+		MissingPerms:     missingPerms,
+		PgssEnabled:      pgssEnabled,
+		ConnectionFailed: false,
+		Error:            nil,
+	}, nil
+}
+
+func checkPermissionsOnReplicaNode(replica srcdb.ReplicaEndpoint) NodePermissionResult {
+	// Create a new Source with replica's host/port
+	replicaSource := srcdb.Source{
+		DBType:         source.DBType,
+		Host:           replica.Host,
+		Port:           replica.Port,
+		DBName:         source.DBName,
+		User:           source.User,
+		Password:       source.Password,
+		Schema:         source.Schema,
+		SSLMode:        source.SSLMode,
+		SSLCertPath:    source.SSLCertPath,
+		SSLKey:         source.SSLKey,
+		SSLRootCert:    source.SSLRootCert,
+		SSLCRL:         source.SSLCRL,
+		NumConnections: source.NumConnections,
+	}
+
+	// Create a new PostgreSQL connection for this replica
+	replicaDB := replicaSource.DB().(*srcdb.PostgreSQL)
+
+	err := replicaDB.Connect()
+	if err != nil {
+		return NodePermissionResult{
+			NodeName:         replica.Name,
+			IsPrimary:        false,
+			ConnectionFailed: true,
+			Error:            fmt.Errorf("failed to connect: %w", err),
+		}
+	}
+
+	missingPerms, pgssEnabled, err := replicaDB.GetMissingAssessMigrationPermissionsForNode(true) // isReplica=true
+	replicaDB.Disconnect()
+
+	return NodePermissionResult{
+		NodeName:         replica.Name,
+		IsPrimary:        false,
+		MissingPerms:     missingPerms,
+		PgssEnabled:      pgssEnabled,
+		ConnectionFailed: false,
+		Error:            err,
+	}
+}
+
+func displayPermissionCheckResults(results []NodePermissionResult) error {
+	var nodesWithoutPgss []string
+	var nodesMissingPerms []string
+
+	utils.PrintAndLogfPhase("\n=== Permission Check Results ===\n")
+
+	replicaCounter := 1
+	for _, result := range results {
+		// Format node display name
+		var displayName string
+		if result.IsPrimary {
+			displayName = "Primary"
+		} else {
+			displayName = fmt.Sprintf("Replica %d (%s)", replicaCounter, result.NodeName)
+			replicaCounter++
+		}
+
+		if result.ConnectionFailed {
+			utils.PrintAndLogfError("\n%s:", displayName)
+			utils.PrintAndLogfError("  ✗ Connection failed: %v", result.Error)
+			continue
+		}
+
+		// Handle other errors during permission checks (non-connection errors)
+		if result.Error != nil {
+			utils.PrintAndLogfError("\n%s:", displayName)
+			utils.PrintAndLogfError("  ✗ Permission check failed: %v", result.Error)
+			continue
+		}
+
+		if len(result.MissingPerms) > 0 {
+			utils.PrintAndLogf("\n%s:", displayName)
+			for _, perm := range result.MissingPerms {
+				utils.PrintAndLogfWarning("  ⚠ %s", strings.TrimSpace(perm))
+			}
+			nodesMissingPerms = append(nodesMissingPerms, result.NodeName)
+			// Track if pg_stat_statements is missing (already shown in permissions list above)
+			if !result.PgssEnabled {
+				nodesWithoutPgss = append(nodesWithoutPgss, result.NodeName)
+			}
+		} else {
+			// No permission issues - show success
+			utils.PrintAndLogf("\n%s:", displayName)
+			utils.PrintAndLogfSuccess("  ✓ All required permissions present")
+
+			// Show pg_stat_statements status separately only when there are no other permission issues
+			if !result.PgssEnabled {
+				utils.PrintAndLogfWarning("  ⚠ pg_stat_statements not available (query-level analysis will be limited)")
+				nodesWithoutPgss = append(nodesWithoutPgss, result.NodeName)
+			}
+		}
+	}
+
+	// If any node has permission issues, ask user
+	if len(nodesMissingPerms) > 0 {
+		utils.PrintAndLogf("\n")
+		link := "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/migrate-steps/#prepare-the-source-database"
+		fmt.Println("Check the documentation to prepare the database for migration:", color.BlueString(link))
+
+		reply := utils.AskPrompt("\nDo you want to continue anyway")
+		if !reply {
+			return fmt.Errorf("grant the required permissions and try again")
+		}
+	}
+
+	// If some nodes have pg_stat_statements and some don't, inform user
+	if len(nodesWithoutPgss) > 0 && len(nodesWithoutPgss) < len(results) {
+		utils.PrintAndLogfInfo("\nNote: Query-level analysis (Unsupported Query Constructs) will only include data from nodes with pg_stat_statements.")
+	}
+
+	return nil
+}
+
+func displayDiscoveredReplicas(replicas []srcdb.ReplicaInfo) {
+	for _, replica := range replicas {
+		appName := lo.Ternary(replica.ApplicationName == "", "(unnamed)", replica.ApplicationName)
+		utils.PrintAndLogf("  - application_name=%s, state=%s, sync_state=%s",
+			appName, replica.State, replica.SyncState)
+	}
+}
+
+// handleReplicaDiscoveryAndValidation discovers and validates PostgreSQL read replicas.
+// Takes the replica endpoints flag as a parameter and returns the validated replicas to include in assessment.
+// Returns nil replicas if no replicas are to be included (single-node assessment).
+func handleReplicaDiscoveryAndValidation(replicaEndpointsFlag string) ([]srcdb.ReplicaEndpoint, error) {
+	pg, ok := source.DB().(*srcdb.PostgreSQL)
+	if !ok {
+		return nil, fmt.Errorf("source database is not PostgreSQL")
+	}
+
+	// Step 1: Discover replicas from pg_stat_replication
+	// TODO: Uncomment this once we enable replica discovery
+	// utils.PrintAndLogf("Checking for read replicas...")
+	// discoveredReplicas, err := pg.DiscoverReplicas()
+	// if err != nil {
+	// 	return nil, fmt.Errorf("failed to discover replicas: %w", err)
+	// }
+
+	// TODO: Remove this once we enable replica discovery
+	var err error
+	var discoveredReplicas []srcdb.ReplicaInfo
+	err = nil
+
+	// Step 2: Parse user-provided replica endpoints if any
+	var providedEndpoints []srcdb.ReplicaEndpoint
+	if replicaEndpointsFlag != "" {
+		providedEndpoints, err = pg.ParseReplicaEndpoints(replicaEndpointsFlag)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse replica endpoints: %w", err)
+		}
+	}
+
+	// Case 1: No replicas discovered and none provided
+	if len(discoveredReplicas) == 0 && len(providedEndpoints) == 0 {
+		// TODO: Uncomment this once we enable replica discovery
+		// utils.PrintAndLogfInfo("No read replicas detected. Proceeding with single-node assessment.")
+		return nil, nil
+	}
+
+	// Case 2: Replicas discovered but none provided - best-effort validation
+	if len(discoveredReplicas) > 0 && len(providedEndpoints) == 0 {
+		return handleDiscoveredReplicasWithoutEndpoints(pg, discoveredReplicas)
+	}
+
+	// Case 3 & 4: Endpoints provided (with or without discovery)
+	if len(providedEndpoints) > 0 {
+		return handleProvidedReplicaEndpoints(pg, discoveredReplicas, providedEndpoints)
+	}
+
+	return nil, nil
+}
+
+// validateDiscoveredReplicas attempts to validate discovered replica addresses by connecting
+// to them. Returns two lists: successfully connected replicas and failed replica names.
+func validateDiscoveredReplicas(pg *srcdb.PostgreSQL, discoveredReplicas []srcdb.ReplicaInfo) ([]srcdb.ReplicaEndpoint, []string) {
+	var connectableReplicas []srcdb.ReplicaEndpoint
+	var failedReplicas []string
+
+	for _, replica := range discoveredReplicas {
+		if replica.ClientAddr == "" {
+			appName := lo.Ternary(replica.ApplicationName == "", "(unnamed)", replica.ApplicationName)
+			failedReplicas = append(failedReplicas, fmt.Sprintf("%s (no client_addr)", appName))
+			continue
+		}
+
+		// Try to connect to client_addr on port 5432
+		err := pg.TryConnectReplica(replica.ClientAddr, 5432)
+		if err == nil {
+			name := lo.Ternary(replica.ApplicationName == "", fmt.Sprintf("%s:5432", replica.ClientAddr), replica.ApplicationName)
+			connectableReplicas = append(connectableReplicas, srcdb.ReplicaEndpoint{
+				Host:          replica.ClientAddr,
+				Port:          5432,
+				Name:          name,
+				ConnectionUri: pg.GetReplicaConnectionUri(replica.ClientAddr, 5432),
+			})
+			utils.PrintAndLogfSuccess("  ✓ Successfully connected to %s (%s)", name, replica.ClientAddr)
+		} else {
+			appName := lo.Ternary(replica.ApplicationName == "", replica.ClientAddr, replica.ApplicationName)
+			failedReplicas = append(failedReplicas, fmt.Sprintf("%s (%s)", appName, replica.ClientAddr))
+			log.Infof("Failed to connect to replica %s (%s): %v", appName, replica.ClientAddr, err)
+		}
+	}
+
+	return connectableReplicas, failedReplicas
+}
+
+// handleAllReplicasValidated handles the scenario where all discovered replicas are connectable.
+// Prompts the user to include them in the assessment.
+// Returns the replicas to include in assessment (nil if user declines).
+func handleAllReplicasValidated(connectableReplicas []srcdb.ReplicaEndpoint) ([]srcdb.ReplicaEndpoint, error) {
+	utils.PrintAndLogfSuccess("\nSuccessfully validated all %d replica(s) for connection.", len(connectableReplicas))
+	if utils.AskPrompt("\nDo you want to include these replicas in this assessment") {
+		utils.PrintAndLogfInfo("Proceeding with multi-node assessment using discovered replicas.")
+		return connectableReplicas, nil
+	}
+	utils.PrintAndLogfInfo("Continuing with primary-only assessment.")
+	return nil, nil
+}
+
+// handlePartialReplicaValidation handles the scenario where some replicas are connectable
+// but others are not. Prompts the user to choose between proceeding with partial set,
+// providing explicit endpoints, or continuing with primary-only assessment.
+// Returns the replicas to include in assessment (nil if user declines or aborts).
+func handlePartialReplicaValidation(connectableReplicas []srcdb.ReplicaEndpoint, failedReplicas []string) ([]srcdb.ReplicaEndpoint, error) {
+	utils.PrintAndLogfWarning("\nPartial validation result:")
+	utils.PrintAndLogfSuccess("  ✓ %d replica(s) successfully validated", len(connectableReplicas))
+	utils.PrintAndLogfWarning("  ✗ %d replica(s) could not be validated:", len(failedReplicas))
+	for _, failed := range failedReplicas {
+		utils.PrintAndLogf("      - %s", failed)
+	}
+	utils.PrintAndLogfInfo("\nYou can either:")
+	utils.PrintAndLogfInfo("  1. Proceed with the %d validated replica(s)", len(connectableReplicas))
+	utils.PrintAndLogfInfo("  2. Exit and provide all replica endpoints via --source-read-replica-endpoints")
+	utils.PrintAndLogfInfo("  3. Continue with primary-only assessment")
+
+	if utils.AskPrompt(fmt.Sprintf("\nDo you want to proceed with the %d validated replica(s)", len(connectableReplicas))) {
+		utils.PrintAndLogfInfo("Proceeding with multi-node assessment using %d validated replica(s).", len(connectableReplicas))
+		return connectableReplicas, nil
+	}
+
+	if utils.AskPrompt("Do you want to exit and provide replica endpoints") {
+		return nil, fmt.Errorf("Aborting, please rerun with --source-read-replica-endpoints flag")
+	}
+
+	utils.PrintAndLogfInfo("Continuing with primary-only assessment.")
+	return nil, nil
+}
+
+// handleNoReplicasValidated handles the scenario where no replicas could be validated.
+// Explains the issue and offers options to provide explicit endpoints or continue with primary-only assessment.
+// Returns nil replicas if user chooses to continue with primary-only, or error if user aborts.
+func handleNoReplicasValidated() ([]srcdb.ReplicaEndpoint, error) {
+	utils.PrintAndLogfWarning("\nThe addresses shown in pg_stat_replication are not directly connectable from this environment.")
+	utils.PrintAndLogfInfo("This is common in cloud environments (RDS, Aurora), Docker, Kubernetes, or proxy setups.")
+	utils.PrintAndLogfInfo("\nTo include replicas in the assessment, you can:")
+	utils.PrintAndLogfInfo("  1. Exit and rerun with --source-read-replica-endpoints flag")
+	utils.PrintAndLogfInfo("  2. Continue with primary-only assessment")
+
+	if utils.AskPrompt("\nDo you want to exit and provide replica endpoints") {
+		return nil, fmt.Errorf("Aborting, please rerun with --source-read-replica-endpoints flag")
+	}
+
+	utils.PrintAndLogf("Continuing with primary-only assessment.")
+	return nil, nil
+}
+
+// handleBestEffortValidationOutcome dispatches to the appropriate handler based on
+// validation results (all successful, partial success, or all failed).
+// Returns the replicas to include in assessment based on user's choice.
+func handleBestEffortValidationOutcome(connectableReplicas []srcdb.ReplicaEndpoint, failedReplicas []string) ([]srcdb.ReplicaEndpoint, error) {
+	// All replicas validated successfully
+	if len(failedReplicas) == 0 {
+		return handleAllReplicasValidated(connectableReplicas)
+	}
+
+	// Some replicas validated, some failed
+	if len(connectableReplicas) > 0 {
+		return handlePartialReplicaValidation(connectableReplicas, failedReplicas)
+	}
+
+	// All validation attempts failed
+	return handleNoReplicasValidated()
+}
+
+// handleDiscoveredReplicasWithoutEndpoints handles scenarios where replicas are discovered via
+// pg_stat_replication but the user did not provide explicit replica endpoints.
+//
+// This function attempts best-effort validation by trying to connect to the discovered
+// client_addr on port 5432. It handles three possible outcomes:
+//
+// 1. All discovered replicas are connectable - prompts user to include them in assessment
+// 2. Some replicas are connectable, others are not - prompts user to proceed with partial set
+// 3. No replicas are connectable - explains the issue and offers options to provide endpoints or continue primary-only
+//
+// Note: The client_addr from pg_stat_replication is often not directly connectable in cloud
+// environments (RDS, Aurora), container setups (Docker, K8s), or behind proxies.
+//
+// Returns the validated replicas to include in assessment based on user's choice.
+func handleDiscoveredReplicasWithoutEndpoints(pg *srcdb.PostgreSQL, discoveredReplicas []srcdb.ReplicaInfo) ([]srcdb.ReplicaEndpoint, error) {
+	utils.PrintAndLogfInfo("\nDiscovered %d replica(s) via pg_stat_replication:", len(discoveredReplicas))
+	displayDiscoveredReplicas(discoveredReplicas)
+
+	utils.PrintAndLogfInfo("\nAttempting to validate discovered replica addresses...")
+	connectableReplicas, failedReplicas := validateDiscoveredReplicas(pg, discoveredReplicas)
+
+	return handleBestEffortValidationOutcome(connectableReplicas, failedReplicas)
+}
+
+// enrichReplicaEndpoints matches provided endpoints with discovered replicas
+// and uses application_name as the replica name when available.
+func enrichReplicaEndpoints(endpoints []srcdb.ReplicaEndpoint, discoveredReplicas []srcdb.ReplicaInfo) []srcdb.ReplicaEndpoint {
+	enriched := make([]srcdb.ReplicaEndpoint, len(endpoints))
+	copy(enriched, endpoints)
+
+	// Create a map of discovered replicas by client_addr for quick lookup
+	replicaByAddr := make(map[string]srcdb.ReplicaInfo)
+	for _, replica := range discoveredReplicas {
+		if replica.ClientAddr != "" {
+			replicaByAddr[replica.ClientAddr] = replica
+		}
+	}
+
+	// Match each endpoint with discovered replicas by address
+	for i := range enriched {
+		if replica, found := replicaByAddr[enriched[i].Host]; found {
+			if replica.ApplicationName != "" {
+				enriched[i].Name = replica.ApplicationName
+			}
+		}
+	}
+
+	return enriched
+}
+
+// checkDiscoveryMismatch displays discovery status and warns if the count of discovered
+// replicas doesn't match the provided endpoints. Returns error if user aborts.
+func checkDiscoveryMismatch(discoveredReplicas []srcdb.ReplicaInfo, providedEndpoints []srcdb.ReplicaEndpoint) error {
+	// Early return: No replicas discovered
+	if len(discoveredReplicas) == 0 {
+		utils.PrintAndLogf("No replicas discovered via pg_stat_replication")
+		return nil
+	}
+
+	utils.PrintAndLogfInfo("Discovered %d replica(s) via pg_stat_replication", len(discoveredReplicas))
+
+	// Early return: Counts match, no mismatch warning needed
+	if len(discoveredReplicas) == len(providedEndpoints) {
+		return nil
+	}
+
+	// Count mismatch - warn user and get confirmation
+	utils.PrintAndLogfWarning("\nWarning: Replica count mismatch detected")
+	utils.PrintAndLogfWarning("  Discovered on primary: %d replica(s)", len(discoveredReplicas))
+	utils.PrintAndLogfWarning("  Provided via flag:     %d endpoint(s)", len(providedEndpoints))
+
+	if len(discoveredReplicas) > len(providedEndpoints) {
+		utils.PrintAndLogfWarning("\nNote: Some replicas discovered on the primary are not included in your endpoint list.")
+	} else {
+		utils.PrintAndLogfWarning("\nNote: You provided more endpoints than replicas discovered on the primary.")
+	}
+
+	utils.PrintAndLogfInfo("\nDiscovered replicas:")
+	displayDiscoveredReplicas(discoveredReplicas)
+
+	if !utils.AskPrompt("\nDo you want to proceed with the provided endpoints") {
+		return fmt.Errorf("please update --source-read-replica-endpoints to match the topology")
+	}
+
+	return nil
+}
+
+// validateProvidedEndpoints validates each provided endpoint by connecting and checking
+// pg_is_in_recovery(). Returns lists of valid and failed endpoints.
+func validateProvidedEndpoints(pg *srcdb.PostgreSQL, endpoints []srcdb.ReplicaEndpoint) ([]srcdb.ReplicaEndpoint, []string) {
+	utils.PrintAndLogfInfo("\nValidating %d replica endpoint(s)...", len(endpoints))
+	var validEndpoints []srcdb.ReplicaEndpoint
+	var failedEndpoints []string
+
+	for _, endpoint := range endpoints {
+		err := pg.ValidateReplicaEndpoint(endpoint)
+		if err != nil {
+			failedEndpoints = append(failedEndpoints, fmt.Sprintf("%s:%d (%s)", endpoint.Host, endpoint.Port, err.Error()))
+			log.Errorf("Failed to validate replica %s:%d: %v", endpoint.Host, endpoint.Port, err)
+		} else {
+			validEndpoints = append(validEndpoints, endpoint)
+			utils.PrintAndLogfSuccess("  ✓ Validated replica: %s", endpoint.Name)
+		}
+	}
+
+	return validEndpoints, failedEndpoints
+}
+
+// reportValidationFailures displays validation failures and returns an error.
+// Used when user-provided endpoints fail validation - user must fix the configuration.
+func reportValidationFailures(failedEndpoints []string) error {
+	color.Red("\nFailed to validate the following replica endpoint(s):")
+	for _, failed := range failedEndpoints {
+		color.Red("  ✗ %s", failed)
+	}
+	return fmt.Errorf("replica validation failed for %d endpoint(s)", len(failedEndpoints))
+}
+
+// handleProvidedReplicaEndpoints handles scenarios where the user provided explicit replica
+// endpoints via the --source-read-replica-endpoints flag.
+//
+// This function handles multiple scenarios:
+//
+// 1. Endpoints provided and replica count matches discovery - validates all endpoints
+// 2. Endpoints provided but count differs from discovery - warns user about mismatch and asks for confirmation
+// 3. Endpoints provided but no replicas discovered - proceeds with validation anyway
+//
+// The function enriches endpoint names with application_name from discovery when possible,
+// validates each endpoint by connecting and checking pg_is_in_recovery(), and fails if
+// any endpoint is invalid or unreachable.
+//
+// Returns the validated replica endpoints to include in assessment.
+func handleProvidedReplicaEndpoints(pg *srcdb.PostgreSQL, discoveredReplicas []srcdb.ReplicaInfo, providedEndpoints []srcdb.ReplicaEndpoint) ([]srcdb.ReplicaEndpoint, error) {
+	// Enrich endpoints with application_name from discovered replicas if possible
+	enrichedEndpoints := enrichReplicaEndpoints(providedEndpoints, discoveredReplicas)
+
+	// Check for discovery mismatch and get user confirmation if needed
+	// TODO: Uncomment this once we enable replica discovery
+	// if err := checkDiscoveryMismatch(discoveredReplicas, providedEndpoints); err != nil {
+	// 	return nil, err
+	// }
+
+	// Validate all provided endpoints
+	validEndpoints, failedEndpoints := validateProvidedEndpoints(pg, enrichedEndpoints)
+
+	// Handle failures - user must fix all endpoints
+	if len(failedEndpoints) > 0 {
+		return nil, reportValidationFailures(failedEndpoints)
+	}
+
+	// All endpoints validated successfully
+	utils.PrintAndLogfInfo("\nProceeding with multi-node assessment...")
+	return validEndpoints, nil
+}
+
 func validateSourceDBTypeForAssessMigration() {
 	if source.DBType == "" {
 		utils.ErrExit("Error required flag \"source-db-type\" not set")
@@ -1967,6 +2709,12 @@ func validateSourceDBTypeForAssessMigration() {
 	if !slices.Contains(assessMigrationSupportedDBTypes, source.DBType) {
 		utils.ErrExit("Error Invalid source-db-type: %q. Supported source db types for assess-migration are: [%v]",
 			source.DBType, strings.Join(assessMigrationSupportedDBTypes, ", "))
+	}
+}
+
+func validateReplicaEndpointsFlag() {
+	if sourceReadReplicaEndpoints != "" && source.DBType != POSTGRESQL {
+		utils.ErrExit("Error --source-read-replica-endpoints flag / source.read-replica-endpoints config parameter is only valid for 'postgresql' db type")
 	}
 }
 
