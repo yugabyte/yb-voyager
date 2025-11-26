@@ -775,7 +775,3 @@ func (ora *Oracle) GetMissingAssessMigrationPermissions() ([]string, bool, error
 func (ora *Oracle) CheckIfReplicationSlotsAreAvailable() (isAvailable bool, usedCount int, maxCount int, err error) {
 	return false, 0, 0, nil
 }
-
-func (ora *Oracle) GetSchemasMissingUsagePermissions() ([]string, error) {
-	return nil, nil
-}
