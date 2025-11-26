@@ -2227,7 +2227,7 @@ JOIN pg_class t ON idx.indrelid = t.oid
 JOIN pg_namespace n ON t.relnamespace = n.oid
 WHERE i.relkind = 'i'
   AND indisunique
-  AND (idx.indexprs IS NOT NULL OR 0 = ANY(idx.indkey)) -- expression index
+  AND idx.indexprs IS NOT NULL  -- expression index
   AND ((n.nspname,t.relname) IN (%s))
 ORDER BY n.nspname, t.relname, i.relname;
 	`, tableNamesStr)
