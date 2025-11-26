@@ -41,8 +41,8 @@ type RandomBatchProducer struct {
 	producerCtxCancel                   context.CancelFunc
 }
 
-func NewRandomFileBatchProducer(task *ImportFileTask, state *ImportDataState, errorHandler importdata.ImportDataErrorHandler, progressReporter *ImportDataProgressReporter) (*RandomBatchProducer, error) {
-	sequentialFileBatchProducer, err := NewSequentialFileBatchProducer(task, state, errorHandler, progressReporter)
+func NewRandomFileBatchProducer(task *ImportFileTask, state *ImportDataState, isRowTransformationRequired bool, errorHandler importdata.ImportDataErrorHandler, progressReporter *ImportDataProgressReporter) (*RandomBatchProducer, error) {
+	sequentialFileBatchProducer, err := NewSequentialFileBatchProducer(task, state, isRowTransformationRequired, errorHandler, progressReporter)
 	if err != nil {
 		return nil, fmt.Errorf("creating sequential file batch producer: %w", err)
 	}
