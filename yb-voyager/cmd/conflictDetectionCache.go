@@ -286,12 +286,18 @@ func (c *ConflictDetectionCache) eventsConfict(cachedEvent *tgtdb.Event, incomin
 	}
 
 	for _, column := range uniqueKeyColumns {
-		if cachedEvent.BeforeFields[column] == nil || incomingEvent.Fields[column] == nil {
-			continue // check for the other columns(case: multiple unique keys)
+		cachedEventBefore := ""
+		if cachedEvent.BeforeFields[column] != nil {
+			cachedEventBefore = *cachedEvent.BeforeFields[column]
 		}
-		cachedEventBefore := *cachedEvent.BeforeFields[column]
-		incomingEventBefore := *incomingEvent.BeforeFields[column]
-		incomingEventAfter := *incomingEvent.Fields[column]
+		incomingEventBefore := ""
+		if incomingEvent.BeforeFields[column] != nil {
+			incomingEventBefore = *incomingEvent.BeforeFields[column]
+		}
+		incomingEventAfter := ""
+		if incomingEvent.Fields[column] != nil {
+			incomingEventAfter = *incomingEvent.Fields[column]
+		}
 
 		switch true {
 		case cachedEventBefore == incomingEventAfter:
@@ -301,15 +307,16 @@ func (c *ConflictDetectionCache) eventsConfict(cachedEvent *tgtdb.Event, incomin
 			//If uk is not changed but the partial predicate is updated in cached and the same uk with before predicate is inserted in the incoming event then it is a partial conflict
 			//handles UPDATE-INSERT, DELETE-INSERT
 			log.Infof("conflict detected for table %s, column %s, between value of event1(vsn=%d, colVal=%s) and event2(vsn=%d, colVal=%s)",
-				cachedEvent.TableNameTup.ForKey(), column, cachedEvent.Vsn, *cachedEvent.BeforeFields[column], incomingEvent.Vsn, *incomingEvent.Fields[column])
+				cachedEvent.TableNameTup.ForKey(), column, cachedEvent.Vsn, cachedEventBefore, incomingEvent.Vsn, incomingEventAfter)
 			return true
 		case cachedEventBefore == incomingEventBefore:
 			//If two events are operating on same uk then it is a partial conflict
 			//handles UPDATE-UPDATE, DELETE-UPDATE
 			log.Infof("conflict detected for table %s, column %s, between value of event1(vsn=%d, colVal=%s) and event2(vsn=%d, colVal=%s)",
-				cachedEvent.TableNameTup.ForKey(), column, cachedEvent.Vsn, *cachedEvent.BeforeFields[column], incomingEvent.Vsn, *incomingEvent.Fields[column])
+				cachedEvent.TableNameTup.ForKey(), column, cachedEvent.Vsn, cachedEventBefore, incomingEvent.Vsn, incomingEventBefore)
 			return true
 		}
+
 	}
 	return false
 }

@@ -14,7 +14,6 @@ INSERT INTO user_table (email) VALUES
 
 INSERT INTO test_partial_unique_index (check_id, most_recent) VALUES
     (1, true), --1
-    (1, true), -- 1
     (2, true), --2
     (3, true), --3
     (4, true), --4

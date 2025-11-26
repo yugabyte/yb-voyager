@@ -26,7 +26,7 @@ VALUES
     ('user5@example.com');
 
 -- Insert data for single_unique_index
-INSERT INTO single_unique_index (ssn) 
+INSERT INTO single_unique_index ("Ssn") 
 VALUES 
     ('SSN1'), 
     ('SSN2'), 

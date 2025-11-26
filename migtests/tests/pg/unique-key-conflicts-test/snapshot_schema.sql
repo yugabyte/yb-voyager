@@ -15,9 +15,9 @@ CREATE TABLE multi_unique_constraint (
 -- Table with Single Column Unique Index
 CREATE TABLE single_unique_index (
     id SERIAL PRIMARY KEY,
-    ssn VARCHAR(100)
+    "Ssn" VARCHAR(100)
 );
-CREATE UNIQUE INDEX idx_ssn_unique ON single_unique_index (ssn);
+CREATE UNIQUE INDEX idx_ssn_unique ON single_unique_index ("Ssn");
 
 -- Table with Multiple Column Unique Index
 CREATE TABLE multi_unique_index (
