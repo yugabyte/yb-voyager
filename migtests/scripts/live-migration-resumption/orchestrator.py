@@ -141,6 +141,20 @@ def sleep_action(stage: Dict[str, Any], ctx: Any) -> None:
         _t.sleep(secs)
 
 
+@action("reset_databases")
+def reset_databases_action(stage: Dict[str, Any], ctx: Any) -> None:
+    """Drop and recreate source/target databases using admin credentials."""
+    targets = stage.get("targets") or ["source", "target"]
+    for target_name in targets:
+        H.reset_database_for_role(target_name, ctx)
+
+
+@action("grant_source_permissions")
+def grant_source_permissions_action(stage: Dict[str, Any], ctx: Any) -> None:
+    """Grant source DB user permissions required for live migration."""
+    H.grant_postgres_live_migration_permissions(ctx)
+
+
 # -------------------------
 # Runner
 # -------------------------

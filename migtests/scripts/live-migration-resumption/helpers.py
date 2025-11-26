@@ -53,7 +53,6 @@ class ResumptionPolicy:
         self.max_restart_wait_seconds = cfg["max_restart_wait_seconds"]
 
 
-
 # -------------------------
 # Minimal logging helpers
 # -------------------------
@@ -797,99 +796,305 @@ def prepare_paths(test_root: str, export_dir: str, artifacts_dir: str) -> None:
 # SQL execution
 # -------------------------
 
-def _source_connection(cfg: Dict[str, Any]) -> psycopg2.extensions.connection:
-    src = cfg["source"]
+# def _source_connection(cfg: Dict[str, Any]) -> psycopg2.extensions.connection:
+#     src = cfg["source"]
+#     return psycopg2.connect(
+#         host=str(src["host"]),
+#         port=int(src["port"]),
+#         dbname=str(src["database"]),
+#         user=str(src["user"]),
+#         password=str(src.get("password")),
+#     )
+
+
+# def _target_connection(cfg: Dict[str, Any]) -> psycopg2.extensions.connection:
+#     tgt = cfg["target"]
+#     return psycopg2.connect(
+#         host=str(tgt["host"]),
+#         port=int(tgt["port"]),
+#         dbname=str(tgt["database"]),
+#         user=str(tgt["user"]),
+#         password=str(tgt.get("password")),
+#     )
+
+
+# def run_sql_file(ctx: Context, sql_path: str, target: str = "source") -> None:
+#     conn_cfg = ctx.cfg[target]
+#     cmd = [
+#         "psql",
+#         "-h", str(conn_cfg["host"]),
+#         "-p", str(conn_cfg["port"]),
+#         "-U", str(conn_cfg["user"]),
+#         "-d", str(conn_cfg["database"]),
+#         "-v", "ON_ERROR_STOP=1",
+#         "-f", sql_path,
+#     ]
+#     env = dict(ctx.env)
+#     password = conn_cfg.get("password")
+#     if password is not None:
+#         env["PGPASSWORD"] = str(password)
+#     log(
+#         f"psql executing: {sql_path} on "
+#         f"{target}@{conn_cfg['host']}:{conn_cfg['port']}/{conn_cfg['database']}"
+#     )
+#     run_checked(cmd, env, description=f"run_sql_file:{target}")
+
+
+# def grant_postgres_live_migration_permissions(ctx: Context) -> None:
+#     src = ctx.cfg["source"]
+#     admin_cfg = src.get("admin")
+
+#     script_path = "/opt/yb-voyager/guardrails-scripts/yb-voyager-pg-grant-migration-permissions.sql"
+#     cmd = [
+#         "psql",
+#         "-h", str(src["host"]),
+#         "-p", str(src["port"]),
+#         "-U", str(admin_cfg["user"]),
+#         "-d", str(src["database"]),
+#         "-v", f"voyager_user={src['user']}",
+#         "-v", f"schema_list={src.get('schema', 'public')}",
+#         "-v", "replication_group=replication_group",
+#         "-v", "is_live_migration=1",
+#         "-v", "is_live_migration_fall_back=0",
+#         "-f", script_path,
+#     ]
+
+#     env = dict(ctx.env)
+#     env["PGPASSWORD"] = str(admin_cfg["password"])
+#     log("granting source permissions for live migration via guardrails script")
+#     subprocess.run(
+#         cmd,
+#         env=env,
+#         input="2\n",
+#         text=True,
+#         check=True,
+#     )
+
+
+# def list_source_tables(cfg: Dict[str, Any]) -> List[str]:
+#     schema = cfg["source"]["schema"]
+#     conn = _source_connection(cfg)
+#     try:
+#         with conn.cursor() as cur:
+#             cur.execute(
+#                 """
+#                 SELECT table_name
+#                 FROM information_schema.tables
+#                 WHERE table_schema = %s
+#                   AND table_type = 'BASE TABLE'
+#                 ORDER BY table_name
+#                 """,
+#                 (schema,),
+#             )
+#             rows = cur.fetchall()
+#     finally:
+#         conn.close()
+
+#     return [row[0] for row in rows]
+
+
+# def get_table_primary_key(cfg: Dict[str, Any], table: str) -> List[str]:
+#     schema = cfg["source"]["schema"]
+#     conn = _source_connection(cfg)
+#     try:
+#         with conn.cursor() as cur:
+#             cur.execute(
+#                 """
+#                 SELECT kcu.column_name
+#                 FROM information_schema.table_constraints tc
+#                 JOIN information_schema.key_column_usage kcu
+#                   ON tc.constraint_name = kcu.constraint_name
+#                  AND tc.table_schema = kcu.table_schema
+#                 WHERE tc.constraint_type = 'PRIMARY KEY'
+#                   AND tc.table_schema = %s
+#                   AND tc.table_name = %s
+#                 ORDER BY kcu.ordinal_position
+#                 """,
+#                 (schema, table),
+#             )
+#             rows = cur.fetchall()
+#     finally:
+#         conn.close()
+
+#     return [row[0] for row in rows]
+
+
+# def _fetch_table_count(conn: psycopg2.extensions.connection, schema: str, table: str) -> int:
+#     with conn.cursor() as cur:
+#         query = sql.SQL("SELECT COUNT(*) FROM {}.{}").format(
+#             sql.Identifier(schema),
+#             sql.Identifier(table),
+#         )
+#         cur.execute(query)
+#         (count,) = cur.fetchone()
+#         return int(count)
+
+
+# def _reset_database(db_cfg: Dict[str, Any], *, admin_db_name: str, role: str) -> None:
+#     admin_cfg = db_cfg.get("admin")
+#     env = dict(os.environ)
+#     env["PGPASSWORD"] = str(admin_cfg["password"])
+#     host = str(db_cfg["host"])
+#     port = str(db_cfg["port"])
+#     admin_user = str(admin_cfg["user"])
+#     dbname = str(db_cfg["database"])
+
+#     drop_cmd = [
+#         "psql",
+#         "-h", host,
+#         "-p", port,
+#         "-U", admin_user,
+#         "-d", admin_db_name,
+#         "-v", "ON_ERROR_STOP=1",
+#         "-c",
+#         f'DROP DATABASE IF EXISTS "{dbname}"',
+#     ]
+#     create_cmd = [
+#         "psql",
+#         "-h", host,
+#         "-p", port,
+#         "-U", admin_user,
+#         "-d", admin_db_name,
+#         "-v", "ON_ERROR_STOP=1",
+#         "-c",
+#         f'CREATE DATABASE "{dbname}"',
+#     ]
+#     log(f"[db-reset:{role}] dropping database '{dbname}'")
+#     run_checked(drop_cmd, env, description=f"reset_database:{role}:drop")
+#     log(f"[db-reset:{role}] creating database '{dbname}'")
+#     run_checked(create_cmd, env, description=f"reset_database:{role}:create")
+#     log(f"[db-reset:{role}] database '{db_cfg['database']}' recreated")
+
+
+# def reset_database_for_role(role: str, ctx: Context) -> None:
+#     if role == "source":
+#         _reset_database(ctx.cfg["source"], admin_db_name="postgres", role=role)
+#     elif role == "target":
+#         _reset_database(ctx.cfg["target"], admin_db_name="yugabyte", role=role)
+#     else:
+#         raise ValueError(f"Unsupported database role for reset: {role}")
+
+
+def db_connection(cfg: Dict[str, Any], role: str) -> psycopg2.extensions.connection:
+    """Generic connection helper for source/target DBs."""
+    db = cfg[role]
     return psycopg2.connect(
-        host=str(src["host"]),
-        port=int(src["port"]),
-        dbname=str(src["database"]),
-        user=str(src["user"]),
-        password=str(src.get("password")),
+        host=str(db["host"]),
+        port=int(db["port"]),
+        dbname=str(db["database"]),
+        user=str(db["user"]),
+        password=str(db.get("password")),
     )
+
+
+def run_psql(
+    ctx,
+    role: str,
+    *args: str,
+    db_override: str | None = None,
+    user_override: str | None = None,
+    password_override: str | None = None,
+    stdin_input: str | None = None,     # <— NEW
+) -> None:
+    db = ctx.cfg[role]
+    env = dict(ctx.env)
+
+    password = password_override or db.get("password")
+    if password:
+        env["PGPASSWORD"] = str(password)
+
+    user = user_override or db["user"]
+
+    cmd = [
+        "psql",
+        "-h", str(db["host"]),
+        "-p", str(db["port"]),
+        "-U", str(user),
+        "-d", str(db_override or db["database"]),
+        "-v", "ON_ERROR_STOP=1",
+        *args,
+    ]
+
+    subprocess.run(
+        cmd,
+        env=env,
+        input=stdin_input,
+        text=True,
+        check=True,
+    )
+
+def fetchall(cfg: Dict[str, Any], role: str, query: str, params=()) -> list[tuple]:
+    """Generic helper for SELECT queries."""
+    with db_connection(cfg, role) as conn, conn.cursor() as cur:
+        cur.execute(query, params)
+        return cur.fetchall()
+
+
+# --------------------------------------------------------
+# Original API (same signatures preserved)
+# --------------------------------------------------------
+
+def _source_connection(cfg: Dict[str, Any]) -> psycopg2.extensions.connection:
+    return db_connection(cfg, "source")
 
 
 def _target_connection(cfg: Dict[str, Any]) -> psycopg2.extensions.connection:
-    tgt = cfg["target"]
-    return psycopg2.connect(
-        host=str(tgt["host"]),
-        port=int(tgt["port"]),
-        dbname=str(tgt["database"]),
-        user=str(tgt["user"]),
-        password=str(tgt.get("password")),
-    )
+    return db_connection(cfg, "target")
 
 
-def run_sql_file(ctx: Context, sql_path: str, target: str = "source") -> None:
-    conn_cfg = ctx.cfg[target]
-    cmd = [
-        "psql",
-        "-h", str(conn_cfg["host"]),
-        "-p", str(conn_cfg["port"]),
-        "-U", str(conn_cfg["user"]),
-        "-d", str(conn_cfg["database"]),
-        "-v", "ON_ERROR_STOP=1",
-        "-f", sql_path,
-    ]
-    env = dict(ctx.env)
-    password = conn_cfg.get("password")
-    if password is not None:
-        env["PGPASSWORD"] = str(password)
-    log(
-        f"psql executing: {sql_path} on "
-        f"{target}@{conn_cfg['host']}:{conn_cfg['port']}/{conn_cfg['database']}"
+def run_sql_file(ctx, sql_path: str, target: str = "source") -> None:
+    """Executes SQL against source/target using psql."""
+    run_psql(ctx, target, "-f", sql_path)
+
+
+def grant_postgres_live_migration_permissions(ctx) -> None:
+    src = ctx.cfg["source"]
+    admin = src["admin"]
+
+    run_psql(
+        ctx,
+        "source",
+        "-v", f"voyager_user={src['user']}",
+        "-v", f"schema_list={src.get('schema', 'public')}",
+        "-v", "replication_group=replication_group",
+        "-v", "is_live_migration=1",
+        "-v", "is_live_migration_fall_back=0",
+        "-f", "/opt/yb-voyager/guardrails-scripts/yb-voyager-pg-grant-migration-permissions.sql",
+        user_override=admin["user"],
+        password_override=admin["password"],
+        stdin_input="2\n",
     )
-    run_checked(cmd, env, description=f"run_sql_file:{target}")
 
 
 def list_source_tables(cfg: Dict[str, Any]) -> List[str]:
     schema = cfg["source"]["schema"]
-    conn = _source_connection(cfg)
-    try:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT table_name
-                FROM information_schema.tables
-                WHERE table_schema = %s
-                  AND table_type = 'BASE TABLE'
-                ORDER BY table_name
-                """,
-                (schema,),
-            )
-            rows = cur.fetchall()
-    finally:
-        conn.close()
-
-    return [row[0] for row in rows]
+    rows = fetchall(cfg, "source", """
+        SELECT table_name
+        FROM information_schema.tables
+        WHERE table_schema = %s
+          AND table_type = 'BASE TABLE'
+        ORDER BY table_name
+    """, (schema,))
+    return [r[0] for r in rows]
 
 
 def get_table_primary_key(cfg: Dict[str, Any], table: str) -> List[str]:
     schema = cfg["source"]["schema"]
-    conn = _source_connection(cfg)
-    try:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT kcu.column_name
-                FROM information_schema.table_constraints tc
-                JOIN information_schema.key_column_usage kcu
-                  ON tc.constraint_name = kcu.constraint_name
-                 AND tc.table_schema = kcu.table_schema
-                WHERE tc.constraint_type = 'PRIMARY KEY'
-                  AND tc.table_schema = %s
-                  AND tc.table_name = %s
-                ORDER BY kcu.ordinal_position
-                """,
-                (schema, table),
-            )
-            rows = cur.fetchall()
-    finally:
-        conn.close()
-
-    return [row[0] for row in rows]
+    rows = fetchall(cfg, "source", """
+        SELECT kcu.column_name
+        FROM information_schema.table_constraints tc
+        JOIN information_schema.key_column_usage kcu
+          ON tc.constraint_name = kcu.constraint_name
+         AND tc.table_schema = kcu.table_schema
+        WHERE tc.constraint_type = 'PRIMARY KEY'
+          AND tc.table_schema = %s
+          AND tc.table_name = %s
+        ORDER BY kcu.ordinal_position
+    """, (schema, table))
+    return [r[0] for r in rows]
 
 
-def _fetch_table_count(conn: psycopg2.extensions.connection, schema: str, table: str) -> int:
+def _fetch_table_count(conn, schema: str, table: str) -> int:
     with conn.cursor() as cur:
         query = sql.SQL("SELECT COUNT(*) FROM {}.{}").format(
             sql.Identifier(schema),
@@ -898,6 +1103,50 @@ def _fetch_table_count(conn: psycopg2.extensions.connection, schema: str, table:
         cur.execute(query)
         (count,) = cur.fetchone()
         return int(count)
+
+
+def _reset_database(db_cfg: Dict[str, Any], *, admin_db_name: str, role: str) -> None:
+    admin = db_cfg["admin"]
+    dbname = db_cfg["database"]
+
+    env = dict(os.environ)
+    env["PGPASSWORD"] = str(admin["password"])
+
+    host = str(db_cfg["host"])
+    port = str(db_cfg["port"])
+    admin_user = str(admin["user"])
+
+    drop_cmd = [
+        "psql", "-h", host, "-p", port, "-U", admin_user,
+        "-d", admin_db_name, "-v", "ON_ERROR_STOP=1",
+        "-c", f'DROP DATABASE IF EXISTS "{dbname}"',
+    ]
+
+    create_cmd = [
+        "psql", "-h", host, "-p", port, "-U", admin_user,
+        "-d", admin_db_name, "-v", "ON_ERROR_STOP=1",
+        "-c", f'CREATE DATABASE "{dbname}"',
+    ]
+
+    log(f"[db-reset:{role}] dropping database '{dbname}'")
+    run_checked(drop_cmd, env, description=f"reset_database:{role}:drop")
+
+    log(f"[db-reset:{role}] creating database '{dbname}'")
+    run_checked(create_cmd, env, description=f"reset_database:{role}:create")
+
+    log(f"[db-reset:{role}] database '{dbname}' recreated")
+
+
+def reset_database_for_role(role: str, ctx) -> None:
+    """Same interface, simplified internals."""
+    if role == "source":
+        _reset_database(ctx.cfg["source"], admin_db_name="postgres", role=role)
+    elif role == "target":
+        _reset_database(ctx.cfg["target"], admin_db_name="yugabyte", role=role)
+    else:
+        raise ValueError(f"Unsupported database role for reset: {role}")
+
+
 
 
 # -------------------------

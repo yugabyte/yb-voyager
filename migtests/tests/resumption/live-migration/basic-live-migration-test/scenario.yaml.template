@@ -19,26 +19,39 @@ voyager:
 
 source:
   type: postgresql
-  host: ${SOURCE_DB_HOST}
-  port: ${SOURCE_DB_PORT}
-  database: postgres
-  user: ${SOURCE_DB_USER}
-  password: ${SOURCE_DB_PASSWORD}
-  schema: ${SOURCE_DB_SCHEMA}
+  host: 127.0.0.1
+  port: 5432
+  database: test_db
+  user: ybvoyager
+  password: Test@123#$%^&*()!
+  schema: public
+  admin:
+    user: postgres
+    password: postgres
 
 target:
   type: yugabytedb
   host: ${TARGET_DB_HOST}
   port: ${TARGET_DB_PORT}
-  database: yugabyte
+  database: test_db
   user: ${TARGET_DB_USER}
   password: ${TARGET_DB_PASSWORD}
+  admin:
+    user: ${TARGET_DB_ADMIN_USER}
+    password: ${TARGET_DB_ADMIN_PASSWORD}
 
 stages:
+
+  - name: create_source_and_target_dbs
+    action: reset_databases
+    targets: [source, target]
 
   - name: create_source_schema
     action: run_sql
     sql_path: ./init.sql
+
+  - name: grant_source_permissions
+    action: grant_source_permissions
 
   - name: export_schema_from_source
     action: voyager_export_schema

@@ -21,23 +21,36 @@ source:
   type: postgresql
   host: 127.0.0.1
   port: 5432
-  database: sakila
-  user: postgres
-  password: postgres
+  database: test_db
+  user: ybvoyager_new
+  password: Test@123#$%^&*()!
   schema: public
+  admin:
+    user: postgres
+    password: postgres
 
 target:
   type: yugabytedb
   host: 10.9.2.132
   port: 5433
-  database: idx
-  user: yugabyte
-  password: yugabyte
+  database: test_db
+  user: ybvoyager
+  password: Test@123#$%^&*()!
+  admin:
+    user: yugabyte
+    password: yugabyte
 
 stages:
+  - name: create_source_and_target_dbs
+    action: reset_databases
+    targets: [source, target]
+
   - name: create_source_schema
     action: run_sql
     sql_path: ./init.sql
+
+  - name: grant_source_permissions
+    action: grant_source_permissions
 
   - name: export_schema_from_source
     action: voyager_export_schema
