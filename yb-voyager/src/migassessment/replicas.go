@@ -30,6 +30,7 @@ import (
 
 // HandleReplicaDiscoveryAndValidation discovers and validates PostgreSQL read replicas.
 // Takes the source database and replica endpoints flag as parameters and returns
+<<<<<<< HEAD
 // the validated replicas to include in assessment.
 // Returns nil replicas if no replicas are to be included (single-node assessment) or if source is not PostgreSQL.
 func HandleReplicaDiscoveryAndValidation(source *srcdb.Source, replicaEndpointsFlag string) ([]srcdb.ReplicaEndpoint, error) {
@@ -438,9 +439,16 @@ import (
 
 // HandleReplicaDiscoveryAndValidation discovers and validates PostgreSQL read replicas.
 // Takes the PostgreSQL connection and replica endpoints flag as parameters and returns
+=======
+>>>>>>> 7100ebd76 (Made suggested changes)
 // the validated replicas to include in assessment.
-// Returns nil replicas if no replicas are to be included (single-node assessment).
-func HandleReplicaDiscoveryAndValidation(pg *srcdb.PostgreSQL, replicaEndpointsFlag string) ([]srcdb.ReplicaEndpoint, error) {
+// Returns nil replicas if no replicas are to be included (single-node assessment) or if source is not PostgreSQL.
+func HandleReplicaDiscoveryAndValidation(source *srcdb.Source, replicaEndpointsFlag string) ([]srcdb.ReplicaEndpoint, error) {
+	// Only PostgreSQL supports read replica assessment
+	pg, ok := source.DB().(*srcdb.PostgreSQL)
+	if !ok {
+		return nil, nil // No replicas for non-PostgreSQL databases
+	}
 	// Step 1: Discover replicas from pg_stat_replication
 	// TODO: Uncomment this once we enable replica discovery
 	// utils.PrintAndLogf("Checking for read replicas...")
