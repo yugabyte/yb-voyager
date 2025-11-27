@@ -307,6 +307,10 @@ func (c *ConflictDetectionCache) eventsConfict(cachedEvent *tgtdb.Event, incomin
 		return false
 	}
 
+	if c.HaveSamePK(cachedEvent, incomingEvent) {
+		return false
+	}
+
 	uniqueKeyColumns, _ := c.tableToUniqueKeyColumns.Get(cachedEvent.TableNameTup)
 	/*
 		Not checking for value of unique key values conflict in case of export from yb because of inconsistency issues in before values of events provided by yb-cdc
@@ -351,7 +355,7 @@ func (c *ConflictDetectionCache) eventsConfict(cachedEvent *tgtdb.Event, incomin
 				cachedEvent.TableNameTup.ForKey(), column, cachedEvent.Vsn, cachedEvent.BeforeFields[column], incomingEvent.Vsn, incomingEvent.BeforeFields[column])
 			return true
 		}
-		
+
 		cachedEventBefore := ""
 		if cachedEvent.BeforeFields[column] != nil {
 			cachedEventBefore = *cachedEvent.BeforeFields[column]
@@ -386,4 +390,13 @@ func (c *ConflictDetectionCache) eventsConfict(cachedEvent *tgtdb.Event, incomin
 
 func (c *ConflictDetectionCache) eventsAreOfSameTable(event1 *tgtdb.Event, event2 *tgtdb.Event) bool {
 	return event1.TableNameTup.Equals(event2.TableNameTup)
+}
+
+func (c *ConflictDetectionCache) HaveSamePK(event1 *tgtdb.Event, event2 *tgtdb.Event) bool {
+	for key, value := range event1.Key {
+		if event2.Key[key] != value {
+			return false
+		}
+	}
+	return true
 }
