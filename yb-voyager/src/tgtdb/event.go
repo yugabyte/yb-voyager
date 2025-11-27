@@ -392,7 +392,6 @@ func getMapValuesForQuery(m map[string]*string) []interface{} {
 	return values
 }
 
-///TODO do some scale testing for unique conflict detection logic to understand if its feasible to keep all the delete/update events in the cache
 //TODO: optimization if no partial unique index then no need to check before fields
 //tODO prometheus metrics for unique conflict detection logic
 func (event *Event) IsUniqueKeyPresent(uniqueKeyCols []string) bool {
