@@ -63,6 +63,10 @@ stages:
   - name: start_event_generator
     action: generator_start
 
+  - name: load_snapshot
+    action: sleep
+    seconds: 300
+
   - name: start_exporter
     action: voyager_export_start
 
@@ -73,30 +77,30 @@ stages:
     action: start_resumptions
     resumption:
       import_data:
-        max_restarts: 5
+        max_restarts: 25
         min_interrupt_seconds: 15
-        max_interrupt_seconds: 30
+        max_interrupt_seconds: 60
         min_restart_wait_seconds: 5
-        max_restart_wait_seconds: 15
+        max_restart_wait_seconds: 30
 
   - name: wait_exporter_streaming
     action: wait_for
     condition: exporter_in_streaming_phase
-    timeout_sec: 60
+    timeout_sec: 600
 
   - name: start_export_resumptions
     action: start_resumptions
     resumption:
       export_data:
-        max_restarts: 3
-        min_interrupt_seconds: 20
-        max_interrupt_seconds: 40
-        min_restart_wait_seconds: 10
-        max_restart_wait_seconds: 20
+        max_restarts: 25
+        min_interrupt_seconds: 15
+        max_interrupt_seconds: 60
+        min_restart_wait_seconds: 5
+        max_restart_wait_seconds: 30
 
   - name: soak_with_resumptions
     action: sleep
-    seconds: 60
+    seconds: 600
 
   - name: stop_event_generator
     action: generator_stop
@@ -110,7 +114,7 @@ stages:
   - name: wait_backlog_zero
     action: wait_for
     condition: remaining_events_eq_0
-    timeout_sec: 600
+    timeout_sec: 1200
 
   - name: stop_export_resumptions
     action: voyager_stop_resumptions

@@ -10,15 +10,15 @@ generator:
   manual_table_list: []
   exclude_table_list: [cutover_table]
   num_iterations: -1
-  wait_after_operations: 100
+  wait_after_operations: 1000
   wait_duration_seconds: 1
   table_weights: {}
   operations: [INSERT, UPDATE, DELETE]
-  operation_weights: [1, 1, 1]
+  operation_weights: [3, 2, 1]
   random_seed: 123
   faker_seed: 123
-  insert_rows: 1
-  update_rows: 1
+  insert_rows: 3
+  update_rows: 2
   delete_rows: 1
   insert_max_retries: 5
   update_max_retries: 1
