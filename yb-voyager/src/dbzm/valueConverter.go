@@ -33,7 +33,6 @@ import (
 
 type SnapshotPhaseValueConverter interface {
 	ConvertRow(tableNameTup sqlname.NameTuple, columnNames []string, columnValues []string) error
-	// ConvertEvent(ev *tgtdb.Event, tableNameTup sqlname.NameTuple, formatIfRequired bool) error
 	GetTableNameToSchema() (*utils.StructMap[sqlname.NameTuple, map[string]map[string]string], error) //returns table name to schema mapping
 }
 
@@ -53,10 +52,6 @@ func (nvc *SnapshotPhaseNoOpValueConverter) ConvertRow(tableName sqlname.NameTup
 	return nil
 }
 
-// func (nvc *SnapshotPhaseNoOpValueConverter) ConvertEvent(ev *tgtdb.Event, table sqlname.NameTuple, formatIfRequired bool) error {
-// 	return nil
-// }
-
 func (nvc *SnapshotPhaseNoOpValueConverter) GetTableNameToSchema() (*utils.StructMap[sqlname.NameTuple, map[string]map[string]string], error) {
 	return utils.NewStructMap[sqlname.NameTuple, map[string]map[string]string](), nil
 }
@@ -71,8 +66,7 @@ type SnapshotPhaseDebeziumValueConverter struct {
 	valueConverterSuite    map[string]tgtdbsuite.ConverterFn
 	converterFnCache       *utils.StructMap[sqlname.NameTuple, []tgtdbsuite.ConverterFn] //stores table name to converter functions for each column
 	dbzmColumnSchemasCache *utils.StructMap[sqlname.NameTuple, []*schemareg.ColumnSchema]
-	// tableRowCsvReaderWriter *utils.StructMap[sqlname.NameTuple, *CsvRowProcessor]
-	tableMutexes *utils.StructMap[sqlname.NameTuple, sync.Mutex]
+	tableMutexes           *utils.StructMap[sqlname.NameTuple, sync.Mutex]
 }
 
 // Initialize debezium value converter with the given table list
@@ -87,12 +81,6 @@ func NewSnapshotPhaseDebeziumValueConverter(tableList []sqlname.NameTuple, expor
 	if err != nil {
 		return nil, err
 	}
-
-	// // initialize table row csv reader writer map
-	// tableRowCsvReaderWriter := utils.NewStructMap[sqlname.NameTuple, *CsvRowProcessor]()
-	// for _, tableNameTup := range tableList {
-	// 	tableRowCsvReaderWriter.Put(tableNameTup, NewCsvRowProcessor(tableNameTup))
-	// }
 
 	tableMutexes := utils.NewStructMap[sqlname.NameTuple, sync.Mutex]()
 	for _, tableNameTup := range tableList {
