@@ -270,11 +270,9 @@ func assessMigration() (err error) {
 		}
 
 		// Handle replica discovery and validation (PostgreSQL only)
-		if source.DBType == POSTGRESQL {
-			validatedReplicaEndpoints, err = migassessment.HandleReplicaDiscoveryAndValidation(source.DB().(*srcdb.PostgreSQL), sourceReadReplicaEndpoints)
-			if err != nil {
-				return fmt.Errorf("failed to handle replica discovery and validation: %w", err)
-			}
+		validatedReplicaEndpoints, err = migassessment.HandleReplicaDiscoveryAndValidation(&source, sourceReadReplicaEndpoints)
+		if err != nil {
+			return fmt.Errorf("failed to handle replica discovery and validation: %w", err)
 		}
 
 		// Check permissions on all nodes (primary + replicas) after validation
