@@ -366,7 +366,10 @@ func (c *ConflictDetectionCache) eventsConfict(cachedEvent *tgtdb.Event, incomin
 		if incomingEvent.BeforeFields[column] != nil {
 			incomingEventBefore = *incomingEvent.BeforeFields[column]
 		}
-		incomingEventAfter := *incomingEvent.Fields[column]
+		incomingEventAfter := ""
+		if incomingEvent.Fields[column] != nil {
+			incomingEventAfter = *incomingEvent.Fields[column]
+		}
 
 		switch true {
 		case cachedEventBefore == incomingEventAfter:
