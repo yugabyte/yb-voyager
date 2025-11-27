@@ -298,8 +298,7 @@ DELETE-UPDATE
 	c.before-i.after
 
 
-TODO: same pk events no conflict
-partition by table - no need to do conflict detection
+TODOpartition by table - no need to do conflict detection
 */
 
 func (c *ConflictDetectionCache) eventsConfict(cachedEvent *tgtdb.Event, incomingEvent *tgtdb.Event) bool {
