@@ -33,11 +33,10 @@ generator:
   wait_after_operations: 0                   # throttle interval; 0 disables
   wait_duration_seconds: 0                   # sleep duration when throttling
   table_weights: { eg_users: 100, eg_orders: 100 }  # default weight=1 if omitted
-  operations: [INSERT, UPDATE, DELETE]
-  operation_weights: [3, 2, 1]               # aligned with operations
-  insert_rows: 4
-  update_rows: 2
-  delete_rows: 1
+  operation_weights: { INSERT: 3, UPDATE: 2, DELETE: 1 } # omit or set 0 to disable
+  insert_rows: 4 # number of rows to insert per operation
+  update_rows: 2 # number of rows to update per operation
+  delete_rows: 1 # number of rows to delete per operation
   insert_max_retries: 50                     # retries on unique violations
   update_max_retries: 3                      # per-attempt retries for UPDATE
   random_seed: 12345                         # deterministic table/op choices and numeric data
