@@ -1807,7 +1807,7 @@ func cleanMSRForImportDataStartClean() error {
 		})
 		err = metaDB.UpdateImportDataStatusRecord(func(record *metadb.ImportDataStatusRecord) {
 			record.CdcPartitioningStrategyConfig = ""
-			record.TableToPartitioningStrategyMap = nil
+			record.TableToCDCPartitioningStrategyMap = nil
 		})
 	}
 	return nil

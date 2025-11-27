@@ -127,11 +127,6 @@ func validateCdcPartitioningStrategyFlag(cmd *cobra.Command) error {
 		}
 		return nil
 	}
-	importDataStatus, err := metaDB.GetImportDataStatusRecord()
-	if err != nil {
-		return fmt.Errorf("error getting import data status record: %w", err)
-	}
-
 	if cdcPartitioningStrategy == "" {
 		utils.ErrExit("cdc partitioning strategy is required")
 	}
@@ -139,6 +134,12 @@ func validateCdcPartitioningStrategyFlag(cmd *cobra.Command) error {
 	if !lo.Contains(validCdcPartitioningStrategies, cdcPartitioningStrategy) {
 		utils.ErrExit("invalid cdc partitioning strategy: %s. Supported values are: %s", cdcPartitioningStrategy, strings.Join(validCdcPartitioningStrategies, ", "))
 	}
+
+	importDataStatus, err := metaDB.GetImportDataStatusRecord()
+	if err != nil {
+		return fmt.Errorf("error getting import data status record: %w", err)
+	}
+
 	if importDataStatus == nil || !importDataStatus.ImportDataStarted || bool(startClean) {
 		//if import data has not started or start-clean flag is used, allow the change in cdc partitioning strategy
 		return nil
@@ -151,7 +152,7 @@ func validateCdcPartitioningStrategyFlag(cmd *cobra.Command) error {
 		return nil
 	}
 	if cdcPartitioningStrategy != importDataStatus.CdcPartitioningStrategyConfig {
-		utils.ErrExit("changing the cdc partitioning strategy is not allowed after the import data has started. Current strategy: %s, new strategy: %s", importDataStatus.CdcPartitioningStrategyConfig, cdcPartitioningStrategy)
+		utils.ErrExit("changing the cdc partitioning strategy is not allowed after the import data has started. Current strategy: %s, new strategy: %s\n Use --start-clean to start a fresh import with the new strategy.", importDataStatus.CdcPartitioningStrategyConfig, cdcPartitioningStrategy)
 	}
 	log.Infof("cdc partitioning strategy: %s", cdcPartitioningStrategy)
 	return nil

@@ -48,6 +48,11 @@ var FLUSH_BATCH_EVENT = &tgtdb.Event{Op: "flush_batch"}
 var eventQueue *EventQueue
 var statsReporter *reporter.StreamImportStatsReporter
 
+const (
+	PARTITION_BY_PK    = "pk"
+	PARTITION_BY_TABLE = "table"
+)
+
 func init() {
 	NUM_EVENT_CHANNELS = utils.GetEnvAsInt("NUM_EVENT_CHANNELS", 100)
 	EVENT_CHANNEL_SIZE = utils.GetEnvAsInt("EVENT_CHANNEL_SIZE", 500)
@@ -107,7 +112,7 @@ func streamChanges(state *ImportDataState, tableNames []sqlname.NameTuple) error
 		return fmt.Errorf("failed to initialize stats reporter: %w", err)
 	}
 
-	tableToPartitioningStrategyMap, err := handleCdcPartitioningStrategy(tableNames)
+	tableToPartitioningStrategyMap, err := getCdcPartitioningStrategyPerTable(tableNames)
 	if err != nil {
 		return fmt.Errorf("error handling cdc partitioning strategy: %w", err)
 	}
@@ -148,12 +153,17 @@ func streamChanges(state *ImportDataState, tableNames []sqlname.NameTuple) error
 	return nil
 }
 
-const (
-	PARTITION_BY_PK    = "pk"
-	PARTITION_BY_TABLE = "table"
-)
+/*
+This function is used to fetch the CDC partitioning strategy for each table
+if the import data is the first run, it will be set to the default strategy.
+The default strategy is auto which will set the strategy (PK / table) per table based on some criteria. 
+PK for normal tables and table for tables having expression based unique indexes
 
-func handleCdcPartitioningStrategy(tableNames []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, string], error) {
+If its not the first run, it will fetch the strategy from the metadb key IMPORT_DATA_STATUS_KEY
+
+the CDC Partitioning strategy can be overriden by flag --cdc-partitioning-strategy with values auto, pk or table
+*/
+func getCdcPartitioningStrategyPerTable(tableNames []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, string], error) {
 	tableToPartitioningStrategyMap := utils.NewStructMap[sqlname.NameTuple, string]()
 
 	if importerRole != TARGET_DB_IMPORTER_ROLE {
@@ -184,15 +194,24 @@ func handleCdcPartitioningStrategy(tableNames []sqlname.NameTuple) (*utils.Struc
 	if err != nil {
 		return nil, fmt.Errorf("error getting cdc partitioning strategy: %w", err)
 	}
-	if importDataStatus != nil && importDataStatus.TableToPartitioningStrategyMap != nil {
-		log.Infof("cdc partitioning strategy found in metadb: %v, strategy: %v", metadb.IMPORT_DATA_STATUS_KEY, importDataStatus.TableToPartitioningStrategyMap)
+	if importDataStatus == nil {
+		return nil, fmt.Errorf("import data status record not found")
+	}
+	if importDataStatus.TableToCDCPartitioningStrategyMap != nil {
+		log.Infof("cdc partitioning strategy found in metadb: %v, strategy: %v", metadb.IMPORT_DATA_STATUS_KEY, importDataStatus.TableToCDCPartitioningStrategyMap)
 		//if found already in metadb key, use it to update tableToPartitioningStrategyMap
-		for tableName, strategy := range importDataStatus.TableToPartitioningStrategyMap {
+		for tableName, strategy := range importDataStatus.TableToCDCPartitioningStrategyMap {
 			tuple, err := namereg.NameReg.LookupTableName(tableName)
 			if err != nil {
 				return nil, fmt.Errorf("error looking up table name: %w", err)
 			}
 			tableToPartitioningStrategyMap.Put(tuple, strategy)
+		}
+		//if strategy is not present for any table in the stored map, error out
+		for _, t := range tableNames {
+			if _, ok := tableToPartitioningStrategyMap.Get(t); !ok {
+				return nil, fmt.Errorf("cdc partitioning strategy not found for table: %s", t.ForKey())
+			}
 		}
 		return tableToPartitioningStrategyMap, nil
 	}
@@ -228,7 +247,7 @@ func handleCdcPartitioningStrategy(tableNames []sqlname.NameTuple) (*utils.Struc
 		return true, nil
 	})
 	err = metaDB.UpdateImportDataStatusRecord(func(obj *metadb.ImportDataStatusRecord) {
-		obj.TableToPartitioningStrategyMap = metadbMap
+		obj.TableToCDCPartitioningStrategyMap = metadbMap
 	})
 	if err != nil {
 		return nil, fmt.Errorf("error updating cdc partitioning strategy in metadb: %w", err)
@@ -439,6 +458,8 @@ func hashEvent(e *tgtdb.Event, tableToPartitioningStrategyMap *utils.StructMap[s
 		}
 	case PARTITION_BY_TABLE:
 		hash.Write([]byte(e.TableNameTup.ForKey()))
+	default:
+		return 0, fmt.Errorf("invalid partitioning strategy: %s", strategy)
 	}
 	return int(hash.Sum64() % (uint64(NUM_EVENT_CHANNELS))), nil
 }
