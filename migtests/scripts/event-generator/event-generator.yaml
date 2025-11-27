@@ -22,6 +22,7 @@ generator:
   exclude_table_list: []
 
   # Total number of operations to attempt (INSERT/UPDATE/DELETE)
+  # If -1, the generator will run indefinitely
   num_iterations: 2000
 
   # After this many operations, sleep for wait_duration_seconds (0 disables sleeping)
@@ -33,10 +34,8 @@ generator:
   # Example: { customers: 5, orders: 2 }
   table_weights: { eg_users: 100, eg_orders: 100 }
 
-  # Candidate operations and their relative weights for random selection
-  operations: [INSERT, UPDATE, DELETE]
-  # Weights aligned by index with operations above
-  operation_weights: [3, 2, 1]
+  # Operation weights map; omit or set 0 to disable an operation
+  operation_weights: { INSERT: 3, UPDATE: 2, DELETE: 1 }
 
   # Determinism seeds (YAML-only)
   # random_seed: seeds Python's random module for table/op choices and numeric data

@@ -39,9 +39,14 @@ TABLE_WEIGHTS = GEN["table_weights"]
 
 NUM_ITERATIONS = GEN["num_iterations"]
 
-# Operation selection
-OPERATIONS = GEN["operations"]
-OPERATION_WEIGHTS = GEN["operation_weights"]
+# Operation selection via weight map
+raw_operation_weights = GEN["operation_weights"]
+OPERATIONS = []
+OPERATION_WEIGHTS = []
+for op_name, weight in raw_operation_weights.items():
+    if weight > 0:
+        OPERATIONS.append(op_name.upper())
+        OPERATION_WEIGHTS.append(float(weight))
 
 # Batch sizes per operation
 INSERT_ROWS = GEN["insert_rows"]
@@ -55,7 +60,6 @@ UPDATE_MAX_RETRIES = GEN["update_max_retries"]
 # Throttling
 WAIT_AFTER_OPERATIONS = GEN["wait_after_operations"]
 WAIT_DURATION_SECONDS = GEN["wait_duration_seconds"]
-
 # ---------------------------------
 
 # Deterministic seeds from YAML
