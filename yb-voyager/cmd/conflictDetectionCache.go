@@ -347,14 +347,14 @@ func (c *ConflictDetectionCache) eventsConfict(cachedEvent *tgtdb.Event, incomin
 		if cachedEvent.BeforeFields[column] == nil && incomingEvent.Fields[column] == nil {
 			//if c.before and i.after are nil then it can be a conflict
 			log.Infof("conflict detected for table %s, column %s, between value of event1(vsn=%d, colVal=%s) and event2(vsn=%d, colVal=%s)",
-				cachedEvent.TableNameTup.ForKey(), column, cachedEvent.Vsn, cachedEvent.BeforeFields[column], incomingEvent.Vsn, incomingEvent.Fields[column])
+				cachedEvent.TableNameTup.ForKey(), column, cachedEvent.Vsn, "nil", incomingEvent.Vsn, "nil")
 			return true
 		}
 
 		if cachedEvent.BeforeFields[column] == nil && incomingEvent.BeforeFields[column] != nil {
 			//if c.before and i.before are nil then it can be a conflict
 			log.Infof("conflict detected for table %s, column %s, between value of event1(vsn=%d, colVal=%s) and event2(vsn=%d, colVal=%s)",
-				cachedEvent.TableNameTup.ForKey(), column, cachedEvent.Vsn, cachedEvent.BeforeFields[column], incomingEvent.Vsn, incomingEvent.BeforeFields[column])
+				cachedEvent.TableNameTup.ForKey(), column, cachedEvent.Vsn, "nil", incomingEvent.Vsn, "nil")
 			return true
 		}
 
