@@ -277,10 +277,8 @@ func assessMigration() (err error) {
 
 		// Check permissions on all nodes (primary + replicas) after validation
 		if source.RunGuardrailsChecks {
-			// Check schema usage permissions first (PostgreSQL-specific)
-			if source.DBType == POSTGRESQL {
-				checkIfSchemasHaveUsagePermissions()
-			}
+			// Check schema usage permissions first (no-op for non-PostgreSQL databases)
+			checkIfSchemasHaveUsagePermissions()
 			// Check assessment-specific permissions on all nodes
 			pgssEnabledForAssessment, err = migassessment.CheckAssessmentPermissionsOnAllNodes(&source, validatedReplicaEndpoints)
 			if err != nil {
