@@ -203,13 +203,25 @@ PK - id
 UK - email
 UPDATE-UPDATE
 	1 abc
-	2 def
+	2 xyz
 	UPDATE 1 abc to def
-	UPDATE 2 def to abc
+	UPDATE 2 xyz to abc
 	c.before-i.after
+
+	1 nil
+	2 xyz
+	UPDATE 1 nil to abc
+	UPDATE 2 xyz to nil
+	c.before-i.after
+
 UPDATE-INSERT
 	1 abc
 	UPDATE 1 abc to def
+	INSERT 2 abc
+	c.before-i.after
+
+	1 nil
+	UPDATE 1 nil to def
 	INSERT 2 abc
 	c.before-i.after
 DELETE-INSERT
@@ -224,32 +236,70 @@ DELETE-UPDATE
 	UPDATE 2 def to abc
 	c.before-i.after
 
-if uk not changed but two events operating on same uk
+if uk change case: not change in both c and i but two events operating on same uk, change in one of the events
+
 PK - id
 UK - check_id WHERE most_recent
 UPDATE-UPDATE
+	uk not changed in both c and i
 	1 10 t
 	2 10 f
+
 	UPDATE 1 to false
 	UPDATE 2 to true
 	c.before-i.before
+
+	uk changed in c
+	1 10 t
+	2 10 f
+	UPDATE 1 10->11 uk is changed
+	UPDATE 2 to true
+	c.before-i.before
+
+	uk changed i
+	1 10 t
+	2 11 t
+	UPDATE 1 to false
+	UPDATE 2 11 -> 10
+	c.before-i.after
 UPDATE-INSERT
+	uk not changed in both c and i
 	1 10 t
 	UPDATE 1 to false
 	INSERT 2 10 t
 	c.before-i.after
+
+	uk in i is changed
+	1 10 t
+	UPDATE 1 10 -> 11
+	INSERT 2 10 t
+	c.before-i.after
 DELETE-INSERT
+	uk not changed in both c and i
 	1 10 t
 	DELETE 1
 	INSERT 2 10 t
 	c.before-i.after
+
+	no other cases possible for delete-insert
 DELETE-UPDATE
+	uk not changed in both c and i
 	1 10 t
 	2 10 f
 	DELETE 1
 	UPDATE 2 to true
 	c.before-i.before
 
+	uk is changed in i
+	1 10 t
+	2 11 t
+	DELETE 1
+	UPDATE 2 11 -> 10
+	c.before-i.after
+
+
+TODO: same pk events no conflict
+partition by table - no need to do conflict detection
 */
 
 func (c *ConflictDetectionCache) eventsConfict(cachedEvent *tgtdb.Event, incomingEvent *tgtdb.Event) bool {
@@ -286,6 +336,22 @@ func (c *ConflictDetectionCache) eventsConfict(cachedEvent *tgtdb.Event, incomin
 	}
 
 	for _, column := range uniqueKeyColumns {
+		//todo: handle nil values properly in before fields / fields
+
+		if cachedEvent.BeforeFields[column] == nil && incomingEvent.Fields[column] == nil {
+			//if c.before and i.after are nil then it can be a conflict
+			log.Infof("conflict detected for table %s, column %s, between value of event1(vsn=%d, colVal=%s) and event2(vsn=%d, colVal=%s)",
+				cachedEvent.TableNameTup.ForKey(), column, cachedEvent.Vsn, cachedEvent.BeforeFields[column], incomingEvent.Vsn, incomingEvent.Fields[column])
+			return true
+		}
+
+		if cachedEvent.BeforeFields[column] == nil && incomingEvent.BeforeFields[column] != nil {
+			//if c.before and i.before are nil then it can be a conflict
+			log.Infof("conflict detected for table %s, column %s, between value of event1(vsn=%d, colVal=%s) and event2(vsn=%d, colVal=%s)",
+				cachedEvent.TableNameTup.ForKey(), column, cachedEvent.Vsn, cachedEvent.BeforeFields[column], incomingEvent.Vsn, incomingEvent.BeforeFields[column])
+			return true
+		}
+		
 		cachedEventBefore := ""
 		if cachedEvent.BeforeFields[column] != nil {
 			cachedEventBefore = *cachedEvent.BeforeFields[column]
@@ -294,10 +360,7 @@ func (c *ConflictDetectionCache) eventsConfict(cachedEvent *tgtdb.Event, incomin
 		if incomingEvent.BeforeFields[column] != nil {
 			incomingEventBefore = *incomingEvent.BeforeFields[column]
 		}
-		incomingEventAfter := ""
-		if incomingEvent.Fields[column] != nil {
-			incomingEventAfter = *incomingEvent.Fields[column]
-		}
+		incomingEventAfter := *incomingEvent.Fields[column]
 
 		switch true {
 		case cachedEventBefore == incomingEventAfter:

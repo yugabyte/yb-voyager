@@ -34,8 +34,8 @@ type Event struct {
 	Op           string
 	TableNameTup sqlname.NameTuple
 	Key          map[string]*string
-	Fields       map[string]*string
-	BeforeFields map[string]*string
+	Fields       map[string]*string //all the column values of the row - worst
+	BeforeFields map[string]*string //all the column values of the row - worst
 	ExporterRole string
 }
 
@@ -393,6 +393,8 @@ func getMapValuesForQuery(m map[string]*string) []interface{} {
 }
 
 ///TODO do some scale testing for unique conflict detection logic to understand if its feasible to keep all the delete/update events in the cache
+//TODO: optimization if no partial unique index then no need to check before fields
+//tODO prometheus metrics for unique conflict detection logic
 func (event *Event) IsUniqueKeyPresent(uniqueKeyCols []string) bool {
 	if event.Op != "u" {
 		return false
