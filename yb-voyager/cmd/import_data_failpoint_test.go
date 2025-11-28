@@ -1,4 +1,4 @@
-//go:build integration_voyager_command
+//go:build failpoint
 
 /*
 Copyright (c) YugabyteDB, Inc.
@@ -80,8 +80,8 @@ FROM generate_series(1, 20) i;`
 	err = exportRunner.Run()
 	testutils.FatalIfError(t, err, "Failed to export data")
 
-	// Enable failpoint to inject commit error
-	fpEnv := testutils.GetFailpointEnvVar(
+	// Enable failpoint to inject commit error (includes default COPY_MAX_RETRY_COUNT=1)
+	fpEnv := testutils.GetFailpointEnvVarWithDefaults(
 		"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb/importBatchCommitError=4*off->return()",
 	)
 

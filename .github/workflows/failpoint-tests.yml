@@ -1,0 +1,96 @@
+name: Failpoint Tests
+
+on:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ main, '*.*-dev', '*.*.*-dev' ]
+
+jobs:
+  prepare-versions:
+    uses: ./.github/workflows/prepare-versions.yml
+
+  failpoint-tests:
+    name: Failpoint Tests
+    needs: [prepare-versions]
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    
+    env:
+      YB_VOYAGER_SEND_DIAGNOSTICS: 0
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: ${{ needs.prepare-versions.outputs.java_version }}
+          check-latest: true
+      
+      - name: Install Byteman
+        run: |
+          BYTEMAN_VERSION="4.0.22"
+          cd /tmp
+          wget -q https://downloads.jboss.org/byteman/${BYTEMAN_VERSION}/byteman-download-${BYTEMAN_VERSION}-bin.zip
+          unzip -q byteman-download-${BYTEMAN_VERSION}-bin.zip
+          echo "BYTEMAN_JAR=/tmp/byteman-download-${BYTEMAN_VERSION}/lib/byteman.jar" >> $GITHUB_ENV
+      
+      - name: Cache local Maven repository
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+      
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ needs.prepare-versions.outputs.go_version }}
+      
+      - name: Install failpoint-ctl
+        run: go install github.com/pingcap/failpoint/failpoint-ctl@latest
+      
+      - name: Enable failpoint code generation
+        run: |
+          cd yb-voyager
+          failpoint-ctl enable
+      
+      - name: Run installer script to setup voyager and dependencies
+        run: |
+          cd installer_scripts
+          yes | ./install-yb-voyager --install-from-local-source
+          sudo rm /usr/bin/pg_dump
+          sudo ln -s /usr/lib/postgresql/17/bin/pg_dump /usr/bin/pg_dump
+          sudo rm /usr/bin/pg_restore
+          sudo ln -s /usr/lib/postgresql/17/bin/pg_restore /usr/bin/pg_restore
+          pg_dump --version
+          pg_restore --version
+          psql --version
+        env:
+          ON_INSTALLER_ERROR_OUTPUT_LOG: Y
+      
+      - name: Free disk space
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force
+          sudo docker builder prune -a
+          df -h /
+      
+      - name: Run failpoint tests
+        env:
+          YB_VERSION: ${{ needs.prepare-versions.outputs.yb_latest_stable }}
+          PG_VERSION: "14"
+        run: |
+          cd yb-voyager
+          go test -v -tags=failpoint ./cmd
+      
+      - name: Cleanup failpoint code
+        if: always()
+        run: |
+          cd yb-voyager
+          failpoint-ctl disable

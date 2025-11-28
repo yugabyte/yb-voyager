@@ -43,6 +43,21 @@ func GetFailpointEnvVar(failpoints ...string) string {
 	return fmt.Sprintf("GO_FAILPOINTS=%s", result)
 }
 
+// DefaultCopyRetryCountFailpoint sets COPY_MAX_RETRY_COUNT to 1 for faster test failure.
+const DefaultCopyRetryCountFailpoint = "github.com/yugabyte/yb-voyager/yb-voyager/cmd/setCopyRetryCount=return(1)"
+
+// GetFailpointEnvVarWithDefaults includes the default retry count failpoint (COPY_MAX_RETRY_COUNT=1)
+// along with any custom failpoints provided. Use this for import data failpoint tests.
+//
+// Example:
+//
+//	GetFailpointEnvVarWithDefaults("pkg/fp1=return()")
+//	Returns: "GO_FAILPOINTS=github.com/.../setCopyRetryCount=return(1);pkg/fp1=return()"
+func GetFailpointEnvVarWithDefaults(failpoints ...string) string {
+	allFailpoints := append([]string{DefaultCopyRetryCountFailpoint}, failpoints...)
+	return GetFailpointEnvVar(allFailpoints...)
+}
+
 // WriteBytemanScript creates a Byteman rules file (.btm) for Java fault injection testing.
 // This is used for testing Java components like Debezium Server.
 //
@@ -92,5 +107,24 @@ func GetBytemanEnvVars(scriptPath string) []string {
 func SkipIfBytemanNotAvailable(t interface{ Skip(args ...interface{}) }) {
 	if os.Getenv("BYTEMAN_HOME") == "" {
 		t.Skip("BYTEMAN_HOME not set, skipping Byteman test")
+	}
+}
+
+// RequireBytemanAvailable fails the test if Byteman is not installed/configured.
+// This is used for tests where Byteman is a required dependency.
+// It checks for the BYTEMAN_JAR environment variable which should point to byteman.jar.
+//
+// Usage:
+//
+//	func TestWithRequiredByteman(t *testing.T) {
+//	    testutils.RequireBytemanAvailable(t)
+//	    // ... test code ...
+//	}
+func RequireBytemanAvailable(t interface {
+	Fatalf(format string, args ...interface{})
+}) {
+	if os.Getenv("BYTEMAN_JAR") == "" {
+		t.Fatalf("BYTEMAN_JAR environment variable not set - Byteman is required for this test. " +
+			"Please install Byteman and set BYTEMAN_JAR to the path of byteman.jar")
 	}
 }

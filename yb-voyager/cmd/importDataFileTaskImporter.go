@@ -23,6 +23,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/color"
+	"github.com/pingcap/failpoint"
 	log "github.com/sirupsen/logrus"
 	"github.com/sourcegraph/conc/pool"
 
@@ -51,6 +52,17 @@ type FileBatchProducer interface {
 
 	// Close cleans up any resources used by the batch producer.
 	Close()
+}
+
+func init() {
+	// Failpoint to override COPY_MAX_RETRY_COUNT for testing to set it to lower value for testing.
+	// Usage: failpoint-ctl enable "github.com/yugabyte/yb-voyager/yb-voyager/cmd/setCopyRetryCount=return(5)"
+	failpoint.Inject("setCopyRetryCount", func(val failpoint.Value) {
+		if count, ok := val.(int); ok && count > 0 {
+			COPY_MAX_RETRY_COUNT = count
+			log.Infof("Failpoint: COPY_MAX_RETRY_COUNT set to %d", count)
+		}
+	})
 }
 
 /*
