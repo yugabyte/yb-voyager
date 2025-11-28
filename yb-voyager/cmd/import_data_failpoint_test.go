@@ -82,7 +82,7 @@ FROM generate_series(1, 20) i;`
 
 	// Enable failpoint to inject commit error
 	fpEnv := testutils.GetFailpointEnvVar(
-		"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb/importBatchCommitError=return()",
+		"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb/importBatchCommitError=4*off->return()",
 	)
 
 	// Run import with failpoint enabled (should fail)
@@ -90,6 +90,9 @@ FROM generate_series(1, 20) i;`
 	importCmdWithFailpoint := testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
 		"--export-dir", exportDir,
 		"--disable-pb", "true",
+		"--batch-size", "3", // set batch size to 3 to trigger commit error
+		"--parallel-jobs", "1", // set parallel jobs to 1 to trigger commit error
+		"--adaptive-parallelism", "disabled",
 		"--yes",
 	}, nil, false).WithEnv(fpEnv)
 
@@ -97,10 +100,8 @@ FROM generate_series(1, 20) i;`
 
 	// Verify that the import failed as expected
 	assert.Error(t, err, "Expected import to fail due to failpoint injection")
-
 	stderr := importCmdWithFailpoint.Stderr()
 	assert.Contains(t, stderr, "failpoint", "Error should mention failpoint")
-	t.Logf("✓ Failpoint successfully injected commit error")
 
 	// Verify no data was committed to the database
 	ybConn, err := yugabytedbContainer.GetConnection()
@@ -111,8 +112,7 @@ FROM generate_series(1, 20) i;`
 	err = ybConn.QueryRow("SELECT COUNT(*) FROM test_schema.test_failpoint").Scan(&count)
 	testutils.FatalIfError(t, err, "Failed to query row count")
 
-	assert.Equal(t, 0, count, "No rows should be in the table since commit failed")
-	t.Logf("✓ Verified no data was committed (transaction properly rolled back)")
+	assert.Equal(t, 12, count, "Expected 12 rows (4 batches succeeded before failpoint triggered)")
 
 	// Now resume import WITHOUT failpoint (should succeed)
 	t.Log("Resuming import without failpoint...")
