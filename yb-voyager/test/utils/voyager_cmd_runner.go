@@ -20,6 +20,8 @@ type ExitCode int
 const (
 	ExitCodeSuccess ExitCode = 0
 	ExitCodeFailure ExitCode = 1
+
+	separator = "=================================================================================="
 )
 
 func (ec ExitCode) String() string {
@@ -51,6 +53,16 @@ type VoyagerCommandRunner struct {
 
 	// additional environment variables for testing
 	testEnvVars []string
+}
+
+// WithEnvMap adds additional environment variables from a map to the command.
+// The envMap is merged with existing environment variables.
+// This is useful for injecting test-specific configuration like Byteman settings.
+func (v *VoyagerCommandRunner) WithEnvMap(envMap map[string]string) *VoyagerCommandRunner {
+	for key, value := range envMap {
+		v.testEnvVars = append(v.testEnvVars, fmt.Sprintf("%s=%s", key, value))
+	}
+	return v
 }
 
 func NewVoyagerCommandRunner(container testcontainers.TestContainer, cmdName string, cmdArgs []string, doDuringCmd func(), isAsync bool) *VoyagerCommandRunner {
@@ -148,6 +160,7 @@ func (v *VoyagerCommandRunner) Run() error {
 	}
 
 	v.newCmd()
+	v.printCommandHeader()
 
 	log.Debugf("running command: %s", v.Cmd.String())
 	err := v.Cmd.Start()
@@ -175,10 +188,12 @@ func (v *VoyagerCommandRunner) Wait() error {
 		} else {
 			v.exitCode = ExitCodeFailure
 		}
+		v.printCommandFooter(err)
 		return fmt.Errorf("command failed: %w", err)
-	} else {
-		v.exitCode = ExitCodeSuccess
 	}
+
+	v.exitCode = ExitCodeSuccess
+	v.printCommandFooter(nil)
 	return nil
 }
 
@@ -233,4 +248,24 @@ func (v *VoyagerCommandRunner) SetAsync(async bool) {
 func (v *VoyagerCommandRunner) WithEnv(envVars ...string) *VoyagerCommandRunner {
 	v.testEnvVars = append(v.testEnvVars, envVars...)
 	return v
+}
+
+// printCommandHeader prints a formatted header before command execution
+func (v *VoyagerCommandRunner) printCommandHeader() {
+	fmt.Println()
+	fmt.Println(separator)
+	fmt.Printf(">>> Running: %s %s\n", v.CmdName, strings.Join(v.CmdArgs, " "))
+	fmt.Println(separator)
+}
+
+// printCommandFooter prints a formatted footer after command execution
+func (v *VoyagerCommandRunner) printCommandFooter(err error) {
+	fmt.Println(separator)
+	if err != nil {
+		fmt.Printf(">>> Command FAILED: %s (Exit Code: %s)\n", v.CmdName, v.exitCode.String())
+	} else {
+		fmt.Printf(">>> Command COMPLETED: %s\n", v.CmdName)
+	}
+	fmt.Println(separator)
+	fmt.Println()
 }
