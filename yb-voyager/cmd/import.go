@@ -148,8 +148,13 @@ func validateCdcPartitioningStrategyFlag(cmd *cobra.Command) error {
 		//if not a first run and the cdc partitioning strategy is not set
 		//this can be the case when the import data is resumed from an earlier version of yb-voyager
 		//So we should use the cdc partitioning strategy as pk to be upgrade safe
-		cdcPartitioningStrategy = PARTITION_BY_PK
-		return nil
+		if cdcPartitioningStrategy == "auto" {
+			cdcPartitioningStrategy = PARTITION_BY_PK
+			return nil
+		} else {
+			utils.ErrExit("changing the cdc partitioning strategy is not allowed after the import data has started. Current strategy: %s, new strategy: %s\n Use --start-clean to start a fresh import with the new strategy.", importDataStatus.CdcPartitioningStrategyConfig, cdcPartitioningStrategy)
+
+		}
 	}
 	if cdcPartitioningStrategy != importDataStatus.CdcPartitioningStrategyConfig {
 		utils.ErrExit("changing the cdc partitioning strategy is not allowed after the import data has started. Current strategy: %s, new strategy: %s\n Use --start-clean to start a fresh import with the new strategy.", importDataStatus.CdcPartitioningStrategyConfig, cdcPartitioningStrategy)
