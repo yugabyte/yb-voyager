@@ -68,7 +68,7 @@ var dataFileDescriptor *datafile.Descriptor
 var truncateSplits utils.BoolStr                                             // to truncate *.D splits after import
 var TableToColumnNames = utils.NewStructMap[sqlname.NameTuple, []string]()   // map of table name to columnNames
 var TableToIdentityColumnNames *utils.StructMap[sqlname.NameTuple, []string] // map of table name to generated always as identity column's names
-var valueConverter dbzm.ValueConverter
+var valueConverter dbzm.SnapshotPhaseValueConverter
 
 var TableNameToSchema *utils.StructMap[sqlname.NameTuple, map[string]map[string]string]
 var conflictDetectionCache *ConflictDetectionCache
@@ -781,9 +781,9 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 		importTableList = importFileTasksToTableNameTuples(importFileTasks)
 	}
 	if msr.IsSnapshotExportedViaDebezium() {
-		valueConverter, err = dbzm.NewValueConverter(exportDir, tdb, tconf, importerRole, msr.SourceDBConf.DBType, importTableList)
+		valueConverter, err = dbzm.NewSnapshotPhaseValueConverter(exportDir, tdb, tconf, importerRole, msr.SourceDBConf.DBType, importTableList)
 	} else {
-		valueConverter, err = dbzm.NewNoOpValueConverter()
+		valueConverter, err = dbzm.NewSnapshotPhaseNoOpValueConverter()
 	}
 	if err != nil {
 		utils.ErrExit("create value converter: %s", err)
@@ -826,7 +826,7 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 				maxColocatedBatchesInProgress := utils.GetEnvAsInt("YBVOYAGER_MAX_COLOCATED_BATCHES_IN_PROGRESS", 3)
 				maxConcurrentBatchProductions := utils.GetEnvAsInt("YBVOYAGER_MAX_CONCURRENT_BATCH_PRODUCTIONS", 10)
 				err := importTasksViaTaskPicker(pendingTasks, state, progressReporter,
-					maxParallelConns, maxParallelConns, maxColocatedBatchesInProgress, maxConcurrentBatchProductions,
+					maxParallelConns, maxParallelConns, maxColocatedBatchesInProgress, msr.IsSnapshotExportedViaDebezium(), maxConcurrentBatchProductions,
 					errorHandler, callhomeMetricsCollector)
 				if err != nil {
 					utils.ErrExit("Failed to import tasks via task picker. %s", err)
@@ -839,7 +839,7 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 					batchImportPool = pool.New().WithMaxGoroutines(poolSize)
 					log.Infof("created batch import pool of size: %d", poolSize)
 
-					batchProducer, err := NewSequentialFileBatchProducer(task, state, errorHandler, progressReporter)
+					batchProducer, err := NewSequentialFileBatchProducer(task, state, msr.IsSnapshotExportedViaDebezium(), errorHandler, progressReporter)
 					if err != nil {
 						utils.ErrExit("Failed to create batch producer: %s", err)
 					}
@@ -877,11 +877,15 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 		if err != nil {
 			utils.ErrExit("failed to get table unique key columns map: %s", err)
 		}
-		valueConverter, err = dbzm.NewValueConverter(exportDir, tdb, tconf, importerRole, source.DBType, importTableList)
+		valueConverter, err = dbzm.NewSnapshotPhaseValueConverter(exportDir, tdb, tconf, importerRole, source.DBType, importTableList)
 		if err != nil {
 			utils.ErrExit("Failed to create value converter: %s", err)
 		}
-		err = streamChanges(state, importTableList)
+		streamingPhaseValueConverter, err := dbzm.NewStreamingPhaseDebeziumValueConverter(importTableList, exportDir, tconf, importerRole)
+		if err != nil {
+			utils.ErrExit("Failed to create streaming phase value converter: %s", err)
+		}
+		err = streamChanges(state, importTableList, streamingPhaseValueConverter)
 		if err != nil {
 			utils.ErrExit("Failed to stream changes to %s: %s", tconf.TargetDBType, err)
 		}
@@ -1034,7 +1038,7 @@ func getMaxParallelConnections() (int, error) {
   - If task is done, mark it as done in the task picker.
 */
 func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataState, progressReporter *ImportDataProgressReporter, maxParallelConns int,
-	maxShardedTasksInProgress int, maxColocatedBatchesInProgress int, maxConcurrentBatchProductions int, errorHandler importdata.ImportDataErrorHandler, callhomeMetricsCollector *callhome.ImportDataMetricsCollector) error {
+	maxShardedTasksInProgress int, maxColocatedBatchesInProgress int, isRowTransformationRequired bool, maxConcurrentBatchProductions int, errorHandler importdata.ImportDataErrorHandler, callhomeMetricsCollector *callhome.ImportDataMetricsCollector) error {
 
 	var err error
 	setupWorkerPoolAndQueue(maxParallelConns, maxColocatedBatchesInProgress)
@@ -1076,7 +1080,7 @@ func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataS
 		var ok bool
 		taskImporter, ok = taskImporters[task.ID]
 		if !ok {
-			taskImporter, err = createFileTaskImporter(task, state, batchImportPool, progressReporter, colocatedBatchImportQueue, tableTypes, concurrentBatchProductionSem, errorHandler, callhomeMetricsCollector)
+			taskImporter, err = createFileTaskImporter(task, state, batchImportPool, progressReporter, colocatedBatchImportQueue, tableTypes, isRowTransformationRequired, concurrentBatchProductionSem, errorHandler, callhomeMetricsCollector)
 			if err != nil {
 				return fmt.Errorf("create file task importer: %w", err)
 			}
@@ -1192,7 +1196,7 @@ and colocated table batches to the colocatedBatchImportQueue.
 Otherwise, we simply pass the batchImportPool to the FileTaskImporter.
 */
 func createFileTaskImporter(task *ImportFileTask, state *ImportDataState, batchImportPool *pool.Pool, progressReporter *ImportDataProgressReporter, colocatedBatchImportQueue chan func(),
-	tableTypes *utils.StructMap[sqlname.NameTuple, string], concurrentBatchProductionSem *semaphore.Weighted, errorHandler importdata.ImportDataErrorHandler, callhomeMetricsCollector *callhome.ImportDataMetricsCollector) (*FileTaskImporter, error) {
+	tableTypes *utils.StructMap[sqlname.NameTuple, string], isRowTransformationRequired bool, concurrentBatchProductionSem *semaphore.Weighted, errorHandler importdata.ImportDataErrorHandler, callhomeMetricsCollector *callhome.ImportDataMetricsCollector) (*FileTaskImporter, error) {
 	var taskImporter *FileTaskImporter
 	var err error
 	var batchProducer FileBatchProducer
@@ -1203,17 +1207,17 @@ func createFileTaskImporter(task *ImportFileTask, state *ImportDataState, batchI
 			return nil, fmt.Errorf("table type not found for table: %s", task.TableNameTup.ForOutput())
 		}
 
-		batchProducer, err = NewRandomFileBatchProducer(task, state, errorHandler, progressReporter, concurrentBatchProductionSem)
+		batchProducer, err = NewRandomFileBatchProducer(task, state, isRowTransformationRequired, errorHandler, progressReporter, concurrentBatchProductionSem)
 		if err != nil {
 			return nil, fmt.Errorf("creating random batch producer: %w", err)
 		}
-
 		taskImporter, err = NewFileTaskImporter(task, state, batchProducer, batchImportPool, progressReporter, colocatedBatchImportQueue, tableType == COLOCATED, errorHandler, callhomeMetricsCollector)
+
 		if err != nil {
 			return nil, fmt.Errorf("create file task importer: %w", err)
 		}
 	} else {
-		batchProducer, err = NewSequentialFileBatchProducer(task, state, errorHandler, progressReporter)
+		batchProducer, err = NewSequentialFileBatchProducer(task, state, isRowTransformationRequired, errorHandler, progressReporter)
 		if err != nil {
 			return nil, fmt.Errorf("creating sequential batch producer: %w", err)
 		}

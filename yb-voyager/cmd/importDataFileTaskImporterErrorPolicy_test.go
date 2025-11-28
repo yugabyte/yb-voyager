@@ -116,7 +116,7 @@ func TestBasicTaskImportStachAndContinueErrorPolicy(t *testing.T) {
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table_error", 1)
 	testutils.FatalIfError(t, err)
 
-	batchProducer, err := NewSequentialFileBatchProducer(task, state, scErrorHandler, progressReporter)
+	batchProducer, err := NewSequentialFileBatchProducer(task, state, false, scErrorHandler, progressReporter)
 	testutils.FatalIfError(t, err)
 
 	workerPool := pool.New().WithMaxGoroutines(2)
@@ -169,7 +169,7 @@ func TestTaskImportStachAndContinueErrorPolicy_NoErrors(t *testing.T) {
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table_error", 1)
 	testutils.FatalIfError(t, err)
 
-	batchProducer, err := NewSequentialFileBatchProducer(task, state, scErrorHandler, progressReporter)
+	batchProducer, err := NewSequentialFileBatchProducer(task, state, false, scErrorHandler, progressReporter)
 	testutils.FatalIfError(t, err)
 
 	workerPool := pool.New().WithMaxGoroutines(2)
@@ -214,7 +214,7 @@ func TestTaskImportStachAndContinueErrorPolicy_SingleBatchWithError(t *testing.T
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table_error", 1)
 	testutils.FatalIfError(t, err)
 
-	batchProducer, err := NewSequentialFileBatchProducer(task, state, scErrorHandler, progressReporter)
+	batchProducer, err := NewSequentialFileBatchProducer(task, state, false, scErrorHandler, progressReporter)
 	testutils.FatalIfError(t, err)
 
 	workerPool := pool.New().WithMaxGoroutines(2)
@@ -271,7 +271,7 @@ func TestTaskImportStachAndContinueErrorPolicy_SingleBatch_OnPkConflictIgnore(t 
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table_unique_error", 1)
 	testutils.FatalIfError(t, err)
 
-	batchProducer, err := NewSequentialFileBatchProducer(task, state, scErrorHandler, progressReporter)
+	batchProducer, err := NewSequentialFileBatchProducer(task, state, false, scErrorHandler, progressReporter)
 	testutils.FatalIfError(t, err)
 
 	workerPool := pool.New().WithMaxGoroutines(2)
@@ -338,7 +338,7 @@ func TestTaskImportStachAndContinueErrorPolicy_MultipleBatchesWithDifferentError
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table_error", 1)
 	testutils.FatalIfError(t, err)
 
-	batchProducer, err := NewSequentialFileBatchProducer(task, state, scErrorHandler, progressReporter)
+	batchProducer, err := NewSequentialFileBatchProducer(task, state, false, scErrorHandler, progressReporter)
 	testutils.FatalIfError(t, err)
 
 	workerPool := pool.New().WithMaxGoroutines(2)
@@ -417,7 +417,7 @@ func TestTaskImportStachAndContinueErrorPolicy_TaskResumptionAfterBatchError(t *
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table_error", 1)
 	testutils.FatalIfError(t, err)
 
-	batchProducer, err := NewSequentialFileBatchProducer(task, state, scErrorHandler, progressReporter)
+	batchProducer, err := NewSequentialFileBatchProducer(task, state, false, scErrorHandler, progressReporter)
 	testutils.FatalIfError(t, err)
 
 	workerPool := pool.New().WithMaxGoroutines(2)
@@ -442,7 +442,7 @@ func TestTaskImportStachAndContinueErrorPolicy_TaskResumptionAfterBatchError(t *
 		`ERROR: duplicate key value violates unique constraint "test_table_error_pkey" (SQLSTATE 23505)`)
 
 	// simulate resumption
-	batchProducer, err = NewSequentialFileBatchProducer(task, state, scErrorHandler, progressReporter)
+	batchProducer, err = NewSequentialFileBatchProducer(task, state, false, scErrorHandler, progressReporter)
 	testutils.FatalIfError(t, err)
 
 	workerPool = pool.New().WithMaxGoroutines(2)

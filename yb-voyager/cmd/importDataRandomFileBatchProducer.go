@@ -44,8 +44,8 @@ type RandomBatchProducer struct {
 	concurrentBatchProductionSem        *semaphore.Weighted
 }
 
-func NewRandomFileBatchProducer(task *ImportFileTask, state *ImportDataState, errorHandler importdata.ImportDataErrorHandler, progressReporter *ImportDataProgressReporter, concurrentBatchProductionSem *semaphore.Weighted) (*RandomBatchProducer, error) {
-	sequentialFileBatchProducer, err := NewSequentialFileBatchProducer(task, state, errorHandler, progressReporter)
+func NewRandomFileBatchProducer(task *ImportFileTask, state *ImportDataState, isRowTransformationRequired bool, errorHandler importdata.ImportDataErrorHandler, progressReporter *ImportDataProgressReporter, concurrentBatchProductionSem *semaphore.Weighted) (*RandomBatchProducer, error) {
+	sequentialFileBatchProducer, err := NewSequentialFileBatchProducer(task, state, isRowTransformationRequired, errorHandler, progressReporter)
 	if err != nil {
 		return nil, fmt.Errorf("creating sequential file batch producer: %w", err)
 	}
