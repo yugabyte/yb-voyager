@@ -54,7 +54,7 @@ EXPECTED_FINAL_STATE_VARCHAR = {
         ]
     },
     'single_unique_index': {
-        'ssn': [
+        '"Ssn"': [
             'SSN2',
             'updated_SSN4',
             'SSN4',
@@ -121,6 +121,7 @@ def migration_completed_checks(tgt):
         
         # Validation for final varchar state (unique values)
         final_varchar_state = EXPECTED_FINAL_STATE_VARCHAR
+        print(final_varchar_state)
         for table_name, column_final_state in final_varchar_state.items():
             print(f"Schema: {schema_name}, Table: {table_name}")
             for column, expected_values in column_final_state.items():

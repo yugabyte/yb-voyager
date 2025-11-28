@@ -6,3 +6,11 @@ CREATE TABLE user_table (
     status VARCHAR(50) DEFAULT 'active'
 );
 
+
+CREATE TABLE test_partial_unique_index (
+    id SERIAL PRIMARY KEY,
+    check_id int,
+    most_recent boolean
+);
+
+CREATE UNIQUE INDEX idx_test_partial_unique_index ON test_partial_unique_index (check_id) WHERE most_recent;

@@ -73,7 +73,7 @@ EXPECTED_FINAL_STATE_VARCHAR = {
         ]
     },
     'single_unique_index': {
-        'ssn': [
+        '"Ssn"': [
             'updated_non_conflict_ssn1', 'SSN2', 'updated_SSN4', 'SSN4',
             'updated_SSN5', 'SSN5', 'target_ssn101', 'updated_target_ssn102',
             'updated_target_ssn105', 'target_ssn105', 'updated_target_ssn106',
