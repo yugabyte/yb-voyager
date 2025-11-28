@@ -31,6 +31,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	reporter "github.com/yugabyte/yb-voyager/yb-voyager/src/reporter/stats"
@@ -77,7 +78,7 @@ func cutoverInitiatedAndCutoverEventProcessed() (bool, error) {
 	return false, nil
 }
 
-func streamChanges(state *ImportDataState, tableNames []sqlname.NameTuple) error {
+func streamChanges(state *ImportDataState, tableNames []sqlname.NameTuple, streamingPhaseValueConverter dbzm.StreamingPhaseValueConverter) error {
 	ok, err := cutoverInitiatedAndCutoverEventProcessed()
 	if err != nil {
 		return err
@@ -145,7 +146,7 @@ func streamChanges(state *ImportDataState, tableNames []sqlname.NameTuple) error
 		}
 		log.Infof("got next segment to stream: %v", segment)
 
-		err = streamChangesFromSegment(segment, evChans, processingDoneChans, eventChannelsMetaInfo, statsReporter, state, tableToPartitioningStrategyMap)
+		err = streamChangesFromSegment(segment, evChans, processingDoneChans, eventChannelsMetaInfo, statsReporter, state, streamingPhaseValueConverter, tableToPartitioningStrategyMap)
 		if err != nil {
 			return fmt.Errorf("error streaming changes for segment %s: %v", segment.FilePath, err)
 		}
@@ -169,7 +170,7 @@ func getCdcPartitioningStrategyPerTable(tableNames []sqlname.NameTuple) (*utils.
 	tableToPartitioningStrategyMap := utils.NewStructMap[sqlname.NameTuple, string]()
 
 	if importerRole != TARGET_DB_IMPORTER_ROLE {
-		//For PG/ORacle source/source-replica, using partitioning by table since there won't be any huge difference in 
+		//For PG/ORacle source/source-replica, using partitioning by table since there won't be any huge difference in
 		// performance between the two strategies for single node databases like PG/Oracle
 		//and Parititon by table is better from data correctness perspective
 		for _, t := range tableNames {
@@ -256,6 +257,7 @@ func streamChangesFromSegment(
 	eventChannelsMetaInfo map[int]EventChannelMetaInfo,
 	statsReporter *reporter.StreamImportStatsReporter,
 	state *ImportDataState,
+	streamingPhaseValueConverter dbzm.StreamingPhaseValueConverter,
 	tableToPartitioningStrategyMap *utils.StructMap[sqlname.NameTuple, string]) error {
 
 	err := segment.Open()
@@ -330,7 +332,7 @@ func streamChangesFromSegment(
 			break
 		}
 
-		err = handleEvent(event, evChans, tableToPartitioningStrategyMap)
+		err = handleEvent(event, evChans, streamingPhaseValueConverter, tableToPartitioningStrategyMap)
 		if err != nil {
 			return fmt.Errorf("error handling event: %v", err)
 		}
@@ -376,7 +378,10 @@ func shouldFormatValues(event *tgtdb.Event) bool {
 	}
 	return false
 }
-func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event, tableToPartitioningStrategyMap *utils.StructMap[sqlname.NameTuple, string]) error {
+func handleEvent(event *tgtdb.Event,
+	evChans []chan *tgtdb.Event,
+	streamingPhaseValueConverter dbzm.StreamingPhaseValueConverter,
+	tableToPartitioningStrategyMap *utils.StructMap[sqlname.NameTuple, string]) error {
 	if event.IsCutoverEvent() {
 		// nil in case of cutover or fall_forward events for unconcerned importer
 		return nil
@@ -409,7 +414,7 @@ func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event, tableToPartiti
 	}
 
 	// preparing value converters for the streaming mode
-	err = valueConverter.ConvertEvent(event, event.TableNameTup, shouldFormatValues(event))
+	err = streamingPhaseValueConverter.ConvertEvent(event, event.TableNameTup, shouldFormatValues(event))
 	if err != nil {
 		return fmt.Errorf("error transforming event key fields: %v", err)
 	}

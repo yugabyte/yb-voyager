@@ -182,7 +182,7 @@ func TestSequentialTaskPickerResumePicksInProgressTask(t *testing.T) {
 	}
 
 	// update the state of the first task to in progress
-	fbp, err := NewFileBatchProducer(task1, state, errorHandler, progressReporter)
+	fbp, err := NewSequentialFileBatchProducer(task1, state, false, errorHandler, progressReporter)
 	testutils.FatalIfError(t, err)
 	batch, err := fbp.NextBatch()
 	assert.NoError(t, err)
@@ -1189,21 +1189,21 @@ func TestColocatedAwareRandomTaskPickerResumable(t *testing.T) {
 	// pick 3 tasks and start the process.
 	task1, err := picker.Pick()
 	assert.NoError(t, err)
-	fbp1, err := NewFileBatchProducer(task1, state, errorHandler, progressReporter)
+	fbp1, err := NewSequentialFileBatchProducer(task1, state, false, errorHandler, progressReporter)
 	batch1, err := fbp1.NextBatch()
 	assert.NoError(t, err)
 	batch1.MarkInProgress()
 
 	task2, err := picker.Pick()
 	assert.NoError(t, err)
-	fbp2, err := NewFileBatchProducer(task2, state, errorHandler, progressReporter)
+	fbp2, err := NewSequentialFileBatchProducer(task2, state, false, errorHandler, progressReporter)
 	batch2, err := fbp2.NextBatch()
 	assert.NoError(t, err)
 	batch2.MarkInProgress()
 
 	task3, err := picker.Pick()
 	assert.NoError(t, err)
-	fbp3, err := NewFileBatchProducer(task3, state, errorHandler, progressReporter)
+	fbp3, err := NewSequentialFileBatchProducer(task3, state, false, errorHandler, progressReporter)
 	batch3, err := fbp3.NextBatch()
 	assert.NoError(t, err)
 	batch3.MarkInProgress()
@@ -2049,28 +2049,28 @@ func TestColocatedCappedRandomTaskPickeResumable(t *testing.T) {
 	// pick 4 tasks and start the process.
 	task1, err := picker.Pick()
 	assert.NoError(t, err)
-	fbp1, err := NewFileBatchProducer(task1, state, errorHandler, progressReporter)
+	fbp1, err := NewSequentialFileBatchProducer(task1, state, false, errorHandler, progressReporter)
 	batch1, err := fbp1.NextBatch()
 	assert.NoError(t, err)
 	batch1.MarkInProgress()
 
 	task2, err := picker.Pick()
 	assert.NoError(t, err)
-	fbp2, err := NewFileBatchProducer(task2, state, errorHandler, progressReporter)
+	fbp2, err := NewSequentialFileBatchProducer(task2, state, false, errorHandler, progressReporter)
 	batch2, err := fbp2.NextBatch()
 	assert.NoError(t, err)
 	batch2.MarkInProgress()
 
 	task3, err := picker.Pick()
 	assert.NoError(t, err)
-	fbp3, err := NewFileBatchProducer(task3, state, errorHandler, progressReporter)
+	fbp3, err := NewSequentialFileBatchProducer(task3, state, false, errorHandler, progressReporter)
 	batch3, err := fbp3.NextBatch()
 	assert.NoError(t, err)
 	batch3.MarkInProgress()
 
 	task4, err := picker.Pick()
 	assert.NoError(t, err)
-	fbp4, err := NewFileBatchProducer(task4, state, errorHandler, progressReporter)
+	fbp4, err := NewSequentialFileBatchProducer(task4, state, false, errorHandler, progressReporter)
 	batch4, err := fbp4.NextBatch()
 	assert.NoError(t, err)
 	batch4.MarkInProgress()

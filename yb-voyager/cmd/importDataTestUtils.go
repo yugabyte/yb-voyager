@@ -92,7 +92,7 @@ func setupExportDirAndImportDependencies(batchSizeRows int64, batchSizeBytes int
 
 	CreateMigrationProjectIfNotExists(constants.POSTGRESQL, lexportDir)
 	tdb = &dummyTDB{maxSizeBytes: batchSizeBytes}
-	valueConverter = &dbzm.NoOpValueConverter{}
+	valueConverter = &dbzm.SnapshotPhaseNoOpValueConverter{}
 	dataStore = datastore.NewDataStore(ldataDir)
 
 	batchSizeInNumRows = batchSizeRows
