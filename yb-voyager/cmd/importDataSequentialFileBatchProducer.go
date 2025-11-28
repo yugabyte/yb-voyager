@@ -24,6 +24,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
@@ -48,13 +49,22 @@ type SequentialFileBatchProducer struct {
 	// but not added to the batch because adding it would breach size/row based thresholds.
 	lineFromPreviousBatch string
 
+	// transformations
+	isRowTransformationRequired bool
+	rowProcessor                rowProcessor // in case transformations are required, we use this to read line string -> column values and write column values -> line string
+
 	errorHandler importdata.ImportDataErrorHandler
 
 	//required to print some information for users to display during batch production
 	progressReporter *ImportDataProgressReporter
 }
 
-func NewSequentialFileBatchProducer(task *ImportFileTask, state *ImportDataState, errorHandler importdata.ImportDataErrorHandler, progressReporter *ImportDataProgressReporter) (*SequentialFileBatchProducer, error) {
+type rowProcessor interface {
+	ReadRow(row string) ([]string, error)
+	WriteRow(columnValues []string) (string, error)
+}
+
+func NewSequentialFileBatchProducer(task *ImportFileTask, state *ImportDataState, isRowTransformationRequired bool, errorHandler importdata.ImportDataErrorHandler, progressReporter *ImportDataProgressReporter) (*SequentialFileBatchProducer, error) {
 	if errorHandler == nil {
 		return nil, fmt.Errorf("errorHandler must not be nil")
 	}
@@ -75,18 +85,25 @@ func NewSequentialFileBatchProducer(task *ImportFileTask, state *ImportDataState
 	sort.Slice(pendingBatches, func(i, j int) bool {
 		return pendingBatches[i].IsInterrupted()
 	})
+	var rowProcessor rowProcessor
+	if isRowTransformationRequired {
+		// right now, the only transformation required is when snapshot is written by dbzm.
+		rowProcessor = dbzm.NewCsvRowProcessor(task.TableNameTup)
+	}
 
 	return &SequentialFileBatchProducer{
-		task:             task,
-		state:            state,
-		pendingBatches:   pendingBatches,
-		lastBatchNumber:  lastBatchNumber,
-		lastOffset:       lastOffset,
-		fileFullySplit:   fileFullySplit,
-		completed:        completed,
-		numLinesTaken:    lastOffset,
-		errorHandler:     errorHandler,
-		progressReporter: progressReporter,
+		task:                        task,
+		state:                       state,
+		pendingBatches:              pendingBatches,
+		lastBatchNumber:             lastBatchNumber,
+		lastOffset:                  lastOffset,
+		fileFullySplit:              fileFullySplit,
+		completed:                   completed,
+		numLinesTaken:               lastOffset,
+		errorHandler:                errorHandler,
+		progressReporter:            progressReporter,
+		isRowTransformationRequired: isRowTransformationRequired,
+		rowProcessor:                rowProcessor,
 	}, nil
 }
 
@@ -171,7 +188,7 @@ func (p *SequentialFileBatchProducer) produceNextBatch() (*Batch, error) {
 			// can't use importBatchArgsProto.Columns as to use case insenstiive column names
 			columnNames, _ := TableToColumnNames.Get(p.task.TableNameTup)
 			lineBeforeConversion := line
-			line, err = valueConverter.ConvertRow(p.task.TableNameTup, columnNames, line)
+			line, err = p.transformRow(line, columnNames)
 			if err != nil {
 				errMsg := fmt.Errorf("transforming line number=%d for table: %q in file %s: %s", p.numLinesTaken, p.task.TableNameTup.ForOutput(), p.task.FilePath, err)
 				if p.errorHandler.ShouldAbort() {
@@ -234,6 +251,27 @@ func (p *SequentialFileBatchProducer) produceNextBatch() (*Batch, error) {
 	}
 	// ideally should not reach here
 	return nil, fmt.Errorf("could not produce next batch: err: %w", readLineErr)
+}
+
+func (p *SequentialFileBatchProducer) transformRow(row string, columnNames []string) (string, error) {
+	if !p.isRowTransformationRequired {
+		return row, nil
+	}
+
+	columnValues, err := p.rowProcessor.ReadRow(row)
+	if err != nil {
+		return "", fmt.Errorf("reading input row to columns: %w", err)
+	}
+	err = valueConverter.ConvertRow(p.task.TableNameTup, columnNames, columnValues)
+	if err != nil {
+		return "", fmt.Errorf("converting row in value converter: %w", err)
+	}
+
+	transformedRow, err := p.rowProcessor.WriteRow(columnValues)
+	if err != nil {
+		return "", fmt.Errorf("writing transformed row to csv: %w", err)
+	}
+	return transformedRow, err
 }
 
 func (p *SequentialFileBatchProducer) openDataFile() error {
@@ -314,6 +352,7 @@ func (p *SequentialFileBatchProducer) finalizeBatch(batchWriter *BatchWriter, is
 }
 
 func (p *SequentialFileBatchProducer) Close() {
+	p.rowProcessor = nil // free up the memory in buffers.
 	if p.dataFile != nil {
 		p.dataFile.Close()
 	}
