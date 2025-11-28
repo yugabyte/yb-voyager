@@ -38,6 +38,7 @@ import (
 	pgconn5 "github.com/jackc/pgx/v5/pgconn"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/jinzhu/copier"
+	"github.com/pingcap/failpoint"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
@@ -740,6 +741,23 @@ func (yb *TargetYugabyteDB) importBatch(conn *pgx.Conn, batch Batch, args *Impor
 					errs.IMPORT_BATCH_ERROR_STEP_ROLLBACK_TXN)
 			}
 		} else {
+			// Failpoint: inject error before commit for testing
+			// Use failpoint.Value parameter to distinguish between 'off' and 'return' actions
+			// When val != nil, the failpoint action is active (e.g., return())
+			// When val == nil, the failpoint action is 'off' (skip error injection)
+			failpoint.Inject("importBatchCommitError", func(val failpoint.Value) {
+				if val != nil {
+					// Inject commit error only when action is not 'off'
+					err2 = fmt.Errorf("failpoint: commit failed")
+					err = newImportBatchErrorPgYb(err2, batch,
+						errs.IMPORT_BATCH_ERROR_FLOW_COPY_NORMAL,
+						errs.IMPORT_BATCH_ERROR_STEP_COMMIT_TXN)
+					rowsAffected = 0
+					failpoint.Return() // special function to make outer function return
+				}
+				// If val == nil ('off' action), do nothing - let commit proceed normally
+			})
+
 			err2 = tx.Commit(ctx)
 			if err2 != nil {
 				rowsAffected = 0
