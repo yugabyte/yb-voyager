@@ -156,34 +156,24 @@ func streamChanges(state *ImportDataState, tableNames []sqlname.NameTuple) error
 /*
 This function is used to fetch the CDC partitioning strategy for each table
 if the import data is the first run, it will be set to the default strategy.
-The default strategy is auto which will set the strategy (PK / table) per table based on some criteria. 
+The default strategy is auto which will set the strategy (PK / table) per table based on some criteria.
 PK for normal tables and table for tables having expression based unique indexes
 
 If its not the first run, it will fetch the strategy from the metadb key IMPORT_DATA_STATUS_KEY
 
 the CDC Partitioning strategy can be overriden by flag --cdc-partitioning-strategy with values auto, pk or table
+
+TODO: handle upgrade scenario for PG/Oracle pk->table change
 */
 func getCdcPartitioningStrategyPerTable(tableNames []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, string], error) {
 	tableToPartitioningStrategyMap := utils.NewStructMap[sqlname.NameTuple, string]()
 
 	if importerRole != TARGET_DB_IMPORTER_ROLE {
-		// source or source-replica importer
-		msr, err := metaDB.GetMigrationStatusRecord()
-		if err != nil {
-			return nil, fmt.Errorf("error getting migration status record: %w", err)
-		}
-		switch msr.SourceDBConf.DBType {
-		case ORACLE:
-			//For oracle old behaviour same as partitioning by pk
-			for _, t := range tableNames {
-				tableToPartitioningStrategyMap.Put(t, PARTITION_BY_PK)
-			}
-		case POSTGRESQL:
-			//For pg partitioning by table since there is no huge difference in performance between the two strategies
-			//and Parititon by table is better from data correctness perspective
-			for _, t := range tableNames {
-				tableToPartitioningStrategyMap.Put(t, PARTITION_BY_TABLE)
-			}
+		//For PG/ORacle source/source-replica, using partitioning by table since there won't be any huge difference in 
+		// performance between the two strategies for single node databases like PG/Oracle
+		//and Parititon by table is better from data correctness perspective
+		for _, t := range tableNames {
+			tableToPartitioningStrategyMap.Put(t, PARTITION_BY_TABLE)
 		}
 		return tableToPartitioningStrategyMap, nil
 	}
@@ -237,7 +227,7 @@ func getCdcPartitioningStrategyPerTable(tableNames []sqlname.NameTuple) (*utils.
 		for _, t := range tableNames {
 			tableToPartitioningStrategyMap.Put(t, cdcPartitioningStrategy)
 		}
-		return tableToPartitioningStrategyMap, nil
+
 	}
 
 	//save the tableToPartitioningStrategyMap to metadb key

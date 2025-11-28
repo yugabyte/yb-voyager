@@ -1806,7 +1806,6 @@ func cleanMSRForImportDataStartClean() error {
 			msr.OnPrimaryKeyConflictAction = ""
 		})
 		err = metaDB.UpdateImportDataStatusRecord(func(record *metadb.ImportDataStatusRecord) {
-			record.CdcPartitioningStrategyConfig = ""
 			record.TableToCDCPartitioningStrategyMap = nil
 		})
 	}

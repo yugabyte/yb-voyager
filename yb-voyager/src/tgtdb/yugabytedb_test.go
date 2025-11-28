@@ -911,11 +911,34 @@ func TestGetTablesHavingExpressionIndexes(t *testing.T) {
 			val text,
 			val2 text
 		);`,
+		`CREATE TABLE test_expression_indexes."Table6" (
+			id INT,
+			"Data" TEXT,
+			val text,
+			val2 text
+		);`,
+		`CREATE TABLE test_expression_indexes."Table7" (
+			id INT,
+			"Data" TEXT,
+			val text,
+			"Val2" text
+		);`,
+		`CREATE TABLE test_expression_indexes."Table8" (
+			id INT,
+			"Data" TEXT,
+			val text,
+			"Val2" text
+		);`,
 		`CREATE UNIQUE INDEX idx_expression_indexes ON test_expression_indexes.table1 ((val || val2));`,
 		`CREATE UNIQUE INDEX idx_expression_indexes_2 ON test_expression_indexes.table2 (lower(val));`,
-		`CREATE UNIQUE INDEX idx_expression_indexes_3 ON test_expression_indexes.table3 (lower(val || val2), data);`,
+		`CREATE UNIQUE INDEX idx_expression_indexes_3 ON test_expression_indexes.table3 ((val || val2), data);`,
 		`CREATE INDEX idx_expression_indexes_4 ON test_expression_indexes.table4 (lower(val || val2), id, data);`, //normal index
 		`CREATE UNIQUE INDEX idx_expression_indexes_5 ON test_expression_indexes.table5 (data);`,                  //normal unique index
+		`CREATE UNIQUE INDEX idx_expression_indexes_6 ON test_expression_indexes."Table6" (lower("Data"));`,
+		`CREATE UNIQUE INDEX idx_expression_indexes_7 ON test_expression_indexes."Table7" (lower("Data" || "Val2"));`,
+		`CREATE UNIQUE INDEX idx_expression_indexes_8 ON test_expression_indexes."Table8" ("Data");`,
+		`CREATE INDEX idx_expression_indexes_9 ON test_expression_indexes."Table8" (("Data" || "Val2"));`,//normal index
+		
 	)
 	defer testYugabyteDBTarget.ExecuteSqls(`DROP SCHEMA test_expression_indexes CASCADE;`)
 
@@ -925,17 +948,22 @@ func TestGetTablesHavingExpressionIndexes(t *testing.T) {
 		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table3", "public", YUGABYTEDB),
 		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table4", "public", YUGABYTEDB),
 		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table5", "public", YUGABYTEDB),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.\"Table6\"", "public", YUGABYTEDB),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.\"Table7\"", "public", YUGABYTEDB),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.\"Table8\"", "public", YUGABYTEDB),
 	}
 
 	tableTuplesHavingExpressionIndexes, err := testYugabyteDBTarget.GetTablesHavingExpressionUniqueIndexes(tableTuplesList)
 	require.NoError(t, err)
-	assert.Equal(t, 3, len(tableTuplesHavingExpressionIndexes))
+	assert.Equal(t, 5, len(tableTuplesHavingExpressionIndexes))
 	expectedTableTuplesHavingExpressionIndexes := []sqlname.NameTuple{
 		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table1", "public", YUGABYTEDB),
 		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table2", "public", YUGABYTEDB),
 		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table3", "public", YUGABYTEDB),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.\"Table6\"", "public", YUGABYTEDB),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.\"Table7\"", "public", YUGABYTEDB),
 	}
-	assert.Equal(t, expectedTableTuplesHavingExpressionIndexes, tableTuplesHavingExpressionIndexes)
+	assert.ElementsMatch(t, expectedTableTuplesHavingExpressionIndexes, tableTuplesHavingExpressionIndexes)
 }
 
 // ============================================================================
