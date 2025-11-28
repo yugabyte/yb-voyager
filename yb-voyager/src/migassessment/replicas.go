@@ -439,8 +439,6 @@ import (
 
 // HandleReplicaDiscoveryAndValidation discovers and validates PostgreSQL read replicas.
 // Takes the PostgreSQL connection and replica endpoints flag as parameters and returns
-=======
->>>>>>> 7100ebd76 (Made suggested changes)
 // the validated replicas to include in assessment.
 // Returns nil replicas if no replicas are to be included (single-node assessment) or if source is not PostgreSQL.
 func HandleReplicaDiscoveryAndValidation(source *srcdb.Source, replicaEndpointsFlag string) ([]srcdb.ReplicaEndpoint, error) {
