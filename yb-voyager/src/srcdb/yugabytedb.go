@@ -747,8 +747,13 @@ func (yb *YugabyteDB) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple
 	supportedTableColumnsMap := utils.NewStructMap[sqlname.NameTuple, []string]()
 	unsupportedTableColumnsMap := utils.NewStructMap[sqlname.NameTuple, []string]()
 
+	if utils.GetEnvAsBool("YB_VOYAGER_SKIP_YBDB_UNSUPPORTED_TABLES_CHECK", false) {
+		log.Info("Skipping unsupported datatypes check as YB_VOYAGER_SKIP_YBDB_UNSUPPORTED_TABLES_CHECK is set to true")
+		return supportedTableColumnsMap, unsupportedTableColumnsMap, nil
+	}
+
 	// offline migration case, we support all datatypes
-	if !(useDebezium || isStreamingEnabled) && utils.GetEnvAsBool("YB_VOYAGER_SKIP_YBDB_UNSUPPORTED_TABLES_CHECK", false) {
+	if !(useDebezium || isStreamingEnabled) {
 		return supportedTableColumnsMap, unsupportedTableColumnsMap, nil
 	}
 
