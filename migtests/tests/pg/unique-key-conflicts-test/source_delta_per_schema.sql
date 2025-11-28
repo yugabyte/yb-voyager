@@ -188,3 +188,10 @@ INSERT INTO subset_columns_unique_constraint_and_index (id, first_name, last_nam
 -- UPDATE-UPDATE conflict
 UPDATE subset_columns_unique_constraint_and_index SET first_name = 'Updated_Alice' WHERE id = 4;
 UPDATE subset_columns_unique_constraint_and_index SET first_name = 'Alice', last_name = 'Williams', phone_number = '123-456-7893' WHERE id = 5;
+
+UPDATE expression_based_unique_index SET email = 'updated_user4@example.com' WHERE id = 4;
+INSERT INTO expression_based_unique_index (email) VALUES ('user4@example.com'); --conflict lower case email 
+
+-- UPDATE-UPDATE conflict
+UPDATE expression_based_unique_index SET email = 'updated_user5@example.com' WHERE id = 5;
+UPDATE expression_based_unique_index SET email = 'user5@example.com' WHERE id = 6;

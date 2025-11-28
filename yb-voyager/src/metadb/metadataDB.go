@@ -35,16 +35,16 @@ import (
 )
 
 var (
-	QUEUE_SEGMENT_META_TABLE_NAME              = "queue_segment_meta"
-	EXPORTED_EVENTS_STATS_TABLE_NAME           = "exported_events_stats"
-	EXPORTED_EVENTS_STATS_PER_TABLE_TABLE_NAME = "exported_events_stats_per_table"
-	JSON_OBJECTS_TABLE_NAME                    = "json_objects"
-	TARGET_DB_IDENTITY_COLUMNS_KEY             = "target_db_identity_columns_key"
-	FF_DB_IDENTITY_COLUMNS_KEY                 = "ff_db_identity_columns_key" // TODO: change the key
-	SOURCE_DB_IDENTITY_COLUMNS_KEY             = "source_db_identity_columns_key"
-	SOURCE_INDEXES_INFO_KEY                    = "source_indexes_info_key"
-	TABLE_TO_UNIQUE_KEY_COLUMNS_KEY            = "table_to_unique_key_columns_key"
-	ErrNoQueueSegmentsFound                    = errors.New("no queue segments found")
+	QUEUE_SEGMENT_META_TABLE_NAME                    = "queue_segment_meta"
+	EXPORTED_EVENTS_STATS_TABLE_NAME                 = "exported_events_stats"
+	EXPORTED_EVENTS_STATS_PER_TABLE_TABLE_NAME       = "exported_events_stats_per_table"
+	JSON_OBJECTS_TABLE_NAME                          = "json_objects"
+	TARGET_DB_IDENTITY_COLUMNS_KEY                   = "target_db_identity_columns_key"
+	FF_DB_IDENTITY_COLUMNS_KEY                       = "ff_db_identity_columns_key" // TODO: change the key
+	SOURCE_DB_IDENTITY_COLUMNS_KEY                   = "source_db_identity_columns_key"
+	SOURCE_INDEXES_INFO_KEY                          = "source_indexes_info_key"
+	TABLE_TO_UNIQUE_KEY_COLUMNS_KEY                  = "table_to_unique_key_columns_key"
+	ErrNoQueueSegmentsFound                          = errors.New("no queue segments found")
 )
 
 const SQLITE_OPTIONS = "?_txlock=exclusive&_timeout=30000"

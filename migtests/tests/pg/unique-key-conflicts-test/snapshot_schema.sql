@@ -55,3 +55,10 @@ ALTER TABLE subset_columns_unique_constraint_and_index ADD CONSTRAINT unique_nam
 
 -- Unique index on first_name, last_name, and phone_number (superset of columns)
 CREATE UNIQUE INDEX idx_name_phone_unique ON subset_columns_unique_constraint_and_index (first_name, last_name, phone_number);
+
+
+CREATE TABLE expression_based_unique_index (
+    id SERIAL PRIMARY KEY,
+    email VARCHAR(255)
+);
+CREATE UNIQUE INDEX idx_email_unique_expression ON expression_based_unique_index (LOWER(email));
