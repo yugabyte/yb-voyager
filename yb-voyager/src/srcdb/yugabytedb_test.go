@@ -696,3 +696,300 @@ func TestYugabyteGetColumnsWithSupportedTypes_AllScenarios(t *testing.T) {
 		assert.Equal(t, 0, len(unsupportedCols.Keys()), "Expected empty unsupported map for offline migration")
 	})
 }
+
+// TestYugabyteFilterUnsupportedTables tests:
+// 1. Tables with arrays of composite types (UDTs) are always unsupported
+// 2. Tables with arrays of enums are unsupported only with YBGrpcConnector and supported with Logical connector
+// 3. Tables with regular arrays (int[], text[], etc.) are supported
+func TestYugabyteFilterUnsupportedTables_BasicScenarios(t *testing.T) {
+	testYugabyteDBSource.TestContainer.ExecuteSqls(
+		`CREATE SCHEMA test_schema;`,
+
+		// Create composite UDT type
+		`CREATE TYPE test_schema.contact AS (
+			phone VARCHAR,
+			email VARCHAR
+		);`,
+
+		// Create ENUM type
+		`CREATE TYPE test_schema.status_enum AS ENUM ('active', 'inactive', 'pending');`,
+
+		// Case 1: Table with array of composite type (always unsupported)
+		`CREATE TABLE test_schema.composite_array_table (
+			id SERIAL PRIMARY KEY,
+			name VARCHAR,
+			contact_list test_schema.contact[]
+		);`,
+
+		// Case 2: Table with array of composite type and case-sensitive table name
+		`CREATE TABLE test_schema."CaseSensitiveTable" (
+			"ID" INT PRIMARY KEY,
+			contact_list test_schema.contact[]
+		);`,
+
+		// Case 3: Table with array of enum (unsupported with GRPC, supported with Logical)
+		`CREATE TABLE test_schema.enum_array_table (
+			id INT PRIMARY KEY,
+			name VARCHAR,
+			status_list test_schema.status_enum[]
+		);`,
+
+		// Case 4: Table with regular array (supported)
+		`CREATE TABLE test_schema.regular_array_table (
+			id INT PRIMARY KEY,
+			name VARCHAR,
+			tags INT[]
+		);`,
+	)
+	defer testYugabyteDBSource.TestContainer.ExecuteSqls(
+		`DROP SCHEMA test_schema CASCADE;`,
+	)
+
+	compositeArrayTableTuple := testutils.CreateNameTupleWithSourceName("test_schema.composite_array_table", "test_schema", constants.YUGABYTEDB)
+	caseSensitiveTableTuple := testutils.CreateNameTupleWithSourceName("test_schema.\"CaseSensitiveTable\"", "test_schema", constants.YUGABYTEDB)
+	enumArrayTableTuple := testutils.CreateNameTupleWithSourceName("test_schema.enum_array_table", "test_schema", constants.YUGABYTEDB)
+	regularArrayTableTuple := testutils.CreateNameTupleWithSourceName("test_schema.regular_array_table", "test_schema", constants.YUGABYTEDB)
+	tableList := []sqlname.NameTuple{
+		compositeArrayTableTuple,
+		caseSensitiveTableTuple,
+		enumArrayTableTuple,
+		regularArrayTableTuple,
+	}
+
+	ybDB := testYugabyteDBSource.DB().(*YugabyteDB)
+
+	// ========== Test 1: Logical Connector (arrays of enums are supported) ==========
+	t.Run("LogicalConnector", func(t *testing.T) {
+		ybDB.source.IsYBGrpcConnector = false
+		filteredTables, unsupportedTables := ybDB.FilterUnsupportedTables(tableList, true)
+
+		// Expected unsupported: tables with arrays of composite types (including case-sensitive)
+		expectedUnsupported := []sqlname.NameTuple{
+			compositeArrayTableTuple,
+			caseSensitiveTableTuple,
+		}
+
+		// Expected supported: tables with arrays of enums, regular arrays, or no arrays
+		expectedFiltered := []sqlname.NameTuple{
+			enumArrayTableTuple,
+			regularArrayTableTuple,
+		}
+
+		testutils.AssertEqualNameTuplesSlice(t, expectedUnsupported, unsupportedTables)
+		testutils.AssertEqualNameTuplesSlice(t, expectedFiltered, filteredTables)
+	})
+
+	// ========== Test 2: GRPC Connector (arrays of enums are unsupported) ==========
+	t.Run("GRPCConnector", func(t *testing.T) {
+		ybDB.source.IsYBGrpcConnector = true
+		filteredTables, unsupportedTables := ybDB.FilterUnsupportedTables(tableList, true)
+
+		// Expected unsupported: tables with arrays of composite types OR arrays of enums (including case-sensitive)
+		expectedUnsupported := []sqlname.NameTuple{
+			compositeArrayTableTuple,
+			caseSensitiveTableTuple,
+			enumArrayTableTuple,
+		}
+
+		// Expected supported: tables with regular arrays or no arrays
+		expectedFiltered := []sqlname.NameTuple{
+			regularArrayTableTuple,
+		}
+
+		testutils.AssertEqualNameTuplesSlice(t, expectedUnsupported, unsupportedTables)
+		testutils.AssertEqualNameTuplesSlice(t, expectedFiltered, filteredTables)
+	})
+
+	// ========== Test 3: Edge case - Empty table list ==========
+	t.Run("EmptyTableList", func(t *testing.T) {
+		ybDB.source.IsYBGrpcConnector = false
+		emptyList := []sqlname.NameTuple{}
+		filteredTables, unsupportedTables := ybDB.FilterUnsupportedTables(emptyList, true)
+
+		assert.Equal(t, 0, len(unsupportedTables), "Expected no unsupported tables")
+		assert.Equal(t, 0, len(filteredTables), "Expected no filtered tables")
+	})
+}
+
+// TestYugabyteFilterUnsupportedTables_AdvancedScenarios tests advanced scenarios:
+// 1. Case-sensitive UDT type names (composite and enum)
+// 2. Multiple array types in single table (regular, composite, enum, multi-dimensional)
+// 3. Cross-schema type references
+func TestYugabyteFilterUnsupportedTables_AdvancedScenarios(t *testing.T) {
+	testYugabyteDBSource.TestContainer.ExecuteSqls(
+		`CREATE SCHEMA test_schema;`,
+		`CREATE SCHEMA other_schema;`,
+
+		// Scenario 1: Create case-sensitive types
+		`CREATE TYPE test_schema."CaseSensitiveContact" AS (
+			"PhoneNum" VARCHAR,
+			"EmailAddr" VARCHAR
+		);`,
+
+		`CREATE TYPE test_schema."STATUS_ENUM" AS ENUM ('ACTIVE', 'INACTIVE');`,
+
+		// Scenario 1: Table with both case-sensitive composite and enum arrays
+		`CREATE TABLE test_schema.case_sensitive_types_table (
+			id INT PRIMARY KEY,
+			contacts test_schema."CaseSensitiveContact"[],
+			statuses test_schema."STATUS_ENUM"[]
+		);`,
+
+		// Scenario 2: Table with multi-dimensional array of composite type
+		`CREATE TABLE test_schema.all_arrays_table (
+			id INT PRIMARY KEY,
+			tags TEXT[],
+			contacts test_schema."CaseSensitiveContact"[],
+			statuses test_schema."STATUS_ENUM"[],
+			matrix test_schema."CaseSensitiveContact"[][] -- 2D array
+		);`,
+
+		// Scenario 3: Cross-schema type reference
+		`CREATE TYPE other_schema.other_address AS (
+			street VARCHAR,
+			city VARCHAR
+		);`,
+
+		`CREATE TABLE test_schema.cross_schema_table (
+			id INT PRIMARY KEY,
+			addresses other_schema.other_address[]
+		);`,
+
+		// Additional: Table with ONLY enum array (supported in Logical, unsupported in GRPC)
+		`CREATE TABLE test_schema.enum_only_table (
+			id INT PRIMARY KEY,
+			statuses test_schema."STATUS_ENUM"[]
+		);`,
+
+		// Additional: Table with ONLY regular array (supported)
+		`CREATE TABLE test_schema.regular_array_table (
+			id INT PRIMARY KEY,
+			tags TEXT[],
+			numbers INT[]
+		);`,
+	)
+	defer testYugabyteDBSource.TestContainer.ExecuteSqls(
+		`DROP SCHEMA test_schema CASCADE;`,
+		`DROP SCHEMA other_schema CASCADE;`,
+	)
+
+	// Create NameTuples for all test tables
+	caseSensitiveTableTuple := testutils.CreateNameTupleWithSourceName("test_schema.case_sensitive_types_table", "test_schema", constants.YUGABYTEDB)
+	allArraysTableTuple := testutils.CreateNameTupleWithSourceName("test_schema.all_arrays_table", "test_schema", constants.YUGABYTEDB)
+	crossSchemaTableTuple := testutils.CreateNameTupleWithSourceName("test_schema.cross_schema_table", "test_schema", constants.YUGABYTEDB)
+	enumOnlyTableTuple := testutils.CreateNameTupleWithSourceName("test_schema.enum_only_table", "test_schema", constants.YUGABYTEDB)
+	regularArrayTableTuple := testutils.CreateNameTupleWithSourceName("test_schema.regular_array_table", "test_schema", constants.YUGABYTEDB)
+
+	tableList := []sqlname.NameTuple{
+		caseSensitiveTableTuple,
+		allArraysTableTuple,
+		crossSchemaTableTuple,
+		enumOnlyTableTuple,
+		regularArrayTableTuple,
+	}
+
+	ybDB := testYugabyteDBSource.DB().(*YugabyteDB)
+
+	// ========== Subtest 1: Logical Connector ==========
+	t.Run("LogicalConnector", func(t *testing.T) {
+		ybDB.source.IsYBGrpcConnector = false
+		filteredTables, unsupportedTables := ybDB.FilterUnsupportedTables(tableList, true)
+
+		expectedUnsupported := []sqlname.NameTuple{
+			caseSensitiveTableTuple,
+			allArraysTableTuple,
+			crossSchemaTableTuple,
+		}
+		expectedFiltered := []sqlname.NameTuple{
+			enumOnlyTableTuple,
+			regularArrayTableTuple,
+		}
+		testutils.AssertEqualNameTuplesSlice(t, expectedUnsupported, unsupportedTables)
+		testutils.AssertEqualNameTuplesSlice(t, expectedFiltered, filteredTables)
+	})
+
+	// ========== Subtest 2: GRPC Connector ==========
+	t.Run("GRPCConnector", func(t *testing.T) {
+		ybDB.source.IsYBGrpcConnector = true
+		filteredTables, unsupportedTables := ybDB.FilterUnsupportedTables(tableList, true)
+
+		expectedUnsupported := []sqlname.NameTuple{
+			caseSensitiveTableTuple,
+			allArraysTableTuple,
+			crossSchemaTableTuple,
+			enumOnlyTableTuple,
+		}
+		expectedFiltered := []sqlname.NameTuple{
+			regularArrayTableTuple,
+		}
+		testutils.AssertEqualNameTuplesSlice(t, expectedUnsupported, unsupportedTables)
+		testutils.AssertEqualNameTuplesSlice(t, expectedFiltered, filteredTables)
+	})
+}
+
+// TestYugabyteFilterUnsupportedTables_CornerCases tests edge cases and corner scenarios:
+// 1. UDT with same name as native type (namespace collision - public.text vs pg_catalog.text)
+func TestYugabyteFilterUnsupportedTables_CornerCases(t *testing.T) {
+	testYugabyteDBSource.TestContainer.ExecuteSqls(
+		`CREATE SCHEMA test_schema;`,
+
+		// Corner Case: UDT with same name as native type (namespace collision test)
+		// Create composite types in PUBLIC schema with same names as native types
+		// This is a realistic (though bad practice) scenario
+		`CREATE TYPE public.text AS (
+			content VARCHAR
+		);`,
+
+		`CREATE TYPE public.int4 AS (
+			value INT
+		);`,
+
+		// Table using native TEXT[] - should be SUPPORTED (resolves to pg_catalog.text, not public.text)
+		`CREATE TABLE test_schema.native_text_array_table (
+			id INT PRIMARY KEY,
+			tags TEXT[],
+			numbers INT[]
+		);`,
+
+		// Table using UDT text[] with qualified name - should be UNSUPPORTED (uses public.text composite)
+		`CREATE TABLE test_schema.udt_text_array_table (
+			id INT PRIMARY KEY,
+			custom_texts public.text[]
+		);`,
+
+		// Table using UDT int4[] with qualified name - should be UNSUPPORTED (uses public.int4 composite)
+		`CREATE TABLE test_schema.udt_int4_array_table (
+			id INT PRIMARY KEY,
+			custom_ints public.int4[]
+		);`,
+	)
+	defer testYugabyteDBSource.TestContainer.ExecuteSqls(
+		`DROP SCHEMA test_schema CASCADE;`,
+		`DROP TYPE IF EXISTS public.text CASCADE;`,
+		`DROP TYPE IF EXISTS public.int4 CASCADE;`,
+	)
+
+	// Create NameTuples for all test tables
+	nativeTextArrayTableTuple := testutils.CreateNameTupleWithSourceName("test_schema.native_text_array_table", "test_schema", constants.YUGABYTEDB)
+	udtTextArrayTableTuple := testutils.CreateNameTupleWithSourceName("test_schema.udt_text_array_table", "test_schema", constants.YUGABYTEDB)
+	udtInt4ArrayTableTuple := testutils.CreateNameTupleWithSourceName("test_schema.udt_int4_array_table", "test_schema", constants.YUGABYTEDB)
+
+	tableList := []sqlname.NameTuple{
+		nativeTextArrayTableTuple,
+		udtTextArrayTableTuple,
+		udtInt4ArrayTableTuple,
+	}
+
+	// Connector type is irrelevant here
+	filteredTables, unsupportedTables := testYugabyteDBSource.DB().FilterUnsupportedTables(tableList, true)
+
+	expectedUnsupported := []sqlname.NameTuple{
+		udtTextArrayTableTuple,
+		udtInt4ArrayTableTuple,
+	}
+	expectedFiltered := []sqlname.NameTuple{
+		nativeTextArrayTableTuple, // Uses native pg_catalog types, not the UDTs
+	}
+	testutils.AssertEqualNameTuplesSlice(t, expectedUnsupported, unsupportedTables)
+	testutils.AssertEqualNameTuplesSlice(t, expectedFiltered, filteredTables)
+}
