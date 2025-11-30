@@ -119,7 +119,7 @@ type ConflictDetectionCache struct {
 		m caches separate copy of events not pointer, otherwise it will be modified by ConvertEvent() causing issue in events comparison for conflict detection
 		ConvertEvent() in some case modifies schemaName, tableName and before after values
 
-		Worst event size can be 7kb for 30-50 columns in the table 
+		Worst event size can be 7kb for 30-50 columns in the table
 		so for the 500000 events (100 channels * 500 events per channel) at worst in the cache it will be 500000 * 7kb = 3.5GB
 	*/
 	m                       map[int64]*tgtdb.Event
@@ -309,7 +309,7 @@ func (c *ConflictDetectionCache) eventsConfict(cachedEvent *tgtdb.Event, incomin
 		return false
 	}
 
-	if c.HaveSamePK(cachedEvent, incomingEvent) {
+	if c.sameTableEventsHaveSamePK(cachedEvent, incomingEvent) {
 		return false
 	}
 
@@ -344,48 +344,97 @@ func (c *ConflictDetectionCache) eventsConfict(cachedEvent *tgtdb.Event, incomin
 	for _, column := range uniqueKeyColumns {
 		//todo: handle nil values properly in before fields / fields
 
-		if cachedEvent.BeforeFields[column] == nil && incomingEvent.Fields[column] == nil {
-			//if c.before and i.after are nil then it can be a conflict
-			log.Infof("conflict detected for table %s, column %s, between value of event1(vsn=%d, colVal=%s) and event2(vsn=%d, colVal=%s)",
-				cachedEvent.TableNameTup.ForKey(), column, cachedEvent.Vsn, "nil", incomingEvent.Vsn, "nil")
-			return true
-		}
-
-		if cachedEvent.BeforeFields[column] == nil && incomingEvent.BeforeFields[column] != nil {
-			//if c.before and i.before are nil then it can be a conflict
-			log.Infof("conflict detected for table %s, column %s, between value of event1(vsn=%d, colVal=%s) and event2(vsn=%d, colVal=%s)",
-				cachedEvent.TableNameTup.ForKey(), column, cachedEvent.Vsn, "nil", incomingEvent.Vsn, "nil")
-			return true
-		}
-
-		cachedEventBefore := ""
-		if cachedEvent.BeforeFields[column] != nil {
-			cachedEventBefore = *cachedEvent.BeforeFields[column]
-		}
-		incomingEventBefore := ""
-		if incomingEvent.BeforeFields[column] != nil {
-			incomingEventBefore = *incomingEvent.BeforeFields[column]
-		}
-		incomingEventAfter := ""
-		if incomingEvent.Fields[column] != nil {
-			incomingEventAfter = *incomingEvent.Fields[column]
-		}
-
+		cachedEventBefore, cachedEventBeforeExists := cachedEvent.BeforeFields[column]
+		incomingEventBefore, incomingEventBeforeExists := incomingEvent.BeforeFields[column]
+		incomingEventAfter, incomingEventAfterExists := incomingEvent.Fields[column]
 		switch true {
-		case cachedEventBefore == incomingEventAfter:
-			//If uk column is changes then it is a pure conflict
-			//Handles all cases of UPDATE-UPDATE, UPDATE-INSERT, DELETE-INSERT, DELETE-UPDATE
+		case (cachedEventBeforeExists && incomingEventAfterExists) && (*cachedEventBefore == *incomingEventAfter):
+			/*
+				If uk column is changes then it is a pure conflict
+				Handles all cases of UPDATE-UPDATE, UPDATE-INSERT, DELETE-INSERT, DELETE-UPDATE
 
-			//If uk is not changed but the partial predicate is updated in cached and the same uk with before predicate is inserted in the incoming event then it is a partial conflict
-			//handles UPDATE-INSERT, DELETE-INSERT
-			log.Infof("conflict detected for table %s, column %s, between value of event1(vsn=%d, colVal=%s) and event2(vsn=%d, colVal=%s)",
-				cachedEvent.TableNameTup.ForKey(), column, cachedEvent.Vsn, cachedEventBefore, incomingEvent.Vsn, incomingEventAfter)
+				If uk is not changed but the partial predicate is updated in cached and the same uk with before predicate is inserted in the incoming event then it is a conflict due to partial predicate
+				handles UPDATE-INSERT, DELETE-INSERT
+
+				False positives can be detected in case of conflict detected due to partial predicate but the unique key column is actually changed
+				1. UPDATE-INSERT:
+					UK - check_id where most_recent
+					1 10 t
+					UPDATE 1 10 true->false
+					INSERT 2 10 false
+					In this case, the conflict is detected due to partial predicate because the unique key column is same for both the events and the Update is removing the index key
+					but the insert is not adding the index key so they can be processed in parallel
+
+					UK - check_id where most_recent
+					1 10 t xyz
+					UPDATE 1 10 xyz->abc
+					INSERT 2 10 false
+					In this case, the conflict is detected due to partial predicate because the unique key column is same for both the events but the Update is neither removing nor adding the index key,
+					the insert is also not adding the index key so they can be processed in parallel
+
+				2. DELETE-INSERT:
+					UK - check_id where most_recent
+					1 10 t
+					DELETE 1
+					INSERT 2 10 false
+					In this case, the conflict is detected due to partial predicate but the unique key column is same for both the events and the Delete is removing the index key
+					but the insert is not adding the index key so they can be processed in parallel
+			*/
+			log.Infof("conflict detected for table %s, column %s, between before value of cached-event1(vsn=%d, colVal=%s) and after value of incoming-event2(vsn=%d, colVal=%s)",
+				cachedEvent.TableNameTup.ForKey(), column, cachedEvent.Vsn, *cachedEventBefore, incomingEvent.Vsn, *incomingEventAfter)
 			return true
-		case cachedEventBefore == incomingEventBefore:
-			//If two events are operating on same uk then it is a partial conflict
-			//handles UPDATE-UPDATE, DELETE-UPDATE
-			log.Infof("conflict detected for table %s, column %s, between value of event1(vsn=%d, colVal=%s) and event2(vsn=%d, colVal=%s)",
-				cachedEvent.TableNameTup.ForKey(), column, cachedEvent.Vsn, cachedEventBefore, incomingEvent.Vsn, incomingEventBefore)
+		case (cachedEventBeforeExists && incomingEventBeforeExists) && (*cachedEventBefore == *incomingEventBefore):
+			/*
+				If two events are operating on same uk then it is a conflict due to partial predicate
+				handles UPDATE-UPDATE, DELETE-UPDATE
+
+				False positives can be detected in case of conflict detected due to partial predicate but the unique key column is actually changed
+				1. UPDATE-UPDATE:
+					UK - check_id where most_recent
+					1 10 f xyz
+					2 10 f
+					UPDATE 1 10 xyz -> abc
+					UPDATE 2 10 false->true
+					In this case, the conflict is detected due to partial predicate because the unique key column is same for both the events and the Update is neither removing nor adding the index key,
+					but the second update is adding the index key so they can be processed in parallel
+
+					UK - check_id where most_recent
+					1 10 f xyz
+					2 10 f def
+					UPDATE 1 10 xyz -> abc
+					UPDATE 2 10 def->ghi
+					In this case, the conflict is detected due to partial predicate because the unique key column is same for both the events and the Update is neither removing nor adding the index key,
+					but the second update is also neither removing nor adding the index key so they can be processed in parallel
+
+				2. DELETE-UPDATE:
+					UK - check_id where most_recent
+					1 10 f
+					2 10 f
+					DELETE 1
+					UPDATE 2 10 false->true
+					In this case, the conflict is detected due to partial predicate because the unique key column is same for both the events and the Delete is not removing the index key
+					but the update is adding the index key so they can be processed in parallel
+
+					UK - check_id where most_recent
+					1 10 f
+					2 10 t
+					DELETE 1
+					UPDATE 2 10 t->f
+					In this case, the conflict is detected due to partial predicate because the unique key column is same for both the events and the Delete is not removing the index key
+					but the update is removing the index key so they can be processed in parallel
+
+					UK - check_id where most_recent
+					1 10 f
+					2 10 t abx
+					DELETE 1
+					UPDATE 2 10 abx->ghy
+					In this case, the conflict is detected due to partial predicate because the unique key column is same for both the events and the Delete is not removing the index key
+					but the update is neither removing nor adding the index key so they can be processed in parallel
+
+
+			*/
+			log.Infof("conflict detected for table %s, column %s, between before value of cached-event1(vsn=%d, colVal=%s) and before value of incoming-event2(vsn=%d, colVal=%s)",
+				cachedEvent.TableNameTup.ForKey(), column, cachedEvent.Vsn, *cachedEventBefore, incomingEvent.Vsn, *	incomingEventBefore)
 			return true
 		}
 
@@ -397,9 +446,18 @@ func (c *ConflictDetectionCache) eventsAreOfSameTable(event1 *tgtdb.Event, event
 	return event1.TableNameTup.Equals(event2.TableNameTup)
 }
 
-func (c *ConflictDetectionCache) HaveSamePK(event1 *tgtdb.Event, event2 *tgtdb.Event) bool {
+func (c *ConflictDetectionCache) sameTableEventsHaveSamePK(event1 *tgtdb.Event, event2 *tgtdb.Event) bool {
+	event1KeyColumns := lo.Keys(event1.Key)
+	event2KeyColumns := lo.Keys(event2.Key)
+	if len(event1KeyColumns) != len(event2KeyColumns) {
+		return false
+	}
 	for key, value := range event1.Key {
-		if event2.Key[key] != value {
+		value2, ok := event2.Key[key]
+		if !ok {
+			return false
+		}
+		if *value != *value2 {
 			return false
 		}
 	}
