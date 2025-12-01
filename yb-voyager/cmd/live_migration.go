@@ -210,7 +210,8 @@ func getCdcPartitioningStrategyPerTable(tableNames []sqlname.NameTuple) (*utils.
 	switch cdcPartitioningStrategy {
 	case "auto":
 		//if not found in metadb key, use the auto strategy
-		//find the tables having expression or normal unique indexes
+		//find the tables having expression or normal unique indexes since the conflicts on these expression based unique indexes can't be detected easily as it require
+		//evaluating the expression for each event to detect the conflicts so we are running all the events of those tables sequentially by marking these table as partition by table
 		expressionUniqueIndexes, err := tdb.GetTablesHavingExpressionUniqueIndexes(tableNames)
 		if err != nil {
 			return nil, fmt.Errorf("error getting tables having expression or normal unique indexes: %w", err)
