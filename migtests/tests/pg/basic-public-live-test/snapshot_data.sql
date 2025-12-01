@@ -10,4 +10,3 @@ INSERT INTO user_table (email) VALUES
     ('user6@example.com'),
     ('user7@example.com'),
     ('user8@example.com');
-

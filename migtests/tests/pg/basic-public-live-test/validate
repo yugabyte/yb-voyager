@@ -18,7 +18,7 @@ def main():
 
 EXPECTED_ROW_COUNT = {
 	'x':3,
- 	'user_table': 8,
+ 	'user_table': 8
 }
 
 EXPECTED_DATA_TYPES = {
@@ -40,7 +40,7 @@ EXPECTED_SUM_OF_COLUMN = {
 	},
 	'user_table': {
 		'id': '36',
-	},
+	}
 }
 
 def migration_completed_checks_yb():
