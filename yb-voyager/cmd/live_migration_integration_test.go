@@ -769,4 +769,111 @@ END $$;`,
 	}, nil, false).Run()
 	testutils.FatalIfError(t, err, "Cutover command failed")
 
+	// Validate unique index constraint: For each check_id, exactly one row should have most_recent=true
+	validateUniqueIndexConstraint(t, ybConn)
+
+	// Validate expected rows based on the final state
+	validateExpectedRows(t, ybConn)
+}
+
+// validateUniqueIndexConstraint validates that for each check_id, exactly one row has most_recent=true
+func validateUniqueIndexConstraint(t *testing.T, ybConn *sql.DB) {
+	query := `
+		SELECT check_id, COUNT(*) as count
+		FROM test_schema.test_live
+		WHERE most_recent = true
+		GROUP BY check_id
+		HAVING COUNT(*) > 1;`
+
+	rows, err := ybConn.Query(query)
+	testutils.FatalIfError(t, err, "Failed to query for unique constraint validation")
+	defer rows.Close()
+
+	var violations []string
+	for rows.Next() {
+		var checkID, count int
+		err := rows.Scan(&checkID, &count)
+		testutils.FatalIfError(t, err, "Failed to scan row")
+		violations = append(violations, fmt.Sprintf("check_id=%d has %d rows with most_recent=true", checkID, count))
+	}
+
+	assert.Empty(t, violations, "Unique index constraint violation: multiple rows with most_recent=true for same check_id: %v", violations)
+}
+
+// validateExpectedRows validates the expected final state of rows
+// Based on the data pattern from validateAfterChanges
+func validateExpectedRows(t *testing.T, ybConn *sql.DB) {
+	// Query all rows ordered by id
+	query := `
+		SELECT id, check_id, most_recent
+		FROM test_schema.test_live
+		ORDER BY id;`
+
+	rows, err := ybConn.Query(query)
+	testutils.FatalIfError(t, err, "Failed to query expected rows")
+	defer rows.Close()
+
+	type RowData struct {
+		ID         int
+		CheckID    int
+		MostRecent bool
+	}
+
+	var actualRows []RowData
+	for rows.Next() {
+		var id, checkID int
+		var mostRecent bool
+		err := rows.Scan(&id, &checkID, &mostRecent)
+		testutils.FatalIfError(t, err, "Failed to scan row")
+		actualRows = append(actualRows, RowData{ID: id, CheckID: checkID, MostRecent: mostRecent})
+	}
+
+	// Validate that for each check_id, there's exactly one row with most_recent=true
+	checkIDToMostRecentRow := make(map[int]RowData)
+	checkIDToRows := make(map[int][]RowData)
+
+	for _, row := range actualRows {
+		checkIDToRows[row.CheckID] = append(checkIDToRows[row.CheckID], row)
+		if row.MostRecent {
+			// Check if we already have a most_recent=true row for this check_id
+			if existing, exists := checkIDToMostRecentRow[row.CheckID]; exists {
+				t.Errorf("Multiple rows with most_recent=true for check_id=%d: id=%d and id=%d",
+					row.CheckID, existing.ID, row.ID)
+			} else {
+				checkIDToMostRecentRow[row.CheckID] = row
+			}
+		}
+	}
+
+	// Validate that all check_ids that have rows with most_recent=false also have exactly one with most_recent=true
+	for checkID, rows := range checkIDToRows {
+		hasMostRecentTrue := false
+		for _, row := range rows {
+			if row.MostRecent {
+				hasMostRecentTrue = true
+				break
+			}
+		}
+		// If there are any rows for this check_id, at least one should have most_recent=true
+		// (due to the unique index constraint)
+		if len(rows) > 0 && !hasMostRecentTrue {
+			t.Errorf("check_id=%d has rows but none with most_recent=true", checkID)
+		}
+	}
+
+	// Log the final state for debugging
+	t.Logf("Final state validation: Found %d rows total", len(actualRows))
+	t.Logf("Unique check_ids with most_recent=true: %d", len(checkIDToMostRecentRow))
+
+	// Validate specific expected pattern: check_id=20 should have exactly one row with most_recent=true
+	// (since all streaming events used check_id=20)
+	if rows20, exists := checkIDToRows[20]; exists {
+		mostRecentCount := 0
+		for _, row := range rows20 {
+			if row.MostRecent {
+				mostRecentCount++
+			}
+		}
+		assert.Equal(t, 1, mostRecentCount, "check_id=20 should have exactly one row with most_recent=true, got %d", mostRecentCount)
+	}
 }

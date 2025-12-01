@@ -26,23 +26,3 @@ UPDATE user_table SET email = 'user4@example.com' WHERE id = 6;
 
 -- events with NULL value for unique key columns
 UPDATE user_table SET status = 'inactive' where id > 0;
-
-
--- events for test_partial_unique_index table UPDATE-INSERT
-UPDATE test_partial_unique_index SET most_recent = false WHERE check_id = 1;
-INSERT INTO test_partial_unique_index (check_id, most_recent) VALUES (1, true);
-
-UPDATE test_partial_unique_index SET most_recent = false WHERE check_id = 2;
-INSERT INTO test_partial_unique_index (check_id, most_recent) VALUES (2, true);
-
--- events for test_partial_unique_index table DELETE-INSERT
-DELETE FROM test_partial_unique_index WHERE id = 3;
-INSERT INTO test_partial_unique_index (check_id, most_recent) VALUES (3, true);
-
--- events for test_partial_unique_index table DELETE-UPDATE
-DELETE FROM test_partial_unique_index WHERE id = 4;
-UPDATE test_partial_unique_index SET most_recent = true WHERE id = 5;
-
--- events for test_partial_unique_index table UPDATE-UPDATE
-UPDATE test_partial_unique_index SET most_recent = false WHERE id = 7;
-UPDATE test_partial_unique_index SET most_recent = true WHERE id = 8;
