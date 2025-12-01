@@ -116,36 +116,36 @@ UPDATE same_column_unique_constraint_and_index SET email = 'target_user106@examp
 
 
 -- Initial data for `single_unique_index`
-INSERT INTO single_unique_index (id, ssn) VALUES (101, 'target_ssn101');
-INSERT INTO single_unique_index (id, ssn) VALUES (102, 'target_ssn102');
-INSERT INTO single_unique_index (id, ssn) VALUES (103, 'target_ssn103');
-INSERT INTO single_unique_index (id, ssn) VALUES (104, 'target_ssn104');
-INSERT INTO single_unique_index (id, ssn) VALUES (105, 'target_ssn105');
+INSERT INTO single_unique_index (id, "Ssn") VALUES (101, 'target_ssn101');
+INSERT INTO single_unique_index (id, "Ssn") VALUES (102, 'target_ssn102');
+INSERT INTO single_unique_index (id, "Ssn") VALUES (103, 'target_ssn103');
+INSERT INTO single_unique_index (id, "Ssn") VALUES (104, 'target_ssn104');
+INSERT INTO single_unique_index (id, "Ssn") VALUES (105, 'target_ssn105');
 
 -- 4. Conflicts for `single_unique_index`
 -- DELETE-INSERT conflict
 DELETE FROM single_unique_index WHERE id = 101;
-INSERT INTO single_unique_index (id, ssn) VALUES (106, 'target_ssn101');
+INSERT INTO single_unique_index (id, "Ssn") VALUES (106, 'target_ssn101');
 
 -- Non-conflict update and delete
-UPDATE single_unique_index SET ssn = 'updated_target_ssn102' WHERE id = 102;
+UPDATE single_unique_index SET "Ssn" = 'updated_target_ssn102' WHERE id = 102;
 DELETE FROM single_unique_index WHERE id = 103;
 
 -- DELETE-UPDATE conflict
 DELETE FROM single_unique_index WHERE id = 104;
-UPDATE single_unique_index SET ssn = 'target_ssn104' WHERE id = 105;
+UPDATE single_unique_index SET "Ssn" = 'target_ssn104' WHERE id = 105;
 
 -- UPDATE-INSERT conflict
-UPDATE single_unique_index SET ssn = 'updated_target_ssn105' WHERE id = 105;
-INSERT INTO single_unique_index (id, ssn) VALUES (107, 'target_ssn105');
+UPDATE single_unique_index SET "Ssn" = 'updated_target_ssn105' WHERE id = 105;
+INSERT INTO single_unique_index (id, "Ssn") VALUES (107, 'target_ssn105');
 
 -- UPDATE-UPDATE conflict
 -- Insert initial data
-INSERT INTO single_unique_index (id, ssn) VALUES (108, 'target_ssn106');
-INSERT INTO single_unique_index (id, ssn) VALUES (109, 'target_ssn107');
+INSERT INTO single_unique_index (id, "Ssn") VALUES (108, 'target_ssn106');
+INSERT INTO single_unique_index (id, "Ssn") VALUES (109, 'target_ssn107');
 
-UPDATE single_unique_index SET ssn = 'updated_target_ssn106' WHERE id = 108;
-UPDATE single_unique_index SET ssn = 'target_ssn106' WHERE id = 109;
+UPDATE single_unique_index SET "Ssn" = 'updated_target_ssn106' WHERE id = 108;
+UPDATE single_unique_index SET "Ssn" = 'target_ssn106' WHERE id = 109;
 
 
 
@@ -262,3 +262,11 @@ INSERT INTO expression_based_unique_index (email) VALUES ('UPDATED_User4@example
 --UPDATE-UPDATE conflict
 UPDATE expression_based_unique_index SET email = 'updated_target_user5@example.com' WHERE id = 5;
 UPDATE expression_based_unique_index SET email = 'UPDATED_User5@example.com' WHERE id = 6;
+
+-- events for test_partial_unique_index table
+-- will uncomment in another PR as part of cdc partitioning strategy changes
+-- UPDATE test_partial_unique_index SET most_recent = false WHERE check_id = 1;
+-- INSERT INTO test_partial_unique_index (check_id, most_recent) VALUES (1, true);
+
+-- UPDATE test_partial_unique_index SET most_recent = false WHERE check_id = 2;
+-- INSERT INTO test_partial_unique_index (check_id, most_recent) VALUES (2, true);

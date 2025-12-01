@@ -15,9 +15,9 @@ CREATE TABLE multi_unique_constraint (
 -- Table with Single Column Unique Index
 CREATE TABLE single_unique_index (
     id SERIAL PRIMARY KEY,
-    ssn VARCHAR(100)
+    "Ssn" VARCHAR(100)
 );
-CREATE UNIQUE INDEX idx_ssn_unique ON single_unique_index (ssn);
+CREATE UNIQUE INDEX idx_ssn_unique ON single_unique_index ("Ssn");
 
 -- Table with Multiple Column Unique Index
 CREATE TABLE multi_unique_index (
@@ -62,3 +62,11 @@ CREATE TABLE expression_based_unique_index (
     email VARCHAR(255)
 );
 CREATE UNIQUE INDEX idx_email_unique_expression ON expression_based_unique_index (LOWER(email));
+
+CREATE TABLE test_partial_unique_index (
+    id SERIAL PRIMARY KEY,
+    check_id int,
+    most_recent boolean
+);
+
+CREATE UNIQUE INDEX idx_test_partial_unique_index ON test_partial_unique_index (check_id) WHERE most_recent;

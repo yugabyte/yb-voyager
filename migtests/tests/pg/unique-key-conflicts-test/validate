@@ -23,6 +23,7 @@ EXPECTED_ROW_COUNT = {
     'multi_unique_constraint': 5,
     'same_column_unique_constraint_and_index': 5,
     'expression_based_unique_index': 5,
+	'test_partial_unique_index':10
 }
 
 def migration_completed_checks_yb():

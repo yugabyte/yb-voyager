@@ -86,9 +86,9 @@ jobs:
     - name: Run Integration Tests (executing voyager commands)
       env: 
         YB_VERSION: ${{ needs.prepare-versions.outputs.yb_latest_stable }}
-        PG_VERSION: "14"
+        PG_VERSION: "17"
         ORACLE_VERSION: "21"
         MYSQL_VERSION: "8.4"
       run: |
         cd yb-voyager
-        go test -v ./... -tags 'integration_voyager_command' -timeout 15m
+        go test -v ./... -tags 'integration_voyager_command' -timeout 25m
