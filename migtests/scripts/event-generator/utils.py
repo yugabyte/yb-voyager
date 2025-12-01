@@ -5,7 +5,6 @@ import json
 import ipaddress
 import re
 import decimal
-import uuid
 import psycopg2
 from typing import Any, Callable, Dict, List, Optional, Tuple
 import os
@@ -387,13 +386,11 @@ def fetch_enum_values_for_column(
     # Check if the table and column exist in the schemas
     if table_name in table_schemas and "columns" in table_schemas[table_name]:
         columns_info = table_schemas[table_name]["columns"]
-        #print(columns_info)
         if column_name in columns_info:
             data_type = columns_info[column_name]
             if data_type == "USER-DEFINED" and "enum_values" in table_schemas[table_name]:
                 # Fetch enum values based on the column name
                 enum_values = table_schemas[table_name]["enum_values"].get(column_name, [])
-    #print(enum_values)
     return enum_values
 
 
@@ -484,9 +481,6 @@ def generate_random_data(
             precision, scale = map(int, match.groups())
         else:
             precision, scale = 7, 2
-
-        # max_value = 10 ** (precision - scale) - 10 ** -scale
-        # return round(random.uniform(-max_value, max_value), scale)
 
         floatStr=""
         for i in range(precision-scale):

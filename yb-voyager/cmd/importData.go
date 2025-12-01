@@ -67,7 +67,7 @@ var dataFileDescriptor *datafile.Descriptor
 var truncateSplits utils.BoolStr                                             // to truncate *.D splits after import
 var TableToColumnNames = utils.NewStructMap[sqlname.NameTuple, []string]()   // map of table name to columnNames
 var TableToIdentityColumnNames *utils.StructMap[sqlname.NameTuple, []string] // map of table name to generated always as identity column's names
-var valueConverter dbzm.ValueConverter
+var valueConverter dbzm.SnapshotPhaseValueConverter
 
 var TableNameToSchema *utils.StructMap[sqlname.NameTuple, map[string]map[string]string]
 var conflictDetectionCache *ConflictDetectionCache
@@ -140,7 +140,6 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	reportProgressInBytes = false
 	tconf.ImportMode = true
 	checkExportDataDoneFlag()
-
 	/*
 		Before this point MSR won't not be initialised in case of importDataFileCmd
 		In case of importDataCmd, MSR would be initialised already by previous commands
@@ -187,8 +186,13 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 		utils.ErrExit("error while setting import type or identity column metadb key: %v", err)
 	}
 
-	if changeStreamingIsEnabled(importType) && (tconf.TableList != "" || tconf.ExcludeTableList != "") {
-		utils.ErrExit("--table-list and --exclude-table-list are not supported for live migration. Re-run the command without these flags.")
+	if changeStreamingIsEnabled(importType) {
+		if tconf.TableList != "" || tconf.ExcludeTableList != "" {
+			utils.ErrExit("--table-list and --exclude-table-list are not supported for live migration. Re-run the command without these flags.")
+		}
+		//for live target db importer we don't support table-list and exclude-table-list flags, so we need to check if all the tables in the importFileTasks are present in the target
+		//and if not, we need to exit with an error
+		checkTablesPresentInTarget(importFileTasks)
 	} else {
 		importFileTasks = applyTableListFilter(importFileTasks)
 	}
@@ -215,6 +219,24 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 
 	if changeStreamingIsEnabled(importType) {
 		startExportDataFromTargetIfRequired()
+	}
+}
+
+func checkTablesPresentInTarget(importFileTasks []*ImportFileTask) {
+	if importerRole != TARGET_DB_IMPORTER_ROLE {
+		return
+	}
+	tablesNotPresentInTarget := []sqlname.NameTuple{}
+	for _, task := range importFileTasks {
+		if !task.TableNameTup.TargetTableAvailable() {
+			tablesNotPresentInTarget = append(tablesNotPresentInTarget, task.TableNameTup)
+		}
+	}
+	if len(tablesNotPresentInTarget) > 0 {
+		utils.PrintAndLogfInfo("\nFollowing source tables are not present in the target database:\n%v", strings.Join(lo.Map(tablesNotPresentInTarget, func(t sqlname.NameTuple, _ int) string {
+			return t.ForKey()
+		}), ", "))
+		utils.ErrExit(utils.ErrorColor.Sprint("Create these tables in the target database to continue with the import."))
 	}
 }
 
@@ -591,10 +613,10 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 		result = append(result, task)
 	}
 	if len(tablesNotPresentInTarget) > 0 {
-		utils.PrintAndLogf("Following source tables are not present in the target database:\n%v", strings.Join(lo.Map(tablesNotPresentInTarget, func(t sqlname.NameTuple, _ int) string {
+		utils.PrintAndLogfInfo("\nFollowing source tables are not present in the target database:\n%v", strings.Join(lo.Map(tablesNotPresentInTarget, func(t sqlname.NameTuple, _ int) string {
 			return t.ForKey()
 		}), ","))
-		utils.ErrExit("Create these tables in the target database or exclude the tables in table-list flags if you don't want to import them.")
+		utils.ErrExit(utils.ErrorColor.Sprint("Create these tables in the target database or exclude the tables in table-list flags if you don't want to import them."))
 	}
 	return result
 }
@@ -644,6 +666,13 @@ func updateImportDataStartedInMetaDB() error {
 }
 
 func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorPolicy) {
+	if perfProfile {
+		// Start Prometheus metrics server
+		err := importdata.StartPrometheusMetricsServer(importerRole, migrationUUID, prometheusMetricsPort)
+		if err != nil {
+			utils.ErrExit("Failed to start Prometheus metrics server: %v", err)
+		}
+	}
 
 	err := updateImportDataStartedInMetaDB()
 	if err != nil {
@@ -751,9 +780,9 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 		importTableList = importFileTasksToTableNameTuples(importFileTasks)
 	}
 	if msr.IsSnapshotExportedViaDebezium() {
-		valueConverter, err = dbzm.NewValueConverter(exportDir, tdb, tconf, importerRole, msr.SourceDBConf.DBType, importTableList)
+		valueConverter, err = dbzm.NewSnapshotPhaseValueConverter(exportDir, tdb, tconf, importerRole, msr.SourceDBConf.DBType, importTableList)
 	} else {
-		valueConverter, err = dbzm.NewNoOpValueConverter()
+		valueConverter, err = dbzm.NewSnapshotPhaseNoOpValueConverter()
 	}
 	if err != nil {
 		utils.ErrExit("create value converter: %s", err)
@@ -795,7 +824,7 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 			if useTaskPicker {
 				maxColocatedBatchesInProgress := utils.GetEnvAsInt("YBVOYAGER_MAX_COLOCATED_BATCHES_IN_PROGRESS", 3)
 				err := importTasksViaTaskPicker(pendingTasks, state, progressReporter,
-					maxParallelConns, maxParallelConns, maxColocatedBatchesInProgress,
+					maxParallelConns, maxParallelConns, maxColocatedBatchesInProgress, msr.IsSnapshotExportedViaDebezium(),
 					errorHandler, callhomeMetricsCollector)
 				if err != nil {
 					utils.ErrExit("Failed to import tasks via task picker. %s", err)
@@ -808,7 +837,8 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 					batchImportPool = pool.New().WithMaxGoroutines(poolSize)
 					log.Infof("created batch import pool of size: %d", poolSize)
 
-					taskImporter, err := NewFileTaskImporter(task, state, batchImportPool, progressReporter, nil, false, errorHandler, callhomeMetricsCollector)
+					taskImporter, err := NewFileTaskImporter(task, state, batchImportPool, progressReporter, nil, false, msr.IsSnapshotExportedViaDebezium(),
+						errorHandler, callhomeMetricsCollector)
 					if err != nil {
 						utils.ErrExit("Failed to create file task importer: %s", err)
 					}
@@ -841,11 +871,15 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 		if err != nil {
 			utils.ErrExit("failed to get table unique key columns map: %s", err)
 		}
-		valueConverter, err = dbzm.NewValueConverter(exportDir, tdb, tconf, importerRole, source.DBType, importTableList)
+		valueConverter, err = dbzm.NewSnapshotPhaseValueConverter(exportDir, tdb, tconf, importerRole, source.DBType, importTableList)
 		if err != nil {
 			utils.ErrExit("Failed to create value converter: %s", err)
 		}
-		err = streamChanges(state, importTableList)
+		streamingPhaseValueConverter, err := dbzm.NewStreamingPhaseDebeziumValueConverter(importTableList, exportDir, tconf, importerRole)
+		if err != nil {
+			utils.ErrExit("Failed to create streaming phase value converter: %s", err)
+		}
+		err = streamChanges(state, importTableList, streamingPhaseValueConverter)
 		if err != nil {
 			utils.ErrExit("Failed to stream changes to %s: %s", tconf.TargetDBType, err)
 		}
@@ -998,7 +1032,7 @@ func getMaxParallelConnections() (int, error) {
   - If task is done, mark it as done in the task picker.
 */
 func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataState, progressReporter *ImportDataProgressReporter, maxParallelConns int,
-	maxShardedTasksInProgress int, maxColocatedBatchesInProgress int, errorHandler importdata.ImportDataErrorHandler, callhomeMetricsCollector *callhome.ImportDataMetricsCollector) error {
+	maxShardedTasksInProgress int, maxColocatedBatchesInProgress int, isRowTransformationRequired bool, errorHandler importdata.ImportDataErrorHandler, callhomeMetricsCollector *callhome.ImportDataMetricsCollector) error {
 
 	var err error
 	setupWorkerPoolAndQueue(maxParallelConns, maxColocatedBatchesInProgress)
@@ -1037,7 +1071,7 @@ func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataS
 		var ok bool
 		taskImporter, ok = taskImporters[task.ID]
 		if !ok {
-			taskImporter, err = createFileTaskImporter(task, state, batchImportPool, progressReporter, colocatedBatchImportQueue, tableTypes, errorHandler, callhomeMetricsCollector)
+			taskImporter, err = createFileTaskImporter(task, state, batchImportPool, progressReporter, colocatedBatchImportQueue, tableTypes, isRowTransformationRequired, errorHandler, callhomeMetricsCollector)
 			if err != nil {
 				return fmt.Errorf("create file task importer: %w", err)
 			}
@@ -1149,7 +1183,7 @@ and colocated table batches to the colocatedBatchImportQueue.
 Otherwise, we simply pass the batchImportPool to the FileTaskImporter.
 */
 func createFileTaskImporter(task *ImportFileTask, state *ImportDataState, batchImportPool *pool.Pool, progressReporter *ImportDataProgressReporter, colocatedBatchImportQueue chan func(),
-	tableTypes *utils.StructMap[sqlname.NameTuple, string], errorHandler importdata.ImportDataErrorHandler, callhomeMetricsCollector *callhome.ImportDataMetricsCollector) (*FileTaskImporter, error) {
+	tableTypes *utils.StructMap[sqlname.NameTuple, string], isRowTransformationRequired bool, errorHandler importdata.ImportDataErrorHandler, callhomeMetricsCollector *callhome.ImportDataMetricsCollector) (*FileTaskImporter, error) {
 	var taskImporter *FileTaskImporter
 	var err error
 	if importerRole == TARGET_DB_IMPORTER_ROLE || importerRole == IMPORT_FILE_ROLE {
@@ -1158,12 +1192,12 @@ func createFileTaskImporter(task *ImportFileTask, state *ImportDataState, batchI
 			return nil, fmt.Errorf("table type not found for table: %s", task.TableNameTup.ForOutput())
 		}
 
-		taskImporter, err = NewFileTaskImporter(task, state, batchImportPool, progressReporter, colocatedBatchImportQueue, tableType == COLOCATED, errorHandler, callhomeMetricsCollector)
+		taskImporter, err = NewFileTaskImporter(task, state, batchImportPool, progressReporter, colocatedBatchImportQueue, tableType == COLOCATED, isRowTransformationRequired, errorHandler, callhomeMetricsCollector)
 		if err != nil {
 			return nil, fmt.Errorf("create file task importer: %w", err)
 		}
 	} else {
-		taskImporter, err = NewFileTaskImporter(task, state, batchImportPool, progressReporter, nil, false, errorHandler, callhomeMetricsCollector)
+		taskImporter, err = NewFileTaskImporter(task, state, batchImportPool, progressReporter, nil, false, isRowTransformationRequired, errorHandler, callhomeMetricsCollector)
 		if err != nil {
 			return nil, fmt.Errorf("create file task importer: %w", err)
 		}
@@ -1342,6 +1376,14 @@ func packAndSendImportDataToTargetPayload(status string, errorMsg error) {
 		log.Infof("callhome: error in getting the YB cluster metrics: %v", err2)
 	}
 
+	// Below adds cutover timings if applicable
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err == nil {
+		importDataPayload.CutoverTimings = CalculateCutoverTimingsForTarget(msr)
+	} else {
+		log.Infof("callhome: error getting MSR for cutover timings: %v", err)
+	}
+
 	payload.PhasePayload = callhome.MarshalledJsonString(importDataPayload)
 	payload.Status = status
 
@@ -1421,7 +1463,6 @@ func restoreGeneratedByDefaultAsIdentityColumns(tables []sqlname.NameTuple) erro
 	}
 	return nil
 }
-
 
 func importFileTasksToTableNames(tasks []*ImportFileTask) []string {
 	tableNames := []string{}
