@@ -836,13 +836,27 @@ def run_psql(
         *args,
     ]
 
-    subprocess.run(
+    # Capture output so we can surface errors clearly in logs and exceptions.
+    proc = subprocess.run(
         cmd,
         env=env,
         input=stdin_input,
         text=True,
-        check=True,
+        capture_output=True,
     )
+
+    if proc.returncode != 0:
+        # Log detailed diagnostics to help debug Jenkins / CI failures.
+        log(f"psql failed (role={role}) exit_code={proc.returncode}")
+        if proc.stdout:
+            log("psql STDOUT:\n" + proc.stdout)
+        if proc.stderr:
+            log("psql STDERR:\n" + proc.stderr)
+
+        raise RuntimeError(
+            f"psql failed (role={role}) exit_code={proc.returncode}; "
+            f"command={' '.join(cmd)}"
+        )
 
 def fetchall(cfg: Dict[str, Any], role: str, query: str, params=()) -> list[tuple]:
     """Generic helper for SELECT queries."""
