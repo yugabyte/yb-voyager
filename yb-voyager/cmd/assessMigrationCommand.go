@@ -27,6 +27,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"syscall"
 	"text/template"
 
@@ -630,9 +631,107 @@ type CollectionResult struct {
 	Error     error
 }
 
+// progressTracker manages the display of progress for parallel metadata collection
+type progressTracker struct {
+	nodes        []string          // Ordered list of node names for consistent display
+	displayNames map[string]string // nodeName -> displayName
+	statuses     map[string]*NodeProgress
+	mutex        sync.Mutex
+	initialized  bool // Whether initial lines have been printed
+	maxNameLen   int  // Maximum length of display names for alignment
+}
+
+func newProgressTracker(nodes []collectionNode) *progressTracker {
+	tracker := &progressTracker{
+		nodes:        make([]string, 0, len(nodes)),
+		displayNames: make(map[string]string),
+		statuses:     make(map[string]*NodeProgress),
+		initialized:  false,
+		maxNameLen:   0,
+	}
+
+	// Calculate maximum display name length for alignment
+	for _, node := range nodes {
+		tracker.nodes = append(tracker.nodes, node.nodeName)
+		tracker.displayNames[node.nodeName] = node.displayName
+		if len(node.displayName) > tracker.maxNameLen {
+			tracker.maxNameLen = len(node.displayName)
+		}
+		// Initialize with pending stage
+		tracker.statuses[node.nodeName] = &NodeProgress{
+			NodeName:    node.nodeName,
+			DisplayName: node.displayName,
+			Stage:       "Pending...",
+		}
+	}
+
+	return tracker
+}
+
+func (pt *progressTracker) update(progress NodeProgress) {
+	pt.mutex.Lock()
+	defer pt.mutex.Unlock()
+
+	// Update status
+	pt.statuses[progress.NodeName] = &progress
+
+	// Print/update display
+	pt.printAll()
+}
+
+func (pt *progressTracker) printAll() {
+	if !pt.initialized {
+		// First time: print all lines
+		fmt.Println() // Blank line
+		for _, nodeName := range pt.nodes {
+			status := pt.statuses[nodeName]
+			pt.printSingleLine(*status)
+		}
+		pt.initialized = true
+	} else {
+		// Move cursor up to the first line and reprint all
+		// Move up by number of nodes
+		fmt.Printf("\033[%dA", len(pt.nodes))
+
+		// Reprint all lines
+		for _, nodeName := range pt.nodes {
+			status := pt.statuses[nodeName]
+			pt.printSingleLine(*status)
+		}
+	}
+}
+
+func (pt *progressTracker) printSingleLine(progress NodeProgress) {
+	// Determine icon based on stage
+	statusIcon := "⏳"
+	if progress.Stage == "Complete" {
+		statusIcon = "✓"
+	} else if progress.Stage == "Failed" {
+		statusIcon = "⚠"
+	}
+
+	// Use full display name with dynamic width based on longest name
+	displayName := progress.DisplayName
+
+	// Clear line and print with fixed-width column for name
+	// \r returns to start, \033[K clears to end of line
+	// Using %-*s for left-alignment with dynamic width
+	fmt.Printf("\r\033[K  %s %-*s %s\n", statusIcon, pt.maxNameLen+1, displayName+":", progress.Stage)
+}
+
+// collectionNode represents a database node (primary or replica) that metadata will be collected from.
+// It contains all the information needed to run the collection script for that node.
+type collectionNode struct {
+	nodeName      string // Filesystem-safe unique identifier (used for subdirectory names)
+	displayName   string // User-friendly name (shown in progress UI)
+	connectionUri string // Database connection string
+	isPrimary     bool   // Whether this is the primary node (affects script behavior)
+}
+
 // gatherAssessmentMetadataFromPG collects metadata from PostgreSQL primary and replicas.
 // Accepts the validated replicas to collect from, and returns the list of failed replica names
 // (for reporting partial multi-node assessment).
+// Collection is performed in parallel for better performance.
 func gatherAssessmentMetadataFromPG(validatedReplicas []srcdb.ReplicaEndpoint) (failedReplicaNodes []string, err error) {
 	if assessmentMetadataDirFlag != "" {
 		return nil, nil
@@ -643,90 +742,148 @@ func gatherAssessmentMetadataFromPG(validatedReplicas []srcdb.ReplicaEndpoint) (
 		return nil, err
 	}
 
-	yesParam := lo.Ternary(utils.DoNotPrompt, "true", "false")
-
-	// Step 1: Collect from primary (guardrails already checked, skip redundant checks in script)
-	utils.PrintAndLogfInfo("\nCollecting metadata from primary...")
-	err = runGatherAssessmentMetadataScript(
-		scriptPath,
-		[]string{fmt.Sprintf("PGPASSWORD=%s", source.Password)},
-		source.DB().GetConnectionUriWithoutPassword(),
-		source.Schema,
-		assessmentMetadataDir,
-		fmt.Sprintf("%t", pgssEnabledForAssessment),
-		fmt.Sprintf("%d", intervalForCapturingIOPS),
-		yesParam,
-		"primary", // source_node_name
-		"true",    // skip_checks - guardrails already validated
-	)
-	if err != nil {
-		return nil, fmt.Errorf("metadata collection failed on primary database (critical): %w", err)
+	// Build list of all nodes to collect from (primary + replicas)
+	nodes := []collectionNode{
+		{
+			nodeName:      "primary",
+			displayName:   "Primary",
+			connectionUri: source.DB().GetConnectionUriWithoutPassword(),
+			isPrimary:     true,
+		},
 	}
-	utils.PrintAndLogfSuccess("✓ Primary complete\n")
-
-	// Step 2: Collect from replicas sequentially (if any) - Phase 1: clean sequential output
-	if len(validatedReplicas) == 0 {
-		utils.PrintAndLogfSuccess("\nSuccessfully completed metadata collection from primary node")
-		return nil, nil
-	}
-
-	// Sequential collection from replicas for clean output
-	// Map: replica host-port -> replica result (for tracking unique replicas and display name)
-	// Using host-port as key ensures uniqueness even if multiple replicas share the same application_name
-	type replicaResult struct {
-		name    string // Display name (user-friendly, e.g., application_name)
-		success bool
-	}
-	replicaResults := make(map[string]*replicaResult) // key: host-port (filesystem-safe)
 
 	for _, replica := range validatedReplicas {
-		// Create filesystem-safe unique identifier (host-port, no colon for cross-platform compatibility)
 		uniqueNodeName := fmt.Sprintf("%s-%d", replica.Host, replica.Port)
-		utils.PrintAndLogfInfo("\nCollecting metadata from %s...", replica.Name)
-		err := runGatherAssessmentMetadataScript(
-			scriptPath,
-			[]string{fmt.Sprintf("PGPASSWORD=%s", source.Password)},
-			replica.ConnectionUri,
-			source.Schema,
-			assessmentMetadataDir,
-			fmt.Sprintf("%t", pgssEnabledForAssessment),
-			fmt.Sprintf("%d", intervalForCapturingIOPS),
-			"true",         // Always use --yes for replicas
-			uniqueNodeName, // source_node_name - unique identifier for directory naming
-			"true",         // skip_checks - guardrails already validated
-		)
-		if err != nil {
-			log.Warnf("Failed to collect metadata from replica %s: %v", replica.Name, err)
-			utils.PrintAndLogfWarning("⚠ %s failed (will be excluded from assessment)\n", replica.Name)
-			replicaResults[uniqueNodeName] = &replicaResult{name: replica.Name, success: false}
-		} else {
-			log.Infof("Successfully collected metadata from replica: %s", replica.Name)
-			utils.PrintAndLogfSuccess("✓ %s complete\n", replica.Name)
-			replicaResults[uniqueNodeName] = &replicaResult{name: replica.Name, success: true}
-		}
+		nodes = append(nodes, collectionNode{
+			nodeName:      uniqueNodeName,
+			displayName:   replica.Name,
+			connectionUri: replica.ConnectionUri,
+			isPrimary:     false,
+		})
 	}
 
-	// Check if any replicas failed
+	totalNodes := len(nodes)
+	if totalNodes == 1 {
+		utils.PrintAndLogfInfo("\nCollecting metadata from 1 node...")
+	} else {
+		utils.PrintAndLogfInfo("\nCollecting metadata from %d nodes in parallel...", totalNodes)
+	}
+
+	// Initialize progress tracker
+	tracker := newProgressTracker(nodes)
+
+	// Channel for progress updates
+	progressChan := make(chan NodeProgress, totalNodes*10) // Buffer for multiple updates per node
+
+	// Channel to signal completion of progress display goroutine
+	displayDone := make(chan struct{})
+
+	// Start progress display goroutine
+	go func() {
+		defer close(displayDone)
+		for progress := range progressChan {
+			tracker.update(progress)
+		}
+	}()
+
+	// WaitGroup for parallel collection
+	var wg sync.WaitGroup
+
+	// Channel for collection results
+	type collectionResult struct {
+		displayName string // For logging which node succeeded/failed
+		isPrimary   bool   // Determines if failure is critical (primary) or warning (replica)
+		err         error  // nil = success, non-nil = failure
+	}
+	resultChan := make(chan collectionResult, totalNodes)
+
+	// Start parallel collection for all nodes
+	for _, node := range nodes {
+		wg.Add(1)
+		go func(n collectionNode) {
+			defer wg.Done()
+
+			// Run collection with buffered output
+			err := runGatherAssessmentMetadataScriptBuffered(
+				scriptPath,
+				[]string{fmt.Sprintf("PGPASSWORD=%s", source.Password)},
+				n.nodeName,
+				n.displayName,
+				n.isPrimary,
+				progressChan,
+				n.connectionUri,
+				source.Schema,
+				assessmentMetadataDir,
+				fmt.Sprintf("%t", pgssEnabledForAssessment),
+				fmt.Sprintf("%d", intervalForCapturingIOPS),
+				"true",     // --yes (doesn't matter since skip_checks=true)
+				n.nodeName, // source_node_name
+				"true",     // skip_checks - guardrails already validated
+			)
+
+			// Send result
+			resultChan <- collectionResult{
+				displayName: n.displayName,
+				isPrimary:   n.isPrimary,
+				err:         err,
+			}
+		}(node)
+	}
+
+	// Goroutine to close channels after all collections complete
+	go func() {
+		wg.Wait()
+		close(progressChan)
+		close(resultChan)
+	}()
+
+	// Wait for display goroutine to finish (it closes when progressChan is closed)
+	<-displayDone
+
+	// Process results
 	var failedReplicasList []string
-	var successCount int
+	var successfulReplicaCount int
+	var primaryFailed bool
+	var primaryErr error
 
-	for _, result := range replicaResults {
-		if !result.success {
-			failedReplicasList = append(failedReplicasList, result.name) // Use display name
+	for result := range resultChan {
+		if result.err == nil {
+			log.Infof("Successfully collected metadata from %s", result.displayName)
+			if !result.isPrimary {
+				successfulReplicaCount++
+			}
 		} else {
-			successCount++
+			if result.isPrimary {
+				primaryFailed = true
+				primaryErr = result.err
+			} else {
+				log.Warnf("Failed to collect metadata from replica %s: %v", result.displayName, result.err)
+				failedReplicasList = append(failedReplicasList, result.displayName)
+			}
 		}
 	}
 
-	// Some replicas failed - warn user but continue
-	if len(failedReplicasList) > 0 {
-		color.Yellow("\nWARNING: Metadata collection failed on %d replica(s): %v", len(failedReplicasList), failedReplicasList)
-		utils.PrintAndLogfInfo("Continuing assessment with data from primary + %d successful replica(s)", successCount)
+	// If primary failed, return error immediately
+	if primaryFailed {
+		return nil, fmt.Errorf("metadata collection failed on primary database (critical): %w", primaryErr)
+	}
+
+	// Print summary
+	if !primaryFailed && len(failedReplicasList) > 0 {
+		fmt.Println() // Blank line before warnings
+		color.Yellow("WARNING: Metadata collection failed on %d replica(s): %v", len(failedReplicasList), failedReplicasList)
+		utils.PrintAndLogfInfo("Continuing assessment with data from primary + %d successful replica(s)", successfulReplicaCount)
 		utils.PrintAndLogfWarning("Note: Sizing and metrics will reflect only the nodes that succeeded.")
 	}
 
-	utils.PrintAndLogfSuccess("\nSuccessfully completed metadata collection from %d node(s) (primary + %d replica(s))",
-		1+successCount, successCount)
+	fmt.Println() // Single blank line before final success message
+	if len(validatedReplicas) == 0 {
+		utils.PrintAndLogfSuccess("Successfully completed metadata collection from primary node")
+	} else {
+		utils.PrintAndLogfSuccess("Successfully completed metadata collection from %d node(s) (primary + %d replica(s))",
+			1+successfulReplicaCount, successfulReplicaCount)
+	}
+
 	return failedReplicasList, nil
 }
 
@@ -808,6 +965,163 @@ func runGatherAssessmentMetadataScript(scriptPath string, envVars []string, scri
 		return fmt.Errorf("error waiting for gather assessment metadata script to complete: %w", err)
 	}
 	return nil
+}
+
+// NodeProgress tracks the progress of metadata collection for a single node
+type NodeProgress struct {
+	NodeName    string // Unique identifier for tracking (e.g., "primary", "host-5432")
+	DisplayName string // User-friendly name for display (e.g., "Primary", "replica.aws.com:5432")
+	Stage       string // Current stage (e.g., "Collecting table row counts...", "Complete", "Failed")
+}
+
+// runGatherAssessmentMetadataScriptBuffered runs the metadata collection script with buffered output
+// and sends progress updates to the provided channel. This version is safe for parallel execution.
+func runGatherAssessmentMetadataScriptBuffered(
+	scriptPath string,
+	envVars []string,
+	nodeName string,
+	displayName string,
+	isPrimary bool,
+	progressChan chan<- NodeProgress,
+	scriptArgs ...string,
+) error {
+	cmd := exec.Command(scriptPath, scriptArgs...)
+	log.Infof("[%s] running script: %s", nodeName, cmd.String())
+	cmd.Env = os.Environ()
+	cmd.Env = append(cmd.Env, envVars...)
+	cmd.Dir = assessmentMetadataDir
+	// Don't set stdin for parallel execution to avoid conflicts.
+	// Not needed anyway since we pass skip_checks=true (no prompts).
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return fmt.Errorf("error creating stdout pipe: %w", err)
+	}
+
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return fmt.Errorf("error creating stderr pipe: %w", err)
+	}
+
+	err = cmd.Start()
+	if err != nil {
+		return fmt.Errorf("error starting gather assessment metadata script: %w", err)
+	}
+
+	// Report starting status
+	if progressChan != nil {
+		progressChan <- NodeProgress{
+			NodeName:    nodeName,
+			DisplayName: displayName,
+			Stage:       "Starting collection...",
+		}
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	// Goroutine to read stderr
+	go func() {
+		defer wg.Done()
+		scanner := bufio.NewScanner(stderr)
+		for scanner.Scan() {
+			line := scanner.Text()
+			log.Errorf("[%s][stderr]: %s", nodeName, line)
+		}
+	}()
+
+	// Goroutine to read stdout and detect stages
+	go func() {
+		defer wg.Done()
+		scanner := bufio.NewScanner(stdout)
+		for scanner.Scan() {
+			line := scanner.Text()
+			log.Infof("[%s][stdout]: %s", nodeName, line)
+
+			// Detect stage changes from script output
+			if progressChan != nil {
+				stage := detectStageFromOutput(line, isPrimary)
+				if stage != "" {
+					progressChan <- NodeProgress{
+						NodeName:    nodeName,
+						DisplayName: displayName,
+						Stage:       stage,
+					}
+				}
+			}
+		}
+	}()
+
+	// Wait for output goroutines to finish
+	wg.Wait()
+
+	// Wait for command to complete
+	err = cmd.Wait()
+	if err != nil {
+		if exiterr, ok := err.(*exec.ExitError); ok {
+			if status, ok := exiterr.Sys().(syscall.WaitStatus); ok {
+				if status.ExitStatus() == 2 {
+					log.Infof("[%s] Exit without error as user opted not to continue in the script.", nodeName)
+					// For parallel execution, we don't exit the entire process
+					return fmt.Errorf("user opted not to continue")
+				}
+			}
+		}
+		log.Errorf("[%s] Script failed with error: %v", nodeName, err)
+		if progressChan != nil {
+			progressChan <- NodeProgress{
+				NodeName:    nodeName,
+				DisplayName: displayName,
+				Stage:       "Failed",
+			}
+		}
+		return fmt.Errorf("error waiting for gather assessment metadata script to complete: %w", err)
+	}
+
+	// Report completion
+	if progressChan != nil {
+		progressChan <- NodeProgress{
+			NodeName:    nodeName,
+			DisplayName: displayName,
+			Stage:       "Complete",
+		}
+	}
+
+	return nil
+}
+
+// detectStageFromOutput parses script output to detect the current stage
+// It matches the actual messages printed by print_and_log() in the shell script
+func detectStageFromOutput(line string, isPrimary bool) string {
+	originalLine := strings.TrimSpace(line)
+	lineLower := strings.ToLower(originalLine)
+
+	// Special case: Start of collection
+	if strings.Contains(lineLower, "assessment metadata collection started") {
+		return "Starting collection..."
+	}
+
+	// Special case: Completion
+	if strings.Contains(lineLower, "assessment metadata collection completed") {
+		return "Complete"
+	}
+
+	// Pass through any line that looks like a stage message
+	// (contains keywords that indicate this is a meaningful status update)
+	isStageMessage := strings.Contains(lineLower, "collecting") ||
+		strings.Contains(lineLower, "skipping") ||
+		strings.Contains(lineLower, "executing")
+
+	if isStageMessage {
+		// Return the original line (preserves capitalization)
+		// Add "..." if not already present
+		if !strings.HasSuffix(originalLine, "...") && !strings.HasSuffix(originalLine, ".") {
+			return originalLine + "..."
+		}
+		return originalLine
+	}
+
+	return ""
 }
 
 /*
