@@ -356,7 +356,8 @@ func (c *ConflictDetectionCache) eventsConfict(cachedEvent *tgtdb.Event, incomin
 
 			// Both are nil OR both have the same value -> conflict detected
 			bothNil := cachedEventBefore == nil && incomingEventAfter == nil
-			valuesEqual := !bothNil && *cachedEventBefore == *incomingEventAfter
+			bothNotNil := cachedEventBefore != nil && incomingEventAfter != nil
+			valuesEqual := bothNotNil && *cachedEventBefore == *incomingEventAfter
 
 			if bothNil || valuesEqual {
 				//for logging purposes
@@ -410,7 +411,8 @@ func (c *ConflictDetectionCache) eventsConfict(cachedEvent *tgtdb.Event, incomin
 
 			// Both are nil OR both have the same value -> conflict detected
 			bothNil := cachedEventBefore == nil && incomingEventBefore == nil
-			valuesEqual := !bothNil && *cachedEventBefore == *incomingEventBefore
+			bothNotNil := cachedEventBefore != nil && incomingEventBefore != nil
+			valuesEqual := bothNotNil && *cachedEventBefore == *incomingEventBefore
 
 			if bothNil || valuesEqual {
 				//for logging purposes
