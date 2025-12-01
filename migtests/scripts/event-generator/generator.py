@@ -3,10 +3,6 @@ import itertools
 import psycopg2
 from utils import generate_table_schemas
 from utils import (
-    build_bit_cast_expr,
-    generate_random_data,
-    fetch_enum_values_for_column,
-    fetch_array_types_for_column,
     execute_with_retry,
     build_insert_values,
     build_update_values,
@@ -15,7 +11,6 @@ from utils import load_event_generator_config, get_connection_kwargs_from_config
 import time
 from utils import set_faker_seed
 import argparse
-import os
 
 # ----- CLI arguments -----
 parser = argparse.ArgumentParser(description="Event Generator for PostgreSQL")
@@ -96,8 +91,6 @@ table_schemas = generate_table_schemas(
     manual_table_list=MANUAL_TABLE_LIST,
     exclude_table_list=EXCLUDE_TABLE_LIST,
 )
-# print(table_schemas)
-
 print("Schema analysed")
 
 # Precompute table selection weights once: default weight 1 for unspecified tables
@@ -114,13 +107,8 @@ try:
             list(RESOLVED_TABLE_WEIGHTS.keys()),
             weights=list(RESOLVED_TABLE_WEIGHTS.values()),
         )[0]
-
-        #print(table_name)
-
         # Generate a random operation
         operation = random.choices(OPERATIONS, weights=OPERATION_WEIGHTS)[0]
-
-        # print(operation)
 
         try:
             if operation == "INSERT":
@@ -138,6 +126,7 @@ try:
 
                 success = execute_with_retry(run_once, rebuild, conn.rollback, max_retries=INSERT_MAX_RETRIES)
                 if success:
+                    # Placeholder: hook for future stats reporting (e.g., counting successful INSERT batches)
                     pass
             
             elif operation == "UPDATE":
@@ -146,7 +135,6 @@ try:
                     primary_key = table_schemas[table_name]["primary_key"]
 
                     if len(columns) == 1:
-                        #print(f"Table {table_name} has only one column. Skipping update for this table.")
                         break  # Skip the entire update operation for tables with only one column
                 
                     updateable_columns = [col for col in columns if col != primary_key]
@@ -162,33 +150,29 @@ try:
 
                     set_clause, params = build_update_values(table_schemas, table_name, columns_to_update)
                     where_clause = f"{primary_key} IN (SELECT {primary_key} FROM {table_name} TABLESAMPLE SYSTEM_ROWS(%s))"
-                    # where_clause = f"{primary_key} IN (SELECT {primary_key} FROM {table_name} ORDER BY RANDOM() LIMIT %s)"
-                    # where_clause = f"{primary_key} IN (SELECT {primary_key} FROM {table_name} TABLESAMPLE SYSTEM (0.00007))"
+                    # Alternatives considered for choosing rows to UPDATE:
+                    # - ORDER BY RANDOM() LIMIT %s
+                    # - TABLESAMPLE SYSTEM (percentage-based sampling)
                     query_to_run = f"UPDATE {table_name} SET {set_clause} WHERE {where_clause}"
                     params = params + [UPDATE_ROWS]
-                    
-                    # print(query_to_run, params)
 
                     try:
                         cursor.execute(query_to_run, params)
                         conn.commit()
                         break  # Break out of the loop if the update is successful
                     except Exception as e:
-                        #print(f"Error executing query: {query_to_run} with params: {params}")
-                        #print(f"Error details: {e}")
                         conn.rollback()
 
             elif operation == "DELETE":
                 primary_key = table_schemas[table_name]["primary_key"]
                 query_to_run = f"DELETE FROM {table_name} WHERE {primary_key} IN (SELECT {primary_key} FROM {table_name} TABLESAMPLE SYSTEM_ROWS(%s))"
-                # query_to_run = f"DELETE FROM {table_name} WHERE {primary_key} IN (SELECT {primary_key} FROM {table_name} ORDER BY RANDOM() LIMIT %s)"
-                # query_to_run = f"DELETE FROM {table_name} WHERE {primary_key} IN (SELECT {primary_key} FROM {table_name} LIMIT %s)"
+                # Alternatives considered for choosing rows to DELETE:
+                # - ORDER BY RANDOM() LIMIT %s
+                # - simple LIMIT %s without TABLESAMPLE
                 params = (DELETE_ROWS,)
-                #print(query_to_run, params)
                 cursor.execute(query_to_run, params)
 
                 conn.commit()
-                # successful_operations += 1 # This line is removed
 
             if WAIT_AFTER_OPERATIONS and i % WAIT_AFTER_OPERATIONS == 0 and i != 0:
                 if WAIT_DURATION_SECONDS > 0:
@@ -204,10 +188,6 @@ try:
             print(f"An error occurred: {e}")
             if "current transaction is aborted" in str(e):
                 print("Transaction aborted. Commands ignored until the end of the transaction block.")
-            # Print the SQL statement causing the error if available
-            #if hasattr(e, 'cursor') and e.cursor is not None and hasattr(e.cursor, 'query'):
-                #print(f"SQL statement: {e.cursor.query.decode('utf-8')}")
-            #print("-" * 50)
             # Rollback the transaction to avoid leaving it in an inconsistent state
             conn.rollback()
 
