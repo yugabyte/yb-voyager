@@ -303,6 +303,8 @@ DELETE-UPDATE
 
 
 TODO: partition by table - no need to do conflict detection
+TODO: optimization if no partial unique index then no need to check before fields
+TODO: prometheus metrics for unique conflict detection logic
 */
 
 func (c *ConflictDetectionCache) eventsConfict(cachedEvent *tgtdb.Event, incomingEvent *tgtdb.Event) bool {
@@ -351,10 +353,6 @@ func (c *ConflictDetectionCache) eventsConfict(cachedEvent *tgtdb.Event, incomin
 
 		// Check conflict: cachedEvent.BeforeFields[column] == incomingEvent.Fields[column]
 		if cachedEventBeforeExists && incomingEventAfterExists {
-			// If exactly one is nil (one nil, one not nil), no conflict - skip to next column
-			if (cachedEventBefore == nil) != (incomingEventAfter == nil) {
-				continue
-			}
 
 			// Both are nil OR both have the same value -> conflict detected
 			bothNil := cachedEventBefore == nil && incomingEventAfter == nil
@@ -409,10 +407,6 @@ func (c *ConflictDetectionCache) eventsConfict(cachedEvent *tgtdb.Event, incomin
 
 		// Check conflict: cachedEvent.BeforeFields[column] == incomingEvent.BeforeFields[column]
 		if cachedEventBeforeExists && incomingEventBeforeExists {
-			// If exactly one is nil (one nil, one not nil), no conflict - skip to next column
-			if (cachedEventBefore == nil) != (incomingEventBefore == nil) {
-				continue
-			}
 
 			// Both are nil OR both have the same value -> conflict detected
 			bothNil := cachedEventBefore == nil && incomingEventBefore == nil

@@ -392,26 +392,6 @@ func getMapValuesForQuery(m map[string]*string) []interface{} {
 	return values
 }
 
-//TODO: optimization if no partial unique index then no need to check before fields
-//tODO prometheus metrics for unique conflict detection logic
-func (event *Event) IsUniqueKeyPresent(uniqueKeyCols []string) bool {
-	if event.Op != "u" {
-		return false
-	}
-	if len(uniqueKeyCols) == 0 {
-		return false
-	}
-	//if unique key columns are changed in the event then it a candidate for conflict 
-	if lo.Some(lo.Keys(event.Fields), uniqueKeyCols) {
-		return true
-	}
-	//if not
-	// check if any of the unique key columns are present in the before fields instead of fields since there can be cases where unique key
-	// column is not changed but the unique key is remove the index  because of partial predicate
-	return lo.Some(lo.Keys(event.BeforeFields), uniqueKeyCols)
-
-}
-
 // ==============================================================================================================================
 
 type EventCounter struct {
