@@ -247,6 +247,17 @@ class KafkaConnectRecordParser implements RecordParser {
      * In case of update operation, only stores the fields that have changed by
      * comparing
      * the before and after structs.
+     * 
+     * The before fields for non-yb connectors contains all the column values of the table
+     * For Non-yb connectors,
+     *  INSERT - before:nil, fields:all column values of the row
+     *  DELETE - before:all column values of the row, fields:PK
+     *  UPDATE - before:all column values of the row, fields:changed fields
+     * 
+     * For yb connector,
+     *  INSERT - before:nil, fields:all column values of the row
+     *  DELETE - before:nil, fields:PK
+     *  UPDATE - before:nil, fields:changed fields
      */
     protected void parseValueFields(Struct value, Record r) {
         Struct after = value.getStruct("after");
@@ -262,7 +273,6 @@ class KafkaConnectRecordParser implements RecordParser {
         if (after == null) {
             return;
         }
-
         for (Field f : after.schema().fields()) {
             // TODO: write a proper transformer for this logic
             // values in the debezium connector are as follows:
@@ -288,12 +298,19 @@ class KafkaConnectRecordParser implements RecordParser {
     }
 
     private void parseValueFieldsForOthers(Struct after, Struct before, Record r) {
-        if (r.op.equals("d")){ // after is null for delete events
+        if (r.op.equals("d")) { // after is null for delete events
             for (Field f : before.schema().fields()) {
                 Object beforeFieldValue = before.getWithoutDefault(f.name());
                 r.addBeforeValueField(f.name(), beforeFieldValue);
             }
             return;
+        }
+        if (before != null) {
+            //add all the before fields to the record
+            for (Field f : before.schema().fields()) {
+                Object beforeFieldValue = before.getWithoutDefault(f.name());
+                r.addBeforeValueField(f.name(), beforeFieldValue);
+            }
         }
         for (Field f : after.schema().fields()) {
             if (r.op.equals("u")) {
@@ -303,14 +320,8 @@ class KafkaConnectRecordParser implements RecordParser {
                 }
             }
             Object afterFieldValue = after.getWithoutDefault(f.name());
-            Object beforeFieldValue = null;
 
             r.addAfterValueField(f.name(), afterFieldValue);
-            if (!(r.op.equals("c") || r.op.equals("r"))){ 
-                // before is null for create events
-                beforeFieldValue = before.getWithoutDefault(f.name());
-            }
-            r.addBeforeValueField(f.name(), beforeFieldValue);
         }
     }
 }

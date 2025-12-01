@@ -26,7 +26,7 @@ VALUES
     ('user5@example.com');
 
 -- Insert data for single_unique_index
-INSERT INTO single_unique_index (ssn) 
+INSERT INTO single_unique_index ("Ssn") 
 VALUES 
     ('SSN1'), 
     ('SSN2'), 
@@ -60,3 +60,15 @@ VALUES
     ('Bob', 'Johnson', '123-456-7892'), 
     ('Alice', 'Williams', '123-456-7893'), 
     ('Tom', 'Clark', '123-456-7894');
+
+INSERT INTO test_partial_unique_index (check_id, most_recent) VALUES
+    (1, true), --1
+    (2, true), --2
+    (3, true), --3
+    (4, true), --4
+    (4, false), --5
+    (5, true), --6
+    (6, true), --7
+    (6, false), --8
+    (7, true), --9    
+    (8, true); --10
