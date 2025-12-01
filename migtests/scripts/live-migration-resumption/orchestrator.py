@@ -115,6 +115,19 @@ def dvt_run_action(stage: Dict[str, Any], ctx: Any) -> None:
     H.run_dvt(ctx)
 
 
+@action("row_hash_validations")
+def row_hash_validations_action(stage: Dict[str, Any], ctx: Any) -> None:
+    """Run segment-based row hash validations between source and target."""
+    # Ensure validation primitives are installed on both source and target
+    helper_dir = os.path.dirname(__file__)
+    sql_path = os.path.join(helper_dir, "segment_hash_validation.sql")
+
+    H.run_sql_file(ctx, sql_path, target="source", use_admin=False)
+    H.run_sql_file(ctx, sql_path, target="target", use_admin=False)
+
+    H.run_segment_hash_validations(ctx)
+
+
 @action("start_resumptions")
 def start_resumptions_action(stage: Dict[str, Any], ctx: Any) -> None:
     """Start per-command resumption workers based on the provided resumption map.

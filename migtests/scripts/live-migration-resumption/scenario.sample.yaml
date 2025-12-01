@@ -66,8 +66,7 @@ generator:
       wait_after_operations: 0
       wait_duration_seconds: 0
       table_weights: {}
-      operations: [INSERT, UPDATE, DELETE]
-      operation_weights: [3, 2, 1]
+      operation_weights: { INSERT: 3, UPDATE: 2, DELETE: 1 }
       random_seed: 12345
       faker_seed: 12345
       insert_rows: 4

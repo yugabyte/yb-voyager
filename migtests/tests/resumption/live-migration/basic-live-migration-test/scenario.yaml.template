@@ -134,13 +134,16 @@ stages:
     condition: cutover_status_completed
     timeout_sec: 900
 
-  - name: validate
+  - name: validate_row_counts
     action: dvt_run
 
-  - name: cleanup_source_cutover_table
+  - name: row_hash_validations
+    action: row_hash_validations
+
+  - name: cleanup_source
     action: run_sql
     sql_path: ./cleanup.sql
-  - name: cleanup_target_cutover_table
+  - name: cleanup_target
     action: run_sql
     target: target
     sql_path: ./cleanup.sql

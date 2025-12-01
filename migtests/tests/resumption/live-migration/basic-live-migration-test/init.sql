@@ -11,7 +11,7 @@ ALTER TABLE public.test_table REPLICA IDENTITY FULL;
 
 drop table if exists num_types;
 
-create table num_types(id serial primary key, v1 smallint, v2 integer,v3 bigint,v4 decimal(6,3),v5 numeric, v6 money);
+create table num_types(id serial primary key, v1 smallint, v2 integer,v3 bigint,v4 decimal(6,3), v6 money);
 
 \d num_types
 

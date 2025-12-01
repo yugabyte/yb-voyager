@@ -796,185 +796,6 @@ def prepare_paths(test_root: str, export_dir: str, artifacts_dir: str) -> None:
 # SQL execution
 # -------------------------
 
-# def _source_connection(cfg: Dict[str, Any]) -> psycopg2.extensions.connection:
-#     src = cfg["source"]
-#     return psycopg2.connect(
-#         host=str(src["host"]),
-#         port=int(src["port"]),
-#         dbname=str(src["database"]),
-#         user=str(src["user"]),
-#         password=str(src.get("password")),
-#     )
-
-
-# def _target_connection(cfg: Dict[str, Any]) -> psycopg2.extensions.connection:
-#     tgt = cfg["target"]
-#     return psycopg2.connect(
-#         host=str(tgt["host"]),
-#         port=int(tgt["port"]),
-#         dbname=str(tgt["database"]),
-#         user=str(tgt["user"]),
-#         password=str(tgt.get("password")),
-#     )
-
-
-# def run_sql_file(ctx: Context, sql_path: str, target: str = "source") -> None:
-#     conn_cfg = ctx.cfg[target]
-#     cmd = [
-#         "psql",
-#         "-h", str(conn_cfg["host"]),
-#         "-p", str(conn_cfg["port"]),
-#         "-U", str(conn_cfg["user"]),
-#         "-d", str(conn_cfg["database"]),
-#         "-v", "ON_ERROR_STOP=1",
-#         "-f", sql_path,
-#     ]
-#     env = dict(ctx.env)
-#     password = conn_cfg.get("password")
-#     if password is not None:
-#         env["PGPASSWORD"] = str(password)
-#     log(
-#         f"psql executing: {sql_path} on "
-#         f"{target}@{conn_cfg['host']}:{conn_cfg['port']}/{conn_cfg['database']}"
-#     )
-#     run_checked(cmd, env, description=f"run_sql_file:{target}")
-
-
-# def grant_postgres_live_migration_permissions(ctx: Context) -> None:
-#     src = ctx.cfg["source"]
-#     admin_cfg = src.get("admin")
-
-#     script_path = "/opt/yb-voyager/guardrails-scripts/yb-voyager-pg-grant-migration-permissions.sql"
-#     cmd = [
-#         "psql",
-#         "-h", str(src["host"]),
-#         "-p", str(src["port"]),
-#         "-U", str(admin_cfg["user"]),
-#         "-d", str(src["database"]),
-#         "-v", f"voyager_user={src['user']}",
-#         "-v", f"schema_list={src.get('schema', 'public')}",
-#         "-v", "replication_group=replication_group",
-#         "-v", "is_live_migration=1",
-#         "-v", "is_live_migration_fall_back=0",
-#         "-f", script_path,
-#     ]
-
-#     env = dict(ctx.env)
-#     env["PGPASSWORD"] = str(admin_cfg["password"])
-#     log("granting source permissions for live migration via guardrails script")
-#     subprocess.run(
-#         cmd,
-#         env=env,
-#         input="2\n",
-#         text=True,
-#         check=True,
-#     )
-
-
-# def list_source_tables(cfg: Dict[str, Any]) -> List[str]:
-#     schema = cfg["source"]["schema"]
-#     conn = _source_connection(cfg)
-#     try:
-#         with conn.cursor() as cur:
-#             cur.execute(
-#                 """
-#                 SELECT table_name
-#                 FROM information_schema.tables
-#                 WHERE table_schema = %s
-#                   AND table_type = 'BASE TABLE'
-#                 ORDER BY table_name
-#                 """,
-#                 (schema,),
-#             )
-#             rows = cur.fetchall()
-#     finally:
-#         conn.close()
-
-#     return [row[0] for row in rows]
-
-
-# def get_table_primary_key(cfg: Dict[str, Any], table: str) -> List[str]:
-#     schema = cfg["source"]["schema"]
-#     conn = _source_connection(cfg)
-#     try:
-#         with conn.cursor() as cur:
-#             cur.execute(
-#                 """
-#                 SELECT kcu.column_name
-#                 FROM information_schema.table_constraints tc
-#                 JOIN information_schema.key_column_usage kcu
-#                   ON tc.constraint_name = kcu.constraint_name
-#                  AND tc.table_schema = kcu.table_schema
-#                 WHERE tc.constraint_type = 'PRIMARY KEY'
-#                   AND tc.table_schema = %s
-#                   AND tc.table_name = %s
-#                 ORDER BY kcu.ordinal_position
-#                 """,
-#                 (schema, table),
-#             )
-#             rows = cur.fetchall()
-#     finally:
-#         conn.close()
-
-#     return [row[0] for row in rows]
-
-
-# def _fetch_table_count(conn: psycopg2.extensions.connection, schema: str, table: str) -> int:
-#     with conn.cursor() as cur:
-#         query = sql.SQL("SELECT COUNT(*) FROM {}.{}").format(
-#             sql.Identifier(schema),
-#             sql.Identifier(table),
-#         )
-#         cur.execute(query)
-#         (count,) = cur.fetchone()
-#         return int(count)
-
-
-# def _reset_database(db_cfg: Dict[str, Any], *, admin_db_name: str, role: str) -> None:
-#     admin_cfg = db_cfg.get("admin")
-#     env = dict(os.environ)
-#     env["PGPASSWORD"] = str(admin_cfg["password"])
-#     host = str(db_cfg["host"])
-#     port = str(db_cfg["port"])
-#     admin_user = str(admin_cfg["user"])
-#     dbname = str(db_cfg["database"])
-
-#     drop_cmd = [
-#         "psql",
-#         "-h", host,
-#         "-p", port,
-#         "-U", admin_user,
-#         "-d", admin_db_name,
-#         "-v", "ON_ERROR_STOP=1",
-#         "-c",
-#         f'DROP DATABASE IF EXISTS "{dbname}"',
-#     ]
-#     create_cmd = [
-#         "psql",
-#         "-h", host,
-#         "-p", port,
-#         "-U", admin_user,
-#         "-d", admin_db_name,
-#         "-v", "ON_ERROR_STOP=1",
-#         "-c",
-#         f'CREATE DATABASE "{dbname}"',
-#     ]
-#     log(f"[db-reset:{role}] dropping database '{dbname}'")
-#     run_checked(drop_cmd, env, description=f"reset_database:{role}:drop")
-#     log(f"[db-reset:{role}] creating database '{dbname}'")
-#     run_checked(create_cmd, env, description=f"reset_database:{role}:create")
-#     log(f"[db-reset:{role}] database '{db_cfg['database']}' recreated")
-
-
-# def reset_database_for_role(role: str, ctx: Context) -> None:
-#     if role == "source":
-#         _reset_database(ctx.cfg["source"], admin_db_name="postgres", role=role)
-#     elif role == "target":
-#         _reset_database(ctx.cfg["target"], admin_db_name="yugabyte", role=role)
-#     else:
-#         raise ValueError(f"Unsupported database role for reset: {role}")
-
-
 def db_connection(cfg: Dict[str, Any], role: str) -> psycopg2.extensions.connection:
     """Generic connection helper for source/target DBs."""
     db = cfg[role]
@@ -994,7 +815,7 @@ def run_psql(
     db_override: str | None = None,
     user_override: str | None = None,
     password_override: str | None = None,
-    stdin_input: str | None = None,     # <— NEW
+    stdin_input: str | None = None,
 ) -> None:
     db = ctx.cfg[role]
     env = dict(ctx.env)
@@ -1153,120 +974,175 @@ def reset_database_for_role(role: str, ctx) -> None:
 
 
 
-
 # -------------------------
 # DVT helpers
 # -------------------------
 
-def _run_dvt_command(cmd: list[str], env: Dict[str, str]) -> subprocess.CompletedProcess:
-    log(f"dvt: {' '.join(cmd)}")
-    proc = subprocess.run(cmd, env=env, capture_output=True, text=True)
-    if proc.returncode != 0:
-        raise RuntimeError(
-            "DVT command failed:\n"
-            f"cmd: {' '.join(cmd)}\n"
-            f"stdout:\n{proc.stdout}\n"
-            f"stderr:\n{proc.stderr}"
+
+def _load_segment_map_for_side(
+    cfg: Dict[str, Any],
+    schema: str,
+    role: str,
+    side_label: str,
+) -> Dict[tuple, Dict[str, Any]]:
+    """Return a mapping (schema, table, segment_index) -> {row_count, segment_hash} for one side."""
+    rows = fetchall(
+        cfg,
+        role,
+        """
+        SELECT schema_name,
+               table_name,
+               segment_index,
+               row_count,
+               segment_hash
+        FROM public.migration_validate_segments
+        WHERE side = %s
+          AND schema_name = %s
+          AND table_name <> 'migration_validate_segments'
+        """,
+        (side_label, schema),
+    )
+    by_key: Dict[tuple, Dict[str, Any]] = {}
+    for (
+        schema_name,
+        table_name,
+        segment_index,
+        row_count,
+        segment_hash,
+    ) in rows:
+        key = (schema_name, table_name, int(segment_index))
+        by_key[key] = {
+            "row_count": int(row_count),
+            "segment_hash": str(segment_hash),
+        }
+    return by_key
+
+
+def _build_segment_record(
+    key: tuple,
+    src: Dict[str, Any] | None,
+    tgt: Dict[str, Any] | None,
+) -> tuple[Dict[str, Any], bool]:
+    """Build a per-segment record and return (record, is_mismatch)."""
+    schema_name, table_name, segment_index = key
+    record: Dict[str, Any] = {
+        "schema_name": schema_name,
+        "table_name": table_name,
+        "segment_index": segment_index,
+    }
+
+    if src is None:
+        record["status"] = "missing_source"
+        return record, True
+    if tgt is None:
+        record["status"] = "missing_target"
+        return record, True
+
+    src_count = src["row_count"]
+    tgt_count = tgt["row_count"]
+    src_hash = src["segment_hash"]
+    tgt_hash = tgt["segment_hash"]
+
+    record["source_row_count"] = src_count
+    record["target_row_count"] = tgt_count
+    record["source_hash"] = src_hash
+    record["target_hash"] = tgt_hash
+
+    same_count = src_count == tgt_count
+    same_hash = src_hash == tgt_hash
+
+    if same_count and same_hash:
+        record["status"] = "match"
+        return record, False
+
+    record["status"] = "mismatch"
+    return record, True
+
+
+def run_segment_hash_computation(ctx: Context, side: str, num_segments: int = 16) -> None:
+    """Invoke compute_schema_segment_hashes on the given side (source/target).
+
+    This relies on the SQL primitives defined in segment_hash_validation.sql
+    being installed on both source and target clusters.
+    """
+    if side not in ("source", "target"):
+        raise ValueError(f"run_segment_hash_computation: unexpected side {side!r}")
+
+    cfg = ctx.cfg
+    schema = cfg["source"]["schema"]
+
+    # We use the logical side ('source' / 'target') both as:
+    #   - the DB role for run_psql
+    #   - the side label recorded inside migration_validate_segments.
+    sql_stmt = f"SELECT public.compute_schema_segment_hashes('{side}', '{schema}', {int(num_segments)});"
+    run_psql(ctx, side, "-c", sql_stmt)
+
+
+def compare_segment_hashes(ctx: Context) -> tuple[list[Dict[str, Any]], list[Dict[str, Any]]]:
+    """Load segment hashes from source/target and compute in-memory differences.
+
+    Returns:
+        all_segments: list of per-segment records including status.
+        mismatches: subset of all_segments where counts/hashes/side-presence differ.
+    """
+    cfg = ctx.cfg
+    schema = cfg["source"]["schema"]
+
+    source_map = _load_segment_map_for_side(cfg, schema, "source", "source")
+    target_map = _load_segment_map_for_side(cfg, schema, "target", "target")
+
+    all_keys = sorted(set(source_map.keys()) | set(target_map.keys()))
+
+    all_segments: list[Dict[str, Any]] = []
+    mismatches: list[Dict[str, Any]] = []
+
+    for key in all_keys:
+        src = source_map.get(key)
+        tgt = target_map.get(key)
+        record, is_mismatch = _build_segment_record(key, src, tgt)
+        all_segments.append(record)
+        if is_mismatch:
+            mismatches.append(record)
+
+    return all_segments, mismatches
+
+
+def run_segment_hash_validations(ctx: Context) -> None:
+    """End-to-end segment-hash validation: compute, compare, and persist artifacts.
+
+    Raises:
+        RuntimeError if any segment shows a mismatch or is missing on one side.
+    """
+    # 1) Compute (or refresh) segment hashes on both sides
+    run_segment_hash_computation(ctx, "source")
+    run_segment_hash_computation(ctx, "target")
+
+    # 2) Compare in-memory
+    all_segments, mismatches = compare_segment_hashes(ctx)
+
+    # 3) Persist artifacts
+    base_dir = os.path.join(ctx.artifacts_dir, "dvt", "hash_segments")
+    os.makedirs(base_dir, exist_ok=True)
+
+    segments_path = os.path.join(base_dir, "segments.json")
+    mismatches_path = os.path.join(base_dir, "mismatches.json")
+
+    with open(segments_path, "w") as f:
+        json.dump(all_segments, f)
+
+    with open(mismatches_path, "w") as f:
+        json.dump(mismatches, f)
+
+    # 4) Raise on mismatches with a concise preview
+    if mismatches:
+        preview_items = mismatches[:5]
+        preview = "; ".join(
+            f"{r['schema_name']}.{r['table_name']}[seg={r['segment_index']}] status={r['status']}"
+            for r in preview_items
         )
-    return proc
-
-
-def _dvt_connection_args(name: str, db_cfg: Dict[str, Any]) -> list[str]:
-    args = [
-        "data-validation",
-        "connections",
-        "add",
-        "--connection-name",
-        name,
-        "Postgres",
-        "--host",
-        str(db_cfg["host"]),
-        "--port",
-        str(db_cfg["port"]),
-        "--user",
-        str(db_cfg["user"]),
-        "--database",
-        str(db_cfg["database"]),
-    ]
-    password = db_cfg.get("password")
-    if password is not None:
-        args += ["--password", str(password)]
-    return args
-
-
-def setup_dvt_connections(ctx: Context) -> tuple[Dict[str, str], str, str]:
-    """Prepare isolated DVT connection configs for source and target."""
-    conn_dir = os.path.join(ctx.artifacts_dir, "dvt", "connections")
-    shutil.rmtree(conn_dir, ignore_errors=True)
-    os.makedirs(conn_dir, exist_ok=True)
-
-    env = dict(ctx.env)
-    env["PSO_DV_CONN_HOME"] = conn_dir
-
-    source_name = f"{ctx.run_id}_source"
-    target_name = f"{ctx.run_id}_target"
-
-    run_checked(_dvt_connection_args(source_name, ctx.cfg["source"]), env, description="dvt_connection:source")
-    run_checked(_dvt_connection_args(target_name, ctx.cfg["target"]), env, description="dvt_connection:target")
-
-    return env, source_name, target_name
-
-
-def run_column_hash_validations(ctx: Context) -> None:
-    """Run DVT column hash validations for each table."""
-    env, source_conn, target_conn = setup_dvt_connections(ctx)
-    schema = ctx.cfg["source"]["schema"]
-    tables = list_source_tables(ctx.cfg)
-
-    out_dir = os.path.join(ctx.artifacts_dir, "dvt", "column_hashes")
-    os.makedirs(out_dir, exist_ok=True)
-
-    for table in tables:
-        pk = get_table_primary_key(ctx.cfg, table)
-        pk_arg = ",".join(pk)
-        tables_list = f"{schema}.{table}={schema}.{table}"
-        cmd = [
-            "data-validation",
-            "validate",
-            "row",
-            "--source-conn", source_conn,
-            "--target-conn", target_conn,
-            "--tables-list", tables_list,
-            "--primary-keys", pk_arg,
-            "--hash", "*",
-            "--format", "json",
-        ]
-        proc = _run_dvt_command(cmd, env)
-        log_path = os.path.join(out_dir, f"{table}.json")
-        with open(log_path, "w") as f:
-            f.write(proc.stdout)
-        if proc.stderr:
-            err_path = os.path.join(out_dir, f"{table}.stderr")
-            with open(err_path, "w") as f:
-                f.write(proc.stderr)
-
-        try:
-            parsed = json.loads(proc.stdout)
-        except json.JSONDecodeError as exc:
-            raise RuntimeError(f"failed to parse DVT hash output for table {table}: {exc}") from exc
-
-        def _records(obj: Any) -> List[Dict[str, Any]]:
-            if isinstance(obj, list):
-                return [x for x in obj if isinstance(x, dict)]
-            if isinstance(obj, dict):
-                values = list(obj.values())
-                if all(isinstance(v, dict) for v in values):
-                    return values
-                return [obj]
-            return []
-
-        statuses = [
-            rec.get("validation_status") or rec.get("status") or ""
-            for rec in _records(parsed)
-        ]
-        statuses = [s.lower() for s in statuses if s]
-        if not statuses or any(st != "success" for st in statuses):
-            raise RuntimeError(f"column hash validation failed for table {table}")
+        if len(mismatches) > len(preview_items):
+            preview += f"; ... and {len(mismatches) - len(preview_items)} more"
+        raise RuntimeError(f"segment hash validation failed for segments: {preview}")
 
 
 def run_row_count_validations(ctx: Context) -> None:
@@ -1274,12 +1150,13 @@ def run_row_count_validations(ctx: Context) -> None:
     cfg = ctx.cfg
     schema = cfg["source"]["schema"]
     tables = list_source_tables(cfg)
-
     out_dir = os.path.join(ctx.artifacts_dir, "dvt", "row_counts")
     os.makedirs(out_dir, exist_ok=True)
+    mismatches = []
 
     src_conn = _source_connection(cfg)
     tgt_conn = _target_connection(cfg)
+
     try:
         for table in tables:
             src_count = _fetch_table_count(src_conn, schema, table)
@@ -1291,15 +1168,25 @@ def run_row_count_validations(ctx: Context) -> None:
                 "target_count": tgt_count,
                 "status": "success" if src_count == tgt_count else "mismatch",
             }
-            out_path = os.path.join(out_dir, f"{table}.json")
-            with open(out_path, "w") as f:
-                f.write(json.dumps(record))
 
-            if src_count != tgt_count:
-                raise RuntimeError(
-                    f"row count validation failed for table {table}: "
-                    f"source={src_count}, target={tgt_count}"
-                )
+            # Write per-table result
+            with open(os.path.join(out_dir, f"{table}.json"), "w") as f:
+                json.dump(record, f)
+            if record["status"] == "mismatch":
+                mismatches.append(record)
+
     finally:
         src_conn.close()
         tgt_conn.close()
+
+    # If any mismatches, write summary + raise error
+    if mismatches:
+        summary_path = os.path.join(out_dir, "row_count_mismatches.json")
+        with open(summary_path, "w") as f:
+            json.dump({"mismatches": mismatches}, f)
+
+        preview = "; ".join(
+            f"{r['table']} (source={r['source_count']}, target={r['target_count']})"
+            for r in mismatches
+        )
+        raise RuntimeError(f"row count validation failed for tables: {preview}")
