@@ -54,13 +54,17 @@ func TestCDCReplicationSlotFailure_WithoutMarkers(t *testing.T) {
 	defer testutils.RemoveTempExportDir(exportDir)
 
 	// Start PostgreSQL container with logical replication enabled
-	postgresContainer := testcontainers.NewTestContainer("postgresql", nil)
+	postgresContainer := testcontainers.NewTestContainer("postgresql", &testcontainers.ContainerConfig{
+		ForLive: true,
+	})
 	err := postgresContainer.Start(ctx)
 	require.NoError(t, err, "Failed to start PostgreSQL container")
 	defer postgresContainer.Stop(ctx)
 
-	// Create test schema and data
 	setupCDCTestData(t, postgresContainer)
+	defer postgresContainer.ExecuteSqls(
+		"DROP SCHEMA IF EXISTS test_schema CASCADE;",
+	)
 
 	// Setup Byteman for replication slot creation failure
 	bytemanHelper, err := testutils.NewBytemanHelper(exportDir)
@@ -109,12 +113,17 @@ func TestCDCBatchProcessing_WithMarkers(t *testing.T) {
 	exportDir = testutils.CreateTempExportDir()
 	defer testutils.RemoveTempExportDir(exportDir)
 
-	postgresContainer := testcontainers.NewTestContainer("postgresql", nil)
+	postgresContainer := testcontainers.NewTestContainer("postgresql", &testcontainers.ContainerConfig{
+		ForLive: true,
+	})
 	err := postgresContainer.Start(ctx)
 	require.NoError(t, err)
 	defer postgresContainer.Stop(ctx)
 
 	setupCDCTestData(t, postgresContainer)
+	defer postgresContainer.ExecuteSqls(
+		"DROP SCHEMA IF EXISTS test_schema CASCADE;",
+	)
 
 	// Setup Byteman to fail during batch processing (using markers)
 	bytemanHelper, err := testutils.NewBytemanHelper(exportDir)
@@ -161,7 +170,9 @@ func TestCDCSnapshotTransition_Combined(t *testing.T) {
 	exportDir = testutils.CreateTempExportDir()
 	defer testutils.RemoveTempExportDir(exportDir)
 
-	postgresContainer := testcontainers.NewTestContainer("postgresql", nil)
+	postgresContainer := testcontainers.NewTestContainer("postgresql", &testcontainers.ContainerConfig{
+		ForLive: true,
+	})
 	err := postgresContainer.Start(ctx)
 	require.NoError(t, err)
 	defer postgresContainer.Stop(ctx)
@@ -175,6 +186,9 @@ func TestCDCSnapshotTransition_Combined(t *testing.T) {
 		);`,
 		`INSERT INTO test_schema.snapshot_test (data)
 		SELECT 'row_' || i FROM generate_series(1, 1000) i;`,
+	)
+	defer postgresContainer.ExecuteSqls(
+		"DROP SCHEMA IF EXISTS test_schema CASCADE;",
 	)
 
 	bytemanHelper, err := testutils.NewBytemanHelper(exportDir)
