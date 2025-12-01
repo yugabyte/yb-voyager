@@ -65,7 +65,7 @@ stages:
 
   - name: load_snapshot
     action: sleep
-    seconds: 10
+    seconds: 1200
 
   - name: start_exporter
     action: voyager_export_start
@@ -100,7 +100,7 @@ stages:
 
   - name: soak_with_resumptions
     action: sleep
-    seconds: 60
+    seconds: 1200
 
   - name: stop_event_generator
     action: generator_stop

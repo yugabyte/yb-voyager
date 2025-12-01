@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS public.migration_validate_segments (
 -- ------------------------------------------------------------------
 
 CREATE OR REPLACE FUNCTION public.custom_hash_code_from_text(pk_text TEXT)
-RETURNS INTEGER AS $$
+RETURNS BIGINT AS $$
 /*
  * Hash a primary-key text representation into [0, 65536).
  *
