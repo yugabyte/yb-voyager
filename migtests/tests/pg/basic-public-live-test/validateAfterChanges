@@ -48,7 +48,7 @@ EXPECTED_SUM_OF_COLUMN = {
 
 EXPECTED_ROW_COUNT_FF = {
 	'x':7,
-	'user_table': 8,
+	'user_table': 8
 }
 
 EXPECTED_SUM_OF_COLUMN_FF = {
