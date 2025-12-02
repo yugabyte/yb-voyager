@@ -94,37 +94,3 @@ func GetBytemanEnvVars(scriptPath string) []string {
 		"VOYAGER_USE_TESTING_SCRIPT=true",
 	}
 }
-
-// SkipIfBytemanNotAvailable skips the test if Byteman is not installed/configured.
-// This is a helper for Java failpoint tests that require Byteman.
-//
-// Usage:
-//
-//	func TestWithByteman(t *testing.T) {
-//	    testutils.SkipIfBytemanNotAvailable(t)
-//	    // ... test code ...
-//	}
-func SkipIfBytemanNotAvailable(t interface{ Skip(args ...interface{}) }) {
-	if os.Getenv("BYTEMAN_HOME") == "" {
-		t.Skip("BYTEMAN_HOME not set, skipping Byteman test")
-	}
-}
-
-// RequireBytemanAvailable fails the test if Byteman is not installed/configured.
-// This is used for tests where Byteman is a required dependency.
-// It checks for the BYTEMAN_JAR environment variable which should point to byteman.jar.
-//
-// Usage:
-//
-//	func TestWithRequiredByteman(t *testing.T) {
-//	    testutils.RequireBytemanAvailable(t)
-//	    // ... test code ...
-//	}
-func RequireBytemanAvailable(t interface {
-	Fatalf(format string, args ...interface{})
-}) {
-	if os.Getenv("BYTEMAN_JAR") == "" {
-		t.Fatalf("BYTEMAN_JAR environment variable not set - Byteman is required for this test. " +
-			"Please install Byteman and set BYTEMAN_JAR to the path of byteman.jar")
-	}
-}

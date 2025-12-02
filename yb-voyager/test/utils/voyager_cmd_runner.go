@@ -67,17 +67,6 @@ func (v *VoyagerCommandRunner) WithEnv(envVars ...string) *VoyagerCommandRunner 
 	return v
 }
 
-// WithEnvMap adds additional environment variables from a map to the command.
-// The envMap is merged with existing environment variables.
-// This is useful for injecting test-specific configuration like Byteman settings.
-func (v *VoyagerCommandRunner) WithEnvMap(envMap map[string]string) *VoyagerCommandRunner {
-	for key, value := range envMap {
-		envVar := fmt.Sprintf("%s=%s", key, value)
-		v.WithEnv(envVar)
-	}
-	return v
-}
-
 func NewVoyagerCommandRunner(container testcontainers.TestContainer, cmdName string, cmdArgs []string, doDuringCmd func(), isAsync bool) *VoyagerCommandRunner {
 	if cmdName == "" {
 		log.Fatal("Command name cannot be empty")

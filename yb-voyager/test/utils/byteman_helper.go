@@ -78,9 +78,9 @@ func (b *BytemanHelper) WriteRules() error {
 // It configures DEBEZIUM_OPTS to load the Byteman agent with the rule file.
 // Note: We use DEBEZIUM_OPTS instead of JAVA_OPTS because dbzm.go may overwrite
 // JAVA_OPTS with Oracle wallet location settings (even for non-Oracle sources).
-func (b *BytemanHelper) GetEnv() map[string]string {
-	return map[string]string{
-		"DEBEZIUM_OPTS": fmt.Sprintf("-javaagent:%s=script:%s,boot:%s",
+func (b *BytemanHelper) GetEnv() []string {
+	return []string{
+		fmt.Sprintf("DEBEZIUM_OPTS=-javaagent:%s=script:%s,boot:%s",
 			b.bytemanJar, b.ruleFilePath, b.bytemanJar),
 	}
 }
