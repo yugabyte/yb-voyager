@@ -354,7 +354,7 @@ func validateProvidedEndpoints(pg *srcdb.PostgreSQL, endpoints []srcdb.ReplicaEn
 			log.Errorf("Failed to validate replica %s:%d: %v", endpoint.Host, endpoint.Port, err)
 		} else {
 			validEndpoints = append(validEndpoints, endpoint)
-			utils.PrintAndLogfSuccess("  ✓ Validated replica: %s", endpoint.Name)
+			utils.PrintAndLogfSuccess("  ✓ Validated replica: %s (%s:%d)", endpoint.Name, endpoint.Host, endpoint.Port)
 		}
 	}
 
