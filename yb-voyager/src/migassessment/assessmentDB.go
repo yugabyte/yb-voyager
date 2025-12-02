@@ -531,32 +531,34 @@ func (adb *AssessmentDB) InsertPgssEntries(entries []*pgss.PgStatStatements) err
 	return nil
 }
 
-// GetSourceQueryStats retrieves all the source PGSS data from the assessment database
-// For multi-node setups, only returns query stats from the primary node to avoid
-// mixing workload patterns from read replicas with primary writes.
+// GetSourceQueryStats retrieves and aggregates source query statistics from all nodes.
+//
+// Complete workflow from assessment to retrieval:
+//
+// 1. COLLECTION (during assess-migration):
+//   - Each node's CSV is parsed via pgss.ParseFromCSV()
+//   - Within-node merge: Same query text with different userids → merged into one entry
+//   - Result: One CSV per node, each with unique query texts for that node
+//
+// 2. STORAGE (into assessment DB):
+//   - Each node's data stored as separate rows in db_queries_summary table
+//   - Same query on 3 nodes → 3 separate rows (source_node: primary, replica1, replica2)
+//   - No cross-node merge at storage time
+//
+// 3. RETRIEVAL (this function):
+//   - Fetch ALL rows from all nodes
+//   - Cross-node merge: Same query text from different nodes → merged into one entry
+//   - Merge by query text (not queryid) because queryids can differ across nodes
+//   - Result: Aggregated stats representing complete workload across all nodes
+//
 // Backward compatible: works with older assessment DBs that don't have the source_node column.
 func (adb *AssessmentDB) GetSourceQueryStats() ([]*types.QueryStats, error) {
-	// Check if source_node column exists (for backward compatibility with older assessment DBs)
-	hasSourceNode, err := adb.columnExists(DB_QUERIES_SUMMARY, "source_node")
-	if err != nil {
-		return nil, fmt.Errorf("failed to check schema version: %w", err)
-	}
-
-	// Build query based on schema version
+	// Fetch from ALL nodes
 	query := `
 		SELECT queryid, query, calls, rows,
 		       total_exec_time, mean_exec_time,
 		       min_exec_time, max_exec_time
-		FROM db_queries_summary`
-
-	if hasSourceNode {
-		// New schema (with replicas support): filter to primary only
-		query += `
-		WHERE source_node = 'primary'`
-	}
-	// Old schema: no filter needed (only primary data exists)
-
-	query += ";"
+		FROM db_queries_summary;`
 
 	rows, err := adb.db.Query(query)
 	if err != nil {
@@ -587,7 +589,11 @@ func (adb *AssessmentDB) GetSourceQueryStats() ([]*types.QueryStats, error) {
 		return nil, fmt.Errorf("error reading PGSS rows: %w", err)
 	}
 
-	return entries, nil
+	// Merge entries with same query text across all nodes
+	// Example: If "SELECT * FROM users" ran on primary (1000 calls) and replica1 (500 calls),
+	// we get 2 entries here, which merge into 1 entry with 1500 total calls.
+	// For single-node or old schema (no source_node column), entries are already unique, so this is a no-op.
+	return types.MergeQueryStatsBasedOnQuery(entries), nil
 }
 
 func (adb *AssessmentDB) CheckIfTableExists(tableName string) error {
