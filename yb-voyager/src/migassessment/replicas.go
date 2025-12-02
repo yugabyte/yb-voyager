@@ -96,30 +96,37 @@ func validateDiscoveredReplicas(pg *srcdb.PostgreSQL, discoveredReplicas []srcdb
 			continue
 		}
 
+		// Generate replica name: use host:port for unnamed replicas, application_name for named ones
+		name := lo.Ternary(replica.ApplicationName == "", fmt.Sprintf("%s:5432", replica.ClientAddr), replica.ApplicationName)
+
+		// Create display name: for named replicas, include host:port in parentheses for clarity
+		displayName := name
+		if replica.ApplicationName != "" {
+			displayName = fmt.Sprintf("%s (%s:5432)", name, replica.ClientAddr)
+		}
+
 		// Try to connect to client_addr on port 5432
 		err := pg.ValidateReplicaConnection(replica.ClientAddr, 5432)
 		if err == nil {
-			name := lo.Ternary(replica.ApplicationName == "", fmt.Sprintf("%s:5432", replica.ClientAddr), replica.ApplicationName)
 			connectableReplicas = append(connectableReplicas, srcdb.ReplicaEndpoint{
 				Host:          replica.ClientAddr,
 				Port:          5432,
 				Name:          name,
 				ConnectionUri: pg.GetReplicaConnectionUri(replica.ClientAddr, 5432),
 			})
-			utils.PrintAndLogfSuccess("  ✓ Successfully connected to %s (%s)", name, replica.ClientAddr)
+			utils.PrintAndLogfSuccess("  ✓ Successfully connected to %s", displayName)
 		} else {
-			appName := lo.Ternary(replica.ApplicationName == "", replica.ClientAddr, replica.ApplicationName)
 			// Check if this is a "not a replica" error vs connection error.
 			// Note: For auto-discovered replicas, "not a replica" errors should rarely occur since
 			// the DiscoverReplicas SQL query filters out logical replicas. However, we keep this
 			// check as defense-in-depth for edge cases if any. This error path is primarily designed for user-provided endpoints where
 			// the user might accidentally specify a logical subscriber or the primary itself.
 			if errors.Is(err, srcdb.ErrNotAReplica) {
-				notReplicaEndpoints = append(notReplicaEndpoints, fmt.Sprintf("%s (%s)", appName, replica.ClientAddr))
-				log.Infof("Endpoint %s (%s) is not a physical replica: %v", appName, replica.ClientAddr, err)
+				notReplicaEndpoints = append(notReplicaEndpoints, displayName)
+				log.Infof("Endpoint %s is not a physical replica: %v", displayName, err)
 			} else {
-				connectionFailures = append(connectionFailures, fmt.Sprintf("%s (%s)", appName, replica.ClientAddr))
-				log.Infof("Failed to connect to replica %s (%s): %v", appName, replica.ClientAddr, err)
+				connectionFailures = append(connectionFailures, displayName)
+				log.Infof("Failed to connect to replica %s: %v", displayName, err)
 			}
 		}
 	}
