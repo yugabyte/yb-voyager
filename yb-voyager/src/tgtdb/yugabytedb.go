@@ -2203,3 +2203,53 @@ func (yb *TargetYugabyteDB) NumOfLogicalReplicationSlots() (int64, error) {
 
 	return numOfSlots, nil
 }
+
+func (yb *TargetYugabyteDB) GetTablesHavingExpressionUniqueIndexes(tableNames []sqlname.NameTuple) ([]sqlname.NameTuple, error) {
+	tableNamesStr := strings.Join(lo.Map(tableNames, func(t sqlname.NameTuple, _ int) string {
+		schema, table := t.ForCatalogQuery()
+		return fmt.Sprintf("('%s','%s')", schema, table)
+	}), ",")
+
+	tableCatalogNameToTuple := make(map[string]sqlname.NameTuple)
+	for _, t := range tableNames {
+		tableCatalogNameToTuple[t.AsQualifiedCatalogName()] = t
+	}
+
+	query := fmt.Sprintf(`
+SELECT 
+    n.nspname AS schema_name,
+    t.relname AS table_name,
+    i.relname AS index_name,
+	COALESCE(pg_get_expr(idx.indexprs, idx.indrelid), '') AS expression
+FROM pg_class i
+JOIN pg_index idx ON i.oid = idx.indexrelid
+JOIN pg_class t ON idx.indrelid = t.oid
+JOIN pg_namespace n ON t.relnamespace = n.oid
+WHERE i.relkind = 'i'
+  AND indisunique
+  AND idx.indexprs IS NOT NULL  -- expression index
+  AND ((n.nspname,t.relname) IN (%s))
+ORDER BY n.nspname, t.relname, i.relname;
+	`, tableNamesStr)
+
+	log.Infof("query: %s", query)
+	rows, err := yb.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("error querying for tables having expression indexes: %w", err)
+	}
+	defer rows.Close()
+
+	var tablesHavingExpressionIndexes []sqlname.NameTuple
+	for rows.Next() {
+		var schemaName, tableName, indexName, expression string
+		err := rows.Scan(&schemaName, &tableName, &indexName, &expression) // index and expression are only used for logging
+		if err != nil {
+			return nil, fmt.Errorf("error scanning row for tables having expression indexes: %w", err)
+		}
+
+		log.Infof("table: %s.%s having expression index %s with expression %s", schemaName, tableName, indexName, expression)
+
+		tablesHavingExpressionIndexes = append(tablesHavingExpressionIndexes, tableCatalogNameToTuple[fmt.Sprintf("%s.%s", schemaName, tableName)])
+	}
+	return tablesHavingExpressionIndexes, nil
+}

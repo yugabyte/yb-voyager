@@ -54,6 +54,7 @@ type TargetDB interface {
 	DisableGeneratedAlwaysAsIdentityColumns(tableColumnsMap *utils.StructMap[sqlname.NameTuple, []string]) error
 	EnableGeneratedAlwaysAsIdentityColumns(tableColumnsMap *utils.StructMap[sqlname.NameTuple, []string]) error
 	EnableGeneratedByDefaultAsIdentityColumns(tableColumnsMap *utils.StructMap[sqlname.NameTuple, []string]) error
+	GetTablesHavingExpressionUniqueIndexes(tableNames []sqlname.NameTuple) ([]sqlname.NameTuple, error)
 	ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error
 	GetCallhomeTargetDBInfo() *callhome.TargetDBDetails
 	// NOTE: The following four methods should not be used for arbitrary query

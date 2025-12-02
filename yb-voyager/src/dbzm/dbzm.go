@@ -135,6 +135,8 @@ func (d *Debezium) Start() error {
 		return fmt.Errorf("Error setting up logging for debezium: %v", err)
 	}
 	d.registerExitHandlers()
+	log.Debugf("debezium command: %v", d.cmd)
+
 	err = d.cmd.Start()
 	if err != nil {
 		return fmt.Errorf("Error starting debezium: %v", err)
