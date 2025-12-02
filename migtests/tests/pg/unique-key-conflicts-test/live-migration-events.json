@@ -1,5 +1,5 @@
 {
-  "source_delta_events": 188,
-  "target_delta_events": 238,
+  "source_delta_events": 196,
+  "target_delta_events": 246,
   "description": "source_delta.sql: 84 DML ops per schema × 2 schemas = 168 events; target_delta.sql: 119 DML ops per schema × 2 schemas = 238 events"
 }

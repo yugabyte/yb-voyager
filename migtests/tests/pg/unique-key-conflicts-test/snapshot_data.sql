@@ -61,6 +61,15 @@ VALUES
     ('Alice', 'Williams', '123-456-7893'), 
     ('Tom', 'Clark', '123-456-7894');
 
+-- Insert data for expression_based_unique_index
+INSERT INTO expression_based_unique_index (email) 
+VALUES 
+    ('user1@example.com'),
+    ('usER2@example.com'),
+    ('usER3@example.com'),
+    ('USER4@example.com'),
+    ('USer5@example.com');
+    
 INSERT INTO test_partial_unique_index (check_id, most_recent) VALUES
     (1, true), --1
     (2, true), --2

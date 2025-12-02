@@ -621,6 +621,135 @@ FROM generate_series(1, 15);`,
 	assert.Equal(t, col, "id")
 }
 
+func TestLiveMigrationResumptionWithChangeInCDCPartitioningStrategy(t *testing.T) {
+	ctx := context.Background()
+
+	// Create a temporary export directory.
+	exportDir = testutils.CreateTempExportDir()
+	defer testutils.RemoveTempExportDir(exportDir)
+
+	createSchemaSQL := `CREATE SCHEMA IF NOT EXISTS test_schema;`
+	createTableSQL := `
+CREATE TABLE test_schema.test_live (
+	id SERIAL PRIMARY KEY,
+	name TEXT,
+	email TEXT,
+	description TEXT
+);`
+	insertDataSQL := `
+INSERT INTO test_schema.test_live (name, email, description)
+SELECT
+	md5(random()::text),                                      -- name
+	md5(random()::text) || '@example.com',                    -- email
+	repeat(md5(random()::text), 10)                           -- description (~320 chars)
+FROM generate_series(1, 10);`
+	dropSchemaSQL := `DROP SCHEMA IF EXISTS test_schema CASCADE;`
+
+	// Start Postgres container for live migration
+	postgresContainer := testcontainers.NewTestContainer("postgresql", &testcontainers.ContainerConfig{
+		ForLive: true,
+	})
+	if err := postgresContainer.Start(ctx); err != nil {
+		utils.ErrExit("Failed to start Postgres container: %v", err)
+	}
+
+	// Start YugabyteDB container.
+	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil)
+	if err := yugabytedbContainer.Start(ctx); err != nil {
+		utils.ErrExit("Failed to start YugabyteDB container: %v", err)
+	}
+	postgresContainer.ExecuteSqls([]string{
+		createSchemaSQL,
+		createTableSQL,
+		insertDataSQL,
+	}...)
+
+	yugabytedbContainer.ExecuteSqls([]string{
+		createSchemaSQL,
+		createTableSQL,
+	}...)
+
+	defer postgresContainer.ExecuteSqls(dropSchemaSQL)
+	defer yugabytedbContainer.ExecuteSqls(dropSchemaSQL)
+
+	err := testutils.NewVoyagerCommandRunner(postgresContainer, "export data", []string{
+		"--export-dir", exportDir,
+		"--source-db-schema", "test_schema",
+		"--disable-pb", "true",
+		"--export-type", SNAPSHOT_AND_CHANGES,
+		"--yes",
+	}, func() {
+		time.Sleep(5 * time.Second) // Wait for the export to start
+	}, true).Run()
+	testutils.FatalIfError(t, err, "Export command failed")
+
+	importCmd := testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
+		"--export-dir", exportDir,
+		"--disable-pb", "true",
+		"--yes",
+	}, func() {
+		time.Sleep(5 * time.Second)
+	}, true)
+	err = importCmd.Run()
+
+	testutils.FatalIfError(t, err, "Import command failed")
+
+	if err := importCmd.Kill(); err != nil {
+		testutils.FatalIfError(t, err, "killing the import data process errored")
+	}
+	if err := importCmd.Wait(); err != nil {
+		t.Logf("Async import run exited with error (expected): %v", err)
+	} else {
+		t.Logf("Async import run completed unexpectedly")
+	}
+
+	importCmd = testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
+		"--export-dir", exportDir,
+		"--disable-pb", "true",
+		"--cdc-partitioning-strategy", "pk",
+		"--yes",
+	}, func() {
+		time.Sleep(15 * time.Second)
+	}, false)
+	err = importCmd.Run()
+
+	assert.True(t, strings.Contains(importCmd.Stderr(), "changing the cdc partitioning strategy is not allowed after the import data has started. Current strategy: auto, new strategy: pk"))
+
+	metaDB, err = metadb.NewMetaDB(exportDir)
+	testutils.FatalIfError(t, err, "Failed to initialize meta db")
+
+	//check if the cdc partitioning strategy is auto after the first import
+	importDataStatus, err := metaDB.GetImportDataStatusRecord()
+	testutils.FatalIfError(t, err, "Failed to get import data status record")
+	assert.Equal(t, importDataStatus.CdcPartitioningStrategyConfig, "auto")
+
+	err = testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
+		"--export-dir", exportDir,
+		"--disable-pb", "true",
+		"--cdc-partitioning-strategy", "pk",
+		"--start-clean", "true",
+		"--truncate-tables", "true",
+		"--yes",
+	}, func() {
+		time.Sleep(15 * time.Second)
+	}, true).Run()
+
+	testutils.FatalIfError(t, err, "Import command failed")
+
+	importDataStatus, err = metaDB.GetImportDataStatusRecord()
+	testutils.FatalIfError(t, err, "Failed to get import data status record")
+	assert.Equal(t, importDataStatus.CdcPartitioningStrategyConfig, PARTITION_BY_PK)
+
+	// Perform cutover
+	err = testutils.NewVoyagerCommandRunner(nil, "initiate cutover to target", []string{
+		"--export-dir", exportDir,
+		"--yes",
+		"--prepare-for-fall-back", "false",
+	}, nil, false).Run()
+	testutils.FatalIfError(t, err, "Cutover command failed")
+
+}
+	
 func TestLiveMigrationWithUniqueKeyValuesWithPartialPredicateConflictDetectionCases(t *testing.T) {
 	ctx := context.Background()
 

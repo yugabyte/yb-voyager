@@ -20,7 +20,7 @@ const (
 	YB_VOYAGER_VERSION = "main"
 
 	// This constant must be updated after every breaking change.
-	PREVIOUS_BREAKING_CHANGE_VERSION = "1.8.5"
+	PREVIOUS_BREAKING_CHANGE_VERSION = "2025.12.1"
 
 	// @Refer: https://icinga.com/blog/2022/05/25/embedding-git-commit-information-in-go-binaries/
 	GIT_COMMIT_HASH = "$Format:%H$"

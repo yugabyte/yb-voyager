@@ -1224,3 +1224,7 @@ func (pg *TargetPostgreSQL) GetEnabledTriggersAndFks() (enabledTriggers []string
 
 	return enabledTriggers, enabledFks, nil
 }
+
+func (pg *TargetPostgreSQL) GetTablesHavingExpressionUniqueIndexes(tableNames []sqlname.NameTuple) ([]sqlname.NameTuple, error) {
+	return nil, nil
+}
