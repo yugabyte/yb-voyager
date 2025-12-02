@@ -267,6 +267,12 @@ Note that for the cases where a table doesn't have a primary key, this may lead 
 			"\tabort: immediately abort the process. (default)\n"+
 			"\tstash-and-continue: stash the errored rows to a file and continue with the import")
 
+	cmd.Flags().IntVar(&maxConcurrentBatchProductionsConfig, "max-concurrent-batch-productions", 10, "Maximum number of concurrent batch productions to allow while importing data (default 10)")
+	cmd.Flags().MarkHidden("max-concurrent-batch-productions")
+
+	BoolVar(cmd.Flags(), &enableRandomBatchProduction, "enable-random-batch-production", true, "Enable random batch production during data import (default false)")
+	cmd.Flags().MarkHidden("enable-random-batch-production")
+
 	cmd.Flags().IntVar(&prometheusMetricsPort, "prometheus-metrics-port", 0,
 		"Port for Prometheus metrics server (default: 9101)")
 	cmd.Flags().MarkHidden("prometheus-metrics-port")
