@@ -314,7 +314,7 @@ Note that for the cases where a table doesn't have a primary key, this may lead 
 	cmd.Flags().IntVar(&maxConcurrentBatchProductionsConfig, "max-concurrent-batch-productions", 10, "Maximum number of concurrent batch productions to allow while importing data (default 10)")
 	cmd.Flags().MarkHidden("max-concurrent-batch-productions")
 
-	BoolVar(cmd.Flags(), &enableRandomBatchProduction, "enable-random-batch-production", true, "Enable random batch production during data import (default false)")
+	BoolVar(cmd.Flags(), &enableRandomBatchProduction, "enable-random-batch-production", true, "Enable random batch production during data import (default true)")
 	cmd.Flags().MarkHidden("enable-random-batch-production")
 
 	cmd.Flags().StringVar(&cdcPartitioningStrategy, "cdc-partitioning-strategy", "auto",
