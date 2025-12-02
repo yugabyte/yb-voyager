@@ -804,6 +804,8 @@ FROM generate_series(1, 20) as i;`
 		createTableSQL,
 		uniqueIndexDDL,
 	}...)
+
+	defer postgresContainer.ExecuteSqls(dropSchemaSQL)
 	defer yugabytedbContainer.ExecuteSqls(dropSchemaSQL)
 
 	err := testutils.NewVoyagerCommandRunner(postgresContainer, "export data", []string{
