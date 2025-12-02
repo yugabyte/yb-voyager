@@ -650,17 +650,34 @@ func newProgressTracker(nodes []collectionNode) *progressTracker {
 		maxNameLen:   0,
 	}
 
-	// Calculate maximum display name length for alignment
+	// Truncate long display names and calculate maximum length for alignment
+	const maxDisplayNameLen = 80
+	replicaCount := 0
+
 	for _, node := range nodes {
 		tracker.nodes = append(tracker.nodes, node.nodeName)
-		tracker.displayNames[node.nodeName] = node.displayName
-		if len(node.displayName) > tracker.maxNameLen {
-			tracker.maxNameLen = len(node.displayName)
+
+		// Build display name with replica prefix for replicas
+		displayName := node.displayName
+		if !node.isPrimary {
+			replicaCount++
+			displayName = fmt.Sprintf("Replica %d (%s)", replicaCount, node.displayName)
 		}
+
+		// Truncate display name if too long (prevents line wrapping in terminal)
+		if len(displayName) > maxDisplayNameLen {
+			displayName = displayName[:maxDisplayNameLen-3] + "..."
+		}
+		tracker.displayNames[node.nodeName] = displayName
+
+		if len(displayName) > tracker.maxNameLen {
+			tracker.maxNameLen = len(displayName)
+		}
+
 		// Initialize with pending stage
 		tracker.statuses[node.nodeName] = &NodeProgress{
 			NodeName:    node.nodeName,
-			DisplayName: node.displayName,
+			DisplayName: displayName, // Use formatted & truncated name
 			Stage:       "Pending...",
 		}
 	}
@@ -672,8 +689,10 @@ func (pt *progressTracker) update(progress NodeProgress) {
 	pt.mutex.Lock()
 	defer pt.mutex.Unlock()
 
-	// Update status
-	pt.statuses[progress.NodeName] = &progress
+	// Update only the stage, preserve the formatted & truncated display name
+	if existing := pt.statuses[progress.NodeName]; existing != nil {
+		existing.Stage = progress.Stage
+	}
 
 	// Print/update display
 	pt.printAll()
@@ -710,12 +729,12 @@ func (pt *progressTracker) printSingleLine(progress NodeProgress) {
 		statusIcon = "⚠"
 	}
 
-	// Use full display name with dynamic width based on longest name
+	// Display name is already truncated in newProgressTracker
 	displayName := progress.DisplayName
 
-	// Clear line and print with fixed-width column for name
+	// Clear line and print with fixed-width column for name (for alignment)
 	// \r returns to start, \033[K clears to end of line
-	// Using %-*s for left-alignment with dynamic width
+	// Using %-*s for left-alignment with dynamic width based on longest (truncated) name
 	fmt.Printf("\r\033[K  %s %-*s %s\n", statusIcon, pt.maxNameLen+1, displayName+":", progress.Stage)
 }
 
