@@ -18,6 +18,7 @@ package srcdb
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"net/url"
 	"os/exec"
@@ -1842,6 +1843,9 @@ type ReplicaEndpoint struct {
 	ConnectionUri string // full connection URI for this replica
 }
 
+// ErrNotAReplica indicates that an endpoint is connectable but not a replica (pg_is_in_recovery = false)
+var ErrNotAReplica = errors.New("endpoint is not a replica (pg_is_in_recovery() = false)")
+
 // DiscoverReplicas queries pg_stat_replication on the primary to discover physical streaming replicas
 func (pg *PostgreSQL) DiscoverReplicas() ([]ReplicaInfo, error) {
 	query := `
@@ -1851,8 +1855,14 @@ func (pg *PostgreSQL) DiscoverReplicas() ([]ReplicaInfo, error) {
 			COALESCE(sync_state, '') AS sync_state,
 			COALESCE(host(client_addr), '') AS client_addr,
 			COALESCE(client_port, 0) AS client_port
-		FROM pg_stat_replication
+		FROM pg_stat_replication psr
 		WHERE state = 'streaming'
+		  AND NOT EXISTS (
+		    SELECT 1 
+		    FROM pg_replication_slots prs 
+		    WHERE prs.active_pid = psr.pid 
+		      AND prs.slot_type = 'logical'
+		  )
 		ORDER BY application_name, client_addr
 	`
 
@@ -1941,30 +1951,36 @@ func (pg *PostgreSQL) ParseReplicaEndpoints(endpointsStr string) ([]ReplicaEndpo
 	}), nil
 }
 
-// ValidateReplicaEndpoint connects to a replica endpoint and verifies it's in recovery
-func (pg *PostgreSQL) ValidateReplicaEndpoint(endpoint ReplicaEndpoint) error {
-	// Create a connection URI for the replica using the same credentials as primary
-	replicaURI := pg.GetReplicaConnectionUri(endpoint.Host, endpoint.Port)
+// ValidateReplicaConnection connects to a replica endpoint and verifies it's in recovery mode.
+// Returns ErrNotAReplica (wrapped) if the endpoint is connectable but not a replica.
+// Uses a 5-second timeout and performs a ping check before querying pg_is_in_recovery().
+func (pg *PostgreSQL) ValidateReplicaConnection(host string, port int) error {
+	replicaURI := pg.GetReplicaConnectionUri(host, port)
 
 	replicaDB, err := sql.Open("pgx", replicaURI)
 	if err != nil {
-		return fmt.Errorf("failed to open connection to replica %s:%d: %w", endpoint.Host, endpoint.Port, err)
+		return fmt.Errorf("failed to open connection: %w", err)
 	}
 	defer replicaDB.Close()
 
-	// Set connection timeout
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+
+	// Ping first for explicit connectivity check
+	err = replicaDB.PingContext(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to ping replica: %w", err)
+	}
 
 	// Verify replica is in recovery
 	var inRecovery bool
 	err = replicaDB.QueryRowContext(ctx, "SELECT pg_is_in_recovery()").Scan(&inRecovery)
 	if err != nil {
-		return fmt.Errorf("failed to query pg_is_in_recovery() on replica %s:%d: %w", endpoint.Host, endpoint.Port, err)
+		return fmt.Errorf("failed to query pg_is_in_recovery(): %w", err)
 	}
 
 	if !inRecovery {
-		return fmt.Errorf("endpoint %s:%d is not a replica (pg_is_in_recovery() = false)", endpoint.Host, endpoint.Port)
+		return fmt.Errorf("%s:%d: %w", host, port, ErrNotAReplica)
 	}
 
 	return nil
@@ -1981,37 +1997,4 @@ func (pg *PostgreSQL) GetReplicaConnectionUri(host string, port int) string {
 		RawQuery: generateSSLQueryStringIfNotExists(pg.source),
 	}
 	return sourceUrl.String()
-}
-
-// TryConnectReplica attempts to connect to a replica using discovered client_addr
-// This is a best-effort validation that may fail in cloud/proxy environments
-func (pg *PostgreSQL) TryConnectReplica(clientAddr string, port int) error {
-	replicaURI := pg.GetReplicaConnectionUri(clientAddr, port)
-
-	replicaDB, err := sql.Open("pgx", replicaURI)
-	if err != nil {
-		return fmt.Errorf("failed to open connection: %w", err)
-	}
-	defer replicaDB.Close()
-
-	// Smaller timeout as we are doing a best-effort validation and we expect it to fail in most cases
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	err = replicaDB.PingContext(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to ping replica: %w", err)
-	}
-
-	var inRecovery bool
-	err = replicaDB.QueryRowContext(ctx, "SELECT pg_is_in_recovery()").Scan(&inRecovery)
-	if err != nil {
-		return fmt.Errorf("failed to query pg_is_in_recovery(): %w", err)
-	}
-
-	if !inRecovery {
-		return fmt.Errorf("endpoint is not a replica (pg_is_in_recovery() = false)")
-	}
-
-	return nil
 }
