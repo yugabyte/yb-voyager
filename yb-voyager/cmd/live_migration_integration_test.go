@@ -78,7 +78,7 @@ func snapshotPhaseCompleted(t *testing.T, postgresPass string, targetPass string
 }
 
 // checks for the streaming phase completed in export and import both by checking the get data migration report
-func streamingPhaseCompleted(t *testing.T, postgresPass string, targetPass string, streamingInserts int64, tableName string) bool {
+func streamingPhaseCompleted(t *testing.T, postgresPass string, targetPass string, streamingInserts int64, streamingUpdates int64, streamingDeletes int64, tableName string) bool {
 	err := testutils.NewVoyagerCommandRunner(nil, "get data-migration-report", []string{
 		"--export-dir", exportDir,
 		"--output-format", "json",
@@ -95,18 +95,28 @@ func streamingPhaseCompleted(t *testing.T, postgresPass string, targetPass strin
 		testutils.FatalIfError(t, err, "error reading get data-migration-report")
 		exportInserts := 0
 		importInserts := 0
+		exportUpdates := 0
+		importUpdates := 0
+		exportDeletes := 0
+		importDeletes := 0
 		for _, row := range *rowData {
 			if row.TableName == tableName {
 				if row.DBType == "source" {
 					exportInserts = int(row.ExportedInserts)
+					exportUpdates = int(row.ExportedUpdates)
+					exportDeletes = int(row.ExportedDeletes)
 				}
 				if row.DBType == "target" {
 					importInserts = int(row.ImportedInserts)
+					importUpdates = int(row.ImportedUpdates)
+					importDeletes = int(row.ImportedDeletes)
 				}
 
 			}
 		}
-		if exportInserts == int(streamingInserts) && exportInserts == importInserts {
+		if exportInserts == int(streamingInserts) && exportInserts == importInserts &&
+			exportUpdates == int(streamingUpdates) && exportUpdates == importUpdates &&
+			exportDeletes == int(streamingDeletes) && exportDeletes == importDeletes {
 			return true
 		}
 
@@ -251,7 +261,7 @@ FROM generate_series(1, 5);`,
 
 	ok = utils.RetryWorkWithTimeout(1, 30, func() bool {
 		return streamingPhaseCompleted(t, postgresContainer.GetConfig().Password,
-			yugabytedbContainer.GetConfig().Password, 5, `test_schema."test_live"`)
+			yugabytedbContainer.GetConfig().Password, 5, 0, 0, `test_schema."test_live"`)
 	})
 	assert.True(t, ok)
 
@@ -387,7 +397,7 @@ FROM generate_series(1, 15);`,
 
 	ok = utils.RetryWorkWithTimeout(1, 30, func() bool {
 		return streamingPhaseCompleted(t, postgresContainer.GetConfig().Password,
-			yugabytedbContainer.GetConfig().Password, 15, `test_schema."test_live"`)
+			yugabytedbContainer.GetConfig().Password, 15, 0, 0, `test_schema."test_live"`)
 	})
 	assert.True(t, ok)
 
@@ -561,7 +571,7 @@ FROM generate_series(1, 15);`,
 
 	ok = utils.RetryWorkWithTimeout(1, 30, func() bool {
 		return streamingPhaseCompleted(t, postgresContainer.GetConfig().Password,
-			yugabytedbContainer.GetConfig().Password, 15, `test_schema."test_live"`)
+			yugabytedbContainer.GetConfig().Password, 15, 0, 0, `test_schema."test_live"`)
 	})
 	assert.True(t, ok)
 
@@ -609,4 +619,482 @@ FROM generate_series(1, 15);`,
 	err = ybConn.QueryRow(query).Scan(&col)
 	testutils.FatalIfError(t, err, "error checking if table has always or not")
 	assert.Equal(t, col, "id")
+}
+
+func TestLiveMigrationResumptionWithChangeInCDCPartitioningStrategy(t *testing.T) {
+	ctx := context.Background()
+
+	// Create a temporary export directory.
+	exportDir = testutils.CreateTempExportDir()
+	defer testutils.RemoveTempExportDir(exportDir)
+
+	createSchemaSQL := `CREATE SCHEMA IF NOT EXISTS test_schema;`
+	createTableSQL := `
+CREATE TABLE test_schema.test_live (
+	id SERIAL PRIMARY KEY,
+	name TEXT,
+	email TEXT,
+	description TEXT
+);`
+	insertDataSQL := `
+INSERT INTO test_schema.test_live (name, email, description)
+SELECT
+	md5(random()::text),                                      -- name
+	md5(random()::text) || '@example.com',                    -- email
+	repeat(md5(random()::text), 10)                           -- description (~320 chars)
+FROM generate_series(1, 10);`
+	dropSchemaSQL := `DROP SCHEMA IF EXISTS test_schema CASCADE;`
+
+	// Start Postgres container for live migration
+	postgresContainer := testcontainers.NewTestContainer("postgresql", &testcontainers.ContainerConfig{
+		ForLive: true,
+	})
+	if err := postgresContainer.Start(ctx); err != nil {
+		utils.ErrExit("Failed to start Postgres container: %v", err)
+	}
+
+	// Start YugabyteDB container.
+	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil)
+	if err := yugabytedbContainer.Start(ctx); err != nil {
+		utils.ErrExit("Failed to start YugabyteDB container: %v", err)
+	}
+	postgresContainer.ExecuteSqls([]string{
+		createSchemaSQL,
+		createTableSQL,
+		insertDataSQL,
+	}...)
+
+	yugabytedbContainer.ExecuteSqls([]string{
+		createSchemaSQL,
+		createTableSQL,
+	}...)
+
+	defer postgresContainer.ExecuteSqls(dropSchemaSQL)
+	defer yugabytedbContainer.ExecuteSqls(dropSchemaSQL)
+
+	err := testutils.NewVoyagerCommandRunner(postgresContainer, "export data", []string{
+		"--export-dir", exportDir,
+		"--source-db-schema", "test_schema",
+		"--disable-pb", "true",
+		"--export-type", SNAPSHOT_AND_CHANGES,
+		"--yes",
+	}, func() {
+		time.Sleep(5 * time.Second) // Wait for the export to start
+	}, true).Run()
+	testutils.FatalIfError(t, err, "Export command failed")
+
+	importCmd := testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
+		"--export-dir", exportDir,
+		"--disable-pb", "true",
+		"--yes",
+	}, func() {
+		time.Sleep(5 * time.Second)
+	}, true)
+	err = importCmd.Run()
+
+	testutils.FatalIfError(t, err, "Import command failed")
+
+	if err := importCmd.Kill(); err != nil {
+		testutils.FatalIfError(t, err, "killing the import data process errored")
+	}
+	if err := importCmd.Wait(); err != nil {
+		t.Logf("Async import run exited with error (expected): %v", err)
+	} else {
+		t.Logf("Async import run completed unexpectedly")
+	}
+
+	importCmd = testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
+		"--export-dir", exportDir,
+		"--disable-pb", "true",
+		"--cdc-partitioning-strategy", "pk",
+		"--yes",
+	}, func() {
+		time.Sleep(15 * time.Second)
+	}, false)
+	err = importCmd.Run()
+
+	assert.True(t, strings.Contains(importCmd.Stderr(), "changing the cdc partitioning strategy is not allowed after the import data has started. Current strategy: auto, new strategy: pk"))
+
+	metaDB, err = metadb.NewMetaDB(exportDir)
+	testutils.FatalIfError(t, err, "Failed to initialize meta db")
+
+	//check if the cdc partitioning strategy is auto after the first import
+	importDataStatus, err := metaDB.GetImportDataStatusRecord()
+	testutils.FatalIfError(t, err, "Failed to get import data status record")
+	assert.Equal(t, importDataStatus.CdcPartitioningStrategyConfig, "auto")
+
+	err = testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
+		"--export-dir", exportDir,
+		"--disable-pb", "true",
+		"--cdc-partitioning-strategy", "pk",
+		"--start-clean", "true",
+		"--truncate-tables", "true",
+		"--yes",
+	}, func() {
+		time.Sleep(15 * time.Second)
+	}, true).Run()
+
+	testutils.FatalIfError(t, err, "Import command failed")
+
+	importDataStatus, err = metaDB.GetImportDataStatusRecord()
+	testutils.FatalIfError(t, err, "Failed to get import data status record")
+	assert.Equal(t, importDataStatus.CdcPartitioningStrategyConfig, PARTITION_BY_PK)
+
+	// Perform cutover
+	err = testutils.NewVoyagerCommandRunner(nil, "initiate cutover to target", []string{
+		"--export-dir", exportDir,
+		"--yes",
+		"--prepare-for-fall-back", "false",
+	}, nil, false).Run()
+	testutils.FatalIfError(t, err, "Cutover command failed")
+
+}
+	
+func TestLiveMigrationWithUniqueKeyValuesWithPartialPredicateConflictDetectionCases(t *testing.T) {
+	ctx := context.Background()
+
+	// Create a temporary export directory.
+	exportDir = testutils.CreateTempExportDir()
+	defer testutils.RemoveTempExportDir(exportDir)
+
+	createSchemaSQL := `CREATE SCHEMA IF NOT EXISTS test_schema;`
+	createTableSQL := `
+CREATE TABLE test_schema.test_live (
+	id int PRIMARY KEY,
+	name TEXT,
+	check_id int,
+	most_recent boolean,
+	description TEXT
+);`
+	uniqueIndexDDL := `CREATE UNIQUE INDEX idx_test_live_id_check_id ON test_schema.test_live (check_id) WHERE most_recent;`
+	insertDataSQL := `
+INSERT INTO test_schema.test_live (id, name, check_id, most_recent, description)
+SELECT
+	i,
+	md5(random()::text),                                      -- name
+    i,                                                     -- check_id
+	i%2=0,                                                     -- most_recent
+	repeat(md5(random()::text), 10)                           -- description (~320 chars)
+FROM generate_series(1, 20) as i;`
+	dropSchemaSQL := `DROP SCHEMA IF EXISTS test_schema CASCADE;`
+
+	// Start Postgres container with live migration
+	postgresContainer := testcontainers.NewTestContainer("postgresql", &testcontainers.ContainerConfig{
+		ForLive: true,
+	})
+	if err := postgresContainer.Start(ctx); err != nil {
+		utils.ErrExit("Failed to start Postgres container: %v", err)
+	}
+
+	// Start YugabyteDB container.
+	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil)
+	if err := yugabytedbContainer.Start(ctx); err != nil {
+		utils.ErrExit("Failed to start YugabyteDB container: %v", err)
+	}
+	postgresContainer.ExecuteSqls([]string{
+		createSchemaSQL,
+		createTableSQL,
+		"ALTER TABLE test_schema.test_live REPLICA IDENTITY FULL;",
+		uniqueIndexDDL,
+		insertDataSQL,
+	}...)
+
+	yugabytedbContainer.ExecuteSqls([]string{
+		createSchemaSQL,
+		createTableSQL,
+		uniqueIndexDDL,
+	}...)
+
+	defer postgresContainer.ExecuteSqls(dropSchemaSQL)
+	defer yugabytedbContainer.ExecuteSqls(dropSchemaSQL)
+
+	err := testutils.NewVoyagerCommandRunner(postgresContainer, "export data", []string{
+		"--export-dir", exportDir,
+		"--source-db-schema", "test_schema",
+		"--disable-pb", "true",
+		"--export-type", SNAPSHOT_AND_CHANGES,
+		"--yes",
+	}, func() {
+		time.Sleep(5 * time.Second) // Wait for the export to start
+	}, true).Run()
+	testutils.FatalIfError(t, err, "Export command failed")
+
+	importCmd := testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
+		"--export-dir", exportDir,
+		"--disable-pb", "true",
+		"--yes",
+	}, nil, true)
+	err = importCmd.Run()
+	testutils.FatalIfError(t, err, "Import command failed")
+
+	time.Sleep(5 * time.Second)
+
+	ok := utils.RetryWorkWithTimeout(1, 30, func() bool {
+		return snapshotPhaseCompleted(t, postgresContainer.GetConfig().Password,
+			yugabytedbContainer.GetConfig().Password, 20, `test_schema."test_live"`)
+	})
+	assert.True(t, ok)
+	// Connect to both Postgres and YugabyteDB.
+	pgConn, err := postgresContainer.GetConnection()
+	testutils.FatalIfError(t, err, "connecting to Postgres")
+
+	ybConn, err := yugabytedbContainer.GetConnection()
+	testutils.FatalIfError(t, err, "Error connecting to YugabyteDB")
+
+	// Compare the full table data between Postgres and YugabyteDB for snapshot part.
+	// We assume the table "test_data" has a primary key "id" so we order by it.
+	if err := testutils.CompareTableData(ctx, pgConn, ybConn, "test_schema.test_live", "id"); err != nil {
+		t.Errorf("Table data mismatch between Postgres and YugabyteDB: %v", err)
+	}
+
+	//streaming events 10000 events
+	postgresContainer.ExecuteSqls([]string{
+		/*
+			conflict events
+			1 1 t
+			...
+			20 20 t
+			i=21
+			UI conflict
+			U 20 20 t->f
+			I 21 20 true
+
+			UU conflict
+			U 21 20 t->f
+			U 20 20 f->t
+
+			DU conflict
+			D 20 20 t
+			U 21 20 f->t
+
+			DI conflict
+			D 21 20 t
+			I 20 20 true
+
+			//set the required values back as first UI confict
+			U 20 20 t->f
+			I 21 20 true
+
+
+			i=22
+			U 21 20 t->f
+			I 22 20 true
+			..so on since the check_id is same for all the events it will be conflict with each other
+		*/
+		`DO $$
+DECLARE
+    i INTEGER;
+BEGIN
+    FOR i IN 21..520 LOOP
+        UPDATE test_schema.test_live SET most_recent = false WHERE id = i - 1;
+        INSERT INTO test_schema.test_live(id, name, check_id, most_recent, description) VALUES (i, md5(random()::text), 20, true, repeat(md5(random()::text), 10));
+
+		UPDATE test_schema.test_live SET most_recent = false WHERE id = i;
+		UPDATE test_schema.test_live SET most_recent = true WHERE id = i - 1;
+
+		DELETE FROM test_schema.test_live WHERE id = i-1;
+		UPDATE test_schema.test_live SET most_recent = true WHERE id = i;
+
+		DELETE FROM test_schema.test_live WHERE id = i;
+		INSERT INTO test_schema.test_live(id, name, check_id, most_recent, description) VALUES (i-1, md5(random()::text), 20, true, repeat(md5(random()::text), 10));
+
+		UPDATE test_schema.test_live SET most_recent = false WHERE id = i-1;
+		INSERT INTO test_schema.test_live(id, name, check_id, most_recent, description) VALUES (i, md5(random()::text), 20, true, repeat(md5(random()::text), 10));
+    END LOOP;
+END $$;`,
+	}...)
+	ok = utils.RetryWorkWithTimeout(5, 100, func() bool {
+		return streamingPhaseCompleted(t, postgresContainer.GetConfig().Password,
+			yugabytedbContainer.GetConfig().Password, 1500, 2500, 1000, `test_schema."test_live"`)
+	})
+	assert.True(t, ok)
+
+	// Compare the full table data between Postgres and YugabyteDB for streaming part.
+	if err := testutils.CompareTableData(ctx, pgConn, ybConn, "test_schema.test_live", "id"); err != nil {
+		t.Errorf("Table data mismatch between Postgres and YugabyteDB after streaming: %v", err)
+	}
+	// Perform cutover
+	err = testutils.NewVoyagerCommandRunner(nil, "initiate cutover to target", []string{
+		"--export-dir", exportDir,
+		"--yes",
+		"--prepare-for-fall-back", "false",
+	}, nil, false).Run()
+	testutils.FatalIfError(t, err, "Cutover command failed")
+
+}
+
+func TestLiveMigrationWithUniqueKeyConflictWithNullValuesDetectionCases(t *testing.T) {
+	ctx := context.Background()
+
+	// Create a temporary export directory.
+	exportDir = testutils.CreateTempExportDir()
+	defer testutils.RemoveTempExportDir(exportDir)
+
+	createSchemaSQL := `CREATE SCHEMA IF NOT EXISTS test_schema;`
+
+	//check_id_null_unique should be UNIQUE NOT NULLS DISTINCT
+	createTableWithNULLUniqueValuesSql := `
+CREATE TABLE test_schema.test_live_null_unique_values (
+	id int PRIMARY KEY,
+	name TEXT,
+	check_id int UNIQUE,
+	check_id_null_unique int UNIQUE NULLS NOT DISTINCT
+);`
+
+	insertDataWithNULLUniqueValuesSQL := `
+INSERT INTO test_schema.test_live_null_unique_values (id, name, check_id, check_id_null_unique)
+SELECT
+	i,
+	md5(random()::text),                                   -- name
+    CASE WHEN i%2=0 THEN i ELSE NULL END,                  -- check_id
+    i                                                 -- check_id_null_unique
+FROM generate_series(1, 20) as i;`
+
+	dropSchemaSQL := `DROP SCHEMA IF EXISTS test_schema CASCADE;`
+
+	// Start Postgres container with live migration
+	postgresContainer := testcontainers.NewTestContainer("postgresql", &testcontainers.ContainerConfig{
+		ForLive: true,
+	})
+	if err := postgresContainer.Start(ctx); err != nil {
+		utils.ErrExit("Failed to start Postgres container: %v", err)
+	}
+
+	// Start YugabyteDB container.
+	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil)
+	if err := yugabytedbContainer.Start(ctx); err != nil {
+		utils.ErrExit("Failed to start YugabyteDB container: %v", err)
+	}
+	postgresContainer.ExecuteSqls([]string{
+		createSchemaSQL,
+		createTableWithNULLUniqueValuesSql,
+		"ALTER TABLE test_schema.test_live_null_unique_values REPLICA IDENTITY FULL;",
+		insertDataWithNULLUniqueValuesSQL,
+	}...)
+
+	yugabytedbContainer.ExecuteSqls([]string{
+		createSchemaSQL,
+		createTableWithNULLUniqueValuesSql,
+	}...)
+
+	defer postgresContainer.ExecuteSqls(dropSchemaSQL)
+	defer yugabytedbContainer.ExecuteSqls(dropSchemaSQL)
+
+	err := testutils.NewVoyagerCommandRunner(postgresContainer, "export data", []string{
+		"--export-dir", exportDir,
+		"--source-db-schema", "test_schema",
+		"--disable-pb", "true",
+		"--export-type", SNAPSHOT_AND_CHANGES,
+		"--yes",
+	}, func() {
+		time.Sleep(5 * time.Second) // Wait for the export to start
+	}, true).Run()
+	testutils.FatalIfError(t, err, "Export command failed")
+
+	importCmd := testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
+		"--export-dir", exportDir,
+		"--disable-pb", "true",
+		"--yes",
+	}, nil, true)
+	err = importCmd.Run()
+	testutils.FatalIfError(t, err, "Import command failed")
+
+	time.Sleep(5 * time.Second)
+
+	ok := utils.RetryWorkWithTimeout(1, 30, func() bool {
+		return snapshotPhaseCompleted(t, postgresContainer.GetConfig().Password,
+			yugabytedbContainer.GetConfig().Password, 20, `test_schema."test_live_null_unique_values"`)
+	})
+	assert.True(t, ok)
+	// Connect to both Postgres and YugabyteDB.
+	pgConn, err := postgresContainer.GetConnection()
+	testutils.FatalIfError(t, err, "connecting to Postgres")
+
+	ybConn, err := yugabytedbContainer.GetConnection()
+	testutils.FatalIfError(t, err, "Error connecting to YugabyteDB")
+
+	// Compare the full table data between Postgres and YugabyteDB for snapshot part.
+	// We assume the table "test_data" has a primary key "id" so we order by it.
+	if err := testutils.CompareTableData(ctx, pgConn, ybConn, "test_schema.test_live_null_unique_values", "id"); err != nil {
+		t.Errorf("Table data mismatch between Postgres and YugabyteDB: %v", err)
+	}
+
+	//streaming events 10000 events
+	postgresContainer.ExecuteSqls([]string{
+		/*
+			The below test covering  the null cases
+			1  NULL 1
+			2  2 2
+			...
+
+			i=21
+			UI conflict
+			U 20 20 20->NULL
+			I 21 NULL 20
+
+			UU conflict
+			U 20 20 NULL->20
+			U 21 NULL 20->NULL
+
+			DU conflict
+			D 20 20 20
+			U 21 NULL NULL->20
+
+			U 21 NULL 20->NULL
+
+			DI conflict
+			D 21 NULL NULL
+			I 20 20 NULL
+
+			U 20 20 NULL->20
+			I 21 NULL 21
+		*/
+		`DO $$
+DECLARE	
+    i INTEGER;
+BEGIN
+    FOR i IN 21..520 LOOP
+        UPDATE test_schema.test_live_null_unique_values SET check_id_null_unique = NULL WHERE id = i - 1;
+		INSERT INTO test_schema.test_live_null_unique_values(id, name, check_id, check_id_null_unique) 
+		SELECT i, md5(random()::text), CASE WHEN i%2=0 THEN i ELSE NULL END, i-1 ;
+
+		UPDATE test_schema.test_live_null_unique_values SET check_id_null_unique = i WHERE id = i - 1;
+		UPDATE test_schema.test_live_null_unique_values SET check_id_null_unique = NULL WHERE id = i;
+
+		DELETE FROM test_schema.test_live_null_unique_values WHERE id = i-1;
+		UPDATE test_schema.test_live_null_unique_values SET check_id_null_unique = i-1 WHERE id = i;
+
+		UPDATE test_schema.test_live_null_unique_values SET check_id_null_unique = NULL WHERE id = i;
+		
+		DELETE FROM test_schema.test_live_null_unique_values WHERE id = i;
+		INSERT INTO test_schema.test_live_null_unique_values(id, name, check_id, check_id_null_unique) 
+		SELECT i-1, md5(random()::text), CASE WHEN (i-1)%2=0 THEN i-1 ELSE NULL END, NULL;
+
+
+		UPDATE test_schema.test_live_null_unique_values SET check_id_null_unique = i-1 WHERE id = i - 1;
+		INSERT INTO test_schema.test_live_null_unique_values(id, name, check_id, check_id_null_unique)
+		SELECT i, md5(random()::text), CASE WHEN i%2=0 THEN i ELSE NULL END, i;
+
+    END LOOP;
+END $$;`,
+	}...)
+	ok = utils.RetryWorkWithTimeout(5, 120, func() bool {
+		return streamingPhaseCompleted(t, postgresContainer.GetConfig().Password,
+			yugabytedbContainer.GetConfig().Password, 1500, 3000, 1000, `test_schema."test_live_null_unique_values"`)
+	})
+	assert.True(t, ok)
+
+	// Compare the full table data between Postgres and YugabyteDB for streaming part.
+	if err := testutils.CompareTableData(ctx, pgConn, ybConn, "test_schema.test_live_null_unique_values", "id"); err != nil {
+		t.Errorf("Table data mismatch between Postgres and YugabyteDB after streaming: %v", err)
+	}
+
+	// Perform cutover
+	err = testutils.NewVoyagerCommandRunner(nil, "initiate cutover to target", []string{
+		"--export-dir", exportDir,
+		"--yes",
+		"--prepare-for-fall-back", "false",
+	}, nil, false).Run()
+	testutils.FatalIfError(t, err, "Cutover command failed")
+
 }

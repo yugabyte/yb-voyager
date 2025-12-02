@@ -24,7 +24,9 @@ EXPECTED_ROW_COUNT = {
     'subset_columns_unique_constraint_and_index': 12,
     'single_unique_constraint': 12,
     'multi_unique_constraint': 12,
-    'same_column_unique_constraint_and_index': 12
+    'same_column_unique_constraint_and_index': 12,
+    'expression_based_unique_index': 7,
+    'test_partial_unique_index':11
 }
 
 # Define expected final varchar state for all unique constraint/index columns
@@ -73,7 +75,7 @@ EXPECTED_FINAL_STATE_VARCHAR = {
         ]
     },
     'single_unique_index': {
-        'ssn': [
+        '"Ssn"': [
             'updated_non_conflict_ssn1', 'SSN2', 'updated_SSN4', 'SSN4',
             'updated_SSN5', 'SSN5', 'target_ssn101', 'updated_target_ssn102',
             'updated_target_ssn105', 'target_ssn105', 'updated_target_ssn106',
@@ -121,8 +123,55 @@ EXPECTED_FINAL_STATE_VARCHAR = {
             '123-456-7811', '123-456-7855', '123-456-7815', '123-456-7818',
             '123-456-7816'
         ]
+    },
+    'expression_based_unique_index':{
+        'email': [
+            'user1@example.com', 
+            'usER2@example.com', 
+            'usER3@example.com', 
+            'updated_target_user4@example.com', 
+            'updated_target_user5@example.com',
+            'UPDATED_User5@example.com',
+            'UPDATED_User4@example.com'
+        ]
     }
 }
+
+EXPECTED_TEST_PARTIAL_UNIQUE_INDEX_DATA=[
+    {
+        'id': 5,'check_id':4,'most_recent': True,
+    },
+    {
+        'id': 1,'check_id':1,'most_recent': False,
+    },
+    {
+        'id': 11,'check_id':1,'most_recent': True,
+    },
+    {
+        'id': 13,'check_id':3,'most_recent': True,
+    },
+    {
+        'id': 12,'check_id':2,'most_recent': True,
+    },
+    {
+        'id': 6,'check_id':5,'most_recent': True,
+    },
+    {
+        'id': 7,'check_id':6,'most_recent': False,
+    },
+    {
+        'id': 9,'check_id':7,'most_recent': True,
+    },
+    {
+        'id': 10,'check_id':8,'most_recent': True,
+    },
+    {
+        'id': 2,'check_id':2,'most_recent': False,
+    },
+    {
+        'id': 8,'check_id':6,'most_recent': True,
+    }
+]
 
 def migration_completed_checks_yb():
     print("Running tests on YB")
@@ -163,5 +212,21 @@ def migration_completed_checks(tgt):
                 )
                 print(f"Validation passed for {column} in {schema_name}.{table_name}")
 
+        #test_partial_unique_index validation
+        for row in EXPECTED_TEST_PARTIAL_UNIQUE_INDEX_DATA:
+            row_id = row['id']
+            check_id = row['check_id']
+            expected_most_recent = row['most_recent']
+            
+            actual_most_recent = tgt.execute_query(
+                f"SELECT most_recent FROM {schema_name}.test_partial_unique_index WHERE check_id={check_id} AND id={row_id}"
+            )
+            
+            assert actual_most_recent == expected_most_recent, (
+                f"most_recent mismatch for test_partial_unique_index in schema {schema_name}: "
+                f"Expected id={row_id}, check_id={check_id}, most_recent='{expected_most_recent}', "
+                f"Got most_recent='{actual_most_recent}'"
+            )
+            print(f"Validation passed for id={row_id}, check_id={check_id}, most_recent='{expected_most_recent}'")
 if __name__ == "__main__":
     main()

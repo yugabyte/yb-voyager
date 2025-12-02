@@ -34,11 +34,23 @@ type Event struct {
 	Op           string
 	TableNameTup sqlname.NameTuple
 	Key          map[string]*string
-	Fields       map[string]*string
-	BeforeFields map[string]*string
+	Fields       map[string]*string //all the column values of the row - worst
+	BeforeFields map[string]*string //all the column values of the row - worst
 	ExporterRole string
 }
 
+/*
+* The before fields for non-yb connectors contains all the column values of the table
+* For Non-yb connectors,
+*  INSERT - before:nil, fields:all column values of the row
+*  DELETE - before:all column values of the row, fields:PK
+*  UPDATE - before:all column values of the row, fields:changed fields
+* 
+* For yb connector,
+*  INSERT - before:nil, fields:all column values of the row
+*  DELETE - before:nil, fields:PK
+*  UPDATE - before:nil, fields:changed fields
+*/
 func (e *Event) UnmarshalJSON(data []byte) error {
 	if string(data) == "null" || string(data) == `""` {
 		return nil
@@ -378,12 +390,6 @@ func getMapValuesForQuery(m map[string]*string) []interface{} {
 		values = append(values, m[key])
 	}
 	return values
-}
-
-func (event *Event) IsUniqueKeyChanged(uniqueKeyCols []string) bool {
-	return event.Op == "u" &&
-		len(uniqueKeyCols) > 0 &&
-		lo.Some(lo.Keys(event.Fields), uniqueKeyCols)
 }
 
 // ==============================================================================================================================

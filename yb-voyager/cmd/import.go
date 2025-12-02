@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
@@ -110,6 +111,49 @@ func validateImportDataFlags() error {
 	if err != nil {
 		return err
 	}
+
+	return nil
+}
+
+var validCdcPartitioningStrategies = []string{"pk", "table", "auto"}
+
+func validateCdcPartitioningStrategyFlag(cmd *cobra.Command) error {
+	if importerRole != TARGET_DB_IMPORTER_ROLE {
+		return nil
+	}
+	if !changeStreamingIsEnabled(importType) {
+		if cmd.Flags().Changed("cdc-partitioning-strategy") {
+			utils.ErrExit("--cdc-partitioning-strategy is not supported for offline migration. Re-run the command without this flag.")
+		}
+		return nil
+	}
+	if cdcPartitioningStrategy == "" {
+		utils.ErrExit("cdc partitioning strategy is required")
+	}
+
+	if !lo.Contains(validCdcPartitioningStrategies, cdcPartitioningStrategy) {
+		utils.ErrExit("invalid cdc partitioning strategy: %s. Supported values are: %s", cdcPartitioningStrategy, strings.Join(validCdcPartitioningStrategies, ", "))
+	}
+
+	importDataStatus, err := metaDB.GetImportDataStatusRecord()
+	if err != nil {
+		return fmt.Errorf("error getting import data status record: %w", err)
+	}
+
+	if importDataStatus == nil || !importDataStatus.ImportDataStarted || bool(startClean) {
+		//if import data has not started or start-clean flag is used, allow the change in cdc partitioning strategy
+		return nil
+	}
+	if importDataStatus.CdcPartitioningStrategyConfig == "" {
+		//if not a first run and the cdc partitioning strategy is not set
+		//this can be the case when the import data is resumed from an earlier version of yb-voyager
+		//So we should use the cdc partitioning strategy as pk to be upgrade safe
+		utils.ErrExit("Resuming from an earlier version of yb-voyager is not supported as cdc partition strategy was not set. Use --start-clean to start a fresh import with the new yb-voyager version.")
+	}
+	if cdcPartitioningStrategy != importDataStatus.CdcPartitioningStrategyConfig {
+		utils.ErrExit("changing the cdc partitioning strategy is not allowed after the import data has started. Current strategy: %s, new strategy: %s\n Use --start-clean to start a fresh import with the new strategy.", importDataStatus.CdcPartitioningStrategyConfig, cdcPartitioningStrategy)
+	}
+	log.Infof("cdc partitioning strategy: %s", cdcPartitioningStrategy)
 	return nil
 }
 
@@ -272,6 +316,13 @@ Note that for the cases where a table doesn't have a primary key, this may lead 
 
 	BoolVar(cmd.Flags(), &enableRandomBatchProduction, "enable-random-batch-production", true, "Enable random batch production during data import (default false)")
 	cmd.Flags().MarkHidden("enable-random-batch-production")
+
+	cmd.Flags().StringVar(&cdcPartitioningStrategy, "cdc-partitioning-strategy", "auto",
+		`The desired partitioning strategy to use while importing cdc events parallelly. The supported values are: pk, table. (default auto-detect)
+		\tauto: Automatically detect the partitioning strategy based on the table having expression or normal unique indexes.
+		\tpk: Partition the cdc events by primary key.
+		\ttable: Partition the cdc events by table.`)
+	cmd.Flags().MarkHidden("cdc-partitioning-strategy")
 
 	cmd.Flags().IntVar(&prometheusMetricsPort, "prometheus-metrics-port", 0,
 		"Port for Prometheus metrics server (default: 9101)")

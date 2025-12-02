@@ -83,9 +83,12 @@ var importTableList []sqlname.NameTuple
 // Error policy
 var errorPolicySnapshotFlag importdata.ErrorPolicy = importdata.AbortErrorPolicy
 
-// batch production
+// snapshot batch production
 var enableRandomBatchProduction utils.BoolStr
 var maxConcurrentBatchProductionsConfig int = 10
+
+// live migration
+var cdcPartitioningStrategy string
 
 var importDataCmd = &cobra.Command{
 	Use: "data",
@@ -189,6 +192,11 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	err = setImportTypeAndIdentityColumnMetaDBKeyForImporterRole(importerRole)
 	if err != nil {
 		utils.ErrExit("error while setting import type or identity column metadb key: %v", err)
+	}
+
+	err = validateCdcPartitioningStrategyFlag(cmd)
+	if err != nil {
+		utils.ErrExit("error validating --cdc-partitioning-strategy flag: %v", err)
 	}
 
 	if changeStreamingIsEnabled(importType) {
@@ -653,12 +661,15 @@ func updateTargetConfInMigrationStatus() {
 func updateImportDataStartedInMetaDB() error {
 	switch importerRole {
 	case TARGET_DB_IMPORTER_ROLE:
+		log.Infof("updating import data started in meta db with cdc partitioning strategy: %s", cdcPartitioningStrategy)
 		err := metaDB.UpdateImportDataStatusRecord(func(record *metadb.ImportDataStatusRecord) {
 			record.ImportDataStarted = true
+			record.CdcPartitioningStrategyConfig = cdcPartitioningStrategy
 		})
 		if err != nil {
 			return fmt.Errorf("Failed to update import data status record: %s", err)
 		}
+
 	case IMPORT_FILE_ROLE:
 		err := metaDB.UpdateImportDataFileStatusRecord(func(record *metadb.ImportDataFileStatusRecord) {
 			record.ImportDataStarted = true
@@ -1837,6 +1848,9 @@ func cleanMSRForImportDataStartClean() error {
 	} else {
 		metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 			msr.OnPrimaryKeyConflictAction = ""
+		})
+		err = metaDB.UpdateImportDataStatusRecord(func(record *metadb.ImportDataStatusRecord) {
+			record.TableToCDCPartitioningStrategyMap = nil
 		})
 	}
 	return nil
