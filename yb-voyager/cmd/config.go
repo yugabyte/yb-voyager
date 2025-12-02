@@ -144,6 +144,7 @@ var allowedImportDataConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"disable-pb", "max-retries-streaming", "exclude-table-list", "table-list",
 	"exclude-table-list-file-path", "table-list-file-path", "enable-upsert", "use-public-ip",
 	"target-endpoints", "truncate-tables", "error-policy-snapshot",
+	"max-concurrent-batch-productions", "enable-random-batch-production",
 	"skip-node-health-checks", "skip-disk-usage-health-checks",
 	"on-primary-key-conflict", "disable-transactional-writes",
 	"truncate-splits", "prometheus-metrics-port",
@@ -182,6 +183,7 @@ var allowedImportDataFileConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"quote-char", "file-opts", "null-string", "truncate-tables", "error-policy",
 	"disable-transactional-writes", "truncate-splits", "skip-replication-checks",
 	"skip-node-health-checks", "skip-disk-usage-health-checks", "on-primary-key-conflict",
+	"max-concurrent-batch-productions", "enable-random-batch-production",
 	"prometheus-metrics-port",
 	// environment variables keys
 	"csv-reader-max-buffer-size-bytes", "ybvoyager-max-colocated-batches-in-progress",

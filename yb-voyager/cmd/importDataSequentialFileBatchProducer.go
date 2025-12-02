@@ -111,6 +111,14 @@ func (p *SequentialFileBatchProducer) Done() bool {
 	return p.completed
 }
 
+/*
+Batches are essentially produced (or made available) when NextBatch is called.
+So, if we are not done yet, then there is at least one batch available.
+*/
+func (p *SequentialFileBatchProducer) IsNextBatchAvailable() bool {
+	return !p.Done()
+}
+
 func (p *SequentialFileBatchProducer) NextBatch() (*Batch, error) {
 	if p.Done() {
 		return nil, fmt.Errorf("already completed producing all batches")
