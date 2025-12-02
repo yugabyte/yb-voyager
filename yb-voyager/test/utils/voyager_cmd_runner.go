@@ -55,12 +55,25 @@ type VoyagerCommandRunner struct {
 	testEnvVars []string
 }
 
+// WithEnv adds custom environment variables to the command.
+// This is useful for testing scenarios like failpoint injection.
+// Returns the VoyagerCommandRunner for method chaining.
+//
+// Example:
+//
+//	runner := NewVoyagerCommandRunner(...).WithEnv("GO_FAILPOINTS=pkg/fp1=return()")
+func (v *VoyagerCommandRunner) WithEnv(envVars ...string) *VoyagerCommandRunner {
+	v.testEnvVars = append(v.testEnvVars, envVars...)
+	return v
+}
+
 // WithEnvMap adds additional environment variables from a map to the command.
 // The envMap is merged with existing environment variables.
 // This is useful for injecting test-specific configuration like Byteman settings.
 func (v *VoyagerCommandRunner) WithEnvMap(envMap map[string]string) *VoyagerCommandRunner {
 	for key, value := range envMap {
-		v.testEnvVars = append(v.testEnvVars, fmt.Sprintf("%s=%s", key, value))
+		envVar := fmt.Sprintf("%s=%s", key, value)
+		v.WithEnv(envVar)
 	}
 	return v
 }
@@ -236,18 +249,6 @@ func (v *VoyagerCommandRunner) Stderr() string {
 
 func (v *VoyagerCommandRunner) SetAsync(async bool) {
 	v.isAsync = async
-}
-
-// WithEnv adds custom environment variables to the command.
-// This is useful for testing scenarios like failpoint injection.
-// Returns the VoyagerCommandRunner for method chaining.
-//
-// Example:
-//
-//	runner := NewVoyagerCommandRunner(...).WithEnv("GO_FAILPOINTS=pkg/fp1=return()")
-func (v *VoyagerCommandRunner) WithEnv(envVars ...string) *VoyagerCommandRunner {
-	v.testEnvVars = append(v.testEnvVars, envVars...)
-	return v
 }
 
 // printCommandHeader prints a formatted header before command execution

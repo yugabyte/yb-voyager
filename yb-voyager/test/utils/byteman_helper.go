@@ -21,6 +21,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 )
 
 // BytemanHelper provides Byteman infrastructure for Go integration tests.
@@ -74,12 +75,33 @@ func (b *BytemanHelper) WriteRules() error {
 
 // GetEnv returns environment variables needed to enable Byteman for Java processes.
 // The returned map should be merged with the test command's environment.
-// It configures JAVA_OPTS to load the Byteman agent with the rule file.
+// It configures DEBEZIUM_OPTS to load the Byteman agent with the rule file.
+// Note: We use DEBEZIUM_OPTS instead of JAVA_OPTS because dbzm.go may overwrite
+// JAVA_OPTS with Oracle wallet location settings (even for non-Oracle sources).
 func (b *BytemanHelper) GetEnv() map[string]string {
 	return map[string]string{
-		"JAVA_OPTS": fmt.Sprintf("-javaagent:%s=script:%s,boot:%s",
+		"DEBEZIUM_OPTS": fmt.Sprintf("-javaagent:%s=script:%s,boot:%s",
 			b.bytemanJar, b.ruleFilePath, b.bytemanJar),
 	}
+}
+
+// WaitForInjection polls the Debezium logs until the pattern is found or timeout.
+// This is more efficient than a fixed sleep as it returns early when injection is detected.
+// Returns true if the pattern was found, false if timeout was reached.
+func (b *BytemanHelper) WaitForInjection(pattern string, timeout time.Duration) (bool, error) {
+	deadline := time.Now().Add(timeout)
+	pollInterval := 500 * time.Millisecond
+
+	for time.Now().Before(deadline) {
+		matched, err := b.VerifyInjection(pattern)
+		if err == nil && matched {
+			return true, nil
+		}
+		time.Sleep(pollInterval)
+	}
+
+	// Final check after timeout
+	return b.VerifyInjection(pattern)
 }
 
 // VerifyInjection checks if a Byteman injection occurred by searching Debezium logs.
@@ -169,52 +191,48 @@ func (r *RuleBuilder) AtLine(lineNum int) *RuleBuilder {
 	return r
 }
 
-// AtMarker targets a BytemanMarkers.checkpoint() call with the given name.
+// MarkerType represents the type of BytemanMarkers method to target.
+type MarkerType string
+
+const (
+	MarkerCheckpoint MarkerType = "checkpoint" // Generic checkpoint marker
+	MarkerCDC        MarkerType = "cdc"        // CDC/streaming operations
+	MarkerSnapshot   MarkerType = "snapshot"   // Snapshot phase operations
+	MarkerDB         MarkerType = "db"         // Database operations
+)
+
+// AtMarker targets a BytemanMarkers method call with the given marker name.
 // This is the recommended approach for stable, self-documenting injection points.
-// Example: AtMarker("before-poll") targets BytemanMarkers.checkpoint("before-poll")
-func (r *RuleBuilder) AtMarker(checkpointName string) *RuleBuilder {
+// If a condition was already set (e.g., by If), the marker condition is ANDed with it.
+//
+// Example:
+//
+//	AtMarker(MarkerCDC, "before-batch") targets BytemanMarkers.cdc("before-batch")
+//	AtMarker(MarkerSnapshot, "before-complete") targets BytemanMarkers.snapshot("before-complete")
+func (r *RuleBuilder) AtMarker(markerType MarkerType, markerName string) *RuleBuilder {
 	r.class = "com.yugabyte.ybvoyager.BytemanMarkers"
-	r.method = "checkpoint"
+	r.method = string(markerType)
 	r.location = "AT ENTRY"
-	r.condition = fmt.Sprintf(`$1.equals("%s")`, checkpointName)
-	return r
-}
-
-// AtCDCMarker targets a BytemanMarkers.cdc() call with the given event name.
-// Example: AtCDCMarker("before-poll") targets BytemanMarkers.cdc("before-poll")
-func (r *RuleBuilder) AtCDCMarker(eventName string) *RuleBuilder {
-	r.class = "com.yugabyte.ybvoyager.BytemanMarkers"
-	r.method = "cdc"
-	r.location = "AT ENTRY"
-	r.condition = fmt.Sprintf(`$1.equals("%s")`, eventName)
-	return r
-}
-
-// AtSnapshotMarker targets a BytemanMarkers.snapshot() call with the given phase name.
-// Example: AtSnapshotMarker("before-complete") targets BytemanMarkers.snapshot("before-complete")
-func (r *RuleBuilder) AtSnapshotMarker(phaseName string) *RuleBuilder {
-	r.class = "com.yugabyte.ybvoyager.BytemanMarkers"
-	r.method = "snapshot"
-	r.location = "AT ENTRY"
-	r.condition = fmt.Sprintf(`$1.equals("%s")`, phaseName)
-	return r
-}
-
-// AtDBMarker targets a BytemanMarkers.db() call with the given operation name.
-// Example: AtDBMarker("connect") targets BytemanMarkers.db("connect")
-func (r *RuleBuilder) AtDBMarker(operationName string) *RuleBuilder {
-	r.class = "com.yugabyte.ybvoyager.BytemanMarkers"
-	r.method = "db"
-	r.location = "AT ENTRY"
-	r.condition = fmt.Sprintf(`$1.equals("%s")`, operationName)
+	markerCondition := fmt.Sprintf(`$1.equals("%s")`, markerName)
+	if r.condition != "" && r.condition != "true" {
+		r.condition = fmt.Sprintf("(%s) && (%s)", r.condition, markerCondition)
+	} else {
+		r.condition = markerCondition
+	}
 	return r
 }
 
 // If sets the condition for when the rule should trigger.
 // The condition is a Byteman expression (e.g., "incrementCounter(\"count\") == 5").
+// If a condition was already set (e.g., by AtMarker), the new condition is ANDed with it.
 // Default condition is "true" (always trigger).
 func (r *RuleBuilder) If(condition string) *RuleBuilder {
-	r.condition = condition
+	if r.condition != "" && r.condition != "true" {
+		// Combine with existing condition using AND
+		r.condition = fmt.Sprintf("(%s) && (%s)", r.condition, condition)
+	} else {
+		r.condition = condition
+	}
 	return r
 }
 
@@ -244,15 +262,16 @@ func (r *RuleBuilder) Delay(seconds int) *RuleBuilder {
 // Build generates the final Byteman rule text.
 // This is called automatically by AddRuleFromBuilder().
 /*
-Example:
-RULE "fail_connection"
-CLASS "java.sql.DriverManager"
-METHOD "getConnection"
-AT ENTRY
-IF "incrementCounter(\"connections\") == 3"
-DO "traceln(\">>> BYTEMAN: Connection refused\");
-   throw new java.sql.SQLException(\"Connection refused\")"
-ENDRULE
+Example output:
+
+	RULE fail_connection
+	CLASS java.sql.DriverManager
+	METHOD getConnection
+	AT ENTRY
+	IF incrementCounter("connections") == 3
+	DO traceln(">>> BYTEMAN: Connection refused");
+	   throw new java.sql.SQLException("Connection refused")
+	ENDRULE
 */
 func (r *RuleBuilder) Build() string {
 	if r.class == "" || r.method == "" || r.location == "" || r.action == "" {

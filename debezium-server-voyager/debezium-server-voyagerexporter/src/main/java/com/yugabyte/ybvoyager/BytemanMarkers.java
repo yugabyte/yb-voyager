@@ -26,7 +26,7 @@ package com.yugabyte.ybvoyager;
  *   BytemanMarkers.checkpoint("before-critical-operation");
  * 
  * Usage in Go tests:
- *   NewRule("test").AtMarker("before-critical-operation").ThrowException(...)
+ *   NewRule("test").AtMarker(MarkerCheckpoint, "before-critical-operation").ThrowException(...)
  * 
  * @see https://byteman.jboss.org/ for Byteman documentation
  */
