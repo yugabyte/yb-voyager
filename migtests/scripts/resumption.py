@@ -48,7 +48,8 @@ target_db_schema = ''
 target_db_name = ''
 data_dir = ''
 varying_flags = {}
-max_resumption_time = 14400 # 4 hours
+max_resumption_time = 5400 # 1.5 hours
+
 def parse_arguments():
     parser = argparse.ArgumentParser(description="YB Voyager Resumption Test")
     parser.add_argument('config_file', metavar='config.yaml', type=str, 
