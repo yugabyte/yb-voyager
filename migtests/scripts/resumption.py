@@ -48,7 +48,7 @@ target_db_schema = ''
 target_db_name = ''
 data_dir = ''
 varying_flags = {}
-
+max_resumption_time = 14400 # 4 hours
 def parse_arguments():
     parser = argparse.ArgumentParser(description="YB Voyager Resumption Test")
     parser.add_argument('config_file', metavar='config.yaml', type=str, 
@@ -256,8 +256,10 @@ def run_and_resume_voyager(base_command):
     Args:
         base_command (list): The base command to execute.
     """
-    for attempt in range(1, max_restarts + 1):
-        print(f"\n--- Attempt {attempt} of {max_restarts} ---")
+    start_time = time.time()
+    attempt = 1
+    while time.time() - start_time < max_resumption_time:
+        print(f"\n--- Attempt {attempt} of resumption attempts --")
 
         # Clone base command
         command = base_command.copy()
@@ -278,6 +280,8 @@ def run_and_resume_voyager(base_command):
         print(f"Waiting {restart_wait_time_seconds // 60}m {restart_wait_time_seconds % 60}s before resuming...", flush=True)
         time.sleep(restart_wait_time_seconds)
         print("Completed waiting. Proceeding to next attempt...", flush=True)
+        attempt += 1
+        print(f"Time elapsed: {time.time() - start_time} seconds out of {max_resumption_time} seconds", flush=True)
 
     # Final attempt without interruption
     print("\n--- Final attempt to complete the import ---\n", flush=True)
