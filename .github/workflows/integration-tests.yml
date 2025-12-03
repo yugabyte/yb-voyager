@@ -80,7 +80,9 @@ jobs:
       run: |
         cd yb-voyager
         go test -v ./... -tags 'integration'
-    
+
+    # Note: Below go tests use a voyager binary to call voyager commands
+    # Hence its important to ensure the voyager binary built is using the changes in the PR branch - `./install-yb-voyager --install-from-local-source`
     - name: Run Integration Tests (executing voyager commands)
       env: 
         YB_VERSION: ${{ needs.prepare-versions.outputs.yb_latest_stable }}
