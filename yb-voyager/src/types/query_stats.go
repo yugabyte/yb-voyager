@@ -39,9 +39,8 @@ type QueryStats struct {
 // Mirrors the logic of pgss.MergePgStatStatementsBasedOnQuery but operates on QueryStats directly
 // to avoid conversion overhead between types and maintain a clean, direct code path.
 //
-// Merge key: Uses query text (not queryid) because:
-// - QueryIDs can differ for the same query across nodes due to user context, DB OIDs, or PG version differences
-// - Query text is the semantic truth - same text = same query, regardless of queryid
+// Merge key: Uses query text (not queryid).
+// TODO: revisit this in future and see if we can use QueryID instead as ideally it should work.
 func MergeQueryStatsBasedOnQuery(entries []*QueryStats) []*QueryStats {
 	queryMap := make(map[string]*QueryStats)
 
