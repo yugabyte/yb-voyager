@@ -1077,16 +1077,7 @@ func runGatherAssessmentMetadataScriptBuffered(
 	// Wait for command to complete
 	err = cmd.Wait()
 	if err != nil {
-		if exiterr, ok := err.(*exec.ExitError); ok {
-			if status, ok := exiterr.Sys().(syscall.WaitStatus); ok {
-				if status.ExitStatus() == 2 {
-					log.Infof("[%s] Exit without error as user opted not to continue in the script.", nodeName)
-					// For parallel execution, we don't exit the entire process
-					return fmt.Errorf("user opted not to continue")
-				}
-			}
-		}
-		log.Errorf("[%s] Script failed with error: %v", nodeName, err)
+		// Send Failed status to progress channel for ANY error
 		if progressChan != nil {
 			progressChan <- NodeProgress{
 				NodeName:    nodeName,
@@ -1094,6 +1085,16 @@ func runGatherAssessmentMetadataScriptBuffered(
 				Stage:       "Failed",
 			}
 		}
+
+		if exiterr, ok := err.(*exec.ExitError); ok {
+			if status, ok := exiterr.Sys().(syscall.WaitStatus); ok {
+				if status.ExitStatus() == 2 {
+					log.Infof("[%s] Script exited with code 2 (user opted not to continue or connection failed)", nodeName)
+					return fmt.Errorf("script exited with code 2")
+				}
+			}
+		}
+		log.Errorf("[%s] Script failed with error: %v", nodeName, err)
 		return fmt.Errorf("error waiting for gather assessment metadata script to complete: %w", err)
 	}
 
