@@ -18,12 +18,13 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/color"
-	"github.com/pingcap/failpoint"
 	log "github.com/sirupsen/logrus"
 	"github.com/sourcegraph/conc/pool"
 
@@ -55,14 +56,13 @@ type FileBatchProducer interface {
 }
 
 func init() {
-	// Failpoint to override COPY_MAX_RETRY_COUNT for testing to set it to lower value for testing.
-	// Usage: failpoint-ctl enable "github.com/yugabyte/yb-voyager/yb-voyager/cmd/setCopyRetryCount=return(5)"
-	failpoint.Inject("setCopyRetryCount", func(val failpoint.Value) {
-		if count, ok := val.(int); ok && count > 0 {
+	// Allow overriding COPY_MAX_RETRY_COUNT via environment variable for testing.
+	if val := os.Getenv("YB_VOYAGER_COPY_MAX_RETRY_COUNT"); val != "" {
+		if count, err := strconv.Atoi(val); err == nil && count > 0 {
 			COPY_MAX_RETRY_COUNT = count
-			log.Infof("Failpoint: COPY_MAX_RETRY_COUNT set to %d", count)
+			log.Infof("COPY_MAX_RETRY_COUNT set to %d via environment variable", count)
 		}
-	})
+	}
 }
 
 /*

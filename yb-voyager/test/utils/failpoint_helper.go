@@ -43,21 +43,6 @@ func GetFailpointEnvVar(failpoints ...string) string {
 	return fmt.Sprintf("GO_FAILPOINTS=%s", result)
 }
 
-// DefaultCopyRetryCountFailpoint sets COPY_MAX_RETRY_COUNT to 1 for faster test failure.
-const DefaultCopyRetryCountFailpoint = "github.com/yugabyte/yb-voyager/yb-voyager/cmd/setCopyRetryCount=return(1)"
-
-// GetFailpointEnvVarWithDefaults includes the default retry count failpoint (COPY_MAX_RETRY_COUNT=1)
-// along with any custom failpoints provided. Use this for import data failpoint tests.
-//
-// Example:
-//
-//	GetFailpointEnvVarWithDefaults("pkg/fp1=return()")
-//	Returns: "GO_FAILPOINTS=github.com/.../setCopyRetryCount=return(1);pkg/fp1=return()"
-func GetFailpointEnvVarWithDefaults(failpoints ...string) string {
-	allFailpoints := append([]string{DefaultCopyRetryCountFailpoint}, failpoints...)
-	return GetFailpointEnvVar(allFailpoints...)
-}
-
 // WriteBytemanScript creates a Byteman rules file (.btm) for Java fault injection testing.
 // This is used for testing Java components like Debezium Server.
 //

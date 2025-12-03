@@ -80,8 +80,8 @@ FROM generate_series(1, 20) i;`
 	err = exportRunner.Run()
 	testutils.FatalIfError(t, err, "Failed to export data")
 
-	// Enable failpoint to inject commit error (includes default COPY_MAX_RETRY_COUNT=1)
-	fpEnv := testutils.GetFailpointEnvVarWithDefaults(
+	// Enable failpoint to inject commit error
+	fpEnv := testutils.GetFailpointEnvVar(
 		"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb/importBatchCommitError=4*off->return()",
 	)
 
@@ -94,7 +94,7 @@ FROM generate_series(1, 20) i;`
 		"--parallel-jobs", "1", // set parallel jobs to 1 to trigger commit error
 		"--adaptive-parallelism", "disabled",
 		"--yes",
-	}, nil, false).WithEnv(fpEnv)
+	}, nil, false).WithEnv(fpEnv, "YB_VOYAGER_COPY_MAX_RETRY_COUNT=1")
 
 	err = importCmdWithFailpoint.Run()
 
