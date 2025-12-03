@@ -48,7 +48,7 @@ target_db_schema = ''
 target_db_name = ''
 data_dir = ''
 varying_flags = {}
-max_resumption_time = 5400 # 1.5 hours
+max_resumption_time = 10800 # 3 hours
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="YB Voyager Resumption Test")
