@@ -166,7 +166,7 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 			config.Uri = fmt.Sprintf("%s%s", jdbcConnectionStringPrefix, connectionString)
 		}
 
-		config.TNSAdmin, err = getTNSAdmin(source)
+		config.TNSAdmin, err = source.GetTNSAdmin()
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to get tns admin: %w", err)
 		}
@@ -343,27 +343,13 @@ func prepareSSLParamsForDebezium(exportDir string) error {
 	return nil
 }
 
-// https://www.orafaq.com/wiki/TNS_ADMIN
-// default is $ORACLE_HOME/network/admin
-func getTNSAdmin(s srcdb.Source) (string, error) {
-	if s.DBType != "oracle" {
-		return "", goerrors.Errorf("invalid source db type %s for getting TNS_ADMIN", s.DBType)
-	}
-	tnsAdminEnvVar, present := os.LookupEnv("TNS_ADMIN")
-	if present {
-		return tnsAdminEnvVar, nil
-	} else {
-		return filepath.Join(s.GetOracleHome(), "network", "admin"), nil
-	}
-}
-
 // oracle wallet location can be optionally set in $TNS_ADMIN/ojdbc.properties as
 // oracle.net.wallet_location=<>
 func isOracleJDBCWalletLocationSet(s srcdb.Source) (bool, error) {
 	if s.DBType != "oracle" {
 		return false, goerrors.Errorf("invalid source db type %s for checking jdbc wallet location", s.DBType)
 	}
-	tnsAdmin, err := getTNSAdmin(s)
+	tnsAdmin, err := s.GetTNSAdmin()
 	if err != nil {
 		return false, fmt.Errorf("failed to get tns admin: %w", err)
 	}
