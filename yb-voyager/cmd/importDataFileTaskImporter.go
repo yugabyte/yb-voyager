@@ -18,6 +18,8 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -54,6 +56,16 @@ type FileBatchProducer interface {
 
 	// Close cleans up any resources used by the batch producer.
 	Close()
+}
+
+func init() {
+	// Allow overriding COPY_MAX_RETRY_COUNT via environment variable for testing.
+	if val := os.Getenv("YB_VOYAGER_COPY_MAX_RETRY_COUNT"); val != "" {
+		if count, err := strconv.Atoi(val); err == nil && count > 0 {
+			COPY_MAX_RETRY_COUNT = count
+			log.Infof("COPY_MAX_RETRY_COUNT set to %d via environment variable", count)
+		}
+	}
 }
 
 /*
