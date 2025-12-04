@@ -90,7 +90,7 @@ FROM generate_series(1, 20) i;`
 	importCmdWithFailpoint := testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
 		"--export-dir", exportDir,
 		"--disable-pb", "true",
-		"--batch-size", "3", // set batch size to 3 to trigger commit error
+		"--batch-size", "2", // set batch size to 2 to trigger commit error
 		"--parallel-jobs", "1", // set parallel jobs to 1 to trigger commit error
 		"--adaptive-parallelism", "disabled",
 		"--yes",
@@ -112,7 +112,7 @@ FROM generate_series(1, 20) i;`
 	err = ybConn.QueryRow("SELECT COUNT(*) FROM test_schema.test_failpoint").Scan(&count)
 	testutils.FatalIfError(t, err, "Failed to query row count")
 
-	assert.Equal(t, 12, count, "Expected 12 rows (4 batches succeeded before failpoint triggered)")
+	assert.Equal(t, 8, count, "Expected 8 rows (4 batches succeeded before failpoint triggered)")
 
 	// Now resume import WITHOUT failpoint (should succeed)
 	t.Log("Resuming import without failpoint...")
