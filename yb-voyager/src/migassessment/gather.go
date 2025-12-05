@@ -39,25 +39,24 @@ const (
 
 // NodeProgress tracks the progress of metadata collection for a single node
 type NodeProgress struct {
-	NodeName    string // Unique identifier for tracking (e.g., "primary", "host-5432")
-	DisplayName string // User-friendly name for display (e.g., "Primary", "replica.aws.com:5432")
-	Stage       string // Current stage (e.g., "Collecting table row counts...", "Complete", "Failed")
+	NodeName string // Unique identifier for tracking (e.g., "primary", "host-5432")
+	Stage    string // Current stage (e.g., "Collecting table row counts...", "Complete", "Failed")
 }
 
 // collectionNode represents a database node (primary or replica) that metadata will be collected from.
 // It contains all the information needed to run the collection script for that node.
 type collectionNode struct {
-	nodeName      string // Filesystem-safe unique identifier (used for subdirectory names)
-	displayName   string // User-friendly name (shown in progress UI)
-	connectionUri string // Database connection string
-	isPrimary     bool   // Whether this is the primary node (affects script behavior)
+	nodeName      string                 // Filesystem-safe unique identifier (used for subdirectory names)
+	connectionUri string                 // Database connection string
+	isPrimary     bool                   // Whether this is the primary node (affects script behavior)
+	replica       *srcdb.ReplicaEndpoint // Replica info (nil for primary, contains raw data for display name extraction)
 }
 
 // collectionResult tracks the result of metadata collection from a single node
 type collectionResult struct {
-	displayName string // For logging which node succeeded/failed
-	isPrimary   bool   // Determines if failure is critical (primary) or warning (replica)
-	err         error  // nil = success, non-nil = failure
+	nodeName  string // Node identifier (used to lookup display name from tracker)
+	isPrimary bool   // Determines if failure is critical (primary) or warning (replica)
+	err       error  // nil = success, non-nil = failure
 }
 
 // progressTracker manages the display of progress for parallel metadata collection
@@ -86,11 +85,14 @@ func newProgressTracker(nodes []collectionNode) *progressTracker {
 	for _, node := range nodes {
 		tracker.nodes = append(tracker.nodes, node.nodeName)
 
-		// Build display name with replica prefix for replicas
-		displayName := node.displayName
-		if !node.isPrimary {
+		// Build display name from node info
+		var displayName string
+		if node.isPrimary {
+			displayName = "Primary"
+		} else {
 			replicaCount++
-			displayName = fmt.Sprintf("Replica %d (%s)", replicaCount, node.displayName)
+			// Extract name from replica object
+			displayName = fmt.Sprintf("Replica %d (%s)", replicaCount, node.replica.Name)
 		}
 
 		// Truncate display name if too long (prevents line wrapping in terminal)
@@ -105,9 +107,8 @@ func newProgressTracker(nodes []collectionNode) *progressTracker {
 
 		// Initialize with pending stage
 		tracker.statuses[node.nodeName] = &NodeProgress{
-			NodeName:    node.nodeName,
-			DisplayName: displayName, // Use formatted & truncated name
-			Stage:       "Pending...",
+			NodeName: node.nodeName,
+			Stage:    "Pending...",
 		}
 	}
 
@@ -161,8 +162,8 @@ func (pt *progressTracker) printSingleLine(progress NodeProgress) {
 		statusIcon = "⏳"
 	}
 
-	// Display name is already truncated in newProgressTracker
-	displayName := progress.DisplayName
+	// Look up display name from the map (already truncated in newProgressTracker)
+	displayName := pt.displayNames[progress.NodeName]
 
 	// Clear line and print with fixed-width column for name (for alignment)
 	// \r returns to start, \033[K clears to end of line
@@ -190,19 +191,19 @@ func GatherAssessmentMetadataFromPG(
 	nodes := []collectionNode{
 		{
 			nodeName:      "primary",
-			displayName:   "Primary",
 			connectionUri: source.DB().GetConnectionUriWithoutPassword(),
 			isPrimary:     true,
+			replica:       nil, // nil for primary
 		},
 	}
 
-	for _, replica := range validatedReplicas {
-		uniqueNodeName := fmt.Sprintf("%s-%d", replica.Host, replica.Port)
+	for i := range validatedReplicas {
+		uniqueNodeName := fmt.Sprintf("%s-%d", validatedReplicas[i].Host, validatedReplicas[i].Port)
 		nodes = append(nodes, collectionNode{
 			nodeName:      uniqueNodeName,
-			displayName:   replica.Name,
-			connectionUri: replica.ConnectionUri,
+			connectionUri: validatedReplicas[i].ConnectionUri,
 			isPrimary:     false,
+			replica:       &validatedReplicas[i], // Pass entire replica object
 		})
 	}
 
@@ -247,7 +248,6 @@ func GatherAssessmentMetadataFromPG(
 				scriptPath,
 				[]string{fmt.Sprintf("PGPASSWORD=%s", source.Password), "PGCONNECT_TIMEOUT=10"},
 				n.nodeName,
-				n.displayName,
 				progressChan,
 				assessmentMetadataDir,
 				n.connectionUri,
@@ -262,21 +262,19 @@ func GatherAssessmentMetadataFromPG(
 
 			// Send result
 			resultChan <- collectionResult{
-				displayName: n.displayName,
-				isPrimary:   n.isPrimary,
-				err:         err,
+				nodeName:  n.nodeName,
+				isPrimary: n.isPrimary,
+				err:       err,
 			}
 		}(node)
 	}
 
-	// Goroutine to close channels after all collections complete
-	go func() {
-		wg.Wait()
-		close(progressChan)
-		close(resultChan)
-	}()
+	// Wait for all collection goroutines to complete
+	wg.Wait()
+	close(progressChan)
+	close(resultChan)
 
-	// Wait for display goroutine to finish (it closes when progressChan is closed)
+	// Wait for display goroutine to finish (it closes when progressChan is closed and drained)
 	<-displayDone
 
 	// Process results
@@ -286,8 +284,9 @@ func GatherAssessmentMetadataFromPG(
 	var primaryErr error
 
 	for result := range resultChan {
+		displayName := tracker.displayNames[result.nodeName]
 		if result.err == nil {
-			log.Infof("Successfully collected metadata from %s", result.displayName)
+			log.Infof("Successfully collected metadata from %s", displayName)
 			if !result.isPrimary {
 				successfulReplicaCount++
 			}
@@ -296,8 +295,8 @@ func GatherAssessmentMetadataFromPG(
 				primaryFailed = true
 				primaryErr = result.err
 			} else {
-				log.Warnf("Failed to collect metadata from replica %s: %v", result.displayName, result.err)
-				failedReplicasList = append(failedReplicasList, result.displayName)
+				log.Warnf("Failed to collect metadata from replica %s: %v", displayName, result.err)
+				failedReplicasList = append(failedReplicasList, displayName)
 			}
 		}
 	}
@@ -310,7 +309,7 @@ func GatherAssessmentMetadataFromPG(
 	// Print summary
 	if !primaryFailed && len(failedReplicasList) > 0 {
 		fmt.Println() // Blank line before warnings
-		color.Yellow("WARNING: Metadata collection failed on %d replica(s): %v", len(failedReplicasList), failedReplicasList)
+		color.Yellow("WARNING: Metadata collection failed on %d replica(s): [%s]", len(failedReplicasList), strings.Join(failedReplicasList, ", "))
 		utils.PrintAndLogfInfo("Continuing assessment with data from primary + %d successful replica(s)", successfulReplicaCount)
 		utils.PrintAndLogfWarning("Note: Sizing and metrics will reflect only the nodes that succeeded.")
 	}
@@ -435,7 +434,6 @@ func runGatherAssessmentMetadataScriptBuffered(
 	scriptPath string,
 	envVars []string,
 	nodeName string,
-	displayName string,
 	progressChan chan<- NodeProgress,
 	workingDir string,
 	scriptArgs ...string,
@@ -466,9 +464,8 @@ func runGatherAssessmentMetadataScriptBuffered(
 	// Report starting status
 	if progressChan != nil {
 		progressChan <- NodeProgress{
-			NodeName:    nodeName,
-			DisplayName: displayName,
-			Stage:       "Starting collection...",
+			NodeName: nodeName,
+			Stage:    "Starting collection...",
 		}
 	}
 
@@ -498,9 +495,8 @@ func runGatherAssessmentMetadataScriptBuffered(
 				stage := detectStageFromOutput(line)
 				if stage != "" {
 					progressChan <- NodeProgress{
-						NodeName:    nodeName,
-						DisplayName: displayName,
-						Stage:       stage,
+						NodeName: nodeName,
+						Stage:    stage,
 					}
 				}
 			}
@@ -516,18 +512,8 @@ func runGatherAssessmentMetadataScriptBuffered(
 		// Send Failed status to progress channel for ANY error
 		if progressChan != nil {
 			progressChan <- NodeProgress{
-				NodeName:    nodeName,
-				DisplayName: displayName,
-				Stage:       "Failed",
-			}
-		}
-
-		if exiterr, ok := err.(*exec.ExitError); ok {
-			if status, ok := exiterr.Sys().(syscall.WaitStatus); ok {
-				if status.ExitStatus() == 2 {
-					log.Infof("[%s] Script exited with code 2 (user opted not to continue or connection failed)", nodeName)
-					return fmt.Errorf("script exited with code 2")
-				}
+				NodeName: nodeName,
+				Stage:    "Failed",
 			}
 		}
 		log.Errorf("[%s] Script failed with error: %v", nodeName, err)
@@ -537,9 +523,8 @@ func runGatherAssessmentMetadataScriptBuffered(
 	// Report completion
 	if progressChan != nil {
 		progressChan <- NodeProgress{
-			NodeName:    nodeName,
-			DisplayName: displayName,
-			Stage:       "Complete",
+			NodeName: nodeName,
+			Stage:    "Complete",
 		}
 	}
 

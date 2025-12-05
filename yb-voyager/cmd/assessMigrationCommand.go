@@ -26,6 +26,7 @@ import (
 	"sort"
 	"strings"
 	"text/template"
+	"time"
 
 	goerrors "github.com/go-errors/errors"
 
@@ -577,6 +578,9 @@ func gatherAssessmentMetadata(validatedReplicas []srcdb.ReplicaEndpoint) (failed
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 
 	utils.PrintAndLogf("\ngathering metadata and stats from '%s' source database...\n", source.DBType)
+
+	time.Sleep(10 * time.Second)
+
 	switch source.DBType {
 	case POSTGRESQL:
 		failedReplicaNodes, err = migassessment.GatherAssessmentMetadataFromPG(
