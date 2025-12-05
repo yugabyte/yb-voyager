@@ -1787,7 +1787,14 @@ func saveTableToUniqueKeyColumnsMapInMetaDB(tableList []sqlname.NameTuple, leafP
 		utils.ErrExit("get table to unique key columns map: %w", err)
 	}
 
-	//Adding all the leaf partitions unique key columns to the root table unique key columns
+	//Adding all the leaf partitions unique key columns to the root table unique key columns since in the importer all the events only have the root table name
+	/*
+	Do not store the leaf partitions in the metadata that is being used by importer since there is a case where partitons strategy and list of partitions can change on target 
+	and the lookup can fail in such scenario
+	Also, This maybe a temp fix we should fix this properly 
+	1. Maybe by having leaf partition info in the event but that won't work since we can't map the source's leaf partition to target's leaf partition
+	2. thinking...
+	*/
 	leafPartitions.IterKV(func(key sqlname.NameTuple, value []sqlname.NameTuple) (bool, error) {
 		keyTbl := key.AsQualifiedCatalogName()
 		for _, leaf := range value {
