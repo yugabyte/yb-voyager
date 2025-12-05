@@ -1109,7 +1109,7 @@ func TestLiveMigrationWithUniqueKeyConflictWithUniqueIndexOnlyOnLeafPartitions(t
 	createSchemaSQL := `CREATE SCHEMA IF NOT EXISTS test_schema;`
 
 	createTableWithUniqueIndexOnlyOnSomeLeafPartitionsSQL := `
-	CREATE TABLE test_schema.test_live_unique_index_only_on_some_leaf_partitions (
+	CREATE TABLE test_schema.test_partitions (
 		id int,
 		name TEXT,
 		region TEXT,
@@ -1117,16 +1117,16 @@ func TestLiveMigrationWithUniqueKeyConflictWithUniqueIndexOnlyOnLeafPartitions(t
 		PRIMARY KEY(id, region)
 	) PARTITION BY LIST (region);
 
-	CREATE TABLE test_schema.test_live_unique_index_only_on_some_leaf_partitions_part1 PARTITION OF test_schema.test_live_unique_index_only_on_some_leaf_partitions FOR VALUES IN ('London');
-	CREATE TABLE test_schema.test_live_unique_index_only_on_some_leaf_partitions_part2 PARTITION OF test_schema.test_live_unique_index_only_on_some_leaf_partitions FOR VALUES IN ('Sydney');
-	CREATE TABLE test_schema.test_live_unique_index_only_on_some_leaf_partitions_part3 PARTITION OF test_schema.test_live_unique_index_only_on_some_leaf_partitions FOR VALUES IN ('Boston');
-	CREATE UNIQUE INDEX idx_1 ON test_schema.test_live_unique_index_only_on_some_leaf_partitions_part1 (branch); -- This is the unique index only on part1
-	CREATE UNIQUE INDEX idx_2 ON test_schema.test_live_unique_index_only_on_some_leaf_partitions_part2 (branch); -- This is the unique index only on part2
-	CREATE UNIQUE INDEX idx_3 ON test_schema.test_live_unique_index_only_on_some_leaf_partitions_part3 (branch); -- This is the unique index only on part3
+	CREATE TABLE test_schema.test_partitions_part1 PARTITION OF test_schema.test_partitions FOR VALUES IN ('London');
+	CREATE TABLE test_schema.test_partitions_part2 PARTITION OF test_schema.test_partitions FOR VALUES IN ('Sydney');
+	CREATE TABLE test_schema.test_partitions_part3 PARTITION OF test_schema.test_partitions FOR VALUES IN ('Boston');
+	CREATE UNIQUE INDEX idx_1 ON test_schema.test_partitions_part1 (branch); -- This is the unique index only on part1
+	CREATE UNIQUE INDEX idx_2 ON test_schema.test_partitions_part2 (branch); -- This is the unique index only on part2
+	CREATE UNIQUE INDEX idx_3 ON test_schema.test_partitions_part3 (branch); -- This is the unique index only on part3
 	`
 
 	insertDataWithUniqueIndexOnlyOnSomeLeafPartitionsSQL := `
-	INSERT INTO test_schema.test_live_unique_index_only_on_some_leaf_partitions (id, name, region, branch)
+	INSERT INTO test_schema.test_partitions (id, name, region, branch)
 	SELECT i, md5(random()::text), CASE WHEN i%3=1 THEN 'London' WHEN i%3=2 THEN 'Sydney' ELSE 'Boston' END, 'Branch ' || i FROM generate_series(1, 20) as i;`
 
 	dropSchemaSQL := `DROP SCHEMA IF EXISTS test_schema CASCADE;`
@@ -1149,10 +1149,10 @@ func TestLiveMigrationWithUniqueKeyConflictWithUniqueIndexOnlyOnLeafPartitions(t
 		createSchemaSQL,
 		createTableWithUniqueIndexOnlyOnSomeLeafPartitionsSQL,
 		insertDataWithUniqueIndexOnlyOnSomeLeafPartitionsSQL,
-		"ALTER TABLE test_schema.test_live_unique_index_only_on_some_leaf_partitions REPLICA IDENTITY FULL;",
-		"ALTER TABLE test_schema.test_live_unique_index_only_on_some_leaf_partitions_part1 REPLICA IDENTITY FULL;",
-		"ALTER TABLE test_schema.test_live_unique_index_only_on_some_leaf_partitions_part2 REPLICA IDENTITY FULL;",
-		"ALTER TABLE test_schema.test_live_unique_index_only_on_some_leaf_partitions_part3 REPLICA IDENTITY FULL;",
+		"ALTER TABLE test_schema.test_partitions REPLICA IDENTITY FULL;",
+		"ALTER TABLE test_schema.test_partitions_part1 REPLICA IDENTITY FULL;",
+		"ALTER TABLE test_schema.test_partitions_part2 REPLICA IDENTITY FULL;",
+		"ALTER TABLE test_schema.test_partitions_part3 REPLICA IDENTITY FULL;",
 	}...)
 
 	yugabytedbContainer.ExecuteSqls([]string{
@@ -1190,7 +1190,7 @@ func TestLiveMigrationWithUniqueKeyConflictWithUniqueIndexOnlyOnLeafPartitions(t
 
 	ok := utils.RetryWorkWithTimeout(1, 30, func() bool {
 		return snapshotPhaseCompleted(t, postgresContainer.GetConfig().Password,
-			yugabytedbContainer.GetConfig().Password, 20, `test_schema."test_live_unique_index_only_on_some_leaf_partitions"`)
+			yugabytedbContainer.GetConfig().Password, 20, `test_schema."test_partitions"`)
 	})
 	assert.True(t, ok)
 
@@ -1203,7 +1203,7 @@ func TestLiveMigrationWithUniqueKeyConflictWithUniqueIndexOnlyOnLeafPartitions(t
 
 	// Compare the full table data between Postgres and YugabyteDB for snapshot part.
 	// We assume the table "test_data" has a primary key "id" so we order by it.
-	if err := testutils.CompareTableData(ctx, pgConn, ybConn, "test_schema.test_live_unique_index_only_on_some_leaf_partitions", "id"); err != nil {
+	if err := testutils.CompareTableData(ctx, pgConn, ybConn, "test_schema.test_partitions", "id"); err != nil {
 		t.Errorf("Table data mismatch between Postgres and YugabyteDB: %v", err)
 	}
 
@@ -1245,24 +1245,24 @@ DECLARE
 i INTEGER;
 BEGIN
 	FOR i IN 21..520 LOOP
-		UPDATE test_schema.test_live_unique_index_only_on_some_leaf_partitions SET branch = 'Branch ' || i WHERE id = i - 1;
-		INSERT INTO test_schema.test_live_unique_index_only_on_some_leaf_partitions(id, name, region, branch)
+		UPDATE test_schema.test_partitions SET branch = 'Branch ' || i WHERE id = i - 1;
+		INSERT INTO test_schema.test_partitions(id, name, region, branch)
 		SELECT i, md5(random()::text), 'London', 'Branch ' || i-1;
 
-		UPDATE test_schema.test_live_unique_index_only_on_some_leaf_partitions SET branch = 'Branch ' || i+500 WHERE id = i;
+		UPDATE test_schema.test_partitions SET branch = 'Branch ' || i+500 WHERE id = i;
 
-		UPDATE test_schema.test_live_unique_index_only_on_some_leaf_partitions SET branch = 'Branch ' || i-1 WHERE id = i - 1;
-		UPDATE test_schema.test_live_unique_index_only_on_some_leaf_partitions SET branch = 'Branch ' || i WHERE id = i;
+		UPDATE test_schema.test_partitions SET branch = 'Branch ' || i-1 WHERE id = i - 1;
+		UPDATE test_schema.test_partitions SET branch = 'Branch ' || i WHERE id = i;
 
-		DELETE FROM test_schema.test_live_unique_index_only_on_some_leaf_partitions WHERE id = i-1;
-		UPDATE test_schema.test_live_unique_index_only_on_some_leaf_partitions SET branch = 'Branch ' || i-1 WHERE id = i;
+		DELETE FROM test_schema.test_partitions WHERE id = i-1;
+		UPDATE test_schema.test_partitions SET branch = 'Branch ' || i-1 WHERE id = i;
 
-		DELETE FROM test_schema.test_live_unique_index_only_on_some_leaf_partitions WHERE id = i;
-		INSERT INTO test_schema.test_live_unique_index_only_on_some_leaf_partitions(id, name, region, branch)
+		DELETE FROM test_schema.test_partitions WHERE id = i;
+		INSERT INTO test_schema.test_partitions(id, name, region, branch)
 		SELECT i-1, md5(random()::text), 'London', 'Branch ' || i;
 
-		UPDATE test_schema.test_live_unique_index_only_on_some_leaf_partitions SET branch = 'Branch ' || i-1 WHERE id = i - 1;
-		INSERT INTO test_schema.test_live_unique_index_only_on_some_leaf_partitions(id, name, region, branch)
+		UPDATE test_schema.test_partitions SET branch = 'Branch ' || i-1 WHERE id = i - 1;
+		INSERT INTO test_schema.test_partitions(id, name, region, branch)
 		SELECT i, md5(random()::text), 'London', 'Branch ' || i;
 
 	END LOOP;
@@ -1270,12 +1270,12 @@ END $$;`,
 	}...)
 	ok = utils.RetryWorkWithTimeout(5, 120, func() bool {
 		return streamingPhaseCompleted(t, postgresContainer.GetConfig().Password,
-			yugabytedbContainer.GetConfig().Password, 1500, 3000, 1000, `test_schema."test_live_unique_index_only_on_some_leaf_partitions"`)
+			yugabytedbContainer.GetConfig().Password, 1500, 3000, 1000, `test_schema."test_partitions"`)
 	})
 	assert.True(t, ok)
 
 	// Compare the full table data between Postgres and YugabyteDB for streaming part.
-	if err := testutils.CompareTableData(ctx, pgConn, ybConn, "test_schema.test_live_unique_index_only_on_some_leaf_partitions", "id"); err != nil {
+	if err := testutils.CompareTableData(ctx, pgConn, ybConn, "test_schema.test_partitions", "id"); err != nil {
 		t.Errorf("Table data mismatch between Postgres and YugabyteDB after streaming: %v", err)
 	}
 
