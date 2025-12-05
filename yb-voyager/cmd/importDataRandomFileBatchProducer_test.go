@@ -26,17 +26,23 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/semaphore"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
+
+// createTestSemaphore creates a semaphore with a large limit for tests to not interfere with test logic
+func createTestSemaphore() *semaphore.Weighted {
+	return semaphore.NewWeighted(1000)
+}
 
 // waitForBatchAvailable waits for a batch to become available in the producer, with a timeout.
 // Returns true if batch becomes available, false if timeout is reached.
 func waitForBatchAvailable(producer *RandomBatchProducer, timeout time.Duration) bool {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
-		if producer.IsBatchAvailable() {
+		if producer.IsNextBatchAvailable() {
 			return true
 		}
 		time.Sleep(10 * time.Millisecond)
@@ -64,7 +70,7 @@ func TestSingleBatchProductionAndConsumption(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create RandomBatchProducer
-	producer, err := NewRandomFileBatchProducer(task, state, false, errorHandler, progressReporter)
+	producer, err := NewRandomFileBatchProducer(task, state, false, errorHandler, progressReporter, createTestSemaphore())
 	require.NoError(t, err)
 	defer producer.Close()
 
@@ -158,8 +164,8 @@ func consumeAllBatches(t *testing.T, producer *RandomBatchProducer, timeout time
 			require.Fail(t, "Batch should become available within timeout")
 		}
 
-		// Verify state consistency: If IsBatchAvailable() should be true, when Done() is false
-		assert.True(t, producer.IsBatchAvailable(), "IsBatchAvailable() must be true when Done() is false")
+		// Verify state consistency: If IsNextBatchAvailable() should be true, when Done() is false
+		assert.True(t, producer.IsNextBatchAvailable(), "IsNextBatchAvailable() must be true when Done() is false")
 
 		batch, err := producer.NextBatch()
 		require.NoError(t, err)
@@ -176,8 +182,8 @@ func verifyProducerInitialState(t *testing.T, producer *RandomBatchProducer) {
 
 	assert.False(t, producer.Done(),
 		"Done() should be false initially")
-	assert.False(t, producer.IsBatchAvailable(),
-		"IsBatchAvailable() should be false initially")
+	assert.False(t, producer.IsNextBatchAvailable(),
+		"IsNextBatchAvailable() should be false initially")
 }
 
 // verifyProducerFinalState verifies the producer ends in the correct state
@@ -186,16 +192,16 @@ func verifyProducerFinalState(t *testing.T, producer *RandomBatchProducer) {
 
 	assert.True(t, producer.Done(),
 		"Done() should be true after consuming all batches")
-	assert.False(t, producer.IsBatchAvailable(),
-		"IsBatchAvailable() should be false when Done() is true")
+	assert.False(t, producer.IsNextBatchAvailable(),
+		"IsNextBatchAvailable() should be false when Done() is true")
 }
 
 // verifyBatchAvailableState verifies the producer state when a batch is available
 func verifyBatchAvailableState(t *testing.T, producer *RandomBatchProducer) {
 	t.Helper()
 
-	assert.True(t, producer.IsBatchAvailable(),
-		"IsBatchAvailable() should be true when batch is available")
+	assert.True(t, producer.IsNextBatchAvailable(),
+		"IsNextBatchAvailable() should be true when batch is available")
 	assert.False(t, producer.Done(),
 		"Done() should be false when batch is available")
 }
@@ -290,7 +296,7 @@ func TestMultipleBatchesProductionAndConsumption(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create RandomBatchProducer
-	producer, err := NewRandomFileBatchProducer(task, state, false, errorHandler, progressReporter)
+	producer, err := NewRandomFileBatchProducer(task, state, false, errorHandler, progressReporter, createTestSemaphore())
 	require.NoError(t, err)
 	defer producer.Close()
 
@@ -322,7 +328,7 @@ func TestFileWithOnlyHeader(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create RandomBatchProducer
-	producer, err := NewRandomFileBatchProducer(task, state, false, errorHandler, progressReporter)
+	producer, err := NewRandomFileBatchProducer(task, state, false, errorHandler, progressReporter, createTestSemaphore())
 	require.NoError(t, err)
 	defer producer.Close()
 
@@ -408,7 +414,7 @@ func TestSingleBatchMatchVerification(t *testing.T) {
 	require.True(t, sequentialProducer.Done(), "Sequential producer should be done after producing 1 batch")
 
 	// Create RandomBatchProducer with separate task
-	randomProducer, err := NewRandomFileBatchProducer(randomTask, state, false, errorHandler, progressReporter)
+	randomProducer, err := NewRandomFileBatchProducer(randomTask, state, false, errorHandler, progressReporter, createTestSemaphore())
 	require.NoError(t, err)
 	defer randomProducer.Close()
 
@@ -481,7 +487,7 @@ func TestMultipleBatchesMatchVerification(t *testing.T) {
 	totalExpectedBatches := len(sequentialBatches)
 
 	// Create RandomBatchProducer
-	randomProducer, err := NewRandomFileBatchProducer(randomTask, state, false, errorHandler, progressReporter)
+	randomProducer, err := NewRandomFileBatchProducer(randomTask, state, false, errorHandler, progressReporter, createTestSemaphore())
 	require.NoError(t, err)
 	defer randomProducer.Close()
 
@@ -544,7 +550,7 @@ func TestNextBatchCalledWhenNoBatchesAvailableProducerRunning(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create RandomBatchProducer
-	producer, err := NewRandomFileBatchProducer(task, state, false, errorHandler, progressReporter)
+	producer, err := NewRandomFileBatchProducer(task, state, false, errorHandler, progressReporter, createTestSemaphore())
 	require.NoError(t, err)
 	defer producer.Close()
 
@@ -600,7 +606,7 @@ func TestNextBatchCalledWhenNoBatchesAvailableProducerFinished(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create RandomBatchProducer
-	producer, err := NewRandomFileBatchProducer(task, state, false, errorHandler, progressReporter)
+	producer, err := NewRandomFileBatchProducer(task, state, false, errorHandler, progressReporter, createTestSemaphore())
 	require.NoError(t, err)
 	defer producer.Close()
 
@@ -655,7 +661,7 @@ func TestRandomBatchProducer_AbortHandler(t *testing.T) {
 	t.Cleanup(func() {
 		utils.RestoreUtilsErrExit()
 	})
-	producer, err := NewRandomFileBatchProducer(task, state, true, abortErrorHandler, progressReporter)
+	producer, err := NewRandomFileBatchProducer(task, state, true, abortErrorHandler, progressReporter, createTestSemaphore())
 	require.NoError(t, err)
 	defer producer.Close()
 
@@ -695,7 +701,7 @@ func TestRandomBatchProducer_StashAndContinue(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create RandomBatchProducer
-	producer, err := NewRandomFileBatchProducer(task, state, false, scErrorHandler, progressReporter)
+	producer, err := NewRandomFileBatchProducer(task, state, false, scErrorHandler, progressReporter, createTestSemaphore())
 	require.NoError(t, err)
 	defer producer.Close()
 
@@ -769,7 +775,7 @@ func TestRandomBatchProducer_Resumption_PartialBatchesProduced_NoneConsumed(t *t
 	}
 
 	// Create random producer using the delayed sequential producer
-	producer := newRandomFileBatchProducer(delayedSequential, task)
+	producer := newRandomFileBatchProducer(delayedSequential, task, createTestSemaphore())
 
 	// Wait for some batches to be produced (but not all)
 	// We want to ensure we have partial batches (more than 0, less than 10)
@@ -781,7 +787,7 @@ func TestRandomBatchProducer_Resumption_PartialBatchesProduced_NoneConsumed(t *t
 	sequentialProducer2, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
 	require.NoError(t, err)
 
-	producer2 := newRandomFileBatchProducer(sequentialProducer2, task)
+	producer2 := newRandomFileBatchProducer(sequentialProducer2, task, createTestSemaphore())
 	defer producer2.Close()
 
 	// Collect all batches from the resumed producer
@@ -824,7 +830,7 @@ func TestRandomBatchProducer_Resumption_PartialBatchesProduced_PartialConsumed(t
 	}
 
 	// Create random producer using the delayed sequential producer
-	producer := newRandomFileBatchProducer(delayedSequential, task)
+	producer := newRandomFileBatchProducer(delayedSequential, task, createTestSemaphore())
 
 	// Wait for some batches to be produced (but not all)
 	// We want to ensure we have partial batches (more than 0, less than 10)
@@ -850,7 +856,7 @@ func TestRandomBatchProducer_Resumption_PartialBatchesProduced_PartialConsumed(t
 	sequentialProducer2, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
 	require.NoError(t, err)
 
-	producer2 := newRandomFileBatchProducer(sequentialProducer2, task)
+	producer2 := newRandomFileBatchProducer(sequentialProducer2, task, createTestSemaphore())
 	defer producer2.Close()
 
 	// Collect all batches from the resumed producer
@@ -893,7 +899,7 @@ func TestRandomBatchProducer_Resumption_PartialBatchesProduced_AllConsumed(t *te
 	}
 
 	// Create random producer using the delayed sequential producer
-	producer := newRandomFileBatchProducer(delayedSequential, task)
+	producer := newRandomFileBatchProducer(delayedSequential, task, createTestSemaphore())
 
 	// Wait for some batches to be produced (but not all)
 	// We want to ensure we have partial batches (more than 0, less than 10)
@@ -915,7 +921,7 @@ func TestRandomBatchProducer_Resumption_PartialBatchesProduced_AllConsumed(t *te
 	sequentialProducer2, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
 	require.NoError(t, err)
 
-	producer2 := newRandomFileBatchProducer(sequentialProducer2, task)
+	producer2 := newRandomFileBatchProducer(sequentialProducer2, task, createTestSemaphore())
 	defer producer2.Close()
 
 	// Collect all batches from the resumed producer
@@ -943,7 +949,7 @@ func TestRandomBatchProducer_Resumption_SingleBatchProduced_NotConsumed(t *testi
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
 	require.NoError(t, err)
 
-	producer, err := NewRandomFileBatchProducer(task, state, false, errorHandler, progressReporter)
+	producer, err := NewRandomFileBatchProducer(task, state, false, errorHandler, progressReporter, createTestSemaphore())
 	require.NoError(t, err)
 
 	// Wait for all batches to be produced
@@ -971,7 +977,7 @@ func TestRandomBatchProducer_Resumption_SingleBatchProduced_NotConsumed(t *testi
 	// Create a new producer (simulating resumption)
 	// This should recover the batche that were already produced
 
-	producer2, err := NewRandomFileBatchProducer(task, state, false, errorHandler, progressReporter)
+	producer2, err := NewRandomFileBatchProducer(task, state, false, errorHandler, progressReporter, createTestSemaphore())
 	require.NoError(t, err)
 	defer producer2.Close()
 
@@ -1013,7 +1019,7 @@ func TestRandomBatchProducer_Resumption_AllBatchesProduced_NoneConsumed(t *testi
 	require.NoError(t, err)
 
 	// Create random producer
-	producer := newRandomFileBatchProducer(sequentialProducer, task)
+	producer := newRandomFileBatchProducer(sequentialProducer, task, createTestSemaphore())
 
 	// Wait for all batches to be produced
 	// The sequential producer is done when it has finished producing all batches
@@ -1042,7 +1048,7 @@ func TestRandomBatchProducer_Resumption_AllBatchesProduced_NoneConsumed(t *testi
 	sequentialProducer2, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
 	require.NoError(t, err)
 
-	producer2 := newRandomFileBatchProducer(sequentialProducer2, task)
+	producer2 := newRandomFileBatchProducer(sequentialProducer2, task, createTestSemaphore())
 	defer producer2.Close()
 
 	// Collect all batches from the resumed producer
@@ -1078,7 +1084,7 @@ func TestRandomBatchProducer_Resumption_AllBatchesProduced_PartialConsumed(t *te
 	require.NoError(t, err)
 
 	// Create random producer
-	producer := newRandomFileBatchProducer(sequentialProducer, task)
+	producer := newRandomFileBatchProducer(sequentialProducer, task, createTestSemaphore())
 
 	// Wait for all batches to be produced
 	// The sequential producer is done when it has finished producing all batches
@@ -1118,7 +1124,7 @@ func TestRandomBatchProducer_Resumption_AllBatchesProduced_PartialConsumed(t *te
 	sequentialProducer2, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
 	require.NoError(t, err)
 
-	producer2 := newRandomFileBatchProducer(sequentialProducer2, task)
+	producer2 := newRandomFileBatchProducer(sequentialProducer2, task, createTestSemaphore())
 	defer producer2.Close()
 
 	// Collect all batches from the resumed producer
@@ -1154,7 +1160,7 @@ func TestRandomBatchProducer_Resumption_AllBatchesProduced_AllConsumed(t *testin
 	require.NoError(t, err)
 
 	// Create random producer
-	producer := newRandomFileBatchProducer(sequentialProducer, task)
+	producer := newRandomFileBatchProducer(sequentialProducer, task, createTestSemaphore())
 
 	// Wait for all batches to be produced
 	// The sequential producer is done when it has finished producing all batches
@@ -1199,7 +1205,7 @@ func TestRandomBatchProducer_Resumption_AllBatchesProduced_AllConsumed(t *testin
 	})
 	sequentialProducer2, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
 	require.NoError(t, err)
-	producer2 := newRandomFileBatchProducer(sequentialProducer2, task)
+	producer2 := newRandomFileBatchProducer(sequentialProducer2, task, createTestSemaphore())
 	defer producer2.Close()
 
 	deadline := time.Now().Add(5 * time.Second)

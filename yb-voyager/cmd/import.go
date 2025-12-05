@@ -311,6 +311,12 @@ Note that for the cases where a table doesn't have a primary key, this may lead 
 			"\tabort: immediately abort the process. (default)\n"+
 			"\tstash-and-continue: stash the errored rows to a file and continue with the import")
 
+	cmd.Flags().IntVar(&maxConcurrentBatchProductionsConfig, "max-concurrent-batch-productions", 10, "Maximum number of concurrent batch productions to allow while importing data (default 10)")
+	cmd.Flags().MarkHidden("max-concurrent-batch-productions")
+
+	BoolVar(cmd.Flags(), &enableRandomBatchProduction, "enable-random-batch-production", true, "Enable random batch production during data import (default true)")
+	cmd.Flags().MarkHidden("enable-random-batch-production")
+
 	cmd.Flags().StringVar(&cdcPartitioningStrategy, "cdc-partitioning-strategy", "auto",
 		`The desired partitioning strategy to use while importing cdc events parallelly. The supported values are: pk, table. (default auto-detect)
 		\tauto: Automatically detect the partitioning strategy based on the table having expression or normal unique indexes.

@@ -15,6 +15,12 @@ limitations under the License.
 */
 package types
 
+import (
+	"math"
+
+	log "github.com/sirupsen/logrus"
+)
+
 // QueryStats represents database-agnostic query performance metrics
 // placed here to avoid import cycle issue among compareperf and migassessment
 type QueryStats struct {
@@ -26,4 +32,64 @@ type QueryStats struct {
 	AverageExecTime float64 `json:"mean_exec_time" db:"mean_exec_time"`
 	MinExecTime     float64 `json:"min_exec_time" db:"min_exec_time"`
 	MaxExecTime     float64 `json:"max_exec_time" db:"max_exec_time"`
+}
+
+// MergeQueryStatsBasedOnQuery merges query stats with the same query text.
+// Used to aggregate stats from multiple source nodes (primary + replicas).
+// Mirrors the logic of pgss.MergePgStatStatementsBasedOnQuery but operates on QueryStats directly
+// to avoid conversion overhead between types and maintain a clean, direct code path.
+//
+// Merge key: Uses query text (not queryid).
+// TODO: revisit this in future and see if we can use QueryID instead as ideally it should work.
+func MergeQueryStatsBasedOnQuery(entries []*QueryStats) []*QueryStats {
+	queryMap := make(map[string]*QueryStats)
+
+	for _, entry := range entries {
+		if existing, ok := queryMap[entry.QueryText]; !ok {
+			// First occurrence of this query text - add to map
+			queryMap[entry.QueryText] = entry
+		} else {
+			// Duplicate query text from another node - merge stats
+			existing.mergeWith(entry)
+		}
+	}
+
+	// Convert map to slice
+	mergedEntries := make([]*QueryStats, 0, len(queryMap))
+	for _, entry := range queryMap {
+		mergedEntries = append(mergedEntries, entry)
+	}
+
+	return mergedEntries
+}
+
+// mergeWith merges another QueryStats entry into this one.
+// Additive: ExecutionCount, RowsProcessed, TotalExecTime (summed)
+// Recalculated: AverageExecTime (from merged totals)
+// Preserved: QueryID, QueryText (from first)
+// Min/Max: MinExecTime, MaxExecTime (preserved across merges)
+func (qs *QueryStats) mergeWith(other *QueryStats) {
+	first := *qs // Save original values
+
+	// Keep original QueryID and QueryText
+	qs.QueryID = first.QueryID
+	qs.QueryText = first.QueryText
+
+	// Sum: calls, rows, total time
+	qs.ExecutionCount = first.ExecutionCount + other.ExecutionCount
+	qs.RowsProcessed = first.RowsProcessed + other.RowsProcessed
+	qs.TotalExecTime = first.TotalExecTime + other.TotalExecTime
+
+	// Recalculate: average execution time (mean = combined_total_exec_time / combined_calls)
+	if qs.ExecutionCount == 0 {
+		// ideally this is not expected but since we have observed this in YB, we should handle it
+		log.Warnf("calls is 0 for query stats entry: %+v", qs)
+		qs.AverageExecTime = 0
+	} else {
+		qs.AverageExecTime = qs.TotalExecTime / float64(qs.ExecutionCount)
+	}
+
+	// Preserve: min and max
+	qs.MinExecTime = math.Min(first.MinExecTime, other.MinExecTime)
+	qs.MaxExecTime = math.Max(first.MaxExecTime, other.MaxExecTime)
 }
