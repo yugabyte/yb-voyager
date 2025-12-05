@@ -16,6 +16,9 @@ limitations under the License.
 package srcdb
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/samber/lo"
@@ -85,6 +88,16 @@ func (s *Source) GetOracleHome() string {
 	} else {
 		return "/usr/lib/oracle/21/client64"
 	}
+}
+
+func (s *Source) GetTNSAdmin() (string, error) {
+	if s.DBType != "oracle" {
+		return "", fmt.Errorf("invalid source db type %s for getting TNS_ADMIN", s.DBType)
+	}
+	if tnsAdmin, present := os.LookupEnv("TNS_ADMIN"); present {
+		return tnsAdmin, nil
+	}
+	return filepath.Join(s.GetOracleHome(), "network", "admin"), nil
 }
 
 func (s *Source) GetSchemaList() []string {
