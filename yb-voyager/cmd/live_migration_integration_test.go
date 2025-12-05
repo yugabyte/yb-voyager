@@ -749,7 +749,7 @@ FROM generate_series(1, 10);`
 	testutils.FatalIfError(t, err, "Cutover command failed")
 
 }
-	
+
 func TestLiveMigrationWithUniqueKeyValuesWithPartialPredicateConflictDetectionCases(t *testing.T) {
 	ctx := context.Background()
 
@@ -1086,6 +1086,172 @@ END $$;`,
 
 	// Compare the full table data between Postgres and YugabyteDB for streaming part.
 	if err := testutils.CompareTableData(ctx, pgConn, ybConn, "test_schema.test_live_null_unique_values", "id"); err != nil {
+		t.Errorf("Table data mismatch between Postgres and YugabyteDB after streaming: %v", err)
+	}
+
+	// Perform cutover
+	err = testutils.NewVoyagerCommandRunner(nil, "initiate cutover to target", []string{
+		"--export-dir", exportDir,
+		"--yes",
+		"--prepare-for-fall-back", "false",
+	}, nil, false).Run()
+	testutils.FatalIfError(t, err, "Cutover command failed")
+
+}
+
+func TestLiveMigrationWithUniqueKeyConflictWithExpressionIndexOnPartitions(t *testing.T) {
+	ctx := context.Background()
+
+	// Create a temporary export directory.
+	exportDir = testutils.CreateTempExportDir()
+	defer testutils.RemoveTempExportDir(exportDir)
+
+	createSchemaSQL := `CREATE SCHEMA IF NOT EXISTS test_schema;`
+
+	// Create partitioned table with multiple columns
+	createTableSQL := `
+	CREATE TABLE test_schema.test_partitions(
+		id int,
+		region text,
+		created_at date,
+		email text,
+		username text,
+		status text,
+		PRIMARY KEY(id, region)
+	) PARTITION BY LIST (region);`
+
+	// Create multiple partitions
+	partitionTableSQL1 := `CREATE TABLE test_schema.test_partitions_l PARTITION OF test_schema.test_partitions FOR VALUES IN ('London');`
+	partitionTableSQL2 := `CREATE TABLE test_schema.test_partitions_s PARTITION OF test_schema.test_partitions FOR VALUES IN ('Sydney');`
+	partitionTableSQL3 := `CREATE TABLE test_schema.test_partitions_b PARTITION OF test_schema.test_partitions FOR VALUES IN ('Boston');`
+	partitionTableSQL4 := `CREATE TABLE test_schema.test_partitions_t PARTITION OF test_schema.test_partitions FOR VALUES IN ('Tokyo');`
+
+	// Create expression unique index ONLY on specific leaf partitions (London and Sydney)
+	// This index is NOT created on the parent table, only on individual partitions
+	uniqueIndexSQL1 := `CREATE UNIQUE INDEX idx_test_partitions_email_l ON test_schema.test_partitions_l (lower(email));`
+	uniqueIndexSQL2 := `CREATE UNIQUE INDEX idx_test_partitions_email_s ON test_schema.test_partitions_s (lower(email));`
+	// Note: Boston and Tokyo partitions do NOT have this unique index
+
+	// Optional: Create a different expression index on another partition for variety
+	uniqueIndexSQL3 := `CREATE UNIQUE INDEX idx_test_expression_index_partitions_username_t ON test_schema.test_partitions_t (upper(username));`
+
+	insertDataSQL := `INSERT INTO test_schema.test_partitions (id, region, email, username, created_at, status)
+	SELECT i, 
+		CASE 
+			WHEN i%4 = 0 THEN 'London'
+			WHEN i%4 = 1 THEN 'Sydney'
+			WHEN i%4 = 2 THEN 'Boston'
+			ELSE 'Tokyo'
+		END,
+		'email_' || i || '@example.com',
+		'user_' || i,
+		now() + (i || ' days')::interval,
+		CASE WHEN i%2 = 0 THEN 'active' ELSE 'inactive' END
+	FROM generate_series(1, 20) as i;`
+
+	dropSchemaSQL := `DROP SCHEMA IF EXISTS test_schema CASCADE;`
+
+	// Start Postgres container with live migration
+	postgresContainer := testcontainers.NewTestContainer("postgresql", &testcontainers.ContainerConfig{
+		ForLive: true,
+	})
+	if err := postgresContainer.Start(ctx); err != nil {
+		utils.ErrExit("Failed to start Postgres container: %v", err)
+	}
+
+	// Start YugabyteDB container.
+	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil)
+	if err := yugabytedbContainer.Start(ctx); err != nil {
+		utils.ErrExit("Failed to start YugabyteDB container: %v", err)
+	}
+	postgresContainer.ExecuteSqls([]string{
+		createSchemaSQL,
+		createTableSQL,
+		partitionTableSQL1,
+		partitionTableSQL2,
+		partitionTableSQL3,
+		partitionTableSQL4,
+		uniqueIndexSQL1,
+		uniqueIndexSQL2,
+		uniqueIndexSQL3,
+		insertDataSQL,
+	}...)
+
+	yugabytedbContainer.ExecuteSqls([]string{
+		createSchemaSQL,
+		createTableSQL,
+		partitionTableSQL1,
+		partitionTableSQL2,
+		partitionTableSQL3,
+		partitionTableSQL4,
+		uniqueIndexSQL1,
+		uniqueIndexSQL2,
+		uniqueIndexSQL3,
+	}...)
+
+	defer postgresContainer.ExecuteSqls(dropSchemaSQL)
+	defer yugabytedbContainer.ExecuteSqls(dropSchemaSQL)
+
+	err := testutils.NewVoyagerCommandRunner(postgresContainer, "export data", []string{
+		"--export-dir", exportDir,
+		"--source-db-schema", "test_schema",
+		"--disable-pb", "true",
+		"--export-type", SNAPSHOT_AND_CHANGES,
+		"--yes",
+	}, func() {
+		time.Sleep(5 * time.Second) // Wait for the export to start
+	}, true).Run()
+	testutils.FatalIfError(t, err, "Export command failed")
+
+	importCmd := testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
+		"--export-dir", exportDir,
+		"--disable-pb", "true",
+		"--yes",
+	}, nil, true)
+	err = importCmd.Run()
+	testutils.FatalIfError(t, err, "Import command failed")
+
+	time.Sleep(5 * time.Second)
+
+	ok := utils.RetryWorkWithTimeout(1, 30, func() bool {
+		return snapshotPhaseCompleted(t, postgresContainer.GetConfig().Password,
+			yugabytedbContainer.GetConfig().Password, 20, `test_schema."test_partitions"`)
+	})
+	assert.True(t, ok)
+	// Connect to both Postgres and YugabyteDB.
+	pgConn, err := postgresContainer.GetConnection()
+	testutils.FatalIfError(t, err, "connecting to Postgres")
+
+	ybConn, err := yugabytedbContainer.GetConnection()
+	testutils.FatalIfError(t, err, "Error connecting to YugabyteDB")
+
+	// Compare the full table data between Postgres and YugabyteDB for snapshot part.
+	// We assume the table "test_data" has a primary key "id" so we order by it.
+	if err := testutils.CompareTableData(ctx, pgConn, ybConn, "test_schema.test_partitions", "id"); err != nil {
+		t.Errorf("Table data mismatch between Postgres and YugabyteDB: %v", err)
+	}
+
+	//streaming events 10000 events
+	postgresContainer.ExecuteSqls([]string{
+		`DO $$
+DECLARE
+    i INTEGER;
+BEGIN
+    FOR i IN 21..520 LOOP
+        
+    END LOOP;
+END $$;`,
+	}...)
+
+	ok = utils.RetryWorkWithTimeout(1, 30, func() bool {
+		return streamingPhaseCompleted(t, postgresContainer.GetConfig().Password,
+			yugabytedbContainer.GetConfig().Password, 0, 0, 0, `test_schema."test_partitions"`)
+	})
+
+	assert.True(t, ok)
+
+	// Compare the full table data between Postgres and YugabyteDB for streaming part.
+	if err := testutils.CompareTableData(ctx, pgConn, ybConn, "test_schema.test_partitions", "id"); err != nil {
 		t.Errorf("Table data mismatch between Postgres and YugabyteDB after streaming: %v", err)
 	}
 
