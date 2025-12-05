@@ -46,7 +46,7 @@ import (
 var ybCDCClient *dbzm.YugabyteDBCDCClient
 var totalEventCount, totalEventCountRun, throughputInLast3Min, throughputInLast10Min int64
 
-func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList []sqlname.NameTuple, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], leafPartitions *utils.StructMap[sqlname.NameTuple, []string]) (*dbzm.Config, map[string]int64, error) {
+func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList []sqlname.NameTuple, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], leafPartitions *utils.StructMap[sqlname.NameTuple, []sqlname.NameTuple]) (*dbzm.Config, map[string]int64, error) {
 	runId = time.Now().String()
 	absExportDir, err := filepath.Abs(exportDir)
 	if err != nil {
@@ -593,7 +593,7 @@ func writeDataFileDescriptor(exportDir string, status *dbzm.ExportStatus) error 
 	return nil
 }
 
-func createYBReplicationSlotAndPublication(tableList []sqlname.NameTuple, leafPartitions *utils.StructMap[sqlname.NameTuple, []string]) error {
+func createYBReplicationSlotAndPublication(tableList []sqlname.NameTuple, leafPartitions *utils.StructMap[sqlname.NameTuple, []sqlname.NameTuple]) error {
 	ybDB, ok := source.DB().(*srcdb.YugabyteDB)
 	if !ok {
 		return errors.New("unable to cast source DB to YugabyteDB")

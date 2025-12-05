@@ -914,9 +914,7 @@ func (pg *PostgreSQL) GetTableToUniqueKeyColumnsMap(tableList []sqlname.NameTupl
 		if err != nil {
 			return nil, fmt.Errorf("scanning row for unique key column name: %w", err)
 		}
-		if schemaName != "public" {
-			tableName = fmt.Sprintf("%s.%s", schemaName, tableName)
-		}
+		tableName = fmt.Sprintf("%s.%s", schemaName, tableName)
 		result[tableName] = append(result[tableName], colName)
 	}
 
@@ -976,7 +974,7 @@ func (pg *PostgreSQL) DropLogicalReplicationSlot(conn *pgconn.PgConn, replicatio
 	return nil
 }
 
-func (pg *PostgreSQL) CreatePublication(conn *pgconn.PgConn, publicationName string, tableList []sqlname.NameTuple, dropIfAlreadyExists bool, leafPartitions *utils.StructMap[sqlname.NameTuple, []string]) error {
+func (pg *PostgreSQL) CreatePublication(conn *pgconn.PgConn, publicationName string, tableList []sqlname.NameTuple, dropIfAlreadyExists bool, leafPartitions *utils.StructMap[sqlname.NameTuple, []sqlname.NameTuple]) error {
 	if dropIfAlreadyExists {
 		err := pg.DropPublication(publicationName)
 		if err != nil {
