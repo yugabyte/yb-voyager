@@ -1800,12 +1800,10 @@ func saveTableToUniqueKeyColumnsMapInMetaDB(tableList []sqlname.NameTuple, leafP
 		for _, leaf := range value {
 			keyLeafTbl := leaf.AsQualifiedCatalogName()
 			leafColumns, ok := res[keyLeafTbl]
-			log.Infof("leaf columns: %v", leafColumns)
 			if !ok {
 				continue
 			}
 			res[keyTbl] = append(res[keyTbl], leafColumns...)
-			log.Infof("res: %v", res)
 		}
 		res[keyTbl] = lo.Uniq(res[keyTbl])
 		return true, nil
