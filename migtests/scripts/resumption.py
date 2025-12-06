@@ -12,6 +12,7 @@ sys.path.append(os.path.join(os.getcwd(), 'migtests/lib'))
 import yb
 import argparse
 import tempfile
+import math
 
 
 # Global configuration variables
@@ -37,6 +38,8 @@ max_interrupt_seconds = 0
 min_restart_wait_seconds = 0
 max_restart_wait_seconds = 0
 row_count = {}
+previous_row_count = {}
+total_row_count = 0
 export_dir = ''
 run_without_adaptive_parallelism = False
 source_db_type = ''
@@ -66,7 +69,7 @@ def load_config(config_file):
 
 def initialize_globals(config):
     """Initialize global variables from configuration."""
-    global import_type, resumption, row_count, max_restarts, min_interrupt_seconds, max_interrupt_seconds, min_restart_wait_seconds, max_restart_wait_seconds
+    global import_type, resumption, row_count, total_row_count, previous_row_count, max_restarts, min_interrupt_seconds, max_interrupt_seconds, min_restart_wait_seconds, max_restart_wait_seconds
     global export_dir, additional_flags, file_table_map, run_without_adaptive_parallelism, source_db_type, target_db_host, target_db_port, target_db_user, target_db_password, target_db_schema, target_db_name, data_dir, varying_flags
 
     resumption = config.get('resumption', {})
@@ -84,6 +87,10 @@ def initialize_globals(config):
 
     # Validation
     row_count = config.get('row_count', {})
+
+    for table_identifier, expected_row_count in row_count.items():
+        previous_row_count[table_identifier] = 0
+        total_row_count += expected_row_count
 
     # Export directory
     export_dir = os.getenv('EXPORT_DIR', os.getcwd())
@@ -175,6 +182,47 @@ def inject_varying_flags_values(command):
 
     return command
 
+def validate_ingestion():
+    """
+    Validates the ingestion of the data into the target database.
+    If the row count validation fails, it logs details and exits.
+    """
+
+    current_total_row_count = 0
+
+    for table_identifier, expected_row_count in row_count.items():
+        print(f"\nValidating ingestion for table '{table_identifier}'...")
+
+        if '.' in table_identifier:
+            schema, table_name = table_identifier.split('.', 1)
+        else:
+            schema = "public"
+            table_name = table_identifier
+
+        tgt = None
+        try:
+            tgt = yb.new_target_db()
+            tgt.connect()
+            print(f"Connected to target database. Using schema: {schema}")
+            current_row_count = tgt.get_row_count(table_name, schema)
+            current_total_row_count += current_row_count
+
+            if current_row_count > previous_row_count[table_identifier]:
+                print(f"\u2714 Ingestion successful: {table_identifier} - Previous: {previous_row_count[table_identifier]}, Current: {current_row_count}")
+            else:
+                return 0 # Ingestion failed
+        except Exception as e:
+            print(f"Error during validation for table '{table_identifier}': {e}")
+            return 0 # Ingestion failed
+        finally:
+            if tgt:
+                tgt.close()
+                previous_row_count[table_identifier] = current_row_count
+                print("Disconnected from target database.")
+
+    return math.ceil(current_total_row_count / total_row_count * 100) # Ingestion successful
+
+
 def run_command(command, allow_interruption=False, interrupt_after=None):
     with tempfile.TemporaryFile() as stdout_file, tempfile.TemporaryFile() as stderr_file:
         process = subprocess.Popen(
@@ -184,10 +232,14 @@ def run_command(command, allow_interruption=False, interrupt_after=None):
         interrupted = False
         chosen_signal = None
 
+        threshold_ingestion_percentage = random.randint(1,3)
+
         while process.poll() is None:
             if allow_interruption and interrupt_after is not None:
                 elapsed_time = time.time() - start_time
-                if elapsed_time > interrupt_after:
+                ingestion_percentage = validate_ingestion()
+                print(f"Ingestion percentage: {ingestion_percentage}%, Expected: {threshold_ingestion_percentage}%", flush=True)
+                if elapsed_time > interrupt_after and ingestion_percentage>=threshold_ingestion_percentage:
                     # Choose a random signal to send
                     interrupt_signals = [
                         signal.SIGTERM,
@@ -195,6 +247,7 @@ def run_command(command, allow_interruption=False, interrupt_after=None):
                         signal.SIGKILL
                     ]
                     chosen_signal = random.choice(interrupt_signals)
+                    print(f"Ingestion percentage: {ingestion_percentage}%", flush=True)
                     print(f"Interrupting the process (PID: {process.pid}) with signal {chosen_signal.name}...", flush=True)
 
                     try:
