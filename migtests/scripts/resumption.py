@@ -39,6 +39,7 @@ min_restart_wait_seconds = 0
 max_restart_wait_seconds = 0
 row_count = {}
 previous_row_count = {}
+current_row_count = {}
 total_row_count = 0
 export_dir = ''
 run_without_adaptive_parallelism = False
@@ -51,7 +52,7 @@ target_db_schema = ''
 target_db_name = ''
 data_dir = ''
 varying_flags = {}
-max_resumption_time = 2700 # 45 minutes
+max_resumption_time = 1800 # 30 minutes
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="YB Voyager Resumption Test")
@@ -69,7 +70,7 @@ def load_config(config_file):
 
 def initialize_globals(config):
     """Initialize global variables from configuration."""
-    global import_type, resumption, row_count, total_row_count, previous_row_count, max_restarts, min_interrupt_seconds, max_interrupt_seconds, min_restart_wait_seconds, max_restart_wait_seconds
+    global import_type, resumption, row_count, total_row_count, current_row_count, previous_row_count, max_restarts, min_interrupt_seconds, max_interrupt_seconds, min_restart_wait_seconds, max_restart_wait_seconds
     global export_dir, additional_flags, file_table_map, run_without_adaptive_parallelism, source_db_type, target_db_host, target_db_port, target_db_user, target_db_password, target_db_schema, target_db_name, data_dir, varying_flags
 
     resumption = config.get('resumption', {})
@@ -182,13 +183,16 @@ def inject_varying_flags_values(command):
 
     return command
 
-def validate_ingestion():
+def validate_ingestion(expected_threshold_ingestion_percentage):
     """
     Validates the ingestion of the data into the target database.
     If the row count validation fails, it logs details and exits.
     """
-
-    current_total_row_count = 0
+    global previous_row_count, current_row_count
+    
+    previous_total_row_count = 0
+    for table_identifier, expected_row_count in previous_row_count.items():
+        previous_total_row_count += expected_row_count
 
     for table_identifier, expected_row_count in row_count.items():
         print(f"\nValidating ingestion for table '{table_identifier}'...")
@@ -204,23 +208,31 @@ def validate_ingestion():
             tgt = yb.new_target_db()
             tgt.connect()
             print(f"Connected to target database. Using schema: {schema}")
-            current_row_count = tgt.get_row_count(table_name, schema)
-            current_total_row_count += current_row_count
+            current_row_count[table_identifier] = tgt.get_row_count(table_name, schema)
 
-            if current_row_count > previous_row_count[table_identifier]:
-                print(f"\u2714 Ingestion successful: {table_identifier} - Previous: {previous_row_count[table_identifier]}, Current: {current_row_count}")
+            if current_row_count[table_identifier] > previous_row_count[table_identifier]:
+                print(f"\u2714 Ingestion successful: {table_identifier} - Previous: {previous_row_count[table_identifier]}, Current: {current_row_count[table_identifier]}")
             else:
-                return 0 # Ingestion failed
+                return [0, 0] # Ingestion failed
         except Exception as e:
             print(f"Error during validation for table '{table_identifier}': {e}")
-            return 0 # Ingestion failed
+            return [0, 0] # Ingestion failed
         finally:
             if tgt:
                 tgt.close()
-                previous_row_count[table_identifier] = current_row_count
                 print("Disconnected from target database.")
 
-    return math.ceil(current_total_row_count / total_row_count * 100) # Ingestion successful
+    current_total_row_count = 0
+    for table_identifier, count in current_row_count.items():
+        current_total_row_count += count
+
+    iteration_ingestion_percentage = math.floor((current_total_row_count - previous_total_row_count) / total_row_count * 100)
+    total_ingestion_percentage = math.floor(current_total_row_count / total_row_count * 100)
+
+    if iteration_ingestion_percentage >= expected_threshold_ingestion_percentage or total_ingestion_percentage == 100:
+        previous_row_count = current_row_count.copy()
+
+    return [iteration_ingestion_percentage, total_ingestion_percentage] # Ingestion successful
 
 
 def run_command(command, allow_interruption=False, interrupt_after=None):
@@ -237,33 +249,34 @@ def run_command(command, allow_interruption=False, interrupt_after=None):
         while process.poll() is None:
             if allow_interruption and interrupt_after is not None:
                 elapsed_time = time.time() - start_time
-                ingestion_percentage = validate_ingestion()
-                print(f"Ingestion percentage: {ingestion_percentage}%, Expected: {threshold_ingestion_percentage}%", flush=True)
-                if elapsed_time > interrupt_after and ingestion_percentage>=threshold_ingestion_percentage:
-                    # Choose a random signal to send
-                    interrupt_signals = [
-                        signal.SIGTERM,
-                        signal.SIGINT,
-                        signal.SIGKILL
-                    ]
-                    chosen_signal = random.choice(interrupt_signals)
-                    print(f"Ingestion percentage: {ingestion_percentage}%", flush=True)
-                    print(f"Interrupting the process (PID: {process.pid}) with signal {chosen_signal.name}...", flush=True)
+                if elapsed_time > interrupt_after:
+                    ingestion_percentage, total_ingestion_percentage = validate_ingestion(threshold_ingestion_percentage)
+                    print(f"Iteration ingestion percentage: {ingestion_percentage}%, Expected: {threshold_ingestion_percentage}%", flush=True)
+                    if ingestion_percentage>=threshold_ingestion_percentage or total_ingestion_percentage==100:
+                        # Choose a random signal to send
+                        interrupt_signals = [
+                            signal.SIGTERM,
+                            signal.SIGINT,
+                            signal.SIGKILL
+                        ]
+                        chosen_signal = random.choice(interrupt_signals)
+                        print(f"Total ingestion percentage: {total_ingestion_percentage}%", flush=True)
+                        print(f"Interrupting the process (PID: {process.pid}) with signal {chosen_signal.name}...", flush=True)
 
-                    try:
-                        process.send_signal(chosen_signal)
-                        print(f"{chosen_signal.name} sent to process (PID: {process.pid}). Waiting for process to exit...", flush=True)
+                        try:
+                            process.send_signal(chosen_signal)
+                            print(f"{chosen_signal.name} sent to process (PID: {process.pid}). Waiting for process to exit...", flush=True)
 
-                        process.wait(timeout=10)  # Wait for the process to exit
-                        print(f"Process (PID: {process.pid}) terminated gracefully with exit code: {process.returncode}", flush=True)
+                            process.wait(timeout=10)  # Wait for the process to exit
+                            print(f"Process (PID: {process.pid}) terminated gracefully with exit code: {process.returncode}", flush=True)
 
-                    except subprocess.TimeoutExpired:
-                        print(f"Process (PID: {process.pid}) did not terminate in time. Forcing termination...", flush=True)
-                        process.kill()
-                        print(f"Process (PID: {process.pid}) force-killed with exit code: {process.returncode}", flush=True)
+                        except subprocess.TimeoutExpired:
+                            print(f"Process (PID: {process.pid}) did not terminate in time. Forcing termination...", flush=True)
+                            process.kill()
+                            print(f"Process (PID: {process.pid}) force-killed with exit code: {process.returncode}", flush=True)
 
-                    interrupted = True
-                    break
+                        interrupted = True
+                        break
             time.sleep(1)  # Avoid busy-waiting
 
         stdout_file.seek(0)
