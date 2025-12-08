@@ -938,7 +938,91 @@ func TestGetTablesHavingExpressionIndexes(t *testing.T) {
 		`CREATE UNIQUE INDEX idx_expression_indexes_7 ON test_expression_indexes."Table7" (lower("Data" || "Val2"));`,
 		`CREATE UNIQUE INDEX idx_expression_indexes_8 ON test_expression_indexes."Table8" ("Data");`,
 		`CREATE INDEX idx_expression_indexes_9 ON test_expression_indexes."Table8" (("Data" || "Val2"));`,//normal index
+
+		//partitions cases
+		//only two partitions have expression indexes
+		`CREATE TABLE test_expression_indexes.table_partitioned (
+			id INT,
+			data TEXT,
+			val text,
+			val2 text
+		) PARTITION BY LIST (data);
+		CREATE TABLE test_expression_indexes.table_partitioned_l PARTITION OF test_expression_indexes.table_partitioned FOR VALUES IN ('London');
+		CREATE TABLE test_expression_indexes.table_partitioned_s PARTITION OF test_expression_indexes.table_partitioned FOR VALUES IN ('Sydney');
+		CREATE TABLE test_expression_indexes.table_partitioned_b PARTITION OF test_expression_indexes.table_partitioned FOR VALUES IN ('Boston');
+
+		CREATE UNIQUE INDEX idx_expression_indexes_10 ON test_expression_indexes.table_partitioned_l (lower(val || val2));
+		CREATE UNIQUE INDEX idx_expression_indexes_12 ON test_expression_indexes.table_partitioned_b (lower(val || val2));`,
+
+		//one of the leaf child in multi level partitioning has expression indexes
+		`CREATE TABLE test_expression_indexes.table_partitioned1 (
+			id INT,
+			data TEXT,
+			val text,
+			val2 text
+		) PARTITION BY LIST (data);
+		CREATE TABLE test_expression_indexes.table_partitioned_l1 PARTITION OF test_expression_indexes.table_partitioned1 FOR VALUES IN ('London') PARTITION BY LIST (val);
+		CREATE TABLE test_expression_indexes.table_partitioned_s1 PARTITION OF test_expression_indexes.table_partitioned1 FOR VALUES IN ('Sydney');
+		CREATE TABLE test_expression_indexes.table_partitioned_b1 PARTITION OF test_expression_indexes.table_partitioned1 FOR VALUES IN ('Boston');
+
+		CREATE TABLE test_expression_indexes.table_partitioned_l1_part1 PARTITION OF test_expression_indexes.table_partitioned_l1 FOR VALUES IN ('ABC data');
+		CREATE TABLE test_expression_indexes.table_partitioned_l1_part2 PARTITION OF test_expression_indexes.table_partitioned_l1 FOR VALUES IN ('XYZ data');
+
 		
+		CREATE UNIQUE INDEX idx_expression_indexes_13 ON test_expression_indexes.table_partitioned_l1_part1 (lower(val || val2));`,
+
+		//only two partitions have expression indexes
+		`CREATE TABLE test_expression_indexes.table_partitioned2 (
+			id INT,
+			data TEXT,
+			val text,
+			val2 text
+		) PARTITION BY LIST (data);
+		CREATE TABLE test_expression_indexes.table_partitioned_l2 PARTITION OF test_expression_indexes.table_partitioned2 FOR VALUES IN ('London');
+		CREATE TABLE test_expression_indexes.table_partitioned_s2 PARTITION OF test_expression_indexes.table_partitioned2 FOR VALUES IN ('Sydney');
+		CREATE TABLE test_expression_indexes.table_partitioned_b2 PARTITION OF test_expression_indexes.table_partitioned2 FOR VALUES IN ('Boston');
+
+		CREATE UNIQUE INDEX idx_expression_indexes_14 ON test_expression_indexes.table_partitioned_l2 (lower(val || val2));
+		CREATE UNIQUE INDEX idx_expression_indexes_15 ON test_expression_indexes.table_partitioned_b2 (lower(val || val2));`,
+
+		//none of the partitions have expression indexes
+		`CREATE TABLE test_expression_indexes.table_partitioned3 (
+			id INT,
+			data TEXT,
+			val text,
+			val2 text
+		) PARTITION BY LIST (data);
+		CREATE TABLE test_expression_indexes.table_partitioned_l3 PARTITION OF test_expression_indexes.table_partitioned3 FOR VALUES IN ('London');
+		CREATE TABLE test_expression_indexes.table_partitioned_s3 PARTITION OF test_expression_indexes.table_partitioned3 FOR VALUES IN ('Sydney');
+		CREATE TABLE test_expression_indexes.table_partitioned_b3 PARTITION OF test_expression_indexes.table_partitioned3 FOR VALUES IN ('Boston');`,
+
+
+		//root table has the expression index
+		`CREATE TABLE test_expression_indexes.table_partitioned4 (
+			id INT,
+			data TEXT,
+			val text,
+			val2 text
+		) PARTITION BY LIST (data);
+		CREATE TABLE test_expression_indexes.table_partitioned_l4 PARTITION OF test_expression_indexes.table_partitioned4 FOR VALUES IN ('London');
+		CREATE TABLE test_expression_indexes.table_partitioned_s4 PARTITION OF test_expression_indexes.table_partitioned4 FOR VALUES IN ('Sydney');
+		CREATE TABLE test_expression_indexes.table_partitioned_b4 PARTITION OF test_expression_indexes.table_partitioned4 FOR VALUES IN ('Boston');
+
+		CREATE UNIQUE INDEX idx_expression_indexes_16 ON test_expression_indexes.table_partitioned4 (data, upper(val || val2));`,
+
+		//cross schema partitions and 
+		`CREATE SCHEMA test_expression_indexes_cross;
+		CREATE TABLE test_expression_indexes_cross.table_partitioned5 (
+			id INT,
+			data TEXT,
+			val text,
+			val2 text
+		) PARTITION BY LIST (data);
+		CREATE TABLE test_expression_indexes.table_partitioned_l5 PARTITION OF test_expression_indexes_cross.table_partitioned5 FOR VALUES IN ('London');
+		CREATE TABLE test_expression_indexes.table_partitioned_s5 PARTITION OF test_expression_indexes_cross.table_partitioned5 FOR VALUES IN ('Sydney');
+		CREATE TABLE test_expression_indexes.table_partitioned_b5 PARTITION OF test_expression_indexes_cross.table_partitioned5 FOR VALUES IN ('Boston');
+
+		CREATE UNIQUE INDEX idx_expression_indexes_17 ON test_expression_indexes.table_partitioned_l5 (data, upper(val || val2));`,
 	)
 	defer testYugabyteDBTarget.ExecuteSqls(`DROP SCHEMA test_expression_indexes CASCADE;`)
 
@@ -951,17 +1035,28 @@ func TestGetTablesHavingExpressionIndexes(t *testing.T) {
 		testutils.CreateNameTupleWithTargetName("test_expression_indexes.\"Table6\"", "public", YUGABYTEDB),
 		testutils.CreateNameTupleWithTargetName("test_expression_indexes.\"Table7\"", "public", YUGABYTEDB),
 		testutils.CreateNameTupleWithTargetName("test_expression_indexes.\"Table8\"", "public", YUGABYTEDB),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned", "public", YUGABYTEDB),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned1", "public", YUGABYTEDB),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned2", "public", YUGABYTEDB),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned3", "public", YUGABYTEDB),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned4", "public", YUGABYTEDB),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes_cross.table_partitioned5", "public", YUGABYTEDB),
 	}
 
 	tableTuplesHavingExpressionIndexes, err := testYugabyteDBTarget.GetTablesHavingExpressionUniqueIndexes(tableTuplesList)
 	require.NoError(t, err)
-	assert.Equal(t, 5, len(tableTuplesHavingExpressionIndexes))
+	assert.Equal(t, 10, len(tableTuplesHavingExpressionIndexes))
 	expectedTableTuplesHavingExpressionIndexes := []sqlname.NameTuple{
 		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table1", "public", YUGABYTEDB),
 		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table2", "public", YUGABYTEDB),
 		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table3", "public", YUGABYTEDB),
 		testutils.CreateNameTupleWithTargetName("test_expression_indexes.\"Table6\"", "public", YUGABYTEDB),
 		testutils.CreateNameTupleWithTargetName("test_expression_indexes.\"Table7\"", "public", YUGABYTEDB),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned", "public", YUGABYTEDB), //only table_partitioned3 doesn't have expression indexes rest of them have expr
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned1", "public", YUGABYTEDB),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned2", "public", YUGABYTEDB),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned4", "public", YUGABYTEDB),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes_cross.table_partitioned5", "public", YUGABYTEDB),
 	}
 	assert.ElementsMatch(t, expectedTableTuplesHavingExpressionIndexes, tableTuplesHavingExpressionIndexes)
 }

@@ -2216,30 +2216,78 @@ func (yb *TargetYugabyteDB) GetTablesHavingExpressionUniqueIndexes(tableNames []
 	}
 
 	query := fmt.Sprintf(`
-WITH table_list(schema_name, table_name) AS (VALUES %s)
-SELECT 
-    COALESCE(parent_ns.nspname, n.nspname) AS schema_name,
-    COALESCE(parent_t.relname, t.relname) AS table_name,
-    i.relname AS index_name,
-	COALESCE(pg_get_expr(idx.indexprs, idx.indrelid), '') AS expression
-FROM pg_class i
-JOIN pg_index idx ON i.oid = idx.indexrelid
-JOIN pg_class t ON idx.indrelid = t.oid
-JOIN pg_namespace n ON t.relnamespace = n.oid
-LEFT JOIN pg_inherits inh ON t.oid = inh.inhrelid
-LEFT JOIN pg_class parent_t ON inh.inhparent = parent_t.oid
-LEFT JOIN pg_namespace parent_ns ON parent_t.relnamespace = parent_ns.oid
-WHERE i.relkind = 'i'
-  AND indisunique
-  AND idx.indexprs IS NOT NULL  -- expression index
-  AND (
-    (n.nspname, t.relname) IN (SELECT schema_name, table_name FROM table_list)
-    OR (parent_ns.nspname, parent_t.relname) IN (SELECT schema_name, table_name FROM table_list)
+WITH table_list(schema_name, table_name) AS (VALUES %s),
+-- Step 1: Create a mapping of all tables (especially leaf partitions) to their root tables
+table_to_root AS (
+  WITH RECURSIVE find_root AS (
+    -- Base case: all tables start as their own root
+    SELECT 
+      t.oid AS table_oid,
+      t.oid AS current_oid,
+      n.nspname AS table_schema,
+      t.relname AS table_name,
+      n.nspname AS root_schema,
+      t.relname AS root_name
+    FROM pg_class t
+    JOIN pg_namespace n ON t.relnamespace = n.oid
+    WHERE t.relkind IN ('r', 'p')  -- regular tables and partitioned tables
+    
+    UNION ALL
+    
+    -- Recursive case: if current table has a parent, traverse up
+    SELECT 
+      fr.table_oid,
+      parent_t.oid AS current_oid,
+      fr.table_schema,
+      fr.table_name,
+      parent_ns.nspname AS root_schema,
+      parent_t.relname AS root_name
+    FROM find_root fr
+    JOIN pg_inherits inh ON fr.current_oid = inh.inhrelid
+    JOIN pg_class parent_t ON inh.inhparent = parent_t.oid
+    JOIN pg_namespace parent_ns ON parent_t.relnamespace = parent_ns.oid
   )
-ORDER BY COALESCE(parent_ns.nspname, n.nspname), COALESCE(parent_t.relname, t.relname), i.relname;
-	`, tableNamesStr)
+  -- For each table, get its root (the one with no parent)
+  SELECT DISTINCT ON (table_oid)
+    table_oid,
+    root_schema,
+    root_name
+  FROM find_root
+  WHERE NOT EXISTS (
+    SELECT 1 FROM pg_inherits inh2 
+    WHERE inh2.inhrelid = find_root.current_oid
+  )
+  ORDER BY table_oid
+),
+-- Step 2: Find all tables (including leaf partitions) that have expression unique indexes
+tables_with_expression_indexes AS (
+  SELECT 
+    t.oid AS table_oid,
+    t.oid AS index_table_oid,
+    n.nspname AS table_schema,
+    t.relname AS table_name,
+    i.relname AS index_name,
+    COALESCE(pg_get_expr(idx.indexprs, idx.indrelid), '') AS expression
+  FROM pg_class i
+  JOIN pg_index idx ON i.oid = idx.indexrelid
+  JOIN pg_class t ON idx.indrelid = t.oid
+  JOIN pg_namespace n ON t.relnamespace = n.oid
+  WHERE i.relkind = 'i'
+    AND idx.indisunique
+    AND idx.indexprs IS NOT NULL  -- expression index
+)
+-- Step 3: Join to get root table for each table with expression index
+SELECT 
+    ttr.root_schema AS schema_name,
+    ttr.root_name AS table_name,
+    twei.index_name,
+    twei.expression
+FROM tables_with_expression_indexes twei
+JOIN table_to_root ttr ON twei.table_oid = ttr.table_oid
+WHERE (ttr.root_schema, ttr.root_name) IN (SELECT schema_name, table_name FROM table_list)
+ORDER BY ttr.root_schema, ttr.root_name, twei.index_name;`, tableNamesStr)
 
-	log.Infof("query: %s", query)
+	log.Debugf("query: %s", query)
 	rows, err := yb.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("error querying for tables having expression indexes: %w", err)
@@ -2258,5 +2306,8 @@ ORDER BY COALESCE(parent_ns.nspname, n.nspname), COALESCE(parent_t.relname, t.re
 
 		tablesHavingExpressionIndexes = append(tablesHavingExpressionIndexes, tableCatalogNameToTuple[fmt.Sprintf("%s.%s", schemaName, tableName)])
 	}
-	return tablesHavingExpressionIndexes, nil
+	//In case of partitioned tables, we may get duplicate entries for root table but the index and expression will be different so for logging that makes sense but while returning a list it should be unique
+	return lo.UniqBy(tablesHavingExpressionIndexes, func(t sqlname.NameTuple) string {
+		return t.ForKey()
+	}), nil
 }
