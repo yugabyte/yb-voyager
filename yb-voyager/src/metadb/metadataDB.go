@@ -26,6 +26,8 @@ import (
 	"strings"
 	"time"
 
+	goerrors "github.com/go-errors/errors"
+
 	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
@@ -35,16 +37,16 @@ import (
 )
 
 var (
-	QUEUE_SEGMENT_META_TABLE_NAME                    = "queue_segment_meta"
-	EXPORTED_EVENTS_STATS_TABLE_NAME                 = "exported_events_stats"
-	EXPORTED_EVENTS_STATS_PER_TABLE_TABLE_NAME       = "exported_events_stats_per_table"
-	JSON_OBJECTS_TABLE_NAME                          = "json_objects"
-	TARGET_DB_IDENTITY_COLUMNS_KEY                   = "target_db_identity_columns_key"
-	FF_DB_IDENTITY_COLUMNS_KEY                       = "ff_db_identity_columns_key" // TODO: change the key
-	SOURCE_DB_IDENTITY_COLUMNS_KEY                   = "source_db_identity_columns_key"
-	SOURCE_INDEXES_INFO_KEY                          = "source_indexes_info_key"
-	TABLE_TO_UNIQUE_KEY_COLUMNS_KEY                  = "table_to_unique_key_columns_key"
-	ErrNoQueueSegmentsFound                          = errors.New("no queue segments found")
+	QUEUE_SEGMENT_META_TABLE_NAME              = "queue_segment_meta"
+	EXPORTED_EVENTS_STATS_TABLE_NAME           = "exported_events_stats"
+	EXPORTED_EVENTS_STATS_PER_TABLE_TABLE_NAME = "exported_events_stats_per_table"
+	JSON_OBJECTS_TABLE_NAME                    = "json_objects"
+	TARGET_DB_IDENTITY_COLUMNS_KEY             = "target_db_identity_columns_key"
+	FF_DB_IDENTITY_COLUMNS_KEY                 = "ff_db_identity_columns_key" // TODO: change the key
+	SOURCE_DB_IDENTITY_COLUMNS_KEY             = "source_db_identity_columns_key"
+	SOURCE_INDEXES_INFO_KEY                    = "source_indexes_info_key"
+	TABLE_TO_UNIQUE_KEY_COLUMNS_KEY            = "table_to_unique_key_columns_key"
+	ErrNoQueueSegmentsFound                    = errors.New("no queue segments found")
 )
 
 const SQLITE_OPTIONS = "?_txlock=exclusive&_timeout=30000"
@@ -187,7 +189,7 @@ func (m *MetaDB) MarkEventQueueSegmentAsProcessed(segmentNum int64, importerRole
 	}
 
 	if rowsAffected != 1 {
-		return fmt.Errorf("expected 1 row to be updated, got %d", rowsAffected)
+		return goerrors.Errorf("expected 1 row to be updated, got %d", rowsAffected)
 	}
 
 	log.Infof("Executed query on meta db - %s", query)
@@ -454,7 +456,7 @@ func (m *MetaDB) GetExportedEventsStatsForExporterRole(exporterRole string) (*ut
 
 	rows, err := m.db.Query(query)
 	if err != nil {
-		return nil, fmt.Errorf("run query on meta db -%s :%v", query, err)
+		return nil, goerrors.Errorf("run query on meta db -%s :%v", query, err)
 	}
 	defer func() {
 		err := rows.Close()
@@ -471,7 +473,7 @@ func (m *MetaDB) GetExportedEventsStatsForExporterRole(exporterRole string) (*ut
 		var deletes int64
 		err := rows.Scan(&schemaName, &tableName, &totalCount, &inserts, &updates, &deletes)
 		if err != nil {
-			return nil, fmt.Errorf("scan rows while fetching exported events stats from query %s : %v", query, err)
+			return nil, goerrors.Errorf("scan rows while fetching exported events stats from query %s : %v", query, err)
 		}
 		if tableName == "null" {
 			continue
@@ -482,7 +484,7 @@ func (m *MetaDB) GetExportedEventsStatsForExporterRole(exporterRole string) (*ut
 		}
 		nt, err := namereg.NameReg.LookupTableName(lookupName)
 		if err != nil {
-			return nil, fmt.Errorf("lookup %s from name registry: %v", lookupName, err)
+			return nil, goerrors.Errorf("lookup %s from name registry: %v", lookupName, err)
 		}
 
 		var ec *tgtdb.EventCounter
@@ -507,7 +509,7 @@ func (m *MetaDB) GetSegmentsToBeArchived(importCount int) ([]utils.Segment, erro
 	AND archived = 0`, importCount)
 	segmentsToBeArchived, err := m.querySegments(predicate)
 	if err != nil {
-		return nil, fmt.Errorf("fetch segments to be archived: %v", err)
+		return nil, goerrors.Errorf("fetch segments to be archived: %v", err)
 	}
 	return segmentsToBeArchived, nil
 }
@@ -517,7 +519,7 @@ func (m *MetaDB) GetSegmentsToBeDeleted() ([]utils.Segment, error) {
 	predicate := "archived = 1 AND deleted = 0"
 	segmentsToBeDeleted, err := m.querySegments(predicate)
 	if err != nil {
-		return nil, fmt.Errorf("fetch segments to be deleted: %v", err)
+		return nil, goerrors.Errorf("fetch segments to be deleted: %v", err)
 	}
 	return segmentsToBeDeleted, nil
 }
@@ -527,7 +529,7 @@ func (m *MetaDB) GetPendingSegments(importCount int) ([]utils.Segment, error) {
 		(exporter_role LIKE 'target_db_exporter%%' AND (imported_by_target_db_importer + imported_by_source_replica_db_importer + imported_by_source_db_importer < 1))`, importCount)
 	segments, err := m.querySegments(predicate)
 	if err != nil {
-		return nil, fmt.Errorf("fetch pending segments: %v", err)
+		return nil, goerrors.Errorf("fetch pending segments: %v", err)
 	}
 	return segments, nil
 }
@@ -537,7 +539,7 @@ func (m *MetaDB) querySegments(predicate string) ([]utils.Segment, error) {
 	query := fmt.Sprintf(`SELECT segment_no, file_path FROM %s WHERE %s ORDER BY segment_no;`, QUEUE_SEGMENT_META_TABLE_NAME, predicate)
 	rows, err := m.db.Query(query)
 	if err != nil {
-		return nil, fmt.Errorf("run query on meta db -%s :%v", query, err)
+		return nil, goerrors.Errorf("run query on meta db -%s :%v", query, err)
 	}
 	defer func() {
 		err := rows.Close()
@@ -550,7 +552,7 @@ func (m *MetaDB) querySegments(predicate string) ([]utils.Segment, error) {
 		var filePath string
 		err := rows.Scan(&segmentNo, &filePath)
 		if err != nil {
-			return nil, fmt.Errorf("scan rows while fetching segments from query %s : %v", query, err)
+			return nil, goerrors.Errorf("scan rows while fetching segments from query %s : %v", query, err)
 		}
 		segment := utils.Segment{
 			Num:      int(segmentNo),
@@ -565,12 +567,12 @@ func (m *MetaDB) updateSegment(segmentNum int, setterExprs string) error {
 	query := fmt.Sprintf(`UPDATE %s SET %s WHERE segment_no = ?;`, QUEUE_SEGMENT_META_TABLE_NAME, setterExprs)
 	result, err := m.db.Exec(query, segmentNum)
 	if err != nil {
-		return fmt.Errorf("run query on meta db -%s :%v", query, err)
+		return goerrors.Errorf("run query on meta db -%s :%v", query, err)
 	}
 
 	err = checkRowsAffected(result, 1)
 	if err != nil {
-		return fmt.Errorf("run query on meta db -%s :%v", query, err)
+		return goerrors.Errorf("run query on meta db -%s :%v", query, err)
 	}
 
 	log.Infof("Executed query on meta db - %s", query)
@@ -582,7 +584,7 @@ func (m *MetaDB) MarkSegmentDeleted(segmentNum int) error {
 	queryParams := "deleted = 1"
 	err := m.updateSegment(segmentNum, queryParams)
 	if err != nil {
-		return fmt.Errorf("mark segment deleted in metaDB for segment %d: %v", segmentNum, err)
+		return goerrors.Errorf("mark segment deleted in metaDB for segment %d: %v", segmentNum, err)
 	}
 	return nil
 }
@@ -592,7 +594,7 @@ func (m *MetaDB) UpdateSegmentArchiveLocation(segmentNum int, archiveLocation st
 	queryParams := fmt.Sprintf(`archived = 1, archive_location = '%s'`, archiveLocation)
 	err := m.updateSegment(segmentNum, queryParams)
 	if err != nil {
-		return fmt.Errorf("mark segment archived in metaDB for segment %d: %v", segmentNum, err)
+		return goerrors.Errorf("mark segment archived in metaDB for segment %d: %v", segmentNum, err)
 	}
 	return nil
 }
@@ -600,10 +602,10 @@ func (m *MetaDB) UpdateSegmentArchiveLocation(segmentNum int, archiveLocation st
 func checkRowsAffected(result sql.Result, expectedRows int) error {
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return fmt.Errorf("get rows updated: %v", err)
+		return goerrors.Errorf("get rows updated: %v", err)
 	}
 	if rowsAffected != int64(expectedRows) {
-		return fmt.Errorf("expected %d rows to be updated, got %d", expectedRows, rowsAffected)
+		return goerrors.Errorf("expected %d rows to be updated, got %d", expectedRows, rowsAffected)
 	}
 	return nil
 }

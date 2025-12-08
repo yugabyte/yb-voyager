@@ -749,7 +749,7 @@ FROM generate_series(1, 10);`
 	testutils.FatalIfError(t, err, "Cutover command failed")
 
 }
-	
+
 func TestLiveMigrationWithUniqueKeyValuesWithPartialPredicateConflictDetectionCases(t *testing.T) {
 	ctx := context.Background()
 

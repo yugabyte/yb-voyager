@@ -127,8 +127,8 @@ func (reg *AttributeNameRegistry) findBestMatchingColumnName(colName string, tar
 				return strings.ToUpper(colName), nil
 			}
 		}
-		return "", fmt.Errorf("ambiguous column name %q in target table: found column names: %s",
+		return "", goerrors.Errorf("ambiguous column name %q in target table: found column names: %s",
 			colName, strings.Join(candidates, ", "))
 	}
-	return "", fmt.Errorf("column %q not found amongst table columns %v", colName, targetColumns)
+	return "", goerrors.Errorf("column %q not found amongst table columns %v", colName, targetColumns)
 }

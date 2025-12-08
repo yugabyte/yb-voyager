@@ -30,6 +30,8 @@ import (
 	"syscall"
 	"text/template"
 
+	goerrors "github.com/go-errors/errors"
+
 	"github.com/fatih/color"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
@@ -260,13 +262,13 @@ func assessMigration() (err error) {
 			if err != nil {
 				return fmt.Errorf("failed to check dependencies for assess migration: %w", err)
 			} else if len(binaryCheckIssues) > 0 {
-				return fmt.Errorf("\n%s\n%s", color.RedString("\nMissing dependencies for assess migration:"), strings.Join(binaryCheckIssues, "\n"))
+				return goerrors.Errorf("\n%s\n%s", color.RedString("\nMissing dependencies for assess migration:"), strings.Join(binaryCheckIssues, "\n"))
 			}
 		}
 
 		res := source.DB().CheckSchemaExists()
 		if !res {
-			return fmt.Errorf("failed to check if source schema exist: %q", source.Schema)
+			return goerrors.Errorf("failed to check if source schema exist: %q", source.Schema)
 		}
 
 		// Handle replica discovery and validation (PostgreSQL only)
@@ -434,7 +436,7 @@ func IsMigrationAssessmentDoneDirectly(metaDBInstance *metadb.MetaDB) (bool, err
 
 func IsMigrationAssessmentDoneViaExportSchema() (bool, error) {
 	if !metaDBIsCreated(exportDir) {
-		return false, fmt.Errorf("metaDB is not created in export directory: %s", exportDir)
+		return false, goerrors.Errorf("metaDB is not created in export directory: %s", exportDir)
 	}
 
 	msr, err := metaDB.GetMigrationStatusRecord()
@@ -559,7 +561,7 @@ func handleStartCleanIfNeededForAssessMigration(metadataDirPassedByUser bool) er
 			return fmt.Errorf("failed to start clean for assess migration: %w", err)
 		}
 	} else if assessmentFilesExists { // if not startClean but assessment files already exist
-		return fmt.Errorf("assessment metadata or reports files already exist in the assessment directory: '%s'. Use the --start-clean flag to clear the directory before proceeding.", assessmentDir)
+		return goerrors.Errorf("assessment metadata or reports files already exist in the assessment directory: '%s'. Use the --start-clean flag to clear the directory before proceeding.", assessmentDir)
 	}
 
 	return nil
@@ -591,7 +593,7 @@ func gatherAssessmentMetadata(validatedReplicas []srcdb.ReplicaEndpoint) (failed
 			return nil, fmt.Errorf("error gathering metadata and stats from source Oracle database: %w", err)
 		}
 	default:
-		return nil, fmt.Errorf("source DB Type %s is not yet supported for metadata and stats gathering", source.DBType)
+		return nil, goerrors.Errorf("source DB Type %s is not yet supported for metadata and stats gathering", source.DBType)
 	}
 	utils.PrintAndLogf("gathered assessment metadata files at '%s'", assessmentMetadataDir)
 	return nil, nil
@@ -753,7 +755,7 @@ func findGatherMetadataScriptPath(dbType string) (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("script not found in possible paths: %v", possiblePathsForScript)
+	return "", goerrors.Errorf("script not found in possible paths: %v", possiblePathsForScript)
 }
 
 func runGatherAssessmentMetadataScript(scriptPath string, envVars []string, scriptArgs ...string) error {

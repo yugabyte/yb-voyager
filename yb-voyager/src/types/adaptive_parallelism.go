@@ -16,8 +16,9 @@ limitations under the License.
 package types
 
 import (
-	"fmt"
 	"strings"
+
+	goerrors "github.com/go-errors/errors"
 )
 
 /*
@@ -77,6 +78,6 @@ func NewAdaptiveParallelismMode(s string) (AdaptiveParallelismMode, error) {
 	case AggressiveAdaptiveParallelismModeName:
 		return AggressiveAdaptiveParallelismMode, nil
 	default:
-		return "", fmt.Errorf("invalid adaptive parallelism mode: %q. Allowed modes: %v", s, validAdaptiveParallelismModeNames)
+		return "", goerrors.Errorf("invalid adaptive parallelism mode: %q. Allowed modes: %v", s, validAdaptiveParallelismModeNames)
 	}
 }

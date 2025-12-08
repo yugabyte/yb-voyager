@@ -22,6 +22,8 @@ import (
 	"net/url"
 	"strings"
 
+	goerrors "github.com/go-errors/errors"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
@@ -77,13 +79,13 @@ func ValidateObjectURL(dataDir string) error {
 	}
 	containerDir := dataDirUrl.Path
 	if containerDir == "" {
-		return fmt.Errorf("missing bucket in azure blob url %v", dataDir)
+		return goerrors.Errorf("missing bucket in azure blob url %v", dataDir)
 	}
 	service := dataDirUrl.Host
 	if service == "" {
-		return fmt.Errorf("missing service in azure blob url %v", dataDir)
+		return goerrors.Errorf("missing service in azure blob url %v", dataDir)
 	} else if !strings.Contains(service, ".blob.") {
-		return fmt.Errorf("invalid service in azure blob url %v", dataDir)
+		return goerrors.Errorf("invalid service in azure blob url %v", dataDir)
 	}
 	return nil
 }

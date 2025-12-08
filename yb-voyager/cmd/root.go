@@ -24,6 +24,8 @@ import (
 	"path/filepath"
 	"time"
 
+	goerrors "github.com/go-errors/errors"
+
 	"github.com/fatih/color"
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
@@ -420,7 +422,7 @@ func setControlPlane(cpType string) error {
 	case YUGABYTED:
 		ybdConnString := os.Getenv("YUGABYTED_DB_CONN_STRING")
 		if ybdConnString == "" {
-			return fmt.Errorf("yugabyted-control-plane.db-conn-string config param (or YUGABYTED_DB_CONN_STRING environment variable) needs to be set if control plane type is 'yugabyted'.")
+			return goerrors.Errorf("yugabyted-control-plane.db-conn-string config param (or YUGABYTED_DB_CONN_STRING environment variable) needs to be set if control plane type is 'yugabyted'.")
 		}
 		controlPlane = yugabyted.New(exportDir)
 		log.Infof("Migration UUID %s", migrationUUID)
@@ -456,7 +458,7 @@ func setControlPlane(cpType string) error {
 			missingKeys = append(missingKeys, "ybaeon-control-plane.api-key")
 		}
 		if len(missingKeys) > 0 {
-			return fmt.Errorf("YB-Aeon control plane requires the following configuration keys: %v", missingKeys)
+			return goerrors.Errorf("YB-Aeon control plane requires the following configuration keys: %v", missingKeys)
 		}
 
 		ybaeonConfig := &ybaeon.YBAeonConfig{
@@ -475,7 +477,7 @@ func setControlPlane(cpType string) error {
 		}
 		log.Infof("YB-Aeon control plane initialized successfully")
 	default:
-		return fmt.Errorf("invalid value of control plane type: %q. Allowed values: %v", cpType, []string{YUGABYTED, YBAEON})
+		return goerrors.Errorf("invalid value of control plane type: %q. Allowed values: %v", cpType, []string{YUGABYTED, YBAEON})
 	}
 	return nil
 }

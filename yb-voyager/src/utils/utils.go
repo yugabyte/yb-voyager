@@ -36,6 +36,8 @@ import (
 	"syscall"
 	"time"
 
+	goerrors "github.com/go-errors/errors"
+
 	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/fatih/color"
 	"github.com/google/uuid"
@@ -421,7 +423,7 @@ func WaitForLineInLogFile(filePath string, message string, timeoutDuration time.
 		}
 		select {
 		case <-timeout:
-			return fmt.Errorf("timeout while waiting for log file %q", filePath)
+			return goerrors.Errorf("timeout while waiting for log file %q", filePath)
 		default:
 			time.Sleep(1 * time.Second)
 		}
@@ -429,7 +431,7 @@ func WaitForLineInLogFile(filePath string, message string, timeoutDuration time.
 
 	file, err := os.Open(filePath)
 	if err != nil {
-		return fmt.Errorf("error opening file %s: %v", filePath, err)
+		return goerrors.Errorf("error opening file %s: %v", filePath, err)
 	}
 
 	defer file.Close()
@@ -440,7 +442,7 @@ func WaitForLineInLogFile(filePath string, message string, timeoutDuration time.
 			line, err := reader.ReadString('\n')
 
 			if err != nil && err != io.EOF {
-				return fmt.Errorf("error reading line from file %s: %v", filePath, err)
+				return goerrors.Errorf("error reading line from file %s: %v", filePath, err)
 			}
 
 			if strings.Contains(string(line), message) {
@@ -456,7 +458,7 @@ func WaitForLineInLogFile(filePath string, message string, timeoutDuration time.
 
 		select {
 		case <-timeout:
-			return fmt.Errorf("timeout while waiting for %q in %q", message, filePath)
+			return goerrors.Errorf("timeout while waiting for %q in %q", message, filePath)
 		default:
 			time.Sleep(1 * time.Second)
 		}
@@ -551,7 +553,7 @@ func ForEachMatchingLineInFile(filePath string, re *regexp.Regexp, callback func
 func ForEachLineInFile(filePath string, callback func(line string) bool) error {
 	file, err := os.Open(filePath)
 	if err != nil {
-		return fmt.Errorf("error opening file %s: %v", filePath, err)
+		return goerrors.Errorf("error opening file %s: %v", filePath, err)
 	}
 	defer file.Close()
 
@@ -564,7 +566,7 @@ func ForEachLineInFile(filePath string, callback func(line string) bool) error {
 	}
 
 	if err := scanner.Err(); err != nil {
-		return fmt.Errorf("error reading file %s: %v", filePath, err)
+		return goerrors.Errorf("error reading file %s: %v", filePath, err)
 	}
 	return nil
 }
@@ -624,7 +626,7 @@ func GetFSUtilizationPercentage(path string) (int, error) {
 	var stats syscall.Statfs_t
 	err := syscall.Statfs(path, &stats)
 	if err != nil {
-		return -1, fmt.Errorf("error while getting disk stats for %q: %v", path, err)
+		return -1, goerrors.Errorf("error while getting disk stats for %q: %v", path, err)
 	}
 
 	percUtilization := 100 - int((stats.Bavail*100)/stats.Blocks)
@@ -635,7 +637,7 @@ func GetFSUtilizationPercentage(path string) (int, error) {
 func ReadTableNameListFromFile(filePath string) ([]string, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
-		return nil, fmt.Errorf("error opening file %s: %v", filePath, err)
+		return nil, goerrors.Errorf("error opening file %s: %v", filePath, err)
 	}
 	defer file.Close()
 	var list []string
@@ -647,7 +649,7 @@ func ReadTableNameListFromFile(filePath string) ([]string, error) {
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("error reading file %s: %v", filePath, err)
+		return nil, goerrors.Errorf("error reading file %s: %v", filePath, err)
 	}
 	return list, nil
 }
@@ -741,7 +743,7 @@ func GetFreePort() (int, error) {
 	// Listen on port 0, which tells the OS to assign an available port
 	listener, err := net.Listen("tcp", ":0")
 	if err != nil {
-		return 0, fmt.Errorf("failed to listen on a port: %v", err)
+		return 0, goerrors.Errorf("failed to listen on a port: %v", err)
 	}
 	defer listener.Close()
 
@@ -762,10 +764,10 @@ func GetFinalReleaseVersionFromRCVersion(msrVoyagerFinalVersion string) (string,
 		if len(versionParts) > 1 {
 			msrVoyagerFinalVersion = strings.Join(versionParts[1:], ".") // Join the parts after the first one
 		} else {
-			return "", fmt.Errorf("unexpected version format %q", msrVoyagerFinalVersion)
+			return "", goerrors.Errorf("unexpected version format %q", msrVoyagerFinalVersion)
 		}
 	} else {
-		return "", fmt.Errorf("unexpected version format %q", msrVoyagerFinalVersion)
+		return "", goerrors.Errorf("unexpected version format %q", msrVoyagerFinalVersion)
 	}
 	return msrVoyagerFinalVersion, nil
 }
@@ -833,7 +835,7 @@ func MatchesFormatString(format, final string) (bool, error) {
 
 	re, err := regexp.Compile(regexPattern)
 	if err != nil {
-		return false, fmt.Errorf("failed to compile regex pattern: %v", err)
+		return false, goerrors.Errorf("failed to compile regex pattern: %v", err)
 	}
 
 	return re.MatchString(final), nil
@@ -896,13 +898,13 @@ func ObfuscateFormatDetails(format, final, obfuscateWith string) (string, error)
 
 	re, err := regexp.Compile(regexPattern)
 	if err != nil {
-		return "", fmt.Errorf("failed to compile regex pattern: %v", err)
+		return "", goerrors.Errorf("failed to compile regex pattern: %v", err)
 	}
 
 	// Find the indexes of all capture groups using FindStringSubmatchIndex to get positions.
 	matchIndices := re.FindStringSubmatchIndex(final)
 	if matchIndices == nil {
-		return "", fmt.Errorf("no matches found")
+		return "", goerrors.Errorf("no matches found")
 	}
 
 	// matchIndices is a slice where:
@@ -998,7 +1000,7 @@ func RetryWorkWithTimeout(sleep time.Duration, timeout time.Duration, work func(
 // For example, GenerateAnonymisationSalt(8) gives you a 16-char hex string.
 func GenerateAnonymisationSalt(n int) (string, error) {
 	if n <= 0 {
-		return "", fmt.Errorf("invalid salt length %d; must be > 0", n)
+		return "", goerrors.Errorf("invalid salt length %d; must be > 0", n)
 	}
 
 	b := make([]byte, n)
@@ -1046,7 +1048,7 @@ func ConvertPgTextArrayToStringSlice(textArray pgtype.TextArray) []string {
 func GetInt64FromJSON(data map[string]interface{}, key string) (int64, error) {
 	val, ok := data[key]
 	if !ok {
-		return 0, fmt.Errorf("missing required field: %s", key)
+		return 0, goerrors.Errorf("missing required field: %s", key)
 	}
 
 	switch v := val.(type) {
@@ -1059,7 +1061,7 @@ func GetInt64FromJSON(data map[string]interface{}, key string) (int64, error) {
 	case string:
 		return strconv.ParseInt(v, 10, 64)
 	default:
-		return 0, fmt.Errorf("invalid type for %s: %T", key, val)
+		return 0, goerrors.Errorf("invalid type for %s: %T", key, val)
 	}
 }
 
@@ -1068,17 +1070,17 @@ func GetInt64FromJSON(data map[string]interface{}, key string) (int64, error) {
 func GetStringFromJSON(data map[string]interface{}, key string) (string, error) {
 	val, ok := data[key]
 	if !ok {
-		return "", fmt.Errorf("missing required field: %s", key)
+		return "", goerrors.Errorf("missing required field: %s", key)
 	}
 
 	str, ok := val.(string)
 	if !ok {
-		return "", fmt.Errorf("invalid type for %s: expected string, got %T", key, val)
+		return "", goerrors.Errorf("invalid type for %s: expected string, got %T", key, val)
 	}
 
 	str = strings.TrimSpace(str)
 	if str == "" {
-		return "", fmt.Errorf("empty value for %s", key)
+		return "", goerrors.Errorf("empty value for %s", key)
 	}
 
 	return str, nil
