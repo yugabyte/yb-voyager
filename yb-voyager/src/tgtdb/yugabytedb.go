@@ -2216,20 +2216,27 @@ func (yb *TargetYugabyteDB) GetTablesHavingExpressionUniqueIndexes(tableNames []
 	}
 
 	query := fmt.Sprintf(`
+WITH table_list(schema_name, table_name) AS (VALUES %s)
 SELECT 
-    n.nspname AS schema_name,
-    t.relname AS table_name,
+    COALESCE(parent_ns.nspname, n.nspname) AS schema_name,
+    COALESCE(parent_t.relname, t.relname) AS table_name,
     i.relname AS index_name,
 	COALESCE(pg_get_expr(idx.indexprs, idx.indrelid), '') AS expression
 FROM pg_class i
 JOIN pg_index idx ON i.oid = idx.indexrelid
 JOIN pg_class t ON idx.indrelid = t.oid
 JOIN pg_namespace n ON t.relnamespace = n.oid
+LEFT JOIN pg_inherits inh ON t.oid = inh.inhrelid
+LEFT JOIN pg_class parent_t ON inh.inhparent = parent_t.oid
+LEFT JOIN pg_namespace parent_ns ON parent_t.relnamespace = parent_ns.oid
 WHERE i.relkind = 'i'
   AND indisunique
   AND idx.indexprs IS NOT NULL  -- expression index
-  AND ((n.nspname,t.relname) IN (%s))
-ORDER BY n.nspname, t.relname, i.relname;
+  AND (
+    (n.nspname, t.relname) IN (SELECT schema_name, table_name FROM table_list)
+    OR (parent_ns.nspname, parent_t.relname) IN (SELECT schema_name, table_name FROM table_list)
+  )
+ORDER BY COALESCE(parent_ns.nspname, n.nspname), COALESCE(parent_t.relname, t.relname), i.relname;
 	`, tableNamesStr)
 
 	log.Infof("query: %s", query)
