@@ -1,6 +1,5 @@
 version: 1
 name: basic-live-migration-test
-workflow: normal
 run_id: run
 
 env:
@@ -8,6 +7,32 @@ env:
 
 export_dir: ./export-dir
 artifacts_dir: ./artifacts
+
+generator:
+  config_inline:
+    connection:
+      host: 127.0.0.1
+      port: 5432
+      database: test_db
+      user: postgres
+      password: postgres
+
+    generator:
+      schema_name: public
+      manual_table_list: []
+      exclude_table_list: [cutover_table]
+      num_iterations: -1
+      wait_after_operations: 1000
+      wait_duration_seconds: 1
+      table_weights: {}
+      operation_weights: {INSERT: 3, UPDATE: 2, DELETE: 1}
+      random_seed: 123
+      faker_seed: 123
+      insert_rows: 3
+      update_rows: 2
+      delete_rows: 1
+      insert_max_retries: 5
+      update_max_retries: 1
 
 voyager:
   cutover_to_target:
@@ -31,7 +56,7 @@ source:
 
 target:
   type: yugabytedb
-  host: 10.9.2.132
+  host: 127.0.0.1
   port: 5433
   database: test_db
   user: ybvoyager
@@ -65,7 +90,7 @@ stages:
 
   - name: load_snapshot
     action: sleep
-    seconds: 1200
+    seconds: 10
 
   - name: start_exporter
     action: voyager_export_start
@@ -100,7 +125,7 @@ stages:
 
   - name: soak_with_resumptions
     action: sleep
-    seconds: 1200
+    seconds: 60
 
   - name: stop_event_generator
     action: generator_stop
@@ -127,20 +152,23 @@ stages:
     timeout_sec: 60
 
   - name: cutover_to_target
-    action: voyager_cutover
+    action: cutover_to_target
 
   - name: wait_cutover_completed
     action: wait_for
-    condition: cutover_status_completed
+    condition: cutover_to_target_status_completed
     timeout_sec: 900
 
   - name: validate
     action: dvt_run
 
-  - name: cleanup_source_cutover_table
+  - name: row_hash_validations
+    action: row_hash_validations
+
+  - name: cleanup_source
     action: run_sql
     sql_path: ./cleanup.sql
-  - name: cleanup_target_cutover_table
+  - name: cleanup_target
     action: run_sql
     target: target
     sql_path: ./cleanup.sql

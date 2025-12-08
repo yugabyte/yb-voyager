@@ -127,7 +127,7 @@ def _ensure(obj: Any, key: str | None, typ, ctx: str, *, required: bool = True, 
 
 def validate_scenario(cfg: Dict[str, Any]) -> None:
     """Perform minimal validation of scenario structure;
-    Required top-level keys: name (str), workflow (str), stages (list>0).
+    Required top-level keys: name (str), stages (list>0).
     Optional but expected containers: voyager (dict), generator (dict), dvt (dict), env (dict).
     Each stage must have: name (str), action (str). Additional fields are action-specific.
     """
@@ -135,7 +135,6 @@ def validate_scenario(cfg: Dict[str, Any]) -> None:
     _ensure(cfg, None, dict, ctx)
 
     _ensure(cfg, "name", str, ctx)
-    _ensure(cfg, "workflow", str, ctx)
 
     stages = _ensure(cfg, "stages", list, ctx)
     if len(stages) == 0:
@@ -185,15 +184,14 @@ def exporter_streaming(export_dir: str) -> bool:
         return False
 
 
-def get_cutover_status(export_dir: str) -> str:
-    """Query yb-voyager cutover status and return the status string.
-    Returns status like "COMPLETED", "IN_PROGRESS", etc., or empty string if not found.
-    """
+def get_cutover_status(export_dir: str, mode: str = "target") -> str:
+    key = "cutover to target status" if mode == "target" else "cutover to source status"
+
     cmd = ["yb-voyager", "cutover", "status", "--export-dir", export_dir]
     try:
         proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
         for line in proc.stdout.splitlines():
-            if "cutover to target status" in line:
+            if key in line:
                 parts = line.split(":", 1)
                 if len(parts) == 2:
                     return parts[1].strip()
@@ -380,35 +378,29 @@ def build_import_data_cmd(cfg: Dict[str, Any]) -> list[str]:
 
 def build_import_schema_cmd(cfg: Dict[str, Any]) -> list[str]:
     voyager_flags = (cfg.get("voyager", {}).get("import_schema", {}) or {}).get("flags", {})
-    base = {
-        "export-dir": cfg["export_dir"],
-    }
+    base = _base_common_flags(cfg)
     base.update(_target_conn_flags(cfg))
     merged = _merge_flags(base, voyager_flags)
     return ["yb-voyager", "import", "schema", "--yes"] + to_kv_flags(merged)
 
+
 def build_export_schema_cmd(cfg: Dict[str, Any]) -> list[str]:
     voyager_flags = (cfg.get("voyager", {}).get("export_schema", {}) or {}).get("flags", {})
-    base = {
-        "export-dir": cfg["export_dir"],
-    }
+    base = _base_common_flags(cfg)
     base.update(_source_conn_flags(cfg))
     merged = _merge_flags(base, voyager_flags)
     return ["yb-voyager", "export", "schema", "--yes"] + to_kv_flags(merged)
 
 
-def build_cutover_to_target_cmd(cfg: Dict[str, Any]) -> list[str]:
-    voyager_flags = (cfg.get("voyager", {}).get("cutover_to_target", {}) or {}).get("flags", {})
-    base = {
-        "export-dir": cfg["export_dir"],
-    }
+def initiate_cutover(cfg: Dict[str, Any], env: Dict[str, str], direction: str) -> None:
+    voyager_flags = (cfg.get("voyager", {}).get(f"cutover_to_{direction}", {}) or {}).get("flags", {})
+    base = {"export-dir": cfg["export_dir"],}
     merged = _merge_flags(base, voyager_flags)
-    return ["yb-voyager", "initiate", "cutover", "to", "target", "--yes"] + to_kv_flags(merged)
-
+    cmd = ["yb-voyager", "initiate", "cutover", "to", direction, "--yes"] + to_kv_flags(merged)
+    run_checked(cmd, env, description=f"cutover_to_{direction}")
 
 def import_schema(cfg: Dict[str, Any], env: Dict[str, str]) -> int:
     cmd = build_import_schema_cmd(cfg)
-    # Use checked run so non-zero exit propagates with stdout/stderr for diagnostics
     run_checked(cmd, env, description="import_schema")
     return 0
 
@@ -416,11 +408,6 @@ def export_schema(cfg: Dict[str, Any], env: Dict[str, str]) -> int:
     cmd = build_export_schema_cmd(cfg)
     run_checked(cmd, env, description="export_schema")
     return 0
-
-
-def cutover_to_target(cfg: Dict[str, Any], env: Dict[str, str]) -> None:
-    cmd = build_cutover_to_target_cmd(cfg)
-    run_checked(cmd, env, description="cutover_to_target")
 
 
 def start_exporter(ctx: Context) -> subprocess.Popen:
@@ -448,23 +435,34 @@ def start_command_by_name(name: str, ctx: Context) -> subprocess.Popen:
 
 
 def export_from_target(cfg: Dict[str, Any], env: Dict[str, str]) -> subprocess.Popen:
-    flags = cfg["voyager"].get("export_from_target", {}).get("flags", {})
-    return spawn(["yb-voyager", "export", "data", "from", "target", "--export-dir", cfg["export_dir"], *to_kv_flags(flags)], env)
+    voyager_flags = (cfg.get("voyager", {}).get("export_from_target", {}) or {}).get("flags", {}) or {}
+    base = _base_common_flags(cfg)
+    tgt = cfg.get("target", {})
+    base["target-db-password"] = tgt["password"]
 
+    merged = _merge_flags(base, voyager_flags)
+    cmd = ["yb-voyager", "export", "data", "from", "target", "--yes"] + to_kv_flags(merged)
+    return spawn(cmd, env)
+
+
+def import_to_source(cfg: Dict[str, Any], env: Dict[str, str]) -> subprocess.Popen:
+    voyager_flags = (cfg.get("voyager", {}).get("import_to_source", {}) or {}).get("flags", {}) or {}
+    base = _base_common_flags(cfg)
+    src = cfg.get("source", {})
+    base["source-db-password"] = src["password"]
+
+    merged = _merge_flags(base, voyager_flags)
+    cmd = ["yb-voyager", "import", "data", "to", "source", "--yes"] + to_kv_flags(merged)
+    return spawn(cmd, env)
 
 def import_to_source_replica(cfg: Dict[str, Any], env: Dict[str, str]) -> subprocess.Popen:
     flags = cfg["voyager"].get("import_to_source_or_replica", {}).get("flags", {})
     return spawn(["yb-voyager", "import", "data", "to", "source-replica", "--export-dir", cfg["export_dir"], *to_kv_flags(flags)], env)
 
 
-def import_to_source(cfg: Dict[str, Any], env: Dict[str, str]) -> subprocess.Popen:
-    flags = cfg["voyager"].get("import_to_source_or_replica", {}).get("flags", {})
-    return spawn(["yb-voyager", "import", "data", "to", "source", "--export-dir", cfg["export_dir"], *to_kv_flags(flags)], env)
-
-
 
 # -------------------------
-# Generator / DVT
+# Generator
 # -------------------------
 
 def resolve_generator_config(gen_cfg: Dict[str, Any] | None, run_id: str, test_root: str | None) -> str:
@@ -507,18 +505,14 @@ def start_generator(final_cfg_path: str, env: Dict[str, str]) -> subprocess.Pope
     )
 
 
-def start_generator_from_context(ctx: Context) -> subprocess.Popen:
-    gen_cfg = ctx.cfg.get("generator")
+def start_generator_from_context(ctx: Context, config_key: str = "generator") -> subprocess.Popen:
+    gen_cfg = ctx.cfg.get(config_key)
     final_cfg_path = resolve_generator_config(gen_cfg, ctx.run_id, ctx.test_root)
     return start_generator(final_cfg_path, ctx.env)
 
 
 def stop_generator(proc: subprocess.Popen | None, graceful_timeout_sec: int) -> None:
     kill(proc, timeout_sec=graceful_timeout_sec)
-
-
-def run_dvt(ctx: Context) -> None:
-    run_row_count_validations(ctx)
 
 
 # -------------------------
@@ -865,10 +859,6 @@ def fetchall(cfg: Dict[str, Any], role: str, query: str, params=()) -> list[tupl
         return cur.fetchall()
 
 
-# --------------------------------------------------------
-# Original API (same signatures preserved)
-# --------------------------------------------------------
-
 def _source_connection(cfg: Dict[str, Any]) -> psycopg2.extensions.connection:
     return db_connection(cfg, "source")
 
@@ -887,7 +877,7 @@ def run_sql_file(ctx, sql_path: str, target: str = "source", *, use_admin: bool 
     run_psql(ctx, target, "-f", sql_path, user_override=user_override, password_override=password_override)
 
 
-def grant_postgres_live_migration_permissions(ctx) -> None:
+def grant_postgres_live_migration_permissions(ctx, *, is_live_migration_fall_back: int = 0) -> None:
     src = ctx.cfg["source"]
     admin = src["admin"]
 
@@ -898,7 +888,7 @@ def grant_postgres_live_migration_permissions(ctx) -> None:
         "-v", f"schema_list={src.get('schema', 'public')}",
         "-v", "replication_group=replication_group",
         "-v", "is_live_migration=1",
-        "-v", "is_live_migration_fall_back=0",
+        "-v", f"is_live_migration_fall_back={int(is_live_migration_fall_back)}",
         "-f", "/opt/yb-voyager/guardrails-scripts/yb-voyager-pg-grant-migration-permissions.sql",
         user_override=admin["user"],
         password_override=admin["password"],
@@ -1204,3 +1194,6 @@ def run_row_count_validations(ctx: Context) -> None:
             for r in mismatches
         )
         raise RuntimeError(f"row count validation failed for tables: {preview}")
+
+def run_dvt(ctx: Context) -> None:
+    run_row_count_validations(ctx)

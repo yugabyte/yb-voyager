@@ -62,12 +62,15 @@ def import_schema_action(stage: Dict[str, Any], ctx: Any) -> None:
 
 @action("generator_start")
 def generator_start_action(stage: Dict[str, Any], ctx: Any) -> None:
-    ctx.processes["generator"] = H.start_generator_from_context(ctx)
+    key = stage.get("generator_key", "generator")
+    ctx.processes[key] = H.start_generator_from_context(ctx, key)
 
 
 @action("generator_stop")
 def generator_stop_action(stage: Dict[str, Any], ctx: Any) -> None:
-    H.stop_generator(ctx.processes.pop("generator", None), int(stage.get("graceful_timeout_sec", 60)))
+    key = stage.get("generator_key", "generator")
+    timeout = int(stage.get("graceful_timeout_sec", 60))
+    H.stop_generator(ctx.processes.pop(key, None), timeout)
 
 
 @action("voyager_export_start")
@@ -76,10 +79,24 @@ def export_start_action(stage: Dict[str, Any], ctx: Any) -> None:
         ctx.processes["export_data"] = H.start_exporter(ctx)
 
 
+@action("voyager_export_from_target_start")
+def export_from_target_start_action(stage: Dict[str, Any], ctx: Any) -> None:
+    """Start yb-voyager export-from-target process for fallback."""
+    with ctx.process_lock:
+        ctx.processes["export_from_target"] = H.export_from_target(ctx.cfg, ctx.env)
+
+
 @action("voyager_import_start")
 def import_start_action(stage: Dict[str, Any], ctx: Any) -> None:
     with ctx.process_lock:
         ctx.processes["import_data"] = H.start_importer(ctx)
+
+
+@action("voyager_import_to_source_start")
+def import_to_source_start_action(stage: Dict[str, Any], ctx: Any) -> None:
+    """Start yb-voyager import-to-source process for fallback."""
+    with ctx.process_lock:
+        ctx.processes["import_to_source"] = H.import_to_source(ctx.cfg, ctx.env)
 
 
 @action("voyager_stop_command")
@@ -97,17 +114,24 @@ def wait_for_action(stage: Dict[str, Any], ctx: Any) -> None:
         ok = H.poll_until(timeout_sec, 5, lambda: H.exporter_streaming(ctx.cfg["export_dir"]))
     elif cond == "remaining_events_eq_0":
         ok = H.poll_until(timeout_sec, 5, lambda: H.backlog_marker_present(ctx.cfg["export_dir"]))
-    elif cond == "cutover_status_completed":
-        ok = H.poll_until(timeout_sec, 10, lambda: H.get_cutover_status(ctx.cfg["export_dir"]) == "COMPLETED")
+    elif cond == "cutover_to_target_status_completed":
+        ok = H.poll_until(timeout_sec, 10, lambda: H.get_cutover_status(ctx.cfg["export_dir"], mode="target") == "COMPLETED")
+    elif cond == "cutover_to_source_status_completed":
+        ok = H.poll_until(timeout_sec, 10, lambda: H.get_cutover_status(ctx.cfg["export_dir"], mode="source") == "COMPLETED")
     else:
         raise ValueError(f"unknown condition: {cond}")
     if not ok:
         raise TimeoutError(cond)
 
 
-@action("voyager_cutover")
-def cutover_action(stage: Dict[str, Any], ctx: Any) -> None:
-    H.cutover_to_target(ctx.cfg, ctx.env)
+@action("cutover_to_target")
+def cutover_to_target_action(stage: Dict[str, Any], ctx: Any) -> None:
+    H.initiate_cutover(ctx.cfg, ctx.env, "target")
+
+
+@action("cutover_to_source")
+def cutover_to_source_action(stage: Dict[str, Any], ctx: Any) -> None:
+    H.initiate_cutover(ctx.cfg, ctx.env, "source")
 
 
 @action("dvt_run")
@@ -165,23 +189,19 @@ def reset_databases_action(stage: Dict[str, Any], ctx: Any) -> None:
 
 @action("grant_source_permissions")
 def grant_source_permissions_action(stage: Dict[str, Any], ctx: Any) -> None:
-    """Grant source DB user permissions required for live migration."""
-    H.grant_postgres_live_migration_permissions(ctx)
+    """Grant source DB user permissions required for live migration.
+
+    Optional stage key:
+      - is_live_migration_fall_back: 0/1 flag; when 1, grant
+        additional permissions required for fallback.
+    """
+    fallback = int(stage.get("is_live_migration_fall_back", 0))
+    H.grant_postgres_live_migration_permissions(ctx, is_live_migration_fall_back=fallback)
 
 
 # -------------------------
 # Runner
 # -------------------------
-
-def when_clause_passes(stage: Dict[str, Any], cfg: Dict[str, Any]) -> bool:
-    expr = stage.get("when")
-    if not expr:
-        return True
-    wf = cfg.get("workflow")
-    return ((wf == "fall-forward" and "fall-forward" in expr) or
-            (wf == "fall-back" and "fall-back" in expr) or
-            (wf == "normal" and "normal" in expr))
-
 
 def _resolve_path(p: str | None, base_dir: str) -> str | None:
     if not p:
@@ -227,8 +247,6 @@ def main() -> None:
 
     try:
         for stage in cfg["stages"]:
-            if not when_clause_passes(stage, cfg):
-                continue
             stage_name = stage.get("name", "<unnamed>")
             H.log_stage_start(stage_name)
             start_ts = H._ts()

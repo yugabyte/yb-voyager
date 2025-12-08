@@ -112,6 +112,49 @@ def get_connection_kwargs_from_config(config: Dict[str, Any]) -> Dict[str, Any]:
         "port": conn["port"],
     }
 
+
+def detect_db_flavor(cursor: Any) -> str:
+    """
+    Detect the database flavor based on SELECT version().
+    Returns:
+        "YUGABYTE" when the version string contains "YB" (YugabyteDB),
+        otherwise "POSTGRES".
+    """
+    cursor.execute("SELECT version()")
+    row = cursor.fetchone()
+    version_str = row[0] if row and row[0] is not None else ""
+    if "YB" in version_str.upper():
+        flavor = "YUGABYTE"
+    else:
+        flavor = "POSTGRES"
+
+    print(f"Detected database flavor: {flavor}")
+    return flavor
+
+
+def get_estimated_row_count(
+    cursor: Any,
+    schema_name: str,
+    table_name: str,
+) -> Optional[int]:
+    """
+    Return the estimated row count for a table using pg_class.reltuples.
+    """
+    cursor.execute(
+        """
+        SELECT reltuples::bigint
+        FROM pg_class c
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = %s
+          AND c.relname = %s
+        """,
+        (schema_name, table_name),
+    )
+    row = cursor.fetchone()
+    if not row or row[0] is None or row[0] < 0:
+        return None
+    return int(row[0])
+
 def set_faker_seed(seed: int) -> None:
     _fake.seed_instance(seed)
 
@@ -635,3 +678,42 @@ def execute_with_retry(
             raise
     print("Reached maximum retry attempts. Skipping...")
     return False
+
+
+# ----- Sampling helpers -----
+
+DEFAULT_ROW_ESTIMATE = 1000
+
+def build_sampling_condition(
+    db_flavor: str,
+    table_name: str,
+    primary_key: str,
+    target_row_count: int,
+    estimated_row_count: Optional[int],
+) -> Tuple[str, List[Any]]:
+    """
+    Build a WHERE condition fragment and parameters for sampling rows
+    for UPDATE/DELETE operations.
+
+    For PostgreSQL, this uses TABLESAMPLE SYSTEM_ROWS(target_row_count).
+    For YugabyteDB, it uses a probabilistic filter WHERE random() < p,
+    where p is derived from target_row_count and an estimated row count.
+    """
+    if db_flavor == "POSTGRES":
+        where_clause = (
+            f"{primary_key} IN ("
+            f"SELECT {primary_key} FROM {table_name} TABLESAMPLE SYSTEM_ROWS(%s))"
+        )
+        return where_clause, [target_row_count]
+
+    # YugabyteDB path: derive p from estimated row count
+    est = estimated_row_count if estimated_row_count and estimated_row_count > 0 else DEFAULT_ROW_ESTIMATE
+
+    # Derive sampling probability p from desired rows and estimated row count.
+    p = float(target_row_count) / float(est)
+
+    where_clause = (
+        f"{primary_key} IN ("
+        f"SELECT {primary_key} FROM {table_name} WHERE random() < %s)"
+    )
+    return where_clause, [p]

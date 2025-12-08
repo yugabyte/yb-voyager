@@ -63,7 +63,8 @@ CREATE TABLE tsvector_table (
 -- table for cutover/backlog checks
 DROP TABLE IF EXISTS public.cutover_table;
 CREATE TABLE public.cutover_table (
-	id TEXT PRIMARY KEY
+	id SERIAL PRIMARY KEY,
+    status TEXT
 );
 
 -- set replica identity full for all tables

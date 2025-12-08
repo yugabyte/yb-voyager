@@ -1,6 +1,5 @@
 version: 1
 name: live-migration-basic
-workflow: normal    # normal | fall-forward | fall-back
 run_id: lm_${DATE}_${RANDOM}
 
 env:
@@ -160,7 +159,7 @@ stages:
   # 12b) Wait for cutover completion
   - name: wait_cutover_completed
     action: wait_for
-    condition: cutover_status_completed
+    condition: cutover_to_target_status_completed
     timeout_sec: 1800
 
   # 13) Validate source vs target
