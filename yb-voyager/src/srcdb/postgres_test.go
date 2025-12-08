@@ -276,14 +276,36 @@ func TestPostgresGetTableToUniqueKeyColumnsMap(t *testing.T) {
 		`CREATE UNIQUE INDEX idx_age ON test_schema.another_unique_table(age);`,
 		`INSERT INTO test_schema.another_unique_table (username, age) VALUES
             ('user1', 30),
-            ('user2', 40);`)
-	defer testPostgresSource.TestContainer.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
+            ('user2', 40);`,
+		`CREATE SCHEMA test_expression_indexes_cross;
+		CREATE SCHEMA test_expression_indexes;
+		CREATE TABLE test_expression_indexes_cross.table_partitioned5 (
+			id INT,
+			data TEXT,
+			val text,
+			val2 text
+		) PARTITION BY LIST (data);
+		CREATE TABLE test_expression_indexes.table_partitioned_l5 PARTITION OF test_expression_indexes_cross.table_partitioned5 FOR VALUES IN ('London');
+		CREATE TABLE test_expression_indexes.table_partitioned_s5 PARTITION OF test_expression_indexes_cross.table_partitioned5 FOR VALUES IN ('Sydney');
+		CREATE TABLE test_expression_indexes.table_partitioned_b5 PARTITION OF test_expression_indexes_cross.table_partitioned5 FOR VALUES IN ('Boston');
+
+		CREATE UNIQUE INDEX idx_expression_indexes_17 ON test_expression_indexes.table_partitioned_l5 (val) WHERE val2<>'';`,
+	)
+	defer testPostgresSource.TestContainer.ExecuteSqls(
+		`DROP SCHEMA test_schema CASCADE;`,
+		`DROP SCHEMA test_expression_indexes CASCADE;`,
+		`DROP SCHEMA test_expression_indexes_cross CASCADE;`,
+	)
 
 	testPostgresSource.Schema = "test_schema"
 
 	uniqueTablesList := []sqlname.NameTuple{
 		{CurrentName: sqlname.NewObjectName("postgresql", "test_schema", "test_schema", "unique_table")},
 		{CurrentName: sqlname.NewObjectName("postgresql", "test_schema", "test_schema", "another_unique_table")},
+		{CurrentName: sqlname.NewObjectName("postgresql", "test_expression_indexes_cross", "test_expression_indexes_cross", "table_partitioned5")},
+		{CurrentName: sqlname.NewObjectName("postgresql", "test_expression_indexes", "test_expression_indexes", "table_partitioned_l5")},
+		{CurrentName: sqlname.NewObjectName("postgresql", "test_expression_indexes", "test_expression_indexes", "table_partitioned_s5")},
+		{CurrentName: sqlname.NewObjectName("postgresql", "test_expression_indexes", "test_expression_indexes", "table_partitioned_b5")},
 	}
 
 	// Test GetTableToUniqueKeyColumnsMap
@@ -296,6 +318,7 @@ func TestPostgresGetTableToUniqueKeyColumnsMap(t *testing.T) {
 	expectedUniqKeys := map[string][]string{
 		"test_schema.unique_table":         {"email", "phone", "address"},
 		"test_schema.another_unique_table": {"username", "age"},
+		"test_expression_indexes.table_partitioned_l5": {"val"},
 	}
 
 	// Compare the maps by iterating over each table and asserting the columns list
