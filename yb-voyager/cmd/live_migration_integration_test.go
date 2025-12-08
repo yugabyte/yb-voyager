@@ -1104,7 +1104,7 @@ func TestLiveMigrationWithUniqueKeyConflictWithExpressionIndexOnPartitions(t *te
 
 	// Create a temporary export directory.
 	exportDir = testutils.CreateTempExportDir()
-	defer testutils.RemoveTempExportDir(exportDir)
+	// defer testutils.RemoveTempExportDir(exportDir)
 
 	createSchemaSQL := `CREATE SCHEMA IF NOT EXISTS test_schema;`
 
@@ -1175,6 +1175,11 @@ func TestLiveMigrationWithUniqueKeyConflictWithExpressionIndexOnPartitions(t *te
 		uniqueIndexSQL2,
 		uniqueIndexSQL3,
 		insertDataSQL,
+		"ALTER TABLE test_schema.test_partitions REPLICA IDENTITY FULL;",
+		"ALTER TABLE test_schema.test_partitions_l REPLICA IDENTITY FULL;",
+		"ALTER TABLE test_schema.test_partitions_s REPLICA IDENTITY FULL;",
+		"ALTER TABLE test_schema.test_partitions_b REPLICA IDENTITY FULL;",
+		"ALTER TABLE test_schema.test_partitions_t REPLICA IDENTITY FULL;",
 	}...)
 
 	yugabytedbContainer.ExecuteSqls([]string{
@@ -1233,19 +1238,64 @@ func TestLiveMigrationWithUniqueKeyConflictWithExpressionIndexOnPartitions(t *te
 
 	//streaming events 10000 events
 	postgresContainer.ExecuteSqls([]string{
+		/*
+		1  Sydney email_1@example.com user_1 2021-01-01 active
+		2  Boston email_2@example.com user_2 2021-01-02 active
+		...
+		20 London email_20@example.com user_20 2021-01-20 active
+
+
+		changes
+		UI
+		U 20 email_20@example.com -> Email_21@example.com
+		I 21 email_20@example.com user_21 2021-01-21 active
+		
+		UU
+		U 21 email_20@example.com -> Email_521@example.com
+		U 20 Email_21@example.com -> Email_20@example.com
+
+		DU
+		D 20 Email_20@example.com
+		U 21 Email_521@example.com -> email_20@example.com
+
+		DI
+		D 21 email_20@example.com
+		I 20 Email_20@example.com user_20 2021-01-20 active
+
+		U 20 email_20@example.com -> Email_21@example.com
+		I 21 email_20@example.com user_21 2021-01-21 active
+
+		*/
 		`DO $$
 DECLARE
     i INTEGER;
 BEGIN
     FOR i IN 21..520 LOOP
-        
+        UPDATE test_schema.test_partitions SET email = 'Email_' || i || '@example.com' WHERE id = i - 1;
+		INSERT INTO test_schema.test_partitions(id, region, email, username, created_at, status) VALUES 
+		(i, 'Sydney', 'email_' || 20 || '@example.com', 'user_' || i, now() + (i || ' days')::interval, 'active');
+
+		UPDATE test_schema.test_partitions SET email = 'Email_' || 500+i || '@example.com' WHERE id = i;
+		UPDATE test_schema.test_partitions SET email = 'Email_' || 20 || '@example.com' WHERE id = i - 1;
+
+		DELETE FROM test_schema.test_partitions WHERE id = i-1;
+		UPDATE test_schema.test_partitions SET email = 'email_' || 20 || '@example.com' WHERE id = i;
+
+		DELETE FROM test_schema.test_partitions WHERE id = i;
+		INSERT INTO test_schema.test_partitions(id, region, email, username, created_at, status) VALUES 
+		(i-1, 'London', 'Email_' || 20 || '@example.com', 'user_' || i-1, now() + ((i-1) || ' days')::interval, 'active');
+
+		UPDATE test_schema.test_partitions SET email = 'Email_' || i || '@example.com' WHERE id = i - 1;
+		INSERT INTO test_schema.test_partitions(id, region, email, username, created_at, status) VALUES 
+		(i, 'Sydney', 'email_' || 20 || '@example.com', 'user_' || i, now() + (i || ' days')::interval, 'active');
+
     END LOOP;
 END $$;`,
 	}...)
 
-	ok = utils.RetryWorkWithTimeout(1, 30, func() bool {
+	ok = utils.RetryWorkWithTimeout(5, 120, func() bool {
 		return streamingPhaseCompleted(t, postgresContainer.GetConfig().Password,
-			yugabytedbContainer.GetConfig().Password, 0, 0, 0, `test_schema."test_partitions"`)
+			yugabytedbContainer.GetConfig().Password, 1500, 2500, 1000, `test_schema."test_partitions"`)
 	})
 
 	assert.True(t, ok)
