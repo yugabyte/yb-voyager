@@ -806,7 +806,7 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 
 	TableNameToSchema, err = valueConverter.GetTableNameToSchema()
 	if err != nil {
-		utils.ErrExit("getting table name to schema: %s", err)
+		utils.ErrExit("getting table name to schema: %w", err)
 	}
 	err = fetchAndStoreGeneratedAlwaysIdentityColumnsInMetadb(importTableList)
 	if err != nil {

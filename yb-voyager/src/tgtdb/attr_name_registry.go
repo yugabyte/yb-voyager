@@ -5,6 +5,7 @@ import (
 	"strings"
 	"sync"
 
+	goerrors "github.com/go-errors/errors"
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -78,7 +79,7 @@ func (reg *AttributeNameRegistry) QuoteAttributeName(tableNameTup sqlname.NameTu
 	reg.mu.Unlock()
 	c, err := reg.findBestMatchingColumnName(columnName, targetColumns)
 	if err != nil {
-		return "", fmt.Errorf("find best matching column name for %q in table %s: %w", columnName, tableNameTup, err)
+		return "", goerrors.Errorf("find best matching column name for %q in table %s: %w", columnName, tableNameTup, err)
 	}
 	result = fmt.Sprintf("%q", c)
 	reg.cacheQuotedAttributeName(tableNameTup, columnName, result)

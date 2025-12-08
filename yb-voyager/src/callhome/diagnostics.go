@@ -34,6 +34,7 @@ import (
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 
+	goerrors "github.com/go-errors/errors"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/anon"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryissue"
@@ -545,24 +546,31 @@ func SanitizeErrorMsg(err error, anonymizer *anon.VoyagerAnonymizer) string {
 		return ""
 	}
 	errorMsg := strings.Split(err.Error(), ":")[0]
-	additionalContext := getSpecificNonSensitiveContextForError(err, anonymizer)
-	if additionalContext != nil {
-		errorMsg = fmt.Sprintf("%s: %s", errorMsg, MarshalledJsonString(additionalContext))
-	}
-	return errorMsg
+	errorDetails := make(map[string]string)
+	errorDetails["msg"] = errorMsg
+	addSpecificNonSensitiveContextForError(err, anonymizer, errorDetails)
+
+	return MarshalledJsonString(errorDetails)
 }
 
-func getSpecificNonSensitiveContextForError(err error, anonymizer *anon.VoyagerAnonymizer) map[string]string {
+func addSpecificNonSensitiveContextForError(err error, anonymizer *anon.VoyagerAnonymizer, context map[string]string) {
 	if err == nil {
-		return nil
+		return
 	}
-	context := make(map[string]string)
 
 	addImportBatchErrorContext(err, context)
 	addPostgreSQLErrorContext(err, context)
 	addExecuteDDLErrorContext(err, anonymizer, context)
+	addStackTrace(err, context)
 
-	return context
+	return
+}
+
+func addStackTrace(err error, context map[string]string) {
+	var goErr *goerrors.Error
+	if goerrors.As(err, &goErr) {
+		context["stack_trace"] = string(goErr.Stack())
+	}
 }
 
 func addImportBatchErrorContext(err error, context map[string]string) {
