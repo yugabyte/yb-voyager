@@ -1118,22 +1118,19 @@ func TestLiveMigrationWithUniqueKeyConflictWithExpressionIndexOnPartitions(t *te
 		username text,
 		status text,
 		PRIMARY KEY(id, region)
-	) PARTITION BY LIST (region);`
+	) PARTITION BY LIST (region);
+	 
+	CREATE TABLE test_schema.test_partitions_l PARTITION OF test_schema.test_partitions FOR VALUES IN ('London');
+	CREATE TABLE test_schema.test_partitions_s PARTITION OF test_schema.test_partitions FOR VALUES IN ('Sydney');
+	CREATE TABLE test_schema.test_partitions_b PARTITION OF test_schema.test_partitions FOR VALUES IN ('Boston');
+	CREATE TABLE test_schema.test_partitions_t PARTITION OF test_schema.test_partitions FOR VALUES IN ('Tokyo');`
 
-	// Create multiple partitions
-	partitionTableSQL1 := `CREATE TABLE test_schema.test_partitions_l PARTITION OF test_schema.test_partitions FOR VALUES IN ('London');`
-	partitionTableSQL2 := `CREATE TABLE test_schema.test_partitions_s PARTITION OF test_schema.test_partitions FOR VALUES IN ('Sydney');`
-	partitionTableSQL3 := `CREATE TABLE test_schema.test_partitions_b PARTITION OF test_schema.test_partitions FOR VALUES IN ('Boston');`
-	partitionTableSQL4 := `CREATE TABLE test_schema.test_partitions_t PARTITION OF test_schema.test_partitions FOR VALUES IN ('Tokyo');`
-
-	// Create expression unique index ONLY on specific leaf partitions (London and Sydney)
-	// This index is NOT created on the parent table, only on individual partitions
-	uniqueIndexSQL1 := `CREATE UNIQUE INDEX idx_test_partitions_email_l ON test_schema.test_partitions_l (lower(email));`
-	uniqueIndexSQL2 := `CREATE UNIQUE INDEX idx_test_partitions_email_s ON test_schema.test_partitions_s (lower(email));`
-	// Note: Boston and Tokyo partitions do NOT have this unique index
-
-	// Optional: Create a different expression index on another partition for variety
-	uniqueIndexSQL3 := `CREATE UNIQUE INDEX idx_test_expression_index_partitions_username_t ON test_schema.test_partitions_t (upper(username));`
+	// Create expression unique index ONLY on specific leaf partitions
+	uniqueIndexSQLs := `CREATE UNIQUE INDEX idx_test_partitions_email_l ON test_schema.test_partitions_l (lower(email));
+	CREATE UNIQUE INDEX idx_test_partitions_email_s ON test_schema.test_partitions_s (lower(email));
+	CREATE UNIQUE INDEX idx_test_partitions_email_b ON test_schema.test_partitions_b (lower(email));
+	CREATE UNIQUE INDEX idx_test_partitions_email_t ON test_schema.test_partitions_t (lower(email));
+	CREATE UNIQUE INDEX idx_test_expression_index_partitions_username_t ON test_schema.test_partitions_t (upper(username));`
 
 	insertDataSQL := `INSERT INTO test_schema.test_partitions (id, region, email, username, created_at, status)
 	SELECT i, 
@@ -1167,13 +1164,7 @@ func TestLiveMigrationWithUniqueKeyConflictWithExpressionIndexOnPartitions(t *te
 	postgresContainer.ExecuteSqls([]string{
 		createSchemaSQL,
 		createTableSQL,
-		partitionTableSQL1,
-		partitionTableSQL2,
-		partitionTableSQL3,
-		partitionTableSQL4,
-		uniqueIndexSQL1,
-		uniqueIndexSQL2,
-		uniqueIndexSQL3,
+		uniqueIndexSQLs,
 		insertDataSQL,
 		"ALTER TABLE test_schema.test_partitions REPLICA IDENTITY FULL;",
 		"ALTER TABLE test_schema.test_partitions_l REPLICA IDENTITY FULL;",
@@ -1185,13 +1176,7 @@ func TestLiveMigrationWithUniqueKeyConflictWithExpressionIndexOnPartitions(t *te
 	yugabytedbContainer.ExecuteSqls([]string{
 		createSchemaSQL,
 		createTableSQL,
-		partitionTableSQL1,
-		partitionTableSQL2,
-		partitionTableSQL3,
-		partitionTableSQL4,
-		uniqueIndexSQL1,
-		uniqueIndexSQL2,
-		uniqueIndexSQL3,
+		uniqueIndexSQLs,
 	}...)
 
 	defer postgresContainer.ExecuteSqls(dropSchemaSQL)
@@ -1239,31 +1224,31 @@ func TestLiveMigrationWithUniqueKeyConflictWithExpressionIndexOnPartitions(t *te
 	//streaming events 10000 events
 	postgresContainer.ExecuteSqls([]string{
 		/*
-		1  Sydney email_1@example.com user_1 2021-01-01 active
-		2  Boston email_2@example.com user_2 2021-01-02 active
-		...
-		20 London email_20@example.com user_20 2021-01-20 active
+			1  Sydney email_1@example.com user_1 2021-01-01 active
+			2  Boston email_2@example.com user_2 2021-01-02 active
+			...
+			20 London email_20@example.com user_20 2021-01-20 active
 
 
-		changes
-		UI
-		U 20 email_20@example.com -> Email_21@example.com
-		I 21 email_20@example.com user_21 2021-01-21 active
-		
-		UU
-		U 21 email_20@example.com -> Email_521@example.com
-		U 20 Email_21@example.com -> Email_20@example.com
+			changes
+			UI
+			U 20 email_20@example.com -> Email_21@example.com
+			I 21 email_20@example.com user_21 2021-01-21 active
 
-		DU
-		D 20 Email_20@example.com
-		U 21 Email_521@example.com -> email_20@example.com
+			UU
+			U 21 email_20@example.com -> Email_521@example.com
+			U 20 Email_21@example.com -> Email_20@example.com
 
-		DI
-		D 21 email_20@example.com
-		I 20 Email_20@example.com user_20 2021-01-20 active
+			DU
+			D 20 Email_20@example.com
+			U 21 Email_521@example.com -> email_20@example.com
 
-		U 20 email_20@example.com -> Email_21@example.com
-		I 21 email_20@example.com user_21 2021-01-21 active
+			DI
+			D 21 email_20@example.com
+			I 20 Email_20@example.com user_20 2021-01-20 active
+
+			U 20 email_20@example.com -> Email_21@example.com
+			I 21 email_20@example.com user_21 2021-01-21 active
 
 		*/
 		`DO $$

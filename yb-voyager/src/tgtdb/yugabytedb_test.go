@@ -1024,7 +1024,8 @@ func TestGetTablesHavingExpressionIndexes(t *testing.T) {
 
 		CREATE UNIQUE INDEX idx_expression_indexes_17 ON test_expression_indexes.table_partitioned_l5 (data, upper(val || val2));`,
 	)
-	defer testYugabyteDBTarget.ExecuteSqls(`DROP SCHEMA test_expression_indexes CASCADE;`)
+	defer testYugabyteDBTarget.ExecuteSqls(`DROP SCHEMA test_expression_indexes CASCADE;
+	DROP SCHEMA test_expression_indexes_cross CASCADE;`)
 
 	tableTuplesList := []sqlname.NameTuple{
 		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table1", "public", YUGABYTEDB),
