@@ -211,7 +211,6 @@ func (pool *ConnectionPool) WithConn(fn func(*pgx.Conn) (bool, error)) error {
 }
 
 func (pool *ConnectionPool) PrepareStatement(conn *pgx.Conn, stmtName string, stmt string) error {
-	log.Debugf("Preparing statement %q: %s on conn %d", stmtName, stmt, conn.PgConn().PID())
 	if pool.isStmtAlreadyPreparedOnConn(conn.PgConn().PID(), stmtName) {
 		return nil
 	}
