@@ -91,8 +91,8 @@ func newProgressTracker(nodes []collectionNode) *progressTracker {
 			displayName = "Primary"
 		} else {
 			replicaCount++
-			// Extract name from replica object
-			displayName = fmt.Sprintf("Replica %d (%s)", replicaCount, node.replica.Name)
+			// Build name from replica host:port
+			displayName = fmt.Sprintf("Replica %d (%s:%d)", replicaCount, node.replica.Host, node.replica.Port)
 		}
 
 		// Truncate display name if too long (prevents line wrapping in terminal)

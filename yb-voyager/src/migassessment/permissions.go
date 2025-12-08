@@ -162,7 +162,7 @@ func checkPermissionsOnReplicaNode(source *srcdb.Source, replica srcdb.ReplicaEn
 	err := replicaDB.Connect()
 	if err != nil {
 		return NodePermissionResult{
-			NodeName:         replica.Name,
+			NodeName:         fmt.Sprintf("%s:%d", replica.Host, replica.Port),
 			IsPrimary:        false,
 			ConnectionFailed: true,
 			Error:            fmt.Errorf("failed to connect: %w", err),
@@ -173,7 +173,7 @@ func checkPermissionsOnReplicaNode(source *srcdb.Source, replica srcdb.ReplicaEn
 	replicaDB.Disconnect()
 
 	return NodePermissionResult{
-		NodeName:         replica.Name,
+		NodeName:         fmt.Sprintf("%s:%d", replica.Host, replica.Port),
 		IsPrimary:        false,
 		MissingPerms:     missingPerms,
 		PgssEnabled:      pgssEnabled,

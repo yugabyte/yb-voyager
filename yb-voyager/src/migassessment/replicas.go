@@ -78,9 +78,9 @@ func HandleReplicaDiscoveryAndValidation(source *srcdb.Source, replicaEndpointsF
 // displayDiscoveredReplicas displays information about discovered replicas
 func displayDiscoveredReplicas(replicas []srcdb.ReplicaInfo) {
 	for _, replica := range replicas {
-		appName := lo.Ternary(replica.ApplicationName == "", "(unnamed)", replica.ApplicationName)
-		utils.PrintAndLogf("  - application_name=%s, state=%s, sync_state=%s",
-			appName, replica.State, replica.SyncState)
+		endpoint := lo.Ternary(replica.ClientAddr == "", "(no client_addr)", fmt.Sprintf("%s:5432", replica.ClientAddr))
+		utils.PrintAndLogf("  - endpoint=%s, state=%s, sync_state=%s",
+			endpoint, replica.State, replica.SyncState)
 	}
 }
 
@@ -93,19 +93,13 @@ func validateDiscoveredReplicas(pg *srcdb.PostgreSQL, discoveredReplicas []srcdb
 
 	for _, replica := range discoveredReplicas {
 		if replica.ClientAddr == "" {
-			appName := lo.Ternary(replica.ApplicationName == "", "(unnamed)", replica.ApplicationName)
-			connectionFailures = append(connectionFailures, fmt.Sprintf("%s (no client_addr)", appName))
+			endpoint := lo.Ternary(replica.ApplicationName == "", "(unnamed)", replica.ApplicationName)
+			connectionFailures = append(connectionFailures, fmt.Sprintf("%s (no client_addr)", endpoint))
 			continue
 		}
 
-		// Generate replica name: use host:port for unnamed replicas, application_name for named ones
-		name := lo.Ternary(replica.ApplicationName == "", fmt.Sprintf("%s:5432", replica.ClientAddr), replica.ApplicationName)
-
-		// Create display name: for named replicas, include host:port in parentheses for clarity
-		displayName := name
-		if replica.ApplicationName != "" {
-			displayName = fmt.Sprintf("%s (%s:5432)", name, replica.ClientAddr)
-		}
+		// Generate replica name: always use host:port format
+		name := fmt.Sprintf("%s:5432", replica.ClientAddr)
 
 		// Try to connect to client_addr on port 5432
 		err := pg.ValidateReplicaConnection(replica.ClientAddr, 5432)
@@ -116,7 +110,7 @@ func validateDiscoveredReplicas(pg *srcdb.PostgreSQL, discoveredReplicas []srcdb
 				Name:          name,
 				ConnectionUri: pg.GetReplicaConnectionUri(replica.ClientAddr, 5432),
 			})
-			utils.PrintAndLogfSuccess("  ✓ Successfully connected to %s", displayName)
+			utils.PrintAndLogfSuccess("  ✓ Successfully connected to %s", name)
 		} else {
 			// Check if this is a "not a replica" error vs connection error.
 			// Note: For auto-discovered replicas, "not a replica" errors should rarely occur since
@@ -124,11 +118,11 @@ func validateDiscoveredReplicas(pg *srcdb.PostgreSQL, discoveredReplicas []srcdb
 			// check as defense-in-depth for edge cases if any. This error path is primarily designed for user-provided endpoints where
 			// the user might accidentally specify a logical subscriber or the primary itself.
 			if errors.Is(err, srcdb.ErrNotAReplica) {
-				notReplicaEndpoints = append(notReplicaEndpoints, displayName)
-				log.Infof("Endpoint %s is not a physical replica: %v", displayName, err)
+				notReplicaEndpoints = append(notReplicaEndpoints, name)
+				log.Infof("Endpoint %s is not a physical replica: %v", name, err)
 			} else {
-				connectionFailures = append(connectionFailures, displayName)
-				log.Infof("Failed to connect to replica %s: %v", displayName, err)
+				connectionFailures = append(connectionFailures, name)
+				log.Infof("Failed to connect to replica %s: %v", name, err)
 			}
 		}
 	}
@@ -277,32 +271,6 @@ func processDiscoveredReplicasWhenNoEndpointsProvided(pg *srcdb.PostgreSQL, disc
 	return resolveDiscoveredReplicasOutcome(connectableReplicas, notReplicaEndpoints, connectionFailures)
 }
 
-// enrichProvidedEndpointsWithNames matches provided endpoints with discovered replicas
-// and uses application_name as the replica name when available.
-func enrichProvidedEndpointsWithNames(endpoints []srcdb.ReplicaEndpoint, discoveredReplicas []srcdb.ReplicaInfo) []srcdb.ReplicaEndpoint {
-	enriched := make([]srcdb.ReplicaEndpoint, len(endpoints))
-	copy(enriched, endpoints)
-
-	// Create a map of discovered replicas by client_addr for quick lookup
-	replicaByAddr := make(map[string]srcdb.ReplicaInfo)
-	for _, replica := range discoveredReplicas {
-		if replica.ClientAddr != "" {
-			replicaByAddr[replica.ClientAddr] = replica
-		}
-	}
-
-	// Match each endpoint with discovered replicas by address
-	for i := range enriched {
-		if replica, found := replicaByAddr[enriched[i].Host]; found {
-			if replica.ApplicationName != "" {
-				enriched[i].Name = replica.ApplicationName
-			}
-		}
-	}
-
-	return enriched
-}
-
 // warnIfProvidedEndpointsMismatch displays discovery status and warns if the count of discovered
 // replicas doesn't match the provided endpoints. Returns error if user aborts.
 func warnIfProvidedEndpointsMismatch(discoveredReplicas []srcdb.ReplicaInfo, providedEndpoints []srcdb.ReplicaEndpoint) error {
@@ -382,22 +350,18 @@ func reportProvidedEndpointsValidationFailures(failedEndpoints []string) error {
 // 2. Endpoints provided but count differs from discovery - warns user about mismatch and asks for confirmation
 // 3. Endpoints provided but no replicas discovered - proceeds with validation anyway
 //
-// The function enriches endpoint names with application_name from discovery when possible,
-// validates each endpoint by connecting and checking pg_is_in_recovery(), and fails if
+// Validates each endpoint by connecting and checking pg_is_in_recovery(), and fails if
 // any endpoint is invalid or unreachable.
 //
 // Returns the validated replica endpoints to include in assessment.
 func processProvidedEndpoints(pg *srcdb.PostgreSQL, discoveredReplicas []srcdb.ReplicaInfo, providedEndpoints []srcdb.ReplicaEndpoint) ([]srcdb.ReplicaEndpoint, error) {
-	// Enrich endpoints with application_name from discovered replicas if possible
-	enrichedEndpoints := enrichProvidedEndpointsWithNames(providedEndpoints, discoveredReplicas)
-
 	// Check for discovery mismatch and get user confirmation if needed
 	if err := warnIfProvidedEndpointsMismatch(discoveredReplicas, providedEndpoints); err != nil {
 		return nil, err
 	}
 
 	// Validate all provided endpoints
-	validEndpoints, failedEndpoints := validateProvidedEndpoints(pg, enrichedEndpoints)
+	validEndpoints, failedEndpoints := validateProvidedEndpoints(pg, providedEndpoints)
 
 	// Handle failures - user must fix all endpoints
 	if len(failedEndpoints) > 0 {

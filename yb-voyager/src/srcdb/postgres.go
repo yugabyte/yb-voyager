@@ -1841,7 +1841,7 @@ type ReplicaInfo struct {
 type ReplicaEndpoint struct {
 	Host          string
 	Port          int
-	Name          string // identifier for the replica (from application_name or endpoint)
+	Name          string // Display identifier for the replica (always in "host:port" format)
 	ConnectionUri string // full connection URI for this replica
 }
 
