@@ -26,6 +26,7 @@ import (
 	"sort"
 	"strings"
 	"text/template"
+	"time"
 
 	goerrors "github.com/go-errors/errors"
 
@@ -236,7 +237,6 @@ func assessMigration() (err error) {
 	}
 
 	var validatedReplicaEndpoints []srcdb.ReplicaEndpoint
-	var failedReplicaNodes []string
 
 	if assessmentMetadataDirFlag == "" { // only in case of source connectivity
 		err := source.DB().Connect()
@@ -293,7 +293,7 @@ func assessMigration() (err error) {
 
 	initAssessmentDB() // Note: migassessment.AssessmentDir needs to be set beforehand
 
-	failedReplicaNodes, err = gatherAssessmentMetadata(validatedReplicaEndpoints)
+	err = gatherAssessmentMetadata(validatedReplicaEndpoints)
 	if err != nil {
 		return fmt.Errorf("failed to gather assessment metadata: %w", err)
 	}
@@ -328,7 +328,7 @@ func assessMigration() (err error) {
 		utils.PrintAndLogf("failed to run assessment: %v", err)
 	}
 
-	err = generateAssessmentReport(failedReplicaNodes)
+	err = generateAssessmentReport()
 	if err != nil {
 		return fmt.Errorf("failed to generate assessment report: %w", err)
 	}
@@ -565,11 +565,9 @@ func handleStartCleanIfNeededForAssessMigration(metadataDirPassedByUser bool) er
 }
 
 // gatherAssessmentMetadata collects metadata from the source database.
-// For PostgreSQL, it accepts validated replicas and returns the list of failed replica nodes
-// (for reporting partial multi-node assessments).
-func gatherAssessmentMetadata(validatedReplicas []srcdb.ReplicaEndpoint) (failedReplicaNodes []string, err error) {
+func gatherAssessmentMetadata(validatedReplicas []srcdb.ReplicaEndpoint) error {
 	if assessmentMetadataDirFlag != "" {
-		return nil, nil // assessment metadata files are provided by the user inside assessmentMetadataDir
+		return nil // assessment metadata files are provided by the user inside assessmentMetadataDir
 	}
 
 	// setting schema objects types to export before creating the project directories
@@ -578,9 +576,11 @@ func gatherAssessmentMetadata(validatedReplicas []srcdb.ReplicaEndpoint) (failed
 
 	utils.PrintAndLogf("\ngathering metadata and stats from '%s' source database...\n", source.DBType)
 
+	time.Sleep(10 * time.Second)
+
 	switch source.DBType {
 	case POSTGRESQL:
-		failedReplicaNodes, err = migassessment.GatherAssessmentMetadataFromPG(
+		err := migassessment.GatherAssessmentMetadataFromPG(
 			&source,
 			validatedReplicas,
 			assessmentMetadataDir,
@@ -588,19 +588,18 @@ func gatherAssessmentMetadata(validatedReplicas []srcdb.ReplicaEndpoint) (failed
 			intervalForCapturingIOPS,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("error gathering metadata and stats from source PG database: %w", err)
+			return fmt.Errorf("error gathering metadata and stats from source PG database: %w", err)
 		}
-		return failedReplicaNodes, nil
 	case ORACLE:
-		err = migassessment.GatherAssessmentMetadataFromOracle(&source, assessmentMetadataDir)
+		err := migassessment.GatherAssessmentMetadataFromOracle(&source, assessmentMetadataDir)
 		if err != nil {
-			return nil, fmt.Errorf("error gathering metadata and stats from source Oracle database: %w", err)
+			return fmt.Errorf("error gathering metadata and stats from source Oracle database: %w", err)
 		}
 	default:
-		return nil, goerrors.Errorf("source DB Type %s is not yet supported for metadata and stats gathering", source.DBType)
+		return fmt.Errorf("source DB Type %s is not yet supported for metadata and stats gathering", source.DBType)
 	}
 	utils.PrintAndLogf("gathered assessment metadata files at '%s'", assessmentMetadataDir)
-	return nil, nil
+	return nil
 }
 
 /*
@@ -685,7 +684,7 @@ func populateMetadataCSVIntoAssessmentDB() error {
 //go:embed templates/migration_assessment_report.template
 var bytesTemplate []byte
 
-func generateAssessmentReport(failedReplicaNodes []string) (err error) {
+func generateAssessmentReport() (err error) {
 	utils.PrintAndLogf("Generating assessment report...")
 
 	assessmentReport.VoyagerVersion = utils.YB_VOYAGER_VERSION
@@ -732,7 +731,7 @@ func generateAssessmentReport(failedReplicaNodes []string) (err error) {
 		return fmt.Errorf("fetching all stats info from AssessmentDB: %w", err)
 	}
 
-	addNotesToAssessmentReport(failedReplicaNodes)
+	addNotesToAssessmentReport()
 	postProcessingOfAssessmentReport()
 
 	assessmentReportDir := filepath.Join(exportDir, "assessment", "reports")
@@ -1528,10 +1527,6 @@ var (
 		Type: GeneralNotes,
 		Text: `There are some Foreign tables in the schema, but during the export schema phase, exported schema does not include the SERVER and USER MAPPING objects. Therefore, you must manually create these objects before import schema. For more information on each of them, run analyze-schema. `,
 	}
-	PARTIAL_MULTI_NODE_ASSESSMENT = NoteInfo{
-		Type: GeneralNotes,
-		Text: `This assessment includes partial multi-node data. Some replicas failed during metadata collection and are excluded from all sections of this report.`,
-	}
 
 	// ColocatedShardedNotes
 	COLOCATED_TABLE_RECOMMENDATION_CAVEAT = NoteInfo{
@@ -1557,15 +1552,10 @@ To manually modify the schema, please refer: <a class="highlight-link" href="htt
 	}
 )
 
-func addNotesToAssessmentReport(failedReplicaNodes []string) {
+func addNotesToAssessmentReport() {
 	log.Infof("adding notes to assessment report")
 
 	assessmentReport.Notes = append(assessmentReport.Notes, PREVIEW_FEATURES_NOTE)
-
-	// Add note if some replicas failed during collection
-	if len(failedReplicaNodes) > 0 {
-		assessmentReport.Notes = append(assessmentReport.Notes, PARTIAL_MULTI_NODE_ASSESSMENT)
-	}
 
 	// keep it as the first point in Notes
 	if len(assessmentReport.Sizing.SizingRecommendation.ColocatedTables) > 0 {

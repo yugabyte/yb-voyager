@@ -26,7 +26,6 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/fatih/color"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
@@ -181,10 +180,10 @@ func GatherAssessmentMetadataFromPG(
 	assessmentMetadataDir string,
 	pgssEnabled bool,
 	iopsInterval int64,
-) (failedReplicaNodes []string, err error) {
+) error {
 	scriptPath, err := findGatherMetadataScriptPath(POSTGRESQL)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	// Build list of all nodes to collect from (primary + replicas)
@@ -277,52 +276,34 @@ func GatherAssessmentMetadataFromPG(
 	// Wait for display goroutine to finish (it closes when progressChan is closed and drained)
 	<-displayDone
 
-	// Process results
-	var failedReplicasList []string
-	var successfulReplicaCount int
-	var primaryFailed bool
-	var primaryErr error
-
+	// Process results - collect all failures before returning
+	var failedNodes []string
 	for result := range resultChan {
 		displayName := tracker.displayNames[result.nodeName]
 		if result.err == nil {
 			log.Infof("Successfully collected metadata from %s", displayName)
-			if !result.isPrimary {
-				successfulReplicaCount++
-			}
 		} else {
-			if result.isPrimary {
-				primaryFailed = true
-				primaryErr = result.err
-			} else {
-				log.Warnf("Failed to collect metadata from replica %s: %v", displayName, result.err)
-				failedReplicasList = append(failedReplicasList, displayName)
-			}
+			// Log the specific failure for debugging
+			log.Errorf("Metadata collection failed on %s: %v", displayName, result.err)
+			failedNodes = append(failedNodes, displayName)
 		}
 	}
 
-	// If primary failed, return error immediately
-	if primaryFailed {
-		return nil, fmt.Errorf("metadata collection failed on primary database (critical): %w", primaryErr)
+	// If any nodes failed, return error
+	if len(failedNodes) > 0 {
+		return fmt.Errorf("metadata collection failed on one or more nodes")
 	}
 
-	// Print summary
-	if !primaryFailed && len(failedReplicasList) > 0 {
-		fmt.Println() // Blank line before warnings
-		color.Yellow("WARNING: Metadata collection failed on %d replica(s): [%s]", len(failedReplicasList), strings.Join(failedReplicasList, ", "))
-		utils.PrintAndLogfInfo("Continuing assessment with data from primary + %d successful replica(s)", successfulReplicaCount)
-		utils.PrintAndLogfWarning("Note: Sizing and metrics will reflect only the nodes that succeeded.")
-	}
-
+	// All nodes succeeded
 	fmt.Println() // Single blank line before final success message
 	if len(validatedReplicas) == 0 {
 		utils.PrintAndLogfSuccess("Successfully completed metadata collection from primary node")
 	} else {
 		utils.PrintAndLogfSuccess("Successfully completed metadata collection from %d node(s) (primary + %d replica(s))",
-			1+successfulReplicaCount, successfulReplicaCount)
+			totalNodes, len(validatedReplicas))
 	}
 
-	return failedReplicasList, nil
+	return nil
 }
 
 // GatherAssessmentMetadataFromOracle collects metadata from Oracle database.
