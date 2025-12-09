@@ -2210,63 +2210,43 @@ func (yb *TargetYugabyteDB) GetTablesHavingExpressionUniqueIndexes(tableNames []
 		return fmt.Sprintf("('%s','%s')", schema, table)
 	}), ",")
 
-	tableCatalogNameToTuple := make(map[string]sqlname.NameTuple)
-	for _, t := range tableNames {
-		tableCatalogNameToTuple[t.AsQualifiedCatalogName()] = t
-	}
-
 	query := fmt.Sprintf(`
 WITH table_list(schema_name, table_name) AS (VALUES %s),
--- Step 1: Create a mapping of all tables (especially leaf partitions) to their root tables
-table_to_root AS (
-  WITH RECURSIVE find_root AS (
-    -- Base case: all tables start as their own root
+-- Step 1: Expand table_list to include all partitions (recursively) of root partitioned tables
+-- For normal tables: includes the table itself
+-- For root partitioned tables: includes the root + all partitions at any level
+all_tables_to_check AS (
+  WITH RECURSIVE expand_partitions AS (
+    -- Base case: start with tables from table_list (normal tables + root partitioned tables)
     SELECT 
       t.oid AS table_oid,
-      t.oid AS current_oid,
-      n.nspname AS table_schema,
-      t.relname AS table_name,
-      n.nspname AS root_schema,
-      t.relname AS root_name
-    FROM pg_class t
-    JOIN pg_namespace n ON t.relnamespace = n.oid
+      n.nspname AS schema_name,
+      t.relname AS table_name
+    FROM table_list tl
+    JOIN pg_namespace n ON n.nspname = tl.schema_name
+    JOIN pg_class t ON t.relnamespace = n.oid AND t.relname = tl.table_name
     WHERE t.relkind IN ('r', 'p')  -- regular tables and partitioned tables
     
     UNION ALL
     
-    -- Recursive case: if current table has a parent, traverse up
+    -- Recursive case: find all child partitions (traverse down the partition hierarchy)
     SELECT 
-      fr.table_oid,
-      parent_t.oid AS current_oid,
-      fr.table_schema,
-      fr.table_name,
-      parent_ns.nspname AS root_schema,
-      parent_t.relname AS root_name
-    FROM find_root fr
-    JOIN pg_inherits inh ON fr.current_oid = inh.inhrelid
-    JOIN pg_class parent_t ON inh.inhparent = parent_t.oid
-    JOIN pg_namespace parent_ns ON parent_t.relnamespace = parent_ns.oid
+      child_t.oid AS table_oid,
+      child_ns.nspname AS schema_name,
+      child_t.relname AS table_name
+    FROM expand_partitions ep
+    JOIN pg_inherits inh ON inh.inhparent = ep.table_oid
+    JOIN pg_class child_t ON child_t.oid = inh.inhrelid
+    JOIN pg_namespace child_ns ON child_t.relnamespace = child_ns.oid
   )
-  -- For each table, get its root (the one with no parent)
-  SELECT DISTINCT ON (table_oid)
-    table_oid,
-	table_schema,
-	table_name,
-    root_schema,
-    root_name
-  FROM find_root
-  WHERE NOT EXISTS (
-    SELECT 1 FROM pg_inherits inh2 
-    WHERE inh2.inhrelid = find_root.current_oid
-  )
-  ORDER BY table_oid
+  SELECT DISTINCT table_oid, schema_name, table_name
+  FROM expand_partitions
 ),
--- Step 2: Find all tables (including leaf partitions) that have expression unique indexes
+-- Step 2: Find tables that have expression unique indexes
 tables_with_expression_indexes AS (
   SELECT 
     t.oid AS table_oid,
-    t.oid AS index_table_oid,
-    n.nspname AS table_schema,
+    n.nspname AS schema_name,
     t.relname AS table_name,
     i.relname AS index_name,
     COALESCE(pg_get_expr(idx.indexprs, idx.indrelid), '') AS expression
@@ -2278,16 +2258,17 @@ tables_with_expression_indexes AS (
     AND idx.indisunique
     AND idx.indexprs IS NOT NULL  -- expression index
 )
--- Step 3: Join to get root table for each table with expression index
+-- Step 3: Return tables from our expanded list that have expression indexes
+-- For normal tables: returns the table if it has expression indexes
+-- For partitioned tables: returns all partitions (at any level) that have expression indexes
 SELECT 
-    ttr.table_schema AS schema_name,
-    ttr.table_name AS table_name,
+    twei.schema_name,
+    twei.table_name,
     twei.index_name,
     twei.expression
 FROM tables_with_expression_indexes twei
-JOIN table_to_root ttr ON twei.table_oid = ttr.table_oid
-WHERE (ttr.root_schema, ttr.root_name) IN (SELECT schema_name, table_name FROM table_list)
-ORDER BY ttr.root_schema, ttr.root_name, twei.index_name;`, tableNamesStr)
+JOIN all_tables_to_check atc ON twei.table_oid = atc.table_oid
+ORDER BY twei.schema_name, twei.table_name, twei.index_name;`, tableNamesStr)
 
 	log.Debugf("query: %s", query)
 	rows, err := yb.Query(query)

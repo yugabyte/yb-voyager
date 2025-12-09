@@ -1058,8 +1058,13 @@ func TestGetTablesHavingExpressionIndexes(t *testing.T) {
 		partitionedTable5,
 	}
 
+	version := testYugabyteDBTarget.QueryRow("SELECT version()")
+	fmt.Println("version: ", version)
+
 	yb, ok := testYugabyteDBTarget.TargetDB.(*TargetYugabyteDB)
 	require.True(t, ok)
+
+	
 	tableCatalogNamesHavingExpressionIndexes, err := yb.GetTablesHavingExpressionUniqueIndexes(tableTuplesList)
 	require.NoError(t, err)
 	assert.Equal(t, 14, len(tableCatalogNamesHavingExpressionIndexes))
@@ -1081,7 +1086,7 @@ func TestGetTablesHavingExpressionIndexes(t *testing.T) {
 	}
 	assert.ElementsMatch(t, expectedTableTuplesHavingExpressionIndexes, tableCatalogNamesHavingExpressionIndexes)
 
-	leafTableToRootTableMap, err := yb.GetLeafTableToRootTableMap(tableTuplesList)
+	leafTableToRootTableMap, err := yb.GetPartitionTableToRootTableMap(tableTuplesList)
 	require.NoError(t, err)
 	expectedLeafTableToRootTableMap := map[string]string{
 		table1.AsQualifiedCatalogName(): table1.AsQualifiedCatalogName(),
