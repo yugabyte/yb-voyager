@@ -450,6 +450,19 @@
             <p><strong>Migration Complexity:</strong> {{ .MigrationComplexity }}</p>
         {{ end }}
 
+        {{if .AssessmentTopology}}
+        <h2>Assessment Topology</h2>
+        <div class="topology-info">
+            <p><strong>Total Nodes Assessed:</strong> {{.AssessmentTopology.TotalNodesAssessed}} (1 primary + {{.AssessmentTopology.NumReplicas}} replica{{if ne .AssessmentTopology.NumReplicas 1}}s{{end}})</p>
+            
+            {{if .AssessmentTopology.FailedReplicas}}
+            <div class="warning" style="background-color: #fff3cd; border: 1px solid #ffc107; padding: 15px; border-radius: 4px; margin-top: 15px;">
+                <p style="color: #856404; margin: 0;"><strong>&#x26A0; Note:</strong> {{len .AssessmentTopology.FailedReplicas}} additional replica{{if ne (len .AssessmentTopology.FailedReplicas) 1}}s{{end}} ({{range $i, $replica := .AssessmentTopology.FailedReplicas}}{{if $i}}, {{end}}{{$replica}}{{end}}) {{if eq (len .AssessmentTopology.FailedReplicas) 1}}was{{else}}were{{end}} excluded due to metadata collection failure.</p>
+            </div>
+            {{end}}
+        </div>
+        {{end}}
+
         <h2>Database Objects</h2>
         <p>{{ .SchemaSummary.Description }}</p>
         <table>

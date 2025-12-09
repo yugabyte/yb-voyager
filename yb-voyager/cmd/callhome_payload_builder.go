@@ -29,6 +29,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/compareperf"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryissue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -51,7 +52,11 @@ var (
 	}
 )
 
-func packAndSendAssessMigrationPayload(status string, errMsg error) {
+func packAndSendAssessMigrationPayload(
+	status string,
+	errMsg error,
+	replicaDiscoveryInfo *migassessment.ReplicaDiscoveryInfo,
+) {
 	var err error
 	if !shouldSendCallhome() {
 		return
@@ -132,6 +137,17 @@ func packAndSendAssessMigrationPayload(status string, errMsg error) {
 		}
 	}
 
+	// Build replica assessment topology information
+	// Note: Sent on both success and error (if discovery completed before failure)
+	var replicaTopology *callhome.ReplicaAssessmentTopology
+	if replicaDiscoveryInfo != nil && len(replicaDiscoveryInfo.ValidatedReplicas) > 0 {
+		replicaTopology = &callhome.ReplicaAssessmentTopology{
+			ReplicasDiscovered: replicaDiscoveryInfo.DiscoveredCount,
+			ReplicasProvided:   replicaDiscoveryInfo.UserProvidedCount,
+			ReplicasUsed:       len(replicaDiscoveryInfo.ValidatedReplicas),
+		}
+	}
+
 	assessPayload := callhome.AssessMigrationPhasePayload{
 		PayloadVersion:                 callhome.ASSESS_MIGRATION_CALLHOME_PAYLOAD_VERSION,
 		TargetDBVersion:                assessmentReport.TargetDBVersion,
@@ -147,6 +163,7 @@ func packAndSendAssessMigrationPayload(status string, errMsg error) {
 		IopsInterval:                   intervalForCapturingIOPS,
 		ControlPlaneType:               getControlPlaneType(),
 		AnonymizedDDLs:                 getAnonymizedDDLs(&source),
+		ReplicaAssessmentTopology:      replicaTopology,
 	}
 
 	payload.PhasePayload = callhome.MarshalledJsonString(assessPayload)
