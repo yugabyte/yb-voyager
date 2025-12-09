@@ -170,6 +170,26 @@ func (pt *progressTracker) printSingleLine(progress NodeProgress) {
 	fmt.Printf("\r\033[K  %s %-*s %s\n", statusIcon, pt.maxNameLen+1, displayName+":", progress.Stage)
 }
 
+// finalizeAndCheckResults processes the final results from all collection goroutines.
+// It logs each result and returns an error if any node failed.
+func (pt *progressTracker) finalizeAndCheckResults(resultChan <-chan collectionResult) error {
+	var failedNodes []string
+	for result := range resultChan {
+		displayName := pt.displayNames[result.nodeName]
+		if result.err == nil {
+			log.Infof("Successfully collected metadata from %s", displayName)
+		} else {
+			log.Errorf("Metadata collection failed on %s: %v", displayName, result.err)
+			failedNodes = append(failedNodes, displayName)
+		}
+	}
+
+	if len(failedNodes) > 0 {
+		return fmt.Errorf("metadata collection failed on one or more nodes")
+	}
+	return nil
+}
+
 // GatherAssessmentMetadataFromPG collects metadata from PostgreSQL primary and replicas.
 // Accepts the validated replicas to collect from, and returns the list of failed replica names
 // (for reporting partial multi-node assessment).
@@ -276,22 +296,9 @@ func GatherAssessmentMetadataFromPG(
 	// Wait for display goroutine to finish (it closes when progressChan is closed and drained)
 	<-displayDone
 
-	// Process results - collect all failures before returning
-	var failedNodes []string
-	for result := range resultChan {
-		displayName := tracker.displayNames[result.nodeName]
-		if result.err == nil {
-			log.Infof("Successfully collected metadata from %s", displayName)
-		} else {
-			// Log the specific failure for debugging
-			log.Errorf("Metadata collection failed on %s: %v", displayName, result.err)
-			failedNodes = append(failedNodes, displayName)
-		}
-	}
-
-	// If any nodes failed, return error
-	if len(failedNodes) > 0 {
-		return fmt.Errorf("metadata collection failed on one or more nodes")
+	// Process results through tracker
+	if err := tracker.finalizeAndCheckResults(resultChan); err != nil {
+		return err
 	}
 
 	// All nodes succeeded
