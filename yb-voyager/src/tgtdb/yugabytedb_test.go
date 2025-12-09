@@ -937,7 +937,7 @@ func TestGetTablesHavingExpressionIndexes(t *testing.T) {
 		`CREATE UNIQUE INDEX idx_expression_indexes_6 ON test_expression_indexes."Table6" (lower("Data"));`,
 		`CREATE UNIQUE INDEX idx_expression_indexes_7 ON test_expression_indexes."Table7" (lower("Data" || "Val2"));`,
 		`CREATE UNIQUE INDEX idx_expression_indexes_8 ON test_expression_indexes."Table8" ("Data");`,
-		`CREATE INDEX idx_expression_indexes_9 ON test_expression_indexes."Table8" (("Data" || "Val2"));`,//normal index
+		`CREATE INDEX idx_expression_indexes_9 ON test_expression_indexes."Table8" (("Data" || "Val2"));`, //normal index
 
 		//partitions cases
 		//only two partitions have expression indexes
@@ -996,7 +996,6 @@ func TestGetTablesHavingExpressionIndexes(t *testing.T) {
 		CREATE TABLE test_expression_indexes.table_partitioned_s3 PARTITION OF test_expression_indexes.table_partitioned3 FOR VALUES IN ('Sydney');
 		CREATE TABLE test_expression_indexes.table_partitioned_b3 PARTITION OF test_expression_indexes.table_partitioned3 FOR VALUES IN ('Boston');`,
 
-
 		//root table has the expression index
 		`CREATE TABLE test_expression_indexes.table_partitioned4 (
 			id INT,
@@ -1010,7 +1009,7 @@ func TestGetTablesHavingExpressionIndexes(t *testing.T) {
 
 		CREATE UNIQUE INDEX idx_expression_indexes_16 ON test_expression_indexes.table_partitioned4 (data, upper(val || val2));`,
 
-		//cross schema partitions and 
+		//cross schema partitions and
 		`CREATE SCHEMA test_expression_indexes_cross;
 		CREATE TABLE test_expression_indexes_cross.table_partitioned5 (
 			id INT,
@@ -1027,39 +1026,105 @@ func TestGetTablesHavingExpressionIndexes(t *testing.T) {
 	defer testYugabyteDBTarget.ExecuteSqls(`DROP SCHEMA test_expression_indexes CASCADE;
 	DROP SCHEMA test_expression_indexes_cross CASCADE;`)
 
+	table1 := testutils.CreateNameTupleWithTargetName("test_expression_indexes.table1", "public", YUGABYTEDB)
+	table2 := testutils.CreateNameTupleWithTargetName("test_expression_indexes.table2", "public", YUGABYTEDB)
+	table3 := testutils.CreateNameTupleWithTargetName("test_expression_indexes.table3", "public", YUGABYTEDB)
+	table4 := testutils.CreateNameTupleWithTargetName("test_expression_indexes.table4", "public", YUGABYTEDB)
+	table5 := testutils.CreateNameTupleWithTargetName("test_expression_indexes.table5", "public", YUGABYTEDB)
+	table6 := testutils.CreateNameTupleWithTargetName("test_expression_indexes.\"Table6\"", "public", YUGABYTEDB)
+	table7 := testutils.CreateNameTupleWithTargetName("test_expression_indexes.\"Table7\"", "public", YUGABYTEDB)
+	table8 := testutils.CreateNameTupleWithTargetName("test_expression_indexes.\"Table8\"", "public", YUGABYTEDB)
+	partitionedTable := testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned", "public", YUGABYTEDB)
+	partitionedTable1 := testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned1", "public", YUGABYTEDB)
+	partitionedTable2 := testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned2", "public", YUGABYTEDB)
+	partitionedTable3 := testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned3", "public", YUGABYTEDB)
+	partitionedTable4 := testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned4", "public", YUGABYTEDB)
+	partitionedTable5 := testutils.CreateNameTupleWithTargetName("test_expression_indexes_cross.table_partitioned5", "public", YUGABYTEDB)
+
 	tableTuplesList := []sqlname.NameTuple{
-		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table1", "public", YUGABYTEDB),
-		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table2", "public", YUGABYTEDB),
-		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table3", "public", YUGABYTEDB),
-		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table4", "public", YUGABYTEDB),
-		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table5", "public", YUGABYTEDB),
-		testutils.CreateNameTupleWithTargetName("test_expression_indexes.\"Table6\"", "public", YUGABYTEDB),
-		testutils.CreateNameTupleWithTargetName("test_expression_indexes.\"Table7\"", "public", YUGABYTEDB),
-		testutils.CreateNameTupleWithTargetName("test_expression_indexes.\"Table8\"", "public", YUGABYTEDB),
-		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned", "public", YUGABYTEDB),
-		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned1", "public", YUGABYTEDB),
-		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned2", "public", YUGABYTEDB),
-		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned3", "public", YUGABYTEDB),
-		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned4", "public", YUGABYTEDB),
-		testutils.CreateNameTupleWithTargetName("test_expression_indexes_cross.table_partitioned5", "public", YUGABYTEDB),
+		table1,
+		table2,
+		table3,
+		table4,
+		table5,
+		table6,
+		table7,
+		table8,
+		partitionedTable,
+		partitionedTable1,
+		partitionedTable2,
+		partitionedTable3,
+		partitionedTable4,
+		partitionedTable5,
 	}
 
-	tableTuplesHavingExpressionIndexes, err := testYugabyteDBTarget.GetTablesHavingExpressionUniqueIndexes(tableTuplesList)
+	yb, ok := testYugabyteDBTarget.TargetDB.(*TargetYugabyteDB)
+	require.True(t, ok)
+	tableCatalogNamesHavingExpressionIndexes, err := yb.GetTablesHavingExpressionUniqueIndexes(tableTuplesList)
 	require.NoError(t, err)
-	assert.Equal(t, 10, len(tableTuplesHavingExpressionIndexes))
-	expectedTableTuplesHavingExpressionIndexes := []sqlname.NameTuple{
-		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table1", "public", YUGABYTEDB),
-		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table2", "public", YUGABYTEDB),
-		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table3", "public", YUGABYTEDB),
-		testutils.CreateNameTupleWithTargetName("test_expression_indexes.\"Table6\"", "public", YUGABYTEDB),
-		testutils.CreateNameTupleWithTargetName("test_expression_indexes.\"Table7\"", "public", YUGABYTEDB),
-		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned", "public", YUGABYTEDB), //only table_partitioned3 doesn't have expression indexes rest of them have expr
-		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned1", "public", YUGABYTEDB),
-		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned2", "public", YUGABYTEDB),
-		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned4", "public", YUGABYTEDB),
-		testutils.CreateNameTupleWithTargetName("test_expression_indexes_cross.table_partitioned5", "public", YUGABYTEDB),
+	assert.Equal(t, 14, len(tableCatalogNamesHavingExpressionIndexes))
+	expectedTableTuplesHavingExpressionIndexes := []string{
+		table1.AsQualifiedCatalogName(),
+		table2.AsQualifiedCatalogName(),
+		table3.AsQualifiedCatalogName(),
+		table6.AsQualifiedCatalogName(),
+		table7.AsQualifiedCatalogName(),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned_l", "public", YUGABYTEDB).AsQualifiedCatalogName(),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned_b", "public", YUGABYTEDB).AsQualifiedCatalogName(),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned_l1_part1", "public", YUGABYTEDB).AsQualifiedCatalogName(),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned_l2", "public", YUGABYTEDB).AsQualifiedCatalogName(),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned_b2", "public", YUGABYTEDB).AsQualifiedCatalogName(),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned_l4", "public", YUGABYTEDB).AsQualifiedCatalogName(),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned_b4", "public", YUGABYTEDB).AsQualifiedCatalogName(),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned_s4", "public", YUGABYTEDB).AsQualifiedCatalogName(),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned_l5", "public", YUGABYTEDB).AsQualifiedCatalogName(),
 	}
-	assert.ElementsMatch(t, expectedTableTuplesHavingExpressionIndexes, tableTuplesHavingExpressionIndexes)
+	assert.ElementsMatch(t, expectedTableTuplesHavingExpressionIndexes, tableCatalogNamesHavingExpressionIndexes)
+
+	leafTableToRootTableMap, err := yb.GetLeafTableToRootTableMap(tableTuplesList)
+	require.NoError(t, err)
+	expectedLeafTableToRootTableMap := map[string]string{
+		table1.AsQualifiedCatalogName(): table1.AsQualifiedCatalogName(),
+		table2.AsQualifiedCatalogName(): table2.AsQualifiedCatalogName(),
+		table3.AsQualifiedCatalogName(): table3.AsQualifiedCatalogName(),
+		table4.AsQualifiedCatalogName(): table4.AsQualifiedCatalogName(),
+		table5.AsQualifiedCatalogName(): table5.AsQualifiedCatalogName(),
+		table6.AsQualifiedCatalogName(): table6.AsQualifiedCatalogName(),
+		table7.AsQualifiedCatalogName(): table7.AsQualifiedCatalogName(),
+		table8.AsQualifiedCatalogName(): table8.AsQualifiedCatalogName(),
+		partitionedTable.AsQualifiedCatalogName(): partitionedTable.AsQualifiedCatalogName(),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned_l", "public", YUGABYTEDB).AsQualifiedCatalogName(): partitionedTable.AsQualifiedCatalogName(),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned_b", "public", YUGABYTEDB).AsQualifiedCatalogName(): partitionedTable.AsQualifiedCatalogName(),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned_s", "public", YUGABYTEDB).AsQualifiedCatalogName(): partitionedTable.AsQualifiedCatalogName(),
+		partitionedTable1.AsQualifiedCatalogName(): partitionedTable1.AsQualifiedCatalogName(),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned_l1", "public", YUGABYTEDB).AsQualifiedCatalogName(): partitionedTable1.AsQualifiedCatalogName(),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned_l1_part1", "public", YUGABYTEDB).AsQualifiedCatalogName(): partitionedTable1.AsQualifiedCatalogName(),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned_l1_part2", "public", YUGABYTEDB).AsQualifiedCatalogName(): partitionedTable1.AsQualifiedCatalogName(),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned_s1", "public", YUGABYTEDB).AsQualifiedCatalogName():       partitionedTable1.AsQualifiedCatalogName(),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned_b1", "public", YUGABYTEDB).AsQualifiedCatalogName():       partitionedTable1.AsQualifiedCatalogName(),
+		partitionedTable2.AsQualifiedCatalogName(): partitionedTable2.AsQualifiedCatalogName(),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned_l2", "public", YUGABYTEDB).AsQualifiedCatalogName(): partitionedTable2.AsQualifiedCatalogName(),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned_b2", "public", YUGABYTEDB).AsQualifiedCatalogName(): partitionedTable2.AsQualifiedCatalogName(),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned_s2", "public", YUGABYTEDB).AsQualifiedCatalogName(): partitionedTable2.AsQualifiedCatalogName(),
+		partitionedTable3.AsQualifiedCatalogName(): partitionedTable3.AsQualifiedCatalogName(),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned_l3", "public", YUGABYTEDB).AsQualifiedCatalogName(): partitionedTable3.AsQualifiedCatalogName(),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned_s3", "public", YUGABYTEDB).AsQualifiedCatalogName(): partitionedTable3.AsQualifiedCatalogName(),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned_b3", "public", YUGABYTEDB).AsQualifiedCatalogName(): partitionedTable3.AsQualifiedCatalogName(),
+		partitionedTable4.AsQualifiedCatalogName(): partitionedTable4.AsQualifiedCatalogName(),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned_l4", "public", YUGABYTEDB).AsQualifiedCatalogName(): partitionedTable4.AsQualifiedCatalogName(),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned_b4", "public", YUGABYTEDB).AsQualifiedCatalogName(): partitionedTable4.AsQualifiedCatalogName(),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned_s4", "public", YUGABYTEDB).AsQualifiedCatalogName(): partitionedTable4.AsQualifiedCatalogName(),
+		partitionedTable5.AsQualifiedCatalogName(): partitionedTable5.AsQualifiedCatalogName(),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned_l5", "public", YUGABYTEDB).AsQualifiedCatalogName(): partitionedTable5.AsQualifiedCatalogName(),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned_s5", "public", YUGABYTEDB).AsQualifiedCatalogName(): partitionedTable5.AsQualifiedCatalogName(),
+		testutils.CreateNameTupleWithTargetName("test_expression_indexes.table_partitioned_b5", "public", YUGABYTEDB).AsQualifiedCatalogName(): partitionedTable5.AsQualifiedCatalogName(),
+	}
+	assert.Equal(t, len(lo.Keys(expectedLeafTableToRootTableMap)), len(lo.Keys(leafTableToRootTableMap)))
+	for expectedKey, expectedValue := range expectedLeafTableToRootTableMap {
+		returnedValue, ok := leafTableToRootTableMap[expectedKey]
+		assert.True(t, ok)
+		assert.Equal(t, expectedValue, returnedValue)
+	}
 }
 
 // ============================================================================

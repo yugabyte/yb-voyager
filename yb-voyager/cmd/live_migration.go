@@ -212,13 +212,13 @@ func getCdcPartitioningStrategyPerTable(tableNames []sqlname.NameTuple) (*utils.
 		//if not found in metadb key, use the auto strategy
 		//find the tables having expression or normal unique indexes since the conflicts on these expression based unique indexes can't be detected easily as it require
 		//evaluating the expression for each event to detect the conflicts so we are running all the events of those tables sequentially by marking these table as partition by table
-		expressionUniqueIndexes, err := tdb.GetTablesHavingExpressionUniqueIndexes(tableNames)
+		expressionUniqueIndexTables, err := getExpressionUniqueIndexTables(tableNames)
 		if err != nil {
-			return nil, fmt.Errorf("error getting tables having expression or normal unique indexes: %w", err)
+			return nil, fmt.Errorf("error getting expression unique index tables: %w", err)
 		}
 
 		for _, t := range tableNames {
-			if lo.Contains(expressionUniqueIndexes, t) {
+			if lo.Contains(expressionUniqueIndexTables, t) {
 				tableToPartitioningStrategyMap.Put(t, PARTITION_BY_TABLE)
 			} else {
 				tableToPartitioningStrategyMap.Put(t, PARTITION_BY_PK)
@@ -246,6 +246,44 @@ func getCdcPartitioningStrategyPerTable(tableNames []sqlname.NameTuple) (*utils.
 	}
 	log.Infof("updated cdc partitioning strategy in metadb: %v", metadb.IMPORT_DATA_STATUS_KEY)
 	return tableToPartitioningStrategyMap, nil
+}
+
+func getExpressionUniqueIndexTables(tableNames []sqlname.NameTuple) ([]sqlname.NameTuple, error) {
+	yb, ok := tdb.(*tgtdb.TargetYugabyteDB)
+	if !ok {
+		return nil, fmt.Errorf("target db is not a YugabyteDB")
+	}
+
+	log.Infof("getting leaf table to root table map")
+	//returns a map of catalog leaf table name to catalog root table name
+	leafTableToRootTableMap, err := yb.GetPartitionTableToRootTableMap(tableNames)
+	if err != nil {
+		return nil, fmt.Errorf("error getting leaf table to root table map: %w", err)
+	}
+	log.Infof("leaf table to root table map: %v", leafTableToRootTableMap)
+
+	tableCatalogNameToTuple := make(map[string]sqlname.NameTuple)
+	for _, t := range tableNames {
+		tableCatalogNameToTuple[t.AsQualifiedCatalogName()] = t
+	}
+
+	//returns a list of catalog table names, in case partitions it return catalog leaf partitions names and root table names
+	expressionUniqueIndexTablesIncludingLeafPartitions, err := yb.GetTablesHavingExpressionUniqueIndexes(tableNames)
+	if err != nil {
+		return nil, fmt.Errorf("error getting tables having expression or normal unique indexes: %w", err)
+	}
+
+	var expressionUniqueIndexTables []sqlname.NameTuple
+	for _, t := range expressionUniqueIndexTablesIncludingLeafPartitions {
+		if rootTable, ok := leafTableToRootTableMap[t]; ok {
+			//if its a leaf partition, return the root table
+			expressionUniqueIndexTables = append(expressionUniqueIndexTables, tableCatalogNameToTuple[rootTable])
+		} else {
+			//if its a normal/root table, return the table itself
+			expressionUniqueIndexTables = append(expressionUniqueIndexTables, tableCatalogNameToTuple[t])
+		}
+	}
+	return expressionUniqueIndexTables, nil
 }
 
 // used to determine if cache reinitialization is needed
@@ -408,10 +446,10 @@ func handleEvent(event *tgtdb.Event,
 			conflictDetectionCache.Put(event)
 		} else { // "i" or "u"
 			conflictDetectionCache.WaitUntilNoConflict(event)
-			if event.Op == "u" { 
+			if event.Op == "u" {
 				// Adding all the update events to the conflict detection cache since we need to check detect the conflicts in cases where
-				// unique key column is not changed in addition to unique key column is actually changed 
-				// since the unique key is removed the index even if the column is actually changed because of partial predicate 
+				// unique key column is not changed in addition to unique key column is actually changed
+				// since the unique key is removed the index even if the column is actually changed because of partial predicate
 				conflictDetectionCache.Put(event)
 			}
 		}

@@ -817,6 +817,6 @@ func (tdb *TargetOracleDB) GetEnabledTriggersAndFks() (enabledTriggers []string,
 	return nil, nil, nil
 }
 
-func (tdb *TargetOracleDB) GetTablesHavingExpressionUniqueIndexes(tableNames []sqlname.NameTuple) ([]sqlname.NameTuple, error) {
-	return nil, nil
-}
+// func (tdb *TargetOracleDB) GetTablesHavingExpressionUniqueIndexes(tableNames []sqlname.NameTuple) ([]sqlname.NameTuple, error) {
+// 	return nil, nil
+// }
