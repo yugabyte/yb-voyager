@@ -190,10 +190,9 @@ func (pt *progressTracker) finalizeAndCheckResults(resultChan <-chan collectionR
 	return nil
 }
 
-// GatherAssessmentMetadataFromPG collects metadata from PostgreSQL primary and replicas.
-// Accepts the validated replicas to collect from, and returns the list of failed replica names
-// (for reporting partial multi-node assessment).
-// Collection is performed in parallel for better performance.
+// GatherAssessmentMetadataFromPG collects metadata from PostgreSQL primary and (optionally) replicas.
+// If no replicas are provided, uses a simpler sequential path.
+// If replicas are provided, collection is performed in parallel for better performance.
 func GatherAssessmentMetadataFromPG(
 	source *srcdb.Source,
 	validatedReplicas []srcdb.ReplicaEndpoint,
@@ -206,6 +205,34 @@ func GatherAssessmentMetadataFromPG(
 		return err
 	}
 
+	// If no replicas, use simpler sequential path without "Primary:" prefix terminology
+	if len(validatedReplicas) == 0 {
+		utils.PrintAndLogfInfo("\nCollecting metadata from source database...")
+
+		connectionUri := source.DB().GetConnectionUriWithoutPassword()
+		err := runGatherAssessmentMetadataScript(
+			scriptPath,
+			[]string{fmt.Sprintf("PGPASSWORD=%s", source.Password), "PGCONNECT_TIMEOUT=10"},
+			assessmentMetadataDir,
+			connectionUri,
+			source.Schema,
+			assessmentMetadataDir,
+			fmt.Sprintf("%t", pgssEnabled),
+			fmt.Sprintf("%d", iopsInterval),
+			"true",    // --yes
+			"primary", // source_node_name
+			"true",    // skip_checks
+		)
+		if err != nil {
+			return err
+		}
+
+		fmt.Println() // Blank line before success
+		utils.PrintAndLogfSuccess("Successfully completed metadata collection")
+		return nil
+	}
+
+	// For multi-node: continue with parallel execution
 	// Build list of all nodes to collect from (primary + replicas)
 	nodes := []collectionNode{
 		{
@@ -227,11 +254,7 @@ func GatherAssessmentMetadataFromPG(
 	}
 
 	totalNodes := len(nodes)
-	if totalNodes == 1 {
-		utils.PrintAndLogfInfo("\nCollecting metadata from 1 node...")
-	} else {
-		utils.PrintAndLogfInfo("\nCollecting metadata from %d nodes in parallel...", totalNodes)
-	}
+	utils.PrintAndLogfInfo("\nCollecting metadata from %d nodes in parallel...", totalNodes)
 
 	// Initialize progress tracker
 	tracker := newProgressTracker(nodes)
@@ -301,14 +324,10 @@ func GatherAssessmentMetadataFromPG(
 		return err
 	}
 
-	// All nodes succeeded
+	// All nodes succeeded (parallel path - always has replicas)
 	fmt.Println() // Single blank line before final success message
-	if len(validatedReplicas) == 0 {
-		utils.PrintAndLogfSuccess("Successfully completed metadata collection from primary node")
-	} else {
-		utils.PrintAndLogfSuccess("Successfully completed metadata collection from %d node(s) (primary + %d replica(s))",
-			totalNodes, len(validatedReplicas))
-	}
+	utils.PrintAndLogfSuccess("Successfully completed metadata collection from %d node(s) (primary + %d replica(s))",
+		totalNodes, len(validatedReplicas))
 
 	return nil
 }
