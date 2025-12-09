@@ -651,12 +651,14 @@ UNION
 SELECT * FROM unique_indexes
 `
 
-func (ora *Oracle) GetTableToUniqueKeyColumnsMap(tableList []sqlname.NameTuple) (map[string][]string, error) {
-	result := make(map[string][]string)
+func (ora *Oracle) GetTableToUniqueKeyColumnsMap(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
+	result := utils.NewStructMap[sqlname.NameTuple, []string]()
 	var queryTableList []string
+	tableStrToNameTupleMap := make(map[string]sqlname.NameTuple)
 	for _, table := range tableList {
 		_, tname := table.ForCatalogQuery()
 		queryTableList = append(queryTableList, tname)
+		tableStrToNameTupleMap[tname] = table
 	}
 	query := fmt.Sprintf(oraQueryTmplForUniqCols, ora.source.Schema, strings.Join(queryTableList, "','"),
 		ora.source.Schema, strings.Join(queryTableList, "','"))
@@ -679,7 +681,16 @@ func (ora *Oracle) GetTableToUniqueKeyColumnsMap(tableList []sqlname.NameTuple) 
 		if err != nil {
 			return nil, fmt.Errorf("scanning row for unique key column name: %w", err)
 		}
-		result[tableName] = append(result[tableName], columnName)
+		tableNameTuple, ok := tableStrToNameTupleMap[tableName]
+		if !ok {
+			return nil, fmt.Errorf("table %s not found in table list", tableName)
+		}
+		cols, ok := result.Get(tableNameTuple)
+		if !ok {
+			cols = []string{}
+		}
+		cols = append(cols, columnName)
+		result.Put(tableNameTuple, cols)
 	}
 
 	err = rows.Err()

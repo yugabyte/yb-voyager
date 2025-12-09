@@ -1788,26 +1788,34 @@ func saveTableToUniqueKeyColumnsMapInMetaDB(tableList []sqlname.NameTuple, leafP
 	}
 
 	//Adding all the leaf partitions unique key columns to the root table unique key columns since in the importer all the events only have the root table name
-	leafPartitions.IterKV(func(key sqlname.NameTuple, value []sqlname.NameTuple) (bool, error) {
-		keyTbl := key.AsQualifiedCatalogName()
-		for _, leaf := range value {
-			keyLeafTbl := leaf.AsQualifiedCatalogName()
-			leafColumns, ok := res[keyLeafTbl]
+	leafPartitions.IterKV(func(rootTable sqlname.NameTuple, value []sqlname.NameTuple) (bool, error) {
+		for _, leafTable := range value {
+			leafColumns, ok := res.Get(leafTable)
 			if !ok {
 				continue
 			}
 			//Do not add leaf table key in the map since this config will be read by importer
-			delete(res, keyLeafTbl)
-			res[keyTbl] = append(res[keyTbl], leafColumns...)
+			res.Delete(leafTable)
+			rootColumns, ok := res.Get(rootTable)
+			if !ok {
+				rootColumns = []string{}
+			}
+			rootColumns = append(rootColumns, leafColumns...)
+			res.Put(rootTable, lo.Uniq(rootColumns))
 		}
-		res[keyTbl] = lo.Uniq(res[keyTbl])
+		return true, nil
+	})
+
+	metaDbData := make(map[string][]string)
+	res.IterKV(func(k sqlname.NameTuple, v []string) (bool, error) {
+		metaDbData[k.AsQualifiedCatalogName()] = v
 		return true, nil
 	})
 
 	log.Infof("updating metaDB with table to unique key columns map: %v", res)
 	key := fmt.Sprintf("%s_%s", metadb.TABLE_TO_UNIQUE_KEY_COLUMNS_KEY, exporterRole)
 	err = metadb.UpdateJsonObjectInMetaDB(metaDB, key, func(record *map[string][]string) {
-		*record = res
+		*record = metaDbData
 	})
 	if err != nil {
 		utils.ErrExit("insert table to unique key columns map: %w", err)

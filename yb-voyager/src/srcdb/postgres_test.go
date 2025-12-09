@@ -24,6 +24,7 @@ import (
 	"github.com/samber/lo"
 	"gotest.tools/assert"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
@@ -300,12 +301,12 @@ func TestPostgresGetTableToUniqueKeyColumnsMap(t *testing.T) {
 	testPostgresSource.Schema = "test_schema"
 
 	uniqueTablesList := []sqlname.NameTuple{
-		{CurrentName: sqlname.NewObjectName("postgresql", "test_schema", "test_schema", "unique_table")},
-		{CurrentName: sqlname.NewObjectName("postgresql", "test_schema", "test_schema", "another_unique_table")},
-		{CurrentName: sqlname.NewObjectName("postgresql", "test_expression_indexes_cross", "test_expression_indexes_cross", "table_partitioned5")},
-		{CurrentName: sqlname.NewObjectName("postgresql", "test_expression_indexes", "test_expression_indexes", "table_partitioned_l5")},
-		{CurrentName: sqlname.NewObjectName("postgresql", "test_expression_indexes", "test_expression_indexes", "table_partitioned_s5")},
-		{CurrentName: sqlname.NewObjectName("postgresql", "test_expression_indexes", "test_expression_indexes", "table_partitioned_b5")},
+		testutils.CreateNameTupleWithSourceName("test_schema.unique_table", "test_schema", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_schema.another_unique_table", "test_schema", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_expression_indexes_cross.table_partitioned5", "test_expression_indexes_cross", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_expression_indexes.table_partitioned_l5", "test_expression_indexes", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_expression_indexes.table_partitioned_s5", "test_expression_indexes", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_expression_indexes.table_partitioned_b5", "test_expression_indexes", "postgresql"),
 	}
 
 	// Test GetTableToUniqueKeyColumnsMap
@@ -315,21 +316,21 @@ func TestPostgresGetTableToUniqueKeyColumnsMap(t *testing.T) {
 		t.Fatalf("Error retrieving unique keys: %v", err)
 	}
 
-	expectedUniqKeys := map[string][]string{
-		"test_schema.unique_table":         {"email", "phone", "address"},
-		"test_schema.another_unique_table": {"username", "age"},
-		"test_expression_indexes.table_partitioned_l5": {"val"},
-	}
+	expectedUniqKeys := utils.NewStructMap[sqlname.NameTuple, []string]()
+	expectedUniqKeys.Put(testutils.CreateNameTupleWithSourceName("test_schema.unique_table", "test_schema", "postgresql"), []string{"email", "phone", "address"})
+	expectedUniqKeys.Put(testutils.CreateNameTupleWithSourceName("test_schema.another_unique_table", "test_schema", "postgresql"), []string{"username", "age"})
+	expectedUniqKeys.Put(testutils.CreateNameTupleWithSourceName("test_expression_indexes.table_partitioned_l5", "test_expression_indexes", "postgresql"), []string{"val"})
 
 	// Compare the maps by iterating over each table and asserting the columns list
-	for table, expectedColumns := range expectedUniqKeys {
-		actualColumns, exists := actualUniqKeys[table]
+	expectedUniqKeys.IterKV(func(table sqlname.NameTuple, expectedColumns []string) (bool, error) {
+		actualColumns, exists := actualUniqKeys.Get(table)
 		if !exists {
 			t.Errorf("Expected table %s not found in uniqueKeys", table)
 		}
 
 		testutils.AssertEqualStringSlices(t, expectedColumns, actualColumns)
-	}
+		return true, nil
+	})
 }
 
 func TestPostgresGetNonPKTables(t *testing.T) {

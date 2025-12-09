@@ -884,14 +884,16 @@ WHERE parent.relname='%s' AND nmsp_parent.nspname = '%s' `, tname, sname)
 	return partitions
 }
 
-func (pg *PostgreSQL) GetTableToUniqueKeyColumnsMap(tableList []sqlname.NameTuple) (map[string][]string, error) {
+func (pg *PostgreSQL) GetTableToUniqueKeyColumnsMap(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
 	log.Infof("getting unique key columns for tables: %v", tableList)
-	result := make(map[string][]string)
+	result := utils.NewStructMap[sqlname.NameTuple, []string]()
 	var querySchemaList, queryTableList []string
+	tableStrToNameTupleMap := make(map[string]sqlname.NameTuple)
 	for i := 0; i < len(tableList); i++ {
 		sname, tname := tableList[i].ForCatalogQuery()
 		querySchemaList = append(querySchemaList, sname)
 		queryTableList = append(queryTableList, tname)
+		tableStrToNameTupleMap[tableList[i].AsQualifiedCatalogName()] = tableList[i]
 	}
 
 	querySchemaList = lo.Uniq(querySchemaList)
@@ -916,7 +918,16 @@ func (pg *PostgreSQL) GetTableToUniqueKeyColumnsMap(tableList []sqlname.NameTupl
 			return nil, fmt.Errorf("scanning row for unique key column name: %w", err)
 		}
 		tableName = fmt.Sprintf("%s.%s", schemaName, tableName)
-		result[tableName] = append(result[tableName], colName)
+		tableNameTuple, ok := tableStrToNameTupleMap[tableName]
+		if !ok {
+			return nil, fmt.Errorf("table %s not found in table list", tableName)
+		}
+		cols, ok := result.Get(tableNameTuple)
+		if !ok {
+			cols = []string{}
+		}
+		cols = append(cols, colName)
+		result.Put(tableNameTuple, cols)
 	}
 
 	err = rows.Err()
