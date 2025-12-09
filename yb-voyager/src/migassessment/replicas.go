@@ -30,28 +30,35 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
+// ReplicaDiscoveryInfo tracks information about replica discovery and validation
+type ReplicaDiscoveryInfo struct {
+	DiscoveredCount   int                     // replicas found via pg_stat_replication
+	UserProvidedCount int                     // replicas provided via flag
+	ValidatedReplicas []srcdb.ReplicaEndpoint // replicas validated for assessment
+}
+
 // HandleReplicaDiscoveryAndValidation discovers and validates PostgreSQL read replicas.
 // Takes the source database, replica endpoints flag, and primary-only flag as parameters
-// and returns the validated replicas to include in assessment.
-// Returns nil replicas if no replicas are to be included (single-node assessment) or if source is not PostgreSQL.
-func HandleReplicaDiscoveryAndValidation(source *srcdb.Source, replicaEndpointsFlag string, primaryOnly bool) ([]srcdb.ReplicaEndpoint, error) {
+// and returns ReplicaDiscoveryInfo containing discovery details and validated replicas.
+// Returns empty ReplicaDiscoveryInfo if no replicas (single-node assessment) or if source is not PostgreSQL.
+func HandleReplicaDiscoveryAndValidation(source *srcdb.Source, replicaEndpointsFlag string, primaryOnly bool) (ReplicaDiscoveryInfo, error) {
 	// Only PostgreSQL supports read replica assessment
 	pg, ok := source.DB().(*srcdb.PostgreSQL)
 	if !ok {
-		return nil, nil // No replicas for non-PostgreSQL databases
+		return ReplicaDiscoveryInfo{}, nil // No replicas for non-PostgreSQL databases
 	}
 
 	// If primary-only flag is set, skip replica discovery
 	if primaryOnly {
 		utils.PrintAndLogfInfo("\nAssessing primary node only...")
-		return nil, nil
+		return ReplicaDiscoveryInfo{}, nil
 	}
 
 	// Step 1: Discover replicas from pg_stat_replication
 	utils.PrintAndLogf("Checking for read replicas...")
 	discoveredReplicas, err := pg.DiscoverReplicas()
 	if err != nil {
-		return nil, fmt.Errorf("failed to discover replicas: %w", err)
+		return ReplicaDiscoveryInfo{}, fmt.Errorf("failed to discover replicas: %w", err)
 	}
 
 	// Step 2: Parse user-provided replica endpoints if any
@@ -59,27 +66,45 @@ func HandleReplicaDiscoveryAndValidation(source *srcdb.Source, replicaEndpointsF
 	if replicaEndpointsFlag != "" {
 		providedEndpoints, err = pg.ParseReplicaEndpoints(replicaEndpointsFlag)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse replica endpoints: %w", err)
+			return ReplicaDiscoveryInfo{}, fmt.Errorf("failed to parse replica endpoints: %w", err)
 		}
 	}
 
+	// Track counts for discovery info
+	discoveredCount := len(discoveredReplicas)
+	providedCount := len(providedEndpoints)
+
 	// Case 1: No replicas discovered and none provided
-	if len(discoveredReplicas) == 0 && len(providedEndpoints) == 0 {
+	if discoveredCount == 0 && providedCount == 0 {
 		utils.PrintAndLogfInfo("No read replicas detected. Proceeding with single-node assessment.")
-		return nil, nil
+		return ReplicaDiscoveryInfo{
+			DiscoveredCount:   0,
+			UserProvidedCount: 0,
+			ValidatedReplicas: nil,
+		}, nil
 	}
+
+	var validatedReplicas []srcdb.ReplicaEndpoint
 
 	// Case 2: Replicas discovered but none provided - best-effort validation
-	if len(discoveredReplicas) > 0 && len(providedEndpoints) == 0 {
-		return processDiscoveredReplicasWhenNoEndpointsProvided(pg, discoveredReplicas)
+	if discoveredCount > 0 && providedCount == 0 {
+		validatedReplicas, err = processDiscoveredReplicasWhenNoEndpointsProvided(pg, discoveredReplicas)
+		if err != nil {
+			return ReplicaDiscoveryInfo{}, err
+		}
+	} else if providedCount > 0 {
+		// Case 3 & 4: Endpoints provided (with or without discovery)
+		validatedReplicas, err = processProvidedEndpoints(pg, discoveredReplicas, providedEndpoints)
+		if err != nil {
+			return ReplicaDiscoveryInfo{}, err
+		}
 	}
 
-	// Case 3 & 4: Endpoints provided (with or without discovery)
-	if len(providedEndpoints) > 0 {
-		return processProvidedEndpoints(pg, discoveredReplicas, providedEndpoints)
-	}
-
-	return nil, nil
+	return ReplicaDiscoveryInfo{
+		DiscoveredCount:   discoveredCount,
+		UserProvidedCount: providedCount,
+		ValidatedReplicas: validatedReplicas,
+	}, nil
 }
 
 // displayDiscoveredReplicas displays information about discovered replicas
