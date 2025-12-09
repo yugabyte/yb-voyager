@@ -1786,10 +1786,19 @@ func saveTableToUniqueKeyColumnsMapInMetaDB(tableList []sqlname.NameTuple, leafP
 	if err != nil {
 		utils.ErrExit("get table to unique key columns map: %w", err)
 	}
+
 	if res == nil {
-		log.Infof("no table to unique key columns map found, skipping saving to metaDB")
+		log.Infof("no table to unique key columns map found, saving nil to metaDB")
+		key := fmt.Sprintf("%s_%s", metadb.TABLE_TO_UNIQUE_KEY_COLUMNS_KEY, exporterRole)
+		err = metadb.UpdateJsonObjectInMetaDB(metaDB, key, func(record *map[string][]string) {
+			*record = nil
+		})
+		if err != nil {
+			utils.ErrExit("insert table to unique key columns map: %w", err)
+		}
 		return
 	}
+
 
 	//Adding all the leaf partitions unique key columns to the root table unique key columns since in the importer all the events only have the root table name
 	leafPartitions.IterKV(func(rootTable sqlname.NameTuple, value []sqlname.NameTuple) (bool, error) {
