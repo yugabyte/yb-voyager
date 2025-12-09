@@ -816,7 +816,3 @@ func (tdb *TargetOracleDB) GetEnabledTriggersAndFks() (enabledTriggers []string,
 	// TODO: implement this function for oracle guardrails
 	return nil, nil, nil
 }
-
-// func (tdb *TargetOracleDB) GetTablesHavingExpressionUniqueIndexes(tableNames []sqlname.NameTuple) ([]sqlname.NameTuple, error) {
-// 	return nil, nil
-// }
