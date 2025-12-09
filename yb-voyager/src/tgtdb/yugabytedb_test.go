@@ -1057,10 +1057,7 @@ func TestGetTablesHavingExpressionIndexes(t *testing.T) {
 		partitionedTable4,
 		partitionedTable5,
 	}
-
-	version := testYugabyteDBTarget.QueryRow("SELECT version()")
-	fmt.Println("version: ", version)
-
+	
 	yb, ok := testYugabyteDBTarget.TargetDB.(*TargetYugabyteDB)
 	require.True(t, ok)
 
