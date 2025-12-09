@@ -443,11 +443,9 @@ func runGatherAssessmentMetadataScriptBuffered(
 	}
 
 	// Report starting status
-	if progressChan != nil {
-		progressChan <- NodeProgress{
-			NodeName: nodeName,
-			Stage:    "Starting collection...",
-		}
+	progressChan <- NodeProgress{
+		NodeName: nodeName,
+		Stage:    "Starting collection...",
 	}
 
 	var wg sync.WaitGroup
@@ -472,13 +470,11 @@ func runGatherAssessmentMetadataScriptBuffered(
 			log.Infof("[%s][stdout]: %s", nodeName, line)
 
 			// Detect stage changes from script output
-			if progressChan != nil {
-				stage := detectStageFromOutput(line)
-				if stage != "" {
-					progressChan <- NodeProgress{
-						NodeName: nodeName,
-						Stage:    stage,
-					}
+			stage := detectStageFromOutput(line)
+			if stage != "" {
+				progressChan <- NodeProgress{
+					NodeName: nodeName,
+					Stage:    stage,
 				}
 			}
 		}
@@ -491,22 +487,18 @@ func runGatherAssessmentMetadataScriptBuffered(
 	err = cmd.Wait()
 	if err != nil {
 		// Send Failed status to progress channel for ANY error
-		if progressChan != nil {
-			progressChan <- NodeProgress{
-				NodeName: nodeName,
-				Stage:    "Failed",
-			}
+		progressChan <- NodeProgress{
+			NodeName: nodeName,
+			Stage:    "Failed",
 		}
 		log.Errorf("[%s] Script failed with error: %v", nodeName, err)
 		return fmt.Errorf("error waiting for gather assessment metadata script to complete: %w", err)
 	}
 
 	// Report completion
-	if progressChan != nil {
-		progressChan <- NodeProgress{
-			NodeName: nodeName,
-			Stage:    "Complete",
-		}
+	progressChan <- NodeProgress{
+		NodeName: nodeName,
+		Stage:    "Complete",
 	}
 
 	return nil
