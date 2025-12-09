@@ -2231,7 +2231,7 @@ table_to_root AS (
     
     -- Recursive case: if current table has a parent, traverse up
     SELECT 
-      ep.current_oid,
+      ep.table_oid,
       parent_t.oid AS current_oid,
       ep.table_schema,
       ep.table_name,
@@ -2242,7 +2242,10 @@ table_to_root AS (
     JOIN pg_class parent_t ON inh.inhparent = parent_t.oid
     JOIN pg_namespace parent_ns ON parent_t.relnamespace = parent_ns.oid
   )
-  SELECT * FROM expand_partitions
+  -- For each table, get its root (the one with no parent)
+  SELECT 
+  *
+  FROM expand_partitions
 ),
 -- Step 2: Find all tables (including leaf partitions) that have expression unique indexes
 tables_with_expression_indexes AS (
