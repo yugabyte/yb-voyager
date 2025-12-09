@@ -2204,54 +2204,13 @@ func (yb *TargetYugabyteDB) NumOfLogicalReplicationSlots() (int64, error) {
 	return numOfSlots, nil
 }
 
-func (yb *TargetYugabyteDB) GetTablesHavingExpressionUniqueIndexes(tableNames []sqlname.NameTuple) ([]string, error) {
-	tableNamesStr := strings.Join(lo.Map(tableNames, func(t sqlname.NameTuple, _ int) string {
-		schema, table := t.ForCatalogQuery()
-		return fmt.Sprintf("('%s','%s')", schema, table)
+func (yb *TargetYugabyteDB) GetTablesHavingExpressionUniqueIndexes(tableNames []string) ([]string, error) {
+	tableNamesStr := strings.Join(lo.Map(tableNames, func(t string, _ int) string {
+		return fmt.Sprintf("('%s')", t)
 	}), ",")
 
 	query := fmt.Sprintf(`
-WITH table_list(schema_name, table_name) AS (VALUES %s),
--- Step 1: Create a mapping of all tables (especially leaf partitions) to their root tables
-table_to_root AS (
-  WITH RECURSIVE expand_partitions AS (
-    -- Base case: all tables start as their own root
-    SELECT 
-      t.oid AS table_oid,
-      t.oid AS current_oid,
-      n.nspname AS table_schema,
-      t.relname AS table_name,
-      n.nspname AS root_schema,
-      t.relname AS root_name
-    FROM pg_class t
-    JOIN pg_namespace n ON t.relnamespace = n.oid
-    WHERE t.relkind IN ('r', 'p')  -- regular tables and partitioned tables
-    
-    UNION ALL
-    
-    -- Recursive case: if current table has a parent, traverse up
-    SELECT 
-      ep.table_oid,
-      parent_t.oid AS current_oid,
-      ep.table_schema,
-      ep.table_name,
-      parent_ns.nspname AS root_schema,
-      parent_t.relname AS root_name
-    FROM expand_partitions ep
-    JOIN pg_inherits inh ON ep.current_oid = inh.inhrelid
-    JOIN pg_class parent_t ON inh.inhparent = parent_t.oid
-    JOIN pg_namespace parent_ns ON parent_t.relnamespace = parent_ns.oid
-  )
-  -- For each table, get its root (the one with no parent)
-  SELECT 
-  *
-  FROM expand_partitions
-),
--- Step 2: Find all tables (including leaf partitions) that have expression unique indexes
-tables_with_expression_indexes AS (
-  SELECT 
-    t.oid AS table_oid,
-    t.oid AS index_table_oid,
+SELECT
     n.nspname AS table_schema,
     t.relname AS table_name,
     i.relname AS index_name,
@@ -2263,18 +2222,7 @@ tables_with_expression_indexes AS (
   WHERE i.relkind = 'i'
     AND idx.indisunique
     AND idx.indexprs IS NOT NULL  -- expression index
-)
--- Step 3: Join to get root table for each table with expression index
-SELECT 
-    ttr.table_schema AS schema_name,
-    ttr.table_name AS table_name,
-    twei.index_name,
-    twei.expression
-FROM tables_with_expression_indexes twei
-JOIN table_to_root ttr ON twei.table_oid = ttr.table_oid
-WHERE (ttr.root_schema, ttr.root_name) IN (SELECT schema_name, table_name FROM table_list)
-ORDER BY ttr.root_schema, ttr.root_name, twei.index_name;`, tableNamesStr)
-
+	AND (n.nspname || '.' || t.relname) IN (%s);`, tableNamesStr)
 	log.Debugf("query: %s", query)
 	rows, err := yb.Query(query)
 	if err != nil {

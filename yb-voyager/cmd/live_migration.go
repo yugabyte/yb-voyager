@@ -267,8 +267,13 @@ func getExpressionUniqueIndexTables(tableNames []sqlname.NameTuple) ([]sqlname.N
 		tableCatalogNameToTuple[t.AsQualifiedCatalogName()] = t
 	}
 
+	catalogTableNames := make([]string, 0)
+	catalogTableNames = append(catalogTableNames, lo.Keys(leafTableToRootTableMap)...) //all partitions
+	catalogTableNames = append(catalogTableNames, lo.Keys(tableCatalogNameToTuple)...) //all normal tables/root tables
+	catalogTableNames = lo.Uniq(catalogTableNames)                                     //remove duplicates
+
 	//returns a list of catalog table names, in case partitions it return catalog leaf partitions names and root table names
-	expressionUniqueIndexTablesIncludingLeafPartitions, err := yb.GetTablesHavingExpressionUniqueIndexes(tableNames)
+	expressionUniqueIndexTablesIncludingLeafPartitions, err := yb.GetTablesHavingExpressionUniqueIndexes(catalogTableNames)
 	if err != nil {
 		return nil, fmt.Errorf("error getting tables having expression or normal unique indexes: %w", err)
 	}
