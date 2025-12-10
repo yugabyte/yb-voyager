@@ -52,6 +52,7 @@ type LiveMigrationTest struct {
 
 	SnapshotTimeout  time.Duration
 	StreamingTimeout time.Duration
+	StreamingSleep   time.Duration
 	CutoverTimeout   time.Duration
 }
 
@@ -392,8 +393,12 @@ func (lm *LiveMigrationTest) WaitForStreamingComplete(tableName string, expected
 	if timeout == 0 {
 		timeout = 30
 	}
+	sleep := lm.StreamingSleep
+	if sleep == 0 {
+		sleep = 1
+	}
 
-	ok := utils.RetryWorkWithTimeout(1, timeout, func() bool {
+	ok := utils.RetryWorkWithTimeout(sleep, timeout, func() bool {
 		ok, err := lm.streamingPhaseCompleted(tableName, expectedInserts, expectedUpdates, expectedDeletes)
 		if err != nil {
 			testutils.FatalIfError(lm.t, err, "failed to get data migration report")
