@@ -154,7 +154,7 @@ stages:
 
   # 11) Initiate cutover
   - name: cutover_to_target
-    action: voyager_cutover
+    action: cutover_to_target
 
   # 12b) Wait for cutover completion
   - name: wait_cutover_completed

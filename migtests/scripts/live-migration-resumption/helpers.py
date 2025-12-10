@@ -773,11 +773,8 @@ def append_stage_summary(artifacts_dir: str, stage_name: str, start_ts: str, end
 # Path prep and cleanup (unconditional)
 # -------------------------
 
-def prepare_paths(test_root: str, export_dir: str, artifacts_dir: str) -> None:
+def prepare_paths(export_dir: str, artifacts_dir: str) -> None:
     """Delete and recreate export_dir and artifacts_dir.
-
-    Caller guarantees these paths are correct; this function does not add
-    additional guardrails, per framework requirements.
     """
     for p in (export_dir, artifacts_dir):
         try:

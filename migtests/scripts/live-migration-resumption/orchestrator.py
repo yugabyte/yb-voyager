@@ -40,7 +40,7 @@ def get_action(name: str) -> Callable[[Dict[str, Any], Any], None]:
 
 @action("run_sql")
 def run_sql_action(stage: Dict[str, Any], ctx: Any) -> None:
-    # Execute SQL against source/target based on stage params (placeholder)
+    # Execute SQL against source/target based on stage params
     sql_path = stage.get("sql_path")
     target = stage.get("target", "source")
     use_admin = bool(stage.get("use_admin"))
@@ -241,7 +241,7 @@ def main() -> None:
         sys.exit(0)
 
     # Prepare paths by cleaning and recreating export-dir and artifacts
-    H.prepare_paths(test_root, cfg["export_dir"], cfg["artifacts_dir"])
+    H.prepare_paths(cfg["export_dir"], cfg["artifacts_dir"])
 
     ctx = H.Context(cfg=cfg, run_id=run_id, env=env, test_root=test_root)
 
