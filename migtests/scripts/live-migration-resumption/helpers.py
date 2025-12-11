@@ -238,7 +238,32 @@ def _cmd_str(cmd: list[str]) -> str:
 
 def spawn(cmd: list[str], env: Dict[str, str]) -> subprocess.Popen:
     log(f"spawn: {_cmd_str(cmd)}")
-    return subprocess.Popen(cmd, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    proc = subprocess.Popen(
+        cmd,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
+
+    # Best-effort startup validation: if the process dies quickly with a non-zero
+    # exit code, treat it as a failure instead of a successful background start.
+    import time as _time
+    startup_wait_seconds = 2
+    _time.sleep(startup_wait_seconds)
+
+    if proc.poll() is not None and proc.returncode != 0:
+        try:
+            out, _ = proc.communicate(timeout=5)
+        except Exception:
+            out = ""
+        raise RuntimeError(
+            f"Command failed to start: {_cmd_str(cmd)}\n"
+            f"Exit: {proc.returncode}\n"
+            f"STDOUT/STDERR:\n{out}"
+        )
+
+    return proc
 
 
 def run_checked(cmd: list[str], env: Dict[str, str], description: str | None = None) -> None:
@@ -970,9 +995,10 @@ def reset_database_for_role(role: str, ctx) -> None:
         _reset_database(ctx.cfg["source"], admin_db_name="postgres", role=role)
     elif role == "target":
         _reset_database(ctx.cfg["target"], admin_db_name="yugabyte", role=role)
+    elif role == "source_replica":
+        _reset_database(ctx.cfg["source_replica"], admin_db_name="postgres", role=role)
     else:
         raise ValueError(f"Unsupported database role for reset: {role}")
-
 
 
 # -------------------------

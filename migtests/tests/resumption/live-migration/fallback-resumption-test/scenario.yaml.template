@@ -51,14 +51,14 @@ generator_target:
       manual_table_list: []
       exclude_table_list: [cutover_table]
       num_iterations: -1
-      wait_after_operations: 1000
+      wait_after_operations: 5000
       wait_duration_seconds: 1
       table_weights: {}
-      operation_weights: {INSERT: 3, UPDATE: 2, DELETE: 1}
+      operation_weights: {INSERT: 3, UPDATE: 2, DELETE: 2}
       random_seed: 456
       faker_seed: 456
-      insert_rows: 3
-      update_rows: 2
+      insert_rows: 6
+      update_rows: 4
       delete_rows: 1
       insert_max_retries: 5
       update_max_retries: 1
@@ -194,16 +194,16 @@ stages:
     action: start_resumptions
     resumption:
       export_from_target:
-        max_restarts: 10
-        min_interrupt_seconds: 20
+        max_restarts: 25
+        min_interrupt_seconds: 15
         max_interrupt_seconds: 60
-        min_restart_wait_seconds: 10
+        min_restart_wait_seconds: 5
         max_restart_wait_seconds: 30
       import_to_source:
-        max_restarts: 10
-        min_interrupt_seconds: 20
+        max_restarts: 25
+        min_interrupt_seconds: 15
         max_interrupt_seconds: 60
-        min_restart_wait_seconds: 10
+        min_restart_wait_seconds: 5
         max_restart_wait_seconds: 30
 
   - name: soak_fallback_with_resumptions
