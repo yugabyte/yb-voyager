@@ -157,6 +157,7 @@ func TestAssessmentReportStructs(t *testing.T) {
 				MigrationComplexity            string                                `json:"MigrationComplexity"`
 				MigrationComplexityExplanation string                                `json:"MigrationComplexityExplanation"`
 				SchemaSummary                  utils.SchemaSummary                   `json:"SchemaSummary"`
+				NumReplicasUsed                int                                   `json:"NumReplicasUsed,omitempty"`
 				Sizing                         *migassessment.SizingAssessmentReport `json:"Sizing"`
 				Issues                         []AssessmentIssue                     `json:"AssessmentIssues"`
 				TableIndexStats                *[]migassessment.TableIndexStats      `json:"TableIndexStats"`
