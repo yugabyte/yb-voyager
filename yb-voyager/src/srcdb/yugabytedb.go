@@ -40,7 +40,10 @@ import (
 // Apart from these we also skip UDT columns. Array of enums, hstore, and tsvector are supported with logical connector (default).
 var YugabyteUnsupportedDataTypesForDbzmLogical = []string{"BOX", "CIRCLE", "LINE", "LSEG", "PATH", "PG_LSN", "POINT", "POLYGON", "TSQUERY", "TXID_SNAPSHOT", "GEOMETRY", "GEOGRAPHY", "RASTER"}
 
-var YugabyteUnsupportedDataTypesForDbzmGrpc = []string{"BOX", "CIRCLE", "LINE", "LSEG", "PATH", "PG_LSN", "POINT", "POLYGON", "TSQUERY", "TSVECTOR", "TXID_SNAPSHOT", "GEOMETRY", "GEOGRAPHY", "RASTER", "HSTORE"}
+
+//For the gRPC and datatypes like HSTORE/CITEXT/LTREE these are types that are available by extensions are not supported and the table of those columns needs to be skipped for the migration
+//but right now we are only skipping columns of that table and in there are DML on those tables the gRPC will error out. TODO to handle that
+var YugabyteUnsupportedDataTypesForDbzmGrpc = []string{"BOX", "CIRCLE", "LINE", "LSEG", "PATH", "PG_LSN", "POINT", "POLYGON", "TSQUERY", "TSVECTOR", "TXID_SNAPSHOT", "GEOMETRY", "GEOGRAPHY", "RASTER", "HSTORE", "CITEXT", "LTREE"}
 
 func GetYugabyteUnsupportedDatatypesDbzm(isGRPCConnector bool) []string {
 	if isGRPCConnector {
