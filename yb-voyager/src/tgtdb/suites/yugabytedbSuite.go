@@ -25,8 +25,8 @@ import (
 	"time"
 
 	goerrors "github.com/go-errors/errors"
-
 	"github.com/samber/lo"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/schemareg"
 )
 
@@ -56,6 +56,7 @@ var YBValueConverterSuite = map[string]ConverterFn{
 	"io.debezium.data.Enum":     quoteValueIfRequiredWithEscaping,
 	"io.debezium.time.Interval": quoteValueIfRequired,
 	"io.debezium.data.Uuid":     quoteValueIfRequired,
+	"io.debezium.data.Ltree":    quoteValueIfRequired,
 	"io.debezium.time.Date": func(columnValue string, formatIfRequired bool, dbzmSchema *schemareg.ColumnSchema) (string, error) {
 		epochDays, err := strconv.ParseInt(columnValue, 10, 64)
 		if err != nil {
