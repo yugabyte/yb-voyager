@@ -524,7 +524,7 @@ func checkExportDataPermissions(finalTableList []sqlname.NameTuple) {
 		}
 	}
 
-	missingPermissions, err := source.DB().GetMissingExportDataPermissions(exportType, finalTableList)
+	missingPermissions, hasCriticalIssues, err := source.DB().GetMissingExportDataPermissions(exportType, finalTableList)
 	if err != nil {
 		utils.ErrExit("get missing export data permissions: %w", err)
 	}
@@ -541,7 +541,12 @@ func checkExportDataPermissions(finalTableList []sqlname.NameTuple) {
 		}
 		fmt.Println("\nCheck the documentation to prepare the database for migration:", color.BlueString(link))
 
-		// Make a prompt to the user to continue even with missing permissions
+		// Handle critical issues - no override allowed
+		if hasCriticalIssues {
+			utils.ErrExit("Live migration cannot proceed without the critical requirements.")
+		}
+
+		// Non-critical issues - allow override
 		reply := utils.AskPrompt("\nDo you want to continue anyway")
 		if !reply {
 			utils.ErrExit("Grant the required permissions and make the changes in configurations and try again.")

@@ -1175,8 +1175,9 @@ The function performs the following checks:
   - Checks if the user has create permission on the database.
   - Checks if the user has ownership over all tables.
 */
-func (pg *PostgreSQL) GetMissingExportDataPermissions(exportType string, finalTableList []sqlname.NameTuple) ([]string, error) {
+func (pg *PostgreSQL) GetMissingExportDataPermissions(exportType string, finalTableList []sqlname.NameTuple) ([]string, bool, error) {
 	var combinedResult []string
+	hasCriticalMissingPermissions := false
 	qualifiedMinQuotedTableNames := lo.Map(finalTableList, func(table sqlname.NameTuple, _ int) string {
 		return table.ForOutput()
 	})
@@ -1192,14 +1193,14 @@ func (pg *PostgreSQL) GetMissingExportDataPermissions(exportType string, finalTa
 
 		isMigrationUserASuperUser, err := pg.isMigrationUserASuperUser()
 		if err != nil {
-			return nil, fmt.Errorf("error in checking if migration user is a superuser: %w", err)
+			return nil, false, fmt.Errorf("error in checking if migration user is a superuser: %w", err)
 		}
 
 		// Check user has replication permission
 		if !isMigrationUserASuperUser {
 			hasReplicationPermission, err := pg.checkReplicationPermission()
 			if err != nil {
-				return nil, fmt.Errorf("error in checking replication permission: %w", err)
+				return nil, false, fmt.Errorf("error in checking replication permission: %w", err)
 			}
 			if !hasReplicationPermission {
 				combinedResult = append(combinedResult, fmt.Sprintf("\n%sREPLICATION", color.RedString("Missing role for user "+pg.source.User+": ")))
@@ -1209,7 +1210,7 @@ func (pg *PostgreSQL) GetMissingExportDataPermissions(exportType string, finalTa
 		// Check user has create permission on db
 		hasCreatePermission, err := pg.checkCreatePermissionOnDB()
 		if err != nil {
-			return nil, fmt.Errorf("error in checking create permission: %w", err)
+			return nil, false, fmt.Errorf("error in checking create permission: %w", err)
 		}
 		if !hasCreatePermission {
 			combinedResult = append(combinedResult, fmt.Sprintf("\n%sCREATE on database %s", color.RedString("Missing permission for user "+pg.source.User+": "), pg.source.DBName))
@@ -1218,16 +1219,17 @@ func (pg *PostgreSQL) GetMissingExportDataPermissions(exportType string, finalTa
 		// Check replica identity of tables
 		missingTables, err := pg.listTablesMissingReplicaIdentityFull(queryTableList)
 		if err != nil {
-			return nil, fmt.Errorf("error in checking table replica identity: %w", err)
+			return nil, false, fmt.Errorf("error in checking table replica identity: %w", err)
 		}
 		if len(missingTables) > 0 {
-			combinedResult = append(combinedResult, fmt.Sprintf("\n%s[%s]", color.RedString("Tables missing replica identity full: "), strings.Join(missingTables, ", ")))
+			hasCriticalMissingPermissions = true
+			combinedResult = append(combinedResult, fmt.Sprintf("\n%s[%s]", color.RedString("[CRITICAL] Tables missing replica identity full: "), strings.Join(missingTables, ", ")))
 		}
 
 		// Check if user has ownership over all tables
 		missingTables, err = pg.listTablesMissingOwnerPermission(queryTableList)
 		if err != nil {
-			return nil, fmt.Errorf("error in checking table owner permissions: %w", err)
+			return nil, false, fmt.Errorf("error in checking table owner permissions: %w", err)
 		}
 		if len(missingTables) > 0 {
 			combinedResult = append(combinedResult, fmt.Sprintf("\n%s[%s]", color.RedString("Missing ownership for user %s on Tables: ", pg.source.User), strings.Join(missingTables, ", ")))
@@ -1236,7 +1238,7 @@ func (pg *PostgreSQL) GetMissingExportDataPermissions(exportType string, finalTa
 		// Check if sequences have SELECT permission
 		sequencesWithMissingPerm, err := pg.listSequencesMissingSelectPermission()
 		if err != nil {
-			return nil, fmt.Errorf("error in checking sequence select permissions: %w", err)
+			return nil, false, fmt.Errorf("error in checking sequence select permissions: %w", err)
 		}
 		if len(sequencesWithMissingPerm) > 0 {
 			combinedResult = append(combinedResult, fmt.Sprintf("\n%s[%s]", color.RedString("Missing SELECT permission for user %s on Sequences: ", pg.source.User), strings.Join(sequencesWithMissingPerm, ", ")))
@@ -1246,21 +1248,21 @@ func (pg *PostgreSQL) GetMissingExportDataPermissions(exportType string, finalTa
 		// Check if schemas have USAGE permission and check if tables in the provided schemas have SELECT permission
 		res, err := pg.GetMissingExportSchemaPermissions(queryTableList)
 		if err != nil {
-			return nil, fmt.Errorf("error in getting missing export data permissions: %w", err)
+			return nil, false, fmt.Errorf("error in getting missing export data permissions: %w", err)
 		}
 		combinedResult = append(combinedResult, res...)
 
 		// Check if sequences have SELECT permission
 		sequencesWithMissingPerm, err := pg.listSequencesMissingSelectPermission()
 		if err != nil {
-			return nil, fmt.Errorf("error in checking sequence select permissions: %w", err)
+			return nil, false, fmt.Errorf("error in checking sequence select permissions: %w", err)
 		}
 		if len(sequencesWithMissingPerm) > 0 {
 			combinedResult = append(combinedResult, fmt.Sprintf("\n%s[%s]", color.RedString("Missing SELECT permission for user %s on Sequences: ", pg.source.User), strings.Join(sequencesWithMissingPerm, ", ")))
 		}
 	}
 
-	return combinedResult, nil
+	return combinedResult, hasCriticalMissingPermissions, nil
 }
 
 func (pg *PostgreSQL) GetMissingAssessMigrationPermissions() ([]string, bool, error) {
