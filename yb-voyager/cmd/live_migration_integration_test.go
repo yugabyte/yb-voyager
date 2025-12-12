@@ -173,6 +173,7 @@ CREATE TABLE test_schema.test_live (
 	email TEXT,
 	description TEXT
 );`
+	setReplicaIdentitySQL := `ALTER TABLE test_schema.test_live REPLICA IDENTITY FULL;`
 	insertDataSQL := `
 INSERT INTO test_schema.test_live (name, email, description)
 SELECT
@@ -198,6 +199,7 @@ FROM generate_series(1, 10);`
 	postgresContainer.ExecuteSqls([]string{
 		createSchemaSQL,
 		createTableSQL,
+		setReplicaIdentitySQL,
 		insertDataSQL,
 	}...)
 
@@ -310,6 +312,7 @@ CREATE TABLE test_schema.test_live (
 	email TEXT,
 	description TEXT
 );`
+	setReplicaIdentitySQL := `ALTER TABLE test_schema.test_live REPLICA IDENTITY FULL;`
 	insertDataSQL := `
 INSERT INTO test_schema.test_live (name, email, description)
 SELECT
@@ -335,6 +338,7 @@ FROM generate_series(1, 20);`
 	postgresContainer.ExecuteSqls([]string{
 		createSchemaSQL,
 		createTableSQL,
+		setReplicaIdentitySQL,
 		insertDataSQL,
 	}...)
 
@@ -484,6 +488,7 @@ CREATE TABLE test_schema.test_live (
 	email TEXT,
 	description TEXT
 );`
+	setReplicaIdentitySQL := `ALTER TABLE test_schema.test_live REPLICA IDENTITY FULL;`
 	insertDataSQL := `
 INSERT INTO test_schema.test_live (name, email, description)
 SELECT
@@ -509,6 +514,7 @@ FROM generate_series(1, 20);`
 	postgresContainer.ExecuteSqls([]string{
 		createSchemaSQL,
 		createTableSQL,
+		setReplicaIdentitySQL,
 		insertDataSQL,
 	}...)
 
@@ -636,6 +642,7 @@ CREATE TABLE test_schema.test_live (
 	email TEXT,
 	description TEXT
 );`
+	setReplicaIdentitySQL := `ALTER TABLE test_schema.test_live REPLICA IDENTITY FULL;`
 	insertDataSQL := `
 INSERT INTO test_schema.test_live (name, email, description)
 SELECT
@@ -661,6 +668,7 @@ FROM generate_series(1, 10);`
 	postgresContainer.ExecuteSqls([]string{
 		createSchemaSQL,
 		createTableSQL,
+		setReplicaIdentitySQL,
 		insertDataSQL,
 	}...)
 

@@ -776,8 +776,8 @@ func (ora *Oracle) GetMissingExportSchemaPermissions(queryTableList string) ([]s
 	return nil, nil
 }
 
-func (ora *Oracle) GetMissingExportDataPermissions(exportType string, finalTableList []sqlname.NameTuple) ([]string, error) {
-	return nil, nil
+func (ora *Oracle) GetMissingExportDataPermissions(exportType string, finalTableList []sqlname.NameTuple) ([]string, bool, error) {
+	return nil, false, nil
 }
 
 func (ora *Oracle) GetMissingAssessMigrationPermissions() ([]string, bool, error) {
