@@ -146,6 +146,7 @@ func (lm *LiveMigrationTest) InitMetaDB() error {
 	}
 	return nil
 }
+
 // Cleanup runs all cleanup operations (called via defer)
 func (lm *LiveMigrationTest) Cleanup() {
 	fmt.Printf("Cleaning up\n")
@@ -291,8 +292,8 @@ func (lm *LiveMigrationTest) ResumeExportData(async bool) error {
 }
 
 // InitiateCutover initiates cutover to target
-func (lm *LiveMigrationTest) InitiateCutover(prepareForFallback bool, extraArgs map[string]string) error {
-	fmt.Printf("Initiating cutover\n")
+func (lm *LiveMigrationTest) InitiateCutoverToTarget(prepareForFallback bool, extraArgs map[string]string) error {
+	fmt.Printf("Initiating cutover to target\n")
 	args := []string{
 		"--export-dir", lm.exportDir,
 		"--yes",
@@ -309,7 +310,29 @@ func (lm *LiveMigrationTest) InitiateCutover(prepareForFallback bool, extraArgs 
 	if err != nil {
 		return fmt.Errorf("failed to initiate cutover: %w", err)
 	}
-	fmt.Printf("Cutover initiated\n")
+	fmt.Printf("Cutover initiated to target\n")
+	return nil
+}
+
+// InitiateCutover initiates cutover to target
+func (lm *LiveMigrationTest) InitiateCutoverToSource(extraArgs map[string]string) error {
+	fmt.Printf("Initiating cutover to source\n")
+	args := []string{
+		"--export-dir", lm.exportDir,
+		"--yes",
+	}
+
+	// Add extra args
+	for key, value := range extraArgs {
+		args = append(args, key, value)
+	}
+
+	cutoverCmd := testutils.NewVoyagerCommandRunner(nil, "initiate cutover to source", args, nil, false)
+	err := cutoverCmd.Run()
+	if err != nil {
+		return fmt.Errorf("failed to initiate cutover: %w", err)
+	}
+	fmt.Printf("Cutover initiated to source\n")
 	return nil
 }
 
@@ -386,8 +409,8 @@ func (lm *LiveMigrationTest) WaitForSnapshotComplete(tableName string, expectedR
 	return nil
 }
 
-// WaitForStreamingComplete waits until streaming events are processed
-func (lm *LiveMigrationTest) WaitForStreamingComplete(tableName string, expectedInserts int64, expectedUpdates int64, expectedDeletes int64) error {
+// WaitForForwardStreamingComplete waits until streaming events are processed
+func (lm *LiveMigrationTest) WaitForForwardStreamingComplete(tableName string, expectedInserts int64, expectedUpdates int64, expectedDeletes int64) error {
 	fmt.Printf("Waiting for streaming complete\n")
 	timeout := lm.StreamingTimeout
 	if timeout == 0 {
@@ -399,7 +422,35 @@ func (lm *LiveMigrationTest) WaitForStreamingComplete(tableName string, expected
 	}
 
 	ok := utils.RetryWorkWithTimeout(sleep, timeout, func() bool {
-		ok, err := lm.streamingPhaseCompleted(tableName, expectedInserts, expectedUpdates, expectedDeletes)
+		ok, err := lm.streamingPhaseCompleted(tableName, expectedInserts, expectedUpdates, expectedDeletes, "source", "target")
+		if err != nil {
+			testutils.FatalIfError(lm.t, err, "failed to get data migration report")
+			return false
+		}
+		return ok
+	})
+
+	if !ok {
+		return fmt.Errorf("streaming phase did not complete within %v", timeout)
+	}
+	fmt.Printf("Streaming complete\n")
+	return nil
+}
+
+// WaitForForwardStreamingComplete waits until streaming events are processed
+func (lm *LiveMigrationTest) WaitForFallbackStreamingComplete(tableName string, expectedInserts int64, expectedUpdates int64, expectedDeletes int64) error {
+	fmt.Printf("Waiting for streaming complete\n")
+	timeout := lm.StreamingTimeout
+	if timeout == 0 {
+		timeout = 30
+	}
+	sleep := lm.StreamingSleep
+	if sleep == 0 {
+		sleep = 1
+	}
+
+	ok := utils.RetryWorkWithTimeout(sleep, timeout, func() bool {
+		ok, err := lm.streamingPhaseCompleted(tableName, expectedInserts, expectedUpdates, expectedDeletes, "target", "source")
 		if err != nil {
 			testutils.FatalIfError(lm.t, err, "failed to get data migration report")
 			return false
@@ -534,7 +585,7 @@ func (lm *LiveMigrationTest) snapshotPhaseCompleted(tableName string, expectedRo
 }
 
 // streamingPhaseCompleted checks if streaming phase is complete
-func (lm *LiveMigrationTest) streamingPhaseCompleted(tableName string, expectedInserts int64, expectedUpdates int64, expectedDeletes int64) (bool, error) {
+func (lm *LiveMigrationTest) streamingPhaseCompleted(tableName string, expectedInserts int64, expectedUpdates int64, expectedDeletes int64, exportFrom string, importTo string) (bool, error) {
 	fmt.Printf("Waiting for streaming complete\n")
 	report, err := lm.GetDataMigrationReport()
 	if err != nil {
@@ -550,12 +601,12 @@ func (lm *LiveMigrationTest) streamingPhaseCompleted(tableName string, expectedI
 
 	for _, row := range report.RowData {
 		if row.TableName == tableName {
-			if row.DBType == "source" {
+			if row.DBType == exportFrom {
 				exportInserts = row.ExportedInserts
 				exportUpdates = row.ExportedUpdates
 				exportDeletes = row.ExportedDeletes
 			}
-			if row.DBType == "target" {
+			if row.DBType == importTo {
 				importInserts = row.ImportedInserts
 				importUpdates = row.ImportedUpdates
 				importDeletes = row.ImportedDeletes

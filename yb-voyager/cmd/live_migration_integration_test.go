@@ -21,7 +21,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -30,97 +29,10 @@ import (
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/jsonfile"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
 ////=========================================
-
-// HELPER functions for live
-
-// checks for the snapshot phase completed in export and import both by checking the get data migration report
-func snapshotPhaseCompleted(t *testing.T, postgresPass string, targetPass string, snapshotRows int64, tableName string) bool {
-	err := testutils.NewVoyagerCommandRunner(nil, "get data-migration-report", []string{
-		"--export-dir", exportDir,
-		"--output-format", "json",
-		"--source-db-password", postgresPass,
-		"--target-db-password", targetPass,
-	}, nil, true).Run()
-	testutils.FatalIfError(t, err, "get data-migration-report command failed")
-
-	reportFilePath := filepath.Join(exportDir, "reports", "data-migration-report.json")
-	// Check if the report file exists and is not empty.
-	if ok := utils.FileOrFolderExists(reportFilePath); ok {
-		jsonFile := jsonfile.NewJsonFile[[]*rowData](reportFilePath)
-		rowData, err := jsonFile.Read()
-		testutils.FatalIfError(t, err, "error reading get data-migration-report")
-		exportSnapshot := 0
-		importSnapshot := 0
-		for _, row := range *rowData {
-			if row.TableName == tableName {
-				if row.DBType == "source" {
-					exportSnapshot = int(row.ExportedSnapshotRows)
-				}
-				if row.DBType == "target" {
-					importSnapshot = int(row.ImportedSnapshotRows)
-				}
-			}
-		}
-		if exportSnapshot == int(snapshotRows) && exportSnapshot == importSnapshot {
-			return true
-		}
-
-	}
-	return false
-}
-
-// checks for the streaming phase completed in export and import both by checking the get data migration report
-func streamingPhaseCompleted(t *testing.T, postgresPass string, targetPass string, streamingInserts int64, streamingUpdates int64, streamingDeletes int64, tableName string) bool {
-	err := testutils.NewVoyagerCommandRunner(nil, "get data-migration-report", []string{
-		"--export-dir", exportDir,
-		"--output-format", "json",
-		"--source-db-password", postgresPass,
-		"--target-db-password", targetPass,
-	}, nil, true).Run()
-	testutils.FatalIfError(t, err, "get data-migration-report command failed")
-
-	reportFilePath := filepath.Join(exportDir, "reports", "data-migration-report.json")
-	// Check if the report file exists and is not empty.
-	if ok := utils.FileOrFolderExists(reportFilePath); ok {
-		jsonFile := jsonfile.NewJsonFile[[]*rowData](reportFilePath)
-		rowData, err := jsonFile.Read()
-		testutils.FatalIfError(t, err, "error reading get data-migration-report")
-		exportInserts := 0
-		importInserts := 0
-		exportUpdates := 0
-		importUpdates := 0
-		exportDeletes := 0
-		importDeletes := 0
-		for _, row := range *rowData {
-			if row.TableName == tableName {
-				if row.DBType == "source" {
-					exportInserts = int(row.ExportedInserts)
-					exportUpdates = int(row.ExportedUpdates)
-					exportDeletes = int(row.ExportedDeletes)
-				}
-				if row.DBType == "target" {
-					importInserts = int(row.ImportedInserts)
-					importUpdates = int(row.ImportedUpdates)
-					importDeletes = int(row.ImportedDeletes)
-				}
-
-			}
-		}
-		if exportInserts == int(streamingInserts) && exportInserts == importInserts &&
-			exportUpdates == int(streamingUpdates) && exportUpdates == importUpdates &&
-			exportDeletes == int(streamingDeletes) && exportDeletes == importDeletes {
-			return true
-		}
-
-	}
-	return false
-}
 
 // This inserts some rows in target table having sequence and validates if the ids ingested are correct or not
 func assertSequenceValues(t *testing.T, startID int, endId int, ybConn *sql.DB, tableName string) error {
@@ -229,7 +141,7 @@ FROM generate_series(1, 5);`,
 	testutils.FatalIfError(t, err, "failed to execute source delta")
 
 	lm.StreamingTimeout = 30
-	err = lm.WaitForStreamingComplete(`test_schema."test_live"`, 5, 0, 0)
+	err = lm.WaitForForwardStreamingComplete(`test_schema."test_live"`, 5, 0, 0)
 	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
 
 	//validate streaming data
@@ -237,7 +149,7 @@ FROM generate_series(1, 5);`,
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
 
 	lm.CutoverTimeout = 50
-	err = lm.InitiateCutover(false, nil)
+	err = lm.InitiateCutoverToTarget(false, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover")
 
 	err = lm.WaitForCutoverComplete()
@@ -248,6 +160,151 @@ FROM generate_series(1, 5);`,
 		return assertSequenceValues(t, 16, 25, target, `test_schema.test_live`)
 	})
 	testutils.FatalIfError(t, err, "failed to validate sequence restoration")
+
+}
+
+func TestBasicLiveMigrationWithFallback(t *testing.T) {
+
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB: ContainerConfig{
+			Type:    "postgresql",
+			ForLive: true,
+		},
+		TargetDB: ContainerConfig{
+			Type: "yugabytedb",
+		},
+		SchemaNames: []string{"test_schema"},
+		SchemaSQL: []string{
+			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
+			`CREATE SCHEMA IF NOT EXISTS test_schema;
+			CREATE TABLE test_schema.test_live (
+				id SERIAL PRIMARY KEY,
+				name TEXT,
+				email TEXT,
+				description TEXT
+			);`,
+		},
+		SourceSetupSchemaSQL: []string{
+			`ALTER TABLE test_schema.test_live REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			`INSERT INTO test_schema.test_live (name, email, description)
+SELECT
+	md5(random()::text),                                      -- name
+	md5(random()::text) || '@example.com',                    -- email
+	repeat(md5(random()::text), 10)                           -- description (~320 chars)
+FROM generate_series(1, 10);`,
+		},
+		SourceDeltaSQL: []string{
+			`INSERT INTO test_schema.test_live (name, email, description)
+SELECT
+	md5(random()::text),                                      -- name
+	md5(random()::text) || '@example.com',                    -- email
+	repeat(md5(random()::text), 10)                           -- description (~320 chars)
+FROM generate_series(1, 5);`,
+		},
+		CleanupSQL: []string{
+			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
+		},
+		TargetDeltaSQL: []string{
+			`INSERT INTO test_schema.test_live (name, email, description)
+SELECT
+	md5(random()::text),                                      -- name
+	md5(random()::text) || '@example.com',                    -- email
+	repeat(md5(random()::text), 10)                           -- description (~320 chars)
+FROM generate_series(1, 5);`,
+		},
+	})
+
+	// defer lm.Cleanup()
+
+	err := lm.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+
+	err = lm.WithTargetConn(func(target *sql.DB) error {
+		var result int
+		err = target.QueryRow("SELECT 1").Scan(&result)
+		fmt.Printf("Result: %d\n", result)
+		if err != nil {
+			return fmt.Errorf("failed to query: %w", err)
+		}
+		rows, err := target.Query(`SELECT host,port from yb_servers();`)
+		if err != nil {
+			return fmt.Errorf("failed to execute query: %w", err)
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var host string
+			var port int
+			err := rows.Scan(&host, &port)
+			if err != nil {
+				return fmt.Errorf("failed to scan row: %w", err)
+			}
+			fmt.Printf("host: %s\n ", host)
+			fmt.Printf("port: %d\n", port)
+		}
+		return nil
+	})
+	testutils.FatalIfError(t, err, "failed to execute query")
+
+	err = lm.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
+
+	err = lm.StartExportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start export data")
+
+	err = lm.StartImportData(true, map[string]string{
+		"--log-level": "debug",
+	})
+	testutils.FatalIfError(t, err, "failed to start import data")
+
+	lm.SnapshotTimeout = 30
+	err = lm.WaitForSnapshotComplete(`test_schema."test_live"`, 10)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+
+	//validate snapshot data
+	err = lm.ValidateDataConsistency([]string{`test_schema."test_live"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	//execute source delta
+	err = lm.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
+
+	lm.StreamingTimeout = 30
+	err = lm.WaitForForwardStreamingComplete(`test_schema."test_live"`, 5, 0, 0)
+	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
+
+	//validate streaming data
+	err = lm.ValidateDataConsistency([]string{`test_schema."test_live"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	lm.CutoverTimeout = 50
+	//RIGHT NOW not using the fallback true
+	// err = lm.InitiateCutoverToTarget(true, nil)
+	err = lm.InitiateCutoverToTarget(false, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover")
+
+	err = lm.WaitForCutoverComplete()
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+
+	//validate sequence restoration
+	err = lm.WithTargetConn(func(target *sql.DB) error {
+		return assertSequenceValues(t, 16, 25, target, `test_schema.test_live`)
+	})
+	testutils.FatalIfError(t, err, "failed to validate sequence restoration")
+
+	// err = lm.ExecuteTargetDelta()
+	// testutils.FatalIfError(t, err, "failed to execute target delta")
+
+	// err = lm.WaitForFallbackStreamingComplete(`test_schema."test_live"`, 5, 0, 0)
+	// testutils.FatalIfError(t, err, "failed to wait for streaming complete")
+
+	// //validate streaming data
+	// err = lm.ValidateDataConsistency([]string{`test_schema."test_live"`}, "id")
+	// testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	// err = lm.InitiateCutoverToSource(nil)
+	// testutils.FatalIfError(t, err, "failed to initiate cutover to source")
 
 }
 
@@ -325,7 +382,7 @@ FROM generate_series(1, 15);`,
 	testutils.FatalIfError(t, err, "failed to execute source delta")
 
 	lm.StreamingTimeout = 30
-	err = lm.WaitForStreamingComplete(`test_schema."test_live"`, 15, 0, 0)
+	err = lm.WaitForForwardStreamingComplete(`test_schema."test_live"`, 15, 0, 0)
 	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
 
 	err = lm.ValidateDataConsistency([]string{`test_schema."test_live"`}, "id")
@@ -334,7 +391,7 @@ FROM generate_series(1, 15);`,
 	err = lm.StopImportData()
 	testutils.FatalIfError(t, err, "failed to stop import data")
 
-	err = lm.InitiateCutover(false, nil)
+	err = lm.InitiateCutoverToTarget(false, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover")
 
 	//drop sequence on target to simulate the failure at restore sequences during cutover
@@ -457,7 +514,7 @@ FROM generate_series(1, 15);`,
 	err = lm.ExecuteSourceDelta()
 	testutils.FatalIfError(t, err, "failed to execute source delta")
 
-	err = lm.WaitForStreamingComplete(`test_schema."test_live"`, 15, 0, 0)
+	err = lm.WaitForForwardStreamingComplete(`test_schema."test_live"`, 15, 0, 0)
 	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
 
 	err = lm.ValidateDataConsistency([]string{`test_schema."test_live"`}, "id")
@@ -467,7 +524,7 @@ FROM generate_series(1, 15);`,
 	testutils.FatalIfError(t, err, "failed to stop import data")
 
 	// Perform cutover
-	err = lm.InitiateCutover(false, nil)
+	err = lm.InitiateCutoverToTarget(false, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover")
 
 	err = lm.ResumeImportData(true, nil)
@@ -578,7 +635,7 @@ FROM generate_series(1, 10);`,
 	assert.Equal(t, importDataStatus.CdcPartitioningStrategyConfig, PARTITION_BY_PK)
 
 	// Perform cutover
-	err = lm.InitiateCutover(false, nil)
+	err = lm.InitiateCutoverToTarget(false, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover")
 
 }
@@ -705,13 +762,13 @@ FROM generate_series(1, 20) as i;`,
 
 	lm.StreamingTimeout = 100
 	lm.StreamingSleep = 5
-	err = lm.WaitForStreamingComplete(`test_schema."test_live"`, 1500, 2500, 1000)
+	err = lm.WaitForForwardStreamingComplete(`test_schema."test_live"`, 1500, 2500, 1000)
 	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
 
 	err = lm.ValidateDataConsistency([]string{`test_schema."test_live"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
 
-	err = lm.InitiateCutover(false, nil)
+	err = lm.InitiateCutoverToTarget(false, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover")
 
 }
@@ -837,13 +894,13 @@ FROM generate_series(1, 20) as i;`,
 
 	lm.StreamingTimeout = 120
 	lm.StreamingSleep = 5
-	err = lm.WaitForStreamingComplete(`test_schema."test_live_null_unique_values"`, 1500, 3000, 1000)
+	err = lm.WaitForForwardStreamingComplete(`test_schema."test_live_null_unique_values"`, 1500, 3000, 1000)
 	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
 
 	err = lm.ValidateDataConsistency([]string{`test_schema."test_live_null_unique_values"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
 
-	err = lm.InitiateCutover(false, nil)
+	err = lm.InitiateCutoverToTarget(false, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover")
 
 }
