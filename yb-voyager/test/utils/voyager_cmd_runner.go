@@ -180,7 +180,7 @@ func (v *VoyagerCommandRunner) Run() error {
 		return v.Wait()
 	}
 	return nil
-}
+}	
 
 func (v *VoyagerCommandRunner) Wait() error {
 	err := v.Cmd.Wait()
@@ -244,7 +244,7 @@ func (v *VoyagerCommandRunner) SetAsync(async bool) {
 func (v *VoyagerCommandRunner) printCommandHeader() {
 	fmt.Println()
 	fmt.Println(separator)
-	fmt.Printf(">>> Running: %s %s\n", v.CmdName, strings.Join(v.CmdArgs, " "))
+	fmt.Printf(">>> Running: %s\n", v.GetCmd())
 	fmt.Println(separator)
 }
 
@@ -258,4 +258,16 @@ func (v *VoyagerCommandRunner) printCommandFooter(err error) {
 	}
 	fmt.Println(separator)
 	fmt.Println()
+}
+
+func (v *VoyagerCommandRunner) AddArgs(args ...string) {
+	v.finalArgs = append(v.finalArgs, args...)
+}
+
+func (v *VoyagerCommandRunner) GetFinalArgs() []string {
+	return v.finalArgs
+}
+
+func (v *VoyagerCommandRunner) GetCmd() string {
+	return v.Cmd.String()
 }

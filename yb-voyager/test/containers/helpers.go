@@ -9,7 +9,6 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
-
 	"github.com/testcontainers/testcontainers-go"
 )
 
@@ -44,6 +43,18 @@ func printContainerLogs(container testcontainers.Container) {
 	}
 
 	containerID := container.GetContainerID()
+
+	_, r, err := container.Exec(context.Background(), []string{"bin/yugabyted", "status"})
+	if err != nil {
+		fmt.Printf("Error executing command in container %s: %v", containerID, err)
+		return
+	}
+	data, err := io.ReadAll(r)
+	if err != nil {
+		fmt.Printf("Error reading data from command in container %s: %v", containerID, err)
+		return
+	}
+	fmt.Printf("%s\n", string(data))
 	logs, err := container.Logs(context.Background())
 	if err != nil {
 		log.Printf("Error fetching logs for container %s: %v", containerID, err)
