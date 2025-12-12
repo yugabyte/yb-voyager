@@ -20,6 +20,8 @@ import (
 	"os"
 	"strings"
 
+	goerrors "github.com/go-errors/errors"
+
 	"github.com/fatih/color"
 	log "github.com/sirupsen/logrus"
 	"github.com/tebeka/atexit"
@@ -30,7 +32,7 @@ var originalErrExit func(formatString string, args ...interface{})
 var ErrExitErr error
 
 var ErrExit = func(formatString string, args ...interface{}) {
-	ErrExitErr = fmt.Errorf(formatString, args...)
+	ErrExitErr = goerrors.Errorf(formatString, args...)
 	formatString = strings.Replace(formatString, "%w", "%s", -1)
 	fmt.Fprintf(os.Stderr, formatString+"\n", args...)
 	log.Errorf(formatString+"\n", args...)
@@ -120,7 +122,7 @@ func printTitle(message string, printer *color.Color) {
 	borderLen := len(message)
 	border := strings.Repeat("=", borderLen)
 	printer.Printf("\n%s", border)
-	printer.Printf("%s\n",message)
+	printer.Printf("%s\n", message)
 	printer.Printf("%s\n", border)
 }
 

@@ -17,8 +17,9 @@ package queryparser
 
 import (
 	"encoding/json"
-	"fmt"
 	"strings"
+
+	goerrors "github.com/go-errors/errors"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -49,7 +50,7 @@ func GetAllPLPGSQLStatements(query string) ([]string, error) {
 	function := parsedJsonMap[PLPGSQL_FUNCTION]
 	parsedFunctionMap, ok := function.(map[string]interface{})
 	if !ok {
-		return []string{}, fmt.Errorf("the PlPgSQL_Function field is not a map in parsed json-%s", parsedJson)
+		return []string{}, goerrors.Errorf("the PlPgSQL_Function field is not a map in parsed json-%s", parsedJson)
 	}
 
 	actions := parsedFunctionMap[ACTION]
@@ -211,7 +212,7 @@ func formatExprQuery(q string) string {
 		json str -
 		"PLpgSQL_expr":{
 		"query":"'COMMIT PREPARED ''txn_db1'''",
-		
+
 	*/
 	q = strings.ReplaceAll(q, "''", "'")
 	if !strings.HasSuffix(q, ";") { // adding the ; to query in case not added already
@@ -234,7 +235,7 @@ func getParsedJsonMap(query string) (string, map[string]interface{}, error) {
 	log.Debugf("parsing the json string-%s of stmt-%s", parsedJson, query)
 	err = json.Unmarshal([]byte(parsedJson), &parsedJsonMapList)
 	if err != nil {
-		return parsedJson, nil, fmt.Errorf("error parsing the json string of stmt-%s: %v", query, err)
+		return parsedJson, nil, goerrors.Errorf("error parsing the json string of stmt-%s: %v", query, err)
 	}
 
 	if len(parsedJsonMapList) == 0 {
@@ -330,13 +331,13 @@ func GetAllTypeNamesInPlpgSQLStmt(query string) ([]string, error) {
 	function := parsedJsonMap[PLPGSQL_FUNCTION]
 	parsedFunctionMap, ok := function.(map[string]interface{})
 	if !ok {
-		return []string{}, fmt.Errorf("the PlPgSQL_Function field is not a map in parsed json-%s", parsedJson)
+		return []string{}, goerrors.Errorf("the PlPgSQL_Function field is not a map in parsed json-%s", parsedJson)
 	}
 
 	datums := parsedFunctionMap[DATUMS]
 	datumList, isList := datums.([]interface{})
 	if !isList {
-		return []string{}, fmt.Errorf("type names datums field is not list in parsed json-%s", parsedJson)
+		return []string{}, goerrors.Errorf("type names datums field is not list in parsed json-%s", parsedJson)
 	}
 
 	var typeNames []string
@@ -378,33 +379,33 @@ func getTypeNameFromPlpgSQLVar(plpgsqlVar interface{}) (string, error) {
 	//getting the map of <key,val > of PLpgSQL_Var json
 	valueMap, ok := plpgsqlVar.(map[string]interface{})
 	if !ok {
-		return "", fmt.Errorf("PLPGSQL_VAR is not a map-%v", plpgsqlVar)
+		return "", goerrors.Errorf("PLPGSQL_VAR is not a map-%v", plpgsqlVar)
 	}
 
 	//getting the "datatype" field of PLpgSQL_Var json
 	datatype, ok := valueMap[DATATYPE]
 	if !ok {
-		return "", fmt.Errorf("datatype is not in the PLPGSQL_VAR map-%v", valueMap)
+		return "", goerrors.Errorf("datatype is not in the PLPGSQL_VAR map-%v", valueMap)
 	}
 
 	datatypeValueMap, ok := datatype.(map[string]interface{})
 	if !ok {
-		return "", fmt.Errorf("datatype is not a map-%v", datatype)
+		return "", goerrors.Errorf("datatype is not a map-%v", datatype)
 	}
 
 	plpgsqlType, ok := datatypeValueMap[PLPGSQL_TYPE]
 	if !ok {
-		return "", fmt.Errorf("PLPGSQL_Type is not in the datatype map-%v", datatypeValueMap)
+		return "", goerrors.Errorf("PLPGSQL_Type is not in the datatype map-%v", datatypeValueMap)
 	}
 
 	typeValueMap, ok := plpgsqlType.(map[string]interface{})
 	if !ok {
-		return "", fmt.Errorf("PLPGSQL_Type is not a map-%v", plpgsqlType)
+		return "", goerrors.Errorf("PLPGSQL_Type is not a map-%v", plpgsqlType)
 	}
 
 	typeName, ok := typeValueMap[TYPENAME]
 	if !ok {
-		return "", fmt.Errorf("typname is not in the PLPGSQL_Type map-%v", typeValueMap)
+		return "", goerrors.Errorf("typname is not in the PLPGSQL_Type map-%v", typeValueMap)
 	}
 
 	return typeName.(string), nil

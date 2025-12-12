@@ -28,6 +28,8 @@ import (
 	"sort"
 	"strings"
 
+	goerrors "github.com/go-errors/errors"
+
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -248,7 +250,7 @@ func SizingAssessment(targetDbVersion *ybversion.YBVersion, sourceDBType string)
 
 	if finalSizingRecommendation.FailureReasoning != "" {
 		SizingReport.FailureReasoning = finalSizingRecommendation.FailureReasoning
-		return fmt.Errorf("error picking best recommendation: %v", finalSizingRecommendation.FailureReasoning)
+		return goerrors.Errorf("error picking best recommendation: %v", finalSizingRecommendation.FailureReasoning)
 	}
 
 	colocatedObjects, cumulativeIndexCountColocated :=

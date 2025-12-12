@@ -6,6 +6,8 @@ import (
 	"slices"
 	"strings"
 
+	goerrors "github.com/go-errors/errors"
+
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 
@@ -147,7 +149,7 @@ func (reg *NameRegistry) UnRegisterYBNames() error {
 
 func (reg *NameRegistry) registerSourceNames() (bool, error) {
 	if reg.params.SDB == nil {
-		return false, fmt.Errorf("source db connection is not available")
+		return false, goerrors.Errorf("source db connection is not available")
 	}
 	reg.SourceDBType = reg.params.SourceDBType
 	reg.initSourceDBSchemaNames()
@@ -198,20 +200,20 @@ func (reg *NameRegistry) GetRegisteredTableList(ignoreOtherSideOfMappingIfNotFou
 				if ignoreIfTargetNotFound {
 					tuple, err := reg.LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole(tableName)
 					if err != nil {
-						return nil, fmt.Errorf("error lookup for the table name [%v]: %v", tableName, err)
+						return nil, goerrors.Errorf("error lookup for the table name [%v]: %v", tableName, err)
 					}
 					res = append(res, tuple)
 				} else {
 					tuple, err := reg.LookupTableNameAndIgnoreIfSourceNotFound(tableName)
 					if err != nil {
-						return nil, fmt.Errorf("error lookup for the table name [%v]: %v", tableName, err)
+						return nil, goerrors.Errorf("error lookup for the table name [%v]: %v", tableName, err)
 					}
 					res = append(res, tuple)
 				}
 			} else {
 				tuple, err := reg.LookupTableName(tableName)
 				if err != nil {
-					return nil, fmt.Errorf("error lookup for the table name [%v]: %v", tableName, err)
+					return nil, goerrors.Errorf("error lookup for the table name [%v]: %v", tableName, err)
 				}
 				res = append(res, tuple)
 			}
@@ -242,7 +244,7 @@ func (reg *NameRegistry) initSourceDBSchemaNames() {
 
 func (reg *NameRegistry) registerYBNames() (bool, error) {
 	if reg.params.YBDB == nil {
-		return false, fmt.Errorf("target db is nil")
+		return false, goerrors.Errorf("target db is nil")
 	}
 	yb := reg.params.YBDB
 
@@ -335,7 +337,7 @@ func (reg *NameRegistry) LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole(tab
 		//not using this function TARGET_DB_EXPORTER ones as they are live migration specific and we shouldn't use it for them.
 		sourceName, targetName, err := reg.lookupSourceAndTargetTableNames(tableNameArg, true, false)
 		if err != nil {
-			return sqlname.NameTuple{}, fmt.Errorf("error lookup source and target names for table [%v]: %v", tableNameArg, err)
+			return sqlname.NameTuple{}, goerrors.Errorf("error lookup source and target names for table [%v]: %v", tableNameArg, err)
 		}
 		ntup := NewNameTuple(reg.params.Role, sourceName, targetName)
 		return ntup, nil
@@ -354,7 +356,7 @@ In case both the source and target not present for the table this will return er
 func (reg *NameRegistry) LookupTableNameAndIgnoreIfSourceNotFound(tableNameArg string) (sqlname.NameTuple, error) {
 	sourceName, targetName, err := reg.lookupSourceAndTargetTableNames(tableNameArg, false, true)
 	if err != nil {
-		return sqlname.NameTuple{}, fmt.Errorf("error lookup source and target names for table [%v]: %v", tableNameArg, err)
+		return sqlname.NameTuple{}, goerrors.Errorf("error lookup source and target names for table [%v]: %v", tableNameArg, err)
 	}
 	ntup := NewNameTuple(reg.params.Role, sourceName, targetName)
 	return ntup, nil
@@ -363,7 +365,7 @@ func (reg *NameRegistry) LookupTableNameAndIgnoreIfSourceNotFound(tableNameArg s
 func (reg *NameRegistry) lookupSourceAndTargetTableNames(tableNameArg string, ignoreIfTargetNotFound bool, ignoreIfSourceNotFound bool) (*sqlname.ObjectName, *sqlname.ObjectName, error) {
 	if ignoreIfTargetNotFound && ignoreIfSourceNotFound {
 		//can't use nametuple if both are ignored
-		return nil, nil, fmt.Errorf("ignoreIfTargetNotFound and ignoreIfSourceNotFound cannot be true at the same time")
+		return nil, nil, goerrors.Errorf("ignoreIfTargetNotFound and ignoreIfSourceNotFound cannot be true at the same time")
 	}
 	createAllObjectNamesMap := func(m map[string][]string, m1 map[string][]string) map[string][]string {
 		if m == nil && m1 == nil {
@@ -388,7 +390,7 @@ func (reg *NameRegistry) lookupSourceAndTargetTableNames(tableNameArg string, ig
 		(reg.DefaultSourceSideSchemaName() == "") != (reg.DefaultYBSchemaName == "") {
 
 		msg := "either both or none of the default schema names should be set"
-		return nil, nil, fmt.Errorf("%s: [%s], [%s]", msg,
+		return nil, nil, goerrors.Errorf("%s: [%s], [%s]", msg,
 			reg.DefaultSourceSideSchemaName(), reg.DefaultYBSchemaName)
 	}
 	var err error
@@ -403,7 +405,7 @@ func (reg *NameRegistry) lookupSourceAndTargetTableNames(tableNameArg string, ig
 		schemaName = parts[0]
 		tableName = parts[1]
 	default:
-		return nil, nil, fmt.Errorf("invalid table name: %s", tableNameArg)
+		return nil, nil, goerrors.Errorf("invalid table name: %s", tableNameArg)
 	}
 	// Consider a case of oracle data migration: source table name is SAKILA.TABLE1 and it is being imported in ybsakila.table1.
 	// When a name lookup comes for ybsakila.table1 we have to pair it with SAKILA.TABLE1.
@@ -481,7 +483,7 @@ func (reg *NameRegistry) lookup(
 
 	if schemaName == "" {
 		if defaultSchemaName == "" {
-			return nil, fmt.Errorf("no default schema name: qualify table name [%s]", tableName)
+			return nil, goerrors.Errorf("no default schema name: qualify table name [%s]", tableName)
 		}
 		schemaName = defaultSchemaName
 	}
@@ -517,7 +519,7 @@ func (e *ErrNameNotFound) Error() string {
 func matchName(objType string, names []string, name string) (string, error) {
 	if name[0] == '"' {
 		if name[len(name)-1] != '"' {
-			return "", fmt.Errorf("invalid quoted %s name: [%s]", objType, name)
+			return "", goerrors.Errorf("invalid quoted %s name: [%s]", objType, name)
 		}
 		name = name[1 : len(name)-1]
 	}

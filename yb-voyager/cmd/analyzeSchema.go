@@ -27,6 +27,8 @@ import (
 	"strings"
 	"text/template"
 
+	goerrors "github.com/go-errors/errors"
+
 	pg_query "github.com/pganalyze/pg_query_go/v6"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
@@ -1245,25 +1247,25 @@ func generateAnalyzeSchemaReport(msr *metadb.MigrationStatusRecord, reportFormat
 		}
 		finalReport, err = applyTemplate(schemaAnalysisReport, schemaAnalysisHtmlTmpl)
 		if err != nil {
-			return fmt.Errorf("failed to apply template for html schema analysis report: %v", err)
+			return goerrors.Errorf("failed to apply template for html schema analysis report: %v", err)
 		}
 		// restorting the value in struct for generating other format reports
 		schemaAnalysisReport.SchemaSummary.SchemaNames = schemaNames
 	case "json":
 		jsonReportBytes, err := json.MarshalIndent(schemaAnalysisReport, "", "    ")
 		if err != nil {
-			return fmt.Errorf("failed to marshal the report struct into json schema analysis report: %v", err)
+			return goerrors.Errorf("failed to marshal the report struct into json schema analysis report: %v", err)
 		}
 		finalReport = string(jsonReportBytes)
 	case "txt":
 		finalReport, err = applyTemplate(schemaAnalysisReport, schemaAnalysisTxtTmpl)
 		if err != nil {
-			return fmt.Errorf("failed to apply template for txt schema analysis report: %v", err)
+			return goerrors.Errorf("failed to apply template for txt schema analysis report: %v", err)
 		}
 	case "xml":
 		xmlReportBytes, err := xml.MarshalIndent(schemaAnalysisReport, "", "\t")
 		if err != nil {
-			return fmt.Errorf("failed to marshal the report struct into xml schema analysis report: %v", err)
+			return goerrors.Errorf("failed to marshal the report struct into xml schema analysis report: %v", err)
 		}
 		finalReport = string(xmlReportBytes)
 	default:
@@ -1279,7 +1281,7 @@ func generateAnalyzeSchemaReport(msr *metadb.MigrationStatusRecord, reportFormat
 
 	file, err := os.OpenFile(reportPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
-		return fmt.Errorf("Error while opening: %q: %s", reportPath, err)
+		return goerrors.Errorf("Error while opening: %q: %s", reportPath, err)
 	}
 	defer func() {
 		if err := file.Close(); err != nil {
@@ -1289,7 +1291,7 @@ func generateAnalyzeSchemaReport(msr *metadb.MigrationStatusRecord, reportFormat
 
 	_, err = file.WriteString(finalReport)
 	if err != nil {
-		return fmt.Errorf("failed to write report to: %q: %s", reportPath, err)
+		return goerrors.Errorf("failed to write report to: %q: %s", reportPath, err)
 	}
 	if printReportPath {
 		fmt.Printf("-- find schema analysis report at: %s\n", reportPath)

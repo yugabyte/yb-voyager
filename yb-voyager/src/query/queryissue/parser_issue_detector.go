@@ -21,6 +21,8 @@ import (
 	"slices"
 	"strings"
 
+	goerrors "github.com/go-errors/errors"
+
 	pg_query "github.com/pganalyze/pg_query_go/v6"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
@@ -428,15 +430,15 @@ func (p *ParserIssueDetector) GetColumnsWithHotspotRangeIndexesDatatypes() map[s
 func (p *ParserIssueDetector) getAllIssues(query string) ([]QueryIssue, error) {
 	plpgsqlIssues, err := p.getPLPGSQLIssues(query)
 	if err != nil {
-		return nil, fmt.Errorf("error getting plpgsql issues: %v", err)
+		return nil, goerrors.Errorf("error getting plpgsql issues: %v", err)
 	}
 	dmlIssues, err := p.getDMLIssues(query)
 	if err != nil {
-		return nil, fmt.Errorf("error getting generic issues: %v", err)
+		return nil, goerrors.Errorf("error getting generic issues: %v", err)
 	}
 	ddlIssues, err := p.getDDLIssues(query)
 	if err != nil {
-		return nil, fmt.Errorf("error getting ddl issues: %v", err)
+		return nil, goerrors.Errorf("error getting ddl issues: %v", err)
 	}
 	return lo.Flatten([][]QueryIssue{plpgsqlIssues, dmlIssues, ddlIssues}), nil
 }
@@ -500,7 +502,7 @@ func (p *ParserIssueDetector) getPLPGSQLIssues(query string) ([]QueryIssue, erro
 	}
 	percentTypeSyntaxIssues, err := p.GetPercentTypeSyntaxIssues(query)
 	if err != nil {
-		return nil, fmt.Errorf("error getting reference TYPE syntax issues: %v", err)
+		return nil, goerrors.Errorf("error getting reference TYPE syntax issues: %v", err)
 	}
 	issues = append(issues, percentTypeSyntaxIssues...)
 
@@ -561,7 +563,7 @@ func (p *ParserIssueDetector) FinalizeTablesMetadata() {
 Building the usage category for all the tables beforehand in the finalize step
 to populate the usage category for all the partitions once the partitions are populated in the buildPartitionHierarchies step
 for the partitioned tables.
-This is not required for indexes because the indexes are only reported per partitions level 
+This is not required for indexes because the indexes are only reported per partitions level
 */
 func (p *ParserIssueDetector) buildUsageCategoryForAllTables() {
 	for _, tm := range p.tablesMetadata {
@@ -734,7 +736,7 @@ func (p *ParserIssueDetector) finalizeForeignKeyConstraints() {
 func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 	parseTree, err := queryparser.Parse(query)
 	if err != nil {
-		return fmt.Errorf("error parsing a query: %v", err)
+		return goerrors.Errorf("error parsing a query: %v", err)
 	}
 	ddlObj, err := queryparser.ProcessDDL(parseTree)
 	if err != nil {
@@ -918,7 +920,7 @@ func (p *ParserIssueDetector) GetDDLIssues(query string, targetDbVersion *ybvers
 func (p *ParserIssueDetector) getDDLIssues(query string) ([]QueryIssue, error) {
 	parseTree, err := queryparser.Parse(query)
 	if err != nil {
-		return nil, fmt.Errorf("error parsing a query: %v", err)
+		return nil, goerrors.Errorf("error parsing a query: %v", err)
 	}
 	isDDL, err := queryparser.IsDDL(parseTree)
 	if err != nil {
@@ -973,13 +975,13 @@ func (p *ParserIssueDetector) getDDLIssues(query string) ([]QueryIssue, error) {
 func (p *ParserIssueDetector) GetPercentTypeSyntaxIssues(query string) ([]QueryIssue, error) {
 	parseTree, err := queryparser.Parse(query)
 	if err != nil {
-		return nil, fmt.Errorf("error parsing the query-%s: %v", query, err)
+		return nil, goerrors.Errorf("error parsing the query-%s: %v", query, err)
 	}
 
 	objType, objName := queryparser.GetObjectTypeAndObjectName(parseTree)
 	typeNames, err := queryparser.GetAllTypeNamesInPlpgSQLStmt(query)
 	if err != nil {
-		return nil, fmt.Errorf("error getting type names in PLPGSQL: %v", err)
+		return nil, goerrors.Errorf("error getting type names in PLPGSQL: %v", err)
 	}
 
 	/*
@@ -1016,7 +1018,7 @@ func (p *ParserIssueDetector) getDMLIssues(query string) ([]QueryIssue, error) {
 	}
 	isDDL, err := queryparser.IsDDL(parseTree)
 	if err != nil {
-		return nil, fmt.Errorf("error checking if query is a DDL: %v", err)
+		return nil, goerrors.Errorf("error checking if query is a DDL: %v", err)
 	}
 	if isDDL {
 		//Skip all the DDLs coming to this function

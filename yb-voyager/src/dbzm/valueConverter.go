@@ -23,6 +23,8 @@ import (
 	"strings"
 	"sync"
 
+	goerrors "github.com/go-errors/errors"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	tgtdbsuite "github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb/suites"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -113,7 +115,7 @@ func getDebeziumValueConverterSuite(tconf tgtdb.TargetConf) (map[string]tgtdbsui
 	case tgtdb.YUGABYTEDB, tgtdb.POSTGRESQL:
 		return tgtdbsuite.YBValueConverterSuite, nil
 	default:
-		return nil, fmt.Errorf("no converter suite found for %s", tconf.TargetDBType)
+		return nil, goerrors.Errorf("no converter suite found for %s", tconf.TargetDBType)
 	}
 }
 
