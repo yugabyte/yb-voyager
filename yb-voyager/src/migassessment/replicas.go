@@ -17,7 +17,10 @@ limitations under the License.
 package migassessment
 
 import (
+	"errors"
 	"fmt"
+
+	goerrors "github.com/go-errors/errors"
 
 	"github.com/fatih/color"
 	"github.com/samber/lo"
@@ -38,17 +41,11 @@ func HandleReplicaDiscoveryAndValidation(source *srcdb.Source, replicaEndpointsF
 		return nil, nil // No replicas for non-PostgreSQL databases
 	}
 	// Step 1: Discover replicas from pg_stat_replication
-	// TODO: Uncomment this once we enable replica discovery
-	// utils.PrintAndLogf("Checking for read replicas...")
-	// discoveredReplicas, err := pg.DiscoverReplicas()
-	// if err != nil {
-	// 	return nil, fmt.Errorf("failed to discover replicas: %w", err)
-	// }
-
-	// TODO: Remove this once we enable replica discovery
-	var err error
-	var discoveredReplicas []srcdb.ReplicaInfo
-	err = nil
+	utils.PrintAndLogf("Checking for read replicas...")
+	discoveredReplicas, err := pg.DiscoverReplicas()
+	if err != nil {
+		return nil, fmt.Errorf("failed to discover replicas: %w", err)
+	}
 
 	// Step 2: Parse user-provided replica endpoints if any
 	var providedEndpoints []srcdb.ReplicaEndpoint
@@ -61,19 +58,18 @@ func HandleReplicaDiscoveryAndValidation(source *srcdb.Source, replicaEndpointsF
 
 	// Case 1: No replicas discovered and none provided
 	if len(discoveredReplicas) == 0 && len(providedEndpoints) == 0 {
-		// TODO: Uncomment this once we enable replica discovery
-		// utils.PrintAndLogfInfo("No read replicas detected. Proceeding with single-node assessment.")
+		utils.PrintAndLogfInfo("No read replicas detected. Proceeding with single-node assessment.")
 		return nil, nil
 	}
 
 	// Case 2: Replicas discovered but none provided - best-effort validation
 	if len(discoveredReplicas) > 0 && len(providedEndpoints) == 0 {
-		return handleDiscoveredReplicasWithoutEndpoints(pg, discoveredReplicas)
+		return processDiscoveredReplicasWhenNoEndpointsProvided(pg, discoveredReplicas)
 	}
 
 	// Case 3 & 4: Endpoints provided (with or without discovery)
 	if len(providedEndpoints) > 0 {
-		return handleProvidedReplicaEndpoints(pg, discoveredReplicas, providedEndpoints)
+		return processProvidedEndpoints(pg, discoveredReplicas, providedEndpoints)
 	}
 
 	return nil, nil
@@ -89,43 +85,61 @@ func displayDiscoveredReplicas(replicas []srcdb.ReplicaInfo) {
 }
 
 // validateDiscoveredReplicas attempts to validate discovered replica addresses by connecting
-// to them. Returns two lists: successfully connected replicas and failed replica names.
-func validateDiscoveredReplicas(pg *srcdb.PostgreSQL, discoveredReplicas []srcdb.ReplicaInfo) ([]srcdb.ReplicaEndpoint, []string) {
+// to them. Returns three lists: successfully validated replicas, non-replica endpoints, and connection failures.
+func validateDiscoveredReplicas(pg *srcdb.PostgreSQL, discoveredReplicas []srcdb.ReplicaInfo) ([]srcdb.ReplicaEndpoint, []string, []string) {
 	var connectableReplicas []srcdb.ReplicaEndpoint
-	var failedReplicas []string
+	var notReplicaEndpoints []string
+	var connectionFailures []string
 
 	for _, replica := range discoveredReplicas {
 		if replica.ClientAddr == "" {
 			appName := lo.Ternary(replica.ApplicationName == "", "(unnamed)", replica.ApplicationName)
-			failedReplicas = append(failedReplicas, fmt.Sprintf("%s (no client_addr)", appName))
+			connectionFailures = append(connectionFailures, fmt.Sprintf("%s (no client_addr)", appName))
 			continue
 		}
 
+		// Generate replica name: use host:port for unnamed replicas, application_name for named ones
+		name := lo.Ternary(replica.ApplicationName == "", fmt.Sprintf("%s:5432", replica.ClientAddr), replica.ApplicationName)
+
+		// Create display name: for named replicas, include host:port in parentheses for clarity
+		displayName := name
+		if replica.ApplicationName != "" {
+			displayName = fmt.Sprintf("%s (%s:5432)", name, replica.ClientAddr)
+		}
+
 		// Try to connect to client_addr on port 5432
-		err := pg.TryConnectReplica(replica.ClientAddr, 5432)
+		err := pg.ValidateReplicaConnection(replica.ClientAddr, 5432)
 		if err == nil {
-			name := lo.Ternary(replica.ApplicationName == "", fmt.Sprintf("%s:5432", replica.ClientAddr), replica.ApplicationName)
 			connectableReplicas = append(connectableReplicas, srcdb.ReplicaEndpoint{
 				Host:          replica.ClientAddr,
 				Port:          5432,
 				Name:          name,
 				ConnectionUri: pg.GetReplicaConnectionUri(replica.ClientAddr, 5432),
 			})
-			utils.PrintAndLogfSuccess("  ✓ Successfully connected to %s (%s)", name, replica.ClientAddr)
+			utils.PrintAndLogfSuccess("  ✓ Successfully connected to %s", displayName)
 		} else {
-			appName := lo.Ternary(replica.ApplicationName == "", replica.ClientAddr, replica.ApplicationName)
-			failedReplicas = append(failedReplicas, fmt.Sprintf("%s (%s)", appName, replica.ClientAddr))
-			log.Infof("Failed to connect to replica %s (%s): %v", appName, replica.ClientAddr, err)
+			// Check if this is a "not a replica" error vs connection error.
+			// Note: For auto-discovered replicas, "not a replica" errors should rarely occur since
+			// the DiscoverReplicas SQL query filters out logical replicas. However, we keep this
+			// check as defense-in-depth for edge cases if any. This error path is primarily designed for user-provided endpoints where
+			// the user might accidentally specify a logical subscriber or the primary itself.
+			if errors.Is(err, srcdb.ErrNotAReplica) {
+				notReplicaEndpoints = append(notReplicaEndpoints, displayName)
+				log.Infof("Endpoint %s is not a physical replica: %v", displayName, err)
+			} else {
+				connectionFailures = append(connectionFailures, displayName)
+				log.Infof("Failed to connect to replica %s: %v", displayName, err)
+			}
 		}
 	}
 
-	return connectableReplicas, failedReplicas
+	return connectableReplicas, notReplicaEndpoints, connectionFailures
 }
 
-// handleAllReplicasValidated handles the scenario where all discovered replicas are connectable.
+// promptToIncludeAllDiscoveredReplicas handles the scenario where all discovered replicas are connectable.
 // Prompts the user to include them in the assessment.
 // Returns the replicas to include in assessment (nil if user declines).
-func handleAllReplicasValidated(connectableReplicas []srcdb.ReplicaEndpoint) ([]srcdb.ReplicaEndpoint, error) {
+func promptToIncludeAllDiscoveredReplicas(connectableReplicas []srcdb.ReplicaEndpoint) ([]srcdb.ReplicaEndpoint, error) {
 	utils.PrintAndLogfSuccess("\nSuccessfully validated all %d replica(s) for connection.", len(connectableReplicas))
 	if utils.AskPrompt("\nDo you want to include these replicas in this assessment") {
 		utils.PrintAndLogfInfo("Proceeding with multi-node assessment using discovered replicas.")
@@ -135,11 +149,11 @@ func handleAllReplicasValidated(connectableReplicas []srcdb.ReplicaEndpoint) ([]
 	return nil, nil
 }
 
-// handlePartialReplicaValidation handles the scenario where some replicas are connectable
+// promptForPartialDiscoveredReplicas handles the scenario where some discovered replicas are connectable
 // but others are not. Prompts the user to choose between proceeding with partial set,
 // providing explicit endpoints, or continuing with primary-only assessment.
 // Returns the replicas to include in assessment (nil if user declines or aborts).
-func handlePartialReplicaValidation(connectableReplicas []srcdb.ReplicaEndpoint, failedReplicas []string) ([]srcdb.ReplicaEndpoint, error) {
+func promptForPartialDiscoveredReplicas(connectableReplicas []srcdb.ReplicaEndpoint, failedReplicas []string) ([]srcdb.ReplicaEndpoint, error) {
 	utils.PrintAndLogfWarning("\nPartial validation result:")
 	utils.PrintAndLogfSuccess("  ✓ %d replica(s) successfully validated", len(connectableReplicas))
 	utils.PrintAndLogfWarning("  ✗ %d replica(s) could not be validated:", len(failedReplicas))
@@ -157,50 +171,89 @@ func handlePartialReplicaValidation(connectableReplicas []srcdb.ReplicaEndpoint,
 	}
 
 	if utils.AskPrompt("Do you want to exit and provide replica endpoints") {
-		return nil, fmt.Errorf("Aborting, please rerun with --source-read-replica-endpoints flag")
+		return nil, goerrors.Errorf("Aborting, please rerun with --source-read-replica-endpoints flag")
 	}
 
 	utils.PrintAndLogfInfo("Continuing with primary-only assessment.")
 	return nil, nil
 }
 
-// handleNoReplicasValidated handles the scenario where no replicas could be validated.
+// promptWhenNoDiscoveredReplicasConnectable handles the scenario where no discovered replicas could be validated.
 // Explains the issue and offers options to provide explicit endpoints or continue with primary-only assessment.
 // Returns nil replicas if user chooses to continue with primary-only, or error if user aborts.
-func handleNoReplicasValidated() ([]srcdb.ReplicaEndpoint, error) {
-	utils.PrintAndLogfWarning("\nThe addresses shown in pg_stat_replication are not directly connectable from this environment.")
-	utils.PrintAndLogfInfo("This is common in cloud environments (RDS, Aurora), Docker, Kubernetes, or proxy setups.")
+func promptWhenNoDiscoveredReplicasConnectable(notReplicaEndpoints []string, connectionFailures []string) ([]srcdb.ReplicaEndpoint, error) {
+	if len(notReplicaEndpoints) > 0 && len(connectionFailures) == 0 {
+		// All endpoints are not physical replicas.
+		// Note: For auto-discovered replicas, this should rarely happen since DiscoverReplicas()
+		// filters out logical replicas via SQL. This code is just added for completeness and defense-in-depth.
+		utils.PrintAndLogfWarning("\nThe discovered endpoint(s) are not physical replicas.")
+		utils.PrintAndLogfInfo("This typically indicates logical replication connections or non-replica endpoints.")
+		utils.PrintAndLogfInfo("Discovered endpoint(s):")
+		for _, endpoint := range notReplicaEndpoints {
+			utils.PrintAndLogfInfo("  - %s", endpoint)
+		}
+	} else if len(connectionFailures) > 0 && len(notReplicaEndpoints) == 0 {
+		// All discovered endpoints had connection failures
+		utils.PrintAndLogfWarning("\nThe addresses shown in pg_stat_replication are not directly connectable from this environment.")
+		utils.PrintAndLogfInfo("This is common in cloud environments (RDS, Aurora), Docker, Kubernetes, or proxy setups.")
+	} else {
+		// Mix of both types of failures
+		utils.PrintAndLogfWarning("\nUnable to validate any discovered endpoint as a physical replica.")
+		if len(notReplicaEndpoints) > 0 {
+			utils.PrintAndLogfInfo("Not physical replicas:")
+			for _, endpoint := range notReplicaEndpoints {
+				utils.PrintAndLogfInfo("  - %s", endpoint)
+			}
+		}
+		if len(connectionFailures) > 0 {
+			utils.PrintAndLogfInfo("Connection failures:")
+			for _, endpoint := range connectionFailures {
+				utils.PrintAndLogfInfo("  - %s", endpoint)
+			}
+		}
+	}
+
 	utils.PrintAndLogfInfo("\nTo include replicas in the assessment, you can:")
 	utils.PrintAndLogfInfo("  1. Exit and rerun with --source-read-replica-endpoints flag")
 	utils.PrintAndLogfInfo("  2. Continue with primary-only assessment")
 
 	if utils.AskPrompt("\nDo you want to exit and provide replica endpoints") {
-		return nil, fmt.Errorf("Aborting, please rerun with --source-read-replica-endpoints flag")
+		return nil, goerrors.Errorf("Aborting, please rerun with --source-read-replica-endpoints flag")
 	}
 
 	utils.PrintAndLogf("Continuing with primary-only assessment.")
 	return nil, nil
 }
 
-// handleBestEffortValidationOutcome dispatches to the appropriate handler based on
+// resolveDiscoveredReplicasOutcome dispatches to the appropriate prompt based on
 // validation results (all successful, partial success, or all failed).
 // Returns the replicas to include in assessment based on user's choice.
-func handleBestEffortValidationOutcome(connectableReplicas []srcdb.ReplicaEndpoint, failedReplicas []string) ([]srcdb.ReplicaEndpoint, error) {
+func resolveDiscoveredReplicasOutcome(connectableReplicas []srcdb.ReplicaEndpoint, notReplicaEndpoints []string, connectionFailures []string) ([]srcdb.ReplicaEndpoint, error) {
+	totalFailures := len(notReplicaEndpoints) + len(connectionFailures)
+
 	// All replicas validated successfully
-	if len(failedReplicas) == 0 {
-		return handleAllReplicasValidated(connectableReplicas)
+	if totalFailures == 0 {
+		return promptToIncludeAllDiscoveredReplicas(connectableReplicas)
 	}
 
 	// Some replicas validated, some failed
 	if len(connectableReplicas) > 0 {
-		return handlePartialReplicaValidation(connectableReplicas, failedReplicas)
+		// Combine failures for display
+		var allFailures []string
+		for _, endpoint := range notReplicaEndpoints {
+			allFailures = append(allFailures, fmt.Sprintf("%s (not a replica)", endpoint))
+		}
+		for _, endpoint := range connectionFailures {
+			allFailures = append(allFailures, fmt.Sprintf("%s (connection failed)", endpoint))
+		}
+		return promptForPartialDiscoveredReplicas(connectableReplicas, allFailures)
 	}
 
 	// All validation attempts failed
-	return handleNoReplicasValidated()
+	return promptWhenNoDiscoveredReplicasConnectable(notReplicaEndpoints, connectionFailures)
 }
 
-// handleDiscoveredReplicasWithoutEndpoints handles scenarios where replicas are discovered via
+// processDiscoveredReplicasWhenNoEndpointsProvided handles scenarios where replicas are discovered via
 // pg_stat_replication but the user did not provide explicit replica endpoints.
 //
 // This function attempts best-effort validation by trying to connect to the discovered
@@ -214,19 +267,19 @@ func handleBestEffortValidationOutcome(connectableReplicas []srcdb.ReplicaEndpoi
 // environments (RDS, Aurora), container setups (Docker, K8s), or behind proxies.
 //
 // Returns the validated replicas to include in assessment based on user's choice.
-func handleDiscoveredReplicasWithoutEndpoints(pg *srcdb.PostgreSQL, discoveredReplicas []srcdb.ReplicaInfo) ([]srcdb.ReplicaEndpoint, error) {
+func processDiscoveredReplicasWhenNoEndpointsProvided(pg *srcdb.PostgreSQL, discoveredReplicas []srcdb.ReplicaInfo) ([]srcdb.ReplicaEndpoint, error) {
 	utils.PrintAndLogfInfo("\nDiscovered %d replica(s) via pg_stat_replication:", len(discoveredReplicas))
 	displayDiscoveredReplicas(discoveredReplicas)
 
 	utils.PrintAndLogfInfo("\nAttempting to validate discovered replica addresses...")
-	connectableReplicas, failedReplicas := validateDiscoveredReplicas(pg, discoveredReplicas)
+	connectableReplicas, notReplicaEndpoints, connectionFailures := validateDiscoveredReplicas(pg, discoveredReplicas)
 
-	return handleBestEffortValidationOutcome(connectableReplicas, failedReplicas)
+	return resolveDiscoveredReplicasOutcome(connectableReplicas, notReplicaEndpoints, connectionFailures)
 }
 
-// enrichReplicaEndpoints matches provided endpoints with discovered replicas
+// enrichProvidedEndpointsWithNames matches provided endpoints with discovered replicas
 // and uses application_name as the replica name when available.
-func enrichReplicaEndpoints(endpoints []srcdb.ReplicaEndpoint, discoveredReplicas []srcdb.ReplicaInfo) []srcdb.ReplicaEndpoint {
+func enrichProvidedEndpointsWithNames(endpoints []srcdb.ReplicaEndpoint, discoveredReplicas []srcdb.ReplicaInfo) []srcdb.ReplicaEndpoint {
 	enriched := make([]srcdb.ReplicaEndpoint, len(endpoints))
 	copy(enriched, endpoints)
 
@@ -250,9 +303,9 @@ func enrichReplicaEndpoints(endpoints []srcdb.ReplicaEndpoint, discoveredReplica
 	return enriched
 }
 
-// checkDiscoveryMismatch displays discovery status and warns if the count of discovered
+// warnIfProvidedEndpointsMismatch displays discovery status and warns if the count of discovered
 // replicas doesn't match the provided endpoints. Returns error if user aborts.
-func checkDiscoveryMismatch(discoveredReplicas []srcdb.ReplicaInfo, providedEndpoints []srcdb.ReplicaEndpoint) error {
+func warnIfProvidedEndpointsMismatch(discoveredReplicas []srcdb.ReplicaInfo, providedEndpoints []srcdb.ReplicaEndpoint) error {
 	// Early return: No replicas discovered
 	if len(discoveredReplicas) == 0 {
 		utils.PrintAndLogf("No replicas discovered via pg_stat_replication")
@@ -281,7 +334,7 @@ func checkDiscoveryMismatch(discoveredReplicas []srcdb.ReplicaInfo, providedEndp
 	displayDiscoveredReplicas(discoveredReplicas)
 
 	if !utils.AskPrompt("\nDo you want to proceed with the provided endpoints") {
-		return fmt.Errorf("please update --source-read-replica-endpoints to match the topology")
+		return goerrors.Errorf("please update --source-read-replica-endpoints to match the topology")
 	}
 
 	return nil
@@ -289,36 +342,38 @@ func checkDiscoveryMismatch(discoveredReplicas []srcdb.ReplicaInfo, providedEndp
 
 // validateProvidedEndpoints validates each provided endpoint by connecting and checking
 // pg_is_in_recovery(). Returns lists of valid and failed endpoints.
+// Note: This is where we commonly catch ErrNotAReplica errors when users accidentally provide
+// logical replication subscribers, the primary endpoint, or other non-physical-replica endpoints.
 func validateProvidedEndpoints(pg *srcdb.PostgreSQL, endpoints []srcdb.ReplicaEndpoint) ([]srcdb.ReplicaEndpoint, []string) {
 	utils.PrintAndLogfInfo("\nValidating %d replica endpoint(s)...", len(endpoints))
 	var validEndpoints []srcdb.ReplicaEndpoint
 	var failedEndpoints []string
 
 	for _, endpoint := range endpoints {
-		err := pg.ValidateReplicaEndpoint(endpoint)
+		err := pg.ValidateReplicaConnection(endpoint.Host, endpoint.Port)
 		if err != nil {
 			failedEndpoints = append(failedEndpoints, fmt.Sprintf("%s:%d (%s)", endpoint.Host, endpoint.Port, err.Error()))
 			log.Errorf("Failed to validate replica %s:%d: %v", endpoint.Host, endpoint.Port, err)
 		} else {
 			validEndpoints = append(validEndpoints, endpoint)
-			utils.PrintAndLogfSuccess("  ✓ Validated replica: %s", endpoint.Name)
+			utils.PrintAndLogfSuccess("  ✓ Validated replica: %s (%s:%d)", endpoint.Name, endpoint.Host, endpoint.Port)
 		}
 	}
 
 	return validEndpoints, failedEndpoints
 }
 
-// reportValidationFailures displays validation failures and returns an error.
+// reportProvidedEndpointsValidationFailures displays validation failures and returns an error.
 // Used when user-provided endpoints fail validation - user must fix the configuration.
-func reportValidationFailures(failedEndpoints []string) error {
+func reportProvidedEndpointsValidationFailures(failedEndpoints []string) error {
 	color.Red("\nFailed to validate the following replica endpoint(s):")
 	for _, failed := range failedEndpoints {
 		color.Red("  ✗ %s", failed)
 	}
-	return fmt.Errorf("replica validation failed for %d endpoint(s)", len(failedEndpoints))
+	return goerrors.Errorf("replica validation failed for %d endpoint(s)", len(failedEndpoints))
 }
 
-// handleProvidedReplicaEndpoints handles scenarios where the user provided explicit replica
+// processProvidedEndpoints handles scenarios where the user provided explicit replica
 // endpoints via the --source-read-replica-endpoints flag.
 //
 // This function handles multiple scenarios:
@@ -332,22 +387,21 @@ func reportValidationFailures(failedEndpoints []string) error {
 // any endpoint is invalid or unreachable.
 //
 // Returns the validated replica endpoints to include in assessment.
-func handleProvidedReplicaEndpoints(pg *srcdb.PostgreSQL, discoveredReplicas []srcdb.ReplicaInfo, providedEndpoints []srcdb.ReplicaEndpoint) ([]srcdb.ReplicaEndpoint, error) {
+func processProvidedEndpoints(pg *srcdb.PostgreSQL, discoveredReplicas []srcdb.ReplicaInfo, providedEndpoints []srcdb.ReplicaEndpoint) ([]srcdb.ReplicaEndpoint, error) {
 	// Enrich endpoints with application_name from discovered replicas if possible
-	enrichedEndpoints := enrichReplicaEndpoints(providedEndpoints, discoveredReplicas)
+	enrichedEndpoints := enrichProvidedEndpointsWithNames(providedEndpoints, discoveredReplicas)
 
 	// Check for discovery mismatch and get user confirmation if needed
-	// TODO: Uncomment this once we enable replica discovery
-	// if err := checkDiscoveryMismatch(discoveredReplicas, providedEndpoints); err != nil {
-	// 	return nil, err
-	// }
+	if err := warnIfProvidedEndpointsMismatch(discoveredReplicas, providedEndpoints); err != nil {
+		return nil, err
+	}
 
 	// Validate all provided endpoints
 	validEndpoints, failedEndpoints := validateProvidedEndpoints(pg, enrichedEndpoints)
 
 	// Handle failures - user must fix all endpoints
 	if len(failedEndpoints) > 0 {
-		return nil, reportValidationFailures(failedEndpoints)
+		return nil, reportProvidedEndpointsValidationFailures(failedEndpoints)
 	}
 
 	// All endpoints validated successfully

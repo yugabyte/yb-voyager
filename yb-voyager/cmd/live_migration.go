@@ -26,6 +26,8 @@ import (
 	"sort"
 	"time"
 
+	goerrors "github.com/go-errors/errors"
+
 	"github.com/google/uuid"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
@@ -64,7 +66,7 @@ func init() {
 func cutoverInitiatedAndCutoverEventProcessed() (bool, error) {
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		return false, fmt.Errorf("getting migration status record: %v", err)
+		return false, goerrors.Errorf("getting migration status record: %v", err)
 	}
 	switch importerRole {
 	case TARGET_DB_IMPORTER_ROLE:
@@ -92,7 +94,7 @@ func streamChanges(state *ImportDataState, tableNames []sqlname.NameTuple, strea
 	// re-initilizing name registry in case it hadn't picked up the names registered on source/target/source-replica
 	err = namereg.NameReg.Init()
 	if err != nil {
-		return fmt.Errorf("init name registry again: %v", err)
+		return goerrors.Errorf("init name registry again: %v", err)
 	}
 	tdb.PrepareForStreaming()
 	err = state.InitLiveMigrationState(migrationUUID, NUM_EVENT_CHANNELS, bool(startClean), tableNames)
@@ -142,13 +144,13 @@ func streamChanges(state *ImportDataState, tableNames []sqlname.NameTuple, strea
 				time.Sleep(2 * time.Second)
 				continue
 			}
-			return fmt.Errorf("error getting next segment to stream: %v", err)
+			return goerrors.Errorf("error getting next segment to stream: %v", err)
 		}
 		log.Infof("got next segment to stream: %v", segment)
 
 		err = streamChangesFromSegment(segment, evChans, processingDoneChans, eventChannelsMetaInfo, statsReporter, state, streamingPhaseValueConverter, tableToPartitioningStrategyMap)
 		if err != nil {
-			return fmt.Errorf("error streaming changes for segment %s: %v", segment.FilePath, err)
+			return goerrors.Errorf("error streaming changes for segment %s: %v", segment.FilePath, err)
 		}
 	}
 	return nil
@@ -186,7 +188,7 @@ func getCdcPartitioningStrategyPerTable(tableNames []sqlname.NameTuple) (*utils.
 		return nil, fmt.Errorf("error getting cdc partitioning strategy: %w", err)
 	}
 	if importDataStatus == nil {
-		return nil, fmt.Errorf("import data status record not found")
+		return nil, goerrors.Errorf("import data status record not found")
 	}
 	if importDataStatus.TableToCDCPartitioningStrategyMap != nil {
 		log.Infof("cdc partitioning strategy found in metadb: %v, strategy: %v", metadb.IMPORT_DATA_STATUS_KEY, importDataStatus.TableToCDCPartitioningStrategyMap)
@@ -201,7 +203,7 @@ func getCdcPartitioningStrategyPerTable(tableNames []sqlname.NameTuple) (*utils.
 		//if strategy is not present for any table in the stored map, error out
 		for _, t := range tableNames {
 			if _, ok := tableToPartitioningStrategyMap.Get(t); !ok {
-				return nil, fmt.Errorf("cdc partitioning strategy not found for table: %s", t.ForKey())
+				return nil, goerrors.Errorf("cdc partitioning strategy not found for table: %s", t.ForKey())
 			}
 		}
 		return tableToPartitioningStrategyMap, nil
@@ -289,7 +291,7 @@ func streamChangesFromSegment(
 		if exists {
 			chanLastAppliedVsn = chanMetaInfo.LastAppliedVsn
 		} else {
-			return fmt.Errorf("unable to find channel meta info for channel - %v", i)
+			return goerrors.Errorf("unable to find channel meta info for channel - %v", i)
 		}
 		go processEvents(i, evChans[i], chanLastAppliedVsn, processingDoneChans[i], statsReporter, state)
 	}
@@ -339,7 +341,7 @@ func streamChangesFromSegment(
 				}
 			})
 			if err != nil {
-				return fmt.Errorf("error updating the migration status record for cutover detected case: %v", err)
+				return goerrors.Errorf("error updating the migration status record for cutover detected case: %v", err)
 			}
 			updateCallhomeImportPhase(event)
 
@@ -350,7 +352,7 @@ func streamChangesFromSegment(
 
 		err = handleEvent(event, evChans, streamingPhaseValueConverter, tableToPartitioningStrategyMap)
 		if err != nil {
-			return fmt.Errorf("error handling event: %v", err)
+			return goerrors.Errorf("error handling event: %v", err)
 		}
 	}
 
@@ -364,7 +366,7 @@ func streamChangesFromSegment(
 
 	err = metaDB.MarkEventQueueSegmentAsProcessed(segment.SegmentNum, importerRole)
 	if err != nil {
-		return fmt.Errorf("error marking segment %s as processed: %v", segment.FilePath, err)
+		return goerrors.Errorf("error marking segment %s as processed: %v", segment.FilePath, err)
 	}
 	log.Infof("finished streaming changes from segment %s\n", filepath.Base(segment.FilePath))
 	return nil
@@ -410,7 +412,7 @@ func handleEvent(event *tgtdb.Event,
 	// which will affect hash value.
 	h, err := hashEvent(event, tableToPartitioningStrategyMap)
 	if err != nil {
-		return fmt.Errorf("error hashing event: %v", err)
+		return goerrors.Errorf("error hashing event: %v", err)
 	}
 
 	/*
@@ -435,7 +437,7 @@ func handleEvent(event *tgtdb.Event,
 	// preparing value converters for the streaming mode
 	err = streamingPhaseValueConverter.ConvertEvent(event, event.TableNameTup, shouldFormatValues(event))
 	if err != nil {
-		return fmt.Errorf("error transforming event key fields: %v", err)
+		return goerrors.Errorf("error transforming event key fields: %v", err)
 	}
 
 	evChans[h] <- event
@@ -448,12 +450,12 @@ func hashEvent(e *tgtdb.Event, tableToPartitioningStrategyMap *utils.StructMap[s
 	hash := fnv.New64a()
 
 	if tableToPartitioningStrategyMap == nil {
-		return 0, fmt.Errorf("table to partitioning strategy map is not initialized")
+		return 0, goerrors.Errorf("table to partitioning strategy map is not initialized")
 	}
 
 	strategy, ok := tableToPartitioningStrategyMap.Get(e.TableNameTup)
 	if !ok {
-		return 0, fmt.Errorf("table to partitioning strategy map does not contain table %v", e.TableNameTup)
+		return 0, goerrors.Errorf("table to partitioning strategy map does not contain table %v", e.TableNameTup)
 	}
 
 	switch strategy {
@@ -473,7 +475,7 @@ func hashEvent(e *tgtdb.Event, tableToPartitioningStrategyMap *utils.StructMap[s
 	case PARTITION_BY_TABLE:
 		hash.Write([]byte(e.TableNameTup.ForKey()))
 	default:
-		return 0, fmt.Errorf("invalid partitioning strategy: %s", strategy)
+		return 0, goerrors.Errorf("invalid partitioning strategy: %s", strategy)
 	}
 	return int(hash.Sum64() % (uint64(NUM_EVENT_CHANNELS))), nil
 }
@@ -588,14 +590,14 @@ func getTableToUniqueKeyColumnsMapFromMetaDB(exporterRole string) (*utils.Struct
 		return nil, err
 	}
 	if !found {
-		return nil, fmt.Errorf("table to unique key columns map not found in metaDB")
+		return nil, goerrors.Errorf("table to unique key columns map not found in metaDB")
 	}
 	log.Infof("fetched table to unique key columns map: %v", metaDbData)
 
 	for tableNameRaw, columns := range metaDbData {
 		tableName, err := namereg.NameReg.LookupTableName(tableNameRaw)
 		if err != nil {
-			return nil, fmt.Errorf("lookup table %s in name registry: %v", tableNameRaw, err)
+			return nil, goerrors.Errorf("lookup table %s in name registry: %v", tableNameRaw, err)
 		}
 		res.Put(tableName, columns)
 	}

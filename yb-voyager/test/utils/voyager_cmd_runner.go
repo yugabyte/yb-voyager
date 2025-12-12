@@ -20,6 +20,8 @@ type ExitCode int
 const (
 	ExitCodeSuccess ExitCode = 0
 	ExitCodeFailure ExitCode = 1
+
+	separator = "=================================================================================="
 )
 
 func (ec ExitCode) String() string {
@@ -48,6 +50,21 @@ type VoyagerCommandRunner struct {
 	StdoutBuf *bytes.Buffer
 	StderrBuf *bytes.Buffer
 	exitCode  ExitCode
+
+	// additional environment variables for testing
+	testEnvVars []string
+}
+
+// WithEnv adds custom environment variables to the command.
+// This is useful for testing scenarios like failpoint injection.
+// Returns the VoyagerCommandRunner for method chaining.
+//
+// Example:
+//
+//	runner := NewVoyagerCommandRunner(...).WithEnv("GO_FAILPOINTS=pkg/fp1=return()")
+func (v *VoyagerCommandRunner) WithEnv(envVars ...string) *VoyagerCommandRunner {
+	v.testEnvVars = append(v.testEnvVars, envVars...)
+	return v
 }
 
 func NewVoyagerCommandRunner(container testcontainers.TestContainer, cmdName string, cmdArgs []string, doDuringCmd func(), isAsync bool) *VoyagerCommandRunner {
@@ -132,6 +149,11 @@ func (v *VoyagerCommandRunner) newCmd() {
 	v.Cmd.Stderr = io.MultiWriter(os.Stderr, v.StderrBuf)
 	// disable callhome diagnostics during tests
 	v.Cmd.Env = append(os.Environ(), "YB_VOYAGER_SEND_DIAGNOSTICS=false")
+
+	// Add test-specific environment variables if provided
+	if len(v.testEnvVars) > 0 {
+		v.Cmd.Env = append(v.Cmd.Env, v.testEnvVars...)
+	}
 }
 
 func (v *VoyagerCommandRunner) Run() error {
@@ -140,6 +162,7 @@ func (v *VoyagerCommandRunner) Run() error {
 	}
 
 	v.newCmd()
+	v.printCommandHeader()
 
 	log.Debugf("running command: %s", v.Cmd.String())
 	err := v.Cmd.Start()
@@ -167,10 +190,12 @@ func (v *VoyagerCommandRunner) Wait() error {
 		} else {
 			v.exitCode = ExitCodeFailure
 		}
+		v.printCommandFooter(err)
 		return fmt.Errorf("command failed: %w", err)
-	} else {
-		v.exitCode = ExitCodeSuccess
 	}
+
+	v.exitCode = ExitCodeSuccess
+	v.printCommandFooter(nil)
 	return nil
 }
 
@@ -213,4 +238,24 @@ func (v *VoyagerCommandRunner) Stderr() string {
 
 func (v *VoyagerCommandRunner) SetAsync(async bool) {
 	v.isAsync = async
+}
+
+// printCommandHeader prints a formatted header before command execution
+func (v *VoyagerCommandRunner) printCommandHeader() {
+	fmt.Println()
+	fmt.Println(separator)
+	fmt.Printf(">>> Running: %s %s\n", v.CmdName, strings.Join(v.CmdArgs, " "))
+	fmt.Println(separator)
+}
+
+// printCommandFooter prints a formatted footer after command execution
+func (v *VoyagerCommandRunner) printCommandFooter(err error) {
+	fmt.Println(separator)
+	if err != nil {
+		fmt.Printf(">>> Command FAILED: %s (Exit Code: %s)\n", v.CmdName, v.exitCode.String())
+	} else {
+		fmt.Printf(">>> Command COMPLETED: %s\n", v.CmdName)
+	}
+	fmt.Println(separator)
+	fmt.Println()
 }

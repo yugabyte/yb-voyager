@@ -21,6 +21,8 @@ import (
 	"os"
 	"time"
 
+	goerrors "github.com/go-errors/errors"
+
 	"github.com/pavlo-v-chernykh/keystore-go/v4"
 )
 
@@ -55,12 +57,12 @@ func convertPKCS8PrivateKeyPEMtoDER(pemFilePath string) ([]byte, error) {
 
 	b, _ := pem.Decode(pkPEM)
 	if b == nil {
-		return nil, fmt.Errorf("could not decode pem key file. Only PEM encoded keys are supported")
+		return nil, goerrors.Errorf("could not decode pem key file. Only PEM encoded keys are supported")
 	}
 
 	// downstream pgjdbc (used by debezium) expects PKCS8 DER format
 	if b.Type != "PRIVATE KEY" {
-		return nil, fmt.Errorf("could not decode pem key file. Expected PKCS8 standard(type=PRIVATE KEY), received type=%s.\n"+
+		return nil, goerrors.Errorf("could not decode pem key file. Expected PKCS8 standard(type=PRIVATE KEY), received type=%s.\n"+
 			"You can use the following command to convert your key to PKCS8 standard - `openssl pkcs8 -topk8 -inform PEM -outform PEM -in <filename> -out <filename> -nocrypt`", b.Type)
 	}
 	return b.Bytes, nil

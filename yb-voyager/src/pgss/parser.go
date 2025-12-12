@@ -24,6 +24,8 @@ import (
 	"strconv"
 	"strings"
 
+	goerrors "github.com/go-errors/errors"
+
 	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -52,7 +54,7 @@ func ParseFromCSV(csvPath string) ([]*PgStatStatements, error) {
 		} else if err != nil {
 			return nil, fmt.Errorf("failed to read CSV row at line %d: %w", lineNumber, err)
 		} else if len(headers) != len(record) {
-			return nil, fmt.Errorf("invalid PGSS CSV structure: headers count does not match record count at line %d", lineNumber)
+			return nil, goerrors.Errorf("invalid PGSS CSV structure: headers count does not match record count at line %d", lineNumber)
 		}
 
 		entry, err := parseCSVRecord(headers, record)
@@ -112,33 +114,33 @@ func parseCSVRecord(headers []string, record []string) (*PgStatStatements, error
 			}
 		case "queryid":
 			if value == "" {
-				return nil, fmt.Errorf("missing queryid")
+				return nil, goerrors.Errorf("missing queryid")
 			}
 			entry.QueryID, err = strconv.ParseInt(value, 10, 64)
 			if err != nil {
-				return nil, fmt.Errorf("invalid queryid: %s", value)
+				return nil, goerrors.Errorf("invalid queryid: %s", value)
 			}
 		case "query":
 			entry.Query = strings.TrimSpace(value)
 			if entry.Query == "" {
-				return nil, fmt.Errorf("missing or empty query")
+				return nil, goerrors.Errorf("missing or empty query")
 			}
 		case "calls":
 			if value == "" {
-				return nil, fmt.Errorf("missing calls")
+				return nil, goerrors.Errorf("missing calls")
 			}
 			entry.Calls, err = strconv.ParseInt(value, 10, 64)
 			if err != nil {
-				return nil, fmt.Errorf("invalid calls: %s", value)
+				return nil, goerrors.Errorf("invalid calls: %s", value)
 			}
 			if entry.Calls <= 0 {
-				return nil, fmt.Errorf("invalid calls: %s", value)
+				return nil, goerrors.Errorf("invalid calls: %s", value)
 			}
 		case "rows":
 			if value != "" {
 				entry.Rows, err = strconv.ParseInt(value, 10, 64)
 				if err != nil {
-					return nil, fmt.Errorf("invalid rows: %s", value)
+					return nil, goerrors.Errorf("invalid rows: %s", value)
 				}
 			}
 		case "total_exec_time":
@@ -181,7 +183,7 @@ func parseFloatOrZero(value, fieldName string, target *float64) (err error) {
 
 	*target, err = strconv.ParseFloat(value, 64)
 	if err != nil {
-		return fmt.Errorf("invalid %s: %s", fieldName, value)
+		return goerrors.Errorf("invalid %s: %s", fieldName, value)
 	}
 	return
 }
@@ -212,7 +214,7 @@ func parseJSONBRecord(jsonStr string) (*PgStatStatements, error) {
 		return nil, err
 	}
 	if entry.Calls <= 0 {
-		return nil, fmt.Errorf("invalid calls: %d", entry.Calls)
+		return nil, goerrors.Errorf("invalid calls: %d", entry.Calls)
 	}
 
 	// Optional field - rows

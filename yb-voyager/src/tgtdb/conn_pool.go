@@ -23,6 +23,7 @@ import (
 	"sync"
 	"time"
 
+	goerrors "github.com/go-errors/errors"
 	"github.com/jackc/pgx/v4"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
@@ -104,7 +105,7 @@ func (pool *ConnectionPool) UpdateNumConnections(delta int) error {
 	newSize := pool.size + delta
 
 	if newSize < 1 || newSize > pool.params.NumMaxConnections {
-		return fmt.Errorf("invalid new pool size %d. "+
+		return goerrors.Errorf("invalid new pool size %d. "+
 			"Must be between 1 and %d", newSize, pool.params.NumMaxConnections)
 	}
 
@@ -303,7 +304,7 @@ func (pool *ConnectionPool) RemoveConnectionsForHosts(servers []string) error {
 	for i := 0; i < size; i++ {
 		conn, gotIt = <-pool.conns
 		if !gotIt {
-			//breaking in this case we if not able to get a conn from the pool it determines all the connections are busy 
+			//breaking in this case we if not able to get a conn from the pool it determines all the connections are busy
 			//or pool doesn't have connections
 			break
 		}

@@ -9,6 +9,8 @@ import (
 	"strings"
 	"syscall"
 
+	goerrors "github.com/go-errors/errors"
+
 	"github.com/dustin/go-humanize"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
@@ -659,7 +661,7 @@ func cleanupTargetDB(msr *metadb.MigrationStatusRecord) {
 func deleteYBReplicationSlotAndPublication(replicationSlotName string, publicationName string, source srcdb.Source) (err error) {
 	ybDB, ok := source.DB().(*srcdb.YugabyteDB)
 	if !ok {
-		return fmt.Errorf("unable to cast source db to yugabytedb")
+		return goerrors.Errorf("unable to cast source db to yugabytedb")
 	}
 
 	if replicationSlotName != "" && source.DBType == YUGABYTEDB {
@@ -803,12 +805,12 @@ func validateEndMigrationFlags(cmd *cobra.Command) error {
 	flags := []string{"backup-schema-files", "backup-data-files", "save-migration-reports", "backup-log-files"}
 	for _, flag := range flags {
 		if cmd.Flag(flag).Value.String() == "true" && !cmd.Flag("backup-dir").Changed {
-			return fmt.Errorf("flag %s requires --backup-dir flag to be set", flag)
+			return goerrors.Errorf("flag %s requires --backup-dir flag to be set", flag)
 		}
 	}
 
 	if backupDir != "" && !utils.FileOrFolderExists(backupDir) { // ignoring the case where backupDir is not set/required
-		return fmt.Errorf("backup-dir %q doesn't exists", backupDir)
+		return goerrors.Errorf("backup-dir %q doesn't exists", backupDir)
 	}
 	return nil
 }

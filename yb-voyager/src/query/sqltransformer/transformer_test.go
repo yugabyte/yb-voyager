@@ -665,7 +665,7 @@ func TestHashSplittingChanges(t *testing.T) {
 				`ALTER TABLE public.t_3 ADD CONSTRAINT uk1 UNIQUE (val);`,
 				`ALTER TABLE public.t_3 ADD CONSTRAINT fk FOREIGN KEY (id) REFERENCES public.t (id);`,
 			},
-			errExpected: true,
+			errExpected:    true,
 			errExpectedMsg: "table public.t_2 not found in tables map",
 		},
 		{

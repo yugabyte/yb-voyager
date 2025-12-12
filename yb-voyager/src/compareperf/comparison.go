@@ -25,6 +25,8 @@ import (
 	"sort"
 	"time"
 
+	goerrors "github.com/go-errors/errors"
+
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
@@ -114,7 +116,7 @@ func (c *QueryPerformanceComparator) Compare() error {
 
 func (c *QueryPerformanceComparator) GenerateReport(exportDir string) error {
 	if c.Report == nil {
-		return fmt.Errorf("no comparison report available, Compare() must be executed first")
+		return goerrors.Errorf("no comparison report available, Compare() must be executed first")
 	}
 
 	// 1. Generate HTML report

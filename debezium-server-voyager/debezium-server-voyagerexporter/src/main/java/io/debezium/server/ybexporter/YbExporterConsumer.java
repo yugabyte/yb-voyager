@@ -27,6 +27,8 @@ import io.debezium.engine.ChangeEvent;
 import io.debezium.engine.DebeziumEngine;
 import io.debezium.server.BaseChangeConsumer;
 
+import com.yugabyte.ybvoyager.BytemanMarkers;
+
 /**
  * Implementation of the consumer that exports the messages to file in a
  * Yugabyte-compatible form.
@@ -62,6 +64,7 @@ public class YbExporterConsumer extends BaseChangeConsumer {
     }
 
     void connect() throws URISyntaxException {
+        BytemanMarkers.checkpoint("before-connect");
         LOGGER.info("connect() called: dataDir = {}", dataDir);
 
         final Config config = ConfigProvider.getConfig();
@@ -101,6 +104,8 @@ public class YbExporterConsumer extends BaseChangeConsumer {
         flusherThread = new Thread(this::flush);
         flusherThread.setDaemon(true);
         flusherThread.start();
+        
+        BytemanMarkers.checkpoint("after-connect");
     }
 
     /**
@@ -303,10 +308,12 @@ public class YbExporterConsumer extends BaseChangeConsumer {
     public void handleBatch(List<ChangeEvent<Object, Object>> changeEvents,
             DebeziumEngine.RecordCommitter<ChangeEvent<Object, Object>> committer)
             throws InterruptedException {
+        BytemanMarkers.cdc("before-batch");
         LOGGER.info("Processing batch with {} records", changeEvents.size());
         checkIfHelperThreadAlive();
 
         for (ChangeEvent<Object, Object> event : changeEvents) {
+            BytemanMarkers.cdc("before-process-record");
             Object objKey = event.key();
             Object objVal = event.value();
 
@@ -338,6 +345,7 @@ public class YbExporterConsumer extends BaseChangeConsumer {
             }
             // Handle snapshot->cdc transition
             checkIfSnapshotComplete(r);
+            BytemanMarkers.cdc("after-process-record");
         }
         handleBatchComplete();
         LOGGER.debug("Fsynced batch with {} records", changeEvents.size());
@@ -358,6 +366,7 @@ public class YbExporterConsumer extends BaseChangeConsumer {
         committer.markBatchFinished();
         LOGGER.debug("Committed batch complete with {} records", changeEvents.size());
         handleSnapshotOnlyComplete();
+        BytemanMarkers.cdc("after-batch");
     }
 
     private boolean checkIfEventNeedsToBeWritten(Record r) {
@@ -370,6 +379,7 @@ public class YbExporterConsumer extends BaseChangeConsumer {
 
     private RecordWriter getWriterForRecord(Record r) {
         if (exportStatus.getMode() == ExportMode.SNAPSHOT) {
+            BytemanMarkers.snapshot("get-writer");
             RecordWriter writer = snapshotWriters.get(r.t);
             if (writer == null) {
                 writer = new TableSnapshotWriterCSV(dataDir, r.t, sourceType);
@@ -377,6 +387,7 @@ public class YbExporterConsumer extends BaseChangeConsumer {
             }
             return writer;
         } else {
+            BytemanMarkers.cdc("get-writer");
             return eventQueue;
         }
     }
@@ -388,6 +399,7 @@ public class YbExporterConsumer extends BaseChangeConsumer {
      */
     private void checkIfSnapshotComplete(Record r) {
         if ((r.snapshot != null) && (r.snapshot.equals("last"))) {
+            BytemanMarkers.snapshot("detected-complete");
             handleSnapshotComplete();
         }
     }
@@ -416,12 +428,14 @@ public class YbExporterConsumer extends BaseChangeConsumer {
     }
 
     private void handleSnapshotComplete() {
+        BytemanMarkers.snapshot("before-complete");
         synchronized (flushingSnapshotFilesLock) {
             closeSnapshotWriters();
         }
         exportStatus.updateMode(ExportMode.STREAMING);
         exportStatus.flushToDisk();
         openCDCWriter();
+        BytemanMarkers.snapshot("after-complete");
     }
 
     private void handleSnapshotOnlyComplete() {

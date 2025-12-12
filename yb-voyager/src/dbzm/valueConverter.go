@@ -23,6 +23,8 @@ import (
 	"strings"
 	"sync"
 
+	goerrors "github.com/go-errors/errors"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	tgtdbsuite "github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb/suites"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -64,9 +66,9 @@ type SnapshotPhaseDebeziumValueConverter struct {
 	tdb                    tgtdb.TargetDB
 	schemaRegistrySource   *schemareg.SchemaRegistry
 	valueConverterSuite    map[string]tgtdbsuite.ConverterFn
+	cacheMutex             sync.RWMutex
 	converterFnCache       *utils.StructMap[sqlname.NameTuple, []tgtdbsuite.ConverterFn] //stores table name to converter functions for each column
 	dbzmColumnSchemasCache *utils.StructMap[sqlname.NameTuple, []*schemareg.ColumnSchema]
-	tableMutexes           *utils.StructMap[sqlname.NameTuple, sync.Mutex]
 }
 
 // Initialize debezium value converter with the given table list
@@ -82,11 +84,6 @@ func NewSnapshotPhaseDebeziumValueConverter(tableList []sqlname.NameTuple, expor
 		return nil, err
 	}
 
-	tableMutexes := utils.NewStructMap[sqlname.NameTuple, sync.Mutex]()
-	for _, tableNameTup := range tableList {
-		tableMutexes.Put(tableNameTup, sync.Mutex{})
-	}
-
 	conv := &SnapshotPhaseDebeziumValueConverter{
 		exportDir:              exportDir,
 		schemaRegistrySource:   schemaRegistrySource,
@@ -95,7 +92,6 @@ func NewSnapshotPhaseDebeziumValueConverter(tableList []sqlname.NameTuple, expor
 		dbzmColumnSchemasCache: utils.NewStructMap[sqlname.NameTuple, []*schemareg.ColumnSchema](),
 		targetDBType:           targetConf.TargetDBType,
 		tdb:                    tdb,
-		tableMutexes:           tableMutexes,
 	}
 
 	return conv, nil
@@ -119,7 +115,7 @@ func getDebeziumValueConverterSuite(tconf tgtdb.TargetConf) (map[string]tgtdbsui
 	case tgtdb.YUGABYTEDB, tgtdb.POSTGRESQL:
 		return tgtdbsuite.YBValueConverterSuite, nil
 	default:
-		return nil, fmt.Errorf("no converter suite found for %s", tconf.TargetDBType)
+		return nil, goerrors.Errorf("no converter suite found for %s", tconf.TargetDBType)
 	}
 }
 
@@ -127,18 +123,6 @@ func getDebeziumValueConverterSuite(tconf tgtdb.TargetConf) (map[string]tgtdbsui
 Used by every batch producer to convert csv row string to transformed csv row string
 */
 func (conv *SnapshotPhaseDebeziumValueConverter) ConvertRow(tableNameTup sqlname.NameTuple, columnNames []string, columnValues []string) error {
-	/*
-		There can be multiple batch producers running concurrently.
-		All required data to convert is stored per table, therefore, we need to only lock the table mutex.
-		Import-data-file can have multiple batch producers for the same table, but they won't ever use the dbzm value converter to begin with.
-	*/
-	tblMutex, ok := conv.tableMutexes.Get(tableNameTup)
-	if !ok {
-		return fmt.Errorf("table mutex not found for table %s", tableNameTup)
-	}
-	tblMutex.Lock()
-	defer tblMutex.Unlock()
-
 	converterFns, dbzmColumnSchemas, err := conv.getConverterFns(tableNameTup, columnNames)
 	if err != nil {
 		return fmt.Errorf("fetching converter functions: %w", err)
@@ -159,22 +143,41 @@ func (conv *SnapshotPhaseDebeziumValueConverter) ConvertRow(tableNameTup sqlname
 }
 
 func (conv *SnapshotPhaseDebeziumValueConverter) getConverterFns(tableNameTup sqlname.NameTuple, columnNames []string) ([]tgtdbsuite.ConverterFn, []*schemareg.ColumnSchema, error) {
-	result, _ := conv.converterFnCache.Get(tableNameTup)
-	colSchemas, _ := conv.dbzmColumnSchemasCache.Get(tableNameTup)
-	var colTypes []string
-	var err error
-	if result == nil {
-		colTypes, colSchemas, err = conv.schemaRegistrySource.GetColumnTypes(tableNameTup, columnNames, conv.shouldFormatAsPerSourceDatatypes())
-		if err != nil {
-			return nil, nil, fmt.Errorf("get types of columns of table %s: %w", tableNameTup, err)
-		}
-		result = make([]tgtdbsuite.ConverterFn, len(columnNames))
-		for i, colType := range colTypes {
-			result[i] = conv.valueConverterSuite[colType]
-		}
-		conv.converterFnCache.Put(tableNameTup, result)
-		conv.dbzmColumnSchemasCache.Put(tableNameTup, colSchemas)
+	// First try: read from cache with read lock
+	conv.cacheMutex.RLock()
+	result, ok1 := conv.converterFnCache.Get(tableNameTup)
+	colSchemas, ok2 := conv.dbzmColumnSchemasCache.Get(tableNameTup)
+	conv.cacheMutex.RUnlock()
+
+	if ok1 && ok2 && result != nil {
+		return result, colSchemas, nil
 	}
+
+	// Cache miss: acquire write lock to populate cache
+	conv.cacheMutex.Lock()
+	defer conv.cacheMutex.Unlock()
+
+	// Double-check: another goroutine might have populated while we waited for the lock
+	result, ok1 = conv.converterFnCache.Get(tableNameTup)
+	colSchemas, ok2 = conv.dbzmColumnSchemasCache.Get(tableNameTup)
+	if ok1 && ok2 && result != nil {
+		return result, colSchemas, nil
+	}
+
+	// Actually populate the cache
+	colTypes, colSchemas, err := conv.schemaRegistrySource.GetColumnTypes(tableNameTup, columnNames, conv.shouldFormatAsPerSourceDatatypes())
+	if err != nil {
+		return nil, nil, fmt.Errorf("get types of columns of table %s: %w", tableNameTup, err)
+	}
+
+	result = make([]tgtdbsuite.ConverterFn, len(columnNames))
+	for i, colType := range colTypes {
+		result[i] = conv.valueConverterSuite[colType]
+	}
+
+	conv.converterFnCache.Put(tableNameTup, result)
+	conv.dbzmColumnSchemasCache.Put(tableNameTup, colSchemas)
+
 	return result, colSchemas, nil
 }
 

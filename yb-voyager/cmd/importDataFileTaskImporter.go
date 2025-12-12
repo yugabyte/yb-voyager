@@ -18,8 +18,12 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"os"
+	"strconv"
 	"strings"
 	"time"
+
+	goerrors "github.com/go-errors/errors"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/color"
@@ -46,11 +50,24 @@ type FileBatchProducer interface {
 	// Done returns true if all batches have been produced.
 	Done() bool
 
+	// IsNextBatchAvailable returns true if a batch is available for immediate consumption.
+	IsNextBatchAvailable() bool
+
 	// NextBatch returns the next batch to be processed, or an error if no more batches are available.
 	NextBatch() (*Batch, error)
 
 	// Close cleans up any resources used by the batch producer.
 	Close()
+}
+
+func init() {
+	// Allow overriding COPY_MAX_RETRY_COUNT via environment variable for testing.
+	if val := os.Getenv("YB_VOYAGER_COPY_MAX_RETRY_COUNT"); val != "" {
+		if count, err := strconv.Atoi(val); err == nil && count > 0 {
+			COPY_MAX_RETRY_COUNT = count
+			log.Infof("COPY_MAX_RETRY_COUNT set to %d via environment variable", count)
+		}
+	}
 }
 
 /*
@@ -77,18 +94,13 @@ type FileTaskImporter struct {
 	callhomeMetricsCollector *callhome.ImportDataMetricsCollector
 }
 
-func NewFileTaskImporter(task *ImportFileTask, state *ImportDataState, workerPool *pool.Pool,
-	progressReporter *ImportDataProgressReporter, colocatedImportBatchQueue chan func(), isTableColocated bool, isRowTransformationRequired bool,
+func NewFileTaskImporter(task *ImportFileTask, state *ImportDataState, batchProducer FileBatchProducer, workerPool *pool.Pool,
+	progressReporter *ImportDataProgressReporter, colocatedImportBatchQueue chan func(), isTableColocated bool,
 	errorHandler importdata.ImportDataErrorHandler, callhomeMetricsCollector *callhome.ImportDataMetricsCollector) (*FileTaskImporter, error) {
 	totalProgressAmount := getTotalProgressAmount(task)
 	progressReporter.ImportFileStarted(task, totalProgressAmount)
 	currentProgressAmount := getImportedProgressAmount(task, state)
 	progressReporter.AddProgressAmount(task, currentProgressAmount)
-	batchProducer, err := NewSequentialFileBatchProducer(task, state, isRowTransformationRequired, errorHandler, progressReporter)
-
-	if err != nil {
-		return nil, fmt.Errorf("creating file batch producer: %s", err)
-	}
 
 	fti := &FileTaskImporter{
 		state:                     state,
@@ -125,9 +137,13 @@ func (fti *FileTaskImporter) TableHasPrimaryKey() bool {
 	return len(fti.importBatchArgsProto.PrimaryKeyColumns) > 0
 }
 
+func (fti *FileTaskImporter) IsNextBatchAvailable() bool {
+	return fti.batchProducer.IsNextBatchAvailable()
+}
+
 func (fti *FileTaskImporter) ProduceAndSubmitNextBatchToWorkerPool() error {
 	if fti.AllBatchesSubmitted() {
-		return fmt.Errorf("no more batches to submit")
+		return goerrors.Errorf("no more batches to submit")
 	}
 	batch, err := fti.batchProducer.NextBatch()
 	if err != nil {

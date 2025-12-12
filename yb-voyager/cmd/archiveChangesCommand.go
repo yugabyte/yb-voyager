@@ -23,6 +23,8 @@ import (
 	"sync"
 	"time"
 
+	goerrors "github.com/go-errors/errors"
+
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
@@ -117,10 +119,10 @@ func NewEventSegmentDeleter(fsUtilisationThreshold int) *EventSegmentDeleter {
 func (d *EventSegmentDeleter) getImportCount() (int, error) {
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		return 0, fmt.Errorf("get migration status record: %v", err)
+		return 0, goerrors.Errorf("get migration status record: %v", err)
 	}
 	if msr == nil {
-		return 0, fmt.Errorf("migration status record not found")
+		return 0, goerrors.Errorf("migration status record not found")
 	}
 	if msr.FallForwardEnabled {
 		return 2, nil
@@ -144,12 +146,12 @@ func (d *EventSegmentDeleter) deleteSegment(segment utils.Segment) error {
 	if utils.FileOrFolderExists(segment.FilePath) {
 		err := os.Remove(segment.FilePath)
 		if err != nil {
-			return fmt.Errorf("delete segment file %s: %v", segment.FilePath, err)
+			return goerrors.Errorf("delete segment file %s: %v", segment.FilePath, err)
 		}
 	}
 	err := metaDB.MarkSegmentDeleted(segment.Num)
 	if err != nil {
-		return fmt.Errorf("mark segment %d as deleted: %v", segment.Num, err)
+		return goerrors.Errorf("mark segment %d as deleted: %v", segment.Num, err)
 	}
 	utils.PrintAndLogf("event queue segment file %s deleted", segment.FilePath)
 	return nil
@@ -167,13 +169,13 @@ func (d *EventSegmentDeleter) Run() error {
 		}
 		segmentsToBeDeleted, err := metaDB.GetSegmentsToBeDeleted()
 		if err != nil {
-			return fmt.Errorf("get segments to be deleted: %v", err)
+			return goerrors.Errorf("get segments to be deleted: %v", err)
 		}
 
 		if StopArchiverSignal && len(segmentsToBeDeleted) == 0 {
 			pendingSegments, err := metaDB.GetPendingSegments(importCount)
 			if err != nil {
-				return fmt.Errorf("stop archiver signal to deleter: %v", err)
+				return goerrors.Errorf("stop archiver signal to deleter: %v", err)
 			}
 
 			if len(pendingSegments) == 0 {
@@ -185,7 +187,7 @@ func (d *EventSegmentDeleter) Run() error {
 		for _, segment := range segmentsToBeDeleted {
 			err := d.deleteSegment(segment)
 			if err != nil {
-				return fmt.Errorf("delete segment %s: %v", segment.FilePath, err)
+				return goerrors.Errorf("delete segment %s: %v", segment.FilePath, err)
 			}
 			if !d.isFSUtilisationExceeded() {
 				break
@@ -210,10 +212,10 @@ func NewEventSegmentCopier(dest string) *EventSegmentCopier {
 func (m *EventSegmentCopier) getImportCount() (int, error) {
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		return 0, fmt.Errorf("get migration status record: %v", err)
+		return 0, goerrors.Errorf("get migration status record: %v", err)
 	}
 	if msr == nil {
-		return 0, fmt.Errorf("migration status record not found")
+		return 0, goerrors.Errorf("migration status record not found")
 	}
 	if msr.FallForwardEnabled {
 		return 2, nil
@@ -235,17 +237,17 @@ func (m *EventSegmentCopier) ifExistsDeleteSegmentFileFromArchive(segmentNewPath
 func (m *EventSegmentCopier) copySegmentFile(segment utils.Segment, segmentNewPath string) error {
 	sourceFile, err := os.Open(segment.FilePath)
 	if err != nil {
-		return fmt.Errorf("open segment file %s : %v", segment.FilePath, err)
+		return goerrors.Errorf("open segment file %s : %v", segment.FilePath, err)
 	}
 	defer sourceFile.Close()
 	destinationFile, err := os.Create(segmentNewPath)
 	if err != nil {
-		return fmt.Errorf("create file %s : %v", segmentNewPath, err)
+		return goerrors.Errorf("create file %s : %v", segmentNewPath, err)
 	}
 	defer destinationFile.Close()
 	_, err = io.Copy(destinationFile, sourceFile)
 	if err != nil {
-		return fmt.Errorf("copy file %s : %v", segment.FilePath, err)
+		return goerrors.Errorf("copy file %s : %v", segment.FilePath, err)
 	}
 	return nil
 }
@@ -264,13 +266,13 @@ func (m *EventSegmentCopier) Run() error {
 
 		segmentsToArchive, err := metaDB.GetSegmentsToBeArchived(importCount)
 		if err != nil {
-			return fmt.Errorf("get segments to be archived: %v", err)
+			return goerrors.Errorf("get segments to be archived: %v", err)
 		}
 
 		if StopArchiverSignal && len(segmentsToArchive) == 0 {
 			pendingSegments, err := metaDB.GetPendingSegments(importCount)
 			if err != nil {
-				return fmt.Errorf("stop archiver signal to copier: %v", err)
+				return goerrors.Errorf("stop archiver signal to copier: %v", err)
 			}
 
 			if len(pendingSegments) == 0 {
@@ -287,18 +289,18 @@ func (m *EventSegmentCopier) Run() error {
 
 				err := m.ifExistsDeleteSegmentFileFromArchive(segmentNewPath)
 				if err != nil {
-					return fmt.Errorf("delete existing file %s : %v", segmentNewPath, err)
+					return goerrors.Errorf("delete existing file %s : %v", segmentNewPath, err)
 				}
 
 				err = m.copySegmentFile(segment, segmentNewPath)
 				if err != nil {
-					return fmt.Errorf("copy file %s : %v", segment.FilePath, err)
+					return goerrors.Errorf("copy file %s : %v", segment.FilePath, err)
 				}
 				utils.PrintAndLogf("event queue segment file %s archived to %s", segment.FilePath, segmentNewPath)
 			}
 			err = metaDB.UpdateSegmentArchiveLocation(segment.Num, segmentNewPath)
 			if err != nil {
-				return fmt.Errorf("update segment archive location in metaDB for segment %s : %v", segment.FilePath, err)
+				return goerrors.Errorf("update segment archive location in metaDB for segment %s : %v", segment.FilePath, err)
 			}
 		}
 		time.Sleep(10 * time.Second)

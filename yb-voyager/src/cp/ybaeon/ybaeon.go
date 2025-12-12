@@ -23,6 +23,8 @@ import (
 	"sync"
 	"time"
 
+	goerrors "github.com/go-errors/errors"
+
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 	controlPlane "github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
@@ -105,22 +107,22 @@ func (ybaeon *YBAeon) Init() error {
 // validateConfig ensures all required configuration is present
 func (ybaeon *YBAeon) validateConfig() error {
 	if ybaeon.config == nil {
-		return fmt.Errorf("YB-Aeon configuration is nil")
+		return goerrors.Errorf("YB-Aeon configuration is nil")
 	}
 	if ybaeon.config.Domain == "" {
-		return fmt.Errorf("YB-Aeon domain is required")
+		return goerrors.Errorf("YB-Aeon domain is required")
 	}
 	if ybaeon.config.AccountID == "" {
-		return fmt.Errorf("YB-Aeon account-id is required")
+		return goerrors.Errorf("YB-Aeon account-id is required")
 	}
 	if ybaeon.config.ProjectID == "" {
-		return fmt.Errorf("YB-Aeon project-id is required")
+		return goerrors.Errorf("YB-Aeon project-id is required")
 	}
 	if ybaeon.config.ClusterID == "" {
-		return fmt.Errorf("YB-Aeon cluster-id is required")
+		return goerrors.Errorf("YB-Aeon cluster-id is required")
 	}
 	if ybaeon.config.APIKey == "" {
-		return fmt.Errorf("YB-Aeon api-key is required")
+		return goerrors.Errorf("YB-Aeon api-key is required")
 	}
 	return nil
 }

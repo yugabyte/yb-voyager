@@ -19,6 +19,8 @@ import (
 	"fmt"
 	"strings"
 
+	goerrors "github.com/go-errors/errors"
+
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -78,7 +80,7 @@ func validateImportFlags(cmd *cobra.Command, importerRole string) error {
 	}
 
 	if tconf.ImportObjects != "" && tconf.ExcludeImportObjects != "" {
-		return fmt.Errorf("only one of --object-type-list and --exclude-object-type-list are allowed")
+		return goerrors.Errorf("only one of --object-type-list and --exclude-object-type-list are allowed")
 	}
 	validateImportObjectsFlag(tconf.ImportObjects, "object-type-list")
 	validateImportObjectsFlag(tconf.ExcludeImportObjects, "exclude-object-type-list")
@@ -310,6 +312,12 @@ Note that for the cases where a table doesn't have a primary key, this may lead 
 		"The desired behavior when there is an error while processing and importing rows to target YugabyteDB in the snapshot phase. The errors can be while reading from file, transforming rows, or ingesting rows into YugabyteDB.\n"+
 			"\tabort: immediately abort the process. (default)\n"+
 			"\tstash-and-continue: stash the errored rows to a file and continue with the import")
+
+	cmd.Flags().IntVar(&maxConcurrentBatchProductionsConfig, "max-concurrent-batch-productions", 10, "Maximum number of concurrent batch productions to allow while importing data (default 10)")
+	cmd.Flags().MarkHidden("max-concurrent-batch-productions")
+
+	BoolVar(cmd.Flags(), &enableRandomBatchProduction, "enable-random-batch-production", true, "Enable random batch production during data import (default true)")
+	cmd.Flags().MarkHidden("enable-random-batch-production")
 
 	cmd.Flags().StringVar(&cdcPartitioningStrategy, "cdc-partitioning-strategy", "auto",
 		`The desired partitioning strategy to use while importing cdc events parallelly. The supported values are: pk, table. (default auto-detect)
@@ -544,7 +552,7 @@ func validateParallelismFlags() {
 
 func validateTruncateTablesFlag() error {
 	if truncateTables && !startClean {
-		return fmt.Errorf("Error --truncate-tables true can only be specified along with --start-clean true")
+		return goerrors.Errorf("Error --truncate-tables true can only be specified along with --start-clean true")
 	}
 	return nil
 }
@@ -568,7 +576,7 @@ func validateOnPrimaryKeyConflictFlag() error {
 	// Check if the provided OnPrimaryKeyConflictAction is valid
 	if tconf.OnPrimaryKeyConflictAction != "" {
 		if !slices.Contains(onPrimaryKeyConflictActions, tconf.OnPrimaryKeyConflictAction) {
-			return fmt.Errorf("invalid value for --on-primary-key-conflict. Allowed values are: [%s]", strings.Join(onPrimaryKeyConflictActions, ", "))
+			return goerrors.Errorf("invalid value for --on-primary-key-conflict. Allowed values are: [%s]", strings.Join(onPrimaryKeyConflictActions, ", "))
 		}
 	}
 
@@ -583,18 +591,18 @@ func validateOnPrimaryKeyConflictFlag() error {
 		if err != nil {
 			return fmt.Errorf("error getting migration status record: %w", err)
 		} else if msr == nil {
-			return fmt.Errorf("migration status record is nil, cannot validate --on-primary-key-conflict flag")
+			return goerrors.Errorf("migration status record is nil, cannot validate --on-primary-key-conflict flag")
 		}
 
 		if msr.OnPrimaryKeyConflictAction != "" && msr.OnPrimaryKeyConflictAction != tconf.OnPrimaryKeyConflictAction {
-			return fmt.Errorf("--on-primary-key-conflict flag cannot be changed after the import has started. "+
+			return goerrors.Errorf("--on-primary-key-conflict flag cannot be changed after the import has started. "+
 				"Previous value was %s, current value is %s", msr.OnPrimaryKeyConflictAction, tconf.OnPrimaryKeyConflictAction)
 		}
 	}
 
 	// --enable-upsert true and on-primary-key-conflict ignore is conflicting, therefore we only allow it if on-primary-key-conflict is set to ERROR-POLICY
 	if tconf.EnableUpsert && tconf.OnPrimaryKeyConflictAction != constants.PRIMARY_KEY_CONFLICT_ACTION_ERROR_POLICY {
-		return fmt.Errorf("--enable-upsert=true can only be used with --on-primary-key-conflict=ERROR-POLICY")
+		return goerrors.Errorf("--enable-upsert=true can only be used with --on-primary-key-conflict=ERROR-POLICY")
 	}
 
 	if tconf.OnPrimaryKeyConflictAction == constants.PRIMARY_KEY_CONFLICT_ACTION_IGNORE {
