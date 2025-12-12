@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"strings"
 
+	goerrors "github.com/go-errors/errors"
+
 	"github.com/fatih/color"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
@@ -78,7 +80,7 @@ func checkPermissionsForNonPostgreSQL(source *srcdb.Source) (bool, error) {
 
 		reply := utils.AskPrompt("\nDo you want to continue anyway")
 		if !reply {
-			return false, fmt.Errorf("grant the required permissions and try again")
+			return false, goerrors.Errorf("grant the required permissions and try again")
 		}
 	}
 
@@ -90,7 +92,7 @@ func checkPermissionsForNonPostgreSQL(source *srcdb.Source) (bool, error) {
 func checkPermissionsForPostgreSQL(source *srcdb.Source, validatedReplicas []srcdb.ReplicaEndpoint) (bool, error) {
 	pg, ok := source.DB().(*srcdb.PostgreSQL)
 	if !ok {
-		return false, fmt.Errorf("source database is not PostgreSQL")
+		return false, goerrors.Errorf("source database is not PostgreSQL")
 	}
 
 	// Print appropriate message based on replica count
@@ -242,7 +244,7 @@ func displayPermissionCheckResults(results []NodePermissionResult) error {
 
 		reply := utils.AskPrompt("\nDo you want to continue anyway")
 		if !reply {
-			return fmt.Errorf("grant the required permissions and try again")
+			return goerrors.Errorf("grant the required permissions and try again")
 		}
 	}
 

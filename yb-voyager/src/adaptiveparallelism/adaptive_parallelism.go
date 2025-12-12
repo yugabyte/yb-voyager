@@ -20,6 +20,8 @@ import (
 	"strconv"
 	"time"
 
+	goerrors "github.com/go-errors/errors"
+
 	"github.com/davecgh/go-spew/spew"
 	log "github.com/sirupsen/logrus"
 
@@ -78,7 +80,7 @@ type TargetYugabyteDBWithConnectionPool interface {
 	UpdateNumConnectionsInPool(int) error // (delta)
 }
 
-var ErrAdaptiveParallelismNotSupported = fmt.Errorf("adaptive parallelism not supported in target YB database")
+var ErrAdaptiveParallelismNotSupported = goerrors.Errorf("adaptive parallelism not supported in target YB database")
 
 func AdaptParallelism(yb TargetYugabyteDBWithConnectionPool, mode types.AdaptiveParallelismMode, callhomeMetricsCollector *callhome.ImportDataMetricsCollector) error {
 	if !mode.IsEnabled() {

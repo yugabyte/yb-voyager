@@ -26,6 +26,7 @@ import (
 	"strings"
 	"time"
 
+	goerrors "github.com/go-errors/errors"
 	retryablehttp "github.com/hashicorp/go-retryablehttp"
 	log "github.com/sirupsen/logrus"
 )
@@ -163,7 +164,7 @@ func (c *Client) Get(ctx context.Context, path string, response interface{}) (in
 
 	// Check for non-2xx status codes
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return resp.StatusCode, fmt.Errorf("request failed with status %d: %s", resp.StatusCode, string(body))
+		return resp.StatusCode, goerrors.Errorf("request failed with status %d: %s", resp.StatusCode, string(body))
 	}
 
 	// Unmarshal JSON response if response object is provided
@@ -224,7 +225,7 @@ func (c *Client) doJSONRequest(ctx context.Context, method, path string, payload
 
 	// Check for non-2xx status codes
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return resp.StatusCode, fmt.Errorf("request failed with status %d: %s", resp.StatusCode, string(body))
+		return resp.StatusCode, goerrors.Errorf("request failed with status %d: %s", resp.StatusCode, string(body))
 	}
 
 	return resp.StatusCode, nil

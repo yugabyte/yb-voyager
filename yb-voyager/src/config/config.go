@@ -16,9 +16,9 @@ limitations under the License.
 package config
 
 import (
-	"fmt"
 	"strings"
 
+	goerrors "github.com/go-errors/errors"
 	"github.com/samber/lo"
 )
 
@@ -40,7 +40,7 @@ var (
 func ValidateLogLevel() error {
 	LogLevel = strings.ToLower(LogLevel)
 	if !lo.Contains(validLogLevels, LogLevel) {
-		return fmt.Errorf("invalid log level: %s. Valid log levels = %v", LogLevel, validLogLevels)
+		return goerrors.Errorf("invalid log level: %s. Valid log levels = %v", LogLevel, validLogLevels)
 	}
 	return nil
 }

@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	goerrors "github.com/go-errors/errors"
 	"github.com/goccy/go-json"
 	"github.com/google/uuid"
 	"github.com/jackc/pgconn"
@@ -146,7 +147,7 @@ func (yb *TargetYugabyteDB) Init() error {
 	if err = yb.QueryRow(checkSchemaExistsQuery).Scan(&cntSchemaName); err != nil {
 		err = fmt.Errorf("run query %q on target %q to check schema exists: %w", checkSchemaExistsQuery, yb.Tconf.Host, err)
 	} else if cntSchemaName == 0 {
-		err = fmt.Errorf("schema '%s' does not exist in target", yb.Tconf.Schema)
+		err = goerrors.Errorf("schema '%s' does not exist in target", yb.Tconf.Schema)
 	}
 	return err
 }
@@ -336,7 +337,7 @@ const INVALID_INPUT_SYNTAX_ERROR = "invalid input syntax"
 // Mismatched param and argument count - produced by pgx's ExtendedQueryBuilder
 const MISMATCHED_PARAM_ARGUMENT_COUNT_ERROR = "mismatched param and argument count"
 
-// Failed to encode args[N] - pgx wraps encoding failures with fmt.Errorf
+// Failed to encode args[N] - pgx wraps encoding failures with goerrors.Errorf
 const FAILED_TO_ENCODE_ARGS_ERROR = "failed to encode args"
 
 // Unable to encode - many pgx/pgtype errors include this text
@@ -748,7 +749,7 @@ func (yb *TargetYugabyteDB) importBatch(conn *pgx.Conn, batch Batch, args *Impor
 			failpoint.Inject("importBatchCommitError", func(val failpoint.Value) {
 				if val != nil {
 					// Inject commit error only when action is not 'off'
-					err2 = fmt.Errorf("failpoint: commit failed")
+					err2 = goerrors.Errorf("failpoint: commit failed")
 					err = newImportBatchErrorPgYb(err2, batch,
 						errs.IMPORT_BATCH_ERROR_FLOW_COPY_NORMAL,
 						errs.IMPORT_BATCH_ERROR_STEP_COMMIT_TXN)
@@ -1847,7 +1848,7 @@ func (yb *TargetYugabyteDB) GetClusterMetrics() (map[string]NodeMetrics, error) 
 			return result, fmt.Errorf("scanning row for yb_servers_metrics(): %w", err)
 		}
 		if !uuid.Valid || !status.Valid || !errorStr.Valid || !metrics.Valid {
-			return result, fmt.Errorf("got invalid NULL values from yb_servers_metrics() : %v, %v, %v, %v",
+			return result, goerrors.Errorf("got invalid NULL values from yb_servers_metrics() : %v, %v, %v, %v",
 				uuid, metrics, status, errorStr)
 		}
 		nodeMetrics := NodeMetrics{
@@ -1947,7 +1948,7 @@ func (n *NodeMetrics) GetCPUPercent() (float64, error) {
 	userStr, ok1 := n.Metrics[CPU_USAGE_USER_METRIC]
 	sysStr, ok2 := n.Metrics[CPU_USAGE_SYSTEM_METRIC]
 	if !ok1 || !ok2 {
-		return -1, fmt.Errorf("node %s: missing cpu_usage_user or cpu_usage_system", n.UUID)
+		return -1, goerrors.Errorf("node %s: missing cpu_usage_user or cpu_usage_system", n.UUID)
 	}
 
 	user, err := strconv.ParseFloat(userStr, 64)
@@ -1967,7 +1968,7 @@ func (n *NodeMetrics) GetMemPercent() (float64, error) {
 	usedStr, ok1 := n.Metrics[TSERVER_ROOT_MEMORY_CONSUMPTION_METRIC]
 	softStr, ok2 := n.Metrics[TSERVER_ROOT_MEMORY_SOFT_LIMIT_METRIC]
 	if !ok1 || !ok2 {
-		return -1, fmt.Errorf("node %s: missing tserver_root_memory_consumption or tserver_root_memory_soft_limit", n.UUID)
+		return -1, goerrors.Errorf("node %s: missing tserver_root_memory_consumption or tserver_root_memory_soft_limit", n.UUID)
 	}
 
 	used, err := strconv.ParseFloat(usedStr, 64)
@@ -1979,7 +1980,7 @@ func (n *NodeMetrics) GetMemPercent() (float64, error) {
 		return -1, fmt.Errorf("node %s: parse memory_soft_limit: %w", n.UUID, err)
 	}
 	if soft == 0 {
-		return -1, fmt.Errorf("node %s: soft memory limit is zero", n.UUID)
+		return -1, goerrors.Errorf("node %s: soft memory limit is zero", n.UUID)
 	}
 
 	return (used / soft) * 100, nil
@@ -1988,7 +1989,7 @@ func (n *NodeMetrics) GetMemPercent() (float64, error) {
 func (n *NodeMetrics) GetMemoryFree() (int64, error) {
 	memoryFreeStr, ok := n.Metrics[MEMORY_FREE_METRIC]
 	if !ok {
-		return -1, fmt.Errorf("node %s: missing memory_free", n.UUID)
+		return -1, goerrors.Errorf("node %s: missing memory_free", n.UUID)
 	}
 
 	memoryFree, err := strconv.ParseInt(memoryFreeStr, 10, 64)
@@ -2001,7 +2002,7 @@ func (n *NodeMetrics) GetMemoryFree() (int64, error) {
 func (n *NodeMetrics) GetMemoryAvailable() (int64, error) {
 	memoryAvailableStr, ok := n.Metrics[MEMORY_AVAILABLE_METRIC]
 	if !ok {
-		return -1, fmt.Errorf("node %s: missing memory_available", n.UUID)
+		return -1, goerrors.Errorf("node %s: missing memory_available", n.UUID)
 	}
 
 	memoryAvailable, err := strconv.ParseInt(memoryAvailableStr, 10, 64)
@@ -2014,7 +2015,7 @@ func (n *NodeMetrics) GetMemoryAvailable() (int64, error) {
 func (n *NodeMetrics) GetMemoryTotal() (int64, error) {
 	memoryTotalStr, ok := n.Metrics[MEMORY_TOTAL_METRIC]
 	if !ok {
-		return -1, fmt.Errorf("node %s: missing memory_total", n.UUID)
+		return -1, goerrors.Errorf("node %s: missing memory_total", n.UUID)
 	}
 
 	memoryTotal, err := strconv.ParseInt(memoryTotalStr, 10, 64)
@@ -2169,7 +2170,7 @@ func IsCurrentUserSuperUser(tconf *TargetConf) (bool, error) {
 				return false, fmt.Errorf("scanning row for query: %w", err)
 			}
 		} else {
-			return false, fmt.Errorf("no current user found in pg_roles")
+			return false, goerrors.Errorf("no current user found in pg_roles")
 		}
 		return isProperUser, nil
 	}

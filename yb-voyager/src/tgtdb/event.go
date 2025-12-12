@@ -45,12 +45,12 @@ type Event struct {
 *  INSERT - before:nil, fields:all column values of the row
 *  DELETE - before:all column values of the row, fields:PK
 *  UPDATE - before:all column values of the row, fields:changed fields
-* 
+*
 * For yb connector,
 *  INSERT - before:nil, fields:all column values of the row
 *  DELETE - before:nil, fields:PK
 *  UPDATE - before:nil, fields:changed fields
-*/
+ */
 func (e *Event) UnmarshalJSON(data []byte) error {
 	if string(data) == "null" || string(data) == `""` {
 		return nil

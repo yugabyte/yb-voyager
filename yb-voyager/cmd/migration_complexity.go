@@ -23,6 +23,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	goerrors "github.com/go-errors/errors"
+
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
@@ -103,7 +105,7 @@ func calculateMigrationComplexityAndExplanationForPG(assessmentReport Assessment
 func calculateMigrationComplexityForOracle(schemaDirectory string) (string, error) {
 	ora2pgReportPath := filepath.Join(schemaDirectory, "ora2pg_report.csv")
 	if !utils.FileOrFolderExists(ora2pgReportPath) {
-		return "", fmt.Errorf("ora2pg report file not found at %s", ora2pgReportPath)
+		return "", goerrors.Errorf("ora2pg report file not found at %s", ora2pgReportPath)
 	}
 	file, err := os.Open(ora2pgReportPath)
 	if err != nil {
@@ -142,7 +144,7 @@ func calculateMigrationComplexityForOracle(schemaDirectory string) (string, erro
 		return "", fmt.Errorf("error reading csv file %s: %w", ora2pgReportPath, err)
 	}
 	if len(rows) > 1 {
-		return "", fmt.Errorf("invalid ora2pg report file format. Expected 1 row, found %d. contents = %v", len(rows), rows)
+		return "", goerrors.Errorf("invalid ora2pg report file format. Expected 1 row, found %d. contents = %v", len(rows), rows)
 	}
 	reportData := rows[0]
 	migrationLevel := strings.Split(reportData[5], "-")[0]
@@ -155,7 +157,7 @@ func calculateMigrationComplexityForOracle(schemaDirectory string) (string, erro
 	case "C":
 		return constants.MIGRATION_COMPLEXITY_HIGH, nil
 	default:
-		return "", fmt.Errorf("invalid migration level [%s] found in ora2pg report %v", migrationLevel, reportData)
+		return "", goerrors.Errorf("invalid migration level [%s] found in ora2pg report %v", migrationLevel, reportData)
 	}
 }
 

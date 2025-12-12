@@ -22,6 +22,8 @@ import (
 	"strconv"
 	"strings"
 
+	goerrors "github.com/go-errors/errors"
+
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
 
@@ -211,13 +213,13 @@ func validateExportFlags(cmd *cobra.Command, exporterRole string) error {
 	// checking if wrong flag is given used for a db type
 	if source.DBType != ORACLE {
 		if source.DBSid != "" {
-			return fmt.Errorf("--oracle-db-sid flag is only valid for 'oracle' db type")
+			return goerrors.Errorf("--oracle-db-sid flag is only valid for 'oracle' db type")
 		}
 		if source.OracleHome != "" {
-			return fmt.Errorf("--oracle-home flag is only valid for 'oracle' db type")
+			return goerrors.Errorf("--oracle-home flag is only valid for 'oracle' db type")
 		}
 		if source.TNSAlias != "" {
-			return fmt.Errorf("--oracle-tns-alias flag is only valid for 'oracle' db type")
+			return goerrors.Errorf("--oracle-tns-alias flag is only valid for 'oracle' db type")
 		}
 	}
 	return nil
@@ -431,7 +433,7 @@ func checkDependenciesForExport() (binaryCheckIssues []string, err error) {
 		missingTools = utils.CheckTools("strings")
 
 	default:
-		return nil, fmt.Errorf("unknown source database type %q", source.DBType)
+		return nil, goerrors.Errorf("unknown source database type %q", source.DBType)
 	}
 
 	binaryCheckIssues = append(binaryCheckIssues, missingTools...)
@@ -499,25 +501,25 @@ func checkJavaVersion() (binaryCheckIssue string, err error) {
 		}
 	}
 	if versionLine == "" {
-		return "", fmt.Errorf("unable to find java version in output: %s", versionOutput)
+		return "", goerrors.Errorf("unable to find java version in output: %s", versionOutput)
 	}
 
 	// Extract version string from the line (mimics awk -F '"' '/version/ {print $2}')
 	startIndex := strings.Index(versionLine, "\"")
 	endIndex := strings.LastIndex(versionLine, "\"")
 	if startIndex == -1 || endIndex == -1 || startIndex >= endIndex {
-		return "", fmt.Errorf("unexpected java version output: %s", versionOutput)
+		return "", goerrors.Errorf("unexpected java version output: %s", versionOutput)
 	}
 	version := versionLine[startIndex+1 : endIndex]
 
 	// Extract major version
 	versionNumbers := strings.Split(version, ".")
 	if len(versionNumbers) < 1 {
-		return "", fmt.Errorf("unexpected java version output: %s", versionOutput)
+		return "", goerrors.Errorf("unexpected java version output: %s", versionOutput)
 	}
 	majorVersion, err := strconv.Atoi(versionNumbers[0])
 	if err != nil {
-		return "", fmt.Errorf("unexpected java version output: %s", versionOutput)
+		return "", goerrors.Errorf("unexpected java version output: %s", versionOutput)
 	}
 
 	if majorVersion < MIN_REQUIRED_JAVA_VERSION {

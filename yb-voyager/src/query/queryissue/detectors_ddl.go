@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"slices"
 
+	goerrors "github.com/go-errors/errors"
+
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 
@@ -81,7 +83,7 @@ type TableIssueDetector struct {
 func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIssue, error) {
 	table, ok := obj.(*queryparser.Table)
 	if !ok {
-		return nil, fmt.Errorf("invalid object type: expected Table")
+		return nil, goerrors.Errorf("invalid object type: expected Table")
 	}
 
 	var issues []QueryIssue
@@ -328,7 +330,7 @@ func detectForeignKeyDatatypeMismatch(objectType string, objectName string, colu
 }
 
 func detectHotspotIssueOnConstraint(isPartitionedTable bool, constraintType string, constraintName string, constraintColumns []string, columnsWithHotspotRangeIndexesDatatypes map[string]map[string]string, obj queryparser.DDLObject, usageCategory string) ([]QueryIssue, error) {
-	//not reporting the hotspot issue for partitioned table since we are already reporting it on all the partitions 
+	//not reporting the hotspot issue for partitioned table since we are already reporting it on all the partitions
 	if isPartitionedTable {
 		return nil, nil
 	}
@@ -593,7 +595,7 @@ type ForeignTableIssueDetector struct{}
 func (f *ForeignTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIssue, error) {
 	foreignTable, ok := obj.(*queryparser.ForeignTable)
 	if !ok {
-		return nil, fmt.Errorf("invalid object type: expected Foreign Table")
+		return nil, goerrors.Errorf("invalid object type: expected Foreign Table")
 	}
 	issues := make([]QueryIssue, 0)
 
@@ -630,7 +632,7 @@ type IndexIssueDetector struct {
 func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIssue, error) {
 	index, ok := obj.(*queryparser.Index)
 	if !ok {
-		return nil, fmt.Errorf("invalid object type: expected Index")
+		return nil, goerrors.Errorf("invalid object type: expected Index")
 	}
 
 	var issues []QueryIssue
@@ -694,7 +696,7 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 	tm, ok := d.tablesMetadata[index.GetTableName()]
 	if !ok {
 		log.Warnf("table metadata not found for table: %s", index.GetTableName())
-		//Just to handle any case where TABLE DDL present in PLPGSQL and not present in actual schema so we need to report issues 
+		//Just to handle any case where TABLE DDL present in PLPGSQL and not present in actual schema so we need to report issues
 		tm = d.getOrCreateTableMetadata(index.GetTableName())
 	}
 
@@ -735,7 +737,7 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 						"",
 					))
 				} else if isHotspotType && idx == 0 && !tm.IsPartitioned() {
-					//not reporting the hotspot issue for partitioned table since we are already reporting it on all the partitions 
+					//not reporting the hotspot issue for partitioned table since we are already reporting it on all the partitions
 					//If first column is hotspot type then only report hotspot issue
 					//For expression case not adding any colName for now in the issue
 					hotspotIssues, err := reportHotspotsOnTimestampTypes(param.ExprCastTypeName, obj.GetObjectType(), obj.GetObjectName(), "", true, usageCategory)
@@ -762,7 +764,7 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 				}
 				//TODO: separate out the Types check of Hotspot problem and the Range sharding recommendation
 				if tableHasHotspotTypes && idx == 0 && !tm.IsPartitioned() {
-					//not reporting the hotspot issue for partitioned table since we are already reporting it on all the partitions 
+					//not reporting the hotspot issue for partitioned table since we are already reporting it on all the partitions
 					//If first column is hotspot type then only report hotspot issue
 					hotspotTypeName, isHotspotType := columnWithHotspotTypes[colName]
 					if isHotspotType {
@@ -790,10 +792,10 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 func (i *IndexIssueDetector) reportVariousIndexPerfOptimizationsOnFirstColumnOfIndex(index *queryparser.Index) ([]QueryIssue, error) {
 	tm, ok := i.tablesMetadata[index.GetTableName()]
 	if !ok {
-		return nil, fmt.Errorf("table metadata not found for table: %s", index.GetTableName())
+		return nil, goerrors.Errorf("table metadata not found for table: %s", index.GetTableName())
 	}
 	if tm.IsPartitioned() {
-		//not reporting the hotspot issue for partitioned table since we are already reporting it on all the partitions 
+		//not reporting the hotspot issue for partitioned table since we are already reporting it on all the partitions
 		return nil, nil
 	}
 	var issues []QueryIssue
@@ -856,7 +858,7 @@ func reportHotspotsOnTimestampTypes(typeName string, objType string, objName str
 		issue := lo.Ternary(isSecondaryIndex, NewHotspotOnDateIndexIssue(objType, objName, "", colName, usageCategory), NewHotspotOnDatePKOrUKIssue(objType, objName, "", colName, usageCategory))
 		issues = append(issues, issue)
 	default:
-		return issues, fmt.Errorf("unexpected type for the Hotspots on range indexes with timestamp/date types")
+		return issues, goerrors.Errorf("unexpected type for the Hotspots on range indexes with timestamp/date types")
 	}
 	return issues, nil
 }
@@ -998,7 +1000,7 @@ type AlterTableIssueDetector struct {
 func (aid *AlterTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIssue, error) {
 	alter, ok := obj.(*queryparser.AlterTable)
 	if !ok {
-		return nil, fmt.Errorf("invalid object type: expected AlterTable")
+		return nil, goerrors.Errorf("invalid object type: expected AlterTable")
 	}
 	tm := aid.getOrCreateTableMetadata(alter.GetObjectName())
 	var issues []QueryIssue
@@ -1135,7 +1137,7 @@ type PolicyIssueDetector struct{}
 func (p *PolicyIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIssue, error) {
 	policy, ok := obj.(*queryparser.Policy)
 	if !ok {
-		return nil, fmt.Errorf("invalid object type: expected Policy")
+		return nil, goerrors.Errorf("invalid object type: expected Policy")
 	}
 	issues := make([]QueryIssue, 0)
 	if len(policy.RoleNames) > 0 {
@@ -1159,7 +1161,7 @@ type TriggerIssueDetector struct {
 func (tid *TriggerIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIssue, error) {
 	trigger, ok := obj.(*queryparser.Trigger)
 	if !ok {
-		return nil, fmt.Errorf("invalid object type: expected Trigger")
+		return nil, goerrors.Errorf("invalid object type: expected Trigger")
 	}
 	issues := make([]QueryIssue, 0)
 
@@ -1208,7 +1210,7 @@ type ViewIssueDetector struct{}
 func (v *ViewIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIssue, error) {
 	view, ok := obj.(*queryparser.View)
 	if !ok {
-		return nil, fmt.Errorf("invalid object type: expected View")
+		return nil, goerrors.Errorf("invalid object type: expected View")
 	}
 	var issues []QueryIssue
 
@@ -1225,7 +1227,7 @@ type FunctionIssueDetector struct{}
 func (f *FunctionIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIssue, error) {
 	function, ok := obj.(*queryparser.Function)
 	if !ok {
-		return nil, fmt.Errorf("invalid object type: expected Function")
+		return nil, goerrors.Errorf("invalid object type: expected Function")
 	}
 	var issues []QueryIssue
 
@@ -1252,7 +1254,7 @@ type CollationIssueDetector struct{}
 func (c *CollationIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIssue, error) {
 	collation, ok := obj.(*queryparser.Collation)
 	if !ok {
-		return nil, fmt.Errorf("invalid object type: expected Collation")
+		return nil, goerrors.Errorf("invalid object type: expected Collation")
 	}
 	issues := make([]QueryIssue, 0)
 	if val, ok := collation.Options["deterministic"]; ok {
@@ -1285,7 +1287,7 @@ type ExtensionIssueDetector struct{}
 func (e *ExtensionIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIssue, error) {
 	extension, ok := obj.(*queryparser.Extension)
 	if !ok {
-		return nil, fmt.Errorf("invalid object type: expected Extension")
+		return nil, goerrors.Errorf("invalid object type: expected Extension")
 	}
 
 	issues := make([]QueryIssue, 0)

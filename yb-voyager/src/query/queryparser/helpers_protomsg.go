@@ -19,6 +19,8 @@ import (
 	"fmt"
 	"strings"
 
+	goerrors "github.com/go-errors/errors"
+
 	"strconv"
 
 	pg_query "github.com/pganalyze/pg_query_go/v6"
@@ -403,7 +405,7 @@ func GetSchemaAndObjectName(nameList protoreflect.List) (string, string) {
 func ProtoAsSelectStmt(msg protoreflect.Message) (*pg_query.SelectStmt, error) {
 	selectStmtNode, ok := msg.Interface().(*pg_query.SelectStmt)
 	if !ok {
-		return nil, fmt.Errorf("failed to cast msg to %s", PG_QUERY_SELECTSTMT_NODE)
+		return nil, goerrors.Errorf("failed to cast msg to %s", PG_QUERY_SELECTSTMT_NODE)
 	}
 	return selectStmtNode, nil
 }
@@ -451,7 +453,7 @@ func ProtoAsCreateForeignTableStmt(msg protoreflect.Message) (*pg_query.CreateFo
 func ProtoAsCTENode(msg protoreflect.Message) (*pg_query.CommonTableExpr, error) {
 	cteNode, ok := msg.Interface().(*pg_query.CommonTableExpr)
 	if !ok {
-		return nil, fmt.Errorf("failed to cast msg to %s", PG_QUERY_CTE_NODE)
+		return nil, goerrors.Errorf("failed to cast msg to %s", PG_QUERY_CTE_NODE)
 	}
 	return cteNode, nil
 }
@@ -539,7 +541,7 @@ func ProtoAsReplicaIdentityStmtNode(msg protoreflect.Message) (*pg_query.Replica
 func ProtoAsTransactionStmt(msg protoreflect.Message) (*pg_query.TransactionStmt, error) {
 	node, ok := msg.Interface().(*pg_query.TransactionStmt)
 	if !ok {
-		return nil, fmt.Errorf("failed to cast msg to %s", PG_QUERY_TRANSACTION_STMT_NODE)
+		return nil, goerrors.Errorf("failed to cast msg to %s", PG_QUERY_TRANSACTION_STMT_NODE)
 	}
 
 	return node, nil
@@ -789,7 +791,7 @@ func TraverseAndExtractDefNamesFromDefElem(msg protoreflect.Message) (map[string
 
 		defElemNode, ok := ProtoAsDefElemNode(msg)
 		if !ok {
-			return fmt.Errorf("failed to cast msg to %s", PG_QUERY_DEFELEM_NODE)
+			return goerrors.Errorf("failed to cast msg to %s", PG_QUERY_DEFELEM_NODE)
 		}
 
 		defName := defElemNode.Defname

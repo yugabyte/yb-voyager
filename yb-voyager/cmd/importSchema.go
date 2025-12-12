@@ -23,6 +23,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	goerrors "github.com/go-errors/errors"
+
 	"github.com/fatih/color"
 	"github.com/jackc/pgx/v4"
 	log "github.com/sirupsen/logrus"
@@ -127,7 +129,7 @@ func importSchema() error {
 
 			// Prompt user to continue if missing permissions
 			if !utils.AskPrompt("Do you want to continue anyway") {
-				return fmt.Errorf("Grant the required permissions and try again.")
+				return goerrors.Errorf("Grant the required permissions and try again.")
 			}
 		} else {
 			log.Info("The target database has the required permissions for importing schema.")
@@ -191,7 +193,7 @@ func importSchema() error {
 	if !flagPostSnapshotImport {
 		objectList = utils.GetSchemaObjectList(sourceDBType)
 		if len(objectList) == 0 {
-			return fmt.Errorf("No schema objects to import! Must import at least 1 of the supported schema object types: %v", utils.GetSchemaObjectList(sourceDBType))
+			return goerrors.Errorf("No schema objects to import! Must import at least 1 of the supported schema object types: %v", utils.GetSchemaObjectList(sourceDBType))
 		}
 
 		objectList = applySchemaObjectFilterFlags(objectList)

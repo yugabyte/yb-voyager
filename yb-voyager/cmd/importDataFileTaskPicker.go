@@ -19,6 +19,8 @@ import (
 	"errors"
 	"fmt"
 
+	goerrors "github.com/go-errors/errors"
+
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
@@ -68,11 +70,11 @@ func NewSequentialTaskPicker(tasks []*ImportFileTask, state *ImportDataState) (*
 			pendingTasks = append(pendingTasks, task)
 		case FILE_IMPORT_IN_PROGRESS:
 			if inProgressTask != nil {
-				return nil, fmt.Errorf("multiple tasks are in progress. task1: %v, task2: %v", inProgressTask, task)
+				return nil, goerrors.Errorf("multiple tasks are in progress. task1: %v, task2: %v", inProgressTask, task)
 			}
 			inProgressTask = task
 		default:
-			return nil, fmt.Errorf("unexpected  status for task: %v: %v", task, taskStatus)
+			return nil, goerrors.Errorf("unexpected  status for task: %v: %v", task, taskStatus)
 		}
 	}
 	return &SequentialTaskPicker{
@@ -84,7 +86,7 @@ func NewSequentialTaskPicker(tasks []*ImportFileTask, state *ImportDataState) (*
 
 func (s *SequentialTaskPicker) Pick() (*ImportFileTask, error) {
 	if !s.HasMoreTasks() {
-		return nil, fmt.Errorf("no more tasks")
+		return nil, goerrors.Errorf("no more tasks")
 	}
 
 	if s.inProgressTask == nil {
@@ -98,10 +100,10 @@ func (s *SequentialTaskPicker) Pick() (*ImportFileTask, error) {
 func (s *SequentialTaskPicker) MarkTaskAsDone(task *ImportFileTask) error {
 
 	if s.inProgressTask == nil {
-		return fmt.Errorf("no task in progress to mark as done")
+		return goerrors.Errorf("no task in progress to mark as done")
 	}
 	if s.inProgressTask.ID != task.ID {
-		return fmt.Errorf("Task provided is not the task in progress. task's id = %d, task in progress's id = %d. ", task.ID, s.inProgressTask.ID)
+		return goerrors.Errorf("Task provided is not the task in progress. task's id = %d, task in progress's id = %d. ", task.ID, s.inProgressTask.ID)
 	}
 	s.inProgressTask = nil
 	s.doneTasks = append(s.doneTasks, task)
@@ -224,7 +226,7 @@ func NewColocatedAwareRandomTaskPicker(maxTasksInProgress int, tasks []*ImportFi
 		case FILE_IMPORT_NOT_STARTED:
 			addToPendingTasks(task)
 		default:
-			return nil, fmt.Errorf("unexpected  status for task: %v: %v", task, taskStatus)
+			return nil, goerrors.Errorf("unexpected  status for task: %v: %v", task, taskStatus)
 		}
 	}
 
@@ -249,7 +251,7 @@ func NewColocatedAwareRandomTaskPicker(maxTasksInProgress int, tasks []*ImportFi
 
 func (c *ColocatedAwareRandomTaskPicker) Pick() (*ImportFileTask, error) {
 	if !c.HasMoreTasks() {
-		return nil, fmt.Errorf("no more tasks")
+		return nil, goerrors.Errorf("no more tasks")
 	}
 
 	// if we have already picked maxTasksInProgress tasks, pick a task from inProgressTasks
@@ -268,7 +270,7 @@ func (c *ColocatedAwareRandomTaskPicker) Pick() (*ImportFileTask, error) {
 
 func (c *ColocatedAwareRandomTaskPicker) PickTaskFromInProgressTasks() (*ImportFileTask, error) {
 	if len(c.inProgressTasks) == 0 {
-		return nil, fmt.Errorf("no tasks in progress")
+		return nil, goerrors.Errorf("no tasks in progress")
 	}
 
 	// pick a random task from inProgressTasks
@@ -278,16 +280,16 @@ func (c *ColocatedAwareRandomTaskPicker) PickTaskFromInProgressTasks() (*ImportF
 
 func (c *ColocatedAwareRandomTaskPicker) PickTaskFromPendingTasks() (*ImportFileTask, error) {
 	if len(c.tableWisePendingTasks.Keys()) == 0 {
-		return nil, fmt.Errorf("no pending tasks to pick from")
+		return nil, goerrors.Errorf("no pending tasks to pick from")
 	}
 	if c.tableChooser == nil {
-		return nil, fmt.Errorf("chooser not initialized")
+		return nil, goerrors.Errorf("chooser not initialized")
 	}
 
 	tablePick := c.tableChooser.Pick()
 	tablePendingTasks, ok := c.tableWisePendingTasks.Get(tablePick)
 	if !ok {
-		return nil, fmt.Errorf("no pending tasks for table picked: %s: %v", tablePick, c.tableWisePendingTasks)
+		return nil, goerrors.Errorf("no pending tasks for table picked: %s: %v", tablePick, c.tableWisePendingTasks)
 	}
 
 	pickedTask := tablePendingTasks[0]
@@ -315,7 +317,7 @@ func (c *ColocatedAwareRandomTaskPicker) PickTaskFromPendingTasks() (*ImportFile
 
 func (c *ColocatedAwareRandomTaskPicker) initializeChooser() error {
 	if len(c.tableWisePendingTasks.Keys()) == 0 {
-		return fmt.Errorf("no pending tasks to initialize chooser")
+		return goerrors.Errorf("no pending tasks to initialize chooser")
 	}
 	tableNames := make([]sqlname.NameTuple, 0, len(c.tableWisePendingTasks.Keys()))
 	c.tableWisePendingTasks.IterKV(func(k sqlname.NameTuple, v []*ImportFileTask) (bool, error) {
@@ -327,7 +329,7 @@ func (c *ColocatedAwareRandomTaskPicker) initializeChooser() error {
 	for _, tableName := range tableNames {
 		tableType, ok := c.tableTypes.Get(tableName)
 		if !ok {
-			return fmt.Errorf("table type not found for table: %v", tableName)
+			return goerrors.Errorf("table type not found for table: %v", tableName)
 		}
 
 		if tableType == COLOCATED {
@@ -343,7 +345,7 @@ func (c *ColocatedAwareRandomTaskPicker) initializeChooser() error {
 	for _, tableName := range tableNames {
 		tableType, ok := c.tableTypes.Get(tableName)
 		if !ok {
-			return fmt.Errorf("table type not found for table: %v", tableName)
+			return goerrors.Errorf("table type not found for table: %v", tableName)
 		}
 		if tableType == COLOCATED {
 			choices = append(choices, weightedrand.NewChoice(tableName, colocatedWeight))
@@ -369,7 +371,7 @@ func (c *ColocatedAwareRandomTaskPicker) MarkTaskAsDone(task *ImportFileTask) er
 			return nil
 		}
 	}
-	return fmt.Errorf("task [%v] not found in inProgressTasks: %v", task, c.inProgressTasks)
+	return goerrors.Errorf("task [%v] not found in inProgressTasks: %v", task, c.inProgressTasks)
 }
 
 func (c *ColocatedAwareRandomTaskPicker) HasMoreTasks() bool {
@@ -469,7 +471,7 @@ func NewColocatedCappedRandomTaskPicker(maxShardedTasksInProgress int, maxColoca
 		tableName := task.TableNameTup
 		tableType, ok := tableTypes.Get(tableName)
 		if !ok {
-			return nil, fmt.Errorf("table type not found for table: %v", tableName)
+			return nil, goerrors.Errorf("table type not found for table: %v", tableName)
 		}
 
 		// put task into right bucket.
@@ -498,7 +500,7 @@ func NewColocatedCappedRandomTaskPicker(maxShardedTasksInProgress int, maxColoca
 		case FILE_IMPORT_NOT_STARTED:
 			addToPendingTasks(task, tableType)
 		default:
-			return nil, fmt.Errorf("unexpected  status for task: %v: %v", task, taskStatus)
+			return nil, goerrors.Errorf("unexpected  status for task: %v: %v", task, taskStatus)
 		}
 	}
 
@@ -555,7 +557,7 @@ func (c *ColocatedCappedRandomTaskPicker) pickRandomFromListOfTasks(tasks []*Imp
 // Pick a colocated task if possible, else pick a sharded task.
 func (c *ColocatedCappedRandomTaskPicker) Pick() (*ImportFileTask, error) {
 	if !c.HasMoreTasks() {
-		return nil, fmt.Errorf("no more tasks")
+		return nil, goerrors.Errorf("no more tasks")
 	}
 
 	// if only one type of tasks are left, pick from that type.
@@ -594,7 +596,7 @@ func (c *ColocatedCappedRandomTaskPicker) Pick() (*ImportFileTask, error) {
 
 func (c *ColocatedCappedRandomTaskPicker) pickColocatedTask() (*ImportFileTask, error) {
 	if !c.HasMoreColocatedTasks() {
-		return nil, fmt.Errorf("no more colocated tasks")
+		return nil, goerrors.Errorf("no more colocated tasks")
 	}
 
 	// try to pick a colocated pending task.
@@ -631,12 +633,12 @@ func (c *ColocatedCappedRandomTaskPicker) pickInProgressColocatedTask() (*Import
 		log.Debugf("picking in-progress colocated task: %v", pickedTask)
 		return pickedTask, nil
 	}
-	return nil, fmt.Errorf("no in-progress colocated tasks to pick from")
+	return nil, goerrors.Errorf("no in-progress colocated tasks to pick from")
 }
 
 func (c *ColocatedCappedRandomTaskPicker) pickShardedTask() (*ImportFileTask, error) {
 	if !c.HasMoreShardedTasks() {
-		return nil, fmt.Errorf("no more sharded tasks")
+		return nil, goerrors.Errorf("no more sharded tasks")
 	}
 
 	// try to pick a sharded pending task.
@@ -673,7 +675,7 @@ func (c *ColocatedCappedRandomTaskPicker) pickInProgressShardedTask() (*ImportFi
 		log.Debugf("picking in-progress sharded task: %v", pickedTask)
 		return pickedTask, nil
 	}
-	return nil, fmt.Errorf("no in-progress sharded tasks to pick from")
+	return nil, goerrors.Errorf("no in-progress sharded tasks to pick from")
 }
 
 func (c *ColocatedCappedRandomTaskPicker) MarkTaskAsDone(task *ImportFileTask) error {
@@ -692,7 +694,7 @@ func (c *ColocatedCappedRandomTaskPicker) MarkTaskAsDone(task *ImportFileTask) e
 			return nil
 		}
 	}
-	return fmt.Errorf("task [%v] not found in inProgressTasks: %v", task, c.inProgressTasks())
+	return goerrors.Errorf("task [%v] not found in inProgressTasks: %v", task, c.inProgressTasks())
 }
 
 func (c *ColocatedCappedRandomTaskPicker) WaitForTasksBatchesTobeImported() error {
