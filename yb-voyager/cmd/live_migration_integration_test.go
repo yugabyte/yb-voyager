@@ -216,7 +216,7 @@ FROM generate_series(1, 5);`,
 		},
 	})
 
-	// defer lm.Cleanup()
+	defer lm.Cleanup()
 
 	err := lm.SetupContainers(context.Background())
 	testutils.FatalIfError(t, err, "failed to setup containers")
