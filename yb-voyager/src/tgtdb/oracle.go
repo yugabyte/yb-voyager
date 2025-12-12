@@ -28,6 +28,7 @@ import (
 	"sync"
 	"time"
 
+	goerrors "github.com/go-errors/errors"
 	"github.com/google/uuid"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
@@ -87,7 +88,7 @@ func (tdb *TargetOracleDB) Init() error {
 	if err = tdb.QueryRow(checkSchemaExistsQuery).Scan(&cntSchemaName); err != nil {
 		err = fmt.Errorf("run query %q on target %q to check schema exists: %w", checkSchemaExistsQuery, tdb.tconf.Host, err)
 	} else if cntSchemaName == 0 {
-		err = fmt.Errorf("schema '%s' does not exist in target", tdb.tconf.Schema)
+		err = goerrors.Errorf("schema '%s' does not exist in target", tdb.tconf.Schema)
 	}
 	return err
 }
@@ -247,7 +248,7 @@ func (tdb *TargetOracleDB) TruncateTables(tables []sqlname.NameTuple) error {
 		}
 	}
 	if len(errors) > 0 {
-		return fmt.Errorf("truncate tables: %v", errors)
+		return goerrors.Errorf("truncate tables: %v", errors)
 	}
 	return nil
 }
@@ -444,7 +445,7 @@ func getRowsAffected(outbuf string) (int64, error) {
 	regex := regexp.MustCompile(`Load completed - logical record count (\d+).`)
 	matches := regex.FindStringSubmatch(outbuf)
 	if len(matches) < 2 {
-		return 0, fmt.Errorf("RowsAffected not found in the sqlldr output")
+		return 0, goerrors.Errorf("RowsAffected not found in the sqlldr output")
 	}
 	return strconv.ParseInt(matches[1], 10, 64)
 }
@@ -535,7 +536,7 @@ func (tdb *TargetOracleDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBat
 			cnt, err = res.RowsAffected()
 			if err != nil {
 				log.Errorf("error getting rows Affecterd for event with vsn(%d) in batch(%s)", event.Vsn, batch.ID())
-				return false, fmt.Errorf("failed to get rowsAffected for event with vsn(%d)", event.Vsn)
+				return false, goerrors.Errorf("failed to get rowsAffected for event with vsn(%d)", event.Vsn)
 			}
 			switch true {
 			case event.Op == "c":

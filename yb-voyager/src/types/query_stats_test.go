@@ -228,4 +228,3 @@ func TestMergeQueryStatsBasedOnQuery(t *testing.T) {
 		})
 	}
 }
-

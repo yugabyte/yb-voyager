@@ -20,6 +20,8 @@ import (
 	"errors"
 	"fmt"
 
+	goerrors "github.com/go-errors/errors"
+
 	"github.com/fatih/color"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
@@ -169,7 +171,7 @@ func promptForPartialDiscoveredReplicas(connectableReplicas []srcdb.ReplicaEndpo
 	}
 
 	if utils.AskPrompt("Do you want to exit and provide replica endpoints") {
-		return nil, fmt.Errorf("Aborting, please rerun with --source-read-replica-endpoints flag")
+		return nil, goerrors.Errorf("Aborting, please rerun with --source-read-replica-endpoints flag")
 	}
 
 	utils.PrintAndLogfInfo("Continuing with primary-only assessment.")
@@ -216,7 +218,7 @@ func promptWhenNoDiscoveredReplicasConnectable(notReplicaEndpoints []string, con
 	utils.PrintAndLogfInfo("  2. Continue with primary-only assessment")
 
 	if utils.AskPrompt("\nDo you want to exit and provide replica endpoints") {
-		return nil, fmt.Errorf("Aborting, please rerun with --source-read-replica-endpoints flag")
+		return nil, goerrors.Errorf("Aborting, please rerun with --source-read-replica-endpoints flag")
 	}
 
 	utils.PrintAndLogf("Continuing with primary-only assessment.")
@@ -332,7 +334,7 @@ func warnIfProvidedEndpointsMismatch(discoveredReplicas []srcdb.ReplicaInfo, pro
 	displayDiscoveredReplicas(discoveredReplicas)
 
 	if !utils.AskPrompt("\nDo you want to proceed with the provided endpoints") {
-		return fmt.Errorf("please update --source-read-replica-endpoints to match the topology")
+		return goerrors.Errorf("please update --source-read-replica-endpoints to match the topology")
 	}
 
 	return nil
@@ -368,7 +370,7 @@ func reportProvidedEndpointsValidationFailures(failedEndpoints []string) error {
 	for _, failed := range failedEndpoints {
 		color.Red("  ✗ %s", failed)
 	}
-	return fmt.Errorf("replica validation failed for %d endpoint(s)", len(failedEndpoints))
+	return goerrors.Errorf("replica validation failed for %d endpoint(s)", len(failedEndpoints))
 }
 
 // processProvidedEndpoints handles scenarios where the user provided explicit replica

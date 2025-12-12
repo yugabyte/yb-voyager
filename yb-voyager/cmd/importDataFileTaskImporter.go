@@ -23,6 +23,8 @@ import (
 	"strings"
 	"time"
 
+	goerrors "github.com/go-errors/errors"
+
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/color"
 	log "github.com/sirupsen/logrus"
@@ -141,7 +143,7 @@ func (fti *FileTaskImporter) IsNextBatchAvailable() bool {
 
 func (fti *FileTaskImporter) ProduceAndSubmitNextBatchToWorkerPool() error {
 	if fti.AllBatchesSubmitted() {
-		return fmt.Errorf("no more batches to submit")
+		return goerrors.Errorf("no more batches to submit")
 	}
 	batch, err := fti.batchProducer.NextBatch()
 	if err != nil {

@@ -28,6 +28,8 @@ import (
 	"strings"
 	"time"
 
+	goerrors "github.com/go-errors/errors"
+
 	"github.com/fatih/color"
 	"github.com/google/uuid"
 	"github.com/jackc/pglogrepl"
@@ -1065,7 +1067,7 @@ func (pg *PostgreSQL) GetNonPKTables() ([]string, error) {
 func (pg *PostgreSQL) CheckSourceDBVersion(exportType string) error {
 	pgVersion := pg.GetVersion()
 	if pgVersion == "" {
-		return fmt.Errorf("failed to get source database version")
+		return goerrors.Errorf("failed to get source database version")
 	}
 
 	// Extract the major version from the full version string
@@ -1073,14 +1075,14 @@ func (pg *PostgreSQL) CheckSourceDBVersion(exportType string) error {
 	re := regexp.MustCompile(`^(\d+)`)
 	match := re.FindStringSubmatch(pgVersion)
 	if len(match) < 2 {
-		return fmt.Errorf("failed to extract major version from source database version: %s", pgVersion)
+		return goerrors.Errorf("failed to extract major version from source database version: %s", pgVersion)
 	}
 	majorVersion := match[1]
 
 	supportedVersionRange := fmt.Sprintf("%s to %s", MIN_SUPPORTED_PG_VERSION_OFFLINE, MAX_SUPPORTED_PG_VERSION)
 
 	if version.CompareSimple(majorVersion, MAX_SUPPORTED_PG_VERSION) > 0 || version.CompareSimple(majorVersion, MIN_SUPPORTED_PG_VERSION_OFFLINE) < 0 {
-		return fmt.Errorf("current source db version: %s. Supported versions: %s", pgVersion, supportedVersionRange)
+		return goerrors.Errorf("current source db version: %s. Supported versions: %s", pgVersion, supportedVersionRange)
 	}
 	// for live migration
 	if exportType == utils.CHANGES_ONLY || exportType == utils.SNAPSHOT_AND_CHANGES {
@@ -1934,14 +1936,14 @@ func (pg *PostgreSQL) ParseReplicaEndpoints(endpointsStr string) ([]ReplicaEndpo
 			var err error
 			port, err = strconv.Atoi(parts[1])
 			if err != nil || port <= 0 || port > 65535 {
-				return nil, fmt.Errorf("invalid port in endpoint at position %d: %s", i+1, parts[1])
+				return nil, goerrors.Errorf("invalid port in endpoint at position %d: %s", i+1, parts[1])
 			}
 		} else {
-			return nil, fmt.Errorf("malformed endpoint at position %d: %s (expected format: host[:port])", i+1, endpoint)
+			return nil, goerrors.Errorf("malformed endpoint at position %d: %s (expected format: host[:port])", i+1, endpoint)
 		}
 
 		if host == "" {
-			return nil, fmt.Errorf("empty host in endpoint at position %d", i+1)
+			return nil, goerrors.Errorf("empty host in endpoint at position %d", i+1)
 		}
 
 		// Use endpoint string as default name (will be enriched with application_name if available)

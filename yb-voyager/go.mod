@@ -15,6 +15,7 @@ require (
 	github.com/docker/go-connections v0.5.0
 	github.com/dustin/go-humanize v1.0.1
 	github.com/fatih/color v1.16.0
+	github.com/go-errors/errors v1.5.1
 	github.com/go-sql-driver/mysql v1.7.0
 	github.com/godror/godror v0.30.2
 	github.com/golang-collections/collections v0.0.0-20130729185459-604e922904d3
@@ -33,6 +34,7 @@ require (
 	github.com/mroth/weightedrand/v2 v2.1.0
 	github.com/nightlyone/lockfile v1.0.0
 	github.com/pganalyze/pg_query_go/v6 v6.1.0
+	github.com/pingcap/failpoint v0.0.0-20240528011301-b51a646c7c86
 	github.com/prometheus/client_golang v1.14.0
 	github.com/samber/lo v1.38.1
 	github.com/sirupsen/logrus v1.9.3
@@ -86,7 +88,6 @@ require (
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.0 // indirect
 	github.com/pingcap/errors v0.11.4 // indirect
-	github.com/pingcap/failpoint v0.0.0-20240528011301-b51a646c7c86 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/power-devops/perfstat v0.0.0-20210106213030-5aafc221ea8c // indirect
 	github.com/prometheus/client_model v0.3.0 // indirect

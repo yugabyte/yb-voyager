@@ -17,19 +17,21 @@ package metadb
 
 import (
 	"fmt"
+
+	goerrors "github.com/go-errors/errors"
 )
 
 type ImportDataStatusRecord struct {
-	ErrorPolicySnapshot               string            `json:"errorPolicySnapshot"`
-	ImportDataStarted                 bool              `json:"importDataStarted"`
+	ErrorPolicySnapshot string `json:"errorPolicySnapshot"`
+	ImportDataStarted   bool   `json:"importDataStarted"`
 	/*
-	map of table and live migration cdc partitioning strategy per table (pk or table)
+		map of table and live migration cdc partitioning strategy per table (pk or table)
 	*/
-	TableToCDCPartitioningStrategyMap map[string]string `json:"tableToCDCPartitioningStrategyMap"` 
+	TableToCDCPartitioningStrategyMap map[string]string `json:"tableToCDCPartitioningStrategyMap"`
 	/*
-	cdc partitioning strategy config for the import data auto, pk or table
+		cdc partitioning strategy config for the import data auto, pk or table
 	*/
-	CdcPartitioningStrategyConfig     string            `json:"cdcPartitioningStrategyConfig"`
+	CdcPartitioningStrategyConfig string `json:"cdcPartitioningStrategyConfig"`
 }
 
 const IMPORT_DATA_STATUS_KEY = "import_data_status"
@@ -62,7 +64,7 @@ func (m *MetaDB) GetImportDataErrorPolicySnapshotUsed() (string, error) {
 		return "", fmt.Errorf("error while getting import data status record from meta db: %w", err)
 	}
 	if idsr == nil {
-		return "", fmt.Errorf("import data status record not found")
+		return "", goerrors.Errorf("import data status record not found")
 	}
 	return idsr.ErrorPolicySnapshot, nil
 }

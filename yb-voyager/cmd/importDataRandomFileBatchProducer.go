@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"sync"
 
+	goerrors "github.com/go-errors/errors"
+
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -120,7 +122,7 @@ func (rbp *RandomBatchProducer) NextBatch() (*Batch, error) {
 		// 1. sequential file batch producer is done
 		// 2. sequential file batch producer is not done, and is producing in parallel.
 		// It is the responsibility of the caller to deal with both the scenarios, we do not want to block the caller.
-		return nil, fmt.Errorf("no batches available")
+		return nil, goerrors.Errorf("no batches available")
 	}
 
 	// Pick random batch

@@ -28,6 +28,8 @@ import (
 	"strings"
 	"text/template"
 
+	goerrors "github.com/go-errors/errors"
+
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
@@ -324,12 +326,12 @@ func createDBConfigFromRecord(record []string, header []string) (*AssessMigratio
 		missingFields = append(missingFields, fmt.Sprintf("one of [%s]", strings.Join(fleetConfDbIdentifierFields, ", ")))
 	}
 	if len(missingFields) > 0 {
-		return nil, fmt.Errorf("mandatory fields missing in the record: '%s'", strings.Join(missingFields, "', '"))
+		return nil, goerrors.Errorf("mandatory fields missing in the record: '%s'", strings.Join(missingFields, "', '"))
 	}
 
 	// Check if the source-db-type is supported (only 'oracle' allowed)
 	if dbType := configMap[SOURCE_DB_TYPE]; strings.ToLower(dbType) != ORACLE {
-		return nil, fmt.Errorf("unsupported/invalid source-db-type: '%s'. Only '%s' is supported", dbType, ORACLE)
+		return nil, goerrors.Errorf("unsupported/invalid source-db-type: '%s'. Only '%s' is supported", dbType, ORACLE)
 	}
 
 	return &AssessMigrationDBConfig{
@@ -484,7 +486,7 @@ func validateFleetConfigFile(filePath string) error {
 	}
 	// Check if the file exists
 	if !utils.FileOrFolderExists(filePath) {
-		return fmt.Errorf("fleet config file %q does not exist", filePath)
+		return goerrors.Errorf("fleet config file %q does not exist", filePath)
 	}
 
 	file, err := os.Open(filePath)
@@ -499,7 +501,7 @@ func validateFleetConfigFile(filePath string) error {
 		return fmt.Errorf("could not obtain fleet config file stats: %w", err)
 	}
 	if stat.Size() == 0 {
-		return fmt.Errorf("fleet config file is empty")
+		return goerrors.Errorf("fleet config file is empty")
 	}
 
 	reader := csv.NewReader(file)
@@ -509,7 +511,7 @@ func validateFleetConfigFile(filePath string) error {
 	if err != nil {
 		return fmt.Errorf("failed to read the header: %w", err)
 	} else if len(header) == 0 {
-		return fmt.Errorf("header is empty or missing")
+		return goerrors.Errorf("header is empty or missing")
 	}
 	header = normalizeFleetConfFileHeader(header)
 
@@ -521,7 +523,7 @@ func validateFleetConfigFile(filePath string) error {
 		}
 	}
 	if len(invalidFields) > 0 {
-		return fmt.Errorf("invalid fields found in the fleet config file's header: ['%s']", strings.Join(invalidFields, "', '"))
+		return goerrors.Errorf("invalid fields found in the fleet config file's header: ['%s']", strings.Join(invalidFields, "', '"))
 	}
 
 	// Validate that all the mandatory fields are provided in the header
@@ -541,7 +543,7 @@ func validateFleetConfigFile(filePath string) error {
 			return fmt.Errorf("error reading line %d: %w", lineNumber, err)
 		}
 		if len(record) != len(header) {
-			return fmt.Errorf("line %d does not match header length: expected %d fields, got %d",
+			return goerrors.Errorf("line %d does not match header length: expected %d fields, got %d",
 				lineNumber, len(header), len(record))
 		}
 		lineNumber++
@@ -549,7 +551,7 @@ func validateFleetConfigFile(filePath string) error {
 
 	// Check if there were no lines after the header
 	if lineNumber == 2 {
-		return fmt.Errorf("fleet config file contains only a header with no data lines")
+		return goerrors.Errorf("fleet config file contains only a header with no data lines")
 	}
 	return nil
 }
@@ -575,7 +577,7 @@ func checkMandatoryFieldsInHeader(header []string) error {
 		missingFields = append(missingFields, fmt.Sprintf("one of [%s]", strings.Join(fleetConfDbIdentifierFields, ", ")))
 	}
 	if len(missingFields) > 0 {
-		return fmt.Errorf("mandatory fields missing in the header: '%s'", strings.Join(missingFields, "', '"))
+		return goerrors.Errorf("mandatory fields missing in the header: '%s'", strings.Join(missingFields, "', '"))
 	}
 	return nil
 }

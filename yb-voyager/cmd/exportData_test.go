@@ -485,7 +485,7 @@ func TestTableListInSubsequentRunOfExportDataBasicPG(t *testing.T) {
 	//Running the command level functions
 	source = *testPostgresSource.Source
 
-	startClean = true 
+	startClean = true
 	source.TableList = "asdsa"
 	testUnknownTableCaseForTableListFlags(t, true, "Unknown table names in the include list: [asdsa]", "include")
 

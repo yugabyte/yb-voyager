@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	goerrors "github.com/go-errors/errors"
+
 	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/fatih/color"
 	log "github.com/sirupsen/logrus"
@@ -273,7 +275,7 @@ func initConfig(cmd *cobra.Command) ([]ConfigFlagOverride, []EnvVarSetViaConfig,
 	if cfgFile != "" {
 		// Use config file from the flag.
 		if !utils.FileOrFolderExists(cfgFile) {
-			return nil, nil, nil, fmt.Errorf("config file does not exist: %s", cfgFile)
+			return nil, nil, nil, goerrors.Errorf("config file does not exist: %s", cfgFile)
 		}
 
 		cfgFile, err := filepath.Abs(cfgFile)
