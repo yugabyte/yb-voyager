@@ -29,10 +29,9 @@ import (
 	"syscall"
 	"time"
 
-	goerrors "github.com/go-errors/errors"
-
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/color"
+	goerrors "github.com/go-errors/errors"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -1805,18 +1804,18 @@ func saveTableToUniqueKeyColumnsMapInMetaDB(tableList []sqlname.NameTuple, leafP
 	//Adding all the leaf partitions unique key columns to the root table unique key columns since in the importer all the events only have the root table name
 	leafPartitions.IterKV(func(rootTable sqlname.NameTuple, value []sqlname.NameTuple) (bool, error) {
 		for _, leafTable := range value {
-			leafColumns, ok := res.Get(leafTable)
+			leafUniqueColumns, ok := res.Get(leafTable)
 			if !ok {
 				continue
 			}
 			//Do not add leaf table key in the map since this config will be read by importer
 			res.Delete(leafTable)
-			rootColumns, ok := res.Get(rootTable)
+			rootUniqueColumns, ok := res.Get(rootTable)
 			if !ok {
-				rootColumns = []string{}
+				rootUniqueColumns = []string{}
 			}
-			rootColumns = append(rootColumns, leafColumns...)
-			res.Put(rootTable, lo.Uniq(rootColumns))
+			rootUniqueColumns = append(rootUniqueColumns, leafUniqueColumns...)
+			res.Put(rootTable, lo.Uniq(rootUniqueColumns))
 		}
 		return true, nil
 	})
