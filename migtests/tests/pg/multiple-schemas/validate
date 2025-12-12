@@ -167,6 +167,10 @@ def migration_completed_checks(tgt):
 			expectedExtensions.extend(["pg_partman", "pgtap", "yb_ycql_utils", "yb_xcluster_ddl_replication", "anon", "dummy_seclabel"])
 		if "2024.1" in tgtVersion:
 			expectedExtensions.extend(["yb_ycql_utils"])
+
+		if "2025.2" in tgtVersion:
+			expectedExtensions.extend(["pg_parquet"])
+			
 		for extension in expectedExtensions:
 			assert extension in extensions, f"expected extension is not reported: {extension}"
 		
