@@ -1104,7 +1104,7 @@ func TestLiveMigrationWithUniqueKeyConflictWithExpressionIndexOnPartitions(t *te
 
 	// Create a temporary export directory.
 	exportDir = testutils.CreateTempExportDir()
-	// defer testutils.RemoveTempExportDir(exportDir)
+	defer testutils.RemoveTempExportDir(exportDir)
 
 	createSchemaSQL := `CREATE SCHEMA IF NOT EXISTS test_schema;`
 

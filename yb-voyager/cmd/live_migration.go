@@ -254,40 +254,12 @@ func getExpressionUniqueIndexTables(tableNames []sqlname.NameTuple) ([]sqlname.N
 		return nil, fmt.Errorf("target db is not a YugabyteDB")
 	}
 
-	log.Infof("getting leaf table to root table map")
-	//returns a map of catalog leaf table name to catalog root table name
-	leafTableToRootTableMap, err := yb.GetPartitionTableToRootTableMap(tableNames)
-	if err != nil {
-		return nil, fmt.Errorf("error getting leaf table to root table map: %w", err)
-	}
-	log.Infof("leaf table to root table map: %v", leafTableToRootTableMap)
-
-	tableCatalogNameToTuple := make(map[string]sqlname.NameTuple)
-	for _, t := range tableNames {
-		tableCatalogNameToTuple[t.AsQualifiedCatalogName()] = t
-	}
-
-	catalogTableNames := make([]string, 0)
-	catalogTableNames = append(catalogTableNames, lo.Keys(leafTableToRootTableMap)...) //all partitions
-	catalogTableNames = append(catalogTableNames, lo.Keys(tableCatalogNameToTuple)...) //all normal tables/root tables
-	catalogTableNames = lo.Uniq(catalogTableNames)                                     //remove duplicates
-
 	//returns a list of catalog table names, in case partitions it return catalog leaf partitions names and root table names
-	expressionUniqueIndexTablesIncludingLeafPartitions, err := yb.GetTablesHavingExpressionUniqueIndexes(catalogTableNames)
+	expressionUniqueIndexTables, err := yb.GetTablesHavingExpressionUniqueIndexes(tableNames, true)
 	if err != nil {
 		return nil, fmt.Errorf("error getting tables having expression or normal unique indexes: %w", err)
 	}
 
-	var expressionUniqueIndexTables []sqlname.NameTuple
-	for _, t := range expressionUniqueIndexTablesIncludingLeafPartitions {
-		if rootTable, ok := leafTableToRootTableMap[t]; ok {
-			//if its a leaf partition, return the root table
-			expressionUniqueIndexTables = append(expressionUniqueIndexTables, tableCatalogNameToTuple[rootTable])
-		} else {
-			//if its a normal/root table, return the table itself
-			expressionUniqueIndexTables = append(expressionUniqueIndexTables, tableCatalogNameToTuple[t])
-		}
-	}
 	return expressionUniqueIndexTables, nil
 }
 
