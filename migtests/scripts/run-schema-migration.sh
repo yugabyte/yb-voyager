@@ -114,9 +114,16 @@ main() {
 		EXPECTED_FAILED_FILE="${TEST_DIR}/expected_files/expected_failed.sql"
 		# If version is 2.25 or >= 2025.1, use expected_failed_2025.1.sql if it exists
 		EXPECTED_FAILED_FILE_2025_1="${TEST_DIR}/expected_files/expected_failed_2025.1.sql"
-		if [ -f "${EXPECTED_FAILED_FILE_2025_1}" ] && ( [ "$target_major_version" == "2.25" ] || [ "$(echo "$target_major_version >= 2025.1" | bc)" -eq 1 ] ); then
+		if [ -f "${EXPECTED_FAILED_FILE_2025_1}" ] && [ "$(echo "$target_major_version >= 2025.1" | bc)" -eq 1 ]; then
 		    EXPECTED_FAILED_FILE="${EXPECTED_FAILED_FILE_2025_1}"
 		fi
+
+		EXPECTED_FAILED_2_25="${TEST_DIR}/expected_files/expected_failed_2.25.sql"
+		if [ -f "${EXPECTED_FAILED_2_25}" ] && [ "$target_major_version" == "2.25" ]; then
+		    EXPECTED_FAILED_FILE="${EXPECTED_FAILED_2_25}"
+		fi
+
+		echo "EXPECTED_FAILED_FILE: $EXPECTED_FAILED_FILE"
         #compare the failed.sql to the expected_failed.sql
         compare_sql_files "${EXPORT_DIR}/schema/failed.sql" "${EXPECTED_FAILED_FILE}" "$target_major_version"
         #rename failed.sql
