@@ -86,8 +86,8 @@ func HandleReplicaDiscoveryAndValidation(source *srcdb.Source, replicaEndpointsF
 
 	var validatedReplicas []srcdb.ReplicaEndpoint
 
-	// Case 2: Replicas discovered but none provided - best-effort validation
 	if discoveredCount > 0 && providedCount == 0 {
+		// Case 2: Replicas discovered but none provided - best-effort validation
 		validatedReplicas, err = processDiscoveredReplicasWhenNoEndpointsProvided(pg, discoveredReplicas)
 		if err != nil {
 			return ReplicaDiscoveryInfo{}, err
