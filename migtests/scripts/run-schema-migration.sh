@@ -114,8 +114,9 @@ main() {
 		EXPECTED_FAILED_FILE="${TEST_DIR}/expected_files/expected_failed.sql"
 		# If version >= 2025.1, use a different expected_failed_2025.1.sql (or same file if appropriate)
 		# bc returns 1 for true, 0 for false, so we check if result equals 1
-		if [ "$(echo "$target_major_version >= 2025.1" | bc)" -eq 1 ]; then
-		    EXPECTED_FAILED_FILE="${TEST_DIR}/expected_files/expected_failed_2025.1.sql"
+		EXPECTED_FAILED_FILE_2025_1="${TEST_DIR}/expected_files/expected_failed_2025.1.sql"
+		if [ "$(echo "$target_major_version >= 2025.1" | bc)" -eq 1 ] && [ -f "${EXPECTED_FAILED_FILE_2025_1}" ]; then
+		    EXPECTED_FAILED_FILE="${EXPECTED_FAILED_FILE_2025_1}"
 		fi
 		echo $EXPECTED_FAILED_FILE
         #compare the failed.sql to the expected_failed.sql
