@@ -596,7 +596,7 @@ func gatherAssessmentMetadata(validatedReplicas []srcdb.ReplicaEndpoint) error {
 			return fmt.Errorf("error gathering metadata and stats from source Oracle database: %w", err)
 		}
 	default:
-		return fmt.Errorf("source DB Type %s is not yet supported for metadata and stats gathering", source.DBType)
+		return goerrors.Errorf("source DB Type %s is not yet supported for metadata and stats gathering", source.DBType)
 	}
 	utils.PrintAndLogf("gathered assessment metadata files at '%s'", assessmentMetadataDir)
 	return nil

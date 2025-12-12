@@ -26,6 +26,7 @@ import (
 	"sync"
 	"syscall"
 
+	goerrors "github.com/go-errors/errors"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
@@ -185,7 +186,7 @@ func (pt *progressTracker) finalizeAndCheckResults(resultChan <-chan collectionR
 	}
 
 	if len(failedNodes) > 0 {
-		return fmt.Errorf("metadata collection failed on one or more nodes")
+		return goerrors.Errorf("metadata collection failed on one or more nodes")
 	}
 	return nil
 }
@@ -380,7 +381,7 @@ func findGatherMetadataScriptPath(dbType string) (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("script not found in possible paths: %v", possiblePathsForScript)
+	return "", goerrors.Errorf("script not found in possible paths: %v", possiblePathsForScript)
 }
 
 func runGatherAssessmentMetadataScript(scriptPath string, envVars []string, workingDir string, scriptArgs ...string) error {
