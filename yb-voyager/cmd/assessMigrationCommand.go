@@ -57,7 +57,8 @@ var (
 	referenceOrTablePartitionPresent = false
 	pgssEnabledForAssessment         = false
 	invokedByExportSchema            utils.BoolStr
-	sourceReadReplicaEndpoints       string // CLI flag - package variable for Cobra binding
+	sourceReadReplicaEndpoints       string                              // CLI flag - package variable for Cobra binding
+	replicaDiscoveryInfoForCallhome  *migassessment.ReplicaDiscoveryInfo // Stored for error callhome
 )
 
 var sourceConnectionFlags = []string{
@@ -116,7 +117,7 @@ var assessMigrationCmd = &cobra.Command{
 		if err != nil {
 			utils.ErrExit("%w", err)
 		}
-		packAndSendAssessMigrationPayload(COMPLETE, nil)
+		packAndSendAssessMigrationPayload(COMPLETE, nil, replicaDiscoveryInfoForCallhome)
 	},
 }
 
@@ -268,10 +269,14 @@ func assessMigration() (err error) {
 		}
 
 		// Handle replica discovery and validation (PostgreSQL only)
-		validatedReplicaEndpoints, err = migassessment.HandleReplicaDiscoveryAndValidation(&source, sourceReadReplicaEndpoints)
+		replicaDiscoveryInfo, err := migassessment.HandleReplicaDiscoveryAndValidation(&source, sourceReadReplicaEndpoints)
 		if err != nil {
 			return fmt.Errorf("failed to handle replica discovery and validation: %w", err)
 		}
+		validatedReplicaEndpoints = replicaDiscoveryInfo.ValidatedReplicas
+
+		// Store for callhome (including error scenarios)
+		replicaDiscoveryInfoForCallhome = &replicaDiscoveryInfo
 
 		// Check permissions on all nodes (primary + replicas) after validation
 		if source.RunGuardrailsChecks {
@@ -686,6 +691,12 @@ func generateAssessmentReport() (err error) {
 
 	assessmentReport.VoyagerVersion = utils.YB_VOYAGER_VERSION
 	assessmentReport.TargetDBVersion = targetDbVersion
+
+	// Populate assessment topology information
+	// Note: If assessment completes, all validated replicas succeeded (no partial failures)
+	if replicaDiscoveryInfoForCallhome != nil {
+		assessmentReport.NumReplicasUsed = len(replicaDiscoveryInfoForCallhome.ValidatedReplicas)
+	}
 
 	err = getAssessmentReportContentFromAnalyzeSchema()
 	if err != nil {
@@ -1801,6 +1812,7 @@ func generateAssessmentReportHtml(reportDir string) error {
 	log.Infof("creating template for assessment report...")
 	funcMap := template.FuncMap{
 		"split":                                  split,
+		"add":                                    add,
 		"groupByObjectType":                      groupByObjectType,
 		"numKeysInMapStringObjectInfo":           numKeysInMapStringObjectInfo,
 		"groupByObjectName":                      groupByObjectName,
@@ -1903,6 +1915,10 @@ func numKeysInMapStringObjectInfo(m map[string][]ObjectInfo) int {
 
 func split(value string, delimiter string) []string {
 	return strings.Split(value, delimiter)
+}
+
+func add(a, b int) int {
+	return a + b
 }
 
 // hasNotesByType checks if there are any notes of the specified type

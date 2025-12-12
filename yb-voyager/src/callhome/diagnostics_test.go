@@ -81,20 +81,30 @@ func TestCallhomeStructs(t *testing.T) {
 			name:       "Validate AssessMigrationPhasePayload Struct Definition",
 			actualType: reflect.TypeOf(AssessMigrationPhasePayload{}),
 			expectedType: struct {
-				PayloadVersion                 string                    `json:"payload_version"`
-				TargetDBVersion                *ybversion.YBVersion      `json:"target_db_version"`
-				Sizing                         *SizingCallhome           `json:"sizing"`
-				MigrationComplexity            string                    `json:"migration_complexity"`
-				MigrationComplexityExplanation string                    `json:"migration_complexity_explanation"`
-				SchemaSummary                  string                    `json:"schema_summary"`
-				Issues                         []AssessmentIssueCallhome `json:"assessment_issues"`
-				Error                          string                    `json:"error"`
-				TableSizingStats               string                    `json:"table_sizing_stats"`
-				IndexSizingStats               string                    `json:"index_sizing_stats"`
-				SourceConnectivity             bool                      `json:"source_connectivity"`
-				IopsInterval                   int64                     `json:"iops_interval"`
-				ControlPlaneType               string                    `json:"control_plane_type"`
-				AnonymizedDDLs                 []string                  `json:"anonymized_ddls"`
+				PayloadVersion                 string                     `json:"payload_version"`
+				TargetDBVersion                *ybversion.YBVersion       `json:"target_db_version"`
+				Sizing                         *SizingCallhome            `json:"sizing"`
+				MigrationComplexity            string                     `json:"migration_complexity"`
+				MigrationComplexityExplanation string                     `json:"migration_complexity_explanation"`
+				SchemaSummary                  string                     `json:"schema_summary"`
+				Issues                         []AssessmentIssueCallhome  `json:"assessment_issues"`
+				Error                          string                     `json:"error"`
+				TableSizingStats               string                     `json:"table_sizing_stats"`
+				IndexSizingStats               string                     `json:"index_sizing_stats"`
+				SourceConnectivity             bool                       `json:"source_connectivity"`
+				IopsInterval                   int64                      `json:"iops_interval"`
+				ControlPlaneType               string                     `json:"control_plane_type"`
+				AnonymizedDDLs                 []string                   `json:"anonymized_ddls"`
+				ReplicaAssessmentTopology      *ReplicaAssessmentTopology `json:"replica_assessment_topology,omitempty"`
+			}{},
+		},
+		{
+			name:       "Validate ReplicaAssessmentTopology Struct Definition",
+			actualType: reflect.TypeOf(ReplicaAssessmentTopology{}),
+			expectedType: struct {
+				ReplicasDiscovered int `json:"replicas_discovered"`
+				ReplicasProvided   int `json:"replicas_provided"`
+				ReplicasUsed       int `json:"replicas_used"`
 			}{},
 		},
 		{

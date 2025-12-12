@@ -450,6 +450,13 @@
             <p><strong>Migration Complexity:</strong> {{ .MigrationComplexity }}</p>
         {{ end }}
 
+        {{if gt .NumReplicasUsed 0}}
+        <h2>Assessment Topology</h2>
+        <div class="topology-info">
+            <p><strong>Total Nodes Assessed:</strong> {{add .NumReplicasUsed 1}} (1 primary + {{.NumReplicasUsed}} replica{{if ne .NumReplicasUsed 1}}s{{end}})</p>
+        </div>
+        {{end}}
+
         <h2>Database Objects</h2>
         <p>{{ .SchemaSummary.Description }}</p>
         <table>
