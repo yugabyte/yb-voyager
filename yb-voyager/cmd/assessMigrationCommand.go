@@ -1826,6 +1826,7 @@ func generateAssessmentReportHtml(reportDir string) error {
 	log.Infof("creating template for assessment report...")
 	funcMap := template.FuncMap{
 		"split":                                  split,
+		"add":                                    add,
 		"groupByObjectType":                      groupByObjectType,
 		"numKeysInMapStringObjectInfo":           numKeysInMapStringObjectInfo,
 		"groupByObjectName":                      groupByObjectName,
@@ -1928,6 +1929,10 @@ func numKeysInMapStringObjectInfo(m map[string][]ObjectInfo) int {
 
 func split(value string, delimiter string) []string {
 	return strings.Split(value, delimiter)
+}
+
+func add(a, b int) int {
+	return a + b
 }
 
 // hasNotesByType checks if there are any notes of the specified type
