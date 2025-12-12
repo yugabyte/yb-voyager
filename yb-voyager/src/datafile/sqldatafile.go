@@ -55,7 +55,7 @@ func (df *SqlDataFile) NextLine() (string, int64, error) {
 	}
 	df.bytesRead += currentBytesRead
 	line = strings.Trim(line, "\n") // to get the raw row
-	return line, currentBytesRead,  err
+	return line, currentBytesRead, err
 }
 
 func (df *SqlDataFile) Close() {

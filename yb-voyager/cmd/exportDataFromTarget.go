@@ -18,6 +18,8 @@ package cmd
 import (
 	"fmt"
 
+	goerrors "github.com/go-errors/errors"
+
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -99,14 +101,14 @@ func verifySSLFlags(cmd *cobra.Command, msr *metadb.MigrationStatusRecord) error
 
 	if msr.UseYBgRPCConnector {
 		if !lo.Contains(allowedSSLModesGRPCConnector, source.SSLMode) {
-			return fmt.Errorf("invalid SSL mode '%s' for 'export data from target'. Please restart 'export data from target' with the --target-ssl-mode flag with one of these modes: %v", source.SSLMode, allowedSSLModesGRPCConnector)
+			return goerrors.Errorf("invalid SSL mode '%s' for 'export data from target'. Please restart 'export data from target' with the --target-ssl-mode flag with one of these modes: %v", source.SSLMode, allowedSSLModesGRPCConnector)
 		}
 		if (lo.Contains([]string{constants.REQUIRE, constants.VERIFY_CA, constants.VERIFY_FULL}, source.SSLMode)) && source.SSLRootCert == "" {
-			return fmt.Errorf("SSL root cert is required for SSL mode '%s'. Please restart 'export data from target' with the --target-ssl-mode and --target-ssl-root-cert flags", source.SSLMode)
+			return goerrors.Errorf("SSL root cert is required for SSL mode '%s'. Please restart 'export data from target' with the --target-ssl-mode and --target-ssl-root-cert flags", source.SSLMode)
 		}
 	} else {
 		if !lo.Contains(allowedSSLModes, source.SSLMode) {
-			return fmt.Errorf("invalid SSL mode '%s' for 'export data from target'. Please restart 'export data from target' with the --target-ssl-mode flag with one of these modes: %v", source.SSLMode, allowedSSLModes)
+			return goerrors.Errorf("invalid SSL mode '%s' for 'export data from target'. Please restart 'export data from target' with the --target-ssl-mode flag with one of these modes: %v", source.SSLMode, allowedSSLModes)
 		}
 	}
 
@@ -116,7 +118,7 @@ func verifySSLFlags(cmd *cobra.Command, msr *metadb.MigrationStatusRecord) error
 func initSourceConfFromTargetConf(cmd *cobra.Command) error {
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		return fmt.Errorf("get migration status record: %v", err)
+		return goerrors.Errorf("get migration status record: %v", err)
 	}
 	sourceDBConf := msr.SourceDBConf
 	targetConf := msr.TargetDBConf
@@ -138,7 +140,7 @@ func initSourceConfFromTargetConf(cmd *cobra.Command) error {
 			if !utils.AskPrompt("Warning: SSL cert and key are not supported for 'export data from target' yet. Do you want to ignore these settings and continue") {
 				{
 					fmt.Println("Exiting...")
-					return fmt.Errorf("SSL cert and key are not supported for 'export data from target' yet")
+					return goerrors.Errorf("SSL cert and key are not supported for 'export data from target' yet")
 				}
 			}
 		}

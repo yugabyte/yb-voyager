@@ -21,6 +21,7 @@ import (
 	"reflect"
 	"strings"
 
+	goerrors "github.com/go-errors/errors"
 	"github.com/samber/lo"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
@@ -91,18 +92,18 @@ func (nv *ObjectName) MatchesPattern(pattern string) (bool, error) {
 		}
 		pattern = parts[0]
 	default:
-		return false, fmt.Errorf("invalid pattern: %s", pattern)
+		return false, goerrors.Errorf("invalid pattern: %s", pattern)
 	}
 	match1, err := filepath.Match(strings.ToLower(pattern), strings.ToLower(nv.Unqualified.Unquoted))
 	if err != nil {
-		return false, fmt.Errorf("invalid pattern: %s", pattern)
+		return false, goerrors.Errorf("invalid pattern: %s", pattern)
 	}
 	if match1 {
 		return true, nil
 	}
 	match2, err := filepath.Match(pattern, nv.Unqualified.Quoted)
 	if err != nil {
-		return false, fmt.Errorf("invalid pattern: %s", pattern)
+		return false, goerrors.Errorf("invalid pattern: %s", pattern)
 	}
 	return match2, nil
 }

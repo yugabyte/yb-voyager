@@ -19,6 +19,8 @@ import (
 	"fmt"
 	"strings"
 
+	goerrors "github.com/go-errors/errors"
+
 	mapset "github.com/deckarep/golang-set/v2"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -523,7 +525,7 @@ func (d *UniqueNullsNotDistinctDetector) Detect(msg protoreflect.Message) error 
 	if queryparser.GetMsgFullName(msg) == queryparser.PG_QUERY_INDEX_STMT_NODE {
 		indexStmt, ok := queryparser.ProtoAsIndexStmtNode(msg)
 		if !ok {
-			return fmt.Errorf("expected IndexStmt node, got %T", msg.Interface())
+			return goerrors.Errorf("expected IndexStmt node, got %T", msg.Interface())
 		}
 
 		if indexStmt.Unique && indexStmt.NullsNotDistinct {
@@ -532,7 +534,7 @@ func (d *UniqueNullsNotDistinctDetector) Detect(msg protoreflect.Message) error 
 	} else if queryparser.GetMsgFullName(msg) == queryparser.PG_QUERY_CONSTRAINT_NODE {
 		constraintNode, ok := queryparser.ProtoAsTableConstraintNode(msg)
 		if !ok {
-			return fmt.Errorf("expected TableConstraint node, got %T", msg.Interface())
+			return goerrors.Errorf("expected TableConstraint node, got %T", msg.Interface())
 		}
 
 		if constraintNode.Contype == queryparser.UNIQUE_CONSTR_TYPE && constraintNode.NullsNotDistinct {
@@ -598,7 +600,7 @@ func (n *NonDecimalIntegerLiteralDetector) Detect(msg protoreflect.Message) erro
 	}
 	aConstNode, ok := queryparser.ProtoAsAConstNode(msg)
 	if !ok {
-		return fmt.Errorf("expected A_Const node, got %T", msg.Interface())
+		return goerrors.Errorf("expected A_Const node, got %T", msg.Interface())
 	}
 	/*
 		Caveats can't report this issue for cases like -

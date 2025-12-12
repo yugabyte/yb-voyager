@@ -21,6 +21,8 @@ import (
 	"regexp"
 	"strings"
 
+	goerrors "github.com/go-errors/errors"
+
 	"github.com/fatih/color"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -38,12 +40,12 @@ var useYBgRPCConnector utils.BoolStr
 // Logical connector is only supported in YugabyteDB versions greater than minSupportedLogicalConnectorVersion
 func validateYBVersionForLogicalConnector(tconf *tgtdb.TargetConf) error {
 	if tconf == nil {
-		return fmt.Errorf("target database configuration is not available")
+		return goerrors.Errorf("target database configuration is not available")
 	}
 
 	// Version should already be stored in metadata from previous import commands
 	if tconf.DBVersion == "" {
-		return fmt.Errorf("YugabyteDB version not found in metadata.")
+		return goerrors.Errorf("YugabyteDB version not found in metadata.")
 	}
 	versionStr := tconf.DBVersion
 
@@ -106,7 +108,7 @@ func extractYBVersion(versionStr string) (string, error) {
 		return version, nil
 	}
 
-	return "", fmt.Errorf("unable to extract YugabyteDB version from PostgreSQL server_version string: %s. Expected format 'PostgreSQL_VERSION-YB-YUGABYTEDB_VERSION'", versionStr)
+	return "", goerrors.Errorf("unable to extract YugabyteDB version from PostgreSQL server_version string: %s. Expected format 'PostgreSQL_VERSION-YB-YUGABYTEDB_VERSION'", versionStr)
 }
 
 var cutoverToTargetCmd = &cobra.Command{

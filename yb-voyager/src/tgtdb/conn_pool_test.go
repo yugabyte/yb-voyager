@@ -275,6 +275,6 @@ func TestRemoveConnectionsForHosts(t *testing.T) {
 		pool.idleConns <- conn
 	}
 	//TODO: add test case for multiple hosts in conn pool for the RemoveConnectionsForHosts;
-	//we need to enhance the test container for starting a container with different host or 
-	//have a configuration for multiple node yb cluster. 
+	//we need to enhance the test container for starting a container with different host or
+	//have a configuration for multiple node yb cluster.
 }

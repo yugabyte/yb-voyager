@@ -16,7 +16,9 @@ limitations under the License.
 
 package errorpolicy
 
-import "fmt"
+import (
+	goerrors "github.com/go-errors/errors"
+)
 
 /*
 ErrorPolicy defines what to do when an error occurs during a task.
@@ -55,6 +57,6 @@ func NewErrorPolicy(s string) (ErrorPolicy, error) {
 	case StashAndContinueErrorPolicyName:
 		return StashAndContinueErrorPolicy, nil
 	default:
-		return 0, fmt.Errorf("invalid error policy: %s", s)
+		return 0, goerrors.Errorf("invalid error policy: %s", s)
 	}
 }
