@@ -27,7 +27,6 @@ import (
 	"time"
 
 	goerrors "github.com/go-errors/errors"
-
 	"github.com/google/uuid"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
@@ -253,7 +252,7 @@ func getCdcPartitioningStrategyPerTable(tableNames []sqlname.NameTuple) (*utils.
 func getExpressionUniqueIndexTables(tableNames []sqlname.NameTuple) ([]sqlname.NameTuple, error) {
 	yb, ok := tdb.(*tgtdb.TargetYugabyteDB)
 	if !ok {
-		return nil, fmt.Errorf("target db is not a YugabyteDB")
+		return nil, goerrors.Errorf("target db is not a YugabyteDB")
 	}
 
 	//returns a list of catalog table names, in case partitions it return catalog leaf partitions names and root table names
