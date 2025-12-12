@@ -28,9 +28,8 @@ import (
 	"strings"
 	"time"
 
-	goerrors "github.com/go-errors/errors"
-
 	"github.com/fatih/color"
+	goerrors "github.com/go-errors/errors"
 	"github.com/google/uuid"
 	"github.com/jackc/pglogrepl"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -922,7 +921,7 @@ func (pg *PostgreSQL) GetTableToUniqueKeyColumnsMap(tableList []sqlname.NameTupl
 		tableName = fmt.Sprintf("%s.%s", schemaName, tableName)
 		tableNameTuple, ok := tableStrToNameTupleMap[tableName]
 		if !ok {
-			return nil, fmt.Errorf("table %s not found in table list", tableName)
+			return nil, goerrors.Errorf("table %s not found in table list", tableName)
 		}
 		cols, ok := result.Get(tableNameTuple)
 		if !ok {

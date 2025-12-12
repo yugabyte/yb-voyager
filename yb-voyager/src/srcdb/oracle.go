@@ -22,6 +22,7 @@ import (
 	"strings"
 	"time"
 
+	goerrors "github.com/go-errors/errors"
 	"github.com/google/uuid"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
@@ -683,7 +684,7 @@ func (ora *Oracle) GetTableToUniqueKeyColumnsMap(tableList []sqlname.NameTuple) 
 		}
 		tableNameTuple, ok := tableStrToNameTupleMap[tableName]
 		if !ok {
-			return nil, fmt.Errorf("table %s not found in table list", tableName)
+			return nil, goerrors.Errorf("table %s not found in table list", tableName)
 		}
 		cols, ok := result.Get(tableNameTuple)
 		if !ok {
