@@ -27,7 +27,6 @@ import (
 	"time"
 
 	goerrors "github.com/go-errors/errors"
-
 	"github.com/google/uuid"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
@@ -214,13 +213,13 @@ func getCdcPartitioningStrategyPerTable(tableNames []sqlname.NameTuple) (*utils.
 		//if not found in metadb key, use the auto strategy
 		//find the tables having expression or normal unique indexes since the conflicts on these expression based unique indexes can't be detected easily as it require
 		//evaluating the expression for each event to detect the conflicts so we are running all the events of those tables sequentially by marking these table as partition by table
-		expressionUniqueIndexes, err := tdb.GetTablesHavingExpressionUniqueIndexes(tableNames)
+		expressionUniqueIndexTables, err := getExpressionUniqueIndexTables(tableNames)
 		if err != nil {
-			return nil, fmt.Errorf("error getting tables having expression or normal unique indexes: %w", err)
+			return nil, fmt.Errorf("error getting expression unique index tables: %w", err)
 		}
 
 		for _, t := range tableNames {
-			if lo.Contains(expressionUniqueIndexes, t) {
+			if lo.Contains(expressionUniqueIndexTables, t) {
 				tableToPartitioningStrategyMap.Put(t, PARTITION_BY_TABLE)
 			} else {
 				tableToPartitioningStrategyMap.Put(t, PARTITION_BY_PK)
@@ -248,6 +247,21 @@ func getCdcPartitioningStrategyPerTable(tableNames []sqlname.NameTuple) (*utils.
 	}
 	log.Infof("updated cdc partitioning strategy in metadb: %v", metadb.IMPORT_DATA_STATUS_KEY)
 	return tableToPartitioningStrategyMap, nil
+}
+
+func getExpressionUniqueIndexTables(tableNames []sqlname.NameTuple) ([]sqlname.NameTuple, error) {
+	yb, ok := tdb.(*tgtdb.TargetYugabyteDB)
+	if !ok {
+		return nil, goerrors.Errorf("target db is not a YugabyteDB")
+	}
+
+	//returns a list of catalog table names, in case partitions it return catalog leaf partitions names and root table names
+	expressionUniqueIndexTables, err := yb.GetTablesHavingExpressionUniqueIndexes(tableNames, true)
+	if err != nil {
+		return nil, fmt.Errorf("error getting tables having expression or normal unique indexes: %w", err)
+	}
+
+	return expressionUniqueIndexTables, nil
 }
 
 // used to determine if cache reinitialization is needed
