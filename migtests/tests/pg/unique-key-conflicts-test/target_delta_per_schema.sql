@@ -254,6 +254,14 @@ INSERT INTO subset_columns_unique_constraint_and_index (id, first_name, last_nam
 UPDATE subset_columns_unique_constraint_and_index SET phone_number = '123-456-7818' WHERE id = 108;
 UPDATE subset_columns_unique_constraint_and_index SET phone_number = '123-456-7816' WHERE id = 109;  -- Using old phone_number
 
+-- 8. Conflicts for `expression_based_unique_index
+--UPDATE-INSERT conflict
+UPDATE expression_based_unique_index SET email = 'updated_target_user4@example.com' WHERE id = 4;
+INSERT INTO expression_based_unique_index (email) VALUES ('UPDATED_User4@example.com'); --conflict lower case email 
+
+--UPDATE-UPDATE conflict
+UPDATE expression_based_unique_index SET email = 'updated_target_user5@example.com' WHERE id = 5;
+UPDATE expression_based_unique_index SET email = 'UPDATED_User5@example.com' WHERE id = 6;
 
 -- events for test_partial_unique_index table
 -- will uncomment in another PR as part of cdc partitioning strategy changes

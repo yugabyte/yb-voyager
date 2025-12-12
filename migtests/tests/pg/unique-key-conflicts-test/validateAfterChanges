@@ -25,6 +25,7 @@ EXPECTED_ROW_COUNT = {
     'single_unique_constraint': 12,
     'multi_unique_constraint': 12,
     'same_column_unique_constraint_and_index': 12,
+    'expression_based_unique_index': 7,
     'test_partial_unique_index':11
 }
 
@@ -121,6 +122,17 @@ EXPECTED_FINAL_STATE_VARCHAR = {
             '123-456-7890', '123-456-7892', '123-456-7893', '123-456-7810',
             '123-456-7811', '123-456-7855', '123-456-7815', '123-456-7818',
             '123-456-7816'
+        ]
+    },
+    'expression_based_unique_index':{
+        'email': [
+            'user1@example.com', 
+            'usER2@example.com', 
+            'usER3@example.com', 
+            'updated_target_user4@example.com', 
+            'updated_target_user5@example.com',
+            'UPDATED_User5@example.com',
+            'UPDATED_User4@example.com'
         ]
     }
 }

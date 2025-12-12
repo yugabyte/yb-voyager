@@ -22,7 +22,7 @@ import (
 
 const (
 	//object type constants
-	INDEX             = "index"
+	INDEX = "index"
 )
 
 /*

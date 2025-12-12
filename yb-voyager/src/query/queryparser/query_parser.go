@@ -27,8 +27,9 @@ we can put all the parser related logic (the parsing, the parsing of plpgsql to 
 package queryparser
 
 import (
-	"fmt"
 	"os"
+
+	goerrors "github.com/go-errors/errors"
 
 	pg_query "github.com/pganalyze/pg_query_go/v6"
 	log "github.com/sirupsen/logrus"
@@ -58,7 +59,7 @@ func ParseSqlFile(filePath string) (*pg_query.ParseResult, error) {
 	log.Debugf("parsing the file %q", filePath)
 	bytes, err := os.ReadFile(filePath)
 	if err != nil {
-		return nil, fmt.Errorf("reading file failed: %v", err)
+		return nil, goerrors.Errorf("reading file failed: %v", err)
 	}
 
 	tree, err := pg_query.Parse(string(bytes))
@@ -73,12 +74,12 @@ func ParseSqlFile(filePath string) (*pg_query.ParseResult, error) {
 func ProcessDDL(parseTree *pg_query.ParseResult) (DDLObject, error) {
 	processor, err := GetDDLProcessor(parseTree)
 	if err != nil {
-		return nil, fmt.Errorf("getting processor failed: %v", err)
+		return nil, goerrors.Errorf("getting processor failed: %v", err)
 	}
 
 	ddlObject, err := processor.Process(parseTree)
 	if err != nil {
-		return nil, fmt.Errorf("parsing DDL failed: %v", err)
+		return nil, goerrors.Errorf("parsing DDL failed: %v", err)
 	}
 
 	return ddlObject, nil

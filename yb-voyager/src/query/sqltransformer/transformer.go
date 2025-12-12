@@ -16,8 +16,9 @@ limitations under the License.
 package sqltransformer
 
 import (
-	"fmt"
 	"slices"
+
+	goerrors "github.com/go-errors/errors"
 
 	pg_query "github.com/pganalyze/pg_query_go/v6"
 	log "github.com/sirupsen/logrus"
@@ -144,7 +145,7 @@ func (t *Transformer) MergeConstraints(stmts []*pg_query.RawStmt) ([]*pg_query.R
 				// Merge these constraints into the CREATE TABLE stmt
 				createStmt, ok := createStmtMap[objectName]
 				if !ok {
-					return nil, fmt.Errorf("CREATE TABLE stmt not found for table %v", objectName)
+					return nil, goerrors.Errorf("CREATE TABLE stmt not found for table %v", objectName)
 				}
 				log.Infof("merging constraint %v into CREATE TABLE for object %v", constrType, objectName)
 				createStmt.Stmt.GetCreateStmt().TableElts = append(createStmt.Stmt.GetCreateStmt().TableElts, alterTableCmd.GetDef())
@@ -253,7 +254,7 @@ func (t *Transformer) AddShardingStrategyForConstraints(stmts []*pg_query.RawStm
 
 	tablesMap, err := getTablesMap(stmts)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to get tables to column on range types: %v", err)
+		return nil, nil, nil, goerrors.Errorf("failed to get tables to column on range types: %v", err)
 	}
 
 	for _, stmt := range stmts {
@@ -263,7 +264,7 @@ func (t *Transformer) AddShardingStrategyForConstraints(stmts []*pg_query.RawStm
 		}
 		ddlObject, err := queryparser.ProcessDDL(&pg_query.ParseResult{Stmts: []*pg_query.RawStmt{stmt}})
 		if err != nil {
-			return nil, nil, nil, fmt.Errorf("failed to process ddl: %v", err)
+			return nil, nil, nil, goerrors.Errorf("failed to process ddl: %v", err)
 		}
 		switch ddlObject.(type) {
 		case *queryparser.Table:
@@ -277,7 +278,7 @@ func (t *Transformer) AddShardingStrategyForConstraints(stmts []*pg_query.RawStm
 			}
 			isPKOnRangeDatatype, err := t.checkIfPrimaryKeyOnRangeDatatype(pkConstraint.Columns, table)
 			if err != nil {
-				return nil, nil, nil, fmt.Errorf("failed to check if primary key on range datatype: %v", err)
+				return nil, nil, nil, goerrors.Errorf("failed to check if primary key on range datatype: %v", err)
 			}
 			if isPKOnRangeDatatype {
 				pkTablesOnTimestampOrDate = append(pkTablesOnTimestampOrDate, tableName)
@@ -292,11 +293,11 @@ func (t *Transformer) AddShardingStrategyForConstraints(stmts []*pg_query.RawStm
 			case queryparser.PRIMARY_CONSTR_TYPE:
 				table, ok := tablesMap[alterTable.GetObjectName()]
 				if !ok {
-					return nil, nil, nil, fmt.Errorf("table %s not found in tables map", alterTable.GetObjectName())
+					return nil, nil, nil, goerrors.Errorf("table %s not found in tables map", alterTable.GetObjectName())
 				}
 				isPKOnRangeDatatype, err := t.checkIfPrimaryKeyOnRangeDatatype(alterTable.ConstraintColumns, table)
 				if err != nil {
-					return nil, nil, nil, fmt.Errorf("failed to check if primary key on range datatype: %v", err)
+					return nil, nil, nil, goerrors.Errorf("failed to check if primary key on range datatype: %v", err)
 				}
 				if isPKOnRangeDatatype {
 					pkTablesOnTimestampOrDate = append(pkTablesOnTimestampOrDate, alterTable.GetObjectName())
@@ -317,11 +318,11 @@ func (t *Transformer) AddShardingStrategyForConstraints(stmts []*pg_query.RawStm
 
 	hashSplittingSessionVariableOnParseTree, err := queryparser.Parse(HASH_SPLITTING_SESSION_VARIABLE_ON)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to parse hash splitting session variable on: %v", err)
+		return nil, nil, nil, goerrors.Errorf("failed to parse hash splitting session variable on: %v", err)
 	}
 	hashSplittingSessionVariableOffParseTree, err := queryparser.Parse(HASH_SPLITTING_SESSION_VARIABLE_OFF)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to parse hash splitting session variable off: %v", err)
+		return nil, nil, nil, goerrors.Errorf("failed to parse hash splitting session variable off: %v", err)
 	}
 
 	//TODO: see how we can add comments in between statements to make the table.sql more readable
@@ -355,7 +356,7 @@ func getTablesMap(stmts []*pg_query.RawStmt) (map[string]*queryparser.Table, err
 	for _, stmt := range stmts {
 		ddlObject, err := queryparser.ProcessDDL(&pg_query.ParseResult{Stmts: []*pg_query.RawStmt{stmt}})
 		if err != nil {
-			return nil, fmt.Errorf("failed to process ddl: %v", err)
+			return nil, goerrors.Errorf("failed to process ddl: %v", err)
 		}
 		switch ddlObject.(type) {
 		case *queryparser.Table:

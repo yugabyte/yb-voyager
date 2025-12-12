@@ -26,6 +26,8 @@ import (
 	"sync"
 	"time"
 
+	goerrors "github.com/go-errors/errors"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
@@ -562,7 +564,7 @@ func (cp *YugabyteD) sendMigrationEvent(
 			break
 		} else {
 			if attempt == maxAttempts {
-				return fmt.Errorf("error while sending migration event data to yugabyted for %d max attempts"+
+				return goerrors.Errorf("error while sending migration event data to yugabyted for %d max attempts"+
 					" query: %s. migration event data: %v. error: %w", maxAttempts, cmd, migrationEvent, err)
 			}
 		}

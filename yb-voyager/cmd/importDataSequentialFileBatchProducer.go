@@ -20,6 +20,8 @@ import (
 	"io"
 	"sort"
 
+	goerrors "github.com/go-errors/errors"
+
 	"github.com/fatih/color"
 	log "github.com/sirupsen/logrus"
 
@@ -66,17 +68,17 @@ type rowProcessor interface {
 
 func NewSequentialFileBatchProducer(task *ImportFileTask, state *ImportDataState, isRowTransformationRequired bool, errorHandler importdata.ImportDataErrorHandler, progressReporter *ImportDataProgressReporter) (*SequentialFileBatchProducer, error) {
 	if errorHandler == nil {
-		return nil, fmt.Errorf("errorHandler must not be nil")
+		return nil, goerrors.Errorf("errorHandler must not be nil")
 	}
 
 	err := state.PrepareForFileImport(task.FilePath, task.TableNameTup)
 	if err != nil {
-		return nil, fmt.Errorf("preparing for file import: %s", err)
+		return nil, goerrors.Errorf("preparing for file import: %s", err)
 	}
 
 	pendingBatches, lastBatchNumber, lastOffset, fileFullySplit, err := state.Recover(task.FilePath, task.TableNameTup)
 	if err != nil {
-		return nil, fmt.Errorf("recovering state for table: %q: %s", task.TableNameTup, err)
+		return nil, goerrors.Errorf("recovering state for table: %q: %s", task.TableNameTup, err)
 	}
 	completed := len(pendingBatches) == 0 && fileFullySplit
 
@@ -111,9 +113,17 @@ func (p *SequentialFileBatchProducer) Done() bool {
 	return p.completed
 }
 
+/*
+Batches are essentially produced (or made available) when NextBatch is called.
+So, if we are not done yet, then there is at least one batch available.
+*/
+func (p *SequentialFileBatchProducer) IsNextBatchAvailable() bool {
+	return !p.Done()
+}
+
 func (p *SequentialFileBatchProducer) NextBatch() (*Batch, error) {
 	if p.Done() {
-		return nil, fmt.Errorf("already completed producing all batches")
+		return nil, goerrors.Errorf("already completed producing all batches")
 	}
 	if len(p.pendingBatches) > 0 {
 		batch := p.pendingBatches[0]
@@ -151,7 +161,7 @@ func (p *SequentialFileBatchProducer) produceNextBatch() (*Batch, error) {
 	if p.lineFromPreviousBatch != "" {
 		err = batchWriter.WriteRecord(p.lineFromPreviousBatch)
 		if err != nil {
-			return nil, fmt.Errorf("Write to batch %d: %s", batchNum, err)
+			return nil, goerrors.Errorf("Write to batch %d: %s", batchNum, err)
 		}
 		p.lineFromPreviousBatch = ""
 	}
@@ -173,10 +183,9 @@ func (p *SequentialFileBatchProducer) produceNextBatch() (*Batch, error) {
 			if tconf.TargetDBType == YUGABYTEDB {
 				ybSpecificMsg = ", but should be strictly lower than the the rpc_max_message_size on YugabyteDB (default 267386880 bytes)"
 			}
-			errMsg := fmt.Errorf("record of size %d larger than max batch size: record num=%d for table %q in file %s is larger than the max batch size %d bytes. Max Batch size can be changed using env var MAX_BATCH_SIZE_BYTES%s", currentBytesRead, p.numLinesTaken, p.task.TableNameTup.ForOutput(), p.task.FilePath, tdb.MaxBatchSizeInBytes(), ybSpecificMsg)
+			errMsg := goerrors.Errorf("record of size %d larger than max batch size: record num=%d for table %q in file %s is larger than the max batch size %d bytes. Max Batch size can be changed using env var MAX_BATCH_SIZE_BYTES%s", currentBytesRead, p.numLinesTaken, p.task.TableNameTup.ForOutput(), p.task.FilePath, tdb.MaxBatchSizeInBytes(), ybSpecificMsg)
 			if p.errorHandler.ShouldAbort() {
-				errMsg = fmt.Errorf("%w\n%s", errMsg, color.YellowString(importdata.STASH_AND_CONTINUE_RECOMMENDATION_MESSAGE))
-				return nil, errMsg
+				return nil, fmt.Errorf("%w\n%s", errMsg, color.YellowString(importdata.STASH_AND_CONTINUE_RECOMMENDATION_MESSAGE))
 			}
 			err := p.handleRowProcessingErrorAndResetBytes(batchNum, line, errMsg, currentBytesRead)
 			if err != nil {
@@ -190,10 +199,9 @@ func (p *SequentialFileBatchProducer) produceNextBatch() (*Batch, error) {
 			lineBeforeConversion := line
 			line, err = p.transformRow(line, columnNames)
 			if err != nil {
-				errMsg := fmt.Errorf("transforming line number=%d for table: %q in file %s: %s", p.numLinesTaken, p.task.TableNameTup.ForOutput(), p.task.FilePath, err)
+				errMsg := goerrors.Errorf("transforming line number=%d for table: %q in file %s: %s", p.numLinesTaken, p.task.TableNameTup.ForOutput(), p.task.FilePath, err)
 				if p.errorHandler.ShouldAbort() {
-					errMsg = fmt.Errorf("%w\n%s", errMsg, color.YellowString(importdata.STASH_AND_CONTINUE_RECOMMENDATION_MESSAGE))
-					return nil, errMsg
+					return nil, fmt.Errorf("%w\n%s", errMsg, color.YellowString(importdata.STASH_AND_CONTINUE_RECOMMENDATION_MESSAGE))
 				}
 				err := p.handleRowProcessingErrorAndResetBytes(batchNum, lineBeforeConversion, errMsg, currentBytesRead)
 				if err != nil {
@@ -226,7 +234,7 @@ func (p *SequentialFileBatchProducer) produceNextBatch() (*Batch, error) {
 			// Write the record to the current batch
 			err = batchWriter.WriteRecord(line)
 			if err != nil {
-				return nil, fmt.Errorf("Write to batch %d: %s", batchNum, err)
+				return nil, goerrors.Errorf("Write to batch %d: %s", batchNum, err)
 			}
 
 			// TODO: fix. After writing the record, we should ideally check for
@@ -246,7 +254,7 @@ func (p *SequentialFileBatchProducer) produceNextBatch() (*Batch, error) {
 			p.dataFile.ResetBytesRead(0)
 			return batch, nil
 		} else if readLineErr != nil {
-			return nil, fmt.Errorf("read line from data file: %q: %s", p.task.FilePath, readLineErr)
+			return nil, goerrors.Errorf("read line from data file: %q: %s", p.task.FilePath, readLineErr)
 		}
 	}
 	// ideally should not reach here
@@ -277,13 +285,13 @@ func (p *SequentialFileBatchProducer) transformRow(row string, columnNames []str
 func (p *SequentialFileBatchProducer) openDataFile() error {
 	reader, err := dataStore.Open(p.task.FilePath)
 	if err != nil {
-		return fmt.Errorf("preparing reader for split generation on file: %q: %v", p.task.FilePath, err)
+		return goerrors.Errorf("preparing reader for split generation on file: %q: %v", p.task.FilePath, err)
 	}
 
 	dataFile, err := datafile.NewDataFile(p.task.FilePath, reader, dataFileDescriptor)
 
 	if err != nil {
-		return fmt.Errorf("open datafile: %q: %v", p.task.FilePath, err)
+		return goerrors.Errorf("open datafile: %q: %v", p.task.FilePath, err)
 	}
 	p.dataFile = dataFile
 
@@ -298,7 +306,7 @@ func (p *SequentialFileBatchProducer) openDataFile() error {
 	p.progressReporter.AddResumeInformation(p.task, fmt.Sprintf("Resuming from %d lines", p.lastOffset))
 	err = dataFile.SkipLines(p.lastOffset)
 	if err != nil {
-		return fmt.Errorf("skipping line for offset=%d: %v", p.lastOffset, err)
+		return goerrors.Errorf("skipping line for offset=%d: %v", p.lastOffset, err)
 	}
 	p.progressReporter.RemoveResumeInformation(p.task)
 	return nil
@@ -309,7 +317,7 @@ func (p *SequentialFileBatchProducer) newBatchWriter() (*BatchWriter, error) {
 	batchWriter := p.state.NewBatchWriter(p.task.FilePath, p.task.TableNameTup, batchNum)
 	err := batchWriter.Init()
 	if err != nil {
-		return nil, fmt.Errorf("initializing batch writer for table: %q: %s", p.task.TableNameTup, err)
+		return nil, goerrors.Errorf("initializing batch writer for table: %q: %s", p.task.TableNameTup, err)
 	}
 	// Write the header if necessary
 	if p.header != "" && dataFileDescriptor.FileFormat == datafile.CSV {

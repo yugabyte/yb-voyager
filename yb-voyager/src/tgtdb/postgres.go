@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/fatih/color"
+	goerrors "github.com/go-errors/errors"
 	"github.com/google/uuid"
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgtype"
@@ -126,7 +127,7 @@ func (pg *TargetPostgreSQL) Init() error {
 		schemaList)
 	rows, err := pg.Query(checkSchemaExistsQuery)
 	if err != nil {
-		return fmt.Errorf("run query %q on target %q to check schema exists: %s", checkSchemaExistsQuery, pg.tconf.Host, err)
+		return goerrors.Errorf("run query %q on target %q to check schema exists: %s", checkSchemaExistsQuery, pg.tconf.Host, err)
 	}
 	var returnedSchemas []string
 	defer rows.Close()
@@ -140,7 +141,7 @@ func (pg *TargetPostgreSQL) Init() error {
 	}
 	if len(returnedSchemas) != len(schemas) {
 		notExistsSchemas := utils.SetDifference(schemas, returnedSchemas)
-		return fmt.Errorf("schema '%s' does not exist in target", strings.Join(notExistsSchemas, ","))
+		return goerrors.Errorf("schema '%s' does not exist in target", strings.Join(notExistsSchemas, ","))
 	}
 	return err
 }
@@ -1223,4 +1224,8 @@ func (pg *TargetPostgreSQL) GetEnabledTriggersAndFks() (enabledTriggers []string
 	}
 
 	return enabledTriggers, enabledFks, nil
+}
+
+func (pg *TargetPostgreSQL) GetTablesHavingExpressionUniqueIndexes(tableNames []sqlname.NameTuple) ([]sqlname.NameTuple, error) {
+	return nil, nil
 }

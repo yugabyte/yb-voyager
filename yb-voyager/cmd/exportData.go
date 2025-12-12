@@ -29,6 +29,8 @@ import (
 	"syscall"
 	"time"
 
+	goerrors "github.com/go-errors/errors"
+
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/color"
 	"github.com/samber/lo"
@@ -775,7 +777,7 @@ func getPGDumpSequencesAndValues() (*utils.StructMap[sqlname.NameTuple, int64], 
 		}
 		argsIdx := setvalRegex.SubexpIndex("args")
 		if argsIdx > len(matches) {
-			return nil, fmt.Errorf("invalid index %d for matches - %s for line %s", argsIdx, matches, line)
+			return nil, goerrors.Errorf("invalid index %d for matches - %s for line %s", argsIdx, matches, line)
 		}
 		args := strings.Split(matches[argsIdx], ",")
 
@@ -1179,7 +1181,7 @@ func guardrailsAroundFirstRunAndCurrentRunTableList(firstRunTableListWithLeafPar
 
 			Re-run the command with the table list passed in the initial run of migration or start a fresh migration.
 		*/
-		return missingTables, extraTables, fmt.Errorf("\n%s\n\n%s%s%s\n\n%s", changeListMsg, missingMsgFinal, extraMsgFinal, tableListInFirstRunMsg, reRunMsg)
+		return missingTables, extraTables, goerrors.Errorf("\n%s\n\n%s%s%s\n\n%s", changeListMsg, missingMsgFinal, extraMsgFinal, tableListInFirstRunMsg, reRunMsg)
 	}
 
 	return nil, nil, nil
@@ -1342,7 +1344,7 @@ func validateAndExtractTableNamesFromFile(filePath string, flagName string) (str
 		return "", nil
 	}
 	if !utils.FileOrFolderExists(filePath) {
-		return "", fmt.Errorf("path %q does not exist", filePath)
+		return "", goerrors.Errorf("path %q does not exist", filePath)
 	}
 	tableList, err := utils.ReadTableNameListFromFile(filePath)
 	if err != nil {
@@ -1352,7 +1354,7 @@ func validateAndExtractTableNamesFromFile(filePath string, flagName string) (str
 	tableNameRegex := regexp.MustCompile(`[a-zA-Z0-9_."]+`)
 	for _, table := range tableList {
 		if !tableNameRegex.MatchString(table) {
-			return "", fmt.Errorf("invalid table name '%s' provided in file %s with --%s flag", table, filePath, flagName)
+			return "", goerrors.Errorf("invalid table name '%s' provided in file %s with --%s flag", table, filePath, flagName)
 		}
 	}
 	return strings.Join(tableList, ","), nil

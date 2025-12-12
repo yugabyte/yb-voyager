@@ -19,6 +19,9 @@ import (
 	"fmt"
 	"strings"
 
+	goerrors "github.com/go-errors/errors"
+
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
@@ -77,7 +80,7 @@ func validateImportFlags(cmd *cobra.Command, importerRole string) error {
 	}
 
 	if tconf.ImportObjects != "" && tconf.ExcludeImportObjects != "" {
-		return fmt.Errorf("only one of --object-type-list and --exclude-object-type-list are allowed")
+		return goerrors.Errorf("only one of --object-type-list and --exclude-object-type-list are allowed")
 	}
 	validateImportObjectsFlag(tconf.ImportObjects, "object-type-list")
 	validateImportObjectsFlag(tconf.ExcludeImportObjects, "exclude-object-type-list")
@@ -110,6 +113,49 @@ func validateImportDataFlags() error {
 	if err != nil {
 		return err
 	}
+
+	return nil
+}
+
+var validCdcPartitioningStrategies = []string{"pk", "table", "auto"}
+
+func validateCdcPartitioningStrategyFlag(cmd *cobra.Command) error {
+	if importerRole != TARGET_DB_IMPORTER_ROLE {
+		return nil
+	}
+	if !changeStreamingIsEnabled(importType) {
+		if cmd.Flags().Changed("cdc-partitioning-strategy") {
+			utils.ErrExit("--cdc-partitioning-strategy is not supported for offline migration. Re-run the command without this flag.")
+		}
+		return nil
+	}
+	if cdcPartitioningStrategy == "" {
+		utils.ErrExit("cdc partitioning strategy is required")
+	}
+
+	if !lo.Contains(validCdcPartitioningStrategies, cdcPartitioningStrategy) {
+		utils.ErrExit("invalid cdc partitioning strategy: %s. Supported values are: %s", cdcPartitioningStrategy, strings.Join(validCdcPartitioningStrategies, ", "))
+	}
+
+	importDataStatus, err := metaDB.GetImportDataStatusRecord()
+	if err != nil {
+		return fmt.Errorf("error getting import data status record: %w", err)
+	}
+
+	if importDataStatus == nil || !importDataStatus.ImportDataStarted || bool(startClean) {
+		//if import data has not started or start-clean flag is used, allow the change in cdc partitioning strategy
+		return nil
+	}
+	if importDataStatus.CdcPartitioningStrategyConfig == "" {
+		//if not a first run and the cdc partitioning strategy is not set
+		//this can be the case when the import data is resumed from an earlier version of yb-voyager
+		//So we should use the cdc partitioning strategy as pk to be upgrade safe
+		utils.ErrExit("Resuming from an earlier version of yb-voyager is not supported as cdc partition strategy was not set. Use --start-clean to start a fresh import with the new yb-voyager version.")
+	}
+	if cdcPartitioningStrategy != importDataStatus.CdcPartitioningStrategyConfig {
+		utils.ErrExit("changing the cdc partitioning strategy is not allowed after the import data has started. Current strategy: %s, new strategy: %s\n Use --start-clean to start a fresh import with the new strategy.", importDataStatus.CdcPartitioningStrategyConfig, cdcPartitioningStrategy)
+	}
+	log.Infof("cdc partitioning strategy: %s", cdcPartitioningStrategy)
 	return nil
 }
 
@@ -266,6 +312,19 @@ Note that for the cases where a table doesn't have a primary key, this may lead 
 		"The desired behavior when there is an error while processing and importing rows to target YugabyteDB in the snapshot phase. The errors can be while reading from file, transforming rows, or ingesting rows into YugabyteDB.\n"+
 			"\tabort: immediately abort the process. (default)\n"+
 			"\tstash-and-continue: stash the errored rows to a file and continue with the import")
+
+	cmd.Flags().IntVar(&maxConcurrentBatchProductionsConfig, "max-concurrent-batch-productions", 10, "Maximum number of concurrent batch productions to allow while importing data (default 10)")
+	cmd.Flags().MarkHidden("max-concurrent-batch-productions")
+
+	BoolVar(cmd.Flags(), &enableRandomBatchProduction, "enable-random-batch-production", true, "Enable random batch production during data import (default true)")
+	cmd.Flags().MarkHidden("enable-random-batch-production")
+
+	cmd.Flags().StringVar(&cdcPartitioningStrategy, "cdc-partitioning-strategy", "auto",
+		`The desired partitioning strategy to use while importing cdc events parallelly. The supported values are: pk, table. (default auto-detect)
+		\tauto: Automatically detect the partitioning strategy based on the table having expression or normal unique indexes.
+		\tpk: Partition the cdc events by primary key.
+		\ttable: Partition the cdc events by table.`)
+	cmd.Flags().MarkHidden("cdc-partitioning-strategy")
 
 	cmd.Flags().IntVar(&prometheusMetricsPort, "prometheus-metrics-port", 0,
 		"Port for Prometheus metrics server (default: 9101)")
@@ -493,7 +552,7 @@ func validateParallelismFlags() {
 
 func validateTruncateTablesFlag() error {
 	if truncateTables && !startClean {
-		return fmt.Errorf("Error --truncate-tables true can only be specified along with --start-clean true")
+		return goerrors.Errorf("Error --truncate-tables true can only be specified along with --start-clean true")
 	}
 	return nil
 }
@@ -517,7 +576,7 @@ func validateOnPrimaryKeyConflictFlag() error {
 	// Check if the provided OnPrimaryKeyConflictAction is valid
 	if tconf.OnPrimaryKeyConflictAction != "" {
 		if !slices.Contains(onPrimaryKeyConflictActions, tconf.OnPrimaryKeyConflictAction) {
-			return fmt.Errorf("invalid value for --on-primary-key-conflict. Allowed values are: [%s]", strings.Join(onPrimaryKeyConflictActions, ", "))
+			return goerrors.Errorf("invalid value for --on-primary-key-conflict. Allowed values are: [%s]", strings.Join(onPrimaryKeyConflictActions, ", "))
 		}
 	}
 
@@ -532,18 +591,18 @@ func validateOnPrimaryKeyConflictFlag() error {
 		if err != nil {
 			return fmt.Errorf("error getting migration status record: %w", err)
 		} else if msr == nil {
-			return fmt.Errorf("migration status record is nil, cannot validate --on-primary-key-conflict flag")
+			return goerrors.Errorf("migration status record is nil, cannot validate --on-primary-key-conflict flag")
 		}
 
 		if msr.OnPrimaryKeyConflictAction != "" && msr.OnPrimaryKeyConflictAction != tconf.OnPrimaryKeyConflictAction {
-			return fmt.Errorf("--on-primary-key-conflict flag cannot be changed after the import has started. "+
+			return goerrors.Errorf("--on-primary-key-conflict flag cannot be changed after the import has started. "+
 				"Previous value was %s, current value is %s", msr.OnPrimaryKeyConflictAction, tconf.OnPrimaryKeyConflictAction)
 		}
 	}
 
 	// --enable-upsert true and on-primary-key-conflict ignore is conflicting, therefore we only allow it if on-primary-key-conflict is set to ERROR-POLICY
 	if tconf.EnableUpsert && tconf.OnPrimaryKeyConflictAction != constants.PRIMARY_KEY_CONFLICT_ACTION_ERROR_POLICY {
-		return fmt.Errorf("--enable-upsert=true can only be used with --on-primary-key-conflict=ERROR-POLICY")
+		return goerrors.Errorf("--enable-upsert=true can only be used with --on-primary-key-conflict=ERROR-POLICY")
 	}
 
 	if tconf.OnPrimaryKeyConflictAction == constants.PRIMARY_KEY_CONFLICT_ACTION_IGNORE {
