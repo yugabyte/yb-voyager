@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	goerrors "github.com/go-errors/errors"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/jsonfile"
@@ -104,7 +105,7 @@ func (lm *LiveMigrationTest) SetupContainers(ctx context.Context) error {
 	}
 	lm.sourceContainer = testcontainers.NewTestContainer(lm.config.SourceDB.Type, containerConfig)
 	if err := lm.sourceContainer.Start(ctx); err != nil {
-		return fmt.Errorf("failed to start source container: %w", err)
+		return goerrors.Errorf("failed to start source container: %w", err)
 	}
 
 	// Start target container
@@ -113,7 +114,7 @@ func (lm *LiveMigrationTest) SetupContainers(ctx context.Context) error {
 	}
 	lm.targetContainer = testcontainers.NewTestContainer(lm.config.TargetDB.Type, targetContainerConfig)
 	if err := lm.targetContainer.Start(ctx); err != nil {
-		return fmt.Errorf("failed to start target container: %w", err)
+		return goerrors.Errorf("failed to start target container: %w", err)
 	}
 
 	fmt.Printf("Containers setup completed\n")
@@ -142,7 +143,7 @@ func (lm *LiveMigrationTest) InitMetaDB() error {
 	var err error
 	lm.metaDB, err = metadb.NewMetaDB(lm.exportDir)
 	if err != nil {
-		return fmt.Errorf("failed to initialize meta db: %w", err)
+		return goerrors.Errorf("failed to initialize meta db: %w", err)
 	}
 	return nil
 }
@@ -187,7 +188,7 @@ func (lm *LiveMigrationTest) StartExportData(async bool, extraArgs map[string]st
 	lm.exportCmd = testutils.NewVoyagerCommandRunner(lm.sourceContainer, "export data", args, onStart, async)
 	err := lm.exportCmd.Run()
 	if err != nil {
-		return fmt.Errorf("failed to start export data: %w", err)
+		return goerrors.Errorf("failed to start export data: %w", err)
 	}
 	fmt.Printf("Export data started\n")
 	return nil
@@ -215,7 +216,7 @@ func (lm *LiveMigrationTest) StartImportData(async bool, extraArgs map[string]st
 	lm.importCmd = testutils.NewVoyagerCommandRunner(lm.targetContainer, "import data", args, onStart, async)
 	err := lm.importCmd.Run()
 	if err != nil {
-		return fmt.Errorf("failed to start import data: %w", err)
+		return goerrors.Errorf("failed to start import data: %w", err)
 	}
 	fmt.Printf("Import data started\n")
 	return nil
@@ -225,14 +226,14 @@ func (lm *LiveMigrationTest) StartImportData(async bool, extraArgs map[string]st
 func (lm *LiveMigrationTest) StopExportData() error {
 	fmt.Printf("Stopping export data\n")
 	if lm.exportCmd == nil {
-		return fmt.Errorf("export command not started")
+		return goerrors.Errorf("export command not started")
 	}
 	if err := lm.exportCmd.Kill(); err != nil {
-		return fmt.Errorf("killing the export data process errored: %w", err)
+		return goerrors.Errorf("killing the export data process errored: %w", err)
 	}
 	err := lm.exportCmd.Wait()
 	if err != nil {
-		return fmt.Errorf("failed to stop export data: %w", err)
+		return goerrors.Errorf("failed to stop export data: %w", err)
 	}
 	fmt.Printf("Export data stopped\n")
 	return nil
@@ -242,7 +243,7 @@ func (lm *LiveMigrationTest) StopExportData() error {
 func (lm *LiveMigrationTest) StopImportData() error {
 	fmt.Printf("Stopping import data\n")
 	if lm.importCmd == nil {
-		return fmt.Errorf("import command not started")
+		return goerrors.Errorf("import command not started")
 	}
 	//Stopping import command
 	if err := lm.importCmd.Kill(); err != nil {
@@ -262,7 +263,7 @@ func (lm *LiveMigrationTest) StopImportData() error {
 func (lm *LiveMigrationTest) ResumeImportData(async bool, extraArgs map[string]string) error {
 	fmt.Printf("Resuming import data\n")
 	if lm.importCmd == nil {
-		return fmt.Errorf("import command not started")
+		return goerrors.Errorf("import command not started")
 	}
 	for key, value := range extraArgs {
 		lm.importCmd.AddArgs(key, value)
@@ -271,7 +272,7 @@ func (lm *LiveMigrationTest) ResumeImportData(async bool, extraArgs map[string]s
 	lm.importCmd.SetAsync(async)
 	err := lm.importCmd.Run()
 	if err != nil {
-		return fmt.Errorf("failed to resume import data: %w", err)
+		return goerrors.Errorf("failed to resume import data: %w", err)
 	}
 	fmt.Printf("Import data resumed\n")
 	return nil
@@ -280,12 +281,12 @@ func (lm *LiveMigrationTest) ResumeImportData(async bool, extraArgs map[string]s
 func (lm *LiveMigrationTest) ResumeExportData(async bool) error {
 	fmt.Printf("Resuming export data\n")
 	if lm.exportCmd == nil {
-		return fmt.Errorf("export command not started")
+		return goerrors.Errorf("export command not started")
 	}
 	lm.exportCmd.SetAsync(async)
 	err := lm.exportCmd.Run()
 	if err != nil {
-		return fmt.Errorf("failed to resume export data: %w", err)
+		return goerrors.Errorf("failed to resume export data: %w", err)
 	}
 	fmt.Printf("Export data resumed\n")
 	return nil
@@ -308,7 +309,7 @@ func (lm *LiveMigrationTest) InitiateCutoverToTarget(prepareForFallback bool, ex
 	cutoverCmd := testutils.NewVoyagerCommandRunner(nil, "initiate cutover to target", args, nil, false)
 	err := cutoverCmd.Run()
 	if err != nil {
-		return fmt.Errorf("failed to initiate cutover: %w", err)
+		return goerrors.Errorf("failed to initiate cutover: %w", err)
 	}
 	fmt.Printf("Cutover initiated to target\n")
 	return nil
@@ -330,7 +331,7 @@ func (lm *LiveMigrationTest) InitiateCutoverToSource(extraArgs map[string]string
 	cutoverCmd := testutils.NewVoyagerCommandRunner(nil, "initiate cutover to source", args, nil, false)
 	err := cutoverCmd.Run()
 	if err != nil {
-		return fmt.Errorf("failed to initiate cutover: %w", err)
+		return goerrors.Errorf("failed to initiate cutover: %w", err)
 	}
 	fmt.Printf("Cutover initiated to source\n")
 	return nil
@@ -403,7 +404,7 @@ func (lm *LiveMigrationTest) WaitForSnapshotComplete(tableName string, expectedR
 	})
 
 	if !ok {
-		return fmt.Errorf("snapshot phase did not complete within %v", timeout)
+		return goerrors.Errorf("snapshot phase did not complete within %v", timeout)
 	}
 	fmt.Printf("Snapshot complete\n")
 	return nil
@@ -431,7 +432,7 @@ func (lm *LiveMigrationTest) WaitForForwardStreamingComplete(tableName string, e
 	})
 
 	if !ok {
-		return fmt.Errorf("streaming phase did not complete within %v", timeout)
+		return goerrors.Errorf("streaming phase did not complete within %v", timeout)
 	}
 	fmt.Printf("Streaming complete\n")
 	return nil
@@ -459,7 +460,7 @@ func (lm *LiveMigrationTest) WaitForFallbackStreamingComplete(tableName string, 
 	})
 
 	if !ok {
-		return fmt.Errorf("streaming phase did not complete within %v", timeout)
+		return goerrors.Errorf("streaming phase did not complete within %v", timeout)
 	}
 	fmt.Printf("Streaming complete\n")
 	return nil
@@ -477,7 +478,7 @@ func (lm *LiveMigrationTest) WaitForCutoverComplete() error {
 	if lm.metaDB == nil {
 		err := lm.InitMetaDB()
 		if err != nil {
-			return fmt.Errorf("failed to initialize meta db: %w", err)
+			return goerrors.Errorf("failed to initialize meta db: %w", err)
 		}
 	}
 
@@ -486,7 +487,7 @@ func (lm *LiveMigrationTest) WaitForCutoverComplete() error {
 	})
 
 	if !ok {
-		return fmt.Errorf("cutover did not complete within %v", timeout)
+		return goerrors.Errorf("cutover did not complete within %v", timeout)
 	}
 	fmt.Printf("Cutover complete\n")
 	return nil
@@ -514,7 +515,7 @@ func (lm *LiveMigrationTest) ValidateDataConsistency(tables []string, orderBy st
 	lm.WithSourceTargetConn(func(source, target *sql.DB) error {
 		for _, table := range tables {
 			if err := testutils.CompareTableData(lm.ctx, source, target, table, orderBy); err != nil {
-				return fmt.Errorf("table data mismatch for %s: %w", table, err)
+				return goerrors.Errorf("table data mismatch for %s: %w", table, err)
 			}
 			fmt.Printf("Data consistency validated for %s\n", table)
 		}
@@ -528,7 +529,7 @@ func (lm *LiveMigrationTest) ValidateDataConsistency(tables []string, orderBy st
 func (lm *LiveMigrationTest) WithSourceConn(fn func(*sql.DB) error) error {
 	conn, err := lm.sourceContainer.GetConnection()
 	if err != nil {
-		return fmt.Errorf("failed to get source connection: %w", err)
+		return goerrors.Errorf("failed to get source connection: %w", err)
 	}
 	return fn(conn)
 }
@@ -537,7 +538,7 @@ func (lm *LiveMigrationTest) WithSourceConn(fn func(*sql.DB) error) error {
 func (lm *LiveMigrationTest) WithTargetConn(fn func(*sql.DB) error) error {
 	conn, err := lm.targetContainer.GetConnection()
 	if err != nil {
-		return fmt.Errorf("failed to get target connection: %w", err)
+		return goerrors.Errorf("failed to get target connection: %w", err)
 	}
 	return fn(conn)
 }
@@ -546,12 +547,12 @@ func (lm *LiveMigrationTest) WithTargetConn(fn func(*sql.DB) error) error {
 func (lm *LiveMigrationTest) WithSourceTargetConn(fn func(source, target *sql.DB) error) error {
 	sourceConn, err := lm.sourceContainer.GetConnection()
 	if err != nil {
-		return fmt.Errorf("failed to get source connection: %w", err)
+		return goerrors.Errorf("failed to get source connection: %w", err)
 	}
 
 	targetConn, err := lm.targetContainer.GetConnection()
 	if err != nil {
-		return fmt.Errorf("failed to get target connection: %w", err)
+		return goerrors.Errorf("failed to get target connection: %w", err)
 	}
 
 	return fn(sourceConn, targetConn)
@@ -565,7 +566,7 @@ func (lm *LiveMigrationTest) WithSourceTargetConn(fn func(source, target *sql.DB
 func (lm *LiveMigrationTest) snapshotPhaseCompleted(tableName string, expectedRows int64) (bool, error) {
 	report, err := lm.GetDataMigrationReport()
 	if err != nil {
-		return false, fmt.Errorf("failed to get data migration report: %w", err)
+		return false, goerrors.Errorf("failed to get data migration report: %w", err)
 	}
 
 	exportSnapshot := int64(0)
@@ -589,7 +590,7 @@ func (lm *LiveMigrationTest) streamingPhaseCompleted(tableName string, expectedI
 	fmt.Printf("Waiting for streaming complete\n")
 	report, err := lm.GetDataMigrationReport()
 	if err != nil {
-		return false, fmt.Errorf("failed to get data migration report: %w", err)
+		return false, goerrors.Errorf("failed to get data migration report: %w", err)
 	}
 
 	exportInserts := int64(0)
@@ -645,20 +646,20 @@ func (lm *LiveMigrationTest) GetDataMigrationReport() (*DataMigrationReport, err
 		"--target-db-password", lm.targetContainer.GetConfig().Password,
 	}, nil, true).Run()
 	if err != nil {
-		return nil, fmt.Errorf("get data-migration-report command failed: %w", err)
+		return nil, goerrors.Errorf("get data-migration-report command failed: %w", err)
 	}
 
 	time.Sleep(10 * time.Second)
 
 	reportFilePath := filepath.Join(lm.exportDir, "reports", "data-migration-report.json")
 	if !utils.FileOrFolderExists(reportFilePath) {
-		return nil, fmt.Errorf("report file does not exist")
+		return nil, goerrors.Errorf("report file does not exist")
 	}
 
 	jsonFile := jsonfile.NewJsonFile[[]*rowData](reportFilePath)
 	rowData, err := jsonFile.Read()
 	if err != nil {
-		return nil, fmt.Errorf("error reading data-migration-report: %w", err)
+		return nil, goerrors.Errorf("error reading data-migration-report: %w", err)
 	}
 
 	return &DataMigrationReport{RowData: *rowData}, nil
