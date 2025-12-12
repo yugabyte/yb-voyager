@@ -213,7 +213,7 @@ func GatherAssessmentMetadataFromPG(
 		connectionUri := source.DB().GetConnectionUriWithoutPassword()
 		err := runGatherAssessmentMetadataScript(
 			scriptPath,
-			[]string{fmt.Sprintf("PGPASSWORD=%s", source.Password), "PGCONNECT_TIMEOUT=10"},
+			[]string{fmt.Sprintf("PGPASSWORD=%s", source.Password)},
 			assessmentMetadataDir,
 			connectionUri,
 			source.Schema,

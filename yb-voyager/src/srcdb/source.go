@@ -19,8 +19,9 @@ import (
 	"os"
 	"path/filepath"
 
-	goerrors "github.com/go-errors/errors"
 	"strings"
+
+	goerrors "github.com/go-errors/errors"
 
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
