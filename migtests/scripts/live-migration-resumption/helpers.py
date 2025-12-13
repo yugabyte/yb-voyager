@@ -185,7 +185,14 @@ def exporter_streaming(export_dir: str) -> bool:
 
 
 def get_cutover_status(export_dir: str, mode: str = "target") -> str:
-    key = "cutover to target status" if mode == "target" else "cutover to source status"
+    if mode == "target":
+        key = "cutover to target status"
+    elif mode == "source":
+        key = "cutover to source status"
+    elif mode == "source-replica":
+        key = "cutover to source-replica status"
+    else:
+        raise ValueError(f"get_cutover_status: unsupported mode {mode!r}")
 
     cmd = ["yb-voyager", "cutover", "status", "--export-dir", export_dir]
     try:
@@ -481,8 +488,23 @@ def import_to_source(cfg: Dict[str, Any], env: Dict[str, str]) -> subprocess.Pop
     return spawn(cmd, env)
 
 def import_to_source_replica(cfg: Dict[str, Any], env: Dict[str, str]) -> subprocess.Popen:
-    flags = cfg["voyager"].get("import_to_source_or_replica", {}).get("flags", {})
-    return spawn(["yb-voyager", "import", "data", "to", "source-replica", "--export-dir", cfg["export_dir"], *to_kv_flags(flags)], env)
+    voyager_flags = (cfg.get("voyager", {}).get("import_to_source_or_replica", {}) or {}).get("flags", {}) or {}
+
+    # Base flags: export-dir + diagnostics defaults
+    base = _base_common_flags(cfg)
+
+    # Source-replica connection flags (all required for this command)
+    src_rep = cfg.get("source_replica", {})
+    if src_rep:
+        base["source-replica-db-user"] = src_rep.get("user", "")
+        base["source-replica-db-name"] = src_rep.get("database", "")
+        base["source-replica-db-password"] = src_rep.get("password", "")
+        base["source-replica-db-host"] = src_rep.get("host", "")
+        base["source-replica-db-port"] = src_rep.get("port", "")
+
+    merged = _merge_flags(base, voyager_flags)
+    cmd = ["yb-voyager", "import", "data", "to", "source-replica", "--yes"] + to_kv_flags(merged)
+    return spawn(cmd, env)
 
 
 
@@ -699,14 +721,20 @@ def start_resumptions_for_stage(resumption_cfg: Dict[str, Any] | None, ctx: Cont
     if not resumption_cfg:
         return
     to_start: list[Resumer] = []
+    missing_or_stopped: list[str] = []
     with ctx.process_lock:
         for cmd, cfg in resumption_cfg.items():
-            if cmd in ctx.active_resumers:
-                log_resumption_event(ctx, cmd, "resumer already running; skipping new start", event="duplicate_start")
-                continue
             proc = ctx.processes.get(cmd)
-            if proc is None:
-                log_resumption_event(ctx, cmd, "requested resumption but process not running; skipping", event="missing_process")
+            if proc is None or proc.poll() is not None:
+                rc = None if proc is None else proc.poll()
+                log_resumption_event(
+                    ctx,
+                    cmd,
+                    f"requested resumption but process not running (exit_code={rc}); failing stage",
+                    event="missing_process",
+                    exit_code=rc,
+                )
+                missing_or_stopped.append(f"{cmd}[exit_code={rc}]")
                 continue
             policy = ResumptionPolicy(cfg)
             if policy.max_restarts <= 0:
@@ -714,6 +742,11 @@ def start_resumptions_for_stage(resumption_cfg: Dict[str, Any] | None, ctx: Cont
             resumer = Resumer(cmd, policy, ctx)
             ctx.active_resumers[cmd] = resumer
             to_start.append(resumer)
+    if missing_or_stopped:
+        raise RuntimeError(
+            "Cannot start resumptions; requested commands are not running: "
+            + ", ".join(missing_or_stopped)
+        )
     for resumer in to_start:
         resumer.start()
 
@@ -881,12 +914,6 @@ def fetchall(cfg: Dict[str, Any], role: str, query: str, params=()) -> list[tupl
         return cur.fetchall()
 
 
-def _source_connection(cfg: Dict[str, Any]) -> psycopg2.extensions.connection:
-    return db_connection(cfg, "source")
-
-
-def _target_connection(cfg: Dict[str, Any]) -> psycopg2.extensions.connection:
-    return db_connection(cfg, "target")
 
 
 def run_sql_file(ctx, sql_path: str, target: str = "source", *, use_admin: bool = False) -> None:
@@ -1010,7 +1037,6 @@ def _load_segment_map_for_side(
     cfg: Dict[str, Any],
     schema: str,
     role: str,
-    side_label: str,
 ) -> Dict[tuple, Dict[str, Any]]:
     """Return a mapping (schema, table, segment_index) -> {row_count, segment_hash} for one side."""
     rows = fetchall(
@@ -1027,7 +1053,7 @@ def _load_segment_map_for_side(
           AND schema_name = %s
           AND table_name <> 'migration_validate_segments'
         """,
-        (side_label, schema),
+        (role, schema),
     )
     by_key: Dict[tuple, Dict[str, Any]] = {}
     for (
@@ -1087,12 +1113,12 @@ def _build_segment_record(
 
 
 def run_segment_hash_computation(ctx: Context, side: str, num_segments: int = 16) -> None:
-    """Invoke compute_schema_segment_hashes on the given side (source/target).
+    """Invoke compute_schema_segment_hashes on the given side (source/target/source_replica).
 
     This relies on the SQL primitives defined in segment_hash_validation.sql
     being installed on both source and target clusters.
     """
-    if side not in ("source", "target"):
+    if side not in ("source", "target", "source_replica"):
         raise ValueError(f"run_segment_hash_computation: unexpected side {side!r}")
 
     cfg = ctx.cfg
@@ -1105,8 +1131,12 @@ def run_segment_hash_computation(ctx: Context, side: str, num_segments: int = 16
     run_psql(ctx, side, "-c", sql_stmt)
 
 
-def compare_segment_hashes(ctx: Context) -> tuple[list[Dict[str, Any]], list[Dict[str, Any]]]:
-    """Load segment hashes from source/target and compute in-memory differences.
+def compare_segment_hashes(
+    ctx: Context,
+    left_side: str = "source",
+    right_side: str = "target",
+) -> tuple[list[Dict[str, Any]], list[Dict[str, Any]]]:
+    """Load segment hashes for two sides and compute in-memory differences.
 
     Returns:
         all_segments: list of per-segment records including status.
@@ -1115,17 +1145,17 @@ def compare_segment_hashes(ctx: Context) -> tuple[list[Dict[str, Any]], list[Dic
     cfg = ctx.cfg
     schema = cfg["source"]["schema"]
 
-    source_map = _load_segment_map_for_side(cfg, schema, "source", "source")
-    target_map = _load_segment_map_for_side(cfg, schema, "target", "target")
+    left_map = _load_segment_map_for_side(cfg, schema, left_side)
+    right_map = _load_segment_map_for_side(cfg, schema, right_side)
 
-    all_keys = sorted(set(source_map.keys()) | set(target_map.keys()))
+    all_keys = sorted(set(left_map.keys()) | set(right_map.keys()))
 
     all_segments: list[Dict[str, Any]] = []
     mismatches: list[Dict[str, Any]] = []
 
     for key in all_keys:
-        src = source_map.get(key)
-        tgt = target_map.get(key)
+        src = left_map.get(key)
+        tgt = right_map.get(key)
         record, is_mismatch = _build_segment_record(key, src, tgt)
         all_segments.append(record)
         if is_mismatch:
@@ -1134,18 +1164,22 @@ def compare_segment_hashes(ctx: Context) -> tuple[list[Dict[str, Any]], list[Dic
     return all_segments, mismatches
 
 
-def run_segment_hash_validations(ctx: Context) -> None:
+def run_segment_hash_validations(
+    ctx: Context,
+    left_side: str = "source",
+    right_side: str = "target",
+) -> None:
     """End-to-end segment-hash validation: compute, compare, and persist artifacts.
 
     Raises:
         RuntimeError if any segment shows a mismatch or is missing on one side.
     """
     # 1) Compute (or refresh) segment hashes on both sides
-    run_segment_hash_computation(ctx, "source")
-    run_segment_hash_computation(ctx, "target")
+    run_segment_hash_computation(ctx, left_side)
+    run_segment_hash_computation(ctx, right_side)
 
     # 2) Compare in-memory
-    all_segments, mismatches = compare_segment_hashes(ctx)
+    all_segments, mismatches = compare_segment_hashes(ctx, left_side, right_side)
 
     # 3) Persist artifacts
     base_dir = os.path.join(ctx.artifacts_dir, "dvt", "hash_segments")
@@ -1172,8 +1206,12 @@ def run_segment_hash_validations(ctx: Context) -> None:
         raise RuntimeError(f"segment hash validation failed for segments: {preview}")
 
 
-def run_row_count_validations(ctx: Context) -> None:
-    """Compare row counts between source and target using direct SQL."""
+def run_row_count_validations(
+    ctx: Context,
+    left_role: str = "source",
+    right_role: str = "target",
+) -> None:
+    """Compare row counts between two roles (default: source and target) using direct SQL."""
     cfg = ctx.cfg
     schema = cfg["source"]["schema"]
     tables = list_source_tables(cfg)
@@ -1181,19 +1219,20 @@ def run_row_count_validations(ctx: Context) -> None:
     os.makedirs(out_dir, exist_ok=True)
     mismatches = []
 
-    src_conn = _source_connection(cfg)
-    tgt_conn = _target_connection(cfg)
+    left_conn = db_connection(cfg, left_role)
+    right_conn = db_connection(cfg, right_role)
 
     try:
         for table in tables:
-            src_count = _fetch_table_count(src_conn, schema, table)
-            tgt_count = _fetch_table_count(tgt_conn, schema, table)
+            left_count = _fetch_table_count(left_conn, schema, table)
+            right_count = _fetch_table_count(right_conn, schema, table)
 
             record = {
                 "table": table,
-                "source_count": src_count,
-                "target_count": tgt_count,
-                "status": "success" if src_count == tgt_count else "mismatch",
+                # Field names kept for backward-compatibility; values come from left/right roles.
+                "source_count": left_count,
+                "target_count": right_count,
+                "status": "success" if left_count == right_count else "mismatch",
             }
 
             # Write per-table result
@@ -1203,8 +1242,8 @@ def run_row_count_validations(ctx: Context) -> None:
                 mismatches.append(record)
 
     finally:
-        src_conn.close()
-        tgt_conn.close()
+        left_conn.close()
+        right_conn.close()
 
     # If any mismatches, write summary + raise error
     if mismatches:
@@ -1217,6 +1256,3 @@ def run_row_count_validations(ctx: Context) -> None:
             for r in mismatches
         )
         raise RuntimeError(f"row count validation failed for tables: {preview}")
-
-def run_dvt(ctx: Context) -> None:
-    run_row_count_validations(ctx)

@@ -54,12 +54,12 @@ generator_target:
       wait_after_operations: 5000
       wait_duration_seconds: 1
       table_weights: {}
-      operation_weights: {INSERT: 3, UPDATE: 2, DELETE: 2}
+      operation_weights: {INSERT: 3, UPDATE: 2, DELETE: 1}
       random_seed: 456
       faker_seed: 456
       insert_rows: 6
       update_rows: 4
-      delete_rows: 1
+      delete_rows: 2
       insert_max_retries: 5
       update_max_retries: 1
 
@@ -199,6 +199,10 @@ stages:
         max_interrupt_seconds: 60
         min_restart_wait_seconds: 5
         max_restart_wait_seconds: 30
+
+  - name: start_import_to_source_resumptions
+    action: start_resumptions
+    resumption:
       import_to_source:
         max_restarts: 25
         min_interrupt_seconds: 15
@@ -208,7 +212,7 @@ stages:
 
   - name: soak_fallback_with_resumptions
     action: sleep
-    seconds: 1200
+    seconds: 1800
 
   - name: stop_target_event_generator
     action: generator_stop

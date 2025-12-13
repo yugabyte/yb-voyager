@@ -99,6 +99,13 @@ def import_to_source_start_action(stage: Dict[str, Any], ctx: Any) -> None:
         ctx.processes["import_to_source"] = H.import_to_source(ctx.cfg, ctx.env)
 
 
+@action("voyager_import_to_source_replica_start")
+def import_to_source_replica_start_action(stage: Dict[str, Any], ctx: Any) -> None:
+    """Start yb-voyager import-to-source-replica process for fall-forward."""
+    with ctx.process_lock:
+        ctx.processes["import_to_source_replica"] = H.import_to_source_replica(ctx.cfg, ctx.env)
+
+
 @action("voyager_stop_command")
 def stop_command_action(stage: Dict[str, Any], ctx: Any) -> None:
     command = stage.get("command")
@@ -118,6 +125,8 @@ def wait_for_action(stage: Dict[str, Any], ctx: Any) -> None:
         ok = H.poll_until(timeout_sec, 10, lambda: H.get_cutover_status(ctx.cfg["export_dir"], mode="target") == "COMPLETED")
     elif cond == "cutover_to_source_status_completed":
         ok = H.poll_until(timeout_sec, 10, lambda: H.get_cutover_status(ctx.cfg["export_dir"], mode="source") == "COMPLETED")
+    elif cond == "cutover_to_source_replica_status_completed":
+        ok = H.poll_until(timeout_sec, 10, lambda: H.get_cutover_status(ctx.cfg["export_dir"], mode="source-replica") == "COMPLETED")
     else:
         raise ValueError(f"unknown condition: {cond}")
     if not ok:
@@ -134,22 +143,33 @@ def cutover_to_source_action(stage: Dict[str, Any], ctx: Any) -> None:
     H.initiate_cutover(ctx.cfg, ctx.env, "source")
 
 
+@action("cutover_to_source_replica")
+def cutover_to_source_replica_action(stage: Dict[str, Any], ctx: Any) -> None:
+    """Initiate cutover back to the source-replica database."""
+    H.initiate_cutover(ctx.cfg, ctx.env, "source-replica")
+
+
 @action("dvt_run")
 def dvt_run_action(stage: Dict[str, Any], ctx: Any) -> None:
-    H.run_dvt(ctx)
+    left_role = stage.get("left_role", "source")
+    right_role = stage.get("right_role", "target")
+    H.run_row_count_validations(ctx, left_role, right_role)
 
 
 @action("row_hash_validations")
 def row_hash_validations_action(stage: Dict[str, Any], ctx: Any) -> None:
-    """Run segment-based row hash validations between source and target."""
-    # Ensure validation primitives are installed on both source and target
+    """Run segment-based row hash validations between two roles (default: source and target)."""
     helper_dir = os.path.dirname(__file__)
     sql_path = os.path.join(helper_dir, "segment_hash_validation.sql")
 
-    H.run_sql_file(ctx, sql_path, target="source", use_admin=False)
-    H.run_sql_file(ctx, sql_path, target="target", use_admin=False)
+    left_role = stage.get("left_role", "source")
+    right_role = stage.get("right_role", "target")
 
-    H.run_segment_hash_validations(ctx)
+    # Ensure validation primitives are installed only on the roles we will use.
+    for role in {left_role, right_role}:
+        H.run_sql_file(ctx, sql_path, target=role, use_admin=False)
+
+    H.run_segment_hash_validations(ctx, left_role, right_role)
 
 
 @action("start_resumptions")
