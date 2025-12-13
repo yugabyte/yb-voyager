@@ -73,7 +73,7 @@ source:
   host: 127.0.0.1
   port: 5432
   database: test_db
-  user: ybvoyager_new
+  user: ybvoyager
   password: Test@123#$%^&*()!
   schema: public
   admin:
