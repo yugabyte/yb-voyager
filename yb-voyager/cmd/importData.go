@@ -25,6 +25,8 @@ import (
 	"time"
 	"unicode"
 
+	goerrors "github.com/go-errors/errors"
+
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/color"
 	"github.com/samber/lo"
@@ -280,7 +282,7 @@ func setImportTypeAndIdentityColumnMetaDBKeyForImporterRole(importerRole string)
 
 	record, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		return fmt.Errorf("Failed to get migration status record: %s", err)
+		return goerrors.Errorf("Failed to get migration status record: %s", err)
 	}
 
 	switch importerRole {
@@ -289,7 +291,7 @@ func setImportTypeAndIdentityColumnMetaDBKeyForImporterRole(importerRole string)
 		identityColumnsMetaDBKey = metadb.TARGET_DB_IDENTITY_COLUMNS_KEY
 	case SOURCE_REPLICA_DB_IMPORTER_ROLE:
 		if record.FallbackEnabled {
-			return fmt.Errorf("cannot import data to source-replica. Fall-back workflow is already enabled.")
+			return goerrors.Errorf("cannot import data to source-replica. Fall-back workflow is already enabled.")
 		}
 		updateFallForwardEnabledInMetaDB()
 		identityColumnsMetaDBKey = metadb.FF_DB_IDENTITY_COLUMNS_KEY
@@ -667,7 +669,7 @@ func updateImportDataStartedInMetaDB() error {
 			record.CdcPartitioningStrategyConfig = cdcPartitioningStrategy
 		})
 		if err != nil {
-			return fmt.Errorf("Failed to update import data status record: %s", err)
+			return goerrors.Errorf("Failed to update import data status record: %s", err)
 		}
 
 	case IMPORT_FILE_ROLE:
@@ -675,7 +677,7 @@ func updateImportDataStartedInMetaDB() error {
 			record.ImportDataStarted = true
 		})
 		if err != nil {
-			return fmt.Errorf("Failed to update import data file status record: %s", err)
+			return goerrors.Errorf("Failed to update import data file status record: %s", err)
 		}
 	}
 	return nil
@@ -806,7 +808,7 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 
 	TableNameToSchema, err = valueConverter.GetTableNameToSchema()
 	if err != nil {
-		utils.ErrExit("getting table name to schema: %s", err)
+		utils.ErrExit("getting table name to schema: %w", err)
 	}
 	err = fetchAndStoreGeneratedAlwaysIdentityColumnsInMetadb(importTableList)
 	if err != nil {
@@ -1036,7 +1038,7 @@ func getMaxParallelConnections() (int, error) {
 		// in case of adaptive parallelism, we need to use maxParalllelism * 2
 		yb, ok := tdb.(*tgtdb.TargetYugabyteDB)
 		if !ok {
-			return 0, fmt.Errorf("adaptive parallelism is only supported if target DB is YugabyteDB")
+			return 0, goerrors.Errorf("adaptive parallelism is only supported if target DB is YugabyteDB")
 		}
 		maxParallelConns = yb.GetNumMaxConnectionsInPool()
 	}
@@ -1074,7 +1076,7 @@ func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataS
 	if importerRole == TARGET_DB_IMPORTER_ROLE || importerRole == IMPORT_FILE_ROLE {
 		yb, ok = tdb.(*tgtdb.TargetYugabyteDB)
 		if !ok {
-			return fmt.Errorf("expected tdb to be of type TargetYugabyteDB, got: %T", tdb)
+			return goerrors.Errorf("expected tdb to be of type TargetYugabyteDB, got: %T", tdb)
 		}
 		taskPicker, err = NewColocatedCappedRandomTaskPicker(maxShardedTasksInProgress, maxColocatedBatchesInProgress, pendingTasks, state, yb, colocatedBatchImportQueue, tableTypes)
 		if err != nil {
@@ -1140,7 +1142,7 @@ func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataS
 		}
 		err = taskImporter.ProduceAndSubmitNextBatchToWorkerPool()
 		if err != nil {
-			return fmt.Errorf("submit next batch: task:%v err: %s", task, err)
+			return goerrors.Errorf("submit next batch: task:%v err: %s", task, err)
 		}
 	}
 	return nil
@@ -1180,7 +1182,7 @@ func getTableTypes(tasks []*ImportFileTask) (*utils.StructMap[sqlname.NameTuple,
 	tableTypes := utils.NewStructMap[sqlname.NameTuple, string]()
 	yb, ok := tdb.(YbTargetDBColocatedChecker)
 	if !ok {
-		return nil, fmt.Errorf("expected tdb to be of type TargetYugabyteDB, got: %T", tdb)
+		return nil, goerrors.Errorf("expected tdb to be of type TargetYugabyteDB, got: %T", tdb)
 	}
 	isDBColocated, err := yb.IsDBColocated()
 	if err != nil {
@@ -1221,7 +1223,7 @@ func createFileTaskImporter(task *ImportFileTask, state *ImportDataState, batchI
 	if importerRole == TARGET_DB_IMPORTER_ROLE || importerRole == IMPORT_FILE_ROLE {
 		tableType, ok := tableTypes.Get(task.TableNameTup)
 		if !ok {
-			return nil, fmt.Errorf("table type not found for table: %s", task.TableNameTup.ForOutput())
+			return nil, goerrors.Errorf("table type not found for table: %s", task.TableNameTup.ForOutput())
 		}
 
 		if enableRandomBatchProduction {
@@ -1263,7 +1265,7 @@ func startMonitoringTargetYBHealth() error {
 	}
 	yb, ok := tdb.(*tgtdb.TargetYugabyteDB)
 	if !ok {
-		return fmt.Errorf("monitoring health is only supported if target DB is YugabyteDB")
+		return goerrors.Errorf("monitoring health is only supported if target DB is YugabyteDB")
 	}
 	go func() {
 		//for now not sending any other parameters as not required for monitor usage
@@ -1306,7 +1308,7 @@ func startAdaptiveParallelism(mode types.AdaptiveParallelismMode, callhomeMetric
 	}
 	yb, ok := tdb.(*tgtdb.TargetYugabyteDB)
 	if !ok {
-		return false, fmt.Errorf("adaptive parallelism is only supported if target DB is YugabyteDB")
+		return false, goerrors.Errorf("adaptive parallelism is only supported if target DB is YugabyteDB")
 	}
 
 	if !yb.IsAdaptiveParallelismSupported() {
@@ -1453,7 +1455,7 @@ func fetchAndStoreGeneratedAlwaysIdentityColumnsInMetadb(tables []sqlname.NameTu
 	// Fetch the table to identity columns information from metadb if present
 	found, err := metaDB.GetJsonObject(nil, identityColumnsMetaDBKey, &tableKeyToIdentityColumnNames)
 	if err != nil {
-		return fmt.Errorf("failed to get identity columns from meta db: %s", err)
+		return goerrors.Errorf("failed to get identity columns from meta db: %s", err)
 	}
 	if found {
 		// Using retrieved identity columns from metaDB to populate TableToIdentityColumns
@@ -1461,7 +1463,7 @@ func fetchAndStoreGeneratedAlwaysIdentityColumnsInMetadb(tables []sqlname.NameTu
 		for key, columns := range tableKeyToIdentityColumnNames {
 			nameTuple, err := namereg.NameReg.LookupTableName(key)
 			if err != nil {
-				return fmt.Errorf("lookup for table name in name reg: %v with: %v", key, err)
+				return goerrors.Errorf("lookup for table name in name reg: %v with: %v", key, err)
 			}
 			TableToIdentityColumnNames.Put(nameTuple, columns)
 		}
@@ -1480,14 +1482,14 @@ func fetchAndStoreGeneratedAlwaysIdentityColumnsInMetadb(tables []sqlname.NameTu
 	})
 	err = metaDB.InsertJsonObject(nil, identityColumnsMetaDBKey, tableKeyToIdentityColumnNames)
 	if err != nil {
-		return fmt.Errorf("failed to insert into the key '%s': %v", identityColumnsMetaDBKey, err)
+		return goerrors.Errorf("failed to insert into the key '%s': %v", identityColumnsMetaDBKey, err)
 	}
 	return nil
 }
 func disableGeneratedAlwaysAsIdentityColumns() error {
 	err := tdb.DisableGeneratedAlwaysAsIdentityColumns(TableToIdentityColumnNames)
 	if err != nil {
-		return fmt.Errorf("failed to disable generated always as identity columns: %s", err)
+		return goerrors.Errorf("failed to disable generated always as identity columns: %s", err)
 	}
 	return nil
 }
@@ -1495,7 +1497,7 @@ func disableGeneratedAlwaysAsIdentityColumns() error {
 func enableGeneratedAlwaysAsIdentityColumns() error {
 	err := tdb.EnableGeneratedAlwaysAsIdentityColumns(TableToIdentityColumnNames)
 	if err != nil {
-		return fmt.Errorf("failed to enable generated always as identity columns: %s", err)
+		return goerrors.Errorf("failed to enable generated always as identity columns: %s", err)
 	}
 	return nil
 }
@@ -1547,7 +1549,7 @@ func classifyTasksForImport(state *ImportDataState, tasks []*ImportFileTask) (pe
 		case FILE_IMPORT_NOT_STARTED:
 			notStartedTasks = append(notStartedTasks, task)
 		default:
-			return nil, nil, fmt.Errorf("invalid table import state: %s", fileImportState)
+			return nil, nil, goerrors.Errorf("invalid table import state: %s", fileImportState)
 		}
 	}
 	// Start with in-progress tasks, followed by not-started tasks.
@@ -1668,7 +1670,7 @@ func getIndexName(sqlQuery string, indexName string) (string, error) {
 			return fmt.Sprintf("%s.%s", schemaName, indexName), nil
 		}
 	}
-	return "", fmt.Errorf("could not find `ON` keyword in the CREATE INDEX statement")
+	return "", goerrors.Errorf("could not find `ON` keyword in the CREATE INDEX statement")
 }
 
 // TODO: This function is a duplicate of the one in tgtdb/yb.go. Consolidate the two.
@@ -1692,7 +1694,7 @@ func prepareTableToColumns(tasks []*ImportFileTask) error {
 		var columns []string
 		dfdTableToExportedColumns, err := getDfdTableNameToExportedColumns(tasks, dataFileDescriptor)
 		if err != nil {
-			return fmt.Errorf("failed to get dfd table to exported columns: %s", err)
+			return goerrors.Errorf("failed to get dfd table to exported columns: %s", err)
 		}
 		if dfdTableToExportedColumns != nil {
 			columns, _ = dfdTableToExportedColumns.Get(task.TableNameTup)
@@ -1700,11 +1702,11 @@ func prepareTableToColumns(tasks []*ImportFileTask) error {
 			// File is either exported from debezium OR this is `import data file` case.
 			reader, err := dataStore.Open(task.FilePath)
 			if err != nil {
-				return fmt.Errorf("datastore.Open: %q: %v", task.FilePath, err)
+				return goerrors.Errorf("datastore.Open: %q: %v", task.FilePath, err)
 			}
 			df, err := datafile.NewDataFile(task.FilePath, reader, dataFileDescriptor)
 			if err != nil {
-				return fmt.Errorf("opening datafile: %q: %v", task.FilePath, err)
+				return goerrors.Errorf("opening datafile: %q: %v", task.FilePath, err)
 			}
 			header := df.GetHeader()
 			columns = strings.Split(header, dataFileDescriptor.Delimiter)
@@ -1726,7 +1728,7 @@ func getDfdTableNameToExportedColumns(tasks []*ImportFileTask, dataFileDescripto
 		//Using lookup with ignoring if target not found as we are creating tuple for tables in datafile descriptor which are tables exported
 		tuple, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole(tableName)
 		if err != nil {
-			return nil, fmt.Errorf("failed to lookup table name: %s", err)
+			return nil, goerrors.Errorf("failed to lookup table name: %s", err)
 		}
 		tableTupleToexportedColumns.Put(tuple, columnList)
 	}
@@ -1739,7 +1741,7 @@ func getDfdTableNameToExportedColumns(tasks []*ImportFileTask, dataFileDescripto
 		if ok {
 			result.Put(task.TableNameTup, columnList)
 		} else {
-			return nil, fmt.Errorf("table %q not found in data file descriptor", task.TableNameTup.ForKey())
+			return nil, goerrors.Errorf("table %q not found in data file descriptor", task.TableNameTup.ForKey())
 		}
 	}
 	return result, nil
@@ -1840,11 +1842,11 @@ func cleanMSRForImportDataStartClean() error {
 
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		return fmt.Errorf("failed to get migration status record: %s", err)
+		return goerrors.Errorf("failed to get migration status record: %s", err)
 	}
 
 	if msr == nil {
-		return fmt.Errorf("migration status record not found.")
+		return goerrors.Errorf("migration status record not found.")
 	} else {
 		metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 			msr.OnPrimaryKeyConflictAction = ""
@@ -1900,7 +1902,7 @@ func updateErrorPolicyInMetaDB(errorPolicy importdata.ErrorPolicy) error {
 func BuildCallhomeYBClusterMetrics() (callhome.YBClusterMetrics, error) {
 	yb, ok := tdb.(*tgtdb.TargetYugabyteDB)
 	if !ok {
-		return callhome.YBClusterMetrics{}, fmt.Errorf("importData: expected tdb to be of type TargetYugabyteDB, got: %T", tdb)
+		return callhome.YBClusterMetrics{}, goerrors.Errorf("importData: expected tdb to be of type TargetYugabyteDB, got: %T", tdb)
 	}
 
 	clusterMetrics, err := yb.GetClusterMetrics()
@@ -1955,7 +1957,7 @@ func BuildCallhomeYBClusterMetrics() (callhome.YBClusterMetrics, error) {
 	}
 
 	if len(nodes) == 0 {
-		return callhome.YBClusterMetrics{}, fmt.Errorf("no nodes found in cluster metrics")
+		return callhome.YBClusterMetrics{}, goerrors.Errorf("no nodes found in cluster metrics")
 	}
 
 	avgCpuPct := totalCpuPct / float64(len(nodes))

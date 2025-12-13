@@ -32,6 +32,8 @@ import (
 	"time"
 	"unicode"
 
+	goerrors "github.com/go-errors/errors"
+
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/color"
 	_ "github.com/godror/godror"
@@ -691,7 +693,7 @@ func InitNameRegistry(
 	if tdb != nil && lo.Contains([]string{TARGET_DB_IMPORTER_ROLE, IMPORT_FILE_ROLE}, role) {
 		ybdb, ok = tdb.(namereg.YBDBInterface)
 		if !ok {
-			return fmt.Errorf("expected targetDB to adhere to YBDBRegirsty")
+			return goerrors.Errorf("expected targetDB to adhere to YBDBRegirsty")
 		}
 	}
 	nameregistryParams := namereg.NameRegistryParams{
@@ -713,11 +715,11 @@ func InitNameRegistry(
 		// clean up yb names and re-init.
 		err := namereg.NameReg.UnRegisterYBNames()
 		if err != nil {
-			return fmt.Errorf("unregister yb names: %v", err)
+			return goerrors.Errorf("unregister yb names: %v", err)
 		}
 		err = namereg.NameReg.Init()
 		if err != nil {
-			return fmt.Errorf("init name registry: %v", err)
+			return goerrors.Errorf("init name registry: %v", err)
 		}
 	}
 	return nil
@@ -733,7 +735,7 @@ func retrieveMigrationUUID() error {
 		return fmt.Errorf("retrieving migration status record: %w", err)
 	}
 	if msr == nil {
-		return fmt.Errorf("migration status record not found")
+		return goerrors.Errorf("migration status record not found")
 	}
 
 	migrationUUID = uuid.MustParse(msr.MigrationUUID)
@@ -871,7 +873,7 @@ func getImportTableList(sourceTableList []string) ([]sqlname.NameTuple, error) {
 	for _, qualifiedTableName := range sourceTableList {
 		table, err := namereg.NameReg.LookupTableName(qualifiedTableName)
 		if err != nil {
-			return nil, fmt.Errorf("lookup table %s in name registry : %v", qualifiedTableName, err)
+			return nil, goerrors.Errorf("lookup table %s in name registry : %v", qualifiedTableName, err)
 		}
 		tableList = append(tableList, table)
 	}
@@ -941,7 +943,7 @@ func CleanupChildProcesses() {
 func ShutdownProcess(pid int, forceShutdownAfterSeconds int) error {
 	err := signalProcess(pid, syscall.SIGTERM)
 	if err != nil {
-		return fmt.Errorf("send sigterm to %d: %v", pid, err)
+		return goerrors.Errorf("send sigterm to %d: %v", pid, err)
 	}
 	waitForProcessToExit(pid, forceShutdownAfterSeconds)
 	return nil
@@ -1078,7 +1080,7 @@ func getExportedSnapshotRowsMap(exportSnapshotStatus *ExportSnapshotStatus) (*ut
 		// if there is some table not present in target this should work
 		nt, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole(tableStatus.TableName)
 		if err != nil {
-			return nil, nil, fmt.Errorf("lookup table [%s] from name registry: %v", tableStatus.TableName, err)
+			return nil, nil, goerrors.Errorf("lookup table [%s] from name registry: %v", tableStatus.TableName, err)
 		}
 		existingSnapshotRows, _ := snapshotRowsMap.Get(nt)
 		snapshotRowsMap.Put(nt, existingSnapshotRows+tableStatus.ExportedRowCountSnapshot)
@@ -1124,7 +1126,7 @@ func getImportedSnapshotRowsMap(dbType string, tableList []sqlname.NameTuple, er
 			//ignoring target as the dataFileDescriptor can contain tables that exported but not present in target
 			nt, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole(fileEntry.TableName)
 			if err != nil {
-				return nil, fmt.Errorf("lookup table name from data file descriptor %s : %v", fileEntry.TableName, err)
+				return nil, goerrors.Errorf("lookup table name from data file descriptor %s : %v", fileEntry.TableName, err)
 			}
 			fileEntries, ok := nameTupleTodataFileEntry.Get(nt)
 			if !ok {
@@ -1176,7 +1178,7 @@ func getImportedSnapshotRowsMap(dbType string, tableList []sqlname.NameTuple, er
 		return true, nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("error getting row count of tables: %v", err)
+		return nil, goerrors.Errorf("error getting row count of tables: %v", err)
 	}
 	return snapshotRowsMap, nil
 }
@@ -1192,7 +1194,7 @@ func getImportedSizeMap() (*utils.StructMap[sqlname.NameTuple, int64], error) { 
 	for _, fileEntry := range dataFileDescriptor.DataFileList {
 		nt, err := namereg.NameReg.LookupTableName(fileEntry.TableName)
 		if err != nil {
-			return nil, fmt.Errorf("lookup table name from data file descriptor %s : %v", fileEntry.TableName, err)
+			return nil, goerrors.Errorf("lookup table name from data file descriptor %s : %v", fileEntry.TableName, err)
 		}
 		byteCount, err := state.GetImportedByteCount(fileEntry.FilePath, nt)
 		if err != nil {
@@ -1224,7 +1226,7 @@ func storeTableListInMSR(tableList []sqlname.NameTuple) error {
 		})
 	})
 	if err != nil {
-		return fmt.Errorf("update migration status record: %v", err)
+		return goerrors.Errorf("update migration status record: %v", err)
 	}
 	return nil
 }
@@ -1524,7 +1526,7 @@ type TargetSizingRecommendations struct {
 
 func ParseJSONToAssessmentReport(reportPath string) (*AssessmentReport, error) {
 	if !utils.FileOrFolderExists(reportPath) {
-		return nil, fmt.Errorf("report file %q does not exist", reportPath)
+		return nil, goerrors.Errorf("report file %q does not exist", reportPath)
 	}
 
 	var report AssessmentReport
@@ -1542,7 +1544,7 @@ func (ar *AssessmentReport) AppendIssues(issues ...AssessmentIssue) {
 
 func (ar *AssessmentReport) GetShardedTablesRecommendation() ([]string, error) {
 	if ar.Sizing == nil {
-		return nil, fmt.Errorf("sizing report is null, can't fetch sharded tables")
+		return nil, goerrors.Errorf("sizing report is null, can't fetch sharded tables")
 	}
 
 	return ar.Sizing.SizingRecommendation.ShardedTables, nil
@@ -1550,7 +1552,7 @@ func (ar *AssessmentReport) GetShardedTablesRecommendation() ([]string, error) {
 
 func (ar *AssessmentReport) GetColocatedTablesRecommendation() ([]string, error) {
 	if ar.Sizing == nil {
-		return nil, fmt.Errorf("sizing report is null, can't fetch colocated tables")
+		return nil, goerrors.Errorf("sizing report is null, can't fetch colocated tables")
 	}
 
 	return ar.Sizing.SizingRecommendation.ColocatedTables, nil
@@ -1626,7 +1628,7 @@ func (ar *AssessmentReport) GetTotalColocatedSize(dbType string) (int64, error) 
 		case POSTGRESQL:
 			tableName = fmt.Sprintf("%s.%s", stat.SchemaName, stat.ObjectName)
 		default:
-			return -1, fmt.Errorf("dbType %s is not yet supported for calculating size details", dbType)
+			return -1, goerrors.Errorf("dbType %s is not yet supported for calculating size details", dbType)
 		}
 
 		if slices.Contains(colocatedTables, tableName) {
@@ -1656,7 +1658,7 @@ func (ar *AssessmentReport) GetTotalShardedSize(dbType string) (int64, error) {
 		case POSTGRESQL:
 			tableName = fmt.Sprintf("%s.%s", stat.SchemaName, stat.ObjectName)
 		default:
-			return -1, fmt.Errorf("dbType %s is not yet supported for calculating size details", dbType)
+			return -1, goerrors.Errorf("dbType %s is not yet supported for calculating size details", dbType)
 		}
 
 		if slices.Contains(shardedTables, tableName) {
@@ -1880,7 +1882,7 @@ func sendCallhomePayloadAtIntervals() {
 // Adding it here instead of utils package to avoid circular dependency issues
 func ParseJsonToAnalyzeSchemaReport(reportPath string) (*utils.SchemaReport, error) {
 	if !utils.FileOrFolderExists(reportPath) {
-		return nil, fmt.Errorf("report file %q does not exist", reportPath)
+		return nil, goerrors.Errorf("report file %q does not exist", reportPath)
 	}
 
 	var report utils.SchemaReport

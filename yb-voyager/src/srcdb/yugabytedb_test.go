@@ -25,6 +25,7 @@ import (
 	"gotest.tools/assert"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
@@ -273,8 +274,8 @@ func TestYugabyteGetTableToUniqueKeyColumnsMap(t *testing.T) {
 	defer testYugabyteDBSource.TestContainer.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
 
 	uniqueTablesList := []sqlname.NameTuple{
-		{CurrentName: sqlname.NewObjectName("postgresql", "test_schema", "test_schema", "unique_table")},
-		{CurrentName: sqlname.NewObjectName("postgresql", "test_schema", "test_schema", "another_unique_table")},
+		testutils.CreateNameTupleWithSourceName("test_schema.unique_table", "test_schema", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_schema.another_unique_table", "test_schema", "postgresql"),
 	}
 
 	// Test GetTableToUniqueKeyColumnsMap
@@ -283,20 +284,20 @@ func TestYugabyteGetTableToUniqueKeyColumnsMap(t *testing.T) {
 		t.Fatalf("Error retrieving unique keys: %v", err)
 	}
 
-	expectedUniqKeys := map[string][]string{
-		"test_schema.unique_table":         {"email", "phone", "address"},
-		"test_schema.another_unique_table": {"username", "age"},
-	}
+	expectedUniqKeys := utils.NewStructMap[sqlname.NameTuple, []string]()
+	expectedUniqKeys.Put(testutils.CreateNameTupleWithSourceName("test_schema.unique_table", "test_schema", "postgresql"), []string{"email", "phone", "address"})
+	expectedUniqKeys.Put(testutils.CreateNameTupleWithSourceName("test_schema.another_unique_table", "test_schema", "postgresql"), []string{"username", "age"})
 
 	// Compare the maps by iterating over each table and asserting the columns list
-	for table, expectedColumns := range expectedUniqKeys {
-		actualColumns, exists := actualUniqKeys[table]
+	expectedUniqKeys.IterKV(func(table sqlname.NameTuple, expectedColumns []string) (bool, error) {
+		actualColumns, exists := actualUniqKeys.Get(table)
 		if !exists {
 			t.Errorf("Expected table %s not found in uniqueKeys", table)
 		}
 
 		testutils.AssertEqualStringSlices(t, expectedColumns, actualColumns)
-	}
+		return true, nil
+	})
 }
 
 func TestYugabyteGetNonPKTables(t *testing.T) {

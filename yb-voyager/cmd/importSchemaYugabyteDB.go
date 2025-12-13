@@ -22,6 +22,8 @@ import (
 	"strings"
 	"time"
 
+	goerrors "github.com/go-errors/errors"
+
 	"github.com/fatih/color"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -81,7 +83,7 @@ func generateAnalyzeReport(targetYBDBVersion string) (string, error) {
 	//11.2-YB-2024.2.1.0-b10
 	splits := strings.Split(targetYBDBVersion, "-")
 	if len(splits) < 4 {
-		return "", fmt.Errorf("invalid target db version %q", targetYBDBVersion)
+		return "", goerrors.Errorf("invalid target db version %q", targetYBDBVersion)
 	}
 	targetDBVersionStr := splits[2]
 	targetDbVersion, err = ybversion.NewYBVersion(targetDBVersionStr)
@@ -101,11 +103,11 @@ func generateAnalyzeReport(targetYBDBVersion string) (string, error) {
 func isNotValidConstraint(stmt string) (bool, error) {
 	parseTree, err := queryparser.Parse(stmt)
 	if err != nil {
-		return false, fmt.Errorf("error parsing the ddl[%s]: %v", stmt, err)
+		return false, goerrors.Errorf("error parsing the ddl[%s]: %v", stmt, err)
 	}
 	ddlObj, err := queryparser.ProcessDDL(parseTree)
 	if err != nil {
-		return false, fmt.Errorf("error in process DDL[%s]:%v", stmt, err)
+		return false, goerrors.Errorf("error in process DDL[%s]:%v", stmt, err)
 	}
 	alter, ok := ddlObj.(*queryparser.AlterTable)
 	if !ok {
@@ -148,7 +150,7 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 		// Check if the statement should be skipped
 		skip, err := shouldSkipDDL(sqlInfo.stmt, objType)
 		if err != nil {
-			return fmt.Errorf("error checking whether to skip DDL for statement [%s]: %v", sqlInfo.stmt, err)
+			return goerrors.Errorf("error checking whether to skip DDL for statement [%s]: %v", sqlInfo.stmt, err)
 		}
 		if skip {
 			log.Infof("Skipping DDL: %s", sqlInfo.stmt)
@@ -157,7 +159,7 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 
 		ok, err := isSessionVariable(sqlInfo.stmt)
 		if err != nil {
-			return fmt.Errorf("error checking whether statement is a session variable: %v", err)
+			return goerrors.Errorf("error checking whether statement is a session variable: %v", err)
 		}
 		if ok {
 			sessionVariables = append(sessionVariables, sqlInfo)
@@ -207,7 +209,7 @@ func shouldSkipDDL(stmt string, objType string) (bool, error) {
 	}
 	isNotValid, err := isNotValidConstraint(stmt)
 	if err != nil {
-		return false, fmt.Errorf("error checking whether stmt is to add not valid constraint: %v", err)
+		return false, goerrors.Errorf("error checking whether stmt is to add not valid constraint: %v", err)
 	}
 	skipNotValidWithoutPostImport := isNotValid && !bool(flagPostSnapshotImport)
 	skipOtherDDLsWithPostImport := (bool(flagPostSnapshotImport) && !isNotValid)
@@ -227,7 +229,7 @@ func executeSqlStmtWithRetries(tgtConn **ImportSchemaTargetConn, sqlInfo sqlInfo
 
 	err = (*tgtConn).ApplySessionVariables(sessionVariables)
 	if err != nil {
-		return fmt.Errorf("error applying session variable: %v", err)
+		return goerrors.Errorf("error applying session variable: %v", err)
 	}
 
 	defer func(conn *ImportSchemaTargetConn) error {
@@ -238,7 +240,7 @@ func executeSqlStmtWithRetries(tgtConn **ImportSchemaTargetConn, sqlInfo sqlInfo
 		log.Infof("Resetting all session variables on the connection for next stmt")
 		err = conn.ResetSessionVariables(sessionVariables)
 		if err != nil {
-			return fmt.Errorf("error resetting all session variables on connection: %v", err)
+			return goerrors.Errorf("error resetting all session variables on connection: %v", err)
 		}
 		return nil
 	}((*tgtConn))
@@ -282,7 +284,7 @@ func executeSqlStmtWithRetries(tgtConn **ImportSchemaTargetConn, sqlInfo sqlInfo
 			if err != nil {
 				(*tgtConn).Close(context.Background())
 				(*tgtConn) = nil
-				return fmt.Errorf("extract qualified index name from DDL [%v]: %v", sqlInfo.stmt, err)
+				return goerrors.Errorf("extract qualified index name from DDL [%v]: %v", sqlInfo.stmt, err)
 			}
 
 			// DROP INDEX in case INVALID index got created
@@ -533,7 +535,7 @@ func (tc *ImportSchemaTargetConn) ResetSessionVariables(sessionVariables []sqlIn
 	for _, sessionVariable := range sessionVariables {
 		sessionVarName, err := queryparser.GetSessionVariableName(sessionVariable.stmt)
 		if err != nil {
-			return fmt.Errorf("error getting session variable name: %v", err)
+			return goerrors.Errorf("error getting session variable name: %v", err)
 		}
 		resetSessionVariable := fmt.Sprintf("RESET %s", sessionVarName)
 		_, err = (*tc.conn).Exec(context.Background(), resetSessionVariable)
@@ -543,7 +545,7 @@ func (tc *ImportSchemaTargetConn) ResetSessionVariables(sessionVariables []sqlIn
 				log.Warnf("Skipping resetting unrecognized configuration: %s", sessionVariable.stmt)
 				continue
 			}
-			return fmt.Errorf("error resetting session variable: %v", err)
+			return goerrors.Errorf("error resetting session variable: %v", err)
 		}
 	}
 	return nil
@@ -557,7 +559,7 @@ func (tc *ImportSchemaTargetConn) ApplySessionVariables(sessionVariables []sqlIn
 				log.Warnf("Skipping unrecognized configuration: %s", sessionVariable.stmt)
 				return nil
 			}
-			return fmt.Errorf("run query: %q on target %q: %s", sessionVariable.stmt, tconf.Host, err)
+			return goerrors.Errorf("run query: %q on target %q: %s", sessionVariable.stmt, tconf.Host, err)
 		}
 	}
 	return nil

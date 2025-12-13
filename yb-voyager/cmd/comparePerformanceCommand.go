@@ -21,6 +21,8 @@ import (
 	"os"
 	"path/filepath"
 
+	goerrors "github.com/go-errors/errors"
+
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
@@ -250,7 +252,7 @@ func handleStartCleanForComparePerf() error {
 			utils.PrintAndLogf("cleaned up leftover performance comparison files from previous incomplete run")
 		}
 	} else if reportsExist {
-		return fmt.Errorf("performance comparison reports already exist. Use --start-clean flag to remove them and re-run the command")
+		return goerrors.Errorf("performance comparison reports already exist. Use --start-clean flag to remove them and re-run the command")
 	}
 
 	return nil

@@ -25,6 +25,8 @@ import (
 	"strings"
 	"time"
 
+	goerrors "github.com/go-errors/errors"
+
 	"github.com/fatih/color"
 	"github.com/gosuri/uilive"
 	"github.com/magiconair/properties"
@@ -46,7 +48,7 @@ import (
 var ybCDCClient *dbzm.YugabyteDBCDCClient
 var totalEventCount, totalEventCountRun, throughputInLast3Min, throughputInLast10Min int64
 
-func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList []sqlname.NameTuple, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], leafPartitions *utils.StructMap[sqlname.NameTuple, []string]) (*dbzm.Config, map[string]int64, error) {
+func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList []sqlname.NameTuple, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], leafPartitions *utils.StructMap[sqlname.NameTuple, []sqlname.NameTuple]) (*dbzm.Config, map[string]int64, error) {
 	runId = time.Now().String()
 	absExportDir, err := filepath.Abs(exportDir)
 	if err != nil {
@@ -62,7 +64,7 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 	case SNAPSHOT_ONLY:
 		snapshotMode = "initial_only"
 	default:
-		return nil, nil, fmt.Errorf("invalid export type %s", exportType)
+		return nil, nil, goerrors.Errorf("invalid export type %s", exportType)
 	}
 	tableNameToApproxRowCountMap := getTableNameToApproxRowCountMap(tableList)
 
@@ -103,7 +105,7 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 	}
 	columnSequenceMapping, err := getColumnToSequenceMapping(colToSeqMap)
 	if err != nil {
-		return nil, nil, fmt.Errorf("getting column to sequence mapping %s", err)
+		return nil, nil, goerrors.Errorf("getting column to sequence mapping %s", err)
 	}
 
 	err = prepareSSLParamsForDebezium(absExportDir)
@@ -164,7 +166,7 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 			config.Uri = fmt.Sprintf("%s%s", jdbcConnectionStringPrefix, connectionString)
 		}
 
-		config.TNSAdmin, err = getTNSAdmin(source)
+		config.TNSAdmin, err = source.GetTNSAdmin()
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to get tns admin: %w", err)
 		}
@@ -275,7 +277,7 @@ func getColumnToSequenceMapping(colToSeqMap map[string]string) (string, error) {
 		if isRenamed {
 			rootTableTup, err := namereg.NameReg.LookupTableName(rootTable)
 			if err != nil {
-				return "", fmt.Errorf("lookup failed for table %s", rootTable)
+				return "", goerrors.Errorf("lookup failed for table %s", rootTable)
 			}
 			c := fmt.Sprintf("%s.%s:%s", rootTableTup.AsQualifiedCatalogName(), parts[2], v)
 			if !slices.Contains(colToSeqMapSlices, c) {
@@ -341,27 +343,13 @@ func prepareSSLParamsForDebezium(exportDir string) error {
 	return nil
 }
 
-// https://www.orafaq.com/wiki/TNS_ADMIN
-// default is $ORACLE_HOME/network/admin
-func getTNSAdmin(s srcdb.Source) (string, error) {
-	if s.DBType != "oracle" {
-		return "", fmt.Errorf("invalid source db type %s for getting TNS_ADMIN", s.DBType)
-	}
-	tnsAdminEnvVar, present := os.LookupEnv("TNS_ADMIN")
-	if present {
-		return tnsAdminEnvVar, nil
-	} else {
-		return filepath.Join(s.GetOracleHome(), "network", "admin"), nil
-	}
-}
-
 // oracle wallet location can be optionally set in $TNS_ADMIN/ojdbc.properties as
 // oracle.net.wallet_location=<>
 func isOracleJDBCWalletLocationSet(s srcdb.Source) (bool, error) {
 	if s.DBType != "oracle" {
-		return false, fmt.Errorf("invalid source db type %s for checking jdbc wallet location", s.DBType)
+		return false, goerrors.Errorf("invalid source db type %s for checking jdbc wallet location", s.DBType)
 	}
-	tnsAdmin, err := getTNSAdmin(s)
+	tnsAdmin, err := s.GetTNSAdmin()
 	if err != nil {
 		return false, fmt.Errorf("failed to get tns admin: %w", err)
 	}
@@ -385,7 +373,7 @@ func debeziumExportData(ctx context.Context, config *dbzm.Config, tableNameToApp
 			record.SnapshotMechanism = "debezium"
 		})
 		if err != nil {
-			return fmt.Errorf("update SnapshotMechanism: update migration status record: %s", err)
+			return goerrors.Errorf("update SnapshotMechanism: update migration status record: %s", err)
 		}
 	}
 
@@ -593,7 +581,7 @@ func writeDataFileDescriptor(exportDir string, status *dbzm.ExportStatus) error 
 	return nil
 }
 
-func createYBReplicationSlotAndPublication(tableList []sqlname.NameTuple, leafPartitions *utils.StructMap[sqlname.NameTuple, []string]) error {
+func createYBReplicationSlotAndPublication(tableList []sqlname.NameTuple, leafPartitions *utils.StructMap[sqlname.NameTuple, []sqlname.NameTuple]) error {
 	ybDB, ok := source.DB().(*srcdb.YugabyteDB)
 	if !ok {
 		return errors.New("unable to cast source DB to YugabyteDB")
@@ -641,7 +629,7 @@ func createYBReplicationSlotAndPublication(tableList []sqlname.NameTuple, leafPa
 		record.YBPublicationName = publicationName
 	})
 	if err != nil {
-		return fmt.Errorf("update YBReplicationSlotName: update migration status record: %s", err)
+		return goerrors.Errorf("update YBReplicationSlotName: update migration status record: %s", err)
 	}
 	return nil
 }

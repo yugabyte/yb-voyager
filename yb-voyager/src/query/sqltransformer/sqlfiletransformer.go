@@ -259,10 +259,10 @@ func (t *TableFileTransformer) shouldConfigureShardingStrategyForConstraints() b
 //=========================MVIEW FILE TRANSFORMER=====================================
 
 type MviewFileTransformer struct {
-	ShardedMviews                                 []string
-	ColocatedMviews                               []string
-	BackupFilePath string
-	ColocationRecommendationsApplied              bool
+	ShardedMviews                    []string
+	ColocatedMviews                  []string
+	BackupFilePath                   string
+	ColocationRecommendationsApplied bool
 }
 
 func NewMviewFileTransformer() *MviewFileTransformer {

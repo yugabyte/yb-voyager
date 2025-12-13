@@ -45,11 +45,11 @@ func NewAdvisoryLocksIssue(objectType string, objectName string, sqlStatement st
 // ------------------------------------------- System Columns Issue ------------------------------------------------
 
 var xminSystemColumnIssue = issue.Issue{
-	Type:       SYSTEM_COLUMN_XMIN,
-	Name:       SYSTEM_COLUMN_XMIN_ISSUE_NAME,
-	Impact:     constants.IMPACT_LEVEL_2,
-	GH:         "https://github.com/yugabyte/yugabyte-db/issues/24843",
-	DocsLink:   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported",
+	Type:     SYSTEM_COLUMN_XMIN,
+	Name:     SYSTEM_COLUMN_XMIN_ISSUE_NAME,
+	Impact:   constants.IMPACT_LEVEL_2,
+	GH:       "https://github.com/yugabyte/yugabyte-db/issues/24843",
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported",
 }
 
 func NewXminSystemColumnIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
@@ -138,7 +138,7 @@ var regexFunctionsIssue = issue.Issue{
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
-		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+		ybversion.SERIES_2_25:   ybversion.V2_25_0_0,
 		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
 	},
 }
@@ -170,7 +170,7 @@ var rangeAggregateFunctionIssue = issue.Issue{
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
-		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+		ybversion.SERIES_2_25:   ybversion.V2_25_0_0,
 		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
 	},
 }
@@ -245,7 +245,7 @@ var jsonbSubscriptingIssue = issue.Issue{
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#jsonb-subscripting",
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
-		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+		ybversion.SERIES_2_25:   ybversion.V2_25_0_0,
 		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
 	},
 }
@@ -277,7 +277,7 @@ var copyFromWhereIssue = issue.Issue{
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
-		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+		ybversion.SERIES_2_25:   ybversion.V2_25_0_0,
 		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
 	},
 }
@@ -322,7 +322,7 @@ var cteWithMaterializedIssue = issue.Issue{
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
-		ybversion.SERIES_2_25: ybversion.V2_25_0_0, //TODO: understand in NOT MATERIALIZED works as expected internally
+		ybversion.SERIES_2_25:   ybversion.V2_25_0_0, //TODO: understand in NOT MATERIALIZED works as expected internally
 		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
 	},
 }

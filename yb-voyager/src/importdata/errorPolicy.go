@@ -17,8 +17,9 @@ limitations under the License.
 package importdata
 
 import (
-	"fmt"
 	"strings"
+
+	goerrors "github.com/go-errors/errors"
 )
 
 /*
@@ -72,6 +73,6 @@ func NewErrorPolicy(s string) (ErrorPolicy, error) {
 	case StashAndContinueErrorPolicyName:
 		return StashAndContinueErrorPolicy, nil
 	default:
-		return "", fmt.Errorf("invalid error policy: %q. Allowed error policies: %v", s, validErrorPolicyNames)
+		return "", goerrors.Errorf("invalid error policy: %q. Allowed error policies: %v", s, validErrorPolicyNames)
 	}
 }

@@ -25,6 +25,8 @@ import (
 	"regexp"
 	"strings"
 
+	goerrors "github.com/go-errors/errors"
+
 	"github.com/fatih/color"
 	pg_query "github.com/pganalyze/pg_query_go/v6"
 	"github.com/samber/lo"
@@ -125,7 +127,7 @@ func exportSchema(cmd *cobra.Command) error {
 		if err != nil {
 			return fmt.Errorf("failed to check dependencies for export schema: %w", err)
 		} else if len(binaryCheckIssues) > 0 {
-			return fmt.Errorf("\n%s\n%s", color.RedString("\nMissing dependencies for export schema:"), strings.Join(binaryCheckIssues, "\n"))
+			return goerrors.Errorf("\n%s\n%s", color.RedString("\nMissing dependencies for export schema:"), strings.Join(binaryCheckIssues, "\n"))
 		}
 	}
 
@@ -143,7 +145,7 @@ func exportSchema(cmd *cobra.Command) error {
 
 	res := source.DB().CheckSchemaExists()
 	if !res {
-		return fmt.Errorf("failed to check if source schema exist during export schema: %q", source.Schema)
+		return goerrors.Errorf("failed to check if source schema exist during export schema: %q", source.Schema)
 	}
 
 	// Check if the source database has the required permissions for exporting schema.
@@ -163,7 +165,7 @@ func exportSchema(cmd *cobra.Command) error {
 
 			reply := utils.AskPrompt("\nDo you want to continue anyway")
 			if !reply {
-				return fmt.Errorf("grant the required permissions and try again")
+				return goerrors.Errorf("grant the required permissions and try again")
 			}
 		}
 	}
@@ -320,7 +322,7 @@ func runAssessMigrationCmdBeforExportSchemaIfRequired(exportSchemaCmd *cobra.Com
 	// run and ignore exit status
 	if err := cmd.Run(); err != nil {
 		utils.PrintAndLogf("Failed to assess the migration, continuing with export schema...\n")
-		return fmt.Errorf("assess migration cmd exit err: %s and stderr: %s", err.Error(), stderrBuf.String())
+		return goerrors.Errorf("assess migration cmd exit err: %s and stderr: %s", err.Error(), stderrBuf.String())
 	}
 
 	// fetching assessment report path output line from stdout of assess-migration command process
@@ -585,7 +587,7 @@ func applyShardingRecommendationIfMatching(sqlInfo *sqlInfo, shardedTables []str
 	formattedStmt := sqlInfo.formattedStmt
 	parseTree, err := pg_query.Parse(stmt)
 	if err != nil {
-		return formattedStmt, false, false, "", fmt.Errorf("error parsing the stmt-%s: %v", stmt, err)
+		return formattedStmt, false, false, "", goerrors.Errorf("error parsing the stmt-%s: %v", stmt, err)
 	}
 
 	if len(parseTree.Stmts) == 0 {
