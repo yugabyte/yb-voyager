@@ -135,7 +135,7 @@ stages:
 
   - name: load_snapshot
     action: sleep
-    seconds: 10
+    seconds: 60
 
   - name: start_exporter
     action: voyager_export_start
@@ -163,7 +163,7 @@ stages:
 
   - name: sleep_for_some_events_to_be_generated
     action: sleep
-    seconds: 60
+    seconds: 250
 
   - name: stop_event_generator
     action: generator_stop
@@ -208,7 +208,7 @@ stages:
     action: start_resumptions
     resumption:
       export_from_target:
-        max_restarts: 10
+        max_restarts: 25
         min_interrupt_seconds: 20
         max_interrupt_seconds: 60
         min_restart_wait_seconds: 10
@@ -216,7 +216,7 @@ stages:
 
   - name: soak_fallback_with_resumptions
     action: sleep
-    seconds: 120
+    seconds: 250
 
   - name: stop_target_event_generator
     action: generator_stop
