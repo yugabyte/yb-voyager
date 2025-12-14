@@ -163,7 +163,7 @@ stages:
 
   - name: soak_with_resumptions
     action: sleep
-    seconds: 600
+    seconds: 1200
 
   - name: stop_event_generator
     action: generator_stop
@@ -216,7 +216,7 @@ stages:
 
   - name: soak_fallback_with_resumptions
     action: sleep
-    seconds: 600
+    seconds: 1200
 
   - name: stop_target_event_generator
     action: generator_stop

@@ -277,6 +277,7 @@ def main() -> None:
     H.prepare_paths(cfg["export_dir"], cfg["artifacts_dir"])
 
     ctx = H.Context(cfg=cfg, run_id=run_id, env=env, test_root=test_root)
+    had_failure = False
 
     try:
         for stage in cfg["stages"]:
@@ -292,11 +293,14 @@ def main() -> None:
                 end_ts = H._ts()
                 H.append_stage_summary(cfg["artifacts_dir"], stage_name, start_ts, end_ts, status="FAILED", error=str(e))
                 H.log_stage_end(stage_name, status=f"FAILED: {e}")
+                had_failure = True
                 raise
     finally:
         # Always capture artifacts/logs at the end regardless of success or failure
         H.scan_logs_for_errors(cfg["export_dir"], cfg["artifacts_dir"])
         H.snapshot_msr_and_stats(cfg["export_dir"], cfg["artifacts_dir"])
+        if had_failure:
+            H.copy_logs_directory(cfg["export_dir"], cfg["artifacts_dir"])
 
 
 if __name__ == "__main__":
