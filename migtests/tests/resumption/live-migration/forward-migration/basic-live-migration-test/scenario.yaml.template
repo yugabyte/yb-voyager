@@ -160,7 +160,7 @@ stages:
     timeout_sec: 900
 
   - name: validate_row_counts
-    action: dvt_run
+    action: row_count_validations
 
   - name: row_hash_validations
     action: row_hash_validations

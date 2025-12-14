@@ -159,8 +159,8 @@ stages:
     condition: cutover_to_target_status_completed
     timeout_sec: 900
 
-  - name: validate
-    action: dvt_run
+  - name: row_count_validations
+    action: row_count_validations
 
   - name: row_hash_validations
     action: row_hash_validations

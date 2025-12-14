@@ -163,8 +163,8 @@ stages:
     timeout_sec: 1800
 
   # 13) Validate source vs target
-  - name: validate
-    action: dvt_run
+  - name: row_count_validations
+    action: row_count_validations
 
   # 14) Cleanup
   - name: cleanup_source_cutover_table

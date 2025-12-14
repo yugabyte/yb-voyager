@@ -4,13 +4,13 @@ import os
 import sys
 import argparse
 from typing import Any, Dict, Callable
+import helpers as H
 
-try:
-    import helpers as H  # package-relative
-except ImportError:
-    import sys as _sys
-    _sys.path.append(os.path.dirname(__file__))
-    import helpers as H  # direct script execution
+# try:
+#     import helpers as H  # package-relative
+# except ImportError:
+#     sys.path.append(os.path.dirname(__file__))
+#     import helpers as H  # direct script execution
 
 
 # -------------------------
@@ -149,8 +149,8 @@ def cutover_to_source_replica_action(stage: Dict[str, Any], ctx: Any) -> None:
     H.initiate_cutover(ctx.cfg, ctx.env, "source-replica")
 
 
-@action("dvt_run")
-def dvt_run_action(stage: Dict[str, Any], ctx: Any) -> None:
+@action("row_count_validations")
+def row_count_validations_action(stage: Dict[str, Any], ctx: Any) -> None:
     left_role = stage.get("left_role", "source")
     right_role = stage.get("right_role", "target")
     H.run_row_count_validations(ctx, left_role, right_role)

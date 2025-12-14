@@ -12,6 +12,7 @@ import shutil
 from datetime import datetime
 import json
 import sys
+import yaml
 
 
 # -------------------------
@@ -19,7 +20,6 @@ import sys
 # -------------------------
 
 def load_config(path: str) -> Dict[str, Any]:
-    import yaml  # local import to keep this file lightweight
     with open(path, "r") as f:
         return yaml.safe_load(f)
 
@@ -255,9 +255,8 @@ def spawn(cmd: list[str], env: Dict[str, str]) -> subprocess.Popen:
 
     # Best-effort startup validation: if the process dies quickly with a non-zero
     # exit code, treat it as a failure instead of a successful background start.
-    import time as _time
     startup_wait_seconds = 2
-    _time.sleep(startup_wait_seconds)
+    time.sleep(startup_wait_seconds)
 
     if proc.poll() is not None and proc.returncode != 0:
         try:
@@ -526,7 +525,6 @@ def resolve_generator_config(gen_cfg: Dict[str, Any] | None, run_id: str, test_r
         tmp_dir = os.path.join("/tmp", run_id)
         os.makedirs(tmp_dir, exist_ok=True)
         final_path = os.path.join(tmp_dir, "event-generator.yaml")
-        import yaml  # local import
         with open(final_path, "w") as f:
             yaml.safe_dump(inline_cfg, f, sort_keys=False)
         return final_path
@@ -954,22 +952,6 @@ def list_source_tables(cfg: Dict[str, Any]) -> List[str]:
           AND table_type = 'BASE TABLE'
         ORDER BY table_name
     """, (schema,))
-    return [r[0] for r in rows]
-
-
-def get_table_primary_key(cfg: Dict[str, Any], table: str) -> List[str]:
-    schema = cfg["source"]["schema"]
-    rows = fetchall(cfg, "source", """
-        SELECT kcu.column_name
-        FROM information_schema.table_constraints tc
-        JOIN information_schema.key_column_usage kcu
-          ON tc.constraint_name = kcu.constraint_name
-         AND tc.table_schema = kcu.table_schema
-        WHERE tc.constraint_type = 'PRIMARY KEY'
-          AND tc.table_schema = %s
-          AND tc.table_name = %s
-        ORDER BY kcu.ordinal_position
-    """, (schema, table))
     return [r[0] for r in rows]
 
 
