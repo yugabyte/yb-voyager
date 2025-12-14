@@ -3,6 +3,7 @@
 import os
 import sys
 import argparse
+import time
 from typing import Any, Dict, Callable
 import helpers as H
 
@@ -207,9 +208,8 @@ def sleep_action(stage: Dict[str, Any], ctx: Any) -> None:
     """Pause execution for a given number of seconds."""
     secs = int(stage.get("seconds", 0))
     if secs > 0:
-        import time as _t
         H.log(f"sleeping for {secs} seconds")
-        _t.sleep(secs)
+        time.sleep(secs)
 
 
 @action("reset_databases")

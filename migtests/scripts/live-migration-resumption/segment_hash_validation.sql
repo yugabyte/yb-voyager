@@ -6,7 +6,7 @@
 -- ------------------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS public.migration_validate_segments (
-    side          TEXT        NOT NULL,  -- 'source' or 'target'
+    side          TEXT        NOT NULL,  -- 'source', 'target', or 'source_replica'
     schema_name   TEXT        NOT NULL,
     table_name    TEXT        NOT NULL,
     segment_index INTEGER     NOT NULL,  -- 0 .. (num_segments-1)

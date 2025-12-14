@@ -315,7 +315,7 @@ def stop_process(ctx: Context, name: str, graceful_timeout: int = 10) -> bool:
         return False
     kill(proc, timeout_sec=graceful_timeout)
     with ctx.process_lock:
-        ctx.processes[name] = None
+        ctx.processes.pop(name, None)
     log(f"stop_process: stopped {name}")
     return True
 
@@ -673,7 +673,6 @@ class Resumer:
                 pid=proc.pid,
             )
         else:
-            self._log(f"restarted process pid={proc.pid}", event="restart", pid=proc.pid)
             self._log(
                 f"restart succeeded with pid={proc.pid}",
                 event="restart_success",
@@ -754,7 +753,7 @@ def stop_resumptions_for_command(cmd: str, ctx: Context, timeout_sec: int = 30) 
 
 
 # -------------------------
-# Artifacts / Logs 
+# Artifacts / Logs
 # -------------------------
 
 def _iter_log_files(logs_dir: str):
@@ -766,7 +765,14 @@ def _iter_log_files(logs_dir: str):
 
 
 def scan_logs_for_errors(export_dir: str, artifacts_dir: str, patterns: list[str] | None = None) -> None:
-    patterns = patterns or ["ERROR", "FATAL", "WARN", "Discrepancy in committed batch", "unexpected rows affected for event with"]
+    base_patterns = patterns or [
+        "ERROR",
+        "FATAL",
+        "WARN",
+        "Discrepancy in committed batch",
+        "unexpected rows affected for event with",
+    ]
+    low_patterns = [p.lower() for p in base_patterns]
     logs_dir = os.path.join(export_dir, "logs")
     scan_dir = os.path.join(artifacts_dir, "log_scans")
     os.makedirs(scan_dir, exist_ok=True)
@@ -777,7 +783,7 @@ def scan_logs_for_errors(export_dir: str, artifacts_dir: str, patterns: list[str
             with open(fp, "r", errors="ignore") as f:
                 for line in f:
                     lower_line = line.lower()
-                    if any(pat.lower() in lower_line for pat in patterns):
+                    if any(pat in lower_line for pat in low_patterns):
                         findings.append(line.rstrip())
         except Exception:
             continue
@@ -824,13 +830,10 @@ def append_stage_summary(artifacts_dir: str, stage_name: str, start_ts: str, end
 # -------------------------
 
 def prepare_paths(export_dir: str, artifacts_dir: str) -> None:
-    """Delete and recreate export_dir and artifacts_dir.
-    """
+    """Delete and recreate export_dir and artifacts_dir."""
     for p in (export_dir, artifacts_dir):
-        try:
-            shutil.rmtree(p, ignore_errors=True)
-        finally:
-            os.makedirs(p, exist_ok=True)
+        shutil.rmtree(p, ignore_errors=True)
+        os.makedirs(p, exist_ok=True)
 
 
 # -------------------------
