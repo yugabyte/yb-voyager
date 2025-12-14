@@ -135,7 +135,7 @@ stages:
 
   - name: load_snapshot
     action: sleep
-    seconds: 60
+    seconds: 1200
 
   - name: start_exporter
     action: voyager_export_start
@@ -161,9 +161,9 @@ stages:
     condition: exporter_in_streaming_phase
     timeout_sec: 600
 
-  - name: sleep_for_some_events_to_be_generated
+  - name: soak_with_resumptions
     action: sleep
-    seconds: 250
+    seconds: 1200
 
   - name: stop_event_generator
     action: generator_stop
@@ -216,7 +216,7 @@ stages:
 
   - name: soak_fallback_with_resumptions
     action: sleep
-    seconds: 250
+    seconds: 1200
 
   - name: stop_target_event_generator
     action: generator_stop
