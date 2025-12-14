@@ -6,13 +6,6 @@ import argparse
 from typing import Any, Dict, Callable
 import helpers as H
 
-# try:
-#     import helpers as H  # package-relative
-# except ImportError:
-#     sys.path.append(os.path.dirname(__file__))
-#     import helpers as H  # direct script execution
-
-
 # -------------------------
 # Action registry
 # -------------------------
@@ -113,22 +106,43 @@ def stop_command_action(stage: Dict[str, Any], ctx: Any) -> None:
     H.stop_process(ctx, command, graceful_timeout=timeout)
 
 
+_WAIT_FOR_CONDITIONS: Dict[str, Dict[str, Any]] = {
+    "exporter_in_streaming_phase": {
+        "interval": 5,
+        "predicate": lambda ctx: H.exporter_streaming(ctx.cfg["export_dir"]),
+    },
+    "remaining_events_eq_0": {
+        "interval": 5,
+        "predicate": lambda ctx: H.backlog_marker_present(ctx.cfg["export_dir"]),
+    },
+    "cutover_to_target_status_completed": {
+        "interval": 10,
+        "predicate": lambda ctx: H.get_cutover_status(ctx.cfg["export_dir"], mode="target") == "COMPLETED",
+    },
+    "cutover_to_source_status_completed": {
+        "interval": 10,
+        "predicate": lambda ctx: H.get_cutover_status(ctx.cfg["export_dir"], mode="source") == "COMPLETED",
+    },
+    "cutover_to_source_replica_status_completed": {
+        "interval": 10,
+        "predicate": lambda ctx: H.get_cutover_status(ctx.cfg["export_dir"], mode="source-replica") == "COMPLETED",
+    },
+}
+
+
 @action("wait_for")
 def wait_for_action(stage: Dict[str, Any], ctx: Any) -> None:
     cond = stage["condition"]
     timeout_sec = int(stage.get("timeout_sec", 0))  # 0 => no overall timeout
-    if cond == "exporter_in_streaming_phase":
-        ok = H.poll_until(timeout_sec, 5, lambda: H.exporter_streaming(ctx.cfg["export_dir"]))
-    elif cond == "remaining_events_eq_0":
-        ok = H.poll_until(timeout_sec, 5, lambda: H.backlog_marker_present(ctx.cfg["export_dir"]))
-    elif cond == "cutover_to_target_status_completed":
-        ok = H.poll_until(timeout_sec, 10, lambda: H.get_cutover_status(ctx.cfg["export_dir"], mode="target") == "COMPLETED")
-    elif cond == "cutover_to_source_status_completed":
-        ok = H.poll_until(timeout_sec, 10, lambda: H.get_cutover_status(ctx.cfg["export_dir"], mode="source") == "COMPLETED")
-    elif cond == "cutover_to_source_replica_status_completed":
-        ok = H.poll_until(timeout_sec, 10, lambda: H.get_cutover_status(ctx.cfg["export_dir"], mode="source-replica") == "COMPLETED")
-    else:
-        raise ValueError(f"unknown condition: {cond}")
+    try:
+        cfg = _WAIT_FOR_CONDITIONS[cond]
+    except KeyError as exc:
+        raise ValueError(f"unknown condition: {cond}") from exc
+
+    interval = cfg["interval"]
+    predicate = cfg["predicate"]
+    ok = H.poll_until(timeout_sec, interval, lambda: predicate(ctx))
+
     if not ok:
         raise TimeoutError(cond)
 
@@ -165,7 +179,6 @@ def row_hash_validations_action(stage: Dict[str, Any], ctx: Any) -> None:
     left_role = stage.get("left_role", "source")
     right_role = stage.get("right_role", "target")
 
-    # Ensure validation primitives are installed only on the roles we will use.
     for role in {left_role, right_role}:
         H.run_sql_file(ctx, sql_path, target=role, use_admin=False)
 

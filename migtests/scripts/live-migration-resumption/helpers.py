@@ -128,7 +128,6 @@ def _ensure(obj: Any, key: str | None, typ, ctx: str, *, required: bool = True, 
 def validate_scenario(cfg: Dict[str, Any]) -> None:
     """Perform minimal validation of scenario structure;
     Required top-level keys: name (str), stages (list>0).
-    Optional but expected containers: voyager (dict), generator (dict), dvt (dict), env (dict).
     Each stage must have: name (str), action (str). Additional fields are action-specific.
     """
     ctx = "scenario"
@@ -140,9 +139,6 @@ def validate_scenario(cfg: Dict[str, Any]) -> None:
     if len(stages) == 0:
         raise ValueError("'stages' must contain at least one stage")
 
-    # Optional containers
-    for opt_key, typ in ("voyager", dict), ("generator", dict), ("dvt", dict), ("env", dict):
-        _ensure(cfg, opt_key, typ, ctx, required=False, allow_none=True)
 
     # Stage-level checks
     for idx, st in enumerate(stages):
@@ -185,14 +181,12 @@ def exporter_streaming(export_dir: str) -> bool:
 
 
 def get_cutover_status(export_dir: str, mode: str = "target") -> str:
-    if mode == "target":
-        key = "cutover to target status"
-    elif mode == "source":
-        key = "cutover to source status"
-    elif mode == "source-replica":
-        key = "cutover to source-replica status"
-    else:
-        raise ValueError(f"get_cutover_status: unsupported mode {mode!r}")
+    mode_to_key = {
+        "target": "cutover to target status",
+        "source": "cutover to source status",
+        "source-replica": "cutover to source-replica status",
+    }
+    key = mode_to_key[mode]
 
     cmd = ["yb-voyager", "cutover", "status", "--export-dir", export_dir]
     try:
@@ -912,8 +906,6 @@ def fetchall(cfg: Dict[str, Any], role: str, query: str, params=()) -> list[tupl
         return cur.fetchall()
 
 
-
-
 def run_sql_file(ctx, sql_path: str, target: str = "source", *, use_admin: bool = False) -> None:
     """Executes SQL against source/target using psql."""
     user_override = password_override = None
@@ -999,19 +991,23 @@ def _reset_database(db_cfg: Dict[str, Any], *, admin_db_name: str, role: str) ->
 
 
 def reset_database_for_role(role: str, ctx) -> None:
-    """Same interface, simplified internals."""
-    if role == "source":
-        _reset_database(ctx.cfg["source"], admin_db_name="postgres", role=role)
-    elif role == "target":
-        _reset_database(ctx.cfg["target"], admin_db_name="yugabyte", role=role)
-    elif role == "source_replica":
-        _reset_database(ctx.cfg["source_replica"], admin_db_name="postgres", role=role)
-    else:
-        raise ValueError(f"Unsupported database role for reset: {role}")
+    admin_db_name_by_role = {
+        "source": "postgres",
+        "target": "yugabyte",
+        "source_replica": "postgres",
+    }
+
+    try:
+        db_cfg = ctx.cfg[role]
+        admin_db_name = admin_db_name_by_role[role]
+    except KeyError as exc:
+        raise ValueError(f"Unsupported database role for reset: {role}") from exc
+
+    _reset_database(db_cfg, admin_db_name=admin_db_name, role=role)
 
 
 # -------------------------
-# DVT helpers
+# Validation helpers
 # -------------------------
 
 
@@ -1164,7 +1160,7 @@ def run_segment_hash_validations(
     all_segments, mismatches = compare_segment_hashes(ctx, left_side, right_side)
 
     # 3) Persist artifacts
-    base_dir = os.path.join(ctx.artifacts_dir, "dvt", "hash_segments")
+    base_dir = os.path.join(ctx.artifacts_dir, "validation", "hash_segments")
     os.makedirs(base_dir, exist_ok=True)
 
     segments_path = os.path.join(base_dir, "segments.json")
@@ -1197,14 +1193,11 @@ def run_row_count_validations(
     cfg = ctx.cfg
     schema = cfg["source"]["schema"]
     tables = list_source_tables(cfg)
-    out_dir = os.path.join(ctx.artifacts_dir, "dvt", "row_counts")
+    out_dir = os.path.join(ctx.artifacts_dir, "validation", "row_counts")
     os.makedirs(out_dir, exist_ok=True)
     mismatches = []
 
-    left_conn = db_connection(cfg, left_role)
-    right_conn = db_connection(cfg, right_role)
-
-    try:
+    with db_connection(cfg, left_role) as left_conn, db_connection(cfg, right_role) as right_conn:
         for table in tables:
             left_count = _fetch_table_count(left_conn, schema, table)
             right_count = _fetch_table_count(right_conn, schema, table)
@@ -1222,10 +1215,6 @@ def run_row_count_validations(
                 json.dump(record, f)
             if record["status"] == "mismatch":
                 mismatches.append(record)
-
-    finally:
-        left_conn.close()
-        right_conn.close()
 
     # If any mismatches, write summary + raise error
     if mismatches:
