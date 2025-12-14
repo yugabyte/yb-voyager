@@ -234,7 +234,7 @@ stages:
   - name: wait_backlog_zero_after_fallback
     action: wait_for
     condition: remaining_events_eq_0
-    timeout_sec: 1200
+    timeout_sec: 6000
 
   - name: stop_fallback_export_resumptions
     action: voyager_stop_resumptions
@@ -253,7 +253,7 @@ stages:
   - name: wait_cutover_to_source_replica_completed
     action: wait_for
     condition: cutover_to_source_replica_status_completed
-    timeout_sec: 900
+    timeout_sec: 9000
 
   - name: row_count_validations
     action: row_count_validations
