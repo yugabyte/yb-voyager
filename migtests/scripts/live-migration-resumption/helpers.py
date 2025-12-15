@@ -200,6 +200,7 @@ def get_cutover_status(export_dir: str, mode: str = "target") -> str:
     except Exception:
         return ""
 
+
 def backlog_marker_present(export_dir: str) -> bool:
     """
     Return True when the latest queue segment contains the marker insert for cutover_table.
@@ -269,7 +270,6 @@ def spawn(cmd: list[str], env: Dict[str, str]) -> subprocess.Popen:
 
 def run_checked(cmd: list[str], env: Dict[str, str], description: str | None = None) -> None:
     """Run a command and raise RuntimeError on non-zero exit code.
-
     Captures stdout/stderr for error diagnostics.
     """
     log(f"run_checked: {_cmd_str(cmd)}")
@@ -341,10 +341,15 @@ def to_kv_flags(d: Dict[str, Any] | None) -> list[str]:
 
 def _merge_flags(base: Dict[str, Any], extra: Dict[str, Any] | None) -> Dict[str, Any]:
     merged = dict(base)
-    if extra:
-        for k, v in extra.items():
-            merged[k] = v
+    merged.update(extra or {})
     return merged
+
+
+def _get_voyager_flags(cfg: Dict[str, Any], op: str) -> Dict[str, Any]:
+    """Return cfg['voyager'][op]['flags'] or {} if not present."""
+    voyager = cfg.get("voyager", {}) or {}
+    op_cfg = voyager.get(op, {}) or {}
+    return op_cfg.get("flags", {}) or {}
 
 
 def _source_conn_flags(cfg: Dict[str, Any]) -> Dict[str, Any]:
@@ -378,8 +383,44 @@ def _base_common_flags(cfg: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def build_import_schema_cmd(cfg: Dict[str, Any]) -> list[str]:
+    voyager_flags = _get_voyager_flags(cfg, "import_schema")
+    base = _base_common_flags(cfg)
+    base.update(_target_conn_flags(cfg))
+    merged = _merge_flags(base, voyager_flags)
+    return ["yb-voyager", "import", "schema", "--yes"] + to_kv_flags(merged)
+
+
+def build_export_schema_cmd(cfg: Dict[str, Any]) -> list[str]:
+    voyager_flags = _get_voyager_flags(cfg, "export_schema")
+    base = _base_common_flags(cfg)
+    base.update(_source_conn_flags(cfg))
+    merged = _merge_flags(base, voyager_flags)
+    return ["yb-voyager", "export", "schema", "--yes"] + to_kv_flags(merged)
+
+
+def import_schema(cfg: Dict[str, Any], env: Dict[str, str]) -> int:
+    cmd = build_import_schema_cmd(cfg)
+    run_checked(cmd, env, description="import_schema")
+    return 0
+
+
+def export_schema(cfg: Dict[str, Any], env: Dict[str, str]) -> int:
+    cmd = build_export_schema_cmd(cfg)
+    run_checked(cmd, env, description="export_schema")
+    return 0
+
+
+def initiate_cutover(cfg: Dict[str, Any], env: Dict[str, str], direction: str) -> None:
+    voyager_flags = _get_voyager_flags(cfg, f"cutover_to_{direction}")
+    base = {"export-dir": cfg["export_dir"],}
+    merged = _merge_flags(base, voyager_flags)
+    cmd = ["yb-voyager", "initiate", "cutover", "to", direction, "--yes"] + to_kv_flags(merged)
+    run_checked(cmd, env, description=f"cutover_to_{direction}")
+
+
 def build_export_data_cmd(cfg: Dict[str, Any]) -> list[str]:
-    voyager_flags = (cfg.get("voyager", {}).get("export_data", {}) or {}).get("flags", {})
+    voyager_flags = _get_voyager_flags(cfg, "export_data")
     base = _base_common_flags(cfg)
     base.update(_source_conn_flags(cfg))
     # Live migration default
@@ -391,7 +432,7 @@ def build_export_data_cmd(cfg: Dict[str, Any]) -> list[str]:
 
 
 def build_import_data_cmd(cfg: Dict[str, Any]) -> list[str]:
-    voyager_flags = (cfg.get("voyager", {}).get("import_data", {}) or {}).get("flags", {})
+    voyager_flags = _get_voyager_flags(cfg, "import_data")
     base = _base_common_flags(cfg)
     base.update(_target_conn_flags(cfg))
     base["max-retries-streaming"] = 1
@@ -402,87 +443,31 @@ def build_import_data_cmd(cfg: Dict[str, Any]) -> list[str]:
     return ["yb-voyager", "import", "data", "--yes"] + to_kv_flags(merged)
 
 
-def build_import_schema_cmd(cfg: Dict[str, Any]) -> list[str]:
-    voyager_flags = (cfg.get("voyager", {}).get("import_schema", {}) or {}).get("flags", {})
-    base = _base_common_flags(cfg)
-    base.update(_target_conn_flags(cfg))
-    merged = _merge_flags(base, voyager_flags)
-    return ["yb-voyager", "import", "schema", "--yes"] + to_kv_flags(merged)
-
-
-def build_export_schema_cmd(cfg: Dict[str, Any]) -> list[str]:
-    voyager_flags = (cfg.get("voyager", {}).get("export_schema", {}) or {}).get("flags", {})
-    base = _base_common_flags(cfg)
-    base.update(_source_conn_flags(cfg))
-    merged = _merge_flags(base, voyager_flags)
-    return ["yb-voyager", "export", "schema", "--yes"] + to_kv_flags(merged)
-
-
-def initiate_cutover(cfg: Dict[str, Any], env: Dict[str, str], direction: str) -> None:
-    voyager_flags = (cfg.get("voyager", {}).get(f"cutover_to_{direction}", {}) or {}).get("flags", {})
-    base = {"export-dir": cfg["export_dir"],}
-    merged = _merge_flags(base, voyager_flags)
-    cmd = ["yb-voyager", "initiate", "cutover", "to", direction, "--yes"] + to_kv_flags(merged)
-    run_checked(cmd, env, description=f"cutover_to_{direction}")
-
-def import_schema(cfg: Dict[str, Any], env: Dict[str, str]) -> int:
-    cmd = build_import_schema_cmd(cfg)
-    run_checked(cmd, env, description="import_schema")
-    return 0
-
-def export_schema(cfg: Dict[str, Any], env: Dict[str, str]) -> int:
-    cmd = build_export_schema_cmd(cfg)
-    run_checked(cmd, env, description="export_schema")
-    return 0
-
-
-def start_exporter(ctx: Context) -> subprocess.Popen:
-    cmd = build_export_data_cmd(ctx.cfg)
-    return spawn(cmd, ctx.env)
-
-
-def start_importer(ctx: Context) -> subprocess.Popen:
-    cmd = build_import_data_cmd(ctx.cfg)
-    return spawn(cmd, ctx.env)
-
-
-def start_command_by_name(name: str, ctx: Context) -> subprocess.Popen:
-    mapping: Dict[str, Callable[[], subprocess.Popen]] = {
-        "export_data": lambda: start_exporter(ctx),
-        "import_data": lambda: start_importer(ctx),
-        "export_from_target": lambda: export_from_target(ctx.cfg, ctx.env),
-        "import_to_source_replica": lambda: import_to_source_replica(ctx.cfg, ctx.env),
-        "import_to_source": lambda: import_to_source(ctx.cfg, ctx.env),
-    }
-    try:
-        return mapping[name]()
-    except KeyError as exc:
-        raise ValueError(f"Unsupported command for restart: {name}") from exc
-
-
-def export_from_target(cfg: Dict[str, Any], env: Dict[str, str]) -> subprocess.Popen:
-    voyager_flags = (cfg.get("voyager", {}).get("export_from_target", {}) or {}).get("flags", {}) or {}
+def build_export_from_target_cmd(cfg: Dict[str, Any]) -> list[str]:
+    """Build yb-voyager export-from-target command for fallback."""
+    voyager_flags = _get_voyager_flags(cfg, "export_from_target")
     base = _base_common_flags(cfg)
     tgt = cfg.get("target", {})
     base["target-db-password"] = tgt["password"]
 
     merged = _merge_flags(base, voyager_flags)
-    cmd = ["yb-voyager", "export", "data", "from", "target", "--yes"] + to_kv_flags(merged)
-    return spawn(cmd, env)
+    return ["yb-voyager", "export", "data", "from", "target", "--yes"] + to_kv_flags(merged)
 
 
-def import_to_source(cfg: Dict[str, Any], env: Dict[str, str]) -> subprocess.Popen:
-    voyager_flags = (cfg.get("voyager", {}).get("import_to_source", {}) or {}).get("flags", {}) or {}
+def build_import_to_source_cmd(cfg: Dict[str, Any]) -> list[str]:
+    """Build yb-voyager import-to-source command for fallback."""
+    voyager_flags = _get_voyager_flags(cfg, "import_to_source")
     base = _base_common_flags(cfg)
     src = cfg.get("source", {})
     base["source-db-password"] = src["password"]
 
     merged = _merge_flags(base, voyager_flags)
-    cmd = ["yb-voyager", "import", "data", "to", "source", "--yes"] + to_kv_flags(merged)
-    return spawn(cmd, env)
+    return ["yb-voyager", "import", "data", "to", "source", "--yes"] + to_kv_flags(merged)
 
-def import_to_source_replica(cfg: Dict[str, Any], env: Dict[str, str]) -> subprocess.Popen:
-    voyager_flags = (cfg.get("voyager", {}).get("import_to_source_or_replica", {}) or {}).get("flags", {}) or {}
+
+def build_import_to_source_replica_cmd(cfg: Dict[str, Any]) -> list[str]:
+    """Build yb-voyager import-to-source-replica command for fall-forward."""
+    voyager_flags = _get_voyager_flags(cfg, "import_to_source_or_replica")
 
     # Base flags: export-dir + diagnostics defaults
     base = _base_common_flags(cfg)
@@ -497,8 +482,21 @@ def import_to_source_replica(cfg: Dict[str, Any], env: Dict[str, str]) -> subpro
         base["source-replica-db-port"] = src_rep.get("port", "")
 
     merged = _merge_flags(base, voyager_flags)
-    cmd = ["yb-voyager", "import", "data", "to", "source-replica", "--yes"] + to_kv_flags(merged)
-    return spawn(cmd, env)
+    return ["yb-voyager", "import", "data", "to", "source-replica", "--yes"] + to_kv_flags(merged)
+
+
+def start_command_by_name(name: str, ctx: Context) -> subprocess.Popen:
+    mapping: Dict[str, Callable[[], subprocess.Popen]] = {
+        "export_data": lambda: spawn(build_export_data_cmd(ctx.cfg), ctx.env),
+        "import_data": lambda: spawn(build_import_data_cmd(ctx.cfg), ctx.env),
+        "export_from_target": lambda: spawn(build_export_from_target_cmd(ctx.cfg), ctx.env),
+        "import_to_source_replica": lambda: spawn(build_import_to_source_replica_cmd(ctx.cfg), ctx.env),
+        "import_to_source": lambda: spawn(build_import_to_source_cmd(ctx.cfg), ctx.env),
+    }
+    try:
+        return mapping[name]()
+    except KeyError as exc:
+        raise ValueError(f"Unsupported command to start: {name}") from exc
 
 
 
@@ -903,6 +901,7 @@ def run_psql(
             f"command={' '.join(cmd)}"
         )
 
+
 def fetchall(cfg: Dict[str, Any], role: str, query: str, params=()) -> list[tuple]:
     """Generic helper for SELECT queries."""
     with db_connection(cfg, role) as conn, conn.cursor() as cur:
@@ -931,7 +930,7 @@ def grant_postgres_live_migration_permissions(ctx, *, is_live_migration_fall_bac
         "-v", f"schema_list={src.get('schema', 'public')}",
         "-v", "replication_group=replication_group",
         "-v", "is_live_migration=1",
-        "-v", f"is_live_migration_fall_back={int(is_live_migration_fall_back)}",
+        "-v", f"is_live_migration_fall_back={is_live_migration_fall_back}",
         "-f", "/opt/yb-voyager/guardrails-scripts/yb-voyager-pg-grant-migration-permissions.sql",
         user_override=admin["user"],
         password_override=admin["password"],
@@ -1013,7 +1012,6 @@ def reset_database_for_role(role: str, ctx) -> None:
 # -------------------------
 # Validation helpers
 # -------------------------
-
 
 def _load_segment_map_for_side(
     cfg: Dict[str, Any],

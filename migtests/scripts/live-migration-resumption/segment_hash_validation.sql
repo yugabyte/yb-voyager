@@ -47,7 +47,7 @@ $$ LANGUAGE SQL IMMUTABLE;
 -- ------------------------------------------------------------------
 
 CREATE OR REPLACE FUNCTION public.compute_table_segment_hashes(
-    p_side         TEXT,        -- 'source' or 'target'
+    p_side         TEXT,        -- 'source', 'target', or 'source_replica'
     p_schema_name  TEXT,
     p_table_name   TEXT,
     p_num_segments INTEGER DEFAULT 16

@@ -47,12 +47,14 @@ def run_sql_action(stage: Dict[str, Any], ctx: Any) -> None:
 
 
 @action("voyager_export_schema")
-def export_schema_action(stage: Dict[str, Any], ctx: Any) -> None:
+def export_schema_action(_stage, ctx: Any) -> None:
     H.export_schema(ctx.cfg, ctx.env)
 
+
 @action("voyager_import_schema")
-def import_schema_action(stage: Dict[str, Any], ctx: Any) -> None:
+def import_schema_action(_stage, ctx: Any) -> None:
     H.import_schema(ctx.cfg, ctx.env)
+
 
 @action("generator_start")
 def generator_start_action(stage: Dict[str, Any], ctx: Any) -> None:
@@ -68,36 +70,36 @@ def generator_stop_action(stage: Dict[str, Any], ctx: Any) -> None:
 
 
 @action("voyager_export_start")
-def export_start_action(stage: Dict[str, Any], ctx: Any) -> None:
+def export_start_action(_stage, ctx: Any) -> None:
     with ctx.process_lock:
-        ctx.processes["export_data"] = H.start_exporter(ctx)
+        ctx.processes["export_data"] = H.start_command_by_name("export_data", ctx)
 
 
 @action("voyager_export_from_target_start")
-def export_from_target_start_action(stage: Dict[str, Any], ctx: Any) -> None:
+def export_from_target_start_action(_stage, ctx: Any) -> None:
     """Start yb-voyager export-from-target process for fallback."""
     with ctx.process_lock:
-        ctx.processes["export_from_target"] = H.export_from_target(ctx.cfg, ctx.env)
+        ctx.processes["export_from_target"] = H.start_command_by_name("export_from_target", ctx)
 
 
 @action("voyager_import_start")
-def import_start_action(stage: Dict[str, Any], ctx: Any) -> None:
+def import_start_action(_stage, ctx: Any) -> None:
     with ctx.process_lock:
-        ctx.processes["import_data"] = H.start_importer(ctx)
+        ctx.processes["import_data"] = H.start_command_by_name("import_data", ctx)
 
 
 @action("voyager_import_to_source_start")
-def import_to_source_start_action(stage: Dict[str, Any], ctx: Any) -> None:
+def import_to_source_start_action(_stage, ctx: Any) -> None:
     """Start yb-voyager import-to-source process for fallback."""
     with ctx.process_lock:
-        ctx.processes["import_to_source"] = H.import_to_source(ctx.cfg, ctx.env)
+        ctx.processes["import_to_source"] = H.start_command_by_name("import_to_source", ctx)
 
 
 @action("voyager_import_to_source_replica_start")
-def import_to_source_replica_start_action(stage: Dict[str, Any], ctx: Any) -> None:
+def import_to_source_replica_start_action(_stage, ctx: Any) -> None:
     """Start yb-voyager import-to-source-replica process for fall-forward."""
     with ctx.process_lock:
-        ctx.processes["import_to_source_replica"] = H.import_to_source_replica(ctx.cfg, ctx.env)
+        ctx.processes["import_to_source_replica"] = H.start_command_by_name("import_to_source_replica", ctx)
 
 
 @action("voyager_stop_command")
@@ -149,17 +151,17 @@ def wait_for_action(stage: Dict[str, Any], ctx: Any) -> None:
 
 
 @action("cutover_to_target")
-def cutover_to_target_action(stage: Dict[str, Any], ctx: Any) -> None:
+def cutover_to_target_action(_stage, ctx: Any) -> None:
     H.initiate_cutover(ctx.cfg, ctx.env, "target")
 
 
 @action("cutover_to_source")
-def cutover_to_source_action(stage: Dict[str, Any], ctx: Any) -> None:
+def cutover_to_source_action(_stage, ctx: Any) -> None:
     H.initiate_cutover(ctx.cfg, ctx.env, "source")
 
 
 @action("cutover_to_source_replica")
-def cutover_to_source_replica_action(stage: Dict[str, Any], ctx: Any) -> None:
+def cutover_to_source_replica_action(_stage, ctx: Any) -> None:
     """Initiate cutover back to the source-replica database."""
     H.initiate_cutover(ctx.cfg, ctx.env, "source-replica")
 
