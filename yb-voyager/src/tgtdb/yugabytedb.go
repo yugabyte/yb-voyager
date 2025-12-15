@@ -346,6 +346,9 @@ const UNABLE_TO_ENCODE_ERROR = "unable to encode"
 // Cannot find encode plan - specific phrase from pgx/pgtype
 const CANNOT_FIND_ENCODE_PLAN_ERROR = "cannot find encode plan"
 
+// error for inserting in xml table
+const UNSUPPORTED_XML_FEATURE = "unsupported XML feature"
+
 var NonRetryCopyErrors = []string{
 	// Existing patterns
 	INVALID_INPUT_SYNTAX_ERROR,
@@ -357,6 +360,8 @@ var NonRetryCopyErrors = []string{
 	FAILED_TO_ENCODE_ARGS_ERROR,
 	UNABLE_TO_ENCODE_ERROR,
 	CANNOT_FIND_ENCODE_PLAN_ERROR,
+
+	UNSUPPORTED_XML_FEATURE,
 }
 
 // IsPgErrorCodeNonRetryable checks if an error is a data integrity or constraint violation or syntax error

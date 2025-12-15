@@ -39,9 +39,9 @@ import (
 )
 
 // Apart from these we also skip UDT columns. Array of enums, hstore, and tsvector are supported with logical connector (default).
-var YugabyteUnsupportedDataTypesForDbzmLogical = []string{"BOX", "CIRCLE", "LINE", "LSEG", "PATH", "PG_LSN", "POINT", "POLYGON", "TSQUERY", "TXID_SNAPSHOT", "GEOMETRY", "GEOGRAPHY", "RASTER"}
+var YugabyteUnsupportedDataTypesForDbzmLogical = []string{"BOX", "CIRCLE", "LINE", "LSEG", "PATH", "PG_LSN", "POINT", "POLYGON", "TSQUERY", "TXID_SNAPSHOT", "GEOMETRY", "GEOGRAPHY", "RASTER", "INT4MULTIRANGE", "INT8MULTIRANGE", "NUMMULTIRANGE", "TSMULTIRANGE", "TSTZMULTIRANGE", "DATEMULTIRANGE"}
 
-var YugabyteUnsupportedDataTypesForDbzmGrpc = []string{"BOX", "CIRCLE", "LINE", "LSEG", "PATH", "PG_LSN", "POINT", "POLYGON", "TSQUERY", "TSVECTOR", "TXID_SNAPSHOT", "GEOMETRY", "GEOGRAPHY", "RASTER", "HSTORE"}
+var YugabyteUnsupportedDataTypesForDbzmGrpc = []string{"BOX", "CIRCLE", "LINE", "LSEG", "PATH", "PG_LSN", "POINT", "POLYGON", "TSQUERY", "TSVECTOR", "TXID_SNAPSHOT", "GEOMETRY", "GEOGRAPHY", "RASTER", "HSTORE", "INT4MULTIRANGE", "INT8MULTIRANGE", "NUMMULTIRANGE", "TSMULTIRANGE", "TSTZMULTIRANGE", "DATEMULTIRANGE"}
 
 func GetYugabyteUnsupportedDatatypesDbzm(isGRPCConnector bool) []string {
 	if isGRPCConnector {
@@ -703,7 +703,7 @@ func (yb *YugabyteDB) filterUnsupportedUserDefinedDatatypes(tableList []sqlname.
 		WHERE
 			(table_n.nspname, c.relname) IN (%s)
 			AND a.attnum > 0
-			AND t.typtype = 'c'
+			AND (t.typtype = 'c' OR t.typtype = 'r')
 		ORDER BY qualified_type_name;
 	`, inClause)
 
@@ -746,12 +746,12 @@ func (yb *YugabyteDB) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple
 	}
 
 	// Fetch all user-defined types for all tables in a single query and add them to the unsupported datatypes list
-	userDefinedDataTypes := yb.filterUnsupportedUserDefinedDatatypes(tableList)
+	userDefinedCustomAndRangeDatatypes := yb.filterUnsupportedUserDefinedDatatypes(tableList)
 	unsupportedDatatypesList := GetYugabyteUnsupportedDatatypesDbzm(yb.source.IsYBGrpcConnector)
-	unsupportedDatatypesList = append(unsupportedDatatypesList, userDefinedDataTypes...)
+	unsupportedDatatypesList = append(unsupportedDatatypesList, userDefinedCustomAndRangeDatatypes...)
 
 	// Fetch all table columns in a single query
-	allTablesColumnsInfo, err := yb.getAllTableColumnsInfo(tableList)
+	allTablesColumnsInfo, err := getAllTableColumnsInfo(tableList, yb.db)
 	if err != nil {
 		return nil, nil, fmt.Errorf("error fetching table columns: %w", err)
 	}
@@ -787,7 +787,7 @@ func (yb *YugabyteDB) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple
 }
 
 // getAllTableColumnsInfo fetches column information for all tables in a single database query
-func (yb *YugabyteDB) getAllTableColumnsInfo(tableList []sqlname.NameTuple) (map[sqlname.NameTuple]tableColumnInfo, error) {
+func getAllTableColumnsInfo(tableList []sqlname.NameTuple, db *sql.DB) (map[sqlname.NameTuple]tableColumnInfo, error) {
 	var result = make(map[sqlname.NameTuple]tableColumnInfo)
 	if len(tableList) == 0 {
 		return result, nil
@@ -814,7 +814,7 @@ func (yb *YugabyteDB) getAllTableColumnsInfo(tableList []sqlname.NameTuple) (map
 			-- Qualify only composite types (UDTs) to distinguish same-named types across schemas.
 			-- Keep other types unqualified (hstore, int4, etc.) to match unsupported types list.
 			CASE
-				WHEN t.typtype = 'c' THEN type_n.nspname || '.' || t.typname
+				WHEN (t.typtype = 'c' OR t.typtype = 'r') THEN type_n.nspname || '.' || t.typname
 				ELSE t.typname
 			END AS data_type
 		FROM pg_attribute AS a
@@ -828,7 +828,7 @@ func (yb *YugabyteDB) getAllTableColumnsInfo(tableList []sqlname.NameTuple) (map
 			AND NOT a.attisdropped
 		ORDER BY n.nspname, c.relname, a.attnum; -- attnum ensures columns appear in table definition order and keeps Columns[] and DataTypes[] arrays aligned deterministically
 	`, inClause)
-	rows, err := yb.db.Query(query)
+	rows, err := db.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("error querying table columns: %w", err)
 	}
