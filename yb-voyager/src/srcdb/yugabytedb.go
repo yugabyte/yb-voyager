@@ -544,15 +544,17 @@ func (yb *YugabyteDB) getTypesOfAllArraysInATable(schemaName, tableName string) 
 }
 
 func (yb *YugabyteDB) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []sqlname.NameTuple, useDebezium bool) ([]sqlname.NameTuple, []sqlname.NameTuple) {
+	if !yb.source.IsYBGrpcConnector {
+		return tableList, nil
+	}
 	var unsupportedTables []sqlname.NameTuple
 	var filteredTableList []sqlname.NameTuple
 	for _, table := range tableList {
 		sname, tname := table.ForCatalogQuery()
-		userDefinedTypes := yb.getAllUserDefinedTypesInSchema(sname)
+		userDefinedTypes := yb.getAllUserDefinedTypesInSchema(sname) //returns UDTs + Enums
 		if len(userDefinedTypes) == 0 {
 			continue
 		}
-		enumTypes := yb.getAllEnumTypesInSchema(sname)
 		tableColumnArrayTypes := yb.getTypesOfAllArraysInATable(sname, tname)
 		if len(tableColumnArrayTypes) == 0 {
 			continue
@@ -560,12 +562,7 @@ func (yb *YugabyteDB) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList
 
 		// Build list of unsupported types based on connector type
 		// UDT types without enums are always unsupported
-		udtTypes := utils.SetDifference(userDefinedTypes, enumTypes)
-		unsupportedTableTypes := udtTypes
-		// Array of enums are only unsupported with YBGrpcConnector
-		if yb.source.IsYBGrpcConnector {
-			unsupportedTableTypes = append(unsupportedTableTypes, enumTypes...)
-		}
+		unsupportedTableTypes := userDefinedTypes
 
 		// If any of the data types of the arrays are in the unsupported types then add the table to the unsupported tables list
 		// udt_type/data_type looks like status_enum[] whereas enum_type looks like status_enum
@@ -678,6 +675,12 @@ func (yb *YugabyteDB) filterUnsupportedUserDefinedDatatypes(tableList []sqlname.
 		return []string{}
 	}
 
+	typesNotSupported := "t.typtype = 'r'" // RANGE types are not supported for gRPC and Logical both  as its an import value converter issue
+
+	if yb.source.IsYBGrpcConnector {
+		typesNotSupported = "(t.typtype = 'c' OR t.typtype = 'r')" // gRPC doesn't support types so fetch those only
+	}
+
 	// Build the IN clause with tuples for all tables
 	// eg: [('public', 'products'), ('public', 'users'), ('public', 'invoices')]
 	var tableTuples []string
@@ -703,9 +706,9 @@ func (yb *YugabyteDB) filterUnsupportedUserDefinedDatatypes(tableList []sqlname.
 		WHERE
 			(table_n.nspname, c.relname) IN (%s)
 			AND a.attnum > 0
-			AND (t.typtype = 'c' OR t.typtype = 'r')
+			AND %s
 		ORDER BY qualified_type_name;
-	`, inClause)
+	`, inClause, typesNotSupported)
 
 	rows, err := yb.db.Query(query)
 	if err != nil {
@@ -746,9 +749,9 @@ func (yb *YugabyteDB) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple
 	}
 
 	// Fetch all user-defined types for all tables in a single query and add them to the unsupported datatypes list
-	userDefinedCustomAndRangeDatatypes := yb.filterUnsupportedUserDefinedDatatypes(tableList)
+	unsupportedUserDefinedTypes := yb.filterUnsupportedUserDefinedDatatypes(tableList)
 	unsupportedDatatypesList := GetYugabyteUnsupportedDatatypesDbzm(yb.source.IsYBGrpcConnector)
-	unsupportedDatatypesList = append(unsupportedDatatypesList, userDefinedCustomAndRangeDatatypes...)
+	unsupportedDatatypesList = append(unsupportedDatatypesList, unsupportedUserDefinedTypes...)
 
 	// Fetch all table columns in a single query
 	allTablesColumnsInfo, err := getAllTableColumnsInfo(tableList, yb.db)
