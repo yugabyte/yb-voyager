@@ -493,6 +493,36 @@ func TestYugabyteFilterUnsupportedUserDefinedDatatypes(t *testing.T) {
 			status hr.status_enum,
 			priority hr.positive_int
 		);`,
+
+		`CREATE TYPE inventory.active_ts_range AS RANGE (
+			subtype = timestamp with time zone,
+			multirange_type_name = public.active_ts_multirange
+		);`,
+
+		`CREATE TYPE public.discount_range AS RANGE (
+			subtype = double precision,
+			multirange_type_name = public.discount_multirange
+		);`,
+
+		`CREATE TYPE hr.period_range AS RANGE (
+			subtype = date,
+			multirange_type_name = public.period_multirange
+		);`,
+
+		`CREATE TABLE hr.active_ts_table (
+			id SERIAL PRIMARY KEY,
+			active_ts_range inventory.active_ts_range
+		);`,
+
+		`CREATE TABLE inventory.discount_table (
+			id SERIAL PRIMARY KEY,
+			discount_range public.discount_range
+		);`,
+
+		`CREATE TABLE inventory.period_table (
+			id SERIAL PRIMARY KEY,
+			period_range hr.period_range
+		);`,
 	)
 	defer testYugabyteDBSource.TestContainer.ExecuteSqls(
 		`DROP SCHEMA hr CASCADE;`,
@@ -506,8 +536,15 @@ func TestYugabyteFilterUnsupportedUserDefinedDatatypes(t *testing.T) {
 		testutils.CreateNameTupleWithSourceName("hr.projects", "hr", constants.YUGABYTEDB),
 	}
 
+	tableListWithRanges := []sqlname.NameTuple{
+		testutils.CreateNameTupleWithSourceName("hr.active_ts_table", "hr", constants.YUGABYTEDB),
+		testutils.CreateNameTupleWithSourceName("inventory.discount_table", "inventory", constants.YUGABYTEDB),
+		testutils.CreateNameTupleWithSourceName("inventory.period_table", "inventory", constants.YUGABYTEDB),
+	}
+
 	// Get the underlying YugabyteDB instance to access private method
 	ybDB := testYugabyteDBSource.DB().(*YugabyteDB)
+	ybDB.source.IsYBGrpcConnector = true
 	actualUDTs := ybDB.filterUnsupportedUserDefinedDatatypes(tableList)
 
 	// Expected: Only composite types (typtype='c'), NOT enums or domains
@@ -521,10 +558,38 @@ func TestYugabyteFilterUnsupportedUserDefinedDatatypes(t *testing.T) {
 		"Expected %d UDTs but got %d", len(expectedUDTs), len(actualUDTs))
 	testutils.AssertEqualStringSlices(t, expectedUDTs, actualUDTs)
 
+	actualUDTsWithRanges := ybDB.filterUnsupportedUserDefinedDatatypes(append(tableList, tableListWithRanges...))
+	expectedUDTsWithRanges := []string{
+		"hr.contact",
+		"inventory.device_specs",
+		"inventory.active_ts_range",
+		"public.discount_range",
+		"hr.period_range",
+	}
+	assert.Equal(t, len(expectedUDTsWithRanges), len(actualUDTsWithRanges),
+		"Expected %d UDTs but got %d", len(expectedUDTsWithRanges), len(actualUDTsWithRanges))
+	testutils.AssertEqualStringSlices(t, expectedUDTsWithRanges, actualUDTsWithRanges)
+
 	// Test edge case: Empty table list
 	emptyTableList := []sqlname.NameTuple{}
 	actualEmptyUDTs := ybDB.filterUnsupportedUserDefinedDatatypes(emptyTableList)
 	assert.Equal(t, 0, len(actualEmptyUDTs), "Expected empty list for empty table list")
+
+	ybDB.source.IsYBGrpcConnector = false
+	actualUDTs = ybDB.filterUnsupportedUserDefinedDatatypes(tableList)
+	assert.Equal(t, 0, len(actualUDTs), "Expected empty list for empty table list")
+
+	actualUDTsWithRanges = ybDB.filterUnsupportedUserDefinedDatatypes(append(tableList, tableListWithRanges...))
+	expectedRangesUDTs := []string{
+		"inventory.active_ts_range",
+		"public.discount_range",
+		"hr.period_range",
+	}
+	assert.Equal(t, len(expectedRangesUDTs), len(actualUDTsWithRanges),
+		"Expected %d UDTs but got %d", len(expectedRangesUDTs), len(actualUDTsWithRanges))
+	testutils.AssertEqualStringSlices(t, expectedRangesUDTs, actualUDTsWithRanges)
+
+
 }
 
 // TestYugabyteGetColumnsWithSupportedTypes_AllScenarios tests:
