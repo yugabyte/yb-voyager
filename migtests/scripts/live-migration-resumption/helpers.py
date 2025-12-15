@@ -242,8 +242,8 @@ def spawn(cmd: list[str], env: Dict[str, str]) -> subprocess.Popen:
     proc = subprocess.Popen(
         cmd,
         env=env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
         text=True,
     )
 
@@ -253,14 +253,15 @@ def spawn(cmd: list[str], env: Dict[str, str]) -> subprocess.Popen:
     time.sleep(startup_wait_seconds)
 
     if proc.poll() is not None and proc.returncode != 0:
+        stderr_text = ""
         try:
-            out, _ = proc.communicate(timeout=5)
+            _, stderr_text = proc.communicate(timeout=5)
         except Exception:
-            out = ""
+            pass
         raise RuntimeError(
             f"Command failed to start: {_cmd_str(cmd)}\n"
             f"Exit: {proc.returncode}\n"
-            f"STDOUT/STDERR:\n{out}"
+            f"STDERR:\n{stderr_text}"
         )
 
     return proc

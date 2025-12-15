@@ -8,6 +8,29 @@ env:
 export_dir: ./export-dir
 artifacts_dir: ./artifacts
 
+source:
+  type: postgresql
+  host: 127.0.0.1
+  port: 5432
+  database: test_db
+  user: ybvoyager
+  password: Test@123#$%^&*()!
+  schema: public
+  admin:
+    user: postgres
+    password: postgres
+
+target:
+  type: yugabytedb
+  host: 127.0.0.1
+  port: 5433
+  database: test_db
+  user: ybvoyager
+  password: Test@123#$%^&*()!
+  admin:
+    user: yugabyte
+    password: yugabyte
+
 generator:
   config_inline:
     connection:
@@ -42,29 +65,6 @@ voyager:
     flags:
       start-clean: true
 
-source:
-  type: postgresql
-  host: 127.0.0.1
-  port: 5432
-  database: test_db
-  user: ybvoyager
-  password: Test@123#$%^&*()!
-  schema: public
-  admin:
-    user: postgres
-    password: postgres
-
-target:
-  type: yugabytedb
-  host: 127.0.0.1
-  port: 5433
-  database: test_db
-  user: ybvoyager
-  password: Test@123#$%^&*()!
-  admin:
-    user: yugabyte
-    password: yugabyte
-
 stages:
 
   - name: create_source_and_target_dbs
@@ -73,7 +73,7 @@ stages:
 
   - name: create_source_schema
     action: run_sql
-    sql_path: ./init.sql
+    sql_path: ../common-sql/init.sql
     use_admin: true
 
   - name: grant_source_permissions
@@ -134,12 +134,12 @@ stages:
   - name: insert_backlog_marker
     action: run_sql
     target: source
-    sql_path: ./insert_marker.sql
+    sql_path: ../common-sql/insert_marker.sql
 
   - name: wait_backlog_zero
     action: wait_for
     condition: remaining_events_eq_0
-    timeout_sec: 1200
+    timeout_sec: 60
 
   - name: stop_export_resumptions
     action: voyager_stop_resumptions
@@ -157,7 +157,7 @@ stages:
   - name: wait_cutover_completed
     action: wait_for
     condition: cutover_to_target_status_completed
-    timeout_sec: 900
+    timeout_sec: 60
 
   - name: row_count_validations
     action: row_count_validations
@@ -167,8 +167,8 @@ stages:
 
   - name: cleanup_source
     action: run_sql
-    sql_path: ./cleanup.sql
+    sql_path: ../common-sql/cleanup.sql
   - name: cleanup_target
     action: run_sql
     target: target
-    sql_path: ./cleanup.sql
+    sql_path: ../common-sql/cleanup.sql

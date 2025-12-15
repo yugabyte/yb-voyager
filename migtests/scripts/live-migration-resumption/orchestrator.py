@@ -39,7 +39,7 @@ def run_sql_action(stage: Dict[str, Any], ctx: Any) -> None:
     target = stage.get("target", "source")
     use_admin = bool(stage.get("use_admin"))
     if not sql_path:
-        return
+        raise ValueError("run_sql action requires non-empty 'sql_path'")
     # Resolve relative to test_root if provided
     if ctx.test_root and not os.path.isabs(sql_path):
         sql_path = os.path.join(ctx.test_root, sql_path)

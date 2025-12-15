@@ -8,6 +8,41 @@ env:
 export_dir: ./export-dir
 artifacts_dir: ./artifacts
 
+source:
+  type: postgresql
+  host: 127.0.0.1
+  port: 5432
+  database: test_db
+  user: ybvoyager
+  password: Test@123#$%^&*()!
+  schema: public
+  admin:
+    user: postgres
+    password: postgres
+
+target:
+  type: yugabytedb
+  host: 127.0.0.1
+  port: 5433
+  database: test_db
+  user: ybvoyager
+  password: Test@123#$%^&*()!
+  admin:
+    user: yugabyte
+    password: yugabyte
+
+source_replica:
+  type: postgresql
+  host: 127.0.0.1
+  port: 5432
+  database: ff_db
+  user: postgres
+  password: postgres
+  schema: public
+  admin:
+    user: postgres
+    password: postgres
+
 # Forward (source) event generator configuration.
 generator_source:
   config_inline:
@@ -68,41 +103,6 @@ voyager:
     flags:
       start-clean: true
 
-source:
-  type: postgresql
-  host: 127.0.0.1
-  port: 5432
-  database: test_db
-  user: ybvoyager
-  password: Test@123#$%^&*()!
-  schema: public
-  admin:
-    user: postgres
-    password: postgres
-
-target:
-  type: yugabytedb
-  host: 127.0.0.1
-  port: 5433
-  database: test_db
-  user: ybvoyager
-  password: Test@123#$%^&*()!
-  admin:
-    user: yugabyte
-    password: yugabyte
-
-source_replica:
-  type: postgresql
-  host: 127.0.0.1
-  port: 5432
-  database: ff_db
-  user: postgres
-  password: postgres
-  schema: public
-  admin:
-    user: postgres
-    password: postgres
-
 stages:
   # Phase 1: forward live migration (no resumptions)
   - name: create_source_target_and_replica_dbs
@@ -111,12 +111,12 @@ stages:
 
   - name: create_source_schema
     action: run_sql
-    sql_path: ../forward-migration/basic-live-migration-test/init.sql
+    sql_path: ../common-sql/init.sql
     use_admin: true
 
   - name: create_source_replica_schema
     action: run_sql
-    sql_path: ../forward-migration/basic-live-migration-test/init.sql
+    sql_path: ../common-sql/init.sql
     use_admin: true
     target: source_replica
 
@@ -173,12 +173,12 @@ stages:
   - name: insert_backlog_marker
     action: run_sql
     target: source
-    sql_path: ../forward-migration/basic-live-migration-test/insert_marker.sql
+    sql_path: ../common-sql/insert_marker.sql
 
   - name: wait_backlog_zero
     action: wait_for
     condition: remaining_events_eq_0
-    timeout_sec: 1200
+    timeout_sec: 60
 
   - name: cutover_to_target
     action: cutover_to_target
@@ -229,7 +229,7 @@ stages:
   - name: insert_backlog_marker_on_target
     action: run_sql
     target: target
-    sql_path: ../forward-migration/basic-live-migration-test/insert_marker.sql
+    sql_path: ../common-sql/insert_marker.sql
 
   - name: wait_backlog_zero_after_fallback
     action: wait_for
@@ -267,14 +267,14 @@ stages:
 
   - name: cleanup_source
     action: run_sql
-    sql_path: ../forward-migration/basic-live-migration-test/cleanup.sql
+    sql_path: ../common-sql/cleanup.sql
 
   - name: cleanup_target
     action: run_sql
     target: target
-    sql_path: ../forward-migration/basic-live-migration-test/cleanup.sql
+    sql_path: ../common-sql/cleanup.sql
 
   - name: cleanup_source_replica
     action: run_sql
-    sql_path: ../forward-migration/basic-live-migration-test/cleanup.sql
+    sql_path: ../common-sql/cleanup.sql
     target: source_replica

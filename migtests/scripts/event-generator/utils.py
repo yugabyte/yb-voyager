@@ -710,7 +710,7 @@ def build_sampling_condition(
     est = estimated_row_count if estimated_row_count and estimated_row_count > 0 else DEFAULT_ROW_ESTIMATE
 
     # Derive sampling probability p from desired rows and estimated row count.
-    p = float(target_row_count) / float(est)
+    p = min(1.0, float(target_row_count) / float(est))
 
     where_clause = (
         f"{primary_key} IN ("

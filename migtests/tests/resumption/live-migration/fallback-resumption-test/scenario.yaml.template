@@ -8,6 +8,29 @@ env:
 export_dir: ./export-dir
 artifacts_dir: ./artifacts
 
+source:
+  type: postgresql
+  host: 127.0.0.1
+  port: 5432
+  database: test_db
+  user: ybvoyager
+  password: Test@123#$%^&*()!
+  schema: public
+  admin:
+    user: postgres
+    password: postgres
+
+target:
+  type: yugabytedb
+  host: ${TARGET_DB_HOST}
+  port: ${TARGET_DB_PORT}
+  database: test_db
+  user: ${TARGET_DB_USER}
+  password: ${TARGET_DB_PASSWORD}
+  admin:
+    user: ${TARGET_DB_ADMIN_USER}
+    password: ${TARGET_DB_ADMIN_PASSWORD}
+
 # Forward (source) event generator configuration.
 generator_source:
   config_inline:
@@ -71,29 +94,6 @@ voyager:
     flags:
       start-clean: true
 
-source:
-  type: postgresql
-  host: 127.0.0.1
-  port: 5432
-  database: test_db
-  user: ybvoyager
-  password: Test@123#$%^&*()!
-  schema: public
-  admin:
-    user: postgres
-    password: postgres
-
-target:
-  type: yugabytedb
-  host: ${TARGET_DB_HOST}
-  port: ${TARGET_DB_PORT}
-  database: test_db
-  user: ${TARGET_DB_USER}
-  password: ${TARGET_DB_PASSWORD}
-  admin:
-    user: ${TARGET_DB_ADMIN_USER}
-    password: ${TARGET_DB_ADMIN_PASSWORD}
-
 stages:
   # Phase 1: forward live migration (no resumptions)
   - name: create_source_and_target_dbs
@@ -102,7 +102,7 @@ stages:
 
   - name: create_source_schema
     action: run_sql
-    sql_path: ../forward-migration/basic-live-migration-test/init.sql
+    sql_path: ../common-sql/init.sql
     use_admin: true
 
   - name: grant_source_permissions
@@ -121,7 +121,7 @@ stages:
 
   - name: load_snapshot
     action: sleep
-    seconds: 60
+    seconds: 120
 
   - name: start_exporter
     action: voyager_export_start
@@ -136,7 +136,7 @@ stages:
 
   - name: small_sleep_for_some_events_to_be_generated
     action: sleep
-    seconds: 10
+    seconds: 30
 
   - name: stop_event_generator
     action: generator_stop
@@ -146,7 +146,7 @@ stages:
   - name: insert_backlog_marker
     action: run_sql
     target: source
-    sql_path: ../forward-migration/basic-live-migration-test/insert_marker.sql
+    sql_path: ../common-sql/insert_marker.sql
 
   - name: wait_backlog_zero
     action: wait_for
@@ -194,7 +194,7 @@ stages:
     action: start_resumptions
     resumption:
       export_from_target:
-        max_restarts: 25
+        max_restarts: 100
         min_interrupt_seconds: 15
         max_interrupt_seconds: 60
         min_restart_wait_seconds: 5
@@ -204,7 +204,7 @@ stages:
     action: start_resumptions
     resumption:
       import_to_source:
-        max_restarts: 25
+        max_restarts: 100
         min_interrupt_seconds: 15
         max_interrupt_seconds: 60
         min_restart_wait_seconds: 5
@@ -212,7 +212,7 @@ stages:
 
   - name: soak_fallback_with_resumptions
     action: sleep
-    seconds: 1800
+    seconds: 3000
 
   - name: stop_target_event_generator
     action: generator_stop
@@ -225,7 +225,7 @@ stages:
   - name: insert_backlog_marker_on_target
     action: run_sql
     target: target
-    sql_path: ../forward-migration/basic-live-migration-test/insert_marker.sql
+    sql_path: ../common-sql/insert_marker.sql
 
   - name: wait_backlog_zero_after_fallback
     action: wait_for
@@ -259,10 +259,10 @@ stages:
 
   - name: cleanup_source
     action: run_sql
-    sql_path: ../forward-migration/basic-live-migration-test/cleanup.sql
+    sql_path: ../common-sql/cleanup.sql
 
   - name: cleanup_target
     action: run_sql
     target: target
-    sql_path: ../forward-migration/basic-live-migration-test/cleanup.sql
+    sql_path: ../common-sql/cleanup.sql
 
