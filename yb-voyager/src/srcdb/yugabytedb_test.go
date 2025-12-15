@@ -690,11 +690,10 @@ func TestYugabyteGetColumnsWithSupportedTypes_AllScenarios(t *testing.T) {
 		devicesTable := tableList[1]
 		supported, exists = supportedCols.Get(devicesTable)
 		assert.Equal(t, true, exists, "Expected hr.employee_devices in supported map")
-		testutils.AssertEqualStringSlices(t, []string{"employee_id", "device_name", "settings", "status", "notes"}, supported)
+		testutils.AssertEqualStringSlices(t, []string{"*"}, supported)
 
-		unsupported, exists := unsupportedCols.Get(devicesTable)
-		assert.Equal(t, true, exists, "Expected hr.employee_devices in unsupported map")
-		testutils.AssertEqualStringSlices(t, []string{"contact_info", "device_details"}, unsupported) // both UDTs
+		_, exists = unsupportedCols.Get(devicesTable)
+		assert.Equal(t, false, exists, "Expected hr.employee_devices NOT in unsupported map")
 
 		// Case 3: SearchTable (mixed case) - TSVECTOR is SUPPORTED in logical mode, tests case sensitivity
 		searchTable := tableList[2]
