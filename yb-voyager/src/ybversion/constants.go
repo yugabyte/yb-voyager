@@ -24,6 +24,7 @@ const (
 	SERIES_2024_1 = "2024.1"
 	SERIES_2024_2 = "2024.2"
 	SERIES_2025_1 = "2025.1"
+	SERIES_2025_2 = "2025.2"
 	SERIES_2_21   = "2.21"
 	SERIES_2_23   = "2.23"
 	SERIES_2_25   = "2.25"
@@ -42,6 +43,7 @@ var V2024_2_3_0 *YBVersion
 var V2024_2_3_1 *YBVersion
 var V2024_2_4_0 *YBVersion
 var V2025_1_0_0 *YBVersion
+var V2025_2_0_0 *YBVersion
 var V2_23_0_0 *YBVersion
 var V2025_1_1_1 *YBVersion
 var V2_25_0_0 *YBVersion
@@ -113,6 +115,11 @@ func init() {
 	V2025_1_0_0, err = NewYBVersion("2025.1.0.0")
 	if err != nil {
 		panic("could not create version 2025.1.0.0")
+	}
+
+	V2025_2_0_0, err = NewYBVersion("2025.2.0.0")
+	if err != nil {
+		panic("could not create version 2025.2.0.0")
 	}
 
 	// Whenever latest_stable version is updated in yb-versions.json, it will be reflected here as well.

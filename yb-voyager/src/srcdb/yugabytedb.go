@@ -25,6 +25,7 @@ import (
 	"strings"
 	"time"
 
+	goerrors "github.com/go-errors/errors"
 	"github.com/google/uuid"
 	"github.com/jackc/pglogrepl"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -1041,14 +1042,16 @@ UNION
 SELECT table_schema, table_name, column_name FROM unique_indexes;
 `
 
-func (yb *YugabyteDB) GetTableToUniqueKeyColumnsMap(tableList []sqlname.NameTuple) (map[string][]string, error) {
+func (yb *YugabyteDB) GetTableToUniqueKeyColumnsMap(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
 	log.Infof("getting unique key columns for tables: %v", tableList)
-	result := make(map[string][]string)
+	result := utils.NewStructMap[sqlname.NameTuple, []string]()
 	var querySchemaList, queryTableList []string
+	tableStrToNameTupleMap := make(map[string]sqlname.NameTuple)
 	for i := 0; i < len(tableList); i++ {
 		sname, tname := tableList[i].ForCatalogQuery()
 		querySchemaList = append(querySchemaList, sname)
 		queryTableList = append(queryTableList, tname)
+		tableStrToNameTupleMap[tableList[i].AsQualifiedCatalogName()] = tableList[i]
 	}
 
 	querySchemaList = lo.Uniq(querySchemaList)
@@ -1072,10 +1075,17 @@ func (yb *YugabyteDB) GetTableToUniqueKeyColumnsMap(tableList []sqlname.NameTupl
 		if err != nil {
 			return nil, fmt.Errorf("scanning row for unique key column name: %w", err)
 		}
-		if schemaName != "public" {
-			tableName = fmt.Sprintf("%s.%s", schemaName, tableName)
+		tableName = fmt.Sprintf("%s.%s", schemaName, tableName)
+		tableNameTuple, ok := tableStrToNameTupleMap[tableName]
+		if !ok {
+			return nil, goerrors.Errorf("table %s not found in table list", tableName)
 		}
-		result[tableName] = append(result[tableName], colName)
+		cols, ok := result.Get(tableNameTuple)
+		if !ok {
+			cols = []string{}
+		}
+		cols = append(cols, colName)
+		result.Put(tableNameTuple, cols)
 	}
 
 	err = rows.Err()

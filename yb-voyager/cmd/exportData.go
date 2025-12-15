@@ -29,10 +29,9 @@ import (
 	"syscall"
 	"time"
 
-	goerrors "github.com/go-errors/errors"
-
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/color"
+	goerrors "github.com/go-errors/errors"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -321,11 +320,10 @@ func exportData() bool {
 		utils.ErrExit("get migration status record: %w", err)
 	}
 
-	leafPartitions := utils.NewStructMap[sqlname.NameTuple, []string]()
+	leafPartitions := utils.NewStructMap[sqlname.NameTuple, []sqlname.NameTuple]()
 	tableListTuplesToDisplay := lo.Map(finalTableList, func(table sqlname.NameTuple, _ int) sqlname.NameTuple {
 		renamedTable, isRenamed := renameTableIfRequired(table.ForOutput())
 		if isRenamed {
-			t := table.ForOutput()
 			//Fine to lookup directly as this will root table in case of partitions
 			tuple, err := namereg.NameReg.LookupTableName(renamedTable)
 			if err != nil {
@@ -333,11 +331,11 @@ func exportData() bool {
 			}
 			currPartitions, ok := leafPartitions.Get(tuple)
 			if !ok {
-				var partitions []string
-				partitions = append(partitions, t)
+				var partitions []sqlname.NameTuple
+				partitions = append(partitions, table)
 				leafPartitions.Put(tuple, partitions)
 			} else {
-				currPartitions = append(currPartitions, t)
+				currPartitions = append(currPartitions, table)
 				leafPartitions.Put(tuple, currPartitions)
 			}
 			return tuple
@@ -352,7 +350,9 @@ func exportData() bool {
 	tableListToDisplay := lo.Map(tableListTuplesToDisplay, func(table sqlname.NameTuple, _ int) string {
 		partitions, ok := leafPartitions.Get(table)
 		if slices.Contains([]string{POSTGRESQL, YUGABYTEDB}, source.DBType) && ok && msr.IsExportTableListSet {
-			partitions := strings.Join(partitions, ", ")
+			partitions := strings.Join(lo.Map(partitions, func(partition sqlname.NameTuple, _ int) string {
+				return partition.ForOutput()
+			}), ", ")
 			return fmt.Sprintf("%s (%s)", table.ForOutput(), partitions)
 		}
 		return table.ForOutput()
@@ -374,7 +374,7 @@ func exportData() bool {
 			log.Errorf("Failed to prepare dbzm config: %v", err)
 			return false
 		}
-		saveTableToUniqueKeyColumnsMapInMetaDB(finalTableList)
+		saveTableToUniqueKeyColumnsMapInMetaDB(finalTableList, leafPartitions)
 		if source.DBType == POSTGRESQL && changeStreamingIsEnabled(exportType) {
 			// pg live migration. Steps are as follows:
 			// 1. create publication, replication slot.
@@ -705,7 +705,7 @@ func checkIfReplicationSlotIsActive(replicationSlot string) (bool, error) {
 	return isActive && (activePID.String != ""), nil
 }
 
-func exportPGSnapshotWithPGdump(ctx context.Context, cancel context.CancelFunc, finalTableList []sqlname.NameTuple, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], leafPartitions *utils.StructMap[sqlname.NameTuple, []string]) error {
+func exportPGSnapshotWithPGdump(ctx context.Context, cancel context.CancelFunc, finalTableList []sqlname.NameTuple, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], leafPartitions *utils.StructMap[sqlname.NameTuple, []sqlname.NameTuple]) error {
 	// create replication slot
 	pgDB := source.DB().(*srcdb.PostgreSQL)
 	replicationConn, err := pgDB.GetReplicationConnection()
@@ -1782,16 +1782,54 @@ func createUpdateExportedRowCountEventList(tableNames []string) []*cp.UpdateExpo
 	return result
 }
 
-func saveTableToUniqueKeyColumnsMapInMetaDB(tableList []sqlname.NameTuple) {
+func saveTableToUniqueKeyColumnsMapInMetaDB(tableList []sqlname.NameTuple, leafPartitions *utils.StructMap[sqlname.NameTuple, []sqlname.NameTuple]) {
 	res, err := source.DB().GetTableToUniqueKeyColumnsMap(tableList)
 	if err != nil {
 		utils.ErrExit("get table to unique key columns map: %w", err)
 	}
 
+	if res == nil {
+		log.Infof("no table to unique key columns map found, saving nil to metaDB")
+		key := fmt.Sprintf("%s_%s", metadb.TABLE_TO_UNIQUE_KEY_COLUMNS_KEY, exporterRole)
+		err = metadb.UpdateJsonObjectInMetaDB(metaDB, key, func(record *map[string][]string) {
+			*record = nil
+		})
+		if err != nil {
+			utils.ErrExit("insert table to unique key columns map: %w", err)
+		}
+		return
+	}
+
+
+	//Adding all the leaf partitions unique key columns to the root table unique key columns since in the importer all the events only have the root table name
+	leafPartitions.IterKV(func(rootTable sqlname.NameTuple, value []sqlname.NameTuple) (bool, error) {
+		for _, leafTable := range value {
+			leafUniqueColumns, ok := res.Get(leafTable)
+			if !ok {
+				continue
+			}
+			//Do not add leaf table key in the map since this config will be read by importer
+			res.Delete(leafTable)
+			rootUniqueColumns, ok := res.Get(rootTable)
+			if !ok {
+				rootUniqueColumns = []string{}
+			}
+			rootUniqueColumns = append(rootUniqueColumns, leafUniqueColumns...)
+			res.Put(rootTable, lo.Uniq(rootUniqueColumns))
+		}
+		return true, nil
+	})
+
+	metaDbData := make(map[string][]string)
+	res.IterKV(func(k sqlname.NameTuple, v []string) (bool, error) {
+		metaDbData[k.AsQualifiedCatalogName()] = v
+		return true, nil
+	})
+
 	log.Infof("updating metaDB with table to unique key columns map: %v", res)
 	key := fmt.Sprintf("%s_%s", metadb.TABLE_TO_UNIQUE_KEY_COLUMNS_KEY, exporterRole)
 	err = metadb.UpdateJsonObjectInMetaDB(metaDB, key, func(record *map[string][]string) {
-		*record = res
+		*record = metaDbData
 	})
 	if err != nil {
 		utils.ErrExit("insert table to unique key columns map: %w", err)

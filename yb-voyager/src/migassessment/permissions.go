@@ -162,7 +162,7 @@ func checkPermissionsOnReplicaNode(source *srcdb.Source, replica srcdb.ReplicaEn
 	err := replicaDB.Connect()
 	if err != nil {
 		return NodePermissionResult{
-			NodeName:         replica.Name,
+			NodeName:         fmt.Sprintf("%s:%d", replica.Host, replica.Port),
 			IsPrimary:        false,
 			ConnectionFailed: true,
 			Error:            fmt.Errorf("failed to connect: %w", err),
@@ -173,7 +173,7 @@ func checkPermissionsOnReplicaNode(source *srcdb.Source, replica srcdb.ReplicaEn
 	replicaDB.Disconnect()
 
 	return NodePermissionResult{
-		NodeName:         replica.Name,
+		NodeName:         fmt.Sprintf("%s:%d", replica.Host, replica.Port),
 		IsPrimary:        false,
 		MissingPerms:     missingPerms,
 		PgssEnabled:      pgssEnabled,
@@ -189,32 +189,43 @@ func displayPermissionCheckResults(results []NodePermissionResult) error {
 
 	utils.PrintAndLogfPhase("\n=== Permission Check Results ===\n")
 
+	// Only use "Primary" / "Replica" labels if there are multiple nodes
+	hasMultipleNodes := len(results) > 1
+
 	replicaCounter := 1
 	for _, result := range results {
-		// Format node display name
+		// Format node display name (only for multi-node scenarios)
 		var displayName string
-		if result.IsPrimary {
-			displayName = "Primary"
-		} else {
-			displayName = fmt.Sprintf("Replica %d (%s)", replicaCounter, result.NodeName)
-			replicaCounter++
+		if hasMultipleNodes {
+			if result.IsPrimary {
+				displayName = "Primary"
+			} else {
+				displayName = fmt.Sprintf("Replica %d (%s)", replicaCounter, result.NodeName)
+				replicaCounter++
+			}
 		}
 
 		if result.ConnectionFailed {
-			utils.PrintAndLogfError("\n%s:", displayName)
+			if hasMultipleNodes {
+				utils.PrintAndLogfError("\n%s:", displayName)
+			}
 			utils.PrintAndLogfError("  ✗ Connection failed: %v", result.Error)
 			continue
 		}
 
 		// Handle other errors during permission checks (non-connection errors)
 		if result.Error != nil {
-			utils.PrintAndLogfError("\n%s:", displayName)
+			if hasMultipleNodes {
+				utils.PrintAndLogfError("\n%s:", displayName)
+			}
 			utils.PrintAndLogfError("  ✗ Permission check failed: %v", result.Error)
 			continue
 		}
 
 		if len(result.MissingPerms) > 0 {
-			utils.PrintAndLogf("\n%s:", displayName)
+			if hasMultipleNodes {
+				utils.PrintAndLogf("\n%s:", displayName)
+			}
 			for _, perm := range result.MissingPerms {
 				utils.PrintAndLogfWarning("  ⚠ %s", strings.TrimSpace(perm))
 			}
@@ -225,7 +236,9 @@ func displayPermissionCheckResults(results []NodePermissionResult) error {
 			}
 		} else {
 			// No permission issues - show success
-			utils.PrintAndLogf("\n%s:", displayName)
+			if hasMultipleNodes {
+				utils.PrintAndLogf("\n%s:", displayName)
+			}
 			utils.PrintAndLogfSuccess("  ✓ All required permissions present")
 
 			// Show pg_stat_statements status separately only when there are no other permission issues

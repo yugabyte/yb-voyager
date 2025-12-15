@@ -50,7 +50,7 @@ type SourceDB interface {
 	GetAllSequences() []string
 	GetServers() []string
 	GetPartitions(table sqlname.NameTuple) []string
-	GetTableToUniqueKeyColumnsMap(tableList []sqlname.NameTuple) (map[string][]string, error)
+	GetTableToUniqueKeyColumnsMap(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error)
 	ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error
 	GetNonPKTables() ([]string, error)
 	GetDatabaseSize() (int64, error)
