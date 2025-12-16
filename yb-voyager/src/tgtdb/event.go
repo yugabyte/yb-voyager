@@ -24,6 +24,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/samber/lo"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -219,6 +220,15 @@ func (event *Event) GetPreparedStmtName() string {
 	ps.WriteString(event.TableNameTup.ForUserQuery())
 	ps.WriteString("_")
 	ps.WriteString(event.Op)
+	ps.WriteString("_by_")
+	//just to save on characters using source/target identifier of the respective exporter for the name as the identifier 
+	// limit in PG is 63 chars https://www.postgresql.org/docs/17/limits.html
+	switch event.ExporterRole {
+	case constants.SOURCE_DB_EXPORTER_ROLE:
+		ps.WriteString("source")
+	case constants.TARGET_DB_EXPORTER_FF_ROLE, constants.TARGET_DB_EXPORTER_FB_ROLE:
+		ps.WriteString("target")
+	}
 	if event.Op == "u" {
 		keys := strings.Join(utils.GetMapKeysSorted(event.Fields), ",")
 		ps.WriteString(":")
