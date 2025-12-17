@@ -1779,7 +1779,7 @@ func PackAndSendCallhomePayloadOnExit() {
 
 	switch currentCommand {
 	case assessMigrationCmd.CommandPath():
-		packAndSendAssessMigrationPayload(status, exitErr, replicaDiscoveryInfoForCallhome)
+		packAndSendAssessMigrationPayload(status, exitErr)
 	case assessMigrationBulkCmd.CommandPath():
 		packAndSendAssessMigrationBulkPayload(status, exitErr)
 	case exportSchemaCmd.CommandPath():

@@ -118,7 +118,7 @@ var assessMigrationCmd = &cobra.Command{
 		if err != nil {
 			utils.ErrExit("%w", err)
 		}
-		packAndSendAssessMigrationPayload(COMPLETE, nil, replicaDiscoveryInfoForCallhome)
+		packAndSendAssessMigrationPayload(COMPLETE, nil)
 	},
 }
 
