@@ -81,14 +81,15 @@ func Test_AssessMigration(t *testing.T) {
 
 	doDuringCmd := func() {
 		log.Infof("Performing sequential reads on the table")
-		// sequential reads on the table
+		// sequential reads on the table with delay to ensure IOPS capture window overlaps
 		postgresContainer.ExecuteSqls(`
 DO $$ 
 DECLARE i INT;
 BEGIN
-	FOR i IN 1..100 LOOP
+	FOR i IN 1..200 LOOP
 		PERFORM COUNT(*) FROM test_schema.test_data;
 		PERFORM COUNT(*) FROM test_schema.test_data2;
+		PERFORM pg_sleep(0.05); -- Small delay to spread queries over time
 	END LOOP;
 END $$;`)
 		if err != nil {
@@ -154,7 +155,7 @@ END $$;`)
 	// running the command
 	_, err = testutils.RunVoyagerCommand(postgresContainer, "assess-migration", []string{
 		"--source-db-schema", "test_schema", // overriding the flag value
-		"--iops-capture-interval", "10",
+		"--iops-capture-interval", "20",     // Increased for better test reliability
 		"--export-dir", exportDir,
 		"--yes",
 	}, doDuringCmd, false)

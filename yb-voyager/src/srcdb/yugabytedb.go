@@ -25,6 +25,7 @@ import (
 	"strings"
 	"time"
 
+	goerrors "github.com/go-errors/errors"
 	"github.com/google/uuid"
 	"github.com/jackc/pglogrepl"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -40,7 +41,11 @@ import (
 // Apart from these we also skip UDT columns. Array of enums, hstore, and tsvector are supported with logical connector (default).
 var YugabyteUnsupportedDataTypesForDbzmLogical = []string{"BOX", "CIRCLE", "LINE", "LSEG", "PATH", "PG_LSN", "POINT", "POLYGON", "TSQUERY", "TXID_SNAPSHOT", "GEOMETRY", "GEOGRAPHY", "RASTER"}
 
-var YugabyteUnsupportedDataTypesForDbzmGrpc = []string{"BOX", "CIRCLE", "LINE", "LSEG", "PATH", "PG_LSN", "POINT", "POLYGON", "TSQUERY", "TSVECTOR", "TXID_SNAPSHOT", "GEOMETRY", "GEOGRAPHY", "RASTER", "HSTORE"}
+
+//For the gRPC connector - datatypes like HSTORE/CITEXT/LTREE that are available by extensions, are not supported and the table of these needs to be skipped for the migration with grpc connector
+//but right now we are only skipping columns of that table and if there are DML on those tables the gRPC connector will error out. 
+// TODO to handle that
+var YugabyteUnsupportedDataTypesForDbzmGrpc = []string{"BOX", "CIRCLE", "LINE", "LSEG", "PATH", "PG_LSN", "POINT", "POLYGON", "TSQUERY", "TSVECTOR", "TXID_SNAPSHOT", "GEOMETRY", "GEOGRAPHY", "RASTER", "HSTORE", "CITEXT", "LTREE"}
 
 func GetYugabyteUnsupportedDatatypesDbzm(isGRPCConnector bool) []string {
 	if isGRPCConnector {
@@ -1037,14 +1042,16 @@ UNION
 SELECT table_schema, table_name, column_name FROM unique_indexes;
 `
 
-func (yb *YugabyteDB) GetTableToUniqueKeyColumnsMap(tableList []sqlname.NameTuple) (map[string][]string, error) {
+func (yb *YugabyteDB) GetTableToUniqueKeyColumnsMap(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
 	log.Infof("getting unique key columns for tables: %v", tableList)
-	result := make(map[string][]string)
+	result := utils.NewStructMap[sqlname.NameTuple, []string]()
 	var querySchemaList, queryTableList []string
+	tableStrToNameTupleMap := make(map[string]sqlname.NameTuple)
 	for i := 0; i < len(tableList); i++ {
 		sname, tname := tableList[i].ForCatalogQuery()
 		querySchemaList = append(querySchemaList, sname)
 		queryTableList = append(queryTableList, tname)
+		tableStrToNameTupleMap[tableList[i].AsQualifiedCatalogName()] = tableList[i]
 	}
 
 	querySchemaList = lo.Uniq(querySchemaList)
@@ -1068,10 +1075,17 @@ func (yb *YugabyteDB) GetTableToUniqueKeyColumnsMap(tableList []sqlname.NameTupl
 		if err != nil {
 			return nil, fmt.Errorf("scanning row for unique key column name: %w", err)
 		}
-		if schemaName != "public" {
-			tableName = fmt.Sprintf("%s.%s", schemaName, tableName)
+		tableName = fmt.Sprintf("%s.%s", schemaName, tableName)
+		tableNameTuple, ok := tableStrToNameTupleMap[tableName]
+		if !ok {
+			return nil, goerrors.Errorf("table %s not found in table list", tableName)
 		}
-		result[tableName] = append(result[tableName], colName)
+		cols, ok := result.Get(tableNameTuple)
+		if !ok {
+			cols = []string{}
+		}
+		cols = append(cols, colName)
+		result.Put(tableNameTuple, cols)
 	}
 
 	err = rows.Err()
