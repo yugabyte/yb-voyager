@@ -2228,42 +2228,56 @@ func (yb *TargetYugabyteDB) NumOfLogicalReplicationSlots() (int64, error) {
 	return numOfSlots, nil
 }
 
-func (yb *TargetYugabyteDB) GetTablesHavingExpressionUniqueIndexes(tableNames []sqlname.NameTuple) ([]sqlname.NameTuple, error) {
-	tableNamesStr := strings.Join(lo.Map(tableNames, func(t sqlname.NameTuple, _ int) string {
-		schema, table := t.ForCatalogQuery()
-		return fmt.Sprintf("('%s','%s')", schema, table)
-	}), ",")
+// Function returns the table out of tableNames having the expression unique indexes
+// if returnPartitionRootTable is true, it will also check for the partitions of the partitioned table in tableNames and return the root table of the partition having expression unique indexes
+// else it will check for the tables in TableNames that have normal tables and root tables having expression unique indexes
+func (yb *TargetYugabyteDB) GetTablesHavingExpressionUniqueIndexes(tableNames []sqlname.NameTuple, returnPartitionRootTable bool) ([]sqlname.NameTuple, error) {
+	log.Infof("getting leaf table to root table map")
+	//returns a map of catalog leaf table name to catalog root table name
+	leafTableToRootTableMap, err := yb.getPartitionTableToRootTableMap(tableNames)
+	if err != nil {
+		return nil, fmt.Errorf("error getting leaf table to root table map: %w", err)
+	}
+	log.Infof("leaf table to root table map: %v", leafTableToRootTableMap)
 
 	tableCatalogNameToTuple := make(map[string]sqlname.NameTuple)
 	for _, t := range tableNames {
 		tableCatalogNameToTuple[t.AsQualifiedCatalogName()] = t
 	}
 
+	catalogTableNames := make([]string, 0)
+	catalogTableNames = append(catalogTableNames, lo.Keys(tableCatalogNameToTuple)...) //all normal tables/root tables
+	if returnPartitionRootTable {
+		catalogTableNames = append(catalogTableNames, lo.Keys(leafTableToRootTableMap)...) //all partitions
+	}
+	catalogTableNames = lo.Uniq(catalogTableNames) //remove duplicates
+
+	tableNamesStr := strings.Join(lo.Map(catalogTableNames, func(table string, _ int) string {
+		return fmt.Sprintf("('%s')", table)
+	}), ",")
+
 	query := fmt.Sprintf(`
-SELECT 
-    n.nspname AS schema_name,
+SELECT
+    n.nspname AS table_schema,
     t.relname AS table_name,
     i.relname AS index_name,
-	COALESCE(pg_get_expr(idx.indexprs, idx.indrelid), '') AS expression
-FROM pg_class i
-JOIN pg_index idx ON i.oid = idx.indexrelid
-JOIN pg_class t ON idx.indrelid = t.oid
-JOIN pg_namespace n ON t.relnamespace = n.oid
-WHERE i.relkind = 'i'
-  AND indisunique
-  AND idx.indexprs IS NOT NULL  -- expression index
-  AND ((n.nspname,t.relname) IN (%s))
-ORDER BY n.nspname, t.relname, i.relname;
-	`, tableNamesStr)
-
-	log.Infof("query: %s", query)
+    COALESCE(pg_get_expr(idx.indexprs, idx.indrelid), '') AS expression
+  FROM pg_class i
+  JOIN pg_index idx ON i.oid = idx.indexrelid
+  JOIN pg_class t ON idx.indrelid = t.oid
+  JOIN pg_namespace n ON t.relnamespace = n.oid
+  WHERE i.relkind = 'i'
+    AND idx.indisunique
+    AND idx.indexprs IS NOT NULL  -- expression index
+	AND (n.nspname || '.' || t.relname) IN (%s);`, tableNamesStr)
+	log.Debugf("query: %s", query)
 	rows, err := yb.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("error querying for tables having expression indexes: %w", err)
 	}
 	defer rows.Close()
 
-	var tablesHavingExpressionIndexes []sqlname.NameTuple
+	var expressionUniqueIndexTablesIncludingLeafPartitions []string
 	for rows.Next() {
 		var schemaName, tableName, indexName, expression string
 		err := rows.Scan(&schemaName, &tableName, &indexName, &expression) // index and expression are only used for logging
@@ -2273,7 +2287,106 @@ ORDER BY n.nspname, t.relname, i.relname;
 
 		log.Infof("table: %s.%s having expression index %s with expression %s", schemaName, tableName, indexName, expression)
 
-		tablesHavingExpressionIndexes = append(tablesHavingExpressionIndexes, tableCatalogNameToTuple[fmt.Sprintf("%s.%s", schemaName, tableName)])
+		expressionUniqueIndexTablesIncludingLeafPartitions = append(expressionUniqueIndexTablesIncludingLeafPartitions, fmt.Sprintf("%s.%s", schemaName, tableName))
 	}
-	return tablesHavingExpressionIndexes, nil
+
+	var expressionUniqueIndexTables []sqlname.NameTuple
+	for _, t := range expressionUniqueIndexTablesIncludingLeafPartitions {
+		if rootTable, ok := leafTableToRootTableMap[t]; ok {
+			tuple, ok := tableCatalogNameToTuple[rootTable]
+			if !ok {
+				return nil, goerrors.Errorf("root table %s not found in table catalog name to tuple map", rootTable)
+			}
+			//if its a leaf partition, return the root table
+			expressionUniqueIndexTables = append(expressionUniqueIndexTables, tuple)
+		} else {
+			tuple, ok := tableCatalogNameToTuple[t]
+			if !ok {
+				return nil, goerrors.Errorf("table %s not found in table catalog name to tuple map", t)
+			}
+			//if its a normal/root table, return the table itself
+			expressionUniqueIndexTables = append(expressionUniqueIndexTables, tuple)
+		}
+	}
+	return lo.UniqBy(expressionUniqueIndexTables, func(t sqlname.NameTuple) string {
+		return t.ForKey()
+	}), nil
+}
+
+// returns map of table name to its root table name in catalog qualified name format
+// for leaf table, returns leaf table name -> root table name
+// for any non-leaf partitioned table, returns non-leaf partitioned table -> root table
+// for any non-partitioned/normal table, returns normal table -> normal table
+func (yb *TargetYugabyteDB) getPartitionTableToRootTableMap(tableNames []sqlname.NameTuple) (map[string]string, error) {
+	tableNamesStr := strings.Join(lo.Map(tableNames, func(t sqlname.NameTuple, _ int) string {
+		schema, table := t.ForCatalogQuery()
+		return fmt.Sprintf("('%s','%s')", schema, table)
+	}), ",")
+
+	query := fmt.Sprintf(`
+	WITH table_list(schema_name, table_name) AS (VALUES %s),
+	-- Create a mapping of all tables (especially leaf partitions) to their root tables
+	table_to_root AS (
+	  WITH RECURSIVE find_root AS (
+		-- Base case: all tables start as their own root
+		SELECT 
+		  t.oid AS table_oid,
+		  t.oid AS current_oid,
+		  n.nspname AS table_schema,
+		  t.relname AS table_name,
+		  n.nspname AS root_schema,
+		  t.relname AS root_name
+		FROM pg_class t
+		JOIN pg_namespace n ON t.relnamespace = n.oid
+		WHERE t.relkind IN ('r', 'p')  -- regular tables and partitioned tables
+		
+		UNION ALL
+		
+		-- Recursive case: if current table has a parent, traverse up
+		SELECT 
+		  fr.table_oid,
+		  parent_t.oid AS current_oid,
+		  fr.table_schema,
+		  fr.table_name,
+		  parent_ns.nspname AS root_schema,
+		  parent_t.relname AS root_name
+		FROM find_root fr
+		JOIN pg_inherits inh ON fr.current_oid = inh.inhrelid
+		JOIN pg_class parent_t ON inh.inhparent = parent_t.oid
+		JOIN pg_namespace parent_ns ON parent_t.relnamespace = parent_ns.oid
+	  )
+	  -- For each table, get its root (the one with no parent)
+	  SELECT DISTINCT ON (table_oid)
+		table_oid,
+		table_schema,
+		table_name,
+		root_schema,
+		root_name
+	  FROM find_root
+	  WHERE NOT EXISTS (
+		SELECT 1 FROM pg_inherits inh2 
+		WHERE inh2.inhrelid = find_root.current_oid
+	  )
+	  ORDER BY table_oid
+	)
+	SELECT table_schema, table_name, root_schema, root_name FROM table_to_root WHERE (root_schema, root_name) IN (SELECT schema_name, table_name FROM table_list);
+`, tableNamesStr)
+
+	log.Debugf("query: %s", query)
+	rows, err := yb.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("error querying for leaf table to root table map: %w", err)
+	}
+	defer rows.Close()
+
+	leafTableToRootTableMap := make(map[string]string)
+	for rows.Next() {
+		var schemaName, tableName, rootSchema, rootName string
+		err := rows.Scan(&schemaName, &tableName, &rootSchema, &rootName)
+		if err != nil {
+			return nil, fmt.Errorf("error scanning row for leaf table to root table map: %w", err)
+		}
+		leafTableToRootTableMap[fmt.Sprintf("%s.%s", schemaName, tableName)] = fmt.Sprintf("%s.%s", rootSchema, rootName)
+	}
+	return leafTableToRootTableMap, nil
 }
