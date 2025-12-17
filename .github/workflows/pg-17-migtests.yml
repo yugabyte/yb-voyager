@@ -4,7 +4,7 @@ on:
   push:
     branches: ['main', '*.*-dev', '*.*.*-dev']
   pull_request:
-    branches: [priyanshi/xml-failure]
+    branches: [main]
 
 jobs:
   prepare-versions:
