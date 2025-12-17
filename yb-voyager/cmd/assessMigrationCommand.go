@@ -1323,49 +1323,40 @@ func fetchUnsupportedQueryConstructs() ([]utils.UnsupportedQueryConstruct, error
 	return result, nil
 }
 
-// fetchQueriesWithSavepointUsage detects SAVEPOINT usage in transactions from pg_stat_statements
+// hasSavepointUsage detects if any SAVEPOINT usage exists in transactions from pg_stat_statements
 // This is critical for fall-forward/fallback workflows as YB CDC incorrectly emits events for
 // DML operations that are rolled back via ROLLBACK TO SAVEPOINT
-func fetchQueriesWithSavepointUsage() ([]string, error) {
+func hasSavepointUsage() (bool, error) {
 	if source.DBType != POSTGRESQL {
-		return nil, nil
+		return false, nil
 	}
 
-	// Query to find all queries that contain SAVEPOINT or ROLLBACK TO SAVEPOINT keywords
-	// We need to check both uppercase and lowercase variants as pg_stat_statements may normalize queries
-	query := fmt.Sprintf(`SELECT DISTINCT query FROM %s 
+	// Check if any query contains SAVEPOINT or ROLLBACK TO keywords
+	// Using SELECT 1 with LIMIT 1 for efficiency - we only need to know if it exists
+	query := fmt.Sprintf(`SELECT 1 FROM %s 
 		WHERE UPPER(query) LIKE '%%SAVEPOINT%%' 
-		OR UPPER(query) LIKE '%%ROLLBACK TO%%'`, migassessment.DB_QUERIES_SUMMARY)
+		OR UPPER(query) LIKE '%%ROLLBACK TO%%'
+		LIMIT 1`, migassessment.DB_QUERIES_SUMMARY)
 
 	rows, err := assessmentDB.Query(query)
 	if err != nil {
-		// If pg_stat_statements data is not available, just log and return empty
-		log.Infof("unable to query pg_stat_statements for SAVEPOINT usage: %v", err)
-		return nil, nil
+		return false, fmt.Errorf("error querying pg_stat_statements for SAVEPOINT usage: %w", err)
 	}
 	defer func() {
 		closeErr := rows.Close()
 		if closeErr != nil {
-			log.Warnf("error closing rows while fetching SAVEPOINT queries: %v", closeErr)
+			log.Warnf("error closing rows while checking SAVEPOINT usage: %v", closeErr)
 		}
 	}()
 
-	var savepointQueries []string
-	for rows.Next() {
-		var query string
-		err := rows.Scan(&query)
-		if err != nil {
-			return nil, fmt.Errorf("error scanning rows for SAVEPOINT queries: %w", err)
-		}
-		savepointQueries = append(savepointQueries, query)
+	// Check if any rows exist
+	if rows.Next() {
+		log.Infof("SAVEPOINT usage detected in pg_stat_statements")
+		return true, nil
 	}
 
-	if err = rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating rows for SAVEPOINT queries: %w", err)
-	}
-
-	log.Infof("found %d queries with SAVEPOINT usage", len(savepointQueries))
-	return savepointQueries, nil
+	log.Infof("no SAVEPOINT usage detected in pg_stat_statements")
+	return false, nil
 }
 
 func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, []utils.TableColumnsDataTypes, []utils.TableColumnsDataTypes, error) {
@@ -1647,19 +1638,17 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 			schemaAnalysisReport, false))
 
 		// Check for SAVEPOINT usage in transactions
-		savepointQueries, err := fetchQueriesWithSavepointUsage()
+		hasSavepoint, err := hasSavepointUsage()
 		if err != nil {
-			log.Warnf("error fetching SAVEPOINT usage: %v", err)
-		} else if len(savepointQueries) > 0 {
-			for _, query := range savepointQueries {
-				// Create proper QueryIssue and convert to AssessmentIssue
-				queryIssue := queryissue.NewSavepointUsageIssue(
-					queryissue.DML_QUERY_OBJECT_TYPE,
-					"", // objectName not applicable for DML queries
-					query,
-				)
-				checkIsFixedInAndAddIssueToAssessmentIssues(queryIssue)
-			}
+			utils.ErrExit("error checking SAVEPOINT usage: %v", err) // Should we exit here or just log and continue?
+		} else if hasSavepoint {
+			// Create single issue for SAVEPOINT usage regardless of how many queries use it
+			queryIssue := queryissue.NewSavepointUsageIssue(
+				queryissue.DML_QUERY_OBJECT_TYPE,
+				"",
+				"SAVEPOINT", // Hardcoded SQL statement
+			)
+			checkIsFixedInAndAddIssueToAssessmentIssues(queryIssue)
 		}
 
 		if len(unsupportedDataTypesForLiveMigration) > 0 {
