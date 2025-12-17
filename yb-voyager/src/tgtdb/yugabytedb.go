@@ -2287,14 +2287,14 @@ SELECT
 		if rootTable, ok := leafTableToRootTableMap[t]; ok {
 			tuple, ok := tableCatalogNameToTuple[rootTable]
 			if !ok {
-				return nil, fmt.Errorf("root table %s not found in table catalog name to tuple map", rootTable)
+				return nil, goerrors.Errorf("root table %s not found in table catalog name to tuple map", rootTable)
 			}
 			//if its a leaf partition, return the root table
 			expressionUniqueIndexTables = append(expressionUniqueIndexTables, tuple)
 		} else {
 			tuple, ok := tableCatalogNameToTuple[t]
 			if !ok {
-				return nil, fmt.Errorf("table %s not found in table catalog name to tuple map", t)
+				return nil, goerrors.Errorf("table %s not found in table catalog name to tuple map", t)
 			}
 			//if its a normal/root table, return the table itself
 			expressionUniqueIndexTables = append(expressionUniqueIndexTables, tuple)
