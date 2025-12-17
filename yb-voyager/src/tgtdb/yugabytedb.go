@@ -2223,7 +2223,7 @@ func (yb *TargetYugabyteDB) NumOfLogicalReplicationSlots() (int64, error) {
 	return numOfSlots, nil
 }
 
-func (yb *TargetYugabyteDB) GetTablesHavingExpressionUniqueIndexes(tableNames []sqlname.NameTuple, considerPartitions bool) ([]sqlname.NameTuple, error) {
+func (yb *TargetYugabyteDB) GetTablesHavingExpressionUniqueIndexes(tableNames []sqlname.NameTuple, returnPartitionRootTable bool) ([]sqlname.NameTuple, error) {
 	log.Infof("getting leaf table to root table map")
 	//returns a map of catalog leaf table name to catalog root table name
 	leafTableToRootTableMap, err := yb.getPartitionTableToRootTableMap(tableNames)
@@ -2238,9 +2238,11 @@ func (yb *TargetYugabyteDB) GetTablesHavingExpressionUniqueIndexes(tableNames []
 	}
 
 	catalogTableNames := make([]string, 0)
-	catalogTableNames = append(catalogTableNames, lo.Keys(leafTableToRootTableMap)...) //all partitions
 	catalogTableNames = append(catalogTableNames, lo.Keys(tableCatalogNameToTuple)...) //all normal tables/root tables
-	catalogTableNames = lo.Uniq(catalogTableNames)                                     //remove duplicates
+	if returnPartitionRootTable {
+		catalogTableNames = append(catalogTableNames, lo.Keys(leafTableToRootTableMap)...) //all partitions
+	}
+	catalogTableNames = lo.Uniq(catalogTableNames) //remove duplicates
 
 	tableNamesStr := strings.Join(lo.Map(catalogTableNames, func(table string, _ int) string {
 		return fmt.Sprintf("('%s')", table)
@@ -2283,11 +2285,19 @@ SELECT
 	var expressionUniqueIndexTables []sqlname.NameTuple
 	for _, t := range expressionUniqueIndexTablesIncludingLeafPartitions {
 		if rootTable, ok := leafTableToRootTableMap[t]; ok {
+			tuple, ok := tableCatalogNameToTuple[rootTable]
+			if !ok {
+				return nil, fmt.Errorf("root table %s not found in table catalog name to tuple map", rootTable)
+			}
 			//if its a leaf partition, return the root table
-			expressionUniqueIndexTables = append(expressionUniqueIndexTables, tableCatalogNameToTuple[rootTable])
+			expressionUniqueIndexTables = append(expressionUniqueIndexTables, tuple)
 		} else {
+			tuple, ok := tableCatalogNameToTuple[t]
+			if !ok {
+				return nil, fmt.Errorf("table %s not found in table catalog name to tuple map", t)
+			}
 			//if its a normal/root table, return the table itself
-			expressionUniqueIndexTables = append(expressionUniqueIndexTables, tableCatalogNameToTuple[t])
+			expressionUniqueIndexTables = append(expressionUniqueIndexTables, tuple)
 		}
 	}
 	return lo.UniqBy(expressionUniqueIndexTables, func(t sqlname.NameTuple) string {
@@ -2295,6 +2305,10 @@ SELECT
 	}), nil
 }
 
+// returns map of table name to its root table name in catalog qualified name format
+// for leaf table, returns leaf table name -> root table name
+// for any non-leaf partitioned table, returns non-leaf partitioned table -> root table
+// for any non-partitioned/normal table, returns normal table -> normal table
 func (yb *TargetYugabyteDB) getPartitionTableToRootTableMap(tableNames []sqlname.NameTuple) (map[string]string, error) {
 	tableNamesStr := strings.Join(lo.Map(tableNames, func(t sqlname.NameTuple, _ int) string {
 		schema, table := t.ForCatalogQuery()
