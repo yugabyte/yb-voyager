@@ -1323,42 +1323,6 @@ func fetchUnsupportedQueryConstructs() ([]utils.UnsupportedQueryConstruct, error
 	return result, nil
 }
 
-// hasSavepointUsage detects if any SAVEPOINT usage exists in transactions from pg_stat_statements
-// This is critical for fall-forward/fallback workflows as YB CDC incorrectly emits events for
-// DML operations that are rolled back via ROLLBACK TO SAVEPOINT
-func hasSavepointUsage() (bool, error) {
-	if source.DBType != POSTGRESQL {
-		return false, nil
-	}
-
-	// Check if any query contains SAVEPOINT or ROLLBACK TO keywords
-	// Using SELECT 1 with LIMIT 1 for efficiency - we only need to know if it exists
-	query := fmt.Sprintf(`SELECT 1 FROM %s 
-		WHERE UPPER(query) LIKE '%%SAVEPOINT%%' 
-		OR UPPER(query) LIKE '%%ROLLBACK TO%%'
-		LIMIT 1`, migassessment.DB_QUERIES_SUMMARY)
-
-	rows, err := assessmentDB.Query(query)
-	if err != nil {
-		return false, fmt.Errorf("error querying pg_stat_statements for SAVEPOINT usage: %w", err)
-	}
-	defer func() {
-		closeErr := rows.Close()
-		if closeErr != nil {
-			log.Warnf("error closing rows while checking SAVEPOINT usage: %v", closeErr)
-		}
-	}()
-
-	// Check if any rows exist
-	if rows.Next() {
-		log.Infof("SAVEPOINT usage detected in pg_stat_statements")
-		return true, nil
-	}
-
-	log.Infof("no SAVEPOINT usage detected in pg_stat_statements")
-	return false, nil
-}
-
 func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, []utils.TableColumnsDataTypes, []utils.TableColumnsDataTypes, error) {
 	var unsupportedDataTypes, unsupportedDataTypesForLiveMigration, unsupportedDataTypesForLiveMigrationWithFForFB []utils.TableColumnsDataTypes
 
@@ -1637,12 +1601,8 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 		migrationCaveats = append(migrationCaveats, getUnsupportedFeaturesFromSchemaAnalysisReport(POLICIES_CAVEAT_FEATURE, "", queryissue.POLICY_WITH_ROLES,
 			schemaAnalysisReport, false))
 
-		// Check for SAVEPOINT usage in transactions
-		hasSavepoint, err := hasSavepointUsage()
-		if err != nil {
-			utils.ErrExit("error checking SAVEPOINT usage: %v", err) // Should we exit here or just log and continue?
-		} else if hasSavepoint {
-			// Create single issue for SAVEPOINT usage regardless of how many queries use it
+		// Check for SAVEPOINT usage in transactions detected by parser
+		if parserIssueDetector.IsSavepointUsed() {
 			queryIssue := queryissue.NewSavepointUsageIssue(
 				queryissue.DML_QUERY_OBJECT_TYPE,
 				"",

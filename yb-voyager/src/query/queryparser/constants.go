@@ -149,6 +149,9 @@ const (
 	PREPARED_TRANSACTION_KIND          = pg_query.TransactionStmtKind_TRANS_STMT_PREPARE
 	COMMIT_PREPARED_TRANSACTION_KIND   = pg_query.TransactionStmtKind_TRANS_STMT_COMMIT_PREPARED
 	ROLLBACK_PREPARED_TRANSACTION_KIND = pg_query.TransactionStmtKind_TRANS_STMT_ROLLBACK_PREPARED
+	SAVEPOINT_TRANSACTION_KIND         = pg_query.TransactionStmtKind_TRANS_STMT_SAVEPOINT
+	ROLLBACK_TO_SAVEPOINT_KIND         = pg_query.TransactionStmtKind_TRANS_STMT_ROLLBACK_TO
+	RELEASE_SAVEPOINT_KIND             = pg_query.TransactionStmtKind_TRANS_STMT_RELEASE
 )
 
 var RangeShardingClauses = []pg_query.SortByDir{

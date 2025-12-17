@@ -832,3 +832,52 @@ func (t *TwoPhaseCommitDetector) GetIssues() []QueryIssue {
 	}
 	return issues
 }
+
+// SavepointDetector detects SAVEPOINT, ROLLBACK TO SAVEPOINT and RELEASE SAVEPOINT usage in transactions
+type SavepointDetector struct {
+	setSavepointUsedFn func() // Callback to update ParserIssueDetector's isSavepointUsed flag
+}
+
+func NewSavepointDetector(setSavepointUsedFn func()) *SavepointDetector {
+	return &SavepointDetector{
+		setSavepointUsedFn: setSavepointUsedFn,
+	}
+}
+
+func (s *SavepointDetector) Detect(msg protoreflect.Message) error {
+	if queryparser.GetMsgFullName(msg) != queryparser.PG_QUERY_TRANSACTION_STMT_NODE {
+		return nil
+	}
+	transactionStmtNode, err := queryparser.ProtoAsTransactionStmt(msg)
+	if err != nil {
+		return err
+	}
+	/*
+		SAVEPOINT my_savepoint;
+		stmts:{stmt:{transaction_stmt:{kind:TRANS_STMT_SAVEPOINT savepoint_name:"my_savepoint" location:10}}}
+
+		ROLLBACK TO SAVEPOINT my_savepoint;
+		stmts:{stmt:{transaction_stmt:{kind:TRANS_STMT_ROLLBACK_TO savepoint_name:"my_savepoint" location:22}}}
+
+		RELEASE SAVEPOINT my_savepoint;
+		stmts:{stmt:{transaction_stmt:{kind:TRANS_STMT_RELEASE savepoint_name:"my_savepoint" location:18}}}
+
+		Note: Any savepoint usage indicates the application is using savepoints in transactions,
+		which means the CDC issue could be present.
+	*/
+	switch transactionStmtNode.Kind {
+	case queryparser.SAVEPOINT_TRANSACTION_KIND, queryparser.ROLLBACK_TO_SAVEPOINT_KIND, queryparser.RELEASE_SAVEPOINT_KIND:
+		// Update the ParserIssueDetector's flag immediately when detected
+		if s.setSavepointUsedFn != nil {
+			s.setSavepointUsedFn()
+		}
+	}
+	return nil
+}
+
+func (s *SavepointDetector) GetIssues() []QueryIssue {
+	// Note: We intentionally don't return issues here for each query.
+	// Instead, we track detection in ParserIssueDetector and report a single issue.
+	// See ParserIssueDetector.IsSavepointUsed()
+	return nil
+}
