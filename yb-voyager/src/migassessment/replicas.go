@@ -43,7 +43,7 @@ func HandleReplicaDiscoveryAndValidation(source *srcdb.Source, replicaEndpointsF
 
 	// If primary-only flag is set, skip replica discovery
 	if primaryOnly {
-		utils.PrintAndLogfInfo("\nPrimary-only assessment requested. Skipping read replica discovery.")
+		utils.PrintAndLogfInfo("\nAssessing primary node only...")
 		return nil, nil
 	}
 
@@ -149,7 +149,7 @@ func promptToIncludeAllDiscoveredReplicas(connectableReplicas []srcdb.ReplicaEnd
 
 	// User declined - exit cleanly with guidance (not an error, user's choice)
 	utils.PrintAndLogfInfo("\nTo proceed with primary-only assessment, please rerun with --primary-only flag")
-	utils.ErrExit("Assessment cancelled by user. Please rerun with the appropriate flag.")
+	utils.ErrExit("Aborting...")
 	return nil, nil // unreachable, but required for compilation
 }
 
