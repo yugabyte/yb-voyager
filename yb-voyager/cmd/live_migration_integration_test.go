@@ -128,8 +128,9 @@ FROM generate_series(1, 5);`,
 	err = lm.StartImportData(true, nil)
 	testutils.FatalIfError(t, err, "failed to start import data")
 
-	lm.SnapshotTimeout = 30
-	err = lm.WaitForSnapshotComplete(`test_schema."test_live"`, 10)
+	err = lm.WaitForSnapshotComplete(map[string]int64{
+		`test_schema."test_live"`: 10,
+	}, 30)
 	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
 
 	//validate snapshot data
@@ -140,19 +141,23 @@ FROM generate_series(1, 5);`,
 	err = lm.ExecuteSourceDelta()
 	testutils.FatalIfError(t, err, "failed to execute source delta")
 
-	lm.StreamingTimeout = 30
-	err = lm.WaitForForwardStreamingComplete(`test_schema."test_live"`, 5, 0, 0)
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`test_schema."test_live"`: {
+			Inserts: 5,
+			Updates: 0,
+			Deletes: 0,
+		},
+	}, 30, 1)
 	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
 
 	//validate streaming data
 	err = lm.ValidateDataConsistency([]string{`test_schema."test_live"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
 
-	lm.CutoverTimeout = 50
 	err = lm.InitiateCutoverToTarget(false, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover")
 
-	err = lm.WaitForCutoverComplete()
+	err = lm.WaitForCutoverComplete(50)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
 	//validate sequence restoration
@@ -221,32 +226,6 @@ FROM generate_series(1, 5);`,
 	err := lm.SetupContainers(context.Background())
 	testutils.FatalIfError(t, err, "failed to setup containers")
 
-	err = lm.WithTargetConn(func(target *sql.DB) error {
-		var result int
-		err = target.QueryRow("SELECT 1").Scan(&result)
-		fmt.Printf("Result: %d\n", result)
-		if err != nil {
-			return fmt.Errorf("failed to query: %w", err)
-		}
-		rows, err := target.Query(`SELECT host,port from yb_servers();`)
-		if err != nil {
-			return fmt.Errorf("failed to execute query: %w", err)
-		}
-		defer rows.Close()
-		for rows.Next() {
-			var host string
-			var port int
-			err := rows.Scan(&host, &port)
-			if err != nil {
-				return fmt.Errorf("failed to scan row: %w", err)
-			}
-			fmt.Printf("host: %s\n ", host)
-			fmt.Printf("port: %d\n", port)
-		}
-		return nil
-	})
-	testutils.FatalIfError(t, err, "failed to execute query")
-
 	err = lm.SetupSchema()
 	testutils.FatalIfError(t, err, "failed to setup schema")
 
@@ -258,8 +237,9 @@ FROM generate_series(1, 5);`,
 	})
 	testutils.FatalIfError(t, err, "failed to start import data")
 
-	lm.SnapshotTimeout = 30
-	err = lm.WaitForSnapshotComplete(`test_schema."test_live"`, 10)
+	err = lm.WaitForSnapshotComplete(map[string]int64{
+		`test_schema."test_live"`: 10,
+	}, 30)
 	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
 
 	//validate snapshot data
@@ -270,21 +250,25 @@ FROM generate_series(1, 5);`,
 	err = lm.ExecuteSourceDelta()
 	testutils.FatalIfError(t, err, "failed to execute source delta")
 
-	lm.StreamingTimeout = 30
-	err = lm.WaitForForwardStreamingComplete(`test_schema."test_live"`, 5, 0, 0)
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`test_schema."test_live"`: {
+			Inserts: 5,
+			Updates: 0,
+			Deletes: 0,
+		},
+	}, 30, 1)
 	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
 
 	//validate streaming data
 	err = lm.ValidateDataConsistency([]string{`test_schema."test_live"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
 
-	lm.CutoverTimeout = 50
 	//RIGHT NOW not using the fallback true
 	// err = lm.InitiateCutoverToTarget(true, nil)
 	err = lm.InitiateCutoverToTarget(false, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover")
 
-	err = lm.WaitForCutoverComplete()
+	err = lm.WaitForCutoverComplete(50)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
 	//validate sequence restoration
@@ -371,8 +355,9 @@ FROM generate_series(1, 15);`,
 	err = lm.StartImportData(true, nil)
 	testutils.FatalIfError(t, err, "failed to start import data")
 
-	lm.SnapshotTimeout = 30
-	err = lm.WaitForSnapshotComplete(`test_schema."test_live"`, 20)
+	err = lm.WaitForSnapshotComplete(map[string]int64{
+		`test_schema."test_live"`: 20,
+	}, 30)
 	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
 
 	err = lm.ValidateDataConsistency([]string{`test_schema."test_live"`}, "id")
@@ -381,8 +366,13 @@ FROM generate_series(1, 15);`,
 	err = lm.ExecuteSourceDelta()
 	testutils.FatalIfError(t, err, "failed to execute source delta")
 
-	lm.StreamingTimeout = 30
-	err = lm.WaitForForwardStreamingComplete(`test_schema."test_live"`, 15, 0, 0)
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`test_schema."test_live"`: {
+			Inserts: 15,
+			Updates: 0,
+			Deletes: 0,
+		},
+	}, 30, 1)
 	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
 
 	err = lm.ValidateDataConsistency([]string{`test_schema."test_live"`}, "id")
@@ -432,7 +422,7 @@ FROM generate_series(1, 15);`,
 	err = lm.ResumeImportData(true, nil)
 	testutils.FatalIfError(t, err, "failed to resume import data")
 
-	err = lm.WaitForCutoverComplete()
+	err = lm.WaitForCutoverComplete(30)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
 	//Check if ids from 36-45 are present in target this is to verify the sequence serial col is restored properly till last value
@@ -504,8 +494,9 @@ FROM generate_series(1, 15);`,
 	err = lm.StartImportData(true, nil)
 	testutils.FatalIfError(t, err, "failed to start import data")
 
-	lm.SnapshotTimeout = 30
-	err = lm.WaitForSnapshotComplete(`test_schema."test_live"`, 20)
+	err = lm.WaitForSnapshotComplete(map[string]int64{
+		`test_schema."test_live"`: 20,
+	}, 30)
 	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
 
 	err = lm.ValidateDataConsistency([]string{`test_schema."test_live"`}, "id")
@@ -514,7 +505,13 @@ FROM generate_series(1, 15);`,
 	err = lm.ExecuteSourceDelta()
 	testutils.FatalIfError(t, err, "failed to execute source delta")
 
-	err = lm.WaitForForwardStreamingComplete(`test_schema."test_live"`, 15, 0, 0)
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`test_schema."test_live"`: {
+			Inserts: 15,
+			Updates: 0,
+			Deletes: 0,
+		},
+	}, 30, 1)
 	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
 
 	err = lm.ValidateDataConsistency([]string{`test_schema."test_live"`}, "id")
@@ -530,8 +527,7 @@ FROM generate_series(1, 15);`,
 	err = lm.ResumeImportData(true, nil)
 	testutils.FatalIfError(t, err, "failed to resume import data")
 
-	lm.CutoverTimeout = 30
-	err = lm.WaitForCutoverComplete()
+	err = lm.WaitForCutoverComplete(30)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
 	err = lm.WithTargetConn(func(target *sql.DB) error {
@@ -750,8 +746,9 @@ FROM generate_series(1, 20) as i;`,
 
 	time.Sleep(5 * time.Second)
 
-	lm.SnapshotTimeout = 30
-	err = lm.WaitForSnapshotComplete(`test_schema."test_live"`, 20)
+	err = lm.WaitForSnapshotComplete(map[string]int64{
+		`test_schema."test_live"`: 20,
+	}, 30)
 	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
 
 	err = lm.ValidateDataConsistency([]string{`test_schema."test_live"`}, "id")
@@ -760,9 +757,13 @@ FROM generate_series(1, 20) as i;`,
 	err = lm.ExecuteSourceDelta()
 	testutils.FatalIfError(t, err, "failed to execute source delta")
 
-	lm.StreamingTimeout = 100
-	lm.StreamingSleep = 5
-	err = lm.WaitForForwardStreamingComplete(`test_schema."test_live"`, 1500, 2500, 1000)
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`test_schema."test_live"`: {
+			Inserts: 1500,
+			Updates: 2500,
+			Deletes: 1000,
+		},
+	}, 100, 5)
 	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
 
 	err = lm.ValidateDataConsistency([]string{`test_schema."test_live"`}, "id")
@@ -882,8 +883,9 @@ FROM generate_series(1, 20) as i;`,
 
 	time.Sleep(5 * time.Second)
 
-	lm.SnapshotTimeout = 30
-	err = lm.WaitForSnapshotComplete(`test_schema."test_live_null_unique_values"`, 20)
+	err = lm.WaitForSnapshotComplete(map[string]int64{
+		`test_schema."test_live_null_unique_values"`: 20,
+	}, 30)
 	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
 
 	err = lm.ValidateDataConsistency([]string{`test_schema."test_live_null_unique_values"`}, "id")
@@ -892,9 +894,13 @@ FROM generate_series(1, 20) as i;`,
 	err = lm.ExecuteSourceDelta()
 	testutils.FatalIfError(t, err, "failed to execute source delta")
 
-	lm.StreamingTimeout = 120
-	lm.StreamingSleep = 5
-	err = lm.WaitForForwardStreamingComplete(`test_schema."test_live_null_unique_values"`, 1500, 3000, 1000)
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`test_schema."test_live_null_unique_values"`: {
+			Inserts: 1500,
+			Updates: 3000,
+			Deletes: 1000,
+		},
+	}, 120, 5)
 	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
 
 	err = lm.ValidateDataConsistency([]string{`test_schema."test_live_null_unique_values"`}, "id")
@@ -906,384 +912,304 @@ FROM generate_series(1, 20) as i;`,
 }
 
 func TestLiveMigrationWithUniqueKeyConflictWithUniqueIndexOnlyOnLeafPartitions(t *testing.T) {
-	ctx := context.Background()
+	liveMigrationTest := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB: ContainerConfig{
+			Type:    "postgresql",
+			ForLive: true,
+		},
+		TargetDB: ContainerConfig{
+			Type: "yugabytedb",
+		},
+		SchemaNames: []string{"test_schema"},
+		SchemaSQL: []string{
+			`CREATE SCHEMA IF NOT EXISTS test_schema;
+			CREATE TABLE test_schema.test_partitions (
+				id int,
+				name TEXT,
+				region TEXT,
+				branch TEXT,
+				PRIMARY KEY(id, region)
+			) PARTITION BY LIST (region);
 
-	// Create a temporary export directory.
-	exportDir = testutils.CreateTempExportDir()
-	// defer testutils.RemoveTempExportDir(exportDir)
+			CREATE TABLE test_schema.test_partitions_part1 PARTITION OF test_schema.test_partitions FOR VALUES IN ('London');
+			CREATE TABLE test_schema.test_partitions_part2 PARTITION OF test_schema.test_partitions FOR VALUES IN ('Sydney');
+			CREATE TABLE test_schema.test_partitions_part3 PARTITION OF test_schema.test_partitions FOR VALUES IN ('Boston');
+			CREATE UNIQUE INDEX idx_1 ON test_schema.test_partitions_part1 (branch); -- This is the unique index only on part1
+			CREATE UNIQUE INDEX idx_2 ON test_schema.test_partitions_part2 (branch); -- This is the unique index only on part2
+			CREATE UNIQUE INDEX idx_3 ON test_schema.test_partitions_part3 (branch); -- This is the unique index only on part3`,
+		},
+		InitialDataSQL: []string{
+			`INSERT INTO test_schema.test_partitions (id, name, region, branch)
+	SELECT i, md5(random()::text), CASE WHEN i%3=1 THEN 'London' WHEN i%3=2 THEN 'Sydney' ELSE 'Boston' END, 'Branch ' || i FROM generate_series(1, 20) as i;`,
+		},
+		SourceSetupSchemaSQL: []string{
+			"ALTER TABLE test_schema.test_partitions REPLICA IDENTITY FULL;",
+			"ALTER TABLE test_schema.test_partitions_part1 REPLICA IDENTITY FULL;",
+			"ALTER TABLE test_schema.test_partitions_part2 REPLICA IDENTITY FULL;",
+			"ALTER TABLE test_schema.test_partitions_part3 REPLICA IDENTITY FULL;",
+		},
+		SourceDeltaSQL: []string{
+			/*
+				conflict events
+				1 London Branch1
+				2 Sydney Branch2
+				3 Boston Branch3
+				...
+				20 Sydney Branch20
+				i=21
+				UI conflict
+				U 20 Sydney Branch20->Branch 21
+				I 21 Boston Branch20
 
-	createSchemaSQL := `CREATE SCHEMA IF NOT EXISTS test_schema;`
+				U 21 Boston Branch20->Branch 521
+				UU conflict
+				U 20 Sydney Branch21->Branch 20
+				U 21 Boston Branch521->Branch 21
 
-	createTableWithUniqueIndexOnlyOnSomeLeafPartitionsSQL := `
-	CREATE TABLE test_schema.test_partitions (
-		id int,
-		name TEXT,
-		region TEXT,
-		branch TEXT,
-		PRIMARY KEY(id, region)
-	) PARTITION BY LIST (region);
+				DU conflict
+				D 20 Sydney Branch20
+				U 21 Boston Branch21->Branch 20
 
-	CREATE TABLE test_schema.test_partitions_part1 PARTITION OF test_schema.test_partitions FOR VALUES IN ('London');
-	CREATE TABLE test_schema.test_partitions_part2 PARTITION OF test_schema.test_partitions FOR VALUES IN ('Sydney');
-	CREATE TABLE test_schema.test_partitions_part3 PARTITION OF test_schema.test_partitions FOR VALUES IN ('Boston');
-	CREATE UNIQUE INDEX idx_1 ON test_schema.test_partitions_part1 (branch); -- This is the unique index only on part1
-	CREATE UNIQUE INDEX idx_2 ON test_schema.test_partitions_part2 (branch); -- This is the unique index only on part2
-	CREATE UNIQUE INDEX idx_3 ON test_schema.test_partitions_part3 (branch); -- This is the unique index only on part3
-	`
+				DI conflict
+				D 21 Boston Branch21
+				I 20 Sydney Branch 21
 
-	insertDataWithUniqueIndexOnlyOnSomeLeafPartitionsSQL := `
-	INSERT INTO test_schema.test_partitions (id, name, region, branch)
-	SELECT i, md5(random()::text), CASE WHEN i%3=1 THEN 'London' WHEN i%3=2 THEN 'Sydney' ELSE 'Boston' END, 'Branch ' || i FROM generate_series(1, 20) as i;`
+				U 20 Sydney Branch21->Branch 20
+				I 21 Boston Branch20->Branch 21
 
-	dropSchemaSQL := `DROP SCHEMA IF EXISTS test_schema CASCADE;`
-
-	// Start Postgres container with live migration
-	postgresContainer := testcontainers.NewTestContainer("postgresql", &testcontainers.ContainerConfig{
-		ForLive: true,
+				..so on since the branch is same for all the events it will be conflict with each other
+			*/
+			`
+		DO $$
+		DECLARE
+		i INTEGER;
+		BEGIN
+			FOR i IN 21..520 LOOP
+				UPDATE test_schema.test_partitions SET branch = 'Branch ' || i WHERE id = i - 1;
+				INSERT INTO test_schema.test_partitions(id, name, region, branch)
+				SELECT i, md5(random()::text), 'London', 'Branch ' || i-1;
+		
+				UPDATE test_schema.test_partitions SET branch = 'Branch ' || i+500 WHERE id = i;
+		
+				UPDATE test_schema.test_partitions SET branch = 'Branch ' || i-1 WHERE id = i - 1;
+				UPDATE test_schema.test_partitions SET branch = 'Branch ' || i WHERE id = i;
+		
+				DELETE FROM test_schema.test_partitions WHERE id = i-1;
+				UPDATE test_schema.test_partitions SET branch = 'Branch ' || i-1 WHERE id = i;
+		
+				DELETE FROM test_schema.test_partitions WHERE id = i;
+				INSERT INTO test_schema.test_partitions(id, name, region, branch)
+				SELECT i-1, md5(random()::text), 'London', 'Branch ' || i;
+		
+				UPDATE test_schema.test_partitions SET branch = 'Branch ' || i-1 WHERE id = i - 1;
+				INSERT INTO test_schema.test_partitions(id, name, region, branch)
+				SELECT i, md5(random()::text), 'London', 'Branch ' || i;
+		
+			END LOOP;
+		END $$;`,
+		},
+		CleanupSQL: []string{
+			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
+		},
 	})
-	if err := postgresContainer.Start(ctx); err != nil {
-		utils.ErrExit("Failed to start Postgres container: %v", err)
-	}
 
-	// Start YugabyteDB container.
-	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil)
-	if err := yugabytedbContainer.Start(ctx); err != nil {
-		utils.ErrExit("Failed to start YugabyteDB container: %v", err)
-	}
+	defer liveMigrationTest.Cleanup()
 
-	postgresContainer.ExecuteSqls([]string{
-		createSchemaSQL,
-		createTableWithUniqueIndexOnlyOnSomeLeafPartitionsSQL,
-		insertDataWithUniqueIndexOnlyOnSomeLeafPartitionsSQL,
-		"ALTER TABLE test_schema.test_partitions REPLICA IDENTITY FULL;",
-		"ALTER TABLE test_schema.test_partitions_part1 REPLICA IDENTITY FULL;",
-		"ALTER TABLE test_schema.test_partitions_part2 REPLICA IDENTITY FULL;",
-		"ALTER TABLE test_schema.test_partitions_part3 REPLICA IDENTITY FULL;",
-	}...)
+	err := liveMigrationTest.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
 
-	yugabytedbContainer.ExecuteSqls([]string{
-		createSchemaSQL,
-		createTableWithUniqueIndexOnlyOnSomeLeafPartitionsSQL,
-	}...)
+	err = liveMigrationTest.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
 
-	defer postgresContainer.ExecuteSqls(dropSchemaSQL)
-	defer yugabytedbContainer.ExecuteSqls(dropSchemaSQL)
+	err = liveMigrationTest.StartExportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start export data")
 
-	err := testutils.NewVoyagerCommandRunner(postgresContainer, "export data", []string{
-		"--export-dir", exportDir,
-		"--source-db-schema", "test_schema",
-		"--disable-pb", "true",
-		"--export-type", SNAPSHOT_AND_CHANGES,
-		"--yes",
-	}, func() {
-		time.Sleep(5 * time.Second) // Wait for the export to start
-	}, true).Run()
-	testutils.FatalIfError(t, err, "Export command failed")
-
-	importCmd := testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
-		"--export-dir", exportDir,
-		"--disable-pb", "true",
-		"--log-level", "debug",
-		"--parallel-jobs", "5",
-		"--adaptive-parallelism", "disabled",
-		"--yes",
-	}, nil, true)
-	err = importCmd.Run()
-	testutils.FatalIfError(t, err, "Import command failed")
+	err = liveMigrationTest.StartImportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start import data")
 
 	time.Sleep(5 * time.Second)
+	err = liveMigrationTest.WaitForSnapshotComplete(map[string]int64{
+		`test_schema."test_partitions"`: 20,
+	}, 30)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
 
-	ok := utils.RetryWorkWithTimeout(1, 30, func() bool {
-		return snapshotPhaseCompleted(t, postgresContainer.GetConfig().Password,
-			yugabytedbContainer.GetConfig().Password, 20, `test_schema."test_partitions"`)
-	})
-	assert.True(t, ok)
+	err = liveMigrationTest.ValidateDataConsistency([]string{`test_schema."test_partitions"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
 
-	// Connect to both Postgres and YugabyteDB.
-	pgConn, err := postgresContainer.GetConnection()
-	testutils.FatalIfError(t, err, "connecting to Postgres")
+	err = liveMigrationTest.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
 
-	ybConn, err := yugabytedbContainer.GetConnection()
-	testutils.FatalIfError(t, err, "Error connecting to YugabyteDB")
-
-	// Compare the full table data between Postgres and YugabyteDB for snapshot part.
-	// We assume the table "test_data" has a primary key "id" so we order by it.
-	if err := testutils.CompareTableData(ctx, pgConn, ybConn, "test_schema.test_partitions", "id"); err != nil {
-		t.Errorf("Table data mismatch between Postgres and YugabyteDB: %v", err)
-	}
+	err = liveMigrationTest.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`test_schema."test_partitions"`: {
+			Inserts: 1500,
+			Updates: 3000,
+			Deletes: 1000,
+		},
+	}, 120, 5)
+	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
 
 	//streaming events 10000 events
-	postgresContainer.ExecuteSqls([]string{
-		/*
-			conflict events
-			1 London Branch1
-			2 Sydney Branch2
-			3 Boston Branch3
-			...
-			20 Sydney Branch20
-			i=21
-			UI conflict
-			U 20 Sydney Branch20->Branch 21
-			I 21 Boston Branch20
-
-			U 21 Boston Branch20->Branch 521
-			UU conflict
-			U 20 Sydney Branch21->Branch 20
-			U 21 Boston Branch521->Branch 21
-
-			DU conflict
-			D 20 Sydney Branch20
-			U 21 Boston Branch21->Branch 20
-
-			DI conflict
-			D 21 Boston Branch21
-			I 20 Sydney Branch 21
-
-			U 20 Sydney Branch21->Branch 20
-			I 21 Boston Branch20->Branch 21
-
-			..so on since the branch is same for all the events it will be conflict with each other
-		*/
-		`
-DO $$
-DECLARE
-i INTEGER;
-BEGIN
-	FOR i IN 21..520 LOOP
-		UPDATE test_schema.test_partitions SET branch = 'Branch ' || i WHERE id = i - 1;
-		INSERT INTO test_schema.test_partitions(id, name, region, branch)
-		SELECT i, md5(random()::text), 'London', 'Branch ' || i-1;
-
-		UPDATE test_schema.test_partitions SET branch = 'Branch ' || i+500 WHERE id = i;
-
-		UPDATE test_schema.test_partitions SET branch = 'Branch ' || i-1 WHERE id = i - 1;
-		UPDATE test_schema.test_partitions SET branch = 'Branch ' || i WHERE id = i;
-
-		DELETE FROM test_schema.test_partitions WHERE id = i-1;
-		UPDATE test_schema.test_partitions SET branch = 'Branch ' || i-1 WHERE id = i;
-
-		DELETE FROM test_schema.test_partitions WHERE id = i;
-		INSERT INTO test_schema.test_partitions(id, name, region, branch)
-		SELECT i-1, md5(random()::text), 'London', 'Branch ' || i;
-
-		UPDATE test_schema.test_partitions SET branch = 'Branch ' || i-1 WHERE id = i - 1;
-		INSERT INTO test_schema.test_partitions(id, name, region, branch)
-		SELECT i, md5(random()::text), 'London', 'Branch ' || i;
-
-	END LOOP;
-END $$;`,
-	}...)
-	ok = utils.RetryWorkWithTimeout(5, 120, func() bool {
-		return streamingPhaseCompleted(t, postgresContainer.GetConfig().Password,
-			yugabytedbContainer.GetConfig().Password, 1500, 3000, 1000, `test_schema."test_partitions"`)
-	})
-	assert.True(t, ok)
-
-	// Compare the full table data between Postgres and YugabyteDB for streaming part.
-	if err := testutils.CompareTableData(ctx, pgConn, ybConn, "test_schema.test_partitions", "id"); err != nil {
-		t.Errorf("Table data mismatch between Postgres and YugabyteDB after streaming: %v", err)
-	}
+	err = liveMigrationTest.ValidateDataConsistency([]string{`test_schema."test_partitions"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
 
 	// Perform cutover
-	err = testutils.NewVoyagerCommandRunner(nil, "initiate cutover to target", []string{
-		"--export-dir", exportDir,
-		"--yes",
-		"--prepare-for-fall-back", "false",
-	}, nil, false).Run()
-	testutils.FatalIfError(t, err, "Cutover command failed")
+	err = liveMigrationTest.InitiateCutoverToTarget(false, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover to target")
 
 }
 
 func TestLiveMigrationWithUniqueKeyConflictWithNullValueAndPartialPredicatesDetectionCases(t *testing.T) {
-	ctx := context.Background()
+	liveMigrationTest := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB: ContainerConfig{
+			Type:    "postgresql",
+			ForLive: true,
+		},
+		TargetDB: ContainerConfig{
+			Type: "yugabytedb",
+		},
+		SchemaNames: []string{"test_schema"},
+		SchemaSQL: []string{
+			`CREATE SCHEMA IF NOT EXISTS test_schema;
+			CREATE TABLE test_schema.test_live_null_partial_unique_values (
+				id int PRIMARY KEY,
+				name TEXT,
+				check_id int,
+				most_recent boolean
+			);
 
-	// Create a temporary export directory.
-	exportDir = testutils.CreateTempExportDir()
-	defer testutils.RemoveTempExportDir(exportDir)
-
-	createSchemaSQL := `CREATE SCHEMA IF NOT EXISTS test_schema;`
-
-	//check_id_null_unique should be UNIQUE NOT NULLS DISTINCT
-	createTableWithNULLUniquePartialValuesSql := `
-CREATE TABLE test_schema.test_live_null_partial_unique_values (
-	id int PRIMARY KEY,
-	name TEXT,
-	check_id int,
-	most_recent boolean
-);`
-	uniqueIndexDDL := `CREATE UNIQUE INDEX idx_test_live_null_partial_unique_values_id_check_id ON test_schema.test_live_null_partial_unique_values (check_id) WHERE most_recent;`
-
-	insertDataWithNULLUniquePartialValuesSQL := `
-INSERT INTO test_schema.test_live_null_partial_unique_values (id, name, check_id, most_recent)
+			CREATE UNIQUE INDEX idx_test_live_null_partial_unique_values_id_check_id ON test_schema.test_live_null_partial_unique_values (check_id) WHERE most_recent;`,
+		},
+		InitialDataSQL: []string{
+			`INSERT INTO test_schema.test_live_null_partial_unique_values (id, name, check_id, most_recent)
 SELECT
 	i,
 	md5(random()::text),                                   -- name
     CASE WHEN i%2=0 THEN i ELSE NULL END,                  -- check_id
     i%2=0                                                 -- most_recent
-FROM generate_series(1, 20) as i;`
+FROM generate_series(1, 20) as i;`,
+		},
+		SourceSetupSchemaSQL: []string{
+			"ALTER TABLE test_schema.test_live_null_partial_unique_values REPLICA IDENTITY FULL;",
+		},
+		SourceDeltaSQL: []string{
+			/*
+				The below test covering  the null cases
+				1  NULL f
+				2  2 t
+				...
 
-	dropSchemaSQL := `DROP SCHEMA IF EXISTS test_schema CASCADE;`
+				i=21
+				UI conflict
+				U 20 20->NULL t->f
+				I 21 20 t
 
-	// Start Postgres container with live migration
-	postgresContainer := testcontainers.NewTestContainer("postgresql", &testcontainers.ContainerConfig{
-		ForLive: true,
+				UU conflict
+				U 21 20->NULL t
+				U 20 NULL->20 f->t
+
+				U 20 20->NULL t
+				DU conflict - false positive
+				D 21 NULL t
+				U 20 NULL->20 t
+
+				I 21 NULL f
+				D 20 20 t
+
+				DI conflict - false positive
+				D 21 NULL f
+				I 20 NULL f
+
+				I 21 20 t
+			*/
+			`DO $$
+		DECLARE	
+			i INTEGER;
+		BEGIN
+			FOR i IN 21..520 LOOP
+				UPDATE test_schema.test_live_null_partial_unique_values SET most_recent = false AND check_id = NULL WHERE id = i - 1;
+				INSERT INTO test_schema.test_live_null_partial_unique_values(id, name, check_id, most_recent) VALUES (i, md5(random()::text), 20, true);
+		
+				UPDATE test_schema.test_live_null_partial_unique_values SET check_id = NULL WHERE id = i;
+				UPDATE test_schema.test_live_null_partial_unique_values SET most_recent = true WHERE id = i - 1;
+		
+				UPDATE test_schema.test_live_null_partial_unique_values SET check_id = NULL WHERE id = i-1;
+		
+				DELETE FROM test_schema.test_live_null_partial_unique_values WHERE id = i;
+				UPDATE test_schema.test_live_null_partial_unique_values SET check_id = 20 WHERE id = i-1;
+		
+				INSERT INTO test_schema.test_live_null_partial_unique_values(id, name, check_id, most_recent) VALUES (i, md5(random()::text), NULL, false);
+				DELETE FROM test_schema.test_live_null_partial_unique_values WHERE id = i-1;
+		
+				DELETE FROM test_schema.test_live_null_partial_unique_values WHERE id = i;
+				INSERT INTO test_schema.test_live_null_partial_unique_values(id, name, check_id, most_recent) VALUES (i-1, md5(random()::text), NULL, false);
+		
+				INSERT INTO test_schema.test_live_null_partial_unique_values(id, name, check_id, most_recent) VALUES (i, md5(random()::text), 20, true);
+		
+			END LOOP;
+		END $$;`,
+		},
+		CleanupSQL: []string{
+			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
+		},
 	})
-	if err := postgresContainer.Start(ctx); err != nil {
-		utils.ErrExit("Failed to start Postgres container: %v", err)
-	}
 
-	// Start YugabyteDB container.
-	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil)
-	if err := yugabytedbContainer.Start(ctx); err != nil {
-		utils.ErrExit("Failed to start YugabyteDB container: %v", err)
-	}
-	postgresContainer.ExecuteSqls([]string{
-		createSchemaSQL,
-		createTableWithNULLUniquePartialValuesSql,
-		uniqueIndexDDL,
-		"ALTER TABLE test_schema.test_live_null_partial_unique_values REPLICA IDENTITY FULL;",
-		insertDataWithNULLUniquePartialValuesSQL,
-	}...)
+	defer liveMigrationTest.Cleanup()
 
-	yugabytedbContainer.ExecuteSqls([]string{
-		createSchemaSQL,
-		createTableWithNULLUniquePartialValuesSql,
-		uniqueIndexDDL,
-	}...)
+	err := liveMigrationTest.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
 
-	defer postgresContainer.ExecuteSqls(dropSchemaSQL)
-	defer yugabytedbContainer.ExecuteSqls(dropSchemaSQL)
+	err = liveMigrationTest.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
 
-	err := testutils.NewVoyagerCommandRunner(postgresContainer, "export data", []string{
-		"--export-dir", exportDir,
-		"--source-db-schema", "test_schema",
-		"--disable-pb", "true",
-		"--export-type", SNAPSHOT_AND_CHANGES,
-		"--yes",
-	}, func() {
-		time.Sleep(5 * time.Second) // Wait for the export to start
-	}, true).Run()
-	testutils.FatalIfError(t, err, "Export command failed")
+	err = liveMigrationTest.StartExportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start export data")
 
-	importCmd := testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
-		"--export-dir", exportDir,
-		"--disable-pb", "true",
-		"--yes",
-	}, nil, true)
-	err = importCmd.Run()
-	testutils.FatalIfError(t, err, "Import command failed")
+	err = liveMigrationTest.StartImportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start import data")
 
 	time.Sleep(5 * time.Second)
 
-	ok := utils.RetryWorkWithTimeout(1, 30, func() bool {
-		return snapshotPhaseCompleted(t, postgresContainer.GetConfig().Password,
-			yugabytedbContainer.GetConfig().Password, 20, `test_schema."test_live_null_partial_unique_values"`)
-	})
-	assert.True(t, ok)
-	// Connect to both Postgres and YugabyteDB.
-	pgConn, err := postgresContainer.GetConnection()
-	testutils.FatalIfError(t, err, "connecting to Postgres")
+	err = liveMigrationTest.WaitForSnapshotComplete(map[string]int64{
+		`test_schema."test_live_null_partial_unique_values"`: 20,
+	}, 30)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
 
-	ybConn, err := yugabytedbContainer.GetConnection()
-	testutils.FatalIfError(t, err, "Error connecting to YugabyteDB")
+	err = liveMigrationTest.ValidateDataConsistency([]string{`test_schema."test_live_null_partial_unique_values"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
 
-	// Compare the full table data between Postgres and YugabyteDB for snapshot part.
-	// We assume the table "test_data" has a primary key "id" so we order by it.
-	if err := testutils.CompareTableData(ctx, pgConn, ybConn, "test_schema.test_live_null_partial_unique_values", "id"); err != nil {
-		t.Errorf("Table data mismatch between Postgres and YugabyteDB: %v", err)
-	}
+	err = liveMigrationTest.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
 
-	//streaming events 10000 events
-	postgresContainer.ExecuteSqls([]string{
-		/*
-			The below test covering  the null cases
-			1  NULL f
-			2  2 t
-			...
+	err = liveMigrationTest.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`test_schema."test_live_null_partial_unique_values"`: {
+			Inserts: 2000,
+			Updates: 2500,
+			Deletes: 1500,
+		},
+	}, 120, 5)
+	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
 
-			i=21
-			UI conflict
-			U 20 20->NULL t->f
-			I 21 20 t
+	err = liveMigrationTest.ValidateDataConsistency([]string{`test_schema."test_live_null_partial_unique_values"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
 
-			UU conflict
-			U 21 20->NULL t
-			U 20 NULL->20 f->t
-
-			U 20 20->NULL t
-			DU conflict - false positive
-			D 21 NULL t
-			U 20 NULL->20 t
-
-			I 21 NULL f
-			D 20 20 t
-
-			DI conflict - false positive
-			D 21 NULL f
-			I 20 NULL f
-
-			I 21 20 t
-		*/
-		`DO $$
-DECLARE	
-    i INTEGER;
-BEGIN
-    FOR i IN 21..520 LOOP
-		UPDATE test_schema.test_live_null_partial_unique_values SET most_recent = false AND check_id = NULL WHERE id = i - 1;
-		INSERT INTO test_schema.test_live_null_partial_unique_values(id, name, check_id, most_recent) VALUES (i, md5(random()::text), 20, true);
-
-		UPDATE test_schema.test_live_null_partial_unique_values SET check_id = NULL WHERE id = i;
-		UPDATE test_schema.test_live_null_partial_unique_values SET most_recent = true WHERE id = i - 1;
-
-		UPDATE test_schema.test_live_null_partial_unique_values SET check_id = NULL WHERE id = i-1;
-
-		DELETE FROM test_schema.test_live_null_partial_unique_values WHERE id = i;
-		UPDATE test_schema.test_live_null_partial_unique_values SET check_id = 20 WHERE id = i-1;
-
-		INSERT INTO test_schema.test_live_null_partial_unique_values(id, name, check_id, most_recent) VALUES (i, md5(random()::text), NULL, false);
-		DELETE FROM test_schema.test_live_null_partial_unique_values WHERE id = i-1;
-
-		DELETE FROM test_schema.test_live_null_partial_unique_values WHERE id = i;
-		INSERT INTO test_schema.test_live_null_partial_unique_values(id, name, check_id, most_recent) VALUES (i-1, md5(random()::text), NULL, false);
-
-		INSERT INTO test_schema.test_live_null_partial_unique_values(id, name, check_id, most_recent) VALUES (i, md5(random()::text), 20, true);
-
-    END LOOP;
-END $$;`,
-	}...)
-	ok = utils.RetryWorkWithTimeout(5, 120, func() bool {
-		return streamingPhaseCompleted(t, postgresContainer.GetConfig().Password,
-			yugabytedbContainer.GetConfig().Password, 2000, 2500, 1500, `test_schema."test_live_null_partial_unique_values"`)
-	})
-	assert.True(t, ok)
-
-	// Compare the full table data between Postgres and YugabyteDB for streaming part.
-	if err := testutils.CompareTableData(ctx, pgConn, ybConn, "test_schema.test_live_null_partial_unique_values", "id"); err != nil {
-		t.Errorf("Table data mismatch between Postgres and YugabyteDB after streaming: %v", err)
-	}
-
-	// Perform cutover
-	err = testutils.NewVoyagerCommandRunner(nil, "initiate cutover to target", []string{
-		"--export-dir", exportDir,
-		"--yes",
-		"--prepare-for-fall-back", "false",
-	}, nil, false).Run()
-	testutils.FatalIfError(t, err, "Cutover command failed")
+	err = liveMigrationTest.InitiateCutoverToTarget(false, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover to target")
 
 }
 
 func TestLiveMigrationWithUniqueKeyConflictWithExpressionIndexOnPartitions(t *testing.T) {
-	ctx := context.Background()
-
-	// Create a temporary export directory.
-	exportDir = testutils.CreateTempExportDir()
-	defer testutils.RemoveTempExportDir(exportDir)
-
-	createSchemaSQL := `CREATE SCHEMA IF NOT EXISTS test_schema;`
-
-	// Create partitioned table with multiple columns
-	createTableSQL := `
-	CREATE TABLE test_schema.test_partitions(
+	liveMigrationTest := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB: ContainerConfig{
+			Type:    "postgresql",
+			ForLive: true,
+		},
+		TargetDB: ContainerConfig{
+			Type: "yugabytedb",
+		},
+		SchemaNames: []string{"test_schema"},
+		SchemaSQL: []string{
+			`CREATE SCHEMA IF NOT EXISTS test_schema;
+			CREATE TABLE test_schema.test_partitions(
 		id int,
 		region text,
 		created_at date,
@@ -1296,16 +1222,23 @@ func TestLiveMigrationWithUniqueKeyConflictWithExpressionIndexOnPartitions(t *te
 	CREATE TABLE test_schema.test_partitions_l PARTITION OF test_schema.test_partitions FOR VALUES IN ('London');
 	CREATE TABLE test_schema.test_partitions_s PARTITION OF test_schema.test_partitions FOR VALUES IN ('Sydney');
 	CREATE TABLE test_schema.test_partitions_b PARTITION OF test_schema.test_partitions FOR VALUES IN ('Boston');
-	CREATE TABLE test_schema.test_partitions_t PARTITION OF test_schema.test_partitions FOR VALUES IN ('Tokyo');`
-
-	// Create expression unique index ONLY on specific leaf partitions
-	uniqueIndexSQLs := `CREATE UNIQUE INDEX idx_test_partitions_email_l ON test_schema.test_partitions_l (lower(email));
+	CREATE TABLE test_schema.test_partitions_t PARTITION OF test_schema.test_partitions FOR VALUES IN ('Tokyo');
+	
+	CREATE UNIQUE INDEX idx_test_partitions_email_l ON test_schema.test_partitions_l (lower(email));
 	CREATE UNIQUE INDEX idx_test_partitions_email_s ON test_schema.test_partitions_s (lower(email));
 	CREATE UNIQUE INDEX idx_test_partitions_email_b ON test_schema.test_partitions_b (lower(email));
 	CREATE UNIQUE INDEX idx_test_partitions_email_t ON test_schema.test_partitions_t (lower(email));
-	CREATE UNIQUE INDEX idx_test_expression_index_partitions_username_t ON test_schema.test_partitions_t (upper(username));`
-
-	insertDataSQL := `INSERT INTO test_schema.test_partitions (id, region, email, username, created_at, status)
+	CREATE UNIQUE INDEX idx_test_expression_index_partitions_username_t ON test_schema.test_partitions_t (upper(username));`,
+		},
+		SourceSetupSchemaSQL: []string{
+			`ALTER TABLE test_schema.test_partitions REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema.test_partitions_l REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema.test_partitions_s REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema.test_partitions_b REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema.test_partitions_t REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			`INSERT INTO test_schema.test_partitions (id, region, email, username, created_at, status)
 	SELECT i, 
 		CASE 
 			WHEN i%4 = 0 THEN 'London'
@@ -1317,114 +1250,38 @@ func TestLiveMigrationWithUniqueKeyConflictWithExpressionIndexOnPartitions(t *te
 		'user_' || i,
 		now() + (i || ' days')::interval,
 		CASE WHEN i%2 = 0 THEN 'active' ELSE 'inactive' END
-	FROM generate_series(1, 20) as i;`
-
-	dropSchemaSQL := `DROP SCHEMA IF EXISTS test_schema CASCADE;`
-
-	// Start Postgres container with live migration
-	postgresContainer := testcontainers.NewTestContainer("postgresql", &testcontainers.ContainerConfig{
-		ForLive: true,
-	})
-	if err := postgresContainer.Start(ctx); err != nil {
-		utils.ErrExit("Failed to start Postgres container: %v", err)
-	}
-
-	// Start YugabyteDB container.
-	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil)
-	if err := yugabytedbContainer.Start(ctx); err != nil {
-		utils.ErrExit("Failed to start YugabyteDB container: %v", err)
-	}
-	postgresContainer.ExecuteSqls([]string{
-		createSchemaSQL,
-		createTableSQL,
-		uniqueIndexSQLs,
-		insertDataSQL,
-		"ALTER TABLE test_schema.test_partitions REPLICA IDENTITY FULL;",
-		"ALTER TABLE test_schema.test_partitions_l REPLICA IDENTITY FULL;",
-		"ALTER TABLE test_schema.test_partitions_s REPLICA IDENTITY FULL;",
-		"ALTER TABLE test_schema.test_partitions_b REPLICA IDENTITY FULL;",
-		"ALTER TABLE test_schema.test_partitions_t REPLICA IDENTITY FULL;",
-	}...)
-
-	yugabytedbContainer.ExecuteSqls([]string{
-		createSchemaSQL,
-		createTableSQL,
-		uniqueIndexSQLs,
-	}...)
-
-	defer postgresContainer.ExecuteSqls(dropSchemaSQL)
-	defer yugabytedbContainer.ExecuteSqls(dropSchemaSQL)
-
-	err := testutils.NewVoyagerCommandRunner(postgresContainer, "export data", []string{
-		"--export-dir", exportDir,
-		"--source-db-schema", "test_schema",
-		"--disable-pb", "true",
-		"--export-type", SNAPSHOT_AND_CHANGES,
-		"--yes",
-	}, func() {
-		time.Sleep(5 * time.Second) // Wait for the export to start
-	}, true).Run()
-	testutils.FatalIfError(t, err, "Export command failed")
-
-	importCmd := testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
-		"--export-dir", exportDir,
-		"--disable-pb", "true",
-		"--yes",
-	}, nil, true)
-	err = importCmd.Run()
-	testutils.FatalIfError(t, err, "Import command failed")
-
-	time.Sleep(5 * time.Second)
-
-	ok := utils.RetryWorkWithTimeout(1, 30, func() bool {
-		return snapshotPhaseCompleted(t, postgresContainer.GetConfig().Password,
-			yugabytedbContainer.GetConfig().Password, 20, `test_schema."test_partitions"`)
-	})
-	assert.True(t, ok)
-	// Connect to both Postgres and YugabyteDB.
-	pgConn, err := postgresContainer.GetConnection()
-	testutils.FatalIfError(t, err, "connecting to Postgres")
-
-	ybConn, err := yugabytedbContainer.GetConnection()
-	testutils.FatalIfError(t, err, "Error connecting to YugabyteDB")
-
-	// Compare the full table data between Postgres and YugabyteDB for snapshot part.
-	// We assume the table "test_data" has a primary key "id" so we order by it.
-	if err := testutils.CompareTableData(ctx, pgConn, ybConn, "test_schema.test_partitions", "id"); err != nil {
-		t.Errorf("Table data mismatch between Postgres and YugabyteDB: %v", err)
-	}
-
-	//streaming events 10000 events
-	postgresContainer.ExecuteSqls([]string{
-		/*
-			1  Sydney email_1@example.com user_1 2021-01-01 active
-			2  Boston email_2@example.com user_2 2021-01-02 active
-			...
-			20 London email_20@example.com user_20 2021-01-20 active
+	FROM generate_series(1, 20) as i;`,
+		},
+		SourceDeltaSQL: []string{
+			/*
+				1  Sydney email_1@example.com user_1 2021-01-01 active
+				2  Boston email_2@example.com user_2 2021-01-02 active
+				...
+				20 London email_20@example.com user_20 2021-01-20 active
 
 
-			changes
-			UI
-			U 20 email_20@example.com -> Email_21@example.com
-			I 21 email_20@example.com user_21 2021-01-21 active
+				changes
+				UI
+				U 20 email_20@example.com -> Email_21@example.com
+				I 21 email_20@example.com user_21 2021-01-21 active
 
-			UU
-			U 21 email_20@example.com -> Email_521@example.com
-			U 20 Email_21@example.com -> Email_20@example.com
+				UU
+				U 21 email_20@example.com -> Email_521@example.com
+				U 20 Email_21@example.com -> Email_20@example.com
 
-			DU
-			D 20 Email_20@example.com
-			U 21 Email_521@example.com -> email_20@example.com
+				DU
+				D 20 Email_20@example.com
+				U 21 Email_521@example.com -> email_20@example.com
 
-			DI
-			D 21 email_20@example.com
-			I 20 Email_20@example.com user_20 2021-01-20 active
+				DI
+				D 21 email_20@example.com
+				I 20 Email_20@example.com user_20 2021-01-20 active
 
-			U 20 email_20@example.com -> Email_21@example.com
-			I 21 email_20@example.com user_21 2021-01-21 active
+				U 20 email_20@example.com -> Email_21@example.com
+				I 21 email_20@example.com user_21 2021-01-21 active
 
-		*/
-		`DO $$
+			*/
+			`DO $$
 DECLARE
     i INTEGER;
 BEGIN
@@ -1449,26 +1306,56 @@ BEGIN
 
     END LOOP;
 END $$;`,
-	}...)
-
-	ok = utils.RetryWorkWithTimeout(5, 120, func() bool {
-		return streamingPhaseCompleted(t, postgresContainer.GetConfig().Password,
-			yugabytedbContainer.GetConfig().Password, 1500, 2500, 1000, `test_schema."test_partitions"`)
+		},
+		CleanupSQL: []string{
+			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
+		},
 	})
 
-	assert.True(t, ok)
+	defer liveMigrationTest.Cleanup()
 
-	// Compare the full table data between Postgres and YugabyteDB for streaming part.
-	if err := testutils.CompareTableData(ctx, pgConn, ybConn, "test_schema.test_partitions", "id"); err != nil {
-		t.Errorf("Table data mismatch between Postgres and YugabyteDB after streaming: %v", err)
-	}
+	err := liveMigrationTest.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+
+	err = liveMigrationTest.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
+
+	err = liveMigrationTest.StartExportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start export data")
+
+	err = liveMigrationTest.StartImportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start import data")
+
+	time.Sleep(5 * time.Second)
+
+	err = liveMigrationTest.WaitForSnapshotComplete(map[string]int64{
+		`test_schema."test_partitions"`: 20,
+	}, 30)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+
+	err = liveMigrationTest.ValidateDataConsistency([]string{`test_schema."test_partitions"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	err = liveMigrationTest.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
+
+	err = liveMigrationTest.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`test_schema."test_partitions"`: {
+			Inserts: 1500,
+			Updates: 2500,
+			Deletes: 1000,
+		},
+	}, 120, 5)
+	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
+
+	err = liveMigrationTest.ValidateDataConsistency([]string{`test_schema."test_partitions"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
 
 	// Perform cutover
-	err = testutils.NewVoyagerCommandRunner(nil, "initiate cutover to target", []string{
-		"--export-dir", exportDir,
-		"--yes",
-		"--prepare-for-fall-back", "false",
-	}, nil, false).Run()
-	testutils.FatalIfError(t, err, "Cutover command failed")
+	err = liveMigrationTest.InitiateCutoverToTarget(false, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover to target")
+
+	err = liveMigrationTest.WaitForCutoverComplete(50)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
 }

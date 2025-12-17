@@ -27,6 +27,7 @@ import (
 	"time"
 
 	goerrors "github.com/go-errors/errors"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/jsonfile"
@@ -50,11 +51,6 @@ type LiveMigrationTest struct {
 	metaDB          *metadb.MetaDB
 	ctx             context.Context
 	t               *testing.T
-
-	SnapshotTimeout  time.Duration
-	StreamingTimeout time.Duration
-	StreamingSleep   time.Duration
-	CutoverTimeout   time.Duration
 }
 
 // TestConfig holds all configuration upfront
@@ -233,7 +229,9 @@ func (lm *LiveMigrationTest) StopExportData() error {
 	}
 	err := lm.exportCmd.Wait()
 	if err != nil {
-		return goerrors.Errorf("failed to stop export data: %w", err)
+		lm.t.Logf("Async export run exited with error (expected): %v", err)
+	} else {
+		lm.t.Logf("Async export run completed unexpectedly")
 	}
 	fmt.Printf("Export data stopped\n")
 	return nil
@@ -247,7 +245,7 @@ func (lm *LiveMigrationTest) StopImportData() error {
 	}
 	//Stopping import command
 	if err := lm.importCmd.Kill(); err != nil {
-
+		return goerrors.Errorf("killing the import data process errored: %w", err)
 	}
 	err := lm.importCmd.Wait()
 	if err != nil {
@@ -387,15 +385,11 @@ func (lm *LiveMigrationTest) GetImportCommandStdout() string {
 // ============================================================
 
 // WaitForSnapshotComplete waits until snapshot phase is done
-func (lm *LiveMigrationTest) WaitForSnapshotComplete(tableName string, expectedRows int64) error {
+func (lm *LiveMigrationTest) WaitForSnapshotComplete(expectedData map[string]int64, snapshotTimeout time.Duration) error {
 	fmt.Printf("Waiting for snapshot complete\n")
-	timeout := lm.SnapshotTimeout
-	if timeout == 0 {
-		timeout = 30
-	}
 
-	ok := utils.RetryWorkWithTimeout(1, timeout, func() bool {
-		ok, err := lm.snapshotPhaseCompleted(tableName, expectedRows)
+	ok := utils.RetryWorkWithTimeout(1, snapshotTimeout, func() bool {
+		ok, err := lm.snapshotPhaseCompleted(expectedData)
 		if err != nil {
 			testutils.FatalIfError(lm.t, err, "failed to get data migration report")
 			return false
@@ -404,26 +398,18 @@ func (lm *LiveMigrationTest) WaitForSnapshotComplete(tableName string, expectedR
 	})
 
 	if !ok {
-		return goerrors.Errorf("snapshot phase did not complete within %v", timeout)
+		return goerrors.Errorf("snapshot phase did not complete within %v", snapshotTimeout)
 	}
 	fmt.Printf("Snapshot complete\n")
 	return nil
 }
 
 // WaitForForwardStreamingComplete waits until streaming events are processed
-func (lm *LiveMigrationTest) WaitForForwardStreamingComplete(tableName string, expectedInserts int64, expectedUpdates int64, expectedDeletes int64) error {
+func (lm *LiveMigrationTest) WaitForForwardStreamingComplete(expectedChanges map[string]ChangesCount, streamingTimeout time.Duration, streamingSleep time.Duration) error {
 	fmt.Printf("Waiting for streaming complete\n")
-	timeout := lm.StreamingTimeout
-	if timeout == 0 {
-		timeout = 30
-	}
-	sleep := lm.StreamingSleep
-	if sleep == 0 {
-		sleep = 1
-	}
 
-	ok := utils.RetryWorkWithTimeout(sleep, timeout, func() bool {
-		ok, err := lm.streamingPhaseCompleted(tableName, expectedInserts, expectedUpdates, expectedDeletes, "source", "target")
+	ok := utils.RetryWorkWithTimeout(streamingSleep, streamingTimeout, func() bool {
+		ok, err := lm.streamingPhaseCompleted(expectedChanges, "source", "target")
 		if err != nil {
 			testutils.FatalIfError(lm.t, err, "failed to get data migration report")
 			return false
@@ -432,26 +418,18 @@ func (lm *LiveMigrationTest) WaitForForwardStreamingComplete(tableName string, e
 	})
 
 	if !ok {
-		return goerrors.Errorf("streaming phase did not complete within %v", timeout)
+		return goerrors.Errorf("streaming phase did not complete within %v", streamingTimeout)
 	}
 	fmt.Printf("Streaming complete\n")
 	return nil
 }
 
 // WaitForForwardStreamingComplete waits until streaming events are processed
-func (lm *LiveMigrationTest) WaitForFallbackStreamingComplete(tableName string, expectedInserts int64, expectedUpdates int64, expectedDeletes int64) error {
+func (lm *LiveMigrationTest) WaitForFallbackStreamingComplete(expectedChanges map[string]ChangesCount, streamingTimeout time.Duration, streamingSleep time.Duration) error {
 	fmt.Printf("Waiting for streaming complete\n")
-	timeout := lm.StreamingTimeout
-	if timeout == 0 {
-		timeout = 30
-	}
-	sleep := lm.StreamingSleep
-	if sleep == 0 {
-		sleep = 1
-	}
 
-	ok := utils.RetryWorkWithTimeout(sleep, timeout, func() bool {
-		ok, err := lm.streamingPhaseCompleted(tableName, expectedInserts, expectedUpdates, expectedDeletes, "target", "source")
+	ok := utils.RetryWorkWithTimeout(streamingSleep, streamingTimeout, func() bool {
+		ok, err := lm.streamingPhaseCompleted(expectedChanges, "target", "source")
 		if err != nil {
 			testutils.FatalIfError(lm.t, err, "failed to get data migration report")
 			return false
@@ -460,19 +438,15 @@ func (lm *LiveMigrationTest) WaitForFallbackStreamingComplete(tableName string, 
 	})
 
 	if !ok {
-		return goerrors.Errorf("streaming phase did not complete within %v", timeout)
+		return goerrors.Errorf("streaming phase did not complete within %v", streamingTimeout)
 	}
 	fmt.Printf("Streaming complete\n")
 	return nil
 }
 
 // WaitForCutoverComplete waits until cutover is done
-func (lm *LiveMigrationTest) WaitForCutoverComplete() error {
+func (lm *LiveMigrationTest) WaitForCutoverComplete(cutoverTimeout time.Duration) error {
 	fmt.Printf("Waiting for cutover complete\n")
-	timeout := lm.CutoverTimeout
-	if timeout == 0 {
-		timeout = 30
-	}
 
 	// Initialize metaDB if not already done
 	if lm.metaDB == nil {
@@ -482,12 +456,12 @@ func (lm *LiveMigrationTest) WaitForCutoverComplete() error {
 		}
 	}
 
-	ok := utils.RetryWorkWithTimeout(1, timeout, func() bool {
+	ok := utils.RetryWorkWithTimeout(1, cutoverTimeout, func() bool {
 		return lm.getCutoverStatus() == COMPLETED
 	})
 
 	if !ok {
-		return goerrors.Errorf("cutover did not complete within %v", timeout)
+		return goerrors.Errorf("cutover did not complete within %v", cutoverTimeout)
 	}
 	fmt.Printf("Cutover complete\n")
 	return nil
@@ -563,61 +537,86 @@ func (lm *LiveMigrationTest) WithSourceTargetConn(fn func(source, target *sql.DB
 // ============================================================
 
 // snapshotPhaseCompleted checks if snapshot phase is complete
-func (lm *LiveMigrationTest) snapshotPhaseCompleted(tableName string, expectedRows int64) (bool, error) {
+func (lm *LiveMigrationTest) snapshotPhaseCompleted(expectedData map[string]int64) (bool, error) {
 	report, err := lm.GetDataMigrationReport()
 	if err != nil {
 		return false, goerrors.Errorf("failed to get data migration report: %w", err)
 	}
+	allMatches := true
+	for tableName, expectedRows := range expectedData {
+		exportSnapshot := int64(0)
+		importSnapshot := int64(0)
 
-	exportSnapshot := int64(0)
-	importSnapshot := int64(0)
-
-	for _, row := range report.RowData {
-		if row.TableName == tableName {
-			if row.DBType == "source" {
-				exportSnapshot = row.ExportedSnapshotRows
-			}
-			if row.DBType == "target" {
-				importSnapshot = row.ImportedSnapshotRows
+		for _, row := range report.RowData {
+			if row.TableName == tableName {
+				if row.DBType == "source" {
+					exportSnapshot = row.ExportedSnapshotRows
+				}
+				if row.DBType == "target" {
+					importSnapshot = row.ImportedSnapshotRows
+				}
 			}
 		}
+		changesMatchForTable := exportSnapshot == expectedRows && exportSnapshot == importSnapshot
+		if !changesMatchForTable {
+			allMatches = false
+			break
+		}
 	}
-	return exportSnapshot == expectedRows && exportSnapshot == importSnapshot, nil
+	return allMatches, nil
+}
+
+type ChangesCount struct {
+	Inserts int64
+	Updates int64
+	Deletes int64
 }
 
 // streamingPhaseCompleted checks if streaming phase is complete
-func (lm *LiveMigrationTest) streamingPhaseCompleted(tableName string, expectedInserts int64, expectedUpdates int64, expectedDeletes int64, exportFrom string, importTo string) (bool, error) {
+func (lm *LiveMigrationTest) streamingPhaseCompleted(changesCount map[string]ChangesCount, exportFrom string, importTo string) (bool, error) {
 	fmt.Printf("Waiting for streaming complete\n")
 	report, err := lm.GetDataMigrationReport()
 	if err != nil {
 		return false, goerrors.Errorf("failed to get data migration report: %w", err)
 	}
 
-	exportInserts := int64(0)
-	importInserts := int64(0)
-	exportUpdates := int64(0)
-	importUpdates := int64(0)
-	exportDeletes := int64(0)
-	importDeletes := int64(0)
+	allMatches := true
+	for tableName, changesCount := range changesCount {
+		exportInserts := int64(0)
+		importInserts := int64(0)
+		exportUpdates := int64(0)
+		importUpdates := int64(0)
+		exportDeletes := int64(0)
+		importDeletes := int64(0)
 
-	for _, row := range report.RowData {
-		if row.TableName == tableName {
-			if row.DBType == exportFrom {
-				exportInserts = row.ExportedInserts
-				exportUpdates = row.ExportedUpdates
-				exportDeletes = row.ExportedDeletes
+		for _, row := range report.RowData {
+			if row.TableName == tableName {
+				if row.DBType == exportFrom {
+					exportInserts = row.ExportedInserts
+					exportUpdates = row.ExportedUpdates
+					exportDeletes = row.ExportedDeletes
+				}
+				if row.DBType == importTo {
+					importInserts = row.ImportedInserts
+					importUpdates = row.ImportedUpdates
+					importDeletes = row.ImportedDeletes
+				}
 			}
-			if row.DBType == importTo {
-				importInserts = row.ImportedInserts
-				importUpdates = row.ImportedUpdates
-				importDeletes = row.ImportedDeletes
-			}
+		}
+		expectedInserts := changesCount.Inserts
+		expectedUpdates := changesCount.Updates
+		expectedDeletes := changesCount.Deletes
+		changesMatchForTable := exportInserts == expectedInserts && exportInserts == importInserts &&
+			exportUpdates == expectedUpdates && exportUpdates == importUpdates &&
+			exportDeletes == expectedDeletes && exportDeletes == importDeletes
+
+		if !changesMatchForTable {
+			allMatches = false
+			break
 		}
 	}
 
-	return exportInserts == expectedInserts && exportInserts == importInserts &&
-		exportUpdates == expectedUpdates && exportUpdates == importUpdates &&
-		exportDeletes == expectedDeletes && exportDeletes == importDeletes, nil
+	return allMatches, nil
 }
 
 // getCutoverStatus gets the current cutover status
