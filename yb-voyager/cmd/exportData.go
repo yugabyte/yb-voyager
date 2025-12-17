@@ -137,7 +137,24 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 		utils.PrintAndLogf("Note: Beta feature to accelerate data export is enabled by setting BETA_FAST_DATA_EXPORT environment variable")
 	}
 	if changeStreamingIsEnabled(exportType) {
-		utils.PrintAndLog(color.YellowString(`Note: Live migration is a TECH PREVIEW feature.`))
+		switch source.DBType {
+		case ORACLE:
+			utils.PrintAndLogfWarning("Note: Live migration is a TECH PREVIEW feature.")
+		default:
+			if exporterRole == SOURCE_DB_EXPORTER_ROLE {
+				utils.PrintAndLogfWarning("\nImportant: The following limitations apply to live migration:\n")
+				utils.PrintAndLogfInfo("  1. Schema modifications on the source and target databases are not supported during live migration.\n")
+				utils.PrintAndLogfInfo("  2. Modifying key columns (Primary Key or Unique Key) between source and target databases is not supported.\n")
+				utils.PrintAndLogfInfo("  3. Partition management operations (adding or deleting partitions) on partitioned tables are not supported.\n")
+				utils.PrintAndLogfInfo("  4. TRUNCATE operations on source database tables are not automatically replicated to the target database.\n")
+				utils.PrintAndLogfInfo("  5. Sequences that are not associated with any column or are attached to columns of non-integer types are not supported for automatic value generation resumption. These sequences must be manually resumed during the cutover phase.\n")
+				utils.PrintAndLogfInfo("  6. Tables without a Primary Key are not supported for live migration.\n\n")
+			} else {
+				workflow := lo.Ternary(exporterRole == TARGET_DB_EXPORTER_FF_ROLE, "fall forward", "fall back")
+				utils.PrintAndLogfWarning("\nImportant: The following limitation applies to live migration with %s:\n\n", workflow)
+				utils.PrintAndLogfInfo("SAVEPOINT statements within transactions on the target database are not supported during live migration with %s enabled. Transactions rolling back to some SAVEPOINT may cause data inconsistency between the databases.\n\n", workflow)
+			}
+		}
 	}
 	utils.PrintAndLogf("export of data for source type as '%s'", source.DBType)
 	sqlname.SourceDBType = source.DBType
@@ -361,7 +378,7 @@ func exportData() bool {
 	fmt.Printf("num tables to export: %d\n", len(tableListToDisplay))
 	utils.PrintAndLogf("table list for data export: %v", tableListToDisplay)
 
-	if source.DBType == POSTGRESQL {
+	if source.DBType == POSTGRESQL && !changeStreamingIsEnabled(exportType) {
 		utils.PrintAndLogf("Only the sequences that are attached to the above exported tables will be restored during the migration.")
 	}
 
@@ -1799,7 +1816,6 @@ func saveTableToUniqueKeyColumnsMapInMetaDB(tableList []sqlname.NameTuple, leafP
 		}
 		return
 	}
-
 
 	//Adding all the leaf partitions unique key columns to the root table unique key columns since in the importer all the events only have the root table name
 	leafPartitions.IterKV(func(rootTable sqlname.NameTuple, value []sqlname.NameTuple) (bool, error) {
