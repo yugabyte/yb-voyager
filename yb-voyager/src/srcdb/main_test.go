@@ -121,6 +121,9 @@ func TestMain(m *testing.M) {
 	// to avoid info level logs flooding the test output
 	log.SetLevel(log.WarnLevel)
 
+	// Set DoNotPrompt to avoid interactive prompts in tests
+	utils.DoNotPrompt = true
+
 	exitCode := m.Run()
 
 	// cleanup after the tests
