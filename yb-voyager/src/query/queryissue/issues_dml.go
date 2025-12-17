@@ -400,7 +400,7 @@ var savepointUsageIssue = issue.Issue{
 	Description: SAVEPOINT_USAGE_ISSUE_DESCRIPTION,
 	Suggestion:  SAVEPOINT_USAGE_ISSUE_SUGGESTION,
 	GH:          "",
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/#savepoint-usage-in-transactions-cdc-limitation",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/#savepoint-usage-in-transactions",
 }
 
 func NewSavepointUsageIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
