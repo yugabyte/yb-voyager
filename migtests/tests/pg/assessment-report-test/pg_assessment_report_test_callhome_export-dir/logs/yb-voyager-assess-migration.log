@@ -1,0 +1,94 @@
+2025-12-17 16:50:39.199213 INFO logging.go:74 Logging initialised.
+2025-12-17 16:50:39.199440 INFO logging.go:76 Args: [yb-voyager assess-migration --export-dir /home/ubuntu/yb-voyager/migtests/tests/pg/assessment-report-test/pg_assessment_report_test_callhome_export-dir --source-db-type postgresql --source-db-user ybvoyager --source-db-password XXX --source-db-name pg_assessment_report_test_callhome --send-diagnostics=false --yes --iops-capture-interval 0 --source-db-schema public,schema2,test_views --source-db-host 127.0.0.1 --source-db-port 5432 --send-diagnostics=true]
+2025-12-17 16:50:39.199559 INFO logging.go:77 
+VERSION=main
+GIT_COMMIT_HASH=b715ac9662b2dd1573479d19e3dad8f457829e17
+LAST_COMMIT_DATE=2025-12-17T12:14:10Z
+
+2025-12-17 16:50:39.199596 INFO root.go:144 Start time: 2025-12-17 16:50:39.199581512 +0000 UTC m=+0.060792671
+
+2025-12-17 16:50:39.199651 INFO root.go:420 'control-plane-type' not set. Setting cp to NoopControlPlane.
+2025-12-17 16:50:39.199679 INFO root.go:189 Environment variable 'LOCAL_CALL_HOME_SERVICE_PORT' already set with value '5000'
+
+2025-12-17 16:50:39.199705 INFO root.go:189 Environment variable 'TARGET_DB_PASSWORD' already set with value '********'
+
+2025-12-17 16:50:39.199730 INFO root.go:189 Environment variable 'LOCAL_CALL_HOME_SERVICE_HOST' already set with value 'localhost'
+
+2025-12-17 16:50:39.199754 INFO root.go:189 Environment variable 'SOURCE_DB_PASSWORD' already set with value '********'
+
+2025-12-17 16:50:39.199778 INFO common.go:465 Creating a project directory if not exists...
+2025-12-17 16:50:39.226866 INFO metadataDB.go:137 Executed query on meta db - CREATE TABLE queue_segment_meta 
+      (segment_no INTEGER PRIMARY KEY, 
+       file_path TEXT, size_committed INTEGER, 
+	   total_events INTEGER,
+	   exporter_role TEXT,
+       imported_by_target_db_importer INTEGER DEFAULT 0, 
+       imported_by_source_replica_db_importer INTEGER DEFAULT 0, 
+       imported_by_source_db_importer INTEGER DEFAULT 0, 
+       archived INTEGER DEFAULT 0,
+	   deleted INTEGER DEFAULT 0,
+	   archive_location TEXT);
+2025-12-17 16:50:39.233581 INFO metadataDB.go:137 Executed query on meta db - CREATE TABLE exported_events_stats (
+			run_id TEXT, 
+			exporter_role TEXT,
+			timestamp INTEGER, 
+			num_total INTEGER, 
+			num_inserts INTEGER, 
+			num_updates INTEGER, 
+			num_deletes INTEGER, 
+			PRIMARY KEY(run_id, exporter_role, timestamp) );
+2025-12-17 16:50:39.240116 INFO metadataDB.go:137 Executed query on meta db - CREATE TABLE exported_events_stats_per_table (
+			exporter_role TEXT,
+			schema_name TEXT, 
+			table_name TEXT, 
+			num_total INTEGER, 
+			num_inserts INTEGER, 
+			num_updates INTEGER, 
+			num_deletes INTEGER, 
+			PRIMARY KEY(exporter_role, schema_name, table_name) );
+2025-12-17 16:50:39.246530 INFO metadataDB.go:137 Executed query on meta db - CREATE TABLE json_objects (
+			key TEXT PRIMARY KEY,
+			json_text TEXT);
+2025-12-17 16:50:39.246919 INFO metadataDB.go:300 No json object found for key: migration_status
+2025-12-17 16:50:39.247285 INFO metadataDB.go:275 Inserting json object for key: migration_status
+2025-12-17 16:50:39.253736 INFO metadataDB.go:300 No json object found for key: import_data_status
+2025-12-17 16:50:39.253804 INFO metadataDB.go:275 Inserting json object for key: import_data_status
+2025-12-17 16:50:39.260439 INFO metadataDB.go:300 No json object found for key: import_data_file_status
+2025-12-17 16:50:39.260501 INFO metadataDB.go:275 Inserting json object for key: import_data_file_status
+2025-12-17 16:50:39.266730 WARN common.go:554 Deterministic anonymization is enabled using a test salt
+2025-12-17 16:50:39.266879 INFO metadataDB.go:310 Found json object for key: migration_status
+2025-12-17 16:50:39.266907 INFO logging.go:151 migrationID: dbc000cd-2196-40ea-af31-037ba42191ea
+2025-12-17 16:50:39.267156 INFO metadataDB.go:310 Found json object for key: migration_status
+2025-12-17 16:50:39.267187 INFO logging.go:151 Assessing for migration to target YugabyteDB version 2025.2.0.0
+
+2025-12-17 16:50:39.274382 ERROR logging.go:38 failed to connect source db for assessing migration: failed to connect to `user=ybvoyager database=pg_assessment_report_test_callhome`:
+	127.0.0.1:5432 (127.0.0.1): tls error: server refused TLS connection
+	127.0.0.1:5432 (127.0.0.1): failed SASL auth: FATAL: password authentication failed for user "ybvoyager" (SQLSTATE 28P01)
+
+2025-12-17 16:50:39.275057 INFO utils.go:137 get schema object list for "postgresql"
+2025-12-17 16:50:39.275106 INFO analyzeSchema.go:890 Reading SCHEMA DDLs in file /home/ubuntu/yb-voyager/migtests/tests/pg/assessment-report-test/pg_assessment_report_test_callhome_export-dir/assessment/metadata/schema/schemas/schema.sql
+2025-12-17 16:50:39.275161 INFO analyzeSchema.go:890 Reading COLLATION DDLs in file /home/ubuntu/yb-voyager/migtests/tests/pg/assessment-report-test/pg_assessment_report_test_callhome_export-dir/assessment/metadata/schema/collations/collation.sql
+2025-12-17 16:50:39.275192 INFO analyzeSchema.go:890 Reading EXTENSION DDLs in file /home/ubuntu/yb-voyager/migtests/tests/pg/assessment-report-test/pg_assessment_report_test_callhome_export-dir/assessment/metadata/schema/extensions/extension.sql
+2025-12-17 16:50:39.275220 INFO analyzeSchema.go:890 Reading TYPE DDLs in file /home/ubuntu/yb-voyager/migtests/tests/pg/assessment-report-test/pg_assessment_report_test_callhome_export-dir/assessment/metadata/schema/types/type.sql
+2025-12-17 16:50:39.275245 INFO analyzeSchema.go:890 Reading DOMAIN DDLs in file /home/ubuntu/yb-voyager/migtests/tests/pg/assessment-report-test/pg_assessment_report_test_callhome_export-dir/assessment/metadata/schema/domains/domain.sql
+2025-12-17 16:50:39.275271 INFO analyzeSchema.go:890 Reading SEQUENCE DDLs in file /home/ubuntu/yb-voyager/migtests/tests/pg/assessment-report-test/pg_assessment_report_test_callhome_export-dir/assessment/metadata/schema/sequences/sequence.sql
+2025-12-17 16:50:39.275297 INFO analyzeSchema.go:890 Reading TABLE DDLs in file /home/ubuntu/yb-voyager/migtests/tests/pg/assessment-report-test/pg_assessment_report_test_callhome_export-dir/assessment/metadata/schema/tables/table.sql
+2025-12-17 16:50:39.275323 INFO analyzeSchema.go:890 Reading INDEX DDLs in file /home/ubuntu/yb-voyager/migtests/tests/pg/assessment-report-test/pg_assessment_report_test_callhome_export-dir/assessment/metadata/schema/tables/INDEXES_table.sql
+2025-12-17 16:50:39.275347 INFO analyzeSchema.go:890 Reading PARTITION_INDEX DDLs in file /home/ubuntu/yb-voyager/migtests/tests/pg/assessment-report-test/pg_assessment_report_test_callhome_export-dir/assessment/metadata/schema/partitions/PARTITION_INDEXES_partition.sql
+2025-12-17 16:50:39.275372 INFO analyzeSchema.go:890 Reading FTS_INDEX DDLs in file /home/ubuntu/yb-voyager/migtests/tests/pg/assessment-report-test/pg_assessment_report_test_callhome_export-dir/assessment/metadata/schema/tables/FTS_INDEXES_table.sql
+2025-12-17 16:50:39.275396 INFO analyzeSchema.go:890 Reading AGGREGATE DDLs in file /home/ubuntu/yb-voyager/migtests/tests/pg/assessment-report-test/pg_assessment_report_test_callhome_export-dir/assessment/metadata/schema/aggregates/aggregate.sql
+2025-12-17 16:50:39.275454 INFO analyzeSchema.go:890 Reading RULE DDLs in file /home/ubuntu/yb-voyager/migtests/tests/pg/assessment-report-test/pg_assessment_report_test_callhome_export-dir/assessment/metadata/schema/rules/rule.sql
+2025-12-17 16:50:39.275486 INFO analyzeSchema.go:890 Reading COMMENT DDLs in file /home/ubuntu/yb-voyager/migtests/tests/pg/assessment-report-test/pg_assessment_report_test_callhome_export-dir/assessment/metadata/schema/comments/comment.sql
+2025-12-17 16:50:39.275524 INFO analyzeSchema.go:890 Reading CONVERSION DDLs in file /home/ubuntu/yb-voyager/migtests/tests/pg/assessment-report-test/pg_assessment_report_test_callhome_export-dir/assessment/metadata/schema/conversions/conversion.sql
+2025-12-17 16:50:39.275552 INFO analyzeSchema.go:890 Reading FOREIGN TABLE DDLs in file /home/ubuntu/yb-voyager/migtests/tests/pg/assessment-report-test/pg_assessment_report_test_callhome_export-dir/assessment/metadata/schema/tables/foreign_table.sql
+2025-12-17 16:50:39.275575 INFO analyzeSchema.go:890 Reading POLICY DDLs in file /home/ubuntu/yb-voyager/migtests/tests/pg/assessment-report-test/pg_assessment_report_test_callhome_export-dir/assessment/metadata/schema/policies/policy.sql
+2025-12-17 16:50:39.275606 INFO analyzeSchema.go:890 Reading OPERATOR DDLs in file /home/ubuntu/yb-voyager/migtests/tests/pg/assessment-report-test/pg_assessment_report_test_callhome_export-dir/assessment/metadata/schema/operators/operator.sql
+2025-12-17 16:50:39.275859 INFO diagnostics.go:525 callhome: Payload being sent for diagnostic usage: {"migration_uuid":"dbc000cd-2196-40ea-af31-037ba42191ea","phase_start_time":"2025-12-17 16:50:39.199581","collected_at":"2025-12-17 16:50:39.274464","source_db_details":"{\"payload_version\":\"\",\"host\":\"\",\"db_type\":\"postgresql\",\"db_version\":\"\",\"total_db_size_bytes\":0,\"db_name\":\"db_6531a30025e17f8f\",\"schema_names\":[\"schema_d7108fd530c9b1c2\",\"schema_a1717e859fc83d39\",\"schema_ae9b85f2c9255e63\"]}","target_db_details":"","yb_voyager_version":"main","migration_phase":"assess-migration","phase_payload":"{\"payload_version\":\"2.0\",\"target_db_version\":null,\"sizing\":{\"colocated_tables\":null,\"colocated_reasoning\":\"\",\"sharded_tables\":null,\"num_nodes\":0,\"vcpus_per_instance\":0,\"memory_per_instance\":0,\"optimal_select_connections_per_node\":0,\"optimal_insert_connections_per_node\":0,\"estimated_time_in_min_for_import\":0,\"estimated_time_in_min_for_import_without_redundant_indexes\":0},\"migration_complexity\":\"\",\"migration_complexity_explanation\":\"\",\"schema_summary\":\"{\\\"Description\\\":\\\"\\\",\\\"DbName\\\":\\\"\\\",\\\"SchemaNames\\\":null,\\\"DbVersion\\\":\\\"\\\",\\\"DatabaseObjects\\\":[]}\",\"assessment_issues\":[],\"error\":\"{\\\"msg\\\":\\\"failed to connect source db for assessing migration\\\",\\\"pg_error_code\\\":\\\"28P01\\\",\\\"stack_trace\\\":\\\"/home/ubuntu/yb-voyager/yb-voyager/src/utils/logging.go:35 (0xab5907)\\\\n\\\\tinit.func1: ErrExitErr = goerrors.Errorf(formatString, args...)\\\\n/home/ubuntu/yb-voyager/yb-voyager/cmd/assessMigrationCommand.go:118 (0x18123ed)\\\\n\\\\tinit.func21: utils.ErrExit(\\\\\\\"%w\\\\\\\", err)\\\\n/home/ubuntu/go/pkg/mod/github.com/spf13/cobra@v1.6.1/command.go:920 (0x770571)\\\\n\\\\t(*Command).execute: c.Run(c, argWoFlags)\\\\n/home/ubuntu/go/pkg/mod/github.com/spf13/cobra@v1.6.1/command.go:1044 (0x770db8)\\\\n\\\\t(*Command).ExecuteC: err = cmd.execute(flags)\\\\n/home/ubuntu/go/pkg/mod/github.com/spf13/cobra@v1.6.1/command.go:968 (0x18d39fa)\\\\n\\\\tExecute: _, err := c.ExecuteC()\\\\n/home/ubuntu/yb-voyager/yb-voyager/cmd/root.go:325 (0x18d39ef)\\\\n\\\\tExecute: cobra.CheckErr(rootCmd.Execute())\\\\n/home/ubuntu/yb-voyager/yb-voyager/main.go:42 (0x18e9f85)\\\\n\\\\tmain: cmd.Execute()\\\\n/snap/go/11017/src/internal/runtime/atomic/types.go:194 (0x452c7d)\\\\n\\\\t(*Uint32).Load: return Load(\\\\u0026u.value)\\\\n/snap/go/11017/src/runtime/asm_amd64.s:1693 (0x491ee1)\\\\n\\\\tgoexit: BYTE\\\\t$0x90\\\\t// NOP\\\\n\\\"}\",\"table_sizing_stats\":\"null\",\"index_sizing_stats\":\"null\",\"source_connectivity\":true,\"iops_interval\":0,\"control_plane_type\":\"\",\"anonymized_ddls\":[]}","migration_type":"","time_taken_sec":1,"status":"ERROR"}
+
+2025-12-17 16:50:39.277663 INFO diagnostics.go:545 callhome: HTTP response after sending diagnostics: "Success"
+
+
+2025-12-17 16:50:39.284451 INFO common.go:87 End time: 2025-12-17 16:50:39.284440861 +0000 UTC m=+0.145652381
+
+2025-12-17 16:50:39.284523 INFO common.go:89 Time taken: 84.927119ms (0.08 seconds)
+
