@@ -58,6 +58,7 @@ var (
 	pgssEnabledForAssessment         = false
 	invokedByExportSchema            utils.BoolStr
 	sourceReadReplicaEndpoints       string // CLI flag - package variable for Cobra binding
+	primaryOnly                      bool   // CLI flag - package variable for Cobra binding
 )
 
 var sourceConnectionFlags = []string{
@@ -91,7 +92,7 @@ var assessMigrationCmd = &cobra.Command{
 		validatePortRange()
 		validateSSLMode()
 		validateOracleParams()
-		validateReplicaEndpointsFlag()
+		validateReplicaRelatedFlags()
 		err = validateAndSetTargetDbVersionFlag()
 		if err != nil {
 			utils.ErrExit("failed to validate target db version: %w", err)
@@ -201,6 +202,9 @@ func init() {
 	assessMigrationCmd.Flags().StringVar(&sourceReadReplicaEndpoints, "source-read-replica-endpoints", "",
 		"Comma-separated list of read replica endpoints. Each endpoint is host:port. Default port 5432. "+
 			"Example: \"host1:5432, host2:5433\". (only valid for PostgreSQL)")
+
+	assessMigrationCmd.Flags().BoolVar(&primaryOnly, "primary-only", false,
+		"assess only the primary database, skip read replica discovery and assessment (only valid for PostgreSQL).")
 }
 
 // createMigrationAssessmentStartedEvent creates a migration assessment started event
@@ -268,7 +272,7 @@ func assessMigration() (err error) {
 		}
 
 		// Handle replica discovery and validation (PostgreSQL only)
-		validatedReplicaEndpoints, err = migassessment.HandleReplicaDiscoveryAndValidation(&source, sourceReadReplicaEndpoints)
+		validatedReplicaEndpoints, err = migassessment.HandleReplicaDiscoveryAndValidation(&source, sourceReadReplicaEndpoints, primaryOnly)
 		if err != nil {
 			return fmt.Errorf("failed to handle replica discovery and validation: %w", err)
 		}
@@ -1952,9 +1956,18 @@ func validateSourceDBTypeForAssessMigration() {
 	}
 }
 
-func validateReplicaEndpointsFlag() {
+func validateReplicaRelatedFlags() {
 	if sourceReadReplicaEndpoints != "" && source.DBType != POSTGRESQL {
 		utils.ErrExit("Error --source-read-replica-endpoints flag / source.read-replica-endpoints config parameter is only valid for 'postgresql' db type")
+	}
+
+	if primaryOnly && source.DBType != POSTGRESQL {
+		utils.ErrExit("Error --primary-only flag is only valid for 'postgresql' db type")
+	}
+
+	// Both flags are mutually exclusive
+	if primaryOnly && sourceReadReplicaEndpoints != "" {
+		utils.ErrExit("Error: --primary-only and --source-read-replica-endpoints flags cannot be used together")
 	}
 }
 
