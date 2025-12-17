@@ -168,6 +168,7 @@ const (
 	LISTEN_NOTIFY                = "LISTEN_NOTIFY"
 	NON_DECIMAL_INTEGER_LITERAL  = "NON_DECIMAL_INTEGER_LITERAL"
 	TWO_PHASE_COMMIT             = "TWO_PHASE_COMMIT"
+	SAVEPOINT_USAGE              = "SAVEPOINT_USAGE"
 )
 
 const (
@@ -298,6 +299,7 @@ const (
 	LISTEN_NOTIFY_ISSUE_NAME                = "Events Listen / Notify"
 	NON_DECIMAL_INTEGER_LITERAL_ISSUE_NAME  = "Non-decimal integer literal"
 	TWO_PHASE_COMMIT_ISSUE_NAME             = "Two-Phase Commit (XA syntax)"
+	SAVEPOINT_USAGE_ISSUE_NAME              = "SAVEPOINT usage in transactions"
 )
 
 // Issues Description
@@ -419,6 +421,9 @@ const (
 	SQL_BODY_IN_FUNCTION_ISSUE_DESCRIPTION                     = "SQL language functions with an inline body are not supported in YugabyteDB."
 	UNIQUE_NULLS_NOT_DISTINCT_ISSUE_DESCRIPTION                = "Unique constraint treating NULL values as non-distinct is not yet supported in YugabyteDB."
 	UNSUPPORTED_EXTENSION_ISSUE_DESCRIPTION                    = "This extension is not supported in YugabyteDB by default."
+
+	SAVEPOINT_USAGE_ISSUE_DESCRIPTION = "Detected SAVEPOINT usage in transactions. YugabyteDB CDC has a known limitation where DML operations rolled back via ROLLBACK TO SAVEPOINT are incorrectly emitted as CDC events. This can cause data inconsistencies during fall-forward/fall-back workflows."
+	SAVEPOINT_USAGE_ISSUE_SUGGESTION  = "Review and refactor transactions that use SAVEPOINTs. Consider using separate transactions or application-level error handling instead."
 
 	//Hotspot on timestamp/date indexes
 

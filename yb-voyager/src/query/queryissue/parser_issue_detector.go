@@ -276,6 +276,9 @@ type ParserIssueDetector struct {
 
 	// object usages
 	objectUsages map[string]*ObjectUsageCategory
+
+	// Track if SAVEPOINT usage was detected across all queries
+	isSavepointUsed bool
 }
 
 func NewParserIssueDetector() *ParserIssueDetector {
@@ -1056,6 +1059,9 @@ func (p *ParserIssueDetector) genericIssues(query string) ([]QueryIssue, error) 
 		NewDatabaseOptionsDetector(query),
 		NewListenNotifyIssueDetector(query),
 		NewTwoPhaseCommitDetector(query),
+		NewSavepointDetector(func() {
+			p.isSavepointUsed = true
+		}),
 	}
 
 	processor := func(msg protoreflect.Message) error {
@@ -1406,6 +1412,11 @@ func (p *ParserIssueDetector) processTableConstraintsAsIndexes(table *queryparse
 			}
 		}
 	}
+}
+
+// IsSavepointUsed returns true if SAVEPOINT usage was detected in any query
+func (p *ParserIssueDetector) IsSavepointUsed() bool {
+	return p.isSavepointUsed
 }
 
 // ======= Functions not use parser right now

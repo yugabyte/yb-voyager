@@ -1605,6 +1605,16 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 		migrationCaveats = append(migrationCaveats, getUnsupportedFeaturesFromSchemaAnalysisReport(POLICIES_CAVEAT_FEATURE, "", queryissue.POLICY_WITH_ROLES,
 			schemaAnalysisReport, false))
 
+		// Check for SAVEPOINT usage in transactions detected by parser
+		if parserIssueDetector.IsSavepointUsed() {
+			queryIssue := queryissue.NewSavepointUsageIssue(
+				queryissue.DML_QUERY_OBJECT_TYPE,
+				"",
+				"SAVEPOINT", // Hardcoded SQL statement
+			)
+			checkIsFixedInAndAddIssueToAssessmentIssues(queryIssue)
+		}
+
 		if len(unsupportedDataTypesForLiveMigration) > 0 {
 			columns := make([]ObjectInfo, 0)
 			for _, colInfo := range unsupportedDataTypesForLiveMigration {
