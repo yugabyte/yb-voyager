@@ -2223,6 +2223,9 @@ func (yb *TargetYugabyteDB) NumOfLogicalReplicationSlots() (int64, error) {
 	return numOfSlots, nil
 }
 
+// Function returns the table out of tableNames having the expression unique indexes
+// if returnPartitionRootTable is true, it will also check for the partitions of the partitioned table in tableNames and return the root table of the partition having expression unique indexes
+// else it will check for the tables in TableNames that have normal tables and root tables having expression unique indexes
 func (yb *TargetYugabyteDB) GetTablesHavingExpressionUniqueIndexes(tableNames []sqlname.NameTuple, returnPartitionRootTable bool) ([]sqlname.NameTuple, error) {
 	log.Infof("getting leaf table to root table map")
 	//returns a map of catalog leaf table name to catalog root table name
