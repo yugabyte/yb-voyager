@@ -138,14 +138,6 @@ const FETCH_COLUMN_SEQUENCES_DEFAULT_QUERY_TEMPLATE = `SELECT
 		AND (seq.relname IS NOT NULL)
 		AND (tn.nspname || '.' || t.relname ) IN (%s);`
 
-const GET_TABLE_COLUMNS_QUERY_TEMPLATE_PG_AND_YB = `SELECT a.attname AS column_name, t.typname AS data_type, rol.rolname AS data_type_owner 
-FROM pg_attribute AS a 
-JOIN pg_type AS t ON t.oid = a.atttypid 
-JOIN pg_class AS c ON c.oid = a.attrelid 
-JOIN pg_namespace AS n ON n.oid = c.relnamespace 
-JOIN pg_roles AS rol ON rol.oid = t.typowner 
-WHERE c.relname = '%s' AND n.nspname = '%s' AND a.attname NOT IN ('tableoid', 'cmax', 'xmax', 'cmin', 'xmin', 'ctid');`
-
 type PostgreSQL struct {
 	source *Source
 
@@ -678,13 +670,44 @@ func (pg *PostgreSQL) FilterEmptyTables(tableList []sqlname.NameTuple) ([]sqlnam
 	return nonEmptyTableList, emptyTableList
 }
 
-func (pg *PostgreSQL) getTableColumns(tableName sqlname.NameTuple) ([]string, []string, []string, error) {
-	var columns, dataTypes, dataTypesOwner []string
-	sname, tname := tableName.ForCatalogQuery()
-	query := fmt.Sprintf(GET_TABLE_COLUMNS_QUERY_TEMPLATE_PG_AND_YB, tname, sname)
+
+func (pg *PostgreSQL) getAllUserDefinedRangeTypes(tableList []sqlname.NameTuple) ([]string, error) {
+	if len(tableList) == 0 {
+		return []string{}, nil
+	}
+
+	// Build the IN clause with tuples for all tables
+	// eg: [('public', 'products'), ('public', 'users'), ('public', 'invoices')]
+	var tableTuples []string
+	for _, table := range tableList {
+		schema, name := table.ForCatalogQuery()
+		tableTuples = append(tableTuples, fmt.Sprintf("('%s', '%s')", schema, name))
+	}
+	inClause := strings.Join(tableTuples, ", ")
+
+	query := fmt.Sprintf(`
+		SELECT DISTINCT
+			type_n.nspname || '.' || t.typname AS qualified_type_name
+		FROM
+			pg_attribute AS a
+		JOIN
+			pg_type AS t ON t.oid = a.atttypid
+		JOIN
+			pg_namespace AS type_n ON type_n.oid = t.typnamespace
+		JOIN
+			pg_class AS c ON c.oid = a.attrelid
+		JOIN
+			pg_namespace AS table_n ON table_n.oid = c.relnamespace
+		WHERE
+			(table_n.nspname, c.relname) IN (%s)
+			AND a.attnum > 0
+			AND t.typtype = 'r'
+		ORDER BY qualified_type_name;
+	`, inClause)
+
 	rows, err := pg.db.Query(query)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("error in querying(%q) source database for table columns: %w", query, err)
+		return nil, fmt.Errorf("error in querying source database for user defined columns: %q: %w\n", query, err)
 	}
 	defer func() {
 		closeErr := rows.Close()
@@ -692,27 +715,36 @@ func (pg *PostgreSQL) getTableColumns(tableName sqlname.NameTuple) ([]string, []
 			log.Warnf("close rows for query %q: %v", query, closeErr)
 		}
 	}()
+
+	var userDefinedRangeTypes []string
 	for rows.Next() {
-		var column, dataType, dataTypeOwner string
-		err = rows.Scan(&column, &dataType, &dataTypeOwner)
+		var qualifiedTypeName string
+		err = rows.Scan(&qualifiedTypeName)
 		if err != nil {
-			return nil, nil, nil, fmt.Errorf("error in scanning query(%q) rows for table columns: %w", query, err)
+			return nil, fmt.Errorf("error in scanning query rows for user defined columns: %w\n", err)
 		}
-		columns = append(columns, column)
-		dataTypes = append(dataTypes, dataType)
-		dataTypesOwner = append(dataTypesOwner, dataTypeOwner)
+		userDefinedRangeTypes = append(userDefinedRangeTypes, qualifiedTypeName)
 	}
-	return columns, dataTypes, dataTypesOwner, nil
+	return userDefinedRangeTypes, nil
 }
 
 func (pg *PostgreSQL) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple, useDebezium bool, isStreamingEnabled bool) (*utils.StructMap[sqlname.NameTuple, []string], *utils.StructMap[sqlname.NameTuple, []string], error) {
 	supportedTableColumnsMap := utils.NewStructMap[sqlname.NameTuple, []string]()
 	unsupportedTableColumnsMap := utils.NewStructMap[sqlname.NameTuple, []string]()
+	//USER DEFINED RANGE TYPE or MULTI RANGE type datatypes are not supported by importer value converter currently
+	userDefinedRangeTypes, err := pg.getAllUserDefinedRangeTypes(tableList)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error in getting user defined range types: %w", err)
+	}
+	unsupportedDatatypesList := append(PostgresUnsupportedDataTypesForDbzm, userDefinedRangeTypes...)
+	allTablesColumnsInfo, err := getAllTableColumnsInfo(tableList, pg.db)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error fetching table columns: %w", err)
+	}
 	for _, tableName := range tableList {
-		columns, dataTypes, _, err := pg.getTableColumns(tableName)
-		if err != nil {
-			return nil, nil, fmt.Errorf("error in getting table columns and datatypes: %w", err)
-		}
+		allTableColumnsInfo := allTablesColumnsInfo[tableName]
+		columns := allTableColumnsInfo.Columns
+		dataTypes := allTableColumnsInfo.DataTypes
 		var unsupportedColumnNames []string
 		var supportedColumnNames []string
 		for i, column := range columns {
@@ -720,7 +752,7 @@ func (pg *PostgreSQL) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple
 				// Use ContainsAnyStringFromSlice for string matching here because catalog table only contain base type names without modifiers. For example:
 				// - For VARCHAR(255), only "VARCHAR" is reported (no length/precision/scale in data_type column) in data_type column of the catalog table
 				// - For public.geometry(Point,4326), only "geometry" is reported in typename column of the catalog table
-				if utils.ContainsAnyStringFromSlice(PostgresUnsupportedDataTypesForDbzm, dataTypes[i]) {
+				if utils.ContainsAnyStringFromSlice(unsupportedDatatypesList, dataTypes[i]) {
 					unsupportedColumnNames = append(unsupportedColumnNames, column)
 				} else {
 					supportedColumnNames = append(supportedColumnNames, column)

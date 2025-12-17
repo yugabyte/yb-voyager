@@ -424,7 +424,7 @@ func TestYugabyteGetAllTableColumnsInfo(t *testing.T) {
 		testutils.CreateNameTupleWithSourceName("test_schema.orders", "test_schema", constants.YUGABYTEDB),
 	}
 
-	allColumnsInfo, err := ybDB.getAllTableColumnsInfo(tableList)
+	allColumnsInfo, err := getAllTableColumnsInfo(tableList, ybDB.db)
 	assert.NilError(t, err, "Expected no error fetching table columns")
 	assert.Equal(t, 2, len(allColumnsInfo), "Expected column info for 2 tables")
 
@@ -449,7 +449,7 @@ func TestYugabyteGetAllTableColumnsInfo(t *testing.T) {
 	testutils.AssertEqualStringSlices(t, []string{"order_id", "customer_id", "total"}, ordersInfo.Columns)
 
 	// Test edge case: Empty table list
-	emptyResult, err := ybDB.getAllTableColumnsInfo([]sqlname.NameTuple{})
+	emptyResult, err := getAllTableColumnsInfo([]sqlname.NameTuple{}, ybDB.db)
 	assert.NilError(t, err, "Expected no error for empty table list")
 	assert.Equal(t, 0, len(emptyResult), "Expected empty result for empty table list")
 }
