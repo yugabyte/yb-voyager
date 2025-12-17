@@ -37,6 +37,7 @@ var generatedColumnsIssue = issue.Issue{
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2_25:   ybversion.V2_25_0_0,
 		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
+		ybversion.SERIES_2025_2: ybversion.V2025_2_0_0,
 	},
 }
 
@@ -58,6 +59,7 @@ var unloggedTableIssue = issue.Issue{
 		ybversion.SERIES_2024_2: ybversion.V2024_2_0_0,
 		ybversion.SERIES_2_25:   ybversion.V2_25_0_0,
 		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
+		ybversion.SERIES_2025_2: ybversion.V2025_2_0_0,
 	},
 }
 
@@ -286,6 +288,7 @@ var beforeRowTriggerOnPartitionTableIssue = issue.Issue{
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2_25:   ybversion.V2_25_0_0,
 		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
+		ybversion.SERIES_2025_2: ybversion.V2025_2_0_0,
 	},
 }
 
@@ -305,6 +308,7 @@ var alterTableAddPKOnPartitionIssue = issue.Issue{
 		ybversion.SERIES_2024_1: ybversion.V2024_1_0_0,
 		ybversion.SERIES_2024_2: ybversion.V2024_2_0_0,
 		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
+		ybversion.SERIES_2025_2: ybversion.V2025_2_0_0,
 		ybversion.SERIES_2_23:   ybversion.V2_23_0_0,
 		ybversion.SERIES_2_25:   ybversion.V2_25_0_0,
 	},
@@ -549,6 +553,7 @@ var int8MultirangeDatatypeIssue = issue.Issue{
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2_25:   ybversion.V2_25_0_0,
 		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
+		ybversion.SERIES_2025_2: ybversion.V2025_2_0_0,
 	},
 }
 
@@ -569,6 +574,7 @@ var int4MultirangeDatatypeIssue = issue.Issue{
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2_25:   ybversion.V2_25_0_0,
 		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
+		ybversion.SERIES_2025_2: ybversion.V2025_2_0_0,
 	},
 }
 
@@ -589,6 +595,7 @@ var dateMultirangeDatatypeIssue = issue.Issue{
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2_25:   ybversion.V2_25_0_0,
 		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
+		ybversion.SERIES_2025_2: ybversion.V2025_2_0_0,
 	},
 }
 
@@ -609,6 +616,7 @@ var numMultirangeDatatypeIssue = issue.Issue{
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2_25:   ybversion.V2_25_0_0,
 		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
+		ybversion.SERIES_2025_2: ybversion.V2025_2_0_0,
 	},
 }
 
@@ -629,6 +637,7 @@ var tsMultirangeDatatypeIssue = issue.Issue{
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2_25:   ybversion.V2_25_0_0,
 		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
+		ybversion.SERIES_2025_2: ybversion.V2025_2_0_0,
 	},
 }
 
@@ -649,6 +658,7 @@ var tstzMultirangeDatatypeIssue = issue.Issue{
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2_25:   ybversion.V2_25_0_0,
 		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
+		ybversion.SERIES_2025_2: ybversion.V2025_2_0_0,
 	},
 }
 
@@ -1817,6 +1827,7 @@ var securityInvokerViewIssue = issue.Issue{
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2_25:   ybversion.V2_25_0_0,
 		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
+		ybversion.SERIES_2025_2: ybversion.V2025_2_0_0,
 	},
 }
 
@@ -1834,6 +1845,7 @@ var deterministicOptionCollationIssue = issue.Issue{
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2_25:   ybversion.V2_25_0_0,
 		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
+		ybversion.SERIES_2025_2: ybversion.V2025_2_0_0,
 	},
 }
 
@@ -1864,6 +1876,7 @@ var foreignKeyReferencesPartitionedTableIssue = issue.Issue{
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2_25:   ybversion.V2_25_0_0,
 		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
+		ybversion.SERIES_2025_2: ybversion.V2025_2_0_0,
 	},
 }
 
@@ -1884,6 +1897,7 @@ var sqlBodyInFunctionIssue = issue.Issue{
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2_25:   ybversion.V2_25_0_0,
 		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
+		ybversion.SERIES_2025_2: ybversion.V2025_2_0_0,
 	},
 }
 
@@ -1902,6 +1916,7 @@ var uniqueNullsNotDistinctIssue = issue.Issue{
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2_25:   ybversion.V2_25_0_0,
 		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
+		ybversion.SERIES_2025_2: ybversion.V2025_2_0_0,
 	},
 }
 

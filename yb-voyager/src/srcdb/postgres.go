@@ -28,9 +28,8 @@ import (
 	"strings"
 	"time"
 
-	goerrors "github.com/go-errors/errors"
-
 	"github.com/fatih/color"
+	goerrors "github.com/go-errors/errors"
 	"github.com/google/uuid"
 	"github.com/jackc/pglogrepl"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -886,14 +885,16 @@ WHERE parent.relname='%s' AND nmsp_parent.nspname = '%s' `, tname, sname)
 	return partitions
 }
 
-func (pg *PostgreSQL) GetTableToUniqueKeyColumnsMap(tableList []sqlname.NameTuple) (map[string][]string, error) {
+func (pg *PostgreSQL) GetTableToUniqueKeyColumnsMap(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
 	log.Infof("getting unique key columns for tables: %v", tableList)
-	result := make(map[string][]string)
+	result := utils.NewStructMap[sqlname.NameTuple, []string]()
 	var querySchemaList, queryTableList []string
+	tableStrToNameTupleMap := make(map[string]sqlname.NameTuple)
 	for i := 0; i < len(tableList); i++ {
 		sname, tname := tableList[i].ForCatalogQuery()
 		querySchemaList = append(querySchemaList, sname)
 		queryTableList = append(queryTableList, tname)
+		tableStrToNameTupleMap[tableList[i].AsQualifiedCatalogName()] = tableList[i]
 	}
 
 	querySchemaList = lo.Uniq(querySchemaList)
@@ -917,10 +918,17 @@ func (pg *PostgreSQL) GetTableToUniqueKeyColumnsMap(tableList []sqlname.NameTupl
 		if err != nil {
 			return nil, fmt.Errorf("scanning row for unique key column name: %w", err)
 		}
-		if schemaName != "public" {
-			tableName = fmt.Sprintf("%s.%s", schemaName, tableName)
+		tableName = fmt.Sprintf("%s.%s", schemaName, tableName)
+		tableNameTuple, ok := tableStrToNameTupleMap[tableName]
+		if !ok {
+			return nil, goerrors.Errorf("table %s not found in table list", tableName)
 		}
-		result[tableName] = append(result[tableName], colName)
+		cols, ok := result.Get(tableNameTuple)
+		if !ok {
+			cols = []string{}
+		}
+		cols = append(cols, colName)
+		result.Put(tableNameTuple, cols)
 	}
 
 	err = rows.Err()
@@ -979,7 +987,7 @@ func (pg *PostgreSQL) DropLogicalReplicationSlot(conn *pgconn.PgConn, replicatio
 	return nil
 }
 
-func (pg *PostgreSQL) CreatePublication(conn *pgconn.PgConn, publicationName string, tableList []sqlname.NameTuple, dropIfAlreadyExists bool, leafPartitions *utils.StructMap[sqlname.NameTuple, []string]) error {
+func (pg *PostgreSQL) CreatePublication(conn *pgconn.PgConn, publicationName string, tableList []sqlname.NameTuple, dropIfAlreadyExists bool, leafPartitions *utils.StructMap[sqlname.NameTuple, []sqlname.NameTuple]) error {
 	if dropIfAlreadyExists {
 		err := pg.DropPublication(publicationName)
 		if err != nil {
@@ -1841,7 +1849,7 @@ type ReplicaInfo struct {
 type ReplicaEndpoint struct {
 	Host          string
 	Port          int
-	Name          string // identifier for the replica (from application_name or endpoint)
+	Name          string // Display identifier for the replica (always in "host:port" format)
 	ConnectionUri string // full connection URI for this replica
 }
 
