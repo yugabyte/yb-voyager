@@ -451,6 +451,7 @@ func (yb *YugabyteDB) GetDatabaseSize() (int64, error) {
 	return dbSize.Int64, nil
 }
 
+// Thsi function returns some types like UDTs, ENums, etc.. fo which we need to check if there are any tables having columns of Array of these types for gRPC connector.
 func (yb *YugabyteDB) getAllUserDefinedTypesInSchema(schemaName string) []string {
 	query := fmt.Sprintf(`SELECT typname
 						FROM pg_type t
@@ -545,6 +546,8 @@ func (yb *YugabyteDB) getTypesOfAllArraysInATable(schemaName, tableName string) 
 
 func (yb *YugabyteDB) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []sqlname.NameTuple, useDebezium bool) ([]sqlname.NameTuple, []sqlname.NameTuple) {
 	if !yb.source.IsYBGrpcConnector {
+		//If its Logical connector, there aren't any unsupported table so we don't need to filter anything
+		//All the Array types are supported with logical connector
 		return tableList, nil
 	}
 	var unsupportedTables []sqlname.NameTuple
@@ -662,9 +665,13 @@ func (yb *YugabyteDB) FilterEmptyTables(tableList []sqlname.NameTuple) ([]sqlnam
 }
 
 /*
-Currently all UDTs other than enums and domain are unsupported
-so while querying the catalog table, we ignore the enums and domain types and only consider the composite types
-i.e. typtype = 'c' (composite) AND NOT typtype = 'e' (enum) AND NOT typtype = 'd' (domain)
+For gRPC
+UDTs other than enums and domain are unsupported and RANGE types are unsupported
+so we fetch
+i.e. typtype = 'c' (composite) or typtype = 'r' (range)
+
+With logical connector
+RANGE  types are unsupported so we fetch typtype = 'r'
 
 This function now accepts a slice of tables and returns a unique list of fully qualified
 unsupported user-defined type names (e.g., "hr.contact", "inventory.device_specs") by making a single database query.
@@ -675,10 +682,10 @@ func (yb *YugabyteDB) filterUnsupportedUserDefinedDatatypes(tableList []sqlname.
 		return []string{}
 	}
 
-	typesNotSupported := "t.typtype = 'r'" // RANGE types are not supported for gRPC and Logical both  as its an import value converter issue
+	typesNotSupportedClause := "t.typtype = 'r'" // RANGE types are not supported for gRPC and Logical both  as its an import value converter issue
 
 	if yb.source.IsYBGrpcConnector {
-		typesNotSupported = "(t.typtype = 'c' OR t.typtype = 'r')" // gRPC doesn't support types so fetch those only
+		typesNotSupportedClause = "(t.typtype = 'c' OR t.typtype = 'r')" // gRPC doesn't support types so fetch both composite and range types
 	}
 
 	// Build the IN clause with tuples for all tables
@@ -708,7 +715,7 @@ func (yb *YugabyteDB) filterUnsupportedUserDefinedDatatypes(tableList []sqlname.
 			AND a.attnum > 0
 			AND %s
 		ORDER BY qualified_type_name;
-	`, inClause, typesNotSupported)
+	`, inClause, typesNotSupportedClause)
 
 	rows, err := yb.db.Query(query)
 	if err != nil {
