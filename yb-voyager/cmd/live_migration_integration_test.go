@@ -1465,3 +1465,204 @@ END $$;`,
 	testutils.FatalIfError(t, err, "Cutover command failed")
 
 }
+
+func TestLiveMigrationWithUniqueKeyConflictWithExpressionIndexOnPartitions(t *testing.T) {
+	ctx := context.Background()
+
+	// Create a temporary export directory.
+	exportDir = testutils.CreateTempExportDir()
+	defer testutils.RemoveTempExportDir(exportDir)
+
+	createSchemaSQL := `CREATE SCHEMA IF NOT EXISTS test_schema;`
+
+	// Create partitioned table with multiple columns
+	createTableSQL := `
+	CREATE TABLE test_schema.test_partitions(
+		id int,
+		region text,
+		created_at date,
+		email text,
+		username text,
+		status text,
+		PRIMARY KEY(id, region)
+	) PARTITION BY LIST (region);
+	 
+	CREATE TABLE test_schema.test_partitions_l PARTITION OF test_schema.test_partitions FOR VALUES IN ('London');
+	CREATE TABLE test_schema.test_partitions_s PARTITION OF test_schema.test_partitions FOR VALUES IN ('Sydney');
+	CREATE TABLE test_schema.test_partitions_b PARTITION OF test_schema.test_partitions FOR VALUES IN ('Boston');
+	CREATE TABLE test_schema.test_partitions_t PARTITION OF test_schema.test_partitions FOR VALUES IN ('Tokyo');`
+
+	// Create expression unique index ONLY on specific leaf partitions
+	uniqueIndexSQLs := `CREATE UNIQUE INDEX idx_test_partitions_email_l ON test_schema.test_partitions_l (lower(email));
+	CREATE UNIQUE INDEX idx_test_partitions_email_s ON test_schema.test_partitions_s (lower(email));
+	CREATE UNIQUE INDEX idx_test_partitions_email_b ON test_schema.test_partitions_b (lower(email));
+	CREATE UNIQUE INDEX idx_test_partitions_email_t ON test_schema.test_partitions_t (lower(email));
+	CREATE UNIQUE INDEX idx_test_expression_index_partitions_username_t ON test_schema.test_partitions_t (upper(username));`
+
+	insertDataSQL := `INSERT INTO test_schema.test_partitions (id, region, email, username, created_at, status)
+	SELECT i, 
+		CASE 
+			WHEN i%4 = 0 THEN 'London'
+			WHEN i%4 = 1 THEN 'Sydney'
+			WHEN i%4 = 2 THEN 'Boston'
+			ELSE 'Tokyo'
+		END,
+		'email_' || i || '@example.com',
+		'user_' || i,
+		now() + (i || ' days')::interval,
+		CASE WHEN i%2 = 0 THEN 'active' ELSE 'inactive' END
+	FROM generate_series(1, 20) as i;`
+
+	dropSchemaSQL := `DROP SCHEMA IF EXISTS test_schema CASCADE;`
+
+	// Start Postgres container with live migration
+	postgresContainer := testcontainers.NewTestContainer("postgresql", &testcontainers.ContainerConfig{
+		ForLive: true,
+	})
+	if err := postgresContainer.Start(ctx); err != nil {
+		utils.ErrExit("Failed to start Postgres container: %v", err)
+	}
+
+	// Start YugabyteDB container.
+	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil)
+	if err := yugabytedbContainer.Start(ctx); err != nil {
+		utils.ErrExit("Failed to start YugabyteDB container: %v", err)
+	}
+	postgresContainer.ExecuteSqls([]string{
+		createSchemaSQL,
+		createTableSQL,
+		uniqueIndexSQLs,
+		insertDataSQL,
+		"ALTER TABLE test_schema.test_partitions REPLICA IDENTITY FULL;",
+		"ALTER TABLE test_schema.test_partitions_l REPLICA IDENTITY FULL;",
+		"ALTER TABLE test_schema.test_partitions_s REPLICA IDENTITY FULL;",
+		"ALTER TABLE test_schema.test_partitions_b REPLICA IDENTITY FULL;",
+		"ALTER TABLE test_schema.test_partitions_t REPLICA IDENTITY FULL;",
+	}...)
+
+	yugabytedbContainer.ExecuteSqls([]string{
+		createSchemaSQL,
+		createTableSQL,
+		uniqueIndexSQLs,
+	}...)
+
+	defer postgresContainer.ExecuteSqls(dropSchemaSQL)
+	defer yugabytedbContainer.ExecuteSqls(dropSchemaSQL)
+
+	err := testutils.NewVoyagerCommandRunner(postgresContainer, "export data", []string{
+		"--export-dir", exportDir,
+		"--source-db-schema", "test_schema",
+		"--disable-pb", "true",
+		"--export-type", SNAPSHOT_AND_CHANGES,
+		"--yes",
+	}, func() {
+		time.Sleep(5 * time.Second) // Wait for the export to start
+	}, true).Run()
+	testutils.FatalIfError(t, err, "Export command failed")
+
+	importCmd := testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
+		"--export-dir", exportDir,
+		"--disable-pb", "true",
+		"--yes",
+	}, nil, true)
+	err = importCmd.Run()
+	testutils.FatalIfError(t, err, "Import command failed")
+
+	time.Sleep(5 * time.Second)
+
+	ok := utils.RetryWorkWithTimeout(1, 30, func() bool {
+		return snapshotPhaseCompleted(t, postgresContainer.GetConfig().Password,
+			yugabytedbContainer.GetConfig().Password, 20, `test_schema."test_partitions"`)
+	})
+	assert.True(t, ok)
+	// Connect to both Postgres and YugabyteDB.
+	pgConn, err := postgresContainer.GetConnection()
+	testutils.FatalIfError(t, err, "connecting to Postgres")
+
+	ybConn, err := yugabytedbContainer.GetConnection()
+	testutils.FatalIfError(t, err, "Error connecting to YugabyteDB")
+
+	// Compare the full table data between Postgres and YugabyteDB for snapshot part.
+	// We assume the table "test_data" has a primary key "id" so we order by it.
+	if err := testutils.CompareTableData(ctx, pgConn, ybConn, "test_schema.test_partitions", "id"); err != nil {
+		t.Errorf("Table data mismatch between Postgres and YugabyteDB: %v", err)
+	}
+
+	//streaming events 10000 events
+	postgresContainer.ExecuteSqls([]string{
+		/*
+			1  Sydney email_1@example.com user_1 2021-01-01 active
+			2  Boston email_2@example.com user_2 2021-01-02 active
+			...
+			20 London email_20@example.com user_20 2021-01-20 active
+
+
+			changes
+			UI
+			U 20 email_20@example.com -> Email_21@example.com
+			I 21 email_20@example.com user_21 2021-01-21 active
+
+			UU
+			U 21 email_20@example.com -> Email_521@example.com
+			U 20 Email_21@example.com -> Email_20@example.com
+
+			DU
+			D 20 Email_20@example.com
+			U 21 Email_521@example.com -> email_20@example.com
+
+			DI
+			D 21 email_20@example.com
+			I 20 Email_20@example.com user_20 2021-01-20 active
+
+			U 20 email_20@example.com -> Email_21@example.com
+			I 21 email_20@example.com user_21 2021-01-21 active
+
+		*/
+		`DO $$
+DECLARE
+    i INTEGER;
+BEGIN
+    FOR i IN 21..520 LOOP
+        UPDATE test_schema.test_partitions SET email = 'Email_' || i || '@example.com' WHERE id = i - 1;
+		INSERT INTO test_schema.test_partitions(id, region, email, username, created_at, status) VALUES 
+		(i, 'Sydney', 'email_' || 20 || '@example.com', 'user_' || i, now() + (i || ' days')::interval, 'active');
+
+		UPDATE test_schema.test_partitions SET email = 'Email_' || 500+i || '@example.com' WHERE id = i;
+		UPDATE test_schema.test_partitions SET email = 'Email_' || 20 || '@example.com' WHERE id = i - 1;
+
+		DELETE FROM test_schema.test_partitions WHERE id = i-1;
+		UPDATE test_schema.test_partitions SET email = 'email_' || 20 || '@example.com' WHERE id = i;
+
+		DELETE FROM test_schema.test_partitions WHERE id = i;
+		INSERT INTO test_schema.test_partitions(id, region, email, username, created_at, status) VALUES 
+		(i-1, 'London', 'Email_' || 20 || '@example.com', 'user_' || i-1, now() + ((i-1) || ' days')::interval, 'active');
+
+		UPDATE test_schema.test_partitions SET email = 'Email_' || i || '@example.com' WHERE id = i - 1;
+		INSERT INTO test_schema.test_partitions(id, region, email, username, created_at, status) VALUES 
+		(i, 'Sydney', 'email_' || 20 || '@example.com', 'user_' || i, now() + (i || ' days')::interval, 'active');
+
+    END LOOP;
+END $$;`,
+	}...)
+
+	ok = utils.RetryWorkWithTimeout(5, 120, func() bool {
+		return streamingPhaseCompleted(t, postgresContainer.GetConfig().Password,
+			yugabytedbContainer.GetConfig().Password, 1500, 2500, 1000, `test_schema."test_partitions"`)
+	})
+
+	assert.True(t, ok)
+
+	// Compare the full table data between Postgres and YugabyteDB for streaming part.
+	if err := testutils.CompareTableData(ctx, pgConn, ybConn, "test_schema.test_partitions", "id"); err != nil {
+		t.Errorf("Table data mismatch between Postgres and YugabyteDB after streaming: %v", err)
+	}
+
+	// Perform cutover
+	err = testutils.NewVoyagerCommandRunner(nil, "initiate cutover to target", []string{
+		"--export-dir", exportDir,
+		"--yes",
+		"--prepare-for-fall-back", "false",
+	}, nil, false).Run()
+	testutils.FatalIfError(t, err, "Cutover command failed")
+
+}
