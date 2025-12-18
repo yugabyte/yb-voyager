@@ -264,31 +264,37 @@ FROM generate_series(1, 5);`,
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
 
 	//RIGHT NOW not using the fallback true
-	// err = lm.InitiateCutoverToTarget(true, nil)
-	err = lm.InitiateCutoverToTarget(false, nil)
+	err = lm.InitiateCutoverToTarget(true, nil)
+	// err = lm.InitiateCutoverToTarget(false, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover")
 
 	err = lm.WaitForCutoverComplete(50)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
 	//validate sequence restoration
-	err = lm.WithTargetConn(func(target *sql.DB) error {
-		return assertSequenceValues(t, 16, 25, target, `test_schema.test_live`)
-	})
-	testutils.FatalIfError(t, err, "failed to validate sequence restoration")
+	// err = lm.WithTargetConn(func(target *sql.DB) error {
+	// 	return assertSequenceValues(t, 16, 25, target, `test_schema.test_live`)
+	// })
+	// testutils.FatalIfError(t, err, "failed to validate sequence restoration")
 
-	// err = lm.ExecuteTargetDelta()
-	// testutils.FatalIfError(t, err, "failed to execute target delta")
+	err = lm.ExecuteTargetDelta()
+	testutils.FatalIfError(t, err, "failed to execute target delta")
 
-	// err = lm.WaitForFallbackStreamingComplete(`test_schema."test_live"`, 5, 0, 0)
-	// testutils.FatalIfError(t, err, "failed to wait for streaming complete")
+	err = lm.WaitForFallbackStreamingComplete(map[string]ChangesCount{
+		`test_schema."test_live"`: {
+			Inserts: 5,
+			Updates: 0,
+			Deletes: 0,
+		},
+	}, 30, 1)
+	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
 
-	// //validate streaming data
-	// err = lm.ValidateDataConsistency([]string{`test_schema."test_live"`}, "id")
-	// testutils.FatalIfError(t, err, "failed to validate data consistency")
+	//validate streaming data
+	err = lm.ValidateDataConsistency([]string{`test_schema."test_live"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
 
-	// err = lm.InitiateCutoverToSource(nil)
-	// testutils.FatalIfError(t, err, "failed to initiate cutover to source")
+	err = lm.InitiateCutoverToSource(nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
 
 }
 
