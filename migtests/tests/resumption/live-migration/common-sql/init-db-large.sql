@@ -129,4 +129,4 @@ END;
 $proc$;
 
 -- Default behavior when this file is executed.
-CALL public.init_db_large('lt', 5000, 200);
+CALL public.init_db_large('lt', 850, 200);
