@@ -73,7 +73,7 @@ stages:
 
   - name: create_source_schema
     action: run_sql
-    sql_path: ../common-sql/init.sql
+    sql_path: ../common-sql/init-db-large.sql
     use_admin: true
 
   - name: grant_source_permissions

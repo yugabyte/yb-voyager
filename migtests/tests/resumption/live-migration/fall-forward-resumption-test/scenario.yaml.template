@@ -111,12 +111,12 @@ stages:
 
   - name: create_source_schema
     action: run_sql
-    sql_path: ../common-sql/init.sql
+    sql_path: ../common-sql/init-db-large.sql
     use_admin: true
 
   - name: create_source_replica_schema
     action: run_sql
-    sql_path: ../common-sql/init.sql
+    sql_path: ../common-sql/init-db-large.sql
     use_admin: true
     target: source_replica
 
@@ -163,7 +163,7 @@ stages:
 
   - name: soak_with_resumptions
     action: sleep
-    seconds: 1200
+    seconds: 2400
 
   - name: stop_event_generator
     action: generator_stop
@@ -216,7 +216,7 @@ stages:
 
   - name: soak_fallback_with_resumptions
     action: sleep
-    seconds: 1200
+    seconds: 2400
 
   - name: stop_target_event_generator
     action: generator_stop

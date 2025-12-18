@@ -102,7 +102,7 @@ stages:
 
   - name: create_source_schema
     action: run_sql
-    sql_path: ../common-sql/init.sql
+    sql_path: ../common-sql/init-db-large.sql
     use_admin: true
 
   - name: grant_source_permissions
@@ -121,7 +121,7 @@ stages:
 
   - name: load_snapshot
     action: sleep
-    seconds: 120
+    seconds: 600
 
   - name: start_exporter
     action: voyager_export_start
@@ -136,7 +136,7 @@ stages:
 
   - name: small_sleep_for_some_events_to_be_generated
     action: sleep
-    seconds: 30
+    seconds: 60
 
   - name: stop_event_generator
     action: generator_stop
