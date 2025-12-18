@@ -78,5 +78,77 @@
     "imported_count": 3,
     "percentage_complete": 100,
     "errored_count": 0
+  },
+  {
+    "errored_count": 0,
+    "imported_count": 2,
+    "percentage_complete": 100,
+    "status": "DONE",
+    "table_name": "public.\"audit_log\"",
+    "total_count": 2
+  },
+  {
+    "errored_count": 0,
+    "imported_count": 2,
+    "percentage_complete": 100,
+    "status": "DONE",
+    "table_name": "public.\"composite_array_types\"",
+    "total_count": 2
+  },
+  {
+    "errored_count": 0,
+    "imported_count": 2,
+    "percentage_complete": 100,
+    "status": "DONE",
+    "table_name": "public.\"composite_types\"",
+    "total_count": 2
+  },
+  {
+    "errored_count": 0,
+    "imported_count": 3,
+    "percentage_complete": 100,
+    "status": "DONE",
+    "table_name": "public.\"domain_types\"",
+    "total_count": 3
+  },
+  {
+    "errored_count": 0,
+    "imported_count": 3,
+    "percentage_complete": 100,
+    "status": "DONE",
+    "table_name": "public.\"domain_array_types\"",
+    "total_count": 3
+  },
+  {
+    "errored_count": 0,
+    "imported_count": 3,
+    "percentage_complete": 100,
+    "status": "DONE",
+    "table_name": "public.\"extension_arrays\"",
+    "total_count": 3
+  },
+  {
+    "errored_count": 0,
+    "imported_count": 3,
+    "percentage_complete": 100,
+    "status": "DONE",
+    "table_name": "public.\"extension_types\"",
+    "total_count": 3
+  },
+  {
+    "errored_count": 0,
+    "imported_count": 3,
+    "percentage_complete": 100,
+    "status": "DONE",
+    "table_name": "public.\"range_array_types\"",
+    "total_count": 3
+  },
+  {
+    "errored_count": 0,
+    "imported_count": 3,
+    "percentage_complete": 100,
+    "status": "DONE",
+    "table_name": "public.\"range_types\"",
+    "total_count": 3
   }
 ]
