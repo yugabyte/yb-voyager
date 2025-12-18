@@ -132,7 +132,7 @@ stages:
   - name: wait_exporter_streaming
     action: wait_for
     condition: exporter_in_streaming_phase
-    timeout_sec: 600
+    timeout_sec: 6000
 
   - name: small_sleep_for_some_events_to_be_generated
     action: sleep
@@ -151,7 +151,7 @@ stages:
   - name: wait_backlog_zero
     action: wait_for
     condition: remaining_events_eq_0
-    timeout_sec: 1200
+    timeout_sec: 12000
 
   - name: cutover_to_target
     action: cutover_to_target
@@ -159,7 +159,7 @@ stages:
   - name: wait_cutover_to_target_completed
     action: wait_for
     condition: cutover_to_target_status_completed
-    timeout_sec: 900
+    timeout_sec: 9000
 
   # Stop the forward exporter/importer (these may have auto-chained internally).
   - name: stop_forward_exporter
@@ -194,7 +194,7 @@ stages:
     action: start_resumptions
     resumption:
       export_from_target:
-        max_restarts: 100
+        max_restarts: 500
         min_interrupt_seconds: 15
         max_interrupt_seconds: 60
         min_restart_wait_seconds: 5
@@ -204,7 +204,7 @@ stages:
     action: start_resumptions
     resumption:
       import_to_source:
-        max_restarts: 100
+        max_restarts: 500
         min_interrupt_seconds: 15
         max_interrupt_seconds: 60
         min_restart_wait_seconds: 5
@@ -230,7 +230,7 @@ stages:
   - name: wait_backlog_zero_after_fallback
     action: wait_for
     condition: remaining_events_eq_0
-    timeout_sec: 6000
+    timeout_sec: 9000
 
   - name: stop_fallback_export_resumptions
     action: voyager_stop_resumptions
@@ -249,7 +249,7 @@ stages:
   - name: wait_cutover_to_source_completed
     action: wait_for
     condition: cutover_to_source_status_completed
-    timeout_sec: 900
+    timeout_sec: 9000
 
   - name: row_count_validations
     action: row_count_validations

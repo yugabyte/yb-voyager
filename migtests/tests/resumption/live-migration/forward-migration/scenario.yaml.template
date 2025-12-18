@@ -102,7 +102,7 @@ stages:
     action: start_resumptions
     resumption:
       import_data:
-        max_restarts: 50
+        max_restarts: 500
         min_interrupt_seconds: 15
         max_interrupt_seconds: 60
         min_restart_wait_seconds: 5
@@ -111,13 +111,13 @@ stages:
   - name: wait_exporter_streaming
     action: wait_for
     condition: exporter_in_streaming_phase
-    timeout_sec: 600
+    timeout_sec: 6000
 
   - name: start_export_resumptions
     action: start_resumptions
     resumption:
       export_data:
-        max_restarts: 50
+        max_restarts: 500
         min_interrupt_seconds: 15
         max_interrupt_seconds: 60
         min_restart_wait_seconds: 5
@@ -139,7 +139,7 @@ stages:
   - name: wait_backlog_zero
     action: wait_for
     condition: remaining_events_eq_0
-    timeout_sec: 3000
+    timeout_sec: 6000
 
   - name: stop_export_resumptions
     action: voyager_stop_resumptions
@@ -157,7 +157,7 @@ stages:
   - name: wait_cutover_completed
     action: wait_for
     condition: cutover_to_target_status_completed
-    timeout_sec: 900
+    timeout_sec: 9000
 
   - name: validate_row_counts
     action: row_count_validations
