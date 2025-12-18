@@ -229,6 +229,30 @@ FROM generate_series(1, 5);`,
 	err = lm.SetupSchema()
 	testutils.FatalIfError(t, err, "failed to setup schema")
 
+	// run select from yb_servers() and print output
+	err = lm.WithTargetConn(func(target *sql.DB) error {
+		rows, err := target.Query(`SELECT host, port, num_connections, node_type, cloud, region, zone, public_ip FROM yb_servers();`)
+		if err != nil {
+			return fmt.Errorf("failed to query yb_servers: %w", err)
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var host, nodeType, cloud, region, zone, publicIP string
+			var port, numConnections int
+			err := rows.Scan(&host, &port, &numConnections, &nodeType, &cloud, &region, &zone, &publicIP)
+			if err != nil {
+				return fmt.Errorf("failed to scan row: %w", err)
+			}
+			fmt.Printf("host=%s port=%d num_connections=%d node_type=%s cloud=%s region=%s zone=%s public_ip=%s\n",
+				host, port, numConnections, nodeType, cloud, region, zone, publicIP)
+		}
+		if err := rows.Err(); err != nil {
+			return fmt.Errorf("failed to get rows: %w", err)
+		}
+		return nil
+	})
+	testutils.FatalIfError(t, err, "failed to query yb_servers and print output")
+
 	err = lm.StartExportData(true, nil)
 	testutils.FatalIfError(t, err, "failed to start export data")
 
