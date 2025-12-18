@@ -1241,6 +1241,7 @@ type AssessmentReport struct {
 	MigrationComplexity            string                                `json:"MigrationComplexity"`
 	MigrationComplexityExplanation string                                `json:"MigrationComplexityExplanation"`
 	SchemaSummary                  utils.SchemaSummary                   `json:"SchemaSummary"`
+	NumReplicasUsed                int                                   `json:"NumReplicasUsed,omitempty"` // Number of replicas used in assessment (0 for single-node)
 	Sizing                         *migassessment.SizingAssessmentReport `json:"Sizing"`
 	Issues                         []AssessmentIssue                     `json:"AssessmentIssues"`
 	TableIndexStats                *[]migassessment.TableIndexStats      `json:"TableIndexStats"`
