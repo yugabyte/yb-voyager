@@ -170,9 +170,9 @@ func printLiveMigrationLimitations() {
 			utils.PrintAndLogfWarning("\nImportant: The following limitations apply to live migration:\n")
 			utils.PrintAndLogfInfo("  1. Schema modifications(for example, adding/droping columns, creating/deleting tables, adding/deleting partitions etc) on the source and target databases are not supported during live migration.\n")
 			utils.PrintAndLogfInfo("  2. Primary Key or Unique Key columns should be identical between source and target databases.\n")
-			utils.PrintAndLogfInfo("  4. TRUNCATE operations on source database tables are not automatically replicated to the target database.\n")
-			utils.PrintAndLogfInfo("  5. Sequences that are not associated with any column or are attached to columns of non-integer types are not supported for automatic value generation resumption. These sequences must be manually resumed during the cutover phase.\n")
-			utils.PrintAndLogfInfo("  6. Tables without a Primary Key are not supported for live migration.\n\n")
+			utils.PrintAndLogfInfo("  3. TRUNCATE operations on source database tables are not automatically replicated to the target database.\n")
+			utils.PrintAndLogfInfo("  4. Sequences that are not associated with any column or are attached to columns of non-integer types are not supported for automatic value generation resumption. These sequences must be manually resumed during the cutover phase.\n")
+			utils.PrintAndLogfInfo("  5. Tables without a Primary Key are not supported for live migration.\n\n")
 		} else {
 			workflow := lo.Ternary(exporterRole == TARGET_DB_EXPORTER_FF_ROLE, "fall forward", "fall back")
 			utils.PrintAndLogfWarning("\nImportant: The following limitation applies to live migration with %s:\n\n", workflow)
