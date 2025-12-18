@@ -7,44 +7,60 @@
 -- Usage (psql):
 --   \i init-db-large.sql
 --
+-- IMPORTANT:
+--   This script uses a stored PROCEDURE and does periodic COMMITs to avoid
+--   exhausting shared memory / max_locks_per_transaction when creating thousands
+--   of tables. Do NOT run it inside an explicit BEGIN/COMMIT transaction block.
+--
 -- You can override defaults by calling:
---   SELECT public.init_db_large('lt', 1000);
+--   CALL public.init_db_large('lt', 5000, 200);
 
-CREATE OR REPLACE FUNCTION public.drop_large_tables(p_prefix text)
-RETURNS void
+CREATE OR REPLACE PROCEDURE public.init_db_large(
+  p_prefix text DEFAULT 'lt',
+  p_total int DEFAULT 1000,
+  p_batch int DEFAULT 200
+)
 LANGUAGE plpgsql
-AS $fn$
+AS $proc$
 DECLARE
   r record;
+  i int;
+  tname text;
+  template_idx int;
+  op_count int := 0;
 BEGIN
+  IF p_total IS NULL OR p_total <= 0 THEN
+    RAISE EXCEPTION 'p_total must be > 0 (got %)', p_total;
+  END IF;
+  IF p_batch IS NULL OR p_batch <= 0 THEN
+    RAISE EXCEPTION 'p_batch must be > 0 (got %)', p_batch;
+  END IF;
+
   -- Drop any prior large tables that match "<prefix>_...." naming.
   FOR r IN (
     SELECT tablename
     FROM pg_catalog.pg_tables
     WHERE schemaname = 'public'
       AND tablename LIKE (p_prefix || E'\\_%') ESCAPE E'\\'
+    ORDER BY tablename
   )
   LOOP
     EXECUTE format('DROP TABLE IF EXISTS public.%I CASCADE', r.tablename);
+    op_count := op_count + 1;
+    IF (op_count % p_batch) = 0 THEN
+      COMMIT;
+    END IF;
   END LOOP;
 
-  -- Drop the enum type used by large tables (if present).
-  EXECUTE 'DROP TYPE IF EXISTS public.week_large CASCADE';
-END;
-$fn$;
-
-CREATE OR REPLACE FUNCTION public.create_large_tables(p_prefix text, p_total int)
-RETURNS void
-LANGUAGE plpgsql
-AS $fn$
-DECLARE
-  i int;
-  tname text;
-  template_idx int;
-BEGIN
-  IF p_total IS NULL OR p_total <= 0 THEN
-    RAISE EXCEPTION 'p_total must be > 0 (got %)', p_total;
-  END IF;
+  -- Drop the enum type used by the template (if present).
+  -- (No CASCADE: we expect all dependent large tables already dropped.)
+  BEGIN
+    EXECUTE 'DROP TYPE IF EXISTS public.week_large';
+  EXCEPTION
+    WHEN dependent_objects_still_exist THEN
+      -- If anything still depends on it, keep going; the create step will reuse it.
+      NULL;
+  END;
 
   -- Shared enum type for one of the templates.
   BEGIN
@@ -54,6 +70,7 @@ BEGIN
       NULL;
   END;
 
+  op_count := 0;
   FOR i IN 1..p_total LOOP
     -- Table name: <prefix>_<4-digit>
     tname := p_prefix || '_' || lpad(i::text, 4, '0');
@@ -92,54 +109,24 @@ BEGIN
         tname
       );
     END IF;
-  END LOOP;
-END;
-$fn$;
 
-CREATE OR REPLACE FUNCTION public.create_cutover_table()
-RETURNS void
-LANGUAGE plpgsql
-AS $fn$
-BEGIN
+    -- Set replica identity immediately (keeps work bounded per batch).
+    EXECUTE format('ALTER TABLE public.%I REPLICA IDENTITY FULL', tname);
+
+    op_count := op_count + 1;
+    IF (op_count % p_batch) = 0 THEN
+      COMMIT;
+    END IF;
+  END LOOP;
+
+  -- Cutover table (recreated each run).
   EXECUTE 'DROP TABLE IF EXISTS public.cutover_table';
   EXECUTE 'CREATE TABLE public.cutover_table (id serial PRIMARY KEY, status text)';
-END;
-$fn$;
+  EXECUTE 'ALTER TABLE public.cutover_table REPLICA IDENTITY FULL';
 
-CREATE OR REPLACE FUNCTION public.set_replica_identity_full_for_large_tables(p_prefix text)
-RETURNS void
-LANGUAGE plpgsql
-AS $fn$
-DECLARE
-  r record;
-BEGIN
-  FOR r IN (
-    SELECT table_name
-    FROM information_schema.tables
-    WHERE table_schema = 'public'
-      AND table_type = 'BASE TABLE'
-      AND (
-        table_name = 'cutover_table'
-        OR table_name LIKE (p_prefix || E'\\_%') ESCAPE E'\\'
-      )
-  )
-  LOOP
-    EXECUTE format('ALTER TABLE public.%I REPLICA IDENTITY FULL', r.table_name);
-  END LOOP;
+  COMMIT;
 END;
-$fn$;
-
-CREATE OR REPLACE FUNCTION public.init_db_large(p_prefix text DEFAULT 'lt', p_total int DEFAULT 1000)
-RETURNS void
-LANGUAGE plpgsql
-AS $fn$
-BEGIN
-  PERFORM public.drop_large_tables(p_prefix);
-  PERFORM public.create_large_tables(p_prefix, p_total);
-  PERFORM public.create_cutover_table();
-  PERFORM public.set_replica_identity_full_for_large_tables(p_prefix);
-END;
-$fn$;
+$proc$;
 
 -- Default behavior when this file is executed.
-SELECT public.init_db_large('lt', 5000);
+CALL public.init_db_large('lt', 5000, 200);
