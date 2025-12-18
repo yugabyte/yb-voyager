@@ -66,3 +66,132 @@ CREATE TABLE enum_array_table (
     week_days week[],
     description TEXT
 );
+
+drop type if exists full_address cascade;
+
+CREATE TYPE full_address AS ( city TEXT, street TEXT, zip_code INT ); 
+
+drop table if exists composite_types cascade;
+
+CREATE TABLE composite_types ( id SERIAL primary key, address full_address ); 
+
+drop table if exists composite_array_types cascade;
+
+CREATE TABLE composite_array_types ( id SERIAL primary key, addresses full_address[] );
+
+-- Domain Datatypes
+CREATE DOMAIN social_security_number AS TEXT
+    CHECK (VALUE ~ '^\d{3}-\d{2}-\d{4}$');
+
+CREATE DOMAIN positive_int AS INT
+    CHECK (VALUE > 0);
+
+CREATE DOMAIN email_address AS TEXT
+    CHECK (VALUE ~* '^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$');
+
+CREATE DOMAIN rating_1_to_5 AS INT
+    CHECK (VALUE BETWEEN 1 AND 5);
+
+CREATE DOMAIN phone_number AS TEXT
+    CHECK (VALUE ~ '^\+?[0-9]{10,15}$');
+
+CREATE DOMAIN full_name AS TEXT
+    CHECK (VALUE ~ '^[A-Za-z]+\s[A-Za-z]+$');
+
+CREATE DOMAIN app_settings AS JSONB
+    CHECK (VALUE ? 'version');
+
+CREATE TABLE domain_types (
+    id SERIAL primary key,
+    ssn social_security_number,
+    email email_address,
+    rating rating_1_to_5,
+    prefs app_settings
+);
+
+CREATE TABLE domain_array_types (
+    id SERIAL primary key,
+    ssn_list social_security_number[],
+    phone_list phone_number[],
+    name_list full_name[]
+);
+
+-- Range Datatypes
+CREATE TYPE price_range AS RANGE (
+    subtype = numeric
+);
+
+CREATE TYPE discount_range AS RANGE (
+    subtype = float8
+);
+
+CREATE TYPE period_range AS RANGE (
+    subtype = date
+);
+
+CREATE TYPE active_ts_range AS RANGE (
+    subtype = timestamptz
+);
+
+CREATE TABLE range_types (
+    id SERIAL PRIMARY KEY,
+    price_range_col price_range,
+    discount_range_col discount_range,
+    period_range_col period_range,
+    active_ts_range_col active_ts_range
+);
+
+
+CREATE TABLE range_array_types (
+    id SERIAL PRIMARY KEY,
+    price_ranges price_range[],
+    discount_ranges discount_range[],
+    period_ranges period_range[],
+    ts_ranges active_ts_range[]
+);
+
+-- Extension Datatypes
+CREATE EXTENSION IF NOT EXISTS HSTORE;
+CREATE EXTENSION IF NOT EXISTS CITEXT;
+CREATE EXTENSION IF NOT EXISTS LTREE;
+
+CREATE TABLE extension_types (
+    id SERIAL primary key,
+    col_hstore  HSTORE,
+    col_citext  CITEXT,
+    col_ltree   LTREE
+);
+
+-- Extension Arrays Datatypes
+CREATE TABLE extension_arrays (
+  id SERIAL primary key,
+  col_hstore HSTORE[],
+  col_citext CITEXT[],
+  col_ltree  LTREE[]
+);
+
+-- Nested Datatypes
+CREATE TYPE employment_status AS ENUM ('active', 'inactive', 'terminated');
+CREATE TYPE region AS ENUM ('north', 'south', 'east', 'west');
+CREATE DOMAIN email_address AS TEXT CHECK (POSITION('@' IN VALUE) > 1);
+
+CREATE TYPE employee_info AS (
+  emp_name TEXT,
+  emp_status employment_status,
+  emp_email email_address
+);
+
+
+CREATE TYPE client_info AS (
+  client_name TEXT,
+  region region,
+  contact_email email_address
+);
+
+CREATE TABLE audit_log (
+  id SERIAL PRIMARY KEY,
+  involved_employees employee_info[],
+  affected_clients client_info[],
+  transaction_refs INT[],
+  created_at TIMESTAMP DEFAULT NOW()
+);
