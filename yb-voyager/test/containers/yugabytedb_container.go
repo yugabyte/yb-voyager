@@ -68,7 +68,10 @@ func (yb *YugabyteDBContainer) Start(ctx context.Context) (err error) {
 			"--daemon=false",
 			"--ui=false",
 			"--initial_scripts_dir=/home/yugabyte/initial-scripts",
+			// "--advertise_address=127.0.0.1",
+			// "--ysql_port=25433",
 		},
+		// Hostname:   "yb-cluster-test",
 		WaitingFor: yugabyteWait(),
 		Files: []testcontainers.ContainerFile{
 			{
@@ -77,6 +80,11 @@ func (yb *YugabyteDBContainer) Start(ctx context.Context) (err error) {
 				FileMode:          0755,
 			},
 		},
+		// HostConfigModifier: func(hostConfig *container.HostConfig) {
+		// 	hostConfig.PortBindings = nat.PortMap{
+		// 		"25433/tcp": {{HostIP: "127.0.0.1", HostPort: "25433"}},
+		// 	}
+		// },
 	}
 
 	yb.container, err = testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
@@ -87,6 +95,17 @@ func (yb *YugabyteDBContainer) Start(ctx context.Context) (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to start yugabytedb container: %w", err)
 	}
+
+	// hostFile, err := os.OpenFile("/etc/hosts", os.O_APPEND, 0644)
+	// if err != nil {
+	// 	return fmt.Errorf("failed to open hosts file: %w", err)
+	// }
+	// defer hostFile.Close()
+	// data, err := io.ReadAll(hostFile)
+	// if err != nil {
+	// 	return fmt.Errorf("failed to read hosts file: %w", err)
+	// }
+	// fmt.Printf("hosts file data before: %s\n", string(data))
 
 	return nil
 }
@@ -249,10 +268,58 @@ func (yb *YugabyteDBContainer) Query(sql string, args ...interface{}) (*sql.Rows
 	return rows, nil
 }
 
+// yugabyteSQLWaitStrategy is a basic wait strategy that connects to YugabyteDB
+// and executes a simple SQL query to verify the database is ready
+// type YugabyteDBWaitStrategy struct {
+// 	timeout      time.Duration
+// 	pollInterval time.Duration
+// }
+
+// func (y *YugabyteDBWaitStrategy) WaitUntilReady(ctx context.Context, target wait.StrategyTarget) error {
+// 	deadline := time.Now().Add(y.timeout)
+
+// 	for time.Now().Before(deadline) {
+// 		host, err := target.Host(ctx)
+// 		if err != nil {
+// 			return fmt.Errorf("failed to get host: %w", err)
+// 		}
+// 		fmt.Printf("host: %s\n", host)
+// 		fmt.Printf("Waiting for yugabyte to be ready...\n")
+// 		conn, err := pgx.Connect(ctx, fmt.Sprintf("postgres://yugabyte:password@%s:25433/yugabyte?sslmode=disable", host))
+// 		fmt.Printf("Error: %v\n", err)
+// 		if err == nil {
+// 			var result int
+// 			err = conn.QueryRow(ctx, "SELECT 1").Scan(&result)
+// 			fmt.Printf("Result: %d\n", result)
+// 			conn.Close(ctx)
+// 			if err == nil {
+// 				return nil // Success - database is ready
+// 			}
+// 		}
+
+// 		select {
+// 		case <-ctx.Done():
+// 			return ctx.Err()
+// 		case <-time.After(y.pollInterval):
+// 			// Continue polling
+// 		}
+// 	}
+
+// 	return fmt.Errorf("yugabyte wait strategy timed out after %v", y.timeout)
+// }
+
+// func yugabyteWait() wait.Strategy {
+// 	return &YugabyteDBWaitStrategy{
+// 		timeout:      3 * time.Minute,
+// 		pollInterval: 1 * time.Second,
+// 	}
+// }
+
 // yugabyteWait returns a wait strategy for YugabyteDB node(s)
 func yugabyteWait() wait.Strategy {
 	return wait.ForSQL(nat.Port("5433/tcp"), "pgx",
 		func(host string, port nat.Port) string {
+			fmt.Printf("host: %s, port: %s\n", host, port.Port())
 			return fmt.Sprintf(
 				"postgres://yugabyte:password@%s:%s/yugabyte?sslmode=disable",
 				host, port.Port())

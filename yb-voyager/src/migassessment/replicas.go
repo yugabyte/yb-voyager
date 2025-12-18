@@ -31,15 +31,22 @@ import (
 )
 
 // HandleReplicaDiscoveryAndValidation discovers and validates PostgreSQL read replicas.
-// Takes the source database and replica endpoints flag as parameters and returns
-// the validated replicas to include in assessment.
+// Takes the source database, replica endpoints flag, and primary-only flag as parameters
+// and returns the validated replicas to include in assessment.
 // Returns nil replicas if no replicas are to be included (single-node assessment) or if source is not PostgreSQL.
-func HandleReplicaDiscoveryAndValidation(source *srcdb.Source, replicaEndpointsFlag string) ([]srcdb.ReplicaEndpoint, error) {
+func HandleReplicaDiscoveryAndValidation(source *srcdb.Source, replicaEndpointsFlag string, primaryOnly bool) ([]srcdb.ReplicaEndpoint, error) {
 	// Only PostgreSQL supports read replica assessment
 	pg, ok := source.DB().(*srcdb.PostgreSQL)
 	if !ok {
 		return nil, nil // No replicas for non-PostgreSQL databases
 	}
+
+	// If primary-only flag is set, skip replica discovery
+	if primaryOnly {
+		utils.PrintAndLogfInfo("\nAssessing primary node only...")
+		return nil, nil
+	}
+
 	// Step 1: Discover replicas from pg_stat_replication
 	utils.PrintAndLogf("Checking for read replicas...")
 	discoveredReplicas, err := pg.DiscoverReplicas()
@@ -132,21 +139,23 @@ func validateDiscoveredReplicas(pg *srcdb.PostgreSQL, discoveredReplicas []srcdb
 
 // promptToIncludeAllDiscoveredReplicas handles the scenario where all discovered replicas are connectable.
 // Prompts the user to include them in the assessment.
-// Returns the replicas to include in assessment (nil if user declines).
+// Returns the replicas to include in assessment. If user declines, exits cleanly with guidance.
 func promptToIncludeAllDiscoveredReplicas(connectableReplicas []srcdb.ReplicaEndpoint) ([]srcdb.ReplicaEndpoint, error) {
 	utils.PrintAndLogfSuccess("\nSuccessfully validated all %d replica(s) for connection.", len(connectableReplicas))
 	if utils.AskPrompt("\nDo you want to include these replicas in this assessment") {
 		utils.PrintAndLogfInfo("Proceeding with multi-node assessment using discovered replicas.")
 		return connectableReplicas, nil
 	}
-	utils.PrintAndLogfInfo("Continuing with primary-only assessment.")
-	return nil, nil
+
+	// User declined - exit cleanly with guidance (not an error, user's choice)
+	utils.PrintAndLogfInfo("\nTo proceed with primary-only assessment, please rerun with --primary-only flag")
+	utils.ErrExit("Aborting...")
+	return nil, nil // unreachable, but required for compilation
 }
 
 // promptForPartialDiscoveredReplicas handles the scenario where some discovered replicas are connectable
-// but others are not. Prompts the user to choose between proceeding with partial set,
-// providing explicit endpoints, or continuing with primary-only assessment.
-// Returns the replicas to include in assessment (nil if user declines or aborts).
+// but others are not. Prompts the user to proceed with validated replicas or exit.
+// Returns the replicas to include in assessment. If user declines, exits cleanly with guidance.
 func promptForPartialDiscoveredReplicas(connectableReplicas []srcdb.ReplicaEndpoint, failedReplicas []string) ([]srcdb.ReplicaEndpoint, error) {
 	utils.PrintAndLogfWarning("\nPartial validation result:")
 	utils.PrintAndLogfSuccess("  ✓ %d replica(s) successfully validated", len(connectableReplicas))
@@ -154,27 +163,23 @@ func promptForPartialDiscoveredReplicas(connectableReplicas []srcdb.ReplicaEndpo
 	for _, failed := range failedReplicas {
 		utils.PrintAndLogf("      - %s", failed)
 	}
-	utils.PrintAndLogfInfo("\nYou can either:")
-	utils.PrintAndLogfInfo("  1. Proceed with the %d validated replica(s)", len(connectableReplicas))
-	utils.PrintAndLogfInfo("  2. Exit and provide all replica endpoints via --source-read-replica-endpoints")
-	utils.PrintAndLogfInfo("  3. Continue with primary-only assessment")
 
 	if utils.AskPrompt(fmt.Sprintf("\nDo you want to proceed with the %d validated replica(s)", len(connectableReplicas))) {
 		utils.PrintAndLogfInfo("Proceeding with multi-node assessment using %d validated replica(s).", len(connectableReplicas))
 		return connectableReplicas, nil
 	}
 
-	if utils.AskPrompt("Do you want to exit and provide replica endpoints") {
-		return nil, goerrors.Errorf("Aborting, please rerun with --source-read-replica-endpoints flag")
-	}
-
-	utils.PrintAndLogfInfo("Continuing with primary-only assessment.")
+	// User declined - exit cleanly with guidance (not an error, user's choice)
+	utils.PrintAndLogfInfo("\nTo proceed, you can either:")
+	utils.PrintAndLogfInfo("  1. Rerun with --primary-only for primary-only assessment")
+	utils.PrintAndLogfInfo("  2. Rerun with --source-read-replica-endpoints to specify all replica endpoints")
+	utils.ErrExit("Assessment cancelled by user. Please rerun with appropriate flags.")
 	return nil, nil
 }
 
 // promptWhenNoDiscoveredReplicasConnectable handles the scenario where no discovered replicas could be validated.
-// Explains the issue and offers options to provide explicit endpoints or continue with primary-only assessment.
-// Returns nil replicas if user chooses to continue with primary-only, or error if user aborts.
+// Explains the issue and exits cleanly with guidance to use appropriate flags.
+// Exits the program (does not return an error since it's not an error condition).
 func promptWhenNoDiscoveredReplicasConnectable(notReplicaEndpoints []string, connectionFailures []string) ([]srcdb.ReplicaEndpoint, error) {
 	if len(notReplicaEndpoints) > 0 && len(connectionFailures) == 0 {
 		// All endpoints are not physical replicas.
@@ -188,8 +193,7 @@ func promptWhenNoDiscoveredReplicasConnectable(notReplicaEndpoints []string, con
 		}
 	} else if len(connectionFailures) > 0 && len(notReplicaEndpoints) == 0 {
 		// All discovered endpoints had connection failures
-		utils.PrintAndLogfWarning("\nThe addresses shown in pg_stat_replication are not directly connectable from this environment.")
-		utils.PrintAndLogfInfo("This is common in cloud environments (RDS, Aurora), Docker, Kubernetes, or proxy setups.")
+		utils.PrintAndLogfWarning("\nIt is possible that the addresses shown in pg_stat_replication are not directly connectable from this environment.\nThis is common in cloud environments (RDS, Aurora), Docker, Kubernetes, or proxy setups.")
 	} else {
 		// Mix of both types of failures
 		utils.PrintAndLogfWarning("\nUnable to validate any discovered endpoint as a physical replica.")
@@ -207,15 +211,11 @@ func promptWhenNoDiscoveredReplicasConnectable(notReplicaEndpoints []string, con
 		}
 	}
 
-	utils.PrintAndLogfInfo("\nTo include replicas in the assessment, you can:")
-	utils.PrintAndLogfInfo("  1. Exit and rerun with --source-read-replica-endpoints flag")
-	utils.PrintAndLogfInfo("  2. Continue with primary-only assessment")
+	utils.PrintAndLogfInfo("\nTo proceed, you can either:")
+	utils.PrintAndLogfInfo("  1. Rerun with --primary-only for primary-only assessment")
+	utils.PrintAndLogfInfo("  2. Rerun with --source-read-replica-endpoints to specify replica endpoints manually")
 
-	if utils.AskPrompt("\nDo you want to exit and provide replica endpoints") {
-		return nil, goerrors.Errorf("Aborting, please rerun with --source-read-replica-endpoints flag")
-	}
-
-	utils.PrintAndLogf("Continuing with primary-only assessment.")
+	utils.ErrExit("No replicas could be validated. Please rerun with appropriate flags.")
 	return nil, nil
 }
 

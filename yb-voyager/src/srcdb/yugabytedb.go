@@ -39,9 +39,12 @@ import (
 )
 
 // Apart from these we also skip UDT columns. Array of enums, hstore, and tsvector are supported with logical connector (default).
-var YugabyteUnsupportedDataTypesForDbzmLogical = []string{"BOX", "CIRCLE", "LINE", "LSEG", "PATH", "PG_LSN", "POINT", "POLYGON", "TSQUERY", "TXID_SNAPSHOT", "GEOMETRY", "GEOGRAPHY", "RASTER"}
+var YugabyteUnsupportedDataTypesForDbzmLogical = []string{"BOX", "CIRCLE", "LINE", "LSEG", "PATH", "PG_LSN", "POINT", "POLYGON", "TSQUERY", "TXID_SNAPSHOT", "GEOMETRY", "GEOGRAPHY", "RASTER", "INT4MULTIRANGE", "INT8MULTIRANGE", "NUMMULTIRANGE", "TSMULTIRANGE", "TSTZMULTIRANGE", "DATEMULTIRANGE"}
 
-var YugabyteUnsupportedDataTypesForDbzmGrpc = []string{"BOX", "CIRCLE", "LINE", "LSEG", "PATH", "PG_LSN", "POINT", "POLYGON", "TSQUERY", "TSVECTOR", "TXID_SNAPSHOT", "GEOMETRY", "GEOGRAPHY", "RASTER", "HSTORE"}
+// For the gRPC connector - datatypes like HSTORE/CITEXT/LTREE that are available by extensions, are not supported and the table of these needs to be skipped for the migration with grpc connector
+// but right now we are only skipping columns of that table and if there are DML on those tables the gRPC connector will error out.
+// TODO to handle that
+var YugabyteUnsupportedDataTypesForDbzmGrpc = []string{"BOX", "CIRCLE", "LINE", "LSEG", "PATH", "PG_LSN", "POINT", "POLYGON", "TSQUERY", "TSVECTOR", "TXID_SNAPSHOT", "GEOMETRY", "GEOGRAPHY", "RASTER", "HSTORE", "CITEXT", "LTREE", "INT4MULTIRANGE", "INT8MULTIRANGE", "NUMMULTIRANGE", "TSMULTIRANGE", "TSTZMULTIRANGE", "DATEMULTIRANGE"}
 
 func GetYugabyteUnsupportedDatatypesDbzm(isGRPCConnector bool) []string {
 	if isGRPCConnector {
@@ -451,6 +454,7 @@ func (yb *YugabyteDB) GetDatabaseSize() (int64, error) {
 	return dbSize.Int64, nil
 }
 
+// Thsi function returns some types like UDTs, ENums, etc.. fo which we need to check if there are any tables having columns of Array of these types for gRPC connector.
 func (yb *YugabyteDB) getAllUserDefinedTypesInSchema(schemaName string) []string {
 	query := fmt.Sprintf(`SELECT typname
 						FROM pg_type t
@@ -544,15 +548,19 @@ func (yb *YugabyteDB) getTypesOfAllArraysInATable(schemaName, tableName string) 
 }
 
 func (yb *YugabyteDB) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []sqlname.NameTuple, useDebezium bool) ([]sqlname.NameTuple, []sqlname.NameTuple) {
+	if !yb.source.IsYBGrpcConnector {
+		//If its Logical connector, there aren't any unsupported table so we don't need to filter anything
+		//All the Array types are supported with logical connector
+		return tableList, nil
+	}
 	var unsupportedTables []sqlname.NameTuple
 	var filteredTableList []sqlname.NameTuple
 	for _, table := range tableList {
 		sname, tname := table.ForCatalogQuery()
-		userDefinedTypes := yb.getAllUserDefinedTypesInSchema(sname)
+		userDefinedTypes := yb.getAllUserDefinedTypesInSchema(sname) //returns UDTs + Enums
 		if len(userDefinedTypes) == 0 {
 			continue
 		}
-		enumTypes := yb.getAllEnumTypesInSchema(sname)
 		tableColumnArrayTypes := yb.getTypesOfAllArraysInATable(sname, tname)
 		if len(tableColumnArrayTypes) == 0 {
 			continue
@@ -560,12 +568,7 @@ func (yb *YugabyteDB) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList
 
 		// Build list of unsupported types based on connector type
 		// UDT types without enums are always unsupported
-		udtTypes := utils.SetDifference(userDefinedTypes, enumTypes)
-		unsupportedTableTypes := udtTypes
-		// Array of enums are only unsupported with YBGrpcConnector
-		if yb.source.IsYBGrpcConnector {
-			unsupportedTableTypes = append(unsupportedTableTypes, enumTypes...)
-		}
+		unsupportedTableTypes := userDefinedTypes
 
 		// If any of the data types of the arrays are in the unsupported types then add the table to the unsupported tables list
 		// udt_type/data_type looks like status_enum[] whereas enum_type looks like status_enum
@@ -665,9 +668,13 @@ func (yb *YugabyteDB) FilterEmptyTables(tableList []sqlname.NameTuple) ([]sqlnam
 }
 
 /*
-Currently all UDTs other than enums and domain are unsupported
-so while querying the catalog table, we ignore the enums and domain types and only consider the composite types
-i.e. typtype = 'c' (composite) AND NOT typtype = 'e' (enum) AND NOT typtype = 'd' (domain)
+For gRPC
+UDTs other than enums and domain are unsupported and RANGE types are unsupported
+so we fetch
+i.e. typtype = 'c' (composite) or typtype = 'r' (range)
+
+With logical connector
+RANGE  types are unsupported so we fetch typtype = 'r'
 
 This function now accepts a slice of tables and returns a unique list of fully qualified
 unsupported user-defined type names (e.g., "hr.contact", "inventory.device_specs") by making a single database query.
@@ -676,6 +683,12 @@ Qualified because same typename can be present in multiple schemas in completely
 func (yb *YugabyteDB) filterUnsupportedUserDefinedDatatypes(tableList []sqlname.NameTuple) []string {
 	if len(tableList) == 0 {
 		return []string{}
+	}
+
+	typesNotSupportedClause := "t.typtype = 'r'" // RANGE types are not supported for gRPC and Logical both  as its an import value converter issue
+
+	if yb.source.IsYBGrpcConnector {
+		typesNotSupportedClause = "(t.typtype = 'c' OR t.typtype = 'r')" // gRPC doesn't support types so fetch both composite and range types
 	}
 
 	// Build the IN clause with tuples for all tables
@@ -703,9 +716,9 @@ func (yb *YugabyteDB) filterUnsupportedUserDefinedDatatypes(tableList []sqlname.
 		WHERE
 			(table_n.nspname, c.relname) IN (%s)
 			AND a.attnum > 0
-			AND t.typtype = 'c'
+			AND %s
 		ORDER BY qualified_type_name;
-	`, inClause)
+	`, inClause, typesNotSupportedClause)
 
 	rows, err := yb.db.Query(query)
 	if err != nil {
@@ -746,12 +759,12 @@ func (yb *YugabyteDB) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple
 	}
 
 	// Fetch all user-defined types for all tables in a single query and add them to the unsupported datatypes list
-	userDefinedDataTypes := yb.filterUnsupportedUserDefinedDatatypes(tableList)
+	unsupportedUserDefinedTypes := yb.filterUnsupportedUserDefinedDatatypes(tableList)
 	unsupportedDatatypesList := GetYugabyteUnsupportedDatatypesDbzm(yb.source.IsYBGrpcConnector)
-	unsupportedDatatypesList = append(unsupportedDatatypesList, userDefinedDataTypes...)
+	unsupportedDatatypesList = append(unsupportedDatatypesList, unsupportedUserDefinedTypes...)
 
 	// Fetch all table columns in a single query
-	allTablesColumnsInfo, err := yb.getAllTableColumnsInfo(tableList)
+	allTablesColumnsInfo, err := getAllTableColumnsInfo(tableList, yb.db)
 	if err != nil {
 		return nil, nil, fmt.Errorf("error fetching table columns: %w", err)
 	}
@@ -787,7 +800,7 @@ func (yb *YugabyteDB) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple
 }
 
 // getAllTableColumnsInfo fetches column information for all tables in a single database query
-func (yb *YugabyteDB) getAllTableColumnsInfo(tableList []sqlname.NameTuple) (map[sqlname.NameTuple]tableColumnInfo, error) {
+func getAllTableColumnsInfo(tableList []sqlname.NameTuple, db *sql.DB) (map[sqlname.NameTuple]tableColumnInfo, error) {
 	var result = make(map[sqlname.NameTuple]tableColumnInfo)
 	if len(tableList) == 0 {
 		return result, nil
@@ -814,7 +827,7 @@ func (yb *YugabyteDB) getAllTableColumnsInfo(tableList []sqlname.NameTuple) (map
 			-- Qualify only composite types (UDTs) to distinguish same-named types across schemas.
 			-- Keep other types unqualified (hstore, int4, etc.) to match unsupported types list.
 			CASE
-				WHEN t.typtype = 'c' THEN type_n.nspname || '.' || t.typname
+				WHEN (t.typtype = 'c' OR t.typtype = 'r') THEN type_n.nspname || '.' || t.typname
 				ELSE t.typname
 			END AS data_type
 		FROM pg_attribute AS a
@@ -828,7 +841,7 @@ func (yb *YugabyteDB) getAllTableColumnsInfo(tableList []sqlname.NameTuple) (map
 			AND NOT a.attisdropped
 		ORDER BY n.nspname, c.relname, a.attnum; -- attnum ensures columns appear in table definition order and keeps Columns[] and DataTypes[] arrays aligned deterministically
 	`, inClause)
-	rows, err := yb.db.Query(query)
+	rows, err := db.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("error querying table columns: %w", err)
 	}

@@ -35,6 +35,7 @@ var advisoryLocksIssue = issue.Issue{
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented",
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
+		ybversion.SERIES_2025_2: ybversion.V2025_2_0_0,
 	},
 }
 
@@ -140,6 +141,7 @@ var regexFunctionsIssue = issue.Issue{
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2_25:   ybversion.V2_25_0_0,
 		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
+		ybversion.SERIES_2025_2: ybversion.V2025_2_0_0,
 	},
 }
 
@@ -172,6 +174,7 @@ var rangeAggregateFunctionIssue = issue.Issue{
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2_25:   ybversion.V2_25_0_0,
 		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
+		ybversion.SERIES_2025_2: ybversion.V2025_2_0_0,
 	},
 }
 
@@ -247,6 +250,7 @@ var jsonbSubscriptingIssue = issue.Issue{
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2_25:   ybversion.V2_25_0_0,
 		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
+		ybversion.SERIES_2025_2: ybversion.V2025_2_0_0,
 	},
 }
 
@@ -279,6 +283,7 @@ var copyFromWhereIssue = issue.Issue{
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2_25:   ybversion.V2_25_0_0,
 		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
+		ybversion.SERIES_2025_2: ybversion.V2025_2_0_0,
 	},
 }
 
@@ -324,6 +329,7 @@ var cteWithMaterializedIssue = issue.Issue{
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2_25:   ybversion.V2_25_0_0, //TODO: understand in NOT MATERIALIZED works as expected internally
 		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
+		ybversion.SERIES_2025_2: ybversion.V2025_2_0_0,
 	},
 }
 
@@ -385,4 +391,18 @@ var twoPhaseCommitIssue = issue.Issue{
 
 func NewTwoPhaseCommitIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	return newQueryIssue(twoPhaseCommitIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var savepointUsageIssue = issue.Issue{
+	Type:        SAVEPOINT_USAGE,
+	Name:        SAVEPOINT_USAGE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: SAVEPOINT_USAGE_ISSUE_DESCRIPTION,
+	Suggestion:  SAVEPOINT_USAGE_ISSUE_SUGGESTION,
+	GH:          "",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/#savepoint-usage-in-transactions",
+}
+
+func NewSavepointUsageIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	return newQueryIssue(savepointUsageIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
