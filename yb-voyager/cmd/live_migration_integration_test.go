@@ -1359,3 +1359,522 @@ END $$;`,
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
 }
+
+func TestLiveMigrationWithLargeNumberOfColumns(t *testing.T) {
+	liveMigrationTest := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB: ContainerConfig{
+			Type:    "postgresql",
+			ForLive: true,
+		},
+		TargetDB: ContainerConfig{
+			Type: "yugabytedb",
+		},
+		SchemaNames: []string{"test_schema"},
+		SchemaSQL: []string{
+			`CREATE SCHEMA IF NOT EXISTS test_schema;
+			CREATE TABLE test_schema.test_large_number_of_columns (
+				id int PRIMARY KEY,
+				column1 text,
+				column2 text,
+				column3 text,
+				column4 text,
+				column5 text,
+				column6 text,
+				column7 text,
+				column8 text,
+				column9 text,
+				column10 text,
+				column11 text,
+				column12 text,
+				column13 text,
+				column14 text,
+				column15 text,
+				column16 text,
+				column17 text,
+				column18 text,
+				column19 text,
+				column20 text,
+				column21 text,
+				column22 text,
+				column23 text,
+				column24 text,
+				column25 text,
+				column26 text,
+				column27 text,
+				column28 text,
+				column29 text,
+				column30 text,
+				column31 text,
+				column32 text,
+				column33 text,
+				column34 text,
+				column35 text,
+				column36 text,
+				column37 text,
+				column38 text,
+				column39 text,
+				column40 text,
+				column41 text,
+				column42 text,
+				column43 text,
+				column44 text,
+				column45 text,
+				column46 text,
+				column47 text,
+				column48 text,
+				column49 text,
+				column50 text
+			);`,
+		},
+		SourceSetupSchemaSQL: []string{
+			`ALTER TABLE test_schema.test_large_number_of_columns REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			`INSERT INTO test_schema.test_large_number_of_columns (id, column1, column2, column3, column4, column5, column6, column7, column8, column9, column10, column11, column12, column13, column14, column15, column16, column17, column18, column19, column20, column21, column22, column23, column24, column25,
+			column26, column27, column28, column29, column30, column31, column32, column33, column34, column35, column36, column37, column38, column39, column40, column41, column42, column43, column44, column45, column46, column47, column48, column49, column50)
+			SELECT i, md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), 
+			md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), 
+			md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text)
+			FROM generate_series(1, 20) as i;`,
+		},
+		SourceDeltaSQL: []string{
+			/*
+				changes
+				Inserting 500 events
+
+				I event with  25 columns
+				U above row and all 25 columns
+				U above row and 20 columns
+				U above row and 15 columns
+				U above row and 10 columns
+				U above row and 8 columns
+				U above row and 6 columns
+
+				D
+
+				I
+				and same updates again
+			*/
+			`
+DO $$
+DECLARE
+    i INTEGER;
+BEGIN
+    FOR i IN 21..220 LOOP
+        INSERT INTO test_schema.test_large_number_of_columns (id, column1, column2, column3, column4, column5, column6, column7, column8, column9, column10, column11, column12, column13, column14, column15, column16, column17, column18, column19, column20, column21, column22, column23, column24, column25,
+		column26, column27, column28, column29, column30, column31, column32, column33, column34, column35, column36, column37, column38, column39, column40, column41, column42, column43, column44, column45, column46, column47, column48, column49, column50)
+		SELECT i, md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), 
+			md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), 
+			md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text);
+		
+		UPDATE test_schema.test_large_number_of_columns SET column1 = 'updated_column1' || i , column2 = 'updated_column2' || i , column3 = 'updated_column3' || i , column4 = 'updated_column4' || i , column5 = 'updated_column5' || i , column6 = 'updated_column6' || i , 
+		column7 = 'updated_column7' || i , column8 = 'updated_column8' || i , column9 = 'updated_column9' || i , column10 = 'updated_column10' || i , column11 = 'updated_column11' || i , column12 = 'updated_column12' || i , column13 = 'updated_column13' || i , column14 = 'updated_column14' || i , column15 = 'updated_column15' || i , column16 = 'updated_column16' || i , 
+		column17 = 'updated_column17' || i , column18 = 'updated_column18' || i , column19 = 'updated_column19' || i , column20 = 'updated_column20' || i , column21 = 'updated_column21' || i , 
+		column22 = 'updated_column22' || i , column23 = 'updated_column23' || i , column24 = 'updated_column24' || i , column25 = 'updated_column25' || i , column26 = 'updated_column26' || i , column27 = 'updated_column27' || i , column28 = 'updated_column28' || i , column29 = 'updated_column29' || i , column30 = 'updated_column30' || i , column31 = 'updated_column31' || i , column32 = 'updated_column32' || i , 
+		column33 = 'updated_column33' || i , column34 = 'updated_column34' || i , column35 = 'updated_column35' || i , column36 = 'updated_column36' || i , column37 = 'updated_column37' || i , column38 = 'updated_column38' || i , column39 = 'updated_column39' || i , column40 = 'updated_column40' || i , column41 = 'updated_column41' || i , column42 = 'updated_column42' || i , column43 = 'updated_column43' || i , 
+		column44 = 'updated_column44' || i , column45 = 'updated_column45' || i , column46 = 'updated_column46' || i , column47 = 'updated_column47' || i , column48 = 'updated_column48' || i , column49 = 'updated_column49' || i , column50 = 'updated_column50' || i WHERE id = i;
+
+		UPDATE test_schema.test_large_number_of_columns SET column1 = 'updated_column1' || i+1 , column2 = 'updated_column2' || i+1 , column3 = 'updated_column3' || i+1 , column4 = 'updated_column4' || i+1 , column5 = 'updated_column5' || i+1 , column6 = 'updated_column6' || i+1 , 
+		column7 = 'updated_column7' || i+1 , column8 = 'updated_column8' || i+1 , column9 = 'updated_column9' || i+1 , column10 = 'updated_column10' || i+1 , column11 = 'updated_column11' || i+1 , column12 = 'updated_column12' || i+1 , column13 = 'updated_column13' || i+1 , column14 = 'updated_column14' || i+1 , column15 = 'updated_column15' || i+1 , 
+		column16 = 'updated_column16' || i+1 , column17 = 'updated_column17' || i+1 , column18 = 'updated_column18' || i+1 , column19 = 'updated_column19' || i+1 , column20 = 'updated_column20' || i+1 , column21 = 'updated_column21' || i+1 , 
+		column22 = 'updated_column22' || i+1 , column23 = 'updated_column23' || i+1 , column24 = 'updated_column24' || i+1 , column25 = 'updated_column25' || i+1 , column26 = 'updated_column26' || i+1 , column27 = 'updated_column27' || i+1 , column28 = 'updated_column28' || i+1 , column29 = 'updated_column29' || i+1 , column30 = 'updated_column30' || i+1 , column31 = 'updated_column31' || i+1 , column32 = 'updated_column32' || i+1 , 
+		column33 = 'updated_column33' || i+1 , column34 = 'updated_column34' || i+1 , column35 = 'updated_column35' || i+1 , column36 = 'updated_column36' || i+1 , column37 = 'updated_column37' || i+1 , column38 = 'updated_column38' || i+1 , column39 = 'updated_column39' || i+1 , column40 = 'updated_column40' || i+1 WHERE id = i;
+
+		UPDATE test_schema.test_large_number_of_columns SET column1 = 'updated_column1' || i+2 , column2 = 'updated_column2' || i+2 , column3 = 'updated_column3' || i+2 , column4 = 'updated_column4' || i+2 , column5 = 'updated_column5' || i+2 , column6 = 'updated_column6' || i+2 , 
+		column7 = 'updated_column7' || i+2 , column8 = 'updated_column8' || i+2 , column9 = 'updated_column9' || i+2 , column10 = 'updated_column10' || i+2 , column11 = 'updated_column11' || i+2 , column12 = 'updated_column12' || i+2 , column13 = 'updated_column13' || i+2 , column14 = 'updated_column14' || i+2 , column15 = 'updated_column15' || i+2 , column16 = 'updated_column16' || i+2 , column17 = 'updated_column17' || i+2 , column18 = 'updated_column18' || i+2 , column19 = 'updated_column19' || i+2 , column20 = 'updated_column20' || i+2 , column21 = 'updated_column21' || i+2 , 
+		column22 = 'updated_column22' || i+2 , column23 = 'updated_column23' || i+2 , column24 = 'updated_column24' || i+2 , column25 = 'updated_column25' || i+2 , column26 = 'updated_column26' || i+2 , column27 = 'updated_column27' || i+2 , column28 = 'updated_column28' || i+2 , column29 = 'updated_column29' || i+2 , column30 = 'updated_column30' || i+2 , column31 = 'updated_column31' || i+2 , column32 = 'updated_column32' || i+2 , 
+		column33 = 'updated_column33' || i+2 , column34 = 'updated_column34' || i+2 , column35 = 'updated_column35' || i+2  WHERE id = i;
+
+
+		UPDATE test_schema.test_large_number_of_columns SET column1 = 'updated_column1' || i+3 , column2 = 'updated_column2' || i+3 , column3 = 'updated_column3' || i+3 , column4 = 'updated_column4' || i+3 , column5 = 'updated_column5' || i+3 , column6 = 'updated_column6' || i+3 , 
+		column7 = 'updated_column7' || i+3 , column8 = 'updated_column8' || i+3 , column9 = 'updated_column9' || i+3 , column10 = 'updated_column10' || i+3 , column11 = 'updated_column11' || i+3 , column12 = 'updated_column12' || i+3 , column13 = 'updated_column13' || i+3 , column14 = 'updated_column14' || i+3 , column15 = 'updated_column15' || i+3 , column16 = 'updated_column16' || i+3 , column17 = 'updated_column17' || i+3 , column18 = 'updated_column18' || i+3 , column19 = 'updated_column19' || i+3 , column20 = 'updated_column20' || i+3 , column21 = 'updated_column21' || i+3 , 
+		column22 = 'updated_column22' || i+3 , column23 = 'updated_column23' || i+3 , column24 = 'updated_column24' || i+3 , column25 = 'updated_column25' || i+3 , column26 = 'updated_column26' || i+3 , column27 = 'updated_column27' || i+3 , column28 = 'updated_column28' || i+3 , column29 = 'updated_column29' || i+3 , column30 = 'updated_column30' || i+3 WHERE id = i;
+
+		UPDATE test_schema.test_large_number_of_columns SET column1 = 'updated_column1' || i+4 , column2 = 'updated_column2' || i+4 , column3 = 'updated_column3' || i+4 , column4 = 'updated_column4' || i+4 , column5 = 'updated_column5' || i+4 , column6 = 'updated_column6' || i+4 , 
+		column7 = 'updated_column7' || i+4 , column8 = 'updated_column8' || i+4 , column9 = 'updated_column9' || i+4 , column10 = 'updated_column10' || i+4 , column11 = 'updated_column11' || i+4 , column12 = 'updated_column12' || i+4 , column13 = 'updated_column13' || i+4 , column14 = 'updated_column14' || i+4 , column15 = 'updated_column15' || i+4 , column16 = 'updated_column16' || i+4 , column17 = 'updated_column17' || i+4 , column18 = 'updated_column18' || i+4 , column19 = 'updated_column19' || i+4 , column20 = 'updated_column20' || i+4 , column21 = 'updated_column21' || i+4 , 
+		column22 = 'updated_column22' || i+4 , column23 = 'updated_column23' || i+4 , column24 = 'updated_column24' || i+4 , column25 = 'updated_column25' || i+4 , column26 = 'updated_column26' || i+4 , column27 = 'updated_column27' || i+4 WHERE id = i;
+
+		UPDATE test_schema.test_large_number_of_columns SET column1 = 'updated_column1' || i+5 , column2 = 'updated_column2' || i+5 , column3 = 'updated_column3' || i+5 , column4 = 'updated_column4' || i+5 , column5 = 'updated_column5' || i+5 , column6 = 'updated_column6' || i+5 , 
+		column7 = 'updated_column7' || i+5 , column8 = 'updated_column8' || i+5 , column9 = 'updated_column9' || i+5 , column10 = 'updated_column10' || i+5 , column11 = 'updated_column11' || i+5 , column12 = 'updated_column12' || i+5 , column13 = 'updated_column13' || i+5 , column14 = 'updated_column14' || i+5 , column15 = 'updated_column15' || i+5 , column16 = 'updated_column16' || i+5 , column17 = 'updated_column17' || i+5 , column18 = 'updated_column18' || i+5 , column19 = 'updated_column19' || i+5 , column20 = 'updated_column20' || i+5 WHERE id = i;
+
+		DELETE FROM test_schema.test_large_number_of_columns WHERE id = i;
+		INSERT INTO test_schema.test_large_number_of_columns (id, column1, column2, column3, column4, column5, column6, column7, column8, column9, column10, column11, column12, column13, column14, column15, column16, column17, column18, column19, column20, column21, column22, column23, column24, column25,
+		column26, column27, column28, column29, column30, column31, column32, column33, column34, column35, column36, column37, column38, column39, column40, column41, column42, column43, column44, column45, column46, column47, column48, column49, column50)
+		SELECT i, md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), 
+			md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), 
+			md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text);
+
+		UPDATE test_schema.test_large_number_of_columns SET column1 = 'updated_column1' || i+6 , column2 = 'updated_column2' || i+6 , column3 = 'updated_column3' || i+6 , column4 = 'updated_column4' || i+6 , column5 = 'updated_column5' || i+6 , column6 = 'updated_column6' || i+6 , 
+		column7 = 'updated_column7' || i+6 , column8 = 'updated_column8' || i+6 , column9 = 'updated_column9' || i+6 , column10 = 'updated_column10' || i+6 , column11 = 'updated_column11' || i+6 , column12 = 'updated_column12' || i+6 , column13 = 'updated_column13' || i+6 , column14 = 'updated_column14' || i+6 , column15 = 'updated_column15' || i+6 , column16 = 'updated_column16' || i+6 , 
+		column17 = 'updated_column17' || i+6 , column18 = 'updated_column18' || i+6 , column19 = 'updated_column19' || i+6 , column20 = 'updated_column20' || i+6 , column21 = 'updated_column21' || i+6 , 
+		column22 = 'updated_column22' || i+6 , column23 = 'updated_column23' || i+6 , column24 = 'updated_column24' || i+6 , column25 = 'updated_column25' || i+6 , column26 = 'updated_column26' || i+6 , column27 = 'updated_column27' || i+6 , column28 = 'updated_column28' || i+6 , column29 = 'updated_column29' || i+6 , column30 = 'updated_column30' || i+6 , column31 = 'updated_column31' || i+6 , column32 = 'updated_column32' || i+6 , 
+		column33 = 'updated_column33' || i+6 , column34 = 'updated_column34' || i+6 , column35 = 'updated_column35' || i+6 , column36 = 'updated_column36' || i+6 , column37 = 'updated_column37' || i+6 , column38 = 'updated_column38' || i+6 , column39 = 'updated_column39' || i+6 , column40 = 'updated_column40' || i+6 , column41 = 'updated_column41' || i+6 , column42 = 'updated_column42' || i+6 , column43 = 'updated_column43' || i+6 , 
+		column44 = 'updated_column44' || i+6 , column45 = 'updated_column45' || i+6 , column46 = 'updated_column46' || i+6 , column47 = 'updated_column47' || i+6 , column48 = 'updated_column48' || i+6 , column49 = 'updated_column49' || i+6 , column50 = 'updated_column50' || i+6 WHERE id = i;
+
+		UPDATE test_schema.test_large_number_of_columns SET column1 = 'updated_column1' || i+7 , column2 = 'updated_column2' || i+7 , column3 = 'updated_column3' || i+7 , column4 = 'updated_column4' || i+7 , column5 = 'updated_column5' || i+7 , column6 = 'updated_column6' || i+7 , 
+		column7 = 'updated_column7' || i+1 , column8 = 'updated_column8' || i+7 , column9 = 'updated_column9' || i+7 , column10 = 'updated_column10' || i+7 , column11 = 'updated_column11' || i+7 , column12 = 'updated_column12' || i+7 , column13 = 'updated_column13' || i+7 , column14 = 'updated_column14' || i+7 , column15 = 'updated_column15' || i+7 , 
+		column16 = 'updated_column16' || i+7 , column17 = 'updated_column17' || i+7 , column18 = 'updated_column18' || i+7 , column19 = 'updated_column19' || i+7 , column20 = 'updated_column20' || i+7 , column21 = 'updated_column21' || i+7 , 
+		column22 = 'updated_column22' || i+7 , column23 = 'updated_column23' || i+7 , column24 = 'updated_column24' || i+7 , column25 = 'updated_column25' || i+7, column26 = 'updated_column26' || i+7 , column27 = 'updated_column27' || i+7 , column28 = 'updated_column28' || i+7 , column29 = 'updated_column29' || i+7 , column30 = 'updated_column30' || i+7 , column31 = 'updated_column31' || i+7 , column32 = 'updated_column32' || i+7 , 
+		column33 = 'updated_column33' || i+7 , column34 = 'updated_column34' || i+7 , column35 = 'updated_column35' || i+7 , column36 = 'updated_column36' || i+7 , column37 = 'updated_column37' || i+7 , column38 = 'updated_column38' || i+7 , column39 = 'updated_column39' || i+7 , column40 = 'updated_column40' || i+7 WHERE id = i;
+
+		UPDATE test_schema.test_large_number_of_columns SET column1 = 'updated_column1' || i+8 , column2 = 'updated_column2' || i+8 , column3 = 'updated_column3' || i+8 , column4 = 'updated_column4' || i+8 , column5 = 'updated_column5' || i+8 , column6 = 'updated_column6' || i+8 , 
+		column7 = 'updated_column7' || i+8 , column8 = 'updated_column8' || i+8 , column9 = 'updated_column9' || i+8 , column10 = 'updated_column10' || i+8 , column11 = 'updated_column11' || i+8 , column12 = 'updated_column12' || i+8 , column13 = 'updated_column13' || i+8 , column14 = 'updated_column14' || i+8 , column15 = 'updated_column15' || i+8, 
+		column16 = 'updated_column16' || i+8 , column17 = 'updated_column17' || i+8 , column18 = 'updated_column18' || i+8 , column19 = 'updated_column19' || i+8 , column20 = 'updated_column20' || i+8 , column21 = 'updated_column21' || i+8 , 
+		column22 = 'updated_column22' || i+8 , column23 = 'updated_column23' || i+8 , column24 = 'updated_column24' || i+8 , column25 = 'updated_column25' || i+8 WHERE id = i;
+
+
+		UPDATE test_schema.test_large_number_of_columns SET column1 = 'updated_column1' || i+9 , column2 = 'updated_column2' || i+9 , column3 = 'updated_column3' || i+9 , column4 = 'updated_column4' || i+9 , column5 = 'updated_column5' || i+9 , column6 = 'updated_column6' || i+9 , 
+		column7 = 'updated_column7' || i+9 , column8 = 'updated_column8' || i+9 , column9 = 'updated_column9' || i+9 , column10 = 'updated_column10' || i+9, column16 = 'updated_column16' || i+9 , column17 = 'updated_column17' || i+9 , column18 = 'updated_column18' || i+9   WHERE id = i;
+
+    END LOOP;
+END $$;
+			`,
+		},
+		TargetDeltaSQL: []string{
+			/*
+				changes
+				Inserting 500 events
+
+				I event with  25 columns
+				U above row and all 25 columns
+				U above row and 20 columns
+				U above row and 15 columns
+				U above row and 10 columns
+				U above row and 8 columns
+				U above row and 6 columns
+
+				D
+
+				I
+				and same updates again
+			*/
+			`
+DO $$
+DECLARE
+    i INTEGER;
+BEGIN
+    FOR i IN 221..520 LOOP
+        INSERT INTO test_schema.test_large_number_of_columns (id, column1, column2, column3, column4, column5, column6, column7, column8, column9, column10, column11, column12, column13, column14, column15, column16, column17, column18, column19, column20, column21, column22, column23, column24, column25,
+		column26, column27, column28, column29, column30, column31, column32, column33, column34, column35, column36, column37, column38, column39, column40, column41, column42, column43, column44, column45, column46, column47, column48, column49, column50)
+		SELECT i, md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), 
+			md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), 
+			md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text);
+		
+		UPDATE test_schema.test_large_number_of_columns SET column1 = 'updated_column1' || i , column2 = 'updated_column2' || i , column3 = 'updated_column3' || i , column4 = 'updated_column4' || i , column5 = 'updated_column5' || i , column6 = 'updated_column6' || i , 
+		column7 = 'updated_column7' || i , column8 = 'updated_column8' || i , column9 = 'updated_column9' || i , column10 = 'updated_column10' || i , column11 = 'updated_column11' || i , column12 = 'updated_column12' || i , column13 = 'updated_column13' || i , column14 = 'updated_column14' || i , column15 = 'updated_column15' || i , column16 = 'updated_column16' || i , 
+		column17 = 'updated_column17' || i , column18 = 'updated_column18' || i , column19 = 'updated_column19' || i , column20 = 'updated_column20' || i , column21 = 'updated_column21' || i , 
+		column22 = 'updated_column22' || i , column23 = 'updated_column23' || i , column24 = 'updated_column24' || i , column25 = 'updated_column25' || i , column26 = 'updated_column26' || i , column27 = 'updated_column27' || i , column28 = 'updated_column28' || i , column29 = 'updated_column29' || i , column30 = 'updated_column30' || i , column31 = 'updated_column31' || i , column32 = 'updated_column32' || i , 
+		column33 = 'updated_column33' || i , column34 = 'updated_column34' || i , column35 = 'updated_column35' || i , column36 = 'updated_column36' || i , column37 = 'updated_column37' || i , column38 = 'updated_column38' || i , column39 = 'updated_column39' || i , column40 = 'updated_column40' || i , column41 = 'updated_column41' || i , column42 = 'updated_column42' || i , column43 = 'updated_column43' || i , 
+		column44 = 'updated_column44' || i , column45 = 'updated_column45' || i , column46 = 'updated_column46' || i , column47 = 'updated_column47' || i , column48 = 'updated_column48' || i , column49 = 'updated_column49' || i , column50 = 'updated_column50' || i WHERE id = i;
+
+		UPDATE test_schema.test_large_number_of_columns SET column1 = 'updated_column1' || i+1 , column2 = 'updated_column2' || i+1 , column3 = 'updated_column3' || i+1 , column4 = 'updated_column4' || i+1 , column5 = 'updated_column5' || i+1 , column6 = 'updated_column6' || i+1 , 
+		column7 = 'updated_column7' || i+1 , column8 = 'updated_column8' || i+1 , column9 = 'updated_column9' || i+1 , column10 = 'updated_column10' || i+1 , column11 = 'updated_column11' || i+1 , column12 = 'updated_column12' || i+1 , column13 = 'updated_column13' || i+1 , column14 = 'updated_column14' || i+1 , column15 = 'updated_column15' || i+1 , 
+		column16 = 'updated_column16' || i+1 , column17 = 'updated_column17' || i+1 , column18 = 'updated_column18' || i+1 , column19 = 'updated_column19' || i+1 , column20 = 'updated_column20' || i+1 , column21 = 'updated_column21' || i+1 , 
+		column22 = 'updated_column22' || i+1 , column23 = 'updated_column23' || i+1 , column24 = 'updated_column24' || i+1 , column25 = 'updated_column25' || i+1 , column26 = 'updated_column26' || i+1 , column27 = 'updated_column27' || i+1 , column28 = 'updated_column28' || i+1 , column29 = 'updated_column29' || i+1 , column30 = 'updated_column30' || i+1 , column31 = 'updated_column31' || i+1 , column32 = 'updated_column32' || i+1 , 
+		column33 = 'updated_column33' || i+1 , column34 = 'updated_column34' || i+1 , column35 = 'updated_column35' || i+1 , column36 = 'updated_column36' || i+1 , column37 = 'updated_column37' || i+1 , column38 = 'updated_column38' || i+1 , column39 = 'updated_column39' || i+1 , column40 = 'updated_column40' || i+1 WHERE id = i;
+
+		UPDATE test_schema.test_large_number_of_columns SET column1 = 'updated_column1' || i+2 , column2 = 'updated_column2' || i+2 , column3 = 'updated_column3' || i+2 , column4 = 'updated_column4' || i+2 , column5 = 'updated_column5' || i+2 , column6 = 'updated_column6' || i+2 , 
+		column7 = 'updated_column7' || i+2 , column8 = 'updated_column8' || i+2 , column9 = 'updated_column9' || i+2 , column10 = 'updated_column10' || i+2 , column11 = 'updated_column11' || i+2 , column12 = 'updated_column12' || i+2 , column13 = 'updated_column13' || i+2 , column14 = 'updated_column14' || i+2 , column15 = 'updated_column15' || i+2 , column16 = 'updated_column16' || i+2 , column17 = 'updated_column17' || i+2 , column18 = 'updated_column18' || i+2 , column19 = 'updated_column19' || i+2 , column20 = 'updated_column20' || i+2 , column21 = 'updated_column21' || i+2 , 
+		column22 = 'updated_column22' || i+2 , column23 = 'updated_column23' || i+2 , column24 = 'updated_column24' || i+2 , column25 = 'updated_column25' || i+2 , column26 = 'updated_column26' || i+2 , column27 = 'updated_column27' || i+2 , column28 = 'updated_column28' || i+2 , column29 = 'updated_column29' || i+2 , column30 = 'updated_column30' || i+2 , column31 = 'updated_column31' || i+2 , column32 = 'updated_column32' || i+2 , 
+		column33 = 'updated_column33' || i+2 , column34 = 'updated_column34' || i+2 , column35 = 'updated_column35' || i+2  WHERE id = i;
+
+
+		UPDATE test_schema.test_large_number_of_columns SET column1 = 'updated_column1' || i+3 , column2 = 'updated_column2' || i+3 , column3 = 'updated_column3' || i+3 , column4 = 'updated_column4' || i+3 , column5 = 'updated_column5' || i+3 , column6 = 'updated_column6' || i+3 , 
+		column7 = 'updated_column7' || i+3 , column8 = 'updated_column8' || i+3 , column9 = 'updated_column9' || i+3 , column10 = 'updated_column10' || i+3 , column11 = 'updated_column11' || i+3 , column12 = 'updated_column12' || i+3 , column13 = 'updated_column13' || i+3 , column14 = 'updated_column14' || i+3 , column15 = 'updated_column15' || i+3 , column16 = 'updated_column16' || i+3 , column17 = 'updated_column17' || i+3 , column18 = 'updated_column18' || i+3 , column19 = 'updated_column19' || i+3 , column20 = 'updated_column20' || i+3 , column21 = 'updated_column21' || i+3 , 
+		column22 = 'updated_column22' || i+3 , column23 = 'updated_column23' || i+3 , column24 = 'updated_column24' || i+3 , column25 = 'updated_column25' || i+3 , column26 = 'updated_column26' || i+3 , column27 = 'updated_column27' || i+3 , column28 = 'updated_column28' || i+3 , column29 = 'updated_column29' || i+3 , column30 = 'updated_column30' || i+3 WHERE id = i;
+
+		UPDATE test_schema.test_large_number_of_columns SET column1 = 'updated_column1' || i+4 , column2 = 'updated_column2' || i+4 , column3 = 'updated_column3' || i+4 , column4 = 'updated_column4' || i+4 , column5 = 'updated_column5' || i+4 , column6 = 'updated_column6' || i+4 , 
+		column7 = 'updated_column7' || i+4 , column8 = 'updated_column8' || i+4 , column9 = 'updated_column9' || i+4 , column10 = 'updated_column10' || i+4 , column11 = 'updated_column11' || i+4 , column12 = 'updated_column12' || i+4 , column13 = 'updated_column13' || i+4 , column14 = 'updated_column14' || i+4 , column15 = 'updated_column15' || i+4 , column16 = 'updated_column16' || i+4 , column17 = 'updated_column17' || i+4 , column18 = 'updated_column18' || i+4 , column19 = 'updated_column19' || i+4 , column20 = 'updated_column20' || i+4 , column21 = 'updated_column21' || i+4 , 
+		column22 = 'updated_column22' || i+4 , column23 = 'updated_column23' || i+4 , column24 = 'updated_column24' || i+4 , column25 = 'updated_column25' || i+4 , column26 = 'updated_column26' || i+4 , column27 = 'updated_column27' || i+4 WHERE id = i;
+
+		UPDATE test_schema.test_large_number_of_columns SET column1 = 'updated_column1' || i+5 , column2 = 'updated_column2' || i+5 , column3 = 'updated_column3' || i+5 , column4 = 'updated_column4' || i+5 , column5 = 'updated_column5' || i+5 , column6 = 'updated_column6' || i+5 , 
+		column7 = 'updated_column7' || i+5 , column8 = 'updated_column8' || i+5 , column9 = 'updated_column9' || i+5 , column10 = 'updated_column10' || i+5 , column11 = 'updated_column11' || i+5 , column12 = 'updated_column12' || i+5 , column13 = 'updated_column13' || i+5 , column14 = 'updated_column14' || i+5 , column15 = 'updated_column15' || i+5 , column16 = 'updated_column16' || i+5 , column17 = 'updated_column17' || i+5 , column18 = 'updated_column18' || i+5 , column19 = 'updated_column19' || i+5 , column20 = 'updated_column20' || i+5 WHERE id = i;
+
+		DELETE FROM test_schema.test_large_number_of_columns WHERE id = i;
+		INSERT INTO test_schema.test_large_number_of_columns (id, column1, column2, column3, column4, column5, column6, column7, column8, column9, column10, column11, column12, column13, column14, column15, column16, column17, column18, column19, column20, column21, column22, column23, column24, column25,
+		column26, column27, column28, column29, column30, column31, column32, column33, column34, column35, column36, column37, column38, column39, column40, column41, column42, column43, column44, column45, column46, column47, column48, column49, column50)
+		SELECT i, md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), 
+			md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), 
+			md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text);
+
+		UPDATE test_schema.test_large_number_of_columns SET column1 = 'updated_column1' || i+6 , column2 = 'updated_column2' || i+6 , column3 = 'updated_column3' || i+6 , column4 = 'updated_column4' || i+6 , column5 = 'updated_column5' || i+6 , column6 = 'updated_column6' || i+6 , 
+		column7 = 'updated_column7' || i+6 , column8 = 'updated_column8' || i+6 , column9 = 'updated_column9' || i+6 , column10 = 'updated_column10' || i+6 , column11 = 'updated_column11' || i+6 , column12 = 'updated_column12' || i+6 , column13 = 'updated_column13' || i+6 , column14 = 'updated_column14' || i+6 , column15 = 'updated_column15' || i+6 , column16 = 'updated_column16' || i+6 , 
+		column17 = 'updated_column17' || i+6 , column18 = 'updated_column18' || i+6 , column19 = 'updated_column19' || i+6 , column20 = 'updated_column20' || i+6 , column21 = 'updated_column21' || i+6 , 
+		column22 = 'updated_column22' || i+6 , column23 = 'updated_column23' || i+6 , column24 = 'updated_column24' || i+6 , column25 = 'updated_column25' || i+6 , column26 = 'updated_column26' || i+6 , column27 = 'updated_column27' || i+6 , column28 = 'updated_column28' || i+6 , column29 = 'updated_column29' || i+6 , column30 = 'updated_column30' || i+6 , column31 = 'updated_column31' || i+6 , column32 = 'updated_column32' || i+6 , 
+		column33 = 'updated_column33' || i+6 , column34 = 'updated_column34' || i+6 , column35 = 'updated_column35' || i+6 , column36 = 'updated_column36' || i+6 , column37 = 'updated_column37' || i+6 , column38 = 'updated_column38' || i+6 , column39 = 'updated_column39' || i+6 , column40 = 'updated_column40' || i+6 , column41 = 'updated_column41' || i+6 , column42 = 'updated_column42' || i+6 , column43 = 'updated_column43' || i+6 , 
+		column44 = 'updated_column44' || i+6 , column45 = 'updated_column45' || i+6 , column46 = 'updated_column46' || i+6 , column47 = 'updated_column47' || i+6 , column48 = 'updated_column48' || i+6 , column49 = 'updated_column49' || i+6 , column50 = 'updated_column50' || i+6 WHERE id = i;
+
+		UPDATE test_schema.test_large_number_of_columns SET column1 = 'updated_column1' || i+7 , column2 = 'updated_column2' || i+7 , column3 = 'updated_column3' || i+7 , column4 = 'updated_column4' || i+7 , column5 = 'updated_column5' || i+7 , column6 = 'updated_column6' || i+7 , 
+		column7 = 'updated_column7' || i+1 , column8 = 'updated_column8' || i+7 , column9 = 'updated_column9' || i+7 , column10 = 'updated_column10' || i+7 , column11 = 'updated_column11' || i+7 , column12 = 'updated_column12' || i+7 , column13 = 'updated_column13' || i+7 , column14 = 'updated_column14' || i+7 , column15 = 'updated_column15' || i+7 , 
+		column16 = 'updated_column16' || i+7 , column17 = 'updated_column17' || i+7 , column18 = 'updated_column18' || i+7 , column19 = 'updated_column19' || i+7 , column20 = 'updated_column20' || i+7 , column21 = 'updated_column21' || i+7 , 
+		column22 = 'updated_column22' || i+7 , column23 = 'updated_column23' || i+7 , column24 = 'updated_column24' || i+7 , column25 = 'updated_column25' || i+7, column26 = 'updated_column26' || i+7 , column27 = 'updated_column27' || i+7 , column28 = 'updated_column28' || i+7 , column29 = 'updated_column29' || i+7 , column30 = 'updated_column30' || i+7 , column31 = 'updated_column31' || i+7 , column32 = 'updated_column32' || i+7 , 
+		column33 = 'updated_column33' || i+7 , column34 = 'updated_column34' || i+7 , column35 = 'updated_column35' || i+7 , column36 = 'updated_column36' || i+7 , column37 = 'updated_column37' || i+7 , column38 = 'updated_column38' || i+7 , column39 = 'updated_column39' || i+7 , column40 = 'updated_column40' || i+7 WHERE id = i;
+
+		UPDATE test_schema.test_large_number_of_columns SET column1 = 'updated_column1' || i+8 , column2 = 'updated_column2' || i+8 , column3 = 'updated_column3' || i+8 , column4 = 'updated_column4' || i+8 , column5 = 'updated_column5' || i+8 , column6 = 'updated_column6' || i+8 , 
+		column7 = 'updated_column7' || i+8 , column8 = 'updated_column8' || i+8 , column9 = 'updated_column9' || i+8 , column10 = 'updated_column10' || i+8 , column11 = 'updated_column11' || i+8 , column12 = 'updated_column12' || i+8 , column13 = 'updated_column13' || i+8 , column14 = 'updated_column14' || i+8 , column15 = 'updated_column15' || i+8, 
+		column16 = 'updated_column16' || i+8 , column17 = 'updated_column17' || i+8 , column18 = 'updated_column18' || i+8 , column19 = 'updated_column19' || i+8 , column20 = 'updated_column20' || i+8 , column21 = 'updated_column21' || i+8 , 
+		column22 = 'updated_column22' || i+8 , column23 = 'updated_column23' || i+8 , column24 = 'updated_column24' || i+8 , column25 = 'updated_column25' || i+8 WHERE id = i;
+
+
+		UPDATE test_schema.test_large_number_of_columns SET column1 = 'updated_column1' || i+9 , column2 = 'updated_column2' || i+9 , column3 = 'updated_column3' || i+9 , column4 = 'updated_column4' || i+9 , column5 = 'updated_column5' || i+9 , column6 = 'updated_column6' || i+9 , 
+		column7 = 'updated_column7' || i+9 , column8 = 'updated_column8' || i+9 , column9 = 'updated_column9' || i+9 , column10 = 'updated_column10' || i+9, column16 = 'updated_column16' || i+9 , column17 = 'updated_column17' || i+9 , column18 = 'updated_column18' || i+9   WHERE id = i;
+
+    END LOOP;
+END $$;
+			`,
+		},
+		CleanupSQL: []string{
+			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
+		},
+	})
+	defer liveMigrationTest.Cleanup()
+
+	err := liveMigrationTest.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+
+	err = liveMigrationTest.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
+
+	err = liveMigrationTest.StartExportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start export data")
+
+	err = liveMigrationTest.StartImportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start import data")
+
+	time.Sleep(5 * time.Second)
+
+	err = liveMigrationTest.WaitForSnapshotComplete(map[string]int64{
+		`test_schema."test_large_number_of_columns"`: 20,
+	}, 30)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+
+	err = liveMigrationTest.ValidateDataConsistency([]string{`test_schema."test_large_number_of_columns"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	err = liveMigrationTest.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
+
+	err = liveMigrationTest.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`test_schema."test_large_number_of_columns"`: {
+			Inserts: 400,
+			Updates: 2000,
+			Deletes: 200,
+		},
+	}, 120, 5)
+	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
+
+	err = liveMigrationTest.ValidateDataConsistency([]string{`test_schema."test_large_number_of_columns"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	err = liveMigrationTest.InitiateCutoverToTarget(true, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover to target")
+
+	err = liveMigrationTest.WaitForCutoverComplete(50)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+
+	err = liveMigrationTest.ExecuteTargetDelta()
+	testutils.FatalIfError(t, err, "failed to execute target delta")
+
+
+	err = liveMigrationTest.WaitForFallbackStreamingComplete(map[string]ChangesCount{
+		`test_schema."test_large_number_of_columns"`: {
+			Inserts: 600,
+			Updates: 3000,
+			Deletes: 300,
+		},
+	}, 120, 5)
+	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
+
+	err = liveMigrationTest.ValidateDataConsistency([]string{`test_schema."test_large_number_of_columns"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	err = liveMigrationTest.InitiateCutoverToSource(nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
+
+	//TODO: replace it with waitForCutoverToSourceComplete
+	time.Sleep(1 * time.Minute)
+
+}
+
+func TestLiveMigrationWithLargeColumnNames(t *testing.T) {
+	liveMigrationTest := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB: ContainerConfig{
+			Type:    "postgresql",
+			ForLive: true,
+		},
+		TargetDB: ContainerConfig{
+			Type: "yugabytedb",
+		},
+		SchemaNames: []string{"test_schema"},
+		SchemaSQL: []string{
+			//table column - 60 chars, 55 chars, 40 chars
+			`CREATE SCHEMA IF NOT EXISTS test_schema;
+			CREATE TABLE test_schema.test_large_column_name(
+				id int PRIMARY KEY,
+				someveryyyverryyyyverryyyverryyyveryylongcolumnnnnnameeeeeee text,
+				someveryyyverryyyyverryyyverryyylongcolumnnnnnameeeeeee1 text,
+				someveryyyverryyyyverryyyverryyylongcolumnnnnnameeeeeee2 text,
+				someveryyverryyylongcolumnnnnnameeeeeee3 text,
+				someveryyyverryyyyverryyyverryyylongcolumnnnnnameeeeeee4 text
+			);`,
+		},
+		SourceSetupSchemaSQL: []string{
+			`ALTER TABLE test_schema.test_large_column_name REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			`INSERT INTO test_schema.test_large_column_name
+			SELECT i,  md5(random()::text),  md5(random()::text),  md5(random()::text),  md5(random()::text),  md5(random()::text) from generate_series(1,20) as i;`,
+		},
+		SourceDeltaSQL: []string{
+			`
+DO $$
+DECLARE
+    i INTEGER;
+BEGIN
+    FOR i IN 21..520 LOOP
+		INSERT INTO test_schema.test_large_column_name
+			SELECT i,  md5(random()::text),  md5(random()::text),  md5(random()::text),  md5(random()::text),  md5(random()::text);
+
+		UPDATE test_schema.test_large_column_name set someveryyyverryyyyverryyyverryyylongcolumnnnnnameeeeeee4 = 'updated_datafor_large_column' || i, someveryyyverryyyyverryyyverryyylongcolumnnnnnameeeeeee1= 'updated_data_for_another_large_columns' || i,
+		someveryyverryyylongcolumnnnnnameeeeeee3 = 'updated data for one more column' || i where id=i;
+
+
+		UPDATE test_schema.test_large_column_name set someveryyyverryyyyverryyyverryyyveryylongcolumnnnnnameeeeeee = 'updated_datafor_large_column' || i+1, someveryyyverryyyyverryyyverryyylongcolumnnnnnameeeeeee1= 'updated_data_for_another_large_columns' || i+1,
+		someveryyverryyylongcolumnnnnnameeeeeee3 = 'updated data for one more column' || i+1 where id=i;
+
+
+		UPDATE test_schema.test_large_column_name set someveryyyverryyyyverryyyverryyylongcolumnnnnnameeeeeee2 = 'updated_datafor_large_column' || i+2, someveryyyverryyyyverryyyverryyylongcolumnnnnnameeeeeee1= 'updated_data_for_another_large_columns' || i+2,
+		someveryyverryyylongcolumnnnnnameeeeeee3 = 'updated data for one more column' || i+2, someveryyyverryyyyverryyyverryyylongcolumnnnnnameeeeeee4 = 'updated_datafor_large_column'  || i+2 where id=i;
+
+		DELETE from test_schema.test_large_column_name where id=i;
+
+
+		INSERT INTO test_schema.test_large_column_name
+		SELECT i,  md5(random()::text),  md5(random()::text),  md5(random()::text),  md5(random()::text),  md5(random()::text);
+
+		UPDATE test_schema.test_large_column_name set someveryyyverryyyyverryyyverryyylongcolumnnnnnameeeeeee4 = 'updated_datafor_large_column' || i, someveryyyverryyyyverryyyverryyylongcolumnnnnnameeeeeee1= 'updated_data_for_another_large_columns' || i,
+		someveryyverryyylongcolumnnnnnameeeeeee3 = 'updated data for one more column' || i, someveryyyverryyyyverryyyverryyylongcolumnnnnnameeeeeee2 = 'updated_datafor_large_column' || i, someveryyyverryyyyverryyyverryyyveryylongcolumnnnnnameeeeeee = 'updated_datafor_large_column' || i  where id=i;
+
+
+		UPDATE test_schema.test_large_column_name set someveryyyverryyyyverryyyverryyyveryylongcolumnnnnnameeeeeee = 'updated_datafor_large_column' || i+1, someveryyyverryyyyverryyyverryyylongcolumnnnnnameeeeeee1= 'updated_data_for_another_large_columns' || i+1,
+		someveryyverryyylongcolumnnnnnameeeeeee3 = 'updated data for one more column' || i+1 where id=i;
+
+
+		UPDATE test_schema.test_large_column_name set someveryyyverryyyyverryyyverryyylongcolumnnnnnameeeeeee2 = 'updated_datafor_large_column' || i+2, someveryyyverryyyyverryyyverryyyveryylongcolumnnnnnameeeeeee= 'updated_data_for_another_large_columns' || i+2,
+		someveryyverryyylongcolumnnnnnameeeeeee3 = 'updated data for one more column' || i+2, someveryyyverryyyyverryyyverryyylongcolumnnnnnameeeeeee4 = 'updated_datafor_large_column'  || i+2 where id=i;
+
+	END LOOP;
+END $$;
+			`,
+		},
+		TargetDeltaSQL: []string{
+			`
+			DO $$
+			DECLARE
+				i INTEGER;
+			BEGIN
+				FOR i IN 521..1020 LOOP
+					INSERT INTO test_schema.test_large_column_name
+						SELECT i,  md5(random()::text),  md5(random()::text),  md5(random()::text),  md5(random()::text),  md5(random()::text);
+			
+					UPDATE test_schema.test_large_column_name set someveryyyverryyyyverryyyverryyylongcolumnnnnnameeeeeee4 = 'updated_datafor_large_column' || i, someveryyyverryyyyverryyyverryyylongcolumnnnnnameeeeeee1= 'updated_data_for_another_large_columns' || i,
+					someveryyverryyylongcolumnnnnnameeeeeee3 = 'updated data for one more column' || i where id=i;
+			
+			
+					UPDATE test_schema.test_large_column_name set someveryyyverryyyyverryyyverryyyveryylongcolumnnnnnameeeeeee = 'updated_datafor_large_column' || i+1, someveryyyverryyyyverryyyverryyylongcolumnnnnnameeeeeee1= 'updated_data_for_another_large_columns' || i+1,
+					someveryyverryyylongcolumnnnnnameeeeeee3 = 'updated data for one more column' || i+1 where id=i;
+			
+			
+					UPDATE test_schema.test_large_column_name set someveryyyverryyyyverryyyverryyylongcolumnnnnnameeeeeee2 = 'updated_datafor_large_column' || i+2, someveryyyverryyyyverryyyverryyylongcolumnnnnnameeeeeee1= 'updated_data_for_another_large_columns' || i+2,
+					someveryyverryyylongcolumnnnnnameeeeeee3 = 'updated data for one more column' || i+2, someveryyyverryyyyverryyyverryyylongcolumnnnnnameeeeeee4 = 'updated_datafor_large_column'  || i+2 where id=i;
+			
+					DELETE from test_schema.test_large_column_name where id=i;
+			
+			
+					INSERT INTO test_schema.test_large_column_name
+					SELECT i,  md5(random()::text),  md5(random()::text),  md5(random()::text),  md5(random()::text),  md5(random()::text);
+			
+					UPDATE test_schema.test_large_column_name set someveryyyverryyyyverryyyverryyylongcolumnnnnnameeeeeee4 = 'updated_datafor_large_column' || i, someveryyyverryyyyverryyyverryyylongcolumnnnnnameeeeeee1= 'updated_data_for_another_large_columns' || i,
+					someveryyverryyylongcolumnnnnnameeeeeee3 = 'updated data for one more column' || i, someveryyyverryyyyverryyyverryyylongcolumnnnnnameeeeeee2 = 'updated_datafor_large_column' || i, someveryyyverryyyyverryyyverryyyveryylongcolumnnnnnameeeeeee = 'updated_datafor_large_column' || i  where id=i;
+			
+			
+					UPDATE test_schema.test_large_column_name set someveryyyverryyyyverryyyverryyyveryylongcolumnnnnnameeeeeee = 'updated_datafor_large_column' || i+1, someveryyyverryyyyverryyyverryyylongcolumnnnnnameeeeeee1= 'updated_data_for_another_large_columns' || i+1,
+					someveryyverryyylongcolumnnnnnameeeeeee3 = 'updated data for one more column' || i+1 where id=i;
+			
+			
+					UPDATE test_schema.test_large_column_name set someveryyyverryyyyverryyyverryyylongcolumnnnnnameeeeeee2 = 'updated_datafor_large_column' || i+2, someveryyyverryyyyverryyyverryyyveryylongcolumnnnnnameeeeeee= 'updated_data_for_another_large_columns' || i+2,
+					someveryyverryyylongcolumnnnnnameeeeeee3 = 'updated data for one more column' || i+2, someveryyyverryyyyverryyyverryyylongcolumnnnnnameeeeeee4 = 'updated_datafor_large_column'  || i+2 where id=i;
+			
+				END LOOP;
+			END $$;
+						`,
+		},
+	})
+
+	defer liveMigrationTest.Cleanup()
+
+	err := liveMigrationTest.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+
+	err = liveMigrationTest.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
+
+	err = liveMigrationTest.StartExportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start export data")
+
+	err = liveMigrationTest.StartImportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start import data")
+
+	time.Sleep(5 * time.Second)
+
+	err = liveMigrationTest.WaitForSnapshotComplete(map[string]int64{
+		`test_schema."test_large_column_name"`: 20,
+	}, 30)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+
+	err = liveMigrationTest.ValidateDataConsistency([]string{`test_schema."test_large_column_name"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	err = liveMigrationTest.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
+
+	err = liveMigrationTest.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`test_schema."test_large_column_name"`: {
+			Inserts: 1000,
+			Updates: 3000,
+			Deletes: 500,
+		},
+	}, 120, 5)
+	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
+
+	err = liveMigrationTest.ValidateDataConsistency([]string{`test_schema."test_large_column_name"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	err = liveMigrationTest.InitiateCutoverToTarget(true, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover to target")
+
+	err = liveMigrationTest.WaitForCutoverComplete(50)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+
+	err = liveMigrationTest.ExecuteTargetDelta()
+	testutils.FatalIfError(t, err, "failed to execute target delta")
+
+	err = liveMigrationTest.WaitForFallbackStreamingComplete(map[string]ChangesCount{
+		`test_schema."test_large_column_name"`: {
+			Inserts: 1000,
+			Updates: 3000,
+			Deletes: 500,
+		},
+	}, 120, 5)
+	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
+
+	err = liveMigrationTest.ValidateDataConsistency([]string{`test_schema."test_large_column_name"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	err = liveMigrationTest.InitiateCutoverToSource(nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
+
+	//TODO: replace it with waitForCutoverToSourceComplete
+	time.Sleep(1 * time.Minute)
+
+}
