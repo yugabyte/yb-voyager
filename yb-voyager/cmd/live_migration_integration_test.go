@@ -1359,3 +1359,99 @@ END $$;`,
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
 }
+
+func TestLiveMigrationWithBytesColumn(t *testing.T) {
+	liveMigrationTest := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB: ContainerConfig{
+			Type:    "postgresql",
+			ForLive: true,
+		},
+		TargetDB: ContainerConfig{
+			Type: "yugabytedb",
+		},
+		SchemaNames: []string{"test_schema"},
+		SchemaSQL: []string{
+			`CREATE SCHEMA IF NOT EXISTS test_schema;
+			CREATE TABLE test_schema.large_test (
+				id SERIAL PRIMARY KEY,
+				created_at TIMESTAMP DEFAULT now(),
+				metadata TEXT,
+				payload BYTEA -- This will hold our 5MB
+			);
+			
+			CREATE OR REPLACE FUNCTION generate_large_rows(num_rows INT, size_mb INT)
+RETURNS VOID AS $$
+DECLARE
+    byte_size INT := size_mb * 1024 * 1024;
+BEGIN
+    INSERT INTO test_schema.large_test (metadata, payload)
+    SELECT 
+        'Test row ' || i,
+        decode(repeat('00', byte_size), 'hex') -- Generates a zero-filled byte array
+    FROM generate_series(1, num_rows) AS i;
+END;
+$$ LANGUAGE plpgsql;`,
+		},
+		SourceSetupSchemaSQL: []string{
+			`ALTER TABLE test_schema.large_test REPLICA IDENTITY FULL;`,
+			`-- Force Postgres to NOT compress the data 
+			-- This ensures the row stays ~5MB and doesn't shrink if the data is repetitive.
+			ALTER TABLE test_schema.large_test ALTER COLUMN payload SET STORAGE EXTERNAL;`,
+		},
+		InitialDataSQL: []string{
+			`SELECT generate_large_rows(5, 5);`,
+		},
+		SourceDeltaSQL: []string{
+			`SELECT generate_large_rows(10, 10);`,
+		},
+		CleanupSQL: []string{
+			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
+		},
+	})
+
+	// defer liveMigrationTest.Cleanup()
+
+	err := liveMigrationTest.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+
+	err = liveMigrationTest.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
+
+	err = liveMigrationTest.StartExportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start export data")
+
+	err = liveMigrationTest.StartImportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start import data")
+
+	time.Sleep(5 * time.Second)
+
+	err = liveMigrationTest.WaitForSnapshotComplete(map[string]int64{
+		`test_schema."large_test"`: 5,
+	}, 80)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+
+	err = liveMigrationTest.ValidateDataConsistency([]string{`test_schema."large_test"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	err = liveMigrationTest.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
+
+	err = liveMigrationTest.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`test_schema."large_test"`: {
+			Inserts: 10,
+			Updates: 0,
+			Deletes: 0,
+		},
+	}, 120, 5)
+	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
+
+	err = liveMigrationTest.ValidateDataConsistency([]string{`test_schema."large_test"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	err = liveMigrationTest.InitiateCutoverToTarget(false, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover to target")
+
+	err = liveMigrationTest.WaitForCutoverComplete(50)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+
+}
