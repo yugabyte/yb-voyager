@@ -121,7 +121,7 @@ BEGIN
             SELECT
                 (bucket / %s)::INT AS segment_index,
                 COUNT(*)          AS row_count,
-                md5(string_agg(row_hash, '' ORDER BY pk_text)) AS segment_hash
+                md5(string_agg(row_hash, '' ORDER BY pk_text COLLATE "C")) AS segment_hash
             FROM hashed
             GROUP BY (bucket / %s)::INT
         )
