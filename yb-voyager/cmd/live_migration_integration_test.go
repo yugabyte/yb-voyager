@@ -1445,8 +1445,11 @@ $$ LANGUAGE plpgsql;`,
 	}, 120, 5)
 	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
 
+	err = liveMigrationTest.ValidateRowCount([]string{`test_schema."large_test"`})
+	testutils.FatalIfError(t, err, "failed to validate row count")
+
 	err = liveMigrationTest.ValidateDataConsistency([]string{`test_schema."large_test"`}, "id")
-	testutils.FatalIfError(t, err, "failed to validate data consistency")
+	testutils.FatalIfError(t, err, "failed to verify data consistency")
 
 	err = liveMigrationTest.InitiateCutoverToTarget(false, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover to target")

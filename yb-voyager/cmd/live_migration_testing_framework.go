@@ -499,6 +499,20 @@ func (lm *LiveMigrationTest) ValidateDataConsistency(tables []string, orderBy st
 	return nil
 }
 
+func (lm *LiveMigrationTest) ValidateRowCount(tables []string) error {
+	fmt.Printf("Validating row count\n")
+	lm.WithSourceTargetConn(func(source, target *sql.DB) error {
+		for _, table := range tables {
+			if err := testutils.CompareRowCount(lm.ctx, source, target, table); err != nil {
+				return goerrors.Errorf("row count mismatch for %s: %w", table, err)
+			}
+			fmt.Printf("Row count validated for %s\n", table)
+		}
+		return nil
+	})
+	return nil
+}
+
 // WithSourceConn provides source database connection to callback
 func (lm *LiveMigrationTest) WithSourceConn(fn func(*sql.DB) error) error {
 	conn, err := lm.sourceContainer.GetConnection()
