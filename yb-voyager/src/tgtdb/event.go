@@ -16,6 +16,7 @@ limitations under the License.
 package tgtdb
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"strings"
 	"sync"
@@ -221,20 +222,36 @@ func (event *Event) GetPreparedStmtName() string {
 	ps.WriteString("_")
 	ps.WriteString(event.Op)
 	ps.WriteString("_by_")
-	//just to save on characters using source/target identifier of the respective exporter for the name as the identifier 
-	// limit in PG is 63 chars https://www.postgresql.org/docs/17/limits.html
+	//just to save on characters using source/target identifier of the respective exporter for the name as the identifier
 	switch event.ExporterRole {
 	case constants.SOURCE_DB_EXPORTER_ROLE:
-		ps.WriteString("source")
+		ps.WriteString("s")
 	case constants.TARGET_DB_EXPORTER_FF_ROLE, constants.TARGET_DB_EXPORTER_FB_ROLE:
-		ps.WriteString("target")
+		ps.WriteString("t")
 	}
 	if event.Op == "u" {
 		keys := strings.Join(utils.GetMapKeysSorted(event.Fields), ",")
 		ps.WriteString(":")
 		ps.WriteString(keys)
 	}
-	return ps.String()
+	fullName := ps.String()
+
+	// limit in PG is 63 chars https://www.postgresql.org/docs/17/limits.html
+	const maxIdentifierLength = 63
+	if len(fullName) <= maxIdentifierLength {
+		return fullName
+	}
+
+	// For long names, use SHA256 hash to compress while maintaining uniqueness
+	// Hash the full name to ensure uniqueness across all statement variations
+	hash := sha256.Sum256([]byte(fullName))
+	hashHex := fmt.Sprintf("%x", hash)
+
+	// Use first 63 characters of the hash to ensure uniqueness
+	// SHA256 provides sufficient uniqueness even with 63 chars (31.5 bytes of entropy)
+	// This guarantees uniqueness while staying within PostgreSQL's 63-char identifier limit
+	return hashHex[:maxIdentifierLength]
+
 }
 
 const insertTemplate = "INSERT INTO %s (%s) VALUES (%s)"
