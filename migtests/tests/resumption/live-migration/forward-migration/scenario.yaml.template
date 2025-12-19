@@ -103,10 +103,10 @@ stages:
     resumption:
       import_data:
         max_restarts: 500
-        min_interrupt_seconds: 15
-        max_interrupt_seconds: 60
-        min_restart_wait_seconds: 5
-        max_restart_wait_seconds: 30
+        min_interrupt_seconds: 60
+        max_interrupt_seconds: 180
+        min_restart_wait_seconds: 15
+        max_restart_wait_seconds: 60
 
   - name: wait_exporter_streaming
     action: wait_for
@@ -118,10 +118,10 @@ stages:
     resumption:
       export_data:
         max_restarts: 500
-        min_interrupt_seconds: 15
-        max_interrupt_seconds: 60
-        min_restart_wait_seconds: 5
-        max_restart_wait_seconds: 30
+        min_interrupt_seconds: 60
+        max_interrupt_seconds: 180
+        min_restart_wait_seconds: 15
+        max_restart_wait_seconds: 60
 
   - name: soak_with_resumptions
     action: sleep
@@ -136,15 +136,15 @@ stages:
     target: source
     sql_path: ../common-sql/insert_marker.sql
 
-  - name: wait_backlog_zero
-    action: wait_for
-    condition: remaining_events_eq_0
-    timeout_sec: 9000
-
   - name: stop_export_resumptions
     action: voyager_stop_resumptions
     command: export_data
     timeout_sec: 60
+
+  - name: wait_backlog_zero
+    action: wait_for
+    condition: remaining_events_eq_0
+    timeout_sec: 9000
 
   - name: stop_import_resumptions
     action: voyager_stop_resumptions
