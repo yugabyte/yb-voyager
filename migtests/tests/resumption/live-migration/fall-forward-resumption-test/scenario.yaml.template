@@ -151,10 +151,10 @@ stages:
     resumption:
       import_to_source_replica:
         max_restarts: 500
-        min_interrupt_seconds: 15
-        max_interrupt_seconds: 60
-        min_restart_wait_seconds: 5
-        max_restart_wait_seconds: 30
+        min_interrupt_seconds: 60
+        max_interrupt_seconds: 180
+        min_restart_wait_seconds: 15
+        max_restart_wait_seconds: 60
 
   - name: wait_exporter_streaming
     action: wait_for
@@ -209,10 +209,10 @@ stages:
     resumption:
       export_from_target:
         max_restarts: 500
-        min_interrupt_seconds: 20
-        max_interrupt_seconds: 60
-        min_restart_wait_seconds: 10
-        max_restart_wait_seconds: 30
+        min_interrupt_seconds: 60
+        max_interrupt_seconds: 180
+        min_restart_wait_seconds: 15
+        max_restart_wait_seconds: 60
 
   - name: soak_fallback_with_resumptions
     action: sleep
