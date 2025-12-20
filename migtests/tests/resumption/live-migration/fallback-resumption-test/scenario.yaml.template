@@ -80,9 +80,9 @@ generator_target:
       operation_weights: {INSERT: 3, UPDATE: 2, DELETE: 1}
       random_seed: 456
       faker_seed: 456
-      insert_rows: 6
-      update_rows: 4
-      delete_rows: 2
+      insert_rows: 3
+      update_rows: 2
+      delete_rows: 1
       insert_max_retries: 5
       update_max_retries: 1
 
@@ -195,8 +195,8 @@ stages:
     resumption:
       export_from_target:
         max_restarts: 500
-        min_interrupt_seconds: 60
-        max_interrupt_seconds: 180
+        min_interrupt_seconds: 120
+        max_interrupt_seconds: 240
         min_restart_wait_seconds: 15
         max_restart_wait_seconds: 60
 

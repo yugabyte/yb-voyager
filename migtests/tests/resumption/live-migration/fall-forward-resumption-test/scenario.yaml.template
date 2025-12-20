@@ -209,8 +209,8 @@ stages:
     resumption:
       export_from_target:
         max_restarts: 500
-        min_interrupt_seconds: 60
-        max_interrupt_seconds: 180
+        min_interrupt_seconds: 120
+        max_interrupt_seconds: 240
         min_restart_wait_seconds: 15
         max_restart_wait_seconds: 60
 
