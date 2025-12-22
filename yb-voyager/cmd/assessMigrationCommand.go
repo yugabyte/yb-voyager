@@ -272,6 +272,9 @@ func assessMigration() (err error) {
 			return goerrors.Errorf("failed to check if source schema exist: %q", source.Schema)
 		}
 
+		// Fetch source info early (includes system identifier needed for replica cluster validation)
+		fetchSourceInfo()
+
 		// Handle replica discovery and validation (PostgreSQL only)
 		replicaDiscoveryInfo, err := migassessment.HandleReplicaDiscoveryAndValidation(&source, sourceReadReplicaEndpoints, primaryOnly)
 		if err != nil {
@@ -292,8 +295,6 @@ func assessMigration() (err error) {
 				return fmt.Errorf("permission check failed: %w", err)
 			}
 		}
-
-		fetchSourceInfo()
 	}
 
 	startEvent := createMigrationAssessmentStartedEvent()
