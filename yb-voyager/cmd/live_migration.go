@@ -446,6 +446,10 @@ func handleEvent(event *tgtdb.Event,
 
 // Returns a hash value between 0..NUM_EVENT_CHANNELS
 func hashEvent(e *tgtdb.Event, tableToPartitioningStrategyMap *utils.StructMap[sqlname.NameTuple, string]) (int, error) {
+
+	// // random number % NUM_EVENT_CHANNELS
+	// randomHash := rand.Intn(NUM_EVENT_CHANNELS)
+	// return randomHash, nil
 	hash := fnv.New64a()
 
 	if tableToPartitioningStrategyMap == nil {
