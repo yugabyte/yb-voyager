@@ -170,12 +170,27 @@ FROM generate_series(1, 5);`,
 
 // TestLiveMigrationWithEventsOnSamePkOrdered tests that INSERT/UPDATE/DELETE events
 // for the same primary key are applied in the correct order during live migration.
-// It uses three tables to test different ordering scenarios:
+//
+// Coverage Matrix (all meaningful I-U-D ordering transitions):
+//
+//	| Transition | Table 1 | Table 2 | Table 3 |
+//	|------------|---------|---------|---------|
+//	| I→U        |         |         | 1000x   |
+//	| I→D        | 1000x   |         |         |
+//	| U→U        |         | 1000x   |         |
+//	| U→D        |         |         | 1000x   |
+//	| D→I        | 999x    |         | 1000x   |
+//
+// Invalid transitions not tested (not meaningful for ordering):
+//   - I→I: Impossible (duplicate key error)
+//   - U→I: Requires DELETE first (covered by D→I)
+//   - D→U: UPDATE on non-existent row (no-op)
+//   - D→D: Second DELETE is no-op
 //
 // Table 1 (test_insert_delete_ordering): Tests I→D and D→I ordering on same PK
 //   - Pattern: INSERT(id=1) → DELETE(id=1) → INSERT(id=1) → ... (1000 cycles, skip last DELETE)
-//   - If D executes before I: DELETE affects 0 rows, then INSERT succeeds, wrong iteration value
-//   - If I executes before previous D: Duplicate key error
+//   - If D executes before I: DELETE is no-op (row doesn't exist), I succeeds, next I fails with duplicate key
+//   - If I executes before previous D: Duplicate key error (row still exists from previous cycle)
 //   - Validation: row exists with iteration=1000
 //
 // Table 2 (test_update_ordering): Tests U→U ordering on same PK
