@@ -20,6 +20,10 @@ import java.util.Map;
 import java.util.Set;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.StreamReadConstraints;
+import com.fasterxml.jackson.core.JsonFactory;
+
+
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -238,7 +242,7 @@ public class EventQueue implements RecordWriter {
         private static final String QUEUE_FILE_DIR = "queue";
         private long maxCacheSize = 1000000;
         private String currentQueueSegmentPath;
-        private ObjectMapper mapper = new ObjectMapper();
+        ObjectMapper mapper = new ObjectMapper(JsonFactory.builder().streamReadConstraints(StreamReadConstraints.builder().maxStringLength(500_000_000).build()).build());
 
         public EventDedupCache(String dataDir) {
             this.dataDir = dataDir;

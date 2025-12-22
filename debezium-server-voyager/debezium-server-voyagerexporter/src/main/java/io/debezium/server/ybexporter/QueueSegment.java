@@ -6,6 +6,7 @@
 package io.debezium.server.ybexporter;
 
 import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.core.StreamReadConstraints;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
@@ -165,7 +166,10 @@ public class QueueSegment {
     }
 
     public long getSequenceNumberOfLastRecord() {
-        ObjectMapper mapper = new ObjectMapper(new JsonFactory());
+        // JsonFactory jsonFactory = JsonFactory.builder()
+        // .streamReadConstraints(StreamReadConstraints.builder().maxStringLength(10_000_000)
+        // .build());
+        ObjectMapper mapper = new ObjectMapper(JsonFactory.builder().streamReadConstraints(StreamReadConstraints.builder().maxStringLength(500_000_000).build()).build());
         long vsn = -1;
         String last = null, line;
         BufferedReader input;
