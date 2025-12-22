@@ -17,8 +17,8 @@ jobs:
     needs: [prepare-versions]
     strategy:
       fail-fast: false
-    matrix: 
-      test-tags: [integration_voyager_command, integration, integration_live_migration]
+      matrix: 
+        test-tags: [integration_voyager_command, integration, integration_live_migration]
 
     runs-on: ubuntu-22.04
 
