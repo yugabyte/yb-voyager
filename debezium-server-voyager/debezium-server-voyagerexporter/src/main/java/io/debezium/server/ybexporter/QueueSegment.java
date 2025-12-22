@@ -166,9 +166,7 @@ public class QueueSegment {
     }
 
     public long getSequenceNumberOfLastRecord() {
-        // JsonFactory jsonFactory = JsonFactory.builder()
-        // .streamReadConstraints(StreamReadConstraints.builder().maxStringLength(10_000_000)
-        // .build());
+
         ObjectMapper mapper = new ObjectMapper(JsonFactory.builder().streamReadConstraints(StreamReadConstraints.builder().maxStringLength(500_000_000).build()).build());
         long vsn = -1;
         String last = null, line;
