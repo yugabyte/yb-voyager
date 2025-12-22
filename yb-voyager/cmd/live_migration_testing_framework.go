@@ -486,7 +486,7 @@ func (lm *LiveMigrationTest) ExecuteOnTarget(sqlStatements ...string) error {
 // ValidateDataConsistency compares data between source and target
 func (lm *LiveMigrationTest) ValidateDataConsistency(tables []string, orderBy string) error {
 	fmt.Printf("Validating data consistency\n")
-	lm.WithSourceTargetConn(func(source, target *sql.DB) error {
+	return lm.WithSourceTargetConn(func(source, target *sql.DB) error {
 		for _, table := range tables {
 			if err := testutils.CompareTableData(lm.ctx, source, target, table, orderBy); err != nil {
 				return goerrors.Errorf("table data mismatch for %s: %w", table, err)
@@ -496,12 +496,11 @@ func (lm *LiveMigrationTest) ValidateDataConsistency(tables []string, orderBy st
 		return nil
 	})
 
-	return nil
 }
 
 func (lm *LiveMigrationTest) ValidateRowCount(tables []string) error {
 	fmt.Printf("Validating row count\n")
-	lm.WithSourceTargetConn(func(source, target *sql.DB) error {
+	return lm.WithSourceTargetConn(func(source, target *sql.DB) error {
 		for _, table := range tables {
 			if err := testutils.CompareRowCount(lm.ctx, source, target, table); err != nil {
 				return goerrors.Errorf("row count mismatch for %s: %w", table, err)
@@ -510,7 +509,6 @@ func (lm *LiveMigrationTest) ValidateRowCount(tables []string) error {
 		}
 		return nil
 	})
-	return nil
 }
 
 // WithSourceConn provides source database connection to callback
