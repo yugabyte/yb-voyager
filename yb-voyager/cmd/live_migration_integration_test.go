@@ -302,6 +302,8 @@ func TestLiveMigrationWithEventsOnSamePkOrdered(t *testing.T) {
 	}, 30)
 	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
 
+	time.Sleep(5 * time.Second)
+
 	// Validate snapshot data
 	err = lm.ValidateDataConsistency([]string{`test_schema."test_update_ordering"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate snapshot data consistency")
