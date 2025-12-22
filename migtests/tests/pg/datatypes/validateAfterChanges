@@ -23,6 +23,15 @@ BASE_EXPECTED_ROW_COUNT = {
     'hstore_example': 27,
     'tsvector_table': 4,
     'enum_array_table': 4,
+    'composite_types': 4,
+	'composite_array_types': 4,
+	'domain_types': 5,
+	'domain_array_types': 5,
+	'range_types': 5,
+	'range_array_types': 5,
+	'extension_types': 5,
+	'extension_arrays': 5,
+	'audit_log': 2
 }
 
 # Base expected row counts for FF (for gRPC connector)

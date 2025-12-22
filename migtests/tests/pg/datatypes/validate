@@ -4,6 +4,7 @@ import common
 import os
 import yb
 import collections
+import re
 
 def main():
 	test_type_flags = common.valparser()
@@ -29,6 +30,15 @@ EXPECTED_ROW_COUNT = {
 	'hstore_example': 26,
 	'tsvector_table': 3,
 	'enum_array_table': 3,
+	'composite_types': 2,
+	'composite_array_types': 2,
+	'domain_types': 3,
+	'domain_array_types': 3,
+	'range_types': 3,
+	'range_array_types': 3,
+	'extension_types': 3,
+	'extension_arrays': 3,
+	'audit_log': 2
 }
 
 EXPECTED_SUM_OF_COLUMN = {
@@ -203,6 +213,148 @@ def migration_completed_checks(tgt):
 	for expected_array in expected_enum_arrays:
 		assert expected_array in parsed_actual_arrays, f"Expected {expected_array} not found in {parsed_actual_arrays}"
 
+	print("composite_types:")
+	expected_composite_types = ['(City1I,"Street 1I",1)', '(City2I,"Street 2I",2)']
+	tgt.assert_distinct_values_of_col("composite_types", "address", "public", 
+		transform_func=str, expected_distinct_values=expected_composite_types)
+
+	print("composite_array_types:")
+	expected_composite_array_types = [
+		'{"(CityA1I,\\"StreetA 1I\\",1)","(CityB1I,\\"StreetB 1I\\",2)"}',
+		'{"(CityA2I,\\"StreetA 2I\\",2)","(CityB2I,\\"StreetB 2I\\",3)"}'
+	]
+	tgt.assert_distinct_values_of_col("composite_array_types", "addresses", "public", 
+		transform_func=str, expected_distinct_values=expected_composite_array_types)
+
+	print("domain_types:")
+	expected_ssn_values = ['001-00-0001', '002-00-0002', '003-00-0003']
+	tgt.assert_distinct_values_of_col("domain_types", "ssn", "public", 
+		transform_func=str, expected_distinct_values=expected_ssn_values)
+	expected_email_values = ['user1@example.com', 'user2@example.com', 'user3@example.com']
+	tgt.assert_distinct_values_of_col("domain_types", "email", "public", 
+		transform_func=str, expected_distinct_values=expected_email_values)
+	expected_rating_values = [1, 2, 3]
+	tgt.assert_distinct_values_of_col("domain_types", "rating", "public", 
+		expected_distinct_values=expected_rating_values)
+	expected_prefs_values = ["{'theme': 'dark', 'version': '1'}", "{'theme': 'dark', 'version': '2'}", "{'theme': 'dark', 'version': '3'}"]
+	tgt.assert_distinct_values_of_col("domain_types", "prefs", "public", 
+		transform_func=str, expected_distinct_values=expected_prefs_values)
+
+	print("domain_array_types:")
+	expected_ssn_list_values = ['{123-45-0001,987-65-0001}', '{123-45-0002,987-65-0002}', '{123-45-0003,987-65-0003}']
+	tgt.assert_distinct_values_of_col("domain_array_types", "ssn_list", "public", 
+		transform_func=str, expected_distinct_values=expected_ssn_list_values)
+	expected_phone_list_values = ['{+91123456701,+91987654301}', '{+91123456702,+91987654302}', '{+91123456703,+91987654303}']
+	tgt.assert_distinct_values_of_col("domain_array_types", "phone_list", "public", 
+		transform_func=str, expected_distinct_values=expected_phone_list_values)
+	expected_name_list_values = ['{"ABC DEF","GHI JKL"}', '{"MNO PQR","STU VWX"}', '{"ABC XYZ","DEF ABC"}']
+	tgt.assert_distinct_values_of_col("domain_array_types", "name_list", "public", 
+		transform_func=str, expected_distinct_values=expected_name_list_values)
+
+	print("range_types:")
+	expected_price_range_values = ['[0.1,5.1)', '[0.2,5.2)', '[0.3,5.3)']
+	tgt.assert_distinct_values_of_col("range_types", "price_range_col", "public", 
+		transform_func=str, expected_distinct_values=expected_price_range_values)
+	expected_discount_range_values = ['[0,1)', '[0.1,1.1)', '[0.2,1.2)']
+	tgt.assert_distinct_values_of_col("range_types", "discount_range_col", "public", 
+		transform_func=str, expected_distinct_values=expected_discount_range_values)
+	expected_period_range_values = ['[2025-12-22,2025-12-29)', '[2025-12-24,2025-12-31)', '[2025-12-25,2026-01-01)']
+	tgt.assert_distinct_values_of_col("range_types", "period_range_col", "public", 
+		transform_func=str, expected_distinct_values=expected_period_range_values)
+	# Validate timestamp ranges - timestamps are dynamic so we check the pattern
+	actual_ts_ranges = tgt.get_distinct_values_of_column_of_table("range_types", "active_ts_range_col", "public")
+	print(f"actual_ts_ranges: {actual_ts_ranges}")
+	assert len(actual_ts_ranges) == 3, f"Expected 3 distinct timestamp ranges, got {len(actual_ts_ranges)}"
+	# Pattern: ["2025-12-22 <time>","2025-12-23 <time>")
+	ts_range_pattern = r'\["2025-12-22 \d{2}:\d{2}:\d{2}\.\d+\+\d{2}","2025-12-23 \d{2}:\d{2}:\d{2}\.\d+\+\d{2}"\)'
+	for ts_range in actual_ts_ranges:
+		ts_range_str = str(ts_range)
+		print(f"{ts_range_str}")
+		assert re.match(ts_range_pattern, ts_range_str), f"Timestamp range {ts_range_str} does not match expected pattern"
+
+	print("range_array_types:")
+	expected_price_ranges_values = ['{"[1,5)","[10,20)"}']
+	tgt.assert_distinct_values_of_col("range_array_types", "price_ranges", "public", 
+		transform_func=str, expected_distinct_values=expected_price_ranges_values)
+	expected_discount_ranges_values = ['{"[0.5,1)","[1.5,2)"}']
+	tgt.assert_distinct_values_of_col("range_array_types", "discount_ranges", "public", 
+		transform_func=str, expected_distinct_values=expected_discount_ranges_values)
+	expected_period_ranges_values = [
+		'{"[2031-06-15,2031-06-16)"}',
+		'{"[2031-06-16,2031-06-17)"}',
+		'{"[2031-06-17,2031-06-18)"}'
+	]
+	tgt.assert_distinct_values_of_col("range_array_types", "period_ranges", "public", 
+		transform_func=str, expected_distinct_values=expected_period_ranges_values)
+	# Validate timestamp range arrays - timestamps are dynamic so we check the pattern
+	actual_ts_range_arrays = tgt.get_distinct_values_of_column_of_table("range_array_types", "ts_ranges", "public")
+	print(f"actual_ts_range_arrays: {actual_ts_range_arrays}")
+	assert len(actual_ts_range_arrays) == 3, f"Expected 3 distinct timestamp range arrays, got {len(actual_ts_range_arrays)}"
+	# Pattern: {"[\"2026-03-15 <time>\",\"2026-03-15 <time+1hour>\")"}
+	ts_range_array_pattern = r'\{"\[\\"2026-03-15 \d{2}:\d{2}:\d{2}\.\d+\+\d{2}\\",\\"2026-03-15 \d{2}:\d{2}:\d{2}\.\d+\+\d{2}\\"\)"\}'
+	for ts_range_array in actual_ts_range_arrays:
+		ts_range_array_str = str(ts_range_array)
+		print(f"{ts_range_array_str}")
+		assert re.match(ts_range_array_pattern, ts_range_array_str), f"Timestamp range array {ts_range_array_str} does not match expected pattern"
+
+	print("extension_types:")
+	expected_hstore_values = ['"key1"=>"1"', '"key2"=>"2"', '"key3"=>"3"']
+	tgt.assert_distinct_values_of_col("extension_types", "col_hstore", "public", 
+		transform_func=str, expected_distinct_values=expected_hstore_values)
+	expected_citext_values = ['text_1', 'text_2', 'text_3']
+	tgt.assert_distinct_values_of_col("extension_types", "col_citext", "public", 
+		transform_func=str, expected_distinct_values=expected_citext_values)
+	# ltree type doesn't support DISTINCT, so we cast to text first
+	expected_ltree_values = ['Top.1', 'Top.2', 'Top.3']
+	cur = tgt.conn.cursor()
+	cur.execute("SELECT DISTINCT col_ltree::text FROM public.extension_types")
+	actual_ltree_values = [str(value[0]) for value in cur.fetchall()]
+	print(f"actual_ltree_values: {actual_ltree_values}")
+	for ltree_value in actual_ltree_values:
+		print(f"{ltree_value}")
+		assert ltree_value in expected_ltree_values, f"Unexpected ltree value: {ltree_value}"
+
+	print("extension_arrays:")
+	expected_hstore_array_values = [
+		'{"\\"key1\\"=>\\"1\\"","\\"value1\\"=>\\"1\\""}',
+		'{"\\"key2\\"=>\\"2\\"","\\"value2\\"=>\\"2\\""}',
+		'{"\\"key3\\"=>\\"3\\"","\\"value3\\"=>\\"3\\""}'
+	]
+	tgt.assert_distinct_values_of_col("extension_arrays", "col_hstore", "public", 
+		transform_func=str, expected_distinct_values=expected_hstore_array_values)
+	expected_citext_array_values = ['{text_1,sample_1}', '{text_2,sample_2}', '{text_3,sample_3}']
+	tgt.assert_distinct_values_of_col("extension_arrays", "col_citext", "public", 
+		transform_func=str, expected_distinct_values=expected_citext_array_values)
+	# ltree array type doesn't support DISTINCT, so we cast to text first
+	expected_ltree_array_values = ['{Top.1,Category.1}', '{Top.2,Category.2}', '{Top.3,Category.3}']
+	cur = tgt.conn.cursor()
+	cur.execute("SELECT DISTINCT col_ltree::text FROM public.extension_arrays")
+	actual_ltree_array_values = [str(value[0]) for value in cur.fetchall()]
+	print(f"actual_ltree_array_values: {actual_ltree_array_values}")
+	for ltree_array_value in actual_ltree_array_values:
+		print(f"{ltree_array_value}")
+		assert ltree_array_value in expected_ltree_array_values, f"Unexpected ltree array value: {ltree_array_value}"
+
+	print("audit_log:")
+	expected_involved_employees_values = [
+		'{"(Emp_1,active,emp_1@company.com)","(EmpAlt_1,inactive,empalt_1@company.com)"}',
+		'{"(Emp_2,active,emp_2@company.com)","(EmpAlt_2,inactive,empalt_2@company.com)"}'
+	]
+	tgt.assert_distinct_values_of_col("audit_log", "involved_employees", "public", 
+		transform_func=str, expected_distinct_values=expected_involved_employees_values)
+	expected_affected_clients_values = [
+		'{"(Client_1,north,client_1@example.com)","(ClientAlt_1,south,clientalt_1@example.com)"}',
+		'{"(Client_2,north,client_2@example.com)","(ClientAlt_2,south,clientalt_2@example.com)"}'
+	]
+	tgt.assert_distinct_values_of_col("audit_log", "affected_clients", "public", 
+		transform_func=str, expected_distinct_values=expected_affected_clients_values)
+	# transaction_refs returns Python list format, not PostgreSQL array string format
+	expected_transaction_refs_values = [[1, 2, 3], [2, 3, 4]]
+	actual_transaction_refs = tgt.get_distinct_values_of_column_of_table("audit_log", "transaction_refs", "public")
+	print(f"actual_transaction_refs: {actual_transaction_refs}")
+	for transaction_ref in actual_transaction_refs:
+		print(f"{transaction_ref}")
+		assert transaction_ref in expected_transaction_refs_values, f"Unexpected transaction_refs value: {transaction_ref}"
 
 def YB_specific_checks(tgt):
 	yb.verify_colocation(tgt, "postgresql")
