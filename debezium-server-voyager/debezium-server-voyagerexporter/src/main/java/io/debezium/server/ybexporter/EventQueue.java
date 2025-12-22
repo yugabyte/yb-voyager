@@ -242,13 +242,13 @@ public class EventQueue implements RecordWriter {
         private static final String QUEUE_FILE_DIR = "queue";
         private long maxCacheSize = 1000000;
         private String currentQueueSegmentPath;
-        ObjectMapper mapper = new ObjectMapper(JsonFactory.builder().streamReadConstraints(StreamReadConstraints.builder().maxStringLength(500_000_000).build()).build());
 
         public EventDedupCache(String dataDir) {
             this.dataDir = dataDir;
         }
 
         public void warmUp(Map<Long, Long> totalEventsPerSegment) {
+            ObjectMapper mapper = new ObjectMapper(JsonFactory.builder().streamReadConstraints(StreamReadConstraints.builder().maxStringLength(500_000_000).build()).build());
             // TODO: Move the logic to warmup the event dedup cache to EventQueue class
             // Ticket: https://yugabyte.atlassian.net/browse/DB-9874
             if (totalEventsPerSegment.size() == 0) {
@@ -294,7 +294,7 @@ public class EventQueue implements RecordWriter {
                         if (line.equals(EOF_MARKER)) {
                             break;
                         }
-                        String eventId = getEventId(line);
+                        String eventId = getEventId(line, mapper);
                         if (eventId == null) {
                             continue;
                         }
@@ -331,7 +331,7 @@ public class EventQueue implements RecordWriter {
             mostRecentIdFirstList.addFirst(eventId);
         }
 
-        private String getEventId(String event) {
+        private String getEventId(String event, ObjectMapper mapper) {
             try {
                 JsonNode jsonNode = mapper.readTree(event);
                 JsonNode eventIdNode = jsonNode.get("event_id");
