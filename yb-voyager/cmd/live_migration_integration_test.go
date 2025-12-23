@@ -2010,7 +2010,7 @@ END $$;
 	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
 
 	//TODO: replace it with waitForCutoverToSourceComplete
-	time.Sleep(1 * time.Minute)
+	time.Sleep(2 * time.Minute)
 
 }
 
@@ -2193,6 +2193,6 @@ END $$;
 	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
 
 	//TODO: replace it with waitForCutoverToSourceComplete
-	time.Sleep(1 * time.Minute)
+	time.Sleep(2 * time.Minute)
 
 }
