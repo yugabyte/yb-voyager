@@ -62,7 +62,9 @@ FROM generate_series(%d, %d);`, startID, endId))
 		testutils.FatalIfError(t, err, "error scanning rows")
 		resIds = append(resIds, id)
 	}
-	assert.Equal(t, ids, resIds)
+	if !assert.Equal(t, ids, resIds) {
+		return fmt.Errorf("ids do not match %v != %v", ids, resIds)
+	}
 	return nil
 }
 
@@ -229,30 +231,6 @@ FROM generate_series(1, 5);`,
 	err = lm.SetupSchema()
 	testutils.FatalIfError(t, err, "failed to setup schema")
 
-	// run select from yb_servers() and print output
-	err = lm.WithTargetConn(func(target *sql.DB) error {
-		rows, err := target.Query(`SELECT host, port, num_connections, node_type, cloud, region, zone, public_ip FROM yb_servers();`)
-		if err != nil {
-			return fmt.Errorf("failed to query yb_servers: %w", err)
-		}
-		defer rows.Close()
-		for rows.Next() {
-			var host, nodeType, cloud, region, zone, publicIP string
-			var port, numConnections int
-			err := rows.Scan(&host, &port, &numConnections, &nodeType, &cloud, &region, &zone, &publicIP)
-			if err != nil {
-				return fmt.Errorf("failed to scan row: %w", err)
-			}
-			fmt.Printf("host=%s port=%d num_connections=%d node_type=%s cloud=%s region=%s zone=%s public_ip=%s\n",
-				host, port, numConnections, nodeType, cloud, region, zone, publicIP)
-		}
-		if err := rows.Err(); err != nil {
-			return fmt.Errorf("failed to get rows: %w", err)
-		}
-		return nil
-	})
-	testutils.FatalIfError(t, err, "failed to query yb_servers and print output")
-
 	err = lm.StartExportData(true, nil)
 	testutils.FatalIfError(t, err, "failed to start export data")
 
@@ -287,19 +265,11 @@ FROM generate_series(1, 5);`,
 	err = lm.ValidateDataConsistency([]string{`test_schema."test_live"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
 
-	//RIGHT NOW not using the fallback true
 	err = lm.InitiateCutoverToTarget(true, nil)
-	// err = lm.InitiateCutoverToTarget(false, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover")
 
 	err = lm.WaitForCutoverComplete(50)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
-
-	//validate sequence restoration
-	// err = lm.WithTargetConn(func(target *sql.DB) error {
-	// 	return assertSequenceValues(t, 16, 25, target, `test_schema.test_live`)
-	// })
-	// testutils.FatalIfError(t, err, "failed to validate sequence restoration")
 
 	err = lm.ExecuteTargetDelta()
 	testutils.FatalIfError(t, err, "failed to execute target delta")
@@ -322,6 +292,12 @@ FROM generate_series(1, 5);`,
 
 	err = lm.WaitForCutoverSourceComplete(100)
 	testutils.FatalIfError(t, err, "failed to wait for cutover to source complete")
+
+	//validate sequence restoration
+	err = lm.WithSourceConn(func(source *sql.DB) error {
+		return assertSequenceValues(t, 21, 30, source, `test_schema.test_live`)
+	})
+	testutils.FatalIfError(t, err, "failed to validate sequence restoration")
 
 }
 
