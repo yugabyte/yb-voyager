@@ -517,6 +517,7 @@ FROM generate_series(1, 5);`,
 		return assertSequenceValues(t, 21, 30, source, `test_schema.test_live`)
 	})
 	testutils.FatalIfError(t, err, "failed to validate sequence restoration")
+
 }
 
 // test for live migration with resumption and failure during restore sequences
