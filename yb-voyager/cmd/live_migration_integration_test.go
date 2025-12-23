@@ -1459,6 +1459,7 @@ $$ LANGUAGE plpgsql;`,
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
 }
+
 // containing special characters and edge cases that require proper escaping.
 // Currently testing: STRING datatype with backslashes, quotes, newlines, tabs, Unicode, etc.
 // This test verifies that the datatype converter properly handles edge cases during CDC streaming.
