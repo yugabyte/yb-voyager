@@ -467,6 +467,29 @@ func (lm *LiveMigrationTest) WaitForCutoverComplete(cutoverTimeout time.Duration
 	return nil
 }
 
+// WaitForCutoverSourceComplete waits until cutover to source is done
+func (lm *LiveMigrationTest) WaitForCutoverSourceComplete(cutoverTimeout time.Duration) error {
+	fmt.Printf("Waiting for cutover to source complete\n")
+
+	// Initialize metaDB if not already done
+	if lm.metaDB == nil {
+		err := lm.InitMetaDB()
+		if err != nil {
+			return goerrors.Errorf("failed to initialize meta db: %w", err)
+		}
+	}
+
+	ok := utils.RetryWorkWithTimeout(1, cutoverTimeout, func() bool {
+		return lm.getCutoverToSourceStatus() == COMPLETED
+	})
+
+	if !ok {
+		return goerrors.Errorf("cutover to source did not complete within %v", cutoverTimeout)
+	}
+	fmt.Printf("Cutover to source complete\n")
+	return nil
+}
+
 // ============================================================
 // DATA OPERATIONS & VALIDATION
 // ============================================================
@@ -486,7 +509,7 @@ func (lm *LiveMigrationTest) ExecuteOnTarget(sqlStatements ...string) error {
 // ValidateDataConsistency compares data between source and target
 func (lm *LiveMigrationTest) ValidateDataConsistency(tables []string, orderBy string) error {
 	fmt.Printf("Validating data consistency\n")
-	lm.WithSourceTargetConn(func(source, target *sql.DB) error {
+	return lm.WithSourceTargetConn(func(source, target *sql.DB) error {
 		for _, table := range tables {
 			if err := testutils.CompareTableData(lm.ctx, source, target, table, orderBy); err != nil {
 				return goerrors.Errorf("table data mismatch for %s: %w", table, err)
@@ -495,8 +518,19 @@ func (lm *LiveMigrationTest) ValidateDataConsistency(tables []string, orderBy st
 		}
 		return nil
 	})
+}
 
-	return nil
+func (lm *LiveMigrationTest) ValidateRowCount(tables []string) error {
+	fmt.Printf("Validating row count\n")
+	return lm.WithSourceTargetConn(func(source, target *sql.DB) error {
+		for _, table := range tables {
+			if err := testutils.CompareRowCount(lm.ctx, source, target, table); err != nil {
+				return goerrors.Errorf("row count mismatch for %s: %w", table, err)
+			}
+			fmt.Printf("Row count validated for %s\n", table)
+		}
+		return nil
+	})
 }
 
 // WithSourceConn provides source database connection to callback
@@ -630,6 +664,19 @@ func (lm *LiveMigrationTest) getCutoverStatus() string {
 	metaDB = lm.metaDB
 
 	return getCutoverStatus()
+}
+
+// getCutoverToSourceStatus gets the current cutover to source status
+func (lm *LiveMigrationTest) getCutoverToSourceStatus() string {
+	if lm.metaDB == nil {
+		return ""
+	}
+
+	//set the global metaDB for running getCutoverToSourceStatus code
+
+	metaDB = lm.metaDB
+
+	return getCutoverToSourceStatus()
 }
 
 type DataMigrationReport struct {

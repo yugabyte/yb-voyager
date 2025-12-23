@@ -19,6 +19,7 @@ limitations under the License.
 package tgtdbsuite
 
 import (
+	"encoding/base64"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -92,4 +93,58 @@ func TestUUIDConversionWithFormatting(t *testing.T) {
 	assert.NoError(t, err)
 	// Then
 	assert.Equal(t, `'123e4567-e89b-12d3-a456-426614174000'`, result)
+}
+
+func TestBytesConversionWithFormatting(t *testing.T) {
+	//small data example
+	value := "////wv=="
+	// When we convert with formatIfRequired is true
+	result, err := YBValueConverterSuite["BYTES"](value, true, nil)
+	assert.NoError(t, err)
+	// Then
+	assert.Equal(t, `'\xffffffc2'`, result)
+
+	//large data example for bytea - create a large base64 encoded string
+	// Generate 10KB of binary data (10240 bytes)
+	largeData := make([]byte, 10240)
+	for i := range largeData {
+		largeData[i] = byte(i % 256)
+	}
+	// Encode to base64
+	largeBase64Value := base64.StdEncoding.EncodeToString(largeData)
+
+	// When we convert with formatIfRequired is true
+	result, err = YBValueConverterSuite["BYTES"](largeBase64Value, true, nil)
+	assert.NoError(t, err)
+	//verify the result is same as expected
+	assert.Equal(t, len(result), 20484) //20480 hex chars + 4 for '\x' + 2 for quotes
+
+	largeData10MB := make([]byte, 10000000)
+	for i := range largeData10MB {
+		largeData10MB[i] = byte(i % 256)
+	}
+	// Encode to base64
+	largeBase64Value10MB := base64.StdEncoding.EncodeToString(largeData10MB)
+
+	// When we convert with formatIfRequired is true
+	result, err = YBValueConverterSuite["BYTES"](largeBase64Value10MB, true, nil)
+	assert.NoError(t, err)
+
+	//verify the result is same as expected
+	assert.Equal(t, len(result), 20000004) //20000000 hex chars + 4 for '\x' + 2 for quotes
+
+
+	largeData200MB := make([]byte, 200000000)
+	for i := range largeData200MB {
+		largeData200MB[i] = byte(i % 256)
+	}
+	// Encode to base64
+	largeBase64Value200MB := base64.StdEncoding.EncodeToString(largeData200MB)
+
+	// When we convert with formatIfRequired is true
+	result, err = YBValueConverterSuite["BYTES"](largeBase64Value200MB, true, nil)
+	assert.NoError(t, err)
+
+	//verify the result is same as expected
+	assert.Equal(t, len(result), 400000004) //400000000 hex chars + 4 for '\x' + 2 for quotes
 }
