@@ -495,7 +495,6 @@ func (lm *LiveMigrationTest) ValidateDataConsistency(tables []string, orderBy st
 		}
 		return nil
 	})
-
 }
 
 func (lm *LiveMigrationTest) ValidateRowCount(tables []string) error {

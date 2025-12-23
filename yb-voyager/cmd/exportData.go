@@ -168,16 +168,16 @@ func printLiveMigrationLimitations() {
 	default:
 		if exporterRole == SOURCE_DB_EXPORTER_ROLE {
 			utils.PrintAndLogfWarning("\nImportant: The following limitations apply to live migration:\n")
-			utils.PrintAndLogfInfo("  1. Schema modifications(for example, adding/droping columns, creating/deleting tables, etc) on the source and target databases are not supported during live migration.\n")
-			utils.PrintAndLogfInfo("  2. Modifying key columns (Primary Key or Unique Key) between source and target databases is not supported.\n")
-			utils.PrintAndLogfInfo("  3. Partition management operations (adding or deleting partitions) on partitioned tables are not supported.\n")
-			utils.PrintAndLogfInfo("  4. TRUNCATE operations on source database tables are not automatically replicated to the target database.\n")
-			utils.PrintAndLogfInfo("  5. Sequences that are not associated with any column or are attached to columns of non-integer types are not supported for automatic value generation resumption. These sequences must be manually resumed during the cutover phase.\n")
-			utils.PrintAndLogfInfo("  6. Tables without a Primary Key are not supported for live migration.\n\n")
+			utils.PrintAndLogfInfo("  1. Schema modifications(for example, adding/droping columns, creating/deleting tables, adding/deleting partitions etc) on the source and target databases are not supported during live migration.\n")
+			utils.PrintAndLogfInfo("  2. Primary Key or Unique Key columns should be identical between source and target databases.\n")
+			utils.PrintAndLogfInfo("  3. TRUNCATE operations on source database tables are not automatically replicated to the target database.\n")
+			utils.PrintAndLogfInfo("  4. Sequences that are not associated with any column or are attached to columns of non-integer types are not supported for automatic value generation resumption. These sequences must be manually resumed during the cutover phase.\n")
+			utils.PrintAndLogfInfo("  5. Tables without a Primary Key are not supported for live migration.\n\n")
 		} else {
 			workflow := lo.Ternary(exporterRole == TARGET_DB_EXPORTER_FF_ROLE, "fall forward", "fall back")
 			utils.PrintAndLogfWarning("\nImportant: The following limitation applies to live migration with %s:\n\n", workflow)
-			utils.PrintAndLogfInfo("SAVEPOINT statements within transactions on the target database are not supported during live migration with %s enabled. Transactions rolling back to some SAVEPOINT may cause data inconsistency between the databases.\n\n", workflow)
+			utils.PrintAndLogfInfo("  1. SAVEPOINT statements within transactions on the target database are not supported during live migration with %s enabled. Transactions rolling back to some SAVEPOINT may cause data inconsistency between the databases.\n", workflow)
+			utils.PrintAndLogfInfo("  2. Rows larger than 4MB in target database can cause consistency issues during live migration with %s enabled. Refer to this tech advisory for more information %s\n\n", workflow, utils.Path.Sprint("https://docs.yugabyte.com/stable/releases/techadvisories/ta-29060/"))
 		}
 	}
 }
@@ -545,11 +545,11 @@ func checkExportDataPermissions(finalTableList []sqlname.NameTuple) {
 		}
 	}
 
-	missingPermissions, err := source.DB().GetMissingExportDataPermissions(exportType, finalTableList)
+	missingPermissions, hasMissingPermissions, err := source.DB().GetMissingExportDataPermissions(exportType, finalTableList)
 	if err != nil {
 		utils.ErrExit("get missing export data permissions: %w", err)
 	}
-	if len(missingPermissions) > 0 {
+	if hasMissingPermissions {
 		color.Red("\nPermissions and configurations missing in the source database for export data:\n")
 		output := strings.Join(missingPermissions, "\n")
 		utils.PrintAndLogf("%s\n", output)
@@ -562,11 +562,8 @@ func checkExportDataPermissions(finalTableList []sqlname.NameTuple) {
 		}
 		fmt.Println("\nCheck the documentation to prepare the database for migration:", color.BlueString(link))
 
-		// Make a prompt to the user to continue even with missing permissions
-		reply := utils.AskPrompt("\nDo you want to continue anyway")
-		if !reply {
-			utils.ErrExit("Grant the required permissions and make the changes in configurations and try again.")
-		}
+		// All missing permissions are critical - no override allowed
+		utils.ErrExit("Migration cannot proceed without the required permissions and configurations.")
 	} else {
 		// TODO: Print this message on the console too once the code is stable
 		log.Info("All required permissions are present for the source database.")
