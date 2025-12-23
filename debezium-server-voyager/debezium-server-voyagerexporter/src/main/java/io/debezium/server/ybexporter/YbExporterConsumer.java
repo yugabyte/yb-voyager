@@ -40,6 +40,8 @@ public class YbExporterConsumer extends BaseChangeConsumer {
     private static final String SOURCE_DB_EXPORTER_ROLE = "source_db_exporter";
     private static final String TARGET_DB_EXPORTER_FF_ROLE = "target_db_exporter_ff";
     private static final String TARGET_DB_EXPORTER_FB_ROLE = "target_db_exporter_fb";
+    final Config config = ConfigProvider.getConfig();
+    boolean ybGRPCConnectorEnabled;
     String snapshotMode;
     String dataDir;
     String exportDir;
@@ -55,6 +57,7 @@ public class YbExporterConsumer extends BaseChangeConsumer {
     Thread flusherThread;
     boolean shutDown = false;
     Object flushingSnapshotFilesLock = new Object();
+    private static final Integer ObjectMapperMaxStringLength = 500_000_000;
 
     // Lock file
     private File lockFile;
@@ -73,6 +76,9 @@ public class YbExporterConsumer extends BaseChangeConsumer {
         retrieveSourceType(config);
         exporterRole = config.getValue("debezium.sink.ybexporter.exporter.role", String.class);
         exportDir = config.getValue("debezium.sink.ybexporter.exportDir", String.class);
+        if (sourceType.equals("yb")) {
+            ybGRPCConnectorEnabled = config.getValue("debezium.source.grpc.connector.enabled", Boolean.class);
+        }
         lockFile = new File(exportDir, String.format(".debezium_%s.lck", exporterRole));
         
         // Acquire lock file at startup
@@ -478,7 +484,7 @@ public class YbExporterConsumer extends BaseChangeConsumer {
         final Config config = ConfigProvider.getConfig();
         Long queueSegmentMaxBytes = config.getOptionalValue(PROP_PREFIX + "queueSegmentMaxBytes", Long.class)
                 .orElse(null);
-        eventQueue = new EventQueue(dataDir, queueSegmentMaxBytes);
+        eventQueue = new EventQueue(dataDir, queueSegmentMaxBytes, ybGRPCConnectorEnabled, exporterRole, ObjectMapperMaxStringLength);
     }
 
     private void checkIfHelperThreadAlive() {
