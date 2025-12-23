@@ -163,15 +163,15 @@ var YBValueConverterSuite = map[string]ConverterFn{
 			return columnValue, goerrors.Errorf("decoding base64 string: %v", err)
 		}
 		//convert bytes to hex string e.g. `[]byte{0x00, 0x00, 0x00, 0x00}` -> `\\x00000000`
-		hexString := ""
+		var hexString strings.Builder
 		for _, b := range decodedBytes {
-			hexString += fmt.Sprintf("%02x", b)
+			hexString.WriteString(fmt.Sprintf("%02x", b))
 		}
 		hexValue := ""
 		if formatIfRequired {
-			hexValue = fmt.Sprintf("'\\x%s'", hexString) // in insert statement no need of escaping the backslash and add quotes
+			hexValue = fmt.Sprintf("'\\x%s'", hexString.String()) // in insert statement no need of escaping the backslash and add quotes
 		} else {
-			hexValue = fmt.Sprintf("\\x%s", hexString) // in data file need to escape the backslash
+			hexValue = fmt.Sprintf("\\x%s", hexString.String()) // in data file need to escape the backslash
 		}
 		return string(hexValue), nil
 	},
