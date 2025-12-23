@@ -175,10 +175,19 @@ func printLiveMigrationLimitations() {
 			utils.PrintAndLogfInfo("  5. Tables without a Primary Key are not supported for live migration.\n\n")
 		} else {
 			workflow := lo.Ternary(exporterRole == TARGET_DB_EXPORTER_FF_ROLE, "fall forward", "fall back")
-			utils.PrintAndLogfWarning("\nImportant: The following limitation applies to live migration with %s:\n\n", workflow)
-			utils.PrintAndLogfInfo("  1. SAVEPOINT statements within transactions on the target database are not supported during live migration with %s enabled. Transactions rolling back to some SAVEPOINT may cause data inconsistency between the databases.\n", workflow)
-			utils.PrintAndLogfInfo("  2. Rows larger than 4MB in target database can cause consistency issues during live migration with %s enabled. Refer to this tech advisory for more information %s\n\n", workflow, utils.Path.Sprint("https://docs.yugabyte.com/stable/releases/techadvisories/ta-29060/"))
+			msr, err := metaDB.GetMigrationStatusRecord()
+			if err != nil {
+				utils.ErrExit("error getting migration status record: %w", err)
+			}
+			if msr.UseYBgRPCConnector {
+				utils.PrintAndLogfWarning("Note: Live migration with %s using YugabyteDB gRPC connector is a TECH PREVIEW feature.", workflow)
+			} else {
+				utils.PrintAndLogfWarning("\nImportant: The following limitation applies to live migration with %s:\n\n", workflow)
+				utils.PrintAndLogfInfo("  1. SAVEPOINT statements within transactions on the target database are not supported during live migration with %s enabled. Transactions rolling back to some SAVEPOINT may cause data inconsistency between the databases.\n", workflow)
+				utils.PrintAndLogfInfo("  2. Rows larger than 4MB in target database can cause consistency issues during live migration with %s enabled. Refer to this tech advisory for more information %s\n\n", workflow, utils.Path.Sprint("https://docs.yugabyte.com/stable/releases/techadvisories/ta-29060/"))
+			}
 		}
+
 	}
 }
 func sendPayloadAsPerExporterRole(status string, errorMsg error) {
