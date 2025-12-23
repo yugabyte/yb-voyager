@@ -320,6 +320,9 @@ FROM generate_series(1, 5);`,
 	err = lm.InitiateCutoverToSource(nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
 
+	err = lm.WaitForCutoverSourceComplete(100)
+	testutils.FatalIfError(t, err, "failed to wait for cutover to source complete")
+
 }
 
 // test for live migration with resumption and failure during restore sequences
