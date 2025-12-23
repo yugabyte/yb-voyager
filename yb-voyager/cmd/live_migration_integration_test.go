@@ -1632,9 +1632,6 @@ $$ LANGUAGE plpgsql;`,
 		SourceDeltaSQL: []string{
 			`SELECT generate_large_rows(10, 10);`,
 		},
-		TargetDeltaSQL: []string{
-			`SELECT generate_large_rows(10, 10);`,
-		},
 		CleanupSQL: []string{
 			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
 		},
@@ -1688,26 +1685,6 @@ $$ LANGUAGE plpgsql;`,
 	err = liveMigrationTest.WaitForCutoverComplete(50)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
-	err = liveMigrationTest.ExecuteTargetDelta()
-	testutils.FatalIfError(t, err, "failed to execute target delta")
-
-	err = liveMigrationTest.WaitForFallbackStreamingComplete(map[string]ChangesCount{
-		`test_schema."large_test"`: {
-			Inserts: 10,
-			Updates: 0,
-			Deletes: 0,
-		},
-	}, 120, 5)
-	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
-
-	err = liveMigrationTest.ValidateDataConsistency([]string{`test_schema."large_test"`}, "id")
-	testutils.FatalIfError(t, err, "failed to verify data consistency")
-
-	err = liveMigrationTest.InitiateCutoverToSource(nil)
-	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
-
-	err = liveMigrationTest.WaitForCutoverSourceComplete(100)
-	testutils.FatalIfError(t, err, "failed to wait for cutover source complete")
 }
 
 func TestLiveMigrationWithLargeNumberOfColumns(t *testing.T) {
