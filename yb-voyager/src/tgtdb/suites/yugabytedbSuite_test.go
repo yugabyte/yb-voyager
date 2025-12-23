@@ -134,7 +134,6 @@ func TestBytesConversionWithFormatting(t *testing.T) {
 	//verify the result is same as expected
 	assert.Equal(t, len(result), 20000004) //20000000 hex chars + 4 for '\x' + 2 for quotes
 
-
 	largeData200MB := make([]byte, 200000000)
 	for i := range largeData200MB {
 		largeData200MB[i] = byte(i % 256)
