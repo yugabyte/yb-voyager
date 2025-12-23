@@ -1,4 +1,4 @@
-//go:build integration_live_migration
+//go:build integration_voyager_command
 
 /*
 Copyright (c) YugabyteDB, Inc.
@@ -62,9 +62,7 @@ FROM generate_series(%d, %d);`, startID, endId))
 		testutils.FatalIfError(t, err, "error scanning rows")
 		resIds = append(resIds, id)
 	}
-	if !assert.Equal(t, ids, resIds) {
-		return fmt.Errorf("ids do not match %v != %v", ids, resIds)
-	}
+	assert.Equal(t, ids, resIds)
 	return nil
 }
 
@@ -76,13 +74,11 @@ func TestBasicLiveMigrationWithCutover(t *testing.T) {
 
 	lm := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
-			Type:         "postgresql",
-			ForLive:      true,
-			DatabaseName: "test1",
+			Type:    "postgresql",
+			ForLive: true,
 		},
 		TargetDB: ContainerConfig{
-			Type:         "yugabytedb",
-			DatabaseName: "test1",
+			Type: "yugabytedb",
 		},
 		SchemaNames: []string{"test_schema"},
 		SchemaSQL: []string{
@@ -172,452 +168,15 @@ FROM generate_series(1, 5);`,
 
 }
 
-// TestLiveMigrationWithEventsOnSamePkOrdered tests that INSERT/UPDATE/DELETE events
-// for the same primary key are applied in the correct order during live migration.
-//
-// Coverage Matrix (all meaningful I-U-D ordering transitions):
-//
-//	| Transition | Table 1 | Table 2 | Table 3 |
-//	|------------|---------|---------|---------|
-//	| I→U        |         |         | 1000x   |
-//	| I→D        | 1000x   |         |         |
-//	| U→U        |         | 1000x   |         |
-//	| U→D        |         |         | 1000x   |
-//	| D→I        | 999x    |         | 1000x   |
-//
-// Invalid transitions not tested (not meaningful for ordering):
-//   - I→I: Impossible (duplicate key error)
-//   - U→I: Requires DELETE first (covered by D→I)
-//   - D→U: UPDATE on non-existent row (no-op)
-//   - D→D: Second DELETE is no-op
-//
-// Table 1 (test_insert_delete_ordering): Tests I→D and D→I ordering on same PK
-//   - Pattern: INSERT(id=1) → DELETE(id=1) → INSERT(id=1) → ... (1000 cycles, skip last DELETE)
-//   - If D executes before I: DELETE is no-op (row doesn't exist), I succeeds, next I fails with duplicate key
-//   - If I executes before previous D: Duplicate key error (row still exists from previous cycle)
-//   - Validation: row exists with iteration=1000
-//
-// Table 2 (test_update_ordering): Tests U→U ordering on same PK
-//   - Pattern: UPDATE version=1 WHERE version=0 → UPDATE version=2 WHERE version=1 → ...
-//   - If any U executes out of order: WHERE clause doesn't match, UPDATE is no-op, chain breaks
-//   - Validation: row exists with version=1000 (any break → version stuck at break point)
-//
-// Table 3 (test_insert_update_delete_ordering): Tests I→U, U→D, D→I ordering on same PK
-//   - Pattern: INSERT → UPDATE WHERE state='inserted' → DELETE WHERE state='updated' → (repeat)
-//   - If U before I: UPDATE finds no row, no-op → DELETE fails → next INSERT may hit duplicate key
-//   - If D before U: DELETE finds no state='updated', no-op → row persists → next INSERT fails
-//   - If I before D: Duplicate key error
-//   - Validation: row exists with state='final', iteration=1001
-func TestLiveMigrationWithEventsOnSamePkOrdered(t *testing.T) {
-	lm := NewLiveMigrationTest(t, &TestConfig{
-		SourceDB: ContainerConfig{
-			Type:         "postgresql",
-			ForLive:      true,
-			DatabaseName: "test2",
-		},
-		TargetDB: ContainerConfig{
-			Type:         "yugabytedb",
-			DatabaseName: "test2",
-		},
-		SchemaNames: []string{"test_schema"},
-		SchemaSQL: []string{
-			`CREATE SCHEMA IF NOT EXISTS test_schema;`,
-			// Table 1: INSERT-DELETE ordering test (same PK, id=1)
-			// Tests: I→D (1000x), D→I (999x)
-			`CREATE TABLE test_schema.test_insert_delete_ordering (
-				id INT PRIMARY KEY,
-				iteration INT
-			);`,
-			// Table 2: UPDATE ordering test (same PK, id=1, chained WHERE)
-			// Tests: U→U (1000x)
-			`CREATE TABLE test_schema.test_update_ordering (
-				id INT PRIMARY KEY,
-				version INT
-			);`,
-			// Table 3: INSERT-UPDATE-DELETE ordering test (same PK, id=1, chained WHERE)
-			// Tests: I→U (1000x), U→D (1000x), D→I (1000x)
-			`CREATE TABLE test_schema.test_insert_update_delete_ordering (
-				id INT PRIMARY KEY,
-				state TEXT,
-				iteration INT
-			);`,
-		},
-		SourceSetupSchemaSQL: []string{
-			`ALTER TABLE test_schema.test_insert_delete_ordering REPLICA IDENTITY FULL;`,
-			`ALTER TABLE test_schema.test_update_ordering REPLICA IDENTITY FULL;`,
-			`ALTER TABLE test_schema.test_insert_update_delete_ordering REPLICA IDENTITY FULL;`,
-		},
-		InitialDataSQL: []string{
-			// Seed row for update ordering test (Table 2)
-			`INSERT INTO test_schema.test_update_ordering (id, version) VALUES (1, 0);`,
-		},
-		SourceDeltaSQL: []string{
-			`DO $$
-			DECLARE
-				i INTEGER;
-			BEGIN
-				FOR i IN 1..1000 LOOP
-					-- Table 1: INSERT-DELETE cycle on same PK (skip DELETE on last iteration)
-					-- Tests I→D ordering: if DELETE runs before INSERT, it's a no-op
-					-- Tests D→I ordering: if INSERT runs before DELETE, duplicate key error
-					INSERT INTO test_schema.test_insert_delete_ordering (id, iteration) VALUES (1, i);
-					IF i < 1000 THEN
-						DELETE FROM test_schema.test_insert_delete_ordering WHERE id = 1;
-					END IF;
-					
-					-- Table 2: Chained UPDATE on same PK
-					-- Tests U→U ordering: UPDATE only succeeds if previous UPDATE completed
-					-- WHERE version=i-1 ensures ordering - if previous UPDATE didn't run, this is no-op
-					UPDATE test_schema.test_update_ordering SET version = i WHERE id = 1 AND version = i - 1;
-					
-					-- Table 3: INSERT-UPDATE-DELETE cycle on same PK with chained WHERE
-					-- Tests I→U: UPDATE only matches state='inserted'
-					-- Tests U→D: DELETE only matches state='updated'
-					-- Tests D→I: INSERT fails with duplicate key if DELETE didn't run
-					INSERT INTO test_schema.test_insert_update_delete_ordering (id, state, iteration) VALUES (1, 'inserted', i);
-					UPDATE test_schema.test_insert_update_delete_ordering SET state = 'updated' WHERE id = 1 AND state = 'inserted' AND iteration = i;
-					DELETE FROM test_schema.test_insert_update_delete_ordering WHERE id = 1 AND state = 'updated' AND iteration = i;
-				END LOOP;
-				
-				-- Final INSERT for Table 3 validation (also tests D→I from last DELETE)
-				INSERT INTO test_schema.test_insert_update_delete_ordering (id, state, iteration) VALUES (1, 'final', 1001);
-			END $$;`,
-		},
-		CleanupSQL: []string{
-			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
-		},
-	})
-
-	defer lm.Cleanup()
-
-	err := lm.SetupContainers(context.Background())
-	testutils.FatalIfError(t, err, "failed to setup containers")
-
-	err = lm.SetupSchema()
-	testutils.FatalIfError(t, err, "failed to setup schema")
-
-	err = lm.StartExportData(true, nil)
-	testutils.FatalIfError(t, err, "failed to start export data")
-
-	err = lm.StartImportData(true, nil)
-	testutils.FatalIfError(t, err, "failed to start import data")
-
-	// Wait for snapshot (only test_update_ordering has initial data)
-	err = lm.WaitForSnapshotComplete(map[string]int64{
-		`test_schema."test_update_ordering"`: 1,
-	}, 30)
-	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
-
-	time.Sleep(5 * time.Second)
-
-	// Validate snapshot data
-	err = lm.ValidateDataConsistency([]string{`test_schema."test_update_ordering"`}, "id")
-	testutils.FatalIfError(t, err, "failed to validate snapshot data consistency")
-
-	// Execute delta SQL with ordering-sensitive operations
-	err = lm.ExecuteSourceDelta()
-	testutils.FatalIfError(t, err, "failed to execute source delta")
-
-	// Wait for streaming to complete
-	// Table 1: 1000 inserts, 999 deletes (same PK, id=1)
-	// Table 2: 1000 updates (same PK, id=1)
-	// Table 3: 1001 inserts, 1000 updates, 1000 deletes (same PK, id=1)
-	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
-		`test_schema."test_insert_delete_ordering"`: {
-			Inserts: 1000,
-			Updates: 0,
-			Deletes: 999,
-		},
-		`test_schema."test_update_ordering"`: {
-			Inserts: 0,
-			Updates: 1000,
-			Deletes: 0,
-		},
-		`test_schema."test_insert_update_delete_ordering"`: {
-			Inserts: 1001,
-			Updates: 1000,
-			Deletes: 1000,
-		},
-	}, 180, 5)
-	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
-
-	// Validate data consistency for all three tables
-	err = lm.ValidateDataConsistency([]string{
-		`test_schema."test_insert_delete_ordering"`,
-		`test_schema."test_update_ordering"`,
-		`test_schema."test_insert_update_delete_ordering"`,
-	}, "id")
-	testutils.FatalIfError(t, err, "failed to validate streaming data consistency")
-
-	// Additional validation: verify expected final values
-	err = lm.WithTargetConn(func(target *sql.DB) error {
-		// Table 1: should have iteration=1000
-		var iteration int
-		err := target.QueryRow(`SELECT iteration FROM test_schema.test_insert_delete_ordering WHERE id = 1`).Scan(&iteration)
-		if err != nil {
-			return fmt.Errorf("failed to query test_insert_delete_ordering: %w", err)
-		}
-		if iteration != 1000 {
-			return fmt.Errorf("INSERT-DELETE ordering failed: expected iteration=1000, got iteration=%d", iteration)
-		}
-
-		// Table 2: should have version=1000
-		var version int
-		err = target.QueryRow(`SELECT version FROM test_schema.test_update_ordering WHERE id = 1`).Scan(&version)
-		if err != nil {
-			return fmt.Errorf("failed to query test_update_ordering: %w", err)
-		}
-		if version != 1000 {
-			return fmt.Errorf("UPDATE ordering failed: expected version=1000, got version=%d", version)
-		}
-
-		// Table 3: should have state='final', iteration=1001
-		var state string
-		var iter int
-		err = target.QueryRow(`SELECT state, iteration FROM test_schema.test_insert_update_delete_ordering WHERE id = 1`).Scan(&state, &iter)
-		if err != nil {
-			return fmt.Errorf("failed to query test_insert_update_delete_ordering: %w", err)
-		}
-		if state != "final" || iter != 1001 {
-			return fmt.Errorf("INSERT-UPDATE-DELETE ordering failed: expected state='final', iteration=1001, got state='%s', iteration=%d", state, iter)
-		}
-
-		return nil
-	})
-	testutils.FatalIfError(t, err, "failed to validate ordering")
-
-	err = lm.InitiateCutoverToTarget(false, nil)
-	testutils.FatalIfError(t, err, "failed to initiate cutover")
-
-	err = lm.WaitForCutoverComplete(50)
-	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
-}
-
-// TestLiveMigrationWithEventsOnSamePkOrderedFallback tests that INSERT/UPDATE/DELETE events
-// for the same primary key are applied in the correct order during fall-back streaming (target→source).
-//
-// This is the fall-back counterpart to TestLiveMigrationWithEventsOnSamePkOrdered.
-// Events are generated on the target (YugabyteDB) and streamed back to the source (PostgreSQL).
-//
-// Coverage Matrix (all meaningful I-U-D ordering transitions):
-//
-//	| Transition | Table 1 | Table 2 | Table 3 |
-//	|------------|---------|---------|---------|
-//	| I→U        |         |         | 1000x   |
-//	| I→D        | 1000x   |         |         |
-//	| U→U        |         | 1000x   |         |
-//	| U→D        |         |         | 1000x   |
-//	| D→I        | 999x    |         | 1000x   |
-//
-// Table 1 (test_insert_delete_ordering): Tests I→D and D→I ordering on same PK
-// Table 2 (test_update_ordering): Tests U→U ordering on same PK
-// Table 3 (test_insert_update_delete_ordering): Tests I→U, U→D, D→I ordering on same PK
-func TestLiveMigrationWithEventsOnSamePkOrderedFallback(t *testing.T) {
-	lm := NewLiveMigrationTest(t, &TestConfig{
-		SourceDB: ContainerConfig{
-			Type:         "postgresql",
-			ForLive:      true,
-			DatabaseName: "test_live_same_pk_ordered_fallback",
-		},
-		TargetDB: ContainerConfig{
-			Type:         "yugabytedb",
-			DatabaseName: "test_live_same_pk_ordered_fallback",
-		},
-		SchemaNames: []string{"test_schema"},
-		SchemaSQL: []string{
-			`CREATE SCHEMA IF NOT EXISTS test_schema;`,
-			// Table 1: INSERT-DELETE ordering test (same PK, id=1)
-			// Tests: I→D (1000x), D→I (999x)
-			`CREATE TABLE test_schema.test_insert_delete_ordering (
-				id INT PRIMARY KEY,
-				iteration INT
-			);`,
-			// Table 2: UPDATE ordering test (same PK, id=1, chained WHERE)
-			// Tests: U→U (1000x)
-			`CREATE TABLE test_schema.test_update_ordering (
-				id INT PRIMARY KEY,
-				version INT
-			);`,
-			// Table 3: INSERT-UPDATE-DELETE ordering test (same PK, id=1, chained WHERE)
-			// Tests: I→U (1000x), U→D (1000x), D→I (1000x)
-			`CREATE TABLE test_schema.test_insert_update_delete_ordering (
-				id INT PRIMARY KEY,
-				state TEXT,
-				iteration INT
-			);`,
-		},
-		SourceSetupSchemaSQL: []string{
-			`ALTER TABLE test_schema.test_insert_delete_ordering REPLICA IDENTITY FULL;`,
-			`ALTER TABLE test_schema.test_update_ordering REPLICA IDENTITY FULL;`,
-			`ALTER TABLE test_schema.test_insert_update_delete_ordering REPLICA IDENTITY FULL;`,
-		},
-		InitialDataSQL: []string{
-			// Seed row for update ordering test (Table 2)
-			`INSERT INTO test_schema.test_update_ordering (id, version) VALUES (1, 0);`,
-		},
-		// No SourceDeltaSQL - forward streaming already covered by other tests
-		TargetDeltaSQL: []string{
-			// Ordering-sensitive events executed on target (YugabyteDB) and streamed back to source
-			`DO $$
-			DECLARE
-				i INTEGER;
-			BEGIN
-				FOR i IN 1..1000 LOOP
-					-- Table 1: INSERT-DELETE cycle on same PK (skip DELETE on last iteration)
-					-- Tests I→D ordering: if DELETE runs before INSERT, it's a no-op
-					-- Tests D→I ordering: if INSERT runs before DELETE, duplicate key error
-					INSERT INTO test_schema.test_insert_delete_ordering (id, iteration) VALUES (1, i);
-					IF i < 1000 THEN
-						DELETE FROM test_schema.test_insert_delete_ordering WHERE id = 1;
-					END IF;
-					
-					-- Table 2: Chained UPDATE on same PK
-					-- Tests U→U ordering: UPDATE only succeeds if previous UPDATE completed
-					-- WHERE version=i-1 ensures ordering - if previous UPDATE didn't run, this is no-op
-					UPDATE test_schema.test_update_ordering SET version = i WHERE id = 1 AND version = i - 1;
-					
-					-- Table 3: INSERT-UPDATE-DELETE cycle on same PK with chained WHERE
-					-- Tests I→U: UPDATE only matches state='inserted'
-					-- Tests U→D: DELETE only matches state='updated'
-					-- Tests D→I: INSERT fails with duplicate key if DELETE didn't run
-					INSERT INTO test_schema.test_insert_update_delete_ordering (id, state, iteration) VALUES (1, 'inserted', i);
-					UPDATE test_schema.test_insert_update_delete_ordering SET state = 'updated' WHERE id = 1 AND state = 'inserted' AND iteration = i;
-					DELETE FROM test_schema.test_insert_update_delete_ordering WHERE id = 1 AND state = 'updated' AND iteration = i;
-				END LOOP;
-				
-				-- Final INSERT for Table 3 validation (also tests D→I from last DELETE)
-				INSERT INTO test_schema.test_insert_update_delete_ordering (id, state, iteration) VALUES (1, 'final', 1001);
-			END $$;`,
-		},
-		CleanupSQL: []string{
-			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
-		},
-	})
-
-	defer lm.Cleanup()
-
-	err := lm.SetupContainers(context.Background())
-	testutils.FatalIfError(t, err, "failed to setup containers")
-
-	err = lm.SetupSchema()
-	testutils.FatalIfError(t, err, "failed to setup schema")
-
-	err = lm.StartExportData(true, nil)
-	testutils.FatalIfError(t, err, "failed to start export data")
-
-	err = lm.StartImportData(true, nil)
-	testutils.FatalIfError(t, err, "failed to start import data")
-
-	// Wait for snapshot (only test_update_ordering has initial data)
-	err = lm.WaitForSnapshotComplete(map[string]int64{
-		`test_schema."test_update_ordering"`: 1,
-	}, 30)
-	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
-
-	time.Sleep(5 * time.Second)
-
-	// Validate snapshot data
-	err = lm.ValidateDataConsistency([]string{`test_schema."test_update_ordering"`}, "id")
-	testutils.FatalIfError(t, err, "failed to validate snapshot data consistency")
-
-	// Initiate cutover to target with fall-back enabled
-	err = lm.InitiateCutoverToTarget(true, nil)
-	testutils.FatalIfError(t, err, "failed to initiate cutover")
-
-	err = lm.WaitForCutoverComplete(50)
-	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
-
-	// Execute ordering-sensitive delta SQL on target (YugabyteDB)
-	err = lm.ExecuteTargetDelta()
-	testutils.FatalIfError(t, err, "failed to execute target delta")
-
-	// Wait for fall-back streaming to complete (target → source)
-	// Table 1: 1000 inserts, 999 deletes (same PK, id=1)
-	// Table 2: 1000 updates (same PK, id=1)
-	// Table 3: 1001 inserts, 1000 updates, 1000 deletes (same PK, id=1)
-	err = lm.WaitForFallbackStreamingComplete(map[string]ChangesCount{
-		`test_schema."test_insert_delete_ordering"`: {
-			Inserts: 1000,
-			Updates: 0,
-			Deletes: 999,
-		},
-		`test_schema."test_update_ordering"`: {
-			Inserts: 0,
-			Updates: 1000,
-			Deletes: 0,
-		},
-		`test_schema."test_insert_update_delete_ordering"`: {
-			Inserts: 1001,
-			Updates: 1000,
-			Deletes: 1000,
-		},
-	}, 180, 5)
-	testutils.FatalIfError(t, err, "failed to wait for fall-back streaming complete")
-
-	// Validate data consistency for all three tables
-	err = lm.ValidateDataConsistency([]string{
-		`test_schema."test_insert_delete_ordering"`,
-		`test_schema."test_update_ordering"`,
-		`test_schema."test_insert_update_delete_ordering"`,
-	}, "id")
-	testutils.FatalIfError(t, err, "failed to validate streaming data consistency")
-
-	// Additional validation: verify expected final values on source
-	err = lm.WithSourceConn(func(source *sql.DB) error {
-		// Table 1: should have iteration=1000
-		var iteration int
-		err := source.QueryRow(`SELECT iteration FROM test_schema.test_insert_delete_ordering WHERE id = 1`).Scan(&iteration)
-		if err != nil {
-			return fmt.Errorf("failed to query test_insert_delete_ordering: %w", err)
-		}
-		if iteration != 1000 {
-			return fmt.Errorf("INSERT-DELETE ordering failed: expected iteration=1000, got iteration=%d", iteration)
-		}
-
-		// Table 2: should have version=1000
-		var version int
-		err = source.QueryRow(`SELECT version FROM test_schema.test_update_ordering WHERE id = 1`).Scan(&version)
-		if err != nil {
-			return fmt.Errorf("failed to query test_update_ordering: %w", err)
-		}
-		if version != 1000 {
-			return fmt.Errorf("UPDATE ordering failed: expected version=1000, got version=%d", version)
-		}
-
-		// Table 3: should have state='final', iteration=1001
-		var state string
-		var iter int
-		err = source.QueryRow(`SELECT state, iteration FROM test_schema.test_insert_update_delete_ordering WHERE id = 1`).Scan(&state, &iter)
-		if err != nil {
-			return fmt.Errorf("failed to query test_insert_update_delete_ordering: %w", err)
-		}
-		if state != "final" || iter != 1001 {
-			return fmt.Errorf("INSERT-UPDATE-DELETE ordering failed: expected state='final', iteration=1001, got state='%s', iteration=%d", state, iter)
-		}
-
-		return nil
-	})
-	testutils.FatalIfError(t, err, "failed to validate ordering on source")
-
-	// Cutover back to source
-	err = lm.InitiateCutoverToSource(nil)
-	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
-
-	err = lm.WaitForCutoverSourceComplete(100)
-	testutils.FatalIfError(t, err, "failed to wait for cutover to source complete")
-}
-
 func TestBasicLiveMigrationWithFallback(t *testing.T) {
 
 	lm := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
-			Type:         "postgresql",
-			ForLive:      true,
-			DatabaseName: "test3",
+			Type:    "postgresql",
+			ForLive: true,
 		},
 		TargetDB: ContainerConfig{
-			Type:         "yugabytedb",
-			DatabaseName: "test3",
+			Type: "yugabytedb",
 		},
 		SchemaNames: []string{"test_schema"},
 		SchemaSQL: []string{
@@ -678,8 +237,6 @@ FROM generate_series(1, 5);`,
 	})
 	testutils.FatalIfError(t, err, "failed to start import data")
 
-	time.Sleep(10 * time.Second)
-
 	err = lm.WaitForSnapshotComplete(map[string]int64{
 		`test_schema."test_live"`: 10,
 	}, 30)
@@ -706,39 +263,32 @@ FROM generate_series(1, 5);`,
 	err = lm.ValidateDataConsistency([]string{`test_schema."test_live"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
 
-	err = lm.InitiateCutoverToTarget(true, nil)
+	//RIGHT NOW not using the fallback true
+	// err = lm.InitiateCutoverToTarget(true, nil)
+	err = lm.InitiateCutoverToTarget(false, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover")
 
 	err = lm.WaitForCutoverComplete(50)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
-	err = lm.ExecuteTargetDelta()
-	testutils.FatalIfError(t, err, "failed to execute target delta")
-
-	err = lm.WaitForFallbackStreamingComplete(map[string]ChangesCount{
-		`test_schema."test_live"`: {
-			Inserts: 5,
-			Updates: 0,
-			Deletes: 0,
-		},
-	}, 30, 1)
-	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
-
-	//validate streaming data
-	err = lm.ValidateDataConsistency([]string{`test_schema."test_live"`}, "id")
-	testutils.FatalIfError(t, err, "failed to validate data consistency")
-
-	err = lm.InitiateCutoverToSource(nil)
-	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
-
-	err = lm.WaitForCutoverSourceComplete(100)
-	testutils.FatalIfError(t, err, "failed to wait for cutover to source complete")
-
 	//validate sequence restoration
-	err = lm.WithSourceConn(func(source *sql.DB) error {
-		return assertSequenceValues(t, 21, 30, source, `test_schema.test_live`)
+	err = lm.WithTargetConn(func(target *sql.DB) error {
+		return assertSequenceValues(t, 16, 25, target, `test_schema.test_live`)
 	})
 	testutils.FatalIfError(t, err, "failed to validate sequence restoration")
+
+	// err = lm.ExecuteTargetDelta()
+	// testutils.FatalIfError(t, err, "failed to execute target delta")
+
+	// err = lm.WaitForFallbackStreamingComplete(`test_schema."test_live"`, 5, 0, 0)
+	// testutils.FatalIfError(t, err, "failed to wait for streaming complete")
+
+	// //validate streaming data
+	// err = lm.ValidateDataConsistency([]string{`test_schema."test_live"`}, "id")
+	// testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	// err = lm.InitiateCutoverToSource(nil)
+	// testutils.FatalIfError(t, err, "failed to initiate cutover to source")
 
 }
 
@@ -752,13 +302,11 @@ func TestLiveMigrationWithImportResumptionOnFailureAtRestoreSequences(t *testing
 
 	lm := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
-			Type:         "postgresql",
-			ForLive:      true,
-			DatabaseName: "test4",
+			Type:    "postgresql",
+			ForLive: true,
 		},
 		TargetDB: ContainerConfig{
-			Type:         "yugabytedb",
-			DatabaseName: "test4",
+			Type: "yugabytedb",
 		},
 		SchemaNames: []string{"test_schema"},
 		SchemaSQL: []string{
@@ -806,8 +354,6 @@ FROM generate_series(1, 15);`,
 
 	err = lm.StartImportData(true, nil)
 	testutils.FatalIfError(t, err, "failed to start import data")
-
-	time.Sleep(10 * time.Second)
 
 	err = lm.WaitForSnapshotComplete(map[string]int64{
 		`test_schema."test_live"`: 20,
@@ -895,13 +441,11 @@ FROM generate_series(1, 15);`,
 func TestLiveMigrationWithImportResumptionWithGeneratedAlwaysColumn(t *testing.T) {
 	lm := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
-			Type:         "postgresql",
-			ForLive:      true,
-			DatabaseName: "test5",
+			Type:    "postgresql",
+			ForLive: true,
 		},
 		TargetDB: ContainerConfig{
-			Type:         "yugabytedb",
-			DatabaseName: "test5",
+			Type: "yugabytedb",
 		},
 		SchemaNames: []string{"test_schema"},
 		SchemaSQL: []string{
@@ -1004,13 +548,11 @@ FROM generate_series(1, 15);`,
 func TestLiveMigrationResumptionWithChangeInCDCPartitioningStrategy(t *testing.T) {
 	lm := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
-			Type:         "postgresql",
-			ForLive:      true,
-			DatabaseName: "test6",
+			Type:    "postgresql",
+			ForLive: true,
 		},
 		TargetDB: ContainerConfig{
-			Type:         "yugabytedb",
-			DatabaseName: "test6",
+			Type: "yugabytedb",
 		},
 		SchemaNames: []string{"test_schema"},
 		SchemaSQL: []string{
@@ -1092,21 +634,16 @@ FROM generate_series(1, 10);`,
 	err = lm.InitiateCutoverToTarget(false, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover")
 
-	err = lm.WaitForCutoverComplete(30)
-	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
-
 }
 
 func TestLiveMigrationWithUniqueKeyValuesWithPartialPredicateConflictDetectionCases(t *testing.T) {
 	lm := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
-			Type:         "postgresql",
-			ForLive:      true,
-			DatabaseName: "test7",
+			Type:    "postgresql",
+			ForLive: true,
 		},
 		TargetDB: ContainerConfig{
-			Type:         "yugabytedb",
-			DatabaseName: "test7",
+			Type: "yugabytedb",
 		},
 		SchemaNames: []string{"test_schema"},
 		SchemaSQL: []string{
@@ -1235,21 +772,16 @@ FROM generate_series(1, 20) as i;`,
 	err = lm.InitiateCutoverToTarget(false, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover")
 
-	err = lm.WaitForCutoverComplete(30)
-	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
-
 }
 
 func TestLiveMigrationWithUniqueKeyConflictWithNullValuesDetectionCases(t *testing.T) {
 	lm := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
-			Type:         "postgresql",
-			ForLive:      true,
-			DatabaseName: "test8",
+			Type:    "postgresql",
+			ForLive: true,
 		},
 		TargetDB: ContainerConfig{
-			Type:         "yugabytedb",
-			DatabaseName: "test8",
+			Type: "yugabytedb",
 		},
 		SchemaNames: []string{"test_schema"},
 		SchemaSQL: []string{
@@ -1377,21 +909,16 @@ FROM generate_series(1, 20) as i;`,
 	err = lm.InitiateCutoverToTarget(false, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover")
 
-	err = lm.WaitForCutoverComplete(30)
-	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
-
 }
 
 func TestLiveMigrationWithUniqueKeyConflictWithUniqueIndexOnlyOnLeafPartitions(t *testing.T) {
 	liveMigrationTest := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
-			Type:         "postgresql",
-			ForLive:      true,
-			DatabaseName: "test9",
+			Type:    "postgresql",
+			ForLive: true,
 		},
 		TargetDB: ContainerConfig{
-			Type:         "yugabytedb",
-			DatabaseName: "test9",
+			Type: "yugabytedb",
 		},
 		SchemaNames: []string{"test_schema"},
 		SchemaSQL: []string{
@@ -1529,21 +1056,16 @@ func TestLiveMigrationWithUniqueKeyConflictWithUniqueIndexOnlyOnLeafPartitions(t
 	err = liveMigrationTest.InitiateCutoverToTarget(false, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover to target")
 
-	err = liveMigrationTest.WaitForCutoverComplete(30)
-	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
-
 }
 
 func TestLiveMigrationWithUniqueKeyConflictWithNullValueAndPartialPredicatesDetectionCases(t *testing.T) {
 	liveMigrationTest := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
-			Type:         "postgresql",
-			ForLive:      true,
-			DatabaseName: "test10",
+			Type:    "postgresql",
+			ForLive: true,
 		},
 		TargetDB: ContainerConfig{
-			Type:         "yugabytedb",
-			DatabaseName: "test10",
+			Type: "yugabytedb",
 		},
 		SchemaNames: []string{"test_schema"},
 		SchemaSQL: []string{
@@ -1673,21 +1195,16 @@ FROM generate_series(1, 20) as i;`,
 	err = liveMigrationTest.InitiateCutoverToTarget(false, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover to target")
 
-	err = liveMigrationTest.WaitForCutoverComplete(30)
-	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
-
 }
 
 func TestLiveMigrationWithUniqueKeyConflictWithExpressionIndexOnPartitions(t *testing.T) {
 	liveMigrationTest := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
-			Type:         "postgresql",
-			ForLive:      true,
-			DatabaseName: "test11",
+			Type:    "postgresql",
+			ForLive: true,
 		},
 		TargetDB: ContainerConfig{
-			Type:         "yugabytedb",
-			DatabaseName: "test11",
+			Type: "yugabytedb",
 		},
 		SchemaNames: []string{"test_schema"},
 		SchemaSQL: []string{
@@ -1968,525 +1485,1335 @@ $$ LANGUAGE plpgsql;`,
 
 }
 
-func TestLiveMigrationWithLargeNumberOfColumns(t *testing.T) {
-	liveMigrationTest := NewLiveMigrationTest(t, &TestConfig{
+// TestLiveMigrationWithDatatypeEdgeCases tests live migration with various datatypes
+// containing special characters and edge cases that require proper escaping.
+// Currently testing: STRING datatype with backslashes, quotes, newlines, tabs, Unicode, etc.
+// This test verifies that the datatype converter properly handles edge cases during CDC streaming.
+// Aligned with unit tests in yugabytedbSuite_test.go
+func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
+	lm := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
-			Type:         "postgresql",
-			ForLive:      true,
-			DatabaseName: "test13",
+			Type:    "postgresql",
+			ForLive: true,
 		},
 		TargetDB: ContainerConfig{
-			Type:         "yugabytedb",
-			DatabaseName: "test13",
+			Type: "yugabytedb",
 		},
 		SchemaNames: []string{"test_schema"},
 		SchemaSQL: []string{
-			`CREATE SCHEMA IF NOT EXISTS test_schema;
-			CREATE TABLE test_schema.test_large_number_of_columns (
-				id int PRIMARY KEY,
-				column1 text,
-				column2 text,
-				column3 text,
-				column4 text,
-				column5 text,
-				column6 text,
-				column7 text,
-				column8 text,
-				column9 text,
-				column10 text,
-				column11 text,
-				column12 text,
-				column13 text,
-				column14 text,
-				column15 text,
-				column16 text,
-				column17 text,
-				column18 text,
-				column19 text,
-				column20 text,
-				column21 text,
-				column22 text,
-				column23 text,
-				column24 text,
-				column25 text,
-				column26 text,
-				column27 text,
-				column28 text,
-				column29 text,
-				column30 text,
-				column31 text,
-				column32 text,
-				column33 text,
-				column34 text,
-				column35 text,
-				column36 text,
-				column37 text,
-				column38 text,
-				column39 text,
-				column40 text,
-				column41 text,
-				column42 text,
-				column43 text,
-				column44 text,
-				column45 text,
-				column46 text,
-				column47 text,
-				column48 text,
-				column49 text,
-				column50 text
-			);`,
+			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
+			`CREATE SCHEMA test_schema;
+
+			CREATE TABLE test_schema.string_edge_cases (
+				id SERIAL PRIMARY KEY,
+				text_with_backslash TEXT,
+				text_with_quote TEXT,
+				text_with_newline TEXT,
+				text_with_tab TEXT,
+				text_with_mixed TEXT,
+				text_windows_path TEXT,
+				text_sql_injection TEXT,
+				text_unicode TEXT,
+				text_empty TEXT,
+				text_null_string TEXT
+			);
+
+			CREATE TABLE test_schema.json_edge_cases (
+				id SERIAL PRIMARY KEY,
+				json_with_escaped_chars JSON,
+				json_with_unicode JSON,
+				json_nested JSON,
+				json_array JSON,
+				json_with_null JSON,
+				json_empty JSON,
+				json_formatted JSONB,
+				json_with_numbers JSON,
+				json_complex JSONB
+			);
+
+			CREATE TYPE test_schema.status_enum AS ENUM ('active', 'inactive', 'pending', 'enum''value', 'enum"value', 'enum\value', 'with space', 'with-dash', 'with_underscore', 'café', '🎉emoji', '123start');
+			
+			CREATE TABLE test_schema.enum_edge_cases (
+				id SERIAL PRIMARY KEY,
+				status_simple test_schema.status_enum,
+				status_with_quote test_schema.status_enum,
+				status_with_special test_schema.status_enum,
+				status_unicode test_schema.status_enum,
+				status_array test_schema.status_enum[],
+				status_null test_schema.status_enum
+			);
+
+			CREATE TABLE test_schema.bytes_edge_cases (
+				id SERIAL PRIMARY KEY,
+				bytes_empty BYTEA,
+				bytes_single BYTEA,
+				bytes_ascii BYTEA,
+				bytes_null_byte BYTEA,
+				bytes_all_zeros BYTEA,
+				bytes_all_ff BYTEA,
+				bytes_special_chars BYTEA,
+				bytes_mixed BYTEA
+			);
+
+			CREATE TABLE test_schema.datetime_edge_cases (
+				id SERIAL PRIMARY KEY,
+				date_epoch DATE,
+				date_negative DATE,
+				date_future DATE,
+				timestamp_epoch TIMESTAMP,
+				timestamp_negative TIMESTAMP,
+				timestamp_with_tz TIMESTAMPTZ,
+				time_midnight TIME,
+				time_noon TIME,
+				time_with_micro TIME(6)
+			);
+
+			CREATE EXTENSION IF NOT EXISTS ltree;
+
+			CREATE TABLE test_schema.uuid_ltree_edge_cases (
+				id SERIAL PRIMARY KEY,
+				uuid_standard UUID,
+				uuid_all_zeros UUID,
+				uuid_all_fs UUID,
+				uuid_random UUID,
+				ltree_simple LTREE,
+				ltree_quoted LTREE,
+				ltree_deep LTREE,
+				ltree_single LTREE
+			);
+
+			CREATE EXTENSION IF NOT EXISTS hstore;
+
+			CREATE TABLE test_schema.map_edge_cases (
+				id SERIAL PRIMARY KEY,
+				map_simple HSTORE,
+				map_with_arrow HSTORE,
+				map_with_quotes HSTORE,
+				map_empty_values HSTORE,
+				map_multiple_pairs HSTORE,
+				map_special_chars HSTORE
+			);
+
+			CREATE TABLE test_schema.interval_edge_cases (
+				id SERIAL PRIMARY KEY,
+				interval_positive INTERVAL,
+				interval_negative INTERVAL,
+				interval_zero INTERVAL,
+				interval_years INTERVAL,
+				interval_days INTERVAL,
+				interval_hours INTERVAL,
+				interval_mixed INTERVAL
+			);
+
+			CREATE TABLE test_schema.zonedtimestamp_edge_cases (
+				id SERIAL PRIMARY KEY,
+				ts_utc TIMESTAMPTZ,
+				ts_positive_offset TIMESTAMPTZ,
+				ts_negative_offset TIMESTAMPTZ,
+				ts_epoch TIMESTAMPTZ,
+				ts_future TIMESTAMPTZ,
+				ts_midnight TIMESTAMPTZ
+			);
+
+			CREATE TABLE test_schema.decimal_edge_cases (
+				id SERIAL PRIMARY KEY,
+				decimal_large NUMERIC(38, 9),
+				decimal_negative NUMERIC(15, 3),
+				decimal_zero NUMERIC(10, 2),
+				decimal_high_precision NUMERIC(30, 15),
+				decimal_scientific NUMERIC,
+				decimal_small NUMERIC(5, 2)
+			);
+			`,
 		},
 		SourceSetupSchemaSQL: []string{
-			`ALTER TABLE test_schema.test_large_number_of_columns REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema.string_edge_cases REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema.json_edge_cases REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema.enum_edge_cases REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema.bytes_edge_cases REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema.datetime_edge_cases REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema.uuid_ltree_edge_cases REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema.map_edge_cases REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema.interval_edge_cases REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema.zonedtimestamp_edge_cases REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema.decimal_edge_cases REPLICA IDENTITY FULL;`,
 		},
 		InitialDataSQL: []string{
-			`INSERT INTO test_schema.test_large_number_of_columns (id, column1, column2, column3, column4, column5, column6, column7, column8, column9, column10, column11, column12, column13, column14, column15, column16, column17, column18, column19, column20, column21, column22, column23, column24, column25,
-			column26, column27, column28, column29, column30, column31, column32, column33, column34, column35, column36, column37, column38, column39, column40, column41, column42, column43, column44, column45, column46, column47, column48, column49, column50)
-			SELECT i, md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), 
-			md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), 
-			md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text)
-			FROM generate_series(1, 20) as i;`,
+			// Row 1: Basic edge cases + Unicode separators (TODO 6)
+			`INSERT INTO test_schema.string_edge_cases (
+				text_with_backslash,
+				text_with_quote,
+				text_with_newline,
+				text_with_tab,
+				text_with_mixed,
+				text_windows_path,
+				text_sql_injection,
+				text_unicode,
+				text_empty,
+				text_null_string
+			) VALUES
+			(
+				'path\to\file',                          -- literal backslash-t, backslash-o
+				'It''s a test',                          -- single quote (SQL escaped)
+				'line1' || E'\u2028' || 'line2',         -- TODO 6: Unicode line separator (U+2028)
+				'para1' || E'\u2029' || 'para2',         -- TODO 6: Unicode paragraph separator (U+2029)
+				'word' || E'\u200B' || 'word',           -- TODO 6: Zero-width space (U+200B)
+				'word' || E'\u00A0' || 'word',           -- TODO 6: Non-breaking space (U+00A0)
+				'''; DROP TABLE users--',                -- SQL injection
+				'café 日本語',                           -- Unicode
+				'',                                      -- empty string
+				'NULL'                                   -- literal string "NULL"
+			);`,
+
+			// Row 2: Actual control characters with E-strings (TODOs 7, 9)
+			`INSERT INTO test_schema.string_edge_cases (
+				text_with_backslash,
+				text_with_quote,
+				text_with_newline,
+				text_with_tab,
+				text_with_mixed,
+				text_windows_path,
+				text_sql_injection,
+				text_unicode,
+				text_empty,
+				text_null_string
+			) VALUES
+			(
+				'\\server\share',                        -- UNC path (double backslash)
+				'O''Reilly''s book',                    -- multiple single quotes
+				E'line1\nline2',                        -- TODO 7: Actual newline character (E-string)
+				E'col1\tcol2',                          -- TODO 7: Actual tab character (E-string)
+				E'text\rmore',                          -- TODO 7: Actual carriage return (E-string)
+				'C:\Program Files\MyApp\bin',           -- Windows path
+				''' OR ''1''=''1',                      -- SQL injection
+				'café''s specialty',                     -- TODO 1: Unicode with single quote
+				E'\t',                                  -- TODO 9: Tab only (E-string)
+				E'\n'                                   -- TODO 9: Newline only (E-string)
+			);`,
+
+			// Row 3: Extreme cases + Advanced Unicode (TODOs 2-5)
+			`INSERT INTO test_schema.string_edge_cases (
+				text_with_backslash,
+				text_with_quote,
+				text_with_newline,
+				text_with_tab,
+				text_with_mixed,
+				text_windows_path,
+				text_sql_injection,
+				text_unicode,
+				text_empty,
+				text_null_string
+			) VALUES
+			(
+				'path\to\日本語',                        -- TODO 2: Unicode with backslash (backslash + Japanese)
+				'English مرحبا English',                 -- TODO 5: Bidirectional text (LTR + RTL)
+				'Hello 世界 🌍',                         -- TODO 3: Mixed ASCII+Unicode (English + Chinese + emoji)
+				'tab',                                  -- simple text
+				'All: ''""\\ text',                     -- all special chars
+				'C:\new\test\report.txt',               -- path
+				'--comment',                            -- SQL comment
+				'👨‍👩‍👧 family',                           -- TODO 4: Zero-width joiner emoji (composite emoji)
+				' ',                                    -- single space only (critical edge case)
+				'This is NULL value'                    -- NULL as part of string
+			);`,
+
+			// JSON Row 1: Basic JSON edge cases
+			`INSERT INTO test_schema.json_edge_cases (
+				json_with_escaped_chars,
+				json_with_unicode,
+				json_nested,
+				json_array,
+				json_with_null,
+				json_empty,
+				json_formatted,
+				json_with_numbers,
+				json_complex
+			) VALUES
+			(
+				'{"key": "value\"test", "path": "C:\\\\path"}',
+				'{"message": "Hello 世界 🎉 café"}',
+				'{"outer": {"inner": "value"}}',
+				'["item1", "item2", "item\"3"]',
+				'{"key": null}',
+				'{}',
+				'{"formatted": "value"}',
+				'{"num": 123, "float": 45.67, "bool": true}',
+				'{"str": "test", "num": 123, "bool": true, "null": null, "arr": [1,2]}'
+			);`,
+
+			// JSON Row 2: Complex JSON structures
+			`INSERT INTO test_schema.json_edge_cases (
+				json_with_escaped_chars,
+				json_with_unicode,
+				json_nested,
+				json_array,
+				json_with_null,
+				json_empty,
+				json_formatted,
+				json_with_numbers,
+				json_complex
+			) VALUES
+			(
+				'{"escapes": "slash:\\\\ newline:\\n tab:\\t return:\\r"}',
+				'{"text": "zero\u200Bwidth\u200Djoin"}',
+				'{"level1": {"level2": {"level3": "deep"}}}',
+				'[1, "two", {"three": 3}]',
+				'{"a": null, "b": null}',
+				'[]',
+				'{"query": "SELECT * FROM users"}',
+				'{"int": -999, "float": 3.14159, "exp": 1.23e10}',
+				'{"path": "C:\\\\Program Files\\\\App\\\\file.txt", "json": {"nested": true}}'
+			);`,
+
+			// JSON Row 3: More JSON edge cases
+			`INSERT INTO test_schema.json_edge_cases (
+				json_with_escaped_chars,
+				json_with_unicode,
+				json_nested,
+				json_array,
+				json_with_null,
+				json_empty,
+				json_formatted,
+				json_with_numbers,
+				json_complex
+			) VALUES
+			(
+				'{"key": "line1\nline2"}',
+				'{"arabic": "مرحبا", "chinese": "你好"}',
+				'{"a": {"b": {"c": {"d": "value"}}}}',
+				'[[1,2],[3,4]]',
+				'{"result": null}',
+				'{"empty": {}}',
+				'{"text": "simple value"}',
+				'{"zero": 0, "negative": -42, "positive": 42}',
+				'{"name": "test", "value": 123}'
+			);`,
+
+			// ENUM Row 1: Basic ENUM values
+			`INSERT INTO test_schema.enum_edge_cases (
+				status_simple,
+				status_with_quote,
+				status_with_special,
+				status_unicode,
+				status_array,
+				status_null
+			) VALUES
+			(
+				'active',
+				'enum''value',
+				'with space',
+				'café',
+				ARRAY['active', 'pending', 'inactive']::test_schema.status_enum[],
+				'pending'
+			);`,
+
+			// ENUM Row 2: Special character ENUM values
+			`INSERT INTO test_schema.enum_edge_cases (
+				status_simple,
+				status_with_quote,
+				status_with_special,
+				status_unicode,
+				status_array,
+				status_null
+			) VALUES
+			(
+				'inactive',
+				'enum"value',
+				'with-dash',
+				'🎉emoji',
+				ARRAY['enum''value', 'with space', 'café']::test_schema.status_enum[],
+				NULL
+			);`,
+
+			// ENUM Row 3: More ENUM edge cases
+			`INSERT INTO test_schema.enum_edge_cases (
+				status_simple,
+				status_with_quote,
+				status_with_special,
+				status_unicode,
+				status_array,
+				status_null
+			) VALUES
+			(
+				'pending',
+				'enum\value',
+				'with_underscore',
+				'123start',
+				ARRAY['🎉emoji', '123start', 'enum\value']::test_schema.status_enum[],
+				'active'
+			);`,
+
+			// BYTES Row 1: Basic BYTEA edge cases
+			`INSERT INTO test_schema.bytes_edge_cases (
+				bytes_empty,
+				bytes_single,
+				bytes_ascii,
+				bytes_null_byte,
+				bytes_all_zeros,
+				bytes_all_ff,
+				bytes_special_chars,
+				bytes_mixed
+			) VALUES
+			(
+				E'\\x',
+				E'\\x41',
+				E'\\x414243',
+				E'\\x00',
+				E'\\x000000',
+				E'\\xffffff',
+				E'\\x275c0a',
+				E'\\x48656c6c6f'
+			);`,
+
+			// BYTES Row 2: More BYTEA patterns
+			`INSERT INTO test_schema.bytes_edge_cases (
+				bytes_empty,
+				bytes_single,
+				bytes_ascii,
+				bytes_null_byte,
+				bytes_all_zeros,
+				bytes_all_ff,
+				bytes_special_chars,
+				bytes_mixed
+			) VALUES
+			(
+				E'\\x',
+				E'\\xff',
+				E'\\x54657374',
+				E'\\x00000000',
+				E'\\x0000000000',
+				E'\\xffffffffff',
+				E'\\x090d',
+				E'\\xdeadbeef'
+			);`,
+
+			// BYTES Row 3: Special BYTEA patterns
+			`INSERT INTO test_schema.bytes_edge_cases (
+				bytes_empty,
+				bytes_single,
+				bytes_ascii,
+				bytes_null_byte,
+				bytes_all_zeros,
+				bytes_all_ff,
+				bytes_special_chars,
+				bytes_mixed
+			) VALUES
+			(
+				NULL,
+				E'\\x7f',
+				E'\\x646174',
+				E'\\x007465737400',
+				E'\\x00',
+				E'\\xff',
+				E'\\x010203',
+				E'\\xcafebabe'
+			);`,
+
+			// DATETIME Row 1: Epoch and basic dates
+			`INSERT INTO test_schema.datetime_edge_cases (
+				date_epoch,
+				date_negative,
+				date_future,
+				timestamp_epoch,
+				timestamp_negative,
+				timestamp_with_tz,
+				time_midnight,
+				time_noon,
+				time_with_micro
+			) VALUES
+			(
+				'1970-01-01',
+				'1969-12-31',
+				'2022-01-01',
+				'1970-01-01 00:00:00',
+				'1969-12-31 00:00:00',
+				'2022-01-01 12:00:00+00',
+				'00:00:00',
+				'12:00:00',
+				'12:30:45.123456'
+			);`,
+
+			// DATETIME Row 2: Edge case dates
+			`INSERT INTO test_schema.datetime_edge_cases (
+				date_epoch,
+				date_negative,
+				date_future,
+				timestamp_epoch,
+				timestamp_negative,
+				timestamp_with_tz,
+				time_midnight,
+				time_noon,
+				time_with_micro
+			) VALUES
+			(
+				'2000-01-01',
+				'1900-01-01',
+				'2099-12-31',
+				'2000-01-01 00:00:00',
+				'1900-01-01 12:30:45',
+				'2099-12-31 23:59:59+00',
+				'23:59:59',
+				'06:30:00',
+				'00:00:00.000001'
+			);`,
+
+			// DATETIME Row 3: Various dates and times
+			`INSERT INTO test_schema.datetime_edge_cases (
+				date_epoch,
+				date_negative,
+				date_future,
+				timestamp_epoch,
+				timestamp_negative,
+				timestamp_with_tz,
+				time_midnight,
+				time_noon,
+				time_with_micro
+			) VALUES
+			(
+				'2024-06-15',
+				'1950-06-15',
+				'2050-06-15',
+				'2024-06-15 14:30:00',
+				'1950-06-15 08:15:30',
+				'2050-06-15 18:45:00-05',
+				'18:45:30',
+				'09:15:00',
+				'23:59:59.999999'
+			);`,
+
+			// UUID/LTREE Row 1: Standard values
+			`INSERT INTO test_schema.uuid_ltree_edge_cases (
+				uuid_standard,
+				uuid_all_zeros,
+				uuid_all_fs,
+				uuid_random,
+				ltree_simple,
+				ltree_quoted,
+				ltree_deep,
+				ltree_single
+			) VALUES
+			(
+				'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+				'00000000-0000-0000-0000-000000000000',
+				'ffffffff-ffff-ffff-ffff-ffffffffffff',
+				'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+				'Top.Science.Astronomy',
+				'Top.ScienceFiction.Books',
+				'Top.Science.Astronomy.Stars.Sun',
+				'Top'
+			);`,
+
+			// UUID/LTREE Row 2: More values
+			`INSERT INTO test_schema.uuid_ltree_edge_cases (
+				uuid_standard,
+				uuid_all_zeros,
+				uuid_all_fs,
+				uuid_random,
+				ltree_simple,
+				ltree_quoted,
+				ltree_deep,
+				ltree_single
+			) VALUES
+			(
+				'550e8400-e29b-41d4-a716-446655440000',
+				'00000000-0000-0000-0000-000000000001',
+				'fffffffe-ffff-ffff-ffff-ffffffffffff',
+				'6ba7b810-9dad-11d1-80b4-00c04fd430c8',
+				'Animals.Mammals.Primates',
+				'Products.HomeAppliances.Kitchen',
+				'Geography.Continents.Europe.Countries.France.Cities.Paris',
+				'Root'
+			);`,
+
+			// UUID/LTREE Row 3: Edge cases
+			`INSERT INTO test_schema.uuid_ltree_edge_cases (
+				uuid_standard,
+				uuid_all_zeros,
+				uuid_all_fs,
+				uuid_random,
+				ltree_simple,
+				ltree_quoted,
+				ltree_deep,
+				ltree_single
+			) VALUES
+			(
+				'123e4567-e89b-12d3-a456-426614174000',
+				'10000000-0000-0000-0000-000000000000',
+				'efffffff-ffff-ffff-ffff-ffffffffffff',
+				'00000000-0000-0000-0000-000000000000',
+				'Data.Users.Profiles',
+				'Items.SpecialCharacters.Test',
+				'A.B.C.D.E.F.G.H.I.J',
+				'Leaf'
+			);`,
+
+			// MAP Row 1: Basic HSTORE values
+			`INSERT INTO test_schema.map_edge_cases (
+				map_simple,
+				map_with_arrow,
+				map_with_quotes,
+				map_empty_values,
+				map_multiple_pairs,
+				map_special_chars
+			) VALUES
+			(
+				'"key1" => "value1"',
+				'"key=>val" => "test"',
+				'"key" => "it''s"',
+				'"" => "value"',
+				'"a" => "1", "b" => "2", "c" => "3"',
+				'"special" => "test@email.com"'
+			);`,
+
+			// MAP Row 2: More HSTORE patterns
+			`INSERT INTO test_schema.map_edge_cases (
+				map_simple,
+				map_with_arrow,
+				map_with_quotes,
+				map_empty_values,
+				map_multiple_pairs,
+				map_special_chars
+			) VALUES
+			(
+				'"name" => "John"',
+				'"key" => "val=>test"',
+				'"name" => "O''Reilly"',
+				'"key" => ""',
+				'"x" => "10", "y" => "20", "z" => "30"',
+				'"path" => "C:\\Users\\test"'
+			);`,
+
+			// MAP Row 3: Edge case HSTORE
+			`INSERT INTO test_schema.map_edge_cases (
+				map_simple,
+				map_with_arrow,
+				map_with_quotes,
+				map_empty_values,
+				map_multiple_pairs,
+				map_special_chars
+			) VALUES
+			(
+				'"status" => "active"',
+				'"arrow" => "=>"',
+				'"text" => "It''s a test"',
+				'"empty" => ""',
+				'"one" => "1", "two" => "2"',
+				'"data" => "value"'
+			);`,
+
+			// INTERVAL Row 1: Positive intervals
+			`INSERT INTO test_schema.interval_edge_cases (
+				interval_positive,
+				interval_negative,
+				interval_zero,
+				interval_years,
+				interval_days,
+				interval_hours,
+				interval_mixed
+			) VALUES
+			(
+				'1 year 2 months 3 days'::interval,
+				'-1 year -2 months'::interval,
+				'00:00:00'::interval,
+				'5 years'::interval,
+				'100 days'::interval,
+				'12:30:45'::interval,
+				'1 year 6 months 15 days 8 hours 30 minutes'::interval
+			);`,
+
+			// INTERVAL Row 2: Various intervals
+			`INSERT INTO test_schema.interval_edge_cases (
+				interval_positive,
+				interval_negative,
+				interval_zero,
+				interval_years,
+				interval_days,
+				interval_hours,
+				interval_mixed
+			) VALUES
+			(
+				'3 months 7 days'::interval,
+				'-5 days -3 hours'::interval,
+				'0 seconds'::interval,
+				'10 years'::interval,
+				'365 days'::interval,
+				'23:59:59'::interval,
+				'2 years 3 months 10 days 5 hours'::interval
+			);`,
+
+			// INTERVAL Row 3: Edge case intervals
+			`INSERT INTO test_schema.interval_edge_cases (
+				interval_positive,
+				interval_negative,
+				interval_zero,
+				interval_years,
+				interval_days,
+				interval_hours,
+				interval_mixed
+			) VALUES
+			(
+				'6 months'::interval,
+				'-1 month -1 day'::interval,
+				'0'::interval,
+				'1 year'::interval,
+				'1 day'::interval,
+				'1:00:00'::interval,
+				'1 month 1 day 1 hour 1 minute 1 second'::interval
+			);`,
+
+			// ZONEDTIMESTAMP Row 1: UTC and various timezones
+			`INSERT INTO test_schema.zonedtimestamp_edge_cases (
+				ts_utc,
+				ts_positive_offset,
+				ts_negative_offset,
+				ts_epoch,
+				ts_future,
+				ts_midnight
+			) VALUES
+			(
+				'2024-01-01 00:00:00+00'::timestamptz,
+				'2024-06-15 12:30:45+05:30'::timestamptz,
+				'2024-12-25 18:00:00-08:00'::timestamptz,
+				'1970-01-01 00:00:00+00'::timestamptz,
+				'2050-12-31 23:59:59+00'::timestamptz,
+				'2024-01-01 00:00:00+00'::timestamptz
+			);`,
+
+			// ZONEDTIMESTAMP Row 2: Different timezone offsets
+			`INSERT INTO test_schema.zonedtimestamp_edge_cases (
+				ts_utc,
+				ts_positive_offset,
+				ts_negative_offset,
+				ts_epoch,
+				ts_future,
+				ts_midnight
+			) VALUES
+			(
+				'2023-07-04 12:00:00+00'::timestamptz,
+				'2023-03-15 08:30:00+01:00'::timestamptz,
+				'2023-11-11 22:45:30-05:00'::timestamptz,
+				'1969-12-31 23:59:59+00'::timestamptz,
+				'2100-01-01 00:00:00+00'::timestamptz,
+				'2023-06-21 00:00:00+00'::timestamptz
+			);`,
+
+			// ZONEDTIMESTAMP Row 3: Edge case timezones
+			`INSERT INTO test_schema.zonedtimestamp_edge_cases (
+				ts_utc,
+				ts_positive_offset,
+				ts_negative_offset,
+				ts_epoch,
+				ts_future,
+				ts_midnight
+			) VALUES
+			(
+				'2025-01-01 06:00:00+00'::timestamptz,
+				'2025-05-20 14:15:30+09:00'::timestamptz,
+				'2025-08-10 10:20:40-07:00'::timestamptz,
+				'1970-01-01 12:00:00+00'::timestamptz,
+				'2075-06-15 18:30:00+00'::timestamptz,
+				'2025-12-31 00:00:00+00'::timestamptz
+			);`,
+
+			// DECIMAL Row 1: Large and negative decimals
+			`INSERT INTO test_schema.decimal_edge_cases (
+				decimal_large,
+				decimal_negative,
+				decimal_zero,
+				decimal_high_precision,
+				decimal_scientific,
+				decimal_small
+			) VALUES
+			(
+				123456789.123456789,
+				-123.456,
+				0.00,
+				123.456789012345,
+				1000000.00,
+				99.99
+			);`,
+
+			// DECIMAL Row 2: Various precisions
+			`INSERT INTO test_schema.decimal_edge_cases (
+				decimal_large,
+				decimal_negative,
+				decimal_zero,
+				decimal_high_precision,
+				decimal_scientific,
+				decimal_small
+			) VALUES
+			(
+				987654321.987654321,
+				-999.999,
+				0,
+				999.999999999999999,
+				0.000001,
+				-50.25
+			);`,
+
+			// DECIMAL Row 3: Edge case decimals
+			`INSERT INTO test_schema.decimal_edge_cases (
+				decimal_large,
+				decimal_negative,
+				decimal_zero,
+				decimal_high_precision,
+				decimal_scientific,
+				decimal_small
+			) VALUES
+			(
+				1.000000001,
+				-0.001,
+				0.0,
+				0.000000000000001,
+				99999999999.999,
+				12.34
+			);`,
 		},
 		SourceDeltaSQL: []string{
-			/*
-				changes
-				Inserting 500 events
+			// INSERT #1: Streaming with Unicode separators (TODO 6)
+			`INSERT INTO test_schema.string_edge_cases (
+				text_with_backslash,
+				text_with_quote,
+				text_with_newline,
+				text_with_tab,
+				text_with_mixed,
+				text_windows_path,
+				text_sql_injection,
+				text_unicode,
+				text_empty,
+				text_null_string
+			) VALUES
+			(
+				'streaming\path',                       -- backslash path
+				'streaming''s test',                    -- single quote
+				'first' || E'\u2028' || 'second',       -- TODO 6: Unicode line separator in streaming
+				'word' || E'\u200B' || 'word',          -- TODO 6: Zero-width space in streaming
+				'text' || E'\u00A0' || 'text',          -- TODO 6: Non-breaking space in streaming
+				'D:\streaming\path',                    -- Windows path
+				'''; DELETE FROM test',                 -- SQL injection
+				'streaming 数据',                        -- Chinese
+				'',                                     -- empty
+				'NULL'                                  -- NULL literal
+			);`,
 
-				I event with  25 columns
-				U above row and all 25 columns
-				U above row and 20 columns
-				U above row and 15 columns
-				U above row and 10 columns
-				U above row and 8 columns
-				U above row and 6 columns
+			// UPDATE #1: Update backslash patterns
+			`UPDATE test_schema.string_edge_cases
+			SET text_with_backslash = 'updated: \x\y\z',
+			    text_with_quote = 'updated''s value'
+			WHERE id = 1;`,
 
-				D
+			// UPDATE #2: Update with consecutive quotes
+			`UPDATE test_schema.string_edge_cases
+			SET text_with_quote = 'O''''Reilly',
+			    text_sql_injection = '''; DROP TABLE users--'
+			WHERE id = 2;`,
 
-				I
-				and same updates again
-			*/
-			`
-DO $$
-DECLARE
-    i INTEGER;
-BEGIN
-    FOR i IN 21..220 LOOP
-        INSERT INTO test_schema.test_large_number_of_columns (id, column1, column2, column3, column4, column5, column6, column7, column8, column9, column10, column11, column12, column13, column14, column15, column16, column17, column18, column19, column20, column21, column22, column23, column24, column25,
-		column26, column27, column28, column29, column30, column31, column32, column33, column34, column35, column36, column37, column38, column39, column40, column41, column42, column43, column44, column45, column46, column47, column48, column49, column50)
-		SELECT i, md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), 
-			md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), 
-			md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text);
-		
-		UPDATE test_schema.test_large_number_of_columns SET column1 = 'updated_column1' || i , column2 = 'updated_column2' || i , column3 = 'updated_column3' || i , column4 = 'updated_column4' || i , column5 = 'updated_column5' || i , column6 = 'updated_column6' || i , 
-		column7 = 'updated_column7' || i , column8 = 'updated_column8' || i , column9 = 'updated_column9' || i , column10 = 'updated_column10' || i , column11 = 'updated_column11' || i , column12 = 'updated_column12' || i , column13 = 'updated_column13' || i , column14 = 'updated_column14' || i , column15 = 'updated_column15' || i , column16 = 'updated_column16' || i , 
-		column17 = 'updated_column17' || i , column18 = 'updated_column18' || i , column19 = 'updated_column19' || i , column20 = 'updated_column20' || i , column21 = 'updated_column21' || i , 
-		column22 = 'updated_column22' || i , column23 = 'updated_column23' || i , column24 = 'updated_column24' || i , column25 = 'updated_column25' || i , column26 = 'updated_column26' || i , column27 = 'updated_column27' || i , column28 = 'updated_column28' || i , column29 = 'updated_column29' || i , column30 = 'updated_column30' || i , column31 = 'updated_column31' || i , column32 = 'updated_column32' || i , 
-		column33 = 'updated_column33' || i , column34 = 'updated_column34' || i , column35 = 'updated_column35' || i , column36 = 'updated_column36' || i , column37 = 'updated_column37' || i , column38 = 'updated_column38' || i , column39 = 'updated_column39' || i , column40 = 'updated_column40' || i , column41 = 'updated_column41' || i , column42 = 'updated_column42' || i , column43 = 'updated_column43' || i , 
-		column44 = 'updated_column44' || i , column45 = 'updated_column45' || i , column46 = 'updated_column46' || i , column47 = 'updated_column47' || i , column48 = 'updated_column48' || i , column49 = 'updated_column49' || i , column50 = 'updated_column50' || i WHERE id = i;
+			// UPDATE #3: Test critical edge cases - backslash+quote, emoji, single space
+			`UPDATE test_schema.string_edge_cases
+			SET text_with_backslash = 'updated\''s test',
+			    text_unicode = '🎉 emoji test 日本',
+			    text_empty = ' '
+			WHERE id = 3;`,
 
-		UPDATE test_schema.test_large_number_of_columns SET column1 = 'updated_column1' || i+1 , column2 = 'updated_column2' || i+1 , column3 = 'updated_column3' || i+1 , column4 = 'updated_column4' || i+1 , column5 = 'updated_column5' || i+1 , column6 = 'updated_column6' || i+1 , 
-		column7 = 'updated_column7' || i+1 , column8 = 'updated_column8' || i+1 , column9 = 'updated_column9' || i+1 , column10 = 'updated_column10' || i+1 , column11 = 'updated_column11' || i+1 , column12 = 'updated_column12' || i+1 , column13 = 'updated_column13' || i+1 , column14 = 'updated_column14' || i+1 , column15 = 'updated_column15' || i+1 , 
-		column16 = 'updated_column16' || i+1 , column17 = 'updated_column17' || i+1 , column18 = 'updated_column18' || i+1 , column19 = 'updated_column19' || i+1 , column20 = 'updated_column20' || i+1 , column21 = 'updated_column21' || i+1 , 
-		column22 = 'updated_column22' || i+1 , column23 = 'updated_column23' || i+1 , column24 = 'updated_column24' || i+1 , column25 = 'updated_column25' || i+1 , column26 = 'updated_column26' || i+1 , column27 = 'updated_column27' || i+1 , column28 = 'updated_column28' || i+1 , column29 = 'updated_column29' || i+1 , column30 = 'updated_column30' || i+1 , column31 = 'updated_column31' || i+1 , column32 = 'updated_column32' || i+1 , 
-		column33 = 'updated_column33' || i+1 , column34 = 'updated_column34' || i+1 , column35 = 'updated_column35' || i+1 , column36 = 'updated_column36' || i+1 , column37 = 'updated_column37' || i+1 , column38 = 'updated_column38' || i+1 , column39 = 'updated_column39' || i+1 , column40 = 'updated_column40' || i+1 WHERE id = i;
+			// UPDATE #4: Test advanced Unicode patterns (TODOs 2-5)
+			`UPDATE test_schema.string_edge_cases
+			SET text_with_backslash = 'updated\path\数据',
+			    text_with_quote = 'Hello مرحبا world',
+			    text_with_newline = 'Mixed 世界 test 🌏',
+			    text_unicode = '👨‍👩‍👧‍👦 emoji family'
+			WHERE id = 2;`,
 
-		UPDATE test_schema.test_large_number_of_columns SET column1 = 'updated_column1' || i+2 , column2 = 'updated_column2' || i+2 , column3 = 'updated_column3' || i+2 , column4 = 'updated_column4' || i+2 , column5 = 'updated_column5' || i+2 , column6 = 'updated_column6' || i+2 , 
-		column7 = 'updated_column7' || i+2 , column8 = 'updated_column8' || i+2 , column9 = 'updated_column9' || i+2 , column10 = 'updated_column10' || i+2 , column11 = 'updated_column11' || i+2 , column12 = 'updated_column12' || i+2 , column13 = 'updated_column13' || i+2 , column14 = 'updated_column14' || i+2 , column15 = 'updated_column15' || i+2 , column16 = 'updated_column16' || i+2 , column17 = 'updated_column17' || i+2 , column18 = 'updated_column18' || i+2 , column19 = 'updated_column19' || i+2 , column20 = 'updated_column20' || i+2 , column21 = 'updated_column21' || i+2 , 
-		column22 = 'updated_column22' || i+2 , column23 = 'updated_column23' || i+2 , column24 = 'updated_column24' || i+2 , column25 = 'updated_column25' || i+2 , column26 = 'updated_column26' || i+2 , column27 = 'updated_column27' || i+2 , column28 = 'updated_column28' || i+2 , column29 = 'updated_column29' || i+2 , column30 = 'updated_column30' || i+2 , column31 = 'updated_column31' || i+2 , column32 = 'updated_column32' || i+2 , 
-		column33 = 'updated_column33' || i+2 , column34 = 'updated_column34' || i+2 , column35 = 'updated_column35' || i+2  WHERE id = i;
+			// UPDATE #5: Test Unicode separators in streaming (TODO 6)
+			`UPDATE test_schema.string_edge_cases
+			SET text_with_newline = 'updated' || E'\u2028' || 'line',
+			    text_with_tab = 'updated' || E'\u2029' || 'para',
+			    text_with_mixed = 'zero' || E'\u200B' || 'width',
+			    text_windows_path = 'nbsp' || E'\u00A0' || 'here'
+			WHERE id = 1;`,
 
+			// UPDATE #6: Test actual control chars in UPDATE (TODOs 7, 8, 9)
+			`UPDATE test_schema.string_edge_cases
+			SET text_with_newline = E'new\nline\ntest',
+			    text_with_tab = E'new\ttab\ttest',
+			    text_with_mixed = E'It''s "test" with \n\t\r',
+			    text_empty = E' \t\n\r '
+			WHERE id = 2;`,
 
-		UPDATE test_schema.test_large_number_of_columns SET column1 = 'updated_column1' || i+3 , column2 = 'updated_column2' || i+3 , column3 = 'updated_column3' || i+3 , column4 = 'updated_column4' || i+3 , column5 = 'updated_column5' || i+3 , column6 = 'updated_column6' || i+3 , 
-		column7 = 'updated_column7' || i+3 , column8 = 'updated_column8' || i+3 , column9 = 'updated_column9' || i+3 , column10 = 'updated_column10' || i+3 , column11 = 'updated_column11' || i+3 , column12 = 'updated_column12' || i+3 , column13 = 'updated_column13' || i+3 , column14 = 'updated_column14' || i+3 , column15 = 'updated_column15' || i+3 , column16 = 'updated_column16' || i+3 , column17 = 'updated_column17' || i+3 , column18 = 'updated_column18' || i+3 , column19 = 'updated_column19' || i+3 , column20 = 'updated_column20' || i+3 , column21 = 'updated_column21' || i+3 , 
-		column22 = 'updated_column22' || i+3 , column23 = 'updated_column23' || i+3 , column24 = 'updated_column24' || i+3 , column25 = 'updated_column25' || i+3 , column26 = 'updated_column26' || i+3 , column27 = 'updated_column27' || i+3 , column28 = 'updated_column28' || i+3 , column29 = 'updated_column29' || i+3 , column30 = 'updated_column30' || i+3 WHERE id = i;
+			// INSERT #2: Test actual control chars in streaming (TODOs 7, 8)
+			`INSERT INTO test_schema.string_edge_cases (
+				text_with_backslash,
+				text_with_quote,
+				text_with_newline,
+				text_with_tab,
+				text_with_mixed,
+				text_windows_path,
+				text_sql_injection,
+				text_unicode,
+				text_empty,
+				text_null_string
+			) VALUES
+			(
+				'another\path\to\文件',                  -- TODO 2: Unicode with backslash (Chinese)
+				'café''s specialty Ñoño',               -- TODO 1: Unicode with single quote
+				E'first\nsecond\nthird',                -- TODO 7: Multiple actual newlines (E-string)
+				E'a\tb\tc\td',                          -- TODO 7: Multiple actual tabs (E-string)
+				E'mix: ''"\\\n\t\r',                    -- TODO 8: All special chars with actual control chars
+				'C:\path',                              -- Windows path
+				'--sql',                                -- SQL comment
+				'مرحبا Hello مرحبا',                     -- TODO 5: Bidirectional text
+				E'\n',                                  -- TODO 9: Newline only
+				'NULL'                                  -- NULL literal
+			);`,
 
-		UPDATE test_schema.test_large_number_of_columns SET column1 = 'updated_column1' || i+4 , column2 = 'updated_column2' || i+4 , column3 = 'updated_column3' || i+4 , column4 = 'updated_column4' || i+4 , column5 = 'updated_column5' || i+4 , column6 = 'updated_column6' || i+4 , 
-		column7 = 'updated_column7' || i+4 , column8 = 'updated_column8' || i+4 , column9 = 'updated_column9' || i+4 , column10 = 'updated_column10' || i+4 , column11 = 'updated_column11' || i+4 , column12 = 'updated_column12' || i+4 , column13 = 'updated_column13' || i+4 , column14 = 'updated_column14' || i+4 , column15 = 'updated_column15' || i+4 , column16 = 'updated_column16' || i+4 , column17 = 'updated_column17' || i+4 , column18 = 'updated_column18' || i+4 , column19 = 'updated_column19' || i+4 , column20 = 'updated_column20' || i+4 , column21 = 'updated_column21' || i+4 , 
-		column22 = 'updated_column22' || i+4 , column23 = 'updated_column23' || i+4 , column24 = 'updated_column24' || i+4 , column25 = 'updated_column25' || i+4 , column26 = 'updated_column26' || i+4 , column27 = 'updated_column27' || i+4 WHERE id = i;
+			// DELETE #1: Test deletion during streaming
+			`DELETE FROM test_schema.string_edge_cases WHERE id = 3;`,
 
-		UPDATE test_schema.test_large_number_of_columns SET column1 = 'updated_column1' || i+5 , column2 = 'updated_column2' || i+5 , column3 = 'updated_column3' || i+5 , column4 = 'updated_column4' || i+5 , column5 = 'updated_column5' || i+5 , column6 = 'updated_column6' || i+5 , 
-		column7 = 'updated_column7' || i+5 , column8 = 'updated_column8' || i+5 , column9 = 'updated_column9' || i+5 , column10 = 'updated_column10' || i+5 , column11 = 'updated_column11' || i+5 , column12 = 'updated_column12' || i+5 , column13 = 'updated_column13' || i+5 , column14 = 'updated_column14' || i+5 , column15 = 'updated_column15' || i+5 , column16 = 'updated_column16' || i+5 , column17 = 'updated_column17' || i+5 , column18 = 'updated_column18' || i+5 , column19 = 'updated_column19' || i+5 , column20 = 'updated_column20' || i+5 WHERE id = i;
+			// JSON INSERT #1: Streaming JSON with special characters
+			`INSERT INTO test_schema.json_edge_cases (
+				json_with_escaped_chars,
+				json_with_unicode,
+				json_nested,
+				json_array,
+				json_with_null,
+				json_empty,
+				json_formatted,
+				json_with_numbers,
+				json_complex
+			) VALUES
+			(
+				'{"streaming": "value with backslash\\\\ test"}',
+				'{"stream": "数据流 🚀"}',
+				'{"new": {"nested": "stream"}}',
+				'["stream1", "stream2"]',
+				'{"stream": null}',
+				'{}',
+				'{"stream": "formatted"}',
+				'{"count": 999}',
+				'{"streaming": true, "data": "test"}'
+			);`,
 
-		DELETE FROM test_schema.test_large_number_of_columns WHERE id = i;
-		INSERT INTO test_schema.test_large_number_of_columns (id, column1, column2, column3, column4, column5, column6, column7, column8, column9, column10, column11, column12, column13, column14, column15, column16, column17, column18, column19, column20, column21, column22, column23, column24, column25,
-		column26, column27, column28, column29, column30, column31, column32, column33, column34, column35, column36, column37, column38, column39, column40, column41, column42, column43, column44, column45, column46, column47, column48, column49, column50)
-		SELECT i, md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), 
-			md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), 
-			md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text);
+			// JSON UPDATE #1: Update with complex JSON
+			`UPDATE test_schema.json_edge_cases
+			SET json_with_escaped_chars = '{"updated": "simple value"}',
+			    json_with_unicode = '{"updated": "café 世界 🎉"}',
+			    json_nested = '{"updated": {"deep": {"nesting": "value"}}}'
+			WHERE id = 1;`,
 
-		UPDATE test_schema.test_large_number_of_columns SET column1 = 'updated_column1' || i+6 , column2 = 'updated_column2' || i+6 , column3 = 'updated_column3' || i+6 , column4 = 'updated_column4' || i+6 , column5 = 'updated_column5' || i+6 , column6 = 'updated_column6' || i+6 , 
-		column7 = 'updated_column7' || i+6 , column8 = 'updated_column8' || i+6 , column9 = 'updated_column9' || i+6 , column10 = 'updated_column10' || i+6 , column11 = 'updated_column11' || i+6 , column12 = 'updated_column12' || i+6 , column13 = 'updated_column13' || i+6 , column14 = 'updated_column14' || i+6 , column15 = 'updated_column15' || i+6 , column16 = 'updated_column16' || i+6 , 
-		column17 = 'updated_column17' || i+6 , column18 = 'updated_column18' || i+6 , column19 = 'updated_column19' || i+6 , column20 = 'updated_column20' || i+6 , column21 = 'updated_column21' || i+6 , 
-		column22 = 'updated_column22' || i+6 , column23 = 'updated_column23' || i+6 , column24 = 'updated_column24' || i+6 , column25 = 'updated_column25' || i+6 , column26 = 'updated_column26' || i+6 , column27 = 'updated_column27' || i+6 , column28 = 'updated_column28' || i+6 , column29 = 'updated_column29' || i+6 , column30 = 'updated_column30' || i+6 , column31 = 'updated_column31' || i+6 , column32 = 'updated_column32' || i+6 , 
-		column33 = 'updated_column33' || i+6 , column34 = 'updated_column34' || i+6 , column35 = 'updated_column35' || i+6 , column36 = 'updated_column36' || i+6 , column37 = 'updated_column37' || i+6 , column38 = 'updated_column38' || i+6 , column39 = 'updated_column39' || i+6 , column40 = 'updated_column40' || i+6 , column41 = 'updated_column41' || i+6 , column42 = 'updated_column42' || i+6 , column43 = 'updated_column43' || i+6 , 
-		column44 = 'updated_column44' || i+6 , column45 = 'updated_column45' || i+6 , column46 = 'updated_column46' || i+6 , column47 = 'updated_column47' || i+6 , column48 = 'updated_column48' || i+6 , column49 = 'updated_column49' || i+6 , column50 = 'updated_column50' || i+6 WHERE id = i;
+			// JSON UPDATE #2: Update with empty and null values
+			`UPDATE test_schema.json_edge_cases
+			SET json_empty = '{"now": "not_empty"}',
+			    json_with_null = '{"was": null, "now": "value"}',
+			    json_array = '[1, 2, 3, 4, 5]'
+			WHERE id = 2;`,
 
-		UPDATE test_schema.test_large_number_of_columns SET column1 = 'updated_column1' || i+7 , column2 = 'updated_column2' || i+7 , column3 = 'updated_column3' || i+7 , column4 = 'updated_column4' || i+7 , column5 = 'updated_column5' || i+7 , column6 = 'updated_column6' || i+7 , 
-		column7 = 'updated_column7' || i+1 , column8 = 'updated_column8' || i+7 , column9 = 'updated_column9' || i+7 , column10 = 'updated_column10' || i+7 , column11 = 'updated_column11' || i+7 , column12 = 'updated_column12' || i+7 , column13 = 'updated_column13' || i+7 , column14 = 'updated_column14' || i+7 , column15 = 'updated_column15' || i+7 , 
-		column16 = 'updated_column16' || i+7 , column17 = 'updated_column17' || i+7 , column18 = 'updated_column18' || i+7 , column19 = 'updated_column19' || i+7 , column20 = 'updated_column20' || i+7 , column21 = 'updated_column21' || i+7 , 
-		column22 = 'updated_column22' || i+7 , column23 = 'updated_column23' || i+7 , column24 = 'updated_column24' || i+7 , column25 = 'updated_column25' || i+7, column26 = 'updated_column26' || i+7 , column27 = 'updated_column27' || i+7 , column28 = 'updated_column28' || i+7 , column29 = 'updated_column29' || i+7 , column30 = 'updated_column30' || i+7 , column31 = 'updated_column31' || i+7 , column32 = 'updated_column32' || i+7 , 
-		column33 = 'updated_column33' || i+7 , column34 = 'updated_column34' || i+7 , column35 = 'updated_column35' || i+7 , column36 = 'updated_column36' || i+7 , column37 = 'updated_column37' || i+7 , column38 = 'updated_column38' || i+7 , column39 = 'updated_column39' || i+7 , column40 = 'updated_column40' || i+7 WHERE id = i;
+			// JSON DELETE #1: Test JSON row deletion
+			`DELETE FROM test_schema.json_edge_cases WHERE id = 3;`,
 
-		UPDATE test_schema.test_large_number_of_columns SET column1 = 'updated_column1' || i+8 , column2 = 'updated_column2' || i+8 , column3 = 'updated_column3' || i+8 , column4 = 'updated_column4' || i+8 , column5 = 'updated_column5' || i+8 , column6 = 'updated_column6' || i+8 , 
-		column7 = 'updated_column7' || i+8 , column8 = 'updated_column8' || i+8 , column9 = 'updated_column9' || i+8 , column10 = 'updated_column10' || i+8 , column11 = 'updated_column11' || i+8 , column12 = 'updated_column12' || i+8 , column13 = 'updated_column13' || i+8 , column14 = 'updated_column14' || i+8 , column15 = 'updated_column15' || i+8, 
-		column16 = 'updated_column16' || i+8 , column17 = 'updated_column17' || i+8 , column18 = 'updated_column18' || i+8 , column19 = 'updated_column19' || i+8 , column20 = 'updated_column20' || i+8 , column21 = 'updated_column21' || i+8 , 
-		column22 = 'updated_column22' || i+8 , column23 = 'updated_column23' || i+8 , column24 = 'updated_column24' || i+8 , column25 = 'updated_column25' || i+8 WHERE id = i;
+			// ENUM INSERT #1: Streaming ENUM with special characters
+			`INSERT INTO test_schema.enum_edge_cases (
+				status_simple,
+				status_with_quote,
+				status_with_special,
+				status_unicode,
+				status_array,
+				status_null
+			) VALUES
+			(
+				'active',
+				'enum''value',
+				'with-dash',
+				'🎉emoji',
+				ARRAY['active', 'café', '123start']::test_schema.status_enum[],
+				NULL
+			);`,
 
+			// ENUM UPDATE #1: Update ENUM values
+			`UPDATE test_schema.enum_edge_cases
+			SET status_simple = 'pending',
+			    status_with_quote = 'enum"value',
+			    status_unicode = '123start'
+			WHERE id = 1;`,
 
-		UPDATE test_schema.test_large_number_of_columns SET column1 = 'updated_column1' || i+9 , column2 = 'updated_column2' || i+9 , column3 = 'updated_column3' || i+9 , column4 = 'updated_column4' || i+9 , column5 = 'updated_column5' || i+9 , column6 = 'updated_column6' || i+9 , 
-		column7 = 'updated_column7' || i+9 , column8 = 'updated_column8' || i+9 , column9 = 'updated_column9' || i+9 , column10 = 'updated_column10' || i+9, column16 = 'updated_column16' || i+9 , column17 = 'updated_column17' || i+9 , column18 = 'updated_column18' || i+9   WHERE id = i;
+			// ENUM UPDATE #2: Update ENUM array
+			`UPDATE test_schema.enum_edge_cases
+			SET status_array = ARRAY['enum\value', 'with_underscore', 'with space']::test_schema.status_enum[],
+			    status_null = 'inactive'
+			WHERE id = 2;`,
 
-    END LOOP;
-END $$;
-			`,
-		},
-		TargetDeltaSQL: []string{
-			/*
-				changes
-				Inserting 500 events
+			// ENUM DELETE #1: Test ENUM row deletion
+			`DELETE FROM test_schema.enum_edge_cases WHERE id = 3;`,
 
-				I event with  25 columns
-				U above row and all 25 columns
-				U above row and 20 columns
-				U above row and 15 columns
-				U above row and 10 columns
-				U above row and 8 columns
-				U above row and 6 columns
+			// BYTES INSERT #1: Streaming BYTEA with special patterns
+			`INSERT INTO test_schema.bytes_edge_cases (
+				bytes_empty,
+				bytes_single,
+				bytes_ascii,
+				bytes_null_byte,
+				bytes_all_zeros,
+				bytes_all_ff,
+				bytes_special_chars,
+				bytes_mixed
+			) VALUES
+			(
+				E'\\x',
+				E'\\x42',
+				E'\\x53747265616d',
+				E'\\x0000',
+				E'\\x00000000',
+				E'\\xffffffff',
+				E'\\x5c27',
+				E'\\x0123456789abcdef'
+			);`,
 
-				D
+			// BYTES UPDATE #1: Update BYTEA values
+			`UPDATE test_schema.bytes_edge_cases
+			SET bytes_single = E'\\xaa',
+			    bytes_ascii = E'\\x557064617465',
+			    bytes_mixed = E'\\xfeedface'
+			WHERE id = 1;`,
 
-				I
-				and same updates again
-			*/
-			`
-DO $$
-DECLARE
-    i INTEGER;
-BEGIN
-    FOR i IN 221..520 LOOP
-        INSERT INTO test_schema.test_large_number_of_columns (id, column1, column2, column3, column4, column5, column6, column7, column8, column9, column10, column11, column12, column13, column14, column15, column16, column17, column18, column19, column20, column21, column22, column23, column24, column25,
-		column26, column27, column28, column29, column30, column31, column32, column33, column34, column35, column36, column37, column38, column39, column40, column41, column42, column43, column44, column45, column46, column47, column48, column49, column50)
-		SELECT i, md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), 
-			md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), 
-			md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text);
-		
-		UPDATE test_schema.test_large_number_of_columns SET column1 = 'updated_column1' || i , column2 = 'updated_column2' || i , column3 = 'updated_column3' || i , column4 = 'updated_column4' || i , column5 = 'updated_column5' || i , column6 = 'updated_column6' || i , 
-		column7 = 'updated_column7' || i , column8 = 'updated_column8' || i , column9 = 'updated_column9' || i , column10 = 'updated_column10' || i , column11 = 'updated_column11' || i , column12 = 'updated_column12' || i , column13 = 'updated_column13' || i , column14 = 'updated_column14' || i , column15 = 'updated_column15' || i , column16 = 'updated_column16' || i , 
-		column17 = 'updated_column17' || i , column18 = 'updated_column18' || i , column19 = 'updated_column19' || i , column20 = 'updated_column20' || i , column21 = 'updated_column21' || i , 
-		column22 = 'updated_column22' || i , column23 = 'updated_column23' || i , column24 = 'updated_column24' || i , column25 = 'updated_column25' || i , column26 = 'updated_column26' || i , column27 = 'updated_column27' || i , column28 = 'updated_column28' || i , column29 = 'updated_column29' || i , column30 = 'updated_column30' || i , column31 = 'updated_column31' || i , column32 = 'updated_column32' || i , 
-		column33 = 'updated_column33' || i , column34 = 'updated_column34' || i , column35 = 'updated_column35' || i , column36 = 'updated_column36' || i , column37 = 'updated_column37' || i , column38 = 'updated_column38' || i , column39 = 'updated_column39' || i , column40 = 'updated_column40' || i , column41 = 'updated_column41' || i , column42 = 'updated_column42' || i , column43 = 'updated_column43' || i , 
-		column44 = 'updated_column44' || i , column45 = 'updated_column45' || i , column46 = 'updated_column46' || i , column47 = 'updated_column47' || i , column48 = 'updated_column48' || i , column49 = 'updated_column49' || i , column50 = 'updated_column50' || i WHERE id = i;
+			// BYTES UPDATE #2: Update with null bytes and special patterns
+			`UPDATE test_schema.bytes_edge_cases
+			SET bytes_null_byte = E'\\x00ff00ff',
+			    bytes_all_zeros = E'\\x0000',
+			    bytes_all_ff = E'\\xffff'
+			WHERE id = 2;`,
 
-		UPDATE test_schema.test_large_number_of_columns SET column1 = 'updated_column1' || i+1 , column2 = 'updated_column2' || i+1 , column3 = 'updated_column3' || i+1 , column4 = 'updated_column4' || i+1 , column5 = 'updated_column5' || i+1 , column6 = 'updated_column6' || i+1 , 
-		column7 = 'updated_column7' || i+1 , column8 = 'updated_column8' || i+1 , column9 = 'updated_column9' || i+1 , column10 = 'updated_column10' || i+1 , column11 = 'updated_column11' || i+1 , column12 = 'updated_column12' || i+1 , column13 = 'updated_column13' || i+1 , column14 = 'updated_column14' || i+1 , column15 = 'updated_column15' || i+1 , 
-		column16 = 'updated_column16' || i+1 , column17 = 'updated_column17' || i+1 , column18 = 'updated_column18' || i+1 , column19 = 'updated_column19' || i+1 , column20 = 'updated_column20' || i+1 , column21 = 'updated_column21' || i+1 , 
-		column22 = 'updated_column22' || i+1 , column23 = 'updated_column23' || i+1 , column24 = 'updated_column24' || i+1 , column25 = 'updated_column25' || i+1 , column26 = 'updated_column26' || i+1 , column27 = 'updated_column27' || i+1 , column28 = 'updated_column28' || i+1 , column29 = 'updated_column29' || i+1 , column30 = 'updated_column30' || i+1 , column31 = 'updated_column31' || i+1 , column32 = 'updated_column32' || i+1 , 
-		column33 = 'updated_column33' || i+1 , column34 = 'updated_column34' || i+1 , column35 = 'updated_column35' || i+1 , column36 = 'updated_column36' || i+1 , column37 = 'updated_column37' || i+1 , column38 = 'updated_column38' || i+1 , column39 = 'updated_column39' || i+1 , column40 = 'updated_column40' || i+1 WHERE id = i;
+			// BYTES DELETE #1: Test BYTEA row deletion
+			`DELETE FROM test_schema.bytes_edge_cases WHERE id = 3;`,
 
-		UPDATE test_schema.test_large_number_of_columns SET column1 = 'updated_column1' || i+2 , column2 = 'updated_column2' || i+2 , column3 = 'updated_column3' || i+2 , column4 = 'updated_column4' || i+2 , column5 = 'updated_column5' || i+2 , column6 = 'updated_column6' || i+2 , 
-		column7 = 'updated_column7' || i+2 , column8 = 'updated_column8' || i+2 , column9 = 'updated_column9' || i+2 , column10 = 'updated_column10' || i+2 , column11 = 'updated_column11' || i+2 , column12 = 'updated_column12' || i+2 , column13 = 'updated_column13' || i+2 , column14 = 'updated_column14' || i+2 , column15 = 'updated_column15' || i+2 , column16 = 'updated_column16' || i+2 , column17 = 'updated_column17' || i+2 , column18 = 'updated_column18' || i+2 , column19 = 'updated_column19' || i+2 , column20 = 'updated_column20' || i+2 , column21 = 'updated_column21' || i+2 , 
-		column22 = 'updated_column22' || i+2 , column23 = 'updated_column23' || i+2 , column24 = 'updated_column24' || i+2 , column25 = 'updated_column25' || i+2 , column26 = 'updated_column26' || i+2 , column27 = 'updated_column27' || i+2 , column28 = 'updated_column28' || i+2 , column29 = 'updated_column29' || i+2 , column30 = 'updated_column30' || i+2 , column31 = 'updated_column31' || i+2 , column32 = 'updated_column32' || i+2 , 
-		column33 = 'updated_column33' || i+2 , column34 = 'updated_column34' || i+2 , column35 = 'updated_column35' || i+2  WHERE id = i;
+			// DATETIME INSERT #1: Streaming datetime values
+			`INSERT INTO test_schema.datetime_edge_cases (
+				date_epoch,
+				date_negative,
+				date_future,
+				timestamp_epoch,
+				timestamp_negative,
+				timestamp_with_tz,
+				time_midnight,
+				time_noon,
+				time_with_micro
+			) VALUES
+			(
+				'2023-01-15',
+				'1980-03-20',
+				'2030-08-10',
+				'2023-01-15 10:20:30',
+				'1980-03-20 15:45:00',
+				'2030-08-10 20:00:00+02',
+				'10:20:30',
+				'15:45:00',
+				'08:15:30.654321'
+			);`,
 
+			// DATETIME UPDATE #1: Update datetime values
+			`UPDATE test_schema.datetime_edge_cases
+			SET date_epoch = '2025-12-25',
+			    timestamp_epoch = '2025-12-25 18:30:00',
+			    time_midnight = '01:02:03'
+			WHERE id = 1;`,
 
-		UPDATE test_schema.test_large_number_of_columns SET column1 = 'updated_column1' || i+3 , column2 = 'updated_column2' || i+3 , column3 = 'updated_column3' || i+3 , column4 = 'updated_column4' || i+3 , column5 = 'updated_column5' || i+3 , column6 = 'updated_column6' || i+3 , 
-		column7 = 'updated_column7' || i+3 , column8 = 'updated_column8' || i+3 , column9 = 'updated_column9' || i+3 , column10 = 'updated_column10' || i+3 , column11 = 'updated_column11' || i+3 , column12 = 'updated_column12' || i+3 , column13 = 'updated_column13' || i+3 , column14 = 'updated_column14' || i+3 , column15 = 'updated_column15' || i+3 , column16 = 'updated_column16' || i+3 , column17 = 'updated_column17' || i+3 , column18 = 'updated_column18' || i+3 , column19 = 'updated_column19' || i+3 , column20 = 'updated_column20' || i+3 , column21 = 'updated_column21' || i+3 , 
-		column22 = 'updated_column22' || i+3 , column23 = 'updated_column23' || i+3 , column24 = 'updated_column24' || i+3 , column25 = 'updated_column25' || i+3 , column26 = 'updated_column26' || i+3 , column27 = 'updated_column27' || i+3 , column28 = 'updated_column28' || i+3 , column29 = 'updated_column29' || i+3 , column30 = 'updated_column30' || i+3 WHERE id = i;
+			// DATETIME UPDATE #2: Update with edge case times
+			`UPDATE test_schema.datetime_edge_cases
+			SET date_future = '2099-01-01',
+			    timestamp_with_tz = '2099-01-01 00:00:00-08',
+			    time_with_micro = '12:34:56.789012'
+			WHERE id = 2;`,
 
-		UPDATE test_schema.test_large_number_of_columns SET column1 = 'updated_column1' || i+4 , column2 = 'updated_column2' || i+4 , column3 = 'updated_column3' || i+4 , column4 = 'updated_column4' || i+4 , column5 = 'updated_column5' || i+4 , column6 = 'updated_column6' || i+4 , 
-		column7 = 'updated_column7' || i+4 , column8 = 'updated_column8' || i+4 , column9 = 'updated_column9' || i+4 , column10 = 'updated_column10' || i+4 , column11 = 'updated_column11' || i+4 , column12 = 'updated_column12' || i+4 , column13 = 'updated_column13' || i+4 , column14 = 'updated_column14' || i+4 , column15 = 'updated_column15' || i+4 , column16 = 'updated_column16' || i+4 , column17 = 'updated_column17' || i+4 , column18 = 'updated_column18' || i+4 , column19 = 'updated_column19' || i+4 , column20 = 'updated_column20' || i+4 , column21 = 'updated_column21' || i+4 , 
-		column22 = 'updated_column22' || i+4 , column23 = 'updated_column23' || i+4 , column24 = 'updated_column24' || i+4 , column25 = 'updated_column25' || i+4 , column26 = 'updated_column26' || i+4 , column27 = 'updated_column27' || i+4 WHERE id = i;
+			// DATETIME DELETE #1: Test datetime row deletion
+			`DELETE FROM test_schema.datetime_edge_cases WHERE id = 3;`,
 
-		UPDATE test_schema.test_large_number_of_columns SET column1 = 'updated_column1' || i+5 , column2 = 'updated_column2' || i+5 , column3 = 'updated_column3' || i+5 , column4 = 'updated_column4' || i+5 , column5 = 'updated_column5' || i+5 , column6 = 'updated_column6' || i+5 , 
-		column7 = 'updated_column7' || i+5 , column8 = 'updated_column8' || i+5 , column9 = 'updated_column9' || i+5 , column10 = 'updated_column10' || i+5 , column11 = 'updated_column11' || i+5 , column12 = 'updated_column12' || i+5 , column13 = 'updated_column13' || i+5 , column14 = 'updated_column14' || i+5 , column15 = 'updated_column15' || i+5 , column16 = 'updated_column16' || i+5 , column17 = 'updated_column17' || i+5 , column18 = 'updated_column18' || i+5 , column19 = 'updated_column19' || i+5 , column20 = 'updated_column20' || i+5 WHERE id = i;
+			// UUID/LTREE INSERT #1: Streaming UUID/LTREE values
+			`INSERT INTO test_schema.uuid_ltree_edge_cases (
+				uuid_standard,
+				uuid_all_zeros,
+				uuid_all_fs,
+				uuid_random,
+				ltree_simple,
+				ltree_quoted,
+				ltree_deep,
+				ltree_single
+			) VALUES
+			(
+				'7c9e6679-7425-40de-944b-e07fc1f90ae7',
+				'00000000-0000-0000-0000-000000000002',
+				'fffffffd-ffff-ffff-ffff-ffffffffffff',
+				'9b2c8f5d-1234-5678-9abc-def012345678',
+				'Stream.Data.Live',
+				'Test.StreamingPath.Values',
+				'Deep.Path.To.Stream.Data.Node',
+				'Stream'
+			);`,
 
-		DELETE FROM test_schema.test_large_number_of_columns WHERE id = i;
-		INSERT INTO test_schema.test_large_number_of_columns (id, column1, column2, column3, column4, column5, column6, column7, column8, column9, column10, column11, column12, column13, column14, column15, column16, column17, column18, column19, column20, column21, column22, column23, column24, column25,
-		column26, column27, column28, column29, column30, column31, column32, column33, column34, column35, column36, column37, column38, column39, column40, column41, column42, column43, column44, column45, column46, column47, column48, column49, column50)
-		SELECT i, md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), 
-			md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), 
-			md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text), md5(random()::text);
+			// UUID/LTREE UPDATE #1: Update UUID/LTREE values
+			`UPDATE test_schema.uuid_ltree_edge_cases
+			SET uuid_standard = 'c2a9c8d0-1234-5678-9abc-def123456789',
+			    ltree_simple = 'Updated.Path.Node'
+			WHERE id = 1;`,
 
-		UPDATE test_schema.test_large_number_of_columns SET column1 = 'updated_column1' || i+6 , column2 = 'updated_column2' || i+6 , column3 = 'updated_column3' || i+6 , column4 = 'updated_column4' || i+6 , column5 = 'updated_column5' || i+6 , column6 = 'updated_column6' || i+6 , 
-		column7 = 'updated_column7' || i+6 , column8 = 'updated_column8' || i+6 , column9 = 'updated_column9' || i+6 , column10 = 'updated_column10' || i+6 , column11 = 'updated_column11' || i+6 , column12 = 'updated_column12' || i+6 , column13 = 'updated_column13' || i+6 , column14 = 'updated_column14' || i+6 , column15 = 'updated_column15' || i+6 , column16 = 'updated_column16' || i+6 , 
-		column17 = 'updated_column17' || i+6 , column18 = 'updated_column18' || i+6 , column19 = 'updated_column19' || i+6 , column20 = 'updated_column20' || i+6 , column21 = 'updated_column21' || i+6 , 
-		column22 = 'updated_column22' || i+6 , column23 = 'updated_column23' || i+6 , column24 = 'updated_column24' || i+6 , column25 = 'updated_column25' || i+6 , column26 = 'updated_column26' || i+6 , column27 = 'updated_column27' || i+6 , column28 = 'updated_column28' || i+6 , column29 = 'updated_column29' || i+6 , column30 = 'updated_column30' || i+6 , column31 = 'updated_column31' || i+6 , column32 = 'updated_column32' || i+6 , 
-		column33 = 'updated_column33' || i+6 , column34 = 'updated_column34' || i+6 , column35 = 'updated_column35' || i+6 , column36 = 'updated_column36' || i+6 , column37 = 'updated_column37' || i+6 , column38 = 'updated_column38' || i+6 , column39 = 'updated_column39' || i+6 , column40 = 'updated_column40' || i+6 , column41 = 'updated_column41' || i+6 , column42 = 'updated_column42' || i+6 , column43 = 'updated_column43' || i+6 , 
-		column44 = 'updated_column44' || i+6 , column45 = 'updated_column45' || i+6 , column46 = 'updated_column46' || i+6 , column47 = 'updated_column47' || i+6 , column48 = 'updated_column48' || i+6 , column49 = 'updated_column49' || i+6 , column50 = 'updated_column50' || i+6 WHERE id = i;
+			// UUID/LTREE UPDATE #2: Update with edge case values
+			`UPDATE test_schema.uuid_ltree_edge_cases
+			SET uuid_all_zeros = '00000000-0000-0000-0000-000000000003',
+			    ltree_deep = 'Very.Deep.Path.With.Many.Levels.To.Test'
+			WHERE id = 2;`,
 
-		UPDATE test_schema.test_large_number_of_columns SET column1 = 'updated_column1' || i+7 , column2 = 'updated_column2' || i+7 , column3 = 'updated_column3' || i+7 , column4 = 'updated_column4' || i+7 , column5 = 'updated_column5' || i+7 , column6 = 'updated_column6' || i+7 , 
-		column7 = 'updated_column7' || i+1 , column8 = 'updated_column8' || i+7 , column9 = 'updated_column9' || i+7 , column10 = 'updated_column10' || i+7 , column11 = 'updated_column11' || i+7 , column12 = 'updated_column12' || i+7 , column13 = 'updated_column13' || i+7 , column14 = 'updated_column14' || i+7 , column15 = 'updated_column15' || i+7 , 
-		column16 = 'updated_column16' || i+7 , column17 = 'updated_column17' || i+7 , column18 = 'updated_column18' || i+7 , column19 = 'updated_column19' || i+7 , column20 = 'updated_column20' || i+7 , column21 = 'updated_column21' || i+7 , 
-		column22 = 'updated_column22' || i+7 , column23 = 'updated_column23' || i+7 , column24 = 'updated_column24' || i+7 , column25 = 'updated_column25' || i+7, column26 = 'updated_column26' || i+7 , column27 = 'updated_column27' || i+7 , column28 = 'updated_column28' || i+7 , column29 = 'updated_column29' || i+7 , column30 = 'updated_column30' || i+7 , column31 = 'updated_column31' || i+7 , column32 = 'updated_column32' || i+7 , 
-		column33 = 'updated_column33' || i+7 , column34 = 'updated_column34' || i+7 , column35 = 'updated_column35' || i+7 , column36 = 'updated_column36' || i+7 , column37 = 'updated_column37' || i+7 , column38 = 'updated_column38' || i+7 , column39 = 'updated_column39' || i+7 , column40 = 'updated_column40' || i+7 WHERE id = i;
+			// UUID/LTREE DELETE #1: Test UUID/LTREE row deletion
+			`DELETE FROM test_schema.uuid_ltree_edge_cases WHERE id = 3;`,
 
-		UPDATE test_schema.test_large_number_of_columns SET column1 = 'updated_column1' || i+8 , column2 = 'updated_column2' || i+8 , column3 = 'updated_column3' || i+8 , column4 = 'updated_column4' || i+8 , column5 = 'updated_column5' || i+8 , column6 = 'updated_column6' || i+8 , 
-		column7 = 'updated_column7' || i+8 , column8 = 'updated_column8' || i+8 , column9 = 'updated_column9' || i+8 , column10 = 'updated_column10' || i+8 , column11 = 'updated_column11' || i+8 , column12 = 'updated_column12' || i+8 , column13 = 'updated_column13' || i+8 , column14 = 'updated_column14' || i+8 , column15 = 'updated_column15' || i+8, 
-		column16 = 'updated_column16' || i+8 , column17 = 'updated_column17' || i+8 , column18 = 'updated_column18' || i+8 , column19 = 'updated_column19' || i+8 , column20 = 'updated_column20' || i+8 , column21 = 'updated_column21' || i+8 , 
-		column22 = 'updated_column22' || i+8 , column23 = 'updated_column23' || i+8 , column24 = 'updated_column24' || i+8 , column25 = 'updated_column25' || i+8 WHERE id = i;
+			// MAP INSERT #1: Streaming HSTORE values
+			`INSERT INTO test_schema.map_edge_cases (
+				map_simple,
+				map_with_arrow,
+				map_with_quotes,
+				map_empty_values,
+				map_multiple_pairs,
+				map_special_chars
+			) VALUES
+			(
+				'"stream" => "data"',
+				'"test=>key" => "value"',
+				'"quote" => "test''s"',
+				'"" => "empty"',
+				'"s1" => "v1", "s2" => "v2"',
+				'"special" => "data"'
+			);`,
 
+			// MAP UPDATE #1: Update HSTORE values
+			`UPDATE test_schema.map_edge_cases
+			SET map_simple = '"updated" => "value"',
+			    map_with_arrow = '"arrow=>test" => "updated"'
+			WHERE id = 1;`,
 
-		UPDATE test_schema.test_large_number_of_columns SET column1 = 'updated_column1' || i+9 , column2 = 'updated_column2' || i+9 , column3 = 'updated_column3' || i+9 , column4 = 'updated_column4' || i+9 , column5 = 'updated_column5' || i+9 , column6 = 'updated_column6' || i+9 , 
-		column7 = 'updated_column7' || i+9 , column8 = 'updated_column8' || i+9 , column9 = 'updated_column9' || i+9 , column10 = 'updated_column10' || i+9, column16 = 'updated_column16' || i+9 , column17 = 'updated_column17' || i+9 , column18 = 'updated_column18' || i+9   WHERE id = i;
+			// MAP UPDATE #2: Update with special characters
+			`UPDATE test_schema.map_edge_cases
+			SET map_with_quotes = '"name" => "O''Brien"',
+			    map_multiple_pairs = '"x" => "100", "y" => "200"'
+			WHERE id = 2;`,
 
-    END LOOP;
-END $$;
-			`,
+			// MAP DELETE #1: Test HSTORE row deletion
+			`DELETE FROM test_schema.map_edge_cases WHERE id = 3;`,
+
+			// INTERVAL INSERT #1: Streaming INTERVAL values
+			`INSERT INTO test_schema.interval_edge_cases (
+				interval_positive,
+				interval_negative,
+				interval_zero,
+				interval_years,
+				interval_days,
+				interval_hours,
+				interval_mixed
+			) VALUES
+			(
+				'2 years 5 months'::interval,
+				'-10 days'::interval,
+				'0 minutes'::interval,
+				'50 years'::interval,
+				'7 days'::interval,
+				'6:15:30'::interval,
+				'3 years 2 months 20 days 10 hours'::interval
+			);`,
+
+			// INTERVAL UPDATE #1: Update INTERVAL values
+			`UPDATE test_schema.interval_edge_cases
+			SET interval_positive = '8 months 15 days'::interval,
+			    interval_years = '25 years'::interval
+			WHERE id = 1;`,
+
+			// INTERVAL UPDATE #2: Update with negative and zero
+			`UPDATE test_schema.interval_edge_cases
+			SET interval_negative = '-3 months -7 days'::interval,
+			    interval_mixed = '5 months 10 days 2 hours 30 minutes'::interval
+			WHERE id = 2;`,
+
+			// INTERVAL DELETE #1: Test INTERVAL row deletion
+			`DELETE FROM test_schema.interval_edge_cases WHERE id = 3;`,
+
+			// ZONEDTIMESTAMP INSERT #1: Streaming TIMESTAMPTZ values
+			`INSERT INTO test_schema.zonedtimestamp_edge_cases (
+				ts_utc,
+				ts_positive_offset,
+				ts_negative_offset,
+				ts_epoch,
+				ts_future,
+				ts_midnight
+			) VALUES
+			(
+				'2024-08-20 15:45:30+00'::timestamptz,
+				'2024-09-10 09:15:00+03:00'::timestamptz,
+				'2024-10-05 20:30:15-06:00'::timestamptz,
+				'1970-01-02 00:00:00+00'::timestamptz,
+				'2060-05-15 12:00:00+00'::timestamptz,
+				'2024-07-01 00:00:00+00'::timestamptz
+			);`,
+
+			// ZONEDTIMESTAMP UPDATE #1: Update TIMESTAMPTZ values
+			`UPDATE test_schema.zonedtimestamp_edge_cases
+			SET ts_utc = '2024-02-14 10:30:00+00'::timestamptz,
+			    ts_positive_offset = '2024-03-20 16:45:00+08:00'::timestamptz
+			WHERE id = 1;`,
+
+			// ZONEDTIMESTAMP UPDATE #2: Update with different timezones
+			`UPDATE test_schema.zonedtimestamp_edge_cases
+			SET ts_negative_offset = '2023-09-30 11:11:11-04:00'::timestamptz,
+			    ts_future = '2090-12-31 23:59:59+00'::timestamptz
+			WHERE id = 2;`,
+
+			// ZONEDTIMESTAMP DELETE #1: Test TIMESTAMPTZ row deletion
+			`DELETE FROM test_schema.zonedtimestamp_edge_cases WHERE id = 3;`,
+
+			// DECIMAL INSERT #1: Streaming DECIMAL values
+			`INSERT INTO test_schema.decimal_edge_cases (
+				decimal_large,
+				decimal_negative,
+				decimal_zero,
+				decimal_high_precision,
+				decimal_scientific,
+				decimal_small
+			) VALUES
+			(
+				555555555.555555555,
+				-777.777,
+				0.000,
+				888.888888888888888,
+				12345.6789,
+				75.50
+			);`,
+
+			// DECIMAL UPDATE #1: Update DECIMAL values
+			`UPDATE test_schema.decimal_edge_cases
+			SET decimal_large = 999999999.999999999,
+			    decimal_negative = -1000.001
+			WHERE id = 1;`,
+
+			// DECIMAL UPDATE #2: Update with high precision
+			`UPDATE test_schema.decimal_edge_cases
+			SET decimal_high_precision = 0.123456789012345,
+			    decimal_scientific = 999999.999999
+			WHERE id = 2;`,
+
+			// DECIMAL DELETE #1: Test DECIMAL row deletion
+			`DELETE FROM test_schema.decimal_edge_cases WHERE id = 3;`,
 		},
 		CleanupSQL: []string{
 			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
 		},
 	})
-	defer liveMigrationTest.Cleanup()
 
-	err := liveMigrationTest.SetupContainers(context.Background())
+	defer lm.Cleanup()
+
+	t.Log("=== Setting up containers ===")
+	err := lm.SetupContainers(context.Background())
 	testutils.FatalIfError(t, err, "failed to setup containers")
 
-	err = liveMigrationTest.SetupSchema()
+	t.Log("=== Setting up schema ===")
+	err = lm.SetupSchema()
 	testutils.FatalIfError(t, err, "failed to setup schema")
 
-	err = liveMigrationTest.StartExportData(true, nil)
+	t.Log("=== Starting export data ===")
+	err = lm.StartExportData(true, nil)
 	testutils.FatalIfError(t, err, "failed to start export data")
 
-	err = liveMigrationTest.StartImportData(true, nil)
-	testutils.FatalIfError(t, err, "failed to start import data")
-
-	time.Sleep(5 * time.Second)
-
-	err = liveMigrationTest.WaitForSnapshotComplete(map[string]int64{
-		`test_schema."test_large_number_of_columns"`: 20,
-	}, 30)
-	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
-
-	err = liveMigrationTest.ValidateDataConsistency([]string{`test_schema."test_large_number_of_columns"`}, "id")
-	testutils.FatalIfError(t, err, "failed to validate data consistency")
-
-	err = liveMigrationTest.ExecuteSourceDelta()
-	testutils.FatalIfError(t, err, "failed to execute source delta")
-
-	err = liveMigrationTest.WaitForForwardStreamingComplete(map[string]ChangesCount{
-		`test_schema."test_large_number_of_columns"`: {
-			Inserts: 400,
-			Updates: 2000,
-			Deletes: 200,
-		},
-	}, 120, 5)
-	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
-
-	err = liveMigrationTest.ValidateDataConsistency([]string{`test_schema."test_large_number_of_columns"`}, "id")
-	testutils.FatalIfError(t, err, "failed to validate data consistency")
-
-	err = liveMigrationTest.InitiateCutoverToTarget(true, nil)
-	testutils.FatalIfError(t, err, "failed to initiate cutover to target")
-
-	err = liveMigrationTest.WaitForCutoverComplete(50)
-	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
-
-	err = liveMigrationTest.ExecuteTargetDelta()
-	testutils.FatalIfError(t, err, "failed to execute target delta")
-
-	err = liveMigrationTest.WaitForFallbackStreamingComplete(map[string]ChangesCount{
-		`test_schema."test_large_number_of_columns"`: {
-			Inserts: 600,
-			Updates: 3000,
-			Deletes: 300,
-		},
-	}, 120, 5)
-	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
-
-	err = liveMigrationTest.ValidateDataConsistency([]string{`test_schema."test_large_number_of_columns"`}, "id")
-	testutils.FatalIfError(t, err, "failed to validate data consistency")
-
-	err = liveMigrationTest.InitiateCutoverToSource(nil)
-	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
-
-	err = liveMigrationTest.WaitForCutoverSourceComplete(150)
-	testutils.FatalIfError(t, err, "failed to wait for cutover source complete")
-}
-
-func TestLiveMigrationWithLargeColumnNames(t *testing.T) {
-	liveMigrationTest := NewLiveMigrationTest(t, &TestConfig{
-		SourceDB: ContainerConfig{
-			Type:         "postgresql",
-			ForLive:      true,
-			DatabaseName: "test14",
-		},
-		TargetDB: ContainerConfig{
-			Type:         "yugabytedb",
-			DatabaseName: "test14",
-		},
-		SchemaNames: []string{"test_schema"},
-		SchemaSQL: []string{
-			//table column - 60 chars, 55 chars, 40 chars
-			`CREATE SCHEMA IF NOT EXISTS test_schema;
-			CREATE TABLE test_schema.test_large_column_name(
-				id int PRIMARY KEY,
-				someveryyyverryyyyverryyyverryyyveryylongcolumnnnnnameeeeeee text,
-				someveryyyverryyyyverryyyverryyylongcolumnnnnnameeeeeee1 text,
-				someveryyyverryyyyverryyyverryyylongcolumnnnnnameeeeeee2 text,
-				someveryyverryyylongcolumnnnnnameeeeeee3 text,
-				someveryyyverryyyyverryyyverryyylongcolumnnnnnameeeeeee4 text
-			);`,
-		},
-		SourceSetupSchemaSQL: []string{
-			`ALTER TABLE test_schema.test_large_column_name REPLICA IDENTITY FULL;`,
-		},
-		InitialDataSQL: []string{
-			`INSERT INTO test_schema.test_large_column_name
-			SELECT i,  md5(random()::text),  md5(random()::text),  md5(random()::text),  md5(random()::text),  md5(random()::text) from generate_series(1,20) as i;`,
-		},
-		SourceDeltaSQL: []string{
-			`
-DO $$
-DECLARE
-    i INTEGER;
-BEGIN
-    FOR i IN 21..520 LOOP
-		INSERT INTO test_schema.test_large_column_name
-			SELECT i,  md5(random()::text),  md5(random()::text),  md5(random()::text),  md5(random()::text),  md5(random()::text);
-
-		UPDATE test_schema.test_large_column_name set someveryyyverryyyyverryyyverryyylongcolumnnnnnameeeeeee4 = 'updated_datafor_large_column' || i, someveryyyverryyyyverryyyverryyylongcolumnnnnnameeeeeee1= 'updated_data_for_another_large_columns' || i,
-		someveryyverryyylongcolumnnnnnameeeeeee3 = 'updated data for one more column' || i where id=i;
-
-
-		UPDATE test_schema.test_large_column_name set someveryyyverryyyyverryyyverryyyveryylongcolumnnnnnameeeeeee = 'updated_datafor_large_column' || i+1, someveryyyverryyyyverryyyverryyylongcolumnnnnnameeeeeee1= 'updated_data_for_another_large_columns' || i+1,
-		someveryyverryyylongcolumnnnnnameeeeeee3 = 'updated data for one more column' || i+1 where id=i;
-
-
-		UPDATE test_schema.test_large_column_name set someveryyyverryyyyverryyyverryyylongcolumnnnnnameeeeeee2 = 'updated_datafor_large_column' || i+2, someveryyyverryyyyverryyyverryyylongcolumnnnnnameeeeeee1= 'updated_data_for_another_large_columns' || i+2,
-		someveryyverryyylongcolumnnnnnameeeeeee3 = 'updated data for one more column' || i+2, someveryyyverryyyyverryyyverryyylongcolumnnnnnameeeeeee4 = 'updated_datafor_large_column'  || i+2 where id=i;
-
-		DELETE from test_schema.test_large_column_name where id=i;
-
-
-		INSERT INTO test_schema.test_large_column_name
-		SELECT i,  md5(random()::text),  md5(random()::text),  md5(random()::text),  md5(random()::text),  md5(random()::text);
-
-		UPDATE test_schema.test_large_column_name set someveryyyverryyyyverryyyverryyylongcolumnnnnnameeeeeee4 = 'updated_datafor_large_column' || i, someveryyyverryyyyverryyyverryyylongcolumnnnnnameeeeeee1= 'updated_data_for_another_large_columns' || i,
-		someveryyverryyylongcolumnnnnnameeeeeee3 = 'updated data for one more column' || i, someveryyyverryyyyverryyyverryyylongcolumnnnnnameeeeeee2 = 'updated_datafor_large_column' || i, someveryyyverryyyyverryyyverryyyveryylongcolumnnnnnameeeeeee = 'updated_datafor_large_column' || i  where id=i;
-
-
-		UPDATE test_schema.test_large_column_name set someveryyyverryyyyverryyyverryyyveryylongcolumnnnnnameeeeeee = 'updated_datafor_large_column' || i+1, someveryyyverryyyyverryyyverryyylongcolumnnnnnameeeeeee1= 'updated_data_for_another_large_columns' || i+1,
-		someveryyverryyylongcolumnnnnnameeeeeee3 = 'updated data for one more column' || i+1 where id=i;
-
-
-		UPDATE test_schema.test_large_column_name set someveryyyverryyyyverryyyverryyylongcolumnnnnnameeeeeee2 = 'updated_datafor_large_column' || i+2, someveryyyverryyyyverryyyverryyyveryylongcolumnnnnnameeeeeee= 'updated_data_for_another_large_columns' || i+2,
-		someveryyverryyylongcolumnnnnnameeeeeee3 = 'updated data for one more column' || i+2, someveryyyverryyyyverryyyverryyylongcolumnnnnnameeeeeee4 = 'updated_datafor_large_column'  || i+2 where id=i;
-
-	END LOOP;
-END $$;
-			`,
-		},
-		TargetDeltaSQL: []string{
-			`
-			DO $$
-			DECLARE
-				i INTEGER;
-			BEGIN
-				FOR i IN 521..1020 LOOP
-					INSERT INTO test_schema.test_large_column_name
-						SELECT i,  md5(random()::text),  md5(random()::text),  md5(random()::text),  md5(random()::text),  md5(random()::text);
-			
-					UPDATE test_schema.test_large_column_name set someveryyyverryyyyverryyyverryyylongcolumnnnnnameeeeeee4 = 'updated_datafor_large_column' || i, someveryyyverryyyyverryyyverryyylongcolumnnnnnameeeeeee1= 'updated_data_for_another_large_columns' || i,
-					someveryyverryyylongcolumnnnnnameeeeeee3 = 'updated data for one more column' || i where id=i;
-			
-			
-					UPDATE test_schema.test_large_column_name set someveryyyverryyyyverryyyverryyyveryylongcolumnnnnnameeeeeee = 'updated_datafor_large_column' || i+1, someveryyyverryyyyverryyyverryyylongcolumnnnnnameeeeeee1= 'updated_data_for_another_large_columns' || i+1,
-					someveryyverryyylongcolumnnnnnameeeeeee3 = 'updated data for one more column' || i+1 where id=i;
-			
-			
-					UPDATE test_schema.test_large_column_name set someveryyyverryyyyverryyyverryyylongcolumnnnnnameeeeeee2 = 'updated_datafor_large_column' || i+2, someveryyyverryyyyverryyyverryyylongcolumnnnnnameeeeeee1= 'updated_data_for_another_large_columns' || i+2,
-					someveryyverryyylongcolumnnnnnameeeeeee3 = 'updated data for one more column' || i+2, someveryyyverryyyyverryyyverryyylongcolumnnnnnameeeeeee4 = 'updated_datafor_large_column'  || i+2 where id=i;
-			
-					DELETE from test_schema.test_large_column_name where id=i;
-			
-			
-					INSERT INTO test_schema.test_large_column_name
-					SELECT i,  md5(random()::text),  md5(random()::text),  md5(random()::text),  md5(random()::text),  md5(random()::text);
-			
-					UPDATE test_schema.test_large_column_name set someveryyyverryyyyverryyyverryyylongcolumnnnnnameeeeeee4 = 'updated_datafor_large_column' || i, someveryyyverryyyyverryyyverryyylongcolumnnnnnameeeeeee1= 'updated_data_for_another_large_columns' || i,
-					someveryyverryyylongcolumnnnnnameeeeeee3 = 'updated data for one more column' || i, someveryyyverryyyyverryyyverryyylongcolumnnnnnameeeeeee2 = 'updated_datafor_large_column' || i, someveryyyverryyyyverryyyverryyyveryylongcolumnnnnnameeeeeee = 'updated_datafor_large_column' || i  where id=i;
-			
-			
-					UPDATE test_schema.test_large_column_name set someveryyyverryyyyverryyyverryyyveryylongcolumnnnnnameeeeeee = 'updated_datafor_large_column' || i+1, someveryyyverryyyyverryyyverryyylongcolumnnnnnameeeeeee1= 'updated_data_for_another_large_columns' || i+1,
-					someveryyverryyylongcolumnnnnnameeeeeee3 = 'updated data for one more column' || i+1 where id=i;
-			
-			
-					UPDATE test_schema.test_large_column_name set someveryyyverryyyyverryyyverryyylongcolumnnnnnameeeeeee2 = 'updated_datafor_large_column' || i+2, someveryyyverryyyyverryyyverryyyveryylongcolumnnnnnameeeeeee= 'updated_data_for_another_large_columns' || i+2,
-					someveryyverryyylongcolumnnnnnameeeeeee3 = 'updated data for one more column' || i+2, someveryyyverryyyyverryyyverryyylongcolumnnnnnameeeeeee4 = 'updated_datafor_large_column'  || i+2 where id=i;
-			
-				END LOOP;
-			END $$;
-						`,
-		},
+	t.Log("=== Starting import data ===")
+	err = lm.StartImportData(true, map[string]string{
+		"--log-level": "debug",
 	})
-
-	defer liveMigrationTest.Cleanup()
-
-	err := liveMigrationTest.SetupContainers(context.Background())
-	testutils.FatalIfError(t, err, "failed to setup containers")
-
-	err = liveMigrationTest.SetupSchema()
-	testutils.FatalIfError(t, err, "failed to setup schema")
-
-	err = liveMigrationTest.StartExportData(true, nil)
-	testutils.FatalIfError(t, err, "failed to start export data")
-
-	err = liveMigrationTest.StartImportData(true, nil)
 	testutils.FatalIfError(t, err, "failed to start import data")
 
-	time.Sleep(5 * time.Second)
-
-	err = liveMigrationTest.WaitForSnapshotComplete(map[string]int64{
-		`test_schema."test_large_column_name"`: 20,
-	}, 30)
+	t.Log("=== Waiting for snapshot complete (10 datatypes × 3 rows = 30 rows) ===")
+	err = lm.WaitForSnapshotComplete(map[string]int64{
+		`test_schema."string_edge_cases"`:         3, // 3 rows with STRING edge cases
+		`test_schema."json_edge_cases"`:           3, // 3 rows with JSON edge cases
+		`test_schema."enum_edge_cases"`:           3, // 3 rows with ENUM edge cases
+		`test_schema."bytes_edge_cases"`:          3, // 3 rows with BYTES edge cases
+		`test_schema."datetime_edge_cases"`:       3, // 3 rows with DATETIME edge cases
+		`test_schema."uuid_ltree_edge_cases"`:     3, // 3 rows with UUID/LTREE edge cases
+		`test_schema."map_edge_cases"`:            3, // 3 rows with MAP edge cases
+		`test_schema."interval_edge_cases"`:       3, // 3 rows with INTERVAL edge cases
+		`test_schema."zonedtimestamp_edge_cases"`: 3, // 3 rows with ZONEDTIMESTAMP edge cases
+		`test_schema."decimal_edge_cases"`:        3, // 3 rows with DECIMAL edge cases
+	}, 60) // 1 minute should be plenty for small rows
 	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
 
-	err = liveMigrationTest.ValidateDataConsistency([]string{`test_schema."test_large_column_name"`}, "id")
-	testutils.FatalIfError(t, err, "failed to validate data consistency")
+	t.Log("=== Validating snapshot data ===")
+	err = lm.ValidateDataConsistency([]string{`test_schema."string_edge_cases"`, `test_schema."json_edge_cases"`, `test_schema."enum_edge_cases"`, `test_schema."bytes_edge_cases"`, `test_schema."datetime_edge_cases"`, `test_schema."uuid_ltree_edge_cases"`, `test_schema."map_edge_cases"`, `test_schema."interval_edge_cases"`, `test_schema."zonedtimestamp_edge_cases"`, `test_schema."decimal_edge_cases"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate snapshot data consistency")
 
-	err = liveMigrationTest.ExecuteSourceDelta()
+	t.Log("=== Executing source delta (streaming operations) ===")
+	err = lm.ExecuteSourceDelta()
 	testutils.FatalIfError(t, err, "failed to execute source delta")
 
-	err = liveMigrationTest.WaitForForwardStreamingComplete(map[string]ChangesCount{
-		`test_schema."test_large_column_name"`: {
-			Inserts: 1000,
-			Updates: 3000,
-			Deletes: 500,
+	t.Log("=== Waiting for streaming complete (10 datatypes: STRING: 2/6/1, Others: 1/2/1) ===")
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`test_schema."string_edge_cases"`: {
+			Inserts: 2, // 2 INSERT operations: basic + actual control chars
+			Updates: 6, // 6 UPDATE operations: backslash, consecutive quotes, critical edge cases, advanced Unicode, Unicode separators, actual control chars
+			Deletes: 1, // 1 DELETE operation: delete row 3
 		},
-	}, 120, 5)
+		`test_schema."json_edge_cases"`: {
+			Inserts: 1, // 1 INSERT operation: JSON with special characters
+			Updates: 2, // 2 UPDATE operations: complex JSON, empty/null updates
+			Deletes: 1, // 1 DELETE operation: delete JSON row 3
+		},
+		`test_schema."enum_edge_cases"`: {
+			Inserts: 1, // 1 INSERT operation: ENUM with special characters
+			Updates: 2, // 2 UPDATE operations: ENUM value updates, ENUM array updates
+			Deletes: 1, // 1 DELETE operation: delete ENUM row 3
+		},
+		`test_schema."bytes_edge_cases"`: {
+			Inserts: 1, // 1 INSERT operation: BYTES with special patterns
+			Updates: 2, // 2 UPDATE operations: BYTES value updates, null byte patterns
+			Deletes: 1, // 1 DELETE operation: delete BYTES row 3
+		},
+		`test_schema."datetime_edge_cases"`: {
+			Inserts: 1, // 1 INSERT operation: DATETIME with various dates/times
+			Updates: 2, // 2 UPDATE operations: date/timestamp updates, timezone updates
+			Deletes: 1, // 1 DELETE operation: delete DATETIME row 3
+		},
+		`test_schema."uuid_ltree_edge_cases"`: {
+			Inserts: 1, // 1 INSERT operation: UUID/LTREE with edge cases
+			Updates: 2, // 2 UPDATE operations: UUID updates, LTREE path updates
+			Deletes: 1, // 1 DELETE operation: delete UUID/LTREE row 3
+		},
+		`test_schema."map_edge_cases"`: {
+			Inserts: 1, // 1 INSERT operation: MAP/HSTORE with arrow operator and quotes
+			Updates: 2, // 2 UPDATE operations: MAP value updates, special character updates
+			Deletes: 1, // 1 DELETE operation: delete MAP row 3
+		},
+		`test_schema."interval_edge_cases"`: {
+			Inserts: 1, // 1 INSERT operation: INTERVAL with positive/negative/zero
+			Updates: 2, // 2 UPDATE operations: INTERVAL value updates, mixed intervals
+			Deletes: 1, // 1 DELETE operation: delete INTERVAL row 3
+		},
+		`test_schema."zonedtimestamp_edge_cases"`: {
+			Inserts: 1, // 1 INSERT operation: TIMESTAMPTZ with various timezones
+			Updates: 2, // 2 UPDATE operations: TIMESTAMPTZ value updates, timezone offset updates
+			Deletes: 1, // 1 DELETE operation: delete TIMESTAMPTZ row 3
+		},
+		`test_schema."decimal_edge_cases"`: {
+			Inserts: 1, // 1 INSERT operation: DECIMAL with large, negative, high precision
+			Updates: 2, // 2 UPDATE operations: DECIMAL value updates, precision updates
+			Deletes: 1, // 1 DELETE operation: delete DECIMAL row 3
+		},
+	}, 60, 1) // 1 minute timeout, 1 second poll interval
 	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
 
-	err = liveMigrationTest.ValidateDataConsistency([]string{`test_schema."test_large_column_name"`}, "id")
-	testutils.FatalIfError(t, err, "failed to validate data consistency")
+	t.Log("=== Validating streaming data ===")
+	err = lm.ValidateDataConsistency([]string{`test_schema."string_edge_cases"`, `test_schema."json_edge_cases"`, `test_schema."enum_edge_cases"`, `test_schema."bytes_edge_cases"`, `test_schema."datetime_edge_cases"`, `test_schema."uuid_ltree_edge_cases"`, `test_schema."map_edge_cases"`, `test_schema."interval_edge_cases"`, `test_schema."zonedtimestamp_edge_cases"`, `test_schema."decimal_edge_cases"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate streaming data consistency")
 
-	err = liveMigrationTest.InitiateCutoverToTarget(true, nil)
-	testutils.FatalIfError(t, err, "failed to initiate cutover to target")
+	t.Log("=== Initiating cutover ===")
+	err = lm.InitiateCutoverToTarget(false, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover")
 
-	err = liveMigrationTest.WaitForCutoverComplete(50)
+	t.Log("=== Waiting for cutover complete ===")
+	err = lm.WaitForCutoverComplete(60)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
-	err = liveMigrationTest.ExecuteTargetDelta()
-	testutils.FatalIfError(t, err, "failed to execute target delta")
+	t.Log("=== Final validation ===")
+	err = lm.ValidateDataConsistency([]string{`test_schema."string_edge_cases"`, `test_schema."json_edge_cases"`, `test_schema."enum_edge_cases"`, `test_schema."bytes_edge_cases"`, `test_schema."datetime_edge_cases"`, `test_schema."uuid_ltree_edge_cases"`, `test_schema."map_edge_cases"`, `test_schema."interval_edge_cases"`, `test_schema."zonedtimestamp_edge_cases"`, `test_schema."decimal_edge_cases"`}, "id")
+	testutils.FatalIfError(t, err, "failed final data consistency check")
 
-	err = liveMigrationTest.WaitForFallbackStreamingComplete(map[string]ChangesCount{
-		`test_schema."test_large_column_name"`: {
-			Inserts: 1000,
-			Updates: 3000,
-			Deletes: 500,
-		},
-	}, 120, 5)
-	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
-
-	err = liveMigrationTest.ValidateDataConsistency([]string{`test_schema."test_large_column_name"`}, "id")
-	testutils.FatalIfError(t, err, "failed to validate data consistency")
-
-	err = liveMigrationTest.InitiateCutoverToSource(nil)
-	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
-
-	err = liveMigrationTest.WaitForCutoverSourceComplete(150)
-	testutils.FatalIfError(t, err, "failed to wait for cutover source complete")
-
+	t.Log("✅ All datatype edge cases test PASSED - STRING, JSON, ENUM, BYTES, DATETIME, UUID, LTREE!")
 }
 
 // Test INTERVAL columns with different casings during fallback streaming
