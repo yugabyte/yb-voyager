@@ -1615,7 +1615,7 @@ $$ LANGUAGE plpgsql;`,
 			`ALTER TABLE test_schema.large_test REPLICA IDENTITY FULL;`,
 			`-- Force Postgres to NOT compress the data 
 			-- This ensures the row stays ~5MB and doesn't shrink if the data is repetitive.
-			ALTER TABLE test_schema.large_test ALTER COLUMN payload SET STORAGE EXTERNAL;`, 1Code has comments. Press enter to view.
+			ALTER TABLE test_schema.large_test ALTER COLUMN payload SET STORAGE EXTERNAL;`,
 		},
 		InitialDataSQL: []string{
 			`SELECT generate_large_rows(5, 5);`,
