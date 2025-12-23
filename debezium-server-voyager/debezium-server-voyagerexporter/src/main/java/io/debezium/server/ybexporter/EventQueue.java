@@ -52,8 +52,14 @@ public class EventQueue implements RecordWriter {
     private SequenceNumberGenerator sng;
     private EventDedupCache eventDedupCache;
     private ExportStatus es;
+    Boolean ybGRPCConnectorEnabled;
+    String exporterRole;
+    Integer ObjectMapperMaxStringLength;
 
-    public EventQueue(String datadirStr, Long queueSegmentMaxBytes) {
+    public EventQueue(String datadirStr, Long queueSegmentMaxBytes, boolean ybGRPCConnectorEnabled, String exporterRole, Integer ObjectMapperMaxStringLength) {
+        this.ybGRPCConnectorEnabled = ybGRPCConnectorEnabled;
+        this.exporterRole = exporterRole;
+        this.ObjectMapperMaxStringLength = ObjectMapperMaxStringLength;
         es = ExportStatus.getInstance(datadirStr);
         dataDir = datadirStr;
         if (queueSegmentMaxBytes != null) {
@@ -72,11 +78,11 @@ public class EventQueue implements RecordWriter {
         recoverStateFromDisk();
         if (currentQueueSegment == null) {
             currentQueueSegment = new QueueSegment(datadirStr, currentQueueSegmentIndex,
-                    getFilePathWithIndex(currentQueueSegmentIndex));
+                    getFilePathWithIndex(currentQueueSegmentIndex), ybGRPCConnectorEnabled, exporterRole, ObjectMapperMaxStringLength);
         }
 
         Map<Long, Long> totalEventsPerSegment = es.getTotalEventsPerSegment();
-        eventDedupCache = new EventDedupCache(datadirStr);
+        eventDedupCache = new EventDedupCache(datadirStr, ybGRPCConnectorEnabled, exporterRole, ObjectMapperMaxStringLength);
         eventDedupCache.warmUp(totalEventsPerSegment);
     }
 
@@ -94,7 +100,7 @@ public class EventQueue implements RecordWriter {
                         nextSequenceNumber = 1;
                     } else {
                         QueueSegment secondLastQueueSegment = new QueueSegment(dataDir, currentQueueSegmentIndex - 1,
-                                getFilePathWithIndex(currentQueueSegmentIndex - 1));
+                                getFilePathWithIndex(currentQueueSegmentIndex - 1), ybGRPCConnectorEnabled, exporterRole, ObjectMapperMaxStringLength);
                         nextSequenceNumber = secondLastQueueSegment.getSequenceNumberOfLastRecord() + 1;
                         secondLastQueueSegment.close();
                     }
@@ -148,7 +154,7 @@ public class EventQueue implements RecordWriter {
         }
 
         currentQueueSegment = new QueueSegment(dataDir, currentQueueSegmentIndex,
-                getFilePathWithIndex(currentQueueSegmentIndex));
+                getFilePathWithIndex(currentQueueSegmentIndex), ybGRPCConnectorEnabled, exporterRole, ObjectMapperMaxStringLength);
 
         LOGGER.info("Recovered from queue segment-{} with byte count={}",
                 getFilePathWithIndex(currentQueueSegmentIndex),
@@ -179,7 +185,7 @@ public class EventQueue implements RecordWriter {
         currentQueueSegmentIndex++;
         LOGGER.info("rotating queue segment to #{}", currentQueueSegmentIndex);
         currentQueueSegment = new QueueSegment(dataDir, currentQueueSegmentIndex,
-                getFilePathWithIndex(currentQueueSegmentIndex));
+                getFilePathWithIndex(currentQueueSegmentIndex), ybGRPCConnectorEnabled, exporterRole, ObjectMapperMaxStringLength);
     }
 
     @Override
@@ -243,28 +249,30 @@ public class EventQueue implements RecordWriter {
         private static final String QUEUE_FILE_DIR = "queue";
         private long maxCacheSize = 1000000;
         private String currentQueueSegmentPath;
-
-        public EventDedupCache(String dataDir) {
+        private boolean ybGRPCConnectorEnabled;
+        private String exporterRole;
+        private Integer ObjectMapperMaxStringLength;
+        public EventDedupCache(String dataDir, boolean ybGRPCConnectorEnabled, String exporterRole, Integer ObjectMapperMaxStringLength) {
             this.dataDir = dataDir;
+            this.ybGRPCConnectorEnabled = ybGRPCConnectorEnabled;
+            this.exporterRole = exporterRole;
+            this.ObjectMapperMaxStringLength = ObjectMapperMaxStringLength;
         }
 
-        private ObjectMapper getObjectMapper() {
-            final Config config = ConfigProvider.getConfig();
-            String exporterRole = config.getValue("debezium.sink.ybexporter.exporter.role", String.class);
+        private ObjectMapper createObjectMapper() {
             if (exporterRole.equals("target_db_exporter_ff") || exporterRole.equals("target_db_exporter_fb")) {
-                boolean ybGRPCConnectorEnabled = config.getValue("debezium.source.grpc.connector.enabled", Boolean.class);
                 if (ybGRPCConnectorEnabled) {
                     //In case of gRPC connector, debezium is at 1.9.5 version and uses jackson 2.13.1 which does not support StreamReadConstraints
-                    // So, we use the default ObjectMapper - should cause issues for large strings in that path as this guardrail is introduced in 2.15 https://github.com/FasterXML/jackson-core/issues/1001
+                    // So, we use the default ObjectMapper - should not cause issues for large strings in that path as this guardrail is introduced in 2.15 https://github.com/FasterXML/jackson-core/issues/1001
                     return new ObjectMapper(new JsonFactory());
                 }
             }
             //for any connector which uses 2.5.2 or higher uses jackson 2.15.2 which supports StreamReadConstraints
-            return new ObjectMapper(JsonFactory.builder().streamReadConstraints(StreamReadConstraints.builder().maxStringLength(500_000_000).build()).build());
+            return new ObjectMapper(JsonFactory.builder().streamReadConstraints(StreamReadConstraints.builder().maxStringLength(ObjectMapperMaxStringLength).build()).build());
         }
 
         public void warmUp(Map<Long, Long> totalEventsPerSegment) {
-            ObjectMapper mapper = getObjectMapper();
+            ObjectMapper mapper = createObjectMapper();
             // TODO: Move the logic to warmup the event dedup cache to EventQueue class
             // Ticket: https://yugabyte.atlassian.net/browse/DB-9874
             if (totalEventsPerSegment.size() == 0) {

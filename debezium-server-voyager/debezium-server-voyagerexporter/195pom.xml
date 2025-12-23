@@ -96,6 +96,7 @@
             <artifactId>json</artifactId>
             <version>20180130</version>
         </dependency>
+        <!-- jackson-core version 2.15.2 is used to support StreamReadConstraints while compiling but debezium core 1.9.5 uses jackson 2.13.1 which does not support StreamReadConstraints-->
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-core</artifactId>
