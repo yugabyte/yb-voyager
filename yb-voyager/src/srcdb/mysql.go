@@ -555,8 +555,8 @@ func (ms *MySQL) GetMissingExportSchemaPermissions(queryTableList string) ([]str
 	return nil, nil
 }
 
-func (ms *MySQL) GetMissingExportDataPermissions(exportType string, finalTableList []sqlname.NameTuple) ([]string, error) {
-	return nil, nil
+func (ms *MySQL) GetMissingExportDataPermissions(exportType string, finalTableList []sqlname.NameTuple) ([]string, bool, error) {
+	return nil, false, nil
 }
 
 func (ms *MySQL) CheckIfReplicationSlotsAreAvailable() (isAvailable bool, usedCount int, maxCount int, err error) {

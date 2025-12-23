@@ -56,7 +56,7 @@ type SourceDB interface {
 	GetDatabaseSize() (int64, error)
 	CheckSourceDBVersion(exportType string) error
 	GetMissingExportSchemaPermissions(queryTableList string) ([]string, error)
-	GetMissingExportDataPermissions(exportType string, finalTableList []sqlname.NameTuple) ([]string, error)
+	GetMissingExportDataPermissions(exportType string, finalTableList []sqlname.NameTuple) ([]string, bool, error)
 	GetMissingAssessMigrationPermissions() ([]string, bool, error)
 	CheckIfReplicationSlotsAreAvailable() (isAvailable bool, usedCount int, maxCount int, err error)
 	GetSchemasMissingUsagePermissions() ([]string, error)
