@@ -23,7 +23,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.core.StreamReadConstraints;
 import com.fasterxml.jackson.core.JsonFactory;
 
-
+import org.eclipse.microprofile.config.Config;
+import org.eclipse.microprofile.config.ConfigProvider;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -247,8 +248,23 @@ public class EventQueue implements RecordWriter {
             this.dataDir = dataDir;
         }
 
+        private ObjectMapper getObjectMapper() {
+            final Config config = ConfigProvider.getConfig();
+            String exporterRole = config.getValue("debezium.sink.ybexporter.exporter.role", String.class);
+            if (exporterRole.equals("target_db_exporter_ff") || exporterRole.equals("target_db_exporter_fb")) {
+                boolean ybGRPCConnectorEnabled = config.getValue("debezium.source.grpc.connector.enabled", Boolean.class);
+                if (ybGRPCConnectorEnabled) {
+                    //In case of gRPC connector, debezium is at 1.9.5 version and uses jackson 2.13.1 which does not support StreamReadConstraints
+                    // So, we use the default ObjectMapper - should cause issues for large strings in that path as this guardrail is introduced in 2.15 https://github.com/FasterXML/jackson-core/issues/1001
+                    return new ObjectMapper(new JsonFactory());
+                }
+            }
+            //for any connector which uses 2.5.2 or higher uses jackson 2.15.2 which supports StreamReadConstraints
+            return new ObjectMapper(JsonFactory.builder().streamReadConstraints(StreamReadConstraints.builder().maxStringLength(500_000_000).build()).build());
+        }
+
         public void warmUp(Map<Long, Long> totalEventsPerSegment) {
-            ObjectMapper mapper = new ObjectMapper(JsonFactory.builder().streamReadConstraints(StreamReadConstraints.builder().maxStringLength(500_000_000).build()).build());
+            ObjectMapper mapper = getObjectMapper();
             // TODO: Move the logic to warmup the event dedup cache to EventQueue class
             // Ticket: https://yugabyte.atlassian.net/browse/DB-9874
             if (totalEventsPerSegment.size() == 0) {

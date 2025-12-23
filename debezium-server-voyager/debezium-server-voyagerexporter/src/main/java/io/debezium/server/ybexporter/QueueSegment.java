@@ -166,8 +166,7 @@ public class QueueSegment {
     }
 
     public long getSequenceNumberOfLastRecord() {
-
-        ObjectMapper mapper = new ObjectMapper(JsonFactory.builder().streamReadConstraints(StreamReadConstraints.builder().maxStringLength(500_000_000).build()).build());
+        ObjectMapper mapper = getObjectMapper();
         long vsn = -1;
         String last = null, line;
         BufferedReader input;
@@ -187,6 +186,19 @@ public class QueueSegment {
             throw new RuntimeException(e);
         }
         return vsn;
+    }
+    private ObjectMapper getObjectMapper() {
+        if (exporterRole.equals("target_db_exporter_fb") || exporterRole.equals("target_db_exporter_ff")) {
+            final Config config = ConfigProvider.getConfig();
+            boolean ybGRPCConnectorEnabled = config.getValue("debezium.source.grpc.connector.enabled", Boolean.class);
+            if (ybGRPCConnectorEnabled) {
+                //In case of gRPC connector, debezium is at 1.9.5 version and uses jackson 2.13.1 which does not support StreamReadConstraints
+                // So, we use the default ObjectMapper - should cause issues for large strings in that path as this guardrail is introduced in 2.15 https://github.com/FasterXML/jackson-core/issues/1001
+                return new ObjectMapper(new JsonFactory());
+            }
+        }
+        //for any connector which uses 2.5.2 or higher uses jackson 2.15.2 which supports StreamReadConstraints
+        return new ObjectMapper(JsonFactory.builder().streamReadConstraints(StreamReadConstraints.builder().maxStringLength(500_000_000).build()).build());
     }
 
     public boolean isClosed() {
