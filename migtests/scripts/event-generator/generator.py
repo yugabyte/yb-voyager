@@ -53,6 +53,7 @@ for op_name, weight in raw_operation_weights.items():
 INSERT_ROWS = GEN["insert_rows"]
 UPDATE_ROWS = GEN["update_rows"]
 DELETE_ROWS = GEN["delete_rows"]
+MIN_ROW_SIZE_BYTES = GEN["min_row_size_bytes"]
 
 # Retries
 INSERT_MAX_RETRIES = GEN["insert_max_retries"]
@@ -132,7 +133,32 @@ try:
             if operation == "INSERT":
                 # Generate random data and execute INSERT statement
                 columns = ", ".join(table_schemas[table_name]["columns"].keys())
-                values_holder = {"values_list": build_insert_values(table_schemas, table_name, INSERT_ROWS)}
+                if MIN_ROW_SIZE_BYTES > 0:
+                    large_data_types: dict[str, int] = {}
+                    weight_of_large_data_types: dict[str, int] = {}
+                    for data_type in table_schemas[table_name]["columns"].values():
+                        if data_type in ["json", "text", "bytea", "jsonb", "tsvector", "ARRAY"]:
+                            large_data_types[data_type] = large_data_types.get(data_type, 0) + 1
+                    
+                    # Assign random percentages to each data type in large_data_types (summing to 100)
+                    if large_data_types:
+                        keys = list(large_data_types)
+                        weights = [random.random() for _ in keys]
+                        total = sum(weights)
+
+                        weight_of_large_data_types = {
+                            k: max(1, round(w * 100 / total))
+                            for k, w in zip(keys, weights)
+                        }
+
+                        # fix rounding drift
+                        diff = 100 - sum(weight_of_large_data_types.values())
+                        weight_of_large_data_types[keys[-1]] += diff
+                    
+                    print(large_data_types, weight_of_large_data_types)
+                    values_holder = {"values_list": build_insert_values(table_schemas, table_name, INSERT_ROWS, MIN_ROW_SIZE_BYTES, large_data_types, weight_of_large_data_types)}
+                else:
+                    values_holder = {"values_list": build_insert_values(table_schemas, table_name, INSERT_ROWS)}
 
                 # Prepare callbacks for retryable execution
                 def run_once():
@@ -140,7 +166,30 @@ try:
                     cursor.execute(query_to_run)
 
                 def rebuild():
-                    values_holder["values_list"] = build_insert_values(table_schemas, table_name, INSERT_ROWS)
+                    # Regenerate the dictionaries if needed
+                    if MIN_ROW_SIZE_BYTES > 0:
+                        rebuild_large_data_types: dict[str, int] = {}
+                        rebuild_weight_of_large_data_types: dict[str, int] = {}
+                        for data_type in table_schemas[table_name]["columns"].values():
+                            if data_type in ["json", "text", "bytea", "jsonb", "tsvector", "ARRAY"]:
+                                rebuild_large_data_types[data_type] = rebuild_large_data_types.get(data_type, 0) + 1
+                        
+                        if rebuild_large_data_types:
+                            keys = list(rebuild_large_data_types)  # Fixed: use rebuild_large_data_types, not large_data_types
+                            weights = [random.random() for _ in keys]
+                            total = sum(weights)
+
+                            rebuild_weight_of_large_data_types = {
+                                k: max(1, round(w * 100 / total))
+                                for k, w in zip(keys, weights)
+                            }
+
+                            # fix rounding drift
+                            diff = 100 - sum(rebuild_weight_of_large_data_types.values())
+                            rebuild_weight_of_large_data_types[keys[-1]] += diff
+                        values_holder["values_list"] = build_insert_values(table_schemas, table_name, INSERT_ROWS, MIN_ROW_SIZE_BYTES, rebuild_large_data_types, rebuild_weight_of_large_data_types)
+                    else:
+                        values_holder["values_list"] = build_insert_values(table_schemas, table_name, INSERT_ROWS)
 
                 success = execute_with_retry(run_once, rebuild, conn.rollback, max_retries=INSERT_MAX_RETRIES)
                 if success:

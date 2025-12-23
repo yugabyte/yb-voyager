@@ -1,10 +1,10 @@
 connection:
   # Hostname or IP of the PostgreSQL server
-  host: localhost
+  host: voyager-postgres-2.cbtcvpszcgdq.us-west-2.rds.amazonaws.com
   # Port PostgreSQL is listening on
   port: 5432
   # Target database name
-  database: sakila
+  database: yash
   # Username for authentication
   user: postgres
   # Password for authentication
@@ -16,14 +16,14 @@ generator:
 
   # Explicit list of tables to generate events for
   # If empty, the generator scans the schema for all base tables
-  manual_table_list: [eg_users, eg_orders]
+  manual_table_list: []
 
   # Tables to exclude when scanning the schema (ignored if manual_table_list is non-empty)
   exclude_table_list: []
 
   # Total number of operations to attempt (INSERT/UPDATE/DELETE)
   # If -1, the generator will run indefinitely
-  num_iterations: 2000
+  num_iterations: -1
 
   # After this many operations, sleep for wait_duration_seconds (0 disables sleeping)
   wait_after_operations: 200000
@@ -32,10 +32,10 @@ generator:
 
   # Optional per-table selection weights; unspecified tables default to weight=1
   # Example: { customers: 5, orders: 2 }
-  table_weights: { eg_users: 100, eg_orders: 100 }
+  table_weights: {}
 
   # Operation weights map; omit or set 0 to disable an operation
-  operation_weights: { INSERT: 3, UPDATE: 2, DELETE: 1 }
+  operation_weights: { INSERT: 3, UPDATE: 0, DELETE: 0 }
 
   # Determinism seeds (YAML-only)
   # random_seed: seeds Python's random module for table/op choices and numeric data
@@ -51,5 +51,9 @@ generator:
   # Retry limits for operations that can be retried (e.g., on unique violations)
   insert_max_retries: 50
   update_max_retries: 3
+
+  # Minimum row size in bytes. Only rows with size >= this value will be inserted.
+  # Set to 0 to disable size filtering (default behavior).
+  min_row_size_bytes: 10000000
 
 
