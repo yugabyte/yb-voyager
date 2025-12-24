@@ -588,6 +588,9 @@ FROM generate_series(1, 15);`,
 		for rows.Next() {
 			var slotName string
 			err = rows.Scan(&slotName)
+			if err != nil {
+				return fmt.Errorf("failed to scan replication slot: %w", err)
+			}
 			fmt.Printf("Replication slot: %s\n", slotName)
 		}
 		return fmt.Errorf("found replication slots on target")
@@ -602,6 +605,8 @@ FROM generate_series(1, 15);`,
 
 	err = lm.StartImportData(true, nil)
 	testutils.FatalIfError(t, err, "failed to start import data")
+
+	time.Sleep(10 * time.Second)
 
 	err = lm.WaitForSnapshotComplete(map[string]int64{
 		`test_schema."test_live"`: 20,
