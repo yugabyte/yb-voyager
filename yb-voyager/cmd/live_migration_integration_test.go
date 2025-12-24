@@ -594,7 +594,7 @@ FROM generate_series(1, 15);`,
 	err := lm.SetupContainers(context.Background())
 	testutils.FatalIfError(t, err, "failed to setup containers")
 
-	err := lm.WithTargetConn(func(target *sql.DB) error {
+	err = lm.WithTargetConn(func(target *sql.DB) error {
 		fmt.Printf("Querying replication slots\n")
 		rows, err := target.Query("SELECT slot_name from pg_replication_slots;")
 		if err != nil {
@@ -753,7 +753,7 @@ FROM generate_series(1, 15);`,
 	err := lm.SetupContainers(context.Background())
 	testutils.FatalIfError(t, err, "failed to setup containers")
 
-	err := lm.WithTargetConn(func(target *sql.DB) error {
+	err = lm.WithTargetConn(func(target *sql.DB) error {
 		fmt.Printf("Querying replication slots\n")
 		rows, err := target.Query("SELECT slot_name from pg_replication_slots;")
 		if err != nil {
