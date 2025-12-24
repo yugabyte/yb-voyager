@@ -518,6 +518,24 @@ FROM generate_series(1, 5);`,
 	})
 	testutils.FatalIfError(t, err, "failed to validate sequence restoration")
 
+	err = lm.WithTargetConn(func(target *sql.DB) error {
+		rows, err := target.Query("SELECT slot_name from pg_replication_slots;")
+		if err != nil {
+			return fmt.Errorf("failed to query replication slots: %w", err)
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var slotName string
+			err = rows.Scan(&slotName)
+			if err != nil {
+				return fmt.Errorf("failed to scan replication slot: %w", err)
+			}
+			fmt.Printf("Replication slot: %s\n", slotName)
+		}
+		return nil
+	})
+	testutils.FatalIfError(t, err, "failed to query replication slots")
+
 }
 
 // test for live migration with resumption and failure during restore sequences
