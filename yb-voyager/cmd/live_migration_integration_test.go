@@ -519,6 +519,7 @@ FROM generate_series(1, 5);`,
 	testutils.FatalIfError(t, err, "failed to validate sequence restoration")
 
 	err = lm.WithTargetConn(func(target *sql.DB) error {
+		fmt.Printf("Querying replication slots\n")
 		rows, err := target.Query("SELECT slot_name from pg_replication_slots;")
 		if err != nil {
 			return fmt.Errorf("failed to query replication slots: %w", err)
@@ -534,6 +535,7 @@ FROM generate_series(1, 5);`,
 		}
 		return nil
 	})
+
 	testutils.FatalIfError(t, err, "failed to query replication slots")
 
 }
@@ -588,6 +590,26 @@ FROM generate_series(1, 15);`,
 		},
 	})
 	defer lm.Cleanup()
+
+	err = lm.WithTargetConn(func(target *sql.DB) error {
+		fmt.Printf("Querying replication slots\n")
+		rows, err := target.Query("SELECT slot_name from pg_replication_slots;")
+		if err != nil {
+			return fmt.Errorf("failed to query replication slots: %w", err)
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var slotName string
+			err = rows.Scan(&slotName)
+			if err != nil {
+				return fmt.Errorf("failed to scan replication slot: %w", err)
+			}
+			fmt.Printf("Replication slot: %s\n", slotName)
+		}
+		return nil
+	})
+
+	testutils.FatalIfError(t, err, "failed to query replication slots")
 
 	err := lm.SetupContainers(context.Background())
 	testutils.FatalIfError(t, err, "failed to setup containers")
@@ -727,6 +749,25 @@ FROM generate_series(1, 15);`,
 		},
 	})
 	defer lm.Cleanup()
+	err = lm.WithTargetConn(func(target *sql.DB) error {
+		fmt.Printf("Querying replication slots\n")
+		rows, err := target.Query("SELECT slot_name from pg_replication_slots;")
+		if err != nil {
+			return fmt.Errorf("failed to query replication slots: %w", err)
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var slotName string
+			err = rows.Scan(&slotName)
+			if err != nil {
+				return fmt.Errorf("failed to scan replication slot: %w", err)
+			}
+			fmt.Printf("Replication slot: %s\n", slotName)
+		}
+		return nil
+	})
+
+	testutils.FatalIfError(t, err, "failed to query replication slots")
 
 	err := lm.SetupContainers(context.Background())
 	testutils.FatalIfError(t, err, "failed to setup containers")
