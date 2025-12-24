@@ -1,4 +1,4 @@
-//go:build integration_voyager_command
+//go:build integration_live_migration
 
 /*
 Copyright (c) YugabyteDB, Inc.
