@@ -591,6 +591,9 @@ FROM generate_series(1, 15);`,
 	})
 	defer lm.Cleanup()
 
+	err := lm.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+
 	err := lm.WithTargetConn(func(target *sql.DB) error {
 		fmt.Printf("Querying replication slots\n")
 		rows, err := target.Query("SELECT slot_name from pg_replication_slots;")
@@ -610,9 +613,6 @@ FROM generate_series(1, 15);`,
 	})
 
 	testutils.FatalIfError(t, err, "failed to query replication slots")
-
-	err = lm.SetupContainers(context.Background())
-	testutils.FatalIfError(t, err, "failed to setup containers")
 
 	err = lm.SetupSchema()
 	testutils.FatalIfError(t, err, "failed to setup schema")
@@ -749,6 +749,10 @@ FROM generate_series(1, 15);`,
 		},
 	})
 	defer lm.Cleanup()
+
+	err := lm.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+
 	err := lm.WithTargetConn(func(target *sql.DB) error {
 		fmt.Printf("Querying replication slots\n")
 		rows, err := target.Query("SELECT slot_name from pg_replication_slots;")
@@ -768,9 +772,6 @@ FROM generate_series(1, 15);`,
 	})
 
 	testutils.FatalIfError(t, err, "failed to query replication slots")
-
-	err = lm.SetupContainers(context.Background())
-	testutils.FatalIfError(t, err, "failed to setup containers")
 
 	err = lm.SetupSchema()
 	testutils.FatalIfError(t, err, "failed to setup schema")
@@ -1738,7 +1739,7 @@ $$ LANGUAGE plpgsql;`,
 	err = liveMigrationTest.ValidateDataConsistency([]string{`test_schema."large_test"`}, "id")
 	testutils.FatalIfError(t, err, "failed to verify data consistency")
 
-	err = liveMigrationTest.InitiateCutoverToTarget(true, nil)
+	err = liveMigrationTest.InitiateCutoverToTarget(false, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover to target")
 
 	err = liveMigrationTest.WaitForCutoverComplete(50)
@@ -2060,7 +2061,6 @@ END $$;
 
 	err = liveMigrationTest.ExecuteTargetDelta()
 	testutils.FatalIfError(t, err, "failed to execute target delta")
-
 
 	err = liveMigrationTest.WaitForFallbackStreamingComplete(map[string]ChangesCount{
 		`test_schema."test_large_number_of_columns"`: {
