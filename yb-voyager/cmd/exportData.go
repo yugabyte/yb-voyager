@@ -184,7 +184,8 @@ func printLiveMigrationLimitations() {
 			} else {
 				utils.PrintAndLogfWarning("\nImportant: The following limitation applies to live migration with %s:\n\n", workflow)
 				utils.PrintAndLogfInfo("  1. SAVEPOINT statements within transactions on the target database are not supported during live migration with %s enabled. Transactions rolling back to some SAVEPOINT may cause data inconsistency between the databases.\n", workflow)
-				utils.PrintAndLogfInfo("  2. Rows larger than 4MB in target database can cause consistency issues during live migration with %s enabled. Refer to this tech advisory for more information %s\n\n", workflow, utils.Path.Sprint("https://docs.yugabyte.com/stable/releases/techadvisories/ta-29060/"))
+				utils.PrintAndLogfInfo("  2. Rows larger than 4MB in target database can cause consistency issues during live migration with %s enabled. Refer to this tech advisory for more information %s\n", workflow, utils.Path.Sprint("https://docs.yugabyte.com/stable/releases/techadvisories/ta-29060/"))
+				utils.PrintAndLogfInfo("  3. Workloads with read-committed isolation level are not fully supported. It is recommended to use repeatable-read or serializable isolation levels for the duration of the migration.\n\n")
 			}
 		}
 
