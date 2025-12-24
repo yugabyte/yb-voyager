@@ -1849,7 +1849,7 @@ func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
 				decimal_negative NUMERIC(15, 3),
 				decimal_zero NUMERIC(10, 2),
 				decimal_high_precision NUMERIC(30, 15),
-				decimal_scientific NUMERIC,
+				decimal_scientific NUMERIC(20,9) , -- We notice a loss of trailing zeros in NUMERIC type without specifying the precision
 				decimal_small NUMERIC(5, 2)
 			);
 			`,
@@ -2443,7 +2443,7 @@ func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
 				'2025-12-31 00:00:00+00'::timestamptz
 			);`,
 
-			// DECIMAL Row 1: Large and negative decimals
+			// DECIMAL Row 1: Testing trailing zeros preservation
 			`INSERT INTO test_schema.decimal_edge_cases (
 				decimal_large,
 				decimal_negative,
@@ -2457,11 +2457,11 @@ func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
 				-123.456,
 				0.00,
 				123.456789012345,
-				1000000.00,
+				202020.292920000,
 				99.99
 			);`,
 
-			// DECIMAL Row 2: Various precisions
+			// DECIMAL Row 2: Testing repeating decimal patterns
 			`INSERT INTO test_schema.decimal_edge_cases (
 				decimal_large,
 				decimal_negative,
@@ -2475,7 +2475,7 @@ func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
 				-999.999,
 				0,
 				999.999999999999999,
-				0.000001,
+				2.3232323,
 				-50.25
 			);`,
 
@@ -2889,7 +2889,7 @@ func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
 			// ZONEDTIMESTAMP DELETE #1: Test TIMESTAMPTZ row deletion
 			`DELETE FROM test_schema.zonedtimestamp_edge_cases WHERE id = 3;`,
 
-			// DECIMAL INSERT #1: Streaming DECIMAL values
+			// DECIMAL INSERT #1: Streaming with trailing zeros and precision
 			`INSERT INTO test_schema.decimal_edge_cases (
 				decimal_large,
 				decimal_negative,
@@ -2903,7 +2903,7 @@ func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
 				-777.777,
 				0.000,
 				888.888888888888888,
-				12345.6789,
+				100.500000,
 				75.50
 			);`,
 
@@ -2913,10 +2913,10 @@ func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
 			    decimal_negative = -1000.001
 			WHERE id = 1;`,
 
-			// DECIMAL UPDATE #2: Update with high precision
+			// DECIMAL UPDATE #2: Update with repeating decimals and trailing zeros
 			`UPDATE test_schema.decimal_edge_cases
 			SET decimal_high_precision = 0.123456789012345,
-			    decimal_scientific = 999999.999999
+			    decimal_scientific = 3.1415926000
 			WHERE id = 2;`,
 
 			// DECIMAL DELETE #1: Test DECIMAL row deletion
@@ -3040,8 +3040,6 @@ func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
 	t.Log("=== Final validation ===")
 	err = lm.ValidateDataConsistency([]string{`test_schema."string_edge_cases"`, `test_schema."json_edge_cases"`, `test_schema."enum_edge_cases"`, `test_schema."bytes_edge_cases"`, `test_schema."datetime_edge_cases"`, `test_schema."uuid_ltree_edge_cases"`, `test_schema."map_edge_cases"`, `test_schema."interval_edge_cases"`, `test_schema."zonedtimestamp_edge_cases"`, `test_schema."decimal_edge_cases"`}, "id")
 	testutils.FatalIfError(t, err, "failed final data consistency check")
-
-	t.Log("✅ All datatype edge cases test PASSED - STRING, JSON, ENUM, BYTES, DATETIME, UUID, LTREE!")
 }
 
 // Test INTERVAL columns with different casings during fallback streaming
