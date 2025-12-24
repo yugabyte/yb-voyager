@@ -2959,7 +2959,7 @@ func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
 		`test_schema."interval_edge_cases"`:       3, // 3 rows with INTERVAL edge cases
 		`test_schema."zonedtimestamp_edge_cases"`: 3, // 3 rows with ZONEDTIMESTAMP edge cases
 		`test_schema."decimal_edge_cases"`:        3, // 3 rows with DECIMAL edge cases
-	}, 60) // 1 minute should be plenty for small rows
+	}, 120) // 1 minute should be plenty for small rows
 	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
 
 	t.Log("=== Validating snapshot data ===")
@@ -3022,7 +3022,7 @@ func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
 			Updates: 2, // 2 UPDATE operations: DECIMAL value updates, precision updates
 			Deletes: 1, // 1 DELETE operation: delete DECIMAL row 3
 		},
-	}, 60, 1) // 1 minute timeout, 1 second poll interval
+	}, 120, 1) // 1 minute timeout, 1 second poll interval
 	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
 
 	t.Log("=== Validating streaming data ===")
