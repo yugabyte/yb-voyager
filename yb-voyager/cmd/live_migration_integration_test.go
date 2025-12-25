@@ -1686,3 +1686,1332 @@ $$ LANGUAGE plpgsql;`,
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
 }
+
+// TestLiveMigrationWithDatatypeEdgeCases tests live migration with various datatypes
+// containing special characters and edge cases that require proper escaping.
+// Currently testing: STRING datatype with backslashes, quotes, newlines, tabs, Unicode, etc.
+// This test verifies that the datatype converter properly handles edge cases during CDC streaming.
+// Aligned with unit tests in yugabytedbSuite_test.go
+func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB: ContainerConfig{
+			Type:    "postgresql",
+			ForLive: true,
+		},
+		TargetDB: ContainerConfig{
+			Type: "yugabytedb",
+		},
+		SchemaNames: []string{"test_schema"},
+		SchemaSQL: []string{
+			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
+			`CREATE SCHEMA test_schema;
+
+			CREATE TABLE test_schema.string_edge_cases (
+				id SERIAL PRIMARY KEY,
+				text_with_backslash TEXT,
+				text_with_quote TEXT,
+				text_with_newline TEXT,
+				text_with_tab TEXT,
+				text_with_mixed TEXT,
+				text_windows_path TEXT,
+				text_sql_injection TEXT,
+				text_unicode TEXT,
+				text_empty TEXT,
+				text_null_string TEXT
+			);
+
+			CREATE TABLE test_schema.json_edge_cases (
+				id SERIAL PRIMARY KEY,
+				json_with_escaped_chars JSON,
+				json_with_unicode JSON,
+				json_nested JSON,
+				json_array JSON,
+				json_with_null JSON,
+				json_empty JSON,
+				json_formatted JSONB,
+				json_with_numbers JSON,
+				json_complex JSONB
+			);
+
+			CREATE TYPE test_schema.status_enum AS ENUM ('active', 'inactive', 'pending', 'enum''value', 'enum"value', 'enum\value', 'with space', 'with-dash', 'with_underscore', 'café', '🎉emoji', '123start');
+			
+			CREATE TABLE test_schema.enum_edge_cases (
+				id SERIAL PRIMARY KEY,
+				status_simple test_schema.status_enum,
+				status_with_quote test_schema.status_enum,
+				status_with_special test_schema.status_enum,
+				status_unicode test_schema.status_enum,
+				status_array test_schema.status_enum[],
+				status_null test_schema.status_enum
+			);
+
+			CREATE TABLE test_schema.bytes_edge_cases (
+				id SERIAL PRIMARY KEY,
+				bytes_empty BYTEA,
+				bytes_single BYTEA,
+				bytes_ascii BYTEA,
+				bytes_null_byte BYTEA,
+				bytes_all_zeros BYTEA,
+				bytes_all_ff BYTEA,
+				bytes_special_chars BYTEA,
+				bytes_mixed BYTEA
+			);
+
+			CREATE TABLE test_schema.datetime_edge_cases (
+				id SERIAL PRIMARY KEY,
+				date_epoch DATE,
+				date_negative DATE,
+				date_future DATE,
+				timestamp_epoch TIMESTAMP,
+				timestamp_negative TIMESTAMP,
+				timestamp_with_tz TIMESTAMPTZ,
+				time_midnight TIME,
+				time_noon TIME,
+				time_with_micro TIME(6)
+			);
+
+			CREATE EXTENSION IF NOT EXISTS ltree;
+
+			CREATE TABLE test_schema.uuid_ltree_edge_cases (
+				id SERIAL PRIMARY KEY,
+				uuid_standard UUID,
+				uuid_all_zeros UUID,
+				uuid_all_fs UUID,
+				uuid_random UUID,
+				ltree_simple LTREE,
+				ltree_quoted LTREE,
+				ltree_deep LTREE,
+				ltree_single LTREE
+			);
+
+			CREATE EXTENSION IF NOT EXISTS hstore;
+
+			CREATE TABLE test_schema.map_edge_cases (
+				id SERIAL PRIMARY KEY,
+				map_simple HSTORE,
+				map_with_arrow HSTORE,
+				map_with_quotes HSTORE,
+				map_empty_values HSTORE,
+				map_multiple_pairs HSTORE,
+				map_special_chars HSTORE
+			);
+
+			CREATE TABLE test_schema.interval_edge_cases (
+				id SERIAL PRIMARY KEY,
+				interval_positive INTERVAL,
+				interval_negative INTERVAL,
+				interval_zero INTERVAL,
+				interval_years INTERVAL,
+				interval_days INTERVAL,
+				interval_hours INTERVAL,
+				interval_mixed INTERVAL
+			);
+
+			CREATE TABLE test_schema.zonedtimestamp_edge_cases (
+				id SERIAL PRIMARY KEY,
+				ts_utc TIMESTAMPTZ,
+				ts_positive_offset TIMESTAMPTZ,
+				ts_negative_offset TIMESTAMPTZ,
+				ts_epoch TIMESTAMPTZ,
+				ts_future TIMESTAMPTZ,
+				ts_midnight TIMESTAMPTZ
+			);
+
+			CREATE TABLE test_schema.decimal_edge_cases (
+				id SERIAL PRIMARY KEY,
+				decimal_large NUMERIC(38, 9),
+				decimal_negative NUMERIC(15, 3),
+				decimal_zero NUMERIC(10, 2),
+				decimal_high_precision NUMERIC(30, 15),
+				decimal_scientific NUMERIC(20,9) , -- We notice a loss of trailing zeros in NUMERIC type without specifying the precision
+				decimal_small NUMERIC(5, 2)
+			);
+			`,
+		},
+		SourceSetupSchemaSQL: []string{
+			`ALTER TABLE test_schema.string_edge_cases REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema.json_edge_cases REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema.enum_edge_cases REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema.bytes_edge_cases REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema.datetime_edge_cases REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema.uuid_ltree_edge_cases REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema.map_edge_cases REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema.interval_edge_cases REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema.zonedtimestamp_edge_cases REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema.decimal_edge_cases REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			// Row 1: Basic edge cases + Unicode separators (TODO 6)
+			`INSERT INTO test_schema.string_edge_cases (
+				text_with_backslash,
+				text_with_quote,
+				text_with_newline,
+				text_with_tab,
+				text_with_mixed,
+				text_windows_path,
+				text_sql_injection,
+				text_unicode,
+				text_empty,
+				text_null_string
+			) VALUES
+			(
+				'path\to\file',                          -- literal backslash-t, backslash-o
+				'It''s a test',                          -- single quote (SQL escaped)
+				'line1' || E'\u2028' || 'line2',         -- TODO 6: Unicode line separator (U+2028)
+				'para1' || E'\u2029' || 'para2',         -- TODO 6: Unicode paragraph separator (U+2029)
+				'word' || E'\u200B' || 'word',           -- TODO 6: Zero-width space (U+200B)
+				'word' || E'\u00A0' || 'word',           -- TODO 6: Non-breaking space (U+00A0)
+				'''; DROP TABLE users--',                -- SQL injection
+				'café 日本語',                           -- Unicode
+				'',                                      -- empty string
+				'NULL'                                   -- literal string "NULL"
+			);`,
+
+			// Row 2: Actual control characters with E-strings (TODOs 7, 9)
+			`INSERT INTO test_schema.string_edge_cases (
+				text_with_backslash,
+				text_with_quote,
+				text_with_newline,
+				text_with_tab,
+				text_with_mixed,
+				text_windows_path,
+				text_sql_injection,
+				text_unicode,
+				text_empty,
+				text_null_string
+			) VALUES
+			(
+				'\\server\share',                        -- UNC path (double backslash)
+				'O''Reilly''s book',                    -- multiple single quotes
+				E'line1\nline2',                        -- TODO 7: Actual newline character (E-string)
+				E'col1\tcol2',                          -- TODO 7: Actual tab character (E-string)
+				E'text\rmore',                          -- TODO 7: Actual carriage return (E-string)
+				'C:\Program Files\MyApp\bin',           -- Windows path
+				''' OR ''1''=''1',                      -- SQL injection
+				'café''s specialty',                     -- TODO 1: Unicode with single quote
+				E'\t',                                  -- TODO 9: Tab only (E-string)
+				E'\n'                                   -- TODO 9: Newline only (E-string)
+			);`,
+
+			// Row 3: Extreme cases + Advanced Unicode (TODOs 2-5)
+			`INSERT INTO test_schema.string_edge_cases (
+				text_with_backslash,
+				text_with_quote,
+				text_with_newline,
+				text_with_tab,
+				text_with_mixed,
+				text_windows_path,
+				text_sql_injection,
+				text_unicode,
+				text_empty,
+				text_null_string
+			) VALUES
+			(
+				'path\to\日本語',                        -- TODO 2: Unicode with backslash (backslash + Japanese)
+				'English مرحبا English',                 -- TODO 5: Bidirectional text (LTR + RTL)
+				'Hello 世界 🌍',                         -- TODO 3: Mixed ASCII+Unicode (English + Chinese + emoji)
+				'tab',                                  -- simple text
+				'All: ''""\\ text',                     -- all special chars
+				'C:\new\test\report.txt',               -- path
+				'--comment',                            -- SQL comment
+				'👨‍👩‍👧 family',                           -- TODO 4: Zero-width joiner emoji (composite emoji)
+				' ',                                    -- single space only (critical edge case)
+				'This is NULL value'                    -- NULL as part of string
+			);`,
+
+			// JSON Row 1: Basic JSON edge cases
+			`INSERT INTO test_schema.json_edge_cases (
+				json_with_escaped_chars,
+				json_with_unicode,
+				json_nested,
+				json_array,
+				json_with_null,
+				json_empty,
+				json_formatted,
+				json_with_numbers,
+				json_complex
+			) VALUES
+			(
+				'{"key": "value\"test", "path": "C:\\\\path"}',
+				'{"message": "Hello 世界 🎉 café"}',
+				'{"outer": {"inner": "value"}}',
+				'["item1", "item2", "item\"3"]',
+				'{"key": null}',
+				'{}',
+				'{"formatted": "value"}',
+				'{"num": 123, "float": 45.67, "bool": true}',
+				'{"str": "test", "num": 123, "bool": true, "null": null, "arr": [1,2]}'
+			);`,
+
+			// JSON Row 2: Complex JSON structures
+			`INSERT INTO test_schema.json_edge_cases (
+				json_with_escaped_chars,
+				json_with_unicode,
+				json_nested,
+				json_array,
+				json_with_null,
+				json_empty,
+				json_formatted,
+				json_with_numbers,
+				json_complex
+			) VALUES
+			(
+				'{"escapes": "slash:\\\\ newline:\\n tab:\\t return:\\r"}',
+				'{"text": "zero\u200Bwidth\u200Djoin"}',
+				'{"level1": {"level2": {"level3": "deep"}}}',
+				'[1, "two", {"three": 3}]',
+				'{"a": null, "b": null}',
+				'[]',
+				'{"query": "SELECT * FROM users"}',
+				'{"int": -999, "float": 3.14159, "exp": 1.23e10}',
+				'{"path": "C:\\\\Program Files\\\\App\\\\file.txt", "json": {"nested": true}}'
+			);`,
+
+			// JSON Row 3: More JSON edge cases
+			`INSERT INTO test_schema.json_edge_cases (
+				json_with_escaped_chars,
+				json_with_unicode,
+				json_nested,
+				json_array,
+				json_with_null,
+				json_empty,
+				json_formatted,
+				json_with_numbers,
+				json_complex
+			) VALUES
+			(
+				'{"key": "line1\nline2"}',
+				'{"arabic": "مرحبا", "chinese": "你好"}',
+				'{"a": {"b": {"c": {"d": "value"}}}}',
+				'[[1,2],[3,4]]',
+				'{"result": null}',
+				'{"empty": {}}',
+				'{"text": "simple value"}',
+				'{"zero": 0, "negative": -42, "positive": 42}',
+				'{"name": "test", "value": 123}'
+			);`,
+
+			// ENUM Row 1: Basic ENUM values
+			`INSERT INTO test_schema.enum_edge_cases (
+				status_simple,
+				status_with_quote,
+				status_with_special,
+				status_unicode,
+				status_array,
+				status_null
+			) VALUES
+			(
+				'active',
+				'enum''value',
+				'with space',
+				'café',
+				ARRAY['active', 'pending', 'inactive']::test_schema.status_enum[],
+				'pending'
+			);`,
+
+			// ENUM Row 2: Special character ENUM values
+			`INSERT INTO test_schema.enum_edge_cases (
+				status_simple,
+				status_with_quote,
+				status_with_special,
+				status_unicode,
+				status_array,
+				status_null
+			) VALUES
+			(
+				'inactive',
+				'enum"value',
+				'with-dash',
+				'🎉emoji',
+				ARRAY['enum''value', 'with space', 'café']::test_schema.status_enum[],
+				NULL
+			);`,
+
+			// ENUM Row 3: More ENUM edge cases
+			`INSERT INTO test_schema.enum_edge_cases (
+				status_simple,
+				status_with_quote,
+				status_with_special,
+				status_unicode,
+				status_array,
+				status_null
+			) VALUES
+			(
+				'pending',
+				'enum\value',
+				'with_underscore',
+				'123start',
+				ARRAY['🎉emoji', '123start', 'enum\value']::test_schema.status_enum[],
+				'active'
+			);`,
+
+			// BYTES Row 1: Basic BYTEA edge cases
+			`INSERT INTO test_schema.bytes_edge_cases (
+				bytes_empty,
+				bytes_single,
+				bytes_ascii,
+				bytes_null_byte,
+				bytes_all_zeros,
+				bytes_all_ff,
+				bytes_special_chars,
+				bytes_mixed
+			) VALUES
+			(
+				E'\\x',
+				E'\\x41',
+				E'\\x414243',
+				E'\\x00',
+				E'\\x000000',
+				E'\\xffffff',
+				E'\\x275c0a',
+				E'\\x48656c6c6f'
+			);`,
+
+			// BYTES Row 2: More BYTEA patterns
+			`INSERT INTO test_schema.bytes_edge_cases (
+				bytes_empty,
+				bytes_single,
+				bytes_ascii,
+				bytes_null_byte,
+				bytes_all_zeros,
+				bytes_all_ff,
+				bytes_special_chars,
+				bytes_mixed
+			) VALUES
+			(
+				E'\\x',
+				E'\\xff',
+				E'\\x54657374',
+				E'\\x00000000',
+				E'\\x0000000000',
+				E'\\xffffffffff',
+				E'\\x090d',
+				E'\\xdeadbeef'
+			);`,
+
+			// BYTES Row 3: Special BYTEA patterns
+			`INSERT INTO test_schema.bytes_edge_cases (
+				bytes_empty,
+				bytes_single,
+				bytes_ascii,
+				bytes_null_byte,
+				bytes_all_zeros,
+				bytes_all_ff,
+				bytes_special_chars,
+				bytes_mixed
+			) VALUES
+			(
+				NULL,
+				E'\\x7f',
+				E'\\x646174',
+				E'\\x007465737400',
+				E'\\x00',
+				E'\\xff',
+				E'\\x010203',
+				E'\\xcafebabe'
+			);`,
+
+			// DATETIME Row 1: Epoch and basic dates
+			`INSERT INTO test_schema.datetime_edge_cases (
+				date_epoch,
+				date_negative,
+				date_future,
+				timestamp_epoch,
+				timestamp_negative,
+				timestamp_with_tz,
+				time_midnight,
+				time_noon,
+				time_with_micro
+			) VALUES
+			(
+				'1970-01-01',
+				'1969-12-31',
+				'2022-01-01',
+				'1970-01-01 00:00:00',
+				'1969-12-31 00:00:00',
+				'2022-01-01 12:00:00+00',
+				'00:00:00',
+				'12:00:00',
+				'12:30:45.123456'
+			);`,
+
+			// DATETIME Row 2: Edge case dates
+			`INSERT INTO test_schema.datetime_edge_cases (
+				date_epoch,
+				date_negative,
+				date_future,
+				timestamp_epoch,
+				timestamp_negative,
+				timestamp_with_tz,
+				time_midnight,
+				time_noon,
+				time_with_micro
+			) VALUES
+			(
+				'2000-01-01',
+				'1900-01-01',
+				'2099-12-31',
+				'2000-01-01 00:00:00',
+				'1900-01-01 12:30:45',
+				'2099-12-31 23:59:59+00',
+				'23:59:59',
+				'06:30:00',
+				'00:00:00.000001'
+			);`,
+
+			// DATETIME Row 3: Various dates and times
+			`INSERT INTO test_schema.datetime_edge_cases (
+				date_epoch,
+				date_negative,
+				date_future,
+				timestamp_epoch,
+				timestamp_negative,
+				timestamp_with_tz,
+				time_midnight,
+				time_noon,
+				time_with_micro
+			) VALUES
+			(
+				'2024-06-15',
+				'1950-06-15',
+				'2050-06-15',
+				'2024-06-15 14:30:00',
+				'1950-06-15 08:15:30',
+				'2050-06-15 18:45:00-05',
+				'18:45:30',
+				'09:15:00',
+				'23:59:59.999999'
+			);`,
+
+			// UUID/LTREE Row 1: Standard values
+			`INSERT INTO test_schema.uuid_ltree_edge_cases (
+				uuid_standard,
+				uuid_all_zeros,
+				uuid_all_fs,
+				uuid_random,
+				ltree_simple,
+				ltree_quoted,
+				ltree_deep,
+				ltree_single
+			) VALUES
+			(
+				'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+				'00000000-0000-0000-0000-000000000000',
+				'ffffffff-ffff-ffff-ffff-ffffffffffff',
+				'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+				'Top.Science.Astronomy',
+				'Top.ScienceFiction.Books',
+				'Top.Science.Astronomy.Stars.Sun',
+				'Top'
+			);`,
+
+			// UUID/LTREE Row 2: More values
+			`INSERT INTO test_schema.uuid_ltree_edge_cases (
+				uuid_standard,
+				uuid_all_zeros,
+				uuid_all_fs,
+				uuid_random,
+				ltree_simple,
+				ltree_quoted,
+				ltree_deep,
+				ltree_single
+			) VALUES
+			(
+				'550e8400-e29b-41d4-a716-446655440000',
+				'00000000-0000-0000-0000-000000000001',
+				'fffffffe-ffff-ffff-ffff-ffffffffffff',
+				'6ba7b810-9dad-11d1-80b4-00c04fd430c8',
+				'Animals.Mammals.Primates',
+				'Products.HomeAppliances.Kitchen',
+				'Geography.Continents.Europe.Countries.France.Cities.Paris',
+				'Root'
+			);`,
+
+			// UUID/LTREE Row 3: Edge cases
+			`INSERT INTO test_schema.uuid_ltree_edge_cases (
+				uuid_standard,
+				uuid_all_zeros,
+				uuid_all_fs,
+				uuid_random,
+				ltree_simple,
+				ltree_quoted,
+				ltree_deep,
+				ltree_single
+			) VALUES
+			(
+				'123e4567-e89b-12d3-a456-426614174000',
+				'10000000-0000-0000-0000-000000000000',
+				'efffffff-ffff-ffff-ffff-ffffffffffff',
+				'00000000-0000-0000-0000-000000000000',
+				'Data.Users.Profiles',
+				'Items.SpecialCharacters.Test',
+				'A.B.C.D.E.F.G.H.I.J',
+				'Leaf'
+			);`,
+
+			// MAP Row 1: Basic HSTORE values
+			`INSERT INTO test_schema.map_edge_cases (
+				map_simple,
+				map_with_arrow,
+				map_with_quotes,
+				map_empty_values,
+				map_multiple_pairs,
+				map_special_chars
+			) VALUES
+			(
+				'"key1" => "value1"',
+				'"key=>val" => "test"',
+				'"key" => "it''s"',
+				'"" => "value"',
+				'"a" => "1", "b" => "2", "c" => "3"',
+				'"special" => "test@email.com"'
+			);`,
+
+			// MAP Row 2: More HSTORE patterns
+			`INSERT INTO test_schema.map_edge_cases (
+				map_simple,
+				map_with_arrow,
+				map_with_quotes,
+				map_empty_values,
+				map_multiple_pairs,
+				map_special_chars
+			) VALUES
+			(
+				'"name" => "John"',
+				'"key" => "val=>test"',
+				'"name" => "O''Reilly"',
+				'"key" => ""',
+				'"x" => "10", "y" => "20", "z" => "30"',
+				'"path" => "C:\\Users\\test"'
+			);`,
+
+			// MAP Row 3: Edge case HSTORE
+			`INSERT INTO test_schema.map_edge_cases (
+				map_simple,
+				map_with_arrow,
+				map_with_quotes,
+				map_empty_values,
+				map_multiple_pairs,
+				map_special_chars
+			) VALUES
+			(
+				'"status" => "active"',
+				'"arrow" => "=>"',
+				'"text" => "It''s a test"',
+				'"empty" => ""',
+				'"one" => "1", "two" => "2"',
+				'"data" => "value"'
+			);`,
+
+			// INTERVAL Row 1: Positive intervals
+			`INSERT INTO test_schema.interval_edge_cases (
+				interval_positive,
+				interval_negative,
+				interval_zero,
+				interval_years,
+				interval_days,
+				interval_hours,
+				interval_mixed
+			) VALUES
+			(
+				'1 year 2 months 3 days'::interval,
+				'-1 year -2 months'::interval,
+				'00:00:00'::interval,
+				'5 years'::interval,
+				'100 days'::interval,
+				'12:30:45'::interval,
+				'1 year 6 months 15 days 8 hours 30 minutes'::interval
+			);`,
+
+			// INTERVAL Row 2: Various intervals
+			`INSERT INTO test_schema.interval_edge_cases (
+				interval_positive,
+				interval_negative,
+				interval_zero,
+				interval_years,
+				interval_days,
+				interval_hours,
+				interval_mixed
+			) VALUES
+			(
+				'3 months 7 days'::interval,
+				'-5 days -3 hours'::interval,
+				'0 seconds'::interval,
+				'10 years'::interval,
+				'365 days'::interval,
+				'23:59:59'::interval,
+				'2 years 3 months 10 days 5 hours'::interval
+			);`,
+
+			// INTERVAL Row 3: Edge case intervals
+			`INSERT INTO test_schema.interval_edge_cases (
+				interval_positive,
+				interval_negative,
+				interval_zero,
+				interval_years,
+				interval_days,
+				interval_hours,
+				interval_mixed
+			) VALUES
+			(
+				'6 months'::interval,
+				'-1 month -1 day'::interval,
+				'0'::interval,
+				'1 year'::interval,
+				'1 day'::interval,
+				'1:00:00'::interval,
+				'1 month 1 day 1 hour 1 minute 1 second'::interval
+			);`,
+
+			// ZONEDTIMESTAMP Row 1: UTC and various timezones
+			`INSERT INTO test_schema.zonedtimestamp_edge_cases (
+				ts_utc,
+				ts_positive_offset,
+				ts_negative_offset,
+				ts_epoch,
+				ts_future,
+				ts_midnight
+			) VALUES
+			(
+				'2024-01-01 00:00:00+00'::timestamptz,
+				'2024-06-15 12:30:45+05:30'::timestamptz,
+				'2024-12-25 18:00:00-08:00'::timestamptz,
+				'1970-01-01 00:00:00+00'::timestamptz,
+				'2050-12-31 23:59:59+00'::timestamptz,
+				'2024-01-01 00:00:00+00'::timestamptz
+			);`,
+
+			// ZONEDTIMESTAMP Row 2: Different timezone offsets
+			`INSERT INTO test_schema.zonedtimestamp_edge_cases (
+				ts_utc,
+				ts_positive_offset,
+				ts_negative_offset,
+				ts_epoch,
+				ts_future,
+				ts_midnight
+			) VALUES
+			(
+				'2023-07-04 12:00:00+00'::timestamptz,
+				'2023-03-15 08:30:00+01:00'::timestamptz,
+				'2023-11-11 22:45:30-05:00'::timestamptz,
+				'1969-12-31 23:59:59+00'::timestamptz,
+				'2100-01-01 00:00:00+00'::timestamptz,
+				'2023-06-21 00:00:00+00'::timestamptz
+			);`,
+
+			// ZONEDTIMESTAMP Row 3: Edge case timezones
+			`INSERT INTO test_schema.zonedtimestamp_edge_cases (
+				ts_utc,
+				ts_positive_offset,
+				ts_negative_offset,
+				ts_epoch,
+				ts_future,
+				ts_midnight
+			) VALUES
+			(
+				'2025-01-01 06:00:00+00'::timestamptz,
+				'2025-05-20 14:15:30+09:00'::timestamptz,
+				'2025-08-10 10:20:40-07:00'::timestamptz,
+				'1970-01-01 12:00:00+00'::timestamptz,
+				'2075-06-15 18:30:00+00'::timestamptz,
+				'2025-12-31 00:00:00+00'::timestamptz
+			);`,
+
+			// DECIMAL Row 1: Testing trailing zeros preservation
+			`INSERT INTO test_schema.decimal_edge_cases (
+				decimal_large,
+				decimal_negative,
+				decimal_zero,
+				decimal_high_precision,
+				decimal_scientific,
+				decimal_small
+			) VALUES
+			(
+				123456789.123456789,
+				-123.456,
+				0.00,
+				123.456789012345,
+				202020.292920000,
+				99.99
+			);`,
+
+			// DECIMAL Row 2: Testing repeating decimal patterns
+			`INSERT INTO test_schema.decimal_edge_cases (
+				decimal_large,
+				decimal_negative,
+				decimal_zero,
+				decimal_high_precision,
+				decimal_scientific,
+				decimal_small
+			) VALUES
+			(
+				987654321.987654321,
+				-999.999,
+				0,
+				999.999999999999999,
+				2.3232323,
+				-50.25
+			);`,
+
+			// DECIMAL Row 3: Edge case decimals
+			`INSERT INTO test_schema.decimal_edge_cases (
+				decimal_large,
+				decimal_negative,
+				decimal_zero,
+				decimal_high_precision,
+				decimal_scientific,
+				decimal_small
+			) VALUES
+			(
+				1.000000001,
+				-0.001,
+				0.0,
+				0.000000000000001,
+				99999999999.999,
+				12.34
+			);`,
+		},
+		SourceDeltaSQL: []string{
+			// INSERT #1: Streaming with Unicode separators (TODO 6)
+			`INSERT INTO test_schema.string_edge_cases (
+				text_with_backslash,
+				text_with_quote,
+				text_with_newline,
+				text_with_tab,
+				text_with_mixed,
+				text_windows_path,
+				text_sql_injection,
+				text_unicode,
+				text_empty,
+				text_null_string
+			) VALUES
+			(
+				'streaming\path',                       -- backslash path
+				'streaming''s test',                    -- single quote
+				'first' || E'\u2028' || 'second',       -- TODO 6: Unicode line separator in streaming
+				'word' || E'\u200B' || 'word',          -- TODO 6: Zero-width space in streaming
+				'text' || E'\u00A0' || 'text',          -- TODO 6: Non-breaking space in streaming
+				'D:\streaming\path',                    -- Windows path
+				'''; DELETE FROM test',                 -- SQL injection
+				'streaming 数据',                        -- Chinese
+				'',                                     -- empty
+				'NULL'                                  -- NULL literal
+			);`,
+
+			// UPDATE #1: Update backslash patterns
+			`UPDATE test_schema.string_edge_cases
+			SET text_with_backslash = 'updated: \x\y\z',
+			    text_with_quote = 'updated''s value'
+			WHERE id = 1;`,
+
+			// UPDATE #2: Update with consecutive quotes
+			`UPDATE test_schema.string_edge_cases
+			SET text_with_quote = 'O''''Reilly',
+			    text_sql_injection = '''; DROP TABLE users--'
+			WHERE id = 2;`,
+
+			// UPDATE #3: Test critical edge cases - backslash+quote, emoji, single space
+			`UPDATE test_schema.string_edge_cases
+			SET text_with_backslash = 'updated\''s test',
+			    text_unicode = '🎉 emoji test 日本',
+			    text_empty = ' '
+			WHERE id = 3;`,
+
+			// UPDATE #4: Test advanced Unicode patterns (TODOs 2-5)
+			`UPDATE test_schema.string_edge_cases
+			SET text_with_backslash = 'updated\path\数据',
+			    text_with_quote = 'Hello مرحبا world',
+			    text_with_newline = 'Mixed 世界 test 🌏',
+			    text_unicode = '👨‍👩‍👧‍👦 emoji family'
+			WHERE id = 2;`,
+
+			// UPDATE #5: Test Unicode separators in streaming (TODO 6)
+			`UPDATE test_schema.string_edge_cases
+			SET text_with_newline = 'updated' || E'\u2028' || 'line',
+			    text_with_tab = 'updated' || E'\u2029' || 'para',
+			    text_with_mixed = 'zero' || E'\u200B' || 'width',
+			    text_windows_path = 'nbsp' || E'\u00A0' || 'here'
+			WHERE id = 1;`,
+
+			// UPDATE #6: Test actual control chars in UPDATE (TODOs 7, 8, 9)
+			`UPDATE test_schema.string_edge_cases
+			SET text_with_newline = E'new\nline\ntest',
+			    text_with_tab = E'new\ttab\ttest',
+			    text_with_mixed = E'It''s "test" with \n\t\r',
+			    text_empty = E' \t\n\r '
+			WHERE id = 2;`,
+
+			// INSERT #2: Test actual control chars in streaming (TODOs 7, 8)
+			`INSERT INTO test_schema.string_edge_cases (
+				text_with_backslash,
+				text_with_quote,
+				text_with_newline,
+				text_with_tab,
+				text_with_mixed,
+				text_windows_path,
+				text_sql_injection,
+				text_unicode,
+				text_empty,
+				text_null_string
+			) VALUES
+			(
+				'another\path\to\文件',                  -- TODO 2: Unicode with backslash (Chinese)
+				'café''s specialty Ñoño',               -- TODO 1: Unicode with single quote
+				E'first\nsecond\nthird',                -- TODO 7: Multiple actual newlines (E-string)
+				E'a\tb\tc\td',                          -- TODO 7: Multiple actual tabs (E-string)
+				E'mix: ''"\\\n\t\r',                    -- TODO 8: All special chars with actual control chars
+				'C:\path',                              -- Windows path
+				'--sql',                                -- SQL comment
+				'مرحبا Hello مرحبا',                     -- TODO 5: Bidirectional text
+				E'\n',                                  -- TODO 9: Newline only
+				'NULL'                                  -- NULL literal
+			);`,
+
+			// DELETE #1: Test deletion during streaming
+			`DELETE FROM test_schema.string_edge_cases WHERE id = 3;`,
+
+			// JSON INSERT #1: Streaming JSON with special characters
+			`INSERT INTO test_schema.json_edge_cases (
+				json_with_escaped_chars,
+				json_with_unicode,
+				json_nested,
+				json_array,
+				json_with_null,
+				json_empty,
+				json_formatted,
+				json_with_numbers,
+				json_complex
+			) VALUES
+			(
+				'{"streaming": "value with backslash\\\\ test"}',
+				'{"stream": "数据流 🚀"}',
+				'{"new": {"nested": "stream"}}',
+				'["stream1", "stream2"]',
+				'{"stream": null}',
+				'{}',
+				'{"stream": "formatted"}',
+				'{"count": 999}',
+				'{"streaming": true, "data": "test"}'
+			);`,
+
+			// JSON UPDATE #1: Update with complex JSON
+			`UPDATE test_schema.json_edge_cases
+			SET json_with_escaped_chars = '{"updated": "simple value"}',
+			    json_with_unicode = '{"updated": "café 世界 🎉"}',
+			    json_nested = '{"updated": {"deep": {"nesting": "value"}}}'
+			WHERE id = 1;`,
+
+			// JSON UPDATE #2: Update with empty and null values
+			`UPDATE test_schema.json_edge_cases
+			SET json_empty = '{"now": "not_empty"}',
+			    json_with_null = '{"was": null, "now": "value"}',
+			    json_array = '[1, 2, 3, 4, 5]'
+			WHERE id = 2;`,
+
+			// JSON DELETE #1: Test JSON row deletion
+			`DELETE FROM test_schema.json_edge_cases WHERE id = 3;`,
+
+			// ENUM INSERT #1: Streaming ENUM with special characters
+			`INSERT INTO test_schema.enum_edge_cases (
+				status_simple,
+				status_with_quote,
+				status_with_special,
+				status_unicode,
+				status_array,
+				status_null
+			) VALUES
+			(
+				'active',
+				'enum''value',
+				'with-dash',
+				'🎉emoji',
+				ARRAY['active', 'café', '123start']::test_schema.status_enum[],
+				NULL
+			);`,
+
+			// ENUM UPDATE #1: Update ENUM values
+			`UPDATE test_schema.enum_edge_cases
+			SET status_simple = 'pending',
+			    status_with_quote = 'enum"value',
+			    status_unicode = '123start'
+			WHERE id = 1;`,
+
+			// ENUM UPDATE #2: Update ENUM array
+			`UPDATE test_schema.enum_edge_cases
+			SET status_array = ARRAY['enum\value', 'with_underscore', 'with space']::test_schema.status_enum[],
+			    status_null = 'inactive'
+			WHERE id = 2;`,
+
+			// ENUM DELETE #1: Test ENUM row deletion
+			`DELETE FROM test_schema.enum_edge_cases WHERE id = 3;`,
+
+			// BYTES INSERT #1: Streaming BYTEA with special patterns
+			`INSERT INTO test_schema.bytes_edge_cases (
+				bytes_empty,
+				bytes_single,
+				bytes_ascii,
+				bytes_null_byte,
+				bytes_all_zeros,
+				bytes_all_ff,
+				bytes_special_chars,
+				bytes_mixed
+			) VALUES
+			(
+				E'\\x',
+				E'\\x42',
+				E'\\x53747265616d',
+				E'\\x0000',
+				E'\\x00000000',
+				E'\\xffffffff',
+				E'\\x5c27',
+				E'\\x0123456789abcdef'
+			);`,
+
+			// BYTES UPDATE #1: Update BYTEA values
+			`UPDATE test_schema.bytes_edge_cases
+			SET bytes_single = E'\\xaa',
+			    bytes_ascii = E'\\x557064617465',
+			    bytes_mixed = E'\\xfeedface'
+			WHERE id = 1;`,
+
+			// BYTES UPDATE #2: Update with null bytes and special patterns
+			`UPDATE test_schema.bytes_edge_cases
+			SET bytes_null_byte = E'\\x00ff00ff',
+			    bytes_all_zeros = E'\\x0000',
+			    bytes_all_ff = E'\\xffff'
+			WHERE id = 2;`,
+
+			// BYTES DELETE #1: Test BYTEA row deletion
+			`DELETE FROM test_schema.bytes_edge_cases WHERE id = 3;`,
+
+			// DATETIME INSERT #1: Streaming datetime values
+			`INSERT INTO test_schema.datetime_edge_cases (
+				date_epoch,
+				date_negative,
+				date_future,
+				timestamp_epoch,
+				timestamp_negative,
+				timestamp_with_tz,
+				time_midnight,
+				time_noon,
+				time_with_micro
+			) VALUES
+			(
+				'2023-01-15',
+				'1980-03-20',
+				'2030-08-10',
+				'2023-01-15 10:20:30',
+				'1980-03-20 15:45:00',
+				'2030-08-10 20:00:00+02',
+				'10:20:30',
+				'15:45:00',
+				'08:15:30.654321'
+			);`,
+
+			// DATETIME UPDATE #1: Update datetime values
+			`UPDATE test_schema.datetime_edge_cases
+			SET date_epoch = '2025-12-25',
+			    timestamp_epoch = '2025-12-25 18:30:00',
+			    time_midnight = '01:02:03'
+			WHERE id = 1;`,
+
+			// DATETIME UPDATE #2: Update with edge case times
+			`UPDATE test_schema.datetime_edge_cases
+			SET date_future = '2099-01-01',
+			    timestamp_with_tz = '2099-01-01 00:00:00-08',
+			    time_with_micro = '12:34:56.789012'
+			WHERE id = 2;`,
+
+			// DATETIME DELETE #1: Test datetime row deletion
+			`DELETE FROM test_schema.datetime_edge_cases WHERE id = 3;`,
+
+			// UUID/LTREE INSERT #1: Streaming UUID/LTREE values
+			`INSERT INTO test_schema.uuid_ltree_edge_cases (
+				uuid_standard,
+				uuid_all_zeros,
+				uuid_all_fs,
+				uuid_random,
+				ltree_simple,
+				ltree_quoted,
+				ltree_deep,
+				ltree_single
+			) VALUES
+			(
+				'7c9e6679-7425-40de-944b-e07fc1f90ae7',
+				'00000000-0000-0000-0000-000000000002',
+				'fffffffd-ffff-ffff-ffff-ffffffffffff',
+				'9b2c8f5d-1234-5678-9abc-def012345678',
+				'Stream.Data.Live',
+				'Test.StreamingPath.Values',
+				'Deep.Path.To.Stream.Data.Node',
+				'Stream'
+			);`,
+
+			// UUID/LTREE UPDATE #1: Update UUID/LTREE values
+			`UPDATE test_schema.uuid_ltree_edge_cases
+			SET uuid_standard = 'c2a9c8d0-1234-5678-9abc-def123456789',
+			    ltree_simple = 'Updated.Path.Node'
+			WHERE id = 1;`,
+
+			// UUID/LTREE UPDATE #2: Update with edge case values
+			`UPDATE test_schema.uuid_ltree_edge_cases
+			SET uuid_all_zeros = '00000000-0000-0000-0000-000000000003',
+			    ltree_deep = 'Very.Deep.Path.With.Many.Levels.To.Test'
+			WHERE id = 2;`,
+
+			// UUID/LTREE DELETE #1: Test UUID/LTREE row deletion
+			`DELETE FROM test_schema.uuid_ltree_edge_cases WHERE id = 3;`,
+
+			// MAP INSERT #1: Streaming HSTORE values
+			`INSERT INTO test_schema.map_edge_cases (
+				map_simple,
+				map_with_arrow,
+				map_with_quotes,
+				map_empty_values,
+				map_multiple_pairs,
+				map_special_chars
+			) VALUES
+			(
+				'"stream" => "data"',
+				'"test=>key" => "value"',
+				'"quote" => "test''s"',
+				'"" => "empty"',
+				'"s1" => "v1", "s2" => "v2"',
+				'"special" => "data"'
+			);`,
+
+			// MAP UPDATE #1: Update HSTORE values
+			`UPDATE test_schema.map_edge_cases
+			SET map_simple = '"updated" => "value"',
+			    map_with_arrow = '"arrow=>test" => "updated"'
+			WHERE id = 1;`,
+
+			// MAP UPDATE #2: Update with special characters
+			`UPDATE test_schema.map_edge_cases
+			SET map_with_quotes = '"name" => "O''Brien"',
+			    map_multiple_pairs = '"x" => "100", "y" => "200"'
+			WHERE id = 2;`,
+
+			// MAP DELETE #1: Test HSTORE row deletion
+			`DELETE FROM test_schema.map_edge_cases WHERE id = 3;`,
+
+			// INTERVAL INSERT #1: Streaming INTERVAL values
+			`INSERT INTO test_schema.interval_edge_cases (
+				interval_positive,
+				interval_negative,
+				interval_zero,
+				interval_years,
+				interval_days,
+				interval_hours,
+				interval_mixed
+			) VALUES
+			(
+				'2 years 5 months'::interval,
+				'-10 days'::interval,
+				'0 minutes'::interval,
+				'50 years'::interval,
+				'7 days'::interval,
+				'6:15:30'::interval,
+				'3 years 2 months 20 days 10 hours'::interval
+			);`,
+
+			// INTERVAL UPDATE #1: Update INTERVAL values
+			`UPDATE test_schema.interval_edge_cases
+			SET interval_positive = '8 months 15 days'::interval,
+			    interval_years = '25 years'::interval
+			WHERE id = 1;`,
+
+			// INTERVAL UPDATE #2: Update with negative and zero
+			`UPDATE test_schema.interval_edge_cases
+			SET interval_negative = '-3 months -7 days'::interval,
+			    interval_mixed = '5 months 10 days 2 hours 30 minutes'::interval
+			WHERE id = 2;`,
+
+			// INTERVAL DELETE #1: Test INTERVAL row deletion
+			`DELETE FROM test_schema.interval_edge_cases WHERE id = 3;`,
+
+			// ZONEDTIMESTAMP INSERT #1: Streaming TIMESTAMPTZ values
+			`INSERT INTO test_schema.zonedtimestamp_edge_cases (
+				ts_utc,
+				ts_positive_offset,
+				ts_negative_offset,
+				ts_epoch,
+				ts_future,
+				ts_midnight
+			) VALUES
+			(
+				'2024-08-20 15:45:30+00'::timestamptz,
+				'2024-09-10 09:15:00+03:00'::timestamptz,
+				'2024-10-05 20:30:15-06:00'::timestamptz,
+				'1970-01-02 00:00:00+00'::timestamptz,
+				'2060-05-15 12:00:00+00'::timestamptz,
+				'2024-07-01 00:00:00+00'::timestamptz
+			);`,
+
+			// ZONEDTIMESTAMP UPDATE #1: Update TIMESTAMPTZ values
+			`UPDATE test_schema.zonedtimestamp_edge_cases
+			SET ts_utc = '2024-02-14 10:30:00+00'::timestamptz,
+			    ts_positive_offset = '2024-03-20 16:45:00+08:00'::timestamptz
+			WHERE id = 1;`,
+
+			// ZONEDTIMESTAMP UPDATE #2: Update with different timezones
+			`UPDATE test_schema.zonedtimestamp_edge_cases
+			SET ts_negative_offset = '2023-09-30 11:11:11-04:00'::timestamptz,
+			    ts_future = '2090-12-31 23:59:59+00'::timestamptz
+			WHERE id = 2;`,
+
+			// ZONEDTIMESTAMP DELETE #1: Test TIMESTAMPTZ row deletion
+			`DELETE FROM test_schema.zonedtimestamp_edge_cases WHERE id = 3;`,
+
+			// DECIMAL INSERT #1: Streaming with trailing zeros and precision
+			`INSERT INTO test_schema.decimal_edge_cases (
+				decimal_large,
+				decimal_negative,
+				decimal_zero,
+				decimal_high_precision,
+				decimal_scientific,
+				decimal_small
+			) VALUES
+			(
+				555555555.555555555,
+				-777.777,
+				0.000,
+				888.888888888888888,
+				100.500000,
+				75.50
+			);`,
+
+			// DECIMAL UPDATE #1: Update DECIMAL values
+			`UPDATE test_schema.decimal_edge_cases
+			SET decimal_large = 999999999.999999999,
+			    decimal_negative = -1000.001
+			WHERE id = 1;`,
+
+			// DECIMAL UPDATE #2: Update with repeating decimals and trailing zeros
+			`UPDATE test_schema.decimal_edge_cases
+			SET decimal_high_precision = 0.123456789012345,
+			    decimal_scientific = 3.1415926000
+			WHERE id = 2;`,
+
+			// DECIMAL DELETE #1: Test DECIMAL row deletion
+			`DELETE FROM test_schema.decimal_edge_cases WHERE id = 3;`,
+		},
+		CleanupSQL: []string{
+			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
+		},
+	})
+
+	defer lm.Cleanup()
+
+	t.Log("=== Setting up containers ===")
+	err := lm.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+
+	t.Log("=== Setting up schema ===")
+	err = lm.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
+
+	t.Log("=== Starting export data ===")
+	err = lm.StartExportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start export data")
+
+	t.Log("=== Starting import data ===")
+	err = lm.StartImportData(true, map[string]string{
+		"--log-level": "debug",
+	})
+	testutils.FatalIfError(t, err, "failed to start import data")
+
+	t.Log("=== Waiting for snapshot complete (10 datatypes × 3 rows = 30 rows) ===")
+	err = lm.WaitForSnapshotComplete(map[string]int64{
+		`test_schema."string_edge_cases"`:         3, // 3 rows with STRING edge cases
+		`test_schema."json_edge_cases"`:           3, // 3 rows with JSON edge cases
+		`test_schema."enum_edge_cases"`:           3, // 3 rows with ENUM edge cases
+		`test_schema."bytes_edge_cases"`:          3, // 3 rows with BYTES edge cases
+		`test_schema."datetime_edge_cases"`:       3, // 3 rows with DATETIME edge cases
+		`test_schema."uuid_ltree_edge_cases"`:     3, // 3 rows with UUID/LTREE edge cases
+		`test_schema."map_edge_cases"`:            3, // 3 rows with MAP edge cases
+		`test_schema."interval_edge_cases"`:       3, // 3 rows with INTERVAL edge cases
+		`test_schema."zonedtimestamp_edge_cases"`: 3, // 3 rows with ZONEDTIMESTAMP edge cases
+		`test_schema."decimal_edge_cases"`:        3, // 3 rows with DECIMAL edge cases
+	}, 120) // 1 minute should be plenty for small rows
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+
+	t.Log("=== Validating snapshot data ===")
+	err = lm.ValidateDataConsistency([]string{`test_schema."string_edge_cases"`, `test_schema."json_edge_cases"`, `test_schema."enum_edge_cases"`, `test_schema."bytes_edge_cases"`, `test_schema."datetime_edge_cases"`, `test_schema."uuid_ltree_edge_cases"`, `test_schema."map_edge_cases"`, `test_schema."interval_edge_cases"`, `test_schema."zonedtimestamp_edge_cases"`, `test_schema."decimal_edge_cases"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate snapshot data consistency")
+
+	t.Log("=== Executing source delta (streaming operations) ===")
+	err = lm.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
+
+	t.Log("=== Waiting for streaming complete (10 datatypes: STRING: 2/6/1, Others: 1/2/1) ===")
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`test_schema."string_edge_cases"`: {
+			Inserts: 2, // 2 INSERT operations: basic + actual control chars
+			Updates: 6, // 6 UPDATE operations: backslash, consecutive quotes, critical edge cases, advanced Unicode, Unicode separators, actual control chars
+			Deletes: 1, // 1 DELETE operation: delete row 3
+		},
+		`test_schema."json_edge_cases"`: {
+			Inserts: 1, // 1 INSERT operation: JSON with special characters
+			Updates: 2, // 2 UPDATE operations: complex JSON, empty/null updates
+			Deletes: 1, // 1 DELETE operation: delete JSON row 3
+		},
+		`test_schema."enum_edge_cases"`: {
+			Inserts: 1, // 1 INSERT operation: ENUM with special characters
+			Updates: 2, // 2 UPDATE operations: ENUM value updates, ENUM array updates
+			Deletes: 1, // 1 DELETE operation: delete ENUM row 3
+		},
+		`test_schema."bytes_edge_cases"`: {
+			Inserts: 1, // 1 INSERT operation: BYTES with special patterns
+			Updates: 2, // 2 UPDATE operations: BYTES value updates, null byte patterns
+			Deletes: 1, // 1 DELETE operation: delete BYTES row 3
+		},
+		`test_schema."datetime_edge_cases"`: {
+			Inserts: 1, // 1 INSERT operation: DATETIME with various dates/times
+			Updates: 2, // 2 UPDATE operations: date/timestamp updates, timezone updates
+			Deletes: 1, // 1 DELETE operation: delete DATETIME row 3
+		},
+		`test_schema."uuid_ltree_edge_cases"`: {
+			Inserts: 1, // 1 INSERT operation: UUID/LTREE with edge cases
+			Updates: 2, // 2 UPDATE operations: UUID updates, LTREE path updates
+			Deletes: 1, // 1 DELETE operation: delete UUID/LTREE row 3
+		},
+		`test_schema."map_edge_cases"`: {
+			Inserts: 1, // 1 INSERT operation: MAP/HSTORE with arrow operator and quotes
+			Updates: 2, // 2 UPDATE operations: MAP value updates, special character updates
+			Deletes: 1, // 1 DELETE operation: delete MAP row 3
+		},
+		`test_schema."interval_edge_cases"`: {
+			Inserts: 1, // 1 INSERT operation: INTERVAL with positive/negative/zero
+			Updates: 2, // 2 UPDATE operations: INTERVAL value updates, mixed intervals
+			Deletes: 1, // 1 DELETE operation: delete INTERVAL row 3
+		},
+		`test_schema."zonedtimestamp_edge_cases"`: {
+			Inserts: 1, // 1 INSERT operation: TIMESTAMPTZ with various timezones
+			Updates: 2, // 2 UPDATE operations: TIMESTAMPTZ value updates, timezone offset updates
+			Deletes: 1, // 1 DELETE operation: delete TIMESTAMPTZ row 3
+		},
+		`test_schema."decimal_edge_cases"`: {
+			Inserts: 1, // 1 INSERT operation: DECIMAL with large, negative, high precision
+			Updates: 2, // 2 UPDATE operations: DECIMAL value updates, precision updates
+			Deletes: 1, // 1 DELETE operation: delete DECIMAL row 3
+		},
+	}, 120, 1) // 1 minute timeout, 1 second poll interval
+	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
+
+	t.Log("=== Validating streaming data ===")
+	err = lm.ValidateDataConsistency([]string{`test_schema."string_edge_cases"`, `test_schema."json_edge_cases"`, `test_schema."enum_edge_cases"`, `test_schema."bytes_edge_cases"`, `test_schema."datetime_edge_cases"`, `test_schema."uuid_ltree_edge_cases"`, `test_schema."map_edge_cases"`, `test_schema."interval_edge_cases"`, `test_schema."zonedtimestamp_edge_cases"`, `test_schema."decimal_edge_cases"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate streaming data consistency")
+
+	t.Log("=== Initiating cutover ===")
+	err = lm.InitiateCutoverToTarget(false, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover")
+
+	t.Log("=== Waiting for cutover complete ===")
+	err = lm.WaitForCutoverComplete(60)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+
+	t.Log("=== Final validation ===")
+	err = lm.ValidateDataConsistency([]string{`test_schema."string_edge_cases"`, `test_schema."json_edge_cases"`, `test_schema."enum_edge_cases"`, `test_schema."bytes_edge_cases"`, `test_schema."datetime_edge_cases"`, `test_schema."uuid_ltree_edge_cases"`, `test_schema."map_edge_cases"`, `test_schema."interval_edge_cases"`, `test_schema."zonedtimestamp_edge_cases"`, `test_schema."decimal_edge_cases"`}, "id")
+	testutils.FatalIfError(t, err, "failed final data consistency check")
+}
