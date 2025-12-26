@@ -570,7 +570,7 @@ func addSpecificNonSensitiveContextForError(err error, anonymizer *anon.VoyagerA
 	addImportBatchErrorContext(err, context)
 	addPostgreSQLErrorContext(err, context)
 	addExecuteDDLErrorContext(err, anonymizer, context)
-	addStackTrace(err, context)
+	// addStackTrace(err, context)
 
 	return
 }
