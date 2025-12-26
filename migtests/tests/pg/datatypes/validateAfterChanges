@@ -46,6 +46,15 @@ BASE_EXPECTED_ROW_COUNT_FF = {
     'hstore_example': 27,
     'tsvector_table': 4,
     'enum_array_table': 4,
+    'composite_types': 4,
+	'composite_array_types': 4,
+	'domain_types': 5,
+	'domain_array_types': 5,
+	'range_types': 5,
+	'range_array_types': 5,
+	'extension_types': 5,
+	'extension_arrays': 5,
+	'audit_log': 2
 }
 
 # Replacement row counts when logical replication connector is used
@@ -53,6 +62,15 @@ LOGICAL_REPLICATION_ROW_OVERRIDES = {
     'hstore_example': 29,
     'tsvector_table': 5,
     'enum_array_table': 5,
+    'composite_types': 6,
+    'composite_array_types': 6,
+    'domain_types': 7,
+    'domain_array_types': 7,
+    'range_types': 7,
+    'range_array_types': 7,
+    'extension_types': 7,
+    'extension_arrays': 7,
+    'audit_log': 2,
 }
 
 EXPECTED_SUM_OF_COLUMN = {
@@ -148,6 +166,74 @@ EXPECTED_HSTORE_VALUES_LOGICAL_FF_FB = [
     '"new_key"=>"new_val", "{\\"key1=value1, key2=value2\\"}"=>"{\\"key1=value1, key2={\\"key1=value1, key2=value2\\"}\\"}"'
 	]
 
+EXPECTED_COMPOSITE_TYPES_VALUES = ['(City1I,"Street 1I",1)', '(City2I,"Street 2I",2)', '(City3,"Street 3",3)', '(UpdatedCity,UpdatedStreet,99999)']
+
+EXPECTED_COMPOSITE_TYPES_VALUES_LOGICAL_FF_FB = ['(City2I,"Street 2I",2)', '(UpdatedCity,UpdatedStreet,99999)', '(City4,"Street 4",4)', '(City5,"Street 5",5)', '(City6,"Street 6",6)']
+
+EXPECTED_COMPOSITE_ARRAY_TYPES_VALUES = [
+    '{"(CityA1I,\\"StreetA 1I\\",1)","(CityB1I,\\"StreetB 1I\\",2)"}',
+    '{"(CityA2I,\\"StreetA 2I\\",2)","(CityB2I,\\"StreetB 2I\\",3)"}',
+    '{"(CityA2,\\"StreetA 2\\",2)","(CityB2,\\"StreetB 2\\",3)"}',
+    '{"(UpdatedCity1,UpdatedStreet1,11111)","(UpdatedCity2,UpdatedStreet2,22222)"}',
+]
+
+EXPECTED_COMPOSITE_ARRAY_TYPES_VALUES_LOGICAL_FF_FB = [
+    '{"(CityA2I,\\"StreetA 2I\\",2)","(CityB2I,\\"StreetB 2I\\",3)"}',
+    '{"(CityA2,\\"StreetA 2\\",2)","(CityB2,\\"StreetB 2\\",3)"}',
+    '{"(UpdatedCity1,UpdatedStreet1,11111)","(UpdatedCity2,UpdatedStreet2,22222)"}',
+    '{"(CityA5,\\"StreetA 5\\",5)","(CityB5,\\"StreetB 5\\",6)"}',
+    '{"(CityA6,\\"StreetA 6\\",6)","(CityB6,\\"StreetB 6\\",7)"}',
+    '{"(UpdatedCity4,UpdatedStreet4,44444)","(UpdatedCity5,UpdatedStreet5,55555)"}',
+]
+
+EXPECTED_DOMAIN_TYPES_SSN_VALUES = ['001-00-0001', '002-00-0002', '003-00-0003', '003-00-0006', '123-45-6789']
+EXPECTED_DOMAIN_TYPES_EMAIL_VALUES = ['user1@example.com', 'user2@example.com', 'user3@example.com', 'user6@example.com', 'updated@example.com']
+EXPECTED_DOMAIN_TYPES_RATING_VALUES = [1, 2, 3, 5, 5]
+EXPECTED_DOMAIN_TYPES_PREFS_VALUES = ["{'theme': 'dark', 'version': '1'}", "{'theme': 'dark', 'version': '2'}", "{'theme': 'dark', 'version': '3'}", "{'theme': 'dark', 'version': '6'}", "{'theme': 'light', 'version': 'updated'}"]
+
+EXPECTED_DOMAIN_TYPES_SSN_VALUES_LOGICAL_FF_FB = ['001-00-0001', '002-00-0002', '003-00-0003', '003-00-0006', '123-45-6789', '003-00-0009', '123-45-6789']
+EXPECTED_DOMAIN_TYPES_EMAIL_VALUES_LOGICAL_FF_FB = ['user1@example.com', 'user2@example.com', 'user3@example.com', 'user6@example.com', 'updated@example.com', 'user9@example.com', 'updated@example.com']
+EXPECTED_DOMAIN_TYPES_RATING_VALUES_LOGICAL_FF_FB = [1, 2, 3, 5, 5, 5, 5]
+EXPECTED_DOMAIN_TYPES_PREFS_VALUES_LOGICAL_FF_FB = ["{'theme': 'dark', 'version': '1'}", "{'theme': 'dark', 'version': '2'}", "{'theme': 'dark', 'version': '3'}", "{'theme': 'dark', 'version': '6'}", "{'theme': 'light', 'version': 'updated'}", "{'theme': 'dark', 'version': '9'}", "{'theme': 'light', 'version': 'updated'}"]
+
+EXPECTED_DOMAIN_ARRAY_TYPES_SSN_VALUES = ['{123-45-0001,987-65-0001}', '{123-45-0002,987-65-0002}', '{123-45-0003,987-65-0003}', '{123-45-0006,987-65-0006}', '{111-22-3333,444-55-6666}']
+EXPECTED_DOMAIN_ARRAY_TYPES_PHONE_VALUES = ['{+91123456701,+91987654301}', '{+91123456702,+91987654302}', '{+91123456703,+91987654303}', '{+91123456706,+91987654306}', '{+911111111111,+922222222222}']
+EXPECTED_DOMAIN_ARRAY_TYPES_NAME_VALUES = ['{"ABC DEF","GHI JKL"}', '{"MNO PQR","STU VWX"}', '{"ABC XYZ","DEF ABC"}', '{"ABCD XYZ","DEFG ABC"}', '{"Updated Person","Another Update"}']
+
+EXPECTED_DOMAIN_ARRAY_TYPES_SSN_VALUES_LOGICAL_FF_FB = ['{123-45-0001,987-65-0001}', '{123-45-0002,987-65-0002}', '{123-45-0003,987-65-0003}', '{123-45-0006,987-65-0006}', '{111-22-3333,444-55-6666}', '{123-45-0009,987-65-0009}', '{111-22-3333,444-55-6666}']
+EXPECTED_DOMAIN_ARRAY_TYPES_PHONE_VALUES_LOGICAL_FF_FB = ['{+91123456701,+91987654301}', '{+91123456702,+91987654302}', '{+91123456703,+91987654303}', '{+91123456706,+91987654306}', '{+911111111111,+922222222222}', '{+91123456709,+91987654309}', '{+911111111111,+922222222222}']
+EXPECTED_DOMAIN_ARRAY_TYPES_NAME_VALUES_LOGICAL_FF_FB = ['{"ABC DEF","GHI JKL"}', '{"MNO PQR","STU VWX"}', '{"ABC XYZ","DEF ABC"}', '{"ABCD XYZ","DEFG ABC"}', '{"Updated Person","Another Update"}', '{"EFGH IJKL","UVWXYZ ABCD"}', '{"Updated Person","Another Update"}']
+
+EXPECTED_RANGE_ARRAY_TYPES_PRICE_VALUES = ['{"[1,5)","[10,20)"}', '{"[1,5)","[10,20)"}', '{"[1,5)","[10,20)"}', '{"[1,5)","[10,20)"}', '{"[50,60)"}']
+EXPECTED_RANGE_ARRAY_TYPES_DISCOUNT_VALUES = ['{"[0.5,1)","[1.5,2)"}', '{"[0.5,1)","[1.5,2)"}', '{"[0.5,1)","[1.5,2)"}', '{"[0.5,1)","[1.5,2)"}', '{"[0.1,0.2)"}']
+
+EXPECTED_RANGE_ARRAY_TYPES_PRICE_VALUES_LOGICAL_FF_FB = ['{"[1,5)","[10,20)"}', '{"[1,5)","[10,20)"}', '{"[1,5)","[10,20)"}', '{"[1,5)","[10,20)"}', '{"[50,60)"}', '{"[2,6)","[12,22)"}', '{"[50,60)"}']
+EXPECTED_RANGE_ARRAY_TYPES_DISCOUNT_VALUES_LOGICAL_FF_FB = ['{"[0.5,1)","[1.5,2)"}', '{"[0.5,1)","[1.5,2)"}', '{"[0.5,1)","[1.5,2)"}', '{"[0.5,1)","[1.5,2)"}', '{"[0.1,0.2)"}', '{"[0.6,1.1)","[1.2,2.3)"}', '{"[0.1,0.2)"}']
+
+EXPECTED_EXTENSION_TYPES_HSTORE_VALUES = ['"key1"=>"1"', '"key2"=>"2"', '"key3"=>"3"', '"key5"=>"5"', '"updated"=>"1"']
+EXPECTED_EXTENSION_TYPES_CITEXT_VALUES = ['text_1', 'text_2', 'text_3', 'text_5', 'updated_text']
+EXPECTED_EXTENSION_TYPES_LTREE_VALUES = ['Top.1', 'Top.2', 'Top.3', 'Top.5', 'Updated.Node']
+
+EXPECTED_EXTENSION_TYPES_HSTORE_VALUES_LOGICAL_FF_FB = ['"key1"=>"1"', '"key2"=>"2"', '"key3"=>"3"', '"key5"=>"5"', '"updated"=>"1"', '"key8"=>"8"', '"updated"=>"1"']
+EXPECTED_EXTENSION_TYPES_CITEXT_VALUES_LOGICAL_FF_FB = ['text_1', 'text_2', 'text_3', 'text_5', 'updated_text', 'text_8', 'updated_text']
+EXPECTED_EXTENSION_TYPES_LTREE_VALUES_LOGICAL_FF_FB = ['Top.1', 'Top.2', 'Top.3', 'Top.5', 'Updated.Node', 'Top.8', 'Updated.Node']
+
+EXPECTED_EXTENSION_ARRAYS_HSTORE_VALUES = ['{"\\"key1\\"=>\\"1\\"","\\"value1\\"=>\\"1\\""}', '{"\\"key2\\"=>\\"2\\"","\\"value2\\"=>\\"2\\""}', '{"\\"key3\\"=>\\"3\\"","\\"value3\\"=>\\"3\\""}', '{"\\"key4\\"=>\\"4\\"","\\"value4\\"=>\\"4\\""}', '{"\\"a\\"=>\\"1\\"","\\"b\\"=>\\"2\\""}']
+EXPECTED_EXTENSION_ARRAYS_CITEXT_VALUES = ['{text_1,sample_1}', '{text_2,sample_2}', '{text_3,sample_3}', '{text_4,sample_4}', '{updated1,updated2}']
+EXPECTED_EXTENSION_ARRAYS_LTREE_VALUES = ['{Top.1,Category.1}', '{Top.2,Category.2}', '{Top.3,Category.3}', '{Top.4,Category.4}', '{Top.Science,Top.Arts}']
+
+EXPECTED_EXTENSION_ARRAYS_HSTORE_VALUES_LOGICAL_FF_FB = ['{"\\"key1\\"=>\\"1\\"","\\"value1\\"=>\\"1\\""}', '{"\\"key2\\"=>\\"2\\"","\\"value2\\"=>\\"2\\""}', '{"\\"key3\\"=>\\"3\\"","\\"value3\\"=>\\"3\\""}', '{"\\"key4\\"=>\\"4\\"","\\"value4\\"=>\\"4\\""}', '{"\\"a\\"=>\\"1\\"","\\"b\\"=>\\"2\\""}', '{"\\"key9\\"=>\\"9\\"","\\"value9\\"=>\\"9\\""}', '{"\\"a\\"=>\\"1\\"","\\"b\\"=>\\"2\\""}']
+EXPECTED_EXTENSION_ARRAYS_CITEXT_VALUES_LOGICAL_FF_FB = ['{text_1,sample_1}', '{text_2,sample_2}', '{text_3,sample_3}', '{text_4,sample_4}', '{updated1,updated2}', '{text_9,sample_9}', '{updated1,updated2}']
+EXPECTED_EXTENSION_ARRAYS_LTREE_VALUES_LOGICAL_FF_FB = ['{Top.1,Category.1}', '{Top.2,Category.2}', '{Top.3,Category.3}', '{Top.4,Category.4}', '{Top.Science,Top.Arts}', '{Top.9,Category.9}', '{Top.Science,Top.Arts}']
+
+EXPECTED_AUDIT_LOG_EMPLOYEES_VALUES = ['{"(Emp_1,active,emp_1@company.com)","(EmpAlt_1,inactive,empalt_1@company.com)"}', '{"(UpdatedEmp_A,active,updated_a@company.com)","(UpdatedEmp_B,terminated,updated_b@company.com)"}']
+EXPECTED_AUDIT_LOG_CLIENTS_VALUES = ['{"(Client_1,north,client_1@example.com)","(ClientAlt_1,south,clientalt_1@example.com)"}', '{"(UpdatedClient_A,east,client_a_updated@example.com)","(UpdatedClient_B,west,client_b_updated@example.com)"}']
+EXPECTED_AUDIT_LOG_TRANSACTION_REFS_VALUES = [[1, 2, 3], [100, 200, 300]]
+
+EXPECTED_AUDIT_LOG_EMPLOYEES_VALUES_LOGICAL_FF_FB = ['{"(Emp_1,active,emp_1@company.com)","(EmpAlt_1,inactive,empalt_1@company.com)"}', '{"(FollowupEmp_1,inactive,followup1@company.com)","(FollowupEmp_2,active,followup2@company.com)"}']
+EXPECTED_AUDIT_LOG_CLIENTS_VALUES_LOGICAL_FF_FB = ['{"(Client_1,north,client_1@example.com)","(ClientAlt_1,south,clientalt_1@example.com)"}','{"(FollowupClient_1,south,followupc1@example.com)","(FollowupClient_2,north,followupc2@example.com)"}']
+EXPECTED_AUDIT_LOG_TRANSACTION_REFS_VALUES_LOGICAL_FF_FB = [[1, 2, 3], [50, 60, 70]]
+
 #=============================================================================
 
 def build_expected_values(ff_fb_enabled: bool):
@@ -158,6 +244,26 @@ def build_expected_values(ff_fb_enabled: bool):
             "sum_of_column": EXPECTED_SUM_OF_COLUMN.copy(),
             "distinct_values": EXPECTED_DISTINCT_VALUES.copy(),
             "hstore_values": EXPECTED_HSTORE_VALUES,
+            "composite_types": EXPECTED_COMPOSITE_TYPES_VALUES,
+            "composite_array_types": EXPECTED_COMPOSITE_ARRAY_TYPES_VALUES,
+            "domain_ssn_types": EXPECTED_DOMAIN_TYPES_SSN_VALUES,
+            "domain_email_types": EXPECTED_DOMAIN_TYPES_EMAIL_VALUES,
+            "domain_rating_types": EXPECTED_DOMAIN_TYPES_RATING_VALUES,
+            "domain_prefs_types": EXPECTED_DOMAIN_TYPES_PREFS_VALUES,
+            "domain_ssn_array_types": EXPECTED_DOMAIN_ARRAY_TYPES_SSN_VALUES,
+            "domain_phone_array_types": EXPECTED_DOMAIN_ARRAY_TYPES_PHONE_VALUES,
+            "domain_name_array_types": EXPECTED_DOMAIN_ARRAY_TYPES_NAME_VALUES,
+            "range_price_array_types": EXPECTED_RANGE_ARRAY_TYPES_PRICE_VALUES,
+            "range_discount_array_types": EXPECTED_RANGE_ARRAY_TYPES_DISCOUNT_VALUES,
+            "extension_hstore_types": EXPECTED_EXTENSION_TYPES_HSTORE_VALUES,
+            "extension_citext_types": EXPECTED_EXTENSION_TYPES_CITEXT_VALUES,
+            "extension_ltree_types": EXPECTED_EXTENSION_TYPES_LTREE_VALUES,
+            "extension_hstore_array_types": EXPECTED_EXTENSION_ARRAYS_HSTORE_VALUES,
+            "extension_citext_array_types": EXPECTED_EXTENSION_ARRAYS_CITEXT_VALUES,
+            "extension_ltree_array_types": EXPECTED_EXTENSION_ARRAYS_LTREE_VALUES,
+            "audit_log_employees": EXPECTED_AUDIT_LOG_EMPLOYEES_VALUES,
+            "audit_log_clients": EXPECTED_AUDIT_LOG_CLIENTS_VALUES,
+            "audit_log_transaction_refs": EXPECTED_AUDIT_LOG_TRANSACTION_REFS_VALUES,
         }
 
     # FF/FB expected values
@@ -166,6 +272,26 @@ def build_expected_values(ff_fb_enabled: bool):
         "sum_of_column": EXPECTED_SUM_OF_COLUMN_FF.copy(),
         "distinct_values": EXPECTED_DISTINCT_VALUES_FF.copy(),
         "hstore_values": EXPECTED_HSTORE_VALUES,
+        "composite_types": EXPECTED_COMPOSITE_TYPES_VALUES,
+        "composite_array_types": EXPECTED_COMPOSITE_ARRAY_TYPES_VALUES,
+        "domain_ssn_types": EXPECTED_DOMAIN_TYPES_SSN_VALUES,
+        "domain_email_types": EXPECTED_DOMAIN_TYPES_EMAIL_VALUES,
+        "domain_rating_types": EXPECTED_DOMAIN_TYPES_RATING_VALUES,
+        "domain_prefs_types": EXPECTED_DOMAIN_TYPES_PREFS_VALUES,
+        "domain_ssn_array_types": EXPECTED_DOMAIN_ARRAY_TYPES_SSN_VALUES,
+        "domain_phone_array_types": EXPECTED_DOMAIN_ARRAY_TYPES_PHONE_VALUES,
+        "domain_name_array_types": EXPECTED_DOMAIN_ARRAY_TYPES_NAME_VALUES,
+        "range_price_array_types": EXPECTED_RANGE_ARRAY_TYPES_PRICE_VALUES,
+        "range_discount_array_types": EXPECTED_RANGE_ARRAY_TYPES_DISCOUNT_VALUES,
+        "extension_hstore_types": EXPECTED_EXTENSION_TYPES_HSTORE_VALUES,
+        "extension_citext_types": EXPECTED_EXTENSION_TYPES_CITEXT_VALUES,
+        "extension_ltree_types": EXPECTED_EXTENSION_TYPES_LTREE_VALUES,
+        "extension_hstore_array_types": EXPECTED_EXTENSION_ARRAYS_HSTORE_VALUES,
+        "extension_citext_array_types": EXPECTED_EXTENSION_ARRAYS_CITEXT_VALUES,
+        "extension_ltree_array_types": EXPECTED_EXTENSION_ARRAYS_LTREE_VALUES,
+        "audit_log_employees": EXPECTED_AUDIT_LOG_EMPLOYEES_VALUES,
+        "audit_log_clients": EXPECTED_AUDIT_LOG_CLIENTS_VALUES,
+        "audit_log_transaction_refs": EXPECTED_AUDIT_LOG_TRANSACTION_REFS_VALUES,
     }
 
     # Override for logical replication
@@ -173,6 +299,26 @@ def build_expected_values(ff_fb_enabled: bool):
         for table, replacement in LOGICAL_REPLICATION_ROW_OVERRIDES.items():
             expected["row_count"][table] = replacement
         expected["hstore_values"] = EXPECTED_HSTORE_VALUES_LOGICAL_FF_FB
+        expected["composite_types"] = EXPECTED_COMPOSITE_TYPES_VALUES_LOGICAL_FF_FB
+        expected["composite_array_types"] = EXPECTED_COMPOSITE_ARRAY_TYPES_VALUES_LOGICAL_FF_FB
+        expected["domain_ssn_types"] = EXPECTED_DOMAIN_TYPES_SSN_VALUES_LOGICAL_FF_FB
+        expected["domain_email_types"] = EXPECTED_DOMAIN_TYPES_EMAIL_VALUES_LOGICAL_FF_FB
+        expected["domain_rating_types"] = EXPECTED_DOMAIN_TYPES_RATING_VALUES_LOGICAL_FF_FB
+        expected["domain_prefs_types"] = EXPECTED_DOMAIN_TYPES_PREFS_VALUES_LOGICAL_FF_FB
+        expected["domain_ssn_array_types"] = EXPECTED_DOMAIN_ARRAY_TYPES_SSN_VALUES_LOGICAL_FF_FB
+        expected["domain_phone_array_types"] = EXPECTED_DOMAIN_ARRAY_TYPES_PHONE_VALUES_LOGICAL_FF_FB
+        expected["domain_name_array_types"] = EXPECTED_DOMAIN_ARRAY_TYPES_NAME_VALUES_LOGICAL_FF_FB
+        expected["range_price_array_types"] = EXPECTED_RANGE_ARRAY_TYPES_PRICE_VALUES_LOGICAL_FF_FB
+        expected["range_discount_array_types"] = EXPECTED_RANGE_ARRAY_TYPES_DISCOUNT_VALUES_LOGICAL_FF_FB
+        expected["extension_hstore_types"] = EXPECTED_EXTENSION_TYPES_HSTORE_VALUES_LOGICAL_FF_FB
+        expected["extension_citext_types"] = EXPECTED_EXTENSION_TYPES_CITEXT_VALUES_LOGICAL_FF_FB
+        expected["extension_ltree_types"] = EXPECTED_EXTENSION_TYPES_LTREE_VALUES_LOGICAL_FF_FB
+        expected["extension_hstore_array_types"] = EXPECTED_EXTENSION_ARRAYS_HSTORE_VALUES_LOGICAL_FF_FB
+        expected["extension_citext_array_types"] = EXPECTED_EXTENSION_ARRAYS_CITEXT_VALUES_LOGICAL_FF_FB
+        expected["extension_ltree_array_types"] = EXPECTED_EXTENSION_ARRAYS_LTREE_VALUES_LOGICAL_FF_FB
+        expected["audit_log_employees"] = EXPECTED_AUDIT_LOG_EMPLOYEES_VALUES_LOGICAL_FF_FB
+        expected["audit_log_clients"] = EXPECTED_AUDIT_LOG_CLIENTS_VALUES_LOGICAL_FF_FB
+        expected["audit_log_transaction_refs"] = EXPECTED_AUDIT_LOG_TRANSACTION_REFS_VALUES_LOGICAL_FF_FB
 
     return expected
 
@@ -221,6 +367,114 @@ def migration_completed_checks(tgt, expected):
     expected_hstore_values = expected["hstore_values"]
     tgt.assert_distinct_values_of_col("hstore_example", "data", "public",
                                       expected_distinct_values=expected_hstore_values)
+
+    print("composite_types:")
+    expected_composite_values = expected.get("composite_types", [])
+    tgt.assert_distinct_values_of_col("composite_types", "address", "public",
+                                      transform_func=str,
+                                      expected_distinct_values=expected_composite_values)
+
+    print("composite_array_types:")
+    expected_composite_array_values = expected.get("composite_array_types", [])
+    tgt.assert_distinct_values_of_col("composite_array_types", "addresses", "public",
+                                      transform_func=str,
+                                      expected_distinct_values=expected_composite_array_values)
+
+    print("domain_ssn_types:")
+    expected_domain_ssn_values = expected.get("domain_ssn_types", [])
+    tgt.assert_distinct_values_of_col("domain_types", "ssn", "public",
+                                      transform_func=str,
+                                      expected_distinct_values=expected_domain_ssn_values)
+    expected_domain_email_values = expected.get("domain_email_types", [])
+    tgt.assert_distinct_values_of_col("domain_types", "email", "public",
+                                      transform_func=str,
+                                      expected_distinct_values=expected_domain_email_values)
+    expected_domain_rating_values = expected.get("domain_rating_types", [])
+    tgt.assert_distinct_values_of_col("domain_types", "rating", "public",
+                                      expected_distinct_values=expected_domain_rating_values)
+    expected_domain_prefs_values = expected.get("domain_prefs_types", [])
+    tgt.assert_distinct_values_of_col("domain_types", "prefs", "public",
+                                      transform_func=str,
+                                      expected_distinct_values=expected_domain_prefs_values)
+
+    print("domain_ssn_array_types:")
+    expected_domain_ssn_array_values = expected.get("domain_ssn_array_types", [])
+    tgt.assert_distinct_values_of_col("domain_array_types", "ssn_list", "public",
+                                      transform_func=str,
+                                      expected_distinct_values=expected_domain_ssn_array_values)
+    expected_domain_phone_array_values = expected.get("domain_phone_array_types", [])
+    tgt.assert_distinct_values_of_col("domain_array_types", "phone_list", "public",
+                                      transform_func=str,
+                                      expected_distinct_values=expected_domain_phone_array_values)
+    expected_domain_name_array_values = expected.get("domain_name_array_types", [])
+    tgt.assert_distinct_values_of_col("domain_array_types", "name_list", "public",
+                                      transform_func=str,
+                                      expected_distinct_values=expected_domain_name_array_values)
+
+    print("range_array_types:")
+    expected_range_price_array_values = expected.get("range_price_array_types", [])
+    tgt.assert_distinct_values_of_col("range_array_types", "price_ranges", "public",
+                                      transform_func=str,
+                                      expected_distinct_values=expected_range_price_array_values)
+    expected_range_discount_array_values = expected.get("range_discount_array_types", [])
+    tgt.assert_distinct_values_of_col("range_array_types", "discount_ranges", "public",
+                                      transform_func=str,
+                                      expected_distinct_values=expected_range_discount_array_values)
+
+    print("extension_types:")
+    expected_ext_hstore_values = expected.get("extension_hstore_types", [])
+    tgt.assert_distinct_values_of_col("extension_types", "col_hstore", "public",
+                                      transform_func=str,
+                                      expected_distinct_values=expected_ext_hstore_values)
+    expected_ext_citext_values = expected.get("extension_citext_types", [])
+    tgt.assert_distinct_values_of_col("extension_types", "col_citext", "public",
+                                      transform_func=str,
+                                      expected_distinct_values=expected_ext_citext_values)
+    # ltree type doesn't support DISTINCT, cast to text instead
+    expected_ext_ltree_values = expected.get("extension_ltree_types", [])
+    cur = tgt.conn.cursor()
+    cur.execute("SELECT DISTINCT col_ltree::text FROM public.extension_types")
+    actual_ltree_values = [str(value[0]) for value in cur.fetchall()]
+    print(f"actual_ltree_values: {actual_ltree_values}")
+    for ltree_value in actual_ltree_values:
+        print(f"{ltree_value}")
+        assert ltree_value in expected_ext_ltree_values, f"Unexpected ltree value: {ltree_value}"
+
+    print("extension_arrays:")
+    expected_ext_array_hstore_values = expected.get("extension_hstore_array_types", [])
+    tgt.assert_distinct_values_of_col("extension_arrays", "col_hstore", "public",
+                                      transform_func=str,
+                                      expected_distinct_values=expected_ext_array_hstore_values)
+    expected_ext_array_citext_values = expected.get("extension_citext_array_types", [])
+    tgt.assert_distinct_values_of_col("extension_arrays", "col_citext", "public",
+                                      transform_func=str,
+                                      expected_distinct_values=expected_ext_array_citext_values)
+    # ltree array type doesn't support DISTINCT, cast to text instead
+    expected_ext_array_ltree_values = expected.get("extension_ltree_array_types", [])
+    cur = tgt.conn.cursor()
+    cur.execute("SELECT DISTINCT col_ltree::text FROM public.extension_arrays")
+    actual_ltree_array_values = [str(value[0]) for value in cur.fetchall()]
+    print(f"actual_ltree_array_values: {actual_ltree_array_values}")
+    for ltree_array_value in actual_ltree_array_values:
+        print(f"{ltree_array_value}")
+        assert ltree_array_value in expected_ext_array_ltree_values, f"Unexpected ltree array value: {ltree_array_value}"
+
+    print("audit_log:")
+    expected_involved_employees_values = expected.get("audit_log_employees", [])
+    tgt.assert_distinct_values_of_col("audit_log", "involved_employees", "public",
+                                      transform_func=str,
+                                      expected_distinct_values=expected_involved_employees_values)
+    expected_affected_clients_values = expected.get("audit_log_clients", [])
+    tgt.assert_distinct_values_of_col("audit_log", "affected_clients", "public",
+                                      transform_func=str,
+                                      expected_distinct_values=expected_affected_clients_values)
+    # transaction_refs returns Python list format, not PostgreSQL array string format
+    expected_transaction_refs_values = expected.get("audit_log_transaction_refs", [])
+    actual_transaction_refs = tgt.get_distinct_values_of_column_of_table("audit_log", "transaction_refs", "public")
+    print(f"actual_transaction_refs: {actual_transaction_refs}")
+    for transaction_ref in actual_transaction_refs:
+        print(f"{transaction_ref}")
+        assert transaction_ref in expected_transaction_refs_values, f"Unexpected transaction_refs value: {transaction_ref}"
 
 #=============================================================================
 
