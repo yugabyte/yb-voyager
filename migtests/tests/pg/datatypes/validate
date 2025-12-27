@@ -252,13 +252,13 @@ def migration_completed_checks(tgt):
 		transform_func=str, expected_distinct_values=expected_name_list_values)
 
 	print("range_types:")
-	if os.getenv("BETA_FAST_DATA_EXPORT") == "false":
+	if os.getenv("BETA_FAST_DATA_EXPORT") == "0" or os.getenv("BETA_FAST_DATA_EXPORT") is None:
 		expected_price_range_values = ['[0.1,5.1)', '[0.2,5.2)', '[0.3,5.3)']
 	else:
 		expected_price_range_values = [None]
 	tgt.assert_distinct_values_of_col("range_types", "price_range_col", "public", 
 		transform_func=str, expected_distinct_values=expected_price_range_values)
-	if os.getenv("BETA_FAST_DATA_EXPORT") == "false":
+	if os.getenv("BETA_FAST_DATA_EXPORT") == "0" or os.getenv("BETA_FAST_DATA_EXPORT") is None:
 		expected_discount_range_values = ['[0,1)', '[0.1,1.1)', '[0.2,1.2)']
 	else:
 		expected_discount_range_values = [None]
@@ -267,7 +267,7 @@ def migration_completed_checks(tgt):
 	# Validate timestamp ranges - timestamps are dynamic so we check the pattern
 	actual_ts_ranges = tgt.get_distinct_values_of_column_of_table("range_types", "active_ts_range_col", "public")
 	print(f"actual_ts_ranges: {actual_ts_ranges}")
-	if os.getenv("BETA_FAST_DATA_EXPORT") == "false":
+	if os.getenv("BETA_FAST_DATA_EXPORT") == "0" or os.getenv("BETA_FAST_DATA_EXPORT") is None:
 		assert len(actual_ts_ranges) == 3, f"Expected 3 distinct timestamp ranges, got {len(actual_ts_ranges)}"
 		ts_range_pattern = r'\["\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+\+\d{2}","\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+\+\d{2}"\)'
 		for ts_range in actual_ts_ranges:
