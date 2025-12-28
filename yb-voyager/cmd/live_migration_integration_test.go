@@ -1756,7 +1756,7 @@ $$ LANGUAGE plpgsql;`,
 	testutils.FatalIfError(t, err, "failed to wait for cutover source complete")
 
 
-	err = lm.WithTargetConn(func(target *sql.DB) error {
+	err = liveMigrationTest.WithTargetConn(func(target *sql.DB) error {
 		fmt.Printf("Querying replication slots\n")
 		rows, err := target.Query("SELECT slot_name from pg_replication_slots;")
 		if err != nil {
@@ -2053,7 +2053,7 @@ END $$;
 	testutils.FatalIfError(t, err, "failed to setup containers")
 
 
-	err = lm.WithTargetConn(func(target *sql.DB) error {
+	err = liveMigrationTest.WithTargetConn(func(target *sql.DB) error {
 		fmt.Printf("Querying replication slots\n")
 		rows, err := target.Query("SELECT slot_name from pg_replication_slots;")
 		if err != nil {
@@ -2138,7 +2138,7 @@ END $$;
 	testutils.FatalIfError(t, err, "failed to wait for cutover source complete")
 
 
-	err = lm.WithTargetConn(func(target *sql.DB) error {
+	err = liveMigrationTest.WithTargetConn(func(target *sql.DB) error {
 		fmt.Printf("Querying replication slots\n")
 		rows, err := target.Query("SELECT slot_name from pg_replication_slots;")
 		if err != nil {
@@ -2283,7 +2283,7 @@ END $$;
 	testutils.FatalIfError(t, err, "failed to setup containers")
 
 
-	err = lm.WithTargetConn(func(target *sql.DB) error {
+	err = liveMigrationTest.WithTargetConn(func(target *sql.DB) error {
 		fmt.Printf("Querying replication slots\n")
 		rows, err := target.Query("SELECT slot_name from pg_replication_slots;")
 		if err != nil {
