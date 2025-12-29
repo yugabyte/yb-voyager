@@ -525,12 +525,14 @@ FROM generate_series(1, 5);`,
 		if err != nil {
 			return fmt.Errorf("failed to query replication slots: %w", err)
 		}
+		fmt.Printf("Rows found: %v\n", rows)
 		defer rows.Close()
 		if !rows.Next() {
 			fmt.Printf("No replication slots found\n")
 			return nil
 		}
 		for rows.Next() {
+			fmt.Printf("Rows found: %v\n", rows)
 			var slotName string
 			err = rows.Scan(&slotName)
 			if err != nil {
@@ -604,6 +606,7 @@ FROM generate_series(1, 15);`,
 		if err != nil {
 			return fmt.Errorf("failed to query replication slots: %w", err)
 		}
+		fmt.Printf("Rows found: %v\n", rows)
 		defer rows.Close()
 		if !rows.Next() {
 			fmt.Printf("No replication slots found\n")
@@ -1762,12 +1765,14 @@ $$ LANGUAGE plpgsql;`,
 		if err != nil {
 			return fmt.Errorf("failed to query replication slots: %w", err)
 		}
+		fmt.Printf("Rows found: %v\n", rows)
 		defer rows.Close()
 		if !rows.Next() {
 			fmt.Printf("No replication slots found\n")
 			return nil
 		}
 		for rows.Next() {
+			fmt.Printf("Rows found: %v\n", rows)
 			var slotName string
 			err = rows.Scan(&slotName)
 			if err != nil {
@@ -2059,6 +2064,7 @@ END $$;
 		if err != nil {
 			return fmt.Errorf("failed to query replication slots: %w", err)
 		}
+		fmt.Printf("Rows found: %v\n", rows)
 		defer rows.Close()
 		if !rows.Next() {
 			fmt.Printf("No replication slots found\n")
@@ -2144,12 +2150,14 @@ END $$;
 		if err != nil {
 			return fmt.Errorf("failed to query replication slots: %w", err)
 		}
+		fmt.Printf("Rows found: %v\n", rows)
 		defer rows.Close()
 		if !rows.Next() {
 			fmt.Printf("No replication slots found\n")
 			return nil
 		}
 		for rows.Next() {
+			fmt.Printf("Rows found: %v\n", rows)
 			var slotName string
 			err = rows.Scan(&slotName)
 			if err != nil {
@@ -2289,6 +2297,7 @@ END $$;
 		if err != nil {
 			return fmt.Errorf("failed to query replication slots: %w", err)
 		}
+		fmt.Printf("Rows found: %v\n", rows)
 		defer rows.Close()
 		if !rows.Next() {
 			fmt.Printf("No replication slots found\n")

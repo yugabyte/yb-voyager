@@ -2217,12 +2217,24 @@ func (yb *TargetYugabyteDB) GetEnabledTriggersAndFks() (enabledTriggers []string
 }
 
 func (yb *TargetYugabyteDB) NumOfLogicalReplicationSlots() (int64, error) {
-	query := fmt.Sprintf("SELECT count(slot_name) from pg_replication_slots where database='%s'", yb.Tconf.DBName)
+
+	query := fmt.Sprintf("SELECT slot_name from pg_replication_slots where database='%s'", yb.Tconf.DBName)
 	var numOfSlots int64
 
-	err := yb.QueryRow(query).Scan(&numOfSlots)
+	rows, err := yb.Query(query)
 	if err != nil {
-		return 0, fmt.Errorf("error scanning the row returned while querying pg_replication_slots: %w", err)
+		return 0, fmt.Errorf("error querying pg_replication_slots: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var slotName string
+		err = rows.Scan(&slotName)
+		if err != nil {
+			return 0, fmt.Errorf("error scanning row for pg_replication_slots: %w", err)
+		}
+		fmt.Printf("Replication slot: %s\n", slotName)
+		numOfSlots++
 	}
 
 	return numOfSlots, nil
