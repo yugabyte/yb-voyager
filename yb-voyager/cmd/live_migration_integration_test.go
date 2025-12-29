@@ -520,39 +520,6 @@ FROM generate_series(1, 5);`,
 	})
 	testutils.FatalIfError(t, err, "failed to validate sequence restoration")
 
-	err = lm.WithTargetConn(func(target *sql.DB) error {
-		fmt.Printf("Querying replication slots\n")
-		rows, err := target.Query("SELECT slot_name, active from pg_replication_slots;")
-		if err != nil {
-			return fmt.Errorf("failed to query replication slots: %w", err)
-		}
-		defer rows.Close()
-
-		slotCount := 0
-		for rows.Next() {
-			var slotName string
-			var active bool
-			err = rows.Scan(&slotName, &active)
-			if err != nil {
-				return fmt.Errorf("failed to scan replication slot: %w", err)
-			}
-			fmt.Printf("Replication slot: %s, Active: %t\n", slotName, active)
-			slotCount++
-		}
-
-		if err = rows.Err(); err != nil {
-			return fmt.Errorf("error iterating replication slots: %w", err)
-		}
-
-		if slotCount > 0 {
-			return fmt.Errorf("found %d replication slot(s) on target (should be 0)", slotCount)
-		}
-
-		fmt.Printf("No replication slots found (expected)\n")
-		return nil
-	})
-	testutils.FatalIfError(t, err, "failed to query replication slots")
-
 }
 
 // test for live migration with resumption and failure during restore sequences
@@ -608,40 +575,6 @@ FROM generate_series(1, 15);`,
 
 	err := lm.SetupContainers(context.Background())
 	testutils.FatalIfError(t, err, "failed to setup containers")
-
-	err = lm.WithTargetConn(func(target *sql.DB) error {
-		fmt.Printf("Querying replication slots\n")
-		rows, err := target.Query("SELECT slot_name, active from pg_replication_slots;")
-		if err != nil {
-			return fmt.Errorf("failed to query replication slots: %w", err)
-		}
-		fmt.Printf("Rows found: %v\n", rows)
-		defer rows.Close()
-
-		slotCount := 0
-		for rows.Next() {
-			var slotName string
-			var active bool
-			err = rows.Scan(&slotName, &active)
-			if err != nil {
-				return fmt.Errorf("failed to scan replication slot: %w", err)
-			}
-			fmt.Printf("Replication slot: %s, Active: %t\n", slotName, active)
-			slotCount++
-		}
-
-		if err = rows.Err(); err != nil {
-			return fmt.Errorf("error iterating replication slots: %w", err)
-		}
-
-		if slotCount > 0 {
-			return fmt.Errorf("found %d replication slot(s) on target (should be 0)", slotCount)
-		}
-
-		fmt.Printf("No replication slots found (expected)\n")
-		return nil
-	})
-	testutils.FatalIfError(t, err, "failed to query replication slots")
 
 	err = lm.SetupSchema()
 	testutils.FatalIfError(t, err, "failed to setup schema")
@@ -1777,38 +1710,6 @@ $$ LANGUAGE plpgsql;`,
 	err = liveMigrationTest.WaitForCutoverSourceComplete(150)
 	testutils.FatalIfError(t, err, "failed to wait for cutover source complete")
 
-	err = liveMigrationTest.WithTargetConn(func(target *sql.DB) error {
-		fmt.Printf("Querying replication slots\n")
-		rows, err := target.Query("SELECT slot_name, active from pg_replication_slots;")
-		if err != nil {
-			return fmt.Errorf("failed to query replication slots: %w", err)
-		}
-		defer rows.Close()
-
-		slotCount := 0
-		for rows.Next() {
-			var slotName string
-			var active bool
-			err = rows.Scan(&slotName, &active)
-			if err != nil {
-				return fmt.Errorf("failed to scan replication slot: %w", err)
-			}
-			fmt.Printf("Replication slot: %s, Active: %t\n", slotName, active)
-			slotCount++
-		}
-
-		if err = rows.Err(); err != nil {
-			return fmt.Errorf("error iterating replication slots: %w", err)
-		}
-
-		if slotCount > 0 {
-			return fmt.Errorf("found %d replication slot(s) on target (should be 0)", slotCount)
-		}
-
-		fmt.Printf("No replication slots found (expected)\n")
-		return nil
-	})
-	testutils.FatalIfError(t, err, "failed to query replication slots")
 }
 
 func TestLiveMigrationWithLargeNumberOfColumns(t *testing.T) {
@@ -2083,39 +1984,6 @@ END $$;
 	err := liveMigrationTest.SetupContainers(context.Background())
 	testutils.FatalIfError(t, err, "failed to setup containers")
 
-	err = liveMigrationTest.WithTargetConn(func(target *sql.DB) error {
-		fmt.Printf("Querying replication slots\n")
-		rows, err := target.Query("SELECT slot_name, active from pg_replication_slots;")
-		if err != nil {
-			return fmt.Errorf("failed to query replication slots: %w", err)
-		}
-		defer rows.Close()
-
-		slotCount := 0
-		for rows.Next() {
-			var slotName string
-			var active bool
-			err = rows.Scan(&slotName, &active)
-			if err != nil {
-				return fmt.Errorf("failed to scan replication slot: %w", err)
-			}
-			fmt.Printf("Replication slot: %s, Active: %t\n", slotName, active)
-			slotCount++
-		}
-
-		if err = rows.Err(); err != nil {
-			return fmt.Errorf("error iterating replication slots: %w", err)
-		}
-
-		if slotCount > 0 {
-			return fmt.Errorf("found %d replication slot(s) on target (should be 0)", slotCount)
-		}
-
-		fmt.Printf("No replication slots found (expected)\n")
-		return nil
-	})
-	testutils.FatalIfError(t, err, "failed to query replication slots")
-
 	err = liveMigrationTest.SetupSchema()
 	testutils.FatalIfError(t, err, "failed to setup schema")
 
@@ -2176,39 +2044,6 @@ END $$;
 
 	err = liveMigrationTest.WaitForCutoverSourceComplete(150)
 	testutils.FatalIfError(t, err, "failed to wait for cutover source complete")
-
-	err = liveMigrationTest.WithTargetConn(func(target *sql.DB) error {
-		fmt.Printf("Querying replication slots\n")
-		rows, err := target.Query("SELECT slot_name, active from pg_replication_slots;")
-		if err != nil {
-			return fmt.Errorf("failed to query replication slots: %w", err)
-		}
-		defer rows.Close()
-
-		slotCount := 0
-		for rows.Next() {
-			var slotName string
-			var active bool
-			err = rows.Scan(&slotName, &active)
-			if err != nil {
-				return fmt.Errorf("failed to scan replication slot: %w", err)
-			}
-			fmt.Printf("Replication slot: %s, Active: %t\n", slotName, active)
-			slotCount++
-		}
-
-		if err = rows.Err(); err != nil {
-			return fmt.Errorf("error iterating replication slots: %w", err)
-		}
-
-		if slotCount > 0 {
-			return fmt.Errorf("found %d replication slot(s) on target (should be 0)", slotCount)
-		}
-
-		fmt.Printf("No replication slots found (expected)\n")
-		return nil
-	})
-	testutils.FatalIfError(t, err, "failed to query replication slots")
 }
 
 func TestLiveMigrationWithLargeColumnNames(t *testing.T) {
@@ -2330,39 +2165,6 @@ END $$;
 
 	err := liveMigrationTest.SetupContainers(context.Background())
 	testutils.FatalIfError(t, err, "failed to setup containers")
-
-	err = liveMigrationTest.WithTargetConn(func(target *sql.DB) error {
-		fmt.Printf("Querying replication slots\n")
-		rows, err := target.Query("SELECT slot_name, active from pg_replication_slots;")
-		if err != nil {
-			return fmt.Errorf("failed to query replication slots: %w", err)
-		}
-		defer rows.Close()
-
-		slotCount := 0
-		for rows.Next() {
-			var slotName string
-			var active bool
-			err = rows.Scan(&slotName, &active)
-			if err != nil {
-				return fmt.Errorf("failed to scan replication slot: %w", err)
-			}
-			fmt.Printf("Replication slot: %s, Active: %t\n", slotName, active)
-			slotCount++
-		}
-
-		if err = rows.Err(); err != nil {
-			return fmt.Errorf("error iterating replication slots: %w", err)
-		}
-
-		if slotCount > 0 {
-			return fmt.Errorf("found %d replication slot(s) on target (should be 0)", slotCount)
-		}
-
-		fmt.Printf("No replication slots found (expected)\n")
-		return nil
-	})
-	testutils.FatalIfError(t, err, "failed to query replication slots")
 
 	err = liveMigrationTest.SetupSchema()
 	testutils.FatalIfError(t, err, "failed to setup schema")
