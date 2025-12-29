@@ -1271,8 +1271,8 @@ func stopMonitoringTargetYBHealth() {
 		monitorCancel = nil
 	}
 	if monitorDone != nil {
-		<-monitorDone // Wait for goroutine to finish
-		monitorDone = nil
+		// <-monitorDone // Wait for goroutine to finish
+		// monitorDone = nil
 	}
 }
 
@@ -1290,9 +1290,10 @@ func startMonitoringTargetYBHealth(ctx context.Context) error {
 	// Create a new context for the monitor (child of the passed context)
 	monitorCtx, cancel := context.WithCancel(ctx)
 	monitorCancel = cancel
-	monitorDone = make(chan struct{})
+	// monitorDone = make(chan struct{})
 
 	go func() {
+		// defer close(monitorDone)
 		//for now not sending any other parameters as not required for monitor usage
 		ybClient := dbzm.NewYugabyteDBCDCClient(exportDir, "", tconf.SSLRootCert, tconf.DBName, "", nil)
 		err := ybClient.Init()
