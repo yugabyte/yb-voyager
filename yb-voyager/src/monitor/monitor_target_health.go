@@ -16,15 +16,15 @@ limitations under the License.
 package monitor
 
 import (
+	"context"
 	"fmt"
 	"slices"
 	"strconv"
 	"strings"
 	"time"
 
-	goerrors "github.com/go-errors/errors"
-
 	"github.com/fatih/color"
+	goerrors "github.com/go-errors/errors"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 
@@ -86,7 +86,7 @@ func NewMonitorTargetYBHealth(yb TargetDBForMonitorHealth, skipDiskUsageHealthCh
 	}
 }
 
-func (m *MonitorTargetYBHealth) StartMonitoring() error {
+func (m *MonitorTargetYBHealth) StartMonitoring(ctx context.Context) error {
 
 	var err error
 	var servers []*tgtdb.TargetConf
@@ -108,6 +108,15 @@ func (m *MonitorTargetYBHealth) StartMonitoring() error {
 	m.ybClient.SetYBServers(addresses)
 
 	for {
+
+		// Check if context is cancelled
+		select {
+		case <-ctx.Done():
+			log.Infof("Stopping target health monitoring")
+			return ctx.Err()
+		default:
+		}
+
 		err = m.monitorNodesStatusAndAdapt()
 		if err != nil {
 			log.Errorf("error monitoring the node status and adapt: %v", err)
