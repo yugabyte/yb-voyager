@@ -16,6 +16,7 @@ limitations under the License.
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -25,10 +26,9 @@ import (
 	"time"
 	"unicode"
 
-	goerrors "github.com/go-errors/errors"
-
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/color"
+	goerrors "github.com/go-errors/errors"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/sourcegraph/conc/pool"
@@ -733,7 +733,9 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 	}
 
 	progressReporter = NewImportDataProgressReporter(bool(disablePb))
-	err = startMonitoringTargetYBHealth()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	err = startMonitoringTargetYBHealth(ctx)
 	if err != nil {
 		utils.ErrExit("Failed to start monitoring health: %s", err)
 	}
@@ -1256,7 +1258,7 @@ func createFileTaskImporter(task *ImportFileTask, state *ImportDataState, batchI
 	return taskImporter, nil
 }
 
-func startMonitoringTargetYBHealth() error {
+func startMonitoringTargetYBHealth(ctx context.Context) error {
 	if !slices.Contains([]string{TARGET_DB_IMPORTER_ROLE, IMPORT_FILE_ROLE}, importerRole) {
 		return nil
 	}
@@ -1277,7 +1279,8 @@ func startMonitoringTargetYBHealth() error {
 		monitorTDBHealth := monitor.NewMonitorTargetYBHealth(yb, bool(skipDiskUsageHealthChecks), bool(skipReplicationChecks), bool(skipNodeHealthChecks), ybClient, func(info string) {
 			displayMonitoringInformationOnTheConsole(info)
 		})
-		err = monitorTDBHealth.StartMonitoring()
+
+		err = monitorTDBHealth.StartMonitoring(ctx)
 		if err != nil {
 			log.Errorf("error monitoring the target health: %v", err)
 		}
