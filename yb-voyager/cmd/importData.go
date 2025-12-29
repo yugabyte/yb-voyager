@@ -734,7 +734,11 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 
 	progressReporter = NewImportDataProgressReporter(bool(disablePb))
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	defer func() {
+		cancel()
+		log.Infof("Stopped monitoring target health")
+		stopMonitoringTargetYBHealth()
+	}()
 	err = startMonitoringTargetYBHealth(ctx)
 	if err != nil {
 		utils.ErrExit("Failed to start monitoring health: %s", err)
@@ -1258,6 +1262,20 @@ func createFileTaskImporter(task *ImportFileTask, state *ImportDataState, batchI
 	return taskImporter, nil
 }
 
+var monitorCancel context.CancelFunc
+var monitorDone chan struct{}
+
+func stopMonitoringTargetYBHealth() {
+	if monitorCancel != nil {
+		monitorCancel()
+		monitorCancel = nil
+	}
+	if monitorDone != nil {
+		<-monitorDone // Wait for goroutine to finish
+		monitorDone = nil
+	}
+}
+
 func startMonitoringTargetYBHealth(ctx context.Context) error {
 	if !slices.Contains([]string{TARGET_DB_IMPORTER_ROLE, IMPORT_FILE_ROLE}, importerRole) {
 		return nil
@@ -1269,6 +1287,11 @@ func startMonitoringTargetYBHealth(ctx context.Context) error {
 	if !ok {
 		return goerrors.Errorf("monitoring health is only supported if target DB is YugabyteDB")
 	}
+	// Create a new context for the monitor (child of the passed context)
+	monitorCtx, cancel := context.WithCancel(ctx)
+	monitorCancel = cancel
+	monitorDone = make(chan struct{})
+
 	go func() {
 		//for now not sending any other parameters as not required for monitor usage
 		ybClient := dbzm.NewYugabyteDBCDCClient(exportDir, "", tconf.SSLRootCert, tconf.DBName, "", nil)
@@ -1280,7 +1303,7 @@ func startMonitoringTargetYBHealth(ctx context.Context) error {
 			displayMonitoringInformationOnTheConsole(info)
 		})
 
-		err = monitorTDBHealth.StartMonitoring(ctx)
+		err = monitorTDBHealth.StartMonitoring(monitorCtx)
 		if err != nil {
 			log.Errorf("error monitoring the target health: %v", err)
 		}
