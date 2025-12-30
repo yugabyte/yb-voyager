@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -30,6 +31,10 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
+)
+
+var (
+	setupMutex = sync.Mutex{}
 )
 
 ////=========================================
@@ -393,12 +398,12 @@ func TestBasicLiveMigrationWithFallback(t *testing.T) {
 
 	lm := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
-			Type:    "postgresql",
-			ForLive: true,
+			Type:         "postgresql",
+			ForLive:      true,
 			DatabaseName: "test1",
 		},
 		TargetDB: ContainerConfig{
-			Type: "yugabytedb",
+			Type:         "yugabytedb",
 			DatabaseName: "test1",
 		},
 		SchemaNames: []string{"test_schema"},
@@ -1640,6 +1645,9 @@ $$ LANGUAGE plpgsql;`,
 		SourceDeltaSQL: []string{
 			`SELECT generate_large_rows(10, 10);`,
 		},
+		TargetDeltaSQL: []string{
+			`SELECT generate_large_rows(5, 5);`,
+		},
 		CleanupSQL: []string{
 			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
 		},
@@ -1684,8 +1692,8 @@ $$ LANGUAGE plpgsql;`,
 	err = liveMigrationTest.ValidateRowCount([]string{`test_schema."large_test"`})
 	testutils.FatalIfError(t, err, "failed to validate row count")
 
-	// err = liveMigrationTest.ValidateDataConsistency([]string{`test_schema."large_test"`}, "id")
-	// testutils.FatalIfError(t, err, "failed to verify data consistency")
+	err = liveMigrationTest.ValidateDataConsistency([]string{`test_schema."large_test"`}, "id")
+	testutils.FatalIfError(t, err, "failed to verify data consistency")
 
 	err = liveMigrationTest.InitiateCutoverToTarget(true, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover to target")
@@ -1698,7 +1706,7 @@ $$ LANGUAGE plpgsql;`,
 
 	err = liveMigrationTest.WaitForFallbackStreamingComplete(map[string]ChangesCount{
 		`test_schema."large_test"`: {
-			Inserts: 10,
+			Inserts: 5,
 			Updates: 0,
 			Deletes: 0,
 		},
@@ -1719,12 +1727,12 @@ $$ LANGUAGE plpgsql;`,
 func TestLiveMigrationWithLargeNumberOfColumns(t *testing.T) {
 	liveMigrationTest := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
-			Type:    "postgresql",
-			ForLive: true,
+			Type:         "postgresql",
+			ForLive:      true,
 			DatabaseName: "test3",
 		},
 		TargetDB: ContainerConfig{
-			Type: "yugabytedb",
+			Type:         "yugabytedb",
 			DatabaseName: "test3",
 		},
 		SchemaNames: []string{"test_schema"},
@@ -1985,7 +1993,7 @@ END $$;
 			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
 		},
 	})
-	// defer liveMigrationTest.Cleanup()
+	defer liveMigrationTest.Cleanup()
 
 	err := liveMigrationTest.SetupContainers(context.Background())
 	testutils.FatalIfError(t, err, "failed to setup containers")
@@ -2055,13 +2063,12 @@ END $$;
 func TestLiveMigrationWithLargeColumnNames(t *testing.T) {
 	liveMigrationTest := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
-			Type:    "postgresql",
-			ForLive: true,
+			Type:         "postgresql",
+			ForLive:      true,
 			DatabaseName: "test4",
-
 		},
 		TargetDB: ContainerConfig{
-			Type: "yugabytedb",
+			Type:         "yugabytedb",
 			DatabaseName: "test4",
 		},
 		SchemaNames: []string{"test_schema"},
