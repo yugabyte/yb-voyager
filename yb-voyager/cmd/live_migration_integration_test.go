@@ -3877,11 +3877,34 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 		    int_min = NULL
 		WHERE id = 6 AND int_max = 999999;`,
 
-			// HIGH PRIORITY: Literal '\n' (two chars) vs actual newline byte (0x0A)
+			// Literal '\n' (two chars) vs actual newline byte (0x0A)
 			`UPDATE test_schema.string_edge_cases
 		SET text_with_backslash = 'literal\nstring',
 		    text_with_newline = E'actual\nbyte'
 		WHERE id = 1;`,
+
+			// Single quotes inside JSON values
+			`INSERT INTO test_schema.json_edge_cases (
+			json_with_escaped_chars,
+			json_with_unicode,
+			json_nested,
+			json_array,
+			json_with_null,
+			json_empty,
+			json_formatted,
+			json_with_numbers,
+			json_complex
+		) VALUES (
+			'{"author": "O''Reilly", "title": "It''s a book"}',
+			'{"company": "O''Neill", "slogan": "We''re the best"}',
+			'{"person": "O''Brien", "nested": {"quote": "It''s nested"}}',
+			'["It''s working", "O''Reilly''s guide", "We''re here"]',
+			'{"name": "O''Connor", "value": null}',
+			'{}',
+			'{"quote": "She said ''hello''"}',
+			'{"count": 123}',
+			'{"author": "O''Reilly", "books": ["It''s great", "We''re learning"]}'
+		);`,
 		},
 		CleanupSQL: []string{
 			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
@@ -3944,7 +3967,7 @@ func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
 			Deletes: 1,  // 1 DELETE operation: delete row 3
 		},
 		`test_schema."json_edge_cases"`: {
-			Inserts: 1, // 1 INSERT operation: JSON with special characters
+			Inserts: 2, // 2 INSERT operations: 1 basic + 1 with single quotes in JSON
 			Updates: 6, // 6 UPDATE operations: 2 regular + 2 row 5 (non-NULL→NULL→non-NULL) + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1, // 1 DELETE operation: delete JSON row 3
 		},
@@ -4227,7 +4250,6 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 
 		`DELETE FROM test_schema.decimal_edge_cases WHERE id = 4;`,
 
-		// TESTING: JSON with FULL edge cases - using unique values for fallback
 		`INSERT INTO test_schema.json_edge_cases (
 			json_with_escaped_chars,
 			json_with_unicode,
@@ -4263,7 +4285,6 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 
 		`DELETE FROM test_schema.json_edge_cases WHERE id = 4;`,
 
-		// TESTING: ENUM with FULL edge cases - using unique values for fallback
 		`INSERT INTO test_schema.enum_edge_cases (
 			status_simple,
 			status_with_quote,
@@ -4293,7 +4314,6 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 
 		`DELETE FROM test_schema.enum_edge_cases WHERE id = 4;`,
 
-		// TESTING: BYTES with FULL edge cases - using unique hex values for fallback
 		`INSERT INTO test_schema.bytes_edge_cases (
 			bytes_empty,
 			bytes_single,
@@ -4328,7 +4348,6 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 
 		`DELETE FROM test_schema.bytes_edge_cases WHERE id = 4;`,
 
-		// TESTING: DATETIME with FULL edge cases - using unique dates for fallback
 		`INSERT INTO test_schema.datetime_edge_cases (
 			date_epoch,
 			date_negative,
@@ -4365,7 +4384,6 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 
 		`DELETE FROM test_schema.datetime_edge_cases WHERE id = 4;`,
 
-		// TESTING: UUID/LTREE with FULL edge cases - using unique values for fallback
 		`INSERT INTO test_schema.uuid_ltree_edge_cases (
 			uuid_standard,
 			uuid_all_zeros,
@@ -4398,7 +4416,6 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 
 		`DELETE FROM test_schema.uuid_ltree_edge_cases WHERE id = 4;`,
 
-		// TESTING: MAP/HSTORE with FULL edge cases - using unique values for fallback
 		`INSERT INTO test_schema.map_edge_cases (
 			map_simple,
 			map_with_arrow,
@@ -4697,6 +4714,29 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 		SET text_with_tab = 'fallback_literal\ntest',
 		    text_with_mixed = E'fallback_actual\ntest'
 		WHERE id = 2;`,
+
+		// FALLBACK: MEDIUM PRIORITY - Single quotes inside JSON values
+		`INSERT INTO test_schema.json_edge_cases (
+			json_with_escaped_chars,
+			json_with_unicode,
+			json_nested,
+			json_array,
+			json_with_null,
+			json_empty,
+			json_formatted,
+			json_with_numbers,
+			json_complex
+		) VALUES (
+			'{"fallback": "O''Malley", "text": "It''s fallback"}',
+			'{"name": "O''Donnell", "message": "We''re testing"}',
+			'{"person": "O''Brien", "quote": "He said ''hello''"}',
+			'["Fallback''s test", "O''Reilly''s book"]',
+			'{"author": "O''Neil", "value": null}',
+			'{}',
+			'{"fallback": "She''s here"}',
+			'{"num": 456}',
+			'{"fallback": "O''Connor", "items": ["It''s good", "We''re done"]}'
+		);`,
 	}
 
 	lm := NewLiveMigrationTest(t, config)
@@ -4752,7 +4792,7 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 			Deletes: 1,
 		},
 		`test_schema."json_edge_cases"`: {
-			Inserts: 1,
+			Inserts: 2, // 1 basic + 1 with single quotes in JSON
 			Updates: 6, // 2 regular + 2 row 5 (non-NULL→NULL→non-NULL) + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1,
 		},
@@ -4837,7 +4877,7 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 			Deletes: 1,
 		},
 		`test_schema."json_edge_cases"`: {
-			Inserts: 1,
+			Inserts: 2, // 1 basic + 1 with single quotes in JSON
 			Updates: 6, // 2 regular + 2 row 5 (non-NULL→NULL→non-NULL) + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1,
 		},
