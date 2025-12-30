@@ -3876,6 +3876,12 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 		SET int_max = NULL,
 		    int_min = NULL
 		WHERE id = 6 AND int_max = 999999;`,
+
+			// HIGH PRIORITY: Literal '\n' (two chars) vs actual newline byte (0x0A)
+			`UPDATE test_schema.string_edge_cases
+		SET text_with_backslash = 'literal\nstring',
+		    text_with_newline = E'actual\nbyte'
+		WHERE id = 1;`,
 		},
 		CleanupSQL: []string{
 			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
@@ -3934,7 +3940,7 @@ func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
 	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
 		`test_schema."string_edge_cases"`: {
 			Inserts: 2,  // 2 INSERT operations: basic + actual control chars
-			Updates: 10, // 10 UPDATE operations: 6 regular + 2 row 5 (non-NULL→NULL→non-NULL) + 2 row 6 (NULL→non-NULL→NULL)
+			Updates: 11, // 11 UPDATE operations: 6 regular + 2 row 5 (non-NULL→NULL→non-NULL) + 2 row 6 (NULL→non-NULL→NULL) + 1 literal \n test
 			Deletes: 1,  // 1 DELETE operation: delete row 3
 		},
 		`test_schema."json_edge_cases"`: {
@@ -4685,6 +4691,12 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 		SET int_max = NULL,
 		    int_min = NULL
 		WHERE id = 6 AND int_max = 888888;`,
+
+		// FALLBACK: HIGH PRIORITY - Literal '\n' vs actual newline in fallback
+		`UPDATE test_schema.string_edge_cases
+		SET text_with_tab = 'fallback_literal\ntest',
+		    text_with_mixed = E'fallback_actual\ntest'
+		WHERE id = 2;`,
 	}
 
 	lm := NewLiveMigrationTest(t, config)
@@ -4736,7 +4748,7 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
 		`test_schema."string_edge_cases"`: {
 			Inserts: 2,
-			Updates: 10, // 6 regular + 2 row 5 (non-NULL→NULL→non-NULL) + 2 row 6 (NULL→non-NULL→NULL)
+			Updates: 11, // 6 regular + 2 row 5 (non-NULL→NULL→non-NULL) + 2 row 6 (NULL→non-NULL→NULL) + 1 literal \n test
 			Deletes: 1,
 		},
 		`test_schema."json_edge_cases"`: {
@@ -4816,7 +4828,7 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 	err = lm.WaitForFallbackStreamingComplete(map[string]ChangesCount{
 		`test_schema."string_edge_cases"`: {
 			Inserts: 1,
-			Updates: 6, // 2 regular + 2 row 5 (non-NULL→NULL→non-NULL) + 2 row 6 (NULL→non-NULL→NULL)
+			Updates: 7, // 2 regular + 2 row 5 (non-NULL→NULL→non-NULL) + 2 row 6 (NULL→non-NULL→NULL) + 1 literal \n test
 			Deletes: 1,
 		},
 		`test_schema."decimal_edge_cases"`: {
