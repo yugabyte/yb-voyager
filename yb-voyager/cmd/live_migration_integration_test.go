@@ -2903,6 +2903,201 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 
 			// DECIMAL Row 5: Additional decimal patterns
 			`INSERT INTO test_schema.decimal_edge_cases (
+		decimal_large,
+		decimal_negative,
+		decimal_zero,
+		decimal_high_precision,
+		decimal_scientific,
+		decimal_small
+	) VALUES
+	(
+		987654321.123456,
+		-999.999,
+		0,
+		0.123456789012345,
+		888888.888,
+		77.77
+	);`,
+
+			// Row 6: NULL values for testing NULL → non-NULL → NULL transitions
+			// STRING Row 6
+			`INSERT INTO test_schema.string_edge_cases (
+			text_with_backslash,
+			text_with_quote,
+			text_with_newline,
+			text_with_tab,
+			text_with_mixed,
+			text_windows_path,
+			text_sql_injection,
+			text_unicode,
+			text_empty,
+			text_null_string
+		) VALUES
+		(
+			NULL,                                   -- will be set to non-NULL then back to NULL
+			NULL,                                   -- will be set to non-NULL then back to NULL
+			'has value',
+			'has value',
+			'has value',
+			'has value',
+			'has value',
+			'has value',
+			'has value',
+			'has value'
+		);`,
+
+			// JSON Row 6
+			`INSERT INTO test_schema.json_edge_cases (
+			json_with_escaped_chars,
+			json_with_unicode,
+			json_nested,
+			json_array,
+			json_with_null,
+			json_empty,
+			json_formatted,
+			json_with_numbers,
+			json_complex
+		) VALUES
+		(
+			NULL,                                   -- will be set to non-NULL then back to NULL
+			NULL,                                   -- will be set to non-NULL then back to NULL
+			'{"has": "value"}',
+			'["has", "value"]',
+			'{"has": "value"}',
+			'{}',
+			'{"has": "value"}',
+			'{"num": 1}',
+			'{"has": "value"}'
+		);`,
+
+			// ENUM Row 6
+			`INSERT INTO test_schema.enum_edge_cases (
+		status_simple,
+		status_with_quote,
+		status_with_special,
+		status_unicode,
+		status_array,
+		status_null
+	) VALUES
+	(
+		NULL,                                   -- will be set to non-NULL then back to NULL
+		NULL,                                   -- will be set to non-NULL then back to NULL
+		'pending',
+		'pending',
+		ARRAY['active']::test_schema.status_enum[],
+		'pending'
+	);`,
+
+			// BYTES Row 6
+			`INSERT INTO test_schema.bytes_edge_cases (
+		bytes_empty,
+		bytes_single,
+		bytes_all_zeros,
+		bytes_all_ff,
+		bytes_null_byte,
+		bytes_special_chars
+	) VALUES
+	(
+		NULL,                                   -- will be set to non-NULL then back to NULL
+		NULL,                                   -- will be set to non-NULL then back to NULL
+		'\x00'::bytea,
+		'\xFF'::bytea,
+		'\x41'::bytea,
+		'\x41'::bytea
+	);`,
+
+			// DATETIME Row 6
+			`INSERT INTO test_schema.datetime_edge_cases (
+		date_epoch,
+		date_negative,
+		date_future,
+		timestamp_epoch,
+		timestamp_negative,
+		time_midnight,
+		time_noon
+	) VALUES
+	(
+		NULL,                                   -- will be set to non-NULL then back to NULL
+		NULL,                                   -- will be set to non-NULL then back to NULL
+		'2024-01-01',
+		'2024-01-01 00:00:00',
+		'2000-01-01 00:00:00',
+			'00:00:00',
+			'12:00:00'
+		);`,
+
+			// UUID/LTREE Row 6
+			`INSERT INTO test_schema.uuid_ltree_edge_cases (
+		uuid_standard,
+		uuid_all_zeros,
+		ltree_simple,
+		ltree_deep,
+		ltree_quoted
+	) VALUES
+	(
+		NULL,                                   -- will be set to non-NULL then back to NULL
+		NULL,                                   -- will be set to non-NULL then back to NULL
+		'Top.Science',
+		'Top.Science.Astronomy',
+		'Top.Collections.Art'
+	);`,
+
+			// MAP/HSTORE Row 6
+			`INSERT INTO test_schema.map_edge_cases (
+		map_simple,
+		map_with_arrow,
+		map_with_quotes,
+		map_empty_values,
+		map_multiple_pairs,
+		map_special_chars
+	) VALUES
+	(
+		NULL,                                   -- will be set to non-NULL then back to NULL
+		NULL,                                   -- will be set to non-NULL then back to NULL
+		'"a"=>"b"',
+		'"a"=>""',
+		'"a"=>"1", "b"=>"2"',
+		'"x"=>"y"'
+	);`,
+
+			// INTERVAL Row 6
+			`INSERT INTO test_schema.interval_edge_cases (
+			interval_positive,
+			interval_negative,
+			interval_zero,
+			interval_years,
+			interval_days,
+			interval_hours,
+			interval_mixed
+		) VALUES
+		(
+			NULL,                                   -- will be set to non-NULL then back to NULL
+			NULL,                                   -- will be set to non-NULL then back to NULL
+			'0 seconds',
+			'1 year',
+			'1 day',
+			'1 hour',
+			'1 year 1 day'
+		);`,
+
+			// ZONEDTIMESTAMP Row 6
+			`INSERT INTO test_schema.zonedtimestamp_edge_cases (
+		ts_utc,
+		ts_positive_offset,
+		ts_negative_offset,
+		ts_epoch,
+		ts_future
+	) VALUES
+	(
+		NULL,                                   -- will be set to non-NULL then back to NULL
+		NULL,                                   -- will be set to non-NULL then back to NULL
+		'2024-01-01 00:00:00-05',
+		'1970-01-01 00:00:00+00',
+		'2099-12-31 23:59:59+00'
+	);`,
+
+			// DECIMAL Row 6
+			`INSERT INTO test_schema.decimal_edge_cases (
 			decimal_large,
 			decimal_negative,
 			decimal_zero,
@@ -2911,12 +3106,12 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 			decimal_small
 		) VALUES
 		(
-			987654321.123456,
-			-999.999,
+			NULL,                                   -- will be set to non-NULL then back to NULL
+			NULL,                                   -- will be set to non-NULL then back to NULL
 			0,
-			0.123456789012345,
-			888888.888,
-			77.77
+			0.000000000000001,
+			999999.999,
+			99.99
 		);`,
 		},
 		SourceDeltaSQL: []string{
@@ -3343,6 +3538,164 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 
 			// DECIMAL DELETE #1: Test DECIMAL row deletion
 			`DELETE FROM test_schema.decimal_edge_cases WHERE id = 3;`,
+
+			// NULL TRANSITION TESTS (using row 5 to avoid conflicts with earlier UPDATEs)
+			// STRING: NULL transition
+			`UPDATE test_schema.string_edge_cases
+		SET text_with_quote = NULL,
+		    text_empty = NULL
+		WHERE id = 5;`,
+
+			// STRING: NULL restore
+			`UPDATE test_schema.string_edge_cases
+		SET text_with_quote = 'restored from NULL',
+		    text_empty = 'restored'
+		WHERE id = 5 AND text_with_quote IS NULL;`,
+
+			// JSON: NULL transition
+			`UPDATE test_schema.json_edge_cases
+		SET json_with_unicode = NULL,
+		    json_nested = NULL
+		WHERE id = 5;`,
+
+			// JSON: NULL restore
+			`UPDATE test_schema.json_edge_cases
+		SET json_with_unicode = '{"restored": "from NULL"}',
+		    json_nested = '{"nested": {"restored": true}}'
+		WHERE id = 5 AND json_with_unicode IS NULL;`,
+
+			// DECIMAL: NULL transition
+			`UPDATE test_schema.decimal_edge_cases
+		SET decimal_negative = NULL,
+		    decimal_small = NULL
+		WHERE id = 5;`,
+
+			// DECIMAL: NULL restore
+			`UPDATE test_schema.decimal_edge_cases
+		SET decimal_negative = -888.888,
+		    decimal_small = 88.88
+		WHERE id = 5 AND decimal_negative IS NULL;`,
+
+			// === ROW 6: NULL → non-NULL → NULL transitions (ALL 10 datatypes) ===
+			// STRING: Set NULL columns to non-NULL (row 6)
+			`UPDATE test_schema.string_edge_cases
+		SET text_with_backslash = 'set from NULL',
+		    text_with_quote = 'also set from NULL'
+		WHERE id = 6 AND text_with_backslash IS NULL;`,
+
+			// STRING: Set non-NULL columns back to NULL (row 6)
+			`UPDATE test_schema.string_edge_cases
+		SET text_with_backslash = NULL,
+		    text_with_quote = NULL
+		WHERE id = 6 AND text_with_backslash = 'set from NULL';`,
+
+			// JSON: Set NULL columns to non-NULL (row 6)
+			`UPDATE test_schema.json_edge_cases
+		SET json_with_escaped_chars = '{"from": "NULL"}',
+		    json_with_unicode = '{"also": "from NULL"}'
+		WHERE id = 6 AND json_with_escaped_chars IS NULL;`,
+
+			// JSON: Set non-NULL columns back to NULL (row 6)
+			`UPDATE test_schema.json_edge_cases
+		SET json_with_escaped_chars = NULL,
+		    json_with_unicode = NULL
+		WHERE id = 6 AND json_with_escaped_chars::text = '{"from": "NULL"}';`,
+
+			// ENUM: Set NULL columns to non-NULL (row 6)
+			`UPDATE test_schema.enum_edge_cases
+		SET status_simple = 'active',
+		    status_with_quote = 'inactive'
+		WHERE id = 6 AND status_simple IS NULL;`,
+
+			// ENUM: Set non-NULL columns back to NULL (row 6)
+			`UPDATE test_schema.enum_edge_cases
+		SET status_simple = NULL,
+		    status_with_quote = NULL
+		WHERE id = 6 AND status_simple = 'active';`,
+
+			// BYTES: Set NULL columns to non-NULL (row 6)
+			`UPDATE test_schema.bytes_edge_cases
+		SET bytes_empty = '\x42'::bytea,
+		    bytes_single = '\x43'::bytea
+		WHERE id = 6 AND bytes_empty IS NULL;`,
+
+			// BYTES: Set non-NULL columns back to NULL (row 6)
+			`UPDATE test_schema.bytes_edge_cases
+		SET bytes_empty = NULL,
+		    bytes_single = NULL
+		WHERE id = 6 AND bytes_empty = '\x42'::bytea;`,
+
+			// DATETIME: Set NULL columns to non-NULL (row 6)
+			`UPDATE test_schema.datetime_edge_cases
+		SET date_epoch = '2025-01-01',
+		    date_negative = '2000-01-01'
+		WHERE id = 6 AND date_epoch IS NULL;`,
+
+			// DATETIME: Set non-NULL columns back to NULL (row 6)
+			`UPDATE test_schema.datetime_edge_cases
+		SET date_epoch = NULL,
+		    date_negative = NULL
+		WHERE id = 6 AND date_epoch = '2025-01-01';`,
+
+			// UUID/LTREE: Set NULL columns to non-NULL (row 6)
+			`UPDATE test_schema.uuid_ltree_edge_cases
+		SET uuid_standard = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+		    uuid_all_zeros = '00000000-0000-0000-0000-000000000000'
+		WHERE id = 6 AND uuid_standard IS NULL;`,
+
+			// UUID/LTREE: Set non-NULL columns back to NULL (row 6)
+			`UPDATE test_schema.uuid_ltree_edge_cases
+		SET uuid_standard = NULL,
+		    uuid_all_zeros = NULL
+		WHERE id = 6 AND uuid_standard = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';`,
+
+			// MAP/HSTORE: Set NULL columns to non-NULL (row 6)
+			`UPDATE test_schema.map_edge_cases
+		SET map_simple = 'from_null=>yes',
+		    map_with_arrow = 'also=>from_null'
+		WHERE id = 6 AND map_simple IS NULL;`,
+
+			// MAP/HSTORE: Set non-NULL columns back to NULL (row 6)
+			`UPDATE test_schema.map_edge_cases
+		SET map_simple = NULL,
+		    map_with_arrow = NULL
+		WHERE id = 6 AND map_simple = 'from_null=>yes';`,
+
+			// INTERVAL: Set NULL columns to non-NULL (row 6)
+			`UPDATE test_schema.interval_edge_cases
+		SET interval_positive = '5 years',
+		    interval_negative = '-10 days'
+		WHERE id = 6 AND interval_positive IS NULL;`,
+
+			// INTERVAL: Set non-NULL columns back to NULL (row 6)
+			`UPDATE test_schema.interval_edge_cases
+		SET interval_positive = NULL,
+		    interval_negative = NULL
+		WHERE id = 6 AND interval_positive = '5 years';`,
+
+			// ZONEDTIMESTAMP: Set NULL columns to non-NULL (row 6)
+			`UPDATE test_schema.zonedtimestamp_edge_cases
+		SET ts_utc = '2025-06-15 12:00:00+00',
+		    ts_positive_offset = '2025-06-15 12:00:00+05'
+		WHERE id = 6 AND ts_utc IS NULL;`,
+
+			// ZONEDTIMESTAMP: Set non-NULL columns back to NULL (row 6)
+			`UPDATE test_schema.zonedtimestamp_edge_cases
+		SET ts_utc = NULL,
+		    ts_positive_offset = NULL
+		WHERE id = 6 AND ts_utc = '2025-06-15 12:00:00+00';`,
+
+			// DECIMAL: Set NULL columns to non-NULL (row 6)
+			`UPDATE test_schema.decimal_edge_cases
+		SET decimal_large = 111111111.111111111,
+		    decimal_negative = -111.111
+		WHERE id = 6 AND decimal_large IS NULL;`,
+
+			// DECIMAL: Set non-NULL columns back to NULL (row 6)
+			`UPDATE test_schema.decimal_edge_cases
+		SET decimal_large = NULL,
+		    decimal_negative = NULL
+		WHERE id = 6 AND decimal_large = 111111111.111111111;`,
 		},
 		CleanupSQL: []string{
 			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
@@ -3373,19 +3726,19 @@ func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
 	})
 	testutils.FatalIfError(t, err, "failed to start import data")
 
-	t.Log("=== Waiting for snapshot complete (10 datatypes × 5 rows = 50 rows) ===")
+	t.Log("=== Waiting for snapshot complete (10 datatypes × 6 rows = 60 rows) ===")
 	err = lm.WaitForSnapshotComplete(map[string]int64{
-		`test_schema."string_edge_cases"`:         5, // 5 rows with STRING edge cases
-		`test_schema."json_edge_cases"`:           5, // 5 rows with JSON edge cases
-		`test_schema."enum_edge_cases"`:           5, // 5 rows with ENUM edge cases
-		`test_schema."bytes_edge_cases"`:          5, // 5 rows with BYTES edge cases
-		`test_schema."datetime_edge_cases"`:       5, // 5 rows with DATETIME edge cases
-		`test_schema."uuid_ltree_edge_cases"`:     5, // 5 rows with UUID/LTREE edge cases
-		`test_schema."map_edge_cases"`:            5, // 5 rows with MAP edge cases
-		`test_schema."interval_edge_cases"`:       5, // 5 rows with INTERVAL edge cases
-		`test_schema."zonedtimestamp_edge_cases"`: 5, // 5 rows with ZONEDTIMESTAMP edge cases
-		`test_schema."decimal_edge_cases"`:        5, // 5 rows with DECIMAL edge cases
-	}, 180) // Increased timeout for 50 rows
+		`test_schema."string_edge_cases"`:         6, // 6 rows (5 edge cases + 1 with NULL for transitions)
+		`test_schema."json_edge_cases"`:           6, // 6 rows (5 edge cases + 1 with NULL for transitions)
+		`test_schema."enum_edge_cases"`:           6, // 6 rows (5 edge cases + 1 with NULL for transitions)
+		`test_schema."bytes_edge_cases"`:          6, // 6 rows (5 edge cases + 1 with NULL for transitions)
+		`test_schema."datetime_edge_cases"`:       6, // 6 rows (5 edge cases + 1 with NULL for transitions)
+		`test_schema."uuid_ltree_edge_cases"`:     6, // 6 rows (5 edge cases + 1 with NULL for transitions)
+		`test_schema."map_edge_cases"`:            6, // 6 rows (5 edge cases + 1 with NULL for transitions)
+		`test_schema."interval_edge_cases"`:       6, // 6 rows (5 edge cases + 1 with NULL for transitions)
+		`test_schema."zonedtimestamp_edge_cases"`: 6, // 6 rows (5 edge cases + 1 with NULL for transitions)
+		`test_schema."decimal_edge_cases"`:        6, // 6 rows (5 edge cases + 1 with NULL for transitions)
+	}, 240) // Increased timeout for 60 rows
 	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
 
 	t.Log("=== Validating snapshot data ===")
@@ -3396,56 +3749,56 @@ func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
 	err = lm.ExecuteSourceDelta()
 	testutils.FatalIfError(t, err, "failed to execute source delta")
 
-	t.Log("=== Waiting for streaming complete (10 datatypes: STRING: 2/6/1, Others: 1/2/1) ===")
+	t.Log("=== Waiting for streaming complete (ALL 10 datatypes with NULL transitions!) ===")
 	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
 		`test_schema."string_edge_cases"`: {
-			Inserts: 2, // 2 INSERT operations: basic + actual control chars
-			Updates: 6, // 6 UPDATE operations: backslash, consecutive quotes, critical edge cases, advanced Unicode, Unicode separators, actual control chars
-			Deletes: 1, // 1 DELETE operation: delete row 3
+			Inserts: 2,  // 2 INSERT operations: basic + actual control chars
+			Updates: 10, // 10 UPDATE operations: 6 regular + 2 row 5 (non-NULL→NULL→non-NULL) + 2 row 6 (NULL→non-NULL→NULL)
+			Deletes: 1,  // 1 DELETE operation: delete row 3
 		},
 		`test_schema."json_edge_cases"`: {
 			Inserts: 1, // 1 INSERT operation: JSON with special characters
-			Updates: 2, // 2 UPDATE operations: complex JSON, empty/null updates
+			Updates: 6, // 6 UPDATE operations: 2 regular + 2 row 5 (non-NULL→NULL→non-NULL) + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1, // 1 DELETE operation: delete JSON row 3
 		},
 		`test_schema."enum_edge_cases"`: {
 			Inserts: 1, // 1 INSERT operation: ENUM with special characters
-			Updates: 2, // 2 UPDATE operations: ENUM value updates, ENUM array updates
+			Updates: 4, // 4 UPDATE operations: 2 regular + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1, // 1 DELETE operation: delete ENUM row 3
 		},
 		`test_schema."bytes_edge_cases"`: {
 			Inserts: 1, // 1 INSERT operation: BYTES with special patterns
-			Updates: 2, // 2 UPDATE operations: BYTES value updates, null byte patterns
+			Updates: 4, // 4 UPDATE operations: 2 regular + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1, // 1 DELETE operation: delete BYTES row 3
 		},
 		`test_schema."datetime_edge_cases"`: {
 			Inserts: 1, // 1 INSERT operation: DATETIME with various dates/times
-			Updates: 2, // 2 UPDATE operations: date/timestamp updates, timezone updates
+			Updates: 4, // 4 UPDATE operations: 2 regular + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1, // 1 DELETE operation: delete DATETIME row 3
 		},
 		`test_schema."uuid_ltree_edge_cases"`: {
 			Inserts: 1, // 1 INSERT operation: UUID/LTREE with edge cases
-			Updates: 2, // 2 UPDATE operations: UUID updates, LTREE path updates
+			Updates: 4, // 4 UPDATE operations: 2 regular + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1, // 1 DELETE operation: delete UUID/LTREE row 3
 		},
 		`test_schema."map_edge_cases"`: {
 			Inserts: 1, // 1 INSERT operation: MAP/HSTORE with arrow operator and quotes
-			Updates: 2, // 2 UPDATE operations: MAP value updates, special character updates
+			Updates: 4, // 4 UPDATE operations: 2 regular + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1, // 1 DELETE operation: delete MAP row 3
 		},
 		`test_schema."interval_edge_cases"`: {
 			Inserts: 1, // 1 INSERT operation: INTERVAL with positive/negative/zero
-			Updates: 2, // 2 UPDATE operations: INTERVAL value updates, mixed intervals
+			Updates: 4, // 4 UPDATE operations: 2 regular + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1, // 1 DELETE operation: delete INTERVAL row 3
 		},
 		`test_schema."zonedtimestamp_edge_cases"`: {
 			Inserts: 1, // 1 INSERT operation: TIMESTAMPTZ with various timezones
-			Updates: 2, // 2 UPDATE operations: TIMESTAMPTZ value updates, timezone offset updates
+			Updates: 4, // 4 UPDATE operations: 2 regular + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1, // 1 DELETE operation: delete TIMESTAMPTZ row 3
 		},
 		`test_schema."decimal_edge_cases"`: {
 			Inserts: 1, // 1 INSERT operation: DECIMAL with large, negative, high precision
-			Updates: 2, // 2 UPDATE operations: DECIMAL value updates, precision updates
+			Updates: 6, // 6 UPDATE operations: 2 regular + 2 row 5 (non-NULL→NULL→non-NULL) + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1, // 1 DELETE operation: delete DECIMAL row 3
 		},
 	}, 120, 1) // 1 minute timeout, 1 second poll interval
@@ -3941,6 +4294,164 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 		WHERE id = 2;`,
 
 		`DELETE FROM test_schema.zonedtimestamp_edge_cases WHERE id = 4;`,
+
+		// FALLBACK: NULL TRANSITION TESTS (using row 5 to avoid conflicts)
+		// STRING: NULL transition
+		`UPDATE test_schema.string_edge_cases
+		SET text_with_backslash = NULL,
+		    text_unicode = NULL
+		WHERE id = 5;`,
+
+		// STRING: NULL restore
+		`UPDATE test_schema.string_edge_cases
+		SET text_with_backslash = 'fallback\\restored',
+		    text_unicode = 'fallback restored مرحبا'
+		WHERE id = 5 AND text_with_backslash IS NULL;`,
+
+		// JSON: NULL transition
+		`UPDATE test_schema.json_edge_cases
+		SET json_nested = NULL,
+		    json_array = NULL
+		WHERE id = 5;`,
+
+		// JSON: NULL restore
+		`UPDATE test_schema.json_edge_cases
+		SET json_nested = '{"fallback": {"restored": true}}',
+		    json_array = '["fallback", "restored"]'
+		WHERE id = 5 AND json_nested IS NULL;`,
+
+		// DECIMAL: NULL transition
+		`UPDATE test_schema.decimal_edge_cases
+		SET decimal_large = NULL,
+		    decimal_zero = NULL
+		WHERE id = 5;`,
+
+		// DECIMAL: NULL restore
+		`UPDATE test_schema.decimal_edge_cases
+		SET decimal_large = 666666666.666666666,
+		    decimal_zero = 0.00
+		WHERE id = 5 AND decimal_large IS NULL;`,
+
+		// === FALLBACK ROW 6: NULL → non-NULL → NULL transitions (ALL 10 datatypes) ===
+		// STRING: Set NULL to non-NULL (row 6 fallback)
+		`UPDATE test_schema.string_edge_cases
+		SET text_with_backslash = 'fallback from NULL',
+		    text_with_quote = 'fallback also from NULL'
+		WHERE id = 6 AND text_with_backslash IS NULL;`,
+
+		// STRING: Set non-NULL back to NULL (row 6 fallback)
+		`UPDATE test_schema.string_edge_cases
+		SET text_with_backslash = NULL,
+		    text_with_quote = NULL
+		WHERE id = 6 AND text_with_backslash = 'fallback from NULL';`,
+
+		// JSON: Set NULL to non-NULL (row 6 fallback)
+		`UPDATE test_schema.json_edge_cases
+		SET json_with_escaped_chars = '{"fallback": "from NULL"}',
+		    json_with_unicode = '{"fallback_also": "from NULL"}'
+		WHERE id = 6 AND json_with_escaped_chars IS NULL;`,
+
+		// JSON: Set non-NULL back to NULL (row 6 fallback)
+		`UPDATE test_schema.json_edge_cases
+		SET json_with_escaped_chars = NULL,
+		    json_with_unicode = NULL
+		WHERE id = 6 AND json_with_escaped_chars::text = '{"fallback": "from NULL"}';`,
+
+		// ENUM: Set NULL to non-NULL (row 6 fallback)
+		`UPDATE test_schema.enum_edge_cases
+		SET status_simple = 'pending',
+		    status_with_quote = 'active'
+		WHERE id = 6 AND status_simple IS NULL;`,
+
+		// ENUM: Set non-NULL back to NULL (row 6 fallback)
+		`UPDATE test_schema.enum_edge_cases
+		SET status_simple = NULL,
+		    status_with_quote = NULL
+		WHERE id = 6 AND status_simple = 'pending';`,
+
+		// BYTES: Set NULL to non-NULL (row 6 fallback)
+		`UPDATE test_schema.bytes_edge_cases
+		SET bytes_empty = '\x44'::bytea,
+		    bytes_single = '\x45'::bytea
+		WHERE id = 6 AND bytes_empty IS NULL;`,
+
+		// BYTES: Set non-NULL back to NULL (row 6 fallback)
+		`UPDATE test_schema.bytes_edge_cases
+		SET bytes_empty = NULL,
+		    bytes_single = NULL
+		WHERE id = 6 AND bytes_empty = '\x44'::bytea;`,
+
+		// DATETIME: Set NULL to non-NULL (row 6 fallback)
+		`UPDATE test_schema.datetime_edge_cases
+		SET date_epoch = '2025-12-31',
+		    date_negative = '1999-12-31'
+		WHERE id = 6 AND date_epoch IS NULL;`,
+
+		// DATETIME: Set non-NULL back to NULL (row 6 fallback)
+		`UPDATE test_schema.datetime_edge_cases
+		SET date_epoch = NULL,
+		    date_negative = NULL
+		WHERE id = 6 AND date_epoch = '2025-12-31';`,
+
+		// UUID/LTREE: Set NULL to non-NULL (row 6 fallback)
+		`UPDATE test_schema.uuid_ltree_edge_cases
+		SET uuid_standard = 'ffffffff-ffff-ffff-ffff-ffffffffffff',
+		    uuid_all_zeros = '11111111-1111-1111-1111-111111111111'
+		WHERE id = 6 AND uuid_standard IS NULL;`,
+
+		// UUID/LTREE: Set non-NULL back to NULL (row 6 fallback)
+		`UPDATE test_schema.uuid_ltree_edge_cases
+		SET uuid_standard = NULL,
+		    uuid_all_zeros = NULL
+		WHERE id = 6 AND uuid_standard = 'ffffffff-ffff-ffff-ffff-ffffffffffff';`,
+
+		// MAP/HSTORE: Set NULL to non-NULL (row 6 fallback)
+		`UPDATE test_schema.map_edge_cases
+		SET map_simple = 'fallback=>from_null',
+		    map_with_arrow = 'fb=>also_null'
+		WHERE id = 6 AND map_simple IS NULL;`,
+
+		// MAP/HSTORE: Set non-NULL back to NULL (row 6 fallback)
+		`UPDATE test_schema.map_edge_cases
+		SET map_simple = NULL,
+		    map_with_arrow = NULL
+		WHERE id = 6 AND map_simple = 'fallback=>from_null';`,
+
+		// INTERVAL: Set NULL to non-NULL (row 6 fallback)
+		`UPDATE test_schema.interval_edge_cases
+		SET interval_positive = '7 years',
+		    interval_negative = '-15 days'
+		WHERE id = 6 AND interval_positive IS NULL;`,
+
+		// INTERVAL: Set non-NULL back to NULL (row 6 fallback)
+		`UPDATE test_schema.interval_edge_cases
+		SET interval_positive = NULL,
+		    interval_negative = NULL
+		WHERE id = 6 AND interval_positive = '7 years';`,
+
+		// ZONEDTIMESTAMP: Set NULL to non-NULL (row 6 fallback)
+		`UPDATE test_schema.zonedtimestamp_edge_cases
+		SET ts_utc = '2025-12-31 23:59:59+00',
+		    ts_positive_offset = '2025-12-31 23:59:59+08'
+		WHERE id = 6 AND ts_utc IS NULL;`,
+
+		// ZONEDTIMESTAMP: Set non-NULL back to NULL (row 6 fallback)
+		`UPDATE test_schema.zonedtimestamp_edge_cases
+		SET ts_utc = NULL,
+		    ts_positive_offset = NULL
+		WHERE id = 6 AND ts_utc = '2025-12-31 23:59:59+00';`,
+
+		// DECIMAL: Set NULL to non-NULL (row 6 fallback)
+		`UPDATE test_schema.decimal_edge_cases
+		SET decimal_large = 222222222.222222222,
+		    decimal_negative = -222.222
+		WHERE id = 6 AND decimal_large IS NULL;`,
+
+		// DECIMAL: Set non-NULL back to NULL (row 6 fallback)
+		`UPDATE test_schema.decimal_edge_cases
+		SET decimal_large = NULL,
+		    decimal_negative = NULL
+		WHERE id = 6 AND decimal_large = 222222222.222222222;`,
 	}
 
 	lm := NewLiveMigrationTest(t, config)
@@ -3964,19 +4475,19 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 	})
 	testutils.FatalIfError(t, err, "failed to start import data")
 
-	t.Log("=== Waiting for snapshot complete (10 datatypes × 5 rows = 50 rows) ===")
+	t.Log("=== Waiting for snapshot complete (10 datatypes × 6 rows = 60 rows) ===")
 	err = lm.WaitForSnapshotComplete(map[string]int64{
-		`test_schema."string_edge_cases"`:         5,
-		`test_schema."json_edge_cases"`:           5,
-		`test_schema."enum_edge_cases"`:           5,
-		`test_schema."bytes_edge_cases"`:          5,
-		`test_schema."datetime_edge_cases"`:       5,
-		`test_schema."uuid_ltree_edge_cases"`:     5,
-		`test_schema."map_edge_cases"`:            5,
-		`test_schema."interval_edge_cases"`:       5,
-		`test_schema."zonedtimestamp_edge_cases"`: 5,
-		`test_schema."decimal_edge_cases"`:        5,
-	}, 180)
+		`test_schema."string_edge_cases"`:         6,
+		`test_schema."json_edge_cases"`:           6,
+		`test_schema."enum_edge_cases"`:           6,
+		`test_schema."bytes_edge_cases"`:          6,
+		`test_schema."datetime_edge_cases"`:       6,
+		`test_schema."uuid_ltree_edge_cases"`:     6,
+		`test_schema."map_edge_cases"`:            6,
+		`test_schema."interval_edge_cases"`:       6,
+		`test_schema."zonedtimestamp_edge_cases"`: 6,
+		`test_schema."decimal_edge_cases"`:        6,
+	}, 240)
 	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
 
 	t.Log("=== Validating snapshot data ===")
@@ -3991,52 +4502,52 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
 		`test_schema."string_edge_cases"`: {
 			Inserts: 2,
-			Updates: 6,
+			Updates: 10, // 6 regular + 2 row 5 (non-NULL→NULL→non-NULL) + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1,
 		},
 		`test_schema."json_edge_cases"`: {
 			Inserts: 1,
-			Updates: 2,
+			Updates: 6, // 2 regular + 2 row 5 (non-NULL→NULL→non-NULL) + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1,
 		},
 		`test_schema."enum_edge_cases"`: {
 			Inserts: 1,
-			Updates: 2,
+			Updates: 4, // 2 regular + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1,
 		},
 		`test_schema."bytes_edge_cases"`: {
 			Inserts: 1,
-			Updates: 2,
+			Updates: 4, // 2 regular + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1,
 		},
 		`test_schema."datetime_edge_cases"`: {
 			Inserts: 1,
-			Updates: 2,
+			Updates: 4, // 2 regular + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1,
 		},
 		`test_schema."uuid_ltree_edge_cases"`: {
 			Inserts: 1,
-			Updates: 2,
+			Updates: 4, // 2 regular + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1,
 		},
 		`test_schema."map_edge_cases"`: {
 			Inserts: 1,
-			Updates: 2,
+			Updates: 4, // 2 regular + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1,
 		},
 		`test_schema."interval_edge_cases"`: {
 			Inserts: 1,
-			Updates: 2,
+			Updates: 4, // 2 regular + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1,
 		},
 		`test_schema."zonedtimestamp_edge_cases"`: {
 			Inserts: 1,
-			Updates: 2,
+			Updates: 4, // 2 regular + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1,
 		},
 		`test_schema."decimal_edge_cases"`: {
 			Inserts: 1,
-			Updates: 2,
+			Updates: 6, // 2 regular + 2 row 5 (non-NULL→NULL→non-NULL) + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1,
 		},
 	}, 180, 2)
@@ -4061,60 +4572,60 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 	t.Log("=== Waiting for CDC to capture changes ===")
 	time.Sleep(30 * time.Second)
 
-	t.Log("=== Waiting for fallback streaming complete ===")
+	t.Log("=== Waiting for fallback streaming complete (ALL 10 datatypes with BOTH NULL transition paths!) ===")
 	t.Log("   TESTING: ALL 10 datatypes with FULL edge cases! (Final Step)")
 	err = lm.WaitForFallbackStreamingComplete(map[string]ChangesCount{
 		`test_schema."string_edge_cases"`: {
 			Inserts: 1,
-			Updates: 2,
+			Updates: 6, // 2 regular + 2 row 5 (non-NULL→NULL→non-NULL) + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1,
 		},
 		`test_schema."decimal_edge_cases"`: {
 			Inserts: 1,
-			Updates: 2,
+			Updates: 6, // 2 regular + 2 row 5 (non-NULL→NULL→non-NULL) + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1,
 		},
 		`test_schema."json_edge_cases"`: {
 			Inserts: 1,
-			Updates: 2,
+			Updates: 6, // 2 regular + 2 row 5 (non-NULL→NULL→non-NULL) + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1,
 		},
 		`test_schema."enum_edge_cases"`: {
 			Inserts: 1,
-			Updates: 2,
+			Updates: 4, // 2 regular + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1,
 		},
 		`test_schema."bytes_edge_cases"`: {
 			Inserts: 1,
-			Updates: 2,
+			Updates: 4, // 2 regular + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1,
 		},
 		`test_schema."datetime_edge_cases"`: {
 			Inserts: 1,
-			Updates: 2,
+			Updates: 4, // 2 regular + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1,
 		},
 		`test_schema."uuid_ltree_edge_cases"`: {
 			Inserts: 1,
-			Updates: 2,
+			Updates: 4, // 2 regular + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1,
 		},
 		`test_schema."map_edge_cases"`: {
 			Inserts: 1,
-			Updates: 2,
+			Updates: 4, // 2 regular + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1,
 		},
 		`test_schema."interval_edge_cases"`: {
 			Inserts: 1,
-			Updates: 2,
+			Updates: 4, // 2 regular + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1,
 		},
 		`test_schema."zonedtimestamp_edge_cases"`: {
 			Inserts: 1,
-			Updates: 2,
+			Updates: 4, // 2 regular + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1,
 		},
-	}, 420, 2)
+	}, 180, 2)
 	testutils.FatalIfError(t, err, "failed to wait for fallback streaming complete")
 
 	t.Log("=== Validating fallback streaming data ===")
