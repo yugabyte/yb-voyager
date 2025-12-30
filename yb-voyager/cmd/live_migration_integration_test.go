@@ -1718,8 +1718,10 @@ $$ LANGUAGE plpgsql;`,
 // Currently testing: STRING datatype with backslashes, quotes, newlines, tabs, Unicode, etc.
 // This test verifies that the datatype converter properly handles edge cases during CDC streaming.
 // Aligned with unit tests in yugabytedbSuite_test.go
-func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
-	lm := NewLiveMigrationTest(t, &TestConfig{
+// getDatatypeEdgeCasesTestConfig returns the shared test configuration for datatype edge cases
+// This config is used by both basic and fallback datatype edge case tests
+func getDatatypeEdgeCasesTestConfig() *TestConfig {
+	return &TestConfig{
 		SourceDB: ContainerConfig{
 			Type:    "postgresql",
 			ForLive: true,
@@ -1942,8 +1944,60 @@ func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
 				'--comment',                            -- SQL comment
 				'👨‍👩‍👧 family',                           -- TODO 4: Zero-width joiner emoji (composite emoji)
 				' ',                                    -- single space only (critical edge case)
-				'This is NULL value'                    -- NULL as part of string
-			);`,
+			'This is NULL value'                    -- NULL as part of string
+		);`,
+
+			// Row 4: More backslash and quote variations
+			`INSERT INTO test_schema.string_edge_cases (
+			text_with_backslash,
+			text_with_quote,
+			text_with_newline,
+			text_with_tab,
+			text_with_mixed,
+			text_windows_path,
+			text_sql_injection,
+			text_unicode,
+			text_empty,
+			text_null_string
+		) VALUES
+		(
+			'another\path\here',                    -- more backslash patterns
+			'Say "hello" and ''goodbye''',          -- mixed double and single quotes
+			E'multi\nline\nstring',                 -- multiple newlines
+			E'column1\tcolumn2\tcolumn3',           -- multiple tabs
+			E'complex\t"quote''\ntest',             -- mix of everything
+			'D:\Data\Reports\2024\file.xlsx',       -- long Windows path
+			'1=1; DROP DATABASE;--',                -- SQL injection variant
+			'Привет мир 🚀',                         -- Russian + emoji
+			E'',                                    -- empty via E-string
+			'null'                                  -- lowercase null
+		);`,
+
+			// Row 5: Edge case combinations
+			`INSERT INTO test_schema.string_edge_cases (
+			text_with_backslash,
+			text_with_quote,
+			text_with_newline,
+			text_with_tab,
+			text_with_mixed,
+			text_windows_path,
+			text_sql_injection,
+			text_unicode,
+			text_empty,
+			text_null_string
+		) VALUES
+		(
+			'slash/backslash\mix',                  -- forward and back slashes
+			'''quoted string''',                    -- entire string in quotes
+			E'start\nend',                          -- newline at boundary
+			E'\ttabbed',                            -- tab at start
+			'simple text',                          -- actually simple
+			'\\network\share\folder',               -- network path
+			'admin''--',                            -- comment injection
+			'مرحبا 你好 שלום',                       -- Arabic, Chinese, Hebrew
+			'  ',                                   -- spaces only
+			'NULLNULLNULL'                          -- repeated NULL text
+		);`,
 
 			// JSON Row 1: Basic JSON edge cases
 			`INSERT INTO test_schema.json_edge_cases (
@@ -2014,8 +2068,56 @@ func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
 				'{"empty": {}}',
 				'{"text": "simple value"}',
 				'{"zero": 0, "negative": -42, "positive": 42}',
-				'{"name": "test", "value": 123}'
-			);`,
+			'{"name": "test", "value": 123}'
+		);`,
+
+			// JSON Row 4: Additional JSON patterns
+			`INSERT INTO test_schema.json_edge_cases (
+			json_with_escaped_chars,
+			json_with_unicode,
+			json_nested,
+			json_array,
+			json_with_null,
+			json_empty,
+			json_formatted,
+			json_with_numbers,
+			json_complex
+		) VALUES
+		(
+			'{"quote": "O''Reilly", "slash": "path/to/file"}',
+			'{"emoji": "🎉🚀💡", "lang": "Español"}',
+			'{"outer": {"middle": {"inner": {"deep": "nest"}}}}',
+			'["a", "b", "c", "d", "e"]',
+			'{"x": null, "y": null, "z": null}',
+			'{"data": {}}',
+			'{"formatted": "multi-line test"}',
+			'{"big": 999999999, "small": 0.000001}',
+			'{"mixed": [1, "two", null, {"four": 4}]}'
+		);`,
+
+			// JSON Row 5: More complex cases
+			`INSERT INTO test_schema.json_edge_cases (
+			json_with_escaped_chars,
+			json_with_unicode,
+			json_nested,
+			json_array,
+			json_with_null,
+			json_empty,
+			json_formatted,
+			json_with_numbers,
+			json_complex
+		) VALUES
+		(
+			'{"simple": "value5"}',
+			'{"japanese": "日本語", "korean": "한국어"}',
+			'{"one": {"two": {"three": "value"}}}',
+			'[true, false, null, 123, "text"]',
+			'{"null_value": null}',
+			'{}',
+			'{"sql": "SELECT id FROM table"}',
+			'{"e": 2.718, "pi": 3.14159}',
+			'{"bool": true, "array": [1,2,3], "obj": {"key": "val"}}'
+		);`,
 
 			// ENUM Row 1: Basic ENUM values
 			`INSERT INTO test_schema.enum_edge_cases (
@@ -2067,9 +2169,45 @@ func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
 				'enum\value',
 				'with_underscore',
 				'123start',
-				ARRAY['🎉emoji', '123start', 'enum\value']::test_schema.status_enum[],
-				'active'
-			);`,
+			ARRAY['🎉emoji', '123start', 'enum\value']::test_schema.status_enum[],
+			'active'
+		);`,
+
+			// ENUM Row 4: More variations
+			`INSERT INTO test_schema.enum_edge_cases (
+			status_simple,
+			status_with_quote,
+			status_with_special,
+			status_unicode,
+			status_array,
+			status_null
+		) VALUES
+		(
+			'inactive',
+			'enum''value',
+			'with space',
+			'café',
+			ARRAY['active', 'pending']::test_schema.status_enum[],
+			'pending'
+		);`,
+
+			// ENUM Row 5: Additional patterns
+			`INSERT INTO test_schema.enum_edge_cases (
+			status_simple,
+			status_with_quote,
+			status_with_special,
+			status_unicode,
+			status_array,
+			status_null
+		) VALUES
+		(
+			'active',
+			'enum\value',
+			'with_underscore',
+			'123start',
+			ARRAY['inactive', 'with space', 'with-dash']::test_schema.status_enum[],
+			'active'
+		);`,
 
 			// BYTES Row 1: Basic BYTEA edge cases
 			`INSERT INTO test_schema.bytes_edge_cases (
@@ -2133,9 +2271,53 @@ func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
 				E'\\x007465737400',
 				E'\\x00',
 				E'\\xff',
-				E'\\x010203',
-				E'\\xcafebabe'
-			);`,
+			E'\\x010203',
+			E'\\xcafebabe'
+		);`,
+
+			// BYTES Row 4: More byte patterns
+			`INSERT INTO test_schema.bytes_edge_cases (
+			bytes_empty,
+			bytes_single,
+			bytes_ascii,
+			bytes_null_byte,
+			bytes_all_zeros,
+			bytes_all_ff,
+			bytes_special_chars,
+			bytes_mixed
+		) VALUES
+		(
+			E'\\x',
+			E'\\x42',
+			E'\\x444546',
+			E'\\x0041420043',
+			E'\\x0000',
+			E'\\xffff',
+			E'\\x0d0a09',
+			E'\\xdeadbeef'
+		);`,
+
+			// BYTES Row 5: Additional patterns
+			`INSERT INTO test_schema.bytes_edge_cases (
+			bytes_empty,
+			bytes_single,
+			bytes_ascii,
+			bytes_null_byte,
+			bytes_all_zeros,
+			bytes_all_ff,
+			bytes_special_chars,
+			bytes_mixed
+		) VALUES
+		(
+			NULL,
+			E'\\xff',
+			E'\\x58595a',
+			E'\\x00616200',
+			E'\\x000000',
+			E'\\xffffff',
+			E'\\x5c275c',
+			E'\\x12345678'
+		);`,
 
 			// DATETIME Row 1: Epoch and basic dates
 			`INSERT INTO test_schema.datetime_edge_cases (
@@ -2204,10 +2386,58 @@ func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
 				'2024-06-15 14:30:00',
 				'1950-06-15 08:15:30',
 				'2050-06-15 18:45:00-05',
-				'18:45:30',
-				'09:15:00',
-				'23:59:59.999999'
-			);`,
+			'18:45:30',
+			'09:15:00',
+			'23:59:59.999999'
+		);`,
+
+			// DATETIME Row 4: Additional date/time values
+			`INSERT INTO test_schema.datetime_edge_cases (
+			date_epoch,
+			date_negative,
+			date_future,
+			timestamp_epoch,
+			timestamp_negative,
+			timestamp_with_tz,
+			time_midnight,
+			time_noon,
+			time_with_micro
+		) VALUES
+		(
+			'2000-01-01',
+			'1900-01-01',
+			'2100-12-31',
+			'2000-01-01 00:00:00',
+			'1900-01-01 12:30:45',
+			'2100-12-31 23:59:59+00',
+			'00:00:01',
+			'12:30:45',
+			'15:30:45.123456'
+		);`,
+
+			// DATETIME Row 5: More edge cases
+			`INSERT INTO test_schema.datetime_edge_cases (
+			date_epoch,
+			date_negative,
+			date_future,
+			timestamp_epoch,
+			timestamp_negative,
+			timestamp_with_tz,
+			time_midnight,
+			time_noon,
+			time_with_micro
+		) VALUES
+		(
+			'1980-06-15',
+			'1930-03-20',
+			'2075-08-10',
+			'1980-06-15 18:20:30',
+			'1930-03-20 09:45:15',
+			'2075-08-10 14:25:00-07',
+			'06:30:00',
+			'18:45:30',
+			'21:15:30.654321'
+		);`,
 
 			// UUID/LTREE Row 1: Standard values
 			`INSERT INTO test_schema.uuid_ltree_edge_cases (
@@ -2271,9 +2501,53 @@ func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
 				'00000000-0000-0000-0000-000000000000',
 				'Data.Users.Profiles',
 				'Items.SpecialCharacters.Test',
-				'A.B.C.D.E.F.G.H.I.J',
-				'Leaf'
-			);`,
+			'A.B.C.D.E.F.G.H.I.J',
+			'Leaf'
+		);`,
+
+			// UUID/LTREE Row 4: More UUID/LTREE patterns
+			`INSERT INTO test_schema.uuid_ltree_edge_cases (
+			uuid_standard,
+			uuid_all_zeros,
+			uuid_all_fs,
+			uuid_random,
+			ltree_simple,
+			ltree_quoted,
+			ltree_deep,
+			ltree_single
+		) VALUES
+		(
+			'550e8400-e29b-41d4-a716-446655440000',
+			'00000000-0000-0000-0000-000000000001',
+			'fffffffe-ffff-ffff-ffff-ffffffffffff',
+			'c73bcdcc-2669-4bf6-81d3-e4ae73fb11fd',
+			'Root.Branch.Leaf',
+			'Category.SubCategory.Item',
+			'Level1.Level2.Level3.Level4.Level5',
+			'Single'
+		);`,
+
+			// UUID/LTREE Row 5: Additional patterns
+			`INSERT INTO test_schema.uuid_ltree_edge_cases (
+			uuid_standard,
+			uuid_all_zeros,
+			uuid_all_fs,
+			uuid_random,
+			ltree_simple,
+			ltree_quoted,
+			ltree_deep,
+			ltree_single
+		) VALUES
+		(
+			'6ba7b810-9dad-11d1-80b4-00c04fd430c8',
+			'00000000-0000-0000-0000-000000000002',
+			'fffffffd-ffff-ffff-ffff-ffffffffffff',
+			'9b3e4d5c-1a2b-3c4d-5e6f-7a8b9c0d1e2f',
+			'Company.Department.Team',
+			'Product.Feature.Component',
+			'Path.To.A.Very.Deep.Node.In.Tree',
+			'Root'
+		);`,
 
 			// MAP Row 1: Basic HSTORE values
 			`INSERT INTO test_schema.map_edge_cases (
@@ -2325,9 +2599,45 @@ func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
 				'"arrow" => "=>"',
 				'"text" => "It''s a test"',
 				'"empty" => ""',
-				'"one" => "1", "two" => "2"',
-				'"data" => "value"'
-			);`,
+			'"one" => "1", "two" => "2"',
+			'"data" => "value"'
+		);`,
+
+			// MAP Row 4: More HSTORE patterns
+			`INSERT INTO test_schema.map_edge_cases (
+			map_simple,
+			map_with_arrow,
+			map_with_quotes,
+			map_empty_values,
+			map_multiple_pairs,
+			map_special_chars
+		) VALUES
+		(
+			'"id" => "123"',
+			'"formula" => "a=>b"',
+			'"name" => "John''s"',
+			'"blank" => ""',
+			'"r" => "red", "g" => "green", "b" => "blue"',
+			'"email" => "test@domain.com"'
+		);`,
+
+			// MAP Row 5: Additional HSTORE patterns
+			`INSERT INTO test_schema.map_edge_cases (
+			map_simple,
+			map_with_arrow,
+			map_with_quotes,
+			map_empty_values,
+			map_multiple_pairs,
+			map_special_chars
+		) VALUES
+		(
+			'"type" => "test"',
+			'"map" => "key=>value"',
+			'"title" => "Test''s Title"',
+			'"null" => ""',
+			'"first" => "1st", "second" => "2nd", "third" => "3rd"',
+			'"url" => "http://example.com"'
+		);`,
 
 			// INTERVAL Row 1: Positive intervals
 			`INSERT INTO test_schema.interval_edge_cases (
@@ -2386,8 +2696,48 @@ func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
 				'1 year'::interval,
 				'1 day'::interval,
 				'1:00:00'::interval,
-				'1 month 1 day 1 hour 1 minute 1 second'::interval
-			);`,
+			'1 month 1 day 1 hour 1 minute 1 second'::interval
+		);`,
+
+			// INTERVAL Row 4: More interval patterns
+			`INSERT INTO test_schema.interval_edge_cases (
+			interval_positive,
+			interval_negative,
+			interval_zero,
+			interval_years,
+			interval_days,
+			interval_hours,
+			interval_mixed
+		) VALUES
+		(
+			'8 months 15 days'::interval,
+			'-10 days'::interval,
+			'0 hours'::interval,
+			'5 years'::interval,
+			'100 days'::interval,
+			'18:30:45'::interval,
+			'4 years 6 months 20 days 12 hours'::interval
+		);`,
+
+			// INTERVAL Row 5: Additional patterns
+			`INSERT INTO test_schema.interval_edge_cases (
+			interval_positive,
+			interval_negative,
+			interval_zero,
+			interval_years,
+			interval_days,
+			interval_hours,
+			interval_mixed
+		) VALUES
+		(
+			'2 years'::interval,
+			'-2 months -5 days'::interval,
+			'0 minutes'::interval,
+			'20 years'::interval,
+			'500 days'::interval,
+			'6:15:30'::interval,
+			'3 years 4 months 5 days 6 hours 7 minutes'::interval
+		);`,
 
 			// ZONEDTIMESTAMP Row 1: UTC and various timezones
 			`INSERT INTO test_schema.zonedtimestamp_edge_cases (
@@ -2439,9 +2789,45 @@ func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
 				'2025-05-20 14:15:30+09:00'::timestamptz,
 				'2025-08-10 10:20:40-07:00'::timestamptz,
 				'1970-01-01 12:00:00+00'::timestamptz,
-				'2075-06-15 18:30:00+00'::timestamptz,
-				'2025-12-31 00:00:00+00'::timestamptz
-			);`,
+			'2075-06-15 18:30:00+00'::timestamptz,
+			'2025-12-31 00:00:00+00'::timestamptz
+		);`,
+
+			// ZONEDTIMESTAMP Row 4: More timezone patterns
+			`INSERT INTO test_schema.zonedtimestamp_edge_cases (
+			ts_utc,
+			ts_positive_offset,
+			ts_negative_offset,
+			ts_epoch,
+			ts_future,
+			ts_midnight
+		) VALUES
+		(
+			'2023-03-15 08:30:00+00'::timestamptz,
+			'2023-04-20 16:45:00+05:30'::timestamptz,
+			'2023-05-25 20:15:00-08:00'::timestamptz,
+			'1970-01-01 06:00:00+00'::timestamptz,
+			'2080-09-10 14:20:00+00'::timestamptz,
+			'2023-07-04 00:00:00+00'::timestamptz
+		);`,
+
+			// ZONEDTIMESTAMP Row 5: Additional timezone cases
+			`INSERT INTO test_schema.zonedtimestamp_edge_cases (
+			ts_utc,
+			ts_positive_offset,
+			ts_negative_offset,
+			ts_epoch,
+			ts_future,
+			ts_midnight
+		) VALUES
+		(
+			'2022-11-30 18:00:00+00'::timestamptz,
+			'2022-12-10 22:30:00+10:00'::timestamptz,
+			'2022-09-05 14:45:00-06:00'::timestamptz,
+			'1970-01-02 12:00:00+00'::timestamptz,
+			'2090-03-20 10:15:00+00'::timestamptz,
+			'2022-01-01 00:00:00+00'::timestamptz
+		);`,
 
 			// DECIMAL Row 1: Testing trailing zeros preservation
 			`INSERT INTO test_schema.decimal_edge_cases (
@@ -2492,10 +2878,46 @@ func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
 				1.000000001,
 				-0.001,
 				0.0,
-				0.000000000000001,
-				99999999999.999,
-				12.34
-			);`,
+			0.000000000000001,
+			99999999999.999,
+			12.34
+		);`,
+
+			// DECIMAL Row 4: More precision patterns
+			`INSERT INTO test_schema.decimal_edge_cases (
+			decimal_large,
+			decimal_negative,
+			decimal_zero,
+			decimal_high_precision,
+			decimal_scientific,
+			decimal_small
+		) VALUES
+		(
+			555666777.888999,
+			-789.012,
+			0.000,
+			456.789012345678,
+			101010.101010,
+			55.55
+		);`,
+
+			// DECIMAL Row 5: Additional decimal patterns
+			`INSERT INTO test_schema.decimal_edge_cases (
+			decimal_large,
+			decimal_negative,
+			decimal_zero,
+			decimal_high_precision,
+			decimal_scientific,
+			decimal_small
+		) VALUES
+		(
+			987654321.123456,
+			-999.999,
+			0,
+			0.123456789012345,
+			888888.888,
+			77.77
+		);`,
 		},
 		SourceDeltaSQL: []string{
 			// INSERT #1: Streaming with Unicode separators (TODO 6)
@@ -2925,7 +3347,11 @@ func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
 		CleanupSQL: []string{
 			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
 		},
-	})
+	}
+}
+
+func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
+	lm := NewLiveMigrationTest(t, getDatatypeEdgeCasesTestConfig())
 
 	defer lm.Cleanup()
 
@@ -2947,19 +3373,19 @@ func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
 	})
 	testutils.FatalIfError(t, err, "failed to start import data")
 
-	t.Log("=== Waiting for snapshot complete (10 datatypes × 3 rows = 30 rows) ===")
+	t.Log("=== Waiting for snapshot complete (10 datatypes × 5 rows = 50 rows) ===")
 	err = lm.WaitForSnapshotComplete(map[string]int64{
-		`test_schema."string_edge_cases"`:         3, // 3 rows with STRING edge cases
-		`test_schema."json_edge_cases"`:           3, // 3 rows with JSON edge cases
-		`test_schema."enum_edge_cases"`:           3, // 3 rows with ENUM edge cases
-		`test_schema."bytes_edge_cases"`:          3, // 3 rows with BYTES edge cases
-		`test_schema."datetime_edge_cases"`:       3, // 3 rows with DATETIME edge cases
-		`test_schema."uuid_ltree_edge_cases"`:     3, // 3 rows with UUID/LTREE edge cases
-		`test_schema."map_edge_cases"`:            3, // 3 rows with MAP edge cases
-		`test_schema."interval_edge_cases"`:       3, // 3 rows with INTERVAL edge cases
-		`test_schema."zonedtimestamp_edge_cases"`: 3, // 3 rows with ZONEDTIMESTAMP edge cases
-		`test_schema."decimal_edge_cases"`:        3, // 3 rows with DECIMAL edge cases
-	}, 120) // 1 minute should be plenty for small rows
+		`test_schema."string_edge_cases"`:         5, // 5 rows with STRING edge cases
+		`test_schema."json_edge_cases"`:           5, // 5 rows with JSON edge cases
+		`test_schema."enum_edge_cases"`:           5, // 5 rows with ENUM edge cases
+		`test_schema."bytes_edge_cases"`:          5, // 5 rows with BYTES edge cases
+		`test_schema."datetime_edge_cases"`:       5, // 5 rows with DATETIME edge cases
+		`test_schema."uuid_ltree_edge_cases"`:     5, // 5 rows with UUID/LTREE edge cases
+		`test_schema."map_edge_cases"`:            5, // 5 rows with MAP edge cases
+		`test_schema."interval_edge_cases"`:       5, // 5 rows with INTERVAL edge cases
+		`test_schema."zonedtimestamp_edge_cases"`: 5, // 5 rows with ZONEDTIMESTAMP edge cases
+		`test_schema."decimal_edge_cases"`:        5, // 5 rows with DECIMAL edge cases
+	}, 180) // Increased timeout for 50 rows
 	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
 
 	t.Log("=== Validating snapshot data ===")
@@ -3182,4 +3608,534 @@ VALUES (INTERVAL '7 years', INTERVAL '120 days', INTERVAL '15 hours', INTERVAL '
 	err = lm.WaitForCutoverSourceComplete(100)
 	testutils.FatalIfError(t, err, "failed to wait for cutover source complete")
 
+}
+
+func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
+	config := getDatatypeEdgeCasesTestConfig()
+
+	config.TargetDeltaSQL = []string{
+		// TESTING: STRING with FULL edge cases (Step 4)
+		`INSERT INTO test_schema.string_edge_cases (
+			text_with_backslash,
+			text_with_quote,
+			text_with_newline,
+			text_with_tab,
+			text_with_mixed,
+			text_windows_path,
+			text_sql_injection,
+			text_unicode,
+			text_empty,
+			text_null_string
+		) VALUES (
+			'fb\path\to\文件',
+			'café''s fb Ñoño',
+			E'fb\nline\nstream',
+			E'fb\ttab\tstream',
+			E'fb: ''"\\\n\t\r',
+			'C:\fb',
+			'--fb',
+			'مرحبا fb مرحبا',
+			E'\n',
+			'NULL'
+		);`,
+
+		`UPDATE test_schema.string_edge_cases 
+		SET text_with_backslash = '\\network\fb',
+		    text_with_quote = 'café''s updated Ñoño',
+		    text_unicode = 'مرحبا fb 世界'
+		WHERE id = 1;`,
+
+		`UPDATE test_schema.string_edge_cases 
+		SET text_with_newline = E'fb\nnew\nlines',
+		    text_with_tab = E'fb\nnew\ttabs',
+		    text_with_mixed = E'fb: ''"\\\n\t\r'
+		WHERE id = 2;`,
+
+		`DELETE FROM test_schema.string_edge_cases WHERE id = 4;`,
+
+		// TESTING: DECIMAL with FULL edge cases (Step 4) - using UNIQUE values for fallback
+		`INSERT INTO test_schema.decimal_edge_cases (
+			decimal_large,
+			decimal_negative,
+			decimal_zero,
+			decimal_high_precision,
+			decimal_scientific,
+			decimal_small
+		) VALUES (
+			111222333.444555666,
+			-999.888,
+			0.000,
+			777.777777777777777,
+			200.600000,
+			88.88
+		);`,
+
+		`UPDATE test_schema.decimal_edge_cases
+		SET decimal_large = 999999999.999999999,
+		    decimal_negative = -1000.001
+		WHERE id = 1;`,
+
+		`UPDATE test_schema.decimal_edge_cases
+		SET decimal_high_precision = 0.123456789012345,
+		    decimal_scientific = 3.1415926000
+		WHERE id = 2;`,
+
+		`DELETE FROM test_schema.decimal_edge_cases WHERE id = 4;`,
+
+		// TESTING: JSON with FULL edge cases - using unique values for fallback
+		`INSERT INTO test_schema.json_edge_cases (
+			json_with_escaped_chars,
+			json_with_unicode,
+			json_nested,
+			json_array,
+			json_with_null,
+			json_empty,
+			json_formatted,
+			json_with_numbers,
+			json_complex
+		) VALUES (
+			'{"fallback": "test value", "quotes": "O''Reilly''s"}',
+			'{"fallback": "مرحبا", "emoji": "🔄", "chinese": "你好"}',
+			'{"fallback": {"nested": {"deep": {"value": "test"}}}}',
+			'[["fallback"], ["nested", "array"]]',
+			'{"fallback": null, "also_null": null}',
+			'{"empty": {}}',
+			'{"fallback": "formatted value", "number": 123}',
+			'{"neg": -999, "zero": 0, "pos": 999, "decimal": 123.456}',
+			'{"unicode": "café ñoño", "escaped": "test", "data": "fallback"}'
+		);`,
+
+		`UPDATE test_schema.json_edge_cases
+		SET json_with_escaped_chars = '{"updated": "test value"}',
+		    json_with_unicode = '{"updated": "日本語🎉", "korean": "한글"}',
+		    json_nested = '{"updated": {"level": 2, "nested": true}}'
+		WHERE id = 1;`,
+
+		`UPDATE test_schema.json_edge_cases
+		SET json_array = '["updated", "array", "values"]',
+		    json_complex = '{"updated": true, "number": 42}'
+		WHERE id = 2;`,
+
+		`DELETE FROM test_schema.json_edge_cases WHERE id = 4;`,
+
+		// TESTING: ENUM with FULL edge cases - using unique values for fallback
+		`INSERT INTO test_schema.enum_edge_cases (
+			status_simple,
+			status_with_quote,
+			status_with_special,
+			status_unicode,
+			status_array,
+			status_null
+		) VALUES (
+			'pending',
+			'enum"value',
+			'with space',
+			'café',
+			ARRAY['pending', 'inactive']::test_schema.status_enum[],
+			'active'
+		);`,
+
+		`UPDATE test_schema.enum_edge_cases
+		SET status_simple = 'inactive',
+		    status_with_quote = 'enum''value',
+		    status_with_special = 'with_underscore'
+		WHERE id = 1;`,
+
+		`UPDATE test_schema.enum_edge_cases
+		SET status_unicode = '🎉emoji',
+		    status_array = ARRAY['with-dash', 'enum\value']::test_schema.status_enum[]
+		WHERE id = 2;`,
+
+		`DELETE FROM test_schema.enum_edge_cases WHERE id = 4;`,
+
+		// TESTING: BYTES with FULL edge cases - using unique hex values for fallback
+		`INSERT INTO test_schema.bytes_edge_cases (
+			bytes_empty,
+			bytes_single,
+			bytes_ascii,
+			bytes_null_byte,
+			bytes_all_zeros,
+			bytes_all_ff,
+			bytes_special_chars,
+			bytes_mixed
+		) VALUES (
+			E'\\x',
+			E'\\xFB',
+			E'\\x46616C6C6261636B',
+			E'\\xFF00',
+			E'\\x0000',
+			E'\\xFFFF',
+			E'\\x5c5c',
+			E'\\xABCDEF123456'
+		);`,
+
+		`UPDATE test_schema.bytes_edge_cases
+		SET bytes_single = E'\\xBB',
+		    bytes_ascii = E'\\x75706461746564',
+		    bytes_mixed = E'\\xDEADC0DE'
+		WHERE id = 1;`,
+
+		`UPDATE test_schema.bytes_edge_cases
+		SET bytes_null_byte = E'\\xFF00FF00',
+		    bytes_all_zeros = E'\\x00',
+		    bytes_all_ff = E'\\xFF'
+		WHERE id = 2;`,
+
+		`DELETE FROM test_schema.bytes_edge_cases WHERE id = 4;`,
+
+		// TESTING: DATETIME with FULL edge cases - using unique dates for fallback
+		`INSERT INTO test_schema.datetime_edge_cases (
+			date_epoch,
+			date_negative,
+			date_future,
+			timestamp_epoch,
+			timestamp_negative,
+			timestamp_with_tz,
+			time_midnight,
+			time_noon,
+			time_with_micro
+		) VALUES (
+			'2024-06-15',
+			'1975-05-20',
+			'2035-09-25',
+			'2024-06-15 14:30:45',
+			'1975-05-20 08:15:30',
+			'2035-09-25 16:45:00+03',
+			'14:30:45',
+			'08:15:30',
+			'16:45:30.123456'
+		);`,
+
+		`UPDATE test_schema.datetime_edge_cases
+		SET date_epoch = '2026-11-20',
+		    timestamp_epoch = '2026-11-20 09:15:45',
+		    time_midnight = '02:03:04'
+		WHERE id = 1;`,
+
+		`UPDATE test_schema.datetime_edge_cases
+		SET date_future = '2098-06-15',
+		    timestamp_with_tz = '2098-06-15 12:00:00-06',
+		    time_with_micro = '18:45:30.654321'
+		WHERE id = 2;`,
+
+		`DELETE FROM test_schema.datetime_edge_cases WHERE id = 4;`,
+
+		// TESTING: UUID/LTREE with FULL edge cases - using unique values for fallback
+		`INSERT INTO test_schema.uuid_ltree_edge_cases (
+			uuid_standard,
+			uuid_all_zeros,
+			uuid_all_fs,
+			uuid_random,
+			ltree_simple,
+			ltree_quoted,
+			ltree_deep,
+			ltree_single
+		) VALUES (
+			'fb123456-7890-abcd-ef12-345678901234',
+			'00000000-0000-0000-0000-000000000099',
+			'fffffffe-ffff-ffff-ffff-ffffffffffff',
+			'abcdef12-3456-7890-abcd-ef1234567890',
+			'Fallback.Data.Test',
+			'FB.TestPath.Values',
+			'Fallback.Deep.Path.To.Data.Node',
+			'FB'
+		);`,
+
+		`UPDATE test_schema.uuid_ltree_edge_cases
+		SET uuid_standard = 'fb654321-0987-fedc-ba21-098765432109',
+		    ltree_simple = 'FB.Updated.Path'
+		WHERE id = 1;`,
+
+		`UPDATE test_schema.uuid_ltree_edge_cases
+		SET uuid_all_zeros = '00000000-0000-0000-0000-000000000088',
+		    ltree_deep = 'FB.Very.Deep.Path.With.Many.Levels'
+		WHERE id = 2;`,
+
+		`DELETE FROM test_schema.uuid_ltree_edge_cases WHERE id = 4;`,
+
+		// TESTING: MAP/HSTORE with FULL edge cases - using unique values for fallback
+		`INSERT INTO test_schema.map_edge_cases (
+			map_simple,
+			map_with_arrow,
+			map_with_quotes,
+			map_empty_values,
+			map_multiple_pairs,
+			map_special_chars
+		) VALUES (
+			'"fallback" => "data"',
+			'"fb=>key" => "testval"',
+			'"fb" => "O''Reilly"',
+			'"" => "fb"',
+			'"fb1" => "v1", "fb2" => "v2", "fb3" => "v3"',
+			'"special" => "test@fb.com"'
+		);`,
+
+		`UPDATE test_schema.map_edge_cases
+		SET map_simple = '"updated" => "fb"',
+		    map_with_arrow = '"update=>key" => "fb"'
+		WHERE id = 1;`,
+
+		`UPDATE test_schema.map_edge_cases
+		SET map_with_quotes = '"fb" => "O''Brien"',
+		    map_multiple_pairs = '"x" => "99", "y" => "88"'
+		WHERE id = 2;`,
+
+		`DELETE FROM test_schema.map_edge_cases WHERE id = 4;`,
+
+		// TESTING: INTERVAL with FULL edge cases - using unique values for fallback
+		`INSERT INTO test_schema.interval_edge_cases (
+			interval_positive,
+			interval_negative,
+			interval_zero,
+			interval_years,
+			interval_days,
+			interval_hours,
+			interval_mixed
+		) VALUES (
+			'3 years 6 months'::interval,
+			'-15 days'::interval,
+			'0 seconds'::interval,
+			'75 years'::interval,
+			'14 days'::interval,
+			'8:30:45'::interval,
+			'4 years 3 months 25 days 15 hours'::interval
+		);`,
+
+		`UPDATE test_schema.interval_edge_cases
+		SET interval_positive = '9 months 20 days'::interval,
+		    interval_years = '30 years'::interval
+		WHERE id = 1;`,
+
+		`UPDATE test_schema.interval_edge_cases
+		SET interval_negative = '-4 months -10 days'::interval,
+		    interval_mixed = '6 months 15 days 3 hours 45 minutes'::interval
+		WHERE id = 2;`,
+
+		`DELETE FROM test_schema.interval_edge_cases WHERE id = 4;`,
+
+		// TESTING: ZONEDTIMESTAMP with FULL edge cases - using unique timestamps for fallback
+		`INSERT INTO test_schema.zonedtimestamp_edge_cases (
+			ts_utc,
+			ts_positive_offset,
+			ts_negative_offset,
+			ts_epoch,
+			ts_future,
+			ts_midnight
+		) VALUES (
+			'2025-05-15 10:20:30+00'::timestamptz,
+			'2025-06-20 14:30:00+04:00'::timestamptz,
+			'2025-07-10 18:45:15-07:00'::timestamptz,
+			'1970-01-03 00:00:00+00'::timestamptz,
+			'2065-08-20 18:00:00+00'::timestamptz,
+			'2025-08-01 00:00:00+00'::timestamptz
+		);`,
+
+		`UPDATE test_schema.zonedtimestamp_edge_cases
+		SET ts_utc = '2025-01-01 12:00:00+00'::timestamptz,
+		    ts_positive_offset = '2025-02-14 06:30:00+05:30'::timestamptz
+		WHERE id = 1;`,
+
+		`UPDATE test_schema.zonedtimestamp_edge_cases
+		SET ts_negative_offset = '2025-03-15 18:45:00-07:00'::timestamptz,
+		    ts_future = '2070-12-31 23:59:59.999999+00'::timestamptz
+		WHERE id = 2;`,
+
+		`DELETE FROM test_schema.zonedtimestamp_edge_cases WHERE id = 4;`,
+	}
+
+	lm := NewLiveMigrationTest(t, config)
+	defer lm.Cleanup()
+
+	t.Log("=== Setting up containers ===")
+	err := lm.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+
+	t.Log("=== Setting up schema ===")
+	err = lm.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
+
+	t.Log("=== Starting export data ===")
+	err = lm.StartExportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start export data")
+
+	t.Log("=== Starting import data ===")
+	err = lm.StartImportData(true, map[string]string{
+		"--log-level": "debug",
+	})
+	testutils.FatalIfError(t, err, "failed to start import data")
+
+	t.Log("=== Waiting for snapshot complete (10 datatypes × 5 rows = 50 rows) ===")
+	err = lm.WaitForSnapshotComplete(map[string]int64{
+		`test_schema."string_edge_cases"`:         5,
+		`test_schema."json_edge_cases"`:           5,
+		`test_schema."enum_edge_cases"`:           5,
+		`test_schema."bytes_edge_cases"`:          5,
+		`test_schema."datetime_edge_cases"`:       5,
+		`test_schema."uuid_ltree_edge_cases"`:     5,
+		`test_schema."map_edge_cases"`:            5,
+		`test_schema."interval_edge_cases"`:       5,
+		`test_schema."zonedtimestamp_edge_cases"`: 5,
+		`test_schema."decimal_edge_cases"`:        5,
+	}, 180)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+
+	t.Log("=== Validating snapshot data ===")
+	err = lm.ValidateDataConsistency([]string{`test_schema."string_edge_cases"`, `test_schema."json_edge_cases"`, `test_schema."enum_edge_cases"`, `test_schema."bytes_edge_cases"`, `test_schema."datetime_edge_cases"`, `test_schema."uuid_ltree_edge_cases"`, `test_schema."map_edge_cases"`, `test_schema."interval_edge_cases"`, `test_schema."zonedtimestamp_edge_cases"`, `test_schema."decimal_edge_cases"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate snapshot data consistency")
+
+	t.Log("=== Executing source delta (forward streaming) ===")
+	err = lm.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
+
+	t.Log("=== Waiting for forward streaming complete ===")
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`test_schema."string_edge_cases"`: {
+			Inserts: 2,
+			Updates: 6,
+			Deletes: 1,
+		},
+		`test_schema."json_edge_cases"`: {
+			Inserts: 1,
+			Updates: 2,
+			Deletes: 1,
+		},
+		`test_schema."enum_edge_cases"`: {
+			Inserts: 1,
+			Updates: 2,
+			Deletes: 1,
+		},
+		`test_schema."bytes_edge_cases"`: {
+			Inserts: 1,
+			Updates: 2,
+			Deletes: 1,
+		},
+		`test_schema."datetime_edge_cases"`: {
+			Inserts: 1,
+			Updates: 2,
+			Deletes: 1,
+		},
+		`test_schema."uuid_ltree_edge_cases"`: {
+			Inserts: 1,
+			Updates: 2,
+			Deletes: 1,
+		},
+		`test_schema."map_edge_cases"`: {
+			Inserts: 1,
+			Updates: 2,
+			Deletes: 1,
+		},
+		`test_schema."interval_edge_cases"`: {
+			Inserts: 1,
+			Updates: 2,
+			Deletes: 1,
+		},
+		`test_schema."zonedtimestamp_edge_cases"`: {
+			Inserts: 1,
+			Updates: 2,
+			Deletes: 1,
+		},
+		`test_schema."decimal_edge_cases"`: {
+			Inserts: 1,
+			Updates: 2,
+			Deletes: 1,
+		},
+	}, 180, 2)
+	testutils.FatalIfError(t, err, "failed to wait for forward streaming complete")
+
+	t.Log("=== Validating forward streaming data ===")
+	err = lm.ValidateDataConsistency([]string{`test_schema."string_edge_cases"`, `test_schema."json_edge_cases"`, `test_schema."enum_edge_cases"`, `test_schema."bytes_edge_cases"`, `test_schema."datetime_edge_cases"`, `test_schema."uuid_ltree_edge_cases"`, `test_schema."map_edge_cases"`, `test_schema."interval_edge_cases"`, `test_schema."zonedtimestamp_edge_cases"`, `test_schema."decimal_edge_cases"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate streaming data consistency")
+
+	t.Log("=== Initiating cutover to target ===")
+	err = lm.InitiateCutoverToTarget(true, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover")
+
+	t.Log("=== Waiting for cutover complete ===")
+	err = lm.WaitForCutoverComplete(90)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+
+	t.Log("=== Executing target delta ===")
+	err = lm.ExecuteTargetDelta()
+	testutils.FatalIfError(t, err, "failed to execute target delta")
+
+	t.Log("=== Waiting for CDC to capture changes ===")
+	time.Sleep(30 * time.Second)
+
+	t.Log("=== Waiting for fallback streaming complete ===")
+	t.Log("   TESTING: ALL 10 datatypes with FULL edge cases! (Final Step)")
+	err = lm.WaitForFallbackStreamingComplete(map[string]ChangesCount{
+		`test_schema."string_edge_cases"`: {
+			Inserts: 1,
+			Updates: 2,
+			Deletes: 1,
+		},
+		`test_schema."decimal_edge_cases"`: {
+			Inserts: 1,
+			Updates: 2,
+			Deletes: 1,
+		},
+		`test_schema."json_edge_cases"`: {
+			Inserts: 1,
+			Updates: 2,
+			Deletes: 1,
+		},
+		`test_schema."enum_edge_cases"`: {
+			Inserts: 1,
+			Updates: 2,
+			Deletes: 1,
+		},
+		`test_schema."bytes_edge_cases"`: {
+			Inserts: 1,
+			Updates: 2,
+			Deletes: 1,
+		},
+		`test_schema."datetime_edge_cases"`: {
+			Inserts: 1,
+			Updates: 2,
+			Deletes: 1,
+		},
+		`test_schema."uuid_ltree_edge_cases"`: {
+			Inserts: 1,
+			Updates: 2,
+			Deletes: 1,
+		},
+		`test_schema."map_edge_cases"`: {
+			Inserts: 1,
+			Updates: 2,
+			Deletes: 1,
+		},
+		`test_schema."interval_edge_cases"`: {
+			Inserts: 1,
+			Updates: 2,
+			Deletes: 1,
+		},
+		`test_schema."zonedtimestamp_edge_cases"`: {
+			Inserts: 1,
+			Updates: 2,
+			Deletes: 1,
+		},
+	}, 420, 2)
+	testutils.FatalIfError(t, err, "failed to wait for fallback streaming complete")
+
+	t.Log("=== Validating fallback streaming data ===")
+	err = lm.ValidateDataConsistency([]string{`test_schema."string_edge_cases"`, `test_schema."decimal_edge_cases"`, `test_schema."json_edge_cases"`, `test_schema."enum_edge_cases"`, `test_schema."bytes_edge_cases"`, `test_schema."datetime_edge_cases"`, `test_schema."uuid_ltree_edge_cases"`, `test_schema."map_edge_cases"`, `test_schema."interval_edge_cases"`, `test_schema."zonedtimestamp_edge_cases"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate fallback streaming data consistency")
+
+	t.Log("=== Initiating cutover to source ===")
+	err = lm.InitiateCutoverToSource(nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
+
+	t.Log("=== Waiting for cutover to source complete ===")
+	err = lm.WaitForCutoverSourceComplete(150)
+	testutils.FatalIfError(t, err, "failed to wait for cutover to source complete")
+
+	t.Log("=== Final validation after complete round-trip ===")
+	err = lm.ValidateDataConsistency([]string{`test_schema."string_edge_cases"`, `test_schema."decimal_edge_cases"`, `test_schema."json_edge_cases"`, `test_schema."enum_edge_cases"`, `test_schema."bytes_edge_cases"`, `test_schema."datetime_edge_cases"`, `test_schema."uuid_ltree_edge_cases"`, `test_schema."map_edge_cases"`, `test_schema."interval_edge_cases"`, `test_schema."zonedtimestamp_edge_cases"`}, "id")
+	testutils.FatalIfError(t, err, "failed final data consistency check after fallback")
+
+	t.Log("✅ ALL DATATYPE EDGE CASES WITH FALLBACK TEST PASSED! 🎉")
+	t.Log("   Forward streaming: 10/10 datatypes")
+	t.Log("   Fallback streaming: 10/10 datatypes")
+	t.Log("   All CRUD operations (INSERT, UPDATE, DELETE) working for all datatypes")
+	t.Log("   Full round-trip data consistency verified!")
 }
