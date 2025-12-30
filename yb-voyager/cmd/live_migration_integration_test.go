@@ -3878,10 +3878,29 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 		WHERE id = 6 AND int_max = 999999;`,
 
 			// Literal '\n' (two chars) vs actual newline byte (0x0A)
-			`UPDATE test_schema.string_edge_cases
-		SET text_with_backslash = 'literal\nstring',
-		    text_with_newline = E'actual\nbyte'
-		WHERE id = 1;`,
+			`INSERT INTO test_schema.string_edge_cases (
+			text_with_backslash,
+			text_with_quote,
+			text_with_newline,
+			text_with_tab,
+			text_with_mixed,
+			text_windows_path,
+			text_sql_injection,
+			text_unicode,
+			text_empty,
+			text_null_string
+		) VALUES (
+			'literal\nstring',          -- Two chars: backslash + n
+			'test',
+			E'actual\nbyte',            -- Actual newline byte (0x0A)
+			'test',
+			'literal\nmixed',           -- Mix with literal \n
+			'C:\new\test',              -- Path with literal \n
+			'test',
+			'test',
+			'',
+			'NULL'
+		);`,
 
 			// Single quotes inside JSON values
 			`INSERT INTO test_schema.json_edge_cases (
@@ -3962,8 +3981,8 @@ func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
 	t.Log("=== Waiting for streaming complete (ALL 11 datatypes with NULL transitions!) ===")
 	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
 		`test_schema."string_edge_cases"`: {
-			Inserts: 2,  // 2 INSERT operations: basic + actual control chars
-			Updates: 11, // 11 UPDATE operations: 6 regular + 2 row 5 (non-NULL→NULL→non-NULL) + 2 row 6 (NULL→non-NULL→NULL) + 1 literal \n test
+			Inserts: 3,  // 3 INSERT operations: basic + actual control chars + literal \n test
+			Updates: 10, // 10 UPDATE operations: 6 regular + 2 row 5 (non-NULL→NULL→non-NULL) + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1,  // 1 DELETE operation: delete row 3
 		},
 		`test_schema."json_edge_cases"`: {
@@ -4444,7 +4463,6 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 
 		`DELETE FROM test_schema.map_edge_cases WHERE id = 4;`,
 
-		// TESTING: INTERVAL with FULL edge cases - using unique values for fallback
 		`INSERT INTO test_schema.interval_edge_cases (
 			interval_positive,
 			interval_negative,
@@ -4475,7 +4493,6 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 
 		`DELETE FROM test_schema.interval_edge_cases WHERE id = 4;`,
 
-		// TESTING: ZONEDTIMESTAMP with FULL edge cases - using unique timestamps for fallback
 		`INSERT INTO test_schema.zonedtimestamp_edge_cases (
 			ts_utc,
 			ts_positive_offset,
@@ -4504,8 +4521,6 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 
 		`DELETE FROM test_schema.zonedtimestamp_edge_cases WHERE id = 4;`,
 
-		// FALLBACK: NULL TRANSITION TESTS (using row 5 to avoid conflicts)
-		// STRING: NULL transition
 		`UPDATE test_schema.string_edge_cases
 		SET text_with_backslash = NULL,
 		    text_unicode = NULL
@@ -4709,11 +4724,30 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 		    int_min = NULL
 		WHERE id = 6 AND int_max = 888888;`,
 
-		// FALLBACK: HIGH PRIORITY - Literal '\n' vs actual newline in fallback
-		`UPDATE test_schema.string_edge_cases
-		SET text_with_tab = 'fallback_literal\ntest',
-		    text_with_mixed = E'fallback_actual\ntest'
-		WHERE id = 2;`,
+		// FALLBACK: Literal '\n' vs actual newline
+		`INSERT INTO test_schema.string_edge_cases (
+			text_with_backslash,
+			text_with_quote,
+			text_with_newline,
+			text_with_tab,
+			text_with_mixed,
+			text_windows_path,
+			text_sql_injection,
+			text_unicode,
+			text_empty,
+			text_null_string
+		) VALUES (
+			'fallback_literal\ntest',   -- Two chars: backslash + n
+			'fallback',
+			E'fallback_actual\ntest',   -- Actual newline byte (0x0A)
+			'fallback',
+			'fallback_literal\nmixed',  -- Mix with literal \n
+			'D:\new\path',              -- Path with literal \n
+			'fallback',
+			'fallback',
+			'',
+			'NULL'
+		);`,
 
 		// FALLBACK: MEDIUM PRIORITY - Single quotes inside JSON values
 		`INSERT INTO test_schema.json_edge_cases (
@@ -4787,8 +4821,8 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 	t.Log("=== Waiting for forward streaming complete ===")
 	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
 		`test_schema."string_edge_cases"`: {
-			Inserts: 2,
-			Updates: 11, // 6 regular + 2 row 5 (non-NULL→NULL→non-NULL) + 2 row 6 (NULL→non-NULL→NULL) + 1 literal \n test
+			Inserts: 3,  // basic + actual control chars + literal \n test
+			Updates: 10, // 6 regular + 2 row 5 (non-NULL→NULL→non-NULL) + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1,
 		},
 		`test_schema."json_edge_cases"`: {
@@ -4867,8 +4901,8 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 	t.Log("   TESTING: ALL 11 datatypes with FULL edge cases! (Final Step)")
 	err = lm.WaitForFallbackStreamingComplete(map[string]ChangesCount{
 		`test_schema."string_edge_cases"`: {
-			Inserts: 1,
-			Updates: 7, // 2 regular + 2 row 5 (non-NULL→NULL→non-NULL) + 2 row 6 (NULL→non-NULL→NULL) + 1 literal \n test
+			Inserts: 2, // 1 basic + 1 literal \n test
+			Updates: 6, // 2 regular + 2 row 5 (non-NULL→NULL→non-NULL) + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1,
 		},
 		`test_schema."decimal_edge_cases"`: {
