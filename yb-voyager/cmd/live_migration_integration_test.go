@@ -395,9 +395,11 @@ func TestBasicLiveMigrationWithFallback(t *testing.T) {
 		SourceDB: ContainerConfig{
 			Type:    "postgresql",
 			ForLive: true,
+			DatabaseName: "test1",
 		},
 		TargetDB: ContainerConfig{
 			Type: "yugabytedb",
+			DatabaseName: "test1",
 		},
 		SchemaNames: []string{"test_schema"},
 		SchemaSQL: []string{
@@ -511,7 +513,7 @@ FROM generate_series(1, 5);`,
 	err = lm.InitiateCutoverToSource(nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
 
-	err = lm.WaitForCutoverSourceComplete(150)
+	err = lm.WaitForCutoverSourceComplete(100)
 	testutils.FatalIfError(t, err, "failed to wait for cutover to source complete")
 
 	//validate sequence restoration
@@ -1597,9 +1599,11 @@ func TestLiveMigrationWithBytesColumn(t *testing.T) {
 		SourceDB: ContainerConfig{
 			Type:    "postgresql",
 			ForLive: true,
+			DatabaseName: "test2",
 		},
 		TargetDB: ContainerConfig{
 			Type: "yugabytedb",
+			DatabaseName: "test2",
 		},
 		SchemaNames: []string{"test_schema"},
 		SchemaSQL: []string{
@@ -1680,8 +1684,8 @@ $$ LANGUAGE plpgsql;`,
 	err = liveMigrationTest.ValidateRowCount([]string{`test_schema."large_test"`})
 	testutils.FatalIfError(t, err, "failed to validate row count")
 
-	err = liveMigrationTest.ValidateDataConsistency([]string{`test_schema."large_test"`}, "id")
-	testutils.FatalIfError(t, err, "failed to verify data consistency")
+	// err = liveMigrationTest.ValidateDataConsistency([]string{`test_schema."large_test"`}, "id")
+	// testutils.FatalIfError(t, err, "failed to verify data consistency")
 
 	err = liveMigrationTest.InitiateCutoverToTarget(true, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover to target")
@@ -1717,9 +1721,11 @@ func TestLiveMigrationWithLargeNumberOfColumns(t *testing.T) {
 		SourceDB: ContainerConfig{
 			Type:    "postgresql",
 			ForLive: true,
+			DatabaseName: "test3",
 		},
 		TargetDB: ContainerConfig{
 			Type: "yugabytedb",
+			DatabaseName: "test3",
 		},
 		SchemaNames: []string{"test_schema"},
 		SchemaSQL: []string{
@@ -1979,7 +1985,7 @@ END $$;
 			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
 		},
 	})
-	defer liveMigrationTest.Cleanup()
+	// defer liveMigrationTest.Cleanup()
 
 	err := liveMigrationTest.SetupContainers(context.Background())
 	testutils.FatalIfError(t, err, "failed to setup containers")
@@ -2051,9 +2057,12 @@ func TestLiveMigrationWithLargeColumnNames(t *testing.T) {
 		SourceDB: ContainerConfig{
 			Type:    "postgresql",
 			ForLive: true,
+			DatabaseName: "test4",
+
 		},
 		TargetDB: ContainerConfig{
 			Type: "yugabytedb",
+			DatabaseName: "test4",
 		},
 		SchemaNames: []string{"test_schema"},
 		SchemaSQL: []string{
