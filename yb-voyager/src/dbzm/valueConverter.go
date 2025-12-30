@@ -24,6 +24,7 @@ import (
 	"sync"
 
 	goerrors "github.com/go-errors/errors"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	tgtdbsuite "github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb/suites"
@@ -348,7 +349,18 @@ func (conv *StreamingPhaseDebeziumValueConverter) convertMap(tableNameTup sqlnam
 			return fmt.Errorf("fetch column schema: %w", err)
 		}
 		if !checkSourceExporter(exportSourceType) && strings.EqualFold(colType, "io.debezium.time.Interval") {
-			colType, colDbzmSchema, err = conv.schemaRegistrySource.GetColumnType(tableNameTup, strings.ToUpper(column), conv.shouldFormatAsPerSourceDatatypes())
+			// DEBUG: Log INTERVAL special handling
+			log.Infof("DEBUG: INTERVAL fallback handling - original column: '%s', uppercase: '%s', table: %s",
+				column, strings.ToUpper(column), tableNameTup)
+
+			// // First try with original case
+			colType, colDbzmSchema, err = conv.schemaRegistrySource.GetColumnType(tableNameTup, column, conv.shouldFormatAsPerSourceDatatypes())
+			if err != nil {
+				// If original case fails, try uppercase (legacy behavior)
+				log.Warnf("DEBUG: INTERVAL lookup failed with original case '%s', trying uppercase '%s': %v",
+					column, strings.ToUpper(column), err)
+				colType, colDbzmSchema, err = conv.schemaRegistrySource.GetColumnType(tableNameTup, strings.ToUpper(column), conv.shouldFormatAsPerSourceDatatypes())
+			}
 			//assuming table name/column name is case insensitive TODO: handle this case sensitivity properly
 			if err != nil {
 				return fmt.Errorf("fetch column schema: %w", err)
