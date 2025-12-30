@@ -116,18 +116,21 @@ func (lm *LiveMigrationTest) SetupContainers(ctx context.Context) error {
 		return goerrors.Errorf("failed to start target container: %w", err)
 	}
 
-	pg := lm.sourceContainer.(*testcontainers.PostgresContainer)
-	err := pg.CreateDatabase(lm.config.TargetDB.DatabaseName)
-	if err != nil {
-		return fmt.Errorf("failed to create target database: %v", err)
-	} 
-
-	yb := lm.targetContainer.(*testcontainers.YugabyteDBContainer)
-	err = yb.CreateDatabase(lm.config.TargetDB.DatabaseName)
-	if err != nil {
-		return fmt.Errorf("failed to create target database: %v", err)
+	if lm.config.SourceDB.DatabaseName != "" {
+		pg := lm.sourceContainer.(*testcontainers.PostgresContainer)
+		err := pg.CreateDatabase(lm.config.TargetDB.DatabaseName)
+		if err != nil {
+			return fmt.Errorf("failed to create target database: %v", err)
+		}
 	}
+	if lm.config.TargetDB.DatabaseName != "" {
 
+		yb := lm.targetContainer.(*testcontainers.YugabyteDBContainer)
+		err := yb.CreateDatabase(lm.config.TargetDB.DatabaseName)
+		if err != nil {
+			return fmt.Errorf("failed to create target database: %v", err)
+		}
+	}
 	fmt.Printf("Containers setup completed\n")
 	return nil
 }
