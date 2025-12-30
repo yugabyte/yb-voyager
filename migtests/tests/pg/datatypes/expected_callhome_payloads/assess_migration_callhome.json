@@ -1,5 +1,5 @@
 {
-    "payload_version": "1.9",
+    "payload_version": "2.0",
     "target_db_version": "2025.1.0.0",
     "sizing": {
         "colocated_tables": [],

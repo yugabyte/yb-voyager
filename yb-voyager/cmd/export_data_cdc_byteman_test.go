@@ -40,6 +40,7 @@ func setupCDCTestData(t *testing.T, container testcontainers.TestContainer) {
 			value INTEGER,
 			created_at TIMESTAMP DEFAULT NOW()
 		);`,
+		`ALTER TABLE test_schema.cdc_test REPLICA IDENTITY FULL;`,
 		`INSERT INTO test_schema.cdc_test (name, value)
 		SELECT 'initial_' || i, i * 10 FROM generate_series(1, 100) i;`,
 	)

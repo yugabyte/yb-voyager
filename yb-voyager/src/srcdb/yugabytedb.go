@@ -1278,8 +1278,8 @@ func (yb *YugabyteDB) GetMissingExportSchemaPermissions(queryTableList string) (
 	return nil, nil
 }
 
-func (yb *YugabyteDB) GetMissingExportDataPermissions(exportType string, finalTableList []sqlname.NameTuple) ([]string, error) {
-	return nil, nil
+func (yb *YugabyteDB) GetMissingExportDataPermissions(exportType string, finalTableList []sqlname.NameTuple) ([]string, bool, error) {
+	return nil, false, nil
 }
 
 func (yb *YugabyteDB) GetMissingAssessMigrationPermissions() ([]string, bool, error) {
