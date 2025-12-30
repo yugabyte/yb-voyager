@@ -1845,16 +1845,27 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 				ts_midnight TIMESTAMPTZ
 			);
 
-			CREATE TABLE test_schema.decimal_edge_cases (
-				id SERIAL PRIMARY KEY,
-				decimal_large NUMERIC(38, 9),
-				decimal_negative NUMERIC(15, 3),
-				decimal_zero NUMERIC(10, 2),
-				decimal_high_precision NUMERIC(30, 15),
-				decimal_scientific NUMERIC(20,9) , -- We notice a loss of trailing zeros in NUMERIC type without specifying the precision
-				decimal_small NUMERIC(5, 2)
-			);
-			`,
+		CREATE TABLE test_schema.decimal_edge_cases (
+			id SERIAL PRIMARY KEY,
+			decimal_large NUMERIC(38, 9),
+			decimal_negative NUMERIC(15, 3),
+			decimal_zero NUMERIC(10, 2),
+			decimal_high_precision NUMERIC(30, 15),
+			decimal_scientific NUMERIC(20,9) , -- We notice a loss of trailing zeros in NUMERIC type without specifying the precision
+			decimal_small NUMERIC(5, 2)
+		);
+
+		CREATE TABLE test_schema.integer_edge_cases (
+			id SERIAL PRIMARY KEY,
+			int_max INT,
+			int_min INT,
+			int_zero INT,
+			int_negative_one INT,
+			bigint_max BIGINT,
+			bigint_min BIGINT,
+			bigint_zero BIGINT
+		);
+		`,
 		},
 		SourceSetupSchemaSQL: []string{
 			`ALTER TABLE test_schema.string_edge_cases REPLICA IDENTITY FULL;`,
@@ -1867,6 +1878,7 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 			`ALTER TABLE test_schema.interval_edge_cases REPLICA IDENTITY FULL;`,
 			`ALTER TABLE test_schema.zonedtimestamp_edge_cases REPLICA IDENTITY FULL;`,
 			`ALTER TABLE test_schema.decimal_edge_cases REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema.integer_edge_cases REPLICA IDENTITY FULL;`,
 		},
 		InitialDataSQL: []string{
 			// Row 1: Basic edge cases + Unicode separators (TODO 6)
@@ -3098,21 +3110,141 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 
 			// DECIMAL Row 6
 			`INSERT INTO test_schema.decimal_edge_cases (
-			decimal_large,
-			decimal_negative,
-			decimal_zero,
-			decimal_high_precision,
-			decimal_scientific,
-			decimal_small
-		) VALUES
-		(
-			NULL,                                   -- will be set to non-NULL then back to NULL
-			NULL,                                   -- will be set to non-NULL then back to NULL
-			0,
-			0.000000000000001,
-			999999.999,
-			99.99
-		);`,
+		decimal_large,
+		decimal_negative,
+		decimal_zero,
+		decimal_high_precision,
+		decimal_scientific,
+		decimal_small
+	) VALUES
+	(
+		NULL,                                   -- will be set to non-NULL then back to NULL
+		NULL,                                   -- will be set to non-NULL then back to NULL
+		0,
+		0.000000000000001,
+		999999.999,
+		99.99
+	);`,
+
+			// INTEGER Row 1: Maximum boundary values
+			`INSERT INTO test_schema.integer_edge_cases (
+		int_max,
+		int_min,
+		int_zero,
+		int_negative_one,
+		bigint_max,
+		bigint_min,
+		bigint_zero
+	) VALUES
+	(
+		2147483647,                             -- INT4 MAX
+		-2147483648,                            -- INT4 MIN
+		0,
+		-1,
+		9223372036854775807,                    -- BIGINT MAX
+		-9223372036854775808,                   -- BIGINT MIN
+		0
+	);`,
+
+			// INTEGER Row 2: Near-boundary values (MAX - 1, MIN + 1)
+			`INSERT INTO test_schema.integer_edge_cases (
+		int_max,
+		int_min,
+		int_zero,
+		int_negative_one,
+		bigint_max,
+		bigint_min,
+		bigint_zero
+	) VALUES
+	(
+		2147483646,                             -- INT4 MAX - 1
+		-2147483647,                            -- INT4 MIN + 1
+		1,
+		-2,
+		9223372036854775806,                    -- BIGINT MAX - 1
+		-9223372036854775807,                   -- BIGINT MIN + 1
+		1
+	);`,
+
+			// INTEGER Row 3: Mid-range values (will be deleted in forward streaming)
+			`INSERT INTO test_schema.integer_edge_cases (
+		int_max,
+		int_min,
+		int_zero,
+		int_negative_one,
+		bigint_max,
+		bigint_min,
+		bigint_zero
+	) VALUES
+	(
+		1000000,
+		-1000000,
+		100,
+		-100,
+		1000000000000,
+		-1000000000000,
+		100
+	);`,
+
+			// INTEGER Row 4: Small values (will be deleted in fallback streaming)
+			`INSERT INTO test_schema.integer_edge_cases (
+		int_max,
+		int_min,
+		int_zero,
+		int_negative_one,
+		bigint_max,
+		bigint_min,
+		bigint_zero
+	) VALUES
+	(
+		10,
+		-10,
+		5,
+		-5,
+		1000,
+		-1000,
+		5
+	);`,
+
+			// INTEGER Row 5: Powers of 2
+			`INSERT INTO test_schema.integer_edge_cases (
+		int_max,
+		int_min,
+		int_zero,
+		int_negative_one,
+		bigint_max,
+		bigint_min,
+		bigint_zero
+	) VALUES
+	(
+		1048576,                                -- 2^20
+		-1048576,
+		2,
+		-2,
+		1152921504606846976,                    -- 2^60
+		-1152921504606846976,
+		2
+	);`,
+
+			// INTEGER Row 6: NULL values for testing NULL transitions
+			`INSERT INTO test_schema.integer_edge_cases (
+		int_max,
+		int_min,
+		int_zero,
+		int_negative_one,
+		bigint_max,
+		bigint_min,
+		bigint_zero
+	) VALUES
+	(
+		NULL,                                   -- will be set to non-NULL then back to NULL
+		NULL,                                   -- will be set to non-NULL then back to NULL
+		0,
+		-1,
+		123456789,
+		-123456789,
+		0
+	);`,
 		},
 		SourceDeltaSQL: []string{
 			// INSERT #1: Streaming with Unicode separators (TODO 6)
@@ -3576,7 +3708,7 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 		    decimal_small = 88.88
 		WHERE id = 5 AND decimal_negative IS NULL;`,
 
-			// === ROW 6: NULL → non-NULL → NULL transitions (ALL 10 datatypes) ===
+			// === ROW 6: NULL → non-NULL → NULL transitions (ALL 11 datatypes) ===
 			// STRING: Set NULL columns to non-NULL (row 6)
 			`UPDATE test_schema.string_edge_cases
 		SET text_with_backslash = 'set from NULL',
@@ -3696,6 +3828,54 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 		SET decimal_large = NULL,
 		    decimal_negative = NULL
 		WHERE id = 6 AND decimal_large = 111111111.111111111;`,
+
+			// INTEGER INSERT #1: Streaming with boundary transitions
+			`INSERT INTO test_schema.integer_edge_cases (
+			int_max,
+			int_min,
+			int_zero,
+			int_negative_one,
+			bigint_max,
+			bigint_min,
+			bigint_zero
+		) VALUES
+		(
+			2147483646,                         -- Near INT4 MAX
+			-2147483647,                        -- Near INT4 MIN
+			42,
+			-42,
+			9223372036854775806,                -- Near BIGINT MAX
+			-9223372036854775807,               -- Near BIGINT MIN
+			42
+		);`,
+
+			// INTEGER UPDATE #1: Test boundary value updates
+			`UPDATE test_schema.integer_edge_cases
+		SET int_max = 2147483645,               -- INT4 MAX - 2
+		    bigint_max = 9223372036854775805    -- BIGINT MAX - 2
+		WHERE id = 1;`,
+
+			// INTEGER UPDATE #2: Test zero and negative transitions
+			`UPDATE test_schema.integer_edge_cases
+		SET int_zero = -1,
+		    int_negative_one = 1,
+		    bigint_zero = -999
+		WHERE id = 2;`,
+
+			// INTEGER DELETE #1: Test deletion during streaming
+			`DELETE FROM test_schema.integer_edge_cases WHERE id = 3;`,
+
+			// INTEGER: Set NULL columns to non-NULL (row 6)
+			`UPDATE test_schema.integer_edge_cases
+		SET int_max = 999999,
+		    int_min = -999999
+		WHERE id = 6 AND int_max IS NULL;`,
+
+			// INTEGER: Set non-NULL columns back to NULL (row 6)
+			`UPDATE test_schema.integer_edge_cases
+		SET int_max = NULL,
+		    int_min = NULL
+		WHERE id = 6 AND int_max = 999999;`,
 		},
 		CleanupSQL: []string{
 			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
@@ -3726,7 +3906,7 @@ func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
 	})
 	testutils.FatalIfError(t, err, "failed to start import data")
 
-	t.Log("=== Waiting for snapshot complete (10 datatypes × 6 rows = 60 rows) ===")
+	t.Log("=== Waiting for snapshot complete (11 datatypes × 6 rows = 66 rows) ===")
 	err = lm.WaitForSnapshotComplete(map[string]int64{
 		`test_schema."string_edge_cases"`:         6, // 6 rows (5 edge cases + 1 with NULL for transitions)
 		`test_schema."json_edge_cases"`:           6, // 6 rows (5 edge cases + 1 with NULL for transitions)
@@ -3738,18 +3918,19 @@ func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
 		`test_schema."interval_edge_cases"`:       6, // 6 rows (5 edge cases + 1 with NULL for transitions)
 		`test_schema."zonedtimestamp_edge_cases"`: 6, // 6 rows (5 edge cases + 1 with NULL for transitions)
 		`test_schema."decimal_edge_cases"`:        6, // 6 rows (5 edge cases + 1 with NULL for transitions)
-	}, 240) // Increased timeout for 60 rows
+		`test_schema."integer_edge_cases"`:        6, // 6 rows (INT/BIGINT boundaries + NULL transitions)
+	}, 240) // Increased timeout for 66 rows
 	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
 
 	t.Log("=== Validating snapshot data ===")
-	err = lm.ValidateDataConsistency([]string{`test_schema."string_edge_cases"`, `test_schema."json_edge_cases"`, `test_schema."enum_edge_cases"`, `test_schema."bytes_edge_cases"`, `test_schema."datetime_edge_cases"`, `test_schema."uuid_ltree_edge_cases"`, `test_schema."map_edge_cases"`, `test_schema."interval_edge_cases"`, `test_schema."zonedtimestamp_edge_cases"`, `test_schema."decimal_edge_cases"`}, "id")
+	err = lm.ValidateDataConsistency([]string{`test_schema."string_edge_cases"`, `test_schema."json_edge_cases"`, `test_schema."enum_edge_cases"`, `test_schema."bytes_edge_cases"`, `test_schema."datetime_edge_cases"`, `test_schema."uuid_ltree_edge_cases"`, `test_schema."map_edge_cases"`, `test_schema."interval_edge_cases"`, `test_schema."zonedtimestamp_edge_cases"`, `test_schema."decimal_edge_cases"`, `test_schema."integer_edge_cases"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate snapshot data consistency")
 
 	t.Log("=== Executing source delta (streaming operations) ===")
 	err = lm.ExecuteSourceDelta()
 	testutils.FatalIfError(t, err, "failed to execute source delta")
 
-	t.Log("=== Waiting for streaming complete (ALL 10 datatypes with NULL transitions!) ===")
+	t.Log("=== Waiting for streaming complete (ALL 11 datatypes with NULL transitions!) ===")
 	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
 		`test_schema."string_edge_cases"`: {
 			Inserts: 2,  // 2 INSERT operations: basic + actual control chars
@@ -3801,11 +3982,16 @@ func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
 			Updates: 6, // 6 UPDATE operations: 2 regular + 2 row 5 (non-NULL→NULL→non-NULL) + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1, // 1 DELETE operation: delete DECIMAL row 3
 		},
+		`test_schema."integer_edge_cases"`: {
+			Inserts: 1, // 1 INSERT operation: INT/BIGINT with boundary values
+			Updates: 4, // 4 UPDATE operations: 2 regular + 2 row 6 (NULL→non-NULL→NULL)
+			Deletes: 1, // 1 DELETE operation: delete INTEGER row 3
+		},
 	}, 120, 1) // 1 minute timeout, 1 second poll interval
 	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
 
 	t.Log("=== Validating streaming data ===")
-	err = lm.ValidateDataConsistency([]string{`test_schema."string_edge_cases"`, `test_schema."json_edge_cases"`, `test_schema."enum_edge_cases"`, `test_schema."bytes_edge_cases"`, `test_schema."datetime_edge_cases"`, `test_schema."uuid_ltree_edge_cases"`, `test_schema."map_edge_cases"`, `test_schema."interval_edge_cases"`, `test_schema."zonedtimestamp_edge_cases"`, `test_schema."decimal_edge_cases"`}, "id")
+	err = lm.ValidateDataConsistency([]string{`test_schema."string_edge_cases"`, `test_schema."json_edge_cases"`, `test_schema."enum_edge_cases"`, `test_schema."bytes_edge_cases"`, `test_schema."datetime_edge_cases"`, `test_schema."uuid_ltree_edge_cases"`, `test_schema."map_edge_cases"`, `test_schema."interval_edge_cases"`, `test_schema."zonedtimestamp_edge_cases"`, `test_schema."decimal_edge_cases"`, `test_schema."integer_edge_cases"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate streaming data consistency")
 
 	t.Log("=== Initiating cutover ===")
@@ -3817,7 +4003,7 @@ func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
 	t.Log("=== Final validation ===")
-	err = lm.ValidateDataConsistency([]string{`test_schema."string_edge_cases"`, `test_schema."json_edge_cases"`, `test_schema."enum_edge_cases"`, `test_schema."bytes_edge_cases"`, `test_schema."datetime_edge_cases"`, `test_schema."uuid_ltree_edge_cases"`, `test_schema."map_edge_cases"`, `test_schema."interval_edge_cases"`, `test_schema."zonedtimestamp_edge_cases"`, `test_schema."decimal_edge_cases"`}, "id")
+	err = lm.ValidateDataConsistency([]string{`test_schema."string_edge_cases"`, `test_schema."json_edge_cases"`, `test_schema."enum_edge_cases"`, `test_schema."bytes_edge_cases"`, `test_schema."datetime_edge_cases"`, `test_schema."uuid_ltree_edge_cases"`, `test_schema."map_edge_cases"`, `test_schema."interval_edge_cases"`, `test_schema."zonedtimestamp_edge_cases"`, `test_schema."decimal_edge_cases"`, `test_schema."integer_edge_cases"`}, "id")
 	testutils.FatalIfError(t, err, "failed final data consistency check")
 }
 
@@ -4332,7 +4518,7 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 		    decimal_zero = 0.00
 		WHERE id = 5 AND decimal_large IS NULL;`,
 
-		// === FALLBACK ROW 6: NULL → non-NULL → NULL transitions (ALL 10 datatypes) ===
+		// === FALLBACK ROW 6: NULL → non-NULL → NULL transitions (ALL 11 datatypes) ===
 		// STRING: Set NULL to non-NULL (row 6 fallback)
 		`UPDATE test_schema.string_edge_cases
 		SET text_with_backslash = 'fallback from NULL',
@@ -4452,6 +4638,53 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 		SET decimal_large = NULL,
 		    decimal_negative = NULL
 		WHERE id = 6 AND decimal_large = 222222222.222222222;`,
+
+		// FALLBACK: INTEGER INSERT #1
+		`INSERT INTO test_schema.integer_edge_cases (
+			int_max,
+			int_min,
+			int_zero,
+			int_negative_one,
+			bigint_max,
+			bigint_min,
+			bigint_zero
+		) VALUES
+		(
+			2147483644,                         -- Different from forward
+			-2147483646,
+			99,
+			-99,
+			9223372036854775804,                -- Different from forward
+			-9223372036854775806,
+			99
+		);`,
+
+		// FALLBACK: INTEGER UPDATE #1
+		`UPDATE test_schema.integer_edge_cases
+		SET int_max = 100000,
+		    bigint_max = 100000000000
+		WHERE id = 2;`,
+
+		// FALLBACK: INTEGER UPDATE #2
+		`UPDATE test_schema.integer_edge_cases
+		SET int_zero = 999,
+		    bigint_zero = 999999
+		WHERE id = 1;`,
+
+		// FALLBACK: INTEGER DELETE #1
+		`DELETE FROM test_schema.integer_edge_cases WHERE id = 4;`,
+
+		// FALLBACK: INTEGER NULL transition - Set NULL to non-NULL (row 6)
+		`UPDATE test_schema.integer_edge_cases
+		SET int_max = 888888,
+		    int_min = -888888
+		WHERE id = 6 AND int_max IS NULL;`,
+
+		// FALLBACK: INTEGER NULL transition - Set non-NULL back to NULL (row 6)
+		`UPDATE test_schema.integer_edge_cases
+		SET int_max = NULL,
+		    int_min = NULL
+		WHERE id = 6 AND int_max = 888888;`,
 	}
 
 	lm := NewLiveMigrationTest(t, config)
@@ -4475,7 +4708,7 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 	})
 	testutils.FatalIfError(t, err, "failed to start import data")
 
-	t.Log("=== Waiting for snapshot complete (10 datatypes × 6 rows = 60 rows) ===")
+	t.Log("=== Waiting for snapshot complete (11 datatypes × 6 rows = 66 rows) ===")
 	err = lm.WaitForSnapshotComplete(map[string]int64{
 		`test_schema."string_edge_cases"`:         6,
 		`test_schema."json_edge_cases"`:           6,
@@ -4487,11 +4720,12 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 		`test_schema."interval_edge_cases"`:       6,
 		`test_schema."zonedtimestamp_edge_cases"`: 6,
 		`test_schema."decimal_edge_cases"`:        6,
+		`test_schema."integer_edge_cases"`:        6,
 	}, 240)
 	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
 
 	t.Log("=== Validating snapshot data ===")
-	err = lm.ValidateDataConsistency([]string{`test_schema."string_edge_cases"`, `test_schema."json_edge_cases"`, `test_schema."enum_edge_cases"`, `test_schema."bytes_edge_cases"`, `test_schema."datetime_edge_cases"`, `test_schema."uuid_ltree_edge_cases"`, `test_schema."map_edge_cases"`, `test_schema."interval_edge_cases"`, `test_schema."zonedtimestamp_edge_cases"`, `test_schema."decimal_edge_cases"`}, "id")
+	err = lm.ValidateDataConsistency([]string{`test_schema."string_edge_cases"`, `test_schema."json_edge_cases"`, `test_schema."enum_edge_cases"`, `test_schema."bytes_edge_cases"`, `test_schema."datetime_edge_cases"`, `test_schema."uuid_ltree_edge_cases"`, `test_schema."map_edge_cases"`, `test_schema."interval_edge_cases"`, `test_schema."zonedtimestamp_edge_cases"`, `test_schema."decimal_edge_cases"`, `test_schema."integer_edge_cases"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate snapshot data consistency")
 
 	t.Log("=== Executing source delta (forward streaming) ===")
@@ -4550,11 +4784,16 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 			Updates: 6, // 2 regular + 2 row 5 (non-NULL→NULL→non-NULL) + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1,
 		},
+		`test_schema."integer_edge_cases"`: {
+			Inserts: 1,
+			Updates: 4, // 2 regular + 2 row 6 (NULL→non-NULL→NULL)
+			Deletes: 1,
+		},
 	}, 180, 2)
 	testutils.FatalIfError(t, err, "failed to wait for forward streaming complete")
 
 	t.Log("=== Validating forward streaming data ===")
-	err = lm.ValidateDataConsistency([]string{`test_schema."string_edge_cases"`, `test_schema."json_edge_cases"`, `test_schema."enum_edge_cases"`, `test_schema."bytes_edge_cases"`, `test_schema."datetime_edge_cases"`, `test_schema."uuid_ltree_edge_cases"`, `test_schema."map_edge_cases"`, `test_schema."interval_edge_cases"`, `test_schema."zonedtimestamp_edge_cases"`, `test_schema."decimal_edge_cases"`}, "id")
+	err = lm.ValidateDataConsistency([]string{`test_schema."string_edge_cases"`, `test_schema."json_edge_cases"`, `test_schema."enum_edge_cases"`, `test_schema."bytes_edge_cases"`, `test_schema."datetime_edge_cases"`, `test_schema."uuid_ltree_edge_cases"`, `test_schema."map_edge_cases"`, `test_schema."interval_edge_cases"`, `test_schema."zonedtimestamp_edge_cases"`, `test_schema."decimal_edge_cases"`, `test_schema."integer_edge_cases"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate streaming data consistency")
 
 	t.Log("=== Initiating cutover to target ===")
@@ -4572,8 +4811,8 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 	t.Log("=== Waiting for CDC to capture changes ===")
 	time.Sleep(30 * time.Second)
 
-	t.Log("=== Waiting for fallback streaming complete (ALL 10 datatypes with BOTH NULL transition paths!) ===")
-	t.Log("   TESTING: ALL 10 datatypes with FULL edge cases! (Final Step)")
+	t.Log("=== Waiting for fallback streaming complete (ALL 11 datatypes with BOTH NULL transition paths!) ===")
+	t.Log("   TESTING: ALL 11 datatypes with FULL edge cases! (Final Step)")
 	err = lm.WaitForFallbackStreamingComplete(map[string]ChangesCount{
 		`test_schema."string_edge_cases"`: {
 			Inserts: 1,
@@ -4625,11 +4864,16 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 			Updates: 4, // 2 regular + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1,
 		},
+		`test_schema."integer_edge_cases"`: {
+			Inserts: 1,
+			Updates: 4, // 2 regular + 2 row 6 (NULL→non-NULL→NULL)
+			Deletes: 1,
+		},
 	}, 180, 2)
 	testutils.FatalIfError(t, err, "failed to wait for fallback streaming complete")
 
 	t.Log("=== Validating fallback streaming data ===")
-	err = lm.ValidateDataConsistency([]string{`test_schema."string_edge_cases"`, `test_schema."decimal_edge_cases"`, `test_schema."json_edge_cases"`, `test_schema."enum_edge_cases"`, `test_schema."bytes_edge_cases"`, `test_schema."datetime_edge_cases"`, `test_schema."uuid_ltree_edge_cases"`, `test_schema."map_edge_cases"`, `test_schema."interval_edge_cases"`, `test_schema."zonedtimestamp_edge_cases"`}, "id")
+	err = lm.ValidateDataConsistency([]string{`test_schema."string_edge_cases"`, `test_schema."decimal_edge_cases"`, `test_schema."json_edge_cases"`, `test_schema."enum_edge_cases"`, `test_schema."bytes_edge_cases"`, `test_schema."datetime_edge_cases"`, `test_schema."uuid_ltree_edge_cases"`, `test_schema."map_edge_cases"`, `test_schema."interval_edge_cases"`, `test_schema."zonedtimestamp_edge_cases"`, `test_schema."integer_edge_cases"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate fallback streaming data consistency")
 
 	t.Log("=== Initiating cutover to source ===")
@@ -4641,7 +4885,7 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 	testutils.FatalIfError(t, err, "failed to wait for cutover to source complete")
 
 	t.Log("=== Final validation after complete round-trip ===")
-	err = lm.ValidateDataConsistency([]string{`test_schema."string_edge_cases"`, `test_schema."decimal_edge_cases"`, `test_schema."json_edge_cases"`, `test_schema."enum_edge_cases"`, `test_schema."bytes_edge_cases"`, `test_schema."datetime_edge_cases"`, `test_schema."uuid_ltree_edge_cases"`, `test_schema."map_edge_cases"`, `test_schema."interval_edge_cases"`, `test_schema."zonedtimestamp_edge_cases"`}, "id")
+	err = lm.ValidateDataConsistency([]string{`test_schema."string_edge_cases"`, `test_schema."decimal_edge_cases"`, `test_schema."json_edge_cases"`, `test_schema."enum_edge_cases"`, `test_schema."bytes_edge_cases"`, `test_schema."datetime_edge_cases"`, `test_schema."uuid_ltree_edge_cases"`, `test_schema."map_edge_cases"`, `test_schema."interval_edge_cases"`, `test_schema."zonedtimestamp_edge_cases"`, `test_schema."integer_edge_cases"`}, "id")
 	testutils.FatalIfError(t, err, "failed final data consistency check after fallback")
 
 	t.Log("✅ ALL DATATYPE EDGE CASES WITH FALLBACK TEST PASSED! 🎉")
