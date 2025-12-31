@@ -216,7 +216,6 @@ func (pg *PostgresContainer) ExecuteSqls(sqls ...string) {
 	}
 
 	connStr := pg.GetConnectionString()
-	fmt.Println("connStr", connStr)
 	conn, err := pgx.Connect(context.Background(), connStr)
 	if err != nil {
 		utils.ErrExit("failed to connect to postgres for executing sqls: %w", err)

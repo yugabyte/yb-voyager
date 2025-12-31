@@ -33,10 +33,6 @@ import (
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
-var (
-	setupMutex = sync.Mutex{}
-)
-
 ////=========================================
 
 // This inserts some rows in target table having sequence and validates if the ids ingested are correct or not

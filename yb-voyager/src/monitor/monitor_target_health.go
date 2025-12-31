@@ -16,7 +16,6 @@ limitations under the License.
 package monitor
 
 import (
-	"context"
 	"fmt"
 	"slices"
 	"strconv"
@@ -86,7 +85,7 @@ func NewMonitorTargetYBHealth(yb TargetDBForMonitorHealth, skipDiskUsageHealthCh
 	}
 }
 
-func (m *MonitorTargetYBHealth) StartMonitoring(ctx context.Context) error {
+func (m *MonitorTargetYBHealth) StartMonitoring() error {
 
 	var err error
 	var servers []*tgtdb.TargetConf
@@ -108,15 +107,6 @@ func (m *MonitorTargetYBHealth) StartMonitoring(ctx context.Context) error {
 	m.ybClient.SetYBServers(addresses)
 
 	for {
-
-		// Check if context is cancelled
-		select {
-		case <-ctx.Done():
-			log.Infof("Stopping target health monitoring")
-			return ctx.Err()
-		default:
-		}
-
 		err = m.monitorNodesStatusAndAdapt()
 		if err != nil {
 			log.Errorf("error monitoring the node status and adapt: %v", err)
