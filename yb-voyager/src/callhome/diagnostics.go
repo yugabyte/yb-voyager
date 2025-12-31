@@ -575,12 +575,12 @@ func addSpecificNonSensitiveContextForError(err error, anonymizer *anon.VoyagerA
 	return
 }
 
-func addStackTrace(err error, context map[string]string) {
-	var goErr *goerrors.Error
-	if goerrors.As(err, &goErr) {
-		context["stack_trace"] = string(goErr.Stack())
-	}
-}
+// func addStackTrace(err error, context map[string]string) {
+// 	var goErr *goerrors.Error
+// 	if goerrors.As(err, &goErr) {
+// 		context["stack_trace"] = string(goErr.Stack())
+// 	}
+// }
 
 func addImportBatchErrorContext(err error, context map[string]string) {
 	var ibe errs.ImportBatchError
