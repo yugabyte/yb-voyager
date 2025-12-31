@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -1598,12 +1597,12 @@ END $$;`,
 func TestLiveMigrationWithBytesColumn(t *testing.T) {
 	liveMigrationTest := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
-			Type:    "postgresql",
-			ForLive: true,
+			Type:         "postgresql",
+			ForLive:      true,
 			DatabaseName: "test2",
 		},
 		TargetDB: ContainerConfig{
-			Type: "yugabytedb",
+			Type:         "yugabytedb",
 			DatabaseName: "test2",
 		},
 		SchemaNames: []string{"test_schema"},
