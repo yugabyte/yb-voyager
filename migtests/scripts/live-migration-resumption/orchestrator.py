@@ -304,6 +304,34 @@ def main() -> None:
         if had_failure:
             H.copy_logs_directory(cfg["export_dir"], cfg["artifacts_dir"])
 
+        # Best-effort cleanup: ensure background processes started by the orchestrator
+        # don't outlive the orchestrator itself.
+        try:
+            # Stop resumer threads first so they don't restart processes while we're shutting down.
+            ctx.stop_event.set()
+            with ctx.process_lock:
+                resumers = list(ctx.active_resumers.values())
+                ctx.active_resumers.clear()
+            for r in resumers:
+                try:
+                    r.stop(timeout_sec=60)
+                except Exception:
+                    pass
+
+            # Terminate any remaining background processes that were started.
+            with ctx.process_lock:
+                procs = list(ctx.processes.items())
+                ctx.processes.clear()
+            for name, proc in procs:
+                try:
+                    H.log(f"cleanup: stopping process {name}")
+                    H.kill(proc, timeout_sec=60)
+                except Exception:
+                    pass
+        except Exception:
+            # Never fail the run due to cleanup.
+            pass
+
 
 if __name__ == "__main__":
     main()
