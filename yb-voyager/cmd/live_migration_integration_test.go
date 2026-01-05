@@ -2166,23 +2166,23 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 			'active'
 		);`,
 
-			// ENUM Row 4: More variations
+			// ENUM Row 4: Array with NULL elements
 			`INSERT INTO test_schema.enum_edge_cases (
-			status_simple,
-			status_with_quote,
-			status_with_special,
-			status_unicode,
-			status_array,
-			status_null
-		) VALUES
-		(
-			'inactive',
-			'enum''value',
-			'with space',
-			'café',
-			ARRAY['active', 'pending']::test_schema.status_enum[],
-			'pending'
-		);`,
+		status_simple,
+		status_with_quote,
+		status_with_special,
+		status_unicode,
+		status_array,
+		status_null
+	) VALUES
+	(
+		'inactive',
+		'enum''value',
+		'with space',
+		'café',
+		ARRAY['active', NULL, 'pending']::test_schema.status_enum[],  -- Array with NULL element
+		'pending'
+	);`,
 
 			// ENUM Row 5: Additional patterns
 			`INSERT INTO test_schema.enum_edge_cases (
@@ -3398,6 +3398,24 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 			NULL
 		);`,
 
+			// ENUM INSERT #2: Streaming ENUM with NULL elements in array
+			`INSERT INTO test_schema.enum_edge_cases (
+			status_simple,
+			status_with_quote,
+			status_with_special,
+			status_unicode,
+			status_array,
+			status_null
+		) VALUES
+		(
+			'pending',
+			'enum\value',
+			'with_underscore',
+			'123start',
+			ARRAY[NULL, 'active', NULL]::test_schema.status_enum[],  -- INSERT with NULL elements in array
+			'active'
+		);`,
+
 			// ENUM UPDATE #1: Update ENUM values
 			`UPDATE test_schema.enum_edge_cases
 			SET status_simple = 'pending',
@@ -3415,6 +3433,11 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 			`UPDATE test_schema.enum_edge_cases
 		SET status_array = ARRAY[]::test_schema.status_enum[]
 		WHERE id = 1;`,
+
+			// ENUM UPDATE #4: Update array to include NULL elements (row 4)
+			`UPDATE test_schema.enum_edge_cases
+		SET status_array = ARRAY['pending', NULL, NULL, 'inactive']::test_schema.status_enum[]
+		WHERE id = 4;`,
 
 			// ENUM DELETE #1: Test ENUM row deletion
 			`DELETE FROM test_schema.enum_edge_cases WHERE id = 3;`,
@@ -4009,8 +4032,8 @@ func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
 			Deletes: 1, // 1 DELETE operation: delete JSON row 3
 		},
 		`test_schema."enum_edge_cases"`: {
-			Inserts: 1, // 1 INSERT operation: ENUM with EMPTY array
-			Updates: 5, // 5 UPDATE operations: 3 regular (including empty array tests) + 2 row 6 (NULL→non-NULL→NULL)
+			Inserts: 2, // 2 INSERT operations: EMPTY array + array with NULL elements
+			Updates: 6, // 6 UPDATE operations: 4 regular (including empty array tests + NULL elements) + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1, // 1 DELETE operation: delete ENUM row 3
 		},
 		`test_schema."bytes_edge_cases"`: {
@@ -4201,6 +4224,22 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 		'active'
 	);`,
 
+		`INSERT INTO test_schema.enum_edge_cases (
+		status_simple,
+		status_with_quote,
+		status_with_special,
+		status_unicode,
+		status_array,
+		status_null
+	) VALUES (
+		'inactive',
+		'enum''value',
+		'with-dash',
+		'🎉emoji',
+		ARRAY[NULL, 'pending', NULL, 'inactive']::test_schema.status_enum[],  -- FALLBACK: INSERT with NULL elements
+		NULL
+	);`,
+
 		`UPDATE test_schema.enum_edge_cases
 	SET status_simple = 'inactive',
 	    status_with_quote = 'enum''value',
@@ -4212,6 +4251,10 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 	SET status_unicode = '🎉emoji',
 	    status_array = ARRAY['with-dash', 'enum\value']::test_schema.status_enum[]  -- FALLBACK: Set EMPTY to NON-EMPTY
 	WHERE id = 2;`,
+
+		`UPDATE test_schema.enum_edge_cases
+	SET status_array = ARRAY[NULL, 'active', NULL, 'pending', NULL]::test_schema.status_enum[]  -- FALLBACK: Add multiple NULLs
+	WHERE id = 4;`,
 
 		`DELETE FROM test_schema.enum_edge_cases WHERE id = 4;`,
 
@@ -4732,8 +4775,8 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 			Deletes: 1,
 		},
 		`test_schema."enum_edge_cases"`: {
-			Inserts: 1,
-			Updates: 5, // 3 regular (including empty array tests) + 2 row 6 (NULL→non-NULL→NULL)
+			Inserts: 2,
+			Updates: 6, // 4 regular (including empty array tests + NULL elements) + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1,
 		},
 		`test_schema."bytes_edge_cases"`: {
@@ -4822,8 +4865,8 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 			Deletes: 1,
 		},
 		`test_schema."enum_edge_cases"`: {
-			Inserts: 1,
-			Updates: 4, // 2 regular (including empty array tests) + 2 row 6 (NULL→non-NULL→NULL)
+			Inserts: 2, // 1 EMPTY array + 1 with NULL elements
+			Updates: 5, // 3 regular (including empty array tests + NULL elements) + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1,
 		},
 		`test_schema."bytes_edge_cases"`: {
