@@ -1694,6 +1694,311 @@ $$ LANGUAGE plpgsql;`,
 // Aligned with unit tests in yugabytedbSuite_test.go
 // getDatatypeEdgeCasesTestConfig returns the shared test configuration for datatype edge cases
 // This config is used by both basic and fallback datatype edge case tests
+// ============================================================================
+// DATATYPE EDGE CASE TEST COVERAGE MATRIX
+// ============================================================================
+//
+// This matrix shows comprehensive edge case coverage for live migration across
+// all PostgreSQL datatypes. Coverage is tracked across three phases:
+//   - Snapshot: Initial data loaded during snapshot phase (6 rows per datatype)
+//   - Forward:  Changes during forward streaming (SourceDeltaSQL)
+//   - Fallback: Changes during fallback streaming (TargetDeltaSQL)
+//
+// Legend:
+//   ✓ = Fully covered (INSERT + UPDATE + DELETE operations)
+//   I = INSERT only
+//   U = UPDATE only
+//   D = DELETE only
+//   S = Snapshot data only
+//   - = Not covered/Not applicable
+//
+// ============================================================================
+// 1. STRING DATATYPE (text, varchar)
+// ============================================================================
+// Edge Case                          | Snapshot | Forward | Fallback | Notes
+// -----------------------------------|----------|---------|----------|------------------
+// Unicode characters (café, 日本語)   | ✓        | ✓       | ✓        | Multi-byte chars
+// Emojis (🎉, 👨‍👩‍👧‍👦)                   | ✓        | ✓       | ✓        | Emoji family
+// Single quotes (It's, O'Reilly)    | ✓        | ✓       | ✓        | Escaped quotes
+// Double quotes ("test")            | ✓        | ✓       | ✓        | Mixed quotes
+// Backslashes (C:\path\to\file)     | ✓        | ✓       | ✓        | Windows paths
+// Actual newline byte (0x0A)        | ✓        | I       | I        | E'...\n...'
+// Literal \n string (backslash+n)   | ✓        | I       | I        | Two-char string
+// Actual tab byte (0x09)            | ✓        | ✓       | ✓        | E'...\t...'
+// Actual carriage return (0x0D)     | ✓        | ✓       | ✓        | E'...\r...'
+// Mixed control chars (\n\t\r)      | ✓        | ✓       | ✓        | All control chars
+// Unicode separators (U+2028)       | ✓        | ✓       | -        | Line/para sep
+// Empty string ('')                 | ✓        | ✓       | ✓        | Zero-length
+// String literal 'NULL'             | ✓        | ✓       | ✓        | vs actual NULL
+// SQL injection patterns            | ✓        | ✓       | ✓        | --comment, '; DROP
+// Bidirectional text (RTL)          | ✓        | ✓       | ✓        | Arabic/Hebrew
+// NULL transitions                  | ✓        | ✓       | ✓        | NULL↔non-NULL
+//
+// Operations: 6 rows snapshot, 3 INSERTs, 10 UPDATEs, 1 DELETE (Forward)
+//             2 INSERTs, 6 UPDATEs, 1 DELETE (Fallback)
+//
+// ============================================================================
+// 2. JSON/JSONB DATATYPE
+// ============================================================================
+// Edge Case                          | Snapshot | Forward | Fallback | Notes
+// -----------------------------------|----------|---------|----------|------------------
+// Single quotes in values            | ✓        | I       | I        | O'Reilly, It's
+// Escaped characters (\", \\)        | ✓        | ✓       | ✓        | JSON escaping
+// Unicode in JSON                    | ✓        | ✓       | ✓        | café, 日本語, 🎉
+// Nested objects                     | ✓        | ✓       | ✓        | Deep nesting
+// Arrays                             | ✓        | ✓       | ✓        | Nested arrays
+// NULL value in JSON                 | ✓        | ✓       | ✓        | {"key": null}
+// Empty JSON                         | ✓        | ✓       | ✓        | {}
+// Formatted JSON                     | ✓        | ✓       | ✓        | Whitespace
+// Numbers in JSON                    | ✓        | ✓       | ✓        | Int, float, bool
+// Complex nested structures          | ✓        | ✓       | ✓        | Mixed types
+// NULL transitions                   | ✓        | ✓       | ✓        | NULL↔non-NULL
+//
+// Operations: 6 rows snapshot, 2 INSERTs, 6 UPDATEs, 1 DELETE (Forward)
+//             2 INSERTs, 6 UPDATEs, 1 DELETE (Fallback)
+//
+// ============================================================================
+// 3. ENUM DATATYPE (custom enum types)
+// ============================================================================
+// Edge Case                          | Snapshot | Forward | Fallback | Notes
+// -----------------------------------|----------|---------|----------|------------------
+// Simple enum values                 | ✓        | ✓       | ✓        | active, pending
+// Enum with single quote             | ✓        | ✓       | ✓        | enum'value
+// Enum with double quote             | ✓        | ✓       | ✓        | enum"value
+// Enum with backslash                | ✓        | ✓       | ✓        | enum\value
+// Enum with spaces                   | ✓        | ✓       | ✓        | 'with space'
+// Enum with dashes                   | ✓        | ✓       | ✓        | with-dash
+// Enum with underscore               | ✓        | ✓       | ✓        | with_underscore
+// Enum with Unicode                  | ✓        | ✓       | ✓        | café, 🎉emoji
+// Enum starting with digits          | ✓        | ✓       | ✓        | 123start
+// Empty ENUM array                   | ✓        | ✓       | ✓        | ARRAY[]::enum[]
+// ENUM array with NULL elements      | ✓        | ✓       | ✓        | ARRAY['a', NULL]
+// ENUM array add elements            | -        | U       | U        | Expand array
+// ENUM array remove elements         | -        | U       | U        | Shrink array
+// NULL transitions                   | ✓        | ✓       | ✓        | NULL↔non-NULL
+//
+// Operations: 6 rows snapshot, 2 INSERTs, 8 UPDATEs, 1 DELETE (Forward)
+//             2 INSERTs, 7 UPDATEs, 1 DELETE (Fallback)
+//
+// ============================================================================
+// 4. BYTES DATATYPE (bytea)
+// ============================================================================
+// Edge Case                          | Snapshot | Forward | Fallback | Notes
+// -----------------------------------|----------|---------|----------|------------------
+// Empty bytes                        | ✓        | ✓       | ✓        | \\x
+// Single byte                        | ✓        | ✓       | ✓        | \\x41
+// ASCII string as bytes              | ✓        | ✓       | ✓        | Text → hex
+// NULL byte in middle                | ✓        | ✓       | ✓        | \\x00
+// All zeros                          | ✓        | ✓       | ✓        | \\x000000
+// All 0xFF                           | ✓        | ✓       | ✓        | \\xFFFFFF
+// Special char bytes (', \, \n)      | ✓        | ✓       | ✓        | Binary chars
+// Mixed byte patterns                | ✓        | ✓       | ✓        | Random hex
+// NULL transitions                   | ✓        | ✓       | ✓        | NULL↔non-NULL
+//
+// Operations: 6 rows snapshot, 1 INSERT, 4 UPDATEs, 1 DELETE (Forward)
+//             1 INSERT, 4 UPDATEs, 1 DELETE (Fallback)
+//
+// ============================================================================
+// 5. DATETIME DATATYPE (date, timestamp, time)
+// ============================================================================
+// Edge Case                          | Snapshot | Forward | Fallback | Notes
+// -----------------------------------|----------|---------|----------|------------------
+// Epoch date (1970-01-01)            | ✓        | ✓       | ✓        | Unix epoch
+// Negative epoch (before 1970)       | ✓        | ✓       | ✓        | Historical dates
+// Future dates (2050+)               | ✓        | ✓       | ✓        | Far future
+// Timestamps with timezone           | ✓        | ✓       | ✓        | TIMESTAMPTZ
+// Midnight (00:00:00)                | ✓        | ✓       | ✓        | Day boundary
+// Noon (12:00:00)                    | ✓        | ✓       | ✓        | Mid-day
+// Microsecond precision              | ✓        | ✓       | ✓        | 6 decimal places
+// NULL transitions                   | ✓        | ✓       | ✓        | NULL↔non-NULL
+//
+// Operations: 6 rows snapshot, 1 INSERT, 4 UPDATEs, 1 DELETE (Forward)
+//             1 INSERT, 4 UPDATEs, 1 DELETE (Fallback)
+//
+// ============================================================================
+// 6. UUID DATATYPE
+// ============================================================================
+// Edge Case                          | Snapshot | Forward | Fallback | Notes
+// -----------------------------------|----------|---------|----------|------------------
+// Standard UUID v4                   | ✓        | ✓       | ✓        | Random UUID
+// All zeros UUID                     | ✓        | ✓       | ✓        | 00000000-0000...
+// All Fs UUID                        | ✓        | ✓       | ✓        | ffffffff-ffff...
+// NULL transitions                   | ✓        | ✓       | ✓        | NULL↔non-NULL
+//
+// ============================================================================
+// 7. LTREE DATATYPE (hierarchical labels)
+// ============================================================================
+// Edge Case                          | Snapshot | Forward | Fallback | Notes
+// -----------------------------------|----------|---------|----------|------------------
+// Simple path                        | ✓        | ✓       | ✓        | Top.Science
+// Quoted labels                      | ✓        | ✓       | ✓        | "Special Label"
+// Deep hierarchy                     | ✓        | ✓       | ✓        | 10+ levels
+// Single label                       | ✓        | ✓       | ✓        | Top only
+// NULL transitions                   | ✓        | ✓       | ✓        | NULL↔non-NULL
+//
+// Operations: 6 rows snapshot (combined UUID/LTREE), 1 INSERT, 4 UPDATEs, 1 DELETE
+//
+// ============================================================================
+// 8. MAP DATATYPE (hstore)
+// ============================================================================
+// Edge Case                          | Snapshot | Forward | Fallback | Notes
+// -----------------------------------|----------|---------|----------|------------------
+// Arrow operator in key              | ✓        | ✓       | ✓        | "key=>val"=>"x"
+// Arrow operator in value            | ✓        | ✓       | ✓        | "k"=>"val=>test"
+// Escaped quotes                     | ✓        | ✓       | ✓        | "key\"test"
+// Escaped backslash                  | ✓        | ✓       | ✓        | "key\\test"
+// Single quotes in value             | ✓        | ✓       | ✓        | "k"=>"O'Reilly"
+// Empty key                          | ✓        | ✓       | ✓        | ""=>"value"
+// Empty value                        | ✓        | ✓       | ✓        | "key"=>""
+// Multiple pairs                     | ✓        | ✓       | ✓        | k1=>v1, k2=>v2
+// NULL transitions                   | ✓        | ✓       | ✓        | NULL↔non-NULL
+//
+// Operations: 6 rows snapshot, 1 INSERT, 4 UPDATEs, 1 DELETE (Forward)
+//             1 INSERT, 4 UPDATEs, 1 DELETE (Fallback)
+//
+// ============================================================================
+// 9. INTERVAL DATATYPE
+// ============================================================================
+// Edge Case                          | Snapshot | Forward | Fallback | Notes
+// -----------------------------------|----------|---------|----------|------------------
+// Positive intervals                 | ✓        | ✓       | ✓        | Years, months
+// Negative intervals                 | ✓        | ✓       | ✓        | -15 days
+// Zero interval                      | ✓        | ✓       | ✓        | 0 seconds
+// Years only                         | ✓        | ✓       | ✓        | 75 years
+// Days only                          | ✓        | ✓       | ✓        | 14 days
+// Time only                          | ✓        | ✓       | ✓        | 8:30:45
+// Mixed components                   | ✓        | ✓       | ✓        | Years+days+hours
+// NULL transitions                   | ✓        | ✓       | ✓        | NULL↔non-NULL
+//
+// Operations: 6 rows snapshot, 1 INSERT, 4 UPDATEs, 1 DELETE (Forward)
+//             1 INSERT, 4 UPDATEs, 1 DELETE (Fallback)
+//
+// ============================================================================
+// 10. ZONEDTIMESTAMP DATATYPE (timestamptz)
+// ============================================================================
+// Edge Case                          | Snapshot | Forward | Fallback | Notes
+// -----------------------------------|----------|---------|----------|------------------
+// UTC timezone (+00)                 | ✓        | ✓       | ✓        | Zulu time
+// Positive offset (+04:00, +05:30)   | ✓        | ✓       | ✓        | Eastern zones
+// Negative offset (-07:00)           | ✓        | ✓       | ✓        | Western zones
+// Epoch with timezone                | ✓        | ✓       | ✓        | 1970-01-01+00
+// Future with timezone               | ✓        | ✓       | ✓        | 2065+
+// Midnight with timezone             | ✓        | ✓       | ✓        | 00:00:00+00
+// NULL transitions                   | ✓        | ✓       | ✓        | NULL↔non-NULL
+//
+// Operations: 6 rows snapshot, 1 INSERT, 4 UPDATEs, 1 DELETE (Forward)
+//             1 INSERT, 4 UPDATEs, 1 DELETE (Fallback)
+//
+// ============================================================================
+// 11. DECIMAL DATATYPE (numeric)
+// ============================================================================
+// Edge Case                          | Snapshot | Forward | Fallback | Notes
+// -----------------------------------|----------|---------|----------|------------------
+// Large numbers (1B+)                | ✓        | ✓       | ✓        | 999999999.999...
+// Negative numbers                   | ✓        | ✓       | ✓        | -999999.999
+// Zero (0.0, 0.00, 0.000)            | ✓        | ✓       | ✓        | Various scales
+// High precision (15+ decimals)      | ✓        | ✓       | ✓        | 0.123456789...
+// Scientific notation                | ✓        | ✓       | ✓        | 1.23E+10
+// Small decimals                     | ✓        | ✓       | ✓        | 0.0001
+// NULL transitions (row 5)           | ✓        | ✓       | ✓        | non-NULL↔NULL
+// NULL transitions (row 6)           | ✓        | ✓       | ✓        | NULL↔non-NULL
+//
+// Operations: 6 rows snapshot, 1 INSERT, 6 UPDATEs, 1 DELETE (Forward)
+//             1 INSERT, 6 UPDATEs, 1 DELETE (Fallback)
+//
+// ============================================================================
+// 12. INTEGER DATATYPE (int, bigint)
+// ============================================================================
+// Edge Case                          | Snapshot | Forward | Fallback | Notes
+// -----------------------------------|----------|---------|----------|------------------
+// INT MAX (2147483647)               | ✓        | ✓       | ✓        | Max 32-bit
+// INT MIN (-2147483648)              | ✓        | ✓       | ✓        | Min 32-bit
+// BIGINT MAX (9223372036854775807)   | ✓        | ✓       | ✓        | Max 64-bit
+// BIGINT MIN (-9223372036854775808)  | ✓        | ✓       | ✓        | Min 64-bit
+// Zero                               | ✓        | ✓       | ✓        | 0
+// Negative one                       | ✓        | ✓       | ✓        | -1
+// Overflow scenarios                 | ✓        | ✓       | ✓        | Boundary tests
+// NULL transitions                   | ✓        | ✓       | ✓        | NULL↔non-NULL
+//
+// Operations: 6 rows snapshot, 1 INSERT, 4 UPDATEs, 1 DELETE (Forward)
+//             1 INSERT, 4 UPDATEs, 1 DELETE (Fallback)
+//
+// ============================================================================
+// 13. BOOLEAN DATATYPE
+// ============================================================================
+// Edge Case                          | Snapshot | Forward | Fallback | Notes
+// -----------------------------------|----------|---------|----------|------------------
+// TRUE value                         | ✓        | ✓       | ✓        | true
+// FALSE value                        | ✓        | ✓       | ✓        | false
+// NULL value                         | ✓        | ✓       | ✓        | null
+// TRUE ↔ FALSE transitions           | -        | U       | U        | Toggle values
+// NULL transitions                   | ✓        | ✓       | ✓        | NULL↔non-NULL
+//
+// Operations: 6 rows snapshot, 1 INSERT, 4 UPDATEs, 1 DELETE (Forward)
+//             1 INSERT, 4 UPDATEs, 1 DELETE (Fallback)
+//
+// ============================================================================
+// SUMMARY STATISTICS
+// ============================================================================
+//
+// Total Datatypes:      13 (12 tables, 1 combined UUID/LTREE)
+// Total Snapshot Rows:  72 (6 rows × 12 tables)
+// Total Edge Cases:     150+
+//
+// Forward Streaming Operations:
+//   - INSERTs:  16 (varies by datatype)
+//   - UPDATEs:  60 (includes NULL transitions for all datatypes)
+//   - DELETEs:  12 (1 per datatype, targets snapshot row 3)
+//
+// Fallback Streaming Operations:
+//   - INSERTs:  15 (varies by datatype)
+//   - UPDATEs:  58 (includes NULL transitions for all datatypes)
+//   - DELETEs:  12 (1 per datatype, targets snapshot row 4)
+//
+// NULL Transition Coverage:
+//   - 11 datatypes with full NULL↔non-NULL↔NULL transitions (both directions)
+//   - Tested in both forward and fallback streaming
+//   - Covers row 5 (non-NULL→NULL→non-NULL) for STRING, JSON, DECIMAL
+//   - Covers row 6 (NULL→non-NULL→NULL) for all 11 datatypes
+//
+// Special Test Cases (HIGH/MEDIUM/LOW Priority):
+//   ✓ HIGH: NULL transitions (all datatypes)
+//   ✓ HIGH: INTEGER/BIGINT boundary values (MAX/MIN/overflow)
+//   ✓ HIGH: Literal \n string vs actual newline byte
+//   ✓ MEDIUM: Single quotes inside JSON values
+//   ✓ MEDIUM: BOOLEAN column with TRUE/FALSE/NULL
+//   ✓ MEDIUM: Empty ENUM arrays (ARRAY[]::enum[])
+//   ✓ LOW: ENUM arrays with NULL elements
+//   ✓ LOW: ENUM array add/remove operations
+//
+// ============================================================================
+// KNOWN GAPS / NOT COVERED
+// ============================================================================
+//
+// 1. ARRAY Types (other than ENUM arrays):
+//    - No coverage for text[], integer[], json[] arrays
+//    - Only ENUM arrays are tested
+//
+// 2. Geometric Types:
+//    - point, line, circle, polygon, etc. - Not covered
+//
+// 3. Network Types:
+//    - inet, cidr, macaddr - Not covered
+//
+// 4. Range Types:
+//    - int4range, tsrange, daterange - Not covered
+//
+// 5. Special Types:
+//    - money, bit/varbit, xml, tsvector - Partial/No coverage
+//
+// 6. Composite Types:
+//    - User-defined composite types - Not covered
+//
+// 7. Domain Types:
+//    - User-defined domain types - Not covered
+//
+// ============================================================================
+
 func getDatatypeEdgeCasesTestConfig() *TestConfig {
 	return &TestConfig{
 		SourceDB: ContainerConfig{
