@@ -3465,6 +3465,16 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 		SET status_array = ARRAY['pending', NULL, NULL, 'inactive']::test_schema.status_enum[]
 		WHERE id = 4;`,
 
+			// ENUM UPDATE #5: Add elements to array (row 5 - expand array)
+			`UPDATE test_schema.enum_edge_cases
+		SET status_array = ARRAY['inactive', 'with space', 'with-dash', 'pending', 'active', 'café']::test_schema.status_enum[]
+		WHERE id = 5;`,
+
+			// ENUM UPDATE #6: Remove elements from array (row 1 - shrink array after it was set to empty)
+			`UPDATE test_schema.enum_edge_cases
+		SET status_array = ARRAY['pending']::test_schema.status_enum[]
+		WHERE id = 1 AND status_array = ARRAY[]::test_schema.status_enum[];`,
+
 			// ENUM DELETE #1: Test ENUM row deletion
 			`DELETE FROM test_schema.enum_edge_cases WHERE id = 3;`,
 
@@ -4059,7 +4069,7 @@ func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
 		},
 		`test_schema."enum_edge_cases"`: {
 			Inserts: 2, // 2 INSERT operations: EMPTY array + array with NULL elements
-			Updates: 6, // 6 UPDATE operations: 4 regular (including empty array tests + NULL elements) + 2 row 6 (NULL→non-NULL→NULL)
+			Updates: 8, // 8 UPDATE operations: 6 regular (empty array tests + NULL elements + add/remove elements) + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1, // 1 DELETE operation: delete ENUM row 3
 		},
 		`test_schema."bytes_edge_cases"`: {
@@ -4423,6 +4433,14 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 		`UPDATE test_schema.enum_edge_cases
 	SET status_array = ARRAY[NULL, 'active', NULL, 'pending', NULL]::test_schema.status_enum[]  -- FALLBACK: Add multiple NULLs
 	WHERE id = 4;`,
+
+		`UPDATE test_schema.enum_edge_cases
+	SET status_array = ARRAY['active', 'inactive', 'pending', 'with space', '🎉emoji']::test_schema.status_enum[]  -- FALLBACK: Add elements to array (expand)
+	WHERE id = 5;`,
+
+		`UPDATE test_schema.enum_edge_cases
+	SET status_array = ARRAY['inactive']::test_schema.status_enum[]  -- FALLBACK: Remove elements from array (shrink to single element)
+	WHERE id = 1 AND status_array = ARRAY[]::test_schema.status_enum[];`,
 
 		`DELETE FROM test_schema.enum_edge_cases WHERE id = 4;`,
 
@@ -4944,7 +4962,7 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 		},
 		`test_schema."enum_edge_cases"`: {
 			Inserts: 2,
-			Updates: 6, // 4 regular (including empty array tests + NULL elements) + 2 row 6 (NULL→non-NULL→NULL)
+			Updates: 8, // 6 regular (empty array tests + NULL elements + add/remove elements) + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1,
 		},
 		`test_schema."bytes_edge_cases"`: {
@@ -5034,7 +5052,7 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 		},
 		`test_schema."enum_edge_cases"`: {
 			Inserts: 2, // 1 EMPTY array + 1 with NULL elements
-			Updates: 5, // 3 regular (including empty array tests + NULL elements) + 2 row 6 (NULL→non-NULL→NULL)
+			Updates: 7, // 5 regular (empty array tests + NULL elements + add/remove elements) + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1,
 		},
 		`test_schema."bytes_edge_cases"`: {
@@ -5095,10 +5113,4 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 	t.Log("=== Final validation after complete round-trip ===")
 	err = lm.ValidateDataConsistency([]string{`test_schema."string_edge_cases"`, `test_schema."decimal_edge_cases"`, `test_schema."json_edge_cases"`, `test_schema."enum_edge_cases"`, `test_schema."bytes_edge_cases"`, `test_schema."datetime_edge_cases"`, `test_schema."uuid_ltree_edge_cases"`, `test_schema."map_edge_cases"`, `test_schema."interval_edge_cases"`, `test_schema."zonedtimestamp_edge_cases"`, `test_schema."integer_edge_cases"`, `test_schema."boolean_edge_cases"`}, "id")
 	testutils.FatalIfError(t, err, "failed final data consistency check after fallback")
-
-	t.Log("✅ ALL DATATYPE EDGE CASES WITH FALLBACK TEST PASSED! 🎉")
-	t.Log("   Forward streaming: 10/10 datatypes")
-	t.Log("   Fallback streaming: 10/10 datatypes")
-	t.Log("   All CRUD operations (INSERT, UPDATE, DELETE) working for all datatypes")
-	t.Log("   Full round-trip data consistency verified!")
 }
