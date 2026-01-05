@@ -4001,6 +4001,623 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 			'{"author": "O''Reilly", "books": ["It''s great", "We''re learning"]}'
 		);`,
 		},
+		TargetDeltaSQL: []string{
+			`INSERT INTO test_schema.string_edge_cases (
+				text_with_backslash,
+				text_with_quote,
+				text_with_newline,
+				text_with_tab,
+				text_with_mixed,
+				text_windows_path,
+				text_sql_injection,
+				text_unicode,
+				text_empty,
+				text_null_string
+			) VALUES (
+				'fb\path\to\文件',
+				'café''s fb Ñoño',
+				E'fb\nline\nstream',
+				E'fb\ttab\tstream',
+				E'fb: ''"\\\n\t\r',
+				'C:\fb',
+				'--fb',
+				'مرحبا fb مرحبا',
+				E'\n',
+				'NULL'
+			);`,
+
+			`UPDATE test_schema.string_edge_cases 
+			SET text_with_backslash = '\\network\fb',
+				text_with_quote = 'café''s updated Ñoño',
+				text_unicode = 'مرحبا fb 世界'
+			WHERE id = 1;`,
+
+			`UPDATE test_schema.string_edge_cases 
+			SET text_with_newline = E'fb\nnew\nlines',
+				text_with_tab = E'fb\nnew\ttabs',
+				text_with_mixed = E'fb: ''"\\\n\t\r'
+			WHERE id = 2;`,
+
+			`DELETE FROM test_schema.string_edge_cases WHERE id = 4;`,
+
+			`INSERT INTO test_schema.decimal_edge_cases (
+				decimal_large,
+				decimal_negative,
+				decimal_zero,
+				decimal_high_precision,
+				decimal_scientific,
+				decimal_small
+			) VALUES (
+				111222333.444555666,
+				-999.888,
+				0.000,
+				777.777777777777777,
+				200.600000,
+				88.88
+			);`,
+
+			`UPDATE test_schema.decimal_edge_cases
+			SET decimal_large = 999999999.999999999,
+				decimal_negative = -1000.001
+			WHERE id = 1;`,
+
+			`UPDATE test_schema.decimal_edge_cases
+			SET decimal_high_precision = 0.123456789012345,
+				decimal_scientific = 3.1415926000
+			WHERE id = 2;`,
+
+			`DELETE FROM test_schema.decimal_edge_cases WHERE id = 4;`,
+
+			`INSERT INTO test_schema.json_edge_cases (
+				json_with_escaped_chars,
+				json_with_unicode,
+				json_nested,
+				json_array,
+				json_with_null,
+				json_empty,
+				json_formatted,
+				json_with_numbers,
+				json_complex
+			) VALUES (
+				'{"fallback": "test value", "quotes": "O''Reilly''s"}',
+				'{"fallback": "مرحبا", "emoji": "🔄", "chinese": "你好"}',
+				'{"fallback": {"nested": {"deep": {"value": "test"}}}}',
+				'[["fallback"], ["nested", "array"]]',
+				'{"fallback": null, "also_null": null}',
+				'{"empty": {}}',
+				'{"fallback": "formatted value", "number": 123}',
+				'{"neg": -999, "zero": 0, "pos": 999, "decimal": 123.456}',
+				'{"unicode": "café ñoño", "escaped": "test", "data": "fallback"}'
+			);`,
+
+			`UPDATE test_schema.json_edge_cases
+			SET json_with_escaped_chars = '{"updated": "test value"}',
+				json_with_unicode = '{"updated": "日本語🎉", "korean": "한글"}',
+				json_nested = '{"updated": {"level": 2, "nested": true}}'
+			WHERE id = 1;`,
+
+			`UPDATE test_schema.json_edge_cases
+			SET json_array = '["updated", "array", "values"]',
+				json_complex = '{"updated": true, "number": 42}'
+			WHERE id = 2;`,
+
+			`DELETE FROM test_schema.json_edge_cases WHERE id = 4;`,
+
+			`INSERT INTO test_schema.enum_edge_cases (
+			status_simple,
+			status_with_quote,
+			status_with_special,
+			status_unicode,
+			status_array,
+			status_null
+		) VALUES (
+			'pending',
+			'enum"value',
+			'with space',
+			'café',
+			ARRAY[]::test_schema.status_enum[],  -- FALLBACK: INSERT with EMPTY array
+			'active'
+		);`,
+
+			`INSERT INTO test_schema.enum_edge_cases (
+			status_simple,
+			status_with_quote,
+			status_with_special,
+			status_unicode,
+			status_array,
+			status_null
+		) VALUES (
+			'inactive',
+			'enum''value',
+			'with-dash',
+			'🎉emoji',
+			ARRAY[NULL, 'pending', NULL, 'inactive']::test_schema.status_enum[],  -- FALLBACK: INSERT with NULL elements
+			NULL
+		);`,
+
+			`UPDATE test_schema.enum_edge_cases
+		SET status_simple = 'inactive',
+			status_with_quote = 'enum''value',
+			status_with_special = 'with_underscore',
+			status_array = ARRAY[]::test_schema.status_enum[]  -- FALLBACK: Set to EMPTY array
+		WHERE id = 1;`,
+
+			`UPDATE test_schema.enum_edge_cases
+		SET status_unicode = '🎉emoji',
+			status_array = ARRAY['with-dash', 'enum\value']::test_schema.status_enum[]  -- FALLBACK: Set EMPTY to NON-EMPTY
+		WHERE id = 2;`,
+
+			`UPDATE test_schema.enum_edge_cases
+		SET status_array = ARRAY[NULL, 'active', NULL, 'pending', NULL]::test_schema.status_enum[]  -- FALLBACK: Add multiple NULLs
+		WHERE id = 4;`,
+
+			`UPDATE test_schema.enum_edge_cases
+		SET status_array = ARRAY['active', 'inactive', 'pending', 'with space', '🎉emoji']::test_schema.status_enum[]  -- FALLBACK: Add elements to array (expand)
+		WHERE id = 5;`,
+
+			`UPDATE test_schema.enum_edge_cases
+		SET status_array = ARRAY['inactive']::test_schema.status_enum[]  -- FALLBACK: Remove elements from array (shrink to single element)
+		WHERE id = 1 AND status_array = ARRAY[]::test_schema.status_enum[];`,
+
+			`DELETE FROM test_schema.enum_edge_cases WHERE id = 4;`,
+
+			`INSERT INTO test_schema.bytes_edge_cases (
+				bytes_empty,
+				bytes_single,
+				bytes_ascii,
+				bytes_null_byte,
+				bytes_all_zeros,
+				bytes_all_ff,
+				bytes_special_chars,
+				bytes_mixed
+			) VALUES (
+				E'\\x',
+				E'\\xFB',
+				E'\\x46616C6C6261636B',
+				E'\\xFF00',
+				E'\\x0000',
+				E'\\xFFFF',
+				E'\\x5c5c',
+				E'\\xABCDEF123456'
+			);`,
+
+			`UPDATE test_schema.bytes_edge_cases
+			SET bytes_single = E'\\xBB',
+				bytes_ascii = E'\\x75706461746564',
+				bytes_mixed = E'\\xDEADC0DE'
+			WHERE id = 1;`,
+
+			`UPDATE test_schema.bytes_edge_cases
+			SET bytes_null_byte = E'\\xFF00FF00',
+				bytes_all_zeros = E'\\x00',
+				bytes_all_ff = E'\\xFF'
+			WHERE id = 2;`,
+
+			`DELETE FROM test_schema.bytes_edge_cases WHERE id = 4;`,
+
+			`INSERT INTO test_schema.datetime_edge_cases (
+				date_epoch,
+				date_negative,
+				date_future,
+				timestamp_epoch,
+				timestamp_negative,
+				timestamp_with_tz,
+				time_midnight,
+				time_noon,
+				time_with_micro
+			) VALUES (
+				'2024-06-15',
+				'1975-05-20',
+				'2035-09-25',
+				'2024-06-15 14:30:45',
+				'1975-05-20 08:15:30',
+				'2035-09-25 16:45:00+03',
+				'14:30:45',
+				'08:15:30',
+				'16:45:30.123456'
+			);`,
+
+			`UPDATE test_schema.datetime_edge_cases
+			SET date_epoch = '2026-11-20',
+				timestamp_epoch = '2026-11-20 09:15:45',
+				time_midnight = '02:03:04'
+			WHERE id = 1;`,
+
+			`UPDATE test_schema.datetime_edge_cases
+			SET date_future = '2098-06-15',
+				timestamp_with_tz = '2098-06-15 12:00:00-06',
+				time_with_micro = '18:45:30.654321'
+			WHERE id = 2;`,
+
+			`DELETE FROM test_schema.datetime_edge_cases WHERE id = 4;`,
+
+			`INSERT INTO test_schema.uuid_ltree_edge_cases (
+				uuid_standard,
+				uuid_all_zeros,
+				uuid_all_fs,
+				uuid_random,
+				ltree_simple,
+				ltree_quoted,
+				ltree_deep,
+				ltree_single
+			) VALUES (
+				'fb123456-7890-abcd-ef12-345678901234',
+				'00000000-0000-0000-0000-000000000099',
+				'fffffffe-ffff-ffff-ffff-ffffffffffff',
+				'abcdef12-3456-7890-abcd-ef1234567890',
+				'Fallback.Data.Test',
+				'FB.TestPath.Values',
+				'Fallback.Deep.Path.To.Data.Node',
+				'FB'
+			);`,
+
+			`UPDATE test_schema.uuid_ltree_edge_cases
+			SET uuid_standard = 'fb654321-0987-fedc-ba21-098765432109',
+				ltree_simple = 'FB.Updated.Path'
+			WHERE id = 1;`,
+
+			`UPDATE test_schema.uuid_ltree_edge_cases
+			SET uuid_all_zeros = '00000000-0000-0000-0000-000000000088',
+				ltree_deep = 'FB.Very.Deep.Path.With.Many.Levels'
+			WHERE id = 2;`,
+
+			`DELETE FROM test_schema.uuid_ltree_edge_cases WHERE id = 4;`,
+
+			`INSERT INTO test_schema.map_edge_cases (
+				map_simple,
+				map_with_arrow,
+				map_with_quotes,
+				map_empty_values,
+				map_multiple_pairs,
+				map_special_chars
+			) VALUES (
+				'"fallback" => "data"',
+				'"fb=>key" => "testval"',
+				'"fb" => "O''Reilly"',
+				'"" => "fb"',
+				'"fb1" => "v1", "fb2" => "v2", "fb3" => "v3"',
+				'"special" => "test@fb.com"'
+			);`,
+
+			`UPDATE test_schema.map_edge_cases
+			SET map_simple = '"updated" => "fb"',
+				map_with_arrow = '"update=>key" => "fb"'
+			WHERE id = 1;`,
+
+			`UPDATE test_schema.map_edge_cases
+			SET map_with_quotes = '"fb" => "O''Brien"',
+				map_multiple_pairs = '"x" => "99", "y" => "88"'
+			WHERE id = 2;`,
+
+			`DELETE FROM test_schema.map_edge_cases WHERE id = 4;`,
+
+			`INSERT INTO test_schema.interval_edge_cases (
+				interval_positive,
+				interval_negative,
+				interval_zero,
+				interval_years,
+				interval_days,
+				interval_hours,
+				interval_mixed
+			) VALUES (
+				'3 years 6 months'::interval,
+				'-15 days'::interval,
+				'0 seconds'::interval,
+				'75 years'::interval,
+				'14 days'::interval,
+				'8:30:45'::interval,
+				'4 years 3 months 25 days 15 hours'::interval
+			);`,
+
+			`UPDATE test_schema.interval_edge_cases
+			SET interval_positive = '9 months 20 days'::interval,
+				interval_years = '30 years'::interval
+			WHERE id = 1;`,
+
+			`UPDATE test_schema.interval_edge_cases
+			SET interval_negative = '-4 months -10 days'::interval,
+				interval_mixed = '6 months 15 days 3 hours 45 minutes'::interval
+			WHERE id = 2;`,
+
+			`DELETE FROM test_schema.interval_edge_cases WHERE id = 4;`,
+
+			`INSERT INTO test_schema.zonedtimestamp_edge_cases (
+				ts_utc,
+				ts_positive_offset,
+				ts_negative_offset,
+				ts_epoch,
+				ts_future,
+				ts_midnight
+			) VALUES (
+				'2025-05-15 10:20:30+00'::timestamptz,
+				'2025-06-20 14:30:00+04:00'::timestamptz,
+				'2025-07-10 18:45:15-07:00'::timestamptz,
+				'1970-01-03 00:00:00+00'::timestamptz,
+				'2065-08-20 18:00:00+00'::timestamptz,
+				'2025-08-01 00:00:00+00'::timestamptz
+			);`,
+
+			`UPDATE test_schema.zonedtimestamp_edge_cases
+			SET ts_utc = '2025-01-01 12:00:00+00'::timestamptz,
+				ts_positive_offset = '2025-02-14 06:30:00+05:30'::timestamptz
+			WHERE id = 1;`,
+
+			`UPDATE test_schema.zonedtimestamp_edge_cases
+			SET ts_negative_offset = '2025-03-15 18:45:00-07:00'::timestamptz,
+				ts_future = '2070-12-31 23:59:59.999999+00'::timestamptz
+			WHERE id = 2;`,
+
+			`DELETE FROM test_schema.zonedtimestamp_edge_cases WHERE id = 4;`,
+
+			`UPDATE test_schema.string_edge_cases
+			SET text_with_backslash = NULL,
+				text_unicode = NULL
+			WHERE id = 5;`,
+
+			// STRING: NULL restore
+			`UPDATE test_schema.string_edge_cases
+			SET text_with_backslash = 'fallback\\restored',
+				text_unicode = 'fallback restored مرحبا'
+			WHERE id = 5 AND text_with_backslash IS NULL;`,
+
+			// JSON: NULL transition
+			`UPDATE test_schema.json_edge_cases
+			SET json_nested = NULL,
+				json_array = NULL
+			WHERE id = 5;`,
+
+			// JSON: NULL restore
+			`UPDATE test_schema.json_edge_cases
+			SET json_nested = '{"fallback": {"restored": true}}',
+				json_array = '["fallback", "restored"]'
+			WHERE id = 5 AND json_nested IS NULL;`,
+
+			// DECIMAL: NULL transition
+			`UPDATE test_schema.decimal_edge_cases
+			SET decimal_large = NULL,
+				decimal_zero = NULL
+			WHERE id = 5;`,
+
+			// DECIMAL: NULL restore
+			`UPDATE test_schema.decimal_edge_cases
+			SET decimal_large = 666666666.666666666,
+				decimal_zero = 0.00
+			WHERE id = 5 AND decimal_large IS NULL;`,
+
+			// === FALLBACK ROW 6: NULL → non-NULL → NULL transitions (ALL 11 datatypes) ===
+			// STRING: Set NULL to non-NULL (row 6 fallback)
+			`UPDATE test_schema.string_edge_cases
+			SET text_with_backslash = 'fallback from NULL',
+				text_with_quote = 'fallback also from NULL'
+			WHERE id = 6 AND text_with_backslash IS NULL;`,
+
+			// STRING: Set non-NULL back to NULL (row 6 fallback)
+			`UPDATE test_schema.string_edge_cases
+			SET text_with_backslash = NULL,
+				text_with_quote = NULL
+			WHERE id = 6 AND text_with_backslash = 'fallback from NULL';`,
+
+			// JSON: Set NULL to non-NULL (row 6 fallback)
+			`UPDATE test_schema.json_edge_cases
+			SET json_with_escaped_chars = '{"fallback": "from NULL"}',
+				json_with_unicode = '{"fallback_also": "from NULL"}'
+			WHERE id = 6 AND json_with_escaped_chars IS NULL;`,
+
+			// JSON: Set non-NULL back to NULL (row 6 fallback)
+			`UPDATE test_schema.json_edge_cases
+			SET json_with_escaped_chars = NULL,
+				json_with_unicode = NULL
+			WHERE id = 6 AND json_with_escaped_chars::text = '{"fallback": "from NULL"}';`,
+
+			// ENUM: Set NULL to non-NULL (row 6 fallback)
+			`UPDATE test_schema.enum_edge_cases
+			SET status_simple = 'pending',
+				status_with_quote = 'active'
+			WHERE id = 6 AND status_simple IS NULL;`,
+
+			// ENUM: Set non-NULL back to NULL (row 6 fallback)
+			`UPDATE test_schema.enum_edge_cases
+			SET status_simple = NULL,
+				status_with_quote = NULL
+			WHERE id = 6 AND status_simple = 'pending';`,
+
+			// BYTES: Set NULL to non-NULL (row 6 fallback)
+			`UPDATE test_schema.bytes_edge_cases
+			SET bytes_empty = '\x44'::bytea,
+				bytes_single = '\x45'::bytea
+			WHERE id = 6 AND bytes_empty IS NULL;`,
+
+			// BYTES: Set non-NULL back to NULL (row 6 fallback)
+			`UPDATE test_schema.bytes_edge_cases
+			SET bytes_empty = NULL,
+				bytes_single = NULL
+			WHERE id = 6 AND bytes_empty = '\x44'::bytea;`,
+
+			// DATETIME: Set NULL to non-NULL (row 6 fallback)
+			`UPDATE test_schema.datetime_edge_cases
+			SET date_epoch = '2025-12-31',
+				date_negative = '1999-12-31'
+			WHERE id = 6 AND date_epoch IS NULL;`,
+
+			// DATETIME: Set non-NULL back to NULL (row 6 fallback)
+			`UPDATE test_schema.datetime_edge_cases
+			SET date_epoch = NULL,
+				date_negative = NULL
+			WHERE id = 6 AND date_epoch = '2025-12-31';`,
+
+			// UUID/LTREE: Set NULL to non-NULL (row 6 fallback)
+			`UPDATE test_schema.uuid_ltree_edge_cases
+			SET uuid_standard = 'ffffffff-ffff-ffff-ffff-ffffffffffff',
+				uuid_all_zeros = '11111111-1111-1111-1111-111111111111'
+			WHERE id = 6 AND uuid_standard IS NULL;`,
+
+			// UUID/LTREE: Set non-NULL back to NULL (row 6 fallback)
+			`UPDATE test_schema.uuid_ltree_edge_cases
+			SET uuid_standard = NULL,
+				uuid_all_zeros = NULL
+			WHERE id = 6 AND uuid_standard = 'ffffffff-ffff-ffff-ffff-ffffffffffff';`,
+
+			// MAP/HSTORE: Set NULL to non-NULL (row 6 fallback)
+			`UPDATE test_schema.map_edge_cases
+			SET map_simple = 'fallback=>from_null',
+				map_with_arrow = 'fb=>also_null'
+			WHERE id = 6 AND map_simple IS NULL;`,
+
+			// MAP/HSTORE: Set non-NULL back to NULL (row 6 fallback)
+			`UPDATE test_schema.map_edge_cases
+			SET map_simple = NULL,
+				map_with_arrow = NULL
+			WHERE id = 6 AND map_simple = 'fallback=>from_null';`,
+
+			// INTERVAL: Set NULL to non-NULL (row 6 fallback)
+			`UPDATE test_schema.interval_edge_cases
+			SET interval_positive = '7 years',
+				interval_negative = '-15 days'
+			WHERE id = 6 AND interval_positive IS NULL;`,
+
+			// INTERVAL: Set non-NULL back to NULL (row 6 fallback)
+			`UPDATE test_schema.interval_edge_cases
+			SET interval_positive = NULL,
+				interval_negative = NULL
+			WHERE id = 6 AND interval_positive = '7 years';`,
+
+			// ZONEDTIMESTAMP: Set NULL to non-NULL (row 6 fallback)
+			`UPDATE test_schema.zonedtimestamp_edge_cases
+			SET ts_utc = '2025-12-31 23:59:59+00',
+				ts_positive_offset = '2025-12-31 23:59:59+08'
+			WHERE id = 6 AND ts_utc IS NULL;`,
+
+			// ZONEDTIMESTAMP: Set non-NULL back to NULL (row 6 fallback)
+			`UPDATE test_schema.zonedtimestamp_edge_cases
+			SET ts_utc = NULL,
+				ts_positive_offset = NULL
+			WHERE id = 6 AND ts_utc = '2025-12-31 23:59:59+00';`,
+
+			// DECIMAL: Set NULL to non-NULL (row 6 fallback)
+			`UPDATE test_schema.decimal_edge_cases
+			SET decimal_large = 222222222.222222222,
+				decimal_negative = -222.222
+			WHERE id = 6 AND decimal_large IS NULL;`,
+
+			// DECIMAL: Set non-NULL back to NULL (row 6 fallback)
+			`UPDATE test_schema.decimal_edge_cases
+			SET decimal_large = NULL,
+				decimal_negative = NULL
+			WHERE id = 6 AND decimal_large = 222222222.222222222;`,
+
+			// FALLBACK: INTEGER INSERT #1
+			`INSERT INTO test_schema.integer_edge_cases (
+				int_max,
+				int_min,
+				int_zero,
+				int_negative_one,
+				bigint_max,
+				bigint_min,
+				bigint_zero
+			) VALUES
+			(
+				2147483644,                         -- Different from forward
+				-2147483646,
+				99,
+				-99,
+				9223372036854775804,                -- Different from forward
+				-9223372036854775806,
+				99
+			);`,
+
+			// FALLBACK: INTEGER UPDATE #1
+			`UPDATE test_schema.integer_edge_cases
+			SET int_max = 100000,
+				bigint_max = 100000000000
+			WHERE id = 2;`,
+
+			// FALLBACK: INTEGER UPDATE #2
+			`UPDATE test_schema.integer_edge_cases
+			SET int_zero = 999,
+				bigint_zero = 999999
+			WHERE id = 1;`,
+
+			// FALLBACK: INTEGER DELETE #1
+			`DELETE FROM test_schema.integer_edge_cases WHERE id = 4;`,
+
+			// FALLBACK: INTEGER NULL transition - Set NULL to non-NULL (row 6)
+			`UPDATE test_schema.integer_edge_cases
+			SET int_max = 888888,
+				int_min = -888888
+			WHERE id = 6 AND int_max IS NULL;`,
+
+			// FALLBACK: INTEGER NULL transition - Set non-NULL back to NULL (row 6)
+			`UPDATE test_schema.integer_edge_cases
+			SET int_max = NULL,
+				int_min = NULL
+			WHERE id = 6 AND int_max = 888888;`,
+
+			// FALLBACK: BOOLEAN INSERT: New row with FALSE/FALSE
+			`INSERT INTO test_schema.boolean_edge_cases (bool_simple, bool_nullable) VALUES (FALSE, FALSE);`,
+
+			// FALLBACK: BOOLEAN UPDATE #1: Change row 1
+			`UPDATE test_schema.boolean_edge_cases SET bool_simple = TRUE, bool_nullable = FALSE WHERE id = 1;`,
+
+			// FALLBACK: BOOLEAN UPDATE #2: Change row 2
+			`UPDATE test_schema.boolean_edge_cases SET bool_simple = FALSE, bool_nullable = TRUE WHERE id = 2;`,
+
+			// FALLBACK: BOOLEAN DELETE: Delete row 4
+			`DELETE FROM test_schema.boolean_edge_cases WHERE id = 4;`,
+
+			// FALLBACK: BOOLEAN NULL transition: Set NULL to FALSE on row 6
+			`UPDATE test_schema.boolean_edge_cases SET bool_simple = FALSE, bool_nullable = FALSE WHERE id = 6 AND bool_simple IS NULL;`,
+
+			// FALLBACK: BOOLEAN NULL transition: Set FALSE back to NULL on row 6
+			`UPDATE test_schema.boolean_edge_cases SET bool_simple = NULL, bool_nullable = NULL WHERE id = 6 AND bool_simple = FALSE;`,
+
+			// FALLBACK: Literal '\n' vs actual newline
+			`INSERT INTO test_schema.string_edge_cases (
+				text_with_backslash,
+				text_with_quote,
+				text_with_newline,
+				text_with_tab,
+				text_with_mixed,
+				text_windows_path,
+				text_sql_injection,
+				text_unicode,
+				text_empty,
+				text_null_string
+			) VALUES (
+				'fallback_literal\ntest',   -- Two chars: backslash + n
+				'fallback',
+				E'fallback_actual\ntest',   -- Actual newline byte (0x0A)
+				'fallback',
+				'fallback_literal\nmixed',  -- Mix with literal \n
+				'D:\new\path',              -- Path with literal \n
+				'fallback',
+				'fallback',
+				'',
+				'NULL'
+			);`,
+
+			// FALLBACK: MEDIUM PRIORITY - Single quotes inside JSON values
+			`INSERT INTO test_schema.json_edge_cases (
+				json_with_escaped_chars,
+				json_with_unicode,
+				json_nested,
+				json_array,
+				json_with_null,
+				json_empty,
+				json_formatted,
+				json_with_numbers,
+				json_complex
+			) VALUES (
+				'{"fallback": "O''Malley", "text": "It''s fallback"}',
+				'{"name": "O''Donnell", "message": "We''re testing"}',
+				'{"person": "O''Brien", "quote": "He said ''hello''"}',
+				'["Fallback''s test", "O''Reilly''s book"]',
+				'{"author": "O''Neil", "value": null}',
+				'{}',
+				'{"fallback": "She''s here"}',
+				'{"num": 456}',
+				'{"fallback": "O''Connor", "items": ["It''s good", "We''re done"]}'
+			);`,
+		},
 		CleanupSQL: []string{
 			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
 		},
@@ -4280,629 +4897,7 @@ VALUES (INTERVAL '7 years', INTERVAL '120 days', INTERVAL '15 hours', INTERVAL '
 }
 
 func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
-	config := getDatatypeEdgeCasesTestConfig()
-
-	config.TargetDeltaSQL = []string{
-		// TESTING: STRING with FULL edge cases (Step 4)
-		`INSERT INTO test_schema.string_edge_cases (
-			text_with_backslash,
-			text_with_quote,
-			text_with_newline,
-			text_with_tab,
-			text_with_mixed,
-			text_windows_path,
-			text_sql_injection,
-			text_unicode,
-			text_empty,
-			text_null_string
-		) VALUES (
-			'fb\path\to\文件',
-			'café''s fb Ñoño',
-			E'fb\nline\nstream',
-			E'fb\ttab\tstream',
-			E'fb: ''"\\\n\t\r',
-			'C:\fb',
-			'--fb',
-			'مرحبا fb مرحبا',
-			E'\n',
-			'NULL'
-		);`,
-
-		`UPDATE test_schema.string_edge_cases 
-		SET text_with_backslash = '\\network\fb',
-		    text_with_quote = 'café''s updated Ñoño',
-		    text_unicode = 'مرحبا fb 世界'
-		WHERE id = 1;`,
-
-		`UPDATE test_schema.string_edge_cases 
-		SET text_with_newline = E'fb\nnew\nlines',
-		    text_with_tab = E'fb\nnew\ttabs',
-		    text_with_mixed = E'fb: ''"\\\n\t\r'
-		WHERE id = 2;`,
-
-		`DELETE FROM test_schema.string_edge_cases WHERE id = 4;`,
-
-		// TESTING: DECIMAL with FULL edge cases (Step 4) - using UNIQUE values for fallback
-		`INSERT INTO test_schema.decimal_edge_cases (
-			decimal_large,
-			decimal_negative,
-			decimal_zero,
-			decimal_high_precision,
-			decimal_scientific,
-			decimal_small
-		) VALUES (
-			111222333.444555666,
-			-999.888,
-			0.000,
-			777.777777777777777,
-			200.600000,
-			88.88
-		);`,
-
-		`UPDATE test_schema.decimal_edge_cases
-		SET decimal_large = 999999999.999999999,
-		    decimal_negative = -1000.001
-		WHERE id = 1;`,
-
-		`UPDATE test_schema.decimal_edge_cases
-		SET decimal_high_precision = 0.123456789012345,
-		    decimal_scientific = 3.1415926000
-		WHERE id = 2;`,
-
-		`DELETE FROM test_schema.decimal_edge_cases WHERE id = 4;`,
-
-		`INSERT INTO test_schema.json_edge_cases (
-			json_with_escaped_chars,
-			json_with_unicode,
-			json_nested,
-			json_array,
-			json_with_null,
-			json_empty,
-			json_formatted,
-			json_with_numbers,
-			json_complex
-		) VALUES (
-			'{"fallback": "test value", "quotes": "O''Reilly''s"}',
-			'{"fallback": "مرحبا", "emoji": "🔄", "chinese": "你好"}',
-			'{"fallback": {"nested": {"deep": {"value": "test"}}}}',
-			'[["fallback"], ["nested", "array"]]',
-			'{"fallback": null, "also_null": null}',
-			'{"empty": {}}',
-			'{"fallback": "formatted value", "number": 123}',
-			'{"neg": -999, "zero": 0, "pos": 999, "decimal": 123.456}',
-			'{"unicode": "café ñoño", "escaped": "test", "data": "fallback"}'
-		);`,
-
-		`UPDATE test_schema.json_edge_cases
-		SET json_with_escaped_chars = '{"updated": "test value"}',
-		    json_with_unicode = '{"updated": "日本語🎉", "korean": "한글"}',
-		    json_nested = '{"updated": {"level": 2, "nested": true}}'
-		WHERE id = 1;`,
-
-		`UPDATE test_schema.json_edge_cases
-		SET json_array = '["updated", "array", "values"]',
-		    json_complex = '{"updated": true, "number": 42}'
-		WHERE id = 2;`,
-
-		`DELETE FROM test_schema.json_edge_cases WHERE id = 4;`,
-
-		`INSERT INTO test_schema.enum_edge_cases (
-		status_simple,
-		status_with_quote,
-		status_with_special,
-		status_unicode,
-		status_array,
-		status_null
-	) VALUES (
-		'pending',
-		'enum"value',
-		'with space',
-		'café',
-		ARRAY[]::test_schema.status_enum[],  -- FALLBACK: INSERT with EMPTY array
-		'active'
-	);`,
-
-		`INSERT INTO test_schema.enum_edge_cases (
-		status_simple,
-		status_with_quote,
-		status_with_special,
-		status_unicode,
-		status_array,
-		status_null
-	) VALUES (
-		'inactive',
-		'enum''value',
-		'with-dash',
-		'🎉emoji',
-		ARRAY[NULL, 'pending', NULL, 'inactive']::test_schema.status_enum[],  -- FALLBACK: INSERT with NULL elements
-		NULL
-	);`,
-
-		`UPDATE test_schema.enum_edge_cases
-	SET status_simple = 'inactive',
-	    status_with_quote = 'enum''value',
-	    status_with_special = 'with_underscore',
-	    status_array = ARRAY[]::test_schema.status_enum[]  -- FALLBACK: Set to EMPTY array
-	WHERE id = 1;`,
-
-		`UPDATE test_schema.enum_edge_cases
-	SET status_unicode = '🎉emoji',
-	    status_array = ARRAY['with-dash', 'enum\value']::test_schema.status_enum[]  -- FALLBACK: Set EMPTY to NON-EMPTY
-	WHERE id = 2;`,
-
-		`UPDATE test_schema.enum_edge_cases
-	SET status_array = ARRAY[NULL, 'active', NULL, 'pending', NULL]::test_schema.status_enum[]  -- FALLBACK: Add multiple NULLs
-	WHERE id = 4;`,
-
-		`UPDATE test_schema.enum_edge_cases
-	SET status_array = ARRAY['active', 'inactive', 'pending', 'with space', '🎉emoji']::test_schema.status_enum[]  -- FALLBACK: Add elements to array (expand)
-	WHERE id = 5;`,
-
-		`UPDATE test_schema.enum_edge_cases
-	SET status_array = ARRAY['inactive']::test_schema.status_enum[]  -- FALLBACK: Remove elements from array (shrink to single element)
-	WHERE id = 1 AND status_array = ARRAY[]::test_schema.status_enum[];`,
-
-		`DELETE FROM test_schema.enum_edge_cases WHERE id = 4;`,
-
-		`INSERT INTO test_schema.bytes_edge_cases (
-			bytes_empty,
-			bytes_single,
-			bytes_ascii,
-			bytes_null_byte,
-			bytes_all_zeros,
-			bytes_all_ff,
-			bytes_special_chars,
-			bytes_mixed
-		) VALUES (
-			E'\\x',
-			E'\\xFB',
-			E'\\x46616C6C6261636B',
-			E'\\xFF00',
-			E'\\x0000',
-			E'\\xFFFF',
-			E'\\x5c5c',
-			E'\\xABCDEF123456'
-		);`,
-
-		`UPDATE test_schema.bytes_edge_cases
-		SET bytes_single = E'\\xBB',
-		    bytes_ascii = E'\\x75706461746564',
-		    bytes_mixed = E'\\xDEADC0DE'
-		WHERE id = 1;`,
-
-		`UPDATE test_schema.bytes_edge_cases
-		SET bytes_null_byte = E'\\xFF00FF00',
-		    bytes_all_zeros = E'\\x00',
-		    bytes_all_ff = E'\\xFF'
-		WHERE id = 2;`,
-
-		`DELETE FROM test_schema.bytes_edge_cases WHERE id = 4;`,
-
-		`INSERT INTO test_schema.datetime_edge_cases (
-			date_epoch,
-			date_negative,
-			date_future,
-			timestamp_epoch,
-			timestamp_negative,
-			timestamp_with_tz,
-			time_midnight,
-			time_noon,
-			time_with_micro
-		) VALUES (
-			'2024-06-15',
-			'1975-05-20',
-			'2035-09-25',
-			'2024-06-15 14:30:45',
-			'1975-05-20 08:15:30',
-			'2035-09-25 16:45:00+03',
-			'14:30:45',
-			'08:15:30',
-			'16:45:30.123456'
-		);`,
-
-		`UPDATE test_schema.datetime_edge_cases
-		SET date_epoch = '2026-11-20',
-		    timestamp_epoch = '2026-11-20 09:15:45',
-		    time_midnight = '02:03:04'
-		WHERE id = 1;`,
-
-		`UPDATE test_schema.datetime_edge_cases
-		SET date_future = '2098-06-15',
-		    timestamp_with_tz = '2098-06-15 12:00:00-06',
-		    time_with_micro = '18:45:30.654321'
-		WHERE id = 2;`,
-
-		`DELETE FROM test_schema.datetime_edge_cases WHERE id = 4;`,
-
-		`INSERT INTO test_schema.uuid_ltree_edge_cases (
-			uuid_standard,
-			uuid_all_zeros,
-			uuid_all_fs,
-			uuid_random,
-			ltree_simple,
-			ltree_quoted,
-			ltree_deep,
-			ltree_single
-		) VALUES (
-			'fb123456-7890-abcd-ef12-345678901234',
-			'00000000-0000-0000-0000-000000000099',
-			'fffffffe-ffff-ffff-ffff-ffffffffffff',
-			'abcdef12-3456-7890-abcd-ef1234567890',
-			'Fallback.Data.Test',
-			'FB.TestPath.Values',
-			'Fallback.Deep.Path.To.Data.Node',
-			'FB'
-		);`,
-
-		`UPDATE test_schema.uuid_ltree_edge_cases
-		SET uuid_standard = 'fb654321-0987-fedc-ba21-098765432109',
-		    ltree_simple = 'FB.Updated.Path'
-		WHERE id = 1;`,
-
-		`UPDATE test_schema.uuid_ltree_edge_cases
-		SET uuid_all_zeros = '00000000-0000-0000-0000-000000000088',
-		    ltree_deep = 'FB.Very.Deep.Path.With.Many.Levels'
-		WHERE id = 2;`,
-
-		`DELETE FROM test_schema.uuid_ltree_edge_cases WHERE id = 4;`,
-
-		`INSERT INTO test_schema.map_edge_cases (
-			map_simple,
-			map_with_arrow,
-			map_with_quotes,
-			map_empty_values,
-			map_multiple_pairs,
-			map_special_chars
-		) VALUES (
-			'"fallback" => "data"',
-			'"fb=>key" => "testval"',
-			'"fb" => "O''Reilly"',
-			'"" => "fb"',
-			'"fb1" => "v1", "fb2" => "v2", "fb3" => "v3"',
-			'"special" => "test@fb.com"'
-		);`,
-
-		`UPDATE test_schema.map_edge_cases
-		SET map_simple = '"updated" => "fb"',
-		    map_with_arrow = '"update=>key" => "fb"'
-		WHERE id = 1;`,
-
-		`UPDATE test_schema.map_edge_cases
-		SET map_with_quotes = '"fb" => "O''Brien"',
-		    map_multiple_pairs = '"x" => "99", "y" => "88"'
-		WHERE id = 2;`,
-
-		`DELETE FROM test_schema.map_edge_cases WHERE id = 4;`,
-
-		`INSERT INTO test_schema.interval_edge_cases (
-			interval_positive,
-			interval_negative,
-			interval_zero,
-			interval_years,
-			interval_days,
-			interval_hours,
-			interval_mixed
-		) VALUES (
-			'3 years 6 months'::interval,
-			'-15 days'::interval,
-			'0 seconds'::interval,
-			'75 years'::interval,
-			'14 days'::interval,
-			'8:30:45'::interval,
-			'4 years 3 months 25 days 15 hours'::interval
-		);`,
-
-		`UPDATE test_schema.interval_edge_cases
-		SET interval_positive = '9 months 20 days'::interval,
-		    interval_years = '30 years'::interval
-		WHERE id = 1;`,
-
-		`UPDATE test_schema.interval_edge_cases
-		SET interval_negative = '-4 months -10 days'::interval,
-		    interval_mixed = '6 months 15 days 3 hours 45 minutes'::interval
-		WHERE id = 2;`,
-
-		`DELETE FROM test_schema.interval_edge_cases WHERE id = 4;`,
-
-		`INSERT INTO test_schema.zonedtimestamp_edge_cases (
-			ts_utc,
-			ts_positive_offset,
-			ts_negative_offset,
-			ts_epoch,
-			ts_future,
-			ts_midnight
-		) VALUES (
-			'2025-05-15 10:20:30+00'::timestamptz,
-			'2025-06-20 14:30:00+04:00'::timestamptz,
-			'2025-07-10 18:45:15-07:00'::timestamptz,
-			'1970-01-03 00:00:00+00'::timestamptz,
-			'2065-08-20 18:00:00+00'::timestamptz,
-			'2025-08-01 00:00:00+00'::timestamptz
-		);`,
-
-		`UPDATE test_schema.zonedtimestamp_edge_cases
-		SET ts_utc = '2025-01-01 12:00:00+00'::timestamptz,
-		    ts_positive_offset = '2025-02-14 06:30:00+05:30'::timestamptz
-		WHERE id = 1;`,
-
-		`UPDATE test_schema.zonedtimestamp_edge_cases
-		SET ts_negative_offset = '2025-03-15 18:45:00-07:00'::timestamptz,
-		    ts_future = '2070-12-31 23:59:59.999999+00'::timestamptz
-		WHERE id = 2;`,
-
-		`DELETE FROM test_schema.zonedtimestamp_edge_cases WHERE id = 4;`,
-
-		`UPDATE test_schema.string_edge_cases
-		SET text_with_backslash = NULL,
-		    text_unicode = NULL
-		WHERE id = 5;`,
-
-		// STRING: NULL restore
-		`UPDATE test_schema.string_edge_cases
-		SET text_with_backslash = 'fallback\\restored',
-		    text_unicode = 'fallback restored مرحبا'
-		WHERE id = 5 AND text_with_backslash IS NULL;`,
-
-		// JSON: NULL transition
-		`UPDATE test_schema.json_edge_cases
-		SET json_nested = NULL,
-		    json_array = NULL
-		WHERE id = 5;`,
-
-		// JSON: NULL restore
-		`UPDATE test_schema.json_edge_cases
-		SET json_nested = '{"fallback": {"restored": true}}',
-		    json_array = '["fallback", "restored"]'
-		WHERE id = 5 AND json_nested IS NULL;`,
-
-		// DECIMAL: NULL transition
-		`UPDATE test_schema.decimal_edge_cases
-		SET decimal_large = NULL,
-		    decimal_zero = NULL
-		WHERE id = 5;`,
-
-		// DECIMAL: NULL restore
-		`UPDATE test_schema.decimal_edge_cases
-		SET decimal_large = 666666666.666666666,
-		    decimal_zero = 0.00
-		WHERE id = 5 AND decimal_large IS NULL;`,
-
-		// === FALLBACK ROW 6: NULL → non-NULL → NULL transitions (ALL 11 datatypes) ===
-		// STRING: Set NULL to non-NULL (row 6 fallback)
-		`UPDATE test_schema.string_edge_cases
-		SET text_with_backslash = 'fallback from NULL',
-		    text_with_quote = 'fallback also from NULL'
-		WHERE id = 6 AND text_with_backslash IS NULL;`,
-
-		// STRING: Set non-NULL back to NULL (row 6 fallback)
-		`UPDATE test_schema.string_edge_cases
-		SET text_with_backslash = NULL,
-		    text_with_quote = NULL
-		WHERE id = 6 AND text_with_backslash = 'fallback from NULL';`,
-
-		// JSON: Set NULL to non-NULL (row 6 fallback)
-		`UPDATE test_schema.json_edge_cases
-		SET json_with_escaped_chars = '{"fallback": "from NULL"}',
-		    json_with_unicode = '{"fallback_also": "from NULL"}'
-		WHERE id = 6 AND json_with_escaped_chars IS NULL;`,
-
-		// JSON: Set non-NULL back to NULL (row 6 fallback)
-		`UPDATE test_schema.json_edge_cases
-		SET json_with_escaped_chars = NULL,
-		    json_with_unicode = NULL
-		WHERE id = 6 AND json_with_escaped_chars::text = '{"fallback": "from NULL"}';`,
-
-		// ENUM: Set NULL to non-NULL (row 6 fallback)
-		`UPDATE test_schema.enum_edge_cases
-		SET status_simple = 'pending',
-		    status_with_quote = 'active'
-		WHERE id = 6 AND status_simple IS NULL;`,
-
-		// ENUM: Set non-NULL back to NULL (row 6 fallback)
-		`UPDATE test_schema.enum_edge_cases
-		SET status_simple = NULL,
-		    status_with_quote = NULL
-		WHERE id = 6 AND status_simple = 'pending';`,
-
-		// BYTES: Set NULL to non-NULL (row 6 fallback)
-		`UPDATE test_schema.bytes_edge_cases
-		SET bytes_empty = '\x44'::bytea,
-		    bytes_single = '\x45'::bytea
-		WHERE id = 6 AND bytes_empty IS NULL;`,
-
-		// BYTES: Set non-NULL back to NULL (row 6 fallback)
-		`UPDATE test_schema.bytes_edge_cases
-		SET bytes_empty = NULL,
-		    bytes_single = NULL
-		WHERE id = 6 AND bytes_empty = '\x44'::bytea;`,
-
-		// DATETIME: Set NULL to non-NULL (row 6 fallback)
-		`UPDATE test_schema.datetime_edge_cases
-		SET date_epoch = '2025-12-31',
-		    date_negative = '1999-12-31'
-		WHERE id = 6 AND date_epoch IS NULL;`,
-
-		// DATETIME: Set non-NULL back to NULL (row 6 fallback)
-		`UPDATE test_schema.datetime_edge_cases
-		SET date_epoch = NULL,
-		    date_negative = NULL
-		WHERE id = 6 AND date_epoch = '2025-12-31';`,
-
-		// UUID/LTREE: Set NULL to non-NULL (row 6 fallback)
-		`UPDATE test_schema.uuid_ltree_edge_cases
-		SET uuid_standard = 'ffffffff-ffff-ffff-ffff-ffffffffffff',
-		    uuid_all_zeros = '11111111-1111-1111-1111-111111111111'
-		WHERE id = 6 AND uuid_standard IS NULL;`,
-
-		// UUID/LTREE: Set non-NULL back to NULL (row 6 fallback)
-		`UPDATE test_schema.uuid_ltree_edge_cases
-		SET uuid_standard = NULL,
-		    uuid_all_zeros = NULL
-		WHERE id = 6 AND uuid_standard = 'ffffffff-ffff-ffff-ffff-ffffffffffff';`,
-
-		// MAP/HSTORE: Set NULL to non-NULL (row 6 fallback)
-		`UPDATE test_schema.map_edge_cases
-		SET map_simple = 'fallback=>from_null',
-		    map_with_arrow = 'fb=>also_null'
-		WHERE id = 6 AND map_simple IS NULL;`,
-
-		// MAP/HSTORE: Set non-NULL back to NULL (row 6 fallback)
-		`UPDATE test_schema.map_edge_cases
-		SET map_simple = NULL,
-		    map_with_arrow = NULL
-		WHERE id = 6 AND map_simple = 'fallback=>from_null';`,
-
-		// INTERVAL: Set NULL to non-NULL (row 6 fallback)
-		`UPDATE test_schema.interval_edge_cases
-		SET interval_positive = '7 years',
-		    interval_negative = '-15 days'
-		WHERE id = 6 AND interval_positive IS NULL;`,
-
-		// INTERVAL: Set non-NULL back to NULL (row 6 fallback)
-		`UPDATE test_schema.interval_edge_cases
-		SET interval_positive = NULL,
-		    interval_negative = NULL
-		WHERE id = 6 AND interval_positive = '7 years';`,
-
-		// ZONEDTIMESTAMP: Set NULL to non-NULL (row 6 fallback)
-		`UPDATE test_schema.zonedtimestamp_edge_cases
-		SET ts_utc = '2025-12-31 23:59:59+00',
-		    ts_positive_offset = '2025-12-31 23:59:59+08'
-		WHERE id = 6 AND ts_utc IS NULL;`,
-
-		// ZONEDTIMESTAMP: Set non-NULL back to NULL (row 6 fallback)
-		`UPDATE test_schema.zonedtimestamp_edge_cases
-		SET ts_utc = NULL,
-		    ts_positive_offset = NULL
-		WHERE id = 6 AND ts_utc = '2025-12-31 23:59:59+00';`,
-
-		// DECIMAL: Set NULL to non-NULL (row 6 fallback)
-		`UPDATE test_schema.decimal_edge_cases
-		SET decimal_large = 222222222.222222222,
-		    decimal_negative = -222.222
-		WHERE id = 6 AND decimal_large IS NULL;`,
-
-		// DECIMAL: Set non-NULL back to NULL (row 6 fallback)
-		`UPDATE test_schema.decimal_edge_cases
-		SET decimal_large = NULL,
-		    decimal_negative = NULL
-		WHERE id = 6 AND decimal_large = 222222222.222222222;`,
-
-		// FALLBACK: INTEGER INSERT #1
-		`INSERT INTO test_schema.integer_edge_cases (
-			int_max,
-			int_min,
-			int_zero,
-			int_negative_one,
-			bigint_max,
-			bigint_min,
-			bigint_zero
-		) VALUES
-		(
-			2147483644,                         -- Different from forward
-			-2147483646,
-			99,
-			-99,
-			9223372036854775804,                -- Different from forward
-			-9223372036854775806,
-			99
-		);`,
-
-		// FALLBACK: INTEGER UPDATE #1
-		`UPDATE test_schema.integer_edge_cases
-		SET int_max = 100000,
-		    bigint_max = 100000000000
-		WHERE id = 2;`,
-
-		// FALLBACK: INTEGER UPDATE #2
-		`UPDATE test_schema.integer_edge_cases
-		SET int_zero = 999,
-		    bigint_zero = 999999
-		WHERE id = 1;`,
-
-		// FALLBACK: INTEGER DELETE #1
-		`DELETE FROM test_schema.integer_edge_cases WHERE id = 4;`,
-
-		// FALLBACK: INTEGER NULL transition - Set NULL to non-NULL (row 6)
-		`UPDATE test_schema.integer_edge_cases
-		SET int_max = 888888,
-		    int_min = -888888
-		WHERE id = 6 AND int_max IS NULL;`,
-
-		// FALLBACK: INTEGER NULL transition - Set non-NULL back to NULL (row 6)
-		`UPDATE test_schema.integer_edge_cases
-		SET int_max = NULL,
-		    int_min = NULL
-		WHERE id = 6 AND int_max = 888888;`,
-
-		// FALLBACK: BOOLEAN INSERT: New row with FALSE/FALSE
-		`INSERT INTO test_schema.boolean_edge_cases (bool_simple, bool_nullable) VALUES (FALSE, FALSE);`,
-
-		// FALLBACK: BOOLEAN UPDATE #1: Change row 1
-		`UPDATE test_schema.boolean_edge_cases SET bool_simple = TRUE, bool_nullable = FALSE WHERE id = 1;`,
-
-		// FALLBACK: BOOLEAN UPDATE #2: Change row 2
-		`UPDATE test_schema.boolean_edge_cases SET bool_simple = FALSE, bool_nullable = TRUE WHERE id = 2;`,
-
-		// FALLBACK: BOOLEAN DELETE: Delete row 4
-		`DELETE FROM test_schema.boolean_edge_cases WHERE id = 4;`,
-
-		// FALLBACK: BOOLEAN NULL transition: Set NULL to FALSE on row 6
-		`UPDATE test_schema.boolean_edge_cases SET bool_simple = FALSE, bool_nullable = FALSE WHERE id = 6 AND bool_simple IS NULL;`,
-
-		// FALLBACK: BOOLEAN NULL transition: Set FALSE back to NULL on row 6
-		`UPDATE test_schema.boolean_edge_cases SET bool_simple = NULL, bool_nullable = NULL WHERE id = 6 AND bool_simple = FALSE;`,
-
-		// FALLBACK: Literal '\n' vs actual newline
-		`INSERT INTO test_schema.string_edge_cases (
-			text_with_backslash,
-			text_with_quote,
-			text_with_newline,
-			text_with_tab,
-			text_with_mixed,
-			text_windows_path,
-			text_sql_injection,
-			text_unicode,
-			text_empty,
-			text_null_string
-		) VALUES (
-			'fallback_literal\ntest',   -- Two chars: backslash + n
-			'fallback',
-			E'fallback_actual\ntest',   -- Actual newline byte (0x0A)
-			'fallback',
-			'fallback_literal\nmixed',  -- Mix with literal \n
-			'D:\new\path',              -- Path with literal \n
-			'fallback',
-			'fallback',
-			'',
-			'NULL'
-		);`,
-
-		// FALLBACK: MEDIUM PRIORITY - Single quotes inside JSON values
-		`INSERT INTO test_schema.json_edge_cases (
-			json_with_escaped_chars,
-			json_with_unicode,
-			json_nested,
-			json_array,
-			json_with_null,
-			json_empty,
-			json_formatted,
-			json_with_numbers,
-			json_complex
-		) VALUES (
-			'{"fallback": "O''Malley", "text": "It''s fallback"}',
-			'{"name": "O''Donnell", "message": "We''re testing"}',
-			'{"person": "O''Brien", "quote": "He said ''hello''"}',
-			'["Fallback''s test", "O''Reilly''s book"]',
-			'{"author": "O''Neil", "value": null}',
-			'{}',
-			'{"fallback": "She''s here"}',
-			'{"num": 456}',
-			'{"fallback": "O''Connor", "items": ["It''s good", "We''re done"]}'
-		);`,
-	}
-
-	lm := NewLiveMigrationTest(t, config)
+	lm := NewLiveMigrationTest(t, getDatatypeEdgeCasesTestConfig())
 	defer lm.Cleanup()
 
 	t.Log("=== Setting up containers ===")
