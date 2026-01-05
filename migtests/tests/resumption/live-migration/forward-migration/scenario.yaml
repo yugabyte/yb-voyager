@@ -4,6 +4,7 @@ run_id: run
 
 env:
   LOG_LEVEL: info
+  MAX_BATCH_SIZE_BYTES: 260000000
 
 export_dir: ./export-dir
 artifacts_dir: ./artifacts
@@ -43,7 +44,7 @@ generator:
     generator:
       schema_name: public
       manual_table_list: []
-      exclude_table_list: [cutover_table]
+      exclude_table_list: [cutover_table, large_row_table, large_col_table]
       num_iterations: -1
       wait_after_operations: 1000
       wait_duration_seconds: 1
@@ -56,6 +57,61 @@ generator:
       delete_rows: 1
       insert_max_retries: 5
       update_max_retries: 1
+      min_col_size_bytes: 0
+
+generator:
+  config_inline:
+    connection:
+      host: 127.0.0.1
+      port: 5432
+      database: test_db
+      user: postgres
+      password: postgres
+
+    generator:
+      schema_name: public
+      manual_table_list: [large_row_table]
+      exclude_table_list: []
+      num_iterations: -1
+      wait_after_operations: 1000
+      wait_duration_seconds: 1
+      table_weights: {}
+      operation_weights: {INSERT: 3, UPDATE: 2, DELETE: 1}
+      random_seed: 123
+      faker_seed: 123
+      insert_rows: 3
+      update_rows: 2
+      delete_rows: 1
+      insert_max_retries: 5
+      update_max_retries: 1
+      min_col_size_bytes: 250000000
+
+generator:
+  config_inline:
+    connection:
+      host: 127.0.0.1
+      port: 5432
+      database: test_db
+      user: postgres
+      password: postgres
+
+    generator:
+      schema_name: public
+      manual_table_list: [large_col_table]
+      exclude_table_list: []
+      num_iterations: -1
+      wait_after_operations: 1000
+      wait_duration_seconds: 1
+      table_weights: {}
+      operation_weights: {INSERT: 3, UPDATE: 2, DELETE: 1}
+      random_seed: 123
+      faker_seed: 123
+      insert_rows: 3
+      update_rows: 2
+      delete_rows: 1
+      insert_max_retries: 5
+      update_max_retries: 1
+      min_col_size_bytes: 5500000
 
 voyager:
   cutover_to_target:
