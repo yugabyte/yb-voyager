@@ -61,14 +61,14 @@ func NewSourceName(schemaName, objectName string) *SourceName {
 		},
 		// We do not support quoted schema names yet.
 		SchemaName: Identifier{
-			Quoted:    `"` + schemaName + `"`,
-			Unquoted:  schemaName,
-			MinQuoted: schemaName,
+			Quoted:    quote(schemaName, SourceDBType),
+			Unquoted:  unquote(schemaName, SourceDBType),
+			MinQuoted: minQuote(schemaName, SourceDBType),
 		},
 		Qualified: Identifier{
-			Quoted:    schemaName + "." + quote(objectName, SourceDBType),
-			Unquoted:  schemaName + "." + unquote(objectName, SourceDBType),
-			MinQuoted: schemaName + "." + minQuote(objectName, SourceDBType),
+			Quoted:    quote(schemaName, SourceDBType) + "." + quote(objectName, SourceDBType),
+			Unquoted:  unquote(schemaName, SourceDBType) + "." + unquote(objectName, SourceDBType),
+			MinQuoted: minQuote(schemaName, SourceDBType) + "." + minQuote(objectName, SourceDBType),
 		},
 	}
 }
@@ -114,14 +114,14 @@ func NewTargetName(schemaName, objectName string) *TargetName {
 			MinQuoted: minQuote(objectName, constants.YUGABYTEDB),
 		},
 		SchemaName: Identifier{
-			Quoted:    `"` + schemaName + `"`,
-			Unquoted:  schemaName,
-			MinQuoted: schemaName,
+			Quoted:    quote(schemaName, constants.YUGABYTEDB),
+			Unquoted:  unquote(schemaName, constants.YUGABYTEDB),
+			MinQuoted: minQuote(schemaName, constants.YUGABYTEDB),
 		},
 		Qualified: Identifier{
-			Quoted:    schemaName + "." + quote(objectName, constants.YUGABYTEDB),
-			Unquoted:  schemaName + "." + unquote(objectName, constants.YUGABYTEDB),
-			MinQuoted: schemaName + "." + minQuote(objectName, constants.YUGABYTEDB),
+			Quoted:    quote(schemaName, constants.YUGABYTEDB) + "." + quote(objectName, constants.YUGABYTEDB),
+			Unquoted:  unquote(schemaName, constants.YUGABYTEDB) + "." + unquote(objectName, constants.YUGABYTEDB),
+			MinQuoted: minQuote(schemaName, constants.YUGABYTEDB) + "." + minQuote(objectName, constants.YUGABYTEDB),
 		},
 	}
 }
@@ -315,7 +315,7 @@ func IsReservedKeywordOracle(word string) bool {
 }
 
 type ObjectNameQualifiedWithTableName struct {
-	SchemaName        string
+	SchemaName        identifier
 	TableName         *ObjectName
 	ObjectName        string
 	FromDefaultSchema bool
@@ -327,19 +327,23 @@ type ObjectNameQualifiedWithTableName struct {
 
 func NewObjectNameQualifiedWithTableName(dbType, defaultSchemaName, objectName string, schemaName, tableName string) *ObjectNameQualifiedWithTableName {
 	result := &ObjectNameQualifiedWithTableName{
-		SchemaName:        schemaName,
+		SchemaName: identifier{
+			Quoted:    quote2(schemaName, dbType),
+			Unquoted:  unquote(schemaName, dbType),
+			MinQuoted: minQuote2(schemaName, dbType),
+		},
 		FromDefaultSchema: schemaName == defaultSchemaName,
 		TableName:         NewObjectName(dbType, defaultSchemaName, schemaName, tableName),
 		ObjectName:        objectName,
 		Qualified: identifier{
-			Quoted:    schemaName + "." + quote2(dbType, tableName) + "." + quote2(dbType, objectName),
-			Unquoted:  schemaName + "." + unquote(tableName, dbType) + "." + unquote(objectName, dbType),
-			MinQuoted: schemaName + "." + minQuote2(tableName, dbType) + "." + minQuote2(objectName, dbType),
+			Quoted:    quote2(schemaName, dbType) + "." + quote2(dbType, tableName) + "." + quote2(dbType, objectName),
+			Unquoted:  unquote(schemaName, dbType) + "." + unquote(tableName, dbType) + "." + unquote(objectName, dbType),
+			MinQuoted: minQuote2(schemaName, dbType) + "." + minQuote2(tableName, dbType) + "." + minQuote2(objectName, dbType),
 		},
 		Unqualified: identifier{
-			Quoted:    schemaName + "." + quote2(dbType, tableName) + "." + quote2(dbType, objectName),
-			Unquoted:  schemaName + "." + unquote(tableName, dbType) + "." + unquote(objectName, dbType),
-			MinQuoted: schemaName + "." + minQuote2(tableName, dbType) + "." + minQuote2(objectName, dbType),
+			Quoted:    quote2(schemaName, dbType) + "." + quote2(dbType, tableName) + "." + quote2(dbType, objectName),
+			Unquoted:  unquote(schemaName, dbType) + "." + unquote(tableName, dbType) + "." + unquote(objectName, dbType),
+			MinQuoted: minQuote2(schemaName, dbType) + "." + minQuote2(tableName, dbType) + "." + minQuote2(objectName, dbType),
 		},
 	}
 	result.MinQualified = lo.Ternary(result.FromDefaultSchema, result.Unqualified, result.Qualified)

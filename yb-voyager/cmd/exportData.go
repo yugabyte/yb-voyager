@@ -837,7 +837,7 @@ func getNameTupleFromQualifiedObject(qualifiedObjectStr string, qualifiedObjectN
 	//Now for PG/YB create a ObjectName and a NameTuple by hand and then check if that is a partition table or not
 	var obj *sqlname.ObjectName
 	if qualifiedObjectName != nil {
-		//if passed in parameter then take it else create one
+		//if passed in parameter then take it else create one   
 		obj = qualifiedObjectName
 	} else {
 		//create the ObjectName by hand
@@ -853,7 +853,7 @@ func getNameTupleFromQualifiedObject(qualifiedObjectStr string, qualifiedObjectN
 	parent := source.DB().ParentTableOfPartition(tuple)
 
 	if parent == "" {
-		tuple, err = namereg.NameReg.LookupTableName(fmt.Sprintf("%s.%s", obj.SchemaName, obj.Unqualified.Unquoted))
+		tuple, err = namereg.NameReg.LookupTableName(fmt.Sprintf("%s.%s", obj.SchemaName.Unquoted, obj.Unqualified.Unquoted))
 		if err != nil {
 			return sqlname.NameTuple{}, fmt.Errorf("lookup for table name failed err: %s: %w", obj.Unqualified, err)
 		}

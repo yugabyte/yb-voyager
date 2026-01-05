@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 )
 
@@ -45,10 +46,14 @@ func TestPGDefaultSchemaCaseInsensitiveTableName(t *testing.T) {
 	tableName := NewObjectName(constants.POSTGRESQL, "public", "public", "table1")
 	assert.NotNil(tableName)
 	expectedTableName := &ObjectName{
-		SchemaName:        "public",
+		SchemaName: identifier{
+			Quoted:    `"public"`,
+			Unquoted:  `public`,
+			MinQuoted: `public`,
+		},
 		FromDefaultSchema: true,
 		Qualified: identifier{
-			Quoted:    `public."table1"`,
+			Quoted:    `"public"."table1"`,
 			Unquoted:  "public.table1",
 			MinQuoted: "public.table1",
 		},
@@ -74,10 +79,14 @@ func TestPGNonDefaultSchemaCaseInsensitiveTableName(t *testing.T) {
 	tableName := NewObjectName(constants.POSTGRESQL, "public", "schema1", "table1")
 	assert.NotNil(tableName)
 	expectedTableName := &ObjectName{
-		SchemaName:        "schema1",
+		SchemaName: identifier{
+			Quoted:    `"schema1"`,
+			Unquoted:  `schema1`,
+			MinQuoted: `schema1`,
+		},
 		FromDefaultSchema: false,
 		Qualified: identifier{
-			Quoted:    `schema1."table1"`,
+			Quoted:    `"schema1"."table1"`,
 			Unquoted:  "schema1.table1",
 			MinQuoted: "schema1.table1",
 		},
@@ -87,7 +96,7 @@ func TestPGNonDefaultSchemaCaseInsensitiveTableName(t *testing.T) {
 			MinQuoted: "table1",
 		},
 		MinQualified: identifier{
-			Quoted:    `schema1."table1"`,
+			Quoted:    `"schema1"."table1"`,
 			Unquoted:  "schema1.table1",
 			MinQuoted: "schema1.table1",
 		},
@@ -103,10 +112,14 @@ func TestPGDefaultSchemaCaseSensitiveTableName(t *testing.T) {
 	tableName := NewObjectName(constants.POSTGRESQL, "public", "public", "Table1")
 	assert.NotNil(tableName)
 	expectedTableName := &ObjectName{
-		SchemaName:        "public",
+		SchemaName: identifier{
+			Quoted:    `"public"`,
+			Unquoted:  `public`,
+			MinQuoted: `public`,
+		},
 		FromDefaultSchema: true,
 		Qualified: identifier{
-			Quoted:    `public."Table1"`,
+			Quoted:    `"public"."Table1"`,
 			Unquoted:  `public.Table1`,
 			MinQuoted: `public."Table1"`,
 		},
@@ -132,10 +145,14 @@ func TestPGNonDefaultSchemaCaseSensitiveTableName(t *testing.T) {
 	tableName := NewObjectName(constants.POSTGRESQL, "public", "schema1", "Table1")
 	assert.NotNil(tableName)
 	expectedTableName := &ObjectName{
-		SchemaName:        "schema1",
+		SchemaName: identifier{
+			Quoted:    `"schema1"`,
+			Unquoted:  `schema1`,
+			MinQuoted: `schema1`,
+		},
 		FromDefaultSchema: false,
 		Qualified: identifier{
-			Quoted:    `schema1."Table1"`,
+			Quoted:    `"schema1"."Table1"`,
 			Unquoted:  `schema1.Table1`,
 			MinQuoted: `schema1."Table1"`,
 		},
@@ -145,7 +162,7 @@ func TestPGNonDefaultSchemaCaseSensitiveTableName(t *testing.T) {
 			MinQuoted: `"Table1"`,
 		},
 		MinQualified: identifier{
-			Quoted:    `schema1."Table1"`,
+			Quoted:    `"schema1"."Table1"`,
 			Unquoted:  `schema1.Table1`,
 			MinQuoted: `schema1."Table1"`,
 		},
@@ -161,10 +178,14 @@ func TestPGNonDefaultSchemaTableNameWithSpecialChars(t *testing.T) {
 	tableName := NewObjectName(constants.POSTGRESQL, "public", "schema1", "table$1")
 	assert.NotNil(tableName)
 	expectedTableName := &ObjectName{
-		SchemaName:        "schema1",
+		SchemaName: identifier{
+			Quoted:    `"schema1"`,
+			Unquoted:  `schema1`,
+			MinQuoted: `schema1`,
+		},
 		FromDefaultSchema: false,
 		Qualified: identifier{
-			Quoted:    `schema1."table$1"`,
+			Quoted:    `"schema1"."table$1"`,
 			Unquoted:  `schema1.table$1`,
 			MinQuoted: `schema1."table$1"`,
 		},
@@ -174,7 +195,7 @@ func TestPGNonDefaultSchemaTableNameWithSpecialChars(t *testing.T) {
 			MinQuoted: `"table$1"`,
 		},
 		MinQualified: identifier{
-			Quoted:    `schema1."table$1"`,
+			Quoted:    `"schema1"."table$1"`,
 			Unquoted:  `schema1.table$1`,
 			MinQuoted: `schema1."table$1"`,
 		},
@@ -192,10 +213,14 @@ func TestOracleDefaultSchemaCaseInsensitiveTableName(t *testing.T) {
 	tableName := NewObjectName(constants.ORACLE, "SAKILA", "SAKILA", "TABLE1")
 	assert.NotNil(tableName)
 	expectedTableName := &ObjectName{
-		SchemaName:        "SAKILA",
+		SchemaName: identifier{
+			Quoted:    `"SAKILA"`,
+			Unquoted:  `SAKILA`,
+			MinQuoted: `SAKILA`,
+		},
 		FromDefaultSchema: true,
 		Qualified: identifier{
-			Quoted:    `SAKILA."TABLE1"`,
+			Quoted:    `"SAKILA"."TABLE1"`,
 			Unquoted:  `SAKILA.TABLE1`,
 			MinQuoted: `SAKILA.TABLE1`,
 		},
@@ -221,10 +246,14 @@ func TestOracleNonDefaultSchemaCaseInsensitiveTableName(t *testing.T) {
 	tableName := NewObjectName(constants.ORACLE, "SAKILA", "SCHEMA1", "TABLE1")
 	assert.NotNil(tableName)
 	expectedTableName := &ObjectName{
-		SchemaName:        "SCHEMA1",
+		SchemaName: identifier{
+			Quoted:    `"SCHEMA1"`,
+			Unquoted:  `SCHEMA1`,
+			MinQuoted: `SCHEMA1`,
+		},
 		FromDefaultSchema: false,
 		Qualified: identifier{
-			Quoted:    `SCHEMA1."TABLE1"`,
+			Quoted:    `"SCHEMA1"."TABLE1"`,
 			Unquoted:  `SCHEMA1.TABLE1`,
 			MinQuoted: `SCHEMA1.TABLE1`,
 		},
@@ -234,7 +263,7 @@ func TestOracleNonDefaultSchemaCaseInsensitiveTableName(t *testing.T) {
 			MinQuoted: `TABLE1`,
 		},
 		MinQualified: identifier{
-			Quoted:    `SCHEMA1."TABLE1"`,
+			Quoted:    `"SCHEMA1"."TABLE1"`,
 			Unquoted:  `SCHEMA1.TABLE1`,
 			MinQuoted: `SCHEMA1.TABLE1`,
 		},
@@ -250,10 +279,14 @@ func TestOracleDefaultSchemaCaseSensitiveTableName(t *testing.T) {
 	tableName := NewObjectName(constants.ORACLE, "SAKILA", "SAKILA", "Table1")
 	assert.NotNil(tableName)
 	expectedTableName := &ObjectName{
-		SchemaName:        "SAKILA",
+		SchemaName: identifier{
+			Quoted:    `"SAKILA"`,
+			Unquoted:  `SAKILA`,
+			MinQuoted: `SAKILA`,
+		},
 		FromDefaultSchema: true,
 		Qualified: identifier{
-			Quoted:    `SAKILA."Table1"`,
+			Quoted:    `"SAKILA"."Table1"`,
 			Unquoted:  `SAKILA.Table1`,
 			MinQuoted: `SAKILA."Table1"`,
 		},
@@ -279,10 +312,14 @@ func TestOracleNonDefaultSchemaCaseSensitiveTableName(t *testing.T) {
 	tableName := NewObjectName(constants.ORACLE, "SAKILA", "SCHEMA1", "Table1")
 	assert.NotNil(tableName)
 	expectedTableName := &ObjectName{
-		SchemaName:        "SCHEMA1",
+		SchemaName: identifier{
+			Quoted:    `"SCHEMA1"`,
+			Unquoted:  `SCHEMA1`,
+			MinQuoted: `SCHEMA1`,
+		},
 		FromDefaultSchema: false,
 		Qualified: identifier{
-			Quoted:    `SCHEMA1."Table1"`,
+			Quoted:    `"SCHEMA1"."Table1"`,
 			Unquoted:  `SCHEMA1.Table1`,
 			MinQuoted: `SCHEMA1."Table1"`,
 		},
@@ -292,7 +329,7 @@ func TestOracleNonDefaultSchemaCaseSensitiveTableName(t *testing.T) {
 			MinQuoted: `"Table1"`,
 		},
 		MinQualified: identifier{
-			Quoted:    `SCHEMA1."Table1"`,
+			Quoted:    `"SCHEMA1"."Table1"`,
 			Unquoted:  `SCHEMA1.Table1`,
 			MinQuoted: `SCHEMA1."Table1"`,
 		},
@@ -310,12 +347,16 @@ func TestMySQLDefaultSchemaCaseSensitiveLowerCaseTableName(t *testing.T) {
 	tableName := NewObjectName(constants.MYSQL, "sakila", "sakila", "table1")
 	assert.NotNil(tableName)
 	expectedTableName := &ObjectName{
-		SchemaName:        "sakila",
+		SchemaName: identifier{
+			Quoted:    `"sakila"`,
+			Unquoted:  `sakila`,
+			MinQuoted: `"sakila"`,
+		},
 		FromDefaultSchema: true,
 		Qualified: identifier{
-			Quoted:    `sakila."table1"`,
+			Quoted:    `"sakila"."table1"`,
 			Unquoted:  `sakila.table1`,
-			MinQuoted: `sakila."table1"`,
+			MinQuoted: `"sakila"."table1"`,
 		},
 		Unqualified: identifier{
 			Quoted:    `"table1"`,
@@ -339,12 +380,16 @@ func TestMySQLNonDefaultSchemaCaseSensitiveLowerCaseTableName(t *testing.T) {
 	tableName := NewObjectName(constants.MYSQL, "sakila", "schema1", "table1")
 	assert.NotNil(tableName)
 	expectedTableName := &ObjectName{
-		SchemaName:        "schema1",
+		SchemaName: identifier{
+			Quoted:    `"schema1"`,
+			Unquoted:  `schema1`,
+			MinQuoted: `"schema1"`,
+		},
 		FromDefaultSchema: false,
 		Qualified: identifier{
-			Quoted:    `schema1."table1"`,
+			Quoted:    `"schema1"."table1"`,
 			Unquoted:  `schema1.table1`,
-			MinQuoted: `schema1."table1"`,
+			MinQuoted: `"schema1"."table1"`,
 		},
 		Unqualified: identifier{
 			Quoted:    `"table1"`,
@@ -352,9 +397,9 @@ func TestMySQLNonDefaultSchemaCaseSensitiveLowerCaseTableName(t *testing.T) {
 			MinQuoted: `"table1"`,
 		},
 		MinQualified: identifier{
-			Quoted:    `schema1."table1"`,
+			Quoted:    `"schema1"."table1"`,
 			Unquoted:  `schema1.table1`,
-			MinQuoted: `schema1."table1"`,
+			MinQuoted: `"schema1"."table1"`,
 		},
 	}
 	assert.Equal(expectedTableName, tableName)
@@ -368,12 +413,16 @@ func TestMySQLDefaultSchemaCaseSensitiveMixedCaseTableName(t *testing.T) {
 	tableName := NewObjectName(constants.MYSQL, "sakila", "sakila", "Table1")
 	assert.NotNil(tableName)
 	expectedTableName := &ObjectName{
-		SchemaName:        "sakila",
+		SchemaName: identifier{
+			Quoted:    `"sakila"`,
+			Unquoted:  `sakila`,
+			MinQuoted: `"sakila"`,
+		},
 		FromDefaultSchema: true,
 		Qualified: identifier{
-			Quoted:    `sakila."Table1"`,
+			Quoted:    `"sakila"."Table1"`,
 			Unquoted:  `sakila.Table1`,
-			MinQuoted: `sakila."Table1"`,
+			MinQuoted: `"sakila"."Table1"`,
 		},
 		Unqualified: identifier{
 			Quoted:    `"Table1"`,
@@ -397,12 +446,16 @@ func TestMySQLNonDefaultSchemaCaseSensitiveUpperCaseTableName(t *testing.T) {
 	tableName := NewObjectName(constants.MYSQL, "sakila", "schema1", "TABLE1")
 	assert.NotNil(tableName)
 	expectedTableName := &ObjectName{
-		SchemaName:        "schema1",
+		SchemaName: identifier{
+			Quoted:    `"schema1"`,
+			Unquoted:  `schema1`,
+			MinQuoted: `"schema1"`,
+		},
 		FromDefaultSchema: false,
 		Qualified: identifier{
-			Quoted:    `schema1."TABLE1"`,
+			Quoted:    `"schema1"."TABLE1"`,
 			Unquoted:  `schema1.TABLE1`,
-			MinQuoted: `schema1."TABLE1"`,
+			MinQuoted: `"schema1"."TABLE1"`,
 		},
 		Unqualified: identifier{
 			Quoted:    `"TABLE1"`,
@@ -410,11 +463,235 @@ func TestMySQLNonDefaultSchemaCaseSensitiveUpperCaseTableName(t *testing.T) {
 			MinQuoted: `"TABLE1"`,
 		},
 		MinQualified: identifier{
-			Quoted:    `schema1."TABLE1"`,
+			Quoted:    `"schema1"."TABLE1"`,
 			Unquoted:  `schema1.TABLE1`,
-			MinQuoted: `schema1."TABLE1"`,
+			MinQuoted: `"schema1"."TABLE1"`,
 		},
 	}
 	assert.Equal(expectedTableName, tableName)
 	assert.Equal(tableName.MinQualified, tableName.Qualified)
+}
+
+func TestCaseSensitiveSchemaName(t *testing.T) {
+	assert := assert.New(t)
+	// Test NewTableName() with PostgreSQL and default schema "public" and
+	// a case-sensitive schema name.
+	tableName := NewObjectName(constants.POSTGRESQL, "public", "Schema1", "table1")
+	assert.NotNil(tableName)
+	expectedTableName := &ObjectName{
+		SchemaName: identifier{
+			Quoted:    `"Schema1"`,
+			Unquoted:  `Schema1`,
+			MinQuoted: `"Schema1"`,
+		},
+		FromDefaultSchema: false,
+		Qualified: identifier{
+			Quoted:    `"Schema1"."table1"`,
+			Unquoted:  `Schema1.table1`,
+			MinQuoted: `"Schema1".table1`,
+		},
+		Unqualified: identifier{
+			Quoted:    `"table1"`,
+			Unquoted:  `table1`,
+			MinQuoted: `table1`,
+		},
+	}
+	expectedTableName.MinQualified = expectedTableName.Qualified
+	assert.Equal(expectedTableName, tableName)
+	assert.Equal(tableName.MinQualified, tableName.Qualified)
+
+	tableName = NewObjectName(constants.POSTGRESQL, "public", "SCHEMA1", "table1")
+	assert.NotNil(tableName)
+	expectedTableName = &ObjectName{
+		SchemaName: identifier{
+			Quoted:    `"SCHEMA1"`,
+			Unquoted:  `SCHEMA1`,
+			MinQuoted: `"SCHEMA1"`,
+		},
+		FromDefaultSchema: false,
+		Qualified: identifier{
+			Quoted:    `"SCHEMA1"."table1"`,
+			Unquoted:  `SCHEMA1.table1`,
+			MinQuoted: `"SCHEMA1".table1`,
+		},
+		Unqualified: identifier{
+			Quoted:    `"table1"`,
+			Unquoted:  `table1`,
+			MinQuoted: `table1`,
+		},
+	}
+	expectedTableName.MinQualified = expectedTableName.Qualified
+	assert.Equal(expectedTableName, tableName)
+	assert.Equal(tableName.MinQualified, tableName.Qualified)
+
+	tableName = NewObjectName(constants.POSTGRESQL, "public", "schema1", "table1")
+	assert.NotNil(tableName)
+	expectedTableName = &ObjectName{
+		SchemaName: identifier{
+			Quoted:    `"schema1"`,
+			Unquoted:  `schema1`,
+			MinQuoted: `schema1`,
+		},
+		FromDefaultSchema: false,
+		Qualified: identifier{
+			Quoted:    `"schema1"."table1"`,
+			Unquoted:  `schema1.table1`,
+			MinQuoted: `schema1.table1`,
+		},
+		Unqualified: identifier{
+			Quoted:    `"table1"`,
+			Unquoted:  `table1`,
+			MinQuoted: `table1`,
+		},
+	}
+	expectedTableName.MinQualified = expectedTableName.Qualified
+	assert.Equal(expectedTableName, tableName)
+	assert.Equal(tableName.MinQualified, tableName.Qualified)
+
+	//oracle cases for schema name
+	tableName = NewObjectName(constants.ORACLE, "SAKILA", "Schema1", "table1")
+	assert.NotNil(tableName)
+	expectedTableName = &ObjectName{
+		SchemaName: identifier{
+			Quoted:    `"Schema1"`,
+			Unquoted:  `Schema1`,
+			MinQuoted: `"Schema1"`,
+		},
+		FromDefaultSchema: false,
+		Qualified: identifier{
+			Quoted:    `"Schema1"."table1"`,
+			Unquoted:  `Schema1.table1`,
+			MinQuoted: `"Schema1"."table1"`,
+		},
+		Unqualified: identifier{
+			Quoted:    `"table1"`,
+			Unquoted:  `table1`,
+			MinQuoted: `"table1"`,
+		},
+	}
+	expectedTableName.MinQualified = expectedTableName.Qualified
+	assert.Equal(expectedTableName, tableName)
+	assert.Equal(tableName.MinQualified, tableName.Qualified)
+
+	tableName = NewObjectName(constants.ORACLE, "SAKILA", "SCHEMA1", "table1")
+	assert.NotNil(tableName)
+	expectedTableName = &ObjectName{
+		SchemaName: identifier{
+			Quoted:    `"SCHEMA1"`,
+			Unquoted:  `SCHEMA1`,
+			MinQuoted: `SCHEMA1`,
+		},
+		FromDefaultSchema: false,
+		Qualified: identifier{
+			Quoted:    `"SCHEMA1"."table1"`,
+			Unquoted:  `SCHEMA1.table1`,
+			MinQuoted: `SCHEMA1."table1"`,
+		},
+		Unqualified: identifier{
+			Quoted:    `"table1"`,
+			Unquoted:  `table1`,
+			MinQuoted: `"table1"`,
+		},
+	}
+	expectedTableName.MinQualified = expectedTableName.Qualified
+	assert.Equal(expectedTableName, tableName)
+	assert.Equal(tableName.MinQualified, tableName.Qualified)
+
+	tableName = NewObjectName(constants.ORACLE, "SAKILA", "schema1", "table1")
+	assert.NotNil(tableName)
+	expectedTableName = &ObjectName{
+		SchemaName: identifier{
+			Quoted:    `"schema1"`,
+			Unquoted:  `schema1`,
+			MinQuoted: `"schema1"`,
+		},
+		FromDefaultSchema: false,
+		Qualified: identifier{
+			Quoted:    `"schema1"."table1"`,
+			Unquoted:  `schema1.table1`,
+			MinQuoted: `"schema1"."table1"`,
+		},
+		Unqualified: identifier{
+			Quoted:    `"table1"`,
+			Unquoted:  `table1`,
+			MinQuoted: `"table1"`,
+		},
+	}
+	expectedTableName.MinQualified = expectedTableName.Qualified
+	assert.Equal(expectedTableName, tableName)
+	assert.Equal(tableName.MinQualified, tableName.Qualified)
+
+	//mysql cases for db name as schema name
+	tableName = NewObjectName(constants.MYSQL, "sakila", "sakila", "table1")
+	assert.NotNil(tableName)
+	expectedTableName = &ObjectName{
+		SchemaName: identifier{
+			Quoted:    `"sakila"`,
+			Unquoted:  `sakila`,
+			MinQuoted: `"sakila"`,
+		},
+		FromDefaultSchema: true,
+		Qualified: identifier{
+			Quoted:    `"sakila"."table1"`,
+			Unquoted:  `sakila.table1`,
+			MinQuoted: `"sakila"."table1"`,
+		},
+		Unqualified: identifier{
+			Quoted:    `"table1"`,
+			Unquoted:  `table1`,
+			MinQuoted: `"table1"`,
+		},
+	}
+	expectedTableName.MinQualified = expectedTableName.Unqualified
+	assert.Equal(expectedTableName, tableName)
+	assert.Equal(tableName.MinQualified, tableName.Unqualified)
+
+	tableName = NewObjectName(constants.MYSQL, "sakila", "Sakila", "table1")
+	assert.NotNil(tableName)
+	expectedTableName = &ObjectName{
+		SchemaName: identifier{
+			Quoted:    `"Sakila"`,
+			Unquoted:  `Sakila`,
+			MinQuoted: `"Sakila"`,
+		},
+		FromDefaultSchema: false,
+		Qualified: identifier{
+			Quoted:    `"Sakila"."table1"`,
+			Unquoted:  `Sakila.table1`,
+			MinQuoted: `"Sakila"."table1"`,
+		},
+		Unqualified: identifier{
+			Quoted:    `"table1"`,
+			Unquoted:  `table1`,
+			MinQuoted: `"table1"`,
+		},
+	}
+	expectedTableName.MinQualified = expectedTableName.Qualified
+	assert.Equal(expectedTableName, tableName)
+	assert.Equal(tableName.MinQualified, tableName.Qualified)
+
+	tableName = NewObjectName(constants.MYSQL, "sakila", "SAKILA", "table1")
+	assert.NotNil(tableName)
+	expectedTableName = &ObjectName{
+		SchemaName: identifier{
+			Quoted:    `"SAKILA"`,
+			Unquoted:  `SAKILA`,
+			MinQuoted: `"SAKILA"`,
+		},
+		FromDefaultSchema: false,
+		Qualified: identifier{
+			Quoted:    `"SAKILA"."table1"`,
+			Unquoted:  `SAKILA.table1`,
+			MinQuoted: `"SAKILA"."table1"`,
+		},
+		Unqualified: identifier{
+			Quoted:    `"table1"`,
+			Unquoted:  `table1`,
+			MinQuoted: `"table1"`,
+		},
+	}
+	expectedTableName.MinQualified = expectedTableName.Qualified
+	assert.Equal(expectedTableName, tableName)
+	assert.Equal(tableName.MinQualified, tableName.Qualified)
+
 }

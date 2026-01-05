@@ -35,7 +35,7 @@ type identifier struct {
 
 // Can be a name of a table, sequence, materialised view, etc.
 type ObjectName struct {
-	SchemaName        string
+	SchemaName        identifier
 	FromDefaultSchema bool
 
 	Qualified    identifier
@@ -44,13 +44,18 @@ type ObjectName struct {
 }
 
 func NewObjectName(dbType, defaultSchemaName, schemaName, tableName string) *ObjectName {
+	schemaNameIdentifier := identifier{
+		Quoted:    quote2(dbType, schemaName),
+		Unquoted:  schemaName,
+		MinQuoted: minQuote2(schemaName, dbType),
+	}
 	result := &ObjectName{
-		SchemaName:        schemaName,
+		SchemaName:        schemaNameIdentifier,
 		FromDefaultSchema: schemaName == defaultSchemaName,
 		Qualified: identifier{
-			Quoted:    schemaName + "." + quote2(dbType, tableName),
-			Unquoted:  schemaName + "." + tableName,
-			MinQuoted: schemaName + "." + minQuote2(tableName, dbType),
+			Quoted:    schemaNameIdentifier.Quoted + "." + quote2(dbType, tableName),
+			Unquoted:  schemaNameIdentifier.Unquoted + "." + tableName,
+			MinQuoted: schemaNameIdentifier.MinQuoted + "." + minQuote2(tableName, dbType),
 		},
 		Unqualified: identifier{
 			Quoted:    quote2(dbType, tableName),
@@ -82,7 +87,7 @@ func (nv *ObjectName) MatchesPattern(pattern string) (bool, error) {
 	parts := strings.Split(pattern, ".")
 	switch true {
 	case len(parts) == 2:
-		if !strings.EqualFold(parts[0], nv.SchemaName) {
+		if !strings.EqualFold(strings.ToLower(parts[0]), strings.ToLower(nv.SchemaName.Unquoted)) {
 			return false, nil
 		}
 		pattern = parts[1]
@@ -163,7 +168,7 @@ func (t NameTuple) ForOutput() string {
 }
 
 func (t NameTuple) ForCatalogQuery() (string, string) {
-	return t.CurrentName.SchemaName, t.CurrentName.Unqualified.Unquoted
+	return t.CurrentName.SchemaName.Unquoted, t.CurrentName.Unqualified.Unquoted
 }
 
 func (t NameTuple) AsQualifiedCatalogName() string {
@@ -187,7 +192,7 @@ func (t NameTuple) ForKeyTableSchema() (string, string) {
 	if objName == nil {
 		objName = t.TargetName
 	}
-	return objName.SchemaName, objName.Unqualified.Unquoted
+	return objName.SchemaName.Unquoted, objName.Unqualified.Unquoted
 }
 
 func SetDifferenceNameTuples(a, b []NameTuple) []NameTuple {
