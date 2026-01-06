@@ -163,7 +163,7 @@ func TestBytesConversionWithFormatting(t *testing.T) {
 //   ✗ = Not covered (test needed)
 //   N/A = Not applicable for unit tests
 //
-// Overall Coverage: 87% (93/106 test cases)
+// Overall Coverage: 90% (96/106 test cases)
 //
 // ============================================================================
 // 1. STRING DATATYPE (TEXT/VARCHAR) - 100% ✅ (16/16) COMPLETE
@@ -289,18 +289,18 @@ func TestBytesConversionWithFormatting(t *testing.T) {
 // Multiple pairs                     | ✓      | TestMapConversionWithMultiplePairs            | k1=>v1, k2=>v2
 //
 // ============================================================================
-// 9. INTERVAL DATATYPE - 63% (5/8)
+// 9. INTERVAL DATATYPE - 100% ✅ (8/8) COMPLETE
 // ============================================================================
 // Edge Case                          | Status | Test Function(s)                              | Notes
 // -----------------------------------|--------|-----------------------------------------------|------------------------
 // Positive intervals                 | ✓      | TestIntervalConversionEdgeCases               | Years, months
 // Negative intervals                 | ✓      | TestIntervalConversionEdgeCases               | -15 days
 // Zero interval                      | ✓      | TestIntervalConversionEdgeCases               | 0 seconds
-// Years only                         | ⚠      | TestIntervalConversionEdgeCases               | Should verify
-// Days only                          | ⚠      | TestIntervalConversionEdgeCases               | Should verify
-// Time only                          | ⚠      | TestIntervalConversionEdgeCases               | Should verify
+// Years only                         | ✓      | TestIntervalConversionEdgeCases               | 5 years
+// Days only                          | ✓      | TestIntervalConversionEdgeCases               | 30 days
+// Time only                          | ✓      | TestIntervalConversionEdgeCases               | 08:30:45
 // Mixed components                   | ✓      | TestIntervalConversionEdgeCases               | Years+days+hours
-// Very large values                  | ✗      | MISSING                                       | 999999 years
+// Very large values                  | ✓      | TestIntervalConversionEdgeCases               | 999999 years
 //
 // ============================================================================
 // 10. ZONEDTIMESTAMP DATATYPE (TIMESTAMPTZ) - 100% ✅ (6/6) COMPLETE
@@ -362,14 +362,14 @@ func TestBytesConversionWithFormatting(t *testing.T) {
 // UUID              | 5       | 5     | 100% ✅    | Complete
 // LTREE             | 4       | 4     | 100% ✅    | Complete
 // MAP (HSTORE)      | 8       | 8     | 100% ✅    | Complete
-// INTERVAL          | 5       | 8     | 63%        | Medium
+// INTERVAL          | 8       | 8     | 100% ✅    | Complete
 // ZONEDTIMESTAMP    | 6       | 6     | 100% ✅    | Complete
 // DECIMAL           | 7       | 7     | 100% ✅    | Complete
 // INTEGER           | 0       | 7     | 0%         | HIGH
 // BOOLEAN           | 0       | 3     | 0%         | HIGH
-// **TOTAL**         | **93**  | **106** | **88%** |
+// **TOTAL**         | **96**  | **106** | **90%** |
 //
-// ✅ Complete Datatypes: STRING, JSON/JSONB, ENUM, BYTES, DATETIME, UUID, LTREE, MAP, ZONEDTIMESTAMP, DECIMAL (10/13)
+// ✅ Complete Datatypes: STRING, JSON/JSONB, ENUM, BYTES, DATETIME, UUID, LTREE, MAP, INTERVAL, ZONEDTIMESTAMP, DECIMAL (11/13)
 //
 // ============================================================================
 // PRIORITY GAPS TO FILL
@@ -377,9 +377,6 @@ func TestBytesConversionWithFormatting(t *testing.T) {
 // HIGH PRIORITY (Missing entirely or critical gaps):
 //   1. INTEGER/BIGINT - 0% coverage - Full test suite needed
 //   2. BOOLEAN - 0% coverage - Full test suite needed
-//
-// MEDIUM PRIORITY (Partial coverage):
-//   3. INTERVAL - Missing: Component-specific tests, large values
 //
 // ============================================================================
 // NOTES
@@ -2223,15 +2220,96 @@ func TestIntervalConversionEdgeCases(t *testing.T) {
 		input            string
 		formatIfRequired bool
 		expected         string
+		note             string
 	}{
-		{"positive interval", "1 year 2 months 3 days", true, "'1 year 2 months 3 days'"},
-		{"negative interval", "-1 year -2 months", true, "'-1 year -2 months'"},
-		{"zero", "00:00:00", true, "'00:00:00'"},
+		{
+			name:             "positive interval (mixed)",
+			input:            "1 year 2 months 3 days",
+			formatIfRequired: true,
+			expected:         "'1 year 2 months 3 days'",
+			note:             "Mixed components: years, months, and days",
+		},
+		{
+			name:             "negative interval",
+			input:            "-1 year -2 months",
+			formatIfRequired: true,
+			expected:         "'-1 year -2 months'",
+			note:             "Negative years and months",
+		},
+		{
+			name:             "zero interval",
+			input:            "00:00:00",
+			formatIfRequired: true,
+			expected:         "'00:00:00'",
+			note:             "Zero time interval",
+		},
+		{
+			name:             "years only",
+			input:            "5 years",
+			formatIfRequired: true,
+			expected:         "'5 years'",
+			note:             "Only year component",
+		},
+		{
+			name:             "months only",
+			input:            "15 months",
+			formatIfRequired: true,
+			expected:         "'15 months'",
+			note:             "Only month component",
+		},
+		{
+			name:             "days only",
+			input:            "30 days",
+			formatIfRequired: true,
+			expected:         "'30 days'",
+			note:             "Only day component",
+		},
+		{
+			name:             "time only (hours:minutes:seconds)",
+			input:            "08:30:45",
+			formatIfRequired: true,
+			expected:         "'08:30:45'",
+			note:             "Only time component without date",
+		},
+		{
+			name:             "large year value",
+			input:            "999999 years",
+			formatIfRequired: true,
+			expected:         "'999999 years'",
+			note:             "Very large year value",
+		},
+		{
+			name:             "mixed with time",
+			input:            "1 year 2 months 3 days 04:05:06",
+			formatIfRequired: true,
+			expected:         "'1 year 2 months 3 days 04:05:06'",
+			note:             "All components: years, months, days, and time",
+		},
+		{
+			name:             "negative days",
+			input:            "-15 days",
+			formatIfRequired: true,
+			expected:         "'-15 days'",
+			note:             "Negative day interval",
+		},
+		{
+			name:             "without formatting",
+			input:            "1 year 2 months",
+			formatIfRequired: false,
+			expected:         "1 year 2 months",
+			note:             "Interval without SQL quotes",
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			result, err := YBValueConverterSuite["io.debezium.time.Interval"](tc.input, tc.formatIfRequired, nil)
 			assert.NoError(t, err)
+
+			t.Logf("Input: %q", tc.input)
+			t.Logf("Expected: %q", tc.expected)
+			t.Logf("Got: %q", result)
+			t.Logf("Note: %s", tc.note)
+
 			assert.Equal(t, tc.expected, result)
 		})
 	}
