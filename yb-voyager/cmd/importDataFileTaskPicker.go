@@ -18,6 +18,7 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"sort"
 
 	goerrors "github.com/go-errors/errors"
 
@@ -437,8 +438,15 @@ type ColocatedCappedRandomTaskPicker struct {
 	inProgressColocatedTasks []*ImportFileTask
 
 	// tasks which have not yet been picked even once.
-	pendingShardedTasks   []*ImportFileTask
-	pendingColocatedTasks []*ImportFileTask
+	orderedPendingShardedTasks []*ImportFileTask
+	pendingColocatedTasks      []*ImportFileTask
+}
+
+func sortTasksByRowCountDesc(tasks []*ImportFileTask) []*ImportFileTask {
+	sort.Slice(tasks, func(i, j int) bool {
+		return tasks[i].RowCount > tasks[j].RowCount
+	})
+	return tasks
 }
 
 func NewColocatedCappedRandomTaskPicker(maxShardedTasksInProgress int, maxColocatedTasksInProgress int, tasks []*ImportFileTask,
@@ -514,8 +522,8 @@ func NewColocatedCappedRandomTaskPicker(maxShardedTasksInProgress int, maxColoca
 		inProgressColocatedTasks: inProgressColocatedTasks,
 		inProgressShardedTasks:   inProgressShardedTasks,
 
-		pendingColocatedTasks: pendingColcatedTasks,
-		pendingShardedTasks:   pendingShardedTasks,
+		pendingColocatedTasks:      pendingColcatedTasks,
+		orderedPendingShardedTasks: sortTasksByRowCountDesc(pendingShardedTasks),
 
 		tableTypes:              tableTypes,
 		colocatedBatchTaskQueue: colocatedBatchTaskQueue,
@@ -530,7 +538,7 @@ func (c *ColocatedCappedRandomTaskPicker) inProgressTasks() []*ImportFileTask {
 }
 
 func (c *ColocatedCappedRandomTaskPicker) pendingTasks() []*ImportFileTask {
-	return append(c.pendingColocatedTasks, c.pendingShardedTasks...)
+	return append(c.pendingColocatedTasks, c.orderedPendingShardedTasks...)
 }
 
 func (c *ColocatedCappedRandomTaskPicker) HasMoreTasks() bool {
@@ -542,7 +550,7 @@ func (c *ColocatedCappedRandomTaskPicker) HasMoreColocatedTasks() bool {
 }
 
 func (c *ColocatedCappedRandomTaskPicker) HasMoreShardedTasks() bool {
-	return len(c.inProgressShardedTasks) > 0 || len(c.pendingShardedTasks) > 0
+	return len(c.inProgressShardedTasks) > 0 || len(c.orderedPendingShardedTasks) > 0
 }
 
 func (c *ColocatedCappedRandomTaskPicker) pickRandomFromListOfTasks(tasks []*ImportFileTask) (int, *ImportFileTask) {
@@ -656,16 +664,16 @@ func (c *ColocatedCappedRandomTaskPicker) pickShardedTask() (*ImportFileTask, er
 
 func (c *ColocatedCappedRandomTaskPicker) pickPendingShardedTaskAsPerMaxTasks() (*ImportFileTask, error) {
 	if len(c.inProgressShardedTasks) < c.maxShardedTasksInProgress {
-		if len(c.pendingShardedTasks) > 0 {
-			taskIndex, pickedTask := c.pickRandomFromListOfTasks(c.pendingShardedTasks)
-			c.pendingShardedTasks = append(c.pendingShardedTasks[:taskIndex], c.pendingShardedTasks[taskIndex+1:]...)
+		if len(c.orderedPendingShardedTasks) > 0 {
+			pickedTask := c.orderedPendingShardedTasks[0]
+			c.orderedPendingShardedTasks = c.orderedPendingShardedTasks[1:]
 			c.inProgressShardedTasks = append(c.inProgressShardedTasks, pickedTask)
 			log.Debugf("picking pending sharded task: %v", pickedTask)
 			return pickedTask, nil
 		}
 	}
-	log.Debugf("could not pick pending sharded task. inProgressShardedTasks: %v, maxShardedTasksInProgress: %v, pendingShardedTasks: %v",
-		c.inProgressShardedTasks, c.maxShardedTasksInProgress, c.pendingShardedTasks)
+	log.Debugf("could not pick pending sharded task. inProgressShardedTasks: %v, maxShardedTasksInProgress: %v, orderedPendingShardedTasks: %v",
+		c.inProgressShardedTasks, c.maxShardedTasksInProgress, c.orderedPendingShardedTasks)
 	return nil, nil
 }
 
