@@ -84,7 +84,8 @@ func (pg *PostgresContainer) Start(ctx context.Context) (err error) {
 	if pg.ContainerConfig.ForLive {
 		req.Cmd = []string{
 			"postgres",
-			"-c", "wal_level=logical", // <-- set wal_level,
+			"-c", "wal_level=logical", // <-- set wal_level for logical replication
+			"-c", "max_replication_slots=20", // <-- increase max replication slots for live migration tests
 		}
 	}
 
