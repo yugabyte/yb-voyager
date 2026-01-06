@@ -348,10 +348,15 @@ func (conv *StreamingPhaseDebeziumValueConverter) convertMap(tableNameTup sqlnam
 			return fmt.Errorf("fetch column schema: %w", err)
 		}
 		if !checkSourceExporter(exportSourceType) && strings.EqualFold(colType, "io.debezium.time.Interval") {
-			colType, colDbzmSchema, err = conv.schemaRegistrySource.GetColumnType(tableNameTup, strings.ToUpper(column), conv.shouldFormatAsPerSourceDatatypes())
-			//assuming table name/column name is case insensitive TODO: handle this case sensitivity properly
+			// Try original case first: handles PostgreSQL/YugabyteDB sources (lowercase unquoted)
+			// and all databases with quoted identifiers (exact case preserved)
+			colType, colDbzmSchema, err = conv.schemaRegistrySource.GetColumnType(tableNameTup, column, conv.shouldFormatAsPerSourceDatatypes())
 			if err != nil {
-				return fmt.Errorf("fetch column schema: %w", err)
+				// Try uppercase as fallback: handles Oracle sources (uppercase unquoted)
+				colType, colDbzmSchema, err = conv.schemaRegistrySource.GetColumnType(tableNameTup, strings.ToUpper(column), conv.shouldFormatAsPerSourceDatatypes())
+				if err != nil {
+					return fmt.Errorf("fetch column schema for INTERVAL column %q: %w", column, err)
+				}
 			}
 		}
 		converterFn := conv.valueConverterSuite[colType]
