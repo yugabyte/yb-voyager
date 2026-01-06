@@ -149,6 +149,256 @@ func TestBytesConversionWithFormatting(t *testing.T) {
 	assert.Equal(t, len(result), 400000004) //400000000 hex chars + 4 for '\x' + 2 for quotes
 }
 
+// ============================================================================
+// YUGABYTEDB VALUE CONVERTER UNIT TEST COVERAGE MATRIX
+// ============================================================================
+//
+// This matrix shows edge case coverage for YugabyteDB value converter functions.
+// Unit tests focus on **converter function logic** (input string → output string),
+// not database operations or streaming phases (covered in integration tests).
+//
+// Legend:
+//   ✓ = Covered (test exists)
+//   ⚠ = Partially covered (some cases missing)
+//   ✗ = Not covered (test needed)
+//   N/A = Not applicable for unit tests
+//
+// Overall Coverage: 76% (81/106 test cases)
+//
+// ============================================================================
+// 1. STRING DATATYPE (TEXT/VARCHAR) - 100% ✅ (16/16) COMPLETE
+// ============================================================================
+// Edge Case                          | Status | Test Function(s)                              | Notes
+// -----------------------------------|--------|-----------------------------------------------|------------------------
+// Unicode characters (café, 日本語)   | ✓      | TestStringConversionWithUnicode               | Multi-byte chars
+// Emojis (🎉, 👨‍👩‍👧‍👦)                   | ✓      | TestStringConversionWithUnicode               | Emoji family
+// Single quotes (It's, O'Reilly)    | ✓      | TestStringConversionWithFormattingWithSingleQuotesEscaped | SQL escaping
+// Double quotes ("test")            | ✓      | TestStringConversionWithFormattingWithDoubleQuotes | Double quote handling
+// Backslashes (C:\path\to\file)     | ✓      | TestStringConversionWithBackslash             | Windows paths
+// Actual newline byte (0x0A)        | ✓      | TestStringConversionWithNewlineCharacters     | E'...\n...'
+// Literal \n string (backslash+n)   | ✓      | TestStringConversionWithLiteralBackslashN     | Two-char string
+// Actual tab byte (0x09)            | ✓      | TestStringConversionWithNewlineCharacters     | E'...\t...'
+// Actual carriage return (0x0D)     | ✓      | TestStringConversionWithNewlineCharacters     | E'...\r...'
+// Mixed control chars (\n\t\r)      | ✓      | TestStringConversionWithMixedSpecialChars     | All control chars
+// Unicode separators (U+2028)       | ✓      | TestStringConversionWithUnicodeSeparators     | Line/para/zero-width
+// Empty string ('')                 | ✓      | TestStringConversionWithNullString            | Zero-length
+// String literal 'NULL'             | ✓      | TestStringConversionWithNullString            | vs actual NULL
+// SQL injection patterns            | ✓      | TestStringConversionWithCriticalEdgeCases     | --comment, '; DROP
+// Bidirectional text (RTL)          | ✓      | TestStringConversionWithBidirectionalText     | Arabic/Hebrew
+// Very large strings                | ✓      | TestStringConversionWithVeryLargeStrings      | 1KB, 10KB, 100KB
+//
+// ============================================================================
+// 2. JSON/JSONB DATATYPE - 91% (10/11) - 1 needs fixing
+// ============================================================================
+// Edge Case                          | Status | Test Function(s)                              | Notes
+// -----------------------------------|--------|-----------------------------------------------|------------------------
+// Single quotes in values            | ⚠      | TestJsonConversionWithFormattingWithSingleQuotesEscaped | Misleading comment - FIX
+// Escaped characters (\", \\)        | ✓      | TestJsonConversionBasic                       | JSON escaping
+// Unicode in JSON                    | ✓      | TestJsonConversionBasic                       | café, 日本語, 🎉
+// Nested objects                     | ✓      | TestJsonConversionWithComplexStructures       | Deep nesting
+// Arrays                             | ✓      | TestJsonConversionWithComplexStructures       | Nested arrays
+// NULL value in JSON                 | ✓      | TestJsonConversionBasic                       | {"key": null}
+// Empty JSON                         | ✓      | TestJsonConversionBasic                       | {}
+// Formatted JSON                     | ✓      | TestJsonConversionWithFormattingWithDoubleQuotes | Whitespace
+// Numbers in JSON                    | ✓      | TestJsonConversionBasic                       | Int, float, bool
+// Complex nested structures          | ✓      | TestJsonConversionWithDeepNesting             | Mixed types
+// Deep nesting (10+ levels)          | ✓      | TestJsonConversionWithDeepNesting             | Extreme depth
+//
+// ============================================================================
+// 3. ENUM DATATYPE - 64% (7/11)
+// ============================================================================
+// Edge Case                          | Status | Test Function(s)                              | Notes
+// -----------------------------------|--------|-----------------------------------------------|------------------------
+// Simple enum values                 | ✓      | TestEnumConversionWithSpecialChars            | active, pending
+// Enum with single quote             | ✓      | TestEnumConversionWithFormattingWithSingleQuotesEscaped | enum'value
+// Enum with double quote             | ✓      | TestEnumConversionWithFormattingWithDoubleQuotes | enum"value
+// Enum with backslash                | ✓      | TestEnumConversionWithSpecialChars            | enum\value
+// Enum with spaces                   | ✓      | TestEnumConversionWithSpecialChars            | 'with space'
+// Enum with dashes                   | ✓      | TestEnumConversionWithSpecialChars            | with-dash
+// Enum with underscore               | ✓      | TestEnumConversionWithSpecialChars            | with_underscore
+// Enum with Unicode                  | ✗      | MISSING                                       | café, 🎉emoji
+// Enum starting with digits          | ✗      | MISSING                                       | 123start
+// Empty ENUM array                   | ✗      | MISSING                                       | ARRAY[]::enum[]
+// ENUM array with NULL elements      | ✗      | MISSING                                       | ARRAY['a', NULL]
+//
+// ============================================================================
+// 4. BYTES DATATYPE (BYTEA) - 100% ✅ (10/10) COMPLETE
+// ============================================================================
+// Edge Case                          | Status | Test Function(s)                              | Notes
+// -----------------------------------|--------|-----------------------------------------------|------------------------
+// Empty bytes                        | ✓      | TestBytesConversionWithSpecialPatterns        | \\x
+// Single byte                        | ✓      | TestBytesConversionWithSpecialPatterns        | \\x41
+// ASCII string as bytes              | ✓      | TestBytesConversionWithSpecialPatterns        | Text → hex
+// NULL byte in middle                | ✓      | TestBytesConversionWithSpecialPatterns        | \\x00
+// All zeros                          | ✓      | TestBytesConversionWithSpecialPatterns        | \\x000000
+// All 0xFF                           | ✓      | TestBytesConversionWithSpecialPatterns        | \\xFFFFFF
+// Special char bytes (', \, \n)      | ✓      | TestBytesConversionWithBinarySpecialChars     | Binary chars
+// Mixed byte patterns                | ✓      | TestBytesConversionWithSpecialPatterns        | Random hex
+// Invalid base64                     | ✓      | TestBytesConversionInvalidBase64              | Error handling
+// formatIfRequired parameter         | ✓      | TestBytesConversionFormatIfRequired           | With/without quotes
+//
+// ============================================================================
+// 5. DATETIME DATATYPE (DATE/TIMESTAMP/TIME) - 90% (9/10)
+// ============================================================================
+// Edge Case                          | Status | Test Function(s)                              | Notes
+// -----------------------------------|--------|-----------------------------------------------|------------------------
+// Epoch date (1970-01-01)            | ✓      | TestDateConversionEdgeCases                   | Unix epoch
+// Negative epoch (before 1970)       | ✓      | TestDateConversionEdgeCases                   | Historical dates
+// Future dates (2050+)               | ✓      | TestDateConversionEdgeCases                   | Far future
+// Timestamps with timezone           | ⚠      | TestZonedTimestampConversion                  | Limited coverage
+// Midnight (00:00:00)                | ✓      | TestTimeConversion                            | Day boundary
+// Noon (12:00:00)                    | ✓      | TestTimeConversion                            | Mid-day
+// Microsecond precision              | ✓      | TestMicroTimestampConversion, TestMicroTimeConversion | 6 decimal places
+// Nanosecond precision               | ✓      | TestNanoTimestampConversion                   | 9 decimal places
+// Invalid input handling             | ✓      | TestTimestampConversionInvalidInput           | Error cases
+// End of day (23:59:59)              | ⚠      | TestTimeConversion                            | Should add explicitly
+//
+// ============================================================================
+// 6. UUID DATATYPE - 100% ✅ (5/5) COMPLETE
+// ============================================================================
+// Edge Case                          | Status | Test Function(s)                              | Notes
+// -----------------------------------|--------|-----------------------------------------------|------------------------
+// Standard UUID v4                   | ✓      | TestUuidConversionEdgeCases                   | Random UUID
+// All zeros UUID                     | ✓      | TestUuidConversionEdgeCases                   | 00000000-0000...
+// All Fs UUID                        | ✓      | TestUuidConversionEdgeCases                   | ffffffff-ffff...
+// Invalid UUID format                | ✓      | TestUuidConversionInvalidInput                | Error handling
+// formatIfRequired parameter         | ✓      | TestUUIDConversionWithFormatting              | With/without quotes
+//
+// ============================================================================
+// 7. LTREE DATATYPE - 100% ✅ (4/4) COMPLETE
+// ============================================================================
+// Edge Case                          | Status | Test Function(s)                              | Notes
+// -----------------------------------|--------|-----------------------------------------------|------------------------
+// Simple path                        | ✓      | TestLtreeConversionEdgeCases                  | Top.Science
+// Quoted labels                      | ✓      | TestLtreeConversionEdgeCases                  | "Special Label"
+// Deep hierarchy                     | ✓      | TestLtreeConversionEdgeCases                  | 10+ levels
+// Single label                       | ✓      | TestLtreeConversionEdgeCases                  | Top only
+//
+// ============================================================================
+// 8. MAP DATATYPE (HSTORE) - 88% (7/8)
+// ============================================================================
+// Edge Case                          | Status | Test Function(s)                              | Notes
+// -----------------------------------|--------|-----------------------------------------------|------------------------
+// Arrow operator in key              | ✓      | TestMapConversionWithArrowOperator            | "key=>val"=>"x"
+// Arrow operator in value            | ✓      | TestMapConversionWithArrowOperator            | "k"=>"val=>test"
+// Escaped quotes                     | ✓      | TestMapConversionWithEscapedChars             | "key\"test"
+// Escaped backslash                  | ✓      | TestMapConversionWithEscapedChars             | "key\\test"
+// Single quotes in value             | ✓      | TestMapConversionWithEscapedChars             | "k"=>"O'Reilly"
+// Empty key                          | ✓      | TestMapConversionWithEmptyValues              | ""=>"value"
+// Empty value                        | ✓      | TestMapConversionWithEmptyValues              | "key"=>""
+// Multiple pairs                     | ✗      | MISSING                                       | k1=>v1, k2=>v2
+//
+// ============================================================================
+// 9. INTERVAL DATATYPE - 63% (5/8)
+// ============================================================================
+// Edge Case                          | Status | Test Function(s)                              | Notes
+// -----------------------------------|--------|-----------------------------------------------|------------------------
+// Positive intervals                 | ✓      | TestIntervalConversionEdgeCases               | Years, months
+// Negative intervals                 | ✓      | TestIntervalConversionEdgeCases               | -15 days
+// Zero interval                      | ✓      | TestIntervalConversionEdgeCases               | 0 seconds
+// Years only                         | ⚠      | TestIntervalConversionEdgeCases               | Should verify
+// Days only                          | ⚠      | TestIntervalConversionEdgeCases               | Should verify
+// Time only                          | ⚠      | TestIntervalConversionEdgeCases               | Should verify
+// Mixed components                   | ✓      | TestIntervalConversionEdgeCases               | Years+days+hours
+// Very large values                  | ✗      | MISSING                                       | 999999 years
+//
+// ============================================================================
+// 10. ZONEDTIMESTAMP DATATYPE (TIMESTAMPTZ) - 17% (1/6) ⚠️ HIGH PRIORITY
+// ============================================================================
+// Edge Case                          | Status | Test Function(s)                              | Notes
+// -----------------------------------|--------|-----------------------------------------------|------------------------
+// UTC timezone (+00)                 | ✓      | TestZonedTimestampConversion                  | Zulu time
+// Positive offset (+04:00, +05:30)   | ⚠      | TestZonedTimestampConversion                  | Limited timezones
+// Negative offset (-07:00)           | ⚠      | TestZonedTimestampConversion                  | Limited timezones
+// Epoch with timezone                | ✗      | MISSING                                       | 1970-01-01+00
+// Future with timezone               | ✗      | MISSING                                       | 2065+
+// Midnight with timezone             | ✗      | MISSING                                       | 00:00:00+00
+//
+// ============================================================================
+// 11. DECIMAL DATATYPE (NUMERIC) - 100% ✅ (7/7) COMPLETE
+// ============================================================================
+// Edge Case                          | Status | Test Function(s)                              | Notes
+// -----------------------------------|--------|-----------------------------------------------|------------------------
+// Large numbers (1B+)                | ✓      | TestDecimalConversionEdgeCases                | 999999999.999...
+// Negative numbers                   | ✓      | TestDecimalConversionEdgeCases                | -999999.999
+// Zero (0.0, 0.00, 0.000)            | ✓      | TestDecimalConversionEdgeCases                | Various scales
+// High precision (15+ decimals)      | ✓      | TestDecimalConversionEdgeCases                | 0.123456789...
+// Scientific notation                | ✓      | TestDecimalConversionEdgeCases                | 1.23E+10
+// Small decimals                     | ✓      | TestDecimalConversionEdgeCases                | 0.0001
+// Variable scale                     | ✓      | TestVariableScaleDecimalConversion            | Different scales
+//
+// ============================================================================
+// 12. INTEGER DATATYPE (INT/BIGINT) - 0% (0/7) ⚠️ HIGH PRIORITY - NO TESTS
+// ============================================================================
+// Edge Case                          | Status | Test Function(s)                              | Notes
+// -----------------------------------|--------|-----------------------------------------------|------------------------
+// INT MAX (2147483647)               | ✗      | MISSING                                       | Max 32-bit
+// INT MIN (-2147483648)              | ✗      | MISSING                                       | Min 32-bit
+// BIGINT MAX (9223372036854775807)   | ✗      | MISSING                                       | Max 64-bit
+// BIGINT MIN (-9223372036854775808)  | ✗      | MISSING                                       | Min 64-bit
+// Zero                               | ✗      | MISSING                                       | 0
+// Negative one                       | ✗      | MISSING                                       | -1
+// Overflow scenarios                 | ✗      | MISSING                                       | Boundary tests
+//
+// ============================================================================
+// 13. BOOLEAN DATATYPE - 0% (0/3) ⚠️ HIGH PRIORITY - NO TESTS
+// ============================================================================
+// Edge Case                          | Status | Test Function(s)                              | Notes
+// -----------------------------------|--------|-----------------------------------------------|------------------------
+// TRUE value                         | ✗      | MISSING                                       | true
+// FALSE value                        | ✗      | MISSING                                       | false
+// NULL value                         | ✗      | MISSING                                       | null
+//
+// ============================================================================
+// SUMMARY BY DATATYPE
+// ============================================================================
+// Datatype          | Covered | Total | Percentage | Priority
+// ------------------|---------|-------|------------|----------
+// STRING            | 16      | 16    | 100% ✅    | Complete
+// JSON/JSONB        | 10      | 11    | 91%        | High (fix comment)
+// ENUM              | 7       | 11    | 64%        | Medium
+// BYTES             | 10      | 10    | 100% ✅    | Complete
+// DATETIME          | 9       | 10    | 90%        | Low
+// UUID              | 5       | 5     | 100% ✅    | Complete
+// LTREE             | 4       | 4     | 100% ✅    | Complete
+// MAP (HSTORE)      | 7       | 8     | 88%        | Low
+// INTERVAL          | 5       | 8     | 63%        | Medium
+// ZONEDTIMESTAMP    | 1       | 6     | 17%        | HIGH
+// DECIMAL           | 7       | 7     | 100% ✅    | Complete
+// INTEGER           | 0       | 7     | 0%         | HIGH
+// BOOLEAN           | 0       | 3     | 0%         | HIGH
+// **TOTAL**         | **81**  | **106** | **76%** |
+//
+// ✅ Complete Datatypes: STRING, BYTES, UUID, LTREE, DECIMAL (5/13)
+//
+// ============================================================================
+// PRIORITY GAPS TO FILL
+// ============================================================================
+// HIGH PRIORITY (Missing entirely or critical gaps):
+//   1. INTEGER/BIGINT - 0% coverage - Full test suite needed
+//   2. BOOLEAN - 0% coverage - Full test suite needed
+//   3. ZONEDTIMESTAMP - 17% coverage - Expand timezone tests
+//   4. JSON Single Quotes - Fix misleading comment, works correctly
+//
+// MEDIUM PRIORITY (Partial coverage):
+//   5. ENUM - Missing: Unicode, digits, arrays
+//   6. INTERVAL - Missing: Component-specific tests, large values
+//
+// LOW PRIORITY (Minor gaps):
+//   8. MAP - Missing: Multiple key-value pairs
+//   9. DATETIME - Missing: End of day explicit test
+//
+// ============================================================================
+// NOTES
+// ============================================================================
+// - Integration tests (live_migration_integration_test.go) prove these work end-to-end
+// - Unit tests should test converter logic in isolation
+// - formatIfRequired parameter should be tested for all datatypes
+// - Error handling tests should exist for invalid inputs
+// - NULL handling is tested in integration tests, not unit tests
+//
+// ============================================================================
+
 // Test 1.1: TestStringConversionWithBackslash
 // Tests backslash handling in STRING type conversion
 // NOTE: With standard_conforming_strings=ON (default in PostgreSQL 9.1+),
@@ -783,6 +1033,219 @@ func TestStringConversionWithVeryLargeStrings(t *testing.T) {
 		t.Logf("✓ 200MB string: %d bytes → %d bytes in %v", size, len(result), duration)
 		t.Logf("✓ Throughput: %.2f MB/s", float64(size)/(1024*1024)/duration.Seconds())
 	})
+}
+
+// Test 1.8: TestStringConversionWithLiteralBackslashN
+// Tests the distinction between literal \n (two characters: backslash + n) vs actual newline byte (0x0A)
+// This is critical for correctly handling strings like "C:\new\test" which should NOT be interpreted as control characters
+func TestStringConversionWithLiteralBackslashN(t *testing.T) {
+	testCases := []struct {
+		name             string
+		input            string
+		formatIfRequired bool
+		expected         string
+		note             string
+	}{
+		{
+			name:             "Literal backslash-n (two characters)",
+			input:            `literal\nstring`,
+			formatIfRequired: true,
+			expected:         `'literal\nstring'`,
+			note:             "\\n should remain as two literal characters",
+		},
+		{
+			name:             "Windows path with \\n",
+			input:            `C:\new\test\file.txt`,
+			formatIfRequired: true,
+			expected:         `'C:\new\test\file.txt'`,
+			note:             "Windows paths with \\n should not be converted to newlines",
+		},
+		{
+			name:             "Multiple literal \\n",
+			input:            `first\nsecond\nthird`,
+			formatIfRequired: true,
+			expected:         `'first\nsecond\nthird'`,
+			note:             "Multiple \\n should all remain literal",
+		},
+		{
+			name:             "Mix of \\n, \\t, \\r as literals",
+			input:            `line\nwith\ttabs\rand\nmore`,
+			formatIfRequired: true,
+			expected:         `'line\nwith\ttabs\rand\nmore'`,
+			note:             "All escape sequences should remain literal",
+		},
+		{
+			name:             "Literal \\n without formatting",
+			input:            `test\nvalue`,
+			formatIfRequired: false,
+			expected:         `test\nvalue`,
+			note:             "Without formatting, \\n passes through unchanged",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := YBValueConverterSuite["STRING"](tc.input, tc.formatIfRequired, nil)
+			assert.NoError(t, err, tc.note)
+			assert.Equal(t, tc.expected, result, tc.note)
+		})
+	}
+}
+
+// Test 1.9: TestStringConversionWithUnicodeSeparators
+// Tests Unicode separator characters that are not visible but have special meaning
+// U+2028 (Line Separator), U+2029 (Paragraph Separator), U+200B (Zero-Width Space), U+00A0 (Non-Breaking Space)
+func TestStringConversionWithUnicodeSeparators(t *testing.T) {
+	testCases := []struct {
+		name             string
+		input            string
+		formatIfRequired bool
+		expected         string
+		note             string
+	}{
+		{
+			name:             "Line separator U+2028",
+			input:            "line1\u2028line2",
+			formatIfRequired: true,
+			expected:         "'line1\u2028line2'",
+			note:             "Unicode line separator should be preserved",
+		},
+		{
+			name:             "Paragraph separator U+2029",
+			input:            "para1\u2029para2",
+			formatIfRequired: true,
+			expected:         "'para1\u2029para2'",
+			note:             "Unicode paragraph separator should be preserved",
+		},
+		{
+			name:             "Zero-width space U+200B",
+			input:            "word\u200Bword",
+			formatIfRequired: true,
+			expected:         "'word\u200Bword'",
+			note:             "Zero-width space should be preserved",
+		},
+		{
+			name:             "Non-breaking space U+00A0",
+			input:            "word\u00A0word",
+			formatIfRequired: true,
+			expected:         "'word\u00A0word'",
+			note:             "Non-breaking space should be preserved",
+		},
+		{
+			name:             "Multiple Unicode separators mixed",
+			input:            "text\u2028with\u2029various\u200Bseparators\u00A0here",
+			formatIfRequired: true,
+			expected:         "'text\u2028with\u2029various\u200Bseparators\u00A0here'",
+			note:             "All Unicode separators should be preserved together",
+		},
+		{
+			name:             "Unicode separators without formatting",
+			input:            "test\u2028value",
+			formatIfRequired: false,
+			expected:         "test\u2028value",
+			note:             "Without formatting, Unicode separators pass through unchanged",
+		},
+		{
+			name:             "Unicode separators with regular text",
+			input:            "Normal text\u2028with line separator\u00A0and nbsp",
+			formatIfRequired: true,
+			expected:         "'Normal text\u2028with line separator\u00A0and nbsp'",
+			note:             "Unicode separators mixed with ASCII should work correctly",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := YBValueConverterSuite["STRING"](tc.input, tc.formatIfRequired, nil)
+			assert.NoError(t, err, tc.note)
+			assert.Equal(t, tc.expected, result, tc.note)
+		})
+	}
+}
+
+// Test 1.10: TestStringConversionWithBidirectionalText
+// Tests Right-to-Left (RTL) text from Arabic, Hebrew, and mixed LTR+RTL scenarios
+// This ensures proper handling of bidirectional Unicode text which is common in international applications
+func TestStringConversionWithBidirectionalText(t *testing.T) {
+	testCases := []struct {
+		name             string
+		input            string
+		formatIfRequired bool
+		expected         string
+		note             string
+	}{
+		{
+			name:             "Arabic text (RTL)",
+			input:            "مرحبا بالعالم", // "Hello World" in Arabic
+			formatIfRequired: true,
+			expected:         "'مرحبا بالعالم'",
+			note:             "Arabic RTL text should be preserved",
+		},
+		{
+			name:             "Hebrew text (RTL)",
+			input:            "שלום עולם", // "Hello World" in Hebrew
+			formatIfRequired: true,
+			expected:         "'שלום עולם'",
+			note:             "Hebrew RTL text should be preserved",
+		},
+		{
+			name:             "Mixed English and Arabic",
+			input:            "Hello مرحبا World",
+			formatIfRequired: true,
+			expected:         "'Hello مرحبا World'",
+			note:             "Mixed LTR and RTL text should coexist",
+		},
+		{
+			name:             "Mixed English and Hebrew",
+			input:            "Hello שלום World",
+			formatIfRequired: true,
+			expected:         "'Hello שלום World'",
+			note:             "Mixed LTR and RTL text should coexist",
+		},
+		{
+			name:             "Arabic with numbers",
+			input:            "العدد 123 والنص",
+			formatIfRequired: true,
+			expected:         "'العدد 123 والنص'",
+			note:             "Arabic text with embedded numbers should work",
+		},
+		{
+			name:             "Complex multilingual (Arabic, Chinese, Hebrew)",
+			input:            "مرحبا 你好 שלום",
+			formatIfRequired: true,
+			expected:         "'مرحبا 你好 שלום'",
+			note:             "Multiple RTL and LTR scripts should coexist",
+		},
+		{
+			name:             "Arabic with single quotes (SQL escaping)",
+			input:            "اسم O'Reilly بالعربية",
+			formatIfRequired: true,
+			expected:         "'اسم O''Reilly بالعربية'",
+			note:             "RTL text with single quotes should be SQL-escaped",
+		},
+		{
+			name:             "RTL text without formatting",
+			input:            "مرحبا",
+			formatIfRequired: false,
+			expected:         "مرحبا",
+			note:             "Without formatting, RTL text passes through unchanged",
+		},
+		{
+			name:             "Bidirectional text with special chars",
+			input:            "English \"quote\" مرحبا 'test' שלום",
+			formatIfRequired: true,
+			expected:         "'English \"quote\" مرحبا ''test'' שלום'",
+			note:             "Bidirectional text with quotes should be SQL-escaped",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := YBValueConverterSuite["STRING"](tc.input, tc.formatIfRequired, nil)
+			assert.NoError(t, err, tc.note)
+			assert.Equal(t, tc.expected, result, tc.note)
+		})
+	}
 }
 
 // Test 2.1: TestJsonConversionBasic
