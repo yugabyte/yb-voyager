@@ -1986,44 +1986,6 @@ $$ LANGUAGE plpgsql;`,
 //   - Tested in both forward and fallback streaming
 //   - Covers row 5 (non-NULL→NULL→non-NULL) for STRING, JSON, DECIMAL
 //   - Covers row 6 (NULL→non-NULL→NULL) for all 11 datatypes
-//
-// Special Test Cases (HIGH/MEDIUM/LOW Priority):
-//   ✓ HIGH: NULL transitions (all datatypes)
-//   ✓ HIGH: INTEGER/BIGINT boundary values (MAX/MIN/overflow)
-//   ✓ HIGH: Literal \n string vs actual newline byte
-//   ✓ MEDIUM: Single quotes inside JSON values
-//   ✓ MEDIUM: BOOLEAN column with TRUE/FALSE/NULL
-//   ✓ MEDIUM: Empty ENUM arrays (ARRAY[]::enum[])
-//   ✓ LOW: ENUM arrays with NULL elements
-//   ✓ LOW: ENUM array add/remove operations
-//
-// ============================================================================
-// KNOWN GAPS / NOT COVERED
-// ============================================================================
-//
-// 1. ARRAY Types (other than ENUM arrays):
-//    - No coverage for text[], integer[], json[] arrays
-//    - Only ENUM arrays are tested
-//
-// 2. Geometric Types:
-//    - point, line, circle, polygon, etc. - Not covered
-//
-// 3. Network Types:
-//    - inet, cidr, macaddr - Not covered
-//
-// 4. Range Types:
-//    - int4range, tsrange, daterange - Not covered
-//
-// 5. Special Types:
-//    - money, bit/varbit, xml, tsvector - Partial/No coverage
-//
-// 6. Composite Types:
-//    - User-defined composite types - Not covered
-//
-// 7. Domain Types:
-//    - User-defined domain types - Not covered
-//
-// ============================================================================
 
 func getDatatypeEdgeCasesTestConfig() *TestConfig {
 	return &TestConfig{
