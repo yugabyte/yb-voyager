@@ -412,7 +412,11 @@ func (reg *NameRegistry) lookupSourceAndTargetTableNames(tableNameArg string, ig
 	// During the snapshot and event data in the beginning before cutover, lookup will be for SAKILA.TABLE1,
 	// but we want to get the SourceName to be SAKILA_REPLICA.TABLE1.
 	// Therefore, we unqualify the input in case it is equal to the default.
-	if schemaName == reg.DefaultSourceDBSchemaName || schemaName == reg.DefaultSourceReplicaDBSchemaName || schemaName == reg.DefaultYBSchemaName {
+	schemaNameIdentifier := sqlname.NewIdentifier(reg.SourceDBType, schemaName)
+	defaultSchemaNameIdentifier := sqlname.NewIdentifier(reg.SourceDBType, reg.DefaultSourceDBSchemaName)
+	defaultSourceReplicaSchemaNameIdentifier := sqlname.NewIdentifier(reg.SourceDBType, reg.DefaultSourceReplicaDBSchemaName)
+	defaultYBSchemaNameIdentifier := sqlname.NewIdentifier(reg.SourceDBType, reg.DefaultYBSchemaName)
+	if schemaNameIdentifier.Equals(defaultSchemaNameIdentifier) || schemaNameIdentifier.Equals(defaultSourceReplicaSchemaNameIdentifier) || schemaNameIdentifier.Equals(defaultYBSchemaNameIdentifier) {
 		schemaName = ""
 	}
 

@@ -33,6 +33,21 @@ type identifier struct {
 	Quoted, Unquoted, MinQuoted string
 }
 
+func NewIdentifier(dbType, name string) identifier {
+	if IsQuoted(name) {
+		name = unquote(name, dbType)
+	}
+	return identifier{
+		Quoted:    quote2(dbType, name),
+		Unquoted:  name,
+		MinQuoted: minQuote2(name, dbType),
+	}
+}
+
+func (i identifier) Equals(other identifier) bool {
+	return i.Quoted == other.Quoted && i.Unquoted == other.Unquoted && i.MinQuoted == other.MinQuoted
+}
+
 // Can be a name of a table, sequence, materialised view, etc.
 type ObjectName struct {
 	SchemaName        identifier

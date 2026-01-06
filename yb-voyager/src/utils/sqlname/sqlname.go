@@ -151,7 +151,7 @@ func (t *TargetName) String() string {
 
 func IsQuoted(s string) bool {
 	// TODO: Learn the semantics of backticks in MySQL and Oracle.
-	return (s[0] == '"' && s[len(s)-1] == '"') || (s[0] == '`' && s[len(s)-1] == '`')
+	return (len(s) > 0 && s[0] == '"' && s[len(s)-1] == '"') || (s[0] == '`' && s[len(s)-1] == '`')
 }
 
 func quote(s string, dbType string) string {
