@@ -1761,14 +1761,14 @@ $$ LANGUAGE plpgsql;`,
 // NULL transitions                  | ✓        | ✓       | ✓        | NULL↔non-NULL
 //
 // Operations: 6 rows snapshot, 3 INSERTs, 12 UPDATEs, 1 DELETE (Forward)
-//             2 INSERTs, 9 UPDATEs, 1 DELETE (Fallback)
+//             4 INSERTs, 9 UPDATEs, 1 DELETE (Fallback)
 //
 // ============================================================================
 // 2. JSON/JSONB DATATYPE
 // ============================================================================
 // Edge Case                          | Snapshot | Forward | Fallback | Notes
 // -----------------------------------|----------|---------|----------|------------------
-// Single quotes in values            | ✓        | I       | I        | O'Reilly, It's
+// Single quotes in values            | ✓        | ✓       | ✓        | O'Reilly, It's
 // Escaped characters (\", \\)        | ✓        | ✓       | ✓        | JSON escaping
 // Unicode in JSON                    | ✓        | ✓       | ✓        | café, 日本語, 🎉
 // Nested objects                     | ✓        | ✓       | ✓        | Deep nesting
@@ -1780,8 +1780,8 @@ $$ LANGUAGE plpgsql;`,
 // Complex nested structures          | ✓        | ✓       | ✓        | Mixed types
 // NULL transitions                   | ✓        | ✓       | ✓        | NULL↔non-NULL
 //
-// Operations: 6 rows snapshot, 2 INSERTs, 6 UPDATEs, 1 DELETE (Forward)
-//             2 INSERTs, 6 UPDATEs, 1 DELETE (Fallback)
+// Operations: 6 rows snapshot, 2 INSERTs, 7 UPDATEs, 1 DELETE (Forward)
+//             3 INSERTs, 7 UPDATEs, 1 DELETE (Fallback)
 //
 // ============================================================================
 // 3. ENUM DATATYPE (custom enum types)
@@ -1973,12 +1973,12 @@ $$ LANGUAGE plpgsql;`,
 //
 // Forward Streaming Operations:
 //   - INSERTs:  16 (varies by datatype)
-//   - UPDATEs:  62 (includes NULL transitions + literal \n/actual newline for all datatypes)
+//   - UPDATEs:  63 (includes NULL transitions + literal \n/actual newline + single quotes in JSON)
 //   - DELETEs:  12 (1 per datatype, targets snapshot row 3)
 //
 // Fallback Streaming Operations:
-//   - INSERTs:  15 (varies by datatype)
-//   - UPDATEs:  61 (includes NULL transitions + literal \n/actual newline + Unicode separators)
+//   - INSERTs:  18 (varies by datatype, includes marker rows for UPDATE testing)
+//   - UPDATEs:  62 (includes NULL transitions + Unicode separators + literal \n/actual newline + single quotes in JSON)
 //   - DELETEs:  12 (1 per datatype, targets snapshot row 4)
 //
 // NULL Transition Coverage:
@@ -4283,41 +4283,48 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 		'NULL'
 	);`,
 
-			// UPDATE #1: Test literal \n via UPDATE (achieves full ✓ coverage)
+			// UPDATE #1: Test literal \n via UPDATE on snapshot row 4 (achieves full ✓ coverage)
 			`UPDATE test_schema.string_edge_cases
 		SET text_with_backslash = 'updated\nliteral',     -- Two chars: backslash + n
 		    text_windows_path = 'E:\new\updated\path',    -- More literal \n in path
 		    text_with_mixed = 'literal\nupdated\nvalue'   -- Multiple literal \n
-		WHERE text_with_backslash = 'literal\nstring';`,
+		WHERE id = 4;`,
 
-			// UPDATE #2: Test actual newline byte via UPDATE (achieves full ✓ coverage)
+			// UPDATE #2: Test actual newline byte via UPDATE on snapshot row 4 (achieves full ✓ coverage)
 			`UPDATE test_schema.string_edge_cases
 		SET text_with_newline = E'updated\nactual\nnewline',  -- Actual newline bytes (0x0A)
 		    text_with_tab = E'and\nsome\ntabs\there'           -- Mix actual newlines and tabs
-		WHERE text_with_newline = E'actual\nbyte';`,
+		WHERE id = 4;`,
 
 			// Single quotes inside JSON values
 			`INSERT INTO test_schema.json_edge_cases (
-			json_with_escaped_chars,
-			json_with_unicode,
-			json_nested,
-			json_array,
-			json_with_null,
-			json_empty,
-			json_formatted,
-			json_with_numbers,
-			json_complex
-		) VALUES (
-			'{"author": "O''Reilly", "title": "It''s a book"}',
-			'{"company": "O''Neill", "slogan": "We''re the best"}',
-			'{"person": "O''Brien", "nested": {"quote": "It''s nested"}}',
-			'["It''s working", "O''Reilly''s guide", "We''re here"]',
-			'{"name": "O''Connor", "value": null}',
-			'{}',
-			'{"quote": "She said ''hello''"}',
-			'{"count": 123}',
-			'{"author": "O''Reilly", "books": ["It''s great", "We''re learning"]}'
-		);`,
+		json_with_escaped_chars,
+		json_with_unicode,
+		json_nested,
+		json_array,
+		json_with_null,
+		json_empty,
+		json_formatted,
+		json_with_numbers,
+		json_complex
+	) VALUES (
+		'{"author": "O''Reilly", "title": "It''s a book"}',
+		'{"company": "O''Neill", "slogan": "We''re the best"}',
+		'{"person": "O''Brien", "nested": {"quote": "It''s nested"}}',
+		'["It''s working", "O''Reilly''s guide", "We''re here"]',
+		'{"name": "O''Connor", "value": null}',
+		'{}',
+		'{"quote": "She said ''hello''"}',
+		'{"count": 123}',
+		'{"author": "O''Reilly", "books": ["It''s great", "We''re learning"]}'
+	);`,
+
+			// JSON UPDATE #1: Test single quotes in JSON via UPDATE on snapshot row 4 (achieves full ✓ coverage)
+			`UPDATE test_schema.json_edge_cases
+		SET json_with_escaped_chars = '{"updated": "O''Sullivan", "note": "It''s updated"}',
+		    json_array = '["Updated''s test", "O''Reilly''s updated", "We''re updating"]',
+		    json_complex = '{"author": "O''Brien", "items": ["She''s here", "It''s working"]}'
+		WHERE id = 4;`,
 		},
 		TargetDeltaSQL: []string{
 			`INSERT INTO test_schema.string_edge_cases (
@@ -4913,19 +4920,6 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 			'NULL'
 		);`,
 
-			// FALLBACK UPDATE #1: Test literal \n via UPDATE (achieves full ✓ coverage)
-			`UPDATE test_schema.string_edge_cases
-		SET text_with_backslash = 'fb_updated\nliteral',     -- Two chars: backslash + n
-		    text_windows_path = 'F:\fallback\new\path',      -- More literal \n in path
-		    text_with_mixed = 'fb_literal\nupdated'          -- Literal \n in fallback
-		WHERE text_with_backslash = 'fallback_literal\ntest';`,
-
-			// FALLBACK UPDATE #2: Test actual newline byte via UPDATE (achieves full ✓ coverage)
-			`UPDATE test_schema.string_edge_cases
-		SET text_with_newline = E'fb_updated\nactual\nbyte',  -- Actual newline bytes (0x0A)
-		    text_with_tab = E'fb\nnewlines\ttabs'              -- Mix actual newlines and tabs
-		WHERE text_with_newline = E'fallback_actual\ntest';`,
-
 			// FALLBACK UPDATE #3: Test Unicode separators (U+2028, U+2029, U+200B, U+00A0) - achieves full ✓ coverage
 			`UPDATE test_schema.string_edge_cases
 		SET text_with_newline = 'fb' || E'\u2028' || 'line',   -- Unicode line separator (U+2028)
@@ -4936,26 +4930,121 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 
 			// FALLBACK: MEDIUM PRIORITY - Single quotes inside JSON values
 			`INSERT INTO test_schema.json_edge_cases (
-				json_with_escaped_chars,
-				json_with_unicode,
-				json_nested,
-				json_array,
-				json_with_null,
-				json_empty,
-				json_formatted,
-				json_with_numbers,
-				json_complex
-			) VALUES (
-				'{"fallback": "O''Malley", "text": "It''s fallback"}',
-				'{"name": "O''Donnell", "message": "We''re testing"}',
-				'{"person": "O''Brien", "quote": "He said ''hello''"}',
-				'["Fallback''s test", "O''Reilly''s book"]',
-				'{"author": "O''Neil", "value": null}',
-				'{}',
-				'{"fallback": "She''s here"}',
-				'{"num": 456}',
-				'{"fallback": "O''Connor", "items": ["It''s good", "We''re done"]}'
-			);`,
+			json_with_escaped_chars,
+			json_with_unicode,
+			json_nested,
+			json_array,
+			json_with_null,
+			json_empty,
+			json_formatted,
+			json_with_numbers,
+			json_complex
+		) VALUES (
+		'{"fallback": "O''Malley", "text": "It''s fallback"}',
+		'{"name": "O''Donnell", "message": "We''re testing"}',
+		'{"person": "O''Brien", "quote": "He said ''hello''"}',
+		'["Fallback''s test", "O''Reilly''s book"]',
+		'{"author": "O''Neil", "value": null}',
+		'{}',
+		'{"fallback": "She''s here"}',
+		'{"num": 456}',
+		'{"fallback": "O''Connor", "items": ["It''s good", "We''re done"]}'
+	);`,
+
+			// FALLBACK: INSERT rows specifically for UPDATE testing (to achieve full ✓ coverage)
+			// STRING: Insert row with marker for literal \n UPDATE
+			`INSERT INTO test_schema.string_edge_cases (
+			text_with_backslash,
+			text_with_quote,
+			text_with_newline,
+			text_with_tab,
+			text_with_mixed,
+			text_windows_path,
+			text_sql_injection,
+			text_unicode,
+			text_empty,
+			text_null_string
+		) VALUES (
+			'MARKER_LITERAL_N',         -- Unique marker for UPDATE matching
+			'test',
+			'test',
+			'test',
+			'test',
+			'test',
+			'test',
+			'test',
+			'',
+			'NULL'
+		);`,
+
+			// FALLBACK STRING UPDATE #1: Update the marker row with literal \n
+			`UPDATE test_schema.string_edge_cases
+		SET text_with_backslash = 'fb_updated\nliteral',
+		    text_windows_path = 'F:\fallback\new\path',
+		    text_with_mixed = 'fb_literal\nupdated'
+		WHERE text_with_backslash = 'MARKER_LITERAL_N';`,
+
+			// STRING: Insert row with marker for actual newline UPDATE
+			`INSERT INTO test_schema.string_edge_cases (
+			text_with_backslash,
+			text_with_quote,
+			text_with_newline,
+			text_with_tab,
+			text_with_mixed,
+			text_windows_path,
+			text_sql_injection,
+			text_unicode,
+			text_empty,
+			text_null_string
+		) VALUES (
+			'test',
+			'test',
+			'MARKER_ACTUAL_NEWLINE',    -- Unique marker for UPDATE matching
+			'test',
+			'test',
+			'test',
+			'test',
+			'test',
+			'',
+			'NULL'
+		);`,
+
+			// FALLBACK STRING UPDATE #2: Update the marker row with actual newline
+			`UPDATE test_schema.string_edge_cases
+		SET text_with_newline = E'fb_updated\nactual\nbyte',
+		    text_with_tab = E'fb\nnewlines\ttabs',
+		    text_with_quote = E'fb_actual\nnewline\ntest'
+		WHERE text_with_newline = 'MARKER_ACTUAL_NEWLINE';`,
+
+			// JSON: Insert row with marker for single quotes UPDATE
+			`INSERT INTO test_schema.json_edge_cases (
+			json_with_escaped_chars,
+			json_with_unicode,
+			json_nested,
+			json_array,
+			json_with_null,
+			json_empty,
+			json_formatted,
+			json_with_numbers,
+			json_complex
+		) VALUES (
+			'{"marker": "JSON_SINGLE_QUOTES"}',  -- Unique marker for UPDATE matching
+			'{"test": "value"}',
+			'{"test": "nested"}',
+			'["test"]',
+			'{"test": null}',
+			'{}',
+			'{"test": "formatted"}',
+			'{"num": 1}',
+			'{"test": "complex"}'
+		);`,
+
+			// FALLBACK JSON UPDATE #1: Update the marker row with single quotes in JSON
+			`UPDATE test_schema.json_edge_cases
+		SET json_with_escaped_chars = '{"fb_updated": "O''Connell", "note": "It''s fallback"}',
+		    json_array = '["Fallback''s updated", "O''Reilly''s fallback"]',
+		    json_complex = '{"fb_author": "O''Sullivan", "items": ["She''s testing", "It''s done"]}'
+		WHERE json_with_escaped_chars::text = '{"marker": "JSON_SINGLE_QUOTES"}';`,
 		},
 		CleanupSQL: []string{
 			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
@@ -5020,7 +5109,7 @@ func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
 		},
 		`test_schema."json_edge_cases"`: {
 			Inserts: 2, // 2 INSERT operations: 1 basic + 1 with single quotes in JSON
-			Updates: 6, // 6 UPDATE operations: 2 regular + 2 row 5 (non-NULL→NULL→non-NULL) + 2 row 6 (NULL→non-NULL→NULL)
+			Updates: 7, // 7 UPDATE operations: 2 regular + 1 single quotes + 2 row 5 (non-NULL→NULL→non-NULL) + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1, // 1 DELETE operation: delete JSON row 3
 		},
 		`test_schema."enum_edge_cases"`: {
@@ -5291,7 +5380,7 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 		},
 		`test_schema."json_edge_cases"`: {
 			Inserts: 2, // 1 basic + 1 with single quotes in JSON
-			Updates: 6, // 2 regular + 2 row 5 (non-NULL→NULL→non-NULL) + 2 row 6 (NULL→non-NULL→NULL)
+			Updates: 7, // 7 UPDATE operations: 2 regular + 1 single quotes + 2 row 5 (non-NULL→NULL→non-NULL) + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1,
 		},
 		`test_schema."enum_edge_cases"`: {
@@ -5370,8 +5459,8 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 	t.Log("   TESTING: ALL 12 datatypes with FULL edge cases! (Final Step)")
 	err = lm.WaitForFallbackStreamingComplete(map[string]ChangesCount{
 		`test_schema."string_edge_cases"`: {
-			Inserts: 2, // 1 basic + 1 literal \n test
-			Updates: 9, // 2 regular + 2 literal \n/actual newline + 1 Unicode separators + 2 row 5 (non-NULL→NULL→non-NULL) + 2 row 6 (NULL→non-NULL→NULL)
+			Inserts: 4, // 1 basic + 1 literal \n test + 2 marker rows for UPDATE tests (literal \n, actual newline)
+			Updates: 9, // 2 regular + 1 Unicode separators + 2 marker row UPDATEs + 2 row 5 (non-NULL→NULL→non-NULL) + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1,
 		},
 		`test_schema."decimal_edge_cases"`: {
@@ -5380,8 +5469,8 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 			Deletes: 1,
 		},
 		`test_schema."json_edge_cases"`: {
-			Inserts: 2, // 1 basic + 1 with single quotes in JSON
-			Updates: 6, // 2 regular + 2 row 5 (non-NULL→NULL→non-NULL) + 2 row 6 (NULL→non-NULL→NULL)
+			Inserts: 3, // 1 basic + 1 with single quotes in JSON + 1 marker row for UPDATE test
+			Updates: 7, // 7 UPDATE operations: 2 regular + 1 marker row UPDATE + 2 row 5 (non-NULL→NULL→non-NULL) + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1,
 		},
 		`test_schema."enum_edge_cases"`: {
