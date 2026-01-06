@@ -98,12 +98,19 @@ func (o *ObjectName) Key() string {
 	return o.Qualified.Unquoted
 }
 
+/*
+Assumptions for both schema and table name:
+if the pattern is quoted then complete case sensitivity is checked to match the pattern with  table
+but if the pattern is not quoted then matching is done without case sensitivity to find the match.
+*/
 func (nv *ObjectName) MatchesPattern(pattern string) (bool, error) {
 	parts := strings.Split(pattern, ".")
 	switch true {
 	case len(parts) == 2:
-		if !strings.EqualFold(strings.ToLower(parts[0]), strings.ToLower(nv.SchemaName.Unquoted)) {
-			return false, nil
+		if parts[0] != nv.SchemaName.Quoted {
+			if !strings.EqualFold(parts[0], nv.SchemaName.Unquoted) {
+				return false, nil
+			}
 		}
 		pattern = parts[1]
 	case len(parts) == 1:

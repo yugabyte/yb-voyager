@@ -695,3 +695,131 @@ func TestCaseSensitiveSchemaName(t *testing.T) {
 	assert.Equal(tableName.MinQualified, tableName.Qualified)
 
 }
+
+func TestMatchesPattern(t *testing.T) {
+	assert := assert.New(t)
+
+	type patternTest struct {
+		pattern     string
+		table1Match bool
+		table2Match bool
+	}
+
+	testCases := []struct {
+		name       string
+		schemaName string
+		tableName1 string
+		tableName2 string
+		patterns   []patternTest
+	}{
+		{
+			name:       "lowercase schema and table",
+			schemaName: "public",
+			tableName1: "table1",
+			tableName2: "table2",
+			patterns: []patternTest{
+				{pattern: `"public"."table1"`, table1Match: true, table2Match: false},
+				{pattern: `"public".table1`, table1Match: true, table2Match: false},
+				{pattern: `public."table1"`, table1Match: true, table2Match: false},
+				{pattern: `public.table1`, table1Match: true, table2Match: false},
+				{pattern: `public.table2`, table1Match: false, table2Match: true},
+				{pattern: `public.table*`, table1Match: true, table2Match: true},
+				//case sensitive pattern's shouldn't match with lower case name
+				{pattern: `public."Table1"`, table1Match: false, table2Match: false},
+				{pattern: `public.Table1`, table1Match: true, table2Match: false},
+				{pattern: `public."Table2"`, table1Match: false, table2Match: false},
+				{pattern: `public.Table2`, table1Match: false, table2Match: true},
+				{pattern: `public."Table*"`, table1Match: false, table2Match: false},
+				{pattern: `"Public"."Table1"`, table1Match: false, table2Match: false},
+
+			},
+		},
+		{
+			name:       "case sensitive schema",
+			schemaName: "Public",
+			tableName1: "table1",
+			tableName2: "table2",
+			patterns: []patternTest{
+				{pattern: `"Public"."table1"`, table1Match: true, table2Match: false},
+				{pattern: `"Public".table1`, table1Match: true, table2Match: false},
+				{pattern: `Public."table1"`, table1Match: true, table2Match: false},
+				{pattern: `Public.table1`, table1Match: true, table2Match: false},
+				{pattern: `Public.table2`, table1Match: false, table2Match: true},
+				{pattern: `Public.table*`, table1Match: true, table2Match: true},
+				//lower case pattern's shouldn't match with case sensitive schema name
+				{pattern: `"public".table1`, table1Match: false, table2Match: false},
+				{pattern: `public."table1"`, table1Match: true, table2Match: false},
+				{pattern: `public.table1`, table1Match: true, table2Match: false},
+				{pattern: `public.table2`, table1Match: false, table2Match: true},
+				{pattern: `public.table*`, table1Match: true, table2Match: true},
+			},
+		},
+		{
+			name:       "case sensitive table",
+			schemaName: "public",
+			tableName1: "Table1",
+			tableName2: "Table2",
+			patterns: []patternTest{
+				{pattern: `"public"."Table1"`, table1Match: true, table2Match: false},
+				{pattern: `"public".Table1`, table1Match: true, table2Match: false},
+				{pattern: `public."Table1"`, table1Match: true, table2Match: false},
+				{pattern: `public.Table1`, table1Match: true, table2Match: false},
+				{pattern: `public.Table2`, table1Match: false, table2Match: true},
+				{pattern: `public.Table*`, table1Match: true, table2Match: true},
+				//lower case pattern's shouldn't match with case sensitive table name
+				{pattern: `"public".table1`, table1Match: true, table2Match: false},
+				{pattern: `public."table1"`, table1Match: false, table2Match: false},
+				{pattern: `public.table1`, table1Match: true, table2Match: false},
+				{pattern: `public.table2`, table1Match: false, table2Match: true},
+				{pattern: `public.table*`, table1Match: true, table2Match: true},
+				//case sensitive schema shouldn't match with lower case schema name
+				{pattern: `"Public"."Table1"`, table1Match: false, table2Match: false},
+				{pattern: `"Public".Table1`, table1Match: false, table2Match: false},
+				{pattern: `Public."Table1"`, table1Match: true, table2Match: false},
+				{pattern: `Public.Table1`, table1Match: true, table2Match: false},
+				{pattern: `Public.Table2`, table1Match: false, table2Match: true},
+				{pattern: `Public.Table*`, table1Match: true, table2Match: true},
+			},
+		},
+		{
+			name:       "case sensitive schema and table",
+			schemaName: "Public",
+			tableName1: "Table1",
+			tableName2: "Table2",
+			patterns: []patternTest{
+				{pattern: `"Public"."Table1"`, table1Match: true, table2Match: false},
+				{pattern: `"Public".Table1`, table1Match: true, table2Match: false},
+				{pattern: `Public."Table1"`, table1Match: true, table2Match: false},
+				{pattern: `Public.Table1`, table1Match: true, table2Match: false},
+				{pattern: `Public.Table2`, table1Match: false, table2Match: true},
+				{pattern: `Public.Table*`, table1Match: true, table2Match: true},
+				//lower case pattern's shouldn't match with case sensitive schema name
+				{pattern: `"public".Table1`, table1Match: false, table2Match: false},
+				{pattern: `public."Table1"`, table1Match: true, table2Match: false},
+				{pattern: `public.Table1`, table1Match: true, table2Match: false},
+				{pattern: `public.Table2`, table1Match: false, table2Match: true},
+				{pattern: `public.Table*`, table1Match: true, table2Match: true},
+				//case sensitive table shouldn't match with lower case table name
+				{pattern: `"public"."table1"`, table1Match: false, table2Match: false},
+				{pattern: `"public".table1`, table1Match: false, table2Match: false},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			table1 := NewObjectName(constants.POSTGRESQL, tc.schemaName, tc.schemaName, tc.tableName1)
+			table2 := NewObjectName(constants.POSTGRESQL, tc.schemaName, tc.schemaName, tc.tableName2)
+
+			for _, pt := range tc.patterns {
+				matches, err := table1.MatchesPattern(pt.pattern)
+				assert.Equal(pt.table1Match, matches, "table1 should match pattern %q for case %s", pt.pattern, tc.name)
+				assert.NoError(err, "table1 pattern %q should not error", pt.pattern)
+
+				matches, err = table2.MatchesPattern(pt.pattern)
+				assert.Equal(pt.table2Match, matches, "table2 should match pattern %q for case %s", pt.pattern, tc.name)
+				assert.NoError(err, "table2 pattern %q should not error", pt.pattern)
+			}
+		})
+	}
+}
