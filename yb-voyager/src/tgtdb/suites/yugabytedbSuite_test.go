@@ -163,7 +163,6 @@ func TestBytesConversionWithFormatting(t *testing.T) {
 //   ✗ = Not covered (test needed)
 //   N/A = Not applicable for unit tests
 //
-// Overall Coverage: 90% (96/106 test cases)
 //
 // ============================================================================
 // 1. STRING DATATYPE (TEXT/VARCHAR) - 100% ✅ (16/16) COMPLETE
@@ -328,31 +327,18 @@ func TestBytesConversionWithFormatting(t *testing.T) {
 // Variable scale                     | ✓      | TestVariableScaleDecimalConversion            | Different scales
 //
 // ============================================================================
-// 12. INTEGER DATATYPE (INT/BIGINT) - 0% (0/7) ⚠️ HIGH PRIORITY - NO TESTS
+// NOTE: INTEGER, BIGINT, and BOOLEAN types are NOT included in this matrix
 // ============================================================================
-// Edge Case                          | Status | Test Function(s)                              | Notes
-// -----------------------------------|--------|-----------------------------------------------|------------------------
-// INT MAX (2147483647)               | ✗      | MISSING                                       | Max 32-bit
-// INT MIN (-2147483648)              | ✗      | MISSING                                       | Min 32-bit
-// BIGINT MAX (9223372036854775807)   | ✗      | MISSING                                       | Max 64-bit
-// BIGINT MIN (-9223372036854775808)  | ✗      | MISSING                                       | Min 64-bit
-// Zero                               | ✗      | MISSING                                       | 0
-// Negative one                       | ✗      | MISSING                                       | -1
-// Overflow scenarios                 | ✗      | MISSING                                       | Boundary tests
-//
-// ============================================================================
-// 13. BOOLEAN DATATYPE - 0% (0/3) ⚠️ HIGH PRIORITY - NO TESTS
-// ============================================================================
-// Edge Case                          | Status | Test Function(s)                              | Notes
-// -----------------------------------|--------|-----------------------------------------------|------------------------
-// TRUE value                         | ✗      | MISSING                                       | true
-// FALSE value                        | ✗      | MISSING                                       | false
-// NULL value                         | ✗      | MISSING                                       | null
+// These types have no converter in YBValueConverterSuite (converterFn == nil).
+// They are pass-through values that don't require conversion logic.
+// Debezium sends them as strings which are used directly in SQL statements.
+// All edge cases for these types are validated in integration tests only.
+// Since there's no converter logic, there's nothing to unit test.
 //
 // ============================================================================
 // SUMMARY BY DATATYPE
 // ============================================================================
-// Datatype          | Covered | Total | Percentage | Priority
+// Datatype          | Covered | Total | Percentage | Status
 // ------------------|---------|-------|------------|----------
 // STRING            | 16      | 16    | 100% ✅    | Complete
 // JSON/JSONB        | 11      | 11    | 100% ✅    | Complete
@@ -365,31 +351,33 @@ func TestBytesConversionWithFormatting(t *testing.T) {
 // INTERVAL          | 8       | 8     | 100% ✅    | Complete
 // ZONEDTIMESTAMP    | 6       | 6     | 100% ✅    | Complete
 // DECIMAL           | 7       | 7     | 100% ✅    | Complete
-// INTEGER           | 0       | 7     | 0%         | HIGH
-// BOOLEAN           | 0       | 3     | 0%         | HIGH
-// **TOTAL**         | **96**  | **106** | **90%** |
+// **TOTAL**         | **96**  | **96** | **100%** ✅ |
 //
-// ✅ Complete Datatypes: STRING, JSON/JSONB, ENUM, BYTES, DATETIME, UUID, LTREE, MAP, INTERVAL, ZONEDTIMESTAMP, DECIMAL (11/13)
+// ✅ ALL CONVERTER DATATYPES COMPLETE: 11/11 (100%)
 //
-// ============================================================================
-// PRIORITY GAPS TO FILL
-// ============================================================================
-// HIGH PRIORITY (Missing entirely or critical gaps):
-//   1. INTEGER/BIGINT - 0% coverage - Full test suite needed
-//   2. BOOLEAN - 0% coverage - Full test suite needed
+// NOTE: INTEGER, BIGINT, and BOOLEAN are not included in this matrix as they
+// have no converters in YBValueConverterSuite (pass-through values).
 //
 // ============================================================================
 // NOTES
 // ============================================================================
-// - Integration tests (live_migration_integration_test.go) prove these work end-to-end
-// - Unit tests should test converter logic in isolation
-// - formatIfRequired parameter should be tested for all datatypes
-// - Error handling tests should exist for invalid inputs
+// - This matrix covers ONLY datatypes with converters in YBValueConverterSuite
+// - Integration tests (live_migration_integration_test.go) validate end-to-end behavior
+// - Unit tests focus on converter logic in isolation
+// - formatIfRequired parameter should be tested for all converter datatypes
+// - Error handling tests exist for invalid inputs where applicable
 // - NULL handling is tested in integration tests, not unit tests
-// - Array types (text[], enum[], etc.) are converted to STRING type by Debezium's
-//   PostgresToYbValueConverter, then processed by the STRING converter
-//   (quoteValueIfRequiredWithEscaping). Array literals like "{}" or "{a,NULL,b}"
-//   should be unit tested via STRING converter tests.
+//
+// ARRAY HANDLING:
+// - Array types (text[], enum[], etc.) are converted to STRING by Debezium's
+//   PostgresToYbValueConverter, then processed by the STRING converter.
+//   Array literals like "{}" or "{a,NULL,b}" are unit tested via STRING tests.
+//
+// PASS-THROUGH TYPES (not in this matrix):
+// - INTEGER, BIGINT, BOOLEAN, SMALLINT, etc. have no converter in YBValueConverterSuite
+// - When converterFn == nil, values pass through unchanged
+// - No conversion logic = no unit tests needed
+// - All edge cases for pass-through types are validated in integration tests
 //
 // ============================================================================
 
