@@ -1,5 +1,5 @@
 version: 1
-name: fall-forward-resumption-test
+name: fallf-large-row-resumption-test
 run_id: run
 
 env:
@@ -70,6 +70,7 @@ generator_source:
       delete_rows: 1
       insert_max_retries: 5
       update_max_retries: 1
+      min_col_size_bytes: 250000000
 
 # Fallback (target) event generator configuration.
 # This will be used later when we start a generator on the target side.
@@ -98,6 +99,7 @@ generator_target:
       delete_rows: 1
       insert_max_retries: 5
       update_max_retries: 1
+      min_col_size_bytes: 250000000
 
 voyager:
   import_schema:
@@ -112,12 +114,12 @@ stages:
 
   - name: create_source_schema
     action: run_sql
-    sql_path: ../common-sql/init.sql
+    sql_path: ./init.sql
     use_admin: true
 
   - name: create_source_replica_schema
     action: run_sql
-    sql_path: ../common-sql/init.sql
+    sql_path: ./init.sql
     use_admin: true
     target: source_replica
 
@@ -152,8 +154,8 @@ stages:
     resumption:
       import_to_source_replica:
         max_restarts: 100
-        min_interrupt_seconds: 15
-        max_interrupt_seconds: 60
+        min_interrupt_seconds: 60
+        max_interrupt_seconds: 90
         min_restart_wait_seconds: 5
         max_restart_wait_seconds: 30
 
@@ -210,8 +212,8 @@ stages:
     resumption:
       export_from_target:
         max_restarts: 50
-        min_interrupt_seconds: 20
-        max_interrupt_seconds: 60
+        min_interrupt_seconds: 60
+        max_interrupt_seconds: 90
         min_restart_wait_seconds: 10
         max_restart_wait_seconds: 30
 
