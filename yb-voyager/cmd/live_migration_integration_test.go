@@ -1748,20 +1748,20 @@ $$ LANGUAGE plpgsql;`,
 // Single quotes (It's, O'Reilly)    | ✓        | ✓       | ✓        | Escaped quotes
 // Double quotes ("test")            | ✓        | ✓       | ✓        | Mixed quotes
 // Backslashes (C:\path\to\file)     | ✓        | ✓       | ✓        | Windows paths
-// Actual newline byte (0x0A)        | ✓        | I       | I        | E'...\n...'
-// Literal \n string (backslash+n)   | ✓        | I       | I        | Two-char string
+// Actual newline byte (0x0A)        | ✓        | ✓       | ✓        | E'...\n...'
+// Literal \n string (backslash+n)   | ✓        | ✓       | ✓        | Two-char string
 // Actual tab byte (0x09)            | ✓        | ✓       | ✓        | E'...\t...'
 // Actual carriage return (0x0D)     | ✓        | ✓       | ✓        | E'...\r...'
 // Mixed control chars (\n\t\r)      | ✓        | ✓       | ✓        | All control chars
-// Unicode separators (U+2028)       | ✓        | ✓       | -        | Line/para sep
+// Unicode separators (U+2028)       | ✓        | ✓       | ✓        | Line/para sep
 // Empty string ('')                 | ✓        | ✓       | ✓        | Zero-length
 // String literal 'NULL'             | ✓        | ✓       | ✓        | vs actual NULL
 // SQL injection patterns            | ✓        | ✓       | ✓        | --comment, '; DROP
 // Bidirectional text (RTL)          | ✓        | ✓       | ✓        | Arabic/Hebrew
 // NULL transitions                  | ✓        | ✓       | ✓        | NULL↔non-NULL
 //
-// Operations: 6 rows snapshot, 3 INSERTs, 10 UPDATEs, 1 DELETE (Forward)
-//             2 INSERTs, 6 UPDATEs, 1 DELETE (Fallback)
+// Operations: 6 rows snapshot, 3 INSERTs, 12 UPDATEs, 1 DELETE (Forward)
+//             2 INSERTs, 9 UPDATEs, 1 DELETE (Fallback)
 //
 // ============================================================================
 // 2. JSON/JSONB DATATYPE
@@ -1973,12 +1973,12 @@ $$ LANGUAGE plpgsql;`,
 //
 // Forward Streaming Operations:
 //   - INSERTs:  16 (varies by datatype)
-//   - UPDATEs:  60 (includes NULL transitions for all datatypes)
+//   - UPDATEs:  62 (includes NULL transitions + literal \n/actual newline for all datatypes)
 //   - DELETEs:  12 (1 per datatype, targets snapshot row 3)
 //
 // Fallback Streaming Operations:
 //   - INSERTs:  15 (varies by datatype)
-//   - UPDATEs:  58 (includes NULL transitions for all datatypes)
+//   - UPDATEs:  61 (includes NULL transitions + literal \n/actual newline + Unicode separators)
 //   - DELETEs:  12 (1 per datatype, targets snapshot row 4)
 //
 // NULL Transition Coverage:
@@ -4260,28 +4260,41 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 
 			// Literal '\n' (two chars) vs actual newline byte (0x0A)
 			`INSERT INTO test_schema.string_edge_cases (
-			text_with_backslash,
-			text_with_quote,
-			text_with_newline,
-			text_with_tab,
-			text_with_mixed,
-			text_windows_path,
-			text_sql_injection,
-			text_unicode,
-			text_empty,
-			text_null_string
-		) VALUES (
-			'literal\nstring',          -- Two chars: backslash + n
-			'test',
-			E'actual\nbyte',            -- Actual newline byte (0x0A)
-			'test',
-			'literal\nmixed',           -- Mix with literal \n
-			'C:\new\test',              -- Path with literal \n
-			'test',
-			'test',
-			'',
-			'NULL'
-		);`,
+		text_with_backslash,
+		text_with_quote,
+		text_with_newline,
+		text_with_tab,
+		text_with_mixed,
+		text_windows_path,
+		text_sql_injection,
+		text_unicode,
+		text_empty,
+		text_null_string
+	) VALUES (
+		'literal\nstring',          -- Two chars: backslash + n
+		'test',
+		E'actual\nbyte',            -- Actual newline byte (0x0A)
+		'test',
+		'literal\nmixed',           -- Mix with literal \n
+		'C:\new\test',              -- Path with literal \n
+		'test',
+		'test',
+		'',
+		'NULL'
+	);`,
+
+			// UPDATE #1: Test literal \n via UPDATE (achieves full ✓ coverage)
+			`UPDATE test_schema.string_edge_cases
+		SET text_with_backslash = 'updated\nliteral',     -- Two chars: backslash + n
+		    text_windows_path = 'E:\new\updated\path',    -- More literal \n in path
+		    text_with_mixed = 'literal\nupdated\nvalue'   -- Multiple literal \n
+		WHERE text_with_backslash = 'literal\nstring';`,
+
+			// UPDATE #2: Test actual newline byte via UPDATE (achieves full ✓ coverage)
+			`UPDATE test_schema.string_edge_cases
+		SET text_with_newline = E'updated\nactual\nnewline',  -- Actual newline bytes (0x0A)
+		    text_with_tab = E'and\nsome\ntabs\there'           -- Mix actual newlines and tabs
+		WHERE text_with_newline = E'actual\nbyte';`,
 
 			// Single quotes inside JSON values
 			`INSERT INTO test_schema.json_edge_cases (
@@ -4877,28 +4890,49 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 
 			// FALLBACK: Literal '\n' vs actual newline
 			`INSERT INTO test_schema.string_edge_cases (
-				text_with_backslash,
-				text_with_quote,
-				text_with_newline,
-				text_with_tab,
-				text_with_mixed,
-				text_windows_path,
-				text_sql_injection,
-				text_unicode,
-				text_empty,
-				text_null_string
-			) VALUES (
-				'fallback_literal\ntest',   -- Two chars: backslash + n
-				'fallback',
-				E'fallback_actual\ntest',   -- Actual newline byte (0x0A)
-				'fallback',
-				'fallback_literal\nmixed',  -- Mix with literal \n
-				'D:\new\path',              -- Path with literal \n
-				'fallback',
-				'fallback',
-				'',
-				'NULL'
-			);`,
+			text_with_backslash,
+			text_with_quote,
+			text_with_newline,
+			text_with_tab,
+			text_with_mixed,
+			text_windows_path,
+			text_sql_injection,
+			text_unicode,
+			text_empty,
+			text_null_string
+		) VALUES (
+			'fallback_literal\ntest',   -- Two chars: backslash + n
+			'fallback',
+			E'fallback_actual\ntest',   -- Actual newline byte (0x0A)
+			'fallback',
+			'fallback_literal\nmixed',  -- Mix with literal \n
+			'D:\new\path',              -- Path with literal \n
+			'fallback',
+			'fallback',
+			'',
+			'NULL'
+		);`,
+
+			// FALLBACK UPDATE #1: Test literal \n via UPDATE (achieves full ✓ coverage)
+			`UPDATE test_schema.string_edge_cases
+		SET text_with_backslash = 'fb_updated\nliteral',     -- Two chars: backslash + n
+		    text_windows_path = 'F:\fallback\new\path',      -- More literal \n in path
+		    text_with_mixed = 'fb_literal\nupdated'          -- Literal \n in fallback
+		WHERE text_with_backslash = 'fallback_literal\ntest';`,
+
+			// FALLBACK UPDATE #2: Test actual newline byte via UPDATE (achieves full ✓ coverage)
+			`UPDATE test_schema.string_edge_cases
+		SET text_with_newline = E'fb_updated\nactual\nbyte',  -- Actual newline bytes (0x0A)
+		    text_with_tab = E'fb\nnewlines\ttabs'              -- Mix actual newlines and tabs
+		WHERE text_with_newline = E'fallback_actual\ntest';`,
+
+			// FALLBACK UPDATE #3: Test Unicode separators (U+2028, U+2029, U+200B, U+00A0) - achieves full ✓ coverage
+			`UPDATE test_schema.string_edge_cases
+		SET text_with_newline = 'fb' || E'\u2028' || 'line',   -- Unicode line separator (U+2028)
+		    text_with_tab = 'fb' || E'\u2029' || 'para',       -- Unicode paragraph separator (U+2029)
+		    text_with_mixed = 'fb' || E'\u200B' || 'zero',     -- Zero-width space (U+200B)
+		    text_windows_path = 'fb' || E'\u00A0' || 'nbsp'    -- Non-breaking space (U+00A0)
+		WHERE id = 1;`,
 
 			// FALLBACK: MEDIUM PRIORITY - Single quotes inside JSON values
 			`INSERT INTO test_schema.json_edge_cases (
@@ -4981,7 +5015,7 @@ func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
 	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
 		`test_schema."string_edge_cases"`: {
 			Inserts: 3,  // 3 INSERT operations: basic + actual control chars + literal \n test
-			Updates: 10, // 10 UPDATE operations: 6 regular + 2 row 5 (non-NULL→NULL→non-NULL) + 2 row 6 (NULL→non-NULL→NULL)
+			Updates: 12, // 12 UPDATE operations: 6 regular + 2 literal \n/actual newline + 2 row 5 (non-NULL→NULL→non-NULL) + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1,  // 1 DELETE operation: delete row 3
 		},
 		`test_schema."json_edge_cases"`: {
@@ -5252,7 +5286,7 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
 		`test_schema."string_edge_cases"`: {
 			Inserts: 3,  // basic + actual control chars + literal \n test
-			Updates: 10, // 6 regular + 2 row 5 (non-NULL→NULL→non-NULL) + 2 row 6 (NULL→non-NULL→NULL)
+			Updates: 12, // 6 regular + 2 literal \n/actual newline + 2 row 5 (non-NULL→NULL→non-NULL) + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1,
 		},
 		`test_schema."json_edge_cases"`: {
@@ -5337,7 +5371,7 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 	err = lm.WaitForFallbackStreamingComplete(map[string]ChangesCount{
 		`test_schema."string_edge_cases"`: {
 			Inserts: 2, // 1 basic + 1 literal \n test
-			Updates: 6, // 2 regular + 2 row 5 (non-NULL→NULL→non-NULL) + 2 row 6 (NULL→non-NULL→NULL)
+			Updates: 9, // 2 regular + 2 literal \n/actual newline + 1 Unicode separators + 2 row 5 (non-NULL→NULL→non-NULL) + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1,
 		},
 		`test_schema."decimal_edge_cases"`: {
