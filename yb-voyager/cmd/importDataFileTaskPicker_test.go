@@ -2193,6 +2193,7 @@ func TestColocatedCappedRandomTaskPickerShardedTasksOrderedByRowCount(t *testing
 	assert.True(t, picker.HasMoreTasks())
 
 	// Tasks should be picked in descending order of RowCount: 500 -> 200 -> 100
+	// Until we reach maxShardedTasksInProgress, tasks should be picked in descending order of RowCount from the pending list.
 	picked1, err := picker.Pick()
 	assert.NoError(t, err)
 	assert.Equal(t, int64(500), picked1.RowCount, "First pick should be task with RowCount=500")
@@ -2254,6 +2255,7 @@ func TestColocatedCappedRandomTaskPickerShardedTasksOrderedByFileSize(t *testing
 	assert.True(t, picker.HasMoreTasks())
 
 	// Tasks should be picked in descending order of FileSize: 5000 -> 2000 -> 1000
+	// Until we reach maxShardedTasksInProgress, tasks should be picked in descending order of FileSize from the pending list.
 	picked1, err := picker.Pick()
 	assert.NoError(t, err)
 	assert.Equal(t, int64(5000), picked1.FileSize, "First pick should be task with FileSize=5000")
