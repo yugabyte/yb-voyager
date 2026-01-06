@@ -163,7 +163,7 @@ func TestBytesConversionWithFormatting(t *testing.T) {
 //   ✗ = Not covered (test needed)
 //   N/A = Not applicable for unit tests
 //
-// Overall Coverage: 76% (81/106 test cases)
+// Overall Coverage: 81% (86/106 test cases)
 //
 // ============================================================================
 // 1. STRING DATATYPE (TEXT/VARCHAR) - 100% ✅ (16/16) COMPLETE
@@ -205,7 +205,7 @@ func TestBytesConversionWithFormatting(t *testing.T) {
 // Deep nesting (10+ levels)          | ✓      | TestJsonConversionWithDeepNesting             | Extreme depth
 //
 // ============================================================================
-// 3. ENUM DATATYPE - 64% (7/11)
+// 3. ENUM DATATYPE - 100% ✅ (11/11) COMPLETE
 // ============================================================================
 // Edge Case                          | Status | Test Function(s)                              | Notes
 // -----------------------------------|--------|-----------------------------------------------|------------------------
@@ -216,10 +216,10 @@ func TestBytesConversionWithFormatting(t *testing.T) {
 // Enum with spaces                   | ✓      | TestEnumConversionWithSpecialChars            | 'with space'
 // Enum with dashes                   | ✓      | TestEnumConversionWithSpecialChars            | with-dash
 // Enum with underscore               | ✓      | TestEnumConversionWithSpecialChars            | with_underscore
-// Enum with Unicode                  | ✗      | MISSING                                       | café, 🎉emoji
-// Enum starting with digits          | ✗      | MISSING                                       | 123start
-// Empty ENUM array                   | ✗      | MISSING                                       | ARRAY[]::enum[]
-// ENUM array with NULL elements      | ✗      | MISSING                                       | ARRAY['a', NULL]
+// Enum with Unicode                  | ✓      | TestEnumConversionWithSpecialChars            | café, 🎉emoji
+// Enum starting with digits          | ✓      | TestEnumConversionWithSpecialChars            | 123value
+// Empty ENUM array                   | ✓      | TestArrayConversionWithEdgeCases              | "{}" via STRING converter
+// ENUM array with NULL elements      | ✓      | TestArrayConversionWithEdgeCases              | "{a,NULL,b}" via STRING
 //
 // ============================================================================
 // 4. BYTES DATATYPE (BYTEA) - 100% ✅ (10/10) COMPLETE
@@ -355,8 +355,8 @@ func TestBytesConversionWithFormatting(t *testing.T) {
 // Datatype          | Covered | Total | Percentage | Priority
 // ------------------|---------|-------|------------|----------
 // STRING            | 16      | 16    | 100% ✅    | Complete
-// JSON/JSONB        | 10      | 11    | 91%        | High (fix comment)
-// ENUM              | 7       | 11    | 64%        | Medium
+// JSON/JSONB        | 11      | 11    | 100% ✅    | Complete
+// ENUM              | 11      | 11    | 100% ✅    | Complete
 // BYTES             | 10      | 10    | 100% ✅    | Complete
 // DATETIME          | 9       | 10    | 90%        | Low
 // UUID              | 5       | 5     | 100% ✅    | Complete
@@ -367,9 +367,9 @@ func TestBytesConversionWithFormatting(t *testing.T) {
 // DECIMAL           | 7       | 7     | 100% ✅    | Complete
 // INTEGER           | 0       | 7     | 0%         | HIGH
 // BOOLEAN           | 0       | 3     | 0%         | HIGH
-// **TOTAL**         | **81**  | **106** | **76%** |
+// **TOTAL**         | **86**  | **106** | **81%** |
 //
-// ✅ Complete Datatypes: STRING, BYTES, UUID, LTREE, DECIMAL (5/13)
+// ✅ Complete Datatypes: STRING, JSON/JSONB, ENUM, BYTES, UUID, LTREE, DECIMAL (7/13)
 //
 // ============================================================================
 // PRIORITY GAPS TO FILL
@@ -378,15 +378,13 @@ func TestBytesConversionWithFormatting(t *testing.T) {
 //   1. INTEGER/BIGINT - 0% coverage - Full test suite needed
 //   2. BOOLEAN - 0% coverage - Full test suite needed
 //   3. ZONEDTIMESTAMP - 17% coverage - Expand timezone tests
-//   4. JSON Single Quotes - Fix misleading comment, works correctly
 //
 // MEDIUM PRIORITY (Partial coverage):
-//   5. ENUM - Missing: Unicode, digits, arrays
-//   6. INTERVAL - Missing: Component-specific tests, large values
+//   4. INTERVAL - Missing: Component-specific tests, large values
 //
 // LOW PRIORITY (Minor gaps):
-//   8. MAP - Missing: Multiple key-value pairs
-//   9. DATETIME - Missing: End of day explicit test
+//   5. MAP - Missing: Multiple key-value pairs
+//   6. DATETIME - Missing: End of day explicit test
 //
 // ============================================================================
 // NOTES
@@ -396,6 +394,10 @@ func TestBytesConversionWithFormatting(t *testing.T) {
 // - formatIfRequired parameter should be tested for all datatypes
 // - Error handling tests should exist for invalid inputs
 // - NULL handling is tested in integration tests, not unit tests
+// - Array types (text[], enum[], etc.) are converted to STRING type by Debezium's
+//   PostgresToYbValueConverter, then processed by the STRING converter
+//   (quoteValueIfRequiredWithEscaping). Array literals like "{}" or "{a,NULL,b}"
+//   should be unit tested via STRING converter tests.
 //
 // ============================================================================
 
@@ -1559,6 +1561,105 @@ func TestEnumConversionWithSpecialChars(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			result, err := YBValueConverterSuite["io.debezium.data.Enum"](tc.input, tc.formatIfRequired, nil)
+			assert.NoError(t, err, "Conversion should not error")
+
+			t.Logf("Input: %q", tc.input)
+			t.Logf("Expected: %q", tc.expected)
+			t.Logf("Got: %q", result)
+			t.Logf("Note: %s", tc.note)
+
+			assert.Equal(t, tc.expected, result, "Converted value should match expected")
+		})
+	}
+}
+
+// Test 3.2: TestArrayConversionWithEdgeCases
+// Tests PostgreSQL array literals (any type) which are converted to STRING by Debezium
+// Arrays are stringified by Debezium's PostgresToYbValueConverter and processed as strings
+func TestArrayConversionWithEdgeCases(t *testing.T) {
+	testCases := []struct {
+		name             string
+		input            string
+		formatIfRequired bool
+		expected         string
+		note             string
+	}{
+		{
+			name:             "empty array",
+			input:            "{}",
+			formatIfRequired: true,
+			expected:         "'{}'",
+			note:             "Empty array represented as {}",
+		},
+		{
+			name:             "array with NULL elements",
+			input:            "{active,NULL,pending}",
+			formatIfRequired: true,
+			expected:         "'{active,NULL,pending}'",
+			note:             "Array with NULL elements (PostgreSQL array literal)",
+		},
+		{
+			name:             "array with only NULL",
+			input:            "{NULL}",
+			formatIfRequired: true,
+			expected:         "'{NULL}'",
+			note:             "Single NULL element in array",
+		},
+		{
+			name:             "array with multiple NULLs",
+			input:            "{NULL,NULL,NULL}",
+			formatIfRequired: true,
+			expected:         "'{NULL,NULL,NULL}'",
+			note:             "Multiple NULL elements",
+		},
+		{
+			name:             "array with quoted strings",
+			input:            `{"value with space","another value"}`,
+			formatIfRequired: true,
+			expected:         `'{"value with space","another value"}'`,
+			note:             "Array with quoted string elements",
+		},
+		{
+			name:             "array with single quotes in elements",
+			input:            `{"O'Reilly","It's"}`,
+			formatIfRequired: true,
+			expected:         `'{"O''Reilly","It''s"}'`,
+			note:             "Array elements containing single quotes need SQL escaping",
+		},
+		{
+			name:             "array with backslashes",
+			input:            `{value\with\backslash}`,
+			formatIfRequired: true,
+			expected:         `'{value\with\backslash}'`,
+			note:             "Array with backslashes in elements",
+		},
+		{
+			name:             "array with Unicode and emoji",
+			input:            `{café,🎉emoji,日本語}`,
+			formatIfRequired: true,
+			expected:         `'{café,🎉emoji,日本語}'`,
+			note:             "Array with Unicode characters and emoji",
+		},
+		{
+			name:             "nested array (2D)",
+			input:            `{{1,2},{3,4}}`,
+			formatIfRequired: true,
+			expected:         `'{{1,2},{3,4}}'`,
+			note:             "2D array literal",
+		},
+		{
+			name:             "array without formatting",
+			input:            `{active,pending,inactive}`,
+			formatIfRequired: false,
+			expected:         `{active,pending,inactive}`,
+			note:             "Array without SQL quotes when formatIfRequired=false",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrays are processed by STRING converter
+			result, err := YBValueConverterSuite["STRING"](tc.input, tc.formatIfRequired, nil)
 			assert.NoError(t, err, "Conversion should not error")
 
 			t.Logf("Input: %q", tc.input)
