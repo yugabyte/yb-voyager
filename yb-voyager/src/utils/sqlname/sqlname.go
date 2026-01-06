@@ -329,21 +329,21 @@ func NewObjectNameQualifiedWithTableName(dbType, defaultSchemaName, objectName s
 	result := &ObjectNameQualifiedWithTableName{
 		SchemaName: identifier{
 			Quoted:    quote2(dbType, schemaName),
-			Unquoted:  unquote(dbType, schemaName),
-			MinQuoted: minQuote2(dbType, schemaName),
+			Unquoted:  unquote(schemaName, dbType),
+			MinQuoted: minQuote2(schemaName, dbType),
 		},
 		FromDefaultSchema: schemaName == defaultSchemaName,
 		TableName:         NewObjectName(dbType, defaultSchemaName, schemaName, tableName),
 		ObjectName:        objectName,
 		Qualified: identifier{
 			Quoted:    quote2(dbType, schemaName) + "." + quote2(dbType, tableName) + "." + quote2(dbType, objectName),
-			Unquoted:  unquote(dbType, schemaName) + "." + unquote(tableName, dbType) + "." + unquote(objectName, dbType),
-			MinQuoted: minQuote2(dbType, schemaName) + "." + minQuote2(tableName, dbType) + "." + minQuote2(objectName, dbType),
+			Unquoted:  unquote(schemaName, dbType) + "." + unquote(tableName, dbType) + "." + unquote(objectName, dbType),
+			MinQuoted: minQuote2(schemaName, dbType) + "." + minQuote2(tableName, dbType) + "." + minQuote2(objectName, dbType),
 		},
 		Unqualified: identifier{
 			Quoted:    quote2(dbType, schemaName) + "." + quote2(dbType, tableName) + "." + quote2(dbType, objectName),
-			Unquoted:  unquote(dbType, schemaName) + "." + unquote(tableName, dbType) + "." + unquote(objectName, dbType),
-			MinQuoted: minQuote2(dbType, schemaName) + "." + minQuote2(tableName, dbType) + "." + minQuote2(objectName, dbType),
+			Unquoted:  unquote(schemaName, dbType) + "." + unquote(tableName, dbType) + "." + unquote(objectName, dbType),
+			MinQuoted: minQuote2(schemaName, dbType) + "." + minQuote2(tableName, dbType) + "." + minQuote2(objectName, dbType),
 		},
 	}
 	result.MinQualified = lo.Ternary(result.FromDefaultSchema, result.Unqualified, result.Qualified)
