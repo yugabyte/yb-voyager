@@ -216,16 +216,23 @@ func (yb *YugabyteDBContainer) GetVersion() (string, error) {
 
 	return version, nil
 }
-func (yb *YugabyteDBContainer) CreateDatabase(dbName string) error {
+func (yb *YugabyteDBContainer) getConnWithDefaultDB() (*pgx.Conn, error) {
 	host, port, err := yb.GetHostPort()
 	if err != nil {
-		return fmt.Errorf("failed to get host port for yugabytedb connection string: %w", err)
+		return nil, fmt.Errorf("failed to get host port for yugabytedb connection string: %w", err)
 	}
 
 	connStr := fmt.Sprintf("postgresql://%s:%s@%s:%d/%s?sslmode=disable", yb.User, yb.Password, host, port, "yugabyte")
 	conn, err := pgx.Connect(context.Background(), connStr)
 	if err != nil {
-		return fmt.Errorf("failed to connect to yugabytedb: %w", err)
+		return nil, fmt.Errorf("failed to connect to yugabytedb: %w", err)
+	}
+	return conn, nil
+}
+func (yb *YugabyteDBContainer) CreateDatabase(dbName string) error {
+	conn, err := yb.getConnWithDefaultDB()
+	if err != nil {
+		return fmt.Errorf("failed to get connection with default database: %w", err)
 	}
 	defer conn.Close(context.Background())
 
@@ -248,15 +255,9 @@ func (yb *YugabyteDBContainer) CreateDatabase(dbName string) error {
 }
 
 func (yb *YugabyteDBContainer) DropDatabase(dbName string) error {
-	host, port, err := yb.GetHostPort()
+	conn, err := yb.getConnWithDefaultDB()
 	if err != nil {
-		return fmt.Errorf("failed to get host port for yugabytedb connection string: %w", err)
-	}
-
-	connStr := fmt.Sprintf("postgresql://%s:%s@%s:%d/%s?sslmode=disable", yb.User, yb.Password, host, port, "yugabyte")
-	conn, err := pgx.Connect(context.Background(), connStr)
-	if err != nil {
-		return fmt.Errorf("failed to connect to yugabytedb: %w", err)
+		return fmt.Errorf("failed to get connection with default database: %w", err)
 	}
 	defer conn.Close(context.Background())
 

@@ -230,16 +230,22 @@ func (pg *PostgresContainer) ExecuteSqls(sqls ...string) {
 	}
 }
 
-func (pg *PostgresContainer) CreateDatabase(dbName string) error {
+func (pg *PostgresContainer) getConnWithDefaultDB() (*pgx.Conn, error) {
 	host, port, err := pg.GetHostPort()
 	if err != nil {
-		return fmt.Errorf("failed to get host port for postgres connection string: %w", err)
+		return nil, fmt.Errorf("failed to get host port for postgres connection string: %w", err)
 	}
-
 	connStr := fmt.Sprintf("postgresql://%s:%s@%s:%d/%s?sslmode=disable", pg.User, pg.Password, host, port, "postgres")
 	conn, err := pgx.Connect(context.Background(), connStr)
 	if err != nil {
-		return fmt.Errorf("failed to connect to postgres: %w", err)
+		return nil, fmt.Errorf("failed to connect to postgres: %w", err)
+	}
+	return conn, nil
+}
+func (pg *PostgresContainer) CreateDatabase(dbName string) error {
+	conn, err := pg.getConnWithDefaultDB()
+	if err != nil {
+		return fmt.Errorf("failed to get connection with default database: %w", err)
 	}
 	defer conn.Close(context.Background())
 
@@ -262,15 +268,9 @@ func (pg *PostgresContainer) CreateDatabase(dbName string) error {
 }
 
 func (pg *PostgresContainer) DropDatabase(dbName string) error {
-	host, port, err := pg.GetHostPort()
+	conn, err := pg.getConnWithDefaultDB()
 	if err != nil {
-		return fmt.Errorf("failed to get host port for yugabytedb connection string: %w", err)
-	}
-
-	connStr := fmt.Sprintf("postgresql://%s:%s@%s:%d/%s?sslmode=disable", pg.User, pg.Password, host, port, "postgres")
-	conn, err := pgx.Connect(context.Background(), connStr)
-	if err != nil {
-		return fmt.Errorf("failed to connect to yugabytedb: %w", err)
+		return fmt.Errorf("failed to get connection with default database: %w", err)
 	}
 	defer conn.Close(context.Background())
 
