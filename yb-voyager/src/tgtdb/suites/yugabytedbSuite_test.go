@@ -188,11 +188,11 @@ func TestBytesConversionWithFormatting(t *testing.T) {
 // Very large strings                | ✓      | TestStringConversionWithVeryLargeStrings      | 1KB, 10KB, 100KB
 //
 // ============================================================================
-// 2. JSON/JSONB DATATYPE - 91% (10/11) - 1 needs fixing
+// 2. JSON/JSONB DATATYPE - 100% ✅ (11/11) COMPLETE
 // ============================================================================
 // Edge Case                          | Status | Test Function(s)                              | Notes
 // -----------------------------------|--------|-----------------------------------------------|------------------------
-// Single quotes in values            | ⚠      | TestJsonConversionWithFormattingWithSingleQuotesEscaped | Misleading comment - FIX
+// Single quotes in values            | ✓      | TestJsonConversionWithFormattingWithSingleQuotesEscaped | SQL escaping
 // Escaped characters (\", \\)        | ✓      | TestJsonConversionBasic                       | JSON escaping
 // Unicode in JSON                    | ✓      | TestJsonConversionBasic                       | café, 日本語, 🎉
 // Nested objects                     | ✓      | TestJsonConversionWithComplexStructures       | Deep nesting
@@ -1249,10 +1249,11 @@ func TestStringConversionWithBidirectionalText(t *testing.T) {
 }
 
 // Test 2.1: TestJsonConversionBasic
-// Tests JSON/JSONB type with basic valid JSON (no single quotes inside JSON strings)
-// NOTE: The converter uses quoteValueIfRequiredWithEscaping which doubles single quotes,
-// but this creates INVALID JSON. Therefore, we only test JSON that doesn't contain
-// single quotes inside string values. Integration tests validate end-to-end behavior.
+// Tests JSON/JSONB type with basic valid JSON
+// NOTE: Single quotes inside JSON string values are valid JSON. The converter uses
+// quoteValueIfRequiredWithEscaping for SQL string literal escaping (doubling single quotes
+// for SQL, not JSON). See TestJsonConversionWithFormattingWithSingleQuotesEscaped for testing
+// single quotes in JSON values. Integration tests validate end-to-end behavior.
 func TestJsonConversionBasic(t *testing.T) {
 	testCases := []struct {
 		name             string
