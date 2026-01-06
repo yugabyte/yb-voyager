@@ -273,6 +273,9 @@ func (reg *NameRegistry) registerYBNames() (bool, error) {
 	}
 	reg.YBTableNames = tableMap
 	reg.YBSequenceNames = sequenceMap
+	if reg.params.Role == IMPORT_FILE_ROLE {
+		reg.SourceDBType = constants.YUGABYTEDB
+	}
 	return true, nil
 }
 

@@ -695,9 +695,7 @@ func InitNameRegistry(
 			return goerrors.Errorf("expected targetDB to adhere to YBDBRegirsty")
 		}
 	}
-	if importerRole == IMPORT_FILE_ROLE {
-		sourceDbType = constants.YUGABYTEDB
-	}
+
 	nameregistryParams := namereg.NameRegistryParams{
 		FilePath:       fmt.Sprintf("%s/metainfo/name_registry.json", exportDir),
 		Role:           role,
