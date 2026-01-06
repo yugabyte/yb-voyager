@@ -415,7 +415,8 @@ func (c *ColocatedAwareRandomTaskPicker) WaitForTasksBatchesTobeImported() error
 }
 
 /*
-The goal of this picker is to pick a combination of colocated and sharded tasks, both at random.
+The goal of this picker is to pick a combination of colocated and sharded tasks.
+Colocated tasks are picked at random, while sharded tasks are picked in descending order of size (largest first).
 The limits in place are maxShardedTasksInProgress, maxColocatedTasksInProgress and colocatedBatchTaskQueue.
 
 Colocated tasks are limited by single tablet performance limits on YB, so we have to constrain the no. of colocated
@@ -438,14 +439,54 @@ type ColocatedCappedRandomTaskPicker struct {
 	inProgressColocatedTasks []*ImportFileTask
 
 	// tasks which have not yet been picked even once.
-	orderedPendingShardedTasks []*ImportFileTask
+	orderedPendingShardedTasks []*ImportFileTask // sorted by Size desc, see sortTasksBySizeDesc
 	pendingColocatedTasks      []*ImportFileTask
 }
 
-func sortTasksByRowCountDesc(tasks []*ImportFileTask) []*ImportFileTask {
-	sort.Slice(tasks, func(i, j int) bool {
-		return tasks[i].RowCount > tasks[j].RowCount
-	})
+func sortTasksBySizeDesc(tasks []*ImportFileTask) []*ImportFileTask {
+	if len(tasks) <= 1 {
+		return tasks
+	}
+
+	// Check if RowCounts vary. In import-data, row counts are properly populated by export-data.
+	// In import-data-file, row counts are not known and are not populated.
+	allSameRowCount := true
+	firstRowCount := tasks[0].RowCount
+	for _, task := range tasks[1:] {
+		if task.RowCount != firstRowCount {
+			allSameRowCount = false
+			break
+		}
+	}
+
+	if !allSameRowCount {
+		sort.Slice(tasks, func(i, j int) bool {
+			return tasks[i].RowCount > tasks[j].RowCount
+		})
+		log.Infof("Sorted sharded tasks by RowCount desc")
+		return tasks
+	}
+
+	// Check if FileSizes vary. In import-data-file, row counts are not known and are not populated.
+	// So we use FileSize to sort.
+	allSameFileSize := true
+	firstFileSize := tasks[0].FileSize
+	for _, task := range tasks[1:] {
+		if task.FileSize != firstFileSize {
+			allSameFileSize = false
+			break
+		}
+	}
+
+	if !allSameFileSize {
+		sort.Slice(tasks, func(i, j int) bool {
+			return tasks[i].FileSize > tasks[j].FileSize
+		})
+		log.Infof("Sorted sharded tasks by FileSize desc")
+		return tasks
+	}
+
+	log.Infof("All sharded tasks have the same RowCount/FileSize. Using unsorted tasks")
 	return tasks
 }
 
@@ -523,7 +564,7 @@ func NewColocatedCappedRandomTaskPicker(maxShardedTasksInProgress int, maxColoca
 		inProgressShardedTasks:   inProgressShardedTasks,
 
 		pendingColocatedTasks:      pendingColcatedTasks,
-		orderedPendingShardedTasks: sortTasksByRowCountDesc(pendingShardedTasks),
+		orderedPendingShardedTasks: sortTasksBySizeDesc(pendingShardedTasks),
 
 		tableTypes:              tableTypes,
 		colocatedBatchTaskQueue: colocatedBatchTaskQueue,
