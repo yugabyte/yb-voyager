@@ -163,7 +163,7 @@ func TestBytesConversionWithFormatting(t *testing.T) {
 //   ✗ = Not covered (test needed)
 //   N/A = Not applicable for unit tests
 //
-// Overall Coverage: 81% (86/106 test cases)
+// Overall Coverage: 87% (92/106 test cases)
 //
 // ============================================================================
 // 1. STRING DATATYPE (TEXT/VARCHAR) - 100% ✅ (16/16) COMPLETE
@@ -238,20 +238,20 @@ func TestBytesConversionWithFormatting(t *testing.T) {
 // formatIfRequired parameter         | ✓      | TestBytesConversionFormatIfRequired           | With/without quotes
 //
 // ============================================================================
-// 5. DATETIME DATATYPE (DATE/TIMESTAMP/TIME) - 90% (9/10)
+// 5. DATETIME DATATYPE (DATE/TIMESTAMP/TIME) - 100% ✅ (10/10) COMPLETE
 // ============================================================================
 // Edge Case                          | Status | Test Function(s)                              | Notes
 // -----------------------------------|--------|-----------------------------------------------|------------------------
 // Epoch date (1970-01-01)            | ✓      | TestDateConversionEdgeCases                   | Unix epoch
 // Negative epoch (before 1970)       | ✓      | TestDateConversionEdgeCases                   | Historical dates
 // Future dates (2050+)               | ✓      | TestDateConversionEdgeCases                   | Far future
-// Timestamps with timezone           | ⚠      | TestZonedTimestampConversion                  | Limited coverage
+// Timestamps with timezone           | ✓      | TestZonedTimestampConversion                  | Full coverage
 // Midnight (00:00:00)                | ✓      | TestTimeConversion                            | Day boundary
 // Noon (12:00:00)                    | ✓      | TestTimeConversion                            | Mid-day
 // Microsecond precision              | ✓      | TestMicroTimestampConversion, TestMicroTimeConversion | 6 decimal places
 // Nanosecond precision               | ✓      | TestNanoTimestampConversion                   | 9 decimal places
 // Invalid input handling             | ✓      | TestTimestampConversionInvalidInput           | Error cases
-// End of day (23:59:59)              | ⚠      | TestTimeConversion                            | Should add explicitly
+// End of day (23:59:59)              | ✓      | TestTimeConversion                            | Added explicitly
 //
 // ============================================================================
 // 6. UUID DATATYPE - 100% ✅ (5/5) COMPLETE
@@ -303,16 +303,16 @@ func TestBytesConversionWithFormatting(t *testing.T) {
 // Very large values                  | ✗      | MISSING                                       | 999999 years
 //
 // ============================================================================
-// 10. ZONEDTIMESTAMP DATATYPE (TIMESTAMPTZ) - 17% (1/6) ⚠️ HIGH PRIORITY
+// 10. ZONEDTIMESTAMP DATATYPE (TIMESTAMPTZ) - 100% ✅ (6/6) COMPLETE
 // ============================================================================
 // Edge Case                          | Status | Test Function(s)                              | Notes
 // -----------------------------------|--------|-----------------------------------------------|------------------------
 // UTC timezone (+00)                 | ✓      | TestZonedTimestampConversion                  | Zulu time
-// Positive offset (+04:00, +05:30)   | ⚠      | TestZonedTimestampConversion                  | Limited timezones
-// Negative offset (-07:00)           | ⚠      | TestZonedTimestampConversion                  | Limited timezones
-// Epoch with timezone                | ✗      | MISSING                                       | 1970-01-01+00
-// Future with timezone               | ✗      | MISSING                                       | 2065+
-// Midnight with timezone             | ✗      | MISSING                                       | 00:00:00+00
+// Positive offset (+04:00, +05:30)   | ✓      | TestZonedTimestampConversion                  | Dubai, India
+// Negative offset (-07:00)           | ✓      | TestZonedTimestampConversion                  | PDT, EST
+// Epoch with timezone                | ✓      | TestZonedTimestampConversion                  | 1970-01-01+00
+// Future with timezone               | ✓      | TestZonedTimestampConversion                  | 2065+
+// Midnight with timezone             | ✓      | TestZonedTimestampConversion                  | 00:00:00+00
 //
 // ============================================================================
 // 11. DECIMAL DATATYPE (NUMERIC) - 100% ✅ (7/7) COMPLETE
@@ -358,18 +358,18 @@ func TestBytesConversionWithFormatting(t *testing.T) {
 // JSON/JSONB        | 11      | 11    | 100% ✅    | Complete
 // ENUM              | 11      | 11    | 100% ✅    | Complete
 // BYTES             | 10      | 10    | 100% ✅    | Complete
-// DATETIME          | 9       | 10    | 90%        | Low
+// DATETIME          | 10      | 10    | 100% ✅    | Complete
 // UUID              | 5       | 5     | 100% ✅    | Complete
 // LTREE             | 4       | 4     | 100% ✅    | Complete
 // MAP (HSTORE)      | 7       | 8     | 88%        | Low
 // INTERVAL          | 5       | 8     | 63%        | Medium
-// ZONEDTIMESTAMP    | 1       | 6     | 17%        | HIGH
+// ZONEDTIMESTAMP    | 6       | 6     | 100% ✅    | Complete
 // DECIMAL           | 7       | 7     | 100% ✅    | Complete
 // INTEGER           | 0       | 7     | 0%         | HIGH
 // BOOLEAN           | 0       | 3     | 0%         | HIGH
-// **TOTAL**         | **86**  | **106** | **81%** |
+// **TOTAL**         | **92**  | **106** | **87%** |
 //
-// ✅ Complete Datatypes: STRING, JSON/JSONB, ENUM, BYTES, UUID, LTREE, DECIMAL (7/13)
+// ✅ Complete Datatypes: STRING, JSON/JSONB, ENUM, BYTES, DATETIME, UUID, LTREE, ZONEDTIMESTAMP, DECIMAL (9/13)
 //
 // ============================================================================
 // PRIORITY GAPS TO FILL
@@ -377,14 +377,12 @@ func TestBytesConversionWithFormatting(t *testing.T) {
 // HIGH PRIORITY (Missing entirely or critical gaps):
 //   1. INTEGER/BIGINT - 0% coverage - Full test suite needed
 //   2. BOOLEAN - 0% coverage - Full test suite needed
-//   3. ZONEDTIMESTAMP - 17% coverage - Expand timezone tests
 //
 // MEDIUM PRIORITY (Partial coverage):
-//   4. INTERVAL - Missing: Component-specific tests, large values
+//   3. INTERVAL - Missing: Component-specific tests, large values
 //
 // LOW PRIORITY (Minor gaps):
-//   5. MAP - Missing: Multiple key-value pairs
-//   6. DATETIME - Missing: End of day explicit test
+//   4. MAP - Missing: Multiple key-value pairs
 //
 // ============================================================================
 // NOTES
@@ -2042,6 +2040,7 @@ func TestTimeConversion(t *testing.T) {
 	}{
 		{"midnight", "0", true, "'00:00:00'"},
 		{"noon", "43200000", true, "'12:00:00'"},
+		{"end of day", "86399000", true, "'23:59:59'"},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -2180,14 +2179,75 @@ func TestZonedTimestampConversion(t *testing.T) {
 		input            string
 		formatIfRequired bool
 		expectedContains string
+		note             string
 	}{
-		{"with +00 timezone", "2024-01-01T00:00:00+00", true, "'2024-01-01"},
-		{"with -05 timezone", "2024-01-01T00:00:00-05", true, "'2024-01-01"},
+		{
+			name:             "UTC timezone (+00)",
+			input:            "2024-01-01T00:00:00+00",
+			formatIfRequired: true,
+			expectedContains: "'2024-01-01",
+			note:             "Zulu time / UTC",
+		},
+		{
+			name:             "negative offset (-05:00)",
+			input:            "2024-01-01T00:00:00-05",
+			formatIfRequired: true,
+			expectedContains: "'2024-01-01",
+			note:             "Western timezone (EST)",
+		},
+		{
+			name:             "positive offset (+04:00)",
+			input:            "2024-01-01T00:00:00+04",
+			formatIfRequired: true,
+			expectedContains: "'2024-01-01",
+			note:             "Eastern timezone (Dubai, Moscow)",
+		},
+		{
+			name:             "half-hour offset (+05:30)",
+			input:            "2024-01-01T00:00:00+05:30",
+			formatIfRequired: true,
+			expectedContains: "'2024-01-01",
+			note:             "India Standard Time",
+		},
+		{
+			name:             "negative offset (-07:00)",
+			input:            "2024-01-01T00:00:00-07",
+			formatIfRequired: true,
+			expectedContains: "'2024-01-01",
+			note:             "Pacific Daylight Time",
+		},
+		{
+			name:             "epoch with timezone",
+			input:            "1970-01-01T00:00:00+00",
+			formatIfRequired: true,
+			expectedContains: "'1970-01-01",
+			note:             "Unix epoch with UTC",
+		},
+		{
+			name:             "future date with timezone",
+			input:            "2065-12-31T23:59:59+00",
+			formatIfRequired: true,
+			expectedContains: "'2065-12-31",
+			note:             "Far future date",
+		},
+		{
+			name:             "midnight with timezone",
+			input:            "2024-06-15T00:00:00+00",
+			formatIfRequired: true,
+			expectedContains: "'2024-06-15",
+			note:             "Day boundary",
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			result, err := YBValueConverterSuite["io.debezium.time.ZonedTimestamp"](tc.input, tc.formatIfRequired, nil)
 			assert.NoError(t, err)
+
+			t.Logf("Input: %q", tc.input)
+			t.Logf("Expected contains: %q", tc.expectedContains)
+			t.Logf("Got: %q", result)
+			t.Logf("Note: %s", tc.note)
+
 			assert.Contains(t, result, tc.expectedContains)
 		})
 	}
