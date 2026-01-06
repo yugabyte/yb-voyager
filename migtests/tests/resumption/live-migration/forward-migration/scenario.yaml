@@ -4,7 +4,6 @@ run_id: run
 
 env:
   LOG_LEVEL: info
-  MAX_BATCH_SIZE_BYTES: 260000000
 
 export_dir: ./export-dir
 artifacts_dir: ./artifacts

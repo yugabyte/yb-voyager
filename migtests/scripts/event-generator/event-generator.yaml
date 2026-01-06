@@ -52,8 +52,8 @@ generator:
   insert_max_retries: 50
   update_max_retries: 3
 
-  # Minimum row size in bytes. Only rows with size >= this value will be inserted.
+  # Minimum column size in bytes. Only columns with size >= this value will be inserted.
   # Set to 0 to disable size filtering (default behavior).
-  min_row_size_bytes: 0
+  min_col_size_bytes: 0
 
 
