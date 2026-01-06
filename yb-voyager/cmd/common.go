@@ -696,7 +696,7 @@ func InitNameRegistry(
 		}
 	}
 	if importerRole == IMPORT_FILE_ROLE {
-		sourceDBType = constants.YUGABYTEDB
+		sourceDbType = constants.YUGABYTEDB
 	}
 	nameregistryParams := namereg.NameRegistryParams{
 		FilePath:       fmt.Sprintf("%s/metainfo/name_registry.json", exportDir),
