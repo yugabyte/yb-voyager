@@ -163,7 +163,7 @@ func TestBytesConversionWithFormatting(t *testing.T) {
 //   ✗ = Not covered (test needed)
 //   N/A = Not applicable for unit tests
 //
-// Overall Coverage: 87% (92/106 test cases)
+// Overall Coverage: 87% (93/106 test cases)
 //
 // ============================================================================
 // 1. STRING DATATYPE (TEXT/VARCHAR) - 100% ✅ (16/16) COMPLETE
@@ -275,7 +275,7 @@ func TestBytesConversionWithFormatting(t *testing.T) {
 // Single label                       | ✓      | TestLtreeConversionEdgeCases                  | Top only
 //
 // ============================================================================
-// 8. MAP DATATYPE (HSTORE) - 88% (7/8)
+// 8. MAP DATATYPE (HSTORE) - 100% ✅ (8/8) COMPLETE
 // ============================================================================
 // Edge Case                          | Status | Test Function(s)                              | Notes
 // -----------------------------------|--------|-----------------------------------------------|------------------------
@@ -286,7 +286,7 @@ func TestBytesConversionWithFormatting(t *testing.T) {
 // Single quotes in value             | ✓      | TestMapConversionWithEscapedChars             | "k"=>"O'Reilly"
 // Empty key                          | ✓      | TestMapConversionWithEmptyValues              | ""=>"value"
 // Empty value                        | ✓      | TestMapConversionWithEmptyValues              | "key"=>""
-// Multiple pairs                     | ✗      | MISSING                                       | k1=>v1, k2=>v2
+// Multiple pairs                     | ✓      | TestMapConversionWithMultiplePairs            | k1=>v1, k2=>v2
 //
 // ============================================================================
 // 9. INTERVAL DATATYPE - 63% (5/8)
@@ -361,15 +361,15 @@ func TestBytesConversionWithFormatting(t *testing.T) {
 // DATETIME          | 10      | 10    | 100% ✅    | Complete
 // UUID              | 5       | 5     | 100% ✅    | Complete
 // LTREE             | 4       | 4     | 100% ✅    | Complete
-// MAP (HSTORE)      | 7       | 8     | 88%        | Low
+// MAP (HSTORE)      | 8       | 8     | 100% ✅    | Complete
 // INTERVAL          | 5       | 8     | 63%        | Medium
 // ZONEDTIMESTAMP    | 6       | 6     | 100% ✅    | Complete
 // DECIMAL           | 7       | 7     | 100% ✅    | Complete
 // INTEGER           | 0       | 7     | 0%         | HIGH
 // BOOLEAN           | 0       | 3     | 0%         | HIGH
-// **TOTAL**         | **92**  | **106** | **87%** |
+// **TOTAL**         | **93**  | **106** | **88%** |
 //
-// ✅ Complete Datatypes: STRING, JSON/JSONB, ENUM, BYTES, DATETIME, UUID, LTREE, ZONEDTIMESTAMP, DECIMAL (9/13)
+// ✅ Complete Datatypes: STRING, JSON/JSONB, ENUM, BYTES, DATETIME, UUID, LTREE, MAP, ZONEDTIMESTAMP, DECIMAL (10/13)
 //
 // ============================================================================
 // PRIORITY GAPS TO FILL
@@ -380,9 +380,6 @@ func TestBytesConversionWithFormatting(t *testing.T) {
 //
 // MEDIUM PRIORITY (Partial coverage):
 //   3. INTERVAL - Missing: Component-specific tests, large values
-//
-// LOW PRIORITY (Minor gaps):
-//   4. MAP - Missing: Multiple key-value pairs
 //
 // ============================================================================
 // NOTES
@@ -1946,6 +1943,74 @@ func TestMapConversionWithEmptyValues(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			result, err := YBValueConverterSuite["MAP"](tc.input, tc.formatIfRequired, nil)
 			assert.NoError(t, err)
+			assert.Equal(t, tc.expected, result)
+		})
+	}
+}
+
+// Test 5.4: TestMapConversionWithMultiplePairs
+// Tests HSTORE (MAP) with multiple key-value pairs
+func TestMapConversionWithMultiplePairs(t *testing.T) {
+	testCases := []struct {
+		name             string
+		input            string
+		formatIfRequired bool
+		expected         string
+		note             string
+	}{
+		{
+			name:             "two pairs",
+			input:            `"key1" => "value1", "key2" => "value2"`,
+			formatIfRequired: true,
+			expected:         `'"key1" => "value1", "key2" => "value2"'`,
+			note:             "Simple two key-value pairs",
+		},
+		{
+			name:             "three pairs",
+			input:            `"name" => "John", "age" => "30", "city" => "NYC"`,
+			formatIfRequired: true,
+			expected:         `'"name" => "John", "age" => "30", "city" => "NYC"'`,
+			note:             "Three key-value pairs",
+		},
+		{
+			name:             "multiple pairs with special chars",
+			input:            `"key1" => "value's", "key2" => "val=>test", "key3" => "normal"`,
+			formatIfRequired: true,
+			expected:         `'"key1" => "value''s", "key2" => "val=>test", "key3" => "normal"'`,
+			note:             "Multiple pairs with single quotes and arrow operator",
+		},
+		{
+			name:             "multiple pairs with empty values",
+			input:            `"key1" => "", "key2" => "value", "key3" => ""`,
+			formatIfRequired: true,
+			expected:         `'"key1" => "", "key2" => "value", "key3" => ""'`,
+			note:             "Multiple pairs with some empty values",
+		},
+		{
+			name:             "multiple pairs with escaped chars",
+			input:            `"key\"1" => "value\\test", "key2" => "normal"`,
+			formatIfRequired: true,
+			expected:         `'"key\"1" => "value\\test", "key2" => "normal"'`,
+			note:             "Multiple pairs with escaped quotes and backslashes",
+		},
+		{
+			name:             "multiple pairs without formatting",
+			input:            `"key1" => "value1", "key2" => "value2"`,
+			formatIfRequired: false,
+			expected:         `"key1" => "value1", "key2" => "value2"`,
+			note:             "Multiple pairs without SQL quotes",
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := YBValueConverterSuite["MAP"](tc.input, tc.formatIfRequired, nil)
+			assert.NoError(t, err)
+
+			t.Logf("Input: %q", tc.input)
+			t.Logf("Expected: %q", tc.expected)
+			t.Logf("Got: %q", result)
+			t.Logf("Note: %s", tc.note)
+
 			assert.Equal(t, tc.expected, result)
 		})
 	}
