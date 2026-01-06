@@ -309,7 +309,7 @@ func displayExportedRowCountSnapshot(snapshotViaDebezium bool) {
 				displayTableName = fmt.Sprintf("%s (%s)", table.CurrentName.Unqualified.MinQuoted, partitions)
 			}
 			schema := table.SourceName.SchemaName.MinQuoted
-				uitable.AddRow(schema, displayTableName, exportedRowCount[key])
+			uitable.AddRow(schema, displayTableName, exportedRowCount[key])
 		}
 		if len(keys) > 0 {
 			fmt.Print("\n")
@@ -694,6 +694,9 @@ func InitNameRegistry(
 		if !ok {
 			return goerrors.Errorf("expected targetDB to adhere to YBDBRegirsty")
 		}
+	}
+	if importerRole == IMPORT_FILE_ROLE {
+		sourceDBType = constants.YUGABYTEDB
 	}
 	nameregistryParams := namereg.NameRegistryParams{
 		FilePath:       fmt.Sprintf("%s/metainfo/name_registry.json", exportDir),
