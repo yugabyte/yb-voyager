@@ -1,4 +1,4 @@
-//go:build integration_voyager_command
+//go:build integration_live_migration
 
 /*
 Copyright (c) YugabyteDB, Inc.
@@ -72,8 +72,9 @@ type TestConfig struct {
 }
 
 type ContainerConfig struct {
-	Type    string // "postgresql", "yugabytedb", etc.
-	ForLive bool   // Whether to configure for live migration
+	Type         string // "postgresql", "yugabytedb", etc.
+	ForLive      bool   // Whether to configure for live migration
+	DatabaseName string // Database name to use for the container
 }
 
 // ============================================================
@@ -98,6 +99,7 @@ func (lm *LiveMigrationTest) SetupContainers(ctx context.Context) error {
 	// Start source container
 	containerConfig := &testcontainers.ContainerConfig{
 		ForLive: lm.config.SourceDB.ForLive,
+		DBName:  lm.config.SourceDB.DatabaseName,
 	}
 	lm.sourceContainer = testcontainers.NewTestContainer(lm.config.SourceDB.Type, containerConfig)
 	if err := lm.sourceContainer.Start(ctx); err != nil {
@@ -107,12 +109,28 @@ func (lm *LiveMigrationTest) SetupContainers(ctx context.Context) error {
 	// Start target container
 	targetContainerConfig := &testcontainers.ContainerConfig{
 		ForLive: lm.config.TargetDB.ForLive,
+		DBName:  lm.config.TargetDB.DatabaseName,
 	}
 	lm.targetContainer = testcontainers.NewTestContainer(lm.config.TargetDB.Type, targetContainerConfig)
 	if err := lm.targetContainer.Start(ctx); err != nil {
 		return goerrors.Errorf("failed to start target container: %w", err)
 	}
 
+	if lm.config.SourceDB.DatabaseName != "" {
+		pg := lm.sourceContainer.(*testcontainers.PostgresContainer)
+		err := pg.CreateDatabase(lm.config.TargetDB.DatabaseName)
+		if err != nil {
+			return goerrors.Errorf("failed to create target database: %v", err)
+		}
+	}
+	if lm.config.TargetDB.DatabaseName != "" {
+
+		yb := lm.targetContainer.(*testcontainers.YugabyteDBContainer)
+		err := yb.CreateDatabase(lm.config.TargetDB.DatabaseName)
+		if err != nil {
+			return goerrors.Errorf("failed to create target database: %v", err)
+		}
+	}
 	fmt.Printf("Containers setup completed\n")
 	return nil
 }
@@ -150,6 +168,21 @@ func (lm *LiveMigrationTest) Cleanup() {
 	// Execute cleanup SQL
 	lm.sourceContainer.ExecuteSqls(lm.config.CleanupSQL...)
 	lm.targetContainer.ExecuteSqls(lm.config.CleanupSQL...)
+
+	if lm.config.SourceDB.DatabaseName != "" {
+		pg := lm.sourceContainer.(*testcontainers.PostgresContainer)
+		err := pg.DropDatabase(lm.config.SourceDB.DatabaseName)
+		if err != nil {
+			utils.ErrExit("failed to drop source database: %w", err)
+		}
+	}
+	if lm.config.TargetDB.DatabaseName != "" {
+		yb := lm.targetContainer.(*testcontainers.YugabyteDBContainer)
+		err := yb.DropDatabase(lm.config.TargetDB.DatabaseName)
+		if err != nil {
+			utils.ErrExit("failed to drop target database: %w", err)
+		}
+	}
 
 	// Remove export directory
 	testutils.RemoveTempExportDir(lm.exportDir)
@@ -467,6 +500,29 @@ func (lm *LiveMigrationTest) WaitForCutoverComplete(cutoverTimeout time.Duration
 	return nil
 }
 
+// WaitForCutoverSourceComplete waits until cutover to source is done
+func (lm *LiveMigrationTest) WaitForCutoverSourceComplete(cutoverTimeout time.Duration) error {
+	fmt.Printf("Waiting for cutover to source complete\n")
+
+	// Initialize metaDB if not already done
+	if lm.metaDB == nil {
+		err := lm.InitMetaDB()
+		if err != nil {
+			return goerrors.Errorf("failed to initialize meta db: %w", err)
+		}
+	}
+
+	ok := utils.RetryWorkWithTimeout(1, cutoverTimeout, func() bool {
+		return lm.getCutoverToSourceStatus() == COMPLETED
+	})
+
+	if !ok {
+		return goerrors.Errorf("cutover to source did not complete within %v", cutoverTimeout)
+	}
+	fmt.Printf("Cutover to source complete\n")
+	return nil
+}
+
 // ============================================================
 // DATA OPERATIONS & VALIDATION
 // ============================================================
@@ -641,6 +697,19 @@ func (lm *LiveMigrationTest) getCutoverStatus() string {
 	metaDB = lm.metaDB
 
 	return getCutoverStatus()
+}
+
+// getCutoverToSourceStatus gets the current cutover to source status
+func (lm *LiveMigrationTest) getCutoverToSourceStatus() string {
+	if lm.metaDB == nil {
+		return ""
+	}
+
+	//set the global metaDB for running getCutoverToSourceStatus code
+
+	metaDB = lm.metaDB
+
+	return getCutoverToSourceStatus()
 }
 
 type DataMigrationReport struct {
