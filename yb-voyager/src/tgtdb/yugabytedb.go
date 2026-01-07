@@ -2224,7 +2224,6 @@ func (yb *TargetYugabyteDB) NumOfLogicalReplicationSlots() (int64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("error scanning the row returned while querying pg_replication_slots: %w", err)
 	}
-
 	return numOfSlots, nil
 }
 
