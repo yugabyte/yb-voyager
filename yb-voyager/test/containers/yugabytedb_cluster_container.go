@@ -123,6 +123,10 @@ func (cluster *YugabyteDBClusterContainer) createNode(ctx context.Context, nodeI
 	return nodeContainer, nil
 }
 
+func (cluster *YugabyteDBClusterContainer) SetConfig(config ContainerConfig) {
+	cluster.ContainerConfig = config
+}
+
 func (cluster *YugabyteDBClusterContainer) Stop(ctx context.Context) error {
 	cluster.mutex.Lock()
 	defer cluster.mutex.Unlock()

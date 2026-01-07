@@ -17,6 +17,8 @@ jobs:
     needs: [prepare-versions]
     strategy:
       fail-fast: false
+      matrix: 
+        test-tags: [integration_voyager_command, integration, integration_live_migration]
 
     runs-on: ubuntu-22.04
 
@@ -71,19 +73,9 @@ jobs:
     - name: Free disk after cleanup
       run: df -h /
 
-    - name: Run Integration Tests
-      env: 
-        YB_VERSION: ${{ needs.prepare-versions.outputs.yb_latest_stable }}
-        PG_VERSION: "14"
-        ORACLE_VERSION: "21"
-        MYSQL_VERSION: "8.4"
-      run: |
-        cd yb-voyager
-        go test -v ./... -tags 'integration'
-
-    # Note: Below go tests use a voyager binary to call voyager commands
+    # Note: Some voyager_command related go tests use a voyager binary to call voyager commands
     # Hence its important to ensure the voyager binary built is using the changes in the PR branch - `./install-yb-voyager --install-from-local-source`
-    - name: Run Integration Tests (executing voyager commands)
+    - name: Run Integration Tests (${{ matrix.test-tags }})
       env: 
         YB_VERSION: ${{ needs.prepare-versions.outputs.yb_latest_stable }}
         PG_VERSION: "17"
@@ -91,4 +83,5 @@ jobs:
         MYSQL_VERSION: "8.4"
       run: |
         cd yb-voyager
-        go test -v ./... -tags 'integration_voyager_command' -timeout 30m
+        go test -v ./... -tags ${{ matrix.test-tags }} -timeout 30m
+
