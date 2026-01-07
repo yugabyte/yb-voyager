@@ -878,6 +878,9 @@ FROM generate_series(1, 10);`,
 	err = lm.InitiateCutoverToTarget(false, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover")
 
+	err = lm.WaitForCutoverComplete(30)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+
 }
 
 func TestLiveMigrationWithUniqueKeyValuesWithPartialPredicateConflictDetectionCases(t *testing.T) {
@@ -1018,6 +1021,9 @@ FROM generate_series(1, 20) as i;`,
 	err = lm.InitiateCutoverToTarget(false, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover")
 
+	err = lm.WaitForCutoverComplete(30)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+
 }
 
 func TestLiveMigrationWithUniqueKeyConflictWithNullValuesDetectionCases(t *testing.T) {
@@ -1156,6 +1162,9 @@ FROM generate_series(1, 20) as i;`,
 
 	err = lm.InitiateCutoverToTarget(false, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover")
+
+	err = lm.WaitForCutoverComplete(30)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
 }
 
@@ -1306,6 +1315,9 @@ func TestLiveMigrationWithUniqueKeyConflictWithUniqueIndexOnlyOnLeafPartitions(t
 	err = liveMigrationTest.InitiateCutoverToTarget(false, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover to target")
 
+	err = liveMigrationTest.WaitForCutoverComplete(30)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+
 }
 
 func TestLiveMigrationWithUniqueKeyConflictWithNullValueAndPartialPredicatesDetectionCases(t *testing.T) {
@@ -1446,6 +1458,9 @@ FROM generate_series(1, 20) as i;`,
 
 	err = liveMigrationTest.InitiateCutoverToTarget(false, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover to target")
+
+	err = liveMigrationTest.WaitForCutoverComplete(30)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
 }
 
