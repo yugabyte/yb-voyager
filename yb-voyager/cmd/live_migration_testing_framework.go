@@ -173,14 +173,14 @@ func (lm *LiveMigrationTest) Cleanup() {
 		pg := lm.sourceContainer.(*testcontainers.PostgresContainer)
 		err := pg.DropDatabase(lm.config.SourceDB.DatabaseName)
 		if err != nil {
-			utils.ErrExit("failed to drop source database: %w", err)
+			lm.t.Fatalf("failed to drop source database: %w", err)
 		}
 	}
 	if lm.config.TargetDB.DatabaseName != "" {
 		yb := lm.targetContainer.(*testcontainers.YugabyteDBContainer)
 		err := yb.DropDatabase(lm.config.TargetDB.DatabaseName)
 		if err != nil {
-			utils.ErrExit("failed to drop target database: %w", err)
+			lm.t.Fatalf("failed to drop target database: %w", err)
 		}
 	}
 
