@@ -98,6 +98,10 @@ func (o *ObjectName) Key() string {
 	return o.Qualified.Unquoted
 }
 
+func (o *ObjectName) MinQuotedSchemaAndQuotedTableName() string {
+	return fmt.Sprintf("%s.%s", o.SchemaName.MinQuoted, o.Unqualified.Quoted)
+}
+
 /*
 Assumptions for both schema and table name:
 if the pattern is quoted then complete case sensitivity is checked to match the pattern with  table
@@ -182,7 +186,7 @@ func (t NameTuple) TargetTableAvailable() bool {
 }
 
 func (t NameTuple) ForUserQuery() string {
-	return t.CurrentName.Qualified.Quoted
+	return t.CurrentName.MinQuotedSchemaAndQuotedTableName()
 }
 
 func (t NameTuple) ForOutput() string {
@@ -204,9 +208,9 @@ func (t NameTuple) ForMinOutput() string {
 func (t NameTuple) ForKey() string {
 	// sourcename will be nil only in the case of import-data-file
 	if t.SourceName != nil {
-		return t.SourceName.Qualified.Quoted
+		return t.SourceName.MinQuotedSchemaAndQuotedTableName()
 	}
-	return t.TargetName.Qualified.Quoted
+	return t.TargetName.MinQuotedSchemaAndQuotedTableName()
 }
 
 func (t NameTuple) ForKeyTableSchema() (string, string) {
