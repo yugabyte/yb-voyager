@@ -189,7 +189,7 @@ stages:
   - name: wait_cutover_to_target_completed
     action: wait_for
     condition: cutover_to_target_status_completed
-    timeout_sec: 1800
+    timeout_sec: 3600
 
   # Stop the forward exporter/importer (these may have auto-chained internally).
   - name: stop_forward_importer
