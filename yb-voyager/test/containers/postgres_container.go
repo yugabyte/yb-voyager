@@ -23,6 +23,10 @@ type PostgresContainer struct {
 	container testcontainers.Container
 }
 
+func (pg *PostgresContainer) SetConfig(config ContainerConfig) {
+	pg.ContainerConfig = config
+}
+
 func (pg *PostgresContainer) Start(ctx context.Context) (err error) {
 	pg.mutex.Lock()
 	defer pg.mutex.Unlock()
@@ -224,6 +228,70 @@ func (pg *PostgresContainer) ExecuteSqls(sqls ...string) {
 			utils.ErrExit("failed to execute sql '%s': %w", sqlStmt, err)
 		}
 	}
+}
+
+func (pg *PostgresContainer) getConnWithDefaultDB() (*pgx.Conn, error) {
+	host, port, err := pg.GetHostPort()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get host port for postgres connection string: %w", err)
+	}
+	connStr := fmt.Sprintf("postgresql://%s:%s@%s:%d/%s?sslmode=disable", pg.User, pg.Password, host, port, "postgres")
+	conn, err := pgx.Connect(context.Background(), connStr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to postgres: %w", err)
+	}
+	return conn, nil
+}
+func (pg *PostgresContainer) CreateDatabase(dbName string) error {
+	conn, err := pg.getConnWithDefaultDB()
+	if err != nil {
+		return fmt.Errorf("failed to get connection with default database: %w", err)
+	}
+	defer conn.Close(context.Background())
+
+	//check if database already exists
+	existsQuery := fmt.Sprintf("SELECT EXISTS (SELECT 1 FROM pg_database WHERE datname = '%s')", dbName)
+	var exists bool
+	err = conn.QueryRow(context.Background(), existsQuery).Scan(&exists)
+	if err != nil {
+		return fmt.Errorf("failed to check if database exists: %w", err)
+	}
+	if exists {
+		return nil
+	}
+
+	_, err = conn.Exec(context.Background(), fmt.Sprintf("CREATE DATABASE %s", dbName))
+	if err != nil {
+		return fmt.Errorf("failed to create database '%s': %w", dbName, err)
+	}
+	return nil
+}
+
+func (pg *PostgresContainer) DropDatabase(dbName string) error {
+	conn, err := pg.getConnWithDefaultDB()
+	if err != nil {
+		return fmt.Errorf("failed to get connection with default database: %w", err)
+	}
+	defer conn.Close(context.Background())
+
+	// First, terminate all active connections to the database
+	terminateQuery := `
+		SELECT pg_terminate_backend(pg_stat_activity.pid)
+		FROM pg_stat_activity
+		WHERE pg_stat_activity.datname = $1
+		AND pid <> pg_backend_pid();
+	`
+
+	_, err = conn.Exec(context.Background(), terminateQuery, dbName)
+	if err != nil {
+		return fmt.Errorf("failed to terminate some connections to database '%s': %w", dbName, err)
+	}
+
+	_, err = conn.Exec(context.Background(), fmt.Sprintf("DROP DATABASE %s", dbName))
+	if err != nil {
+		return fmt.Errorf("failed to drop database '%s': %w", dbName, err)
+	}
+	return nil
 }
 
 func (pg *PostgresContainer) Query(sql string, args ...interface{}) (*sql.Rows, error) {
