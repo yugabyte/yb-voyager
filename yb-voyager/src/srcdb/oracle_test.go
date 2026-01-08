@@ -80,6 +80,6 @@ func TestOracleGetNonPKTables(t *testing.T) {
 	actualTables, err := testOracleSource.DB().GetNonPKTables()
 	assert.NilError(t, err, "Expected nil but non nil error: %v", err)
 
-	expectedTables := []string{`YBVOYAGER."NON_PK1"`, `YBVOYAGER."NON_PK2"`}
+	expectedTables := []string{`"YBVOYAGER"."NON_PK1"`, `"YBVOYAGER"."NON_PK2"`}
 	testutils.AssertEqualStringSlices(t, expectedTables, actualTables)
 }

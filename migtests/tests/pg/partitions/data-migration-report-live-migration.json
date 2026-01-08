@@ -84,7 +84,7 @@
     "errored_imported_snapshot_rows": 0
   },
   {
-    "table_name": "p1.\"sales_region\"",
+    "table_name": "\"p1\".\"sales_region\"",
     "db_type": "source",
     "exported_snapshot_rows": 1000,
     "imported_snapshot_rows": 0,
@@ -98,7 +98,7 @@
     "errored_imported_snapshot_rows": 0
   },
   {
-    "table_name": "p1.\"sales_region\"",
+    "table_name": "\"p1\".\"sales_region\"",
     "db_type": "target",
     "exported_snapshot_rows": 0,
     "imported_snapshot_rows": 1000,

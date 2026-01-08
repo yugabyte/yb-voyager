@@ -112,7 +112,7 @@
       "errored_count": 0
     },
     {
-      "table_name": "schema2.\"bar\"",
+      "table_name": "\"schema2\".\"bar\"",
       "status": "DONE",
       "total_count": 2,
       "imported_count": 2,
@@ -120,7 +120,7 @@
       "errored_count": 0
     },
     {
-      "table_name": "schema2.\"foo\"",
+      "table_name": "\"schema2\".\"foo\"",
       "status": "DONE",
       "total_count": 2,
       "imported_count": 2,
@@ -128,7 +128,7 @@
       "errored_count": 0
     },
     {
-      "table_name": "schema3.\"foo\"",
+      "table_name": "\"schema3\".\"foo\"",
       "status": "DONE",
       "total_count": 2,
       "imported_count": 2,
@@ -136,7 +136,7 @@
       "errored_count": 0
     },
     {
-      "table_name": "schema4.\"bar\"",
+      "table_name": "\"schema4\".\"bar\"",
       "status": "DONE",
       "total_count": 2,
       "imported_count": 2,

@@ -140,7 +140,7 @@
     "errored_imported_snapshot_rows": 0
     },
     {
-    "table_name": "schema2.\"ext_test\"",
+    "table_name": "\"schema2\".\"ext_test\"",
     "db_type": "source",
     "exported_snapshot_rows": 1,
     "imported_snapshot_rows": 0,
@@ -154,7 +154,7 @@
     "errored_imported_snapshot_rows": 0
     },
     {
-    "table_name": "schema2.\"ext_test\"",
+    "table_name": "\"schema2\".\"ext_test\"",
     "db_type": "target",
     "exported_snapshot_rows": 0,
     "imported_snapshot_rows": 1,
@@ -168,7 +168,7 @@
     "errored_imported_snapshot_rows": 0
     },
     {
-    "table_name": "schema2.\"tt\"",
+    "table_name": "\"schema2\".\"tt\"",
     "db_type": "source",
     "exported_snapshot_rows": 4,
     "imported_snapshot_rows": 0,
@@ -182,7 +182,7 @@
     "errored_imported_snapshot_rows": 0
     },
     {
-    "table_name": "schema2.\"tt\"",
+    "table_name": "\"schema2\".\"tt\"",
     "db_type": "target",
     "exported_snapshot_rows": 0,
     "imported_snapshot_rows": 4,
@@ -196,7 +196,7 @@
     "errored_imported_snapshot_rows": 0
     },
     {
-    "table_name": "schema2.\"audit\"",
+    "table_name": "\"schema2\".\"audit\"",
     "db_type": "source",
     "exported_snapshot_rows": 4,
     "imported_snapshot_rows": 0,
@@ -210,7 +210,7 @@
     "errored_imported_snapshot_rows": 0
     },
     {
-    "table_name": "schema2.\"audit\"",
+    "table_name": "\"schema2\".\"audit\"",
     "db_type": "target",
     "exported_snapshot_rows": 0,
     "imported_snapshot_rows": 4,
@@ -224,7 +224,7 @@
     "errored_imported_snapshot_rows": 0
     },
     {
-    "table_name": "schema2.\"recipients\"",
+    "table_name": "\"schema2\".\"recipients\"",
     "db_type": "source",
     "exported_snapshot_rows": 1,
     "imported_snapshot_rows": 0,
@@ -238,7 +238,7 @@
     "errored_imported_snapshot_rows": 0
     },
     {
-    "table_name": "schema2.\"recipients\"",
+    "table_name": "\"schema2\".\"recipients\"",
     "db_type": "target",
     "exported_snapshot_rows": 0,
     "imported_snapshot_rows": 1,
@@ -252,7 +252,7 @@
     "errored_imported_snapshot_rows": 0
     },
     {
-    "table_name": "schema2.\"session_log\"",
+    "table_name": "\"schema2\".\"session_log\"",
     "db_type": "source",
     "exported_snapshot_rows": 0,
     "imported_snapshot_rows": 0,
@@ -266,7 +266,7 @@
     "errored_imported_snapshot_rows": 0
     },
     {
-    "table_name": "schema2.\"session_log\"",
+    "table_name": "\"schema2\".\"session_log\"",
     "db_type": "target",
     "exported_snapshot_rows": 0,
     "imported_snapshot_rows": 0,
