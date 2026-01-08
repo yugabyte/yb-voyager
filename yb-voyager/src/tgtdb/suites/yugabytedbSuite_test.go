@@ -327,13 +327,23 @@ func TestBytesConversionWithFormatting(t *testing.T) {
 // Variable scale                     | ✓      | TestVariableScaleDecimalConversion            | Different scales
 //
 // ============================================================================
-// NOTE: INTEGER, BIGINT, and BOOLEAN types are NOT included in this matrix
+// NOTE: INTEGER, BIGINT, BOOLEAN, and TIMETZ types are NOT included in this matrix
 // ============================================================================
-// These types have no converter in YBValueConverterSuite (converterFn == nil).
-// They are pass-through values that don't require conversion logic.
-// Debezium sends them as strings which are used directly in SQL statements.
-// All edge cases for these types are validated in integration tests only.
-// Since there's no converter logic, there's nothing to unit test.
+// These types are excluded for different reasons:
+//
+// INTEGER, BIGINT, BOOLEAN:
+//   - No converter in YBValueConverterSuite (converterFn == nil)
+//   - Pass-through values that don't require conversion logic
+//   - Debezium sends them as strings which are used directly in SQL statements
+//   - All edge cases are validated in integration tests only
+//
+// TIMETZ (Time with Time Zone):
+//   - Known limitation: Debezium's PostgreSQL connector normalizes TIMETZ to UTC
+//   - Original timezone offset is lost during CDC streaming (e.g., '01:02:03+01' → '00:02:03Z')
+//   - No custom converter needed (falls through to default STRING handling)
+//   - Snapshot works correctly, but streaming always shows UTC-normalized values
+//   - Integration tests exclude time_with_tz column from validation
+//   - See TestZonedTimeConversion comment for details
 //
 // ============================================================================
 // SUMMARY BY DATATYPE
