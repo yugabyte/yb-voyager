@@ -12,6 +12,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -19,6 +20,10 @@ type OracleContainer struct {
 	mutex sync.Mutex
 	ContainerConfig
 	container testcontainers.Container
+}
+
+func (ora *OracleContainer) SetConfig(config ContainerConfig) {
+	ora.ContainerConfig = config
 }
 
 func (ora *OracleContainer) Start(ctx context.Context) (err error) {
