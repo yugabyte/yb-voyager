@@ -22,10 +22,51 @@ func NewSqlAnonymizer(registry IdentifierHasher) Anonymizer {
 	}
 }
 
+// unsupportedStatementTypes maps statement type constants to human-readable descriptions.
+// These statement types contain sensitive business logic and are not supported for anonymization.
+var unsupportedStatementTypes = map[string]string{
+	queryparser.PG_QUERY_CREATE_FUNCTION_STMT:   "FUNCTION/PROCEDURE",
+	queryparser.PG_QUERY_ALTER_FUNCTION_STMT:    "ALTER FUNCTION/PROCEDURE",
+	queryparser.PG_QUERY_VIEW_STMT:              "VIEW",
+	queryparser.PG_QUERY_REFRESH_MATVIEW_STMT:   "REFRESH MATERIALIZED VIEW",
+	queryparser.PG_QUERY_CREATE_TRIG_STMT:       "TRIGGER",
+	queryparser.PG_QUERY_DO_STMT:                "DO",
+	queryparser.PG_QUERY_CALL_STMT:              "CALL",
+	queryparser.PG_QUERY_CREATE_EVENT_TRIG_STMT: "EVENT TRIGGER",
+	queryparser.PG_QUERY_ALTER_EVENT_TRIG_STMT:  "ALTER EVENT TRIGGER",
+}
+
+// checkUnsupportedStatementType checks if the parsed SQL statement is an unsupported type
+// and returns an error if so. These statement types contain sensitive business logic.
+func checkUnsupportedStatementType(parseResult *pg_query.ParseResult) error {
+	if len(parseResult.Stmts) == 0 {
+		return nil
+	}
+
+	stmtType := queryparser.GetStatementType(parseResult.Stmts[0].Stmt.ProtoReflect())
+
+	// Check direct statement type matches
+	if objectType, unsupported := unsupportedStatementTypes[stmtType]; unsupported {
+		return fmt.Errorf("unsupported statement type for anonymization: %s", objectType)
+	}
+
+	// Special case: MATERIALIZED VIEW (CreateTableAsStmt with OBJECT_MATVIEW)
+	if stmtType == queryparser.PG_QUERY_CREATE_TABLE_AS_STMT && queryparser.IsMviewObject(parseResult) {
+		return fmt.Errorf("unsupported statement type for anonymization: MATERIALIZED VIEW")
+	}
+
+	return nil
+}
+
 func (a *SqlAnonymizer) Anonymize(inputSql string) (string, error) {
 	parseResult, err := queryparser.Parse(inputSql) // Parse the input SQL to ensure it's valid
 	if err != nil {
 		return "", fmt.Errorf("error parsing input SQL: %w", err)
+	}
+
+	// Check for unsupported statement types before attempting anonymization
+	if err := checkUnsupportedStatementType(parseResult); err != nil {
+		return "", err
 	}
 
 	visited := make(map[protoreflect.Message]bool)
