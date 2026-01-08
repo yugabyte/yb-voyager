@@ -70,7 +70,7 @@ generator_source:
       delete_rows: 1
       insert_max_retries: 5
       update_max_retries: 1
-      min_col_size_bytes: 250000000
+      min_col_size_bytes: 100000000
 
 # Fallback (target) event generator configuration.
 # This will be used later when we start a generator on the target side.
@@ -99,7 +99,7 @@ generator_target:
       delete_rows: 1
       insert_max_retries: 5
       update_max_retries: 1
-      min_col_size_bytes: 250000000
+      min_col_size_bytes: 100000000
 
 voyager:
   import_schema:
