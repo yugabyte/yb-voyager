@@ -1,6 +1,6 @@
 [
   {
-    "table_name": "public.\"datatypes1\"",
+    "table_name": "\"public\".\"datatypes1\"",
     "status": "DONE",
     "total_count": 3,
     "imported_count": 3,
@@ -8,7 +8,7 @@
     "errored_count": 0
   },
   {
-    "table_name": "public.\"datatypes2\"",
+    "table_name": "\"public\".\"datatypes2\"",
     "status": "DONE",
     "total_count": 3,
     "imported_count": 3,
@@ -16,7 +16,7 @@
     "errored_count": 0
   },
   {
-    "table_name": "public.\"datetime_type\"",
+    "table_name": "\"public\".\"datetime_type\"",
     "status": "DONE",
     "total_count": 3,
     "imported_count": 3,
@@ -24,7 +24,7 @@
     "errored_count": 0
   },
   {
-    "table_name": "public.\"datetime_type2\"",
+    "table_name": "\"public\".\"datetime_type2\"",
     "status": "DONE",
     "total_count": 2,
     "imported_count": 2,
@@ -32,7 +32,7 @@
     "errored_count": 0
   },
   {
-    "table_name": "public.\"decimal_types\"",
+    "table_name": "\"public\".\"decimal_types\"",
     "status": "DONE",
     "total_count": 3,
     "imported_count": 3,
@@ -40,7 +40,7 @@
     "errored_count": 0
   },
   {
-    "table_name": "public.\"hstore_example\"",
+    "table_name": "\"public\".\"hstore_example\"",
     "status": "DONE",
     "total_count": 26,
     "imported_count": 26,
@@ -48,7 +48,7 @@
     "errored_count": 0
   },
   {
-    "table_name": "public.\"null_and_default\"",
+    "table_name": "\"public\".\"null_and_default\"",
     "status": "DONE",
     "total_count": 2,
     "imported_count": 2,
@@ -56,7 +56,7 @@
     "errored_count": 0
   },
   {
-    "table_name": "public.\"num_types\"",
+    "table_name": "\"public\".\"num_types\"",
     "status": "DONE",
     "total_count": 3,
     "imported_count": 3,
@@ -64,7 +64,7 @@
     "errored_count": 0
   },
   {
-    "table_name": "public.\"tsvector_table\"",
+    "table_name": "\"public\".\"tsvector_table\"",
     "status": "DONE",
     "total_count": 3,
     "imported_count": 3,
@@ -72,7 +72,7 @@
     "errored_count": 0
   },
   {
-    "table_name": "public.\"enum_array_table\"",
+    "table_name": "\"public\".\"enum_array_table\"",
     "status": "DONE",
     "total_count": 3,
     "imported_count": 3,

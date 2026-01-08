@@ -1,6 +1,6 @@
 [
     {
-      "table_name": "public.\"large_rows_test\"",
+      "table_name": "\"public\".\"large_rows_test\"",
       "file_name": "large_rows_test.txt",
       "status": "DONE",
       "total_count": 48036235,

@@ -20,17 +20,17 @@
       "exported_count": 2
     },
     {
-      "table_name": "schema1.sequence_check1",
+      "table_name": "\"schema1\".sequence_check1",
       "status": "DONE",
       "exported_count": 1
     },
     {
-      "table_name": "schema1.sequence_check2",
+      "table_name": "\"schema1\".sequence_check2",
       "status": "DONE",
       "exported_count": 6
     },
     {
-      "table_name": "schema1.multiple_identity_columns",
+      "table_name": "\"schema1\".multiple_identity_columns",
       "status": "DONE",
       "exported_count": 2
     },

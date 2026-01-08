@@ -1,6 +1,6 @@
 [
     {
-        "table_name": "public.\"num_types\"",
+        "table_name": "\"public\".\"num_types\"",
         "db_type": "source",
         "exported_snapshot_rows": 3,
         "imported_snapshot_rows": 0,
@@ -14,7 +14,7 @@
         "errored_imported_snapshot_rows": 0
     },
     {
-        "table_name": "public.\"num_types\"",
+        "table_name": "\"public\".\"num_types\"",
         "db_type": "target",
         "exported_snapshot_rows": 0,
         "imported_snapshot_rows": 3,
@@ -28,7 +28,7 @@
         "errored_imported_snapshot_rows": 0
     },
     {
-        "table_name": "public.\"num_types\"",
+        "table_name": "\"public\".\"num_types\"",
         "db_type": "source-replica",
         "exported_snapshot_rows": 0,
         "imported_snapshot_rows": 3,
@@ -42,7 +42,7 @@
         "errored_imported_snapshot_rows": 0
     },
     {
-        "table_name": "public.\"decimal_types\"",
+        "table_name": "\"public\".\"decimal_types\"",
         "db_type": "source",
         "exported_snapshot_rows": 3,
         "imported_snapshot_rows": 0,
@@ -56,7 +56,7 @@
         "errored_imported_snapshot_rows": 0
     },
     {
-        "table_name": "public.\"decimal_types\"",
+        "table_name": "\"public\".\"decimal_types\"",
         "db_type": "target",
         "exported_snapshot_rows": 0,
         "imported_snapshot_rows": 3,
@@ -70,7 +70,7 @@
         "errored_imported_snapshot_rows": 0
     },
     {
-        "table_name": "public.\"decimal_types\"",
+        "table_name": "\"public\".\"decimal_types\"",
         "db_type": "source-replica",
         "exported_snapshot_rows": 0,
         "imported_snapshot_rows": 3,
@@ -84,7 +84,7 @@
         "errored_imported_snapshot_rows": 0
     },
     {
-        "table_name": "public.\"datatypes1\"",
+        "table_name": "\"public\".\"datatypes1\"",
         "db_type": "source",
         "exported_snapshot_rows": 3,
         "imported_snapshot_rows": 0,
@@ -98,7 +98,7 @@
         "errored_imported_snapshot_rows": 0
     },
     {
-        "table_name": "public.\"datatypes1\"",
+        "table_name": "\"public\".\"datatypes1\"",
         "db_type": "target",
         "exported_snapshot_rows": 0,
         "imported_snapshot_rows": 3,
@@ -112,7 +112,7 @@
         "errored_imported_snapshot_rows": 0
     },
     {
-        "table_name": "public.\"datatypes1\"",
+        "table_name": "\"public\".\"datatypes1\"",
         "db_type": "source-replica",
         "exported_snapshot_rows": 0,
         "imported_snapshot_rows": 3,
@@ -126,7 +126,7 @@
         "errored_imported_snapshot_rows": 0
     },
     {
-        "table_name": "public.\"datetime_type\"",
+        "table_name": "\"public\".\"datetime_type\"",
         "db_type": "source",
         "exported_snapshot_rows": 3,
         "imported_snapshot_rows": 0,
@@ -140,7 +140,7 @@
         "errored_imported_snapshot_rows": 0
     },
     {
-        "table_name": "public.\"datetime_type\"",
+        "table_name": "\"public\".\"datetime_type\"",
         "db_type": "target",
         "exported_snapshot_rows": 0,
         "imported_snapshot_rows": 3,
@@ -154,7 +154,7 @@
         "errored_imported_snapshot_rows": 0
     },
     {
-        "table_name": "public.\"datetime_type\"",
+        "table_name": "\"public\".\"datetime_type\"",
         "db_type": "source-replica",
         "exported_snapshot_rows": 0,
         "imported_snapshot_rows": 3,
@@ -168,7 +168,7 @@
         "errored_imported_snapshot_rows": 0
     },
     {
-        "table_name": "public.\"datetime_type2\"",
+        "table_name": "\"public\".\"datetime_type2\"",
         "db_type": "source",
         "exported_snapshot_rows": 2,
         "imported_snapshot_rows": 0,
@@ -182,7 +182,7 @@
         "errored_imported_snapshot_rows": 0
     },
     {
-        "table_name": "public.\"datetime_type2\"",
+        "table_name": "\"public\".\"datetime_type2\"",
         "db_type": "target",
         "exported_snapshot_rows": 0,
         "imported_snapshot_rows": 2,
@@ -196,7 +196,7 @@
         "errored_imported_snapshot_rows": 0
     },
     {
-        "table_name": "public.\"datetime_type2\"",
+        "table_name": "\"public\".\"datetime_type2\"",
         "db_type": "source-replica",
         "exported_snapshot_rows": 0,
         "imported_snapshot_rows": 2,
@@ -210,7 +210,7 @@
         "errored_imported_snapshot_rows": 0
     },
     {
-        "table_name": "public.\"datatypes2\"",
+        "table_name": "\"public\".\"datatypes2\"",
         "db_type": "source",
         "exported_snapshot_rows": 3,
         "imported_snapshot_rows": 0,
@@ -224,7 +224,7 @@
         "errored_imported_snapshot_rows": 0
     },
     {
-        "table_name": "public.\"datatypes2\"",
+        "table_name": "\"public\".\"datatypes2\"",
         "db_type": "target",
         "exported_snapshot_rows": 0,
         "imported_snapshot_rows": 3,
@@ -238,7 +238,7 @@
         "errored_imported_snapshot_rows": 0
     },
     {
-        "table_name": "public.\"datatypes2\"",
+        "table_name": "\"public\".\"datatypes2\"",
         "db_type": "source-replica",
         "exported_snapshot_rows": 0,
         "imported_snapshot_rows": 3,
@@ -252,7 +252,7 @@
         "errored_imported_snapshot_rows": 0
     },
     {
-        "table_name": "public.\"null_and_default\"",
+        "table_name": "\"public\".\"null_and_default\"",
         "db_type": "source",
         "exported_snapshot_rows": 2,
         "imported_snapshot_rows": 0,
@@ -266,7 +266,7 @@
         "errored_imported_snapshot_rows": 0
     },
     {
-        "table_name": "public.\"null_and_default\"",
+        "table_name": "\"public\".\"null_and_default\"",
         "db_type": "target",
         "exported_snapshot_rows": 0,
         "imported_snapshot_rows": 2,
@@ -280,7 +280,7 @@
         "errored_imported_snapshot_rows": 0
     },
     {
-        "table_name": "public.\"null_and_default\"",
+        "table_name": "\"public\".\"null_and_default\"",
         "db_type": "source-replica",
         "exported_snapshot_rows": 0,
         "imported_snapshot_rows": 2,
@@ -294,7 +294,7 @@
         "errored_imported_snapshot_rows": 0
     },
     {
-        "table_name": "public.\"hstore_example\"",
+        "table_name": "\"public\".\"hstore_example\"",
         "db_type": "source",
         "exported_snapshot_rows": 26,
         "imported_snapshot_rows": 0,
@@ -308,7 +308,7 @@
         "errored_imported_snapshot_rows": 0
     },
     {
-        "table_name": "public.\"hstore_example\"",
+        "table_name": "\"public\".\"hstore_example\"",
         "db_type": "target",
         "exported_snapshot_rows": 0,
         "imported_snapshot_rows": 26,
@@ -322,7 +322,7 @@
         "errored_imported_snapshot_rows": 0
     },
     {
-        "table_name": "public.\"hstore_example\"",
+        "table_name": "\"public\".\"hstore_example\"",
         "db_type": "source-replica",
         "exported_snapshot_rows": 0,
         "imported_snapshot_rows": 26,
@@ -336,7 +336,7 @@
         "errored_imported_snapshot_rows": 0
     },
     {
-        "table_name": "public.\"tsvector_table\"",
+        "table_name": "\"public\".\"tsvector_table\"",
         "db_type": "source",
         "exported_snapshot_rows": 3,
         "imported_snapshot_rows": 0,
@@ -350,7 +350,7 @@
         "errored_imported_snapshot_rows": 0
     },
     {
-        "table_name": "public.\"tsvector_table\"",
+        "table_name": "\"public\".\"tsvector_table\"",
         "db_type": "target",
         "exported_snapshot_rows": 0,
         "imported_snapshot_rows": 3,
@@ -364,7 +364,7 @@
         "errored_imported_snapshot_rows": 0
     },
     {
-        "table_name": "public.\"tsvector_table\"",
+        "table_name": "\"public\".\"tsvector_table\"",
         "db_type": "source-replica",
         "exported_snapshot_rows": 0,
         "imported_snapshot_rows": 3,
@@ -378,7 +378,7 @@
         "errored_imported_snapshot_rows": 0
     },
     {
-        "table_name": "public.\"enum_array_table\"",
+        "table_name": "\"public\".\"enum_array_table\"",
         "db_type": "source",
         "exported_snapshot_rows": 3,
         "imported_snapshot_rows": 0,
@@ -392,7 +392,7 @@
         "errored_imported_snapshot_rows": 0
     },
     {
-        "table_name": "public.\"enum_array_table\"",
+        "table_name": "\"public\".\"enum_array_table\"",
         "db_type": "target",
         "exported_snapshot_rows": 0,
         "imported_snapshot_rows": 3,
@@ -406,7 +406,7 @@
         "errored_imported_snapshot_rows": 0
     },
     {
-        "table_name": "public.\"enum_array_table\"",
+        "table_name": "\"public\".\"enum_array_table\"",
         "db_type": "source-replica",
         "exported_snapshot_rows": 0,
         "imported_snapshot_rows": 3,

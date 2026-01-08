@@ -1,6 +1,6 @@
 [
     {
-      "table_name": "public.\"survey2\"",
+      "table_name": "\"public\".\"survey2\"",
       "file_name": "FY2021_Survey.csv",
       "status": "DONE",
       "total_count": 6575476,
@@ -9,7 +9,7 @@
       "percentage_complete": 100
     },
     {
-      "table_name": "public.\"survey3\"",
+      "table_name": "\"public\".\"survey3\"",
       "file_name": "FY2021_Survey.csv",
       "status": "DONE",
       "total_count": 6575476,
