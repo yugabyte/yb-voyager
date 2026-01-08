@@ -1242,7 +1242,7 @@ func TestExportAndImportDataSnapshotReport(t *testing.T) {
 	assert.Equal(t, 1, len(statusReport), "Report should contain exactly one entry")
 
 	assert.Equal(t, &tableMigStatusOutputRow{
-		TableName:          `public."test_data"`,
+		TableName:          `"public"."test_data"`,
 		FileName:           "",
 		ImportedCount:      10,
 		ErroredCount:       0,
@@ -1366,7 +1366,7 @@ func TestExportAndImportDataSnapshotReport_ErrorPolicyStashAndContinue_BatchInge
 	assert.Equal(t, 1, len(statusReport), "Report should contain exactly one entry")
 
 	assert.Equal(t, &tableMigStatusOutputRow{
-		TableName:          `public."test_data"`,
+		TableName:          `"public"."test_data"`,
 		FileName:           "",
 		ImportedCount:      90,
 		ErroredCount:       10,
@@ -1523,7 +1523,7 @@ FROM generate_series(1, 10);`
 	//assert error contains table not found
 	assert.NotNil(t, err)
 	assert.Contains(t, importCmd.Stdout(), `Following source tables are not present in the target database:
-test_schema."test_migration1"`)
+"test_schema"."test_migration1"`)
 
 	importCmd = testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
 		"--export-dir", exportDir,
@@ -1751,7 +1751,7 @@ FROM generate_series(1, 10);`
 	//assert error contains table not found
 	assert.NotNil(t, err)
 	assert.Contains(t, importCmd.Stdout(), `Following source tables are not present in the target database:
-test_schema."test_migration1"`)
+"test_schema"."test_migration1"`)
 
 	importCmd = testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
 		"--export-dir", exportDir,
@@ -1996,7 +1996,7 @@ FROM generate_series(1, 10);`
 	//assert error contains table not found
 	assert.NotNil(t, err)
 	assert.Contains(t, importCmd.Stdout(), `Following source tables are not present in the target database:
-test_schema."test_migration1"`)
+"test_schema"."test_migration1"`)
 
 	err = testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
 		"--export-dir", exportDir,
@@ -2193,7 +2193,7 @@ func TestExportAndImportDataSnapshotReport_ErrorPolicyStashAndContinue_Processin
 	assert.Equal(t, 1, len(statusReport), "Report should contain exactly one entry")
 
 	assert.Equal(t, &tableMigStatusOutputRow{
-		TableName:          `public."test_data"`,
+		TableName:          `"public"."test_data"`,
 		FileName:           "",
 		ImportedCount:      99,
 		ErroredCount:       1,
