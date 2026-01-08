@@ -57,11 +57,11 @@ type ObjectName struct {
 	Unqualified  identifier
 	MinQualified identifier
 }
+
 /*
 understand command table usages and handling , assumptions  for both schema and table name:
 inputs for schema should have same behaviour with  table
-schema commands - namereg 
-
+schema commands - namereg
 */
 func NewObjectName(dbType, defaultSchemaName, schemaName, tableName string) *ObjectName {
 	schemaNameIdentifier := identifier{
@@ -92,7 +92,7 @@ func NewObjectNameWithQualifiedName(dbType, defaultSchemaName, objName string) *
 	if len(parts) != 2 {
 		panic(fmt.Sprintf("invalid qualified name: %s", objName))
 	}
-	return NewObjectName(dbType, defaultSchemaName, parts[0], unquote(parts[1], dbType))
+	return NewObjectName(dbType, defaultSchemaName, unquote(parts[0], dbType), unquote(parts[1], dbType))
 }
 
 func (nv *ObjectName) String() string {
@@ -107,9 +107,10 @@ func (o *ObjectName) MinQuotedSchemaAndQuotedTableName() string {
 	return o.Qualified.Quoted
 	// return fmt.Sprintf("%s.%s", o.SchemaName.MinQuoted, o.Unqualified.Quoted)
 }
+
 /*
 
-*/
+ */
 
 /*
 Assumptions for both schema and table name:

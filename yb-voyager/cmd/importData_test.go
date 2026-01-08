@@ -1573,7 +1573,7 @@ Valid table names are: [test_schema.test_migration]
 
 	assert.Equal(t, 2, len(importReportData), "Report should contain exactly two entries")
 	assert.Equal(t, &tableMigStatusOutputRow{
-		TableName:          `test_schema."test_migration"`,
+		TableName:          `"test_schema"."test_migration"`,
 		FileName:           "",
 		ImportedCount:      10,
 		ErroredCount:       0,
@@ -1583,7 +1583,7 @@ Valid table names are: [test_schema.test_migration]
 	}, importReportData[0], "Status report row mismatch")
 
 	assert.Equal(t, &tableMigStatusOutputRow{
-		TableName:          `test_schema."test_migration1"`,
+		TableName:          `"test_schema"."test_migration1"`,
 		FileName:           "",
 		ImportedCount:      0,
 		ErroredCount:       0,
@@ -1617,7 +1617,7 @@ Valid table names are: [test_schema.test_migration]
 	}, exportReportData[1], "Status report row mismatch")
 
 	//verify the sequence last value is restored properly
-	seq1 := `test_schema.test_migration_id_seq`
+	seq1 := `"test_schema".test_migration_id_seq`
 	res1, err := yugabytedbContainer.Query(fmt.Sprintf("SELECT nextval('%s')", seq1))
 	testutils.FatalIfError(t, err, "Failed to query sequence %s", seq1)
 	defer res1.Close()
@@ -1804,7 +1804,7 @@ Valid table names are: [test_schema.test_migration]
 
 	assert.Equal(t, 2, len(importReportData), "Report should contain exactly one entry")
 	assert.Equal(t, &tableMigStatusOutputRow{
-		TableName:          `test_schema."test_migration"`,
+		TableName:          `"test_schema"."test_migration"`,
 		FileName:           "",
 		ImportedCount:      10,
 		ErroredCount:       0,
@@ -1814,7 +1814,7 @@ Valid table names are: [test_schema.test_migration]
 	}, importReportData[0], "Status report row mismatch")
 
 	assert.Equal(t, &tableMigStatusOutputRow{
-		TableName:          `test_schema."test_migration1"`,
+		TableName:          `"test_schema"."test_migration1"`,
 		FileName:           "",
 		ImportedCount:      10,
 		ErroredCount:       0,
@@ -1848,8 +1848,8 @@ Valid table names are: [test_schema.test_migration]
 	}, exportReportData[1], "Status report row mismatch")
 
 	//verify the sequence last value is restored properly
-	seq1 := `test_schema.test_migration_id_seq`
-	seq2 := `test_schema.test_migration1_id_seq`
+	seq1 := `"test_schema".test_migration_id_seq`
+	seq2 := `"test_schema".test_migration1_id_seq`
 	res1, err := yugabytedbContainer.Query(fmt.Sprintf("SELECT nextval('%s')", seq1))
 	testutils.FatalIfError(t, err, "Failed to query sequence %s", seq1)
 	defer res1.Close()
@@ -2028,7 +2028,7 @@ test_schema."test_migration1"`)
 
 	assert.Equal(t, 2, len(importReportData), "Report should contain exactly two entries")
 	assert.Equal(t, &tableMigStatusOutputRow{
-		TableName:          `test_schema."test_migration"`,
+		TableName:          `"test_schema"."test_migration"`,
 		FileName:           "",
 		ImportedCount:      10,
 		ErroredCount:       0,
@@ -2038,7 +2038,7 @@ test_schema."test_migration1"`)
 	}, importReportData[0], "Status report row mismatch")
 
 	assert.Equal(t, &tableMigStatusOutputRow{
-		TableName:          `test_schema."test_migration1"`,
+		TableName:          `"test_schema"."test_migration1"`,
 		FileName:           "",
 		ImportedCount:      0,
 		ErroredCount:       0,
@@ -2072,7 +2072,7 @@ test_schema."test_migration1"`)
 	}, exportReportData[0], "Status report row mismatch")
 
 	//verify the sequence last value is restored properly
-	seq1 := `test_schema.test_migration_id_seq`
+	seq1 := `"test_schema".test_migration_id_seq`
 	res1, err := yugabytedbContainer.Query(fmt.Sprintf("SELECT nextval('%s')", seq1))
 	testutils.FatalIfError(t, err, "Failed to query sequence %s", seq1)
 	defer res1.Close()
