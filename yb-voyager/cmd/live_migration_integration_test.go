@@ -417,11 +417,11 @@ func TestLiveMigrationWithEventsOnSamePkOrderedFallback(t *testing.T) {
 		SourceDB: ContainerConfig{
 			Type:         "postgresql",
 			ForLive:      true,
-			DatabaseName: "TestLiveMigrationWithEventsOnSamePkOrderedFallback",
+			DatabaseName: "test_live_same_pk_ordered_fallback",
 		},
 		TargetDB: ContainerConfig{
 			Type:         "yugabytedb",
-			DatabaseName: "TestLiveMigrationWithEventsOnSamePkOrderedFallback",
+			DatabaseName: "test_live_same_pk_ordered_fallback",
 		},
 		SchemaNames: []string{"test_schema"},
 		SchemaSQL: []string{
