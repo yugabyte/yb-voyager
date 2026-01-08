@@ -48,5 +48,50 @@
     "table_name": "enum_array_table",
     "status": "DONE",
     "exported_count": 3
+  },
+  {
+    "exported_count": 3,
+    "status": "DONE",
+    "table_name": "extension_arrays"
+  },
+  {
+    "exported_count": 3,
+    "status": "DONE",
+    "table_name": "extension_types"
+  },
+  {
+    "exported_count": 2,
+    "status": "DONE",
+    "table_name": "audit_log"
+  },
+  {
+    "exported_count": 2,
+    "status": "DONE",
+    "table_name": "composite_array_types"
+  },
+  {
+    "exported_count": 2,
+    "status": "DONE",
+    "table_name": "composite_types"
+  },
+  {
+    "exported_count": 3,
+    "status": "DONE",
+    "table_name": "domain_array_types"
+  },
+  {
+    "exported_count": 3,
+    "status": "DONE",
+    "table_name": "domain_types"
+  },
+  {
+    "exported_count": 3,
+    "status": "DONE",
+    "table_name": "range_array_types"
+  },
+  {
+    "exported_count": 3,
+    "status": "DONE",
+    "table_name": "range_types"
   }
 ]

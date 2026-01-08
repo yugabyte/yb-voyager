@@ -119,3 +119,215 @@ VALUES
     ('Sat', ARRAY['Sat', 'Sun']::week[], 'Weekend days');
 
 select * from enum_array_table;
+
+-- Composite types data
+INSERT INTO composite_types (address) VALUES (ROW('City1I', 'Street 1I', 1)::full_address),(ROW('City2I', 'Street 2I', 2)::full_address);
+
+-- Composite array types data
+INSERT INTO composite_array_types (addresses)
+VALUES (
+    ARRAY[
+        ROW('CityA1I', 'StreetA 1I', 1)::full_address,
+        ROW('CityB1I', 'StreetB 1I', 2)::full_address
+    ]
+),
+(
+    ARRAY[
+        ROW('CityA2I', 'StreetA 2I', 2)::full_address,
+        ROW('CityB2I', 'StreetB 2I', 3)::full_address
+    ]
+);
+
+-- Domain types data
+INSERT INTO domain_types (ssn, email, rating, prefs)
+VALUES (
+    '001-00-0001'::social_security_number,
+    'user1@example.com'::email_address,
+    1::rating_1_to_5,
+    '{"version":"1","theme":"dark"}'::app_settings
+),
+(
+    '002-00-0002'::social_security_number,
+    'user2@example.com'::email_address,
+    2::rating_1_to_5,
+    '{"version":"2","theme":"dark"}'::app_settings
+),
+(
+    '003-00-0003'::social_security_number,
+    'user3@example.com'::email_address,
+    3::rating_1_to_5,
+    '{"version":"3","theme":"dark"}'::app_settings
+);
+
+-- Domain array types data
+
+INSERT INTO domain_array_types (ssn_list, phone_list, name_list)
+VALUES (
+    ARRAY[
+        '123-45-0001'::social_security_number,
+        '987-65-0001'::social_security_number
+    ],
+    ARRAY[
+        '+91123456701'::phone_number,
+        '+91987654301'::phone_number
+    ],
+    ARRAY[
+        'ABC DEF'::full_name,
+        'GHI JKL'::full_name
+    ]
+),
+(
+    ARRAY[
+        '123-45-0002'::social_security_number,
+        '987-65-0002'::social_security_number
+    ],
+    ARRAY[
+        '+91123456702'::phone_number,
+        '+91987654302'::phone_number
+    ],
+    ARRAY[
+        'MNO PQR'::full_name,
+        'STU VWX'::full_name
+    ]
+),
+(
+    ARRAY[
+        '123-45-0003'::social_security_number,
+        '987-65-0003'::social_security_number
+    ],
+    ARRAY[
+        '+91123456703'::phone_number,
+        '+91987654303'::phone_number
+    ],
+    ARRAY[
+        'ABC XYZ'::full_name,
+        'DEF ABC'::full_name
+    ]
+);
+
+-- Range Types
+INSERT INTO range_types (
+    price_range_col, discount_range_col, period_range_col, active_ts_range_col
+)
+VALUES (
+    '[0.1,5.1)'::price_range,
+    '[0.0,1.0)'::discount_range,
+    ( '[' || current_date::text || ',' || (current_date + 7)::text || ')' )::period_range,
+    ( '[' || now()::text || ',' || (now() + interval '24 hours')::text || ')' )::active_ts_range
+),
+(
+    '[0.2,5.2)'::price_range,
+    '[0.1,1.1)'::discount_range,
+    ( '[' || (current_date + 2)::text || ',' || (current_date + 9)::text || ')' )::period_range,
+    ( '[' || (now() + interval '2 hours')::text || ',' ||
+           (now() + interval '26 hours')::text || ')' )::active_ts_range
+),
+(
+    '[0.3,5.3)'::price_range,
+    '[0.2,1.2)'::discount_range,
+    ( '[' || (current_date + 3)::text || ',' || (current_date + 10)::text || ')' )::period_range,
+    ( '[' || (now() + interval '3 hours')::text || ',' ||
+           (now() + interval '27 hours')::text || ')' )::active_ts_range
+);
+
+
+-- Range array types data
+INSERT INTO range_array_types (
+  price_ranges, discount_ranges, period_ranges, ts_ranges
+)
+VALUES (
+  ARRAY['[1,5)'::price_range, '[10,20)'::price_range],
+  ARRAY['[0.5,1.0)'::discount_range, '[1.5,2.0)'::discount_range],
+  ARRAY[
+    ('[' || current_date + 2001 || ',' || current_date + 2002 || ')')::period_range
+  ],
+  ARRAY[
+    ('[' || now() + interval '2001 hours' || ',' ||
+           now() + interval '2002 hours' || ')')::active_ts_range
+  ]
+),
+(
+  ARRAY['[1,5)'::price_range, '[10,20)'::price_range],
+  ARRAY['[0.5,1.0)'::discount_range, '[1.5,2.0)'::discount_range],
+  ARRAY[
+    ('[' || current_date + 2002 || ',' || current_date + 2003 || ')')::period_range
+  ],
+  ARRAY[
+    ('[' || now() + interval '2002 hours' || ',' ||
+           now() + interval '2003 hours' || ')')::active_ts_range
+  ]
+),
+(
+  ARRAY['[1,5)'::price_range, '[10,20)'::price_range],
+  ARRAY['[0.5,1.0)'::discount_range, '[1.5,2.0)'::discount_range],
+  ARRAY[
+    ('[' || current_date + 2003 || ',' || current_date + 2004 || ')')::period_range
+  ],
+  ARRAY[
+    ('[' || now() + interval '2003 hours' || ',' ||
+           now() + interval '2004 hours' || ')')::active_ts_range
+  ]
+);
+
+-- Extension types data
+INSERT INTO extension_types (col_hstore, col_citext, col_ltree)
+VALUES (
+    'key1=>1'::hstore,
+    'text_1'::citext,
+    'Top.1'::ltree
+),
+(
+    'key2=>2'::hstore,
+    'text_2'::citext,
+    'Top.2'::ltree
+),
+(
+    'key3=>3'::hstore,
+    'text_3'::citext,
+    'Top.3'::ltree
+);
+
+-- Extension arrays data
+INSERT INTO extension_arrays (col_hstore, col_citext, col_ltree)
+VALUES (
+    ARRAY['key1=>1'::hstore, 'value1=>1'::hstore],
+    ARRAY['text_1'::citext, 'sample_1'::citext],
+    ARRAY['Top.1'::ltree, 'Category.1'::ltree]
+),
+(
+    ARRAY['key2=>2'::hstore, 'value2=>2'::hstore],
+    ARRAY['text_2'::citext, 'sample_2'::citext],
+    ARRAY['Top.2'::ltree, 'Category.2'::ltree]
+),
+(
+    ARRAY['key3=>3'::hstore, 'value3=>3'::hstore],
+    ARRAY['text_3'::citext, 'sample_3'::citext],
+    ARRAY['Top.3'::ltree, 'Category.3'::ltree]
+);
+
+-- Nested datatypes data
+INSERT INTO audit_log (
+  involved_employees, affected_clients, transaction_refs
+)
+VALUES (
+  ARRAY[
+    ROW('Emp_1', 'active', 'emp_1@company.com')::employee_info,
+    ROW('EmpAlt_1', 'inactive', 'empalt_1@company.com')::employee_info
+  ],
+  ARRAY[
+    ROW('Client_1', 'north', 'client_1@example.com')::client_info,
+    ROW('ClientAlt_1', 'south', 'clientalt_1@example.com')::client_info
+  ],
+  ARRAY[1, 2, 3]
+),
+(
+  ARRAY[
+    ROW('Emp_2', 'active', 'emp_2@company.com')::employee_info,
+    ROW('EmpAlt_2', 'inactive', 'empalt_2@company.com')::employee_info
+  ],
+  ARRAY[
+    ROW('Client_2', 'north', 'client_2@example.com')::client_info,
+    ROW('ClientAlt_2', 'south', 'clientalt_2@example.com')::client_info
+  ],
+  ARRAY[2, 3, 4]
+);
