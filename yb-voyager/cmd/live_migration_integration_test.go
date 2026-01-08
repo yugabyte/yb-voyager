@@ -415,11 +415,13 @@ func TestLiveMigrationWithEventsOnSamePkOrdered(t *testing.T) {
 func TestLiveMigrationWithEventsOnSamePkOrderedFallback(t *testing.T) {
 	lm := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
-			Type:    "postgresql",
-			ForLive: true,
+			Type:         "postgresql",
+			ForLive:      true,
+			DatabaseName: "TestLiveMigrationWithEventsOnSamePkOrderedFallback",
 		},
 		TargetDB: ContainerConfig{
-			Type: "yugabytedb",
+			Type:         "yugabytedb",
+			DatabaseName: "TestLiveMigrationWithEventsOnSamePkOrderedFallback",
 		},
 		SchemaNames: []string{"test_schema"},
 		SchemaSQL: []string{
@@ -893,12 +895,12 @@ FROM generate_series(1, 15);`,
 func TestLiveMigrationWithImportResumptionWithGeneratedAlwaysColumn(t *testing.T) {
 	lm := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
-			Type:    "postgresql",
-			ForLive: true,
+			Type:         "postgresql",
+			ForLive:      true,
 			DatabaseName: "test5",
 		},
 		TargetDB: ContainerConfig{
-			Type: "yugabytedb",
+			Type:         "yugabytedb",
 			DatabaseName: "test5",
 		},
 		SchemaNames: []string{"test_schema"},
@@ -1002,12 +1004,12 @@ FROM generate_series(1, 15);`,
 func TestLiveMigrationResumptionWithChangeInCDCPartitioningStrategy(t *testing.T) {
 	lm := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
-			Type:    "postgresql",
-			ForLive: true,
+			Type:         "postgresql",
+			ForLive:      true,
 			DatabaseName: "test6",
 		},
 		TargetDB: ContainerConfig{
-			Type: "yugabytedb",
+			Type:         "yugabytedb",
 			DatabaseName: "test6",
 		},
 		SchemaNames: []string{"test_schema"},
@@ -1095,12 +1097,12 @@ FROM generate_series(1, 10);`,
 func TestLiveMigrationWithUniqueKeyValuesWithPartialPredicateConflictDetectionCases(t *testing.T) {
 	lm := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
-			Type:    "postgresql",
-			ForLive: true,
+			Type:         "postgresql",
+			ForLive:      true,
 			DatabaseName: "test7",
 		},
 		TargetDB: ContainerConfig{
-			Type: "yugabytedb",
+			Type:         "yugabytedb",
 			DatabaseName: "test7",
 		},
 		SchemaNames: []string{"test_schema"},
@@ -1235,12 +1237,12 @@ FROM generate_series(1, 20) as i;`,
 func TestLiveMigrationWithUniqueKeyConflictWithNullValuesDetectionCases(t *testing.T) {
 	lm := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
-			Type:    "postgresql",
-			ForLive: true,
+			Type:         "postgresql",
+			ForLive:      true,
 			DatabaseName: "test8",
 		},
 		TargetDB: ContainerConfig{
-			Type: "yugabytedb",
+			Type:         "yugabytedb",
 			DatabaseName: "test8",
 		},
 		SchemaNames: []string{"test_schema"},
@@ -1374,12 +1376,12 @@ FROM generate_series(1, 20) as i;`,
 func TestLiveMigrationWithUniqueKeyConflictWithUniqueIndexOnlyOnLeafPartitions(t *testing.T) {
 	liveMigrationTest := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
-			Type:    "postgresql",
-			ForLive: true,
+			Type:         "postgresql",
+			ForLive:      true,
 			DatabaseName: "test9",
 		},
 		TargetDB: ContainerConfig{
-			Type: "yugabytedb",
+			Type:         "yugabytedb",
 			DatabaseName: "test9",
 		},
 		SchemaNames: []string{"test_schema"},
@@ -1523,12 +1525,12 @@ func TestLiveMigrationWithUniqueKeyConflictWithUniqueIndexOnlyOnLeafPartitions(t
 func TestLiveMigrationWithUniqueKeyConflictWithNullValueAndPartialPredicatesDetectionCases(t *testing.T) {
 	liveMigrationTest := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
-			Type:    "postgresql",
-			ForLive: true,
+			Type:         "postgresql",
+			ForLive:      true,
 			DatabaseName: "test10",
 		},
 		TargetDB: ContainerConfig{
-			Type: "yugabytedb",
+			Type:         "yugabytedb",
 			DatabaseName: "test10",
 		},
 		SchemaNames: []string{"test_schema"},
@@ -1664,12 +1666,12 @@ FROM generate_series(1, 20) as i;`,
 func TestLiveMigrationWithUniqueKeyConflictWithExpressionIndexOnPartitions(t *testing.T) {
 	liveMigrationTest := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
-			Type:    "postgresql",
-			ForLive: true,
+			Type:         "postgresql",
+			ForLive:      true,
 			DatabaseName: "test11",
 		},
 		TargetDB: ContainerConfig{
-			Type: "yugabytedb",
+			Type:         "yugabytedb",
 			DatabaseName: "test11",
 		},
 		SchemaNames: []string{"test_schema"},
