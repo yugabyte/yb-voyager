@@ -68,6 +68,8 @@ func checkUnsupportedStatementType(parseResult *pg_query.ParseResult) error {
 	}
 
 	// Check generic statements and special cases for unsupported object types
+	// TODO: Some of these statements (ALTER, DROP, RENAME, etc) do not contain the func/proc body in the DDL, so it should be easy to
+	// parse and anonymize, but at the moment, it is not supported.
 	node := parseResult.Stmts[0].Stmt.Node
 	switch n := node.(type) {
 	case *pg_query.Node_CreateTableAsStmt:
