@@ -7,6 +7,8 @@ create table large_row_table (
 
 \d large_row_table
 
+set temp_file_limit=2500000000;
+
 -- table for cutover/backlog checks
 DROP TABLE IF EXISTS public.cutover_table;
 CREATE TABLE public.cutover_table (
