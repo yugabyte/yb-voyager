@@ -123,6 +123,12 @@ stages:
     use_admin: true
     target: source_replica
 
+  - name: init_target_db
+    action: run_sql
+    target: target
+    sql_path: ./init_target.sql
+    use_admin: true
+
   - name: grant_source_permissions
     action: grant_source_permissions
 
