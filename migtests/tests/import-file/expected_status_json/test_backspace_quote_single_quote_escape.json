@@ -1,6 +1,6 @@
 [
     {
-      "table_name": "public.\"test_backspace_quote_single_quote_escape\"",
+      "table_name": "\"public\".\"test_backspace_quote_single_quote_escape\"",
       "file_name": "test_backspace_quote_single_quote_escape.csv",
       "status": "DONE",
       "total_count": 76,

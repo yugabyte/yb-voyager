@@ -1,6 +1,6 @@
 [
     {
-      "table_name": "public.\"t1_delimiter_escape_same\"",
+      "table_name": "\"public\".\"t1_delimiter_escape_same\"",
       "file_name": "t1_delimiter_escape_same.csv",
       "status": "DONE",
       "total_count": 65,

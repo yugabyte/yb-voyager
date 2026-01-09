@@ -199,16 +199,16 @@ func TestYugabyteGetColumnToSequenceMap(t *testing.T) {
 	fmt.Print("--- Full table list case ---- \n")
 	actualColumnToSequenceMap := testYugabyteDBSource.DB().GetColumnToSequenceMap(tableList)
 	expectedColumnToSequenceMap := map[string]string{
-		"public.serial_table.id":                   `public."serial_table_id_seq"`,
-		"public.bigserial_table.id":                `public."bigserial_table_id_seq"`,
-		"public.identity_always_table.id":          `public."identity_always_table_id_seq"`,
-		"public.identity_default_table.id":         `public."identity_default_table_id_seq"`,
-		"public.default_nextval_table.id":          `public."manual_seq"`,
-		"public.cross_schema_default_seq_table.id": `custom_schema."cross_schema_seq"`,
-		"public.manual_linked_table.id":            `public."manual_linked_seq"`,
-		"custom_schema.users.user_code":            `custom_schema."user_code_seq"`,
-		"public.manual_linked_table_1.id":          `public."manual_linked_seq_another"`,
-		"public.manual_linked_table_2.id":          `public."manual_linked_seq_another"`,
+		"public.serial_table.id":                   `"public"."serial_table_id_seq"`,
+		"public.bigserial_table.id":                `"public"."bigserial_table_id_seq"`,
+		"public.identity_always_table.id":          `"public"."identity_always_table_id_seq"`,
+		"public.identity_default_table.id":         `"public"."identity_default_table_id_seq"`,
+		"public.default_nextval_table.id":          `"public"."manual_seq"`,
+		"public.cross_schema_default_seq_table.id": `"custom_schema"."cross_schema_seq"`,
+		"public.manual_linked_table.id":            `"public"."manual_linked_seq"`,
+		"custom_schema.users.user_code":            `"custom_schema"."user_code_seq"`,
+		"public.manual_linked_table_1.id":          `"public"."manual_linked_seq_another"`,
+		"public.manual_linked_table_2.id":          `"public"."manual_linked_seq_another"`,
 	}
 	assert.Equal(t, len(lo.Keys(actualColumnToSequenceMap)), len(lo.Keys(expectedColumnToSequenceMap)), "Expected number of tables to match")
 	//asssert key val
@@ -233,12 +233,12 @@ func TestYugabyteGetColumnToSequenceMap(t *testing.T) {
 	fmt.Print("----- Subset of table list case ----- \n")
 	actualColumnToSequenceMap = testYugabyteDBSource.DB().GetColumnToSequenceMap(tableList)
 	expectedColumnToSequenceMap = map[string]string{
-		"public.serial_table.id":                   `public."serial_table_id_seq"`,
-		"public.bigserial_table.id":                `public."bigserial_table_id_seq"`,
-		"public.identity_always_table.id":          `public."identity_always_table_id_seq"`,
-		"public.cross_schema_default_seq_table.id": `custom_schema."cross_schema_seq"`,
-		"public.manual_linked_table.id":            `public."manual_linked_seq"`,
-		"public.manual_linked_table_1.id":          `public."manual_linked_seq_another"`,
+		"public.serial_table.id":                   `"public"."serial_table_id_seq"`,
+		"public.bigserial_table.id":                `"public"."bigserial_table_id_seq"`,
+		"public.identity_always_table.id":          `"public"."identity_always_table_id_seq"`,
+		"public.cross_schema_default_seq_table.id": `"custom_schema"."cross_schema_seq"`,
+		"public.manual_linked_table.id":            `"public"."manual_linked_seq"`,
+		"public.manual_linked_table_1.id":          `"public"."manual_linked_seq_another"`,
 	}
 	assert.Equal(t, len(lo.Keys(actualColumnToSequenceMap)), len(lo.Keys(expectedColumnToSequenceMap)), "Expected number of tables to match")
 	//asssert key val
@@ -326,7 +326,7 @@ func TestYugabyteGetNonPKTables(t *testing.T) {
 	actualTables, err := testYugabyteDBSource.DB().GetNonPKTables()
 	assert.NilError(t, err, "Expected nil but non nil error: %v", err)
 
-	expectedTables := []string{`test_schema."non_pk2"`, `test_schema."non_pk1"`} // func returns table.Qualified.Quoted
+	expectedTables := []string{`"test_schema"."non_pk2"`, `"test_schema"."non_pk1"`} // func returns table.Qualified.Quoted
 	testutils.AssertEqualStringSlices(t, expectedTables, actualTables)
 }
 

@@ -1,6 +1,6 @@
 [
    {
-    "table_name": "public.\"customers\"",
+    "table_name": "\"public\".\"customers\"",
     "db_type": "source",
     "exported_snapshot_rows": 1000,
     "imported_snapshot_rows": 0,
@@ -14,7 +14,7 @@
     "errored_imported_snapshot_rows": 0
   },
   {
-    "table_name": "public.\"customers\"",
+    "table_name": "\"public\".\"customers\"",
     "db_type": "target",
     "exported_snapshot_rows": 0,
     "imported_snapshot_rows": 1000,
@@ -28,7 +28,7 @@
     "errored_imported_snapshot_rows": 0
   },
   {
-    "table_name": "public.\"sales_region\"",
+    "table_name": "\"public\".\"sales_region\"",
     "db_type": "source",
     "exported_snapshot_rows": 1000,
     "imported_snapshot_rows": 0,
@@ -42,7 +42,7 @@
     "errored_imported_snapshot_rows": 0
   },
   {
-    "table_name": "public.\"sales_region\"",
+    "table_name": "\"public\".\"sales_region\"",
     "db_type": "target",
     "exported_snapshot_rows": 0,
     "imported_snapshot_rows": 1000,
@@ -56,7 +56,7 @@
     "errored_imported_snapshot_rows": 0
   },
   {
-    "table_name": "public.\"test_partitions_sequences\"",
+    "table_name": "\"public\".\"test_partitions_sequences\"",
     "db_type": "source",
     "exported_snapshot_rows": 1000,
     "imported_snapshot_rows": 0,
@@ -70,7 +70,7 @@
     "errored_imported_snapshot_rows": 0
   },
   {
-    "table_name": "public.\"test_partitions_sequences\"",
+    "table_name": "\"public\".\"test_partitions_sequences\"",
     "db_type": "target",
     "exported_snapshot_rows": 0,
     "imported_snapshot_rows": 1000,
@@ -84,7 +84,7 @@
     "errored_imported_snapshot_rows": 0
   },
   {
-    "table_name": "p1.\"sales_region\"",
+    "table_name": "\"p1\".\"sales_region\"",
     "db_type": "source",
     "exported_snapshot_rows": 1000,
     "imported_snapshot_rows": 0,
@@ -98,7 +98,7 @@
     "errored_imported_snapshot_rows": 0
   },
   {
-    "table_name": "p1.\"sales_region\"",
+    "table_name": "\"p1\".\"sales_region\"",
     "db_type": "target",
     "exported_snapshot_rows": 0,
     "imported_snapshot_rows": 1000,
@@ -112,7 +112,7 @@
     "errored_imported_snapshot_rows": 0
   },
   {
-    "table_name": "public.\"sales\"",
+    "table_name": "\"public\".\"sales\"",
     "db_type": "source",
     "exported_snapshot_rows": 1000,
     "imported_snapshot_rows": 0,
@@ -126,7 +126,7 @@
     "errored_imported_snapshot_rows": 0
   },
   {
-    "table_name": "public.\"sales\"",
+    "table_name": "\"public\".\"sales\"",
     "db_type": "target",
     "exported_snapshot_rows": 0,
     "imported_snapshot_rows": 1000,
@@ -140,7 +140,7 @@
     "errored_imported_snapshot_rows": 0
   },
   {
-    "table_name": "public.\"range_columns_partition_test\"",
+    "table_name": "\"public\".\"range_columns_partition_test\"",
     "db_type": "source",
     "exported_snapshot_rows": 6,
     "imported_snapshot_rows": 0,
@@ -154,7 +154,7 @@
     "errored_imported_snapshot_rows": 0
   },
   {
-    "table_name": "public.\"range_columns_partition_test\"",
+    "table_name": "\"public\".\"range_columns_partition_test\"",
     "db_type": "target",
     "exported_snapshot_rows": 0,
     "imported_snapshot_rows": 6,
@@ -168,7 +168,7 @@
     "errored_imported_snapshot_rows": 0
   },
   {
-    "table_name": "public.\"emp\"",
+    "table_name": "\"public\".\"emp\"",
     "db_type": "source",
     "exported_snapshot_rows": 1000,
     "imported_snapshot_rows": 0,
@@ -182,7 +182,7 @@
     "errored_imported_snapshot_rows": 0
   },
   {
-    "table_name": "public.\"emp\"",
+    "table_name": "\"public\".\"emp\"",
     "db_type": "target",
     "exported_snapshot_rows": 0,
     "imported_snapshot_rows": 1000,

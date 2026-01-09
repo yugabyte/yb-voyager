@@ -504,7 +504,7 @@ func createBatchFromData(t *testing.T, data string, tableName sqlname.NameTuple)
 	batch := &Batch{
 		Number:       1,
 		TableNameTup: tableName,
-		SchemaName:   tableName.CurrentName.SchemaName,
+		SchemaName:   tableName.CurrentName.SchemaName.Unquoted,
 		FilePath:     batchFilePath,
 		BaseFilePath: batchFilePath,
 		OffsetStart:  0,

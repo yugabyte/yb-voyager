@@ -1,6 +1,6 @@
 [
     {
-      "table_name": "public.\"foo3\"",
+      "table_name": "\"public\".\"foo3\"",
       "file_name": "foo1.text",
       "status": "DONE",
       "total_count": 15,

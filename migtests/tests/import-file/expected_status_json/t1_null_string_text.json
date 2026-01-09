@@ -1,6 +1,6 @@
 [
     {
-      "table_name": "public.\"t1_null_string_text\"",
+      "table_name": "\"public\".\"t1_null_string_text\"",
       "file_name": "t1_null_string_text.txt",
       "status": "DONE",
       "total_count": 72,

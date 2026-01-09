@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	goerrors "github.com/go-errors/errors"
-
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 
@@ -274,6 +273,10 @@ func (reg *NameRegistry) registerYBNames() (bool, error) {
 	}
 	reg.YBTableNames = tableMap
 	reg.YBSequenceNames = sequenceMap
+	if reg.params.Role == IMPORT_FILE_ROLE {
+		//In case of import data fiel we don't have source db type so we set it to yugabyte db as the type is required in lookup for schema identifier
+		reg.SourceDBType = constants.YUGABYTEDB
+	}
 	return true, nil
 }
 
@@ -413,7 +416,7 @@ func (reg *NameRegistry) lookupSourceAndTargetTableNames(tableNameArg string, ig
 	// During the snapshot and event data in the beginning before cutover, lookup will be for SAKILA.TABLE1,
 	// but we want to get the SourceName to be SAKILA_REPLICA.TABLE1.
 	// Therefore, we unqualify the input in case it is equal to the default.
-	if schemaName == reg.DefaultSourceDBSchemaName || schemaName == reg.DefaultSourceReplicaDBSchemaName || schemaName == reg.DefaultYBSchemaName {
+	if reg.checkIfSchemaNameIsDefault(schemaName) {
 		schemaName = ""
 	}
 
@@ -476,6 +479,15 @@ func (reg *NameRegistry) lookupSourceAndTargetTableNames(tableNameArg string, ig
 		return nil, nil, &ErrNameNotFound{ObjectType: "table", Name: tableNameArg}
 	}
 	return sourceName, targetName, nil
+}
+
+func (reg *NameRegistry) checkIfSchemaNameIsDefault(schemaName string) bool {
+	schemaNameIdentifier := sqlname.NewIdentifier(reg.SourceDBType, schemaName)
+	defaultSchemaNameIdentifier := sqlname.NewIdentifier(reg.SourceDBType, reg.DefaultSourceDBSchemaName)
+	defaultSourceReplicaSchemaNameIdentifier := sqlname.NewIdentifier(reg.SourceDBType, reg.DefaultSourceReplicaDBSchemaName)
+	defaultYBSchemaNameIdentifier := sqlname.NewIdentifier(reg.SourceDBType, reg.DefaultYBSchemaName)
+	return schemaNameIdentifier.Equals(defaultSchemaNameIdentifier) || schemaNameIdentifier.Equals(defaultSourceReplicaSchemaNameIdentifier) ||
+		schemaNameIdentifier.Equals(defaultYBSchemaNameIdentifier)
 }
 
 func (reg *NameRegistry) lookup(

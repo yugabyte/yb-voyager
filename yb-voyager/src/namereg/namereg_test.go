@@ -72,7 +72,7 @@ func TestNameTuple(t *testing.T) {
 	ntup := NewNameTuple(TARGET_DB_IMPORTER_ROLE, sourceName, targetName)
 
 	assert.Equal(ntup.CurrentName, ntup.TargetName)
-	assert.Equal(ntup.ForUserQuery(), `public."table1"`)
+	assert.Equal(ntup.ForUserQuery(), `"public"."table1"`)
 	schemaName, tableName := ntup.ForCatalogQuery()
 	assert.Equal(schemaName, `public`)
 	assert.Equal(tableName, `table1`)
@@ -80,7 +80,7 @@ func TestNameTuple(t *testing.T) {
 	ntup = NewNameTuple(SOURCE_REPLICA_DB_IMPORTER_ROLE, sourceName, targetName)
 
 	assert.Equal(ntup.CurrentName, ntup.SourceName)
-	assert.Equal(ntup.ForUserQuery(), `SAKILA."TABLE1"`)
+	assert.Equal(ntup.ForUserQuery(), `"SAKILA"."TABLE1"`)
 	schemaName, tableName = ntup.ForCatalogQuery()
 	assert.Equal(schemaName, `SAKILA`)
 	assert.Equal(tableName, `TABLE1`)
@@ -565,7 +565,7 @@ func TestNameRegistryWithDummyDBs(t *testing.T) {
 	ntup, err = reg.LookupTableName("TABLE1")
 	require.Nil(err)
 	assert.Equal(table1, ntup)
-	assert.Equal(`SAKILA."TABLE1"`, table1.ForUserQuery())
+	assert.Equal(`"SAKILA"."TABLE1"`, table1.ForUserQuery())
 
 	// Change the mode to IMPORT_TO_TARGET_MODE.
 	currentMode = TARGET_DB_IMPORTER_ROLE
@@ -583,7 +583,7 @@ func TestNameRegistryWithDummyDBs(t *testing.T) {
 	ntup, err = reg.LookupTableName("ybsakila.table1")
 	require.Nil(err)
 	assert.Equal(table1, ntup)
-	assert.Equal(`ybsakila."table1"`, table1.ForUserQuery())
+	assert.Equal(`"ybsakila"."table1"`, table1.ForUserQuery())
 
 	// When `import data` restarts, the registry should be reloaded from the file.
 	reg = newNameRegistry("ybsakila")
@@ -604,7 +604,7 @@ func TestNameRegistryWithDummyDBs(t *testing.T) {
 	ntup, err = reg.LookupTableName("TABLE1")
 	require.Nil(err)
 	assert.Equal(table1, ntup)
-	assert.Equal(`SAKILA_FF."TABLE1"`, table1.ForUserQuery())
+	assert.Equal(`"SAKILA_FF"."TABLE1"`, table1.ForUserQuery())
 }
 
 // Unit tests for breaking changes in NameRegistry.

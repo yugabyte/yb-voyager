@@ -25,9 +25,8 @@ import (
 	"strings"
 	"time"
 
-	goerrors "github.com/go-errors/errors"
-
 	"github.com/fatih/color"
+	goerrors "github.com/go-errors/errors"
 	"github.com/gosuri/uilive"
 	"github.com/magiconair/properties"
 	"github.com/samber/lo"
@@ -266,11 +265,16 @@ func fetchOrRetrieveColToSeqMap(msr *metadb.MigrationStatusRecord, tableList []s
 	}
 	return colToSeqMap, nil
 }
-
+//returns qualified column name to sequence name mapping for debezium
+//<schema>.<table>.<column>:<sequnce_name_user_query_format> as the sequence max value mapping also has the userQuery format
 func getColumnToSequenceMapping(colToSeqMap map[string]string) (string, error) {
 	var colToSeqMapSlices []string
 
 	for k, v := range colToSeqMap {
+		seqTuple, err := namereg.NameReg.LookupTableName(v)
+		if err != nil {
+			return "", goerrors.Errorf("lookup failed for sequence %s", v)
+		}
 		parts := strings.Split(k, ".")
 		leafTable := fmt.Sprintf("%s.%s", parts[0], parts[1])
 		rootTable, isRenamed := renameTableIfRequired(leafTable)
@@ -279,12 +283,12 @@ func getColumnToSequenceMapping(colToSeqMap map[string]string) (string, error) {
 			if err != nil {
 				return "", goerrors.Errorf("lookup failed for table %s", rootTable)
 			}
-			c := fmt.Sprintf("%s.%s:%s", rootTableTup.AsQualifiedCatalogName(), parts[2], v)
+			c := fmt.Sprintf("%s.%s:%s", rootTableTup.AsQualifiedCatalogName(), parts[2], seqTuple.ForUserQuery())
 			if !slices.Contains(colToSeqMapSlices, c) {
 				colToSeqMapSlices = append(colToSeqMapSlices, c)
 			}
 		} else {
-			colToSeqMapSlices = append(colToSeqMapSlices, fmt.Sprintf("%s:%s", k, v))
+			colToSeqMapSlices = append(colToSeqMapSlices, fmt.Sprintf("%s:%s", k, seqTuple.ForUserQuery()))
 		}
 	}
 

@@ -70,7 +70,6 @@ func TestExportSnapshotStatusJson(t *testing.T) {
 	}
 
 	exportDir = filepath.Join(os.TempDir(), "export_snapshot_status_test")
-
 	// Make export directory
 	err := os.MkdirAll(filepath.Join(exportDir, "metainfo"), 0755)
 	if err != nil {
@@ -92,14 +91,14 @@ func TestExportSnapshotStatusJson(t *testing.T) {
 
 	expectedExportSnapshotStatusJSON := `{
   "tables": {
-    "public.\"table1\"": {
-      "table_name": "public.\"table1\"",
+    "\"public\".\"table1\"": {
+      "table_name": "\"public\".\"table1\"",
       "file_name": "",
       "status": "NOT-STARTED",
       "exported_row_count_snapshot": 0
     },
-    "schema1.\"table2\"": {
-      "table_name": "schema1.\"table2\"",
+    "\"schema1\".\"table2\"": {
+      "table_name": "\"schema1\".\"table2\"",
       "file_name": "",
       "status": "NOT-STARTED",
       "exported_row_count_snapshot": 0

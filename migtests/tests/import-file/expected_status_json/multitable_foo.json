@@ -1,6 +1,6 @@
 [
     {
-      "table_name": "public.\"foo\"",
+      "table_name": "\"public\".\"foo\"",
       "file_name": "foo1.text",
       "status": "DONE",
       "total_count": 15,
@@ -9,7 +9,7 @@
       "percentage_complete": 100
     },
     {
-      "table_name": "public.\"foo\"",
+      "table_name": "\"public\".\"foo\"",
       "file_name": "foo2.text",
       "status": "DONE",
       "total_count": 19,
@@ -18,7 +18,7 @@
       "percentage_complete": 100
     },
     {
-      "table_name": "public.\"foo\"",
+      "table_name": "\"public\".\"foo\"",
       "file_name": "foo3.text",
       "status": "DONE",
       "total_count": 11,
