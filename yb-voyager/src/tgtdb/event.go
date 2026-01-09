@@ -26,6 +26,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/samber/lo"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -229,25 +230,45 @@ func (event *Event) GetPreparedStmtName() string {
 	}
 	baseName := baseIdentifier.String()
 
-	// Build full name with operation suffix
-	fullName := baseName + "_" + event.Op
+	// Get short identifier for exporter role
+	roleID := getExporterRoleID(event.ExporterRole)
+
+	// Build full name with role and operation suffix
+	// Format: <base>_<role>_<op>
+	fullName := fmt.Sprintf("%s_%s_%s", baseName, roleID, event.Op)
 
 	// PostgreSQL has a 63-char limit for identifiers. If the name exceeds this,
 	// PostgreSQL silently truncates it, causing collisions. To avoid this,
 	// we hash long names to ensure they're unique and always under the limit.
-	// Format: <24-char-hash>_<op> = ~26 chars (well under 63)
+	// Format: <24-char-hash>_<role>_<op> = ~29 chars (well under 63)
 	// Using 12 bytes (96 bits) provides excellent collision resistance:
 	// - ~40 trillion unique hashes before 1% collision probability
 	// - ~280 trillion unique hashes before 50% collision probability
 	// This far exceeds any realistic migration scenario (typically thousands of tables).
 	if len(fullName) >= 60 {
-		// Hash the base identifier (without operation suffix)
+		// Hash the base identifier (without role and operation suffix)
 		hash := sha256.Sum256([]byte(baseName))
 		hashStr := hex.EncodeToString(hash[:12]) // Use first 12 bytes = 24 hex chars
-		return fmt.Sprintf("%s_%s", hashStr, event.Op)
+		return fmt.Sprintf("%s_%s_%s", hashStr, roleID, event.Op)
 	}
 
 	return fullName
+}
+
+// getExporterRoleID returns a short identifier for the exporter role
+// to include in prepared statement names for better debugging and isolation
+func getExporterRoleID(exporterRole string) string {
+	switch exporterRole {
+	case constants.SOURCE_DB_EXPORTER_ROLE:
+		return "src"
+	case constants.TARGET_DB_EXPORTER_FF_ROLE:
+		return "tff"
+	case constants.TARGET_DB_EXPORTER_FB_ROLE:
+		return "tfb"
+	default:
+		// Fallback for unknown roles
+		return "unk"
+	}
 }
 
 const insertTemplate = "INSERT INTO %s (%s) VALUES (%s)"
