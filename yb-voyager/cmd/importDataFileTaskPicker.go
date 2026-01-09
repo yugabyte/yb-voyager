@@ -18,6 +18,7 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"sort"
 
 	goerrors "github.com/go-errors/errors"
 
@@ -414,7 +415,8 @@ func (c *ColocatedAwareRandomTaskPicker) WaitForTasksBatchesTobeImported() error
 }
 
 /*
-The goal of this picker is to pick a combination of colocated and sharded tasks, both at random.
+The goal of this picker is to pick a combination of colocated and sharded tasks.
+Colocated tasks are picked at random, while sharded tasks are picked in descending order of size (largest first).
 The limits in place are maxShardedTasksInProgress, maxColocatedTasksInProgress and colocatedBatchTaskQueue.
 
 Colocated tasks are limited by single tablet performance limits on YB, so we have to constrain the no. of colocated
@@ -437,8 +439,55 @@ type ColocatedCappedRandomTaskPicker struct {
 	inProgressColocatedTasks []*ImportFileTask
 
 	// tasks which have not yet been picked even once.
-	pendingShardedTasks   []*ImportFileTask
-	pendingColocatedTasks []*ImportFileTask
+	orderedPendingShardedTasks []*ImportFileTask // sorted by Size desc, see sortTasksBySizeDesc
+	pendingColocatedTasks      []*ImportFileTask
+}
+
+func sortTasksBySizeDesc(tasks []*ImportFileTask) []*ImportFileTask {
+	if len(tasks) <= 1 {
+		return tasks
+	}
+
+	// Check if RowCounts vary. In import-data, row counts are properly populated by export-data.
+	// In import-data-file, row counts are not known and are not populated.
+	allSameRowCount := true
+	firstRowCount := tasks[0].RowCount
+	for _, task := range tasks[1:] {
+		if task.RowCount != firstRowCount {
+			allSameRowCount = false
+			break
+		}
+	}
+
+	if !allSameRowCount {
+		sort.Slice(tasks, func(i, j int) bool {
+			return tasks[i].RowCount > tasks[j].RowCount
+		})
+		log.Infof("Sorted sharded tasks by RowCount desc")
+		return tasks
+	}
+
+	// Check if FileSizes vary. In import-data-file, row counts are not known and are not populated.
+	// So we use FileSize to sort.
+	allSameFileSize := true
+	firstFileSize := tasks[0].FileSize
+	for _, task := range tasks[1:] {
+		if task.FileSize != firstFileSize {
+			allSameFileSize = false
+			break
+		}
+	}
+
+	if !allSameFileSize {
+		sort.Slice(tasks, func(i, j int) bool {
+			return tasks[i].FileSize > tasks[j].FileSize
+		})
+		log.Infof("Sorted sharded tasks by FileSize desc")
+		return tasks
+	}
+
+	log.Infof("All sharded tasks have the same RowCount/FileSize. Using unsorted tasks")
+	return tasks
 }
 
 func NewColocatedCappedRandomTaskPicker(maxShardedTasksInProgress int, maxColocatedTasksInProgress int, tasks []*ImportFileTask,
@@ -514,8 +563,8 @@ func NewColocatedCappedRandomTaskPicker(maxShardedTasksInProgress int, maxColoca
 		inProgressColocatedTasks: inProgressColocatedTasks,
 		inProgressShardedTasks:   inProgressShardedTasks,
 
-		pendingColocatedTasks: pendingColcatedTasks,
-		pendingShardedTasks:   pendingShardedTasks,
+		pendingColocatedTasks:      pendingColcatedTasks,
+		orderedPendingShardedTasks: sortTasksBySizeDesc(pendingShardedTasks),
 
 		tableTypes:              tableTypes,
 		colocatedBatchTaskQueue: colocatedBatchTaskQueue,
@@ -530,7 +579,7 @@ func (c *ColocatedCappedRandomTaskPicker) inProgressTasks() []*ImportFileTask {
 }
 
 func (c *ColocatedCappedRandomTaskPicker) pendingTasks() []*ImportFileTask {
-	return append(c.pendingColocatedTasks, c.pendingShardedTasks...)
+	return append(c.pendingColocatedTasks, c.orderedPendingShardedTasks...)
 }
 
 func (c *ColocatedCappedRandomTaskPicker) HasMoreTasks() bool {
@@ -542,7 +591,7 @@ func (c *ColocatedCappedRandomTaskPicker) HasMoreColocatedTasks() bool {
 }
 
 func (c *ColocatedCappedRandomTaskPicker) HasMoreShardedTasks() bool {
-	return len(c.inProgressShardedTasks) > 0 || len(c.pendingShardedTasks) > 0
+	return len(c.inProgressShardedTasks) > 0 || len(c.orderedPendingShardedTasks) > 0
 }
 
 func (c *ColocatedCappedRandomTaskPicker) pickRandomFromListOfTasks(tasks []*ImportFileTask) (int, *ImportFileTask) {
@@ -656,16 +705,16 @@ func (c *ColocatedCappedRandomTaskPicker) pickShardedTask() (*ImportFileTask, er
 
 func (c *ColocatedCappedRandomTaskPicker) pickPendingShardedTaskAsPerMaxTasks() (*ImportFileTask, error) {
 	if len(c.inProgressShardedTasks) < c.maxShardedTasksInProgress {
-		if len(c.pendingShardedTasks) > 0 {
-			taskIndex, pickedTask := c.pickRandomFromListOfTasks(c.pendingShardedTasks)
-			c.pendingShardedTasks = append(c.pendingShardedTasks[:taskIndex], c.pendingShardedTasks[taskIndex+1:]...)
+		if len(c.orderedPendingShardedTasks) > 0 {
+			pickedTask := c.orderedPendingShardedTasks[0]
+			c.orderedPendingShardedTasks = c.orderedPendingShardedTasks[1:]
 			c.inProgressShardedTasks = append(c.inProgressShardedTasks, pickedTask)
 			log.Debugf("picking pending sharded task: %v", pickedTask)
 			return pickedTask, nil
 		}
 	}
-	log.Debugf("could not pick pending sharded task. inProgressShardedTasks: %v, maxShardedTasksInProgress: %v, pendingShardedTasks: %v",
-		c.inProgressShardedTasks, c.maxShardedTasksInProgress, c.pendingShardedTasks)
+	log.Debugf("could not pick pending sharded task. inProgressShardedTasks: %v, maxShardedTasksInProgress: %v, orderedPendingShardedTasks: %v",
+		c.inProgressShardedTasks, c.maxShardedTasksInProgress, c.orderedPendingShardedTasks)
 	return nil, nil
 }
 
