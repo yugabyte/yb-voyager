@@ -78,10 +78,6 @@ if FAKER_SEED is not None:
 conn = psycopg2.connect(**get_connection_kwargs_from_config(CONFIG))
 cursor = conn.cursor()
 
-# Refresh planner statistics up front for better row estimates
-cursor.execute("ANALYZE;")
-conn.commit()
-
 # Detect database flavor (PostgreSQL vs YugabyteDB)
 DB_FLAVOR = detect_db_flavor(cursor)
 
@@ -109,8 +105,24 @@ print("Schema analysed")
 
 # Precompute estimated row counts once per table for sampling decisions
 ROW_ESTIMATES = {}
-for table in table_schemas.keys():
-    ROW_ESTIMATES[table] = get_estimated_row_count(cursor, SCHEMA_NAME, table)
+
+try:
+    # Refresh planner statistics up front for better row estimates
+    cursor.execute("ANALYZE;")
+    conn.commit()
+    for table in table_schemas.keys():
+        ROW_ESTIMATES[table] = get_estimated_row_count(cursor, SCHEMA_NAME, table)
+except Exception as e:
+    print(f"Error refreshing planner statistics using ANALYZE: {e}. Getting row estimates using count(*).")
+    # Rollback the failed transaction before proceeding
+    conn.rollback()
+    # Using count(*) to get row estimates
+    for table in table_schemas.keys():
+        cursor.execute(f"SELECT COUNT(*) FROM {SCHEMA_NAME}.{table};")
+        ROW_ESTIMATES[table] = cursor.fetchone()[0]
+        conn.commit()
+
+print("Row estimates: ", ROW_ESTIMATES)
 
 # Precompute table selection weights once: default weight 1 for unspecified tables
 RESOLVED_TABLE_WEIGHTS = dict(TABLE_WEIGHTS)
