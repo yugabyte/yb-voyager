@@ -65,11 +65,11 @@ generator_source:
       operation_weights: {INSERT: 3, UPDATE: 2, DELETE: 1}
       random_seed: 123
       faker_seed: 123
-      insert_rows: 3
-      update_rows: 2
+      insert_rows: 1
+      update_rows: 1
       delete_rows: 1
       insert_max_retries: 5
-      update_max_retries: 1
+      update_max_retries: 5
       min_col_size_bytes: 100000000
 
 # Fallback (target) event generator configuration.
@@ -94,11 +94,11 @@ generator_target:
       operation_weights: {INSERT: 3, UPDATE: 2, DELETE: 1}
       random_seed: 456
       faker_seed: 456
-      insert_rows: 3
-      update_rows: 2
+      insert_rows: 1
+      update_rows: 1
       delete_rows: 1
       insert_max_retries: 5
-      update_max_retries: 1
+      update_max_retries: 5
       min_col_size_bytes: 100000000
 
 voyager:

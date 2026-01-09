@@ -57,7 +57,7 @@ generator_source:
     generator:
       schema_name: public
       manual_table_list: []
-      exclude_table_list: []
+      exclude_table_list: [cutover_table]
       num_iterations: -1
       wait_after_operations: 1000
       wait_duration_seconds: 1
@@ -65,12 +65,12 @@ generator_source:
       operation_weights: {INSERT: 3, UPDATE: 2, DELETE: 1}
       random_seed: 123
       faker_seed: 123
-      insert_rows: 3
-      update_rows: 2
+      insert_rows: 1
+      update_rows: 1
       delete_rows: 1
       insert_max_retries: 5
-      update_max_retries: 1
-      min_col_size_bytes: 5500000
+      update_max_retries: 5
+      min_col_size_bytes: 2500000
 
 # Fallback (target) event generator configuration.
 # This will be used later when we start a generator on the target side.
@@ -86,7 +86,7 @@ generator_target:
     generator:
       schema_name: public
       manual_table_list: []
-      exclude_table_list: []
+      exclude_table_list: [cutover_table]
       num_iterations: -1
       wait_after_operations: 1000
       wait_duration_seconds: 1
@@ -94,12 +94,12 @@ generator_target:
       operation_weights: {INSERT: 3, UPDATE: 2, DELETE: 1}
       random_seed: 456
       faker_seed: 456
-      insert_rows: 3
-      update_rows: 2
+      insert_rows: 1
+      update_rows: 1
       delete_rows: 1
       insert_max_retries: 5
-      update_max_retries: 1
-      min_col_size_bytes: 5500000
+      update_max_retries: 5
+      min_col_size_bytes: 2500000
 
 voyager:
   import_schema:
