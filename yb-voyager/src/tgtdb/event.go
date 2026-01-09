@@ -16,6 +16,8 @@ limitations under the License.
 package tgtdb
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"strings"
 	"sync"
@@ -215,16 +217,37 @@ func (e *Event) GetParamsString() string {
 }
 
 func (event *Event) GetPreparedStmtName() string {
-	var ps strings.Builder
-	ps.WriteString(event.TableNameTup.ForUserQuery())
-	ps.WriteString("_")
-	ps.WriteString(event.Op)
+	// Build the base identifier (table name + columns for updates)
+	// This is what we'll hash if needed
+	var baseIdentifier strings.Builder
+	baseIdentifier.WriteString(event.TableNameTup.ForUserQuery())
 	if event.Op == "u" {
+		// For updates, include column names to distinguish different update patterns
 		keys := strings.Join(utils.GetMapKeysSorted(event.Fields), ",")
-		ps.WriteString(":")
-		ps.WriteString(keys)
+		baseIdentifier.WriteString(":")
+		baseIdentifier.WriteString(keys)
 	}
-	return ps.String()
+	baseName := baseIdentifier.String()
+
+	// Build full name with operation suffix
+	fullName := baseName + "_" + event.Op
+
+	// PostgreSQL has a 63-char limit for identifiers. If the name exceeds this,
+	// PostgreSQL silently truncates it, causing collisions. To avoid this,
+	// we hash long names to ensure they're unique and always under the limit.
+	// Format: <24-char-hash>_<op> = ~26 chars (well under 63)
+	// Using 12 bytes (96 bits) provides excellent collision resistance:
+	// - ~40 trillion unique hashes before 1% collision probability
+	// - ~280 trillion unique hashes before 50% collision probability
+	// This far exceeds any realistic migration scenario (typically thousands of tables).
+	if len(fullName) >= 60 {
+		// Hash the base identifier (without operation suffix)
+		hash := sha256.Sum256([]byte(baseName))
+		hashStr := hex.EncodeToString(hash[:12]) // Use first 12 bytes = 24 hex chars
+		return fmt.Sprintf("%s_%s", hashStr, event.Op)
+	}
+
+	return fullName
 }
 
 const insertTemplate = "INSERT INTO %s (%s) VALUES (%s)"
