@@ -7,7 +7,13 @@ from utils import (
     build_insert_values,
     build_update_values,
 )
-from utils import load_event_generator_config, get_connection_kwargs_from_config
+from utils import (
+    load_event_generator_config,
+    get_connection_kwargs_from_config,
+    detect_db_flavor,
+    get_estimated_row_count,
+    build_sampling_condition,
+)
 import time
 from utils import set_faker_seed
 import argparse
@@ -71,6 +77,13 @@ if FAKER_SEED is not None:
 conn = psycopg2.connect(**get_connection_kwargs_from_config(CONFIG))
 cursor = conn.cursor()
 
+# Refresh planner statistics up front for better row estimates
+cursor.execute("ANALYZE;")
+conn.commit()
+
+# Detect database flavor (PostgreSQL vs YugabyteDB)
+DB_FLAVOR = detect_db_flavor(cursor)
+
 cursor.execute("""
     CREATE EXTENSION IF NOT EXISTS tsm_system_rows;
 """)
@@ -92,6 +105,11 @@ table_schemas = generate_table_schemas(
     exclude_table_list=EXCLUDE_TABLE_LIST,
 )
 print("Schema analysed")
+
+# Precompute estimated row counts once per table for sampling decisions
+ROW_ESTIMATES = {}
+for table in table_schemas.keys():
+    ROW_ESTIMATES[table] = get_estimated_row_count(cursor, SCHEMA_NAME, table)
 
 # Precompute table selection weights once: default weight 1 for unspecified tables
 RESOLVED_TABLE_WEIGHTS = dict(TABLE_WEIGHTS)
@@ -149,15 +167,18 @@ try:
                     columns_to_update = random.sample(updateable_columns, num_columns_to_update)
 
                     set_clause, params = build_update_values(table_schemas, table_name, columns_to_update)
-                    where_clause = f"{primary_key} IN (SELECT {primary_key} FROM {table_name} TABLESAMPLE SYSTEM_ROWS(%s))"
-                    # Alternatives considered for choosing rows to UPDATE:
-                    # - ORDER BY RANDOM() LIMIT %s
-                    # - TABLESAMPLE SYSTEM (percentage-based sampling)
+                    where_clause, sampling_params = build_sampling_condition(
+                        db_flavor=DB_FLAVOR,
+                        table_name=table_name,
+                        primary_key=primary_key,
+                        target_row_count=UPDATE_ROWS,
+                        estimated_row_count=ROW_ESTIMATES.get(table_name),
+                    )
                     query_to_run = f"UPDATE {table_name} SET {set_clause} WHERE {where_clause}"
-                    params = params + [UPDATE_ROWS]
+                    full_params = params + sampling_params
 
                     try:
-                        cursor.execute(query_to_run, params)
+                        cursor.execute(query_to_run, full_params)
                         conn.commit()
                         break  # Break out of the loop if the update is successful
                     except Exception as e:
@@ -165,12 +186,15 @@ try:
 
             elif operation == "DELETE":
                 primary_key = table_schemas[table_name]["primary_key"]
-                query_to_run = f"DELETE FROM {table_name} WHERE {primary_key} IN (SELECT {primary_key} FROM {table_name} TABLESAMPLE SYSTEM_ROWS(%s))"
-                # Alternatives considered for choosing rows to DELETE:
-                # - ORDER BY RANDOM() LIMIT %s
-                # - simple LIMIT %s without TABLESAMPLE
-                params = (DELETE_ROWS,)
-                cursor.execute(query_to_run, params)
+                where_clause, sampling_params = build_sampling_condition(
+                    db_flavor=DB_FLAVOR,
+                    table_name=table_name,
+                    primary_key=primary_key,
+                    target_row_count=DELETE_ROWS,
+                    estimated_row_count=ROW_ESTIMATES.get(table_name),
+                )
+                query_to_run = f"DELETE FROM {table_name} WHERE {where_clause}"
+                cursor.execute(query_to_run, sampling_params)
 
                 conn.commit()
 
