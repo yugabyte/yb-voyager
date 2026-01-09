@@ -64,7 +64,7 @@ func checkUnsupportedStatementType(parseResult *pg_query.ParseResult) error {
 
 	// Check direct statement type matches
 	if objectType, unsupported := unsupportedStatementTypes[stmtType]; unsupported {
-		return fmt.Errorf("unsupported statement type for anonymization: %s", objectType)
+		return goerrors.Errorf("unsupported statement type for anonymization: %s", objectType)
 	}
 
 	// Check generic statements and special cases for unsupported object types
@@ -73,28 +73,28 @@ func checkUnsupportedStatementType(parseResult *pg_query.ParseResult) error {
 	case *pg_query.Node_CreateTableAsStmt:
 		// CREATE MATERIALIZED VIEW uses CreateTableAsStmt with OBJECT_MATVIEW
 		if isUnsupportedObjectType(n.CreateTableAsStmt.Objtype) {
-			return fmt.Errorf("unsupported statement type for anonymization: CREATE %s", n.CreateTableAsStmt.Objtype)
+			return goerrors.Errorf("unsupported statement type for anonymization: CREATE %s", n.CreateTableAsStmt.Objtype)
 		}
 	case *pg_query.Node_DropStmt:
 		if isUnsupportedObjectType(n.DropStmt.RemoveType) {
-			return fmt.Errorf("unsupported statement type for anonymization: DROP %s", n.DropStmt.RemoveType)
+			return goerrors.Errorf("unsupported statement type for anonymization: DROP %s", n.DropStmt.RemoveType)
 		}
 	case *pg_query.Node_RenameStmt:
 		if isUnsupportedObjectType(n.RenameStmt.RenameType) {
-			return fmt.Errorf("unsupported statement type for anonymization: ALTER %s RENAME", n.RenameStmt.RenameType)
+			return goerrors.Errorf("unsupported statement type for anonymization: ALTER %s RENAME", n.RenameStmt.RenameType)
 		}
 	case *pg_query.Node_AlterOwnerStmt:
 		if isUnsupportedObjectType(n.AlterOwnerStmt.ObjectType) {
-			return fmt.Errorf("unsupported statement type for anonymization: ALTER %s OWNER", n.AlterOwnerStmt.ObjectType)
+			return goerrors.Errorf("unsupported statement type for anonymization: ALTER %s OWNER", n.AlterOwnerStmt.ObjectType)
 		}
 	case *pg_query.Node_AlterObjectSchemaStmt:
 		if isUnsupportedObjectType(n.AlterObjectSchemaStmt.ObjectType) {
-			return fmt.Errorf("unsupported statement type for anonymization: ALTER %s SET SCHEMA", n.AlterObjectSchemaStmt.ObjectType)
+			return goerrors.Errorf("unsupported statement type for anonymization: ALTER %s SET SCHEMA", n.AlterObjectSchemaStmt.ObjectType)
 		}
 	case *pg_query.Node_AlterTableStmt:
 		// ALTER VIEW/MATERIALIZED VIEW ... OWNER TO uses AlterTableStmt
 		if isUnsupportedObjectType(n.AlterTableStmt.Objtype) {
-			return fmt.Errorf("unsupported statement type for anonymization: ALTER %s", n.AlterTableStmt.Objtype)
+			return goerrors.Errorf("unsupported statement type for anonymization: ALTER %s", n.AlterTableStmt.Objtype)
 		}
 	}
 
