@@ -29,42 +29,19 @@ import (
 
 //================================================
 
-type identifier struct {
-	Quoted, Unquoted, MinQuoted string
-}
-
-func NewIdentifier(dbType, name string) identifier {
-	if IsQuoted(name) {
-		name = unquote(name, dbType)
-	}
-	return identifier{
-		Quoted:    quote2(dbType, name),
-		Unquoted:  name,
-		MinQuoted: minQuote2(name, dbType),
-	}
-}
-
-func (i identifier) Equals(other identifier) bool {
-	return i.Quoted == other.Quoted && i.Unquoted == other.Unquoted && i.MinQuoted == other.MinQuoted
-}
-
 // Can be a name of a table, sequence, materialised view, etc.
 type ObjectName struct {
-	SchemaName        identifier
+	SchemaName        Identifier
 	FromDefaultSchema bool
 
-	Qualified    identifier
-	Unqualified  identifier
-	MinQualified identifier
+	Qualified    Identifier
+	Unqualified  Identifier
+	MinQualified Identifier
 }
 
-/*
-understand command table usages and handling , assumptions  for both schema and table name:
-inputs for schema should have same behaviour with  table
-schema commands - namereg
-*/
+//Assumption is to pass unquoted name for schema and table name with case sensitivity preserved
 func NewObjectName(dbType, defaultSchemaName, schemaName, tableName string) *ObjectName {
-	schemaNameIdentifier := identifier{
+	schemaNameIdentifier := Identifier{
 		Quoted:    quote2(dbType, schemaName),
 		Unquoted:  schemaName,
 		MinQuoted: minQuote2(schemaName, dbType),
@@ -72,12 +49,12 @@ func NewObjectName(dbType, defaultSchemaName, schemaName, tableName string) *Obj
 	result := &ObjectName{
 		SchemaName:        schemaNameIdentifier,
 		FromDefaultSchema: schemaName == defaultSchemaName,
-		Qualified: identifier{
+		Qualified: Identifier{
 			Quoted:    schemaNameIdentifier.Quoted + "." + quote2(dbType, tableName),
 			Unquoted:  schemaNameIdentifier.Unquoted + "." + tableName,
 			MinQuoted: schemaNameIdentifier.MinQuoted + "." + minQuote2(tableName, dbType),
 		},
-		Unqualified: identifier{
+		Unqualified: Identifier{
 			Quoted:    quote2(dbType, tableName),
 			Unquoted:  tableName,
 			MinQuoted: minQuote2(tableName, dbType),
@@ -87,6 +64,7 @@ func NewObjectName(dbType, defaultSchemaName, schemaName, tableName string) *Obj
 	return result
 }
 
+// Assumption - always quoted qualified name with case sensitivity preserved   
 func NewObjectNameWithQualifiedName(dbType, defaultSchemaName, objName string) *ObjectName {
 	parts := strings.Split(objName, ".")
 	if len(parts) != 2 {
@@ -102,15 +80,6 @@ func (nv *ObjectName) String() string {
 func (o *ObjectName) Key() string {
 	return o.Qualified.Unquoted
 }
-
-func (o *ObjectName) MinQuotedSchemaAndQuotedTableName() string {
-	return o.Qualified.Quoted
-	// return fmt.Sprintf("%s.%s", o.SchemaName.MinQuoted, o.Unqualified.Quoted)
-}
-
-/*
-
- */
 
 /*
 Assumptions for both schema and table name:
@@ -196,7 +165,7 @@ func (t NameTuple) TargetTableAvailable() bool {
 }
 
 func (t NameTuple) ForUserQuery() string {
-	return t.CurrentName.MinQuotedSchemaAndQuotedTableName()
+	return t.CurrentName.Qualified.Quoted
 }
 
 func (t NameTuple) ForOutput() string {
@@ -218,9 +187,9 @@ func (t NameTuple) ForMinOutput() string {
 func (t NameTuple) ForKey() string {
 	// sourcename will be nil only in the case of import-data-file
 	if t.SourceName != nil {
-		return t.SourceName.MinQuotedSchemaAndQuotedTableName()
+		return t.SourceName.Qualified.Quoted
 	}
-	return t.TargetName.MinQuotedSchemaAndQuotedTableName()
+	return t.TargetName.Qualified.Quoted
 }
 
 func (t NameTuple) ForKeyTableSchema() (string, string) {

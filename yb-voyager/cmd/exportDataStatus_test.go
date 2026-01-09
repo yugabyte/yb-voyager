@@ -71,7 +71,6 @@ func TestExportSnapshotStatusJson(t *testing.T) {
 	}
 
 	exportDir = filepath.Join(os.TempDir(), "export_snapshot_status_test")
-	fmt.Println("exportDir", exportDir)
 	// Make export directory
 	err := os.MkdirAll(filepath.Join(exportDir, "metainfo"), 0755)
 	if err != nil {
@@ -80,10 +79,10 @@ func TestExportSnapshotStatusJson(t *testing.T) {
 
 	// Clean up the export directory
 	defer func() {
-		// err := os.RemoveAll(exportDir)
-		// if err != nil {
-		// 	t.Fatalf("failed to remove export directory: %v", err)
-		// }
+		err := os.RemoveAll(exportDir)
+		if err != nil {
+			t.Fatalf("failed to remove export directory: %v", err)
+		}
 	}()
 
 	outputFilePath := filepath.Join(exportDir, "metainfo", "export_snapshot_status.json")
