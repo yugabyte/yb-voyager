@@ -7,8 +7,8 @@ create table large_row_table (
 
 \d large_row_table
 
-ALTER DATABASE test_db SET temp_file_limit = 5242880; -- 5GB
-ALTER DATABASE ff_db SET temp_file_limit = 5242880; -- 5GB
+ALTER DATABASE test_db SET temp_file_limit = 20971520; -- 20GB
+ALTER DATABASE ff_db SET temp_file_limit = 20971520; -- 20GB
 
 -- table for cutover/backlog checks
 DROP TABLE IF EXISTS public.cutover_table;
