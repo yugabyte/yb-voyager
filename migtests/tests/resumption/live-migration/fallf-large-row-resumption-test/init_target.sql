@@ -1,1 +1,1 @@
-ALTER DATABASE test_db SET temp_file_limit = 5242880; -- 5GB
+ALTER DATABASE test_db SET temp_file_limit = 20971520; -- 20GB
