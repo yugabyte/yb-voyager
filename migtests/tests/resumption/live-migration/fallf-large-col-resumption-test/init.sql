@@ -48,7 +48,7 @@ CREATE TABLE large_col_table (
     date_col DATE, 
     time_col TIME, 
     ts_col TIMESTAMP, 
-    real_col REAL, 
+    int_col INTEGER, 
     double_col DOUBLE PRECISION, 
     numeric_col NUMERIC(10,2), 
     uuid_col UUID
