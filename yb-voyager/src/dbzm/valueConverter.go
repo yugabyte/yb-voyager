@@ -282,9 +282,10 @@ type StreamingPhaseDebeziumValueConverter struct {
 	schemaRegistryTarget *schemareg.SchemaRegistry
 	valueConverterSuite  map[string]tgtdbsuite.ConverterFn
 	targetDBType         string
+	sourceDBType         string
 }
 
-func NewStreamingPhaseDebeziumValueConverter(tableList []sqlname.NameTuple, exportDir string, targetConf tgtdb.TargetConf, importerRole string) (*StreamingPhaseDebeziumValueConverter, error) {
+func NewStreamingPhaseDebeziumValueConverter(tableList []sqlname.NameTuple, exportDir string, targetConf tgtdb.TargetConf, importerRole string, sourceDBType string) (*StreamingPhaseDebeziumValueConverter, error) {
 	schemaRegistrySource := schemareg.NewSchemaRegistry(tableList, exportDir, "source_db_exporter", importerRole)
 	err := schemaRegistrySource.Init()
 	if err != nil {
@@ -309,6 +310,7 @@ func NewStreamingPhaseDebeziumValueConverter(tableList []sqlname.NameTuple, expo
 		schemaRegistryTarget: schemaRegistryTarget,
 		valueConverterSuite:  tdbValueConverterSuite,
 		targetDBType:         targetConf.TargetDBType,
+		sourceDBType:         sourceDBType,
 	}
 
 	return conv, nil
@@ -352,9 +354,14 @@ func (conv *StreamingPhaseDebeziumValueConverter) convertMap(tableNameTup sqlnam
 			// and all databases with quoted identifiers (exact case preserved)
 			colType, colDbzmSchema, err = conv.schemaRegistrySource.GetColumnType(tableNameTup, column, conv.shouldFormatAsPerSourceDatatypes())
 			if err != nil {
-				// Try uppercase as fallback: handles Oracle sources (uppercase unquoted)
-				colType, colDbzmSchema, err = conv.schemaRegistrySource.GetColumnType(tableNameTup, strings.ToUpper(column), conv.shouldFormatAsPerSourceDatatypes())
-				if err != nil {
+				// Try uppercase as fallback ONLY for Oracle sources (uppercase unquoted identifiers)
+				// Oracle stores unquoted identifiers in uppercase, while PostgreSQL/YugabyteDB use lowercase
+				if strings.EqualFold(conv.sourceDBType, "oracle") {
+					colType, colDbzmSchema, err = conv.schemaRegistrySource.GetColumnType(tableNameTup, strings.ToUpper(column), conv.shouldFormatAsPerSourceDatatypes())
+					if err != nil {
+						return fmt.Errorf("fetch column schema for INTERVAL column %q: %w", column, err)
+					}
+				} else {
 					return fmt.Errorf("fetch column schema for INTERVAL column %q: %w", column, err)
 				}
 			}
