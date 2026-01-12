@@ -133,7 +133,6 @@ func TestBytesConversionWithFormatting(t *testing.T) {
 	//verify the result is same as expected
 	assert.Equal(t, len(result), 20000004) //20000000 hex chars + 4 for '\x' + 2 for quotes
 
-
 	largeData200MB := make([]byte, 200000000)
 	for i := range largeData200MB {
 		largeData200MB[i] = byte(i % 256)
@@ -147,4 +146,16 @@ func TestBytesConversionWithFormatting(t *testing.T) {
 
 	//verify the result is same as expected
 	assert.Equal(t, len(result), 400000004) //400000000 hex chars + 4 for '\x' + 2 for quotes
+}
+
+func TestZonedTimeConversionWithFormatting(t *testing.T) {
+	value := "12:34:56.789+05:30"
+	typeName := "io.debezium.time.ZonedTime"
+	
+	converterFn := YBValueConverterSuite[typeName]
+	assert.NotNil(t, converterFn, "Converter function for %s should NOT be NIL after fix", typeName)
+
+	result, err := converterFn(value, true, nil)
+	assert.NoError(t, err)
+	assert.Equal(t, "'"+value+"'", result, "Expected value to be quoted after fix")
 }
