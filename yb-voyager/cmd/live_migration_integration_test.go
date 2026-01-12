@@ -2703,14 +2703,33 @@ func TestLiveMigrationWithLargeSchemaAndTableNames(t *testing.T) {
 			SELECT i, 'name_' || i, i * 20 FROM generate_series(1, 10) as i;`,
 		},
 		SourceDeltaSQL: []string{
-			// SCENARIO 1: Mix INSERT, DELETE, and UPDATE on same long-named table
+			// SCENARIO 1: Many events on same long-named table (500+ events)
+			// Tests that prepared statement reuse works correctly with long table names
 			// Tests that _c, _d, _u suffixes create unique prepared statement names
-			`INSERT INTO thisisaverylargenonpublicschema.thisisaverylargetableinaverylargeschema (id, name, value) VALUES (11, 'name_11', 110);`,
-			`INSERT INTO thisisaverylargenonpublicschema.thisisaverylargetableinaverylargeschema (id, name, value) VALUES (12, 'name_12', 120);`,
-			`UPDATE thisisaverylargenonpublicschema.thisisaverylargetableinaverylargeschema SET value = 101 WHERE id = 1;`,
-			`UPDATE thisisaverylargenonpublicschema.thisisaverylargetableinaverylargeschema SET value = 102 WHERE id = 2;`,
-			`DELETE FROM thisisaverylargenonpublicschema.thisisaverylargetableinaverylargeschema WHERE id = 11;`,
-			`DELETE FROM thisisaverylargenonpublicschema.thisisaverylargetableinaverylargeschema WHERE id = 12;`,
+			`DO $$
+DECLARE
+    i INTEGER;
+BEGIN
+    FOR i IN 11..260 LOOP
+        -- INSERT two rows
+        INSERT INTO thisisaverylargenonpublicschema.thisisaverylargetableinaverylargeschema (id, name, value) 
+        VALUES (i, 'name_' || i, i * 10);
+        
+        INSERT INTO thisisaverylargenonpublicschema.thisisaverylargetableinaverylargeschema (id, name, value) 
+        VALUES (i + 250, 'name_' || (i + 250), (i + 250) * 10);
+        
+        -- UPDATE existing rows
+        UPDATE thisisaverylargenonpublicschema.thisisaverylargetableinaverylargeschema 
+        SET value = value + 1 
+        WHERE id = i - 10 AND i > 10;
+        
+        -- DELETE one of the newly inserted rows (on alternate iterations)
+        IF i % 2 = 0 THEN
+            DELETE FROM thisisaverylargenonpublicschema.thisisaverylargetableinaverylargeschema 
+            WHERE id = i;
+        END IF;
+    END LOOP;
+END $$;`,
 
 			// SCENARIO 2: Operations on tables with similar long names (differ only at the end)
 			// Tests that different tables get unique prepared statement names
@@ -2722,14 +2741,33 @@ func TestLiveMigrationWithLargeSchemaAndTableNames(t *testing.T) {
 			`DELETE FROM thisisaverylargenonpublicschema.thisisaverylargetableinaverylargeschema99 WHERE id = 11;`,
 		},
 		TargetDeltaSQL: []string{
-			// Fallback testing: Execute same operations on target to test target → source streaming
-			// SCENARIO 1: Mix INSERT, DELETE, and UPDATE on same long-named table
-			`INSERT INTO thisisaverylargenonpublicschema.thisisaverylargetableinaverylargeschema (id, name, value) VALUES (21, 'fallback_21', 210);`,
-			`INSERT INTO thisisaverylargenonpublicschema.thisisaverylargetableinaverylargeschema (id, name, value) VALUES (22, 'fallback_22', 220);`,
-			`UPDATE thisisaverylargenonpublicschema.thisisaverylargetableinaverylargeschema SET value = 201 WHERE id = 3;`,
-			`UPDATE thisisaverylargenonpublicschema.thisisaverylargetableinaverylargeschema SET value = 202 WHERE id = 4;`,
-			`DELETE FROM thisisaverylargenonpublicschema.thisisaverylargetableinaverylargeschema WHERE id = 21;`,
-			`DELETE FROM thisisaverylargenonpublicschema.thisisaverylargetableinaverylargeschema WHERE id = 22;`,
+			// Fallback testing: Execute many operations on target to test target → source streaming
+			// SCENARIO 1: Many events on same long-named table (500+ events) during fallback
+			// Tests that prepared statement reuse works correctly during fallback streaming
+			`DO $$
+DECLARE
+    i INTEGER;
+BEGIN
+    FOR i IN 511..760 LOOP
+        -- INSERT two rows
+        INSERT INTO thisisaverylargenonpublicschema.thisisaverylargetableinaverylargeschema (id, name, value) 
+        VALUES (i, 'fallback_' || i, i * 10);
+        
+        INSERT INTO thisisaverylargenonpublicschema.thisisaverylargetableinaverylargeschema (id, name, value) 
+        VALUES (i + 250, 'fallback_' || (i + 250), (i + 250) * 10);
+        
+        -- UPDATE existing rows
+        UPDATE thisisaverylargenonpublicschema.thisisaverylargetableinaverylargeschema 
+        SET value = value + 100 
+        WHERE id = i - 510 AND i > 510;
+        
+        -- DELETE one of the newly inserted rows (on alternate iterations)
+        IF i % 2 = 1 THEN
+            DELETE FROM thisisaverylargenonpublicschema.thisisaverylargetableinaverylargeschema 
+            WHERE id = i;
+        END IF;
+    END LOOP;
+END $$;`,
 
 			// SCENARIO 2: Operations on tables with similar long names
 			`INSERT INTO thisisaverylargenonpublicschema.thisisaverylargetableinaverylargeschema52 (id, name, value) VALUES (21, 'fallback52_21', 210);`,
@@ -2779,14 +2817,13 @@ func TestLiveMigrationWithLargeSchemaAndTableNames(t *testing.T) {
 	testutils.FatalIfError(t, err, "failed to execute source delta")
 
 	// Wait for streaming to complete
-	// Table 1: 2 INSERTs, 2 UPDATEs, 2 DELETEs
-	// Table 2: 1 INSERT, 1 UPDATE, 1 DELETE
-	// Table 3: 1 INSERT, 1 UPDATE, 1 DELETE
+	// Table 1: DO block generates 500 INSERTs, 130 successful UPDATEs, 125 DELETEs
+	// UPDATEs: 10 (initial rows 1-10) + 120 (odd rows 11-249) = 130 (even rows get deleted so their updates fail)
 	err = liveMigrationTest.WaitForForwardStreamingComplete(map[string]ChangesCount{
 		`thisisaverylargenonpublicschema."thisisaverylargetableinaverylargeschema"`: {
-			Inserts: 2,
-			Updates: 2,
-			Deletes: 2,
+			Inserts: 500, // 250 iterations * 2 INSERTs per iteration
+			Updates: 130, // 10 (rows 1-10) + 120 (odd rows 11-249 that weren't deleted)
+			Deletes: 125, // 125 DELETEs (when i % 2 = 0: ids 12,14,16...260)
 		},
 		`thisisaverylargenonpublicschema."thisisaverylargetableinaverylargeschema52"`: {
 			Inserts: 1,
@@ -2798,7 +2835,7 @@ func TestLiveMigrationWithLargeSchemaAndTableNames(t *testing.T) {
 			Updates: 1,
 			Deletes: 1,
 		},
-	}, 120, 5)
+	}, 180, 5)
 	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
 
 	// Validate data after streaming
@@ -2824,12 +2861,13 @@ func TestLiveMigrationWithLargeSchemaAndTableNames(t *testing.T) {
 	testutils.FatalIfError(t, err, "failed to execute target delta")
 
 	// Wait for fallback streaming to complete (target → source)
-	// Testing same collision scenarios in fallback direction
+	// DO block generates 500 INSERTs, 130 successful UPDATEs, 125 DELETEs
+	// UPDATEs: 10 (initial rows 1-10) + 120 (odd rows 11-249) = 130 (even rows were deleted so updates fail)
 	err = liveMigrationTest.WaitForFallbackStreamingComplete(map[string]ChangesCount{
 		`thisisaverylargenonpublicschema."thisisaverylargetableinaverylargeschema"`: {
-			Inserts: 2,
-			Updates: 2,
-			Deletes: 2,
+			Inserts: 500, // 250 iterations * 2 INSERTs per iteration
+			Updates: 130, // 10 (rows 1-10) + 120 (odd rows 11-249 that exist)
+			Deletes: 125, // 125 DELETEs (when i % 2 = 1: odd ids 511,513...759)
 		},
 		`thisisaverylargenonpublicschema."thisisaverylargetableinaverylargeschema52"`: {
 			Inserts: 1,
@@ -2841,7 +2879,7 @@ func TestLiveMigrationWithLargeSchemaAndTableNames(t *testing.T) {
 			Updates: 1,
 			Deletes: 1,
 		},
-	}, 120, 5)
+	}, 180, 5)
 	testutils.FatalIfError(t, err, "failed to wait for fallback streaming complete")
 
 	// Validate data consistency after fallback
