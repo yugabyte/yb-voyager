@@ -2489,6 +2489,148 @@ END $$;
 
 }
 
+// Test INTERVAL columns with different casings during fallback streaming
+// This validates the fix for case-sensitivity bug in INTERVAL column lookup
+// Tests: unquoted lowercase, quoted mixed-case, and multiple INTERVAL columns
+func TestLiveMigrationIntervalColumnsFallback(t *testing.T) {
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB: ContainerConfig{
+			Type:         "postgresql",
+			ForLive:      true,
+			DatabaseName: "test_interval_fallback",
+		},
+		TargetDB: ContainerConfig{
+			Type:         "yugabytedb",
+			DatabaseName: "test_interval_fallback",
+		},
+		SchemaNames: []string{"test_schema"},
+		SchemaSQL: []string{
+			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
+			`CREATE SCHEMA IF NOT EXISTS test_schema;
+			CREATE TABLE test_schema.interval_test (
+				id SERIAL PRIMARY KEY,
+				-- Unquoted lowercase (most common case)
+				interval_years INTERVAL,
+				interval_days INTERVAL,
+				interval_hours INTERVAL,
+				-- Quoted identifiers (edge cases for case sensitivity)
+				"IntervalMixed" INTERVAL,
+				"INTERVAL_UPPER" INTERVAL,
+				name TEXT
+			);`,
+		},
+		SourceSetupSchemaSQL: []string{
+			`ALTER TABLE test_schema.interval_test REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			`INSERT INTO test_schema.interval_test (interval_years, interval_days, interval_hours, "IntervalMixed", "INTERVAL_UPPER", name)
+VALUES
+	(INTERVAL '1 year', INTERVAL '30 days', INTERVAL '5 hours', INTERVAL '2 months', INTERVAL '1 day 3 hours', 'row1'),
+	(INTERVAL '2 years 6 months', INTERVAL '45 days', INTERVAL '10 hours', INTERVAL '3 months 15 days', INTERVAL '2 days', 'row2'),
+	(INTERVAL '5 years', INTERVAL '90 days', INTERVAL '24 hours', INTERVAL '1 year', INTERVAL '5 hours 30 minutes', 'row3');`,
+		},
+		SourceDeltaSQL: []string{
+			`INSERT INTO test_schema.interval_test (interval_years, interval_days, interval_hours, "IntervalMixed", "INTERVAL_UPPER", name)
+VALUES
+	(INTERVAL '3 years', INTERVAL '60 days', INTERVAL '8 hours', INTERVAL '6 months', INTERVAL '3 days', 'row4');`,
+		},
+		TargetDeltaSQL: []string{
+			// These updates during fallback will test the fix for case-sensitivity
+			`UPDATE test_schema.interval_test SET interval_years = INTERVAL '10 years' WHERE id = 1;`,
+			`UPDATE test_schema.interval_test SET interval_days = INTERVAL '100 days', interval_hours = INTERVAL '20 hours' WHERE id = 2;`,
+			`UPDATE test_schema.interval_test SET "IntervalMixed" = INTERVAL '12 months', "INTERVAL_UPPER" = INTERVAL '7 days' WHERE id = 3;`,
+			// Insert with all INTERVAL columns to test case sensitivity
+			`INSERT INTO test_schema.interval_test (interval_years, interval_days, interval_hours, "IntervalMixed", "INTERVAL_UPPER", name)
+VALUES (INTERVAL '7 years', INTERVAL '120 days', INTERVAL '15 hours', INTERVAL '8 months', INTERVAL '4 days', 'fallback_row');`,
+		},
+		CleanupSQL: []string{
+			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
+		},
+	})
+
+	defer lm.Cleanup()
+
+	err := lm.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+
+	err = lm.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
+
+	err = lm.StartExportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start export data")
+
+	err = lm.StartImportData(true, map[string]string{
+		"--log-level": "debug",
+	})
+	testutils.FatalIfError(t, err, "failed to start import data")
+
+	time.Sleep(10 * time.Second)
+
+	// Wait for snapshot to complete (3 initial rows)
+	err = lm.WaitForSnapshotComplete(map[string]int64{
+		`test_schema."interval_test"`: 3,
+	}, 30)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+
+	// Validate snapshot data consistency
+	err = lm.ValidateDataConsistency([]string{`test_schema."interval_test"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate snapshot data consistency")
+
+	// Execute source delta (forward streaming: PG→YB)
+	err = lm.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
+
+	// Wait for forward streaming to complete (1 insert)
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`test_schema."interval_test"`: {
+			Inserts: 1,
+			Updates: 0,
+			Deletes: 0,
+		},
+	}, 30, 1)
+	testutils.FatalIfError(t, err, "failed to wait for forward streaming complete")
+
+	// Validate forward streaming data
+	err = lm.ValidateDataConsistency([]string{`test_schema."interval_test"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate forward streaming data consistency")
+
+	// Initiate cutover to target (YB becomes primary)
+	err = lm.InitiateCutoverToTarget(true, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover to target")
+
+	err = lm.WaitForCutoverComplete(50)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+
+	// Execute target delta (fallback streaming: YB→PG)
+	// This is where the bug was: INTERVAL columns with different casings failed during fallback
+	err = lm.ExecuteTargetDelta()
+	testutils.FatalIfError(t, err, "failed to execute target delta")
+
+	// Wait for fallback streaming to complete (3 updates + 1 insert)
+	err = lm.WaitForFallbackStreamingComplete(map[string]ChangesCount{
+		`test_schema."interval_test"`: {
+			Inserts: 1,
+			Updates: 3,
+			Deletes: 0,
+		},
+	}, 30, 1)
+	testutils.FatalIfError(t, err, "failed to wait for fallback streaming complete")
+
+	// Validate fallback streaming data consistency
+	// This ensures all INTERVAL columns (lowercase and mixed-case) were correctly replicated
+	// CompareTableData does a full SELECT * comparison of all rows and columns
+	err = lm.ValidateDataConsistency([]string{`test_schema."interval_test"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate fallback data consistency")
+
+	// Complete cutover to source
+	err = lm.InitiateCutoverToSource(nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
+
+	err = lm.WaitForCutoverSourceComplete(100)
+	testutils.FatalIfError(t, err, "failed to wait for cutover source complete")
+
+}
+
 // TestLiveMigrationWithDatatypeEdgeCases tests live migration with various datatypes
 // containing special characters and edge cases that require proper escaping.
 // Currently testing: STRING datatype with backslashes, quotes, newlines, tabs, Unicode, etc.
@@ -2891,148 +3033,6 @@ func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
 	t.Log("=== Final validation ===")
 	err = lm.ValidateDataConsistency([]string{`test_schema."string_edge_cases"`, `test_schema."json_edge_cases"`, `test_schema."enum_edge_cases"`, `test_schema."bytes_edge_cases"`, `test_schema."datetime_edge_cases"`, `test_schema."uuid_ltree_edge_cases"`, `test_schema."map_edge_cases"`, `test_schema."interval_edge_cases"`, `test_schema."zonedtimestamp_edge_cases"`, `test_schema."decimal_edge_cases"`, `test_schema."integer_edge_cases"`, `test_schema."boolean_edge_cases"`}, "id")
 	testutils.FatalIfError(t, err, "failed final data consistency check")
-}
-
-// Test INTERVAL columns with different casings during fallback streaming
-// This validates the fix for case-sensitivity bug in INTERVAL column lookup
-// Tests: unquoted lowercase, quoted mixed-case, and multiple INTERVAL columns
-func TestLiveMigrationIntervalColumnsFallback(t *testing.T) {
-	lm := NewLiveMigrationTest(t, &TestConfig{
-		SourceDB: ContainerConfig{
-			Type:         "postgresql",
-			ForLive:      true,
-			DatabaseName: "test_interval_fallback",
-		},
-		TargetDB: ContainerConfig{
-			Type:         "yugabytedb",
-			DatabaseName: "test_interval_fallback",
-		},
-		SchemaNames: []string{"test_schema"},
-		SchemaSQL: []string{
-			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
-			`CREATE SCHEMA IF NOT EXISTS test_schema;
-			CREATE TABLE test_schema.interval_test (
-				id SERIAL PRIMARY KEY,
-				-- Unquoted lowercase (most common case)
-				interval_years INTERVAL,
-				interval_days INTERVAL,
-				interval_hours INTERVAL,
-				-- Quoted identifiers (edge cases for case sensitivity)
-				"IntervalMixed" INTERVAL,
-				"INTERVAL_UPPER" INTERVAL,
-				name TEXT
-			);`,
-		},
-		SourceSetupSchemaSQL: []string{
-			`ALTER TABLE test_schema.interval_test REPLICA IDENTITY FULL;`,
-		},
-		InitialDataSQL: []string{
-			`INSERT INTO test_schema.interval_test (interval_years, interval_days, interval_hours, "IntervalMixed", "INTERVAL_UPPER", name)
-VALUES
-	(INTERVAL '1 year', INTERVAL '30 days', INTERVAL '5 hours', INTERVAL '2 months', INTERVAL '1 day 3 hours', 'row1'),
-	(INTERVAL '2 years 6 months', INTERVAL '45 days', INTERVAL '10 hours', INTERVAL '3 months 15 days', INTERVAL '2 days', 'row2'),
-	(INTERVAL '5 years', INTERVAL '90 days', INTERVAL '24 hours', INTERVAL '1 year', INTERVAL '5 hours 30 minutes', 'row3');`,
-		},
-		SourceDeltaSQL: []string{
-			`INSERT INTO test_schema.interval_test (interval_years, interval_days, interval_hours, "IntervalMixed", "INTERVAL_UPPER", name)
-VALUES
-	(INTERVAL '3 years', INTERVAL '60 days', INTERVAL '8 hours', INTERVAL '6 months', INTERVAL '3 days', 'row4');`,
-		},
-		TargetDeltaSQL: []string{
-			// These updates during fallback will test the fix for case-sensitivity
-			`UPDATE test_schema.interval_test SET interval_years = INTERVAL '10 years' WHERE id = 1;`,
-			`UPDATE test_schema.interval_test SET interval_days = INTERVAL '100 days', interval_hours = INTERVAL '20 hours' WHERE id = 2;`,
-			`UPDATE test_schema.interval_test SET "IntervalMixed" = INTERVAL '12 months', "INTERVAL_UPPER" = INTERVAL '7 days' WHERE id = 3;`,
-			// Insert with all INTERVAL columns to test case sensitivity
-			`INSERT INTO test_schema.interval_test (interval_years, interval_days, interval_hours, "IntervalMixed", "INTERVAL_UPPER", name)
-VALUES (INTERVAL '7 years', INTERVAL '120 days', INTERVAL '15 hours', INTERVAL '8 months', INTERVAL '4 days', 'fallback_row');`,
-		},
-		CleanupSQL: []string{
-			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
-		},
-	})
-
-	defer lm.Cleanup()
-
-	err := lm.SetupContainers(context.Background())
-	testutils.FatalIfError(t, err, "failed to setup containers")
-
-	err = lm.SetupSchema()
-	testutils.FatalIfError(t, err, "failed to setup schema")
-
-	err = lm.StartExportData(true, nil)
-	testutils.FatalIfError(t, err, "failed to start export data")
-
-	err = lm.StartImportData(true, map[string]string{
-		"--log-level": "debug",
-	})
-	testutils.FatalIfError(t, err, "failed to start import data")
-
-	time.Sleep(10 * time.Second)
-
-	// Wait for snapshot to complete (3 initial rows)
-	err = lm.WaitForSnapshotComplete(map[string]int64{
-		`test_schema."interval_test"`: 3,
-	}, 30)
-	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
-
-	// Validate snapshot data consistency
-	err = lm.ValidateDataConsistency([]string{`test_schema."interval_test"`}, "id")
-	testutils.FatalIfError(t, err, "failed to validate snapshot data consistency")
-
-	// Execute source delta (forward streaming: PG→YB)
-	err = lm.ExecuteSourceDelta()
-	testutils.FatalIfError(t, err, "failed to execute source delta")
-
-	// Wait for forward streaming to complete (1 insert)
-	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
-		`test_schema."interval_test"`: {
-			Inserts: 1,
-			Updates: 0,
-			Deletes: 0,
-		},
-	}, 30, 1)
-	testutils.FatalIfError(t, err, "failed to wait for forward streaming complete")
-
-	// Validate forward streaming data
-	err = lm.ValidateDataConsistency([]string{`test_schema."interval_test"`}, "id")
-	testutils.FatalIfError(t, err, "failed to validate forward streaming data consistency")
-
-	// Initiate cutover to target (YB becomes primary)
-	err = lm.InitiateCutoverToTarget(true, nil)
-	testutils.FatalIfError(t, err, "failed to initiate cutover to target")
-
-	err = lm.WaitForCutoverComplete(50)
-	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
-
-	// Execute target delta (fallback streaming: YB→PG)
-	// This is where the bug was: INTERVAL columns with different casings failed during fallback
-	err = lm.ExecuteTargetDelta()
-	testutils.FatalIfError(t, err, "failed to execute target delta")
-
-	// Wait for fallback streaming to complete (3 updates + 1 insert)
-	err = lm.WaitForFallbackStreamingComplete(map[string]ChangesCount{
-		`test_schema."interval_test"`: {
-			Inserts: 1,
-			Updates: 3,
-			Deletes: 0,
-		},
-	}, 30, 1)
-	testutils.FatalIfError(t, err, "failed to wait for fallback streaming complete")
-
-	// Validate fallback streaming data consistency
-	// This ensures all INTERVAL columns (lowercase and mixed-case) were correctly replicated
-	// CompareTableData does a full SELECT * comparison of all rows and columns
-	err = lm.ValidateDataConsistency([]string{`test_schema."interval_test"`}, "id")
-	testutils.FatalIfError(t, err, "failed to validate fallback data consistency")
-
-	// Complete cutover to source
-	err = lm.InitiateCutoverToSource(nil)
-	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
-
-	err = lm.WaitForCutoverSourceComplete(100)
-	testutils.FatalIfError(t, err, "failed to wait for cutover source complete")
-
 }
 
 func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
