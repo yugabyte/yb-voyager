@@ -25,6 +25,7 @@ import (
 
 	goerrors "github.com/go-errors/errors"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	tgtdbsuite "github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb/suites"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -349,11 +350,11 @@ func (conv *StreamingPhaseDebeziumValueConverter) convertMap(tableNameTup sqlnam
 		if err != nil {
 			return fmt.Errorf("fetch column schema: %w", err)
 		}
-		if !checkSourceExporter(exportSourceType) && strings.EqualFold(colType, "io.debezium.time.Interval") && strings.EqualFold(conv.sourceDBType, "oracle") {
+		if !checkSourceExporter(exportSourceType) && strings.EqualFold(colType, "io.debezium.time.Interval") && strings.EqualFold(conv.sourceDBType, constants.ORACLE) {
 			colType, colDbzmSchema, err = conv.schemaRegistrySource.GetColumnType(tableNameTup, strings.ToUpper(column), conv.shouldFormatAsPerSourceDatatypes())
 			//assuming table name/column name is case insensitive TODO: handle this case sensitivity properly
 			if err != nil {
-				return fmt.Errorf("fetch column schema for INTERVAL column %q: %w", column, err)
+				return fmt.Errorf("fetch column schema: %w", err)
 			}
 		}
 		converterFn := conv.valueConverterSuite[colType]
