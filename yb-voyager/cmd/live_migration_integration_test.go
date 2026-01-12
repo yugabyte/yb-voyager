@@ -2618,59 +2618,9 @@ VALUES (INTERVAL '7 years', INTERVAL '120 days', INTERVAL '15 hours', INTERVAL '
 
 	// Validate fallback streaming data consistency
 	// This ensures all INTERVAL columns (lowercase and mixed-case) were correctly replicated
+	// CompareTableData does a full SELECT * comparison of all rows and columns
 	err = lm.ValidateDataConsistency([]string{`test_schema."interval_test"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate fallback data consistency")
-
-	// Verify specific INTERVAL values were correctly replicated back to source
-	// This explicitly tests all INTERVAL columns (lowercase and mixed-case) during fallback
-	err = lm.WithSourceConn(func(source *sql.DB) error {
-		// Test 1: UPDATE on lowercase INTERVAL column (id=1)
-		var intervalYears string
-		err := source.QueryRow(`SELECT interval_years::text FROM test_schema.interval_test WHERE id = 1`).Scan(&intervalYears)
-		if err != nil {
-			return fmt.Errorf("failed to query interval_years: %w", err)
-		}
-		assert.Contains(t, intervalYears, "10 years", "interval_years (lowercase) should be updated via fallback")
-
-		// Test 2: UPDATE on multiple lowercase INTERVAL columns (id=2)
-		var intervalDays, intervalHours string
-		err = source.QueryRow(`SELECT interval_days::text, interval_hours::text FROM test_schema.interval_test WHERE id = 2`).Scan(&intervalDays, &intervalHours)
-		if err != nil {
-			return fmt.Errorf("failed to query interval_days/interval_hours: %w", err)
-		}
-		assert.Contains(t, intervalDays, "100 days", "interval_days (lowercase) should be updated via fallback")
-		assert.Contains(t, intervalHours, "20:00:00", "interval_hours (lowercase) should be updated via fallback")
-
-		// Test 3: UPDATE on quoted INTERVAL columns - mixed-case and uppercase (id=3)
-		var intervalMixed, intervalUpper string
-		err = source.QueryRow(`SELECT "IntervalMixed"::text, "INTERVAL_UPPER"::text FROM test_schema.interval_test WHERE id = 3`).Scan(&intervalMixed, &intervalUpper)
-		if err != nil {
-			return fmt.Errorf("failed to query IntervalMixed/INTERVAL_UPPER: %w", err)
-		}
-		assert.Contains(t, intervalMixed, "1 year", "IntervalMixed (mixed-case quoted) should be updated via fallback")
-		assert.Contains(t, intervalUpper, "7 days", "INTERVAL_UPPER (uppercase quoted) should be updated via fallback")
-
-		// Test 4: INSERT with all INTERVAL columns from fallback streaming
-		var fbIntervalYears, fbIntervalDays, fbIntervalHours, fbIntervalMixed, fbIntervalUpper string
-		err = source.QueryRow(`
-			SELECT interval_years::text, interval_days::text, interval_hours::text, 
-			       "IntervalMixed"::text, "INTERVAL_UPPER"::text 
-			FROM test_schema.interval_test 
-			WHERE name = 'fallback_row'
-		`).Scan(&fbIntervalYears, &fbIntervalDays, &fbIntervalHours, &fbIntervalMixed, &fbIntervalUpper)
-		if err != nil {
-			return fmt.Errorf("failed to query fallback_row INTERVAL columns: %w", err)
-		}
-		// Verify all INTERVAL columns in the inserted row
-		assert.Contains(t, fbIntervalYears, "7 years", "fallback_row interval_years should be inserted via fallback")
-		assert.Contains(t, fbIntervalDays, "120 days", "fallback_row interval_days should be inserted via fallback")
-		assert.Contains(t, fbIntervalHours, "15:00:00", "fallback_row interval_hours should be inserted via fallback")
-		assert.Contains(t, fbIntervalMixed, "8 mons", "fallback_row IntervalMixed should be inserted via fallback")
-		assert.Contains(t, fbIntervalUpper, "4 days", "fallback_row INTERVAL_UPPER should be inserted via fallback")
-
-		return nil
-	})
-	testutils.FatalIfError(t, err, "failed to verify INTERVAL values in source")
 
 	// Complete cutover to source
 	err = lm.InitiateCutoverToSource(nil)
