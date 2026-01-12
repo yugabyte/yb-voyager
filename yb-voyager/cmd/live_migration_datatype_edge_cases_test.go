@@ -1694,19 +1694,9 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 			WHERE id = 5;`,
 
 			`UPDATE test_schema.string_edge_cases
-			SET text_with_quote = 'restored from NULL',
-				text_empty = 'restored'
-			WHERE id = 5 AND text_with_quote IS NULL;`,
-
-			`UPDATE test_schema.string_edge_cases
 			SET text_with_backslash = 'set from NULL',
 				text_with_quote = 'also set from NULL'
 			WHERE id = 6 AND text_with_backslash IS NULL;`,
-
-			`UPDATE test_schema.string_edge_cases
-			SET text_with_backslash = NULL,
-				text_with_quote = NULL
-			WHERE id = 6 AND text_with_backslash = 'set from NULL';`,
 
 			`UPDATE test_schema.string_edge_cases
 			SET text_with_backslash = 'updated\nliteral',     -- Two chars: backslash + n
@@ -1808,19 +1798,9 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 			WHERE id = 5;`,
 
 			`UPDATE test_schema.json_edge_cases
-			SET json_with_unicode = '{"restored": "from NULL"}',
-				json_nested = '{"nested": {"restored": true}}'
-			WHERE id = 5 AND json_with_unicode IS NULL;`,
-
-			`UPDATE test_schema.json_edge_cases
 			SET json_with_escaped_chars = '{"from": "NULL"}',
 				json_with_unicode = '{"also": "from NULL"}'
 			WHERE id = 6 AND json_with_escaped_chars IS NULL;`,
-
-			`UPDATE test_schema.json_edge_cases
-			SET json_with_escaped_chars = NULL,
-				json_with_unicode = NULL
-			WHERE id = 6 AND json_with_escaped_chars::text = '{"from": "NULL"}';`,
 
 			`UPDATE test_schema.json_edge_cases
 			SET json_with_escaped_chars = '{"updated": "O''Sullivan", "note": "It''s updated"}',
@@ -1907,6 +1887,11 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 			WHERE id = 5;`,
 
 			`UPDATE test_schema.enum_edge_cases
+			SET status_simple = NULL,
+				status_with_quote = NULL
+			WHERE id = 5;`,
+
+			`UPDATE test_schema.enum_edge_cases
 			SET status_array = ARRAY['pending']::test_schema.status_enum[]
 			WHERE id = 1 AND status_array = ARRAY[]::test_schema.status_enum[];`,
 
@@ -1914,11 +1899,6 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 			SET status_simple = 'active',
 				status_with_quote = 'inactive'
 			WHERE id = 6 AND status_simple IS NULL;`,
-
-			`UPDATE test_schema.enum_edge_cases
-			SET status_simple = NULL,
-				status_with_quote = NULL
-			WHERE id = 6 AND status_simple = 'active';`,
 
 			`DELETE FROM test_schema.enum_edge_cases WHERE id = 3;`,
 
@@ -1983,14 +1963,14 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 			WHERE id = 2;`,
 
 			`UPDATE test_schema.bytes_edge_cases
+			SET bytes_ascii = NULL,
+				bytes_mixed = NULL
+			WHERE id = 5;`,
+
+			`UPDATE test_schema.bytes_edge_cases
 			SET bytes_empty = '\x42'::bytea,
 				bytes_single = '\x43'::bytea
 			WHERE id = 6 AND bytes_empty IS NULL;`,
-
-			`UPDATE test_schema.bytes_edge_cases
-			SET bytes_empty = NULL,
-				bytes_single = NULL
-			WHERE id = 6 AND bytes_empty = '\x42'::bytea;`,
 
 			`DELETE FROM test_schema.bytes_edge_cases WHERE id = 3;`,
 
@@ -2063,14 +2043,14 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 			WHERE id = 2;`,
 
 			`UPDATE test_schema.datetime_edge_cases
+			SET timestamp_epoch = NULL,
+				timestamp_with_tz = NULL
+			WHERE id = 5;`,
+
+			`UPDATE test_schema.datetime_edge_cases
 			SET date_epoch = '2025-01-01',
 				date_negative = '2000-01-01'
 			WHERE id = 6 AND date_epoch IS NULL;`,
-
-			`UPDATE test_schema.datetime_edge_cases
-			SET date_epoch = NULL,
-				date_negative = NULL
-			WHERE id = 6 AND date_epoch = '2025-01-01';`,
 
 			`DELETE FROM test_schema.datetime_edge_cases WHERE id = 3;`,
 
@@ -2121,14 +2101,14 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 			WHERE id = 2;`,
 
 			`UPDATE test_schema.zonedtimestamp_edge_cases
+			SET ts_negative_offset = NULL,
+				ts_future = NULL
+			WHERE id = 5;`,
+
+			`UPDATE test_schema.zonedtimestamp_edge_cases
 			SET ts_utc = '2025-06-15 12:00:00+00',
 				ts_positive_offset = '2025-06-15 12:00:00+05'
 			WHERE id = 6 AND ts_utc IS NULL;`,
-
-			`UPDATE test_schema.zonedtimestamp_edge_cases
-			SET ts_utc = NULL,
-				ts_positive_offset = NULL
-			WHERE id = 6 AND ts_utc = '2025-06-15 12:00:00+00';`,
 
 			`DELETE FROM test_schema.zonedtimestamp_edge_cases WHERE id = 3;`,
 
@@ -2183,14 +2163,14 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 			WHERE id = 2;`,
 
 			`UPDATE test_schema.interval_edge_cases
+			SET interval_zero = NULL,
+				interval_days = NULL
+			WHERE id = 5;`,
+
+			`UPDATE test_schema.interval_edge_cases
 			SET interval_positive = '5 years',
 				interval_negative = '-10 days'
 			WHERE id = 6 AND interval_positive IS NULL;`,
-
-			`UPDATE test_schema.interval_edge_cases
-			SET interval_positive = NULL,
-				interval_negative = NULL
-			WHERE id = 6 AND interval_positive = '5 years';`,
 
 			`DELETE FROM test_schema.interval_edge_cases WHERE id = 3;`,
 
@@ -2253,14 +2233,14 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 			WHERE id = 2;`,
 
 			`UPDATE test_schema.uuid_ltree_edge_cases
+			SET uuid_random = NULL,
+				ltree_quoted = NULL
+			WHERE id = 5;`,
+
+			`UPDATE test_schema.uuid_ltree_edge_cases
 			SET uuid_standard = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
 				uuid_all_zeros = '00000000-0000-0000-0000-000000000000'
 			WHERE id = 6 AND uuid_standard IS NULL;`,
-
-			`UPDATE test_schema.uuid_ltree_edge_cases
-			SET uuid_standard = NULL,
-				uuid_all_zeros = NULL
-			WHERE id = 6 AND uuid_standard = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';`,
 
 			`DELETE FROM test_schema.uuid_ltree_edge_cases WHERE id = 3;`,
 
@@ -2315,14 +2295,14 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 			WHERE id = 2;`,
 
 			`UPDATE test_schema.map_edge_cases
+			SET map_empty_values = NULL,
+				map_multiple_pairs = NULL
+			WHERE id = 5;`,
+
+			`UPDATE test_schema.map_edge_cases
 			SET map_simple = 'from_null=>yes',
 				map_with_arrow = 'also=>from_null'
 			WHERE id = 6 AND map_simple IS NULL;`,
-
-			`UPDATE test_schema.map_edge_cases
-			SET map_simple = NULL,
-				map_with_arrow = NULL
-			WHERE id = 6 AND map_simple = 'from_null=>yes';`,
 
 			`DELETE FROM test_schema.map_edge_cases WHERE id = 3;`,
 
@@ -2382,14 +2362,14 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 			WHERE id = 2;`,
 
 			`UPDATE test_schema.integer_edge_cases
+			SET bigint_max = NULL,
+				bigint_min = NULL
+			WHERE id = 5;`,
+
+			`UPDATE test_schema.integer_edge_cases
 			SET int_max = 999999,
 				int_min = -999999
 			WHERE id = 6 AND int_max IS NULL;`,
-
-			`UPDATE test_schema.integer_edge_cases
-			SET int_max = NULL,
-				int_min = NULL
-			WHERE id = 6 AND int_max = 999999;`,
 
 			`DELETE FROM test_schema.integer_edge_cases WHERE id = 3;`,
 
@@ -2445,19 +2425,9 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 			WHERE id = 5;`,
 
 			`UPDATE test_schema.decimal_edge_cases
-			SET decimal_negative = -888.888,
-				decimal_small = 88.88
-			WHERE id = 5 AND decimal_negative IS NULL;`,
-
-			`UPDATE test_schema.decimal_edge_cases
 			SET decimal_large = 111111111.111111111,
 				decimal_negative = -111.111
 			WHERE id = 6 AND decimal_large IS NULL;`,
-
-			`UPDATE test_schema.decimal_edge_cases
-			SET decimal_large = NULL,
-				decimal_negative = NULL
-			WHERE id = 6 AND decimal_large = 111111111.111111111;`,
 
 			`DELETE FROM test_schema.decimal_edge_cases WHERE id = 3;`,
 
@@ -2471,9 +2441,9 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 
 			`UPDATE test_schema.boolean_edge_cases SET bool_simple = TRUE, bool_nullable = FALSE WHERE id = 2;`,
 
-			`UPDATE test_schema.boolean_edge_cases SET bool_simple = TRUE, bool_nullable = TRUE WHERE id = 6 AND bool_simple IS NULL;`,
+			`UPDATE test_schema.boolean_edge_cases SET bool_simple = NULL, bool_nullable = NULL WHERE id = 5;`,
 
-			`UPDATE test_schema.boolean_edge_cases SET bool_simple = NULL, bool_nullable = NULL WHERE id = 6 AND bool_simple = TRUE;`,
+			`UPDATE test_schema.boolean_edge_cases SET bool_simple = TRUE, bool_nullable = TRUE WHERE id = 6 AND bool_simple IS NULL;`,
 
 			`DELETE FROM test_schema.boolean_edge_cases WHERE id = 3;`,
 		},
@@ -2617,24 +2587,14 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 			WHERE id = 2;`,
 
 			`UPDATE test_schema.string_edge_cases
-			SET text_with_backslash = NULL,
-				text_unicode = NULL
-			WHERE id = 5;`,
-
-			`UPDATE test_schema.string_edge_cases
-			SET text_with_backslash = 'fallback\\restored',
-				text_unicode = 'fallback restored مرحبا'
-			WHERE id = 5 AND text_with_backslash IS NULL;`,
-
-			`UPDATE test_schema.string_edge_cases
-			SET text_with_backslash = 'fallback from NULL',
-				text_with_quote = 'fallback also from NULL'
-			WHERE id = 6 AND text_with_backslash IS NULL;`,
+			SET text_with_quote = 'fallback from NULL',
+				text_empty = 'fallback also from NULL'
+			WHERE id = 5 AND text_with_quote IS NULL;`,
 
 			`UPDATE test_schema.string_edge_cases
 			SET text_with_backslash = NULL,
 				text_with_quote = NULL
-			WHERE id = 6 AND text_with_backslash = 'fallback from NULL';`,
+			WHERE id = 6;`,
 
 			`UPDATE test_schema.string_edge_cases
 			SET text_with_newline = 'fb' || E'\u2028' || 'line',   -- Unicode line separator (U+2028)
@@ -2759,24 +2719,14 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 			WHERE id = 2;`,
 
 			`UPDATE test_schema.json_edge_cases
-			SET json_nested = NULL,
-				json_array = NULL
-			WHERE id = 5;`,
-
-			`UPDATE test_schema.json_edge_cases
-			SET json_nested = '{"fallback": {"restored": true}}',
-				json_array = '["fallback", "restored"]'
-			WHERE id = 5 AND json_nested IS NULL;`,
-
-			`UPDATE test_schema.json_edge_cases
-			SET json_with_escaped_chars = '{"fallback": "from NULL"}',
-				json_with_unicode = '{"fallback_also": "from NULL"}'
-			WHERE id = 6 AND json_with_escaped_chars IS NULL;`,
+			SET json_with_unicode = '{"fallback": "from NULL", "unicode": "restored"}',
+				json_nested = '{"fallback": "also from NULL", "restored": true}'
+			WHERE id = 5 AND json_with_unicode IS NULL;`,
 
 			`UPDATE test_schema.json_edge_cases
 			SET json_with_escaped_chars = NULL,
 				json_with_unicode = NULL
-			WHERE id = 6 AND json_with_escaped_chars::text = '{"fallback": "from NULL"}';`,
+			WHERE id = 6;`,
 
 			`UPDATE test_schema.json_edge_cases
 			SET json_with_escaped_chars = '{"fb_updated": "O''Connell", "note": "It''s fallback"}',
@@ -2857,18 +2807,18 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 			WHERE id = 5;`,
 
 			`UPDATE test_schema.enum_edge_cases
+			SET status_simple = 'with-dash',
+				status_with_quote = 'with space'
+			WHERE id = 5 AND status_simple IS NULL;`,
+
+			`UPDATE test_schema.enum_edge_cases
 			SET status_array = ARRAY['inactive']::test_schema.status_enum[]  -- FALLBACK: Remove elements from array (shrink to single element)
 			WHERE id = 1 AND status_array = ARRAY[]::test_schema.status_enum[];`,
 
 			`UPDATE test_schema.enum_edge_cases
-			SET status_simple = 'pending',
-				status_with_quote = 'active'
-			WHERE id = 6 AND status_simple IS NULL;`,
-
-			`UPDATE test_schema.enum_edge_cases
 			SET status_simple = NULL,
 				status_with_quote = NULL
-			WHERE id = 6 AND status_simple = 'pending';`,
+			WHERE id = 6;`,
 
 			`DELETE FROM test_schema.enum_edge_cases WHERE id = 4;`,
 
@@ -2931,14 +2881,14 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 			WHERE id = 2;`,
 
 			`UPDATE test_schema.bytes_edge_cases
-			SET bytes_empty = '\x44'::bytea,
-				bytes_single = '\x45'::bytea
-			WHERE id = 6 AND bytes_empty IS NULL;`,
+			SET bytes_ascii = E'\\x6661696C6261636B',
+				bytes_mixed = E'\\xCAFEBABE'
+			WHERE id = 5 AND bytes_ascii IS NULL;`,
 
 			`UPDATE test_schema.bytes_edge_cases
 			SET bytes_empty = NULL,
 				bytes_single = NULL
-			WHERE id = 6 AND bytes_empty = '\x44'::bytea;`,
+			WHERE id = 6;`,
 
 			`DELETE FROM test_schema.bytes_edge_cases WHERE id = 4;`,
 
@@ -3009,14 +2959,14 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 			WHERE id = 2;`,
 
 			`UPDATE test_schema.datetime_edge_cases
-			SET date_epoch = '2025-12-31',
-				date_negative = '1999-12-31'
-			WHERE id = 6 AND date_epoch IS NULL;`,
+			SET timestamp_epoch = '2026-06-01 10:20:30',
+				timestamp_with_tz = '2026-06-01 10:20:30-05'
+			WHERE id = 5 AND timestamp_epoch IS NULL;`,
 
 			`UPDATE test_schema.datetime_edge_cases
 			SET date_epoch = NULL,
 				date_negative = NULL
-			WHERE id = 6 AND date_epoch = '2025-12-31';`,
+			WHERE id = 6;`,
 
 			`DELETE FROM test_schema.datetime_edge_cases WHERE id = 4;`,
 
@@ -3065,14 +3015,14 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 			WHERE id = 2;`,
 
 			`UPDATE test_schema.zonedtimestamp_edge_cases
-			SET ts_utc = '2025-12-31 23:59:59+00',
-				ts_positive_offset = '2025-12-31 23:59:59+08'
-			WHERE id = 6 AND ts_utc IS NULL;`,
+			SET ts_negative_offset = '2026-05-01 14:30:00-03:00'::timestamptz,
+				ts_future = '2065-11-15 18:20:40+00'::timestamptz
+			WHERE id = 5 AND ts_negative_offset IS NULL;`,
 
 			`UPDATE test_schema.zonedtimestamp_edge_cases
 			SET ts_utc = NULL,
 				ts_positive_offset = NULL
-			WHERE id = 6 AND ts_utc = '2025-12-31 23:59:59+00';`,
+			WHERE id = 6;`,
 
 			`DELETE FROM test_schema.zonedtimestamp_edge_cases WHERE id = 4;`,
 
@@ -3125,14 +3075,14 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 			WHERE id = 2;`,
 
 			`UPDATE test_schema.interval_edge_cases
-			SET interval_positive = '7 years',
-				interval_negative = '-15 days'
-			WHERE id = 6 AND interval_positive IS NULL;`,
+			SET interval_zero = '0'::interval,
+				interval_days = '45 days'::interval
+			WHERE id = 5 AND interval_zero IS NULL;`,
 
 			`UPDATE test_schema.interval_edge_cases
 			SET interval_positive = NULL,
 				interval_negative = NULL
-			WHERE id = 6 AND interval_positive = '7 years';`,
+			WHERE id = 6;`,
 
 			`DELETE FROM test_schema.interval_edge_cases WHERE id = 4;`,
 
@@ -3193,14 +3143,14 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 			WHERE id = 2;`,
 
 			`UPDATE test_schema.uuid_ltree_edge_cases
-			SET uuid_standard = 'ffffffff-ffff-ffff-ffff-ffffffffffff',
-				uuid_all_zeros = '11111111-1111-1111-1111-111111111111'
-			WHERE id = 6 AND uuid_standard IS NULL;`,
+			SET uuid_random = 'fb123456-7890-abcd-ef01-234567890abc',
+				ltree_quoted = 'FB.Quoted.Path'
+			WHERE id = 5 AND uuid_random IS NULL;`,
 
 			`UPDATE test_schema.uuid_ltree_edge_cases
 			SET uuid_standard = NULL,
 				uuid_all_zeros = NULL
-			WHERE id = 6 AND uuid_standard = 'ffffffff-ffff-ffff-ffff-ffffffffffff';`,
+			WHERE id = 6;`,
 
 			`DELETE FROM test_schema.uuid_ltree_edge_cases WHERE id = 4;`,
 
@@ -3253,14 +3203,14 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 			WHERE id = 2;`,
 
 			`UPDATE test_schema.map_edge_cases
-			SET map_simple = 'fallback=>from_null',
-				map_with_arrow = 'fb=>also_null'
-			WHERE id = 6 AND map_simple IS NULL;`,
+			SET map_empty_values = '"fallback" => "value"',
+				map_multiple_pairs = '"a" => "1", "b" => "2"'
+			WHERE id = 5 AND map_empty_values IS NULL;`,
 
 			`UPDATE test_schema.map_edge_cases
 			SET map_simple = NULL,
 				map_with_arrow = NULL
-			WHERE id = 6 AND map_simple = 'fallback=>from_null';`,
+			WHERE id = 6;`,
 
 			`DELETE FROM test_schema.map_edge_cases WHERE id = 4;`,
 
@@ -3319,14 +3269,14 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 			WHERE id = 1;`,
 
 			`UPDATE test_schema.integer_edge_cases
-			SET int_max = 888888,
-				int_min = -888888
-			WHERE id = 6 AND int_max IS NULL;`,
+			SET bigint_max = 777777777777,
+				bigint_min = -777777777777
+			WHERE id = 5 AND bigint_max IS NULL;`,
 
 			`UPDATE test_schema.integer_edge_cases
 			SET int_max = NULL,
 				int_min = NULL
-			WHERE id = 6 AND int_max = 888888;`,
+			WHERE id = 6;`,
 
 			`DELETE FROM test_schema.integer_edge_cases WHERE id = 4;`,
 
@@ -3375,24 +3325,14 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 			WHERE id = 2;`,
 
 			`UPDATE test_schema.decimal_edge_cases
-			SET decimal_large = NULL,
-				decimal_zero = NULL
-			WHERE id = 5;`,
-
-			`UPDATE test_schema.decimal_edge_cases
-			SET decimal_large = 666666666.666666666,
-				decimal_zero = 0.00
-			WHERE id = 5 AND decimal_large IS NULL;`,
-
-			`UPDATE test_schema.decimal_edge_cases
-			SET decimal_large = 222222222.222222222,
-				decimal_negative = -222.222
-			WHERE id = 6 AND decimal_large IS NULL;`,
+			SET decimal_negative = -333.333,
+				decimal_small = 333.33
+			WHERE id = 5 AND decimal_negative IS NULL;`,
 
 			`UPDATE test_schema.decimal_edge_cases
 			SET decimal_large = NULL,
 				decimal_negative = NULL
-			WHERE id = 6 AND decimal_large = 222222222.222222222;`,
+			WHERE id = 6;`,
 
 			`DELETE FROM test_schema.decimal_edge_cases WHERE id = 4;`,
 
@@ -3406,9 +3346,9 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 
 			`UPDATE test_schema.boolean_edge_cases SET bool_simple = FALSE, bool_nullable = TRUE WHERE id = 2;`,
 
-			`UPDATE test_schema.boolean_edge_cases SET bool_simple = FALSE, bool_nullable = FALSE WHERE id = 6 AND bool_simple IS NULL;`,
+			`UPDATE test_schema.boolean_edge_cases SET bool_simple = FALSE, bool_nullable = FALSE WHERE id = 5 AND bool_simple IS NULL;`,
 
-			`UPDATE test_schema.boolean_edge_cases SET bool_simple = NULL, bool_nullable = NULL WHERE id = 6 AND bool_simple = FALSE;`,
+			`UPDATE test_schema.boolean_edge_cases SET bool_simple = NULL, bool_nullable = NULL WHERE id = 6;`,
 
 			`DELETE FROM test_schema.boolean_edge_cases WHERE id = 4;`,
 		},
