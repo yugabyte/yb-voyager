@@ -217,6 +217,10 @@ func (e *Event) GetParamsString() string {
 	return paramsStr.String()
 }
 
+// GetPreparedStmtName generates a unique name for a prepared statement.
+// NOTE: Prepared statements are currently used ONLY for INSERT and DELETE operations.
+// UPDATE operations use direct SQL (not prepared statements)
+// See ExecuteBatch() in yugabytedb.go/postgres.go where event.Op == "u" uses GetSQLStmt().
 func (event *Event) GetPreparedStmtName() string {
 	// Build the base identifier (table name + columns for updates)
 	// This is what we'll hash if needed
