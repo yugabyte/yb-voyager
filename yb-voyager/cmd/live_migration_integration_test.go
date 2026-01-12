@@ -848,6 +848,8 @@ FROM generate_series(1, 15);`,
 	})
 	testutils.FatalIfError(t, err, "failed to drop sequence")
 
+	time.Sleep(10 * time.Second)
+
 	//Resume import command after deleting a sequence of the table column idand import should fail while restoring sequences as cutover is already triggered
 	err = lm.ResumeImportData(false, nil)
 	assert.NotNil(t, err)
