@@ -349,21 +349,11 @@ func (conv *StreamingPhaseDebeziumValueConverter) convertMap(tableNameTup sqlnam
 		if err != nil {
 			return fmt.Errorf("fetch column schema: %w", err)
 		}
-		if !checkSourceExporter(exportSourceType) && strings.EqualFold(colType, "io.debezium.time.Interval") {
-			// Try original case first: handles PostgreSQL/YugabyteDB sources (lowercase unquoted)
-			// and all databases with quoted identifiers (exact case preserved)
-			colType, colDbzmSchema, err = conv.schemaRegistrySource.GetColumnType(tableNameTup, column, conv.shouldFormatAsPerSourceDatatypes())
+		if !checkSourceExporter(exportSourceType) && strings.EqualFold(colType, "io.debezium.time.Interval") && strings.EqualFold(conv.sourceDBType, "oracle") {
+			colType, colDbzmSchema, err = conv.schemaRegistrySource.GetColumnType(tableNameTup, strings.ToUpper(column), conv.shouldFormatAsPerSourceDatatypes())
+			//assuming table name/column name is case insensitive TODO: handle this case sensitivity properly
 			if err != nil {
-				// Try uppercase as fallback ONLY for Oracle sources (uppercase unquoted identifiers)
-				// Oracle stores unquoted identifiers in uppercase, while PostgreSQL/YugabyteDB use lowercase
-				if strings.EqualFold(conv.sourceDBType, "oracle") {
-					colType, colDbzmSchema, err = conv.schemaRegistrySource.GetColumnType(tableNameTup, strings.ToUpper(column), conv.shouldFormatAsPerSourceDatatypes())
-					if err != nil {
-						return fmt.Errorf("fetch column schema for INTERVAL column %q: %w", column, err)
-					}
-				} else {
-					return fmt.Errorf("fetch column schema for INTERVAL column %q: %w", column, err)
-				}
+				return fmt.Errorf("fetch column schema for INTERVAL column %q: %w", column, err)
 			}
 		}
 		converterFn := conv.valueConverterSuite[colType]
