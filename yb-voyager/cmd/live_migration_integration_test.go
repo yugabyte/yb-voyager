@@ -2814,62 +2814,62 @@ func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
 	t.Log("=== Waiting for streaming complete (ALL 12 datatypes with NULL transitions!) ===")
 	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
 		`test_schema."string_edge_cases"`: {
-			Inserts: 3,  // 3 INSERT operations: basic + actual control chars + literal \n test
+			Inserts: 4,  // 4 INSERT operations: basic + actual control chars + literal \n test + 1 with NULLs
 			Updates: 12, // 12 UPDATE operations: 6 regular + 2 literal \n/actual newline + 2 row 5 (non-NULL→NULL→non-NULL) + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1,  // 1 DELETE operation: delete row 3
 		},
 		`test_schema."json_edge_cases"`: {
-			Inserts: 2, // 2 INSERT operations: 1 basic + 1 with single quotes in JSON
+			Inserts: 3, // 3 INSERT operations: 1 basic + 1 with single quotes in JSON + 1 with NULLs
 			Updates: 7, // 7 UPDATE operations: 2 regular + 1 single quotes + 2 row 5 (non-NULL→NULL→non-NULL) + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1, // 1 DELETE operation: delete JSON row 3
 		},
 		`test_schema."enum_edge_cases"`: {
-			Inserts: 2, // 2 INSERT operations: EMPTY array + array with NULL elements
+			Inserts: 3, // 3 INSERT operations: EMPTY array + array with NULL elements + 1 with NULLs
 			Updates: 8, // 8 UPDATE operations: 6 regular (empty array tests + NULL elements + add/remove elements) + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1, // 1 DELETE operation: delete ENUM row 3
 		},
 		`test_schema."bytes_edge_cases"`: {
-			Inserts: 1, // 1 INSERT operation: BYTES with special patterns
+			Inserts: 2, // 2 INSERT operations: BYTES with special patterns + 1 with NULLs
 			Updates: 4, // 4 UPDATE operations: 2 regular + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1, // 1 DELETE operation: delete BYTES row 3
 		},
 		`test_schema."datetime_edge_cases"`: {
-			Inserts: 1, // 1 INSERT operation: DATETIME with various dates/times
+			Inserts: 2, // 2 INSERT operations: DATETIME with various dates/times + 1 with NULLs
 			Updates: 4, // 4 UPDATE operations: 2 regular + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1, // 1 DELETE operation: delete DATETIME row 3
 		},
 		`test_schema."uuid_ltree_edge_cases"`: {
-			Inserts: 1, // 1 INSERT operation: UUID/LTREE with edge cases
+			Inserts: 2, // 2 INSERT operations: UUID/LTREE with edge cases + 1 with NULLs
 			Updates: 4, // 4 UPDATE operations: 2 regular + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1, // 1 DELETE operation: delete UUID/LTREE row 3
 		},
 		`test_schema."map_edge_cases"`: {
-			Inserts: 1, // 1 INSERT operation: MAP/HSTORE with arrow operator and quotes
+			Inserts: 2, // 2 INSERT operations: MAP/HSTORE with arrow operator and quotes + 1 with NULLs
 			Updates: 4, // 4 UPDATE operations: 2 regular + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1, // 1 DELETE operation: delete MAP row 3
 		},
 		`test_schema."interval_edge_cases"`: {
-			Inserts: 1, // 1 INSERT operation: INTERVAL with positive/negative/zero
+			Inserts: 2, // 2 INSERT operations: INTERVAL with positive/negative/zero + 1 with NULLs
 			Updates: 4, // 4 UPDATE operations: 2 regular + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1, // 1 DELETE operation: delete INTERVAL row 3
 		},
 		`test_schema."zonedtimestamp_edge_cases"`: {
-			Inserts: 1, // 1 INSERT operation: TIMESTAMPTZ with various timezones
+			Inserts: 2, // 2 INSERT operations: TIMESTAMPTZ with various timezones + 1 with NULLs
 			Updates: 4, // 4 UPDATE operations: 2 regular + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1, // 1 DELETE operation: delete TIMESTAMPTZ row 3
 		},
 		`test_schema."decimal_edge_cases"`: {
-			Inserts: 1, // 1 INSERT operation: DECIMAL with large, negative, high precision
+			Inserts: 2, // 2 INSERT operations: DECIMAL with large, negative, high precision + 1 with NULLs
 			Updates: 6, // 6 UPDATE operations: 2 regular + 2 row 5 (non-NULL→NULL→non-NULL) + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1, // 1 DELETE operation: delete DECIMAL row 3
 		},
 		`test_schema."integer_edge_cases"`: {
-			Inserts: 1, // 1 INSERT operation: INT/BIGINT with boundary values
+			Inserts: 2, // 2 INSERT operations: INT/BIGINT with boundary values + 1 with NULLs
 			Updates: 4, // 4 UPDATE operations: 2 regular + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1, // 1 DELETE operation: delete INTEGER row 3
 		},
 		`test_schema."boolean_edge_cases"`: {
-			Inserts: 1, // 1 INSERT operation: TRUE/TRUE
+			Inserts: 2, // 2 INSERT operations: TRUE/TRUE + 1 with NULLs
 			Updates: 4, // 4 UPDATE operations: 2 regular + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1, // 1 DELETE operation: delete BOOLEAN row 3
 		},
@@ -3085,62 +3085,62 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 	t.Log("=== Waiting for forward streaming complete ===")
 	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
 		`test_schema."string_edge_cases"`: {
-			Inserts: 3,  // basic + actual control chars + literal \n test
+			Inserts: 4,  // basic + actual control chars + literal \n test + 1 with NULLs
 			Updates: 12, // 6 regular + 2 literal \n/actual newline + 2 row 5 (non-NULL→NULL→non-NULL) + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1,
 		},
 		`test_schema."json_edge_cases"`: {
-			Inserts: 2, // 1 basic + 1 with single quotes in JSON
+			Inserts: 3, // 1 basic + 1 with single quotes in JSON + 1 with NULLs
 			Updates: 7, // 7 UPDATE operations: 2 regular + 1 single quotes + 2 row 5 (non-NULL→NULL→non-NULL) + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1,
 		},
 		`test_schema."enum_edge_cases"`: {
-			Inserts: 2,
+			Inserts: 3, // EMPTY array + array with NULL elements + 1 with NULLs
 			Updates: 8, // 6 regular (empty array tests + NULL elements + add/remove elements) + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1,
 		},
 		`test_schema."bytes_edge_cases"`: {
-			Inserts: 1,
+			Inserts: 2, // 1 basic + 1 with NULLs
 			Updates: 4, // 2 regular + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1,
 		},
 		`test_schema."datetime_edge_cases"`: {
-			Inserts: 1,
+			Inserts: 2, // 1 basic + 1 with NULLs
 			Updates: 4, // 2 regular + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1,
 		},
 		`test_schema."uuid_ltree_edge_cases"`: {
-			Inserts: 1,
+			Inserts: 2, // 1 basic + 1 with NULLs
 			Updates: 4, // 2 regular + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1,
 		},
 		`test_schema."map_edge_cases"`: {
-			Inserts: 1,
+			Inserts: 2, // 1 basic + 1 with NULLs
 			Updates: 4, // 2 regular + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1,
 		},
 		`test_schema."interval_edge_cases"`: {
-			Inserts: 1,
+			Inserts: 2, // 1 basic + 1 with NULLs
 			Updates: 4, // 2 regular + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1,
 		},
 		`test_schema."zonedtimestamp_edge_cases"`: {
-			Inserts: 1,
+			Inserts: 2, // 1 basic + 1 with NULLs
 			Updates: 4, // 2 regular + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1,
 		},
 		`test_schema."decimal_edge_cases"`: {
-			Inserts: 1,
+			Inserts: 2, // 1 basic + 1 with NULLs
 			Updates: 6, // 2 regular + 2 row 5 (non-NULL→NULL→non-NULL) + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1,
 		},
 		`test_schema."integer_edge_cases"`: {
-			Inserts: 1,
+			Inserts: 2, // 1 basic + 1 with NULLs
 			Updates: 4, // 2 regular + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1,
 		},
 		`test_schema."boolean_edge_cases"`: {
-			Inserts: 1,
+			Inserts: 2, // 1 basic + 1 with NULLs
 			Updates: 4, // 2 regular + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1,
 		},
@@ -3170,62 +3170,62 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 	t.Log("   TESTING: ALL 12 datatypes with FULL edge cases! (Final Step)")
 	err = lm.WaitForFallbackStreamingComplete(map[string]ChangesCount{
 		`test_schema."string_edge_cases"`: {
-			Inserts: 4, // 1 basic + 1 literal \n test + 2 marker rows for UPDATE tests (literal \n, actual newline)
+			Inserts: 5, // 1 basic + 1 literal \n test + 2 marker rows for UPDATE tests (literal \n, actual newline) + 1 with NULLs
 			Updates: 9, // 2 regular + 1 Unicode separators + 2 marker row UPDATEs + 2 row 5 (non-NULL→NULL→non-NULL) + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1,
 		},
 		`test_schema."decimal_edge_cases"`: {
-			Inserts: 1,
+			Inserts: 2, // 1 basic + 1 with NULLs
 			Updates: 6, // 2 regular + 2 row 5 (non-NULL→NULL→non-NULL) + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1,
 		},
 		`test_schema."json_edge_cases"`: {
-			Inserts: 3, // 1 basic + 1 with single quotes in JSON + 1 marker row for UPDATE test
+			Inserts: 4, // 1 basic + 1 with single quotes in JSON + 1 marker row for UPDATE test + 1 with NULLs
 			Updates: 7, // 7 UPDATE operations: 2 regular + 1 marker row UPDATE + 2 row 5 (non-NULL→NULL→non-NULL) + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1,
 		},
 		`test_schema."enum_edge_cases"`: {
-			Inserts: 2, // 1 EMPTY array + 1 with NULL elements
+			Inserts: 3, // 1 EMPTY array + 1 with NULL elements + 1 with NULLs
 			Updates: 7, // 5 regular (empty array tests + NULL elements + add/remove elements) + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1,
 		},
 		`test_schema."bytes_edge_cases"`: {
-			Inserts: 1,
+			Inserts: 2, // 1 basic + 1 with NULLs
 			Updates: 4, // 2 regular + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1,
 		},
 		`test_schema."datetime_edge_cases"`: {
-			Inserts: 1,
+			Inserts: 2, // 1 basic + 1 with NULLs
 			Updates: 4, // 2 regular + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1,
 		},
 		`test_schema."uuid_ltree_edge_cases"`: {
-			Inserts: 1,
+			Inserts: 2, // 1 basic + 1 with NULLs
 			Updates: 4, // 2 regular + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1,
 		},
 		`test_schema."map_edge_cases"`: {
-			Inserts: 1,
+			Inserts: 2, // 1 basic + 1 with NULLs
 			Updates: 4, // 2 regular + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1,
 		},
 		`test_schema."interval_edge_cases"`: {
-			Inserts: 1,
+			Inserts: 2, // 1 basic + 1 with NULLs
 			Updates: 4, // 2 regular + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1,
 		},
 		`test_schema."zonedtimestamp_edge_cases"`: {
-			Inserts: 1,
+			Inserts: 2, // 1 basic + 1 with NULLs
 			Updates: 4, // 2 regular + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1,
 		},
 		`test_schema."integer_edge_cases"`: {
-			Inserts: 1,
+			Inserts: 2, // 1 basic + 1 with NULLs
 			Updates: 4, // 2 regular + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1,
 		},
 		`test_schema."boolean_edge_cases"`: {
-			Inserts: 1,
+			Inserts: 2, // 1 basic + 1 with NULLs
 			Updates: 4, // 2 regular + 2 row 6 (NULL→non-NULL→NULL)
 			Deletes: 1,
 		},

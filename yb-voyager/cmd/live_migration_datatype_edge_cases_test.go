@@ -1627,6 +1627,30 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 				'NULL'
 			);`,
 
+			`INSERT INTO test_schema.string_edge_cases (
+				text_with_backslash,
+				text_with_quote,
+				text_with_newline,
+				text_with_tab,
+				text_with_mixed,
+				text_windows_path,
+				text_sql_injection,
+				text_unicode,
+				text_empty,
+				text_null_string
+			) VALUES (
+				NULL,                       -- INSERT with NULL during streaming
+				'value with quote',
+				NULL,                       -- INSERT with NULL during streaming
+				E'has\ttab',
+				NULL,
+				'D:\path\test',
+				NULL,
+				NULL,
+				'',
+				'not null string'
+			);`,
+
 			`UPDATE test_schema.string_edge_cases
 			SET text_with_backslash = 'updated: \x\y\z',
 			    text_with_quote = 'updated''s value'
@@ -1744,6 +1768,28 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 				'{"author": "O''Reilly", "books": ["It''s great", "We''re learning"]}'
 			);`,
 
+			`INSERT INTO test_schema.json_edge_cases (
+				json_with_escaped_chars,
+				json_with_unicode,
+				json_nested,
+				json_array,
+				json_with_null,
+				json_empty,
+				json_formatted,
+				json_with_numbers,
+				json_complex
+			) VALUES (
+				NULL,                                     -- INSERT with NULL during streaming
+				'{"lang": "español"}',
+				NULL,                                     -- INSERT with NULL during streaming
+				'["item1", "item2"]',
+				NULL,
+				'{}',
+				NULL,
+				'{"num": 777}',
+				NULL
+			);`,
+
 			`UPDATE test_schema.json_edge_cases
 			SET json_with_escaped_chars = '{"updated": "simple value"}',
 			    json_with_unicode = '{"updated": "café 世界 🎉"}',
@@ -1820,6 +1866,23 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 				'active'
 			);`,
 
+			`INSERT INTO test_schema.enum_edge_cases (
+				status_simple,
+				status_with_quote,
+				status_with_special,
+				status_unicode,
+				status_array,
+				status_null
+			) VALUES
+			(
+				NULL,                                                      -- INSERT with NULL during streaming
+				'enum"value',
+				NULL,                                                      -- INSERT with NULL during streaming
+				'café',
+				ARRAY['active', 'pending']::test_schema.status_enum[],
+				NULL
+			);`,
+
 			`UPDATE test_schema.enum_edge_cases
 			SET status_simple = 'pending',
 			    status_with_quote = 'enum"value',
@@ -1886,6 +1949,27 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 				E'\\x0123456789abcdef'
 			);`,
 
+			`INSERT INTO test_schema.bytes_edge_cases (
+				bytes_empty,
+				bytes_single,
+				bytes_ascii,
+				bytes_null_byte,
+				bytes_all_zeros,
+				bytes_all_ff,
+				bytes_special_chars,
+				bytes_mixed
+			) VALUES
+			(
+				NULL,                    -- INSERT with NULL during streaming
+				E'\\xff',
+				NULL,                    -- INSERT with NULL during streaming
+				E'\\x0041',
+				E'\\x0000',
+				NULL,
+				NULL,
+				E'\\xabcdef01'
+			);`,
+
 			`UPDATE test_schema.bytes_edge_cases
 			SET bytes_single = E'\\xaa',
 			    bytes_ascii = E'\\x557064617465',
@@ -1941,6 +2025,29 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 				-- '20:00:00+02'  -- EXCLUDED: TIMETZ
 			);`,
 
+			`INSERT INTO test_schema.datetime_edge_cases (
+				date_epoch,
+				date_negative,
+				date_future,
+				timestamp_epoch,
+				timestamp_negative,
+				timestamp_with_tz,
+				time_midnight,
+				time_noon,
+				time_with_micro
+			) VALUES
+			(
+				NULL,                              -- INSERT with NULL during streaming
+				'1995-06-15',
+				NULL,                              -- INSERT with NULL during streaming
+				'2020-01-01 00:00:00',
+				NULL,
+				'2025-06-15 12:00:00+00',
+				'06:00:00',
+				NULL,
+				'18:30:45.123456'
+			);`,
+
 			`UPDATE test_schema.datetime_edge_cases
 			SET date_epoch = '2025-12-25',
 			    timestamp_epoch = '2025-12-25 18:30:00',
@@ -1986,6 +2093,23 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 				'2024-07-01 00:00:00+00'::timestamptz
 			);`,
 
+			`INSERT INTO test_schema.zonedtimestamp_edge_cases (
+				ts_utc,
+				ts_positive_offset,
+				ts_negative_offset,
+				ts_epoch,
+				ts_future,
+				ts_midnight
+			) VALUES
+			(
+				NULL,                                      -- INSERT with NULL during streaming
+				'2026-01-15 08:00:00+02:00'::timestamptz,
+				NULL,                                      -- INSERT with NULL during streaming
+				'1970-01-01 00:00:00+00'::timestamptz,
+				NULL,
+				'2026-01-01 00:00:00+00'::timestamptz
+			);`,
+
 			`UPDATE test_schema.zonedtimestamp_edge_cases
 			SET ts_utc = '2024-02-14 10:30:00+00'::timestamptz,
 			    ts_positive_offset = '2024-03-20 16:45:00+08:00'::timestamptz
@@ -2027,6 +2151,25 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 				'7 days'::interval,
 				'6:15:30'::interval,
 				'3 years 2 months 20 days 10 hours'::interval
+			);`,
+
+			`INSERT INTO test_schema.interval_edge_cases (
+				interval_positive,
+				interval_negative,
+				interval_zero,
+				interval_years,
+				interval_days,
+				interval_hours,
+				interval_mixed
+			) VALUES
+			(
+				NULL,                             -- INSERT with NULL during streaming
+				'-5 days'::interval,
+				NULL,                             -- INSERT with NULL during streaming
+				'10 years'::interval,
+				NULL,
+				'12:00:00'::interval,
+				'1 year 6 months 15 days'::interval
 			);`,
 
 			`UPDATE test_schema.interval_edge_cases
@@ -2078,6 +2221,27 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 				'Stream'
 			);`,
 
+			`INSERT INTO test_schema.uuid_ltree_edge_cases (
+				uuid_standard,
+				uuid_all_zeros,
+				uuid_all_fs,
+				uuid_random,
+				ltree_simple,
+				ltree_quoted,
+				ltree_deep,
+				ltree_single
+			) VALUES
+			(
+				NULL,                                     -- INSERT with NULL during streaming
+				'00000000-0000-0000-0000-000000000005',
+				NULL,                                     -- INSERT with NULL during streaming
+				'3f7a8b2c-4d5e-6f7a-8b9c-0d1e2f3a4b5c',
+				'Test.Null.Insert',
+				NULL,
+				'Path.With.Null.Values',
+				NULL
+			);`,
+
 			`UPDATE test_schema.uuid_ltree_edge_cases
 			SET uuid_standard = 'c2a9c8d0-1234-5678-9abc-def123456789',
 			    ltree_simple = 'Updated.Path.Node'
@@ -2121,6 +2285,23 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 				'"" => "empty"',
 				'"s1" => "v1", "s2" => "v2"',
 				'"special" => "data"'
+			);`,
+
+			`INSERT INTO test_schema.map_edge_cases (
+				map_simple,
+				map_with_arrow,
+				map_with_quotes,
+				map_empty_values,
+				map_multiple_pairs,
+				map_special_chars
+			) VALUES
+			(
+				NULL,                                  -- INSERT with NULL during streaming
+				'"key=>val" => "test"',
+				NULL,                                  -- INSERT with NULL during streaming
+				'"empty" => ""',
+				NULL,
+				'"test" => "value"'
 			);`,
 
 			`UPDATE test_schema.map_edge_cases
@@ -2170,6 +2351,25 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 				42
 			);`,
 
+			`INSERT INTO test_schema.integer_edge_cases (
+				int_max,
+				int_min,
+				int_zero,
+				int_negative_one,
+				bigint_max,
+				bigint_min,
+				bigint_zero
+			) VALUES
+			(
+				NULL,                               -- INSERT with NULL during streaming
+				-1000000,
+				NULL,                               -- INSERT with NULL during streaming
+				-50,
+				5000000000000,
+				NULL,
+				0
+			);`,
+
 			`UPDATE test_schema.integer_edge_cases
 			SET int_max = 2147483645,               -- INT4 MAX - 2
 				bigint_max = 9223372036854775805    -- BIGINT MAX - 2
@@ -2212,6 +2412,23 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 				75.50
 			);`,
 
+			`INSERT INTO test_schema.decimal_edge_cases (
+				decimal_large,
+				decimal_negative,
+				decimal_zero,
+				decimal_high_precision,
+				decimal_scientific,
+				decimal_small
+			) VALUES
+			(
+				NULL,                               -- INSERT with NULL during streaming
+				-999.999,
+				NULL,                               -- INSERT with NULL during streaming
+				0.000000000000001,
+				NULL,
+				50.00
+			);`,
+
 			`UPDATE test_schema.decimal_edge_cases
 			SET decimal_large = 999999999.999999999,
 			    decimal_negative = -1000.001
@@ -2247,6 +2464,8 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 			// --- BOOLEAN (boolean_edge_cases) ---
 
 			`INSERT INTO test_schema.boolean_edge_cases (bool_simple, bool_nullable) VALUES (TRUE, TRUE);`,
+
+			`INSERT INTO test_schema.boolean_edge_cases (bool_simple, bool_nullable) VALUES (NULL, TRUE);`,
 
 			`UPDATE test_schema.boolean_edge_cases SET bool_simple = FALSE, bool_nullable = TRUE WHERE id = 1;`,
 
@@ -2359,6 +2578,30 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 				'test',
 				'',
 				'NULL'
+			);`,
+
+			`INSERT INTO test_schema.string_edge_cases (
+				text_with_backslash,
+				text_with_quote,
+				text_with_newline,
+				text_with_tab,
+				text_with_mixed,
+				text_windows_path,
+				text_sql_injection,
+				text_unicode,
+				text_empty,
+				text_null_string
+			) VALUES (
+				NULL,                       -- INSERT with NULL during streaming (fallback)
+				'value with quote',
+				NULL,                       -- INSERT with NULL during streaming (fallback)
+				E'has\ttab',
+				NULL,
+				'D:\path\test',
+				NULL,
+				NULL,
+				'',
+				'not null string'
 			);`,
 
 			`UPDATE test_schema.string_edge_cases 
@@ -2482,6 +2725,28 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 				'{"test": "complex"}'
 			);`,
 
+			`INSERT INTO test_schema.json_edge_cases (
+				json_with_escaped_chars,
+				json_with_unicode,
+				json_nested,
+				json_array,
+				json_with_null,
+				json_empty,
+				json_formatted,
+				json_with_numbers,
+				json_complex
+			) VALUES (
+				NULL,                                     -- INSERT with NULL during streaming (fallback)
+				'{"lang": "español"}',
+				NULL,                                     -- INSERT with NULL during streaming (fallback)
+				'["item1", "item2"]',
+				NULL,
+				'{}',
+				NULL,
+				'{"num": 777}',
+				NULL
+			);`,
+
 			`UPDATE test_schema.json_edge_cases
 			SET json_with_escaped_chars = '{"updated": "test value"}',
 				json_with_unicode = '{"updated": "日本語🎉", "korean": "한글"}',
@@ -2555,6 +2820,22 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 				NULL
 			);`,
 
+			`INSERT INTO test_schema.enum_edge_cases (
+				status_simple,
+				status_with_quote,
+				status_with_special,
+				status_unicode,
+				status_array,
+				status_null
+			) VALUES (
+				NULL,                                                      -- INSERT with NULL during streaming (fallback)
+				'enum"value',
+				NULL,                                                      -- INSERT with NULL during streaming (fallback)
+				'café',
+				ARRAY['active', 'pending']::test_schema.status_enum[],
+				NULL
+			);`,
+
 			`UPDATE test_schema.enum_edge_cases
 			SET status_simple = 'inactive',
 				status_with_quote = 'enum''value',
@@ -2617,6 +2898,26 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 				E'\\xABCDEF123456'
 			);`,
 
+			`INSERT INTO test_schema.bytes_edge_cases (
+				bytes_empty,
+				bytes_single,
+				bytes_ascii,
+				bytes_null_byte,
+				bytes_all_zeros,
+				bytes_all_ff,
+				bytes_special_chars,
+				bytes_mixed
+			) VALUES (
+				NULL,                    -- INSERT with NULL during streaming (fallback)
+				E'\\xff',
+				NULL,                    -- INSERT with NULL during streaming (fallback)
+				E'\\x0041',
+				E'\\x0000',
+				NULL,
+				NULL,
+				E'\\xabcdef01'
+			);`,
+
 			`UPDATE test_schema.bytes_edge_cases
 			SET bytes_single = E'\\xBB',
 				bytes_ascii = E'\\x75706461746564',
@@ -2671,6 +2972,28 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 				-- '16:45:00+03'  -- EXCLUDED: TIMETZ
 			);`,
 
+			`INSERT INTO test_schema.datetime_edge_cases (
+				date_epoch,
+				date_negative,
+				date_future,
+				timestamp_epoch,
+				timestamp_negative,
+				timestamp_with_tz,
+				time_midnight,
+				time_noon,
+				time_with_micro
+			) VALUES (
+				NULL,                              -- INSERT with NULL during streaming (fallback)
+				'1995-06-15',
+				NULL,                              -- INSERT with NULL during streaming (fallback)
+				'2020-01-01 00:00:00',
+				NULL,
+				'2025-06-15 12:00:00+00',
+				'06:00:00',
+				NULL,
+				'18:30:45.123456'
+			);`,
+
 			`UPDATE test_schema.datetime_edge_cases
 			SET date_epoch = '2026-11-20',
 				timestamp_epoch = '2026-11-20 09:15:45',
@@ -2715,6 +3038,22 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 				'2025-08-01 00:00:00+00'::timestamptz
 			);`,
 
+			`INSERT INTO test_schema.zonedtimestamp_edge_cases (
+				ts_utc,
+				ts_positive_offset,
+				ts_negative_offset,
+				ts_epoch,
+				ts_future,
+				ts_midnight
+			) VALUES (
+				NULL,                                      -- INSERT with NULL during streaming (fallback)
+				'2026-01-15 08:00:00+02:00'::timestamptz,
+				NULL,                                      -- INSERT with NULL during streaming (fallback)
+				'1970-01-01 00:00:00+00'::timestamptz,
+				NULL,
+				'2026-01-01 00:00:00+00'::timestamptz
+			);`,
+
 			`UPDATE test_schema.zonedtimestamp_edge_cases
 			SET ts_utc = '2025-01-01 12:00:00+00'::timestamptz,
 				ts_positive_offset = '2025-02-14 06:30:00+05:30'::timestamptz
@@ -2755,6 +3094,24 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 				'14 days'::interval,
 				'8:30:45'::interval,
 				'4 years 3 months 25 days 15 hours'::interval
+			);`,
+
+			`INSERT INTO test_schema.interval_edge_cases (
+				interval_positive,
+				interval_negative,
+				interval_zero,
+				interval_years,
+				interval_days,
+				interval_hours,
+				interval_mixed
+			) VALUES (
+				NULL,                             -- INSERT with NULL during streaming (fallback)
+				'-5 days'::interval,
+				NULL,                             -- INSERT with NULL during streaming (fallback)
+				'10 years'::interval,
+				NULL,
+				'12:00:00'::interval,
+				'1 year 6 months 15 days'::interval
 			);`,
 
 			`UPDATE test_schema.interval_edge_cases
@@ -2805,6 +3162,26 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 				'FB'
 			);`,
 
+			`INSERT INTO test_schema.uuid_ltree_edge_cases (
+				uuid_standard,
+				uuid_all_zeros,
+				uuid_all_fs,
+				uuid_random,
+				ltree_simple,
+				ltree_quoted,
+				ltree_deep,
+				ltree_single
+			) VALUES (
+				NULL,                                     -- INSERT with NULL during streaming (fallback)
+				'00000000-0000-0000-0000-000000000005',
+				NULL,                                     -- INSERT with NULL during streaming (fallback)
+				'3f7a8b2c-4d5e-6f7a-8b9c-0d1e2f3a4b5c',
+				'Test.Null.Insert',
+				NULL,
+				'Path.With.Null.Values',
+				NULL
+			);`,
+
 			`UPDATE test_schema.uuid_ltree_edge_cases
 			SET uuid_standard = 'fb654321-0987-fedc-ba21-098765432109',
 				ltree_simple = 'FB.Updated.Path'
@@ -2847,6 +3224,22 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 				'"" => "fb"',
 				'"fb1" => "v1", "fb2" => "v2", "fb3" => "v3"',
 				'"special" => "test@fb.com"'
+			);`,
+
+			`INSERT INTO test_schema.map_edge_cases (
+				map_simple,
+				map_with_arrow,
+				map_with_quotes,
+				map_empty_values,
+				map_multiple_pairs,
+				map_special_chars
+			) VALUES (
+				NULL,                                  -- INSERT with NULL during streaming (fallback)
+				'"key=>val" => "test"',
+				NULL,                                  -- INSERT with NULL during streaming (fallback)
+				'"empty" => ""',
+				NULL,
+				'"test" => "value"'
 			);`,
 
 			`UPDATE test_schema.map_edge_cases
@@ -2896,6 +3289,25 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 				99
 			);`,
 
+			`INSERT INTO test_schema.integer_edge_cases (
+				int_max,
+				int_min,
+				int_zero,
+				int_negative_one,
+				bigint_max,
+				bigint_min,
+				bigint_zero
+			) VALUES
+			(
+				NULL,                               -- INSERT with NULL during streaming (fallback)
+				-1000000,
+				NULL,                               -- INSERT with NULL during streaming (fallback)
+				-50,
+				5000000000000,
+				NULL,
+				0
+			);`,
+
 			`UPDATE test_schema.integer_edge_cases
 			SET int_max = 100000,
 				bigint_max = 100000000000
@@ -2936,6 +3348,22 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 				88.88
 			);`,
 
+			`INSERT INTO test_schema.decimal_edge_cases (
+				decimal_large,
+				decimal_negative,
+				decimal_zero,
+				decimal_high_precision,
+				decimal_scientific,
+				decimal_small
+			) VALUES (
+				NULL,                               -- INSERT with NULL during streaming (fallback)
+				-999.999,
+				NULL,                               -- INSERT with NULL during streaming (fallback)
+				0.000000000000001,
+				NULL,
+				50.00
+			);`,
+
 			`UPDATE test_schema.decimal_edge_cases
 			SET decimal_large = 999999999.999999999,
 				decimal_negative = -1000.001
@@ -2971,6 +3399,8 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 			// --- BOOLEAN (boolean_edge_cases) ---
 
 			`INSERT INTO test_schema.boolean_edge_cases (bool_simple, bool_nullable) VALUES (FALSE, FALSE);`,
+
+			`INSERT INTO test_schema.boolean_edge_cases (bool_simple, bool_nullable) VALUES (NULL, TRUE);`,
 
 			`UPDATE test_schema.boolean_edge_cases SET bool_simple = TRUE, bool_nullable = FALSE WHERE id = 1;`,
 
