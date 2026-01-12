@@ -393,6 +393,220 @@ func TestLiveMigrationWithEventsOnSamePkOrdered(t *testing.T) {
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 }
 
+// TestLiveMigrationWithEventsOnSamePkOrderedFallback tests that INSERT/UPDATE/DELETE events
+// for the same primary key are applied in the correct order during fall-back streaming (target→source).
+//
+// This is the fall-back counterpart to TestLiveMigrationWithEventsOnSamePkOrdered.
+// Events are generated on the target (YugabyteDB) and streamed back to the source (PostgreSQL).
+//
+// Coverage Matrix (all meaningful I-U-D ordering transitions):
+//
+//	| Transition | Table 1 | Table 2 | Table 3 |
+//	|------------|---------|---------|---------|
+//	| I→U        |         |         | 1000x   |
+//	| I→D        | 1000x   |         |         |
+//	| U→U        |         | 1000x   |         |
+//	| U→D        |         |         | 1000x   |
+//	| D→I        | 999x    |         | 1000x   |
+//
+// Table 1 (test_insert_delete_ordering): Tests I→D and D→I ordering on same PK
+// Table 2 (test_update_ordering): Tests U→U ordering on same PK
+// Table 3 (test_insert_update_delete_ordering): Tests I→U, U→D, D→I ordering on same PK
+func TestLiveMigrationWithEventsOnSamePkOrderedFallback(t *testing.T) {
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB: ContainerConfig{
+			Type:         "postgresql",
+			ForLive:      true,
+			DatabaseName: "test_live_same_pk_ordered_fallback",
+		},
+		TargetDB: ContainerConfig{
+			Type:         "yugabytedb",
+			DatabaseName: "test_live_same_pk_ordered_fallback",
+		},
+		SchemaNames: []string{"test_schema"},
+		SchemaSQL: []string{
+			`CREATE SCHEMA IF NOT EXISTS test_schema;`,
+			// Table 1: INSERT-DELETE ordering test (same PK, id=1)
+			// Tests: I→D (1000x), D→I (999x)
+			`CREATE TABLE test_schema.test_insert_delete_ordering (
+				id INT PRIMARY KEY,
+				iteration INT
+			);`,
+			// Table 2: UPDATE ordering test (same PK, id=1, chained WHERE)
+			// Tests: U→U (1000x)
+			`CREATE TABLE test_schema.test_update_ordering (
+				id INT PRIMARY KEY,
+				version INT
+			);`,
+			// Table 3: INSERT-UPDATE-DELETE ordering test (same PK, id=1, chained WHERE)
+			// Tests: I→U (1000x), U→D (1000x), D→I (1000x)
+			`CREATE TABLE test_schema.test_insert_update_delete_ordering (
+				id INT PRIMARY KEY,
+				state TEXT,
+				iteration INT
+			);`,
+		},
+		SourceSetupSchemaSQL: []string{
+			`ALTER TABLE test_schema.test_insert_delete_ordering REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema.test_update_ordering REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema.test_insert_update_delete_ordering REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			// Seed row for update ordering test (Table 2)
+			`INSERT INTO test_schema.test_update_ordering (id, version) VALUES (1, 0);`,
+		},
+		// No SourceDeltaSQL - forward streaming already covered by other tests
+		TargetDeltaSQL: []string{
+			// Ordering-sensitive events executed on target (YugabyteDB) and streamed back to source
+			`DO $$
+			DECLARE
+				i INTEGER;
+			BEGIN
+				FOR i IN 1..1000 LOOP
+					-- Table 1: INSERT-DELETE cycle on same PK (skip DELETE on last iteration)
+					-- Tests I→D ordering: if DELETE runs before INSERT, it's a no-op
+					-- Tests D→I ordering: if INSERT runs before DELETE, duplicate key error
+					INSERT INTO test_schema.test_insert_delete_ordering (id, iteration) VALUES (1, i);
+					IF i < 1000 THEN
+						DELETE FROM test_schema.test_insert_delete_ordering WHERE id = 1;
+					END IF;
+					
+					-- Table 2: Chained UPDATE on same PK
+					-- Tests U→U ordering: UPDATE only succeeds if previous UPDATE completed
+					-- WHERE version=i-1 ensures ordering - if previous UPDATE didn't run, this is no-op
+					UPDATE test_schema.test_update_ordering SET version = i WHERE id = 1 AND version = i - 1;
+					
+					-- Table 3: INSERT-UPDATE-DELETE cycle on same PK with chained WHERE
+					-- Tests I→U: UPDATE only matches state='inserted'
+					-- Tests U→D: DELETE only matches state='updated'
+					-- Tests D→I: INSERT fails with duplicate key if DELETE didn't run
+					INSERT INTO test_schema.test_insert_update_delete_ordering (id, state, iteration) VALUES (1, 'inserted', i);
+					UPDATE test_schema.test_insert_update_delete_ordering SET state = 'updated' WHERE id = 1 AND state = 'inserted' AND iteration = i;
+					DELETE FROM test_schema.test_insert_update_delete_ordering WHERE id = 1 AND state = 'updated' AND iteration = i;
+				END LOOP;
+				
+				-- Final INSERT for Table 3 validation (also tests D→I from last DELETE)
+				INSERT INTO test_schema.test_insert_update_delete_ordering (id, state, iteration) VALUES (1, 'final', 1001);
+			END $$;`,
+		},
+		CleanupSQL: []string{
+			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
+		},
+	})
+
+	defer lm.Cleanup()
+
+	err := lm.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+
+	err = lm.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
+
+	err = lm.StartExportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start export data")
+
+	err = lm.StartImportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start import data")
+
+	// Wait for snapshot (only test_update_ordering has initial data)
+	err = lm.WaitForSnapshotComplete(map[string]int64{
+		`test_schema."test_update_ordering"`: 1,
+	}, 30)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+
+	time.Sleep(5 * time.Second)
+
+	// Validate snapshot data
+	err = lm.ValidateDataConsistency([]string{`test_schema."test_update_ordering"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate snapshot data consistency")
+
+	// Initiate cutover to target with fall-back enabled
+	err = lm.InitiateCutoverToTarget(true, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover")
+
+	err = lm.WaitForCutoverComplete(50)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+
+	// Execute ordering-sensitive delta SQL on target (YugabyteDB)
+	err = lm.ExecuteTargetDelta()
+	testutils.FatalIfError(t, err, "failed to execute target delta")
+
+	// Wait for fall-back streaming to complete (target → source)
+	// Table 1: 1000 inserts, 999 deletes (same PK, id=1)
+	// Table 2: 1000 updates (same PK, id=1)
+	// Table 3: 1001 inserts, 1000 updates, 1000 deletes (same PK, id=1)
+	err = lm.WaitForFallbackStreamingComplete(map[string]ChangesCount{
+		`test_schema."test_insert_delete_ordering"`: {
+			Inserts: 1000,
+			Updates: 0,
+			Deletes: 999,
+		},
+		`test_schema."test_update_ordering"`: {
+			Inserts: 0,
+			Updates: 1000,
+			Deletes: 0,
+		},
+		`test_schema."test_insert_update_delete_ordering"`: {
+			Inserts: 1001,
+			Updates: 1000,
+			Deletes: 1000,
+		},
+	}, 180, 5)
+	testutils.FatalIfError(t, err, "failed to wait for fall-back streaming complete")
+
+	// Validate data consistency for all three tables
+	err = lm.ValidateDataConsistency([]string{
+		`test_schema."test_insert_delete_ordering"`,
+		`test_schema."test_update_ordering"`,
+		`test_schema."test_insert_update_delete_ordering"`,
+	}, "id")
+	testutils.FatalIfError(t, err, "failed to validate streaming data consistency")
+
+	// Additional validation: verify expected final values on source
+	err = lm.WithSourceConn(func(source *sql.DB) error {
+		// Table 1: should have iteration=1000
+		var iteration int
+		err := source.QueryRow(`SELECT iteration FROM test_schema.test_insert_delete_ordering WHERE id = 1`).Scan(&iteration)
+		if err != nil {
+			return fmt.Errorf("failed to query test_insert_delete_ordering: %w", err)
+		}
+		if iteration != 1000 {
+			return fmt.Errorf("INSERT-DELETE ordering failed: expected iteration=1000, got iteration=%d", iteration)
+		}
+
+		// Table 2: should have version=1000
+		var version int
+		err = source.QueryRow(`SELECT version FROM test_schema.test_update_ordering WHERE id = 1`).Scan(&version)
+		if err != nil {
+			return fmt.Errorf("failed to query test_update_ordering: %w", err)
+		}
+		if version != 1000 {
+			return fmt.Errorf("UPDATE ordering failed: expected version=1000, got version=%d", version)
+		}
+
+		// Table 3: should have state='final', iteration=1001
+		var state string
+		var iter int
+		err = source.QueryRow(`SELECT state, iteration FROM test_schema.test_insert_update_delete_ordering WHERE id = 1`).Scan(&state, &iter)
+		if err != nil {
+			return fmt.Errorf("failed to query test_insert_update_delete_ordering: %w", err)
+		}
+		if state != "final" || iter != 1001 {
+			return fmt.Errorf("INSERT-UPDATE-DELETE ordering failed: expected state='final', iteration=1001, got state='%s', iteration=%d", state, iter)
+		}
+
+		return nil
+	})
+	testutils.FatalIfError(t, err, "failed to validate ordering on source")
+
+	// Cutover back to source
+	err = lm.InitiateCutoverToSource(nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
+
+	err = lm.WaitForCutoverSourceComplete(100)
+	testutils.FatalIfError(t, err, "failed to wait for cutover to source complete")
+}
+
 func TestBasicLiveMigrationWithFallback(t *testing.T) {
 
 	lm := NewLiveMigrationTest(t, &TestConfig{
@@ -593,6 +807,8 @@ FROM generate_series(1, 15);`,
 	err = lm.StartImportData(true, nil)
 	testutils.FatalIfError(t, err, "failed to start import data")
 
+	time.Sleep(10 * time.Second)
+
 	err = lm.WaitForSnapshotComplete(map[string]int64{
 		`test_schema."test_live"`: 20,
 	}, 30)
@@ -631,8 +847,6 @@ FROM generate_series(1, 15);`,
 		return nil
 	})
 	testutils.FatalIfError(t, err, "failed to drop sequence")
-
-	time.Sleep(10 * time.Second)
 
 	//Resume import command after deleting a sequence of the table column idand import should fail while restoring sequences as cutover is already triggered
 	err = lm.ResumeImportData(false, nil)
