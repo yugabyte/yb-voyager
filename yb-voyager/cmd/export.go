@@ -202,6 +202,26 @@ func validateExportFlags(cmd *cobra.Command, exporterRole string) error {
 		}
 	}
 
+	// Add validation for mandatory flags before asking for password
+	if exporterRole == SOURCE_DB_EXPORTER_ROLE {
+		err := validateSourceDBHost()
+		if err != nil {
+			return err
+		}
+		err = validateSourceDBUser()
+		if err != nil {
+			return err
+		}
+		err = validateSourceDBName()
+		if err != nil {
+			return err
+		}
+		err = validateSourceDBPort()
+		if err != nil {
+			return err
+		}
+	}
+
 	switch exporterRole {
 	case SOURCE_DB_EXPORTER_ROLE:
 		getAndStoreSourceDBPasswordInSourceConf(cmd)
@@ -220,6 +240,38 @@ func validateExportFlags(cmd *cobra.Command, exporterRole string) error {
 		if source.TNSAlias != "" {
 			return goerrors.Errorf("--oracle-tns-alias flag is only valid for 'oracle' db type")
 		}
+	}
+	return nil
+}
+
+func validateSourceDBHost() error {
+	if source.DBType == ORACLE || source.DBType == YUGABYTEDB || source.DBType == POSTGRESQL || source.DBType == MYSQL {
+		if source.Host == "" {
+			return goerrors.Errorf("required flag \"source-db-host\" not set")
+		}
+	}
+	return nil
+}
+
+func validateSourceDBUser() error {
+	if source.User == "" {
+		return goerrors.Errorf("required flag \"source-db-user\" not set")
+	}
+	return nil
+}
+
+func validateSourceDBName() error {
+	if source.DBType == POSTGRESQL || source.DBType == MYSQL || source.DBType == YUGABYTEDB {
+		if source.DBName == "" {
+			return goerrors.Errorf("required flag \"source-db-name\" not set")
+		}
+	}
+	return nil
+}
+
+func validateSourceDBPort() error {
+	if source.Port == 0 {
+		return goerrors.Errorf("required flag \"source-db-port\" not set")
 	}
 	return nil
 }
