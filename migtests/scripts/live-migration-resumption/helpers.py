@@ -769,28 +769,35 @@ def scan_logs_for_errors(export_dir: str, artifacts_dir: str, patterns: list[str
         "Discrepancy in committed batch",
         "unexpected rows affected for event with",
     ]
-    low_patterns = [p.lower() for p in base_patterns]
     logs_dir = os.path.join(export_dir, "logs")
     scan_dir = os.path.join(artifacts_dir, "log_scans")
     os.makedirs(scan_dir, exist_ok=True)
     
+    grep_cmd = ["grep", "-aiF"]
+    for pat in base_patterns:
+        grep_cmd += ["-e", pat]
+
     for fp in _iter_log_files(logs_dir):
-        findings: list[str] = []
         try:
-            with open(fp, "r", errors="ignore") as f:
-                for line in f:
-                    lower_line = line.lower()
-                    if any(pat in lower_line for pat in low_patterns):
-                        findings.append(line.rstrip())
+            proc = subprocess.run(
+                [*grep_cmd, "--", fp],
+                capture_output=True,
+                text=True,
+                errors="ignore",
+                check=False,
+            )
         except Exception:
             continue
-        
+
+        if proc.returncode != 0:
+            continue
+
+        findings = [line.rstrip() for line in proc.stdout.splitlines()]
         if findings:
             basename = os.path.basename(fp)
             out = os.path.join(scan_dir, f"{basename}.scan.txt")
             with open(out, "w") as outf:
-                for row in findings:
-                    outf.write(row + "\n")
+                outf.write("\n".join(findings) + "\n")
 
 
 def snapshot_msr_and_stats(export_dir: str, artifacts_dir: str) -> None:
