@@ -5,6 +5,6 @@
     "payload_version": "1.0",
     "query_metrics": null,
     "source_only_queries": 82,
-    "target_only_queries": 104,
-    "total_queries": 186
+    "target_only_queries": 99,
+    "total_queries": 181
 }
