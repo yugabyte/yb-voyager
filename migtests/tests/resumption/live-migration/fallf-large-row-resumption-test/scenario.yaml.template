@@ -5,6 +5,7 @@ run_id: run
 env:
   LOG_LEVEL: info
   MAX_BATCH_SIZE_BYTES: 260000000
+  MAX_EVENTS_PER_BATCH: 1
 
 export_dir: ./export-dir
 artifacts_dir: ./artifacts
@@ -70,7 +71,7 @@ generator_source:
       delete_rows: 1
       insert_max_retries: 5
       update_max_retries: 5
-      min_col_size_bytes: 52428800
+      min_col_size_bytes: 104857600
 
 # Fallback (target) event generator configuration.
 # This will be used later when we start a generator on the target side.
@@ -99,7 +100,7 @@ generator_target:
       delete_rows: 1
       insert_max_retries: 5
       update_max_retries: 5
-      min_col_size_bytes: 52428800
+      min_col_size_bytes: 104857600
 
 voyager:
   import_schema:
