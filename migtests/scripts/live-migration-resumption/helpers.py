@@ -399,16 +399,14 @@ def build_export_schema_cmd(cfg: Dict[str, Any]) -> list[str]:
     return ["yb-voyager", "export", "schema", "--yes"] + to_kv_flags(merged)
 
 
-def import_schema(cfg: Dict[str, Any], env: Dict[str, str]) -> int:
+def import_schema(cfg: Dict[str, Any], env: Dict[str, str]) -> None:
     cmd = build_import_schema_cmd(cfg)
     run_checked(cmd, env, description="import_schema")
-    return 0
 
 
-def export_schema(cfg: Dict[str, Any], env: Dict[str, str]) -> int:
+def export_schema(cfg: Dict[str, Any], env: Dict[str, str]) -> None:
     cmd = build_export_schema_cmd(cfg)
     run_checked(cmd, env, description="export_schema")
-    return 0
 
 
 def initiate_cutover(cfg: Dict[str, Any], env: Dict[str, str], direction: str) -> None:
