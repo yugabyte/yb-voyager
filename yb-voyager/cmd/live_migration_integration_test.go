@@ -2630,3 +2630,270 @@ VALUES (INTERVAL '7 years', INTERVAL '120 days', INTERVAL '15 hours', INTERVAL '
 	testutils.FatalIfError(t, err, "failed to wait for cutover source complete")
 
 }
+
+// TestLiveMigrationWithLargeSchemaAndTableNames tests I/U/D operations on tables
+// with very long schema and table names that exceed PostgreSQL's 63-char identifier limit.
+//
+// This test validates two distinct collision scenarios:
+//
+// SCENARIO 1: Same table, different operations (INSERT/DELETE/UPDATE)
+//   - When schema.table ≥ 62 chars, adding _c/_d/_u exceeds 63 chars
+//   - All operations truncate to the same 63-char prefix, losing the operation suffix
+//   - Result: INSERT, DELETE, and UPDATE prepared statements collide
+//
+// SCENARIO 2: Different tables with similar long names
+//   - Two tables differing only in characters beyond position ~60
+//   - Both truncate to the same 63-char prefix
+//   - Result: Operations on table "...52" collide with operations on table "...99"
+func TestLiveMigrationWithLargeSchemaAndTableNames(t *testing.T) {
+	liveMigrationTest := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB: ContainerConfig{
+			Type:         "postgresql",
+			ForLive:      true,
+			DatabaseName: "test15",
+		},
+		TargetDB: ContainerConfig{
+			Type:         "yugabytedb",
+			DatabaseName: "test15",
+		},
+		SchemaNames: []string{"thisisaverylargenonpublicschema"},
+		SchemaSQL: []string{
+			// Schema: 33 chars, Table: 44 chars = 78 chars total
+			// Adding _c/_d/_u makes it 81 chars (exceeds 63-char limit!)
+			`CREATE SCHEMA IF NOT EXISTS thisisaverylargenonpublicschema;`,
+
+			// SCENARIO 1: Single table where INSERT/DELETE/UPDATE will collide
+			// "thisisaverylargenonpublicschema.thisisaverylargetableinaverylargeschema_c" = 81 chars
+			// "thisisaverylargenonpublicschema.thisisaverylargetableinaverylargeschema_d" = 81 chars
+			// "thisisaverylargenonpublicschema.thisisaverylargetableinaverylargeschema_u" = 81 chars
+			// All truncate to: "thisisaverylargenonpublicschema.thisisaverylargetableinave" (63 chars)
+			`CREATE TABLE thisisaverylargenonpublicschema.thisisaverylargetableinaverylargeschema (
+				id int PRIMARY KEY,
+				name TEXT,
+				value INT
+			);`,
+
+			// SCENARIO 2: Two tables differing only in last 2 chars (beyond truncation point)
+			// Both will have identical prepared statement names when truncated to 63 chars
+			`CREATE TABLE thisisaverylargenonpublicschema.thisisaverylargetableinaverylargeschema52 (
+				id int PRIMARY KEY,
+				name TEXT,
+				value INT
+			);`,
+
+			`CREATE TABLE thisisaverylargenonpublicschema.thisisaverylargetableinaverylargeschema99 (
+				id int PRIMARY KEY,
+				name TEXT,
+				value INT
+			);`,
+		},
+		SourceSetupSchemaSQL: []string{
+			`ALTER TABLE thisisaverylargenonpublicschema.thisisaverylargetableinaverylargeschema REPLICA IDENTITY FULL;`,
+			`ALTER TABLE thisisaverylargenonpublicschema.thisisaverylargetableinaverylargeschema52 REPLICA IDENTITY FULL;`,
+			`ALTER TABLE thisisaverylargenonpublicschema.thisisaverylargetableinaverylargeschema99 REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			`INSERT INTO thisisaverylargenonpublicschema.thisisaverylargetableinaverylargeschema (id, name, value)
+			SELECT i, 'name_' || i, i * 10 FROM generate_series(1, 10) as i;`,
+
+			`INSERT INTO thisisaverylargenonpublicschema.thisisaverylargetableinaverylargeschema52 (id, name, value)
+			SELECT i, 'name_' || i, i * 10 FROM generate_series(1, 10) as i;`,
+
+			`INSERT INTO thisisaverylargenonpublicschema.thisisaverylargetableinaverylargeschema99 (id, name, value)
+			SELECT i, 'name_' || i, i * 20 FROM generate_series(1, 10) as i;`,
+		},
+		SourceDeltaSQL: []string{
+			// SCENARIO 1: Many events on same long-named table (500+ events)
+			// Tests that prepared statement reuse works correctly with long table names
+			// Tests that _c, _d, _u suffixes create unique prepared statement names
+			`DO $$
+DECLARE
+    i INTEGER;
+BEGIN
+    FOR i IN 11..260 LOOP
+        -- INSERT two rows
+        INSERT INTO thisisaverylargenonpublicschema.thisisaverylargetableinaverylargeschema (id, name, value) 
+        VALUES (i, 'name_' || i, i * 10);
+        
+        INSERT INTO thisisaverylargenonpublicschema.thisisaverylargetableinaverylargeschema (id, name, value) 
+        VALUES (i + 250, 'name_' || (i + 250), (i + 250) * 10);
+        
+        -- UPDATE existing rows
+        UPDATE thisisaverylargenonpublicschema.thisisaverylargetableinaverylargeschema 
+        SET value = value + 1 
+        WHERE id = i - 10 AND i > 10;
+        
+        -- DELETE one of the newly inserted rows (on alternate iterations)
+        IF i % 2 = 0 THEN
+            DELETE FROM thisisaverylargenonpublicschema.thisisaverylargetableinaverylargeschema 
+            WHERE id = i;
+        END IF;
+    END LOOP;
+END $$;`,
+
+			// SCENARIO 2: Operations on tables with similar long names (differ only at the end)
+			// Tests that different tables get unique prepared statement names
+			`INSERT INTO thisisaverylargenonpublicschema.thisisaverylargetableinaverylargeschema52 (id, name, value) VALUES (11, 'name52_11', 110);`,
+			`INSERT INTO thisisaverylargenonpublicschema.thisisaverylargetableinaverylargeschema99 (id, name, value) VALUES (11, 'name99_11', 110);`,
+			`UPDATE thisisaverylargenonpublicschema.thisisaverylargetableinaverylargeschema52 SET value = 51 WHERE id = 1;`,
+			`UPDATE thisisaverylargenonpublicschema.thisisaverylargetableinaverylargeschema99 SET value = 101 WHERE id = 1;`,
+			`DELETE FROM thisisaverylargenonpublicschema.thisisaverylargetableinaverylargeschema52 WHERE id = 11;`,
+			`DELETE FROM thisisaverylargenonpublicschema.thisisaverylargetableinaverylargeschema99 WHERE id = 11;`,
+		},
+		TargetDeltaSQL: []string{
+			// Fallback testing: Execute many operations on target to test target → source streaming
+			// SCENARIO 1: Many events on same long-named table (500+ events) during fallback
+			// Tests that prepared statement reuse works correctly during fallback streaming
+			`DO $$
+DECLARE
+    i INTEGER;
+BEGIN
+    FOR i IN 511..760 LOOP
+        -- INSERT two rows
+        INSERT INTO thisisaverylargenonpublicschema.thisisaverylargetableinaverylargeschema (id, name, value) 
+        VALUES (i, 'fallback_' || i, i * 10);
+        
+        INSERT INTO thisisaverylargenonpublicschema.thisisaverylargetableinaverylargeschema (id, name, value) 
+        VALUES (i + 250, 'fallback_' || (i + 250), (i + 250) * 10);
+        
+        -- UPDATE existing rows
+        UPDATE thisisaverylargenonpublicschema.thisisaverylargetableinaverylargeschema 
+        SET value = value + 100 
+        WHERE id = i - 510 AND i > 510;
+        
+        -- DELETE one of the newly inserted rows (on alternate iterations)
+        IF i % 2 = 1 THEN
+            DELETE FROM thisisaverylargenonpublicschema.thisisaverylargetableinaverylargeschema 
+            WHERE id = i;
+        END IF;
+    END LOOP;
+END $$;`,
+
+			// SCENARIO 2: Operations on tables with similar long names
+			`INSERT INTO thisisaverylargenonpublicschema.thisisaverylargetableinaverylargeschema52 (id, name, value) VALUES (21, 'fallback52_21', 210);`,
+			`INSERT INTO thisisaverylargenonpublicschema.thisisaverylargetableinaverylargeschema99 (id, name, value) VALUES (21, 'fallback99_21', 210);`,
+			`UPDATE thisisaverylargenonpublicschema.thisisaverylargetableinaverylargeschema52 SET value = 151 WHERE id = 2;`,
+			`UPDATE thisisaverylargenonpublicschema.thisisaverylargetableinaverylargeschema99 SET value = 201 WHERE id = 2;`,
+			`DELETE FROM thisisaverylargenonpublicschema.thisisaverylargetableinaverylargeschema52 WHERE id = 21;`,
+			`DELETE FROM thisisaverylargenonpublicschema.thisisaverylargetableinaverylargeschema99 WHERE id = 21;`,
+		},
+		CleanupSQL: []string{
+			`DROP SCHEMA IF EXISTS thisisaverylargenonpublicschema CASCADE;`,
+		},
+	})
+
+	defer liveMigrationTest.Cleanup()
+
+	err := liveMigrationTest.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+
+	err = liveMigrationTest.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
+
+	err = liveMigrationTest.StartExportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start export data")
+
+	err = liveMigrationTest.StartImportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start import data")
+
+	time.Sleep(5 * time.Second)
+
+	err = liveMigrationTest.WaitForSnapshotComplete(map[string]int64{
+		`thisisaverylargenonpublicschema."thisisaverylargetableinaverylargeschema"`:   10,
+		`thisisaverylargenonpublicschema."thisisaverylargetableinaverylargeschema52"`: 10,
+		`thisisaverylargenonpublicschema."thisisaverylargetableinaverylargeschema99"`: 10,
+	}, 30)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+
+	err = liveMigrationTest.ValidateDataConsistency([]string{
+		`thisisaverylargenonpublicschema."thisisaverylargetableinaverylargeschema"`,
+		`thisisaverylargenonpublicschema."thisisaverylargetableinaverylargeschema52"`,
+		`thisisaverylargenonpublicschema."thisisaverylargetableinaverylargeschema99"`,
+	}, "id")
+	testutils.FatalIfError(t, err, "failed to validate snapshot data consistency")
+
+	// Execute delta SQL - simplified test with just INSERTs (no collisions)
+	err = liveMigrationTest.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
+
+	// Wait for streaming to complete
+	// Table 1: DO block generates 500 INSERTs, 130 successful UPDATEs, 125 DELETEs
+	// UPDATEs: 10 (initial rows 1-10) + 120 (odd rows 11-249) = 130 (even rows get deleted so their updates fail)
+	err = liveMigrationTest.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`thisisaverylargenonpublicschema."thisisaverylargetableinaverylargeschema"`: {
+			Inserts: 500, // 250 iterations * 2 INSERTs per iteration
+			Updates: 130, // 10 (rows 1-10) + 120 (odd rows 11-249 that weren't deleted)
+			Deletes: 125, // 125 DELETEs (when i % 2 = 0: ids 12,14,16...260)
+		},
+		`thisisaverylargenonpublicschema."thisisaverylargetableinaverylargeschema52"`: {
+			Inserts: 1,
+			Updates: 1,
+			Deletes: 1,
+		},
+		`thisisaverylargenonpublicschema."thisisaverylargetableinaverylargeschema99"`: {
+			Inserts: 1,
+			Updates: 1,
+			Deletes: 1,
+		},
+	}, 180, 5)
+	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
+
+	// Validate data after streaming
+	err = liveMigrationTest.ValidateDataConsistency([]string{
+		`thisisaverylargenonpublicschema."thisisaverylargetableinaverylargeschema"`,
+		`thisisaverylargenonpublicschema."thisisaverylargetableinaverylargeschema52"`,
+		`thisisaverylargenonpublicschema."thisisaverylargetableinaverylargeschema99"`,
+	}, "id")
+	testutils.FatalIfError(t, err, "failed to validate streaming data consistency")
+
+	// Initiate cutover to target with fallback preparation
+	err = liveMigrationTest.InitiateCutoverToTarget(true, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover to target")
+
+	// Wait for cutover to complete
+	err = liveMigrationTest.WaitForCutoverComplete(50)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+
+	fmt.Printf("\n✅ Forward streaming completed successfully!\n")
+
+	// Execute delta SQL on target for fallback testing
+	err = liveMigrationTest.ExecuteTargetDelta()
+	testutils.FatalIfError(t, err, "failed to execute target delta")
+
+	// Wait for fallback streaming to complete (target → source)
+	// DO block generates 500 INSERTs, 130 successful UPDATEs, 125 DELETEs
+	// UPDATEs: 10 (initial rows 1-10) + 120 (odd rows 11-249) = 130 (even rows were deleted so updates fail)
+	err = liveMigrationTest.WaitForFallbackStreamingComplete(map[string]ChangesCount{
+		`thisisaverylargenonpublicschema."thisisaverylargetableinaverylargeschema"`: {
+			Inserts: 500, // 250 iterations * 2 INSERTs per iteration
+			Updates: 130, // 10 (rows 1-10) + 120 (odd rows 11-249 that exist)
+			Deletes: 125, // 125 DELETEs (when i % 2 = 1: odd ids 511,513...759)
+		},
+		`thisisaverylargenonpublicschema."thisisaverylargetableinaverylargeschema52"`: {
+			Inserts: 1,
+			Updates: 1,
+			Deletes: 1,
+		},
+		`thisisaverylargenonpublicschema."thisisaverylargetableinaverylargeschema99"`: {
+			Inserts: 1,
+			Updates: 1,
+			Deletes: 1,
+		},
+	}, 180, 5)
+	testutils.FatalIfError(t, err, "failed to wait for fallback streaming complete")
+
+	// Validate data consistency after fallback
+	err = liveMigrationTest.ValidateDataConsistency([]string{
+		`thisisaverylargenonpublicschema."thisisaverylargetableinaverylargeschema"`,
+		`thisisaverylargenonpublicschema."thisisaverylargetableinaverylargeschema52"`,
+		`thisisaverylargenonpublicschema."thisisaverylargetableinaverylargeschema99"`,
+	}, "id")
+	testutils.FatalIfError(t, err, "failed to validate fallback data consistency")
+
+	fmt.Printf("\n✅ Full migration flow with fallback completed successfully!\n")
+	fmt.Printf("✅ Prepared statement collision scenarios tested in both directions:\n")
+	fmt.Printf("   ✓ Forward streaming (source → target)\n")
+	fmt.Printf("   ✓ Fallback streaming (target → source)\n")
+	fmt.Printf("   ✓ Mixed INSERT/UPDATE/DELETE on same long-named table\n")
+	fmt.Printf("   ✓ Operations on tables with similar long names (differ only at the end)\n\n")
+}
