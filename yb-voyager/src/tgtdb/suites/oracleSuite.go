@@ -29,6 +29,7 @@ import (
 )
 
 var OraValueConverterSuite = map[string]ConverterFn{
+	"io.debezium.time.ZonedTime": quoteValueIfRequired,
 	"DATE": func(columnValue string, formatIfRequired bool, dbzmSchema *schemareg.ColumnSchema) (string, error) {
 		// from oracle for DATE type debezium gives epoch milliseconds with type `io.debezium.time.Timestamp`
 		epochMilliSecs, err := strconv.ParseInt(columnValue, 10, 64)
