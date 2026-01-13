@@ -16,6 +16,8 @@ limitations under the License.
 package tgtdb
 
 import (
+	"crypto/md5"
+	"encoding/hex"
 	"fmt"
 	"strings"
 	"sync"
@@ -214,6 +216,20 @@ func (e *Event) GetParamsString() string {
 	return paramsStr.String()
 }
 
+// maxPreparedStmtNameLength is the maximum length for PostgreSQL or YugabyteDB identifiers
+const maxPreparedStmtNameLength = 63
+
+// hashPreparedStmtName creates a short, unique name when the original exceeds 63 chars.
+// This function hashes long names using MD5 to ensure they stay within the limit while maintaining uniqueness.
+func hashPreparedStmtName(name string) string {
+	if len(name) <= maxPreparedStmtNameLength {
+		return name
+	}
+	// We use "ps_" prefix (3 chars) + 32 hex chars = 35 chars total, well within limit.
+	hash := md5.Sum([]byte(name))
+	return "ps_" + hex.EncodeToString(hash[:])
+}
+
 func (event *Event) GetPreparedStmtName() string {
 	var ps strings.Builder
 	ps.WriteString(event.TableNameTup.ForUserQuery())
@@ -224,7 +240,7 @@ func (event *Event) GetPreparedStmtName() string {
 		ps.WriteString(":")
 		ps.WriteString(keys)
 	}
-	return ps.String()
+	return hashPreparedStmtName(ps.String())
 }
 
 const insertTemplate = "INSERT INTO %s (%s) VALUES (%s)"
