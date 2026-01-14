@@ -3647,28 +3647,22 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 
 func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
 	lm := NewLiveMigrationTest(t, getDatatypeEdgeCasesTestConfig())
-
 	defer lm.Cleanup()
 
-	t.Log("=== Setting up containers ===")
 	err := lm.SetupContainers(context.Background())
 	testutils.FatalIfError(t, err, "failed to setup containers")
 
-	t.Log("=== Setting up schema ===")
 	err = lm.SetupSchema()
 	testutils.FatalIfError(t, err, "failed to setup schema")
 
-	t.Log("=== Starting export data ===")
 	err = lm.StartExportData(true, nil)
 	testutils.FatalIfError(t, err, "failed to start export data")
 
-	t.Log("=== Starting import data ===")
 	err = lm.StartImportData(true, map[string]string{
 		"--log-level": "debug",
 	})
 	testutils.FatalIfError(t, err, "failed to start import data")
 
-	t.Log("=== Waiting for snapshot complete (12 datatypes × 6 rows = 72 rows) ===")
 	err = lm.WaitForSnapshotComplete(map[string]int64{
 		`test_schema."string_edge_cases"`:         6, // 6 rows (5 edge cases + 1 with NULL for transitions)
 		`test_schema."json_edge_cases"`:           6, // 6 rows (5 edge cases + 1 with NULL for transitions)
@@ -3685,15 +3679,12 @@ func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
 	}, 240) // Increased timeout for 72 rows
 	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
 
-	t.Log("=== Validating snapshot data ===")
 	err = lm.ValidateDataConsistency([]string{`test_schema."string_edge_cases"`, `test_schema."json_edge_cases"`, `test_schema."enum_edge_cases"`, `test_schema."bytes_edge_cases"`, `test_schema."datetime_edge_cases"`, `test_schema."uuid_ltree_edge_cases"`, `test_schema."map_edge_cases"`, `test_schema."interval_edge_cases"`, `test_schema."zonedtimestamp_edge_cases"`, `test_schema."decimal_edge_cases"`, `test_schema."integer_edge_cases"`, `test_schema."boolean_edge_cases"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate snapshot data consistency")
 
-	t.Log("=== Executing source delta (streaming operations) ===")
 	err = lm.ExecuteSourceDelta()
 	testutils.FatalIfError(t, err, "failed to execute source delta")
 
-	t.Log("=== Waiting for streaming complete (ALL 12 datatypes with NULL transitions!) ===")
 	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
 		`test_schema."string_edge_cases"`: {
 			Inserts: 4,  // 4 INSERT operations: basic + actual control chars + literal \n test + 1 with NULLs
@@ -3758,19 +3749,15 @@ func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
 	}, 120, 1) // 1 minute timeout, 1 second poll interval
 	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
 
-	t.Log("=== Validating streaming data ===")
 	err = lm.ValidateDataConsistency([]string{`test_schema."string_edge_cases"`, `test_schema."json_edge_cases"`, `test_schema."enum_edge_cases"`, `test_schema."bytes_edge_cases"`, `test_schema."datetime_edge_cases"`, `test_schema."uuid_ltree_edge_cases"`, `test_schema."map_edge_cases"`, `test_schema."interval_edge_cases"`, `test_schema."zonedtimestamp_edge_cases"`, `test_schema."decimal_edge_cases"`, `test_schema."integer_edge_cases"`, `test_schema."boolean_edge_cases"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate streaming data consistency")
 
-	t.Log("=== Initiating cutover ===")
 	err = lm.InitiateCutoverToTarget(false, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover")
 
-	t.Log("=== Waiting for cutover complete ===")
 	err = lm.WaitForCutoverComplete(60)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
-	t.Log("=== Final validation ===")
 	err = lm.ValidateDataConsistency([]string{`test_schema."string_edge_cases"`, `test_schema."json_edge_cases"`, `test_schema."enum_edge_cases"`, `test_schema."bytes_edge_cases"`, `test_schema."datetime_edge_cases"`, `test_schema."uuid_ltree_edge_cases"`, `test_schema."map_edge_cases"`, `test_schema."interval_edge_cases"`, `test_schema."zonedtimestamp_edge_cases"`, `test_schema."decimal_edge_cases"`, `test_schema."integer_edge_cases"`, `test_schema."boolean_edge_cases"`}, "id")
 	testutils.FatalIfError(t, err, "failed final data consistency check")
 }
@@ -3779,25 +3766,20 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 	lm := NewLiveMigrationTest(t, getDatatypeEdgeCasesTestConfig())
 	defer lm.Cleanup()
 
-	t.Log("=== Setting up containers ===")
 	err := lm.SetupContainers(context.Background())
 	testutils.FatalIfError(t, err, "failed to setup containers")
 
-	t.Log("=== Setting up schema ===")
 	err = lm.SetupSchema()
 	testutils.FatalIfError(t, err, "failed to setup schema")
 
-	t.Log("=== Starting export data ===")
 	err = lm.StartExportData(true, nil)
 	testutils.FatalIfError(t, err, "failed to start export data")
 
-	t.Log("=== Starting import data ===")
 	err = lm.StartImportData(true, map[string]string{
 		"--log-level": "debug",
 	})
 	testutils.FatalIfError(t, err, "failed to start import data")
 
-	t.Log("=== Waiting for snapshot complete (12 datatypes × 6 rows = 72 rows) ===")
 	err = lm.WaitForSnapshotComplete(map[string]int64{
 		`test_schema."string_edge_cases"`:         6,
 		`test_schema."json_edge_cases"`:           6,
@@ -3814,15 +3796,12 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 	}, 240)
 	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
 
-	t.Log("=== Validating snapshot data ===")
 	err = lm.ValidateDataConsistency([]string{`test_schema."string_edge_cases"`, `test_schema."json_edge_cases"`, `test_schema."enum_edge_cases"`, `test_schema."bytes_edge_cases"`, `test_schema."datetime_edge_cases"`, `test_schema."uuid_ltree_edge_cases"`, `test_schema."map_edge_cases"`, `test_schema."interval_edge_cases"`, `test_schema."zonedtimestamp_edge_cases"`, `test_schema."decimal_edge_cases"`, `test_schema."integer_edge_cases"`, `test_schema."boolean_edge_cases"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate snapshot data consistency")
 
-	t.Log("=== Executing source delta (forward streaming) ===")
 	err = lm.ExecuteSourceDelta()
 	testutils.FatalIfError(t, err, "failed to execute source delta")
 
-	t.Log("=== Waiting for forward streaming complete ===")
 	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
 		`test_schema."string_edge_cases"`: {
 			Inserts: 4,  // basic + actual control chars + literal \n test + 1 with NULLs
@@ -3887,27 +3866,20 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 	}, 180, 2)
 	testutils.FatalIfError(t, err, "failed to wait for forward streaming complete")
 
-	t.Log("=== Validating forward streaming data ===")
 	err = lm.ValidateDataConsistency([]string{`test_schema."string_edge_cases"`, `test_schema."json_edge_cases"`, `test_schema."enum_edge_cases"`, `test_schema."bytes_edge_cases"`, `test_schema."datetime_edge_cases"`, `test_schema."uuid_ltree_edge_cases"`, `test_schema."map_edge_cases"`, `test_schema."interval_edge_cases"`, `test_schema."zonedtimestamp_edge_cases"`, `test_schema."decimal_edge_cases"`, `test_schema."integer_edge_cases"`, `test_schema."boolean_edge_cases"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate streaming data consistency")
 
-	t.Log("=== Initiating cutover to target ===")
 	err = lm.InitiateCutoverToTarget(true, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover")
 
-	t.Log("=== Waiting for cutover complete ===")
 	err = lm.WaitForCutoverComplete(90)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
-	t.Log("=== Executing target delta ===")
 	err = lm.ExecuteTargetDelta()
 	testutils.FatalIfError(t, err, "failed to execute target delta")
 
-	t.Log("=== Waiting for CDC to capture changes ===")
 	time.Sleep(30 * time.Second)
 
-	t.Log("=== Waiting for fallback streaming complete (ALL 12 datatypes with BOTH NULL transition paths!) ===")
-	t.Log("   TESTING: ALL 12 datatypes with FULL edge cases! (Final Step)")
 	err = lm.WaitForFallbackStreamingComplete(map[string]ChangesCount{
 		`test_schema."string_edge_cases"`: {
 			Inserts: 5, // 1 basic + 1 literal \n test + 2 marker rows for UPDATE tests (literal \n, actual newline) + 1 with NULLs
@@ -3972,19 +3944,15 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 	}, 180, 2)
 	testutils.FatalIfError(t, err, "failed to wait for fallback streaming complete")
 
-	t.Log("=== Validating fallback streaming data ===")
 	err = lm.ValidateDataConsistency([]string{`test_schema."string_edge_cases"`, `test_schema."decimal_edge_cases"`, `test_schema."json_edge_cases"`, `test_schema."enum_edge_cases"`, `test_schema."bytes_edge_cases"`, `test_schema."datetime_edge_cases"`, `test_schema."uuid_ltree_edge_cases"`, `test_schema."map_edge_cases"`, `test_schema."interval_edge_cases"`, `test_schema."zonedtimestamp_edge_cases"`, `test_schema."integer_edge_cases"`, `test_schema."boolean_edge_cases"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate fallback streaming data consistency")
 
-	t.Log("=== Initiating cutover to source ===")
 	err = lm.InitiateCutoverToSource(nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
 
-	t.Log("=== Waiting for cutover to source complete ===")
 	err = lm.WaitForCutoverSourceComplete(150)
 	testutils.FatalIfError(t, err, "failed to wait for cutover to source complete")
 
-	t.Log("=== Final validation after complete round-trip ===")
 	err = lm.ValidateDataConsistency([]string{`test_schema."string_edge_cases"`, `test_schema."decimal_edge_cases"`, `test_schema."json_edge_cases"`, `test_schema."enum_edge_cases"`, `test_schema."bytes_edge_cases"`, `test_schema."datetime_edge_cases"`, `test_schema."uuid_ltree_edge_cases"`, `test_schema."map_edge_cases"`, `test_schema."interval_edge_cases"`, `test_schema."zonedtimestamp_edge_cases"`, `test_schema."integer_edge_cases"`, `test_schema."boolean_edge_cases"`}, "id")
 	testutils.FatalIfError(t, err, "failed final data consistency check after fallback")
 }
