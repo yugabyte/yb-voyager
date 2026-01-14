@@ -1606,6 +1606,47 @@ $$;`,
 
 }
 
+func TestSavepointDetection(t *testing.T) {
+	sqls := []string{
+		`SAVEPOINT my_savepoint;`,
+		`ROLLBACK TO SAVEPOINT my_savepoint;`,
+		`RELEASE SAVEPOINT my_savepoint;`,
+		`BEGIN;
+		INSERT INTO accounts (id, balance) VALUES (1, 1000);
+		SAVEPOINT sp1;
+		UPDATE accounts SET balance = balance - 100 WHERE id = 1;
+		ROLLBACK TO SAVEPOINT sp1;
+		COMMIT;`,
+	}
+
+	// Test that individual queries are detected
+	parserIssueDetector := NewParserIssueDetector()
+	for _, sql := range sqls {
+		_, err := parserIssueDetector.GetDMLIssues(sql, ybversion.V2024_2_3_1)
+		assert.NoError(t, err, "Error detecting issues for statement: %s", sql)
+	}
+
+	// Verify that savepoint usage was tracked
+	assert.True(t, parserIssueDetector.IsSavepointUsed(), "Savepoint usage should be detected")
+}
+
+func TestNoSavepointDetection(t *testing.T) {
+	sqls := []string{
+		`SELECT * FROM accounts;`,
+		`BEGIN; INSERT INTO accounts (id, balance) VALUES (1, 1000); COMMIT;`,
+		`UPDATE accounts SET balance = balance - 100 WHERE id = 1;`,
+	}
+
+	parserIssueDetector := NewParserIssueDetector()
+	for _, sql := range sqls {
+		_, err := parserIssueDetector.GetDMLIssues(sql, ybversion.V2024_2_3_1)
+		assert.NoError(t, err, "Error detecting issues for statement: %s", sql)
+	}
+
+	// Verify that savepoint usage was NOT tracked
+	assert.False(t, parserIssueDetector.IsSavepointUsed(), "Savepoint usage should not be detected")
+}
+
 func TestCompressionClause(t *testing.T) {
 	stmts := []string{
 		`CREATE TABLE tbl_comp1(id int, v text COMPRESSION pglz);`,

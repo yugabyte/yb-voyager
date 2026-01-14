@@ -57,7 +57,9 @@ var (
 	referenceOrTablePartitionPresent = false
 	pgssEnabledForAssessment         = false
 	invokedByExportSchema            utils.BoolStr
-	sourceReadReplicaEndpoints       string // CLI flag - package variable for Cobra binding
+	sourceReadReplicaEndpoints       string                              // CLI flag - package variable for Cobra binding
+	primaryOnly                      bool                                // CLI flag - package variable for Cobra binding
+	replicaDiscoveryInfoForCallhome  *migassessment.ReplicaDiscoveryInfo // Stored for error callhome
 )
 
 var sourceConnectionFlags = []string{
@@ -91,7 +93,7 @@ var assessMigrationCmd = &cobra.Command{
 		validatePortRange()
 		validateSSLMode()
 		validateOracleParams()
-		validateReplicaEndpointsFlag()
+		validateReplicaRelatedFlags()
 		err = validateAndSetTargetDbVersionFlag()
 		if err != nil {
 			utils.ErrExit("failed to validate target db version: %w", err)
@@ -201,6 +203,9 @@ func init() {
 	assessMigrationCmd.Flags().StringVar(&sourceReadReplicaEndpoints, "source-read-replica-endpoints", "",
 		"Comma-separated list of read replica endpoints. Each endpoint is host:port. Default port 5432. "+
 			"Example: \"host1:5432, host2:5433\". (only valid for PostgreSQL)")
+
+	assessMigrationCmd.Flags().BoolVar(&primaryOnly, "primary-only", false,
+		"assess only the primary database, skip read replica discovery and assessment (only valid for PostgreSQL).")
 }
 
 // createMigrationAssessmentStartedEvent creates a migration assessment started event
@@ -267,11 +272,18 @@ func assessMigration() (err error) {
 			return goerrors.Errorf("failed to check if source schema exist: %q", source.Schema)
 		}
 
+		// Fetch source info early (includes system identifier needed for replica cluster validation)
+		fetchSourceInfo()
+
 		// Handle replica discovery and validation (PostgreSQL only)
-		validatedReplicaEndpoints, err = migassessment.HandleReplicaDiscoveryAndValidation(&source, sourceReadReplicaEndpoints)
+		replicaDiscoveryInfo, err := migassessment.HandleReplicaDiscoveryAndValidation(&source, sourceReadReplicaEndpoints, primaryOnly)
 		if err != nil {
 			return fmt.Errorf("failed to handle replica discovery and validation: %w", err)
 		}
+		validatedReplicaEndpoints = replicaDiscoveryInfo.ValidatedReplicas
+
+		// Store for callhome (including error scenarios)
+		replicaDiscoveryInfoForCallhome = &replicaDiscoveryInfo
 
 		// Check permissions on all nodes (primary + replicas) after validation
 		if source.RunGuardrailsChecks {
@@ -283,8 +295,6 @@ func assessMigration() (err error) {
 				return fmt.Errorf("permission check failed: %w", err)
 			}
 		}
-
-		fetchSourceInfo()
 	}
 
 	startEvent := createMigrationAssessmentStartedEvent()
@@ -686,6 +696,12 @@ func generateAssessmentReport() (err error) {
 
 	assessmentReport.VoyagerVersion = utils.YB_VOYAGER_VERSION
 	assessmentReport.TargetDBVersion = targetDbVersion
+
+	// Populate assessment topology information
+	// Note: If assessment completes, all validated replicas succeeded (no partial failures)
+	if replicaDiscoveryInfoForCallhome != nil {
+		assessmentReport.NumReplicasUsed = len(replicaDiscoveryInfoForCallhome.ValidatedReplicas)
+	}
 
 	err = getAssessmentReportContentFromAnalyzeSchema()
 	if err != nil {
@@ -1601,6 +1617,16 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 		migrationCaveats = append(migrationCaveats, getUnsupportedFeaturesFromSchemaAnalysisReport(POLICIES_CAVEAT_FEATURE, "", queryissue.POLICY_WITH_ROLES,
 			schemaAnalysisReport, false))
 
+		// Check for SAVEPOINT usage in transactions detected by parser
+		if parserIssueDetector.IsSavepointUsed() {
+			queryIssue := queryissue.NewSavepointUsageIssue(
+				queryissue.DML_QUERY_OBJECT_TYPE,
+				"",
+				"SAVEPOINT", // Hardcoded SQL statement
+			)
+			checkIsFixedInAndAddIssueToAssessmentIssues(queryIssue)
+		}
+
 		if len(unsupportedDataTypesForLiveMigration) > 0 {
 			columns := make([]ObjectInfo, 0)
 			for _, colInfo := range unsupportedDataTypesForLiveMigration {
@@ -1801,6 +1827,7 @@ func generateAssessmentReportHtml(reportDir string) error {
 	log.Infof("creating template for assessment report...")
 	funcMap := template.FuncMap{
 		"split":                                  split,
+		"add":                                    add,
 		"groupByObjectType":                      groupByObjectType,
 		"numKeysInMapStringObjectInfo":           numKeysInMapStringObjectInfo,
 		"groupByObjectName":                      groupByObjectName,
@@ -1905,6 +1932,10 @@ func split(value string, delimiter string) []string {
 	return strings.Split(value, delimiter)
 }
 
+func add(a, b int) int {
+	return a + b
+}
+
 // hasNotesByType checks if there are any notes of the specified type
 func hasNotesByType(notes []NoteInfo, noteType NoteType) bool {
 	for _, note := range notes {
@@ -1952,9 +1983,18 @@ func validateSourceDBTypeForAssessMigration() {
 	}
 }
 
-func validateReplicaEndpointsFlag() {
+func validateReplicaRelatedFlags() {
 	if sourceReadReplicaEndpoints != "" && source.DBType != POSTGRESQL {
 		utils.ErrExit("Error --source-read-replica-endpoints flag / source.read-replica-endpoints config parameter is only valid for 'postgresql' db type")
+	}
+
+	if primaryOnly && source.DBType != POSTGRESQL {
+		utils.ErrExit("Error --primary-only flag is only valid for 'postgresql' db type")
+	}
+
+	// Both flags are mutually exclusive
+	if primaryOnly && sourceReadReplicaEndpoints != "" {
+		utils.ErrExit("Error: --primary-only and --source-read-replica-endpoints flags cannot be used together")
 	}
 }
 

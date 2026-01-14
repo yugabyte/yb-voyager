@@ -392,3 +392,17 @@ var twoPhaseCommitIssue = issue.Issue{
 func NewTwoPhaseCommitIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	return newQueryIssue(twoPhaseCommitIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
+
+var savepointUsageIssue = issue.Issue{
+	Type:        SAVEPOINT_USAGE,
+	Name:        SAVEPOINT_USAGE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: SAVEPOINT_USAGE_ISSUE_DESCRIPTION,
+	Suggestion:  SAVEPOINT_USAGE_ISSUE_SUGGESTION,
+	GH:          "",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/#savepoint-usage-in-transactions",
+}
+
+func NewSavepointUsageIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	return newQueryIssue(savepointUsageIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}

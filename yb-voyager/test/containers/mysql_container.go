@@ -12,6 +12,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -19,6 +20,10 @@ type MysqlContainer struct {
 	mutex sync.Mutex
 	ContainerConfig
 	container testcontainers.Container
+}
+
+func (ms *MysqlContainer) SetConfig(config ContainerConfig) {
+	ms.ContainerConfig = config
 }
 
 func (ms *MysqlContainer) Start(ctx context.Context) (err error) {

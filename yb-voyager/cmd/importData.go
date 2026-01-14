@@ -25,10 +25,9 @@ import (
 	"time"
 	"unicode"
 
-	goerrors "github.com/go-errors/errors"
-
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/color"
+	goerrors "github.com/go-errors/errors"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/sourcegraph/conc/pool"
@@ -898,7 +897,7 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 		if err != nil {
 			utils.ErrExit("Failed to create value converter: %s", err)
 		}
-		streamingPhaseValueConverter, err := dbzm.NewStreamingPhaseDebeziumValueConverter(importTableList, exportDir, tconf, importerRole)
+		streamingPhaseValueConverter, err := dbzm.NewStreamingPhaseDebeziumValueConverter(importTableList, exportDir, tconf, importerRole, sourceDBType)
 		if err != nil {
 			utils.ErrExit("Failed to create streaming phase value converter: %s", err)
 		}
@@ -1267,6 +1266,7 @@ func startMonitoringTargetYBHealth() error {
 	if !ok {
 		return goerrors.Errorf("monitoring health is only supported if target DB is YugabyteDB")
 	}
+
 	go func() {
 		//for now not sending any other parameters as not required for monitor usage
 		ybClient := dbzm.NewYugabyteDBCDCClient(exportDir, "", tconf.SSLRootCert, tconf.DBName, "", nil)
@@ -1277,6 +1277,7 @@ func startMonitoringTargetYBHealth() error {
 		monitorTDBHealth := monitor.NewMonitorTargetYBHealth(yb, bool(skipDiskUsageHealthChecks), bool(skipReplicationChecks), bool(skipNodeHealthChecks), ybClient, func(info string) {
 			displayMonitoringInformationOnTheConsole(info)
 		})
+
 		err = monitorTDBHealth.StartMonitoring()
 		if err != nil {
 			log.Errorf("error monitoring the target health: %v", err)

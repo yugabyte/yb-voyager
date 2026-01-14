@@ -59,6 +59,7 @@ var MigrationCaveatsIssues = []string{
 	ALTER_TABLE_ADD_PK_ON_PARTITIONED_TABLE,
 	FOREIGN_TABLE,
 	POLICY_WITH_ROLES,
+	SAVEPOINT_USAGE,
 }
 
 var UnsupportedDatatypesInLiveMigrationIssues = []string{
