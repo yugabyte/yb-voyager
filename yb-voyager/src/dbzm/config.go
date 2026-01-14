@@ -107,7 +107,6 @@ debezium.source.topic.prefix=yb-voyager
 debezium.source.database.server.name=yb-voyager
 
 debezium.source.errors.max.retries=15
-debezium.source.producer.override.max.request.size=125829120
 `
 
 // errors.max.retries config doesn't work currently as there is a known bug on debezium end https://issues.redhat.com/browse/DBZ-8711, so when we update to latest it will work.
