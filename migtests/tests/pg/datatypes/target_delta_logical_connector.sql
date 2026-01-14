@@ -420,3 +420,133 @@ SET
 WHERE id = 4;
 
 DELETE FROM audit_log WHERE id = 2;
+
+-- Numeric types
+INSERT INTO numeric_types (real_col, double_col, small_serial_col, big_serial_col) VALUES (15.5, 14.4, 21, 22);
+
+UPDATE numeric_types SET real_col = 13.3, double_col = 12.2, small_serial_col = 23, big_serial_col = 24 WHERE id = 2;
+
+DELETE FROM numeric_types WHERE id = 1;
+
+-- Numeric arrays
+INSERT INTO numeric_arrays (real_col, double_col) VALUES (ARRAY[11.1, 12.2, 13.3], ARRAY[14.4, 15.5, 16.6]);
+
+UPDATE numeric_arrays SET real_col = ARRAY[17.7, 18.8, 19.9], double_col = ARRAY[21.1, 22.2, 23.3] WHERE id = 2;
+
+DELETE FROM numeric_arrays WHERE id = 1;
+
+-- Datetime types
+INSERT INTO datetime_types (timestamptz_col, timetz_col, interval_col) VALUES ('2035-11-15 18:20:00-03', '21:10:00-03:00', '9 hours');
+
+UPDATE datetime_types SET timestamptz_col = '2036-01-05 06:30:00+09', interval_col = '41 minutes' WHERE id = 2;
+
+DELETE FROM datetime_types WHERE id = 1;
+
+-- Datetime arrays
+INSERT INTO datetime_arrays (timestamptz_col, timetz_col, interval_col)
+VALUES (
+  ARRAY['2037-04-01 03:15:00+00','2038-06-18 22:45:00-04']::timestamptz[],
+  ARRAY['06:30:00+01:00','19:55:20-05:00']::timetz[],
+  ARRAY['5 hours','33 minutes']::interval[]
+);
+
+UPDATE datetime_arrays
+SET timestamptz_col = ARRAY['2039-09-09 09:09:09+02','2040-12-12 12:12:12-06']::timestamptz[],
+    interval_col    = ARRAY['1 day','47 minutes']::interval[]
+WHERE id = 2;
+
+DELETE FROM datetime_arrays WHERE id = 1;
+
+-- Geometry types
+INSERT INTO geometry_types (point_col, line_col, lseg_col, box_col, path_col, polygon_col, circle_col)
+VALUES (
+  '(21,18)',
+  '[(6,6),(18,18)]',
+  '[(8,9),(20,22)]',
+  '((5,7),(14,19))',
+  '[(7,7),(16,21)]',
+  '((5,5),(15,5),(15,15),(5,15))',
+  '<(12,9),6.5>'
+);
+
+UPDATE geometry_types
+SET point_col = '(24,22)',
+    line_col = '[(9,10),(25,28)]',
+    lseg_col = '[(11,12),(30,35)]',
+    box_col = '((7,8),(18,21))',
+    path_col = '[(10,10),(19,26)]',
+    polygon_col = '((6,6),(18,6),(18,18),(6,18))',
+    circle_col = '<(14,16),9>'
+WHERE id = 2;
+
+DELETE FROM geometry_types WHERE id = 1;
+
+-- Geometry arrays
+INSERT INTO geometry_arrays (point_col, line_col, lseg_col, box_col, path_col, polygon_col, circle_col)
+VALUES (
+  ARRAY['(11,11)','(12,12)','(13,13)']::point[],
+  ARRAY['[(7,7),(12,12)]']::line[],
+  ARRAY['[(4,10),(14,18)]']::lseg[],
+  ARRAY['((6,6),(14,18))']::box[],
+  ARRAY['[(8,8),(14,20)]']::path[],
+  ARRAY['((6,6),(16,6),(16,16),(6,16))']::polygon[],
+  ARRAY['<(7,7),4>','<(11,11),6>']::circle[]
+);
+
+UPDATE geometry_arrays
+SET point_col = ARRAY['(14,14)','(15,15)']::point[],
+    line_col  = ARRAY['[(10,10),(16,16)]']::line[],
+    lseg_col  = ARRAY['[(9,14),(20,30)]']::lseg[],
+    box_col   = ARRAY['((8,8),(20,25))']::box[],
+    path_col  = ARRAY['[(9,9),(18,28)]']::path[],
+    polygon_col = ARRAY['((7,7),(20,7),(20,20),(7,20))']::polygon[],
+    circle_col = ARRAY['<(9,9),5>']::circle[]
+WHERE id = 2;
+
+DELETE FROM geometry_arrays WHERE id = 1;
+
+-- Network types
+INSERT INTO network_types (cidr_col, inet_col, macaddr_col, macaddr8_col) VALUES ('9.9.0.0/16','9.9.9.9','CC:44:55:66:77:88','CC:44:55:FF:FE:66:77:88');
+
+UPDATE network_types SET cidr_col = '11.11.0.0/16', inet_col = '11.11.11.11', macaddr_col = 'DD:55:66:77:88:99', macaddr8_col = 'DD:55:66:FF:FE:77:88:99' WHERE id = 2;
+
+DELETE FROM network_types WHERE id = 1;
+
+-- Network arrays
+INSERT INTO network_arrays (cidr_col, inet_col, macaddr_col, macaddr8_col)
+VALUES (
+  ARRAY['11.0.0.0/8','11.20.0.0/16','11.30.40.0/24']::cidr[],
+  ARRAY['11.0.0.1','11.20.0.5','11.30.40.99']::inet[],
+  ARRAY['EE:11:22:33:44:55','EE:66:77:88:99:AA','EE:BB:CC:DD:EE:FF']::macaddr[],
+  ARRAY['EE:11:22:FF:FE:33:44:55','EE:66:77:FF:FE:88:99:AA','EE:BB:CC:FF:FE:DD:EE:FF']::macaddr8[]
+);
+
+UPDATE network_arrays
+SET cidr_col = ARRAY['12.0.0.0/8','12.10.0.0/16']::cidr[],
+    inet_col = ARRAY['12.0.0.1','12.10.0.5']::inet[],
+    macaddr_col = ARRAY['FF:11:22:33:44:55','FF:66:77:88:99:AA']::macaddr[],
+    macaddr8_col = ARRAY['FF:11:22:FF:FE:33:44:55','FF:66:77:FF:FE:88:99:AA']::macaddr8[]
+WHERE id = 2;
+
+DELETE FROM network_arrays WHERE id = 1;
+
+-- Misc types
+INSERT INTO misc_types (pg_lsn_col, txid_snapshot_col) VALUES ('0/FFFFAAA','900:910:905');
+
+UPDATE misc_types SET pg_lsn_col = '0/EEE1234', txid_snapshot_col = '920:930:925' WHERE id = 2;
+
+DELETE FROM misc_types WHERE id = 1;
+
+-- Misc arrays
+INSERT INTO misc_arrays (pg_lsn_col, txid_snapshot_col)
+VALUES (
+  ARRAY['0/111AAAA','0/222BBBB','0/333CCCC']::pg_lsn[],
+  ARRAY['800:805:802','820:825:823','840:845:842']::txid_snapshot[]
+);
+
+UPDATE misc_arrays
+SET pg_lsn_col = ARRAY['0/444DDDD','0/555EEEE']::pg_lsn[],
+    txid_snapshot_col = ARRAY['860:865:862','880:885:882']::txid_snapshot[]
+WHERE id = 2;
+
+DELETE FROM misc_arrays WHERE id = 1;

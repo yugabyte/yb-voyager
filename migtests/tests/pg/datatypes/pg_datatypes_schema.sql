@@ -195,3 +195,111 @@ CREATE TABLE audit_log (
   transaction_refs INT[],
   created_at TIMESTAMP DEFAULT NOW()
 );
+
+-- Numeric Types
+CREATE TABLE numeric_types (
+    id            serial PRIMARY KEY,
+    real_col     real,
+    double_col  double precision,
+    small_serial_col  smallserial,
+    big_serial_col   bigserial
+);
+
+\d numeric_types
+
+-- Numeric Arrays
+CREATE TABLE numeric_arrays (
+    id            serial PRIMARY KEY,
+    real_col     real[],
+    double_col  double precision[]
+);
+
+\d numeric_arrays
+
+-- Datetime Types
+CREATE TABLE datetime_types (
+    id          serial PRIMARY KEY,
+    timestamptz_col    timestamptz,
+    timetz_col timetz,
+    interval_col    interval
+);
+
+\d datetime_types
+
+-- Datetime Arrays
+CREATE TABLE datetime_arrays (
+    id          serial PRIMARY KEY,
+    timestamptz_col    timestamptz[],
+    timetz_col timetz[],
+    interval_col    interval[]
+);
+
+\d datetime_arrays
+
+-- Geometry Types
+CREATE TABLE geometry_types (
+    id       serial PRIMARY KEY,
+    point_col        point,
+    line_col       line,
+    lseg_col      lseg,
+    box_col       box,
+    path_col path,
+    polygon_col     polygon,
+    circle_col     circle
+);
+
+\d geometry_types
+
+-- Geometry Arrays
+CREATE TABLE geometry_arrays (
+    id          serial PRIMARY KEY,
+    point_col        point[],
+    line_col       line[],
+    lseg_col      lseg[],
+    box_col       box[],
+    path_col path[],
+    polygon_col     polygon[],
+    circle_col     circle[]
+);
+
+\d geometry_arrays
+
+-- Network Types
+CREATE TABLE network_types (
+    id       serial PRIMARY KEY,
+    cidr_col cidr,
+    inet_col  inet,
+    macaddr_col    macaddr,
+    macaddr8_col    macaddr8
+);
+
+\d network_types
+
+-- Network Arrays
+CREATE TABLE network_arrays (
+    id          serial PRIMARY KEY,
+    cidr_col cidr[],
+    inet_col inet[],
+    macaddr_col macaddr[],
+    macaddr8_col macaddr8[]
+);
+
+\d network_arrays
+
+-- Misc Types
+CREATE TABLE misc_types (
+    id            serial PRIMARY KEY,
+    pg_lsn_col   pg_lsn,
+    txid_snapshot_col txid_snapshot
+);
+
+\d misc_types
+
+-- Misc Arrays
+CREATE TABLE misc_arrays (
+    id            serial PRIMARY KEY,
+    pg_lsn_col pg_lsn[],
+    txid_snapshot_col txid_snapshot[]
+);
+
+\d misc_arrays

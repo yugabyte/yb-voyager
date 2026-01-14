@@ -38,7 +38,17 @@ EXPECTED_ROW_COUNT = {
 	'range_array_types': 3,
 	'extension_types': 3,
 	'extension_arrays': 3,
-	'audit_log': 2
+	'audit_log': 2,
+	'numeric_types': 3,
+	'numeric_arrays': 3,
+	'datetime_types': 3,
+	'datetime_arrays': 2,
+	'geometry_types': 3,
+	'geometry_arrays': 2,
+	'network_types': 3,
+	'network_arrays': 2,
+	'misc_types': 3,
+	'misc_arrays': 2
 }
 
 EXPECTED_SUM_OF_COLUMN = {
@@ -86,7 +96,7 @@ def migration_completed_checks_fb():
 def migration_completed_checks(tgt):
 	table_list = tgt.get_table_names("public")
 	print("table_list:", table_list)
-	assert len(table_list) == 19
+	assert len(table_list) == 29
 
 	got_row_count = tgt.row_count_of_all_tables("public")
 	for table_name, row_count in EXPECTED_ROW_COUNT.items():
@@ -352,6 +362,274 @@ def migration_completed_checks(tgt):
 	for transaction_ref in actual_transaction_refs:
 		print(f"{transaction_ref}")
 		assert transaction_ref in expected_transaction_refs_values, f"Unexpected transaction_refs value: {transaction_ref}"
+
+	print("numeric_types:")
+	expected_real_values = [1.1, 2.1, 3.1]
+	tgt.assert_distinct_values_of_col("numeric_types", "real_col", "public", 
+		expected_distinct_values=expected_real_values)
+	expected_double_values = [1.2, 2.2, 3.2]
+	tgt.assert_distinct_values_of_col("numeric_types", "double_col", "public", 
+		expected_distinct_values=expected_double_values)
+	expected_small_serial_values = [1, 2, 3]
+	tgt.assert_distinct_values_of_col("numeric_types", "small_serial_col", "public", 
+		expected_distinct_values=expected_small_serial_values)
+	expected_big_serial_values = [1, 2, 3]
+	tgt.assert_distinct_values_of_col("numeric_types", "big_serial_col", "public", 
+		expected_distinct_values=expected_big_serial_values)
+
+	print("numeric_arrays:")
+	expected_real_array_values = [[1.1,1.2,1.3], [2.1,2.2,2.3], [3.1,3.2,3.3]]
+	tgt.assert_distinct_values_of_col("numeric_arrays", "real_col", "public", 
+		expected_distinct_values=expected_real_array_values)
+	expected_double_array_values = [[1.1,1.2,1.3], [2.1,2.2,2.3], [3.1,3.2,3.3]]
+	tgt.assert_distinct_values_of_col("numeric_arrays", "double_col", "public", 
+		expected_distinct_values=expected_double_array_values)
+
+	print("datetime_types:")
+	# timestamptz values are dynamic, so we check the pattern
+	actual_timestamptz_values = tgt.get_distinct_values_of_column_of_table("datetime_types", "timestamptz_col", "public")
+	print(f"actual_timestamptz_values: {actual_timestamptz_values}")
+	assert len(actual_timestamptz_values) == 3, f"Expected 3 distinct timestamptz values, got {len(actual_timestamptz_values)}"
+	timestamptz_pattern = r'\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}[\+\-]\d{2}'
+	for timestamptz_value in actual_timestamptz_values:
+		timestamptz_str = str(timestamptz_value)
+		print(f"{timestamptz_str}")
+		assert re.search(timestamptz_pattern, timestamptz_str), f"Timestamptz value {timestamptz_str} does not match expected pattern"
+	if os.getenv("BETA_FAST_DATA_EXPORT") == "0" or os.getenv("BETA_FAST_DATA_EXPORT") is None:
+		expected_timetz_values = ['09:30:15+05:30', '23:59:59+02:00', '06:45:00-03:00']
+		tgt.assert_distinct_values_of_col("datetime_types", "timetz_col", "public", 
+			transform_func=str, expected_distinct_values=expected_timetz_values)
+	expected_interval_values = ['0:17:00', '5 days, 0:00:00', '9:00:00']
+	tgt.assert_distinct_values_of_col("datetime_types", "interval_col", "public", 
+		transform_func=str, expected_distinct_values=expected_interval_values)
+
+	print("datetime_arrays:")
+	# timestamptz arrays are dynamic, so we check the pattern
+	actual_timestamptz_arrays = tgt.get_distinct_values_of_column_of_table("datetime_arrays", "timestamptz_col", "public")
+	print(f"actual_timestamptz_arrays: {actual_timestamptz_arrays}")
+	assert len(actual_timestamptz_arrays) == 2, f"Expected 2 distinct timestamptz arrays, got {len(actual_timestamptz_arrays)}"
+	expected_interval_array_values = [
+		'[datetime.timedelta(seconds=600), datetime.timedelta(seconds=10800), datetime.timedelta(days=2)]',
+		'[datetime.timedelta(days=30), datetime.timedelta(days=14), datetime.timedelta(seconds=2400)]'
+	]
+	tgt.assert_distinct_values_of_col("datetime_arrays", "interval_col", "public", 
+		transform_func=str, expected_distinct_values=expected_interval_array_values)
+
+	if os.getenv("BETA_FAST_DATA_EXPORT") == "0" or os.getenv("BETA_FAST_DATA_EXPORT") is None:
+		print("geometry_types:")
+		# Geometry types don't support DISTINCT, so we cast to text first
+		cur = tgt.conn.cursor()
+		
+		expected_point_values = ['(1,2)', '(5,6)', '(-2,4)']
+		cur.execute("SELECT DISTINCT point_col::text FROM public.geometry_types")
+		actual_point_values = [str(value[0]) for value in cur.fetchall()]
+		print(f"actual_point_values: {actual_point_values}")
+		for point_value in actual_point_values:
+			print(f"{point_value}")
+			assert point_value in expected_point_values, f"Unexpected point value: {point_value}"
+		
+		expected_line_values = ['{1,-1,0}', '{1,-1,2}', '{0.16666666666666666,-1,1.6666666666666667}']
+		cur.execute("SELECT DISTINCT line_col::text FROM public.geometry_types")
+		actual_line_values = [str(value[0]) for value in cur.fetchall()]
+		print(f"actual_line_values: {actual_line_values}")
+		for line_value in actual_line_values:
+			print(f"{line_value}")
+			assert line_value in expected_line_values, f"Unexpected line value: {line_value}"
+		
+		expected_lseg_values = ['[(1,1),(4,4)]', '[(2,3),(7,9)]', '[(0,0),(10,10)]']
+		cur.execute("SELECT DISTINCT lseg_col::text FROM public.geometry_types")
+		actual_lseg_values = [str(value[0]) for value in cur.fetchall()]
+		print(f"actual_lseg_values: {actual_lseg_values}")
+		for lseg_value in actual_lseg_values:
+			print(f"{lseg_value}")
+			assert lseg_value in expected_lseg_values, f"Unexpected lseg value: {lseg_value}"
+		
+		expected_box_values = ['(3,2),(0,0)', '(4,5),(1,1)', '(1,1),(-1,-1)']
+		cur.execute("SELECT DISTINCT box_col::text FROM public.geometry_types")
+		actual_box_values = [str(value[0]) for value in cur.fetchall()]
+		print(f"actual_box_values: {actual_box_values}")
+		for box_value in actual_box_values:
+			print(f"{box_value}")
+			assert box_value in expected_box_values, f"Unexpected box value: {box_value}"
+		
+		expected_path_values = ['[(0,0),(1,2),(2,1)]', '((1,1),(2,3),(4,1))', '[(3,3),(6,6),(9,3)]']
+		cur.execute("SELECT DISTINCT path_col::text FROM public.geometry_types")
+		actual_path_values = [str(value[0]) for value in cur.fetchall()]
+		print(f"actual_path_values: {actual_path_values}")
+		for path_value in actual_path_values:
+			print(f"{path_value}")
+			assert path_value in expected_path_values, f"Unexpected path value: {path_value}"
+		
+		expected_polygon_values = ['((0,0),(2,0),(2,2),(0,2))', '((1,1),(4,1),(4,4),(1,4))', '((2,2),(6,2),(6,6),(2,6))']
+		cur.execute("SELECT DISTINCT polygon_col::text FROM public.geometry_types")
+		actual_polygon_values = [str(value[0]) for value in cur.fetchall()]
+		print(f"actual_polygon_values: {actual_polygon_values}")
+		for polygon_value in actual_polygon_values:
+			print(f"{polygon_value}")
+			assert polygon_value in expected_polygon_values, f"Unexpected polygon value: {polygon_value}"
+		
+		expected_circle_values = ['<(3,3),2>', '<(0,0),5>', '<(-3,1),4>']
+		cur.execute("SELECT DISTINCT circle_col::text FROM public.geometry_types")
+		actual_circle_values = [str(value[0]) for value in cur.fetchall()]
+		print(f"actual_circle_values: {actual_circle_values}")
+		for circle_value in actual_circle_values:
+			print(f"{circle_value}")
+			assert circle_value in expected_circle_values, f"Unexpected circle value: {circle_value}"
+
+	print("geometry_arrays:")
+	# Geometry array types don't support DISTINCT, so we cast to text first
+	cur = tgt.conn.cursor()
+	
+	expected_point_array_values = [
+		'{"(1,1)","(2,2)","(3,3)"}',
+		'{"(4,4)","(5,5)"}'
+	]
+	cur.execute("SELECT DISTINCT point_col::text FROM public.geometry_arrays")
+	actual_point_array_values = [str(value[0]) for value in cur.fetchall()]
+	print(f"actual_point_array_values: {actual_point_array_values}")
+	for point_array_value in actual_point_array_values:
+		print(f"{point_array_value}")
+		assert point_array_value in expected_point_array_values, f"Unexpected point array value: {point_array_value}"
+	
+	expected_line_array_values = [
+		'{"{1,-1,0}","{1,-1,0}"}',
+		'{"{1,-1,0}"}'
+	]
+	cur.execute("SELECT DISTINCT line_col::text FROM public.geometry_arrays")
+	actual_line_array_values = [str(value[0]) for value in cur.fetchall()]
+	print(f"actual_line_array_values: {actual_line_array_values}")
+	for line_array_value in actual_line_array_values:
+		print(f"{line_array_value}")
+		assert line_array_value in expected_line_array_values, f"Unexpected line array value: {line_array_value}"
+	
+	expected_lseg_array_values = [
+		'{"[(0,0),(5,5)]","[(1,2),(3,4)]"}',
+		'{"[(5,1),(6,9)]"}'
+	]
+	cur.execute("SELECT DISTINCT lseg_col::text FROM public.geometry_arrays")
+	actual_lseg_array_values = [str(value[0]) for value in cur.fetchall()]
+	print(f"actual_lseg_array_values: {actual_lseg_array_values}")
+	for lseg_array_value in actual_lseg_array_values:
+		print(f"{lseg_array_value}")
+		assert lseg_array_value in expected_lseg_array_values, f"Unexpected lseg array value: {lseg_array_value}"
+	
+	expected_box_array_values = [
+		'{(2,2),(0,0);(5,3),(1,1)}',
+		'{(8,8),(2,2)}'
+	]
+	cur.execute("SELECT DISTINCT box_col::text FROM public.geometry_arrays")
+	actual_box_array_values = [str(value[0]) for value in cur.fetchall()]
+	print(f"actual_box_array_values: {actual_box_array_values}")
+	for box_array_value in actual_box_array_values:
+		print(f"{box_array_value}")
+		assert box_array_value in expected_box_array_values, f"Unexpected box array value: {box_array_value}"
+	
+	expected_path_array_values = [
+		'{"[(0,0),(1,2),(3,1)]","[(2,2),(3,5)]"}',
+		'{"[(1,1),(2,4),(5,2)]"}'
+	]
+	cur.execute("SELECT DISTINCT path_col::text FROM public.geometry_arrays")
+	actual_path_array_values = [str(value[0]) for value in cur.fetchall()]
+	print(f"actual_path_array_values: {actual_path_array_values}")
+	for path_array_value in actual_path_array_values:
+		print(f"{path_array_value}")
+		assert path_array_value in expected_path_array_values, f"Unexpected path array value: {path_array_value}"
+	
+	expected_polygon_array_values = [
+		'{"((0,0),(3,0),(3,3),(0,3))","((1,1),(4,1),(4,4),(1,4))"}',
+		'{"((2,2),(6,2),(6,6),(2,6))"}'
+	]
+	cur.execute("SELECT DISTINCT polygon_col::text FROM public.geometry_arrays")
+	actual_polygon_array_values = [str(value[0]) for value in cur.fetchall()]
+	print(f"actual_polygon_array_values: {actual_polygon_array_values}")
+	for polygon_array_value in actual_polygon_array_values:
+		print(f"{polygon_array_value}")
+		assert polygon_array_value in expected_polygon_array_values, f"Unexpected polygon array value: {polygon_array_value}"
+	
+	expected_circle_array_values = [
+		'{"<(1,1),2>","<(3,3),4>"}',
+		'{"<(0,0),1>","<(2,5),3>"}'
+	]
+	cur.execute("SELECT DISTINCT circle_col::text FROM public.geometry_arrays")
+	actual_circle_array_values = [str(value[0]) for value in cur.fetchall()]
+	print(f"actual_circle_array_values: {actual_circle_array_values}")
+	for circle_array_value in actual_circle_array_values:
+		print(f"{circle_array_value}")
+		assert circle_array_value in expected_circle_array_values, f"Unexpected circle array value: {circle_array_value}"
+
+	print("network_types:")
+	expected_cidr_values = ['10.0.0.0/8', '172.16.0.0/12', '192.168.100.0/24']
+	tgt.assert_distinct_values_of_col("network_types", "cidr_col", "public", 
+		transform_func=str, expected_distinct_values=expected_cidr_values)
+	expected_inet_values = ['10.1.2.3', '172.16.5.9', '192.168.100.42']
+	tgt.assert_distinct_values_of_col("network_types", "inet_col", "public", 
+		transform_func=str, expected_distinct_values=expected_inet_values)
+	expected_macaddr_values = ['aa:bb:cc:dd:ee:ff', '00:11:22:33:44:55', 'de:ad:be:ef:00:01']
+	tgt.assert_distinct_values_of_col("network_types", "macaddr_col", "public", 
+		transform_func=str, expected_distinct_values=expected_macaddr_values)
+	expected_macaddr8_values = ['aa:bb:cc:ff:fe:dd:ee:ff', '00:11:22:ff:fe:33:44:55', 'de:ad:be:ff:fe:ef:00:01']
+	tgt.assert_distinct_values_of_col("network_types", "macaddr8_col", "public", 
+		transform_func=str, expected_distinct_values=expected_macaddr8_values)
+
+	print("network_arrays:")
+	expected_cidr_array_values = [
+		"['10.0.0.0/8', '10.10.0.0/16', '10.20.30.0/24']",
+		"['172.16.0.0/12', '172.16.5.9/32', '192.168.100.0/24']"
+	]
+	tgt.assert_distinct_values_of_col("network_arrays", "cidr_col", "public", 
+		transform_func=str, expected_distinct_values=expected_cidr_array_values)
+	expected_inet_array_values = [
+		"['10.0.0.1', '10.10.0.5', '10.20.30.99']",
+		"['172.16.5.9', '192.168.100.42', '192.168.100.42']"
+	]
+	tgt.assert_distinct_values_of_col("network_arrays", "inet_col", "public", 
+		transform_func=str, expected_distinct_values=expected_inet_array_values)
+	expected_macaddr_array_values = [
+		"['aa:bb:cc:11:22:33', 'aa:bb:cc:44:55:66', 'aa:bb:cc:77:88:99']",
+		"['00:11:22:33:44:55', 'de:ad:be:ef:00:01', 'de:ad:be:ef:00:01']"
+	]
+	tgt.assert_distinct_values_of_col("network_arrays", "macaddr_col", "public", 
+		transform_func=str, expected_distinct_values=expected_macaddr_array_values)
+	expected_macaddr8_array_values = [
+		"{aa:bb:cc:ff:fe:11:22:33,aa:bb:cc:ff:fe:44:55:66,aa:bb:cc:ff:fe:77:88:99}",
+		"{00:11:22:ff:fe:33:44:55,de:ad:be:ff:fe:ef:00:01,de:ad:be:ff:fe:ef:00:01}"
+	]
+	tgt.assert_distinct_values_of_col("network_arrays", "macaddr8_col", "public", 
+		transform_func=str, expected_distinct_values=expected_macaddr8_array_values)
+
+	if os.getenv("BETA_FAST_DATA_EXPORT") == "0" or os.getenv("BETA_FAST_DATA_EXPORT") is None:
+		print("misc_types:")
+		expected_pg_lsn_values = ['0/16B6C50', '0/1ABCD00', '0/2FF0010']
+		tgt.assert_distinct_values_of_col("misc_types", "pg_lsn_col", "public", 
+			transform_func=str, expected_distinct_values=expected_pg_lsn_values)
+		# txid_snapshot type doesn't support DISTINCT, so we cast to text first
+		expected_txid_snapshot_values = ['100:105:101', '200:210:205', '50:52:51']
+		cur = tgt.conn.cursor()
+		cur.execute("SELECT DISTINCT txid_snapshot_col::text FROM public.misc_types")
+		actual_txid_snapshot_values = [str(value[0]) for value in cur.fetchall()]
+		print(f"actual_txid_snapshot_values: {actual_txid_snapshot_values}")
+		for txid_snapshot_value in actual_txid_snapshot_values:
+			print(f"{txid_snapshot_value}")
+			assert txid_snapshot_value in expected_txid_snapshot_values, f"Unexpected txid_snapshot value: {txid_snapshot_value}"
+
+	print("misc_arrays:")
+	expected_pg_lsn_array_values = [
+		'{0/16B6C50,0/1FFAA00,0/ABC1234}',
+		'{0/3000000,0/4000001,0/5000002}'
+	]
+	tgt.assert_distinct_values_of_col("misc_arrays", "pg_lsn_col", "public", 
+		transform_func=str, expected_distinct_values=expected_pg_lsn_array_values)
+	# txid_snapshot array type doesn't support DISTINCT, so we cast to text first
+	expected_txid_snapshot_array_values = [
+		'{10:20:15,100:105:101,88:90:89}',
+		'{500:505:503,1000:1010:1005,42:45:44}'
+	]
+	cur.execute("SELECT DISTINCT txid_snapshot_col::text FROM public.misc_arrays")
+	actual_txid_snapshot_array_values = [str(value[0]) for value in cur.fetchall()]
+	print(f"actual_txid_snapshot_array_values: {actual_txid_snapshot_array_values}")
+	for txid_snapshot_array_value in actual_txid_snapshot_array_values:
+		print(f"{txid_snapshot_array_value}")
+		assert txid_snapshot_array_value in expected_txid_snapshot_array_values, f"Unexpected txid_snapshot array value: {txid_snapshot_array_value}"
 
 def YB_specific_checks(tgt):
 	yb.verify_colocation(tgt, "postgresql")

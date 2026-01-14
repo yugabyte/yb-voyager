@@ -331,3 +331,33 @@ VALUES (
   ],
   ARRAY[2, 3, 4]
 );
+
+-- Numeric Types
+INSERT INTO numeric_types (real_col, double_col, small_serial_col, big_serial_col) VALUES (1.1, 1.2, 1, 1), (2.1, 2.2, 2, 2), (3.1, 3.2, 3, 3);
+
+-- Numeric Arrays
+INSERT INTO numeric_arrays (real_col, double_col) VALUES (ARRAY[1.1, 1.2, 1.3], ARRAY[1.1, 1.2, 1.3]), (ARRAY[2.1, 2.2, 2.3], ARRAY[2.1, 2.2, 2.3]), (ARRAY[3.1, 3.2, 3.3], ARRAY[3.1, 3.2, 3.3]);
+
+-- Datetime Types
+INSERT INTO datetime_types (timestamptz_col, timetz_col, interval_col) VALUES ('2024-12-01 11:22:33+05:30', '09:30:15+05:30', '17 minutes'), ('2023-07-15 03:44:10+01', '23:59:59+02', '5 days'), ('2022-02-20 18:01:55+00', '06:45:00-03', '9 hours');
+
+-- Datetime Arrays
+INSERT INTO datetime_arrays (timestamptz_col, timetz_col, interval_col) VALUES (ARRAY['2024-10-11 10:10:10+00','2024-12-25 05:30:00+05:30','2025-01-01 00:00:00+02']::timestamptz[], ARRAY['10:11:12+05','23:45:00+02','03:33:33-04']::timetz[], ARRAY['10 minutes','3 hours','2 days']::interval[]), (ARRAY['2021-01-09 09:09:09+00','2022-02-02 02:02:02+01','2023-03-03 03:03:03+03']::timestamptz[], ARRAY['07:00:00+05:30','13:30:45+01','22:10:00-02']::timetz[], ARRAY['1 month','2 weeks','40 minutes']::interval[]);
+
+-- Geometry Types
+INSERT INTO geometry_types (point_col, line_col, lseg_col, box_col, path_col, polygon_col, circle_col) VALUES ('(1,2)','[(0,0),(5,5)]','[(1,1),(4,4)]','((0,0),(3,2))','[(0,0),(1,2),(2,1)]','((0,0),(2,0),(2,2),(0,2))','<(3,3),2>'), ('(5,6)','{1,-1,2}','[(2,3),(7,9)]','((1,1),(4,5))','((1,1),(2,3),(4,1))','((1,1),(4,1),(4,4),(1,4))','<(0,0),5>'), ('(-2,4)','[(2,2),(8,3)]','[(0,0),(10,10)]','((-1,-1),(1,1))','[(3,3),(6,6),(9,3)]','((2,2),(6,2),(6,6),(2,6))','<(-3,1),4>');
+
+-- Geometry Arrays
+INSERT INTO geometry_arrays (point_col, line_col, lseg_col, box_col, path_col, polygon_col, circle_col) VALUES (ARRAY['(1,1)','(2,2)','(3,3)']::point[], ARRAY['[(0,0),(1,1)]','[(2,2),(3,3)]']::line[], ARRAY['[(0,0),(5,5)]','[(1,2),(3,4)]']::lseg[], ARRAY['((0,0),(2,2))','((1,1),(5,3))']::box[], ARRAY['[(0,0),(1,2),(3,1)]','[(2,2),(3,5)]']::path[], ARRAY['((0,0),(3,0),(3,3),(0,3))','((1,1),(4,1),(4,4),(1,4))']::polygon[], ARRAY['<(1,1),2>','<(3,3),4>']::circle[]), (ARRAY['(4,4)','(5,5)']::point[], ARRAY['[(3,3),(7,7)]']::line[], ARRAY['[(5,1),(6,9)]']::lseg[], ARRAY['((2,2),(8,8))']::box[], ARRAY['[(1,1),(2,4),(5,2)]']::path[], ARRAY['((2,2),(6,2),(6,6),(2,6))']::polygon[], ARRAY['<(0,0),1>','<(2,5),3>']::circle[]);
+
+-- Network Types
+INSERT INTO network_types (cidr_col, inet_col, macaddr_col, macaddr8_col) VALUES ('10.0.0.0/8','10.1.2.3','AA:BB:CC:DD:EE:FF','AA:BB:CC:FF:FE:DD:EE:FF'), ('172.16.0.0/12','172.16.5.9','00:11:22:33:44:55','00:11:22:FF:FE:33:44:55'), ('192.168.100.0/24','192.168.100.42','DE:AD:BE:EF:00:01','DE:AD:BE:FF:FE:EF:00:01');
+
+-- Network Arrays
+INSERT INTO network_arrays (cidr_col, inet_col, macaddr_col, macaddr8_col) VALUES (ARRAY['10.0.0.0/8','10.10.0.0/16','10.20.30.0/24']::cidr[], ARRAY['10.0.0.1','10.10.0.5','10.20.30.99']::inet[], ARRAY['AA:BB:CC:11:22:33','AA:BB:CC:44:55:66','AA:BB:CC:77:88:99']::macaddr[], ARRAY['AA:BB:CC:FF:FE:11:22:33','AA:BB:CC:FF:FE:44:55:66','AA:BB:CC:FF:FE:77:88:99']::macaddr8[]), (ARRAY['172.16.0.0/12','172.16.5.9','192.168.100.0/24']::cidr[], ARRAY['172.16.5.9','192.168.100.42','192.168.100.42']::inet[], ARRAY['00:11:22:33:44:55','DE:AD:BE:EF:00:01','DE:AD:BE:EF:00:01']::macaddr[], ARRAY['00:11:22:FF:FE:33:44:55','DE:AD:BE:FF:FE:EF:00:01','DE:AD:BE:FF:FE:EF:00:01']::macaddr8[]);
+
+-- Misc Types
+INSERT INTO misc_types (pg_lsn_col, txid_snapshot_col) VALUES ('0/16B6C50','100:105:101'), ('0/1ABCD00','200:210:205'), ('0/2FF0010','50:52:51');
+
+-- Misc Arrays
+INSERT INTO misc_arrays (pg_lsn_col, txid_snapshot_col) VALUES (ARRAY['0/16B6C50','0/1FFAA00','0/ABC1234']::pg_lsn[], ARRAY['10:20:15','100:105:101','88:90:89']::txid_snapshot[]), (ARRAY['0/3000000','0/4000001','0/5000002']::pg_lsn[], ARRAY['500:505:503','1000:1010:1005','42:45:44']::txid_snapshot[]);

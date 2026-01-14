@@ -93,5 +93,55 @@
     "exported_count": 3,
     "status": "DONE",
     "table_name": "range_types"
+  },
+  {
+    "exported_count": 2,
+    "status": "DONE",
+    "table_name": "datetime_arrays"
+  },
+  {
+    "exported_count": 3,
+    "status": "DONE",
+  "table_name": "datetime_types"
+  },
+  {
+    "exported_count": 2,
+    "status": "DONE",
+    "table_name": "geometry_arrays"
+  },
+  {
+    "exported_count": 3,
+    "status": "DONE",
+    "table_name": "geometry_types"
+  },
+  {
+    "exported_count": 2,
+    "status": "DONE",
+    "table_name": "misc_arrays"
+  },
+  {
+    "exported_count": 3,
+    "status": "DONE",
+    "table_name": "misc_types"
+  },
+  {
+    "exported_count": 2,
+    "status": "DONE",
+    "table_name": "network_arrays"
+  },
+  {
+    "exported_count": 3,
+    "status": "DONE",
+    "table_name": "network_types"
+  },
+  {
+    "exported_count": 3,
+    "status": "DONE",
+    "table_name": "numeric_arrays"
+  },
+  {
+    "exported_count": 3,
+    "status": "DONE",
+    "table_name": "numeric_types"
   }
 ]
