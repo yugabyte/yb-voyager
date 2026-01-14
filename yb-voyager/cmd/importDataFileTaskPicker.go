@@ -448,45 +448,16 @@ func sortTasksBySizeDesc(tasks []*ImportFileTask) []*ImportFileTask {
 		return tasks
 	}
 
-	// Check if RowCounts vary. In import-data, row counts are properly populated by export-data.
-	// In import-data-file, row counts are not known and are not populated.
-	allSameRowCount := true
-	firstRowCount := tasks[0].RowCount
-	for _, task := range tasks[1:] {
-		if task.RowCount != firstRowCount {
-			allSameRowCount = false
-			break
-		}
-	}
-
-	if !allSameRowCount {
-		sort.Slice(tasks, func(i, j int) bool {
+	// Sort by RowCount desc, then by FileSize desc as tiebreaker.
+	// In import-data, row counts are properly populated by export-data.
+	// In import-data-file, row counts are not known (all 0), so FileSize is used.
+	sort.Slice(tasks, func(i, j int) bool {
+		if tasks[i].RowCount != tasks[j].RowCount {
 			return tasks[i].RowCount > tasks[j].RowCount
-		})
-		log.Infof("Sorted sharded tasks by RowCount desc")
-		return tasks
-	}
-
-	// Check if FileSizes vary. In import-data-file, row counts are not known and are not populated.
-	// So we use FileSize to sort.
-	allSameFileSize := true
-	firstFileSize := tasks[0].FileSize
-	for _, task := range tasks[1:] {
-		if task.FileSize != firstFileSize {
-			allSameFileSize = false
-			break
 		}
-	}
-
-	if !allSameFileSize {
-		sort.Slice(tasks, func(i, j int) bool {
-			return tasks[i].FileSize > tasks[j].FileSize
-		})
-		log.Infof("Sorted sharded tasks by FileSize desc")
-		return tasks
-	}
-
-	log.Infof("All sharded tasks have the same RowCount/FileSize. Using unsorted tasks")
+		return tasks[i].FileSize > tasks[j].FileSize
+	})
+	log.Infof("Sorted sharded tasks by RowCount/FileSize desc")
 	return tasks
 }
 
