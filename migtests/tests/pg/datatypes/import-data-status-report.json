@@ -78,5 +78,157 @@
     "imported_count": 3,
     "percentage_complete": 100,
     "errored_count": 0
+  },
+  {
+    "errored_count": 0,
+    "imported_count": 2,
+    "percentage_complete": 100,
+    "status": "DONE",
+    "table_name": "public.\"audit_log\"",
+    "total_count": 2
+  },
+  {
+    "errored_count": 0,
+    "imported_count": 2,
+    "percentage_complete": 100,
+    "status": "DONE",
+    "table_name": "public.\"composite_array_types\"",
+    "total_count": 2
+  },
+  {
+    "errored_count": 0,
+    "imported_count": 2,
+    "percentage_complete": 100,
+    "status": "DONE",
+    "table_name": "public.\"composite_types\"",
+    "total_count": 2
+  },
+  {
+    "errored_count": 0,
+    "imported_count": 3,
+    "percentage_complete": 100,
+    "status": "DONE",
+    "table_name": "public.\"domain_types\"",
+    "total_count": 3
+  },
+  {
+    "errored_count": 0,
+    "imported_count": 3,
+    "percentage_complete": 100,
+    "status": "DONE",
+    "table_name": "public.\"domain_array_types\"",
+    "total_count": 3
+  },
+  {
+    "errored_count": 0,
+    "imported_count": 3,
+    "percentage_complete": 100,
+    "status": "DONE",
+    "table_name": "public.\"extension_arrays\"",
+    "total_count": 3
+  },
+  {
+    "errored_count": 0,
+    "imported_count": 3,
+    "percentage_complete": 100,
+    "status": "DONE",
+    "table_name": "public.\"extension_types\"",
+    "total_count": 3
+  },
+  {
+    "errored_count": 0,
+    "imported_count": 3,
+    "percentage_complete": 100,
+    "status": "DONE",
+    "table_name": "public.\"range_array_types\"",
+    "total_count": 3
+  },
+  {
+    "errored_count": 0,
+    "imported_count": 3,
+    "percentage_complete": 100,
+    "status": "DONE",
+    "table_name": "public.\"range_types\"",
+    "total_count": 3
+  },
+  {
+    "errored_count": 0,
+    "imported_count": 2,
+    "percentage_complete": 100,
+    "status": "DONE",
+    "table_name": "public.\"datetime_arrays\"",
+    "total_count": 2
+  },
+  {
+    "errored_count": 0,
+    "imported_count": 3,
+    "percentage_complete": 100,
+    "status": "DONE",
+    "table_name": "public.\"datetime_types\"",
+    "total_count": 3
+  },
+  {
+    "errored_count": 0,
+    "imported_count": 2,
+    "percentage_complete": 100,
+    "status": "DONE",
+    "table_name": "public.\"geometry_arrays\"",
+    "total_count": 2
+  },
+  {
+    "errored_count": 0,
+    "imported_count": 3,
+    "percentage_complete": 100,
+    "status": "DONE",
+    "table_name": "public.\"geometry_types\"",
+    "total_count": 3
+  },
+  {
+    "errored_count": 0,
+    "imported_count": 3,
+    "percentage_complete": 100,
+    "status": "DONE",
+    "table_name": "public.\"misc_types\"",
+    "total_count": 3
+  },
+  {
+    "errored_count": 0,
+    "imported_count": 2,
+    "percentage_complete": 100,
+    "status": "DONE",
+    "table_name": "public.\"network_arrays\"",
+    "total_count": 2
+  },
+  {
+    "errored_count": 0,
+    "imported_count": 3,
+    "percentage_complete": 100,
+    "status": "DONE",
+    "table_name": "public.\"network_types\"",
+    "total_count": 3
+  },
+  {
+    "errored_count": 0,
+    "imported_count": 2,
+    "percentage_complete": 100,
+    "status": "DONE",
+    "table_name": "public.\"misc_arrays\"",
+    "total_count": 2
+  },
+  {
+    "errored_count": 0,
+    "imported_count": 3,
+    "percentage_complete": 100,
+    "status": "DONE",
+    "table_name": "public.\"numeric_arrays\"",
+    "total_count": 3
+  },
+  {
+    "errored_count": 0,
+    "imported_count": 3,
+    "percentage_complete": 100,
+    "status": "DONE",
+    "table_name": "public.\"numeric_types\"",
+    "total_count": 3
   }
 ]

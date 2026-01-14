@@ -1,7 +1,7 @@
 {
     "payload_version": "1.0",
     "parallel_jobs": 4,
-    "total_rows_exported": 51,
+    "total_rows_exported": 101,
     "largest_table_rows_exported": 26,
     "start_clean": false,
     "export_snapshot_mechanism": "pg_dump",
