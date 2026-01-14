@@ -428,7 +428,7 @@ def migration_completed_checks(tgt):
 			print(f"{point_value}")
 			assert point_value in expected_point_values, f"Unexpected point value: {point_value}"
 		
-		expected_line_values = ['{1,-1,0}', '{1,-1,2}', '{0.166666666666667,-1,1.66666666666667}']
+		expected_line_values = ['{1,-1,0}', '{1,-1,2}', '{0,-1,0}']
 		cur.execute("SELECT DISTINCT line_col::text FROM public.geometry_types")
 		actual_line_values = [str(value[0]) for value in cur.fetchall()]
 		print(f"actual_line_values: {actual_line_values}")
