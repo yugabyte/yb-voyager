@@ -2144,3 +2144,127 @@ func TestColocatedCappedRandomTaskPickerWaitForTasksBatchesTobeImported(t *testi
 	err = picker.WaitForTasksBatchesTobeImported()
 	assert.NoError(t, err)
 }
+
+func TestColocatedCappedRandomTaskPickerShardedTasksOrderedByRowCount(t *testing.T) {
+	ldataDir, lexportDir, state, _, _, err := setupExportDirAndImportDependencies(3, 1024)
+	testutils.FatalIfError(t, err)
+
+	if ldataDir != "" {
+		defer os.RemoveAll(ldataDir)
+	}
+	if lexportDir != "" {
+		defer os.RemoveAll(lexportDir)
+	}
+
+	_, shardedTask1, err := createFileAndTask(lexportDir, "file1", ldataDir, "public.sharded1", 1)
+	testutils.FatalIfError(t, err)
+	_, shardedTask2, err := createFileAndTask(lexportDir, "file2", ldataDir, "public.sharded2", 2)
+	testutils.FatalIfError(t, err)
+	_, shardedTask3, err := createFileAndTask(lexportDir, "file3", ldataDir, "public.sharded3", 3)
+	testutils.FatalIfError(t, err)
+
+	// Set different RowCounts (simulating import-data scenario where RowCount is populated)
+	shardedTask1.RowCount = 100
+	shardedTask1.FileSize = -1
+	shardedTask2.RowCount = 500
+	shardedTask2.FileSize = -1
+	shardedTask3.RowCount = 200
+	shardedTask3.FileSize = -1
+
+	tasks := []*ImportFileTask{
+		shardedTask1,
+		shardedTask2,
+		shardedTask3,
+	}
+	dummyYb := &dummyYb{
+		shardedTables: []sqlname.NameTuple{
+			shardedTask1.TableNameTup,
+			shardedTask2.TableNameTup,
+			shardedTask3.TableNameTup,
+		},
+	}
+	tdb = dummyYb
+	tableTypes, err := getTableTypes(tasks)
+	testutils.FatalIfError(t, err)
+
+	// 3 tasks, 3 max tasks in progress
+	picker, err := NewColocatedCappedRandomTaskPicker(3, 3, tasks, state, dummyYb, nil, tableTypes)
+	testutils.FatalIfError(t, err)
+	assert.True(t, picker.HasMoreTasks())
+
+	// Tasks should be picked in descending order of RowCount: 500 -> 200 -> 100
+	// Until we reach maxShardedTasksInProgress, tasks should be picked in descending order of RowCount from the pending list.
+	picked1, err := picker.Pick()
+	assert.NoError(t, err)
+	assert.Equal(t, int64(500), picked1.RowCount, "First pick should be task with RowCount=500")
+
+	picked2, err := picker.Pick()
+	assert.NoError(t, err)
+	assert.Equal(t, int64(200), picked2.RowCount, "Second pick should be task with RowCount=200")
+
+	picked3, err := picker.Pick()
+	assert.NoError(t, err)
+	assert.Equal(t, int64(100), picked3.RowCount, "Third pick should be task with RowCount=100")
+}
+
+func TestColocatedCappedRandomTaskPickerShardedTasksOrderedByFileSize(t *testing.T) {
+	ldataDir, lexportDir, state, _, _, err := setupExportDirAndImportDependencies(3, 1024)
+	testutils.FatalIfError(t, err)
+
+	if ldataDir != "" {
+		defer os.RemoveAll(ldataDir)
+	}
+	if lexportDir != "" {
+		defer os.RemoveAll(lexportDir)
+	}
+
+	_, shardedTask1, err := createFileAndTask(lexportDir, "file1", ldataDir, "public.sharded1", 1)
+	testutils.FatalIfError(t, err)
+	_, shardedTask2, err := createFileAndTask(lexportDir, "file2", ldataDir, "public.sharded2", 2)
+	testutils.FatalIfError(t, err)
+	_, shardedTask3, err := createFileAndTask(lexportDir, "file3", ldataDir, "public.sharded3", 3)
+	testutils.FatalIfError(t, err)
+
+	// Set same RowCount (0), different FileSizes (simulating import-data-file scenario)
+	shardedTask1.RowCount = 0
+	shardedTask2.RowCount = 0
+	shardedTask3.RowCount = 0
+	shardedTask1.FileSize = 1000
+	shardedTask2.FileSize = 5000
+	shardedTask3.FileSize = 2000
+
+	tasks := []*ImportFileTask{
+		shardedTask1,
+		shardedTask2,
+		shardedTask3,
+	}
+	dummyYb := &dummyYb{
+		shardedTables: []sqlname.NameTuple{
+			shardedTask1.TableNameTup,
+			shardedTask2.TableNameTup,
+			shardedTask3.TableNameTup,
+		},
+	}
+	tdb = dummyYb
+	tableTypes, err := getTableTypes(tasks)
+	testutils.FatalIfError(t, err)
+
+	// 3 tasks, 3 max tasks in progress
+	picker, err := NewColocatedCappedRandomTaskPicker(3, 3, tasks, state, dummyYb, nil, tableTypes)
+	testutils.FatalIfError(t, err)
+	assert.True(t, picker.HasMoreTasks())
+
+	// Tasks should be picked in descending order of FileSize: 5000 -> 2000 -> 1000
+	// Until we reach maxShardedTasksInProgress, tasks should be picked in descending order of FileSize from the pending list.
+	picked1, err := picker.Pick()
+	assert.NoError(t, err)
+	assert.Equal(t, int64(5000), picked1.FileSize, "First pick should be task with FileSize=5000")
+
+	picked2, err := picker.Pick()
+	assert.NoError(t, err)
+	assert.Equal(t, int64(2000), picked2.FileSize, "Second pick should be task with FileSize=2000")
+
+	picked3, err := picker.Pick()
+	assert.NoError(t, err)
+	assert.Equal(t, int64(1000), picked3.FileSize, "Third pick should be task with FileSize=1000")
+}

@@ -184,8 +184,12 @@ func (lm *LiveMigrationTest) Cleanup() {
 		}
 	}
 
-	// Remove export directory
-	testutils.RemoveTempExportDir(lm.exportDir)
+	// Remove export directory only if test passed
+	if lm.t.Failed() {
+		fmt.Printf("Test failed - preserving export directory for debugging: %s\n", lm.exportDir)
+	} else {
+		testutils.RemoveTempExportDir(lm.exportDir)
+	}
 	fmt.Printf("Cleanup completed\n")
 }
 
