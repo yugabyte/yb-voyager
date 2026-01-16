@@ -217,20 +217,6 @@ func (e *Event) GetParamsString() string {
 	return paramsStr.String()
 }
 
-// maxPreparedStmtNameLength is the maximum length for PostgreSQL or YugabyteDB identifiers
-const maxPreparedStmtNameLength = 63
-
-// hashPreparedStmtName creates a short, unique name when the original exceeds 63 chars.
-// This function hashes long names using MD5 to ensure they stay within the limit while maintaining uniqueness.
-func hashPreparedStmtName(name string) string {
-	if len(name) <= maxPreparedStmtNameLength {
-		return name
-	}
-	// We use "ps_" prefix (3 chars) + 32 hex chars = 35 chars total, well within limit.
-	hash := md5.Sum([]byte(name))
-	return "ps_" + hex.EncodeToString(hash[:])
-}
-
 // GetPreparedStmtName generates a unique name for a prepared statement.
 // NOTE: Prepared statements are currently used ONLY for INSERT and DELETE operations.
 // UPDATE operations use direct SQL (not prepared statements)
