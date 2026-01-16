@@ -96,6 +96,7 @@ var YBValueConverterSuite = map[string]ConverterFn{
 		return quoteValueIfRequired(timestamp, formatIfRequired, dbzmSchema)
 	},
 	"io.debezium.time.ZonedTimestamp": quoteValueIfRequired,
+	"io.debezium.time.ZonedTime": quoteValueIfRequired,
 	"io.debezium.time.Time": func(columnValue string, formatIfRequired bool, dbzmSchema *schemareg.ColumnSchema) (string, error) {
 		epochMilliSecs, err := strconv.ParseInt(columnValue, 10, 64)
 		if err != nil {
