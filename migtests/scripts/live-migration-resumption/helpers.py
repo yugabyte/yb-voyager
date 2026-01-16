@@ -427,6 +427,7 @@ def build_export_data_cmd(cfg: Dict[str, Any]) -> list[str]:
     base["export-type"] = "snapshot-and-changes"
     # data command defaults
     base["disable-pb"] = True
+    base["parallel-jobs"] = 1
     merged = _merge_flags(base, voyager_flags)
     return ["yb-voyager", "export", "data", "--yes"] + to_kv_flags(merged)
 
@@ -439,6 +440,8 @@ def build_import_data_cmd(cfg: Dict[str, Any]) -> list[str]:
     base["skip-replication-checks"] = True
     # data command defaults
     base["disable-pb"] = True
+    base["parallel-jobs"] = 1
+    base["adaptive-parallelism"] = "disabled"
     merged = _merge_flags(base, voyager_flags)
     return ["yb-voyager", "import", "data", "--yes"] + to_kv_flags(merged)
 
