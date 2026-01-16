@@ -16,6 +16,8 @@ limitations under the License.
 package tgtdb
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"strings"
 	"sync"
@@ -24,6 +26,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/samber/lo"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -214,17 +217,76 @@ func (e *Event) GetParamsString() string {
 	return paramsStr.String()
 }
 
-func (event *Event) GetPreparedStmtName() string {
-	var ps strings.Builder
-	ps.WriteString(event.TableNameTup.ForUserQuery())
-	ps.WriteString("_")
-	ps.WriteString(event.Op)
-	if event.Op == "u" {
-		keys := strings.Join(utils.GetMapKeysSorted(event.Fields), ",")
-		ps.WriteString(":")
-		ps.WriteString(keys)
+// maxPreparedStmtNameLength is the maximum length for PostgreSQL or YugabyteDB identifiers
+const maxPreparedStmtNameLength = 63
+
+// hashPreparedStmtName creates a short, unique name when the original exceeds 63 chars.
+// This function hashes long names using MD5 to ensure they stay within the limit while maintaining uniqueness.
+func hashPreparedStmtName(name string) string {
+	if len(name) <= maxPreparedStmtNameLength {
+		return name
 	}
-	return ps.String()
+	// We use "ps_" prefix (3 chars) + 32 hex chars = 35 chars total, well within limit.
+	hash := md5.Sum([]byte(name))
+	return "ps_" + hex.EncodeToString(hash[:])
+}
+
+// GetPreparedStmtName generates a unique name for a prepared statement.
+// NOTE: Prepared statements are currently used ONLY for INSERT and DELETE operations.
+// UPDATE operations use direct SQL (not prepared statements)
+// See ExecuteBatch() in yugabytedb.go/postgres.go where event.Op == "u" uses GetSQLStmt().
+func (event *Event) GetPreparedStmtName() string {
+	// Build the base identifier (table name + columns for updates)
+	// This is what we'll hash if needed
+	var baseIdentifier strings.Builder
+	baseIdentifier.WriteString(event.TableNameTup.ForUserQuery())
+	if event.Op == "u" {
+		// For updates, include column names to distinguish different update patterns
+		keys := strings.Join(utils.GetMapKeysSorted(event.Fields), ",")
+		baseIdentifier.WriteString(":")
+		baseIdentifier.WriteString(keys)
+	}
+	baseName := baseIdentifier.String()
+
+	// Get short identifier for exporter role
+	roleID := getExporterRoleID(event.ExporterRole)
+
+	// Build full name with role and operation suffix
+	// Format: <base>_<role>_<op>
+	fullName := fmt.Sprintf("%s_%s_%s", baseName, roleID, event.Op)
+
+	// PostgreSQL has a 63-char limit for identifiers. If the name exceeds this,
+	// PostgreSQL silently truncates it, causing collisions. To avoid this,
+	// we hash long names to ensure they're unique and always under the limit.
+	// Format: <24-char-hash>_<role>_<op> = ~29 chars (well under 63)
+	// Using 12 bytes (96 bits) provides excellent collision resistance:
+	// - ~40 trillion unique hashes before 1% collision probability
+	// - ~280 trillion unique hashes before 50% collision probability
+	// This far exceeds any realistic migration scenario (typically thousands of tables).
+	if len(fullName) >= 60 {
+		// Hash the base identifier (without role and operation suffix)
+		hash := sha256.Sum256([]byte(baseName))
+		hashStr := hex.EncodeToString(hash[:12]) // Use first 12 bytes = 24 hex chars
+		return fmt.Sprintf("%s_%s_%s", hashStr, roleID, event.Op)
+	}
+
+	return fullName
+}
+
+// getExporterRoleID returns a short identifier for the exporter role
+// to include in prepared statement names for better debugging and isolation
+func getExporterRoleID(exporterRole string) string {
+	switch exporterRole {
+	case constants.SOURCE_DB_EXPORTER_ROLE:
+		return "src"
+	case constants.TARGET_DB_EXPORTER_FF_ROLE:
+		return "tff"
+	case constants.TARGET_DB_EXPORTER_FB_ROLE:
+		return "tfb"
+	default:
+		// Fallback for unknown roles
+		return "unk"
+	}
 }
 
 const insertTemplate = "INSERT INTO %s (%s) VALUES (%s)"
