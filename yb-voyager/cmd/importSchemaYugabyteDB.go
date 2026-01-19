@@ -652,7 +652,10 @@ func setTargetSchema(conn *pgx.Conn) {
 		utils.ErrExit("schemas do not exist in target: %q", schemas)
 	}
 
-	setSchemaQuery := fmt.Sprintf("SET SEARCH_PATH TO %s", schemas)
+	setSchemas := strings.Join(lo.Map(tconf.Schemas, func(schema sqlname.Identifier, _ int) string {
+		return schema.MinQuoted
+	}), ", ")
+	setSchemaQuery := fmt.Sprintf("SET SEARCH_PATH TO %s", setSchemas)
 	_, err := conn.Exec(context.Background(), setSchemaQuery)
 	if err != nil {
 		utils.ErrExit("run query: %q on target %q: %s", setSchemaQuery, tconf.Host, err)
