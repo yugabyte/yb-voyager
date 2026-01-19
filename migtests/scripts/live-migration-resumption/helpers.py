@@ -1018,6 +1018,8 @@ def reset_database_for_role(role: str, ctx) -> None:
 # Validation helpers
 # -------------------------
 
+# TODO: Define a workflow to debug segment hash validation failures.
+
 def _load_segment_map_for_side(
     cfg: Dict[str, Any],
     schema: str,
