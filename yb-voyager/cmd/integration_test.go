@@ -25,6 +25,7 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/stretchr/testify/assert"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	testcontainers "github.com/yugabyte/yb-voyager/yb-voyager/test/containers"
@@ -75,6 +76,8 @@ func TestOracle_ReportUnsupportedIndexTypes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to parse schema analysis report: %v", err)
 	}
+
+	fmt.Println("report", report)
 
 	// Check if the report contains unsupported index types
 	expectedJsonString := `Indexes which are neither exported by yb-voyager as they are unsupported in YB and needs to be handled manually:
