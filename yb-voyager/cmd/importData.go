@@ -158,11 +158,15 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	sourceDBType = GetSourceDBTypeFromMSR()
 	sqlname.SourceDBType = sourceDBType
 
-	//TODO
+	// TODO
 	// if tconf.TargetDBType == YUGABYTEDB {
-	// 	tconf.Schemas = strings.ToLower(tconf.Schema)
+	// 	tconf.Schemas = lo.Map(strings.Split(tconf.SchemaConfig, ","), func(s string, _ int) sqlname.Identifier {
+	// 		return sqlname.NewIdentifier(tconf.TargetDBType, s)
+	// 	})
 	// } else if tconf.TargetDBType == ORACLE && !utils.IsQuotedString(tconf.Schema) {
-	// 	tconf.Schema = strings.ToUpper(tconf.Schema)
+	tconf.Schemas = lo.Map(strings.Split(tconf.SchemaConfig, ","), func(s string, _ int) sqlname.Identifier {
+		return sqlname.NewIdentifier(tconf.TargetDBType, s)
+	})
 	// }
 	tdb = tgtdb.NewTargetDB(&tconf)
 	err := tdb.Init()

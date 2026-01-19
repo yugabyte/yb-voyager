@@ -96,6 +96,9 @@ var invalidTargetIndexesCache map[string]bool
 func importSchema() error {
 
 	// tconf.Schema = strings.ToLower(tconf.Schema)TODO
+	tconf.Schemas = lo.Map(strings.Split(tconf.SchemaConfig, ","), func(s string, _ int) sqlname.Identifier {
+		return sqlname.NewIdentifier(tconf.TargetDBType, s)
+	})
 
 	if callhome.SendDiagnostics || getControlPlaneType() == YUGABYTED {
 		tconfSchemas := tconf.Schemas
