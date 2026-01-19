@@ -20,9 +20,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	goerrors "github.com/go-errors/errors"
-
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
@@ -32,6 +33,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 var comparePerformanceCmd = &cobra.Command{
@@ -82,6 +84,14 @@ func comparePerformanceCommandFn(cmd *cobra.Command, args []string) {
 	assessmentDB, err := migassessment.NewAssessmentDB()
 	if err != nil {
 		utils.ErrExit("Failed to create assessment database: %v", err)
+	}
+
+	if tconf.SchemaConfig == "" {
+		tconf.Schemas = msr.TargetDBConf.Schemas
+	} else {
+		tconf.Schemas = lo.Map(strings.Split(tconf.SchemaConfig, ","), func(s string, _ int) sqlname.Identifier {
+			return sqlname.NewIdentifier(constants.YUGABYTEDB, s)
+		})
 	}
 
 	targetDB := tgtdb.NewTargetDB(&tconf)
