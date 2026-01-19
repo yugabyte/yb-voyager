@@ -22,9 +22,8 @@ import (
 	"strings"
 	"time"
 
-	goerrors "github.com/go-errors/errors"
-
 	"github.com/fatih/color"
+	goerrors "github.com/go-errors/errors"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/samber/lo"
@@ -34,6 +33,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
 
@@ -635,21 +635,24 @@ func getNoticeMessage(n *pgconn.Notice) string {
 
 // TODO: Eventually get rid of this function in favour of TargetYugabyteDB.setTargetSchema().
 func setTargetSchema(conn *pgx.Conn) {
-	if sourceDBType == POSTGRESQL || tconf.Schema == YUGABYTEDB_DEFAULT_SCHEMA {
+	if sourceDBType == POSTGRESQL || (len(tconf.Schemas) == 1 && tconf.Schemas[0].Unquoted == YUGABYTEDB_DEFAULT_SCHEMA) {
 		// For PG, schema name is already included in the object name.
 		// No need to set schema if importing in the default schema.
 		return
 	}
-	checkSchemaExistsQuery := fmt.Sprintf("SELECT count(schema_name) FROM information_schema.schemata WHERE schema_name = '%s'", tconf.Schema)
+	schemas := strings.Join(lo.Map(tconf.Schemas, func(schema sqlname.Identifier, _ int) string {
+		return schema.Unquoted
+	}), ", ")
+	checkSchemaExistsQuery := fmt.Sprintf("SELECT count(schema_name) FROM information_schema.schemata WHERE schema_name = '%s'", schemas)
 	var cntSchemaName int
 
 	if err := conn.QueryRow(context.Background(), checkSchemaExistsQuery).Scan(&cntSchemaName); err != nil {
 		utils.ErrExit("run query: %q on target %q to check schema exists: %s", checkSchemaExistsQuery, tconf.Host, err)
-	} else if cntSchemaName == 0 {
-		utils.ErrExit("schema does not exist in target: %q", tconf.Schema)
+	} else if cntSchemaName < len(tconf.Schemas) {
+		utils.ErrExit("schemas do not exist in target: %q", schemas)
 	}
 
-	setSchemaQuery := fmt.Sprintf("SET SCHEMA '%s'", tconf.Schema)
+	setSchemaQuery := fmt.Sprintf("SET SEARCH_PATH TO %s", schemas)
 	_, err := conn.Exec(context.Background(), setSchemaQuery)
 	if err != nil {
 		utils.ErrExit("run query: %q on target %q: %s", setSchemaQuery, tconf.Host, err)

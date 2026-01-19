@@ -150,7 +150,7 @@ func exportSchema(cmd *cobra.Command) error {
 	// if !res {
 	// 	utils.ErrExit("Fix the schema list and try again.")
 	// }
-
+	fmt.Printf("source.Schemas %v\n", source.Schemas)
 	err = InitNameRegistry(exportDir, exporterRole, &source, source.DB(), nil, nil, false)
 	if err != nil {
 		utils.ErrExit("initialize name registry: %w", err)

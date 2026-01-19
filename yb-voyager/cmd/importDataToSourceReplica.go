@@ -16,9 +16,6 @@ limitations under the License.
 package cmd
 
 import (
-	"strings"
-
-	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
@@ -59,9 +56,8 @@ func setTargetConfSpecifics(cmd *cobra.Command) {
 			utils.ErrExit("cannot specify --source-replica-db-schema for PostgreSQL source")
 		} else {
 			//tODO fixthis to schema identifier
-			tconf.Schema = strings.Join(lo.Map(sconf.Schemas, func(s sqlname.Identifier, _ int) string {
-				return s.Quoted
-			}), "|")
+			tconf.Schemas = sconf.Schemas
+			tconf.SchemaConfig = sconf.SchemaList
 		}
 	}
 }

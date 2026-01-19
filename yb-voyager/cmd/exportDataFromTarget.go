@@ -130,7 +130,7 @@ func initSourceConfFromTargetConf(cmd *cobra.Command) error {
 	if sourceDBConf.DBType == POSTGRESQL {
 		source.Schemas = sourceDBConf.Schemas // in case of PG migration the tconf.Schema is public but in case of non-puclic or multiple schemas this needs to PG schemas
 	} else {
-		schema := sqlname.NewIdentifier(targetConf.TargetDBType, targetConf.Schema)
+		schema := sqlname.NewIdentifier(targetConf.TargetDBType, targetConf.Schemas[0].Quoted)
 		source.Schemas = []sqlname.Identifier{schema}
 	}
 

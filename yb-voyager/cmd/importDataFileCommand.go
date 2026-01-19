@@ -81,7 +81,7 @@ var importDataFileCmd = &cobra.Command{
 		if err != nil {
 			utils.ErrExit("failed to get migration UUID: %w", err)
 		}
-		tconf.Schema = strings.ToLower(tconf.Schema)
+		// tconf.Schema = strings.ToLower(tconf.Schema)TODO
 		tdb = tgtdb.NewTargetDB(&tconf)
 		err = tdb.Init()
 		if err != nil {

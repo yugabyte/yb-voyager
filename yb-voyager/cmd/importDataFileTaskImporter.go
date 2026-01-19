@@ -23,10 +23,9 @@ import (
 	"strings"
 	"time"
 
-	goerrors "github.com/go-errors/errors"
-
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/color"
+	goerrors "github.com/go-errors/errors"
 	log "github.com/sirupsen/logrus"
 	"github.com/sourcegraph/conc/pool"
 
@@ -339,7 +338,7 @@ func createImportDataTableMetrics(tableName string, countLiveRows int64, countTo
 	if strings.Count(tableName, ".") == 1 {
 		schemaName, tableName2 = cp.SplitTableNameForPG(tableName)
 	} else {
-		schemaName, tableName2 = tconf.Schema, tableName
+		schemaName, tableName2 = tconf.SchemaConfig, tableName
 	}
 	result := cp.UpdateImportedRowCountEvent{
 		BaseUpdateRowCountEvent: cp.BaseUpdateRowCountEvent{

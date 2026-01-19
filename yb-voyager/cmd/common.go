@@ -688,7 +688,9 @@ func InitNameRegistry(
 	}
 
 	if tconf != nil {
-		targetDBSchema = tconf.Schema
+		targetDBSchema = strings.Join(lo.Map(tconf.Schemas, func(s sqlname.Identifier, _ int) string {
+			return s.Unquoted
+		}), "|")
 	}
 	var ok bool
 	if tdb != nil && lo.Contains([]string{TARGET_DB_IMPORTER_ROLE, IMPORT_FILE_ROLE}, role) {
@@ -709,6 +711,7 @@ func InitNameRegistry(
 		YBDB:           ybdb,
 	}
 
+	fmt.Printf("nameregistryParams %v\n", nameregistryParams)
 	err := namereg.InitNameRegistry(nameregistryParams)
 	if err != nil {
 		return err
@@ -989,12 +992,12 @@ func initBaseSourceEvent(bev *cp.BaseEvent, eventType string) {
 		MigrationUUID: migrationUUID,
 		DBType:        source.DBType,
 		DatabaseName:  source.DBName,
-		SchemaNames:   cp.GetSchemaList(strings.Join(lo.Map(source.Schemas, func(s sqlname.Identifier, _ int) string {
+		SchemaNames: cp.GetSchemaList(strings.Join(lo.Map(source.Schemas, func(s sqlname.Identifier, _ int) string {
 			return s.Unquoted
 		}), "|")),
-		DBIP:          utils.LookupIP(source.Host),
-		Port:          source.Port,
-		DBVersion:     source.DBVersion,
+		DBIP:      utils.LookupIP(source.Host),
+		Port:      source.Port,
+		DBVersion: source.DBVersion,
 	}
 }
 
@@ -1004,7 +1007,9 @@ func initBaseTargetEvent(bev *cp.BaseEvent, eventType string) {
 		MigrationUUID: migrationUUID,
 		DBType:        tconf.TargetDBType,
 		DatabaseName:  tconf.DBName,
-		SchemaNames:   []string{tconf.Schema},
+		SchemaNames:   lo.Map(tconf.Schemas, func(s sqlname.Identifier, _ int) string {
+			return s.Unquoted
+		}),
 		DBIP:          utils.LookupIP(tconf.Host),
 		Port:          tconf.Port,
 		DBVersion:     tconf.DBVersion,

@@ -1492,7 +1492,7 @@ There can be a lot of false positives.
 For example: standard sql functions like sum(), count() won't be qualified(pg_catalog) in queries generally.
 Making the schema unknown for that object, resulting in query consider
 */
-func    considerQueryForIssueDetection(collectedSchemaList []string) bool {
+func considerQueryForIssueDetection(collectedSchemaList []string) bool {
 	// filtering out pg_catalog schema, since it doesn't impact query consideration decision
 	collectedSchemaList = lo.Filter(collectedSchemaList, func(item string, _ int) bool {
 		return item != "pg_catalog"

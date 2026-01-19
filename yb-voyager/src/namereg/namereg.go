@@ -152,6 +152,7 @@ func (reg *NameRegistry) registerSourceNames() (bool, error) {
 		return false, goerrors.Errorf("source db connection is not available")
 	}
 	reg.SourceDBType = reg.params.SourceDBType
+	fmt.Printf("reg.params.SourceDBSchema %v\n", reg.params.SourceDBSchema)
 	err := reg.initSourceDBSchemaNames()
 	if err != nil {
 		return false, fmt.Errorf("init source db schema names: %w", err)
@@ -234,6 +235,7 @@ func (reg *NameRegistry) initSourceDBSchemaNames() error {
 	case constants.MYSQL:
 		reg.SourceDBSchemaNames = []string{reg.params.SourceDBName}
 	case constants.POSTGRESQL:
+		fmt.Printf("reg.params.SourceDBSchema %v\n", reg.params.SourceDBSchema)
 		schemaNames := lo.Map(strings.Split(reg.params.SourceDBSchema, "|"), func(s string, _ int) string {
 			return s
 		})
@@ -242,6 +244,7 @@ func (reg *NameRegistry) initSourceDBSchemaNames() error {
 		if err != nil {
 			return fmt.Errorf("failed to validate schema names: %w", err)
 		}
+		fmt.Printf("reg.SourceDBSchemaNames %v\n", reg.SourceDBSchemaNames)
 	}
 	if len(reg.SourceDBSchemaNames) == 1 {
 		reg.DefaultSourceDBSchemaName = reg.SourceDBSchemaNames[0]
@@ -267,6 +270,7 @@ func (reg *NameRegistry) validateAndSetSchemaNames(schemaNames []string) ([]stri
 			if schemaOnDB.CaseSensitiveMatch(schema) {
 				matchedSchema = true
 				finalSchemaList = append(finalSchemaList, schemaOnDB)
+				fmt.Printf("matched schema %v with %v\n", schema, schemaOnDB)
 				break
 			}
 		}
@@ -276,6 +280,7 @@ func (reg *NameRegistry) validateAndSetSchemaNames(schemaNames []string) ([]stri
 				if schemaOnDB.CaseInSensitiveMatch(schema) {
 					matchedSchema = true
 					finalSchemaList = append(finalSchemaList, schemaOnDB)
+					fmt.Printf("matched schema %v with %v\n", schema, schemaOnDB)
 					break
 				}
 			}
@@ -538,6 +543,7 @@ func (reg *NameRegistry) LookupSchemaName(schemaName string) (sqlname.Identifier
 	schemaIdenitifiers := lo.Map(reg.SourceDBSchemaNames, func(s string, _ int) sqlname.Identifier {
 		return sqlname.NewIdentifier(reg.SourceDBType, s)
 	})
+	fmt.Printf("schemaIdenitifiers %v\n", schemaIdenitifiers)
 	schemaNameIdentifier := sqlname.NewIdentifier(reg.SourceDBType, schemaName)
 	var matchedSchema bool
 	for _, schema := range schemaIdenitifiers {

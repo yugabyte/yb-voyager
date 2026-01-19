@@ -158,11 +158,12 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	sourceDBType = GetSourceDBTypeFromMSR()
 	sqlname.SourceDBType = sourceDBType
 
-	if tconf.TargetDBType == YUGABYTEDB {
-		tconf.Schema = strings.ToLower(tconf.Schema)
-	} else if tconf.TargetDBType == ORACLE && !utils.IsQuotedString(tconf.Schema) {
-		tconf.Schema = strings.ToUpper(tconf.Schema)
-	}
+	//TODO
+	// if tconf.TargetDBType == YUGABYTEDB {
+	// 	tconf.Schemas = strings.ToLower(tconf.Schema)
+	// } else if tconf.TargetDBType == ORACLE && !utils.IsQuotedString(tconf.Schema) {
+	// 	tconf.Schema = strings.ToUpper(tconf.Schema)
+	// }
 	tdb = tgtdb.NewTargetDB(&tconf)
 	err := tdb.Init()
 	if err != nil {
@@ -1681,13 +1682,15 @@ func getTargetSchemaName(tableName string) string {
 		return parts[0]
 	}
 	if tconf.TargetDBType == POSTGRESQL {
-		defaultSchema, noDefaultSchema := GetDefaultPGSchema(tconf.Schema, ",")
+		defaultSchema, noDefaultSchema := GetDefaultPGSchema(strings.Join(lo.Map(tconf.Schemas, func(s sqlname.Identifier, _ int) string {
+			return s.Unquoted
+		}), ","), ",")
 		if noDefaultSchema {
 			utils.ErrExit("no default schema for table: %q ", tableName)
 		}
 		return defaultSchema
 	}
-	return tconf.Schema // default set to "public"
+	return YUGABYTEDB_DEFAULT_SCHEMA // default set to "public"
 }
 
 func prepareTableToColumns(tasks []*ImportFileTask) error {

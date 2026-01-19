@@ -140,14 +140,18 @@ func (yb *TargetYugabyteDB) Init() error {
 		yb.Tconf.SessionVars = getYBSessionInitScript(yb.Tconf)
 	}
 
+	schemas := lo.Map(yb.tconf.Schemas, func(schema sqlname.Identifier, _ int) string {
+		return schema.Unquoted
+	})
+	schemaList := strings.Join(schemas, "','") // a','b','c
 	checkSchemaExistsQuery := fmt.Sprintf(
-		"SELECT count(nspname) FROM pg_catalog.pg_namespace WHERE nspname = '%s';",
-		yb.Tconf.Schema)
+		"SELECT count(nspname) FROM pg_catalog.pg_namespace WHERE nspname IN ('%s');",
+		schemaList)
 	var cntSchemaName int
 	if err = yb.QueryRow(checkSchemaExistsQuery).Scan(&cntSchemaName); err != nil {
 		err = fmt.Errorf("run query %q on target %q to check schema exists: %w", checkSchemaExistsQuery, yb.Tconf.Host, err)
 	} else if cntSchemaName == 0 {
-		err = goerrors.Errorf("schema '%s' does not exist in target", yb.Tconf.Schema)
+		err = goerrors.Errorf("schemas '%s' do not exist in target", schemaList)
 	}
 	return err
 }
@@ -1570,7 +1574,10 @@ func checkSessionVariableSupport(tconf *TargetConf, sqlStmt string) bool {
 }
 
 func (yb *TargetYugabyteDB) setTargetSchema(conn *pgx.Conn) error {
-	setSchemaQuery := fmt.Sprintf("SET SCHEMA '%s'", yb.Tconf.Schema)
+	schemas := strings.Join(lo.Map(yb.tconf.Schemas, func(schema sqlname.Identifier, _ int) string {
+		return schema.MinQuoted
+	}), ", ")
+	setSchemaQuery := fmt.Sprintf("SET SEARCH_PATH TO %s", schemas)
 	_, err := conn.Exec(context.Background(), setSchemaQuery)
 	if err != nil {
 		return fmt.Errorf("run query: %q on target %q: %w", setSchemaQuery, conn.Config().Host, err)

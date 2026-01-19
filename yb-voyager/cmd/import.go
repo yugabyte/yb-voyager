@@ -20,7 +20,6 @@ import (
 	"strings"
 
 	goerrors "github.com/go-errors/errors"
-
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -183,7 +182,7 @@ func registerTargetDBConnFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&tconf.DBName, "target-db-name", "",
 		"name of the database on the target YugabyteDB server on which import needs to be done")
 
-	cmd.Flags().StringVar(&tconf.Schema, "target-db-schema", "",
+	cmd.Flags().StringVar(&tconf.SchemaConfig, "target-db-schema", "",
 		"target schema name in YugabyteDB (Note: works only for source as Oracle and MySQL, in case of PostgreSQL you can ALTER schema name post import)")
 
 	// TODO: SSL related more args might come. Need to explore SSL part completely.
@@ -235,7 +234,7 @@ func registerSourceReplicaDBAsTargetConnFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&tconf.TNSAlias, "oracle-tns-alias", "",
 		"[For Oracle Only] Name of TNS Alias you wish to use to connect to Oracle instance. Refer to documentation to learn more about configuring tnsnames.ora and aliases")
 
-	cmd.Flags().StringVar(&tconf.Schema, "source-replica-db-schema", "",
+	cmd.Flags().StringVar(&tconf.SchemaConfig, "source-replica-db-schema", "",
 		"schema name in Source-Replica DB (Note: works only for source as Oracle, in case of PostgreSQL schemas remain same as of source)")
 
 	// TODO: SSL related more args might come. Need to explore SSL part completely.
@@ -380,16 +379,16 @@ func validateTargetSchemaFlag() {
 	// This is not applicable for import-data-to-source-replica (validateFFDBSchemaFlag)/import-data-to-source (no ability to pass schema).
 	// For import-data-file, we allow this flag and source is PG(dummy)
 	if !slices.Contains([]string{SOURCE_REPLICA_DB_IMPORTER_ROLE, SOURCE_DB_IMPORTER_ROLE, IMPORT_FILE_ROLE}, importerRole) {
-		if tconf.Schema != "" && sourceDBType == "postgresql" {
+		if tconf.SchemaConfig != "" && sourceDBType == "postgresql" {
 			utils.ErrExit("Error --target-db-schema flag is not valid for export from 'postgresql' db type")
 		}
 	}
 
-	if tconf.Schema == "" {
+	if tconf.SchemaConfig == "" {
 		if tconf.TargetDBType == YUGABYTEDB {
-			tconf.Schema = YUGABYTEDB_DEFAULT_SCHEMA
+			tconf.SchemaConfig = YUGABYTEDB_DEFAULT_SCHEMA
 		} else if tconf.TargetDBType == ORACLE {
-			tconf.Schema = tconf.User
+			tconf.SchemaConfig = tconf.User
 		}
 		return
 	}
@@ -531,7 +530,7 @@ func validateBatchSizeFlag(numLinesInASplit int64) {
 }
 
 func validateFFDBSchemaFlag() {
-	if tconf.Schema == "" && tconf.TargetDBType == ORACLE {
+	if tconf.SchemaConfig == "" && tconf.TargetDBType == ORACLE {
 		utils.ErrExit("Error --source-replica-db-schema flag is mandatory for import data to source-replica")
 	}
 }

@@ -85,6 +85,9 @@ func getPgDumpArgsFromFile(sectionToRead string) string {
 	section := iniData.Section(sectionToRead)
 	var args strings.Builder
 	for _, key := range section.Keys() {
+		fmt.Printf("key %v\n", key)
+		fmt.Printf("key.Value() %v\n", key.Value())
+		fmt.Printf("key.Name() %v\n", key.Name())
 		if key.Value() == "false" {
 			continue
 		}
@@ -96,7 +99,7 @@ func getPgDumpArgsFromFile(sectionToRead string) string {
 			// no value to specify
 		} else if key.Name() == "schema" {
 			// value is comma separated schema names which need to be quoted
-			arg += fmt.Sprintf(`="%s"`, key.Value())
+			arg += fmt.Sprintf(`='%s'`, key.Value())
 		} else {
 			arg += fmt.Sprintf(`=%s`, key.Value())
 		}

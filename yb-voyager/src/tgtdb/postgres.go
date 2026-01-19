@@ -120,7 +120,9 @@ func (pg *TargetPostgreSQL) Init() error {
 	if len(pg.tconf.SessionVars) == 0 {
 		pg.tconf.SessionVars = getPGSessionInitScript(pg.tconf)
 	}
-	schemas := strings.Split(pg.tconf.Schema, ",")
+	schemas := lo.Map(pg.tconf.Schemas, func(schema sqlname.Identifier, _ int) string {
+		return schema.Unquoted
+	})
 	schemaList := strings.Join(schemas, "','") // a','b','c
 	checkSchemaExistsQuery := fmt.Sprintf(
 		"SELECT nspname FROM pg_catalog.pg_namespace WHERE nspname IN ('%s');",
@@ -702,7 +704,10 @@ func (pg *TargetPostgreSQL) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 }
 
 func (pg *TargetPostgreSQL) setTargetSchema(conn *pgx.Conn) {
-	setSchemaQuery := fmt.Sprintf("SET SEARCH_PATH TO %s", pg.tconf.Schema)
+	schemas := strings.Join(lo.Map(pg.tconf.Schemas, func(schema sqlname.Identifier, _ int) string {
+		return schema.MinQuoted
+	}), ", ")
+	setSchemaQuery := fmt.Sprintf("SET SEARCH_PATH TO %s", schemas)
 	_, err := conn.Exec(context.Background(), setSchemaQuery)
 	if err != nil {
 		utils.ErrExit("run query: %q on target %q: %w", setSchemaQuery, pg.tconf.Host, err)
@@ -1141,7 +1146,9 @@ func (pg *TargetPostgreSQL) listTablesMissingSelectInsertUpdateDeletePermissions
 }
 
 func (pg *TargetPostgreSQL) getSchemaList() []string {
-	schemas := strings.Split(pg.tconf.Schema, ",")
+	schemas := lo.Map(pg.tconf.Schemas, func(schema sqlname.Identifier, _ int) string {
+		return schema.Unquoted
+	})
 	return schemas
 }
 
