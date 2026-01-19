@@ -623,13 +623,8 @@ def migration_completed_checks(tgt, expected):
                                       expected_distinct_values=expected_ext_citext_values)
     # ltree type doesn't support DISTINCT, cast to text instead
     expected_ext_ltree_values = expected.get("extension_ltree_types", [])
-    cur = tgt.conn.cursor()
-    cur.execute("SELECT DISTINCT col_ltree::text FROM public.extension_types")
-    actual_ltree_values = [str(value[0]) for value in cur.fetchall()]
-    print(f"actual_ltree_values: {actual_ltree_values}")
-    for ltree_value in actual_ltree_values:
-        print(f"{ltree_value}")
-        assert ltree_value in expected_ext_ltree_values, f"Unexpected ltree value: {ltree_value}"
+    tgt.assert_distinct_text_values_of_col("extension_types", "col_ltree", "public", 
+        expected_distinct_values=expected_ext_ltree_values)
 
     print("extension_arrays:")
     expected_ext_array_hstore_values = expected.get("extension_hstore_array_types", [])
@@ -642,13 +637,8 @@ def migration_completed_checks(tgt, expected):
                                       expected_distinct_values=expected_ext_array_citext_values)
     # ltree array type doesn't support DISTINCT, cast to text instead
     expected_ext_array_ltree_values = expected.get("extension_ltree_array_types", [])
-    cur = tgt.conn.cursor()
-    cur.execute("SELECT DISTINCT col_ltree::text FROM public.extension_arrays")
-    actual_ltree_array_values = [str(value[0]) for value in cur.fetchall()]
-    print(f"actual_ltree_array_values: {actual_ltree_array_values}")
-    for ltree_array_value in actual_ltree_array_values:
-        print(f"{ltree_array_value}")
-        assert ltree_array_value in expected_ext_array_ltree_values, f"Unexpected ltree array value: {ltree_array_value}"
+    tgt.assert_distinct_text_values_of_col("extension_arrays", "col_ltree", "public", 
+        expected_distinct_values=expected_ext_array_ltree_values)
 
     print("audit_log:")
     expected_involved_employees_values = expected.get("audit_log_employees", [])
@@ -707,67 +697,32 @@ def migration_completed_checks(tgt, expected):
     
     print("geometry_arrays:")  
     expected_geometry_arrays_point_values = expected.get("geometry_point_arrays", [])
-    cur = tgt.conn.cursor()
-    cur.execute("SELECT DISTINCT point_col::text FROM public.geometry_arrays")
-    actual_point_array_values = [str(value[0]) for value in cur.fetchall()]
-    print(f"actual_point_array_values: {actual_point_array_values}")
-    for point_array_value in actual_point_array_values:
-        print(f"{point_array_value}")
-        assert point_array_value in expected_geometry_arrays_point_values, f"Unexpected point array value: {point_array_value}"
+    tgt.assert_distinct_text_values_of_col("geometry_arrays", "point_col", "public", 
+        expected_distinct_values=expected_geometry_arrays_point_values)
 
     expected_geometry_arrays_line_values = expected.get("geometry_line_arrays", [])
-    cur = tgt.conn.cursor()
-    cur.execute("SELECT DISTINCT line_col::text FROM public.geometry_arrays")
-    actual_line_array_values = [str(value[0]) for value in cur.fetchall()]
-    print(f"actual_line_array_values: {actual_line_array_values}")
-    for line_array_value in actual_line_array_values:
-        print(f"{line_array_value}")
-        assert line_array_value in expected_geometry_arrays_line_values, f"Unexpected line array value: {line_array_value}"
+    tgt.assert_distinct_text_values_of_col("geometry_arrays", "line_col", "public", 
+        expected_distinct_values=expected_geometry_arrays_line_values)
 
     expected_geometry_arrays_lseg_values = expected.get("geometry_lseg_arrays", [])
-    cur = tgt.conn.cursor()
-    cur.execute("SELECT DISTINCT lseg_col::text FROM public.geometry_arrays")
-    actual_lseg_array_values = [str(value[0]) for value in cur.fetchall()]
-    print(f"actual_lseg_array_values: {actual_lseg_array_values}")
-    for lseg_array_value in actual_lseg_array_values:
-        print(f"{lseg_array_value}")
-        assert lseg_array_value in expected_geometry_arrays_lseg_values, f"Unexpected lseg array value: {lseg_array_value}"
+    tgt.assert_distinct_text_values_of_col("geometry_arrays", "lseg_col", "public", 
+        expected_distinct_values=expected_geometry_arrays_lseg_values)
 
     expected_geometry_arrays_box_values = expected.get("geometry_box_arrays", [])
-    cur = tgt.conn.cursor()
-    cur.execute("SELECT DISTINCT box_col::text FROM public.geometry_arrays")
-    actual_box_array_values = [str(value[0]) for value in cur.fetchall()]
-    print(f"actual_box_array_values: {actual_box_array_values}")
-    for box_array_value in actual_box_array_values:
-        print(f"{box_array_value}")
-        assert box_array_value in expected_geometry_arrays_box_values, f"Unexpected box array value: {box_array_value}"
+    tgt.assert_distinct_text_values_of_col("geometry_arrays", "box_col", "public", 
+        expected_distinct_values=expected_geometry_arrays_box_values)
 
     expected_geometry_arrays_path_values = expected.get("geometry_path_arrays", [])
-    cur = tgt.conn.cursor()
-    cur.execute("SELECT DISTINCT path_col::text FROM public.geometry_arrays")
-    actual_path_array_values = [str(value[0]) for value in cur.fetchall()]
-    print(f"actual_path_array_values: {actual_path_array_values}")
-    for path_array_value in actual_path_array_values:
-        print(f"{path_array_value}")
-        assert path_array_value in expected_geometry_arrays_path_values, f"Unexpected path array value: {path_array_value}"
+    tgt.assert_distinct_text_values_of_col("geometry_arrays", "path_col", "public", 
+        expected_distinct_values=expected_geometry_arrays_path_values)
 
     expected_geometry_arrays_polygon_values = expected.get("geometry_polygon_arrays", [])
-    cur = tgt.conn.cursor()
-    cur.execute("SELECT DISTINCT polygon_col::text FROM public.geometry_arrays")
-    actual_polygon_array_values = [str(value[0]) for value in cur.fetchall()]
-    print(f"actual_polygon_array_values: {actual_polygon_array_values}")
-    for polygon_array_value in actual_polygon_array_values:
-        print(f"{polygon_array_value}")
-        assert polygon_array_value in expected_geometry_arrays_polygon_values, f"Unexpected polygon array value: {polygon_array_value}"
+    tgt.assert_distinct_text_values_of_col("geometry_arrays", "polygon_col", "public", 
+        expected_distinct_values=expected_geometry_arrays_polygon_values)
 
     expected_geometry_arrays_circle_values = expected.get("geometry_circle_arrays", [])
-    cur = tgt.conn.cursor()
-    cur.execute("SELECT DISTINCT circle_col::text FROM public.geometry_arrays")
-    actual_circle_array_values = [str(value[0]) for value in cur.fetchall()]
-    print(f"actual_circle_array_values: {actual_circle_array_values}")
-    for circle_array_value in actual_circle_array_values:
-        print(f"{circle_array_value}")
-        assert circle_array_value in expected_geometry_arrays_circle_values, f"Unexpected circle array value: {circle_array_value}"
+    tgt.assert_distinct_text_values_of_col("geometry_arrays", "circle_col", "public", 
+        expected_distinct_values=expected_geometry_arrays_circle_values)
 
     print("network_types:")
     expected_network_types_cidr_values = expected.get("network_cidr_types", [])
@@ -811,12 +766,8 @@ def migration_completed_checks(tgt, expected):
                                       expected_distinct_values=expected_misc_arrays_pg_lsn_values)
     # txid_snapshot array type doesn't support DISTINCT, so we cast to text first
     expected_misc_arrays_txid_snapshot_values = expected.get("misc_txid_snapshot_arrays", [])
-    cur = tgt.conn.cursor()
-    cur.execute("SELECT DISTINCT txid_snapshot_col::text FROM public.misc_arrays")
-    actual_txid_snapshot_array_values = [str(value[0]) for value in cur.fetchall()]
-    for txid_snapshot_array_value in actual_txid_snapshot_array_values:
-        print(f"{txid_snapshot_array_value}")
-        assert txid_snapshot_array_value in expected_misc_arrays_txid_snapshot_values, f"Unexpected txid_snapshot array value: {txid_snapshot_array_value}"
+    tgt.assert_distinct_text_values_of_col("misc_arrays", "txid_snapshot_col", "public", 
+        expected_distinct_values=expected_misc_arrays_txid_snapshot_values)
 
 #=============================================================================
 
