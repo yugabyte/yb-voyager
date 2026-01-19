@@ -18,6 +18,7 @@ package cmd
 import (
 	"strings"
 
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
@@ -57,7 +58,10 @@ func setTargetConfSpecifics(cmd *cobra.Command) {
 		if cmd.Flags().Lookup("source-replica-db-schema").Changed {
 			utils.ErrExit("cannot specify --source-replica-db-schema for PostgreSQL source")
 		} else {
-			tconf.Schema = strings.Join(strings.Split(sconf.Schema, "|"), ",")
+			//tODO fixthis to schema identifier
+			tconf.Schema = strings.Join(lo.Map(sconf.Schemas, func(s sqlname.Identifier, _ int) string {
+				return s.Quoted
+			}), ",")
 		}
 	}
 }

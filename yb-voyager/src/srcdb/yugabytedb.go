@@ -149,49 +149,73 @@ func (yb *YugabyteDB) GetVersion() string {
 	return version
 }
 
-func (yb *YugabyteDB) CheckSchemaExists() bool {
-	schemaList := yb.checkSchemasExists()
-	return schemaList != nil
-}
-
-func (yb *YugabyteDB) checkSchemasExists() []string {
-	list := strings.Split(yb.source.Schema, "|")
-	var trimmedList []string
-	for _, schema := range list {
-		if utils.IsQuotedString(schema) {
-			schema = strings.Trim(schema, `"`)
-		}
-		trimmedList = append(trimmedList, schema)
-	}
-	querySchemaList := "'" + strings.Join(trimmedList, "','") + "'"
-	chkSchemaExistsQuery := fmt.Sprintf(`SELECT schema_name
-	FROM information_schema.schemata where schema_name IN (%s);`, querySchemaList)
-	rows, err := yb.db.Query(chkSchemaExistsQuery)
+func (yb *YugabyteDB) GetAllSchemaNamesIdentifiers() ([]sqlname.Identifier, error) {
+	fetchSchemasQuery := `SELECT nspname AS schema_name
+	FROM pg_namespace WHERE nspname NOT IN ('pg_catalog', 'information_schema');`
+	rows, err := yb.db.Query(fetchSchemasQuery)
 	if err != nil {
-		utils.ErrExit("error in querying source database for checking mentioned schema(s) present or not: %q: %w\n", chkSchemaExistsQuery, err)
+		return nil, fmt.Errorf("error in querying source database for checking mentioned schema(s) present or not: %q: %w\n", fetchSchemasQuery, err)
 	}
-	var listOfSchemaPresent []string
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			log.Warnf("close rows for query %q: %v", fetchSchemasQuery, closeErr)
+		}
+	}()
+	var listOfSchemaPresent []sqlname.Identifier
 	var tableSchemaName string
 
 	for rows.Next() {
 		err = rows.Scan(&tableSchemaName)
 		if err != nil {
-			utils.ErrExit("error in scanning query rows for schema names: %w\n", err)
+			return nil, fmt.Errorf("error in scanning query rows for schema names: %w\n", err)
 		}
-		listOfSchemaPresent = append(listOfSchemaPresent, tableSchemaName)
+		listOfSchemaPresent = append(listOfSchemaPresent, sqlname.NewIdentifier(yb.source.DBType, fmt.Sprintf(`"%s"`, tableSchemaName)))
 	}
-	defer func() {
-		closeErr := rows.Close()
-		if closeErr != nil {
-			log.Warnf("close rows for query %q: %v", chkSchemaExistsQuery, closeErr)
-		}
-	}()
 
-	schemaNotPresent := utils.SetDifference(trimmedList, listOfSchemaPresent)
-	if len(schemaNotPresent) > 0 {
-		utils.ErrExit("Following schemas are not present in source database: %v, please provide a valid schema list.\n", schemaNotPresent)
+	return listOfSchemaPresent, nil
+}
+
+func (yb *YugabyteDB) CheckSchemaExists() (bool, error) {
+	listOfSchemaPresent, err := yb.GetAllSchemaNamesIdentifiers()
+	if err != nil {
+		return false, fmt.Errorf("get all schema names: %w", err)
 	}
-	return trimmedList
+
+	var schemaNotPresent []sqlname.Identifier
+	var finalSchemaList []sqlname.Identifier
+	for _, schema := range yb.source.Schemas {
+		matchedSchema := false
+		for _, schemaOnDB := range listOfSchemaPresent {
+			if schemaOnDB.CaseSensitiveMatch(schema) {
+				matchedSchema = true
+				finalSchemaList = append(finalSchemaList, schemaOnDB)
+				break
+			}
+		}
+		if !matchedSchema {
+			//If not matched with any case sensitive match, then check for in case sensitive match
+			for _, schemaOnDB := range listOfSchemaPresent {
+				if schemaOnDB.CaseInSensitiveMatch(schema) {
+					matchedSchema = true
+					finalSchemaList = append(finalSchemaList, schemaOnDB)
+					break
+				}
+			}
+			if !matchedSchema {
+				schemaNotPresent = append(schemaNotPresent, schema)
+			}
+		}
+	}
+
+	if len(schemaNotPresent) > 0 {
+		return false, fmt.Errorf("Following schemas are not present in source database: %v, please provide a valid schema list.\n", lo.Map(schemaNotPresent, func(s sqlname.Identifier, _ int) string {
+			return s.Unquoted
+		}))
+	}
+	log.Infof("final schema list: %v", finalSchemaList)
+	yb.source.Schemas = finalSchemaList
+	return true, nil
 }
 
 func (yb *YugabyteDB) GetAllTableNamesRaw(schemaName string) ([]string, error) {
@@ -235,7 +259,9 @@ func (yb *YugabyteDB) GetAllTableNamesRaw(schemaName string) ([]string, error) {
 }
 
 func (yb *YugabyteDB) GetAllTableNames() []*sqlname.SourceName {
-	schemaList := yb.checkSchemasExists()
+	schemaList := lo.Map(yb.source.Schemas, func(s sqlname.Identifier, _ int) string {
+		return s.Unquoted
+	})
 	querySchemaList := "'" + strings.Join(schemaList, "','") + "'"
 	// Information schema requires select permission on the tables to query the tables. However, pg_catalog does not require any permission.
 	// So, we are using pg_catalog to get the table names.
@@ -378,7 +404,9 @@ func (yb *YugabyteDB) getExportedColumnsListForTable(exportDir, tableName string
 
 // GetAllSequences returns all the sequence names in the database for the given schema list
 func (yb *YugabyteDB) GetAllSequences() []string {
-	schemaList := yb.checkSchemasExists()
+	schemaList := lo.Map(yb.source.Schemas, func(s sqlname.Identifier, _ int) string {
+		return s.Unquoted
+	})
 	querySchemaList := "'" + strings.Join(schemaList, "','") + "'"
 	var sequenceNames []string
 	query := fmt.Sprintf(`SELECT sequence_name FROM information_schema.sequences where sequence_schema IN (%s);`, querySchemaList)
@@ -1112,8 +1140,9 @@ func (yb *YugabyteDB) ClearMigrationState(migrationUUID uuid.UUID, exportDir str
 
 func (yb *YugabyteDB) GetNonPKTables() ([]string, error) {
 	var nonPKTables []string
-	schemaList := strings.Split(yb.source.Schema, "|")
-	querySchemaList := "'" + strings.Join(schemaList, "','") + "'"
+	querySchemaList := "'" + strings.Join(lo.Map(yb.source.Schemas, func(s sqlname.Identifier, _ int) string {
+		return s.MinQuoted
+	}), "','") + "'"
 	query := fmt.Sprintf(PG_QUERY_TO_CHECK_IF_TABLE_HAS_PK, querySchemaList)
 	rows, err := yb.db.Query(query)
 	if err != nil {

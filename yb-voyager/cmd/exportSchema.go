@@ -25,9 +25,8 @@ import (
 	"regexp"
 	"strings"
 
-	goerrors "github.com/go-errors/errors"
-
 	"github.com/fatih/color"
+	goerrors "github.com/go-errors/errors"
 	pg_query "github.com/pganalyze/pg_query_go/v6"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
@@ -38,6 +37,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/sqltransformer"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -143,10 +143,27 @@ func exportSchema(cmd *cobra.Command) error {
 	source.FetchDBSystemIdentifier()
 	utils.PrintAndLogf("%s version: %s\n", source.DBType, sourceDBVersion)
 
-	res := source.DB().CheckSchemaExists()
-	if !res {
-		return goerrors.Errorf("failed to check if source schema exist during export schema: %q", source.Schema)
+	// res, err := source.DB().CheckSchemaExists()
+	// if err != nil {
+	// 	return fmt.Errorf("failed to check if source schema exist during export schema: %w", err)
+	// }
+	// if !res {
+	// 	utils.ErrExit("Fix the schema list and try again.")
+	// }
+
+	err = InitNameRegistry(exportDir, exporterRole, &source, source.DB(), nil, nil, false)
+	if err != nil {
+		utils.ErrExit("initialize name registry: %w", err)
 	}
+	validatedSchemas := []sqlname.Identifier{}
+	for _, schema := range source.Schemas {
+		identifier, err := namereg.NameReg.LookupSchemaName(schema.Unquoted)
+		if err != nil {
+			utils.ErrExit("lookup schema name: %w", err)
+		}
+		validatedSchemas = append(validatedSchemas, identifier)
+	}
+	source.Schemas = validatedSchemas
 
 	// Check if the source database has the required permissions for exporting schema.
 	if source.RunGuardrailsChecks {

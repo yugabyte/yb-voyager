@@ -9,9 +9,8 @@ import (
 	"strings"
 	"syscall"
 
-	goerrors "github.com/go-errors/errors"
-
 	"github.com/dustin/go-humanize"
+	goerrors "github.com/go-errors/errors"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -25,6 +24,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 var (
@@ -631,7 +631,7 @@ func cleanupTargetDB(msr *metadb.MigrationStatusRecord) {
 			User:           tconf.User,
 			Password:       tconf.Password,
 			DBName:         tconf.DBName,
-			Schema:         tconf.Schema,
+			Schemas:        []sqlname.Identifier{sqlname.NewIdentifier(tconf.TargetDBType, tconf.Schema)},
 			SSLMode:        tconf.SSLMode,
 			SSLCertPath:    tconf.SSLCertPath,
 			SSLKey:         tconf.SSLKey,
@@ -692,7 +692,7 @@ func deleteCDCStreamIDForEndMigration(tconf *tgtdb.TargetConf) {
 		User:           tconf.User,
 		Password:       tconf.Password,
 		DBName:         tconf.DBName,
-		Schema:         tconf.Schema,
+		Schemas:        []sqlname.Identifier{sqlname.NewIdentifier(tconf.TargetDBType, tconf.Schema)},
 		SSLMode:        tconf.SSLMode,
 		SSLCertPath:    tconf.SSLCertPath,
 		SSLKey:         tconf.SSLKey,

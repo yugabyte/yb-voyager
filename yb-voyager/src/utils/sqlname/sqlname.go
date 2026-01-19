@@ -52,6 +52,14 @@ func (i Identifier) Equals(other Identifier) bool {
 	return i.Quoted == other.Quoted && i.Unquoted == other.Unquoted && i.MinQuoted == other.MinQuoted
 }
 
+func (i Identifier) CaseSensitiveMatch(other Identifier) bool {
+	return i.Quoted == other.Quoted || i.Unquoted == other.Unquoted
+}
+
+func (i Identifier) CaseInSensitiveMatch(other Identifier) bool {
+	return strings.EqualFold(i.Unquoted, other.Unquoted)
+}
+
 type SourceName struct {
 	ObjectName Identifier
 	SchemaName Identifier
@@ -145,7 +153,7 @@ func NewTargetName(schemaName, objectName string) *TargetName {
 	}
 }
 
-//ASsumption is to pass quoted name with  case sensitivity preserved
+// ASsumption is to pass quoted name with  case sensitivity preserved
 func NewTargetNameFromQualifiedName(qualifiedName string) *TargetName {
 	parts := strings.Split(qualifiedName, ".")
 	if len(parts) != 2 {
@@ -154,7 +162,7 @@ func NewTargetNameFromQualifiedName(qualifiedName string) *TargetName {
 	return NewTargetName(parts[0], parts[1])
 }
 
-//ASsumption is to pass quoted name with  case sensitivity preserved
+// ASsumption is to pass quoted name with  case sensitivity preserved
 func NewTargetNameFromMaybeQualifiedName(qualifiedName string, defaultSchemaName string) *TargetName {
 	parts := strings.Split(qualifiedName, ".")
 	if len(parts) == 2 {

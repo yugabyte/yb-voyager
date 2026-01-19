@@ -26,10 +26,12 @@ import (
 	"strings"
 
 	"github.com/fatih/color"
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/config"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 func pgdumpExtractSchema(source *Source, connectionUri string, exportDir string, schemaDir string) {
@@ -40,7 +42,9 @@ func pgdumpExtractSchema(source *Source, connectionUri string, exportDir string,
 		utils.ErrExit("could not get absolute path of pg_dump command: %s", binaryCheckIssue)
 	}
 
-	pgDumpArgs.Schema = source.Schema
+	pgDumpArgs.Schema = strings.Join(lo.Map(source.Schemas, func(s sqlname.Identifier, _ int) string {
+		return s.MinQuoted
+	}), "|")
 	pgDumpArgs.SchemaTempFilePath = filepath.Join(exportDir, "temp", "schema.sql")
 	pgDumpArgs.NoComments = strconv.FormatBool(!bool(source.CommentsOnObjects))
 	pgDumpArgs.ExtensionPattern = `"*"`

@@ -194,13 +194,10 @@ func (pg *PostgreSQL) QueryRow(query string) *sql.Row {
 }
 
 func (pg *PostgreSQL) getTrimmedSchemaList() []string {
-	list := strings.Split(pg.source.Schema, "|")
+	list := pg.source.Schemas
 	var trimmedList []string
 	for _, schema := range list {
-		if utils.IsQuotedString(schema) {
-			schema = strings.Trim(schema, `"`)
-		}
-		trimmedList = append(trimmedList, schema)
+		trimmedList = append(trimmedList, schema.Unquoted)
 	}
 	return trimmedList
 }
@@ -247,43 +244,73 @@ func (pg *PostgreSQL) GetVersion() string {
 	return version
 }
 
-func (pg *PostgreSQL) CheckSchemaExists() bool {
-	schemaList := pg.checkSchemasExists()
-	return schemaList != nil
-}
-
-func (pg *PostgreSQL) checkSchemasExists() []string {
-	trimmedSchemaList := pg.getTrimmedSchemaList()
-	querySchemaList := "'" + strings.Join(trimmedSchemaList, "','") + "'"
-	chkSchemaExistsQuery := fmt.Sprintf(`SELECT nspname AS schema_name
-	FROM pg_namespace
-	WHERE nspname IN (%s);`, querySchemaList)
-	rows, err := pg.db.Query(chkSchemaExistsQuery)
+func (pg *PostgreSQL) GetAllSchemaNamesIdentifiers() ([]sqlname.Identifier, error) {
+	fetchSchemasQuery := `SELECT nspname AS schema_name
+	FROM pg_namespace WHERE nspname NOT IN ('pg_catalog', 'information_schema');`
+	rows, err := pg.db.Query(fetchSchemasQuery)
 	if err != nil {
-		utils.ErrExit("error in querying source database for checking mentioned schema(s) present or not: %q: %w\n", chkSchemaExistsQuery, err)
+		return nil, fmt.Errorf("error in querying source database for checking mentioned schema(s) present or not: %q: %w\n", fetchSchemasQuery, err)
 	}
 	defer func() {
 		closeErr := rows.Close()
 		if closeErr != nil {
-			log.Warnf("close rows for query %q: %v", chkSchemaExistsQuery, closeErr)
+			log.Warnf("close rows for query %q: %v", fetchSchemasQuery, closeErr)
 		}
 	}()
-	var listOfSchemaPresent []string
+	var listOfSchemaPresent []sqlname.Identifier
 	var tableSchemaName string
 
 	for rows.Next() {
 		err = rows.Scan(&tableSchemaName)
 		if err != nil {
-			utils.ErrExit("error in scanning query rows for schema names: %w\n", err)
+			return nil, fmt.Errorf("error in scanning query rows for schema names: %w\n", err)
 		}
-		listOfSchemaPresent = append(listOfSchemaPresent, tableSchemaName)
+		listOfSchemaPresent = append(listOfSchemaPresent, sqlname.NewIdentifier(pg.source.DBType, fmt.Sprintf(`"%s"`, tableSchemaName)))
 	}
 
-	schemaNotPresent := utils.SetDifference(trimmedSchemaList, listOfSchemaPresent)
-	if len(schemaNotPresent) > 0 {
-		utils.ErrExit("Following schemas are not present in source database: %v, please provide a valid schema list.\n", schemaNotPresent)
+	return listOfSchemaPresent, nil
+}
+
+func (pg *PostgreSQL) CheckSchemaExists() (bool, error) {
+	listOfSchemaPresent, err := pg.GetAllSchemaNamesIdentifiers()
+	if err != nil {
+		return false, fmt.Errorf("get all schema names: %w", err)
 	}
-	return trimmedSchemaList
+	var schemaNotPresent []sqlname.Identifier
+	var finalSchemaList []sqlname.Identifier
+	for _, schema := range pg.source.Schemas {
+		matchedSchema := false
+		for _, schemaOnDB := range listOfSchemaPresent {
+			if schemaOnDB.CaseSensitiveMatch(schema) {
+				matchedSchema = true
+				finalSchemaList = append(finalSchemaList, schemaOnDB)
+				break
+			}
+		}
+		if !matchedSchema {
+			//If not matched with any case sensitive match, then check for in case sensitive match
+			for _, schemaOnDB := range listOfSchemaPresent {
+				if schemaOnDB.CaseInSensitiveMatch(schema) {
+					matchedSchema = true
+					finalSchemaList = append(finalSchemaList, schemaOnDB)
+					break
+				}
+			}
+			if !matchedSchema {
+				schemaNotPresent = append(schemaNotPresent, schema)
+			}
+		}
+	}
+
+	if len(schemaNotPresent) > 0 {
+		return false, fmt.Errorf("Following schemas are not present in source database: %v, please provide a valid schema list.\n", lo.Map(schemaNotPresent, func(s sqlname.Identifier, _ int) string {
+			return s.Unquoted
+		}))
+	}
+	log.Infof("final schema list: %v", finalSchemaList)
+	pg.source.Schemas = finalSchemaList
+	return true, nil
+
 }
 
 func (pg *PostgreSQL) GetAllTableNamesRaw(schemaName string) ([]string, error) {
@@ -327,7 +354,9 @@ func (pg *PostgreSQL) GetAllTableNamesRaw(schemaName string) ([]string, error) {
 }
 
 func (pg *PostgreSQL) GetAllTableNames() []*sqlname.SourceName {
-	schemaList := pg.checkSchemasExists()
+	schemaList := lo.Map(pg.source.Schemas, func(s sqlname.Identifier, _ int) string {
+		return s.Unquoted
+	})
 	querySchemaList := "'" + strings.Join(schemaList, "','") + "'"
 	// Information schema requires select permission on the tables to query the tables. However, pg_catalog does not require any permission.
 	// So, we are using pg_catalog to get the table names.
@@ -363,6 +392,7 @@ func (pg *PostgreSQL) GetAllTableNames() []*sqlname.SourceName {
 		if err != nil {
 			utils.ErrExit("error in scanning query rows for table names: %w\n", err)
 		}
+		tableSchema = fmt.Sprintf("\"%s\"", tableSchema)
 		tableName = fmt.Sprintf("\"%s\"", tableName)
 		tableNames = append(tableNames, sqlname.NewSourceName(tableSchema, tableName))
 	}
@@ -407,7 +437,8 @@ func (pg *PostgreSQL) ExportSchema(exportDir string, schemaDir string) {
 		log.Infof("directly parsing the '%s/schema.sql' file", schemaDir)
 		parseSchemaFile(exportDir, schemaDir, pg.source.ExportObjectTypeList)
 	} else {
-		pg.checkSchemasExists()
+		//TODO: remove as it might not be required
+		// pg.checkSchemasExists()
 
 		fmt.Printf("exporting the schema %10s", "")
 		go utils.Wait(utils.SuccessColor.Sprintf("done\n"), "")
@@ -527,7 +558,9 @@ func GetAbsPathOfPGCommandAboveVersion(cmd string, sourceDBVersion string) (path
 
 // GetAllSequences returns all the sequence names in the database for the given schema list
 func (pg *PostgreSQL) GetAllSequences() []string {
-	schemaList := pg.checkSchemasExists()
+	schemaList := lo.Map(pg.source.Schemas, func(s sqlname.Identifier, _ int) string {
+		return s.Unquoted
+	})
 	querySchemaList := "'" + strings.Join(schemaList, "','") + "'"
 	var sequenceNames []string
 	query := fmt.Sprintf(`SELECT sequence_schema, sequence_name FROM information_schema.sequences where sequence_schema IN (%s);`, querySchemaList)
@@ -603,7 +636,9 @@ func (pg *PostgreSQL) GetCharset() (string, error) {
 
 func (pg *PostgreSQL) GetDatabaseSize() (int64, error) {
 	var totalSchemasSize int64
-	schemaList := strings.Replace(pg.source.Schema, "|", "','", -1)
+	schemaList := strings.Join(lo.Map(pg.source.Schemas, func(s sqlname.Identifier, _ int) string {
+		return s.Unquoted
+	}), "','")
 	query := fmt.Sprintf(`SELECT
     nspname AS schema_name,
     SUM(pg_total_relation_size(pg_class.oid)) AS total_size
@@ -784,7 +819,7 @@ func (pg *PostgreSQL) ParentTableOfPartition(table sqlname.NameTuple) string {
 	pg_catalog.pg_namespace AS nsp_child ON child.relnamespace = nsp_child.oid
 	WHERE
 	child.relname = '%s'
-	AND nsp_child.nspname = '%s';`, table.CurrentName.Unqualified.MinQuoted, table.CurrentName.SchemaName.MinQuoted)
+	AND nsp_child.nspname = '%s';`, table.CurrentName.Unqualified.Unquoted, table.CurrentName.SchemaName.Unquoted)
 
 	err := pg.db.QueryRow(query).Scan(&parentTable)
 	if err != sql.ErrNoRows && err != nil {
@@ -1064,8 +1099,10 @@ GROUP BY schema_name, table_name HAVING nspname IN (%s);`
 
 func (pg *PostgreSQL) GetNonPKTables() ([]string, error) {
 	var nonPKTables []string
-	schemaList := strings.Split(pg.source.Schema, "|")
-	querySchemaList := "'" + strings.Join(schemaList, "','") + "'"
+	querySchemaList := strings.Join(lo.Map(pg.source.Schemas, func(s sqlname.Identifier, _ int) string {
+		return s.Unquoted
+	}), "','")
+	querySchemaList = "'" + querySchemaList + "'"
 	query := fmt.Sprintf(PG_QUERY_TO_CHECK_IF_TABLE_HAS_PK, querySchemaList)
 	rows, err := pg.db.Query(query)
 	if err != nil {
@@ -1757,7 +1794,7 @@ func (pg *PostgreSQL) listTablesMissingSelectPermission(queryTableList string) (
 		accessible_schemas AS (
 			SELECT schema_name
 			FROM schema_list
-			WHERE has_schema_privilege('%s', quote_ident(schema_name), 'USAGE')
+			WHERE has_schema_privilege('%s', schema_name, 'USAGE') -- quote_ident is not required here for has_schema_privilege
 		)
 		SELECT
 			t.schemaname AS schema_name,
@@ -1819,10 +1856,10 @@ func (pg *PostgreSQL) listTablesMissingSelectPermission(queryTableList string) (
 				// If table name is in pg_catalog_tables_required or information_schema_tables_required and missing SELECT permission, then add to tablesWithMissingPerm
 				if slices.Contains(pg_catalog_tables_required, tableName) || slices.Contains(information_schema_tables_required, tableName) {
 					// quote table name as it can be case sensitive
-					tablesWithMissingPerm = append(tablesWithMissingPerm, fmt.Sprintf(`%s."%s"`, tableSchemaName, tableName))
+					tablesWithMissingPerm = append(tablesWithMissingPerm, fmt.Sprintf(`"%s"."%s"`, tableSchemaName, tableName))
 				}
 			} else {
-				tablesWithMissingPerm = append(tablesWithMissingPerm, fmt.Sprintf(`%s."%s"`, tableSchemaName, tableName))
+				tablesWithMissingPerm = append(tablesWithMissingPerm, fmt.Sprintf(`"%s"."%s"`, tableSchemaName, tableName))
 			}
 		}
 	}

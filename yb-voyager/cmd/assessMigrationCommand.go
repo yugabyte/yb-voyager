@@ -27,9 +27,8 @@ import (
 	"strings"
 	"text/template"
 
-	goerrors "github.com/go-errors/errors"
-
 	"github.com/fatih/color"
+	goerrors "github.com/go-errors/errors"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -44,6 +43,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/types"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
 
@@ -144,7 +144,7 @@ func registerSourceDBConnFlagsForAM(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&source.DBName, "source-db-name", "",
 		"source database name to be migrated to YugabyteDB")
 
-	cmd.Flags().StringVar(&source.Schema, "source-db-schema", "",
+	cmd.Flags().StringVar(&source.SchemaList, "source-db-schema", "",
 		"source schema name(s) to export\n"+
 			`Note: in case of PostgreSQL, it can be a single or comma separated list of schemas: "schema1,schema2,schema3"`)
 
@@ -267,9 +267,12 @@ func assessMigration() (err error) {
 			}
 		}
 
-		res := source.DB().CheckSchemaExists()
+		res, err := source.DB().CheckSchemaExists()
+		if err != nil {
+			return fmt.Errorf("failed to check if source schema exist during assess migration: %w", err)
+		}
 		if !res {
-			return goerrors.Errorf("failed to check if source schema exist: %q", source.Schema)
+			return goerrors.Errorf("Fix the schema list and try again.")
 		}
 
 		// Handle replica discovery and validation (PostgreSQL only)
@@ -1489,14 +1492,16 @@ There can be a lot of false positives.
 For example: standard sql functions like sum(), count() won't be qualified(pg_catalog) in queries generally.
 Making the schema unknown for that object, resulting in query consider
 */
-func considerQueryForIssueDetection(collectedSchemaList []string) bool {
+func    considerQueryForIssueDetection(collectedSchemaList []string) bool {
 	// filtering out pg_catalog schema, since it doesn't impact query consideration decision
 	collectedSchemaList = lo.Filter(collectedSchemaList, func(item string, _ int) bool {
 		return item != "pg_catalog"
 	})
 
-	sourceSchemaList := strings.Split(source.Schema, "|")
-
+	sourceSchemaList := lo.Map(source.Schemas, func(s sqlname.Identifier, _ int) string {
+		//using Unquoted as this is used to check for the schema fetched from parsed queries
+		return s.Unquoted
+	})
 	// fallback in case: unable to collect objects or there are no object(s) in the query
 	if len(collectedSchemaList) == 0 {
 		return true

@@ -272,7 +272,7 @@ func getQuotedFromUnquoted(t string) string {
 	//To preserve case sensitiveness in the Unquoted
 	parts := strings.Split(t, ".")
 	s, t := parts[0], parts[1]
-	return fmt.Sprintf(`%s."%s"`, s, t)
+	return fmt.Sprintf(`"%s"."%s"`, s, t)
 }
 
 func displayExportedRowCountSnapshot(snapshotViaDebezium bool) {
@@ -286,7 +286,7 @@ func displayExportedRowCountSnapshot(snapshotViaDebezium bool) {
 	leafPartitions := getLeafPartitionsFromRootTable()
 	if !snapshotViaDebezium {
 		exportedRowCount := getExportedRowCountSnapshot(exportDir)
-		if source.Schema != "" {
+		if source.SchemaList != "" {
 			addHeader(uitable, "SCHEMA", "TABLE", "ROW COUNT")
 		} else {
 			addHeader(uitable, "DATABASE", "TABLE", "ROW COUNT")
@@ -679,7 +679,9 @@ func InitNameRegistry(
 	if sconf != nil {
 		sourceDbType = sconf.DBType
 		sourceDbName = sconf.DBName
-		sourceDbSchema = sconf.Schema
+		sourceDbSchema = strings.Join(lo.Map(sconf.Schemas, func(s sqlname.Identifier, _ int) string {
+			return s.Unquoted
+		}), "|")
 	}
 	if sdb != nil {
 		sdbReg = sdb.(namereg.SourceDBInterface)
@@ -987,7 +989,9 @@ func initBaseSourceEvent(bev *cp.BaseEvent, eventType string) {
 		MigrationUUID: migrationUUID,
 		DBType:        source.DBType,
 		DatabaseName:  source.DBName,
-		SchemaNames:   cp.GetSchemaList(source.Schema),
+		SchemaNames:   cp.GetSchemaList(strings.Join(lo.Map(source.Schemas, func(s sqlname.Identifier, _ int) string {
+			return s.Unquoted
+		}), "|")),
 		DBIP:          utils.LookupIP(source.Host),
 		Port:          source.Port,
 		DBVersion:     source.DBVersion,
@@ -1021,7 +1025,7 @@ func renameTableIfRequired(table string) (string, bool) {
 
 	sourceDBType = msr.SourceDBConf.DBType
 	sourceDBTypeInMigration := msr.SourceDBConf.DBType
-	schema := msr.SourceDBConf.Schema
+	schema := msr.SourceDBConf.Schemas
 	sqlname.SourceDBType = source.DBType
 	if source.DBType != POSTGRESQL && source.DBType != YUGABYTEDB {
 		return table, false
@@ -1031,13 +1035,15 @@ func renameTableIfRequired(table string) (string, bool) {
 		return table, false
 	}
 	if sourceDBTypeInMigration != POSTGRESQL && source.DBType == YUGABYTEDB {
-		schema = source.Schema
+		schema = source.Schemas
 	}
 	renameTablesMap := msr.SourceRenameTablesMap
 	if source.DBType == YUGABYTEDB {
 		renameTablesMap = msr.TargetRenameTablesMap
 	}
-	defaultSchema, noDefaultSchema := GetDefaultPGSchema(schema, "|")
+	defaultSchema, noDefaultSchema := GetDefaultPGSchema(strings.Join(lo.Map(schema, func(s sqlname.Identifier, _ int) string {
+		return s.Unquoted
+	}), "|"), "|")
 	if noDefaultSchema && len(strings.Split(table, ".")) <= 1 {
 		utils.ErrExit("no default schema found to qualify table: %s", table)
 	}

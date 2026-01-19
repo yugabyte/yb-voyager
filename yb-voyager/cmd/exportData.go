@@ -292,23 +292,38 @@ func exportData() bool {
 		source.IsYBGrpcConnector = msr.UseYBgRPCConnector
 	}
 
-	res := source.DB().CheckSchemaExists()
-	if !res {
-		utils.ErrExit("schema does not exist : %q", source.Schema)
+	// res, err := source.DB().CheckSchemaExists()
+	// if err != nil {
+	// 	utils.ErrExit("error checking schema exists: %w", err)
+	// }
+	// if !res {
+	// 	utils.ErrExit("Fix the schema list and try again.")
+	// }
+
+
+	clearMigrationStateIfRequired()
+
+	err = InitNameRegistry(exportDir, exporterRole, &source, source.DB(), nil, nil, false)
+	if err != nil {
+		utils.ErrExit("initialize name registry: %w", err)
 	}
+	validatedSchemas := []sqlname.Identifier{}
+	for _, schema := range source.Schemas {
+		identifier, err := namereg.NameReg.LookupSchemaName(schema.Unquoted)
+		if err != nil {
+			utils.ErrExit("lookup schema name: %w", err)
+		}
+		validatedSchemas = append(validatedSchemas, identifier)
+	}
+	source.Schemas = validatedSchemas
 
 	if source.RunGuardrailsChecks {
 		checkIfSchemasHaveUsagePermissions()
 	}
 
-	clearMigrationStateIfRequired()
 	checkSourceDBCharset()
 	saveSourceDBConfInMSR()
 	saveExportTypeInMSR()
-	err = InitNameRegistry(exportDir, exporterRole, &source, source.DB(), nil, nil, false)
-	if err != nil {
-		utils.ErrExit("initialize name registry: %w", err)
-	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -696,6 +711,7 @@ func getNameTupleForNonRoot(table string) sqlname.NameTuple {
 		tableName = parts[1]
 	}
 	//remove quotes if present to pass raw table name to objecName
+	schema = strings.Trim(schema, "\"")
 	tableName = strings.Trim(tableName, "\"")
 	obj := sqlname.NewObjectName(source.DBType, defaultSchemaName, schema, tableName)
 	return sqlname.NameTuple{
@@ -847,7 +863,7 @@ func getNameTupleFromQualifiedObject(qualifiedObjectStr string, qualifiedObjectN
 	//Now for PG/YB create a ObjectName and a NameTuple by hand and then check if that is a partition table or not
 	var obj *sqlname.ObjectName
 	if qualifiedObjectName != nil {
-		//if passed in parameter then take it else create one   
+		//if passed in parameter then take it else create one
 		obj = qualifiedObjectName
 	} else {
 		//create the ObjectName by hand
@@ -1389,6 +1405,7 @@ func validateAndExtractTableNamesFromFile(filePath string, flagName string) (str
 }
 
 func clearMigrationStateIfRequired() {
+	log.Infof("clearing migration state if required: %t", startClean)
 	exportDataDir := filepath.Join(exportDir, "data")
 	propertiesFilePath := filepath.Join(exportDir, "metainfo", "conf", "application.properties")
 	sslDir := filepath.Join(exportDir, "metainfo", "ssl")
@@ -1453,9 +1470,11 @@ func getDefaultSourceSchemaName() (string, bool) {
 	case MYSQL:
 		return source.DBName, false
 	case POSTGRESQL, YUGABYTEDB:
-		return GetDefaultPGSchema(source.Schema, "|")
+		return GetDefaultPGSchema(strings.Join(lo.Map(source.Schemas, func(s sqlname.Identifier, _ int) string {
+			return s.Unquoted
+		}), "|"), "|")
 	case ORACLE:
-		return source.Schema, false
+		return source.Schemas[0].Unquoted, false
 	default:
 		panic("invalid db type")
 	}
@@ -1789,7 +1808,7 @@ func createUpdateExportedRowCountEventList(tableNames []string) []*cp.UpdateExpo
 		if source.DBType == "postgresql" && strings.Count(tableName, ".") == 1 {
 			schemaName, tableName2 = cp.SplitTableNameForPG(tableName)
 		} else {
-			schemaName, tableName2 = source.Schema, tableName
+			schemaName, tableName2 = source.Schemas[0].Unquoted, tableName
 		}
 		tableMetrics := cp.UpdateExportedRowCountEvent{
 			BaseUpdateRowCountEvent: cp.BaseUpdateRowCountEvent{

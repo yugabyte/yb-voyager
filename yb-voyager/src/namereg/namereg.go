@@ -32,6 +32,7 @@ var NameReg NameRegistry
 type SourceDBInterface interface {
 	GetAllTableNamesRaw(schemaName string) ([]string, error)
 	GetAllSequencesRaw(schemaName string) ([]string, error)
+	GetAllSchemaNamesIdentifiers() ([]sqlname.Identifier, error)
 }
 
 type YBDBInterface interface {
@@ -151,7 +152,10 @@ func (reg *NameRegistry) registerSourceNames() (bool, error) {
 		return false, goerrors.Errorf("source db connection is not available")
 	}
 	reg.SourceDBType = reg.params.SourceDBType
-	reg.initSourceDBSchemaNames()
+	err := reg.initSourceDBSchemaNames()
+	if err != nil {
+		return false, fmt.Errorf("init source db schema names: %w", err)
+	}
 	tableMap := make(map[string][]string)
 	sequenceMap := make(map[string][]string)
 	for _, schemaName := range reg.SourceDBSchemaNames {
@@ -221,7 +225,7 @@ func (reg *NameRegistry) GetRegisteredTableList(ignoreOtherSideOfMappingIfNotFou
 	return res, nil
 }
 
-func (reg *NameRegistry) initSourceDBSchemaNames() {
+func (reg *NameRegistry) initSourceDBSchemaNames() error {
 	// source.Schema contains only one schema name for MySQL and Oracle; whereas
 	// it contains a pipe separated list for postgres.
 	switch reg.params.SourceDBType {
@@ -230,17 +234,66 @@ func (reg *NameRegistry) initSourceDBSchemaNames() {
 	case constants.MYSQL:
 		reg.SourceDBSchemaNames = []string{reg.params.SourceDBName}
 	case constants.POSTGRESQL:
-		reg.SourceDBSchemaNames = lo.Map(strings.Split(reg.params.SourceDBSchema, "|"), func(s string, _ int) string {
-			return strings.ToLower(s)
+		schemaNames := lo.Map(strings.Split(reg.params.SourceDBSchema, "|"), func(s string, _ int) string {
+			return s
 		})
+		var err error
+		reg.SourceDBSchemaNames, err = reg.validateAndSetSchemaNames(schemaNames)
+		if err != nil {
+			return fmt.Errorf("failed to validate schema names: %w", err)
+		}
 	}
 	if len(reg.SourceDBSchemaNames) == 1 {
 		reg.DefaultSourceDBSchemaName = reg.SourceDBSchemaNames[0]
 	} else if lo.Contains(reg.SourceDBSchemaNames, "public") {
 		reg.DefaultSourceDBSchemaName = "public"
 	}
+	return nil
 }
 
+func (reg *NameRegistry) validateAndSetSchemaNames(schemaNames []string) ([]string, error) {
+	allSchemas, err := reg.params.SDB.GetAllSchemaNamesIdentifiers()
+	if err != nil {
+		return nil, fmt.Errorf("get all schema names: %w", err)
+	}
+	schemaIdenitifiers := lo.Map(schemaNames, func(s string, _ int) sqlname.Identifier {
+		return sqlname.NewIdentifier(reg.params.SourceDBType, s)
+	})
+	var schemaNotPresent []sqlname.Identifier
+	var finalSchemaList []sqlname.Identifier
+	for _, schema := range schemaIdenitifiers {
+		matchedSchema := false
+		for _, schemaOnDB := range allSchemas {
+			if schemaOnDB.CaseSensitiveMatch(schema) {
+				matchedSchema = true
+				finalSchemaList = append(finalSchemaList, schemaOnDB)
+				break
+			}
+		}
+		if !matchedSchema {
+			//If not matched with any case sensitive match, then check for in case sensitive match
+			for _, schemaOnDB := range allSchemas {
+				if schemaOnDB.CaseInSensitiveMatch(schema) {
+					matchedSchema = true
+					finalSchemaList = append(finalSchemaList, schemaOnDB)
+					break
+				}
+			}
+			if !matchedSchema {
+				schemaNotPresent = append(schemaNotPresent, schema)
+			}
+		}
+	}
+
+	if len(schemaNotPresent) > 0 {
+		return nil, fmt.Errorf("\nFollowing schemas are not present in source database: %v, please provide a valid schema list.\n", lo.Map(schemaNotPresent, func(s sqlname.Identifier, _ int) string {
+			return s.Unquoted
+		}))
+	}
+	return lo.Map(finalSchemaList, func(s sqlname.Identifier, _ int) string {
+		return s.Unquoted
+	}), nil
+}
 func (reg *NameRegistry) registerYBNames() (bool, error) {
 	if reg.params.YBDB == nil {
 		return false, goerrors.Errorf("target db is nil")
@@ -479,6 +532,31 @@ func (reg *NameRegistry) lookupSourceAndTargetTableNames(tableNameArg string, ig
 		return nil, nil, &ErrNameNotFound{ObjectType: "table", Name: tableNameArg}
 	}
 	return sourceName, targetName, nil
+}
+
+func (reg *NameRegistry) LookupSchemaName(schemaName string) (sqlname.Identifier, error) {
+	schemaIdenitifiers := lo.Map(reg.SourceDBSchemaNames, func(s string, _ int) sqlname.Identifier {
+		return sqlname.NewIdentifier(reg.SourceDBType, s)
+	})
+	schemaNameIdentifier := sqlname.NewIdentifier(reg.SourceDBType, schemaName)
+	var matchedSchema bool
+	for _, schema := range schemaIdenitifiers {
+		if schema.CaseSensitiveMatch(schemaNameIdentifier) {
+			matchedSchema = true
+			return schema, nil
+		}
+	}
+	if !matchedSchema {
+		//If not matched with any case sensitive match, then check for in case sensitive match
+		for _, schemaOnDB := range schemaIdenitifiers {
+			if schemaOnDB.CaseInSensitiveMatch(schemaNameIdentifier) {
+				matchedSchema = true
+				return schemaOnDB, nil
+			}
+		}
+
+	}
+	return sqlname.Identifier{}, fmt.Errorf("schema name not found: %s", schemaName)
 }
 
 func (reg *NameRegistry) checkIfSchemaNameIsDefault(schemaName string) bool {

@@ -19,7 +19,6 @@ import (
 	"fmt"
 
 	goerrors "github.com/go-errors/errors"
-
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -29,6 +28,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 var transactionOrdering utils.BoolStr
@@ -128,9 +128,10 @@ func initSourceConfFromTargetConf(cmd *cobra.Command) error {
 	source.User = targetConf.User
 	source.DBName = targetConf.DBName
 	if sourceDBConf.DBType == POSTGRESQL {
-		source.Schema = sourceDBConf.Schema // in case of PG migration the tconf.Schema is public but in case of non-puclic or multiple schemas this needs to PG schemas
+		source.Schemas = sourceDBConf.Schemas // in case of PG migration the tconf.Schema is public but in case of non-puclic or multiple schemas this needs to PG schemas
 	} else {
-		source.Schema = targetConf.Schema
+		schema := sqlname.NewIdentifier(targetConf.TargetDBType, targetConf.Schema)
+		source.Schemas = []sqlname.Identifier{schema}
 	}
 
 	if msr.UseYBgRPCConnector {

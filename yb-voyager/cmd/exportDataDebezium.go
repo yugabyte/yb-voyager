@@ -135,8 +135,10 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 		Username:           source.User,
 		Password:           source.Password,
 
-		DatabaseName:          source.DBName,
-		SchemaNames:           source.Schema,
+		DatabaseName: source.DBName,
+		SchemaNames: strings.Join(lo.Map(source.Schemas, func(s sqlname.Identifier, _ int) string {
+			return s.Unquoted
+		}), "|"),
 		TableList:             dbzmTableList,
 		ColumnList:            dbzmColumnList,
 		ColumnSequenceMapping: columnSequenceMapping,
@@ -265,8 +267,9 @@ func fetchOrRetrieveColToSeqMap(msr *metadb.MigrationStatusRecord, tableList []s
 	}
 	return colToSeqMap, nil
 }
-//returns qualified column name to sequence name mapping for debezium
-//<schema>.<table>.<column>:<sequnce_name_user_query_format> as the sequence max value mapping also has the userQuery format
+
+// returns qualified column name to sequence name mapping for debezium
+// <schema>.<table>.<column>:<sequnce_name_user_query_format> as the sequence max value mapping also has the userQuery format
 func getColumnToSequenceMapping(colToSeqMap map[string]string) (string, error) {
 	var colToSeqMapSlices []string
 

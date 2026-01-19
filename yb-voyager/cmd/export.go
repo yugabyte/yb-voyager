@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	goerrors "github.com/go-errors/errors"
+	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
 
@@ -30,6 +31,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 // source struct will be populated by CLI arguments parsing
@@ -84,7 +86,7 @@ func registerCommonSourceDBConnFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&source.DBName, "source-db-name", "",
 		"source database name to be migrated to YugabyteDB")
 
-	cmd.Flags().StringVar(&source.Schema, "source-db-schema", "",
+	cmd.Flags().StringVar(&source.SchemaList, "source-db-schema", "",
 		"source schema name to export (valid for Oracle, PostgreSQL)\n"+
 			`Note: in case of PostgreSQL, it can be a single or comma separated list of schemas: "schema1,schema2,schema3"`)
 }
@@ -276,11 +278,11 @@ func validateConflictsBetweenTableListFlags(tableList string, excludeTableList s
 }
 
 func validateSourceSchema() {
-	if source.Schema == "" {
+	if source.SchemaList == "" {
 		return
 	}
 
-	schemaList := utils.CsvStringToSlice(source.Schema)
+	schemaList := utils.CsvStringToSlice(source.SchemaList)
 	switch source.DBType {
 	case MYSQL:
 		utils.ErrExit("Error --source-db-schema flag is not valid for 'MySQL' db type")
@@ -290,7 +292,10 @@ func validateSourceSchema() {
 		}
 	case POSTGRESQL:
 		// In PG, its supported to export more than one schema
-		source.Schema = strings.Join(schemaList, "|") // clean and correct formatted for pg
+		source.Schemas = lo.Map(schemaList, func(s string, _ int) sqlname.Identifier {
+			schema := sqlname.NewIdentifier(source.DBType, s)
+			return schema
+		})
 	}
 }
 
@@ -316,9 +321,9 @@ func validateOracleParams() {
 	}
 
 	// in oracle, object names are stored in UPPER CASE by default(case insensitive)
-	if !utils.IsQuotedString(source.Schema) {
-		source.Schema = strings.ToUpper(source.Schema)
-	}
+	// if !utils.IsQuotedString(source.Schemas[0]) {
+	// 	source.Schemas = strings.ToUpper(source.Schemas)
+	// }
 	if source.DBName == "" && source.DBSid == "" && source.TNSAlias == "" {
 		utils.ErrExit(`Error one flag required out of "oracle-tns-alias", "source-db-name", "oracle-db-sid" required.`)
 	} else if source.TNSAlias != "" {

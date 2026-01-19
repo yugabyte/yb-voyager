@@ -27,10 +27,12 @@ import (
 	"syscall"
 
 	goerrors "github.com/go-errors/errors"
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 const (
@@ -216,7 +218,9 @@ func GatherAssessmentMetadataFromPG(
 			[]string{fmt.Sprintf("PGPASSWORD=%s", source.Password)},
 			assessmentMetadataDir,
 			connectionUri,
-			source.Schema,
+			strings.Join(lo.Map(source.Schemas, func(s sqlname.Identifier, _ int) string {
+				return s.MinQuoted
+			}), "|"),
 			assessmentMetadataDir,
 			fmt.Sprintf("%t", pgssEnabled),
 			fmt.Sprintf("%d", iopsInterval),
@@ -294,7 +298,9 @@ func GatherAssessmentMetadataFromPG(
 				progressChan,
 				assessmentMetadataDir,
 				n.connectionUri,
-				source.Schema,
+				strings.Join(lo.Map(source.Schemas, func(s sqlname.Identifier, _ int) string {
+					return s.MinQuoted
+				}), "|"),
 				assessmentMetadataDir,
 				fmt.Sprintf("%t", pgssEnabled),
 				fmt.Sprintf("%d", iopsInterval),
@@ -353,7 +359,7 @@ func GatherAssessmentMetadataFromOracle(
 	}
 	log.Infof("environment variables passed to oracle gather metadata script: %v", envVars)
 	return runGatherAssessmentMetadataScript(scriptPath, envVars, assessmentMetadataDir,
-		source.DB().GetConnectionUriWithoutPassword(), strings.ToUpper(source.Schema), assessmentMetadataDir)
+		source.DB().GetConnectionUriWithoutPassword(), strings.ToUpper(source.Schemas[0].Unquoted), assessmentMetadataDir)
 }
 
 func findGatherMetadataScriptPath(dbType string) (string, error) {

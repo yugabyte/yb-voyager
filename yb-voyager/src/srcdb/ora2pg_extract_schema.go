@@ -93,7 +93,7 @@ func ora2pgExtractSchema(source *Source, exportDir string, schemaDir string) {
 			utils.ErrExit("failed to process import directives during export schema: %w", err)
 		}
 		if exportObject == "SYNONYM" {
-			if err := stripSourceSchemaNames(utils.GetObjectFilePath(schemaDir, exportObject), source.Schema); err != nil {
+			if err := stripSourceSchemaNames(utils.GetObjectFilePath(schemaDir, exportObject), source.Schemas[0].Unquoted); err != nil {
 				utils.ErrExit("failed to strip schema names for SYNONYM object during export schema: %w", err)
 			}
 		}

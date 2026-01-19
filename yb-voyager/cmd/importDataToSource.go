@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
@@ -26,6 +27,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/types"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 var importDataToSourceCmd = &cobra.Command{
@@ -75,9 +77,11 @@ func initTargetConfFromSourceConf() error {
 	tconf.User = sconf.User
 	tconf.DBName = sconf.DBName
 	if tconf.TargetDBType == POSTGRESQL {
-		tconf.Schema = strings.Join(strings.Split(sconf.Schema, "|"), ",")
+		tconf.Schema = strings.Join(lo.Map(sconf.Schemas, func(s sqlname.Identifier, _ int) string {
+			return s.Unquoted
+		}), ",")
 	} else {
-		tconf.Schema = sconf.Schema
+		tconf.Schema = sconf.Schemas[0].Unquoted
 	}
 	tconf.SSLMode = sconf.SSLMode
 	tconf.SSLMode = sconf.SSLMode
