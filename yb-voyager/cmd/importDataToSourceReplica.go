@@ -61,7 +61,7 @@ func setTargetConfSpecifics(cmd *cobra.Command) {
 			//tODO fixthis to schema identifier
 			tconf.Schema = strings.Join(lo.Map(sconf.Schemas, func(s sqlname.Identifier, _ int) string {
 				return s.Quoted
-			}), ",")
+			}), "|")
 		}
 	}
 }
