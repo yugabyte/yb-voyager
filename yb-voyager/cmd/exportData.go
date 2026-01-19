@@ -1808,7 +1808,11 @@ func createUpdateExportedRowCountEventList(tableNames []string) []*cp.UpdateExpo
 		if source.DBType == "postgresql" && strings.Count(tableName, ".") == 1 {
 			schemaName, tableName2 = cp.SplitTableNameForPG(tableName)
 		} else {
-			schemaName, tableName2 = source.Schemas[0].Unquoted, tableName
+			schema := ""
+			if len(source.Schemas) > 0 {
+				schema = source.Schemas[0].Unquoted
+			}
+			schemaName, tableName2 = schema, tableName
 		}
 		tableMetrics := cp.UpdateExportedRowCountEvent{
 			BaseUpdateRowCountEvent: cp.BaseUpdateRowCountEvent{
