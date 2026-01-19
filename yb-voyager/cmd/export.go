@@ -290,6 +290,7 @@ func validateSourceSchema() {
 		if len(schemaList) > 1 {
 			utils.ErrExit("Error single schema at a time is allowed to export from oracle. List of schemas provided: %s", schemaList)
 		}
+		source.Schemas = []sqlname.Identifier{sqlname.NewIdentifier(source.DBType, schemaList[0])}
 	case POSTGRESQL:
 		// In PG, its supported to export more than one schema
 		source.Schemas = lo.Map(schemaList, func(s string, _ int) sqlname.Identifier {
