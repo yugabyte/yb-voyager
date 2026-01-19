@@ -144,7 +144,7 @@ func registerSourceDBConnFlagsForAM(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&source.DBName, "source-db-name", "",
 		"source database name to be migrated to YugabyteDB")
 
-	cmd.Flags().StringVar(&source.SchemaList, "source-db-schema", "",
+	cmd.Flags().StringVar(&source.SchemaConfig, "source-db-schema", "",
 		"source schema name(s) to export\n"+
 			`Note: in case of PostgreSQL, it can be a single or comma separated list of schemas: "schema1,schema2,schema3"`)
 

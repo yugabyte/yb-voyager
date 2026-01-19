@@ -86,7 +86,7 @@ func registerCommonSourceDBConnFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&source.DBName, "source-db-name", "",
 		"source database name to be migrated to YugabyteDB")
 
-	cmd.Flags().StringVar(&source.SchemaList, "source-db-schema", "",
+	cmd.Flags().StringVar(&source.SchemaConfig, "source-db-schema", "",
 		"source schema name to export (valid for Oracle, PostgreSQL)\n"+
 			`Note: in case of PostgreSQL, it can be a single or comma separated list of schemas: "schema1,schema2,schema3"`)
 }
@@ -278,11 +278,11 @@ func validateConflictsBetweenTableListFlags(tableList string, excludeTableList s
 }
 
 func validateSourceSchema() {
-	if source.SchemaList == "" {
+	if source.SchemaConfig == "" {
 		return
 	}
 
-	schemaList := utils.CsvStringToSlice(source.SchemaList)
+	schemaList := utils.CsvStringToSlice(source.SchemaConfig)
 	switch source.DBType {
 	case MYSQL:
 		utils.ErrExit("Error --source-db-schema flag is not valid for 'MySQL' db type")

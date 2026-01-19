@@ -74,7 +74,7 @@ func initTargetConfFromSourceConf() error {
 	tconf.User = sconf.User
 	tconf.DBName = sconf.DBName
 	tconf.Schemas = sconf.Schemas
-	tconf.SchemaConfig = sconf.SchemaList
+	tconf.SchemaConfig = sconf.SchemaConfig
 	tconf.SSLMode = sconf.SSLMode
 	tconf.SSLMode = sconf.SSLMode
 	tconf.SSLCertPath = sconf.SSLCertPath

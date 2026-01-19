@@ -41,7 +41,7 @@ type Source struct {
 	OracleHome                string               `json:"oracle_home"`
 	TNSAlias                  string               `json:"tns_alias"`
 	CDBTNSAlias               string               `json:"cdb_tns_alias"`
-	SchemaList                string               `json:"schema_list"`
+	SchemaConfig              string               `json:"schema_list"`
 	Schemas                   []sqlname.Identifier `json:"schema"`
 	SSLMode                   string               `json:"ssl_mode"`
 	SSLCertPath               string               `json:"ssl_cert_path"`
@@ -103,7 +103,7 @@ func (s *Source) GetTNSAdmin() (string, error) {
 }
 
 func (s *Source) GetSchemaList() []string {
-	return lo.Map(s.Schemas   , func(s sqlname.Identifier, _ int) string {
+	return lo.Map(s.Schemas, func(s sqlname.Identifier, _ int) string {
 		return s.MinQuoted
 	})
 }

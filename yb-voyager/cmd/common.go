@@ -286,7 +286,7 @@ func displayExportedRowCountSnapshot(snapshotViaDebezium bool) {
 	leafPartitions := getLeafPartitionsFromRootTable()
 	if !snapshotViaDebezium {
 		exportedRowCount := getExportedRowCountSnapshot(exportDir)
-		if source.SchemaList != "" {
+		if source.SchemaConfig != "" {
 			addHeader(uitable, "SCHEMA", "TABLE", "ROW COUNT")
 		} else {
 			addHeader(uitable, "DATABASE", "TABLE", "ROW COUNT")
@@ -1007,12 +1007,12 @@ func initBaseTargetEvent(bev *cp.BaseEvent, eventType string) {
 		MigrationUUID: migrationUUID,
 		DBType:        tconf.TargetDBType,
 		DatabaseName:  tconf.DBName,
-		SchemaNames:   lo.Map(tconf.Schemas, func(s sqlname.Identifier, _ int) string {
+		SchemaNames: lo.Map(tconf.Schemas, func(s sqlname.Identifier, _ int) string {
 			return s.Unquoted
 		}),
-		DBIP:          utils.LookupIP(tconf.Host),
-		Port:          tconf.Port,
-		DBVersion:     tconf.DBVersion,
+		DBIP:      utils.LookupIP(tconf.Host),
+		Port:      tconf.Port,
+		DBVersion: tconf.DBVersion,
 	}
 }
 

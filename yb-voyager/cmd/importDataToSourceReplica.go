@@ -57,7 +57,7 @@ func setTargetConfSpecifics(cmd *cobra.Command) {
 		} else {
 			//tODO fixthis to schema identifier
 			tconf.Schemas = sconf.Schemas
-			tconf.SchemaConfig = sconf.SchemaList
+			tconf.SchemaConfig = sconf.SchemaConfig
 		}
 	}
 }
