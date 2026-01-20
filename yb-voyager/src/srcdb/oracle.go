@@ -263,7 +263,7 @@ func (ora *Oracle) GetIndexesInfo() []utils.IndexInfo {
 	WHERE AIN.OWNER = '%s' 
 	AND NOT (AIN.INDEX_NAME LIKE 'SYS%%' OR AIN.INDEX_NAME LIKE 'DR$%%')
 	AND AC.CONSTRAINT_TYPE IS NULL -- Exclude primary keys
-	GROUP BY AIN.INDEX_NAME, AIN.INDEX_TYPE, AIN.TABLE_NAME`, ora.source.Schemas)
+	GROUP BY AIN.INDEX_NAME, AIN.INDEX_TYPE, AIN.TABLE_NAME`, ora.source.Schemas[0].Unquoted)
 	rows, err := ora.db.Query(query)
 	if err != nil {
 		utils.ErrExit("error in querying source database for indexes info: %w", err)
@@ -339,7 +339,7 @@ func (ora *Oracle) GetCharset() (string, error) {
 
 func (ora *Oracle) GetDatabaseSize() (int64, error) {
 	var dbSize sql.NullInt64
-	query := fmt.Sprintf("SELECT SUM(BYTES) FROM DBA_SEGMENTS WHERE OWNER = '%s'", ora.source.Schemas)
+	query := fmt.Sprintf("SELECT SUM(BYTES) FROM DBA_SEGMENTS WHERE OWNER = '%s'", ora.source.Schemas[0].Unquoted)
 	err := ora.db.QueryRow(query).Scan(&dbSize)
 	if err != nil {
 		return 0, fmt.Errorf("error in querying database encoding: %w", err)
@@ -352,7 +352,7 @@ func (ora *Oracle) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []
 	var filteredTableList, unsupportedTableList []sqlname.NameTuple
 
 	// query to find unsupported queue tables
-	query := fmt.Sprintf("SELECT queue_table from ALL_QUEUE_TABLES WHERE OWNER = '%s'", ora.source.Schemas)
+	query := fmt.Sprintf("SELECT queue_table from ALL_QUEUE_TABLES WHERE OWNER = '%s'", ora.source.Schemas[0].Unquoted)
 	log.Infof("query for queue tables: %q\n", query)
 	rows, err := ora.db.Query(query)
 	if err != nil {
@@ -445,7 +445,7 @@ func (ora *Oracle) IsParentOfNestedTable(tableName sqlname.NameTuple) bool {
 
 func (ora *Oracle) GetTargetIdentityColumnSequenceName(sequenceName string) string {
 	var tableName, columnName string
-	query := fmt.Sprintf("SELECT table_name, column_name FROM all_tab_identity_cols WHERE owner = '%s' AND sequence_name = '%s'", ora.source.Schemas, strings.ToUpper(sequenceName))
+	query := fmt.Sprintf("SELECT table_name, column_name FROM all_tab_identity_cols WHERE owner = '%s' AND sequence_name = '%s'", ora.source.Schemas[0].Unquoted, strings.ToUpper(sequenceName))
 	err := ora.db.QueryRow(query).Scan(&tableName, &columnName)
 
 	if err == sql.ErrNoRows {
@@ -665,8 +665,8 @@ func (ora *Oracle) GetTableToUniqueKeyColumnsMap(tableList []sqlname.NameTuple) 
 		queryTableList = append(queryTableList, tname)
 		tableStrToNameTupleMap[tname] = table
 	}
-	query := fmt.Sprintf(oraQueryTmplForUniqCols, ora.source.Schemas, strings.Join(queryTableList, "','"),
-		ora.source.Schemas, strings.Join(queryTableList, "','"))
+	query := fmt.Sprintf(oraQueryTmplForUniqCols, ora.source.Schemas[0].Unquoted, strings.Join(queryTableList, "','"),
+		ora.source.Schemas[0].Unquoted, strings.Join(queryTableList, "','"))
 	log.Infof("query to get unique key columns for tables: %q", query)
 	rows, err := ora.db.Query(query)
 	if err != nil {
@@ -743,7 +743,7 @@ func (ora *Oracle) GetNonPKTables() ([]string, error) {
 	) pk_count ON at.table_name = pk_count.table_name
 	WHERE at.owner = '%[1]s'
 	AND   at.table_name NOT LIKE 'DR$%%'   -- exclude Oracle-Text internal tables`,
-		ora.source.Schemas)
+		ora.source.Schemas[0].Unquoted)
 	rows, err := ora.db.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("error in querying source database for unsupported tables: %w", err)
@@ -762,7 +762,7 @@ func (ora *Oracle) GetNonPKTables() ([]string, error) {
 		if err != nil {
 			return nil, fmt.Errorf("error in scanning query rows for unsupported tables: %w", err)
 		}
-		table := sqlname.NewSourceName(ora.source.Schemas[0].Quoted, fmt.Sprintf(`"%s"`, tableName))
+		table := sqlname.NewSourceName(ora.source.Schemas[0].Unquoted, fmt.Sprintf(`"%s"`, tableName))
 		if count == 0 {
 			nonPKTables = append(nonPKTables, table.Qualified.Quoted)
 		}
