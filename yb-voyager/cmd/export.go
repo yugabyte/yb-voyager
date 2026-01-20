@@ -320,11 +320,6 @@ func validateOracleParams() {
 	if source.DBType != ORACLE {
 		return
 	}
-
-	// in oracle, object names are stored in UPPER CASE by default(case insensitive)
-	// if !utils.IsQuotedString(source.Schemas[0]) {
-	// 	source.Schemas = strings.ToUpper(source.Schemas)
-	// }
 	if source.DBName == "" && source.DBSid == "" && source.TNSAlias == "" {
 		utils.ErrExit(`Error one flag required out of "oracle-tns-alias", "source-db-name", "oracle-db-sid" required.`)
 	} else if source.TNSAlias != "" {

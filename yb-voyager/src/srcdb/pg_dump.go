@@ -85,9 +85,6 @@ func getPgDumpArgsFromFile(sectionToRead string) string {
 	section := iniData.Section(sectionToRead)
 	var args strings.Builder
 	for _, key := range section.Keys() {
-		fmt.Printf("key %v\n", key)
-		fmt.Printf("key.Value() %v\n", key.Value())
-		fmt.Printf("key.Name() %v\n", key.Name())
 		if key.Value() == "false" {
 			continue
 		}

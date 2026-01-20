@@ -711,7 +711,6 @@ func InitNameRegistry(
 		YBDB:           ybdb,
 	}
 
-	fmt.Printf("nameregistryParams %v\n", nameregistryParams)
 	err := namereg.InitNameRegistry(nameregistryParams)
 	if err != nil {
 		return err

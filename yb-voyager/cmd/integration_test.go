@@ -77,8 +77,6 @@ func TestOracle_ReportUnsupportedIndexTypes(t *testing.T) {
 		t.Fatalf("Failed to parse schema analysis report: %v", err)
 	}
 
-	fmt.Println("report", report)
-
 	// Check if the report contains unsupported index types
 	expectedJsonString := `Indexes which are neither exported by yb-voyager as they are unsupported in YB and needs to be handled manually:
 		Index Name=IDX_ADDRESS_TEXT, Index Type=DOMAIN

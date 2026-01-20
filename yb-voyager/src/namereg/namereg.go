@@ -152,7 +152,6 @@ func (reg *NameRegistry) registerSourceNames() (bool, error) {
 		return false, goerrors.Errorf("source db connection is not available")
 	}
 	reg.SourceDBType = reg.params.SourceDBType
-	fmt.Printf("reg.params.SourceDBSchema %v\n", reg.params.SourceDBSchema)
 	err := reg.initSourceDBSchemaNames()
 	if err != nil {
 		return false, fmt.Errorf("init source db schema names: %w", err)
@@ -235,7 +234,6 @@ func (reg *NameRegistry) initSourceDBSchemaNames() error {
 	case constants.MYSQL:
 		reg.SourceDBSchemaNames = []string{reg.params.SourceDBName}
 	case constants.POSTGRESQL:
-		fmt.Printf("reg.params.SourceDBSchema %v\n", reg.params.SourceDBSchema)
 		schemaNames := lo.Map(strings.Split(reg.params.SourceDBSchema, "|"), func(s string, _ int) string {
 			return s
 		})
@@ -244,7 +242,6 @@ func (reg *NameRegistry) initSourceDBSchemaNames() error {
 		if err != nil {
 			return fmt.Errorf("failed to validate schema names: %w", err)
 		}
-		fmt.Printf("reg.SourceDBSchemaNames %v\n", reg.SourceDBSchemaNames)
 	}
 	if len(reg.SourceDBSchemaNames) == 1 {
 		reg.DefaultSourceDBSchemaName = reg.SourceDBSchemaNames[0]
@@ -298,7 +295,7 @@ func (reg *NameRegistry) registerYBNames() (bool, error) {
 	case constants.POSTGRESQL:
 		reg.YBSchemaNames = reg.SourceDBSchemaNames
 	default:
-		reg.YBSchemaNames = lo.Map(strings.Split(reg.params.TargetDBSchema, ","), func(s string, _ int) string {
+		reg.YBSchemaNames = lo.Map(strings.Split(reg.params.TargetDBSchema, "|"), func(s string, _ int) string {
 			schema := sqlname.NewIdentifier(constants.YUGABYTEDB, s)
 			return schema.Unquoted
 		})
@@ -540,7 +537,7 @@ func (reg *NameRegistry) LookupSchemaName(schemaName string) (sqlname.Identifier
 		schemaNames = reg.YBSchemaNames
 		dbType = constants.YUGABYTEDB
 	default:
-		return sqlname.Identifier{}, fmt.Errorf("invalid role: %s", reg.params.Role)
+		return sqlname.Identifier{}, goerrors.Errorf("invalid role: %s", reg.params.Role)
 	}
 	schemaIdenitifiers := lo.Map(schemaNames, func(s string, _ int) sqlname.Identifier {
 		return sqlname.NewIdentifier(dbType, s)

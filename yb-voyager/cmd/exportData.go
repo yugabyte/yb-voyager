@@ -292,15 +292,6 @@ func exportData() bool {
 		source.IsYBGrpcConnector = msr.UseYBgRPCConnector
 	}
 
-	// res, err := source.DB().CheckSchemaExists()
-	// if err != nil {
-	// 	utils.ErrExit("error checking schema exists: %w", err)
-	// }
-	// if !res {
-	// 	utils.ErrExit("Fix the schema list and try again.")
-	// }
-
-
 	clearMigrationStateIfRequired()
 
 	err = InitNameRegistry(exportDir, exporterRole, &source, source.DB(), nil, nil, false)

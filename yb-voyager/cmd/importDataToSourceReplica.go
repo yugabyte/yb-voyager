@@ -55,7 +55,6 @@ func setTargetConfSpecifics(cmd *cobra.Command) {
 		if cmd.Flags().Lookup("source-replica-db-schema").Changed {
 			utils.ErrExit("cannot specify --source-replica-db-schema for PostgreSQL source")
 		} else {
-			//tODO fixthis to schema identifier
 			tconf.Schemas = sconf.Schemas
 			tconf.SchemaConfig = sconf.SchemaConfig
 		}

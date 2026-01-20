@@ -95,7 +95,6 @@ var invalidTargetIndexesCache map[string]bool
 
 func importSchema() error {
 
-	// tconf.Schema = strings.ToLower(tconf.Schema)TODO
 	tconf.Schemas = lo.Map(strings.Split(tconf.SchemaConfig, ","), func(s string, _ int) sqlname.Identifier {
 		return sqlname.NewIdentifier(tconf.TargetDBType, s)
 	})
@@ -459,7 +458,6 @@ func getDDLStmts(objType string) []sqlInfo {
 
 func createTargetSchemas(conn *pgx.Conn) {
 	var targetSchemas []sqlname.Identifier
-	// tconf.Schema = strings.ToLower(strings.Trim(tconf.Schema, "\"")) //trim case sensitivity quotes if needed, convert to lowercase TODO
 
 	schemaAnalysisReport := analyzeSchemaInternal(
 		&srcdb.Source{
@@ -470,7 +468,6 @@ func createTargetSchemas(conn *pgx.Conn) {
 	case "postgresql": // in case of postgreSQL as source, there can be multiple schemas present in a database
 		source = srcdb.Source{DBType: sourceDBType}
 		schemaNames := utils.GetObjectNameListFromReport(schemaAnalysisReport, "SCHEMA")
-		fmt.Printf("schemas %v\n", schemaNames)
 		targetSchemas = lo.Map(schemaNames, func(s string, _ int) sqlname.Identifier {
 			return sqlname.NewIdentifier(constants.YUGABYTEDB, s)
 		})
@@ -486,7 +483,6 @@ func createTargetSchemas(conn *pgx.Conn) {
 		targetSchemas = append(targetSchemas, tconf.Schemas...)
 
 	}
-	// targetSchemas = utils.ToCaseInsensitiveNames(targetSchemas)
 
 	utils.PrintAndLogf("schemas to be present in target database %q: %v\n", tconf.DBName, lo.Map(targetSchemas, func(schema sqlname.Identifier, _ int) string {
 		return schema.MinQuoted
