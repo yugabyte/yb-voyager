@@ -30,6 +30,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
@@ -781,7 +782,7 @@ func (pg *TargetPostgreSQL) GetIdentityColumnNamesForTables(tableNameTuples []sq
 
 	for rows.Next() {
 		var schemaName, tableName string
-		var identityColumns []string
+		var identityColumns pgtype.FlatArray[string]
 		err = rows.Scan(&schemaName, &tableName, &identityColumns)
 		if err != nil {
 			return nil, fmt.Errorf("error in scanning row for identity(%s) columns: %w", identityType, err)
@@ -795,7 +796,7 @@ func (pg *TargetPostgreSQL) GetIdentityColumnNamesForTables(tableNameTuples []sq
 			continue
 		}
 
-		result.Put(tableNameTuple, identityColumns)
+		result.Put(tableNameTuple, []string(identityColumns))
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("error iterating over identity column results: %w", err)
