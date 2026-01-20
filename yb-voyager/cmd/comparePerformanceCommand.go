@@ -86,14 +86,6 @@ func comparePerformanceCommandFn(cmd *cobra.Command, args []string) {
 		utils.ErrExit("Failed to create assessment database: %v", err)
 	}
 
-	if tconf.SchemaConfig == "" {
-		tconf.Schemas = msr.TargetDBConf.Schemas
-	} else {
-		tconf.Schemas = lo.Map(strings.Split(tconf.SchemaConfig, ","), func(s string, _ int) sqlname.Identifier {
-			return sqlname.NewIdentifier(constants.YUGABYTEDB, s)
-		})
-	}
-
 	targetDB := tgtdb.NewTargetDB(&tconf)
 	err = targetDB.Init()
 	if err != nil {
@@ -171,6 +163,19 @@ func validateComparePerfPrerequisites() {
 	}
 	if !hasData {
 		utils.ErrExit("No query statistics found in assessment database. Please ensure pg_stat_statements extension was enabled during assess-migration and that workload was executed on the source database.")
+	}
+
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("Failed to get migration status record: %v", err)
+	}
+
+	if tconf.SchemaConfig == "" {
+		tconf.Schemas = msr.TargetDBConf.Schemas
+	} else {
+		tconf.Schemas = lo.Map(strings.Split(tconf.SchemaConfig, ","), func(s string, _ int) sqlname.Identifier {
+			return sqlname.NewIdentifier(constants.YUGABYTEDB, s)
+		})
 	}
 
 	// Check 4: Target database is reachable
