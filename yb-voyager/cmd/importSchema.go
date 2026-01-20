@@ -95,6 +95,7 @@ var invalidTargetIndexesCache map[string]bool
 
 func importSchema() error {
 
+	//TODO: see if namreg initialization is required here
 	tconf.Schemas = lo.Map(strings.Split(tconf.SchemaConfig, ","), func(s string, _ int) sqlname.Identifier {
 		return sqlname.NewIdentifier(tconf.TargetDBType, s)
 	})

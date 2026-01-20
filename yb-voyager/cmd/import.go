@@ -391,6 +391,11 @@ func validateTargetSchemaFlag() {
 			tconf.SchemaConfig = tconf.User
 		}
 		return
+	} else {
+		splits := strings.Split(tconf.SchemaConfig, ",")
+		if len(splits) > 1 {
+			utils.ErrExit("Error --target-db-schema flag can only contain one schema name. Got: %s", tconf.SchemaConfig)
+		}
 	}
 }
 

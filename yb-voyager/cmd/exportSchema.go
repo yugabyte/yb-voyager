@@ -37,7 +37,6 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/sqltransformer"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -143,27 +142,20 @@ func exportSchema(cmd *cobra.Command) error {
 	source.FetchDBSystemIdentifier()
 	utils.PrintAndLogf("%s version: %s\n", source.DBType, sourceDBVersion)
 
-	// res, err := source.DB().CheckSchemaExists()
+	//TODO fix this with proper schema changes to initialise namere
+	// err = InitNameRegistry(exportDir, exporterRole, &source, source.DB(), nil, nil, false)
 	// if err != nil {
-	// 	return fmt.Errorf("failed to check if source schema exist during export schema: %w", err)
+	// 	utils.ErrExit("initialize name registry: %w", err)
 	// }
-	// if !res {
-	// 	utils.ErrExit("Fix the schema list and try again.")
+	// validatedSchemas := []sqlname.Identifier{}
+	// for _, schema := range source.Schemas {
+	// 	identifier, err := namereg.NameReg.LookupSchemaName(schema.Unquoted)
+	// 	if err != nil {
+	// 		utils.ErrExit("lookup schema name: %w", err)
+	// 	}
+	// 	validatedSchemas = append(validatedSchemas, identifier)
 	// }
-	fmt.Printf("source.Schemas %v\n", source.Schemas)
-	err = InitNameRegistry(exportDir, exporterRole, &source, source.DB(), nil, nil, false)
-	if err != nil {
-		utils.ErrExit("initialize name registry: %w", err)
-	}
-	validatedSchemas := []sqlname.Identifier{}
-	for _, schema := range source.Schemas {
-		identifier, err := namereg.NameReg.LookupSchemaName(schema.Unquoted)
-		if err != nil {
-			utils.ErrExit("lookup schema name: %w", err)
-		}
-		validatedSchemas = append(validatedSchemas, identifier)
-	}
-	source.Schemas = validatedSchemas
+	// source.Schemas = validatedSchemas
 
 	// Check if the source database has the required permissions for exporting schema.
 	if source.RunGuardrailsChecks {

@@ -230,7 +230,12 @@ func (reg *NameRegistry) initSourceDBSchemaNames() error {
 	// it contains a pipe separated list for postgres.
 	switch reg.params.SourceDBType {
 	case constants.ORACLE:
-		reg.SourceDBSchemaNames = []string{strings.ToUpper(reg.params.SourceDBSchema)}
+		schema := reg.params.SourceDBSchema
+		var err error
+		reg.SourceDBSchemaNames, err = reg.validateAndSetSchemaNames([]string{schema})
+		if err != nil {
+			return fmt.Errorf("failed to validate schema names: %w", err)
+		}
 	case constants.MYSQL:
 		reg.SourceDBSchemaNames = []string{reg.params.SourceDBName}
 	case constants.POSTGRESQL:

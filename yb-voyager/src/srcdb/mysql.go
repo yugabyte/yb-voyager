@@ -94,12 +94,6 @@ func (ms *MySQL) GetAllSchemaNamesIdentifiers() ([]sqlname.Identifier, error) {
 	return nil, nil
 }
 
-func (ms *MySQL) CheckSchemaExists() (bool, error) {
-	// no concept of schema in MySQL, only database
-	// also if Connect() passed already that means database is present
-	return true, nil
-}
-
 func (ms *MySQL) GetTableRowCount(tableName sqlname.NameTuple) (int64, error) {
 	var rowCount int64
 	query := fmt.Sprintf("select count(*) from %s", tableName.AsQualifiedCatalogName())

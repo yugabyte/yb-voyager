@@ -176,48 +176,6 @@ func (yb *YugabyteDB) GetAllSchemaNamesIdentifiers() ([]sqlname.Identifier, erro
 	return listOfSchemaPresent, nil
 }
 
-func (yb *YugabyteDB) CheckSchemaExists() (bool, error) {
-	listOfSchemaPresent, err := yb.GetAllSchemaNamesIdentifiers()
-	if err != nil {
-		return false, fmt.Errorf("get all schema names: %w", err)
-	}
-
-	var schemaNotPresent []sqlname.Identifier
-	var finalSchemaList []sqlname.Identifier
-	for _, schema := range yb.source.Schemas {
-		matchedSchema := false
-		for _, schemaOnDB := range listOfSchemaPresent {
-			if schemaOnDB.CaseSensitiveMatch(schema) {
-				matchedSchema = true
-				finalSchemaList = append(finalSchemaList, schemaOnDB)
-				break
-			}
-		}
-		if !matchedSchema {
-			//If not matched with any case sensitive match, then check for in case sensitive match
-			for _, schemaOnDB := range listOfSchemaPresent {
-				if schemaOnDB.CaseInSensitiveMatch(schema) {
-					matchedSchema = true
-					finalSchemaList = append(finalSchemaList, schemaOnDB)
-					break
-				}
-			}
-			if !matchedSchema {
-				schemaNotPresent = append(schemaNotPresent, schema)
-			}
-		}
-	}
-
-	if len(schemaNotPresent) > 0 {
-		return false, goerrors.Errorf("Following schemas are not present in source database: %v, please provide a valid schema list.\n", lo.Map(schemaNotPresent, func(s sqlname.Identifier, _ int) string {
-			return s.Unquoted
-		}))
-	}
-	log.Infof("final schema list: %v", finalSchemaList)
-	yb.source.Schemas = finalSchemaList
-	return true, nil
-}
-
 func (yb *YugabyteDB) GetAllTableNamesRaw(schemaName string) ([]string, error) {
 	// Information schema requires select permission on the tables to query the tables. However, pg_catalog does not require any permission.
 	// So, we are using pg_catalog to get the table names.

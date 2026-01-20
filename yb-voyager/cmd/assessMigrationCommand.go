@@ -267,14 +267,7 @@ func assessMigration() (err error) {
 			}
 		}
 
-		res, err := source.DB().CheckSchemaExists()
-		if err != nil {
-			return fmt.Errorf("failed to check if source schema exist during assess migration: %w", err)
-		}
-		if !res {
-			return goerrors.Errorf("Fix the schema list and try again.")
-		}
-
+		//TODO fix this with schema changes to initialise namereg
 		// Fetch source info early (includes system identifier needed for replica cluster validation)
 		fetchSourceInfo()
 

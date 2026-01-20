@@ -89,24 +89,26 @@ func (ora *Oracle) Query(query string) (*sql.Rows, error) {
 }
 
 func (ora *Oracle) GetAllSchemaNamesIdentifiers() ([]sqlname.Identifier, error) {
-	return nil, nil
+	schemas := make([]sqlname.Identifier, 0)
+	query := fmt.Sprintf("SELECT username FROM ALL_USERS")
+	rows, err := ora.db.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("error in querying source database for schema names: %q: %w\n", query, err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var schema string
+		err = rows.Scan(&schema)
+		if err != nil {
+			return nil, fmt.Errorf("error in scanning query rows for schema names: %w\n", err)
+		}
+		schemas = append(schemas, sqlname.NewIdentifier(ora.source.DBType, schema))
+	}
+	return schemas, nil
 }
 
 func (ora *Oracle) QueryRow(query string) *sql.Row {
 	return ora.db.QueryRow(query)
-}
-
-func (ora *Oracle) CheckSchemaExists() (bool, error) {
-	schemaName := ora.source.Schemas[0].Unquoted
-	query := fmt.Sprintf(`SELECT username FROM ALL_USERS WHERE username = '%s'`, strings.ToUpper(schemaName))
-	var schema string
-	err := ora.db.QueryRow(query).Scan(&schema)
-	if err == sql.ErrNoRows {
-		return false, nil
-	} else if err != nil {
-		return false, fmt.Errorf("error in querying source database for schema: %q: %w\n", schemaName, err)
-	}
-	return true, nil
 }
 
 func (ora *Oracle) GetTableRowCount(tableName sqlname.NameTuple) (int64, error) {
