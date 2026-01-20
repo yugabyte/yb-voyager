@@ -35,7 +35,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/jackc/pgx/v5/pgtype"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/jinzhu/copier"
 	"github.com/pingcap/failpoint"
@@ -1640,7 +1639,7 @@ func (yb *TargetYugabyteDB) GetIdentityColumnNamesForTables(tableNameTuples []sq
 	}
 
 	query := fmt.Sprintf(`
-		SELECT table_schema, table_name, array_agg(column_name ORDER BY column_name) AS identity_columns
+		SELECT table_schema, table_name, array_to_string(array_agg(column_name ORDER BY column_name), ',') AS identity_columns
 		FROM information_schema.columns
 		WHERE (table_schema, table_name) IN (%s)
 		  AND is_identity = 'YES'
@@ -1659,11 +1658,13 @@ func (yb *TargetYugabyteDB) GetIdentityColumnNamesForTables(tableNameTuples []sq
 
 	for rows.Next() {
 		var schemaName, tableName string
-		var identityColumns pgtype.FlatArray[string]
-		err = rows.Scan(&schemaName, &tableName, &identityColumns)
+		var identityColumnsStr string
+		err = rows.Scan(&schemaName, &tableName, &identityColumnsStr)
 		if err != nil {
 			return nil, fmt.Errorf("error in scanning row for identity(%s) columns: %w", identityType, err)
 		}
+
+		identityColumns := strings.Split(identityColumnsStr, ",")
 
 		key := fmt.Sprintf("%s.%s", schemaName, tableName)
 		tableNameTuple, ok := tableNameMap[key]
@@ -1672,7 +1673,7 @@ func (yb *TargetYugabyteDB) GetIdentityColumnNamesForTables(tableNameTuples []sq
 			log.Warnf("Found identity columns for table '%s' which was not in the original request", key)
 			continue
 		}
-		result.Put(tableNameTuple, []string(identityColumns))
+		result.Put(tableNameTuple, identityColumns)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("error iterating over identity column results: %w", err)
