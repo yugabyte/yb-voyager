@@ -303,7 +303,7 @@ func (pg *PostgreSQL) CheckSchemaExists() (bool, error) {
 	}
 
 	if len(schemaNotPresent) > 0 {
-		return false, fmt.Errorf("Following schemas are not present in source database: %v, please provide a valid schema list.\n", lo.Map(schemaNotPresent, func(s sqlname.Identifier, _ int) string {
+		return false, goerrors.Errorf("Following schemas are not present in source database: %v, please provide a valid schema list.\n", lo.Map(schemaNotPresent, func(s sqlname.Identifier, _ int) string {
 			return s.Unquoted
 		}))
 	}
@@ -1123,7 +1123,7 @@ func (pg *PostgreSQL) GetNonPKTables() ([]string, error) {
 		}
 
 		if pkCount == 0 {
-			table := sqlname.NewSourceName(schemaName, fmt.Sprintf(`"%s"`, tableName))
+			table := sqlname.NewSourceName(fmt.Sprintf(`"%s"`, schemaName), fmt.Sprintf(`"%s"`, tableName))
 			nonPKTables = append(nonPKTables, table.Qualified.Quoted)
 		}
 	}

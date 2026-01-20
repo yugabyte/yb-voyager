@@ -184,7 +184,7 @@ class PostgresDB:
 		
 	def get_foreign_table_names(self, schema="public") -> List[str]:
 		cur = self.conn.cursor()
-		schema = table_schema.strip("\"")
+		schema = schema.strip("\"")
 		q = "SELECT table_name FROM information_schema.tables WHERE table_schema=%s AND table_type='FOREIGN'"
 		cur.execute(q, (schema,))
 		return [table[0] for table in cur.fetchall()]

@@ -762,7 +762,7 @@ func (ora *Oracle) GetNonPKTables() ([]string, error) {
 		if err != nil {
 			return nil, fmt.Errorf("error in scanning query rows for unsupported tables: %w", err)
 		}
-		table := sqlname.NewSourceName(ora.source.Schemas[0].Unquoted, fmt.Sprintf(`"%s"`, tableName))
+		table := sqlname.NewSourceName(ora.source.Schemas[0].Quoted, fmt.Sprintf(`"%s"`, tableName))
 		if count == 0 {
 			nonPKTables = append(nonPKTables, table.Qualified.Quoted)
 		}
