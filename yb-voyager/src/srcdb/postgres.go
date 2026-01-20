@@ -1909,6 +1909,9 @@ type ReplicaEndpoint struct {
 // ErrNotAReplica indicates that an endpoint is connectable but not a replica (pg_is_in_recovery = false)
 var ErrNotAReplica = errors.New("endpoint is not a replica (pg_is_in_recovery() = false)")
 
+// ErrDifferentCluster indicates that a replica belongs to a different PostgreSQL cluster (system identifier mismatch)
+var ErrDifferentCluster = errors.New("replica belongs to a different cluster")
+
 // DiscoverReplicas queries pg_stat_replication on the primary to discover physical streaming replicas
 func (pg *PostgreSQL) DiscoverReplicas() ([]ReplicaInfo, error) {
 	query := `
@@ -2060,4 +2063,51 @@ func (pg *PostgreSQL) GetReplicaConnectionUri(host string, port int) string {
 		RawQuery: generateSSLQueryStringIfNotExists(pg.source),
 	}
 	return sourceUrl.String()
+}
+
+// GetSystemIdentifierFromEndpoint connects to a remote endpoint and retrieves its system identifier.
+// This is used to verify that a replica belongs to the same PostgreSQL cluster as the primary.
+// Uses a 5-second timeout for the connection.
+func (pg *PostgreSQL) GetSystemIdentifierFromEndpoint(connectionUri string) (int64, error) {
+	replicaDB, err := sql.Open("pgx", connectionUri)
+	if err != nil {
+		return 0, fmt.Errorf("failed to open connection: %w", err)
+	}
+	defer replicaDB.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Query system identifier (connection will be established on first query)
+	var systemIdentifier int64
+	query := "SELECT system_identifier FROM pg_control_system()"
+	err = replicaDB.QueryRowContext(ctx, query).Scan(&systemIdentifier)
+	if err != nil {
+		return 0, fmt.Errorf("failed to query system identifier: %w", err)
+	}
+
+	return systemIdentifier, nil
+}
+
+// ValidateReplicaBelongsToCluster verifies that a replica endpoint belongs to the same PostgreSQL cluster
+// as the primary by comparing their system identifiers.
+// Returns ErrDifferentCluster if the system identifiers don't match.
+func (pg *PostgreSQL) ValidateReplicaBelongsToCluster(endpoint ReplicaEndpoint, primarySystemIdentifier int64) error {
+	if primarySystemIdentifier == 0 {
+		// System identifier not available from primary, skip validation
+		log.Infof("Primary system identifier not available, skipping cluster membership validation for %s", endpoint.Name)
+		return nil
+	}
+
+	replicaSystemIdentifier, err := pg.GetSystemIdentifierFromEndpoint(endpoint.ConnectionUri)
+	if err != nil {
+		return fmt.Errorf("failed to get replica system identifier: %w", err)
+	}
+
+	if replicaSystemIdentifier != primarySystemIdentifier {
+		return fmt.Errorf("%s has system identifier %d, expected %d (primary): %w",
+			endpoint.Name, replicaSystemIdentifier, primarySystemIdentifier, ErrDifferentCluster)
+	}
+
+	return nil
 }

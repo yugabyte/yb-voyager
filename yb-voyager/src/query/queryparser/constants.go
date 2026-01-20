@@ -129,6 +129,14 @@ const (
 
 	PG_QUERY_VARIABLE_SET_STMT_NODE = "pg_query.VariableSetStmt"
 
+	// Statement types for anonymization unsupported check
+	PG_QUERY_ALTER_FUNCTION_STMT    = "pg_query.AlterFunctionStmt"
+	PG_QUERY_DO_STMT                = "pg_query.DoStmt"
+	PG_QUERY_CALL_STMT              = "pg_query.CallStmt"
+	PG_QUERY_REFRESH_MATVIEW_STMT   = "pg_query.RefreshMatViewStmt"
+	PG_QUERY_CREATE_EVENT_TRIG_STMT = "pg_query.CreateEventTrigStmt"
+	PG_QUERY_ALTER_EVENT_TRIG_STMT  = "pg_query.AlterEventTrigStmt"
+
 	LIMIT_OPTION_WITH_TIES         = pg_query.LimitOption_LIMIT_OPTION_WITH_TIES
 	CTE_MATERIALIZED_DEFAULT       = pg_query.CTEMaterialize_CTEMaterializeDefault
 	ADD_CONSTRAINT                 = pg_query.AlterTableType_AT_AddConstraint
