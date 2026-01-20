@@ -895,7 +895,7 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 		if err != nil {
 			utils.ErrExit("Failed to create value converter: %s", err)
 		}
-		streamingPhaseValueConverter, err := dbzm.NewStreamingPhaseDebeziumValueConverter(importTableList, exportDir, tconf, importerRole)
+		streamingPhaseValueConverter, err := dbzm.NewStreamingPhaseDebeziumValueConverter(importTableList, exportDir, tconf, importerRole, sourceDBType)
 		if err != nil {
 			utils.ErrExit("Failed to create streaming phase value converter: %s", err)
 		}

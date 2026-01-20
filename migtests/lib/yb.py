@@ -231,6 +231,11 @@ class PostgresDB:
 		cur.execute(f"select distinct({column_name}) from {schema_name}.{table_name}")
 		return [value[0] for value in cur.fetchall()]
 
+	def get_distinct_text_values_of_column(self, table_name, column_name, schema_name="public") -> List[str]:
+		cur = self.conn.cursor()
+		cur.execute(f"SELECT DISTINCT {column_name}::text FROM {schema_name}.{table_name}")
+		return [str(value[0]) for value in cur.fetchall()]
+
 	# takes query and error_code and return true id the error_code you believe that query should throw matches
 	def run_query_and_chk_error(self, query, error_code) -> boolean:
 		cur = self.conn.cursor()
@@ -339,6 +344,11 @@ class PostgresDB:
 				transformed_distinct_value = distinct_value
 			print(f"{transformed_distinct_value}")
 			assert transformed_distinct_value in expected_distinct_values
+
+	def assert_distinct_text_values_of_col(self, table_name, column_name, schema_name="public", expected_distinct_values=[]):
+		distinct_values = self.get_distinct_text_values_of_column(table_name, column_name, schema_name)
+		for distinct_value in distinct_values:
+			assert distinct_value in expected_distinct_values
 
 	def assert_all_values_of_col(self, table_name, column_name, schema_name="public", transform_func=None, expected_values=[]):
 		cur = self.conn.cursor()

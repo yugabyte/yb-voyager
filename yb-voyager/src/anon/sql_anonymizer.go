@@ -22,10 +22,96 @@ func NewSqlAnonymizer(registry IdentifierHasher) Anonymizer {
 	}
 }
 
+// unsupportedStatementTypes maps statement type constants to human-readable descriptions.
+// These statement types contain sensitive business logic and are not supported for anonymization.
+var unsupportedStatementTypes = map[string]string{
+	queryparser.PG_QUERY_CREATE_FUNCTION_STMT:   "FUNCTION/PROCEDURE",
+	queryparser.PG_QUERY_ALTER_FUNCTION_STMT:    "ALTER FUNCTION/PROCEDURE",
+	queryparser.PG_QUERY_VIEW_STMT:              "VIEW",
+	queryparser.PG_QUERY_REFRESH_MATVIEW_STMT:   "REFRESH MATERIALIZED VIEW",
+	queryparser.PG_QUERY_CREATE_TRIG_STMT:       "TRIGGER",
+	queryparser.PG_QUERY_DO_STMT:                "DO",
+	queryparser.PG_QUERY_CALL_STMT:              "CALL",
+	queryparser.PG_QUERY_CREATE_EVENT_TRIG_STMT: "EVENT TRIGGER",
+	queryparser.PG_QUERY_ALTER_EVENT_TRIG_STMT:  "ALTER EVENT TRIGGER",
+}
+
+// unsupportedObjectTypes defines object types that cannot be safely anonymized.
+// These are used to block generic statements (DROP, ALTER RENAME/OWNER/SET SCHEMA)
+// when they target these specific object types.
+var unsupportedObjectTypes = map[pg_query.ObjectType]bool{
+	pg_query.ObjectType_OBJECT_FUNCTION:      true,
+	pg_query.ObjectType_OBJECT_PROCEDURE:     true,
+	pg_query.ObjectType_OBJECT_VIEW:          true,
+	pg_query.ObjectType_OBJECT_MATVIEW:       true,
+	pg_query.ObjectType_OBJECT_TRIGGER:       true,
+	pg_query.ObjectType_OBJECT_EVENT_TRIGGER: true,
+}
+
+// isUnsupportedObjectType checks if the given object type is in the unsupported set.
+func isUnsupportedObjectType(objType pg_query.ObjectType) bool {
+	return unsupportedObjectTypes[objType]
+}
+
+// checkUnsupportedStatementType checks if the parsed SQL statement is an unsupported type
+// and returns an error if so. These statement types contain sensitive business logic.
+func checkUnsupportedStatementType(parseResult *pg_query.ParseResult) error {
+	if len(parseResult.Stmts) == 0 {
+		return nil
+	}
+
+	stmtType := queryparser.GetStatementType(parseResult.Stmts[0].Stmt.ProtoReflect())
+
+	// Check direct statement type matches
+	if objectType, unsupported := unsupportedStatementTypes[stmtType]; unsupported {
+		return goerrors.Errorf("unsupported statement type for anonymization: %s", objectType)
+	}
+
+	// Check generic statements and special cases for unsupported object types
+	// TODO: Some of these statements (ALTER, DROP, RENAME, etc) do not contain the func/proc body in the DDL, so it should be easy to
+	// parse and anonymize, but at the moment, it is not supported.
+	node := parseResult.Stmts[0].Stmt.Node
+	switch n := node.(type) {
+	case *pg_query.Node_CreateTableAsStmt:
+		// CREATE MATERIALIZED VIEW uses CreateTableAsStmt with OBJECT_MATVIEW
+		if isUnsupportedObjectType(n.CreateTableAsStmt.Objtype) {
+			return goerrors.Errorf("unsupported statement type for anonymization: CREATE %s", n.CreateTableAsStmt.Objtype)
+		}
+	case *pg_query.Node_DropStmt:
+		if isUnsupportedObjectType(n.DropStmt.RemoveType) {
+			return goerrors.Errorf("unsupported statement type for anonymization: DROP %s", n.DropStmt.RemoveType)
+		}
+	case *pg_query.Node_RenameStmt:
+		if isUnsupportedObjectType(n.RenameStmt.RenameType) {
+			return goerrors.Errorf("unsupported statement type for anonymization: ALTER %s RENAME", n.RenameStmt.RenameType)
+		}
+	case *pg_query.Node_AlterOwnerStmt:
+		if isUnsupportedObjectType(n.AlterOwnerStmt.ObjectType) {
+			return goerrors.Errorf("unsupported statement type for anonymization: ALTER %s OWNER", n.AlterOwnerStmt.ObjectType)
+		}
+	case *pg_query.Node_AlterObjectSchemaStmt:
+		if isUnsupportedObjectType(n.AlterObjectSchemaStmt.ObjectType) {
+			return goerrors.Errorf("unsupported statement type for anonymization: ALTER %s SET SCHEMA", n.AlterObjectSchemaStmt.ObjectType)
+		}
+	case *pg_query.Node_AlterTableStmt:
+		// ALTER VIEW/MATERIALIZED VIEW ... OWNER TO uses AlterTableStmt
+		if isUnsupportedObjectType(n.AlterTableStmt.Objtype) {
+			return goerrors.Errorf("unsupported statement type for anonymization: ALTER %s", n.AlterTableStmt.Objtype)
+		}
+	}
+
+	return nil
+}
+
 func (a *SqlAnonymizer) Anonymize(inputSql string) (string, error) {
 	parseResult, err := queryparser.Parse(inputSql) // Parse the input SQL to ensure it's valid
 	if err != nil {
 		return "", fmt.Errorf("error parsing input SQL: %w", err)
+	}
+
+	// Check for unsupported statement types before attempting anonymization
+	if err := checkUnsupportedStatementType(parseResult); err != nil {
+		return "", err
 	}
 
 	visited := make(map[protoreflect.Message]bool)
