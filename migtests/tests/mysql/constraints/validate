@@ -36,12 +36,12 @@ QUERIES_CHECK = {
 }	
 
 def migration_completed_checks(tgt):
-	table_list = tgt.get_table_names("Test_Mysql_Constraints")
+	table_list = tgt.get_table_names("\"Test_Mysql_Constraints\"")
 	print("table_list:", table_list)
 	assert len(table_list) == 6
 
 
-	got_row_count = tgt.row_count_of_all_tables("Test_Mysql_Constraints")
+	got_row_count = tgt.row_count_of_all_tables("\"Test_Mysql_Constraints\"")
 	for table_name, row_count in EXPECTED_ROW_COUNT.items():
 		print(f"table_name: {table_name}, row_count: {got_row_count[table_name]}")
 		assert row_count == got_row_count[table_name]
