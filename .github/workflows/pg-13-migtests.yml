@@ -4,7 +4,7 @@ on:
   push:
     branches: ['main', '*.*-dev', '*.*.*-dev']
   pull_request:
-    branches: [main]
+    branches: [priyanshi/case-sensitive-schema-name-reg]
 
 jobs:
   prepare-versions:
