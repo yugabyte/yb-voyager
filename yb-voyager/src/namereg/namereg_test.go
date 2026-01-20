@@ -430,8 +430,10 @@ func TestDifferentSchemaInSameDBAsSourceReplica2(t *testing.T) {
 //=====================================================
 
 type dummySourceDB struct {
+	dbType        string
 	tableNames    map[string][]string // schemaName -> tableNames
 	sequenceNames map[string][]string // schemaName -> sequenceNames
+	schemaNames   []string
 }
 
 func (db *dummySourceDB) GetAllTableNamesRaw(schemaName string) ([]string, error) {
@@ -448,6 +450,12 @@ func (db *dummySourceDB) GetAllSequencesRaw(schemaName string) ([]string, error)
 		return nil, fmt.Errorf("schema %q not found", schemaName)
 	}
 	return sequenceNames, nil
+}
+
+func (db *dummySourceDB) GetAllSchemaNamesIdentifiers() ([]sqlname.Identifier, error) {
+	return lo.Map(db.schemaNames, func(s string, _ int) sqlname.Identifier {
+		return sqlname.NewIdentifier(db.dbType, s)
+	}), nil
 }
 
 type dummyTargetDB struct {
@@ -487,6 +495,8 @@ func TestNameRegistryWithDummyDBs(t *testing.T) {
 		sequenceNames: map[string][]string{
 			"SAKILA": {"SEQ1", "SEQ2"},
 		},
+		dbType: constants.ORACLE,
+		schemaNames: []string{"SAKILA"},
 	}
 
 	// Create a dummy target DB.
