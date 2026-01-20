@@ -19,6 +19,7 @@ package srcdb
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/samber/lo"
@@ -590,7 +591,6 @@ func TestYugabyteFilterUnsupportedUserDefinedDatatypes(t *testing.T) {
 	assert.Equal(t, len(expectedRangesUDTs), len(actualUDTsWithRanges),
 		"Expected %d UDTs but got %d", len(expectedRangesUDTs), len(actualUDTsWithRanges))
 	testutils.AssertEqualStringSlices(t, expectedRangesUDTs, actualUDTsWithRanges)
-
 
 }
 
