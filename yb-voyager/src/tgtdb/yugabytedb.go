@@ -33,10 +33,8 @@ import (
 	goerrors "github.com/go-errors/errors"
 	"github.com/goccy/go-json"
 	"github.com/google/uuid"
-	"github.com/jackc/pgconn"
-	"github.com/jackc/pgtype"
-	"github.com/jackc/pgx/v4"
-	pgconn5 "github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/jinzhu/copier"
 	"github.com/pingcap/failpoint"
@@ -97,7 +95,7 @@ func (yb *TargetYugabyteDB) Exec(query string) (int64, error) {
 
 	res, err := yb.db.Exec(query)
 	if err != nil {
-		var pgErr *pgconn5.PgError
+		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
 			if pgErr.Hint != "" || pgErr.Detail != "" {
 				return rowsAffected, fmt.Errorf("run query %q on target %q: %w \nHINT: %s\nDETAIL: %s", query, yb.Tconf.Host, err, pgErr.Hint, pgErr.Detail)
@@ -1660,13 +1658,11 @@ func (yb *TargetYugabyteDB) GetIdentityColumnNamesForTables(tableNameTuples []sq
 
 	for rows.Next() {
 		var schemaName, tableName string
-		var identityColumnsPgTypeArray pgtype.TextArray
-		err = rows.Scan(&schemaName, &tableName, &identityColumnsPgTypeArray)
+		var identityColumns []string
+		err = rows.Scan(&schemaName, &tableName, &identityColumns)
 		if err != nil {
 			return nil, fmt.Errorf("error in scanning row for identity(%s) columns: %w", identityType, err)
 		}
-
-		identityColumns := utils.ConvertPgTextArrayToStringSlice(identityColumnsPgTypeArray)
 
 		key := fmt.Sprintf("%s.%s", schemaName, tableName)
 		tableNameTuple, ok := tableNameMap[key]
