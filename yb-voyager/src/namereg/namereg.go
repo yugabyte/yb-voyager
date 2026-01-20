@@ -265,33 +265,16 @@ func (reg *NameRegistry) validateAndSetSchemaNames(schemaNames []string) ([]stri
 	var schemaNotPresent []sqlname.Identifier
 	var finalSchemaList []sqlname.Identifier
 	for _, schema := range schemaIdenitifiers {
-		matchedSchema := false
-		for _, schemaOnDB := range allSchemas {
-			if schemaOnDB.CaseSensitiveMatch(schema) {
-				matchedSchema = true
-				finalSchemaList = append(finalSchemaList, schemaOnDB)
-				fmt.Printf("matched schema %v with %v\n", schema, schemaOnDB)
-				break
-			}
-		}
+		matchedSchema, matchedSchemaIdentifier := schema.FindBestMatchingIdenitifier(allSchemas)
 		if !matchedSchema {
-			//If not matched with any case sensitive match, then check for in case sensitive match
-			for _, schemaOnDB := range allSchemas {
-				if schemaOnDB.CaseInSensitiveMatch(schema) {
-					matchedSchema = true
-					finalSchemaList = append(finalSchemaList, schemaOnDB)
-					fmt.Printf("matched schema %v with %v\n", schema, schemaOnDB)
-					break
-				}
-			}
-			if !matchedSchema {
-				schemaNotPresent = append(schemaNotPresent, schema)
-			}
+			schemaNotPresent = append(schemaNotPresent, schema)
+			continue
 		}
+		finalSchemaList = append(finalSchemaList, matchedSchemaIdentifier)
 	}
 
 	if len(schemaNotPresent) > 0 {
-		return nil, fmt.Errorf("\nFollowing schemas are not present in source database: %v, please provide a valid schema list.\n", lo.Map(schemaNotPresent, func(s sqlname.Identifier, _ int) string {
+		return nil, goerrors.Errorf("\nFollowing schemas are not present in source database: %v, please provide a valid schema list.\n", lo.Map(schemaNotPresent, func(s sqlname.Identifier, _ int) string {
 			return s.Unquoted
 		}))
 	}
@@ -315,7 +298,10 @@ func (reg *NameRegistry) registerYBNames() (bool, error) {
 	case constants.POSTGRESQL:
 		reg.YBSchemaNames = reg.SourceDBSchemaNames
 	default:
-		reg.YBSchemaNames = []string{reg.params.TargetDBSchema}
+		reg.YBSchemaNames = lo.Map(strings.Split(reg.params.TargetDBSchema, ","), func(s string, _ int) string {
+			schema := sqlname.NewIdentifier(constants.YUGABYTEDB, s)
+			return schema.Unquoted
+		})
 	}
 	for _, schemaName := range reg.YBSchemaNames {
 		tableNames, err := yb.GetAllTableNamesRaw(schemaName)
@@ -540,29 +526,31 @@ func (reg *NameRegistry) lookupSourceAndTargetTableNames(tableNameArg string, ig
 }
 
 func (reg *NameRegistry) LookupSchemaName(schemaName string) (sqlname.Identifier, error) {
-	schemaIdenitifiers := lo.Map(reg.SourceDBSchemaNames, func(s string, _ int) sqlname.Identifier {
-		return sqlname.NewIdentifier(reg.SourceDBType, s)
+	var schemaNames []string
+	var dbType string
+	switch reg.params.Role {
+	case SOURCE_DB_EXPORTER_ROLE, SOURCE_DB_IMPORTER_ROLE, SOURCE_REPLICA_DB_IMPORTER_ROLE:
+		schemaNames = reg.SourceDBSchemaNames
+		dbType = reg.SourceDBType
+		if reg.params.Role == SOURCE_REPLICA_DB_IMPORTER_ROLE && dbType == constants.ORACLE {
+			//For oracle source replica , schema may or maynot be the sourceSchemaNames so taking the default source replica schema name
+			schemaNames = []string{reg.DefaultSourceReplicaDBSchemaName}
+		}
+	case TARGET_DB_IMPORTER_ROLE, IMPORT_FILE_ROLE, TARGET_DB_EXPORTER_FF_ROLE, TARGET_DB_EXPORTER_FB_ROLE:
+		schemaNames = reg.YBSchemaNames
+		dbType = constants.YUGABYTEDB
+	default:
+		return sqlname.Identifier{}, fmt.Errorf("invalid role: %s", reg.params.Role)
+	}
+	schemaIdenitifiers := lo.Map(schemaNames, func(s string, _ int) sqlname.Identifier {
+		return sqlname.NewIdentifier(dbType, s)
 	})
-	fmt.Printf("schemaIdenitifiers %v\n", schemaIdenitifiers)
-	schemaNameIdentifier := sqlname.NewIdentifier(reg.SourceDBType, schemaName)
-	var matchedSchema bool
-	for _, schema := range schemaIdenitifiers {
-		if schema.CaseSensitiveMatch(schemaNameIdentifier) {
-			matchedSchema = true
-			return schema, nil
-		}
-	}
+	schemaNameIdentifier := sqlname.NewIdentifier(dbType, schemaName)
+	matchedSchema, matchedSchemaIdentifier := schemaNameIdentifier.FindBestMatchingIdenitifier(schemaIdenitifiers)
 	if !matchedSchema {
-		//If not matched with any case sensitive match, then check for in case sensitive match
-		for _, schemaOnDB := range schemaIdenitifiers {
-			if schemaOnDB.CaseInSensitiveMatch(schemaNameIdentifier) {
-				matchedSchema = true
-				return schemaOnDB, nil
-			}
-		}
-
+		return sqlname.Identifier{}, goerrors.Errorf("schema name not found: %s", schemaName)
 	}
-	return sqlname.Identifier{}, fmt.Errorf("schema name not found: %s", schemaName)
+	return matchedSchemaIdentifier, nil
 }
 
 func (reg *NameRegistry) checkIfSchemaNameIsDefault(schemaName string) bool {

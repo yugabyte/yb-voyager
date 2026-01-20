@@ -60,6 +60,29 @@ func (i Identifier) CaseInSensitiveMatch(other Identifier) bool {
 	return strings.EqualFold(i.Unquoted, other.Unquoted)
 }
 
+func (i Identifier) FindBestMatchingIdenitifier(schemaIdenitifiers []Identifier) (bool, Identifier) {
+	var matchedSchema bool
+	for _, schema := range schemaIdenitifiers {
+		if schema.CaseSensitiveMatch(i) {
+			matchedSchema = true
+			return true, schema
+		}
+	}
+	if !matchedSchema {
+		//If not matched with any case sensitive match, then check for in case sensitive match
+		for _, schemaOnDB := range schemaIdenitifiers {
+			if schemaOnDB.CaseInSensitiveMatch(i) {
+				matchedSchema = true
+				return true, schemaOnDB
+			}
+		}
+
+	}
+	return false, Identifier{}
+}
+
+//==============================================
+
 type SourceName struct {
 	ObjectName Identifier
 	SchemaName Identifier

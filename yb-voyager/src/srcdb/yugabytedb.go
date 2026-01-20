@@ -209,7 +209,7 @@ func (yb *YugabyteDB) CheckSchemaExists() (bool, error) {
 	}
 
 	if len(schemaNotPresent) > 0 {
-		return false, fmt.Errorf("Following schemas are not present in source database: %v, please provide a valid schema list.\n", lo.Map(schemaNotPresent, func(s sqlname.Identifier, _ int) string {
+		return false, goerrors.Errorf("Following schemas are not present in source database: %v, please provide a valid schema list.\n", lo.Map(schemaNotPresent, func(s sqlname.Identifier, _ int) string {
 			return s.Unquoted
 		}))
 	}
