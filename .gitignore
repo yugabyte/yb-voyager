@@ -1,4 +1,5 @@
 yb-voyager/yb-voyager
+yb-voyager/external/pgx/.git
 
 diagnostics.json
 yb-voyager.log
