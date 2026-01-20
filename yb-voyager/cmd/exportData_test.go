@@ -69,7 +69,7 @@ func TestMain(m *testing.M) {
 			DBVersion: postgresContainer.GetConfig().DBVersion,
 			User:      postgresContainer.GetConfig().User,
 			Password:  postgresContainer.GetConfig().Password,
-			Schema:    []sqlname.Identifier{sqlname.NewIdentifier("postgresql", postgresContainer.GetConfig().Schema)},
+			Schemas:   []sqlname.Identifier{sqlname.NewIdentifier("postgresql", postgresContainer.GetConfig().Schema)},
 			DBName:    postgresContainer.GetConfig().DBName,
 			Host:      host,
 			Port:      port,
@@ -93,7 +93,7 @@ func TestMain(m *testing.M) {
 			DBVersion: yugabytedbContainer.GetConfig().DBVersion,
 			User:      yugabytedbContainer.GetConfig().User,
 			Password:  yugabytedbContainer.GetConfig().Password,
-			Schema:    []sqlname.Identifier{sqlname.NewIdentifier("yugabytedb", yugabytedbContainer.GetConfig().Schema)},
+			Schemas:   []sqlname.Identifier{sqlname.NewIdentifier("yugabytedb", yugabytedbContainer.GetConfig().Schema)},
 			DBName:    yugabytedbContainer.GetConfig().DBName,
 			Host:      host,
 			Port:      port,
@@ -120,7 +120,9 @@ func setupPostgreDBAndExportDependencies(t *testing.T, sqls []string, schemas st
 	sqlname.SourceDBType = testPostgresSource.DBType
 
 	CreateMigrationProjectIfNotExists(constants.POSTGRESQL, testExportDir)
-	testPostgresSource.Schema = schemas
+	testPostgresSource.Schemas = lo.Map(strings.Split(schemas, "|"), func(s string, _ int) sqlname.Identifier {
+		return sqlname.NewIdentifier(constants.POSTGRESQL, s)
+	})
 	testPostgresSource.ExecuteSqls(sqls...)
 	return testExportDir
 }
@@ -134,16 +136,20 @@ func setupPostgresDBSourceAndYugabyteDBTargetWithExportDependencies(t *testing.T
 	sqlname.SourceDBType = POSTGRESQL
 
 	CreateMigrationProjectIfNotExists(constants.POSTGRESQL, testExportDir)
-	testPostgresSource.Schema = schemas
+	testPostgresSource.Schemas = lo.Map(strings.Split(schemas, "|"), func(s string, _ int) sqlname.Identifier {
+		return sqlname.NewIdentifier(constants.POSTGRESQL, s)
+	})
 	testPostgresSource.ExecuteSqls(sqls...)
-	testYugabyteDBSource.Schema = schemas
+	testYugabyteDBSource.Schemas = lo.Map(strings.Split(schemas, "|"), func(s string, _ int) sqlname.Identifier {
+		return sqlname.NewIdentifier(constants.YUGABYTEDB, s)
+	})
 	testYugabyteDBSource.ExecuteSqls(sqls...)
 
 	targetConf := tgtdb.TargetConf{
 		DBVersion:    testYugabyteDBSource.TestContainer.GetConfig().DBVersion,
 		User:         testYugabyteDBSource.TestContainer.GetConfig().User,
 		Password:     testYugabyteDBSource.TestContainer.GetConfig().Password,
-		Schema:       testYugabyteDBSource.TestContainer.GetConfig().Schema,
+		Schemas:      testYugabyteDBSource.Schemas,
 		DBName:       testYugabyteDBSource.TestContainer.GetConfig().DBName,
 		Host:         testYugabyteDBSource.Source.Host,
 		Port:         testYugabyteDBSource.Source.Port,
