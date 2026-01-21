@@ -510,14 +510,14 @@ func TestLiveMigrationWithEventsOnSamePkOrderedFallback(t *testing.T) {
 
 	// Wait for snapshot (only test_update_ordering has initial data)
 	err = lm.WaitForSnapshotComplete(map[string]int64{
-		`test_schema."test_update_ordering"`: 1,
+		`"test_schema"."test_update_ordering"`: 1,
 	}, 30)
 	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
 
 	time.Sleep(5 * time.Second)
 
 	// Validate snapshot data
-	err = lm.ValidateDataConsistency([]string{`test_schema."test_update_ordering"`}, "id")
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_update_ordering"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate snapshot data consistency")
 
 	// Initiate cutover to target with fall-back enabled
@@ -536,17 +536,17 @@ func TestLiveMigrationWithEventsOnSamePkOrderedFallback(t *testing.T) {
 	// Table 2: 1000 updates (same PK, id=1)
 	// Table 3: 1001 inserts, 1000 updates, 1000 deletes (same PK, id=1)
 	err = lm.WaitForFallbackStreamingComplete(map[string]ChangesCount{
-		`test_schema."test_insert_delete_ordering"`: {
+		`"test_schema"."test_insert_delete_ordering"`: {
 			Inserts: 1000,
 			Updates: 0,
 			Deletes: 999,
 		},
-		`test_schema."test_update_ordering"`: {
+		`"test_schema"."test_update_ordering"`: {
 			Inserts: 0,
 			Updates: 1000,
 			Deletes: 0,
 		},
-		`test_schema."test_insert_update_delete_ordering"`: {
+		`"test_schema"."test_insert_update_delete_ordering"`: {
 			Inserts: 1001,
 			Updates: 1000,
 			Deletes: 1000,
@@ -556,9 +556,9 @@ func TestLiveMigrationWithEventsOnSamePkOrderedFallback(t *testing.T) {
 
 	// Validate data consistency for all three tables
 	err = lm.ValidateDataConsistency([]string{
-		`test_schema."test_insert_delete_ordering"`,
-		`test_schema."test_update_ordering"`,
-		`test_schema."test_insert_update_delete_ordering"`,
+		`"test_schema"."test_insert_delete_ordering"`,
+		`"test_schema"."test_update_ordering"`,
+		`"test_schema"."test_insert_update_delete_ordering"`,
 	}, "id")
 	testutils.FatalIfError(t, err, "failed to validate streaming data consistency")
 
@@ -2568,12 +2568,12 @@ VALUES (INTERVAL '7 years', INTERVAL '120 days', INTERVAL '15 hours', INTERVAL '
 
 	// Wait for snapshot to complete (3 initial rows)
 	err = lm.WaitForSnapshotComplete(map[string]int64{
-		`test_schema."interval_test"`: 3,
+		`"test_schema"."interval_test"`: 3,
 	}, 30)
 	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
 
 	// Validate snapshot data consistency
-	err = lm.ValidateDataConsistency([]string{`test_schema."interval_test"`}, "id")
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."interval_test"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate snapshot data consistency")
 
 	// Execute source delta (forward streaming: PG→YB)
@@ -2582,7 +2582,7 @@ VALUES (INTERVAL '7 years', INTERVAL '120 days', INTERVAL '15 hours', INTERVAL '
 
 	// Wait for forward streaming to complete (1 insert)
 	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
-		`test_schema."interval_test"`: {
+		`"test_schema"."interval_test"`: {
 			Inserts: 1,
 			Updates: 0,
 			Deletes: 0,
@@ -2591,7 +2591,7 @@ VALUES (INTERVAL '7 years', INTERVAL '120 days', INTERVAL '15 hours', INTERVAL '
 	testutils.FatalIfError(t, err, "failed to wait for forward streaming complete")
 
 	// Validate forward streaming data
-	err = lm.ValidateDataConsistency([]string{`test_schema."interval_test"`}, "id")
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."interval_test"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate forward streaming data consistency")
 
 	// Initiate cutover to target (YB becomes primary)
@@ -2608,7 +2608,7 @@ VALUES (INTERVAL '7 years', INTERVAL '120 days', INTERVAL '15 hours', INTERVAL '
 
 	// Wait for fallback streaming to complete (3 updates + 1 insert)
 	err = lm.WaitForFallbackStreamingComplete(map[string]ChangesCount{
-		`test_schema."interval_test"`: {
+		`"test_schema"."interval_test"`: {
 			Inserts: 1,
 			Updates: 3,
 			Deletes: 0,
@@ -2619,7 +2619,7 @@ VALUES (INTERVAL '7 years', INTERVAL '120 days', INTERVAL '15 hours', INTERVAL '
 	// Validate fallback streaming data consistency
 	// This ensures all INTERVAL columns (lowercase and mixed-case) were correctly replicated
 	// CompareTableData does a full SELECT * comparison of all rows and columns
-	err = lm.ValidateDataConsistency([]string{`test_schema."interval_test"`}, "id")
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."interval_test"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate fallback data consistency")
 
 	// Complete cutover to source
