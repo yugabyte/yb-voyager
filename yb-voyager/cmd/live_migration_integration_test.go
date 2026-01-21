@@ -2799,16 +2799,16 @@ END $$;`,
 	time.Sleep(5 * time.Second)
 
 	err = liveMigrationTest.WaitForSnapshotComplete(map[string]int64{
-		`thisisaverylargenonpublicschema."thisisaverylargetableinaverylargeschema"`:   10,
-		`thisisaverylargenonpublicschema."thisisaverylargetableinaverylargeschema52"`: 10,
-		`thisisaverylargenonpublicschema."thisisaverylargetableinaverylargeschema99"`: 10,
+		`"thisisaverylargenonpublicschema"."thisisaverylargetableinaverylargeschema"`:   10,
+		`"thisisaverylargenonpublicschema"."thisisaverylargetableinaverylargeschema52"`: 10,
+		`"thisisaverylargenonpublicschema"."thisisaverylargetableinaverylargeschema99"`: 10,
 	}, 30)
 	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
 
 	err = liveMigrationTest.ValidateDataConsistency([]string{
-		`thisisaverylargenonpublicschema."thisisaverylargetableinaverylargeschema"`,
-		`thisisaverylargenonpublicschema."thisisaverylargetableinaverylargeschema52"`,
-		`thisisaverylargenonpublicschema."thisisaverylargetableinaverylargeschema99"`,
+		`"thisisaverylargenonpublicschema"."thisisaverylargetableinaverylargeschema"`,
+		`"thisisaverylargenonpublicschema"."thisisaverylargetableinaverylargeschema52"`,
+		`"thisisaverylargenonpublicschema"."thisisaverylargetableinaverylargeschema99"`,
 	}, "id")
 	testutils.FatalIfError(t, err, "failed to validate snapshot data consistency")
 
@@ -2820,17 +2820,17 @@ END $$;`,
 	// Table 1: DO block generates 500 INSERTs, 130 successful UPDATEs, 125 DELETEs
 	// UPDATEs: 10 (initial rows 1-10) + 120 (odd rows 11-249) = 130 (even rows get deleted so their updates fail)
 	err = liveMigrationTest.WaitForForwardStreamingComplete(map[string]ChangesCount{
-		`thisisaverylargenonpublicschema."thisisaverylargetableinaverylargeschema"`: {
+		`"thisisaverylargenonpublicschema"."thisisaverylargetableinaverylargeschema"`: {
 			Inserts: 500, // 250 iterations * 2 INSERTs per iteration
 			Updates: 130, // 10 (rows 1-10) + 120 (odd rows 11-249 that weren't deleted)
 			Deletes: 125, // 125 DELETEs (when i % 2 = 0: ids 12,14,16...260)
 		},
-		`thisisaverylargenonpublicschema."thisisaverylargetableinaverylargeschema52"`: {
+		`"thisisaverylargenonpublicschema"."thisisaverylargetableinaverylargeschema52"`: {
 			Inserts: 1,
 			Updates: 1,
 			Deletes: 1,
 		},
-		`thisisaverylargenonpublicschema."thisisaverylargetableinaverylargeschema99"`: {
+		`"thisisaverylargenonpublicschema"."thisisaverylargetableinaverylargeschema99"`: {
 			Inserts: 1,
 			Updates: 1,
 			Deletes: 1,
@@ -2840,9 +2840,9 @@ END $$;`,
 
 	// Validate data after streaming
 	err = liveMigrationTest.ValidateDataConsistency([]string{
-		`thisisaverylargenonpublicschema."thisisaverylargetableinaverylargeschema"`,
-		`thisisaverylargenonpublicschema."thisisaverylargetableinaverylargeschema52"`,
-		`thisisaverylargenonpublicschema."thisisaverylargetableinaverylargeschema99"`,
+		`"thisisaverylargenonpublicschema"."thisisaverylargetableinaverylargeschema"`,
+		`"thisisaverylargenonpublicschema"."thisisaverylargetableinaverylargeschema52"`,
+		`"thisisaverylargenonpublicschema"."thisisaverylargetableinaverylargeschema99"`,
 	}, "id")
 	testutils.FatalIfError(t, err, "failed to validate streaming data consistency")
 
@@ -2864,17 +2864,17 @@ END $$;`,
 	// DO block generates 500 INSERTs, 130 successful UPDATEs, 125 DELETEs
 	// UPDATEs: 10 (initial rows 1-10) + 120 (odd rows 11-249) = 130 (even rows were deleted so updates fail)
 	err = liveMigrationTest.WaitForFallbackStreamingComplete(map[string]ChangesCount{
-		`thisisaverylargenonpublicschema."thisisaverylargetableinaverylargeschema"`: {
+		`"thisisaverylargenonpublicschema"."thisisaverylargetableinaverylargeschema"`: {
 			Inserts: 500, // 250 iterations * 2 INSERTs per iteration
 			Updates: 130, // 10 (rows 1-10) + 120 (odd rows 11-249 that exist)
 			Deletes: 125, // 125 DELETEs (when i % 2 = 1: odd ids 511,513...759)
 		},
-		`thisisaverylargenonpublicschema."thisisaverylargetableinaverylargeschema52"`: {
+		`"thisisaverylargenonpublicschema"."thisisaverylargetableinaverylargeschema52"`: {
 			Inserts: 1,
 			Updates: 1,
 			Deletes: 1,
 		},
-		`thisisaverylargenonpublicschema."thisisaverylargetableinaverylargeschema99"`: {
+		`"thisisaverylargenonpublicschema"."thisisaverylargetableinaverylargeschema99"`: {
 			Inserts: 1,
 			Updates: 1,
 			Deletes: 1,
@@ -2884,9 +2884,9 @@ END $$;`,
 
 	// Validate data consistency after fallback
 	err = liveMigrationTest.ValidateDataConsistency([]string{
-		`thisisaverylargenonpublicschema."thisisaverylargetableinaverylargeschema"`,
-		`thisisaverylargenonpublicschema."thisisaverylargetableinaverylargeschema52"`,
-		`thisisaverylargenonpublicschema."thisisaverylargetableinaverylargeschema99"`,
+		`"thisisaverylargenonpublicschema"."thisisaverylargetableinaverylargeschema"`,
+		`"thisisaverylargenonpublicschema"."thisisaverylargetableinaverylargeschema52"`,
+		`"thisisaverylargenonpublicschema"."thisisaverylargetableinaverylargeschema99"`,
 	}, "id")
 	testutils.FatalIfError(t, err, "failed to validate fallback data consistency")
 
