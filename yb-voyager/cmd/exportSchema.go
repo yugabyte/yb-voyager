@@ -91,6 +91,7 @@ func exportSchema(cmd *cobra.Command) error {
 			}
 			clearSchemaIsExported()
 			clearAssessmentRecommendationsApplied()
+			clearMigrationAssessmentDoneViaExportSchema()
 		} else {
 			fmt.Fprintf(os.Stderr, "Schema is already exported. "+
 				"Use --start-clean flag to export schema again -- "+
@@ -262,7 +263,9 @@ func runAssessMigrationCmdBeforExportSchemaIfRequired(exportSchemaCmd *cobra.Com
 	if ok, _ := IsMigrationAssessmentDoneDirectly(metaDB); ok {
 		log.Infof("migration assessment is already done, skipping running assess-migration command.")
 		return nil
-	} else if ok, _ := IsMigrationAssessmentDoneViaExportSchema(); ok {
+	}
+
+	if ok, _ := IsMigrationAssessmentDoneViaExportSchema(); ok {
 		log.Infof("migration assessment is already done via export schema, skipping running assess-migration command.")
 		return nil
 	}
@@ -399,6 +402,15 @@ func clearSchemaIsExported() {
 	})
 	if err != nil {
 		utils.ErrExit("clear schema is exported: update migration status record: %w", err)
+	}
+}
+
+func clearMigrationAssessmentDoneViaExportSchema() {
+	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		record.MigrationAssessmentDoneViaExportSchema = false
+	})
+	if err != nil {
+		utils.ErrExit("clear migration assessment done via export schema: update migration status record: %w", err)
 	}
 }
 
