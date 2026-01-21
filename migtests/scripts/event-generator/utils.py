@@ -481,10 +481,7 @@ def run_index_operations(index_thread_stop: threading.Event, config: Dict[str, A
     db_flavor = detect_db_flavor(index_cur)
 
     # Unsupported by B-tree indexable data types for YugabyteDB and PostgreSQL
-    if db_flavor == "YUGABYTE":
-        unsupported_indexable_data_types = 'citext', 'tsvector', 'tsquery', 'inet', 'varbit', 'bit', 'json', 'jsonb', 'xml', 'point', 'line', 'lseg', 'box', 'path', 'polygon', 'circle'
-    else:
-        unsupported_indexable_data_types = 'json', 'jsonb'
+    unsupported_indexable_data_types = ["citext", "tsvector", "tsquery", "inet", "bit varying", "bit", "json", "jsonb", "xml", "point", "line", "lseg", "box", "path", "polygon", "circle", "ARRAY"] if db_flavor == "YUGABYTE" else ["json", "jsonb"]
 
     thread_random = random.Random()
     thread_random.seed()
@@ -501,14 +498,14 @@ def run_index_operations(index_thread_stop: threading.Event, config: Dict[str, A
             try:
                 if action == "create":
                     # Pick any random column that can be indexed
-                    index_cur.execute(f"""
+                    index_cur.execute("""
                         SELECT table_name, column_name
                         FROM information_schema.columns
                         WHERE table_schema = %s
-                          AND data_type NOT IN {unsupported_indexable_data_types}
+                        AND NOT (data_type = ANY(%s))
                         ORDER BY random()
                         LIMIT 1;
-                    """, (schema_name,))
+                    """, (schema_name,unsupported_indexable_data_types))
                     result = index_cur.fetchone()
                     
                     if result:
