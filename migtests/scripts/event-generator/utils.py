@@ -6,8 +6,11 @@ import ipaddress
 import re
 import decimal
 import psycopg2
+import time
 from typing import Any, Callable, Dict, List, Optional, Tuple
 import os
+import threading
+import sys
 try:
     import yaml  # type: ignore
 except Exception:
@@ -47,6 +50,7 @@ CONFIG_SCHEMA: Dict[str, Dict[str, Any]] = {
         "delete_rows": int,
         "insert_max_retries": int,
         "update_max_retries": int,
+        "index_events": bool,
     },
 }
 
@@ -67,9 +71,14 @@ def load_yaml_file(path: str) -> Dict[str, Any]:
 
 
 def validate_section(section: Dict[str, Any], schema: Dict[str, Any], section_name: str) -> None:
+    # Optional fields that don't need to be present (for backward compatibility)
+    optional_fields = {"index_events"}
+    
     for key, expected_type in schema.items():
         if key not in section:
-            raise ValueError(f"Missing key '{key}' in '{section_name}' section")
+            if key not in optional_fields:
+                raise ValueError(f"Missing key '{key}' in '{section_name}' section")
+            continue  # Skip validation for optional fields that are missing
         if not isinstance(section[key], expected_type):
             raise ValueError(
                 f"Key '{key}' in '{section_name}' must be of type {expected_type.__name__}"
@@ -462,6 +471,86 @@ def fetch_bit_info_for_column(
         return table_schemas[table_name]["bit_info"].get(column_name)
     return None
 
+# ----- Index events helpers -----
+
+def run_index_operations(index_thread_stop: threading.Event, config: Dict[str, Any], schema_name: str):
+    """Run index create/drop operations in a separate thread with its own connection."""
+    # Create a separate connection for index operations
+    index_conn = psycopg2.connect(**get_connection_kwargs_from_config(config))
+    index_cur = index_conn.cursor()
+    
+    thread_random = random.Random()
+    thread_random.seed()
+    
+    # Use stderr and flush to ensure output is visible even when stdout is redirected
+    print("Index operations thread started", file=sys.stderr, flush=True)
+    
+    try:
+        while not index_thread_stop.is_set():
+            action = thread_random.choice(["create", "drop"])
+            
+            try:
+                if action == "create":
+                    # Pick any random column
+                    index_cur.execute("""
+                        SELECT table_name, column_name
+                        FROM information_schema.columns
+                        WHERE table_schema = %s
+                        ORDER BY random()
+                        LIMIT 1;
+                    """, (schema_name,))
+                    result = index_cur.fetchone()
+                    
+                    if result:
+                        table, col = result
+                        idx_name = f"idx_rand_{table}_{col}_{thread_random.randint(100000,999999)}"
+                        sql = f'CREATE INDEX "{idx_name}" ON "{schema_name}"."{table}" ("{col}");'
+                        index_cur.execute(sql)
+                        index_conn.commit()
+                        print(f"Successfully created index: {idx_name}", file=sys.stderr, flush=True)
+                        
+                else:
+                    # Pick a random droppable index (NOT backing PK/UNIQUE constraints)
+                    index_cur.execute("""
+                        SELECT n.nspname AS schema_name,
+                               ic.relname AS index_name
+                        FROM pg_class ic
+                        JOIN pg_namespace n ON n.oid = ic.relnamespace
+                        JOIN pg_index i ON i.indexrelid = ic.oid
+                        LEFT JOIN pg_constraint c ON c.conindid = ic.oid
+                        WHERE n.nspname = %s
+                          AND ic.relkind = 'i'
+                          AND c.oid IS NULL
+                        ORDER BY random()
+                        LIMIT 1;
+                    """, (schema_name,))
+                    row = index_cur.fetchone()
+                    
+                    if row:
+                        schema_name_val, index_name = row
+                        sql = f'DROP INDEX IF EXISTS "{schema_name_val}"."{index_name}";'
+                        index_cur.execute(sql)
+                        index_conn.commit()
+                        print(f"Successfully dropped index: {index_name}", file=sys.stderr, flush=True)
+                    else:
+                        print("No safe indexes found to drop (only PK/UNIQUE constraint indexes exist).", file=sys.stderr, flush=True)
+                
+                time.sleep(thread_random.uniform(2.0, 5.0))
+                
+            except psycopg2.Error as e:
+                print(f"Index operation error: {e}", file=sys.stderr, flush=True)
+                index_conn.rollback()
+                time.sleep(1)
+            except Exception as e:
+                print(f"Unexpected error in index operations: {e}", file=sys.stderr, flush=True)
+                time.sleep(1)
+    
+    except Exception as e:
+        print(f"Fatal error in index operations thread: {e}", file=sys.stderr, flush=True)
+    finally:
+        index_cur.close()
+        index_conn.close()
+        print("Index operations thread stopped", file=sys.stderr, flush=True)
 
 # ----- SQL/data generators -----
 
