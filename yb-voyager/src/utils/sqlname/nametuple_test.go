@@ -823,3 +823,20 @@ func TestMatchesPattern(t *testing.T) {
 		})
 	}
 }
+
+func TestIdentifierCaseSensitiveMatch(t *testing.T) {
+	assert := assert.New(t)
+	listOfIdentifiers := []Identifier{
+		NewIdentifier(constants.POSTGRESQL, "public"),
+		NewIdentifier(constants.POSTGRESQL, "Public"),
+		NewIdentifier(constants.POSTGRESQL, "PUBLIC"),
+		NewIdentifier(constants.POSTGRESQL, "public1"),
+		NewIdentifier(constants.POSTGRESQL, "Public1"),
+		NewIdentifier(constants.POSTGRESQL, "PUBLIC1"),
+	}
+	for _, identifier1 := range listOfIdentifiers {
+		matched, matchedIdentifier := identifier1.FindBestMatchingIdenitifier(listOfIdentifiers)
+		assert.True(matched, "identifier %s should match with identifier %s", identifier1.Quoted, matchedIdentifier.Quoted)
+		assert.Equal(identifier1, matchedIdentifier)
+	}
+}

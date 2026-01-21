@@ -53,7 +53,7 @@ func (i Identifier) Equals(other Identifier) bool {
 }
 
 func (i Identifier) CaseSensitiveMatch(other Identifier) bool {
-	return i.Quoted == other.Quoted || i.Unquoted == other.Unquoted
+	return i.Quoted == other.Quoted
 }
 
 func (i Identifier) CaseInSensitiveMatch(other Identifier) bool {
