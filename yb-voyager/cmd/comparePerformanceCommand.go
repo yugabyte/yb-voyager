@@ -20,10 +20,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	goerrors "github.com/go-errors/errors"
-	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
@@ -173,9 +171,7 @@ func validateComparePerfPrerequisites() {
 	if tconf.SchemaConfig == "" {
 		tconf.Schemas = msr.TargetDBConf.Schemas
 	} else {
-		tconf.Schemas = lo.Map(strings.Split(tconf.SchemaConfig, ","), func(s string, _ int) sqlname.Identifier {
-			return sqlname.NewIdentifier(constants.YUGABYTEDB, s)
-		})
+		tconf.Schemas = sqlname.ParseIdentifiersFromString(dbType, tconf.SchemaConfig, ",")
 	}
 
 	// Check 4: Target database is reachable

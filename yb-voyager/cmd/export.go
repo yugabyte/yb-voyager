@@ -23,7 +23,6 @@ import (
 	"strings"
 
 	goerrors "github.com/go-errors/errors"
-	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
 
@@ -293,10 +292,7 @@ func validateSourceSchema() {
 		source.Schemas = []sqlname.Identifier{sqlname.NewIdentifier(source.DBType, schemaList[0])}
 	case POSTGRESQL:
 		// In PG, its supported to export more than one schema
-		source.Schemas = lo.Map(schemaList, func(s string, _ int) sqlname.Identifier {
-			schema := sqlname.NewIdentifier(source.DBType, s)
-			return schema
-		})
+		source.Schemas = sqlname.ParseIdentifiersFromStrings(source.DBType, schemaList)
 	}
 }
 

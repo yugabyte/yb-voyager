@@ -26,7 +26,6 @@ import (
 	"github.com/fatih/color"
 	goerrors "github.com/go-errors/errors"
 	"github.com/jackc/pgx/v4"
-	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
@@ -96,9 +95,7 @@ var invalidTargetIndexesCache map[string]bool
 func importSchema() error {
 
 	//TODO: see if namreg initialization is required here
-	tconf.Schemas = lo.Map(strings.Split(tconf.SchemaConfig, ","), func(s string, _ int) sqlname.Identifier {
-		return sqlname.NewIdentifier(tconf.TargetDBType, s)
-	})
+	tconf.Schemas = sqlname.ParseIdentifiersFromString(tconf.TargetDBType, tconf.SchemaConfig, ",")
 
 	if callhome.SendDiagnostics || getControlPlaneType() == YUGABYTED {
 		tconfSchemas := tconf.Schemas
@@ -469,25 +466,19 @@ func createTargetSchemas(conn *pgx.Conn) {
 	case "postgresql": // in case of postgreSQL as source, there can be multiple schemas present in a database
 		source = srcdb.Source{DBType: sourceDBType}
 		schemaNames := utils.GetObjectNameListFromReport(schemaAnalysisReport, "SCHEMA")
-		targetSchemas = lo.Map(schemaNames, func(s string, _ int) sqlname.Identifier {
-			return sqlname.NewIdentifier(constants.YUGABYTEDB, s)
-		})
+		targetSchemas = sqlname.ParseIdentifiersFromStrings(constants.YUGABYTEDB, schemaNames)
 	case "oracle": // ORACLE PACKAGEs are exported as SCHEMAs
 		source = srcdb.Source{DBType: sourceDBType}
 		targetSchemas = append(targetSchemas, tconf.Schemas...)
 		packages := utils.GetObjectNameListFromReport(schemaAnalysisReport, "PACKAGE")
-		targetSchemas = append(targetSchemas, lo.Map(packages, func(s string, _ int) sqlname.Identifier {
-			return sqlname.NewIdentifier(constants.YUGABYTEDB, s)
-		})...)
+		targetSchemas = append(targetSchemas, sqlname.ParseIdentifiersFromStrings(constants.YUGABYTEDB, packages)...)
 	case "mysql":
 		source = srcdb.Source{DBType: sourceDBType}
 		targetSchemas = append(targetSchemas, tconf.Schemas...)
 
 	}
 
-	utils.PrintAndLogf("schemas to be present in target database %q: %v\n", tconf.DBName, lo.Map(targetSchemas, func(schema sqlname.Identifier, _ int) string {
-		return schema.MinQuoted
-	}))
+	utils.PrintAndLogf("schemas to be present in target database %q: %v\n", tconf.DBName, sqlname.JoinMinQuoted(targetSchemas, ", "))
 	for _, targetSchema := range targetSchemas {
 		//check if target schema exists or not
 		schemaExists := checkIfTargetSchemaExists(conn, targetSchema)

@@ -120,9 +120,7 @@ func setupPostgreDBAndExportDependencies(t *testing.T, sqls []string, schemas st
 	sqlname.SourceDBType = testPostgresSource.DBType
 
 	CreateMigrationProjectIfNotExists(constants.POSTGRESQL, testExportDir)
-	testPostgresSource.Schemas = lo.Map(strings.Split(schemas, "|"), func(s string, _ int) sqlname.Identifier {
-		return sqlname.NewIdentifier(constants.POSTGRESQL, s)
-	})
+	testPostgresSource.Schemas = sqlname.ExtractIdentifiersFromString(constants.POSTGRESQL, schemas, "|")
 	testPostgresSource.ExecuteSqls(sqls...)
 	return testExportDir
 }
@@ -136,13 +134,9 @@ func setupPostgresDBSourceAndYugabyteDBTargetWithExportDependencies(t *testing.T
 	sqlname.SourceDBType = POSTGRESQL
 
 	CreateMigrationProjectIfNotExists(constants.POSTGRESQL, testExportDir)
-	testPostgresSource.Schemas = lo.Map(strings.Split(schemas, "|"), func(s string, _ int) sqlname.Identifier {
-		return sqlname.NewIdentifier(constants.POSTGRESQL, s)
-	})
+	testPostgresSource.Schemas = sqlname.ExtractIdentifiersFromString(constants.POSTGRESQL, schemas, "|")
 	testPostgresSource.ExecuteSqls(sqls...)
-	testYugabyteDBSource.Schemas = lo.Map(strings.Split(schemas, "|"), func(s string, _ int) sqlname.Identifier {
-		return sqlname.NewIdentifier(constants.YUGABYTEDB, s)
-	})
+	testYugabyteDBSource.Schemas = sqlname.ExtractIdentifiersFromString(constants.YUGABYTEDB, schemas, "|")
 	testYugabyteDBSource.ExecuteSqls(sqls...)
 
 	targetConf := tgtdb.TargetConf{

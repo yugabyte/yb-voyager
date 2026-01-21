@@ -239,9 +239,7 @@ func (reg *NameRegistry) initSourceDBSchemaNames() error {
 	case constants.MYSQL:
 		reg.SourceDBSchemaNames = []string{reg.params.SourceDBName}
 	case constants.POSTGRESQL:
-		schemaNames := lo.Map(strings.Split(reg.params.SourceDBSchema, "|"), func(s string, _ int) string {
-			return s
-		})
+		schemaNames := strings.Split(reg.params.SourceDBSchema, "|")
 		var err error
 		reg.SourceDBSchemaNames, err = reg.validateAndSetSchemaNames(schemaNames)
 		if err != nil {
@@ -261,9 +259,7 @@ func (reg *NameRegistry) validateAndSetSchemaNames(schemaNames []string) ([]stri
 	if err != nil {
 		return nil, fmt.Errorf("get all schema names: %w", err)
 	}
-	schemaIdenitifiers := lo.Map(schemaNames, func(s string, _ int) sqlname.Identifier {
-		return sqlname.NewIdentifier(reg.params.SourceDBType, s)
-	})
+	schemaIdenitifiers := sqlname.ParseIdentifiersFromStrings(reg.params.SourceDBType, schemaNames)
 	var schemaNotPresent []sqlname.Identifier
 	var finalSchemaList []sqlname.Identifier
 	for _, schema := range schemaIdenitifiers {
@@ -276,13 +272,9 @@ func (reg *NameRegistry) validateAndSetSchemaNames(schemaNames []string) ([]stri
 	}
 
 	if len(schemaNotPresent) > 0 {
-		return nil, goerrors.Errorf("\nFollowing schemas are not present in source database: %v, please provide a valid schema list.\n", lo.Map(schemaNotPresent, func(s sqlname.Identifier, _ int) string {
-			return s.Unquoted
-		}))
+		return nil, goerrors.Errorf("\nFollowing schemas are not present in source database: %v, please provide a valid schema list.\n", sqlname.JoinUnquoted(schemaNotPresent, ", "))
 	}
-	return lo.Map(finalSchemaList, func(s sqlname.Identifier, _ int) string {
-		return s.Unquoted
-	}), nil
+	return sqlname.ExtractUnquoted(finalSchemaList), nil
 }
 func (reg *NameRegistry) registerYBNames() (bool, error) {
 	if reg.params.YBDB == nil {
@@ -300,10 +292,8 @@ func (reg *NameRegistry) registerYBNames() (bool, error) {
 	case constants.POSTGRESQL:
 		reg.YBSchemaNames = reg.SourceDBSchemaNames
 	default:
-		reg.YBSchemaNames = lo.Map(strings.Split(reg.params.TargetDBSchema, "|"), func(s string, _ int) string {
-			schema := sqlname.NewIdentifier(constants.YUGABYTEDB, s)
-			return schema.Unquoted
-		})
+		identifiers := sqlname.ParseIdentifiersFromString(constants.YUGABYTEDB, reg.params.TargetDBSchema, "|")
+		reg.YBSchemaNames = sqlname.ExtractUnquoted(identifiers)
 	}
 	for _, schemaName := range reg.YBSchemaNames {
 		tableNames, err := yb.GetAllTableNamesRaw(schemaName)
@@ -544,9 +534,7 @@ func (reg *NameRegistry) LookupSchemaName(schemaName string) (sqlname.Identifier
 	default:
 		return sqlname.Identifier{}, goerrors.Errorf("invalid role: %s", reg.params.Role)
 	}
-	schemaIdenitifiers := lo.Map(schemaNames, func(s string, _ int) sqlname.Identifier {
-		return sqlname.NewIdentifier(dbType, s)
-	})
+	schemaIdenitifiers := sqlname.ParseIdentifiersFromStrings(dbType, schemaNames)
 	schemaNameIdentifier := sqlname.NewIdentifier(dbType, schemaName)
 	matchedSchema, matchedSchemaIdentifier := schemaNameIdentifier.FindBestMatchingIdenitifier(schemaIdenitifiers)
 	if !matchedSchema {

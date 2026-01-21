@@ -679,18 +679,14 @@ func InitNameRegistry(
 	if sconf != nil {
 		sourceDbType = sconf.DBType
 		sourceDbName = sconf.DBName
-		sourceDbSchema = strings.Join(lo.Map(sconf.Schemas, func(s sqlname.Identifier, _ int) string {
-			return s.Unquoted
-		}), "|")
+		sourceDbSchema = sqlname.JoinUnquoted(sconf.Schemas, "|")
 	}
 	if sdb != nil {
 		sdbReg = sdb.(namereg.SourceDBInterface)
 	}
 
 	if tconf != nil {
-		targetDBSchema = strings.Join(lo.Map(tconf.Schemas, func(s sqlname.Identifier, _ int) string {
-			return s.Unquoted
-		}), "|")
+		targetDBSchema = sqlname.JoinUnquoted(tconf.Schemas, "|")
 	}
 	var ok bool
 	if tdb != nil && lo.Contains([]string{TARGET_DB_IMPORTER_ROLE, IMPORT_FILE_ROLE}, role) {
@@ -990,12 +986,10 @@ func initBaseSourceEvent(bev *cp.BaseEvent, eventType string) {
 		MigrationUUID: migrationUUID,
 		DBType:        source.DBType,
 		DatabaseName:  source.DBName,
-		SchemaNames: cp.GetSchemaList(strings.Join(lo.Map(source.Schemas, func(s sqlname.Identifier, _ int) string {
-			return s.Unquoted
-		}), "|")),
-		DBIP:      utils.LookupIP(source.Host),
-		Port:      source.Port,
-		DBVersion: source.DBVersion,
+		SchemaNames:   cp.GetSchemaList(sqlname.JoinUnquoted(source.Schemas, "|")),
+		DBIP:          utils.LookupIP(source.Host),
+		Port:          source.Port,
+		DBVersion:     source.DBVersion,
 	}
 }
 
@@ -1005,12 +999,10 @@ func initBaseTargetEvent(bev *cp.BaseEvent, eventType string) {
 		MigrationUUID: migrationUUID,
 		DBType:        tconf.TargetDBType,
 		DatabaseName:  tconf.DBName,
-		SchemaNames: lo.Map(tconf.Schemas, func(s sqlname.Identifier, _ int) string {
-			return s.Unquoted
-		}),
-		DBIP:      utils.LookupIP(tconf.Host),
-		Port:      tconf.Port,
-		DBVersion: tconf.DBVersion,
+		SchemaNames:   sqlname.ExtractUnquoted(tconf.Schemas),
+		DBIP:          utils.LookupIP(tconf.Host),
+		Port:          tconf.Port,
+		DBVersion:     tconf.DBVersion,
 	}
 }
 

@@ -1492,10 +1492,7 @@ func considerQueryForIssueDetection(collectedSchemaList []string) bool {
 		return item != "pg_catalog"
 	})
 
-	sourceSchemaList := lo.Map(source.Schemas, func(s sqlname.Identifier, _ int) string {
-		//using Unquoted as this is used to check for the schema fetched from parsed queries
-		return s.Unquoted
-	})
+	sourceSchemaList := sqlname.ExtractUnquoted(source.Schemas)
 	// fallback in case: unable to collect objects or there are no object(s) in the query
 	if len(collectedSchemaList) == 0 {
 		return true

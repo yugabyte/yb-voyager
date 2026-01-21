@@ -453,9 +453,7 @@ func (db *dummySourceDB) GetAllSequencesRaw(schemaName string) ([]string, error)
 }
 
 func (db *dummySourceDB) GetAllSchemaNamesIdentifiers() ([]sqlname.Identifier, error) {
-	return lo.Map(db.schemaNames, func(s string, _ int) sqlname.Identifier {
-		return sqlname.NewIdentifier(db.dbType, s)
-	}), nil
+	return sqlname.ExtractIdentifiersFromStrings(db.dbType, db.schemaNames), nil
 }
 
 type dummyTargetDB struct {
@@ -495,7 +493,7 @@ func TestNameRegistryWithDummyDBs(t *testing.T) {
 		sequenceNames: map[string][]string{
 			"SAKILA": {"SEQ1", "SEQ2"},
 		},
-		dbType: constants.ORACLE,
+		dbType:      constants.ORACLE,
 		schemaNames: []string{"SAKILA"},
 	}
 

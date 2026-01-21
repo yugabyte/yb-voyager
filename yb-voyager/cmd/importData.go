@@ -158,9 +158,7 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	sourceDBType = GetSourceDBTypeFromMSR()
 	sqlname.SourceDBType = sourceDBType
 
-	tconf.Schemas = lo.Map(strings.Split(tconf.SchemaConfig, ","), func(s string, _ int) sqlname.Identifier {
-		return sqlname.NewIdentifier(tconf.TargetDBType, s)
-	})
+	tconf.Schemas = sqlname.ParseIdentifiersFromString(tconf.TargetDBType, tconf.SchemaConfig, ",")
 	tdb = tgtdb.NewTargetDB(&tconf)
 	err := tdb.Init()
 	if err != nil {

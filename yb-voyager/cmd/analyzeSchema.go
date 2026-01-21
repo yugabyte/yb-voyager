@@ -258,9 +258,7 @@ func reportSchemaSummary(sourceDBConf *srcdb.Source) utils.SchemaSummary {
 	}
 	if !tconf.ImportMode && sourceDBConf != nil { // this info is available only if we are exporting from source
 		schemaSummary.DBName = sourceDBConf.DBName
-		schemaSummary.SchemaNames = lo.Map(sourceDBConf.Schemas, func(s sqlname.Identifier, _ int) string {
-			return s.MinQuoted
-		})
+		schemaSummary.SchemaNames = sqlname.ExtractMinQuoted(sourceDBConf.Schemas)
 		schemaSummary.DBVersion = sourceDBConf.DBVersion
 	}
 

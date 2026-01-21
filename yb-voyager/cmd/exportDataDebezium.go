@@ -135,10 +135,8 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 		Username:           source.User,
 		Password:           source.Password,
 
-		DatabaseName: source.DBName,
-		SchemaNames: strings.Join(lo.Map(source.Schemas, func(s sqlname.Identifier, _ int) string {
-			return s.Unquoted
-		}), "|"),
+		DatabaseName:          source.DBName,
+		SchemaNames:           sqlname.JoinUnquoted(source.Schemas, "|"),
 		TableList:             dbzmTableList,
 		ColumnList:            dbzmColumnList,
 		ColumnSequenceMapping: columnSequenceMapping,

@@ -120,9 +120,7 @@ func (pg *TargetPostgreSQL) Init() error {
 	if len(pg.tconf.SessionVars) == 0 {
 		pg.tconf.SessionVars = getPGSessionInitScript(pg.tconf)
 	}
-	schemas := lo.Map(pg.tconf.Schemas, func(schema sqlname.Identifier, _ int) string {
-		return schema.Unquoted
-	})
+	schemas := sqlname.ExtractUnquoted(pg.tconf.Schemas)
 	schemaList := strings.Join(schemas, "','") // a','b','c
 	checkSchemaExistsQuery := fmt.Sprintf(
 		"SELECT nspname FROM pg_catalog.pg_namespace WHERE nspname IN ('%s');",
@@ -704,9 +702,7 @@ func (pg *TargetPostgreSQL) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 }
 
 func (pg *TargetPostgreSQL) setTargetSchema(conn *pgx.Conn) {
-	schemas := strings.Join(lo.Map(pg.tconf.Schemas, func(schema sqlname.Identifier, _ int) string {
-		return schema.MinQuoted
-	}), ", ")
+	schemas := sqlname.JoinMinQuoted(pg.tconf.Schemas, ", ")
 	setSchemaQuery := fmt.Sprintf("SET SEARCH_PATH TO %s", schemas)
 	_, err := conn.Exec(context.Background(), setSchemaQuery)
 	if err != nil {
@@ -1146,10 +1142,7 @@ func (pg *TargetPostgreSQL) listTablesMissingSelectInsertUpdateDeletePermissions
 }
 
 func (pg *TargetPostgreSQL) getSchemaList() []string {
-	schemas := lo.Map(pg.tconf.Schemas, func(schema sqlname.Identifier, _ int) string {
-		return schema.Unquoted
-	})
-	return schemas
+	return sqlname.ExtractUnquoted(pg.tconf.Schemas)
 }
 
 func (pg *TargetPostgreSQL) GetEnabledTriggersAndFks() (enabledTriggers []string, enabledFks []string, err error) {

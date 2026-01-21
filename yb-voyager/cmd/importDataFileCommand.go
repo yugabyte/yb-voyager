@@ -22,7 +22,6 @@ import (
 	"strings"
 
 	"github.com/fatih/color"
-	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/maps"
@@ -82,9 +81,7 @@ var importDataFileCmd = &cobra.Command{
 		if err != nil {
 			utils.ErrExit("failed to get migration UUID: %w", err)
 		}
-		tconf.Schemas = lo.Map(strings.Split(tconf.SchemaConfig, ","), func(s string, _ int) sqlname.Identifier {
-			return sqlname.NewIdentifier(tconf.TargetDBType, s)
-		})
+		tconf.Schemas = sqlname.ParseIdentifiersFromString(tconf.TargetDBType, tconf.SchemaConfig, ",")
 		tdb = tgtdb.NewTargetDB(&tconf)
 		err = tdb.Init()
 		if err != nil {

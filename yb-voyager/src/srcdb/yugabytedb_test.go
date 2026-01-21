@@ -228,9 +228,7 @@ func TestYugabyteGetColumnToSequenceMap(t *testing.T) {
 		testutils.CreateNameTupleWithSourceName("public.manual_linked_table", "public", testPostgresSource.DBType),
 		testutils.CreateNameTupleWithSourceName("public.manual_linked_table_1", "public", testPostgresSource.DBType),
 	}
-	testPostgresSource.Source.Schemas = lo.Map(strings.Split("public|custom_schema", "|"), func(s string, _ int) sqlname.Identifier {
-		return sqlname.NewIdentifier("postgresql", s)
-	})
+	testPostgresSource.Source.Schemas = sqlname.ExtractIdentifiersFromString("postgresql", "public|custom_schema", "|")
 
 	// Test GetColumnToSequenceMap
 	fmt.Print("----- Subset of table list case ----- \n")

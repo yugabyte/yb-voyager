@@ -81,6 +81,52 @@ func (i Identifier) FindBestMatchingIdenitifier(schemaIdenitifiers []Identifier)
 	return false, Identifier{}
 }
 
+func ExtractMinQuoted(identifiers []Identifier) []string {
+	return lo.Map(identifiers, func(identifier Identifier, _ int) string {
+		return identifier.MinQuoted
+	})
+}
+
+func ExtractUnquoted(identifiers []Identifier) []string {
+	return lo.Map(identifiers, func(identifier Identifier, _ int) string {
+		return identifier.Unquoted
+	})
+}
+
+func ExtractQuoted(identifiers []Identifier) []string {
+	return lo.Map(identifiers, func(identifier Identifier, _ int) string {
+		return identifier.Quoted
+	})
+}
+
+func JoinUnquoted(identifiers []Identifier, separator string) string {
+	unquotedIdentifiers := ExtractUnquoted(identifiers)
+	return strings.Join(unquotedIdentifiers, separator)
+}
+
+func JoinQuoted(identifiers []Identifier, separator string) string {
+	quotedIdentifiers := ExtractQuoted(identifiers)
+	return strings.Join(quotedIdentifiers, separator)
+}
+
+func JoinMinQuoted(identifiers []Identifier, separator string) string {
+	minQuotedIdentifiers := ExtractMinQuoted(identifiers)
+	return strings.Join(minQuotedIdentifiers, separator)
+}
+
+func ParseIdentifiersFromString(dbType, schemaConfig, separator string) []Identifier {
+	schemas := strings.Split(schemaConfig, separator)
+	return lo.Map(schemas, func(schema string, _ int) Identifier {
+		return NewIdentifier(dbType, schema)
+	})
+}
+
+func ParseIdentifiersFromStrings(dbType string, schemaList []string) []Identifier {
+	return lo.Map(schemaList, func(schema string, _ int) Identifier {
+		return NewIdentifier(dbType, schema)
+	})
+}
+
 //==============================================
 
 type SourceName struct {
