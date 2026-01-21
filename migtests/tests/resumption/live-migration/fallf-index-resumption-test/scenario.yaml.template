@@ -1,5 +1,5 @@
 version: 1
-name: fall-forward-resumption-test
+name: fallf-index-resumption-test
 run_id: run
 
 env:

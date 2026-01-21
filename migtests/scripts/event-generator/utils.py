@@ -478,9 +478,17 @@ def run_index_operations(index_thread_stop: threading.Event, config: Dict[str, A
     # Create a separate connection for index operations
     index_conn = psycopg2.connect(**get_connection_kwargs_from_config(config))
     index_cur = index_conn.cursor()
-    
+    db_flavor = detect_db_flavor(index_cur)
+
+    # Unsupported by B-tree indexable data types for YugabyteDB and PostgreSQL
+    if db_flavor == "YUGABYTE":
+        unsupported_indexable_data_types = 'citext', 'tsvector', 'tsquery', 'inet', 'varbit', 'bit', 'json', 'jsonb', 'xml', 'point', 'line', 'lseg', 'box', 'path', 'polygon', 'circle'
+    else:
+        unsupported_indexable_data_types = 'json', 'jsonb'
+
     thread_random = random.Random()
     thread_random.seed()
+    MAX_RETRIES = 50
     
     # Use stderr and flush to ensure output is visible even when stdout is redirected
     print("Index operations thread started", file=sys.stderr, flush=True)
@@ -488,14 +496,16 @@ def run_index_operations(index_thread_stop: threading.Event, config: Dict[str, A
     try:
         while not index_thread_stop.is_set():
             action = thread_random.choice(["create", "drop"])
+            retry_count = 0
             
             try:
                 if action == "create":
-                    # Pick any random column
-                    index_cur.execute("""
+                    # Pick any random column that can be indexed
+                    index_cur.execute(f"""
                         SELECT table_name, column_name
                         FROM information_schema.columns
                         WHERE table_schema = %s
+                          AND data_type NOT IN {unsupported_indexable_data_types}
                         ORDER BY random()
                         LIMIT 1;
                     """, (schema_name,))
@@ -505,9 +515,18 @@ def run_index_operations(index_thread_stop: threading.Event, config: Dict[str, A
                         table, col = result
                         idx_name = f"idx_rand_{table}_{col}_{thread_random.randint(100000,999999)}"
                         sql = f'CREATE INDEX "{idx_name}" ON "{schema_name}"."{table}" ("{col}");'
-                        index_cur.execute(sql)
-                        index_conn.commit()
-                        print(f"Successfully created index: {idx_name}", file=sys.stderr, flush=True)
+                        while retry_count < MAX_RETRIES:
+                            try:
+                                index_cur.execute(sql)
+                                index_conn.commit()
+                                print(f"Successfully created index: {idx_name}", file=sys.stderr, flush=True)
+                                break
+                            except psycopg2.Error as e:
+                                print(f"Index operation error: {e}", file=sys.stderr, flush=True)
+                                index_conn.rollback()
+                                time.sleep(1)
+                                retry_count += 1
+                                print(f"Retrying index creation {idx_name} (attempt {retry_count} of {MAX_RETRIES})", file=sys.stderr, flush=True)
                         
                 else:
                     # Pick a random droppable index (NOT backing PK/UNIQUE constraints)
@@ -529,18 +548,23 @@ def run_index_operations(index_thread_stop: threading.Event, config: Dict[str, A
                     if row:
                         schema_name_val, index_name = row
                         sql = f'DROP INDEX IF EXISTS "{schema_name_val}"."{index_name}";'
-                        index_cur.execute(sql)
-                        index_conn.commit()
-                        print(f"Successfully dropped index: {index_name}", file=sys.stderr, flush=True)
+                        while retry_count < MAX_RETRIES:
+                            try:
+                                index_cur.execute(sql)
+                                index_conn.commit()
+                                print(f"Successfully dropped index: {index_name}", file=sys.stderr, flush=True)
+                                break
+                            except psycopg2.Error as e:
+                                print(f"Index operation error: {e}", file=sys.stderr, flush=True)
+                                index_conn.rollback()
+                                time.sleep(1)
+                                retry_count += 1
+                                print(f"Retrying index drop {index_name} (attempt {retry_count} of {MAX_RETRIES})", file=sys.stderr, flush=True)
                     else:
                         print("No safe indexes found to drop (only PK/UNIQUE constraint indexes exist).", file=sys.stderr, flush=True)
                 
                 time.sleep(thread_random.uniform(2.0, 5.0))
-                
-            except psycopg2.Error as e:
-                print(f"Index operation error: {e}", file=sys.stderr, flush=True)
-                index_conn.rollback()
-                time.sleep(1)
+
             except Exception as e:
                 print(f"Unexpected error in index operations: {e}", file=sys.stderr, flush=True)
                 time.sleep(1)
