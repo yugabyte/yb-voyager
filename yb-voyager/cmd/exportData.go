@@ -450,7 +450,7 @@ func exportData() bool {
 
 			var sequenceInitValues strings.Builder
 			sequenceValueMap.IterKV(func(seqName sqlname.NameTuple, seqValue int64) (bool, error) {
-				sequenceInitValues.WriteString(fmt.Sprintf("%s:%d,", seqName.ForUserQuery(), seqValue))
+				sequenceInitValues.WriteString(fmt.Sprintf("%s:%d,", seqName.ForKey(), seqValue))
 				return true, nil
 			})
 
@@ -847,7 +847,7 @@ func getNameTupleFromQualifiedObject(qualifiedObjectStr string, qualifiedObjectN
 	//Now for PG/YB create a ObjectName and a NameTuple by hand and then check if that is a partition table or not
 	var obj *sqlname.ObjectName
 	if qualifiedObjectName != nil {
-		//if passed in parameter then take it else create one   
+		//if passed in parameter then take it else create one
 		obj = qualifiedObjectName
 	} else {
 		//create the ObjectName by hand

@@ -69,6 +69,9 @@ func NewSourceName(schemaName, objectName string) *SourceName {
 	if schemaName == "" {
 		panic("schema name cannot be empty")
 	}
+	if !IsQuoted(schemaName) || !IsQuoted(objectName) {
+		panic(fmt.Sprintf("schema or object name should be quoted: %s or %s", schemaName, objectName))
+	}
 	return &SourceName{
 		ObjectName: Identifier{
 			Quoted:    quote(objectName, SourceDBType),
@@ -125,6 +128,9 @@ func (s *SourceName) ToTargetName() *TargetName {
 func NewTargetName(schemaName, objectName string) *TargetName {
 	if schemaName == "" {
 		panic("schema name cannot be empty")
+	}
+	if !IsQuoted(schemaName) || !IsQuoted(objectName) {
+		panic(fmt.Sprintf("schema or object name should be quoted: %s or %s", schemaName, objectName))
 	}
 	return &TargetName{
 		ObjectName: Identifier{

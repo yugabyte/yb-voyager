@@ -824,8 +824,7 @@ func (pg *PostgreSQL) GetColumnToSequenceMap(tableList []sqlname.NameTuple) map[
 				utils.ErrExit("Error in scanning for sequences query: %s: %w", query, err)
 			}
 			qualifiedColumnName := fmt.Sprintf("%s.%s", tableName, columeName)
-			// quoting sequence name as it can be case sensitive - required during import data restore sequences
-			//quoting schema name as it can be case sensitive - required during import data restore sequences
+			// quoting schema and sequence name as it can be case sensitive - required during import data restore sequences
 			columnToSequenceMap[qualifiedColumnName] = fmt.Sprintf(`"%s"."%s"`, schemaName, sequenceName)
 		}
 		err = rows.Close()

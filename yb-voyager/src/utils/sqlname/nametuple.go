@@ -39,8 +39,11 @@ type ObjectName struct {
 	MinQualified Identifier
 }
 
-//Assumption is to pass unquoted name for schema and table name with case sensitivity preserved
+// Assumption is to pass unquoted name for schema and table name with case sensitivity preserved
 func NewObjectName(dbType, defaultSchemaName, schemaName, tableName string) *ObjectName {
+	if IsQuoted(schemaName) || IsQuoted(tableName) {
+		panic(fmt.Sprintf("schema or table name should be unquoted: %s or %s", schemaName, tableName))
+	}
 	schemaNameIdentifier := Identifier{
 		Quoted:    quote2(dbType, schemaName),
 		Unquoted:  schemaName,
@@ -64,11 +67,14 @@ func NewObjectName(dbType, defaultSchemaName, schemaName, tableName string) *Obj
 	return result
 }
 
-// Assumption - always quoted qualified name with case sensitivity preserved   
+// Assumption - always quoted qualified name with case sensitivity preserved
 func NewObjectNameWithQualifiedName(dbType, defaultSchemaName, objName string) *ObjectName {
 	parts := strings.Split(objName, ".")
 	if len(parts) != 2 {
 		panic(fmt.Sprintf("invalid qualified name: %s", objName))
+	}
+	if !IsQuoted(parts[0]) || !IsQuoted(parts[1]) {
+		panic(fmt.Sprintf("schema or table name should be quoted: %s or %s", parts[0], parts[1]))
 	}
 	return NewObjectName(dbType, defaultSchemaName, unquote(parts[0], dbType), unquote(parts[1], dbType))
 }
@@ -90,7 +96,13 @@ func (nv *ObjectName) MatchesPattern(pattern string) (bool, error) {
 	parts := strings.Split(pattern, ".")
 	switch true {
 	case len(parts) == 2:
+		//if the schema name matches completely with the quoted schema name of the object name then no problem
+		//if the pattern "Abc" and objectname has Quoted-"Abc" and unquoted-Abc, then this quoted matches with the pattern
 		if parts[0] != nv.SchemaName.Quoted {
+			//if its not a complete match with quoted
+			//then check if the equalfold without case sensitivity matches with the unquoted schema name of the object name
+			//if the pattern has  Abc and objectname has Quoted-"abc" and unquoted-abc, so with equalfold it will match
+			//if the pattern has "Abc" and objectname has Quoted-"abc" and unquoted-abc, so even with equalfold it will not match as the quotes are present in the pattern
 			if !strings.EqualFold(parts[0], nv.SchemaName.Unquoted) {
 				return false, nil
 			}

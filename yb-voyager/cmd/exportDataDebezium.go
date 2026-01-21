@@ -265,8 +265,9 @@ func fetchOrRetrieveColToSeqMap(msr *metadb.MigrationStatusRecord, tableList []s
 	}
 	return colToSeqMap, nil
 }
-//returns qualified column name to sequence name mapping for debezium
-//<schema>.<table>.<column>:<sequnce_name_user_query_format> as the sequence max value mapping also has the userQuery format
+
+// returns qualified column name to sequence name mapping for debezium
+// <schema>.<table>.<column>:<sequnce_name_user_query_format> as the sequence max value mapping also has the userQuery format
 func getColumnToSequenceMapping(colToSeqMap map[string]string) (string, error) {
 	var colToSeqMapSlices []string
 
@@ -283,12 +284,12 @@ func getColumnToSequenceMapping(colToSeqMap map[string]string) (string, error) {
 			if err != nil {
 				return "", goerrors.Errorf("lookup failed for table %s", rootTable)
 			}
-			c := fmt.Sprintf("%s.%s:%s", rootTableTup.AsQualifiedCatalogName(), parts[2], seqTuple.ForUserQuery())
+			c := fmt.Sprintf("%s.%s:%s", rootTableTup.AsQualifiedCatalogName(), parts[2], seqTuple.ForKey())
 			if !slices.Contains(colToSeqMapSlices, c) {
 				colToSeqMapSlices = append(colToSeqMapSlices, c)
 			}
 		} else {
-			colToSeqMapSlices = append(colToSeqMapSlices, fmt.Sprintf("%s:%s", k, seqTuple.ForUserQuery()))
+			colToSeqMapSlices = append(colToSeqMapSlices, fmt.Sprintf("%s:%s", k, seqTuple.ForKey()))
 		}
 	}
 
