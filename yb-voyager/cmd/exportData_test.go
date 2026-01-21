@@ -374,9 +374,9 @@ func TestTableListInFreshRunOfExportDataBasicPG(t *testing.T) {
 		getNameTuple("public.test_partitions_sequences_s"),
 		getNameTuple("public.test_partitions_sequences_b"),
 		getNameTuple("public.sales_region"),
-		getNameTuple("p1.London"),
-		getNameTuple("p1.Sydney"),
-		getNameTuple("p1.Boston"),
+		getNameTuple("p1.london"),
+		getNameTuple("p1.sydney"),
+		getNameTuple("p1.boston"),
 		getNameTuple("public.datatypes1"),
 		getNameTuple("public.foreign_test"),
 	}
@@ -443,7 +443,7 @@ func TestTableListInFreshRunOfExportDataFilterViaFlagsPG(t *testing.T) {
 		getNameTuple("public.test_partitions_sequences_s"),
 		getNameTuple("public.test_partitions_sequences_b"),
 		getNameTuple("public.datatypes1"),
-		getNameTuple("p1.Boston"),
+		getNameTuple("p1.boston"),
 		getNameTuple("public.sales_region"),
 		getNameTuple("public.foreign_test"),
 	}
@@ -461,8 +461,8 @@ func TestTableListInFreshRunOfExportDataFilterViaFlagsPG(t *testing.T) {
 
 	expectedTableList3 := []sqlname.NameTuple{
 		getNameTuple("public.sales_region"),
-		getNameTuple("p1.London"),
-		getNameTuple("p1.Boston"),
+		getNameTuple("p1.london"),
+		getNameTuple("p1.boston"),
 		getNameTuple("public.datatypes1"),
 	}
 	assertTableListFilteringInTheFirstRun(t, expectedPartitionsToRootMap3, expectedTableList3)
@@ -510,9 +510,9 @@ func TestTableListInSubsequentRunOfExportDataBasicPG(t *testing.T) {
 		getNameTuple("public.test_partitions_sequences_s"),
 		getNameTuple("public.test_partitions_sequences_b"),
 		getNameTuple("public.sales_region"),
-		getNameTuple("p1.London"),
-		getNameTuple("p1.Sydney"),
-		getNameTuple("p1.Boston"),
+		getNameTuple("p1.london"),
+		getNameTuple("p1.sydney"),
+		getNameTuple("p1.boston"),
 		getNameTuple("public.datatypes1"),
 		getNameTuple("public.foreign_test"),
 	}
@@ -657,7 +657,7 @@ func TestTableListInSubsequentRunOfExportDatWithTableListFlagsPG(t *testing.T) {
 		getNameTuple("public.test_partitions_sequences_s"),
 		getNameTuple("public.test_partitions_sequences_b"),
 		getNameTuple("public.datatypes1"),
-		getNameTuple("p1.Boston"),
+		getNameTuple("p1.boston"),
 		getNameTuple("public.sales_region"),
 		getNameTuple("public.foreign_test"),
 	}
@@ -1020,9 +1020,9 @@ func TestTableListInFreshRunOfExportDataBasicYB(t *testing.T) {
 		getNameTuple("public.test_partitions_sequences_s"),
 		getNameTuple("public.test_partitions_sequences_b"),
 		getNameTupleWithTargetName("public.sales_region"),
-		getNameTuple("p1.London"),
-		getNameTuple("p1.Sydney"),
-		getNameTuple("p1.Boston"),
+		getNameTuple("p1.london"),
+		getNameTuple("p1.sydney"),
+		getNameTuple("p1.boston"),
 		getNameTupleWithTargetName("public.datatypes1"),
 		getNameTupleWithTargetName("public.foreign_test"),
 	}
@@ -1059,9 +1059,9 @@ func TestTableListInFreshRunOfExportDataBasicYB(t *testing.T) {
 		getNameTuple("public.test_partitions_sequences_l"),
 		getNameTuple("public.test_partitions_sequences_s"),
 		getNameTuple("public.test_partitions_sequences_b"),
-		getNameTuple("p1.London"),
-		getNameTuple("p1.Sydney"),
-		getNameTuple("p1.Boston"),
+		getNameTuple("p1.london"),
+		getNameTuple("p1.sydney"),
+		getNameTuple("p1.boston"),
 		getNameTupleWithTargetName("public.sales_region"),
 	}
 	err = metaDB.UpdateMigrationStatusRecord(func(msr *metadb.MigrationStatusRecord) {
@@ -1094,7 +1094,7 @@ func TestTableListInFreshRunOfExportDataBasicYB(t *testing.T) {
 		getNameTupleWithTargetName("public.datatypes1"),
 	}
 	missingTables1 := []sqlname.NameTuple{
-		getNameTuple("p1.Boston"),
+		getNameTuple("p1.boston"),
 	}
 	rootTables := []sqlname.NameTuple{
 		getNameTupleWithTargetName("public.sales_region"),
@@ -1157,9 +1157,9 @@ func TestTableListInFreshRunOfExportDataForTablesExtraInSource(t *testing.T) {
 		getNameTuple("public.test_partitions_sequences_s"),
 		getNameTuple("public.test_partitions_sequences_b"),
 		getNameTuple("public.sales_region"),
-		getNameTuple("p1.London"),
-		getNameTuple("p1.Sydney"),
-		getNameTuple("p1.Boston"),
+		getNameTuple("p1.london"),
+		getNameTuple("p1.sydney"),
+		getNameTuple("p1.boston"),
 		getNameTuple("public.datatypes1"),
 		getNameTuple("public.foreign_test"),
 	}
@@ -1207,9 +1207,9 @@ func TestTableListInFreshRunOfExportDataForTablesExtraInSource(t *testing.T) {
 		getNameTuple("public.test_partitions_sequences_s"),
 		getNameTuple("public.test_partitions_sequences_b"),
 		getNameTupleWithTargetName("public.sales_region"),
-		getNameTuple("p1.London"),
-		getNameTuple("p1.Sydney"),
-		getNameTuple("p1.Boston"),
+		getNameTuple("p1.london"),
+		getNameTuple("p1.sydney"),
+		getNameTuple("p1.boston"),
 		getNameTupleWithTargetName("public.datatypes1"),
 		getNameTupleWithTargetName("public.foreign_test"),
 	}
@@ -1228,9 +1228,9 @@ func TestTableListInFreshRunOfExportDataForTablesExtraInSource(t *testing.T) {
 		getNameTupleWithTargetName("public.sales_region"),
 	}
 	expectedMissingTables := []sqlname.NameTuple{
-		getNameTuple("p1.London"),
-		getNameTuple("p1.Sydney"),
-		getNameTuple("p1.Boston"),
+		getNameTuple("p1.london"),
+		getNameTuple("p1.sydney"),
+		getNameTuple("p1.boston"),
 		getNameTupleWithTargetName("public.datatypes1"),
 		getNameTupleWithTargetName("public.foreign_test"),
 	}
@@ -1274,12 +1274,12 @@ func TestTableListInFreshRunOfExportDataForTablesExtraInTarget(t *testing.T) {
 		getNameTuple("public.test_partitions_sequences_s"),
 		getNameTuple("public.test_partitions_sequences_b"),
 		getNameTuple("public.sales_region"),
-		getNameTuple("p1.London"),
-		getNameTuple("p1.Sydney"),
-		getNameTuple("p1.Boston"),
+		getNameTuple("p1.london"),
+		getNameTuple("p1.sydney"),
+		getNameTuple("p1.boston"),
 		getNameTuple("public.datatypes1"),
 		getNameTuple("public.foreign_test"),
-	}
+	}		
 	assertTableListFilteringInTheFirstRun(t, expectedPartitionsToRootMap, expectedTableList)
 
 	//Create msr with required details for subsequent run
@@ -1328,9 +1328,9 @@ func TestTableListInFreshRunOfExportDataForTablesExtraInTarget(t *testing.T) {
 		getNameTuple("public.test_partitions_sequences_s"),
 		getNameTuple("public.test_partitions_sequences_b"),
 		getNameTupleWithTargetName("public.sales_region"),
-		getNameTuple("p1.London"),
-		getNameTuple("p1.Sydney"),
-		getNameTuple("p1.Boston"),
+		getNameTuple("p1.london"),
+		getNameTuple("p1.sydney"),
+		getNameTuple("p1.boston"),
 		getNameTupleWithTargetName("public.datatypes1"),
 		getNameTupleWithTargetName("public.foreign_test"),
 	}

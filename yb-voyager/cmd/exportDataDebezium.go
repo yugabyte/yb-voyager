@@ -286,12 +286,12 @@ func getColumnToSequenceMapping(colToSeqMap map[string]string) (string, error) {
 			if err != nil {
 				return "", goerrors.Errorf("lookup failed for table %s", rootTable)
 			}
-			c := fmt.Sprintf("%s.%s:%s", rootTableTup.AsQualifiedCatalogName(), parts[2], seqTuple.ForUserQuery())
+			c := fmt.Sprintf("%s.%s:%s", rootTableTup.AsQualifiedCatalogName(), parts[2], seqTuple.ForKey())
 			if !slices.Contains(colToSeqMapSlices, c) {
 				colToSeqMapSlices = append(colToSeqMapSlices, c)
 			}
 		} else {
-			colToSeqMapSlices = append(colToSeqMapSlices, fmt.Sprintf("%s:%s", k, seqTuple.ForUserQuery()))
+			colToSeqMapSlices = append(colToSeqMapSlices, fmt.Sprintf("%s:%s", k, seqTuple.ForKey()))
 		}
 	}
 

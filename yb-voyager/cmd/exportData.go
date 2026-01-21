@@ -456,7 +456,7 @@ func exportData() bool {
 
 			var sequenceInitValues strings.Builder
 			sequenceValueMap.IterKV(func(seqName sqlname.NameTuple, seqValue int64) (bool, error) {
-				sequenceInitValues.WriteString(fmt.Sprintf("%s:%d,", seqName.ForUserQuery(), seqValue))
+				sequenceInitValues.WriteString(fmt.Sprintf("%s:%d,", seqName.ForKey(), seqValue))
 				return true, nil
 			})
 
