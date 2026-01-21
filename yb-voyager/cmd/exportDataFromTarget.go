@@ -28,7 +28,6 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 var transactionOrdering utils.BoolStr
@@ -127,11 +126,11 @@ func initSourceConfFromTargetConf(cmd *cobra.Command) error {
 	source.Port = targetConf.Port
 	source.User = targetConf.User
 	source.DBName = targetConf.DBName
+
 	if sourceDBConf.DBType == POSTGRESQL {
 		source.Schemas = sourceDBConf.Schemas // in case of PG migration the tconf.Schema is public but in case of non-puclic or multiple schemas this needs to PG schemas
 	} else {
-		schema := sqlname.NewIdentifier(targetConf.TargetDBType, targetConf.Schemas[0].Quoted)
-		source.Schemas = []sqlname.Identifier{schema}
+		source.Schemas = targetConf.Schemas
 	}
 
 	if msr.UseYBgRPCConnector {

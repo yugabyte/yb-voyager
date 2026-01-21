@@ -1461,9 +1461,7 @@ func getDefaultSourceSchemaName() (string, bool) {
 	case MYSQL:
 		return source.DBName, false
 	case POSTGRESQL, YUGABYTEDB:
-		return GetDefaultPGSchema(strings.Join(lo.Map(source.Schemas, func(s sqlname.Identifier, _ int) string {
-			return s.Unquoted
-		}), "|"), "|")
+		return GetDefaultPGSchema(source.Schemas)
 	case ORACLE:
 		return source.Schemas[0].Unquoted, false
 	default:
