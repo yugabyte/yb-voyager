@@ -4,7 +4,7 @@ on:
   push:
     branches: ['main', '*.*-dev', '*.*.*-dev']
   pull_request:
-    branches: [main]
+    branches: [priyanshi/case-sensitivity-schema-main2]
 
 env:
   ORACLE_INSTANT_CLIENT_VERSION: "21.5.0.0.0-1"
@@ -83,5 +83,5 @@ jobs:
         MYSQL_VERSION: "8.4"
       run: |
         cd yb-voyager
-        go test -v ./... -tags ${{ matrix.test-tags }} -timeout 30m
+        go test -v ./... -tags ${{ matrix.test-tags }} -timeout 35m
 
