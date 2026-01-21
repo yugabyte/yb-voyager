@@ -259,12 +259,14 @@ func runAssessMigrationCmdBeforExportSchemaIfRequired(exportSchemaCmd *cobra.Com
 		return nil
 	}
 
-	if ok, _ := IsMigrationAssessmentDoneDirectly(metaDB); ok {
-		log.Infof("migration assessment is already done, skipping running assess-migration command.")
-		return nil
-	} else if ok, _ := IsMigrationAssessmentDoneViaExportSchema(); ok {
-		log.Infof("migration assessment is already done via export schema, skipping running assess-migration command.")
-		return nil
+	if !bool(startClean) {
+		if ok, _ := IsMigrationAssessmentDoneDirectly(metaDB); ok {
+			log.Infof("migration assessment is already done, skipping running assess-migration command.")
+			return nil
+		} else if ok, _ := IsMigrationAssessmentDoneViaExportSchema(); ok {
+			log.Infof("migration assessment is already done via export schema, skipping running assess-migration command.")
+			return nil
+		}
 	}
 
 	var assessFlagsWithValues []string
