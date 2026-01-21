@@ -998,7 +998,7 @@ func (pg *TargetPostgreSQL) isUserSuperUser() (bool, error) {
 
 func (pg *TargetPostgreSQL) listSchemasMissingUsagePermission() ([]string, error) {
 	// Users need usage permissions on the schemas they want to export and the pg_catalog and information_schema schemas
-	querySchemaArray := pg.getSchemaList()
+	querySchemaArray := sqlname.ExtractUnquoted(pg.tconf.Schemas)
 	querySchemaList := strings.Join(querySchemaArray, ",")
 	chkSchemaUsagePermissionQuery := fmt.Sprintf(`
 	SELECT 
@@ -1046,7 +1046,7 @@ func (pg *TargetPostgreSQL) listSchemasMissingUsagePermission() ([]string, error
 }
 
 func (pg *TargetPostgreSQL) listTablesMissingSelectInsertUpdateDeletePermissions() (map[string][]string, error) {
-	querySchemaArray := pg.getSchemaList()
+	querySchemaArray := sqlname.ExtractUnquoted(pg.tconf.Schemas)
 	querySchemaList := strings.Join(querySchemaArray, ",")
 
 	query := fmt.Sprintf(`
@@ -1141,16 +1141,12 @@ func (pg *TargetPostgreSQL) listTablesMissingSelectInsertUpdateDeletePermissions
 	return missingPermissions, nil
 }
 
-func (pg *TargetPostgreSQL) getSchemaList() []string {
-	return sqlname.ExtractUnquoted(pg.tconf.Schemas)
-}
-
 func (pg *TargetPostgreSQL) GetEnabledTriggersAndFks() (enabledTriggers []string, enabledFks []string, err error) {
 	if slices.Contains(pg.tconf.SessionVars, SET_SESSION_REPLICATE_ROLE_TO_REPLICA) {
 		//Not check for any triggers / FKs in case this session parameter is used
 		return nil, nil, nil
 	}
-	querySchemaArray := pg.getSchemaList()
+	querySchemaArray := sqlname.ExtractUnquoted(pg.tconf.Schemas)
 	querySchemaList := strings.Join(querySchemaArray, ",")
 
 	// Check the trigger status using the tgenabled column, which can have three possible values:

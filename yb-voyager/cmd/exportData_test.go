@@ -120,7 +120,7 @@ func setupPostgreDBAndExportDependencies(t *testing.T, sqls []string, schemas st
 	sqlname.SourceDBType = testPostgresSource.DBType
 
 	CreateMigrationProjectIfNotExists(constants.POSTGRESQL, testExportDir)
-	testPostgresSource.Schemas = sqlname.ExtractIdentifiersFromString(constants.POSTGRESQL, schemas, "|")
+	testPostgresSource.Schemas = sqlname.ParseIdentifiersFromString(constants.POSTGRESQL, schemas, "|")
 	testPostgresSource.ExecuteSqls(sqls...)
 	return testExportDir
 }
@@ -134,9 +134,9 @@ func setupPostgresDBSourceAndYugabyteDBTargetWithExportDependencies(t *testing.T
 	sqlname.SourceDBType = POSTGRESQL
 
 	CreateMigrationProjectIfNotExists(constants.POSTGRESQL, testExportDir)
-	testPostgresSource.Schemas = sqlname.ExtractIdentifiersFromString(constants.POSTGRESQL, schemas, "|")
+	testPostgresSource.Schemas = sqlname.ParseIdentifiersFromString(constants.POSTGRESQL, schemas, "|")
 	testPostgresSource.ExecuteSqls(sqls...)
-	testYugabyteDBSource.Schemas = sqlname.ExtractIdentifiersFromString(constants.YUGABYTEDB, schemas, "|")
+	testYugabyteDBSource.Schemas = sqlname.ParseIdentifiersFromString(constants.YUGABYTEDB, schemas, "|")
 	testYugabyteDBSource.ExecuteSqls(sqls...)
 
 	targetConf := tgtdb.TargetConf{
@@ -1273,7 +1273,7 @@ func TestTableListInFreshRunOfExportDataForTablesExtraInTarget(t *testing.T) {
 		getNameTuple("p1.boston"),
 		getNameTuple("public.datatypes1"),
 		getNameTuple("public.foreign_test"),
-	}		
+	}
 	assertTableListFilteringInTheFirstRun(t, expectedPartitionsToRootMap, expectedTableList)
 
 	//Create msr with required details for subsequent run

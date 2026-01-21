@@ -239,7 +239,7 @@ func (reg *NameRegistry) initSourceDBSchemaNames() error {
 	case constants.MYSQL:
 		reg.SourceDBSchemaNames = []string{reg.params.SourceDBName}
 	case constants.POSTGRESQL:
-		schemaNames := strings.Split(reg.params.SourceDBSchema, "|")
+		schemaNames := strings.Split(reg.params.SourceDBSchema, ",")
 		var err error
 		reg.SourceDBSchemaNames, err = reg.validateAndSetSchemaNames(schemaNames)
 		if err != nil {
@@ -292,7 +292,7 @@ func (reg *NameRegistry) registerYBNames() (bool, error) {
 	case constants.POSTGRESQL:
 		reg.YBSchemaNames = reg.SourceDBSchemaNames
 	default:
-		identifiers := sqlname.ParseIdentifiersFromString(constants.YUGABYTEDB, reg.params.TargetDBSchema, "|")
+		identifiers := sqlname.ParseIdentifiersFromString(constants.YUGABYTEDB, reg.params.TargetDBSchema, ",")
 		reg.YBSchemaNames = sqlname.ExtractUnquoted(identifiers)
 	}
 	for _, schemaName := range reg.YBSchemaNames {

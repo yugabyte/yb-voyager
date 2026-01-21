@@ -286,8 +286,11 @@ func validateSourceSchema() {
 	case MYSQL:
 		utils.ErrExit("Error --source-db-schema flag is not valid for 'MySQL' db type")
 	case ORACLE:
+		if len(schemaList) == 0 {
+			utils.ErrExit("Error --source-db-schema flag is required for 'Oracle' db type")
+		}
 		if len(schemaList) > 1 {
-			utils.ErrExit("Error single schema at a time is allowed to export from oracle. List of schemas provided: %s", schemaList)
+			utils.ErrExit("Error only single schema at a time is allowed to export from oracle. List of schemas provided: %s", schemaList)
 		}
 		source.Schemas = []sqlname.Identifier{sqlname.NewIdentifier(source.DBType, schemaList[0])}
 	case POSTGRESQL:

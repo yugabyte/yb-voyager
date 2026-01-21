@@ -453,7 +453,7 @@ func (db *dummySourceDB) GetAllSequencesRaw(schemaName string) ([]string, error)
 }
 
 func (db *dummySourceDB) GetAllSchemaNamesIdentifiers() ([]sqlname.Identifier, error) {
-	return sqlname.ExtractIdentifiersFromStrings(db.dbType, db.schemaNames), nil
+	return sqlname.ParseIdentifiersFromStrings(db.dbType, db.schemaNames), nil
 }
 
 type dummyTargetDB struct {

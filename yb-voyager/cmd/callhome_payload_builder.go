@@ -203,7 +203,7 @@ func anonymizeSourceDBDetails(source *srcdb.Source) callhome.SourceDBDetails {
 	}
 
 	// Anonymize schema names
-	if source.SchemaConfig != "" {
+	if len(source.Schemas) > 0 {
 		schemaList := source.GetSchemaList()
 		anonymizedSchemas := make([]string, 0, len(schemaList))
 		for _, schemaName := range schemaList {

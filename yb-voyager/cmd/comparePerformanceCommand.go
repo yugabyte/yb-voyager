@@ -168,7 +168,7 @@ func validateComparePerfPrerequisites() {
 		utils.ErrExit("Failed to get migration status record: %v", err)
 	}
 
-	if tconf.SchemaConfig == "" {
+	if len(tconf.Schemas) == 0 {
 		tconf.Schemas = msr.TargetDBConf.Schemas
 	} else {
 		tconf.Schemas = sqlname.ParseIdentifiersFromString(dbType, tconf.SchemaConfig, ",")

@@ -286,7 +286,7 @@ func displayExportedRowCountSnapshot(snapshotViaDebezium bool) {
 	leafPartitions := getLeafPartitionsFromRootTable()
 	if !snapshotViaDebezium {
 		exportedRowCount := getExportedRowCountSnapshot(exportDir)
-		if source.SchemaConfig != "" {
+		if len(source.Schemas) > 0 {
 			addHeader(uitable, "SCHEMA", "TABLE", "ROW COUNT")
 		} else {
 			addHeader(uitable, "DATABASE", "TABLE", "ROW COUNT")
@@ -679,14 +679,14 @@ func InitNameRegistry(
 	if sconf != nil {
 		sourceDbType = sconf.DBType
 		sourceDbName = sconf.DBName
-		sourceDbSchema = sqlname.JoinUnquoted(sconf.Schemas, "|")
+		sourceDbSchema = sqlname.JoinUnquoted(sconf.Schemas, ",")
 	}
 	if sdb != nil {
 		sdbReg = sdb.(namereg.SourceDBInterface)
 	}
 
 	if tconf != nil {
-		targetDBSchema = sqlname.JoinUnquoted(tconf.Schemas, "|")
+		targetDBSchema = sqlname.JoinUnquoted(tconf.Schemas, ",")
 	}
 	var ok bool
 	if tdb != nil && lo.Contains([]string{TARGET_DB_IMPORTER_ROLE, IMPORT_FILE_ROLE}, role) {

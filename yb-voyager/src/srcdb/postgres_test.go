@@ -19,7 +19,6 @@ package srcdb
 
 import (
 	"fmt"
-	"strings"
 	"testing"
 
 	"github.com/samber/lo"
@@ -196,7 +195,7 @@ func TestPGGetColumnToSequenceMap(t *testing.T) {
 		testutils.CreateNameTupleWithSourceName("public.manual_linked_table_1", "public", testPostgresSource.DBType),
 		testutils.CreateNameTupleWithSourceName("public.manual_linked_table_2", "public", testPostgresSource.DBType),
 	}
-	testPostgresSource.Source.Schemas = sqlname.ExtractIdentifiersFromString("postgresql", "public|custom_schema", "|")
+	testPostgresSource.Source.Schemas = sqlname.ParseIdentifiersFromString("postgresql", "public|custom_schema", "|")
 
 	// Test GetColumnToSequenceMap
 	_ = testPostgresSource.DB().Connect()
@@ -234,7 +233,7 @@ func TestPGGetColumnToSequenceMap(t *testing.T) {
 		testutils.CreateNameTupleWithSourceName("public.manual_linked_table", "public", testPostgresSource.DBType),
 		testutils.CreateNameTupleWithSourceName("public.manual_linked_table_1", "public", testPostgresSource.DBType),
 	}
-	testPostgresSource.Source.Schemas = sqlname.ExtractIdentifiersFromString("postgresql", "public|custom_schema", "|")
+	testPostgresSource.Source.Schemas = sqlname.ParseIdentifiersFromString("postgresql", "public|custom_schema", "|")
 
 	// Test GetColumnToSequenceMap
 

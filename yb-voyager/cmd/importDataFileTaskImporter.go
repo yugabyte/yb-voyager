@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"os"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
@@ -298,7 +297,7 @@ func (fti *FileTaskImporter) PostProcess() {
 
 func (fti *FileTaskImporter) updateProgressInControlPlane(status int) {
 	if importerRole == TARGET_DB_IMPORTER_ROLE {
-		importDataTableMetrics := createImportDataTableMetrics(fti.task.TableNameTup.ForKey(),
+		importDataTableMetrics := createImportDataTableMetrics(fti.task.TableNameTup,
 			fti.currentProgressAmount, fti.totalProgressAmount, status)
 		controlPlane.UpdateImportedRowCount(
 			[]*cp.UpdateImportedRowCountEvent{&importDataTableMetrics})
@@ -331,15 +330,12 @@ func getImportedProgressAmount(task *ImportFileTask, state *ImportDataState) int
 	}
 }
 
-func createImportDataTableMetrics(tableName string, countLiveRows int64, countTotalRows int64,
+func createImportDataTableMetrics(tableNameTup sqlname.NameTuple, countLiveRows int64, countTotalRows int64,
 	status int) cp.UpdateImportedRowCountEvent {
 
-	var schemaName, tableName2 string
-	if strings.Count(tableName, ".") == 1 {
-		schemaName, tableName2 = cp.SplitTableNameForPG(tableName)
-	} else {
-		schemaName, tableName2 = tconf.SchemaConfig, tableName
-	}
+	//Earlier we were parsing the ForKey format of qualified table name for schema and table name
+	//now we are using the ForKeyTableSchemaQuoted method to get same the schema and table name
+	schemaName, tableName := tableNameTup.ForKeyTableSchemaQuoted()
 	result := cp.UpdateImportedRowCountEvent{
 		BaseUpdateRowCountEvent: cp.BaseUpdateRowCountEvent{
 			BaseEvent: cp.BaseEvent{
@@ -347,7 +343,7 @@ func createImportDataTableMetrics(tableName string, countLiveRows int64, countTo
 				MigrationUUID: migrationUUID,
 				SchemaNames:   []string{schemaName},
 			},
-			TableName:         tableName2,
+			TableName:         tableName,
 			Status:            cp.EXPORT_OR_IMPORT_DATA_STATUS_INT_TO_STR[status],
 			TotalRowCount:     countTotalRows,
 			CompletedRowCount: countLiveRows,
