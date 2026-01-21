@@ -64,13 +64,16 @@ type TargetName struct {
 	Qualified  Identifier
 }
 
-// ASsumption is to pass quoted name with  case sensitivity preserved
+// Assumption is to pass quoted name with  case sensitivity preserved, if not quoted then quoting it explicitly in the function
 func NewSourceName(schemaName, objectName string) *SourceName {
 	if schemaName == "" {
 		panic("schema name cannot be empty")
 	}
-	if !IsQuoted(schemaName) || !IsQuoted(objectName) {
-		panic(fmt.Sprintf("schema or object name should be quoted: %s or %s", schemaName, objectName))
+	if !IsQuoted(schemaName) {
+		schemaName = fmt.Sprintf("\"%s\"", schemaName)
+	}
+	if !IsQuoted(objectName) {
+		objectName = fmt.Sprintf("\"%s\"", objectName)
 	}
 	return &SourceName{
 		ObjectName: Identifier{
@@ -92,7 +95,7 @@ func NewSourceName(schemaName, objectName string) *SourceName {
 	}
 }
 
-// ASsumption is to pass quoted name with  case sensitivity preserved
+// ASsumption is to pass quoted name with  case sensitivity preserved, else not quoted then quoting it explicitly in the NewSourceName function
 func NewSourceNameFromQualifiedName(qualifiedName string) *SourceName {
 	parts := strings.Split(qualifiedName, ".")
 	if len(parts) != 2 {
@@ -124,13 +127,16 @@ func (s *SourceName) ToTargetName() *TargetName {
 	return NewTargetName(s.SchemaName.Unquoted, s.ObjectName.Unquoted)
 }
 
-// ASsumption is to pass quoted name with  case sensitivity preserved
+// Assumption is to pass quoted name with  case sensitivity preserved, if not quoted then quoting it explicitly in the function
 func NewTargetName(schemaName, objectName string) *TargetName {
 	if schemaName == "" {
 		panic("schema name cannot be empty")
 	}
-	if !IsQuoted(schemaName) || !IsQuoted(objectName) {
-		panic(fmt.Sprintf("schema or object name should be quoted: %s or %s", schemaName, objectName))
+	if !IsQuoted(schemaName) {
+		schemaName = fmt.Sprintf("\"%s\"", schemaName)
+	}
+	if !IsQuoted(objectName) {
+		objectName = fmt.Sprintf("\"%s\"", objectName)
 	}
 	return &TargetName{
 		ObjectName: Identifier{

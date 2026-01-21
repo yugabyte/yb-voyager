@@ -39,10 +39,13 @@ type ObjectName struct {
 	MinQualified Identifier
 }
 
-// Assumption is to pass unquoted name for schema and table name with case sensitivity preserved
+// Assumption is to pass unquoted name for schema and table name with case sensitivity preserved, else if quoted then removing the quotes explicitly
 func NewObjectName(dbType, defaultSchemaName, schemaName, tableName string) *ObjectName {
-	if IsQuoted(schemaName) || IsQuoted(tableName) {
-		panic(fmt.Sprintf("schema or table name should be unquoted: %s or %s", schemaName, tableName))
+	if IsQuoted(schemaName) {
+		schemaName = schemaName[1 : len(schemaName)-1]
+	}
+	if IsQuoted(tableName) {
+		tableName = tableName[1 : len(tableName)-1]
 	}
 	schemaNameIdentifier := Identifier{
 		Quoted:    quote2(dbType, schemaName),
@@ -67,14 +70,17 @@ func NewObjectName(dbType, defaultSchemaName, schemaName, tableName string) *Obj
 	return result
 }
 
-// Assumption - always quoted qualified name with case sensitivity preserved
+// Assumption - always quoted qualified name with case sensitivity preserved, then adding the quotes explicitly
 func NewObjectNameWithQualifiedName(dbType, defaultSchemaName, objName string) *ObjectName {
 	parts := strings.Split(objName, ".")
 	if len(parts) != 2 {
 		panic(fmt.Sprintf("invalid qualified name: %s", objName))
 	}
-	if !IsQuoted(parts[0]) || !IsQuoted(parts[1]) {
-		panic(fmt.Sprintf("schema or table name should be quoted: %s or %s", parts[0], parts[1]))
+	if !IsQuoted(parts[0]) {
+		parts[0] = fmt.Sprintf("\"%s\"", parts[0])
+	}
+	if !IsQuoted(parts[1]) {
+		parts[1] = fmt.Sprintf("\"%s\"", parts[1])
 	}
 	return NewObjectName(dbType, defaultSchemaName, unquote(parts[0], dbType), unquote(parts[1], dbType))
 }

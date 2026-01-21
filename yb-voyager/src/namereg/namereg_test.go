@@ -315,7 +315,7 @@ func TestNameRegistryFailedLookup(t *testing.T) {
 	assert.Contains(err.Error(), "lookup target table name")
 
 	var tuple sqlname.NameTuple
-	sourceObj := sqlname.NewObjectNameWithQualifiedName(constants.ORACLE, "SAKILA", "SAKILA.TABLE3")
+	sourceObj := sqlname.NewObjectNameWithQualifiedName(constants.ORACLE, "SAKILA", "\"SAKILA\".\"TABLE3\"")
 	reg.params.Role = SOURCE_DB_EXPORTER_ROLE
 	expectedTuple := sqlname.NameTuple{
 		SourceName:  sourceObj,
@@ -330,7 +330,7 @@ func TestNameRegistryFailedLookup(t *testing.T) {
 	require.NotNil(err)
 	assert.Contains(err.Error(), "lookup source table name")
 	reg.params.Role = TARGET_DB_IMPORTER_ROLE
-	targetObj := sqlname.NewObjectNameWithQualifiedName(constants.YUGABYTEDB, "public", "public.table123")
+	targetObj := sqlname.NewObjectNameWithQualifiedName(constants.YUGABYTEDB, "public", "\"public\".\"table123\"")
 	expectedTuple = sqlname.NameTuple{
 		TargetName:  targetObj,
 		CurrentName: targetObj,
