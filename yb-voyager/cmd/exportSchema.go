@@ -156,6 +156,7 @@ func exportSchema(cmd *cobra.Command) error {
 	// 	validatedSchemas = append(validatedSchemas, identifier)
 	// }
 	// source.Schemas = validatedSchemas
+	source.Schemas = sqlname.ParseIdentifiersFromString(source.DBType, source.SchemaConfig, ",")
 
 	// Check if the source database has the required permissions for exporting schema.
 	if source.RunGuardrailsChecks {

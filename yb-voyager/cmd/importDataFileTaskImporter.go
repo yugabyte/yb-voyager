@@ -334,8 +334,8 @@ func createImportDataTableMetrics(tableNameTup sqlname.NameTuple, countLiveRows 
 	status int) cp.UpdateImportedRowCountEvent {
 
 	//Earlier we were parsing the ForKey format of qualified table name for schema and table name
-	//now we are using the ForKeyTableSchemaQuoted method to get same the schema and table name
-	schemaName, tableName := tableNameTup.ForKeyTableSchemaQuoted()
+	//now we are using the ForKeyTableSchema method to get same the schema and table name
+	schemaName, tableName := tableNameTup.ForKeyTableSchema()
 	result := cp.UpdateImportedRowCountEvent{
 		BaseUpdateRowCountEvent: cp.BaseUpdateRowCountEvent{
 			BaseEvent: cp.BaseEvent{

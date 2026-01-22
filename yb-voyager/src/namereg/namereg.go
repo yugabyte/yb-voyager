@@ -46,11 +46,11 @@ type NameRegistryParams struct {
 	Role     string
 
 	SourceDBType   string
-	SourceDBSchema string
+	SourceDBSchema []string
 	SourceDBName   string
 	SDB            SourceDBInterface
 
-	TargetDBSchema string
+	TargetDBSchema []string
 	YBDB           YBDBInterface
 }
 
@@ -131,7 +131,11 @@ func (reg *NameRegistry) registerNames() (bool, error) {
 		return reg.registerYBNames()
 	case reg.params.Role == SOURCE_REPLICA_DB_IMPORTER_ROLE && reg.DefaultSourceReplicaDBSchemaName == "":
 		log.Infof("setting default source replica schema name in the name registry: %s", reg.DefaultSourceDBSchemaName)
-		defaultSchema := lo.Ternary(reg.SourceDBType == constants.POSTGRESQL, reg.DefaultSourceDBSchemaName, reg.params.TargetDBSchema)
+		targetSchema := ""
+		if len(reg.params.TargetDBSchema) > 0 {
+			targetSchema = reg.params.TargetDBSchema[0]
+		}
+		defaultSchema := lo.Ternary(reg.SourceDBType == constants.POSTGRESQL, reg.DefaultSourceDBSchemaName, targetSchema)
 		reg.setDefaultSourceReplicaDBSchemaName(defaultSchema)
 		return true, nil
 	}
@@ -231,21 +235,11 @@ func (reg *NameRegistry) initSourceDBSchemaNames() error {
 	// it contains a pipe separated list for postgres.
 	switch reg.params.SourceDBType {
 	case constants.ORACLE:
-		schema := reg.params.SourceDBSchema
-		var err error
-		reg.SourceDBSchemaNames, err = reg.validateAndSetSchemaNames([]string{schema})
-		if err != nil {
-			return fmt.Errorf("failed to validate schema names: %w", err)
-		}
+		reg.SourceDBSchemaNames = reg.params.SourceDBSchema
 	case constants.MYSQL:
 		reg.SourceDBSchemaNames = []string{reg.params.SourceDBName}
 	case constants.POSTGRESQL:
-		schemaNames := strings.Split(reg.params.SourceDBSchema, ",")
-		var err error
-		reg.SourceDBSchemaNames, err = reg.validateAndSetSchemaNames(schemaNames)
-		if err != nil {
-			return fmt.Errorf("failed to validate schema names: %w", err)
-		}
+		reg.SourceDBSchemaNames = reg.params.SourceDBSchema
 	}
 	if len(reg.SourceDBSchemaNames) == 1 {
 		reg.DefaultSourceDBSchemaName = reg.SourceDBSchemaNames[0]
@@ -255,29 +249,6 @@ func (reg *NameRegistry) initSourceDBSchemaNames() error {
 	return nil
 }
 
-func (reg *NameRegistry) validateAndSetSchemaNames(schemaNames []string) ([]string, error) {
-	allSchemas, err := reg.params.SDB.GetAllSchemaNamesIdentifiers()
-	if err != nil {
-		return nil, fmt.Errorf("get all schema names: %w", err)
-	}
-	schemaIdenitifiers := sqlname.ParseIdentifiersFromStrings(reg.params.SourceDBType, schemaNames)
-	var schemaNotPresent []sqlname.Identifier
-	var finalSchemaList []sqlname.Identifier
-	for _, schema := range schemaIdenitifiers {
-		matchedSchema, matchedSchemaIdentifier := schema.FindBestMatchingIdenitifier(allSchemas)
-		if !matchedSchema {
-			schemaNotPresent = append(schemaNotPresent, schema)
-			continue
-		}
-		finalSchemaList = append(finalSchemaList, matchedSchemaIdentifier)
-	}
-
-	if len(schemaNotPresent) > 0 {
-		return nil, goerrors.Errorf("\nFollowing schemas are not present in source database: %v, please provide a valid schema list.\n", sqlname.JoinIdentifiersUnquoted(schemaNotPresent, ", "))
-	}
-	reg.SourceDBSchemaIdentifiers = finalSchemaList
-	return sqlname.ExtractIdentifiersUnquoted(finalSchemaList), nil
-}
 func (reg *NameRegistry) registerYBNames() (bool, error) {
 	if reg.params.YBDB == nil {
 		return false, goerrors.Errorf("target db is nil")
@@ -286,7 +257,9 @@ func (reg *NameRegistry) registerYBNames() (bool, error) {
 
 	tableMap := make(map[string][]string)
 	sequenceMap := make(map[string][]string)
-	reg.DefaultYBSchemaName = reg.params.TargetDBSchema
+	if len(reg.params.TargetDBSchema) > 0 {
+		reg.DefaultYBSchemaName = reg.params.TargetDBSchema[0]
+	}
 	if reg.SourceDBTableNames != nil && reg.SourceDBType == constants.POSTGRESQL {
 		reg.DefaultYBSchemaName = reg.DefaultSourceDBSchemaName
 	}
@@ -294,8 +267,7 @@ func (reg *NameRegistry) registerYBNames() (bool, error) {
 	case constants.POSTGRESQL:
 		reg.YBSchemaNames = reg.SourceDBSchemaNames
 	default:
-		identifiers := sqlname.ParseIdentifiersFromString(constants.YUGABYTEDB, reg.params.TargetDBSchema, ",")
-		reg.YBSchemaNames = sqlname.ExtractIdentifiersUnquoted(identifiers)
+		reg.YBSchemaNames = reg.params.TargetDBSchema
 	}
 	for _, schemaName := range reg.YBSchemaNames {
 		tableNames, err := yb.GetAllTableNamesRaw(schemaName)
@@ -519,32 +491,6 @@ func (reg *NameRegistry) lookupSourceAndTargetTableNames(tableNameArg string, ig
 	return sourceName, targetName, nil
 }
 
-func (reg *NameRegistry) LookupSchemaName(schemaName string) (sqlname.Identifier, error) {
-	var schemaNames []string
-	var dbType string
-	switch reg.params.Role {
-	case SOURCE_DB_EXPORTER_ROLE, SOURCE_DB_IMPORTER_ROLE, SOURCE_REPLICA_DB_IMPORTER_ROLE:
-		schemaNames = reg.SourceDBSchemaNames
-		dbType = reg.SourceDBType
-		if reg.params.Role == SOURCE_REPLICA_DB_IMPORTER_ROLE && dbType == constants.ORACLE {
-			//For oracle source replica , schema may or maynot be the sourceSchemaNames so taking the default source replica schema name
-			schemaNames = []string{reg.DefaultSourceReplicaDBSchemaName}
-		}
-	case TARGET_DB_IMPORTER_ROLE, IMPORT_FILE_ROLE, TARGET_DB_EXPORTER_FF_ROLE, TARGET_DB_EXPORTER_FB_ROLE:
-		schemaNames = reg.YBSchemaNames
-		dbType = constants.YUGABYTEDB
-	default:
-		return sqlname.Identifier{}, goerrors.Errorf("invalid role: %s", reg.params.Role)
-	}
-	schemaIdenitifiers := lo.Ternary(reg.SourceDBSchemaIdentifiers != nil, reg.SourceDBSchemaIdentifiers, sqlname.ParseIdentifiersFromStrings(dbType, schemaNames))
-	schemaNameIdentifier := sqlname.NewIdentifier(dbType, schemaName)
-	matchedSchema, matchedSchemaIdentifier := schemaNameIdentifier.FindBestMatchingIdenitifier(schemaIdenitifiers)
-	if !matchedSchema {
-		return sqlname.Identifier{}, goerrors.Errorf("schema name not found: %s", schemaName)
-	}
-	return matchedSchemaIdentifier, nil
-}
-
 func (reg *NameRegistry) checkIfSchemaNameIsDefault(schemaName string) bool {
 	schemaNameIdentifier := sqlname.NewIdentifier(reg.SourceDBType, schemaName)
 	defaultSchemaNameIdentifier := sqlname.NewIdentifier(reg.SourceDBType, reg.DefaultSourceDBSchemaName)
@@ -593,6 +539,9 @@ func (e *ErrNameNotFound) Error() string {
 }
 
 func matchName(objType string, names []string, name string) (string, error) {
+	if name == "" {
+		return "", goerrors.Errorf("name cannot be empty")
+	}
 	if name[0] == '"' {
 		if name[len(name)-1] != '"' {
 			return "", goerrors.Errorf("invalid quoted %s name: [%s]", objType, name)
@@ -636,4 +585,35 @@ func NewNameTuple(role string, sourceName *sqlname.ObjectName, targetName *sqlna
 		t.CurrentName = nil
 	}
 	return t
+}
+
+//=========================================================== schema name matcher ==========================
+
+func SchemaNameMatcher(dbType string ,allSchemas []sqlname.Identifier, schemaConfig string) ([]sqlname.Identifier, error) {
+	if dbType == constants.MYSQL {
+		// MySQL doesn't have schema names, so we return empty list
+		return nil, nil
+	}
+	unquotedToIdentifierMap := make(map[string]sqlname.Identifier)
+	for _, schema := range allSchemas {
+		unquotedToIdentifierMap[schema.Unquoted] = schema
+	}
+	schemaNames := strings.Split(schemaConfig, ",")
+	var schemaNotFound []string
+	var finalSchemaList []sqlname.Identifier
+	for _, schema := range schemaNames {
+		schemaName, err := matchName("schema", lo.Keys(unquotedToIdentifierMap), schema)
+		var errObj *ErrNameNotFound
+		if err != nil && errors.As(err, &errObj) {
+			schemaNotFound = append(schemaNotFound, schema)
+		} else if err != nil {
+			return nil, err
+		}
+		finalSchemaList = append(finalSchemaList, unquotedToIdentifierMap[schemaName])
+	}
+
+	if len(schemaNotFound) > 0 {
+		return nil, goerrors.Errorf("\nFollowing schemas are not present in source database: %v, please provide a valid schema list.\n", strings.Join(schemaNotFound, ", "))
+	}
+	return finalSchemaList, nil
 }

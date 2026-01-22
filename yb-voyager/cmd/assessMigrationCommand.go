@@ -248,6 +248,9 @@ func assessMigration() (err error) {
 			return fmt.Errorf("failed to connect source db for assessing migration: %w", err)
 		}
 
+		//TODO: will fix this with schema changes in next PR
+		source.Schemas = sqlname.ParseIdentifiersFromString(source.DBType, source.SchemaConfig, ",")
+
 		// We will require source db connection for the below checks
 		// Check if required binaries are installed.
 		if source.RunGuardrailsChecks {

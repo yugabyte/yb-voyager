@@ -162,17 +162,8 @@ func validateComparePerfPrerequisites() {
 	if !hasData {
 		utils.ErrExit("No query statistics found in assessment database. Please ensure pg_stat_statements extension was enabled during assess-migration and that workload was executed on the source database.")
 	}
-
-	msr, err := metaDB.GetMigrationStatusRecord()
-	if err != nil {
-		utils.ErrExit("Failed to get migration status record: %v", err)
-	}
-
-	if len(tconf.Schemas) == 0 {
-		tconf.Schemas = msr.TargetDBConf.Schemas
-	} else {
-		tconf.Schemas = sqlname.ParseIdentifiersFromString(dbType, tconf.SchemaConfig, ",")
-	}
+	
+	tconf.Schemas = sqlname.ParseIdentifiersFromString(dbType, tconf.SchemaConfig, ",")
 
 	// Check 4: Target database is reachable
 	tdb := tgtdb.NewTargetDB(&tconf)

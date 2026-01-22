@@ -193,13 +193,6 @@ func (t NameTuple) ForOutput() string {
 func (t NameTuple) ForCatalogQuery() (string, string) {
 	return t.CurrentName.SchemaName.Unquoted, t.CurrentName.Unqualified.Unquoted
 }
-func (t NameTuple) ForKeyTableSchemaQuoted() (string, string) {
-	objectName := t.SourceName
-	if objectName == nil {
-		objectName = t.TargetName
-	}
-	return objectName.SchemaName.Quoted, objectName.Unqualified.Quoted
-}
 
 func (t NameTuple) AsQualifiedCatalogName() string {
 	return t.CurrentName.Qualified.Unquoted

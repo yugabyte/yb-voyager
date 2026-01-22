@@ -673,20 +673,20 @@ func InitNameRegistry(
 
 	var sdbReg namereg.SourceDBInterface
 	var ybdb namereg.YBDBInterface
-	var sourceDbType, sourceDbSchema, sourceDbName string
-	var targetDBSchema string
+	var sourceDbType, sourceDbName string
+	var targetDBSchema, sourceDbSchema []string
 
 	if sconf != nil {
 		sourceDbType = sconf.DBType
 		sourceDbName = sconf.DBName
-		sourceDbSchema = sqlname.JoinIdentifiersUnquoted(sconf.Schemas, ",")
+		sourceDbSchema = sqlname.ExtractIdentifiersUnquoted(sconf.Schemas)
 	}
 	if sdb != nil {
 		sdbReg = sdb.(namereg.SourceDBInterface)
 	}
 
 	if tconf != nil {
-		targetDBSchema = sqlname.JoinIdentifiersUnquoted(tconf.Schemas, ",")
+		targetDBSchema = sqlname.ExtractIdentifiersUnquoted(tconf.Schemas)
 	}
 	var ok bool
 	if tdb != nil && lo.Contains([]string{TARGET_DB_IMPORTER_ROLE, IMPORT_FILE_ROLE}, role) {
