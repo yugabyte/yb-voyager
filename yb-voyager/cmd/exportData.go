@@ -293,21 +293,20 @@ func exportData() bool {
 	}
 
 	clearMigrationStateIfRequired()
+	allSchemas, err := source.DB().GetAllSchemaNamesIdentifiers()
+	if err != nil {
+		utils.ErrExit("get all schema names identifiers: %w", err)
+	}
+	source.Schemas, err = namereg.SchemaNameMatcher(source.DBType, allSchemas, source.SchemaConfig)
+	if err != nil {
+		utils.ErrExit("schema name matcher: %w", err)
+	}
 
 	//TODO: handle non-start-clean case for namereg schema name validation and retinitialization
 	err = InitNameRegistry(exportDir, exporterRole, &source, source.DB(), nil, nil, false)
 	if err != nil {
 		utils.ErrExit("initialize name registry: %w", err)
 	}
-	validatedSchemas := []sqlname.Identifier{}
-	for _, schema := range source.Schemas {
-		identifier, err := namereg.NameReg.LookupSchemaName(schema.Unquoted)
-		if err != nil {
-			utils.ErrExit("lookup schema name: %w", err)
-		}
-		validatedSchemas = append(validatedSchemas, identifier)
-	}
-	source.Schemas = validatedSchemas
 
 	if source.RunGuardrailsChecks {
 		checkIfSchemasHaveUsagePermissions()

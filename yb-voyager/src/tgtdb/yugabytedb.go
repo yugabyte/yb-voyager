@@ -140,18 +140,30 @@ func (yb *TargetYugabyteDB) Init() error {
 		yb.Tconf.SessionVars = getYBSessionInitScript(yb.Tconf)
 	}
 
-	schemas := sqlname.ExtractUnquoted(yb.tconf.Schemas)
+	schemas := sqlname.ExtractIdentifiersUnquoted(yb.tconf.Schemas)
 	schemaList := strings.Join(schemas, "','") // a','b','c
 	checkSchemaExistsQuery := fmt.Sprintf(
-		"SELECT count(nspname) FROM pg_catalog.pg_namespace WHERE nspname IN ('%s');",
+		"SELECT nspname FROM pg_catalog.pg_namespace WHERE nspname IN ('%s');",
 		schemaList)
-	var cntSchemaName int
-	if err = yb.QueryRow(checkSchemaExistsQuery).Scan(&cntSchemaName); err != nil {
-		err = fmt.Errorf("run query %q on target %q to check schema exists: %w", checkSchemaExistsQuery, yb.Tconf.Host, err)
-	} else if cntSchemaName == 0 {
-		err = goerrors.Errorf("schemas '%s' do not exist in target", schemaList)
+	rows, err := yb.Query(checkSchemaExistsQuery)
+	if err != nil {
+		return fmt.Errorf("run query %q on target %q to check schema exists: %w", checkSchemaExistsQuery, yb.Tconf.Host, err)
 	}
-	return err
+	defer rows.Close()
+	var returnedSchemas []string
+	for rows.Next() {
+		var schemaName string
+		err = rows.Scan(&schemaName)
+		if err != nil {
+			return fmt.Errorf("scan schema name: %w", err)
+		}
+		returnedSchemas = append(returnedSchemas, schemaName)
+	}
+	if len(returnedSchemas) != len(schemas) {
+		notExistsSchemas := utils.SetDifference(schemas, returnedSchemas)
+		return goerrors.Errorf("schemas '%s' do not exist in target", strings.Join(notExistsSchemas, ","))
+	}
+	return nil
 }
 
 func (yb *TargetYugabyteDB) Finalize() {
@@ -1572,7 +1584,7 @@ func checkSessionVariableSupport(tconf *TargetConf, sqlStmt string) bool {
 }
 
 func (yb *TargetYugabyteDB) setTargetSchema(conn *pgx.Conn) error {
-	schemas := sqlname.JoinMinQuoted(yb.tconf.Schemas, ", ")
+	schemas := sqlname.JoinIdentifiersMinQuoted(yb.tconf.Schemas, ", ")
 	setSchemaQuery := fmt.Sprintf("SET SEARCH_PATH TO %s", schemas)
 	_, err := conn.Exec(context.Background(), setSchemaQuery)
 	if err != nil {

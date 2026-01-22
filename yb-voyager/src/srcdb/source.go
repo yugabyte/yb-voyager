@@ -103,7 +103,7 @@ func (s *Source) GetTNSAdmin() (string, error) {
 }
 
 func (s *Source) GetSchemaList() []string {
-	return sqlname.ExtractMinQuoted(s.Schemas)
+	return sqlname.ExtractIdentifiersMinQuoted(s.Schemas)
 }
 
 // FetchDBSystemIdentifier fetches and stores the database system identifier

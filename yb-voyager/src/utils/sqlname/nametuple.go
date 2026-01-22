@@ -70,7 +70,7 @@ func NewObjectName(dbType, defaultSchemaName, schemaName, tableName string) *Obj
 	return result
 }
 
-// Assumption - always quoted qualified name with case sensitivity preserved, then adding the quotes explicitly
+// Assumption - always quoted qualified name with case sensitivity preserved, and if not quoted then adding the quotes explicitly
 func NewObjectNameWithQualifiedName(dbType, defaultSchemaName, objName string) *ObjectName {
 	parts := strings.Split(objName, ".")
 	if len(parts) != 2 {
@@ -192,13 +192,6 @@ func (t NameTuple) ForOutput() string {
 
 func (t NameTuple) ForCatalogQuery() (string, string) {
 	return t.CurrentName.SchemaName.Unquoted, t.CurrentName.Unqualified.Unquoted
-}
-func (t NameTuple) ForKeyTableSchemaQuoted() (string, string) {
-	objectName := t.SourceName
-	if objectName == nil {
-		objectName = t.TargetName
-	}
-	return objectName.SchemaName.Quoted, objectName.Unqualified.Quoted
 }
 
 func (t NameTuple) AsQualifiedCatalogName() string {

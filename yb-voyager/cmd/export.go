@@ -30,7 +30,6 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 // source struct will be populated by CLI arguments parsing
@@ -292,10 +291,10 @@ func validateSourceSchema() {
 		if len(schemaList) > 1 {
 			utils.ErrExit("Error only single schema at a time is allowed to export from oracle. List of schemas provided: %s", schemaList)
 		}
-		source.Schemas = []sqlname.Identifier{sqlname.NewIdentifier(source.DBType, schemaList[0])}
+		source.SchemaConfig = schemaList[0]
 	case POSTGRESQL:
 		// In PG, its supported to export more than one schema
-		source.Schemas = sqlname.ParseIdentifiersFromStrings(source.DBType, schemaList)
+		source.SchemaConfig = strings.Join(schemaList, ",") // this is just to cleanup the user input witht trimming
 	}
 }
 

@@ -149,19 +149,15 @@ func exportSchema(cmd *cobra.Command) error {
 	source.FetchDBSystemIdentifier()
 	utils.PrintAndLogf("%s version: %s\n", source.DBType, sourceDBVersion)
 
-	err = InitNameRegistry(exportDir, exporterRole, &source, source.DB(), nil, nil, false)
+	allSchemas, err := source.DB().GetAllSchemaNamesIdentifiers()
 	if err != nil {
-		utils.ErrExit("initialize name registry: %w", err)
+		return fmt.Errorf("failed to get all schema names identifiers: %w", err)
 	}
-	validatedSchemas := []sqlname.Identifier{}
-	for _, schema := range source.Schemas {
-		identifier, err := namereg.NameReg.LookupSchemaName(schema.Unquoted)
-		if err != nil {
-			utils.ErrExit("lookup schema name: %w", err)
-		}
-		validatedSchemas = append(validatedSchemas, identifier)
+	source.Schemas, err = namereg.SchemaNameMatcher(source.DBType, allSchemas, source.SchemaConfig)
+	if err != nil {
+		return fmt.Errorf("failed to match schema names: %w", err)
 	}
-	source.Schemas = validatedSchemas
+
 	// Check if the source database has the required permissions for exporting schema.
 	if source.RunGuardrailsChecks {
 		checkIfSchemasHaveUsagePermissions()

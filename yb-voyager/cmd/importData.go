@@ -158,6 +158,9 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	sourceDBType = GetSourceDBTypeFromMSR()
 	sqlname.SourceDBType = sourceDBType
 
+	//Schema validation is done in the Init step as of now 
+	// TODO: will handle it later with other task of completely supporting case sensitive schemas in target db schema for MysqL/oracle sources
+	//TODO: also for the source-replica ORACLE case to validate the schemas on source-replica
 	tconf.Schemas = sqlname.ParseIdentifiersFromString(tconf.TargetDBType, tconf.SchemaConfig, ",")
 	tdb = tgtdb.NewTargetDB(&tconf)
 	err := tdb.Init()

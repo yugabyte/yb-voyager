@@ -217,7 +217,7 @@ func (yb *YugabyteDB) GetAllTableNamesRaw(schemaName string) ([]string, error) {
 }
 
 func (yb *YugabyteDB) GetAllTableNames() []*sqlname.SourceName {
-	schemaList := sqlname.ExtractUnquoted(yb.source.Schemas)
+	schemaList := sqlname.ExtractIdentifiersUnquoted(yb.source.Schemas)
 	querySchemaList := "'" + strings.Join(schemaList, "','") + "'"
 	// Information schema requires select permission on the tables to query the tables. However, pg_catalog does not require any permission.
 	// So, we are using pg_catalog to get the table names.
@@ -360,7 +360,7 @@ func (yb *YugabyteDB) getExportedColumnsListForTable(exportDir, tableName string
 
 // GetAllSequences returns all the sequence names in the database for the given schema list
 func (yb *YugabyteDB) GetAllSequences() []string {
-	schemaList := sqlname.ExtractUnquoted(yb.source.Schemas)
+	schemaList := sqlname.ExtractIdentifiersUnquoted(yb.source.Schemas)
 	querySchemaList := "'" + strings.Join(schemaList, "','") + "'"
 	var sequenceNames []string
 	query := fmt.Sprintf(`SELECT sequence_name FROM information_schema.sequences where sequence_schema IN (%s);`, querySchemaList)
@@ -1094,7 +1094,7 @@ func (yb *YugabyteDB) ClearMigrationState(migrationUUID uuid.UUID, exportDir str
 
 func (yb *YugabyteDB) GetNonPKTables() ([]string, error) {
 	var nonPKTables []string
-	querySchemaList := "'" + sqlname.JoinMinQuoted(yb.source.Schemas, "','") + "'"
+	querySchemaList := "'" + sqlname.JoinIdentifiersMinQuoted(yb.source.Schemas, "','") + "'"
 	query := fmt.Sprintf(PG_QUERY_TO_CHECK_IF_TABLE_HAS_PK, querySchemaList)
 	rows, err := yb.db.Query(query)
 	if err != nil {

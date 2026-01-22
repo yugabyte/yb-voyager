@@ -640,8 +640,8 @@ func setTargetSchema(conn *pgx.Conn) {
 		// No need to set schema if importing in the default schema.
 		return
 	}
-	schemas := sqlname.JoinUnquoted(tconf.Schemas, ", ")
-	checkSchemaExistsQuery := fmt.Sprintf("SELECT count(schema_name) FROM information_schema.schemata WHERE schema_name = '%s'", schemas)
+	schemas := sqlname.JoinIdentifiersUnquoted(tconf.Schemas, "','")
+	checkSchemaExistsQuery := fmt.Sprintf("SELECT count(schema_name) FROM information_schema.schemata WHERE schema_name IN ('%s')", schemas)
 	var cntSchemaName int
 
 	if err := conn.QueryRow(context.Background(), checkSchemaExistsQuery).Scan(&cntSchemaName); err != nil {
@@ -650,7 +650,7 @@ func setTargetSchema(conn *pgx.Conn) {
 		utils.ErrExit("schemas do not exist in target: %q", schemas)
 	}
 
-	setSchemas := sqlname.JoinMinQuoted(tconf.Schemas, ", ")
+	setSchemas := sqlname.JoinIdentifiersMinQuoted(tconf.Schemas, ", ")
 	setSchemaQuery := fmt.Sprintf("SET SEARCH_PATH TO %s", setSchemas)
 	_, err := conn.Exec(context.Background(), setSchemaQuery)
 	if err != nil {

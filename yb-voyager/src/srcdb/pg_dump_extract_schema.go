@@ -41,7 +41,7 @@ func pgdumpExtractSchema(source *Source, connectionUri string, exportDir string,
 		utils.ErrExit("could not get absolute path of pg_dump command: %s", binaryCheckIssue)
 	}
 
-	pgDumpArgs.Schema = sqlname.JoinMinQuoted(source.Schemas, "|")
+	pgDumpArgs.Schema = sqlname.JoinIdentifiersMinQuoted(source.Schemas, "|")
 	pgDumpArgs.SchemaTempFilePath = filepath.Join(exportDir, "temp", "schema.sql")
 	pgDumpArgs.NoComments = strconv.FormatBool(!bool(source.CommentsOnObjects))
 	pgDumpArgs.ExtensionPattern = `"*"`

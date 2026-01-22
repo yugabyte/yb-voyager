@@ -1273,7 +1273,7 @@ func TestTableListInFreshRunOfExportDataForTablesExtraInTarget(t *testing.T) {
 		getNameTuple("p1.boston"),
 		getNameTuple("public.datatypes1"),
 		getNameTuple("public.foreign_test"),
-	}
+	}		
 	assertTableListFilteringInTheFirstRun(t, expectedPartitionsToRootMap, expectedTableList)
 
 	//Create msr with required details for subsequent run
