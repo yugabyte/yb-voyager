@@ -534,7 +534,7 @@ func TestNameRegistryWithDummyDBs(t *testing.T) {
 			SourceDBType:   constants.ORACLE,
 			SourceDBSchema: []string{"SAKILA"},
 			SourceDBName:   "ORCLPDB1",
-			TargetDBSchema: []string{"ybsakila"},
+			TargetDBSchema: []string{tSchema},
 			SDB:            dummySdb,
 			YBDB:           dummyTdb,
 		}
@@ -631,10 +631,10 @@ func TestNameRegistryStructs(t *testing.T) {
 				FilePath       string
 				Role           string
 				SourceDBType   string
-				SourceDBSchema string
+				SourceDBSchema []string
 				SourceDBName   string
 				SDB            SourceDBInterface
-				TargetDBSchema string
+				TargetDBSchema []string
 				YBDB           YBDBInterface
 			}{},
 		},
