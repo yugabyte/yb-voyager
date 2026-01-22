@@ -251,8 +251,14 @@ func assessMigration() (err error) {
 			return fmt.Errorf("failed to connect source db for assessing migration: %w", err)
 		}
 
-		//TODO: will fix this with schema changes in next PR
-		source.Schemas = sqlname.ParseIdentifiersFromString(source.DBType, source.SchemaConfig, ",")
+		allSchemas, err := source.DB().GetAllSchemaNamesIdentifiers()
+		if err != nil {
+			return fmt.Errorf("failed to get all schema names identifiers: %w", err)
+		}
+		source.Schemas, err = namereg.SchemaNameMatcher(source.DBType, allSchemas, source.SchemaConfig)
+		if err != nil {
+			return fmt.Errorf("failed to match schema names: %w", err)
+		}
 
 		// We will require source db connection for the below checks
 		// Check if required binaries are installed.
@@ -273,19 +279,6 @@ func assessMigration() (err error) {
 			}
 		}
 
-		err = InitNameRegistry(exportDir, exporterRole, &source, source.DB(), nil, nil, false)
-		if err != nil {
-			utils.ErrExit("initialize name registry: %w", err)
-		}
-		validatedSchemas := []sqlname.Identifier{}
-		for _, schema := range source.Schemas {
-			identifier, err := namereg.NameReg.LookupSchemaName(schema.Unquoted)
-			if err != nil {
-				utils.ErrExit("lookup schema name: %w", err)
-			}
-			validatedSchemas = append(validatedSchemas, identifier)
-		}
-		source.Schemas = validatedSchemas
 		// Fetch source info early (includes system identifier needed for replica cluster validation)
 		fetchSourceInfo()
 
