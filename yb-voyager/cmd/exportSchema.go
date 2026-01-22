@@ -111,6 +111,7 @@ func exportSchema(cmd *cobra.Command) error {
 		log.Errorf("failed to connect to the source db: %s", err)
 		return fmt.Errorf("failed to connect to the source db during export schema: %w", err)
 	}
+	source.Schemas = sqlname.ParseIdentifiersFromString(source.DBType, source.SchemaConfig, ",")
 	defer source.DB().Disconnect()
 
 	if source.RunGuardrailsChecks {
@@ -156,7 +157,6 @@ func exportSchema(cmd *cobra.Command) error {
 	// 	validatedSchemas = append(validatedSchemas, identifier)
 	// }
 	// source.Schemas = validatedSchemas
-	source.Schemas = sqlname.ParseIdentifiersFromString(source.DBType, source.SchemaConfig, ",")
 
 	// Check if the source database has the required permissions for exporting schema.
 	if source.RunGuardrailsChecks {

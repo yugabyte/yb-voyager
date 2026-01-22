@@ -274,6 +274,15 @@ func exportData() bool {
 		}
 	}
 
+	allSchemas, err := source.DB().GetAllSchemaNamesIdentifiers()
+	if err != nil {
+		utils.ErrExit("get all schema names identifiers: %w", err)
+	}
+	source.Schemas, err = namereg.SchemaNameMatcher(source.DBType, allSchemas, source.SchemaConfig)
+	if err != nil {
+		utils.ErrExit("schema name matcher: %w", err)
+	}
+	
 	source.DBVersion = source.DB().GetVersion()
 	source.DBSize, err = source.DB().GetDatabaseSize()
 	if err != nil {
@@ -293,14 +302,6 @@ func exportData() bool {
 	}
 
 	clearMigrationStateIfRequired()
-	allSchemas, err := source.DB().GetAllSchemaNamesIdentifiers()
-	if err != nil {
-		utils.ErrExit("get all schema names identifiers: %w", err)
-	}
-	source.Schemas, err = namereg.SchemaNameMatcher(source.DBType, allSchemas, source.SchemaConfig)
-	if err != nil {
-		utils.ErrExit("schema name matcher: %w", err)
-	}
 
 	err = InitNameRegistry(exportDir, exporterRole, &source, source.DB(), nil, nil, false)
 	if err != nil {

@@ -248,9 +248,6 @@ func assessMigration() (err error) {
 			return fmt.Errorf("failed to connect source db for assessing migration: %w", err)
 		}
 
-		//TODO: will fix this with schema changes in next PR
-		source.Schemas = sqlname.ParseIdentifiersFromString(source.DBType, source.SchemaConfig, ",")
-
 		// We will require source db connection for the below checks
 		// Check if required binaries are installed.
 		if source.RunGuardrailsChecks {
@@ -272,6 +269,9 @@ func assessMigration() (err error) {
 
 		//TODO fix this with schema changes to initialise namereg
 		// Fetch source info early (includes system identifier needed for replica cluster validation)
+		//TODO: will fix this with schema changes in next PR
+		source.Schemas = sqlname.ParseIdentifiersFromString(source.DBType, source.SchemaConfig, ",")
+		
 		fetchSourceInfo()
 
 		// Handle replica discovery and validation (PostgreSQL only)
