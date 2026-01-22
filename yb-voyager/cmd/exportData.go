@@ -294,6 +294,7 @@ func exportData() bool {
 
 	clearMigrationStateIfRequired()
 
+	//TODO: handle non-start-clean case for namereg schema name validation and retinitialization
 	err = InitNameRegistry(exportDir, exporterRole, &source, source.DB(), nil, nil, false)
 	if err != nil {
 		utils.ErrExit("initialize name registry: %w", err)

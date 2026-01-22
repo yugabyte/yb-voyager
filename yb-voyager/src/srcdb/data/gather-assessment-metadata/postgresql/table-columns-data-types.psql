@@ -19,6 +19,8 @@ COPY (
     FROM
         information_schema.columns c
     WHERE
-        c.table_schema = ANY(ARRAY[string_to_array(:'schema_list', '|')])
+        c.table_schema = ANY(
+            SELECT trim(both '"' from unnest(string_to_array(:'schema_list', '|')))
+        )
 ) TO STDOUT WITH CSV HEADER;
 \o

@@ -12,6 +12,8 @@ COPY (
         COALESCE(NULLIF(s.n_live_tup, -1), 0) AS row_count
     FROM pg_stat_user_tables s
     JOIN pg_namespace n ON s.schemaname = n.nspname
-    WHERE n.nspname = ANY(ARRAY[string_to_array(:'schema_list', '|')])
+    WHERE n.nspname = ANY(
+        SELECT trim(both '"' from unnest(string_to_array(:'schema_list', '|')))
+    )
 ) TO STDOUT WITH CSV HEADER;
 \o

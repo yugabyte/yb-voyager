@@ -38,6 +38,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryissue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
@@ -217,6 +218,8 @@ func createMigrationAssessmentStartedEvent() *cp.MigrationAssessmentStartedEvent
 }
 
 func assessMigration() (err error) {
+
+	exporterRole = SOURCE_DB_EXPORTER_ROLE
 	assessmentMetadataDir = lo.Ternary(assessmentMetadataDirFlag != "", assessmentMetadataDirFlag,
 		filepath.Join(exportDir, "assessment", "metadata"))
 	// setting schemaDir to use later on - gather assessment metadata, segregating into schema files per object etc..
@@ -267,7 +270,19 @@ func assessMigration() (err error) {
 			}
 		}
 
-		//TODO fix this with schema changes to initialise namereg
+		err = InitNameRegistry(exportDir, exporterRole, &source, source.DB(), nil, nil, false)
+		if err != nil {
+			utils.ErrExit("initialize name registry: %w", err)
+		}
+		validatedSchemas := []sqlname.Identifier{}
+		for _, schema := range source.Schemas {
+			identifier, err := namereg.NameReg.LookupSchemaName(schema.Unquoted)
+			if err != nil {
+				utils.ErrExit("lookup schema name: %w", err)
+			}
+			validatedSchemas = append(validatedSchemas, identifier)
+		}
+		source.Schemas = validatedSchemas
 		// Fetch source info early (includes system identifier needed for replica cluster validation)
 		fetchSourceInfo()
 
@@ -561,6 +576,11 @@ func handleStartCleanIfNeededForAssessMigration(metadataDirPassedByUser bool) er
 		err := ClearMigrationAssessmentDone()
 		if err != nil {
 			return fmt.Errorf("failed to start clean for assess migration: %w", err)
+		}
+		nameregFile := filepath.Join(exportDir, "metainfo", "name_registry.json")
+		err = os.Remove(nameregFile)
+		if err != nil && !os.IsNotExist(err) {
+			utils.ErrExit("Failed to remove name registry file: %w", err)
 		}
 	} else if assessmentFilesExists { // if not startClean but assessment files already exist
 		return goerrors.Errorf("assessment metadata or reports files already exist in the assessment directory: '%s'. Use the --start-clean flag to clear the directory before proceeding.", assessmentDir)

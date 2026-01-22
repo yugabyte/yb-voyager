@@ -37,6 +37,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/sqltransformer"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -76,6 +77,7 @@ var exportSchemaCmd = &cobra.Command{
 }
 
 func exportSchema(cmd *cobra.Command) error {
+	exporterRole = SOURCE_DB_EXPORTER_ROLE
 	if metaDBIsCreated(exportDir) && schemaIsExported() {
 		if startClean {
 			proceed := utils.AskPrompt(
@@ -87,6 +89,11 @@ func exportSchema(cmd *cobra.Command) error {
 
 			for _, dirName := range []string{"schema", "reports", "temp", "metainfo/schema"} {
 				utils.CleanDir(filepath.Join(exportDir, dirName))
+			}
+			nameregFile := filepath.Join(exportDir, "metainfo", "name_registry.json")
+			err := os.Remove(nameregFile)
+			if err != nil && !os.IsNotExist(err) {
+				utils.ErrExit("Failed to remove name registry file: %w", err)
 			}
 			clearSchemaIsExported()
 			clearAssessmentRecommendationsApplied()
@@ -142,21 +149,19 @@ func exportSchema(cmd *cobra.Command) error {
 	source.FetchDBSystemIdentifier()
 	utils.PrintAndLogf("%s version: %s\n", source.DBType, sourceDBVersion)
 
-	//TODO fix this with proper schema changes to initialise namere
-	// err = InitNameRegistry(exportDir, exporterRole, &source, source.DB(), nil, nil, false)
-	// if err != nil {
-	// 	utils.ErrExit("initialize name registry: %w", err)
-	// }
-	// validatedSchemas := []sqlname.Identifier{}
-	// for _, schema := range source.Schemas {
-	// 	identifier, err := namereg.NameReg.LookupSchemaName(schema.Unquoted)
-	// 	if err != nil {
-	// 		utils.ErrExit("lookup schema name: %w", err)
-	// 	}
-	// 	validatedSchemas = append(validatedSchemas, identifier)
-	// }
-	// source.Schemas = validatedSchemas
-
+	err = InitNameRegistry(exportDir, exporterRole, &source, source.DB(), nil, nil, false)
+	if err != nil {
+		utils.ErrExit("initialize name registry: %w", err)
+	}
+	validatedSchemas := []sqlname.Identifier{}
+	for _, schema := range source.Schemas {
+		identifier, err := namereg.NameReg.LookupSchemaName(schema.Unquoted)
+		if err != nil {
+			utils.ErrExit("lookup schema name: %w", err)
+		}
+		validatedSchemas = append(validatedSchemas, identifier)
+	}
+	source.Schemas = validatedSchemas
 	// Check if the source database has the required permissions for exporting schema.
 	if source.RunGuardrailsChecks {
 		checkIfSchemasHaveUsagePermissions()

@@ -57,7 +57,9 @@ COPY (
     LEFT JOIN
         pg_index pi ON pi.indexrelid = c.oid
     WHERE
-        n.nspname = ANY(ARRAY[string_to_array(:'schema_list', '|')])
+        n.nspname = ANY(
+            SELECT trim(both '"' from unnest(string_to_array(:'schema_list', '|')))
+        )
         AND (c.relkind IN ('r', 'p', 'i', 'I'))
 ) TO STDOUT WITH CSV HEADER;
 \o
