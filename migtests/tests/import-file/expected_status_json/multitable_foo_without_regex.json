@@ -5,7 +5,7 @@
       "imported_count": 15,
       "percentage_complete": 100,
       "status": "DONE",
-      "table_name": "public.\"foo2\"",
+      "table_name": "\"public\".\"foo2\"",
       "total_count": 15
     },
     {
@@ -14,7 +14,7 @@
       "imported_count": 19,
       "percentage_complete": 100,
       "status": "DONE",
-      "table_name": "public.\"foo2\"",
+      "table_name": "\"public\".\"foo2\"",
       "total_count": 19
     },
     {
@@ -23,7 +23,7 @@
       "imported_count": 11,
       "percentage_complete": 100,
       "status": "DONE",
-      "table_name": "public.\"foo2\"",
+      "table_name": "\"public\".\"foo2\"",
       "total_count": 11
     }
   ]

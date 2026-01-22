@@ -1,6 +1,6 @@
 [
     {
-      "table_name": "public.\"Case_Sensitive_Seq\"",
+      "table_name": "\"public\".\"Case_Sensitive_Seq\"",
       "status": "DONE",
       "total_count": 2,
       "imported_count": 2,
@@ -8,7 +8,7 @@
       "errored_count": 0
     },
     {
-      "table_name": "public.\"bar\"",
+      "table_name": "\"public\".\"bar\"",
       "status": "DONE",
       "total_count": 2,
       "imported_count": 2,
@@ -16,7 +16,7 @@
       "errored_count": 0
     },
     {
-      "table_name": "public.\"foo\"",
+      "table_name": "\"public\".\"foo\"",
       "status": "DONE",
       "total_count": 2,
       "imported_count": 2,
@@ -24,7 +24,7 @@
       "errored_count": 0
     },
     {
-      "table_name": "public.\"foo_bar\"",
+      "table_name": "\"public\".\"foo_bar\"",
       "status": "DONE",
       "total_count": 2,
       "imported_count": 2,
@@ -32,7 +32,7 @@
       "errored_count": 0
     },
     {
-      "table_name": "public.\"multiple_identity_columns\"",
+      "table_name": "\"public\".\"multiple_identity_columns\"",
       "status": "DONE",
       "total_count": 2,
       "imported_count": 2,
@@ -40,7 +40,7 @@
       "errored_count": 0
     },
     {
-      "table_name": "public.\"multiple_serial_columns\"",
+      "table_name": "\"public\".\"multiple_serial_columns\"",
       "status": "DONE",
       "total_count": 2,
       "imported_count": 2,
@@ -48,7 +48,7 @@
       "errored_count": 0
     },
     {
-      "table_name": "public.\"sequence_check1\"",
+      "table_name": "\"public\".\"sequence_check1\"",
       "status": "DONE",
       "total_count": 2,
       "imported_count": 2,
@@ -56,7 +56,7 @@
       "errored_count": 0
     },
     {
-      "table_name": "public.\"sequence_check2\"",
+      "table_name": "\"public\".\"sequence_check2\"",
       "status": "DONE",
       "total_count": 7,
       "imported_count": 7,
@@ -64,7 +64,7 @@
       "errored_count": 0
     },
     {
-      "table_name": "public.\"sequence_check3\"",
+      "table_name": "\"public\".\"sequence_check3\"",
       "status": "DONE",
       "total_count": 3,
       "imported_count": 3,
@@ -72,7 +72,7 @@
       "errored_count": 0
     },
     {
-      "table_name": "schema1.\"multiple_identity_columns\"",
+      "table_name": "\"schema1\".\"multiple_identity_columns\"",
       "status": "DONE",
       "total_count": 2,
       "imported_count": 2,
@@ -80,7 +80,7 @@
       "errored_count": 0
     },
     {
-      "table_name": "schema1.\"multiple_serial_columns\"",
+      "table_name": "\"schema1\".\"multiple_serial_columns\"",
       "status": "DONE",
       "total_count": 2,
       "imported_count": 2,
@@ -88,7 +88,7 @@
       "errored_count": 0
     },
     {
-      "table_name": "schema1.\"sequence_check1\"",
+      "table_name": "\"schema1\".\"sequence_check1\"",
       "status": "DONE",
       "total_count": 1,
       "imported_count": 1,
@@ -96,7 +96,7 @@
       "errored_count": 0
     },
     {
-      "table_name": "schema1.\"sequence_check2\"",
+      "table_name": "\"schema1\".\"sequence_check2\"",
       "status": "DONE",
       "total_count": 6,
       "imported_count": 6,
@@ -104,7 +104,7 @@
       "errored_count": 0
     },
     {
-      "table_name": "schema1.\"sequence_check3\"",
+      "table_name": "\"schema1\".\"sequence_check3\"",
       "status": "DONE",
       "total_count": 2,
       "imported_count": 2,
@@ -112,7 +112,7 @@
       "errored_count": 0
     },
     {
-      "table_name": "schema2.\"bar\"",
+      "table_name": "\"schema2\".\"bar\"",
       "status": "DONE",
       "total_count": 2,
       "imported_count": 2,
@@ -120,7 +120,7 @@
       "errored_count": 0
     },
     {
-      "table_name": "schema2.\"foo\"",
+      "table_name": "\"schema2\".\"foo\"",
       "status": "DONE",
       "total_count": 2,
       "imported_count": 2,
@@ -128,7 +128,7 @@
       "errored_count": 0
     },
     {
-      "table_name": "schema3.\"foo\"",
+      "table_name": "\"schema3\".\"foo\"",
       "status": "DONE",
       "total_count": 2,
       "imported_count": 2,
@@ -136,7 +136,7 @@
       "errored_count": 0
     },
     {
-      "table_name": "schema4.\"bar\"",
+      "table_name": "\"schema4\".\"bar\"",
       "status": "DONE",
       "total_count": 2,
       "imported_count": 2,
@@ -144,7 +144,7 @@
       "errored_count": 0
     },
     {
-      "table_name": "public.\"sales_region\"",
+      "table_name": "\"public\".\"sales_region\"",
       "status": "DONE",
       "total_count": 1000,
       "imported_count": 1000,
@@ -152,7 +152,7 @@
       "errored_count": 0
     },
     {
-      "table_name": "public.\"users\"",
+      "table_name": "\"public\".\"users\"",
       "status": "DONE",
       "total_count": 3,
       "imported_count": 3,

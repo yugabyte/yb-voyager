@@ -32,10 +32,9 @@ import (
 	"time"
 	"unicode"
 
-	goerrors "github.com/go-errors/errors"
-
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/color"
+	goerrors "github.com/go-errors/errors"
 	_ "github.com/godror/godror"
 	"github.com/google/uuid"
 	"github.com/gosuri/uitable"
@@ -309,7 +308,7 @@ func displayExportedRowCountSnapshot(snapshotViaDebezium bool) {
 				partitions := strings.Join(partitions, ", ")
 				displayTableName = fmt.Sprintf("%s (%s)", table.CurrentName.Unqualified.MinQuoted, partitions)
 			}
-			schema := table.SourceName.SchemaName
+			schema := table.SourceName.SchemaName.MinQuoted
 			uitable.AddRow(schema, displayTableName, exportedRowCount[key])
 		}
 		if len(keys) > 0 {
@@ -342,7 +341,7 @@ func displayExportedRowCountSnapshot(snapshotViaDebezium bool) {
 			partitions := strings.Join(partitions, ", ")
 			displayTableName = fmt.Sprintf("%s (%s)", table.CurrentName.Unqualified.MinQuoted, partitions)
 		}
-		schema := table.CurrentName.SchemaName
+		schema := table.CurrentName.SchemaName.MinQuoted
 		uitable.AddRow(schema, displayTableName, tableStatus.ExportedRowCountSnapshot)
 
 	}
@@ -696,6 +695,7 @@ func InitNameRegistry(
 			return goerrors.Errorf("expected targetDB to adhere to YBDBRegirsty")
 		}
 	}
+
 	nameregistryParams := namereg.NameRegistryParams{
 		FilePath:       fmt.Sprintf("%s/metainfo/name_registry.json", exportDir),
 		Role:           role,

@@ -784,7 +784,7 @@ func (pg *PostgreSQL) ParentTableOfPartition(table sqlname.NameTuple) string {
 	pg_catalog.pg_namespace AS nsp_child ON child.relnamespace = nsp_child.oid
 	WHERE
 	child.relname = '%s'
-	AND nsp_child.nspname = '%s';`, table.CurrentName.Unqualified.MinQuoted, table.CurrentName.SchemaName)
+	AND nsp_child.nspname = '%s';`, table.CurrentName.Unqualified.MinQuoted, table.CurrentName.SchemaName.MinQuoted)
 
 	err := pg.db.QueryRow(query).Scan(&parentTable)
 	if err != sql.ErrNoRows && err != nil {
@@ -824,8 +824,8 @@ func (pg *PostgreSQL) GetColumnToSequenceMap(tableList []sqlname.NameTuple) map[
 				utils.ErrExit("Error in scanning for sequences query: %s: %w", query, err)
 			}
 			qualifiedColumnName := fmt.Sprintf("%s.%s", tableName, columeName)
-			// quoting sequence name as it can be case sensitive - required during import data restore sequences
-			columnToSequenceMap[qualifiedColumnName] = fmt.Sprintf(`%s."%s"`, schemaName, sequenceName)
+			// quoting schema and sequence name as it can be case sensitive - required during import data restore sequences
+			columnToSequenceMap[qualifiedColumnName] = fmt.Sprintf(`"%s"."%s"`, schemaName, sequenceName)
 		}
 		err = rows.Close()
 		if err != nil {

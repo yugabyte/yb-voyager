@@ -37,6 +37,21 @@ type Identifier struct {
 	MinQuoted string
 }
 
+func NewIdentifier(dbType, name string) Identifier {
+	if IsQuoted(name) {
+		name = unquote(name, dbType)
+	}
+	return Identifier{
+		Quoted:    quote2(dbType, name),
+		Unquoted:  name,
+		MinQuoted: minQuote2(name, dbType),
+	}
+}
+
+func (i Identifier) Equals(other Identifier) bool {
+	return i.Quoted == other.Quoted && i.Unquoted == other.Unquoted && i.MinQuoted == other.MinQuoted
+}
+
 type SourceName struct {
 	ObjectName Identifier
 	SchemaName Identifier
@@ -49,9 +64,16 @@ type TargetName struct {
 	Qualified  Identifier
 }
 
+// Assumption is to pass quoted name with  case sensitivity preserved, if not quoted then quoting it explicitly in the function
 func NewSourceName(schemaName, objectName string) *SourceName {
 	if schemaName == "" {
 		panic("schema name cannot be empty")
+	}
+	if !IsQuoted(schemaName) {
+		schemaName = fmt.Sprintf("\"%s\"", schemaName)
+	}
+	if !IsQuoted(objectName) {
+		objectName = fmt.Sprintf("\"%s\"", objectName)
 	}
 	return &SourceName{
 		ObjectName: Identifier{
@@ -61,18 +83,19 @@ func NewSourceName(schemaName, objectName string) *SourceName {
 		},
 		// We do not support quoted schema names yet.
 		SchemaName: Identifier{
-			Quoted:    `"` + schemaName + `"`,
-			Unquoted:  schemaName,
-			MinQuoted: schemaName,
+			Quoted:    quote(schemaName, SourceDBType),
+			Unquoted:  unquote(schemaName, SourceDBType),
+			MinQuoted: minQuote(schemaName, SourceDBType),
 		},
 		Qualified: Identifier{
-			Quoted:    schemaName + "." + quote(objectName, SourceDBType),
-			Unquoted:  schemaName + "." + unquote(objectName, SourceDBType),
-			MinQuoted: schemaName + "." + minQuote(objectName, SourceDBType),
+			Quoted:    quote(schemaName, SourceDBType) + "." + quote(objectName, SourceDBType),
+			Unquoted:  unquote(schemaName, SourceDBType) + "." + unquote(objectName, SourceDBType),
+			MinQuoted: minQuote(schemaName, SourceDBType) + "." + minQuote(objectName, SourceDBType),
 		},
 	}
 }
 
+// ASsumption is to pass quoted name with  case sensitivity preserved, else not quoted then quoting it explicitly in the NewSourceName function
 func NewSourceNameFromQualifiedName(qualifiedName string) *SourceName {
 	parts := strings.Split(qualifiedName, ".")
 	if len(parts) != 2 {
@@ -81,6 +104,7 @@ func NewSourceNameFromQualifiedName(qualifiedName string) *SourceName {
 	return NewSourceName(parts[0], parts[1])
 }
 
+// ASsumption is to pass quoted name with  case sensitivity preserved
 func NewSourceNameFromMaybeQualifiedName(qualifiedName string, defaultSchemaName string) *SourceName {
 	parts := strings.Split(qualifiedName, ".")
 	if len(parts) == 2 {
@@ -103,9 +127,16 @@ func (s *SourceName) ToTargetName() *TargetName {
 	return NewTargetName(s.SchemaName.Unquoted, s.ObjectName.Unquoted)
 }
 
+// Assumption is to pass quoted name with  case sensitivity preserved, if not quoted then quoting it explicitly in the function
 func NewTargetName(schemaName, objectName string) *TargetName {
 	if schemaName == "" {
 		panic("schema name cannot be empty")
+	}
+	if !IsQuoted(schemaName) {
+		schemaName = fmt.Sprintf("\"%s\"", schemaName)
+	}
+	if !IsQuoted(objectName) {
+		objectName = fmt.Sprintf("\"%s\"", objectName)
 	}
 	return &TargetName{
 		ObjectName: Identifier{
@@ -114,18 +145,19 @@ func NewTargetName(schemaName, objectName string) *TargetName {
 			MinQuoted: minQuote(objectName, constants.YUGABYTEDB),
 		},
 		SchemaName: Identifier{
-			Quoted:    `"` + schemaName + `"`,
-			Unquoted:  schemaName,
-			MinQuoted: schemaName,
+			Quoted:    quote(schemaName, constants.YUGABYTEDB),
+			Unquoted:  unquote(schemaName, constants.YUGABYTEDB),
+			MinQuoted: minQuote(schemaName, constants.YUGABYTEDB),
 		},
 		Qualified: Identifier{
-			Quoted:    schemaName + "." + quote(objectName, constants.YUGABYTEDB),
-			Unquoted:  schemaName + "." + unquote(objectName, constants.YUGABYTEDB),
-			MinQuoted: schemaName + "." + minQuote(objectName, constants.YUGABYTEDB),
+			Quoted:    quote(schemaName, constants.YUGABYTEDB) + "." + quote(objectName, constants.YUGABYTEDB),
+			Unquoted:  unquote(schemaName, constants.YUGABYTEDB) + "." + unquote(objectName, constants.YUGABYTEDB),
+			MinQuoted: minQuote(schemaName, constants.YUGABYTEDB) + "." + minQuote(objectName, constants.YUGABYTEDB),
 		},
 	}
 }
 
+//ASsumption is to pass quoted name with  case sensitivity preserved
 func NewTargetNameFromQualifiedName(qualifiedName string) *TargetName {
 	parts := strings.Split(qualifiedName, ".")
 	if len(parts) != 2 {
@@ -134,6 +166,7 @@ func NewTargetNameFromQualifiedName(qualifiedName string) *TargetName {
 	return NewTargetName(parts[0], parts[1])
 }
 
+//ASsumption is to pass quoted name with  case sensitivity preserved
 func NewTargetNameFromMaybeQualifiedName(qualifiedName string, defaultSchemaName string) *TargetName {
 	parts := strings.Split(qualifiedName, ".")
 	if len(parts) == 2 {
@@ -150,6 +183,9 @@ func (t *TargetName) String() string {
 }
 
 func IsQuoted(s string) bool {
+	if len(s) == 0 {
+		return false
+	}
 	// TODO: Learn the semantics of backticks in MySQL and Oracle.
 	return (s[0] == '"' && s[len(s)-1] == '"') || (s[0] == '`' && s[len(s)-1] == '`')
 }
@@ -315,31 +351,47 @@ func IsReservedKeywordOracle(word string) bool {
 }
 
 type ObjectNameQualifiedWithTableName struct {
-	SchemaName        string
+	SchemaName        Identifier
 	TableName         *ObjectName
 	ObjectName        string
 	FromDefaultSchema bool
 
-	Qualified    identifier
-	Unqualified  identifier
-	MinQualified identifier
+	Qualified    Identifier
+	Unqualified  Identifier
+	MinQualified Identifier
 }
 
+/*
+no assumption if the schema,object, and table name is quoted or unquoted or minquoted, just that casing is preserved, all handled and properly ObjectNameQualifiedWithTableName is returned
+*/
 func NewObjectNameQualifiedWithTableName(dbType, defaultSchemaName, objectName string, schemaName, tableName string) *ObjectNameQualifiedWithTableName {
+	if IsQuoted(schemaName) {
+		schemaName = schemaName[1 : len(schemaName)-1]
+	}
+	if IsQuoted(tableName) {
+		tableName = tableName[1 : len(tableName)-1]
+	}
+	if IsQuoted(objectName) {
+		objectName = objectName[1 : len(objectName)-1]
+	}
 	result := &ObjectNameQualifiedWithTableName{
-		SchemaName:        schemaName,
+		SchemaName: Identifier{
+			Quoted:    quote2(dbType, schemaName),
+			Unquoted:  schemaName,
+			MinQuoted: minQuote2(schemaName, dbType),
+		},
 		FromDefaultSchema: schemaName == defaultSchemaName,
 		TableName:         NewObjectName(dbType, defaultSchemaName, schemaName, tableName),
 		ObjectName:        objectName,
-		Qualified: identifier{
-			Quoted:    schemaName + "." + quote2(dbType, tableName) + "." + quote2(dbType, objectName),
-			Unquoted:  schemaName + "." + unquote(tableName, dbType) + "." + unquote(objectName, dbType),
-			MinQuoted: schemaName + "." + minQuote2(tableName, dbType) + "." + minQuote2(objectName, dbType),
+		Qualified: Identifier{
+			Quoted:    quote2(dbType, schemaName) + "." + quote2(dbType, tableName) + "." + quote2(dbType, objectName),
+			Unquoted:  schemaName + "." + tableName + "." + objectName,
+			MinQuoted: minQuote2(schemaName, dbType) + "." + minQuote2(tableName, dbType) + "." + minQuote2(objectName, dbType),
 		},
-		Unqualified: identifier{
-			Quoted:    schemaName + "." + quote2(dbType, tableName) + "." + quote2(dbType, objectName),
-			Unquoted:  schemaName + "." + unquote(tableName, dbType) + "." + unquote(objectName, dbType),
-			MinQuoted: schemaName + "." + minQuote2(tableName, dbType) + "." + minQuote2(objectName, dbType),
+		Unqualified: Identifier{
+			Quoted:    quote2(dbType, schemaName) + "." + quote2(dbType, tableName) + "." + quote2(dbType, objectName),
+			Unquoted:  schemaName + "." + tableName + "." + objectName,
+			MinQuoted: minQuote2(schemaName, dbType) + "." + minQuote2(tableName, dbType) + "." + minQuote2(objectName, dbType),
 		},
 	}
 	result.MinQualified = lo.Ternary(result.FromDefaultSchema, result.Unqualified, result.Qualified)

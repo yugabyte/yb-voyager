@@ -29,30 +29,38 @@ import (
 
 //================================================
 
-type identifier struct {
-	Quoted, Unquoted, MinQuoted string
-}
-
 // Can be a name of a table, sequence, materialised view, etc.
 type ObjectName struct {
-	SchemaName        string
+	SchemaName        Identifier
 	FromDefaultSchema bool
 
-	Qualified    identifier
-	Unqualified  identifier
-	MinQualified identifier
+	Qualified    Identifier
+	Unqualified  Identifier
+	MinQualified Identifier
 }
 
+// Assumption is to pass unquoted name for schema and table name with case sensitivity preserved, else if quoted then removing the quotes explicitly
 func NewObjectName(dbType, defaultSchemaName, schemaName, tableName string) *ObjectName {
+	if IsQuoted(schemaName) {
+		schemaName = schemaName[1 : len(schemaName)-1]
+	}
+	if IsQuoted(tableName) {
+		tableName = tableName[1 : len(tableName)-1]
+	}
+	schemaNameIdentifier := Identifier{
+		Quoted:    quote2(dbType, schemaName),
+		Unquoted:  schemaName,
+		MinQuoted: minQuote2(schemaName, dbType),
+	}
 	result := &ObjectName{
-		SchemaName:        schemaName,
+		SchemaName:        schemaNameIdentifier,
 		FromDefaultSchema: schemaName == defaultSchemaName,
-		Qualified: identifier{
-			Quoted:    schemaName + "." + quote2(dbType, tableName),
-			Unquoted:  schemaName + "." + tableName,
-			MinQuoted: schemaName + "." + minQuote2(tableName, dbType),
+		Qualified: Identifier{
+			Quoted:    schemaNameIdentifier.Quoted + "." + quote2(dbType, tableName),
+			Unquoted:  schemaNameIdentifier.Unquoted + "." + tableName,
+			MinQuoted: schemaNameIdentifier.MinQuoted + "." + minQuote2(tableName, dbType),
 		},
-		Unqualified: identifier{
+		Unqualified: Identifier{
 			Quoted:    quote2(dbType, tableName),
 			Unquoted:  tableName,
 			MinQuoted: minQuote2(tableName, dbType),
@@ -62,12 +70,19 @@ func NewObjectName(dbType, defaultSchemaName, schemaName, tableName string) *Obj
 	return result
 }
 
+// Assumption - always quoted qualified name with case sensitivity preserved, then adding the quotes explicitly
 func NewObjectNameWithQualifiedName(dbType, defaultSchemaName, objName string) *ObjectName {
 	parts := strings.Split(objName, ".")
 	if len(parts) != 2 {
 		panic(fmt.Sprintf("invalid qualified name: %s", objName))
 	}
-	return NewObjectName(dbType, defaultSchemaName, parts[0], unquote(parts[1], dbType))
+	if !IsQuoted(parts[0]) {
+		parts[0] = fmt.Sprintf("\"%s\"", parts[0])
+	}
+	if !IsQuoted(parts[1]) {
+		parts[1] = fmt.Sprintf("\"%s\"", parts[1])
+	}
+	return NewObjectName(dbType, defaultSchemaName, unquote(parts[0], dbType), unquote(parts[1], dbType))
 }
 
 func (nv *ObjectName) String() string {
@@ -78,12 +93,25 @@ func (o *ObjectName) Key() string {
 	return o.Qualified.Unquoted
 }
 
+/*
+Assumptions for both schema and table name:
+if the pattern is quoted then complete case sensitivity is checked to match the pattern with  table
+but if the pattern is not quoted then matching is done without case sensitivity to find the match.
+*/
 func (nv *ObjectName) MatchesPattern(pattern string) (bool, error) {
 	parts := strings.Split(pattern, ".")
 	switch true {
 	case len(parts) == 2:
-		if !strings.EqualFold(parts[0], nv.SchemaName) {
-			return false, nil
+		//if the schema name matches completely with the quoted schema name of the object name then no problem
+		//if the pattern "Abc" and objectname has Quoted-"Abc" and unquoted-Abc, then this quoted matches with the pattern
+		if parts[0] != nv.SchemaName.Quoted {
+			//if its not a complete match with quoted
+			//then check if the equalfold without case sensitivity matches with the unquoted schema name of the object name
+			//if the pattern has  Abc and objectname has Quoted-"abc" and unquoted-abc, so with equalfold it will match
+			//if the pattern has "Abc" and objectname has Quoted-"abc" and unquoted-abc, so even with equalfold it will not match as the quotes are present in the pattern
+			if !strings.EqualFold(parts[0], nv.SchemaName.Unquoted) {
+				return false, nil
+			}
 		}
 		pattern = parts[1]
 	case len(parts) == 1:
@@ -163,7 +191,7 @@ func (t NameTuple) ForOutput() string {
 }
 
 func (t NameTuple) ForCatalogQuery() (string, string) {
-	return t.CurrentName.SchemaName, t.CurrentName.Unqualified.Unquoted
+	return t.CurrentName.SchemaName.Unquoted, t.CurrentName.Unqualified.Unquoted
 }
 
 func (t NameTuple) AsQualifiedCatalogName() string {
@@ -187,7 +215,7 @@ func (t NameTuple) ForKeyTableSchema() (string, string) {
 	if objName == nil {
 		objName = t.TargetName
 	}
-	return objName.SchemaName, objName.Unqualified.Unquoted
+	return objName.SchemaName.Unquoted, objName.Unqualified.Unquoted
 }
 
 func SetDifferenceNameTuples(a, b []NameTuple) []NameTuple {

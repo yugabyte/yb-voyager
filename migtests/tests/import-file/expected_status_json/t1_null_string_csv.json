@@ -1,6 +1,6 @@
 [
     {
-      "table_name": "public.\"t1_null_string_csv\"",
+      "table_name": "\"public\".\"t1_null_string_csv\"",
       "file_name": "t1_null_string_csv.csv",
       "status": "DONE",
       "total_count": 71,
