@@ -9,10 +9,10 @@
     "start_clean": false,
     "yb_cluster_metrics": "{}",
     "data_metrics": {
-        "migration_snapshot_total_rows": 51,
+        "migration_snapshot_total_rows": 101,
         "migration_snapshot_largest_table_rows": 26,
         "migration_cdc_total_imported_events": 0,
-        "snapshot_total_rows": 51,
+        "snapshot_total_rows": 101,
         "snapshot_total_bytes": 12553,
         "cdc_events_import_rate_3min": 0,
         "current_parallel_connections": 0
