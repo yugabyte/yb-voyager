@@ -787,7 +787,7 @@ var vectorDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: UNSUPPORTED_DATATYPE_LIVE_MIGRATION_ISSUE_DESCRIPTION,
 	GH:          "",
-	DocsLink:    "https://docs.yugabyte.com/stable/yugabyte-voyager/known-issues/postgresql/#data-types",
+	DocsLink:    "https://docs.yugabyte.com/stable/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
 }
 
 func NewVectorDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
