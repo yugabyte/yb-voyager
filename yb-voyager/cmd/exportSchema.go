@@ -77,7 +77,6 @@ var exportSchemaCmd = &cobra.Command{
 }
 
 func exportSchema(cmd *cobra.Command) error {
-	exporterRole = SOURCE_DB_EXPORTER_ROLE
 	if metaDBIsCreated(exportDir) && schemaIsExported() {
 		if startClean {
 			proceed := utils.AskPrompt(
@@ -89,11 +88,6 @@ func exportSchema(cmd *cobra.Command) error {
 
 			for _, dirName := range []string{"schema", "reports", "temp", "metainfo/schema"} {
 				utils.CleanDir(filepath.Join(exportDir, dirName))
-			}
-			nameregFile := filepath.Join(exportDir, "metainfo", "name_registry.json")
-			err := os.Remove(nameregFile)
-			if err != nil && !os.IsNotExist(err) {
-				utils.ErrExit("Failed to remove name registry file: %w", err)
 			}
 			clearSchemaIsExported()
 			clearAssessmentRecommendationsApplied()

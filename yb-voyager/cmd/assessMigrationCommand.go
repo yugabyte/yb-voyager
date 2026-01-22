@@ -219,7 +219,6 @@ func createMigrationAssessmentStartedEvent() *cp.MigrationAssessmentStartedEvent
 
 func assessMigration() (err error) {
 
-	exporterRole = SOURCE_DB_EXPORTER_ROLE
 	assessmentMetadataDir = lo.Ternary(assessmentMetadataDirFlag != "", assessmentMetadataDirFlag,
 		filepath.Join(exportDir, "assessment", "metadata"))
 	// setting schemaDir to use later on - gather assessment metadata, segregating into schema files per object etc..
@@ -572,11 +571,6 @@ func handleStartCleanIfNeededForAssessMigration(metadataDirPassedByUser bool) er
 		err := ClearMigrationAssessmentDone()
 		if err != nil {
 			return fmt.Errorf("failed to start clean for assess migration: %w", err)
-		}
-		nameregFile := filepath.Join(exportDir, "metainfo", "name_registry.json")
-		err = os.Remove(nameregFile)
-		if err != nil && !os.IsNotExist(err) {
-			utils.ErrExit("Failed to remove name registry file: %w", err)
 		}
 	} else if assessmentFilesExists { // if not startClean but assessment files already exist
 		return goerrors.Errorf("assessment metadata or reports files already exist in the assessment directory: '%s'. Use the --start-clean flag to clear the directory before proceeding.", assessmentDir)
