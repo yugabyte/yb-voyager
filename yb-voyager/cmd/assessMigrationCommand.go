@@ -249,16 +249,6 @@ func assessMigration() (err error) {
 		if err != nil {
 			return fmt.Errorf("failed to connect source db for assessing migration: %w", err)
 		}
-
-		allSchemas, err := source.DB().GetAllSchemaNamesIdentifiers()
-		if err != nil {
-			return fmt.Errorf("failed to get all schema names identifiers: %w", err)
-		}
-		source.Schemas, err = namereg.SchemaNameMatcher(source.DBType, allSchemas, source.SchemaConfig)
-		if err != nil {
-			return fmt.Errorf("failed to match schema names: %w", err)
-		}
-
 		// We will require source db connection for the below checks
 		// Check if required binaries are installed.
 		if source.RunGuardrailsChecks {
@@ -278,7 +268,15 @@ func assessMigration() (err error) {
 			}
 		}
 
-		// Fetch source info early (includes system identifier needed for replica cluster validation)
+		allSchemas, err := source.DB().GetAllSchemaNamesIdentifiers()
+		if err != nil {
+			return fmt.Errorf("failed to get all schema names identifiers: %w", err)
+		}
+		source.Schemas, err = namereg.SchemaNameMatcher(source.DBType, allSchemas, source.SchemaConfig)
+		if err != nil {
+			return fmt.Errorf("failed to match schema names: %w", err)
+		}
+		
 		fetchSourceInfo()
 
 		// Handle replica discovery and validation (PostgreSQL only)

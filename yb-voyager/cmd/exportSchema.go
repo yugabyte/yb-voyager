@@ -131,6 +131,15 @@ func exportSchema(cmd *cobra.Command) error {
 		}
 	}
 
+	allSchemas, err := source.DB().GetAllSchemaNamesIdentifiers()
+	if err != nil {
+		return fmt.Errorf("failed to get all schema names identifiers: %w", err)
+	}
+	source.Schemas, err = namereg.SchemaNameMatcher(source.DBType, allSchemas, source.SchemaConfig)
+	if err != nil {
+		return fmt.Errorf("failed to match schema names: %w", err)
+	}
+
 	checkSourceDBCharset()
 	sourceDBVersion := source.DB().GetVersion()
 	source.DBVersion = sourceDBVersion
@@ -142,15 +151,6 @@ func exportSchema(cmd *cobra.Command) error {
 	// Get PostgreSQL system identifier while still connected
 	source.FetchDBSystemIdentifier()
 	utils.PrintAndLogf("%s version: %s\n", source.DBType, sourceDBVersion)
-
-	allSchemas, err := source.DB().GetAllSchemaNamesIdentifiers()
-	if err != nil {
-		return fmt.Errorf("failed to get all schema names identifiers: %w", err)
-	}
-	source.Schemas, err = namereg.SchemaNameMatcher(source.DBType, allSchemas, source.SchemaConfig)
-	if err != nil {
-		return fmt.Errorf("failed to match schema names: %w", err)
-	}
 
 	// Check if the source database has the required permissions for exporting schema.
 	if source.RunGuardrailsChecks {
