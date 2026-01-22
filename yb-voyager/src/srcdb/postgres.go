@@ -312,7 +312,7 @@ func (pg *PostgreSQL) GetAllTableNamesRaw(schemaName string) ([]string, error) {
 }
 
 func (pg *PostgreSQL) GetAllTableNames() []*sqlname.SourceName {
-	schemaList := sqlname.ExtractUnquoted(pg.source.Schemas)
+	schemaList := sqlname.ExtractIdentifiersUnquoted(pg.source.Schemas)
 	querySchemaList := "'" + strings.Join(schemaList, "','") + "'"
 	// Information schema requires select permission on the tables to query the tables. However, pg_catalog does not require any permission.
 	// So, we are using pg_catalog to get the table names.
@@ -514,7 +514,7 @@ func GetAbsPathOfPGCommandAboveVersion(cmd string, sourceDBVersion string) (path
 
 // GetAllSequences returns all the sequence names in the database for the given schema list
 func (pg *PostgreSQL) GetAllSequences() []string {
-	schemaList := sqlname.ExtractUnquoted(pg.source.Schemas)
+	schemaList := sqlname.ExtractIdentifiersUnquoted(pg.source.Schemas)
 	querySchemaList := "'" + strings.Join(schemaList, "','") + "'"
 	var sequenceNames []string
 	query := fmt.Sprintf(`SELECT sequence_schema, sequence_name FROM information_schema.sequences where sequence_schema IN (%s);`, querySchemaList)
@@ -590,7 +590,7 @@ func (pg *PostgreSQL) GetCharset() (string, error) {
 
 func (pg *PostgreSQL) GetDatabaseSize() (int64, error) {
 	var totalSchemasSize int64
-	schemaList := sqlname.JoinUnquoted(pg.source.Schemas, "','")
+	schemaList := sqlname.JoinIdentifiersUnquoted(pg.source.Schemas, "','")
 	query := fmt.Sprintf(`SELECT
     nspname AS schema_name,
     SUM(pg_total_relation_size(pg_class.oid)) AS total_size
@@ -1050,7 +1050,7 @@ GROUP BY schema_name, table_name HAVING nspname IN (%s);`
 
 func (pg *PostgreSQL) GetNonPKTables() ([]string, error) {
 	var nonPKTables []string
-	querySchemaList := sqlname.JoinUnquoted(pg.source.Schemas, "','")
+	querySchemaList := sqlname.JoinIdentifiersUnquoted(pg.source.Schemas, "','")
 	querySchemaList = "'" + querySchemaList + "'"
 	query := fmt.Sprintf(PG_QUERY_TO_CHECK_IF_TABLE_HAS_PK, querySchemaList)
 	rows, err := pg.db.Query(query)

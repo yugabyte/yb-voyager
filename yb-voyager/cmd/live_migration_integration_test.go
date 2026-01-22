@@ -36,12 +36,12 @@ import (
 
 // This inserts some rows in target table having sequence and validates if the ids ingested are correct or not
 func assertSequenceValues(t *testing.T, startID int, endId int, ybConn *sql.DB, tableName string) error {
-	_, err := ybConn.Exec(fmt.Sprintf(`INSERT INTO test_schema.test_live (name, email, description)
+	_, err := ybConn.Exec(fmt.Sprintf(`INSERT INTO %s (name, email, description)
 SELECT
 	md5(random()::text),                                      -- name
 	md5(random()::text) || '@example.com',                    -- email
 	repeat(md5(random()::text), 10)                           -- description (~320 chars)
-FROM generate_series(%d, %d);`, startID, endId))
+FROM generate_series(%d, %d);`, tableName, startID, endId))
 	if err != nil {
 		return fmt.Errorf("failed to insert into target: %w", err)
 	}
@@ -2896,4 +2896,137 @@ END $$;`,
 	fmt.Printf("   ✓ Fallback streaming (target → source)\n")
 	fmt.Printf("   ✓ Mixed INSERT/UPDATE/DELETE on same long-named table\n")
 	fmt.Printf("   ✓ Operations on tables with similar long names (differ only at the end)\n\n")
+}
+
+func TestBasicLiveTestForCaseSensitiveSchema(t *testing.T) {
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB: ContainerConfig{
+			Type:         "postgresql",
+			ForLive:      true,
+			DatabaseName: "test_case_sensitive_schema",
+		},
+		TargetDB: ContainerConfig{
+			Type:         "yugabytedb",
+			DatabaseName: "test_case_sensitive_schema",
+		},
+		SchemaNames: []string{`"Test_Schema"`},
+		SchemaSQL: []string{
+			`DROP SCHEMA IF EXISTS "Test_Schema" CASCADE;`,
+			`CREATE SCHEMA IF NOT EXISTS "Test_Schema";
+			CREATE TABLE "Test_Schema".test_live (
+				id SERIAL PRIMARY KEY,
+				name TEXT,
+				email TEXT,
+				description TEXT
+			);`,
+		},
+		SourceSetupSchemaSQL: []string{
+			`ALTER TABLE "Test_Schema".test_live REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			`INSERT INTO "Test_Schema".test_live (name, email, description)
+SELECT
+	md5(random()::text),                                      -- name
+	md5(random()::text) || '@example.com',                    -- email
+	repeat(md5(random()::text), 10)                           -- description (~320 chars)
+FROM generate_series(1, 10);`,
+		},
+		SourceDeltaSQL: []string{
+			`INSERT INTO "Test_Schema".test_live (name, email, description)
+SELECT
+	md5(random()::text),                                      -- name
+	md5(random()::text) || '@example.com',                    -- email
+	repeat(md5(random()::text), 10)                           -- description (~320 chars)
+FROM generate_series(1, 5);`,
+		},
+		CleanupSQL: []string{
+			`DROP SCHEMA IF EXISTS "Test_Schema" CASCADE;`,
+		},
+		TargetDeltaSQL: []string{
+			`INSERT INTO "Test_Schema".test_live (name, email, description)
+SELECT
+	md5(random()::text),                                      -- name
+	md5(random()::text) || '@example.com',                    -- email
+	repeat(md5(random()::text), 10)                           -- description (~320 chars)
+FROM generate_series(1, 5);`,
+		},
+	})
+
+	defer lm.Cleanup()
+
+	err := lm.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+
+	err = lm.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
+
+	err = lm.StartExportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start export data")
+
+	err = lm.StartImportData(true, map[string]string{
+		"--log-level": "debug",
+	})
+	testutils.FatalIfError(t, err, "failed to start import data")
+
+	time.Sleep(10 * time.Second)
+
+	err = lm.WaitForSnapshotComplete(map[string]int64{
+		`"Test_Schema"."test_live"`: 10,
+	}, 30)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+
+	//validate snapshot data
+	err = lm.ValidateDataConsistency([]string{`"Test_Schema"."test_live"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	//execute source delta
+	err = lm.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
+
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`"Test_Schema"."test_live"`: {
+			Inserts: 5,
+			Updates: 0,
+			Deletes: 0,
+		},
+	}, 30, 1)
+	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
+
+	//validate streaming data
+	err = lm.ValidateDataConsistency([]string{`"Test_Schema"."test_live"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	err = lm.InitiateCutoverToTarget(true, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover")
+
+	err = lm.WaitForCutoverComplete(50)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+
+	err = lm.ExecuteTargetDelta()
+	testutils.FatalIfError(t, err, "failed to execute target delta")
+
+	err = lm.WaitForFallbackStreamingComplete(map[string]ChangesCount{
+		`"Test_Schema"."test_live"`: {
+			Inserts: 5,
+			Updates: 0,
+			Deletes: 0,
+		},
+	}, 30, 1)
+	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
+
+	//validate streaming data
+	err = lm.ValidateDataConsistency([]string{`"Test_Schema"."test_live"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	err = lm.InitiateCutoverToSource(nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
+
+	err = lm.WaitForCutoverSourceComplete(100)
+	testutils.FatalIfError(t, err, "failed to wait for cutover to source complete")
+
+	//validate sequence restoration
+	err = lm.WithSourceConn(func(source *sql.DB) error {
+		return assertSequenceValues(t, 21, 30, source, `"Test_Schema".test_live`)
+	})
+	testutils.FatalIfError(t, err, "failed to validate sequence restoration")
 }

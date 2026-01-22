@@ -480,7 +480,7 @@ func generatePerformanceOptimizationReport(indexTransformer *sqltransformer.Inde
 	schemaOptimizationReport = NewSchemaOptimizationReport(
 		utils.YB_VOYAGER_VERSION,
 		source.DBName,
-		sqlname.JoinMinQuoted(source.Schemas, ", "),
+		sqlname.JoinIdentifiersMinQuoted(source.Schemas, ", "),
 		source.DBVersion,
 	)
 	schemaOptimizationReport.RedundantIndexChange = buildRedundantIndexChange(indexTransformer)

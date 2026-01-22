@@ -140,7 +140,7 @@ func (yb *TargetYugabyteDB) Init() error {
 		yb.Tconf.SessionVars = getYBSessionInitScript(yb.Tconf)
 	}
 
-	schemas := sqlname.ExtractUnquoted(yb.tconf.Schemas)
+	schemas := sqlname.ExtractIdentifiersUnquoted(yb.tconf.Schemas)
 	schemaList := strings.Join(schemas, "','") // a','b','c
 	checkSchemaExistsQuery := fmt.Sprintf(
 		"SELECT count(nspname) FROM pg_catalog.pg_namespace WHERE nspname IN ('%s');",
@@ -1572,7 +1572,7 @@ func checkSessionVariableSupport(tconf *TargetConf, sqlStmt string) bool {
 }
 
 func (yb *TargetYugabyteDB) setTargetSchema(conn *pgx.Conn) error {
-	schemas := sqlname.JoinMinQuoted(yb.tconf.Schemas, ", ")
+	schemas := sqlname.JoinIdentifiersMinQuoted(yb.tconf.Schemas, ", ")
 	setSchemaQuery := fmt.Sprintf("SET SEARCH_PATH TO %s", schemas)
 	_, err := conn.Exec(context.Background(), setSchemaQuery)
 	if err != nil {

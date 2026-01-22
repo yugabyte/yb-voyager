@@ -120,7 +120,7 @@ func (pg *TargetPostgreSQL) Init() error {
 	if len(pg.tconf.SessionVars) == 0 {
 		pg.tconf.SessionVars = getPGSessionInitScript(pg.tconf)
 	}
-	schemas := sqlname.ExtractUnquoted(pg.tconf.Schemas)
+	schemas := sqlname.ExtractIdentifiersUnquoted(pg.tconf.Schemas)
 	schemaList := strings.Join(schemas, "','") // a','b','c
 	checkSchemaExistsQuery := fmt.Sprintf(
 		"SELECT nspname FROM pg_catalog.pg_namespace WHERE nspname IN ('%s');",
@@ -702,7 +702,7 @@ func (pg *TargetPostgreSQL) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 }
 
 func (pg *TargetPostgreSQL) setTargetSchema(conn *pgx.Conn) {
-	schemas := sqlname.JoinMinQuoted(pg.tconf.Schemas, ", ")
+	schemas := sqlname.JoinIdentifiersMinQuoted(pg.tconf.Schemas, ", ")
 	setSchemaQuery := fmt.Sprintf("SET SEARCH_PATH TO %s", schemas)
 	_, err := conn.Exec(context.Background(), setSchemaQuery)
 	if err != nil {
@@ -998,7 +998,7 @@ func (pg *TargetPostgreSQL) isUserSuperUser() (bool, error) {
 
 func (pg *TargetPostgreSQL) listSchemasMissingUsagePermission() ([]string, error) {
 	// Users need usage permissions on the schemas they want to export and the pg_catalog and information_schema schemas
-	querySchemaArray := sqlname.ExtractUnquoted(pg.tconf.Schemas)
+	querySchemaArray := sqlname.ExtractIdentifiersUnquoted(pg.tconf.Schemas)
 	querySchemaList := strings.Join(querySchemaArray, ",")
 	chkSchemaUsagePermissionQuery := fmt.Sprintf(`
 	SELECT 
@@ -1046,7 +1046,7 @@ func (pg *TargetPostgreSQL) listSchemasMissingUsagePermission() ([]string, error
 }
 
 func (pg *TargetPostgreSQL) listTablesMissingSelectInsertUpdateDeletePermissions() (map[string][]string, error) {
-	querySchemaArray := sqlname.ExtractUnquoted(pg.tconf.Schemas)
+	querySchemaArray := sqlname.ExtractIdentifiersUnquoted(pg.tconf.Schemas)
 	querySchemaList := strings.Join(querySchemaArray, ",")
 
 	query := fmt.Sprintf(`
@@ -1146,7 +1146,7 @@ func (pg *TargetPostgreSQL) GetEnabledTriggersAndFks() (enabledTriggers []string
 		//Not check for any triggers / FKs in case this session parameter is used
 		return nil, nil, nil
 	}
-	querySchemaArray := sqlname.ExtractUnquoted(pg.tconf.Schemas)
+	querySchemaArray := sqlname.ExtractIdentifiersUnquoted(pg.tconf.Schemas)
 	querySchemaList := strings.Join(querySchemaArray, ",")
 
 	// Check the trigger status using the tgenabled column, which can have three possible values:

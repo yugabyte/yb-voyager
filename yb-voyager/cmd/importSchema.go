@@ -478,7 +478,7 @@ func createTargetSchemas(conn *pgx.Conn) {
 
 	}
 
-	utils.PrintAndLogf("schemas to be present in target database %q: %v\n", tconf.DBName, sqlname.JoinMinQuoted(targetSchemas, ", "))
+	utils.PrintAndLogf("schemas to be present in target database %q: %v\n", tconf.DBName, sqlname.JoinIdentifiersMinQuoted(targetSchemas, ", "))
 	for _, targetSchema := range targetSchemas {
 		//check if target schema exists or not
 		schemaExists := checkIfTargetSchemaExists(conn, targetSchema)

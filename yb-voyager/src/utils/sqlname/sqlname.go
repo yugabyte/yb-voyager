@@ -81,36 +81,36 @@ func (i Identifier) FindBestMatchingIdenitifier(schemaIdenitifiers []Identifier)
 	return false, Identifier{}
 }
 
-func ExtractMinQuoted(identifiers []Identifier) []string {
+func ExtractIdentifiersMinQuoted(identifiers []Identifier) []string {
 	return lo.Map(identifiers, func(identifier Identifier, _ int) string {
 		return identifier.MinQuoted
 	})
 }
 
-func ExtractUnquoted(identifiers []Identifier) []string {
+func ExtractIdentifiersUnquoted(identifiers []Identifier) []string {
 	return lo.Map(identifiers, func(identifier Identifier, _ int) string {
 		return identifier.Unquoted
 	})
 }
 
-func ExtractQuoted(identifiers []Identifier) []string {
+func ExtractIdentifiersQuoted(identifiers []Identifier) []string {
 	return lo.Map(identifiers, func(identifier Identifier, _ int) string {
 		return identifier.Quoted
 	})
 }
 
-func JoinUnquoted(identifiers []Identifier, separator string) string {
-	unquotedIdentifiers := ExtractUnquoted(identifiers)
+func JoinIdentifiersUnquoted(identifiers []Identifier, separator string) string {
+	unquotedIdentifiers := ExtractIdentifiersUnquoted(identifiers)
 	return strings.Join(unquotedIdentifiers, separator)
 }
 
-func JoinQuoted(identifiers []Identifier, separator string) string {
-	quotedIdentifiers := ExtractQuoted(identifiers)
+func JoinIdentifiersQuoted(identifiers []Identifier, separator string) string {
+	quotedIdentifiers := ExtractIdentifiersQuoted(identifiers)
 	return strings.Join(quotedIdentifiers, separator)
 }
 
-func JoinMinQuoted(identifiers []Identifier, separator string) string {
-	minQuotedIdentifiers := ExtractMinQuoted(identifiers)
+func JoinIdentifiersMinQuoted(identifiers []Identifier, separator string) string {
+	minQuotedIdentifiers := ExtractIdentifiersMinQuoted(identifiers)
 	return strings.Join(minQuotedIdentifiers, separator)
 }
 

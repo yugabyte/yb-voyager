@@ -59,6 +59,7 @@ type NameRegistry struct {
 
 	// All schema and table names are in the format as stored in DB catalog.
 	SourceDBSchemaNames       []string
+	SourceDBSchemaIdentifiers []sqlname.Identifier `json:"-"`
 	DefaultSourceDBSchemaName string
 	// SourceDBTableNames has one entry for `DefaultSourceReplicaDBSchemaName` if `Mode` is `IMPORT_TO_SOURCE_REPLICA_MODE`.
 	SourceDBTableNames map[string][]string // nil for `import data file` mode.
@@ -272,9 +273,10 @@ func (reg *NameRegistry) validateAndSetSchemaNames(schemaNames []string) ([]stri
 	}
 
 	if len(schemaNotPresent) > 0 {
-		return nil, goerrors.Errorf("\nFollowing schemas are not present in source database: %v, please provide a valid schema list.\n", sqlname.JoinUnquoted(schemaNotPresent, ", "))
+		return nil, goerrors.Errorf("\nFollowing schemas are not present in source database: %v, please provide a valid schema list.\n", sqlname.JoinIdentifiersUnquoted(schemaNotPresent, ", "))
 	}
-	return sqlname.ExtractUnquoted(finalSchemaList), nil
+	reg.SourceDBSchemaIdentifiers = finalSchemaList
+	return sqlname.ExtractIdentifiersUnquoted(finalSchemaList), nil
 }
 func (reg *NameRegistry) registerYBNames() (bool, error) {
 	if reg.params.YBDB == nil {
@@ -293,7 +295,7 @@ func (reg *NameRegistry) registerYBNames() (bool, error) {
 		reg.YBSchemaNames = reg.SourceDBSchemaNames
 	default:
 		identifiers := sqlname.ParseIdentifiersFromString(constants.YUGABYTEDB, reg.params.TargetDBSchema, ",")
-		reg.YBSchemaNames = sqlname.ExtractUnquoted(identifiers)
+		reg.YBSchemaNames = sqlname.ExtractIdentifiersUnquoted(identifiers)
 	}
 	for _, schemaName := range reg.YBSchemaNames {
 		tableNames, err := yb.GetAllTableNamesRaw(schemaName)
@@ -534,7 +536,7 @@ func (reg *NameRegistry) LookupSchemaName(schemaName string) (sqlname.Identifier
 	default:
 		return sqlname.Identifier{}, goerrors.Errorf("invalid role: %s", reg.params.Role)
 	}
-	schemaIdenitifiers := sqlname.ParseIdentifiersFromStrings(dbType, schemaNames)
+	schemaIdenitifiers := lo.Ternary(reg.SourceDBSchemaIdentifiers != nil, reg.SourceDBSchemaIdentifiers, sqlname.ParseIdentifiersFromStrings(dbType, schemaNames))
 	schemaNameIdentifier := sqlname.NewIdentifier(dbType, schemaName)
 	matchedSchema, matchedSchemaIdentifier := schemaNameIdentifier.FindBestMatchingIdenitifier(schemaIdenitifiers)
 	if !matchedSchema {
