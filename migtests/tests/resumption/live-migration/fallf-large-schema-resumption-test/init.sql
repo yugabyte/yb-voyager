@@ -15,6 +15,9 @@ CREATE TABLE "schema_long_name_1234567890123456789012345678901234567890123456"."
     payload TEXT
 );
 
+-- set replica identity full for the table
+ALTER TABLE "schema_long_name_1234567890123456789012345678901234567890123456"."table_long_name_12345678901234567890123456789012345678901234567" REPLICA IDENTITY FULL;
+
 \d "schema_long_name_1234567890123456789012345678901234567890123456"."table_long_name_12345678901234567890123456789012345678901234567";
 
 -- C. Table with very large column names
@@ -200,8 +203,8 @@ DO $CUSTOM$
     DECLARE
 		r record;
     BEGIN
-        FOR r IN (SELECT table_schema,table_name FROM information_schema.tables WHERE table_type = 'BASE TABLE') 
+        FOR r IN (SELECT table_schema,table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE') 
         LOOP
-            EXECUTE 'ALTER TABLE ' || quote_ident(r.table_schema) || '.' || quote_ident(r.table_name) || ' REPLICA IDENTITY FULL';
+            EXECUTE 'ALTER TABLE ' || r.table_schema || '."' || r.table_name || '" REPLICA IDENTITY FULL';
         END LOOP;
     END $CUSTOM$;
