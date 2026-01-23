@@ -1438,7 +1438,7 @@ func (pg *PostgreSQL) checkPgStatStatementsSetup() (string, error) {
 	// To access "shared_preload_libraries" must be superuser or a member of pg_read_all_settings
 	// so instead of getting current_settings(), executing SELECT query on pg_stat_statements view
 	// 3. check if its properly installed/loaded without any extra permissions
-	queryCheckPgssLoaded := fmt.Sprintf("SELECT 1 from %s.pg_stat_statements LIMIT 1", pgssExtSchema)
+	queryCheckPgssLoaded := fmt.Sprintf(`SELECT 1 from "%s".pg_stat_statements LIMIT 1`, pgssExtSchema)
 	log.Infof("query to check pgss is properly loaded - [%s]", queryCheckPgssLoaded)
 	_, err = pg.db.Exec(queryCheckPgssLoaded)
 	if err != nil {

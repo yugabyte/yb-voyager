@@ -17,8 +17,6 @@ COPY (
     JOIN
         pg_namespace tbl_nsp ON tbl.relnamespace = tbl_nsp.oid
     WHERE
-        idx_nsp.nspname = ANY(
-            SELECT trim(both '"' from unnest(string_to_array(:'schema_list', '|')))
-        )
+        idx_nsp.nspname = ANY(string_to_array(:'schema_list', '|'))
 ) TO STDOUT WITH CSV HEADER;
 \o

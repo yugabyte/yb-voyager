@@ -905,7 +905,8 @@ get_value_from_msr(){
 }
 
 set_replica_identity(){
-	db_schema=$1
+    #trim the quotes from the schema name
+    db_schema=$(echo $1 | sed 's/"//g')
     cat > alter_replica_identity.sql <<EOF
     DO \$CUSTOM\$ 
     DECLARE
