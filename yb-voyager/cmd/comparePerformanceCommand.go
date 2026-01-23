@@ -163,6 +163,7 @@ func validateComparePerfPrerequisites() {
 		utils.ErrExit("No query statistics found in assessment database. Please ensure pg_stat_statements extension was enabled during assess-migration and that workload was executed on the source database.")
 	}
 	
+	//TODO: fix later 
 	tconf.Schemas = sqlname.ParseIdentifiersFromString(dbType, tconf.SchemaConfig, ",")
 
 	// Check 4: Target database is reachable

@@ -59,7 +59,6 @@ type NameRegistry struct {
 
 	// All schema and table names are in the format as stored in DB catalog.
 	SourceDBSchemaNames       []string
-	SourceDBSchemaIdentifiers []sqlname.Identifier `json:"-"`
 	DefaultSourceDBSchemaName string
 	// SourceDBTableNames has one entry for `DefaultSourceReplicaDBSchemaName` if `Mode` is `IMPORT_TO_SOURCE_REPLICA_MODE`.
 	SourceDBTableNames map[string][]string // nil for `import data file` mode.
@@ -133,6 +132,7 @@ func (reg *NameRegistry) registerNames() (bool, error) {
 		log.Infof("setting default source replica schema name in the name registry: %s", reg.DefaultSourceDBSchemaName)
 		targetSchema := ""
 		if len(reg.params.TargetDBSchema) > 0 {
+			//TODO: handle with oracle/mysql target db schema changes to error out if it doesn't have exactly one
 			targetSchema = reg.params.TargetDBSchema[0]
 		}
 		defaultSchema := lo.Ternary(reg.SourceDBType == constants.POSTGRESQL, reg.DefaultSourceDBSchemaName, targetSchema)
@@ -598,10 +598,10 @@ func SchemaNameMatcher(dbType string ,allSchemas []sqlname.Identifier, schemaCon
 	for _, schema := range allSchemas {
 		unquotedToIdentifierMap[schema.Unquoted] = schema
 	}
-	schemaNames := strings.Split(schemaConfig, ",")
+	configSchemaNames := strings.Split(schemaConfig, ",")
 	var schemaNotFound []string
 	var finalSchemaList []sqlname.Identifier
-	for _, schema := range schemaNames {
+	for _, schema := range configSchemaNames {
 		schemaName, err := matchName("schema", lo.Keys(unquotedToIdentifierMap), schema)
 		var errObj *ErrNameNotFound
 		if err != nil && errors.As(err, &errObj) {

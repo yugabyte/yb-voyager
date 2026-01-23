@@ -644,7 +644,6 @@ func TestNameRegistryStructs(t *testing.T) {
 			expectedType: struct {
 				SourceDBType                     string
 				SourceDBSchemaNames              []string
-				SourceDBSchemaIdentifiers        []sqlname.Identifier `json:"-"`
 				DefaultSourceDBSchemaName        string
 				SourceDBTableNames               map[string][]string
 				YBSchemaNames                    []string
