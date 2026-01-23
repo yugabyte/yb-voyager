@@ -96,6 +96,7 @@ FROM information_schema.schemata
 
 -- Grant SELECT permission on all tables in all schemas to voyager_user
 \echo ''
+\echo '--- Granting SELECT Permission on Tables ---'
 SELECT 'GRANT SELECT ON ALL TABLES IN SCHEMA "' || schema_name || '" TO ' || :'voyager_user' || ';'
 FROM information_schema.schemata
 \gexec
