@@ -278,6 +278,7 @@ func exportData() bool {
 	if err != nil {
 		utils.ErrExit("get all schema names identifiers: %w", err)
 	}
+	//TODO: handle non-start-clean cases for guadrails for not allowing the schema to be changed and use the one stored in MSR
 	source.Schemas, err = namereg.SchemaNameMatcher(source.DBType, allSchemas, source.SchemaConfig)
 	if err != nil {
 		utils.ErrExit("schema name matcher: %w", err)

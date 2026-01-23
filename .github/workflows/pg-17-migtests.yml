@@ -228,6 +228,10 @@ jobs:
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
         run: migtests/scripts/run-test.sh pg/codependent-schemas --run-via-config-file
 
+      - name: "TEST: pg-case-sensitive-objects"
+        if: ${{ !cancelled() && matrix.test_group == 'offline' }}
+        run: migtests/scripts/run-test.sh pg/case-sensitive-objects --run-via-config-file
+
       - name: "TEST: pg-sample-schema-emp"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
         run: migtests/scripts/run-test.sh pg/sample-employee --run-via-config-file

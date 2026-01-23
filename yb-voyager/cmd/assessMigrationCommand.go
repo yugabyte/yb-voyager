@@ -38,6 +38,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryissue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
@@ -217,6 +218,7 @@ func createMigrationAssessmentStartedEvent() *cp.MigrationAssessmentStartedEvent
 }
 
 func assessMigration() (err error) {
+
 	assessmentMetadataDir = lo.Ternary(assessmentMetadataDirFlag != "", assessmentMetadataDirFlag,
 		filepath.Join(exportDir, "assessment", "metadata"))
 	// setting schemaDir to use later on - gather assessment metadata, segregating into schema files per object etc..
@@ -247,7 +249,6 @@ func assessMigration() (err error) {
 		if err != nil {
 			return fmt.Errorf("failed to connect source db for assessing migration: %w", err)
 		}
-
 		// We will require source db connection for the below checks
 		// Check if required binaries are installed.
 		if source.RunGuardrailsChecks {
@@ -267,10 +268,14 @@ func assessMigration() (err error) {
 			}
 		}
 
-		//TODO fix this with schema changes to initialise namereg
-		// Fetch source info early (includes system identifier needed for replica cluster validation)
-		//TODO: will fix this with schema changes in next PR
-		source.Schemas = sqlname.ParseIdentifiersFromString(source.DBType, source.SchemaConfig, ",")
+		allSchemas, err := source.DB().GetAllSchemaNamesIdentifiers()
+		if err != nil {
+			return fmt.Errorf("failed to get all schema names identifiers: %w", err)
+		}
+		source.Schemas, err = namereg.SchemaNameMatcher(source.DBType, allSchemas, source.SchemaConfig)
+		if err != nil {
+			return fmt.Errorf("failed to match schema names: %w", err)
+		}
 		
 		fetchSourceInfo()
 

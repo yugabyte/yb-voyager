@@ -94,7 +94,8 @@ var invalidTargetIndexesCache map[string]bool
 
 func importSchema() error {
 
-	//TODO: see if namreg initialization is required here
+	//No requirement as such for namereg for this command as its already doing the schema name creation 
+	// so can't lookup before that so not any real use of namereg
 	tconf.Schemas = sqlname.ParseIdentifiersFromString(tconf.TargetDBType, tconf.SchemaConfig, ",")
 
 	if callhome.SendDiagnostics || getControlPlaneType() == YUGABYTED {

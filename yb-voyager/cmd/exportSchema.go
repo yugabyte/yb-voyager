@@ -37,6 +37,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/sqltransformer"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -132,6 +133,15 @@ func exportSchema(cmd *cobra.Command) error {
 		}
 	}
 
+	allSchemas, err := source.DB().GetAllSchemaNamesIdentifiers()
+	if err != nil {
+		return fmt.Errorf("failed to get all schema names identifiers: %w", err)
+	}
+	source.Schemas, err = namereg.SchemaNameMatcher(source.DBType, allSchemas, source.SchemaConfig)
+	if err != nil {
+		return fmt.Errorf("failed to match schema names: %w", err)
+	}
+
 	checkSourceDBCharset()
 	sourceDBVersion := source.DB().GetVersion()
 	source.DBVersion = sourceDBVersion
@@ -143,21 +153,6 @@ func exportSchema(cmd *cobra.Command) error {
 	// Get PostgreSQL system identifier while still connected
 	source.FetchDBSystemIdentifier()
 	utils.PrintAndLogf("%s version: %s\n", source.DBType, sourceDBVersion)
-
-	//TODO fix this with proper schema changes to initialise namere
-	// err = InitNameRegistry(exportDir, exporterRole, &source, source.DB(), nil, nil, false)
-	// if err != nil {
-	// 	utils.ErrExit("initialize name registry: %w", err)
-	// }
-	// validatedSchemas := []sqlname.Identifier{}
-	// for _, schema := range source.Schemas {
-	// 	identifier, err := namereg.NameReg.LookupSchemaName(schema.Unquoted)
-	// 	if err != nil {
-	// 		utils.ErrExit("lookup schema name: %w", err)
-	// 	}
-	// 	validatedSchemas = append(validatedSchemas, identifier)
-	// }
-	// source.Schemas = validatedSchemas
 
 	// Check if the source database has the required permissions for exporting schema.
 	if source.RunGuardrailsChecks {
