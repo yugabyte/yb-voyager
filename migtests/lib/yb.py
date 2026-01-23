@@ -191,6 +191,8 @@ class PostgresDB:
 
 	def get_row_count(self, table_name, schema_name="public") -> int:
 		cur = self.conn.cursor()
+		schema_name = schema_name.strip("\"")
+		table_name = table_name.strip("\"")
 		cur.execute(f'SELECT COUNT(*) FROM "{schema_name}"."{table_name}"')
 		return cur.fetchone()[0]
 
@@ -217,7 +219,9 @@ class PostgresDB:
 	
 	def get_sum_of_column_of_table(self, table_name, column_name, schema_name="public") -> int:
 		cur = self.conn.cursor()
-		cur.execute(f"select sum({column_name}) from {schema_name}.{table_name}")
+		schema_name = schema_name.strip("\"")
+		table_name = table_name.strip("\"")
+		cur.execute(f'select sum({column_name}) from "{schema_name}"."{table_name}"')
 		return cur.fetchone()[0]
 		
 	def get_count_index_on_table(self, schema_name="public") -> Dict[str,int]:
@@ -228,12 +232,16 @@ class PostgresDB:
 
 	def get_distinct_values_of_column_of_table(self, table_name, column_name, schema_name="public") -> List[Any]:
 		cur = self.conn.cursor()
-		cur.execute(f"select distinct({column_name}) from {schema_name}.{table_name}")
+		schema_name = schema_name.strip("\"")
+		table_name = table_name.strip("\"")
+		cur.execute(f'select distinct({column_name}) from "{schema_name}"."{table_name}"')
 		return [value[0] for value in cur.fetchall()]
 
 	def get_distinct_text_values_of_column(self, table_name, column_name, schema_name="public") -> List[str]:
 		cur = self.conn.cursor()
-		cur.execute(f"SELECT DISTINCT {column_name}::text FROM {schema_name}.{table_name}")
+		schema_name = schema_name.strip("\"")
+		table_name = table_name.strip("\"")
+		cur.execute(f'SELECT DISTINCT {column_name}::text FROM "{schema_name}"."{table_name}"')
 		return [str(value[0]) for value in cur.fetchall()]
 
 	# takes query and error_code and return true id the error_code you believe that query should throw matches
@@ -352,7 +360,9 @@ class PostgresDB:
 
 	def assert_all_values_of_col(self, table_name, column_name, schema_name="public", transform_func=None, expected_values=[]):
 		cur = self.conn.cursor()
-		cur.execute(f"select {column_name} from {schema_name}.{table_name}")
+		schema_name = schema_name.strip("\"")
+		table_name = table_name.strip("\"")
+		cur.execute(f'select {column_name} from "{schema_name}"."{table_name}"')
 		all_values = [value[0] for value in cur.fetchall()]
 		if transform_func:
 			all_values = [transform_func(value) if value else value for value in all_values]

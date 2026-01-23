@@ -1666,7 +1666,7 @@ func (pg *PostgreSQL) listSequencesMissingSelectPermission() (sequencesWithMissi
 		SELECT
 			n.nspname AS schema_name,
 			CASE
-				WHEN has_schema_privilege('%s', quote_ident(n.nspname), 'USAGE') THEN '%s'
+				WHEN has_schema_privilege('%s', n.nspname, 'USAGE') THEN '%s'
 				ELSE '%s'
 			END AS usage_status
 		FROM pg_namespace n
@@ -1830,7 +1830,7 @@ func (pg *PostgreSQL) GetSchemasMissingUsagePermissions() ([]string, error) {
 	SELECT 
 		quote_ident(nspname) AS schema_name,
 		CASE 
-			WHEN has_schema_privilege('%s', quote_ident(nspname), 'USAGE') THEN '%s' 
+			WHEN has_schema_privilege('%s', nspname, 'USAGE') THEN '%s' 
 			ELSE '%s' 
 		END AS usage_permission_status
 	FROM 
