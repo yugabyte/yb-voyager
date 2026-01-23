@@ -27,9 +27,8 @@ import (
 	"strings"
 	"text/template"
 
-	goerrors "github.com/go-errors/errors"
-
 	"github.com/fatih/color"
+	goerrors "github.com/go-errors/errors"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -44,6 +43,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/types"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
 
@@ -144,7 +144,7 @@ func registerSourceDBConnFlagsForAM(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&source.DBName, "source-db-name", "",
 		"source database name to be migrated to YugabyteDB")
 
-	cmd.Flags().StringVar(&source.Schema, "source-db-schema", "",
+	cmd.Flags().StringVar(&source.SchemaConfig, "source-db-schema", "",
 		"source schema name(s) to export\n"+
 			`Note: in case of PostgreSQL, it can be a single or comma separated list of schemas: "schema1,schema2,schema3"`)
 
@@ -267,12 +267,11 @@ func assessMigration() (err error) {
 			}
 		}
 
-		res := source.DB().CheckSchemaExists()
-		if !res {
-			return goerrors.Errorf("failed to check if source schema exist: %q", source.Schema)
-		}
-
+		//TODO fix this with schema changes to initialise namereg
 		// Fetch source info early (includes system identifier needed for replica cluster validation)
+		//TODO: will fix this with schema changes in next PR
+		source.Schemas = sqlname.ParseIdentifiersFromString(source.DBType, source.SchemaConfig, ",")
+		
 		fetchSourceInfo()
 
 		// Handle replica discovery and validation (PostgreSQL only)
@@ -1496,8 +1495,7 @@ func considerQueryForIssueDetection(collectedSchemaList []string) bool {
 		return item != "pg_catalog"
 	})
 
-	sourceSchemaList := strings.Split(source.Schema, "|")
-
+	sourceSchemaList := sqlname.ExtractIdentifiersUnquoted(source.Schemas)
 	// fallback in case: unable to collect objects or there are no object(s) in the query
 	if len(collectedSchemaList) == 0 {
 		return true

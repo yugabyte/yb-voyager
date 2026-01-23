@@ -25,9 +25,8 @@ import (
 	"regexp"
 	"strings"
 
-	goerrors "github.com/go-errors/errors"
-
 	"github.com/fatih/color"
+	goerrors "github.com/go-errors/errors"
 	pg_query "github.com/pganalyze/pg_query_go/v6"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
@@ -112,6 +111,8 @@ func exportSchema(cmd *cobra.Command) error {
 		log.Errorf("failed to connect to the source db: %s", err)
 		return fmt.Errorf("failed to connect to the source db during export schema: %w", err)
 	}
+	//TODO: fix in next PR
+	source.Schemas = sqlname.ParseIdentifiersFromString(source.DBType, source.SchemaConfig, ",")
 	defer source.DB().Disconnect()
 
 	if source.RunGuardrailsChecks {
@@ -143,10 +144,20 @@ func exportSchema(cmd *cobra.Command) error {
 	source.FetchDBSystemIdentifier()
 	utils.PrintAndLogf("%s version: %s\n", source.DBType, sourceDBVersion)
 
-	res := source.DB().CheckSchemaExists()
-	if !res {
-		return goerrors.Errorf("failed to check if source schema exist during export schema: %q", source.Schema)
-	}
+	//TODO fix this with proper schema changes to initialise namere
+	// err = InitNameRegistry(exportDir, exporterRole, &source, source.DB(), nil, nil, false)
+	// if err != nil {
+	// 	utils.ErrExit("initialize name registry: %w", err)
+	// }
+	// validatedSchemas := []sqlname.Identifier{}
+	// for _, schema := range source.Schemas {
+	// 	identifier, err := namereg.NameReg.LookupSchemaName(schema.Unquoted)
+	// 	if err != nil {
+	// 		utils.ErrExit("lookup schema name: %w", err)
+	// 	}
+	// 	validatedSchemas = append(validatedSchemas, identifier)
+	// }
+	// source.Schemas = validatedSchemas
 
 	// Check if the source database has the required permissions for exporting schema.
 	if source.RunGuardrailsChecks {

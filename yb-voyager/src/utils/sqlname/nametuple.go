@@ -70,7 +70,7 @@ func NewObjectName(dbType, defaultSchemaName, schemaName, tableName string) *Obj
 	return result
 }
 
-// Assumption - always quoted qualified name with case sensitivity preserved, then adding the quotes explicitly
+// Assumption - always quoted qualified name with case sensitivity preserved, and if not quoted then adding the quotes explicitly
 func NewObjectNameWithQualifiedName(dbType, defaultSchemaName, objName string) *ObjectName {
 	parts := strings.Split(objName, ".")
 	if len(parts) != 2 {

@@ -1,5 +1,4 @@
 //go:build integration
-
 /*
 Copyright (c) YugabyteDB, Inc.
 
@@ -30,6 +29,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	testcontainers "github.com/yugabyte/yb-voyager/yb-voyager/test/containers"
 )
 
@@ -75,7 +75,7 @@ func createTestDBTarget(ctx context.Context, config *testcontainers.ContainerCon
 			DBVersion:    container.GetConfig().DBVersion,
 			User:         container.GetConfig().User,
 			Password:     container.GetConfig().Password,
-			Schema:       container.GetConfig().Schema,
+			Schemas:      []sqlname.Identifier{sqlname.NewIdentifier(config.DBType, container.GetConfig().Schema)},
 			DBName:       container.GetConfig().DBName,
 			Host:         host,
 			Port:         port,
@@ -144,7 +144,7 @@ func TestMain(m *testing.M) {
 			DBVersion:    yugabytedbClusterContainer.GetConfig().DBVersion,
 			User:         yugabytedbClusterContainer.GetConfig().User,
 			Password:     yugabytedbClusterContainer.GetConfig().Password,
-			Schema:       yugabytedbClusterContainer.GetConfig().Schema,
+			Schemas:      []sqlname.Identifier{sqlname.NewIdentifier(testcontainers.YUGABYTEDB, yugabytedbClusterContainer.GetConfig().Schema)},
 			DBName:       yugabytedbClusterContainer.GetConfig().DBName,
 			Host:         host,
 			Port:         port,

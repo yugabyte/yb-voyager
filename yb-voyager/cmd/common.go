@@ -272,7 +272,7 @@ func getQuotedFromUnquoted(t string) string {
 	//To preserve case sensitiveness in the Unquoted
 	parts := strings.Split(t, ".")
 	s, t := parts[0], parts[1]
-	return fmt.Sprintf(`%s."%s"`, s, t)
+	return fmt.Sprintf(`"%s"."%s"`, s, t)
 }
 
 func displayExportedRowCountSnapshot(snapshotViaDebezium bool) {
@@ -286,7 +286,7 @@ func displayExportedRowCountSnapshot(snapshotViaDebezium bool) {
 	leafPartitions := getLeafPartitionsFromRootTable()
 	if !snapshotViaDebezium {
 		exportedRowCount := getExportedRowCountSnapshot(exportDir)
-		if source.Schema != "" {
+		if len(source.Schemas) > 0 {
 			addHeader(uitable, "SCHEMA", "TABLE", "ROW COUNT")
 		} else {
 			addHeader(uitable, "DATABASE", "TABLE", "ROW COUNT")
@@ -673,20 +673,20 @@ func InitNameRegistry(
 
 	var sdbReg namereg.SourceDBInterface
 	var ybdb namereg.YBDBInterface
-	var sourceDbType, sourceDbSchema, sourceDbName string
-	var targetDBSchema string
+	var sourceDbType, sourceDbName string
+	var targetDBSchema, sourceDbSchema []string
 
 	if sconf != nil {
 		sourceDbType = sconf.DBType
 		sourceDbName = sconf.DBName
-		sourceDbSchema = sconf.Schema
+		sourceDbSchema = sqlname.ExtractIdentifiersUnquoted(sconf.Schemas)
 	}
 	if sdb != nil {
 		sdbReg = sdb.(namereg.SourceDBInterface)
 	}
 
 	if tconf != nil {
-		targetDBSchema = tconf.Schema
+		targetDBSchema = sqlname.ExtractIdentifiersUnquoted(tconf.Schemas)
 	}
 	var ok bool
 	if tdb != nil && lo.Contains([]string{TARGET_DB_IMPORTER_ROLE, IMPORT_FILE_ROLE}, role) {
@@ -901,13 +901,12 @@ func hideExportFlagsInFallForwardOrBackCmds(cmd *cobra.Command) {
 	}
 }
 
-func GetDefaultPGSchema(schema string, separator string) (string, bool) {
+func GetDefaultPGSchema(schema []sqlname.Identifier) (string, bool) {
 	// second return value is true if public is not included in the schema
 	// which indicates that the no default schema
-	schemas := strings.Split(schema, separator)
-	if len(schemas) == 1 {
-		return schema, false
-	} else if slices.Contains(schemas, "public") {
+	if len(schema) == 1 {
+		return schema[0].MinQuoted, false
+	} else if lo.ContainsBy(schema, func(s sqlname.Identifier) bool { return s.MinQuoted == "public" }) {
 		return "public", false
 	} else {
 		return "", true
@@ -987,7 +986,7 @@ func initBaseSourceEvent(bev *cp.BaseEvent, eventType string) {
 		MigrationUUID: migrationUUID,
 		DBType:        source.DBType,
 		DatabaseName:  source.DBName,
-		SchemaNames:   cp.GetSchemaList(source.Schema),
+		SchemaNames:   cp.GetSchemaList(sqlname.JoinIdentifiersUnquoted(source.Schemas, "|")),
 		DBIP:          utils.LookupIP(source.Host),
 		Port:          source.Port,
 		DBVersion:     source.DBVersion,
@@ -1000,7 +999,7 @@ func initBaseTargetEvent(bev *cp.BaseEvent, eventType string) {
 		MigrationUUID: migrationUUID,
 		DBType:        tconf.TargetDBType,
 		DatabaseName:  tconf.DBName,
-		SchemaNames:   []string{tconf.Schema},
+		SchemaNames:   sqlname.ExtractIdentifiersUnquoted(tconf.Schemas),
 		DBIP:          utils.LookupIP(tconf.Host),
 		Port:          tconf.Port,
 		DBVersion:     tconf.DBVersion,
@@ -1021,7 +1020,7 @@ func renameTableIfRequired(table string) (string, bool) {
 
 	sourceDBType = msr.SourceDBConf.DBType
 	sourceDBTypeInMigration := msr.SourceDBConf.DBType
-	schema := msr.SourceDBConf.Schema
+	schema := msr.SourceDBConf.Schemas
 	sqlname.SourceDBType = source.DBType
 	if source.DBType != POSTGRESQL && source.DBType != YUGABYTEDB {
 		return table, false
@@ -1031,13 +1030,13 @@ func renameTableIfRequired(table string) (string, bool) {
 		return table, false
 	}
 	if sourceDBTypeInMigration != POSTGRESQL && source.DBType == YUGABYTEDB {
-		schema = source.Schema
+		schema = source.Schemas
 	}
 	renameTablesMap := msr.SourceRenameTablesMap
 	if source.DBType == YUGABYTEDB {
 		renameTablesMap = msr.TargetRenameTablesMap
 	}
-	defaultSchema, noDefaultSchema := GetDefaultPGSchema(schema, "|")
+	defaultSchema, noDefaultSchema := GetDefaultPGSchema(schema)
 	if noDefaultSchema && len(strings.Split(table, ".")) <= 1 {
 		utils.ErrExit("no default schema found to qualify table: %s", table)
 	}

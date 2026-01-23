@@ -30,6 +30,7 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/config"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 func pgdumpExtractSchema(source *Source, connectionUri string, exportDir string, schemaDir string) {
@@ -40,7 +41,7 @@ func pgdumpExtractSchema(source *Source, connectionUri string, exportDir string,
 		utils.ErrExit("could not get absolute path of pg_dump command: %s", binaryCheckIssue)
 	}
 
-	pgDumpArgs.Schema = source.Schema
+	pgDumpArgs.Schema = sqlname.JoinIdentifiersMinQuoted(source.Schemas, "|")
 	pgDumpArgs.SchemaTempFilePath = filepath.Join(exportDir, "temp", "schema.sql")
 	pgDumpArgs.NoComments = strconv.FormatBool(!bool(source.CommentsOnObjects))
 	pgDumpArgs.ExtensionPattern = `"*"`

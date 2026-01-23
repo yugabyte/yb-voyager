@@ -158,11 +158,10 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	sourceDBType = GetSourceDBTypeFromMSR()
 	sqlname.SourceDBType = sourceDBType
 
-	if tconf.TargetDBType == YUGABYTEDB {
-		tconf.Schema = strings.ToLower(tconf.Schema)
-	} else if tconf.TargetDBType == ORACLE && !utils.IsQuotedString(tconf.Schema) {
-		tconf.Schema = strings.ToUpper(tconf.Schema)
-	}
+	//Schema validation is done in the Init step as of now 
+	// TODO: will handle it later with other task of completely supporting case sensitive schemas in target db schema for MysqL/oracle sources
+	//TODO: also for the source-replica ORACLE case to validate the schemas on source-replica
+	tconf.Schemas = sqlname.ParseIdentifiersFromString(tconf.TargetDBType, tconf.SchemaConfig, ",")
 	tdb = tgtdb.NewTargetDB(&tconf)
 	err := tdb.Init()
 	if err != nil {
@@ -1681,13 +1680,13 @@ func getTargetSchemaName(tableName string) string {
 		return parts[0]
 	}
 	if tconf.TargetDBType == POSTGRESQL {
-		defaultSchema, noDefaultSchema := GetDefaultPGSchema(tconf.Schema, ",")
+		defaultSchema, noDefaultSchema := GetDefaultPGSchema(tconf.Schemas)
 		if noDefaultSchema {
 			utils.ErrExit("no default schema for table: %q ", tableName)
 		}
 		return defaultSchema
 	}
-	return tconf.Schema // default set to "public"
+	return YUGABYTEDB_DEFAULT_SCHEMA // default set to "public"
 }
 
 func prepareTableToColumns(tasks []*ImportFileTask) error {

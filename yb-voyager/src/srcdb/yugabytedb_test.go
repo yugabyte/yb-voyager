@@ -50,7 +50,7 @@ func TestYugabyteGetAllTableNames(t *testing.T) {
 	defer testYugabyteDBSource.TestContainer.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
 
 	sqlname.SourceDBType = "postgresql"
-	testYugabyteDBSource.Source.Schema = "test_schema" // setting schema to look for tables in
+	testYugabyteDBSource.Source.Schemas = []sqlname.Identifier{sqlname.NewIdentifier("postgresql", "test_schema")} // setting schema to look for tables in
 
 	// Test GetAllTableNames
 	actualTables := testYugabyteDBSource.DB().GetAllTableNames()
@@ -227,7 +227,7 @@ func TestYugabyteGetColumnToSequenceMap(t *testing.T) {
 		testutils.CreateNameTupleWithSourceName("public.manual_linked_table", "public", testPostgresSource.DBType),
 		testutils.CreateNameTupleWithSourceName("public.manual_linked_table_1", "public", testPostgresSource.DBType),
 	}
-	testPostgresSource.Source.Schema = "public|custom_schema"
+	testPostgresSource.Source.Schemas = sqlname.ParseIdentifiersFromString("postgresql", "public|custom_schema", "|")
 
 	// Test GetColumnToSequenceMap
 	fmt.Print("----- Subset of table list case ----- \n")
@@ -320,7 +320,7 @@ func TestYugabyteGetNonPKTables(t *testing.T) {
 		name VARCHAR(255)
 	);`)
 	defer testYugabyteDBSource.TestContainer.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
-	testYugabyteDBSource.Source.Schema = "test_schema" // setting schema to look for tables in
+	testYugabyteDBSource.Source.Schemas = []sqlname.Identifier{sqlname.NewIdentifier("postgresql", "test_schema")} // setting schema to look for tables in
 
 	// Test GetNonPKTables
 	actualTables, err := testYugabyteDBSource.DB().GetNonPKTables()
@@ -588,7 +588,6 @@ func TestYugabyteFilterUnsupportedUserDefinedDatatypes(t *testing.T) {
 	assert.Equal(t, len(expectedRangesUDTs), len(actualUDTsWithRanges),
 		"Expected %d UDTs but got %d", len(expectedRangesUDTs), len(actualUDTsWithRanges))
 	testutils.AssertEqualStringSlices(t, expectedRangesUDTs, actualUDTsWithRanges)
-
 
 }
 

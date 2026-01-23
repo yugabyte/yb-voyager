@@ -28,7 +28,6 @@ import (
 	"text/template"
 
 	goerrors "github.com/go-errors/errors"
-
 	pg_query "github.com/pganalyze/pg_query_go/v6"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
@@ -259,7 +258,7 @@ func reportSchemaSummary(sourceDBConf *srcdb.Source) utils.SchemaSummary {
 	}
 	if !tconf.ImportMode && sourceDBConf != nil { // this info is available only if we are exporting from source
 		schemaSummary.DBName = sourceDBConf.DBName
-		schemaSummary.SchemaNames = strings.Split(sourceDBConf.Schema, "|")
+		schemaSummary.SchemaNames = sqlname.ExtractIdentifiersMinQuoted(sourceDBConf.Schemas)
 		schemaSummary.DBVersion = sourceDBConf.DBVersion
 	}
 

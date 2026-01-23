@@ -63,7 +63,7 @@ func setupYugabyteTestDb(t *testing.T) {
 			DBVersion:    yugabytedbContainer.GetConfig().DBVersion,
 			User:         yugabytedbContainer.GetConfig().User,
 			Password:     yugabytedbContainer.GetConfig().Password,
-			Schema:       yugabytedbContainer.GetConfig().Schema,
+			Schemas:      []sqlname.Identifier{sqlname.NewIdentifier(constants.YUGABYTEDB, yugabytedbContainer.GetConfig().Schema)},
 			DBName:       yugabytedbContainer.GetConfig().DBName,
 			Host:         host,
 			Port:         port,

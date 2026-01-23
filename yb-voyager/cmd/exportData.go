@@ -274,6 +274,15 @@ func exportData() bool {
 		}
 	}
 
+	allSchemas, err := source.DB().GetAllSchemaNamesIdentifiers()
+	if err != nil {
+		utils.ErrExit("get all schema names identifiers: %w", err)
+	}
+	source.Schemas, err = namereg.SchemaNameMatcher(source.DBType, allSchemas, source.SchemaConfig)
+	if err != nil {
+		utils.ErrExit("schema name matcher: %w", err)
+	}
+	
 	source.DBVersion = source.DB().GetVersion()
 	source.DBSize, err = source.DB().GetDatabaseSize()
 	if err != nil {
@@ -292,23 +301,20 @@ func exportData() bool {
 		source.IsYBGrpcConnector = msr.UseYBgRPCConnector
 	}
 
-	res := source.DB().CheckSchemaExists()
-	if !res {
-		utils.ErrExit("schema does not exist : %q", source.Schema)
+	clearMigrationStateIfRequired()
+
+	err = InitNameRegistry(exportDir, exporterRole, &source, source.DB(), nil, nil, false)
+	if err != nil {
+		utils.ErrExit("initialize name registry: %w", err)
 	}
 
 	if source.RunGuardrailsChecks {
 		checkIfSchemasHaveUsagePermissions()
 	}
 
-	clearMigrationStateIfRequired()
 	checkSourceDBCharset()
 	saveSourceDBConfInMSR()
 	saveExportTypeInMSR()
-	err = InitNameRegistry(exportDir, exporterRole, &source, source.DB(), nil, nil, false)
-	if err != nil {
-		utils.ErrExit("initialize name registry: %w", err)
-	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -696,6 +702,7 @@ func getNameTupleForNonRoot(table string) sqlname.NameTuple {
 		tableName = parts[1]
 	}
 	//remove quotes if present to pass raw table name to objecName
+	schema = strings.Trim(schema, "\"")
 	tableName = strings.Trim(tableName, "\"")
 	obj := sqlname.NewObjectName(source.DBType, defaultSchemaName, schema, tableName)
 	return sqlname.NameTuple{
@@ -1389,6 +1396,7 @@ func validateAndExtractTableNamesFromFile(filePath string, flagName string) (str
 }
 
 func clearMigrationStateIfRequired() {
+	log.Infof("clearing migration state if required: %t", startClean)
 	exportDataDir := filepath.Join(exportDir, "data")
 	propertiesFilePath := filepath.Join(exportDir, "metainfo", "conf", "application.properties")
 	sslDir := filepath.Join(exportDir, "metainfo", "ssl")
@@ -1453,9 +1461,9 @@ func getDefaultSourceSchemaName() (string, bool) {
 	case MYSQL:
 		return source.DBName, false
 	case POSTGRESQL, YUGABYTEDB:
-		return GetDefaultPGSchema(source.Schema, "|")
+		return GetDefaultPGSchema(source.Schemas)
 	case ORACLE:
-		return source.Schema, false
+		return source.Schemas[0].Unquoted, false
 	default:
 		panic("invalid db type")
 	}
@@ -1789,7 +1797,11 @@ func createUpdateExportedRowCountEventList(tableNames []string) []*cp.UpdateExpo
 		if source.DBType == "postgresql" && strings.Count(tableName, ".") == 1 {
 			schemaName, tableName2 = cp.SplitTableNameForPG(tableName)
 		} else {
-			schemaName, tableName2 = source.Schema, tableName
+			schema := ""
+			if len(source.Schemas) > 0 {
+				schema = source.Schemas[0].Unquoted
+			}
+			schemaName, tableName2 = schema, tableName
 		}
 		tableMetrics := cp.UpdateExportedRowCountEvent{
 			BaseUpdateRowCountEvent: cp.BaseUpdateRowCountEvent{

@@ -1,5 +1,4 @@
 //go:build integration
-
 /*
 Copyright (c) YugabyteDB, Inc.
 
@@ -543,7 +542,7 @@ func createTargetYugabyteDB(t *testing.T, container testcontainers.TestContainer
 		User:         config.User,
 		Password:     config.Password,
 		DBName:       config.DBName,
-		Schema:       "public", // Set default schema
+		Schemas:      []sqlname.Identifier{sqlname.NewIdentifier(tgtdb.YUGABYTEDB, "public")}, // Set default schema
 		TargetDBType: tgtdb.YUGABYTEDB,
 	}
 
@@ -691,7 +690,7 @@ func createTargetPostgreSQL(t *testing.T, container testcontainers.TestContainer
 		User:         config.User,
 		Password:     config.Password,
 		DBName:       config.DBName,
-		Schema:       "public", // Set default schema
+		Schemas:      []sqlname.Identifier{sqlname.NewIdentifier(tgtdb.POSTGRESQL, "public")}, // Set default schema
 		TargetDBType: tgtdb.POSTGRESQL,
 	}
 

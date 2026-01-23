@@ -52,6 +52,83 @@ func (i Identifier) Equals(other Identifier) bool {
 	return i.Quoted == other.Quoted && i.Unquoted == other.Unquoted && i.MinQuoted == other.MinQuoted
 }
 
+func (i Identifier) CaseSensitiveMatch(other Identifier) bool {
+	return i.Quoted == other.Quoted
+}
+
+func (i Identifier) CaseInSensitiveMatch(other Identifier) bool {
+	return strings.EqualFold(i.Unquoted, other.Unquoted)
+}
+
+func (i Identifier) FindBestMatchingIdenitifier(schemaIdenitifiers []Identifier) (bool, Identifier) {
+	var matchedSchema bool
+	for _, schema := range schemaIdenitifiers {
+		if schema.CaseSensitiveMatch(i) {
+			matchedSchema = true
+			return true, schema
+		}
+	}
+	if !matchedSchema {
+		//If not matched with any case sensitive match, then check for in case sensitive match
+		for _, schemaOnDB := range schemaIdenitifiers {
+			if schemaOnDB.CaseInSensitiveMatch(i) {
+				matchedSchema = true
+				return true, schemaOnDB
+			}
+		}
+
+	}
+	return false, Identifier{}
+}
+
+func ExtractIdentifiersMinQuoted(identifiers []Identifier) []string {
+	return lo.Map(identifiers, func(identifier Identifier, _ int) string {
+		return identifier.MinQuoted
+	})
+}
+
+func ExtractIdentifiersUnquoted(identifiers []Identifier) []string {
+	return lo.Map(identifiers, func(identifier Identifier, _ int) string {
+		return identifier.Unquoted
+	})
+}
+
+func ExtractIdentifiersQuoted(identifiers []Identifier) []string {
+	return lo.Map(identifiers, func(identifier Identifier, _ int) string {
+		return identifier.Quoted
+	})
+}
+
+func JoinIdentifiersUnquoted(identifiers []Identifier, separator string) string {
+	unquotedIdentifiers := ExtractIdentifiersUnquoted(identifiers)
+	return strings.Join(unquotedIdentifiers, separator)
+}
+
+func JoinIdentifiersQuoted(identifiers []Identifier, separator string) string {
+	quotedIdentifiers := ExtractIdentifiersQuoted(identifiers)
+	return strings.Join(quotedIdentifiers, separator)
+}
+
+func JoinIdentifiersMinQuoted(identifiers []Identifier, separator string) string {
+	minQuotedIdentifiers := ExtractIdentifiersMinQuoted(identifiers)
+	return strings.Join(minQuotedIdentifiers, separator)
+}
+
+func ParseIdentifiersFromString(dbType, schemaConfig, separator string) []Identifier {
+	schemas := strings.Split(schemaConfig, separator)
+	return lo.Map(schemas, func(schema string, _ int) Identifier {
+		return NewIdentifier(dbType, schema)
+	})
+}
+
+func ParseIdentifiersFromStrings(dbType string, schemaList []string) []Identifier {
+	return lo.Map(schemaList, func(schema string, _ int) Identifier {
+		return NewIdentifier(dbType, schema)
+	})
+}
+
+//==============================================
+
 type SourceName struct {
 	ObjectName Identifier
 	SchemaName Identifier
@@ -157,7 +234,7 @@ func NewTargetName(schemaName, objectName string) *TargetName {
 	}
 }
 
-//ASsumption is to pass quoted name with  case sensitivity preserved
+// ASsumption is to pass quoted name with  case sensitivity preserved
 func NewTargetNameFromQualifiedName(qualifiedName string) *TargetName {
 	parts := strings.Split(qualifiedName, ".")
 	if len(parts) != 2 {
@@ -166,7 +243,7 @@ func NewTargetNameFromQualifiedName(qualifiedName string) *TargetName {
 	return NewTargetName(parts[0], parts[1])
 }
 
-//ASsumption is to pass quoted name with  case sensitivity preserved
+// ASsumption is to pass quoted name with  case sensitivity preserved
 func NewTargetNameFromMaybeQualifiedName(qualifiedName string, defaultSchemaName string) *TargetName {
 	parts := strings.Split(qualifiedName, ".")
 	if len(parts) == 2 {

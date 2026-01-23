@@ -49,7 +49,7 @@ func TestPostgresGetAllTableNames(t *testing.T) {
 	defer testPostgresSource.TestContainer.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
 
 	sqlname.SourceDBType = "postgresql"
-	testPostgresSource.Source.Schema = "test_schema" // used in query of GetAllTableNames()
+	testPostgresSource.Source.Schemas = []sqlname.Identifier{sqlname.NewIdentifier("postgresql", "test_schema")} // used in query of GetAllTableNames()
 
 	// Test GetAllTableNames
 	_ = testPostgresSource.DB().Connect()
@@ -195,7 +195,7 @@ func TestPGGetColumnToSequenceMap(t *testing.T) {
 		testutils.CreateNameTupleWithSourceName("public.manual_linked_table_1", "public", testPostgresSource.DBType),
 		testutils.CreateNameTupleWithSourceName("public.manual_linked_table_2", "public", testPostgresSource.DBType),
 	}
-	testPostgresSource.Source.Schema = "public|custom_schema"
+	testPostgresSource.Source.Schemas = sqlname.ParseIdentifiersFromString("postgresql", "public|custom_schema", "|")
 
 	// Test GetColumnToSequenceMap
 	_ = testPostgresSource.DB().Connect()
@@ -233,7 +233,7 @@ func TestPGGetColumnToSequenceMap(t *testing.T) {
 		testutils.CreateNameTupleWithSourceName("public.manual_linked_table", "public", testPostgresSource.DBType),
 		testutils.CreateNameTupleWithSourceName("public.manual_linked_table_1", "public", testPostgresSource.DBType),
 	}
-	testPostgresSource.Source.Schema = "public|custom_schema"
+	testPostgresSource.Source.Schemas = sqlname.ParseIdentifiersFromString("postgresql", "public|custom_schema", "|")
 
 	// Test GetColumnToSequenceMap
 
@@ -298,7 +298,7 @@ func TestPostgresGetTableToUniqueKeyColumnsMap(t *testing.T) {
 		`DROP SCHEMA test_expression_indexes_cross CASCADE;`,
 	)
 
-	testPostgresSource.Schema = "test_schema"
+	testPostgresSource.Schemas = []sqlname.Identifier{sqlname.NewIdentifier("postgresql", "test_schema")}
 
 	uniqueTablesList := []sqlname.NameTuple{
 		testutils.CreateNameTupleWithSourceName("test_schema.unique_table", "test_schema", "postgresql"),
@@ -353,7 +353,7 @@ func TestPostgresGetNonPKTables(t *testing.T) {
 		name VARCHAR(255)
 	);`)
 	defer testPostgresSource.TestContainer.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
-	testPostgresSource.Schema = "test_schema"
+	testPostgresSource.Schemas = []sqlname.Identifier{sqlname.NewIdentifier("postgresql", "test_schema")}
 
 	// Test GetNonPKTables
 	_ = testPostgresSource.DB().Connect()

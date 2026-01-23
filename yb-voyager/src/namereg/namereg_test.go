@@ -430,8 +430,10 @@ func TestDifferentSchemaInSameDBAsSourceReplica2(t *testing.T) {
 //=====================================================
 
 type dummySourceDB struct {
+	dbType        string
 	tableNames    map[string][]string // schemaName -> tableNames
 	sequenceNames map[string][]string // schemaName -> sequenceNames
+	schemaNames   []string
 }
 
 func (db *dummySourceDB) GetAllTableNamesRaw(schemaName string) ([]string, error) {
@@ -448,6 +450,10 @@ func (db *dummySourceDB) GetAllSequencesRaw(schemaName string) ([]string, error)
 		return nil, fmt.Errorf("schema %q not found", schemaName)
 	}
 	return sequenceNames, nil
+}
+
+func (db *dummySourceDB) GetAllSchemaNamesIdentifiers() ([]sqlname.Identifier, error) {
+	return sqlname.ParseIdentifiersFromStrings(db.dbType, db.schemaNames), nil
 }
 
 type dummyTargetDB struct {
@@ -487,6 +493,8 @@ func TestNameRegistryWithDummyDBs(t *testing.T) {
 		sequenceNames: map[string][]string{
 			"SAKILA": {"SEQ1", "SEQ2"},
 		},
+		dbType:      constants.ORACLE,
+		schemaNames: []string{"SAKILA"},
 	}
 
 	// Create a dummy target DB.
@@ -524,9 +532,9 @@ func TestNameRegistryWithDummyDBs(t *testing.T) {
 			FilePath:       "",
 			Role:           currentMode,
 			SourceDBType:   constants.ORACLE,
-			SourceDBSchema: "SAKILA",
+			SourceDBSchema: []string{"SAKILA"},
 			SourceDBName:   "ORCLPDB1",
-			TargetDBSchema: tSchema,
+			TargetDBSchema: []string{tSchema},
 			SDB:            dummySdb,
 			YBDB:           dummyTdb,
 		}
@@ -623,10 +631,10 @@ func TestNameRegistryStructs(t *testing.T) {
 				FilePath       string
 				Role           string
 				SourceDBType   string
-				SourceDBSchema string
+				SourceDBSchema []string
 				SourceDBName   string
 				SDB            SourceDBInterface
-				TargetDBSchema string
+				TargetDBSchema []string
 				YBDB           YBDBInterface
 			}{},
 		},
@@ -667,9 +675,9 @@ func TestNameRegistryJson(t *testing.T) {
 			FilePath:       outputFilePath,
 			Role:           TARGET_DB_IMPORTER_ROLE,
 			SourceDBType:   constants.ORACLE,
-			SourceDBSchema: "SAKILA",
+			SourceDBSchema: []string{"SAKILA"},
 			SourceDBName:   "ORCLPDB1",
-			TargetDBSchema: "ybsakila",
+			TargetDBSchema: []string{"ybsakila"},
 		},
 		SourceDBSchemaNames:       []string{"SAKILA"},
 		DefaultSourceDBSchemaName: "SAKILA",
