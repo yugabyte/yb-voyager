@@ -111,6 +111,7 @@ func exportSchema(cmd *cobra.Command) error {
 		log.Errorf("failed to connect to the source db: %s", err)
 		return fmt.Errorf("failed to connect to the source db during export schema: %w", err)
 	}
+	//TODO: fix in next PR
 	source.Schemas = sqlname.ParseIdentifiersFromString(source.DBType, source.SchemaConfig, ",")
 	defer source.DB().Disconnect()
 
