@@ -203,6 +203,10 @@ jobs:
       - name: "TEST: pg-hasura-ecommerce"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
         run: migtests/scripts/run-test.sh pg/hasura-ecommerce
+      
+      - name: "TEST: pg-case-sensitive-objects"
+        if: ${{ !cancelled() && matrix.test_group == 'offline' }}
+        run: migtests/scripts/run-test.sh pg/case-sensitive-objects
 
       - name: "TEST: pg-case-sensitivity-reserved-words-offline"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
