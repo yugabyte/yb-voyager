@@ -603,6 +603,26 @@ func (lm *LiveMigrationTest) WithSourceTargetConn(fn func(source, target *sql.DB
 	return fn(sourceConn, targetConn)
 }
 
+// CheckIfReplicationSlotExists checks if a replication slot exists on the given database type
+func (lm *LiveMigrationTest) CheckIfReplicationSlotExists(slotName string, dbType string) (bool, error) {
+	var exists bool
+
+	runWithConn := lm.WithTargetConn
+	if dbType == "source" {
+		runWithConn = lm.WithSourceConn
+	}
+
+	err := runWithConn(func(db *sql.DB) error {
+		query := `SELECT EXISTS (SELECT 1 FROM pg_replication_slots WHERE slot_name = $1);`
+		if err := db.QueryRow(query, slotName).Scan(&exists); err != nil {
+			return goerrors.Errorf("failed to check if replication slot exists on %s: %w", dbType, err)
+		}
+		return nil
+	})
+
+	return exists, err
+}
+
 // ============================================================
 // INTERNAL HELPERS
 // ============================================================
