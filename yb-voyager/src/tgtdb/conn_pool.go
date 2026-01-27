@@ -61,6 +61,7 @@ type ConnectionPool struct {
 	// size in the future. So, we move the connections to idleConns instead.
 	idleConns                 chan *pgx.Conn
 	connIdToPreparedStmtCache map[uint32]map[string]bool // cache list of prepared statements per connection
+	connIdToHost              map[uint32]string          // track which host a PID belongs to (for detecting PID collisions across nodes)
 	nextUriIndex              int
 	disableThrottling         bool
 	size                      int // current size of the pool
@@ -77,6 +78,7 @@ func NewConnectionPool(params *ConnectionParams) *ConnectionPool {
 		conns:                     make(chan *pgx.Conn, params.NumMaxConnections),
 		idleConns:                 make(chan *pgx.Conn, params.NumMaxConnections),
 		connIdToPreparedStmtCache: make(map[uint32]map[string]bool, params.NumMaxConnections),
+		connIdToHost:              make(map[uint32]string, params.NumMaxConnections),
 		disableThrottling:         false,
 		size:                      params.NumConnections,
 		pendingConnsToClose:       0,
@@ -184,6 +186,7 @@ func (pool *ConnectionPool) WithConn(fn func(*pgx.Conn) (bool, error)) error {
 			pool.Lock()
 			// assuming PID will still be available
 			delete(pool.connIdToPreparedStmtCache, conn.PgConn().PID())
+			delete(pool.connIdToHost, conn.PgConn().PID())
 			pool.Unlock()
 
 			pool.pendingConnsToCloseLock.Lock()
@@ -265,7 +268,21 @@ func (pool *ConnectionPool) connect(uri string) (*pgx.Conn, error) {
 		log.Warnf("Failed to connect to %q: %s", redactedUri, err)
 		return nil, err
 	}
-	log.Infof("Connected to %q", redactedUri)
+
+	// Check for PID collision across different YugabyteDB nodes
+	pid := conn.PgConn().PID()
+	currentHost := conn.Config().Host
+	pool.Lock()
+	if existingHost, exists := pool.connIdToHost[pid]; exists && existingHost != currentHost {
+		log.Errorf("PID COLLISION DETECTED: New connection to host %q has PID %d, "+
+			"but PID %d was previously associated with host %q. "+
+			"Prepared statement cache may be incorrect.",
+			currentHost, pid, pid, existingHost)
+	}
+	pool.connIdToHost[pid] = currentHost
+	pool.Unlock()
+
+	log.Infof("Connected to %q with PID %d", redactedUri, pid)
 	err = pool.initSession(conn)
 	if err != nil {
 		log.Warnf("Failed to set session vars %q: %s", redactedUri, err)
