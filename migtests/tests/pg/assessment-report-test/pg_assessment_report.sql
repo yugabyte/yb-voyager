@@ -58,7 +58,7 @@ CREATE EXTENSION IF NOT EXISTS vector;
 
 CREATE TABLE vector_table (
     id SERIAL PRIMARY KEY,
-    vector_data vector(10)
+    vector_data public.vector(10)
 );
 
 -- Unsupported Extensions
