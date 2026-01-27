@@ -1409,8 +1409,8 @@ create_source_db() {
 			run_psql postgres "CREATE DATABASE \"${source_db}\";"
 			;;
 		mysql)
-			run_mysql mysql "DROP DATABASE IF EXISTS \"${source_db}\";"
-			run_mysql mysql "CREATE DATABASE \"${source_db}\";"
+			run_mysql mysql "DROP DATABASE IF EXISTS ${source_db};"
+			run_mysql mysql "CREATE DATABASE ${source_db};"
 			;;
 		oracle)
 			cat > create-oracle-schema.sql << EOF
