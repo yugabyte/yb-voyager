@@ -2,7 +2,7 @@
     "VoyagerVersion": "main",
     "TargetDBVersion": "2024.2.0.0",
     "MigrationComplexity": "HIGH",
-    "MigrationComplexityExplanation": "Found 32 Level 2 issue(s) and 22 Level 3 issue(s), resulting in HIGH migration complexity",
+    "MigrationComplexityExplanation": "Found 32 Level 2 issue(s) and 23 Level 3 issue(s), resulting in HIGH migration complexity",
     "SchemaSummary": {
         "Description": "Objects that will be created on the target YugabyteDB.",
         "DbName": "pg_assessment_report_test_assess",
@@ -52,7 +52,7 @@
             {
                 "ObjectType": "TABLE",
                 "TotalCount": 95,
-                "InvalidCount": 22,
+                "InvalidCount": 24,
                 "ObjectNames": "public.\"Case_Sensitive_Columns\", public.\"Mixed_Case_Table_Name_Test\", public.\"Recipients\", public.\"WITH\", public.audit, public.bigint_multirange_table, public.sales_region, public.boston, public.c, public.parent_table, public.child_table, public.citext_type, public.combined_tbl, public.date_multirange_table, public.documents, public.employees, public.employees2, public.employeescopyfromwhere, public.employeescopyonerror, public.employeesforview, public.ext_test, public.foo, public.inet_type, public.int_multirange_table, public.library_nested, public.london, public.mixed_data_types_table1, public.mixed_data_types_table2, public.numeric_multirange_table, public.orders, public.orders2, public.orders_lateral, public.ordersentry, public.products, public.sales_unique_nulls_not_distinct, public.sales_unique_nulls_not_distinct_alter, public.session_log, public.session_log1, public.session_log2, public.sydney, public.test_exclude_basic, public.test_jsonb, public.test_xml_type, public.timestamp_multirange_table, public.timestamptz_multirange_table, public.ts_query_table, public.tt, public.users_unique_nulls_distinct, public.users_unique_nulls_not_distinct, public.users_unique_nulls_not_distinct_index, public.vector_table, public.with_example1, public.with_example2, schema2.\"Case_Sensitive_Columns\", schema2.\"Mixed_Case_Table_Name_Test\", schema2.\"Recipients\", schema2.\"WITH\", schema2.audit, schema2.bigint_multirange_table, schema2.sales_region, schema2.boston, schema2.c, schema2.parent_table, schema2.child_table, schema2.date_multirange_table, schema2.employees2, schema2.employeesforview, schema2.ext_test, schema2.foo, schema2.int_multirange_table, schema2.london, schema2.mixed_data_types_table1, schema2.mixed_data_types_table2, schema2.numeric_multirange_table, schema2.orders, schema2.orders2, schema2.products, schema2.sales_unique_nulls_not_distinct, schema2.sales_unique_nulls_not_distinct_alter, schema2.session_log, schema2.session_log1, schema2.session_log2, schema2.sydney, schema2.test_xml_type, schema2.timestamp_multirange_table, schema2.timestamptz_multirange_table, schema2.tt, schema2.users_unique_nulls_distinct, schema2.users_unique_nulls_not_distinct, schema2.users_unique_nulls_not_distinct_index, schema2.vector_table, schema2.with_example1, schema2.with_example2, test_views.view_table1, test_views.view_table2"
             },
             {
