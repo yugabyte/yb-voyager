@@ -498,7 +498,7 @@ func createTargetSchemas(conn *pgx.Conn) {
 					utils.ErrExit("Failed to drop schema: %q: %s", targetSchema, err)
 				}
 			} else {
-				utils.PrintAndLogf("schema '%s' already present in target database, continuing with it..\n", targetSchema)
+				utils.PrintAndLogf("schema '%s' already present in target database, continuing with it..\n", targetSchema.MinQuoted)
 			}
 		}
 	}
