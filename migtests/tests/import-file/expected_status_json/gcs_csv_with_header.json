@@ -1,6 +1,6 @@
 [
     {
-      "table_name": "public.\"gcs_csv_with_header\"",
+      "table_name": "\"public\".\"gcs_csv_with_header\"",
       "file_name": "csv_with_header_test.csv",
       "status": "DONE",
       "total_count": 24,

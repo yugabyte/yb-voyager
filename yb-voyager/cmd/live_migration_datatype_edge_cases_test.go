@@ -3664,84 +3664,84 @@ func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
 	testutils.FatalIfError(t, err, "failed to start import data")
 
 	err = lm.WaitForSnapshotComplete(map[string]int64{
-		`test_schema."string_edge_cases"`:         6, // 6 rows (5 edge cases + 1 with NULL for transitions)
-		`test_schema."json_edge_cases"`:           6, // 6 rows (5 edge cases + 1 with NULL for transitions)
-		`test_schema."enum_edge_cases"`:           6, // 6 rows (5 edge cases + 1 with NULL for transitions)
-		`test_schema."bytes_edge_cases"`:          6, // 6 rows (5 edge cases + 1 with NULL for transitions)
-		`test_schema."datetime_edge_cases"`:       6, // 6 rows (5 edge cases + 1 with NULL for transitions)
-		`test_schema."uuid_ltree_edge_cases"`:     6, // 6 rows (5 edge cases + 1 with NULL for transitions)
-		`test_schema."map_edge_cases"`:            6, // 6 rows (5 edge cases + 1 with NULL for transitions)
-		`test_schema."interval_edge_cases"`:       6, // 6 rows (5 edge cases + 1 with NULL for transitions)
-		`test_schema."zonedtimestamp_edge_cases"`: 6, // 6 rows (5 edge cases + 1 with NULL for transitions)
-		`test_schema."decimal_edge_cases"`:        6, // 6 rows (5 edge cases + 1 with NULL for transitions)
-		`test_schema."integer_edge_cases"`:        6, // 6 rows (INT/BIGINT boundaries + NULL transitions)
-		`test_schema."boolean_edge_cases"`:        6, // 6 rows (TRUE/FALSE patterns + NULL transitions)
+		`"test_schema"."string_edge_cases"`:         6, // 6 rows (5 edge cases + 1 with NULL for transitions)
+		`"test_schema"."json_edge_cases"`:           6, // 6 rows (5 edge cases + 1 with NULL for transitions)
+		`"test_schema"."enum_edge_cases"`:           6, // 6 rows (5 edge cases + 1 with NULL for transitions)
+		`"test_schema"."bytes_edge_cases"`:          6, // 6 rows (5 edge cases + 1 with NULL for transitions)
+		`"test_schema"."datetime_edge_cases"`:       6, // 6 rows (5 edge cases + 1 with NULL for transitions)
+		`"test_schema"."uuid_ltree_edge_cases"`:     6, // 6 rows (5 edge cases + 1 with NULL for transitions)
+		`"test_schema"."map_edge_cases"`:            6, // 6 rows (5 edge cases + 1 with NULL for transitions)
+		`"test_schema"."interval_edge_cases"`:       6, // 6 rows (5 edge cases + 1 with NULL for transitions)
+		`"test_schema"."zonedtimestamp_edge_cases"`: 6, // 6 rows (5 edge cases + 1 with NULL for transitions)
+		`"test_schema"."decimal_edge_cases"`:        6, // 6 rows (5 edge cases + 1 with NULL for transitions)
+		`"test_schema"."integer_edge_cases"`:        6, // 6 rows (INT/BIGINT boundaries + NULL transitions)
+		`"test_schema"."boolean_edge_cases"`:        6, // 6 rows (TRUE/FALSE patterns + NULL transitions)
 	}, 240) // Increased timeout for 72 rows
 	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
 
-	err = lm.ValidateDataConsistency([]string{`test_schema."string_edge_cases"`, `test_schema."json_edge_cases"`, `test_schema."enum_edge_cases"`, `test_schema."bytes_edge_cases"`, `test_schema."datetime_edge_cases"`, `test_schema."uuid_ltree_edge_cases"`, `test_schema."map_edge_cases"`, `test_schema."interval_edge_cases"`, `test_schema."zonedtimestamp_edge_cases"`, `test_schema."decimal_edge_cases"`, `test_schema."integer_edge_cases"`, `test_schema."boolean_edge_cases"`}, "id")
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."string_edge_cases"`, `"test_schema"."json_edge_cases"`, `"test_schema"."enum_edge_cases"`, `"test_schema"."bytes_edge_cases"`, `"test_schema"."datetime_edge_cases"`, `"test_schema"."uuid_ltree_edge_cases"`, `"test_schema"."map_edge_cases"`, `"test_schema"."interval_edge_cases"`, `"test_schema"."zonedtimestamp_edge_cases"`, `"test_schema"."decimal_edge_cases"`, `"test_schema"."integer_edge_cases"`, `"test_schema"."boolean_edge_cases"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate snapshot data consistency")
 
 	err = lm.ExecuteSourceDelta()
 	testutils.FatalIfError(t, err, "failed to execute source delta")
 
 	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
-		`test_schema."string_edge_cases"`: {
+		`"test_schema"."string_edge_cases"`: {
 			Inserts: 4,  // 4 INSERT operations: basic + actual control chars + literal \n test + 1 with NULLs
 			Updates: 10, // 10 UPDATE operations: 6 regular + 2 literal \n/actual newline + 1 row 5 (value→NULL) + 1 row 6 (NULL→value)
 			Deletes: 1,  // 1 DELETE operation: delete row 3
 		},
-		`test_schema."json_edge_cases"`: {
+		`"test_schema"."json_edge_cases"`: {
 			Inserts: 3, // 3 INSERT operations: 1 basic + 1 with single quotes in JSON + 1 with NULLs
 			Updates: 5, // 5 UPDATE operations: 2 regular + 1 single quotes + 1 row 5 (value→NULL) + 1 row 6 (NULL→value)
 			Deletes: 1, // 1 DELETE operation: delete JSON row 3
 		},
-		`test_schema."enum_edge_cases"`: {
+		`"test_schema"."enum_edge_cases"`: {
 			Inserts: 3, // 3 INSERT operations: EMPTY array + array with NULL elements + 1 with NULLs
 			Updates: 8, // 8 UPDATE operations: 6 regular (empty array tests + NULL elements + add/remove elements) + 1 row 5 (value→NULL) + 1 row 6 (NULL→value)
 			Deletes: 1, // 1 DELETE operation: delete ENUM row 3
 		},
-		`test_schema."bytes_edge_cases"`: {
+		`"test_schema"."bytes_edge_cases"`: {
 			Inserts: 2, // 2 INSERT operations: BYTES with special patterns + 1 with NULLs
 			Updates: 4, // 4 UPDATE operations: 2 regular + 1 row 5 (value→NULL) + 1 row 6 (NULL→value)
 			Deletes: 1, // 1 DELETE operation: delete BYTES row 3
 		},
-		`test_schema."datetime_edge_cases"`: {
+		`"test_schema"."datetime_edge_cases"`: {
 			Inserts: 2, // 2 INSERT operations: DATETIME with various dates/times + 1 with NULLs
 			Updates: 4, // 4 UPDATE operations: 2 regular + 1 row 5 (value→NULL) + 1 row 6 (NULL→value)
 			Deletes: 1, // 1 DELETE operation: delete DATETIME row 3
 		},
-		`test_schema."uuid_ltree_edge_cases"`: {
+		`"test_schema"."uuid_ltree_edge_cases"`: {
 			Inserts: 2, // 2 INSERT operations: UUID/LTREE with edge cases + 1 with NULLs
 			Updates: 4, // 4 UPDATE operations: 2 regular + 1 row 5 (value→NULL) + 1 row 6 (NULL→value)
 			Deletes: 1, // 1 DELETE operation: delete UUID/LTREE row 3
 		},
-		`test_schema."map_edge_cases"`: {
+		`"test_schema"."map_edge_cases"`: {
 			Inserts: 2, // 2 INSERT operations: MAP/HSTORE with arrow operator and quotes + 1 with NULLs
 			Updates: 4, // 4 UPDATE operations: 2 regular + 1 row 5 (value→NULL) + 1 row 6 (NULL→value)
 			Deletes: 1, // 1 DELETE operation: delete MAP row 3
 		},
-		`test_schema."interval_edge_cases"`: {
+		`"test_schema"."interval_edge_cases"`: {
 			Inserts: 2, // 2 INSERT operations: INTERVAL with positive/negative/zero + 1 with NULLs
 			Updates: 4, // 4 UPDATE operations: 2 regular + 1 row 5 (value→NULL) + 1 row 6 (NULL→value)
 			Deletes: 1, // 1 DELETE operation: delete INTERVAL row 3
 		},
-		`test_schema."zonedtimestamp_edge_cases"`: {
+		`"test_schema"."zonedtimestamp_edge_cases"`: {
 			Inserts: 2, // 2 INSERT operations: TIMESTAMPTZ with various timezones + 1 with NULLs
 			Updates: 4, // 4 UPDATE operations: 2 regular + 1 row 5 (value→NULL) + 1 row 6 (NULL→value)
 			Deletes: 1, // 1 DELETE operation: delete TIMESTAMPTZ row 3
 		},
-		`test_schema."decimal_edge_cases"`: {
+		`"test_schema"."decimal_edge_cases"`: {
 			Inserts: 2, // 2 INSERT operations: DECIMAL with large, negative, high precision + 1 with NULLs
 			Updates: 4, // 4 UPDATE operations: 2 regular + 1 row 5 (value→NULL) + 1 row 6 (NULL→value)
 			Deletes: 1, // 1 DELETE operation: delete DECIMAL row 3
 		},
-		`test_schema."integer_edge_cases"`: {
+		`"test_schema"."integer_edge_cases"`: {
 			Inserts: 2, // 2 INSERT operations: INT/BIGINT with boundary values + 1 with NULLs
 			Updates: 4, // 4 UPDATE operations: 2 regular + 1 row 5 (value→NULL) + 1 row 6 (NULL→value)
 			Deletes: 1, // 1 DELETE operation: delete INTEGER row 3
 		},
-		`test_schema."boolean_edge_cases"`: {
+		`"test_schema"."boolean_edge_cases"`: {
 			Inserts: 2, // 2 INSERT operations: TRUE/TRUE + 1 with NULLs
 			Updates: 4, // 4 UPDATE operations: 2 regular + 1 row 5 (value→NULL) + 1 row 6 (NULL→value)
 			Deletes: 1, // 1 DELETE operation: delete BOOLEAN row 3
@@ -3749,7 +3749,7 @@ func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
 	}, 120, 1) // 1 minute timeout, 1 second poll interval
 	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
 
-	err = lm.ValidateDataConsistency([]string{`test_schema."string_edge_cases"`, `test_schema."json_edge_cases"`, `test_schema."enum_edge_cases"`, `test_schema."bytes_edge_cases"`, `test_schema."datetime_edge_cases"`, `test_schema."uuid_ltree_edge_cases"`, `test_schema."map_edge_cases"`, `test_schema."interval_edge_cases"`, `test_schema."zonedtimestamp_edge_cases"`, `test_schema."decimal_edge_cases"`, `test_schema."integer_edge_cases"`, `test_schema."boolean_edge_cases"`}, "id")
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."string_edge_cases"`, `"test_schema"."json_edge_cases"`, `"test_schema"."enum_edge_cases"`, `"test_schema"."bytes_edge_cases"`, `"test_schema"."datetime_edge_cases"`, `"test_schema"."uuid_ltree_edge_cases"`, `"test_schema"."map_edge_cases"`, `"test_schema"."interval_edge_cases"`, `"test_schema"."zonedtimestamp_edge_cases"`, `"test_schema"."decimal_edge_cases"`, `"test_schema"."integer_edge_cases"`, `"test_schema"."boolean_edge_cases"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate streaming data consistency")
 
 	err = lm.InitiateCutoverToTarget(false, nil)
@@ -3758,7 +3758,7 @@ func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
 	err = lm.WaitForCutoverComplete(60)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
-	err = lm.ValidateDataConsistency([]string{`test_schema."string_edge_cases"`, `test_schema."json_edge_cases"`, `test_schema."enum_edge_cases"`, `test_schema."bytes_edge_cases"`, `test_schema."datetime_edge_cases"`, `test_schema."uuid_ltree_edge_cases"`, `test_schema."map_edge_cases"`, `test_schema."interval_edge_cases"`, `test_schema."zonedtimestamp_edge_cases"`, `test_schema."decimal_edge_cases"`, `test_schema."integer_edge_cases"`, `test_schema."boolean_edge_cases"`}, "id")
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."string_edge_cases"`, `"test_schema"."json_edge_cases"`, `"test_schema"."enum_edge_cases"`, `"test_schema"."bytes_edge_cases"`, `"test_schema"."datetime_edge_cases"`, `"test_schema"."uuid_ltree_edge_cases"`, `"test_schema"."map_edge_cases"`, `"test_schema"."interval_edge_cases"`, `"test_schema"."zonedtimestamp_edge_cases"`, `"test_schema"."decimal_edge_cases"`, `"test_schema"."integer_edge_cases"`, `"test_schema"."boolean_edge_cases"`}, "id")
 	testutils.FatalIfError(t, err, "failed final data consistency check")
 }
 
@@ -3781,84 +3781,84 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 	testutils.FatalIfError(t, err, "failed to start import data")
 
 	err = lm.WaitForSnapshotComplete(map[string]int64{
-		`test_schema."string_edge_cases"`:         6,
-		`test_schema."json_edge_cases"`:           6,
-		`test_schema."enum_edge_cases"`:           6,
-		`test_schema."bytes_edge_cases"`:          6,
-		`test_schema."datetime_edge_cases"`:       6,
-		`test_schema."uuid_ltree_edge_cases"`:     6,
-		`test_schema."map_edge_cases"`:            6,
-		`test_schema."interval_edge_cases"`:       6,
-		`test_schema."zonedtimestamp_edge_cases"`: 6,
-		`test_schema."decimal_edge_cases"`:        6,
-		`test_schema."integer_edge_cases"`:        6,
-		`test_schema."boolean_edge_cases"`:        6,
+		`"test_schema"."string_edge_cases"`:         6,
+		`"test_schema"."json_edge_cases"`:           6,
+		`"test_schema"."enum_edge_cases"`:           6,
+		`"test_schema"."bytes_edge_cases"`:          6,
+		`"test_schema"."datetime_edge_cases"`:       6,
+		`"test_schema"."uuid_ltree_edge_cases"`:     6,
+		`"test_schema"."map_edge_cases"`:            6,
+		`"test_schema"."interval_edge_cases"`:       6,
+		`"test_schema"."zonedtimestamp_edge_cases"`: 6,
+		`"test_schema"."decimal_edge_cases"`:        6,
+		`"test_schema"."integer_edge_cases"`:        6,
+		`"test_schema"."boolean_edge_cases"`:        6,
 	}, 240)
 	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
 
-	err = lm.ValidateDataConsistency([]string{`test_schema."string_edge_cases"`, `test_schema."json_edge_cases"`, `test_schema."enum_edge_cases"`, `test_schema."bytes_edge_cases"`, `test_schema."datetime_edge_cases"`, `test_schema."uuid_ltree_edge_cases"`, `test_schema."map_edge_cases"`, `test_schema."interval_edge_cases"`, `test_schema."zonedtimestamp_edge_cases"`, `test_schema."decimal_edge_cases"`, `test_schema."integer_edge_cases"`, `test_schema."boolean_edge_cases"`}, "id")
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."string_edge_cases"`, `"test_schema"."json_edge_cases"`, `"test_schema"."enum_edge_cases"`, `"test_schema"."bytes_edge_cases"`, `"test_schema"."datetime_edge_cases"`, `"test_schema"."uuid_ltree_edge_cases"`, `"test_schema"."map_edge_cases"`, `"test_schema"."interval_edge_cases"`, `"test_schema"."zonedtimestamp_edge_cases"`, `"test_schema"."decimal_edge_cases"`, `"test_schema"."integer_edge_cases"`, `"test_schema"."boolean_edge_cases"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate snapshot data consistency")
 
 	err = lm.ExecuteSourceDelta()
 	testutils.FatalIfError(t, err, "failed to execute source delta")
 
 	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
-		`test_schema."string_edge_cases"`: {
+		`"test_schema"."string_edge_cases"`: {
 			Inserts: 4,  // basic + actual control chars + literal \n test + 1 with NULLs
 			Updates: 10, // 6 regular + 2 literal \n/actual newline + 1 row 5 (value→NULL) + 1 row 6 (NULL→value)
 			Deletes: 1,
 		},
-		`test_schema."json_edge_cases"`: {
+		`"test_schema"."json_edge_cases"`: {
 			Inserts: 3, // 1 basic + 1 with single quotes in JSON + 1 with NULLs
 			Updates: 5, // 5 UPDATE operations: 2 regular + 1 single quotes + 1 row 5 (value→NULL) + 1 row 6 (NULL→value)
 			Deletes: 1,
 		},
-		`test_schema."enum_edge_cases"`: {
+		`"test_schema"."enum_edge_cases"`: {
 			Inserts: 3, // EMPTY array + array with NULL elements + 1 with NULLs
 			Updates: 8, // 6 regular (empty array tests + NULL elements + add/remove elements) + 1 row 5 (value→NULL) + 1 row 6 (NULL→value)
 			Deletes: 1,
 		},
-		`test_schema."bytes_edge_cases"`: {
+		`"test_schema"."bytes_edge_cases"`: {
 			Inserts: 2, // 1 basic + 1 with NULLs
 			Updates: 4, // 2 regular + 1 row 5 (value→NULL) + 1 row 6 (NULL→value)
 			Deletes: 1,
 		},
-		`test_schema."datetime_edge_cases"`: {
+		`"test_schema"."datetime_edge_cases"`: {
 			Inserts: 2, // 1 basic + 1 with NULLs
 			Updates: 4, // 2 regular + 1 row 5 (value→NULL) + 1 row 6 (NULL→value)
 			Deletes: 1,
 		},
-		`test_schema."uuid_ltree_edge_cases"`: {
+		`"test_schema"."uuid_ltree_edge_cases"`: {
 			Inserts: 2, // 1 basic + 1 with NULLs
 			Updates: 4, // 2 regular + 1 row 5 (value→NULL) + 1 row 6 (NULL→value)
 			Deletes: 1,
 		},
-		`test_schema."map_edge_cases"`: {
+		`"test_schema"."map_edge_cases"`: {
 			Inserts: 2, // 1 basic + 1 with NULLs
 			Updates: 4, // 2 regular + 1 row 5 (value→NULL) + 1 row 6 (NULL→value)
 			Deletes: 1,
 		},
-		`test_schema."interval_edge_cases"`: {
+		`"test_schema"."interval_edge_cases"`: {
 			Inserts: 2, // 1 basic + 1 with NULLs
 			Updates: 4, // 2 regular + 1 row 5 (value→NULL) + 1 row 6 (NULL→value)
 			Deletes: 1,
 		},
-		`test_schema."zonedtimestamp_edge_cases"`: {
+		`"test_schema"."zonedtimestamp_edge_cases"`: {
 			Inserts: 2, // 1 basic + 1 with NULLs
 			Updates: 4, // 2 regular + 1 row 5 (value→NULL) + 1 row 6 (NULL→value)
 			Deletes: 1,
 		},
-		`test_schema."decimal_edge_cases"`: {
+		`"test_schema"."decimal_edge_cases"`: {
 			Inserts: 2, // 1 basic + 1 with NULLs
 			Updates: 4, // 2 regular + 1 row 5 (value→NULL) + 1 row 6 (NULL→value)
 			Deletes: 1,
 		},
-		`test_schema."integer_edge_cases"`: {
+		`"test_schema"."integer_edge_cases"`: {
 			Inserts: 2, // 1 basic + 1 with NULLs
 			Updates: 4, // 2 regular + 1 row 5 (value→NULL) + 1 row 6 (NULL→value)
 			Deletes: 1,
 		},
-		`test_schema."boolean_edge_cases"`: {
+		`"test_schema"."boolean_edge_cases"`: {
 			Inserts: 2, // 1 basic + 1 with NULLs
 			Updates: 4, // 2 regular + 1 row 5 (value→NULL) + 1 row 6 (NULL→value)
 			Deletes: 1,
@@ -3866,7 +3866,7 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 	}, 180, 2)
 	testutils.FatalIfError(t, err, "failed to wait for forward streaming complete")
 
-	err = lm.ValidateDataConsistency([]string{`test_schema."string_edge_cases"`, `test_schema."json_edge_cases"`, `test_schema."enum_edge_cases"`, `test_schema."bytes_edge_cases"`, `test_schema."datetime_edge_cases"`, `test_schema."uuid_ltree_edge_cases"`, `test_schema."map_edge_cases"`, `test_schema."interval_edge_cases"`, `test_schema."zonedtimestamp_edge_cases"`, `test_schema."decimal_edge_cases"`, `test_schema."integer_edge_cases"`, `test_schema."boolean_edge_cases"`}, "id")
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."string_edge_cases"`, `"test_schema"."json_edge_cases"`, `"test_schema"."enum_edge_cases"`, `"test_schema"."bytes_edge_cases"`, `"test_schema"."datetime_edge_cases"`, `"test_schema"."uuid_ltree_edge_cases"`, `"test_schema"."map_edge_cases"`, `"test_schema"."interval_edge_cases"`, `"test_schema"."zonedtimestamp_edge_cases"`, `"test_schema"."decimal_edge_cases"`, `"test_schema"."integer_edge_cases"`, `"test_schema"."boolean_edge_cases"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate streaming data consistency")
 
 	err = lm.InitiateCutoverToTarget(true, nil)
@@ -3881,62 +3881,62 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 	time.Sleep(30 * time.Second)
 
 	err = lm.WaitForFallbackStreamingComplete(map[string]ChangesCount{
-		`test_schema."string_edge_cases"`: {
+		`"test_schema"."string_edge_cases"`: {
 			Inserts: 5, // 1 basic + 1 literal \n test + 2 marker rows for UPDATE tests (literal \n, actual newline) + 1 with NULLs
 			Updates: 7, // 2 regular + 1 Unicode separators + 2 marker row UPDATEs + 1 row 5 (NULL→value) + 1 row 6 (value→NULL)
 			Deletes: 1,
 		},
-		`test_schema."decimal_edge_cases"`: {
+		`"test_schema"."decimal_edge_cases"`: {
 			Inserts: 2, // 1 basic + 1 with NULLs
 			Updates: 4, // 2 regular + 1 row 5 (NULL→value) + 1 row 6 (value→NULL)
 			Deletes: 1,
 		},
-		`test_schema."json_edge_cases"`: {
+		`"test_schema"."json_edge_cases"`: {
 			Inserts: 4, // 1 basic + 1 with single quotes in JSON + 1 marker row for UPDATE test + 1 with NULLs
 			Updates: 5, // 5 UPDATE operations: 2 regular + 1 marker row UPDATE + 1 row 5 (NULL→value) + 1 row 6 (value→NULL)
 			Deletes: 1,
 		},
-		`test_schema."enum_edge_cases"`: {
+		`"test_schema"."enum_edge_cases"`: {
 			Inserts: 3, // 1 EMPTY array + 1 with NULL elements + 1 with NULLs
 			Updates: 7, // 5 regular (empty array tests + NULL elements + add/remove elements) + 1 row 5 (NULL→value) + 1 row 6 (value→NULL)
 			Deletes: 1,
 		},
-		`test_schema."bytes_edge_cases"`: {
+		`"test_schema"."bytes_edge_cases"`: {
 			Inserts: 2, // 1 basic + 1 with NULLs
 			Updates: 4, // 2 regular + 1 row 5 (NULL→value) + 1 row 6 (value→NULL)
 			Deletes: 1,
 		},
-		`test_schema."datetime_edge_cases"`: {
+		`"test_schema"."datetime_edge_cases"`: {
 			Inserts: 2, // 1 basic + 1 with NULLs
 			Updates: 4, // 2 regular + 1 row 5 (NULL→value) + 1 row 6 (value→NULL)
 			Deletes: 1,
 		},
-		`test_schema."uuid_ltree_edge_cases"`: {
+		`"test_schema"."uuid_ltree_edge_cases"`: {
 			Inserts: 2, // 1 basic + 1 with NULLs
 			Updates: 4, // 2 regular + 1 row 5 (NULL→value) + 1 row 6 (value→NULL)
 			Deletes: 1,
 		},
-		`test_schema."map_edge_cases"`: {
+		`"test_schema"."map_edge_cases"`: {
 			Inserts: 2, // 1 basic + 1 with NULLs
 			Updates: 4, // 2 regular + 1 row 5 (NULL→value) + 1 row 6 (value→NULL)
 			Deletes: 1,
 		},
-		`test_schema."interval_edge_cases"`: {
+		`"test_schema"."interval_edge_cases"`: {
 			Inserts: 2, // 1 basic + 1 with NULLs
 			Updates: 4, // 2 regular + 1 row 5 (NULL→value) + 1 row 6 (value→NULL)
 			Deletes: 1,
 		},
-		`test_schema."zonedtimestamp_edge_cases"`: {
+		`"test_schema"."zonedtimestamp_edge_cases"`: {
 			Inserts: 2, // 1 basic + 1 with NULLs
 			Updates: 4, // 2 regular + 1 row 5 (NULL→value) + 1 row 6 (value→NULL)
 			Deletes: 1,
 		},
-		`test_schema."integer_edge_cases"`: {
+		`"test_schema"."integer_edge_cases"`: {
 			Inserts: 2, // 1 basic + 1 with NULLs
 			Updates: 4, // 2 regular + 1 row 5 (NULL→value) + 1 row 6 (value→NULL)
 			Deletes: 1,
 		},
-		`test_schema."boolean_edge_cases"`: {
+		`"test_schema"."boolean_edge_cases"`: {
 			Inserts: 2, // 1 basic + 1 with NULLs
 			Updates: 4, // 2 regular + 1 row 5 (NULL→value) + 1 row 6 (value→NULL)
 			Deletes: 1,
@@ -3944,7 +3944,7 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 	}, 180, 2)
 	testutils.FatalIfError(t, err, "failed to wait for fallback streaming complete")
 
-	err = lm.ValidateDataConsistency([]string{`test_schema."string_edge_cases"`, `test_schema."decimal_edge_cases"`, `test_schema."json_edge_cases"`, `test_schema."enum_edge_cases"`, `test_schema."bytes_edge_cases"`, `test_schema."datetime_edge_cases"`, `test_schema."uuid_ltree_edge_cases"`, `test_schema."map_edge_cases"`, `test_schema."interval_edge_cases"`, `test_schema."zonedtimestamp_edge_cases"`, `test_schema."integer_edge_cases"`, `test_schema."boolean_edge_cases"`}, "id")
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."string_edge_cases"`, `"test_schema"."decimal_edge_cases"`, `"test_schema"."json_edge_cases"`, `"test_schema"."enum_edge_cases"`, `"test_schema"."bytes_edge_cases"`, `"test_schema"."datetime_edge_cases"`, `"test_schema"."uuid_ltree_edge_cases"`, `"test_schema"."map_edge_cases"`, `"test_schema"."interval_edge_cases"`, `"test_schema"."zonedtimestamp_edge_cases"`, `"test_schema"."integer_edge_cases"`, `"test_schema"."boolean_edge_cases"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate fallback streaming data consistency")
 
 	err = lm.InitiateCutoverToSource(nil)
@@ -3953,6 +3953,6 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 	err = lm.WaitForCutoverSourceComplete(150)
 	testutils.FatalIfError(t, err, "failed to wait for cutover to source complete")
 
-	err = lm.ValidateDataConsistency([]string{`test_schema."string_edge_cases"`, `test_schema."decimal_edge_cases"`, `test_schema."json_edge_cases"`, `test_schema."enum_edge_cases"`, `test_schema."bytes_edge_cases"`, `test_schema."datetime_edge_cases"`, `test_schema."uuid_ltree_edge_cases"`, `test_schema."map_edge_cases"`, `test_schema."interval_edge_cases"`, `test_schema."zonedtimestamp_edge_cases"`, `test_schema."integer_edge_cases"`, `test_schema."boolean_edge_cases"`}, "id")
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."string_edge_cases"`, `"test_schema"."decimal_edge_cases"`, `"test_schema"."json_edge_cases"`, `"test_schema"."enum_edge_cases"`, `"test_schema"."bytes_edge_cases"`, `"test_schema"."datetime_edge_cases"`, `"test_schema"."uuid_ltree_edge_cases"`, `"test_schema"."map_edge_cases"`, `"test_schema"."interval_edge_cases"`, `"test_schema"."zonedtimestamp_edge_cases"`, `"test_schema"."integer_edge_cases"`, `"test_schema"."boolean_edge_cases"`}, "id")
 	testutils.FatalIfError(t, err, "failed final data consistency check after fallback")
 }

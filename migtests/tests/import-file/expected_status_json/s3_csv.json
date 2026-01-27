@@ -1,6 +1,6 @@
 [
     {
-      "table_name": "public.\"s3_csv\"",
+      "table_name": "\"public\".\"s3_csv\"",
       "file_name": "csv_test.csv",
       "status": "MIGRATING",
       "total_count": 13,

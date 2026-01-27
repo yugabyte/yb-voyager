@@ -29,11 +29,11 @@ import (
 type SourceDB interface {
 	Connect() error
 	Disconnect()
-	CheckSchemaExists() bool
 	GetConnectionUriWithoutPassword() string
 	GetTableRowCount(tableName sqlname.NameTuple) (int64, error)
 	GetTableApproxRowCount(tableName sqlname.NameTuple) int64
 	GetVersion() string
+	GetAllSchemaNamesIdentifiers() ([]sqlname.Identifier, error)
 	GetAllTableNames() []*sqlname.SourceName
 	GetAllTableNamesRaw(schemaName string) ([]string, error)
 	GetAllSequencesRaw(schemaName string) ([]string, error)

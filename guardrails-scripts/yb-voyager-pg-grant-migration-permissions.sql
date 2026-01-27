@@ -90,21 +90,21 @@ SET myvars.voyager_user = :'voyager_user';
 
 -- Grant USAGE permission on all schemas to voyager_user
 \echo '--- Granting USAGE Permission on Schemas ---'
-SELECT 'GRANT USAGE ON SCHEMA ' || schema_name || ' TO ' || :'voyager_user' || ';'
+SELECT 'GRANT USAGE ON SCHEMA "' || schema_name || '" TO ' || :'voyager_user' || ';'
 FROM information_schema.schemata
 \gexec
 
 -- Grant SELECT permission on all tables in all schemas to voyager_user
 \echo ''
 \echo '--- Granting SELECT Permission on Tables ---'
-SELECT 'GRANT SELECT ON ALL TABLES IN SCHEMA ' || schema_name || ' TO ' || :'voyager_user' || ';'
+SELECT 'GRANT SELECT ON ALL TABLES IN SCHEMA "' || schema_name || '" TO ' || :'voyager_user' || ';'
 FROM information_schema.schemata
 \gexec
 
 -- Grant SELECT permission on all sequences in all schemas to voyager_user
 \echo ''
 \echo '--- Granting SELECT Permission on Sequences ---'
-SELECT 'GRANT SELECT ON ALL SEQUENCES IN SCHEMA ' || schema_name || ' TO ' || :'voyager_user' || ';'
+SELECT 'GRANT SELECT ON ALL SEQUENCES IN SCHEMA "' || schema_name || '" TO ' || :'voyager_user' || ';'
 FROM information_schema.schemata
 \gexec
 
@@ -128,7 +128,7 @@ GRANT pg_read_all_stats to :voyager_user;
                 WHERE table_schema = ANY(string_to_array(current_setting('myvars.schema_list'), ','))
                 AND table_type = 'BASE TABLE')
     LOOP
-        EXECUTE 'ALTER TABLE ' || r.table_schema || '.' || r.t_name || ' REPLICA IDENTITY FULL';
+        EXECUTE 'ALTER TABLE "' || r.table_schema || '"."' || r.t_name || '" REPLICA IDENTITY FULL';
     END LOOP;
     END $$;
 
@@ -213,7 +213,7 @@ GRANT pg_read_all_stats to :voyager_user;
                     FROM information_schema.tables
                     WHERE table_schema = ANY(string_to_array(current_setting('myvars.schema_list'), ',')::text[])
                 LOOP
-                    EXECUTE 'ALTER TABLE ' || r.table_schema || '.' || r.t_name || ' OWNER TO ' || current_setting('myvars.replication_group');
+                    EXECUTE 'ALTER TABLE "' || r.table_schema || '"."' || r.t_name || '" OWNER TO ' || current_setting('myvars.replication_group');
                 END LOOP;
             END $$;
 
@@ -261,7 +261,7 @@ GRANT pg_read_all_stats to :voyager_user;
         \echo ''
         \echo '--- Granting SELECT, INSERT, UPDATE, DELETE on All Tables in Specified Schemas ---'
         SELECT 
-            'GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA ' || schema_name || ' TO ' || :'voyager_user' || ';'
+            'GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA "' || schema_name || '" TO ' || :'voyager_user' || ';'
         FROM 
             information_schema.schemata
         WHERE 
@@ -271,7 +271,7 @@ GRANT pg_read_all_stats to :voyager_user;
         \echo ''
         \echo '--- Granting SELECT, UPDATE, USAGE on All Sequences in Specified Schemas ---'
         SELECT 
-            'GRANT SELECT, UPDATE, USAGE ON ALL SEQUENCES IN SCHEMA ' || schema_name || ' TO ' || :'voyager_user' || ';'
+            'GRANT SELECT, UPDATE, USAGE ON ALL SEQUENCES IN SCHEMA "' || schema_name || '" TO ' || :'voyager_user' || ';'
         FROM 
             information_schema.schemata
         WHERE 

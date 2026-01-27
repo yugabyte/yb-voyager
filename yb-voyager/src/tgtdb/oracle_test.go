@@ -1,5 +1,4 @@
 //go:build integration
-
 /*
 Copyright (c) YugabyteDB, Inc.
 
@@ -25,6 +24,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -53,7 +53,7 @@ func TestOracleIdentityColumnsDisableEnableCycle(t *testing.T) {
 	require.NoError(t, dbErr)
 
 	// Get the schema name from the Oracle target configuration
-	schemaName := oracle.tconf.Schema
+	schemaName := oracle.tconf.Schemas[0].Unquoted
 
 	// Test complete disable/enable cycle: ALWAYS -> BY DEFAULT -> ALWAYS
 	tableColumnsMap := createOracleTableToColumnsStructMap(schemaName, map[string][]string{
