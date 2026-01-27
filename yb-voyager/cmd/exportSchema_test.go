@@ -205,6 +205,156 @@ func TestExportSchemaRunningAssessmentInternally_ExportAfterAssessCmd(t *testing
 	}
 }
 
+// Test: export schema with --start-clean after running assess-migration command
+// Expectation: export-schema should NOT re-run internal assess-migration because assess-migration was already run directly
+// This tests the fix where IsMigrationAssessmentDoneDirectly check is independent of startClean flag
+func TestExportSchemaWithStartClean_AfterAssessMigrationCmd(t *testing.T) {
+	// create temp export dir and setting global exportDir variable
+	exportDir = testutils.CreateTempExportDir()
+	defer testutils.RemoveTempExportDir(exportDir)
+
+	// setting up source test container and source params for assessment
+	postgresContainer := testcontainers.NewTestContainer("postgresql", nil)
+	err := postgresContainer.Start(context.Background())
+	if err != nil {
+		utils.ErrExit("Failed to start postgres container: %v", err)
+	}
+
+	// create table and initial data in it
+	postgresContainer.ExecuteSqls(
+		`CREATE SCHEMA test_schema;`,
+		`CREATE TABLE test_schema.test_data (
+		id SERIAL PRIMARY KEY,
+		value TEXT
+	);`,
+		`INSERT INTO test_schema.test_data (value)
+	SELECT md5(random()::text) FROM generate_series(1, 100000);`)
+	if err != nil {
+		t.Errorf("Failed to create test table: %v", err)
+	}
+	defer postgresContainer.ExecuteSqls(`
+	DROP SCHEMA test_schema CASCADE;`)
+
+	// Step 1: Run assess-migration command
+	_, err = testutils.RunVoyagerCommand(postgresContainer, "assess-migration", []string{
+		"--iops-capture-interval", "0",
+		"--source-db-schema", "test_schema",
+		"--export-dir", exportDir,
+		"--yes",
+	}, nil, false)
+	if err != nil {
+		t.Errorf("Failed to run assess-migration command: %v", err)
+	}
+
+	metaDB = initMetaDB(exportDir)
+	res, err := IsMigrationAssessmentDoneDirectly(metaDB)
+	if err != nil {
+		t.Errorf("Failed to check MigrationAssessmentDone flag: %v", err)
+	}
+	assert.True(t, res, "Expected MigrationAssessmentDone flag to be true after assess-migration")
+
+	// Step 2: Run export schema without --start-clean first to set ExportSchemaDone
+	_, err = testutils.RunVoyagerCommand(postgresContainer, "export schema", []string{
+		"--source-db-schema", "test_schema",
+		"--export-dir", exportDir,
+		"--yes",
+	}, nil, false)
+	if err != nil {
+		t.Errorf("Failed to run export schema command: %v", err)
+	}
+
+	// Get the modification time of the assessment report before running with --start-clean
+	reportFilePath := filepath.Join(exportDir, "assessment", "reports", "migration_assessment_report.json")
+	if !utils.FileOrFolderExists(reportFilePath) {
+		t.Errorf("Expected assessment report file does not exist: %s", reportFilePath)
+	}
+
+	// Step 3: Run export schema with --start-clean
+	// This should NOT re-run internal assessment because assess-migration was already done directly
+	_, err = testutils.RunVoyagerCommand(postgresContainer, "export schema", []string{
+		"--source-db-schema", "test_schema",
+		"--export-dir", exportDir,
+		"--start-clean", "true",
+		"--yes",
+	}, nil, false)
+	if err != nil {
+		t.Errorf("Failed to run export schema with --start-clean command: %v", err)
+	}
+
+	// Verify MigrationAssessmentDone is still true (not reset)
+	metaDB = initMetaDB(exportDir)
+	res, err = IsMigrationAssessmentDoneDirectly(metaDB)
+	if err != nil {
+		t.Errorf("Failed to check MigrationAssessmentDone flag: %v", err)
+	}
+	assert.True(t, res, "Expected MigrationAssessmentDone flag to remain true after export schema --start-clean")
+
+	// Verify MigrationAssessmentDoneViaExportSchema is still false
+	// (assessment was done via assess-migration command, not via export schema)
+	metaDB = initMetaDB(exportDir)
+	res, err = IsMigrationAssessmentDoneViaExportSchema()
+	if err != nil {
+		t.Errorf("Failed to check MigrationAssessmentDoneViaExportSchema flag: %v", err)
+	}
+	assert.False(t, res, "Expected MigrationAssessmentDoneViaExportSchema flag to be false")
+
+	// Verify table.sql exists from export schema
+	tableSqlFilePath := filepath.Join(exportDir, "schema", "tables", "table.sql")
+	if !utils.FileOrFolderExists(tableSqlFilePath) {
+		t.Errorf("Expected table.sql file does not exist: %s", tableSqlFilePath)
+	}
+}
+
+// Test: run export schema (internal assessment runs) -> run export schema with --start-clean (internal assessment should re-run)
+func TestExportSchemaStartClean_ReRunsInternalAssessment(t *testing.T) {
+	// create temp export dir and setting global exportDir variable
+	exportDir = testutils.CreateTempExportDir()
+	defer testutils.RemoveTempExportDir(exportDir)
+
+	// setting up source test container
+	postgresContainer := testcontainers.NewTestContainer("postgresql", nil)
+	err := postgresContainer.Start(context.Background())
+	if err != nil {
+		utils.ErrExit("Failed to start postgres container: %v", err)
+	}
+
+	// create table
+	postgresContainer.ExecuteSqls(
+		`CREATE SCHEMA test_schema;`,
+		`CREATE TABLE test_schema.test_data (id SERIAL PRIMARY KEY, value TEXT);`)
+	defer postgresContainer.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
+
+	// Step 1: Run export schema (this runs assessment internally)
+	_, err = testutils.RunVoyagerCommand(postgresContainer, "export schema", []string{
+		"--source-db-schema", "test_schema",
+		"--export-dir", exportDir,
+		"--yes",
+	}, nil, false)
+	assert.Nil(t, err)
+
+	// Verify the MSR.MigrationAssessmentDoneViaExportSchema flag is set to true
+	metaDB = initMetaDB(exportDir)
+	res, err := IsMigrationAssessmentDoneViaExportSchema()
+	assert.Nil(t, err)
+	assert.True(t, res, "Expected MigrationAssessmentDoneViaExportSchema flag to be true after first export")
+
+	// Step 2: Run export schema with --start-clean
+	// This SHOULD re-run internal assessment because --start-clean is used
+	_, err = testutils.RunVoyagerCommand(postgresContainer, "export schema", []string{
+		"--source-db-schema", "test_schema",
+		"--export-dir", exportDir,
+		"--start-clean", "true",
+		"--yes",
+	}, nil, false)
+	assert.Nil(t, err)
+
+	// Verify the flag is still true (meaning it was cleared by --start-clean and then re-set by the internal assessment)
+	metaDB = initMetaDB(exportDir)
+	res, err = IsMigrationAssessmentDoneViaExportSchema()
+	assert.Nil(t, err)
+	assert.True(t, res, "Expected MigrationAssessmentDoneViaExportSchema flag to be true after start-clean export (verifies re-run)")
+}
+
 func TestExportSchemaRunningAssessmentInternally_ExportSchemaThenAssessCmd(t *testing.T) {
 	// create temp export dir and setting global exportDir variable
 	exportDir = testutils.CreateTempExportDir()
