@@ -123,7 +123,7 @@ GRANT pg_read_all_stats to :voyager_user;
     r RECORD;
     BEGIN
     -- Change the replica identity of all tables to FULL
-    FOR r IN (SELECT table_schema, '"' || table_name || '"' AS t_name  
+    FOR r IN (SELECT table_schema, table_name AS t_name  
                 FROM information_schema.tables 
                 WHERE table_schema = ANY(string_to_array(current_setting('myvars.schema_list'), ','))
                 AND table_type = 'BASE TABLE')
