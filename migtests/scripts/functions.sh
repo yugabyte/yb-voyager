@@ -71,7 +71,7 @@ grant_user_permission_postgresql() {
 	db_name=$1
 	db_schema=$2
 	conn_string="postgresql://${SOURCE_DB_ADMIN_USER}:${SOURCE_DB_ADMIN_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}"
-	echo "2" | psql "${conn_string}" --set ON_ERROR_STOP=on \ 
+	echo "2" | psql "${conn_string}" --set ON_ERROR_STOP=on \
                                     -v voyager_user="${SOURCE_DB_USER}" \
                                     -v schema_list="${db_schema}" \
                                     -v is_live_migration=0 \
