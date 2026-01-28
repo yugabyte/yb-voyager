@@ -17,7 +17,6 @@ package cmd
 
 import (
 	"fmt"
-	"strings"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -74,11 +73,8 @@ func initTargetConfFromSourceConf() error {
 	tconf.Port = sconf.Port
 	tconf.User = sconf.User
 	tconf.DBName = sconf.DBName
-	if tconf.TargetDBType == POSTGRESQL {
-		tconf.Schema = strings.Join(strings.Split(sconf.Schema, "|"), ",")
-	} else {
-		tconf.Schema = sconf.Schema
-	}
+	tconf.Schemas = sconf.Schemas
+	tconf.SchemaConfig = sconf.SchemaConfig
 	tconf.SSLMode = sconf.SSLMode
 	tconf.SSLMode = sconf.SSLMode
 	tconf.SSLCertPath = sconf.SSLCertPath

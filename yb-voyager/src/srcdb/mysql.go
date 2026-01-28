@@ -90,10 +90,8 @@ func (ms *MySQL) QueryRow(query string) *sql.Row {
 	return ms.db.QueryRow(query)
 }
 
-func (ms *MySQL) CheckSchemaExists() bool {
-	// no concept of schema in MySQL, only database
-	// also if Connect() passed already that means database is present
-	return true
+func (ms *MySQL) GetAllSchemaNamesIdentifiers() ([]sqlname.Identifier, error) {
+	return nil, nil
 }
 
 func (ms *MySQL) GetTableRowCount(tableName sqlname.NameTuple) (int64, error) {
@@ -555,8 +553,8 @@ func (ms *MySQL) GetMissingExportSchemaPermissions(queryTableList string) ([]str
 	return nil, nil
 }
 
-func (ms *MySQL) GetMissingExportDataPermissions(exportType string, finalTableList []sqlname.NameTuple) ([]string, error) {
-	return nil, nil
+func (ms *MySQL) GetMissingExportDataPermissions(exportType string, finalTableList []sqlname.NameTuple) ([]string, bool, error) {
+	return nil, false, nil
 }
 
 func (ms *MySQL) CheckIfReplicationSlotsAreAvailable() (isAvailable bool, usedCount int, maxCount int, err error) {

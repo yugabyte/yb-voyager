@@ -4,6 +4,7 @@ run_id: run
 
 env:
   LOG_LEVEL: info
+  QUEUE_SEGMENT_MAX_BYTES: 10485760
 
 export_dir: ./export-dir
 artifacts_dir: ./artifacts
@@ -80,9 +81,9 @@ generator_target:
       operation_weights: {INSERT: 3, UPDATE: 2, DELETE: 1}
       random_seed: 456
       faker_seed: 456
-      insert_rows: 3
-      update_rows: 2
-      delete_rows: 1
+      insert_rows: 6
+      update_rows: 4
+      delete_rows: 2
       insert_max_retries: 5
       update_max_retries: 1
 
@@ -102,7 +103,7 @@ stages:
 
   - name: create_source_schema
     action: run_sql
-    sql_path: ../common-sql/init-db-large.sql
+    sql_path: ../common-sql/init.sql
     use_admin: true
 
   - name: grant_source_permissions
@@ -121,7 +122,7 @@ stages:
 
   - name: load_snapshot
     action: sleep
-    seconds: 600
+    seconds: 120
 
   - name: start_exporter
     action: voyager_export_start
@@ -132,11 +133,11 @@ stages:
   - name: wait_exporter_streaming
     action: wait_for
     condition: exporter_in_streaming_phase
-    timeout_sec: 6000
+    timeout_sec: 600
 
   - name: small_sleep_for_some_events_to_be_generated
     action: sleep
-    seconds: 60
+    seconds: 30
 
   - name: stop_event_generator
     action: generator_stop
@@ -151,7 +152,7 @@ stages:
   - name: wait_backlog_zero
     action: wait_for
     condition: remaining_events_eq_0
-    timeout_sec: 12000
+    timeout_sec: 1200
 
   - name: cutover_to_target
     action: cutover_to_target
@@ -159,7 +160,7 @@ stages:
   - name: wait_cutover_to_target_completed
     action: wait_for
     condition: cutover_to_target_status_completed
-    timeout_sec: 9000
+    timeout_sec: 900
 
   # Stop the forward exporter/importer (these may have auto-chained internally).
   - name: stop_forward_exporter
@@ -171,12 +172,6 @@ stages:
     action: voyager_stop_command
     command: import_data
     graceful_timeout_sec: 60
-
-  # Phase 2: explicit fallback leg (target -> source) with resumptions
-  # NOTE: the following actions will be implemented in orchestrator/helpers:
-  #   - voyager_export_from_target_start
-  #   - voyager_import_to_source_start
-  #   - cutover_to_source
 
   - name: start_fallback_exporter_from_target
     action: voyager_export_from_target_start
@@ -194,21 +189,21 @@ stages:
     action: start_resumptions
     resumption:
       export_from_target:
-        max_restarts: 500
-        min_interrupt_seconds: 120
-        max_interrupt_seconds: 240
-        min_restart_wait_seconds: 15
-        max_restart_wait_seconds: 60
+        max_restarts: 100
+        min_interrupt_seconds: 15
+        max_interrupt_seconds: 60
+        min_restart_wait_seconds: 5
+        max_restart_wait_seconds: 30
 
   - name: start_import_to_source_resumptions
     action: start_resumptions
     resumption:
       import_to_source:
-        max_restarts: 500
-        min_interrupt_seconds: 60
-        max_interrupt_seconds: 180
-        min_restart_wait_seconds: 15
-        max_restart_wait_seconds: 60
+        max_restarts: 100
+        min_interrupt_seconds: 15
+        max_interrupt_seconds: 60
+        min_restart_wait_seconds: 5
+        max_restart_wait_seconds: 30
 
   - name: soak_fallback_with_resumptions
     action: sleep
@@ -230,7 +225,7 @@ stages:
   - name: wait_backlog_zero_after_fallback
     action: wait_for
     condition: remaining_events_eq_0
-    timeout_sec: 9000
+    timeout_sec: 6000
 
   - name: stop_fallback_export_resumptions
     action: voyager_stop_resumptions
@@ -249,7 +244,7 @@ stages:
   - name: wait_cutover_to_source_completed
     action: wait_for
     condition: cutover_to_source_status_completed
-    timeout_sec: 9000
+    timeout_sec: 900
 
   - name: row_count_validations
     action: row_count_validations

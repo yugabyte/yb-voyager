@@ -246,6 +246,7 @@ debezium.source.hstore.handling.mode=map
 debezium.source.decimal.handling.mode=precise
 debezium.source.converters=postgres_source_converter
 debezium.source.postgres_source_converter.type=io.debezium.server.ybexporter.PostgresToYbValueConverter
+debezium.source.grpc.connector.enabled=true
 `
 
 var yugabyteLogicalReplicationSrcConfigTemplate = `
@@ -259,6 +260,7 @@ debezium.source.hstore.handling.mode=map
 debezium.source.decimal.handling.mode=string
 debezium.source.converters=postgres_source_converter
 debezium.source.postgres_source_converter.type=io.debezium.server.ybexporter.PostgresToYbValueConverter
+debezium.source.grpc.connector.enabled=false
 `
 
 var yugabyteLogicalReplicationSlotNameTemplate = `

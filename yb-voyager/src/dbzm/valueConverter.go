@@ -25,6 +25,7 @@ import (
 
 	goerrors "github.com/go-errors/errors"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	tgtdbsuite "github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb/suites"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -282,9 +283,10 @@ type StreamingPhaseDebeziumValueConverter struct {
 	schemaRegistryTarget *schemareg.SchemaRegistry
 	valueConverterSuite  map[string]tgtdbsuite.ConverterFn
 	targetDBType         string
+	sourceDBType         string
 }
 
-func NewStreamingPhaseDebeziumValueConverter(tableList []sqlname.NameTuple, exportDir string, targetConf tgtdb.TargetConf, importerRole string) (*StreamingPhaseDebeziumValueConverter, error) {
+func NewStreamingPhaseDebeziumValueConverter(tableList []sqlname.NameTuple, exportDir string, targetConf tgtdb.TargetConf, importerRole string, sourceDBType string) (*StreamingPhaseDebeziumValueConverter, error) {
 	schemaRegistrySource := schemareg.NewSchemaRegistry(tableList, exportDir, "source_db_exporter", importerRole)
 	err := schemaRegistrySource.Init()
 	if err != nil {
@@ -309,6 +311,7 @@ func NewStreamingPhaseDebeziumValueConverter(tableList []sqlname.NameTuple, expo
 		schemaRegistryTarget: schemaRegistryTarget,
 		valueConverterSuite:  tdbValueConverterSuite,
 		targetDBType:         targetConf.TargetDBType,
+		sourceDBType:         sourceDBType,
 	}
 
 	return conv, nil
@@ -347,7 +350,7 @@ func (conv *StreamingPhaseDebeziumValueConverter) convertMap(tableNameTup sqlnam
 		if err != nil {
 			return fmt.Errorf("fetch column schema: %w", err)
 		}
-		if !checkSourceExporter(exportSourceType) && strings.EqualFold(colType, "io.debezium.time.Interval") {
+		if !checkSourceExporter(exportSourceType) && strings.EqualFold(colType, "io.debezium.time.Interval") && conv.sourceDBType == constants.ORACLE {
 			colType, colDbzmSchema, err = conv.schemaRegistrySource.GetColumnType(tableNameTup, strings.ToUpper(column), conv.shouldFormatAsPerSourceDatatypes())
 			//assuming table name/column name is case insensitive TODO: handle this case sensitivity properly
 			if err != nil {

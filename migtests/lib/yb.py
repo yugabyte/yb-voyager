@@ -164,30 +164,36 @@ class PostgresDB:
 
 	def table_exists(self, table_name, table_schema="public") -> bool:
 		cur = self.conn.cursor()
+		table_schema = table_schema.strip("\"")
 		cur.execute("SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_name=%s AND table_schema=%s)", (table_name, table_schema))
 		result = cur.fetchone()
 		return result[0]
 
 	def count_tables(self, schema="public") -> int:
 		cur = self.conn.cursor()
+		schema = schema.strip("\"")
 		cur.execute("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=%s AND table_type='BASE TABLE'", (schema,))
 		return cur.fetchone()[0]
 
 	def get_table_names(self, schema="public") -> List[str]:
 		cur = self.conn.cursor()
+		schema = schema.strip("\"")
 		q = "SELECT table_name FROM information_schema.tables WHERE table_schema=%s AND table_type='BASE TABLE'"
 		cur.execute(q, (schema,))
 		return [table[0] for table in cur.fetchall()]
 		
 	def get_foreign_table_names(self, schema="public") -> List[str]:
 		cur = self.conn.cursor()
+		schema = schema.strip("\"")
 		q = "SELECT table_name FROM information_schema.tables WHERE table_schema=%s AND table_type='FOREIGN'"
 		cur.execute(q, (schema,))
 		return [table[0] for table in cur.fetchall()]
 
 	def get_row_count(self, table_name, schema_name="public") -> int:
 		cur = self.conn.cursor()
-		cur.execute(f'SELECT COUNT(*) FROM {schema_name}."{table_name}"')
+		schema_name = schema_name.strip("\"")
+		table_name = table_name.strip("\"")
+		cur.execute(f'SELECT COUNT(*) FROM "{schema_name}"."{table_name}"')
 		return cur.fetchone()[0]
 
 	def row_count_of_all_tables(self, schema_name="public") -> Dict[str, int]:
@@ -203,6 +209,7 @@ class PostgresDB:
 			"MVIEW": "m",
 		}[object_type]
 		cur = self.conn.cursor()
+		schema_name = schema_name.strip("\"")
 		query= f"select relname from pg_class join pg_namespace on pg_class.relnamespace = pg_namespace.oid"
 		query += f" where nspname = '{schema_name}' AND relkind = '{object_type}'"
 		if object_type == 'v':
@@ -212,18 +219,30 @@ class PostgresDB:
 	
 	def get_sum_of_column_of_table(self, table_name, column_name, schema_name="public") -> int:
 		cur = self.conn.cursor()
-		cur.execute(f"select sum({column_name}) from {schema_name}.{table_name}")
+		schema_name = schema_name.strip("\"")
+		table_name = table_name.strip("\"")
+		cur.execute(f'select sum({column_name}) from "{schema_name}"."{table_name}"')
 		return cur.fetchone()[0]
 		
 	def get_count_index_on_table(self, schema_name="public") -> Dict[str,int]:
 		cur = self.conn.cursor()
+		schema_name = schema_name.strip("\"")
 		cur.execute(f"SELECT tablename, count(indexname) FROM pg_indexes WHERE schemaname = '{schema_name}' GROUP  BY tablename;")
 		return {tablename: cnt for tablename,cnt in cur.fetchall()}
 
 	def get_distinct_values_of_column_of_table(self, table_name, column_name, schema_name="public") -> List[Any]:
 		cur = self.conn.cursor()
-		cur.execute(f"select distinct({column_name}) from {schema_name}.{table_name}")
+		schema_name = schema_name.strip("\"")
+		table_name = table_name.strip("\"")
+		cur.execute(f'select distinct({column_name}) from "{schema_name}"."{table_name}"')
 		return [value[0] for value in cur.fetchall()]
+
+	def get_distinct_text_values_of_column(self, table_name, column_name, schema_name="public") -> List[str]:
+		cur = self.conn.cursor()
+		schema_name = schema_name.strip("\"")
+		table_name = table_name.strip("\"")
+		cur.execute(f'SELECT DISTINCT {column_name}::text FROM "{schema_name}"."{table_name}"')
+		return [str(value[0]) for value in cur.fetchall()]
 
 	# takes query and error_code and return true id the error_code you believe that query should throw matches
 	def run_query_and_chk_error(self, query, error_code) -> boolean:
@@ -238,6 +257,7 @@ class PostgresDB:
 
 	def get_functions_count(self, schema_name="public") -> int:
 		cur = self.conn.cursor()
+		schema_name = schema_name.strip("\"")
 		cur.execute(f"SELECT count(routine_name) FROM  information_schema.routines WHERE  routine_type = 'FUNCTION' AND routine_schema = '{schema_name}' AND routine_name NOT IN ({self.EXPECTED_ORAFCE_FUNCTIONS});")
 		return cur.fetchone()[0]
 
@@ -248,11 +268,13 @@ class PostgresDB:
 
 	def count_sequences(self,schema_name="public") -> int :	
 		cur = self.conn.cursor()	
+		schema_name = schema_name.strip("\"")
 		cur.execute(f"select count(sequence_name) from information_schema.sequences where sequence_schema='{schema_name}';")	
 		return cur.fetchone()[0]
 
 	def get_column_to_data_type_mapping(self, schema_name="public") -> Dict[str, Dict[str,str]]:
 		cur = self.conn.cursor()
+		schema_name = schema_name.strip("\"")
 		cur.execute(f"SELECT table_name, column_name, data_type FROM information_schema.columns WHERE table_schema = '{schema_name}' and table_name NOT IN ({self.EXPECTED_ORAFCE_VIEWS}, 'pg_stat_statements', 'pg_stat_statements_info');")
 		tables = {}
 		for table_name, column_name, data_type in cur.fetchall():
@@ -274,11 +296,13 @@ class PostgresDB:
 
 	def fetch_all_triggers(self, schema_name="public") -> List[str]:
 		cur = self.conn.cursor()
+		schema_name = schema_name.strip("\"")
 		cur.execute(f"SELECT trigger_name FROM information_schema.triggers WHERE trigger_schema = '{schema_name}'")
 		return [trigger[0] for trigger in cur.fetchall()]
 
 	def fetch_all_procedures(self, schema_name="public") -> List[str]:
 		cur = self.conn.cursor()
+		schema_name = schema_name.strip("\"")
 		cur.execute(f"SELECT routine_name FROM information_schema.routines WHERE routine_schema = '{schema_name}' AND routine_name NOT IN ({self.EXPECTED_ORAFCE_FUNCTIONS}) AND routine_name NOT LIKE 'pg_stat_statements%'; ")
 		return [procedure[0] for procedure in cur.fetchall()]
 
@@ -294,6 +318,7 @@ class PostgresDB:
 
 	def fetch_all_function_names(self, schema_name="public") -> List[str]:
 		cur = self.conn.cursor()
+		schema_name = schema_name.strip("\"")
 		cur.execute(f"SELECT routine_name FROM information_schema.routines WHERE routine_schema = '{schema_name}' AND routine_name NOT IN ({self.EXPECTED_ORAFCE_FUNCTIONS});")
 		return [function[0] for function in cur.fetchall()]
 
@@ -314,6 +339,7 @@ class PostgresDB:
 
 	def get_identity_type_columns(self, type_name, table_name, schema_name="public") -> List[str]:
 		cur = self.conn.cursor()
+		schema_name = schema_name.strip("\"")
 		cur.execute(f"SELECT column_name FROM information_schema.columns WHERE table_schema = '{schema_name}' AND table_name = '{table_name}' AND is_identity='YES' AND identity_generation='{type_name}'")
 		return [column[0] for column in cur.fetchall()]
 	
@@ -327,9 +353,16 @@ class PostgresDB:
 			print(f"{transformed_distinct_value}")
 			assert transformed_distinct_value in expected_distinct_values
 
+	def assert_distinct_text_values_of_col(self, table_name, column_name, schema_name="public", expected_distinct_values=[]):
+		distinct_values = self.get_distinct_text_values_of_column(table_name, column_name, schema_name)
+		for distinct_value in distinct_values:
+			assert distinct_value in expected_distinct_values
+
 	def assert_all_values_of_col(self, table_name, column_name, schema_name="public", transform_func=None, expected_values=[]):
 		cur = self.conn.cursor()
-		cur.execute(f"select {column_name} from {schema_name}.{table_name}")
+		schema_name = schema_name.strip("\"")
+		table_name = table_name.strip("\"")
+		cur.execute(f'select {column_name} from "{schema_name}"."{table_name}"')
 		all_values = [value[0] for value in cur.fetchall()]
 		if transform_func:
 			all_values = [transform_func(value) if value else value for value in all_values]

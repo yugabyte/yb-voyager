@@ -1,6 +1,6 @@
 [
     {
-      "table_name": "public.\"survey\"",
+      "table_name": "\"public\".\"survey\"",
       "file_name": "FY2021_Survey.csv",
       "status": "DONE",
       "total_count": 6575476,

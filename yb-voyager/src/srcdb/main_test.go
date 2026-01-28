@@ -27,6 +27,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	testcontainers "github.com/yugabyte/yb-voyager/yb-voyager/test/containers"
 )
 
@@ -66,7 +67,7 @@ func createTestDBSource(ctx context.Context, config *testcontainers.ContainerCon
 			DBVersion: container.GetConfig().DBVersion,
 			User:      container.GetConfig().User,
 			Password:  container.GetConfig().Password,
-			Schema:    container.GetConfig().Schema,
+			Schemas:   []sqlname.Identifier{sqlname.NewIdentifier(config.DBType, container.GetConfig().Schema)},
 			DBName:    container.GetConfig().DBName,
 			Host:      host,
 			Port:      port,

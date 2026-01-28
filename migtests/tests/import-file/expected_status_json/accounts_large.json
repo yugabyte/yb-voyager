@@ -1,6 +1,6 @@
 [
     {
-      "table_name": "public.\"accounts_large\"",
+      "table_name": "\"public\".\"accounts_large\"",
       "file_name": "accounts_350m_data.sql",
       "status": "DONE",
       "total_count": 29013000804,

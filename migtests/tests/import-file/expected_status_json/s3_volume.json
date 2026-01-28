@@ -1,6 +1,6 @@
 [
     {
-      "table_name": "public.\"s3_volume\"",
+      "table_name": "\"public\".\"s3_volume\"",
       "file_name": "volume_test",
       "status": "DONE",
       "total_count": 2685861,

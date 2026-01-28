@@ -4,6 +4,7 @@ run_id: run
 
 env:
   LOG_LEVEL: info
+  QUEUE_SEGMENT_MAX_BYTES: 10485760
 
 export_dir: ./export-dir
 artifacts_dir: ./artifacts
@@ -111,12 +112,12 @@ stages:
 
   - name: create_source_schema
     action: run_sql
-    sql_path: ../common-sql/init-db-large.sql
+    sql_path: ../common-sql/init.sql
     use_admin: true
 
   - name: create_source_replica_schema
     action: run_sql
-    sql_path: ../common-sql/init-db-large.sql
+    sql_path: ../common-sql/init.sql
     use_admin: true
     target: source_replica
 
@@ -150,20 +151,20 @@ stages:
     action: start_resumptions
     resumption:
       import_to_source_replica:
-        max_restarts: 500
-        min_interrupt_seconds: 60
-        max_interrupt_seconds: 180
-        min_restart_wait_seconds: 15
-        max_restart_wait_seconds: 60
+        max_restarts: 100
+        min_interrupt_seconds: 15
+        max_interrupt_seconds: 60
+        min_restart_wait_seconds: 5
+        max_restart_wait_seconds: 30
 
   - name: wait_exporter_streaming
     action: wait_for
     condition: exporter_in_streaming_phase
-    timeout_sec: 6000
+    timeout_sec: 600
 
   - name: soak_with_resumptions
     action: sleep
-    seconds: 2400
+    seconds: 1200
 
   - name: stop_event_generator
     action: generator_stop
@@ -178,7 +179,7 @@ stages:
   - name: wait_backlog_zero
     action: wait_for
     condition: remaining_events_eq_0
-    timeout_sec: 12000
+    timeout_sec: 1200
 
   - name: cutover_to_target
     action: cutover_to_target
@@ -186,7 +187,7 @@ stages:
   - name: wait_cutover_to_target_completed
     action: wait_for
     condition: cutover_to_target_status_completed
-    timeout_sec: 9000
+    timeout_sec: 900
 
   # Stop the forward exporter/importer (these may have auto-chained internally).
   - name: stop_forward_importer
@@ -208,15 +209,15 @@ stages:
     action: start_resumptions
     resumption:
       export_from_target:
-        max_restarts: 500
-        min_interrupt_seconds: 120
-        max_interrupt_seconds: 240
-        min_restart_wait_seconds: 15
-        max_restart_wait_seconds: 60
+        max_restarts: 50
+        min_interrupt_seconds: 20
+        max_interrupt_seconds: 60
+        min_restart_wait_seconds: 10
+        max_restart_wait_seconds: 30
 
   - name: soak_fallback_with_resumptions
     action: sleep
-    seconds: 2400
+    seconds: 1200
 
   - name: stop_target_event_generator
     action: generator_stop
@@ -234,7 +235,7 @@ stages:
   - name: wait_backlog_zero_after_fallback
     action: wait_for
     condition: remaining_events_eq_0
-    timeout_sec: 9000
+    timeout_sec: 6000
 
   - name: stop_fallback_export_resumptions
     action: voyager_stop_resumptions

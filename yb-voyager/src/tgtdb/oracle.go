@@ -80,15 +80,17 @@ func (tdb *TargetOracleDB) Init() error {
 	if err != nil {
 		return err
 	}
-	tdb.tconf.Schema = strings.ToUpper(tdb.tconf.Schema)
+	if len(tdb.tconf.Schemas) == 0 {
+		return goerrors.Errorf("schemas are required for Oracle")
+	}
 	checkSchemaExistsQuery := fmt.Sprintf(
 		"SELECT 1 FROM ALL_USERS WHERE USERNAME = '%s'",
-		tdb.tconf.Schema)
+		tdb.tconf.Schemas[0].Unquoted)
 	var cntSchemaName int
 	if err = tdb.QueryRow(checkSchemaExistsQuery).Scan(&cntSchemaName); err != nil {
 		err = fmt.Errorf("run query %q on target %q to check schema exists: %w", checkSchemaExistsQuery, tdb.tconf.Host, err)
 	} else if cntSchemaName == 0 {
-		err = goerrors.Errorf("schema '%s' does not exist in target", tdb.tconf.Schema)
+		err = goerrors.Errorf("schema '%s' does not exist in target", tdb.tconf.Schemas[0].Unquoted)
 	}
 	return err
 }
@@ -466,7 +468,7 @@ func (tdb *TargetOracleDB) isBatchAlreadyImported(tx *sql.Tx, batch Batch) (bool
 }
 
 func (tdb *TargetOracleDB) setTargetSchema(conn *sql.Conn) {
-	setSchemaQuery := fmt.Sprintf("ALTER SESSION SET CURRENT_SCHEMA = %s", tdb.tconf.Schema)
+	setSchemaQuery := fmt.Sprintf("ALTER SESSION SET CURRENT_SCHEMA = %s", tdb.tconf.Schemas[0].MinQuoted)
 	_, err := conn.ExecContext(context.Background(), setSchemaQuery)
 	if err != nil {
 		utils.ErrExit("run query: %q on target %q to set schema: %w", setSchemaQuery, tdb.tconf.Host, err)
@@ -668,7 +670,7 @@ func (tdb *TargetOracleDB) GetIdentityColumnNamesForTables(tableNameTuples []sql
 			AND OWNER = '%s'
 			AND GENERATION_TYPE = '%s'
 		ORDER BY TABLE_NAME, COLUMN_NAME`,
-		strings.Join(tableNames, ", "), tdb.tconf.Schema, identityType)
+		strings.Join(tableNames, ", "), tdb.tconf.Schemas[0].Unquoted, identityType)
 
 	log.Infof("Querying for identity columns for %d tables with type '%s'", len(tableNameTuples), identityType)
 	log.Debugf("Identity column query: %s", query)

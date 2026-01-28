@@ -158,6 +158,12 @@ main() {
     expected_file="${TEST_DIR}/expected_callhome_payloads/analyse_schema_callhome.json"
     compare_callhome_json_reports "${expected_file}" "analyze-schema"
 
+    step "Fix schema."
+	if [ -x "${TEST_DIR}/fix-schema" ]
+	then
+		 "${TEST_DIR}/fix-schema"
+	fi
+
     step "Import schema"
     import_schema --send-diagnostics=true
     step "Compare actual and expected import-schema callhome data"

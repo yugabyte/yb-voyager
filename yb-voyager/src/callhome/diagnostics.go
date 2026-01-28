@@ -28,13 +28,13 @@ import (
 	"strings"
 	"time"
 
+	goerrors "github.com/go-errors/errors"
 	"github.com/google/uuid"
 	"github.com/jackc/pgconn"
 	pgconnv5 "github.com/jackc/pgx/v5/pgconn"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 
-	goerrors "github.com/go-errors/errors"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/anon"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryissue"
@@ -131,24 +131,33 @@ Version History
 1.7 Changed NumShardedTables and NumColocatedTables to ShardedTables and ColocatedTables respectively with anonymized names
 1.8 Added EstimatedTimeInMinForImportWithoutRedundantIndexes to SizingCallhome
 1.9 Added ObjectUsage field to AssessmentIssueCallhome struct
+2.0 Added ReplicaAssessmentTopology with replica discovery and validation counts for multi-node assessments
 */
-var ASSESS_MIGRATION_CALLHOME_PAYLOAD_VERSION = "1.9"
+var ASSESS_MIGRATION_CALLHOME_PAYLOAD_VERSION = "2.0"
+
+// ReplicaAssessmentTopology tracks replica discovery and usage for PostgreSQL multi-node assessments
+type ReplicaAssessmentTopology struct {
+	ReplicasDiscovered int `json:"replicas_discovered"` // replicas found via pg_stat_replication (used only if none provided)
+	ReplicasProvided   int `json:"replicas_provided"`   // replicas provided via --source-read-replica-endpoints flag (takes precedence)
+	ReplicasUsed       int `json:"replicas_used"`       // replicas actually used in assessment (equals provided if provided, else discovered)
+}
 
 type AssessMigrationPhasePayload struct {
-	PayloadVersion                 string                    `json:"payload_version"`
-	TargetDBVersion                *ybversion.YBVersion      `json:"target_db_version"`
-	Sizing                         *SizingCallhome           `json:"sizing"`
-	MigrationComplexity            string                    `json:"migration_complexity"`
-	MigrationComplexityExplanation string                    `json:"migration_complexity_explanation"`
-	SchemaSummary                  string                    `json:"schema_summary"`
-	Issues                         []AssessmentIssueCallhome `json:"assessment_issues"`
-	Error                          string                    `json:"error"`
-	TableSizingStats               string                    `json:"table_sizing_stats"`
-	IndexSizingStats               string                    `json:"index_sizing_stats"`
-	SourceConnectivity             bool                      `json:"source_connectivity"`
-	IopsInterval                   int64                     `json:"iops_interval"`
-	ControlPlaneType               string                    `json:"control_plane_type"`
-	AnonymizedDDLs                 []string                  `json:"anonymized_ddls"`
+	PayloadVersion                 string                     `json:"payload_version"`
+	TargetDBVersion                *ybversion.YBVersion       `json:"target_db_version"`
+	Sizing                         *SizingCallhome            `json:"sizing"`
+	MigrationComplexity            string                     `json:"migration_complexity"`
+	MigrationComplexityExplanation string                     `json:"migration_complexity_explanation"`
+	SchemaSummary                  string                     `json:"schema_summary"`
+	Issues                         []AssessmentIssueCallhome  `json:"assessment_issues"`
+	Error                          string                     `json:"error"`
+	TableSizingStats               string                     `json:"table_sizing_stats"` // Aggregated across all nodes
+	IndexSizingStats               string                     `json:"index_sizing_stats"` // Aggregated across all nodes
+	SourceConnectivity             bool                       `json:"source_connectivity"`
+	IopsInterval                   int64                      `json:"iops_interval"`
+	ControlPlaneType               string                     `json:"control_plane_type"`
+	AnonymizedDDLs                 []string                   `json:"anonymized_ddls"`
+	ReplicaAssessmentTopology      *ReplicaAssessmentTopology `json:"replica_assessment_topology,omitempty"`
 }
 
 type AssessmentIssueCallhome struct {
