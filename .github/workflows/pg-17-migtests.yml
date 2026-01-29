@@ -244,6 +244,10 @@ jobs:
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
         run: migtests/scripts/run-test.sh pg/case-sensitivity-reserved-words --run-via-config-file
 
+      - name: "TEST: pg-case-sensitivity-reserved-words-live"
+        if: ${{ !cancelled() && matrix.test_group == 'live-migration' }}
+        run: migtests/scripts/live-migration-run-test.sh pg/case-sensitivity-reserved-words --run-via-config-file
+
       - name: "TEST: pg-basic-non-public-live-migration-test (2.20/2.25/2024.1 with gRPC)"
         if: ${{ !cancelled() && matrix.test_group == 'live-migration' && (matrix.yb_version == '2.20.12.0-b30' || matrix.yb_version == '2.25.2.0-b359' || matrix.yb_version == '2024.1.6.1-b2') }}
         run: |
