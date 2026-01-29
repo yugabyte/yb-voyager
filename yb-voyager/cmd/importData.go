@@ -158,7 +158,7 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	sourceDBType = GetSourceDBTypeFromMSR()
 	sqlname.SourceDBType = sourceDBType
 
-	//Schema validation is done in the Init step as of now 
+	//Schema validation is done in the Init step as of now
 	// TODO: will handle it later with other task of completely supporting case sensitive schemas in target db schema for MysqL/oracle sources
 	//TODO: also for the source-replica ORACLE case to validate the schemas on source-replica
 	tconf.Schemas = sqlname.ParseIdentifiersFromString(tconf.TargetDBType, tconf.SchemaConfig, ",")
@@ -1092,7 +1092,7 @@ func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataS
 		if err != nil {
 			return fmt.Errorf("get next task: %w", err)
 		}
-		log.Infof("Picked task for import: %s", task)
+		log.Debugf("Picked task for import: %s", task)
 		var taskImporter *FileTaskImporter
 		var ok bool
 		taskImporter, ok = taskImporters[task.ID]
@@ -1135,9 +1135,11 @@ func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataS
 
 		}
 		if !taskImporter.IsNextBatchAvailable() {
-			log.Infof("No next batch available for table: %s. Continuing.", task.TableNameTup.ForOutput())
+			log.Debugf("No next batch available for table: %s. Continuing.", task.TableNameTup.ForOutput())
 			continue
 		}
+
+		log.Infof("Producing and submitting next batch for task: %s", task)
 		err = taskImporter.ProduceAndSubmitNextBatchToWorkerPool()
 		if err != nil {
 			return goerrors.Errorf("submit next batch: task:%v err: %s", task, err)
