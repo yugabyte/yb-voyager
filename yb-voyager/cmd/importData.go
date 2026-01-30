@@ -1137,7 +1137,7 @@ func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataS
 		if err != nil {
 			return fmt.Errorf("get next task: %w", err)
 		}
-
+		log.Debugf("Picked task for import: %s", task)
 		var taskImporter *FileTaskImporter
 		var ok bool
 		taskImporter, ok = taskImporters[task.ID]
@@ -1182,7 +1182,8 @@ func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataS
 			continue
 		}
 
-		log.Infof("Picked task for import: %s", task)
+		log.Infof("Producing and submitting next batch for task: %s", task)
+
 		err = taskImporter.ProduceAndSubmitNextBatchToWorkerPool()
 		if err != nil {
 			return goerrors.Errorf("submit next batch: task:%v err: %s", task, err)
