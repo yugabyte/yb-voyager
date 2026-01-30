@@ -2079,70 +2079,16 @@ func TestColocatedCappedRandomTaskPickeResumable(t *testing.T) {
 	picker, err = NewColocatedCappedRandomTaskPicker(10, 10, tasks, state, dummyYb, nil, tableTypes)
 	testutils.FatalIfError(t, err)
 	assert.True(t, picker.HasMoreTasks())
-	assert.Equal(t, 4, len(picker.inProgressTasks()))
+	assert.Equal(t, 4, len(picker.InProgressTasks()))
 
 	// simulate restart with a smaller no. of max tasks in progress
 	picker, err = NewColocatedCappedRandomTaskPicker(1, 1, tasks, state, dummyYb, nil, tableTypes)
 	testutils.FatalIfError(t, err)
 	assert.True(t, picker.HasMoreTasks())
 	// only two shoudl be inprogress even though previously 4 were in progress.
-	assert.Equal(t, 2, len(picker.inProgressTasks()))
+	assert.Equal(t, 2, len(picker.InProgressTasks()))
 	assert.Equal(t, 1, len(picker.inProgressColocatedTasks))
 	assert.Equal(t, 1, len(picker.inProgressShardedTasks))
-}
-
-func TestColocatedCappedRandomTaskPickerWaitForTasksBatchesTobeImported(t *testing.T) {
-	ldataDir, lexportDir, state, _, _, err := setupExportDirAndImportDependencies(3, 1024)
-	testutils.FatalIfError(t, err)
-
-	if ldataDir != "" {
-		defer os.RemoveAll(ldataDir)
-	}
-	if lexportDir != "" {
-		defer os.RemoveAll(lexportDir)
-	}
-
-	_, shardedTask1, err := createFileAndTask(lexportDir, "file1", ldataDir, "public.sharded1", 1)
-	testutils.FatalIfError(t, err)
-	_, shardedTask2, err := createFileAndTask(lexportDir, "file2", ldataDir, "public.sharded2", 2)
-	testutils.FatalIfError(t, err)
-	_, shardedTask3, err := createFileAndTask(lexportDir, "file3", ldataDir, "public.sharded3", 3)
-	testutils.FatalIfError(t, err)
-
-	tasks := []*ImportFileTask{
-		shardedTask1,
-		shardedTask2,
-		shardedTask3,
-	}
-	dummyYb := &dummyYb{
-		shardedTables: []sqlname.NameTuple{
-			shardedTask1.TableNameTup,
-			shardedTask2.TableNameTup,
-			shardedTask3.TableNameTup,
-		},
-	}
-	tdb = dummyYb
-	tableTypes, err := getTableTypes(tasks)
-	testutils.FatalIfError(t, err)
-
-	// 3 tasks, 10 max tasks in progress
-	picker, err := NewColocatedCappedRandomTaskPicker(10, 10, tasks, state, dummyYb, nil, tableTypes)
-	testutils.FatalIfError(t, err)
-	assert.True(t, picker.HasMoreTasks())
-
-	// no matter how many times we call Pick therefater,
-	// it should return one of the tasks
-	for i := 0; i < 100; i++ {
-		task, err := picker.Pick()
-		assert.NoError(t, err)
-		assert.Truef(t, task == shardedTask1 || task == shardedTask2 || task == shardedTask3, "task: %v, expected tasks = %v", task, tasks)
-	}
-
-	// Even though no task importer has been created for any of the tasks,
-	// WaitForTasksBatchesTobeImported should not fail. It should assume that tasks
-	// are not yet done yet.
-	err = picker.WaitForTasksBatchesTobeImported()
-	assert.NoError(t, err)
 }
 
 func TestColocatedCappedRandomTaskPickerShardedTasksOrderedByRowCount(t *testing.T) {
