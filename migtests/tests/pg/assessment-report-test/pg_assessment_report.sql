@@ -54,6 +54,13 @@ CREATE TABLE date_multirange_table (
     project_dates datemultirange
 );
 
+CREATE EXTENSION IF NOT EXISTS vector;
+
+CREATE TABLE vector_table (
+    id SERIAL PRIMARY KEY,
+    vector_data public.vector(10)
+);
+
 -- Unsupported Extensions
 CREATE EXTENSION IF NOT EXISTS plpython3u;
 CREATE EXTENSION IF NOT EXISTS plperl;

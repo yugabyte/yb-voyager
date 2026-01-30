@@ -558,6 +558,14 @@ func ReportUnsupportedDatatypesInLive(baseTypeName string, columnName string, ob
 			baseTypeName,
 			columnName,
 		)
+	case "vector":
+		issue = NewVectorDatatypeIssue(
+			objType,
+			objName,
+			"",
+			baseTypeName,
+			columnName,
+		)
 	default:
 		// Unrecognized types
 		// Throwing error for now
