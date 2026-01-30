@@ -1133,8 +1133,6 @@ func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataS
 	}
 
 	for taskPicker.HasMoreTasks() {
-		waitBeforePickingNextTaskIfRequired(taskPicker, taskImporters)
-
 		task, err := taskPicker.Pick()
 		if err != nil {
 			return fmt.Errorf("get next task: %w", err)
@@ -1172,6 +1170,7 @@ func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataS
 				continue
 			}
 			// Batches still being imported by workers; continue with some other task.
+			waitBeforePickingNextTaskIfRequired(taskPicker, taskImporters)
 			continue
 		}
 
@@ -1179,6 +1178,7 @@ func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataS
 			// Picked task has no batch ready. Small sleep to prevent tight spinning
 			// in case picker keeps returning tasks without batches.
 			log.Debugf("No next batch available for table: %s", task.TableNameTup.ForOutput())
+			waitBeforePickingNextTaskIfRequired(taskPicker, taskImporters)
 			continue
 		}
 
