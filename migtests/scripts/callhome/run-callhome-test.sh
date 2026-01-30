@@ -143,8 +143,8 @@ main() {
     fi
 
     step "Create target database."
-    run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
-    run_ysql yugabyte "CREATE DATABASE ${TARGET_DB_NAME} with COLOCATION=TRUE;"
+    run_ysql yugabyte "DROP DATABASE IF EXISTS \"${TARGET_DB_NAME};\""
+    run_ysql yugabyte "CREATE DATABASE  \"${TARGET_DB_NAME}\" with COLOCATION=TRUE;"
 
     step "Export schema"
     export_schema --send-diagnostics=true

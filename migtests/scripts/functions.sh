@@ -1407,8 +1407,8 @@ create_source_db() {
 	source_db=$1
 	case ${SOURCE_DB_TYPE} in
 		postgresql)
-			run_psql postgres "DROP DATABASE IF EXISTS ${source_db};"
-			run_psql postgres "CREATE DATABASE ${source_db};"
+			run_psql postgres "DROP DATABASE IF EXISTS \"${source_db}\";"
+			run_psql postgres "CREATE DATABASE \"${source_db}\";"
 			;;
 		mysql)
 			run_mysql mysql "DROP DATABASE IF EXISTS ${source_db};"

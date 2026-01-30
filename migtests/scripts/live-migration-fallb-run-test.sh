@@ -144,11 +144,11 @@ main() {
 	tail -20 ${EXPORT_DIR}/reports/schema_analysis_report.json
 
 	step "Create target database."
-	run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
+	run_ysql yugabyte "DROP DATABASE IF EXISTS \"${TARGET_DB_NAME}\";"
 	if [ "${SOURCE_DB_TYPE}" = "postgresql" ] || [ "${SOURCE_DB_TYPE}" = "oracle" ]; then
-		run_ysql yugabyte "CREATE DATABASE ${TARGET_DB_NAME} with COLOCATION=TRUE"
+		run_ysql yugabyte "CREATE DATABASE \"${TARGET_DB_NAME}\" with COLOCATION=TRUE"
 	else
-		run_ysql yugabyte "CREATE DATABASE ${TARGET_DB_NAME}"
+		run_ysql yugabyte "CREATE DATABASE \"${TARGET_DB_NAME}\""
 	fi
 
 	step "Import schema."
@@ -338,7 +338,7 @@ main() {
 	if [ "${run_via_config_file}" = true ]; then
 	rm -f "${GENERATED_CONFIG}"
 	fi
-	run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
-}
+	run_ysql yugabyte "DROP DATABASE IF EXISTS \"${TARGET_DB_NAME}\";"
+}	
 
 main
