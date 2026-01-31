@@ -1,6 +1,7 @@
 import random
 import itertools
 import psycopg2
+import threading
 from utils import generate_table_schemas
 from utils import (
     execute_with_retry,
@@ -8,6 +9,7 @@ from utils import (
     build_update_values,
 )
 from utils import (
+    run_index_operations,
     load_event_generator_config,
     get_connection_kwargs_from_config,
     detect_db_flavor,
@@ -61,6 +63,9 @@ UPDATE_MAX_RETRIES = GEN["update_max_retries"]
 # Throttling
 WAIT_AFTER_OPERATIONS = GEN["wait_after_operations"]
 WAIT_DURATION_SECONDS = GEN["wait_duration_seconds"]
+
+# Index events flag
+INDEX_EVENTS = GEN.get("index_events", False)
 # ---------------------------------
 
 # Deterministic seeds from YAML
@@ -115,6 +120,19 @@ for table in table_schemas.keys():
 RESOLVED_TABLE_WEIGHTS = dict(TABLE_WEIGHTS)
 for table in table_schemas.keys():
     RESOLVED_TABLE_WEIGHTS.setdefault(table, 1)
+
+# Start index operations thread if enabled
+index_thread_stop = None
+index_thread = None
+if INDEX_EVENTS:
+    index_thread_stop = threading.Event()
+    index_thread = threading.Thread(
+        target=run_index_operations,
+        args=(index_thread_stop, CONFIG, SCHEMA_NAME),
+        daemon=True
+    )
+    index_thread.start()
+    print("Index events enabled - running concurrently with IUD operations")
 
 iteration_iter = itertools.count(1) if NUM_ITERATIONS == -1 else range(1, NUM_ITERATIONS + 1)
 
@@ -218,6 +236,12 @@ try:
 except KeyboardInterrupt:
     print("Received KeyboardInterrupt. Stopping generator...")
 finally:
+    # Stop index operations thread if it's running
+    if INDEX_EVENTS and index_thread_stop is not None and index_thread is not None:
+        print("Stopping index operations thread...")
+        index_thread_stop.set()
+        index_thread.join(timeout=5)
+    
     # Commit changes outside the loop for UPDATE and DELETE operations
     try:
         conn.commit()
