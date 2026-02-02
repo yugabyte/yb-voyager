@@ -1043,19 +1043,12 @@ func getMaxParallelConnections() (int, error) {
 	return maxParallelConns, nil
 }
 
-// waitBeforePickingNextTaskIfRequired checks if there's any work available across
-// all in-progress tasks. If not, it sleeps to avoid busy-waiting.
-//
-// It handles two scenarios:
-// 1. No batch available for any task (batch production in progress) - sleep 50ms
-// 2. All batches submitted for all tasks (waiting for workers) - sleep 100ms
-func waitBeforePickingNextTaskIfRequired(taskPicker FileTaskPicker, taskImporters map[int]*FileTaskImporter) {
+func waitIfNoBatchAvailableForAllTasks(taskPicker FileTaskPicker, taskImporters map[int]*FileTaskImporter) {
 	inProgressTasks := taskPicker.InProgressTasks()
 	if len(inProgressTasks) == 0 {
 		return
 	}
 
-	allTasksAllBatchesSubmitted := true
 	allTasksBatchNotAvailable := true
 
 	for _, task := range inProgressTasks {
@@ -1068,19 +1061,42 @@ func waitBeforePickingNextTaskIfRequired(taskPicker FileTaskPicker, taskImporter
 
 		if importer.IsNextBatchAvailable() {
 			allTasksBatchNotAvailable = false
+			break
+		}
+	}
+
+	if allTasksBatchNotAvailable {
+		log.Infof("No batches available for all in-progress tasks. Waiting for batch production.")
+		time.Sleep(100 * time.Millisecond)
+		return
+	}
+
+	return
+}
+
+func waitIfAllBatchesSubmittedForAllTasks(taskPicker FileTaskPicker, taskImporters map[int]*FileTaskImporter) {
+	inProgressTasks := taskPicker.InProgressTasks()
+	if len(inProgressTasks) == 0 {
+		return
+	}
+
+	allTasksAllBatchesSubmitted := true
+
+	for _, task := range inProgressTasks {
+		importer, exists := taskImporters[task.ID]
+		if !exists {
+			// Importer not yet created for this task - the picker has picked a new task
+			// that the main loop hasn't processed yet. Don't wait, let the loop create it.
+			return
 		}
 		if !importer.AllBatchesSubmitted() {
 			allTasksAllBatchesSubmitted = false
+			break
 		}
 	}
 
 	if allTasksAllBatchesSubmitted {
 		log.Infof("All batches submitted for all in-progress tasks. Waiting for import completion.")
-		time.Sleep(100 * time.Millisecond)
-		return
-	}
-	if allTasksBatchNotAvailable {
-		log.Infof("No batches available for all in-progress tasks. Waiting for batch production.")
 		time.Sleep(100 * time.Millisecond)
 		return
 	}
@@ -1170,7 +1186,7 @@ func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataS
 				continue
 			}
 			// Batches still being imported by workers; continue with some other task.
-			waitBeforePickingNextTaskIfRequired(taskPicker, taskImporters)
+			waitIfAllBatchesSubmittedForAllTasks(taskPicker, taskImporters)
 			continue
 		}
 
@@ -1178,7 +1194,7 @@ func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataS
 			// Picked task has no batch ready. Small sleep to prevent tight spinning
 			// in case picker keeps returning tasks without batches.
 			log.Debugf("No next batch available for table: %s", task.TableNameTup.ForOutput())
-			waitBeforePickingNextTaskIfRequired(taskPicker, taskImporters)
+			waitIfNoBatchAvailableForAllTasks(taskPicker, taskImporters)
 			continue
 		}
 
