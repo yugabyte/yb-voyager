@@ -51,8 +51,10 @@ jobs:
         with:
           go-version: ${{ needs.prepare-versions.outputs.go_version }}
       
-      - name: Install failpoint-ctl
-        run: go install github.com/pingcap/failpoint/failpoint-ctl@latest
+      - name: Install failpoint-ctl and gotestfmt
+        run: |
+          go install github.com/pingcap/failpoint/failpoint-ctl@latest
+          go install github.com/gotesttools/gotestfmt/v2/cmd/gotestfmt@latest
       
       - name: Enable failpoint code generation
         run: |
@@ -86,8 +88,16 @@ jobs:
           YB_VERSION: ${{ needs.prepare-versions.outputs.yb_latest_stable }}
           PG_VERSION: "14"
         run: |
+          set -euo pipefail
           cd yb-voyager
-          go test -v -tags=failpoint ./cmd
+          go test -json -v -tags=failpoint ./cmd 2>&1 | tee /tmp/gotest.log | gotestfmt
+      
+      - name: Upload test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: failpoint-test-log
+          path: /tmp/gotest.log
       
       - name: Cleanup failpoint code
         if: always()
