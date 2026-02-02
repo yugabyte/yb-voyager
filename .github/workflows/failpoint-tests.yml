@@ -51,8 +51,10 @@ jobs:
         with:
           go-version: ${{ needs.prepare-versions.outputs.go_version }}
       
-      - name: Install failpoint-ctl
-        run: go install github.com/pingcap/failpoint/failpoint-ctl@latest
+      - name: Install failpoint-ctl and gotestfmt
+        run: |
+          go install github.com/pingcap/failpoint/failpoint-ctl@latest
+          go install github.com/gotesttools/gotestfmt/v2/cmd/gotestfmt@latest
       
       - name: Enable failpoint code generation
         run: |
