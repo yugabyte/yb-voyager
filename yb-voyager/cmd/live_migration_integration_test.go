@@ -2962,7 +2962,6 @@ FROM generate_series(1, 5);`,
 	defer lm.Cleanup()
 
 	err := lm.SetupContainers(context.Background())
-	fmt.Printf("Containers setup completed %v", err)
 	testutils.FatalIfError(t, err, "failed to setup containers")
 
 	err = lm.SetupSchema()
@@ -3013,19 +3012,9 @@ FROM generate_series(1, 5);`,
 
 	// Check if PostgreSQL replication slot is ended
 	// Poll for up to 60 seconds
-	maxWaitTime := 60 * time.Second
-	pollInterval := 2 * time.Second
-	startTime := time.Now()
+	time.Sleep(60 * time.Second)
 	var exists bool
-	for time.Since(startTime) < maxWaitTime {
-		exists, err = lm.CheckIfReplicationSlotExists(pgSlotName, "source")
-		testutils.FatalIfError(t, err, "failed to check if PostgreSQL replication slot exists")
-		if !exists {
-			break
-		}
-		fmt.Printf("PostgreSQL replication slot is still active, waiting for it to end...\n")
-		time.Sleep(pollInterval)
-	}
+	exists, err = lm.CheckIfReplicationSlotExists(pgSlotName, "source")
 	testutils.FatalIfError(t, err, "failed to check if PostgreSQL replication slot exists")
 	assert.False(t, exists, "PostgreSQL replication slot should be ended after cutover")
 
