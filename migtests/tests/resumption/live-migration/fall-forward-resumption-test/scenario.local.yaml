@@ -1,4 +1,3 @@
-version: 1
 name: fall-forward-resumption-test
 run_id: run
 
@@ -97,11 +96,6 @@ generator_target:
       delete_rows: 1
       insert_max_retries: 5
       update_max_retries: 1
-
-voyager:
-  import_schema:
-    flags:
-      start-clean: true
 
 stages:
   # Phase 1: forward live migration (no resumptions)

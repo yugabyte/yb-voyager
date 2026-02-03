@@ -387,6 +387,7 @@ def build_import_schema_cmd(cfg: Dict[str, Any]) -> list[str]:
     voyager_flags = _get_voyager_flags(cfg, "import_schema")
     base = _base_common_flags(cfg)
     base.update(_target_conn_flags(cfg))
+    base["start-clean"] = True
     merged = _merge_flags(base, voyager_flags)
     return ["yb-voyager", "import", "schema", "--yes"] + to_kv_flags(merged)
 
@@ -998,6 +999,12 @@ def _reset_database(db_cfg: Dict[str, Any], *, admin_db_name: str, role: str) ->
     log(f"[db-reset:{role}] database '{dbname}' recreated")
 
 
+def create_cutover_table(ctx, target: str = "source") -> None:
+    """Create the cutover_table required for cutover/backlog checks in all tests."""
+    sql = "DROP TABLE IF EXISTS public.cutover_table; CREATE TABLE public.cutover_table (id SERIAL PRIMARY KEY, status TEXT);"
+    run_psql(ctx, target, "-c", sql)
+
+
 def reset_database_for_role(role: str, ctx) -> None:
     admin_db_name_by_role = {
         "source": "postgres",
@@ -1012,6 +1019,9 @@ def reset_database_for_role(role: str, ctx) -> None:
         raise ValueError(f"Unsupported database role for reset: {role}") from exc
 
     _reset_database(db_cfg, admin_db_name=admin_db_name, role=role)
+    # Create cutover_table after database is reset (required for all tests)
+    if role != "target":
+        create_cutover_table(ctx, target=role)
 
 
 # -------------------------

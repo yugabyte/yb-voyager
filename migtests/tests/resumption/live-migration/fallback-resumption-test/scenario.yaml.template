@@ -1,4 +1,3 @@
-version: 1
 name: fallback-resumption-test
 run_id: run
 
@@ -91,9 +90,6 @@ voyager:
   cutover_to_target:
     flags:
       prepare-for-fall-back: true
-  import_schema:
-    flags:
-      start-clean: true
 
 stages:
   # Phase 1: forward live migration (no resumptions)

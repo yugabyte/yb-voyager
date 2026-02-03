@@ -1,4 +1,3 @@
-version: 1
 name: basic-live-migration-test
 run_id: run
 
@@ -62,9 +61,6 @@ voyager:
   cutover_to_target:
     flags:
       prepare-for-fall-back: false
-  import_schema:
-    flags:
-      start-clean: true
 
 stages:
 
