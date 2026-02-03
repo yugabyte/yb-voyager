@@ -3011,8 +3011,7 @@ FROM generate_series(1, 5);`,
 	pgSlotName := msr.PGReplicationSlotName
 
 	// Check if PostgreSQL replication slot is ended
-	// Poll for up to 60 seconds
-	time.Sleep(60 * time.Second)
+	time.Sleep(2 * time.Second)
 	var exists bool
 	exists, err = lm.CheckIfReplicationSlotExists(pgSlotName, "source")
 	testutils.FatalIfError(t, err, "failed to check if PostgreSQL replication slot exists")
