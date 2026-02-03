@@ -26,7 +26,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	testcontainers "github.com/yugabyte/yb-voyager/yb-voyager/test/containers"
@@ -141,7 +140,7 @@ func TestCDCBatchFailureAndResume(t *testing.T) {
 		batch1Count, err := countEventsInQueueSegments(exportDir)
 		if err == nil {
 			t.Logf("✓ Events in queue after batch 1: %d", batch1Count)
-			assert.Equal(t, 20, batch1Count, "Batch 1 should contain exactly 20 events (validates batching behavior)")
+			require.Equal(t, 20, batch1Count, "Batch 1 should contain exactly 20 events (validates batching behavior)")
 		} else {
 			t.Logf("Could not count events after batch 1 (queue may not exist yet): %v", err)
 		}
@@ -182,8 +181,8 @@ func TestCDCBatchFailureAndResume(t *testing.T) {
 	// Wait for the failure to be injected
 	t.Log("Waiting for Byteman injection to occur...")
 	matched, err := bytemanHelper.WaitForInjection(">>> BYTEMAN: fail_cdc_batch_2", 90*time.Second)
-	assert.NoError(t, err, "Should be able to read debezium logs")
-	assert.True(t, matched, "Byteman injection should have occurred and been logged")
+	require.NoError(t, err, "Should be able to read debezium logs")
+	require.True(t, matched, "Byteman injection should have occurred and been logged")
 	t.Log("✓ Byteman injection detected - batch 2 processing failed as expected")
 
 	// Wait a bit to ensure all CDC events are generated
@@ -218,7 +217,7 @@ func TestCDCBatchFailureAndResume(t *testing.T) {
 	// - Batch 2: Failed at entry (before-batch marker), no events written
 	// - Batch 3: Not yet processed (will be replayed on resume)
 	// This validates our batching strategy: 20 rows + 2.5s wait = separate batch
-	assert.Equal(t, 20, eventCount1, "Should have exactly 20 events from batch 1 (validates batching: batch 2 failed at entry, batch 3 not processed yet)")
+	require.Equal(t, 20, eventCount1, "Should have exactly 20 events from batch 1 (validates batching: batch 2 failed at entry, batch 3 not processed yet)")
 
 	t.Log("================================================================================")
 	t.Log("Phase 2: Resuming CDC export WITHOUT failure injection...")
@@ -272,7 +271,7 @@ func TestCDCBatchFailureAndResume(t *testing.T) {
 	t.Log("================================================================================")
 	// We expect exactly 60 CDC events (3 batches of 20 rows each)
 	// Transaction metadata events are filtered out (marked as "unsupported" in parser)
-	assert.Equal(t, 60, finalEventCount, "Should have exactly 60 CDC events (3 batches of 20 each) after recovery")
+	require.Equal(t, 60, finalEventCount, "Should have exactly 60 CDC events (3 batches of 20 each) after recovery")
 	t.Logf("✓ Final CDC event count: %d (expected: 60)", finalEventCount)
 
 	// Verify data completeness in source database
@@ -284,7 +283,7 @@ func TestCDCBatchFailureAndResume(t *testing.T) {
 	err = pgConn.QueryRow("SELECT COUNT(*) FROM test_schema.cdc_test").Scan(&sourceRowCount)
 	require.NoError(t, err, "Failed to query source row count")
 	t.Logf("Source database row count: %d", sourceRowCount)
-	assert.Equal(t, 110, sourceRowCount, "Source should have 50 snapshot + 60 CDC rows")
+	require.Equal(t, 110, sourceRowCount, "Source should have 50 snapshot + 60 CDC rows")
 
 	// Verify no duplicate events by checking VSN uniqueness
 	verifyNoEventDuplicates(t, exportDir)
@@ -428,6 +427,6 @@ func verifyNoEventDuplicates(t *testing.T, exportDir string) {
 		t.Logf("WARNING: Failed to parse %d out of %d lines in queue segments", parseErrors, totalLines)
 	}
 
-	assert.Equal(t, 0, duplicateCount, "No duplicate events should exist (event deduplication should work)")
+	require.Equal(t, 0, duplicateCount, "No duplicate events should exist (event deduplication should work)")
 	t.Logf("✓ Verified %d unique events with no duplicates (out of %d lines)", len(vsnSet), totalLines)
 }

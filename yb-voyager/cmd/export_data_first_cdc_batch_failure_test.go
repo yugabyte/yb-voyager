@@ -23,7 +23,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	testcontainers "github.com/yugabyte/yb-voyager/yb-voyager/test/containers"
@@ -164,8 +163,8 @@ func TestFirstCDCBatchFailure(t *testing.T) {
 	// Wait for the failure to be injected
 	t.Log("Waiting for Byteman injection to occur...")
 	matched, err := bytemanHelper.WaitForInjection(">>> BYTEMAN: fail_first_cdc_batch", 90*time.Second)
-	assert.NoError(t, err, "Should be able to read debezium logs")
-	assert.True(t, matched, "Byteman injection should have occurred and been logged")
+	require.NoError(t, err, "Should be able to read debezium logs")
+	require.True(t, matched, "Byteman injection should have occurred and been logged")
 	t.Log("✓ Byteman injection detected - batch 1 processing failed as expected")
 
 	// Wait a bit to ensure all CDC events are generated
@@ -199,7 +198,7 @@ func TestFirstCDCBatchFailure(t *testing.T) {
 	// - Batch 1: Failed at entry, no events written
 	// - Batches 2 & 3: Not yet processed (will be replayed on resume)
 	// This validates "cold start" recovery: full replay from zero CDC state
-	assert.Equal(t, 0, eventCount1, "Should have 0 events (first batch failed at entry, no CDC state yet)")
+	require.Equal(t, 0, eventCount1, "Should have 0 events (first batch failed at entry, no CDC state yet)")
 
 	t.Log("================================================================================")
 	t.Log("Phase 2: Resuming CDC export WITHOUT failure injection...")
@@ -257,7 +256,7 @@ func TestFirstCDCBatchFailure(t *testing.T) {
 	finalEventCount, err := countEventsInQueueSegments(exportDir)
 	require.NoError(t, err, "Should be able to count final events")
 	t.Logf("✓ Final CDC event count: %d (expected: %d)", finalEventCount, expectedFinalEvents)
-	assert.Equal(t, expectedFinalEvents, finalEventCount,
+	require.Equal(t, expectedFinalEvents, finalEventCount,
 		"Should have all 60 CDC events after recovery (3 batches of 20)")
 
 	// Verify source database has correct row count
@@ -272,7 +271,7 @@ func TestFirstCDCBatchFailure(t *testing.T) {
 
 	// Should have 50 (snapshot) + 60 (CDC) = 110 rows total
 	expectedTotalRows := 50 + expectedFinalEvents
-	assert.Equal(t, expectedTotalRows, sourceRowCount, "Source should have all rows")
+	require.Equal(t, expectedTotalRows, sourceRowCount, "Source should have all rows")
 
 	// Verify no duplicate events (all VSNs are unique)
 	verifyNoEventDuplicates(t, exportDir)
