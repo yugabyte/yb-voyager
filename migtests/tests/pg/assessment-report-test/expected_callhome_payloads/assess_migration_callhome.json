@@ -1064,6 +1064,19 @@
         "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_LSEG"
       },
       {
+        "Category": "migration_caveats",
+        "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+        "Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_VECTOR",
+        "Name": "Unsupported datatype for Live migration - vector",
+        "Description": "VECTOR datatype not yet supported by voyager in live migration. Affected column: vector_data. This column will be excluded when exporting and importing data in live migration workflows.",
+        "Impact": "LEVEL_1",
+        "ObjectType": "COLUMN",
+        "ObjectName": "public.vector_table.vector_data",
+        "SqlStatement": "",
+        "DocsLink": "https://docs.yugabyte.com/stable/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+        "MinimumVersionsFixedIn": null
+    },
+      {
         "category": "migration_caveats",
         "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
         "impact": "LEVEL_1",

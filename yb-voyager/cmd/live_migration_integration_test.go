@@ -36,12 +36,12 @@ import (
 
 // This inserts some rows in target table having sequence and validates if the ids ingested are correct or not
 func assertSequenceValues(t *testing.T, startID int, endId int, ybConn *sql.DB, tableName string) error {
-	_, err := ybConn.Exec(fmt.Sprintf(`INSERT INTO test_schema.test_live (name, email, description)
+	_, err := ybConn.Exec(fmt.Sprintf(`INSERT INTO %s (name, email, description)
 SELECT
 	md5(random()::text),                                      -- name
 	md5(random()::text) || '@example.com',                    -- email
 	repeat(md5(random()::text), 10)                           -- description (~320 chars)
-FROM generate_series(%d, %d);`, startID, endId))
+FROM generate_series(%d, %d);`, tableName, startID, endId))
 	if err != nil {
 		return fmt.Errorf("failed to insert into target: %w", err)
 	}
@@ -133,12 +133,12 @@ FROM generate_series(1, 5);`,
 	testutils.FatalIfError(t, err, "failed to start import data")
 
 	err = lm.WaitForSnapshotComplete(map[string]int64{
-		`test_schema."test_live"`: 10,
+		`"test_schema"."test_live"`: 10,
 	}, 30)
 	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
 
 	//validate snapshot data
-	err = lm.ValidateDataConsistency([]string{`test_schema."test_live"`}, "id")
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
 
 	//execute source delta
@@ -146,7 +146,7 @@ FROM generate_series(1, 5);`,
 	testutils.FatalIfError(t, err, "failed to execute source delta")
 
 	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
-		`test_schema."test_live"`: {
+		`"test_schema"."test_live"`: {
 			Inserts: 5,
 			Updates: 0,
 			Deletes: 0,
@@ -155,7 +155,7 @@ FROM generate_series(1, 5);`,
 	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
 
 	//validate streaming data
-	err = lm.ValidateDataConsistency([]string{`test_schema."test_live"`}, "id")
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
 
 	err = lm.InitiateCutoverToTarget(false, nil)
@@ -166,7 +166,7 @@ FROM generate_series(1, 5);`,
 
 	//validate sequence restoration
 	err = lm.WithTargetConn(func(target *sql.DB) error {
-		return assertSequenceValues(t, 16, 25, target, `test_schema.test_live`)
+		return assertSequenceValues(t, 16, 25, target, `"test_schema".test_live`)
 	})
 	testutils.FatalIfError(t, err, "failed to validate sequence restoration")
 
@@ -304,14 +304,14 @@ func TestLiveMigrationWithEventsOnSamePkOrdered(t *testing.T) {
 
 	// Wait for snapshot (only test_update_ordering has initial data)
 	err = lm.WaitForSnapshotComplete(map[string]int64{
-		`test_schema."test_update_ordering"`: 1,
+		`"test_schema"."test_update_ordering"`: 1,
 	}, 30)
 	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
 
 	time.Sleep(5 * time.Second)
 
 	// Validate snapshot data
-	err = lm.ValidateDataConsistency([]string{`test_schema."test_update_ordering"`}, "id")
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_update_ordering"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate snapshot data consistency")
 
 	// Execute delta SQL with ordering-sensitive operations
@@ -323,17 +323,17 @@ func TestLiveMigrationWithEventsOnSamePkOrdered(t *testing.T) {
 	// Table 2: 1000 updates (same PK, id=1)
 	// Table 3: 1001 inserts, 1000 updates, 1000 deletes (same PK, id=1)
 	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
-		`test_schema."test_insert_delete_ordering"`: {
+		`"test_schema"."test_insert_delete_ordering"`: {
 			Inserts: 1000,
 			Updates: 0,
 			Deletes: 999,
 		},
-		`test_schema."test_update_ordering"`: {
+		`"test_schema"."test_update_ordering"`: {
 			Inserts: 0,
 			Updates: 1000,
 			Deletes: 0,
 		},
-		`test_schema."test_insert_update_delete_ordering"`: {
+		`"test_schema"."test_insert_update_delete_ordering"`: {
 			Inserts: 1001,
 			Updates: 1000,
 			Deletes: 1000,
@@ -343,9 +343,9 @@ func TestLiveMigrationWithEventsOnSamePkOrdered(t *testing.T) {
 
 	// Validate data consistency for all three tables
 	err = lm.ValidateDataConsistency([]string{
-		`test_schema."test_insert_delete_ordering"`,
-		`test_schema."test_update_ordering"`,
-		`test_schema."test_insert_update_delete_ordering"`,
+		`"test_schema"."test_insert_delete_ordering"`,
+		`"test_schema"."test_update_ordering"`,
+		`"test_schema"."test_insert_update_delete_ordering"`,
 	}, "id")
 	testutils.FatalIfError(t, err, "failed to validate streaming data consistency")
 
@@ -510,14 +510,14 @@ func TestLiveMigrationWithEventsOnSamePkOrderedFallback(t *testing.T) {
 
 	// Wait for snapshot (only test_update_ordering has initial data)
 	err = lm.WaitForSnapshotComplete(map[string]int64{
-		`test_schema."test_update_ordering"`: 1,
+		`"test_schema"."test_update_ordering"`: 1,
 	}, 30)
 	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
 
 	time.Sleep(5 * time.Second)
 
 	// Validate snapshot data
-	err = lm.ValidateDataConsistency([]string{`test_schema."test_update_ordering"`}, "id")
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_update_ordering"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate snapshot data consistency")
 
 	// Initiate cutover to target with fall-back enabled
@@ -536,17 +536,17 @@ func TestLiveMigrationWithEventsOnSamePkOrderedFallback(t *testing.T) {
 	// Table 2: 1000 updates (same PK, id=1)
 	// Table 3: 1001 inserts, 1000 updates, 1000 deletes (same PK, id=1)
 	err = lm.WaitForFallbackStreamingComplete(map[string]ChangesCount{
-		`test_schema."test_insert_delete_ordering"`: {
+		`"test_schema"."test_insert_delete_ordering"`: {
 			Inserts: 1000,
 			Updates: 0,
 			Deletes: 999,
 		},
-		`test_schema."test_update_ordering"`: {
+		`"test_schema"."test_update_ordering"`: {
 			Inserts: 0,
 			Updates: 1000,
 			Deletes: 0,
 		},
-		`test_schema."test_insert_update_delete_ordering"`: {
+		`"test_schema"."test_insert_update_delete_ordering"`: {
 			Inserts: 1001,
 			Updates: 1000,
 			Deletes: 1000,
@@ -556,9 +556,9 @@ func TestLiveMigrationWithEventsOnSamePkOrderedFallback(t *testing.T) {
 
 	// Validate data consistency for all three tables
 	err = lm.ValidateDataConsistency([]string{
-		`test_schema."test_insert_delete_ordering"`,
-		`test_schema."test_update_ordering"`,
-		`test_schema."test_insert_update_delete_ordering"`,
+		`"test_schema"."test_insert_delete_ordering"`,
+		`"test_schema"."test_update_ordering"`,
+		`"test_schema"."test_insert_update_delete_ordering"`,
 	}, "id")
 	testutils.FatalIfError(t, err, "failed to validate streaming data consistency")
 
@@ -681,12 +681,12 @@ FROM generate_series(1, 5);`,
 	time.Sleep(10 * time.Second)
 
 	err = lm.WaitForSnapshotComplete(map[string]int64{
-		`test_schema."test_live"`: 10,
+		`"test_schema"."test_live"`: 10,
 	}, 30)
 	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
 
 	//validate snapshot data
-	err = lm.ValidateDataConsistency([]string{`test_schema."test_live"`}, "id")
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
 
 	//execute source delta
@@ -694,7 +694,7 @@ FROM generate_series(1, 5);`,
 	testutils.FatalIfError(t, err, "failed to execute source delta")
 
 	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
-		`test_schema."test_live"`: {
+		`"test_schema"."test_live"`: {
 			Inserts: 5,
 			Updates: 0,
 			Deletes: 0,
@@ -703,7 +703,7 @@ FROM generate_series(1, 5);`,
 	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
 
 	//validate streaming data
-	err = lm.ValidateDataConsistency([]string{`test_schema."test_live"`}, "id")
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
 
 	err = lm.InitiateCutoverToTarget(true, nil)
@@ -716,7 +716,7 @@ FROM generate_series(1, 5);`,
 	testutils.FatalIfError(t, err, "failed to execute target delta")
 
 	err = lm.WaitForFallbackStreamingComplete(map[string]ChangesCount{
-		`test_schema."test_live"`: {
+		`"test_schema"."test_live"`: {
 			Inserts: 5,
 			Updates: 0,
 			Deletes: 0,
@@ -725,7 +725,7 @@ FROM generate_series(1, 5);`,
 	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
 
 	//validate streaming data
-	err = lm.ValidateDataConsistency([]string{`test_schema."test_live"`}, "id")
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
 
 	err = lm.InitiateCutoverToSource(nil)
@@ -736,7 +736,7 @@ FROM generate_series(1, 5);`,
 
 	//validate sequence restoration
 	err = lm.WithSourceConn(func(source *sql.DB) error {
-		return assertSequenceValues(t, 21, 30, source, `test_schema.test_live`)
+		return assertSequenceValues(t, 21, 30, source, `"test_schema".test_live`)
 	})
 	testutils.FatalIfError(t, err, "failed to validate sequence restoration")
 
@@ -810,18 +810,18 @@ FROM generate_series(1, 15);`,
 	time.Sleep(10 * time.Second)
 
 	err = lm.WaitForSnapshotComplete(map[string]int64{
-		`test_schema."test_live"`: 20,
+		`"test_schema"."test_live"`: 20,
 	}, 30)
 	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
 
-	err = lm.ValidateDataConsistency([]string{`test_schema."test_live"`}, "id")
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
 
 	err = lm.ExecuteSourceDelta()
 	testutils.FatalIfError(t, err, "failed to execute source delta")
 
 	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
-		`test_schema."test_live"`: {
+		`"test_schema"."test_live"`: {
 			Inserts: 15,
 			Updates: 0,
 			Deletes: 0,
@@ -829,7 +829,7 @@ FROM generate_series(1, 15);`,
 	}, 30, 1)
 	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
 
-	err = lm.ValidateDataConsistency([]string{`test_schema."test_live"`}, "id")
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
 
 	err = lm.StopImportData()
@@ -881,7 +881,7 @@ FROM generate_series(1, 15);`,
 
 	//Check if ids from 36-45 are present in target this is to verify the sequence serial col is restored properly till last value
 	err = lm.WithTargetConn(func(target *sql.DB) error {
-		return assertSequenceValues(t, 36, 45, target, `test_schema.test_live`)
+		return assertSequenceValues(t, 36, 45, target, `"test_schema".test_live`)
 	})
 	testutils.FatalIfError(t, err, "failed to validate sequence restoration")
 
@@ -951,18 +951,18 @@ FROM generate_series(1, 15);`,
 	testutils.FatalIfError(t, err, "failed to start import data")
 
 	err = lm.WaitForSnapshotComplete(map[string]int64{
-		`test_schema."test_live"`: 20,
+		`"test_schema"."test_live"`: 20,
 	}, 30)
 	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
 
-	err = lm.ValidateDataConsistency([]string{`test_schema."test_live"`}, "id")
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
 
 	err = lm.ExecuteSourceDelta()
 	testutils.FatalIfError(t, err, "failed to execute source delta")
 
 	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
-		`test_schema."test_live"`: {
+		`"test_schema"."test_live"`: {
 			Inserts: 15,
 			Updates: 0,
 			Deletes: 0,
@@ -970,7 +970,7 @@ FROM generate_series(1, 15);`,
 	}, 30, 1)
 	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
 
-	err = lm.ValidateDataConsistency([]string{`test_schema."test_live"`}, "id")
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
 
 	err = lm.StopImportData()
@@ -1210,18 +1210,18 @@ FROM generate_series(1, 20) as i;`,
 	time.Sleep(5 * time.Second)
 
 	err = lm.WaitForSnapshotComplete(map[string]int64{
-		`test_schema."test_live"`: 20,
+		`"test_schema"."test_live"`: 20,
 	}, 30)
 	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
 
-	err = lm.ValidateDataConsistency([]string{`test_schema."test_live"`}, "id")
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
 
 	err = lm.ExecuteSourceDelta()
 	testutils.FatalIfError(t, err, "failed to execute source delta")
 
 	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
-		`test_schema."test_live"`: {
+		`"test_schema"."test_live"`: {
 			Inserts: 1500,
 			Updates: 2500,
 			Deletes: 1000,
@@ -1229,7 +1229,7 @@ FROM generate_series(1, 20) as i;`,
 	}, 100, 5)
 	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
 
-	err = lm.ValidateDataConsistency([]string{`test_schema."test_live"`}, "id")
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
 
 	err = lm.InitiateCutoverToTarget(false, nil)
@@ -1352,18 +1352,18 @@ FROM generate_series(1, 20) as i;`,
 	time.Sleep(5 * time.Second)
 
 	err = lm.WaitForSnapshotComplete(map[string]int64{
-		`test_schema."test_live_null_unique_values"`: 20,
+		`"test_schema"."test_live_null_unique_values"`: 20,
 	}, 30)
 	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
 
-	err = lm.ValidateDataConsistency([]string{`test_schema."test_live_null_unique_values"`}, "id")
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live_null_unique_values"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
 
 	err = lm.ExecuteSourceDelta()
 	testutils.FatalIfError(t, err, "failed to execute source delta")
 
 	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
-		`test_schema."test_live_null_unique_values"`: {
+		`"test_schema"."test_live_null_unique_values"`: {
 			Inserts: 1500,
 			Updates: 3000,
 			Deletes: 1000,
@@ -1371,7 +1371,7 @@ FROM generate_series(1, 20) as i;`,
 	}, 120, 5)
 	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
 
-	err = lm.ValidateDataConsistency([]string{`test_schema."test_live_null_unique_values"`}, "id")
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live_null_unique_values"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
 
 	err = lm.InitiateCutoverToTarget(false, nil)
@@ -1502,18 +1502,18 @@ func TestLiveMigrationWithUniqueKeyConflictWithUniqueIndexOnlyOnLeafPartitions(t
 
 	time.Sleep(5 * time.Second)
 	err = liveMigrationTest.WaitForSnapshotComplete(map[string]int64{
-		`test_schema."test_partitions"`: 20,
+		`"test_schema"."test_partitions"`: 20,
 	}, 30)
 	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
 
-	err = liveMigrationTest.ValidateDataConsistency([]string{`test_schema."test_partitions"`}, "id")
+	err = liveMigrationTest.ValidateDataConsistency([]string{`"test_schema"."test_partitions"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
 
 	err = liveMigrationTest.ExecuteSourceDelta()
 	testutils.FatalIfError(t, err, "failed to execute source delta")
 
 	err = liveMigrationTest.WaitForForwardStreamingComplete(map[string]ChangesCount{
-		`test_schema."test_partitions"`: {
+		`"test_schema"."test_partitions"`: {
 			Inserts: 1500,
 			Updates: 3000,
 			Deletes: 1000,
@@ -1522,7 +1522,7 @@ func TestLiveMigrationWithUniqueKeyConflictWithUniqueIndexOnlyOnLeafPartitions(t
 	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
 
 	//streaming events 10000 events
-	err = liveMigrationTest.ValidateDataConsistency([]string{`test_schema."test_partitions"`}, "id")
+	err = liveMigrationTest.ValidateDataConsistency([]string{`"test_schema"."test_partitions"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
 
 	// Perform cutover
@@ -1648,18 +1648,18 @@ FROM generate_series(1, 20) as i;`,
 	time.Sleep(5 * time.Second)
 
 	err = liveMigrationTest.WaitForSnapshotComplete(map[string]int64{
-		`test_schema."test_live_null_partial_unique_values"`: 20,
+		`"test_schema"."test_live_null_partial_unique_values"`: 20,
 	}, 30)
 	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
 
-	err = liveMigrationTest.ValidateDataConsistency([]string{`test_schema."test_live_null_partial_unique_values"`}, "id")
+	err = liveMigrationTest.ValidateDataConsistency([]string{`"test_schema"."test_live_null_partial_unique_values"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
 
 	err = liveMigrationTest.ExecuteSourceDelta()
 	testutils.FatalIfError(t, err, "failed to execute source delta")
 
 	err = liveMigrationTest.WaitForForwardStreamingComplete(map[string]ChangesCount{
-		`test_schema."test_live_null_partial_unique_values"`: {
+		`"test_schema"."test_live_null_partial_unique_values"`: {
 			Inserts: 2000,
 			Updates: 2500,
 			Deletes: 1500,
@@ -1667,7 +1667,7 @@ FROM generate_series(1, 20) as i;`,
 	}, 120, 5)
 	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
 
-	err = liveMigrationTest.ValidateDataConsistency([]string{`test_schema."test_live_null_partial_unique_values"`}, "id")
+	err = liveMigrationTest.ValidateDataConsistency([]string{`"test_schema"."test_live_null_partial_unique_values"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
 
 	err = liveMigrationTest.InitiateCutoverToTarget(false, nil)
@@ -1812,18 +1812,18 @@ END $$;`,
 	time.Sleep(5 * time.Second)
 
 	err = liveMigrationTest.WaitForSnapshotComplete(map[string]int64{
-		`test_schema."test_partitions"`: 20,
+		`"test_schema"."test_partitions"`: 20,
 	}, 30)
 	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
 
-	err = liveMigrationTest.ValidateDataConsistency([]string{`test_schema."test_partitions"`}, "id")
+	err = liveMigrationTest.ValidateDataConsistency([]string{`"test_schema"."test_partitions"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
 
 	err = liveMigrationTest.ExecuteSourceDelta()
 	testutils.FatalIfError(t, err, "failed to execute source delta")
 
 	err = liveMigrationTest.WaitForForwardStreamingComplete(map[string]ChangesCount{
-		`test_schema."test_partitions"`: {
+		`"test_schema"."test_partitions"`: {
 			Inserts: 1500,
 			Updates: 2500,
 			Deletes: 1000,
@@ -1831,7 +1831,7 @@ END $$;`,
 	}, 120, 5)
 	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
 
-	err = liveMigrationTest.ValidateDataConsistency([]string{`test_schema."test_partitions"`}, "id")
+	err = liveMigrationTest.ValidateDataConsistency([]string{`"test_schema"."test_partitions"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
 
 	// Perform cutover
@@ -1914,18 +1914,18 @@ $$ LANGUAGE plpgsql;`,
 	time.Sleep(5 * time.Second)
 
 	err = liveMigrationTest.WaitForSnapshotComplete(map[string]int64{
-		`test_schema."large_test"`: 5,
+		`"test_schema"."large_test"`: 5,
 	}, 80)
 	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
 
-	err = liveMigrationTest.ValidateDataConsistency([]string{`test_schema."large_test"`}, "id")
+	err = liveMigrationTest.ValidateDataConsistency([]string{`"test_schema"."large_test"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
 
 	err = liveMigrationTest.ExecuteSourceDelta()
 	testutils.FatalIfError(t, err, "failed to execute source delta")
 
 	err = liveMigrationTest.WaitForForwardStreamingComplete(map[string]ChangesCount{
-		`test_schema."large_test"`: {
+		`"test_schema"."large_test"`: {
 			Inserts: 10,
 			Updates: 0,
 			Deletes: 0,
@@ -1933,10 +1933,10 @@ $$ LANGUAGE plpgsql;`,
 	}, 120, 5)
 	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
 
-	err = liveMigrationTest.ValidateRowCount([]string{`test_schema."large_test"`})
+	err = liveMigrationTest.ValidateRowCount([]string{`"test_schema"."large_test"`})
 	testutils.FatalIfError(t, err, "failed to validate row count")
 
-	err = liveMigrationTest.ValidateDataConsistency([]string{`test_schema."large_test"`}, "id")
+	err = liveMigrationTest.ValidateDataConsistency([]string{`"test_schema"."large_test"`}, "id")
 	testutils.FatalIfError(t, err, "failed to verify data consistency")
 
 	err = liveMigrationTest.InitiateCutoverToTarget(true, nil)
@@ -1949,7 +1949,7 @@ $$ LANGUAGE plpgsql;`,
 	testutils.FatalIfError(t, err, "failed to execute target delta")
 
 	err = liveMigrationTest.WaitForFallbackStreamingComplete(map[string]ChangesCount{
-		`test_schema."large_test"`: {
+		`"test_schema"."large_test"`: {
 			Inserts: 5,
 			Updates: 0,
 			Deletes: 0,
@@ -1957,7 +1957,7 @@ $$ LANGUAGE plpgsql;`,
 	}, 120, 5)
 	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
 
-	err = liveMigrationTest.ValidateDataConsistency([]string{`test_schema."large_test"`}, "id")
+	err = liveMigrationTest.ValidateDataConsistency([]string{`"test_schema"."large_test"`}, "id")
 	testutils.FatalIfError(t, err, "failed to verify data consistency")
 
 	err = liveMigrationTest.InitiateCutoverToSource(nil)
@@ -2254,18 +2254,18 @@ END $$;
 	time.Sleep(5 * time.Second)
 
 	err = liveMigrationTest.WaitForSnapshotComplete(map[string]int64{
-		`test_schema."test_large_number_of_columns"`: 20,
+		`"test_schema"."test_large_number_of_columns"`: 20,
 	}, 30)
 	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
 
-	err = liveMigrationTest.ValidateDataConsistency([]string{`test_schema."test_large_number_of_columns"`}, "id")
+	err = liveMigrationTest.ValidateDataConsistency([]string{`"test_schema"."test_large_number_of_columns"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
 
 	err = liveMigrationTest.ExecuteSourceDelta()
 	testutils.FatalIfError(t, err, "failed to execute source delta")
 
 	err = liveMigrationTest.WaitForForwardStreamingComplete(map[string]ChangesCount{
-		`test_schema."test_large_number_of_columns"`: {
+		`"test_schema"."test_large_number_of_columns"`: {
 			Inserts: 400,
 			Updates: 2000,
 			Deletes: 200,
@@ -2273,7 +2273,7 @@ END $$;
 	}, 120, 5)
 	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
 
-	err = liveMigrationTest.ValidateDataConsistency([]string{`test_schema."test_large_number_of_columns"`}, "id")
+	err = liveMigrationTest.ValidateDataConsistency([]string{`"test_schema"."test_large_number_of_columns"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
 
 	err = liveMigrationTest.InitiateCutoverToTarget(true, nil)
@@ -2286,7 +2286,7 @@ END $$;
 	testutils.FatalIfError(t, err, "failed to execute target delta")
 
 	err = liveMigrationTest.WaitForFallbackStreamingComplete(map[string]ChangesCount{
-		`test_schema."test_large_number_of_columns"`: {
+		`"test_schema"."test_large_number_of_columns"`: {
 			Inserts: 600,
 			Updates: 3000,
 			Deletes: 300,
@@ -2294,7 +2294,7 @@ END $$;
 	}, 120, 5)
 	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
 
-	err = liveMigrationTest.ValidateDataConsistency([]string{`test_schema."test_large_number_of_columns"`}, "id")
+	err = liveMigrationTest.ValidateDataConsistency([]string{`"test_schema"."test_large_number_of_columns"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
 
 	err = liveMigrationTest.InitiateCutoverToSource(nil)
@@ -2438,18 +2438,18 @@ END $$;
 	time.Sleep(5 * time.Second)
 
 	err = liveMigrationTest.WaitForSnapshotComplete(map[string]int64{
-		`test_schema."test_large_column_name"`: 20,
+		`"test_schema"."test_large_column_name"`: 20,
 	}, 30)
 	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
 
-	err = liveMigrationTest.ValidateDataConsistency([]string{`test_schema."test_large_column_name"`}, "id")
+	err = liveMigrationTest.ValidateDataConsistency([]string{`"test_schema"."test_large_column_name"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
 
 	err = liveMigrationTest.ExecuteSourceDelta()
 	testutils.FatalIfError(t, err, "failed to execute source delta")
 
 	err = liveMigrationTest.WaitForForwardStreamingComplete(map[string]ChangesCount{
-		`test_schema."test_large_column_name"`: {
+		`"test_schema"."test_large_column_name"`: {
 			Inserts: 1000,
 			Updates: 3000,
 			Deletes: 500,
@@ -2457,7 +2457,7 @@ END $$;
 	}, 120, 5)
 	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
 
-	err = liveMigrationTest.ValidateDataConsistency([]string{`test_schema."test_large_column_name"`}, "id")
+	err = liveMigrationTest.ValidateDataConsistency([]string{`"test_schema"."test_large_column_name"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
 
 	err = liveMigrationTest.InitiateCutoverToTarget(true, nil)
@@ -2470,7 +2470,7 @@ END $$;
 	testutils.FatalIfError(t, err, "failed to execute target delta")
 
 	err = liveMigrationTest.WaitForFallbackStreamingComplete(map[string]ChangesCount{
-		`test_schema."test_large_column_name"`: {
+		`"test_schema"."test_large_column_name"`: {
 			Inserts: 1000,
 			Updates: 3000,
 			Deletes: 500,
@@ -2478,7 +2478,7 @@ END $$;
 	}, 120, 5)
 	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
 
-	err = liveMigrationTest.ValidateDataConsistency([]string{`test_schema."test_large_column_name"`}, "id")
+	err = liveMigrationTest.ValidateDataConsistency([]string{`"test_schema"."test_large_column_name"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
 
 	err = liveMigrationTest.InitiateCutoverToSource(nil)
@@ -2568,12 +2568,12 @@ VALUES (INTERVAL '7 years', INTERVAL '120 days', INTERVAL '15 hours', INTERVAL '
 
 	// Wait for snapshot to complete (3 initial rows)
 	err = lm.WaitForSnapshotComplete(map[string]int64{
-		`test_schema."interval_test"`: 3,
+		`"test_schema"."interval_test"`: 3,
 	}, 30)
 	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
 
 	// Validate snapshot data consistency
-	err = lm.ValidateDataConsistency([]string{`test_schema."interval_test"`}, "id")
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."interval_test"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate snapshot data consistency")
 
 	// Execute source delta (forward streaming: PG→YB)
@@ -2582,7 +2582,7 @@ VALUES (INTERVAL '7 years', INTERVAL '120 days', INTERVAL '15 hours', INTERVAL '
 
 	// Wait for forward streaming to complete (1 insert)
 	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
-		`test_schema."interval_test"`: {
+		`"test_schema"."interval_test"`: {
 			Inserts: 1,
 			Updates: 0,
 			Deletes: 0,
@@ -2591,7 +2591,7 @@ VALUES (INTERVAL '7 years', INTERVAL '120 days', INTERVAL '15 hours', INTERVAL '
 	testutils.FatalIfError(t, err, "failed to wait for forward streaming complete")
 
 	// Validate forward streaming data
-	err = lm.ValidateDataConsistency([]string{`test_schema."interval_test"`}, "id")
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."interval_test"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate forward streaming data consistency")
 
 	// Initiate cutover to target (YB becomes primary)
@@ -2608,7 +2608,7 @@ VALUES (INTERVAL '7 years', INTERVAL '120 days', INTERVAL '15 hours', INTERVAL '
 
 	// Wait for fallback streaming to complete (3 updates + 1 insert)
 	err = lm.WaitForFallbackStreamingComplete(map[string]ChangesCount{
-		`test_schema."interval_test"`: {
+		`"test_schema"."interval_test"`: {
 			Inserts: 1,
 			Updates: 3,
 			Deletes: 0,
@@ -2619,7 +2619,7 @@ VALUES (INTERVAL '7 years', INTERVAL '120 days', INTERVAL '15 hours', INTERVAL '
 	// Validate fallback streaming data consistency
 	// This ensures all INTERVAL columns (lowercase and mixed-case) were correctly replicated
 	// CompareTableData does a full SELECT * comparison of all rows and columns
-	err = lm.ValidateDataConsistency([]string{`test_schema."interval_test"`}, "id")
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."interval_test"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate fallback data consistency")
 
 	// Complete cutover to source
@@ -2799,16 +2799,16 @@ END $$;`,
 	time.Sleep(5 * time.Second)
 
 	err = liveMigrationTest.WaitForSnapshotComplete(map[string]int64{
-		`thisisaverylargenonpublicschema."thisisaverylargetableinaverylargeschema"`:   10,
-		`thisisaverylargenonpublicschema."thisisaverylargetableinaverylargeschema52"`: 10,
-		`thisisaverylargenonpublicschema."thisisaverylargetableinaverylargeschema99"`: 10,
+		`"thisisaverylargenonpublicschema"."thisisaverylargetableinaverylargeschema"`:   10,
+		`"thisisaverylargenonpublicschema"."thisisaverylargetableinaverylargeschema52"`: 10,
+		`"thisisaverylargenonpublicschema"."thisisaverylargetableinaverylargeschema99"`: 10,
 	}, 30)
 	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
 
 	err = liveMigrationTest.ValidateDataConsistency([]string{
-		`thisisaverylargenonpublicschema."thisisaverylargetableinaverylargeschema"`,
-		`thisisaverylargenonpublicschema."thisisaverylargetableinaverylargeschema52"`,
-		`thisisaverylargenonpublicschema."thisisaverylargetableinaverylargeschema99"`,
+		`"thisisaverylargenonpublicschema"."thisisaverylargetableinaverylargeschema"`,
+		`"thisisaverylargenonpublicschema"."thisisaverylargetableinaverylargeschema52"`,
+		`"thisisaverylargenonpublicschema"."thisisaverylargetableinaverylargeschema99"`,
 	}, "id")
 	testutils.FatalIfError(t, err, "failed to validate snapshot data consistency")
 
@@ -2820,17 +2820,17 @@ END $$;`,
 	// Table 1: DO block generates 500 INSERTs, 130 successful UPDATEs, 125 DELETEs
 	// UPDATEs: 10 (initial rows 1-10) + 120 (odd rows 11-249) = 130 (even rows get deleted so their updates fail)
 	err = liveMigrationTest.WaitForForwardStreamingComplete(map[string]ChangesCount{
-		`thisisaverylargenonpublicschema."thisisaverylargetableinaverylargeschema"`: {
+		`"thisisaverylargenonpublicschema"."thisisaverylargetableinaverylargeschema"`: {
 			Inserts: 500, // 250 iterations * 2 INSERTs per iteration
 			Updates: 130, // 10 (rows 1-10) + 120 (odd rows 11-249 that weren't deleted)
 			Deletes: 125, // 125 DELETEs (when i % 2 = 0: ids 12,14,16...260)
 		},
-		`thisisaverylargenonpublicschema."thisisaverylargetableinaverylargeschema52"`: {
+		`"thisisaverylargenonpublicschema"."thisisaverylargetableinaverylargeschema52"`: {
 			Inserts: 1,
 			Updates: 1,
 			Deletes: 1,
 		},
-		`thisisaverylargenonpublicschema."thisisaverylargetableinaverylargeschema99"`: {
+		`"thisisaverylargenonpublicschema"."thisisaverylargetableinaverylargeschema99"`: {
 			Inserts: 1,
 			Updates: 1,
 			Deletes: 1,
@@ -2840,9 +2840,9 @@ END $$;`,
 
 	// Validate data after streaming
 	err = liveMigrationTest.ValidateDataConsistency([]string{
-		`thisisaverylargenonpublicschema."thisisaverylargetableinaverylargeschema"`,
-		`thisisaverylargenonpublicschema."thisisaverylargetableinaverylargeschema52"`,
-		`thisisaverylargenonpublicschema."thisisaverylargetableinaverylargeschema99"`,
+		`"thisisaverylargenonpublicschema"."thisisaverylargetableinaverylargeschema"`,
+		`"thisisaverylargenonpublicschema"."thisisaverylargetableinaverylargeschema52"`,
+		`"thisisaverylargenonpublicschema"."thisisaverylargetableinaverylargeschema99"`,
 	}, "id")
 	testutils.FatalIfError(t, err, "failed to validate streaming data consistency")
 
@@ -2864,17 +2864,17 @@ END $$;`,
 	// DO block generates 500 INSERTs, 130 successful UPDATEs, 125 DELETEs
 	// UPDATEs: 10 (initial rows 1-10) + 120 (odd rows 11-249) = 130 (even rows were deleted so updates fail)
 	err = liveMigrationTest.WaitForFallbackStreamingComplete(map[string]ChangesCount{
-		`thisisaverylargenonpublicschema."thisisaverylargetableinaverylargeschema"`: {
+		`"thisisaverylargenonpublicschema"."thisisaverylargetableinaverylargeschema"`: {
 			Inserts: 500, // 250 iterations * 2 INSERTs per iteration
 			Updates: 130, // 10 (rows 1-10) + 120 (odd rows 11-249 that exist)
 			Deletes: 125, // 125 DELETEs (when i % 2 = 1: odd ids 511,513...759)
 		},
-		`thisisaverylargenonpublicschema."thisisaverylargetableinaverylargeschema52"`: {
+		`"thisisaverylargenonpublicschema"."thisisaverylargetableinaverylargeschema52"`: {
 			Inserts: 1,
 			Updates: 1,
 			Deletes: 1,
 		},
-		`thisisaverylargenonpublicschema."thisisaverylargetableinaverylargeschema99"`: {
+		`"thisisaverylargenonpublicschema"."thisisaverylargetableinaverylargeschema99"`: {
 			Inserts: 1,
 			Updates: 1,
 			Deletes: 1,
@@ -2884,9 +2884,9 @@ END $$;`,
 
 	// Validate data consistency after fallback
 	err = liveMigrationTest.ValidateDataConsistency([]string{
-		`thisisaverylargenonpublicschema."thisisaverylargetableinaverylargeschema"`,
-		`thisisaverylargenonpublicschema."thisisaverylargetableinaverylargeschema52"`,
-		`thisisaverylargenonpublicschema."thisisaverylargetableinaverylargeschema99"`,
+		`"thisisaverylargenonpublicschema"."thisisaverylargetableinaverylargeschema"`,
+		`"thisisaverylargenonpublicschema"."thisisaverylargetableinaverylargeschema52"`,
+		`"thisisaverylargenonpublicschema"."thisisaverylargetableinaverylargeschema99"`,
 	}, "id")
 	testutils.FatalIfError(t, err, "failed to validate fallback data consistency")
 
@@ -2896,6 +2896,139 @@ END $$;`,
 	fmt.Printf("   ✓ Fallback streaming (target → source)\n")
 	fmt.Printf("   ✓ Mixed INSERT/UPDATE/DELETE on same long-named table\n")
 	fmt.Printf("   ✓ Operations on tables with similar long names (differ only at the end)\n\n")
+}
+
+func TestBasicLiveTestForCaseSensitiveSchema(t *testing.T) {
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB: ContainerConfig{
+			Type:         "postgresql",
+			ForLive:      true,
+			DatabaseName: "test_case_sensitive_schema",
+		},
+		TargetDB: ContainerConfig{
+			Type:         "yugabytedb",
+			DatabaseName: "test_case_sensitive_schema",
+		},
+		SchemaNames: []string{`"Test_Schema"`},
+		SchemaSQL: []string{
+			`DROP SCHEMA IF EXISTS "Test_Schema" CASCADE;`,
+			`CREATE SCHEMA IF NOT EXISTS "Test_Schema";
+			CREATE TABLE "Test_Schema".test_live (
+				id SERIAL PRIMARY KEY,
+				name TEXT,
+				email TEXT,
+				description TEXT
+			);`,
+		},
+		SourceSetupSchemaSQL: []string{
+			`ALTER TABLE "Test_Schema".test_live REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			`INSERT INTO "Test_Schema".test_live (name, email, description)
+SELECT
+	md5(random()::text),                                      -- name
+	md5(random()::text) || '@example.com',                    -- email
+	repeat(md5(random()::text), 10)                           -- description (~320 chars)
+FROM generate_series(1, 10);`,
+		},
+		SourceDeltaSQL: []string{
+			`INSERT INTO "Test_Schema".test_live (name, email, description)
+SELECT
+	md5(random()::text),                                      -- name
+	md5(random()::text) || '@example.com',                    -- email
+	repeat(md5(random()::text), 10)                           -- description (~320 chars)
+FROM generate_series(1, 5);`,
+		},
+		CleanupSQL: []string{
+			`DROP SCHEMA IF EXISTS "Test_Schema" CASCADE;`,
+		},
+		TargetDeltaSQL: []string{
+			`INSERT INTO "Test_Schema".test_live (name, email, description)
+SELECT
+	md5(random()::text),                                      -- name
+	md5(random()::text) || '@example.com',                    -- email
+	repeat(md5(random()::text), 10)                           -- description (~320 chars)
+FROM generate_series(1, 5);`,
+		},
+	})
+
+	defer lm.Cleanup()
+
+	err := lm.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+
+	err = lm.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
+
+	err = lm.StartExportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start export data")
+
+	err = lm.StartImportData(true, map[string]string{
+		"--log-level": "debug",
+	})
+	testutils.FatalIfError(t, err, "failed to start import data")
+
+	time.Sleep(10 * time.Second)
+
+	err = lm.WaitForSnapshotComplete(map[string]int64{
+		`"Test_Schema"."test_live"`: 10,
+	}, 30)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+
+	//validate snapshot data
+	err = lm.ValidateDataConsistency([]string{`"Test_Schema"."test_live"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	//execute source delta
+	err = lm.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
+
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`"Test_Schema"."test_live"`: {
+			Inserts: 5,
+			Updates: 0,
+			Deletes: 0,
+		},
+	}, 30, 1)
+	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
+
+	//validate streaming data
+	err = lm.ValidateDataConsistency([]string{`"Test_Schema"."test_live"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	err = lm.InitiateCutoverToTarget(true, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover")
+
+	err = lm.WaitForCutoverComplete(50)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+
+	err = lm.ExecuteTargetDelta()
+	testutils.FatalIfError(t, err, "failed to execute target delta")
+
+	err = lm.WaitForFallbackStreamingComplete(map[string]ChangesCount{
+		`"Test_Schema"."test_live"`: {
+			Inserts: 5,
+			Updates: 0,
+			Deletes: 0,
+		},
+	}, 30, 1)
+	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
+
+	//validate streaming data
+	err = lm.ValidateDataConsistency([]string{`"Test_Schema"."test_live"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	err = lm.InitiateCutoverToSource(nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
+
+	err = lm.WaitForCutoverSourceComplete(100)
+	testutils.FatalIfError(t, err, "failed to wait for cutover to source complete")
+
+	//validate sequence restoration
+	err = lm.WithSourceConn(func(source *sql.DB) error {
+		return assertSequenceValues(t, 21, 30, source, `"Test_Schema".test_live`)
+	})
+	testutils.FatalIfError(t, err, "failed to validate sequence restoration")
 }
 
 // TestLiveMigrationWithImportResumptionAfterCutover tests the flow where:

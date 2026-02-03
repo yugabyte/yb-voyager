@@ -266,6 +266,9 @@ WHERE schemaname = ANY(ARRAY[string_to_array('$schema_list', '|')])
     pg_connection_string=$(quote_string "$pg_connection_string")
     schema_list=$(quote_string "$schema_list")
 
+    # removing the quotes from the schema_list for the psql queries which require unquoted schema list
+    unquoted_schema_list=$(echo "$schema_list" | sed 's/"//g')
+
     print_and_log "INFO" "Assessment metadata collection started for $schema_list schema(s)"
     for script in $SCRIPT_DIR/*.psql; do
         script_name=$(basename "$script" .psql)
@@ -275,7 +278,7 @@ WHERE schemaname = ANY(ARRAY[string_to_array('$schema_list', '|')])
         
         case $script_name in
             "table-index-iops")
-                psql_command="psql -q $pg_connection_string -f $script -v schema_list=$schema_list -v source_node_name=$source_node_name -v ON_ERROR_STOP=on -v measurement_type=initial"
+                psql_command="psql -q $pg_connection_string -f $script -v schema_list=$unquoted_schema_list -v source_node_name=$source_node_name -v ON_ERROR_STOP=on -v measurement_type=initial"
                 log "INFO" "Executing initial IOPS collection: $psql_command"
                 run_command "$psql_command"
                 mv table-index-iops.csv table-index-iops-initial.csv
@@ -284,7 +287,7 @@ WHERE schemaname = ANY(ARRAY[string_to_array('$schema_list', '|')])
                 # sleeping to calculate the iops reading two different time intervals, to calculate reads_per_second and writes_per_second
                 sleep $iops_capture_interval
 
-                psql_command="psql -q $pg_connection_string -f $script -v schema_list=$schema_list -v source_node_name=$source_node_name -v ON_ERROR_STOP=on -v measurement_type=final"
+                psql_command="psql -q $pg_connection_string -f $script -v schema_list=$unquoted_schema_list -v source_node_name=$source_node_name -v ON_ERROR_STOP=on -v measurement_type=final"
                 log "INFO" "Executing final IOPS collection: $psql_command"
                 run_command "$psql_command"
                 mv table-index-iops.csv table-index-iops-final.csv
@@ -300,13 +303,13 @@ WHERE schemaname = ANY(ARRAY[string_to_array('$schema_list', '|')])
                     print_and_log "WARN" "Skipping $script_action: pg_stat_statements extension is not enabled"
                     continue
                 fi
-
-                psql_command="psql -q $pg_connection_string -f $script -v schema_name=$pgss_ext_schema -v source_node_name=$source_node_name -v ON_ERROR_STOP=on"
+                # quoting the schema_name for the psql query which requires quoted schema name for pgss view
+                psql_command="psql -q $pg_connection_string -f $script -v schema_name='\"$pgss_ext_schema\"' -v source_node_name=$source_node_name -v ON_ERROR_STOP=on"
                 log "INFO" "Executing script: $psql_command"
                 run_command "$psql_command"
             ;;
             *)
-                psql_command="psql -q $pg_connection_string -f $script -v schema_list=$schema_list -v source_node_name=$source_node_name -v ON_ERROR_STOP=on"
+                psql_command="psql -q $pg_connection_string -f $script -v schema_list=$unquoted_schema_list -v source_node_name=$source_node_name -v ON_ERROR_STOP=on"
                 log "INFO" "Executing script: $psql_command"
                 run_command "$psql_command"
             ;;

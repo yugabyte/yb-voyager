@@ -19,7 +19,6 @@ import (
 	"fmt"
 
 	goerrors "github.com/go-errors/errors"
-
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -127,10 +126,13 @@ func initSourceConfFromTargetConf(cmd *cobra.Command) error {
 	source.Port = targetConf.Port
 	source.User = targetConf.User
 	source.DBName = targetConf.DBName
+
 	if sourceDBConf.DBType == POSTGRESQL {
-		source.Schema = sourceDBConf.Schema // in case of PG migration the tconf.Schema is public but in case of non-puclic or multiple schemas this needs to PG schemas
+		source.SchemaConfig = sourceDBConf.SchemaConfig
+		source.Schemas = sourceDBConf.Schemas // in case of PG migration the tconf.Schema is public but in case of non-puclic or multiple schemas this needs to PG schemas
 	} else {
-		source.Schema = targetConf.Schema
+		source.SchemaConfig = targetConf.SchemaConfig
+		source.Schemas = targetConf.Schemas
 	}
 
 	if msr.UseYBgRPCConnector {
