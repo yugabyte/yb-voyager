@@ -1000,9 +1000,11 @@ def _reset_database(db_cfg: Dict[str, Any], *, admin_db_name: str, role: str) ->
 
 
 def create_cutover_table(ctx, target: str = "source") -> None:
-    """Create the cutover_table required for cutover/backlog checks in all tests."""
     sql = "DROP TABLE IF EXISTS public.cutover_table; CREATE TABLE public.cutover_table (id SERIAL PRIMARY KEY, status TEXT);"
-    run_psql(ctx, target, "-c", sql)
+    admin_cfg = ctx.cfg[target].get("admin")
+    user_override = admin_cfg["user"]
+    password_override = admin_cfg.get("password")
+    run_psql(ctx, target, "-c", sql, user_override=user_override, password_override=password_override)
 
 
 def reset_database_for_role(role: str, ctx) -> None:
@@ -1019,9 +1021,6 @@ def reset_database_for_role(role: str, ctx) -> None:
         raise ValueError(f"Unsupported database role for reset: {role}") from exc
 
     _reset_database(db_cfg, admin_db_name=admin_db_name, role=role)
-    # Create cutover_table after database is reset (required for all tests)
-    if role != "target":
-        create_cutover_table(ctx, target=role)
 
 
 # -------------------------

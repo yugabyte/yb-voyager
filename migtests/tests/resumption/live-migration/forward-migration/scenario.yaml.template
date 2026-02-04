@@ -73,6 +73,9 @@ stages:
     sql_path: ../common-sql/init.sql
     use_admin: true
 
+  - name: create_cutover_table
+    action: create_cutover_table
+
   - name: grant_source_permissions
     action: grant_source_permissions
 

@@ -115,6 +115,9 @@ stages:
     use_admin: true
     target: source_replica
 
+  - name: create_cutover_table
+    action: create_cutover_table
+
   - name: grant_source_permissions
     action: grant_source_permissions
 
