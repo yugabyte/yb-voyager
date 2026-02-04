@@ -3112,7 +3112,7 @@ FROM generate_series(1, 5);`,
 
 	// Wait for snapshot to complete
 	err = lm.WaitForSnapshotComplete(map[string]int64{
-		`test_schema."test_live"`: 10,
+		`"test_schema"."test_live"`: 10,
 	}, 30)
 	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
 
@@ -3156,7 +3156,7 @@ FROM generate_series(1, 5);`,
 
 	// Wait for forward streaming to complete
 	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
-		`test_schema."test_live"`: {
+		`"test_schema"."test_live"`: {
 			Inserts: 5,
 			Updates: 0,
 			Deletes: 0,
@@ -3188,7 +3188,7 @@ FROM generate_series(1, 5);`,
 
 	// Wait for fallback streaming to complete
 	err = lm.WaitForFallbackStreamingComplete(map[string]ChangesCount{
-		`test_schema."test_live"`: {
+		`"test_schema"."test_live"`: {
 			Inserts: 5,
 			Updates: 0,
 			Deletes: 0,
