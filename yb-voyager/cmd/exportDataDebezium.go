@@ -27,6 +27,9 @@ import (
 
 	"github.com/fatih/color"
 	goerrors "github.com/go-errors/errors"
+	"github.com/pingcap/failpoint"
+
+	"github.com/fatih/color"
 	"github.com/gosuri/uilive"
 	"github.com/magiconair/properties"
 	"github.com/samber/lo"
@@ -494,6 +497,13 @@ func checkAndHandleSnapshotComplete(config *dbzm.Config, status *dbzm.ExportStat
 	if !status.SnapshotExportIsComplete() {
 		return false, nil
 	}
+	failpoint.Inject("snapshotToCDCTransitionError", func(val failpoint.Value) {
+		if val != nil {
+			_ = os.MkdirAll(filepath.Join(exportDir, "logs"), 0755)
+			_ = os.WriteFile(filepath.Join(exportDir, "logs", "failpoint-snapshot-to-cdc.log"), []byte("hit\n"), 0644)
+			failpoint.Return(false, fmt.Errorf("failpoint: snapshot->CDC transition failure"))
+		}
+	})
 	exportPhase = dbzm.MODE_STREAMING
 	if config.SnapshotMode != "never" {
 		progressTracker.Done(status)
