@@ -144,7 +144,11 @@ func (v *VoyagerCommandRunner) newCmd() {
 	v.StdoutBuf = &bytes.Buffer{}
 	v.StderrBuf = &bytes.Buffer{}
 
-	v.Cmd = exec.Command("yb-voyager", v.finalArgs...)
+	ybVoyagerBin := os.Getenv("YB_VOYAGER_BIN")
+	if ybVoyagerBin == "" {
+		ybVoyagerBin = "yb-voyager"
+	}
+	v.Cmd = exec.Command(ybVoyagerBin, v.finalArgs...)
 	v.Cmd.Stdout = io.MultiWriter(os.Stdout, v.StdoutBuf)
 	v.Cmd.Stderr = io.MultiWriter(os.Stderr, v.StderrBuf)
 	// disable callhome diagnostics during tests
@@ -180,7 +184,7 @@ func (v *VoyagerCommandRunner) Run() error {
 		return v.Wait()
 	}
 	return nil
-}	
+}
 
 func (v *VoyagerCommandRunner) Wait() error {
 	err := v.Cmd.Wait()
