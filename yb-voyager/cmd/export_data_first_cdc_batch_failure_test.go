@@ -86,11 +86,10 @@ func TestFirstCDCBatchFailure(t *testing.T) {
 	require.NoError(t, err, "Failed to create Byteman helper")
 
 	// Inject failure on the FIRST CDC batch
-	// This is different from Test 1.1 which fails on the 2nd CDC batch
-	// This tests the scenario where NO CDC events have been committed yet when failure occurs
+	// Use streaming-only marker to avoid snapshot batch ambiguity
 	bytemanHelper.AddRuleFromBuilder(
 		testutils.NewRule("fail_first_cdc_batch").
-			AtMarker(testutils.MarkerCDC, "before-batch").
+			AtMarker(testutils.MarkerCDC, "before-batch-streaming").
 			If("incrementCounter(\"first_batch_counter\") == 1").
 			ThrowException("java.lang.RuntimeException", "TEST: Simulated failure on first CDC batch"),
 	)
@@ -98,7 +97,7 @@ func TestFirstCDCBatchFailure(t *testing.T) {
 	err = bytemanHelper.WriteRules()
 	require.NoError(t, err, "Failed to write Byteman rules")
 
-	t.Log("Phase 1: Running CDC export with failure injection on 1st batch...")
+	t.Log("Running CDC export with failure injection on 1st CDC batch (streaming-only)...")
 
 	// Batching configuration (same as Test 1.1)
 	const (
@@ -110,7 +109,7 @@ func TestFirstCDCBatchFailure(t *testing.T) {
 	cdcEventsGenerated := make(chan bool, 1)
 	generateCDCEvents := func() {
 		time.Sleep(10 * time.Second) // Wait for snapshot to complete
-		t.Logf("Generating CDC events (3 batches of 20 rows each, waiting %v between batches)...", batchSeparationWaitTime)
+		t.Logf("Generating CDC events (3 batches of 20 rows, %v between batches)...", batchSeparationWaitTime)
 
 		// NOTE: Batching behavior relies on Debezium's internal logic:
 		// - Each INSERT is a separate transaction (20 rows each)
@@ -119,7 +118,7 @@ func TestFirstCDCBatchFailure(t *testing.T) {
 		// - Test validates recovery when NO CDC offsets exist yet
 
 		// Batch 1: Should FAIL due to injection (counter == 1)
-		t.Log("Inserting batch 1 (20 rows) - Byteman should fail this batch...")
+		t.Log("Inserting batch 1 (20 rows) - expected to fail via Byteman...")
 		postgresContainer.ExecuteSqls(
 			`INSERT INTO test_schema.first_batch_test (name, value)
 			SELECT 'batch1_' || i, 100 + i FROM generate_series(1, 20) i;`,
@@ -128,7 +127,7 @@ func TestFirstCDCBatchFailure(t *testing.T) {
 		time.Sleep(batchSeparationWaitTime)
 
 		// Batch 2: Will be processed after recovery
-		t.Log("Inserting batch 2 (20 rows) - will be processed after recovery...")
+		t.Log("Inserting batch 2 (20 rows) - processed after recovery...")
 		postgresContainer.ExecuteSqls(
 			`INSERT INTO test_schema.first_batch_test (name, value)
 			SELECT 'batch2_' || i, 200 + i FROM generate_series(1, 20) i;`,
@@ -137,7 +136,7 @@ func TestFirstCDCBatchFailure(t *testing.T) {
 		time.Sleep(batchSeparationWaitTime)
 
 		// Batch 3: Will be processed after recovery
-		t.Log("Inserting batch 3 (20 rows) - will be processed after recovery...")
+		t.Log("Inserting batch 3 (20 rows) - processed after recovery...")
 		postgresContainer.ExecuteSqls(
 			`INSERT INTO test_schema.first_batch_test (name, value)
 			SELECT 'batch3_' || i, 300 + i FROM generate_series(1, 20) i;`,
@@ -145,7 +144,6 @@ func TestFirstCDCBatchFailure(t *testing.T) {
 		t.Log("Batch 3 inserted")
 
 		cdcEventsGenerated <- true
-		t.Log("Finished generating CDC events")
 	}
 
 	// Run export with Byteman injection - should fail on 1st CDC batch
@@ -161,29 +159,24 @@ func TestFirstCDCBatchFailure(t *testing.T) {
 	require.NoError(t, err, "Failed to start export")
 
 	// Wait for the failure to be injected
-	t.Log("Waiting for Byteman injection to occur...")
+	t.Log("Waiting for Byteman injection...")
 	matched, err := bytemanHelper.WaitForInjection(">>> BYTEMAN: fail_first_cdc_batch", 90*time.Second)
 	require.NoError(t, err, "Should be able to read debezium logs")
 	require.True(t, matched, "Byteman injection should have occurred and been logged")
-	t.Log("✓ Byteman injection detected - batch 1 processing failed as expected")
+	t.Log("Byteman injection detected")
 
 	// Wait a bit to ensure all CDC events are generated
 	select {
 	case <-cdcEventsGenerated:
 		t.Log("CDC events generation completed")
 	case <-time.After(60 * time.Second):
-		t.Log("Warning: CDC event generation timed out")
+		require.Fail(t, "CDC event generation timed out")
 	}
 
-	// Wait for the export process to crash naturally
-	// The RuntimeException from Byteman should propagate to Debezium and cause it to exit
-	t.Log("Waiting for export process to crash naturally after Byteman injection...")
+	// Wait for the export process to crash (Byteman exception should abort Debezium)
+	t.Log("Waiting for export process to exit after Byteman injection...")
 	err = exportRunner.Wait()
-	if err != nil {
-		t.Logf("✓ Export process crashed as expected: %v", err)
-	} else {
-		t.Log("Warning: Export process exited cleanly (expected an error)")
-	}
+	require.Error(t, err, "Export should exit with error after Byteman injection")
 
 	time.Sleep(3 * time.Second) // Additional wait for cleanup
 
@@ -200,15 +193,7 @@ func TestFirstCDCBatchFailure(t *testing.T) {
 	// This validates "cold start" recovery: full replay from zero CDC state
 	require.Equal(t, 0, eventCount1, "Should have 0 events (first batch failed at entry, no CDC state yet)")
 
-	t.Log("================================================================================")
-	t.Log("Phase 2: Resuming CDC export WITHOUT failure injection...")
-	t.Log("================================================================================")
-	t.Log("Expected behavior:")
-	t.Log("  - Debezium resumes from beginning (no CDC offsets committed)")
-	t.Log("  - Will replay ALL 3 batches (batch 1 + batch 2 + batch 3) = 60 events")
-	t.Log("  - Total expected: 60 CDC events (20 + 20 + 20)")
-	t.Log("  - Note: Snapshot data (50 rows) is in separate data files, not queue segments")
-	t.Log("  - This validates 'cold start' durability (recovery from zero CDC state)")
+	t.Log("Resuming CDC export without failure injection...")
 
 	// Resume export WITHOUT Byteman (no failure injection)
 	exportRunnerResume := testutils.NewVoyagerCommandRunner(postgresContainer, "export data", []string{
@@ -224,38 +209,21 @@ func TestFirstCDCBatchFailure(t *testing.T) {
 	defer exportRunnerResume.Kill()
 
 	// Wait for resumed export to process all remaining CDC events
-	t.Log("Waiting for resumed export to process all remaining CDC events...")
-	time.Sleep(5 * time.Second) // Initial wait for startup
+	t.Log("Waiting for resumed export to process CDC events...")
 
 	// Poll until we have all expected events (60 total)
 	const expectedFinalEvents = 60
-	maxWaitTime := 60 * time.Second
-	pollInterval := 2 * time.Second
-	startTime := time.Now()
-
-	for time.Since(startTime) < maxWaitTime {
-		currentCount, err := countEventsInQueueSegments(exportDir)
-		if err == nil {
-			t.Logf("Current CDC event count: %d / %d expected", currentCount, expectedFinalEvents)
-			if currentCount >= expectedFinalEvents {
-				t.Logf("✓ All expected CDC events received: %d", currentCount)
-				break
-			}
-		}
-		time.Sleep(pollInterval)
-	}
+	waitForCDCEventCount(t, exportDir, expectedFinalEvents, 60*time.Second, 2*time.Second)
 
 	// Give a bit more time for any in-flight processing
 	time.Sleep(5 * time.Second)
 
-	t.Log("================================================================================")
 	t.Log("Verifying final event counts and data integrity...")
-	t.Log("================================================================================")
 
 	// Verify final CDC event count
 	finalEventCount, err := countEventsInQueueSegments(exportDir)
 	require.NoError(t, err, "Should be able to count final events")
-	t.Logf("✓ Final CDC event count: %d (expected: %d)", finalEventCount, expectedFinalEvents)
+	t.Logf("Final CDC event count: %d (expected: %d)", finalEventCount, expectedFinalEvents)
 	require.Equal(t, expectedFinalEvents, finalEventCount,
 		"Should have all 60 CDC events after recovery (3 batches of 20)")
 
@@ -273,15 +241,10 @@ func TestFirstCDCBatchFailure(t *testing.T) {
 	expectedTotalRows := 50 + expectedFinalEvents
 	require.Equal(t, expectedTotalRows, sourceRowCount, "Source should have all rows")
 
-	// Verify no duplicate events (all VSNs are unique)
-	verifyNoEventDuplicates(t, exportDir)
+	// Verify no duplicate events (event_id uniqueness)
+	verifyNoEventIDDuplicates(t, exportDir)
 
-	t.Log("✓ First CDC batch failure and recovery test completed successfully")
-	t.Log("✓ All CDC events were replayed from scratch (no CDC offsets existed)")
-	t.Log("✓ Event deduplication prevented duplicates")
-	t.Log("✓ All CDC data exported correctly after recovery")
-	t.Log("✓ Validates 'cold start' durability when first CDC batch fails")
-	t.Logf("✓ Final CDC event count: %d", finalEventCount)
+	t.Log("First CDC batch failure and recovery test completed successfully")
 }
 
 // setupFirstBatchTestData creates test schema and initial snapshot data
