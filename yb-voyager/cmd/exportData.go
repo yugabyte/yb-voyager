@@ -32,6 +32,7 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/color"
 	goerrors "github.com/go-errors/errors"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -742,7 +743,22 @@ func checkIfReplicationSlotIsActive(replicationSlot string) (bool, error) {
 }
 
 func createReplicationSlotAndExportSnapshotIfRequired(ctx context.Context, cancel context.CancelFunc, finalTableList []sqlname.NameTuple, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], leafPartitions *utils.StructMap[sqlname.NameTuple, []sqlname.NameTuple]) error {
-	snapshotName, err := createAndStoreReplicationSlotAndPublication(finalTableList, leafPartitions)
+
+	// create replication slot
+	pgDB := source.DB().(*srcdb.PostgreSQL)
+	replicationConn, err := pgDB.GetReplicationConnection()
+	if err != nil {
+		return fmt.Errorf("export snapshot: failed to create replication connection: %w", err)
+	}
+	// need to keep the replication connection open until snapshot is complete.
+	defer func() {
+		err := replicationConn.Close(context.Background())
+		if err != nil {
+			log.Errorf("close replication connection: %v", err)
+		}
+	}()
+
+	snapshotName, err := createAndStoreReplicationSlotAndPublication(finalTableList, leafPartitions, replicationConn, pgDB)
 	if err != nil {
 		return err
 	}
@@ -760,24 +776,13 @@ func createReplicationSlotAndExportSnapshotIfRequired(ctx context.Context, cance
 	return nil
 }
 
-func createAndStoreReplicationSlotAndPublication(finalTableList []sqlname.NameTuple, leafPartitions *utils.StructMap[sqlname.NameTuple, []sqlname.NameTuple]) (string, error) {
-	// create replication slot
-	pgDB := source.DB().(*srcdb.PostgreSQL)
-	replicationConn, err := pgDB.GetReplicationConnection()
-	if err != nil {
-		return "", fmt.Errorf("export snapshot: failed to create replication connection: %w", err)
-	}
-	// need to keep the replication connection open until snapshot is complete.
-	defer func() {
-		err := replicationConn.Close(context.Background())
-		if err != nil {
-			log.Errorf("close replication connection: %v", err)
-		}
-	}()
+func createAndStoreReplicationSlotAndPublication(finalTableList []sqlname.NameTuple, leafPartitions *utils.StructMap[sqlname.NameTuple, []sqlname.NameTuple],
+	replicationConn *pgconn.PgConn, pgDB *srcdb.PostgreSQL) (string, error) {
+
 	// Note: publication object needs to be created before replication slot
 	// https://www.postgresql.org/message-id/flat/e0885261-5723-7bab-f541-e6a260f50328%402ndquadrant.com#a5f257b667575719ad98c59281f3e191
 	publicationName := "voyager_dbz_publication_" + strings.ReplaceAll(migrationUUID.String(), "-", "_")
-	err = pgDB.CreatePublication(replicationConn, publicationName, finalTableList, true, leafPartitions)
+	err := pgDB.CreatePublication(replicationConn, publicationName, finalTableList, true, leafPartitions)
 	if err != nil {
 		return "", fmt.Errorf("create publication: %w", err)
 	}
