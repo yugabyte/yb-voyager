@@ -227,6 +227,34 @@ func (lm *LiveMigrationTest) StartExportData(async bool, extraArgs map[string]st
 	return nil
 }
 
+func (lm *LiveMigrationTest) StartExportDataChangesOnly(async bool, extraArgs map[string]string) error {
+	fmt.Printf("Starting export data changes only\n")
+	var onStart func()
+	if async {
+		onStart = func() {
+			time.Sleep(5 * time.Second) // Wait for export to start
+		}
+	}
+	args := []string{
+		"--export-dir", lm.exportDir,
+		"--source-db-schema", strings.Join(lm.config.SchemaNames, ","),
+		"--disable-pb", "true",
+		"--export-type", CHANGES_ONLY,
+		"--yes",
+	}
+	for key, value := range extraArgs {
+		args = append(args, key, value)
+	}
+
+	lm.exportCmd = testutils.NewVoyagerCommandRunner(lm.sourceContainer, "export data", args, onStart, async)
+	err := lm.exportCmd.Run()
+	if err != nil {
+		return goerrors.Errorf("failed to start export data: %w", err)
+	}
+	fmt.Printf("Export data changes only started\n")
+	return nil
+}
+
 // StartImportData starts import data command
 func (lm *LiveMigrationTest) StartImportData(async bool, extraArgs map[string]string) error {
 	fmt.Printf("Starting import data\n")

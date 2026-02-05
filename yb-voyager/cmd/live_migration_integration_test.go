@@ -3030,3 +3030,117 @@ FROM generate_series(1, 5);`,
 	})
 	testutils.FatalIfError(t, err, "failed to validate sequence restoration")
 }
+
+func TestLiveMigrationChangesOnlyFromPGToYB(t *testing.T) {
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB: ContainerConfig{
+			Type:         "postgresql",
+			ForLive:      true,
+			DatabaseName: "test_changes_only_from_pg_to_yb",
+		},
+		TargetDB: ContainerConfig{
+			Type:         "yugabytedb",
+			DatabaseName: "test_changes_only_from_pg_to_yb",
+		},
+		SchemaNames: []string{`test_schema`},
+		//initialsing the data in this setupschema step itself to have consisitent data before starting migration from PG to YB
+		SchemaSQL: []string{
+			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
+			`CREATE SCHEMA IF NOT EXISTS test_schema;
+			CREATE TABLE test_schema.test_live (
+				id SERIAL PRIMARY KEY,
+				name TEXT,
+				email TEXT,
+				description TEXT
+			);`,
+			`INSERT INTO test_schema.test_live (name, email, description)
+			SELECT
+				'testing changes only from PG to YB',
+				'abc@example.com',
+				'testing changes only from PG to YB test data'
+			FROM generate_series(1, 10);`,
+		},
+		SourceSetupSchemaSQL: []string{
+			`ALTER TABLE test_schema.test_live REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{},
+		SourceDeltaSQL: []string{
+			`INSERT INTO test_schema.test_live (name, email, description)
+			SELECT
+				md5(random()::text),
+				md5(random()::text) || '@example.com',
+				repeat(md5(random()::text), 10)
+			FROM generate_series(1, 5);`,
+		},
+		TargetDeltaSQL: []string{
+			`INSERT INTO test_schema.test_live (name, email, description)
+			SELECT
+				md5(random()::text),
+				md5(random()::text) || '@example.com',
+				repeat(md5(random()::text), 10)
+			FROM generate_series(1, 5);`,
+		},
+		CleanupSQL: []string{
+			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
+		},
+	})
+
+	// defer lm.Cleanup()
+
+	err := lm.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+
+	err = lm.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
+
+	err = lm.StartExportDataChangesOnly(true, nil)
+	testutils.FatalIfError(t, err, "failed to start export data")
+
+	err = lm.StartImportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start import data")
+
+	time.Sleep(10 * time.Second)
+
+	err = lm.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
+
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`"test_schema"."test_live"`: {
+			Inserts: 5,
+			Updates: 0,
+			Deletes: 0,
+		},
+	}, 30, 1)
+	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
+
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	err = lm.InitiateCutoverToTarget(true, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover")
+
+	err = lm.WaitForCutoverComplete(50)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+
+	err = lm.ExecuteTargetDelta()
+	testutils.FatalIfError(t, err, "failed to execute target delta")
+
+	err = lm.WaitForFallbackStreamingComplete(map[string]ChangesCount{
+		`"test_schema"."test_live"`: {
+			Inserts: 5,
+			Updates: 0,
+			Deletes: 0,
+		},
+	}, 30, 1)
+	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
+
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	err = lm.InitiateCutoverToSource(nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
+
+	err = lm.WaitForCutoverSourceComplete(100)
+	testutils.FatalIfError(t, err, "failed to wait for cutover to source complete")
+
+}
