@@ -1,5 +1,4 @@
 //go:build integration
-
 /*
 Copyright (c) YugabyteDB, Inc.
 
@@ -504,7 +503,7 @@ func createBatchFromData(t *testing.T, data string, tableName sqlname.NameTuple)
 	batch := &Batch{
 		Number:       1,
 		TableNameTup: tableName,
-		SchemaName:   tableName.CurrentName.SchemaName,
+		SchemaName:   tableName.CurrentName.SchemaName.Unquoted,
 		FilePath:     batchFilePath,
 		BaseFilePath: batchFilePath,
 		OffsetStart:  0,
@@ -543,7 +542,7 @@ func createTargetYugabyteDB(t *testing.T, container testcontainers.TestContainer
 		User:         config.User,
 		Password:     config.Password,
 		DBName:       config.DBName,
-		Schema:       "public", // Set default schema
+		Schemas:      []sqlname.Identifier{sqlname.NewIdentifier(tgtdb.YUGABYTEDB, "public")}, // Set default schema
 		TargetDBType: tgtdb.YUGABYTEDB,
 	}
 
@@ -691,7 +690,7 @@ func createTargetPostgreSQL(t *testing.T, container testcontainers.TestContainer
 		User:         config.User,
 		Password:     config.Password,
 		DBName:       config.DBName,
-		Schema:       "public", // Set default schema
+		Schemas:      []sqlname.Identifier{sqlname.NewIdentifier(tgtdb.POSTGRESQL, "public")}, // Set default schema
 		TargetDBType: tgtdb.POSTGRESQL,
 	}
 

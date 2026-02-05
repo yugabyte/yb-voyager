@@ -147,7 +147,7 @@ func checkPermissionsOnReplicaNode(source *srcdb.Source, replica srcdb.ReplicaEn
 		DBName:         source.DBName,
 		User:           source.User,
 		Password:       source.Password,
-		Schema:         source.Schema,
+		Schemas:        source.Schemas,
 		SSLMode:        source.SSLMode,
 		SSLCertPath:    source.SSLCertPath,
 		SSLKey:         source.SSLKey,

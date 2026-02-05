@@ -1,6 +1,6 @@
 [
     {
-      "table_name": "public.\"t1_newline\"",
+      "table_name": "\"public\".\"t1_newline\"",
       "file_name": "t1_newline.csv",
       "status": "DONE",
       "total_count": 85,

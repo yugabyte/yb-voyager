@@ -71,7 +71,8 @@ grant_user_permission_postgresql() {
 	db_name=$1
 	db_schema=$2
 	conn_string="postgresql://${SOURCE_DB_ADMIN_USER}:${SOURCE_DB_ADMIN_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}"
-	echo "2" | psql "${conn_string}" -v voyager_user="${SOURCE_DB_USER}" \
+	echo "2" | psql "${conn_string}" --set ON_ERROR_STOP=on \
+                                    -v voyager_user="${SOURCE_DB_USER}" \
                                     -v schema_list="${db_schema}" \
                                     -v is_live_migration=0 \
                                     -f /opt/yb-voyager/guardrails-scripts/yb-voyager-pg-grant-migration-permissions.sql
@@ -183,7 +184,8 @@ grant_permissions_for_live_migration_pg() {
 	db_name=$1
 	db_schema=$2
 	conn_string="postgresql://${SOURCE_DB_ADMIN_USER}:${SOURCE_DB_ADMIN_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}"
-	echo "2" | psql "${conn_string}" -v voyager_user="${SOURCE_DB_USER}" \
+	echo "2" | psql "${conn_string}" --set ON_ERROR_STOP=on \
+                                    -v voyager_user="${SOURCE_DB_USER}" \
                                     -v schema_list="${db_schema}" \
                                     -v replication_group='replication_group' \
                                     -v is_live_migration=1 \
@@ -905,7 +907,8 @@ get_value_from_msr(){
 }
 
 set_replica_identity(){
-	db_schema=$1
+    #trim the quotes from the schema name
+    db_schema=$(echo $1 | sed 's/"//g')
     cat > alter_replica_identity.sql <<EOF
     DO \$CUSTOM\$ 
     DECLARE
@@ -913,7 +916,7 @@ set_replica_identity(){
     BEGIN
         FOR r IN (SELECT table_schema,table_name FROM information_schema.tables WHERE table_schema = '${db_schema}' AND table_type = 'BASE TABLE') 
         LOOP
-            EXECUTE 'ALTER TABLE ' || r.table_schema || '."' || r.table_name || '" REPLICA IDENTITY FULL';
+            EXECUTE 'ALTER TABLE ' || '"' || r.table_schema || '"."' || r.table_name || '" REPLICA IDENTITY FULL';
         END LOOP;
     END \$CUSTOM\$;
 EOF
@@ -927,7 +930,6 @@ grant_permissions_for_live_migration() {
     elif [ "${SOURCE_DB_TYPE}" = "postgresql" ]; then
 		for schema_name in $(echo ${SOURCE_DB_SCHEMA} | tr "," "\n")
 		do
-			set_replica_identity ${schema_name}
 			grant_permissions ${SOURCE_DB_NAME} ${SOURCE_DB_TYPE} ${schema_name}
 			grant_permissions_for_live_migration_pg ${SOURCE_DB_NAME} ${schema_name}
 		done
@@ -956,7 +958,8 @@ setup_fallback_environment() {
 		rm -f $TEMP_SCRIPT
 	    elif [ "${SOURCE_DB_TYPE}" = "postgresql" ]; then
 		conn_string="postgresql://${SOURCE_DB_ADMIN_USER}:${SOURCE_DB_ADMIN_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${SOURCE_DB_NAME}"
-		echo "2" | psql "${conn_string}" -v voyager_user="${SOURCE_DB_USER}" \
+		echo "2" | psql "${conn_string}" --set ON_ERROR_STOP=on \
+                                    -v voyager_user="${SOURCE_DB_USER}" \
                                     -v schema_list="${SOURCE_DB_SCHEMA}" \
                                     -v replication_group='replication_group' \
                                     -v is_live_migration=1 \

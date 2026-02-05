@@ -38,7 +38,7 @@ COPY (
         pg_index pi
            ON pi.indexrelid = c.oid
     WHERE
-        n.nspname = ANY(ARRAY[string_to_array(:'schema_list', '|')])
+        n.nspname = ANY(string_to_array(:'schema_list', '|'))
         AND (c.relkind IN ('r', 'p', 'i', 'I', 'm'))
         AND NOT (c.relkind = 'I' AND pi.indisprimary)
 ) TO STDOUT WITH CSV HEADER;

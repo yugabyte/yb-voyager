@@ -39,12 +39,12 @@ import (
 )
 
 // Apart from these we also skip UDT columns. Array of enums, hstore, and tsvector are supported with logical connector (default).
-var YugabyteUnsupportedDataTypesForDbzmLogical = []string{"BOX", "CIRCLE", "LINE", "LSEG", "PATH", "PG_LSN", "POINT", "POLYGON", "TSQUERY", "TXID_SNAPSHOT", "GEOMETRY", "GEOGRAPHY", "RASTER", "INT4MULTIRANGE", "INT8MULTIRANGE", "NUMMULTIRANGE", "TSMULTIRANGE", "TSTZMULTIRANGE", "DATEMULTIRANGE"}
+var YugabyteUnsupportedDataTypesForDbzmLogical = []string{"BOX", "CIRCLE", "LINE", "LSEG", "PATH", "PG_LSN", "POINT", "POLYGON", "TSQUERY", "TXID_SNAPSHOT", "GEOMETRY", "GEOGRAPHY", "RASTER", "INT4MULTIRANGE", "INT8MULTIRANGE", "NUMMULTIRANGE", "TSMULTIRANGE", "TSTZMULTIRANGE", "DATEMULTIRANGE", "VECTOR"}
 
 // For the gRPC connector - datatypes like HSTORE/CITEXT/LTREE that are available by extensions, are not supported and the table of these needs to be skipped for the migration with grpc connector
 // but right now we are only skipping columns of that table and if there are DML on those tables the gRPC connector will error out.
 // TODO to handle that
-var YugabyteUnsupportedDataTypesForDbzmGrpc = []string{"BOX", "CIRCLE", "LINE", "LSEG", "PATH", "PG_LSN", "POINT", "POLYGON", "TSQUERY", "TSVECTOR", "TXID_SNAPSHOT", "GEOMETRY", "GEOGRAPHY", "RASTER", "HSTORE", "CITEXT", "LTREE", "INT4MULTIRANGE", "INT8MULTIRANGE", "NUMMULTIRANGE", "TSMULTIRANGE", "TSTZMULTIRANGE", "DATEMULTIRANGE"}
+var YugabyteUnsupportedDataTypesForDbzmGrpc = []string{"BOX", "CIRCLE", "LINE", "LSEG", "PATH", "PG_LSN", "POINT", "POLYGON", "TSQUERY", "TSVECTOR", "TXID_SNAPSHOT", "GEOMETRY", "GEOGRAPHY", "RASTER", "HSTORE", "CITEXT", "LTREE", "INT4MULTIRANGE", "INT8MULTIRANGE", "NUMMULTIRANGE", "TSMULTIRANGE", "TSTZMULTIRANGE", "DATEMULTIRANGE", "VECTOR"}
 
 func GetYugabyteUnsupportedDatatypesDbzm(isGRPCConnector bool) []string {
 	if isGRPCConnector {
@@ -149,49 +149,31 @@ func (yb *YugabyteDB) GetVersion() string {
 	return version
 }
 
-func (yb *YugabyteDB) CheckSchemaExists() bool {
-	schemaList := yb.checkSchemasExists()
-	return schemaList != nil
-}
-
-func (yb *YugabyteDB) checkSchemasExists() []string {
-	list := strings.Split(yb.source.Schema, "|")
-	var trimmedList []string
-	for _, schema := range list {
-		if utils.IsQuotedString(schema) {
-			schema = strings.Trim(schema, `"`)
-		}
-		trimmedList = append(trimmedList, schema)
-	}
-	querySchemaList := "'" + strings.Join(trimmedList, "','") + "'"
-	chkSchemaExistsQuery := fmt.Sprintf(`SELECT schema_name
-	FROM information_schema.schemata where schema_name IN (%s);`, querySchemaList)
-	rows, err := yb.db.Query(chkSchemaExistsQuery)
+func (yb *YugabyteDB) GetAllSchemaNamesIdentifiers() ([]sqlname.Identifier, error) {
+	fetchSchemasQuery := `SELECT nspname AS schema_name
+	FROM pg_namespace WHERE nspname NOT IN ('pg_catalog', 'information_schema');`
+	rows, err := yb.db.Query(fetchSchemasQuery)
 	if err != nil {
-		utils.ErrExit("error in querying source database for checking mentioned schema(s) present or not: %q: %w\n", chkSchemaExistsQuery, err)
+		return nil, fmt.Errorf("error in querying source database for checking mentioned schema(s) present or not: %q: %w\n", fetchSchemasQuery, err)
 	}
-	var listOfSchemaPresent []string
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			log.Warnf("close rows for query %q: %v", fetchSchemasQuery, closeErr)
+		}
+	}()
+	var listOfSchemaPresent []sqlname.Identifier
 	var tableSchemaName string
 
 	for rows.Next() {
 		err = rows.Scan(&tableSchemaName)
 		if err != nil {
-			utils.ErrExit("error in scanning query rows for schema names: %w\n", err)
+			return nil, fmt.Errorf("error in scanning query rows for schema names: %w\n", err)
 		}
-		listOfSchemaPresent = append(listOfSchemaPresent, tableSchemaName)
+		listOfSchemaPresent = append(listOfSchemaPresent, sqlname.NewIdentifier(yb.source.DBType, fmt.Sprintf(`"%s"`, tableSchemaName)))
 	}
-	defer func() {
-		closeErr := rows.Close()
-		if closeErr != nil {
-			log.Warnf("close rows for query %q: %v", chkSchemaExistsQuery, closeErr)
-		}
-	}()
 
-	schemaNotPresent := utils.SetDifference(trimmedList, listOfSchemaPresent)
-	if len(schemaNotPresent) > 0 {
-		utils.ErrExit("Following schemas are not present in source database: %v, please provide a valid schema list.\n", schemaNotPresent)
-	}
-	return trimmedList
+	return listOfSchemaPresent, nil
 }
 
 func (yb *YugabyteDB) GetAllTableNamesRaw(schemaName string) ([]string, error) {
@@ -235,12 +217,12 @@ func (yb *YugabyteDB) GetAllTableNamesRaw(schemaName string) ([]string, error) {
 }
 
 func (yb *YugabyteDB) GetAllTableNames() []*sqlname.SourceName {
-	schemaList := yb.checkSchemasExists()
+	schemaList := sqlname.ExtractIdentifiersUnquoted(yb.source.Schemas)
 	querySchemaList := "'" + strings.Join(schemaList, "','") + "'"
 	// Information schema requires select permission on the tables to query the tables. However, pg_catalog does not require any permission.
 	// So, we are using pg_catalog to get the table names.
 	query := fmt.Sprintf(`
-	SELECT 
+	SELECT 	
 		n.nspname AS table_schema,
 		c.relname AS table_name
 	FROM 
@@ -378,7 +360,7 @@ func (yb *YugabyteDB) getExportedColumnsListForTable(exportDir, tableName string
 
 // GetAllSequences returns all the sequence names in the database for the given schema list
 func (yb *YugabyteDB) GetAllSequences() []string {
-	schemaList := yb.checkSchemasExists()
+	schemaList := sqlname.ExtractIdentifiersUnquoted(yb.source.Schemas)
 	querySchemaList := "'" + strings.Join(schemaList, "','") + "'"
 	var sequenceNames []string
 	query := fmt.Sprintf(`SELECT sequence_name FROM information_schema.sequences where sequence_schema IN (%s);`, querySchemaList)
@@ -921,7 +903,7 @@ func (yb *YugabyteDB) GetColumnToSequenceMap(tableList []sqlname.NameTuple) map[
 			}
 			qualifiedColumnName := fmt.Sprintf("%s.%s", tableName, columeName)
 			// quoting sequence name as it can be case sensitive - required during import data restore sequences
-			columnToSequenceMap[qualifiedColumnName] = fmt.Sprintf(`%s."%s"`, schemaName, sequenceName)
+			columnToSequenceMap[qualifiedColumnName] = fmt.Sprintf(`"%s"."%s"`, schemaName, sequenceName)
 		}
 		err = rows.Close()
 		if err != nil {
@@ -1112,8 +1094,7 @@ func (yb *YugabyteDB) ClearMigrationState(migrationUUID uuid.UUID, exportDir str
 
 func (yb *YugabyteDB) GetNonPKTables() ([]string, error) {
 	var nonPKTables []string
-	schemaList := strings.Split(yb.source.Schema, "|")
-	querySchemaList := "'" + strings.Join(schemaList, "','") + "'"
+	querySchemaList := "'" + sqlname.JoinIdentifiersMinQuoted(yb.source.Schemas, "','") + "'"
 	query := fmt.Sprintf(PG_QUERY_TO_CHECK_IF_TABLE_HAS_PK, querySchemaList)
 	rows, err := yb.db.Query(query)
 	if err != nil {
