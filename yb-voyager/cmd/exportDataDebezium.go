@@ -25,7 +25,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fatih/color"
 	goerrors "github.com/go-errors/errors"
 	"github.com/pingcap/failpoint"
 
