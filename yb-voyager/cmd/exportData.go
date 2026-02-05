@@ -742,7 +742,7 @@ func checkIfReplicationSlotIsActive(replicationSlot string) (bool, error) {
 }
 
 func createReplicationSlotAndExportSnapshotIfRequired(ctx context.Context, cancel context.CancelFunc, finalTableList []sqlname.NameTuple, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], leafPartitions *utils.StructMap[sqlname.NameTuple, []sqlname.NameTuple]) error {
-	snapshotSlotName, err := createAndStoreReplicationSlotAndPublication(finalTableList, leafPartitions)
+	snapshotName, err := createAndStoreReplicationSlotAndPublication(finalTableList, leafPartitions)
 	if err != nil {
 		return err
 	}
@@ -750,7 +750,7 @@ func createReplicationSlotAndExportSnapshotIfRequired(ctx context.Context, cance
 	if exportType != CHANGES_ONLY {
 		//If the mode is changes only, we don't need to export the snapshot, only we need to create the replication slot and publication.
 		// pg_dump
-		err = exportDataOffline(ctx, cancel, finalTableList, tablesColumnList, snapshotSlotName)
+		err = exportDataOffline(ctx, cancel, finalTableList, tablesColumnList, snapshotName)
 		if err != nil {
 			return fmt.Errorf("export data offline: %w", err)
 		}
@@ -800,7 +800,7 @@ func createAndStoreReplicationSlotAndPublication(finalTableList []sqlname.NameTu
 	if err != nil {
 		return "", fmt.Errorf("update PGReplicationSlotName: update migration status record: %w", err)
 	}
-	return res.SlotName, nil
+	return res.SnapshotName, nil
 }
 
 func getSequenceInitialValues() (*utils.StructMap[sqlname.NameTuple, int64], error) {
