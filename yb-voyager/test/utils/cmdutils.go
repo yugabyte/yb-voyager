@@ -35,6 +35,10 @@ func CreateBackupDir(t *testing.T) string {
 }
 
 func RemoveTempExportDir(exportDir string) {
+	if os.Getenv("YB_VOYAGER_KEEP_EXPORT_DIR") == "1" {
+		fmt.Printf("Keeping export dir for debugging: %s\n", exportDir)
+		return
+	}
 	// Remove the temporary directory
 	err := os.RemoveAll(exportDir)
 	if err != nil {
