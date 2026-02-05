@@ -35,8 +35,10 @@ import (
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
-// TestCDCOffsetCommitFailureAndResume verifies that a failed offset commit causes replay
-// and deduplication prevents duplicate events from being added.
+// TestCDCOffsetCommitFailureAndResume verifies proper durability guarantees:
+// 1. Events are NOT marked as processed until after batch fsync completes
+// 2. Failed offset commits cause event replay on resume
+// 3. Deduplication prevents duplicate events from being written
 func TestCDCOffsetCommitFailureAndResume(t *testing.T) {
 	if os.Getenv("BYTEMAN_JAR") == "" {
 		t.Skip("Skipping test: BYTEMAN_JAR environment variable not set. Install Byteman to run this test.")
@@ -58,6 +60,16 @@ func TestCDCOffsetCommitFailureAndResume(t *testing.T) {
 	defer postgresContainer.ExecuteSqls(
 		"DROP SCHEMA IF EXISTS test_schema_offset_commit CASCADE;",
 	)
+
+	logHighlight(t, "")
+	logHighlight(t, "========================================================================")
+	logHighlight(t, "TEST: CDC Offset Commit Failure and Resume with Deduplication")
+	logHighlight(t, "========================================================================")
+	logHighlight(t, "")
+
+	// ============================================================================
+	// SETUP: Configure Byteman to fail offset commit on first CDC batch
+	// ============================================================================
 
 	bytemanHelper, err := testutils.NewBytemanHelper(exportDir)
 	require.NoError(t, err, "Failed to create Byteman helper")
@@ -85,54 +97,106 @@ func TestCDCOffsetCommitFailureAndResume(t *testing.T) {
 		cdcEventsGenerated <- true
 	}
 
+	// ============================================================================
+	// RUN INITIAL EXPORT: Process snapshot, then CDC events with injected failure
+	// ============================================================================
+
 	exportRunner := testutils.NewVoyagerCommandRunner(postgresContainer, "export data", []string{
 		"--export-dir", exportDir,
 		"--export-type", "snapshot-and-changes",
 		"--source-db-schema", "test_schema_offset_commit",
 		"--disable-pb", "true",
 		"--yes",
-	}, generateCDCEvents, true).WithEnv(append(bytemanHelper.GetEnv(), "YB_VOYAGER_SKIP_MARK_PROCESSED_FOR_SKIPPED=1")...)
+	}, generateCDCEvents, true).WithEnv(bytemanHelper.GetEnv()...)
 
 	err = exportRunner.Run()
 	require.NoError(t, err, "Failed to start export")
 
+	// ============================================================================
+	// WAIT FOR FAILURE INJECTION: Confirm Byteman injected failure
+	// ============================================================================
+
+	logHighlight(t, "▶ FAILURE INJECTION: Waiting for offset commit failure...")
+
 	matched, err := bytemanHelper.WaitForInjection(">>> BYTEMAN: fail_offset_commit", 90*time.Second)
-	require.NoError(t, err, "Should be able to read debezium logs for offset commit failure")
+	require.NoError(t, err, "Should be able to read debezium logs")
 	require.True(t, matched, "Byteman offset commit failure should be injected")
+	logHighlight(t, "  ✓ Byteman injected offset commit failure")
 
 	select {
 	case <-cdcEventsGenerated:
+		logHighlight(t, "  ✓ CDC events generated (20 inserts)")
 	case <-time.After(60 * time.Second):
 		require.Fail(t, "CDC event generation timed out")
 	}
+
 	var offsetBeforeCDC string
 	select {
 	case offsetBeforeCDC = <-offsetBeforeCDCCh:
+		if offsetBeforeCDC == "" {
+			logHighlight(t, "  ✓ Captured offset before CDC: (empty/no offset file)")
+		} else if len(offsetBeforeCDC) > 16 {
+			logHighlight(t, "  ✓ Captured offset before CDC: %s...", offsetBeforeCDC[:16])
+		} else {
+			logHighlight(t, "  ✓ Captured offset before CDC: %s", offsetBeforeCDC)
+		}
 	case <-time.After(30 * time.Second):
-		require.Fail(t, "Timed out waiting to capture offsets before CDC insert")
+		require.Fail(t, "Timed out waiting to capture offset before CDC")
 	}
 
 	_, waitErr := waitForProcessExitOrKill(exportRunner, exportDir, 60*time.Second)
 	require.Error(t, waitErr, "Export should exit with error after offset commit failure")
+	logHighlight(t, "  ✓ Export process exited with error (expected)")
 
+	// ============================================================================
+	// VERIFY DURABILITY GUARANTEE: Events written but offsets NOT committed
+	// This is the core fix - events should only be marked processed AFTER fsync
+	// ============================================================================
+
+	logHighlight(t, "▶ DURABILITY CHECKS: Verifying events written but offsets not committed...")
+
+	// Check 1: Events are written to queue
 	eventCountAfterFailure, err := countEventsInQueueSegments(exportDir)
 	require.NoError(t, err, "Should be able to count events after failure")
-	require.Equal(t, 20, eventCountAfterFailure, "Expected 20 CDC events after failure")
+	require.Equal(t, 20, eventCountAfterFailure, "Expected 20 CDC events written to queue")
+	logHighlight(t, "  ✓ Check 1 PASSED: 20 events written to queue")
+
+	// Check 2: Offsets NOT advanced (ensures replay will occur)
 	offsetAfterFailure := readOffsetFileChecksum(exportDir)
-	require.Equal(t, offsetBeforeCDC, offsetAfterFailure, "Offsets advanced despite before-offset-commit failure; replay will not occur")
+	require.Equal(t, offsetBeforeCDC, offsetAfterFailure,
+		"Offsets should NOT advance when offset commit fails")
+	logHighlight(t, "  ✓ Check 2 PASSED: Offsets NOT advanced (checksum unchanged)")
+
 	offsetContents := readOffsetFileContents(exportDir)
-	logHighlight(t, "Offset file contents after failure: %q", offsetContents)
-	require.Equal(t, "", strings.TrimSpace(offsetContents), "Offset file should be empty after failure")
+	require.Equal(t, "", strings.TrimSpace(offsetContents), "Offset file should be empty")
+	logHighlight(t, "  ✓ Check 3 PASSED: Offset file is empty (%q)", offsetContents)
+
+	// ============================================================================
+	// CAPTURE BASELINE STATE: Collect metrics before resume for comparison
+	// ============================================================================
+
+	logHighlight(t, "▶ BASELINE STATE: Capturing metrics before resume...")
 
 	eventIDsBefore, err := collectEventIDsForOffsetCommitTest(exportDir)
-	require.NoError(t, err, "Failed to read event_ids after failure")
-	require.Len(t, eventIDsBefore, 20, "Expected 20 unique event_ids after failure")
+	require.NoError(t, err, "Failed to collect event_ids after failure")
+	require.Len(t, eventIDsBefore, 20, "Expected 20 unique event_ids")
 	verifyNoEventIDDuplicates(t, exportDir)
-	eventCountBeforeResume := eventCountAfterFailure
-	logHighlight(t, "Queue count before resume: %d", eventCountBeforeResume)
+	logHighlight(t, "  ✓ Captured: 20 unique event_ids, no duplicates")
+	logHighlight(t, "  ✓ Captured: Queue count = %d", eventCountAfterFailure)
+
 	dedupSkipsBeforeResume, err := countDedupSkipLogs(exportDir)
-	require.NoError(t, err, "Failed to count dedup skip logs before resume")
-	logHighlight(t, "Dedup skip logs before resume: %d", dedupSkipsBeforeResume)
+	require.NoError(t, err, "Failed to count dedup skip logs")
+	logHighlight(t, "  ✓ Captured: Dedup skips = %d", dedupSkipsBeforeResume)
+
+	logHighlight(t, "")
+	logHighlight(t, "========================================================================")
+	logHighlight(t, "PHASE 2: Resume Export and Verify Replay with Deduplication")
+	logHighlight(t, "========================================================================")
+	logHighlight(t, "")
+
+	// ============================================================================
+	// PREPARE FOR RESUME: Setup Byteman to detect replay, release lock
+	// ============================================================================
 
 	_ = os.Remove(filepath.Join(exportDir, ".export-dataLockfile.lck"))
 
@@ -146,50 +210,86 @@ func TestCDCOffsetCommitFailureAndResume(t *testing.T) {
 	)
 	require.NoError(t, bytemanHelperResume.WriteRules(), "Failed to write Byteman rules for resume")
 
+	// ============================================================================
+	// RESUME EXPORT: Should replay events from last committed offset
+	// ============================================================================
+
 	exportRunnerResume := testutils.NewVoyagerCommandRunner(postgresContainer, "export data", []string{
 		"--export-dir", exportDir,
 		"--export-type", "snapshot-and-changes",
 		"--source-db-schema", "test_schema_offset_commit",
 		"--disable-pb", "true",
 		"--yes",
-	}, nil, true).WithEnv(append(bytemanHelperResume.GetEnv(), "YB_VOYAGER_SKIP_MARK_PROCESSED_FOR_SKIPPED=1")...)
+	}, nil, true).WithEnv(bytemanHelperResume.GetEnv()...)
 
 	err = exportRunnerResume.Run()
 	require.NoError(t, err, "Failed to start export resume")
 
+	// ============================================================================
+	// VERIFY REPLAY OCCURRED: Events replayed from last committed offset
+	// ============================================================================
+
+	logHighlight(t, "▶ REPLAY CHECKS: Verifying events replayed from last committed offset...")
+
 	replayMatched, err := bytemanHelperResume.WaitForInjection(">>> BYTEMAN: replay_batch", 90*time.Second)
-	require.NoError(t, err, "Should be able to read debezium logs for replay marker")
-	require.True(t, replayMatched, "Expected replay batch after resume")
+	require.NoError(t, err, "Should be able to read debezium logs")
+	require.True(t, replayMatched, "Replay batch should occur after resume")
+	logHighlight(t, "  ✓ REPLAY CONFIRMED: Batch replayed after resume")
 
-	eventCountAfterReplay, err := countEventsInQueueSegments(exportDir)
-	require.NoError(t, err, "Should be able to count events after replay marker")
-	logHighlight(t, "Queue count after replay marker: %d", eventCountAfterReplay)
-	require.Equal(t, eventCountBeforeResume, eventCountAfterReplay, "Replay processed but queue count should remain unchanged")
+	// ============================================================================
+	// VERIFY DEDUPLICATION: Replayed events recognized and NOT written again
+	// ============================================================================
 
+	logHighlight(t, "▶ DEDUPLICATION CHECKS: Verifying replayed events not written again...")
+
+	// Check 1: Event count remains unchanged
 	waitForCDCEventCount(t, exportDir, 20, 60*time.Second, 2*time.Second)
 	eventCountAfterResume, err := countEventsInQueueSegments(exportDir)
 	require.NoError(t, err, "Should be able to count events after resume")
-	require.Equal(t, 20, eventCountAfterResume, "Event count should remain 20 after replay")
+	require.Equal(t, eventCountAfterFailure, eventCountAfterResume,
+		"Event count should remain 20 (no duplicates added)")
+	logHighlight(t, "  ✓ Check 1 PASSED: Event count unchanged (%d events)", eventCountAfterResume)
 
+	// Check 2: Same event IDs present (no new IDs added)
 	eventIDsAfter, err := collectEventIDsForOffsetCommitTest(exportDir)
-	require.NoError(t, err, "Failed to read event_ids after resume")
-	require.Equal(t, len(eventIDsBefore), len(eventIDsAfter), "event_id set size should be unchanged after replay")
+	require.NoError(t, err, "Failed to collect event_ids after resume")
+	require.Equal(t, len(eventIDsBefore), len(eventIDsAfter),
+		"Event ID count should be unchanged")
+	logHighlight(t, "  ✓ Check 2 PASSED: Same %d unique event_ids", len(eventIDsAfter))
+
+	// Check 3: All original event IDs still present
 	for eventID := range eventIDsBefore {
 		_, ok := eventIDsAfter[eventID]
-		require.True(t, ok, "event_id should still exist after replay: %s", eventID)
+		require.True(t, ok, "Event ID should still exist: %s", eventID)
 	}
 	verifyNoEventIDDuplicates(t, exportDir)
-	dedupSkipsAfterResume, err := countDedupSkipLogs(exportDir)
-	require.NoError(t, err, "Failed to count dedup skip logs after resume")
-	logHighlight(t, "Dedup skip logs after resume: %d", dedupSkipsAfterResume)
-	require.GreaterOrEqual(t, dedupSkipsAfterResume-dedupSkipsBeforeResume, 20,
-		"Expected dedup cache to skip at least 20 replayed records on resume")
+	logHighlight(t, "  ✓ Check 3 PASSED: All original event IDs preserved, no duplicates")
 
+	// Check 4: Deduplication logs confirm skipped events
+	dedupSkipsAfterResume, err := countDedupSkipLogs(exportDir)
+	require.NoError(t, err, "Failed to count dedup skip logs")
+	dedupSkipDelta := dedupSkipsAfterResume - dedupSkipsBeforeResume
+	require.GreaterOrEqual(t, dedupSkipDelta, 20,
+		"At least 20 replayed events should be skipped by dedup cache")
+	logHighlight(t, "  ✓ Check 4 PASSED: Dedup cache skipped %d events (baseline: %d, after: %d)",
+		dedupSkipDelta, dedupSkipsBeforeResume, dedupSkipsAfterResume)
+
+	// ============================================================================
+	logHighlight(t, "")
+	logHighlight(t, "✅ ALL CHECKS PASSED - Durability guarantee verified!")
+	logHighlight(t, "   • Events written but offsets NOT committed on failure")
+	logHighlight(t, "   • Events replayed on resume")
+	logHighlight(t, "   • Deduplication prevented duplicate writes")
+	logHighlight(t, "")
+	// ============================================================================
+
+	// Cleanup
 	_ = exportRunnerResume.Kill()
 	_ = killDebeziumForExportDir(exportDir)
 	_ = os.Remove(filepath.Join(exportDir, ".export-dataLockfile.lck"))
 }
 
+// setupOffsetCommitTestData creates test schema and inserts initial snapshot data
 func setupOffsetCommitTestData(t *testing.T, container testcontainers.TestContainer) {
 	container.ExecuteSqls(
 		"DROP SCHEMA IF EXISTS test_schema_offset_commit CASCADE;",
@@ -203,6 +303,7 @@ func setupOffsetCommitTestData(t *testing.T, container testcontainers.TestContai
 		`ALTER TABLE test_schema_offset_commit.cdc_offset_commit_test REPLICA IDENTITY FULL;`,
 	)
 
+	// Insert 50 rows for snapshot phase
 	container.ExecuteSqls(
 		`INSERT INTO test_schema_offset_commit.cdc_offset_commit_test (name, value)
 		SELECT 'snapshot_' || i, i * 10 FROM generate_series(1, 50) i;`,
@@ -211,6 +312,8 @@ func setupOffsetCommitTestData(t *testing.T, container testcontainers.TestContai
 	t.Log("Offset commit test schema created with 50 snapshot rows")
 }
 
+// collectEventIDsForOffsetCommitTest extracts all event_ids from queue segment files
+// Returns a set of unique event_ids for deduplication verification
 func collectEventIDsForOffsetCommitTest(exportDir string) (map[string]struct{}, error) {
 	queueDir := filepath.Join(exportDir, "data", "queue")
 	files, err := filepath.Glob(filepath.Join(queueDir, "segment.*.ndjson"))
@@ -257,6 +360,7 @@ func collectEventIDsForOffsetCommitTest(exportDir string) (map[string]struct{}, 
 	return eventIDs, nil
 }
 
+// readOffsetFileChecksum returns SHA256 hash of offset file for comparison
 func readOffsetFileChecksum(exportDir string) string {
 	offsetPath := filepath.Join(exportDir, "data", fmt.Sprintf("offsets.%s.dat", SOURCE_DB_EXPORTER_ROLE))
 	data, err := os.ReadFile(offsetPath)
@@ -266,6 +370,7 @@ func readOffsetFileChecksum(exportDir string) string {
 	return fmt.Sprintf("%x", sha256.Sum256(data))
 }
 
+// readOffsetFileContents returns raw contents of offset file
 func readOffsetFileContents(exportDir string) string {
 	offsetPath := filepath.Join(exportDir, "data", fmt.Sprintf("offsets.%s.dat", SOURCE_DB_EXPORTER_ROLE))
 	data, err := os.ReadFile(offsetPath)
@@ -275,6 +380,7 @@ func readOffsetFileContents(exportDir string) string {
 	return string(data)
 }
 
+// countDedupSkipLogs counts how many times deduplication skipped a replayed event
 func countDedupSkipLogs(exportDir string) (int, error) {
 	logPattern := filepath.Join(exportDir, "logs", "debezium-*.log")
 	matches, err := filepath.Glob(logPattern)
