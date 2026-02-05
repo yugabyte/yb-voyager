@@ -3031,6 +3031,192 @@ FROM generate_series(1, 5);`,
 	testutils.FatalIfError(t, err, "failed to validate sequence restoration")
 }
 
+// TestLiveMigrationWithImportResumptionAfterCutover tests the flow where:
+// 1. Export data from source
+// 2. Import data to target
+// 3. Stop import
+// 4. Issue cutover
+// 5. Check if import data to source has started by confirming PG replication slot deletion
+// 6. Resume import data to target
+// 7. Check if YB replication slot exists
+func TestLiveMigrationWithImportResumptionAfterCutover(t *testing.T) {
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB: ContainerConfig{
+			Type:         "postgresql",
+			ForLive:      true,
+			DatabaseName: "test_import_resumption_after_cutover",
+		},
+		TargetDB: ContainerConfig{
+			Type:         "yugabytedb",
+			DatabaseName: "test_import_resumption_after_cutover",
+		},
+		SchemaNames: []string{"test_schema"},
+		SchemaSQL: []string{
+			`CREATE SCHEMA IF NOT EXISTS test_schema;
+            CREATE TABLE test_schema.test_live (
+                id SERIAL PRIMARY KEY,
+                name TEXT,
+                email TEXT,
+                description TEXT
+            );`,
+		},
+		SourceSetupSchemaSQL: []string{
+			`ALTER TABLE test_schema.test_live REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			`INSERT INTO test_schema.test_live (name, email, description)
+SELECT
+    md5(random()::text),                                      -- name
+    md5(random()::text) || '@example.com',                    -- email
+    repeat(md5(random()::text), 10)                           -- description (~320 chars)
+FROM generate_series(1, 10);`,
+		},
+		SourceDeltaSQL: []string{
+			`INSERT INTO test_schema.test_live (name, email, description)
+SELECT
+    md5(random()::text),                                      -- name
+    md5(random()::text) || '@example.com',                    -- email
+    repeat(md5(random()::text), 10)                           -- description (~320 chars)
+FROM generate_series(1, 5);`,
+		},
+		TargetDeltaSQL: []string{
+			`INSERT INTO test_schema.test_live (name, email, description)
+SELECT
+    md5(random()::text),                                      -- name
+    md5(random()::text) || '@example.com',                    -- email
+    repeat(md5(random()::text), 10)                           -- description (~320 chars)
+FROM generate_series(1, 5);`,
+		},
+		CleanupSQL: []string{
+			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
+		},
+	})
+
+	defer lm.Cleanup()
+
+	err := lm.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+
+	err = lm.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
+
+	// Export data from source
+	err = lm.StartExportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start export data")
+
+	// Import data to target
+	err = lm.StartImportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start import data")
+
+	time.Sleep(10 * time.Second)
+
+	// Wait for snapshot to complete
+	err = lm.WaitForSnapshotComplete(map[string]int64{
+		`"test_schema"."test_live"`: 10,
+	}, 30)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+
+	// Validate snapshot data consistency
+	err = lm.ValidateDataConsistency([]string{`test_schema."test_live"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate snapshot data consistency")
+
+	// Stop import
+	err = lm.StopImportData()
+	testutils.FatalIfError(t, err, "failed to stop import data")
+
+	// Execute source delta and wait for it to complete
+	err = lm.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
+
+	time.Sleep(10 * time.Second)
+
+	// Issue cutover
+	err = lm.InitiateCutoverToTarget(true, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover")
+
+	err = lm.InitMetaDB()
+	testutils.FatalIfError(t, err, "failed to initialize meta db")
+
+	msr, err := lm.metaDB.GetMigrationStatusRecord()
+	testutils.FatalIfError(t, err, "failed to get migration status record")
+
+	// Get replication slot names
+	pgSlotName := msr.PGReplicationSlotName
+
+	// Check if PostgreSQL replication slot is ended
+	time.Sleep(2 * time.Second)
+	var exists bool
+	exists, err = lm.CheckIfReplicationSlotExists(pgSlotName, "source")
+	testutils.FatalIfError(t, err, "failed to check if PostgreSQL replication slot exists")
+	assert.False(t, exists, "PostgreSQL replication slot should be ended after cutover")
+
+	// Resume import data to target
+	err = lm.ResumeImportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to resume import data")
+
+	// Wait for forward streaming to complete
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`"test_schema"."test_live"`: {
+			Inserts: 5,
+			Updates: 0,
+			Deletes: 0,
+		},
+	}, 100, 1)
+	testutils.FatalIfError(t, err, "failed to wait for forward streaming complete")
+
+	// Validate streaming data
+	err = lm.ValidateDataConsistency([]string{`test_schema."test_live"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate streaming data consistency")
+
+	// Wait for cutover to complete and validate
+	err = lm.WaitForCutoverComplete(50)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+
+	msr, err = lm.metaDB.GetMigrationStatusRecord()
+	testutils.FatalIfError(t, err, "failed to get migration status record")
+
+	ybSlotName := msr.YBReplicationSlotName
+
+	// YB replication slot should still exist
+	exists, err = lm.CheckIfReplicationSlotExists(ybSlotName, "target")
+	testutils.FatalIfError(t, err, "failed to check if YB replication slot exists")
+	assert.True(t, exists, "YB replication slot should exist after cutover is completed")
+
+	// Execute target delta
+	err = lm.ExecuteTargetDelta()
+	testutils.FatalIfError(t, err, "failed to execute target delta")
+
+	// Wait for fallback streaming to complete
+	err = lm.WaitForFallbackStreamingComplete(map[string]ChangesCount{
+		`"test_schema"."test_live"`: {
+			Inserts: 5,
+			Updates: 0,
+			Deletes: 0,
+		},
+	}, 100, 1)
+	testutils.FatalIfError(t, err, "failed to wait for fallback streaming complete")
+
+	// Validate data consistency after fallback
+	err = lm.ValidateDataConsistency([]string{`test_schema."test_live"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency after fallback")
+
+	// Complete cutover to source
+	err = lm.InitiateCutoverToSource(nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
+
+	err = lm.WaitForCutoverSourceComplete(100)
+	testutils.FatalIfError(t, err, "failed to wait for cutover source complete")
+
+	// YB replication slot should be ended
+	exists, err = lm.CheckIfReplicationSlotExists(ybSlotName, "target")
+	testutils.FatalIfError(t, err, "failed to check if YB replication slot exists")
+	assert.False(t, exists, "YB replication slot should be ended after cutover to source is completed")
+
+	fmt.Printf("\n✅ Live migration with import resumption after cutover completed successfully!\n")
+	fmt.Printf("✅ PostgreSQL replication slot should be ended after cutover\n")
+	fmt.Printf("✅ YB replication slot should still exist after cutover\n")
+}
+
 func TestLiveMigrationChangesOnlyFromPGToYB(t *testing.T) {
 	lm := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
@@ -3085,7 +3271,7 @@ func TestLiveMigrationChangesOnlyFromPGToYB(t *testing.T) {
 		},
 	})
 
-	// defer lm.Cleanup()
+	defer lm.Cleanup()
 
 	err := lm.SetupContainers(context.Background())
 	testutils.FatalIfError(t, err, "failed to setup containers")
