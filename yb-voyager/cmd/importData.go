@@ -316,13 +316,13 @@ func setImportTypeAndIdentityColumnMetaDBKeyForImporterRole(importerRole string)
 
 	switch importerRole {
 	case TARGET_DB_IMPORTER_ROLE:
-		importType = record.ExportType
+		importType = record.ExportTypeFromSource
 		identityColumnsMetaDBKey = metadb.TARGET_DB_IDENTITY_COLUMNS_KEY
 	case SOURCE_REPLICA_DB_IMPORTER_ROLE:
 		if record.FallbackEnabled {
 			return goerrors.Errorf("cannot import data to source-replica. Fall-back workflow is already enabled.")
 		}
-		if record.ExportType == CHANGES_ONLY {
+		if record.ExportTypeFromSource == CHANGES_ONLY {
 			return goerrors.Errorf("cannot import data to source-replica. Export type is changes-only.")
 		}
 		updateFallForwardEnabledInMetaDB()

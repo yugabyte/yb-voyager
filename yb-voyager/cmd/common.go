@@ -781,7 +781,7 @@ func checkStreamingMode() (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("error while fetching migration status record: %w", err)
 	}
-	streamChanges := changeStreamingIsEnabled(migrationStatus.ExportType)
+	streamChanges := changeStreamingIsEnabled(migrationStatus.ExportTypeFromSource)
 	return streamChanges, nil
 }
 

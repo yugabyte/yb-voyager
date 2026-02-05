@@ -153,7 +153,7 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 	var exportedPGSnapshotRowsMap *utils.StructMap[sqlname.NameTuple, int64]
 
 	source = *msr.SourceDBConf
-	if msr.ExportType == SNAPSHOT_AND_CHANGES {
+	if msr.ExportTypeFromSource == SNAPSHOT_AND_CHANGES {
 		if source.DBType == POSTGRESQL {
 			exportSnapshotStatus, err = exportSnapshotStatusFile.Read()
 			if err != nil {
@@ -339,7 +339,7 @@ func addRowInTheTable(uitbl *uitable.Table, row rowData, nameTup sqlname.NameTup
 }
 
 func updateExportedSnapshotRowsInTheRow(msr *metadb.MigrationStatusRecord, row *rowData, nameTup sqlname.NameTuple, dbzmSnapshotRowCount *utils.StructMap[sqlname.NameTuple, int64], exportedSnapshotPGRowsMap *utils.StructMap[sqlname.NameTuple, int64]) error {
-	if msr.ExportType == CHANGES_ONLY {
+	if msr.ExportTypeFromSource == CHANGES_ONLY {
 		//TODO: handle it better if it is iterative cutove
 		row.ExportedSnapshotRows = 0
 		return nil
@@ -399,7 +399,7 @@ func updateImportedEventsCountsInTheRow(row *rowData, tableNameTup sqlname.NameT
 		}
 	}
 
-	if importerRole != SOURCE_DB_IMPORTER_ROLE && msr.ExportType == SNAPSHOT_AND_CHANGES {
+	if importerRole != SOURCE_DB_IMPORTER_ROLE && msr.ExportTypeFromSource == SNAPSHOT_AND_CHANGES {
 		rowCountPair, _ := snapshotImportedRowsMap.Get(tableNameTup)
 		row.ImportedSnapshotRows = rowCountPair.Imported
 		row.ErroredImportedSnapshotRows = rowCountPair.Errored
