@@ -330,23 +330,7 @@ public class YbExporterConsumer extends BaseChangeConsumer {
             // PARSE
             var r = parser.parseRecord(objKey, objVal);
             if (!checkIfEventNeedsToBeWritten(r)) {
-                BytemanMarkers.cdc("skip-record");
-                if (objVal != null) {
-                    String valStr = objVal.toString();
-                    if (valStr.contains("status=END") || valStr.contains("messageType=COMMIT")) {
-                        BytemanMarkers.cdc("skip-record-end");
-                    }
-                }
-                if ("1".equals(System.getenv("YB_VOYAGER_LOG_SKIPPED_EVENTS"))) {
-                    String keyStr = (objKey == null) ? "null" : objKey.toString();
-                    String valStr = (objVal == null) ? "null" : objVal.toString();
-                    LOGGER.info("Skipping CDC record (non-data/metadata). key={}, value={}", keyStr, valStr);
-                }
-                if (!"1".equals(System.getenv("YB_VOYAGER_SKIP_MARK_PROCESSED_FOR_SKIPPED"))) {
-                    committer.markProcessed(event);
-                } else {
-                    LOGGER.info("Skipping markProcessed for non-data/metadata event due to YB_VOYAGER_SKIP_MARK_PROCESSED_FOR_SKIPPED=1");
-                }
+                committer.markProcessed(event);
                 continue;
             }
 
