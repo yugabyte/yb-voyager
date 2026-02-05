@@ -328,7 +328,6 @@ public class YbExporterConsumer extends BaseChangeConsumer {
             // PARSE
             var r = parser.parseRecord(objKey, objVal);
             if (!checkIfEventNeedsToBeWritten(r)) {
-                committer.markProcessed(event);
                 continue;
             }
 
