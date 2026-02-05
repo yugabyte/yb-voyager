@@ -283,7 +283,7 @@ func exportData() bool {
 	if err != nil {
 		utils.ErrExit("schema name matcher: %w", err)
 	}
-	
+
 	source.DBVersion = source.DB().GetVersion()
 	source.DBSize, err = source.DB().GetDatabaseSize()
 	if err != nil {
@@ -420,7 +420,7 @@ func exportData() bool {
 			// 3. start debezium with configration to read changes from the created replication slot, publication.
 
 			if !dataIsExported() { // if snapshot is not already done...
-				err = exportPGSnapshotWithPGdump(ctx, cancel, finalTableList, tablesColumnList, leafPartitions)
+				err = createReplicationSlotAndExportSnapshotIfRequired(ctx, cancel, finalTableList, tablesColumnList, leafPartitions)
 				if err != nil {
 					log.Errorf("export snapshot failed: %v", err)
 					return false
@@ -450,9 +450,9 @@ func exportData() bool {
 			}
 
 			// Setting up sequence values for debezium to start tracking from..
-			sequenceValueMap, err := getPGDumpSequencesAndValues()
+			sequenceValueMap, err := getSequenceInitialValues()
 			if err != nil {
-				utils.ErrExit("get pg dump sequence values: %w", err)
+				utils.ErrExit("get sequence initial values: %w", err)
 			}
 
 			var sequenceInitValues strings.Builder
@@ -741,12 +741,31 @@ func checkIfReplicationSlotIsActive(replicationSlot string) (bool, error) {
 	return isActive && (activePID.String != ""), nil
 }
 
-func exportPGSnapshotWithPGdump(ctx context.Context, cancel context.CancelFunc, finalTableList []sqlname.NameTuple, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], leafPartitions *utils.StructMap[sqlname.NameTuple, []sqlname.NameTuple]) error {
+func createReplicationSlotAndExportSnapshotIfRequired(ctx context.Context, cancel context.CancelFunc, finalTableList []sqlname.NameTuple, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], leafPartitions *utils.StructMap[sqlname.NameTuple, []sqlname.NameTuple]) error {
+	snapshotSlotName, err := createAndStoreReplicationSlotAndPublication(finalTableList, leafPartitions)
+	if err != nil {
+		return err
+	}
+
+	if exportType != CHANGES_ONLY {
+		//If the mode is changes only, we don't need to export the snapshot, only we need to create the replication slot and publication.
+		// pg_dump
+		err = exportDataOffline(ctx, cancel, finalTableList, tablesColumnList, snapshotSlotName)
+		if err != nil {
+			return fmt.Errorf("export data offline: %w", err)
+		}
+	}
+
+	setDataIsExported()
+	return nil
+}
+
+func createAndStoreReplicationSlotAndPublication(finalTableList []sqlname.NameTuple, leafPartitions *utils.StructMap[sqlname.NameTuple, []sqlname.NameTuple]) (string, error) {
 	// create replication slot
 	pgDB := source.DB().(*srcdb.PostgreSQL)
 	replicationConn, err := pgDB.GetReplicationConnection()
 	if err != nil {
-		return fmt.Errorf("export snapshot: failed to create replication connection: %w", err)
+		return "", fmt.Errorf("export snapshot: failed to create replication connection: %w", err)
 	}
 	// need to keep the replication connection open until snapshot is complete.
 	defer func() {
@@ -760,12 +779,12 @@ func exportPGSnapshotWithPGdump(ctx context.Context, cancel context.CancelFunc, 
 	publicationName := "voyager_dbz_publication_" + strings.ReplaceAll(migrationUUID.String(), "-", "_")
 	err = pgDB.CreatePublication(replicationConn, publicationName, finalTableList, true, leafPartitions)
 	if err != nil {
-		return fmt.Errorf("create publication: %w", err)
+		return "", fmt.Errorf("create publication: %w", err)
 	}
 	replicationSlotName := fmt.Sprintf("voyager_%s", strings.ReplaceAll(migrationUUID.String(), "-", "_"))
 	res, err := pgDB.CreateLogicalReplicationSlot(replicationConn, replicationSlotName, true)
 	if err != nil {
-		return fmt.Errorf("export snapshot: failed to create replication slot: %w", err)
+		return "", fmt.Errorf("export snapshot: failed to create replication slot: %w", err)
 	}
 	yellowBold := color.New(color.FgYellow, color.Bold)
 	utils.PrintAndLog(yellowBold.Sprintf("Created replication slot '%s' on source PG database. "+
@@ -779,22 +798,20 @@ func exportPGSnapshotWithPGdump(ctx context.Context, cancel context.CancelFunc, 
 		record.PGPublicationName = publicationName
 	})
 	if err != nil {
-		utils.ErrExit("update PGReplicationSlotName: update migration status record: %w", err)
+		return "", fmt.Errorf("update PGReplicationSlotName: update migration status record: %w", err)
 	}
-
-	// pg_dump
-	err = exportDataOffline(ctx, cancel, finalTableList, tablesColumnList, res.SnapshotName)
-	if err != nil {
-		log.Errorf("Export Data failed: %v", err)
-		return err
-	}
-
-	setDataIsExported()
-	return nil
+	return res.SlotName, nil
 }
 
-func getPGDumpSequencesAndValues() (*utils.StructMap[sqlname.NameTuple, int64], error) {
+func getSequenceInitialValues() (*utils.StructMap[sqlname.NameTuple, int64], error) {
 	result := utils.NewStructMap[sqlname.NameTuple, int64]()
+	if exportType == CHANGES_ONLY {
+		result, err := getSequenceInitialValuesFromDB()
+		if err != nil {
+			return nil, fmt.Errorf("get sequence initial values from DB: %w", err)
+		}
+		return result, nil
+	}
 	path := filepath.Join(exportDir, "data", "postdata.sql")
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -835,6 +852,22 @@ func getPGDumpSequencesAndValues() (*utils.StructMap[sqlname.NameTuple, int64], 
 		}
 
 		result.Put(seqName, seqVal)
+	}
+	return result, nil
+}
+
+func getSequenceInitialValuesFromDB() (*utils.StructMap[sqlname.NameTuple, int64], error) {
+	result := utils.NewStructMap[sqlname.NameTuple, int64]()
+	sequenceLastValueMap, err := source.DB().GetAllSequencesLastValues()
+	if err != nil {
+		return nil, fmt.Errorf("get all sequences last values from DB: %w", err)
+	}
+	for sequence, lastValue := range sequenceLastValueMap {
+		seqTuple, err := namereg.NameReg.LookupTableName(sequence)
+		if err != nil {
+			return nil, fmt.Errorf("lookup for sequence name %s: %w", sequence, err)
+		}
+		result.Put(seqTuple, lastValue)
 	}
 	return result, nil
 }

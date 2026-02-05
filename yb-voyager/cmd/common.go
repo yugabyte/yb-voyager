@@ -871,7 +871,7 @@ func getImportTableList(sourceTableList []string) ([]sqlname.NameTuple, error) {
 	var tableList []sqlname.NameTuple
 	sqlname.SourceDBType = source.DBType
 	for _, qualifiedTableName := range sourceTableList {
-		table, err := namereg.NameReg.LookupTableName(qualifiedTableName)
+		table, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole(qualifiedTableName)
 		if err != nil {
 			return nil, goerrors.Errorf("lookup table %s in name registry : %v", qualifiedTableName, err)
 		}
