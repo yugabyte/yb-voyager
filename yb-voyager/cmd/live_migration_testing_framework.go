@@ -184,6 +184,8 @@ func (lm *LiveMigrationTest) Cleanup() {
 		}
 	}
 
+	lm.sourceContainer.Terminate(lm.ctx)
+	lm.targetContainer.Terminate(lm.ctx)
 	// Remove export directory only if test passed
 	if lm.t.Failed() {
 		fmt.Printf("Test failed - preserving export directory for debugging: %s\n", lm.exportDir)
