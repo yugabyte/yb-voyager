@@ -118,9 +118,9 @@ func (lm *LiveMigrationTest) SetupContainers(ctx context.Context) error {
 
 	if lm.config.SourceDB.DatabaseName != "" {
 		pg := lm.sourceContainer.(*testcontainers.PostgresContainer)
-		err := pg.CreateDatabase(lm.config.TargetDB.DatabaseName)
+		err := pg.CreateDatabase(lm.config.SourceDB.DatabaseName)
 		if err != nil {
-			return goerrors.Errorf("failed to create target database: %v", err)
+ 			return goerrors.Errorf("failed to create source database: %v", err)
 		}
 	}
 	if lm.config.TargetDB.DatabaseName != "" {
@@ -212,6 +212,7 @@ func (lm *LiveMigrationTest) StartExportData(async bool, extraArgs map[string]st
 		"--source-db-schema", strings.Join(lm.config.SchemaNames, ","),
 		"--disable-pb", "true",
 		"--export-type", SNAPSHOT_AND_CHANGES,
+		"--parallel-jobs", "1",
 		"--yes",
 	}
 	for key, value := range extraArgs {

@@ -132,6 +132,8 @@ FROM generate_series(1, 5);`,
 	err = lm.StartImportData(true, nil)
 	testutils.FatalIfError(t, err, "failed to start import data")
 
+	time.Sleep(5 * time.Second)
+
 	err = lm.WaitForSnapshotComplete(map[string]int64{
 		`"test_schema"."test_live"`: 10,
 	}, 30)
@@ -303,6 +305,7 @@ func TestLiveMigrationWithEventsOnSamePkOrdered(t *testing.T) {
 	err = lm.StartImportData(true, nil)
 	testutils.FatalIfError(t, err, "failed to start import data")
 
+	time.Sleep(5 * time.Second)
 	// Wait for snapshot (only test_update_ordering has initial data)
 	err = lm.WaitForSnapshotComplete(map[string]int64{
 		`"test_schema"."test_update_ordering"`: 1,
@@ -509,6 +512,8 @@ func TestLiveMigrationWithEventsOnSamePkOrderedFallback(t *testing.T) {
 
 	err = lm.StartImportData(true, nil)
 	testutils.FatalIfError(t, err, "failed to start import data")
+
+	time.Sleep(5 * time.Second)
 
 	// Wait for snapshot (only test_update_ordering has initial data)
 	err = lm.WaitForSnapshotComplete(map[string]int64{
@@ -952,6 +957,8 @@ FROM generate_series(1, 15);`,
 
 	err = lm.StartImportData(true, nil)
 	testutils.FatalIfError(t, err, "failed to start import data")
+
+	time.Sleep(5 * time.Second)
 
 	err = lm.WaitForSnapshotComplete(map[string]int64{
 		`"test_schema"."test_live"`: 20,
