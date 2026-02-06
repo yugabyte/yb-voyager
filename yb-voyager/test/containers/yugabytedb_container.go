@@ -309,10 +309,9 @@ func (yb *YugabyteDBContainer) ExecuteSqls(sqls ...string) {
 			if err == nil {
 				break
 			}
-			if lo.ContainsBy(retryErrors, func(r string) bool {
+			if !lo.ContainsBy(retryErrors, func(r string) bool {
 				return strings.Contains(err.Error(), r)
 			}) {
-				//if its a non retryable error, break the loop
 				break
 			}
 			time.Sleep(10 * time.Second)

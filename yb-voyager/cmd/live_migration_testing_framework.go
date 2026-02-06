@@ -164,8 +164,8 @@ func (lm *LiveMigrationTest) InitMetaDB() error {
 func (lm *LiveMigrationTest) Cleanup() {
 	fmt.Printf("Cleaning up\n")
 	// Execute cleanup SQL
-	lm.sourceContainer.ExecuteSqls(lm.config.CleanupSQL...)
-	lm.targetContainer.ExecuteSqls(lm.config.CleanupSQL...)
+	lm.sourceContainer.ExecuteSqlsOnDB(lm.config.SourceDB.DatabaseName, lm.config.CleanupSQL...)
+	lm.targetContainer.ExecuteSqlsOnDB(lm.config.TargetDB.DatabaseName, lm.config.CleanupSQL...)
 
 	if lm.config.SourceDB.DatabaseName != "" {
 		pg := lm.sourceContainer.(*testcontainers.PostgresContainer)

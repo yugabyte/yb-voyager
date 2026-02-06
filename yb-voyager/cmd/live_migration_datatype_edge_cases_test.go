@@ -3666,6 +3666,8 @@ func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
 	})
 	testutils.FatalIfError(t, err, "failed to start import data")
 
+	time.Sleep(10 * time.Second)
+	
 	err = lm.WaitForSnapshotComplete(map[string]int64{
 		`"test_schema"."string_edge_cases"`:         6, // 6 rows (5 edge cases + 1 with NULL for transitions)
 		`"test_schema"."json_edge_cases"`:           6, // 6 rows (5 edge cases + 1 with NULL for transitions)
@@ -3783,6 +3785,8 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 		"--log-level": "debug",
 	})
 	testutils.FatalIfError(t, err, "failed to start import data")
+
+	time.Sleep(10 * time.Second)
 
 	err = lm.WaitForSnapshotComplete(map[string]int64{
 		`"test_schema"."string_edge_cases"`:         6,
