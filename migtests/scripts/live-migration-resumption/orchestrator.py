@@ -224,7 +224,9 @@ def reset_databases_action(stage: Dict[str, Any], ctx: Any) -> None:
 @action("create_cutover_table")
 def create_cutover_table_action(stage: Dict[str, Any], ctx: Any) -> None:
     """Create the cutover_table required for cutover/backlog checks in all tests."""
-    H.create_cutover_table(ctx, "source")
+    targets = stage.get("targets") or ["source", "source_replica"]
+    for target_name in targets:
+        H.create_cutover_table(ctx, target_name)
 
 
 @action("grant_source_permissions")
@@ -269,13 +271,12 @@ def main() -> None:
     cfg["export_dir"] = _resolve_path(cfg.get("export_dir"), test_root) or os.path.join(test_root, "export-dir")
     cfg["artifacts_dir"] = _resolve_path(cfg.get("artifacts_dir"), test_root) or os.path.join(test_root, "artifacts")
 
-    run_id = cfg.get("run_id", "run")
     env = H.merge_env(os.environ, cfg.get("env"))
 
     # Prepare paths by cleaning and recreating export-dir and artifacts
     H.prepare_paths(cfg["export_dir"], cfg["artifacts_dir"])
 
-    ctx = H.Context(cfg=cfg, run_id=run_id, env=env, test_root=test_root)
+    ctx = H.Context(cfg=cfg, env=env, test_root=test_root)
     had_failure = False
 
     try:

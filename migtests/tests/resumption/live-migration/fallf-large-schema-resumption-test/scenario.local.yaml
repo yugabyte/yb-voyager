@@ -1,5 +1,4 @@
 name: fallf-large-schema-resumption-test
-run_id: run
 
 env:
   LOG_LEVEL: info
@@ -117,6 +116,7 @@ stages:
 
   - name: create_cutover_table
     action: create_cutover_table
+    target: [source, source_replica]
 
   - name: grant_source_permissions
     action: grant_source_permissions

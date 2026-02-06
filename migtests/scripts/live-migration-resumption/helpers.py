@@ -32,9 +32,8 @@ def merge_env(base: Dict[str, str], override: Dict[str, str] | None) -> Dict[str
 
 
 class Context:
-    def __init__(self, cfg: Dict[str, Any], run_id: str, env: Dict[str, str], test_root: str | None = None):
+    def __init__(self, cfg: Dict[str, Any], env: Dict[str, str], test_root: str | None = None):
         self.cfg = cfg
-        self.run_id = run_id
         self.env = env
         self.processes: Dict[str, subprocess.Popen] = {}
         self.artifacts_dir: str = cfg["artifacts_dir"]
@@ -503,7 +502,7 @@ def start_command_by_name(name: str, ctx: Context) -> subprocess.Popen:
 # Generator
 # -------------------------
 
-def resolve_generator_config(gen_cfg: Dict[str, Any] | None, run_id: str, test_root: str | None) -> str:
+def resolve_generator_config(gen_cfg: Dict[str, Any] | None, test_root: str | None) -> str:
     gen_cfg = gen_cfg or {}
     config_path = gen_cfg.get("config_path")
     if config_path:
@@ -514,7 +513,7 @@ def resolve_generator_config(gen_cfg: Dict[str, Any] | None, run_id: str, test_r
 
     inline_cfg = gen_cfg.get("config") or gen_cfg.get("config_inline")
     if inline_cfg:
-        tmp_dir = os.path.join("/tmp", run_id)
+        tmp_dir = os.path.join("/tmp", str(uuid.uuid4()))
         os.makedirs(tmp_dir, exist_ok=True)
         final_path = os.path.join(tmp_dir, "event-generator.yaml")
         with open(final_path, "w") as f:
@@ -544,7 +543,7 @@ def start_generator(final_cfg_path: str, env: Dict[str, str]) -> subprocess.Pope
 
 def start_generator_from_context(ctx: Context, config_key: str = "generator") -> subprocess.Popen:
     gen_cfg = ctx.cfg.get(config_key)
-    final_cfg_path = resolve_generator_config(gen_cfg, ctx.run_id, ctx.test_root)
+    final_cfg_path = resolve_generator_config(gen_cfg, ctx.test_root)
     return start_generator(final_cfg_path, ctx.env)
 
 

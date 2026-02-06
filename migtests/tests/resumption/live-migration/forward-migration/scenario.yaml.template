@@ -1,5 +1,4 @@
 name: basic-live-migration-test
-run_id: run
 
 env:
   LOG_LEVEL: info
@@ -75,6 +74,7 @@ stages:
 
   - name: create_cutover_table
     action: create_cutover_table
+    target: [source]
 
   - name: grant_source_permissions
     action: grant_source_permissions
