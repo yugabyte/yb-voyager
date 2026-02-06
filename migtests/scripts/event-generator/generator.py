@@ -66,6 +66,7 @@ WAIT_DURATION_SECONDS = GEN["wait_duration_seconds"]
 
 # Index events flag
 INDEX_EVENTS = GEN.get("index_events", False)
+INDEX_EVENTS_INTERVAL = GEN.get("index_events_interval", 5)
 # ---------------------------------
 
 # Deterministic seeds from YAML
@@ -128,7 +129,7 @@ if INDEX_EVENTS:
     index_thread_stop = threading.Event()
     index_thread = threading.Thread(
         target=run_index_operations,
-        args=(index_thread_stop, CONFIG, SCHEMA_NAME),
+        args=(index_thread_stop, CONFIG, SCHEMA_NAME, table_schemas, INDEX_EVENTS_INTERVAL),
         daemon=True
     )
     index_thread.start()

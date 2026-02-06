@@ -51,6 +51,7 @@ CONFIG_SCHEMA: Dict[str, Dict[str, Any]] = {
         "insert_max_retries": int,
         "update_max_retries": int,
         "index_events": bool,
+        "index_events_interval": int,
     },
 }
 
@@ -72,7 +73,7 @@ def load_yaml_file(path: str) -> Dict[str, Any]:
 
 def validate_section(section: Dict[str, Any], schema: Dict[str, Any], section_name: str) -> None:
     # Optional fields that don't need to be present (for backward compatibility)
-    optional_fields = {"index_events"}
+    optional_fields = {"index_events","index_events_interval"}
     
     for key, expected_type in schema.items():
         if key not in section:
@@ -473,7 +474,7 @@ def fetch_bit_info_for_column(
 
 # ----- Index events helpers -----
 
-def run_index_operations(index_thread_stop: threading.Event, config: Dict[str, Any], schema_name: str):
+def run_index_operations(index_thread_stop: threading.Event, config: Dict[str, Any], schema_name: str, table_schemas: Dict[str, Dict[str, Any]], index_events_interval: int):
     """Run index create/drop operations in a separate thread with its own connection."""
     # Create a separate connection for index operations
     index_conn = psycopg2.connect(**get_connection_kwargs_from_config(config))
@@ -483,50 +484,35 @@ def run_index_operations(index_thread_stop: threading.Event, config: Dict[str, A
     # Unsupported by B-tree indexable data types for YugabyteDB and PostgreSQL
     unsupported_indexable_data_types = ["citext", "tsvector", "tsquery", "inet", "bit varying", "bit", "json", "jsonb", "xml", "point", "line", "lseg", "box", "path", "polygon", "circle", "ARRAY"] if db_flavor == "YUGABYTE" else ["json", "jsonb"]
 
-    thread_random = random.Random()
-    thread_random.seed()
+    indexable_columns = []
+    for table_name, table_info in table_schemas.items():
+        columns = table_info.get("columns", {})
+        for column_name, data_type in columns.items():
+            if data_type not in unsupported_indexable_data_types:
+                indexable_columns.append((table_name, column_name))
     MAX_RETRIES = 50
     
-    # Use stderr and flush to ensure output is visible even when stdout is redirected
-    print("Index operations thread started", file=sys.stderr, flush=True)
+    print("Index operations thread started")
     
     try:
         while not index_thread_stop.is_set():
-            action = thread_random.choice(["create", "drop"])
+            action = random.choice(["create", "drop"])
             retry_count = 0
+            sql = ""
             
             try:
                 if action == "create":
                     # Pick any random column that can be indexed
-                    index_cur.execute("""
-                        SELECT table_name, column_name
-                        FROM information_schema.columns
-                        WHERE table_schema = %s
-                        AND NOT (data_type = ANY(%s))
-                        ORDER BY random()
-                        LIMIT 1;
-                    """, (schema_name,unsupported_indexable_data_types))
-                    result = index_cur.fetchone()
-                    
-                    if result:
-                        table, col = result
-                        idx_name = f"idx_rand_{table}_{col}_{thread_random.randint(100000,999999)}"
+                    index_col = random.choice(indexable_columns)
+                    if index_col:
+                        table, col = index_col
+                        idx_name = f"event_generator_idx_{table}_{col}_{random.randint(100000,999999)}"
                         sql = f'CREATE INDEX "{idx_name}" ON "{schema_name}"."{table}" ("{col}");'
-                        while retry_count < MAX_RETRIES:
-                            try:
-                                index_cur.execute(sql)
-                                index_conn.commit()
-                                print(f"Successfully created index: {idx_name}", file=sys.stderr, flush=True)
-                                break
-                            except psycopg2.Error as e:
-                                print(f"Index operation error: {e}", file=sys.stderr, flush=True)
-                                index_conn.rollback()
-                                time.sleep(1)
-                                retry_count += 1
-                                print(f"Retrying index creation {idx_name} (attempt {retry_count} of {MAX_RETRIES})", file=sys.stderr, flush=True)
-                        
+                    else:
+                        print("No columns found to index.")
+
                 else:
-                    # Pick a random droppable index (NOT backing PK/UNIQUE constraints)
+                    # Pick a random droppable index
                     index_cur.execute("""
                         SELECT n.nspname AS schema_name,
                                ic.relname AS index_name
@@ -537,41 +523,43 @@ def run_index_operations(index_thread_stop: threading.Event, config: Dict[str, A
                         WHERE n.nspname = %s
                           AND ic.relkind = 'i'
                           AND c.oid IS NULL
+                          AND ic.relname LIKE 'event_generator_idx_%%'
                         ORDER BY random()
-                        LIMIT 1;
+                        LIMIT 1
                     """, (schema_name,))
                     row = index_cur.fetchone()
                     
                     if row:
                         schema_name_val, index_name = row
                         sql = f'DROP INDEX IF EXISTS "{schema_name_val}"."{index_name}";'
-                        while retry_count < MAX_RETRIES:
-                            try:
-                                index_cur.execute(sql)
-                                index_conn.commit()
-                                print(f"Successfully dropped index: {index_name}", file=sys.stderr, flush=True)
-                                break
-                            except psycopg2.Error as e:
-                                print(f"Index operation error: {e}", file=sys.stderr, flush=True)
-                                index_conn.rollback()
-                                time.sleep(1)
-                                retry_count += 1
-                                print(f"Retrying index drop {index_name} (attempt {retry_count} of {MAX_RETRIES})", file=sys.stderr, flush=True)
                     else:
-                        print("No safe indexes found to drop (only PK/UNIQUE constraint indexes exist).", file=sys.stderr, flush=True)
+                        print("No indexes found to drop.")
                 
-                time.sleep(thread_random.uniform(2.0, 5.0))
+                if sql:
+                    while retry_count < MAX_RETRIES:
+                        try:
+                            index_cur.execute(sql)
+                            index_conn.commit()
+                            print(f"Successful operation on index: {idx_name}")
+                            time.sleep(index_events_interval)
+                            break
+                        except psycopg2.Error as e:
+                            print(f"Index operation error: {e}")
+                            index_conn.rollback()
+                            time.sleep(1)
+                            retry_count += 1
+                            print(f"Retrying operation on index {idx_name} (attempt {retry_count} of {MAX_RETRIES})")
 
             except Exception as e:
-                print(f"Unexpected error in index operations: {e}", file=sys.stderr, flush=True)
+                print(f"Unexpected error in index operations: {e}")
                 time.sleep(1)
     
     except Exception as e:
-        print(f"Fatal error in index operations thread: {e}", file=sys.stderr, flush=True)
+        print(f"Fatal error in index operations thread: {e}")
     finally:
         index_cur.close()
         index_conn.close()
-        print("Index operations thread stopped", file=sys.stderr, flush=True)
+        print("Index operations thread stopped")
 
 # ----- SQL/data generators -----
 

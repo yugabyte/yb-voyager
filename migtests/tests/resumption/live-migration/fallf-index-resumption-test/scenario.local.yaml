@@ -71,6 +71,7 @@ generator_source:
       insert_max_retries: 5
       update_max_retries: 1
       index_events: true
+      index_events_interval: 5
 
 # Fallback (target) event generator configuration.
 # This will be used later when we start a generator on the target side.
@@ -100,6 +101,7 @@ generator_target:
       insert_max_retries: 5
       update_max_retries: 1
       index_events: true
+      index_events_interval: 5
 
 voyager:
   import_schema:

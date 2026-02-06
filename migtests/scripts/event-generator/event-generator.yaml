@@ -55,4 +55,5 @@ generator:
   # Enable concurrent index create/drop operations alongside IUD operations
   index_events: false
 
-
+  # Index events interval in seconds
+  index_events_interval: 5
