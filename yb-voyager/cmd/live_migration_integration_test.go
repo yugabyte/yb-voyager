@@ -73,7 +73,7 @@ FROM generate_series(%d, %d);`, tableName, startID, endId))
 //
 //export data -> import data (streaming for some events) -> once all data is streamed to target
 func TestBasicLiveMigrationWithCutover(t *testing.T) {
-
+	t.Parallel()
 	lm := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
 			Type:         "postgresql",
@@ -209,6 +209,7 @@ FROM generate_series(1, 5);`,
 //   - If I before D: Duplicate key error
 //   - Validation: row exists with state='final', iteration=1001
 func TestLiveMigrationWithEventsOnSamePkOrdered(t *testing.T) {
+	t.Parallel()
 	lm := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
 			Type:         "postgresql",
@@ -413,6 +414,7 @@ func TestLiveMigrationWithEventsOnSamePkOrdered(t *testing.T) {
 // Table 2 (test_update_ordering): Tests U→U ordering on same PK
 // Table 3 (test_insert_update_delete_ordering): Tests I→U, U→D, D→I ordering on same PK
 func TestLiveMigrationWithEventsOnSamePkOrderedFallback(t *testing.T) {
+	t.Parallel()
 	lm := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
 			Type:         "postgresql",
@@ -608,7 +610,7 @@ func TestLiveMigrationWithEventsOnSamePkOrderedFallback(t *testing.T) {
 }
 
 func TestBasicLiveMigrationWithFallback(t *testing.T) {
-
+	t.Parallel()
 	lm := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
 			Type:         "postgresql",
@@ -749,7 +751,7 @@ FROM generate_series(1, 5);`,
 //
 //export data -> import data (streaming some data) -> once done kill import
 func TestLiveMigrationWithImportResumptionOnFailureAtRestoreSequences(t *testing.T) {
-
+	t.Parallel()
 	lm := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
 			Type:         "postgresql",
@@ -893,6 +895,7 @@ FROM generate_series(1, 15);`,
 //
 //export data -> import data (streaming some data) -> once done kill import
 func TestLiveMigrationWithImportResumptionWithGeneratedAlwaysColumn(t *testing.T) {
+	t.Parallel()
 	lm := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
 			Type:         "postgresql",
@@ -1002,6 +1005,7 @@ FROM generate_series(1, 15);`,
 }
 
 func TestLiveMigrationResumptionWithChangeInCDCPartitioningStrategy(t *testing.T) {
+	t.Parallel()
 	lm := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
 			Type:         "postgresql",
@@ -1098,6 +1102,7 @@ FROM generate_series(1, 10);`,
 }
 
 func TestLiveMigrationWithUniqueKeyValuesWithPartialPredicateConflictDetectionCases(t *testing.T) {
+	t.Parallel()
 	lm := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
 			Type:         "postgresql",
@@ -1241,6 +1246,7 @@ FROM generate_series(1, 20) as i;`,
 }
 
 func TestLiveMigrationWithUniqueKeyConflictWithNullValuesDetectionCases(t *testing.T) {
+	t.Parallel()
 	lm := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
 			Type:         "postgresql",
@@ -1383,6 +1389,7 @@ FROM generate_series(1, 20) as i;`,
 }
 
 func TestLiveMigrationWithUniqueKeyConflictWithUniqueIndexOnlyOnLeafPartitions(t *testing.T) {
+	t.Parallel()
 	liveMigrationTest := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
 			Type:         "postgresql",
@@ -1535,6 +1542,7 @@ func TestLiveMigrationWithUniqueKeyConflictWithUniqueIndexOnlyOnLeafPartitions(t
 }
 
 func TestLiveMigrationWithUniqueKeyConflictWithNullValueAndPartialPredicatesDetectionCases(t *testing.T) {
+	t.Parallel()
 	liveMigrationTest := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
 			Type:         "postgresql",
@@ -1679,6 +1687,7 @@ FROM generate_series(1, 20) as i;`,
 }
 
 func TestLiveMigrationWithUniqueKeyConflictWithExpressionIndexOnPartitions(t *testing.T) {
+	t.Parallel()
 	liveMigrationTest := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
 			Type:         "postgresql",
@@ -1844,6 +1853,7 @@ END $$;`,
 }
 
 func TestLiveMigrationWithBytesColumn(t *testing.T) {
+	t.Parallel()
 	liveMigrationTest := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
 			Type:         "postgresql",
@@ -1969,6 +1979,7 @@ $$ LANGUAGE plpgsql;`,
 }
 
 func TestLiveMigrationWithLargeNumberOfColumns(t *testing.T) {
+	t.Parallel()
 	liveMigrationTest := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
 			Type:         "postgresql",
@@ -2305,6 +2316,7 @@ END $$;
 }
 
 func TestLiveMigrationWithLargeColumnNames(t *testing.T) {
+	t.Parallel()
 	liveMigrationTest := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
 			Type:         "postgresql",
@@ -2493,6 +2505,7 @@ END $$;
 // This validates the fix for case-sensitivity bug in INTERVAL column lookup
 // Tests: unquoted lowercase, quoted mixed-case, and multiple INTERVAL columns
 func TestLiveMigrationIntervalColumnsFallback(t *testing.T) {
+	t.Parallel()
 	lm := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
 			Type:         "postgresql",
@@ -2646,6 +2659,7 @@ VALUES (INTERVAL '7 years', INTERVAL '120 days', INTERVAL '15 hours', INTERVAL '
 //   - Both truncate to the same 63-char prefix
 //   - Result: Operations on table "...52" collide with operations on table "...99"
 func TestLiveMigrationWithLargeSchemaAndTableNames(t *testing.T) {
+	t.Parallel()
 	liveMigrationTest := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
 			Type:         "postgresql",
@@ -2899,6 +2913,7 @@ END $$;`,
 }
 
 func TestBasicLiveTestForCaseSensitiveSchema(t *testing.T) {
+	t.Parallel()
 	lm := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
 			Type:         "postgresql",
@@ -3040,6 +3055,7 @@ FROM generate_series(1, 5);`,
 // 6. Resume import data to target
 // 7. Check if YB replication slot exists
 func TestLiveMigrationWithImportResumptionAfterCutover(t *testing.T) {
+	t.Parallel()
 	lm := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
 			Type:         "postgresql",

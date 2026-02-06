@@ -3646,6 +3646,7 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 }
 
 func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
+	t.Parallel()
 	lm := NewLiveMigrationTest(t, getDatatypeEdgeCasesTestConfig())
 	defer lm.Cleanup()
 
@@ -3763,6 +3764,7 @@ func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
 }
 
 func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
+	t.Parallel()
 	lm := NewLiveMigrationTest(t, getDatatypeEdgeCasesTestConfig())
 	defer lm.Cleanup()
 

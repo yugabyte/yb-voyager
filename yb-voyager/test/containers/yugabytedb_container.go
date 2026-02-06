@@ -16,6 +16,7 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -298,10 +299,7 @@ func (yb *YugabyteDBContainer) ExecuteSqls(sqls ...string) {
 	}
 	defer conn.Close()
 
-	retryCount := 3
-	retryErrors := []string{
-		"Restart read required",
-	}
+	retryCount := 5
 	for _, sql := range sqls {
 		var err error
 		for i := 0; i < retryCount; i++ {
@@ -309,12 +307,13 @@ func (yb *YugabyteDBContainer) ExecuteSqls(sqls ...string) {
 			if err == nil {
 				break
 			}
-			if !lo.ContainsBy(retryErrors, func(r string) bool {
+			if lo.ContainsBy(tgtdb.NonRetryCopyErrors, func(r string) bool {
 				return strings.Contains(err.Error(), r)
 			}) {
+				//if its a non retryable error, break the loop
 				break
 			}
-			time.Sleep(2 * time.Second)
+			time.Sleep(10 * time.Second)
 		}
 		if err != nil {
 			utils.ErrExit("failed to execute sql '%s': %w", sql, err)
