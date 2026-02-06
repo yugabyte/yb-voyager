@@ -150,10 +150,10 @@ var cutoverToTargetCmd = &cobra.Command{
 
 			// Validate YugabyteDB version for logical connector
 			if !useYBgRPCConnector {
-				// err = validateYBVersionForLogicalConnector(msr.TargetDBConf)
-				// if err != nil {
-				// 	utils.ErrExit("%w", err)
-				// }
+				err = validateYBVersionForLogicalConnector(msr.TargetDBConf)
+				if err != nil {
+					utils.ErrExit("%w", err)
+				}
 			}
 			if useYBgRPCConnector {
 				utils.PrintAndLog("Using YB gRPC connector for export data from target")
