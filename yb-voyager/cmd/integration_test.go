@@ -118,7 +118,7 @@ func Test_ContainerResumption(t *testing.T) {
 	}
 
 	color.Green("PostgreSQL container restarted successfully, now checking if data is intact...")
-	rows, err := mysqlContainer.Query("SELECT * FROM test_table;")
+	rows, err := mysqlContainer.Query("SELECT * FROM test_table;", nil)
 	if err != nil {
 		t.Fatalf("Failed to query PostgreSQL container: %v", err)
 	}

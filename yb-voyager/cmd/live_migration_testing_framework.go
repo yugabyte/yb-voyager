@@ -99,7 +99,6 @@ func (lm *LiveMigrationTest) SetupContainers(ctx context.Context) error {
 	// Start source container
 	containerConfig := &testcontainers.ContainerConfig{
 		ForLive: lm.config.SourceDB.ForLive,
-		DBName:  lm.config.SourceDB.DatabaseName,
 	}
 	lm.sourceContainer = testcontainers.NewTestContainer(lm.config.SourceDB.Type, containerConfig)
 	if err := lm.sourceContainer.Start(ctx); err != nil {
@@ -109,7 +108,6 @@ func (lm *LiveMigrationTest) SetupContainers(ctx context.Context) error {
 	// Start target container
 	targetContainerConfig := &testcontainers.ContainerConfig{
 		ForLive: lm.config.TargetDB.ForLive,
-		DBName:  lm.config.TargetDB.DatabaseName,
 	}
 	lm.targetContainer = testcontainers.NewTestContainer(lm.config.TargetDB.Type, targetContainerConfig)
 	if err := lm.targetContainer.Start(ctx); err != nil {
@@ -120,7 +118,7 @@ func (lm *LiveMigrationTest) SetupContainers(ctx context.Context) error {
 		pg := lm.sourceContainer.(*testcontainers.PostgresContainer)
 		err := pg.CreateDatabase(lm.config.SourceDB.DatabaseName)
 		if err != nil {
- 			return goerrors.Errorf("failed to create source database: %v", err)
+			return goerrors.Errorf("failed to create source database: %v", err)
 		}
 	}
 	if lm.config.TargetDB.DatabaseName != "" {
@@ -139,12 +137,12 @@ func (lm *LiveMigrationTest) SetupContainers(ctx context.Context) error {
 func (lm *LiveMigrationTest) SetupSchema() error {
 	fmt.Printf("Setting up schema\n")
 	// Execute schema SQL on source and target
-	lm.sourceContainer.ExecuteSqls(lm.config.SchemaSQL...)
-	lm.sourceContainer.ExecuteSqls(lm.config.SourceSetupSchemaSQL...)
-	lm.targetContainer.ExecuteSqls(lm.config.SchemaSQL...)
+	lm.sourceContainer.ExecuteSqlsOnDB(lm.config.SourceDB.DatabaseName, lm.config.SchemaSQL...)
+	lm.sourceContainer.ExecuteSqlsOnDB(lm.config.SourceDB.DatabaseName, lm.config.SourceSetupSchemaSQL...)
+	lm.targetContainer.ExecuteSqlsOnDB(lm.config.TargetDB.DatabaseName, lm.config.SchemaSQL...)
 
 	// Execute initial data SQL on source
-	lm.sourceContainer.ExecuteSqls(lm.config.InitialDataSQL...)
+	lm.sourceContainer.ExecuteSqlsOnDB(lm.config.SourceDB.DatabaseName, lm.config.InitialDataSQL...)
 	fmt.Printf("Schema setup completed\n")
 
 	return nil
@@ -183,9 +181,6 @@ func (lm *LiveMigrationTest) Cleanup() {
 			lm.t.Fatalf("failed to drop target database: %v", err)
 		}
 	}
-
-	lm.sourceContainer.Terminate(lm.ctx)
-	lm.targetContainer.Terminate(lm.ctx)
 	// Remove export directory only if test passed
 	if lm.t.Failed() {
 		fmt.Printf("Test failed - preserving export directory for debugging: %s\n", lm.exportDir)
@@ -212,6 +207,7 @@ func (lm *LiveMigrationTest) StartExportData(async bool, extraArgs map[string]st
 	args := []string{
 		"--export-dir", lm.exportDir,
 		"--source-db-schema", strings.Join(lm.config.SchemaNames, ","),
+		"--source-db-name", lm.config.SourceDB.DatabaseName,
 		"--disable-pb", "true",
 		"--export-type", SNAPSHOT_AND_CHANGES,
 		"--parallel-jobs", "1",
@@ -243,6 +239,7 @@ func (lm *LiveMigrationTest) StartImportData(async bool, extraArgs map[string]st
 	args := []string{
 		"--export-dir", lm.exportDir,
 		"--disable-pb", "true",
+		"--target-db-name", lm.config.TargetDB.DatabaseName,
 		"--yes",
 	}
 	for key, value := range extraArgs {
@@ -376,12 +373,12 @@ func (lm *LiveMigrationTest) InitiateCutoverToSource(extraArgs map[string]string
 }
 
 func (lm *LiveMigrationTest) ExecuteSourceDelta() error {
-	lm.sourceContainer.ExecuteSqls(lm.config.SourceDeltaSQL...)
+	lm.sourceContainer.ExecuteSqlsOnDB(lm.config.SourceDB.DatabaseName, lm.config.SourceDeltaSQL...)
 	return nil
 }
 
 func (lm *LiveMigrationTest) ExecuteTargetDelta() error {
-	lm.targetContainer.ExecuteSqls(lm.config.TargetDeltaSQL...)
+	lm.targetContainer.ExecuteSqlsOnDB(lm.config.TargetDB.DatabaseName, lm.config.TargetDeltaSQL...)
 	return nil
 }
 
@@ -534,15 +531,15 @@ func (lm *LiveMigrationTest) WaitForCutoverSourceComplete(cutoverTimeout time.Du
 // DATA OPERATIONS & VALIDATION
 // ============================================================
 
-// ExecuteOnSource executes SQL statements on source database
+// ExecuteOnSource executes SQL statements on source database (test-specific DB)
 func (lm *LiveMigrationTest) ExecuteOnSource(sqlStatements ...string) error {
-	lm.sourceContainer.ExecuteSqls(sqlStatements...)
+	lm.sourceContainer.ExecuteSqlsOnDB(lm.config.SourceDB.DatabaseName, sqlStatements...)
 	return nil
 }
 
-// ExecuteOnTarget executes SQL statements on target database
+// ExecuteOnTarget executes SQL statements on target database (test-specific DB)
 func (lm *LiveMigrationTest) ExecuteOnTarget(sqlStatements ...string) error {
-	lm.targetContainer.ExecuteSqls(sqlStatements...)
+	lm.targetContainer.ExecuteSqlsOnDB(lm.config.TargetDB.DatabaseName, sqlStatements...)
 	return nil
 }
 
@@ -573,35 +570,39 @@ func (lm *LiveMigrationTest) ValidateRowCount(tables []string) error {
 	})
 }
 
-// WithSourceConn provides source database connection to callback
+// WithSourceConn provides source database connection to callback (test-specific DB)
 func (lm *LiveMigrationTest) WithSourceConn(fn func(*sql.DB) error) error {
-	conn, err := lm.sourceContainer.GetConnection()
+	conn, err := lm.sourceContainer.GetConnectionWithDB(lm.config.SourceDB.DatabaseName)
 	if err != nil {
 		return goerrors.Errorf("failed to get source connection: %w", err)
 	}
+	defer conn.Close()
 	return fn(conn)
 }
 
-// WithTargetConn provides target database connection to callback
+// WithTargetConn provides target database connection to callback (test-specific DB)
 func (lm *LiveMigrationTest) WithTargetConn(fn func(*sql.DB) error) error {
-	conn, err := lm.targetContainer.GetConnection()
+	conn, err := lm.targetContainer.GetConnectionWithDB(lm.config.TargetDB.DatabaseName)
 	if err != nil {
 		return goerrors.Errorf("failed to get target connection: %w", err)
 	}
+	defer conn.Close()
 	return fn(conn)
 }
 
-// WithSourceTargetConn provides both connections to callback
+// WithSourceTargetConn provides both connections to callback (test-specific DBs)
 func (lm *LiveMigrationTest) WithSourceTargetConn(fn func(source, target *sql.DB) error) error {
-	sourceConn, err := lm.sourceContainer.GetConnection()
+	sourceConn, err := lm.sourceContainer.GetConnectionWithDB(lm.config.SourceDB.DatabaseName)
 	if err != nil {
 		return goerrors.Errorf("failed to get source connection: %w", err)
 	}
+	defer sourceConn.Close()
 
-	targetConn, err := lm.targetContainer.GetConnection()
+	targetConn, err := lm.targetContainer.GetConnectionWithDB(lm.config.TargetDB.DatabaseName)
 	if err != nil {
 		return goerrors.Errorf("failed to get target connection: %w", err)
 	}
+	defer targetConn.Close()
 
 	return fn(sourceConn, targetConn)
 }

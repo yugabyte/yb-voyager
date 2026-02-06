@@ -32,11 +32,15 @@ type TestContainer interface {
 	GetConfig() ContainerConfig
 	GetConnectionString() string
 	GetConnection() (*sql.DB, error)
+	GetConnectionWithDB(dbName string) (*sql.DB, error)
 	GetVersion() (string, error)
 
 	// SQL helpers
 	Query(sql string, args ...interface{}) (*sql.Rows, error)
 	ExecuteSqls(sqls ...string)
+
+	QueryOnDB(dbName string, sql string, args ...interface{}) (*sql.Rows, error)
+	ExecuteSqlsOnDB(dbName string, sqls ...string)
 
 	SetConfig(config ContainerConfig)
 	/*
@@ -62,12 +66,12 @@ type ContainerConfig struct {
 }
 
 func (config *ContainerConfig) buildContainerName(dbType string) string {
-	containerName := fmt.Sprintf("%s-%s-%s", dbType, config.DBVersion, config.DBName)
+	containerName := fmt.Sprintf("%s-%s", dbType, config.DBVersion)
 	// TODO: combination of live and multi node cluster is yet to be implemented in testcontainers
 	if config.ForLive {
-		containerName = fmt.Sprintf("%s-live-%s-%s", dbType, config.DBVersion, config.DBName)
+		containerName = fmt.Sprintf("%s-live-%s", dbType, config.DBVersion)
 	} else if config.NodeCount > 1 {
-		containerName = fmt.Sprintf("%s-cluster-%d-%s-%s", dbType, config.NodeCount, config.DBVersion, config.DBName)
+		containerName = fmt.Sprintf("%s-cluster-%d-%s", dbType, config.NodeCount, config.DBVersion)
 	}
 	return containerName
 }
@@ -90,10 +94,6 @@ func NewTestContainer(dbType string, containerConfig *ContainerConfig) TestConta
 	containerName := containerConfig.buildContainerName(dbType)
 	if container, exists := containerRegistry[containerName]; exists {
 		log.Infof("container '%s' already exists in the registry", containerName)
-		config := container.GetConfig()
-		config.SetDBName(containerConfig.DBName)
-		container.SetConfig(config)
-		fmt.Printf("container '%s' already exists in the registry, config: %+v\n", containerName, config)
 		return container
 	}
 
