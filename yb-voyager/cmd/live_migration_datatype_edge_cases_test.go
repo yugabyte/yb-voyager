@@ -289,14 +289,16 @@ import (
 //   - Tested in both forward and fallback streaming phases
 //   - Ensures proper handling of NULL ↔ non-NULL value transitions
 
-func getDatatypeEdgeCasesTestConfig() *TestConfig {
+func getDatatypeEdgeCasesTestConfig(dbName string) *TestConfig {
 	return &TestConfig{
 		SourceDB: ContainerConfig{
-			Type:    "postgresql",
-			ForLive: true,
+			Type:         "postgresql",
+			ForLive:      true,
+			DatabaseName: dbName,
 		},
 		TargetDB: ContainerConfig{
-			Type: "yugabytedb",
+			Type:         "yugabytedb",
+			DatabaseName: dbName,
 		},
 		SchemaNames: []string{"test_schema"},
 		SchemaSQL: []string{
@@ -3647,7 +3649,7 @@ func getDatatypeEdgeCasesTestConfig() *TestConfig {
 
 func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
 	t.Parallel()
-	lm := NewLiveMigrationTest(t, getDatatypeEdgeCasesTestConfig())
+	lm := NewLiveMigrationTest(t, getDatatypeEdgeCasesTestConfig("test_datatype_edge_cases"))
 	defer lm.Cleanup()
 
 	err := lm.SetupContainers(context.Background())
@@ -3765,7 +3767,7 @@ func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
 
 func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 	t.Parallel()
-	lm := NewLiveMigrationTest(t, getDatatypeEdgeCasesTestConfig())
+	lm := NewLiveMigrationTest(t, getDatatypeEdgeCasesTestConfig("test_datatype_edge_cases_fallback"))
 	defer lm.Cleanup()
 
 	err := lm.SetupContainers(context.Background())
