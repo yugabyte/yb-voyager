@@ -513,7 +513,7 @@ def resolve_generator_config(gen_cfg: Dict[str, Any] | None, test_root: str | No
 
     inline_cfg = gen_cfg.get("config") or gen_cfg.get("config_inline")
     if inline_cfg:
-        tmp_dir = os.path.join("/tmp", str(uuid.uuid4()))
+        tmp_dir = os.path.join("/tmp", str(random.randint(0, 1000)))
         os.makedirs(tmp_dir, exist_ok=True)
         final_path = os.path.join(tmp_dir, "event-generator.yaml")
         with open(final_path, "w") as f:
