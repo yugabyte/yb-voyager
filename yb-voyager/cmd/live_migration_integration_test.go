@@ -1095,6 +1095,8 @@ FROM generate_series(1, 10);`,
 	})
 	testutils.FatalIfError(t, err, "failed to resume import data")
 
+	time.Sleep(10 * time.Second)
+
 	importDataStatus, err = metaDB.GetImportDataStatusRecord()
 	testutils.FatalIfError(t, err, "Failed to get import data status record")
 	assert.Equal(t, importDataStatus.CdcPartitioningStrategyConfig, PARTITION_BY_PK)
@@ -3168,7 +3170,7 @@ FROM generate_series(1, 5);`,
 	pgSlotName := msr.PGReplicationSlotName
 
 	// Check if PostgreSQL replication slot is ended
-	time.Sleep(2 * time.Second)
+	time.Sleep(10 * time.Second)
 	var exists bool
 	exists, err = lm.CheckIfReplicationSlotExists(pgSlotName, "source")
 	testutils.FatalIfError(t, err, "failed to check if PostgreSQL replication slot exists")
