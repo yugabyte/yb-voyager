@@ -224,7 +224,7 @@ def reset_databases_action(stage: Dict[str, Any], ctx: Any) -> None:
 @action("create_cutover_table")
 def create_cutover_table_action(stage: Dict[str, Any], ctx: Any) -> None:
     """Create the cutover_table required for cutover/backlog checks in all tests."""
-    targets = stage.get("targets") or ["source", "source_replica"]
+    targets = stage.get("target") or ["source", "source_replica"]
     for target_name in targets:
         H.create_cutover_table(ctx, target_name)
 
