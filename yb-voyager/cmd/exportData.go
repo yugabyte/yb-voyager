@@ -415,74 +415,13 @@ func exportData() bool {
 		}
 		saveTableToUniqueKeyColumnsMapInMetaDB(finalTableList, leafPartitions)
 		if source.DBType == POSTGRESQL && changeStreamingIsEnabled(exportType) {
-			// pg live migration. Steps are as follows:
-			// 1. create publication, replication slot.
-			// 2. export snapshot corresponding to replication slot by passing it to pg_dump
-			// 3. start debezium with configration to read changes from the created replication slot, publication.
-
-			if !dataIsExported() { // if snapshot is not already done...
-				err = createReplicationSlotAndExportSnapshotIfRequired(ctx, cancel, finalTableList, tablesColumnList, leafPartitions)
-				if err != nil {
-					log.Errorf("export snapshot failed: %v", err)
-					return false
-				}
-			}
-
-			msr, err := metaDB.GetMigrationStatusRecord()
+			err = exportSnapshotUsingPgDump(ctx, cancel, finalTableList, tablesColumnList, leafPartitions, config)
 			if err != nil {
-				utils.ErrExit("get migration status record: %v", err)
+				log.Errorf("Failed to export snapshot using pg_dump: %v", err)
+				return false
 			}
-
-			isActive, err := checkIfReplicationSlotIsActive(msr.PGReplicationSlotName)
-			if err != nil {
-				utils.ErrExit("error checking if replication slot is active: %w", err)
-			}
-			if isActive {
-				errorMsg := fmt.Sprintf("Replication slot '%s' is active", msr.PGReplicationSlotName)
-				pid, err := dbzm.GetPIDOfDebeziumOnExportDir(exportDir, exporterRole)
-				if err == nil {
-					// we have the PID of the process running debezium export
-					// so we can suggest the user to terminate it
-					errorMsg = fmt.Sprintf("%s. Terminate the process on the pid %s, and re-run the command.", errorMsg, pid)
-				} else {
-					log.Errorf("error getting debezium PID: %v", err)
-				}
-				utils.ErrExit(color.RedString("\n%s", errorMsg))
-			}
-
-			// Setting up sequence values for debezium to start tracking from..
-			sequenceValueMap, err := getSequenceInitialValues()
-			if err != nil {
-				utils.ErrExit("get sequence initial values: %w", err)
-			}
-
-			var sequenceInitValues strings.Builder
-			sequenceValueMap.IterKV(func(seqName sqlname.NameTuple, seqValue int64) (bool, error) {
-				sequenceInitValues.WriteString(fmt.Sprintf("%s:%d,", seqName.ForKey(), seqValue))
-				return true, nil
-			})
-
-			config.SnapshotMode = "never"
-			config.ReplicationSlotName = msr.PGReplicationSlotName
-			config.PublicationName = msr.PGPublicationName
-			config.InitSequenceMaxMapping = sequenceInitValues.String()
 		}
 
-		// if source.DBType == YUGABYTEDB && !msr.UseYBgRPCConnector {
-		// Not having this check right now for the YB as this is not available in all YB versions, TODO: add it later
-		// 	msr, err := metaDB.GetMigrationStatusRecord()
-		// 	if err != nil {
-		// 		utils.ErrExit("get migration status record: %v", err)
-		// 	}
-
-		// 	isActive, err := checkIfReplicationSlotIsActive(msr.YBReplicationSlotName)
-		// 	if err != nil {
-		// 		utils.ErrExit("error checking if replication slot is active: %v", err)
-		// 	}
-		// 	if isActive {
-		// 		utils.ErrExit("Replication slot '%s' is active. Check and terminate if there is any internal voyager process running.", msr.YBReplicationSlotName)
-		// 	}
-		// }
 		err = debeziumExportData(ctx, config, tableNametoApproxRowCountMap)
 		if err != nil {
 			log.Errorf("Export Data using debezium failed: %v", err)
@@ -514,8 +453,7 @@ func exportData() bool {
 					utils.ErrExit("get migration status record: %w", err)
 				}
 				fmt.Println("Deleting PG replication slot and publication")
-				deletePGReplicationSlot(msr, &source)
-				deletePGPublication(msr, &source)
+				deletePGReplicationSlotAndPublication(msr, &source)
 			}
 
 			// mark cutover processed only after cleanup like deleting replication slot and yb cdc stream id
@@ -543,6 +481,61 @@ func exportData() bool {
 		}
 		return true
 	}
+}
+
+func exportSnapshotUsingPgDump(ctx context.Context, cancel context.CancelFunc, finalTableList []sqlname.NameTuple, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], leafPartitions *utils.StructMap[sqlname.NameTuple, []sqlname.NameTuple], config *dbzm.Config) error {
+	var err error
+	// pg live migration. Steps are as follows:
+	// 1. create publication, replication slot.
+	// 2. export snapshot corresponding to replication slot by passing it to pg_dump
+	// 3. start debezium with configration to read changes from the created replication slot, publication.
+
+	if !dataIsExported() { // if snapshot is not already done...
+		err = createReplicationSlotAndExportSnapshotIfRequired(ctx, cancel, finalTableList, tablesColumnList, leafPartitions)
+		if err != nil {
+			return fmt.Errorf("create replication slot and export snapshot: %w", err)
+		}
+	}
+
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("get migration status record: %v", err)
+	}
+
+	isActive, err := checkIfReplicationSlotIsActive(msr.PGReplicationSlotName)
+	if err != nil {
+		utils.ErrExit("error checking if replication slot is active: %w", err)
+	}
+	if isActive {
+		errorMsg := fmt.Sprintf("Replication slot '%s' is active", msr.PGReplicationSlotName)
+		pid, err := dbzm.GetPIDOfDebeziumOnExportDir(exportDir, exporterRole)
+		if err == nil {
+			// we have the PID of the process running debezium export
+			// so we can suggest the user to terminate it
+			errorMsg = fmt.Sprintf("%s. Terminate the process on the pid %s, and re-run the command.", errorMsg, pid)
+		} else {
+			log.Errorf("error getting debezium PID: %v", err)
+		}
+		utils.ErrExit(color.RedString("\n%s", errorMsg))
+	}
+
+	// Setting up sequence values for debezium to start tracking from..
+	sequenceValueMap, err := getSequenceInitialValues()
+	if err != nil {
+		utils.ErrExit("get sequence initial values: %w", err)
+	}
+
+	var sequenceInitValues strings.Builder
+	sequenceValueMap.IterKV(func(seqName sqlname.NameTuple, seqValue int64) (bool, error) {
+		sequenceInitValues.WriteString(fmt.Sprintf("%s:%d,", seqName.ForKey(), seqValue))
+		return true, nil
+	})
+
+	config.SnapshotMode = "never"
+	config.ReplicationSlotName = msr.PGReplicationSlotName
+	config.PublicationName = msr.PGPublicationName
+	config.InitSequenceMaxMapping = sequenceInitValues.String()
+	return nil
 }
 
 func checkExportDataPermissions(finalTableList []sqlname.NameTuple) {
