@@ -500,7 +500,7 @@ func checkAndHandleSnapshotComplete(config *dbzm.Config, status *dbzm.ExportStat
 		if val != nil {
 			_ = os.MkdirAll(filepath.Join(exportDir, "logs"), 0755)
 			_ = os.WriteFile(filepath.Join(exportDir, "logs", "failpoint-snapshot-to-cdc.log"), []byte("hit\n"), 0644)
-			failpoint.Return(false, fmt.Errorf("failpoint: snapshot->CDC transition failure"))
+			failpoint.Return(false, goerrors.Errorf("failpoint: snapshot->CDC transition failure"))
 		}
 	})
 	exportPhase = dbzm.MODE_STREAMING

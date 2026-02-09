@@ -22,6 +22,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	goerrors "github.com/go-errors/errors"
 )
 
 // BytemanHelper provides Byteman infrastructure for Go integration tests.
@@ -111,7 +113,7 @@ func (b *BytemanHelper) VerifyInjection(pattern string) (bool, error) {
 	logPattern := filepath.Join(b.exportDir, "logs", "debezium-*.log")
 	matches, err := filepath.Glob(logPattern)
 	if err != nil || len(matches) == 0 {
-		return false, fmt.Errorf("debezium log not found in %s", logPattern)
+		return false, goerrors.Errorf("debezium log not found in %s", logPattern)
 	}
 
 	// Use the first match (usually there's only one)
