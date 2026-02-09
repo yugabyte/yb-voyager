@@ -73,6 +73,9 @@ jobs:
     - name: Free disk after cleanup
       run: df -h /
 
+    - name: Install gotestfmt
+      run: go install github.com/GoTestTools/gotestfmt/v2/cmd/gotestfmt@latest
+
     # Note: Some voyager_command related go tests use a voyager binary to call voyager commands
     # Hence its important to ensure the voyager binary built is using the changes in the PR branch - `./install-yb-voyager --install-from-local-source`
     - name: Run Integration Tests (${{ matrix.test-tags }})
@@ -83,6 +86,6 @@ jobs:
         MYSQL_VERSION: "8.4"
       run: |
         cd yb-voyager
-        go test -json -v ./... -tags ${{ matrix.test-tags }} -timeout 35m -parallel 3
-  
-
+        echo "::group::Test Output (${{ matrix.test-tags }})"
+        go test -json -v ./... -tags ${{ matrix.test-tags }} -timeout 35m -parallel 3 2>&1 | gotestfmt
+        echo "::endgroup::"
