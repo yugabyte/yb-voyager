@@ -1012,6 +1012,7 @@ FROM generate_series(1, 15);`,
 }
 
 func TestLiveMigrationResumptionWithChangeInCDCPartitioningStrategy(t *testing.T) {
+	t.Parallel()
 	lm := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
 			Type:         "postgresql",
