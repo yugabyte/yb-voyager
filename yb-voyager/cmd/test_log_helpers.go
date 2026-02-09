@@ -15,7 +15,14 @@ func init() {
 	color.Output = os.Stdout
 }
 
-func logHighlight(t *testing.T, format string, args ...interface{}) {
+const testLogPrefix = "[TEST] "
+
+func logTest(t *testing.T, msg string) {
 	t.Helper()
-	t.Log(color.New(color.FgHiCyan).Sprintf(format, args...))
+	t.Log(color.HiCyanString("%s%s", testLogPrefix, msg))
+}
+
+func logTestf(t *testing.T, format string, args ...interface{}) {
+	t.Helper()
+	t.Log(color.HiCyanString(testLogPrefix+format, args...))
 }
