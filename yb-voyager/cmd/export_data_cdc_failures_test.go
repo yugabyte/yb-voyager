@@ -44,38 +44,22 @@ const (
 	//
 	debeziumDefaultPollIntervalMs = 500                                                               // Default poll interval
 	batchSeparationWaitTime       = time.Duration(debeziumDefaultPollIntervalMs*5) * time.Millisecond // 2.5 seconds
-	multiFailurePollIntervalMs    = 500
-	multiFailureBatchWait         = time.Duration(multiFailurePollIntervalMs*5) * time.Millisecond // 2.5s
 )
 
-// TestCDCBatchFailureAndResume injects at before-batch-streaming (2nd batch) and verifies resume/dedup.
+// TestCDCBatchFailureAndResume verifies mid-batch failure recovery and deduplication.
 //
 // Scenario:
-// 1. Start CDC export (snapshot-and-changes mode)
-// 2. Complete snapshot phase (100 rows)
-// 3. Generate 3 CDC batches (20 rows each)
-// 4. Inject failure on 2nd CDC batch
-// 5. Resume export
-// 6. Verify all 60 CDC events recovered with no duplicates
-// 1. Start CDC export (snapshot-and-changes) with failure injection on 2nd CDC batch
-// 2. Verify the failure occurs and export crashes (after snapshot completes)
-// 3. Resume export WITHOUT failure injection
-// 4. Verify all CDC events are eventually received and processed correctly
-// 5. Validate no duplicate events (event deduplication works)
+// 1. Start CDC export (snapshot-and-changes mode) with 100 snapshot rows
+// 2. Generate 3 CDC batches (20 rows each, 2.5s wait between batches)
+// 3. Inject failure on 2nd CDC batch via before-batch-streaming marker
+// 4. Export crashes after batch 1 committed; batch 2 and 3 are lost
+// 5. Resume export without failure injection
+// 6. Verify all 60 CDC events recovered with no duplicates via event_id dedup
 //
-// Debezium Configuration:
-// - PostgreSQL connector uses Debezium defaults (500ms poll, 2048 max batch)
-// - Only explicit config: offset.flush.interval.ms=0 (immediate offset commits)
-// - Test waits 2.5s (5x poll interval) between INSERTs to encourage separate batches
-//
-// Batching Behavior:
-// - Each INSERT creates 20 rows in a single transaction
-// - 2.5s wait between INSERTs allows Debezium to: poll → process → write → commit offset
-// - Byteman counter triggers on 2nd CDC batch (whenever it occurs)
-// - Test validates recovery and durability, not exact batch boundaries
-//
-// Note: This test verifies CDC event durability. Snapshot data is in separate files,
-// while CDC events are in queue segments. We focus on CDC event recovery and deduplication.
+// This test validates:
+// - Batch processing failure recovery
+// - CDC offset replay (batch 2 and 3 replayed from offsets)
+// - Event deduplication (batch 1 events already written, not duplicated on resume)
 func TestCDCBatchFailureAndResume(t *testing.T) {
 	// Skip if Byteman is not available
 	if os.Getenv("BYTEMAN_JAR") == "" {
@@ -94,7 +78,6 @@ func TestCDCBatchFailureAndResume(t *testing.T) {
 	require.NoError(t, err, "Failed to start PostgreSQL container")
 	defer postgresContainer.Stop(ctx)
 
-	// Setup test schema and initial data
 	setupCDCTestDataForResume(t, postgresContainer)
 	defer postgresContainer.ExecuteSqls(
 		"DROP SCHEMA IF EXISTS test_schema CASCADE;",
@@ -229,22 +212,19 @@ func TestCDCBatchFailureAndResume(t *testing.T) {
 	logTest(t, "CDC batch failure and resume test completed successfully")
 }
 
-// TestFirstCDCBatchFailure injects at before-batch-streaming (1st batch) and verifies full replay.
+// TestFirstCDCBatchFailure verifies recovery when the first CDC batch fails before any offsets are committed.
 //
 // Scenario:
-// 1. Start CDC export (snapshot-and-changes mode)
-// 2. Complete snapshot phase (50 rows)
-// 3. Generate 3 batches of CDC events (20 rows each, 60 total)
-// 4. Inject failure on 1st CDC batch (before processing)
-// 5. Process crashes - 0 CDC events written
-// 6. Resume export
-// 7. Verify all 60 CDC events recovered (full replay from beginning)
-// 8. Verify no duplicate events
+// 1. Start CDC export (snapshot-and-changes mode) with 50 snapshot rows
+// 2. Generate 3 CDC batches (20 rows each, 60 total events)
+// 3. Inject failure on 1st CDC batch via before-batch-streaming marker
+// 4. Export crashes before any CDC offsets are committed (0 events written)
+// 5. Resume export without failure injection
+// 6. Verify all 60 CDC events recovered via full replay from zero offset state
 //
-// Validates:
-// - "Cold start" recovery (no CDC offsets exist yet)
-// - Recovery from zero CDC offset state
-// - Full CDC replay capability
+// This test validates:
+// - "Cold start" CDC recovery (no offsets file exists)
+// - Full CDC replay capability from the beginning
 
 func TestFirstCDCBatchFailure(t *testing.T) {
 	// Skip if Byteman is not available
@@ -257,7 +237,6 @@ func TestFirstCDCBatchFailure(t *testing.T) {
 	exportDir = testutils.CreateTempExportDir()
 	defer testutils.RemoveTempExportDir(exportDir)
 
-	// Setup PostgreSQL container
 	postgresContainer := testcontainers.NewTestContainer("postgresql", &testcontainers.ContainerConfig{
 		ForLive: true,
 	})
@@ -265,7 +244,6 @@ func TestFirstCDCBatchFailure(t *testing.T) {
 	require.NoError(t, err, "Failed to start PostgreSQL container")
 	defer postgresContainer.Stop(ctx)
 
-	// Setup test schema and initial data
 	setupFirstBatchTestData(t, postgresContainer)
 	defer postgresContainer.ExecuteSqls(
 		"DROP SCHEMA IF EXISTS test_schema CASCADE;",
@@ -387,12 +365,18 @@ func TestFirstCDCBatchFailure(t *testing.T) {
 	logTest(t, "First CDC batch failure test completed successfully")
 }
 
-// TestCDCMultipleBatchFailures injects at before-batch-streaming on consecutive runs and verifies recovery.
+// TestCDCMultipleBatchFailures verifies resilience across multiple consecutive batch failures.
 //
 // Scenario:
-// 1. Run 1: fail on 2nd batch → expect 20 events
-// 2. Run 2: fail on 2nd batch → expect 40 events
-// 3. Run 3: no failure → expect 60 events
+// 1. Start CDC export (snapshot-and-changes mode) with 50 snapshot rows
+// 2. Run 1: Insert batch1 (20 rows), batch2 (20 rows) → fail on 2nd batch → 20 events written
+// 3. Run 2 (resume): Insert batch3 (20 rows) → fail on 2nd batch again → 40 events total
+// 4. Run 3 (resume): No failure → all batches replay → 60 events total with no duplicates
+//
+// This test validates:
+// - Recovery across multiple consecutive failures
+// - Incremental progress after each failed run
+// - Final full recovery with deduplication
 func TestCDCMultipleBatchFailures(t *testing.T) {
 	if os.Getenv("BYTEMAN_JAR") == "" {
 		t.Skip("Skipping test: BYTEMAN_JAR environment variable not set. Install Byteman to run this test.")
@@ -435,13 +419,13 @@ func TestCDCMultipleBatchFailures(t *testing.T) {
 			`INSERT INTO test_schema_multi_fail.cdc_multi_fail_test (name, value)
 			SELECT 'batch1_' || i, 100 + i FROM generate_series(1, 20) i;`,
 		)
-		time.Sleep(multiFailureBatchWait)
+		time.Sleep(batchSeparationWaitTime)
 
 		postgresContainer.ExecuteSqls(
 			`INSERT INTO test_schema_multi_fail.cdc_multi_fail_test (name, value)
 			SELECT 'batch2_' || i, 200 + i FROM generate_series(1, 20) i;`,
 		)
-		time.Sleep(multiFailureBatchWait)
+		time.Sleep(batchSeparationWaitTime)
 		cdcEventsGenerated <- true
 	}
 
@@ -496,7 +480,7 @@ func TestCDCMultipleBatchFailures(t *testing.T) {
 			`INSERT INTO test_schema_multi_fail.cdc_multi_fail_test (name, value)
 			SELECT 'batch3_' || i, 300 + i FROM generate_series(1, 20) i;`,
 		)
-		time.Sleep(multiFailureBatchWait)
+		time.Sleep(batchSeparationWaitTime)
 		cdcEventsGeneratedRun2 <- true
 	}
 
