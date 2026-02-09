@@ -639,7 +639,7 @@ func parseQueueSegmentNum(filePath string) (int64, error) {
 	base := filepath.Base(filePath)
 	parts := strings.Split(base, ".")
 	if len(parts) != 3 {
-		return -1, fmt.Errorf("unexpected queue segment filename: %s", base)
+		return -1, goerrors.Errorf("unexpected queue segment filename: %s", base)
 	}
 	segmentNum, err := strconv.ParseInt(parts[1], 10, 64)
 	if err != nil {
