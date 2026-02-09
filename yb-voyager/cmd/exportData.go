@@ -767,7 +767,7 @@ func createReplicationSlotAndExportSnapshotIfRequiredForPG(ctx context.Context, 
 			}
 			_ = os.MkdirAll(filepath.Join(exportDir, "logs"), 0755)
 			_ = os.WriteFile(filepath.Join(exportDir, "logs", "failpoint-pg-dump-snapshot.log"), []byte("hit\n"), 0644)
-			failpoint.Return(fmt.Errorf("failpoint: pg_dump snapshot failure"))
+			failpoint.Return(goerrors.Errorf("failpoint: pg_dump snapshot failure"))
 		}
 	})
 
