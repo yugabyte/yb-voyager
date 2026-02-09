@@ -46,9 +46,8 @@ func setupCDCTestData(t *testing.T, container testcontainers.TestContainer) {
 	)
 }
 
-// TestCDCBatchProcessingFailure demonstrates testing CDC batch processing failures
-// by targeting YbExporterConsumer.handleBatch method in yb-voyager's Debezium consumer.
-// This test generates CDC events and fails on the 2nd batch.
+// TestCDCBatchProcessingFailure injects at YbExporterConsumer.handleBatch entry (2nd batch)
+// to validate Byteman attach and batch failure behavior.
 func TestCDCBatchProcessingFailure(t *testing.T) {
 	ctx := context.Background()
 
@@ -83,11 +82,11 @@ func TestCDCBatchProcessingFailure(t *testing.T) {
 	err = bytemanHelper.WriteRules()
 	require.NoError(t, err, "Failed to write Byteman rules")
 
-	t.Log("Running CDC export with batch processing failure injection...")
+	logTest(t, "Running CDC export with batch processing failure injection...")
 
 	generateCDCEvents := func() {
 		time.Sleep(10 * time.Second)
-		t.Log("Generating CDC events...")
+		logTest(t, "Generating CDC events...")
 		for batch := 0; batch < 5; batch++ {
 			postgresContainer.ExecuteSqls(
 				fmt.Sprintf(`INSERT INTO test_schema.cdc_test (name, value) 
@@ -95,7 +94,7 @@ func TestCDCBatchProcessingFailure(t *testing.T) {
 			)
 			time.Sleep(2 * time.Second)
 		}
-		t.Log("Finished generating CDC events")
+		logTest(t, "Finished generating CDC events")
 	}
 
 	// Run export data with Byteman injection - should fail on 2nd batch
@@ -116,9 +115,7 @@ func TestCDCBatchProcessingFailure(t *testing.T) {
 	assert.NoError(t, err, "Should be able to read debezium logs for verification")
 }
 
-// TestCDCBatchProcessing_WithMarkers demonstrates testing CDC with marker-based injection.
-// This test targets BytemanMarkers.cdc("before-batch") added to YbExporterConsumer.handleBatch
-// for stable, self-documenting injection points.
+// TestCDCBatchProcessing_WithMarkers injects at cdc("before-batch") to validate marker usage.
 func TestCDCBatchProcessing_WithMarkers(t *testing.T) {
 	ctx := context.Background()
 
@@ -152,11 +149,11 @@ func TestCDCBatchProcessing_WithMarkers(t *testing.T) {
 	err = bytemanHelper.WriteRules()
 	require.NoError(t, err)
 
-	t.Log("Running CDC export with marker-based batch processing failure on 2nd batch...")
+	logTest(t, "Running CDC export with marker-based batch processing failure on 2nd batch...")
 
 	generateCDCEvents := func() {
 		time.Sleep(10 * time.Second)
-		t.Log("Generating CDC events...")
+		logTest(t, "Generating CDC events...")
 		for batch := 0; batch < 5; batch++ {
 			postgresContainer.ExecuteSqls(
 				fmt.Sprintf(`INSERT INTO test_schema.cdc_test (name, value)
@@ -164,7 +161,7 @@ func TestCDCBatchProcessing_WithMarkers(t *testing.T) {
 			)
 			time.Sleep(2 * time.Second)
 		}
-		t.Log("Finished generating CDC events")
+		logTest(t, "Finished generating CDC events")
 	}
 
 	exportRunner := testutils.NewVoyagerCommandRunner(postgresContainer, "export data", []string{

@@ -32,7 +32,7 @@ import (
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
-// TestBytemanProbeCDCMarkers verifies which CDC Byteman markers fire without injecting failures.
+// TestBytemanProbeCDCMarkers probes Byteman markers (no failures) to confirm attach and reachability.
 func TestBytemanProbeCDCMarkers(t *testing.T) {
 	if os.Getenv("BYTEMAN_JAR") == "" {
 		t.Skip("Skipping test: BYTEMAN_JAR environment variable not set. Install Byteman to run this test.")
@@ -125,11 +125,11 @@ func TestBytemanProbeCDCMarkers(t *testing.T) {
 		require.NoError(t, err, "Should be able to read debezium logs for %s", marker)
 		if matched {
 			matchedCount++
-			t.Logf("✓ Byteman marker fired: %s", marker)
+			logTestf(t, "✓ Byteman marker fired: %s", marker)
 		} else if marker == "after-connect" {
-			t.Log("ℹ Byteman marker did not fire: after-connect (likely before agent attach)")
+			logTest(t, "ℹ Byteman marker did not fire: after-connect (likely before agent attach)")
 		} else {
-			t.Logf("✗ Byteman marker did not fire: %s", marker)
+			logTestf(t, "✗ Byteman marker did not fire: %s", marker)
 		}
 	}
 	require.Greater(t, matchedCount, 0, "No Byteman markers fired; agent may not have attached")
@@ -157,5 +157,5 @@ func setupBytemanProbeTestData(t *testing.T, container testcontainers.TestContai
 		SELECT 'snapshot_' || i, i * 10 FROM generate_series(1, 50) i;`,
 	)
 
-	t.Log("Byteman probe test schema created with 50 snapshot rows")
+	logTest(t, "Byteman probe test schema created with 50 snapshot rows")
 }
