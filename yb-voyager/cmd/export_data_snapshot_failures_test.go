@@ -31,7 +31,22 @@ import (
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
-// TestSnapshotFailureAndResume injects a pg_dump failpoint and verifies snapshot+CDC recovery.
+// TestSnapshotFailureAndResume verifies recovery when pg_dump snapshot fails mid-export.
+//
+// Scenario:
+// 1. Start CDC export (snapshot-and-changes mode) with 100 initial rows
+// 2. Inject pgDumpSnapshotFailure failpoint with 8s delay before pg_dump starts
+// 3. Insert 20 CDC rows during the delay window (before failure triggers)
+// 4. pg_dump fails; export crashes with no snapshot descriptor created
+// 5. Resume export without failure injection
+// 6. Verify snapshot completes and includes both initial (100) and during-snapshot (20) rows
+// 7. Insert 10 more CDC rows after snapshot and verify CDC export works correctly
+// 8. Verify total: 120 snapshot rows + 10 CDC events = 130 total rows
+//
+// This test validates:
+// - Snapshot failure recovery restarts pg_dump from scratch
+// - CDC rows inserted during failed snapshot attempt are captured in the new snapshot
+// - CDC export resumes correctly after snapshot completes
 func TestSnapshotFailureAndResume(t *testing.T) {
 	if os.Getenv("BYTEMAN_JAR") == "" {
 		t.Skip("Skipping test: BYTEMAN_JAR environment variable not set. Install Byteman to run this test.")
@@ -155,8 +170,22 @@ func TestSnapshotFailureAndResume(t *testing.T) {
 	logTest(t, "Snapshot failure and resume test completed successfully")
 }
 
-// TestSnapshotToCDCTransitionFailure injects a Go failpoint at snapshot->CDC transition
-// and verifies snapshot consistency plus CDC recovery.
+// TestSnapshotToCDCTransitionFailure verifies recovery when snapshot-to-CDC transition fails.
+//
+// Scenario:
+// 1. Start CDC export (snapshot-and-changes mode) with 30 snapshot rows
+// 2. Snapshot phase completes successfully and creates descriptor
+// 3. Inject snapshotToCDCTransitionError failpoint at transition point (after snapshot, before CDC starts)
+// 4. Export crashes after snapshot is complete but before CDC starts
+// 5. Verify no CDC events were emitted before failure
+// 6. Resume export without failure injection
+// 7. Insert 20 CDC rows after resume and verify CDC export works correctly
+// 8. Verify final state: 30 snapshot rows + 20 CDC events (snapshot not re-run)
+//
+// This test validates:
+// - Snapshot-to-CDC transition failure does not corrupt snapshot data
+// - Resume correctly starts CDC from where transition left off
+// - Snapshot is not re-executed on resume (descriptor hash remains stable)
 func TestSnapshotToCDCTransitionFailure(t *testing.T) {
 	// Skip if Byteman is not available
 	if os.Getenv("BYTEMAN_JAR") == "" {
