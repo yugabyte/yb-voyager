@@ -417,3 +417,234 @@ func TestCDCQueueWriteFailureAndResume(t *testing.T) {
 	_ = killDebeziumForExportDir(exportDir)
 	_ = os.Remove(filepath.Join(exportDir, ".export-dataLockfile.lck"))
 }
+
+// TestCDCRotationMidBatchClosesSegment forces queue segment rotation mid-batch
+// and verifies the rotated segment is properly closed before the batch completes.
+//
+// Scenario:
+// 1. Start CDC export with a very small queue segment size
+// 2. Insert one large CDC batch to trigger rotation while the batch is still being written
+// 3. Inject failure before handleBatchComplete to stop before batch commit
+// 4. Verify multiple queue segments exist
+// 5. Verify the first rotated segment is closed (EOF marker present)
+func TestCDCRotationMidBatchClosesSegment(t *testing.T) {
+	if os.Getenv("BYTEMAN_JAR") == "" {
+		t.Skip("Skipping test: BYTEMAN_JAR environment variable not set. Install Byteman to run this test.")
+	}
+
+	ctx := context.Background()
+
+	exportDir = testutils.CreateTempExportDir()
+	defer testutils.RemoveTempExportDir(exportDir)
+
+	postgresContainer := testcontainers.NewTestContainer("postgresql", &testcontainers.ContainerConfig{
+		ForLive: true,
+	})
+	err := postgresContainer.Start(ctx)
+	require.NoError(t, err, "Failed to start PostgreSQL container")
+	defer postgresContainer.Stop(ctx)
+
+	setupRotationMidBatchTestData(t, postgresContainer)
+	defer postgresContainer.ExecuteSqls(
+		"DROP SCHEMA IF EXISTS test_schema_rotation CASCADE;",
+	)
+
+	bytemanHelper, err := testutils.NewBytemanHelper(exportDir)
+	require.NoError(t, err, "Failed to create Byteman helper")
+	bytemanHelper.AddRuleFromBuilder(
+		testutils.NewRule("fail_before_handle_batch_complete_rotation").
+			AtMarker(testutils.MarkerCDC, "before-handle-batch-complete").
+			If("incrementCounter(\"before_handle_batch_complete\") == 1").
+			ThrowException("java.lang.RuntimeException", "Simulated failure before handleBatchComplete"),
+	)
+	require.NoError(t, bytemanHelper.WriteRules(), "Failed to write Byteman rules")
+
+	cdcEventsGenerated := make(chan bool, 1)
+	generateCDCEvents := func() {
+		if err := waitForStreamingMode(exportDir, 90*time.Second, 2*time.Second); err != nil {
+			logTestf(t, "Failed to reach streaming mode: %v", err)
+			return
+		}
+		postgresContainer.ExecuteSqls(
+			`INSERT INTO test_schema_rotation.cdc_rotation_test (name, value, payload)
+			SELECT 'batch1_' || i, 100 + i, repeat('r', 5000) FROM generate_series(1, 30) i;`,
+		)
+		time.Sleep(3 * time.Second)
+		cdcEventsGenerated <- true
+	}
+
+	envVars := append(bytemanHelper.GetEnv(), "QUEUE_SEGMENT_MAX_BYTES=8192")
+	exportRunner := testutils.NewVoyagerCommandRunner(postgresContainer, "export data", []string{
+		"--export-dir", exportDir,
+		"--export-type", "snapshot-and-changes",
+		"--source-db-schema", "test_schema_rotation",
+		"--disable-pb", "true",
+		"--yes",
+	}, generateCDCEvents, true).WithEnv(envVars...)
+
+	err = exportRunner.Run()
+	require.NoError(t, err, "Failed to start export")
+
+	matched, err := bytemanHelper.WaitForInjection(">>> BYTEMAN: fail_before_handle_batch_complete_rotation", 90*time.Second)
+	require.NoError(t, err, "Should be able to read debezium logs for handleBatchComplete failure")
+	require.True(t, matched, "Byteman failure should be injected before handleBatchComplete")
+
+	select {
+	case <-cdcEventsGenerated:
+	case <-time.After(60 * time.Second):
+		require.Fail(t, "CDC event generation timed out")
+	}
+
+	// Kill immediately after injection to avoid graceful shutdown that could sync segments.
+	_ = exportRunner.Kill()
+	_ = killDebeziumForExportDir(exportDir)
+
+	segmentFiles, err := listQueueSegmentFiles(exportDir)
+	require.NoError(t, err, "Failed to list queue segment files")
+	require.GreaterOrEqual(t, len(segmentFiles), 2, "Expected multiple queue segments after rotation")
+	logTestf(t, "Queue segment files after failure: %v", segmentFiles)
+
+	lowestSegmentPath := ""
+	lowestSegmentNum := int64(-1)
+	latestSegmentPath := ""
+	latestSegmentNum := int64(-1)
+	for _, segmentPath := range segmentFiles {
+		segmentNum, err := parseQueueSegmentNum(segmentPath)
+		require.NoError(t, err, "Failed to parse queue segment number")
+		if lowestSegmentNum == -1 || segmentNum < lowestSegmentNum {
+			lowestSegmentNum = segmentNum
+			lowestSegmentPath = segmentPath
+		}
+		if segmentNum > latestSegmentNum {
+			latestSegmentNum = segmentNum
+			latestSegmentPath = segmentPath
+		}
+	}
+	require.NotEmpty(t, lowestSegmentPath, "Expected to identify lowest queue segment")
+	require.NotEmpty(t, latestSegmentPath, "Expected to identify latest queue segment")
+
+	closed, err := isQueueSegmentClosed(lowestSegmentPath)
+	require.NoError(t, err, "Failed to check queue segment EOF marker")
+	require.True(t, closed, "First rotated queue segment should be closed with EOF marker")
+
+	require.GreaterOrEqual(t, latestSegmentNum, int64(1), "Expected latest segment to be >= 1 after rotation")
+}
+
+// TestCDCQueueSegmentTruncationOnResume verifies that an incomplete segment is
+// truncated back to its last committed size on resume.
+//
+// Scenario:
+// 1. Start CDC export (large segment size, single segment expected)
+// 2. Insert a large CDC batch that forces buffered writes to reach disk
+// 3. Inject failure before handleBatchComplete (no sync/commit)
+// 4. Verify file size exceeds committed size in metadb
+// 5. Resume export and verify truncation log appears
+func TestCDCQueueSegmentTruncationOnResume(t *testing.T) {
+	if os.Getenv("BYTEMAN_JAR") == "" {
+		t.Skip("Skipping test: BYTEMAN_JAR environment variable not set. Install Byteman to run this test.")
+	}
+
+	ctx := context.Background()
+
+	exportDir = testutils.CreateTempExportDir()
+	defer testutils.RemoveTempExportDir(exportDir)
+
+	postgresContainer := testcontainers.NewTestContainer("postgresql", &testcontainers.ContainerConfig{
+		ForLive: true,
+	})
+	err := postgresContainer.Start(ctx)
+	require.NoError(t, err, "Failed to start PostgreSQL container")
+	defer postgresContainer.Stop(ctx)
+
+	setupTruncationTestData(t, postgresContainer)
+	defer postgresContainer.ExecuteSqls(
+		"DROP SCHEMA IF EXISTS test_schema_truncation CASCADE;",
+	)
+
+	bytemanHelper, err := testutils.NewBytemanHelper(exportDir)
+	require.NoError(t, err, "Failed to create Byteman helper")
+	bytemanHelper.AddRuleFromBuilder(
+		testutils.NewRule("fail_before_handle_batch_complete_truncation").
+			AtMarker(testutils.MarkerCDC, "before-handle-batch-complete").
+			If("incrementCounter(\"before_handle_batch_complete\") == 1").
+			ThrowException("java.lang.RuntimeException", "Simulated failure before handleBatchComplete"),
+	)
+	require.NoError(t, bytemanHelper.WriteRules(), "Failed to write Byteman rules")
+
+	cdcEventsGenerated := make(chan bool, 1)
+	generateCDCEvents := func() {
+		if err := waitForStreamingMode(exportDir, 90*time.Second, 2*time.Second); err != nil {
+			logTestf(t, "Failed to reach streaming mode: %v", err)
+			return
+		}
+		postgresContainer.ExecuteSqls(
+			`INSERT INTO test_schema_truncation.cdc_truncation_test (name, value, payload)
+			SELECT 'batch1_' || i, 100 + i, repeat('t', 20000) FROM generate_series(1, 20) i;`,
+		)
+		time.Sleep(3 * time.Second)
+		cdcEventsGenerated <- true
+	}
+
+	envVars := append(bytemanHelper.GetEnv(), "QUEUE_SEGMENT_MAX_BYTES=1073741824")
+	exportRunner := testutils.NewVoyagerCommandRunner(postgresContainer, "export data", []string{
+		"--export-dir", exportDir,
+		"--export-type", "snapshot-and-changes",
+		"--source-db-schema", "test_schema_truncation",
+		"--disable-pb", "true",
+		"--yes",
+	}, generateCDCEvents, true).WithEnv(envVars...)
+
+	err = exportRunner.Run()
+	require.NoError(t, err, "Failed to start export")
+
+	matched, err := bytemanHelper.WaitForInjection(">>> BYTEMAN: fail_before_handle_batch_complete_truncation", 90*time.Second)
+	require.NoError(t, err, "Should be able to read debezium logs for handleBatchComplete failure")
+	require.True(t, matched, "Byteman failure should be injected before handleBatchComplete")
+
+	select {
+	case <-cdcEventsGenerated:
+	case <-time.After(60 * time.Second):
+		require.Fail(t, "CDC event generation timed out")
+	}
+
+	_, waitErr := waitForProcessExitOrKill(exportRunner, exportDir, 60*time.Second)
+	require.Error(t, waitErr, "Export should exit with error after failure")
+
+	segmentFiles, err := listQueueSegmentFiles(exportDir)
+	require.NoError(t, err, "Failed to list queue segment files")
+	require.Len(t, segmentFiles, 1, "Expected a single queue segment before resume")
+	segmentNum, err := parseQueueSegmentNum(segmentFiles[0])
+	require.NoError(t, err, "Failed to parse queue segment number")
+
+	fileSizeBefore, err := getQueueSegmentFileSize(segmentFiles[0])
+	require.NoError(t, err, "Failed to read queue segment size after failure")
+	committedSize, err := getQueueSegmentCommittedSize(exportDir, segmentNum)
+	require.NoError(t, err, "Failed to read committed size from metadb")
+	require.Greater(t, fileSizeBefore, committedSize, "Expected file size to exceed committed size before resume")
+	logTestf(t, "Queue segment size before resume: %d, committed size: %d", fileSizeBefore, committedSize)
+
+	logTest(t, "Resuming export to trigger truncation...")
+	exportRunnerResume := testutils.NewVoyagerCommandRunner(postgresContainer, "export data", []string{
+		"--export-dir", exportDir,
+		"--export-type", "snapshot-and-changes",
+		"--source-db-schema", "test_schema_truncation",
+		"--disable-pb", "true",
+		"--yes",
+	}, nil, true)
+
+	err = exportRunnerResume.Run()
+	require.NoError(t, err, "Failed to start export resume")
+	defer exportRunnerResume.Kill()
+
+	truncationMatched, err := waitForTruncationLog(exportDir, 60*time.Second)
+	require.NoError(t, err, "Should be able to read debezium logs for truncation")
+	logTestf(t, "Truncation log observed on resume: %v", truncationMatched)
+	require.True(t, truncationMatched, "Expected truncation log on resume")
+
+	logTest(t, "Verifying segment size after truncation...")
+	fileSizeAfter, err := getQueueSegmentFileSize(segmentFiles[0])
+	require.NoError(t, err, "Failed to read queue segment size after truncation")
+	logTestf(t, "Queue segment size after truncation: %d", fileSizeAfter)
+	_ = killDebeziumForExportDir(exportDir)
+	_ = os.Remove(filepath.Join(exportDir, ".export-dataLockfile.lck"))
+}
