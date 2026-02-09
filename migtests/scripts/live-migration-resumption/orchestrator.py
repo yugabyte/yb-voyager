@@ -190,8 +190,7 @@ def row_hash_validations_action(stage: Dict[str, Any], ctx: Any) -> None:
 
 @action("start_resumptions")
 def start_resumptions_action(stage: Dict[str, Any], ctx: Any) -> None:
-    """Start per-command resumption workers based on the provided resumption map.
-    """
+    """Start per-command resumption workers based on the provided resumption map."""
     resumption_cfg = stage.get("resumption", {})
     H.start_resumptions_for_stage(resumption_cfg, ctx)
 
@@ -250,7 +249,6 @@ def _resolve_path(p: str | None, base_dir: str) -> str | None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Live migration resiliency orchestrator")
     parser.add_argument("scenario", help="Path to scenario YAML")
-    parser.add_argument("--resolve-only", action="store_true", help="Only load and resolve paths, then exit")
     args = parser.parse_args()
 
     scenario_path = os.path.abspath(os.path.expanduser(args.scenario))
@@ -267,13 +265,6 @@ def main() -> None:
 
     run_id = cfg.get("run_id", "run")
     env = H.merge_env(os.environ, cfg.get("env"))
-
-    if args.resolve_only:
-        print(f"Scenario: {scenario_path}")
-        print(f"Test root: {test_root}")
-        print(f"Export dir: {cfg['export_dir']}")
-        print(f"Artifacts dir: {cfg['artifacts_dir']}")
-        sys.exit(0)
 
     # Prepare paths by cleaning and recreating export-dir and artifacts
     H.prepare_paths(cfg["export_dir"], cfg["artifacts_dir"])
@@ -303,6 +294,34 @@ def main() -> None:
         H.snapshot_msr_and_stats(cfg["export_dir"], cfg["artifacts_dir"])
         if had_failure:
             H.copy_logs_directory(cfg["export_dir"], cfg["artifacts_dir"])
+
+        # Best-effort cleanup: ensure background processes started by the orchestrator
+        # don't outlive the orchestrator itself.
+        try:
+            # Stop resumer threads first so they don't restart processes while we're shutting down.
+            ctx.stop_event.set()
+            with ctx.process_lock:
+                resumers = list(ctx.active_resumers.values())
+                ctx.active_resumers.clear()
+            for r in resumers:
+                try:
+                    r.stop(timeout_sec=60)
+                except Exception:
+                    pass
+
+            # Terminate any remaining background processes that were started.
+            with ctx.process_lock:
+                procs = list(ctx.processes.items())
+                ctx.processes.clear()
+            for name, proc in procs:
+                try:
+                    H.log(f"cleanup: stopping process {name}")
+                    H.kill(proc, timeout_sec=60)
+                except Exception:
+                    pass
+        except Exception:
+            # Never fail the run due to cleanup.
+            pass
 
 
 if __name__ == "__main__":

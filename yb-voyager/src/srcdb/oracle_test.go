@@ -33,13 +33,13 @@ func TestOracleGetAllTableNames(t *testing.T) {
 	// Test GetAllTableNames
 	actualTables := testOracleSource.DB().GetAllTableNames()
 	expectedTables := []*sqlname.SourceName{
-		sqlname.NewSourceName("YBVOYAGER", "foo"),
-		sqlname.NewSourceName("YBVOYAGER", "bar"),
-		sqlname.NewSourceName("YBVOYAGER", "table1"),
-		sqlname.NewSourceName("YBVOYAGER", "table2"),
-		sqlname.NewSourceName("YBVOYAGER", "unique_table"),
-		sqlname.NewSourceName("YBVOYAGER", "non_pk1"),
-		sqlname.NewSourceName("YBVOYAGER", "non_pk2"),
+		sqlname.NewSourceName("YBVOYAGER", "FOO"),
+		sqlname.NewSourceName("YBVOYAGER", "BAR"),
+		sqlname.NewSourceName("YBVOYAGER", "TABLE1"),
+		sqlname.NewSourceName("YBVOYAGER", "TABLE2"),
+		sqlname.NewSourceName("YBVOYAGER", "UNIQUE_TABLE"),
+		sqlname.NewSourceName("YBVOYAGER", "NON_PK1"),
+		sqlname.NewSourceName("YBVOYAGER", "NON_PK2"),
 	}
 	assert.Equal(t, len(expectedTables), len(actualTables), "Expected number of tables to match")
 
@@ -80,6 +80,6 @@ func TestOracleGetNonPKTables(t *testing.T) {
 	actualTables, err := testOracleSource.DB().GetNonPKTables()
 	assert.NilError(t, err, "Expected nil but non nil error: %v", err)
 
-	expectedTables := []string{`YBVOYAGER."NON_PK1"`, `YBVOYAGER."NON_PK2"`}
+	expectedTables := []string{`"YBVOYAGER"."NON_PK1"`, `"YBVOYAGER"."NON_PK2"`}
 	testutils.AssertEqualStringSlices(t, expectedTables, actualTables)
 }

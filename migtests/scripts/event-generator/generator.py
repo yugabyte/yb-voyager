@@ -199,11 +199,6 @@ try:
                     )
                     query_to_run = f"UPDATE {table_name} SET {set_clause} WHERE {where_clause}"
                     full_params = params + sampling_params
-                    query_size_bytes = len(query_to_run.encode('utf-8'))
-                    # Also account for parameter values size
-                    params_size_bytes = sum(len(str(p).encode('utf-8')) for p in full_params) if full_params else 0
-                    total_size_bytes = query_size_bytes + params_size_bytes
-                    print(f"[UPDATE] Query size: {query_size_bytes} bytes ({query_size_bytes / 1024 / 1024:.2f} MB), Params size: {params_size_bytes} bytes ({params_size_bytes / 1024 / 1024:.2f} MB), Total: {total_size_bytes} bytes ({total_size_bytes / 1024 / 1024:.2f} MB) for table {table_name}", file=sys.stderr, flush=True)
 
                     try:
                         cursor.execute(query_to_run, full_params)
@@ -222,11 +217,6 @@ try:
                     estimated_row_count=ROW_ESTIMATES.get(table_name),
                 )
                 query_to_run = f"DELETE FROM {table_name} WHERE {where_clause}"
-                query_size_bytes = len(query_to_run.encode('utf-8'))
-                # Also account for parameter values size
-                params_size_bytes = sum(len(str(p).encode('utf-8')) for p in sampling_params) if sampling_params else 0
-                total_size_bytes = query_size_bytes + params_size_bytes
-                print(f"[DELETE] Query size: {query_size_bytes} bytes ({query_size_bytes / 1024 / 1024:.2f} MB), Params size: {params_size_bytes} bytes ({params_size_bytes / 1024 / 1024:.2f} MB), Total: {total_size_bytes} bytes ({total_size_bytes / 1024 / 1024:.2f} MB) for table {table_name}", file=sys.stderr, flush=True)
                 cursor.execute(query_to_run, sampling_params)
 
                 conn.commit()

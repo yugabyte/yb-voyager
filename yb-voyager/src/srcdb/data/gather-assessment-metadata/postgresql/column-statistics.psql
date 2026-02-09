@@ -15,7 +15,7 @@ COPY (
     FROM pg_stats st
     JOIN pg_class c ON c.relname = st.tablename
     JOIN pg_namespace ns ON ns.nspname = st.schemaname AND ns.oid = c.relnamespace
-    WHERE st.schemaname=ANY(ARRAY[string_to_array(:'schema_list', '|')]) --schema_list
+    WHERE st.schemaname= ANY(string_to_array(:'schema_list', '|')) --schema_list
     ORDER BY st.schemaname, st.tablename, st.attname
 ) TO STDOUT WITH CSV HEADER;
 \o

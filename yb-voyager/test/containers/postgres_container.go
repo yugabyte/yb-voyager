@@ -84,7 +84,8 @@ func (pg *PostgresContainer) Start(ctx context.Context) (err error) {
 	if pg.ContainerConfig.ForLive {
 		req.Cmd = []string{
 			"postgres",
-			"-c", "wal_level=logical", // <-- set wal_level,
+			"-c", "wal_level=logical", // <-- set wal_level for logical replication
+			"-c", "max_replication_slots=20", // <-- increase max replication slots for live migration tests
 		}
 	}
 
@@ -287,7 +288,13 @@ func (pg *PostgresContainer) DropDatabase(dbName string) error {
 		return fmt.Errorf("failed to terminate some connections to database '%s': %w", dbName, err)
 	}
 
-	_, err = conn.Exec(context.Background(), fmt.Sprintf("DROP DATABASE %s", dbName))
+	for i := 0; i < 5; i++ {
+		_, err = conn.Exec(context.Background(), fmt.Sprintf("DROP DATABASE %s", dbName))
+		if err == nil {
+			break
+		}
+		time.Sleep(1 * time.Second)
+	}
 	if err != nil {
 		return fmt.Errorf("failed to drop database '%s': %w", dbName, err)
 	}

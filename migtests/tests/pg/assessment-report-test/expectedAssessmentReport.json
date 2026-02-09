@@ -2,7 +2,7 @@
     "VoyagerVersion": "main",
     "TargetDBVersion": "2024.2.0.0",
     "MigrationComplexity": "HIGH",
-    "MigrationComplexityExplanation": "Found 32 Level 2 issue(s) and 22 Level 3 issue(s), resulting in HIGH migration complexity",
+    "MigrationComplexityExplanation": "Found 32 Level 2 issue(s) and 23 Level 3 issue(s), resulting in HIGH migration complexity",
     "SchemaSummary": {
         "Description": "Objects that will be created on the target YugabyteDB.",
         "DbName": "pg_assessment_report_test_assess",
@@ -27,9 +27,9 @@
             },
             {
                 "ObjectType": "EXTENSION",
-                "TotalCount": 9,
-                "InvalidCount": 4,
-                "ObjectNames": "plperl, plpython3u, citext, hstore, lo, pg_stat_statements, pgcrypto, pglogical, postgis"
+                "TotalCount": 10,
+                "InvalidCount": 5,
+                "ObjectNames": "plperl, plpython3u, citext, hstore, lo, pg_stat_statements, pgcrypto, pglogical, postgis, vector"
             },
             {
                 "ObjectType": "TYPE",
@@ -45,15 +45,15 @@
             },
             {
                 "ObjectType": "SEQUENCE",
-                "TotalCount": 42,
+                "TotalCount": 44,
                 "InvalidCount": 0,
-                "ObjectNames": "public.\"Case_Sensitive_Columns_id_seq\", public.\"Mixed_Case_Table_Name_Test_id_seq\", public.\"Recipients_id_seq\", public.\"WITH_id_seq\", public.bigint_multirange_table_id_seq, public.date_multirange_table_id_seq, public.employees2_id_seq, public.employees_employee_id_seq, public.employeesforview_id_seq, public.ext_test_id_seq, public.int_multirange_table_id_seq, public.mixed_data_types_table1_id_seq, public.mixed_data_types_table2_id_seq, public.numeric_multirange_table_id_seq, public.orders2_id_seq, public.ordersentry_order_id_seq, public.parent_table_id_seq, public.timestamp_multirange_table_id_seq, public.timestamptz_multirange_table_id_seq, public.with_example1_id_seq, public.with_example2_id_seq, schema2.\"Case_Sensitive_Columns_id_seq\", schema2.\"Mixed_Case_Table_Name_Test_id_seq\", schema2.\"Recipients_id_seq\", schema2.\"WITH_id_seq\", schema2.bigint_multirange_table_id_seq, schema2.date_multirange_table_id_seq, schema2.employees2_id_seq, schema2.employeesforview_id_seq, schema2.ext_test_id_seq, schema2.int_multirange_table_id_seq, schema2.mixed_data_types_table1_id_seq, schema2.mixed_data_types_table2_id_seq, schema2.numeric_multirange_table_id_seq, schema2.orders2_id_seq, schema2.parent_table_id_seq, schema2.timestamp_multirange_table_id_seq, schema2.timestamptz_multirange_table_id_seq, schema2.with_example1_id_seq, schema2.with_example2_id_seq, test_views.view_table1_id_seq, test_views.view_table2_id_seq"
+                "ObjectNames": "public.\"Case_Sensitive_Columns_id_seq\", public.\"Mixed_Case_Table_Name_Test_id_seq\", public.\"Recipients_id_seq\", public.\"WITH_id_seq\", public.bigint_multirange_table_id_seq, public.date_multirange_table_id_seq, public.employees2_id_seq, public.employees_employee_id_seq, public.employeesforview_id_seq, public.ext_test_id_seq, public.int_multirange_table_id_seq, public.mixed_data_types_table1_id_seq, public.mixed_data_types_table2_id_seq, public.numeric_multirange_table_id_seq, public.orders2_id_seq, public.ordersentry_order_id_seq, public.parent_table_id_seq, public.timestamp_multirange_table_id_seq, public.timestamptz_multirange_table_id_seq, public.vector_table_id_seq, public.with_example1_id_seq, public.with_example2_id_seq, schema2.\"Case_Sensitive_Columns_id_seq\", schema2.\"Mixed_Case_Table_Name_Test_id_seq\", schema2.\"Recipients_id_seq\", schema2.\"WITH_id_seq\", schema2.bigint_multirange_table_id_seq, schema2.date_multirange_table_id_seq, schema2.employees2_id_seq, schema2.employeesforview_id_seq, schema2.ext_test_id_seq, schema2.int_multirange_table_id_seq, schema2.mixed_data_types_table1_id_seq, schema2.mixed_data_types_table2_id_seq, schema2.numeric_multirange_table_id_seq, schema2.orders2_id_seq, schema2.parent_table_id_seq, schema2.timestamp_multirange_table_id_seq, schema2.timestamptz_multirange_table_id_seq, schema2.vector_table_id_seq, schema2.with_example1_id_seq, schema2.with_example2_id_seq, test_views.view_table1_id_seq, test_views.view_table2_id_seq"
             },
             {
                 "ObjectType": "TABLE",
-                "TotalCount": 93,
-                "InvalidCount": 22,
-                "ObjectNames": "public.\"Case_Sensitive_Columns\", public.\"Mixed_Case_Table_Name_Test\", public.\"Recipients\", public.\"WITH\", public.audit, public.bigint_multirange_table, public.sales_region, public.boston, public.c, public.parent_table, public.child_table, public.citext_type, public.combined_tbl, public.date_multirange_table, public.documents, public.employees, public.employees2, public.employeescopyfromwhere, public.employeescopyonerror, public.employeesforview, public.ext_test, public.foo, public.inet_type, public.int_multirange_table, public.library_nested, public.london, public.mixed_data_types_table1, public.mixed_data_types_table2, public.numeric_multirange_table, public.orders, public.orders2, public.orders_lateral, public.ordersentry, public.products, public.sales_unique_nulls_not_distinct, public.sales_unique_nulls_not_distinct_alter, public.session_log, public.session_log1, public.session_log2, public.sydney, public.test_exclude_basic, public.test_jsonb, public.test_xml_type, public.timestamp_multirange_table, public.timestamptz_multirange_table, public.ts_query_table, public.tt, public.users_unique_nulls_distinct, public.users_unique_nulls_not_distinct, public.users_unique_nulls_not_distinct_index, public.with_example1, public.with_example2, schema2.\"Case_Sensitive_Columns\", schema2.\"Mixed_Case_Table_Name_Test\", schema2.\"Recipients\", schema2.\"WITH\", schema2.audit, schema2.bigint_multirange_table, schema2.sales_region, schema2.boston, schema2.c, schema2.parent_table, schema2.child_table, schema2.date_multirange_table, schema2.employees2, schema2.employeesforview, schema2.ext_test, schema2.foo, schema2.int_multirange_table, schema2.london, schema2.mixed_data_types_table1, schema2.mixed_data_types_table2, schema2.numeric_multirange_table, schema2.orders, schema2.orders2, schema2.products, schema2.sales_unique_nulls_not_distinct, schema2.sales_unique_nulls_not_distinct_alter, schema2.session_log, schema2.session_log1, schema2.session_log2, schema2.sydney, schema2.test_xml_type, schema2.timestamp_multirange_table, schema2.timestamptz_multirange_table, schema2.tt, schema2.users_unique_nulls_distinct, schema2.users_unique_nulls_not_distinct, schema2.users_unique_nulls_not_distinct_index, schema2.with_example1, schema2.with_example2, test_views.view_table1, test_views.view_table2"
+                "TotalCount": 95,
+                "InvalidCount": 24,
+                "ObjectNames": "public.\"Case_Sensitive_Columns\", public.\"Mixed_Case_Table_Name_Test\", public.\"Recipients\", public.\"WITH\", public.audit, public.bigint_multirange_table, public.sales_region, public.boston, public.c, public.parent_table, public.child_table, public.citext_type, public.combined_tbl, public.date_multirange_table, public.documents, public.employees, public.employees2, public.employeescopyfromwhere, public.employeescopyonerror, public.employeesforview, public.ext_test, public.foo, public.inet_type, public.int_multirange_table, public.library_nested, public.london, public.mixed_data_types_table1, public.mixed_data_types_table2, public.numeric_multirange_table, public.orders, public.orders2, public.orders_lateral, public.ordersentry, public.products, public.sales_unique_nulls_not_distinct, public.sales_unique_nulls_not_distinct_alter, public.session_log, public.session_log1, public.session_log2, public.sydney, public.test_exclude_basic, public.test_jsonb, public.test_xml_type, public.timestamp_multirange_table, public.timestamptz_multirange_table, public.ts_query_table, public.tt, public.users_unique_nulls_distinct, public.users_unique_nulls_not_distinct, public.users_unique_nulls_not_distinct_index, public.vector_table, public.with_example1, public.with_example2, schema2.\"Case_Sensitive_Columns\", schema2.\"Mixed_Case_Table_Name_Test\", schema2.\"Recipients\", schema2.\"WITH\", schema2.audit, schema2.bigint_multirange_table, schema2.sales_region, schema2.boston, schema2.c, schema2.parent_table, schema2.child_table, schema2.date_multirange_table, schema2.employees2, schema2.employeesforview, schema2.ext_test, schema2.foo, schema2.int_multirange_table, schema2.london, schema2.mixed_data_types_table1, schema2.mixed_data_types_table2, schema2.numeric_multirange_table, schema2.orders, schema2.orders2, schema2.products, schema2.sales_unique_nulls_not_distinct, schema2.sales_unique_nulls_not_distinct_alter, schema2.session_log, schema2.session_log1, schema2.session_log2, schema2.sydney, schema2.test_xml_type, schema2.timestamp_multirange_table, schema2.timestamptz_multirange_table, schema2.tt, schema2.users_unique_nulls_distinct, schema2.users_unique_nulls_not_distinct, schema2.users_unique_nulls_not_distinct_index, schema2.vector_table, schema2.with_example1, schema2.with_example2, test_views.view_table1, test_views.view_table2"
             },
             {
                 "ObjectType": "INDEX",
@@ -146,6 +146,7 @@
                 "public.test_jsonb",
                 "public.employeesforview",
                 "public.mixed_data_types_table2",
+                "public.vector_table",
                 "schema2.ext_test",
                 "schema2.timestamptz_multirange_table",
                 "schema2.mixed_data_types_table1",
@@ -170,6 +171,7 @@
                 "schema2.london",
                 "schema2.child_table",
                 "schema2.employees2",
+                "schema2.vector_table",
                 "public.tt",
                 "public.library_nested",
                 "public.products",
@@ -355,6 +357,19 @@
             "DocsLink": "https://docs.yugabyte.com/preview/explore/ysql-language-features/pg-extensions/",
             "MinimumVersionsFixedIn": null
         },
+        {
+			"Category": "unsupported_features",
+			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
+			"Type": "UNSUPPORTED_EXTENSION",
+			"Name": "Unsupported Extension",
+			"Description": "This extension is not supported in YugabyteDB by default.",
+			"Impact": "LEVEL_3",
+			"ObjectType": "EXTENSION",
+			"ObjectName": "vector",
+			"SqlStatement": "CREATE EXTENSION IF NOT EXISTS vector WITH SCHEMA public;",
+			"DocsLink": "https://docs.yugabyte.com/preview/explore/ysql-language-features/pg-extensions/",
+			"MinimumVersionsFixedIn": null
+		},
         {
             "Category": "unsupported_features",
             "CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
@@ -1491,6 +1506,32 @@
         {
             "Category": "migration_caveats",
             "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+            "Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_VECTOR",
+            "Name": "Unsupported datatype for Live migration - vector",
+            "Description": "VECTOR datatype not yet supported by voyager in live migration. Affected column: vector_data. This column will be excluded when exporting and importing data in live migration workflows.",
+            "Impact": "LEVEL_1",
+            "ObjectType": "COLUMN",
+            "ObjectName": "public.vector_table.vector_data",
+            "SqlStatement": "",
+            "DocsLink": "https://docs.yugabyte.com/stable/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+            "MinimumVersionsFixedIn": null
+        },
+        {
+            "Category": "migration_caveats",
+            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+            "Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_VECTOR",
+            "Name": "Unsupported datatype for Live migration - vector",
+            "Description": "VECTOR datatype not yet supported by voyager in live migration. Affected column: vector_data. This column will be excluded when exporting and importing data in live migration workflows.",
+            "Impact": "LEVEL_1",
+            "ObjectType": "COLUMN",
+            "ObjectName": "schema2.vector_table.vector_data",
+            "SqlStatement": "",
+            "DocsLink": "https://docs.yugabyte.com/stable/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+            "MinimumVersionsFixedIn": null
+        },
+        {
+            "Category": "migration_caveats",
+            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
             "Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_LSEG",
             "Name": "Unsupported datatype for Live migration - lseg",
             "Description": "LSEG datatype not yet supported by voyager in live migration. Affected column: lseg_data. This column will be excluded when exporting and importing data in live migration workflows.",
@@ -1866,6 +1907,30 @@
             "ParentTableName": null,
             "SizeInBytes": 8192
         },
+        {
+			"SchemaName": "public",
+			"ObjectName": "vector_table",
+			"RowCount": 0,
+			"ColumnCount": 2,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "table",
+			"ParentTableName": null,
+			"SizeInBytes": 0
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "vector_table_pkey",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "primary key",
+			"ParentTableName": "public.vector_table",
+			"SizeInBytes": 8192
+		},
         {
             "SchemaName": "public",
             "ObjectName": "WITH",
@@ -2790,6 +2855,30 @@
             "ParentTableName": null,
             "SizeInBytes": 0
         },
+        {
+			"SchemaName": "schema2",
+			"ObjectName": "vector_table",
+			"RowCount": 0,
+			"ColumnCount": 2,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "table",
+			"ParentTableName": null,
+			"SizeInBytes": 0
+		},
+		{
+			"SchemaName": "schema2",
+			"ObjectName": "vector_table_pkey",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "primary key",
+			"ParentTableName": "schema2.vector_table",
+			"SizeInBytes": 8192
+		},
         {
             "SchemaName": "test_views",
             "ObjectName": "mv1",

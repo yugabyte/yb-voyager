@@ -4,6 +4,7 @@ run_id: run
 
 env:
   LOG_LEVEL: info
+  QUEUE_SEGMENT_MAX_BYTES: 10485760
 
 export_dir: ./export-dir
 artifacts_dir: ./artifacts

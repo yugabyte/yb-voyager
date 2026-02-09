@@ -4,6 +4,7 @@ run_id: run
 
 env:
   LOG_LEVEL: info
+  QUEUE_SEGMENT_MAX_BYTES: 10485760
 
 export_dir: ./export-dir
 artifacts_dir: ./artifacts
@@ -171,12 +172,6 @@ stages:
     action: voyager_stop_command
     command: import_data
     graceful_timeout_sec: 60
-
-  # Phase 2: explicit fallback leg (target -> source) with resumptions
-  # NOTE: the following actions will be implemented in orchestrator/helpers:
-  #   - voyager_export_from_target_start
-  #   - voyager_import_to_source_start
-  #   - cutover_to_source
 
   - name: start_fallback_exporter_from_target
     action: voyager_export_from_target_start

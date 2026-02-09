@@ -21,9 +21,8 @@ import (
 	"regexp"
 	"strings"
 
-	goerrors "github.com/go-errors/errors"
-
 	"github.com/fatih/color"
+	goerrors "github.com/go-errors/errors"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 

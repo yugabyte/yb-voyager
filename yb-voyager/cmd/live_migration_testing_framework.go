@@ -173,19 +173,23 @@ func (lm *LiveMigrationTest) Cleanup() {
 		pg := lm.sourceContainer.(*testcontainers.PostgresContainer)
 		err := pg.DropDatabase(lm.config.SourceDB.DatabaseName)
 		if err != nil {
-			utils.ErrExit("failed to drop source database: %w", err)
+			lm.t.Fatalf("failed to drop source database: %v", err)
 		}
 	}
 	if lm.config.TargetDB.DatabaseName != "" {
 		yb := lm.targetContainer.(*testcontainers.YugabyteDBContainer)
 		err := yb.DropDatabase(lm.config.TargetDB.DatabaseName)
 		if err != nil {
-			utils.ErrExit("failed to drop target database: %w", err)
+			lm.t.Fatalf("failed to drop target database: %v", err)
 		}
 	}
 
-	// Remove export directory
-	testutils.RemoveTempExportDir(lm.exportDir)
+	// Remove export directory only if test passed
+	if lm.t.Failed() {
+		fmt.Printf("Test failed - preserving export directory for debugging: %s\n", lm.exportDir)
+	} else {
+		testutils.RemoveTempExportDir(lm.exportDir)
+	}
 	fmt.Printf("Cleanup completed\n")
 }
 
@@ -597,6 +601,26 @@ func (lm *LiveMigrationTest) WithSourceTargetConn(fn func(source, target *sql.DB
 	}
 
 	return fn(sourceConn, targetConn)
+}
+
+// CheckIfReplicationSlotExists checks if a replication slot exists on the given database type
+func (lm *LiveMigrationTest) CheckIfReplicationSlotExists(slotName string, dbType string) (bool, error) {
+	var exists bool
+
+	runWithConn := lm.WithTargetConn
+	if dbType == "source" {
+		runWithConn = lm.WithSourceConn
+	}
+
+	err := runWithConn(func(db *sql.DB) error {
+		query := `SELECT EXISTS (SELECT 1 FROM pg_replication_slots WHERE slot_name = $1);`
+		if err := db.QueryRow(query, slotName).Scan(&exists); err != nil {
+			return goerrors.Errorf("failed to check if replication slot exists on %s: %w", dbType, err)
+		}
+		return nil
+	})
+
+	return exists, err
 }
 
 // ============================================================

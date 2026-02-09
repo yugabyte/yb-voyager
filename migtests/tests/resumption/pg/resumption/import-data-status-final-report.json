@@ -1,6 +1,6 @@
 [
   {
-    "table_name": "p1.\"sales_region\"",
+    "table_name": "\"p1\".\"sales_region\"",
     "status": "DONE",
     "total_count": 7500000,
     "imported_count": 7500000,
@@ -8,7 +8,7 @@
     "errored_count": 0
   },
   {
-    "table_name": "public.\"Case_Sensitive_Table\"",
+    "table_name": "\"public\".\"Case_Sensitive_Table\"",
     "status": "DONE",
     "total_count": 5000000,
     "imported_count": 5000000,
@@ -16,7 +16,7 @@
     "errored_count": 0
   },
   {
-    "table_name": "public.\"Table\"",
+    "table_name": "\"public\".\"Table\"",
     "status": "DONE",
     "total_count": 5000000,
     "imported_count": 5000000,
@@ -24,7 +24,7 @@
     "errored_count": 0
   },
   {
-    "table_name": "public.\"case\"",
+    "table_name": "\"public\".\"case\"",
     "status": "DONE",
     "total_count": 5000000,
     "imported_count": 5000000,
@@ -32,7 +32,7 @@
     "errored_count": 0
   },
   {
-    "table_name": "public.\"customers\"",
+    "table_name": "\"public\".\"customers\"",
     "status": "DONE",
     "total_count": 7500000,
     "imported_count": 7500000,
@@ -40,7 +40,7 @@
     "errored_count": 0
   },
   {
-    "table_name": "public.\"emp\"",
+    "table_name": "\"public\".\"emp\"",
     "status": "DONE",
     "total_count": 7500000,
     "imported_count": 7500000,
@@ -48,7 +48,7 @@
     "errored_count": 0
   },
   {
-    "table_name": "public.\"range_columns_partition_test\"",
+    "table_name": "\"public\".\"range_columns_partition_test\"",
     "status": "DONE",
     "total_count": 6,
     "imported_count": 6,
@@ -56,7 +56,7 @@
     "errored_count": 0
   },
   {
-    "table_name": "public.\"sales\"",
+    "table_name": "\"public\".\"sales\"",
     "status": "DONE",
     "total_count": 7500000,
     "imported_count": 7500000,
@@ -64,7 +64,7 @@
     "errored_count": 0
   },
   {
-    "table_name": "public.\"sales_region\"",
+    "table_name": "\"public\".\"sales_region\"",
     "status": "DONE",
     "total_count": 7500000,
     "imported_count": 7500000,
@@ -72,7 +72,7 @@
     "errored_count": 0
   },
   {
-    "table_name": "public.\"test_partitions_sequences\"",
+    "table_name": "\"public\".\"test_partitions_sequences\"",
     "status": "DONE",
     "total_count": 7500000,
     "imported_count": 7500000,
@@ -80,7 +80,7 @@
     "errored_count": 0
   },
   {
-    "table_name": "schema2.\"Case_Sensitive_Table\"",
+    "table_name": "\"schema2\".\"Case_Sensitive_Table\"",
     "status": "DONE",
     "total_count": 5000000,
     "imported_count": 5000000,
@@ -88,7 +88,7 @@
     "errored_count": 0
   },
   {
-    "table_name": "schema2.\"Table\"",
+    "table_name": "\"schema2\".\"Table\"",
     "status": "DONE",
     "total_count": 5000000,
     "imported_count": 5000000,
@@ -96,7 +96,7 @@
     "errored_count": 0
   },
   {
-    "table_name": "schema2.\"case\"",
+    "table_name": "\"schema2\".\"case\"",
     "status": "DONE",
     "total_count": 5000000,
     "imported_count": 5000000,

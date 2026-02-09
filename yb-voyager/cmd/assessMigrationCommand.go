@@ -27,9 +27,8 @@ import (
 	"strings"
 	"text/template"
 
-	goerrors "github.com/go-errors/errors"
-
 	"github.com/fatih/color"
+	goerrors "github.com/go-errors/errors"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -39,11 +38,13 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryissue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/types"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
 
@@ -144,7 +145,7 @@ func registerSourceDBConnFlagsForAM(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&source.DBName, "source-db-name", "",
 		"source database name to be migrated to YugabyteDB")
 
-	cmd.Flags().StringVar(&source.Schema, "source-db-schema", "",
+	cmd.Flags().StringVar(&source.SchemaConfig, "source-db-schema", "",
 		"source schema name(s) to export\n"+
 			`Note: in case of PostgreSQL, it can be a single or comma separated list of schemas: "schema1,schema2,schema3"`)
 
@@ -217,6 +218,7 @@ func createMigrationAssessmentStartedEvent() *cp.MigrationAssessmentStartedEvent
 }
 
 func assessMigration() (err error) {
+
 	assessmentMetadataDir = lo.Ternary(assessmentMetadataDirFlag != "", assessmentMetadataDirFlag,
 		filepath.Join(exportDir, "assessment", "metadata"))
 	// setting schemaDir to use later on - gather assessment metadata, segregating into schema files per object etc..
@@ -247,7 +249,6 @@ func assessMigration() (err error) {
 		if err != nil {
 			return fmt.Errorf("failed to connect source db for assessing migration: %w", err)
 		}
-
 		// We will require source db connection for the below checks
 		// Check if required binaries are installed.
 		if source.RunGuardrailsChecks {
@@ -267,10 +268,16 @@ func assessMigration() (err error) {
 			}
 		}
 
-		res := source.DB().CheckSchemaExists()
-		if !res {
-			return goerrors.Errorf("failed to check if source schema exist: %q", source.Schema)
+		allSchemas, err := source.DB().GetAllSchemaNamesIdentifiers()
+		if err != nil {
+			return fmt.Errorf("failed to get all schema names identifiers: %w", err)
 		}
+		source.Schemas, err = namereg.SchemaNameMatcher(source.DBType, allSchemas, source.SchemaConfig)
+		if err != nil {
+			return fmt.Errorf("failed to match schema names: %w", err)
+		}
+		
+		fetchSourceInfo()
 
 		// Handle replica discovery and validation (PostgreSQL only)
 		replicaDiscoveryInfo, err := migassessment.HandleReplicaDiscoveryAndValidation(&source, sourceReadReplicaEndpoints, primaryOnly)
@@ -292,8 +299,6 @@ func assessMigration() (err error) {
 				return fmt.Errorf("permission check failed: %w", err)
 			}
 		}
-
-		fetchSourceInfo()
 	}
 
 	startEvent := createMigrationAssessmentStartedEvent()
@@ -1495,8 +1500,7 @@ func considerQueryForIssueDetection(collectedSchemaList []string) bool {
 		return item != "pg_catalog"
 	})
 
-	sourceSchemaList := strings.Split(source.Schema, "|")
-
+	sourceSchemaList := sqlname.ExtractIdentifiersUnquoted(source.Schemas)
 	// fallback in case: unable to collect objects or there are no object(s) in the query
 	if len(collectedSchemaList) == 0 {
 		return true

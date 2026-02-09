@@ -399,16 +399,14 @@ def build_export_schema_cmd(cfg: Dict[str, Any]) -> list[str]:
     return ["yb-voyager", "export", "schema", "--yes"] + to_kv_flags(merged)
 
 
-def import_schema(cfg: Dict[str, Any], env: Dict[str, str]) -> int:
+def import_schema(cfg: Dict[str, Any], env: Dict[str, str]) -> None:
     cmd = build_import_schema_cmd(cfg)
     run_checked(cmd, env, description="import_schema")
-    return 0
 
 
-def export_schema(cfg: Dict[str, Any], env: Dict[str, str]) -> int:
+def export_schema(cfg: Dict[str, Any], env: Dict[str, str]) -> None:
     cmd = build_export_schema_cmd(cfg)
     run_checked(cmd, env, description="export_schema")
-    return 0
 
 
 def initiate_cutover(cfg: Dict[str, Any], env: Dict[str, str], direction: str) -> None:
@@ -427,7 +425,6 @@ def build_export_data_cmd(cfg: Dict[str, Any]) -> list[str]:
     base["export-type"] = "snapshot-and-changes"
     # data command defaults
     base["disable-pb"] = True
-    base["parallel-jobs"] = 1
     merged = _merge_flags(base, voyager_flags)
     return ["yb-voyager", "export", "data", "--yes"] + to_kv_flags(merged)
 
@@ -440,8 +437,6 @@ def build_import_data_cmd(cfg: Dict[str, Any]) -> list[str]:
     base["skip-replication-checks"] = True
     # data command defaults
     base["disable-pb"] = True
-    base["parallel-jobs"] = 1
-    base["adaptive-parallelism"] = "disabled"
     merged = _merge_flags(base, voyager_flags)
     return ["yb-voyager", "import", "data", "--yes"] + to_kv_flags(merged)
 
@@ -774,28 +769,35 @@ def scan_logs_for_errors(export_dir: str, artifacts_dir: str, patterns: list[str
         "Discrepancy in committed batch",
         "unexpected rows affected for event with",
     ]
-    low_patterns = [p.lower() for p in base_patterns]
     logs_dir = os.path.join(export_dir, "logs")
     scan_dir = os.path.join(artifacts_dir, "log_scans")
     os.makedirs(scan_dir, exist_ok=True)
     
+    grep_cmd = ["grep", "-aiF"]
+    for pat in base_patterns:
+        grep_cmd += ["-e", pat]
+
     for fp in _iter_log_files(logs_dir):
-        findings: list[str] = []
         try:
-            with open(fp, "r", errors="ignore") as f:
-                for line in f:
-                    lower_line = line.lower()
-                    if any(pat in lower_line for pat in low_patterns):
-                        findings.append(line.rstrip())
+            proc = subprocess.run(
+                [*grep_cmd, "--", fp],
+                capture_output=True,
+                text=True,
+                errors="ignore",
+                check=False,
+            )
         except Exception:
             continue
-        
+
+        if proc.returncode != 0:
+            continue
+
+        findings = [line.rstrip() for line in proc.stdout.splitlines()]
         if findings:
             basename = os.path.basename(fp)
             out = os.path.join(scan_dir, f"{basename}.scan.txt")
             with open(out, "w") as outf:
-                for row in findings:
-                    outf.write(row + "\n")
+                outf.write("\n".join(findings) + "\n")
 
 
 def snapshot_msr_and_stats(export_dir: str, artifacts_dir: str) -> None:
@@ -1015,6 +1017,8 @@ def reset_database_for_role(role: str, ctx) -> None:
 # -------------------------
 # Validation helpers
 # -------------------------
+
+# TODO: Define a workflow to debug segment hash validation failures.
 
 def _load_segment_map_for_side(
     cfg: Dict[str, Any],

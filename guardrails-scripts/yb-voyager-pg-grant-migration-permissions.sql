@@ -90,21 +90,21 @@ SET myvars.voyager_user = :'voyager_user';
 
 -- Grant USAGE permission on all schemas to voyager_user
 \echo '--- Granting USAGE Permission on Schemas ---'
-SELECT 'GRANT USAGE ON SCHEMA ' || schema_name || ' TO ' || :'voyager_user' || ';'
+SELECT 'GRANT USAGE ON SCHEMA "' || schema_name || '" TO ' || :'voyager_user' || ';'
 FROM information_schema.schemata
 \gexec
 
 -- Grant SELECT permission on all tables in all schemas to voyager_user
 \echo ''
 \echo '--- Granting SELECT Permission on Tables ---'
-SELECT 'GRANT SELECT ON ALL TABLES IN SCHEMA ' || schema_name || ' TO ' || :'voyager_user' || ';'
+SELECT 'GRANT SELECT ON ALL TABLES IN SCHEMA "' || schema_name || '" TO ' || :'voyager_user' || ';'
 FROM information_schema.schemata
 \gexec
 
 -- Grant SELECT permission on all sequences in all schemas to voyager_user
 \echo ''
 \echo '--- Granting SELECT Permission on Sequences ---'
-SELECT 'GRANT SELECT ON ALL SEQUENCES IN SCHEMA ' || schema_name || ' TO ' || :'voyager_user' || ';'
+SELECT 'GRANT SELECT ON ALL SEQUENCES IN SCHEMA "' || schema_name || '" TO ' || :'voyager_user' || ';'
 FROM information_schema.schemata
 \gexec
 
@@ -123,12 +123,13 @@ GRANT pg_read_all_stats to :voyager_user;
     r RECORD;
     BEGIN
     -- Change the replica identity of all tables to FULL
-    FOR r IN (SELECT table_schema, '"' || table_name || '"' AS t_name  
+    FOR r IN (SELECT table_schema, table_name AS t_name  
                 FROM information_schema.tables 
-                WHERE table_schema = ANY(string_to_array(current_setting('myvars.schema_list'), ','))
+                WHERE table_schema = ANY(array(SELECT trim(both '"' FROM trim(unnest(string_to_array(current_setting('myvars.schema_list'), ','))))))
                 AND table_type = 'BASE TABLE')
     LOOP
-        EXECUTE 'ALTER TABLE ' || r.table_schema || '.' || r.t_name || ' REPLICA IDENTITY FULL';
+        RAISE NOTICE 'Altering table %s.%s', r.table_schema, r.t_name;
+        EXECUTE 'ALTER TABLE "' || r.table_schema || '"."' || r.t_name || '" REPLICA IDENTITY FULL';
     END LOOP;
     END $$;
 
@@ -175,7 +176,7 @@ GRANT pg_read_all_stats to :voyager_user;
             DO $$
             DECLARE
                 tableowner TEXT;
-                schema_list TEXT[] := string_to_array(current_setting('myvars.schema_list'), ',');  -- Convert the schema list to an array
+                schema_list TEXT[] := array(SELECT trim(both '"' FROM trim(unnest(string_to_array(current_setting('myvars.schema_list'), ',')))));  -- Convert the schema list to an array, trim "" around names
                 replication_group TEXT := current_setting('myvars.replication_group');  -- Get the replication group from settings
             BEGIN
                 -- Generate the GRANT statements and execute them dynamically
@@ -209,11 +210,11 @@ GRANT pg_read_all_stats to :voyager_user;
                 r RECORD;
             BEGIN
                 FOR r IN
-                    SELECT table_schema, '"' || table_name || '"' AS t_name
+                    SELECT table_schema, table_name AS t_name
                     FROM information_schema.tables
-                    WHERE table_schema = ANY(string_to_array(current_setting('myvars.schema_list'), ',')::text[])
+                    WHERE table_schema = ANY(array(SELECT trim(both '"' FROM trim(unnest(string_to_array(current_setting('myvars.schema_list'), ','))))))
                 LOOP
-                    EXECUTE 'ALTER TABLE ' || r.table_schema || '.' || r.t_name || ' OWNER TO ' || current_setting('myvars.replication_group');
+                    EXECUTE 'ALTER TABLE "' || r.table_schema || '"."' || r.t_name || '" OWNER TO ' || current_setting('myvars.replication_group');
                 END LOOP;
             END $$;
 
@@ -228,7 +229,7 @@ GRANT pg_read_all_stats to :voyager_user;
                 FOR owner_name IN
                     SELECT DISTINCT t.tableowner
                     FROM pg_catalog.pg_tables t
-                    WHERE t.schemaname = ANY(string_to_array(current_setting('myvars.schema_list'), ',')::text[])
+                    WHERE t.schemaname = ANY(array(SELECT trim(both '"' FROM trim(unnest(string_to_array(current_setting('myvars.schema_list'), ','))))))
                     AND t.tableowner <> current_setting('myvars.voyager_user')
                 LOOP
                     RAISE NOTICE 'Granting role: GRANT % TO %;', owner_name, current_setting('myvars.voyager_user');
@@ -261,21 +262,21 @@ GRANT pg_read_all_stats to :voyager_user;
         \echo ''
         \echo '--- Granting SELECT, INSERT, UPDATE, DELETE on All Tables in Specified Schemas ---'
         SELECT 
-            'GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA ' || schema_name || ' TO ' || :'voyager_user' || ';'
+            'GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA "' || schema_name || '" TO ' || :'voyager_user' || ';'
         FROM 
             information_schema.schemata
         WHERE 
-            schema_name = ANY(string_to_array(:'schema_list', ','))
+            schema_name = ANY(array(SELECT trim(both '"' FROM trim(unnest(string_to_array(current_setting('myvars.schema_list'), ','))))))
         \gexec
 
         \echo ''
         \echo '--- Granting SELECT, UPDATE, USAGE on All Sequences in Specified Schemas ---'
         SELECT 
-            'GRANT SELECT, UPDATE, USAGE ON ALL SEQUENCES IN SCHEMA ' || schema_name || ' TO ' || :'voyager_user' || ';'
+            'GRANT SELECT, UPDATE, USAGE ON ALL SEQUENCES IN SCHEMA "' || schema_name || '" TO ' || :'voyager_user' || ';'
         FROM 
             information_schema.schemata
         WHERE 
-            schema_name = ANY(string_to_array(:'schema_list', ','))
+            schema_name = ANY(array(SELECT trim(both '"' FROM trim(unnest(string_to_array(current_setting('myvars.schema_list'), ','))))))
         \gexec
 
         DO $$ 
