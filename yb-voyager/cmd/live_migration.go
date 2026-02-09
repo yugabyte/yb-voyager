@@ -29,6 +29,7 @@ import (
 	"github.com/fatih/color"
 	goerrors "github.com/go-errors/errors"
 	"github.com/google/uuid"
+	"github.com/pingcap/failpoint"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 
@@ -446,6 +447,16 @@ func handleEvent(event *tgtdb.Event,
 	if err != nil {
 		return goerrors.Errorf("error transforming event key fields: %v", err)
 	}
+
+	// Failpoint: inject failure during CDC event transformation/application on import side.
+	// This is used by import failure injection tests to verify resumability and idempotency.
+	failpoint.Inject("importCDCTransformFailure", func(val failpoint.Value) {
+		if val != nil {
+			_ = os.MkdirAll(filepath.Join(exportDir, "logs"), 0755)
+			_ = os.WriteFile(filepath.Join(exportDir, "logs", "failpoint-import-cdc-transform.log"), []byte("hit\n"), 0644)
+			failpoint.Return(goerrors.Errorf("failpoint: import CDC transform failure"))
+		}
+	})
 
 	evChans[h] <- event
 	log.Tracef("inserted event %v into channel %v", event.Vsn, h)
