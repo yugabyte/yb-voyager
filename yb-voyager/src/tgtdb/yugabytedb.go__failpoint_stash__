@@ -765,7 +765,7 @@ func (yb *TargetYugabyteDB) importBatch(conn *pgx.Conn, batch Batch, args *Impor
 			// Use failpoint.Value parameter to distinguish between 'off' and 'return' actions
 			// When val != nil, the failpoint action is active (e.g., return())
 			// When val == nil, the failpoint action is 'off' (skip error injection)
-			if val, _err_ := failpoint.Eval(_curpkg_("importBatchCommitError")); _err_ == nil {
+			failpoint.Inject("importBatchCommitError", func(val failpoint.Value) {
 				if val != nil {
 					// Inject commit error only when action is not 'off'
 					err2 = goerrors.Errorf("failpoint: commit failed")
@@ -773,10 +773,10 @@ func (yb *TargetYugabyteDB) importBatch(conn *pgx.Conn, batch Batch, args *Impor
 						errs.IMPORT_BATCH_ERROR_FLOW_COPY_NORMAL,
 						errs.IMPORT_BATCH_ERROR_STEP_COMMIT_TXN)
 					rowsAffected = 0
-					return // special function to make outer function return
+					failpoint.Return() // special function to make outer function return
 				}
 				// If val == nil ('off' action), do nothing - let commit proceed normally
-			}
+			})
 
 			err2 = tx.Commit(ctx)
 			if err2 != nil {
