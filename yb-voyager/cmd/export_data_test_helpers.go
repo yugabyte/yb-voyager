@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	goerrors "github.com/go-errors/errors"
 	"github.com/stretchr/testify/require"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
@@ -217,7 +218,7 @@ func waitForStreamingMode(exportDir string, timeout time.Duration, pollInterval 
 		}
 		time.Sleep(pollInterval)
 	}
-	return fmt.Errorf("timed out waiting for streaming mode")
+	return goerrors.Errorf("timed out waiting for streaming mode")
 }
 
 func killDebeziumForExportDir(exportDir string) error {
@@ -248,7 +249,7 @@ func hashSnapshotDescriptor(exportDir string) (string, error) {
 func getSnapshotRowCountForTable(exportDir string, tableName string) (int64, error) {
 	descriptor := datafile.OpenDescriptor(exportDir)
 	if descriptor == nil || descriptor.DataFileList == nil {
-		return 0, fmt.Errorf("data file descriptor not found")
+		return 0, goerrors.Errorf("data file descriptor not found")
 	}
 	var total int64
 	for _, entry := range descriptor.DataFileList {
@@ -477,7 +478,7 @@ func countDedupSkipLogs(exportDir string) (int, error) {
 		return 0, err
 	}
 	if len(matches) == 0 {
-		return 0, fmt.Errorf("debezium log not found in %s", logPattern)
+		return 0, goerrors.Errorf("debezium log not found in %s", logPattern)
 	}
 
 	f, err := os.Open(matches[0])
