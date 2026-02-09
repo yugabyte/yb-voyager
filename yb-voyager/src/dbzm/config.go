@@ -506,12 +506,6 @@ func (c *Config) String() string {
 		conf += fmt.Sprintf("\ndebezium.source.column.include.list=%s", strings.Join(c.ColumnList, ","))
 	}
 
-	if val := os.Getenv("YB_VOYAGER_DBZM_PROVIDE_TRANSACTION_METADATA"); val != "" {
-		conf += fmt.Sprintf("\ndebezium.source.provide.transaction.metadata=%s", val)
-	}
-	if val := os.Getenv("YB_VOYAGER_DBZM_HEARTBEAT_INTERVAL_MS"); val != "" {
-		conf += fmt.Sprintf("\ndebezium.source.heartbeat.interval.ms=%s", val)
-	}
 
 	return conf
 }
