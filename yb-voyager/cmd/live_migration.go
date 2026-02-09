@@ -451,13 +451,13 @@ func handleEvent(event *tgtdb.Event,
 
 	// Failpoint: inject failure during CDC event transformation/application on import side.
 	// This is used by import failure injection tests to verify resumability and idempotency.
-	if val, _err_ := failpoint.Eval(_curpkg_("importCDCTransformFailure")); _err_ == nil {
+	failpoint.Inject("importCDCTransformFailure", func(val failpoint.Value) {
 		if val != nil {
 			_ = os.MkdirAll(filepath.Join(exportDir, "logs"), 0755)
 			_ = os.WriteFile(filepath.Join(exportDir, "logs", "failpoint-import-cdc-transform.log"), []byte("hit\n"), 0644)
-			return goerrors.Errorf("failpoint: import CDC transform failure")
+			failpoint.Return(goerrors.Errorf("failpoint: import CDC transform failure"))
 		}
-	}
+	})
 
 	evChans[h] <- event
 	log.Tracef("inserted event %v into channel %v", event.Vsn, h)
@@ -556,7 +556,7 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 				// In tests, use a hit-counter expression to control "N" deterministically, e.g.:
 				//   importCDCBatchDBError=100*off->return(true)
 				// Here, `val != nil` means the failpoint action is active (the "return(true)" phase).
-				if val, _err_ := failpoint.Eval(_curpkg_("importCDCBatchDBError")); _err_ == nil {
+				failpoint.Inject("importCDCBatchDBError", func(val failpoint.Value) {
 					if val != nil {
 						_ = os.MkdirAll(filepath.Join(exportDir, "logs"), 0755)
 						_ = os.WriteFile(
@@ -570,7 +570,7 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 							Message: "failpoint: duplicate key value violates unique constraint",
 						}
 					}
-				}
+				})
 			}
 			if err == nil {
 				break
