@@ -18,6 +18,7 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	testcontainers "github.com/yugabyte/yb-voyager/yb-voyager/test/containers"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
@@ -543,6 +544,50 @@ func setupQueueWriteFailureTestData(t *testing.T, container testcontainers.TestC
 	logTest(t, "Queue write failure test schema created with 50 snapshot rows")
 }
 
+func setupRotationMidBatchTestData(t *testing.T, container testcontainers.TestContainer) {
+	container.ExecuteSqls(
+		"DROP SCHEMA IF EXISTS test_schema_rotation CASCADE;",
+		"CREATE SCHEMA test_schema_rotation;",
+		`CREATE TABLE test_schema_rotation.cdc_rotation_test (
+			id SERIAL PRIMARY KEY,
+			name TEXT,
+			value INTEGER,
+			payload TEXT,
+			created_at TIMESTAMP DEFAULT NOW()
+		);`,
+		`ALTER TABLE test_schema_rotation.cdc_rotation_test REPLICA IDENTITY FULL;`,
+	)
+
+	container.ExecuteSqls(
+		`INSERT INTO test_schema_rotation.cdc_rotation_test (name, value, payload)
+		SELECT 'snapshot_' || i, i * 10, repeat('s', 20000) FROM generate_series(1, 50) i;`,
+	)
+
+	logTest(t, "Rotation test schema created with 50 snapshot rows")
+}
+
+func setupTruncationTestData(t *testing.T, container testcontainers.TestContainer) {
+	container.ExecuteSqls(
+		"DROP SCHEMA IF EXISTS test_schema_truncation CASCADE;",
+		"CREATE SCHEMA test_schema_truncation;",
+		`CREATE TABLE test_schema_truncation.cdc_truncation_test (
+			id SERIAL PRIMARY KEY,
+			name TEXT,
+			value INTEGER,
+			payload TEXT,
+			created_at TIMESTAMP DEFAULT NOW()
+		);`,
+		`ALTER TABLE test_schema_truncation.cdc_truncation_test REPLICA IDENTITY FULL;`,
+	)
+
+	container.ExecuteSqls(
+		`INSERT INTO test_schema_truncation.cdc_truncation_test (name, value, payload)
+		SELECT 'snapshot_' || i, i * 10, repeat('s', 20000) FROM generate_series(1, 50) i;`,
+	)
+
+	logTest(t, "Truncation test schema created with 50 snapshot rows")
+}
+
 func waitForTruncationLog(exportDir string, timeout time.Duration) (bool, error) {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
@@ -582,4 +627,60 @@ func assertEventCountDoesNotExceed(t *testing.T, exportDir string, max int, time
 		}
 		time.Sleep(pollInterval)
 	}
+}
+
+func listQueueSegmentFiles(exportDir string) ([]string, error) {
+	queueDir := filepath.Join(exportDir, "data", "queue")
+	return filepath.Glob(filepath.Join(queueDir, "segment.*.ndjson"))
+}
+
+func parseQueueSegmentNum(filePath string) (int64, error) {
+	base := filepath.Base(filePath)
+	parts := strings.Split(base, ".")
+	if len(parts) != 3 {
+		return -1, fmt.Errorf("unexpected queue segment filename: %s", base)
+	}
+	segmentNum, err := strconv.ParseInt(parts[1], 10, 64)
+	if err != nil {
+		return -1, fmt.Errorf("parse queue segment number from %s: %w", base, err)
+	}
+	return segmentNum, nil
+}
+
+func isQueueSegmentClosed(filePath string) (bool, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return false, err
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	var lastNonEmpty string
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+		lastNonEmpty = line
+	}
+	if err := scanner.Err(); err != nil {
+		return false, err
+	}
+	return lastNonEmpty == `\.`, nil
+}
+
+func getQueueSegmentFileSize(filePath string) (int64, error) {
+	info, err := os.Stat(filePath)
+	if err != nil {
+		return 0, err
+	}
+	return info.Size(), nil
+}
+
+func getQueueSegmentCommittedSize(exportDir string, segmentNum int64) (int64, error) {
+	metaDB, err := metadb.NewMetaDB(exportDir)
+	if err != nil {
+		return -1, err
+	}
+	return metaDB.GetLastValidOffsetInSegmentFile(segmentNum)
 }
