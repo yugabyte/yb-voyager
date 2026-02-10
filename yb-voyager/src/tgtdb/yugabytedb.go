@@ -24,6 +24,7 @@ import (
 	"io"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -1141,6 +1142,32 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 			return nil
 		}
 		for i := 0; i < len(batch.Events); i++ {
+			// Failpoint: simulate a non-retryable DB error while applying a CDC event in a batch.
+			// This is used by import-side streaming tests to force a deterministic crash mid-stream.
+			//
+			// Tests can use a hit-counter expression (e.g. `50*off->return(true)`) to fail on the
+			// (N+1)-th event application attempt.
+			failpoint.Inject("importCDCExecEventError", func(val failpoint.Value) {
+				if val != nil {
+					// Best-effort marker for black-box tests that run `yb-voyager` as an external process.
+					// Tests can set YB_VOYAGER_FAILPOINT_MARKER_DIR to a writable directory (e.g. exportDir/logs).
+					if markerDir := os.Getenv("YB_VOYAGER_FAILPOINT_MARKER_DIR"); markerDir != "" {
+						_ = os.MkdirAll(markerDir, 0755)
+						_ = os.WriteFile(filepath.Join(markerDir, "failpoint-import-cdc-exec-event-error.log"), []byte("hit\n"), 0644)
+					}
+					err = &pgconn.PgError{
+						Code:    "23505", // unique_violation (Class 23: Integrity Constraint Violation) => non-retryable
+						Message: "failpoint: cdc event exec failed",
+					}
+				}
+			})
+			if err != nil {
+				errorMsg := fmt.Sprintf("error executing stmt for event with vsn(%d) in batch(%s)", batch.Events[i].Vsn, batch.ID())
+				log.Errorf("%s : %v", errorMsg, err)
+				closeBatch()
+				return false, fmt.Errorf("%s: %w", errorMsg, err)
+			}
+
 			res, err := br.Exec()
 			if err != nil {
 				// When using pgx SendBatch, there can be two types of errors thrown:
