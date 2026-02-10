@@ -513,9 +513,8 @@ def resolve_generator_config(gen_cfg: Dict[str, Any] | None, test_root: str | No
 
     inline_cfg = gen_cfg.get("config") or gen_cfg.get("config_inline")
     if inline_cfg:
-        tmp_dir = os.path.join("/tmp", str(random.randint(0, 1000)))
-        os.makedirs(tmp_dir, exist_ok=True)
-        final_path = os.path.join(tmp_dir, "event-generator.yaml")
+        os.makedirs("/tmp", exist_ok=True)
+        final_path = os.path.join("/tmp", "event-generator.yaml")
         with open(final_path, "w") as f:
             yaml.safe_dump(inline_cfg, f, sort_keys=False)
         return final_path
@@ -999,7 +998,13 @@ def _reset_database(db_cfg: Dict[str, Any], *, admin_db_name: str, role: str) ->
 
 
 def create_cutover_table(ctx, target: str = "source") -> None:
-    sql = "DROP TABLE IF EXISTS public.cutover_table; CREATE TABLE public.cutover_table (id SERIAL PRIMARY KEY, status TEXT);"
+    sql = '''
+            DROP TABLE IF EXISTS public.cutover_table; 
+            CREATE TABLE public.cutover_table (
+                id SERIAL PRIMARY KEY, 
+                status TEXT
+            );
+        '''
     admin_cfg = ctx.cfg[target].get("admin")
     user_override = admin_cfg["user"]
     password_override = admin_cfg.get("password")
