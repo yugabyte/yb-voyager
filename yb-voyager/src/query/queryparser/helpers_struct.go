@@ -25,6 +25,7 @@ import (
 
 	pg_query "github.com/pganalyze/pg_query_go/v6"
 	log "github.com/sirupsen/logrus"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -207,7 +208,7 @@ func getCreateTableStmtNode(parseTree *pg_query.ParseResult) (*pg_query.Node_Cre
 	return node, ok
 }
 
-func getCreateIndexStmtNode(parseTree *pg_query.ParseResult) (*pg_query.Node_IndexStmt, bool) {
+func GetCreateIndexStmtNode(parseTree *pg_query.ParseResult) (*pg_query.Node_IndexStmt, bool) {
 	node, ok := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_IndexStmt)
 	return node, ok
 }
@@ -452,6 +453,10 @@ func DeparseParseTree(parseTree *pg_query.ParseResult) (string, error) {
 	}
 
 	return deparsedStmt, nil
+}
+
+func CloneParseTree(parseTree *pg_query.ParseResult) *pg_query.ParseResult {
+    return proto.Clone(parseTree).(*pg_query.ParseResult)
 }
 
 func getAConstValue(node *pg_query.Node) string {

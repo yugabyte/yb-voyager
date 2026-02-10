@@ -956,6 +956,17 @@ func (p *ParserIssueDetector) getDDLIssues(query string) ([]QueryIssue, error) {
 		}
 	}
 
+	// Generate recommended SQL for each issue
+	workaroundParseTree := queryparser.CloneParseTree(parseTree)
+	for i := range issues {
+		recommendedSql, err := p.GenerateRecommendedSql(issues[i], workaroundParseTree)
+		if err != nil {
+			log.Warnf("error generating recommended SQL for issue %s: %w", issues[i].Type, err)
+			continue
+		}
+		issues[i].Details[RECOMMENDED_SQL] = recommendedSql
+	}
+
 	/*
 		For detecting these generic issues (Advisory locks, XML functions and System columns as of now) on DDL example -
 		CREATE INDEX idx_invoices on invoices (xpath('/invoice/customer/text()', data));

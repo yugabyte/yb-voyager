@@ -381,3 +381,55 @@ func (t *Transformer) checkIfPrimaryKeyOnRangeDatatype(pkConstraintCols []string
 	log.Infof("primary key first column - %s on table %s is on hotspot datatype, making it range sharded", firstCol, tableName)
 	return true, nil
 }
+
+// Assuming first column in the index is the one to be filtered for null values
+func (t *Transformer) AddPartialClauseForNullFiltering(parseTree *pg_query.ParseResult) (*pg_query.ParseResult, error) {
+	indexNode, ok := queryparser.GetCreateIndexStmtNode(parseTree)
+	if !ok {
+		return nil, goerrors.Errorf("not a CREATE INDEX statement")
+	}
+	indexStmt := indexNode.IndexStmt
+
+	// Get the first column name from index params
+	if len(indexStmt.IndexParams) == 0 {
+		return nil, goerrors.Errorf("index has no parameters")
+	}
+	colName := indexStmt.IndexParams[0].GetIndexElem().GetName()
+	if colName == "" {
+		return nil, goerrors.Errorf("first index parameter is an expression, not a column")
+	}
+
+	// Build IS NOT NULL node
+	isNotNullNode := &pg_query.Node{
+		Node: &pg_query.Node_NullTest{
+			NullTest: &pg_query.NullTest{
+				Arg: &pg_query.Node{
+					Node: &pg_query.Node_ColumnRef{
+						ColumnRef: &pg_query.ColumnRef{
+							Fields: []*pg_query.Node{
+								{Node: &pg_query.Node_String_{String_: &pg_query.String{Sval: colName}}},
+							},
+						},
+					},
+				},
+				Nulltesttype: pg_query.NullTestType_IS_NOT_NULL,
+			},
+		},
+	}
+
+	// AND with existing WHERE clause, or set as the new WHERE clause
+	if indexStmt.WhereClause != nil {
+		indexStmt.WhereClause = &pg_query.Node{
+			Node: &pg_query.Node_BoolExpr{
+				BoolExpr: &pg_query.BoolExpr{
+					Boolop: pg_query.BoolExprType_AND_EXPR,
+					Args:   []*pg_query.Node{indexStmt.WhereClause, isNotNullNode},
+				},
+			},
+		}
+	} else {
+		indexStmt.WhereClause = isNotNullNode
+	}
+
+	return parseTree, nil
+}
