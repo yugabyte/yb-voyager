@@ -1292,6 +1292,33 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 		if err = tx.Commit(ctx); err != nil {
 			return false, fmt.Errorf("failed to commit transaction : %w", err)
 		}
+
+		// Failpoint: simulate the "commit succeeded but ExecuteBatch returned a retryable error" case.
+		//
+		// This models scenarios like transient RPC/timeout errors on commit where the transaction
+		// actually commits on the server. The importer retry loop should detect that the batch is
+		// already imported (via last_applied_vsn) and avoid re-applying / double-counting.
+		//
+		// Tests can use a one-shot or hit-counter expression, e.g.:
+		//   importCDCRetryableAfterCommitError=1*return(true)
+		//
+		// Black-box tests can set YB_VOYAGER_FAILPOINT_MARKER_DIR to write a marker file.
+		failpoint.Inject("importCDCRetryableAfterCommitError", func(val failpoint.Value) {
+			if val != nil {
+				if markerDir := os.Getenv("YB_VOYAGER_FAILPOINT_MARKER_DIR"); markerDir != "" {
+					_ = os.MkdirAll(markerDir, 0755)
+					_ = os.WriteFile(filepath.Join(markerDir, "failpoint-import-cdc-retryable-after-commit-error.log"), []byte("hit\n"), 0644)
+				}
+				err = &pgconn.PgError{
+					Code:    "40001", // Class 40 => retryable
+					Message: "failpoint: retryable error after commit",
+				}
+			}
+		})
+		if err != nil {
+			return false, err
+		}
+
 		logDiscrepancyInEventBatchIfAny(batch, rowsAffectedInserts, rowsAffectedDeletes, rowsAffectedUpdates)
 		return false, err
 	})
