@@ -1296,7 +1296,7 @@ func TestImportCDCRetryableAfterCommitErrorSkipsRetry(t *testing.T) {
 //
 // Scenario:
 // 1. Export snapshot-and-changes, wait for streaming mode, and queue a CDC workload with enough
-//    INSERT events to spread across all channels.
+//    INSERT + UPDATE + DELETE events to spread across all channels.
 // 2. Stop export to freeze the queue.
 // 3. Run `import data` with NUM_EVENT_CHANNELS=4 and a failpoint that crashes after N successful
 //    CDC batches (expect crash mid-stream).
@@ -1350,6 +1350,8 @@ func TestImportCDCMultiChannelBatchFailureAndResume(t *testing.T) {
 
 	numChans := 4
 	eventsPerChan := 60 // 4*60 = 240 CDC events
+	updatesPerChan := 30
+	deletesPerChan := 15
 	tableFQN := "test_schema_import_cdc_multi_chan.cdc_import_test"
 
 	cdcQueued := make(chan bool, 1)
@@ -1393,7 +1395,41 @@ func TestImportCDCMultiChannelBatchFailureAndResume(t *testing.T) {
 		)
 		postgresContainer.ExecuteSqls(insertStmt)
 
-		expected := numChans * eventsPerChan
+		time.Sleep(5 * time.Second)
+
+		// UPDATE a subset of inserted rows in each channel.
+		updateIDs := make([]string, 0, numChans*updatesPerChan)
+		for c := 0; c < numChans; c++ {
+			for i := 0; i < updatesPerChan; i++ {
+				updateIDs = append(updateIDs, strconv.Itoa(idsByChan[c][i]))
+			}
+		}
+		updateStmt := fmt.Sprintf(
+			"UPDATE %s SET value = value + 50000, name = 'cdc_upd_' || id WHERE id IN (%s);",
+			tableFQN,
+			strings.Join(updateIDs, ","),
+		)
+		logTestf(t, "Generating CDC updates: %d rows", len(updateIDs))
+		postgresContainer.ExecuteSqls(updateStmt)
+
+		time.Sleep(5 * time.Second)
+
+		// DELETE a smaller subset (also per channel). These IDs are a subset of the updated IDs.
+		deleteIDs := make([]string, 0, numChans*deletesPerChan)
+		for c := 0; c < numChans; c++ {
+			for i := 0; i < deletesPerChan; i++ {
+				deleteIDs = append(deleteIDs, strconv.Itoa(idsByChan[c][i]))
+			}
+		}
+		deleteStmt := fmt.Sprintf(
+			"DELETE FROM %s WHERE id IN (%s);",
+			tableFQN,
+			strings.Join(deleteIDs, ","),
+		)
+		logTestf(t, "Generating CDC deletes: %d rows", len(deleteIDs))
+		postgresContainer.ExecuteSqls(deleteStmt)
+
+		expected := (numChans * eventsPerChan) + (numChans * updatesPerChan) + (numChans * deletesPerChan)
 		logTestf(t, "Waiting for %d CDC events to be queued to segment files...", expected)
 		waitForCDCEventCountImportTest(t, exportDir, expected, 240*time.Second, 5*time.Second)
 		logTest(t, "Verifying no duplicate event_id values in queued CDC...")
