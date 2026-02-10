@@ -22,6 +22,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"hash/fnv"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -1290,6 +1291,250 @@ func TestImportCDCRetryableAfterCommitErrorSkipsRetry(t *testing.T) {
 	_ = os.Remove(filepath.Join(exportDir, ".import-dataLockfile.lck"))
 }
 
+// TestImportCDCMultiChannelBatchFailureAndResume verifies that CDC import resume works correctly
+// when multiple event channels are enabled (NUM_EVENT_CHANNELS>1).
+//
+// Scenario:
+// 1. Export snapshot-and-changes, wait for streaming mode, and queue a CDC workload with enough
+//    INSERT events to spread across all channels.
+// 2. Stop export to freeze the queue.
+// 3. Run `import data` with NUM_EVENT_CHANNELS=4 and a failpoint that crashes after N successful
+//    CDC batches (expect crash mid-stream).
+// 4. After crash, verify:
+//    - partial progress (max last_applied_vsn < max queued vsn)
+//    - per-channel progress metadata exists for all channels (rows present) and at least some channels advanced
+// 5. Resume `import data` and verify:
+//    - final target matches source
+//    - each channel's last_applied_vsn advanced (>-1), proving multi-channel progress tracking worked
+func TestImportCDCMultiChannelBatchFailureAndResume(t *testing.T) {
+	ctx := context.Background()
+
+	exportDir = testutils.CreateTempExportDir()
+	defer testutils.RemoveTempExportDir(exportDir)
+	logTestf(t, "Using exportDir=%s", exportDir)
+
+	postgresContainer := testcontainers.NewTestContainer("postgresql", &testcontainers.ContainerConfig{ForLive: true})
+	err := postgresContainer.Start(ctx)
+	require.NoError(t, err, "Failed to start PostgreSQL container")
+	defer postgresContainer.Stop(ctx)
+
+	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil)
+	err = yugabytedbContainer.Start(ctx)
+	require.NoError(t, err, "Failed to start YugabyteDB container")
+	defer yugabytedbContainer.Stop(ctx)
+
+	postgresContainer.ExecuteSqls(
+		"DROP SCHEMA IF EXISTS test_schema_import_cdc_multi_chan CASCADE;",
+		"CREATE SCHEMA test_schema_import_cdc_multi_chan;",
+		`CREATE TABLE test_schema_import_cdc_multi_chan.cdc_import_test (
+			id INTEGER PRIMARY KEY,
+			name TEXT,
+			value INTEGER
+		);`,
+		`ALTER TABLE test_schema_import_cdc_multi_chan.cdc_import_test REPLICA IDENTITY FULL;`,
+		`INSERT INTO test_schema_import_cdc_multi_chan.cdc_import_test (id, name, value)
+		 SELECT i, 'snapshot_' || i, i FROM generate_series(1, 30) i;`,
+	)
+	defer postgresContainer.ExecuteSqls("DROP SCHEMA IF EXISTS test_schema_import_cdc_multi_chan CASCADE;")
+
+	yugabytedbContainer.ExecuteSqls(
+		"DROP SCHEMA IF EXISTS test_schema_import_cdc_multi_chan CASCADE;",
+		"CREATE SCHEMA test_schema_import_cdc_multi_chan;",
+		`CREATE TABLE test_schema_import_cdc_multi_chan.cdc_import_test (
+			id INTEGER PRIMARY KEY,
+			name TEXT,
+			value INTEGER
+		);`,
+	)
+	defer yugabytedbContainer.ExecuteSqls("DROP SCHEMA IF EXISTS test_schema_import_cdc_multi_chan CASCADE;")
+
+	numChans := 4
+	eventsPerChan := 60 // 4*60 = 240 CDC events
+	tableFQN := "test_schema_import_cdc_multi_chan.cdc_import_test"
+
+	cdcQueued := make(chan bool, 1)
+	generateCDC := func() {
+		logTest(t, "Waiting for export to enter streaming mode...")
+		require.NoError(t, waitForStreamingModeImportTest(exportDir, 120*time.Second, 2*time.Second), "Export should enter streaming mode")
+		logTest(t, "Export reached streaming mode; generating CDC inserts...")
+
+		idsByChan := make([][]int, numChans)
+		for id := 1000; id < 100000; id++ {
+			ch := computeChanForIDImportTest(tableFQN, id, numChans)
+			if len(idsByChan[ch]) < eventsPerChan {
+				idsByChan[ch] = append(idsByChan[ch], id)
+			}
+			done := true
+			for c := 0; c < numChans; c++ {
+				if len(idsByChan[c]) < eventsPerChan {
+					done = false
+					break
+				}
+			}
+			if done {
+				break
+			}
+		}
+		for c := 0; c < numChans; c++ {
+			require.Equal(t, eventsPerChan, len(idsByChan[c]), "Failed to find enough ids for channel %d", c)
+		}
+
+		// Insert all chosen IDs in one shot.
+		vals := make([]string, 0, numChans*eventsPerChan)
+		for c := 0; c < numChans; c++ {
+			for _, id := range idsByChan[c] {
+				vals = append(vals, fmt.Sprintf("(%d, 'cdc_ins_%d', %d)", id, id, 10000+id))
+			}
+		}
+		insertStmt := fmt.Sprintf(
+			"INSERT INTO %s (id, name, value) VALUES %s;",
+			tableFQN,
+			strings.Join(vals, ","),
+		)
+		postgresContainer.ExecuteSqls(insertStmt)
+
+		expected := numChans * eventsPerChan
+		logTestf(t, "Waiting for %d CDC events to be queued to segment files...", expected)
+		waitForCDCEventCountImportTest(t, exportDir, expected, 240*time.Second, 5*time.Second)
+		logTest(t, "Verifying no duplicate event_id values in queued CDC...")
+		verifyNoEventIDDuplicatesImportTest(t, exportDir)
+		logTest(t, "CDC queued and verified")
+		cdcQueued <- true
+	}
+
+	exportRunner := testutils.NewVoyagerCommandRunner(postgresContainer, "export data", []string{
+		"--export-dir", exportDir,
+		"--export-type", "snapshot-and-changes",
+		"--source-db-schema", "test_schema_import_cdc_multi_chan",
+		"--disable-pb", "true",
+		"--yes",
+	}, generateCDC, true)
+	err = exportRunner.Run()
+	require.NoError(t, err, "Failed to start export")
+
+	select {
+	case <-cdcQueued:
+	case <-time.After(180 * time.Second):
+		_ = exportRunner.Kill()
+		require.Fail(t, "Timed out waiting for CDC events to be queued")
+	}
+
+	logTest(t, "Stopping export after CDC has been queued")
+	_ = exportRunner.Kill()
+	_ = os.Remove(filepath.Join(exportDir, ".export-dataLockfile.lck"))
+	time.Sleep(2 * time.Second)
+
+	migrationUUIDStr, err := readMigrationUUIDFromExportDirImportTest(exportDir)
+	require.NoError(t, err, "Failed to read migration UUID from exportDir")
+	require.NotEmpty(t, migrationUUIDStr, "migration UUID should not be empty")
+	logTestf(t, "Migration UUID: %s", migrationUUIDStr)
+
+	failpointEnv := testutils.GetFailpointEnvVar(
+		// Crash after 100 successful CDC batches across all channels.
+		"github.com/yugabyte/yb-voyager/yb-voyager/cmd/importCDCBatchDBError=100*off->return(true)",
+	)
+
+	logTest(t, "Running import with multi-channel batch failure failpoint (expected to crash)...")
+	importWithFailpoint := testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
+		"--export-dir", exportDir,
+		"--disable-pb", "true",
+		"--max-retries-streaming", "1",
+		"--yes",
+	}, nil, true).WithEnv(
+		failpointEnv,
+		fmt.Sprintf("YB_VOYAGER_FAILPOINT_MARKER_DIR=%s", filepath.Join(exportDir, "logs")),
+		fmt.Sprintf("NUM_EVENT_CHANNELS=%d", numChans),
+		"MAX_EVENTS_PER_BATCH=1",
+		"MAX_INTERVAL_BETWEEN_BATCHES=1",
+		"EVENT_CHANNEL_SIZE=20",
+	)
+	err = importWithFailpoint.Run()
+	require.NoError(t, err, "Failed to start import with failpoint")
+
+	failMarkerPath := filepath.Join(exportDir, "logs", "failpoint-import-cdc-db-error.log")
+	logTestf(t, "Waiting for failpoint marker: %s", failMarkerPath)
+	matched, err := waitForMarkerFileImportTest(failMarkerPath, 60*time.Second, 2*time.Second)
+	require.NoError(t, err, "Should be able to read multi-channel batch failure marker")
+	require.True(t, matched, "Multi-channel batch failure marker did not trigger")
+	logTest(t, "✓ Verified multi-channel batch failure failpoint marker was written")
+
+	logTest(t, "Failpoint marker detected; waiting for import process to exit with error...")
+	_, waitErr := waitForProcessExitOrKillImportTest(importWithFailpoint, 60*time.Second)
+	require.Error(t, waitErr, "Import should exit with error after multi-channel batch failure failpoint")
+	_ = os.Remove(filepath.Join(exportDir, ".import-dataLockfile.lck"))
+
+	maxQueuedVsn, err := maxVsnInQueueSegmentsImportTest(exportDir)
+	require.NoError(t, err, "Failed to compute max queued vsn from queue segments")
+	logTestf(t, "Max queued vsn in CDC segments: %d", maxQueuedVsn)
+
+	ybConnForChecks, err := yugabytedbContainer.GetConnection()
+	require.NoError(t, err, "Failed to get YugabyteDB connection for mid-test checks")
+	defer ybConnForChecks.Close()
+
+	lastAppliedVsn, err := maxLastAppliedVsnImportTest(ybConnForChecks, migrationUUIDStr)
+	require.NoError(t, err, "Failed to read last_applied_vsn from event channels metadata")
+	logTestf(t, "Max last_applied_vsn on target after failure: %d", lastAppliedVsn)
+	require.Less(t, lastAppliedVsn, maxQueuedVsn, "Expected partial progress (max last_applied_vsn < max queued vsn)")
+
+	byChan, err := lastAppliedVsnsByChannelImportTest(ybConnForChecks, migrationUUIDStr)
+	require.NoError(t, err, "Failed to read per-channel last_applied_vsn")
+	require.Equal(t, numChans, len(byChan), "Expected one metadata row per channel")
+	progressed := 0
+	for c := 0; c < numChans; c++ {
+		if byChan[c] >= 0 {
+			progressed++
+		}
+	}
+	require.GreaterOrEqual(t, progressed, 2, "Expected at least two channels to have applied some events before failure")
+
+	pgConnForChecks, err := postgresContainer.GetConnection()
+	require.NoError(t, err, "Failed to get PostgreSQL connection for mid-test mismatch check")
+	defer pgConnForChecks.Close()
+	require.Error(t,
+		testutils.CompareTableData(ctx, pgConnForChecks, ybConnForChecks, tableFQN, "id"),
+		"Expected source != target after crash",
+	)
+
+	logTest(t, "Resuming import without failpoint and waiting for target to match source...")
+	importResume := testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
+		"--export-dir", exportDir,
+		"--disable-pb", "true",
+		"--yes",
+	}, nil, true).WithEnv(
+		fmt.Sprintf("NUM_EVENT_CHANNELS=%d", numChans),
+		"MAX_EVENTS_PER_BATCH=1",
+		"MAX_INTERVAL_BETWEEN_BATCHES=1",
+		"EVENT_CHANNEL_SIZE=20",
+	)
+	err = importResume.Run()
+	require.NoError(t, err, "Failed to start import resume")
+	defer importResume.Kill()
+
+	pgConn, err := postgresContainer.GetConnection()
+	require.NoError(t, err, "Failed to get PostgreSQL connection")
+	defer pgConn.Close()
+	ybConn, err := yugabytedbContainer.GetConnection()
+	require.NoError(t, err, "Failed to get YugabyteDB connection")
+	defer ybConn.Close()
+
+	require.Eventually(t, func() bool {
+		return testutils.CompareTableData(ctx, pgConn, ybConn, tableFQN, "id") == nil
+	}, 240*time.Second, 5*time.Second, "Timed out waiting for target to match source after resume")
+	logTest(t, "✓ Target matches source after resume (multi-channel)")
+
+	byChanAfter, err := lastAppliedVsnsByChannelImportTest(ybConn, migrationUUIDStr)
+	require.NoError(t, err, "Failed to read per-channel last_applied_vsn after resume")
+	require.Equal(t, numChans, len(byChanAfter), "Expected one metadata row per channel after resume")
+	for c := 0; c < numChans; c++ {
+		require.Greater(t, byChanAfter[c], int64(-1), "Expected channel %d to have applied at least one event", c)
+		require.LessOrEqual(t, byChanAfter[c], maxQueuedVsn, "Expected channel %d last_applied_vsn <= max queued vsn", c)
+	}
+
+	// best-effort shutdown
+	_ = importResume.Kill()
+	_ = os.Remove(filepath.Join(exportDir, ".import-dataLockfile.lck"))
+}
+
 func waitForStreamingModeImportTest(exportDir string, timeout time.Duration, pollInterval time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	statusPath := filepath.Join(exportDir, "data", "export_status.json")
@@ -1301,6 +1546,45 @@ func waitForStreamingModeImportTest(exportDir string, timeout time.Duration, pol
 		time.Sleep(pollInterval)
 	}
 	return fmt.Errorf("timed out waiting for export streaming mode")
+}
+
+func computeChanForIDImportTest(tableFQN string, id int, numChans int) int {
+	h := fnv.New64a()
+	h.Write([]byte(tableFQN))
+	h.Write([]byte(strconv.Itoa(id)))
+	return int(h.Sum64() % uint64(numChans))
+}
+
+func lastAppliedVsnsByChannelImportTest(ybConn interface {
+	Query(query string, args ...any) (*sql.Rows, error)
+}, migrationUUIDStr string) (map[int]int64, error) {
+	rows, err := ybConn.Query(fmt.Sprintf(
+		"SELECT channel_no, last_applied_vsn FROM %s WHERE migration_uuid='%s'",
+		tgtdb.EVENT_CHANNELS_METADATA_TABLE_NAME,
+		migrationUUIDStr,
+	))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	res := map[int]int64{}
+	for rows.Next() {
+		var chanNo int
+		var v sql.NullInt64
+		if err := rows.Scan(&chanNo, &v); err != nil {
+			return nil, err
+		}
+		if v.Valid {
+			res[chanNo] = v.Int64
+		} else {
+			res[chanNo] = -1
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return res, nil
 }
 
 func countEventsInQueueSegmentsImportTest(exportDir string) (int, error) {
