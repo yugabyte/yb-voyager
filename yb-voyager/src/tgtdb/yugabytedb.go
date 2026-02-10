@@ -1082,7 +1082,7 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 	//   importCDCRetryableExecuteBatchError=1*return(true)
 	//
 	// Black-box tests can set YB_VOYAGER_FAILPOINT_MARKER_DIR to write a marker file.
-	if val, _err_ := failpoint.Eval(_curpkg_("importCDCRetryableExecuteBatchError")); _err_ == nil {
+	failpoint.Inject("importCDCRetryableExecuteBatchError", func(val failpoint.Value) {
 		if val != nil {
 			if markerDir := os.Getenv("YB_VOYAGER_FAILPOINT_MARKER_DIR"); markerDir != "" {
 				_ = os.MkdirAll(markerDir, 0755)
@@ -1090,9 +1090,9 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 			}
 			// Use a retryable SQLSTATE (Class 40) so IsNonRetryableCopyError returns false.
 			// This should trigger the retry loop in cmd/live_migration.go.
-			return &pgconn.PgError{Code: "40001", Message: "failpoint: retryable execute batch error"}
+			failpoint.Return(&pgconn.PgError{Code: "40001", Message: "failpoint: retryable execute batch error"})
 		}
-	}
+	})
 
 	ybBatch := pgx.Batch{}
 	stmtToPrepare := make(map[string]string)
