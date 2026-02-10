@@ -18,11 +18,14 @@ package cmd
 import (
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"sort"
 
 	goerrors "github.com/go-errors/errors"
 
 	"github.com/fatih/color"
+	"github.com/pingcap/failpoint"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
@@ -262,6 +265,27 @@ func (p *SequentialFileBatchProducer) produceNextBatch() (*Batch, error) {
 }
 
 func (p *SequentialFileBatchProducer) transformRow(row string, columnNames []string) (string, error) {
+	// Failpoint: inject a deterministic per-row "transform" failure during snapshot batch production.
+	// This is used by import-side snapshot tests to force a crash mid-snapshot and validate resume.
+	//
+	// Tests can use a hit-counter expression to crash after N rows are processed, e.g.:
+	//   importSnapshotTransformError=20*off->return(true)
+	//
+	// Black-box tests can set YB_VOYAGER_FAILPOINT_MARKER_DIR to write a marker file.
+	var fpErr error
+	failpoint.Inject("importSnapshotTransformError", func(val failpoint.Value) {
+		if val != nil {
+			if markerDir := os.Getenv("YB_VOYAGER_FAILPOINT_MARKER_DIR"); markerDir != "" {
+				_ = os.MkdirAll(markerDir, 0755)
+				_ = os.WriteFile(filepath.Join(markerDir, "failpoint-import-snapshot-transform-error.log"), []byte("hit\n"), 0644)
+			}
+			fpErr = fmt.Errorf("failpoint: snapshot row transform failed")
+		}
+	})
+	if fpErr != nil {
+		return "", fpErr
+	}
+
 	if !p.isRowTransformationRequired {
 		return row, nil
 	}
