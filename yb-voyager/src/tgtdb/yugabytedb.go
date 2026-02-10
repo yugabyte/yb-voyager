@@ -1074,6 +1074,26 @@ and needs to be prepared again
 */
 func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBatch) error {
 	log.Infof("executing batch(%s) of %d events", batch.ID(), len(batch.Events))
+
+	// Failpoint: inject a retryable target DB error at the start of CDC batch execution.
+	// This is used by import-side streaming tests to validate retry behavior without requiring a resume run.
+	//
+	// Tests can use a one-shot or hit-counter expression, e.g.:
+	//   importCDCRetryableExecuteBatchError=1*return(true)
+	//
+	// Black-box tests can set YB_VOYAGER_FAILPOINT_MARKER_DIR to write a marker file.
+	if val, _err_ := failpoint.Eval(_curpkg_("importCDCRetryableExecuteBatchError")); _err_ == nil {
+		if val != nil {
+			if markerDir := os.Getenv("YB_VOYAGER_FAILPOINT_MARKER_DIR"); markerDir != "" {
+				_ = os.MkdirAll(markerDir, 0755)
+				_ = os.WriteFile(filepath.Join(markerDir, "failpoint-import-cdc-retryable-exec-batch-error.log"), []byte("hit\n"), 0644)
+			}
+			// Use a retryable SQLSTATE (Class 40) so IsNonRetryableCopyError returns false.
+			// This should trigger the retry loop in cmd/live_migration.go.
+			return &pgconn.PgError{Code: "40001", Message: "failpoint: retryable execute batch error"}
+		}
+	}
+
 	ybBatch := pgx.Batch{}
 	stmtToPrepare := make(map[string]string)
 	// processing batch events to convert into prepared or unprepared statements based on Op type
