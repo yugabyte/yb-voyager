@@ -164,6 +164,8 @@ main() {
 		 "${TEST_DIR}/fix-schema"
 	fi
 
+    sleep 30
+
     step "Import schema"
     import_schema --send-diagnostics=true
     step "Compare actual and expected import-schema callhome data"
