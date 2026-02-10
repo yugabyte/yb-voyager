@@ -77,7 +77,7 @@ func GetObjectTypeAndObjectName(parseTree *pg_query.ParseResult) (string, string
 	viewNode, isViewStmt := getCreateViewNode(parseTree)
 	createAsNode, _ := getCreateTableAsStmtNode(parseTree)
 	createTableNode, isCreateTable := getCreateTableStmtNode(parseTree)
-	createIndexNode, isCreateIndex := getCreateIndexStmtNode(parseTree)
+	createIndexNode, isCreateIndex := GetCreateIndexStmtNode(parseTree)
 	alterTableNode, isAlterTable := getAlterStmtNode(parseTree)
 	switch true {
 	case isCreateFunc:
