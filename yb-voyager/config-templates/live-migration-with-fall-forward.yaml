@@ -625,7 +625,7 @@ initiate-cutover-to-target:
   ### were present in the schema during import
   ### Accepted values (true, false, yes, no, 0, 1) 
   ### Default - true
-  use-yb-grpc-connector: true
+  use-yb-grpc-connector: false
 
 # ---------------------------------------------------------
 # Finalize Schema Post Data Import Configuration
