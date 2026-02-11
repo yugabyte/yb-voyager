@@ -279,7 +279,7 @@ func (p *SequentialFileBatchProducer) transformRow(row string, columnNames []str
 				_ = os.MkdirAll(markerDir, 0755)
 				_ = os.WriteFile(filepath.Join(markerDir, "failpoint-import-snapshot-transform-error.log"), []byte("hit\n"), 0644)
 			}
-			fpErr = fmt.Errorf("failpoint: snapshot row transform failed")
+			fpErr = goerrors.Errorf("failpoint: snapshot row transform failed")
 		}
 	})
 	if fpErr != nil {
