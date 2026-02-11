@@ -11,8 +11,6 @@ CREATE TABLE "schema_long_name_1234567890123456789012345678901234567890123456"."
     payload TEXT
 );
 
-\d "schema_long_name_1234567890123456789012345678901234567890123456"."table_long_name_12345678901234567890123456789012345678901234567";
-
 -- C. Table with very large column names
 DROP TABLE IF EXISTS public.wide_column_names;
 
@@ -21,8 +19,6 @@ CREATE TABLE public.wide_column_names (
     "col_name_12345678901234567890123456789012345678901234567890123456" INT,
     "col_name_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234" INT
 );
-
-\d public.wide_column_names;
 
 -- D. Table with very large column count (Max ~1600)
 DROP TABLE IF EXISTS public.max_columns_table;
@@ -42,8 +38,6 @@ BEGIN
     EXECUTE sql_stmt;
 END $$;
 
-\d public.max_columns_table;
-
 -- E. Large number of Indexes in one table
 DROP TABLE IF EXISTS public.heavy_index_table;
 
@@ -53,8 +47,6 @@ CREATE TABLE public.heavy_index_table (
     val2 INT,
     payload TEXT
 );
-
-\d public.heavy_index_table;
 
 DO $$
 DECLARE
@@ -74,8 +66,6 @@ CREATE TABLE public.heavy_unique_index_table (
     uuid_col UUID DEFAULT gen_random_uuid(),
     email_col TEXT
 );
-
-\d public.heavy_unique_index_table;
 
 DO $$
 DECLARE
@@ -103,8 +93,6 @@ BEGIN
     END LOOP;
 END $$;
 
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
-
 -- H. Composite Primary Key (Standard Types)
 DROP TABLE IF EXISTS public.composite_pk_simple;
 
@@ -115,8 +103,6 @@ CREATE TABLE public.composite_pk_simple (
     balance DECIMAL(10,2),
     PRIMARY KEY (region_id, branch_code, account_id)
 );
-
-\d public.composite_pk_simple;
 
 -- I. Composite Primary Key (Mixed/Complex Types)
 DROP TABLE IF EXISTS public.composite_pk_complex;
@@ -129,8 +115,6 @@ CREATE TABLE public.composite_pk_complex (
     PRIMARY KEY (transaction_id, event_time)
 );
 
-\d public.composite_pk_complex;
-
 -- J. UUID Primary Key
 DROP TABLE IF EXISTS public.uuid_pk_table;
 
@@ -138,8 +122,6 @@ CREATE TABLE public.uuid_pk_table (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_data TEXT
 );
-
-\d public.uuid_pk_table;
 
 -- K. Binary (BYTEA) Primary Key
 DROP TABLE IF EXISTS public.binary_pk_table;
@@ -149,8 +131,6 @@ CREATE TABLE public.binary_pk_table (
     file_name TEXT,
     mime_type TEXT
 );
-
-\d public.binary_pk_table;
 
 -- L. "The Kitchen Sink" PK (Composite including UUID and Enum)
 DROP TYPE IF EXISTS task_status;
@@ -166,5 +146,3 @@ CREATE TABLE public.kitchen_sink_pk (
     result_data TEXT,
     PRIMARY KEY (job_id, status, shard_id)
 );
-
-\d public.kitchen_sink_pk;
