@@ -1599,6 +1599,8 @@ func TestImportCDCMultiChannelBatchFailureAndResume(t *testing.T) {
 	_ = os.Remove(filepath.Join(exportDir, ".import-dataLockfile.lck"))
 }
 
+// waitForStreamingModeImportTest waits until `export data` transitions to streaming mode.
+// This is used to ensure snapshot export finished before generating CDC changes.
 func waitForStreamingModeImportTest(exportDir string, timeout time.Duration, pollInterval time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	statusPath := filepath.Join(exportDir, "data", "export_status.json")
@@ -1612,6 +1614,8 @@ func waitForStreamingModeImportTest(exportDir string, timeout time.Duration, pol
 	return fmt.Errorf("timed out waiting for export streaming mode")
 }
 
+// computeChanForIDImportTest returns the importer channel number for a single-row CDC event
+// using the same hashing scheme as `cmd/live_migration.go` (FNV64a(tableFQN + key) % N).
 func computeChanForIDImportTest(tableFQN string, id int, numChans int) int {
 	h := fnv.New64a()
 	h.Write([]byte(tableFQN))
@@ -1619,6 +1623,8 @@ func computeChanForIDImportTest(tableFQN string, id int, numChans int) int {
 	return int(h.Sum64() % uint64(numChans))
 }
 
+// lastAppliedVsnsByChannelImportTest reads per-channel `last_applied_vsn` for a migration UUID
+// from voyager's target-side metadata table.
 func lastAppliedVsnsByChannelImportTest(ybConn interface {
 	Query(query string, args ...any) (*sql.Rows, error)
 }, migrationUUIDStr string) (map[int]int64, error) {
@@ -1651,6 +1657,11 @@ func lastAppliedVsnsByChannelImportTest(ybConn interface {
 	return res, nil
 }
 
+// killDebeziumForExportDirImportTest force-kills the Debezium Java process for an exportDir.
+//
+// Import-side CDC tests run `export data --export-type snapshot-and-changes` as a black-box process.
+// Debezium runs as a separate child Java process and can outlive the `yb-voyager` parent if the parent
+// is SIGKILLed. This helper prevents leaked Java processes between tests.
 func killDebeziumForExportDirImportTest(t *testing.T, exportDir string) {
 	t.Helper()
 
@@ -1683,6 +1694,8 @@ func killDebeziumForExportDirImportTest(t *testing.T, exportDir string) {
 	logTestf(t, "Killed Debezium process pid=%d", pid)
 }
 
+// countEventsInQueueSegmentsImportTest counts CDC events present in `<exportDir>/data/queue/*.ndjson`.
+// It ignores empty lines and the `\.` EOF marker lines.
 func countEventsInQueueSegmentsImportTest(exportDir string) (int, error) {
 	queueDir := filepath.Join(exportDir, "data", "queue")
 	entries, err := os.ReadDir(queueDir)
@@ -1720,6 +1733,8 @@ func countEventsInQueueSegmentsImportTest(exportDir string) (int, error) {
 	return total, nil
 }
 
+// waitForCDCEventCountImportTest waits until at least `expected` CDC events are present in the queue.
+// Returns the last observed count.
 func waitForCDCEventCountImportTest(t *testing.T, exportDir string, expected int, timeout, pollInterval time.Duration) int {
 	t.Helper()
 	var last int
@@ -1734,6 +1749,8 @@ func waitForCDCEventCountImportTest(t *testing.T, exportDir string, expected int
 	return last
 }
 
+// verifyNoEventIDDuplicatesImportTest scans queued CDC events and asserts that every `event_id`
+// is present and unique across all queue segment files.
 func verifyNoEventIDDuplicatesImportTest(t *testing.T, exportDir string) {
 	t.Helper()
 
@@ -1773,6 +1790,9 @@ func verifyNoEventIDDuplicatesImportTest(t *testing.T, exportDir string) {
 	}
 }
 
+// queuedCDCEventImportTest is a minimal representation of the JSON lines in queue segments.
+// We intentionally avoid using `tgtdb.Event` here because its JSON unmarshal path depends on
+// global name registry initialization in the current process.
 type queuedCDCEventImportTest struct {
 	Vsn        int64              `json:"vsn"`
 	Op         string             `json:"op"`
@@ -1782,6 +1802,7 @@ type queuedCDCEventImportTest struct {
 	Fields     map[string]*string `json:"fields"`
 }
 
+// TableFQN returns a schema-qualified table name ("schema.table") for the queued CDC event.
 func (e *queuedCDCEventImportTest) TableFQN() string {
 	if e == nil {
 		return ""
@@ -1792,6 +1813,7 @@ func (e *queuedCDCEventImportTest) TableFQN() string {
 	return e.SchemaName + "." + e.TableName
 }
 
+// IntID returns the integer `id` from either `fields.id` or `key.id`, depending on event type.
 func (e *queuedCDCEventImportTest) IntID() (int, error) {
 	if e == nil {
 		return 0, fmt.Errorf("nil event")
@@ -1809,6 +1831,8 @@ func (e *queuedCDCEventImportTest) IntID() (int, error) {
 	return 0, fmt.Errorf("id not found in event fields/key")
 }
 
+// eventByVsnInQueueSegmentsImportTest finds and returns the queued CDC event with the given VSN
+// by scanning all queue segment files.
 func eventByVsnInQueueSegmentsImportTest(exportDir string, vsn int64) (*queuedCDCEventImportTest, error) {
 	queueDir := filepath.Join(exportDir, "data", "queue")
 	entries, err := os.ReadDir(queueDir)
@@ -1855,6 +1879,8 @@ func eventByVsnInQueueSegmentsImportTest(exportDir string, vsn int64) (*queuedCD
 	return nil, fmt.Errorf("event with vsn=%d not found in queue segments", vsn)
 }
 
+// waitForMarkerFileImportTest waits for a failpoint marker file to contain "hit".
+// Returns (true, nil) if the marker is observed within the timeout.
 func waitForMarkerFileImportTest(path string, timeout, pollInterval time.Duration) (bool, error) {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
@@ -1871,6 +1897,8 @@ func waitForMarkerFileImportTest(path string, timeout, pollInterval time.Duratio
 	return strings.Contains(string(data), "hit"), nil
 }
 
+// waitForProcessExitOrKillImportTest waits for the command runner to exit.
+// If it doesn't exit within the timeout, it SIGKILLs it and returns (true, nil).
 func waitForProcessExitOrKillImportTest(runner *testutils.VoyagerCommandRunner, timeout time.Duration) (bool, error) {
 	errCh := make(chan error, 1)
 	go func() {
@@ -1886,6 +1914,7 @@ func waitForProcessExitOrKillImportTest(runner *testutils.VoyagerCommandRunner, 
 	}
 }
 
+// maxVsnInQueueSegmentsImportTest returns the maximum VSN present in queue segments.
 func maxVsnInQueueSegmentsImportTest(exportDir string) (int64, error) {
 	queueDir := filepath.Join(exportDir, "data", "queue")
 	entries, err := os.ReadDir(queueDir)
@@ -1944,6 +1973,7 @@ func maxVsnInQueueSegmentsImportTest(exportDir string) (int64, error) {
 	return maxVsn, nil
 }
 
+// readMigrationUUIDFromExportDirImportTest reads the migration UUID from exportDir's metadb.
 func readMigrationUUIDFromExportDirImportTest(exportDir string) (string, error) {
 	m, err := metadb.NewMetaDB(exportDir)
 	if err != nil {
@@ -1959,6 +1989,8 @@ func readMigrationUUIDFromExportDirImportTest(exportDir string) (string, error) 
 	return msr.MigrationUUID, nil
 }
 
+// maxLastAppliedVsnImportTest returns the maximum `last_applied_vsn` across all importer channels
+// for the given migration UUID, as recorded on the target in voyager metadata.
 func maxLastAppliedVsnImportTest(ybConn interface {
 	Query(query string, args ...any) (*sql.Rows, error)
 }, migrationUUIDStr string) (int64, error) {
