@@ -390,47 +390,24 @@ func startExportDataFromTargetIfRequired() {
 	lockFile.Unlock() // unlock export dir from import data cmd before switching current process to ff/fb sync cmd
 
 	cmd := []string{"yb-voyager", "export", "data", "from", "target",
-		"--export-dir", exportDir,
 		fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics),
-		"--log-level", config.LogLevel,
+		"--table-list", strings.Join(importTableNames, ","),
 	}
 
-	passExportDataFromTargetSpecificCLIFlags := map[string]bool{
-		"disable-pb":           true,
-		"table-list":           true,
-		"transaction-ordering": true,
-	}
-
-	// Check whether the command specifc flags have been set in the config file
-	keysSetInConfig, err := readConfigFileAndGetExportDataFromTargetKeys()
-	var displayCmdAndExit bool
-	var configFileErr error
-	if err != nil {
-		displayCmdAndExit = true
-		configFileErr = err
+	// If config file is provided, pass it to the command
+	if cfgFile != "" {
+		cmd = append(cmd, "--config-file", cfgFile)
 	} else {
-		for key := range passExportDataFromTargetSpecificCLIFlags {
-			if slices.Contains(keysSetInConfig, key) {
-				passExportDataFromTargetSpecificCLIFlags[key] = false
-			}
+		//else set some overrides for the command
+		cmd = append(cmd, "--log-level", config.LogLevel)
+		cmd = append(cmd, "--export-dir", exportDir)
+		if bool(disablePb) {
+			cmd = append(cmd, "--disable-pb=true")
 		}
 	}
 
-	// Log which command specific flags are to be passed to the command
-	log.Infof("Command specific flags to be passed to export data from target: %v", passExportDataFromTargetSpecificCLIFlags)
-
-	// Command specific flags
-	if bool(disablePb) && passExportDataFromTargetSpecificCLIFlags["disable-pb"] {
-		cmd = append(cmd, "--disable-pb=true")
-	}
-	if passExportDataFromTargetSpecificCLIFlags["transaction-ordering"] {
-		cmd = append(cmd, fmt.Sprintf("--transaction-ordering=%t", transactionOrdering))
-	}
-	if passExportDataFromTargetSpecificCLIFlags["table-list"] {
-		cmd = append(cmd, "--table-list", strings.Join(importTableNames, ","))
-	}
-
 	if msr.UseYBgRPCConnector {
+		//if using gRPC connector, set some overrides for the command like target ssl related
 		if tconf.SSLMode == "prefer" || tconf.SSLMode == "allow" {
 			utils.PrintAndLog(color.RedString("Warning: SSL mode '%s' is not supported for 'export data from target' yet. Downgrading it to 'disable'.\nIf you don't want these settings you can restart the 'export data from target' with a different value for --target-ssl-mode and --target-ssl-root-cert flag.", source.SSLMode))
 			tconf.SSLMode = "disable"
@@ -449,11 +426,11 @@ func startExportDataFromTargetIfRequired() {
 	utils.PrintAndLogf("Starting export data from target with command:\n %s", color.GreenString(cmdStr))
 
 	// If error had occurred while reading the config file, display the command and exit
-	if displayCmdAndExit {
-		// We are delaying this error message to be displayed here so that we can display the command
-		// after it has been constructed
-		utils.ErrExit("failed to read config file: %s\nPlease check the config file and re-run the command with only the required flags", configFileErr)
-	}
+	// if displayCmdAndExit {
+	// 	// We are delaying this error message to be displayed here so that we can display the command
+	// 	// after it has been constructed
+	// 	utils.ErrExit("failed to read config file: %s\nPlease check the config file and re-run the command with only the required flags", configFileErr)
+	// }
 
 	binary, lookErr := exec.LookPath(os.Args[0])
 	if lookErr != nil {

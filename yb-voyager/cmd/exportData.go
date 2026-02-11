@@ -283,7 +283,7 @@ func exportData() bool {
 	if err != nil {
 		utils.ErrExit("schema name matcher: %w", err)
 	}
-	
+
 	source.DBVersion = source.DB().GetVersion()
 	source.DBSize, err = source.DB().GetDatabaseSize()
 	if err != nil {
@@ -1559,51 +1559,27 @@ func startFallBackSetupIfRequired() {
 
 	lockFile.Unlock() // unlock export dir from export data cmd before switching current process to fall-back setup cmd
 	cmd := []string{"yb-voyager", "import", "data", "to", "source",
-		"--export-dir", exportDir,
 		fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics),
-		"--log-level", config.LogLevel,
 	}
 	if utils.DoNotPrompt {
 		cmd = append(cmd, "--yes")
 	}
 
-	passImportDataToSourceSpecificCLIFlags := map[string]bool{
-		"disable-pb": true,
-	}
-
-	// Check whether the command specifc flags have been set in the config file
-	keysSetInConfig, err := readConfigFileAndGetImportDataToSourceKeys()
-	var displayCmdAndExit bool
-	var configFileErr error
-	if err != nil {
-		displayCmdAndExit = true
-		configFileErr = err
+	// If config file is provided, pass it to the command
+	if cfgFile != "" {
+		cmd = append(cmd, "--config-file", cfgFile)
 	} else {
-		for key := range passImportDataToSourceSpecificCLIFlags {
-			if slices.Contains(keysSetInConfig, key) {
-				passImportDataToSourceSpecificCLIFlags[key] = false
-			}
+		//else set some overrides for the command
+		cmd = append(cmd, "--log-level", config.LogLevel)
+		cmd = append(cmd, "--export-dir", exportDir)
+		if bool(disablePb) {
+			cmd = append(cmd, "--disable-pb=true")
 		}
-	}
-
-	// Log which command specific flags are to be passed to the command
-	log.Infof("Command specific flags to be passed to import data to source: %v", passImportDataToSourceSpecificCLIFlags)
-
-	// Command specific flags
-	if bool(disablePb) && passImportDataToSourceSpecificCLIFlags["disable-pb"] {
-		cmd = append(cmd, "--disable-pb=true")
 	}
 
 	cmdStr := "SOURCE_DB_PASSWORD=*** " + strings.Join(cmd, " ")
 
 	utils.PrintAndLogf("Starting import data to source with command:\n %s", color.GreenString(cmdStr))
-
-	// If error had occurred while reading the config file, display the command and exit
-	if displayCmdAndExit {
-		// We are delaying this error message to be displayed here so that we can display the command
-		// after it has been constructed
-		utils.ErrExit("failed to read config file: %w\nPlease check the config file and re-run the command with only the required flags", configFileErr)
-	}
 
 	binary, lookErr := exec.LookPath(os.Args[0])
 	if lookErr != nil {
