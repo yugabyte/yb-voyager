@@ -1372,6 +1372,20 @@ func TestImportCDCMultiChannelBatchFailureAndResume(t *testing.T) {
 		require.NoError(t, waitForStreamingModeImportTest(exportDir, 120*time.Second, 2*time.Second), "Export should enter streaming mode")
 		logTest(t, "Export reached streaming mode; generating CDC inserts...")
 
+		// Multi-channel determinism:
+		// CDC import partitions events into `NUM_EVENT_CHANNELS` by hashing (table + key) and taking modulo N.
+		// To ensure this test actually exercises all channels (and doesn't accidentally generate events for
+		// only 1-2 channels), we *pre-select* INSERT primary keys whose hash maps into each channel.
+		//
+		// Our `computeChanForIDImportTest` uses the same FNV64a scheme used by the importer:
+		// - hash the table FQN
+		// - hash the primary key value (as a string)
+		// - channel = hash % NUM_EVENT_CHANNELS
+		//
+		// Then we generate:
+		// - INSERT events for all selected IDs (spread across channels)
+		// - UPDATE events on a per-channel subset of those IDs
+		// - DELETE events on a smaller per-channel subset (subset of updated IDs)
 		idsByChan := make([][]int, numChans)
 		for id := 1000; id < 100000; id++ {
 			ch := computeChanForIDImportTest(tableFQN, id, numChans)
