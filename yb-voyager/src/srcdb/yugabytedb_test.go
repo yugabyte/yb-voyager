@@ -25,6 +25,7 @@ import (
 	"gotest.tools/assert"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
@@ -49,7 +50,7 @@ func TestYugabyteGetAllTableNames(t *testing.T) {
 	defer testYugabyteDBSource.TestContainer.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
 
 	sqlname.SourceDBType = "postgresql"
-	testYugabyteDBSource.Source.Schema = "test_schema" // setting schema to look for tables in
+	testYugabyteDBSource.Source.Schemas = []sqlname.Identifier{sqlname.NewIdentifier("postgresql", "test_schema")} // setting schema to look for tables in
 
 	// Test GetAllTableNames
 	actualTables := testYugabyteDBSource.DB().GetAllTableNames()
@@ -198,16 +199,16 @@ func TestYugabyteGetColumnToSequenceMap(t *testing.T) {
 	fmt.Print("--- Full table list case ---- \n")
 	actualColumnToSequenceMap := testYugabyteDBSource.DB().GetColumnToSequenceMap(tableList)
 	expectedColumnToSequenceMap := map[string]string{
-		"public.serial_table.id":                   `public."serial_table_id_seq"`,
-		"public.bigserial_table.id":                `public."bigserial_table_id_seq"`,
-		"public.identity_always_table.id":          `public."identity_always_table_id_seq"`,
-		"public.identity_default_table.id":         `public."identity_default_table_id_seq"`,
-		"public.default_nextval_table.id":          `public."manual_seq"`,
-		"public.cross_schema_default_seq_table.id": `custom_schema."cross_schema_seq"`,
-		"public.manual_linked_table.id":            `public."manual_linked_seq"`,
-		"custom_schema.users.user_code":            `custom_schema."user_code_seq"`,
-		"public.manual_linked_table_1.id":          `public."manual_linked_seq_another"`,
-		"public.manual_linked_table_2.id":          `public."manual_linked_seq_another"`,
+		"public.serial_table.id":                   `"public"."serial_table_id_seq"`,
+		"public.bigserial_table.id":                `"public"."bigserial_table_id_seq"`,
+		"public.identity_always_table.id":          `"public"."identity_always_table_id_seq"`,
+		"public.identity_default_table.id":         `"public"."identity_default_table_id_seq"`,
+		"public.default_nextval_table.id":          `"public"."manual_seq"`,
+		"public.cross_schema_default_seq_table.id": `"custom_schema"."cross_schema_seq"`,
+		"public.manual_linked_table.id":            `"public"."manual_linked_seq"`,
+		"custom_schema.users.user_code":            `"custom_schema"."user_code_seq"`,
+		"public.manual_linked_table_1.id":          `"public"."manual_linked_seq_another"`,
+		"public.manual_linked_table_2.id":          `"public"."manual_linked_seq_another"`,
 	}
 	assert.Equal(t, len(lo.Keys(actualColumnToSequenceMap)), len(lo.Keys(expectedColumnToSequenceMap)), "Expected number of tables to match")
 	//asssert key val
@@ -226,18 +227,18 @@ func TestYugabyteGetColumnToSequenceMap(t *testing.T) {
 		testutils.CreateNameTupleWithSourceName("public.manual_linked_table", "public", testPostgresSource.DBType),
 		testutils.CreateNameTupleWithSourceName("public.manual_linked_table_1", "public", testPostgresSource.DBType),
 	}
-	testPostgresSource.Source.Schema = "public|custom_schema"
+	testPostgresSource.Source.Schemas = sqlname.ParseIdentifiersFromString("postgresql", "public|custom_schema", "|")
 
 	// Test GetColumnToSequenceMap
 	fmt.Print("----- Subset of table list case ----- \n")
 	actualColumnToSequenceMap = testYugabyteDBSource.DB().GetColumnToSequenceMap(tableList)
 	expectedColumnToSequenceMap = map[string]string{
-		"public.serial_table.id":                   `public."serial_table_id_seq"`,
-		"public.bigserial_table.id":                `public."bigserial_table_id_seq"`,
-		"public.identity_always_table.id":          `public."identity_always_table_id_seq"`,
-		"public.cross_schema_default_seq_table.id": `custom_schema."cross_schema_seq"`,
-		"public.manual_linked_table.id":            `public."manual_linked_seq"`,
-		"public.manual_linked_table_1.id":          `public."manual_linked_seq_another"`,
+		"public.serial_table.id":                   `"public"."serial_table_id_seq"`,
+		"public.bigserial_table.id":                `"public"."bigserial_table_id_seq"`,
+		"public.identity_always_table.id":          `"public"."identity_always_table_id_seq"`,
+		"public.cross_schema_default_seq_table.id": `"custom_schema"."cross_schema_seq"`,
+		"public.manual_linked_table.id":            `"public"."manual_linked_seq"`,
+		"public.manual_linked_table_1.id":          `"public"."manual_linked_seq_another"`,
 	}
 	assert.Equal(t, len(lo.Keys(actualColumnToSequenceMap)), len(lo.Keys(expectedColumnToSequenceMap)), "Expected number of tables to match")
 	//asssert key val
@@ -273,8 +274,8 @@ func TestYugabyteGetTableToUniqueKeyColumnsMap(t *testing.T) {
 	defer testYugabyteDBSource.TestContainer.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
 
 	uniqueTablesList := []sqlname.NameTuple{
-		{CurrentName: sqlname.NewObjectName("postgresql", "test_schema", "test_schema", "unique_table")},
-		{CurrentName: sqlname.NewObjectName("postgresql", "test_schema", "test_schema", "another_unique_table")},
+		testutils.CreateNameTupleWithSourceName("test_schema.unique_table", "test_schema", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_schema.another_unique_table", "test_schema", "postgresql"),
 	}
 
 	// Test GetTableToUniqueKeyColumnsMap
@@ -283,20 +284,20 @@ func TestYugabyteGetTableToUniqueKeyColumnsMap(t *testing.T) {
 		t.Fatalf("Error retrieving unique keys: %v", err)
 	}
 
-	expectedUniqKeys := map[string][]string{
-		"test_schema.unique_table":         {"email", "phone", "address"},
-		"test_schema.another_unique_table": {"username", "age"},
-	}
+	expectedUniqKeys := utils.NewStructMap[sqlname.NameTuple, []string]()
+	expectedUniqKeys.Put(testutils.CreateNameTupleWithSourceName("test_schema.unique_table", "test_schema", "postgresql"), []string{"email", "phone", "address"})
+	expectedUniqKeys.Put(testutils.CreateNameTupleWithSourceName("test_schema.another_unique_table", "test_schema", "postgresql"), []string{"username", "age"})
 
 	// Compare the maps by iterating over each table and asserting the columns list
-	for table, expectedColumns := range expectedUniqKeys {
-		actualColumns, exists := actualUniqKeys[table]
+	expectedUniqKeys.IterKV(func(table sqlname.NameTuple, expectedColumns []string) (bool, error) {
+		actualColumns, exists := actualUniqKeys.Get(table)
 		if !exists {
 			t.Errorf("Expected table %s not found in uniqueKeys", table)
 		}
 
 		testutils.AssertEqualStringSlices(t, expectedColumns, actualColumns)
-	}
+		return true, nil
+	})
 }
 
 func TestYugabyteGetNonPKTables(t *testing.T) {
@@ -319,13 +320,13 @@ func TestYugabyteGetNonPKTables(t *testing.T) {
 		name VARCHAR(255)
 	);`)
 	defer testYugabyteDBSource.TestContainer.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
-	testYugabyteDBSource.Source.Schema = "test_schema" // setting schema to look for tables in
+	testYugabyteDBSource.Source.Schemas = []sqlname.Identifier{sqlname.NewIdentifier("postgresql", "test_schema")} // setting schema to look for tables in
 
 	// Test GetNonPKTables
 	actualTables, err := testYugabyteDBSource.DB().GetNonPKTables()
 	assert.NilError(t, err, "Expected nil but non nil error: %v", err)
 
-	expectedTables := []string{`test_schema."non_pk2"`, `test_schema."non_pk1"`} // func returns table.Qualified.Quoted
+	expectedTables := []string{`"test_schema"."non_pk2"`, `"test_schema"."non_pk1"`} // func returns table.Qualified.Quoted
 	testutils.AssertEqualStringSlices(t, expectedTables, actualTables)
 }
 
@@ -423,7 +424,7 @@ func TestYugabyteGetAllTableColumnsInfo(t *testing.T) {
 		testutils.CreateNameTupleWithSourceName("test_schema.orders", "test_schema", constants.YUGABYTEDB),
 	}
 
-	allColumnsInfo, err := ybDB.getAllTableColumnsInfo(tableList)
+	allColumnsInfo, err := getAllTableColumnsInfo(tableList, ybDB.db)
 	assert.NilError(t, err, "Expected no error fetching table columns")
 	assert.Equal(t, 2, len(allColumnsInfo), "Expected column info for 2 tables")
 
@@ -448,7 +449,7 @@ func TestYugabyteGetAllTableColumnsInfo(t *testing.T) {
 	testutils.AssertEqualStringSlices(t, []string{"order_id", "customer_id", "total"}, ordersInfo.Columns)
 
 	// Test edge case: Empty table list
-	emptyResult, err := ybDB.getAllTableColumnsInfo([]sqlname.NameTuple{})
+	emptyResult, err := getAllTableColumnsInfo([]sqlname.NameTuple{}, ybDB.db)
 	assert.NilError(t, err, "Expected no error for empty table list")
 	assert.Equal(t, 0, len(emptyResult), "Expected empty result for empty table list")
 }
@@ -492,6 +493,36 @@ func TestYugabyteFilterUnsupportedUserDefinedDatatypes(t *testing.T) {
 			status hr.status_enum,
 			priority hr.positive_int
 		);`,
+
+		`CREATE TYPE inventory.active_ts_range AS RANGE (
+			subtype = timestamp with time zone,
+			multirange_type_name = public.active_ts_multirange
+		);`,
+
+		`CREATE TYPE public.discount_range AS RANGE (
+			subtype = double precision,
+			multirange_type_name = public.discount_multirange
+		);`,
+
+		`CREATE TYPE hr.period_range AS RANGE (
+			subtype = date,
+			multirange_type_name = public.period_multirange
+		);`,
+
+		`CREATE TABLE hr.active_ts_table (
+			id SERIAL PRIMARY KEY,
+			active_ts_range inventory.active_ts_range
+		);`,
+
+		`CREATE TABLE inventory.discount_table (
+			id SERIAL PRIMARY KEY,
+			discount_range public.discount_range
+		);`,
+
+		`CREATE TABLE inventory.period_table (
+			id SERIAL PRIMARY KEY,
+			period_range hr.period_range
+		);`,
 	)
 	defer testYugabyteDBSource.TestContainer.ExecuteSqls(
 		`DROP SCHEMA hr CASCADE;`,
@@ -505,8 +536,15 @@ func TestYugabyteFilterUnsupportedUserDefinedDatatypes(t *testing.T) {
 		testutils.CreateNameTupleWithSourceName("hr.projects", "hr", constants.YUGABYTEDB),
 	}
 
+	tableListWithRanges := []sqlname.NameTuple{
+		testutils.CreateNameTupleWithSourceName("hr.active_ts_table", "hr", constants.YUGABYTEDB),
+		testutils.CreateNameTupleWithSourceName("inventory.discount_table", "inventory", constants.YUGABYTEDB),
+		testutils.CreateNameTupleWithSourceName("inventory.period_table", "inventory", constants.YUGABYTEDB),
+	}
+
 	// Get the underlying YugabyteDB instance to access private method
 	ybDB := testYugabyteDBSource.DB().(*YugabyteDB)
+	ybDB.source.IsYBGrpcConnector = true
 	actualUDTs := ybDB.filterUnsupportedUserDefinedDatatypes(tableList)
 
 	// Expected: Only composite types (typtype='c'), NOT enums or domains
@@ -520,10 +558,37 @@ func TestYugabyteFilterUnsupportedUserDefinedDatatypes(t *testing.T) {
 		"Expected %d UDTs but got %d", len(expectedUDTs), len(actualUDTs))
 	testutils.AssertEqualStringSlices(t, expectedUDTs, actualUDTs)
 
+	actualUDTsWithRanges := ybDB.filterUnsupportedUserDefinedDatatypes(append(tableList, tableListWithRanges...))
+	expectedUDTsWithRanges := []string{
+		"hr.contact",
+		"inventory.device_specs",
+		"inventory.active_ts_range",
+		"public.discount_range",
+		"hr.period_range",
+	}
+	assert.Equal(t, len(expectedUDTsWithRanges), len(actualUDTsWithRanges),
+		"Expected %d UDTs but got %d", len(expectedUDTsWithRanges), len(actualUDTsWithRanges))
+	testutils.AssertEqualStringSlices(t, expectedUDTsWithRanges, actualUDTsWithRanges)
+
 	// Test edge case: Empty table list
 	emptyTableList := []sqlname.NameTuple{}
 	actualEmptyUDTs := ybDB.filterUnsupportedUserDefinedDatatypes(emptyTableList)
 	assert.Equal(t, 0, len(actualEmptyUDTs), "Expected empty list for empty table list")
+
+	ybDB.source.IsYBGrpcConnector = false
+	actualUDTs = ybDB.filterUnsupportedUserDefinedDatatypes(tableList)
+	assert.Equal(t, 0, len(actualUDTs), "Expected empty list for empty table list")
+
+	actualUDTsWithRanges = ybDB.filterUnsupportedUserDefinedDatatypes(append(tableList, tableListWithRanges...))
+	expectedRangesUDTs := []string{
+		"inventory.active_ts_range",
+		"public.discount_range",
+		"hr.period_range",
+	}
+	assert.Equal(t, len(expectedRangesUDTs), len(actualUDTsWithRanges),
+		"Expected %d UDTs but got %d", len(expectedRangesUDTs), len(actualUDTsWithRanges))
+	testutils.AssertEqualStringSlices(t, expectedRangesUDTs, actualUDTsWithRanges)
+
 }
 
 // TestYugabyteGetColumnsWithSupportedTypes_AllScenarios tests:
@@ -624,11 +689,10 @@ func TestYugabyteGetColumnsWithSupportedTypes_AllScenarios(t *testing.T) {
 		devicesTable := tableList[1]
 		supported, exists = supportedCols.Get(devicesTable)
 		assert.Equal(t, true, exists, "Expected hr.employee_devices in supported map")
-		testutils.AssertEqualStringSlices(t, []string{"employee_id", "device_name", "settings", "status", "notes"}, supported)
+		testutils.AssertEqualStringSlices(t, []string{"*"}, supported)
 
-		unsupported, exists := unsupportedCols.Get(devicesTable)
-		assert.Equal(t, true, exists, "Expected hr.employee_devices in unsupported map")
-		testutils.AssertEqualStringSlices(t, []string{"contact_info", "device_details"}, unsupported) // both UDTs
+		_, exists = unsupportedCols.Get(devicesTable)
+		assert.Equal(t, false, exists, "Expected hr.employee_devices NOT in unsupported map")
 
 		// Case 3: SearchTable (mixed case) - TSVECTOR is SUPPORTED in logical mode, tests case sensitivity
 		searchTable := tableList[2]

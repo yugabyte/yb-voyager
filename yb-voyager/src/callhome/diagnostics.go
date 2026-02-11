@@ -28,6 +28,7 @@ import (
 	"strings"
 	"time"
 
+	goerrors "github.com/go-errors/errors"
 	"github.com/google/uuid"
 	"github.com/jackc/pgconn"
 	pgconnv5 "github.com/jackc/pgx/v5/pgconn"
@@ -130,24 +131,33 @@ Version History
 1.7 Changed NumShardedTables and NumColocatedTables to ShardedTables and ColocatedTables respectively with anonymized names
 1.8 Added EstimatedTimeInMinForImportWithoutRedundantIndexes to SizingCallhome
 1.9 Added ObjectUsage field to AssessmentIssueCallhome struct
+2.0 Added ReplicaAssessmentTopology with replica discovery and validation counts for multi-node assessments
 */
-var ASSESS_MIGRATION_CALLHOME_PAYLOAD_VERSION = "1.9"
+var ASSESS_MIGRATION_CALLHOME_PAYLOAD_VERSION = "2.0"
+
+// ReplicaAssessmentTopology tracks replica discovery and usage for PostgreSQL multi-node assessments
+type ReplicaAssessmentTopology struct {
+	ReplicasDiscovered int `json:"replicas_discovered"` // replicas found via pg_stat_replication (used only if none provided)
+	ReplicasProvided   int `json:"replicas_provided"`   // replicas provided via --source-read-replica-endpoints flag (takes precedence)
+	ReplicasUsed       int `json:"replicas_used"`       // replicas actually used in assessment (equals provided if provided, else discovered)
+}
 
 type AssessMigrationPhasePayload struct {
-	PayloadVersion                 string                    `json:"payload_version"`
-	TargetDBVersion                *ybversion.YBVersion      `json:"target_db_version"`
-	Sizing                         *SizingCallhome           `json:"sizing"`
-	MigrationComplexity            string                    `json:"migration_complexity"`
-	MigrationComplexityExplanation string                    `json:"migration_complexity_explanation"`
-	SchemaSummary                  string                    `json:"schema_summary"`
-	Issues                         []AssessmentIssueCallhome `json:"assessment_issues"`
-	Error                          string                    `json:"error"`
-	TableSizingStats               string                    `json:"table_sizing_stats"`
-	IndexSizingStats               string                    `json:"index_sizing_stats"`
-	SourceConnectivity             bool                      `json:"source_connectivity"`
-	IopsInterval                   int64                     `json:"iops_interval"`
-	ControlPlaneType               string                    `json:"control_plane_type"`
-	AnonymizedDDLs                 []string                  `json:"anonymized_ddls"`
+	PayloadVersion                 string                     `json:"payload_version"`
+	TargetDBVersion                *ybversion.YBVersion       `json:"target_db_version"`
+	Sizing                         *SizingCallhome            `json:"sizing"`
+	MigrationComplexity            string                     `json:"migration_complexity"`
+	MigrationComplexityExplanation string                     `json:"migration_complexity_explanation"`
+	SchemaSummary                  string                     `json:"schema_summary"`
+	Issues                         []AssessmentIssueCallhome  `json:"assessment_issues"`
+	Error                          string                     `json:"error"`
+	TableSizingStats               string                     `json:"table_sizing_stats"` // Aggregated across all nodes
+	IndexSizingStats               string                     `json:"index_sizing_stats"` // Aggregated across all nodes
+	SourceConnectivity             bool                       `json:"source_connectivity"`
+	IopsInterval                   int64                      `json:"iops_interval"`
+	ControlPlaneType               string                     `json:"control_plane_type"`
+	AnonymizedDDLs                 []string                   `json:"anonymized_ddls"`
+	ReplicaAssessmentTopology      *ReplicaAssessmentTopology `json:"replica_assessment_topology,omitempty"`
 }
 
 type AssessmentIssueCallhome struct {
@@ -263,20 +273,35 @@ type AnalyzeIssueCallhome struct {
 
 // =============================== Export Data ===============================
 
+/*
+Version History
+1.0: Added CutoverTimings field
+*/
+var EXPORT_DATA_CALLHOME_PAYLOAD_VERSION = "1.0"
+
 type ExportDataPhasePayload struct {
+	PayloadVersion          string `json:"payload_version"`
 	ParallelJobs            int64  `json:"parallel_jobs"`
 	TotalRows               int64  `json:"total_rows_exported"`
 	LargestTableRows        int64  `json:"largest_table_rows_exported"`
 	StartClean              bool   `json:"start_clean"`
 	ExportSnapshotMechanism string `json:"export_snapshot_mechanism,omitempty"`
 	//TODO: see if these three can be changed to not use omitempty to put the data for 0 rate or total events
-	Phase                     string `json:"phase,omitempty"`
-	TotalExportedEvents       int64  `json:"total_exported_events,omitempty"`
-	EventsExportRate          int64  `json:"events_export_rate_3m,omitempty"`
-	LiveWorkflowType          string `json:"live_workflow_type,omitempty"`
-	Error                     string `json:"error"`
-	ControlPlaneType          string `json:"control_plane_type"`
-	AllowOracleClobDataExport bool   `json:"allow_oracle_clob_data_export"`
+	Phase                     string          `json:"phase,omitempty"`
+	TotalExportedEvents       int64           `json:"total_exported_events,omitempty"`
+	EventsExportRate          int64           `json:"events_export_rate_3m,omitempty"`
+	LiveWorkflowType          string          `json:"live_workflow_type,omitempty"`
+	Error                     string          `json:"error"`
+	ControlPlaneType          string          `json:"control_plane_type"`
+	AllowOracleClobDataExport bool            `json:"allow_oracle_clob_data_export"`
+	CutoverTimings            *CutoverTimings `json:"cutover_timings,omitempty"`
+}
+
+// =============================== Cutover Timings ===============================
+
+type CutoverTimings struct {
+	TotalCutoverTimeSec int64  `json:"total_cutover_time_sec"`
+	CutoverType         string `json:"cutover_type"`
 }
 
 // =============================== Import Schema ===============================
@@ -301,8 +326,9 @@ Version History:
 1.1: Added YBClusterMetrics field, and corresponding struct - YBClusterMetrics, NodeMetric
 1.2: Split out the data metrics into a separate struct - ImportDataMetrics
 1.3: Added CurrentParallelConnections field to ImportDataMetrics
+1.4: Added CutoverTimings field
 */
-var IMPORT_DATA_CALLHOME_PAYLOAD_VERSION = "1.3"
+var IMPORT_DATA_CALLHOME_PAYLOAD_VERSION = "1.4"
 
 type ImportDataPhasePayload struct {
 	PayloadVersion              string            `json:"payload_version"`
@@ -316,11 +342,12 @@ type ImportDataPhasePayload struct {
 	YBClusterMetrics            YBClusterMetrics  `json:"yb_cluster_metrics"`
 	DataMetrics                 ImportDataMetrics `json:"data_metrics"`
 	//TODO: see if these three can be changed to not use omitempty to put the data for 0 rate or total events
-	Phase            string `json:"phase,omitempty"`
-	LiveWorkflowType string `json:"live_workflow_type,omitempty"`
-	EnableUpsert     bool   `json:"enable_upsert"`
-	Error            string `json:"error"`
-	ControlPlaneType string `json:"control_plane_type"`
+	Phase            string          `json:"phase,omitempty"`
+	LiveWorkflowType string          `json:"live_workflow_type,omitempty"`
+	EnableUpsert     bool            `json:"enable_upsert"`
+	Error            string          `json:"error"`
+	ControlPlaneType string          `json:"control_plane_type"`
+	CutoverTimings   *CutoverTimings `json:"cutover_timings,omitempty"`
 }
 
 type ImportDataMetrics struct {
@@ -491,7 +518,7 @@ func SendPayload(payload *Payload) error {
 
 	postBody, err := json.Marshal(payload)
 	if err != nil {
-		return fmt.Errorf("error while creating http request for diagnostics: %v", err)
+		return goerrors.Errorf("error while creating http request for diagnostics: %v", err)
 	}
 	requestBody := bytes.NewBuffer(postBody)
 
@@ -528,24 +555,31 @@ func SanitizeErrorMsg(err error, anonymizer *anon.VoyagerAnonymizer) string {
 		return ""
 	}
 	errorMsg := strings.Split(err.Error(), ":")[0]
-	additionalContext := getSpecificNonSensitiveContextForError(err, anonymizer)
-	if additionalContext != nil {
-		errorMsg = fmt.Sprintf("%s: %s", errorMsg, MarshalledJsonString(additionalContext))
-	}
-	return errorMsg
+	errorDetails := make(map[string]string)
+	errorDetails["msg"] = errorMsg
+	addSpecificNonSensitiveContextForError(err, anonymizer, errorDetails)
+
+	return MarshalledJsonString(errorDetails)
 }
 
-func getSpecificNonSensitiveContextForError(err error, anonymizer *anon.VoyagerAnonymizer) map[string]string {
+func addSpecificNonSensitiveContextForError(err error, anonymizer *anon.VoyagerAnonymizer, context map[string]string) {
 	if err == nil {
-		return nil
+		return
 	}
-	context := make(map[string]string)
 
 	addImportBatchErrorContext(err, context)
 	addPostgreSQLErrorContext(err, context)
 	addExecuteDDLErrorContext(err, anonymizer, context)
+	addStackTrace(err, context)
 
-	return context
+	return
+}
+
+func addStackTrace(err error, context map[string]string) {
+	var goErr *goerrors.Error
+	if goerrors.As(err, &goErr) {
+		context["stack_trace"] = string(goErr.Stack())
+	}
 }
 
 func addImportBatchErrorContext(err error, context map[string]string) {

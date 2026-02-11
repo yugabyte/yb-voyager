@@ -44,6 +44,42 @@ EXPECTED_ROW_COUNT = {
 	'rw_pk': 3
 }
 
+EXPECTED_ROW_COUNT_OTHER_SCHEMAS = {
+	'public': {
+		'Sales_region': 1000,
+	},
+	'Schema': {
+		'customers':1000,
+		'cust_part22': 125,
+		'cust_part21': 125,
+		'cust_part12': 228,
+		'cust_part11': 272,
+		'cust_other': 250,
+		'cust_arr_large':250,
+		'cust_arr_small': 500,
+		'cust_active': 750,
+		'tbl_seq1': 1000,
+		'Test2': 1000,
+		'London': 333,
+		'Sydney':334,
+		'Boston':333
+	},
+	'pg-schema': {
+		'test2':1000,
+		'TestTable':1000
+	},
+	'order': {
+		'test1': 1000
+	}
+}
+
+EXPECTED_TABLES = {
+	'public':26,
+	'pg-schema':2,
+	'schema2':25,
+	'Schema':14,
+	'order':1
+}
 def migration_completed_checks_yb():
 	print("Running tests on YB")
 	yb.run_checks(migration_completed_checks)
@@ -73,6 +109,21 @@ def migration_completed_checks(tgt):
 	for table_name, row_count in EXPECTED_ROW_COUNT.items():
 		print(f"table_name: {table_name}, row_count: {got_row_count[table_name]}")
 		assert row_count == got_row_count[table_name]
+
+	for schema, expected_tables in EXPECTED_TABLES.items():
+		returned_tables = tgt.get_table_names(schema)
+		print(f"schema: {schema}, tables: {len(returned_tables)} and expected tables: {expected_tables}")
+		print(f"{returned_tables}")
+		assert expected_tables == len(returned_tables)
+
+	for schema, table_cnts in EXPECTED_ROW_COUNT_OTHER_SCHEMAS.items():
+		got_row_count = tgt.row_count_of_all_tables(schema)
+		for table_name, expected_row_cnt in table_cnts.items():
+			print(f"table_name: {table_name}, row_count: {got_row_count[table_name]}")
+			assert expected_row_cnt == got_row_count[table_name]
+
+
+	
 #=============================================================================
 
 if __name__ == "__main__":

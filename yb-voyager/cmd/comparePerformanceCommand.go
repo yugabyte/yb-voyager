@@ -21,6 +21,7 @@ import (
 	"os"
 	"path/filepath"
 
+	goerrors "github.com/go-errors/errors"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
@@ -30,6 +31,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 var comparePerformanceCmd = &cobra.Command{
@@ -160,6 +162,9 @@ func validateComparePerfPrerequisites() {
 	if !hasData {
 		utils.ErrExit("No query statistics found in assessment database. Please ensure pg_stat_statements extension was enabled during assess-migration and that workload was executed on the source database.")
 	}
+	
+	//TODO: fix later 
+	tconf.Schemas = sqlname.ParseIdentifiersFromString(dbType, tconf.SchemaConfig, ",")
 
 	// Check 4: Target database is reachable
 	tdb := tgtdb.NewTargetDB(&tconf)
@@ -250,7 +255,7 @@ func handleStartCleanForComparePerf() error {
 			utils.PrintAndLogf("cleaned up leftover performance comparison files from previous incomplete run")
 		}
 	} else if reportsExist {
-		return fmt.Errorf("performance comparison reports already exist. Use --start-clean flag to remove them and re-run the command")
+		return goerrors.Errorf("performance comparison reports already exist. Use --start-clean flag to remove them and re-run the command")
 	}
 
 	return nil

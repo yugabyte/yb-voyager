@@ -24,17 +24,20 @@ import (
 	"strings"
 
 	"github.com/fatih/color"
+	goerrors "github.com/go-errors/errors"
 	"github.com/jackc/pgx/v4"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 var importSchemaCmd = &cobra.Command{
@@ -91,14 +94,16 @@ var invalidTargetIndexesCache map[string]bool
 
 func importSchema() error {
 
-	tconf.Schema = strings.ToLower(tconf.Schema)
+	//No requirement as such for namereg for this command as its already doing the schema name creation 
+	// so can't lookup before that so not any real use of namereg
+	tconf.Schemas = sqlname.ParseIdentifiersFromString(tconf.TargetDBType, tconf.SchemaConfig, ",")
 
 	if callhome.SendDiagnostics || getControlPlaneType() == YUGABYTED {
-		tconfSchema := tconf.Schema
+		tconfSchemas := tconf.Schemas
 		// setting the tconf schema to public here for initalisation to handle cases where non-public target schema
 		// is not created as it will be created with `createTargetSchemas` func, so not a problem in using public as it will be
 		// available always and this is just for initialisation of tdb and marking it nil again back.
-		tconf.Schema = "public"
+		tconf.Schemas = []sqlname.Identifier{sqlname.NewIdentifier(constants.YUGABYTEDB, "public")}
 		tdb = tgtdb.NewTargetDB(&tconf)
 		err := tdb.Init()
 		if err != nil {
@@ -109,7 +114,7 @@ func importSchema() error {
 		//with public schema so Reintialise tdb if required with proper configs when it is available.
 		tdb.Finalize()
 		tdb = nil
-		tconf.Schema = tconfSchema
+		tconf.Schemas = tconfSchemas
 	}
 
 	if tconf.RunGuardrailsChecks {
@@ -127,7 +132,7 @@ func importSchema() error {
 
 			// Prompt user to continue if missing permissions
 			if !utils.AskPrompt("Do you want to continue anyway") {
-				return fmt.Errorf("Grant the required permissions and try again.")
+				return goerrors.Errorf("Grant the required permissions and try again.")
 			}
 		} else {
 			log.Info("The target database has the required permissions for importing schema.")
@@ -191,7 +196,7 @@ func importSchema() error {
 	if !flagPostSnapshotImport {
 		objectList = utils.GetSchemaObjectList(sourceDBType)
 		if len(objectList) == 0 {
-			return fmt.Errorf("No schema objects to import! Must import at least 1 of the supported schema object types: %v", utils.GetSchemaObjectList(sourceDBType))
+			return goerrors.Errorf("No schema objects to import! Must import at least 1 of the supported schema object types: %v", utils.GetSchemaObjectList(sourceDBType))
 		}
 
 		objectList = applySchemaObjectFilterFlags(objectList)
@@ -451,8 +456,7 @@ func getDDLStmts(objType string) []sqlInfo {
 }
 
 func createTargetSchemas(conn *pgx.Conn) {
-	var targetSchemas []string
-	tconf.Schema = strings.ToLower(strings.Trim(tconf.Schema, "\"")) //trim case sensitivity quotes if needed, convert to lowercase
+	var targetSchemas []sqlname.Identifier
 
 	schemaAnalysisReport := analyzeSchemaInternal(
 		&srcdb.Source{
@@ -462,64 +466,67 @@ func createTargetSchemas(conn *pgx.Conn) {
 	switch sourceDBType {
 	case "postgresql": // in case of postgreSQL as source, there can be multiple schemas present in a database
 		source = srcdb.Source{DBType: sourceDBType}
-		targetSchemas = utils.GetObjectNameListFromReport(schemaAnalysisReport, "SCHEMA")
+		schemaNames := utils.GetObjectNameListFromReport(schemaAnalysisReport, "SCHEMA")
+		targetSchemas = sqlname.ParseIdentifiersFromStrings(constants.YUGABYTEDB, schemaNames)
 	case "oracle": // ORACLE PACKAGEs are exported as SCHEMAs
 		source = srcdb.Source{DBType: sourceDBType}
-		targetSchemas = append(targetSchemas, tconf.Schema)
-		targetSchemas = append(targetSchemas, utils.GetObjectNameListFromReport(schemaAnalysisReport, "PACKAGE")...)
+		targetSchemas = append(targetSchemas, tconf.Schemas...)
+		packages := utils.GetObjectNameListFromReport(schemaAnalysisReport, "PACKAGE")
+		targetSchemas = append(targetSchemas, sqlname.ParseIdentifiersFromStrings(constants.YUGABYTEDB, packages)...)
 	case "mysql":
 		source = srcdb.Source{DBType: sourceDBType}
-		targetSchemas = append(targetSchemas, tconf.Schema)
+		targetSchemas = append(targetSchemas, tconf.Schemas...)
 
 	}
-	targetSchemas = utils.ToCaseInsensitiveNames(targetSchemas)
 
-	utils.PrintAndLogf("schemas to be present in target database %q: %v\n", tconf.DBName, targetSchemas)
+	utils.PrintAndLogf("schemas to be present in target database %q: %v\n", tconf.DBName, sqlname.JoinIdentifiersMinQuoted(targetSchemas, ", "))
 	for _, targetSchema := range targetSchemas {
 		//check if target schema exists or not
 		schemaExists := checkIfTargetSchemaExists(conn, targetSchema)
-		dropSchemaQuery := fmt.Sprintf("DROP SCHEMA %s CASCADE", targetSchema)
+		dropSchemaQuery := fmt.Sprintf("DROP SCHEMA %s CASCADE", targetSchema.MinQuoted)
 
 		if schemaExists {
 			if startClean {
-				promptMsg := fmt.Sprintf("do you really want to drop the '%s' schema", targetSchema)
+				promptMsg := fmt.Sprintf("do you really want to drop the '%s' schema", targetSchema.MinQuoted)
 				if !utils.AskPrompt(promptMsg) {
 					continue
 				}
 
-				utils.PrintAndLogf("dropping schema '%s' in target database", targetSchema)
+				utils.PrintAndLogf("dropping schema '%s' in target database", targetSchema.MinQuoted)
 				_, err := conn.Exec(context.Background(), dropSchemaQuery)
 				if err != nil {
 					utils.ErrExit("Failed to drop schema: %q: %s", targetSchema, err)
 				}
 			} else {
-				utils.PrintAndLogf("schema '%s' already present in target database, continuing with it..\n", targetSchema)
+				utils.PrintAndLogf("schema '%s' already present in target database, continuing with it..\n", targetSchema.MinQuoted)
 			}
 		}
 	}
 
 	if sourceDBType != POSTGRESQL { // with the new schema list flag, pg_dump takes care of all schema creation DDLs
-		schemaExists := checkIfTargetSchemaExists(conn, tconf.Schema)
-		createSchemaQuery := fmt.Sprintf("CREATE SCHEMA %s", tconf.Schema)
-		/* --target-db-schema(or target.Schema) flag valid for Oracle & MySQL
-		only create target.Schema, other required schemas are created via .sql files */
-		if !schemaExists {
-			utils.PrintAndLogf("creating schema '%s' in target database...", tconf.Schema)
-			_, err := conn.Exec(context.Background(), createSchemaQuery)
-			if err != nil {
-				utils.ErrExit("Failed to create schema in the target DB: %q: %s", tconf.Schema, err)
+		for _, targetSchema := range targetSchemas {
+			schemaExists := checkIfTargetSchemaExists(conn, targetSchema)
+			createSchemaQuery := fmt.Sprintf("CREATE SCHEMA %s", targetSchema.MinQuoted)
+			/* --target-db-schema(or target.Schema) flag valid for Oracle & MySQL
+			only create target.Schema, other required schemas are created via .sql files */
+			if !schemaExists {
+				utils.PrintAndLogf("creating schema '%s' in target database...", targetSchema.MinQuoted)
+				_, err := conn.Exec(context.Background(), createSchemaQuery)
+				if err != nil {
+					utils.ErrExit("Failed to create schema in the target DB: %q: %s", targetSchema, err)
+				}
 			}
-		}
 
-		if tconf.Schema == YUGABYTEDB_DEFAULT_SCHEMA &&
-			!utils.AskPrompt("do you really want to import into 'public' schema") {
-			utils.ErrExit("User selected not to import in the `public` schema. Exiting.")
+			if targetSchema.MinQuoted == YUGABYTEDB_DEFAULT_SCHEMA &&
+				!utils.AskPrompt("do you really want to import into 'public' schema") {
+				utils.ErrExit("User selected not to import in the `public` schema. Exiting.")
+			}
 		}
 	}
 }
 
-func checkIfTargetSchemaExists(conn *pgx.Conn, targetSchema string) bool {
-	checkSchemaExistQuery := fmt.Sprintf("select nspname from pg_namespace n where n.nspname = '%s'", targetSchema)
+func checkIfTargetSchemaExists(conn *pgx.Conn, targetSchema sqlname.Identifier) bool {
+	checkSchemaExistQuery := fmt.Sprintf("select nspname from pg_namespace n where n.nspname = '%s'", targetSchema.Unquoted)
 
 	var fetchedSchema string
 	err := conn.QueryRow(context.Background(), checkSchemaExistQuery).Scan(&fetchedSchema)
@@ -530,7 +537,7 @@ func checkIfTargetSchemaExists(conn *pgx.Conn, targetSchema string) bool {
 		utils.ErrExit("Failed to check if schema exists: %q: %s", targetSchema, err)
 	}
 
-	return fetchedSchema == targetSchema
+	return fetchedSchema == targetSchema.Unquoted
 }
 
 func missingRequiredSchemaObject(err error) bool {

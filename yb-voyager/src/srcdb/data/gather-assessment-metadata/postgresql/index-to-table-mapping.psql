@@ -1,22 +1,22 @@
-CREATE TEMP TABLE temp_table AS
-SELECT
-    idx_nsp.nspname AS index_schema,
-    idx.relname AS index_name,
-    tbl_nsp.nspname AS table_schema,
-    tbl.relname AS table_name
-FROM
-    pg_index i
-JOIN
-    pg_class idx ON i.indexrelid = idx.oid
-JOIN
-    pg_class tbl ON i.indrelid = tbl.oid
-JOIN
-    pg_namespace idx_nsp ON idx.relnamespace = idx_nsp.oid
-JOIN
-    pg_namespace tbl_nsp ON tbl.relnamespace = tbl_nsp.oid
-WHERE
-    idx_nsp.nspname = ANY(ARRAY[string_to_array(:'schema_list', '|')]);
-
-\copy temp_table to 'index-to-table-mapping.csv' WITH CSV HEADER;
-
-DROP TABLE temp_table;
+\o index-to-table-mapping.csv
+COPY (
+    SELECT
+        :'source_node_name' AS source_node,
+        idx_nsp.nspname AS index_schema,
+        idx.relname AS index_name,
+        tbl_nsp.nspname AS table_schema,
+        tbl.relname AS table_name
+    FROM
+        pg_index i
+    JOIN
+        pg_class idx ON i.indexrelid = idx.oid
+    JOIN
+        pg_class tbl ON i.indrelid = tbl.oid
+    JOIN
+        pg_namespace idx_nsp ON idx.relnamespace = idx_nsp.oid
+    JOIN
+        pg_namespace tbl_nsp ON tbl.relnamespace = tbl_nsp.oid
+    WHERE
+        idx_nsp.nspname = ANY(string_to_array(:'schema_list', '|'))
+) TO STDOUT WITH CSV HEADER;
+\o

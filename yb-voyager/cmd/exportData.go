@@ -31,6 +31,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/color"
+	goerrors "github.com/go-errors/errors"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -135,9 +136,7 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 	if useDebezium && !changeStreamingIsEnabled(exportType) {
 		utils.PrintAndLogf("Note: Beta feature to accelerate data export is enabled by setting BETA_FAST_DATA_EXPORT environment variable")
 	}
-	if changeStreamingIsEnabled(exportType) {
-		utils.PrintAndLog(color.YellowString(`Note: Live migration is a TECH PREVIEW feature.`))
-	}
+	printLiveMigrationLimitations()
 	utils.PrintAndLogf("export of data for source type as '%s'", source.DBType)
 	sqlname.SourceDBType = source.DBType
 
@@ -159,6 +158,39 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 	}
 }
 
+func printLiveMigrationLimitations() {
+	if !changeStreamingIsEnabled(exportType) {
+		return
+	}
+	switch source.DBType {
+	case ORACLE:
+		utils.PrintAndLogfWarning("Note: Live migration is a TECH PREVIEW feature.")
+	default:
+		if exporterRole == SOURCE_DB_EXPORTER_ROLE {
+			utils.PrintAndLogfWarning("\nImportant: The following limitations apply to live migration:\n")
+			utils.PrintAndLogfInfo("  1. Schema modifications(for example, adding/droping columns, creating/deleting tables, adding/deleting partitions etc) on the source and target databases are not supported during live migration.\n")
+			utils.PrintAndLogfInfo("  2. Primary Key or Unique Key columns should be identical between source and target databases.\n")
+			utils.PrintAndLogfInfo("  3. TRUNCATE operations on source database tables are not automatically replicated to the target database.\n")
+			utils.PrintAndLogfInfo("  4. Sequences that are not associated with any column or are attached to columns of non-integer types are not supported for automatic value generation resumption. These sequences must be manually resumed during the cutover phase.\n")
+			utils.PrintAndLogfInfo("  5. Tables without a Primary Key are not supported for live migration.\n\n")
+		} else {
+			workflow := lo.Ternary(exporterRole == TARGET_DB_EXPORTER_FF_ROLE, "fall forward", "fall back")
+			msr, err := metaDB.GetMigrationStatusRecord()
+			if err != nil {
+				utils.ErrExit("error getting migration status record: %w", err)
+			}
+			if msr.UseYBgRPCConnector {
+				utils.PrintAndLogfWarning("Note: Live migration with %s using YugabyteDB gRPC connector is a TECH PREVIEW feature.", workflow)
+			} else {
+				utils.PrintAndLogfWarning("\nImportant: The following limitation applies to live migration with %s:\n\n", workflow)
+				utils.PrintAndLogfInfo("  1. SAVEPOINT statements within transactions on the target database are not supported during live migration with %s enabled. Transactions rolling back to some SAVEPOINT may cause data inconsistency between the databases.\n", workflow)
+				utils.PrintAndLogfInfo("  2. Rows larger than 4MB in target database can cause consistency issues during live migration with %s enabled. Refer to this tech advisory for more information %s\n", workflow, utils.Path.Sprint("https://docs.yugabyte.com/stable/releases/techadvisories/ta-29060/"))
+				utils.PrintAndLogfInfo("  3. Workloads with read-committed isolation level are not fully supported. It is recommended to use repeatable-read or serializable isolation levels for the duration of the migration.\n\n")
+			}
+		}
+
+	}
+}
 func sendPayloadAsPerExporterRole(status string, errorMsg error) {
 	if !callhome.SendDiagnostics {
 		return
@@ -190,6 +222,7 @@ func packAndSendExportDataPayload(status string, errorMsg error) {
 
 	payload.MigrationPhase = EXPORT_DATA_PHASE
 	exportDataPayload := callhome.ExportDataPhasePayload{
+		PayloadVersion:            callhome.EXPORT_DATA_CALLHOME_PAYLOAD_VERSION,
 		ParallelJobs:              int64(source.NumConnections),
 		StartClean:                bool(startClean),
 		Error:                     callhome.SanitizeErrorMsg(errorMsg, anonymizer),
@@ -241,6 +274,16 @@ func exportData() bool {
 		}
 	}
 
+	allSchemas, err := source.DB().GetAllSchemaNamesIdentifiers()
+	if err != nil {
+		utils.ErrExit("get all schema names identifiers: %w", err)
+	}
+	//TODO: handle non-start-clean cases for guadrails for not allowing the schema to be changed and use the one stored in MSR
+	source.Schemas, err = namereg.SchemaNameMatcher(source.DBType, allSchemas, source.SchemaConfig)
+	if err != nil {
+		utils.ErrExit("schema name matcher: %w", err)
+	}
+	
 	source.DBVersion = source.DB().GetVersion()
 	source.DBSize, err = source.DB().GetDatabaseSize()
 	if err != nil {
@@ -259,23 +302,20 @@ func exportData() bool {
 		source.IsYBGrpcConnector = msr.UseYBgRPCConnector
 	}
 
-	res := source.DB().CheckSchemaExists()
-	if !res {
-		utils.ErrExit("schema does not exist : %q", source.Schema)
+	clearMigrationStateIfRequired()
+
+	err = InitNameRegistry(exportDir, exporterRole, &source, source.DB(), nil, nil, false)
+	if err != nil {
+		utils.ErrExit("initialize name registry: %w", err)
 	}
 
 	if source.RunGuardrailsChecks {
 		checkIfSchemasHaveUsagePermissions()
 	}
 
-	clearMigrationStateIfRequired()
 	checkSourceDBCharset()
 	saveSourceDBConfInMSR()
 	saveExportTypeInMSR()
-	err = InitNameRegistry(exportDir, exporterRole, &source, source.DB(), nil, nil, false)
-	if err != nil {
-		utils.ErrExit("initialize name registry: %w", err)
-	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -318,11 +358,10 @@ func exportData() bool {
 		utils.ErrExit("get migration status record: %w", err)
 	}
 
-	leafPartitions := utils.NewStructMap[sqlname.NameTuple, []string]()
+	leafPartitions := utils.NewStructMap[sqlname.NameTuple, []sqlname.NameTuple]()
 	tableListTuplesToDisplay := lo.Map(finalTableList, func(table sqlname.NameTuple, _ int) sqlname.NameTuple {
 		renamedTable, isRenamed := renameTableIfRequired(table.ForOutput())
 		if isRenamed {
-			t := table.ForOutput()
 			//Fine to lookup directly as this will root table in case of partitions
 			tuple, err := namereg.NameReg.LookupTableName(renamedTable)
 			if err != nil {
@@ -330,11 +369,11 @@ func exportData() bool {
 			}
 			currPartitions, ok := leafPartitions.Get(tuple)
 			if !ok {
-				var partitions []string
-				partitions = append(partitions, t)
+				var partitions []sqlname.NameTuple
+				partitions = append(partitions, table)
 				leafPartitions.Put(tuple, partitions)
 			} else {
-				currPartitions = append(currPartitions, t)
+				currPartitions = append(currPartitions, table)
 				leafPartitions.Put(tuple, currPartitions)
 			}
 			return tuple
@@ -349,7 +388,9 @@ func exportData() bool {
 	tableListToDisplay := lo.Map(tableListTuplesToDisplay, func(table sqlname.NameTuple, _ int) string {
 		partitions, ok := leafPartitions.Get(table)
 		if slices.Contains([]string{POSTGRESQL, YUGABYTEDB}, source.DBType) && ok && msr.IsExportTableListSet {
-			partitions := strings.Join(partitions, ", ")
+			partitions := strings.Join(lo.Map(partitions, func(partition sqlname.NameTuple, _ int) string {
+				return partition.ForOutput()
+			}), ", ")
 			return fmt.Sprintf("%s (%s)", table.ForOutput(), partitions)
 		}
 		return table.ForOutput()
@@ -358,7 +399,7 @@ func exportData() bool {
 	fmt.Printf("num tables to export: %d\n", len(tableListToDisplay))
 	utils.PrintAndLogf("table list for data export: %v", tableListToDisplay)
 
-	if source.DBType == POSTGRESQL {
+	if source.DBType == POSTGRESQL && !changeStreamingIsEnabled(exportType) {
 		utils.PrintAndLogf("Only the sequences that are attached to the above exported tables will be restored during the migration.")
 	}
 
@@ -371,7 +412,7 @@ func exportData() bool {
 			log.Errorf("Failed to prepare dbzm config: %v", err)
 			return false
 		}
-		saveTableToUniqueKeyColumnsMapInMetaDB(finalTableList)
+		saveTableToUniqueKeyColumnsMapInMetaDB(finalTableList, leafPartitions)
 		if source.DBType == POSTGRESQL && changeStreamingIsEnabled(exportType) {
 			// pg live migration. Steps are as follows:
 			// 1. create publication, replication slot.
@@ -416,7 +457,7 @@ func exportData() bool {
 
 			var sequenceInitValues strings.Builder
 			sequenceValueMap.IterKV(func(seqName sqlname.NameTuple, seqValue int64) (bool, error) {
-				sequenceInitValues.WriteString(fmt.Sprintf("%s:%d,", seqName.ForUserQuery(), seqValue))
+				sequenceInitValues.WriteString(fmt.Sprintf("%s:%d,", seqName.ForKey(), seqValue))
 				return true, nil
 			})
 
@@ -521,11 +562,11 @@ func checkExportDataPermissions(finalTableList []sqlname.NameTuple) {
 		}
 	}
 
-	missingPermissions, err := source.DB().GetMissingExportDataPermissions(exportType, finalTableList)
+	missingPermissions, hasMissingPermissions, err := source.DB().GetMissingExportDataPermissions(exportType, finalTableList)
 	if err != nil {
 		utils.ErrExit("get missing export data permissions: %w", err)
 	}
-	if len(missingPermissions) > 0 {
+	if hasMissingPermissions {
 		color.Red("\nPermissions and configurations missing in the source database for export data:\n")
 		output := strings.Join(missingPermissions, "\n")
 		utils.PrintAndLogf("%s\n", output)
@@ -538,11 +579,8 @@ func checkExportDataPermissions(finalTableList []sqlname.NameTuple) {
 		}
 		fmt.Println("\nCheck the documentation to prepare the database for migration:", color.BlueString(link))
 
-		// Make a prompt to the user to continue even with missing permissions
-		reply := utils.AskPrompt("\nDo you want to continue anyway")
-		if !reply {
-			utils.ErrExit("Grant the required permissions and make the changes in configurations and try again.")
-		}
+		// All missing permissions are critical - no override allowed
+		utils.ErrExit("Migration cannot proceed without the required permissions and configurations.")
 	} else {
 		// TODO: Print this message on the console too once the code is stable
 		log.Info("All required permissions are present for the source database.")
@@ -665,6 +703,7 @@ func getNameTupleForNonRoot(table string) sqlname.NameTuple {
 		tableName = parts[1]
 	}
 	//remove quotes if present to pass raw table name to objecName
+	schema = strings.Trim(schema, "\"")
 	tableName = strings.Trim(tableName, "\"")
 	obj := sqlname.NewObjectName(source.DBType, defaultSchemaName, schema, tableName)
 	return sqlname.NameTuple{
@@ -702,7 +741,7 @@ func checkIfReplicationSlotIsActive(replicationSlot string) (bool, error) {
 	return isActive && (activePID.String != ""), nil
 }
 
-func exportPGSnapshotWithPGdump(ctx context.Context, cancel context.CancelFunc, finalTableList []sqlname.NameTuple, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], leafPartitions *utils.StructMap[sqlname.NameTuple, []string]) error {
+func exportPGSnapshotWithPGdump(ctx context.Context, cancel context.CancelFunc, finalTableList []sqlname.NameTuple, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], leafPartitions *utils.StructMap[sqlname.NameTuple, []sqlname.NameTuple]) error {
 	// create replication slot
 	pgDB := source.DB().(*srcdb.PostgreSQL)
 	replicationConn, err := pgDB.GetReplicationConnection()
@@ -774,7 +813,7 @@ func getPGDumpSequencesAndValues() (*utils.StructMap[sqlname.NameTuple, int64], 
 		}
 		argsIdx := setvalRegex.SubexpIndex("args")
 		if argsIdx > len(matches) {
-			return nil, fmt.Errorf("invalid index %d for matches - %s for line %s", argsIdx, matches, line)
+			return nil, goerrors.Errorf("invalid index %d for matches - %s for line %s", argsIdx, matches, line)
 		}
 		args := strings.Split(matches[argsIdx], ",")
 
@@ -832,7 +871,7 @@ func getNameTupleFromQualifiedObject(qualifiedObjectStr string, qualifiedObjectN
 	parent := source.DB().ParentTableOfPartition(tuple)
 
 	if parent == "" {
-		tuple, err = namereg.NameReg.LookupTableName(fmt.Sprintf("%s.%s", obj.SchemaName, obj.Unqualified.Unquoted))
+		tuple, err = namereg.NameReg.LookupTableName(fmt.Sprintf("%s.%s", obj.SchemaName.Unquoted, obj.Unqualified.Unquoted))
 		if err != nil {
 			return sqlname.NameTuple{}, fmt.Errorf("lookup for table name failed err: %s: %w", obj.Unqualified, err)
 		}
@@ -1178,7 +1217,7 @@ func guardrailsAroundFirstRunAndCurrentRunTableList(firstRunTableListWithLeafPar
 
 			Re-run the command with the table list passed in the initial run of migration or start a fresh migration.
 		*/
-		return missingTables, extraTables, fmt.Errorf("\n%s\n\n%s%s%s\n\n%s", changeListMsg, missingMsgFinal, extraMsgFinal, tableListInFirstRunMsg, reRunMsg)
+		return missingTables, extraTables, goerrors.Errorf("\n%s\n\n%s%s%s\n\n%s", changeListMsg, missingMsgFinal, extraMsgFinal, tableListInFirstRunMsg, reRunMsg)
 	}
 
 	return nil, nil, nil
@@ -1341,7 +1380,7 @@ func validateAndExtractTableNamesFromFile(filePath string, flagName string) (str
 		return "", nil
 	}
 	if !utils.FileOrFolderExists(filePath) {
-		return "", fmt.Errorf("path %q does not exist", filePath)
+		return "", goerrors.Errorf("path %q does not exist", filePath)
 	}
 	tableList, err := utils.ReadTableNameListFromFile(filePath)
 	if err != nil {
@@ -1351,13 +1390,14 @@ func validateAndExtractTableNamesFromFile(filePath string, flagName string) (str
 	tableNameRegex := regexp.MustCompile(`[a-zA-Z0-9_."]+`)
 	for _, table := range tableList {
 		if !tableNameRegex.MatchString(table) {
-			return "", fmt.Errorf("invalid table name '%s' provided in file %s with --%s flag", table, filePath, flagName)
+			return "", goerrors.Errorf("invalid table name '%s' provided in file %s with --%s flag", table, filePath, flagName)
 		}
 	}
 	return strings.Join(tableList, ","), nil
 }
 
 func clearMigrationStateIfRequired() {
+	log.Infof("clearing migration state if required: %t", startClean)
 	exportDataDir := filepath.Join(exportDir, "data")
 	propertiesFilePath := filepath.Join(exportDir, "metainfo", "conf", "application.properties")
 	sslDir := filepath.Join(exportDir, "metainfo", "ssl")
@@ -1422,9 +1462,9 @@ func getDefaultSourceSchemaName() (string, bool) {
 	case MYSQL:
 		return source.DBName, false
 	case POSTGRESQL, YUGABYTEDB:
-		return GetDefaultPGSchema(source.Schema, "|")
+		return GetDefaultPGSchema(source.Schemas)
 	case ORACLE:
-		return source.Schema, false
+		return source.Schemas[0].Unquoted, false
 	default:
 		panic("invalid db type")
 	}
@@ -1758,7 +1798,11 @@ func createUpdateExportedRowCountEventList(tableNames []string) []*cp.UpdateExpo
 		if source.DBType == "postgresql" && strings.Count(tableName, ".") == 1 {
 			schemaName, tableName2 = cp.SplitTableNameForPG(tableName)
 		} else {
-			schemaName, tableName2 = source.Schema, tableName
+			schema := ""
+			if len(source.Schemas) > 0 {
+				schema = source.Schemas[0].Unquoted
+			}
+			schemaName, tableName2 = schema, tableName
 		}
 		tableMetrics := cp.UpdateExportedRowCountEvent{
 			BaseUpdateRowCountEvent: cp.BaseUpdateRowCountEvent{
@@ -1779,16 +1823,53 @@ func createUpdateExportedRowCountEventList(tableNames []string) []*cp.UpdateExpo
 	return result
 }
 
-func saveTableToUniqueKeyColumnsMapInMetaDB(tableList []sqlname.NameTuple) {
+func saveTableToUniqueKeyColumnsMapInMetaDB(tableList []sqlname.NameTuple, leafPartitions *utils.StructMap[sqlname.NameTuple, []sqlname.NameTuple]) {
 	res, err := source.DB().GetTableToUniqueKeyColumnsMap(tableList)
 	if err != nil {
 		utils.ErrExit("get table to unique key columns map: %w", err)
 	}
 
+	if res == nil {
+		log.Infof("no table to unique key columns map found, saving nil to metaDB")
+		key := fmt.Sprintf("%s_%s", metadb.TABLE_TO_UNIQUE_KEY_COLUMNS_KEY, exporterRole)
+		err = metadb.UpdateJsonObjectInMetaDB(metaDB, key, func(record *map[string][]string) {
+			*record = nil
+		})
+		if err != nil {
+			utils.ErrExit("insert table to unique key columns map: %w", err)
+		}
+		return
+	}
+
+	//Adding all the leaf partitions unique key columns to the root table unique key columns since in the importer all the events only have the root table name
+	leafPartitions.IterKV(func(rootTable sqlname.NameTuple, value []sqlname.NameTuple) (bool, error) {
+		for _, leafTable := range value {
+			leafUniqueColumns, ok := res.Get(leafTable)
+			if !ok {
+				continue
+			}
+			//Do not add leaf table key in the map since this config will be read by importer
+			res.Delete(leafTable)
+			rootUniqueColumns, ok := res.Get(rootTable)
+			if !ok {
+				rootUniqueColumns = []string{}
+			}
+			rootUniqueColumns = append(rootUniqueColumns, leafUniqueColumns...)
+			res.Put(rootTable, lo.Uniq(rootUniqueColumns))
+		}
+		return true, nil
+	})
+
+	metaDbData := make(map[string][]string)
+	res.IterKV(func(k sqlname.NameTuple, v []string) (bool, error) {
+		metaDbData[k.AsQualifiedCatalogName()] = v
+		return true, nil
+	})
+
 	log.Infof("updating metaDB with table to unique key columns map: %v", res)
 	key := fmt.Sprintf("%s_%s", metadb.TABLE_TO_UNIQUE_KEY_COLUMNS_KEY, exporterRole)
 	err = metadb.UpdateJsonObjectInMetaDB(metaDB, key, func(record *map[string][]string) {
-		*record = res
+		*record = metaDbData
 	})
 	if err != nil {
 		utils.ErrExit("insert table to unique key columns map: %w", err)

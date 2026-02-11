@@ -1,59 +1,63 @@
--- fetching the table and indexes reads and writes usage stats
--- for table reads - sequential scans + index scans and writes - insert rows + update rows + delete rows 
 -- for partitioned table - data is always 0 since the stats are stored for leaf partitions only
 -- for index reads - index scans and writes 0
 -- for partitioned index - data is always 0 since the stats are stored for leaf partitions only
-CREATE TEMP TABLE temp_table AS
-SELECT
-    n.nspname AS schema_name,
-    c.relname AS object_name,
-    CASE 
-        WHEN c.relkind = 'r' THEN 'table' 
-        WHEN c.relkind = 'p' THEN 'partitioned table'
-        WHEN (c.relkind = 'i' AND pi.indisprimary) THEN 'primary key'
-        WHEN c.relkind = 'i' THEN 'index'
-        WHEN c.relkind = 'I' THEN 'partitioned index'
-        ELSE 'unknown'
-    END AS object_type,
-    CASE 
-        WHEN c.relkind = 'i' OR c.relkind = 'I' THEN psi.relname
-        ELSE ''
-    END AS parent_table_name, -- for the indexes only to get the table on which index is created
-    CASE 
-        WHEN c.relkind IN ('r', 'p') THEN COALESCE(psut.seq_scan, 0) + COALESCE(psut.idx_scan, 0)
-        WHEN c.relkind IN ('i', 'I') THEN COALESCE(psi.idx_scan,0)
-        ELSE 0::bigint
-    END AS scans,
-    CASE
-        WHEN c.relkind IN ('r', 'p') THEN COALESCE(psut.n_tup_ins, 0) 
-        WHEN c.relkind IN ('i', 'I') THEN 0::bigint
-        ELSE 0::bigint
-    END AS inserts,
-    CASE
-        WHEN c.relkind IN ('r', 'p') THEN COALESCE(psut.n_tup_upd, 0)  
-        WHEN c.relkind IN ('i', 'I') THEN 0::bigint
-        ELSE 0::bigint
-    END AS updates,
-    CASE
-        WHEN c.relkind IN ('r', 'p') THEN COALESCE(psut.n_tup_del, 0)
-        WHEN c.relkind IN ('i', 'I') THEN 0::bigint
-        ELSE 0::bigint
-    END AS deletes
-FROM
-    pg_class c
-JOIN
-    pg_namespace n ON c.relnamespace = n.oid
-LEFT JOIN
-    pg_stat_user_tables psut ON psut.relid = c.oid
-LEFT JOIN
-    pg_stat_all_indexes psi ON psi.indexrelid = c.oid
-LEFT JOIN
-    pg_index pi ON pi.indexrelid = c.oid
-WHERE
-    n.nspname = ANY(ARRAY[string_to_array(:'schema_list', '|')])
-    AND (c.relkind IN ('r', 'p', 'i', 'I'));
+\o table-index-usage-stats.csv
+COPY (
+    SELECT
+        :'source_node_name' AS source_node,
+        n.nspname AS schema_name,
+        c.relname AS object_name,
+        CASE 
+            WHEN c.relkind = 'r' THEN 'table' 
+            WHEN c.relkind = 'p' THEN 'partitioned table'
+            WHEN (c.relkind = 'i' AND pi.indisprimary) THEN 'primary key'
+            WHEN c.relkind = 'i' THEN 'index'
+            WHEN c.relkind = 'I' THEN 'partitioned index'
+            ELSE 'unknown'
+        END AS object_type,
 
--- Now you can use the temporary table to fetch the data
-\copy temp_table TO 'table-index-usage-stats.csv' WITH CSV HEADER;
+        -- for the indexes only to get the table on which index is created
+        CASE 
+            WHEN c.relkind = 'i' OR c.relkind = 'I' THEN psi.relname
+            ELSE ''
+        END AS parent_table_name,
 
-DROP TABLE temp_table;
+        CASE 
+            WHEN c.relkind IN ('r', 'p') THEN COALESCE(psut.seq_scan, 0) + COALESCE(psut.idx_scan, 0)
+            WHEN c.relkind IN ('i', 'I') THEN COALESCE(psi.idx_scan, 0)
+            ELSE 0::bigint
+        END AS scans,
+
+        CASE
+            WHEN c.relkind IN ('r', 'p') THEN COALESCE(psut.n_tup_ins, 0) 
+            WHEN c.relkind IN ('i', 'I') THEN 0::bigint
+            ELSE 0::bigint
+        END AS inserts,
+
+        CASE
+            WHEN c.relkind IN ('r', 'p') THEN COALESCE(psut.n_tup_upd, 0)  
+            WHEN c.relkind IN ('i', 'I') THEN 0::bigint
+            ELSE 0::bigint
+        END AS updates,
+
+        CASE
+            WHEN c.relkind IN ('r', 'p') THEN COALESCE(psut.n_tup_del, 0)
+            WHEN c.relkind IN ('i', 'I') THEN 0::bigint
+            ELSE 0::bigint
+        END AS deletes
+
+    FROM
+        pg_class c
+    JOIN
+        pg_namespace n ON c.relnamespace = n.oid
+    LEFT JOIN
+        pg_stat_user_tables psut ON psut.relid = c.oid
+    LEFT JOIN
+        pg_stat_all_indexes psi ON psi.indexrelid = c.oid
+    LEFT JOIN
+        pg_index pi ON pi.indexrelid = c.oid
+    WHERE
+        n.nspname = ANY(string_to_array(:'schema_list', '|'))
+        AND (c.relkind IN ('r', 'p', 'i', 'I'))
+) TO STDOUT WITH CSV HEADER;
+\o

@@ -17,13 +17,18 @@ package pgss
 
 import (
 	"encoding/csv"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"strconv"
 	"strings"
 
+	goerrors "github.com/go-errors/errors"
+
 	log "github.com/sirupsen/logrus"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 // ParseFromCSV parses a CSV file and returns normalized PgStatStatements entries
@@ -49,7 +54,7 @@ func ParseFromCSV(csvPath string) ([]*PgStatStatements, error) {
 		} else if err != nil {
 			return nil, fmt.Errorf("failed to read CSV row at line %d: %w", lineNumber, err)
 		} else if len(headers) != len(record) {
-			return nil, fmt.Errorf("invalid PGSS CSV structure: headers count does not match record count at line %d", lineNumber)
+			return nil, goerrors.Errorf("invalid PGSS CSV structure: headers count does not match record count at line %d", lineNumber)
 		}
 
 		entry, err := parseCSVRecord(headers, record)
@@ -72,38 +77,70 @@ func parseCSVRecord(headers []string, record []string) (*PgStatStatements, error
 	var err error
 	entry := &PgStatStatements{}
 
+	// Check if this is the new JSONB format (has pgss_data column)
+	var sourceNodeValue string
+	var pgssDataIndex = -1
+	for i, header := range headers {
+		switch header {
+		case "source_node":
+			sourceNodeValue = strings.TrimSpace(record[i])
+		case "pgss_data":
+			pgssDataIndex = i
+		}
+	}
+
+	if pgssDataIndex >= 0 {
+		// New JSONB format
+		entry, err = parseJSONBRecord(record[pgssDataIndex])
+		if err != nil {
+			return nil, err
+		}
+		// Set source_node from CSV column (not from JSONB)
+		entry.SourceNode = sourceNodeValue
+		if entry.SourceNode == "" {
+			entry.SourceNode = "primary" // Default for backward compatibility
+		}
+		return entry, nil
+	}
+
+	// Old CSV format - keep existing parsing logic for backward compatibility
 	for i, header := range headers {
 		value := record[i]
 		switch header {
+		case "source_node":
+			entry.SourceNode = strings.TrimSpace(value)
+			if entry.SourceNode == "" {
+				entry.SourceNode = "primary" // Default for backward compatibility
+			}
 		case "queryid":
 			if value == "" {
-				return nil, fmt.Errorf("missing queryid")
+				return nil, goerrors.Errorf("missing queryid")
 			}
 			entry.QueryID, err = strconv.ParseInt(value, 10, 64)
 			if err != nil {
-				return nil, fmt.Errorf("invalid queryid: %s", value)
+				return nil, goerrors.Errorf("invalid queryid: %s", value)
 			}
 		case "query":
 			entry.Query = strings.TrimSpace(value)
 			if entry.Query == "" {
-				return nil, fmt.Errorf("missing or empty query")
+				return nil, goerrors.Errorf("missing or empty query")
 			}
 		case "calls":
 			if value == "" {
-				return nil, fmt.Errorf("missing calls")
+				return nil, goerrors.Errorf("missing calls")
 			}
 			entry.Calls, err = strconv.ParseInt(value, 10, 64)
 			if err != nil {
-				return nil, fmt.Errorf("invalid calls: %s", value)
+				return nil, goerrors.Errorf("invalid calls: %s", value)
 			}
 			if entry.Calls <= 0 {
-				return nil, fmt.Errorf("invalid calls: %s", value)
+				return nil, goerrors.Errorf("invalid calls: %s", value)
 			}
 		case "rows":
 			if value != "" {
 				entry.Rows, err = strconv.ParseInt(value, 10, 64)
 				if err != nil {
-					return nil, fmt.Errorf("invalid rows: %s", value)
+					return nil, goerrors.Errorf("invalid rows: %s", value)
 				}
 			}
 		case "total_exec_time":
@@ -146,7 +183,49 @@ func parseFloatOrZero(value, fieldName string, target *float64) (err error) {
 
 	*target, err = strconv.ParseFloat(value, 64)
 	if err != nil {
-		return fmt.Errorf("invalid %s: %s", fieldName, value)
+		return goerrors.Errorf("invalid %s: %s", fieldName, value)
 	}
 	return
+}
+
+// parseJSONBRecord parses a JSONB string and extracts PgStatStatements fields
+func parseJSONBRecord(jsonStr string) (*PgStatStatements, error) {
+	var jsonData map[string]interface{}
+	err := json.Unmarshal([]byte(jsonStr), &jsonData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse JSONB: %w", err)
+	}
+
+	entry := &PgStatStatements{}
+
+	// Extract required fields
+	entry.QueryID, err = utils.GetInt64FromJSON(jsonData, "queryid")
+	if err != nil {
+		return nil, err
+	}
+
+	entry.Query, err = utils.GetStringFromJSON(jsonData, "query")
+	if err != nil {
+		return nil, err
+	}
+
+	entry.Calls, err = utils.GetInt64FromJSON(jsonData, "calls")
+	if err != nil {
+		return nil, err
+	}
+	if entry.Calls <= 0 {
+		return nil, goerrors.Errorf("invalid calls: %d", entry.Calls)
+	}
+
+	// Optional field - rows
+	entry.Rows, _ = utils.GetInt64FromJSON(jsonData, "rows")
+
+	// Handle timing columns - check both new naming (total_exec_time) and old naming (total_time)
+	entry.TotalExecTime = utils.GetFloat64OrZero(jsonData, "total_exec_time", "total_time")
+	entry.MeanExecTime = utils.GetFloat64OrZero(jsonData, "mean_exec_time", "mean_time")
+	entry.MinExecTime = utils.GetFloat64OrZero(jsonData, "min_exec_time", "min_time")
+	entry.MaxExecTime = utils.GetFloat64OrZero(jsonData, "max_exec_time", "max_time")
+	entry.StddevExecTime = utils.GetFloat64OrZero(jsonData, "stddev_exec_time", "stddev_time")
+
+	return entry, nil
 }

@@ -17,10 +17,10 @@ limitations under the License.
 package ybversion
 
 import (
-	"fmt"
 	"strconv"
 	"strings"
 
+	goerrors "github.com/go-errors/errors"
 	"github.com/hashicorp/go-version"
 	"github.com/samber/lo"
 	"golang.org/x/exp/slices"
@@ -28,11 +28,11 @@ import (
 
 // Reference - https://docs.yugabyte.com/preview/releases/ybdb-releases/
 var supportedYBVersionStableSeriesOld = []string{SERIES_2_14, SERIES_2_18, SERIES_2_20}
-var supportedYBVersionStableSeries = []string{SERIES_2024_1, SERIES_2024_2, SERIES_2025_1}
+var supportedYBVersionStableSeries = []string{SERIES_2024_1, SERIES_2024_2, SERIES_2025_1, SERIES_2025_2}
 var supportedYBVersionPreviewSeries = []string{SERIES_2_21, SERIES_2_23, SERIES_2_25}
 
 var allSupportedYBVersionSeries = lo.Flatten([][]string{supportedYBVersionStableSeries, supportedYBVersionPreviewSeries, supportedYBVersionStableSeriesOld})
-var ErrUnsupportedSeries = fmt.Errorf("unsupported YB version series. Supported YB version series = %v", allSupportedYBVersionSeries)
+var ErrUnsupportedSeries = goerrors.Errorf("unsupported YB version series. Supported YB version series = %v", allSupportedYBVersionSeries)
 
 const (
 	STABLE     = "stable"
@@ -58,13 +58,13 @@ func NewYBVersion(v string) (*YBVersion, error) {
 
 	// Do not allow build number in the version. for example, 2024.1.1.0-b123
 	if v1.Prerelease() != "" {
-		return nil, fmt.Errorf("invalid YB version: %s. Build number is not supported. Version should be of format (A.B.C.D) ", v)
+		return nil, goerrors.Errorf("invalid YB version: %s. Build number is not supported. Version should be of format (A.B.C.D) ", v)
 	}
 
 	ybv := &YBVersion{v1}
 	origSegLen := ybv.OriginalSegmentsLen()
 	if origSegLen != 4 {
-		return nil, fmt.Errorf("invalid YB version: %s. It has %d segments. Version should have exactly 4 segments (A.B.C.D).", v, origSegLen)
+		return nil, goerrors.Errorf("invalid YB version: %s. It has %d segments. Version should have exactly 4 segments (A.B.C.D).", v, origSegLen)
 	}
 
 	if !slices.Contains(allSupportedYBVersionSeries, ybv.Series()) {

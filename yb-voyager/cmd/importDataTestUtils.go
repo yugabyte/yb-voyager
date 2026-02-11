@@ -63,7 +63,7 @@ func setupYugabyteTestDb(t *testing.T) {
 			DBVersion:    yugabytedbContainer.GetConfig().DBVersion,
 			User:         yugabytedbContainer.GetConfig().User,
 			Password:     yugabytedbContainer.GetConfig().Password,
-			Schema:       yugabytedbContainer.GetConfig().Schema,
+			Schemas:      []sqlname.Identifier{sqlname.NewIdentifier(constants.YUGABYTEDB, yugabytedbContainer.GetConfig().Schema)},
 			DBName:       yugabytedbContainer.GetConfig().DBName,
 			Host:         host,
 			Port:         port,
@@ -92,7 +92,7 @@ func setupExportDirAndImportDependencies(batchSizeRows int64, batchSizeBytes int
 
 	CreateMigrationProjectIfNotExists(constants.POSTGRESQL, lexportDir)
 	tdb = &dummyTDB{maxSizeBytes: batchSizeBytes}
-	valueConverter = &dbzm.NoOpValueConverter{}
+	valueConverter = &dbzm.SnapshotPhaseNoOpValueConverter{}
 	dataStore = datastore.NewDataStore(ldataDir)
 
 	batchSizeInNumRows = batchSizeRows

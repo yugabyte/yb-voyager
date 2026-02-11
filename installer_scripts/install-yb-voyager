@@ -668,7 +668,7 @@ install_yb_voyager() {
 	if [ "${VERSION}" != "local" ]
 	then
 	    output "Installing yb-voyager:${VOYAGER_RELEASE_VERSION}"
-		$GO install github.com/yugabyte/yb-voyager/yb-voyager@${YB_VOYAGER_GIT_HASH}
+		$GO install -trimpath github.com/yugabyte/yb-voyager/yb-voyager@${YB_VOYAGER_GIT_HASH}
 		sudo mv -f $HOME/go/bin/yb-voyager /usr/local/bin
 		return
 	fi
@@ -683,7 +683,7 @@ install_yb_voyager() {
 
 	pushd $REPO_ROOT > /dev/null
 	pushd yb-voyager > /dev/null
-	$GO install
+	$GO install -trimpath
 	popd > /dev/null
 	popd > /dev/null
 	sudo mv -f $HOME/go/bin/yb-voyager /usr/local/bin

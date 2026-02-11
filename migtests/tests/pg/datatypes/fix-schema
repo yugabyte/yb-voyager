@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+
+set -e
+set -x
+
+sed -i -z 's/,\s*multirange_type_name\s*=\s*[^)]*//g' ${EXPORT_DIR}/schema/types/type.sql

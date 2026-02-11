@@ -81,20 +81,30 @@ func TestCallhomeStructs(t *testing.T) {
 			name:       "Validate AssessMigrationPhasePayload Struct Definition",
 			actualType: reflect.TypeOf(AssessMigrationPhasePayload{}),
 			expectedType: struct {
-				PayloadVersion                 string                    `json:"payload_version"`
-				TargetDBVersion                *ybversion.YBVersion      `json:"target_db_version"`
-				Sizing                         *SizingCallhome           `json:"sizing"`
-				MigrationComplexity            string                    `json:"migration_complexity"`
-				MigrationComplexityExplanation string                    `json:"migration_complexity_explanation"`
-				SchemaSummary                  string                    `json:"schema_summary"`
-				Issues                         []AssessmentIssueCallhome `json:"assessment_issues"`
-				Error                          string                    `json:"error"`
-				TableSizingStats               string                    `json:"table_sizing_stats"`
-				IndexSizingStats               string                    `json:"index_sizing_stats"`
-				SourceConnectivity             bool                      `json:"source_connectivity"`
-				IopsInterval                   int64                     `json:"iops_interval"`
-				ControlPlaneType               string                    `json:"control_plane_type"`
-				AnonymizedDDLs                 []string                  `json:"anonymized_ddls"`
+				PayloadVersion                 string                     `json:"payload_version"`
+				TargetDBVersion                *ybversion.YBVersion       `json:"target_db_version"`
+				Sizing                         *SizingCallhome            `json:"sizing"`
+				MigrationComplexity            string                     `json:"migration_complexity"`
+				MigrationComplexityExplanation string                     `json:"migration_complexity_explanation"`
+				SchemaSummary                  string                     `json:"schema_summary"`
+				Issues                         []AssessmentIssueCallhome  `json:"assessment_issues"`
+				Error                          string                     `json:"error"`
+				TableSizingStats               string                     `json:"table_sizing_stats"`
+				IndexSizingStats               string                     `json:"index_sizing_stats"`
+				SourceConnectivity             bool                       `json:"source_connectivity"`
+				IopsInterval                   int64                      `json:"iops_interval"`
+				ControlPlaneType               string                     `json:"control_plane_type"`
+				AnonymizedDDLs                 []string                   `json:"anonymized_ddls"`
+				ReplicaAssessmentTopology      *ReplicaAssessmentTopology `json:"replica_assessment_topology,omitempty"`
+			}{},
+		},
+		{
+			name:       "Validate ReplicaAssessmentTopology Struct Definition",
+			actualType: reflect.TypeOf(ReplicaAssessmentTopology{}),
+			expectedType: struct {
+				ReplicasDiscovered int `json:"replicas_discovered"`
+				ReplicasProvided   int `json:"replicas_provided"`
+				ReplicasUsed       int `json:"replicas_used"`
 			}{},
 		},
 		{
@@ -194,18 +204,20 @@ func TestCallhomeStructs(t *testing.T) {
 			name:       "Validate ExportDataPhasePayload Struct Definition",
 			actualType: reflect.TypeOf(ExportDataPhasePayload{}),
 			expectedType: struct {
-				ParallelJobs              int64  `json:"parallel_jobs"`
-				TotalRows                 int64  `json:"total_rows_exported"`
-				LargestTableRows          int64  `json:"largest_table_rows_exported"`
-				StartClean                bool   `json:"start_clean"`
-				ExportSnapshotMechanism   string `json:"export_snapshot_mechanism,omitempty"`
-				Phase                     string `json:"phase,omitempty"`
-				TotalExportedEvents       int64  `json:"total_exported_events,omitempty"`
-				EventsExportRate          int64  `json:"events_export_rate_3m,omitempty"`
-				LiveWorkflowType          string `json:"live_workflow_type,omitempty"`
-				Error                     string `json:"error"`
-				ControlPlaneType          string `json:"control_plane_type"`
-				AllowOracleClobDataExport bool   `json:"allow_oracle_clob_data_export"`
+				PayloadVersion            string          `json:"payload_version"`
+				ParallelJobs              int64           `json:"parallel_jobs"`
+				TotalRows                 int64           `json:"total_rows_exported"`
+				LargestTableRows          int64           `json:"largest_table_rows_exported"`
+				StartClean                bool            `json:"start_clean"`
+				ExportSnapshotMechanism   string          `json:"export_snapshot_mechanism,omitempty"`
+				Phase                     string          `json:"phase,omitempty"`
+				TotalExportedEvents       int64           `json:"total_exported_events,omitempty"`
+				EventsExportRate          int64           `json:"events_export_rate_3m,omitempty"`
+				LiveWorkflowType          string          `json:"live_workflow_type,omitempty"`
+				Error                     string          `json:"error"`
+				ControlPlaneType          string          `json:"control_plane_type"`
+				AllowOracleClobDataExport bool            `json:"allow_oracle_clob_data_export"`
+				CutoverTimings            *CutoverTimings `json:"cutover_timings,omitempty"`
 			}{},
 		},
 		{
@@ -242,6 +254,15 @@ func TestCallhomeStructs(t *testing.T) {
 				EnableUpsert                bool              `json:"enable_upsert"`
 				Error                       string            `json:"error"`
 				ControlPlaneType            string            `json:"control_plane_type"`
+				CutoverTimings              *CutoverTimings   `json:"cutover_timings,omitempty"`
+			}{},
+		},
+		{
+			name:       "Validate CutoverTimings Struct Definition",
+			actualType: reflect.TypeOf(CutoverTimings{}),
+			expectedType: struct {
+				TotalCutoverTimeSec int64  `json:"total_cutover_time_sec"`
+				CutoverType         string `json:"cutover_type"`
 			}{},
 		},
 		{

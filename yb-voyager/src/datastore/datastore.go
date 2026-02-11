@@ -29,14 +29,14 @@ type DataStore interface {
 
 func NewDataStore(location string) DataStore {
 	switch true {
-	  case strings.HasPrefix(location, "s3://"):
+	case strings.HasPrefix(location, "s3://"):
 		return NewS3DataStore(location)
-	  case strings.HasPrefix(location, "gs://"):
+	case strings.HasPrefix(location, "gs://"):
 		return NewGCSDataStore(location)
-	  case strings.HasPrefix(location, "https://"):
+	case strings.HasPrefix(location, "https://"):
 		return NewAzDataStore(location)
-	  default:
+	default:
 		return NewLocalDataStore(location)
- 	}
+	}
 
 }

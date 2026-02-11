@@ -300,12 +300,12 @@ main() {
 	get_data_migration_report
 
 	# Choose expected report file based on connector type
-	if [ "${USE_YB_LOGICAL_REPLICATION_CONNECTOR}" = true ]; then
-		expected_file="${TEST_DIR}/data-migration-report-live-migration-fallb-logical-connector.json"
-		echo "Using logical replication connector expected report"
-	else
+	if [ "${USE_YB_GRPC_CONNECTOR}" = true ]; then
 		expected_file="${TEST_DIR}/data-migration-report-live-migration-fallb.json"
 		echo "Using gRPC connector expected report"
+	else
+		expected_file="${TEST_DIR}/data-migration-report-live-migration-fallb-logical-connector.json"
+		echo "Using logical replication connector expected report"
 	fi
 	actual_file="${EXPORT_DIR}/reports/data-migration-report.json"
 

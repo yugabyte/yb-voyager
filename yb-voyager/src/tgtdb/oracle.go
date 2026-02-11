@@ -28,6 +28,7 @@ import (
 	"sync"
 	"time"
 
+	goerrors "github.com/go-errors/errors"
 	"github.com/google/uuid"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
@@ -79,15 +80,17 @@ func (tdb *TargetOracleDB) Init() error {
 	if err != nil {
 		return err
 	}
-	tdb.tconf.Schema = strings.ToUpper(tdb.tconf.Schema)
+	if len(tdb.tconf.Schemas) == 0 {
+		return goerrors.Errorf("schemas are required for Oracle")
+	}
 	checkSchemaExistsQuery := fmt.Sprintf(
 		"SELECT 1 FROM ALL_USERS WHERE USERNAME = '%s'",
-		tdb.tconf.Schema)
+		tdb.tconf.Schemas[0].Unquoted)
 	var cntSchemaName int
 	if err = tdb.QueryRow(checkSchemaExistsQuery).Scan(&cntSchemaName); err != nil {
 		err = fmt.Errorf("run query %q on target %q to check schema exists: %w", checkSchemaExistsQuery, tdb.tconf.Host, err)
 	} else if cntSchemaName == 0 {
-		err = fmt.Errorf("schema '%s' does not exist in target", tdb.tconf.Schema)
+		err = goerrors.Errorf("schema '%s' does not exist in target", tdb.tconf.Schemas[0].Unquoted)
 	}
 	return err
 }
@@ -247,7 +250,7 @@ func (tdb *TargetOracleDB) TruncateTables(tables []sqlname.NameTuple) error {
 		}
 	}
 	if len(errors) > 0 {
-		return fmt.Errorf("truncate tables: %v", errors)
+		return goerrors.Errorf("truncate tables: %v", errors)
 	}
 	return nil
 }
@@ -444,7 +447,7 @@ func getRowsAffected(outbuf string) (int64, error) {
 	regex := regexp.MustCompile(`Load completed - logical record count (\d+).`)
 	matches := regex.FindStringSubmatch(outbuf)
 	if len(matches) < 2 {
-		return 0, fmt.Errorf("RowsAffected not found in the sqlldr output")
+		return 0, goerrors.Errorf("RowsAffected not found in the sqlldr output")
 	}
 	return strconv.ParseInt(matches[1], 10, 64)
 }
@@ -465,7 +468,7 @@ func (tdb *TargetOracleDB) isBatchAlreadyImported(tx *sql.Tx, batch Batch) (bool
 }
 
 func (tdb *TargetOracleDB) setTargetSchema(conn *sql.Conn) {
-	setSchemaQuery := fmt.Sprintf("ALTER SESSION SET CURRENT_SCHEMA = %s", tdb.tconf.Schema)
+	setSchemaQuery := fmt.Sprintf("ALTER SESSION SET CURRENT_SCHEMA = %s", tdb.tconf.Schemas[0].MinQuoted)
 	_, err := conn.ExecContext(context.Background(), setSchemaQuery)
 	if err != nil {
 		utils.ErrExit("run query: %q on target %q to set schema: %w", setSchemaQuery, tdb.tconf.Host, err)
@@ -535,7 +538,7 @@ func (tdb *TargetOracleDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBat
 			cnt, err = res.RowsAffected()
 			if err != nil {
 				log.Errorf("error getting rows Affecterd for event with vsn(%d) in batch(%s)", event.Vsn, batch.ID())
-				return false, fmt.Errorf("failed to get rowsAffected for event with vsn(%d)", event.Vsn)
+				return false, goerrors.Errorf("failed to get rowsAffected for event with vsn(%d)", event.Vsn)
 			}
 			switch true {
 			case event.Op == "c":
@@ -667,7 +670,7 @@ func (tdb *TargetOracleDB) GetIdentityColumnNamesForTables(tableNameTuples []sql
 			AND OWNER = '%s'
 			AND GENERATION_TYPE = '%s'
 		ORDER BY TABLE_NAME, COLUMN_NAME`,
-		strings.Join(tableNames, ", "), tdb.tconf.Schema, identityType)
+		strings.Join(tableNames, ", "), tdb.tconf.Schemas[0].Unquoted, identityType)
 
 	log.Infof("Querying for identity columns for %d tables with type '%s'", len(tableNameTuples), identityType)
 	log.Debugf("Identity column query: %s", query)

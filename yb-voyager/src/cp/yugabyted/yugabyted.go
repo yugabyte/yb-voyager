@@ -21,19 +21,18 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"runtime"
 	"runtime/debug"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
+
+	goerrors "github.com/go-errors/errors"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
 	log "github.com/sirupsen/logrus"
 	controlPlane "github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 type YugabyteD struct {
@@ -42,56 +41,24 @@ type YugabyteD struct {
 	voyagerInfo              *controlPlane.VoyagerInstance
 	waitGroup                sync.WaitGroup
 	eventChan                chan (MigrationEvent)
-	rowCountUpdateEventChan  chan ([]VisualizerTableMetrics)
+	rowCountUpdateEventChan  chan ([]controlPlane.TableMetrics)
 	connPool                 *pgxpool.Pool
 	lastRowCountUpdate       map[string]time.Time
 	latestInvocationSequence int
 }
 
 func New(exportDir string) *YugabyteD {
-	vi := prepareVoyagerInstance(exportDir)
+	vi := controlPlane.PrepareVoyagerInstance(exportDir)
 	return &YugabyteD{
 		voyagerInfo:        vi,
 		migrationDirectory: exportDir,
 	}
 }
 
-func prepareVoyagerInstance(exportDir string) *controlPlane.VoyagerInstance {
-	ip, err := utils.GetLocalIP()
-	log.Infof("voyager machine ip: %s\n", ip)
-	if err != nil {
-		log.Warnf("failed to obtain local IP address: %v", err)
-	}
-
-	// TODO: for import data cmd, the START and COMPLETE readings of available disk space can be very different
-	diskSpace, err := getAvailableDiskSpace(exportDir)
-	log.Infof("voyager disk space available: %d\n", diskSpace)
-	if err != nil {
-		log.Warnf("failed to determine available disk space: %v", err)
-	}
-
-	return &controlPlane.VoyagerInstance{
-		IP:                 ip,
-		OperatingSystem:    runtime.GOOS,
-		DiskSpaceAvailable: diskSpace,
-		ExportDirectory:    exportDir,
-	}
-}
-
-// getAvailableDiskSpace returns the available disk space in bytes in the specified directory.
-func getAvailableDiskSpace(dirPath string) (uint64, error) {
-	var stat syscall.Statfs_t
-	if err := syscall.Statfs(dirPath, &stat); err != nil {
-		return 0, fmt.Errorf("error getting disk space for directory %q: %w", dirPath, err)
-	}
-	// Available blocks * size per block to get available space in bytes
-	return stat.Bavail * uint64(stat.Bsize), nil
-}
-
 // Initialize the yugabyted DB for visualisation metadata
 func (cp *YugabyteD) Init() error {
 	cp.eventChan = make(chan MigrationEvent, 100)
-	cp.rowCountUpdateEventChan = make(chan []VisualizerTableMetrics, 200)
+	cp.rowCountUpdateEventChan = make(chan []controlPlane.TableMetrics, 200)
 
 	err := cp.connect()
 	if err != nil {
@@ -142,12 +109,15 @@ func (cp *YugabyteD) rowCountUpdateEventPublisher() {
 	}
 }
 
+// createAndSendEvent inserts event data into Yugabyted's local database
+// YUGABYTED: payload parameter is a JSON string (pre-marshaled)
+// The JSON string is stored directly in the database as TEXT
 func (cp *YugabyteD) createAndSendEvent(event *controlPlane.BaseEvent, status string, payload string) {
 
 	timestamp := time.Now().Format("2006-01-02 15:04:05")
 
 	invocationSequence, err := cp.getInvocationSequence(event.MigrationUUID,
-		MIGRATION_PHASE_MAP[event.EventType])
+		controlPlane.MIGRATION_PHASE_MAP[event.EventType])
 
 	if err != nil {
 		log.Warnf("Cannot send metadata for visualization. %s", err)
@@ -160,9 +130,9 @@ func (cp *YugabyteD) createAndSendEvent(event *controlPlane.BaseEvent, status st
 	}
 
 	jsonData := make(map[string]string)
-	if isExportPhase(event.EventType) {
+	if controlPlane.IsExportPhase(event.EventType) {
 		jsonData["SourceDBIP"] = strings.Join(event.DBIP, "|")
-	} else if isImportPhase(event.EventType) {
+	} else if controlPlane.IsImportPhase(event.EventType) {
 		jsonData["TargetDBIP"] = strings.Join(event.DBIP, "|")
 	}
 
@@ -173,7 +143,7 @@ func (cp *YugabyteD) createAndSendEvent(event *controlPlane.BaseEvent, status st
 
 	migrationEvent := MigrationEvent{
 		MigrationUUID:       event.MigrationUUID,
-		MigrationPhase:      MIGRATION_PHASE_MAP[event.EventType],
+		MigrationPhase:      controlPlane.MIGRATION_PHASE_MAP[event.EventType],
 		InvocationSequence:  invocationSequence,
 		DatabaseName:        event.DatabaseName,
 		SchemaName:          strings.Join(event.SchemaNames, "|"),
@@ -199,15 +169,15 @@ func (cp *YugabyteD) createAndSendUpdateRowCountEvent(events []*controlPlane.Bas
 
 	timestamp := time.Now().Format("2006-01-02 15:04:05")
 
-	var rowCountUpdateEvent []VisualizerTableMetrics
+	var rowCountUpdateEvent []controlPlane.TableMetrics
 
 	for _, event := range events {
-		snapshotMigrateTableMetrics := VisualizerTableMetrics{
+		snapshotMigrateTableMetrics := controlPlane.TableMetrics{
 			MigrationUUID:       event.MigrationUUID,
 			TableName:           event.TableName,
-			Schema:              strings.Join(event.SchemaNames, "|"),
-			MigrationPhase:      MIGRATION_PHASE_MAP[event.EventType],
-			Status:              UPDATE_ROW_COUNT_STATUS_STR_TO_INT[event.Status],
+			SchemaName:          strings.Join(event.SchemaNames, "|"),
+			MigrationPhase:      controlPlane.MIGRATION_PHASE_MAP[event.EventType],
+			Status:              controlPlane.UPDATE_ROW_COUNT_STATUS_STR_TO_INT[event.Status],
 			CountLiveRows:       event.CompletedRowCount,
 			CountTotalRows:      event.TotalRowCount,
 			InvocationTimestamp: timestamp,
@@ -230,7 +200,14 @@ func (cp *YugabyteD) MigrationAssessmentStarted(ev *controlPlane.MigrationAssess
 }
 
 func (cp *YugabyteD) MigrationAssessmentCompleted(ev *controlPlane.MigrationAssessmentCompletedEvent) {
-	cp.createAndSendEvent(&ev.BaseEvent, "COMPLETED", ev.Report)
+	// YUGABYTED: ev.Report is a JSON string (already marshaled by yugabyted_event_builder.go)
+	// The string is directly inserted into the database without any unmarshaling
+	payloadStr, ok := ev.Report.(string)
+	if !ok {
+		log.Warnf("Expected Report to be a string for Yugabyted, got %T", ev.Report)
+		payloadStr = ""
+	}
+	cp.createAndSendEvent(&ev.BaseEvent, "COMPLETED", payloadStr)
 }
 
 func (cp *YugabyteD) ExportSchemaStarted(exportSchemaEvent *controlPlane.ExportSchemaStartedEvent) {
@@ -245,6 +222,11 @@ func (cp *YugabyteD) SchemaAnalysisStarted(schemaAnalysisEvent *controlPlane.Sch
 	cp.createAndSendEvent(&schemaAnalysisEvent.BaseEvent, "IN PROGRESS", "")
 }
 
+// YUGABYTED DATA FLOW - Schema Analysis Iteration Completed Event:
+// 1. Event contains AnalysisReport struct (utils.SchemaReport)
+// 2. MARSHAL struct to JSON string here: json.Marshal(AnalysisReport) -> string
+// 3. Store JSON string directly in database as TEXT
+// Result: Single marshal (struct -> JSON string), no unmarshal
 func (cp *YugabyteD) SchemaAnalysisIterationCompleted(schemaAnalysisReport *controlPlane.SchemaAnalysisIterationCompletedEvent) {
 
 	jsonBytes, err := json.Marshal(schemaAnalysisReport.AnalysisReport)
@@ -582,7 +564,7 @@ func (cp *YugabyteD) sendMigrationEvent(
 			break
 		} else {
 			if attempt == maxAttempts {
-				return fmt.Errorf("error while sending migration event data to yugabyted for %d max attempts"+
+				return goerrors.Errorf("error while sending migration event data to yugabyted for %d max attempts"+
 					" query: %s. migration event data: %v. error: %w", maxAttempts, cmd, migrationEvent, err)
 			}
 		}
@@ -596,7 +578,7 @@ func (cp *YugabyteD) sendMigrationEvent(
 
 // Send Table metrics
 func (cp *YugabyteD) sendVisualizerTableMetrics(
-	visualizerTableMetricsList []VisualizerTableMetrics) error {
+	visualizerTableMetricsList []controlPlane.TableMetrics) error {
 
 	cmd := fmt.Sprintf("INSERT INTO %s ("+
 		"migration_uuid, "+
@@ -614,7 +596,7 @@ func (cp *YugabyteD) sendVisualizerTableMetrics(
 		value := fmt.Sprintf("('%s', '%s', '%s', %d, %d, %d, %d, '%s')",
 			metrics.MigrationUUID,
 			metrics.TableName,
-			metrics.Schema,
+			metrics.SchemaName,
 			metrics.MigrationPhase,
 			metrics.Status,
 			metrics.CountLiveRows,

@@ -26,6 +26,7 @@ import (
 	"strings"
 
 	"github.com/fatih/color"
+	goerrors "github.com/go-errors/errors"
 	pg_query "github.com/pganalyze/pg_query_go/v6"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
@@ -36,6 +37,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/sqltransformer"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -89,6 +91,7 @@ func exportSchema(cmd *cobra.Command) error {
 			}
 			clearSchemaIsExported()
 			clearAssessmentRecommendationsApplied()
+			clearMigrationAssessmentDoneViaExportSchema()
 		} else {
 			fmt.Fprintf(os.Stderr, "Schema is already exported. "+
 				"Use --start-clean flag to export schema again -- "+
@@ -110,6 +113,8 @@ func exportSchema(cmd *cobra.Command) error {
 		log.Errorf("failed to connect to the source db: %s", err)
 		return fmt.Errorf("failed to connect to the source db during export schema: %w", err)
 	}
+	//TODO: fix in next PR
+	source.Schemas = sqlname.ParseIdentifiersFromString(source.DBType, source.SchemaConfig, ",")
 	defer source.DB().Disconnect()
 
 	if source.RunGuardrailsChecks {
@@ -125,8 +130,17 @@ func exportSchema(cmd *cobra.Command) error {
 		if err != nil {
 			return fmt.Errorf("failed to check dependencies for export schema: %w", err)
 		} else if len(binaryCheckIssues) > 0 {
-			return fmt.Errorf("\n%s\n%s", color.RedString("\nMissing dependencies for export schema:"), strings.Join(binaryCheckIssues, "\n"))
+			return goerrors.Errorf("\n%s\n%s", color.RedString("\nMissing dependencies for export schema:"), strings.Join(binaryCheckIssues, "\n"))
 		}
+	}
+
+	allSchemas, err := source.DB().GetAllSchemaNamesIdentifiers()
+	if err != nil {
+		return fmt.Errorf("failed to get all schema names identifiers: %w", err)
+	}
+	source.Schemas, err = namereg.SchemaNameMatcher(source.DBType, allSchemas, source.SchemaConfig)
+	if err != nil {
+		return fmt.Errorf("failed to match schema names: %w", err)
 	}
 
 	checkSourceDBCharset()
@@ -140,11 +154,6 @@ func exportSchema(cmd *cobra.Command) error {
 	// Get PostgreSQL system identifier while still connected
 	source.FetchDBSystemIdentifier()
 	utils.PrintAndLogf("%s version: %s\n", source.DBType, sourceDBVersion)
-
-	res := source.DB().CheckSchemaExists()
-	if !res {
-		return fmt.Errorf("failed to check if source schema exist during export schema: %q", source.Schema)
-	}
 
 	// Check if the source database has the required permissions for exporting schema.
 	if source.RunGuardrailsChecks {
@@ -163,7 +172,7 @@ func exportSchema(cmd *cobra.Command) error {
 
 			reply := utils.AskPrompt("\nDo you want to continue anyway")
 			if !reply {
-				return fmt.Errorf("grant the required permissions and try again")
+				return goerrors.Errorf("grant the required permissions and try again")
 			}
 		}
 	}
@@ -260,7 +269,9 @@ func runAssessMigrationCmdBeforExportSchemaIfRequired(exportSchemaCmd *cobra.Com
 	if ok, _ := IsMigrationAssessmentDoneDirectly(metaDB); ok {
 		log.Infof("migration assessment is already done, skipping running assess-migration command.")
 		return nil
-	} else if ok, _ := IsMigrationAssessmentDoneViaExportSchema(); ok {
+	}
+
+	if ok, _ := IsMigrationAssessmentDoneViaExportSchema(); ok {
 		log.Infof("migration assessment is already done via export schema, skipping running assess-migration command.")
 		return nil
 	}
@@ -320,7 +331,7 @@ func runAssessMigrationCmdBeforExportSchemaIfRequired(exportSchemaCmd *cobra.Com
 	// run and ignore exit status
 	if err := cmd.Run(); err != nil {
 		utils.PrintAndLogf("Failed to assess the migration, continuing with export schema...\n")
-		return fmt.Errorf("assess migration cmd exit err: %s and stderr: %s", err.Error(), stderrBuf.String())
+		return goerrors.Errorf("assess migration cmd exit err: %s and stderr: %s", err.Error(), stderrBuf.String())
 	}
 
 	// fetching assessment report path output line from stdout of assess-migration command process
@@ -400,6 +411,15 @@ func clearSchemaIsExported() {
 	}
 }
 
+func clearMigrationAssessmentDoneViaExportSchema() {
+	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		record.MigrationAssessmentDoneViaExportSchema = false
+	})
+	if err != nil {
+		utils.ErrExit("clear migration assessment done via export schema: update migration status record: %w", err)
+	}
+}
+
 func updateIndexesInfoInMetaDB() error {
 	log.Infof("updating indexes info in metaDB")
 	if !utils.ContainsString(source.ExportObjectTypeList, "TABLE") {
@@ -451,20 +471,28 @@ func applyMigrationAssessmentRecommendations() ([]string, []string, []string, []
 		return nil, nil, nil, nil, "", "", fmt.Errorf("failed to parse json report file %q: %w", assessmentReportPath, err)
 	}
 
+	if report.Sizing != nil && report.Sizing.FailureReasoning != "" {
+		log.Infof("skipping apply recommendations due to failure reasoning: %s", report.Sizing.FailureReasoning)
+		return nil, nil, nil, nil, "", "", nil
+	}
+
 	var modifiedTables, modifiedMviews, colocatedTables, colocatedMviews []string
 	var tableBackupPath, mviewBackupPath string
 	shardedTables, err := report.GetShardedTablesRecommendation()
 	if err != nil {
 		return nil, nil, nil, nil, "", "", fmt.Errorf("failed to fetch sharded tables recommendation: %w", err)
-	} else {
-		modifiedTables, colocatedTables, tableBackupPath, err = applyShardedTablesRecommendation(shardedTables, TABLE)
-		if err != nil {
-			return nil, nil, nil, nil, "", "", fmt.Errorf("failed to apply colocated vs sharded table recommendation: %w", err)
-		}
-		modifiedMviews, colocatedMviews, mviewBackupPath, err = applyShardedTablesRecommendation(shardedTables, MVIEW)
-		if err != nil {
-			return nil, nil, nil, nil, "", "", fmt.Errorf("failed to apply colocated vs sharded table recommendation: %w", err)
-		}
+	}
+	reportedColocatedTables, err := report.GetColocatedTablesRecommendation()
+	if err != nil {
+		return nil, nil, nil, nil, "", "", fmt.Errorf("failed to fetch colocated tables recommendation: %w", err)
+	}
+	modifiedTables, colocatedTables, tableBackupPath, err = applyShardedTablesRecommendation(shardedTables, reportedColocatedTables, TABLE)
+	if err != nil {
+		return nil, nil, nil, nil, "", "", fmt.Errorf("failed to apply colocated vs sharded table recommendation: %w", err)
+	}
+	modifiedMviews, colocatedMviews, mviewBackupPath, err = applyShardedTablesRecommendation(shardedTables, reportedColocatedTables, MVIEW)
+	if err != nil {
+		return nil, nil, nil, nil, "", "", fmt.Errorf("failed to apply colocated vs sharded table recommendation: %w", err)
 	}
 
 	assessmentRecommendationsApplied = true
@@ -473,7 +501,7 @@ func applyMigrationAssessmentRecommendations() ([]string, []string, []string, []
 	return modifiedTables, modifiedMviews, colocatedTables, colocatedMviews, tableBackupPath, mviewBackupPath, nil
 }
 
-func applyShardedTablesRecommendation(shardedTables []string, objType string) ([]string, []string, string, error) {
+func applyShardedTablesRecommendation(shardedTables []string, colocatedTables []string, objType string) ([]string, []string, string, error) {
 	if shardedTables == nil {
 		log.Info("list of sharded tables is null hence all the tables are recommended as colocated")
 		return nil, nil, "", nil
@@ -503,7 +531,7 @@ func applyShardedTablesRecommendation(shardedTables []string, objType string) ([
 			We can pass the whole .sql file as a string also to pg_query.Parse() all the statements at once.
 			But avoiding that also specially for cases where the SQL syntax can be invalid
 		*/
-		modifiedSqlStmt, match, isColocated, objectName, err := applyShardingRecommendationIfMatching(&sqlInfo, shardedTables, objType)
+		modifiedSqlStmt, match, isColocated, objectName, err := applyShardingRecommendationIfMatching(&sqlInfo, shardedTables, colocatedTables, objType)
 		if err != nil {
 			log.Errorf("failed to apply sharding recommendation for table=%q: %v", sqlInfo.objName, err)
 			if match {
@@ -571,13 +599,13 @@ if the table is sharded then match will be true and isColocated will be false
 Drawback: pg_query module doesn't have functionality to format the query after parsing
 so the CREATE TABLE for sharding recommended tables will be one-liner
 */
-func applyShardingRecommendationIfMatching(sqlInfo *sqlInfo, shardedTables []string, objType string) (string, bool, bool, string, error) {
+func applyShardingRecommendationIfMatching(sqlInfo *sqlInfo, shardedTables []string, colocatedTables []string, objType string) (string, bool, bool, string, error) {
 
 	stmt := sqlInfo.stmt
 	formattedStmt := sqlInfo.formattedStmt
 	parseTree, err := pg_query.Parse(stmt)
 	if err != nil {
-		return formattedStmt, false, false, "", fmt.Errorf("error parsing the stmt-%s: %v", stmt, err)
+		return formattedStmt, false, false, "", goerrors.Errorf("error parsing the stmt-%s: %v", stmt, err)
 	}
 
 	if len(parseTree.Stmts) == 0 {
@@ -610,27 +638,40 @@ func applyShardingRecommendationIfMatching(sqlInfo *sqlInfo, shardedTables []str
 	// true -> oracle, false -> PG
 	parsedObjectName := utils.BuildObjectName(relation.Schemaname, relation.Relname)
 
-	match := false
+	matchSharded := false
+	matchColocated := false
 	switch source.DBType {
 	case POSTGRESQL:
-		match = slices.Contains(shardedTables, parsedObjectName)
+		matchSharded = slices.Contains(shardedTables, parsedObjectName)
+		matchColocated = slices.Contains(colocatedTables, parsedObjectName)
 	case ORACLE:
 		// TODO: handle case-sensitivity properly
 		for _, shardedTable := range shardedTables {
 			// in case of oracle, shardedTable is unqualified.
 			if strings.ToLower(shardedTable) == parsedObjectName {
-				match = true
+				matchSharded = true
+				break
+			}
+		}
+		for _, colocatedTable := range colocatedTables {
+			if strings.ToLower(colocatedTable) == parsedObjectName {
+				matchColocated = true
 				break
 			}
 		}
 	default:
 		panic(fmt.Sprintf("unsupported source db type %s for applying sharding recommendations", source.DBType))
 	}
-	if !match {
-		log.Infof("%q not present in the sharded table list", parsedObjectName)
-		return formattedStmt, false, true, parsedObjectName, nil //It a colocated table
-	} else {
+
+	switch {
+	case matchSharded:
 		log.Infof("%q present in the sharded table list", parsedObjectName)
+	case matchColocated:
+		log.Infof("%q present in the colocated table list", parsedObjectName)
+		return formattedStmt, false, true, parsedObjectName, nil
+	default:
+		log.Infof("%q not present in the sharded or colocated table list", parsedObjectName)
+		return formattedStmt, false, false, parsedObjectName, nil
 	}
 
 	colocationOption := &pg_query.DefElem{

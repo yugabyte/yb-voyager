@@ -34,6 +34,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/color"
+	goerrors "github.com/go-errors/errors"
 	_ "github.com/godror/godror"
 	"github.com/google/uuid"
 	"github.com/gosuri/uitable"
@@ -271,7 +272,7 @@ func getQuotedFromUnquoted(t string) string {
 	//To preserve case sensitiveness in the Unquoted
 	parts := strings.Split(t, ".")
 	s, t := parts[0], parts[1]
-	return fmt.Sprintf(`%s."%s"`, s, t)
+	return fmt.Sprintf(`"%s"."%s"`, s, t)
 }
 
 func displayExportedRowCountSnapshot(snapshotViaDebezium bool) {
@@ -285,7 +286,7 @@ func displayExportedRowCountSnapshot(snapshotViaDebezium bool) {
 	leafPartitions := getLeafPartitionsFromRootTable()
 	if !snapshotViaDebezium {
 		exportedRowCount := getExportedRowCountSnapshot(exportDir)
-		if source.Schema != "" {
+		if len(source.Schemas) > 0 {
 			addHeader(uitable, "SCHEMA", "TABLE", "ROW COUNT")
 		} else {
 			addHeader(uitable, "DATABASE", "TABLE", "ROW COUNT")
@@ -307,7 +308,7 @@ func displayExportedRowCountSnapshot(snapshotViaDebezium bool) {
 				partitions := strings.Join(partitions, ", ")
 				displayTableName = fmt.Sprintf("%s (%s)", table.CurrentName.Unqualified.MinQuoted, partitions)
 			}
-			schema := table.SourceName.SchemaName
+			schema := table.SourceName.SchemaName.MinQuoted
 			uitable.AddRow(schema, displayTableName, exportedRowCount[key])
 		}
 		if len(keys) > 0 {
@@ -340,7 +341,7 @@ func displayExportedRowCountSnapshot(snapshotViaDebezium bool) {
 			partitions := strings.Join(partitions, ", ")
 			displayTableName = fmt.Sprintf("%s (%s)", table.CurrentName.Unqualified.MinQuoted, partitions)
 		}
-		schema := table.CurrentName.SchemaName
+		schema := table.CurrentName.SchemaName.MinQuoted
 		uitable.AddRow(schema, displayTableName, tableStatus.ExportedRowCountSnapshot)
 
 	}
@@ -672,28 +673,29 @@ func InitNameRegistry(
 
 	var sdbReg namereg.SourceDBInterface
 	var ybdb namereg.YBDBInterface
-	var sourceDbType, sourceDbSchema, sourceDbName string
-	var targetDBSchema string
+	var sourceDbType, sourceDbName string
+	var targetDBSchema, sourceDbSchema []string
 
 	if sconf != nil {
 		sourceDbType = sconf.DBType
 		sourceDbName = sconf.DBName
-		sourceDbSchema = sconf.Schema
+		sourceDbSchema = sqlname.ExtractIdentifiersUnquoted(sconf.Schemas)
 	}
 	if sdb != nil {
 		sdbReg = sdb.(namereg.SourceDBInterface)
 	}
 
 	if tconf != nil {
-		targetDBSchema = tconf.Schema
+		targetDBSchema = sqlname.ExtractIdentifiersUnquoted(tconf.Schemas)
 	}
 	var ok bool
 	if tdb != nil && lo.Contains([]string{TARGET_DB_IMPORTER_ROLE, IMPORT_FILE_ROLE}, role) {
 		ybdb, ok = tdb.(namereg.YBDBInterface)
 		if !ok {
-			return fmt.Errorf("expected targetDB to adhere to YBDBRegirsty")
+			return goerrors.Errorf("expected targetDB to adhere to YBDBRegirsty")
 		}
 	}
+
 	nameregistryParams := namereg.NameRegistryParams{
 		FilePath:       fmt.Sprintf("%s/metainfo/name_registry.json", exportDir),
 		Role:           role,
@@ -713,11 +715,11 @@ func InitNameRegistry(
 		// clean up yb names and re-init.
 		err := namereg.NameReg.UnRegisterYBNames()
 		if err != nil {
-			return fmt.Errorf("unregister yb names: %v", err)
+			return goerrors.Errorf("unregister yb names: %v", err)
 		}
 		err = namereg.NameReg.Init()
 		if err != nil {
-			return fmt.Errorf("init name registry: %v", err)
+			return goerrors.Errorf("init name registry: %v", err)
 		}
 	}
 	return nil
@@ -733,7 +735,7 @@ func retrieveMigrationUUID() error {
 		return fmt.Errorf("retrieving migration status record: %w", err)
 	}
 	if msr == nil {
-		return fmt.Errorf("migration status record not found")
+		return goerrors.Errorf("migration status record not found")
 	}
 
 	migrationUUID = uuid.MustParse(msr.MigrationUUID)
@@ -871,7 +873,7 @@ func getImportTableList(sourceTableList []string) ([]sqlname.NameTuple, error) {
 	for _, qualifiedTableName := range sourceTableList {
 		table, err := namereg.NameReg.LookupTableName(qualifiedTableName)
 		if err != nil {
-			return nil, fmt.Errorf("lookup table %s in name registry : %v", qualifiedTableName, err)
+			return nil, goerrors.Errorf("lookup table %s in name registry : %v", qualifiedTableName, err)
 		}
 		tableList = append(tableList, table)
 	}
@@ -899,13 +901,12 @@ func hideExportFlagsInFallForwardOrBackCmds(cmd *cobra.Command) {
 	}
 }
 
-func GetDefaultPGSchema(schema string, separator string) (string, bool) {
+func GetDefaultPGSchema(schema []sqlname.Identifier) (string, bool) {
 	// second return value is true if public is not included in the schema
 	// which indicates that the no default schema
-	schemas := strings.Split(schema, separator)
-	if len(schemas) == 1 {
-		return schema, false
-	} else if slices.Contains(schemas, "public") {
+	if len(schema) == 1 {
+		return schema[0].MinQuoted, false
+	} else if lo.ContainsBy(schema, func(s sqlname.Identifier) bool { return s.MinQuoted == "public" }) {
 		return "public", false
 	} else {
 		return "", true
@@ -941,7 +942,7 @@ func CleanupChildProcesses() {
 func ShutdownProcess(pid int, forceShutdownAfterSeconds int) error {
 	err := signalProcess(pid, syscall.SIGTERM)
 	if err != nil {
-		return fmt.Errorf("send sigterm to %d: %v", pid, err)
+		return goerrors.Errorf("send sigterm to %d: %v", pid, err)
 	}
 	waitForProcessToExit(pid, forceShutdownAfterSeconds)
 	return nil
@@ -985,7 +986,7 @@ func initBaseSourceEvent(bev *cp.BaseEvent, eventType string) {
 		MigrationUUID: migrationUUID,
 		DBType:        source.DBType,
 		DatabaseName:  source.DBName,
-		SchemaNames:   cp.GetSchemaList(source.Schema),
+		SchemaNames:   cp.GetSchemaList(sqlname.JoinIdentifiersUnquoted(source.Schemas, "|")),
 		DBIP:          utils.LookupIP(source.Host),
 		Port:          source.Port,
 		DBVersion:     source.DBVersion,
@@ -998,7 +999,7 @@ func initBaseTargetEvent(bev *cp.BaseEvent, eventType string) {
 		MigrationUUID: migrationUUID,
 		DBType:        tconf.TargetDBType,
 		DatabaseName:  tconf.DBName,
-		SchemaNames:   []string{tconf.Schema},
+		SchemaNames:   sqlname.ExtractIdentifiersUnquoted(tconf.Schemas),
 		DBIP:          utils.LookupIP(tconf.Host),
 		Port:          tconf.Port,
 		DBVersion:     tconf.DBVersion,
@@ -1019,7 +1020,7 @@ func renameTableIfRequired(table string) (string, bool) {
 
 	sourceDBType = msr.SourceDBConf.DBType
 	sourceDBTypeInMigration := msr.SourceDBConf.DBType
-	schema := msr.SourceDBConf.Schema
+	schema := msr.SourceDBConf.Schemas
 	sqlname.SourceDBType = source.DBType
 	if source.DBType != POSTGRESQL && source.DBType != YUGABYTEDB {
 		return table, false
@@ -1029,13 +1030,13 @@ func renameTableIfRequired(table string) (string, bool) {
 		return table, false
 	}
 	if sourceDBTypeInMigration != POSTGRESQL && source.DBType == YUGABYTEDB {
-		schema = source.Schema
+		schema = source.Schemas
 	}
 	renameTablesMap := msr.SourceRenameTablesMap
 	if source.DBType == YUGABYTEDB {
 		renameTablesMap = msr.TargetRenameTablesMap
 	}
-	defaultSchema, noDefaultSchema := GetDefaultPGSchema(schema, "|")
+	defaultSchema, noDefaultSchema := GetDefaultPGSchema(schema)
 	if noDefaultSchema && len(strings.Split(table, ".")) <= 1 {
 		utils.ErrExit("no default schema found to qualify table: %s", table)
 	}
@@ -1078,7 +1079,7 @@ func getExportedSnapshotRowsMap(exportSnapshotStatus *ExportSnapshotStatus) (*ut
 		// if there is some table not present in target this should work
 		nt, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole(tableStatus.TableName)
 		if err != nil {
-			return nil, nil, fmt.Errorf("lookup table [%s] from name registry: %v", tableStatus.TableName, err)
+			return nil, nil, goerrors.Errorf("lookup table [%s] from name registry: %v", tableStatus.TableName, err)
 		}
 		existingSnapshotRows, _ := snapshotRowsMap.Get(nt)
 		snapshotRowsMap.Put(nt, existingSnapshotRows+tableStatus.ExportedRowCountSnapshot)
@@ -1124,7 +1125,7 @@ func getImportedSnapshotRowsMap(dbType string, tableList []sqlname.NameTuple, er
 			//ignoring target as the dataFileDescriptor can contain tables that exported but not present in target
 			nt, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole(fileEntry.TableName)
 			if err != nil {
-				return nil, fmt.Errorf("lookup table name from data file descriptor %s : %v", fileEntry.TableName, err)
+				return nil, goerrors.Errorf("lookup table name from data file descriptor %s : %v", fileEntry.TableName, err)
 			}
 			fileEntries, ok := nameTupleTodataFileEntry.Get(nt)
 			if !ok {
@@ -1176,7 +1177,7 @@ func getImportedSnapshotRowsMap(dbType string, tableList []sqlname.NameTuple, er
 		return true, nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("error getting row count of tables: %v", err)
+		return nil, goerrors.Errorf("error getting row count of tables: %v", err)
 	}
 	return snapshotRowsMap, nil
 }
@@ -1192,7 +1193,7 @@ func getImportedSizeMap() (*utils.StructMap[sqlname.NameTuple, int64], error) { 
 	for _, fileEntry := range dataFileDescriptor.DataFileList {
 		nt, err := namereg.NameReg.LookupTableName(fileEntry.TableName)
 		if err != nil {
-			return nil, fmt.Errorf("lookup table name from data file descriptor %s : %v", fileEntry.TableName, err)
+			return nil, goerrors.Errorf("lookup table name from data file descriptor %s : %v", fileEntry.TableName, err)
 		}
 		byteCount, err := state.GetImportedByteCount(fileEntry.FilePath, nt)
 		if err != nil {
@@ -1224,7 +1225,7 @@ func storeTableListInMSR(tableList []sqlname.NameTuple) error {
 		})
 	})
 	if err != nil {
-		return fmt.Errorf("update migration status record: %v", err)
+		return goerrors.Errorf("update migration status record: %v", err)
 	}
 	return nil
 }
@@ -1239,6 +1240,7 @@ type AssessmentReport struct {
 	MigrationComplexity            string                                `json:"MigrationComplexity"`
 	MigrationComplexityExplanation string                                `json:"MigrationComplexityExplanation"`
 	SchemaSummary                  utils.SchemaSummary                   `json:"SchemaSummary"`
+	NumReplicasUsed                int                                   `json:"NumReplicasUsed,omitempty"` // Number of replicas used in assessment (0 for single-node)
 	Sizing                         *migassessment.SizingAssessmentReport `json:"Sizing"`
 	Issues                         []AssessmentIssue                     `json:"AssessmentIssues"`
 	TableIndexStats                *[]migassessment.TableIndexStats      `json:"TableIndexStats"`
@@ -1367,7 +1369,7 @@ type AssessMigrationDBConfig struct {
 	Schema   string
 }
 
-// =============== For YUGABYTEDB CONTROL PLANE ==============//
+// =============== For CONTROL PLANE ==============//
 // TODO: see if this can be accommodated in controlplane pkg, facing pkg cyclic dependency issue
 
 /*
@@ -1381,13 +1383,22 @@ Version History
 1.6:
   - Add EstimatedTimeInMinForImportWithoutRedundantIndexes in SizingRecommendation struct
   - Added separate fields for notes: GeneralNotes, ColocatedShardedNotes, SizingNotes; deprecated Notes field
+
 1.7: Added ObjectUsage field to AssessmentIssueYugabyteD struct
-  */
+*/
 var ASSESS_MIGRATION_YBD_PAYLOAD_VERSION = "1.7"
+
+/*
+Version History
+1.0: Introduced AssessMigrationPayloadYBM struct for YBM-specific payload
+*/
+var ASSESS_MIGRATION_YBM_PAYLOAD_VERSION = "1.0"
+
+// ======================= PAYLOAD FOR YUGABYTED =======================
 
 // TODO: decouple this struct from utils.AnalyzeSchemaIssue struct, right now its tightly coupled;
 // Similarly for migassessment.SizingAssessmentReport and migassessment.TableIndexStats
-type AssessMigrationPayload struct {
+type AssessMigrationPayloadYugabyteD struct {
 	PayloadVersion                 string
 	VoyagerVersion                 string
 	TargetDBVersion                *ybversion.YBVersion
@@ -1407,6 +1418,8 @@ type AssessMigrationPayload struct {
 	AssessmentJsonReport AssessmentReportYugabyteD // Depreacted: AssessmentJsonReport is deprecated; use the fields directly inside struct
 	Notes                []string                  // Depreacted: Notes is deprecated; use the new fields for notes: GeneralNotes, ColocatedShardedNotes, SizingNotes
 }
+
+// ======================= YUGABYTED-SPECIFIC TYPES =======================
 
 type AssessmentIssueYugabyteD struct {
 	Category               string                          `json:"Category"` // expected values: unsupported_features, unsupported_query_constructs, migration_caveats, unsupported_plpgsql_objects, unsupported_datatype
@@ -1444,6 +1457,44 @@ type AssessmentReportYugabyteD struct {
 	MigrationCaveats           []UnsupportedFeature                  `json:"MigrationCaveats"`
 }
 
+// ======================= PAYLOAD FOR YBM =======================
+
+// AssessMigrationPayloadYBM represents the YBM-specific payload for migration assessment
+// Contains all current features without yugabyted's legacy/backward compatibility fields
+type AssessMigrationPayloadYBM struct {
+	PayloadVersion                 string                                `json:"PayloadVersion"`
+	VoyagerVersion                 string                                `json:"VoyagerVersion"`
+	TargetDBVersion                *ybversion.YBVersion                  `json:"TargetDBVersion"`
+	MigrationComplexity            string                                `json:"MigrationComplexity"`
+	MigrationComplexityExplanation string                                `json:"MigrationComplexityExplanation"`
+	SchemaSummary                  utils.SchemaSummary                   `json:"SchemaSummary"`
+	AssessmentIssues               []AssessmentIssueYBM                  `json:"AssessmentIssues"`
+	SourceSizeDetails              SourceDBSizeDetails                   `json:"SourceSizeDetails"`
+	TargetRecommendations          TargetSizingRecommendations           `json:"TargetRecommendations"`
+	ConversionIssues               []utils.AnalyzeSchemaIssue            `json:"ConversionIssues"`
+	Sizing                         *migassessment.SizingAssessmentReport `json:"Sizing"`
+	TableIndexStats                *[]migassessment.TableIndexStats      `json:"TableIndexStats"`
+	GeneralNotes                   []string                              `json:"GeneralNotes"`
+	ColocatedShardedNotes          []string                              `json:"ColocatedShardedNotes"`
+	SizingNotes                    []string                              `json:"SizingNotes"`
+}
+
+// AssessmentIssueYBM represents YBM-specific format for assessment issues
+type AssessmentIssueYBM struct {
+	Category               string                          `json:"Category"`
+	CategoryDescription    string                          `json:"CategoryDescription"`
+	Type                   string                          `json:"Type"`
+	Name                   string                          `json:"Name"`
+	Description            string                          `json:"Description"`
+	Impact                 string                          `json:"Impact"`
+	ObjectType             string                          `json:"ObjectType"`
+	ObjectName             string                          `json:"ObjectName"`
+	SqlStatement           string                          `json:"SqlStatement"`
+	DocsLink               string                          `json:"DocsLink"`
+	MinimumVersionsFixedIn map[string]*ybversion.YBVersion `json:"MinimumVersionsFixedIn"`
+	Details                map[string]interface{}          `json:"Details,omitempty"`
+}
+
 // RowCountPair holds imported and errored row counts for a table.
 type RowCountPair struct {
 	Imported int64
@@ -1475,7 +1526,7 @@ type TargetSizingRecommendations struct {
 
 func ParseJSONToAssessmentReport(reportPath string) (*AssessmentReport, error) {
 	if !utils.FileOrFolderExists(reportPath) {
-		return nil, fmt.Errorf("report file %q does not exist", reportPath)
+		return nil, goerrors.Errorf("report file %q does not exist", reportPath)
 	}
 
 	var report AssessmentReport
@@ -1493,7 +1544,7 @@ func (ar *AssessmentReport) AppendIssues(issues ...AssessmentIssue) {
 
 func (ar *AssessmentReport) GetShardedTablesRecommendation() ([]string, error) {
 	if ar.Sizing == nil {
-		return nil, fmt.Errorf("sizing report is null, can't fetch sharded tables")
+		return nil, goerrors.Errorf("sizing report is null, can't fetch sharded tables")
 	}
 
 	return ar.Sizing.SizingRecommendation.ShardedTables, nil
@@ -1501,7 +1552,7 @@ func (ar *AssessmentReport) GetShardedTablesRecommendation() ([]string, error) {
 
 func (ar *AssessmentReport) GetColocatedTablesRecommendation() ([]string, error) {
 	if ar.Sizing == nil {
-		return nil, fmt.Errorf("sizing report is null, can't fetch colocated tables")
+		return nil, goerrors.Errorf("sizing report is null, can't fetch colocated tables")
 	}
 
 	return ar.Sizing.SizingRecommendation.ColocatedTables, nil
@@ -1577,7 +1628,7 @@ func (ar *AssessmentReport) GetTotalColocatedSize(dbType string) (int64, error) 
 		case POSTGRESQL:
 			tableName = fmt.Sprintf("%s.%s", stat.SchemaName, stat.ObjectName)
 		default:
-			return -1, fmt.Errorf("dbType %s is not yet supported for calculating size details", dbType)
+			return -1, goerrors.Errorf("dbType %s is not yet supported for calculating size details", dbType)
 		}
 
 		if slices.Contains(colocatedTables, tableName) {
@@ -1607,7 +1658,7 @@ func (ar *AssessmentReport) GetTotalShardedSize(dbType string) (int64, error) {
 		case POSTGRESQL:
 			tableName = fmt.Sprintf("%s.%s", stat.SchemaName, stat.ObjectName)
 		default:
-			return -1, fmt.Errorf("dbType %s is not yet supported for calculating size details", dbType)
+			return -1, goerrors.Errorf("dbType %s is not yet supported for calculating size details", dbType)
 		}
 
 		if slices.Contains(shardedTables, tableName) {
@@ -1831,7 +1882,7 @@ func sendCallhomePayloadAtIntervals() {
 // Adding it here instead of utils package to avoid circular dependency issues
 func ParseJsonToAnalyzeSchemaReport(reportPath string) (*utils.SchemaReport, error) {
 	if !utils.FileOrFolderExists(reportPath) {
-		return nil, fmt.Errorf("report file %q does not exist", reportPath)
+		return nil, goerrors.Errorf("report file %q does not exist", reportPath)
 	}
 
 	var report utils.SchemaReport

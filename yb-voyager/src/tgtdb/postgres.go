@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/fatih/color"
+	goerrors "github.com/go-errors/errors"
 	"github.com/google/uuid"
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgtype"
@@ -119,14 +120,14 @@ func (pg *TargetPostgreSQL) Init() error {
 	if len(pg.tconf.SessionVars) == 0 {
 		pg.tconf.SessionVars = getPGSessionInitScript(pg.tconf)
 	}
-	schemas := strings.Split(pg.tconf.Schema, ",")
+	schemas := sqlname.ExtractIdentifiersUnquoted(pg.tconf.Schemas)
 	schemaList := strings.Join(schemas, "','") // a','b','c
 	checkSchemaExistsQuery := fmt.Sprintf(
 		"SELECT nspname FROM pg_catalog.pg_namespace WHERE nspname IN ('%s');",
 		schemaList)
 	rows, err := pg.Query(checkSchemaExistsQuery)
 	if err != nil {
-		return fmt.Errorf("run query %q on target %q to check schema exists: %s", checkSchemaExistsQuery, pg.tconf.Host, err)
+		return goerrors.Errorf("run query %q on target %q to check schema exists: %s", checkSchemaExistsQuery, pg.tconf.Host, err)
 	}
 	var returnedSchemas []string
 	defer rows.Close()
@@ -140,7 +141,7 @@ func (pg *TargetPostgreSQL) Init() error {
 	}
 	if len(returnedSchemas) != len(schemas) {
 		notExistsSchemas := utils.SetDifference(schemas, returnedSchemas)
-		return fmt.Errorf("schema '%s' does not exist in target", strings.Join(notExistsSchemas, ","))
+		return goerrors.Errorf("schema '%s' does not exist in target", strings.Join(notExistsSchemas, ","))
 	}
 	return err
 }
@@ -701,7 +702,8 @@ func (pg *TargetPostgreSQL) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 }
 
 func (pg *TargetPostgreSQL) setTargetSchema(conn *pgx.Conn) {
-	setSchemaQuery := fmt.Sprintf("SET SEARCH_PATH TO %s", pg.tconf.Schema)
+	schemas := sqlname.JoinIdentifiersMinQuoted(pg.tconf.Schemas, ", ")
+	setSchemaQuery := fmt.Sprintf("SET SEARCH_PATH TO %s", schemas)
 	_, err := conn.Exec(context.Background(), setSchemaQuery)
 	if err != nil {
 		utils.ErrExit("run query: %q on target %q: %w", setSchemaQuery, pg.tconf.Host, err)
@@ -996,7 +998,7 @@ func (pg *TargetPostgreSQL) isUserSuperUser() (bool, error) {
 
 func (pg *TargetPostgreSQL) listSchemasMissingUsagePermission() ([]string, error) {
 	// Users need usage permissions on the schemas they want to export and the pg_catalog and information_schema schemas
-	querySchemaArray := pg.getSchemaList()
+	querySchemaArray := sqlname.ExtractIdentifiersUnquoted(pg.tconf.Schemas)
 	querySchemaList := strings.Join(querySchemaArray, ",")
 	chkSchemaUsagePermissionQuery := fmt.Sprintf(`
 	SELECT 
@@ -1044,7 +1046,7 @@ func (pg *TargetPostgreSQL) listSchemasMissingUsagePermission() ([]string, error
 }
 
 func (pg *TargetPostgreSQL) listTablesMissingSelectInsertUpdateDeletePermissions() (map[string][]string, error) {
-	querySchemaArray := pg.getSchemaList()
+	querySchemaArray := sqlname.ExtractIdentifiersUnquoted(pg.tconf.Schemas)
 	querySchemaList := strings.Join(querySchemaArray, ",")
 
 	query := fmt.Sprintf(`
@@ -1139,17 +1141,12 @@ func (pg *TargetPostgreSQL) listTablesMissingSelectInsertUpdateDeletePermissions
 	return missingPermissions, nil
 }
 
-func (pg *TargetPostgreSQL) getSchemaList() []string {
-	schemas := strings.Split(pg.tconf.Schema, ",")
-	return schemas
-}
-
 func (pg *TargetPostgreSQL) GetEnabledTriggersAndFks() (enabledTriggers []string, enabledFks []string, err error) {
 	if slices.Contains(pg.tconf.SessionVars, SET_SESSION_REPLICATE_ROLE_TO_REPLICA) {
 		//Not check for any triggers / FKs in case this session parameter is used
 		return nil, nil, nil
 	}
-	querySchemaArray := pg.getSchemaList()
+	querySchemaArray := sqlname.ExtractIdentifiersUnquoted(pg.tconf.Schemas)
 	querySchemaList := strings.Join(querySchemaArray, ",")
 
 	// Check the trigger status using the tgenabled column, which can have three possible values:

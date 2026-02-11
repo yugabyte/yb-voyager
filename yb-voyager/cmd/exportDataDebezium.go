@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/fatih/color"
+	goerrors "github.com/go-errors/errors"
 	"github.com/gosuri/uilive"
 	"github.com/magiconair/properties"
 	"github.com/samber/lo"
@@ -46,7 +47,7 @@ import (
 var ybCDCClient *dbzm.YugabyteDBCDCClient
 var totalEventCount, totalEventCountRun, throughputInLast3Min, throughputInLast10Min int64
 
-func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList []sqlname.NameTuple, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], leafPartitions *utils.StructMap[sqlname.NameTuple, []string]) (*dbzm.Config, map[string]int64, error) {
+func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList []sqlname.NameTuple, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], leafPartitions *utils.StructMap[sqlname.NameTuple, []sqlname.NameTuple]) (*dbzm.Config, map[string]int64, error) {
 	runId = time.Now().String()
 	absExportDir, err := filepath.Abs(exportDir)
 	if err != nil {
@@ -62,7 +63,7 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 	case SNAPSHOT_ONLY:
 		snapshotMode = "initial_only"
 	default:
-		return nil, nil, fmt.Errorf("invalid export type %s", exportType)
+		return nil, nil, goerrors.Errorf("invalid export type %s", exportType)
 	}
 	tableNameToApproxRowCountMap := getTableNameToApproxRowCountMap(tableList)
 
@@ -103,7 +104,7 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 	}
 	columnSequenceMapping, err := getColumnToSequenceMapping(colToSeqMap)
 	if err != nil {
-		return nil, nil, fmt.Errorf("getting column to sequence mapping %s", err)
+		return nil, nil, goerrors.Errorf("getting column to sequence mapping %s", err)
 	}
 
 	err = prepareSSLParamsForDebezium(absExportDir)
@@ -135,7 +136,7 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 		Password:           source.Password,
 
 		DatabaseName:          source.DBName,
-		SchemaNames:           source.Schema,
+		SchemaNames:           sqlname.JoinIdentifiersUnquoted(source.Schemas, "|"),
 		TableList:             dbzmTableList,
 		ColumnList:            dbzmColumnList,
 		ColumnSequenceMapping: columnSequenceMapping,
@@ -164,7 +165,7 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 			config.Uri = fmt.Sprintf("%s%s", jdbcConnectionStringPrefix, connectionString)
 		}
 
-		config.TNSAdmin, err = getTNSAdmin(source)
+		config.TNSAdmin, err = source.GetTNSAdmin()
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to get tns admin: %w", err)
 		}
@@ -265,24 +266,30 @@ func fetchOrRetrieveColToSeqMap(msr *metadb.MigrationStatusRecord, tableList []s
 	return colToSeqMap, nil
 }
 
+// returns qualified column name to sequence name mapping for debezium
+// <schema>.<table>.<column>:<sequnce_name_user_query_format> as the sequence max value mapping also has the userQuery format
 func getColumnToSequenceMapping(colToSeqMap map[string]string) (string, error) {
 	var colToSeqMapSlices []string
 
 	for k, v := range colToSeqMap {
+		seqTuple, err := namereg.NameReg.LookupTableName(v)
+		if err != nil {
+			return "", goerrors.Errorf("lookup failed for sequence %s", v)
+		}
 		parts := strings.Split(k, ".")
 		leafTable := fmt.Sprintf("%s.%s", parts[0], parts[1])
 		rootTable, isRenamed := renameTableIfRequired(leafTable)
 		if isRenamed {
 			rootTableTup, err := namereg.NameReg.LookupTableName(rootTable)
 			if err != nil {
-				return "", fmt.Errorf("lookup failed for table %s", rootTable)
+				return "", goerrors.Errorf("lookup failed for table %s", rootTable)
 			}
-			c := fmt.Sprintf("%s.%s:%s", rootTableTup.AsQualifiedCatalogName(), parts[2], v)
+			c := fmt.Sprintf("%s.%s:%s", rootTableTup.AsQualifiedCatalogName(), parts[2], seqTuple.ForKey())
 			if !slices.Contains(colToSeqMapSlices, c) {
 				colToSeqMapSlices = append(colToSeqMapSlices, c)
 			}
 		} else {
-			colToSeqMapSlices = append(colToSeqMapSlices, fmt.Sprintf("%s:%s", k, v))
+			colToSeqMapSlices = append(colToSeqMapSlices, fmt.Sprintf("%s:%s", k, seqTuple.ForKey()))
 		}
 	}
 
@@ -341,27 +348,13 @@ func prepareSSLParamsForDebezium(exportDir string) error {
 	return nil
 }
 
-// https://www.orafaq.com/wiki/TNS_ADMIN
-// default is $ORACLE_HOME/network/admin
-func getTNSAdmin(s srcdb.Source) (string, error) {
-	if s.DBType != "oracle" {
-		return "", fmt.Errorf("invalid source db type %s for getting TNS_ADMIN", s.DBType)
-	}
-	tnsAdminEnvVar, present := os.LookupEnv("TNS_ADMIN")
-	if present {
-		return tnsAdminEnvVar, nil
-	} else {
-		return filepath.Join(s.GetOracleHome(), "network", "admin"), nil
-	}
-}
-
 // oracle wallet location can be optionally set in $TNS_ADMIN/ojdbc.properties as
 // oracle.net.wallet_location=<>
 func isOracleJDBCWalletLocationSet(s srcdb.Source) (bool, error) {
 	if s.DBType != "oracle" {
-		return false, fmt.Errorf("invalid source db type %s for checking jdbc wallet location", s.DBType)
+		return false, goerrors.Errorf("invalid source db type %s for checking jdbc wallet location", s.DBType)
 	}
-	tnsAdmin, err := getTNSAdmin(s)
+	tnsAdmin, err := s.GetTNSAdmin()
 	if err != nil {
 		return false, fmt.Errorf("failed to get tns admin: %w", err)
 	}
@@ -385,7 +378,7 @@ func debeziumExportData(ctx context.Context, config *dbzm.Config, tableNameToApp
 			record.SnapshotMechanism = "debezium"
 		})
 		if err != nil {
-			return fmt.Errorf("update SnapshotMechanism: update migration status record: %s", err)
+			return goerrors.Errorf("update SnapshotMechanism: update migration status record: %s", err)
 		}
 	}
 
@@ -537,8 +530,10 @@ func checkAndHandleSnapshotComplete(config *dbzm.Config, status *dbzm.ExportStat
 				err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 					if exporterRole == TARGET_DB_EXPORTER_FB_ROLE {
 						record.ExportFromTargetFallBackStarted = true
+						record.CutoverTimings.ExportFromTargetFallBackStartedAt = utils.GetCurrentTimestamp()
 					} else {
 						record.ExportFromTargetFallForwardStarted = true
+						record.CutoverTimings.ExportFromTargetFallForwardStartedAt = utils.GetCurrentTimestamp()
 					}
 
 				})
@@ -591,7 +586,7 @@ func writeDataFileDescriptor(exportDir string, status *dbzm.ExportStatus) error 
 	return nil
 }
 
-func createYBReplicationSlotAndPublication(tableList []sqlname.NameTuple, leafPartitions *utils.StructMap[sqlname.NameTuple, []string]) error {
+func createYBReplicationSlotAndPublication(tableList []sqlname.NameTuple, leafPartitions *utils.StructMap[sqlname.NameTuple, []sqlname.NameTuple]) error {
 	ybDB, ok := source.DB().(*srcdb.YugabyteDB)
 	if !ok {
 		return errors.New("unable to cast source DB to YugabyteDB")
@@ -639,7 +634,7 @@ func createYBReplicationSlotAndPublication(tableList []sqlname.NameTuple, leafPa
 		record.YBPublicationName = publicationName
 	})
 	if err != nil {
-		return fmt.Errorf("update YBReplicationSlotName: update migration status record: %s", err)
+		return goerrors.Errorf("update YBReplicationSlotName: update migration status record: %s", err)
 	}
 	return nil
 }

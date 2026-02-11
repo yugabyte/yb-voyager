@@ -27,6 +27,8 @@ import io.debezium.engine.ChangeEvent;
 import io.debezium.engine.DebeziumEngine;
 import io.debezium.server.BaseChangeConsumer;
 
+import com.yugabyte.ybvoyager.BytemanMarkers;
+
 /**
  * Implementation of the consumer that exports the messages to file in a
  * Yugabyte-compatible form.
@@ -38,6 +40,8 @@ public class YbExporterConsumer extends BaseChangeConsumer {
     private static final String SOURCE_DB_EXPORTER_ROLE = "source_db_exporter";
     private static final String TARGET_DB_EXPORTER_FF_ROLE = "target_db_exporter_ff";
     private static final String TARGET_DB_EXPORTER_FB_ROLE = "target_db_exporter_fb";
+    final Config config = ConfigProvider.getConfig();
+    boolean ybGRPCConnectorEnabled;
     String snapshotMode;
     String dataDir;
     String exportDir;
@@ -53,6 +57,7 @@ public class YbExporterConsumer extends BaseChangeConsumer {
     Thread flusherThread;
     boolean shutDown = false;
     Object flushingSnapshotFilesLock = new Object();
+    private static final Integer ObjectMapperMaxStringLength = 500_000_000;
 
     // Lock file
     private File lockFile;
@@ -62,6 +67,7 @@ public class YbExporterConsumer extends BaseChangeConsumer {
     }
 
     void connect() throws URISyntaxException {
+        BytemanMarkers.checkpoint("before-connect");
         LOGGER.info("connect() called: dataDir = {}", dataDir);
 
         final Config config = ConfigProvider.getConfig();
@@ -70,6 +76,9 @@ public class YbExporterConsumer extends BaseChangeConsumer {
         retrieveSourceType(config);
         exporterRole = config.getValue("debezium.sink.ybexporter.exporter.role", String.class);
         exportDir = config.getValue("debezium.sink.ybexporter.exportDir", String.class);
+        if (sourceType.equals("yb")) {
+            ybGRPCConnectorEnabled = config.getValue("debezium.source.grpc.connector.enabled", Boolean.class);
+        }
         lockFile = new File(exportDir, String.format(".debezium_%s.lck", exporterRole));
         
         // Acquire lock file at startup
@@ -101,6 +110,8 @@ public class YbExporterConsumer extends BaseChangeConsumer {
         flusherThread = new Thread(this::flush);
         flusherThread.setDaemon(true);
         flusherThread.start();
+        
+        BytemanMarkers.checkpoint("after-connect");
     }
 
     /**
@@ -303,10 +314,12 @@ public class YbExporterConsumer extends BaseChangeConsumer {
     public void handleBatch(List<ChangeEvent<Object, Object>> changeEvents,
             DebeziumEngine.RecordCommitter<ChangeEvent<Object, Object>> committer)
             throws InterruptedException {
+        BytemanMarkers.cdc("before-batch");
         LOGGER.info("Processing batch with {} records", changeEvents.size());
         checkIfHelperThreadAlive();
 
         for (ChangeEvent<Object, Object> event : changeEvents) {
+            BytemanMarkers.cdc("before-process-record");
             Object objKey = event.key();
             Object objVal = event.value();
 
@@ -315,7 +328,6 @@ public class YbExporterConsumer extends BaseChangeConsumer {
             // PARSE
             var r = parser.parseRecord(objKey, objVal);
             if (!checkIfEventNeedsToBeWritten(r)) {
-                committer.markProcessed(event);
                 continue;
             }
 
@@ -338,6 +350,7 @@ public class YbExporterConsumer extends BaseChangeConsumer {
             }
             // Handle snapshot->cdc transition
             checkIfSnapshotComplete(r);
+            BytemanMarkers.cdc("after-process-record");
         }
         handleBatchComplete();
         LOGGER.debug("Fsynced batch with {} records", changeEvents.size());
@@ -358,6 +371,7 @@ public class YbExporterConsumer extends BaseChangeConsumer {
         committer.markBatchFinished();
         LOGGER.debug("Committed batch complete with {} records", changeEvents.size());
         handleSnapshotOnlyComplete();
+        BytemanMarkers.cdc("after-batch");
     }
 
     private boolean checkIfEventNeedsToBeWritten(Record r) {
@@ -370,6 +384,7 @@ public class YbExporterConsumer extends BaseChangeConsumer {
 
     private RecordWriter getWriterForRecord(Record r) {
         if (exportStatus.getMode() == ExportMode.SNAPSHOT) {
+            BytemanMarkers.snapshot("get-writer");
             RecordWriter writer = snapshotWriters.get(r.t);
             if (writer == null) {
                 writer = new TableSnapshotWriterCSV(dataDir, r.t, sourceType);
@@ -377,6 +392,7 @@ public class YbExporterConsumer extends BaseChangeConsumer {
             }
             return writer;
         } else {
+            BytemanMarkers.cdc("get-writer");
             return eventQueue;
         }
     }
@@ -388,6 +404,7 @@ public class YbExporterConsumer extends BaseChangeConsumer {
      */
     private void checkIfSnapshotComplete(Record r) {
         if ((r.snapshot != null) && (r.snapshot.equals("last"))) {
+            BytemanMarkers.snapshot("detected-complete");
             handleSnapshotComplete();
         }
     }
@@ -416,12 +433,14 @@ public class YbExporterConsumer extends BaseChangeConsumer {
     }
 
     private void handleSnapshotComplete() {
+        BytemanMarkers.snapshot("before-complete");
         synchronized (flushingSnapshotFilesLock) {
             closeSnapshotWriters();
         }
         exportStatus.updateMode(ExportMode.STREAMING);
         exportStatus.flushToDisk();
         openCDCWriter();
+        BytemanMarkers.snapshot("after-complete");
     }
 
     private void handleSnapshotOnlyComplete() {
@@ -464,7 +483,7 @@ public class YbExporterConsumer extends BaseChangeConsumer {
         final Config config = ConfigProvider.getConfig();
         Long queueSegmentMaxBytes = config.getOptionalValue(PROP_PREFIX + "queueSegmentMaxBytes", Long.class)
                 .orElse(null);
-        eventQueue = new EventQueue(dataDir, queueSegmentMaxBytes);
+        eventQueue = new EventQueue(dataDir, queueSegmentMaxBytes, ybGRPCConnectorEnabled, exporterRole, ObjectMapperMaxStringLength);
     }
 
     private void checkIfHelperThreadAlive() {

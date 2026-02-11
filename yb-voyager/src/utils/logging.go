@@ -20,6 +20,8 @@ import (
 	"os"
 	"strings"
 
+	goerrors "github.com/go-errors/errors"
+
 	"github.com/fatih/color"
 	log "github.com/sirupsen/logrus"
 	"github.com/tebeka/atexit"
@@ -30,7 +32,7 @@ var originalErrExit func(formatString string, args ...interface{})
 var ErrExitErr error
 
 var ErrExit = func(formatString string, args ...interface{}) {
-	ErrExitErr = fmt.Errorf(formatString, args...)
+	ErrExitErr = goerrors.Errorf(formatString, args...)
 	formatString = strings.Replace(formatString, "%w", "%s", -1)
 	fmt.Fprintf(os.Stderr, formatString+"\n", args...)
 	log.Errorf(formatString+"\n", args...)
@@ -55,7 +57,7 @@ var (
 	WarningColor = color.New(color.FgYellow)
 	ErrorColor   = color.New(color.FgRed)
 	Path         = color.New(color.Underline)
-	TitleColor   = color.New(color.FgBlue)
+	TitleColor   = color.New(color.Bold)
 )
 
 // PrintAndLogFormatted prints a formatted message to console with specified log level and also logs it
@@ -98,8 +100,30 @@ func PrintAndLogFormatted(OutputLogLevel OutputLogLevel, formatString string, ar
 		return
 	}
 
-	printer.Print(message)
+	if OutputLogLevel == OutputLogLevelTitle {
+		printTitle(message, printer)
+	} else {
+		printer.Print(message)
+	}
 	return
+}
+
+// printTitle formats and prints a title message with separators
+/*
+e.g.
+=============
+Title Message
+=============
+
+*/
+func printTitle(message string, printer *color.Color) {
+	// Remove trailing newline if present for formatting
+	message = strings.TrimSuffix(message, "\n")
+	borderLen := len(message)
+	border := strings.Repeat("=", borderLen)
+	printer.Printf("\n%s", border)
+	printer.Printf("%s\n", message)
+	printer.Printf("%s\n", border)
 }
 
 // Convenience functions for common use cases
@@ -140,20 +164,20 @@ func PrintAndLog(message string) {
 }
 
 func MonkeyPatchUtilsErrExitWithPanic() {
-	monkeyPatchUtilsErrExit(func(formatString string, args ...interface{}) {
+	MonkeyPatchUtilsErrExit(func(formatString string, args ...interface{}) {
 		panic("utils.ErrExit was called with: " + fmt.Sprintf(formatString, args...))
 	})
 }
 
 func MonkeyPatchUtilsErrExitToIgnore() {
-	monkeyPatchUtilsErrExit(func(formatString string, args ...interface{}) {
+	MonkeyPatchUtilsErrExit(func(formatString string, args ...interface{}) {
 		// do nothing
 	})
 }
 
-// monkeyPatchUtilsErrExit allows monkey patching of the utils.ErrExit function for testing purposes.
+// MonkeyPatchUtilsErrExit allows monkey patching of the utils.ErrExit function for testing purposes.
 // It replaces the original function with a new one provided by the caller.
-func monkeyPatchUtilsErrExit(newErrExit func(formatString string, args ...interface{})) {
+func MonkeyPatchUtilsErrExit(newErrExit func(formatString string, args ...interface{})) {
 	originalErrExit = ErrExit
 	ErrExit = newErrExit
 }

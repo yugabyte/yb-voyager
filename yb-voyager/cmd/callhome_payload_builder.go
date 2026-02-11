@@ -51,7 +51,10 @@ var (
 	}
 )
 
-func packAndSendAssessMigrationPayload(status string, errMsg error) {
+func packAndSendAssessMigrationPayload(
+	status string,
+	errMsg error,
+) {
 	var err error
 	if !shouldSendCallhome() {
 		return
@@ -132,6 +135,17 @@ func packAndSendAssessMigrationPayload(status string, errMsg error) {
 		}
 	}
 
+	// Build replica assessment topology information
+	// Note: Sent on both success and error (if discovery completed before failure)
+	var replicaTopology *callhome.ReplicaAssessmentTopology
+	if replicaDiscoveryInfoForCallhome != nil && len(replicaDiscoveryInfoForCallhome.ValidatedReplicas) > 0 {
+		replicaTopology = &callhome.ReplicaAssessmentTopology{
+			ReplicasDiscovered: replicaDiscoveryInfoForCallhome.DiscoveredCount,
+			ReplicasProvided:   replicaDiscoveryInfoForCallhome.UserProvidedCount,
+			ReplicasUsed:       len(replicaDiscoveryInfoForCallhome.ValidatedReplicas),
+		}
+	}
+
 	assessPayload := callhome.AssessMigrationPhasePayload{
 		PayloadVersion:                 callhome.ASSESS_MIGRATION_CALLHOME_PAYLOAD_VERSION,
 		TargetDBVersion:                assessmentReport.TargetDBVersion,
@@ -147,6 +161,7 @@ func packAndSendAssessMigrationPayload(status string, errMsg error) {
 		IopsInterval:                   intervalForCapturingIOPS,
 		ControlPlaneType:               getControlPlaneType(),
 		AnonymizedDDLs:                 getAnonymizedDDLs(&source),
+		ReplicaAssessmentTopology:      replicaTopology,
 	}
 
 	payload.PhasePayload = callhome.MarshalledJsonString(assessPayload)
@@ -188,7 +203,7 @@ func anonymizeSourceDBDetails(source *srcdb.Source) callhome.SourceDBDetails {
 	}
 
 	// Anonymize schema names
-	if source.Schema != "" {
+	if len(source.Schemas) > 0 {
 		schemaList := source.GetSchemaList()
 		anonymizedSchemas := make([]string, 0, len(schemaList))
 		for _, schemaName := range schemaList {

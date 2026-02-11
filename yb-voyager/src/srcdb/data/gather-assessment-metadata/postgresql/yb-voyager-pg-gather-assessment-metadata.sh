@@ -42,9 +42,19 @@ Arguments:
 
   yes                         Answer yes for all questions during gathering metadata (default 'false') (accepted values: 'false' and 'true')
 
+  source_node_name            The name of the source node (default 'primary'). Used to tag collected metrics in multi-node assessments.
 
-Example:
-  PGPASSWORD=<password> $SCRIPT_NAME 'postgresql://user@localhost:5432/mydatabase' 'public|sales' '/path/to/assessment/metadata' 'true' '60' 'true'
+  skip_checks                 Skip pre-flight checks (track_counts, ANALYZE statistics) that are already performed by guardrails. 
+                              (default 'false') (accepted values: 'false' and 'true')
+                              Use 'true' when running via yb-voyager orchestration (guardrails already validated).
+                              Use 'false' when running script manually.
+
+
+Example (Manual execution with all checks):
+  PGPASSWORD=<password> $SCRIPT_NAME 'postgresql://user@localhost:5432/mydatabase' 'public|sales' '/path/to/assessment/metadata' 'true' '60' 'false' 'primary'
+
+Example (Orchestrated by yb-voyager with guardrails):
+  PGPASSWORD=<password> $SCRIPT_NAME 'postgresql://user@localhost:5432/mydatabase' 'public|sales' '/path/to/assessment/metadata' 'true' '60' 'true' 'primary' 'true'
 
 Please ensure to replace the placeholders with actual values suited to your environment.
 "
@@ -57,10 +67,10 @@ fi
 
 # Check if all required arguments are provided
 if [ "$#" -lt 4 ]; then
-    echo "Usage: $0 <pg_connection_string> <schema_list> <assessment_metadata_dir> <pgss_enabled> [iops_capture_interval] [yes]"
+    echo "Usage: $0 <pg_connection_string> <schema_list> <assessment_metadata_dir> <pgss_enabled> [iops_capture_interval] [yes] [source_node_name] [skip_checks]"
     exit 1
-elif [ "$#" -gt 6 ]; then
-    echo "Usage: $0 <pg_connection_string> <schema_list> <assessment_metadata_dir> <pgss_enabled> [iops_capture_interval] [yes]"
+elif [ "$#" -gt 8 ]; then
+    echo "Usage: $0 <pg_connection_string> <schema_list> <assessment_metadata_dir> <pgss_enabled> [iops_capture_interval] [yes] [source_node_name] [skip_checks]"
     exit 1
 fi
 
@@ -84,10 +94,27 @@ if [ "$#" -ge 5 ]; then
 fi
 
 # override default yes if 6th arg is given
-if [ "$#" -eq 6 ]; then
+if [ "$#" -ge 6 ]; then
     yes=$6
     if [[ "$yes" != false && "$yes" != true ]]; then 
         echo "accepted values for the yes parameter are only ('true' and 'false')"
+        exit 1
+    fi
+fi
+
+# Set source_node_name (default: 'primary' for backward compatibility)
+source_node_name="primary"
+if [ "$#" -ge 7 ]; then
+    source_node_name=$7
+fi
+
+# Set skip_checks (default: 'false' for backward compatibility)
+# When true, skips track_counts and ANALYZE checks (assumes guardrails already validated)
+skip_checks=false
+if [ "$#" -eq 8 ]; then
+    skip_checks=$8
+    if [[ "$skip_checks" != false && "$skip_checks" != true ]]; then
+        echo "accepted values for skip_checks parameter are only ('true' and 'false')"
         exit 1
     fi
 fi
@@ -166,6 +193,13 @@ main() {
     log "INFO" "switch to assessment_metadata_dir='$assessment_metadata_dir'"
     pushd "$assessment_metadata_dir" > /dev/null || exit
 
+    # Create node-specific subdirectory for consistent structure across all nodes
+    # All nodes (primary + replicas) write to their own 'node-<node_name>' subdirectories
+    node_data_dir="node-${source_node_name}"
+    mkdir -p "$node_data_dir"
+    log "INFO" "Using node-specific data directory: $node_data_dir"
+    cd "$node_data_dir" || exit
+
     if [ -z "$PGPASSWORD" ]; then 
         echo -n "Enter PostgreSQL password: "
         read -s PGPASSWORD
@@ -174,19 +208,24 @@ main() {
     # exporting irrespective it was set or not
     export PGPASSWORD
 
-    track_counts_on=$(psql $pg_connection_string -tAqc "SELECT setting FROM pg_settings WHERE name = 'track_counts';")
-    if [ "$track_counts_on" != "on" ]; then
-        print_and_log "WARN" "Warning: track_counts is not enabled in the PostgreSQL configuration."
-        echo "It's required for calculating reads/writes per second stats of tables/indexes. Do you still want to continue? (Y/N): "
-        read continue_execution
-        continue_execution=$(echo "$continue_execution" | tr '[:upper:]' '[:lower:]') # converting to lower case for easier comparison
-        if [ "$continue_execution" != "yes" ] && [ "$continue_execution" != "y" ]; then
-            print_and_log "INFO" "Exiting..."
-            exit 2
+    # Check track_counts setting (only if guardrails haven't already checked)
+    if [ "$skip_checks" == false ]; then
+        track_counts_on=$(psql $pg_connection_string -tAqc "SELECT setting FROM pg_settings WHERE name = 'track_counts';")
+        if [ "$track_counts_on" != "on" ]; then
+            print_and_log "WARN" "Warning: track_counts is not enabled in the PostgreSQL configuration."
+            echo "It's required for calculating reads/writes per second stats of tables/indexes. Do you still want to continue? (Y/N): "
+            read continue_execution
+            continue_execution=$(echo "$continue_execution" | tr '[:upper:]' '[:lower:]') # converting to lower case for easier comparison
+            if [ "$continue_execution" != "yes" ] && [ "$continue_execution" != "y" ]; then
+                print_and_log "INFO" "Exiting..."
+                exit 2
+            fi
         fi
     fi
 
-    null_analyze_schemas=$(psql $pg_connection_string -tAqc "SELECT DISTINCT schemaname 
+    # Check ANALYZE statistics (only on primary and if guardrails haven't already checked)
+    if [ "$skip_checks" == false ] && [ "$source_node_name" == "primary" ]; then
+        null_analyze_schemas=$(psql $pg_connection_string -tAqc "SELECT DISTINCT schemaname 
 FROM pg_stat_all_tables pgst1 
 WHERE schemaname = ANY(ARRAY[string_to_array('$schema_list', '|')])
   AND NOT EXISTS (
@@ -196,21 +235,22 @@ WHERE schemaname = ANY(ARRAY[string_to_array('$schema_list', '|')])
       AND (pgst2.last_analyze IS NOT NULL OR pgst2.last_autoanalyze IS NOT NULL)
   );")
 
-    if [[ -n "$null_analyze_schemas" ]]; then
-        echo ""
-        echo "The following schemas do not have ANALYZE statistics:"
-        for s in "${null_analyze_schemas[@]}"; do
-            echo "  - $s"
-        done
-        echo ""
-        echo "Some performance optimizations cannot be detected accurately without ANALYZE statistics."
-        echo "Do you want to continue without analyzing these schemas? (Y/N)"
-        if [ "$yes" == false ]; then
-            read -r user_input
-            if [[ "$user_input" != "y" && "$user_input" != "Y" ]]; then
-                echo "You can run ANALYZE manually on the affected schemas before retrying."
-                echo "Aborting..."
-                exit 2 # error code for gracefullly error out the assess command 
+        if [[ -n "$null_analyze_schemas" ]]; then
+            echo ""
+            echo "The following schemas do not have ANALYZE statistics:"
+            for s in "${null_analyze_schemas[@]}"; do
+                echo "  - $s"
+            done
+            echo ""
+            echo "Some performance optimizations cannot be detected accurately without ANALYZE statistics."
+            echo "Do you want to continue without analyzing these schemas? (Y/N)"
+            if [ "$yes" == false ]; then
+                read -r user_input
+                if [[ "$user_input" != "y" && "$user_input" != "Y" ]]; then
+                    echo "You can run ANALYZE manually on the affected schemas before retrying."
+                    echo "Aborting..."
+                    exit 2 # error code for gracefullly error out the assess command 
+                fi
             fi
         fi
     fi
@@ -226,6 +266,9 @@ WHERE schemaname = ANY(ARRAY[string_to_array('$schema_list', '|')])
     pg_connection_string=$(quote_string "$pg_connection_string")
     schema_list=$(quote_string "$schema_list")
 
+    # removing the quotes from the schema_list for the psql queries which require unquoted schema list
+    unquoted_schema_list=$(echo "$schema_list" | sed 's/"//g')
+
     print_and_log "INFO" "Assessment metadata collection started for $schema_list schema(s)"
     for script in $SCRIPT_DIR/*.psql; do
         script_name=$(basename "$script" .psql)
@@ -235,7 +278,7 @@ WHERE schemaname = ANY(ARRAY[string_to_array('$schema_list', '|')])
         
         case $script_name in
             "table-index-iops")
-                psql_command="psql -q $pg_connection_string -f $script -v schema_list=$schema_list -v ON_ERROR_STOP=on -v measurement_type=initial"
+                psql_command="psql -q $pg_connection_string -f $script -v schema_list=$unquoted_schema_list -v source_node_name=$source_node_name -v ON_ERROR_STOP=on -v measurement_type=initial"
                 log "INFO" "Executing initial IOPS collection: $psql_command"
                 run_command "$psql_command"
                 mv table-index-iops.csv table-index-iops-initial.csv
@@ -244,7 +287,7 @@ WHERE schemaname = ANY(ARRAY[string_to_array('$schema_list', '|')])
                 # sleeping to calculate the iops reading two different time intervals, to calculate reads_per_second and writes_per_second
                 sleep $iops_capture_interval
 
-                psql_command="psql -q $pg_connection_string -f $script -v schema_list=$schema_list -v ON_ERROR_STOP=on -v measurement_type=final"
+                psql_command="psql -q $pg_connection_string -f $script -v schema_list=$unquoted_schema_list -v source_node_name=$source_node_name -v ON_ERROR_STOP=on -v measurement_type=final"
                 log "INFO" "Executing final IOPS collection: $psql_command"
                 run_command "$psql_command"
                 mv table-index-iops.csv table-index-iops-final.csv
@@ -260,32 +303,40 @@ WHERE schemaname = ANY(ARRAY[string_to_array('$schema_list', '|')])
                     print_and_log "WARN" "Skipping $script_action: pg_stat_statements extension is not enabled"
                     continue
                 fi
-
-                psql_command="psql -q $pg_connection_string -f $script -v schema_name=$pgss_ext_schema -v ON_ERROR_STOP=on"
+                # quoting the schema_name for the psql query which requires quoted schema name for pgss view
+                psql_command="psql -q $pg_connection_string -f $script -v schema_name='\"$pgss_ext_schema\"' -v source_node_name=$source_node_name -v ON_ERROR_STOP=on"
                 log "INFO" "Executing script: $psql_command"
                 run_command "$psql_command"
             ;;
             *)
-                psql_command="psql -q $pg_connection_string -f $script -v schema_list=$schema_list -v ON_ERROR_STOP=on"
+                psql_command="psql -q $pg_connection_string -f $script -v schema_list=$unquoted_schema_list -v source_node_name=$source_node_name -v ON_ERROR_STOP=on"
                 log "INFO" "Executing script: $psql_command"
                 run_command "$psql_command"
             ;;
         esac
     done
 
-    # check for pg_dump version
-    pg_dump_version=$(pg_dump --version | awk '{print $3}' | awk -F. '{print $1}')
-    log "INFO" "extracted pg_dump version: $pg_dump_version"
-    if [ "$pg_dump_version" -lt 14 ]; then
-        print_and_log "ERROR" "pg_dump version is less than 14. Please upgrade to version 14 or higher."
-        exit 1
-    fi
+    # Schema collection: only for primary node, placed at root of assessment_metadata_dir
+    # (Schema is identical across all nodes, so we don't need per-node schema collection)
+    if [ "$source_node_name" == "primary" ]; then
+        # check for pg_dump version
+        pg_dump_version=$(pg_dump --version | awk '{print $3}' | awk -F. '{print $1}')
+        log "INFO" "extracted pg_dump version: $pg_dump_version"
+        if [ "$pg_dump_version" -lt 14 ]; then
+            print_and_log "ERROR" "pg_dump version is less than 14. Please upgrade to version 14 or higher."
+            exit 1
+        fi
 
-    mkdir -p schema
-    print_and_log "INFO" "Collecting schema information..."
-    pg_dump_command="pg_dump $pg_connection_string --schema-only --schema=$schema_list --extension=\"*\" --no-comments --no-owner --no-privileges --no-tablespaces --load-via-partition-root --file='schema/schema.sql'"
-    log "INFO" "Executing pg_dump: $pg_dump_command"
-    run_command "$pg_dump_command"
+        # Go back to parent (assessmentMetadataDir) to create schema at root level, not inside node dir
+        cd ..
+        mkdir -p schema
+        print_and_log "INFO" "Collecting schema information..."
+        pg_dump_command="pg_dump $pg_connection_string --schema-only --schema=$schema_list --extension=\"*\" --no-comments --no-owner --no-privileges --no-tablespaces --load-via-partition-root --file='schema/schema.sql'"
+        log "INFO" "Executing pg_dump: $pg_dump_command"
+        run_command "$pg_dump_command"
+    else
+        log "INFO" "Skipping schema collection for replica '$source_node_name' (schema already collected from primary)"
+    fi
 
     # Return to the original directory after operations are done
     popd > /dev/null

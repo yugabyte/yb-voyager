@@ -67,12 +67,10 @@ const (
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_PATH    = "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_PATH"
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_POLYGON = "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_POLYGON"
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_CIRCLE  = "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_CIRCLE"
+	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_VECTOR  = "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_VECTOR"
 
-	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_ARRAY_OF_ENUM = "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_ARRAY_OF_ENUM"
-	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED  = "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED"
-	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_TSQUERY       = "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_TSQUERY"
-	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_TSVECTOR      = "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_TSVECTOR"
-	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_HSTORE        = "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_HSTORE"
+	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED = "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED"
+	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_TSQUERY      = "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_TSQUERY"
 
 	PK_UK_ON_CITEXT_DATATYPE        = "PK_UK_ON_CITEXT_DATATYPE"
 	PK_UK_ON_TSVECTOR_DATATYPE      = "PK_UK_ON_TSVECTOR_DATATYPE"
@@ -171,6 +169,7 @@ const (
 	LISTEN_NOTIFY                = "LISTEN_NOTIFY"
 	NON_DECIMAL_INTEGER_LITERAL  = "NON_DECIMAL_INTEGER_LITERAL"
 	TWO_PHASE_COMMIT             = "TWO_PHASE_COMMIT"
+	SAVEPOINT_USAGE              = "SAVEPOINT_USAGE"
 )
 
 const (
@@ -264,13 +263,11 @@ const (
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_PATH_ISSUE_NAME    = "Unsupported datatype for Live migration - path"
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_POLYGON_ISSUE_NAME = "Unsupported datatype for Live migration - polygon"
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_CIRCLE_ISSUE_NAME  = "Unsupported datatype for Live migration - circle"
-
-	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_ARRAY_OF_ENUM_ISSUE_NAME = "Unsupported datatype for Live migration with fall-forward/fallback - Array of Enum Datatype"
-	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED_ISSUE_NAME  = "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype"
-	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_TSQUERY_ISSUE_NAME       = "Unsupported datatype for Live migration with fall-forward/fallback - tsquery Datatype"
-	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_TSVECTOR_ISSUE_NAME      = "Unsupported datatype for Live migration with fall-forward/fallback - tsvector Datatype"
-	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_HSTORE_ISSUE_NAME        = "Unsupported datatype for Live migration with fall-forward/fallback - hstore Datatype"
-	UNSUPPORTED_EXTENSION_ISSUE_NAME                                        = "Unsupported Extension"
+	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_VECTOR_ISSUE_NAME  = "Unsupported datatype for Live migration - vector"
+	
+	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED_ISSUE_NAME = "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype"
+	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_TSQUERY_ISSUE_NAME      = "Unsupported datatype for Live migration with fall-forward/fallback - tsquery Datatype"
+	UNSUPPORTED_EXTENSION_ISSUE_NAME                                       = "Unsupported Extension"
 
 	FOREIGN_KEY_REFERENCES_PARTITIONED_TABLE_ISSUE_NAME = "Foreign key constraint references partitioned table"
 	SQL_BODY_IN_FUNCTION_ISSUE_NAME                     = "SQL Body in function"
@@ -304,6 +301,7 @@ const (
 	LISTEN_NOTIFY_ISSUE_NAME                = "Events Listen / Notify"
 	NON_DECIMAL_INTEGER_LITERAL_ISSUE_NAME  = "Non-decimal integer literal"
 	TWO_PHASE_COMMIT_ISSUE_NAME             = "Two-Phase Commit (XA syntax)"
+	SAVEPOINT_USAGE_ISSUE_NAME              = "SAVEPOINT usage in transactions"
 )
 
 // Issues Description
@@ -352,7 +350,6 @@ const (
 	UNSUPPORTED_DATATYPE_ISSUE_DESCRIPTION                                                 = "%v datatype is not yet supported in YugabyteDB. Affected column: %s."
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_ISSUE_DESCRIPTION                                  = "%v datatype not yet supported by voyager in live migration. Affected column: %s. This column will be excluded when exporting and importing data in live migration workflows."
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_ISSUE_DESCRIPTION                       = "%v datatype not yet supported by voyager in live migration with fall-forward/fallback. Affected column: %s. These columns will be excluded when exporting and importing data in live migration workflows."
-	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_ARRAY_OF_ENUM_ISSUE_DESCRIPTION         = "Array of enum type %v not yet supported by voyager in live migration with fall-forward/fallback. Affected column: %s. These columns will be excluded when exporting and importing data in live migration workflows."
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED_DATATYPE_ISSUE_DESCRIPTION = "User defined datatype %v not yet supported by voyager in live migration with fall-forward/fallback. Affected column: %s. These columns will be excluded when exporting and importing data in live migration workflows."
 	DATABASE_OPTIONS_DESCRIPTION                                                           = "Database options (%s) introduced in PostgreSQL 12 and later are not supported yet in YugabyteDB."
 
@@ -426,6 +423,9 @@ const (
 	SQL_BODY_IN_FUNCTION_ISSUE_DESCRIPTION                     = "SQL language functions with an inline body are not supported in YugabyteDB."
 	UNIQUE_NULLS_NOT_DISTINCT_ISSUE_DESCRIPTION                = "Unique constraint treating NULL values as non-distinct is not yet supported in YugabyteDB."
 	UNSUPPORTED_EXTENSION_ISSUE_DESCRIPTION                    = "This extension is not supported in YugabyteDB by default."
+
+	SAVEPOINT_USAGE_ISSUE_DESCRIPTION = "Detected SAVEPOINT usage in transactions. YugabyteDB CDC has a known limitation where DML operations rolled back via ROLLBACK TO SAVEPOINT are incorrectly emitted as CDC events. This can cause data inconsistencies during fall-forward/fall-back workflows."
+	SAVEPOINT_USAGE_ISSUE_SUGGESTION  = "Review and refactor transactions that use SAVEPOINTs. Consider using separate transactions or application-level error handling instead."
 
 	//Hotspot on timestamp/date indexes
 

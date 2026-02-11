@@ -6,8 +6,11 @@ import (
 	"path/filepath"
 	"strings"
 
+	goerrors "github.com/go-errors/errors"
+
 	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/fatih/color"
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
@@ -51,7 +54,7 @@ var allowedGlobalConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"export-dir", "log-level", "send-diagnostics",
 	"profile",
 	// environment variables keys
-	"control-plane-type", "yugabyted-db-conn-string", "java-home",
+	"control-plane-type", "java-home",
 	"local-call-home-service-host", "local-call-home-service-port",
 	"yb-tserver-port", "tns-admin",
 )
@@ -60,7 +63,7 @@ var allowedSourceConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"name", "db-type", "db-host", "db-port", "db-user", "db-name", "db-password",
 	"db-schema", "ssl-cert", "ssl-mode", "ssl-key", "ssl-root-cert",
 	"ssl-crl", "oracle-db-sid", "oracle-home", "oracle-tns-alias", "oracle-cdb-name",
-	"oracle-cdb-sid", "oracle-cdb-tns-alias",
+	"oracle-cdb-sid", "oracle-cdb-tns-alias", "read-replica-endpoints",
 )
 
 var allowedSourceReplicaConfigKeys = mapset.NewThreadUnsafeSet[string](
@@ -73,6 +76,14 @@ var allowedSourceReplicaConfigKeys = mapset.NewThreadUnsafeSet[string](
 var allowedTargetConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"name", "db-host", "db-port", "db-user", "db-password", "db-name",
 	"db-schema", "ssl-cert", "ssl-mode", "ssl-key", "ssl-root-cert", "ssl-crl",
+)
+
+var allowedYugabytedControlPlaneConfigKeys = mapset.NewThreadUnsafeSet[string](
+	"db-conn-string",
+)
+
+var allowedYBAeonControlPlaneConfigKeys = mapset.NewThreadUnsafeSet[string](
+	"domain", "account-id", "project-id", "cluster-id", "api-key",
 )
 
 var allowedAssessMigrationConfigKeys = mapset.NewThreadUnsafeSet[string](
@@ -135,9 +146,10 @@ var allowedImportDataConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"disable-pb", "max-retries-streaming", "exclude-table-list", "table-list",
 	"exclude-table-list-file-path", "table-list-file-path", "enable-upsert", "use-public-ip",
 	"target-endpoints", "truncate-tables", "error-policy-snapshot",
+	"max-concurrent-batch-productions", "enable-random-batch-production",
 	"skip-node-health-checks", "skip-disk-usage-health-checks",
 	"on-primary-key-conflict", "disable-transactional-writes",
-	"truncate-splits",
+	"truncate-splits", "prometheus-metrics-port",
 
 	// environment variables keys
 	"csv-reader-max-buffer-size-bytes", "ybvoyager-max-colocated-batches-in-progress", "num-event-channels", "event-channel-size",
@@ -148,7 +160,7 @@ var allowedImportDataConfigKeys = mapset.NewThreadUnsafeSet[string](
 
 var allowedImportDataToSourceConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"log-level", "run-guardrails-checks",
-	"parallel-jobs", "disable-pb",
+	"parallel-jobs", "disable-pb", "prometheus-metrics-port",
 	// environment variables keys
 	"num-event-channels", "event-channel-size", "max-events-per-batch",
 	"max-interval-between-batches", "max-batch-size-bytes",
@@ -158,6 +170,7 @@ var allowedImportDataToSourceConfigKeys = mapset.NewThreadUnsafeSet[string](
 var allowedImportDataToSourceReplicaConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"log-level", "run-guardrails-checks",
 	"batch-size", "parallel-jobs", "truncate-tables", "disable-pb", "max-retries-streaming",
+	"prometheus-metrics-port",
 	// environment variables keys
 	"ybvoyager-max-colocated-batches-in-progress", "num-event-channels",
 	"event-channel-size", "max-events-per-batch", "max-interval-between-batches",
@@ -172,6 +185,8 @@ var allowedImportDataFileConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"quote-char", "file-opts", "null-string", "truncate-tables", "error-policy",
 	"disable-transactional-writes", "truncate-splits", "skip-replication-checks",
 	"skip-node-health-checks", "skip-disk-usage-health-checks", "on-primary-key-conflict",
+	"max-concurrent-batch-productions", "enable-random-batch-production",
+	"prometheus-metrics-port",
 	// environment variables keys
 	"csv-reader-max-buffer-size-bytes", "ybvoyager-max-colocated-batches-in-progress",
 	"max-cpu-threshold", "adaptive-parallelism-frequency-seconds",
@@ -198,6 +213,8 @@ var allowedConfigSections = map[string]mapset.Set[string]{
 	"source":                           allowedSourceConfigKeys,
 	"source-replica":                   allowedSourceReplicaConfigKeys,
 	"target":                           allowedTargetConfigKeys,
+	"yugabyted-control-plane":          allowedYugabytedControlPlaneConfigKeys,
+	"ybaeon-control-plane":             allowedYBAeonControlPlaneConfigKeys,
 	"assess-migration":                 allowedAssessMigrationConfigKeys,
 	"analyze-schema":                   allowedAnalyzeSchemaConfigKeys,
 	"export-schema":                    allowedExportSchemaConfigKeys,
@@ -258,7 +275,7 @@ func initConfig(cmd *cobra.Command) ([]ConfigFlagOverride, []EnvVarSetViaConfig,
 	if cfgFile != "" {
 		// Use config file from the flag.
 		if !utils.FileOrFolderExists(cfgFile) {
-			return nil, nil, nil, fmt.Errorf("config file does not exist: %s", cfgFile)
+			return nil, nil, nil, goerrors.Errorf("config file does not exist: %s", cfgFile)
 		}
 
 		cfgFile, err := filepath.Abs(cfgFile)
@@ -297,19 +314,22 @@ func initConfig(cmd *cobra.Command) ([]ConfigFlagOverride, []EnvVarSetViaConfig,
 		return nil, nil, nil, fmt.Errorf("failed to bind environment variables to viper: %w", err)
 	}
 
+	// Load control plane configuration from the config file
+	loadControlPlaneConfig(v)
+
 	return overrides, envVarsSetViaConfig, envVarsAlreadyExported, nil
 }
 
 // map of string environment variable names to their config keys
 var confParamEnvVarPairs = map[string]string{
-	"control-plane-type":           "CONTROL_PLANE_TYPE",
-	"yugabyted-db-conn-string":     "YUGABYTED_DB_CONN_STRING",
-	"java-home":                    "JAVA_HOME",
-	"local-call-home-service-host": "LOCAL_CALL_HOME_SERVICE_HOST",
-	"local-call-home-service-port": "LOCAL_CALL_HOME_SERVICE_PORT",
-	"yb-tserver-port":              "YB_TSERVER_PORT",
-	"tns-admin":                    "TNS_ADMIN",
-	"send-diagnostics":             "YB_VOYAGER_SEND_DIAGNOSTICS",
+	"control-plane-type":                     "CONTROL_PLANE_TYPE",
+	"yugabyted-control-plane.db-conn-string": "YUGABYTED_DB_CONN_STRING", // Backward compatibility
+	"java-home":                              "JAVA_HOME",
+	"local-call-home-service-host":           "LOCAL_CALL_HOME_SERVICE_HOST",
+	"local-call-home-service-port":           "LOCAL_CALL_HOME_SERVICE_PORT",
+	"yb-tserver-port":                        "YB_TSERVER_PORT",
+	"tns-admin":                              "TNS_ADMIN",
+	"send-diagnostics":                       "YB_VOYAGER_SEND_DIAGNOSTICS",
 
 	"source.db-password": "SOURCE_DB_PASSWORD",
 
@@ -424,7 +444,7 @@ func bindEnvVarsToViper(cmd *cobra.Command, v *viper.Viper) ([]EnvVarSetViaConfi
 
 	// Iterate over known config-to-env-var mappings and set env vars
 	// only if:
-	// - the config key is relevant to this command (matches configKeyPrefix or known sections like source./target.)
+	// - the config key is relevant to this command (matches configKeyPrefix or known sections like source./target./yugabyted-control-plane.)
 	// - the env var is not already exported in the shell
 	// - the config key is explicitly set in the config file (non-empty value)
 	// This ensures the correct config values are surfaced to os.Getenv consumers,
@@ -435,6 +455,7 @@ func bindEnvVarsToViper(cmd *cobra.Command, v *viper.Viper) ([]EnvVarSetViaConfi
 			strings.HasPrefix(confKey, "source.") ||
 			strings.HasPrefix(confKey, "source-replica.") ||
 			strings.HasPrefix(confKey, "target.") ||
+			strings.HasPrefix(confKey, "yugabyted-control-plane.") ||
 			len(strings.Split(confKey, ".")) == 1 {
 
 			// Skip if env var already exported
@@ -889,4 +910,28 @@ func readConfigFileAndGetImportDataToSourceKeys() ([]string, error) {
 	}
 
 	return importDataToSourceKeys, nil
+}
+
+// loadControlPlaneConfig reads control plane configuration from viper instance
+// This is called internally by initConfig() to load control plane settings
+func loadControlPlaneConfig(v *viper.Viper) {
+	controlPlaneConfig = make(map[string]string)
+
+	// Read all control plane config keys directly from viper
+	controlPlaneKeys := []string{
+		"yugabyted-control-plane.db-conn-string",
+		"ybaeon-control-plane.domain",
+		"ybaeon-control-plane.account-id",
+		"ybaeon-control-plane.project-id",
+		"ybaeon-control-plane.cluster-id",
+		"ybaeon-control-plane.api-key",
+	}
+
+	for _, key := range controlPlaneKeys {
+		if v.IsSet(key) {
+			controlPlaneConfig[key] = v.GetString(key)
+		}
+	}
+
+	log.Debugf("Control plane config loaded: %d keys", len(controlPlaneConfig))
 }

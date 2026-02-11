@@ -22,6 +22,7 @@ import (
 	"strconv"
 	"strings"
 
+	goerrors "github.com/go-errors/errors"
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
 
@@ -83,7 +84,7 @@ func registerCommonSourceDBConnFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&source.DBName, "source-db-name", "",
 		"source database name to be migrated to YugabyteDB")
 
-	cmd.Flags().StringVar(&source.Schema, "source-db-schema", "",
+	cmd.Flags().StringVar(&source.SchemaConfig, "source-db-schema", "",
 		"source schema name to export (valid for Oracle, PostgreSQL)\n"+
 			`Note: in case of PostgreSQL, it can be a single or comma separated list of schemas: "schema1,schema2,schema3"`)
 }
@@ -211,13 +212,13 @@ func validateExportFlags(cmd *cobra.Command, exporterRole string) error {
 	// checking if wrong flag is given used for a db type
 	if source.DBType != ORACLE {
 		if source.DBSid != "" {
-			return fmt.Errorf("--oracle-db-sid flag is only valid for 'oracle' db type")
+			return goerrors.Errorf("--oracle-db-sid flag is only valid for 'oracle' db type")
 		}
 		if source.OracleHome != "" {
-			return fmt.Errorf("--oracle-home flag is only valid for 'oracle' db type")
+			return goerrors.Errorf("--oracle-home flag is only valid for 'oracle' db type")
 		}
 		if source.TNSAlias != "" {
-			return fmt.Errorf("--oracle-tns-alias flag is only valid for 'oracle' db type")
+			return goerrors.Errorf("--oracle-tns-alias flag is only valid for 'oracle' db type")
 		}
 	}
 	return nil
@@ -248,7 +249,7 @@ func registerExportDataFlags(cmd *cobra.Command) {
 			"In case of BETA_FAST_DATA_EXPORT=1 or --export-type=snapshot-and-changes or --export-type=changes-only, this flag has no effect and the number of parallel jobs is fixed to 1.")
 
 	cmd.Flags().StringVar(&exportType, "export-type", SNAPSHOT_ONLY,
-		fmt.Sprintf("export type: (%s, %s[TECH PREVIEW])", SNAPSHOT_ONLY, SNAPSHOT_AND_CHANGES))
+		fmt.Sprintf("export type: (%s, %s)", SNAPSHOT_ONLY, SNAPSHOT_AND_CHANGES))
 
 	BoolVar(cmd.Flags(), &source.AllowOracleClobDataExport, "allow-oracle-clob-data-export", false,
 		"[EXPERIMENTAL][Oracle only] Allow exporting data of CLOB columns in offline migration.")
@@ -275,21 +276,25 @@ func validateConflictsBetweenTableListFlags(tableList string, excludeTableList s
 }
 
 func validateSourceSchema() {
-	if source.Schema == "" {
+	if source.SchemaConfig == "" {
 		return
 	}
 
-	schemaList := utils.CsvStringToSlice(source.Schema)
+	schemaList := utils.CsvStringToSlice(source.SchemaConfig)
 	switch source.DBType {
 	case MYSQL:
 		utils.ErrExit("Error --source-db-schema flag is not valid for 'MySQL' db type")
 	case ORACLE:
-		if len(schemaList) > 1 {
-			utils.ErrExit("Error single schema at a time is allowed to export from oracle. List of schemas provided: %s", schemaList)
+		if len(schemaList) == 0 {
+			utils.ErrExit("Error --source-db-schema flag is required for 'Oracle' db type")
 		}
+		if len(schemaList) > 1 {
+			utils.ErrExit("Error only single schema at a time is allowed to export from oracle. List of schemas provided: %s", schemaList)
+		}
+		source.SchemaConfig = schemaList[0]
 	case POSTGRESQL:
 		// In PG, its supported to export more than one schema
-		source.Schema = strings.Join(schemaList, "|") // clean and correct formatted for pg
+		source.SchemaConfig = strings.Join(schemaList, ",") // this is just to cleanup the user input witht trimming
 	}
 }
 
@@ -312,11 +317,6 @@ func validateSSLMode() {
 func validateOracleParams() {
 	if source.DBType != ORACLE {
 		return
-	}
-
-	// in oracle, object names are stored in UPPER CASE by default(case insensitive)
-	if !utils.IsQuotedString(source.Schema) {
-		source.Schema = strings.ToUpper(source.Schema)
 	}
 	if source.DBName == "" && source.DBSid == "" && source.TNSAlias == "" {
 		utils.ErrExit(`Error one flag required out of "oracle-tns-alias", "source-db-name", "oracle-db-sid" required.`)
@@ -431,7 +431,7 @@ func checkDependenciesForExport() (binaryCheckIssues []string, err error) {
 		missingTools = utils.CheckTools("strings")
 
 	default:
-		return nil, fmt.Errorf("unknown source database type %q", source.DBType)
+		return nil, goerrors.Errorf("unknown source database type %q", source.DBType)
 	}
 
 	binaryCheckIssues = append(binaryCheckIssues, missingTools...)
@@ -499,25 +499,25 @@ func checkJavaVersion() (binaryCheckIssue string, err error) {
 		}
 	}
 	if versionLine == "" {
-		return "", fmt.Errorf("unable to find java version in output: %s", versionOutput)
+		return "", goerrors.Errorf("unable to find java version in output: %s", versionOutput)
 	}
 
 	// Extract version string from the line (mimics awk -F '"' '/version/ {print $2}')
 	startIndex := strings.Index(versionLine, "\"")
 	endIndex := strings.LastIndex(versionLine, "\"")
 	if startIndex == -1 || endIndex == -1 || startIndex >= endIndex {
-		return "", fmt.Errorf("unexpected java version output: %s", versionOutput)
+		return "", goerrors.Errorf("unexpected java version output: %s", versionOutput)
 	}
 	version := versionLine[startIndex+1 : endIndex]
 
 	// Extract major version
 	versionNumbers := strings.Split(version, ".")
 	if len(versionNumbers) < 1 {
-		return "", fmt.Errorf("unexpected java version output: %s", versionOutput)
+		return "", goerrors.Errorf("unexpected java version output: %s", versionOutput)
 	}
 	majorVersion, err := strconv.Atoi(versionNumbers[0])
 	if err != nil {
-		return "", fmt.Errorf("unexpected java version output: %s", versionOutput)
+		return "", goerrors.Errorf("unexpected java version output: %s", versionOutput)
 	}
 
 	if majorVersion < MIN_REQUIRED_JAVA_VERSION {

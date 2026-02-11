@@ -54,21 +54,21 @@ func TestShardingRecommendations(t *testing.T) {
 		fileName:      "",
 	}
 	source.DBType = POSTGRESQL
-	modifiedSqlStmt, match, _, _, _ := applyShardingRecommendationIfMatching(&sqlInfo_mview1, []string{"m1"}, MVIEW)
+	modifiedSqlStmt, match, _, _, _ := applyShardingRecommendationIfMatching(&sqlInfo_mview1, []string{"m1"}, []string{}, MVIEW)
 	assert.Equal(t, strings.ToLower(modifiedSqlStmt),
 		strings.ToLower("create materialized view m1 with (colocation=false) as select * from t1 where a = 3;"))
 	assert.Equal(t, match, true)
 
-	modifiedSqlStmt, match, _, _, _ = applyShardingRecommendationIfMatching(&sqlInfo_mview2, []string{"m1"}, MVIEW)
+	modifiedSqlStmt, match, _, _, _ = applyShardingRecommendationIfMatching(&sqlInfo_mview2, []string{"m1"}, []string{}, MVIEW)
 	assert.Equal(t, strings.ToLower(modifiedSqlStmt),
 		strings.ToLower("create materialized view m1 with (colocation=false) as select * from t1 where a = 3 with no data;"))
 	assert.Equal(t, match, true)
 
-	modifiedSqlStmt, match, _, _, _ = applyShardingRecommendationIfMatching(&sqlInfo_mview2, []string{"m1_notfound"}, MVIEW)
+	modifiedSqlStmt, match, _, _, _ = applyShardingRecommendationIfMatching(&sqlInfo_mview2, []string{"m1_notfound"}, []string{}, MVIEW)
 	assert.Equal(t, modifiedSqlStmt, sqlInfo_mview2.stmt)
 	assert.Equal(t, match, false)
 
-	modifiedSqlStmt, match, _, _, _ = applyShardingRecommendationIfMatching(&sqlInfo_mview3, []string{"m1"}, MVIEW)
+	modifiedSqlStmt, match, _, _, _ = applyShardingRecommendationIfMatching(&sqlInfo_mview3, []string{"m1"}, []string{}, MVIEW)
 	assert.Equal(t, strings.ToLower(modifiedSqlStmt),
 		strings.ToLower("create materialized view m1 with (fillfactor=70, colocation=false) "+
 			"as select * from t1 where a = 3 with no data;"))
@@ -92,21 +92,21 @@ func TestShardingRecommendations(t *testing.T) {
 		formattedStmt: "alter table a add col text;",
 		fileName:      "",
 	}
-	modifiedTableStmt, matchTable, _, _, _ := applyShardingRecommendationIfMatching(&sqlInfo_table1, []string{"a"}, TABLE)
+	modifiedTableStmt, matchTable, _, _, _ := applyShardingRecommendationIfMatching(&sqlInfo_table1, []string{"a"}, []string{}, TABLE)
 	assert.Equal(t, strings.ToLower(modifiedTableStmt),
 		strings.ToLower("create table a (a int, b int) WITH (colocation=false);"))
 	assert.Equal(t, matchTable, true)
 
-	modifiedTableStmt, matchTable, _, _, _ = applyShardingRecommendationIfMatching(&sqlInfo_table2, []string{"a"}, TABLE)
+	modifiedTableStmt, matchTable, _, _, _ = applyShardingRecommendationIfMatching(&sqlInfo_table2, []string{"a"}, []string{}, TABLE)
 	assert.Equal(t, strings.ToLower(modifiedTableStmt),
 		strings.ToLower("create table a (a int, b int) WITH (fillfactor=70, colocation=false);"))
 	assert.Equal(t, matchTable, true)
 
-	modifiedSqlStmt, matchTable, _, _, _ = applyShardingRecommendationIfMatching(&sqlInfo_table2, []string{"m1_notfound"}, TABLE)
+	modifiedSqlStmt, matchTable, _, _, _ = applyShardingRecommendationIfMatching(&sqlInfo_table2, []string{"m1_notfound"}, []string{}, TABLE)
 	assert.Equal(t, modifiedSqlStmt, sqlInfo_table2.stmt)
 	assert.Equal(t, matchTable, false)
 
-	modifiedTableStmt, matchTable, _, _, _ = applyShardingRecommendationIfMatching(&sqlInfo_table3, []string{"a"}, TABLE)
+	modifiedTableStmt, matchTable, _, _, _ = applyShardingRecommendationIfMatching(&sqlInfo_table3, []string{"a"}, []string{}, TABLE)
 	assert.Equal(t, strings.ToLower(modifiedTableStmt),
 		strings.ToLower(sqlInfo_table3.stmt))
 	assert.Equal(t, matchTable, false)
@@ -203,6 +203,156 @@ func TestExportSchemaRunningAssessmentInternally_ExportAfterAssessCmd(t *testing
 	if !utils.FileOrFolderExists(tableSqlFilePath) {
 		t.Errorf("Expected table.sql file does not exist: %s", tableSqlFilePath)
 	}
+}
+
+// Test: export schema with --start-clean after running assess-migration command
+// Expectation: export-schema should NOT re-run internal assess-migration because assess-migration was already run directly
+// This tests the fix where IsMigrationAssessmentDoneDirectly check is independent of startClean flag
+func TestExportSchemaWithStartClean_AfterAssessMigrationCmd(t *testing.T) {
+	// create temp export dir and setting global exportDir variable
+	exportDir = testutils.CreateTempExportDir()
+	defer testutils.RemoveTempExportDir(exportDir)
+
+	// setting up source test container and source params for assessment
+	postgresContainer := testcontainers.NewTestContainer("postgresql", nil)
+	err := postgresContainer.Start(context.Background())
+	if err != nil {
+		utils.ErrExit("Failed to start postgres container: %v", err)
+	}
+
+	// create table and initial data in it
+	postgresContainer.ExecuteSqls(
+		`CREATE SCHEMA test_schema;`,
+		`CREATE TABLE test_schema.test_data (
+		id SERIAL PRIMARY KEY,
+		value TEXT
+	);`,
+		`INSERT INTO test_schema.test_data (value)
+	SELECT md5(random()::text) FROM generate_series(1, 100000);`)
+	if err != nil {
+		t.Errorf("Failed to create test table: %v", err)
+	}
+	defer postgresContainer.ExecuteSqls(`
+	DROP SCHEMA test_schema CASCADE;`)
+
+	// Step 1: Run assess-migration command
+	_, err = testutils.RunVoyagerCommand(postgresContainer, "assess-migration", []string{
+		"--iops-capture-interval", "0",
+		"--source-db-schema", "test_schema",
+		"--export-dir", exportDir,
+		"--yes",
+	}, nil, false)
+	if err != nil {
+		t.Errorf("Failed to run assess-migration command: %v", err)
+	}
+
+	metaDB = initMetaDB(exportDir)
+	res, err := IsMigrationAssessmentDoneDirectly(metaDB)
+	if err != nil {
+		t.Errorf("Failed to check MigrationAssessmentDone flag: %v", err)
+	}
+	assert.True(t, res, "Expected MigrationAssessmentDone flag to be true after assess-migration")
+
+	// Step 2: Run export schema without --start-clean first to set ExportSchemaDone
+	_, err = testutils.RunVoyagerCommand(postgresContainer, "export schema", []string{
+		"--source-db-schema", "test_schema",
+		"--export-dir", exportDir,
+		"--yes",
+	}, nil, false)
+	if err != nil {
+		t.Errorf("Failed to run export schema command: %v", err)
+	}
+
+	// Get the modification time of the assessment report before running with --start-clean
+	reportFilePath := filepath.Join(exportDir, "assessment", "reports", "migration_assessment_report.json")
+	if !utils.FileOrFolderExists(reportFilePath) {
+		t.Errorf("Expected assessment report file does not exist: %s", reportFilePath)
+	}
+
+	// Step 3: Run export schema with --start-clean
+	// This should NOT re-run internal assessment because assess-migration was already done directly
+	_, err = testutils.RunVoyagerCommand(postgresContainer, "export schema", []string{
+		"--source-db-schema", "test_schema",
+		"--export-dir", exportDir,
+		"--start-clean", "true",
+		"--yes",
+	}, nil, false)
+	if err != nil {
+		t.Errorf("Failed to run export schema with --start-clean command: %v", err)
+	}
+
+	// Verify MigrationAssessmentDone is still true (not reset)
+	metaDB = initMetaDB(exportDir)
+	res, err = IsMigrationAssessmentDoneDirectly(metaDB)
+	if err != nil {
+		t.Errorf("Failed to check MigrationAssessmentDone flag: %v", err)
+	}
+	assert.True(t, res, "Expected MigrationAssessmentDone flag to remain true after export schema --start-clean")
+
+	// Verify MigrationAssessmentDoneViaExportSchema is still false
+	// (assessment was done via assess-migration command, not via export schema)
+	metaDB = initMetaDB(exportDir)
+	res, err = IsMigrationAssessmentDoneViaExportSchema()
+	if err != nil {
+		t.Errorf("Failed to check MigrationAssessmentDoneViaExportSchema flag: %v", err)
+	}
+	assert.False(t, res, "Expected MigrationAssessmentDoneViaExportSchema flag to be false")
+
+	// Verify table.sql exists from export schema
+	tableSqlFilePath := filepath.Join(exportDir, "schema", "tables", "table.sql")
+	if !utils.FileOrFolderExists(tableSqlFilePath) {
+		t.Errorf("Expected table.sql file does not exist: %s", tableSqlFilePath)
+	}
+}
+
+// Test: run export schema (internal assessment runs) -> run export schema with --start-clean (internal assessment should re-run)
+func TestExportSchemaStartClean_ReRunsInternalAssessment(t *testing.T) {
+	// create temp export dir and setting global exportDir variable
+	exportDir = testutils.CreateTempExportDir()
+	defer testutils.RemoveTempExportDir(exportDir)
+
+	// setting up source test container
+	postgresContainer := testcontainers.NewTestContainer("postgresql", nil)
+	err := postgresContainer.Start(context.Background())
+	if err != nil {
+		utils.ErrExit("Failed to start postgres container: %v", err)
+	}
+
+	// create table
+	postgresContainer.ExecuteSqls(
+		`CREATE SCHEMA test_schema;`,
+		`CREATE TABLE test_schema.test_data (id SERIAL PRIMARY KEY, value TEXT);`)
+	defer postgresContainer.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
+
+	// Step 1: Run export schema (this runs assessment internally)
+	_, err = testutils.RunVoyagerCommand(postgresContainer, "export schema", []string{
+		"--source-db-schema", "test_schema",
+		"--export-dir", exportDir,
+		"--yes",
+	}, nil, false)
+	assert.Nil(t, err)
+
+	// Verify the MSR.MigrationAssessmentDoneViaExportSchema flag is set to true
+	metaDB = initMetaDB(exportDir)
+	res, err := IsMigrationAssessmentDoneViaExportSchema()
+	assert.Nil(t, err)
+	assert.True(t, res, "Expected MigrationAssessmentDoneViaExportSchema flag to be true after first export")
+
+	// Step 2: Run export schema with --start-clean
+	// This SHOULD re-run internal assessment because --start-clean is used
+	_, err = testutils.RunVoyagerCommand(postgresContainer, "export schema", []string{
+		"--source-db-schema", "test_schema",
+		"--export-dir", exportDir,
+		"--start-clean", "true",
+		"--yes",
+	}, nil, false)
+	assert.Nil(t, err)
+
+	// Verify the flag is still true (meaning it was cleared by --start-clean and then re-set by the internal assessment)
+	metaDB = initMetaDB(exportDir)
+	res, err = IsMigrationAssessmentDoneViaExportSchema()
+	assert.Nil(t, err)
+	assert.True(t, res, "Expected MigrationAssessmentDoneViaExportSchema flag to be true after start-clean export (verifies re-run)")
 }
 
 func TestExportSchemaRunningAssessmentInternally_ExportSchemaThenAssessCmd(t *testing.T) {
@@ -372,6 +522,14 @@ func TestExportSchemaSchemaOptimizationReportPerfOptimizationsAutofix(t *testing
 			value_2 TEXT,
 			id1 int
 		);`,
+		`CREATE TABLE test_schema.test_partition_table (
+			id SERIAL,
+			value TEXT,
+			value_2 TEXT,
+			id1 int
+		) PARTITION BY LIST (value);`,
+		`CREATE TABLE test_schema.test_partition_table_p1 PARTITION OF test_schema.test_partition_table FOR VALUES IN ('p1');`,
+		`CREATE TABLE test_schema.test_partition_table_p2 PARTITION OF test_schema.test_partition_table FOR VALUES IN ('p2');`,
 		`CREATE INDEX idx_test_data_value ON test_schema.test_data (value);`,
 		`CREATE INDEX idx_test_data_value_2 ON test_schema.test_data (value_2 DESC);`,
 		`CREATE INDEX idx_test_data_value_3 ON test_schema.test_data (value, value_2);`,
@@ -382,6 +540,16 @@ func TestExportSchemaSchemaOptimizationReportPerfOptimizationsAutofix(t *testing
 	}
 	defer postgresContainer.ExecuteSqls(`
 		DROP SCHEMA test_schema CASCADE;`)
+
+	_, err = testutils.RunVoyagerCommand(postgresContainer, "assess-migration", []string{
+		"--source-db-schema", "test_schema",
+		"--iops-capture-interval", "0",
+		"--export-dir", tempExportDir,
+		"--yes",
+	}, nil, false)
+	if err != nil {
+		t.Errorf("Failed to run assess-migration command: %v", err)
+	}
 
 	_, err = testutils.RunVoyagerCommand(postgresContainer, "export schema", []string{
 		"--source-db-schema", "test_schema",
@@ -407,7 +575,13 @@ func TestExportSchemaSchemaOptimizationReportPerfOptimizationsAutofix(t *testing
 	assert.NotNil(t, schemaOptimizationReport.RedundantIndexChange)
 	assert.True(t, schemaOptimizationReport.RedundantIndexChange.IsApplied)
 	assert.NotNil(t, schemaOptimizationReport.TableColocationRecommendation)
-	assert.False(t, schemaOptimizationReport.TableColocationRecommendation.IsApplied)
+	assert.True(t, schemaOptimizationReport.TableColocationRecommendation.IsApplied)
+	assert.Equal(t, 3, len(schemaOptimizationReport.TableColocationRecommendation.ShardedObjects))
+	expectedShardedObjects := []string{"test_schema.test_data", "test_schema.test_partition_table_p1", "test_schema.test_partition_table_p2"}
+	assert.ElementsMatch(t, expectedShardedObjects, schemaOptimizationReport.TableColocationRecommendation.ShardedObjects)
+
+	assert.Equal(t, 0, len(schemaOptimizationReport.TableColocationRecommendation.CollocatedObjects))
+
 	assert.Equal(t, 1, len(schemaOptimizationReport.RedundantIndexChange.TableToRemovedIndexesMap))
 	assert.Equal(t, 2, len(schemaOptimizationReport.RedundantIndexChange.TableToRemovedIndexesMap["test_schema.test_data"]))
 	assert.NotNil(t, schemaOptimizationReport.SecondaryIndexToRangeChange)
@@ -418,6 +592,7 @@ func TestExportSchemaSchemaOptimizationReportPerfOptimizationsAutofix(t *testing
 
 	_, err = testutils.RunVoyagerCommand(yugabyteContainer, "import schema", []string{
 		"--export-dir", tempExportDir,
+		"--yes",
 	}, func() {
 		time.Sleep(10 * time.Second)
 	}, true)

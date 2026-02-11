@@ -17,33 +17,34 @@ limitations under the License.
 package cmd
 
 import (
-	"bufio"
 	_ "embed"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
-	"syscall"
 	"text/template"
 
 	"github.com/fatih/color"
+	goerrors "github.com/go-errors/errors"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryissue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/types"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
 
@@ -57,6 +58,9 @@ var (
 	referenceOrTablePartitionPresent = false
 	pgssEnabledForAssessment         = false
 	invokedByExportSchema            utils.BoolStr
+	sourceReadReplicaEndpoints       string                              // CLI flag - package variable for Cobra binding
+	primaryOnly                      bool                                // CLI flag - package variable for Cobra binding
+	replicaDiscoveryInfoForCallhome  *migassessment.ReplicaDiscoveryInfo // Stored for error callhome
 )
 
 var sourceConnectionFlags = []string{
@@ -90,6 +94,7 @@ var assessMigrationCmd = &cobra.Command{
 		validatePortRange()
 		validateSSLMode()
 		validateOracleParams()
+		validateReplicaRelatedFlags()
 		err = validateAndSetTargetDbVersionFlag()
 		if err != nil {
 			utils.ErrExit("failed to validate target db version: %w", err)
@@ -140,7 +145,7 @@ func registerSourceDBConnFlagsForAM(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&source.DBName, "source-db-name", "",
 		"source database name to be migrated to YugabyteDB")
 
-	cmd.Flags().StringVar(&source.Schema, "source-db-schema", "",
+	cmd.Flags().StringVar(&source.SchemaConfig, "source-db-schema", "",
 		"source schema name(s) to export\n"+
 			`Note: in case of PostgreSQL, it can be a single or comma separated list of schemas: "schema1,schema2,schema3"`)
 
@@ -195,9 +200,25 @@ func init() {
 	BoolVar(assessMigrationCmd.Flags(), &invokedByExportSchema, "invoked-by-export-schema", false,
 		"Flag to indicate if the assessment is invoked by export schema command. ")
 	assessMigrationCmd.Flags().MarkHidden("invoked-by-export-schema") // mark hidden
+
+	assessMigrationCmd.Flags().StringVar(&sourceReadReplicaEndpoints, "source-read-replica-endpoints", "",
+		"Comma-separated list of read replica endpoints. Each endpoint is host:port. Default port 5432. "+
+			"Example: \"host1:5432, host2:5433\". (only valid for PostgreSQL)")
+
+	assessMigrationCmd.Flags().BoolVar(&primaryOnly, "primary-only", false,
+		"assess only the primary database, skip read replica discovery and assessment (only valid for PostgreSQL).")
+}
+
+// createMigrationAssessmentStartedEvent creates a migration assessment started event
+// This is common for both YBM and Yugabyted control planes
+func createMigrationAssessmentStartedEvent() *cp.MigrationAssessmentStartedEvent {
+	ev := &cp.MigrationAssessmentStartedEvent{}
+	initBaseSourceEvent(&ev.BaseEvent, "ASSESS MIGRATION")
+	return ev
 }
 
 func assessMigration() (err error) {
+
 	assessmentMetadataDir = lo.Ternary(assessmentMetadataDirFlag != "", assessmentMetadataDirFlag,
 		filepath.Join(exportDir, "assessment", "metadata"))
 	// setting schemaDir to use later on - gather assessment metadata, segregating into schema files per object etc..
@@ -221,12 +242,13 @@ func assessMigration() (err error) {
 		}
 	}
 
+	var validatedReplicaEndpoints []srcdb.ReplicaEndpoint
+
 	if assessmentMetadataDirFlag == "" { // only in case of source connectivity
 		err := source.DB().Connect()
 		if err != nil {
 			return fmt.Errorf("failed to connect source db for assessing migration: %w", err)
 		}
-
 		// We will require source db connection for the below checks
 		// Check if required binaries are installed.
 		if source.RunGuardrailsChecks {
@@ -242,41 +264,41 @@ func assessMigration() (err error) {
 			if err != nil {
 				return fmt.Errorf("failed to check dependencies for assess migration: %w", err)
 			} else if len(binaryCheckIssues) > 0 {
-				return fmt.Errorf("\n%s\n%s", color.RedString("\nMissing dependencies for assess migration:"), strings.Join(binaryCheckIssues, "\n"))
+				return goerrors.Errorf("\n%s\n%s", color.RedString("\nMissing dependencies for assess migration:"), strings.Join(binaryCheckIssues, "\n"))
 			}
 		}
 
-		res := source.DB().CheckSchemaExists()
-		if !res {
-			return fmt.Errorf("failed to check if source schema exist: %q", source.Schema)
+		allSchemas, err := source.DB().GetAllSchemaNamesIdentifiers()
+		if err != nil {
+			return fmt.Errorf("failed to get all schema names identifiers: %w", err)
 		}
-
-		// Check if source db has permissions to assess migration
-		if source.RunGuardrailsChecks {
-			checkIfSchemasHaveUsagePermissions()
-			var missingPerms []string
-			missingPerms, pgssEnabledForAssessment, err = source.DB().GetMissingAssessMigrationPermissions()
-			if err != nil {
-				return fmt.Errorf("failed to get missing assess migration permissions: %w", err)
-			}
-			if len(missingPerms) > 0 {
-				color.Red("\nPermissions missing in the source database for assess migration:\n")
-				output := strings.Join(missingPerms, "\n")
-				utils.PrintAndLogf("%s\n\n", output)
-
-				link := "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/migrate-steps/#prepare-the-source-database"
-				fmt.Println("Check the documentation to prepare the database for migration:", color.BlueString(link))
-
-				reply := utils.AskPrompt("\nDo you want to continue anyway")
-				if !reply {
-					return fmt.Errorf("grant the required permissions and try again")
-				}
-			}
+		source.Schemas, err = namereg.SchemaNameMatcher(source.DBType, allSchemas, source.SchemaConfig)
+		if err != nil {
+			return fmt.Errorf("failed to match schema names: %w", err)
 		}
-
+		
 		fetchSourceInfo()
 
-		source.DB().Disconnect()
+		// Handle replica discovery and validation (PostgreSQL only)
+		replicaDiscoveryInfo, err := migassessment.HandleReplicaDiscoveryAndValidation(&source, sourceReadReplicaEndpoints, primaryOnly)
+		if err != nil {
+			return fmt.Errorf("failed to handle replica discovery and validation: %w", err)
+		}
+		validatedReplicaEndpoints = replicaDiscoveryInfo.ValidatedReplicas
+
+		// Store for callhome (including error scenarios)
+		replicaDiscoveryInfoForCallhome = &replicaDiscoveryInfo
+
+		// Check permissions on all nodes (primary + replicas) after validation
+		if source.RunGuardrailsChecks {
+			// Check schema usage permissions first (no-op for non-PostgreSQL databases)
+			checkIfSchemasHaveUsagePermissions()
+			// Check assessment-specific permissions on all nodes
+			pgssEnabledForAssessment, err = migassessment.CheckAssessmentPermissionsOnAllNodes(&source, validatedReplicaEndpoints)
+			if err != nil {
+				return fmt.Errorf("permission check failed: %w", err)
+			}
+		}
 	}
 
 	startEvent := createMigrationAssessmentStartedEvent()
@@ -284,12 +306,18 @@ func assessMigration() (err error) {
 
 	initAssessmentDB() // Note: migassessment.AssessmentDir needs to be set beforehand
 
-	err = gatherAssessmentMetadata()
+	err = gatherAssessmentMetadata(validatedReplicaEndpoints)
 	if err != nil {
 		return fmt.Errorf("failed to gather assessment metadata: %w", err)
 	}
 
 	parseExportedSchemaFileForAssessmentIfRequired()
+
+	// Disconnect from primary DB only after all direct DB operations are complete
+	// (including schema export which may check schema existence)
+	if assessmentMetadataDirFlag == "" {
+		source.DB().Disconnect()
+	}
 
 	err = populateMetadataCSVIntoAssessmentDB()
 	if err != nil {
@@ -320,8 +348,18 @@ func assessMigration() (err error) {
 
 	log.Infof("number of assessment issues detected: %d\n", len(assessmentReport.Issues))
 
-	utils.PrintAndLogf("Migration assessment completed successfully.")
-	completedEvent := createMigrationAssessmentCompletedEvent()
+	utils.PrintAndLog("Migration assessment completed successfully.")
+
+	// Call the appropriate event builder based on control plane type
+	var completedEvent *cp.MigrationAssessmentCompletedEvent
+	controlPlaneType := os.Getenv("CONTROL_PLANE_TYPE")
+	if controlPlaneType == YBAEON {
+		completedEvent = createMigrationAssessmentCompletedEventForYBAeon()
+	} else {
+		// Default to yugabyted format (backwards compatible)
+		completedEvent = createMigrationAssessmentCompletedEventForYugabyteD()
+	}
+
 	controlPlane.MigrationAssessmentCompleted(completedEvent)
 	saveSourceDBConfInMSR()
 	err = SetMigrationAssessmentDoneInMSR()
@@ -332,7 +370,20 @@ func assessMigration() (err error) {
 }
 
 func fetchObjectUsageStats() ([]*types.ObjectUsageStats, error) {
-	query := fmt.Sprintf(`SELECT schema_name,object_name,object_type,parent_table_name,scans,inserts,updates,deletes from %s`,
+	// Aggregate usage stats across multiple nodes:
+	// - scans: SUM across all nodes (reads happen on primary + replicas)
+	// - inserts/updates/deletes: SUM from primary only (writes only on primary)
+	query := fmt.Sprintf(`SELECT 
+		schema_name,
+		object_name,
+		object_type,
+		parent_table_name,
+		SUM(scans) as scans,
+		SUM(CASE WHEN source_node = 'primary' THEN inserts ELSE 0 END) as inserts,
+		SUM(CASE WHEN source_node = 'primary' THEN updates ELSE 0 END) as updates,
+		SUM(CASE WHEN source_node = 'primary' THEN deletes ELSE 0 END) as deletes
+	FROM %s
+	GROUP BY schema_name, object_name, object_type, parent_table_name`,
 		migassessment.TABLE_INDEX_USAGE_STATS)
 	rows, err := assessmentDB.Query(query)
 	if err != nil {
@@ -395,7 +446,7 @@ func IsMigrationAssessmentDoneDirectly(metaDBInstance *metadb.MetaDB) (bool, err
 
 func IsMigrationAssessmentDoneViaExportSchema() (bool, error) {
 	if !metaDBIsCreated(exportDir) {
-		return false, fmt.Errorf("metaDB is not created in export directory: %s", exportDir)
+		return false, goerrors.Errorf("metaDB is not created in export directory: %s", exportDir)
 	}
 
 	msr, err := metaDB.GetMigrationStatusRecord()
@@ -420,6 +471,7 @@ func ClearMigrationAssessmentDone() error {
 	return nil
 }
 
+// convertAssessmentIssueToYugabyteDAssessmentIssue converts common AssessmentIssue to Yugabyted format
 func convertAssessmentIssueToYugabyteDAssessmentIssue(ar AssessmentReport) []AssessmentIssueYugabyteD {
 	var result []AssessmentIssueYugabyteD
 	for _, issue := range ar.Issues {
@@ -441,6 +493,29 @@ func convertAssessmentIssueToYugabyteDAssessmentIssue(ar AssessmentReport) []Ass
 			Details: issue.Details,
 		}
 		result = append(result, ybdIssue)
+	}
+	return result
+}
+
+// convertAssessmentIssueToYBMAssessmentIssue converts common AssessmentIssue to YBM format
+func convertAssessmentIssueToYBMAssessmentIssue(ar AssessmentReport) []AssessmentIssueYBM {
+	var result []AssessmentIssueYBM
+	for _, issue := range ar.Issues {
+		ybmIssue := AssessmentIssueYBM{
+			Category:               issue.Category,
+			CategoryDescription:    issue.CategoryDescription,
+			Type:                   issue.Type,
+			Name:                   issue.Name,
+			Description:            issue.Description,
+			Impact:                 issue.Impact,
+			ObjectType:             issue.ObjectType,
+			ObjectName:             issue.ObjectName,
+			SqlStatement:           issue.SqlStatement,
+			DocsLink:               issue.DocsLink,
+			MinimumVersionsFixedIn: issue.MinimumVersionsFixedIn,
+			Details:                issue.Details,
+		}
+		result = append(result, ybmIssue)
 	}
 	return result
 }
@@ -467,13 +542,17 @@ func runAssessment() error {
 func handleStartCleanIfNeededForAssessMigration(metadataDirPassedByUser bool) error {
 	assessmentDir := filepath.Join(exportDir, "assessment")
 	reportsFilePattern := filepath.Join(assessmentDir, "reports", fmt.Sprintf("%s.*", ASSESSMENT_FILE_NAME))
-	metadataFilesPattern := filepath.Join(assessmentMetadataDir, "*.csv")
+	// Check both multi-node (node-*/*.csv) and single-node (*.csv) metadata file patterns
+	multiNodeMetadataPattern := filepath.Join(assessmentMetadataDir, "node-*", "*.csv")
+	singleNodeMetadataPattern := filepath.Join(assessmentMetadataDir, "*.csv")
 	schemaFilesPattern := filepath.Join(assessmentMetadataDir, "schema", "*", "*.sql")
 	dbsFilePattern := filepath.Join(assessmentDir, "dbs", "*.db")
 
 	assessmentFilesExists := utils.FileOrFolderExistsWithGlobPattern(reportsFilePattern) || utils.FileOrFolderExistsWithGlobPattern(dbsFilePattern)
 	if !metadataDirPassedByUser {
-		assessmentFilesExists = assessmentFilesExists || utils.FileOrFolderExistsWithGlobPattern(metadataFilesPattern) ||
+		assessmentFilesExists = assessmentFilesExists ||
+			utils.FileOrFolderExistsWithGlobPattern(multiNodeMetadataPattern) ||
+			utils.FileOrFolderExistsWithGlobPattern(singleNodeMetadataPattern) ||
 			utils.FileOrFolderExistsWithGlobPattern(schemaFilesPattern)
 	}
 
@@ -492,13 +571,14 @@ func handleStartCleanIfNeededForAssessMigration(metadataDirPassedByUser bool) er
 			return fmt.Errorf("failed to start clean for assess migration: %w", err)
 		}
 	} else if assessmentFilesExists { // if not startClean but assessment files already exist
-		return fmt.Errorf("assessment metadata or reports files already exist in the assessment directory: '%s'. Use the --start-clean flag to clear the directory before proceeding.", assessmentDir)
+		return goerrors.Errorf("assessment metadata or reports files already exist in the assessment directory: '%s'. Use the --start-clean flag to clear the directory before proceeding.", assessmentDir)
 	}
 
 	return nil
 }
 
-func gatherAssessmentMetadata() (err error) {
+// gatherAssessmentMetadata collects metadata from the source database.
+func gatherAssessmentMetadata(validatedReplicas []srcdb.ReplicaEndpoint) error {
 	if assessmentMetadataDirFlag != "" {
 		return nil // assessment metadata files are provided by the user inside assessmentMetadataDir
 	}
@@ -507,140 +587,29 @@ func gatherAssessmentMetadata() (err error) {
 	source.ExportObjectTypeList = utils.GetExportSchemaObjectList(source.DBType)
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 
-	utils.PrintAndLogf("gathering metadata and stats from '%s' source database...", source.DBType)
+	utils.PrintAndLogf("\ngathering metadata and stats from '%s' source database...\n", source.DBType)
+
 	switch source.DBType {
 	case POSTGRESQL:
-		err := gatherAssessmentMetadataFromPG()
+		err := migassessment.GatherAssessmentMetadataFromPG(
+			&source,
+			validatedReplicas,
+			assessmentMetadataDir,
+			pgssEnabledForAssessment,
+			intervalForCapturingIOPS,
+		)
 		if err != nil {
 			return fmt.Errorf("error gathering metadata and stats from source PG database: %w", err)
 		}
 	case ORACLE:
-		err := gatherAssessmentMetadataFromOracle()
+		err := migassessment.GatherAssessmentMetadataFromOracle(&source, assessmentMetadataDir)
 		if err != nil {
 			return fmt.Errorf("error gathering metadata and stats from source Oracle database: %w", err)
 		}
 	default:
-		return fmt.Errorf("source DB Type %s is not yet supported for metadata and stats gathering", source.DBType)
+		return goerrors.Errorf("source DB Type %s is not yet supported for metadata and stats gathering", source.DBType)
 	}
 	utils.PrintAndLogf("gathered assessment metadata files at '%s'", assessmentMetadataDir)
-	return nil
-}
-
-func gatherAssessmentMetadataFromOracle() (err error) {
-	if assessmentMetadataDirFlag != "" {
-		return nil
-	}
-
-	scriptPath, err := findGatherMetadataScriptPath(ORACLE)
-	if err != nil {
-		return err
-	}
-
-	tnsAdmin, err := getTNSAdmin(source)
-	if err != nil {
-		return fmt.Errorf("error getting tnsAdmin: %w", err)
-	}
-	envVars := []string{fmt.Sprintf("ORACLE_PASSWORD=%s", source.Password),
-		fmt.Sprintf("TNS_ADMIN=%s", tnsAdmin),
-		fmt.Sprintf("ORACLE_HOME=%s", source.GetOracleHome()),
-	}
-	log.Infof("environment variables passed to oracle gather metadata script: %v", envVars)
-	return runGatherAssessmentMetadataScript(scriptPath, envVars,
-		source.DB().GetConnectionUriWithoutPassword(), strings.ToUpper(source.Schema), assessmentMetadataDir)
-}
-
-func gatherAssessmentMetadataFromPG() (err error) {
-	if assessmentMetadataDirFlag != "" {
-		return nil
-	}
-
-	scriptPath, err := findGatherMetadataScriptPath(POSTGRESQL)
-	if err != nil {
-		return err
-	}
-
-	yesParam := lo.Ternary(utils.DoNotPrompt, "true", "false")
-	return runGatherAssessmentMetadataScript(scriptPath, []string{fmt.Sprintf("PGPASSWORD=%s", source.Password)},
-		source.DB().GetConnectionUriWithoutPassword(), source.Schema, assessmentMetadataDir, fmt.Sprintf("%t", pgssEnabledForAssessment), fmt.Sprintf("%d", intervalForCapturingIOPS), yesParam)
-}
-
-func findGatherMetadataScriptPath(dbType string) (string, error) {
-	var defaultScriptPath string
-	switch dbType {
-	case POSTGRESQL:
-		defaultScriptPath = "/etc/yb-voyager/gather-assessment-metadata/postgresql/yb-voyager-pg-gather-assessment-metadata.sh"
-	case ORACLE:
-		defaultScriptPath = "/etc/yb-voyager/gather-assessment-metadata/oracle/yb-voyager-oracle-gather-assessment-metadata.sh"
-	default:
-		panic(fmt.Sprintf("invalid source db type %q", dbType))
-	}
-
-	homebrewVoyagerDir := fmt.Sprintf("yb-voyager@%s", utils.YB_VOYAGER_VERSION)
-	possiblePathsForScript := []string{
-		defaultScriptPath,
-		filepath.Join("/", "opt", "homebrew", "Cellar", homebrewVoyagerDir, utils.YB_VOYAGER_VERSION, defaultScriptPath),
-		filepath.Join("/", "usr", "local", "Cellar", homebrewVoyagerDir, utils.YB_VOYAGER_VERSION, defaultScriptPath),
-	}
-
-	for _, path := range possiblePathsForScript {
-		if utils.FileOrFolderExists(path) {
-			log.Infof("found the gather assessment metadata script at: %s", path)
-			return path, nil
-		}
-	}
-
-	return "", fmt.Errorf("script not found in possible paths: %v", possiblePathsForScript)
-}
-
-func runGatherAssessmentMetadataScript(scriptPath string, envVars []string, scriptArgs ...string) error {
-	cmd := exec.Command(scriptPath, scriptArgs...)
-	log.Infof("running script: %s", cmd.String())
-	cmd.Env = os.Environ()
-	cmd.Env = append(cmd.Env, envVars...)
-	cmd.Dir = assessmentMetadataDir
-	cmd.Stdin = os.Stdin
-
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return fmt.Errorf("error creating stdout pipe: %w", err)
-	}
-
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		return fmt.Errorf("error creating stderr pipe: %w", err)
-	}
-
-	err = cmd.Start()
-	if err != nil {
-		return fmt.Errorf("error starting gather assessment metadata script: %w", err)
-	}
-
-	go func() {
-		scanner := bufio.NewScanner(stderr)
-		for scanner.Scan() {
-			log.Errorf("[stderr of script]: %s", scanner.Text())
-			fmt.Printf("%s\n", scanner.Text())
-		}
-	}()
-
-	scanner := bufio.NewScanner(stdout)
-	for scanner.Scan() {
-		log.Infof("[stdout of script]: %s", scanner.Text())
-		fmt.Printf("%s\n", scanner.Text())
-	}
-
-	err = cmd.Wait()
-	if err != nil {
-		if exiterr, ok := err.(*exec.ExitError); ok {
-			if status, ok := exiterr.Sys().(syscall.WaitStatus); ok {
-				if status.ExitStatus() == 2 {
-					log.Infof("Exit without error as user opted not to continue in the script.")
-					os.Exit(0)
-				}
-			}
-		}
-		return fmt.Errorf("error waiting for gather assessment metadata script to complete: %w", err)
-	}
 	return nil
 }
 
@@ -661,9 +630,35 @@ func parseExportedSchemaFileForAssessmentIfRequired() {
 }
 
 func populateMetadataCSVIntoAssessmentDB() error {
-	metadataFilesPath, err := filepath.Glob(filepath.Join(assessmentMetadataDir, "*.csv"))
+	// Collect CSV files from metadata directory
+	// Two supported structures:
+	//   1. Multi-node (PostgreSQL): assessmentMetadataDir/node-*/*.csv
+	//   2. Single-node (Oracle, MySQL, etc.): assessmentMetadataDir/*.csv
+	var metadataFilesPath []string
+
+	// Check for multi-node structure first (node-* directories)
+	nodeDirs, err := filepath.Glob(filepath.Join(assessmentMetadataDir, "node-*"))
 	if err != nil {
-		return fmt.Errorf("error looking for csv files in directory %s: %w", assessmentMetadataDir, err)
+		return fmt.Errorf("error looking for node data directories in %s: %w", assessmentMetadataDir, err)
+	}
+
+	if len(nodeDirs) > 0 {
+		// Multi-node structure: Collect CSV files from each node directory
+		for _, nodeDir := range nodeDirs {
+			nodeFiles, err := filepath.Glob(filepath.Join(nodeDir, "*.csv"))
+			if err != nil {
+				return fmt.Errorf("error looking for csv files in directory %s: %w", nodeDir, err)
+			}
+			metadataFilesPath = append(metadataFilesPath, nodeFiles...)
+		}
+		log.Infof("Found %d CSV files across %d node(s) for population into assessment DB", len(metadataFilesPath), len(nodeDirs))
+	} else {
+		// Single-node structure: Collect CSV files directly from metadata directory
+		metadataFilesPath, err = filepath.Glob(filepath.Join(assessmentMetadataDir, "*.csv"))
+		if err != nil {
+			return fmt.Errorf("error looking for csv files in directory %s: %w", assessmentMetadataDir, err)
+		}
+		log.Infof("Found %d CSV files in metadata directory for population into assessment DB", len(metadataFilesPath))
 	}
 
 	for _, metadataFilePath := range metadataFilesPath {
@@ -705,6 +700,12 @@ func generateAssessmentReport() (err error) {
 
 	assessmentReport.VoyagerVersion = utils.YB_VOYAGER_VERSION
 	assessmentReport.TargetDBVersion = targetDbVersion
+
+	// Populate assessment topology information
+	// Note: If assessment completes, all validated replicas succeeded (no partial failures)
+	if replicaDiscoveryInfoForCallhome != nil {
+		assessmentReport.NumReplicasUsed = len(replicaDiscoveryInfoForCallhome.ValidatedReplicas)
+	}
 
 	err = getAssessmentReportContentFromAnalyzeSchema()
 	if err != nil {
@@ -1396,13 +1397,13 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, []ut
 		isUDTDatatype := utils.ContainsAnyStringFromSlice(parserIssueDetector.GetCompositeTypes(), allColumnsDataTypes[i].DataType)
 		isArrayDatatype := strings.HasSuffix(allColumnsDataTypes[i].DataType, "[]")                                                                       //if type is array
 		isEnumDatatype := utils.ContainsAnyStringFromSlice(parserIssueDetector.GetEnumTypes(), strings.TrimSuffix(allColumnsDataTypes[i].DataType, "[]")) //is ENUM type
-		isArrayOfEnumsDatatype := isArrayDatatype && isEnumDatatype
 
 		allColumnsDataTypes[i].IsArrayType = isArrayDatatype
 		allColumnsDataTypes[i].IsEnumType = isEnumDatatype
 		allColumnsDataTypes[i].IsUDTType = isUDTDatatype
 
-		isUnsupportedDatatypeInLiveWithFFOrFB := isUnsupportedDatatypeInLiveWithFFOrFBList || isUDTDatatype || isArrayOfEnumsDatatype
+		// Array of enums are now supported with logical connector (default), so not including them as unsupported
+		isUnsupportedDatatypeInLiveWithFFOrFB := isUnsupportedDatatypeInLiveWithFFOrFBList || isUDTDatatype
 
 		switch true {
 		case isUnsupportedDatatype:
@@ -1417,7 +1418,8 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, []ut
 				we are still using from Source which might need a better way in case of Oracle as for PG it doesn't really makes a difference in
 				source or analyzeSchema's results.
 			*/
-			//reporting types in the list YugabyteUnsupportedDataTypesForDbzm, UDT and array on ENUMs columns as unsupported with live migration with ff/fb
+			//reporting types in the list YugabyteUnsupportedDataTypesForDbzm and UDT columns as unsupported with live migration with ff/fb
+			//Note: hstore, tsvector, and array of enums are now supported with logical connector (default)
 			unsupportedDataTypesForLiveMigrationWithFForFB = append(unsupportedDataTypesForLiveMigrationWithFForFB, allColumnsDataTypes[i])
 
 		}
@@ -1498,8 +1500,7 @@ func considerQueryForIssueDetection(collectedSchemaList []string) bool {
 		return item != "pg_catalog"
 	})
 
-	sourceSchemaList := strings.Split(source.Schema, "|")
-
+	sourceSchemaList := sqlname.ExtractIdentifiersUnquoted(source.Schemas)
 	// fallback in case: unable to collect objects or there are no object(s) in the query
 	if len(collectedSchemaList) == 0 {
 		return true
@@ -1571,6 +1572,7 @@ func addNotesToAssessmentReport() {
 	log.Infof("adding notes to assessment report")
 
 	assessmentReport.Notes = append(assessmentReport.Notes, PREVIEW_FEATURES_NOTE)
+
 	// keep it as the first point in Notes
 	if len(assessmentReport.Sizing.SizingRecommendation.ColocatedTables) > 0 {
 		assessmentReport.Notes = append(assessmentReport.Notes, COLOCATED_TABLE_RECOMMENDATION_CAVEAT)
@@ -1618,6 +1620,16 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 		migrationCaveats = append(migrationCaveats, getUnsupportedFeaturesFromSchemaAnalysisReport(POLICIES_CAVEAT_FEATURE, "", queryissue.POLICY_WITH_ROLES,
 			schemaAnalysisReport, false))
 
+		// Check for SAVEPOINT usage in transactions detected by parser
+		if parserIssueDetector.IsSavepointUsed() {
+			queryIssue := queryissue.NewSavepointUsageIssue(
+				queryissue.DML_QUERY_OBJECT_TYPE,
+				"",
+				"SAVEPOINT", // Hardcoded SQL statement
+			)
+			checkIsFixedInAndAddIssueToAssessmentIssues(queryIssue)
+		}
+
 		if len(unsupportedDataTypesForLiveMigration) > 0 {
 			columns := make([]ObjectInfo, 0)
 			for _, colInfo := range unsupportedDataTypesForLiveMigration {
@@ -1646,15 +1658,7 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 
 				var queryIssue queryissue.QueryIssue
 
-				if colInfo.IsArrayType && colInfo.IsEnumType {
-					queryIssue = queryissue.NewArrayOfEnumDatatypeIssue(
-						constants.COLUMN,
-						qualifiedColName,
-						"",
-						fmt.Sprintf("%s[]", baseTypeName), //so the user can understand this is an array type
-						colInfo.ColumnName,
-					)
-				} else if colInfo.IsUDTType {
+				if colInfo.IsUDTType {
 					queryIssue = queryissue.NewUserDefinedDatatypeIssue(
 						constants.COLUMN,
 						qualifiedColName,
@@ -1826,6 +1830,7 @@ func generateAssessmentReportHtml(reportDir string) error {
 	log.Infof("creating template for assessment report...")
 	funcMap := template.FuncMap{
 		"split":                                  split,
+		"add":                                    add,
 		"groupByObjectType":                      groupByObjectType,
 		"numKeysInMapStringObjectInfo":           numKeysInMapStringObjectInfo,
 		"groupByObjectName":                      groupByObjectName,
@@ -1930,6 +1935,10 @@ func split(value string, delimiter string) []string {
 	return strings.Split(value, delimiter)
 }
 
+func add(a, b int) int {
+	return a + b
+}
+
 // hasNotesByType checks if there are any notes of the specified type
 func hasNotesByType(notes []NoteInfo, noteType NoteType) bool {
 	for _, note := range notes {
@@ -1974,6 +1983,21 @@ func validateSourceDBTypeForAssessMigration() {
 	if !slices.Contains(assessMigrationSupportedDBTypes, source.DBType) {
 		utils.ErrExit("Error Invalid source-db-type: %q. Supported source db types for assess-migration are: [%v]",
 			source.DBType, strings.Join(assessMigrationSupportedDBTypes, ", "))
+	}
+}
+
+func validateReplicaRelatedFlags() {
+	if sourceReadReplicaEndpoints != "" && source.DBType != POSTGRESQL {
+		utils.ErrExit("Error --source-read-replica-endpoints flag / source.read-replica-endpoints config parameter is only valid for 'postgresql' db type")
+	}
+
+	if primaryOnly && source.DBType != POSTGRESQL {
+		utils.ErrExit("Error --primary-only flag is only valid for 'postgresql' db type")
+	}
+
+	// Both flags are mutually exclusive
+	if primaryOnly && sourceReadReplicaEndpoints != "" {
+		utils.ErrExit("Error: --primary-only and --source-read-replica-endpoints flags cannot be used together")
 	}
 }
 

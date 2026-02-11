@@ -1,6 +1,6 @@
 [
     {
-      "table_name": "public.\"one_m_rows\"",
+      "table_name": "\"public\".\"one_m_rows\"",
       "file_name": "OneMRows.text",
       "status": "DONE",
       "total_count": 352299369,

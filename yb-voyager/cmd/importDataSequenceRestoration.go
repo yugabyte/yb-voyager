@@ -20,6 +20,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	goerrors "github.com/go-errors/errors"
+
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 
@@ -97,7 +99,7 @@ func restoreSequencesInOfflineMigration(msr *metadb.MigrationStatusRecord, impor
 		//if tables are not being filtered then ideally we should restore all sequences
 		err = sequenceTupleToLastValue.IterKV(func(sequenceTuple sqlname.NameTuple, lastValue int64) (bool, error) {
 			if !sequenceTuple.TargetTableAvailable() {
-				return false, fmt.Errorf("sequence %q is not present in the target database", sequenceTuple.ForKey())
+				return false, goerrors.Errorf("sequence %q is not present in the target database", sequenceTuple.ForKey())
 			}
 			sequenceNameTupleToLastValueMap.Put(sequenceTuple, lastValue)
 			return true, nil
@@ -186,7 +188,7 @@ func fetchSequenceToTableListMap(msr *metadb.MigrationStatusRecord) (*utils.Stru
 	for column, sequenceName := range sourceColumnToSequenceMapping {
 		parts := strings.Split(column, ".") //column is qualified tablename.colname
 		if len(parts) < 3 {
-			return nil, fmt.Errorf("invalid column name: %s", column)
+			return nil, goerrors.Errorf("invalid column name: %s", column)
 		}
 		tableName := fmt.Sprintf("%s.%s", parts[0], parts[1])
 		tableNameTuple, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole(tableName)
@@ -247,7 +249,7 @@ func filterSequencesAsPerImportTableList(sequenceTupleToLastValue *utils.StructM
 		if !sequenceTuple.TargetTableAvailable() {
 			//if the sequence is attached to a table and table in table list but sequence not present in the target database
 			//return error
-			return false, fmt.Errorf("sequence %q is not present in the target database", sequenceTuple.ForKey())
+			return false, goerrors.Errorf("sequence %q is not present in the target database", sequenceTuple.ForKey())
 		}
 		//restore the sequence last value
 		sequenceNameTupleToLastValueMap.Put(sequenceTuple, lastValue)
@@ -266,7 +268,7 @@ func readSequenceLastValueFromPostDataSql(sequenceFilePath string, sourceDBType 
 	for _, sqlInfo := range sqlInfoArr {
 		parseTree, err := queryparser.Parse(sqlInfo.stmt)
 		if err != nil {
-			return nil, fmt.Errorf("error parsing the ddl[%s]: %v", sqlInfo.stmt, err)
+			return nil, goerrors.Errorf("error parsing the ddl[%s]: %v", sqlInfo.stmt, err)
 		}
 		var sequenceName string
 		var lastValue int64

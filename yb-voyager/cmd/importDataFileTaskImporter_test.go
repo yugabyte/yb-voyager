@@ -1,5 +1,4 @@
 //go:build integration
-
 /*
 Copyright (c) YugabyteDB, Inc.
 
@@ -60,8 +59,11 @@ func TestBasicTaskImport(t *testing.T) {
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table_basic", 1)
 	testutils.FatalIfError(t, err)
 
+	batchProducer, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+	testutils.FatalIfError(t, err)
+
 	workerPool := pool.New().WithMaxGoroutines(2)
-	taskImporter, err := NewFileTaskImporter(task, state, workerPool, progressReporter, nil, false, errorHandler, nil)
+	taskImporter, err := NewFileTaskImporter(task, state, batchProducer, workerPool, progressReporter, nil, false, errorHandler, nil)
 	testutils.FatalIfError(t, err)
 
 	for !taskImporter.AllBatchesSubmitted() {
@@ -100,8 +102,12 @@ func TestImportAllBatchesAndResume(t *testing.T) {
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table_all", 1)
 	testutils.FatalIfError(t, err)
 
+	batchProducer, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+	testutils.FatalIfError(t, err)
+
 	workerPool := pool.New().WithMaxGoroutines(2)
-	taskImporter, err := NewFileTaskImporter(task, state, workerPool, progressReporter, nil, false, errorHandler, nil)
+	taskImporter, err := NewFileTaskImporter(task, state, batchProducer, workerPool, progressReporter, nil, false, errorHandler, nil)
+	testutils.FatalIfError(t, err)
 
 	for !taskImporter.AllBatchesSubmitted() {
 		err := taskImporter.ProduceAndSubmitNextBatchToWorkerPool()
@@ -116,8 +122,11 @@ func TestImportAllBatchesAndResume(t *testing.T) {
 
 	// simulate restart
 	progressReporter = NewImportDataProgressReporter(true)
+	batchProducer, err = NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+	testutils.FatalIfError(t, err)
+
 	workerPool = pool.New().WithMaxGoroutines(2)
-	taskImporter, err = NewFileTaskImporter(task, state, workerPool, progressReporter, nil, false, errorHandler, nil)
+	taskImporter, err = NewFileTaskImporter(task, state, batchProducer, workerPool, progressReporter, nil, false, errorHandler, nil)
 	testutils.FatalIfError(t, err)
 
 	assert.Equal(t, true, taskImporter.AllBatchesSubmitted())
@@ -150,8 +159,11 @@ func TestTaskImportResumable(t *testing.T) {
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table_resume", 1)
 	testutils.FatalIfError(t, err)
 
+	batchProducer, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+	testutils.FatalIfError(t, err)
+
 	workerPool := pool.New().WithMaxGoroutines(2)
-	taskImporter, err := NewFileTaskImporter(task, state, workerPool, progressReporter, nil, false, errorHandler, nil)
+	taskImporter, err := NewFileTaskImporter(task, state, batchProducer, workerPool, progressReporter, nil, false, errorHandler, nil)
 	testutils.FatalIfError(t, err)
 
 	// submit 1 batch
@@ -167,8 +179,11 @@ func TestTaskImportResumable(t *testing.T) {
 
 	// simulate restart
 	progressReporter = NewImportDataProgressReporter(true)
+	batchProducer, err = NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+	testutils.FatalIfError(t, err)
+
 	workerPool = pool.New().WithMaxGoroutines(2)
-	taskImporter, err = NewFileTaskImporter(task, state, workerPool, progressReporter, nil, false, errorHandler, nil)
+	taskImporter, err = NewFileTaskImporter(task, state, batchProducer, workerPool, progressReporter, nil, false, errorHandler, nil)
 	testutils.FatalIfError(t, err)
 
 	// submit second batch, not first batch again as it was already imported
@@ -208,8 +223,11 @@ func TestTaskImportResumableNoPK(t *testing.T) {
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table_resume_no_pk", 1)
 	testutils.FatalIfError(t, err)
 
+	batchProducer, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+	testutils.FatalIfError(t, err)
+
 	workerPool := pool.New().WithMaxGoroutines(2)
-	taskImporter, err := NewFileTaskImporter(task, state, workerPool, progressReporter, nil, false, errorHandler, nil)
+	taskImporter, err := NewFileTaskImporter(task, state, batchProducer, workerPool, progressReporter, nil, false, errorHandler, nil)
 	testutils.FatalIfError(t, err)
 
 	// submit 1 batch
@@ -225,8 +243,11 @@ func TestTaskImportResumableNoPK(t *testing.T) {
 
 	// simulate restart
 	progressReporter = NewImportDataProgressReporter(true)
+	batchProducer, err = NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+	testutils.FatalIfError(t, err)
+
 	workerPool = pool.New().WithMaxGoroutines(2)
-	taskImporter, err = NewFileTaskImporter(task, state, workerPool, progressReporter, nil, false, errorHandler, nil)
+	taskImporter, err = NewFileTaskImporter(task, state, batchProducer, workerPool, progressReporter, nil, false, errorHandler, nil)
 	testutils.FatalIfError(t, err)
 
 	// submit second batch, not first batch again as it was already imported
@@ -268,8 +289,11 @@ func TestTaskImportErrorsOutWithAbortErrorPolicy(t *testing.T) {
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table_error", 1)
 	testutils.FatalIfError(t, err)
 
+	batchProducer, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+	testutils.FatalIfError(t, err)
+
 	workerPool := pool.New().WithMaxGoroutines(2)
-	taskImporter, err := NewFileTaskImporter(task, state, workerPool, progressReporter, nil, false, errorHandler, nil)
+	taskImporter, err := NewFileTaskImporter(task, state, batchProducer, workerPool, progressReporter, nil, false, errorHandler, nil)
 	testutils.FatalIfError(t, err)
 
 	utils.MonkeyPatchUtilsErrExitWithPanic()
@@ -479,7 +503,7 @@ func createBatchFromData(t *testing.T, data string, tableName sqlname.NameTuple)
 	batch := &Batch{
 		Number:       1,
 		TableNameTup: tableName,
-		SchemaName:   tableName.CurrentName.SchemaName,
+		SchemaName:   tableName.CurrentName.SchemaName.Unquoted,
 		FilePath:     batchFilePath,
 		BaseFilePath: batchFilePath,
 		OffsetStart:  0,
@@ -518,7 +542,7 @@ func createTargetYugabyteDB(t *testing.T, container testcontainers.TestContainer
 		User:         config.User,
 		Password:     config.Password,
 		DBName:       config.DBName,
-		Schema:       "public", // Set default schema
+		Schemas:      []sqlname.Identifier{sqlname.NewIdentifier(tgtdb.YUGABYTEDB, "public")}, // Set default schema
 		TargetDBType: tgtdb.YUGABYTEDB,
 	}
 
@@ -666,7 +690,7 @@ func createTargetPostgreSQL(t *testing.T, container testcontainers.TestContainer
 		User:         config.User,
 		Password:     config.Password,
 		DBName:       config.DBName,
-		Schema:       "public", // Set default schema
+		Schemas:      []sqlname.Identifier{sqlname.NewIdentifier(tgtdb.POSTGRESQL, "public")}, // Set default schema
 		TargetDBType: tgtdb.POSTGRESQL,
 	}
 

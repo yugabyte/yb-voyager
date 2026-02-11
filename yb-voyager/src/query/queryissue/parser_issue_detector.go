@@ -21,6 +21,8 @@ import (
 	"slices"
 	"strings"
 
+	goerrors "github.com/go-errors/errors"
+
 	pg_query "github.com/pganalyze/pg_query_go/v6"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
@@ -274,6 +276,9 @@ type ParserIssueDetector struct {
 
 	// object usages
 	objectUsages map[string]*ObjectUsageCategory
+
+	// Track if SAVEPOINT usage was detected across all queries
+	isSavepointUsed bool
 }
 
 func NewParserIssueDetector() *ParserIssueDetector {
@@ -305,16 +310,16 @@ func (p *ParserIssueDetector) getOrCreateTableMetadata(tableName string) *TableM
 		schemaName = parts[0]
 		tableNameOnly = parts[1]
 	}
-	usageCategory := p.getUsageCategoryForTable(schemaName, tableNameOnly)
 	tm := &TableMetadata{
 		TableName:   tableNameOnly,
 		SchemaName:  schemaName,
-		Usage:       usageCategory,
+		Usage:       ObjectUsageCategoryUnused, //start with  unused and populating it in FinalizeColumnMetadata->buildUsageCategoryForAllTables()
 		Columns:     make(map[string]*ColumnMetadata),
 		Constraints: make([]ConstraintMetadata, 0),
 		Indexes:     make([]*queryparser.Index, 0),
 	}
 	p.tablesMetadata[tableName] = tm
+
 	return tm
 }
 
@@ -428,15 +433,15 @@ func (p *ParserIssueDetector) GetColumnsWithHotspotRangeIndexesDatatypes() map[s
 func (p *ParserIssueDetector) getAllIssues(query string) ([]QueryIssue, error) {
 	plpgsqlIssues, err := p.getPLPGSQLIssues(query)
 	if err != nil {
-		return nil, fmt.Errorf("error getting plpgsql issues: %v", err)
+		return nil, goerrors.Errorf("error getting plpgsql issues: %v", err)
 	}
 	dmlIssues, err := p.getDMLIssues(query)
 	if err != nil {
-		return nil, fmt.Errorf("error getting generic issues: %v", err)
+		return nil, goerrors.Errorf("error getting generic issues: %v", err)
 	}
 	ddlIssues, err := p.getDDLIssues(query)
 	if err != nil {
-		return nil, fmt.Errorf("error getting ddl issues: %v", err)
+		return nil, goerrors.Errorf("error getting ddl issues: %v", err)
 	}
 	return lo.Flatten([][]QueryIssue{plpgsqlIssues, dmlIssues, ddlIssues}), nil
 }
@@ -500,7 +505,7 @@ func (p *ParserIssueDetector) getPLPGSQLIssues(query string) ([]QueryIssue, erro
 	}
 	percentTypeSyntaxIssues, err := p.GetPercentTypeSyntaxIssues(query)
 	if err != nil {
-		return nil, fmt.Errorf("error getting reference TYPE syntax issues: %v", err)
+		return nil, goerrors.Errorf("error getting reference TYPE syntax issues: %v", err)
 	}
 	issues = append(issues, percentTypeSyntaxIssues...)
 
@@ -534,8 +539,8 @@ func (p *ParserIssueDetector) PopulateObjectUsages(objectUsagesStats []*types.Ob
 	p.objectUsages = objectUsageStatsMap
 }
 
-// FinalizeColumnMetadata processes the column metadata after all DDL statements have been parsed.
-func (p *ParserIssueDetector) FinalizeColumnMetadata() {
+// FinalizeTablesMetadata processes the column metadata after all DDL statements have been parsed.
+func (p *ParserIssueDetector) FinalizeTablesMetadata() {
 	// Finalize column metadata for inherited tables - copying columns from parent tables to child tables
 	p.finalizeColumnsFromParentMap(p.getInheritedFrom())
 
@@ -553,6 +558,43 @@ func (p *ParserIssueDetector) FinalizeColumnMetadata() {
 
 	// Build partition hierarchies
 	p.buildPartitionHierarchies()
+
+	p.buildUsageCategoryForAllTables()
+}
+
+/*
+Building the usage category for all the tables beforehand in the finalize step
+to populate the usage category for all the partitions once the partitions are populated in the buildPartitionHierarchies step
+for the partitioned tables.
+This is not required for indexes because the indexes are only reported per partitions level
+*/
+func (p *ParserIssueDetector) buildUsageCategoryForAllTables() {
+	for _, tm := range p.tablesMetadata {
+		tm.Usage = p.getUsageCategoryForTable(tm)
+	}
+}
+
+func (p *ParserIssueDetector) getUsageCategoryForTable(tm *TableMetadata) string {
+	objName := sqlname.NewObjectName(constants.POSTGRESQL, "", tm.SchemaName, tm.TableName)
+	qualifiedObjName := objName.Qualified.Unquoted
+	stat, ok := p.objectUsages[qualifiedObjName]
+	if !ok {
+		log.Infof("No object usage stats found for table: %s", qualifiedObjName)
+		return ObjectUsageCategoryUnused
+	}
+	usageCategory := stat.Usage
+
+	if !tm.IsPartitioned() {
+		return usageCategory
+	}
+
+	//for the partitioned tables the usage is only stored per partition level
+	//so we need to combine the usage of all the partitions to get the usage for the partitioned table
+	for _, partition := range tm.Partitions {
+		partitionUsageCategory := p.getUsageCategoryForTable(partition)
+		usageCategory = GetCombinedUsageCategory(usageCategory, partitionUsageCategory)
+	}
+	return usageCategory
 }
 
 // buildPartitionHierarchies builds the direct child relationships for all tables
@@ -697,7 +739,7 @@ func (p *ParserIssueDetector) finalizeForeignKeyConstraints() {
 func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 	parseTree, err := queryparser.Parse(query)
 	if err != nil {
-		return fmt.Errorf("error parsing a query: %v", err)
+		return goerrors.Errorf("error parsing a query: %v", err)
 	}
 	ddlObj, err := queryparser.ProcessDDL(parseTree)
 	if err != nil {
@@ -881,7 +923,7 @@ func (p *ParserIssueDetector) GetDDLIssues(query string, targetDbVersion *ybvers
 func (p *ParserIssueDetector) getDDLIssues(query string) ([]QueryIssue, error) {
 	parseTree, err := queryparser.Parse(query)
 	if err != nil {
-		return nil, fmt.Errorf("error parsing a query: %v", err)
+		return nil, goerrors.Errorf("error parsing a query: %v", err)
 	}
 	isDDL, err := queryparser.IsDDL(parseTree)
 	if err != nil {
@@ -936,13 +978,13 @@ func (p *ParserIssueDetector) getDDLIssues(query string) ([]QueryIssue, error) {
 func (p *ParserIssueDetector) GetPercentTypeSyntaxIssues(query string) ([]QueryIssue, error) {
 	parseTree, err := queryparser.Parse(query)
 	if err != nil {
-		return nil, fmt.Errorf("error parsing the query-%s: %v", query, err)
+		return nil, goerrors.Errorf("error parsing the query-%s: %v", query, err)
 	}
 
 	objType, objName := queryparser.GetObjectTypeAndObjectName(parseTree)
 	typeNames, err := queryparser.GetAllTypeNamesInPlpgSQLStmt(query)
 	if err != nil {
-		return nil, fmt.Errorf("error getting type names in PLPGSQL: %v", err)
+		return nil, goerrors.Errorf("error getting type names in PLPGSQL: %v", err)
 	}
 
 	/*
@@ -979,7 +1021,7 @@ func (p *ParserIssueDetector) getDMLIssues(query string) ([]QueryIssue, error) {
 	}
 	isDDL, err := queryparser.IsDDL(parseTree)
 	if err != nil {
-		return nil, fmt.Errorf("error checking if query is a DDL: %v", err)
+		return nil, goerrors.Errorf("error checking if query is a DDL: %v", err)
 	}
 	if isDDL {
 		//Skip all the DDLs coming to this function
@@ -1017,6 +1059,9 @@ func (p *ParserIssueDetector) genericIssues(query string) ([]QueryIssue, error) 
 		NewDatabaseOptionsDetector(query),
 		NewListenNotifyIssueDetector(query),
 		NewTwoPhaseCommitDetector(query),
+		NewSavepointDetector(func() {
+			p.isSavepointUsed = true
+		}),
 	}
 
 	processor := func(msg protoreflect.Message) error {
@@ -1113,19 +1158,6 @@ func (p *ParserIssueDetector) DetectMissingForeignKeyIndexes() []QueryIssue {
 	}
 
 	return issues
-}
-
-func (p *ParserIssueDetector) getUsageCategoryForTable(schemaName, tableName string) string {
-	objName := sqlname.NewObjectName(constants.POSTGRESQL, "", schemaName, tableName)
-	qualifiedObjName := objName.Qualified.Unquoted
-	stat, ok := p.objectUsages[qualifiedObjName]
-	if !ok {
-		log.Infof("No object usage stats found for table: %s", qualifiedObjName)
-		return ObjectUsageCategoryUnused
-	}
-	usageCategory := stat.Usage
-
-	return usageCategory
 }
 
 // For indexes we don't have any writes related information, so we get a writes usage for the table associated with that index
@@ -1380,6 +1412,11 @@ func (p *ParserIssueDetector) processTableConstraintsAsIndexes(table *queryparse
 			}
 		}
 	}
+}
+
+// IsSavepointUsed returns true if SAVEPOINT usage was detected in any query
+func (p *ParserIssueDetector) IsSavepointUsed() bool {
+	return p.isSavepointUsed
 }
 
 // ======= Functions not use parser right now

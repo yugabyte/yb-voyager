@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	goerrors "github.com/go-errors/errors"
 	"github.com/goccy/go-json"
 	"github.com/google/uuid"
 	"github.com/jackc/pgconn"
@@ -38,6 +39,7 @@ import (
 	pgconn5 "github.com/jackc/pgx/v5/pgconn"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/jinzhu/copier"
+	"github.com/pingcap/failpoint"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
@@ -138,16 +140,30 @@ func (yb *TargetYugabyteDB) Init() error {
 		yb.Tconf.SessionVars = getYBSessionInitScript(yb.Tconf)
 	}
 
+	schemas := sqlname.ExtractIdentifiersUnquoted(yb.tconf.Schemas)
+	schemaList := strings.Join(schemas, "','") // a','b','c
 	checkSchemaExistsQuery := fmt.Sprintf(
-		"SELECT count(nspname) FROM pg_catalog.pg_namespace WHERE nspname = '%s';",
-		yb.Tconf.Schema)
-	var cntSchemaName int
-	if err = yb.QueryRow(checkSchemaExistsQuery).Scan(&cntSchemaName); err != nil {
-		err = fmt.Errorf("run query %q on target %q to check schema exists: %w", checkSchemaExistsQuery, yb.Tconf.Host, err)
-	} else if cntSchemaName == 0 {
-		err = fmt.Errorf("schema '%s' does not exist in target", yb.Tconf.Schema)
+		"SELECT nspname FROM pg_catalog.pg_namespace WHERE nspname IN ('%s');",
+		schemaList)
+	rows, err := yb.Query(checkSchemaExistsQuery)
+	if err != nil {
+		return fmt.Errorf("run query %q on target %q to check schema exists: %w", checkSchemaExistsQuery, yb.Tconf.Host, err)
 	}
-	return err
+	defer rows.Close()
+	var returnedSchemas []string
+	for rows.Next() {
+		var schemaName string
+		err = rows.Scan(&schemaName)
+		if err != nil {
+			return fmt.Errorf("scan schema name: %w", err)
+		}
+		returnedSchemas = append(returnedSchemas, schemaName)
+	}
+	if len(returnedSchemas) != len(schemas) {
+		notExistsSchemas := utils.SetDifference(schemas, returnedSchemas)
+		return goerrors.Errorf("schemas '%s' do not exist in target", strings.Join(notExistsSchemas, ","))
+	}
+	return nil
 }
 
 func (yb *TargetYugabyteDB) Finalize() {
@@ -335,7 +351,7 @@ const INVALID_INPUT_SYNTAX_ERROR = "invalid input syntax"
 // Mismatched param and argument count - produced by pgx's ExtendedQueryBuilder
 const MISMATCHED_PARAM_ARGUMENT_COUNT_ERROR = "mismatched param and argument count"
 
-// Failed to encode args[N] - pgx wraps encoding failures with fmt.Errorf
+// Failed to encode args[N] - pgx wraps encoding failures with goerrors.Errorf
 const FAILED_TO_ENCODE_ARGS_ERROR = "failed to encode args"
 
 // Unable to encode - many pgx/pgtype errors include this text
@@ -343,6 +359,9 @@ const UNABLE_TO_ENCODE_ERROR = "unable to encode"
 
 // Cannot find encode plan - specific phrase from pgx/pgtype
 const CANNOT_FIND_ENCODE_PLAN_ERROR = "cannot find encode plan"
+
+// error for inserting in xml table
+const UNSUPPORTED_XML_FEATURE = "unsupported XML feature"
 
 var NonRetryCopyErrors = []string{
 	// Existing patterns
@@ -355,6 +374,8 @@ var NonRetryCopyErrors = []string{
 	FAILED_TO_ENCODE_ARGS_ERROR,
 	UNABLE_TO_ENCODE_ERROR,
 	CANNOT_FIND_ENCODE_PLAN_ERROR,
+
+	UNSUPPORTED_XML_FEATURE,
 }
 
 // IsPgErrorCodeNonRetryable checks if an error is a data integrity or constraint violation or syntax error
@@ -740,6 +761,23 @@ func (yb *TargetYugabyteDB) importBatch(conn *pgx.Conn, batch Batch, args *Impor
 					errs.IMPORT_BATCH_ERROR_STEP_ROLLBACK_TXN)
 			}
 		} else {
+			// Failpoint: inject error before commit for testing
+			// Use failpoint.Value parameter to distinguish between 'off' and 'return' actions
+			// When val != nil, the failpoint action is active (e.g., return())
+			// When val == nil, the failpoint action is 'off' (skip error injection)
+			failpoint.Inject("importBatchCommitError", func(val failpoint.Value) {
+				if val != nil {
+					// Inject commit error only when action is not 'off'
+					err2 = goerrors.Errorf("failpoint: commit failed")
+					err = newImportBatchErrorPgYb(err2, batch,
+						errs.IMPORT_BATCH_ERROR_FLOW_COPY_NORMAL,
+						errs.IMPORT_BATCH_ERROR_STEP_COMMIT_TXN)
+					rowsAffected = 0
+					failpoint.Return() // special function to make outer function return
+				}
+				// If val == nil ('off' action), do nothing - let commit proceed normally
+			})
+
 			err2 = tx.Commit(ctx)
 			if err2 != nil {
 				rowsAffected = 0
@@ -1546,7 +1584,8 @@ func checkSessionVariableSupport(tconf *TargetConf, sqlStmt string) bool {
 }
 
 func (yb *TargetYugabyteDB) setTargetSchema(conn *pgx.Conn) error {
-	setSchemaQuery := fmt.Sprintf("SET SCHEMA '%s'", yb.Tconf.Schema)
+	schemas := sqlname.JoinIdentifiersMinQuoted(yb.tconf.Schemas, ", ")
+	setSchemaQuery := fmt.Sprintf("SET SEARCH_PATH TO %s", schemas)
 	_, err := conn.Exec(context.Background(), setSchemaQuery)
 	if err != nil {
 		return fmt.Errorf("run query: %q on target %q: %w", setSchemaQuery, conn.Config().Host, err)
@@ -1829,7 +1868,7 @@ func (yb *TargetYugabyteDB) GetClusterMetrics() (map[string]NodeMetrics, error) 
 			return result, fmt.Errorf("scanning row for yb_servers_metrics(): %w", err)
 		}
 		if !uuid.Valid || !status.Valid || !errorStr.Valid || !metrics.Valid {
-			return result, fmt.Errorf("got invalid NULL values from yb_servers_metrics() : %v, %v, %v, %v",
+			return result, goerrors.Errorf("got invalid NULL values from yb_servers_metrics() : %v, %v, %v, %v",
 				uuid, metrics, status, errorStr)
 		}
 		nodeMetrics := NodeMetrics{
@@ -1929,7 +1968,7 @@ func (n *NodeMetrics) GetCPUPercent() (float64, error) {
 	userStr, ok1 := n.Metrics[CPU_USAGE_USER_METRIC]
 	sysStr, ok2 := n.Metrics[CPU_USAGE_SYSTEM_METRIC]
 	if !ok1 || !ok2 {
-		return -1, fmt.Errorf("node %s: missing cpu_usage_user or cpu_usage_system", n.UUID)
+		return -1, goerrors.Errorf("node %s: missing cpu_usage_user or cpu_usage_system", n.UUID)
 	}
 
 	user, err := strconv.ParseFloat(userStr, 64)
@@ -1949,7 +1988,7 @@ func (n *NodeMetrics) GetMemPercent() (float64, error) {
 	usedStr, ok1 := n.Metrics[TSERVER_ROOT_MEMORY_CONSUMPTION_METRIC]
 	softStr, ok2 := n.Metrics[TSERVER_ROOT_MEMORY_SOFT_LIMIT_METRIC]
 	if !ok1 || !ok2 {
-		return -1, fmt.Errorf("node %s: missing tserver_root_memory_consumption or tserver_root_memory_soft_limit", n.UUID)
+		return -1, goerrors.Errorf("node %s: missing tserver_root_memory_consumption or tserver_root_memory_soft_limit", n.UUID)
 	}
 
 	used, err := strconv.ParseFloat(usedStr, 64)
@@ -1961,7 +2000,7 @@ func (n *NodeMetrics) GetMemPercent() (float64, error) {
 		return -1, fmt.Errorf("node %s: parse memory_soft_limit: %w", n.UUID, err)
 	}
 	if soft == 0 {
-		return -1, fmt.Errorf("node %s: soft memory limit is zero", n.UUID)
+		return -1, goerrors.Errorf("node %s: soft memory limit is zero", n.UUID)
 	}
 
 	return (used / soft) * 100, nil
@@ -1970,7 +2009,7 @@ func (n *NodeMetrics) GetMemPercent() (float64, error) {
 func (n *NodeMetrics) GetMemoryFree() (int64, error) {
 	memoryFreeStr, ok := n.Metrics[MEMORY_FREE_METRIC]
 	if !ok {
-		return -1, fmt.Errorf("node %s: missing memory_free", n.UUID)
+		return -1, goerrors.Errorf("node %s: missing memory_free", n.UUID)
 	}
 
 	memoryFree, err := strconv.ParseInt(memoryFreeStr, 10, 64)
@@ -1983,7 +2022,7 @@ func (n *NodeMetrics) GetMemoryFree() (int64, error) {
 func (n *NodeMetrics) GetMemoryAvailable() (int64, error) {
 	memoryAvailableStr, ok := n.Metrics[MEMORY_AVAILABLE_METRIC]
 	if !ok {
-		return -1, fmt.Errorf("node %s: missing memory_available", n.UUID)
+		return -1, goerrors.Errorf("node %s: missing memory_available", n.UUID)
 	}
 
 	memoryAvailable, err := strconv.ParseInt(memoryAvailableStr, 10, 64)
@@ -1996,7 +2035,7 @@ func (n *NodeMetrics) GetMemoryAvailable() (int64, error) {
 func (n *NodeMetrics) GetMemoryTotal() (int64, error) {
 	memoryTotalStr, ok := n.Metrics[MEMORY_TOTAL_METRIC]
 	if !ok {
-		return -1, fmt.Errorf("node %s: missing memory_total", n.UUID)
+		return -1, goerrors.Errorf("node %s: missing memory_total", n.UUID)
 	}
 
 	memoryTotal, err := strconv.ParseInt(memoryTotalStr, 10, 64)
@@ -2151,7 +2190,7 @@ func IsCurrentUserSuperUser(tconf *TargetConf) (bool, error) {
 				return false, fmt.Errorf("scanning row for query: %w", err)
 			}
 		} else {
-			return false, fmt.Errorf("no current user found in pg_roles")
+			return false, goerrors.Errorf("no current user found in pg_roles")
 		}
 		return isProperUser, nil
 	}
@@ -2200,6 +2239,168 @@ func (yb *TargetYugabyteDB) NumOfLogicalReplicationSlots() (int64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("error scanning the row returned while querying pg_replication_slots: %w", err)
 	}
-
 	return numOfSlots, nil
+}
+
+// Function returns the table out of tableNames having the expression unique indexes
+// if returnPartitionRootTable is true, it will also check for the partitions of the partitioned table in tableNames and return the root table of the partition having expression unique indexes
+// else it will check for the tables in TableNames that have normal tables and root tables having expression unique indexes
+func (yb *TargetYugabyteDB) GetTablesHavingExpressionUniqueIndexes(tableNames []sqlname.NameTuple, returnPartitionRootTable bool) ([]sqlname.NameTuple, error) {
+	log.Infof("getting leaf table to root table map")
+	//returns a map of catalog leaf table name to catalog root table name
+	leafTableToRootTableMap, err := yb.getPartitionTableToRootTableMap(tableNames)
+	if err != nil {
+		return nil, fmt.Errorf("error getting leaf table to root table map: %w", err)
+	}
+	log.Infof("leaf table to root table map: %v", leafTableToRootTableMap)
+
+	tableCatalogNameToTuple := make(map[string]sqlname.NameTuple)
+	for _, t := range tableNames {
+		tableCatalogNameToTuple[t.AsQualifiedCatalogName()] = t
+	}
+
+	catalogTableNames := make([]string, 0)
+	catalogTableNames = append(catalogTableNames, lo.Keys(tableCatalogNameToTuple)...) //all normal tables/root tables
+	if returnPartitionRootTable {
+		catalogTableNames = append(catalogTableNames, lo.Keys(leafTableToRootTableMap)...) //all partitions
+	}
+	catalogTableNames = lo.Uniq(catalogTableNames) //remove duplicates
+
+	tableNamesStr := strings.Join(lo.Map(catalogTableNames, func(table string, _ int) string {
+		return fmt.Sprintf("('%s')", table)
+	}), ",")
+
+	query := fmt.Sprintf(`
+SELECT
+    n.nspname AS table_schema,
+    t.relname AS table_name,
+    i.relname AS index_name,
+    COALESCE(pg_get_expr(idx.indexprs, idx.indrelid), '') AS expression
+  FROM pg_class i
+  JOIN pg_index idx ON i.oid = idx.indexrelid
+  JOIN pg_class t ON idx.indrelid = t.oid
+  JOIN pg_namespace n ON t.relnamespace = n.oid
+  WHERE i.relkind = 'i'
+    AND idx.indisunique
+    AND idx.indexprs IS NOT NULL  -- expression index
+	AND (n.nspname || '.' || t.relname) IN (%s);`, tableNamesStr)
+	log.Debugf("query: %s", query)
+	rows, err := yb.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("error querying for tables having expression indexes: %w", err)
+	}
+	defer rows.Close()
+
+	var expressionUniqueIndexTablesIncludingLeafPartitions []string
+	for rows.Next() {
+		var schemaName, tableName, indexName, expression string
+		err := rows.Scan(&schemaName, &tableName, &indexName, &expression) // index and expression are only used for logging
+		if err != nil {
+			return nil, fmt.Errorf("error scanning row for tables having expression indexes: %w", err)
+		}
+
+		log.Infof("table: %s.%s having expression index %s with expression %s", schemaName, tableName, indexName, expression)
+
+		expressionUniqueIndexTablesIncludingLeafPartitions = append(expressionUniqueIndexTablesIncludingLeafPartitions, fmt.Sprintf("%s.%s", schemaName, tableName))
+	}
+
+	var expressionUniqueIndexTables []sqlname.NameTuple
+	for _, t := range expressionUniqueIndexTablesIncludingLeafPartitions {
+		if rootTable, ok := leafTableToRootTableMap[t]; ok {
+			tuple, ok := tableCatalogNameToTuple[rootTable]
+			if !ok {
+				return nil, goerrors.Errorf("root table %s not found in table catalog name to tuple map", rootTable)
+			}
+			//if its a leaf partition, return the root table
+			expressionUniqueIndexTables = append(expressionUniqueIndexTables, tuple)
+		} else {
+			tuple, ok := tableCatalogNameToTuple[t]
+			if !ok {
+				return nil, goerrors.Errorf("table %s not found in table catalog name to tuple map", t)
+			}
+			//if its a normal/root table, return the table itself
+			expressionUniqueIndexTables = append(expressionUniqueIndexTables, tuple)
+		}
+	}
+	return lo.UniqBy(expressionUniqueIndexTables, func(t sqlname.NameTuple) string {
+		return t.ForKey()
+	}), nil
+}
+
+// returns map of table name to its root table name in catalog qualified name format
+// for leaf table, returns leaf table name -> root table name
+// for any non-leaf partitioned table, returns non-leaf partitioned table -> root table
+// for any non-partitioned/normal table, returns normal table -> normal table
+func (yb *TargetYugabyteDB) getPartitionTableToRootTableMap(tableNames []sqlname.NameTuple) (map[string]string, error) {
+	tableNamesStr := strings.Join(lo.Map(tableNames, func(t sqlname.NameTuple, _ int) string {
+		schema, table := t.ForCatalogQuery()
+		return fmt.Sprintf("('%s','%s')", schema, table)
+	}), ",")
+
+	query := fmt.Sprintf(`
+	WITH table_list(schema_name, table_name) AS (VALUES %s),
+	-- Create a mapping of all tables (especially leaf partitions) to their root tables
+	table_to_root AS (
+	  WITH RECURSIVE find_root AS (
+		-- Base case: all tables start as their own root
+		SELECT 
+		  t.oid AS table_oid,
+		  t.oid AS current_oid,
+		  n.nspname AS table_schema,
+		  t.relname AS table_name,
+		  n.nspname AS root_schema,
+		  t.relname AS root_name
+		FROM pg_class t
+		JOIN pg_namespace n ON t.relnamespace = n.oid
+		WHERE t.relkind IN ('r', 'p')  -- regular tables and partitioned tables
+		
+		UNION ALL
+		
+		-- Recursive case: if current table has a parent, traverse up
+		SELECT 
+		  fr.table_oid,
+		  parent_t.oid AS current_oid,
+		  fr.table_schema,
+		  fr.table_name,
+		  parent_ns.nspname AS root_schema,
+		  parent_t.relname AS root_name
+		FROM find_root fr
+		JOIN pg_inherits inh ON fr.current_oid = inh.inhrelid
+		JOIN pg_class parent_t ON inh.inhparent = parent_t.oid
+		JOIN pg_namespace parent_ns ON parent_t.relnamespace = parent_ns.oid
+	  )
+	  -- For each table, get its root (the one with no parent)
+	  SELECT DISTINCT ON (table_oid)
+		table_oid,
+		table_schema,
+		table_name,
+		root_schema,
+		root_name
+	  FROM find_root
+	  WHERE NOT EXISTS (
+		SELECT 1 FROM pg_inherits inh2 
+		WHERE inh2.inhrelid = find_root.current_oid
+	  )
+	  ORDER BY table_oid
+	)
+	SELECT table_schema, table_name, root_schema, root_name FROM table_to_root WHERE (root_schema, root_name) IN (SELECT schema_name, table_name FROM table_list);
+`, tableNamesStr)
+
+	log.Debugf("query: %s", query)
+	rows, err := yb.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("error querying for leaf table to root table map: %w", err)
+	}
+	defer rows.Close()
+
+	leafTableToRootTableMap := make(map[string]string)
+	for rows.Next() {
+		var schemaName, tableName, rootSchema, rootName string
+		err := rows.Scan(&schemaName, &tableName, &rootSchema, &rootName)
+		if err != nil {
+			return nil, fmt.Errorf("error scanning row for leaf table to root table map: %w", err)
+		}
+		leafTableToRootTableMap[fmt.Sprintf("%s.%s", schemaName, tableName)] = fmt.Sprintf("%s.%s", rootSchema, rootName)
+	}
+	return leafTableToRootTableMap, nil
 }

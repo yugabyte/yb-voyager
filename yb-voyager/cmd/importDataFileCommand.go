@@ -81,7 +81,8 @@ var importDataFileCmd = &cobra.Command{
 		if err != nil {
 			utils.ErrExit("failed to get migration UUID: %w", err)
 		}
-		tconf.Schema = strings.ToLower(tconf.Schema)
+		//TODO: fix later for schemaNameMatcher
+		tconf.Schemas = sqlname.ParseIdentifiersFromString(tconf.TargetDBType, tconf.SchemaConfig, ",")
 		tdb = tgtdb.NewTargetDB(&tconf)
 		err = tdb.Init()
 		if err != nil {
@@ -546,4 +547,8 @@ Note that for the cases where a table doesn't have a primary key, this may lead 
 	importDataFileCmd.Flags().MarkHidden("exclude-table-list")
 	importDataFileCmd.Flags().MarkHidden("table-list-file-path")
 	importDataFileCmd.Flags().MarkHidden("exclude-table-list-file-path")
+
+	importDataFileCmd.Flags().IntVar(&prometheusMetricsPort, "prometheus-metrics-port", 0,
+		"Port for Prometheus metrics server (default: 9102)")
+	importDataFileCmd.Flags().MarkHidden("prometheus-metrics-port")
 }

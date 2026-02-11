@@ -69,7 +69,7 @@ func TestMain(m *testing.M) {
 			DBVersion: postgresContainer.GetConfig().DBVersion,
 			User:      postgresContainer.GetConfig().User,
 			Password:  postgresContainer.GetConfig().Password,
-			Schema:    postgresContainer.GetConfig().Schema,
+			Schemas:   []sqlname.Identifier{sqlname.NewIdentifier("postgresql", postgresContainer.GetConfig().Schema)},
 			DBName:    postgresContainer.GetConfig().DBName,
 			Host:      host,
 			Port:      port,
@@ -93,7 +93,7 @@ func TestMain(m *testing.M) {
 			DBVersion: yugabytedbContainer.GetConfig().DBVersion,
 			User:      yugabytedbContainer.GetConfig().User,
 			Password:  yugabytedbContainer.GetConfig().Password,
-			Schema:    yugabytedbContainer.GetConfig().Schema,
+			Schemas:   []sqlname.Identifier{sqlname.NewIdentifier("yugabytedb", yugabytedbContainer.GetConfig().Schema)},
 			DBName:    yugabytedbContainer.GetConfig().DBName,
 			Host:      host,
 			Port:      port,
@@ -120,7 +120,7 @@ func setupPostgreDBAndExportDependencies(t *testing.T, sqls []string, schemas st
 	sqlname.SourceDBType = testPostgresSource.DBType
 
 	CreateMigrationProjectIfNotExists(constants.POSTGRESQL, testExportDir)
-	testPostgresSource.Schema = schemas
+	testPostgresSource.Schemas = sqlname.ParseIdentifiersFromString(constants.POSTGRESQL, schemas, "|")
 	testPostgresSource.ExecuteSqls(sqls...)
 	return testExportDir
 }
@@ -134,16 +134,16 @@ func setupPostgresDBSourceAndYugabyteDBTargetWithExportDependencies(t *testing.T
 	sqlname.SourceDBType = POSTGRESQL
 
 	CreateMigrationProjectIfNotExists(constants.POSTGRESQL, testExportDir)
-	testPostgresSource.Schema = schemas
+	testPostgresSource.Schemas = sqlname.ParseIdentifiersFromString(constants.POSTGRESQL, schemas, "|")
 	testPostgresSource.ExecuteSqls(sqls...)
-	testYugabyteDBSource.Schema = schemas
+	testYugabyteDBSource.Schemas = sqlname.ParseIdentifiersFromString(constants.YUGABYTEDB, schemas, "|")
 	testYugabyteDBSource.ExecuteSqls(sqls...)
 
 	targetConf := tgtdb.TargetConf{
 		DBVersion:    testYugabyteDBSource.TestContainer.GetConfig().DBVersion,
 		User:         testYugabyteDBSource.TestContainer.GetConfig().User,
 		Password:     testYugabyteDBSource.TestContainer.GetConfig().Password,
-		Schema:       testYugabyteDBSource.TestContainer.GetConfig().Schema,
+		Schemas:      testYugabyteDBSource.Schemas,
 		DBName:       testYugabyteDBSource.TestContainer.GetConfig().DBName,
 		Host:         testYugabyteDBSource.Source.Host,
 		Port:         testYugabyteDBSource.Source.Port,
@@ -368,9 +368,9 @@ func TestTableListInFreshRunOfExportDataBasicPG(t *testing.T) {
 		getNameTuple("public.test_partitions_sequences_s"),
 		getNameTuple("public.test_partitions_sequences_b"),
 		getNameTuple("public.sales_region"),
-		getNameTuple("p1.London"),
-		getNameTuple("p1.Sydney"),
-		getNameTuple("p1.Boston"),
+		getNameTuple("p1.london"),
+		getNameTuple("p1.sydney"),
+		getNameTuple("p1.boston"),
 		getNameTuple("public.datatypes1"),
 		getNameTuple("public.foreign_test"),
 	}
@@ -437,7 +437,7 @@ func TestTableListInFreshRunOfExportDataFilterViaFlagsPG(t *testing.T) {
 		getNameTuple("public.test_partitions_sequences_s"),
 		getNameTuple("public.test_partitions_sequences_b"),
 		getNameTuple("public.datatypes1"),
-		getNameTuple("p1.Boston"),
+		getNameTuple("p1.boston"),
 		getNameTuple("public.sales_region"),
 		getNameTuple("public.foreign_test"),
 	}
@@ -455,8 +455,8 @@ func TestTableListInFreshRunOfExportDataFilterViaFlagsPG(t *testing.T) {
 
 	expectedTableList3 := []sqlname.NameTuple{
 		getNameTuple("public.sales_region"),
-		getNameTuple("p1.London"),
-		getNameTuple("p1.Boston"),
+		getNameTuple("p1.london"),
+		getNameTuple("p1.boston"),
 		getNameTuple("public.datatypes1"),
 	}
 	assertTableListFilteringInTheFirstRun(t, expectedPartitionsToRootMap3, expectedTableList3)
@@ -485,7 +485,7 @@ func TestTableListInSubsequentRunOfExportDataBasicPG(t *testing.T) {
 	//Running the command level functions
 	source = *testPostgresSource.Source
 
-	startClean = true 
+	startClean = true
 	source.TableList = "asdsa"
 	testUnknownTableCaseForTableListFlags(t, true, "Unknown table names in the include list: [asdsa]", "include")
 
@@ -504,9 +504,9 @@ func TestTableListInSubsequentRunOfExportDataBasicPG(t *testing.T) {
 		getNameTuple("public.test_partitions_sequences_s"),
 		getNameTuple("public.test_partitions_sequences_b"),
 		getNameTuple("public.sales_region"),
-		getNameTuple("p1.London"),
-		getNameTuple("p1.Sydney"),
-		getNameTuple("p1.Boston"),
+		getNameTuple("p1.london"),
+		getNameTuple("p1.sydney"),
+		getNameTuple("p1.boston"),
 		getNameTuple("public.datatypes1"),
 		getNameTuple("public.foreign_test"),
 	}
@@ -651,7 +651,7 @@ func TestTableListInSubsequentRunOfExportDatWithTableListFlagsPG(t *testing.T) {
 		getNameTuple("public.test_partitions_sequences_s"),
 		getNameTuple("public.test_partitions_sequences_b"),
 		getNameTuple("public.datatypes1"),
-		getNameTuple("p1.Boston"),
+		getNameTuple("p1.boston"),
 		getNameTuple("public.sales_region"),
 		getNameTuple("public.foreign_test"),
 	}
@@ -1014,9 +1014,9 @@ func TestTableListInFreshRunOfExportDataBasicYB(t *testing.T) {
 		getNameTuple("public.test_partitions_sequences_s"),
 		getNameTuple("public.test_partitions_sequences_b"),
 		getNameTupleWithTargetName("public.sales_region"),
-		getNameTuple("p1.London"),
-		getNameTuple("p1.Sydney"),
-		getNameTuple("p1.Boston"),
+		getNameTuple("p1.london"),
+		getNameTuple("p1.sydney"),
+		getNameTuple("p1.boston"),
 		getNameTupleWithTargetName("public.datatypes1"),
 		getNameTupleWithTargetName("public.foreign_test"),
 	}
@@ -1053,9 +1053,9 @@ func TestTableListInFreshRunOfExportDataBasicYB(t *testing.T) {
 		getNameTuple("public.test_partitions_sequences_l"),
 		getNameTuple("public.test_partitions_sequences_s"),
 		getNameTuple("public.test_partitions_sequences_b"),
-		getNameTuple("p1.London"),
-		getNameTuple("p1.Sydney"),
-		getNameTuple("p1.Boston"),
+		getNameTuple("p1.london"),
+		getNameTuple("p1.sydney"),
+		getNameTuple("p1.boston"),
 		getNameTupleWithTargetName("public.sales_region"),
 	}
 	err = metaDB.UpdateMigrationStatusRecord(func(msr *metadb.MigrationStatusRecord) {
@@ -1088,7 +1088,7 @@ func TestTableListInFreshRunOfExportDataBasicYB(t *testing.T) {
 		getNameTupleWithTargetName("public.datatypes1"),
 	}
 	missingTables1 := []sqlname.NameTuple{
-		getNameTuple("p1.Boston"),
+		getNameTuple("p1.boston"),
 	}
 	rootTables := []sqlname.NameTuple{
 		getNameTupleWithTargetName("public.sales_region"),
@@ -1151,9 +1151,9 @@ func TestTableListInFreshRunOfExportDataForTablesExtraInSource(t *testing.T) {
 		getNameTuple("public.test_partitions_sequences_s"),
 		getNameTuple("public.test_partitions_sequences_b"),
 		getNameTuple("public.sales_region"),
-		getNameTuple("p1.London"),
-		getNameTuple("p1.Sydney"),
-		getNameTuple("p1.Boston"),
+		getNameTuple("p1.london"),
+		getNameTuple("p1.sydney"),
+		getNameTuple("p1.boston"),
 		getNameTuple("public.datatypes1"),
 		getNameTuple("public.foreign_test"),
 	}
@@ -1201,9 +1201,9 @@ func TestTableListInFreshRunOfExportDataForTablesExtraInSource(t *testing.T) {
 		getNameTuple("public.test_partitions_sequences_s"),
 		getNameTuple("public.test_partitions_sequences_b"),
 		getNameTupleWithTargetName("public.sales_region"),
-		getNameTuple("p1.London"),
-		getNameTuple("p1.Sydney"),
-		getNameTuple("p1.Boston"),
+		getNameTuple("p1.london"),
+		getNameTuple("p1.sydney"),
+		getNameTuple("p1.boston"),
 		getNameTupleWithTargetName("public.datatypes1"),
 		getNameTupleWithTargetName("public.foreign_test"),
 	}
@@ -1222,9 +1222,9 @@ func TestTableListInFreshRunOfExportDataForTablesExtraInSource(t *testing.T) {
 		getNameTupleWithTargetName("public.sales_region"),
 	}
 	expectedMissingTables := []sqlname.NameTuple{
-		getNameTuple("p1.London"),
-		getNameTuple("p1.Sydney"),
-		getNameTuple("p1.Boston"),
+		getNameTuple("p1.london"),
+		getNameTuple("p1.sydney"),
+		getNameTuple("p1.boston"),
 		getNameTupleWithTargetName("public.datatypes1"),
 		getNameTupleWithTargetName("public.foreign_test"),
 	}
@@ -1268,12 +1268,12 @@ func TestTableListInFreshRunOfExportDataForTablesExtraInTarget(t *testing.T) {
 		getNameTuple("public.test_partitions_sequences_s"),
 		getNameTuple("public.test_partitions_sequences_b"),
 		getNameTuple("public.sales_region"),
-		getNameTuple("p1.London"),
-		getNameTuple("p1.Sydney"),
-		getNameTuple("p1.Boston"),
+		getNameTuple("p1.london"),
+		getNameTuple("p1.sydney"),
+		getNameTuple("p1.boston"),
 		getNameTuple("public.datatypes1"),
 		getNameTuple("public.foreign_test"),
-	}
+	}		
 	assertTableListFilteringInTheFirstRun(t, expectedPartitionsToRootMap, expectedTableList)
 
 	//Create msr with required details for subsequent run
@@ -1322,9 +1322,9 @@ func TestTableListInFreshRunOfExportDataForTablesExtraInTarget(t *testing.T) {
 		getNameTuple("public.test_partitions_sequences_s"),
 		getNameTuple("public.test_partitions_sequences_b"),
 		getNameTupleWithTargetName("public.sales_region"),
-		getNameTuple("p1.London"),
-		getNameTuple("p1.Sydney"),
-		getNameTuple("p1.Boston"),
+		getNameTuple("p1.london"),
+		getNameTuple("p1.sydney"),
+		getNameTuple("p1.boston"),
 		getNameTupleWithTargetName("public.datatypes1"),
 		getNameTupleWithTargetName("public.foreign_test"),
 	}

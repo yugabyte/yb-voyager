@@ -1,6 +1,6 @@
 [
     {
-      "table_name": "public.\"test_backspace_char\"",
+      "table_name": "\"public\".\"test_backspace_char\"",
       "file_name": "test_backspace_char.csv",
       "status": "DONE",
       "total_count": 101,

@@ -22,6 +22,7 @@ import (
 	"strings"
 	"time"
 
+	goerrors "github.com/go-errors/errors"
 	"github.com/google/uuid"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
@@ -87,21 +88,27 @@ func (ora *Oracle) Query(query string) (*sql.Rows, error) {
 	return ora.db.Query(query)
 }
 
-func (ora *Oracle) QueryRow(query string) *sql.Row {
-	return ora.db.QueryRow(query)
+func (ora *Oracle) GetAllSchemaNamesIdentifiers() ([]sqlname.Identifier, error) {
+	schemas := make([]sqlname.Identifier, 0)
+	query := fmt.Sprintf("SELECT username FROM ALL_USERS")
+	rows, err := ora.db.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("error in querying source database for schema names: %q: %w\n", query, err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var schema string
+		err = rows.Scan(&schema)
+		if err != nil {
+			return nil, fmt.Errorf("error in scanning query rows for schema names: %w\n", err)
+		}
+		schemas = append(schemas, sqlname.NewIdentifier(ora.source.DBType, schema))
+	}
+	return schemas, nil
 }
 
-func (ora *Oracle) CheckSchemaExists() bool {
-	schemaName := ora.source.Schema
-	query := fmt.Sprintf(`SELECT username FROM ALL_USERS WHERE username = '%s'`, strings.ToUpper(schemaName))
-	var schema string
-	err := ora.db.QueryRow(query).Scan(&schema)
-	if err == sql.ErrNoRows {
-		return false
-	} else if err != nil {
-		utils.ErrExit("error in querying source database for schema: %q: %w\n", schemaName, err)
-	}
-	return true
+func (ora *Oracle) QueryRow(query string) *sql.Row {
+	return ora.db.QueryRow(query)
 }
 
 func (ora *Oracle) GetTableRowCount(tableName sqlname.NameTuple) (int64, error) {
@@ -195,13 +202,13 @@ func (ora *Oracle) GetAllTableNamesRaw(schemaName string) ([]string, error) {
 
 func (ora *Oracle) GetAllTableNames() []*sqlname.SourceName {
 	var tableNames []*sqlname.SourceName
-	tableNamesRaw, err := ora.GetAllTableNamesRaw(ora.source.Schema)
+	tableNamesRaw, err := ora.GetAllTableNamesRaw(ora.source.Schemas[0].Unquoted)
 	if err != nil {
 		utils.ErrExit("error in querying source database for table names: %w", err)
 	}
 	for _, tableName := range tableNamesRaw {
 		tableName = fmt.Sprintf(`"%s"`, tableName)
-		tableNames = append(tableNames, sqlname.NewSourceName(ora.source.Schema, tableName))
+		tableNames = append(tableNames, sqlname.NewSourceName(ora.source.Schemas[0].Unquoted, tableName))
 	}
 	log.Infof("Table Name List: %q", tableNames)
 	return tableNames
@@ -258,7 +265,7 @@ func (ora *Oracle) GetIndexesInfo() []utils.IndexInfo {
 	WHERE AIN.OWNER = '%s' 
 	AND NOT (AIN.INDEX_NAME LIKE 'SYS%%' OR AIN.INDEX_NAME LIKE 'DR$%%')
 	AND AC.CONSTRAINT_TYPE IS NULL -- Exclude primary keys
-	GROUP BY AIN.INDEX_NAME, AIN.INDEX_TYPE, AIN.TABLE_NAME`, ora.source.Schema)
+	GROUP BY AIN.INDEX_NAME, AIN.INDEX_TYPE, AIN.TABLE_NAME`, ora.source.Schemas[0].Unquoted)
 	rows, err := ora.db.Query(query)
 	if err != nil {
 		utils.ErrExit("error in querying source database for indexes info: %w", err)
@@ -334,7 +341,7 @@ func (ora *Oracle) GetCharset() (string, error) {
 
 func (ora *Oracle) GetDatabaseSize() (int64, error) {
 	var dbSize sql.NullInt64
-	query := fmt.Sprintf("SELECT SUM(BYTES) FROM DBA_SEGMENTS WHERE OWNER = '%s'", ora.source.Schema)
+	query := fmt.Sprintf("SELECT SUM(BYTES) FROM DBA_SEGMENTS WHERE OWNER = '%s'", ora.source.Schemas[0].Unquoted)
 	err := ora.db.QueryRow(query).Scan(&dbSize)
 	if err != nil {
 		return 0, fmt.Errorf("error in querying database encoding: %w", err)
@@ -347,7 +354,7 @@ func (ora *Oracle) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []
 	var filteredTableList, unsupportedTableList []sqlname.NameTuple
 
 	// query to find unsupported queue tables
-	query := fmt.Sprintf("SELECT queue_table from ALL_QUEUE_TABLES WHERE OWNER = '%s'", ora.source.Schema)
+	query := fmt.Sprintf("SELECT queue_table from ALL_QUEUE_TABLES WHERE OWNER = '%s'", ora.source.Schemas[0].Unquoted)
 	log.Infof("query for queue tables: %q\n", query)
 	rows, err := ora.db.Query(query)
 	if err != nil {
@@ -360,7 +367,7 @@ func (ora *Oracle) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []
 			utils.ErrExit("failed to scan tableName from output of query: %q: %w", query, err)
 		}
 		tableName = fmt.Sprintf(`"%s"`, tableName)
-		tableSrcName := sqlname.NewSourceName(ora.source.Schema, tableName)
+		tableSrcName := sqlname.NewSourceName(ora.source.Schemas[0].Unquoted, tableName)
 
 		for _, table := range tableList {
 			if table.ForKey() == tableSrcName.Qualified.Quoted {
@@ -440,7 +447,7 @@ func (ora *Oracle) IsParentOfNestedTable(tableName sqlname.NameTuple) bool {
 
 func (ora *Oracle) GetTargetIdentityColumnSequenceName(sequenceName string) string {
 	var tableName, columnName string
-	query := fmt.Sprintf("SELECT table_name, column_name FROM all_tab_identity_cols WHERE owner = '%s' AND sequence_name = '%s'", ora.source.Schema, strings.ToUpper(sequenceName))
+	query := fmt.Sprintf("SELECT table_name, column_name FROM all_tab_identity_cols WHERE owner = '%s' AND sequence_name = '%s'", ora.source.Schemas[0].Unquoted, strings.ToUpper(sequenceName))
 	err := ora.db.QueryRow(query).Scan(&tableName, &columnName)
 
 	if err == sql.ErrNoRows {
@@ -651,15 +658,17 @@ UNION
 SELECT * FROM unique_indexes
 `
 
-func (ora *Oracle) GetTableToUniqueKeyColumnsMap(tableList []sqlname.NameTuple) (map[string][]string, error) {
-	result := make(map[string][]string)
+func (ora *Oracle) GetTableToUniqueKeyColumnsMap(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
+	result := utils.NewStructMap[sqlname.NameTuple, []string]()
 	var queryTableList []string
+	tableStrToNameTupleMap := make(map[string]sqlname.NameTuple)
 	for _, table := range tableList {
 		_, tname := table.ForCatalogQuery()
 		queryTableList = append(queryTableList, tname)
+		tableStrToNameTupleMap[tname] = table
 	}
-	query := fmt.Sprintf(oraQueryTmplForUniqCols, ora.source.Schema, strings.Join(queryTableList, "','"),
-		ora.source.Schema, strings.Join(queryTableList, "','"))
+	query := fmt.Sprintf(oraQueryTmplForUniqCols, ora.source.Schemas[0].Unquoted, strings.Join(queryTableList, "','"),
+		ora.source.Schemas[0].Unquoted, strings.Join(queryTableList, "','"))
 	log.Infof("query to get unique key columns for tables: %q", query)
 	rows, err := ora.db.Query(query)
 	if err != nil {
@@ -679,7 +688,16 @@ func (ora *Oracle) GetTableToUniqueKeyColumnsMap(tableList []sqlname.NameTuple) 
 		if err != nil {
 			return nil, fmt.Errorf("scanning row for unique key column name: %w", err)
 		}
-		result[tableName] = append(result[tableName], columnName)
+		tableNameTuple, ok := tableStrToNameTupleMap[tableName]
+		if !ok {
+			return nil, goerrors.Errorf("table %s not found in table list", tableName)
+		}
+		cols, ok := result.Get(tableNameTuple)
+		if !ok {
+			cols = []string{}
+		}
+		cols = append(cols, columnName)
+		result.Put(tableNameTuple, cols)
 	}
 
 	err = rows.Err()
@@ -727,7 +745,7 @@ func (ora *Oracle) GetNonPKTables() ([]string, error) {
 	) pk_count ON at.table_name = pk_count.table_name
 	WHERE at.owner = '%[1]s'
 	AND   at.table_name NOT LIKE 'DR$%%'   -- exclude Oracle-Text internal tables`,
-		ora.source.Schema)
+		ora.source.Schemas[0].Unquoted)
 	rows, err := ora.db.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("error in querying source database for unsupported tables: %w", err)
@@ -746,7 +764,7 @@ func (ora *Oracle) GetNonPKTables() ([]string, error) {
 		if err != nil {
 			return nil, fmt.Errorf("error in scanning query rows for unsupported tables: %w", err)
 		}
-		table := sqlname.NewSourceName(ora.source.Schema, fmt.Sprintf(`"%s"`, tableName))
+		table := sqlname.NewSourceName(ora.source.Schemas[0].Unquoted, fmt.Sprintf(`"%s"`, tableName))
 		if count == 0 {
 			nonPKTables = append(nonPKTables, table.Qualified.Quoted)
 		}
@@ -764,8 +782,8 @@ func (ora *Oracle) GetMissingExportSchemaPermissions(queryTableList string) ([]s
 	return nil, nil
 }
 
-func (ora *Oracle) GetMissingExportDataPermissions(exportType string, finalTableList []sqlname.NameTuple) ([]string, error) {
-	return nil, nil
+func (ora *Oracle) GetMissingExportDataPermissions(exportType string, finalTableList []sqlname.NameTuple) ([]string, bool, error) {
+	return nil, false, nil
 }
 
 func (ora *Oracle) GetMissingAssessMigrationPermissions() ([]string, bool, error) {

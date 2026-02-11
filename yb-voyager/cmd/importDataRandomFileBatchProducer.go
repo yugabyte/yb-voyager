@@ -1,0 +1,181 @@
+/*
+Copyright (c) YugabyteDB, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+package cmd
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"sync"
+
+	goerrors "github.com/go-errors/errors"
+
+	log "github.com/sirupsen/logrus"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"golang.org/x/exp/rand"
+	"golang.org/x/sync/semaphore"
+)
+
+/*
+RandomBatchProducer is a batch producer that produces batches in random order.
+It wraps a SequentialFileBatchProducer, which keeps producing batches sequentially and saves them in a buffer.
+Whenever the next batch is requested, RandomBatchProducer picks a batch from the buffer at random and returns it.
+*/
+type RandomBatchProducer struct {
+	sequentialFileBatchProducer         FileBatchProducer
+	task                                *ImportFileTask
+	sequentiallyProducedBatches         []*Batch
+	mu                                  sync.Mutex
+	sequentialFileBatchProducerFinished bool
+	producerWaitGroup                   sync.WaitGroup
+	producerCtxCancel                   context.CancelFunc
+	concurrentBatchProductionSem        *semaphore.Weighted
+}
+
+func NewRandomFileBatchProducer(task *ImportFileTask, state *ImportDataState, isRowTransformationRequired bool, errorHandler importdata.ImportDataErrorHandler, progressReporter *ImportDataProgressReporter, concurrentBatchProductionSem *semaphore.Weighted) (*RandomBatchProducer, error) {
+	sequentialFileBatchProducer, err := NewSequentialFileBatchProducer(task, state, isRowTransformationRequired, errorHandler, progressReporter)
+	if err != nil {
+		return nil, fmt.Errorf("creating sequential file batch producer: %w", err)
+	}
+
+	return newRandomFileBatchProducer(sequentialFileBatchProducer, task, concurrentBatchProductionSem), nil
+}
+
+// newRandomFileBatchProducer creates a RandomBatchProducer with the provided SequentialFileBatchProducer.
+// This unexported function allows tests to inject a testable sequential producer.
+func newRandomFileBatchProducer(sequentialFileBatchProducer FileBatchProducer, task *ImportFileTask, concurrentBatchProductionSem *semaphore.Weighted) *RandomBatchProducer {
+	producerCtx, producerCtxCancel := context.WithCancel(context.Background())
+	rbp := &RandomBatchProducer{
+		sequentialFileBatchProducer:  sequentialFileBatchProducer,
+		task:                         task,
+		sequentiallyProducedBatches:  make([]*Batch, 0),
+		producerCtxCancel:            producerCtxCancel,
+		concurrentBatchProductionSem: concurrentBatchProductionSem,
+	}
+	rbp.producerWaitGroup.Add(1)
+
+	go func() {
+		defer rbp.producerWaitGroup.Done()
+		err := rbp.startProducingBatches(producerCtx)
+		if err != nil {
+			utils.ErrExit("error producing batches for table: %s, file: %s, err: %w", rbp.task.TableNameTup, rbp.task.FilePath, err)
+		}
+	}()
+	return rbp
+}
+
+/*
+sequential batch producer is done producing all batches, and all batches(metadata) in memory have been consumed (in random order)
+*/
+func (rbp *RandomBatchProducer) Done() bool {
+	rbp.mu.Lock()
+	defer rbp.mu.Unlock()
+	return rbp.sequentialFileBatchProducerFinished && len(rbp.sequentiallyProducedBatches) == 0
+}
+
+// Close cleans up resources used by the RandomBatchProducer.
+func (rbp *RandomBatchProducer) Close() {
+	// stop producer goroutine
+	rbp.producerCtxCancel()
+	rbp.producerWaitGroup.Wait()
+
+	// close sequential file batch producer
+	if rbp.sequentialFileBatchProducer != nil {
+		rbp.sequentialFileBatchProducer.Close()
+	}
+}
+
+/*
+Batches are produced in parallel in a separate goroutine.
+So if we're not done, we check if there are already produced batches available in memory.
+*/
+func (rbp *RandomBatchProducer) IsNextBatchAvailable() bool {
+	if rbp.Done() {
+		return false
+	}
+	// not done. producer may still be producing batches in parallel
+	rbp.mu.Lock()
+	defer rbp.mu.Unlock()
+	return len(rbp.sequentiallyProducedBatches) > 0
+}
+
+func (rbp *RandomBatchProducer) NextBatch() (*Batch, error) {
+	rbp.mu.Lock()
+	defer rbp.mu.Unlock()
+
+	if len(rbp.sequentiallyProducedBatches) == 0 {
+		// this could be either because
+		// 1. sequential file batch producer is done
+		// 2. sequential file batch producer is not done, and is producing in parallel.
+		// It is the responsibility of the caller to deal with both the scenarios, we do not want to block the caller.
+		return nil, goerrors.Errorf("no batches available")
+	}
+
+	// Pick random batch
+	idx := rand.Intn(len(rbp.sequentiallyProducedBatches))
+	batch := rbp.sequentiallyProducedBatches[idx]
+	rbp.sequentiallyProducedBatches = append(rbp.sequentiallyProducedBatches[:idx], rbp.sequentiallyProducedBatches[idx+1:]...)
+
+	log.Infof("Returning batch %d from random batch producer for table: %s, file: %s", batch.Number, rbp.task.TableNameTup.ForOutput(), rbp.task.FilePath)
+	return batch, nil
+}
+
+func (rbp *RandomBatchProducer) startProducingBatches(ctx context.Context) error {
+	log.Infof("Starting to produce batches for file: %s", rbp.task.FilePath)
+	for !rbp.sequentialFileBatchProducerFinished {
+		// Acquire semaphore before producing batch
+		err := rbp.concurrentBatchProductionSem.Acquire(ctx, 1)
+		if err != nil {
+			// Check if error is due to context cancellation (graceful shutdown)
+			if errors.Is(err, context.Canceled) {
+				log.Infof("Producer context cancelled while acquiring semaphore, stopping production of batches for file: %s", rbp.task.FilePath)
+				return nil
+			}
+			// For any other error from Acquire, return it wrapped
+			return fmt.Errorf("acquiring semaphore for batch production: %w", err)
+		}
+
+		batch, err := rbp.sequentialFileBatchProducer.NextBatch()
+		// Release semaphore immediately after producing batch
+		rbp.concurrentBatchProductionSem.Release(1)
+
+		if err != nil {
+			return err
+		}
+
+		// critical section - append batch to sequentiallyProducedBatches, update sequentialFileBatchProducerFinished
+		rbp.mu.Lock()
+		rbp.sequentiallyProducedBatches = append(rbp.sequentiallyProducedBatches, batch)
+		if rbp.sequentialFileBatchProducer.Done() {
+			rbp.sequentialFileBatchProducerFinished = true
+		}
+		rbp.mu.Unlock()
+
+		// handle closed ctx
+		select {
+		case <-ctx.Done():
+			log.Infof("Producer context done, stopping production of batches for file: %s", rbp.task.FilePath)
+			return nil
+		default:
+			// continue
+		}
+	}
+
+	rbp.sequentialFileBatchProducer.Close()
+	log.Infof("Sequential file batch producer finished producing all batches for file: %s", rbp.task.FilePath)
+	return nil
+}

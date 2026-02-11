@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/fatih/color"
+	goerrors "github.com/go-errors/errors"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 
@@ -90,7 +91,7 @@ func (m *MonitorTargetYBHealth) StartMonitoring() error {
 	var servers []*tgtdb.TargetConf
 	m.loadBalancerEnabled, servers, err = m.yb.GetYBServers()
 	if err != nil {
-		return fmt.Errorf("error fetching servers informtion: %v", err)
+		return goerrors.Errorf("error fetching servers informtion: %v", err)
 	}
 	for _, server := range servers {
 		m.nodesStatus[server.Host] = true
@@ -143,7 +144,7 @@ func (m *MonitorTargetYBHealth) monitorNodesStatusAndAdapt() error {
 	}
 	_, currentNodes, err := m.yb.GetYBServers()
 	if err != nil {
-		return fmt.Errorf("error fetching servers informtion: %v", err)
+		return goerrors.Errorf("error fetching servers informtion: %v", err)
 	}
 	downNodes := make([]string, 0)
 	upNodes := make([]string, 0)
@@ -177,7 +178,7 @@ func (m *MonitorTargetYBHealth) monitorNodesStatusAndAdapt() error {
 		m.displayMsgFunc(downNodeMsg)
 		err := m.yb.RemoveConnectionsForHosts(downNodes)
 		if err != nil {
-			return fmt.Errorf("error while removing the connections for the down nodes[%v]: %v", downNodes, err)
+			return goerrors.Errorf("error while removing the connections for the down nodes[%v]: %v", downNodes, err)
 		}
 		return nil
 	}
@@ -199,7 +200,7 @@ func (m *MonitorTargetYBHealth) monitorDiskUsageAndAbort() error {
 	}
 	nodeMetrics, err := m.yb.GetClusterMetrics()
 	if err != nil {
-		return fmt.Errorf("error fetching cluster metrics: %v", err)
+		return goerrors.Errorf("error fetching cluster metrics: %v", err)
 	}
 	var totalFreeDisk, totalDisk int64
 	for _, metrics := range nodeMetrics {
@@ -239,7 +240,7 @@ func (m *MonitorTargetYBHealth) monitorReplicationOnTarget() error {
 
 	numOfSlots, err := m.yb.NumOfLogicalReplicationSlots()
 	if err != nil {
-		return fmt.Errorf("error fetching logical replication slots for checking if replication enabled - %s", err)
+		return goerrors.Errorf("error fetching logical replication slots for checking if replication enabled - %s", err)
 	}
 	if numOfSlots > 0 {
 		utils.ErrExit(color.RedString("%s Found replication slot(s): %d.", REPLICATION_GUARDRAIL_ALERT_MSG, numOfSlots))
@@ -250,7 +251,7 @@ func (m *MonitorTargetYBHealth) monitorReplicationOnTarget() error {
 	}
 	numOfStreams, err := m.ybClient.GetNumOfReplicationStreams()
 	if err != nil {
-		return fmt.Errorf("error fetching num of replication streams: %v", err)
+		return goerrors.Errorf("error fetching num of replication streams: %v", err)
 	}
 	if numOfStreams > 0 {
 		utils.ErrExit(color.RedString("%s Found replication stream(s): %d.", REPLICATION_GUARDRAIL_ALERT_MSG, numOfStreams))

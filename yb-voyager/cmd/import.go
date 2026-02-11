@@ -19,6 +19,8 @@ import (
 	"fmt"
 	"strings"
 
+	goerrors "github.com/go-errors/errors"
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
@@ -31,6 +33,7 @@ import (
 var sourceDBType string
 var enableOrafce utils.BoolStr
 var importType string
+var prometheusMetricsPort int
 
 var supportedSSLModesOnTargetForImport = AllSSLModes // supported SSL modes for YugabyteDB is different for import VS export data from target(streaming phase)
 var supportedSSLModesOnSourceOrSourceReplica = AllSSLModes
@@ -76,7 +79,7 @@ func validateImportFlags(cmd *cobra.Command, importerRole string) error {
 	}
 
 	if tconf.ImportObjects != "" && tconf.ExcludeImportObjects != "" {
-		return fmt.Errorf("only one of --object-type-list and --exclude-object-type-list are allowed")
+		return goerrors.Errorf("only one of --object-type-list and --exclude-object-type-list are allowed")
 	}
 	validateImportObjectsFlag(tconf.ImportObjects, "object-type-list")
 	validateImportObjectsFlag(tconf.ExcludeImportObjects, "exclude-object-type-list")
@@ -109,6 +112,49 @@ func validateImportDataFlags() error {
 	if err != nil {
 		return err
 	}
+
+	return nil
+}
+
+var validCdcPartitioningStrategies = []string{"pk", "table", "auto"}
+
+func validateCdcPartitioningStrategyFlag(cmd *cobra.Command) error {
+	if importerRole != TARGET_DB_IMPORTER_ROLE {
+		return nil
+	}
+	if !changeStreamingIsEnabled(importType) {
+		if cmd.Flags().Changed("cdc-partitioning-strategy") {
+			utils.ErrExit("--cdc-partitioning-strategy is not supported for offline migration. Re-run the command without this flag.")
+		}
+		return nil
+	}
+	if cdcPartitioningStrategy == "" {
+		utils.ErrExit("cdc partitioning strategy is required")
+	}
+
+	if !lo.Contains(validCdcPartitioningStrategies, cdcPartitioningStrategy) {
+		utils.ErrExit("invalid cdc partitioning strategy: %s. Supported values are: %s", cdcPartitioningStrategy, strings.Join(validCdcPartitioningStrategies, ", "))
+	}
+
+	importDataStatus, err := metaDB.GetImportDataStatusRecord()
+	if err != nil {
+		return fmt.Errorf("error getting import data status record: %w", err)
+	}
+
+	if importDataStatus == nil || !importDataStatus.ImportDataStarted || bool(startClean) {
+		//if import data has not started or start-clean flag is used, allow the change in cdc partitioning strategy
+		return nil
+	}
+	if importDataStatus.CdcPartitioningStrategyConfig == "" {
+		//if not a first run and the cdc partitioning strategy is not set
+		//this can be the case when the import data is resumed from an earlier version of yb-voyager
+		//So we should use the cdc partitioning strategy as pk to be upgrade safe
+		utils.ErrExit("Resuming from an earlier version of yb-voyager is not supported as cdc partition strategy was not set. Use --start-clean to start a fresh import with the new yb-voyager version.")
+	}
+	if cdcPartitioningStrategy != importDataStatus.CdcPartitioningStrategyConfig {
+		utils.ErrExit("changing the cdc partitioning strategy is not allowed after the import data has started. Current strategy: %s, new strategy: %s\n Use --start-clean to start a fresh import with the new strategy.", importDataStatus.CdcPartitioningStrategyConfig, cdcPartitioningStrategy)
+	}
+	log.Infof("cdc partitioning strategy: %s", cdcPartitioningStrategy)
 	return nil
 }
 
@@ -136,7 +182,7 @@ func registerTargetDBConnFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&tconf.DBName, "target-db-name", "",
 		"name of the database on the target YugabyteDB server on which import needs to be done")
 
-	cmd.Flags().StringVar(&tconf.Schema, "target-db-schema", "",
+	cmd.Flags().StringVar(&tconf.SchemaConfig, "target-db-schema", "",
 		"target schema name in YugabyteDB (Note: works only for source as Oracle and MySQL, in case of PostgreSQL you can ALTER schema name post import)")
 
 	// TODO: SSL related more args might come. Need to explore SSL part completely.
@@ -188,7 +234,7 @@ func registerSourceReplicaDBAsTargetConnFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&tconf.TNSAlias, "oracle-tns-alias", "",
 		"[For Oracle Only] Name of TNS Alias you wish to use to connect to Oracle instance. Refer to documentation to learn more about configuring tnsnames.ora and aliases")
 
-	cmd.Flags().StringVar(&tconf.Schema, "source-replica-db-schema", "",
+	cmd.Flags().StringVar(&tconf.SchemaConfig, "source-replica-db-schema", "",
 		"schema name in Source-Replica DB (Note: works only for source as Oracle, in case of PostgreSQL schemas remain same as of source)")
 
 	// TODO: SSL related more args might come. Need to explore SSL part completely.
@@ -265,6 +311,23 @@ Note that for the cases where a table doesn't have a primary key, this may lead 
 		"The desired behavior when there is an error while processing and importing rows to target YugabyteDB in the snapshot phase. The errors can be while reading from file, transforming rows, or ingesting rows into YugabyteDB.\n"+
 			"\tabort: immediately abort the process. (default)\n"+
 			"\tstash-and-continue: stash the errored rows to a file and continue with the import")
+
+	cmd.Flags().IntVar(&maxConcurrentBatchProductionsConfig, "max-concurrent-batch-productions", 10, "Maximum number of concurrent batch productions to allow while importing data (default 10)")
+	cmd.Flags().MarkHidden("max-concurrent-batch-productions")
+
+	BoolVar(cmd.Flags(), &enableRandomBatchProduction, "enable-random-batch-production", true, "Enable random batch production during data import (default true)")
+	cmd.Flags().MarkHidden("enable-random-batch-production")
+
+	cmd.Flags().StringVar(&cdcPartitioningStrategy, "cdc-partitioning-strategy", "auto",
+		`The desired partitioning strategy to use while importing cdc events parallelly. The supported values are: pk, table. (default auto-detect)
+		\tauto: Automatically detect the partitioning strategy based on the table having expression or normal unique indexes.
+		\tpk: Partition the cdc events by primary key.
+		\ttable: Partition the cdc events by table.`)
+	cmd.Flags().MarkHidden("cdc-partitioning-strategy")
+
+	cmd.Flags().IntVar(&prometheusMetricsPort, "prometheus-metrics-port", 0,
+		"Port for Prometheus metrics server (default: 9101)")
+	cmd.Flags().MarkHidden("prometheus-metrics-port")
 }
 
 func registerImportSchemaFlags(cmd *cobra.Command) {
@@ -316,18 +379,23 @@ func validateTargetSchemaFlag() {
 	// This is not applicable for import-data-to-source-replica (validateFFDBSchemaFlag)/import-data-to-source (no ability to pass schema).
 	// For import-data-file, we allow this flag and source is PG(dummy)
 	if !slices.Contains([]string{SOURCE_REPLICA_DB_IMPORTER_ROLE, SOURCE_DB_IMPORTER_ROLE, IMPORT_FILE_ROLE}, importerRole) {
-		if tconf.Schema != "" && sourceDBType == "postgresql" {
+		if tconf.SchemaConfig != "" && sourceDBType == "postgresql" {
 			utils.ErrExit("Error --target-db-schema flag is not valid for export from 'postgresql' db type")
 		}
 	}
 
-	if tconf.Schema == "" {
+	if tconf.SchemaConfig == "" {
 		if tconf.TargetDBType == YUGABYTEDB {
-			tconf.Schema = YUGABYTEDB_DEFAULT_SCHEMA
+			tconf.SchemaConfig = YUGABYTEDB_DEFAULT_SCHEMA
 		} else if tconf.TargetDBType == ORACLE {
-			tconf.Schema = tconf.User
+			tconf.SchemaConfig = tconf.User
 		}
 		return
+	} else if tconf.TargetDBType != POSTGRESQL {
+		splits := strings.Split(tconf.SchemaConfig, ",")
+		if len(splits) > 1 {
+			utils.ErrExit("Error --target-db-schema flag can only contain one schema name. Got: %s", tconf.SchemaConfig)
+		}
 	}
 }
 
@@ -430,7 +498,7 @@ IGNORE		: Skip rows where the primary key already exists and continue importing 
 	cmd.Flags().MarkHidden("skip-node-health-checks")
 }
 
-func registerFlagsForSourceReplica(cmd *cobra.Command) {
+func registerFlagsForSourceAndSourceReplica(cmd *cobra.Command) {
 	cmd.Flags().Int64Var(&batchSizeInNumRows, "batch-size", 0,
 		fmt.Sprintf("Size of batches in the number of rows generated for ingestion during import. default: ORACLE(%d), POSTGRESQL(%d)", DEFAULT_BATCH_SIZE_ORACLE, DEFAULT_BATCH_SIZE_POSTGRESQL))
 	cmd.Flags().IntVar(&tconf.Parallelism, "parallel-jobs", 0,
@@ -467,7 +535,7 @@ func validateBatchSizeFlag(numLinesInASplit int64) {
 }
 
 func validateFFDBSchemaFlag() {
-	if tconf.Schema == "" && tconf.TargetDBType == ORACLE {
+	if tconf.SchemaConfig == "" && tconf.TargetDBType == ORACLE {
 		utils.ErrExit("Error --source-replica-db-schema flag is mandatory for import data to source-replica")
 	}
 }
@@ -488,7 +556,7 @@ func validateParallelismFlags() {
 
 func validateTruncateTablesFlag() error {
 	if truncateTables && !startClean {
-		return fmt.Errorf("Error --truncate-tables true can only be specified along with --start-clean true")
+		return goerrors.Errorf("Error --truncate-tables true can only be specified along with --start-clean true")
 	}
 	return nil
 }
@@ -512,7 +580,7 @@ func validateOnPrimaryKeyConflictFlag() error {
 	// Check if the provided OnPrimaryKeyConflictAction is valid
 	if tconf.OnPrimaryKeyConflictAction != "" {
 		if !slices.Contains(onPrimaryKeyConflictActions, tconf.OnPrimaryKeyConflictAction) {
-			return fmt.Errorf("invalid value for --on-primary-key-conflict. Allowed values are: [%s]", strings.Join(onPrimaryKeyConflictActions, ", "))
+			return goerrors.Errorf("invalid value for --on-primary-key-conflict. Allowed values are: [%s]", strings.Join(onPrimaryKeyConflictActions, ", "))
 		}
 	}
 
@@ -527,18 +595,18 @@ func validateOnPrimaryKeyConflictFlag() error {
 		if err != nil {
 			return fmt.Errorf("error getting migration status record: %w", err)
 		} else if msr == nil {
-			return fmt.Errorf("migration status record is nil, cannot validate --on-primary-key-conflict flag")
+			return goerrors.Errorf("migration status record is nil, cannot validate --on-primary-key-conflict flag")
 		}
 
 		if msr.OnPrimaryKeyConflictAction != "" && msr.OnPrimaryKeyConflictAction != tconf.OnPrimaryKeyConflictAction {
-			return fmt.Errorf("--on-primary-key-conflict flag cannot be changed after the import has started. "+
+			return goerrors.Errorf("--on-primary-key-conflict flag cannot be changed after the import has started. "+
 				"Previous value was %s, current value is %s", msr.OnPrimaryKeyConflictAction, tconf.OnPrimaryKeyConflictAction)
 		}
 	}
 
 	// --enable-upsert true and on-primary-key-conflict ignore is conflicting, therefore we only allow it if on-primary-key-conflict is set to ERROR-POLICY
 	if tconf.EnableUpsert && tconf.OnPrimaryKeyConflictAction != constants.PRIMARY_KEY_CONFLICT_ACTION_ERROR_POLICY {
-		return fmt.Errorf("--enable-upsert=true can only be used with --on-primary-key-conflict=ERROR-POLICY")
+		return goerrors.Errorf("--enable-upsert=true can only be used with --on-primary-key-conflict=ERROR-POLICY")
 	}
 
 	if tconf.OnPrimaryKeyConflictAction == constants.PRIMARY_KEY_CONFLICT_ACTION_IGNORE {
