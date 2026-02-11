@@ -1228,38 +1228,6 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 			return false, err
 		}
 
-		// Failpoint: simulate a crash/failure after applying CDC DML but before persisting
-		// progress metadata (last_applied_vsn + per-table event stats).
-		//
-		// Why this matters: on resume, voyager should be able to safely re-apply the same events
-		// without data loss/duplication, even if progress tracking didn't advance for a committed batch.
-		//
-		// Tests can use a hit-counter expression to trigger deterministically, e.g.:
-		//   importCDCProgressMetadataWriteFailure=200*off->return(true)
-		//
-		// Black-box tests can set YB_VOYAGER_FAILPOINT_MARKER_DIR to write a marker file.
-		skipProgressMetadata := false
-		failpoint.Inject("importCDCProgressMetadataWriteFailure", func(val failpoint.Value) {
-			if val != nil {
-				skipProgressMetadata = true
-			}
-		})
-		if skipProgressMetadata {
-			if markerDir := os.Getenv("YB_VOYAGER_FAILPOINT_MARKER_DIR"); markerDir != "" {
-				_ = os.MkdirAll(markerDir, 0755)
-				_ = os.WriteFile(filepath.Join(markerDir, "failpoint-import-cdc-progress-metadata-write-failure.log"), []byte("hit\n"), 0644)
-			}
-			// Commit the applied DML, but intentionally skip updating voyager metadata tables.
-			// Return a non-retryable error so the importer exits quickly.
-			if err = tx.Commit(ctx); err != nil {
-				return false, fmt.Errorf("failpoint: commit after CDC DML apply failed: %w", err)
-			}
-			return false, &pgconn.PgError{
-				Code:    "23505", // unique_violation (Class 23) => non-retryable
-				Message: "failpoint: CDC applied but progress metadata write failed",
-			}
-		}
-
 		updateVsnQuery := batch.GetChannelMetadataUpdateQuery(migrationUUID)
 		res, err = tx.Exec(context.Background(), updateVsnQuery)
 		if err != nil || res.RowsAffected() == 0 {
