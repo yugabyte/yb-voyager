@@ -425,13 +425,6 @@ func startExportDataFromTargetIfRequired() {
 
 	utils.PrintAndLogf("Starting export data from target with command:\n %s", color.GreenString(cmdStr))
 
-	// If error had occurred while reading the config file, display the command and exit
-	// if displayCmdAndExit {
-	// 	// We are delaying this error message to be displayed here so that we can display the command
-	// 	// after it has been constructed
-	// 	utils.ErrExit("failed to read config file: %s\nPlease check the config file and re-run the command with only the required flags", configFileErr)
-	// }
-
 	binary, lookErr := exec.LookPath(os.Args[0])
 	if lookErr != nil {
 		utils.ErrExit("could not find yb-voyager: %w", lookErr)
