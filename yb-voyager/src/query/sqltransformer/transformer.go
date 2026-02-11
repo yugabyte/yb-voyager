@@ -398,7 +398,6 @@ func (t *Transformer) AddPartialClauseForNullFiltering(parseTree *pg_query.Parse
 		return nil, goerrors.Errorf("first index parameter is an expression, not a column")
 	}
 
-	// Build IS NOT NULL node
 	isNotNullNode := &pg_query.Node{
 		Node: &pg_query.Node_NullTest{
 			NullTest: &pg_query.NullTest{

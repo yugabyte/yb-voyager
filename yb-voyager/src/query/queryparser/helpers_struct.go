@@ -455,6 +455,19 @@ func DeparseParseTree(parseTree *pg_query.ParseResult) (string, error) {
 	return deparsedStmt, nil
 }
 
+func DeparseParseTreeWithSemicolon(parseTree *pg_query.ParseResult) (string, error) {
+	if parseTree == nil || len(parseTree.Stmts) == 0 {
+		return "", goerrors.Errorf("parse tree is empty or invalid")
+	}
+
+	deparsedStmt, err := pg_query.Deparse(parseTree)
+	if err != nil {
+		return "", fmt.Errorf("error deparsing parse tree: %w", err)
+	}
+
+	return fmt.Sprintf("%s;", deparsedStmt), nil
+}
+
 func CloneParseTree(parseTree *pg_query.ParseResult) *pg_query.ParseResult {
     return proto.Clone(parseTree).(*pg_query.ParseResult)
 }

@@ -46,5 +46,5 @@ func generateNullPartialIndexFix(parseTree *pg_query.ParseResult) (string, error
 		return "", err
 	}
 
-	return queryparser.DeparseParseTree(fixedParseTree)
+	return queryparser.DeparseParseTreeWithSemicolon(fixedParseTree)
 }
