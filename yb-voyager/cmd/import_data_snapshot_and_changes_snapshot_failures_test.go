@@ -121,6 +121,7 @@ func TestImportSnapshotCommitFailureAndResume(t *testing.T) {
 	}, waitForExport, true)
 	err = exportRunner.Run()
 	require.NoError(t, err, "Failed to start export")
+	defer killDebeziumForExportDirImportTest(t, exportDir)
 
 	select {
 	case <-exportReady:
@@ -132,6 +133,7 @@ func TestImportSnapshotCommitFailureAndResume(t *testing.T) {
 	// Stop export to avoid new queue writes during snapshot import assertions.
 	logTest(t, "Stopping export to freeze exportDir before snapshot import")
 	_ = exportRunner.Kill()
+	killDebeziumForExportDirImportTest(t, exportDir)
 	_ = os.Remove(filepath.Join(exportDir, ".export-dataLockfile.lck"))
 	time.Sleep(2 * time.Second)
 
@@ -329,6 +331,7 @@ func TestImportSnapshotTransformFailureAndResume(t *testing.T) {
 	}, waitForExport, true)
 	err = exportRunner.Run()
 	require.NoError(t, err, "Failed to start export")
+	defer killDebeziumForExportDirImportTest(t, exportDir)
 
 	select {
 	case <-exportReady:
@@ -339,6 +342,7 @@ func TestImportSnapshotTransformFailureAndResume(t *testing.T) {
 
 	logTest(t, "Stopping export to freeze exportDir before snapshot import")
 	_ = exportRunner.Kill()
+	killDebeziumForExportDirImportTest(t, exportDir)
 	_ = os.Remove(filepath.Join(exportDir, ".export-dataLockfile.lck"))
 	time.Sleep(2 * time.Second)
 

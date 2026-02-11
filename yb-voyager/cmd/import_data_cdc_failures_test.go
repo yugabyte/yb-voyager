@@ -157,6 +157,7 @@ func TestImportCDCTransformFailureAndResume(t *testing.T) {
 	}, generateCDC, true)
 	err = exportRunner.Run()
 	require.NoError(t, err, "Failed to start export")
+	defer killDebeziumForExportDirImportTest(t, exportDir)
 
 	select {
 	case <-cdcQueued:
@@ -168,6 +169,7 @@ func TestImportCDCTransformFailureAndResume(t *testing.T) {
 	// Stop export to avoid further queue writes during import assertions.
 	logTest(t, "Stopping export after CDC has been queued")
 	_ = exportRunner.Kill()
+	killDebeziumForExportDirImportTest(t, exportDir)
 	_ = os.Remove(filepath.Join(exportDir, ".export-dataLockfile.lck"))
 	time.Sleep(2 * time.Second)
 
@@ -379,6 +381,7 @@ func TestImportCDCDbErrorAndResume(t *testing.T) {
 	}, generateCDC, true)
 	err = exportRunner.Run()
 	require.NoError(t, err, "Failed to start export")
+	defer killDebeziumForExportDirImportTest(t, exportDir)
 
 	select {
 	case <-cdcQueued:
@@ -389,6 +392,7 @@ func TestImportCDCDbErrorAndResume(t *testing.T) {
 
 	logTest(t, "Stopping export after CDC has been queued")
 	_ = exportRunner.Kill()
+	killDebeziumForExportDirImportTest(t, exportDir)
 	_ = os.Remove(filepath.Join(exportDir, ".export-dataLockfile.lck"))
 	time.Sleep(2 * time.Second)
 
@@ -606,6 +610,7 @@ func TestImportCDCProgressMetadataWriteFailureAndResume(t *testing.T) {
 	}, generateCDC, true)
 	err = exportRunner.Run()
 	require.NoError(t, err, "Failed to start export")
+	defer killDebeziumForExportDirImportTest(t, exportDir)
 
 	select {
 	case <-cdcQueued:
@@ -616,6 +621,7 @@ func TestImportCDCProgressMetadataWriteFailureAndResume(t *testing.T) {
 
 	logTest(t, "Stopping export after CDC has been queued")
 	_ = exportRunner.Kill()
+	killDebeziumForExportDirImportTest(t, exportDir)
 	_ = os.Remove(filepath.Join(exportDir, ".export-dataLockfile.lck"))
 	time.Sleep(2 * time.Second)
 
@@ -842,6 +848,7 @@ func TestImportCDCEventExecutionFailureAndResume(t *testing.T) {
 	}, generateCDC, true)
 	err = exportRunner.Run()
 	require.NoError(t, err, "Failed to start export")
+	defer killDebeziumForExportDirImportTest(t, exportDir)
 
 	select {
 	case <-cdcQueued:
@@ -852,6 +859,7 @@ func TestImportCDCEventExecutionFailureAndResume(t *testing.T) {
 
 	logTest(t, "Stopping export after CDC has been queued")
 	_ = exportRunner.Kill()
+	killDebeziumForExportDirImportTest(t, exportDir)
 	_ = os.Remove(filepath.Join(exportDir, ".export-dataLockfile.lck"))
 	time.Sleep(2 * time.Second)
 
@@ -1036,6 +1044,7 @@ func TestImportCDCRetryableDbErrorThenSucceed(t *testing.T) {
 	}, generateCDC, true)
 	err = exportRunner.Run()
 	require.NoError(t, err, "Failed to start export")
+	defer killDebeziumForExportDirImportTest(t, exportDir)
 
 	select {
 	case <-cdcQueued:
@@ -1046,6 +1055,7 @@ func TestImportCDCRetryableDbErrorThenSucceed(t *testing.T) {
 
 	logTest(t, "Stopping export after CDC has been queued")
 	_ = exportRunner.Kill()
+	killDebeziumForExportDirImportTest(t, exportDir)
 	_ = os.Remove(filepath.Join(exportDir, ".export-dataLockfile.lck"))
 	time.Sleep(2 * time.Second)
 
@@ -1200,6 +1210,7 @@ func TestImportCDCRetryableAfterCommitErrorSkipsRetry(t *testing.T) {
 	}, generateCDC, true)
 	err = exportRunner.Run()
 	require.NoError(t, err, "Failed to start export")
+	defer killDebeziumForExportDirImportTest(t, exportDir)
 
 	select {
 	case <-cdcQueued:
@@ -1210,6 +1221,7 @@ func TestImportCDCRetryableAfterCommitErrorSkipsRetry(t *testing.T) {
 
 	logTest(t, "Stopping export after CDC has been queued")
 	_ = exportRunner.Kill()
+	killDebeziumForExportDirImportTest(t, exportDir)
 	_ = os.Remove(filepath.Join(exportDir, ".export-dataLockfile.lck"))
 	time.Sleep(2 * time.Second)
 
@@ -1447,6 +1459,7 @@ func TestImportCDCMultiChannelBatchFailureAndResume(t *testing.T) {
 	}, generateCDC, true)
 	err = exportRunner.Run()
 	require.NoError(t, err, "Failed to start export")
+	defer killDebeziumForExportDirImportTest(t, exportDir)
 
 	select {
 	case <-cdcQueued:
@@ -1457,6 +1470,7 @@ func TestImportCDCMultiChannelBatchFailureAndResume(t *testing.T) {
 
 	logTest(t, "Stopping export after CDC has been queued")
 	_ = exportRunner.Kill()
+	killDebeziumForExportDirImportTest(t, exportDir)
 	_ = os.Remove(filepath.Join(exportDir, ".export-dataLockfile.lck"))
 	time.Sleep(2 * time.Second)
 
@@ -1621,6 +1635,38 @@ func lastAppliedVsnsByChannelImportTest(ybConn interface {
 		return nil, err
 	}
 	return res, nil
+}
+
+func killDebeziumForExportDirImportTest(t *testing.T, exportDir string) {
+	t.Helper()
+
+	// Best-effort cleanup for black-box tests that run `export data`:
+	// Debezium runs as a separate Java process and can outlive the `yb-voyager` parent if it is SIGKILLed.
+	pidStr, err := dbzm.GetPIDOfDebeziumOnExportDir(exportDir, SOURCE_DB_EXPORTER_ROLE)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return
+		}
+		logTestf(t, "WARNING: failed to read Debezium PID from exportDir: %v", err)
+		return
+	}
+
+	pid, err := strconv.Atoi(strings.TrimSpace(pidStr))
+	if err != nil {
+		logTestf(t, "WARNING: failed to parse Debezium PID %q: %v", pidStr, err)
+		return
+	}
+
+	proc, err := os.FindProcess(pid)
+	if err != nil {
+		logTestf(t, "WARNING: failed to find Debezium process pid=%d: %v", pid, err)
+		return
+	}
+	if err := proc.Kill(); err != nil {
+		logTestf(t, "WARNING: failed to kill Debezium process pid=%d: %v", pid, err)
+		return
+	}
+	logTestf(t, "Killed Debezium process pid=%d", pid)
 }
 
 func countEventsInQueueSegmentsImportTest(exportDir string) (int, error) {
