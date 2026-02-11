@@ -59,6 +59,8 @@ BEGIN
 END $$;
 
 -- F. Large number of Unique Indexes in one table
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 DROP TABLE IF EXISTS public.heavy_unique_index_table;
 
 CREATE TABLE public.heavy_unique_index_table (
