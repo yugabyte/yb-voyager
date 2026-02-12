@@ -496,7 +496,7 @@ func TestExportSchemaRunningAssessmentInternally_DisableFlag(t *testing.T) {
 func TestExportSchemaSchemaOptimizationReportPerfOptimizationsAutofix(t *testing.T) {
 	// create temp export dir and setting global exportDir variable
 	tempExportDir := testutils.CreateTempExportDir()
-	// defer testutils.RemoveTempExportDir(tempExportDir)
+	defer testutils.RemoveTempExportDir(tempExportDir)
 
 	// setting up source test container and source params for assessment
 	postgresContainer := testcontainers.NewTestContainer("postgresql", nil)
@@ -564,7 +564,7 @@ func TestExportSchemaSchemaOptimizationReportPerfOptimizationsAutofix(t *testing
 		`CREATE INDEX idx_test_data_value_9 ON test_schema.test_data (id3, val3, val4) INCLUDE (val3, val4, id1);`,
 
 		`CREATE INDEX idx_test_data_val_10 ON test_schema.test_data (val3) WHERE val4 IS NOT NULL;`,
-		`CREATE INDEX idx_test_data_val_11 ON test_schema.test_data (val3) WHERE val4 IS NOT NULL;`,
+		`CREATE INDEX idx_test_data_val_11 ON test_schema.test_data (val3) WHERE value IS NOT NULL;`,
 
 
 	)

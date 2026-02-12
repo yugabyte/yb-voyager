@@ -265,7 +265,7 @@ COPY (
      /*
       * If both indexes are exactly the same -
          * If key columns are exactly the same
-         * If INCLUDED columns are exactly the same
+         * If INCLUDED columns are the same irrespective of order
          * if both are unique
          * if both have same clause for NULLS NOT DISTINCT
       * break ties deterministically.
