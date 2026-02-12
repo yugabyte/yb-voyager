@@ -4,7 +4,7 @@
   "migration_type": "offline",
   "migration_uuid": "f1eb5090-6476-4239-98f8-ce886ab0af1e",
   "phase_payload": {
-    "payload_version": "1.0",
+    "payload_version": 1.0,
     "parallel_jobs": 4,
     "total_rows_exported": 101,
     "largest_table_rows_exported": 26,
@@ -26,7 +26,7 @@
     "schema_names": [
       "schema_d7108fd530c9b1c2"
     ],
-    "total_db_size_bytes": 532480
+    "total_db_size_bytes": 1622016
   },
   "status": "COMPLETE",
   "target_db_details": "",
