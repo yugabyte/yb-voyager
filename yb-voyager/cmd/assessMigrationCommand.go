@@ -276,7 +276,7 @@ func assessMigration() (err error) {
 		if err != nil {
 			return fmt.Errorf("failed to match schema names: %w", err)
 		}
-		
+
 		fetchSourceInfo()
 
 		// Handle replica discovery and validation (PostgreSQL only)
@@ -813,21 +813,56 @@ func getResolvedRedundantIndexes(redundantIndexes []utils.RedundantIndexesInfo) 
 		Redundant - idx1, Existing idx3
 		Redundant - idx2, Existing idx3
 	*/
-	getRootRedundantIndexInfo := func(currRedundantIndexInfo utils.RedundantIndexesInfo) utils.RedundantIndexesInfo {
+	getRootRedundantIndexInfo := func(currRedundantIndexInfo utils.RedundantIndexesInfo, visitedRedundantIndexes map[string]bool) utils.RedundantIndexesInfo {
+		startRedundantIndexInfo := currRedundantIndexInfo
 		for {
+			if visitedRedundantIndexes[currRedundantIndexInfo.GetRedundantIndexObjectName()] {
+				//If the redundant index is already visited then return the current redundant index info
+				//as it is the root index
+				return currRedundantIndexInfo
+			}
+			visitedRedundantIndexes[currRedundantIndexInfo.GetRedundantIndexObjectName()] = true
 			existingIndexOfCurrRedundant := currRedundantIndexInfo.GetExistingIndexObjectName()
 			nextRedundantIndexInfo, ok := redundantIndexToInfo[existingIndexOfCurrRedundant]
 			if !ok {
 				return currRedundantIndexInfo
 			}
 			currRedundantIndexInfo = nextRedundantIndexInfo
+			if currRedundantIndexInfo.GetRedundantIndexObjectName() == startRedundantIndexInfo.GetRedundantIndexObjectName() {
+				//if the curr redundant index after first iteration is the same as the start redundant index then return the start redundant index info
+				//but with marking the exisiting index as redundant index so that we don't call it as redundant index further
+				/*
+				e.g. a is redundant index of b and b is redundant index of a
+				a->b
+				b->a
+				so we mark a as redundant of itself 
+				in such case we should not call it a as redundant index further
+
+				another ex
+				a->b
+				b->c
+				c->d
+				d->b
+				in this case 
+				a->b
+				c->b
+				d->b
+				b->b // not a redundant index anymore
+				*/
+				startRedundantIndexInfo.ExistingIndexName = currRedundantIndexInfo.RedundantIndexName	
+				startRedundantIndexInfo.ExistingSchemaName = currRedundantIndexInfo.RedundantSchemaName
+				startRedundantIndexInfo.ExistingTableName = currRedundantIndexInfo.RedundantTableName
+				startRedundantIndexInfo.ExistingIndexDDL = currRedundantIndexInfo.RedundantIndexDDL
+				return startRedundantIndexInfo
+			}
 		}
 	}
 	for _, redundantIndex := range redundantIndexes {
 		redundantIndexToInfo[redundantIndex.GetRedundantIndexObjectName()] = redundantIndex
 	}
 	for _, redundantIndex := range redundantIndexes {
-		rootIndexInfo := getRootRedundantIndexInfo(redundantIndex)
+		visitedRedundantIndexes := make(map[string]bool)
+		rootIndexInfo := getRootRedundantIndexInfo(redundantIndex, visitedRedundantIndexes)
 		rootExistingIndex := rootIndexInfo.GetExistingIndexObjectName()
 		currentExistingIndex := redundantIndex.GetExistingIndexObjectName()
 		if rootExistingIndex != currentExistingIndex {
@@ -841,6 +876,9 @@ func getResolvedRedundantIndexes(redundantIndexes []utils.RedundantIndexesInfo) 
 	}
 	var redundantIndexesRes []utils.RedundantIndexesInfo
 	for _, redundantIndexInfo := range redundantIndexToInfo {
+		if redundantIndexInfo.GetRedundantIndexObjectName() == redundantIndexInfo.GetExistingIndexObjectName() {
+			continue
+		}
 		redundantIndexesRes = append(redundantIndexesRes, redundantIndexInfo)
 	}
 	return redundantIndexesRes
