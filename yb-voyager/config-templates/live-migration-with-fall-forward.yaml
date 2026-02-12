@@ -624,8 +624,8 @@ initiate-cutover-to-target:
   ### For this new logical replication based connector, ensure no ALTER TABLE commands causing table rewrites (e.g., adding primary keys) 
   ### were present in the schema during import
   ### Accepted values (true, false, yes, no, 0, 1) 
-  ### Default - true
-  use-yb-grpc-connector: false
+  ### Default - false
+  # use-yb-grpc-connector: false
 
 # ---------------------------------------------------------
 # Finalize Schema Post Data Import Configuration
