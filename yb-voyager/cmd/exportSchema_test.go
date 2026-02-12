@@ -538,6 +538,13 @@ func TestExportSchemaSchemaOptimizationReportPerfOptimizationsAutofix(t *testing
 		`CREATE INDEX idx_test_data_value_3 ON test_schema.test_data (value, value_2);`,
 		`CREATE INDEX idx_test_data_id1 ON test_schema.test_data (value_2 DESC, id1);`,
 
+		/*
+		a->b
+		b->a
+
+		so one is redundant of the other
+		so we should remove one of them
+		*/
 		`CREATE INDEX idx_test_data_value_4 ON test_schema.test_data (id3, value_2) INCLUDE (id1, val3);`,
 		`CREATE INDEX idx_test_data_value_5 ON test_schema.test_data (id3, value_2) INCLUDE (val3, id1);`,
 
@@ -555,6 +562,9 @@ func TestExportSchemaSchemaOptimizationReportPerfOptimizationsAutofix(t *testing
 		`CREATE INDEX idx_test_data_value_7 ON test_schema.test_data (id3, val3, val4) INCLUDE (id1,val4, val3);`,
 		`CREATE INDEX idx_test_data_value_8 ON test_schema.test_data (id3, val3, val4) INCLUDE (val4, val3, id1);`,
 		`CREATE INDEX idx_test_data_value_9 ON test_schema.test_data (id3, val3, val4) INCLUDE (val3, val4, id1);`,
+
+		`CREATE INDEX idx_test_data_val_10 ON test_schema.test_data (val3) WHERE val4 IS NOT NULL;`,
+		`CREATE INDEX idx_test_data_val_11 ON test_schema.test_data (val3) WHERE val4 IS NOT NULL;`,
 
 
 	)
@@ -619,8 +629,15 @@ func TestExportSchemaSchemaOptimizationReportPerfOptimizationsAutofix(t *testing
 	assert.NotNil(t, schemaOptimizationReport.SecondaryIndexToRangeChange)
 	assert.True(t, schemaOptimizationReport.SecondaryIndexToRangeChange.IsApplied)
 	assert.Equal(t, 1, len(schemaOptimizationReport.SecondaryIndexToRangeChange.ModifiedIndexes))
-	assert.Equal(t, 3, len(schemaOptimizationReport.SecondaryIndexToRangeChange.ModifiedIndexes["test_schema.test_data"]))
-	assert.Equal(t, "idx_test_data_value_3", schemaOptimizationReport.SecondaryIndexToRangeChange.ModifiedIndexes["test_schema.test_data"][0])
+	assert.Equal(t, 5, len(schemaOptimizationReport.SecondaryIndexToRangeChange.ModifiedIndexes["test_schema.test_data"]))
+	expectedModifiedIndexes := []string{
+		"idx_test_data_value_3",
+		"idx_test_data_value_4",
+		"idx_test_data_value_7",
+		"idx_test_data_val_10",
+		"idx_test_data_val_11",
+	}
+	assert.ElementsMatch(t, expectedModifiedIndexes, schemaOptimizationReport.SecondaryIndexToRangeChange.ModifiedIndexes["test_schema.test_data"])
 
 	_, err = testutils.RunVoyagerCommand(yugabyteContainer, "import schema", []string{
 		"--export-dir", tempExportDir,
@@ -634,7 +651,7 @@ func TestExportSchemaSchemaOptimizationReportPerfOptimizationsAutofix(t *testing
 
 	indexesToShardingStrategy := getIndexesToShardingStrategy(t, yugabyteContainer, "test_schema", "test_data")
 
-	assert.Equal(t, 5, len(indexesToShardingStrategy))
+	assert.Equal(t, 7, len(indexesToShardingStrategy))
 	assert.Equal(t, "ASC", indexesToShardingStrategy["idx_test_data_value_3"])
 	assert.Equal(t, "DESC", indexesToShardingStrategy["idx_test_data_id1"])
 	assert.Equal(t, "HASH", indexesToShardingStrategy["test_data_pkey"])
