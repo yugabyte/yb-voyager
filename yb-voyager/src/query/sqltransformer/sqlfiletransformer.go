@@ -32,7 +32,7 @@ import (
 
 const (
 	REMOVED_REDUNDANT_INDEXES_FILE_NAME            = "redundant_indexes.sql"
-	SUGGESTION_TO_USE_SKIP_PERF_OPTIMIZATIONS_FLAG = "Use --skip-performance-optimizations true flag to skip applying performance optimizations to the index file"
+	SUGGESTION_TO_USE_SKIP_PERF_OPTIMIZATIONS_FLAG = "Use --skip-performance-recommendations true flag to skip applying performance recommendations to the index file"
 	HASH_SPLITTING_SESSION_VARIABLE_ON             = "set yb_use_hash_splitting_by_default=on;"
 	HASH_SPLITTING_SESSION_VARIABLE_OFF            = "set yb_use_hash_splitting_by_default=off;"
 )
@@ -91,7 +91,6 @@ func (t *IndexFileTransformer) Transform(file string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to copy %s to %s: %w", file, backUpFile, err)
 	}
-
 	parseTree, err = queryparser.ParseSqlFile(file)
 	if err != nil {
 		return "", fmt.Errorf("failed to parse %s: %w", file, err)
