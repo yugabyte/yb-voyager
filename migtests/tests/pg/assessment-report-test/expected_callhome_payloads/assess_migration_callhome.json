@@ -14,6 +14,12 @@
       "ALTER INDEX schema_d7108fd530c9b1c2.table_6d83e0e549809e8e ATTACH PARTITION schema_d7108fd530c9b1c2.table_b01a57b710e05e83",
       "ALTER INDEX schema_d7108fd530c9b1c2.table_6d83e0e549809e8e ATTACH PARTITION schema_d7108fd530c9b1c2.table_bb721d67db56c7a8",
       "ALTER SEQUENCE schema_a1717e859fc83d39.seq_212b769cd1a97708 OWNED BY schema_a1717e859fc83d39.table_de51d4ada62f2266.col_190e9d7fd2ee599f",
+      "ALTER SEQUENCE schema_a1717e859fc83d39.seq_44c8da7276a608bc OWNED BY schema_a1717e859fc83d39.table_72da587ee1dbe1ef.col_190e9d7fd2ee599f",
+      "ALTER SEQUENCE schema_d7108fd530c9b1c2.seq_44c8da7276a608bc OWNED BY schema_d7108fd530c9b1c2.table_72da587ee1dbe1ef.col_190e9d7fd2ee599f",
+      "ALTER TABLE ONLY schema_a1717e859fc83d39.table_72da587ee1dbe1ef ADD CONSTRAINT constraint_c9e05c54f95cef9f PRIMARY KEY (col_190e9d7fd2ee599f)",
+      "ALTER TABLE ONLY schema_a1717e859fc83d39.table_72da587ee1dbe1ef ALTER COLUMN col_190e9d7fd2ee599f SET DEFAULT nextval('schema_a1717e859fc83d39.seq_44c8da7276a608bc'::regclass)",
+      "ALTER TABLE ONLY schema_d7108fd530c9b1c2.table_72da587ee1dbe1ef ADD CONSTRAINT constraint_c9e05c54f95cef9f PRIMARY KEY (col_190e9d7fd2ee599f)",
+      "ALTER TABLE ONLY schema_d7108fd530c9b1c2.table_72da587ee1dbe1ef ALTER COLUMN col_190e9d7fd2ee599f SET DEFAULT nextval('schema_d7108fd530c9b1c2.seq_44c8da7276a608bc'::regclass)",
       "ALTER SEQUENCE schema_a1717e859fc83d39.seq_3147fd1c9c74903c OWNED BY schema_a1717e859fc83d39.table_5407a19fae8cbc82.col_190e9d7fd2ee599f",
       "ALTER SEQUENCE schema_a1717e859fc83d39.seq_3a0e20268ebde78d OWNED BY schema_a1717e859fc83d39.table_1c6420cbc937e8e4.col_190e9d7fd2ee599f",
       "ALTER SEQUENCE schema_a1717e859fc83d39.seq_3b148746954611ac OWNED BY schema_a1717e859fc83d39.table_8ee5af308526bb2a.col_190e9d7fd2ee599f",
@@ -192,6 +198,11 @@
       "CREATE EXTENSION IF NOT EXISTS lo SCHEMA schema_d7108fd530c9b1c2",
       "CREATE EXTENSION IF NOT EXISTS pg_stat_statements SCHEMA schema_d7108fd530c9b1c2",
       "CREATE EXTENSION IF NOT EXISTS pgcrypto SCHEMA schema_d7108fd530c9b1c2",
+      "CREATE EXTENSION IF NOT EXISTS pglogical SCHEMA schema_68ec2ae613c42996",
+      "CREATE EXTENSION IF NOT EXISTS plperl SCHEMA schema_ef0e5bb64d3991e2",
+      "CREATE EXTENSION IF NOT EXISTS plpython3u SCHEMA schema_ef0e5bb64d3991e2",
+      "CREATE EXTENSION IF NOT EXISTS postgis SCHEMA schema_d7108fd530c9b1c2",
+      "CREATE EXTENSION IF NOT EXISTS vector SCHEMA schema_d7108fd530c9b1c2",
       "CREATE INDEX index_00a02a89661bc1f2 ON schema_d7108fd530c9b1c2.table_a84d78d2ae709c44 USING btree (col_adc966a138a40129)",
       "CREATE INDEX index_04d6f38b4c27207c ON schema_d7108fd530c9b1c2.table_28d75042790195db USING btree (col_afe436b0d9baf3e0)",
       "CREATE INDEX index_0523a53c6e78dac2 ON schema_d7108fd530c9b1c2.table_7d834d237deea6a9 USING btree (col_afe436b0d9baf3e0)",
@@ -231,6 +242,10 @@
       "CREATE SCHEMA schema_a1717e859fc83d39",
       "CREATE SCHEMA schema_ae9b85f2c9255e63",
       "CREATE SCHEMA schema_d7108fd530c9b1c2",
+      "CREATE SEQUENCE schema_a1717e859fc83d39.seq_44c8da7276a608bc AS int START 1 INCREMENT 1 NO MINVALUE NO MAXVALUE CACHE 1",
+      "CREATE SEQUENCE schema_d7108fd530c9b1c2.seq_44c8da7276a608bc AS int START 1 INCREMENT 1 NO MINVALUE NO MAXVALUE CACHE 1",
+      "CREATE TABLE schema_a1717e859fc83d39.table_72da587ee1dbe1ef (col_190e9d7fd2ee599f int NOT NULL, col_0ceb93caf428eae5 schema_d7108fd530c9b1c2.type_75a8ab5250371acc('const_42f2ebd18e0df8df'))",
+      "CREATE TABLE schema_d7108fd530c9b1c2.table_72da587ee1dbe1ef (col_190e9d7fd2ee599f int NOT NULL, col_0ceb93caf428eae5 schema_d7108fd530c9b1c2.type_75a8ab5250371acc('const_42f2ebd18e0df8df'))",
       "CREATE SEQUENCE schema_a1717e859fc83d39.seq_212b769cd1a97708 AS int START 1 INCREMENT 1 NO MINVALUE NO MAXVALUE CACHE 1",
       "CREATE SEQUENCE schema_a1717e859fc83d39.seq_3147fd1c9c74903c AS int START 1 INCREMENT 1 NO MINVALUE NO MAXVALUE CACHE 1",
       "CREATE SEQUENCE schema_a1717e859fc83d39.seq_3a0e20268ebde78d AS int START 1 INCREMENT 1 NO MINVALUE NO MAXVALUE CACHE 1",
@@ -605,6 +620,24 @@
         "object_name": "",
         "object_type": "COLUMN",
         "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED"
+      },
+      {
+        "category": "migration_caveats",
+        "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
+        "impact": "LEVEL_1",
+        "name": "Unsupported datatype for Live migration - vector",
+        "object_name": "",
+        "object_type": "COLUMN",
+        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_VECTOR"
+      },
+      {
+        "category": "migration_caveats",
+        "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
+        "impact": "LEVEL_1",
+        "name": "Unsupported datatype for Live migration - vector",
+        "object_name": "",
+        "object_type": "COLUMN",
+        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_VECTOR"
       },
       {
         "category": "migration_caveats",
@@ -1349,6 +1382,191 @@
         "object_name": "",
         "object_type": "FUNCTION",
         "type": "NON_DECIMAL_INTEGER_LITERAL"
+      },
+      {
+        "category": "unsupported_features",
+        "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_3",
+        "name": "Unsupported Extension - pglogical",
+        "object_name": "",
+        "object_type": "EXTENSION",
+        "sql_statement": "CREATE EXTENSION IF NOT EXISTS pglogical SCHEMA schema_68ec2ae613c42996",
+        "type": "UNSUPPORTED_EXTENSION"
+      },
+      {
+        "category": "unsupported_features",
+        "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_3",
+        "name": "Unsupported Extension - plperl",
+        "object_name": "",
+        "object_type": "EXTENSION",
+        "sql_statement": "CREATE EXTENSION IF NOT EXISTS plperl SCHEMA schema_ef0e5bb64d3991e2",
+        "type": "UNSUPPORTED_EXTENSION"
+      },
+      {
+        "category": "unsupported_features",
+        "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_3",
+        "name": "Unsupported Extension - plpython3u",
+        "object_name": "",
+        "object_type": "EXTENSION",
+        "sql_statement": "CREATE EXTENSION IF NOT EXISTS plpython3u SCHEMA schema_ef0e5bb64d3991e2",
+        "type": "UNSUPPORTED_EXTENSION"
+      },
+      {
+        "category": "unsupported_features",
+        "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_3",
+        "name": "Unsupported Extension - postgis",
+        "object_name": "",
+        "object_type": "EXTENSION",
+        "sql_statement": "CREATE EXTENSION IF NOT EXISTS postgis SCHEMA schema_d7108fd530c9b1c2",
+        "type": "UNSUPPORTED_EXTENSION"
+      },
+      {
+        "category": "unsupported_features",
+        "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
+        "impact": "LEVEL_3",
+        "name": "Unsupported Extension - vector",
+        "object_name": "",
+        "object_type": "EXTENSION",
+        "sql_statement": "CREATE EXTENSION IF NOT EXISTS vector SCHEMA schema_d7108fd530c9b1c2",
+        "type": "UNSUPPORTED_EXTENSION"
+      },
+      {
+        "category": "unsupported_query_constructs",
+        "category_description": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
+        "impact": "LEVEL_2",
+        "name": "COPY ... ON_ERROR",
+        "object_name": "",
+        "object_type": "",
+        "type": "COPY ... ON_ERROR"
+      },
+      {
+        "category": "unsupported_query_constructs",
+        "category_description": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
+        "impact": "LEVEL_2",
+        "name": "Large Object Functions",
+        "object_name": "",
+        "object_type": "",
+        "type": "LARGE_OBJECT_FUNCTIONS"
+      },
+      {
+        "category": "unsupported_query_constructs",
+        "category_description": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
+        "impact": "LEVEL_2",
+        "name": "System Column - cmax",
+        "object_name": "",
+        "object_type": "",
+        "type": "SYSTEM_COLUMN_CMAX"
+      },
+      {
+        "category": "unsupported_query_constructs",
+        "category_description": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
+        "impact": "LEVEL_2",
+        "name": "System Column - cmin",
+        "object_name": "",
+        "object_type": "",
+        "type": "SYSTEM_COLUMN_CMIN"
+      },
+      {
+        "category": "unsupported_query_constructs",
+        "category_description": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
+        "impact": "LEVEL_2",
+        "name": "System Column - ctid",
+        "object_name": "",
+        "object_type": "",
+        "type": "SYSTEM_COLUMN_CTID"
+      },
+      {
+        "category": "unsupported_query_constructs",
+        "category_description": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
+        "impact": "LEVEL_2",
+        "name": "System Column - xmax",
+        "object_name": "",
+        "object_type": "",
+        "type": "SYSTEM_COLUMN_XMAX"
+      },
+      {
+        "category": "unsupported_query_constructs",
+        "category_description": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
+        "impact": "LEVEL_2",
+        "name": "System Column - xmin",
+        "object_name": "",
+        "object_type": "",
+        "type": "SYSTEM_COLUMN_XMIN"
+      },
+      {
+        "category": "unsupported_query_constructs",
+        "category_description": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
+        "impact": "LEVEL_2",
+        "name": "XML Functions",
+        "object_name": "",
+        "object_type": "",
+        "type": "XML_FUNCTIONS"
+      },
+      {
+        "category": "unsupported_query_constructs",
+        "category_description": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
+        "impact": "LEVEL_2",
+        "name": "XML Functions",
+        "object_name": "",
+        "object_type": "",
+        "type": "XML_FUNCTIONS"
+      },
+      {
+        "category": "unsupported_query_constructs",
+        "category_description": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
+        "impact": "LEVEL_2",
+        "name": "XML Functions",
+        "object_name": "",
+        "object_type": "",
+        "type": "XML_FUNCTIONS"
+      },
+      {
+        "category": "unsupported_query_constructs",
+        "category_description": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
+        "impact": "LEVEL_2",
+        "name": "XML Functions",
+        "object_name": "",
+        "object_type": "",
+        "type": "XML_FUNCTIONS"
+      },
+      {
+        "category": "unsupported_query_constructs",
+        "category_description": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
+        "impact": "LEVEL_2",
+        "name": "XML Functions",
+        "object_name": "",
+        "object_type": "",
+        "type": "XML_FUNCTIONS"
+      },
+      {
+        "category": "unsupported_query_constructs",
+        "category_description": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
+        "impact": "LEVEL_2",
+        "name": "XML Functions",
+        "object_name": "",
+        "object_type": "",
+        "type": "XML_FUNCTIONS"
+      },
+      {
+        "category": "unsupported_query_constructs",
+        "category_description": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
+        "impact": "LEVEL_2",
+        "name": "XML Functions",
+        "object_name": "",
+        "object_type": "",
+        "type": "XML_FUNCTIONS"
+      },
+      {
+        "category": "unsupported_query_constructs",
+        "category_description": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
+        "impact": "LEVEL_2",
+        "name": "XML Functions",
+        "object_name": "",
+        "object_type": "",
+        "type": "XML_FUNCTIONS"
       }
     ],
     "control_plane_type": "",
@@ -1597,6 +1815,27 @@
         "reads_per_second": 0,
         "schema_name": "schema_d7108fd530c9b1c2",
         "size_in_bytes": 16384,
+        "writes_per_second": 0
+      },
+      {
+        "object_name": "index_60a555ed746e4195",
+        "reads_per_second": 0,
+        "schema_name": "schema_d7108fd530c9b1c2",
+        "size_in_bytes": 212992,
+        "writes_per_second": 0
+      },
+      {
+        "object_name": "index_c37624aa13fd2f11",
+        "reads_per_second": 0,
+        "schema_name": "schema_a1717e859fc83d39",
+        "size_in_bytes": 8192,
+        "writes_per_second": 0
+      },
+      {
+        "object_name": "index_c37624aa13fd2f11",
+        "reads_per_second": 0,
+        "schema_name": "schema_d7108fd530c9b1c2",
+        "size_in_bytes": 8192,
         "writes_per_second": 0
       },
       {
@@ -2057,7 +2296,7 @@
     ],
     "iops_interval": 0,
     "migration_complexity": "HIGH",
-    "migration_complexity_explanation": "Found 17 Level 2 issue(s) and 18 Level 3 issue(s), resulting in HIGH migration complexity",
+    "migration_complexity_explanation": "Found 32 Level 2 issue(s) and 23 Level 3 issue(s), resulting in HIGH migration complexity",
     "payload_version": 2,
     "schema_summary": {
       "DatabaseObjects": [
@@ -2072,12 +2311,6 @@
           "ObjectNames": "",
           "ObjectType": "DOMAIN",
           "TotalCount": 2
-        },
-        {
-          "InvalidCount": 0,
-          "ObjectNames": "",
-          "ObjectType": "EXTENSION",
-          "TotalCount": 5
         },
         {
           "InvalidCount": 0,
@@ -2101,7 +2334,7 @@
           "InvalidCount": 0,
           "ObjectNames": "",
           "ObjectType": "SEQUENCE",
-          "TotalCount": 42
+          "TotalCount": 44
         },
         {
           "InvalidCount": 0,
@@ -2128,22 +2361,28 @@
           "TotalCount": 4
         },
         {
-          "InvalidCount": 22,
-          "ObjectNames": "",
-          "ObjectType": "TABLE",
-          "TotalCount": 93
-        },
-        {
           "InvalidCount": 24,
           "ObjectNames": "",
           "ObjectType": "INDEX",
           "TotalCount": 30
         },
         {
+          "InvalidCount": 24,
+          "ObjectNames": "",
+          "ObjectType": "TABLE",
+          "TotalCount": 95
+        },
+        {
           "InvalidCount": 3,
           "ObjectNames": "",
           "ObjectType": "TRIGGER",
           "TotalCount": 4
+        },
+        {
+          "InvalidCount": 5,
+          "ObjectNames": "",
+          "ObjectType": "EXTENSION",
+          "TotalCount": 10
         },
         {
           "InvalidCount": 5,
@@ -2165,7 +2404,7 @@
       "SchemaNames": null
     },
     "sizing": {
-      "colocated_reasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 139 objects (96 tables/materialized views and 43 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as sharded. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
+      "colocated_reasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 142 objects (99 tables/materialized views and 43 explicit/implicit indexes) with 6.73 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as sharded. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
       "colocated_tables": [],
       "estimated_time_in_min_for_import": 1,
       "estimated_time_in_min_for_import_without_redundant_indexes": 1,
@@ -2211,6 +2450,9 @@
         "schema_a1717e859fc83d39.table_bcd69afe2545c511",
         "schema_a1717e859fc83d39.table_c47e5c5af7687f6c",
         "schema_a1717e859fc83d39.table_c6570e4a0d899eb5",
+        "schema_d7108fd530c9b1c2.table_db8b73b0ff6d5ca4",
+        "schema_d7108fd530c9b1c2.table_72da587ee1dbe1ef",
+        "schema_a1717e859fc83d39.table_72da587ee1dbe1ef",
         "schema_a1717e859fc83d39.table_de51d4ada62f2266",
         "schema_a1717e859fc83d39.table_e2d2370afa4b58aa",
         "schema_ae9b85f2c9255e63.table_1e86beb931da99c4",
@@ -2913,6 +3155,28 @@
         "writes_per_second": 0
       },
       {
+        "object_name": "table_db8b73b0ff6d5ca4",
+        "reads_per_second": 0,
+        "schema_name": "schema_d7108fd530c9b1c2",
+        "size_in_bytes": 7061504,
+        "writes_per_second": 0
+      },
+      {
+        "object_name": "table_72da587ee1dbe1ef",
+        "reads_per_second": 0,
+        "schema_name": "schema_a1717e859fc83d39",
+        "size_in_bytes": 0,
+        "writes_per_second": 0
+      },
+      {
+        "ObjectNames": null,
+        "object_name": "table_72da587ee1dbe1ef",
+        "reads_per_second": 0,
+        "schema_name": "schema_d7108fd530c9b1c2",
+        "size_in_bytes": 0,
+        "writes_per_second": 0
+      },
+      {
         "object_name": "table_de51d4ada62f2266",
         "reads_per_second": 0,
         "schema_name": "schema_d7108fd530c9b1c2",
@@ -2962,7 +3226,7 @@
       "schema_ae9b85f2c9255e63",
       "schema_d7108fd530c9b1c2"
     ],
-    "total_db_size_bytes": 3334144
+    "total_db_size_bytes": 10928128
   },
   "status": "COMPLETE",
   "target_db_details": "",
