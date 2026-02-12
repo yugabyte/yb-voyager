@@ -490,7 +490,7 @@ def run_index_operations(stop_index_thread: threading.Event, config: Dict[str, A
         for column_name, data_type in columns.items():
             if data_type not in unsupported_indexable_data_types:
                 indexable_columns.append((table_name, column_name))
-    MAX_RETRIES = 50
+    MAX_RETRIES = 30
     
     print("Index operations thread started")
     
@@ -499,6 +499,7 @@ def run_index_operations(stop_index_thread: threading.Event, config: Dict[str, A
             action = random.choice(["create", "drop"])
             retry_count = 0
             sql = ""
+            idx_name = ""
             
             try:
                 if action == "create":
@@ -530,8 +531,8 @@ def run_index_operations(stop_index_thread: threading.Event, config: Dict[str, A
                     row = index_cur.fetchone()
                     
                     if row:
-                        schema_name_val, index_name = row
-                        sql = f'DROP INDEX IF EXISTS "{schema_name_val}"."{index_name}";'
+                        schema_name_val, idx_name = row
+                        sql = f'DROP INDEX IF EXISTS "{schema_name_val}"."{idx_name}";'
                     else:
                         print("No indexes found to drop.")
                 
