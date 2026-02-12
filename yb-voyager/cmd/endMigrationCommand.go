@@ -9,9 +9,8 @@ import (
 	"strings"
 	"syscall"
 
-	goerrors "github.com/go-errors/errors"
-
 	"github.com/dustin/go-humanize"
+	goerrors "github.com/go-errors/errors"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -631,7 +630,7 @@ func cleanupTargetDB(msr *metadb.MigrationStatusRecord) {
 			User:           tconf.User,
 			Password:       tconf.Password,
 			DBName:         tconf.DBName,
-			Schema:         tconf.Schema,
+			Schemas:        tconf.Schemas,
 			SSLMode:        tconf.SSLMode,
 			SSLCertPath:    tconf.SSLCertPath,
 			SSLKey:         tconf.SSLKey,
@@ -692,7 +691,7 @@ func deleteCDCStreamIDForEndMigration(tconf *tgtdb.TargetConf) {
 		User:           tconf.User,
 		Password:       tconf.Password,
 		DBName:         tconf.DBName,
-		Schema:         tconf.Schema,
+		Schemas:        tconf.Schemas,
 		SSLMode:        tconf.SSLMode,
 		SSLCertPath:    tconf.SSLCertPath,
 		SSLKey:         tconf.SSLKey,

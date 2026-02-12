@@ -1,6 +1,6 @@
 [
     {
-      "table_name": "public.\"gcs_multitable_t1\"",
+      "table_name": "\"public\".\"gcs_multitable_t1\"",
       "file_name": "t1.text",
       "status": "DONE",
       "total_count": 19,
@@ -9,7 +9,7 @@
       "percentage_complete": 100
     },
     {
-      "table_name": "public.\"gcs_multitable_t2\"",
+      "table_name": "\"public\".\"gcs_multitable_t2\"",
       "file_name": "t2.text",
       "status": "DONE",
       "total_count": 19,

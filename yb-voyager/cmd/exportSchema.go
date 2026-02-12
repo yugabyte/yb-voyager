@@ -25,9 +25,8 @@ import (
 	"regexp"
 	"strings"
 
-	goerrors "github.com/go-errors/errors"
-
 	"github.com/fatih/color"
+	goerrors "github.com/go-errors/errors"
 	pg_query "github.com/pganalyze/pg_query_go/v6"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
@@ -38,6 +37,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/sqltransformer"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -91,6 +91,7 @@ func exportSchema(cmd *cobra.Command) error {
 			}
 			clearSchemaIsExported()
 			clearAssessmentRecommendationsApplied()
+			clearMigrationAssessmentDoneViaExportSchema()
 		} else {
 			fmt.Fprintf(os.Stderr, "Schema is already exported. "+
 				"Use --start-clean flag to export schema again -- "+
@@ -112,6 +113,8 @@ func exportSchema(cmd *cobra.Command) error {
 		log.Errorf("failed to connect to the source db: %s", err)
 		return fmt.Errorf("failed to connect to the source db during export schema: %w", err)
 	}
+	//TODO: fix in next PR
+	source.Schemas = sqlname.ParseIdentifiersFromString(source.DBType, source.SchemaConfig, ",")
 	defer source.DB().Disconnect()
 
 	if source.RunGuardrailsChecks {
@@ -131,6 +134,15 @@ func exportSchema(cmd *cobra.Command) error {
 		}
 	}
 
+	allSchemas, err := source.DB().GetAllSchemaNamesIdentifiers()
+	if err != nil {
+		return fmt.Errorf("failed to get all schema names identifiers: %w", err)
+	}
+	source.Schemas, err = namereg.SchemaNameMatcher(source.DBType, allSchemas, source.SchemaConfig)
+	if err != nil {
+		return fmt.Errorf("failed to match schema names: %w", err)
+	}
+
 	checkSourceDBCharset()
 	sourceDBVersion := source.DB().GetVersion()
 	source.DBVersion = sourceDBVersion
@@ -142,11 +154,6 @@ func exportSchema(cmd *cobra.Command) error {
 	// Get PostgreSQL system identifier while still connected
 	source.FetchDBSystemIdentifier()
 	utils.PrintAndLogf("%s version: %s\n", source.DBType, sourceDBVersion)
-
-	res := source.DB().CheckSchemaExists()
-	if !res {
-		return goerrors.Errorf("failed to check if source schema exist during export schema: %q", source.Schema)
-	}
 
 	// Check if the source database has the required permissions for exporting schema.
 	if source.RunGuardrailsChecks {
@@ -262,7 +269,9 @@ func runAssessMigrationCmdBeforExportSchemaIfRequired(exportSchemaCmd *cobra.Com
 	if ok, _ := IsMigrationAssessmentDoneDirectly(metaDB); ok {
 		log.Infof("migration assessment is already done, skipping running assess-migration command.")
 		return nil
-	} else if ok, _ := IsMigrationAssessmentDoneViaExportSchema(); ok {
+	}
+
+	if ok, _ := IsMigrationAssessmentDoneViaExportSchema(); ok {
 		log.Infof("migration assessment is already done via export schema, skipping running assess-migration command.")
 		return nil
 	}
@@ -399,6 +408,15 @@ func clearSchemaIsExported() {
 	})
 	if err != nil {
 		utils.ErrExit("clear schema is exported: update migration status record: %w", err)
+	}
+}
+
+func clearMigrationAssessmentDoneViaExportSchema() {
+	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		record.MigrationAssessmentDoneViaExportSchema = false
+	})
+	if err != nil {
+		utils.ErrExit("clear migration assessment done via export schema: update migration status record: %w", err)
 	}
 }
 

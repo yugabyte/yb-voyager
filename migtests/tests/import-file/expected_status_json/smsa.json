@@ -1,6 +1,6 @@
 [
     {
-      "table_name": "non_public.\"smsa\"",
+      "table_name": "\"non_public\".\"smsa\"",
       "file_name": "SMSA.txt",
       "status": "DONE",
       "total_count": 4929,

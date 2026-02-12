@@ -1,6 +1,6 @@
 [
     {
-      "table_name": "public.\"test_default_delimiter\"",
+      "table_name": "\"public\".\"test_default_delimiter\"",
       "file_name": "test_default_delimiter.txt",
       "status": "DONE",
       "total_count": 36,

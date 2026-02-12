@@ -1,6 +1,6 @@
 [
     {
-        "table_name": "public.\"num_types\"",
+        "table_name": "\"public\".\"num_types\"",
         "db_type": "source",
         "exported_snapshot_rows": 3,
         "imported_snapshot_rows": 0,
@@ -14,7 +14,7 @@
         "errored_imported_snapshot_rows": 0
     },
     {
-        "table_name": "public.\"num_types\"",
+        "table_name": "\"public\".\"num_types\"",
         "db_type": "target",
         "exported_snapshot_rows": 0,
         "imported_snapshot_rows": 3,
@@ -28,7 +28,7 @@
         "errored_imported_snapshot_rows": 0
     },
     {
-        "table_name": "public.\"num_types\"",
+        "table_name": "\"public\".\"num_types\"",
         "db_type": "source-replica",
         "exported_snapshot_rows": 0,
         "imported_snapshot_rows": 3,
@@ -42,7 +42,7 @@
         "errored_imported_snapshot_rows": 0
     },
     {
-        "table_name": "public.\"decimal_types\"",
+        "table_name": "\"public\".\"decimal_types\"",
         "db_type": "source",
         "exported_snapshot_rows": 3,
         "imported_snapshot_rows": 0,
@@ -56,7 +56,7 @@
         "errored_imported_snapshot_rows": 0
     },
     {
-        "table_name": "public.\"decimal_types\"",
+        "table_name": "\"public\".\"decimal_types\"",
         "db_type": "target",
         "exported_snapshot_rows": 0,
         "imported_snapshot_rows": 3,
@@ -70,7 +70,7 @@
         "errored_imported_snapshot_rows": 0
     },
     {
-        "table_name": "public.\"decimal_types\"",
+        "table_name": "\"public\".\"decimal_types\"",
         "db_type": "source-replica",
         "exported_snapshot_rows": 0,
         "imported_snapshot_rows": 3,
@@ -84,7 +84,7 @@
         "errored_imported_snapshot_rows": 0
     },
     {
-        "table_name": "public.\"datatypes1\"",
+        "table_name": "\"public\".\"datatypes1\"",
         "db_type": "source",
         "exported_snapshot_rows": 3,
         "imported_snapshot_rows": 0,
@@ -98,7 +98,7 @@
         "errored_imported_snapshot_rows": 0
     },
     {
-        "table_name": "public.\"datatypes1\"",
+        "table_name": "\"public\".\"datatypes1\"",
         "db_type": "target",
         "exported_snapshot_rows": 0,
         "imported_snapshot_rows": 3,
@@ -112,7 +112,7 @@
         "errored_imported_snapshot_rows": 0
     },
     {
-        "table_name": "public.\"datatypes1\"",
+        "table_name": "\"public\".\"datatypes1\"",
         "db_type": "source-replica",
         "exported_snapshot_rows": 0,
         "imported_snapshot_rows": 3,
@@ -126,7 +126,7 @@
         "errored_imported_snapshot_rows": 0
     },
     {
-        "table_name": "public.\"datetime_type\"",
+        "table_name": "\"public\".\"datetime_type\"",
         "db_type": "source",
         "exported_snapshot_rows": 3,
         "imported_snapshot_rows": 0,
@@ -140,7 +140,7 @@
         "errored_imported_snapshot_rows": 0
     },
     {
-        "table_name": "public.\"datetime_type\"",
+        "table_name": "\"public\".\"datetime_type\"",
         "db_type": "target",
         "exported_snapshot_rows": 0,
         "imported_snapshot_rows": 3,
@@ -154,7 +154,7 @@
         "errored_imported_snapshot_rows": 0
     },
     {
-        "table_name": "public.\"datetime_type\"",
+        "table_name": "\"public\".\"datetime_type\"",
         "db_type": "source-replica",
         "exported_snapshot_rows": 0,
         "imported_snapshot_rows": 3,
@@ -168,7 +168,7 @@
         "errored_imported_snapshot_rows": 0
     },
     {
-        "table_name": "public.\"datetime_type2\"",
+        "table_name": "\"public\".\"datetime_type2\"",
         "db_type": "source",
         "exported_snapshot_rows": 2,
         "imported_snapshot_rows": 0,
@@ -182,7 +182,7 @@
         "errored_imported_snapshot_rows": 0
     },
     {
-        "table_name": "public.\"datetime_type2\"",
+        "table_name": "\"public\".\"datetime_type2\"",
         "db_type": "target",
         "exported_snapshot_rows": 0,
         "imported_snapshot_rows": 2,
@@ -196,7 +196,7 @@
         "errored_imported_snapshot_rows": 0
     },
     {
-        "table_name": "public.\"datetime_type2\"",
+        "table_name": "\"public\".\"datetime_type2\"",
         "db_type": "source-replica",
         "exported_snapshot_rows": 0,
         "imported_snapshot_rows": 2,
@@ -210,7 +210,7 @@
         "errored_imported_snapshot_rows": 0
     },
     {
-        "table_name": "public.\"datatypes2\"",
+        "table_name": "\"public\".\"datatypes2\"",
         "db_type": "source",
         "exported_snapshot_rows": 3,
         "imported_snapshot_rows": 0,
@@ -224,7 +224,7 @@
         "errored_imported_snapshot_rows": 0
     },
     {
-        "table_name": "public.\"datatypes2\"",
+        "table_name": "\"public\".\"datatypes2\"",
         "db_type": "target",
         "exported_snapshot_rows": 0,
         "imported_snapshot_rows": 3,
@@ -238,7 +238,7 @@
         "errored_imported_snapshot_rows": 0
     },
     {
-        "table_name": "public.\"datatypes2\"",
+        "table_name": "\"public\".\"datatypes2\"",
         "db_type": "source-replica",
         "exported_snapshot_rows": 0,
         "imported_snapshot_rows": 3,
@@ -252,7 +252,7 @@
         "errored_imported_snapshot_rows": 0
     },
     {
-        "table_name": "public.\"null_and_default\"",
+        "table_name": "\"public\".\"null_and_default\"",
         "db_type": "source",
         "exported_snapshot_rows": 2,
         "imported_snapshot_rows": 0,
@@ -266,7 +266,7 @@
         "errored_imported_snapshot_rows": 0
     },
     {
-        "table_name": "public.\"null_and_default\"",
+        "table_name": "\"public\".\"null_and_default\"",
         "db_type": "target",
         "exported_snapshot_rows": 0,
         "imported_snapshot_rows": 2,
@@ -280,7 +280,7 @@
         "errored_imported_snapshot_rows": 0
     },
     {
-        "table_name": "public.\"null_and_default\"",
+        "table_name": "\"public\".\"null_and_default\"",
         "db_type": "source-replica",
         "exported_snapshot_rows": 0,
         "imported_snapshot_rows": 2,
@@ -294,7 +294,7 @@
         "errored_imported_snapshot_rows": 0
     },
     {
-        "table_name": "public.\"hstore_example\"",
+        "table_name": "\"public\".\"hstore_example\"",
         "db_type": "source",
         "exported_snapshot_rows": 26,
         "imported_snapshot_rows": 0,
@@ -308,7 +308,7 @@
         "errored_imported_snapshot_rows": 0
     },
     {
-        "table_name": "public.\"hstore_example\"",
+        "table_name": "\"public\".\"hstore_example\"",
         "db_type": "target",
         "exported_snapshot_rows": 0,
         "imported_snapshot_rows": 26,
@@ -322,7 +322,7 @@
         "errored_imported_snapshot_rows": 0
     },
     {
-        "table_name": "public.\"hstore_example\"",
+        "table_name": "\"public\".\"hstore_example\"",
         "db_type": "source-replica",
         "exported_snapshot_rows": 0,
         "imported_snapshot_rows": 26,
@@ -336,7 +336,7 @@
         "errored_imported_snapshot_rows": 0
     },
     {
-        "table_name": "public.\"tsvector_table\"",
+        "table_name": "\"public\".\"tsvector_table\"",
         "db_type": "source",
         "exported_snapshot_rows": 3,
         "imported_snapshot_rows": 0,
@@ -350,7 +350,7 @@
         "errored_imported_snapshot_rows": 0
     },
     {
-        "table_name": "public.\"tsvector_table\"",
+        "table_name": "\"public\".\"tsvector_table\"",
         "db_type": "target",
         "exported_snapshot_rows": 0,
         "imported_snapshot_rows": 3,
@@ -364,7 +364,7 @@
         "errored_imported_snapshot_rows": 0
     },
     {
-        "table_name": "public.\"tsvector_table\"",
+        "table_name": "\"public\".\"tsvector_table\"",
         "db_type": "source-replica",
         "exported_snapshot_rows": 0,
         "imported_snapshot_rows": 3,
@@ -378,7 +378,7 @@
         "errored_imported_snapshot_rows": 0
     },
     {
-        "table_name": "public.\"enum_array_table\"",
+        "table_name": "\"public\".\"enum_array_table\"",
         "db_type": "source",
         "exported_snapshot_rows": 3,
         "imported_snapshot_rows": 0,
@@ -392,7 +392,7 @@
         "errored_imported_snapshot_rows": 0
     },
     {
-        "table_name": "public.\"enum_array_table\"",
+        "table_name": "\"public\".\"enum_array_table\"",
         "db_type": "target",
         "exported_snapshot_rows": 0,
         "imported_snapshot_rows": 3,
@@ -406,7 +406,7 @@
         "errored_imported_snapshot_rows": 0
     },
     {
-        "table_name": "public.\"enum_array_table\"",
+        "table_name": "\"public\".\"enum_array_table\"",
         "db_type": "source-replica",
         "exported_snapshot_rows": 0,
         "imported_snapshot_rows": 3,
@@ -431,7 +431,7 @@
         "imported_inserts": 0,
         "imported_snapshot_rows": 0,
         "imported_updates": 0,
-        "table_name": "public.\"composite_array_types\""
+        "table_name": "\"public\".\"composite_array_types\""
     },
     {
         "db_type": "target",
@@ -445,7 +445,7 @@
         "imported_inserts": 3,
         "imported_snapshot_rows": 2,
         "imported_updates": 1,
-        "table_name": "public.\"composite_array_types\""
+        "table_name": "\"public\".\"composite_array_types\""
     },
     {
         "db_type": "source-replica",
@@ -459,7 +459,7 @@
         "imported_inserts": 6,
         "imported_snapshot_rows": 2,
         "imported_updates": 2,
-        "table_name": "public.\"composite_array_types\""
+        "table_name": "\"public\".\"composite_array_types\""
     },
     {
         "db_type": "source",
@@ -473,7 +473,7 @@
         "imported_inserts": 0,
         "imported_snapshot_rows": 0,
         "imported_updates": 0,
-        "table_name": "public.\"composite_types\""
+        "table_name": "\"public\".\"composite_types\""
     },
     {
         "db_type": "target",
@@ -487,7 +487,7 @@
         "imported_inserts": 3,
         "imported_snapshot_rows": 2,
         "imported_updates": 1,
-        "table_name": "public.\"composite_types\""
+        "table_name": "\"public\".\"composite_types\""
     },
     {
         "db_type": "source-replica",
@@ -501,7 +501,7 @@
         "imported_inserts": 6,
         "imported_snapshot_rows": 2,
         "imported_updates": 2,
-        "table_name": "public.\"composite_types\""
+        "table_name": "\"public\".\"composite_types\""
     },
     {
         "db_type": "source",
@@ -515,7 +515,7 @@
         "imported_inserts": 0,
         "imported_snapshot_rows": 0,
         "imported_updates": 0,
-        "table_name": "public.\"domain_array_types\""
+        "table_name": "\"public\".\"domain_array_types\""
     },
     {
         "db_type": "target",
@@ -529,7 +529,7 @@
         "imported_inserts": 3,
         "imported_snapshot_rows": 3,
         "imported_updates": 1,
-        "table_name": "public.\"domain_array_types\""
+        "table_name": "\"public\".\"domain_array_types\""
     },
     {
         "db_type": "source-replica",
@@ -543,7 +543,7 @@
         "imported_inserts": 6,
         "imported_snapshot_rows": 3,
         "imported_updates": 2,
-        "table_name": "public.\"domain_array_types\""
+        "table_name": "\"public\".\"domain_array_types\""
     },
     {
         "db_type": "source",
@@ -557,7 +557,7 @@
         "imported_inserts": 0,
         "imported_snapshot_rows": 0,
         "imported_updates": 0,
-        "table_name": "public.\"domain_types\""
+        "table_name": "\"public\".\"domain_types\""
     },
     {
         "db_type": "target",
@@ -571,7 +571,7 @@
         "imported_inserts": 3,
         "imported_snapshot_rows": 3,
         "imported_updates": 1,
-        "table_name": "public.\"domain_types\""
+        "table_name": "\"public\".\"domain_types\""
     },
     {
         "db_type": "source-replica",
@@ -585,7 +585,7 @@
         "imported_inserts": 6,
         "imported_snapshot_rows": 3,
         "imported_updates": 2,
-        "table_name": "public.\"domain_types\""
+        "table_name": "\"public\".\"domain_types\""
     },
     {
         "db_type": "source",
@@ -599,7 +599,7 @@
         "imported_inserts": 0,
         "imported_snapshot_rows": 0,
         "imported_updates": 0,
-        "table_name": "public.\"range_array_types\""
+        "table_name": "\"public\".\"range_array_types\""
     },
     {
         "db_type": "target",
@@ -613,7 +613,7 @@
         "imported_inserts": 3,
         "imported_snapshot_rows": 3,
         "imported_updates": 1,
-        "table_name": "public.\"range_array_types\""
+        "table_name": "\"public\".\"range_array_types\""
     },
     {
         "db_type": "source-replica",
@@ -627,7 +627,7 @@
         "imported_inserts": 6,
         "imported_snapshot_rows": 3,
         "imported_updates": 2,
-        "table_name": "public.\"range_array_types\""
+        "table_name": "\"public\".\"range_array_types\""
     },
     {
         "db_type": "source",
@@ -641,7 +641,7 @@
         "imported_inserts": 0,
         "imported_snapshot_rows": 0,
         "imported_updates": 0,
-        "table_name": "public.\"range_types\""
+        "table_name": "\"public\".\"range_types\""
     },
     {
         "db_type": "target",
@@ -655,7 +655,7 @@
         "imported_inserts": 3,
         "imported_snapshot_rows": 3,
         "imported_updates": 0,
-        "table_name": "public.\"range_types\""
+        "table_name": "\"public\".\"range_types\""
     },
     {
         "db_type": "source-replica",
@@ -669,7 +669,7 @@
         "imported_inserts": 6,
         "imported_snapshot_rows": 3,
         "imported_updates": 1,
-        "table_name": "public.\"range_types\""
+        "table_name": "\"public\".\"range_types\""
     },
     {
         "db_type": "source",
@@ -683,7 +683,7 @@
         "imported_inserts": 0,
         "imported_snapshot_rows": 0,
         "imported_updates": 0,
-        "table_name": "public.\"extension_arrays\""
+        "table_name": "\"public\".\"extension_arrays\""
     },
     {
         "db_type": "target",
@@ -697,49 +697,7 @@
         "imported_inserts": 3,
         "imported_snapshot_rows": 3,
         "imported_updates": 1,
-        "table_name": "public.\"extension_arrays\""
-    },
-    {
-        "db_type": "source-replica",
-        "errored_imported_snapshot_rows": 0,
-        "exported_deletes": 0,
-        "exported_inserts": 0,
-        "exported_snapshot_rows": 0,
-        "exported_updates": 0,
-        "final_row_count": 7,
-        "imported_deletes": 2,
-        "imported_inserts": 6,
-        "imported_snapshot_rows": 3,
-        "imported_updates": 2,
-        "table_name": "public.\"extension_arrays\""
-    },
-    {
-        "db_type": "source",
-        "errored_imported_snapshot_rows": 0,
-        "exported_deletes": 1,
-        "exported_inserts": 3,
-        "exported_snapshot_rows": 3,
-        "exported_updates": 1,
-        "final_row_count": 5,
-        "imported_deletes": 0,
-        "imported_inserts": 0,
-        "imported_snapshot_rows": 0,
-        "imported_updates": 0,
-        "table_name": "public.\"extension_types\""
-    },
-    {
-        "db_type": "target",
-        "errored_imported_snapshot_rows": 0,
-        "exported_deletes": 1,
-        "exported_inserts": 3,
-        "exported_snapshot_rows": 0,
-        "exported_updates": 1,
-        "final_row_count": 7,
-        "imported_deletes": 1,
-        "imported_inserts": 3,
-        "imported_snapshot_rows": 3,
-        "imported_updates": 1,
-        "table_name": "public.\"extension_types\""
+        "table_name": "\"public\".\"extension_arrays\""
     },
     {
         "db_type": "source-replica",
@@ -753,7 +711,49 @@
         "imported_inserts": 6,
         "imported_snapshot_rows": 3,
         "imported_updates": 2,
-        "table_name": "public.\"extension_types\""
+        "table_name": "\"public\".\"extension_arrays\""
+    },
+    {
+        "db_type": "source",
+        "errored_imported_snapshot_rows": 0,
+        "exported_deletes": 1,
+        "exported_inserts": 3,
+        "exported_snapshot_rows": 3,
+        "exported_updates": 1,
+        "final_row_count": 5,
+        "imported_deletes": 0,
+        "imported_inserts": 0,
+        "imported_snapshot_rows": 0,
+        "imported_updates": 0,
+        "table_name": "\"public\".\"extension_types\""
+    },
+    {
+        "db_type": "target",
+        "errored_imported_snapshot_rows": 0,
+        "exported_deletes": 1,
+        "exported_inserts": 3,
+        "exported_snapshot_rows": 0,
+        "exported_updates": 1,
+        "final_row_count": 7,
+        "imported_deletes": 1,
+        "imported_inserts": 3,
+        "imported_snapshot_rows": 3,
+        "imported_updates": 1,
+        "table_name": "\"public\".\"extension_types\""
+    },
+    {
+        "db_type": "source-replica",
+        "errored_imported_snapshot_rows": 0,
+        "exported_deletes": 0,
+        "exported_inserts": 0,
+        "exported_snapshot_rows": 0,
+        "exported_updates": 0,
+        "final_row_count": 7,
+        "imported_deletes": 2,
+        "imported_inserts": 6,
+        "imported_snapshot_rows": 3,
+        "imported_updates": 2,
+        "table_name": "\"public\".\"extension_types\""
     },
     {
         "db_type": "source",
@@ -767,7 +767,7 @@
         "imported_inserts": 0,
         "imported_snapshot_rows": 0,
         "imported_updates": 0,
-        "table_name": "public.\"audit_log\""
+        "table_name": "\"public\".\"audit_log\""
     },
     {
         "db_type": "target",
@@ -781,7 +781,7 @@
         "imported_inserts": 1,
         "imported_snapshot_rows": 2,
         "imported_updates": 1,
-        "table_name": "public.\"audit_log\""
+        "table_name": "\"public\".\"audit_log\""
     },
     {
         "db_type": "source-replica",
@@ -795,7 +795,7 @@
         "imported_inserts": 2,
         "imported_snapshot_rows": 2,
         "imported_updates": 2,
-        "table_name": "public.\"audit_log\""
+        "table_name": "\"public\".\"audit_log\""
     },
     {
         "db_type": "source",
@@ -809,7 +809,7 @@
         "imported_inserts": 0,
         "imported_snapshot_rows": 0,
         "imported_updates": 0,
-        "table_name": "public.\"datetime_arrays\""
+        "table_name": "\"public\".\"datetime_arrays\""
     },
     {
         "db_type": "target",
@@ -823,7 +823,7 @@
         "imported_inserts": 1,
         "imported_snapshot_rows": 2,
         "imported_updates": 1,
-        "table_name": "public.\"datetime_arrays\""
+        "table_name": "\"public\".\"datetime_arrays\""
     },
     {
         "db_type": "source-replica",
@@ -837,7 +837,7 @@
         "imported_inserts": 2,
         "imported_snapshot_rows": 2,
         "imported_updates": 2,
-        "table_name": "public.\"datetime_arrays\""
+        "table_name": "\"public\".\"datetime_arrays\""
     },
     {
         "db_type": "source",
@@ -851,7 +851,7 @@
         "imported_inserts": 0,
         "imported_snapshot_rows": 0,
         "imported_updates": 0,
-        "table_name": "public.\"datetime_types\""
+        "table_name": "\"public\".\"datetime_types\""
     },
     {
         "db_type": "target",
@@ -865,7 +865,7 @@
         "imported_inserts": 1,
         "imported_snapshot_rows": 3,
         "imported_updates": 1,
-        "table_name": "public.\"datetime_types\""
+        "table_name": "\"public\".\"datetime_types\""
     },
     {
         "db_type": "source-replica",
@@ -879,7 +879,7 @@
         "imported_inserts": 2,
         "imported_snapshot_rows": 3,
         "imported_updates": 2,
-        "table_name": "public.\"datetime_types\""
+        "table_name": "\"public\".\"datetime_types\""
     },
     {
         "db_type": "source",
@@ -893,7 +893,7 @@
         "imported_inserts": 0,
         "imported_snapshot_rows": 0,
         "imported_updates": 0,
-        "table_name": "public.\"geometry_arrays\""
+        "table_name": "\"public\".\"geometry_arrays\""
     },
     {
         "db_type": "target",
@@ -907,7 +907,7 @@
         "imported_inserts": 1,
         "imported_snapshot_rows": 2,
         "imported_updates": 1,
-        "table_name": "public.\"geometry_arrays\""
+        "table_name": "\"public\".\"geometry_arrays\""
     },
     {
         "db_type": "source-replica",
@@ -921,7 +921,7 @@
         "imported_inserts": 2,
         "imported_snapshot_rows": 2,
         "imported_updates": 2,
-        "table_name": "public.\"geometry_arrays\""
+        "table_name": "\"public\".\"geometry_arrays\""
     },
     {
         "db_type": "source",
@@ -935,7 +935,7 @@
         "imported_inserts": 0,
         "imported_snapshot_rows": 0,
         "imported_updates": 0,
-        "table_name": "public.\"geometry_types\""
+        "table_name": "\"public\".\"geometry_types\""
     },
     {
         "db_type": "target",
@@ -949,7 +949,7 @@
         "imported_inserts": 1,
         "imported_snapshot_rows": 3,
         "imported_updates": 0,
-        "table_name": "public.\"geometry_types\""
+        "table_name": "\"public\".\"geometry_types\""
     },
     {
         "db_type": "source-replica",
@@ -963,7 +963,7 @@
         "imported_inserts": 2,
         "imported_snapshot_rows": 3,
         "imported_updates": 1,
-        "table_name": "public.\"geometry_types\""
+        "table_name": "\"public\".\"geometry_types\""
     },
     {
         "db_type": "source",
@@ -977,7 +977,7 @@
         "imported_inserts": 0,
         "imported_snapshot_rows": 0,
         "imported_updates": 0,
-        "table_name": "public.\"misc_arrays\""
+        "table_name": "\"public\".\"misc_arrays\""
     },
     {
         "db_type": "target",
@@ -991,7 +991,7 @@
         "imported_inserts": 1,
         "imported_snapshot_rows": 2,
         "imported_updates": 1,
-        "table_name": "public.\"misc_arrays\""
+        "table_name": "\"public\".\"misc_arrays\""
     },
     {
         "db_type": "source-replica",
@@ -1005,7 +1005,7 @@
         "imported_inserts": 2,
         "imported_snapshot_rows": 2,
         "imported_updates": 2,
-        "table_name": "public.\"misc_arrays\""
+        "table_name": "\"public\".\"misc_arrays\""
     },
     {
         "db_type": "source",
@@ -1019,7 +1019,7 @@
         "imported_inserts": 0,
         "imported_snapshot_rows": 0,
         "imported_updates": 0,
-        "table_name": "public.\"misc_types\""
+        "table_name": "\"public\".\"misc_types\""
     },
     {
         "db_type": "target",
@@ -1033,7 +1033,7 @@
         "imported_inserts": 1,
         "imported_snapshot_rows": 3,
         "imported_updates": 0,
-        "table_name": "public.\"misc_types\""
+        "table_name": "\"public\".\"misc_types\""
     },
     {
         "db_type": "source-replica",
@@ -1047,7 +1047,7 @@
         "imported_inserts": 2,
         "imported_snapshot_rows": 3,
         "imported_updates": 1,
-        "table_name": "public.\"misc_types\""
+        "table_name": "\"public\".\"misc_types\""
     },
     {
         "db_type": "source",
@@ -1061,7 +1061,7 @@
         "imported_inserts": 0,
         "imported_snapshot_rows": 0,
         "imported_updates": 0,
-        "table_name": "public.\"network_arrays\""
+        "table_name": "\"public\".\"network_arrays\""
     },
     {
         "db_type": "target",
@@ -1075,7 +1075,7 @@
         "imported_inserts": 1,
         "imported_snapshot_rows": 2,
         "imported_updates": 1,
-        "table_name": "public.\"network_arrays\""
+        "table_name": "\"public\".\"network_arrays\""
     },
     {
         "db_type": "source-replica",
@@ -1089,7 +1089,7 @@
         "imported_inserts": 2,
         "imported_snapshot_rows": 2,
         "imported_updates": 2,
-        "table_name": "public.\"network_arrays\""
+        "table_name": "\"public\".\"network_arrays\""
     },
     {
         "db_type": "source",
@@ -1103,7 +1103,7 @@
         "imported_inserts": 0,
         "imported_snapshot_rows": 0,
         "imported_updates": 0,
-        "table_name": "public.\"network_types\""
+        "table_name": "\"public\".\"network_types\""
     },
     {
         "db_type": "target",
@@ -1117,7 +1117,7 @@
         "imported_inserts": 1,
         "imported_snapshot_rows": 3,
         "imported_updates": 1,
-        "table_name": "public.\"network_types\""
+        "table_name": "\"public\".\"network_types\""
     },
     {
         "db_type": "source-replica",
@@ -1131,7 +1131,7 @@
         "imported_inserts": 2,
         "imported_snapshot_rows": 3,
         "imported_updates": 2,
-        "table_name": "public.\"network_types\""
+        "table_name": "\"public\".\"network_types\""
     },
     {
         "db_type": "source",
@@ -1145,7 +1145,7 @@
         "imported_inserts": 0,
         "imported_snapshot_rows": 0,
         "imported_updates": 0,
-        "table_name": "public.\"numeric_arrays\""
+        "table_name": "\"public\".\"numeric_arrays\""
     },
     {
         "db_type": "target",
@@ -1159,7 +1159,7 @@
         "imported_inserts": 1,
         "imported_snapshot_rows": 3,
         "imported_updates": 1,
-        "table_name": "public.\"numeric_arrays\""
+        "table_name": "\"public\".\"numeric_arrays\""
     },
     {
         "db_type": "source-replica",
@@ -1173,7 +1173,7 @@
         "imported_inserts": 2,
         "imported_snapshot_rows": 3,
         "imported_updates": 2,
-        "table_name": "public.\"numeric_arrays\""
+        "table_name": "\"public\".\"numeric_arrays\""
     },
     {
         "db_type": "source",
@@ -1187,7 +1187,7 @@
         "imported_inserts": 0,
         "imported_snapshot_rows": 0,
         "imported_updates": 0,
-        "table_name": "public.\"numeric_types\""
+        "table_name": "\"public\".\"numeric_types\""
     },
     {
         "db_type": "target",
@@ -1201,7 +1201,7 @@
         "imported_inserts": 1,
         "imported_snapshot_rows": 3,
         "imported_updates": 1,
-        "table_name": "public.\"numeric_types\""
+        "table_name": "\"public\".\"numeric_types\""
     },
     {
         "db_type": "source-replica",
@@ -1215,6 +1215,6 @@
         "imported_inserts": 2,
         "imported_snapshot_rows": 3,
         "imported_updates": 2,
-        "table_name": "public.\"numeric_types\""
+        "table_name": "\"public\".\"numeric_types\""
     }
 ]
