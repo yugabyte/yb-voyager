@@ -164,10 +164,7 @@ try:
             if operation == "INSERT":
                 # Generate random data and execute INSERT statement
                 columns = ", ".join(table_schemas[table_name]["columns"].keys())
-                if MIN_COL_SIZE_BYTES > 0:
-                    values_holder = {"values_list": build_insert_values(table_schemas, table_name, INSERT_ROWS, MIN_COL_SIZE_BYTES)}
-                else:
-                    values_holder = {"values_list": build_insert_values(table_schemas, table_name, INSERT_ROWS)}
+                values_holder = {"values_list": build_insert_values(table_schemas, table_name, INSERT_ROWS, MIN_COL_SIZE_BYTES)}
 
                 # Prepare callbacks for retryable execution
                 def run_once():
@@ -175,11 +172,7 @@ try:
                     cursor.execute(query_to_run)
 
                 def rebuild():
-                    # Regenerate the dictionaries if needed
-                    if MIN_COL_SIZE_BYTES > 0:
-                        values_holder["values_list"] = build_insert_values(table_schemas, table_name, INSERT_ROWS, MIN_COL_SIZE_BYTES)
-                    else:
-                        values_holder["values_list"] = build_insert_values(table_schemas, table_name, INSERT_ROWS)
+                    values_holder["values_list"] = build_insert_values(table_schemas, table_name, INSERT_ROWS, MIN_COL_SIZE_BYTES)
 
                 success = execute_with_retry(run_once, rebuild, conn.rollback, max_retries=INSERT_MAX_RETRIES)
                 if success:
