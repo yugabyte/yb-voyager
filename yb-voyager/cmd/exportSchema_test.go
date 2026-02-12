@@ -496,7 +496,7 @@ func TestExportSchemaRunningAssessmentInternally_DisableFlag(t *testing.T) {
 func TestExportSchemaSchemaOptimizationReportPerfOptimizationsAutofix(t *testing.T) {
 	// create temp export dir and setting global exportDir variable
 	tempExportDir := testutils.CreateTempExportDir()
-	defer testutils.RemoveTempExportDir(tempExportDir)
+	// defer testutils.RemoveTempExportDir(tempExportDir)
 
 	// setting up source test container and source params for assessment
 	postgresContainer := testcontainers.NewTestContainer("postgresql", nil)
@@ -520,7 +520,9 @@ func TestExportSchemaSchemaOptimizationReportPerfOptimizationsAutofix(t *testing
 			id SERIAL PRIMARY KEY,
 			value TEXT,
 			value_2 TEXT,
-			id1 int
+			id1 int,
+			id3 int,
+			val3 text
 		);`,
 		`CREATE TABLE test_schema.test_partition_table (
 			id SERIAL,
@@ -534,6 +536,10 @@ func TestExportSchemaSchemaOptimizationReportPerfOptimizationsAutofix(t *testing
 		`CREATE INDEX idx_test_data_value_2 ON test_schema.test_data (value_2 DESC);`,
 		`CREATE INDEX idx_test_data_value_3 ON test_schema.test_data (value, value_2);`,
 		`CREATE INDEX idx_test_data_id1 ON test_schema.test_data (value_2 DESC, id1);`,
+
+		`CREATE INDEX idx_test_data_value_4 ON test_schema.test_data (id3, value_2) INCLUDE (id1, val3);`,
+		`CREATE INDEX idx_test_data_value_5 ON test_schema.test_data (id3, value_2) INCLUDE (val3, id1);`,
+
 	)
 	if err != nil {
 		t.Errorf("Failed to create test table: %v", err)
@@ -583,11 +589,11 @@ func TestExportSchemaSchemaOptimizationReportPerfOptimizationsAutofix(t *testing
 	assert.Equal(t, 0, len(schemaOptimizationReport.TableColocationRecommendation.CollocatedObjects))
 
 	assert.Equal(t, 1, len(schemaOptimizationReport.RedundantIndexChange.TableToRemovedIndexesMap))
-	assert.Equal(t, 2, len(schemaOptimizationReport.RedundantIndexChange.TableToRemovedIndexesMap["test_schema.test_data"]))
+	assert.Equal(t, 3, len(schemaOptimizationReport.RedundantIndexChange.TableToRemovedIndexesMap["test_schema.test_data"]))
 	assert.NotNil(t, schemaOptimizationReport.SecondaryIndexToRangeChange)
 	assert.True(t, schemaOptimizationReport.SecondaryIndexToRangeChange.IsApplied)
 	assert.Equal(t, 1, len(schemaOptimizationReport.SecondaryIndexToRangeChange.ModifiedIndexes))
-	assert.Equal(t, 1, len(schemaOptimizationReport.SecondaryIndexToRangeChange.ModifiedIndexes["test_schema.test_data"]))
+	assert.Equal(t, 2, len(schemaOptimizationReport.SecondaryIndexToRangeChange.ModifiedIndexes["test_schema.test_data"]))
 	assert.Equal(t, "idx_test_data_value_3", schemaOptimizationReport.SecondaryIndexToRangeChange.ModifiedIndexes["test_schema.test_data"][0])
 
 	_, err = testutils.RunVoyagerCommand(yugabyteContainer, "import schema", []string{
@@ -602,7 +608,7 @@ func TestExportSchemaSchemaOptimizationReportPerfOptimizationsAutofix(t *testing
 
 	indexesToShardingStrategy := getIndexesToShardingStrategy(t, yugabyteContainer, "test_schema", "test_data")
 
-	assert.Equal(t, 3, len(indexesToShardingStrategy))
+	assert.Equal(t, 4, len(indexesToShardingStrategy))
 	assert.Equal(t, "ASC", indexesToShardingStrategy["idx_test_data_value_3"])
 	assert.Equal(t, "DESC", indexesToShardingStrategy["idx_test_data_id1"])
 	assert.Equal(t, "HASH", indexesToShardingStrategy["test_data_pkey"])

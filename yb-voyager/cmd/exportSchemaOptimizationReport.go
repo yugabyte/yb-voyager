@@ -376,7 +376,7 @@ func buildRedundantIndexChange(indexTransformer *sqltransformer.IndexFileTransfo
 	if indexTransformer == nil {
 		return nil
 	}
-	if indexTransformer.RedundantIndexesToExistingIndexToRemove == nil || len(indexTransformer.RedundantIndexesToExistingIndexToRemove.Keys()) == 0 {
+	if len(indexTransformer.RedundantIndexesToExistingIndexToRemove.Keys()) == 0 {
 		//Do not add redundant index change if no redundant indexes found
 		return nil
 	}
