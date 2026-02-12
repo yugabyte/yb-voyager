@@ -1,6 +1,4 @@
-version: 1
 name: fallf-index-resumption-test
-run_id: run
 
 env:
   LOG_LEVEL: info
@@ -70,7 +68,7 @@ generator_source:
       delete_rows: 1
       insert_max_retries: 5
       update_max_retries: 1
-      index_events: true
+      enable_index_create_drop: true
       index_events_interval: 5
 
 # Fallback (target) event generator configuration.
@@ -100,13 +98,8 @@ generator_target:
       delete_rows: 1
       insert_max_retries: 5
       update_max_retries: 1
-      index_events: true
+      enable_index_create_drop: true
       index_events_interval: 5
-
-voyager:
-  import_schema:
-    flags:
-      start-clean: true
 
 stages:
   # Phase 1: forward live migration (no resumptions)
@@ -124,6 +117,10 @@ stages:
     sql_path: ../common-sql/init.sql
     use_admin: true
     target: source_replica
+
+  - name: create_cutover_table
+    action: create_cutover_table
+    target: [source, source_replica]
 
   - name: grant_source_permissions
     action: grant_source_permissions

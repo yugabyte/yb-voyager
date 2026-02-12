@@ -50,7 +50,7 @@ CONFIG_SCHEMA: Dict[str, Dict[str, Any]] = {
         "delete_rows": int,
         "insert_max_retries": int,
         "update_max_retries": int,
-        "index_events": bool,
+        "enable_index_create_drop": bool,
         "index_events_interval": int,
     },
 }
@@ -73,7 +73,7 @@ def load_yaml_file(path: str) -> Dict[str, Any]:
 
 def validate_section(section: Dict[str, Any], schema: Dict[str, Any], section_name: str) -> None:
     # Optional fields that don't need to be present (for backward compatibility)
-    optional_fields = {"index_events","index_events_interval"}
+    optional_fields = {"enable_index_create_drop","index_events_interval"}
     
     for key, expected_type in schema.items():
         if key not in section:
@@ -474,7 +474,7 @@ def fetch_bit_info_for_column(
 
 # ----- Index events helpers -----
 
-def run_index_operations(index_thread_stop: threading.Event, config: Dict[str, Any], schema_name: str, table_schemas: Dict[str, Dict[str, Any]], index_events_interval: int):
+def run_index_operations(stop_index_thread: threading.Event, config: Dict[str, Any], schema_name: str, table_schemas: Dict[str, Dict[str, Any]], index_events_interval: int):
     """Run index create/drop operations in a separate thread with its own connection."""
     # Create a separate connection for index operations
     index_conn = psycopg2.connect(**get_connection_kwargs_from_config(config))
@@ -495,7 +495,7 @@ def run_index_operations(index_thread_stop: threading.Event, config: Dict[str, A
     print("Index operations thread started")
     
     try:
-        while not index_thread_stop.is_set():
+        while not stop_index_thread.is_set():
             action = random.choice(["create", "drop"])
             retry_count = 0
             sql = ""
@@ -506,7 +506,7 @@ def run_index_operations(index_thread_stop: threading.Event, config: Dict[str, A
                     index_col = random.choice(indexable_columns)
                     if index_col:
                         table, col = index_col
-                        idx_name = f"event_generator_idx_{table}_{col}_{random.randint(100000,999999)}"
+                        idx_name = f"event_gen_idx_{table}_{col}_{random.randint(1000,9999)}"
                         sql = f'CREATE INDEX "{idx_name}" ON "{schema_name}"."{table}" ("{col}");'
                     else:
                         print("No columns found to index.")
@@ -523,7 +523,7 @@ def run_index_operations(index_thread_stop: threading.Event, config: Dict[str, A
                         WHERE n.nspname = %s
                           AND ic.relkind = 'i'
                           AND c.oid IS NULL
-                          AND ic.relname LIKE 'event_generator_idx_%%'
+                          AND ic.relname LIKE 'event_gen_idx_%%'
                         ORDER BY random()
                         LIMIT 1
                     """, (schema_name,))

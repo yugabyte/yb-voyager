@@ -65,7 +65,7 @@ WAIT_AFTER_OPERATIONS = GEN["wait_after_operations"]
 WAIT_DURATION_SECONDS = GEN["wait_duration_seconds"]
 
 # Index events flag
-INDEX_EVENTS = GEN.get("index_events", False)
+ENABLE_INDEX_CREATE_DROP = GEN.get("enable_index_create_drop", False)
 INDEX_EVENTS_INTERVAL = GEN.get("index_events_interval", 5)
 # ---------------------------------
 
@@ -123,13 +123,13 @@ for table in table_schemas.keys():
     RESOLVED_TABLE_WEIGHTS.setdefault(table, 1)
 
 # Start index operations thread if enabled
-index_thread_stop = None
+stop_index_thread = None
 index_thread = None
-if INDEX_EVENTS:
-    index_thread_stop = threading.Event()
+if ENABLE_INDEX_CREATE_DROP:
+    stop_index_thread = threading.Event()
     index_thread = threading.Thread(
         target=run_index_operations,
-        args=(index_thread_stop, CONFIG, SCHEMA_NAME, table_schemas, INDEX_EVENTS_INTERVAL),
+        args=(stop_index_thread, CONFIG, SCHEMA_NAME, table_schemas, INDEX_EVENTS_INTERVAL),
         daemon=True
     )
     index_thread.start()
@@ -238,9 +238,9 @@ except KeyboardInterrupt:
     print("Received KeyboardInterrupt. Stopping generator...")
 finally:
     # Stop index operations thread if it's running
-    if INDEX_EVENTS and index_thread_stop is not None and index_thread is not None:
+    if ENABLE_INDEX_CREATE_DROP and stop_index_thread is not None and index_thread is not None:
         print("Stopping index operations thread...")
-        index_thread_stop.set()
+        stop_index_thread.set()
         index_thread.join(timeout=5)
     
     # Commit changes outside the loop for UPDATE and DELETE operations

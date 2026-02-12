@@ -53,7 +53,7 @@ generator:
   update_max_retries: 3
 
   # Enable concurrent index create/drop operations alongside IUD operations
-  index_events: false
+  enable_index_create_drop: false
 
   # Index events interval in seconds
   index_events_interval: 5
