@@ -45,8 +45,8 @@
         "estimated_time_in_min_for_import_without_redundant_indexes": 1
     },
     "migration_complexity": "MEDIUM",
-    "migration_complexity_explanation": "Found 15 Level 1 issue(s), 0 Level 2 issue(s) and 4 Level 3 issue(s), resulting in MEDIUM migration complexity",
-    "schema_summary": "{\"Description\":\"\",\"DbName\":\"\",\"SchemaNames\":null,\"DbVersion\":\"\",\"DatabaseObjects\":[{\"ObjectType\":\"SCHEMA\",\"TotalCount\":1,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"EXTENSION\",\"TotalCount\":4,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"TYPE\",\"TotalCount\":10,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"DOMAIN\",\"TotalCount\":7,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"SEQUENCE\",\"TotalCount\":29,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"TABLE\",\"TotalCount\":29,\"InvalidCount\":7,\"ObjectNames\":\"\"}]}",
+    "migration_complexity_explanation": "Found 17 Level 1 issue(s), 0 Level 2 issue(s) and 4 Level 3 issue(s), resulting in MEDIUM migration complexity",
+    "schema_summary": "{\"Description\":\"\",\"DbName\":\"\",\"SchemaNames\":null,\"DbVersion\":\"\",\"DatabaseObjects\":[{\"ObjectType\":\"SCHEMA\",\"TotalCount\":1,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"EXTENSION\",\"TotalCount\":4,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"TYPE\",\"TotalCount\":10,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"DOMAIN\",\"TotalCount\":7,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"SEQUENCE\",\"TotalCount\":29,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"TABLE\",\"TotalCount\":29,\"InvalidCount\":9,\"ObjectNames\":\"\"}]}",
     "assessment_issues": [
         {
             "ObjectNames": null,
@@ -312,6 +312,44 @@
             "snapshot_total_bytes": "IGNORED",
             "target_db_version": "IGNORED",
             "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_POLYGON",
+            "yb_cluster_metrics": "IGNORED"
+        },
+        {
+            "ObjectNames": null,
+            "OptimalInsertConnectionsPerNode": "IGNORED",
+            "OptimalSelectConnectionsPerNode": "IGNORED",
+            "SizeInBytes": "IGNORED",
+            "VoyagerVersion": "IGNORED",
+            "adaptive_parallelism_max": "IGNORED",
+            "category": "migration_caveats",
+            "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
+            "impact": "LEVEL_1",
+            "name": "Unsupported datatype for Live migration - timetz",
+            "object_name": "",
+            "object_type": "COLUMN",
+            "parallel_jobs": "IGNORED",
+            "snapshot_total_bytes": "IGNORED",
+            "target_db_version": "IGNORED",
+            "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_TIMETZ",
+            "yb_cluster_metrics": "IGNORED"
+        },
+        {
+            "ObjectNames": null,
+            "OptimalInsertConnectionsPerNode": "IGNORED",
+            "OptimalSelectConnectionsPerNode": "IGNORED",
+            "SizeInBytes": "IGNORED",
+            "VoyagerVersion": "IGNORED",
+            "adaptive_parallelism_max": "IGNORED",
+            "category": "migration_caveats",
+            "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
+            "impact": "LEVEL_1",
+            "name": "Unsupported datatype for Live migration - timetz",
+            "object_name": "",
+            "object_type": "COLUMN",
+            "parallel_jobs": "IGNORED",
+            "snapshot_total_bytes": "IGNORED",
+            "target_db_version": "IGNORED",
+            "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_TIMETZ",
             "yb_cluster_metrics": "IGNORED"
         },
         {
