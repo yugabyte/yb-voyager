@@ -491,7 +491,7 @@ func exportSnapshotUsingPgDump(ctx context.Context, cancel context.CancelFunc, f
 	// 3. start debezium with configration to read changes from the created replication slot, publication.
 
 	if !dataIsExported() { // if snapshot is not already done...
-		err = createReplicationSlotAndExportSnapshotIfRequired(ctx, cancel, finalTableList, tablesColumnList, leafPartitions)
+		err = createReplicationSlotAndExportSnapshotIfRequiredForPG(ctx, cancel, finalTableList, tablesColumnList, leafPartitions)
 		if err != nil {
 			return fmt.Errorf("create replication slot and export snapshot: %w", err)
 		}
@@ -735,7 +735,7 @@ func checkIfReplicationSlotIsActive(replicationSlot string) (bool, error) {
 	return isActive && (activePID.String != ""), nil
 }
 
-func createReplicationSlotAndExportSnapshotIfRequired(ctx context.Context, cancel context.CancelFunc, finalTableList []sqlname.NameTuple, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], leafPartitions *utils.StructMap[sqlname.NameTuple, []sqlname.NameTuple]) error {
+func createReplicationSlotAndExportSnapshotIfRequiredForPG(ctx context.Context, cancel context.CancelFunc, finalTableList []sqlname.NameTuple, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], leafPartitions *utils.StructMap[sqlname.NameTuple, []sqlname.NameTuple]) error {
 
 	// create replication slot
 	pgDB := source.DB().(*srcdb.PostgreSQL)
