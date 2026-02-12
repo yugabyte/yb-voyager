@@ -1,6 +1,4 @@
-version: 1
 name: fall-forward-resumption-test
-run_id: run
 
 env:
   LOG_LEVEL: info
@@ -98,11 +96,6 @@ generator_target:
       insert_max_retries: 5
       update_max_retries: 1
 
-voyager:
-  import_schema:
-    flags:
-      start-clean: true
-
 stages:
   # Phase 1: forward live migration (no resumptions)
   - name: create_source_target_and_replica_dbs
@@ -119,6 +112,10 @@ stages:
     sql_path: ../common-sql/init.sql
     use_admin: true
     target: source_replica
+
+  - name: create_cutover_table
+    action: create_cutover_table
+    target: [source, source_replica]
 
   - name: grant_source_permissions
     action: grant_source_permissions
