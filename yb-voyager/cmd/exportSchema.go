@@ -810,13 +810,11 @@ func applyIndexFileTransformations() (*sqltransformer.IndexFileTransformer, erro
 	//TODO: see if we need to take care of the scenario where assessment is unable to fetch these
 	var err error
 	var redundantIndexToResolvedExistingIndex *utils.StructMap[*sqlname.ObjectNameQualifiedWithTableName, string]
-	redundantIndexToResolvedExistingIndex, err = fetchRedundantIndexMapFromAssessmentDB()
-	if err != nil {
-		if skipPerfOptimizations {
-			log.Infof("skipping error while fetching redundant index map from assessment db: %v", err)
-			return nil, nil
+	if !skipPerfOptimizations {
+		redundantIndexToResolvedExistingIndex, err = fetchRedundantIndexMapFromAssessmentDB()
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch redundant index map from assessment db: %w\n%s", err, sqltransformer.SUGGESTION_TO_USE_SKIP_PERF_OPTIMIZATIONS_FLAG)
 		}
-		return nil, fmt.Errorf("failed to fetch redundant index map from assessment db: %w\n%s", err, sqltransformer.SUGGESTION_TO_USE_SKIP_PERF_OPTIMIZATIONS_FLAG)
 	}
 	indexTransformer := sqltransformer.NewIndexFileTransformer(redundantIndexToResolvedExistingIndex, bool(skipPerfOptimizations), source.DBType)
 
