@@ -1503,7 +1503,8 @@ normalize_callhome_json() {
             .migration_uuid = "IGNORED" |
             .db_version = "IGNORED" |
             .db_system_identifier = "IGNORED" |
-            .target_db_details = "IGNORED"
+            .target_db_details = "IGNORED" |
+            .total_db_size_bytes = "IGNORED"
         elif type == "array" then
 			sort_by(tostring)
         elif type == "string" and (
