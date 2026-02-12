@@ -6,8 +6,11 @@ import ipaddress
 import re
 import decimal
 import psycopg2
+import time
 from typing import Any, Callable, Dict, List, Optional, Tuple
 import os
+import threading
+import sys
 try:
     import yaml  # type: ignore
 except Exception:
@@ -48,6 +51,8 @@ CONFIG_SCHEMA: Dict[str, Dict[str, Any]] = {
         "insert_max_retries": int,
         "update_max_retries": int,
         "min_col_size_bytes": int
+        "enable_index_create_drop": bool,
+        "index_events_interval": int,
     },
 }
 
@@ -68,9 +73,14 @@ def load_yaml_file(path: str) -> Dict[str, Any]:
 
 
 def validate_section(section: Dict[str, Any], schema: Dict[str, Any], section_name: str) -> None:
+    # Optional fields that don't need to be present (for backward compatibility)
+    optional_fields = {"enable_index_create_drop","index_events_interval"}
+    
     for key, expected_type in schema.items():
         if key not in section:
-            raise ValueError(f"Missing key '{key}' in '{section_name}' section")
+            if key not in optional_fields:
+                raise ValueError(f"Missing key '{key}' in '{section_name}' section")
+            continue  # Skip validation for optional fields that are missing
         if not isinstance(section[key], expected_type):
             raise ValueError(
                 f"Key '{key}' in '{section_name}' must be of type {expected_type.__name__}"
@@ -463,6 +473,95 @@ def fetch_bit_info_for_column(
         return table_schemas[table_name]["bit_info"].get(column_name)
     return None
 
+# ----- Index events helpers -----
+
+def run_index_operations(stop_index_thread: threading.Event, config: Dict[str, Any], schema_name: str, table_schemas: Dict[str, Dict[str, Any]], index_events_interval: int):
+    """Run index create/drop operations in a separate thread with its own connection."""
+    # Create a separate connection for index operations
+    index_conn = psycopg2.connect(**get_connection_kwargs_from_config(config))
+    index_cur = index_conn.cursor()
+    db_flavor = detect_db_flavor(index_cur)
+
+    # Unsupported by B-tree indexable data types for YugabyteDB and PostgreSQL
+    unsupported_indexable_data_types = ["citext", "tsvector", "tsquery", "inet", "bit varying", "bit", "json", "jsonb", "xml", "point", "line", "lseg", "box", "path", "polygon", "circle", "ARRAY"] if db_flavor == "YUGABYTE" else ["json", "jsonb"]
+
+    indexable_columns = []
+    for table_name, table_info in table_schemas.items():
+        columns = table_info.get("columns", {})
+        for column_name, data_type in columns.items():
+            if data_type not in unsupported_indexable_data_types:
+                indexable_columns.append((table_name, column_name))
+    MAX_RETRIES = 30
+    
+    print("Index operations thread started")
+    
+    try:
+        while not stop_index_thread.is_set():
+            action = random.choice(["create", "drop"])
+            retry_count = 0
+            sql = ""
+            idx_name = ""
+            
+            try:
+                if action == "create":
+                    # Pick any random column that can be indexed
+                    index_col = random.choice(indexable_columns)
+                    if index_col:
+                        table, col = index_col
+                        idx_name = f"event_gen_idx_{table}_{col}_{random.randint(1000,9999)}"
+                        sql = f'CREATE INDEX "{idx_name}" ON "{schema_name}"."{table}" ("{col}");'
+                    else:
+                        print("No columns found to index.")
+
+                else:
+                    # Pick a random droppable index
+                    index_cur.execute("""
+                        SELECT n.nspname AS schema_name,
+                               ic.relname AS index_name
+                        FROM pg_class ic
+                        JOIN pg_namespace n ON n.oid = ic.relnamespace
+                        JOIN pg_index i ON i.indexrelid = ic.oid
+                        LEFT JOIN pg_constraint c ON c.conindid = ic.oid
+                        WHERE n.nspname = %s
+                          AND ic.relkind = 'i'
+                          AND c.oid IS NULL
+                          AND ic.relname LIKE 'event_gen_idx_%%'
+                        ORDER BY random()
+                        LIMIT 1
+                    """, (schema_name,))
+                    row = index_cur.fetchone()
+                    
+                    if row:
+                        schema_name_val, idx_name = row
+                        sql = f'DROP INDEX IF EXISTS "{schema_name_val}"."{idx_name}";'
+                    else:
+                        print("No indexes found to drop.")
+                
+                if sql:
+                    while retry_count < MAX_RETRIES:
+                        try:
+                            index_cur.execute(sql)
+                            index_conn.commit()
+                            print(f"Successful operation on index: {idx_name}")
+                            time.sleep(index_events_interval)
+                            break
+                        except psycopg2.Error as e:
+                            print(f"Index operation error: {e}")
+                            index_conn.rollback()
+                            time.sleep(1)
+                            retry_count += 1
+                            print(f"Retrying operation on index {idx_name} (attempt {retry_count} of {MAX_RETRIES})")
+
+            except Exception as e:
+                print(f"Unexpected error in index operations: {e}")
+                time.sleep(1)
+    
+    except Exception as e:
+        print(f"Fatal error in index operations thread: {e}")
+    finally:
+        index_cur.close()
+        index_conn.close()
+        print("Index operations thread stopped")
 
 # ----- SQL/data generators -----
 

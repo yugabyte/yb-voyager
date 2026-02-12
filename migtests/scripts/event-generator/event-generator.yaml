@@ -56,4 +56,8 @@ generator:
   # Set to 0 to disable size filtering (default behavior).
   min_col_size_bytes: 0
 
+  # Enable concurrent index create/drop operations alongside IUD operations
+  enable_index_create_drop: false
 
+  # Index events interval in seconds
+  index_events_interval: 5
