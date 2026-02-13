@@ -23,6 +23,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/huh"
 	"github.com/fatih/color"
@@ -93,46 +94,36 @@ func runStartMigration() {
 	sourcePort := v.GetInt("source.db-port")
 	sourceDBName := v.GetString("source.db-name")
 
-	// Check if assessment has been run
+	// ── Section 1: Assessment Summary ──
 	assessmentReportPath := filepath.Join(exportDirPath, "assessment", "reports",
 		fmt.Sprintf("%s.json", ASSESSMENT_FILE_NAME))
-
 	assessmentDone := utils.FileOrFolderExists(assessmentReportPath)
 
-	if !assessmentDone {
-		fmt.Println()
-		fmt.Println(color.YellowString("  Warning: Assessment has not been run yet."))
-		fmt.Println(color.YellowString("  It is recommended to run 'yb-voyager assess-migration' before starting migration."))
-		fmt.Println()
+	printAssessmentSection(sourceDBType, sourceHost, sourcePort, sourceDBName, assessmentDone, assessmentReportPath)
 
+	if !assessmentDone {
 		var proceed bool
 		err := huh.NewConfirm().
-			Title("Would you like to proceed without assessment?").
+			Title("Assessment has not been run. Proceed anyway?").
 			Value(&proceed).
 			Run()
 		if err != nil {
 			utils.ErrExit("prompt failed: %v", err)
 		}
 		if !proceed {
-			fmt.Println("\n  Run assessment first:")
-			fmt.Printf("  yb-voyager assess-migration --config-file %s\n\n", startMigrationConfigFile)
+			fmt.Println()
+			fmt.Println("  Run assessment first:")
+			fmt.Println("  " + cmdStyle.Render(fmt.Sprintf("yb-voyager assess-migration --config-file %s", displayPath(startMigrationConfigFile))))
+			fmt.Println()
 			return
 		}
 	}
 
-	// --- Target connection ---
+	// ── Section 2: Target connection ──
 	var targetParsed *parsedConnInfo
 	if targetConnStringFlag != "" {
-		// Non-interactive: use flag value
 		targetParsed = parseAndValidateTarget(targetConnStringFlag)
 	} else {
-		// Interactive prompt
-		fmt.Println("Before proceeding:")
-		fmt.Println("  1. Ensure your target YugabyteDB cluster is created and running.")
-		fmt.Println("  2. Create a database on the target cluster.")
-		fmt.Println("  3. Create a superuser: CREATE USER ybvoyager SUPERUSER PASSWORD 'password';")
-		fmt.Println()
-
 		var targetConnString string
 		for {
 			err := huh.NewInput().
@@ -177,7 +168,7 @@ func runStartMigration() {
 		}
 	}
 
-	// --- Workflow selection ---
+	// ── Section 3: Workflow selection ──
 	var workflow string
 	if migrationWorkflowFlag != "" {
 		workflow = migrationWorkflowFlag
@@ -208,13 +199,13 @@ func runStartMigration() {
 		}
 	}
 
-	// Update config file with target details and workflow
+	// Update config file
 	updateConfigWithTargetAndWorkflow(startMigrationConfigFile, v, targetParsed, workflow)
 
-	// Print the status box with all gathered info
-	printStartMigrationStatusBox(sourceDBType, sourceHost, sourcePort, sourceDBName,
-		assessmentDone, assessmentReportPath, targetParsed, workflow, startMigrationConfigFile)
+	// ── Section 4: Configuring Migration (progressive checkmarks) ──
+	printConfiguringSection(targetParsed, workflow, startMigrationConfigFile)
 
+	// ── Section 5: What's Next ──
 	printStartMigrationNextSteps(startMigrationConfigFile, v, workflow)
 }
 
@@ -231,49 +222,55 @@ func parseAndValidateTarget(connStr string) *parsedConnInfo {
 	return parsed
 }
 
-// printStartMigrationStatusBox prints the consolidated "Start Migration" box
-// with source, assessment, target, workflow info and checkmarks.
-func printStartMigrationStatusBox(
-	dbType, host string, port int, dbName string,
-	assessmentDone bool, assessmentReportPath string,
-	target *parsedConnInfo, workflow, configFilePath string,
-) {
-	kw := 13 // key width for alignment
+// printAssessmentSection prints the "Start Migration" header with source + assessment summary.
+func printAssessmentSection(dbType, host string, port int, dbName string, assessmentDone bool, assessmentReportPath string) {
+	kw := 13
+	indent := strings.Repeat(" ", kw+1) // indent for continuation lines under key-value pairs
 
 	var lines []string
 
-	// Source
 	if dbType != "" {
 		lines = append(lines, formatKeyValue("Source:", fmt.Sprintf("%s @ %s:%d/%s", titleCase(dbType), host, port, dbName), kw))
 	}
 
-	// Assessment
 	if assessmentDone {
-		assessLine := successStyle.Render("✓ completed")
+		lines = append(lines, formatKeyValue("Assessment:", successStyle.Render("✓ completed"), kw))
 		sizingInfo := loadAssessmentSizing(assessmentReportPath)
 		if sizingInfo != "" {
-			assessLine += "\n" + strings.Repeat(" ", kw+1) + sizingInfo
+			lines = append(lines, indent+sizingInfo)
 		}
 		htmlReportPath := strings.TrimSuffix(assessmentReportPath, ".json") + ".html"
-		assessLine += "\n" + strings.Repeat(" ", kw+1) + dimStyle.Render("Report: "+displayPath(htmlReportPath))
-		lines = append(lines, formatKeyValue("Assessment:", assessLine, kw))
+		lines = append(lines, indent+dimStyle.Render("Report: "+displayPath(htmlReportPath)))
 	} else {
 		lines = append(lines, formatKeyValue("Assessment:", warnStyle.Render("not yet run"), kw))
 	}
 
-	// Target
+	printSection("Assessment Summary", lines...)
+	fmt.Println()
+}
+
+// printConfiguringSection prints progressive checkmarks for target + workflow configuration.
+func printConfiguringSection(target *parsedConnInfo, workflow, configFilePath string) {
+	fmt.Println()
+	fmt.Println("  " + titleStyle.Render("Starting Migration"))
+	fmt.Println("  " + ruleStyle.Render(strings.Repeat("─", ruleWidth)))
+
 	targetLine := fmt.Sprintf("YugabyteDB @ %s:%d/%s", target.Host, target.Port, target.DBName)
-	lines = append(lines, formatKeyValue("Target:", targetLine, kw))
+	fmt.Println("  " + formatKeyValue("Target:", targetLine, 10))
+	fmt.Println("  " + formatKeyValue("Workflow:", workflowDisplayName(workflow), 10))
+	fmt.Println()
 
-	// Workflow
-	workflowDisplay := workflowDisplayName(workflow)
-	lines = append(lines, formatKeyValue("Workflow:", workflowDisplay, kw))
-
-	lines = append(lines, "")
-	lines = append(lines, successLine("Connected to target database"))
-	lines = append(lines, successLine("Updated config  "+dimStyle.Render(displayPath(configFilePath))))
-
-	printSection("Start Migration", lines...)
+	steps := []string{
+		successLine("Connected to target database"),
+		successLine("Updated config  " + dimStyle.Render(displayPath(configFilePath))),
+	}
+	for _, step := range steps {
+		time.Sleep(1 * time.Second)
+		fmt.Println("  " + step)
+	}
+	time.Sleep(500 * time.Millisecond)
+	fmt.Println()
+	fmt.Println("  " + successStyle.Render("Done!"))
 	fmt.Println()
 }
 
