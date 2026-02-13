@@ -617,11 +617,11 @@ func printInitNextSteps(configFilePath string, connected bool, scripts bool) {
 		step++
 
 		fmt.Printf("  %d. Run assessment:\n", step)
-		fmt.Printf("     yb-voyager assess-migration --config %s \\\n", configFilePath)
+		fmt.Printf("     yb-voyager assess-migration --config-file %s \\\n", configFilePath)
 		fmt.Println("       --assessment-metadata-dir /path/to/assessment-metadata")
 	} else {
 		fmt.Printf("  %d. Run assessment:\n", step)
-		fmt.Printf("     yb-voyager assess-migration --config %s\n", configFilePath)
+		fmt.Printf("     yb-voyager assess-migration --config-file %s\n", configFilePath)
 	}
 
 	fmt.Println()
