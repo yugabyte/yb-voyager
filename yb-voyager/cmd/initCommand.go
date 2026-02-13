@@ -93,8 +93,8 @@ func runInit() {
 	// Prompt for source DB details
 	var sourceOption string
 	err = huh.NewSelect[string]().
-		Title("How would you like to provide source database details?").
-		Description("It is recommended to run assessment against your production database for an accurate assessment.").
+		Title("How would you like to provide source database details?\n" +
+			dimStyle.Render("Recommendation: run assessment against your production database for accurate results.")).
 		Options(
 			huh.NewOption("Enter a connection string", "connection_string"),
 			huh.NewOption("I don't have access to source database - generate scripts to gather metadata", "generate_scripts"),
@@ -117,28 +117,15 @@ func runInit() {
 }
 
 func printWelcomeBanner() {
-	banner := `
-══════════════════════════════════════════════════════════════
-                    Welcome to YB Voyager
-══════════════════════════════════════════════════════════════
-
-YB Voyager is a database migration tool that helps you migrate
-to YugabyteDB.
-
-What YB Voyager can do:
-  • Assess your source database for migration complexity and sizing
-  • Export and import schema with automatic YugabyteDB optimizations
-  • Migrate data via offline snapshot or live change data capture (CDC)
-  • Validate data consistency between source and target
-
-Supported source databases: PostgreSQL, Oracle, MySQL
-Documentation: https://docs.yugabyte.com/preview/yugabyte-voyager/
-
-══════════════════════════════════════════════════════════════
-
-The first step is to assess your source database.
-`
-	fmt.Println(banner)
+	printSection("Welcome to YB Voyager",
+		"Migrate your database to YugabyteDB.",
+		"  - Assess source database for complexity and sizing",
+		"  - Export and import schema with auto optimizations",
+		"  - Migrate data offline or live with CDC",
+		"",
+		dimStyle.Render("Docs: https://docs.yugabyte.com/preview/yugabyte-voyager/"),
+	)
+	fmt.Println()
 }
 
 // handleConnectionString prompts for a connection string, validates it, and generates config
@@ -190,15 +177,12 @@ func handleConnectionString(configFilePath, exportDirPath string) {
 			}
 			continue
 		}
-
-		fmt.Println(color.GreenString("  ✓ Connected to %s:%d", parsed.Host, parsed.Port))
 		break
 	}
 
 	// Create export-dir
 	createExportDir(exportDirPath)
 
-	// Fetch schemas if not specified in connection string
 	schemas := parsed.Schema
 	if schemas == "" {
 		schemas = "public"
@@ -215,9 +199,7 @@ func handleConnectionString(configFilePath, exportDirPath string) {
 		Schema:   schemas,
 	}, nil)
 
-	fmt.Println(color.GreenString("  ✓ Created export directory: %s", exportDirPath))
-	fmt.Println(color.GreenString("  ✓ Generated config: %s", configFilePath))
-
+	printInitResultBox(parsed, configFilePath, exportDirPath)
 	printInitNextSteps(configFilePath, true, false)
 }
 
@@ -231,11 +213,9 @@ func handleConnectionStringDirect(configFilePath, exportDirPath, connStr string)
 	}
 
 	// Validate connectivity
-	fmt.Printf("  Connecting to %s:%d...\n", parsed.Host, parsed.Port)
 	if err := validatePostgresConnection(connStr); err != nil {
 		utils.ErrExit("Connection failed: %v", err)
 	}
-	fmt.Println(color.GreenString("  ✓ Connected to %s:%d", parsed.Host, parsed.Port))
 
 	// Create export-dir
 	createExportDir(exportDirPath)
@@ -256,9 +236,7 @@ func handleConnectionStringDirect(configFilePath, exportDirPath, connStr string)
 		Schema:   schemas,
 	}, nil)
 
-	fmt.Println(color.GreenString("  ✓ Created export directory: %s", exportDirPath))
-	fmt.Println(color.GreenString("  ✓ Generated config: %s", configFilePath))
-
+	printInitResultBox(parsed, configFilePath, exportDirPath)
 	printInitNextSteps(configFilePath, true, false)
 }
 
@@ -280,10 +258,23 @@ func handleGenerateScripts(configFilePath, exportDirPath string) {
 	// Generate a minimal config (no source connection)
 	generateConfigFile(configFilePath, exportDirPath, nil, nil)
 
-	fmt.Println(color.GreenString("  ✓ Created export directory: %s", exportDirPath))
-	fmt.Println(color.GreenString("  ✓ Generated config: %s", configFilePath))
-	fmt.Println(color.GreenString("  ✓ Copied metadata-gathering scripts to:"))
-	fmt.Printf("    %s\n", scriptsDir)
+	fmt.Println()
+	fmt.Println("  " + titleStyle.Render("Initializing Migration Project"))
+	fmt.Println("  " + ruleStyle.Render(strings.Repeat("─", ruleWidth)))
+
+	steps := []string{
+		successLine("Created migration workspace  " + dimStyle.Render(displayPath(exportDirPath))),
+		successLine("Generated config             " + dimStyle.Render(displayPath(configFilePath))),
+		successLine("Copied metadata scripts      " + dimStyle.Render(displayPath(scriptsDir))),
+	}
+	for _, step := range steps {
+		time.Sleep(1 * time.Second)
+		fmt.Println("  " + step)
+	}
+	time.Sleep(500 * time.Millisecond)
+	fmt.Println()
+	fmt.Println("  " + successStyle.Render("Done!"))
+	fmt.Println()
 
 	printInitNextSteps(configFilePath, false, true)
 }
@@ -295,8 +286,22 @@ func handleSkip(configFilePath, exportDirPath string) {
 	// Generate config with empty source
 	generateConfigFile(configFilePath, exportDirPath, nil, nil)
 
-	fmt.Println(color.GreenString("  ✓ Created export directory: %s", exportDirPath))
-	fmt.Println(color.GreenString("  ✓ Generated config: %s", configFilePath))
+	fmt.Println()
+	fmt.Println("  " + titleStyle.Render("Initializing Migration Project"))
+	fmt.Println("  " + ruleStyle.Render(strings.Repeat("─", ruleWidth)))
+
+	steps := []string{
+		successLine("Created migration workspace  " + dimStyle.Render(displayPath(exportDirPath))),
+		successLine("Generated config             " + dimStyle.Render(displayPath(configFilePath))),
+	}
+	for _, step := range steps {
+		time.Sleep(1 * time.Second)
+		fmt.Println("  " + step)
+	}
+	time.Sleep(500 * time.Millisecond)
+	fmt.Println()
+	fmt.Println("  " + successStyle.Render("Done!"))
+	fmt.Println()
 
 	printInitNextSteps(configFilePath, false, false)
 }
@@ -588,50 +593,72 @@ func copyGatherScripts(srcDir, destDir string) {
 	}
 }
 
+// printInitResultBox prints the "Initializing Migration Project" section with
+// progressive checkmarks (each appearing with a short delay).
+func printInitResultBox(parsed *parsedConnInfo, configFilePath, exportDirPath string) {
+	fmt.Println()
+	fmt.Println("  " + titleStyle.Render("Initializing Migration Project"))
+	fmt.Println("  " + ruleStyle.Render(strings.Repeat("─", ruleWidth)))
+
+	sourceLine := fmt.Sprintf("PostgreSQL @ %s:%d/%s (%s)", parsed.Host, parsed.Port, parsed.DBName, parsed.User)
+	fmt.Println("  " + formatKeyValue("Source:", sourceLine, 8))
+	fmt.Println()
+
+	steps := []string{
+		successLine("Connected to source database"),
+		successLine("Created migration workspace  " + dimStyle.Render(displayPath(exportDirPath))),
+		successLine("Generated config             " + dimStyle.Render(displayPath(configFilePath))),
+	}
+
+	for _, step := range steps {
+		time.Sleep(1 * time.Second)
+		fmt.Println("  " + step)
+	}
+	time.Sleep(500 * time.Millisecond)
+	fmt.Println()
+	fmt.Println("  " + successStyle.Render("Done!"))
+	fmt.Println()
+}
+
 func printInitNextSteps(configFilePath string, connected bool, scripts bool) {
-	fmt.Println()
-	fmt.Println("  Next steps:")
-	fmt.Println()
+	var lines []string
 
 	step := 1
 	if !connected {
-		fmt.Printf("  %d. Add your source connection details to the config file:\n", step)
-		fmt.Printf("     vi %s\n\n", configFilePath)
+		lines = append(lines, fmt.Sprintf("%d. Add your source connection details to the config file:", step))
+		lines = append(lines, fmt.Sprintf("   vi %s", displayPath(configFilePath)))
+		lines = append(lines, "")
 		step++
 	}
 
 	if scripts {
-		fmt.Printf("  %d. Copy the appropriate scripts directory to a machine that can reach\n", step)
-		fmt.Println("     your source database:")
-		fmt.Println()
-		exportDirPath := filepath.Dir(configFilePath)
-		exportDirPath = filepath.Join(exportDirPath, "export-dir")
-		fmt.Printf("     PostgreSQL:  %s/scripts/postgresql\n", exportDirPath)
-		fmt.Printf("     Oracle:      %s/scripts/oracle\n", exportDirPath)
-		fmt.Println()
-		fmt.Println("     Run the yb-voyager-<db_type>-gather-assessment-metadata.sh script with --help to see usage.")
-		fmt.Println()
+		lines = append(lines, fmt.Sprintf("%d. Copy the scripts directory to a machine that can", step))
+		lines = append(lines, "   reach your source database:")
+		lines = append(lines, "")
+		exportDirPath := filepath.Join(filepath.Dir(configFilePath), "export-dir")
+		lines = append(lines, fmt.Sprintf("   PostgreSQL: %s/scripts/postgresql", displayPath(exportDirPath)))
+		lines = append(lines, fmt.Sprintf("   Oracle:     %s/scripts/oracle", displayPath(exportDirPath)))
+		lines = append(lines, "")
 		step++
 
-		fmt.Printf("  %d. Copy the resulting metadata directory back to this machine.\n\n", step)
+		lines = append(lines, fmt.Sprintf("%d. Copy the resulting metadata directory back here.", step))
+		lines = append(lines, "")
 		step++
 
-		fmt.Printf("  %d. Run assessment:\n", step)
-		fmt.Printf("     yb-voyager assess-migration --config-file %s \\\n", configFilePath)
-		fmt.Println("       --assessment-metadata-dir /path/to/assessment-metadata")
+		lines = append(lines, fmt.Sprintf("%d. Run assessment:", step))
+		lines = append(lines, "")
+		lines = append(lines, cmdStyle.Render(fmt.Sprintf("   yb-voyager assess-migration \\\n     --config-file %s \\\n     --assessment-metadata-dir /path/to/metadata",
+			displayPath(configFilePath))))
 	} else {
-		fmt.Printf("  %d. Run assessment:\n", step)
-		fmt.Printf("     yb-voyager assess-migration --config-file %s\n", configFilePath)
+		lines = append(lines, "Run assessment to analyze your source database:")
+		lines = append(lines, "")
+		lines = append(lines, cmdStyle.Render(fmt.Sprintf("  yb-voyager assess-migration \\\n    --config-file %s",
+			displayPath(configFilePath))))
 	}
 
-	fmt.Println()
-	printTip(configFilePath)
-}
+	lines = append(lines, "")
+	lines = append(lines, dimStyle.Render(fmt.Sprintf("Tip: yb-voyager status -c %s", displayPath(configFilePath))))
 
-func printTip(configFilePath string) {
-	fmt.Println("══════════════════════════════════════════════════")
-	fmt.Printf("Tip: Run yb-voyager status -c %s\n", configFilePath)
-	fmt.Println("     anytime to check migration progress and see what to do next.")
-	fmt.Println("══════════════════════════════════════════════════")
+	printSection("What's Next", lines...)
 	fmt.Println()
 }

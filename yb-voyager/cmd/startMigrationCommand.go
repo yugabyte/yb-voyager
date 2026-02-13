@@ -99,11 +99,8 @@ func runStartMigration() {
 
 	assessmentDone := utils.FileOrFolderExists(assessmentReportPath)
 
-	printStartMigrationBanner(sourceDBType, sourceHost, sourcePort, sourceDBName, assessmentDone)
-
-	if assessmentDone {
-		displayAssessmentSummary(assessmentReportPath)
-	} else {
+	if !assessmentDone {
+		fmt.Println()
 		fmt.Println(color.YellowString("  Warning: Assessment has not been run yet."))
 		fmt.Println(color.YellowString("  It is recommended to run 'yb-voyager assess-migration' before starting migration."))
 		fmt.Println()
@@ -162,7 +159,6 @@ func runStartMigration() {
 				continue
 			}
 
-			fmt.Printf("  Connecting to %s:%d...\n", targetParsed.Host, targetParsed.Port)
 			if err := validatePostgresConnection(targetConnString); err != nil {
 				fmt.Println(color.RedString("  ✗ Connection failed: %v", err))
 				fmt.Println()
@@ -177,9 +173,6 @@ func runStartMigration() {
 				}
 				continue
 			}
-
-			fmt.Println(color.GreenString("  ✓ Connected to %s:%d", targetParsed.Host, targetParsed.Port))
-			fmt.Println()
 			break
 		}
 	}
@@ -218,7 +211,9 @@ func runStartMigration() {
 	// Update config file with target details and workflow
 	updateConfigWithTargetAndWorkflow(startMigrationConfigFile, v, targetParsed, workflow)
 
-	fmt.Println(color.GreenString("  ✓ Updated config: %s", startMigrationConfigFile))
+	// Print the status box with all gathered info
+	printStartMigrationStatusBox(sourceDBType, sourceHost, sourcePort, sourceDBName,
+		assessmentDone, assessmentReportPath, targetParsed, workflow, startMigrationConfigFile)
 
 	printStartMigrationNextSteps(startMigrationConfigFile, v, workflow)
 }
@@ -230,63 +225,94 @@ func parseAndValidateTarget(connStr string) *parsedConnInfo {
 	if err != nil {
 		utils.ErrExit("Invalid target connection string: %v", err)
 	}
-	fmt.Printf("  Connecting to target %s:%d...\n", parsed.Host, parsed.Port)
 	if err := validatePostgresConnection(connStr); err != nil {
 		utils.ErrExit("Target connection failed: %v", err)
 	}
-	fmt.Println(color.GreenString("  ✓ Connected to target %s:%d", parsed.Host, parsed.Port))
-	fmt.Println()
 	return parsed
 }
 
-func printStartMigrationBanner(dbType, host string, port int, dbName string, assessmentDone bool) {
-	fmt.Println()
-	fmt.Println("══════════════════════════════════════════════════════════════")
-	fmt.Println("                    Start Migration")
-	fmt.Println("══════════════════════════════════════════════════════════════")
-	fmt.Println()
+// printStartMigrationStatusBox prints the consolidated "Start Migration" box
+// with source, assessment, target, workflow info and checkmarks.
+func printStartMigrationStatusBox(
+	dbType, host string, port int, dbName string,
+	assessmentDone bool, assessmentReportPath string,
+	target *parsedConnInfo, workflow, configFilePath string,
+) {
+	kw := 13 // key width for alignment
 
+	var lines []string
+
+	// Source
 	if dbType != "" {
-		fmt.Printf("Source: %s — %s:%d/%s\n", titleCase(dbType), host, port, dbName)
+		lines = append(lines, formatKeyValue("Source:", fmt.Sprintf("%s @ %s:%d/%s", titleCase(dbType), host, port, dbName), kw))
 	}
 
+	// Assessment
 	if assessmentDone {
-		fmt.Println("Assessment: completed ✓")
+		assessLine := successStyle.Render("✓ completed")
+		sizingInfo := loadAssessmentSizing(assessmentReportPath)
+		if sizingInfo != "" {
+			assessLine += "\n" + strings.Repeat(" ", kw+1) + sizingInfo
+		}
+		htmlReportPath := strings.TrimSuffix(assessmentReportPath, ".json") + ".html"
+		assessLine += "\n" + strings.Repeat(" ", kw+1) + dimStyle.Render("Report: "+displayPath(htmlReportPath))
+		lines = append(lines, formatKeyValue("Assessment:", assessLine, kw))
 	} else {
-		fmt.Println(color.YellowString("Assessment: not yet run"))
+		lines = append(lines, formatKeyValue("Assessment:", warnStyle.Render("not yet run"), kw))
 	}
+
+	// Target
+	targetLine := fmt.Sprintf("YugabyteDB @ %s:%d/%s", target.Host, target.Port, target.DBName)
+	lines = append(lines, formatKeyValue("Target:", targetLine, kw))
+
+	// Workflow
+	workflowDisplay := workflowDisplayName(workflow)
+	lines = append(lines, formatKeyValue("Workflow:", workflowDisplay, kw))
+
+	lines = append(lines, "")
+	lines = append(lines, successLine("Connected to target database"))
+	lines = append(lines, successLine("Updated config  "+dimStyle.Render(displayPath(configFilePath))))
+
+	printSection("Start Migration", lines...)
 	fmt.Println()
 }
 
-func displayAssessmentSummary(reportPath string) {
+// loadAssessmentSizing reads the assessment report and returns a short sizing summary string.
+func loadAssessmentSizing(reportPath string) string {
 	data, err := os.ReadFile(reportPath)
 	if err != nil {
-		fmt.Println(color.YellowString("  Warning: could not read assessment report: %v", err))
-		return
+		return ""
 	}
-
 	var report AssessmentReport
 	if err := json.Unmarshal(data, &report); err != nil {
-		fmt.Println(color.YellowString("  Warning: could not parse assessment report: %v", err))
-		return
+		return ""
 	}
-
-	fmt.Println("  Your assessment report recommended:")
-
-	if report.Sizing != nil {
-		sr := report.Sizing.SizingRecommendation
-		fmt.Printf("    • Target YB cluster size: %.0f nodes, %d vCPU / %d GB RAM each\n",
-			math.Ceil(sr.NumNodes), sr.VCPUsPerInstance, sr.MemoryPerInstance)
+	if report.Sizing == nil {
+		return ""
 	}
-
-	if report.Sizing != nil && report.Sizing.FailureReasoning != "" {
-		fmt.Printf("    • Sizing note: %s\n", report.Sizing.FailureReasoning)
+	sr := report.Sizing.SizingRecommendation
+	result := fmt.Sprintf("%.0f nodes, %d vCPU / %d GB each recommended",
+		math.Ceil(sr.NumNodes), sr.VCPUsPerInstance, sr.MemoryPerInstance)
+	if report.Sizing.FailureReasoning != "" {
+		result += " (" + report.Sizing.FailureReasoning + ")"
 	}
+	return result
+}
 
-	htmlReportPath := strings.TrimSuffix(reportPath, ".json") + ".html"
-	fmt.Printf("\n  View full report:\n    %s\n\n", htmlReportPath)
-	fmt.Println("══════════════════════════════════════════════════════════════")
-	fmt.Println()
+// workflowDisplayName returns a human-readable name for a workflow identifier.
+func workflowDisplayName(workflow string) string {
+	switch workflow {
+	case "offline":
+		return "Offline (snapshot)"
+	case "live":
+		return "Live (CDC)"
+	case "live-fall-back":
+		return "Live with fall-back"
+	case "live-fall-forward":
+		return "Live with fall-forward"
+	default:
+		return titleCase(workflow)
+	}
 }
 
 func updateConfigWithTargetAndWorkflow(configFilePath string, v *viper.Viper, target *parsedConnInfo, workflow string) {
@@ -343,11 +369,7 @@ func titleCase(s string) string {
 }
 
 func printStartMigrationNextSteps(configFilePath string, v *viper.Viper, workflow string) {
-	fmt.Println()
-	fmt.Println("══════════════════════════════════════════════════════════════")
-	fmt.Println()
-	fmt.Println("  Next steps:")
-	fmt.Println()
+	var lines []string
 
 	step := 1
 
@@ -358,14 +380,23 @@ func printStartMigrationNextSteps(configFilePath string, v *viper.Viper, workflo
 		sourceDBName := v.GetString("source.db-name")
 		sourceUser := v.GetString("source.db-user")
 
-		fmt.Printf("  %d. Grant permissions on your source database for live migration:\n\n", step)
-		fmt.Printf("     psql -h %s -d %s -U %s \\\n", sourceHost, sourceDBName, sourceUser)
-		fmt.Printf("       -f /opt/yb-voyager/guardrails-scripts/yb-voyager-pg-grant-migration-permissions.sql\n\n")
+		lines = append(lines, fmt.Sprintf("%d. Grant permissions for live migration:", step))
+		lines = append(lines, "")
+		lines = append(lines, cmdStyle.Render(fmt.Sprintf("  psql -h %s -d %s -U %s \\\n    -f /opt/yb-voyager/guardrails-scripts/yb-voyager-pg-grant-migration-permissions.sql",
+			sourceHost, sourceDBName, sourceUser)))
+		lines = append(lines, "")
 		step++
 	}
 
-	fmt.Printf("  %d. Export schema:\n", step)
-	fmt.Printf("     yb-voyager export schema --config-file %s\n\n", configFilePath)
+	if step == 1 {
+		lines = append(lines, "Export the schema from your source database:")
+	} else {
+		lines = append(lines, fmt.Sprintf("%d. Export schema:", step))
+	}
+	lines = append(lines, "")
+	lines = append(lines, cmdStyle.Render(fmt.Sprintf("  yb-voyager export schema \\\n    --config-file %s",
+		displayPath(configFilePath))))
 
-	printTip(configFilePath)
+	printSection("What's Next", lines...)
+	fmt.Println()
 }
