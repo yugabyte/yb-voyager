@@ -231,7 +231,7 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	}
 
 	if changeStreamingIsEnabled(importType) {
-		startExportDataFromTargetIfRequired()
+		startExportDataFromTargetIfRequired(cmd)
 	}
 }
 
@@ -366,7 +366,7 @@ func checkImportDataPermissions() {
 	}
 }
 
-func startExportDataFromTargetIfRequired() {
+func startExportDataFromTargetIfRequired(importCmd *cobra.Command) {
 	if importerRole != TARGET_DB_IMPORTER_ROLE {
 		return
 	}
@@ -397,6 +397,14 @@ func startExportDataFromTargetIfRequired() {
 	// If config file is provided, pass it to the command
 	if cfgFile != "" {
 		cmd = append(cmd, "--config-file", cfgFile)
+		//If there are cli overrides for the command, pass them as cli overrides to the export data from target command
+		//Only disable-pb and log-level are the common flags of both the commands
+		if importCmd.Flags().Changed("disable-pb") && bool(disablePb) {
+			cmd = append(cmd, "--disable-pb=true")
+		}
+		if importCmd.Flags().Changed("log-level") {
+			cmd = append(cmd, "--log-level", config.LogLevel)
+		}
 	} else {
 		//else set some overrides for the command
 		cmd = append(cmd, "--log-level", config.LogLevel)

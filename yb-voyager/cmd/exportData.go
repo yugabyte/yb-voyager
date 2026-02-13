@@ -147,7 +147,7 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 		setDataIsExported()
 		color.Green("Export of data complete")
 		log.Info("Export of data completed.")
-		startFallBackSetupIfRequired()
+		startFallBackSetupIfRequired(cmd)
 	} else if ProcessShutdownRequested {
 		log.Info("Shutting down as SIGINT/SIGTERM received.")
 	} else {
@@ -1542,7 +1542,7 @@ func filterTableWithEmptySupportedColumnList(finalTableList []sqlname.NameTuple,
 	return filteredTableList
 }
 
-func startFallBackSetupIfRequired() {
+func startFallBackSetupIfRequired(exportCmd *cobra.Command) {
 	if exporterRole != SOURCE_DB_EXPORTER_ROLE {
 		return
 	}
@@ -1567,7 +1567,15 @@ func startFallBackSetupIfRequired() {
 
 	// If config file is provided, pass it to the command
 	if cfgFile != "" {
-		cmd = append(cmd, "--config-file", cfgFile)
+		cmd = append(cmd, "--config-file", cfgFile) 
+		//If there are cli overrides for the command, pass them as cli overrides to the export data from target command
+		//Only disable-pb and log-level are the common flags of both the commands
+		if exportCmd.Flags().Changed("disable-pb") && bool(disablePb) {
+			cmd = append(cmd, "--disable-pb=true")
+		}
+		if exportCmd.Flags().Changed("log-level") {
+			cmd = append(cmd, "--log-level", config.LogLevel)
+		}
 	} else {
 		//else set some overrides for the command
 		cmd = append(cmd, "--log-level", config.LogLevel)
