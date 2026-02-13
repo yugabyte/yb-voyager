@@ -938,8 +938,46 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 			utils.ErrExit("failed to restore generated columns: %s", err)
 		}
 		displayImportedRowCountSnapshot(state, importFileTasks, errorHandler)
+
+		setImportDataIsDone()
+		printImportDataFooter()
+		return
 	}
 	fmt.Printf("\nImport data complete.\n")
+}
+
+func setImportDataIsDone() {
+	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		record.ImportDataDone = true
+	})
+	if err != nil {
+		log.Warnf("failed to set import data done in MSR: %v", err)
+	}
+}
+
+func printImportDataFooter() {
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		log.Warnf("failed to get MSR for footer: %v", err)
+		return
+	}
+
+	wf := resolveWorkflow(msr)
+	phases := computePhaseStatuses(wf, msr, StepImportData)
+
+	configFlag := fmt.Sprintf("--config-file %s", displayPath(cfgFile))
+	nextSteps := nextStepCommand(
+		"End the migration and clean up resources:",
+		fmt.Sprintf("yb-voyager end migration %s", configFlag),
+	)
+
+	footer := CommandFooter{
+		SectionTitle: "Import Data Summary",
+		Title:        "Data import completed successfully.",
+		NextSteps:    nextSteps,
+		Phases:       phases,
+	}
+	printCommandFooter(footer)
 }
 
 // For a fresh start but non empty tables in tableList && OnPrimaryKeyConflict is set to IGNORE -> notify user

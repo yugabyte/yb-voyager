@@ -88,3 +88,16 @@ func formatKeyValue(key, value string, keyWidth int) string {
 	format := fmt.Sprintf("%%-%ds %%s", keyWidth)
 	return fmt.Sprintf(format, key, value)
 }
+
+// Phase progress markers for migration status display.
+func phaseDoneMarker() string {
+	return successStyle.Render("✓")
+}
+
+func phaseActiveMarker() string {
+	return warnStyle.Render(">")
+}
+
+func phasePendingMarker() string {
+	return dimStyle.Render("·")
+}

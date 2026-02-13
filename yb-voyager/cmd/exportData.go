@@ -145,8 +145,13 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 		sendPayloadAsPerExporterRole(COMPLETE, nil)
 
 		setDataIsExported()
-		color.Green("Export of data complete")
 		log.Info("Export of data completed.")
+
+		if !changeStreamingIsEnabled(exportType) {
+			printExportDataFooter()
+		} else {
+			color.Green("Export of data complete")
+		}
 		startFallBackSetupIfRequired()
 	} else if ProcessShutdownRequested {
 		log.Info("Shutting down as SIGINT/SIGTERM received.")
@@ -156,6 +161,35 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 		sendPayloadAsPerExporterRole(ERROR, nil)
 		atexit.Exit(1)
 	}
+}
+
+func printExportDataFooter() {
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		log.Warnf("failed to get MSR for footer: %v", err)
+		return
+	}
+
+	dataDir := displayPath(filepath.Join(exportDir, "data"))
+	artifacts := []string{dataDir}
+
+	wf := resolveWorkflow(msr)
+	phases := computePhaseStatuses(wf, msr, StepExportData)
+
+	configFlag := fmt.Sprintf("--config-file %s", displayPath(cfgFile))
+	nextSteps := nextStepCommand(
+		"Import data into your target YugabyteDB:",
+		fmt.Sprintf("yb-voyager import data %s", configFlag),
+	)
+
+	footer := CommandFooter{
+		SectionTitle: "Export Data Summary",
+		Title:        "Data export completed successfully.",
+		Artifacts:    artifacts,
+		NextSteps:    nextSteps,
+		Phases:       phases,
+	}
+	printCommandFooter(footer)
 }
 
 func printLiveMigrationLimitations() {

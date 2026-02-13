@@ -348,8 +348,6 @@ func assessMigration() (err error) {
 
 	log.Infof("number of assessment issues detected: %d\n", len(assessmentReport.Issues))
 
-	utils.PrintAndLog("Migration assessment completed successfully.")
-
 	// Call the appropriate event builder based on control plane type
 	var completedEvent *cp.MigrationAssessmentCompletedEvent
 	controlPlaneType := os.Getenv("CONTROL_PLANE_TYPE")
@@ -366,7 +364,45 @@ func assessMigration() (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to set migration assessment completed in MSR: %w", err)
 	}
+
+	printAssessMigrationFooter()
 	return nil
+}
+
+func printAssessMigrationFooter() {
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		log.Warnf("failed to get MSR for footer: %v", err)
+		return
+	}
+
+	reportDir := filepath.Join(exportDir, "assessment", "reports")
+	htmlReport := displayPath(filepath.Join(reportDir, ASSESSMENT_FILE_NAME+HTML_EXTENSION))
+	jsonReport := displayPath(filepath.Join(reportDir, ASSESSMENT_FILE_NAME+JSON_EXTENSION))
+
+	summary := []string{
+		formatKeyValue("Issues:", fmt.Sprintf("%d", len(assessmentReport.Issues)), 14),
+		formatKeyValue("Complexity:", assessmentReport.MigrationComplexity, 14),
+	}
+
+	wf := resolveWorkflow(msr)
+	phases := computePhaseStatuses(wf, msr, StepAssess)
+
+	configFlag := fmt.Sprintf("--config-file %s", displayPath(cfgFile))
+	nextSteps := nextStepCommand(
+		"Start the migration workflow:",
+		fmt.Sprintf("yb-voyager start-migration %s", configFlag),
+	)
+
+	footer := CommandFooter{
+		SectionTitle: "Assessment Summary",
+		Title:        "Migration assessment completed successfully.",
+		Artifacts:    []string{htmlReport, jsonReport},
+		Summary:      summary,
+		NextSteps:    nextSteps,
+		Phases:       phases,
+	}
+	printCommandFooter(footer)
 }
 
 func fetchObjectUsageStats() ([]*types.ObjectUsageStats, error) {

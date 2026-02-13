@@ -229,8 +229,6 @@ func exportSchema(cmd *cobra.Command) error {
 	if err != nil {
 		return fmt.Errorf("failed to generate performance optimization %w", err)
 	}
-	printSchemaFilesPaths(tableTransformer, mviewTransformer, indexTransformer)
-
 	packAndSendExportSchemaPayload(COMPLETE, nil)
 
 	saveSourceDBConfInMSR()
@@ -238,6 +236,8 @@ func exportSchema(cmd *cobra.Command) error {
 
 	exportSchemaCompleteEvent := createExportSchemaCompletedEvent()
 	controlPlane.ExportSchemaCompleted(&exportSchemaCompleteEvent)
+
+	printExportSchemaFooter(tableTransformer, mviewTransformer, indexTransformer)
 	return nil
 }
 
@@ -253,6 +253,44 @@ func printSchemaFilesPaths(tableTransformer *sqltransformer.TableFileTransformer
 		utils.PrintAndLogfInfo("Original INDEX DDLs are backed up at: %s", utils.Path.Sprint(indexTransformer.GetBackupFilePath()))
 	}
 	fmt.Println()
+}
+
+func printExportSchemaFooter(tableTransformer *sqltransformer.TableFileTransformer, mviewTransformer *sqltransformer.MviewFileTransformer, indexTransformer *sqltransformer.IndexFileTransformer) {
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		log.Warnf("failed to get MSR for footer: %v", err)
+		return
+	}
+
+	schemaDir := displayPath(filepath.Join(exportDir, "schema"))
+	artifacts := []string{schemaDir}
+	if tableTransformer != nil && utils.FileOrFolderExists(tableTransformer.GetBackupFilePath()) {
+		artifacts = append(artifacts, displayPath(tableTransformer.GetBackupFilePath())+" (TABLE backup)")
+	}
+	if mviewTransformer != nil && utils.FileOrFolderExists(mviewTransformer.GetBackupFilePath()) {
+		artifacts = append(artifacts, displayPath(mviewTransformer.GetBackupFilePath())+" (MVIEW backup)")
+	}
+	if indexTransformer != nil && utils.FileOrFolderExists(indexTransformer.GetBackupFilePath()) {
+		artifacts = append(artifacts, displayPath(indexTransformer.GetBackupFilePath())+" (INDEX backup)")
+	}
+
+	wf := resolveWorkflow(msr)
+	phases := computePhaseStatuses(wf, msr, StepExportSchema)
+
+	configFlag := fmt.Sprintf("--config-file %s", displayPath(cfgFile))
+	nextSteps := nextStepCommand(
+		"Analyze the exported schema for YugabyteDB compatibility:",
+		fmt.Sprintf("yb-voyager analyze-schema %s", configFlag),
+	)
+
+	footer := CommandFooter{
+		SectionTitle: "Export Schema Summary",
+		Title:        "Schema export completed successfully.",
+		Artifacts:    artifacts,
+		NextSteps:    nextSteps,
+		Phases:       phases,
+	}
+	printCommandFooter(footer)
 }
 
 func runAssessMigrationCmdBeforExportSchemaIfRequired(exportSchemaCmd *cobra.Command) error {

@@ -34,6 +34,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -279,7 +280,61 @@ func importSchema() error {
 	importSchemaCompleteEvent := createImportSchemaCompletedEvent()
 	controlPlane.ImportSchemaCompleted(&importSchemaCompleteEvent)
 
+	setImportSchemaIsDone()
+
+	if !flagPostSnapshotImport {
+		printImportSchemaFooter()
+	}
+
 	return nil
+}
+
+func setImportSchemaIsDone() {
+	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		record.ImportSchemaDone = true
+	})
+	if err != nil {
+		log.Warnf("failed to set import schema done in MSR: %v", err)
+	}
+}
+
+func printImportSchemaFooter() {
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		log.Warnf("failed to get MSR for footer: %v", err)
+		return
+	}
+
+	var artifacts []string
+	failedSqlPath := filepath.Join(exportDir, "schema", "failed.sql")
+	if utils.FileOrFolderExists(failedSqlPath) {
+		artifacts = append(artifacts, displayPath(failedSqlPath))
+	}
+
+	failedCount := len(finalFailedSqlStmts)
+	var summary []string
+	if failedCount > 0 {
+		summary = append(summary, formatKeyValue("Failed stmts:", fmt.Sprintf("%d", failedCount), 14))
+	}
+
+	wf := resolveWorkflow(msr)
+	phases := computePhaseStatuses(wf, msr, StepImportSchema)
+
+	configFlag := fmt.Sprintf("--config-file %s", displayPath(cfgFile))
+	nextSteps := nextStepCommand(
+		"Export data from your source database:",
+		fmt.Sprintf("yb-voyager export data %s", configFlag),
+	)
+
+	footer := CommandFooter{
+		SectionTitle: "Import Schema Summary",
+		Title:        "Schema import completed successfully.",
+		Artifacts:    artifacts,
+		Summary:      summary,
+		NextSteps:    nextSteps,
+		Phases:       phases,
+	}
+	printCommandFooter(footer)
 }
 
 func getMissingImportSchemaPermissions() ([]string, error) {
