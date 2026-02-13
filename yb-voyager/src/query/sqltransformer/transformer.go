@@ -397,19 +397,11 @@ func (t *Transformer) AddPartialClauseForNullFiltering(parseTree *pg_query.Parse
 	if colName == "" {
 		return nil, goerrors.Errorf("first index parameter is an expression, not a column")
 	}
-
+	
 	isNotNullNode := &pg_query.Node{
 		Node: &pg_query.Node_NullTest{
 			NullTest: &pg_query.NullTest{
-				Arg: &pg_query.Node{
-					Node: &pg_query.Node_ColumnRef{
-						ColumnRef: &pg_query.ColumnRef{
-							Fields: []*pg_query.Node{
-								{Node: &pg_query.Node_String_{String_: &pg_query.String{Sval: colName}}},
-							},
-						},
-					},
-				},
+				Arg:          pg_query.MakeColumnRefNode([]*pg_query.Node{pg_query.MakeStrNode(colName)}, -1),
 				Nulltesttype: pg_query.NullTestType_IS_NOT_NULL,
 			},
 		},
@@ -417,14 +409,11 @@ func (t *Transformer) AddPartialClauseForNullFiltering(parseTree *pg_query.Parse
 
 	// AND with existing WHERE clause, or set as the new WHERE clause
 	if indexStmt.WhereClause != nil {
-		indexStmt.WhereClause = &pg_query.Node{
-			Node: &pg_query.Node_BoolExpr{
-				BoolExpr: &pg_query.BoolExpr{
-					Boolop: pg_query.BoolExprType_AND_EXPR,
-					Args:   []*pg_query.Node{indexStmt.WhereClause, isNotNullNode},
-				},
-			},
-		}
+		indexStmt.WhereClause = pg_query.MakeBoolExprNode(
+			pg_query.BoolExprType_AND_EXPR,
+			[]*pg_query.Node{indexStmt.WhereClause, isNotNullNode},
+			-1,
+		)
 	} else {
 		indexStmt.WhereClause = isNotNullNode
 	}
