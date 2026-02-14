@@ -966,15 +966,12 @@ func printImportDataFooter() {
 	phases := computePhaseStatuses(wf, msr, StepImportData)
 
 	configFlag := fmt.Sprintf("--config-file %s", displayPath(cfgFile))
-	nextSteps := nextStepCommand(
-		"End the migration and clean up resources:",
-		fmt.Sprintf("yb-voyager end migration %s", configFlag),
-	)
 
 	footer := CommandFooter{
 		SectionTitle: "Import Data Summary",
 		Title:        "Data import completed successfully.",
-		NextSteps:    nextSteps,
+		NextStepDesc: []string{"End the migration and clean up resources:"},
+		NextStepCmd:  fmt.Sprintf("yb-voyager end migration %s", configFlag),
 		Phases:       phases,
 	}
 	printCommandFooter(footer)

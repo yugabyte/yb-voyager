@@ -1258,28 +1258,23 @@ func printAnalyzeSchemaFooter() {
 
 	configFlag := fmt.Sprintf("--config-file %s", displayPath(cfgFile))
 
-	var nextSteps []string
+	var nextStepDesc []string
 	if issueCount > 0 {
-		nextSteps = append(nextSteps,
+		nextStepDesc = []string{
 			"1. Review and fix issues in the exported schema files.",
-			fmt.Sprintf("   Report: %s", reportPath),
-			"",
 			"2. Import the schema to your target YugabyteDB:",
-		)
+		}
 	} else {
-		nextSteps = append(nextSteps,
-			"Import the schema to your target YugabyteDB:",
-		)
+		nextStepDesc = []string{"Import the schema to your target YugabyteDB:"}
 	}
-	nextSteps = append(nextSteps, "")
-	nextSteps = append(nextSteps, cmdStyle.Render(fmt.Sprintf("  yb-voyager import schema %s", configFlag)))
 
 	footer := CommandFooter{
 		SectionTitle: "Analyze Schema Summary",
 		Title:        "Schema analysis completed successfully.",
 		Artifacts:    []string{reportPath},
 		Summary:      summary,
-		NextSteps:    nextSteps,
+		NextStepDesc: nextStepDesc,
+		NextStepCmd:  fmt.Sprintf("yb-voyager import schema %s", configFlag),
 		Phases:       phases,
 	}
 	printCommandFooter(footer)

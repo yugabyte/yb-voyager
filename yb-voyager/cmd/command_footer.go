@@ -18,6 +18,7 @@ package cmd
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 )
@@ -51,8 +52,9 @@ type CommandFooter struct {
 	SectionTitle string          // section heading, e.g., "Assessment Summary"
 	Title        string          // success message, e.g., "Migration assessment completed successfully."
 	Artifacts    []string        // report/output file paths
-	Summary      []string        // key-value stat lines (pre-formatted)
-	NextSteps    []string        // instruction lines + styled command
+	Summary      []string        // key-value stat lines (pre-formatted with formatKeyValue)
+	NextStepDesc []string        // description lines for the next step
+	NextStepCmd  string          // CLI command for the next step (rendered with cmdStyle)
 	Phases       []PhaseProgress // from computePhaseStatuses
 }
 
@@ -164,51 +166,59 @@ func formatPhaseLines(phases []PhaseProgress) []string {
 	return lines
 }
 
-// printCommandFooter renders the full post-command footer.
-// Section order: Summary (result + artifacts + stats), Migration Progress, What's Next.
+// kvWidth is the fixed key width for all key-value pairs in the footer.
+const kvWidth = 14
+
+// printCommandFooter renders the full post-command footer in two sections:
+//
+//  1. Command Summary  – status, artifacts, command-specific stats  (key:value)
+//  2. Migration Progress – phase tree, next step, tip              (key:value)
 func printCommandFooter(footer CommandFooter) {
-	// ── Combined summary section ──
-	var lines []string
-	lines = append(lines, successLine(footer.Title))
-	if len(footer.Artifacts) > 0 {
-		lines = append(lines, "")
-		lines = append(lines, "Artifacts:")
-		for _, a := range footer.Artifacts {
-			lines = append(lines, "  "+dimStyle.Render(a))
+	padding := strings.Repeat(" ", kvWidth+1) // continuation-line indent
+
+	// ── Section 1: Command Summary ──
+	var summary []string
+	summary = append(summary, formatKeyValue("Status:", successLine(footer.Title), kvWidth))
+	for i, a := range footer.Artifacts {
+		if i == 0 {
+			summary = append(summary, formatKeyValue("Artifacts:", dimStyle.Render(a), kvWidth))
+		} else {
+			summary = append(summary, padding+dimStyle.Render(a))
 		}
 	}
-	if len(footer.Summary) > 0 {
-		lines = append(lines, "")
-		lines = append(lines, footer.Summary...)
-	}
-	printSection(footer.SectionTitle, lines...)
+	summary = append(summary, footer.Summary...)
+	printSection(footer.SectionTitle, summary...)
 
-	// ── Migration Progress (Status) section ──
+	// ── Section 2: Migration Progress ──
+	var progress []string
+
+	// Phase tree
 	if len(footer.Phases) > 0 {
-		phaseLines := formatPhaseLines(footer.Phases)
-		printSection("Migration Progress", phaseLines...)
+		progress = append(progress, formatPhaseLines(footer.Phases)...)
 	}
 
-	// ── What's Next section ──
-	if len(footer.NextSteps) > 0 {
-		lines := make([]string, len(footer.NextSteps))
-		copy(lines, footer.NextSteps)
-
-		// Add tip at the end.
-		lines = append(lines, "")
-		lines = append(lines, dimStyle.Render(fmt.Sprintf("Tip: yb-voyager status --config-file %s", displayPath(cfgFile))))
-
-		printSection("What's Next", lines...)
+	// Next step
+	if len(footer.NextStepDesc) > 0 || footer.NextStepCmd != "" {
+		if len(progress) > 0 {
+			progress = append(progress, "")
+		}
+		for i, d := range footer.NextStepDesc {
+			if i == 0 {
+				progress = append(progress, formatKeyValue("Next step:", d, kvWidth))
+			} else {
+				progress = append(progress, padding+d)
+			}
+		}
+		if footer.NextStepCmd != "" {
+			progress = append(progress, padding+cmdStyle.Render(footer.NextStepCmd))
+		}
 	}
+
+	// Tip
+	tip := fmt.Sprintf("yb-voyager status --config-file %s", displayPath(cfgFile))
+	progress = append(progress, formatKeyValue("Tip:", dimStyle.Render(tip), kvWidth))
+
+	printSection("Migration Progress", progress...)
 
 	fmt.Println()
-}
-
-// nextStepCommand formats a "next step" instruction block with description and styled command.
-func nextStepCommand(description, command string) []string {
-	return []string{
-		description,
-		"",
-		cmdStyle.Render("  " + command),
-	}
 }

@@ -389,17 +389,14 @@ func printAssessMigrationFooter() {
 	phases := computePhaseStatuses(wf, msr, StepAssess)
 
 	configFlag := fmt.Sprintf("--config-file %s", displayPath(cfgFile))
-	nextSteps := nextStepCommand(
-		"Start the migration workflow:",
-		fmt.Sprintf("yb-voyager start-migration %s", configFlag),
-	)
 
 	footer := CommandFooter{
 		SectionTitle: "Assessment Summary",
 		Title:        "Migration assessment completed successfully.",
 		Artifacts:    []string{htmlReport, jsonReport},
 		Summary:      summary,
-		NextSteps:    nextSteps,
+		NextStepDesc: []string{"Start the migration workflow:"},
+		NextStepCmd:  fmt.Sprintf("yb-voyager start-migration %s", configFlag),
 		Phases:       phases,
 	}
 	printCommandFooter(footer)
