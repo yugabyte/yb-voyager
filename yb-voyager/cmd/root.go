@@ -268,6 +268,7 @@ var noLockNeededList = []string{
 	"yb-voyager help",
 	"yb-voyager init",
 	"yb-voyager start-migration",
+	"yb-voyager status",
 	"yb-voyager import",
 	"yb-voyager import data to",
 	"yb-voyager import data status",
@@ -313,6 +314,7 @@ var offlineCommands = []string{
 	"yb-voyager finalize-schema-post-data-import",
 	"yb-voyager end migration",
 	"yb-voyager compare-performance",
+	"yb-voyager status",
 }
 
 func shouldLock(cmd *cobra.Command) bool {

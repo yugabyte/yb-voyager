@@ -315,5 +315,34 @@ func resolveWorkflow(msr *metadb.MigrationStatusRecord) *Workflow {
 	}
 }
 
+// findNextStep returns the first workflow step that is not yet done according to the MSR.
+// Returns nil if all steps are complete or if the MSR is nil.
+func findNextStep(wf *Workflow, msr *metadb.MigrationStatusRecord) *WorkflowStep {
+	if msr == nil {
+		return &wf.Steps[0]
+	}
+	for i := range wf.Steps {
+		if !wf.Steps[i].IsDone(msr) {
+			return &wf.Steps[i]
+		}
+	}
+	return nil
+}
+
+// findLastCompletedStep returns the last workflow step that is done according to the MSR.
+// Returns nil if no steps are complete or if the MSR is nil.
+func findLastCompletedStep(wf *Workflow, msr *metadb.MigrationStatusRecord) *WorkflowStep {
+	if msr == nil {
+		return nil
+	}
+	var last *WorkflowStep
+	for i := range wf.Steps {
+		if wf.Steps[i].IsDone(msr) {
+			last = &wf.Steps[i]
+		}
+	}
+	return last
+}
+
 // NOTE: schemaIsAnalyzed() is defined in analyzeSchema.go and reused here
 // via the IsDone closures in the workflow step definitions.
