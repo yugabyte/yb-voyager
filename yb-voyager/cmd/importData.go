@@ -1032,24 +1032,24 @@ func postSnapshotImportProcessing(msr *metadb.MigrationStatusRecord, importTable
 func postCutoverProcessing(importTableList []sqlname.NameTuple) error {
 	status, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
 	if err != nil {
-		return fmt.Errorf("failed to read export status for restore sequences: %s", err)
+		return goerrors.Errorf("failed to read export status for restore sequences: %s", err)
 	}
 
 	// in case of live migration sequences are restored after cutover
 	err = restoreSequencesInLiveMigration(status.Sequences)
 	if err != nil {
-		return fmt.Errorf("failed to restore sequences: %s", err)
+		return goerrors.Errorf("failed to restore sequences: %s", err)
 	}
 
 	err = restoreGeneratedIdentityColumns(importTableList)
 	if err != nil {
-		return fmt.Errorf("failed to restore generated columns: %s", err)
+		return goerrors.Errorf("failed to restore generated columns: %s", err)
 	}
 
 	utils.PrintAndLogf("Completed streaming all relevant changes to %s", tconf.TargetDBType)
 	err = markCutoverProcessed(importerRole)
 	if err != nil {
-		return fmt.Errorf("failed to mark cutover as processed: %s", err)
+		return goerrors.Errorf("failed to mark cutover as processed: %s", err)
 	}
 	return nil
 }
