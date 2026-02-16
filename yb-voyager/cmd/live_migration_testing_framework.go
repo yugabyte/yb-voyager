@@ -746,28 +746,34 @@ type DataMigrationReport struct {
 
 // GetDataMigrationReport retrieves the migration report
 func (lm *LiveMigrationTest) GetDataMigrationReport() (*DataMigrationReport, error) {
-	err := testutils.NewVoyagerCommandRunner(nil, "get data-migration-report", []string{
-		"--export-dir", lm.exportDir,
-		"--output-format", "json",
-		"--source-db-password", lm.sourceContainer.GetConfig().Password,
-		"--target-db-password", lm.targetContainer.GetConfig().Password,
-	}, nil, true).Run()
-	if err != nil {
-		return nil, goerrors.Errorf("get data-migration-report command failed: %w", err)
+	maxRetry := 5
+	for {
+		err := testutils.NewVoyagerCommandRunner(nil, "get data-migration-report", []string{
+			"--export-dir", lm.exportDir,
+			"--output-format", "json",
+			"--source-db-password", lm.sourceContainer.GetConfig().Password,
+			"--target-db-password", lm.targetContainer.GetConfig().Password,
+		}, nil, true).Run()
+		if err != nil {
+			return nil, goerrors.Errorf("get data-migration-report command failed: %w", err)
+		}
+		
+		reportFilePath := filepath.Join(lm.exportDir, "reports", "data-migration-report.json")
+		if !utils.FileOrFolderExists(reportFilePath) {
+			maxRetry--
+			if maxRetry <= 0 {
+				return nil, goerrors.Errorf("report file does not exist")
+			}
+			time.Sleep(2 * time.Second)
+			continue
+		}
+	
+		jsonFile := jsonfile.NewJsonFile[[]*rowData](reportFilePath)
+		rowData, err := jsonFile.Read()
+		if err != nil {
+			return nil, goerrors.Errorf("error reading data-migration-report: %w", err)
+		}
+	
+		return &DataMigrationReport{RowData: *rowData}, nil
 	}
-
-	time.Sleep(10 * time.Second)
-
-	reportFilePath := filepath.Join(lm.exportDir, "reports", "data-migration-report.json")
-	if !utils.FileOrFolderExists(reportFilePath) {
-		return nil, goerrors.Errorf("report file does not exist")
-	}
-
-	jsonFile := jsonfile.NewJsonFile[[]*rowData](reportFilePath)
-	rowData, err := jsonFile.Read()
-	if err != nil {
-		return nil, goerrors.Errorf("error reading data-migration-report: %w", err)
-	}
-
-	return &DataMigrationReport{RowData: *rowData}, nil
 }
