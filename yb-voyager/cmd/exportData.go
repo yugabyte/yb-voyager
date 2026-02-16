@@ -147,7 +147,7 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 		setDataIsExported()
 		color.Green("Export of data complete")
 		log.Info("Export of data completed.")
-		startFallBackSetupIfRequired(cmd)
+		startFallBackSetupIfRequired()
 	} else if ProcessShutdownRequested {
 		log.Info("Shutting down as SIGINT/SIGTERM received.")
 	} else {
@@ -1542,7 +1542,7 @@ func filterTableWithEmptySupportedColumnList(finalTableList []sqlname.NameTuple,
 	return filteredTableList
 }
 
-func startFallBackSetupIfRequired(exportCmd *cobra.Command) {
+func startFallBackSetupIfRequired() {
 	if exporterRole != SOURCE_DB_EXPORTER_ROLE {
 		return
 	}
@@ -1558,6 +1558,25 @@ func startFallBackSetupIfRequired(exportCmd *cobra.Command) {
 	}
 
 	lockFile.Unlock() // unlock export dir from export data cmd before switching current process to fall-back setup cmd
+	cmd := generateImportDataToSourceCommand()
+	cmdStr := "SOURCE_DB_PASSWORD=*** " + strings.Join(cmd, " ")
+
+	utils.PrintAndLogf("Starting import data to source with command:\n %s", color.GreenString(cmdStr))
+
+	binary, lookErr := exec.LookPath(os.Args[0])
+	if lookErr != nil {
+		utils.ErrExit("could not find yb-voyager: %w", err)
+	}
+	env := os.Environ()
+	env = slices.Insert(env, 0, "SOURCE_DB_PASSWORD="+source.Password)
+
+	execErr := syscall.Exec(binary, cmd, env)
+	if execErr != nil {
+		utils.ErrExit("failed to run yb-voyager import data to source: %w\n Please re-run with command :\n%s", err, cmdStr)
+	}
+}
+
+func generateImportDataToSourceCommand() []string {
 	cmd := []string{"yb-voyager", "import", "data", "to", "source"}
 	if utils.DoNotPrompt {
 		cmd = append(cmd, "--yes")
@@ -1588,22 +1607,7 @@ func startFallBackSetupIfRequired(exportCmd *cobra.Command) {
 		}
 		cmd = append(cmd, fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics))
 	}
-
-	cmdStr := "SOURCE_DB_PASSWORD=*** " + strings.Join(cmd, " ")
-
-	utils.PrintAndLogf("Starting import data to source with command:\n %s", color.GreenString(cmdStr))
-
-	binary, lookErr := exec.LookPath(os.Args[0])
-	if lookErr != nil {
-		utils.ErrExit("could not find yb-voyager: %w", err)
-	}
-	env := os.Environ()
-	env = slices.Insert(env, 0, "SOURCE_DB_PASSWORD="+source.Password)
-
-	execErr := syscall.Exec(binary, cmd, env)
-	if execErr != nil {
-		utils.ErrExit("failed to run yb-voyager import data to source: %w\n Please re-run with command :\n%s", err, cmdStr)
-	}
+	return cmd
 }
 
 // ================================ Export Data table list filtering ================================

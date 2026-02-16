@@ -231,7 +231,7 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	}
 
 	if changeStreamingIsEnabled(importType) {
-		startExportDataFromTargetIfRequired(cmd)
+		startExportDataFromTargetIfRequired()
 	}
 }
 
@@ -366,7 +366,7 @@ func checkImportDataPermissions() {
 	}
 }
 
-func startExportDataFromTargetIfRequired(importCmd *cobra.Command) {
+func startExportDataFromTargetIfRequired() {
 	if importerRole != TARGET_DB_IMPORTER_ROLE {
 		return
 	}
@@ -389,6 +389,26 @@ func startExportDataFromTargetIfRequired(importCmd *cobra.Command) {
 
 	lockFile.Unlock() // unlock export dir from import data cmd before switching current process to ff/fb sync cmd
 
+	cmd := generateExportDataFromTargetCommand(importTableNames, msr)
+
+	cmdStr := "TARGET_DB_PASSWORD=*** " + strings.Join(cmd, " ")
+
+	utils.PrintAndLogf("Starting export data from target with command:\n %s", color.GreenString(cmdStr))
+
+	binary, lookErr := exec.LookPath(os.Args[0])
+	if lookErr != nil {
+		utils.ErrExit("could not find yb-voyager: %w", lookErr)
+	}
+	env := os.Environ()
+	env = slices.Insert(env, 0, "TARGET_DB_PASSWORD="+tconf.Password)
+
+	execErr := syscall.Exec(binary, cmd, env)
+	if execErr != nil {
+		utils.ErrExit("failed to run yb-voyager export data from target: %w\n Please re-run with command :\n%s", execErr, cmdStr)
+	}
+}
+
+func generateExportDataFromTargetCommand(importTableNames []string, msr *metadb.MigrationStatusRecord) []string {
 	cmd := []string{"yb-voyager", "export", "data", "from", "target",
 		"--table-list", strings.Join(importTableNames, ","),
 	}
@@ -433,22 +453,7 @@ func startExportDataFromTargetIfRequired(importCmd *cobra.Command) {
 	if utils.DoNotPrompt {
 		cmd = append(cmd, "--yes")
 	}
-
-	cmdStr := "TARGET_DB_PASSWORD=*** " + strings.Join(cmd, " ")
-
-	utils.PrintAndLogf("Starting export data from target with command:\n %s", color.GreenString(cmdStr))
-
-	binary, lookErr := exec.LookPath(os.Args[0])
-	if lookErr != nil {
-		utils.ErrExit("could not find yb-voyager: %w", lookErr)
-	}
-	env := os.Environ()
-	env = slices.Insert(env, 0, "TARGET_DB_PASSWORD="+tconf.Password)
-
-	execErr := syscall.Exec(binary, cmd, env)
-	if execErr != nil {
-		utils.ErrExit("failed to run yb-voyager export data from target: %w\n Please re-run with command :\n%s", execErr, cmdStr)
-	}
+	return cmd
 }
 
 type ImportFileTask struct {
