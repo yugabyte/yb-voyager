@@ -57,7 +57,7 @@ var (
 	currentCommand                     string
 	callHomeErrorOrCompletePayloadSent bool
 	controlPlaneConfig                 map[string]string // Holds control plane configuration from config file
-	cliOverrides                       []Override
+	cliOverrides                       []CLIOverride
 )
 
 var envVarValuesToObfuscateInLogs = []string{
