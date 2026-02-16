@@ -1,6 +1,4 @@
-version: 1
 name: fallback-resumption-test
-run_id: run
 
 env:
   LOG_LEVEL: info
@@ -90,9 +88,6 @@ voyager:
   cutover_to_target:
     flags:
       prepare-for-fall-back: true
-  import_schema:
-    flags:
-      start-clean: true
 
 stages:
   # Phase 1: forward live migration (no resumptions)
@@ -104,6 +99,10 @@ stages:
     action: run_sql
     sql_path: ../common-sql/init.sql
     use_admin: true
+
+  - name: create_cutover_table
+    action: create_cutover_table
+    target: [source]
 
   - name: grant_source_permissions
     action: grant_source_permissions

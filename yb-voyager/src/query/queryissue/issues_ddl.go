@@ -781,6 +781,38 @@ func NewCircleDatatypeIssue(objectType string, objectName string, sqlStatement s
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
+var vectorDatatypeIssue = issue.Issue{
+	Type:        UNSUPPORTED_DATATYPE_LIVE_MIGRATION_VECTOR,
+	Name:        UNSUPPORTED_DATATYPE_LIVE_MIGRATION_VECTOR_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: UNSUPPORTED_DATATYPE_LIVE_MIGRATION_ISSUE_DESCRIPTION,
+	GH:          "",
+	DocsLink:    "https://docs.yugabyte.com/stable/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+}
+
+func NewVectorDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
+	issue := vectorDatatypeIssue
+	typeName = strings.ToUpper(typeName)
+	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var timetzDatatypeIssue = issue.Issue{
+	Type:        UNSUPPORTED_DATATYPE_LIVE_MIGRATION_TIMETZ,
+	Name:        UNSUPPORTED_DATATYPE_LIVE_MIGRATION_TIMETZ_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: UNSUPPORTED_DATATYPE_LIVE_MIGRATION_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yb-voyager/issues/1731",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+}
+
+func NewTimetzDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
+	issue := timetzDatatypeIssue
+	typeName = strings.ToUpper(typeName)
+	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
 var userDefinedDatatypeIssue = issue.Issue{
 	Type:        UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED,
 	Name:        UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED_ISSUE_NAME,

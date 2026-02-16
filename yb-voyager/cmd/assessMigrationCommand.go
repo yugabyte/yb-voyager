@@ -276,7 +276,7 @@ func assessMigration() (err error) {
 		if err != nil {
 			return fmt.Errorf("failed to match schema names: %w", err)
 		}
-		
+
 		fetchSourceInfo()
 
 		// Handle replica discovery and validation (PostgreSQL only)

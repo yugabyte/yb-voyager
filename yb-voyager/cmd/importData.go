@@ -158,7 +158,7 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	sourceDBType = GetSourceDBTypeFromMSR()
 	sqlname.SourceDBType = sourceDBType
 
-	//Schema validation is done in the Init step as of now 
+	//Schema validation is done in the Init step as of now
 	// TODO: will handle it later with other task of completely supporting case sensitive schemas in target db schema for MysqL/oracle sources
 	//TODO: also for the source-replica ORACLE case to validate the schemas on source-replica
 	tconf.Schemas = sqlname.ParseIdentifiersFromString(tconf.TargetDBType, tconf.SchemaConfig, ",")
@@ -1043,6 +1043,67 @@ func getMaxParallelConnections() (int, error) {
 	return maxParallelConns, nil
 }
 
+func waitIfNoBatchAvailableForAllTasks(taskPicker FileTaskPicker, taskImporters map[int]*FileTaskImporter) {
+	inProgressTasks := taskPicker.InProgressTasks()
+	if len(inProgressTasks) == 0 {
+		return
+	}
+
+	allTasksBatchNotAvailable := true
+
+	for _, task := range inProgressTasks {
+		importer, exists := taskImporters[task.ID]
+		if !exists {
+			// Importer not yet created for this task - the picker has picked a new task
+			// that the main loop hasn't processed yet. Don't wait, let the loop create it.
+			return
+		}
+
+		if importer.IsNextBatchAvailable() {
+			allTasksBatchNotAvailable = false
+			break
+		}
+	}
+
+	if allTasksBatchNotAvailable {
+		log.Infof("No batches available for all in-progress tasks. Waiting for batch production.")
+		time.Sleep(100 * time.Millisecond)
+		return
+	}
+
+	return
+}
+
+func waitIfAllBatchesSubmittedForAllTasks(taskPicker FileTaskPicker, taskImporters map[int]*FileTaskImporter) {
+	inProgressTasks := taskPicker.InProgressTasks()
+	if len(inProgressTasks) == 0 {
+		return
+	}
+
+	allTasksAllBatchesSubmitted := true
+
+	for _, task := range inProgressTasks {
+		importer, exists := taskImporters[task.ID]
+		if !exists {
+			// Importer not yet created for this task - the picker has picked a new task
+			// that the main loop hasn't processed yet. Don't wait, let the loop create it.
+			return
+		}
+		if !importer.AllBatchesSubmitted() {
+			allTasksAllBatchesSubmitted = false
+			break
+		}
+	}
+
+	if allTasksAllBatchesSubmitted {
+		log.Infof("All batches submitted for all in-progress tasks. Waiting for import completion.")
+		time.Sleep(100 * time.Millisecond)
+		return
+	}
+
+	return
+}
+
 /*
 1. Initialize a worker pool. In case of TARGET_DB_IMPORTER_ROLE  or IMPORT_FILE_ROLE, also create a colocated batch import pool and a corresponding queue.
 2. Create a task picker which helps the importer choose which task to process in each iteration.
@@ -1092,7 +1153,7 @@ func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataS
 		if err != nil {
 			return fmt.Errorf("get next task: %w", err)
 		}
-		log.Infof("Picked task for import: %s", task)
+		log.Debugf("Picked task for import: %s", task)
 		var taskImporter *FileTaskImporter
 		var ok bool
 		taskImporter, ok = taskImporters[task.ID]
@@ -1109,7 +1170,7 @@ func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataS
 			// All batches for this task have been submitted.
 			// task could have been completed (all batches imported) OR still in progress
 			// in case task is done, we should inform task picker so that we stop picking that task.
-			log.Infof("All batches submitted for task: %s", task)
+			log.Debugf("All batches submitted for task: %s", task)
 			taskDone, err := state.AllBatchesImported(task.FilePath, task.TableNameTup)
 			if err != nil {
 				return fmt.Errorf("check if all batches are imported: task: %v err :%w", task, err)
@@ -1123,21 +1184,22 @@ func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataS
 				state.UnregisterFileTaskImporter(taskImporter)
 				log.Infof("Import of task done: %s", task)
 				continue
-			} else {
-				// some batches are still in progress, wait for them to complete as decided by the picker.
-				// don't want to busy-wait, so in case of sequentialTaskPicker, we sleep.
-				err := taskPicker.WaitForTasksBatchesTobeImported()
-				if err != nil {
-					return fmt.Errorf("wait for tasks batches to be imported: %w", err)
-				}
-				continue
 			}
-
-		}
-		if !taskImporter.IsNextBatchAvailable() {
-			log.Infof("No next batch available for table: %s. Continuing.", task.TableNameTup.ForOutput())
+			// Batches still being imported by workers; continue with some other task.
+			waitIfAllBatchesSubmittedForAllTasks(taskPicker, taskImporters)
 			continue
 		}
+
+		if !taskImporter.IsNextBatchAvailable() {
+			// Picked task has no batch ready. Small sleep to prevent tight spinning
+			// in case picker keeps returning tasks without batches.
+			log.Debugf("No next batch available for table: %s", task.TableNameTup.ForOutput())
+			waitIfNoBatchAvailableForAllTasks(taskPicker, taskImporters)
+			continue
+		}
+
+		log.Infof("Producing and submitting next batch for task: %s", task)
+
 		err = taskImporter.ProduceAndSubmitNextBatchToWorkerPool()
 		if err != nil {
 			return goerrors.Errorf("submit next batch: task:%v err: %s", task, err)

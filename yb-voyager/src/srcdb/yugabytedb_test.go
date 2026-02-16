@@ -653,6 +653,12 @@ func TestYugabyteGetColumnsWithSupportedTypes_AllScenarios(t *testing.T) {
 			name VARCHAR,
 			budget NUMERIC
 		);`,
+
+		// Case 5: TIMETZ types (unsupported in Debezium live migration)
+		`CREATE TABLE hr.timetz_table (
+			id INT PRIMARY KEY,
+			reminder_at TIMETZ
+		);`,
 	)
 	defer testYugabyteDBSource.TestContainer.ExecuteSqls(
 		`DROP SCHEMA custom_ext CASCADE;`,
@@ -666,6 +672,7 @@ func TestYugabyteGetColumnsWithSupportedTypes_AllScenarios(t *testing.T) {
 		testutils.CreateNameTupleWithSourceName("hr.employee_devices", "hr", constants.YUGABYTEDB),
 		testutils.CreateNameTupleWithSourceName("custom_ext.\"SearchTable\"", "custom_ext", constants.YUGABYTEDB),
 		testutils.CreateNameTupleWithSourceName("hr.projects", "hr", constants.YUGABYTEDB),
+		testutils.CreateNameTupleWithSourceName("hr.timetz_table", "hr", constants.YUGABYTEDB),
 	}
 
 	// ========== Test 1: Logical Connector (TSVECTOR and HSTORE supported) ==========
@@ -711,6 +718,16 @@ func TestYugabyteGetColumnsWithSupportedTypes_AllScenarios(t *testing.T) {
 
 		_, exists = unsupportedCols.Get(projectsTable)
 		assert.Equal(t, false, exists, "Expected hr.projects NOT in unsupported map")
+
+		// Case 5: timetz_table - TIMETZ is UNSUPPORTED in Debezium live migration
+		timetzTable := tableList[4]
+		supported, exists = supportedCols.Get(timetzTable)
+		assert.Equal(t, true, exists, "Expected hr.timetz_table in supported map")
+		testutils.AssertEqualStringSlices(t, []string{"id"}, supported)
+
+		unsupported, exists := unsupportedCols.Get(timetzTable)
+		assert.Equal(t, true, exists, "Expected hr.timetz_table in unsupported map")
+		testutils.AssertEqualStringSlices(t, []string{"reminder_at"}, unsupported)
 	})
 
 	// ========== Test 2: GRPC Connector (TSVECTOR and HSTORE unsupported) ==========
@@ -748,6 +765,16 @@ func TestYugabyteGetColumnsWithSupportedTypes_AllScenarios(t *testing.T) {
 		unsupported, exists = unsupportedCols.Get(searchTable)
 		assert.Equal(t, true, exists, "Expected custom_ext.SearchTable in unsupported map")
 		testutils.AssertEqualStringSlices(t, []string{"SearchVector"}, unsupported) // TSVECTOR unsupported in GRPC, mixed case
+
+		// Case 5: timetz_table - TIMETZ is UNSUPPORTED in Debezium live migration
+		timetzTable := tableList[4]
+		supported, exists = supportedCols.Get(timetzTable)
+		assert.Equal(t, true, exists, "Expected hr.timetz_table in supported map")
+		testutils.AssertEqualStringSlices(t, []string{"id"}, supported)
+
+		unsupported, exists = unsupportedCols.Get(timetzTable)
+		assert.Equal(t, true, exists, "Expected hr.timetz_table in unsupported map")
+		testutils.AssertEqualStringSlices(t, []string{"reminder_at"}, unsupported)
 	})
 
 	// ========== Test 3: Offline Migration (all types supported) ==========

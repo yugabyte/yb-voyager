@@ -558,6 +558,22 @@ func ReportUnsupportedDatatypesInLive(baseTypeName string, columnName string, ob
 			baseTypeName,
 			columnName,
 		)
+	case "vector":
+		issue = NewVectorDatatypeIssue(
+			objType,
+			objName,
+			"",
+			baseTypeName,
+			columnName,
+		)
+	case "timetz":
+		issue = NewTimetzDatatypeIssue(
+			objType,
+			objName,
+			"",
+			baseTypeName,
+			columnName,
+		)
 	default:
 		// Unrecognized types
 		// Throwing error for now
@@ -619,11 +635,6 @@ func (f *ForeignTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Q
 
 //=============INDEX ISSUE DETECTOR ===========================
 
-const (
-	GIN_ACCESS_METHOD   = "gin"
-	BTREE_ACCESS_METHOD = "btree"
-)
-
 // IndexIssueDetector handles detection of index-related issues
 type IndexIssueDetector struct {
 	ParserIssueDetector
@@ -673,7 +684,7 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 	}
 
 	//GinVariations
-	if index.AccessMethod == GIN_ACCESS_METHOD {
+	if index.AccessMethod == queryparser.GIN_ACCESS_METHOD {
 		if len(index.Params) > 1 {
 			issues = append(issues, NewMultiColumnGinIndexIssue(
 				obj.GetObjectType(),
@@ -710,7 +721,7 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 	       5. these type of indexes on different access method like gin etc.. [TODO to explore more, for now not reporting the indexes on anyother access method than btree]
 	*/
 	usageCategory := d.getUsageCategoryForIndex(index.GetSchemaName(), index.TableName, index.IndexName)
-	if index.AccessMethod == BTREE_ACCESS_METHOD { // Right now not reporting any other access method issues with such types.
+	if index.AccessMethod == queryparser.BTREE_ACCESS_METHOD { // Right now not reporting any other access method issues with such types.
 		for idx, param := range index.Params {
 			if param.IsExpression {
 				isUnsupportedType := slices.Contains(UnsupportedIndexDatatypes, param.ExprCastTypeName)

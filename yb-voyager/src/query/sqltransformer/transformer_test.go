@@ -724,3 +724,79 @@ func TestHashSplittingChanges(t *testing.T) {
 	}
 
 }
+
+func TestAddPartialClauseForNullFiltering(t *testing.T) {
+	type testCase struct {
+		name        string
+		inputSQL    string
+		expectedSQL string
+		errExpected bool
+		errContains string
+	}
+
+	cases := []testCase{
+		{
+			name:        "single column index without WHERE clause",
+			inputSQL:    `CREATE INDEX idx_users_middle_name ON public.users (middle_name);`,
+			expectedSQL: `CREATE INDEX idx_users_middle_name ON public.users USING btree (middle_name) WHERE middle_name IS NOT NULL;`,
+		},
+		{
+			name:        "multi-column index without WHERE clause",
+			inputSQL:    `CREATE INDEX idx_users_middle_name_user_id ON public.users (middle_name, user_id);`,
+			expectedSQL: `CREATE INDEX idx_users_middle_name_user_id ON public.users USING btree (middle_name, user_id) WHERE middle_name IS NOT NULL;`,
+		},
+		{
+			name:        "single column index with existing WHERE clause",
+			inputSQL:    `CREATE INDEX idx_users ON public.users (middle_name) WHERE deleted = false;`,
+			expectedSQL: `CREATE INDEX idx_users ON public.users USING btree (middle_name) WHERE deleted = false AND middle_name IS NOT NULL;`,
+		},
+		{
+			name:        "multi-column index with existing WHERE clause",
+			inputSQL:    `CREATE INDEX idx_users ON public.users (middle_name, user_id) WHERE active = true;`,
+			expectedSQL: `CREATE INDEX idx_users ON public.users USING btree (middle_name, user_id) WHERE active = true AND middle_name IS NOT NULL;`,
+		},
+		{
+			name:        "index with existing IS NOT NULL on different column",
+			inputSQL:    `CREATE INDEX idx_users ON public.users (middle_name) WHERE active IS NOT NULL;`,
+			expectedSQL: `CREATE INDEX idx_users ON public.users USING btree (middle_name) WHERE active IS NOT NULL AND middle_name IS NOT NULL;`,
+		},
+		{
+			name:        "unique index without WHERE clause",
+			inputSQL:    `CREATE UNIQUE INDEX idx_unique ON public.users (middle_name);`,
+			expectedSQL: `CREATE UNIQUE INDEX idx_unique ON public.users USING btree (middle_name) WHERE middle_name IS NOT NULL;`,
+		},
+		{
+			name:        "expression index errors out",
+			inputSQL:    `CREATE INDEX idx_json ON public.test_json ((data::jsonb));`,
+			errExpected: true,
+			errContains: "expression, not a column",
+		},
+		{
+			name:        "not a CREATE INDEX statement errors out",
+			inputSQL:    `CREATE TABLE t (id int);`,
+			errExpected: true,
+			errContains: "not a CREATE INDEX statement",
+		},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			parseTree, err := queryparser.Parse(testCase.inputSQL)
+			testutils.FatalIfError(t, err)
+
+			transformer := NewTransformer()
+			modifiedTree, err := transformer.AddPartialClauseForFilteringNULL(parseTree)
+			if testCase.errExpected {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), testCase.errContains)
+				return
+			}
+			testutils.FatalIfError(t, err)
+
+			result, err := queryparser.Deparse(modifiedTree)
+			testutils.FatalIfError(t, err)
+
+			assert.Equal(t, testCase.expectedSQL, result)
+		})
+	}
+}
