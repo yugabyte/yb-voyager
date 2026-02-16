@@ -1112,11 +1112,18 @@ FROM generate_series(1, 10);`,
 	})
 	testutils.FatalIfError(t, err, "failed to resume import data")
 
-	time.Sleep(5 * time.Second)
-
-	importDataStatus, err = metaDB.GetImportDataStatusRecord()
-	testutils.FatalIfError(t, err, "Failed to get import data status record")
-	assert.Equal(t, importDataStatus.CdcPartitioningStrategyConfig, PARTITION_BY_PK)
+	validatedCdcPartitioningStrategy := false
+	for i := 0; i < 5; i++ {
+		importDataStatus, err = metaDB.GetImportDataStatusRecord()
+		testutils.FatalIfError(t, err, "Failed to get import data status record")
+		if importDataStatus.CdcPartitioningStrategyConfig == PARTITION_BY_PK {
+			validatedCdcPartitioningStrategy = true
+			break
+		} else if i == 4 {
+			t.Fatalf("failed to validate cdc partitioning strategy: got: %s, expected: %s", importDataStatus.CdcPartitioningStrategyConfig, PARTITION_BY_PK)
+		}
+		time.Sleep(1 * time.Second)
+	}
 
 	// Perform cutover
 	err = lm.InitiateCutoverToTarget(false, nil)
