@@ -460,8 +460,8 @@ Note: If the table is created as colocated, this hotspot concern can safely be i
 	NULL_VALUE_INDEXES_ISSUE_NAME                = "Index on column with a high percentage of NULL values"
 	NULL_VALUE_INDEXES                           = "INDEX_ON_COLUMN_WITH_HIGH_PERCENTAGE_OF_NULL_VALUES"
 	NULL_VALUE_INDEXES_DESCRIPTION               = "If queries do not filter on NULL values, consider using partial indexes that excludes NULL values. In distributed databases, unnecessary index entries for NULL values can increase write performance and storage usage."
-	NULL_VALUE_INDEXES_DESCRIPTION_SINGLE_COLUMN = `This index is built on a column having high percentage of NULL values.`
-	NULL_VALUE_INDEXES_DESCRIPTION_MULTI_COLUMN  = `The first column of this index has high percentage of NULL values.`
+	NULL_VALUE_INDEXES_DESCRIPTION_SINGLE_COLUMN = `This index is built on a column having high percentage of NULL values. Use the Recommended SQL in case NULL values are not being queried."`
+	NULL_VALUE_INDEXES_DESCRIPTION_MULTI_COLUMN  = `The first column of this index has high percentage of NULL values. Use the Recommended SQL in case NULL values are not being queried."`
 
 	MOST_FREQUENT_VALUE_INDEXES_ISSUE_NAME              = "Index on column with high percentage of a particular value"
 	MOST_FREQUENT_VALUE_INDEXES                         = "INDEX_ON_COLUMN_WITH_HIGH_PERCENTAGE_OF_PARTICULAR_VALUE"

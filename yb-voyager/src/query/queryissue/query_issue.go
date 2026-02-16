@@ -109,6 +109,7 @@ var SensitiveKeysInIssueDetailsMap = []string{
 	FUNCTION_NAMES,
 	REFERENCED_COLUMN_NAME,
 	REFERENCED_TABLE_NAME,
+	RECOMMENDED_SQL,
 }
 
 type IssueTypeAndName struct {
