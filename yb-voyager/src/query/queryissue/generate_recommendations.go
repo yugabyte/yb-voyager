@@ -41,10 +41,10 @@ var sqlFixGenerators = map[string]SqlFixGenerator{
 
 func generateNullPartialIndexFix(parseTree *pg_query.ParseResult) (string, error) {
 	transformer := sqltransformer.NewTransformer()
-	fixedParseTree, err := transformer.AddPartialClauseForNullFiltering(parseTree)
+	fixedParseTree, err := transformer.AddPartialClauseForFilteringNULL(parseTree)
 	if err != nil {
 		return "", err
 	}
 
-	return queryparser.DeparseParseTreeWithSemicolon(fixedParseTree)
+	return queryparser.Deparse(fixedParseTree)
 }

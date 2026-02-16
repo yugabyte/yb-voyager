@@ -455,7 +455,8 @@ func DeparseParseTree(parseTree *pg_query.ParseResult) (string, error) {
 	return deparsedStmt, nil
 }
 
-func DeparseParseTreeWithSemicolon(parseTree *pg_query.ParseResult) (string, error) {
+//Deparses with semicolon at the end
+func Deparse(parseTree *pg_query.ParseResult) (string, error) {
 	if parseTree == nil || len(parseTree.Stmts) == 0 {
 		return "", goerrors.Errorf("parse tree is empty or invalid")
 	}

@@ -382,7 +382,7 @@ func (t *Transformer) checkIfPrimaryKeyOnRangeDatatype(pkConstraintCols []string
 }
 
 // Assuming first column in the index is the one to be filtered for null values
-func (t *Transformer) AddPartialClauseForNullFiltering(parseTree *pg_query.ParseResult) (*pg_query.ParseResult, error) {
+func (t *Transformer) AddPartialClauseForFilteringNULL(parseTree *pg_query.ParseResult) (*pg_query.ParseResult, error) {
 	indexNode, ok := queryparser.GetCreateIndexStmtNode(parseTree)
 	if !ok {
 		return nil, goerrors.Errorf("not a CREATE INDEX statement")
@@ -393,7 +393,11 @@ func (t *Transformer) AddPartialClauseForNullFiltering(parseTree *pg_query.Parse
 	if len(indexStmt.IndexParams) == 0 {
 		return nil, goerrors.Errorf("index has no parameters")
 	}
-	colName := indexStmt.IndexParams[0].GetIndexElem().GetName()
+	firstParam := indexStmt.IndexParams[0]
+	if firstParam == nil || firstParam.GetIndexElem() == nil {
+		return nil, goerrors.Errorf("first index parameter is nil or not an IndexElem")
+	}	
+	colName := firstParam.GetIndexElem().GetName()
 	if colName == "" {
 		return nil, goerrors.Errorf("first index parameter is an expression, not a column")
 	}

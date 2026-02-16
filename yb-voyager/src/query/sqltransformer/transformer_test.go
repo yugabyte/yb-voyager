@@ -785,7 +785,7 @@ func TestAddPartialClauseForNullFiltering(t *testing.T) {
 			testutils.FatalIfError(t, err)
 
 			transformer := NewTransformer()
-			modifiedTree, err := transformer.AddPartialClauseForNullFiltering(parseTree)
+			modifiedTree, err := transformer.AddPartialClauseForFilteringNULL(parseTree)
 			if testCase.errExpected {
 				assert.Error(t, err)
 				assert.Contains(t, err.Error(), testCase.errContains)
@@ -793,7 +793,7 @@ func TestAddPartialClauseForNullFiltering(t *testing.T) {
 			}
 			testutils.FatalIfError(t, err)
 
-			result, err := queryparser.DeparseParseTreeWithSemicolon(modifiedTree)
+			result, err := queryparser.Deparse(modifiedTree)
 			testutils.FatalIfError(t, err)
 
 			assert.Equal(t, testCase.expectedSQL, result)
