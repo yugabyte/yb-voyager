@@ -24,9 +24,8 @@ import (
 	"path/filepath"
 	"time"
 
-	goerrors "github.com/go-errors/errors"
-
 	"github.com/fatih/color"
+	goerrors "github.com/go-errors/errors"
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -58,6 +57,7 @@ var (
 	currentCommand                     string
 	callHomeErrorOrCompletePayloadSent bool
 	controlPlaneConfig                 map[string]string // Holds control plane configuration from config file
+	cliOverrides                       []Override
 )
 
 var envVarValuesToObfuscateInLogs = []string{
@@ -334,6 +334,8 @@ func init() {
 	callhome.ReadEnvSendDiagnostics()
 }
 
+var globalFlags = []string{}
+
 // Note: assess-migration-bulk and get data-migration-report commands do not call this function.
 func registerCommonGlobalFlags(cmd *cobra.Command) {
 	BoolVar(cmd.Flags(), &perfProfile, "profile", false,
@@ -341,16 +343,22 @@ func registerCommonGlobalFlags(cmd *cobra.Command) {
 	cmd.Flags().MarkHidden("profile")
 
 	registerExportDirFlag(cmd)
+	globalFlags = append(globalFlags, "export-dir")
 	registerConfigFileFlag(cmd)
+	globalFlags = append(globalFlags, "config-file")
 
 	cmd.PersistentFlags().StringVarP(&config.LogLevel, "log-level", "l", "info",
 		"log level for yb-voyager. Accepted values: (trace, debug, info, warn, error, fatal, panic)")
+	globalFlags = append(globalFlags, "log-level")
 
 	cmd.PersistentFlags().BoolVarP(&utils.DoNotPrompt, "yes", "y", false,
 		"assume answer as yes for all questions during migration (default false)")
 
 	BoolVar(cmd.Flags(), &callhome.SendDiagnostics, "send-diagnostics", true,
 		"enable or disable the 'send-diagnostics' feature that sends analytics data to YugabyteDB.(default true)")
+	globalFlags = append(globalFlags, "send-diagnostics")
+
+	//Any global flags added here should be added to the globalFlags slice
 }
 
 func registerConfigFileFlag(cmd *cobra.Command) {

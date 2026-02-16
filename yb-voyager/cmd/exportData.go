@@ -1558,23 +1558,26 @@ func startFallBackSetupIfRequired(exportCmd *cobra.Command) {
 	}
 
 	lockFile.Unlock() // unlock export dir from export data cmd before switching current process to fall-back setup cmd
-	cmd := []string{"yb-voyager", "import", "data", "to", "source",
-		fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics),
-	}
+	cmd := []string{"yb-voyager", "import", "data", "to", "source"}
 	if utils.DoNotPrompt {
 		cmd = append(cmd, "--yes")
 	}
 
 	// If config file is provided, pass it to the command
 	if cfgFile != "" {
-		cmd = append(cmd, "--config-file", cfgFile) 
 		//If there are cli overrides for the command, pass them as cli overrides to the export data from target command
 		//Only disable-pb and log-level are the common flags of both the commands
-		if exportCmd.Flags().Changed("disable-pb") && bool(disablePb) {
-			cmd = append(cmd, "--disable-pb=true")
-		}
-		if exportCmd.Flags().Changed("log-level") {
-			cmd = append(cmd, "--log-level", config.LogLevel)
+		for _, override := range cliOverrides {
+			if override.FlagName == "disable-pb" {
+				//only for disable-pb flag is overidden then pass it as CLI override also to this command
+				cmd = append(cmd, "--"+override.FlagName, override.Value)
+				continue
+			}
+			if !slices.Contains(globalFlags, override.FlagName) {
+				//if its not a global flag then skip passing it to the command as it will be command specific flag
+				continue
+			}
+			cmd = append(cmd, "--"+override.FlagName, override.Value)
 		}
 	} else {
 		//else set some overrides for the command
@@ -1583,6 +1586,7 @@ func startFallBackSetupIfRequired(exportCmd *cobra.Command) {
 		if bool(disablePb) {
 			cmd = append(cmd, "--disable-pb=true")
 		}
+		cmd = append(cmd, fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics))
 	}
 
 	cmdStr := "SOURCE_DB_PASSWORD=*** " + strings.Join(cmd, " ")
