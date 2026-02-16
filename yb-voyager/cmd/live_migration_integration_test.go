@@ -132,7 +132,7 @@ FROM generate_series(1, 5);`,
 	err = lm.StartImportData(true, nil)
 	testutils.FatalIfError(t, err, "failed to start import data")
 
-	time.Sleep(10 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	err = lm.WaitForSnapshotComplete(map[string]int64{
 		`"test_schema"."test_live"`: 10,
@@ -305,14 +305,14 @@ func TestLiveMigrationWithEventsOnSamePkOrdered(t *testing.T) {
 	err = lm.StartImportData(true, nil)
 	testutils.FatalIfError(t, err, "failed to start import data")
 
-	time.Sleep(10 * time.Second)
+	time.Sleep(5 * time.Second)
 	// Wait for snapshot (only test_update_ordering has initial data)
 	err = lm.WaitForSnapshotComplete(map[string]int64{
 		`"test_schema"."test_update_ordering"`: 1,
 	}, 30)
 	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
 
-	time.Sleep(10 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	// Validate snapshot data
 	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_update_ordering"`}, "id")
@@ -513,7 +513,7 @@ func TestLiveMigrationWithEventsOnSamePkOrderedFallback(t *testing.T) {
 	err = lm.StartImportData(true, nil)
 	testutils.FatalIfError(t, err, "failed to start import data")
 
-	time.Sleep(10 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	// Wait for snapshot (only test_update_ordering has initial data)
 	err = lm.WaitForSnapshotComplete(map[string]int64{
@@ -521,7 +521,7 @@ func TestLiveMigrationWithEventsOnSamePkOrderedFallback(t *testing.T) {
 	}, 30)
 	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
 
-	time.Sleep(10 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	// Validate snapshot data
 	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_update_ordering"`}, "id")
@@ -685,7 +685,7 @@ FROM generate_series(1, 5);`,
 	})
 	testutils.FatalIfError(t, err, "failed to start import data")
 
-	time.Sleep(10 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	err = lm.WaitForSnapshotComplete(map[string]int64{
 		`"test_schema"."test_live"`: 10,
@@ -814,7 +814,7 @@ FROM generate_series(1, 15);`,
 	err = lm.StartImportData(true, nil)
 	testutils.FatalIfError(t, err, "failed to start import data")
 
-	time.Sleep(10 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	err = lm.WaitForSnapshotComplete(map[string]int64{
 		`"test_schema"."test_live"`: 20,
@@ -855,7 +855,7 @@ FROM generate_series(1, 15);`,
 	})
 	testutils.FatalIfError(t, err, "failed to drop sequence")
 
-	time.Sleep(10 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	//Resume import command after deleting a sequence of the table column idand import should fail while restoring sequences as cutover is already triggered
 	err = lm.ResumeImportData(false, nil)
@@ -958,7 +958,7 @@ FROM generate_series(1, 15);`,
 	err = lm.StartImportData(true, nil)
 	testutils.FatalIfError(t, err, "failed to start import data")
 
-	time.Sleep(10 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	err = lm.WaitForSnapshotComplete(map[string]int64{
 		`"test_schema"."test_live"`: 20,
@@ -1095,7 +1095,7 @@ FROM generate_series(1, 10);`,
 	})
 	testutils.FatalIfError(t, err, "failed to resume import data")
 
-	time.Sleep(10 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	importDataStatus, err = metaDB.GetImportDataStatusRecord()
 	testutils.FatalIfError(t, err, "Failed to get import data status record")
@@ -1221,7 +1221,7 @@ FROM generate_series(1, 20) as i;`,
 	err = lm.StartImportData(true, nil)
 	testutils.FatalIfError(t, err, "failed to start import data")
 
-	time.Sleep(10 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	err = lm.WaitForSnapshotComplete(map[string]int64{
 		`"test_schema"."test_live"`: 20,
@@ -1364,7 +1364,7 @@ FROM generate_series(1, 20) as i;`,
 	err = lm.StartImportData(true, nil)
 	testutils.FatalIfError(t, err, "failed to start import data")
 
-	time.Sleep(10 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	err = lm.WaitForSnapshotComplete(map[string]int64{
 		`"test_schema"."test_live_null_unique_values"`: 20,
@@ -1516,7 +1516,7 @@ func TestLiveMigrationWithUniqueKeyConflictWithUniqueIndexOnlyOnLeafPartitions(t
 	err = liveMigrationTest.StartImportData(true, nil)
 	testutils.FatalIfError(t, err, "failed to start import data")
 
-	time.Sleep(10 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	err = liveMigrationTest.WaitForSnapshotComplete(map[string]int64{
 		`"test_schema"."test_partitions"`: 20,
@@ -1663,7 +1663,7 @@ FROM generate_series(1, 20) as i;`,
 	err = liveMigrationTest.StartImportData(true, nil)
 	testutils.FatalIfError(t, err, "failed to start import data")
 
-	time.Sleep(10 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	err = liveMigrationTest.WaitForSnapshotComplete(map[string]int64{
 		`"test_schema"."test_live_null_partial_unique_values"`: 20,
@@ -1828,7 +1828,7 @@ END $$;`,
 	err = liveMigrationTest.StartImportData(true, nil)
 	testutils.FatalIfError(t, err, "failed to start import data")
 
-	time.Sleep(10 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	err = liveMigrationTest.WaitForSnapshotComplete(map[string]int64{
 		`"test_schema"."test_partitions"`: 20,
@@ -1931,7 +1931,7 @@ $$ LANGUAGE plpgsql;`,
 	err = liveMigrationTest.StartImportData(true, nil)
 	testutils.FatalIfError(t, err, "failed to start import data")
 
-	time.Sleep(10 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	err = liveMigrationTest.WaitForSnapshotComplete(map[string]int64{
 		`"test_schema"."large_test"`: 5,
@@ -2272,7 +2272,7 @@ END $$;
 	err = liveMigrationTest.StartImportData(true, nil)
 	testutils.FatalIfError(t, err, "failed to start import data")
 
-	time.Sleep(10 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	err = liveMigrationTest.WaitForSnapshotComplete(map[string]int64{
 		`"test_schema"."test_large_number_of_columns"`: 20,
@@ -2457,7 +2457,7 @@ END $$;
 	err = liveMigrationTest.StartImportData(true, nil)
 	testutils.FatalIfError(t, err, "failed to start import data")
 
-	time.Sleep(10 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	err = liveMigrationTest.WaitForSnapshotComplete(map[string]int64{
 		`"test_schema"."test_large_column_name"`: 20,
@@ -2587,7 +2587,7 @@ VALUES (INTERVAL '7 years', INTERVAL '120 days', INTERVAL '15 hours', INTERVAL '
 	})
 	testutils.FatalIfError(t, err, "failed to start import data")
 
-	time.Sleep(10 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	// Wait for snapshot to complete (3 initial rows)
 	err = lm.WaitForSnapshotComplete(map[string]int64{
@@ -2820,7 +2820,7 @@ END $$;`,
 	err = liveMigrationTest.StartImportData(true, nil)
 	testutils.FatalIfError(t, err, "failed to start import data")
 
-	time.Sleep(10 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	err = liveMigrationTest.WaitForSnapshotComplete(map[string]int64{
 		`"thisisaverylargenonpublicschema"."thisisaverylargetableinaverylargeschema"`:   10,
@@ -2993,7 +2993,7 @@ FROM generate_series(1, 5);`,
 	})
 	testutils.FatalIfError(t, err, "failed to start import data")
 
-	time.Sleep(10 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	err = lm.WaitForSnapshotComplete(map[string]int64{
 		`"Test_Schema"."test_live"`: 10,
@@ -3134,7 +3134,7 @@ FROM generate_series(1, 5);`,
 	err = lm.StartImportData(true, nil)
 	testutils.FatalIfError(t, err, "failed to start import data")
 
-	time.Sleep(10 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	// Wait for snapshot to complete
 	err = lm.WaitForSnapshotComplete(map[string]int64{
@@ -3154,7 +3154,7 @@ FROM generate_series(1, 5);`,
 	err = lm.ExecuteSourceDelta()
 	testutils.FatalIfError(t, err, "failed to execute source delta")
 
-	time.Sleep(10 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	// Issue cutover
 	err = lm.InitiateCutoverToTarget(true, nil)
@@ -3170,7 +3170,7 @@ FROM generate_series(1, 5);`,
 	pgSlotName := msr.PGReplicationSlotName
 
 	// Check if PostgreSQL replication slot is ended
-	time.Sleep(10 * time.Second)
+	time.Sleep(5 * time.Second)
 	var exists bool
 	exists, err = lm.CheckIfReplicationSlotExists(pgSlotName, "source")
 	testutils.FatalIfError(t, err, "failed to check if PostgreSQL replication slot exists")
