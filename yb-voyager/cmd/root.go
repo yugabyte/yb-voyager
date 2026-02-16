@@ -364,10 +364,6 @@ func registerCommonGlobalFlags(cmd *cobra.Command) {
 func registerConfigFileFlag(cmd *cobra.Command) {
 	cmd.PersistentFlags().StringVarP(&cfgFile, "config-file", "c", "",
 		"path of the config file which is used to set the various parameters for yb-voyager commands")
-
-	if !slices.Contains(offlineCommands, cmd.CommandPath()) {
-		cmd.PersistentFlags().MarkHidden("config-file")
-	}
 }
 
 func registerExportDirFlag(cmd *cobra.Command) {
