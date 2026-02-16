@@ -1,5 +1,2 @@
 export SOURCE_DB_TYPE="postgresql"
 export SOURCE_DB_SCHEMA="public,p1,p2"
-export SOURCE_DB_NAME="Partitions-src"
-export TARGET_DB_NAME="Partitions-tgt"
-export SOURCE_REPLICA_DB_NAME="Partitions-src-replica"
