@@ -89,12 +89,12 @@ func runStartMigration() {
 		utils.ErrExit("export-dir not set in config file: %s", startMigrationConfigFile)
 	}
 
+	// ── Section 1: Assessment Summary ──
 	sourceDBType := v.GetString("source.db-type")
 	sourceHost := v.GetString("source.db-host")
 	sourcePort := v.GetInt("source.db-port")
 	sourceDBName := v.GetString("source.db-name")
 
-	// ── Section 1: Assessment Summary ──
 	assessmentReportPath := filepath.Join(exportDirPath, "assessment", "reports",
 		fmt.Sprintf("%s.json", ASSESSMENT_FILE_NAME))
 	assessmentDone := utils.FileOrFolderExists(assessmentReportPath)
@@ -118,6 +118,11 @@ func runStartMigration() {
 			return
 		}
 	}
+
+	// ── Section 1b: Source connection ──
+	// Try connecting to source DB; prompt for connection string if it fails.
+	// Updates the config file and re-reads viper if source details change.
+	tryConnectOrPromptSource(v, startMigrationConfigFile)
 
 	// ── Section 2: Target connection ──
 	var targetParsed *parsedConnInfo
@@ -363,6 +368,181 @@ func titleCase(s string) string {
 		return s
 	}
 	return strings.ToUpper(s[:1]) + s[1:]
+}
+
+// tryConnectOrPromptSource attempts to connect to the source database using values
+// from the config file. If the connection fails (or required fields are missing),
+// it prompts the user for a connection string, validates it, updates the config
+// file, and re-reads viper.
+func tryConnectOrPromptSource(v *viper.Viper, configFilePath string) *parsedConnInfo {
+	host := v.GetString("source.db-host")
+	port := v.GetInt("source.db-port")
+	user := v.GetString("source.db-user")
+	password := v.GetString("source.db-password")
+	dbName := v.GetString("source.db-name")
+	schema := v.GetString("source.db-schema")
+
+	// If required fields are present, try connecting
+	if host != "" && user != "" && dbName != "" {
+		if port == 0 {
+			port = 5432
+		}
+		connStr := buildPostgresConnString(host, port, user, password, dbName)
+		if err := validatePostgresConnection(connStr); err == nil {
+			return &parsedConnInfo{
+				Host:     host,
+				Port:     port,
+				User:     user,
+				Password: password,
+				DBName:   dbName,
+				Schema:   schema,
+			}
+		}
+		// Connection failed with explicit config values -- let the user know
+		fmt.Println(color.YellowString("  Could not connect to source database (%s@%s:%d/%s).", user, host, port, dbName))
+		fmt.Println()
+	}
+	// If fields are missing (generate-scripts / skip flow), go straight to the prompt
+
+	// Prompt for connection string
+	var connString string
+	var parsed *parsedConnInfo
+	for {
+		err := huh.NewInput().
+			Title("Enter your source PostgreSQL connection string").
+			Description("Format: postgresql://user:password@host:port/dbname").
+			Value(&connString).
+			Run()
+		if err != nil {
+			utils.ErrExit("prompt failed: %v", err)
+		}
+
+		connString = strings.TrimSpace(connString)
+		if connString == "" {
+			fmt.Println(color.RedString("  Source connection string is required."))
+			continue
+		}
+
+		var parseErr error
+		parsed, parseErr = parsePostgresConnString(connString)
+		if parseErr != nil {
+			fmt.Println(color.RedString("  ✗ Invalid connection string: %v", parseErr))
+			fmt.Println()
+			continue
+		}
+
+		fmt.Printf("  Connecting to %s:%d...\n", parsed.Host, parsed.Port)
+		if err := validatePostgresConnection(connString); err != nil {
+			fmt.Println(color.RedString("  ✗ Connection failed: %v", err))
+			fmt.Println()
+
+			var retry bool
+			huh.NewConfirm().
+				Title("Would you like to try again?").
+				Value(&retry).
+				Run()
+			if !retry {
+				utils.ErrExit("Source connection is required to proceed.")
+			}
+			continue
+		}
+
+		fmt.Println(color.GreenString("  ✓ Connected to source database"))
+		fmt.Println()
+		break
+	}
+
+	// Update config file with real source details
+	schemas := parsed.Schema
+	if schemas == "" {
+		schemas = "public"
+	}
+	updateConfigWithSource(configFilePath, &sourceConfig{
+		DBType:   "postgresql",
+		Host:     parsed.Host,
+		Port:     parsed.Port,
+		DBName:   parsed.DBName,
+		User:     parsed.User,
+		Password: parsed.Password,
+		Schema:   schemas,
+	})
+
+	// Re-read config so the rest of the flow sees real values
+	if err := v.ReadInConfig(); err != nil {
+		utils.ErrExit("failed to re-read config file after source update: %v", err)
+	}
+
+	return parsed
+}
+
+// buildPostgresConnString constructs a postgresql:// connection string from individual components.
+func buildPostgresConnString(host string, port int, user, password, dbName string) string {
+	var userInfo string
+	if password != "" {
+		userInfo = fmt.Sprintf("%s:%s", user, password)
+	} else {
+		userInfo = user
+	}
+	return fmt.Sprintf("postgresql://%s@%s:%d/%s", userInfo, host, port, dbName)
+}
+
+// updateConfigWithSource updates the source connection fields in the config file.
+// It handles both commented-out fields (from the generate-scripts/skip flow) and
+// template default values.
+func updateConfigWithSource(configFilePath string, src *sourceConfig) {
+	data, err := os.ReadFile(configFilePath)
+	if err != nil {
+		utils.ErrExit("failed to read config file: %v", err)
+	}
+
+	content := string(data)
+
+	content = replaceConfigValue(content, "db-type:", "postgresql", src.DBType)
+
+	// Each field may be commented out (# db-host: ...) or have a template default (db-host: localhost).
+	// Try the commented-out form first, then fall back to the template default.
+	sourceReplacements := []struct {
+		commentedOut string
+		templateVal  string
+		newVal       string
+	}{
+		{"  # db-host: localhost", "  db-host: localhost", fmt.Sprintf("  db-host: %s", src.Host)},
+		{"  # db-port: 5432", "  db-port: 5432", fmt.Sprintf("  db-port: %d", src.Port)},
+		{"  # db-name: <database-name>", "  db-name: test_db", fmt.Sprintf("  db-name: %s", src.DBName)},
+		{"  # db-schema: public", "  db-schema: public", fmt.Sprintf("  db-schema: %s", src.Schema)},
+		{"  # db-user: <username>", "  db-user: test_user", fmt.Sprintf("  db-user: %s", src.User)},
+	}
+
+	for _, r := range sourceReplacements {
+		replaced := replaceInSection(content, "Source Database Configuration", "Target Database Configuration",
+			r.commentedOut, r.newVal)
+		if replaced != content {
+			content = replaced
+		} else {
+			content = replaceInSection(content, "Source Database Configuration", "Target Database Configuration",
+				r.templateVal, r.newVal)
+		}
+	}
+
+	// Handle password
+	if src.Password != "" {
+		passwordVal := fmt.Sprintf("  db-password: '%s'", strings.ReplaceAll(src.Password, "'", "''"))
+		replaced := replaceInSection(content, "Source Database Configuration", "Target Database Configuration",
+			"  # db-password: <password>  # Or set SOURCE_DB_PASSWORD env var", passwordVal)
+		if replaced != content {
+			content = replaced
+		} else {
+			content = replaceInSection(content, "Source Database Configuration", "Target Database Configuration",
+				"  db-password: test_password", passwordVal)
+		}
+	} else {
+		content = replaceInSection(content, "Source Database Configuration", "Target Database Configuration",
+			"  db-password: test_password", "  # db-password: <password>  # Or set SOURCE_DB_PASSWORD env var")
+	}
+
+	if err := os.WriteFile(configFilePath, []byte(content), 0644); err != nil {
+		utils.ErrExit("failed to update config file with source details: %v", err)
+	}
 }
 
 func printStartMigrationNextSteps(configFilePath string, v *viper.Viper, workflow string) {

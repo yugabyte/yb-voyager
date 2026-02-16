@@ -204,9 +204,9 @@ func printCommandFooter(footer CommandFooter) {
 		}
 		for i, d := range footer.NextStepDesc {
 			if i == 0 {
-				progress = append(progress, formatKeyValue("Next step:", d, kvWidth))
+				progress = append(progress, formatKeyValue(nextStepLabelStyle.Render("Next step:"), nextStepLabelStyle.Render(d), kvWidth))
 			} else {
-				progress = append(progress, padding+d)
+				progress = append(progress, padding+nextStepLabelStyle.Render(d))
 			}
 		}
 		if footer.NextStepCmd != "" {

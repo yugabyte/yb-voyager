@@ -150,7 +150,7 @@ func printMigrationProgress(v *viper.Viper, msr *metadb.MigrationStatusRecord) {
 		if len(progress) > 0 {
 			progress = append(progress, "")
 		}
-		progress = append(progress, formatKeyValue("Next Step:", nextStepName, kvWidth))
+		progress = append(progress, formatKeyValue(nextStepLabelStyle.Render("Next Step:"), nextStepLabelStyle.Render(nextStepName), kvWidth))
 		progress = append(progress, padding+cmdStyle.Render(nextStepCmd))
 	}
 

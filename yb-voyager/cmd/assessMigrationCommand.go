@@ -101,11 +101,11 @@ var assessMigrationCmd = &cobra.Command{
 		}
 		if cmd.Flags().Changed("assessment-metadata-dir") {
 			validateAssessmentMetadataDirFlag()
-			for _, f := range sourceConnectionFlags {
-				if cmd.Flags().Changed(f) {
-					utils.ErrExit("Cannot pass `--source-*` connection related flags when `--assessment-metadata-dir` is provided.\nPlease re-run the command without these flags")
-				}
-			}
+			// for _, f := range sourceConnectionFlags {
+			// 	if cmd.Flags().Changed(f) {
+			// 		utils.ErrExit("Cannot pass `--source-*` connection related flags when `--assessment-metadata-dir` is provided.\nPlease re-run the command without these flags")
+			// 	}
+			// }
 		} else {
 			cmd.MarkFlagRequired("source-db-user")
 			cmd.MarkFlagRequired("source-db-name")

@@ -47,6 +47,10 @@ var (
 
 	cmdStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("6")) // cyan
+
+	nextStepLabelStyle = lipgloss.NewStyle().
+				Bold(true).
+				Foreground(lipgloss.Color("6")) // cyan, matching cmdStyle
 )
 
 // printSection prints a titled section: bold title, thin rule, then body lines.
@@ -84,9 +88,13 @@ func successLine(text string) string {
 }
 
 // formatKeyValue formats a "Key:  Value" pair with the key right-padded to a fixed width.
+// It uses lipgloss.Width to measure the visible width so ANSI-styled keys align correctly.
 func formatKeyValue(key, value string, keyWidth int) string {
-	format := fmt.Sprintf("%%-%ds %%s", keyWidth)
-	return fmt.Sprintf(format, key, value)
+	pad := keyWidth - lipgloss.Width(key)
+	if pad < 0 {
+		pad = 0
+	}
+	return key + strings.Repeat(" ", pad) + " " + value
 }
 
 // Phase progress markers for migration status display.

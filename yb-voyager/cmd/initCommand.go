@@ -93,11 +93,11 @@ func runInit() {
 	// Prompt for source DB details
 	var sourceOption string
 	err = huh.NewSelect[string]().
-		Title("How would you like to provide source database details?\n" +
-			dimStyle.Render("Recommendation: run assessment against your production database for accurate results.")).
+		Title("The first step is to assess your source database. How would you like to provide source database details?\n"+
+			"Recommendation: Run assessment against your production database for accurate results.").
 		Options(
 			huh.NewOption("Enter a connection string", "connection_string"),
-			huh.NewOption("I don't have access to source database - generate scripts to gather metadata", "generate_scripts"),
+			huh.NewOption("I don't have access to source database from this machine - Get scripts that can be run on another machine.", "generate_scripts"),
 			huh.NewOption("Skip and configure later", "skip"),
 		).
 		Value(&sourceOption).
@@ -119,9 +119,10 @@ func runInit() {
 func printWelcomeBanner() {
 	printSection("Welcome to YB Voyager",
 		"Migrate your database to YugabyteDB.",
-		"  - Assess source database for complexity and sizing",
-		"  - Export and import schema with auto optimizations",
-		"  - Migrate data offline or live with CDC",
+		"  - Assessment : Assess source database for complexity and sizing",
+		"  - Schema     : Export and import schema with auto optimizations",
+		"  - Data       : Migrate data offline or live with CDC",
+		"  - Validation : Validate data consistency and performance between source and target",
 		"",
 		dimStyle.Render("Docs: https://docs.yugabyte.com/preview/yugabyte-voyager/"),
 	)
@@ -137,7 +138,7 @@ func handleConnectionString(configFilePath, exportDirPath string) {
 		err := huh.NewInput().
 			Title("Enter your PostgreSQL connection string").
 			Description("Format: postgresql://user:password@host:port/dbname").
-			Placeholder("postgresql://user:password@host:5432/mydb").
+			// Placeholder("postgresql://user:password@host:5432/mydb").
 			Value(&connString).
 			Run()
 		if err != nil {
@@ -244,7 +245,8 @@ func handleConnectionStringDirect(configFilePath, exportDirPath, connStr string)
 func handleGenerateScripts(configFilePath, exportDirPath string) {
 	createExportDir(exportDirPath)
 
-	scriptsDir := filepath.Join(exportDirPath, "scripts")
+	migrationDirPath := filepath.Dir(configFilePath)
+	scriptsDir := filepath.Join(migrationDirPath, "scripts")
 	os.MkdirAll(scriptsDir, 0755)
 
 	// Copy PostgreSQL scripts
@@ -478,6 +480,21 @@ func generateConfigFile(configFilePath, exportDirPath string, src *sourceConfig,
 			content = replaceInSection(content, "Source Database Configuration", "Target Database Configuration",
 				"  db-password: test_password", "  # db-password: <password>  # Or set SOURCE_DB_PASSWORD env var")
 		}
+	} else {
+		// Comment out source connection fields so they don't get picked up as
+		// explicitly-set flags (e.g., by assess-migration --assessment-metadata-dir).
+		content = replaceInSection(content, "Source Database Configuration", "Target Database Configuration",
+			"  db-host: localhost", "  # db-host: localhost")
+		content = replaceInSection(content, "Source Database Configuration", "Target Database Configuration",
+			"  db-port: 5432", "  # db-port: 5432")
+		content = replaceInSection(content, "Source Database Configuration", "Target Database Configuration",
+			"  db-name: test_db", "  # db-name: <database-name>")
+		content = replaceInSection(content, "Source Database Configuration", "Target Database Configuration",
+			"  db-schema: public", "  # db-schema: public")
+		content = replaceInSection(content, "Source Database Configuration", "Target Database Configuration",
+			"  db-user: test_user", "  # db-user: <username>")
+		content = replaceInSection(content, "Source Database Configuration", "Target Database Configuration",
+			"  db-password: test_password", "  # db-password: <password>  # Or set SOURCE_DB_PASSWORD env var")
 	}
 
 	// --- Target section: leave template defaults (will be filled by start-migration) ---
@@ -624,7 +641,7 @@ func printInitNextSteps(configFilePath string, connected bool, scripts bool) {
 	var lines []string
 
 	step := 1
-	if !connected {
+	if !connected && !scripts {
 		lines = append(lines, fmt.Sprintf("%d. Add your source connection details to the config file:", step))
 		lines = append(lines, fmt.Sprintf("   vi %s", displayPath(configFilePath)))
 		lines = append(lines, "")
@@ -632,27 +649,23 @@ func printInitNextSteps(configFilePath string, connected bool, scripts bool) {
 	}
 
 	if scripts {
-		lines = append(lines, fmt.Sprintf("%d. Copy the scripts directory to a machine that can", step))
-		lines = append(lines, "   reach your source database:")
-		lines = append(lines, "")
-		exportDirPath := filepath.Join(filepath.Dir(configFilePath), "export-dir")
-		lines = append(lines, fmt.Sprintf("   PostgreSQL: %s/scripts/postgresql", displayPath(exportDirPath)))
-		lines = append(lines, fmt.Sprintf("   Oracle:     %s/scripts/oracle", displayPath(exportDirPath)))
-		lines = append(lines, "")
-		step++
+		migrationDirPath := filepath.Dir(configFilePath)
+		scriptsDir := filepath.Join(migrationDirPath, "scripts")
 
-		lines = append(lines, fmt.Sprintf("%d. Copy the resulting metadata directory back here.", step))
-		lines = append(lines, "")
+		lines = append(lines, fmt.Sprintf("%d. Copy the scripts to a machine that can reach your source database:", step))
+		lines = append(lines, fmt.Sprintf("   %s", dimStyle.Render(scriptsDir)))
 		step++
-
-		lines = append(lines, fmt.Sprintf("%d. Run assessment:", step))
-		lines = append(lines, "")
-		lines = append(lines, cmdStyle.Render(fmt.Sprintf("   yb-voyager assess-migration \\\n     --config-file %s \\\n     --assessment-metadata-dir /path/to/metadata",
+		lines = append(lines, fmt.Sprintf("%d. Run the script on that machine (PostgreSQL example):", step))
+		lines = append(lines, cmdStyle.Render("   bash yb-voyager-pg-gather-assessment-metadata.sh 'postgresql://user@host:5432/dbname' 'public' /path/to/output false"))
+		step++
+		lines = append(lines, fmt.Sprintf("%d. Copy the resulting metadata directory back to this machine.", step))
+		step++
+		lines = append(lines, nextStepLabelStyle.Render(fmt.Sprintf("%d. Run assessment:", step)))
+		lines = append(lines, cmdStyle.Render(fmt.Sprintf("   yb-voyager assess-migration --config-file %s --assessment-metadata-dir /path/to/metadata",
 			displayPath(configFilePath))))
 	} else {
-		lines = append(lines, "Run assessment to analyze your source database:")
-		lines = append(lines, "")
-		lines = append(lines, cmdStyle.Render(fmt.Sprintf("  yb-voyager assess-migration \\\n    --config-file %s",
+		lines = append(lines, nextStepLabelStyle.Render("Assess your source database for migration:"))
+		lines = append(lines, cmdStyle.Render(fmt.Sprintf("  yb-voyager assess-migration --config-file %s",
 			displayPath(configFilePath))))
 	}
 
