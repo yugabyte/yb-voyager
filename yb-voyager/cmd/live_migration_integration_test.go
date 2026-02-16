@@ -1088,10 +1088,27 @@ FROM generate_series(1, 10);`,
 	testutils.FatalIfError(t, err, "Failed to get import data status record")
 	assert.Equal(t, importDataStatus.CdcPartitioningStrategyConfig, "auto")
 
+	//so instead dropping the table and creating it back
+	err = lm.WithTargetConn(func(target *sql.DB) error {
+		_, err := target.Exec(`DROP TABLE test_schema.test_live;`)
+		if err != nil {
+			return fmt.Errorf("failed to drop table: %w", err)
+		}
+		_, err = target.Exec(`CREATE TABLE test_schema.test_live (
+			id SERIAL PRIMARY KEY,
+			name TEXT,
+			email TEXT,
+			description TEXT
+		);`)
+		if err != nil {
+			return fmt.Errorf("failed to create table: %w", err)
+		}
+		return nil
+	})
+
 	err = lm.ResumeImportData(true, map[string]string{
 		"--cdc-partitioning-strategy": "pk",
 		"--start-clean":               "true",
-		"--truncate-tables":           "true",
 	})
 	testutils.FatalIfError(t, err, "failed to resume import data")
 
