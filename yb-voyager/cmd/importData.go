@@ -187,7 +187,7 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	}
 
 	var importFileTasks []*ImportFileTask
-	if importSnapshotEnabled() {
+	if importSnapshotRequired() {
 
 		dataStore = datastore.NewDataStore(filepath.Join(exportDir, "data"))
 		dataFileDescriptor = datafile.OpenDescriptor(exportDir)
@@ -207,9 +207,10 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	if err != nil {
 		utils.ErrExit("could not fetch MigrationStatusRecord: %w", err)
 	}
-	importTableList, err = getImportTableList(msr.TableListExportedFromSource)
+
+	err = initialiseImportTableList(importFileTasks, msr)
 	if err != nil {
-		utils.ErrExit("Error generating table list to import: %v", err)
+		utils.ErrExit("Failed to initialize import table list: %s", err)
 	}
 
 	if changeStreamingIsEnabled(importType) {
@@ -220,7 +221,7 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 		//and if not, we need to exit with an error
 		//If the export type includes snapshot, then only use the importFileTasks to get the tables to import
 		//otherwise use the tables from msr
-		tablesToImport := lo.Ternary(importSnapshotEnabled(), importFileTasksToTableNameTuples(importFileTasks), importTableList)
+		tablesToImport := lo.Ternary(importSnapshotRequired(), importFileTasksToTableNameTuples(importFileTasks), importTableList)
 		checkTablesPresentInTarget(tablesToImport)
 	} else {
 		importFileTasks = applyTableListFilter(importFileTasks)
@@ -251,20 +252,19 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	}
 }
 
-func importSnapshotEnabled() bool {
-	if importerRole == SOURCE_REPLICA_DB_IMPORTER_ROLE {
+func importSnapshotRequired() bool {
+	switch importerRole {
+	case SOURCE_REPLICA_DB_IMPORTER_ROLE:
 		return true
-	}
-	if importerRole == IMPORT_FILE_ROLE {
+	case IMPORT_FILE_ROLE:
 		return true
-	}
-	if importerRole == SOURCE_DB_IMPORTER_ROLE {
+	case SOURCE_DB_IMPORTER_ROLE:
+		return false
+	case TARGET_DB_IMPORTER_ROLE:
+		return importType == SNAPSHOT_ONLY || importType == SNAPSHOT_AND_CHANGES
+	default:
 		return false
 	}
-	if importType == SNAPSHOT_ONLY || importType == SNAPSHOT_AND_CHANGES {
-		return true
-	}
-	return false
 }
 func checkTablesPresentInTarget(tablesToImport []sqlname.NameTuple) {
 	if importerRole != TARGET_DB_IMPORTER_ROLE {
@@ -778,13 +778,9 @@ func prepareTargetDBForImport() error {
 	return nil
 }
 
-func handleFreshStart(state *ImportDataState, importFileTasks []*ImportFileTask, errorHandler importdata.ImportDataErrorHandler) error {
-	err := cleanMSRForImportDataStartClean()
-	if err != nil {
-		return goerrors.Errorf("Failed to clean MigrationStatusRecord for import data start clean: %v", err)
-	}
+func handleStartCleanForSnapshot(state *ImportDataState, importFileTasks []*ImportFileTask, errorHandler importdata.ImportDataErrorHandler) error {
 	cleanImportState(state, importFileTasks)
-	err = cleanStoredErrors(errorHandler, importFileTasks)
+	err := cleanStoredErrors(errorHandler, importFileTasks)
 	if err != nil {
 		return goerrors.Errorf("Failed to clean stored errors: %v", err)
 	}
@@ -842,10 +838,36 @@ func handleIdentityColumns(importTableList []sqlname.NameTuple) error {
 	return nil
 }
 
-func importSnapshotData(completedTasks []*ImportFileTask, pendingTasks []*ImportFileTask,
-	msr *metadb.MigrationStatusRecord, errorHandler importdata.ImportDataErrorHandler,
-	state *ImportDataState) error {
+func importSnapshotData(msr *metadb.MigrationStatusRecord, errorHandler importdata.ImportDataErrorHandler,
+	state *ImportDataState, importFileTasks []*ImportFileTask, importTableList []sqlname.NameTuple) error {
 	var err error
+	var pendingTasks, completedTasks []*ImportFileTask
+
+	if startClean {
+		err = handleStartCleanForSnapshot(state, importFileTasks, errorHandler)
+		if err != nil {
+			utils.ErrExit("Failed to handle fresh start: %s", err)
+		}
+		pendingTasks = importFileTasks
+	} else {
+		pendingTasks, completedTasks, err = classifyTasksForImport(state, importFileTasks)
+		if err != nil {
+			utils.ErrExit("Failed to classify tasks: %s", err)
+		}
+	}
+	log.Infof("pending tasks: %v", pendingTasks)
+	log.Infof("completed tasks: %v", completedTasks)
+
+	err = runPKConflictModeGuardrails(state, importFileTasks)
+	if err != nil {
+		utils.ErrExit("Error checking PK conflict mode on fresh start: %s", err)
+	}
+
+	err = initialiseValueConverter(importTableList, msr)
+	if err != nil {
+		utils.ErrExit("Failed to initialize value converter: %s", err)
+	}
+
 	utils.PrintAndLogf("Already imported tables: %v", importFileTasksToTableNames(completedTasks))
 	if len(pendingTasks) == 0 {
 		utils.PrintAndLogf("All the tables are already imported, nothing left to import\n")
@@ -946,47 +968,24 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 	}
 
 	utils.PrintAndLogf("\nimport of data in %q database started", tconf.DBName)
-	var pendingTasks, completedTasks []*ImportFileTask
 	state := NewImportDataState(exportDir)
-	if startClean {
-		err = handleFreshStart(state, importFileTasks, errorHandler)
-		if err != nil {
-			utils.ErrExit("Failed to handle fresh start: %s", err)
-		}
-		pendingTasks = importFileTasks
-	} else {
-		pendingTasks, completedTasks, err = classifyTasksForImport(state, importFileTasks)
-		if err != nil {
-			utils.ErrExit("Failed to classify tasks: %s", err)
-		}
-	}
-	log.Infof("pending tasks: %v", pendingTasks)
-	log.Infof("completed tasks: %v", completedTasks)
 
-	err = runPKConflictModeGuardrails(state, importFileTasks)
+	err = cleanMSRForImportDataStartClean()
 	if err != nil {
-		utils.ErrExit("Error checking PK conflict mode on fresh start: %s", err)
+		utils.ErrExit("Failed to clean MigrationStatusRecord for import data start clean: %s", err)
 	}
 
 	if msr.SourceDBConf != nil {
 		source = *msr.SourceDBConf
 	}
-	err = initialiseImportTableList(importFileTasks, msr)
-	if err != nil {
-		utils.ErrExit("Failed to initialize import table list: %s", err)
-	}
 
-	err = initialiseValueConverter(importTableList, msr)
-	if err != nil {
-		utils.ErrExit("Failed to initialize value converter: %s", err)
-	}
 	err = handleIdentityColumns(importTableList)
 	if err != nil {
 		utils.ErrExit("Failed to handle identity columns: %s", err)
 	}
 	// Import snapshots
-	if importSnapshotEnabled() {
-		err = importSnapshotData(completedTasks, pendingTasks, msr, errorHandler, state)
+	if importSnapshotRequired() {
+		err = importSnapshotData(msr, errorHandler, state, importFileTasks, importTableList)
 		if err != nil {
 			utils.ErrExit("failed to import snapshot data: %s", err)
 		}
@@ -994,7 +993,7 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 	}
 
 	if changeStreamingIsEnabled(importType) {
-		if importSnapshotEnabled() {
+		if importSnapshotRequired() {
 			displayImportedRowCountSnapshot(state, importFileTasks, errorHandler)
 		}
 		err = streamChanges(state, importTableList)
@@ -1033,24 +1032,24 @@ func postSnapshotImportProcessing(msr *metadb.MigrationStatusRecord, importTable
 func postCutoverProcessing(importTableList []sqlname.NameTuple) error {
 	status, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
 	if err != nil {
-		utils.ErrExit("failed to read export status for restore sequences: %s", err)
+		return fmt.Errorf("failed to read export status for restore sequences: %s", err)
 	}
 
 	// in case of live migration sequences are restored after cutover
 	err = restoreSequencesInLiveMigration(status.Sequences)
 	if err != nil {
-		utils.ErrExit("failed to restore sequences: %s", err)
+		return fmt.Errorf("failed to restore sequences: %s", err)
 	}
 
 	err = restoreGeneratedIdentityColumns(importTableList)
 	if err != nil {
-		utils.ErrExit("failed to restore generated columns: %s", err)
+		return fmt.Errorf("failed to restore generated columns: %s", err)
 	}
 
 	utils.PrintAndLogf("Completed streaming all relevant changes to %s", tconf.TargetDBType)
 	err = markCutoverProcessed(importerRole)
 	if err != nil {
-		utils.ErrExit("failed to mark cutover as processed: %s", err)
+		return fmt.Errorf("failed to mark cutover as processed: %s", err)
 	}
 	return nil
 }

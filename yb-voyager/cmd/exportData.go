@@ -800,10 +800,18 @@ func createAndStoreReplicationSlotAndPublication(finalTableList []sqlname.NameTu
 	}
 	return res.SnapshotName, nil
 }
-
 func getSequenceInitialValues() (*utils.StructMap[sqlname.NameTuple, int64], error) {
 	result := utils.NewStructMap[sqlname.NameTuple, int64]()
 	if exportType == CHANGES_ONLY {
+		/*
+			In changes_only case, we need to get the sequence initial values from the DB as we don't export the snapshot.
+			for handling the case 
+			Initial value on DB for seq1 on table1 = 110 but there are gaps in the sequence values being used in the table could be because of some deletions or updates.
+			
+			Insert on source DB for table1 I(103, 'test1') -- valid insert on source
+			and on debezium we need to maintain the maximum value of sequence to be restored on target 
+			so debezium should maintain 110 instead of 103 last value of seq1 for which it needs to know the initial value on DB.
+		*/
 		result, err := getSequenceInitialValuesFromDB()
 		if err != nil {
 			return nil, fmt.Errorf("get sequence initial values from DB: %w", err)
