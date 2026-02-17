@@ -23,7 +23,6 @@ import (
 	pg_query "github.com/pganalyze/pg_query_go/v6"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryissue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -193,7 +192,7 @@ func (t *Transformer) ModifySecondaryIndexesToRange(stmts []*pg_query.RawStmt) (
 		if indexStmt == nil {
 			continue
 		}
-		if indexStmt.AccessMethod != queryissue.BTREE_ACCESS_METHOD {
+		if indexStmt.AccessMethod != queryparser.BTREE_ACCESS_METHOD {
 			//In Postgres the ordered scans are only supported for btree
 			//so restricting the change to only Btree indexes
 			//refer https://www.postgresql.org/docs/current/sql-createindex.html#:~:text=For%20index%20methods%20that%20support%20ordered%20scans%20(currently%2C%20only%20B%2Dtree)%2C%20the%20optional%20clauses%20ASC
@@ -380,4 +379,48 @@ func (t *Transformer) checkIfPrimaryKeyOnRangeDatatype(pkConstraintCols []string
 	}
 	log.Infof("primary key first column - %s on table %s is on hotspot datatype, making it range sharded", firstCol, tableName)
 	return true, nil
+}
+
+// Assuming first column in the index is the one to be filtered for null values
+func (t *Transformer) AddPartialClauseForFilteringNULL(parseTree *pg_query.ParseResult) (*pg_query.ParseResult, error) {
+	indexNode, ok := queryparser.GetCreateIndexStmtNode(parseTree)
+	if !ok {
+		return nil, goerrors.Errorf("not a CREATE INDEX statement")
+	}
+	indexStmt := indexNode.IndexStmt
+
+	// Get the first column name from index params
+	if len(indexStmt.IndexParams) == 0 {
+		return nil, goerrors.Errorf("index has no parameters")
+	}
+	firstParam := indexStmt.IndexParams[0]
+	if firstParam == nil || firstParam.GetIndexElem() == nil {
+		return nil, goerrors.Errorf("first index parameter is nil or not an IndexElem")
+	}	
+	colName := firstParam.GetIndexElem().GetName()
+	if colName == "" {
+		return nil, goerrors.Errorf("first index parameter is an expression, not a column")
+	}
+	
+	isNotNullNode := &pg_query.Node{
+		Node: &pg_query.Node_NullTest{
+			NullTest: &pg_query.NullTest{
+				Arg:          pg_query.MakeColumnRefNode([]*pg_query.Node{pg_query.MakeStrNode(colName)}, -1),
+				Nulltesttype: pg_query.NullTestType_IS_NOT_NULL,
+			},
+		},
+	}
+
+	// AND with existing WHERE clause, or set as the new WHERE clause
+	if indexStmt.WhereClause != nil {
+		indexStmt.WhereClause = pg_query.MakeBoolExprNode(
+			pg_query.BoolExprType_AND_EXPR,
+			[]*pg_query.Node{indexStmt.WhereClause, isNotNullNode},
+			-1,
+		)
+	} else {
+		indexStmt.WhereClause = isNotNullNode
+	}
+
+	return parseTree, nil
 }

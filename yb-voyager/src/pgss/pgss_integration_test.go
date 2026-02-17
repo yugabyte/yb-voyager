@@ -25,6 +25,7 @@ import (
 	"testing"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
+
 	testcontainers "github.com/yugabyte/yb-voyager/yb-voyager/test/containers"
 )
 

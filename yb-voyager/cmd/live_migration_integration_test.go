@@ -73,7 +73,7 @@ FROM generate_series(%d, %d);`, tableName, startID, endId))
 //
 //export data -> import data (streaming for some events) -> once all data is streamed to target
 func TestBasicLiveMigrationWithCutover(t *testing.T) {
-
+	t.Parallel()
 	lm := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
 			Type:         "postgresql",
@@ -209,6 +209,7 @@ FROM generate_series(1, 5);`,
 //   - If I before D: Duplicate key error
 //   - Validation: row exists with state='final', iteration=1001
 func TestLiveMigrationWithEventsOnSamePkOrdered(t *testing.T) {
+	t.Parallel()
 	lm := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
 			Type:         "postgresql",
@@ -307,8 +308,6 @@ func TestLiveMigrationWithEventsOnSamePkOrdered(t *testing.T) {
 		`"test_schema"."test_update_ordering"`: 1,
 	}, 30)
 	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
-
-	time.Sleep(5 * time.Second)
 
 	// Validate snapshot data
 	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_update_ordering"`}, "id")
@@ -413,6 +412,7 @@ func TestLiveMigrationWithEventsOnSamePkOrdered(t *testing.T) {
 // Table 2 (test_update_ordering): Tests U→U ordering on same PK
 // Table 3 (test_insert_update_delete_ordering): Tests I→U, U→D, D→I ordering on same PK
 func TestLiveMigrationWithEventsOnSamePkOrderedFallback(t *testing.T) {
+	t.Parallel()
 	lm := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
 			Type:         "postgresql",
@@ -514,8 +514,6 @@ func TestLiveMigrationWithEventsOnSamePkOrderedFallback(t *testing.T) {
 	}, 30)
 	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
 
-	time.Sleep(5 * time.Second)
-
 	// Validate snapshot data
 	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_update_ordering"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate snapshot data consistency")
@@ -608,7 +606,7 @@ func TestLiveMigrationWithEventsOnSamePkOrderedFallback(t *testing.T) {
 }
 
 func TestBasicLiveMigrationWithFallback(t *testing.T) {
-
+	t.Parallel()
 	lm := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
 			Type:         "postgresql",
@@ -677,8 +675,6 @@ FROM generate_series(1, 5);`,
 		"--log-level": "debug",
 	})
 	testutils.FatalIfError(t, err, "failed to start import data")
-
-	time.Sleep(10 * time.Second)
 
 	err = lm.WaitForSnapshotComplete(map[string]int64{
 		`"test_schema"."test_live"`: 10,
@@ -749,7 +745,7 @@ FROM generate_series(1, 5);`,
 //
 //export data -> import data (streaming some data) -> once done kill import
 func TestLiveMigrationWithImportResumptionOnFailureAtRestoreSequences(t *testing.T) {
-
+	t.Parallel()
 	lm := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
 			Type:         "postgresql",
@@ -807,8 +803,6 @@ FROM generate_series(1, 15);`,
 	err = lm.StartImportData(true, nil)
 	testutils.FatalIfError(t, err, "failed to start import data")
 
-	time.Sleep(10 * time.Second)
-
 	err = lm.WaitForSnapshotComplete(map[string]int64{
 		`"test_schema"."test_live"`: 20,
 	}, 30)
@@ -848,7 +842,7 @@ FROM generate_series(1, 15);`,
 	})
 	testutils.FatalIfError(t, err, "failed to drop sequence")
 
-	time.Sleep(10 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	//Resume import command after deleting a sequence of the table column idand import should fail while restoring sequences as cutover is already triggered
 	err = lm.ResumeImportData(false, nil)
@@ -893,6 +887,7 @@ FROM generate_series(1, 15);`,
 //
 //export data -> import data (streaming some data) -> once done kill import
 func TestLiveMigrationWithImportResumptionWithGeneratedAlwaysColumn(t *testing.T) {
+	t.Parallel()
 	lm := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
 			Type:         "postgresql",
@@ -1002,6 +997,7 @@ FROM generate_series(1, 15);`,
 }
 
 func TestLiveMigrationResumptionWithChangeInCDCPartitioningStrategy(t *testing.T) {
+	//TODO: investigate why this test is failing in parallel
 	lm := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
 			Type:         "postgresql",
@@ -1059,6 +1055,11 @@ FROM generate_series(1, 10);`,
 	err = lm.StartImportData(true, nil)
 	testutils.FatalIfError(t, err, "failed to start import data")
 
+	err = lm.WaitForSnapshotComplete(map[string]int64{
+		`"test_schema"."test_live"`: 10,
+	}, 30)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+
 	err = lm.StopImportData()
 	testutils.FatalIfError(t, err, "failed to stop import data")
 
@@ -1077,16 +1078,45 @@ FROM generate_series(1, 10);`,
 	testutils.FatalIfError(t, err, "Failed to get import data status record")
 	assert.Equal(t, importDataStatus.CdcPartitioningStrategyConfig, "auto")
 
+	//so instead dropping the table and creating it back
+	err = lm.WithTargetConn(func(target *sql.DB) error {
+		_, err := target.Exec(`DROP TABLE test_schema.test_live;`)
+		if err != nil {
+			return fmt.Errorf("failed to drop table: %w", err)
+		}
+		_, err = target.Exec(`CREATE TABLE test_schema.test_live (
+			id SERIAL PRIMARY KEY,
+			name TEXT,
+			email TEXT,
+			description TEXT
+		);`)
+		if err != nil {
+			return fmt.Errorf("failed to create table: %w", err)
+		}
+		return nil
+	})
+
 	err = lm.ResumeImportData(true, map[string]string{
 		"--cdc-partitioning-strategy": "pk",
 		"--start-clean":               "true",
-		"--truncate-tables":           "true",
 	})
 	testutils.FatalIfError(t, err, "failed to resume import data")
 
-	importDataStatus, err = metaDB.GetImportDataStatusRecord()
-	testutils.FatalIfError(t, err, "Failed to get import data status record")
-	assert.Equal(t, importDataStatus.CdcPartitioningStrategyConfig, PARTITION_BY_PK)
+	err = lm.WaitForSnapshotComplete(map[string]int64{
+		`"test_schema"."test_live"`: 10,
+	}, 30)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+
+	for i := 0; i < 5; i++ {
+		importDataStatus, err = metaDB.GetImportDataStatusRecord()
+		testutils.FatalIfError(t, err, "Failed to get import data status record")
+		if importDataStatus.CdcPartitioningStrategyConfig == PARTITION_BY_PK {
+			break
+		} else if i == 4 {
+			t.Fatalf("failed to validate cdc partitioning strategy: got: %s, expected: %s", importDataStatus.CdcPartitioningStrategyConfig, PARTITION_BY_PK)
+		}
+		time.Sleep(5 * time.Second)
+	}
 
 	// Perform cutover
 	err = lm.InitiateCutoverToTarget(false, nil)
@@ -1098,6 +1128,7 @@ FROM generate_series(1, 10);`,
 }
 
 func TestLiveMigrationWithUniqueKeyValuesWithPartialPredicateConflictDetectionCases(t *testing.T) {
+	t.Parallel()
 	lm := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
 			Type:         "postgresql",
@@ -1207,8 +1238,6 @@ FROM generate_series(1, 20) as i;`,
 	err = lm.StartImportData(true, nil)
 	testutils.FatalIfError(t, err, "failed to start import data")
 
-	time.Sleep(5 * time.Second)
-
 	err = lm.WaitForSnapshotComplete(map[string]int64{
 		`"test_schema"."test_live"`: 20,
 	}, 30)
@@ -1241,6 +1270,7 @@ FROM generate_series(1, 20) as i;`,
 }
 
 func TestLiveMigrationWithUniqueKeyConflictWithNullValuesDetectionCases(t *testing.T) {
+	t.Parallel()
 	lm := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
 			Type:         "postgresql",
@@ -1349,8 +1379,6 @@ FROM generate_series(1, 20) as i;`,
 	err = lm.StartImportData(true, nil)
 	testutils.FatalIfError(t, err, "failed to start import data")
 
-	time.Sleep(5 * time.Second)
-
 	err = lm.WaitForSnapshotComplete(map[string]int64{
 		`"test_schema"."test_live_null_unique_values"`: 20,
 	}, 30)
@@ -1383,6 +1411,7 @@ FROM generate_series(1, 20) as i;`,
 }
 
 func TestLiveMigrationWithUniqueKeyConflictWithUniqueIndexOnlyOnLeafPartitions(t *testing.T) {
+	t.Parallel()
 	liveMigrationTest := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
 			Type:         "postgresql",
@@ -1500,7 +1529,6 @@ func TestLiveMigrationWithUniqueKeyConflictWithUniqueIndexOnlyOnLeafPartitions(t
 	err = liveMigrationTest.StartImportData(true, nil)
 	testutils.FatalIfError(t, err, "failed to start import data")
 
-	time.Sleep(5 * time.Second)
 	err = liveMigrationTest.WaitForSnapshotComplete(map[string]int64{
 		`"test_schema"."test_partitions"`: 20,
 	}, 30)
@@ -1535,6 +1563,7 @@ func TestLiveMigrationWithUniqueKeyConflictWithUniqueIndexOnlyOnLeafPartitions(t
 }
 
 func TestLiveMigrationWithUniqueKeyConflictWithNullValueAndPartialPredicatesDetectionCases(t *testing.T) {
+	t.Parallel()
 	liveMigrationTest := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
 			Type:         "postgresql",
@@ -1645,8 +1674,6 @@ FROM generate_series(1, 20) as i;`,
 	err = liveMigrationTest.StartImportData(true, nil)
 	testutils.FatalIfError(t, err, "failed to start import data")
 
-	time.Sleep(5 * time.Second)
-
 	err = liveMigrationTest.WaitForSnapshotComplete(map[string]int64{
 		`"test_schema"."test_live_null_partial_unique_values"`: 20,
 	}, 30)
@@ -1679,6 +1706,7 @@ FROM generate_series(1, 20) as i;`,
 }
 
 func TestLiveMigrationWithUniqueKeyConflictWithExpressionIndexOnPartitions(t *testing.T) {
+	t.Parallel()
 	liveMigrationTest := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
 			Type:         "postgresql",
@@ -1809,8 +1837,6 @@ END $$;`,
 	err = liveMigrationTest.StartImportData(true, nil)
 	testutils.FatalIfError(t, err, "failed to start import data")
 
-	time.Sleep(5 * time.Second)
-
 	err = liveMigrationTest.WaitForSnapshotComplete(map[string]int64{
 		`"test_schema"."test_partitions"`: 20,
 	}, 30)
@@ -1844,6 +1870,7 @@ END $$;`,
 }
 
 func TestLiveMigrationWithBytesColumn(t *testing.T) {
+	t.Parallel()
 	liveMigrationTest := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
 			Type:         "postgresql",
@@ -1911,8 +1938,6 @@ $$ LANGUAGE plpgsql;`,
 	err = liveMigrationTest.StartImportData(true, nil)
 	testutils.FatalIfError(t, err, "failed to start import data")
 
-	time.Sleep(5 * time.Second)
-
 	err = liveMigrationTest.WaitForSnapshotComplete(map[string]int64{
 		`"test_schema"."large_test"`: 5,
 	}, 80)
@@ -1969,6 +1994,7 @@ $$ LANGUAGE plpgsql;`,
 }
 
 func TestLiveMigrationWithLargeNumberOfColumns(t *testing.T) {
+	t.Parallel()
 	liveMigrationTest := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
 			Type:         "postgresql",
@@ -2251,8 +2277,6 @@ END $$;
 	err = liveMigrationTest.StartImportData(true, nil)
 	testutils.FatalIfError(t, err, "failed to start import data")
 
-	time.Sleep(5 * time.Second)
-
 	err = liveMigrationTest.WaitForSnapshotComplete(map[string]int64{
 		`"test_schema"."test_large_number_of_columns"`: 20,
 	}, 30)
@@ -2305,6 +2329,7 @@ END $$;
 }
 
 func TestLiveMigrationWithLargeColumnNames(t *testing.T) {
+	t.Parallel()
 	liveMigrationTest := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
 			Type:         "postgresql",
@@ -2435,8 +2460,6 @@ END $$;
 	err = liveMigrationTest.StartImportData(true, nil)
 	testutils.FatalIfError(t, err, "failed to start import data")
 
-	time.Sleep(5 * time.Second)
-
 	err = liveMigrationTest.WaitForSnapshotComplete(map[string]int64{
 		`"test_schema"."test_large_column_name"`: 20,
 	}, 30)
@@ -2493,6 +2516,7 @@ END $$;
 // This validates the fix for case-sensitivity bug in INTERVAL column lookup
 // Tests: unquoted lowercase, quoted mixed-case, and multiple INTERVAL columns
 func TestLiveMigrationIntervalColumnsFallback(t *testing.T) {
+	t.Parallel()
 	lm := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
 			Type:         "postgresql",
@@ -2563,8 +2587,6 @@ VALUES (INTERVAL '7 years', INTERVAL '120 days', INTERVAL '15 hours', INTERVAL '
 		"--log-level": "debug",
 	})
 	testutils.FatalIfError(t, err, "failed to start import data")
-
-	time.Sleep(10 * time.Second)
 
 	// Wait for snapshot to complete (3 initial rows)
 	err = lm.WaitForSnapshotComplete(map[string]int64{
@@ -2646,6 +2668,7 @@ VALUES (INTERVAL '7 years', INTERVAL '120 days', INTERVAL '15 hours', INTERVAL '
 //   - Both truncate to the same 63-char prefix
 //   - Result: Operations on table "...52" collide with operations on table "...99"
 func TestLiveMigrationWithLargeSchemaAndTableNames(t *testing.T) {
+	t.Parallel()
 	liveMigrationTest := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
 			Type:         "postgresql",
@@ -2796,8 +2819,6 @@ END $$;`,
 	err = liveMigrationTest.StartImportData(true, nil)
 	testutils.FatalIfError(t, err, "failed to start import data")
 
-	time.Sleep(5 * time.Second)
-
 	err = liveMigrationTest.WaitForSnapshotComplete(map[string]int64{
 		`"thisisaverylargenonpublicschema"."thisisaverylargetableinaverylargeschema"`:   10,
 		`"thisisaverylargenonpublicschema"."thisisaverylargetableinaverylargeschema52"`: 10,
@@ -2899,6 +2920,7 @@ END $$;`,
 }
 
 func TestBasicLiveTestForCaseSensitiveSchema(t *testing.T) {
+	t.Parallel()
 	lm := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
 			Type:         "postgresql",
@@ -2968,8 +2990,6 @@ FROM generate_series(1, 5);`,
 	})
 	testutils.FatalIfError(t, err, "failed to start import data")
 
-	time.Sleep(10 * time.Second)
-
 	err = lm.WaitForSnapshotComplete(map[string]int64{
 		`"Test_Schema"."test_live"`: 10,
 	}, 30)
@@ -3029,4 +3049,189 @@ FROM generate_series(1, 5);`,
 		return assertSequenceValues(t, 21, 30, source, `"Test_Schema".test_live`)
 	})
 	testutils.FatalIfError(t, err, "failed to validate sequence restoration")
+}
+
+// TestLiveMigrationWithImportResumptionAfterCutover tests the flow where:
+// 1. Export data from source
+// 2. Import data to target
+// 3. Stop import
+// 4. Issue cutover
+// 5. Check if import data to source has started by confirming PG replication slot deletion
+// 6. Resume import data to target
+// 7. Check if YB replication slot exists
+func TestLiveMigrationWithImportResumptionAfterCutover(t *testing.T) {
+	t.Parallel()
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB: ContainerConfig{
+			Type:         "postgresql",
+			ForLive:      true,
+			DatabaseName: "test_import_resumption_after_cutover",
+		},
+		TargetDB: ContainerConfig{
+			Type:         "yugabytedb",
+			DatabaseName: "test_import_resumption_after_cutover",
+		},
+		SchemaNames: []string{"test_schema"},
+		SchemaSQL: []string{
+			`CREATE SCHEMA IF NOT EXISTS test_schema;
+            CREATE TABLE test_schema.test_live (
+                id SERIAL PRIMARY KEY,
+                name TEXT,
+                email TEXT,
+                description TEXT
+            );`,
+		},
+		SourceSetupSchemaSQL: []string{
+			`ALTER TABLE test_schema.test_live REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			`INSERT INTO test_schema.test_live (name, email, description)
+SELECT
+    md5(random()::text),                                      -- name
+    md5(random()::text) || '@example.com',                    -- email
+    repeat(md5(random()::text), 10)                           -- description (~320 chars)
+FROM generate_series(1, 10);`,
+		},
+		SourceDeltaSQL: []string{
+			`INSERT INTO test_schema.test_live (name, email, description)
+SELECT
+    md5(random()::text),                                      -- name
+    md5(random()::text) || '@example.com',                    -- email
+    repeat(md5(random()::text), 10)                           -- description (~320 chars)
+FROM generate_series(1, 5);`,
+		},
+		TargetDeltaSQL: []string{
+			`INSERT INTO test_schema.test_live (name, email, description)
+SELECT
+    md5(random()::text),                                      -- name
+    md5(random()::text) || '@example.com',                    -- email
+    repeat(md5(random()::text), 10)                           -- description (~320 chars)
+FROM generate_series(1, 5);`,
+		},
+		CleanupSQL: []string{
+			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
+		},
+	})
+
+	defer lm.Cleanup()
+
+	err := lm.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+
+	err = lm.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
+
+	// Export data from source
+	err = lm.StartExportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start export data")
+
+	// Import data to target
+	err = lm.StartImportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start import data")
+
+	// Wait for snapshot to complete
+	err = lm.WaitForSnapshotComplete(map[string]int64{
+		`"test_schema"."test_live"`: 10,
+	}, 30)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+
+	// Validate snapshot data consistency
+	err = lm.ValidateDataConsistency([]string{`test_schema."test_live"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate snapshot data consistency")
+
+	// Stop import
+	err = lm.StopImportData()
+	testutils.FatalIfError(t, err, "failed to stop import data")
+
+	// Execute source delta and wait for it to complete
+	err = lm.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
+
+	time.Sleep(5 * time.Second)
+
+	// Issue cutover
+	err = lm.InitiateCutoverToTarget(true, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover")
+
+	err = lm.InitMetaDB()
+	testutils.FatalIfError(t, err, "failed to initialize meta db")
+
+	msr, err := lm.metaDB.GetMigrationStatusRecord()
+	testutils.FatalIfError(t, err, "failed to get migration status record")
+
+	// Get replication slot names
+	pgSlotName := msr.PGReplicationSlotName
+
+	// Check if PostgreSQL replication slot is ended
+	time.Sleep(5 * time.Second)
+	var exists bool
+	exists, err = lm.CheckIfReplicationSlotExists(pgSlotName, "source")
+	testutils.FatalIfError(t, err, "failed to check if PostgreSQL replication slot exists")
+	assert.False(t, exists, "PostgreSQL replication slot should be ended after cutover")
+
+	// Resume import data to target
+	err = lm.ResumeImportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to resume import data")
+
+	// Wait for forward streaming to complete
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`"test_schema"."test_live"`: {
+			Inserts: 5,
+			Updates: 0,
+			Deletes: 0,
+		},
+	}, 100, 1)
+	testutils.FatalIfError(t, err, "failed to wait for forward streaming complete")
+
+	// Validate streaming data
+	err = lm.ValidateDataConsistency([]string{`test_schema."test_live"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate streaming data consistency")
+
+	// Wait for cutover to complete and validate
+	err = lm.WaitForCutoverComplete(50)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+
+	msr, err = lm.metaDB.GetMigrationStatusRecord()
+	testutils.FatalIfError(t, err, "failed to get migration status record")
+
+	ybSlotName := msr.YBReplicationSlotName
+
+	// YB replication slot should still exist
+	exists, err = lm.CheckIfReplicationSlotExists(ybSlotName, "target")
+	testutils.FatalIfError(t, err, "failed to check if YB replication slot exists")
+	assert.True(t, exists, "YB replication slot should exist after cutover is completed")
+
+	// Execute target delta
+	err = lm.ExecuteTargetDelta()
+	testutils.FatalIfError(t, err, "failed to execute target delta")
+
+	// Wait for fallback streaming to complete
+	err = lm.WaitForFallbackStreamingComplete(map[string]ChangesCount{
+		`"test_schema"."test_live"`: {
+			Inserts: 5,
+			Updates: 0,
+			Deletes: 0,
+		},
+	}, 100, 1)
+	testutils.FatalIfError(t, err, "failed to wait for fallback streaming complete")
+
+	// Validate data consistency after fallback
+	err = lm.ValidateDataConsistency([]string{`test_schema."test_live"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency after fallback")
+
+	// Complete cutover to source
+	err = lm.InitiateCutoverToSource(nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
+
+	err = lm.WaitForCutoverSourceComplete(100)
+	testutils.FatalIfError(t, err, "failed to wait for cutover source complete")
+
+	// YB replication slot should be ended
+	exists, err = lm.CheckIfReplicationSlotExists(ybSlotName, "target")
+	testutils.FatalIfError(t, err, "failed to check if YB replication slot exists")
+	assert.False(t, exists, "YB replication slot should be ended after cutover to source is completed")
+
+	fmt.Printf("\n✅ Live migration with import resumption after cutover completed successfully!\n")
+	fmt.Printf("✅ PostgreSQL replication slot should be ended after cutover\n")
+	fmt.Printf("✅ YB replication slot should still exist after cutover\n")
 }
