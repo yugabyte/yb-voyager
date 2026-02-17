@@ -3237,6 +3237,7 @@ FROM generate_series(1, 5);`,
 }
 
 func TestLiveMigrationChangesOnlyFromPGToYB(t *testing.T) {
+	t.Parallel()
 	lm := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
 			Type:         "postgresql",

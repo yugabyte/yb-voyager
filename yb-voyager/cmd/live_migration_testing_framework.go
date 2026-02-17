@@ -236,6 +236,7 @@ func (lm *LiveMigrationTest) StartExportDataChangesOnly(async bool, extraArgs ma
 	args := []string{
 		"--export-dir", lm.exportDir,
 		"--source-db-schema", strings.Join(lm.config.SchemaNames, ","),
+		"--source-db-name", lm.config.SourceDB.DatabaseName,
 		"--disable-pb", "true",
 		"--export-type", CHANGES_ONLY,
 		"--yes",

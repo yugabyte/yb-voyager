@@ -208,6 +208,7 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 		utils.ErrExit("could not fetch MigrationStatusRecord: %w", err)
 	}
 
+	//Starting table list 
 	err = initialiseImportTableList(importFileTasks, msr)
 	if err != nil {
 		utils.ErrExit("Failed to initialize import table list: %s", err)
@@ -224,7 +225,9 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 		tablesToImport := lo.Ternary(importSnapshotRequired(), importFileTasksToTableNameTuples(importFileTasks), importTableList)
 		checkTablesPresentInTarget(tablesToImport)
 	} else {
+		//Table list after applying table list filter
 		importFileTasks = applyTableListFilter(importFileTasks)
+		importTableList = importFileTasksToTableNameTuples(importFileTasks)
 	}
 
 	if importerRole == TARGET_DB_IMPORTER_ROLE && tconf.EnableUpsert {
