@@ -21,6 +21,7 @@ import (
 	"path/filepath"
 	"time"
 
+	goerrors "github.com/go-errors/errors"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -124,7 +125,7 @@ func initializeNextIteration() error {
 		return fmt.Errorf("failed to get migration status record: %w", err)
 	}
 	if currentMSR.FallForwardEnabled || currentMSR.SourceDBConf.DBType != POSTGRESQL {
-		return fmt.Errorf("fall-forward is not supported for iterative live migration")
+		return goerrors.Errorf("fall-forward is not supported for iterative live migration")
 	}
 	var parentMetaDB *metadb.MetaDB
 	var iterationsDir string
@@ -142,7 +143,7 @@ func initializeNextIteration() error {
 		}
 		iterationsDir = filepath.Join(currentMSR.ParentExportDir, "live-data-migration-iterations")
 		if !utils.FileOrFolderExists(iterationsDir) {
-			return fmt.Errorf("iterations directory does not exist")
+			return goerrors.Errorf("iterations directory does not exist")
 		}
 	}
 	iterationNo := currentMSR.IterationNo + 1

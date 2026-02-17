@@ -141,11 +141,11 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 	utils.PrintAndLogf("export of data for source type as '%s'", source.DBType)
 	sqlname.SourceDBType = source.DBType
 
-	if exportType == CHANGES_ONLY && exporterRole == SOURCE_DB_EXPORTER_ROLE {
-		msr, err := metaDB.GetMigrationStatusRecord()
-		if err != nil {
-			utils.ErrExit("failed to get migration status record: %w", err)
-		}
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("failed to get migration status record: %w", err)
+	}
+	if exportType == CHANGES_ONLY && exporterRole == SOURCE_DB_EXPORTER_ROLE && !msr.IsParentMigration() {
 		password := source.Password
 		source = *msr.SourceDBConf
 		source.Password = password
@@ -858,11 +858,11 @@ func getSequenceInitialValues() (*utils.StructMap[sqlname.NameTuple, int64], err
 	if exportType == CHANGES_ONLY {
 		/*
 			In changes_only case, we need to get the sequence initial values from the DB as we don't export the snapshot.
-			for handling the case 
+			for handling the case
 			Initial value on DB for seq1 on table1 = 110 but there are gaps in the sequence values being used in the table could be because of some deletions or updates.
-			
+
 			Insert on source DB for table1 I(103, 'test1') -- valid insert on source
-			and on debezium we need to maintain the maximum value of sequence to be restored on target 
+			and on debezium we need to maintain the maximum value of sequence to be restored on target
 			so debezium should maintain 110 instead of 103 last value of seq1 for which it needs to know the initial value on DB.
 		*/
 		result, err := getSequenceInitialValuesFromDB()

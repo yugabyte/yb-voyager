@@ -154,7 +154,7 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	if err != nil {
 		utils.ErrExit("failed to get migration status record: %w", err)
 	}
-	if msr.ExportTypeFromSource == CHANGES_ONLY && importerRole == TARGET_DB_IMPORTER_ROLE {
+	if msr.ExportTypeFromSource == CHANGES_ONLY && importerRole == TARGET_DB_IMPORTER_ROLE && !msr.IsParentMigration() {
 		password := tconf.Password
 		tconf = *msr.TargetDBConf
 		tconf.Password = password
