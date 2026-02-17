@@ -324,7 +324,7 @@ func handleSkip(configFilePath, exportDirPath string) {
 func promptFleetControlPlane() string {
 	var fleetOption string
 	err := huh.NewSelect[string]().
-		Title("To assess multiple databases, set up a shared YugabyteDB instance to view all assessments together.").
+		Title("To assess multiple databases, set up a shared YugabyteDB instance (yugabyted UI) to view all assessments together.").
 		Options(
 			huh.NewOption("Use a shared YugabyteDB instance", "fleet"),
 			huh.NewOption("Use local UI", "local"),
