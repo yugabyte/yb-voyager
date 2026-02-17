@@ -93,8 +93,8 @@ func runInit() {
 	// Prompt for source DB details
 	var sourceOption string
 	err = huh.NewSelect[string]().
-		Title("The first step is to assess your source database. How would you like to provide source database details?\n"+
-			"Recommendation: Run assessment against your production database for accurate results.").
+		Title("First, let's assess your source database. How would you like to connect?\n"+
+			"Recommendation: Connect to your production database for accurate results.").
 		Options(
 			huh.NewOption("Enter a connection string", "connection_string"),
 			huh.NewOption("I don't have access to source database from this machine - Get scripts that can be run on another machine.", "generate_scripts"),
@@ -324,12 +324,10 @@ func handleSkip(configFilePath, exportDirPath string) {
 func promptFleetControlPlane() string {
 	var fleetOption string
 	err := huh.NewSelect[string]().
-		Title("If you have a fleet of databases you want to assess, it is recommended to set up\n" +
-			"a common YugabyteDB instance (with yugabyted UI) where you can view all the\n" +
-			"assessments in a single view.").
+		Title("To assess multiple databases, set up a shared YugabyteDB instance to view all assessments together.").
 		Options(
-			huh.NewOption("I have set up a common YugabyteDB instance for viewing fleet assessments.", "fleet"),
-			huh.NewOption("Use local UI for assessment.", "local"),
+			huh.NewOption("Use a shared YugabyteDB instance", "fleet"),
+			huh.NewOption("Use local UI", "local"),
 		).
 		Value(&fleetOption).
 		Run()

@@ -15,10 +15,10 @@ In init:
 
 After explaining that assess is the first step and taking source credentials, we ask a second question/prompt. 
 
-"If you have a fleet of databases you want to assess, it is recommended to set up a common YugabyteDB instance (with yugabyted UI) where you can view all the assessments in a single view."
+"To assess multiple databases, set up a shared YugabyteDB instance to view all assessments together."
 Give the user two options: 
-1. I have set up a common YugabtyeDB instance for viewing fleet assessments. 
-2. Use local UI for assessment. 
+1. Use a shared YugabyteDB instance
+2. Use local UI 
 
 
 If the user chooses option 1, ask for the control plane connection string and set that in the config file for "assessment-control-plane" under assess-migration. 
@@ -49,6 +49,11 @@ Some of this is currently implemented as part of init, let's move that to start-
 Use these for testing out the entire flow. 
 
 Source postgres: postgresql://amakala:password@localhost:5432/db1 You can use db1, db2, db3, no other databases. 
-Target YB: postgresql://yugabyte:yugabyte@localhost:5433 . Create the databases on YB with the same name. Again do not touch any other databases. 
+Target YB: postgresql://yugabyte:yugabyte@localhost:5433/db2 . Create the databases on YB with the same name. Again do not touch any other databases. 
 Control plane: use local control plane - postgresql://yugabyte:yugabyte@localhost:5433
 
+
+postgresql://amakala:password@localhost:5432/db1
+postgresql://yugabyte:yugabyte@localhost:5433/db2
+postgresql://yugabyte:yugabyte@localhost:5433
+yb-voyager start-migration --assessment-control-plane 'postgresql://yugabyte:yugabyte@10.9.15.135:5433' --migration-uuid 'acd1f159-2e9e-40c8-8f93-44d61bd24f54' --migration-dir ./db2-migration

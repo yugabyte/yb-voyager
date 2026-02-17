@@ -106,9 +106,9 @@ Documentation: https://docs.yugabyte.com/preview/yugabyte-voyager/
 
 ══════════════════════════════════════════════════════════════
 
-The first step is to assess your source database.
+First, let's assess your source database.
 
-? How would you like to provide source database details? (Enter empty string to skip and configure later)
+? How would you like to connect? (Enter empty string to skip and configure later)
 It is recommended to run assessment against production database for an accurate assessment.
   1. Enter a connection string
   2. I don't have access to source database. Generate bash/sql scripts that can be run on source database to gather metadata for assessment.
