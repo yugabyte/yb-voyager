@@ -897,7 +897,7 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 		}
 	case *queryparser.Index:
 		index, _ := ddlObj.(*queryparser.Index)
-		if index.AccessMethod == GIN_ACCESS_METHOD {
+		if index.AccessMethod == queryparser.GIN_ACCESS_METHOD {
 			p.isGinIndexPresentInSchema = true
 		}
 
@@ -953,6 +953,19 @@ func (p *ParserIssueDetector) getDDLIssues(query string) ([]QueryIssue, error) {
 	for i := range issues {
 		if issues[i].SqlStatement == "" {
 			issues[i].SqlStatement = query
+		}
+	}
+
+	// Generate recommended SQL for each issue
+	workaroundParseTree := queryparser.CloneParseTree(parseTree)
+	for i := range issues {
+		recommendedSql, err := p.GenerateRecommendedSql(issues[i], workaroundParseTree)
+		if err != nil {
+			log.Warnf("error generating recommended SQL for issue %s: %v", issues[i].Type, err)
+			continue
+		}
+		if recommendedSql != "" {
+			issues[i].Details[RECOMMENDED_SQL] = recommendedSql
 		}
 	}
 
@@ -1379,7 +1392,7 @@ func (p *ParserIssueDetector) addConstraintAsIndex(schemaName, tableName string,
 		IsUnique:   isUnique,
 		// Primary keys and unique constraints use btree by default.
 		//  Mentioned in the docs here:https://www.postgresql.org/docs/current/sql-createtable.html#:~:text=Adding%20a%20PRIMARY%20KEY%20constraint%20will%20automatically%20create%20a%20unique%20btree%20index%20on%20the%20column%20or%20group%20of%20columns%20used%20in%20the%20constraint.%20That%20index%20has%20the%20same%20name%20as%20the%20primary%20key%20constraint
-		AccessMethod: BTREE_ACCESS_METHOD,
+		AccessMethod: queryparser.BTREE_ACCESS_METHOD,
 		Params:       indexParams,
 	}
 

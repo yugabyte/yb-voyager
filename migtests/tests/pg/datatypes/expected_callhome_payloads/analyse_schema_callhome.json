@@ -245,6 +245,42 @@
             "adaptive_parallelism_max": "IGNORED",
             "category": "migration_caveats",
             "impact": "LEVEL_1",
+            "name": "Unsupported datatype for Live migration - timetz",
+            "object_name": "XXXXX",
+            "object_type": "TABLE",
+            "parallel_jobs": "IGNORED",
+            "snapshot_total_bytes": "IGNORED",
+            "target_db_version": "IGNORED",
+            "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_TIMETZ",
+            "yb_cluster_metrics": "IGNORED"
+        },
+        {
+            "ObjectNames": null,
+            "OptimalInsertConnectionsPerNode": "IGNORED",
+            "OptimalSelectConnectionsPerNode": "IGNORED",
+            "SizeInBytes": "IGNORED",
+            "VoyagerVersion": "IGNORED",
+            "adaptive_parallelism_max": "IGNORED",
+            "category": "migration_caveats",
+            "impact": "LEVEL_1",
+            "name": "Unsupported datatype for Live migration - timetz",
+            "object_name": "XXXXX",
+            "object_type": "TABLE",
+            "parallel_jobs": "IGNORED",
+            "snapshot_total_bytes": "IGNORED",
+            "target_db_version": "IGNORED",
+            "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_TIMETZ",
+            "yb_cluster_metrics": "IGNORED"
+        },
+        {
+            "ObjectNames": null,
+            "OptimalInsertConnectionsPerNode": "IGNORED",
+            "OptimalSelectConnectionsPerNode": "IGNORED",
+            "SizeInBytes": "IGNORED",
+            "VoyagerVersion": "IGNORED",
+            "adaptive_parallelism_max": "IGNORED",
+            "category": "migration_caveats",
+            "impact": "LEVEL_1",
             "name": "Unsupported datatype for Live migration - polygon",
             "object_name": "XXXXX",
             "object_type": "TABLE",
@@ -399,7 +435,7 @@
             "yb_cluster_metrics": "IGNORED"
         }
     ],
-    "database_objects": "[{\"ObjectType\":\"DOMAIN\",\"TotalCount\":7,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"EXTENSION\",\"TotalCount\":4,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"SCHEMA\",\"TotalCount\":1,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"SEQUENCE\",\"TotalCount\":29,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"TABLE\",\"TotalCount\":29,\"InvalidCount\":7,\"ObjectNames\":\"\"},{\"ObjectType\":\"TYPE\",\"TotalCount\":10,\"InvalidCount\":0,\"ObjectNames\":\"\"}]",
+    "database_objects": "[{\"ObjectType\":\"DOMAIN\",\"TotalCount\":7,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"EXTENSION\",\"TotalCount\":4,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"SCHEMA\",\"TotalCount\":1,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"SEQUENCE\",\"TotalCount\":29,\"InvalidCount\":0,\"ObjectNames\":\"\"},{\"ObjectType\":\"TABLE\",\"TotalCount\":29,\"InvalidCount\":9,\"ObjectNames\":\"\"},{\"ObjectType\":\"TYPE\",\"TotalCount\":10,\"InvalidCount\":0,\"ObjectNames\":\"\"}]",
     "error": "",
     "control_plane_type": ""
 }

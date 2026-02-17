@@ -63,6 +63,37 @@ func TestPostgresGetAllTableNames(t *testing.T) {
 	testutils.AssertEqualSourceNameSlices(t, expectedTables, actualTables)
 }
 
+func TestPostgresGetColumnsWithSupportedTypes_TimetzExcluded(t *testing.T) {
+	testPostgresSource.TestContainer.ExecuteSqls(
+		`CREATE SCHEMA test_schema;`,
+		`CREATE TABLE test_schema.timetz_table (
+			id INT PRIMARY KEY,
+			reminder_at TIMETZ
+		);`,
+	)
+	defer testPostgresSource.TestContainer.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
+
+	sqlname.SourceDBType = "postgresql"
+	tableList := []sqlname.NameTuple{
+		testutils.CreateNameTupleWithSourceName("test_schema.timetz_table", "test_schema", testPostgresSource.DBType),
+	}
+
+	_ = testPostgresSource.DB().Connect()
+	defer testPostgresSource.DB().Disconnect()
+
+	pgDB := testPostgresSource.DB().(*PostgreSQL)
+	supportedCols, unsupportedCols, err := pgDB.GetColumnsWithSupportedTypes(tableList, true, true)
+	assert.NilError(t, err, "Expected no error")
+
+	supported, exists := supportedCols.Get(tableList[0])
+	assert.Equal(t, true, exists, "Expected test_schema.timetz_table in supported map")
+	testutils.AssertEqualStringSlices(t, []string{"id"}, supported)
+
+	unsupported, exists := unsupportedCols.Get(tableList[0])
+	assert.Equal(t, true, exists, "Expected test_schema.timetz_table in unsupported map")
+	testutils.AssertEqualStringSlices(t, []string{"reminder_at"}, unsupported)
+}
+
 func TestPGGetColumnToSequenceMap(t *testing.T) {
 
 	testPostgresSource.TestContainer.ExecuteSqls(
