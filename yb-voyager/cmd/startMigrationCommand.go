@@ -268,6 +268,30 @@ func continueStartMigration(v *viper.Viper) {
 	printStartMigrationNextSteps(startMigrationConfigFile, v, workflow)
 }
 
+// extractHostIP parses the host_ip field from the control plane, which is stored as
+// JSON like {"SourceDBIP":"::1|127.0.0.1"}. Returns the first usable IP, or the raw
+// string if parsing fails.
+func extractHostIP(rawHostIP string) string {
+	var hostIPMap map[string]string
+	if err := json.Unmarshal([]byte(rawHostIP), &hostIPMap); err == nil {
+		for _, v := range hostIPMap {
+			// The value may be pipe-separated (e.g. "::1|127.0.0.1"); pick the first non-IPv6 one
+			parts := strings.Split(v, "|")
+			for _, p := range parts {
+				p = strings.TrimSpace(p)
+				if p != "" && !strings.Contains(p, ":") {
+					return p
+				}
+			}
+			// If all are IPv6, return the first one
+			if len(parts) > 0 && strings.TrimSpace(parts[0]) != "" {
+				return strings.TrimSpace(parts[0])
+			}
+		}
+	}
+	return rawHostIP
+}
+
 // bootstrapFromControlPlane sets up a new migration project by pulling assessment data
 // from a shared control plane, then continues with the standard start-migration flow.
 func bootstrapFromControlPlane() {
@@ -303,114 +327,109 @@ func bootstrapFromControlPlane() {
 			"Please re-run assess-migration with the latest version of yb-voyager to populate this field.")
 	}
 
-	fmt.Printf("  Found assessment for: %s - %s:%d/%s\n", rec.DBType, rec.HostIP, rec.Port, rec.DatabaseName)
+	// Parse the host_ip JSON to get a usable IP address
+	sourceHost := extractHostIP(rec.HostIP)
+
+	fmt.Printf("  Found assessment for: %s - %s:%d/%s\n", rec.DBType, sourceHost, rec.Port, rec.DatabaseName)
 	fmt.Printf("    Complexity: %s | Issues: %d\n", cpPayload.MigrationComplexity, len(cpPayload.AssessmentIssues))
 	fmt.Println()
 
-	// 2. Prompt for source connection details (password is never stored in control plane)
+	// 2. Prompt for source connection details.
+	// The control plane never stores credentials, so we always ask the user for a
+	// full connection string rather than attempting an unauthenticated connection.
 	var src *sourceConfig
-	sourceConnStr := fmt.Sprintf("postgresql://%s:%d/%s", rec.HostIP, rec.Port, rec.DatabaseName)
-	fmt.Printf("  Verifying source database connectivity to %s:%d/%s...\n", rec.HostIP, rec.Port, rec.DatabaseName)
+	defaultSchema := rec.SchemaName
+	if defaultSchema == "" {
+		defaultSchema = "public"
+	}
 
-	if connErr := validatePostgresConnection(sourceConnStr); connErr != nil {
-		fmt.Println(color.YellowString("  Connection requires authentication or is unreachable."))
-		fmt.Println()
-
-		var userConnStr string
-		for {
-			err := huh.NewInput().
-				Title("Enter the source database connection string").
-				Description(fmt.Sprintf("Source from assessment: %s:%d/%s\nFormat: postgresql://user:password@host:port/dbname", rec.HostIP, rec.Port, rec.DatabaseName)).
-				Value(&userConnStr).
-				Run()
-			if err != nil {
-				utils.ErrExit("prompt failed: %v", err)
+	var userConnStr string
+	for {
+		err := huh.NewInput().
+			Title("Enter your source PostgreSQL connection string").
+			Description(fmt.Sprintf("Source from assessment: %s:%d/%s\nFormat: postgresql://user:password@host:port/dbname", sourceHost, rec.Port, rec.DatabaseName)).
+			Value(&userConnStr).
+			Run()
+		if err != nil {
+			utils.ErrExit("prompt failed: %v", err)
+		}
+		userConnStr = strings.TrimSpace(userConnStr)
+		if userConnStr == "" {
+			fmt.Println(color.YellowString("  No connection string provided. Using assessment details without verification."))
+			src = &sourceConfig{
+				DBType: rec.DBType,
+				Host:   sourceHost,
+				Port:   rec.Port,
+				DBName: rec.DatabaseName,
+				Schema: defaultSchema,
 			}
-			userConnStr = strings.TrimSpace(userConnStr)
-			if userConnStr == "" {
-				fmt.Println(color.YellowString("  No connection string provided. Proceeding without source connection verification."))
+			break
+		}
+
+		parsed, parseErr := parsePostgresConnString(userConnStr)
+		if parseErr != nil {
+			fmt.Println(color.RedString("  Invalid connection string: %v", parseErr))
+			fmt.Println()
+			continue
+		}
+
+		fmt.Printf("  Connecting to %s:%d...\n", parsed.Host, parsed.Port)
+		if err := validatePostgresConnection(userConnStr); err != nil {
+			fmt.Println(color.RedString("  Connection failed: %v", err))
+			fmt.Println()
+
+			var retry bool
+			huh.NewConfirm().
+				Title("Would you like to try again?").
+				Value(&retry).
+				Run()
+			if !retry {
+				fmt.Println(color.YellowString("  Proceeding without verified source connection."))
 				src = &sourceConfig{
 					DBType: rec.DBType,
-					Host:   rec.HostIP,
-					Port:   rec.Port,
-					DBName: rec.DatabaseName,
-					Schema: rec.SchemaName,
+					Host:   parsed.Host,
+					Port:   parsed.Port,
+					DBName: parsed.DBName,
+					User:   parsed.User,
+					Schema: defaultSchema,
 				}
 				break
 			}
-
-			parsed, parseErr := parsePostgresConnString(userConnStr)
-			if parseErr != nil {
-				fmt.Println(color.RedString("  Invalid connection string: %v", parseErr))
-				fmt.Println()
-				continue
-			}
-
-			fmt.Printf("  Connecting to %s:%d...\n", parsed.Host, parsed.Port)
-			if err := validatePostgresConnection(userConnStr); err != nil {
-				fmt.Println(color.RedString("  Connection failed: %v", err))
-				fmt.Println()
-
-				var retry bool
-				huh.NewConfirm().
-					Title("Would you like to try again?").
-					Value(&retry).
-					Run()
-				if !retry {
-					fmt.Println(color.YellowString("  Proceeding without verified source connection."))
-					src = &sourceConfig{
-						DBType: rec.DBType,
-						Host:   rec.HostIP,
-						Port:   rec.Port,
-						DBName: rec.DatabaseName,
-						Schema: rec.SchemaName,
-					}
-					break
-				}
-				continue
-			}
-
-			schemas := parsed.Schema
-			if schemas == "" {
-				schemas = rec.SchemaName
-			}
-			if schemas == "" {
-				schemas = "public"
-			}
-			src = &sourceConfig{
-				DBType:   rec.DBType,
-				Host:     parsed.Host,
-				Port:     parsed.Port,
-				DBName:   parsed.DBName,
-				User:     parsed.User,
-				Password: parsed.Password,
-				Schema:   schemas,
-			}
-			fmt.Println("  " + successLine(fmt.Sprintf("Connected to %s:%d", parsed.Host, parsed.Port)))
-			break
+			continue
 		}
-	} else {
-		fmt.Println("  " + successLine(fmt.Sprintf("Connected to %s:%d", rec.HostIP, rec.Port)))
-		schema := rec.SchemaName
-		if schema == "" {
-			schema = "public"
+
+		schemas := parsed.Schema
+		if schemas == "" {
+			schemas = defaultSchema
 		}
 		src = &sourceConfig{
-			DBType: rec.DBType,
-			Host:   rec.HostIP,
-			Port:   rec.Port,
-			DBName: rec.DatabaseName,
-			Schema: schema,
+			DBType:   rec.DBType,
+			Host:     parsed.Host,
+			Port:     parsed.Port,
+			DBName:   parsed.DBName,
+			User:     parsed.User,
+			Password: parsed.Password,
+			Schema:   schemas,
 		}
+		fmt.Println("  " + successLine(fmt.Sprintf("Connected to %s:%d", parsed.Host, parsed.Port)))
+		break
 	}
 
 	// 3. Create export directory
 	createExportDir(exportDirPath)
 
+	// Suppress noisy INFO logs and stdout prints from metaDB init and HTML generation.
+	prevLevel := log.GetLevel()
+	log.SetLevel(log.WarnLevel)
+	origStdout := os.Stdout
+	devNull, _ := os.Open(os.DevNull)
+	os.Stdout = devNull
+
 	// 4. Write the raw assessment JSON report
 	reportDir := filepath.Join(exportDirPath, "assessment", "reports")
 	jsonReportPath := filepath.Join(reportDir, fmt.Sprintf("%s%s", ASSESSMENT_FILE_NAME, JSON_EXTENSION))
 	if err := os.WriteFile(jsonReportPath, []byte(cpPayload.RawAssessmentJsonReport), 0644); err != nil {
+		os.Stdout = origStdout
 		utils.ErrExit("failed to write assessment report: %v", err)
 	}
 
@@ -434,11 +453,17 @@ func bootstrapFromControlPlane() {
 		record.MigrationAssessmentDone = true
 	})
 	if err != nil {
+		os.Stdout = origStdout
 		utils.ErrExit("failed to update migration status record: %v", err)
 	}
 
+	// Restore stdout and log level
+	devNull.Close()
+	os.Stdout = origStdout
+	log.SetLevel(prevLevel)
+
 	// Print bootstrap summary
-	printBootstrapSummary(rec, configFilePath, exportDirPath)
+	printBootstrapSummary(rec, sourceHost, configFilePath, exportDirPath)
 
 	// 8. Set up config file path for the rest of the flow and continue
 	startMigrationConfigFile = configFilePath
@@ -455,14 +480,14 @@ func bootstrapFromControlPlane() {
 }
 
 // printBootstrapSummary prints progress checkmarks after bootstrapping from the control plane.
-func printBootstrapSummary(rec *yugabyted.AssessmentRecord, configFilePath, exportDirPath string) {
+func printBootstrapSummary(rec *yugabyted.AssessmentRecord, sourceHost, configFilePath, exportDirPath string) {
 	fmt.Println()
 	fmt.Println("  " + titleStyle.Render("Bootstrapping Migration from Control Plane"))
 	fmt.Println("  " + ruleStyle.Render(strings.Repeat("─", ruleWidth)))
 
 	steps := []string{
 		successLine("Connected to assessment control plane"),
-		successLine(fmt.Sprintf("Imported assessment for          %s - %s:%d/%s", rec.DBType, rec.HostIP, rec.Port, rec.DatabaseName)),
+		successLine(fmt.Sprintf("Imported assessment for          %s - %s:%d/%s", rec.DBType, sourceHost, rec.Port, rec.DatabaseName)),
 		successLine("Created migration workspace      " + dimStyle.Render(displayPath(exportDirPath))),
 		successLine("Imported assessment report        " + dimStyle.Render(displayPath(filepath.Join(exportDirPath, "assessment", "reports", ASSESSMENT_FILE_NAME+JSON_EXTENSION)))),
 		successLine("Generated config                 " + dimStyle.Render(displayPath(configFilePath))),
