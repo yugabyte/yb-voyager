@@ -3666,8 +3666,6 @@ func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
 	})
 	testutils.FatalIfError(t, err, "failed to start import data")
 
-	time.Sleep(5 * time.Second)
-	
 	err = lm.WaitForSnapshotComplete(map[string]int64{
 		`"test_schema"."string_edge_cases"`:         6, // 6 rows (5 edge cases + 1 with NULL for transitions)
 		`"test_schema"."json_edge_cases"`:           6, // 6 rows (5 edge cases + 1 with NULL for transitions)
@@ -3684,7 +3682,7 @@ func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
 	}, 240) // Increased timeout for 72 rows
 	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
 
-	err = lm.ValidateDataConsistency([]string{`"test_schema"."string_edge_cases"`, `"test_schema"."json_edge_cases"`, `"test_schema"."enum_edge_cases"`, `"test_schema"."bytes_edge_cases"`, `"test_schema"."datetime_edge_cases"`, `"test_schema"."uuid_ltree_edge_cases"`, `"test_schema"."map_edge_cases"`, `"test_schema"."interval_edge_cases"`, `"test_schema"."zonedtimestamp_edge_cases"`, `"test_schema"."decimal_edge_cases"`, `"test_schema"."integer_edge_cases"`, `"test_schema"."boolean_edge_cases"`}, "id")
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."string_edge_cases"`, `"test_schema"."json_edge_cases"`, `"te st_schema"."enum_edge_cases"`, `"test_schema"."bytes_edge_cases"`, `"test_schema"."datetime_edge_cases"`, `"test_schema"."uuid_ltree_edge_cases"`, `"test_schema"."map_edge_cases"`, `"test_schema"."interval_edge_cases"`, `"test_schema"."zonedtimestamp_edge_cases"`, `"test_schema"."decimal_edge_cases"`, `"test_schema"."integer_edge_cases"`, `"test_schema"."boolean_edge_cases"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate snapshot data consistency")
 
 	err = lm.ExecuteSourceDelta()
@@ -3785,8 +3783,6 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 		"--log-level": "debug",
 	})
 	testutils.FatalIfError(t, err, "failed to start import data")
-
-	time.Sleep(5 * time.Second)
 
 	err = lm.WaitForSnapshotComplete(map[string]int64{
 		`"test_schema"."string_edge_cases"`:         6,

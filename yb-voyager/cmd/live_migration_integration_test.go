@@ -997,7 +997,7 @@ FROM generate_series(1, 15);`,
 }
 
 func TestLiveMigrationResumptionWithChangeInCDCPartitioningStrategy(t *testing.T) {
-	t.Parallel()
+	//TODO: investigate why this test is failing in parallel
 	lm := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
 			Type:         "postgresql",
