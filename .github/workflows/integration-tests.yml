@@ -83,4 +83,4 @@ jobs:
         MYSQL_VERSION: "8.4"
       run: |
         cd yb-voyager
-        go test -v ./... -tags ${{ matrix.test-tags }} -timeout 35m -parallel 5
+        go test -v ./... -tags ${{ matrix.test-tags }} -timeout 35m -parallel 3
