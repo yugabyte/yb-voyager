@@ -6,8 +6,8 @@ set -x
 source ${SCRIPTS}/functions.sh
 
 echo "Creating ${SOURCE_DB_NAME} database on source"
-run_psql postgres "DROP DATABASE IF EXISTS \"${SOURCE_DB_NAME}\";"
-run_psql postgres "CREATE DATABASE \"${SOURCE_DB_NAME}\";"
+run_psql postgres "DROP DATABASE IF EXISTS ${SOURCE_DB_NAME};"
+run_psql postgres "CREATE DATABASE ${SOURCE_DB_NAME};"
 
 echo "Initialising source database."
 
@@ -19,7 +19,7 @@ chmod +x ./snapshot.sh
 if [ -n "${SOURCE_REPLICA_DB_NAME}" ] && [ "${SOURCE_REPLICA_DB_NAME}" != "${SOURCE_DB_NAME}" ];
 then
 	echo "Initialising FF database"
-	run_psql postgres "DROP DATABASE IF EXISTS \"${SOURCE_REPLICA_DB_NAME}\";"
-    run_psql postgres "CREATE DATABASE \"${SOURCE_REPLICA_DB_NAME}\";"
+	run_psql postgres "DROP DATABASE IF EXISTS ${SOURCE_REPLICA_DB_NAME};"
+    run_psql postgres "CREATE DATABASE ${SOURCE_REPLICA_DB_NAME};"
     run_psql ${SOURCE_REPLICA_DB_NAME} "\i schema.sql;"
 fi
