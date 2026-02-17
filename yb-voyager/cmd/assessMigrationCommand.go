@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -61,6 +62,7 @@ var (
 	sourceReadReplicaEndpoints       string                              // CLI flag - package variable for Cobra binding
 	primaryOnly                      bool                                // CLI flag - package variable for Cobra binding
 	replicaDiscoveryInfoForCallhome  *migassessment.ReplicaDiscoveryInfo // Stored for error callhome
+	assessmentControlPlane           string                              // yugabyted connection string for assessment metadata ingestion
 )
 
 var sourceConnectionFlags = []string{
@@ -88,6 +90,14 @@ var assessMigrationCmd = &cobra.Command{
 		if err != nil {
 			utils.ErrExit("failed to get migration UUID: %w", err)
 		}
+
+		// Set up yugabyted control plane for assessment metadata ingestion
+		os.Setenv("YUGABYTED_DB_CONN_STRING", assessmentControlPlane)
+		err = setControlPlane(YUGABYTED)
+		if err != nil {
+			utils.ErrExit("failed to set up assessment control plane: %w", err)
+		}
+
 		validateSourceDBTypeForAssessMigration()
 		setExportFlagsDefaults()
 		validateSourceSchema()
@@ -207,6 +217,9 @@ func init() {
 
 	assessMigrationCmd.Flags().BoolVar(&primaryOnly, "primary-only", false,
 		"assess only the primary database, skip read replica discovery and assessment (only valid for PostgreSQL).")
+
+	assessMigrationCmd.Flags().StringVar(&assessmentControlPlane, "assessment-control-plane", "postgresql://yugabyte:yugabyte@127.0.0.1:5433",
+		"Connection string for the yugabyted control plane to ingest assessment metadata into.")
 }
 
 // createMigrationAssessmentStartedEvent creates a migration assessment started event
@@ -389,11 +402,17 @@ func printAssessMigrationFooter() {
 	phases := computePhaseStatuses(wf, msr, StepAssess)
 
 	configFlag := fmt.Sprintf("--config-file %s", displayPath(cfgFile))
+	uiHost := "localhost"
+	if parsed, err := url.Parse(assessmentControlPlane); err == nil && parsed.Hostname() != "" {
+		uiHost = parsed.Hostname()
+	}
+	uiURL := fmt.Sprintf("http://%s:15433/migrations?migration_uuid=%s", uiHost, migrationUUID.String())
 
 	footer := CommandFooter{
 		SectionTitle: "Assessment Summary",
 		Title:        "Migration assessment completed successfully.",
 		Artifacts:    []string{htmlReport, jsonReport},
+		Links:        []string{uiURL},
 		Summary:      summary,
 		NextStepDesc: []string{"Start the migration workflow:"},
 		NextStepCmd:  fmt.Sprintf("yb-voyager start-migration %s", configFlag),

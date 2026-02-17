@@ -52,6 +52,7 @@ type CommandFooter struct {
 	SectionTitle string          // section heading, e.g., "Assessment Summary"
 	Title        string          // success message, e.g., "Migration assessment completed successfully."
 	Artifacts    []string        // report/output file paths
+	Links        []string        // clickable URLs (e.g., UI dashboard link)
 	Summary      []string        // key-value stat lines (pre-formatted with formatKeyValue)
 	NextStepDesc []string        // description lines for the next step
 	NextStepCmd  string          // CLI command for the next step (rendered with cmdStyle)
@@ -184,6 +185,13 @@ func printCommandFooter(footer CommandFooter) {
 			summary = append(summary, formatKeyValue("Artifacts:", dimStyle.Render(a), kvWidth))
 		} else {
 			summary = append(summary, padding+dimStyle.Render(a))
+		}
+	}
+	for i, link := range footer.Links {
+		if i == 0 {
+			summary = append(summary, formatKeyValue("View in UI:", cmdStyle.Render(link), kvWidth))
+		} else {
+			summary = append(summary, padding+cmdStyle.Render(link))
 		}
 	}
 	summary = append(summary, footer.Summary...)

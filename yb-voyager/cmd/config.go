@@ -90,6 +90,7 @@ var allowedAssessMigrationConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"log-level", "run-guardrails-checks",
 	"iops-capture-interval", "target-db-version", "assessment-metadata-dir",
 	"invoked-by-export-schema",
+	"assessment-control-plane",
 	// environment variables keys
 	"report-unsupported-query-constructs", "report-unsupported-plpgsql-objects",
 )
