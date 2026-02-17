@@ -17,6 +17,7 @@ package metadb
 
 import (
 	"fmt"
+	"path/filepath"
 	"time"
 
 	"github.com/google/uuid"
@@ -97,6 +98,15 @@ type MigrationStatusRecord struct {
 
 	SourceColumnToSequenceMapping map[string]string `json:"SourceColumnToSequenceMapping"`
 	TargetColumnToSequenceMapping map[string]string `json:"TargetColumnToSequenceMapping"`
+
+	//Common details for per migration
+	RestartDataMigrationSourceTargetNextIteration bool   `json:"RestartDataMigrationSourceTargetNextIteration"`
+	ParentExportDir                               string `json:"ParentExportDir"`
+	IterationNo                                   int    `json:"Iteration"`
+
+	//Parent specific details
+	TotalIterations       int `json:"TotalIterations"`
+	LatestIterationNumber int `json:"LatestIterationNumber"`
 }
 
 type CutoverTimingRecord struct {
@@ -157,4 +167,23 @@ func (m *MetaDB) InitMigrationStatusRecord() error {
 
 func (msr *MigrationStatusRecord) IsSnapshotExportedViaDebezium() bool {
 	return msr.SnapshotMechanism == "debezium"
+}
+
+func (msr *MigrationStatusRecord) IsParentMigration() bool {
+	return msr.ParentExportDir == ""
+}
+
+func (msr *MigrationStatusRecord) IsIteration() bool {
+	return msr.ParentExportDir != ""
+}
+
+func (msr *MigrationStatusRecord) GetParentMetaDB() (*MetaDB, error) {
+	return NewMetaDB(msr.ParentExportDir)
+}
+
+func (msr *MigrationStatusRecord) GetIterationDir(exportDir string) string {
+	if msr.IsParentMigration() {
+		return filepath.Join(exportDir, "live-data-migration-iterations")
+	}
+	return filepath.Join(msr.ParentExportDir, "live-data-migration-iterations")
 }

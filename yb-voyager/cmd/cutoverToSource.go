@@ -17,8 +17,11 @@ package cmd
 
 import (
 	"github.com/spf13/cobra"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
+
+var restartSourceToTargetNextIteration utils.BoolStr
 
 var cutoverToSourceCmd = &cobra.Command{
 	Use:   "source",
@@ -37,4 +40,6 @@ func init() {
 	cutoverToCmd.AddCommand(cutoverToSourceCmd)
 	registerExportDirFlag(cutoverToSourceCmd)
 	registerConfigFileFlag(cutoverToSourceCmd)
+	BoolVar(cutoverToSourceCmd.Flags(), &restartSourceToTargetNextIteration, "restart-data-migration-source-target", false,
+		"restart source to target live data migration iteration. Not applicable for fall-forward workflow.")
 }

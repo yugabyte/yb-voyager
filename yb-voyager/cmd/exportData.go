@@ -141,6 +141,15 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 	utils.PrintAndLogf("export of data for source type as '%s'", source.DBType)
 	sqlname.SourceDBType = source.DBType
 
+	if exportType == CHANGES_ONLY && exporterRole == SOURCE_DB_EXPORTER_ROLE {
+		msr, err := metaDB.GetMigrationStatusRecord()
+		if err != nil {
+			utils.ErrExit("failed to get migration status record: %w", err)
+		}
+		password := source.Password
+		source = *msr.SourceDBConf
+		source.Password = password
+	}
 	success := exportData()
 	if success {
 		sendPayloadAsPerExporterRole(COMPLETE, nil)
@@ -149,6 +158,7 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 		color.Green("Export of data complete")
 		log.Info("Export of data completed.")
 		startFallBackSetupIfRequired()
+		startNextIterationImportDataToTarget()
 	} else if ProcessShutdownRequested {
 		log.Info("Shutting down as SIGINT/SIGTERM received.")
 	} else {
@@ -157,6 +167,49 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 		sendPayloadAsPerExporterRole(ERROR, nil)
 		atexit.Exit(1)
 	}
+}
+
+func startNextIterationImportDataToTarget() {
+	if exporterRole != TARGET_DB_EXPORTER_FB_ROLE {
+		return
+	}
+	currentMsr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("failed to get migration status record: %w", err)
+	}
+
+	if !currentMsr.RestartDataMigrationSourceTargetNextIteration {
+		return
+	}
+	//starting import data to target
+
+	lockFile.Unlock() // unlock export dir from import data cmd before switching current process to ff/fb sync cmd
+	iterationsDir := currentMsr.GetIterationDir(exportDir)
+	iterationExportDir := GetIterationExportDir(iterationsDir, currentMsr.IterationNo+1)
+	cmd := []string{"yb-voyager", "import", "data", "to", "target",
+		"--export-dir", iterationExportDir,
+		fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics),
+		"--log-level", config.LogLevel,
+		//TODO: see if we can do better, but these params are required for import data to target cmd
+		"--target-db-name", currentMsr.TargetDBConf.DBName,
+		"--target-db-user", currentMsr.TargetDBConf.User,
+	}
+	cmdStr := "TARGET_DB_PASSWORD=*** " + strings.Join(cmd, " ")
+
+	utils.PrintAndLogf("Starting import data to target with command:\n %s", color.GreenString(cmdStr))
+
+	binary, lookErr := exec.LookPath(os.Args[0])
+	if lookErr != nil {
+		utils.ErrExit("could not find yb-voyager: %w", lookErr)
+	}
+	env := os.Environ()
+	env = slices.Insert(env, 0, "TARGET_DB_PASSWORD="+source.Password)
+
+	execErr := syscall.Exec(binary, cmd, env)
+	if execErr != nil {
+		utils.ErrExit("failed to run yb-voyager export data from source: %w\n Please re-run with command :\n%s", execErr, cmdStr)
+	}
+
 }
 
 func printLiveMigrationLimitations() {

@@ -17,8 +17,11 @@ package cmd
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
@@ -64,6 +67,14 @@ func InitiateCutover(dbRole string, prepareforFallback bool, useYBgRPCConnector 
 	alreadyInitiated := false
 	alreadyInitiatedMsg := fmt.Sprintf("cutover to %s already initiated, wait for it to complete", dbRole)
 
+	if restartSourceToTargetNextIteration {
+		//to start with dummy iteration 1 TODO handle multiple iterations
+		err := initializeNextIteration()
+		if err != nil {
+			return fmt.Errorf("failed to initialize next iteration: %w", err)
+		}
+	}
+
 	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		switch dbRole {
 		case "target":
@@ -105,6 +116,90 @@ func InitiateCutover(dbRole string, prepareforFallback bool, useYBgRPCConnector 
 		utils.PrintAndLogf("%s initiated, wait for it to complete", userFacingActionMsg)
 	}
 	return nil
+}
+
+func initializeNextIteration() error {
+	currentMSR, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		return fmt.Errorf("failed to get migration status record: %w", err)
+	}
+	if currentMSR.FallForwardEnabled || currentMSR.SourceDBConf.DBType != POSTGRESQL {
+		return fmt.Errorf("fall-forward is not supported for iterative live migration")
+	}
+	var parentMetaDB *metadb.MetaDB
+	var iterationsDir string
+	if currentMSR.IsParentMigration() {
+		parentMetaDB = metaDB
+		iterationsDir = filepath.Join(exportDir, "live-data-migration-iterations")
+		err := os.MkdirAll(iterationsDir, 0755)
+		if err != nil {
+			return fmt.Errorf("failed to create iterations directory: %w", err)
+		}
+	} else {
+		parentMetaDB, err = currentMSR.GetParentMetaDB()
+		if err != nil {
+			return fmt.Errorf("failed to get parent meta db: %w", err)
+		}
+		iterationsDir = filepath.Join(currentMSR.ParentExportDir, "live-data-migration-iterations")
+		if !utils.FileOrFolderExists(iterationsDir) {
+			return fmt.Errorf("iterations directory does not exist")
+		}
+	}
+	iterationNo := currentMSR.IterationNo + 1
+
+	parentMSR, err := parentMetaDB.GetMigrationStatusRecord()
+	if err != nil {
+		return fmt.Errorf("failed to get parent migration status record: %w", err)
+	}
+	//Create a new export dir for the next iteration under export_dir int following structure
+
+	iterationExportDir := GetIterationExportDir(iterationsDir, iterationNo)
+	err = os.MkdirAll(iterationExportDir, 0755)
+	if err != nil {
+		return fmt.Errorf("failed to create iteration directory: %w", err)
+	}
+
+	//storing the current metaDB to restore after updating the next iteration's MSR
+	currentMetaDB := metaDB
+	//after this metaDB will be pointing to metadb of next iteration
+	CreateMigrationProjectIfNotExists(parentMSR.SourceDBConf.DBType, iterationExportDir)
+	err = parentMetaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		record.TotalIterations += 1
+		record.LatestIterationNumber = iterationNo
+	})
+	if err != nil {
+		utils.ErrExit("failed to update migration status record: %w", err)
+	}
+
+	err = currentMetaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		record.RestartDataMigrationSourceTargetNextIteration = true
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update migration status record: %w", err)
+	}
+
+	//Update next iteration's MSR
+	err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		record.ParentExportDir = lo.Ternary(currentMSR.IsParentMigration(), exportDir, currentMSR.ParentExportDir)
+		record.IterationNo = iterationNo
+		record.SourceDBConf = currentMSR.SourceDBConf
+		record.TargetDBConf = currentMSR.TargetDBConf
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update iteration migration status record: %w", err)
+	}
+
+	//TODO: config file handling
+
+	//
+
+	metaDB = currentMetaDB
+	return nil
+
+}
+
+func GetIterationExportDir(iterationsDir string, iterationNo int) string {
+	return filepath.Join(iterationsDir, fmt.Sprintf("live-data-migration-iteration-%d", iterationNo), "export-dir")
 }
 
 func markCutoverProcessed(importerOrExporterRole string) error {
