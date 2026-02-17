@@ -619,13 +619,14 @@ initiate-cutover-to-target:
   ### [DO NOT CHANGE]
   prepare-for-fall-back: false
 
-  ### Use the gRPC connector for YB export. 
-  ### If set to false, the logical replication connector (supported in YB versions 2024.1.1+) is used. 
-  ### For this new logical replication based connector, ensure no ALTER TABLE commands causing table rewrites (e.g., adding primary keys) 
-  ### were present in the schema during import
+  ### Applicable to Fall-forward/fall-back workflows where it is required to export changes from YugabyteDB during 'export data from target'. 
+  ### YugabyteDB provides two types of CDC (Change Data Capture) connectors:
+  ### Logical Connector(GA): It does not require access to internal ports. It is recommended for all deployments unless the version is less than 2024.1.1.
+  ### gRPC Connector: Requires direct access to the cluster's internal ports—specifically, TServer (9100) and Master (7100). This connector is suitable for deployments where these ports are accessible.
+  ### If set to true, workflow will use the gRPC connector. Otherwise, the logical connector (GA) (supported in YugabyteDB versions 2024.1.1+) is used.
   ### Accepted values (true, false, yes, no, 0, 1) 
-  ### Default - true
-  use-yb-grpc-connector: true
+  ### Default - false
+  # use-yb-grpc-connector: false
 
 # ---------------------------------------------------------
 # Finalize Schema Post Data Import Configuration

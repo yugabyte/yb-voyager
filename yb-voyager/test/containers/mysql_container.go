@@ -177,6 +177,11 @@ func (ms *MysqlContainer) GetConnection() (*sql.DB, error) {
 	return db, nil
 }
 
+func (ms *MysqlContainer) GetConnectionWithDB(dbName string) (*sql.DB, error) {
+	// Fallback to default connection when dbName not used
+	return ms.GetConnection()
+}
+
 func (ms *MysqlContainer) GetVersion() (string, error) {
 	if ms == nil {
 		return "", fmt.Errorf("mysql container is not started: nil")
@@ -228,4 +233,14 @@ func (ms *MysqlContainer) Query(sql string, args ...interface{}) (*sql.Rows, err
 	}
 
 	return rows, nil
+}
+
+func (ms *MysqlContainer) QueryOnDB(dbName string, sql string, args ...interface{}) (*sql.Rows, error) {
+	//Not implemented
+	return ms.Query(sql, args...)
+}
+
+func (ms *MysqlContainer) ExecuteSqlsOnDB(dbName string, sqls ...string) {
+	//Not implemented
+	ms.ExecuteSqls(sqls...)
 }

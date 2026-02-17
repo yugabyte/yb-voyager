@@ -38,6 +38,7 @@ const (
 	REFERENCED_COLUMN_TYPE       = "ReferencedColumnType"
 	FK_COLUMN_NAMES              = "ForeignKeyColumnNames"
 	REFERENCED_TABLE_NAME        = "ReferencedTableName"
+	RECOMMENDED_SQL              = "RecommendedSQL"
 )
 
 var hotspotsOnDateIndexes = issue.Issue{

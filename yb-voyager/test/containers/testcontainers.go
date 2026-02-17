@@ -32,11 +32,15 @@ type TestContainer interface {
 	GetConfig() ContainerConfig
 	GetConnectionString() string
 	GetConnection() (*sql.DB, error)
+	GetConnectionWithDB(dbName string) (*sql.DB, error)
 	GetVersion() (string, error)
 
 	// SQL helpers
 	Query(sql string, args ...interface{}) (*sql.Rows, error)
 	ExecuteSqls(sqls ...string)
+
+	QueryOnDB(dbName string, sql string, args ...interface{}) (*sql.Rows, error)
+	ExecuteSqlsOnDB(dbName string, sqls ...string)
 
 	SetConfig(config ContainerConfig)
 	/*
@@ -90,9 +94,6 @@ func NewTestContainer(dbType string, containerConfig *ContainerConfig) TestConta
 	containerName := containerConfig.buildContainerName(dbType)
 	if container, exists := containerRegistry[containerName]; exists {
 		log.Infof("container '%s' already exists in the registry", containerName)
-		config := container.GetConfig()
-		config.SetDBName(containerConfig.DBName)
-		container.SetConfig(config)
 		return container
 	}
 

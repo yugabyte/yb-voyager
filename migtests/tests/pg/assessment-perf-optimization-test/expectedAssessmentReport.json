@@ -149,7 +149,7 @@
             "CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
             "Type": "INDEX_ON_COLUMN_WITH_HIGH_PERCENTAGE_OF_NULL_VALUES",
             "Name": "Index on column with a high percentage of NULL values",
-            "Description": "If queries do not filter on NULL values, consider using partial indexes that excludes NULL values. In distributed databases, unnecessary index entries for NULL values can increase write performance and storage usage. This index is built on a column having high percentage of NULL values.",
+            "Description": "If queries do not filter on NULL values, consider using partial indexes that excludes NULL values. In distributed databases, unnecessary index entries for NULL values can increase write performance and storage usage. This index is built on a column having high percentage of NULL values. Use the Recommended SQL in case NULL values are not being queried.\"",
             "Impact": "LEVEL_1",
             "ObjectType": "INDEX",
             "ObjectName": "idxtt ON public.t",
@@ -159,7 +159,8 @@
             "MinimumVersionsFixedIn": null,
             "Details": {
                 "ColumnName": "id2",
-                "FrequencyOfNulls": "100%"
+                "FrequencyOfNulls": "100%",
+                "RecommendedSQL": "CREATE INDEX idxtt ON public.t USING btree (id2) WHERE id2 IS NOT NULL;"
             }
         },
         {
@@ -167,7 +168,7 @@
             "CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
             "Type": "INDEX_ON_COLUMN_WITH_HIGH_PERCENTAGE_OF_NULL_VALUES",
             "Name": "Index on column with a high percentage of NULL values",
-            "Description": "If queries do not filter on NULL values, consider using partial indexes that excludes NULL values. In distributed databases, unnecessary index entries for NULL values can increase write performance and storage usage. This index is built on a column having high percentage of NULL values.",
+            "Description": "If queries do not filter on NULL values, consider using partial indexes that excludes NULL values. In distributed databases, unnecessary index entries for NULL values can increase write performance and storage usage. This index is built on a column having high percentage of NULL values. Use the Recommended SQL in case NULL values are not being queried.\"",
             "Impact": "LEVEL_1",
             "ObjectType": "INDEX",
             "ObjectName": "idx2 ON test.t",
@@ -177,7 +178,8 @@
             "MinimumVersionsFixedIn": null,
             "Details": {
                 "ColumnName": "val1",
-                "FrequencyOfNulls": "50%"
+                "FrequencyOfNulls": "50%",
+                "RecommendedSQL": "CREATE INDEX idx2 ON test.t USING btree (val1) WHERE val1 IS NOT NULL;"
             }
         },
         {

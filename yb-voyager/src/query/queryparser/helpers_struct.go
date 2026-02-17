@@ -25,6 +25,7 @@ import (
 
 	pg_query "github.com/pganalyze/pg_query_go/v6"
 	log "github.com/sirupsen/logrus"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -76,7 +77,7 @@ func GetObjectTypeAndObjectName(parseTree *pg_query.ParseResult) (string, string
 	viewNode, isViewStmt := getCreateViewNode(parseTree)
 	createAsNode, _ := getCreateTableAsStmtNode(parseTree)
 	createTableNode, isCreateTable := getCreateTableStmtNode(parseTree)
-	createIndexNode, isCreateIndex := getCreateIndexStmtNode(parseTree)
+	createIndexNode, isCreateIndex := GetCreateIndexStmtNode(parseTree)
 	alterTableNode, isAlterTable := getAlterStmtNode(parseTree)
 	switch true {
 	case isCreateFunc:
@@ -207,7 +208,7 @@ func getCreateTableStmtNode(parseTree *pg_query.ParseResult) (*pg_query.Node_Cre
 	return node, ok
 }
 
-func getCreateIndexStmtNode(parseTree *pg_query.ParseResult) (*pg_query.Node_IndexStmt, bool) {
+func GetCreateIndexStmtNode(parseTree *pg_query.ParseResult) (*pg_query.Node_IndexStmt, bool) {
 	node, ok := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_IndexStmt)
 	return node, ok
 }
@@ -452,6 +453,24 @@ func DeparseParseTree(parseTree *pg_query.ParseResult) (string, error) {
 	}
 
 	return deparsedStmt, nil
+}
+
+//Deparses with semicolon at the end
+func Deparse(parseTree *pg_query.ParseResult) (string, error) {
+	if parseTree == nil || len(parseTree.Stmts) == 0 {
+		return "", goerrors.Errorf("parse tree is empty or invalid")
+	}
+
+	deparsedStmt, err := pg_query.Deparse(parseTree)
+	if err != nil {
+		return "", fmt.Errorf("error deparsing parse tree: %w", err)
+	}
+
+	return fmt.Sprintf("%s;", deparsedStmt), nil
+}
+
+func CloneParseTree(parseTree *pg_query.ParseResult) *pg_query.ParseResult {
+    return proto.Clone(parseTree).(*pg_query.ParseResult)
 }
 
 func getAConstValue(node *pg_query.Node) string {
