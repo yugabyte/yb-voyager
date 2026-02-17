@@ -189,6 +189,9 @@ func handleConnectionString(configFilePath, exportDirPath string) {
 		schemas = "public"
 	}
 
+	// Prompt for fleet control plane
+	cpConnStr := promptFleetControlPlane()
+
 	// Generate config
 	generateConfigFile(configFilePath, exportDirPath, &sourceConfig{
 		DBType:   "postgresql",
@@ -198,7 +201,7 @@ func handleConnectionString(configFilePath, exportDirPath string) {
 		User:     parsed.User,
 		Password: parsed.Password,
 		Schema:   schemas,
-	}, nil)
+	}, nil, cpConnStr)
 
 	printInitResultBox(parsed, configFilePath, exportDirPath)
 	printInitNextSteps(configFilePath, true, false)
@@ -227,6 +230,7 @@ func handleConnectionStringDirect(configFilePath, exportDirPath, connStr string)
 	}
 
 	// Generate config from template with source details filled in
+	// Non-interactive: no fleet prompt; use default local control plane
 	generateConfigFile(configFilePath, exportDirPath, &sourceConfig{
 		DBType:   "postgresql",
 		Host:     parsed.Host,
@@ -257,8 +261,11 @@ func handleGenerateScripts(configFilePath, exportDirPath string) {
 	oracleScriptsDir := filepath.Join(scriptsDir, "oracle")
 	copyGatherScripts(oracleGatherScriptsInstalledDir, oracleScriptsDir)
 
+	// Prompt for fleet control plane
+	cpConnStr := promptFleetControlPlane()
+
 	// Generate a minimal config (no source connection)
-	generateConfigFile(configFilePath, exportDirPath, nil, nil)
+	generateConfigFile(configFilePath, exportDirPath, nil, nil, cpConnStr)
 
 	fmt.Println()
 	fmt.Println("  " + titleStyle.Render("Initializing Migration Project"))
@@ -285,8 +292,11 @@ func handleGenerateScripts(configFilePath, exportDirPath string) {
 func handleSkip(configFilePath, exportDirPath string) {
 	createExportDir(exportDirPath)
 
+	// Prompt for fleet control plane
+	cpConnStr := promptFleetControlPlane()
+
 	// Generate config with empty source
-	generateConfigFile(configFilePath, exportDirPath, nil, nil)
+	generateConfigFile(configFilePath, exportDirPath, nil, nil, cpConnStr)
 
 	fmt.Println()
 	fmt.Println("  " + titleStyle.Render("Initializing Migration Project"))
@@ -306,6 +316,46 @@ func handleSkip(configFilePath, exportDirPath string) {
 	fmt.Println()
 
 	printInitNextSteps(configFilePath, false, false)
+}
+
+// promptFleetControlPlane asks the user whether they have a fleet of databases to assess
+// and, if so, prompts for a shared control plane connection string. Returns the connection
+// string (empty if the user chose local UI).
+func promptFleetControlPlane() string {
+	var fleetOption string
+	err := huh.NewSelect[string]().
+		Title("If you have a fleet of databases you want to assess, it is recommended to set up\n" +
+			"a common YugabyteDB instance (with yugabyted UI) where you can view all the\n" +
+			"assessments in a single view.").
+		Options(
+			huh.NewOption("I have set up a common YugabyteDB instance for viewing fleet assessments.", "fleet"),
+			huh.NewOption("Use local UI for assessment.", "local"),
+		).
+		Value(&fleetOption).
+		Run()
+	if err != nil {
+		utils.ErrExit("prompt failed: %v", err)
+	}
+
+	if fleetOption == "fleet" {
+		var cpConnString string
+		err := huh.NewInput().
+			Title("Enter the connection string for your assessment control plane").
+			Description("Format: postgresql://user:password@host:port").
+			Placeholder("postgresql://yugabyte:yugabyte@yb-fleet.example.com:5433").
+			Value(&cpConnString).
+			Run()
+		if err != nil {
+			utils.ErrExit("prompt failed: %v", err)
+		}
+		cpConnString = strings.TrimSpace(cpConnString)
+		if cpConnString != "" {
+			return cpConnString
+		}
+		fmt.Println(color.YellowString("  No connection string provided. Using local UI."))
+	}
+
+	return ""
 }
 
 func createExportDir(exportDirPath string) {
@@ -446,7 +496,10 @@ func readConfigTemplate(templateName string) (string, error) {
 
 // generateConfigFile reads the offline-migration.yaml template, fills in the source
 // connection details via string replacement, and writes it as the project config file.
-func generateConfigFile(configFilePath, exportDirPath string, src *sourceConfig, tgt *targetConfig) {
+// assessmentCP is an optional assessment control plane connection string; if non-empty,
+// the assess-migration.assessment-control-plane and yugabyted-control-plane.db-conn-string
+// fields are populated with this value.
+func generateConfigFile(configFilePath, exportDirPath string, src *sourceConfig, tgt *targetConfig, assessmentCP ...string) {
 	content, err := readConfigTemplate("offline-migration.yaml")
 	if err != nil {
 		utils.ErrExit("failed to read config template: %v\n"+
@@ -456,8 +509,34 @@ func generateConfigFile(configFilePath, exportDirPath string, src *sourceConfig,
 	// --- Global replacements ---
 	content = replaceConfigValue(content, "export-dir:", "<export-dir-path>", exportDirPath)
 
-	// --- Remove control plane section (not needed for init POC) ---
-	content = removeSection(content, "Control Plane Configuration", "Source Database Configuration")
+	// --- Control plane section ---
+	// If an assessment control plane connection string was provided, populate the
+	// assess-migration.assessment-control-plane field (not the global control plane config).
+	cpConnStr := ""
+	if len(assessmentCP) > 0 && assessmentCP[0] != "" {
+		cpConnStr = assessmentCP[0]
+	}
+	if cpConnStr != "" {
+		// Try replacing the commented-out placeholder first (new template)
+		newVal := fmt.Sprintf("assessment-control-plane: %s", cpConnStr)
+		replaced := strings.Replace(content,
+			"# assessment-control-plane: postgresql://yugabyte:yugabyte@127.0.0.1:5433",
+			newVal, 1)
+		if replaced != content {
+			content = replaced
+		} else {
+			// Fallback for older templates that don't have the placeholder:
+			// inject the field right after the "assess-migration:" section header.
+			marker := "assess-migration:\n"
+			idx := strings.Index(content, marker)
+			if idx != -1 {
+				insertAt := idx + len(marker)
+				content = content[:insertAt] +
+					fmt.Sprintf("\n  ### Connection string for the assessment control plane\n  %s\n", newVal) +
+					content[insertAt:]
+			}
+		}
+	}
 
 	// --- Source replacements ---
 	if src != nil {

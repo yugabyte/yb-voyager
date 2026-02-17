@@ -695,3 +695,65 @@ func (cp *YugabyteD) executeCmdOnTarget(cmd string) error {
 	}
 	return nil
 }
+
+// AssessmentRecord holds the assessment data fetched from the control plane.
+type AssessmentRecord struct {
+	MigrationUUID uuid.UUID
+	Payload       string // full assessment JSON report
+	DBType        string
+	HostIP        string
+	Port          int
+	DatabaseName  string
+	SchemaName    string
+	Complexity    string
+}
+
+// FetchAssessmentFromControlPlane queries the yugabyted control plane for assessment data
+// by migration UUID. This is a standalone function (not a method on YugabyteD) since it
+// is used during `init` before the full control plane is set up.
+func FetchAssessmentFromControlPlane(connString string, migrationUUID string) (*AssessmentRecord, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	conn, err := pgx.Connect(ctx, connString)
+	if err != nil {
+		return nil, fmt.Errorf("connect to assessment control plane: %w", err)
+	}
+	defer conn.Close(ctx)
+
+	assessPhase := controlPlane.MIGRATION_PHASE_MAP["ASSESS MIGRATION"]
+
+	query := fmt.Sprintf(`SELECT payload, db_type, host_ip, port, database_name, schema_name, complexity
+		FROM %s
+		WHERE migration_uuid = $1 AND migration_phase = $2
+		ORDER BY invocation_sequence DESC
+		LIMIT 1`, QUALIFIED_YUGABYTED_METADATA_TABLE_NAME)
+
+	row := conn.QueryRow(ctx, query, migrationUUID, assessPhase)
+
+	var rec AssessmentRecord
+	var hostIP, dbType, dbName, schemaName, complexity, payload sql.NullString
+	var port sql.NullInt32
+
+	err = row.Scan(&payload, &dbType, &hostIP, &port, &dbName, &schemaName, &complexity)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, fmt.Errorf("no assessment found for migration UUID %s", migrationUUID)
+		}
+		return nil, fmt.Errorf("query assessment from control plane: %w", err)
+	}
+
+	rec.MigrationUUID, err = uuid.Parse(migrationUUID)
+	if err != nil {
+		return nil, fmt.Errorf("parse migration UUID: %w", err)
+	}
+	rec.Payload = payload.String
+	rec.DBType = dbType.String
+	rec.HostIP = hostIP.String
+	rec.Port = int(port.Int32)
+	rec.DatabaseName = dbName.String
+	rec.SchemaName = schemaName.String
+	rec.Complexity = complexity.String
+
+	return &rec, nil
+}

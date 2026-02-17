@@ -117,6 +117,14 @@ func createMigrationAssessmentCompletedEventForYugabyteD() *cp.MigrationAssessme
 		}
 	}
 
+	// Embed the raw AssessmentReport JSON so it can be round-tripped through the control plane
+	rawReportBytes, err := json.Marshal(assessmentReport)
+	if err != nil {
+		utils.PrintAndLogf("Failed to marshal raw assessment report for control plane payload: %s", err)
+	} else {
+		payload.RawAssessmentJsonReport = string(rawReportBytes)
+	}
+
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
 		utils.PrintAndLogf("Failed to serialise the final report to json (ERR IGNORED): %s", err)

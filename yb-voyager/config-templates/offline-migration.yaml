@@ -177,6 +177,10 @@ assess-migration:
   ### Default - true
   # run-guardrails-checks: true  
 
+  ### Connection string for the yugabyted control plane to ingest assessment metadata into.
+  ### Default - postgresql://yugabyte:yugabyte@127.0.0.1:5433
+  # assessment-control-plane: postgresql://yugabyte:yugabyte@127.0.0.1:5433
+
   ### Log level for the command
   ### Note: This overrides the global log-level parameter for this command only.
   ### Accepted values - (trace, debug, info, warn, error, fatal, panic) 

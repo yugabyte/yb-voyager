@@ -1415,8 +1415,9 @@ type AssessMigrationPayloadYugabyteD struct {
 	ColocatedShardedNotes          []string
 	SizingNotes                    []string
 
-	AssessmentJsonReport AssessmentReportYugabyteD // Depreacted: AssessmentJsonReport is deprecated; use the fields directly inside struct
-	Notes                []string                  // Depreacted: Notes is deprecated; use the new fields for notes: GeneralNotes, ColocatedShardedNotes, SizingNotes
+	AssessmentJsonReport    AssessmentReportYugabyteD // Deprecated: use the fields directly inside struct
+	Notes                   []string                  // Deprecated: use the new fields for notes: GeneralNotes, ColocatedShardedNotes, SizingNotes
+	RawAssessmentJsonReport string                    // raw JSON of the on-disk AssessmentReport, for round-tripping through the control plane
 }
 
 // ======================= YUGABYTED-SPECIFIC TYPES =======================

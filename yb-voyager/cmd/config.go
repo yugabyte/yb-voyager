@@ -194,6 +194,11 @@ var allowedImportDataFileConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"min-available-memory-threshold", "max-batch-size-bytes", "ybvoyager-use-task-picker-for-import",
 )
 
+var allowedInitConfigKeys = mapset.NewThreadUnsafeSet[string](
+	"migration-dir", "source-db-connection-string",
+	"assessment-control-plane", "migration-uuid",
+)
+
 var allowedInitCutoverToTargetConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"prepare-for-fall-back", "use-yb-grpc-connector",
 )
@@ -216,6 +221,7 @@ var allowedConfigSections = map[string]mapset.Set[string]{
 	"target":                           allowedTargetConfigKeys,
 	"yugabyted-control-plane":          allowedYugabytedControlPlaneConfigKeys,
 	"ybaeon-control-plane":             allowedYBAeonControlPlaneConfigKeys,
+	"init":                             allowedInitConfigKeys,
 	"assess-migration":                 allowedAssessMigrationConfigKeys,
 	"analyze-schema":                   allowedAnalyzeSchemaConfigKeys,
 	"export-schema":                    allowedExportSchemaConfigKeys,
