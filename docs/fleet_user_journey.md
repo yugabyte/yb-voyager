@@ -16,15 +16,17 @@ In init:
 After explaining that assess is the first step and taking source credentials, we ask a second question/prompt. 
 
 "Choose your assessment control plane."
-"Recommended: To assess multiple databases, set up a shared YugabyteDB instance (yugabyted UI)"
-Link: https://docs.yugabyte.com/stable/quick-start/linux/#install-yugabytedb
+"Voyager stores assessment results in a YugabyteDB instance with a built-in dashboard.
+All assessments on this machine are automatically visible in the local instance.
+To view assessments across multiple machines, use a shared instance."
+Setup link: https://docs.yugabyte.com/stable/quick-start/linux/#install-yugabytedb
 Give the user two options: 
-1. Use a shared YugabyteDB instance
-2. Use a local instance
+1. Local instance (default — no setup needed)
+2. Shared YugabyteDB instance (I'll provide a connection string)
 
 
-If the user chooses option 1, ask for the control plane connection string and set that in the config file for "assessment-control-plane" under assess-migration. 
-If the user chooses option 2, the default local conn string will work. No need to change anything. 
+If the user chooses option 1 (local), the default local conn string will work. No need to change anything.
+If the user chooses option 2 (shared), ask for the control plane connection string and set that in the config file for "assessment-control-plane" under assess-migration. 
 
 
 

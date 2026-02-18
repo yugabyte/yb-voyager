@@ -325,10 +325,10 @@ func promptFleetControlPlane() string {
 	var fleetOption string
 	err := huh.NewSelect[string]().
 		Title("Choose your assessment control plane.").
-		Description("Recommended: To assess multiple databases, set up a shared YugabyteDB instance (yugabyted UI)\nhttps://docs.yugabyte.com/stable/quick-start/linux/#install-yugabytedb").
+		Description("Voyager stores assessment results in a YugabyteDB instance with a built-in dashboard.\nTip: To view assessments for multiple databases in one place, set up a shared instance: https://docs.yugabyte.com/stable/quick-start/linux/#install-yugabytedb").
 		Options(
-			huh.NewOption("Use a shared YugabyteDB instance", "fleet"),
-			huh.NewOption("Use a local instance", "local"),
+			huh.NewOption("Local instance (default — no setup needed)", "local"),
+			huh.NewOption("Shared YugabyteDB instance (I'll provide a connection string)", "fleet"),
 		).
 		Value(&fleetOption).
 		Run()
