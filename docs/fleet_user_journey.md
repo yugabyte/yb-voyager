@@ -55,5 +55,5 @@ Control plane: use local control plane - postgresql://yugabyte:yugabyte@localhos
 
 postgresql://amakala:password@localhost:5432/db1
 postgresql://yugabyte:yugabyte@localhost:5433/db2
-postgresql://yugabyte:yugabyte@localhost:5433
+postgresql://yugabyte:yugabyte@10.9.15.135:5433
 yb-voyager start-migration --assessment-control-plane 'postgresql://yugabyte:yugabyte@10.9.15.135:5433' --migration-uuid 'acd1f159-2e9e-40c8-8f93-44d61bd24f54' --migration-dir ./db2-migration
