@@ -49,10 +49,6 @@ var importCmd = &cobra.Command{
 	Long:  `Import has various sub-commands i.e. import schema, import data to import into YugabyteDB from various compatible source databases(Oracle, MySQL, PostgreSQL). Also import data(snapshot + changes from target) into source-replica/source in case of live migration with fall-back/fall-forward worflows.`,
 }
 
-func init() {
-	rootCmd.AddCommand(importCmd)
-}
-
 // If any changes are made to this function, verify if the change is also needed for importDataFileCommand.go
 func validateImportFlags(cmd *cobra.Command, importerRole string) error {
 	checkOrSetDefaultTargetSSLMode()
@@ -351,9 +347,9 @@ func registerImportSchemaFlags(cmd *cobra.Command) {
 	// --post-snapshot-import and --refresh-mviews flags will now be handled by the command post-data-import-finalize-schema
 	// Not removing these flags and just deprecating them for backward compatibility.
 	cmd.Flags().MarkDeprecated("post-snapshot-import",
-		"use the command 'finalize-schema-post-data-import' instead. \nFor more details, refer to the documentation: \nhttps://docs.yugabyte.com/preview/yugabyte-voyager/reference/schema-migration/finalize-schema-post-data-import/\n")
+		"use the command 'schema finalize-post-data-import' instead. \nFor more details, refer to the documentation: \nhttps://docs.yugabyte.com/preview/yugabyte-voyager/reference/schema-migration/finalize-schema-post-data-import/\n")
 	cmd.Flags().MarkDeprecated("refresh-mviews",
-		"it is no longer supported in the 'import schema' command. Use the 'finalize-schema-post-data-import' command instead. \nFor more details, refer to the documentation: \nhttps://docs.yugabyte.com/preview/yugabyte-voyager/reference/schema-migration/finalize-schema-post-data-import/\n")
+		"it is no longer supported in the 'import schema' command. Use the 'schema finalize-post-data-import' command instead. \nFor more details, refer to the documentation: \nhttps://docs.yugabyte.com/preview/yugabyte-voyager/reference/schema-migration/finalize-schema-post-data-import/\n")
 
 }
 

@@ -111,7 +111,7 @@ func extractYBVersion(versionStr string) (string, error) {
 }
 
 var cutoverToTargetCmd = &cobra.Command{
-	Use:   "target",
+	Use:   "prepare-cutover-to-target",
 	Short: "Initiate cutover to target DB",
 	Long:  `Initiate cutover to target DB`,
 
@@ -171,7 +171,7 @@ var cutoverToTargetCmd = &cobra.Command{
 }
 
 func init() {
-	cutoverToCmd.AddCommand(cutoverToTargetCmd)
+	dataCmd.AddCommand(cutoverToTargetCmd)
 	registerExportDirFlag(cutoverToTargetCmd)
 	registerConfigFileFlag(cutoverToTargetCmd)
 	BoolVar(cutoverToTargetCmd.Flags(), &prepareForFallBack, "prepare-for-fall-back", false,

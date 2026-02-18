@@ -738,11 +738,11 @@ func printInitNextSteps(configFilePath string, connected bool, scripts bool) {
 		lines = append(lines, fmt.Sprintf("%d. Copy the resulting metadata directory back to this machine.", step))
 		step++
 		lines = append(lines, nextStepLabelStyle.Render(fmt.Sprintf("%d. Run assessment:", step)))
-		lines = append(lines, cmdStyle.Render(fmt.Sprintf("   yb-voyager assess-migration --config-file %s --assessment-metadata-dir /path/to/metadata",
+		lines = append(lines, cmdStyle.Render(fmt.Sprintf("   yb-voyager assess run --config-file %s --assessment-metadata-dir /path/to/metadata",
 			displayPath(configFilePath))))
 	} else {
 		lines = append(lines, nextStepLabelStyle.Render("Assess your source database for migration:"))
-		lines = append(lines, cmdStyle.Render(fmt.Sprintf("  yb-voyager assess-migration --config-file %s",
+		lines = append(lines, cmdStyle.Render(fmt.Sprintf("  yb-voyager assess run --config-file %s",
 			displayPath(configFilePath))))
 	}
 

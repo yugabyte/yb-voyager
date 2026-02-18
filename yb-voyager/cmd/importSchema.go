@@ -42,7 +42,7 @@ import (
 )
 
 var importSchemaCmd = &cobra.Command{
-	Use: "schema",
+	Use: "import",
 	Short: "Import schema into the target YugabyteDB database\n" +
 		"For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/schema-migration/import-schema/",
 
@@ -79,7 +79,7 @@ var importSchemaCmd = &cobra.Command{
 }
 
 func init() {
-	importCmd.AddCommand(importSchemaCmd)
+	schemaCmd.AddCommand(importSchemaCmd)
 	registerCommonGlobalFlags(importSchemaCmd)
 	registerCommonImportFlags(importSchemaCmd)
 	registerTargetDBConnFlags(importSchemaCmd)
@@ -274,7 +274,7 @@ func importSchema() error {
 			refreshMViews(conn)
 		}
 	} else {
-		utils.PrintAndLogf("\nNOTE: Materialized Views are not populated by default. To populate them, pass --refresh-mviews while executing `finalize-schema-post-data-import`.")
+		utils.PrintAndLogf("\nNOTE: Materialized Views are not populated by default. To populate them, pass --refresh-mviews while executing `schema finalize-post-data-import`.")
 	}
 
 	importSchemaCompleteEvent := createImportSchemaCompletedEvent()
@@ -328,7 +328,7 @@ func printImportSchemaFooter() {
 		Artifacts:    artifacts,
 		Summary:      summary,
 		NextStepDesc: []string{"Export data from your source database:"},
-		NextStepCmd:  fmt.Sprintf("yb-voyager export data %s", configFlag),
+		NextStepCmd:  fmt.Sprintf("yb-voyager data export-from-source %s", configFlag),
 		Phases:       phases,
 	}
 	printCommandFooter(footer)

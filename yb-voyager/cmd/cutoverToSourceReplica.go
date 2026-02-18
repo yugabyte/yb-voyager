@@ -21,7 +21,7 @@ import (
 )
 
 var cutoverToSourceReplicaCmd = &cobra.Command{
-	Use:   "source-replica",
+	Use:   "prepare-cutover-to-replica",
 	Short: "Initiate cutover to source-replica DB",
 	Long:  `Initiate cutover to source-replica DB`,
 
@@ -34,7 +34,7 @@ var cutoverToSourceReplicaCmd = &cobra.Command{
 }
 
 func init() {
-	cutoverToCmd.AddCommand(cutoverToSourceReplicaCmd)
+	dataCmd.AddCommand(cutoverToSourceReplicaCmd)
 	registerExportDirFlag(cutoverToSourceReplicaCmd)
 	registerConfigFileFlag(cutoverToSourceReplicaCmd)
 }

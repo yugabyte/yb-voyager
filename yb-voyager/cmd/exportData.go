@@ -75,7 +75,7 @@ var exportDataFromCmd = &cobra.Command{
 }
 
 var exportDataFromSrcCmd = &cobra.Command{
-	Use:   "source",
+	Use:   "export-from-source",
 	Short: exportDataCmd.Short,
 	Long:  exportDataCmd.Long,
 	Args:  exportDataCmd.Args,
@@ -86,9 +86,7 @@ var exportDataFromSrcCmd = &cobra.Command{
 }
 
 func init() {
-	exportCmd.AddCommand(exportDataCmd)
-	exportDataCmd.AddCommand(exportDataFromCmd)
-	exportDataFromCmd.AddCommand(exportDataFromSrcCmd)
+	dataCmd.AddCommand(exportDataFromSrcCmd)
 
 	registerCommonGlobalFlags(exportDataCmd)
 	registerCommonGlobalFlags(exportDataFromSrcCmd)
@@ -183,7 +181,7 @@ func printExportDataFooter() {
 		Title:        "Data export completed successfully.",
 		Artifacts:    artifacts,
 		NextStepDesc: []string{"Import data into your target YugabyteDB:"},
-		NextStepCmd:  fmt.Sprintf("yb-voyager import data %s", configFlag),
+		NextStepCmd:  fmt.Sprintf("yb-voyager data import-to-target %s", configFlag),
 		Phases:       phases,
 	}
 	printCommandFooter(footer)

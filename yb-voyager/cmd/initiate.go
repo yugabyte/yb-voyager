@@ -25,6 +25,3 @@ var initiateCmd = &cobra.Command{
 	Long:  "",
 }
 
-func init() {
-	rootCmd.AddCommand(initiateCmd)
-}

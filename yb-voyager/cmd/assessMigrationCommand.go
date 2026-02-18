@@ -80,7 +80,7 @@ var sourceConnectionFlags = []string{
 }
 
 var assessMigrationCmd = &cobra.Command{
-	Use:   "assess-migration",
+	Use:   "run",
 	Short: fmt.Sprintf("Assess the migration from source (%s) database to YugabyteDB.", strings.Join(assessMigrationSupportedDBTypes, ", ")),
 	Long:  fmt.Sprintf("Assess the migration from source (%s) database to YugabyteDB.", strings.Join(assessMigrationSupportedDBTypes, ", ")),
 
@@ -187,7 +187,7 @@ func registerSourceDBConnFlagsForAM(cmd *cobra.Command) {
 }
 
 func init() {
-	rootCmd.AddCommand(assessMigrationCmd)
+	assessCmd.AddCommand(assessMigrationCmd)
 	registerCommonGlobalFlags(assessMigrationCmd)
 	registerSourceDBConnFlagsForAM(assessMigrationCmd)
 

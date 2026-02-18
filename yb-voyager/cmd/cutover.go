@@ -47,9 +47,6 @@ var cutoverToCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.AddCommand(cutoverRootCmd)
-	initiateCmd.AddCommand(cutoverCmd)
-	cutoverCmd.AddCommand(cutoverToCmd)
 	cutoverToCmd.PersistentFlags().BoolVarP(&utils.DoNotPrompt, "yes", "y", false,
 		"assume answer as yes for all questions during migration (default false)")
 	cutoverToCmd.PersistentFlags().MarkHidden("yes") //for non TTY shell e.g jenkins for docker case

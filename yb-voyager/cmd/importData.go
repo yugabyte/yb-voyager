@@ -133,7 +133,7 @@ var importDataToCmd = &cobra.Command{
 }
 
 var importDataToTargetCmd = &cobra.Command{
-	Use:   "target",
+	Use:   "import-to-target",
 	Short: importDataCmd.Short,
 	Long:  importDataCmd.Long,
 	Args:  importDataCmd.Args,
@@ -971,7 +971,7 @@ func printImportDataFooter() {
 		SectionTitle: "Import Data Summary",
 		Title:        "Data import completed successfully.",
 		NextStepDesc: []string{"End the migration and clean up resources:"},
-		NextStepCmd:  fmt.Sprintf("yb-voyager end migration %s", configFlag),
+		NextStepCmd:  fmt.Sprintf("yb-voyager end-migration %s", configFlag),
 		Phases:       phases,
 	}
 	printCommandFooter(footer)
@@ -1803,10 +1803,7 @@ func checkExportDataDoneFlag() {
 }
 
 func init() {
-	// adding child commands to parent import commands
-	importCmd.AddCommand(importDataCmd)
-	importDataCmd.AddCommand(importDataToCmd)
-	importDataToCmd.AddCommand(importDataToTargetCmd)
+	dataCmd.AddCommand(importDataToTargetCmd)
 
 	// adding flags to the `import data` and `import data to target` commands
 	registerFlagsForTarget(importDataCmd)

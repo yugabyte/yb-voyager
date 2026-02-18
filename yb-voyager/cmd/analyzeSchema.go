@@ -1274,7 +1274,7 @@ func printAnalyzeSchemaFooter() {
 		Artifacts:    []string{reportPath},
 		Summary:      summary,
 		NextStepDesc: nextStepDesc,
-		NextStepCmd:  fmt.Sprintf("yb-voyager import schema %s", configFlag),
+		NextStepCmd:  fmt.Sprintf("yb-voyager schema import %s", configFlag),
 		Phases:       phases,
 	}
 	printCommandFooter(footer)
@@ -1399,7 +1399,7 @@ func packAndSendAnalyzeSchemaPayload(status string, errorMsg error) {
 }
 
 var analyzeSchemaCmd = &cobra.Command{
-	Use: "analyze-schema",
+	Use: "analyze",
 	Short: "Analyze converted source database schema and generate a report about YB incompatible constructs.\n" +
 		"For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/schema-migration/analyze-schema/",
 	Long: ``,
@@ -1422,7 +1422,7 @@ var analyzeSchemaCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.AddCommand(analyzeSchemaCmd)
+	schemaCmd.AddCommand(analyzeSchemaCmd)
 	registerCommonGlobalFlags(analyzeSchemaCmd)
 	analyzeSchemaCmd.PersistentFlags().StringVar(&analyzeSchemaReportFormat, "output-format", "",
 		"format in which report can be generated: ('html', 'txt', 'json', 'xml'). If not provided, reports will be generated in both 'json' and 'html' formats by default.")

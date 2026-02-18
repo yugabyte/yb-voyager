@@ -32,22 +32,22 @@ const (
 	SourceReplicaDBConfigPrefix = "source-replica."
 )
 
-var commandsUsingSourceReplicaConfig = []string{"import-data-to-source-replica"}
+var commandsUsingSourceReplicaConfig = []string{"data-import-to-source-replica", "import-data-to-source-replica"}
 var commandsUsingSourceConfig = []string{
-	"assess-migration",
-	"export-schema",
+	"assess-run", "assess-migration",
+	"schema-export", "export-schema",
 	"export-data",
-	"export-data-from-source",
-	"import-data-to-source",
+	"data-export-from-source", "export-data-from-source",
+	"data-import-to-source", "import-data-to-source",
 }
 var commandsUsingTargetConfig = []string{
-	"import-schema",
+	"schema-import", "import-schema",
 	"import-data",
-	"import-data-to-target",
-	"import-data-file",
-	"export-data-from-target",
-	"finalize-schema-post-data-import",
-	"compare-performance",
+	"data-import-to-target", "import-data-to-target",
+	"data-import-file", "import-data-file",
+	"data-export-from-target", "export-data-from-target",
+	"schema-finalize-post-data-import", "finalize-schema-post-data-import",
+	"validate-compare-performance", "compare-performance",
 }
 
 var allowedGlobalConfigKeys = mapset.NewThreadUnsafeSet[string](
@@ -214,7 +214,7 @@ var allowedEndMigrationConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"backup-dir",
 )
 
-// Define allowed nested sections
+// Define allowed nested sections (includes both old config-file names and new command-path keys)
 var allowedConfigSections = map[string]mapset.Set[string]{
 	"source":                           allowedSourceConfigKeys,
 	"source-replica":                   allowedSourceReplicaConfigKeys,
@@ -240,10 +240,24 @@ var allowedConfigSections = map[string]mapset.Set[string]{
 	"end-migration":                    allowedEndMigrationConfigKeys,
 }
 
-// Define mutually exclusive section groups
+// Define mutually exclusive section groups.
+// The new command paths (e.g. "assess-run") are aliased to the config-file section
+// names (e.g. "assess-migration") so existing config files keep working.
 var aliasCommandsPrefixes = [][]string{
-	{"export-data", "export-data-from-source"},
-	{"import-data", "import-data-to-target"},
+	{"assess-run", "assess-migration"},
+	{"schema-export", "export-schema"},
+	{"schema-analyze", "analyze-schema"},
+	{"schema-import", "import-schema"},
+	{"schema-finalize-post-data-import", "finalize-schema-post-data-import"},
+	{"data-export-from-source", "export-data", "export-data-from-source"},
+	{"data-import-to-target", "import-data", "import-data-to-target"},
+	{"data-export-from-target", "export-data-from-target"},
+	{"data-import-to-source", "import-data-to-source"},
+	{"data-import-to-source-replica", "import-data-to-source-replica"},
+	{"data-import-file", "import-data-file"},
+	{"data-prepare-cutover-to-target", "initiate-cutover-to-target"},
+	{"data-archive-changes", "archive-changes"},
+	{"validate-compare-performance", "compare-performance"},
 }
 
 // ConfigFlagOverride represents a CLI flag whose value was set from the config file.

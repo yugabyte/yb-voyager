@@ -28,7 +28,7 @@ import (
 )
 
 var importDataToSourceReplicaCmd = &cobra.Command{
-	Use: "source-replica",
+	Use: "import-to-source-replica",
 	Short: "Import data into source-replica database to prepare for fall-forward.\n" +
 		"For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/live-fall-forward/",
 	Long: ``,
@@ -62,7 +62,7 @@ func setTargetConfSpecifics(cmd *cobra.Command) {
 }
 
 func init() {
-	importDataToCmd.AddCommand(importDataToSourceReplicaCmd)
+	dataCmd.AddCommand(importDataToSourceReplicaCmd)
 	registerCommonGlobalFlags(importDataToSourceReplicaCmd)
 	registerCommonImportFlags(importDataToSourceReplicaCmd)
 	registerSourceReplicaDBAsTargetConnFlags(importDataToSourceReplicaCmd)

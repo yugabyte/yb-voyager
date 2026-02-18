@@ -35,7 +35,7 @@ import (
 var StopArchiverSignal bool
 
 var archiveChangesCmd = &cobra.Command{
-	Use: "changes",
+	Use: "archive-changes",
 	Short: "Delete the already imported changes and optionally archive them before deleting.\n" +
 		"For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/cutover-archive/archive-changes/",
 	Long: `This command limits the disk space used by the locally queued CDC events. Once the changes from the local queue are applied on the target DB (and source-replica DB), they are eligible for deletion. The command gives an option to archive the changes before deleting by moving them to some other directory.
@@ -100,7 +100,7 @@ func archiveChangesCommandFn(cmd *cobra.Command, args []string) {
 }
 
 func init() {
-	archiveCmd.AddCommand(archiveChangesCmd)
+	dataCmd.AddCommand(archiveChangesCmd)
 	registerCommonArchiveFlags(archiveChangesCmd)
 }
 

@@ -41,7 +41,7 @@ import (
 const exportDataStatusMsg = "Export Data Status for SourceDB\n"
 
 var exportDataStatusCmd = &cobra.Command{
-	Use:   "status",
+	Use:   "export-status",
 	Short: "Print status of an ongoing/completed data export.",
 
 	PreRun: func(cmd *cobra.Command, args []string) {
@@ -105,7 +105,7 @@ var exportDataStatusCmd = &cobra.Command{
 var migrationReportFormats = []string{"table", "json"}
 
 func init() {
-	exportDataCmd.AddCommand(exportDataStatusCmd)
+	dataCmd.AddCommand(exportDataStatusCmd)
 	exportDataStatusCmd.Flags().StringVar(&reportOrStatusCmdOutputFormat, "output-format", "table",
 		"format in which report will be generated: (table, json) (default: table)")
 }

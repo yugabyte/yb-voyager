@@ -68,39 +68,39 @@ var offlineWorkflow = &Workflow{
 	Steps: []WorkflowStep{
 		{
 			ID: StepAssess, DisplayName: "Assess Migration", Phase: PhaseAssess,
-			Command: "assess-migration",
+			Command: "assess run",
 			IsDone:  func(msr *metadb.MigrationStatusRecord) bool { return msr.MigrationAssessmentDone },
 		},
 		{
 			ID: StepExportSchema, DisplayName: "Export Schema", Phase: PhaseSchema,
-			Command: "export schema",
+			Command: "schema export",
 			IsDone:  func(msr *metadb.MigrationStatusRecord) bool { return msr.ExportSchemaDone },
 		},
 		{
 			ID: StepAnalyzeSchema, DisplayName: "Analyze Schema", Phase: PhaseSchema,
-			Command: "analyze-schema",
+			Command: "schema analyze",
 			IsDone: func(msr *metadb.MigrationStatusRecord) bool {
 				return schemaIsAnalyzed()
 			},
 		},
 		{
 			ID: StepImportSchema, DisplayName: "Import Schema", Phase: PhaseSchema,
-			Command: "import schema",
+			Command: "schema import",
 			IsDone:  func(msr *metadb.MigrationStatusRecord) bool { return msr.ImportSchemaDone },
 		},
 		{
 			ID: StepExportData, DisplayName: "Export Data", Phase: PhaseData,
-			Command: "export data",
+			Command: "data export-from-source",
 			IsDone:  func(msr *metadb.MigrationStatusRecord) bool { return msr.ExportDataDone },
 		},
 		{
 			ID: StepImportData, DisplayName: "Import Data", Phase: PhaseData,
-			Command: "import data",
+			Command: "data import-to-target",
 			IsDone:  func(msr *metadb.MigrationStatusRecord) bool { return msr.ImportDataDone },
 		},
 		{
 			ID: StepEnd, DisplayName: "End Migration", Phase: PhaseEnd,
-			Command: "end migration",
+			Command: "end-migration",
 			IsDone:  func(msr *metadb.MigrationStatusRecord) bool { return msr.EndMigrationRequested },
 		},
 	},
@@ -112,44 +112,44 @@ var liveWorkflow = &Workflow{
 	Steps: []WorkflowStep{
 		{
 			ID: StepAssess, DisplayName: "Assess Migration", Phase: PhaseAssess,
-			Command: "assess-migration",
+			Command: "assess run",
 			IsDone:  func(msr *metadb.MigrationStatusRecord) bool { return msr.MigrationAssessmentDone },
 		},
 		{
 			ID: StepExportSchema, DisplayName: "Export Schema", Phase: PhaseSchema,
-			Command: "export schema",
+			Command: "schema export",
 			IsDone:  func(msr *metadb.MigrationStatusRecord) bool { return msr.ExportSchemaDone },
 		},
 		{
 			ID: StepAnalyzeSchema, DisplayName: "Analyze Schema", Phase: PhaseSchema,
-			Command: "analyze-schema",
+			Command: "schema analyze",
 			IsDone: func(msr *metadb.MigrationStatusRecord) bool {
 				return schemaIsAnalyzed()
 			},
 		},
 		{
 			ID: StepImportSchema, DisplayName: "Import Schema", Phase: PhaseSchema,
-			Command: "import schema",
+			Command: "schema import",
 			IsDone:  func(msr *metadb.MigrationStatusRecord) bool { return msr.ImportSchemaDone },
 		},
 		{
 			ID: StepExportData, DisplayName: "Export Data", Phase: PhaseData,
-			Command: "export data",
+			Command: "data export-from-source",
 			IsDone:  func(msr *metadb.MigrationStatusRecord) bool { return msr.ExportDataDone },
 		},
 		{
 			ID: StepImportData, DisplayName: "Import Data", Phase: PhaseData,
-			Command: "import data",
+			Command: "data import-to-target",
 			IsDone:  func(msr *metadb.MigrationStatusRecord) bool { return msr.ImportDataDone },
 		},
 		{
 			ID: StepCutoverToTarget, DisplayName: "Cutover to Target", Phase: PhaseData,
-			Command: "initiate-cutover-to-target",
+			Command: "data prepare-cutover-to-target",
 			IsDone:  func(msr *metadb.MigrationStatusRecord) bool { return msr.CutoverProcessedByTargetImporter },
 		},
 		{
 			ID: StepFinalizeSchema, DisplayName: "Finalize Schema", Phase: PhaseSchema,
-			Command: "finalize-schema-post-data-import",
+			Command: "schema finalize-post-data-import",
 			IsDone: func(msr *metadb.MigrationStatusRecord) bool {
 				// Heuristic: not easily detectable from MSR alone.
 				return false
@@ -157,7 +157,7 @@ var liveWorkflow = &Workflow{
 		},
 		{
 			ID: StepEnd, DisplayName: "End Migration", Phase: PhaseEnd,
-			Command: "end migration",
+			Command: "end-migration",
 			IsDone:  func(msr *metadb.MigrationStatusRecord) bool { return msr.EndMigrationRequested },
 		},
 	},
@@ -169,62 +169,62 @@ var liveFallBackWorkflow = &Workflow{
 	Steps: []WorkflowStep{
 		{
 			ID: StepAssess, DisplayName: "Assess Migration", Phase: PhaseAssess,
-			Command: "assess-migration",
+			Command: "assess run",
 			IsDone:  func(msr *metadb.MigrationStatusRecord) bool { return msr.MigrationAssessmentDone },
 		},
 		{
 			ID: StepExportSchema, DisplayName: "Export Schema", Phase: PhaseSchema,
-			Command: "export schema",
+			Command: "schema export",
 			IsDone:  func(msr *metadb.MigrationStatusRecord) bool { return msr.ExportSchemaDone },
 		},
 		{
 			ID: StepAnalyzeSchema, DisplayName: "Analyze Schema", Phase: PhaseSchema,
-			Command: "analyze-schema",
+			Command: "schema analyze",
 			IsDone:  func(msr *metadb.MigrationStatusRecord) bool { return schemaIsAnalyzed() },
 		},
 		{
 			ID: StepImportSchema, DisplayName: "Import Schema", Phase: PhaseSchema,
-			Command: "import schema",
+			Command: "schema import",
 			IsDone:  func(msr *metadb.MigrationStatusRecord) bool { return msr.ImportSchemaDone },
 		},
 		{
 			ID: StepExportData, DisplayName: "Export Data", Phase: PhaseData,
-			Command: "export data",
+			Command: "data export-from-source",
 			IsDone:  func(msr *metadb.MigrationStatusRecord) bool { return msr.ExportDataDone },
 		},
 		{
 			ID: StepImportData, DisplayName: "Import Data", Phase: PhaseData,
-			Command: "import data",
+			Command: "data import-to-target",
 			IsDone:  func(msr *metadb.MigrationStatusRecord) bool { return msr.ImportDataDone },
 		},
 		{
 			ID: StepCutoverToTarget, DisplayName: "Cutover to Target", Phase: PhaseData,
-			Command: "initiate-cutover-to-target",
+			Command: "data prepare-cutover-to-target",
 			IsDone:  func(msr *metadb.MigrationStatusRecord) bool { return msr.CutoverProcessedByTargetImporter },
 		},
 		{
 			ID: StepExportDataFromTgt, DisplayName: "Export Data from Target", Phase: PhaseData,
-			Command: "export data from target",
+			Command: "data export-from-target",
 			IsDone:  func(msr *metadb.MigrationStatusRecord) bool { return msr.ExportFromTargetFallBackStarted },
 		},
 		{
 			ID: StepImportDataToSource, DisplayName: "Import Data to Source", Phase: PhaseData,
-			Command: "import data to source",
+			Command: "data import-to-source",
 			IsDone:  func(msr *metadb.MigrationStatusRecord) bool { return msr.CutoverToSourceProcessedBySourceImporter },
 		},
 		{
 			ID: StepCutoverToSource, DisplayName: "Cutover to Source", Phase: PhaseData,
-			Command: "initiate-cutover-to-source",
+			Command: "data prepare-cutover-to-source",
 			IsDone:  func(msr *metadb.MigrationStatusRecord) bool { return msr.CutoverToSourceRequested },
 		},
 		{
 			ID: StepFinalizeSchema, DisplayName: "Finalize Schema", Phase: PhaseSchema,
-			Command: "finalize-schema-post-data-import",
+			Command: "schema finalize-post-data-import",
 			IsDone:  func(msr *metadb.MigrationStatusRecord) bool { return false },
 		},
 		{
 			ID: StepEnd, DisplayName: "End Migration", Phase: PhaseEnd,
-			Command: "end migration",
+			Command: "end-migration",
 			IsDone:  func(msr *metadb.MigrationStatusRecord) bool { return msr.EndMigrationRequested },
 		},
 	},
@@ -236,62 +236,62 @@ var liveFallForwardWorkflow = &Workflow{
 	Steps: []WorkflowStep{
 		{
 			ID: StepAssess, DisplayName: "Assess Migration", Phase: PhaseAssess,
-			Command: "assess-migration",
+			Command: "assess run",
 			IsDone:  func(msr *metadb.MigrationStatusRecord) bool { return msr.MigrationAssessmentDone },
 		},
 		{
 			ID: StepExportSchema, DisplayName: "Export Schema", Phase: PhaseSchema,
-			Command: "export schema",
+			Command: "schema export",
 			IsDone:  func(msr *metadb.MigrationStatusRecord) bool { return msr.ExportSchemaDone },
 		},
 		{
 			ID: StepAnalyzeSchema, DisplayName: "Analyze Schema", Phase: PhaseSchema,
-			Command: "analyze-schema",
+			Command: "schema analyze",
 			IsDone:  func(msr *metadb.MigrationStatusRecord) bool { return schemaIsAnalyzed() },
 		},
 		{
 			ID: StepImportSchema, DisplayName: "Import Schema", Phase: PhaseSchema,
-			Command: "import schema",
+			Command: "schema import",
 			IsDone:  func(msr *metadb.MigrationStatusRecord) bool { return msr.ImportSchemaDone },
 		},
 		{
 			ID: StepExportData, DisplayName: "Export Data", Phase: PhaseData,
-			Command: "export data",
+			Command: "data export-from-source",
 			IsDone:  func(msr *metadb.MigrationStatusRecord) bool { return msr.ExportDataDone },
 		},
 		{
 			ID: StepImportData, DisplayName: "Import Data", Phase: PhaseData,
-			Command: "import data",
+			Command: "data import-to-target",
 			IsDone:  func(msr *metadb.MigrationStatusRecord) bool { return msr.ImportDataDone },
 		},
 		{
 			ID: StepCutoverToTarget, DisplayName: "Cutover to Target", Phase: PhaseData,
-			Command: "initiate-cutover-to-target",
+			Command: "data prepare-cutover-to-target",
 			IsDone:  func(msr *metadb.MigrationStatusRecord) bool { return msr.CutoverProcessedByTargetImporter },
 		},
 		{
 			ID: StepExportDataFromTgt, DisplayName: "Export Data from Target", Phase: PhaseData,
-			Command: "export data from target",
+			Command: "data export-from-target",
 			IsDone:  func(msr *metadb.MigrationStatusRecord) bool { return msr.ExportFromTargetFallForwardStarted },
 		},
 		{
 			ID: StepImportDataToReplica, DisplayName: "Import Data to Replica", Phase: PhaseData,
-			Command: "import data to source-replica",
+			Command: "data import-to-source-replica",
 			IsDone:  func(msr *metadb.MigrationStatusRecord) bool { return msr.CutoverToSourceReplicaProcessedBySRImporter },
 		},
 		{
 			ID: StepCutoverToReplica, DisplayName: "Cutover to Replica", Phase: PhaseData,
-			Command: "initiate-cutover-to-source-replica",
+			Command: "data prepare-cutover-to-replica",
 			IsDone:  func(msr *metadb.MigrationStatusRecord) bool { return msr.CutoverToSourceReplicaRequested },
 		},
 		{
 			ID: StepFinalizeSchema, DisplayName: "Finalize Schema", Phase: PhaseSchema,
-			Command: "finalize-schema-post-data-import",
+			Command: "schema finalize-post-data-import",
 			IsDone:  func(msr *metadb.MigrationStatusRecord) bool { return false },
 		},
 		{
 			ID: StepEnd, DisplayName: "End Migration", Phase: PhaseEnd,
-			Command: "end migration",
+			Command: "end-migration",
 			IsDone:  func(msr *metadb.MigrationStatusRecord) bool { return msr.EndMigrationRequested },
 		},
 	},

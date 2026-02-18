@@ -19,7 +19,7 @@ import "github.com/spf13/cobra"
 
 // This command serves as an alias for yb-voyager import schema --post-snapshot-import
 var finalizeSchemaPostDataImportCmd = &cobra.Command{
-	Use:   "finalize-schema-post-data-import",
+	Use:   "finalize-post-data-import",
 	Short: "Finalize schema after data import is complete.",
 	Long:  ``,
 	Run: func(cmd *cobra.Command, args []string) {
@@ -31,7 +31,7 @@ var finalizeSchemaPostDataImportCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.AddCommand(finalizeSchemaPostDataImportCmd)
+	schemaCmd.AddCommand(finalizeSchemaPostDataImportCmd)
 	registerCommonGlobalFlags(finalizeSchemaPostDataImportCmd)
 	registerCommonImportFlags(finalizeSchemaPostDataImportCmd)
 	registerTargetDBConnFlags(finalizeSchemaPostDataImportCmd)

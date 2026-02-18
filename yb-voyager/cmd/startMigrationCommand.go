@@ -167,7 +167,7 @@ func continueStartMigration(v *viper.Viper) {
 		if !proceed {
 			fmt.Println()
 			fmt.Println("  Run assessment first:")
-			fmt.Println("  " + cmdStyle.Render(fmt.Sprintf("yb-voyager assess-migration --config-file %s", displayPath(startMigrationConfigFile))))
+			fmt.Println("  " + cmdStyle.Render(fmt.Sprintf("yb-voyager assess run --config-file %s", displayPath(startMigrationConfigFile))))
 			fmt.Println()
 			return
 		}
@@ -867,7 +867,7 @@ func printStartMigrationNextSteps(configFilePath string, v *viper.Viper, workflo
 		lines = append(lines, fmt.Sprintf("%d. Export schema:", step))
 	}
 	lines = append(lines, "")
-	lines = append(lines, cmdStyle.Render(fmt.Sprintf("  yb-voyager export schema \\\n    --config-file %s",
+	lines = append(lines, cmdStyle.Render(fmt.Sprintf("  yb-voyager schema export \\\n    --config-file %s",
 		displayPath(configFilePath))))
 
 	printSection("What's Next", lines...)

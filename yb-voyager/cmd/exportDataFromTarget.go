@@ -33,7 +33,7 @@ import (
 var transactionOrdering utils.BoolStr
 
 var exportDataFromTargetCmd = &cobra.Command{
-	Use:   "target",
+	Use:   "export-from-target",
 	Short: "Export data from target Yugabyte DB in the fall-back/fall-forward workflows.",
 	Long:  ``,
 
@@ -73,7 +73,7 @@ var exportDataFromTargetCmd = &cobra.Command{
 }
 
 func init() {
-	exportDataFromCmd.AddCommand(exportDataFromTargetCmd)
+	dataCmd.AddCommand(exportDataFromTargetCmd)
 	registerCommonGlobalFlags(exportDataFromTargetCmd)
 	registerTargetDBAsSourceConnFlags(exportDataFromTargetCmd)
 	registerExportDataFlags(exportDataFromTargetCmd)

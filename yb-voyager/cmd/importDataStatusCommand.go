@@ -39,7 +39,7 @@ import (
 const importDataStatusMsg = "Import Data Status for TargetDB\n"
 
 var importDataStatusCmd = &cobra.Command{
-	Use:   "status",
+	Use:   "import-status",
 	Short: "Print status of an ongoing/completed import data.",
 	PreRun: func(cmd *cobra.Command, args []string) {
 		validateReportOutputFormat(migrationReportFormats, reportOrStatusCmdOutputFormat)
@@ -73,7 +73,7 @@ var importDataStatusCmd = &cobra.Command{
 var reportOrStatusCmdOutputFormat string
 
 func init() {
-	importDataCmd.AddCommand(importDataStatusCmd)
+	dataCmd.AddCommand(importDataStatusCmd)
 	importDataStatusCmd.Flags().StringVar(&reportOrStatusCmdOutputFormat, "output-format", "table",
 		"format in which report will be generated: (table, json) (default: table)")
 }

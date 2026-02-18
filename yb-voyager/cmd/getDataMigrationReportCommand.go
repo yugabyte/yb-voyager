@@ -42,7 +42,7 @@ var sourceDbPassword string
 var nameRegistryForSourceReplicaRole *namereg.NameRegistry
 
 var getDataMigrationReportCmd = &cobra.Command{
-	Use:   "data-migration-report",
+	Use:   "migration-report",
 	Short: "Print the consolidated report of migration of data.",
 	Long:  `Print the consolidated report of migration of data among different DBs (source / target / source-replica) when export-type 'snapshot-and-changes' is enabled.`,
 	PreRun: func(cmd *cobra.Command, args []string) {
@@ -431,7 +431,7 @@ func getFinalRowCount(row rowData) int64 {
 }
 
 func init() {
-	getCommand.AddCommand(getDataMigrationReportCmd)
+	dataCmd.AddCommand(getDataMigrationReportCmd)
 	registerExportDirFlag(getDataMigrationReportCmd)
 	registerConfigFileFlag(getDataMigrationReportCmd)
 	getDataMigrationReportCmd.PersistentFlags().StringVarP(&config.LogLevel, "log-level", "l", "info",

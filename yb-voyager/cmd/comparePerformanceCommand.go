@@ -262,8 +262,7 @@ func handleStartCleanForComparePerf() error {
 }
 
 func init() {
-	// Register the command with root
-	rootCmd.AddCommand(comparePerformanceCmd)
+	validateCmd.AddCommand(comparePerformanceCmd)
 
 	registerCommonGlobalFlags(comparePerformanceCmd)
 	registerTargetDBConnFlags(comparePerformanceCmd)

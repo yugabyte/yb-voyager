@@ -53,10 +53,6 @@ var exportCmd = &cobra.Command{
 	and export data from target in case of live migration with fall-back/fall-forward workflows.`,
 }
 
-func init() {
-	rootCmd.AddCommand(exportCmd)
-}
-
 func registerCommonExportFlags(cmd *cobra.Command) {
 	BoolVar(cmd.Flags(), &startClean, "start-clean", false,
 		"cleans up the project directory for schema or data files depending on the export command (default false)")

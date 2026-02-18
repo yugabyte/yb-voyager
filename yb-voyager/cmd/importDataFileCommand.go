@@ -58,7 +58,7 @@ var (
 )
 
 var importDataFileCmd = &cobra.Command{
-	Use: "file",
+	Use: "import-file",
 	Short: "This command imports data from given files into YugabyteDB database. The files can be present either in local directories or cloud storages like AWS S3, GCS buckets and Azure blob storage. Incremental data load is also supported.\n" +
 		"For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/bulk-data-load/",
 
@@ -478,7 +478,7 @@ func escapeFileOptsCharsIfRequired() {
 }
 
 func init() {
-	importDataCmd.AddCommand(importDataFileCmd)
+	dataCmd.AddCommand(importDataFileCmd)
 	registerCommonGlobalFlags(importDataFileCmd)
 	registerTargetDBConnFlags(importDataFileCmd)
 	registerImportDataCommonFlags(importDataFileCmd)

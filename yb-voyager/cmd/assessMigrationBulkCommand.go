@@ -95,7 +95,8 @@ func packAndSendAssessMigrationBulkPayload(status string, errorMsg error) {
 	}
 }
 func init() {
-	rootCmd.AddCommand(assessMigrationBulkCmd)
+	// Temporarily hidden during command restructure
+	// rootCmd.AddCommand(assessMigrationBulkCmd)
 
 	// register common global flags
 	BoolVar(assessMigrationBulkCmd.Flags(), &perfProfile, "profile", false,

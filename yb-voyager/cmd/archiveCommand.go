@@ -34,10 +34,6 @@ var archiveCmd = &cobra.Command{
 	Long:  ``,
 }
 
-func init() {
-	rootCmd.AddCommand(archiveCmd)
-}
-
 func registerCommonArchiveFlags(cmd *cobra.Command) {
 	registerCommonGlobalFlags(cmd)
 

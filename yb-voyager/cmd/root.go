@@ -22,6 +22,7 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	goerrors "github.com/go-errors/errors"
@@ -72,11 +73,68 @@ var configKeyValuesToObfuscateInLogs = []string{
 	"source-replica.db-password",
 }
 
+// commandOrder defines the display order for root-level commands, matching the migration journey.
+var commandOrder = []string{
+	"init",
+	"assess",
+	"start-migration",
+	"schema",
+	"data",
+	"validate",
+	"end-migration",
+	"status",
+	"version",
+	"help",
+}
+
+func buildRootHelp(cmd *cobra.Command) string {
+	var b strings.Builder
+	b.WriteString("Migrate your database to YugabyteDB.\n")
+	b.WriteString("  - Assessment  : Assess source database for complexity and sizing\n")
+	b.WriteString("  - Schema      : Export and import schema with auto optimizations\n")
+	b.WriteString("  - Data        : Migrate data offline or live with CDC\n")
+	b.WriteString("  - Validation  : Validate data consistency and performance\n")
+	b.WriteString("\n")
+	b.WriteString(dimStyle.Render("Docs: https://docs.yugabyte.com/preview/yugabyte-voyager/") + "\n")
+	b.WriteString("\n")
+	b.WriteString(titleStyle.Render("Getting started:") + "\n")
+	b.WriteString("  " + cmdStyle.Render("yb-voyager init --migration-dir /path/to/dir") + "\n")
+	b.WriteString("\n")
+	b.WriteString("Available Commands:\n")
+
+	cmdMap := make(map[string]*cobra.Command)
+	for _, c := range cmd.Commands() {
+		if c.IsAvailableCommand() || c.Name() == "help" {
+			cmdMap[c.Name()] = c
+		}
+	}
+	for _, name := range commandOrder {
+		if c, ok := cmdMap[name]; ok {
+			b.WriteString(fmt.Sprintf("  %-18s %s\n", c.Name(), c.Short))
+			delete(cmdMap, name)
+		}
+	}
+	for _, c := range cmd.Commands() {
+		if _, ok := cmdMap[c.Name()]; ok {
+			b.WriteString(fmt.Sprintf("  %-18s %s\n", c.Name(), c.Short))
+		}
+	}
+
+	b.WriteString(fmt.Sprintf("\nFlags:\n%s\nUse \"%s [command] --help\" for more information about a command.\n",
+		cmd.LocalFlags().FlagUsages(), cmd.CommandPath()))
+	return b.String()
+}
+
 var rootCmd = &cobra.Command{
 	Use:   "yb-voyager",
 	Short: "A CLI based migration engine to migrate complete database(schema + data) from some source database to YugabyteDB",
-	Long: `A CLI based migration engine for complete database migration from a source database to YugabyteDB. Currently supported source databases are Oracle, MySQL, PostgreSQL.
-Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like setting up source/target, migration workflow etc.`,
+	Long: `Migrate your database to YugabyteDB.
+  - Assessment  : Assess source database for complexity and sizing
+  - Schema      : Export and import schema with auto optimizations
+  - Data        : Migrate data offline or live with CDC
+  - Validation  : Validate data consistency and performance
+
+Docs: https://docs.yugabyte.com/preview/yugabyte-voyager/`,
 
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		// Initialize the config file (also loads control plane config)
@@ -244,22 +302,21 @@ func startPprofServer() {
 }
 
 var exportDirInitialisedCheckNeededList = []string{
-	"yb-voyager analyze-schema",
-	"yb-voyager import data",
-	"yb-voyager import data to target",
-	"yb-voyager import data to source",
-	"yb-voyager import data to source-replica",
-	"yb-voyager import data status",
-	"yb-voyager export data from target",
-	"yb-voyager export data status",
-	"yb-voyager cutover status",
-	"yb-voyager get data-migration-report",
-	"yb-voyager compare-performance",
-	"yb-voyager archive changes",
-	"yb-voyager end migration",
-	"yb-voyager initiate cutover to source",
-	"yb-voyager initiate cutover to source-replica",
-	"yb-voyager initiate cutover to target",
+	"yb-voyager schema analyze",
+	"yb-voyager data import-to-target",
+	"yb-voyager data import-to-source",
+	"yb-voyager data import-to-source-replica",
+	"yb-voyager data import-status",
+	"yb-voyager data export-from-target",
+	"yb-voyager data export-status",
+	"yb-voyager data cutover-status",
+	"yb-voyager data migration-report",
+	"yb-voyager validate compare-performance",
+	"yb-voyager data archive-changes",
+	"yb-voyager end-migration",
+	"yb-voyager data prepare-cutover-to-source",
+	"yb-voyager data prepare-cutover-to-replica",
+	"yb-voyager data prepare-cutover-to-target",
 }
 
 var noLockNeededList = []string{
@@ -269,18 +326,14 @@ var noLockNeededList = []string{
 	"yb-voyager init",
 	"yb-voyager start-migration",
 	"yb-voyager status",
-	"yb-voyager import",
-	"yb-voyager import data to",
-	"yb-voyager import data status",
-	"yb-voyager export",
-	"yb-voyager export data from",
-	"yb-voyager export data status",
-	"yb-voyager cutover",
-	"yb-voyager cutover status",
-	"yb-voyager get data-migration-report",
-	"yb-voyager initiate",
-	"yb-voyager end",
-	"yb-voyager archive",
+	"yb-voyager assess",
+	"yb-voyager schema",
+	"yb-voyager data",
+	"yb-voyager validate",
+	"yb-voyager data import-status",
+	"yb-voyager data export-status",
+	"yb-voyager data cutover-status",
+	"yb-voyager data migration-report",
 }
 
 var noPersistentPreRunNeededList = []string{
@@ -289,31 +342,23 @@ var noPersistentPreRunNeededList = []string{
 	"yb-voyager help",
 	"yb-voyager init",
 	"yb-voyager start-migration",
-	"yb-voyager import",
-	"yb-voyager import data to",
-	"yb-voyager export",
-	"yb-voyager export data from",
-	"yb-voyager initiate",
-	"yb-voyager initiate cutover",
-	"yb-voyager initiate cutover to",
-	"yb-voyager cutover",
-	"yb-voyager archive",
-	"yb-voyager end",
+	"yb-voyager assess",
+	"yb-voyager schema",
+	"yb-voyager data",
+	"yb-voyager validate",
 }
 
 // used for registering the --config-file flag
 var offlineCommands = []string{
-	"yb-voyager assess-migration",
-	"yb-voyager export schema",
-	"yb-voyager analyze-schema",
-	"yb-voyager import schema",
-	"yb-voyager export data",
-	"yb-voyager export data from source",
-	"yb-voyager import data",
-	"yb-voyager import data to target",
-	"yb-voyager finalize-schema-post-data-import",
-	"yb-voyager end migration",
-	"yb-voyager compare-performance",
+	"yb-voyager assess run",
+	"yb-voyager schema export",
+	"yb-voyager schema analyze",
+	"yb-voyager schema import",
+	"yb-voyager data export-from-source",
+	"yb-voyager data import-to-target",
+	"yb-voyager schema finalize-post-data-import",
+	"yb-voyager end-migration",
+	"yb-voyager validate compare-performance",
 	"yb-voyager status",
 }
 
@@ -332,12 +377,19 @@ func Execute() {
 }
 
 func init() {
-	// Here you will define your flags and configuration settings.
-	// Cobra supports persistent flags, which, if defined here,
-	// will be global for your application.
 	rootCmd.CompletionOptions.DisableDefaultCmd = true
 
+	rootCmd.SetHelpFunc(customHelpFunc)
+
 	callhome.ReadEnvSendDiagnostics()
+}
+
+func customHelpFunc(cmd *cobra.Command, args []string) {
+	if cmd == rootCmd {
+		fmt.Fprint(cmd.OutOrStdout(), buildRootHelp(cmd))
+		return
+	}
+	cmd.Usage()
 }
 
 // Note: assess-migration-bulk and get data-migration-report commands do not call this function.

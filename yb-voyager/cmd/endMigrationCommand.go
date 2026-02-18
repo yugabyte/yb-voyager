@@ -39,7 +39,7 @@ var (
 )
 
 var endMigrationCmd = &cobra.Command{
-	Use:   "migration",
+	Use:   "end-migration",
 	Short: "End the current migration and cleanup all metadata stored in databases(Target, Source-Replica and Source) and export-dir",
 	Long:  "End the current migration and cleanup all metadata stored in databases(Target, Source-Replica and Source) and export-dir",
 
@@ -1000,7 +1000,7 @@ func getFreeDiskSpace(path string) (uint64, error) {
 }
 
 func init() {
-	endCmd.AddCommand(endMigrationCmd)
+	rootCmd.AddCommand(endMigrationCmd)
 
 	BoolVar(endMigrationCmd.Flags(), &backupSchemaFiles, "backup-schema-files", false, "backup migration schema files")
 	BoolVar(endMigrationCmd.Flags(), &backupDataFiles, "backup-data-files", false, "backup snapshot data files")

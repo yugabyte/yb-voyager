@@ -50,7 +50,7 @@ var assessSchemaBeforeExport utils.BoolStr
 var skipPerfOptimizations utils.BoolStr
 
 var exportSchemaCmd = &cobra.Command{
-	Use: "schema",
+	Use: "export",
 	Short: "Export schema from source database into export-dir as .sql files\n" +
 		"For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/schema-migration/export-schema/",
 	Long: ``,
@@ -284,7 +284,7 @@ func printExportSchemaFooter(tableTransformer *sqltransformer.TableFileTransform
 		Title:        "Schema export completed successfully.",
 		Artifacts:    artifacts,
 		NextStepDesc: []string{"Analyze the exported schema for YugabyteDB compatibility:"},
-		NextStepCmd:  fmt.Sprintf("yb-voyager analyze-schema %s", configFlag),
+		NextStepCmd:  fmt.Sprintf("yb-voyager schema analyze %s", configFlag),
 		Phases:       phases,
 	}
 	printCommandFooter(footer)
@@ -385,7 +385,7 @@ func runAssessMigrationCmdBeforExportSchemaIfRequired(exportSchemaCmd *cobra.Com
 }
 
 func init() {
-	exportCmd.AddCommand(exportSchemaCmd)
+	schemaCmd.AddCommand(exportSchemaCmd)
 	registerCommonGlobalFlags(exportSchemaCmd)
 	registerCommonExportFlags(exportSchemaCmd)
 	registerSourceDBConnFlags(exportSchemaCmd, false, true)
