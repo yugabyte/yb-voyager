@@ -10,7 +10,7 @@
       "parallel_jobs": 1,
       "on_primary_key_conflict_action": "ERROR-POLICY",
       "enable_yb_adaptive_parallelism": true,
-      "adaptive_parallelism_max": 2,
+      "adaptive_parallelism_max": 4,
       "error_policy_snapshot": "abort",
       "start_clean": false,
       "data_metrics": {

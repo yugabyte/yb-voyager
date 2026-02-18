@@ -305,14 +305,15 @@ func (yb *TargetYugabyteDB) InitConnPool() error {
 	}
 	log.Infof("targetUriList: %s", utils.GetRedactedURLs(targetUriList))
 
+	nodeCount := len(confs)
 	if yb.Tconf.Parallelism <= 0 {
-		yb.Tconf.Parallelism = fetchDefaultParallelJobs(tconfs, YB_DEFAULT_PARALLELISM_FACTOR)
+		yb.Tconf.Parallelism = yb.fetchDefaultParallelJobs(tconfs, nodeCount)
 		log.Infof("Using %d parallel jobs by default. Use --parallel-jobs to specify a custom value", yb.Tconf.Parallelism)
 	}
 
 	if yb.tconf.AdaptiveParallelismMode.IsEnabled() {
 		if yb.tconf.MaxParallelism <= 0 {
-			yb.tconf.MaxParallelism = yb.tconf.Parallelism * 2
+			yb.tconf.MaxParallelism = yb.tconf.Parallelism * 4
 		}
 	} else {
 		yb.Tconf.MaxParallelism = yb.Tconf.Parallelism
@@ -519,7 +520,7 @@ const BATCH_METADATA_TABLE_SCHEMA = "ybvoyager_metadata"
 const BATCH_METADATA_TABLE_NAME = BATCH_METADATA_TABLE_SCHEMA + "." + "ybvoyager_import_data_batches_metainfo_v3"
 const EVENT_CHANNELS_METADATA_TABLE_NAME = BATCH_METADATA_TABLE_SCHEMA + "." + "ybvoyager_import_data_event_channels_metainfo"
 const EVENTS_PER_TABLE_METADATA_TABLE_NAME = BATCH_METADATA_TABLE_SCHEMA + "." + "ybvoyager_imported_event_count_by_table"
-const YB_DEFAULT_PARALLELISM_FACTOR = 2 // factor for default parallelism in case fetchDefaultParallelJobs() is not able to get the no of cores
+const YB_DEFAULT_CORES_PER_NODE = 4 // assumed vCPUs per node when core detection fails (matches YBAeon default)
 const ALTER_QUERY_RETRY_COUNT = 5
 
 func (yb *TargetYugabyteDB) CreateVoyagerSchema() error {
@@ -1456,20 +1457,17 @@ func fetchCores(tconfs []*TargetConf) (int, error) {
 	return totalCores, nil
 }
 
-func fetchDefaultParallelJobs(tconfs []*TargetConf, defaultParallelismFactor int) int {
+func (yb *TargetYugabyteDB) fetchDefaultParallelJobs(tconfs []*TargetConf, nodeCount int) int {
 	totalCores, err := fetchCores(tconfs)
 	if err != nil {
-		defaultParallelJobs := len(tconfs) * defaultParallelismFactor
-		log.Errorf("error while fetching the cores information and using default parallelism: %v : %v ", defaultParallelJobs, err)
-		return defaultParallelJobs
+		totalCores = nodeCount * YB_DEFAULT_CORES_PER_NODE
+		log.Infof("Could not determine cores, estimating totalCores = %d nodes * %d cores/node = %d",
+			nodeCount, YB_DEFAULT_CORES_PER_NODE, totalCores)
 	}
 	if totalCores == 0 { //if target is running on MacOS, we are unable to determine totalCores
 		return 3
 	}
-	if tconfs[0].TargetDBType == YUGABYTEDB {
-		return totalCores / 4
-	}
-	return totalCores / 2
+	return totalCores / 4
 }
 
 // import session parameters

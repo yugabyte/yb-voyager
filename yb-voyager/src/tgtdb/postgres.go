@@ -234,6 +234,19 @@ func (pg *TargetPostgreSQL) PrepareForStreaming() {
 
 const PG_DEFAULT_PARALLELISM_FACTOR = 8 // factor for default parallelism in case fetchDefaultParallelJobs() is not able to get the no of cores
 
+func (pg *TargetPostgreSQL) fetchDefaultParallelJobs(tconfs []*TargetConf) int {
+	totalCores, err := fetchCores(tconfs)
+	if err != nil {
+		defaultParallelJobs := len(tconfs) * PG_DEFAULT_PARALLELISM_FACTOR
+		log.Errorf("error while fetching the cores information and using default parallelism: %v : %v ", defaultParallelJobs, err)
+		return defaultParallelJobs
+	}
+	if totalCores == 0 { //if target is running on MacOS, we are unable to determine totalCores
+		return 3
+	}
+	return totalCores / 2
+}
+
 func (pg *TargetPostgreSQL) InitConnPool() error {
 	tconfs := []*TargetConf{pg.tconf}
 	var targetUriList []string
@@ -243,7 +256,7 @@ func (pg *TargetPostgreSQL) InitConnPool() error {
 	log.Infof("targetUriList: %s", utils.GetRedactedURLs(targetUriList))
 
 	if pg.tconf.Parallelism == 0 {
-		pg.tconf.Parallelism = fetchDefaultParallelJobs(tconfs, PG_DEFAULT_PARALLELISM_FACTOR)
+		pg.tconf.Parallelism = pg.fetchDefaultParallelJobs(tconfs)
 		log.Infof("Using %d parallel jobs by default. Use --parallel-jobs to specify a custom value", pg.tconf.Parallelism)
 	}
 	params := &ConnectionParams{

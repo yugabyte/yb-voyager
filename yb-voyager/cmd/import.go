@@ -461,9 +461,9 @@ func registerFlagsForTarget(cmd *cobra.Command) {
 	cmd.Flags().Int64Var(&batchSizeInNumRows, "batch-size", 0,
 		fmt.Sprintf("Size of batches in the number of rows generated for ingestion during import. default(%d)", DEFAULT_BATCH_SIZE_YUGABYTEDB))
 	cmd.Flags().IntVar(&tconf.Parallelism, "parallel-jobs", 0,
-		"number of parallel jobs to use while importing data. By default, voyager will try if it can determine the total "+
-			"number of cores N and use N/4 as parallel jobs. "+
-			"Otherwise, it fall back to using twice the number of nodes in the cluster. "+
+		"number of parallel jobs to use while importing data. By default, voyager will try to determine the total "+
+			"number of cores N across the cluster and use N/4 as parallel jobs. "+
+			"If core detection fails, it estimates N using the number of nodes * 4 vCPUs per node. "+
 			"Any value less than 1 reverts to the default calculation.")
 
 	cmd.Flags().Var(&tconf.AdaptiveParallelismMode, "adaptive-parallelism",
@@ -477,7 +477,7 @@ func registerFlagsForTarget(cmd *cobra.Command) {
 
 	cmd.Flags().IntVar(&tconf.MaxParallelism, "adaptive-parallelism-max", 0,
 		"number of max parallel jobs to use while importing data when adaptive parallelism is enabled. "+
-			"By default, voyager will try if it can determine the total number of cores N and use N/2 as the max parallel jobs.")
+			"By default, voyager will try to determine the total number of cores N and use N as the max parallel jobs.")
 	BoolVar(cmd.Flags(), &skipReplicationChecks, "skip-replication-checks", false,
 		"It is NOT recommended to have any form of replication (CDC/xCluster) running on the target YugabyteDB cluster during data import. "+
 			"If detected, data import is aborted. Use this flag to turn off the checks and continue importing data.")
