@@ -396,12 +396,12 @@ func (t *Transformer) AddPartialClauseForFilteringNULL(parseTree *pg_query.Parse
 	firstParam := indexStmt.IndexParams[0]
 	if firstParam == nil || firstParam.GetIndexElem() == nil {
 		return nil, goerrors.Errorf("first index parameter is nil or not an IndexElem")
-	}	
+	}
 	colName := firstParam.GetIndexElem().GetName()
 	if colName == "" {
 		return nil, goerrors.Errorf("first index parameter is an expression, not a column")
 	}
-	
+
 	isNotNullNode := &pg_query.Node{
 		Node: &pg_query.Node_NullTest{
 			NullTest: &pg_query.NullTest{
@@ -420,6 +420,48 @@ func (t *Transformer) AddPartialClauseForFilteringNULL(parseTree *pg_query.Parse
 		)
 	} else {
 		indexStmt.WhereClause = isNotNullNode
+	}
+
+	return parseTree, nil
+}
+
+// WHERE <col> <> <value> clause to filter out a particular frequent value from first column of the index
+func (t *Transformer) AddPartialClauseForFilteringValue(parseTree *pg_query.ParseResult, value string, columnDataType string) (*pg_query.ParseResult, error) {
+	indexNode, ok := queryparser.GetCreateIndexStmtNode(parseTree)
+	if !ok {
+		return nil, goerrors.Errorf("not a CREATE INDEX statement")
+	}
+	indexStmt := indexNode.IndexStmt
+
+	// Get the first column name from index params
+	firstParam := indexStmt.IndexParams[0]
+	if firstParam == nil || firstParam.GetIndexElem() == nil {
+		return nil, goerrors.Errorf("first index parameter is nil or not an IndexElem")
+	}
+	colName := firstParam.GetIndexElem().GetName()
+	if colName == "" {
+		return nil, goerrors.Errorf("first index parameter is an expression, not a column")
+	}
+
+	// Build <col> <> <value> node
+	valueNode := queryparser.MakeAConstValueNode(value, columnDataType)
+	notEqualNode := pg_query.MakeAExprNode(
+		pg_query.A_Expr_Kind_AEXPR_OP,
+		[]*pg_query.Node{pg_query.MakeStrNode("<>")},
+		pg_query.MakeColumnRefNode([]*pg_query.Node{pg_query.MakeStrNode(colName)}, -1),
+		valueNode,
+		-1,
+	)
+
+	// AND with existing WHERE clause, or set as the new WHERE clause
+	if indexStmt.WhereClause != nil {
+		indexStmt.WhereClause = pg_query.MakeBoolExprNode(
+			pg_query.BoolExprType_AND_EXPR,
+			[]*pg_query.Node{indexStmt.WhereClause, notEqualNode},
+			-1,
+		)
+	} else {
+		indexStmt.WhereClause = notEqualNode
 	}
 
 	return parseTree, nil

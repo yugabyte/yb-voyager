@@ -956,7 +956,7 @@ func (p *ParserIssueDetector) getDDLIssues(query string) ([]QueryIssue, error) {
 		}
 	}
 
-	// Generate recommended SQL for each issue
+	// Generate recommended SQL for issues
 	workaroundParseTree := queryparser.CloneParseTree(parseTree)
 	for i := range issues {
 		recommendedSql, err := p.GenerateRecommendedSql(issues[i], workaroundParseTree)

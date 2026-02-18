@@ -19,8 +19,6 @@ package queryissue
 import (
 	"fmt"
 
-	"github.com/samber/lo"
-
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/issue"
 )
@@ -181,7 +179,7 @@ var mostFrequentValueIndexIssue = issue.Issue{
 	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-column-with-high-percentage-of-a-particular-value",
 }
 
-func NewMostFrequentValueIndexesIssue(objectType string, objectName string, sqlStatement string, isSingleColumnIndex bool, value string, frequency int, columnName string, usageCategory string) QueryIssue {
+func NewMostFrequentValueIndexesIssue(objectType string, objectName string, sqlStatement string, isSingleColumnIndex bool, value string, frequency int, columnName string, columnType string, usageCategory string) QueryIssue {
 	issue := mostFrequentValueIndexIssue
 	if isSingleColumnIndex {
 		issue.Description = fmt.Sprintf("%s %s", MOST_FREQUENT_VALUE_INDEX_DESCRIPTION, MOST_FREQUENT_VALUE_INDEX_DESCRIPTION_SINGLE_COLUMN)
@@ -190,9 +188,10 @@ func NewMostFrequentValueIndexesIssue(objectType string, objectName string, sqlS
 
 	}
 	details := map[string]interface{}{
-		VALUE:              lo.Ternary(value != "", value, `' '`),
+		VALUE:              value,
 		FREQUENCY_OF_VALUE: fmt.Sprintf("%d%%", frequency),
 		COLUMN_NAME:        columnName,
+		COLUMN_TYPE:        columnType,
 	}
 	return newQueryIssueWithUsageCategory(issue, objectType, objectName, sqlStatement, details, usageCategory)
 }
