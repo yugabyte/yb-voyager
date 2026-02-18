@@ -40,7 +40,6 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp/ybaeon"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp/yugabyted"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/lockfile"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -162,6 +161,7 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 				msrVoyagerVersionString := msr.VoyagerVersion
 
 				detectVersionCompatibility(msrVoyagerVersionString, exportDir)
+
 			}
 
 			if perfProfile {
@@ -174,9 +174,6 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			}
 		}
 
-		metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
-			record.ConfigFile = cfgFile
-		})
 		// Log the flag values set from the config file
 		for _, f := range overrides {
 			if slices.Contains(configKeyValuesToObfuscateInLogs, f.ConfigKey) {

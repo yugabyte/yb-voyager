@@ -152,13 +152,17 @@ func (m *MetaDB) GetMigrationStatusRecord() (*MigrationStatusRecord, error) {
 	return record, nil
 }
 
-func (m *MetaDB) InitMigrationStatusRecord() error {
+func (m *MetaDB) InitMigrationStatusRecord(cfgFile string) error {
 	return m.UpdateMigrationStatusRecord(func(record *MigrationStatusRecord) {
 		if record != nil && record.MigrationUUID != "" {
 			return // already initialized
 		}
 		if record.VoyagerVersion == "" {
 			record.VoyagerVersion = utils.YB_VOYAGER_VERSION
+		}
+
+		if record.ConfigFile == "" {
+			record.ConfigFile = cfgFile
 		}
 
 		record.MigrationUUID = uuid.New().String()

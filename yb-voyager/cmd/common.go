@@ -500,7 +500,7 @@ func initMetaDB(migrationExportDir string) *metadb.MetaDB {
 	if err != nil {
 		utils.ErrExit("failed to initialize meta db: %s", err)
 	}
-	err = metaDBInstance.InitMigrationStatusRecord()
+	err = metaDBInstance.InitMigrationStatusRecord(cfgFile)
 	if err != nil {
 		utils.ErrExit("could not init migration status record: %w", err)
 	}
