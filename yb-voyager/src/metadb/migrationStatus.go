@@ -103,6 +103,7 @@ type MigrationStatusRecord struct {
 	RestartDataMigrationSourceTargetNextIteration bool   `json:"RestartDataMigrationSourceTargetNextIteration"`
 	ParentExportDir                               string `json:"ParentExportDir"`
 	IterationNo                                   int    `json:"Iteration"`
+	ConfigFile                                    string `json:"ConfigFile"`
 
 	//Parent specific details
 	TotalIterations       int `json:"TotalIterations"`
@@ -181,7 +182,7 @@ func (msr *MigrationStatusRecord) GetParentMetaDB() (*MetaDB, error) {
 	return NewMetaDB(msr.ParentExportDir)
 }
 
-func (msr *MigrationStatusRecord) GetIterationDir(exportDir string) string {
+func (msr *MigrationStatusRecord) GetIterationsDir(exportDir string) string {
 	if msr.IsParentMigration() {
 		return filepath.Join(exportDir, "live-data-migration-iterations")
 	}

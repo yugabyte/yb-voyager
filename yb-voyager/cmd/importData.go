@@ -218,7 +218,7 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 		utils.ErrExit("could not fetch MigrationStatusRecord: %w", err)
 	}
 
-	//Starting table list 
+	//Starting table list
 	err = initialiseImportTableList(importFileTasks, msr)
 	if err != nil {
 		utils.ErrExit("Failed to initialize import table list: %s", err)
@@ -290,19 +290,33 @@ func startExportDataFromSourceOnNextIteration() {
 	})
 
 	lockFile.Unlock() // unlock export dir from import data cmd before switching current process to ff/fb sync cmd
-	iterationsDir := currentMsr.GetIterationDir(exportDir)
+	iterationsDir := currentMsr.GetIterationsDir(exportDir)
 	iterationExportDir := GetIterationExportDir(iterationsDir, currentMsr.IterationNo+1)
-	cmd := []string{"yb-voyager", "export", "data", "from", "source",
-		"--export-dir", iterationExportDir,
-		fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics),
-		"--log-level", config.LogLevel,
-		"--table-list", strings.Join(importTableNames, ","),
-		"--export-type", CHANGES_ONLY,
+	cmd := []string{"yb-voyager", "export", "data", "from", "source"}
+	iterationMetadb, err := metadb.NewMetaDB(iterationExportDir)
+	if err != nil {
+		utils.ErrExit("failed to create iteration meta db: %w", err)
+	}
+	iterationMsr, err := iterationMetadb.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("failed to get iteration migration status record: %w", err)
+	}
+	if iterationMsr.ConfigFile != "" {
+		cmd = append(cmd, "--config-file", iterationMsr.ConfigFile)
+		//TODO: handle overrides for the command
+		cmd = append(cmd, "--table-list", strings.Join(importTableNames, ","))
+
+	} else {
+		cmd = append(cmd, "--export-dir", iterationExportDir)
+		cmd = append(cmd, fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics))
+		cmd = append(cmd, "--log-level", config.LogLevel)
+		cmd = append(cmd, "--table-list", strings.Join(importTableNames, ","))
+		cmd = append(cmd, "--export-type", CHANGES_ONLY)
 		//TODO: see if we can do better, but these params are required for import data to target cmd
-		"--source-db-type", currentMsr.SourceDBConf.DBType,
-		"--source-db-name", currentMsr.SourceDBConf.DBName,
-		"--source-db-user", currentMsr.SourceDBConf.User,
-		"--source-db-schema", currentMsr.SourceDBConf.SchemaConfig,
+		cmd = append(cmd, "--source-db-type", currentMsr.SourceDBConf.DBType)
+		cmd = append(cmd, "--source-db-name", currentMsr.SourceDBConf.DBName)
+		cmd = append(cmd, "--source-db-user", currentMsr.SourceDBConf.User)
+		cmd = append(cmd, "--source-db-schema", currentMsr.SourceDBConf.SchemaConfig)
 	}
 	cmdStr := "SOURCE_DB_PASSWORD=*** " + strings.Join(cmd, " ")
 

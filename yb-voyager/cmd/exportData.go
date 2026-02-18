@@ -184,16 +184,32 @@ func startNextIterationImportDataToTarget() {
 	//starting import data to target
 
 	lockFile.Unlock() // unlock export dir from import data cmd before switching current process to ff/fb sync cmd
-	iterationsDir := currentMsr.GetIterationDir(exportDir)
+	iterationsDir := currentMsr.GetIterationsDir(exportDir)
 	iterationExportDir := GetIterationExportDir(iterationsDir, currentMsr.IterationNo+1)
-	cmd := []string{"yb-voyager", "import", "data", "to", "target",
-		"--export-dir", iterationExportDir,
-		fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics),
-		"--log-level", config.LogLevel,
-		//TODO: see if we can do better, but these params are required for import data to target cmd
-		"--target-db-name", currentMsr.TargetDBConf.DBName,
-		"--target-db-user", currentMsr.TargetDBConf.User,
+
+	cmd := []string{"yb-voyager", "import", "data", "to", "target"}
+
+	iterationMetadb, err := metadb.NewMetaDB(iterationExportDir)
+	if err != nil {
+		utils.ErrExit("failed to create iteration meta db: %w", err)
 	}
+	iterationMsr, err := iterationMetadb.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("failed to get iteration migration status record: %w", err)
+	}
+	if iterationMsr.ConfigFile != "" {
+		cmd = append(cmd, "--config-file", iterationMsr.ConfigFile)
+		//TODO: handle overrides for the command
+
+	} else {
+		cmd = append(cmd, "--export-dir", iterationExportDir)
+		cmd = append(cmd, fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics))
+		cmd = append(cmd, "--log-level", config.LogLevel)
+		//TODO: see if we can do better, but these params are required for import data to target cmd
+		cmd = append(cmd, "--target-db-name", currentMsr.TargetDBConf.DBName)
+		cmd = append(cmd, "--target-db-user", currentMsr.TargetDBConf.User)
+	}
+
 	cmdStr := "TARGET_DB_PASSWORD=*** " + strings.Join(cmd, " ")
 
 	utils.PrintAndLogf("Starting import data to target with command:\n %s", color.GreenString(cmdStr))

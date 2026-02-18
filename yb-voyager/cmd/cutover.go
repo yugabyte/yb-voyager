@@ -25,6 +25,7 @@ import (
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
@@ -119,19 +120,22 @@ func InitiateCutover(dbRole string, prepareforFallback bool, useYBgRPCConnector 
 	return nil
 }
 
+func iterativeCutoverSupported(msr *metadb.MigrationStatusRecord) bool {
+	return msr.FallbackEnabled && msr.SourceDBConf.DBType == POSTGRESQL
+}
+
 func initializeNextIteration() error {
 	currentMSR, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
 		return fmt.Errorf("failed to get migration status record: %w", err)
 	}
-	if currentMSR.FallForwardEnabled || currentMSR.SourceDBConf.DBType != POSTGRESQL {
+	if !iterativeCutoverSupported(currentMSR) {
 		return goerrors.Errorf("fall-forward is not supported for iterative live migration")
 	}
 	var parentMetaDB *metadb.MetaDB
-	var iterationsDir string
+	iterationsDir := currentMSR.GetIterationsDir(exportDir)
 	if currentMSR.IsParentMigration() {
 		parentMetaDB = metaDB
-		iterationsDir = filepath.Join(exportDir, "live-data-migration-iterations")
 		err := os.MkdirAll(iterationsDir, 0755)
 		if err != nil {
 			return fmt.Errorf("failed to create iterations directory: %w", err)
@@ -141,7 +145,6 @@ func initializeNextIteration() error {
 		if err != nil {
 			return fmt.Errorf("failed to get parent meta db: %w", err)
 		}
-		iterationsDir = filepath.Join(currentMSR.ParentExportDir, "live-data-migration-iterations")
 		if !utils.FileOrFolderExists(iterationsDir) {
 			return goerrors.Errorf("iterations directory does not exist")
 		}
@@ -160,11 +163,30 @@ func initializeNextIteration() error {
 		return fmt.Errorf("failed to create iteration directory: %w", err)
 	}
 
+	var nextIterationConfigFile string
+	configFile := lo.Ternary(currentMSR.ConfigFile != "", currentMSR.ConfigFile, cfgFile)
+	nextIterationConfigFile, err = initializeConfigFileForNextIteration(configFile, iterationExportDir)
+	if err != nil {
+		return fmt.Errorf("failed to initialize config file for next iteration: %w", err)
+	}
+
 	//storing the current metaDB to restore after updating the next iteration's MSR
 	currentMetaDB := metaDB
+	defer func() {
+		metaDB = currentMetaDB
+	}()
+
 	//after this metaDB will be pointing to metadb of next iteration
 	CreateMigrationProjectIfNotExists(parentMSR.SourceDBConf.DBType, iterationExportDir)
-	err = parentMetaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+
+	//Update the MSR - parent, next iteration and current iteration
+	return setUpNextIterationMSR(parentMetaDB, nextIterationConfigFile, iterationNo, currentMetaDB, currentMSR)
+
+}
+
+func setUpNextIterationMSR(parentMetaDB *metadb.MetaDB, nextIterationConfigFile string,
+	iterationNo int, currentMetaDB *metadb.MetaDB, currentMSR *metadb.MigrationStatusRecord) error {
+	err := parentMetaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		record.TotalIterations += 1
 		record.LatestIterationNumber = iterationNo
 	})
@@ -185,18 +207,38 @@ func initializeNextIteration() error {
 		record.IterationNo = iterationNo
 		record.SourceDBConf = currentMSR.SourceDBConf
 		record.TargetDBConf = currentMSR.TargetDBConf
+		record.ConfigFile = nextIterationConfigFile
 	})
 	if err != nil {
 		return fmt.Errorf("failed to update iteration migration status record: %w", err)
 	}
-
-	//TODO: config file handling
-
-	//
-
-	metaDB = currentMetaDB
 	return nil
+}
 
+func initializeConfigFileForNextIteration(configFile string, iterationExportDir string) (string, error) {
+	if configFile == "" {
+		return "", nil
+	}
+	//Read the config file and update the config file for next iteration like export dir to iteration export dir and export-type in export data from source section to changes only
+	//create a copy of the config file for next iteration
+	nextIterationConfigFile := filepath.Join(iterationExportDir, "config.yaml")
+	err := utils.CopyFile(configFile, nextIterationConfigFile)
+	if err != nil {
+		return "", fmt.Errorf("failed to copy config file: %w", err)
+	}
+	v := viper.New()
+	v.SetConfigFile(nextIterationConfigFile)
+	err = v.ReadInConfig()
+	if err != nil {
+		return "", fmt.Errorf("failed to read config file: %w", err)
+	}
+	v.Set("export-dir", iterationExportDir)
+	v.Set("export-data-from-source.export-type", CHANGES_ONLY)
+	err = v.WriteConfigAs(nextIterationConfigFile)
+	if err != nil {
+		return "", fmt.Errorf("failed to write config file: %w", err)
+	}
+	return nextIterationConfigFile, nil
 }
 
 func GetIterationExportDir(iterationsDir string, iterationNo int) string {
