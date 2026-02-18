@@ -2819,4 +2819,5 @@
       "CREATE POLICY policy_c327cba652eb481d ON schema_d7108fd530c9b1c2.table_4729835644e61bf5 TO role_e34abedd38298024 USING ('const_0cb1b807a7d43ef1') ",
       "CREATE POLICY policy_c327cba652eb481d ON schema_a1717e859fc83d39.table_4729835644e61bf5 TO role_e34abedd38298024 USING ('const_0cb1b807a7d43ef1') "
     ]
+  }
 }
