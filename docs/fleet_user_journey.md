@@ -15,10 +15,12 @@ In init:
 
 After explaining that assess is the first step and taking source credentials, we ask a second question/prompt. 
 
-"To assess multiple databases, set up a shared YugabyteDB instance to view all assessments together."
+"Choose your assessment control plane."
+"Recommended: To assess multiple databases, set up a shared YugabyteDB instance (yugabyted UI)"
+Link: https://docs.yugabyte.com/stable/quick-start/linux/#install-yugabytedb
 Give the user two options: 
 1. Use a shared YugabyteDB instance
-2. Use local UI 
+2. Use a local instance
 
 
 If the user chooses option 1, ask for the control plane connection string and set that in the config file for "assessment-control-plane" under assess-migration. 
