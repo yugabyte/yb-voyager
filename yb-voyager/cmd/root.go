@@ -57,7 +57,6 @@ var (
 	currentCommand                     string
 	callHomeErrorOrCompletePayloadSent bool
 	controlPlaneConfig                 map[string]string // Holds control plane configuration from config file
-	cliOverrides                       []CLIOverride
 )
 
 var envVarValuesToObfuscateInLogs = []string{
@@ -80,7 +79,7 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		// Initialize the config file (also loads control plane config)
-		overrides, envVarsSetViaConfig, envVarsAlreadyExported, err := initConfig(cmd)
+		envVarsAlreadyExported, err := initConfig(cmd)
 		if err != nil {
 			// not using utils.ErrExit as logging is not initialized yet
 			fmt.Printf("ERROR: Failed to initialize config: %v\n", err)
@@ -175,7 +174,7 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 		}
 
 		// Log the flag values set from the config file
-		for _, f := range overrides {
+		for _, f := range configurationDetails.configSetByConfigFile {
 			if slices.Contains(configKeyValuesToObfuscateInLogs, f.ConfigKey) {
 				f.Value = "********"
 			}
@@ -189,7 +188,7 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			log.Infof("Environment variable '%s' already set with value '%s'\n", envVar, val)
 		}
 		// Log the env variables set from the config file
-		for _, val := range envVarsSetViaConfig {
+		for _, val := range configurationDetails.configSetByEnvVar {
 			if slices.Contains(envVarValuesToObfuscateInLogs, val.EnvVar) {
 				val.Value = "********"
 			}

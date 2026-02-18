@@ -1558,7 +1558,13 @@ func startFallBackSetupIfRequired() {
 	}
 
 	lockFile.Unlock() // unlock export dir from export data cmd before switching current process to fall-back setup cmd
-	cmd := generateImportDataToSourceCommand()
+	cmd := []string{"yb-voyager", "import", "data", "to", "source"}
+	if utils.DoNotPrompt {
+		cmd = append(cmd, "--yes")
+	}
+
+	arguments := generateGlobalExportImportArguments()
+	cmd = append(cmd, arguments...)
 	cmdStr := "SOURCE_DB_PASSWORD=*** " + strings.Join(cmd, " ")
 
 	utils.PrintAndLogf("Starting import data to source with command:\n %s", color.GreenString(cmdStr))
@@ -1576,38 +1582,37 @@ func startFallBackSetupIfRequired() {
 	}
 }
 
-func generateImportDataToSourceCommand() []string {
-	cmd := []string{"yb-voyager", "import", "data", "to", "source"}
-	if utils.DoNotPrompt {
-		cmd = append(cmd, "--yes")
-	}
-
-	// If config file is provided, pass it to the command
+func generateGlobalExportImportArguments() []string {
+	var arguments []string
+	/*
+		If config file is provided, pass the global flags if overriden by cli to the command together with  disable pb flag if it is overriden by cli
+		If config file is not provided, set some flags for the command like export-dir, log-level, disable-pb, send-diagnostics
+	*/
 	if cfgFile != "" {
-		//If there are cli overrides for the command, pass them as cli overrides to the export data from target command
+		//If there are cli overrides for the command, pass them as cli overrides to the import data to source command
 		//Only disable-pb and log-level are the common flags of both the commands
-		for _, override := range cliOverrides {
+		for _, override := range configurationDetails.configSetByCLI {
 			if override.FlagName == "disable-pb" {
 				//only for disable-pb flag is overidden then pass it as CLI override also to this command
-				cmd = append(cmd, "--"+override.FlagName, override.Value)
+				arguments = append(arguments, "--"+override.FlagName, override.Value)
 				continue
 			}
 			if !slices.Contains(globalFlags, override.FlagName) {
 				//if its not a global flag then skip passing it to the command as it will be command specific flag
 				continue
 			}
-			cmd = append(cmd, "--"+override.FlagName, override.Value)
+			arguments = append(arguments, "--"+override.FlagName, override.Value)
 		}
 	} else {
 		//else set some overrides for the command
-		cmd = append(cmd, "--log-level", config.LogLevel)
-		cmd = append(cmd, "--export-dir", exportDir)
+		arguments = append(arguments, "--log-level", config.LogLevel)
+		arguments = append(arguments, "--export-dir", exportDir)
 		if bool(disablePb) {
-			cmd = append(cmd, "--disable-pb=true")
+			arguments = append(arguments, "--disable-pb=true")
 		}
-		cmd = append(cmd, fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics))
+		arguments = append(arguments, fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics))
 	}
-	return cmd
+	return arguments
 }
 
 // ================================ Export Data table list filtering ================================

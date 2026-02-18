@@ -37,7 +37,6 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/adaptiveparallelism"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/config"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
@@ -413,31 +412,8 @@ func generateExportDataFromTargetCommand(importTableNames []string, msr *metadb.
 		"--table-list", strings.Join(importTableNames, ","),
 	}
 
-	// If config file is provided, pass it to the command
-	if cfgFile != "" {
-		//If there are cli overrides for the command, pass them as cli overrides to the export data from target command
-		//Only disable-pb and log-level are the common flags of both the commands
-		for _, override := range cliOverrides {
-			if override.FlagName == "disable-pb" {
-				//only for disable-pb flag is overidden then pass it as CLI override also to this command
-				cmd = append(cmd, "--"+override.FlagName, override.Value)
-				continue
-			}
-			if !slices.Contains(globalFlags, override.FlagName) {
-				//if its not a global flag then skip passing it to the command as it will be command specific flag
-				continue
-			}
-			cmd = append(cmd, "--"+override.FlagName, override.Value)
-		}
-	} else {
-		//else set some overrides for the command
-		cmd = append(cmd, "--log-level", config.LogLevel)
-		cmd = append(cmd, "--export-dir", exportDir)
-		if bool(disablePb) {
-			cmd = append(cmd, "--disable-pb=true")
-		}
-		cmd = append(cmd, fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics))
-	}
+	arguments := generateGlobalExportImportArguments()
+	cmd = append(cmd, arguments...)
 
 	if msr.UseYBgRPCConnector {
 		//if using gRPC connector, set some overrides for the command like target ssl related
