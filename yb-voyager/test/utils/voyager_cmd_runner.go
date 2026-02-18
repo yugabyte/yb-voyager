@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -110,19 +111,23 @@ func (v *VoyagerCommandRunner) Prepare() error {
 				"--source-db-type", config.DBType,
 				"--source-db-user", config.User,
 				"--source-db-password", config.Password,
-				"--source-db-name", config.DBName,
 				"--source-db-host", host,
 				"--source-db-port", strconv.Itoa(port),
 				"--source-ssl-mode", "disable",
+			}
+			if !slices.Contains(v.CmdArgs, "--source-db-name") {
+				connectionArgs = append(connectionArgs, "--source-db-name", config.DBName)
 			}
 		} else {
 			connectionArgs = []string{
 				"--target-db-user", config.User,
 				"--target-db-password", config.Password,
-				"--target-db-name", config.DBName,
 				"--target-db-host", host,
 				"--target-db-port", strconv.Itoa(port),
 				"--target-ssl-mode", "disable",
+			}
+			if !slices.Contains(v.CmdArgs, "--target-db-name") {
+				connectionArgs = append(connectionArgs, "--target-db-name", config.DBName)
 			}
 		}
 	}
@@ -180,7 +185,7 @@ func (v *VoyagerCommandRunner) Run() error {
 		return v.Wait()
 	}
 	return nil
-}	
+}
 
 func (v *VoyagerCommandRunner) Wait() error {
 	err := v.Cmd.Wait()

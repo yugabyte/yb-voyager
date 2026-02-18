@@ -71,6 +71,7 @@ var UnsupportedDatatypesInLiveMigrationIssues = []string{
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_POLYGON,
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_CIRCLE,
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_VECTOR,
+	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_TIMETZ,
 }
 
 var UnsupportedDatatypesInLiveMigrationIssuesWithFForFBIssues = []string{
@@ -108,6 +109,7 @@ var SensitiveKeysInIssueDetailsMap = []string{
 	FUNCTION_NAMES,
 	REFERENCED_COLUMN_NAME,
 	REFERENCED_TABLE_NAME,
+	RECOMMENDED_SQL,
 }
 
 type IssueTypeAndName struct {

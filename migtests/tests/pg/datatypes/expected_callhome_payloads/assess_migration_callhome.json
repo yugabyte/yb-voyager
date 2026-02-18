@@ -225,6 +225,24 @@
                 "category": "migration_caveats",
                 "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
                 "impact": "LEVEL_1",
+                "name": "Unsupported datatype for Live migration - timetz",
+                "object_name": "",
+                "object_type": "COLUMN",
+                "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_TIMETZ"
+            },
+            {
+                "category": "migration_caveats",
+                "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
+                "impact": "LEVEL_1",
+                "name": "Unsupported datatype for Live migration - timetz",
+                "object_name": "",
+                "object_type": "COLUMN",
+                "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_TIMETZ"
+            },
+            {
+                "category": "migration_caveats",
+                "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
+                "impact": "LEVEL_1",
                 "name": "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype",
                 "object_name": "",
                 "object_type": "COLUMN",

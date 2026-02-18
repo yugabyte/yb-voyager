@@ -263,12 +263,23 @@ COPY (
      )
 
      /*
-      * If both indexes are exactly the same, break ties deterministically.
+      * If both indexes are exactly the same -
+         * If key columns are exactly the same
+         * If INCLUDED columns are the same irrespective of order
+         * if both are unique
+         * if both have same clause for NULLS NOT DISTINCT
+      * break ties deterministically.
       * We do this by picking the larger name to drop.
       */
      AND NOT (
       redundant.key_columns = existing.key_columns
-      AND redundant.included_columns = existing.included_columns
+      AND COALESCE(
+          (SELECT array_agg(x ORDER BY x) FROM unnest(redundant.included_columns) AS x),
+          ARRAY[]::text[]
+      ) = COALESCE(
+          (SELECT array_agg(x ORDER BY x) FROM unnest(existing.included_columns) AS x),
+          ARRAY[]::text[]
+      )
       AND redundant.is_unique = existing.is_unique
       AND redundant.indnullsnotdistinct = existing.indnullsnotdistinct
       AND redundant.index_name < existing.index_name

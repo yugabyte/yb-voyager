@@ -14,7 +14,8 @@ CREATE TABLE Mixed_Data_Types_Table1 (
     point_data POINT,
     snapshot_data TXID_SNAPSHOT,
     lseg_data LSEG,
-    box_data BOX
+    box_data BOX,
+    time_with_tz TIMETZ
 );
 
 CREATE TABLE Mixed_Data_Types_Table2 (

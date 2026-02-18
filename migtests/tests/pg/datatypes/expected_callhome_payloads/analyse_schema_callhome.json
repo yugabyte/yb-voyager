@@ -37,7 +37,7 @@
         "TotalCount": 10
       },
       {
-        "InvalidCount": 7,
+        "InvalidCount": 9,
         "ObjectNames": "",
         "ObjectType": "TABLE",
         "TotalCount": 29
@@ -156,6 +156,22 @@
         "object_name": "XXXXX",
         "object_type": "TABLE",
         "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_POLYGON"
+      },
+      {
+        "category": "migration_caveats",
+        "impact": "LEVEL_1",
+        "name": "Unsupported datatype for Live migration - timetz",
+        "object_name": "XXXXX",
+        "object_type": "TABLE",
+        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_TIMETZ"
+      },
+      {
+        "category": "migration_caveats",
+        "impact": "LEVEL_1",
+        "name": "Unsupported datatype for Live migration - timetz",
+        "object_name": "XXXXX",
+        "object_type": "TABLE",
+        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_TIMETZ"
       },
       {
         "category": "migration_caveats",

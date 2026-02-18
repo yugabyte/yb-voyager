@@ -520,7 +520,10 @@ func TestExportSchemaSchemaOptimizationReportPerfOptimizationsAutofix(t *testing
 			id SERIAL PRIMARY KEY,
 			value TEXT,
 			value_2 TEXT,
-			id1 int
+			id1 int,
+			id3 int,
+			val3 text,
+			val4 text
 		);`,
 		`CREATE TABLE test_schema.test_partition_table (
 			id SERIAL,
@@ -534,6 +537,36 @@ func TestExportSchemaSchemaOptimizationReportPerfOptimizationsAutofix(t *testing
 		`CREATE INDEX idx_test_data_value_2 ON test_schema.test_data (value_2 DESC);`,
 		`CREATE INDEX idx_test_data_value_3 ON test_schema.test_data (value, value_2);`,
 		`CREATE INDEX idx_test_data_id1 ON test_schema.test_data (value_2 DESC, id1);`,
+
+		/*
+		a->b
+		b->a
+
+		so one is redundant of the other
+		so we should remove one of them
+		*/
+		`CREATE INDEX idx_test_data_value_4 ON test_schema.test_data (id3, value_2) INCLUDE (id1, val3);`,
+		`CREATE INDEX idx_test_data_value_5 ON test_schema.test_data (id3, value_2) INCLUDE (val3, id1);`,
+
+
+		/*
+		a->b
+		b->c
+		c->d
+		d->b
+
+		7 is the redundant index of the 6,8,9
+
+		*/
+		`CREATE INDEX idx_test_data_value_6 ON test_schema.test_data (id3, val3);`,
+		`CREATE INDEX idx_test_data_value_7 ON test_schema.test_data (id3, val3, val4) INCLUDE (id1,val4, val3);`,
+		`CREATE INDEX idx_test_data_value_8 ON test_schema.test_data (id3, val3, val4) INCLUDE (val4, val3, id1);`,
+		`CREATE INDEX idx_test_data_value_9 ON test_schema.test_data (id3, val3, val4) INCLUDE (val3, val4, id1);`,
+
+		`CREATE INDEX idx_test_data_val_10 ON test_schema.test_data (val3) WHERE val4 IS NOT NULL;`,
+		`CREATE INDEX idx_test_data_val_11 ON test_schema.test_data (val3) WHERE value IS NOT NULL;`,
+
+
 	)
 	if err != nil {
 		t.Errorf("Failed to create test table: %v", err)
@@ -583,12 +616,28 @@ func TestExportSchemaSchemaOptimizationReportPerfOptimizationsAutofix(t *testing
 	assert.Equal(t, 0, len(schemaOptimizationReport.TableColocationRecommendation.CollocatedObjects))
 
 	assert.Equal(t, 1, len(schemaOptimizationReport.RedundantIndexChange.TableToRemovedIndexesMap))
-	assert.Equal(t, 2, len(schemaOptimizationReport.RedundantIndexChange.TableToRemovedIndexesMap["test_schema.test_data"]))
+	expectedRemovedIndexes := []string{
+		"idx_test_data_value_5",
+        "idx_test_data_value_6",
+        "idx_test_data_value_8",
+		"idx_test_data_value_9",
+		"idx_test_data_value",
+		"idx_test_data_value_2",
+	}
+	assert.Equal(t, len(schemaOptimizationReport.RedundantIndexChange.TableToRemovedIndexesMap["test_schema.test_data"]), len(expectedRemovedIndexes))
+	assert.ElementsMatch(t, expectedRemovedIndexes, schemaOptimizationReport.RedundantIndexChange.TableToRemovedIndexesMap["test_schema.test_data"])
 	assert.NotNil(t, schemaOptimizationReport.SecondaryIndexToRangeChange)
 	assert.True(t, schemaOptimizationReport.SecondaryIndexToRangeChange.IsApplied)
 	assert.Equal(t, 1, len(schemaOptimizationReport.SecondaryIndexToRangeChange.ModifiedIndexes))
-	assert.Equal(t, 1, len(schemaOptimizationReport.SecondaryIndexToRangeChange.ModifiedIndexes["test_schema.test_data"]))
-	assert.Equal(t, "idx_test_data_value_3", schemaOptimizationReport.SecondaryIndexToRangeChange.ModifiedIndexes["test_schema.test_data"][0])
+	assert.Equal(t, 5, len(schemaOptimizationReport.SecondaryIndexToRangeChange.ModifiedIndexes["test_schema.test_data"]))
+	expectedModifiedIndexes := []string{
+		"idx_test_data_value_3",
+		"idx_test_data_value_4",
+		"idx_test_data_value_7",
+		"idx_test_data_val_10",
+		"idx_test_data_val_11",
+	}
+	assert.ElementsMatch(t, expectedModifiedIndexes, schemaOptimizationReport.SecondaryIndexToRangeChange.ModifiedIndexes["test_schema.test_data"])
 
 	_, err = testutils.RunVoyagerCommand(yugabyteContainer, "import schema", []string{
 		"--export-dir", tempExportDir,
@@ -602,7 +651,7 @@ func TestExportSchemaSchemaOptimizationReportPerfOptimizationsAutofix(t *testing
 
 	indexesToShardingStrategy := getIndexesToShardingStrategy(t, yugabyteContainer, "test_schema", "test_data")
 
-	assert.Equal(t, 3, len(indexesToShardingStrategy))
+	assert.Equal(t, 7, len(indexesToShardingStrategy))
 	assert.Equal(t, "ASC", indexesToShardingStrategy["idx_test_data_value_3"])
 	assert.Equal(t, "DESC", indexesToShardingStrategy["idx_test_data_id1"])
 	assert.Equal(t, "HASH", indexesToShardingStrategy["test_data_pkey"])
