@@ -50,7 +50,7 @@ CONFIG_SCHEMA: Dict[str, Dict[str, Any]] = {
         "delete_rows": int,
         "insert_max_retries": int,
         "update_max_retries": int,
-        "min_col_size_bytes": int
+        "min_col_size_bytes": int,
         "enable_index_create_drop": bool,
         "index_events_interval": int,
     },
