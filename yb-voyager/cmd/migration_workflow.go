@@ -23,10 +23,11 @@ import (
 
 // Phase names used across all workflows.
 const (
-	PhaseAssess = "Assess"
-	PhaseSchema = "Schema"
-	PhaseData   = "Data"
-	PhaseEnd    = "End"
+	PhaseAssess   = "Assess"
+	PhaseSchema   = "Schema"
+	PhaseData     = "Data"
+	PhaseValidate = "Validate"
+	PhaseEnd      = "End"
 )
 
 // Step IDs used to identify individual steps in a workflow.
@@ -44,6 +45,7 @@ const (
 	StepImportDataToReplica = "import-data-to-replica"
 	StepCutoverToSource     = "cutover-to-source"
 	StepCutoverToReplica    = "cutover-to-replica"
+	StepComparePerformance  = "compare-performance"
 	StepEnd                 = "end"
 )
 
@@ -97,6 +99,11 @@ var offlineWorkflow = &Workflow{
 			ID: StepImportData, DisplayName: "Import Data", Phase: PhaseData,
 			Command: "data import-to-target",
 			IsDone:  func(msr *metadb.MigrationStatusRecord) bool { return msr.ImportDataDone },
+		},
+		{
+			ID: StepComparePerformance, DisplayName: "Compare Performance", Phase: PhaseValidate,
+			Command: "validate compare-performance",
+			IsDone:  func(msr *metadb.MigrationStatusRecord) bool { return msr.PerformanceComparisonDone },
 		},
 		{
 			ID: StepEnd, DisplayName: "End Migration", Phase: PhaseEnd,

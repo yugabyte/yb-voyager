@@ -115,10 +115,31 @@ func comparePerformanceCommandFn(cmd *cobra.Command, args []string) {
 	}
 
 	targetDBDetails = targetDB.GetCallhomeTargetDBInfo()
-	// Send successful callhome payload
 	packAndSendComparePerformancePayload("COMPLETE", nil, comparator)
 
-	utils.PrintAndLogf("Performance comparison completed successfully!")
+	printComparePerformanceFooter()
+}
+
+func printComparePerformanceFooter() {
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		log.Warnf("failed to get MSR for footer: %v", err)
+		return
+	}
+
+	wf := resolveWorkflow(msr)
+	phases := computePhaseStatuses(wf, msr, StepComparePerformance)
+
+	configFlag := fmt.Sprintf("--config-file %s", displayPath(cfgFile))
+
+	footer := CommandFooter{
+		SectionTitle: "Performance Comparison Summary",
+		Title:        "Performance comparison completed successfully.",
+		NextStepDesc: []string{"End the migration and clean up resources:"},
+		NextStepCmd:  fmt.Sprintf("yb-voyager end-migration %s", configFlag),
+		Phases:       phases,
+	}
+	printCommandFooter(footer)
 }
 
 func validateComparePerfPrerequisites() {

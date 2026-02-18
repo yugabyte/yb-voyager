@@ -967,11 +967,19 @@ func printImportDataFooter() {
 
 	configFlag := fmt.Sprintf("--config-file %s", displayPath(cfgFile))
 
+	nextStep := findNextStep(wf, msr)
+	nextDesc := "End the migration and clean up resources:"
+	nextCmd := fmt.Sprintf("yb-voyager end-migration %s", configFlag)
+	if nextStep != nil && nextStep.ID == StepComparePerformance {
+		nextDesc = "Compare query performance between source and target:"
+		nextCmd = fmt.Sprintf("yb-voyager %s %s", nextStep.Command, configFlag)
+	}
+
 	footer := CommandFooter{
 		SectionTitle: "Import Data Summary",
 		Title:        "Data import completed successfully.",
-		NextStepDesc: []string{"End the migration and clean up resources:"},
-		NextStepCmd:  fmt.Sprintf("yb-voyager end-migration %s", configFlag),
+		NextStepDesc: []string{nextDesc},
+		NextStepCmd:  nextCmd,
 		Phases:       phases,
 	}
 	printCommandFooter(footer)
