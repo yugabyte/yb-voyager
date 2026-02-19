@@ -305,14 +305,17 @@ func (yb *TargetYugabyteDB) InitConnPool() error {
 	}
 	log.Infof("targetUriList: %s", utils.GetRedactedURLs(targetUriList))
 
-	nodeCount := len(confs)
+	nodeCount := len(confs) // confs from GetYBServers() has all nodes, even when using a load balancer
 	if yb.Tconf.Parallelism <= 0 {
+		// Parallelism = totalCores / 4 (N/4), where N is detected or estimated as nodeCount * YB_DEFAULT_CORES_PER_NODE
 		yb.Tconf.Parallelism = yb.fetchDefaultParallelJobs(tconfs, nodeCount)
 		log.Infof("Using %d parallel jobs by default. Use --parallel-jobs to specify a custom value", yb.Tconf.Parallelism)
 	}
 
 	if yb.tconf.AdaptiveParallelismMode.IsEnabled() {
 		if yb.tconf.MaxParallelism <= 0 {
+			// MaxParallelism = Parallelism * 4 = (N/4) * 4 = N (total cores).
+			// The adaptive algorithm's CPU/memory thresholds are the actual safety mechanism, not this cap.
 			yb.tconf.MaxParallelism = yb.tconf.Parallelism * 4
 		}
 	} else {
