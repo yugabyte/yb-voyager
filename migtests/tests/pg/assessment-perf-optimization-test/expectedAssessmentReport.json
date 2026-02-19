@@ -92,7 +92,7 @@
             "CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
             "Type": "INDEX_ON_COLUMN_WITH_HIGH_PERCENTAGE_OF_PARTICULAR_VALUE",
             "Name": "Index on column with high percentage of a particular value",
-            "Description": "If queries do not filter on this value, using partial indexes that excludes this value. In distributed databases, unnecessary index entries for a value can increase write performance and storage usage. This index is built on column having a value occuring in large number of rows.",
+            "Description": "If queries do not filter on this value, using partial indexes that excludes this value. In distributed databases, unnecessary index entries for a value can increase write performance and storage usage. This index is built on column having a value occuring in large number of rows. Use the Recommended SQL in case this value is not being queried.\"",
             "Impact": "LEVEL_1",
             "ObjectType": "INDEX",
             "ObjectName": "idx_normal ON test.test_mostcomm_status",
@@ -102,7 +102,9 @@
             "MinimumVersionsFixedIn": null,
             "Details": {
                 "ColumnName": "status",
+                "ColumnType": "text",
                 "FrequencyOfTheValue": "64%",
+                "RecommendedSQL": "CREATE INDEX idx_normal ON test.test_mostcomm_status USING btree (status) WHERE status <> 'DONE';",
                 "Value": "DONE"
             }
         },
@@ -111,7 +113,7 @@
             "CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
             "Type": "INDEX_ON_COLUMN_WITH_HIGH_PERCENTAGE_OF_PARTICULAR_VALUE",
             "Name": "Index on column with high percentage of a particular value",
-            "Description": "If queries do not filter on this value, using partial indexes that excludes this value. In distributed databases, unnecessary index entries for a value can increase write performance and storage usage. The first column of this index has value occuring in large number of rows.",
+            "Description": "If queries do not filter on this value, using partial indexes that excludes this value. In distributed databases, unnecessary index entries for a value can increase write performance and storage usage. The first column of this index has value occuring in large number of rows. Use the Recommended SQL in case this value is not being queried.\"",
             "Impact": "LEVEL_1",
             "ObjectType": "INDEX",
             "ObjectName": "indx1 ON public.test_most_freq",
@@ -121,7 +123,9 @@
             "MinimumVersionsFixedIn": null,
             "Details": {
                 "ColumnName": "status",
+                "ColumnType": "text",
                 "FrequencyOfTheValue": "69%",
+                "RecommendedSQL": "CREATE INDEX indx1 ON public.test_most_freq USING btree (status, id) WHERE status <> 'active';",
                 "Value": "active"
             }
         },
@@ -130,7 +134,7 @@
             "CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
             "Type": "INDEX_ON_COLUMN_WITH_HIGH_PERCENTAGE_OF_PARTICULAR_VALUE",
             "Name": "Index on column with high percentage of a particular value",
-            "Description": "If queries do not filter on this value, using partial indexes that excludes this value. In distributed databases, unnecessary index entries for a value can increase write performance and storage usage. This index is built on column having a value occuring in large number of rows.",
+            "Description": "If queries do not filter on this value, using partial indexes that excludes this value. In distributed databases, unnecessary index entries for a value can increase write performance and storage usage. This index is built on column having a value occuring in large number of rows. Use the Recommended SQL in case this value is not being queried.\"",
             "Impact": "LEVEL_1",
             "ObjectType": "INDEX",
             "ObjectName": "idx_name ON public.users",
@@ -140,8 +144,10 @@
             "MinimumVersionsFixedIn": null,
             "Details": {
                 "ColumnName": "name",
+                "ColumnType": "varchar",
                 "FrequencyOfTheValue": "65%",
-                "Value": "' '"
+                "RecommendedSQL": "CREATE INDEX idx_name ON public.users USING btree (name) WHERE name <> '';",
+                "Value": ""
             }
         },
         {
