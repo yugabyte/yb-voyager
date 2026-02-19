@@ -864,7 +864,8 @@ func validateMetaDBCreated() {
 	}
 }
 
-func getImportTableList(sourceTableList []string) ([]sqlname.NameTuple, error) {
+// TODO: rename
+func getInitialImportTableListForLive(sourceTableList []string) ([]sqlname.NameTuple, error) {
 	if importerRole == IMPORT_FILE_ROLE {
 		return nil, nil
 	}

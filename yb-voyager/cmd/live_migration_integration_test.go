@@ -3349,4 +3349,9 @@ func TestLiveMigrationChangesOnlyFromPGToYB(t *testing.T) {
 	err = lm.WaitForCutoverSourceComplete(100)
 	testutils.FatalIfError(t, err, "failed to wait for cutover to source complete")
 
+	err = lm.WithSourceConn(func(source *sql.DB) error {
+		return assertSequenceValues(t, 21, 25, source, `"test_schema".test_live`)
+	})
+	testutils.FatalIfError(t, err, "failed to validate sequence values")
+
 }

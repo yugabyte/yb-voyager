@@ -501,7 +501,7 @@ func (ora *Oracle) GetColumnToSequenceMap(tableList []sqlname.NameTuple) map[str
 	return columnToSequenceMap
 }
 
-func (ora *Oracle) GetAllSequencesLastValues() (map[string]int64, error) {
+func (ora *Oracle) GetAllSequencesLastValues() (*utils.StructMap[sqlname.ObjectName, int64], error) {
 	return nil, nil
 }
 

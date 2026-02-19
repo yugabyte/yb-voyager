@@ -89,7 +89,7 @@ func (nv *ObjectName) String() string {
 	return nv.MinQualified.MinQuoted
 }
 
-func (o *ObjectName) Key() string {
+func (o ObjectName) Key() string {
 	return o.Qualified.Unquoted
 }
 

@@ -111,7 +111,7 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 	fBEnabled = msr.FallbackEnabled
 	fFEnabled = msr.FallForwardEnabled
 	tableList := msr.TableListExportedFromSource
-	tableNameTups, err := getImportTableList(tableList)
+	tableNameTups, err := getInitialImportTableListForLive(tableList)
 	if err != nil {
 		utils.ErrExit("getting name tuples from table list: %w", err)
 	}
@@ -167,6 +167,7 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 				utils.ErrExit("error while getting exported snapshot rows: %w\n", err)
 			}
 		} else {
+			//for ORACLE case to fetch dbzm status file 
 			for _, tableExportStatus := range dbzmStatus.Tables {
 				tableName := fmt.Sprintf("%s.%s", tableExportStatus.SchemaName, tableExportStatus.TableName)
 				nt, err := namereg.NameReg.LookupTableName(tableName)
