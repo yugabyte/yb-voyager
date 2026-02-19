@@ -54,7 +54,6 @@ generator:
       delete_rows: 1
       insert_max_retries: 5
       update_max_retries: 1
-      min_col_size_bytes: 0
 
 voyager:
   cutover_to_target:
