@@ -94,7 +94,7 @@ var invalidTargetIndexesCache map[string]bool
 
 func importSchema() error {
 
-	//No requirement as such for namereg for this command as its already doing the schema name creation 
+	//No requirement as such for namereg for this command as its already doing the schema name creation
 	// so can't lookup before that so not any real use of namereg
 	tconf.Schemas = sqlname.ParseIdentifiersFromString(tconf.TargetDBType, tconf.SchemaConfig, ",")
 
@@ -364,6 +364,9 @@ func assessmentRecommendedColocatedTables() bool {
 	if err != nil {
 		log.Warnf("failed to get colocated tables recommendation: %v, assuming colocated tables may exist", err)
 		return true
+	}
+	if colocatedTables == nil {
+		return false
 	}
 	return len(colocatedTables) > 0
 }
