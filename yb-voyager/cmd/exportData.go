@@ -1591,7 +1591,7 @@ func generateGlobalExportImportArguments() []string {
 	if cfgFile != "" {
 		//If there are cli overrides for the command, pass them as cli overrides to the import data to source command
 		//Only disable-pb and log-level are the common flags of both the commands
-		for _, override := range configurationDetails.configSetByCLI {
+		for _, override := range resolvedConfig.fromCLI {
 			if override.FlagName == "disable-pb" {
 				//only for disable-pb flag is overidden then pass it as CLI override also to this command
 				arguments = append(arguments, "--"+override.FlagName, override.Value)

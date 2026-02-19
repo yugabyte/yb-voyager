@@ -18,7 +18,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-var configurationDetails ConfigurationDetails
+var resolvedConfig ResolvedConfig
 
 const (
 	// Flag name prefixes (used in CLI flags)
@@ -240,22 +240,22 @@ var aliasCommandsPrefixes = [][]string{
 	{"import-data", "import-data-to-target"},
 }
 
-// CommandConfig represents a CLI flag/Config/EnvVar whose value was set by the user depending on the mode of configuration.
+// ConfigParam represents a CLI flag/Config/EnvVar whose value was set by the user depending on the mode of configuration.
 // It captures the flag name, the corresponding config key or Env Var that supplied the value,
 // and the final value that was applied. This is useful for logging and debugging
 // which flags were influenced by configuration during command execution.
 
-type CommandConfig struct {
+type ConfigParam struct {
 	FlagName  string
 	EnvVar    string
 	ConfigKey string
 	Value     string
 }
 
-type ConfigurationDetails struct {
-	configSetByConfigFile []CommandConfig
-	configSetByCLI        []CommandConfig
-	configSetByEnvVar     []CommandConfig
+type ResolvedConfig struct {
+	fromConfigFile []ConfigParam
+	fromCLI        []ConfigParam
+	fromEnvVar     []ConfigParam
 
 	//TODO: move anyother config details here
 
@@ -445,7 +445,7 @@ func bindEnvVarsToViper(cmd *cobra.Command, v *viper.Viper) (map[string]string, 
 	configKeyPrefix := strings.ReplaceAll(subCmdPath, " ", "-")
 	configKeyPrefix = setToAliasPrefixIfSet(configKeyPrefix, v)
 
-	var envVarsSetViaConfig []CommandConfig
+	var envVarsSetViaConfig []ConfigParam
 	envVarsAlreadyExported := make(map[string]string)
 
 	// Iterate over known config-to-env-var mappings and set env vars
@@ -476,7 +476,7 @@ func bindEnvVarsToViper(cmd *cobra.Command, v *viper.Viper) (map[string]string, 
 				if err := os.Setenv(envVar, val); err != nil {
 					return nil, fmt.Errorf("failed to set environment variable %s: %w", envVar, err)
 				}
-				envVarsSetViaConfig = append(envVarsSetViaConfig, CommandConfig{
+				envVarsSetViaConfig = append(envVarsSetViaConfig, ConfigParam{
 					EnvVar:    envVar,
 					ConfigKey: confKey,
 					Value:     val,
@@ -485,7 +485,7 @@ func bindEnvVarsToViper(cmd *cobra.Command, v *viper.Viper) (map[string]string, 
 		}
 	}
 
-	configurationDetails.configSetByEnvVar = envVarsSetViaConfig
+	resolvedConfig.fromEnvVar = envVarsSetViaConfig
 
 	return envVarsAlreadyExported, nil
 }
@@ -628,7 +628,7 @@ bindCobraFlagsToViper binds configuration values from a Viper instance to the fl
 */
 func bindCobraFlagsToViper(cmd *cobra.Command, v *viper.Viper) error {
 	var bindErr error
-	var configOverrides, cliOverrides []CommandConfig
+	var configFromConfigFile, configFromCLI []ConfigParam
 
 	subCmdPath := strings.TrimPrefix(cmd.CommandPath(), cmd.Root().Name())
 	subCmdPath = strings.TrimSpace(subCmdPath) // remove leading space if any
@@ -639,7 +639,7 @@ func bindCobraFlagsToViper(cmd *cobra.Command, v *viper.Viper) error {
 	cmd.Flags().VisitAll(func(f *pflag.Flag) {
 		if f.Changed {
 			//add the flag to the global cliOverrides slice
-			cliOverrides = append(cliOverrides, CommandConfig{
+			configFromCLI = append(configFromCLI, ConfigParam{
 				FlagName: f.Name,
 				Value:    f.Value.String(),
 			})
@@ -659,7 +659,7 @@ func bindCobraFlagsToViper(cmd *cobra.Command, v *viper.Viper) error {
 				bindErr = err
 				return
 			}
-			configOverrides = append(configOverrides, CommandConfig{
+			configFromConfigFile = append(configFromConfigFile, ConfigParam{
 				FlagName:  f.Name,
 				ConfigKey: configKey,
 				Value:     val,
@@ -672,28 +672,28 @@ func bindCobraFlagsToViper(cmd *cobra.Command, v *viper.Viper) error {
 				bindErr = err
 				return
 			}
-			configOverrides = append(configOverrides, CommandConfig{
+			configFromConfigFile = append(configFromConfigFile, ConfigParam{
 				FlagName:  f.Name,
 				ConfigKey: configKey,
 				Value:     val,
 			})
 		} else if slices.Contains(commandsUsingSourceReplicaConfig, commandNameKey) {
 			// Handle source-replica config flags
-			err := bindSourceReplicaFlags(cmd, v, f, commandNameKey, &configOverrides)
+			err := bindSourceReplicaFlags(cmd, v, f, commandNameKey, &configFromConfigFile)
 			if err != nil {
 				bindErr = err
 				return
 			}
 		} else if slices.Contains(commandsUsingSourceConfig, commandNameKey) {
 			// Handle source config flags
-			err := bindSourceFlags(cmd, v, f, commandNameKey, &configOverrides)
+			err := bindSourceFlags(cmd, v, f, commandNameKey, &configFromConfigFile)
 			if err != nil {
 				bindErr = err
 				return
 			}
 		} else if slices.Contains(commandsUsingTargetConfig, commandNameKey) {
 			// Handle target config flags
-			err := bindTargetFlags(cmd, v, f, commandNameKey, &configOverrides)
+			err := bindTargetFlags(cmd, v, f, commandNameKey, &configFromConfigFile)
 			if err != nil {
 				bindErr = err
 				return
@@ -703,12 +703,12 @@ func bindCobraFlagsToViper(cmd *cobra.Command, v *viper.Viper) error {
 		// This allows the flag to retain its default value or the value set by the user in the command line
 	})
 
-	configurationDetails.configSetByConfigFile = configOverrides
-	configurationDetails.configSetByCLI = cliOverrides
+	resolvedConfig.fromConfigFile = configFromConfigFile
+	resolvedConfig.fromCLI = configFromCLI
 	return bindErr
 }
 
-func bindSourceReplicaFlags(cmd *cobra.Command, v *viper.Viper, f *pflag.Flag, commandNameKey string, overrides *[]CommandConfig) error {
+func bindSourceReplicaFlags(cmd *cobra.Command, v *viper.Viper, f *pflag.Flag, commandNameKey string, overrides *[]ConfigParam) error {
 	if strings.HasPrefix(f.Name, SourceReplicaDBFlagPrefix) {
 		configKey := SourceReplicaDBConfigPrefix + strings.TrimPrefix(f.Name, SourceReplicaDBFlagPrefix)
 		if v.IsSet(configKey) {
@@ -718,7 +718,7 @@ func bindSourceReplicaFlags(cmd *cobra.Command, v *viper.Viper, f *pflag.Flag, c
 			if err != nil {
 				return err
 			}
-			*overrides = append(*overrides, CommandConfig{
+			*overrides = append(*overrides, ConfigParam{
 				FlagName:  f.Name,
 				ConfigKey: configKey,
 				Value:     val,
@@ -734,7 +734,7 @@ func bindSourceReplicaFlags(cmd *cobra.Command, v *viper.Viper, f *pflag.Flag, c
 			if err != nil {
 				return err
 			}
-			*overrides = append(*overrides, CommandConfig{
+			*overrides = append(*overrides, ConfigParam{
 				FlagName:  f.Name,
 				ConfigKey: configKey,
 				Value:     val,
@@ -744,7 +744,7 @@ func bindSourceReplicaFlags(cmd *cobra.Command, v *viper.Viper, f *pflag.Flag, c
 	return nil
 }
 
-func bindSourceFlags(cmd *cobra.Command, v *viper.Viper, f *pflag.Flag, commandNameKey string, overrides *[]CommandConfig) error {
+func bindSourceFlags(cmd *cobra.Command, v *viper.Viper, f *pflag.Flag, commandNameKey string, overrides *[]ConfigParam) error {
 	if strings.HasPrefix(f.Name, SourceDBFlagPrefix) {
 		configKey := SourceDBConfigPrefix + strings.TrimPrefix(f.Name, SourceDBFlagPrefix)
 		if v.IsSet(configKey) {
@@ -754,7 +754,7 @@ func bindSourceFlags(cmd *cobra.Command, v *viper.Viper, f *pflag.Flag, commandN
 			if err != nil {
 				return err
 			}
-			*overrides = append(*overrides, CommandConfig{
+			*overrides = append(*overrides, ConfigParam{
 				FlagName:  f.Name,
 				ConfigKey: configKey,
 				Value:     val,
@@ -770,7 +770,7 @@ func bindSourceFlags(cmd *cobra.Command, v *viper.Viper, f *pflag.Flag, commandN
 			if err != nil {
 				return err
 			}
-			*overrides = append(*overrides, CommandConfig{
+			*overrides = append(*overrides, ConfigParam{
 				FlagName:  f.Name,
 				ConfigKey: configKey,
 				Value:     val,
@@ -780,7 +780,7 @@ func bindSourceFlags(cmd *cobra.Command, v *viper.Viper, f *pflag.Flag, commandN
 	return nil
 }
 
-func bindTargetFlags(cmd *cobra.Command, v *viper.Viper, f *pflag.Flag, commandNameKey string, overrides *[]CommandConfig) error {
+func bindTargetFlags(cmd *cobra.Command, v *viper.Viper, f *pflag.Flag, commandNameKey string, overrides *[]ConfigParam) error {
 	if strings.HasPrefix(f.Name, TargetDBFlagPrefix) {
 		configKey := TargetDBConfigPrefix + strings.TrimPrefix(f.Name, TargetDBFlagPrefix)
 		if v.IsSet(configKey) {
@@ -790,7 +790,7 @@ func bindTargetFlags(cmd *cobra.Command, v *viper.Viper, f *pflag.Flag, commandN
 			if err != nil {
 				return err
 			}
-			*overrides = append(*overrides, CommandConfig{
+			*overrides = append(*overrides, ConfigParam{
 				FlagName:  f.Name,
 				ConfigKey: configKey,
 				Value:     val,

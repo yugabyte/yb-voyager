@@ -174,7 +174,7 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 		}
 
 		// Log the flag values set from the config file
-		for _, f := range configurationDetails.configSetByConfigFile {
+		for _, f := range resolvedConfig.fromConfigFile {
 			if slices.Contains(configKeyValuesToObfuscateInLogs, f.ConfigKey) {
 				f.Value = "********"
 			}
@@ -188,7 +188,7 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			log.Infof("Environment variable '%s' already set with value '%s'\n", envVar, val)
 		}
 		// Log the env variables set from the config file
-		for _, val := range configurationDetails.configSetByEnvVar {
+		for _, val := range resolvedConfig.fromEnvVar {
 			if slices.Contains(envVarValuesToObfuscateInLogs, val.EnvVar) {
 				val.Value = "********"
 			}
