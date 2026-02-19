@@ -107,6 +107,10 @@ type MigrationStatusRecord struct {
 	//Parent specific details
 	TotalIterations       int `json:"TotalIterations"`
 	LatestIterationNumber int `json:"LatestIterationNumber"`
+
+	//Iteration specific details
+	ExportDataFromSourceStarted bool `json:"ExportDataFromSourceStarted"`
+	ImportDataToTargetStarted   bool `json:"ImportDataToTargetStarted"`
 }
 
 type CutoverTimingRecord struct {

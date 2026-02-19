@@ -1065,6 +1065,12 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 		if importSnapshotRequired() {
 			displayImportedRowCountSnapshot(state, importFileTasks, errorHandler)
 		}
+		err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+			record.ImportDataToTargetStarted = true
+		})
+		if err != nil {
+			utils.ErrExit("failed to update migration status record: %w", err)
+		}
 		err = streamChanges(state, importTableList)
 		if err != nil {
 			utils.ErrExit("Failed to stream changes to %s: %s", tconf.TargetDBType, err)
