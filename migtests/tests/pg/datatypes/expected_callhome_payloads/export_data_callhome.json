@@ -1,5 +1,10 @@
 {
-    "payload_version": "1.0",
+  "collected_at": "2025-11-03 16:18:27.981004",
+  "migration_phase": "export-data",
+  "migration_type": "offline",
+  "migration_uuid": "f1eb5090-6476-4239-98f8-ce886ab0af1e",
+  "phase_payload": {
+    "payload_version": 1.0,
     "parallel_jobs": 4,
     "total_rows_exported": 101,
     "largest_table_rows_exported": 26,
@@ -9,4 +14,22 @@
     "error": "",
     "control_plane_type": "",
     "allow_oracle_clob_data_export": false
+  },
+  "phase_start_time": "2025-11-03 16:18:21.645245",
+  "source_db_details": {
+    "db_name": "db_80f09b735e608f36",
+    "db_system_identifier": 7566643643304036000,
+    "db_type": "postgresql",
+    "db_version": "17.6 (Ubuntu 17.6-2.pgdg22.04+1)",
+    "host": "",
+    "payload_version": "",
+    "schema_names": [
+      "schema_d7108fd530c9b1c2"
+    ],
+    "total_db_size_bytes": 1622016
+  },
+  "status": "COMPLETE",
+  "target_db_details": "",
+  "time_taken_sec": 7,
+  "yb_voyager_version": "main"
 }
