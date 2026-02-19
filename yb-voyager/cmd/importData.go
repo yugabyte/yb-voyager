@@ -209,7 +209,7 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	}
 
 	//Starting table list
-	err = initialiseImportTableList(importFileTasks, msr)
+	importFileTasks, importTableList, err = initialiseImportTableList(importFileTasks, msr)
 	if err != nil {
 		utils.ErrExit("Failed to initialize import table list: %s", err)
 	}
@@ -774,7 +774,7 @@ func handleStartCleanForSnapshot(state *ImportDataState, importFileTasks []*Impo
 	return nil
 }
 
-func initialiseImportTableList(importFileTasks []*ImportFileTask, msr *metadb.MigrationStatusRecord) error {
+func initialiseImportTableList(importFileTasks []*ImportFileTask, msr *metadb.MigrationStatusRecord) ([]*ImportFileTask, []sqlname.NameTuple, error) {
 	var err error
 	if changeStreamingIsEnabled(importType) {
 		if tconf.TableList != "" || tconf.ExcludeTableList != "" {
@@ -786,7 +786,7 @@ func initialiseImportTableList(importFileTasks []*ImportFileTask, msr *metadb.Mi
 		// import list for live migration as streaming changes will be done for them
 		importTableList, err = getImportTableList(msr.TableListExportedFromSource)
 		if err != nil {
-			return goerrors.Errorf("Failed to get import table list: %v", err)
+			return nil, nil, goerrors.Errorf("Failed to get import table list: %v", err)
 		}
 		//for live target db importer we don't support table-list and exclude-table-list flags, so we need to check if all the tables in the importFileTasks are present in the target
 		//and if not, we need to exit with an error
@@ -794,7 +794,7 @@ func initialiseImportTableList(importFileTasks []*ImportFileTask, msr *metadb.Mi
 		//otherwise use the tables from msr
 		tablesToImport := lo.Ternary(importSnapshotRequired(), importFileTasksToTableNameTuples(importFileTasks), importTableList)
 		checkTablesPresentInTarget(tablesToImport)
-		return nil
+		return nil, nil, nil
 	}
 	//for offline migration we need to use the import file tasks to get the import table list
 	//as that is the one where we filter the tables via table-list flags
@@ -803,7 +803,7 @@ func initialiseImportTableList(importFileTasks []*ImportFileTask, msr *metadb.Mi
 	importFileTasks = applyTableListFilter(importFileTasks)
 	importTableList = importFileTasksToTableNameTuples(importFileTasks)
 
-	return nil
+	return importFileTasks, importTableList, nil
 }
 
 func initialiseValueConverter(importTableList []sqlname.NameTuple, msr *metadb.MigrationStatusRecord) error {
