@@ -392,8 +392,6 @@ func saveExportTypeInMSR() {
 	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		if exporterRole == SOURCE_DB_EXPORTER_ROLE {
 			record.ExportTypeFromSource = exportType
-		} else if exporterRole == TARGET_DB_EXPORTER_FF_ROLE || exporterRole == TARGET_DB_EXPORTER_FB_ROLE {
-			record.ExportTypeFromTarget = exportType
 		}
 	})
 	if err != nil {

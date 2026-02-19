@@ -31,7 +31,6 @@ type MigrationStatusRecord struct {
 	AnonymizerSalt                            string            `json:"AnonymizerSalt"` // salt for anonymization, used to ensure consistent anonymization across runs
 	VoyagerVersion                            string            `json:"VoyagerVersion"`
 	ExportTypeFromSource                      string            `json:"ExportType"`
-	ExportTypeFromTarget                      string            `json:"ExportTypeFromTarget"`
 	ArchivingEnabled                          bool              `json:"ArchivingEnabled"`
 	FallForwardEnabled                        bool              `json:"FallForwardEnabled"`
 	FallbackEnabled                           bool              `json:"FallbackEnabled"`

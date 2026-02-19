@@ -415,7 +415,7 @@ func exportData() bool {
 		}
 		saveTableToUniqueKeyColumnsMapInMetaDB(finalTableList, leafPartitions)
 		if source.DBType == POSTGRESQL && changeStreamingIsEnabled(exportType) {
-			err = exportSnapshotUsingPgDump(ctx, cancel, finalTableList, tablesColumnList, leafPartitions, config)
+			err = initPGLiveMigrationAndExportSnapshotIfRequired(ctx, cancel, finalTableList, tablesColumnList, leafPartitions, config)
 			if err != nil {
 				log.Errorf("Failed to export snapshot using pg_dump: %v", err)
 				return false
@@ -483,7 +483,7 @@ func exportData() bool {
 	}
 }
 
-func exportSnapshotUsingPgDump(ctx context.Context, cancel context.CancelFunc, finalTableList []sqlname.NameTuple, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], leafPartitions *utils.StructMap[sqlname.NameTuple, []sqlname.NameTuple], config *dbzm.Config) error {
+func initPGLiveMigrationAndExportSnapshotIfRequired(ctx context.Context, cancel context.CancelFunc, finalTableList []sqlname.NameTuple, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], leafPartitions *utils.StructMap[sqlname.NameTuple, []sqlname.NameTuple], config *dbzm.Config) error {
 	var err error
 	// pg live migration. Steps are as follows:
 	// 1. create publication, replication slot.
@@ -805,11 +805,11 @@ func getSequenceInitialValues() (*utils.StructMap[sqlname.NameTuple, int64], err
 	if exportType == CHANGES_ONLY {
 		/*
 			In changes_only case, we need to get the sequence initial values from the DB as we don't export the snapshot.
-			for handling the case 
+			for handling the case
 			Initial value on DB for seq1 on table1 = 110 but there are gaps in the sequence values being used in the table could be because of some deletions or updates.
-			
+
 			Insert on source DB for table1 I(103, 'test1') -- valid insert on source
-			and on debezium we need to maintain the maximum value of sequence to be restored on target 
+			and on debezium we need to maintain the maximum value of sequence to be restored on target
 			so debezium should maintain 110 instead of 103 last value of seq1 for which it needs to know the initial value on DB.
 		*/
 		result, err := getSequenceInitialValuesFromDB()
@@ -868,12 +868,16 @@ func getSequenceInitialValuesFromDB() (*utils.StructMap[sqlname.NameTuple, int64
 	if err != nil {
 		return nil, fmt.Errorf("get all sequences last values from DB: %w", err)
 	}
-	for sequence, lastValue := range sequenceLastValueMap {
-		seqTuple, err := namereg.NameReg.LookupTableName(sequence)
+	err = sequenceLastValueMap.IterKV(func(sequenceName *sqlname.ObjectName, lastValue int64) (bool, error) {
+		seqTuple, err := namereg.NameReg.LookupTableName(sequenceName.Qualified.Quoted)
 		if err != nil {
-			return nil, fmt.Errorf("lookup for sequence name %s: %w", sequence, err)
+			return false, fmt.Errorf("lookup for sequence name %s: %w", sequenceName.Qualified.Quoted, err)
 		}
 		result.Put(seqTuple, lastValue)
+		return true, nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("iterate over sequence last value map: %w", err)
 	}
 	return result, nil
 }
@@ -1444,6 +1448,9 @@ func clearMigrationStateIfRequired() {
 	exportSnapshotStatusFile := jsonfile.NewJsonFile[ExportSnapshotStatus](exportSnapshotStatusFilePath)
 	dfdFilePath := exportDir + datafile.DESCRIPTOR_PATH
 	if startClean {
+		if exportType == CHANGES_ONLY {
+			utils.ErrExit("Cannot use --start-clean flag with --export-type=changes-only")
+		}
 		if dataIsExported() {
 			if !utils.AskPrompt("Data is already exported. Are you sure you want to clean the data directory and start afresh") {
 				utils.ErrExit("Export aborted.")

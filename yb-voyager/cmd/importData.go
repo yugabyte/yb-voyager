@@ -208,26 +208,10 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 		utils.ErrExit("could not fetch MigrationStatusRecord: %w", err)
 	}
 
-	//Starting table list 
+	//Starting table list
 	err = initialiseImportTableList(importFileTasks, msr)
 	if err != nil {
 		utils.ErrExit("Failed to initialize import table list: %s", err)
-	}
-
-	if changeStreamingIsEnabled(importType) {
-		if tconf.TableList != "" || tconf.ExcludeTableList != "" {
-			utils.ErrExit("--table-list and --exclude-table-list are not supported for live migration. Re-run the command without these flags.")
-		}
-		//for live target db importer we don't support table-list and exclude-table-list flags, so we need to check if all the tables in the importFileTasks are present in the target
-		//and if not, we need to exit with an error
-		//If the export type includes snapshot, then only use the importFileTasks to get the tables to import
-		//otherwise use the tables from msr
-		tablesToImport := lo.Ternary(importSnapshotRequired(), importFileTasksToTableNameTuples(importFileTasks), importTableList)
-		checkTablesPresentInTarget(tablesToImport)
-	} else {
-		//Table list after applying table list filter
-		importFileTasks = applyTableListFilter(importFileTasks)
-		importTableList = importFileTasksToTableNameTuples(importFileTasks)
 	}
 
 	if importerRole == TARGET_DB_IMPORTER_ROLE && tconf.EnableUpsert {
@@ -266,7 +250,7 @@ func importSnapshotRequired() bool {
 	case TARGET_DB_IMPORTER_ROLE:
 		return importType == SNAPSHOT_ONLY || importType == SNAPSHOT_AND_CHANGES
 	default:
-		return false
+		panic(fmt.Sprintf("invalid importer role: %s", importerRole))
 	}
 }
 func checkTablesPresentInTarget(tablesToImport []sqlname.NameTuple) {
@@ -793,6 +777,9 @@ func handleStartCleanForSnapshot(state *ImportDataState, importFileTasks []*Impo
 func initialiseImportTableList(importFileTasks []*ImportFileTask, msr *metadb.MigrationStatusRecord) error {
 	var err error
 	if changeStreamingIsEnabled(importType) {
+		if tconf.TableList != "" || tconf.ExcludeTableList != "" {
+			utils.ErrExit("--table-list and --exclude-table-list are not supported for live migration. Re-run the command without these flags.")
+		}
 		//For live migration we need to use the source table list to get the import table list
 		//as we don't suport filtering tables in import data for live migration so it might be okay to use source side list
 		//and one more reason of using that is empty tables which are not present in datafile descriptor but we need to have them in
@@ -801,11 +788,19 @@ func initialiseImportTableList(importFileTasks []*ImportFileTask, msr *metadb.Mi
 		if err != nil {
 			return goerrors.Errorf("Failed to get import table list: %v", err)
 		}
+		//for live target db importer we don't support table-list and exclude-table-list flags, so we need to check if all the tables in the importFileTasks are present in the target
+		//and if not, we need to exit with an error
+		//If the export type includes snapshot, then only use the importFileTasks to get the tables to import
+		//otherwise use the tables from msr
+		tablesToImport := lo.Ternary(importSnapshotRequired(), importFileTasksToTableNameTuples(importFileTasks), importTableList)
+		checkTablesPresentInTarget(tablesToImport)
 		return nil
 	}
 	//for offline migration we need to use the import file tasks to get the import table list
 	//as that is the one where we filter the tables via table-list flags
 	//we don't need empty tables in offline case, data migration doesn't matter for them
+	//Table list after applying table list filter
+	importFileTasks = applyTableListFilter(importFileTasks)
 	importTableList = importFileTasksToTableNameTuples(importFileTasks)
 
 	return nil
@@ -996,6 +991,10 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 	}
 
 	if changeStreamingIsEnabled(importType) {
+		err = clearMigrationStateForStreaming(importerRole)
+		if err != nil {
+			utils.ErrExit("failed to clear migration state for streaming: %s", err)
+		}
 		if importSnapshotRequired() {
 			displayImportedRowCountSnapshot(state, importFileTasks, errorHandler)
 		}
@@ -1017,6 +1016,23 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 		displayImportedRowCountSnapshot(state, importFileTasks, errorHandler)
 	}
 	fmt.Printf("\nImport data complete.\n")
+}
+
+func clearMigrationStateForStreaming(importerRole string) error {
+	if !startClean {
+		return nil
+	}
+	// clearing state from metaDB based on importerRole
+	err := metaDB.ResetQueueSegmentMeta(importerRole)
+	if err != nil {
+		utils.ErrExit("failed to reset queue segment meta: %s", err)
+	}
+	err = metaDB.DeleteJsonObject(identityColumnsMetaDBKey)
+	if err != nil {
+		utils.ErrExit("failed to reset identity columns meta: %s", err)
+	}
+
+	return nil
 }
 
 func postSnapshotImportProcessing(msr *metadb.MigrationStatusRecord, importTableList []sqlname.NameTuple) error {

@@ -38,6 +38,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -513,10 +514,10 @@ func GetAbsPathOfPGCommandAboveVersion(cmd string, sourceDBVersion string) (path
 }
 
 // GetAllSequences returns all the sequence names in the database for the given schema list
-func (pg *PostgreSQL) GetAllSequencesLastValues() (map[string]int64, error) {
+func (pg *PostgreSQL) GetAllSequencesLastValues() (*utils.StructMap[*sqlname.ObjectName, int64], error) {
 	schemaList := sqlname.ExtractIdentifiersUnquoted(pg.source.Schemas)
 	querySchemaList := "'" + strings.Join(schemaList, "','") + "'"
-	result := make(map[string]int64)
+	result := utils.NewStructMap[*sqlname.ObjectName, int64]()
 	query := fmt.Sprintf(`SELECT schemaname, sequencename, COALESCE(last_value, 0) as last_value FROM pg_sequences where schemaname IN (%s);`, querySchemaList)
 	rows, err := pg.db.Query(query)
 	if err != nil {
@@ -525,7 +526,7 @@ func (pg *PostgreSQL) GetAllSequencesLastValues() (map[string]int64, error) {
 			query = fmt.Sprintf(`SELECT sequence_schema, sequence_name, 0 as last_value FROM information_schema.sequences where sequence_schema IN (%s);`, querySchemaList)
 			rows, err = pg.db.Query(query)
 			if err != nil {
-					return nil, fmt.Errorf("error in querying(%q) source database for sequence last values: %w", query, err)
+				return nil, fmt.Errorf("error in querying(%q) source database for sequence last values: %w", query, err)
 			}
 		} else {
 			return nil, fmt.Errorf("error in querying(%q) source database for sequence last values: %w", query, err)
@@ -544,7 +545,9 @@ func (pg *PostgreSQL) GetAllSequencesLastValues() (map[string]int64, error) {
 		if err != nil {
 			utils.ErrExit("error in scanning query rows for sequence names: %w\n", err)
 		}
-		result[fmt.Sprintf(`"%s"."%s"`, sequenceSchema, sequenceName)] = lastValue
+		qualifiedSequenceName := fmt.Sprintf(`"%s"."%s"`, sequenceSchema, sequenceName)
+		objName := sqlname.NewObjectNameWithQualifiedName(constants.POSTGRESQL, pg.source.DBName, qualifiedSequenceName)
+		result.Put(objName, lastValue)
 	}
 	return result, nil
 }
