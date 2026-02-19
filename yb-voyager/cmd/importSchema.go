@@ -155,14 +155,8 @@ func importSchema() error {
 	}
 	utils.PrintAndLogf("YugabyteDB version: %s\n", importTargetDBVersion)
 
-	migrationAssessmentDoneAndApplied, err := MigrationAssessmentDoneAndApplied()
-	if err != nil {
-		return fmt.Errorf("failed to check if the migration assessment is completed and applied recommendations on schema in export schema: %w", err)
-	}
-
-	if migrationAssessmentDoneAndApplied && !isYBDatabaseIsColocated(conn) && !utils.AskPrompt(fmt.Sprintf("\nWarning: Target DB '%s' is a non-colocated database, colocated tables can't be created in a non-colocated database.\n", tconf.DBName),
-		"Use a colocated database if your schema contains colocated tables. Do you still want to continue") {
-		utils.ErrExit("Exiting...")
+	if err := promptIfColocatedTablesInNonColocatedDB(conn); err != nil {
+		return err
 	}
 
 	if !flagPostSnapshotImport {
@@ -353,6 +347,47 @@ func isYBDatabaseIsColocated(conn *pgx.Conn) bool {
 	}
 	log.Infof("target DB '%s' colocoated='%t'", tconf.DBName, isColocated)
 	return isColocated
+}
+
+func assessmentRecommendedColocatedTables() bool {
+	reportPath := GetJsonAssessmentReportPath()
+	if !utils.FileOrFolderExists(reportPath) {
+		log.Infof("assessment report not found at %s, assuming colocated tables may exist", reportPath)
+		return true
+	}
+	report, err := ParseJSONToAssessmentReport(reportPath)
+	if err != nil {
+		log.Warnf("failed to parse assessment report: %v, assuming colocated tables may exist", err)
+		return true
+	}
+	colocatedTables, err := report.GetColocatedTablesRecommendation()
+	if err != nil {
+		log.Warnf("failed to get colocated tables recommendation: %v, assuming colocated tables may exist", err)
+		return true
+	}
+	return len(colocatedTables) > 0
+}
+
+func promptIfColocatedTablesInNonColocatedDB(conn *pgx.Conn) error {
+	migrationAssessmentDoneAndApplied, err := MigrationAssessmentDoneAndApplied()
+	if err != nil {
+		return fmt.Errorf("failed to check if the migration assessment is completed and applied recommendations on schema in export schema: %w", err)
+	}
+	if !migrationAssessmentDoneAndApplied {
+		return nil
+	}
+	if isYBDatabaseIsColocated(conn) {
+		return nil
+	}
+	if !assessmentRecommendedColocatedTables() {
+		return nil
+	}
+	if !utils.AskPrompt(fmt.Sprintf("\nWarning: Target DB '%s' is a non-colocated database. "+
+		"The migration assessment has recommended colocated tables, which require a colocated database.\n", tconf.DBName),
+		"Do you still want to continue without colocation") {
+		utils.ErrExit("Exiting...")
+	}
+	return nil
 }
 
 func dumpStatements(reportPath string, stmts []string, filePath string) {
