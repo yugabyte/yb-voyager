@@ -801,7 +801,6 @@ func createAndStoreReplicationSlotAndPublication(finalTableList []sqlname.NameTu
 	return res.SnapshotName, nil
 }
 func getSequenceInitialValues() (*utils.StructMap[sqlname.NameTuple, int64], error) {
-	result := utils.NewStructMap[sqlname.NameTuple, int64]()
 	if exportType == CHANGES_ONLY {
 		/*
 			In changes_only case, we need to get the sequence initial values from the DB as we don't export the snapshot.
@@ -812,12 +811,9 @@ func getSequenceInitialValues() (*utils.StructMap[sqlname.NameTuple, int64], err
 			and on debezium we need to maintain the maximum value of sequence to be restored on target
 			so debezium should maintain 110 instead of 103 last value of seq1 for which it needs to know the initial value on DB.
 		*/
-		result, err := getSequenceInitialValuesFromDB()
-		if err != nil {
-			return nil, fmt.Errorf("get sequence initial values from DB: %w", err)
-		}
-		return result, nil
+		return getSequenceInitialValuesFromDB()
 	}
+	result := utils.NewStructMap[sqlname.NameTuple, int64]()
 	path := filepath.Join(exportDir, "data", "postdata.sql")
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -868,7 +864,7 @@ func getSequenceInitialValuesFromDB() (*utils.StructMap[sqlname.NameTuple, int64
 	if err != nil {
 		return nil, fmt.Errorf("get all sequences last values from DB: %w", err)
 	}
-	err = sequenceLastValueMap.IterKV(func(sequenceName *sqlname.ObjectName, lastValue int64) (bool, error) {
+	err = sequenceLastValueMap.IterKV(func(sequenceName sqlname.ObjectName, lastValue int64) (bool, error) {
 		seqTuple, err := namereg.NameReg.LookupTableName(sequenceName.Qualified.Quoted)
 		if err != nil {
 			return false, fmt.Errorf("lookup for sequence name %s: %w", sequenceName.Qualified.Quoted, err)

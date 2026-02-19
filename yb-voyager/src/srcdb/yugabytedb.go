@@ -360,7 +360,7 @@ func (yb *YugabyteDB) getExportedColumnsListForTable(exportDir, tableName string
 }
 
 // GetAllSequences returns all the sequence names in the database for the given schema list
-func (yb *YugabyteDB) GetAllSequencesLastValues() (*utils.StructMap[*sqlname.ObjectName, int64], error) {
+func (yb *YugabyteDB) GetAllSequencesLastValues() (*utils.StructMap[sqlname.ObjectName, int64], error) {
 	schemaList := sqlname.ExtractIdentifiersUnquoted(yb.source.Schemas)
 	querySchemaList := "'" + strings.Join(schemaList, "','") + "'"
 	query := fmt.Sprintf(`SELECT schemaname, sequencename, COALESCE(last_value, 0) as last_value FROM pg_sequences where schemaname IN (%s);`, querySchemaList)
@@ -386,7 +386,7 @@ func (yb *YugabyteDB) GetAllSequencesLastValues() (*utils.StructMap[*sqlname.Obj
 
 	var sequenceName, sequenceSchema string
 	var lastValue int64
-	result := utils.NewStructMap[*sqlname.ObjectName, int64]()
+	result := utils.NewStructMap[sqlname.ObjectName, int64]()
 	for rows.Next() {
 		err = rows.Scan(&sequenceSchema, &sequenceName, &lastValue)
 		if err != nil {
@@ -394,7 +394,7 @@ func (yb *YugabyteDB) GetAllSequencesLastValues() (*utils.StructMap[*sqlname.Obj
 		}
 		qualifiedSequenceName := fmt.Sprintf(`"%s"."%s"`, sequenceSchema, sequenceName)
 		objName := sqlname.NewObjectNameWithQualifiedName(constants.YUGABYTEDB, yb.source.DBName, qualifiedSequenceName)
-		result.Put(objName, lastValue)
+		result.Put(*objName, lastValue)
 	}
 	return result, nil
 }
