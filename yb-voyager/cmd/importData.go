@@ -37,6 +37,7 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/adaptiveparallelism"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/config"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
@@ -107,12 +108,7 @@ var importDataCmd = &cobra.Command{
 			tconf.AdaptiveParallelismMode = types.BalancedAdaptiveParallelismMode
 		}
 
-		err := resolveToActiveIterationIfRequired()
-		if err != nil {
-			utils.ErrExit("failed to resolve to active iteration: %w", err)
-		}
-
-		err = retrieveMigrationUUID()
+		err := retrieveMigrationUUID()
 		if err != nil {
 			utils.ErrExit("failed to get migration UUID: %w", err)
 		}

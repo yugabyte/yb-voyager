@@ -128,11 +128,7 @@ func exportDataCommandPreRun(cmd *cobra.Command, args []string) {
 
 func exportDataCommandFn(cmd *cobra.Command, args []string) {
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
-	err := resolveToActiveIterationIfRequired()
-	if err != nil {
-		utils.ErrExit("failed to resolve to active iteration: %w", err)
-	}
-	err = retrieveMigrationUUID()
+	err := retrieveMigrationUUID()
 	if err != nil {
 		utils.ErrExit("failed to get migration UUID: %w", err)
 	}
@@ -1699,6 +1695,10 @@ func startFallBackSetupIfRequired() {
 
 func generateGlobalExportImportArguments() []string {
 	var arguments []string
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("failed to get migration status record: %w", err)
+	}
 	/*
 		If config file is provided, pass the global flags if overriden by cli to the command together with  disable pb flag if it is overriden by cli
 		If config file is not provided, set some flags for the command like export-dir, log-level, disable-pb, send-diagnostics
@@ -1712,6 +1712,12 @@ func generateGlobalExportImportArguments() []string {
 				arguments = append(arguments, "--"+override.FlagName, override.Value)
 				continue
 			}
+			if override.FlagName == "config-file" {
+				configFile := resolveToUserFacingConfigFileForIteration(msr)
+				//if config file is overidden then pass it as CLI override also to this command
+				arguments = append(arguments, "--"+override.FlagName, configFile)
+				continue
+			}
 			if !slices.Contains(globalFlags, override.FlagName) {
 				//if its not a global flag then skip passing it to the command as it will be command specific flag
 				continue
@@ -1721,13 +1727,30 @@ func generateGlobalExportImportArguments() []string {
 	} else {
 		//else set some overrides for the command
 		arguments = append(arguments, "--log-level", config.LogLevel)
-		arguments = append(arguments, "--export-dir", exportDir)
+		arguments = append(arguments, "--export-dir", lo.Ternary(msr.IsParentMigration(), exportDir, msr.ParentExportDir))
 		if bool(disablePb) {
 			arguments = append(arguments, "--disable-pb=true")
 		}
 		arguments = append(arguments, fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics))
 	}
 	return arguments
+}
+
+func resolveToUserFacingConfigFileForIteration(msr *metadb.MigrationStatusRecord) string {
+	configFile := cfgFile
+	if msr.IsIteration() {
+		parentMetaDB, err := msr.GetParentMetaDB()
+		if err != nil {
+			utils.ErrExit("failed to get parent meta db: %w", err)
+		}
+		parentMsr, err := parentMetaDB.GetMigrationStatusRecord()
+		if err != nil {
+			utils.ErrExit("failed to get parent migration status record: %w", err)
+		}
+		configFile = parentMsr.ConfigFile
+	}
+
+	return configFile
 }
 
 // ================================ Export Data table list filtering ================================
