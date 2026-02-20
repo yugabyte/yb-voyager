@@ -3989,7 +3989,7 @@ func TestControlPlane_YBMConfigFileBinding(t *testing.T) {
 	})
 
 	// Initialize config to read the config file (now also loads control plane config internally)
-	_, _, _, err := initConfig(assessMigrationCmd)
+	_, err := initConfig(assessMigrationCmd)
 	require.NoError(t, err)
 
 	// Verify control plane config was loaded into the global controlPlaneConfig map
