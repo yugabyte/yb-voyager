@@ -27,7 +27,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
-	testcontainers "github.com/yugabyte/yb-voyager/yb-voyager/test/containers"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
@@ -54,20 +53,32 @@ func TestSnapshotFailureAndResume(t *testing.T) {
 
 	ctx := context.Background()
 
-	exportDir = testutils.CreateTempExportDir()
-	defer testutils.RemoveTempExportDir(exportDir)
-
-	postgresContainer := testcontainers.NewTestContainer("postgresql", &testcontainers.ContainerConfig{
-		ForLive: true,
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB:    ContainerConfig{Type: "postgresql", ForLive: true},
+		SchemaNames: []string{"test_schema_snapshot_fail"},
+		SchemaSQL: []string{
+			"DROP SCHEMA IF EXISTS test_schema_snapshot_fail CASCADE;",
+			"CREATE SCHEMA test_schema_snapshot_fail;",
+			`CREATE TABLE test_schema_snapshot_fail.cdc_snapshot_fail_test (
+				id SERIAL PRIMARY KEY,
+				name TEXT,
+				value INTEGER,
+				created_at TIMESTAMP DEFAULT NOW()
+			);`,
+			`ALTER TABLE test_schema_snapshot_fail.cdc_snapshot_fail_test REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			`INSERT INTO test_schema_snapshot_fail.cdc_snapshot_fail_test (name, value)
+			SELECT 'snapshot_' || i, i * 10 FROM generate_series(1, 100) i;`,
+		},
+		CleanupSQL: []string{"DROP SCHEMA IF EXISTS test_schema_snapshot_fail CASCADE;"},
 	})
-	err := postgresContainer.Start(ctx)
-	require.NoError(t, err, "Failed to start PostgreSQL container")
-	defer postgresContainer.Stop(ctx)
+	defer lm.Cleanup()
+	require.NoError(t, lm.SetupContainers(ctx))
+	require.NoError(t, lm.SetupSchema())
 
-	setupSnapshotFailureTestData(t, postgresContainer)
-	defer postgresContainer.ExecuteSqls(
-		"DROP SCHEMA IF EXISTS test_schema_snapshot_fail CASCADE;",
-	)
+	exportDir = lm.GetExportDir()
+	postgresContainer := lm.GetSourceContainer()
 
 	failpointEnv := testutils.GetFailpointEnvVar(
 		"github.com/yugabyte/yb-voyager/yb-voyager/cmd/pgDumpSnapshotFailure=1*return()",
@@ -80,7 +91,7 @@ func TestSnapshotFailureAndResume(t *testing.T) {
 			`INSERT INTO test_schema_snapshot_fail.cdc_snapshot_fail_test (name, value)
 			SELECT 'cdc_' || i, 1000 + i FROM generate_series(1, 20) i;`,
 		)
-		logTest(t, "CDC rows inserted during snapshot phase")
+		testutils.LogTest(t, "CDC rows inserted during snapshot phase")
 		cdcEventsGenerated <- true
 	}
 
@@ -92,7 +103,7 @@ func TestSnapshotFailureAndResume(t *testing.T) {
 		"--yes",
 	}, generateCDCEvents, true).WithEnv(failpointEnv, "YB_VOYAGER_PGDUMP_FAIL_DELAY_MS=8000")
 
-	err = exportRunner.Run()
+	err := exportRunner.Run()
 	require.NoError(t, err, "Failed to start export")
 
 	err = exportRunner.Wait()
@@ -107,21 +118,21 @@ func TestSnapshotFailureAndResume(t *testing.T) {
 	_, err = os.Stat(descriptorPath)
 	require.Error(t, err, "Snapshot descriptor should not exist after failed snapshot")
 
-	logTest(t, "Verifying CDC events inserted before failure are accounted for...")
+	testutils.LogTest(t, "Verifying CDC events inserted before failure are accounted for...")
 	eventCountAfterFailure, err := countEventsInQueueSegments(exportDir)
 	if err != nil {
 		if os.IsNotExist(err) {
-			logTest(t, "Queue directory missing after failure; no CDC events persisted yet")
+			testutils.LogTest(t, "Queue directory missing after failure; no CDC events persisted yet")
 			eventCountAfterFailure = 0
 		} else {
 			require.NoError(t, err, "Should be able to count CDC events after failure")
 		}
 	}
 	if eventCountAfterFailure > 0 {
-		logTestf(t, "CDC events captured before failure: %d", eventCountAfterFailure)
+		testutils.LogTestf(t, "CDC events captured before failure: %d", eventCountAfterFailure)
 	}
 
-	logTest(t, "Resuming export without failure injection...")
+	testutils.LogTest(t, "Resuming export without failure injection...")
 	exportRunnerResume := testutils.NewVoyagerCommandRunner(postgresContainer, "export data", []string{
 		"--export-dir", exportDir,
 		"--export-type", "snapshot-and-changes",
@@ -144,7 +155,7 @@ func TestSnapshotFailureAndResume(t *testing.T) {
 	require.NoError(t, err, "Snapshot descriptor should be created after resume")
 	require.NotEmpty(t, descriptorHash, "Snapshot descriptor hash should not be empty")
 
-	logTest(t, "Inserting CDC rows after snapshot completion to validate CDC export...")
+	testutils.LogTest(t, "Inserting CDC rows after snapshot completion to validate CDC export...")
 	postgresContainer.ExecuteSqls(
 		`INSERT INTO test_schema_snapshot_fail.cdc_snapshot_fail_test (name, value)
 		SELECT 'cdc_after_' || i, 2000 + i FROM generate_series(1, 10) i;`,
@@ -167,7 +178,7 @@ func TestSnapshotFailureAndResume(t *testing.T) {
 	require.Equal(t, sourceRowCount, int(snapshotRowCount)+cdcEventCount,
 		"Snapshot rows + CDC events should equal source row count")
 
-	logTest(t, "Snapshot failure and resume test completed successfully")
+	testutils.LogTest(t, "Snapshot failure and resume test completed successfully")
 }
 
 // TestSnapshotToCDCTransitionFailure verifies recovery when snapshot-to-CDC transition fails.
@@ -187,29 +198,40 @@ func TestSnapshotFailureAndResume(t *testing.T) {
 // - Resume correctly starts CDC from where transition left off
 // - Snapshot is not re-executed on resume (descriptor hash remains stable)
 func TestSnapshotToCDCTransitionFailure(t *testing.T) {
-	// Skip if Byteman is not available
 	if os.Getenv("BYTEMAN_JAR") == "" {
 		t.Skip("Skipping test: BYTEMAN_JAR environment variable not set. Install Byteman to run this test.")
 	}
 
 	ctx := context.Background()
 
-	exportDir = testutils.CreateTempExportDir()
-	defer testutils.RemoveTempExportDir(exportDir)
-
-	postgresContainer := testcontainers.NewTestContainer("postgresql", &testcontainers.ContainerConfig{
-		ForLive: true,
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB:    ContainerConfig{Type: "postgresql", ForLive: true},
+		SchemaNames: []string{"test_schema_transition"},
+		SchemaSQL: []string{
+			"DROP SCHEMA IF EXISTS test_schema_transition CASCADE;",
+			"CREATE SCHEMA test_schema_transition;",
+			`CREATE TABLE test_schema_transition.cdc_transition_test (
+				id SERIAL PRIMARY KEY,
+				name TEXT,
+				value INTEGER,
+				created_at TIMESTAMP DEFAULT NOW()
+			);`,
+			`ALTER TABLE test_schema_transition.cdc_transition_test REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			`INSERT INTO test_schema_transition.cdc_transition_test (name, value)
+			SELECT 'snapshot_' || i, i * 10 FROM generate_series(1, 30) i;`,
+		},
+		CleanupSQL: []string{"DROP SCHEMA IF EXISTS test_schema_transition CASCADE;"},
 	})
-	err := postgresContainer.Start(ctx)
-	require.NoError(t, err, "Failed to start PostgreSQL container")
-	defer postgresContainer.Stop(ctx)
+	defer lm.Cleanup()
+	require.NoError(t, lm.SetupContainers(ctx))
+	require.NoError(t, lm.SetupSchema())
 
-	setupTransitionFailureTestData(t, postgresContainer)
-	defer postgresContainer.ExecuteSqls(
-		"DROP SCHEMA IF EXISTS test_schema_transition CASCADE;",
-	)
+	exportDir = lm.GetExportDir()
+	postgresContainer := lm.GetSourceContainer()
 
-	logTest(t, "Running export with Go-side failure injection at snapshot->CDC transition...")
+	testutils.LogTest(t, "Running export with Go-side failure injection at snapshot->CDC transition...")
 	failpointEnv := testutils.GetFailpointEnvVar(
 		"github.com/yugabyte/yb-voyager/yb-voyager/cmd/snapshotToCDCTransitionError=1*return()",
 	)
@@ -221,11 +243,11 @@ func TestSnapshotToCDCTransitionFailure(t *testing.T) {
 		"--yes",
 	}, nil, true).WithEnv(failpointEnv)
 
-	err = exportRunner.Run()
+	err := exportRunner.Run()
 	require.NoError(t, err, "Failed to start export")
 
 	failMarkerPath := filepath.Join(exportDir, "logs", "failpoint-snapshot-to-cdc.log")
-	logTest(t, "Waiting for failpoint marker after injection...")
+	testutils.LogTest(t, "Waiting for failpoint marker after injection...")
 	matched, err := waitForMarkerFile(failMarkerPath, 60*time.Second, 2*time.Second)
 	require.NoError(t, err, "Should be able to read failpoint marker")
 	if !matched {
@@ -233,41 +255,41 @@ func TestSnapshotToCDCTransitionFailure(t *testing.T) {
 		_ = killDebeziumForExportDir(exportDir)
 		require.Fail(t, "Snapshot->CDC failpoint marker did not trigger")
 	}
-	logTest(t, "✓ Failpoint marker detected: snapshot->CDC transition failure injected")
+	testutils.LogTest(t, "✓ Failpoint marker detected: snapshot->CDC transition failure injected")
 
-	logTest(t, "Waiting for export process to exit after injection...")
+	testutils.LogTest(t, "Waiting for export process to exit after injection...")
 	wasKilled, waitErr := waitForProcessExitOrKill(exportRunner, exportDir, 60*time.Second)
 	if wasKilled {
-		logTest(t, "Export did not exit after injection; process was killed")
+		testutils.LogTest(t, "Export did not exit after injection; process was killed")
 	} else {
 		require.Error(t, waitErr, "Export should exit with error after failpoint injection")
 	}
 
 	time.Sleep(3 * time.Second)
 
-	logTest(t, "Verifying no CDC events were emitted before failure...")
+	testutils.LogTest(t, "Verifying no CDC events were emitted before failure...")
 	eventCountAfterFailure, err := countEventsInQueueSegments(exportDir)
 	require.NoError(t, err, "Should be able to count CDC events after failure")
 	require.Equal(t, 0, eventCountAfterFailure, "Expected 0 CDC events before resume")
 
-	logTest(t, "Capturing snapshot descriptor before resume...")
+	testutils.LogTest(t, "Capturing snapshot descriptor before resume...")
 	descriptorHashBefore, err := hashSnapshotDescriptor(exportDir)
 	require.NoError(t, err, "Should be able to hash snapshot descriptor before resume")
 
-	logTest(t, "Resuming export without failure injection...")
+	testutils.LogTest(t, "Resuming export without failure injection...")
 	cdcEventsGenerated := make(chan bool, 1)
 	generateCDCEvents := func() {
 		if err := waitForStreamingMode(exportDir, 2*time.Minute, 2*time.Second); err != nil {
-			logTestf(t, "Failed waiting for streaming mode before CDC inserts: %v", err)
+			testutils.LogTestf(t, "Failed waiting for streaming mode before CDC inserts: %v", err)
 			cdcEventsGenerated <- true
 			return
 		}
-		logTestf(t, "Generating CDC events (1 batch of 20 rows, %v between batches)...", batchSeparationWaitTime)
+		testutils.LogTestf(t, "Generating CDC events (1 batch of 20 rows, %v between batches)...", batchSeparationWaitTime)
 		postgresContainer.ExecuteSqls(
 			`INSERT INTO test_schema_transition.cdc_transition_test (name, value)
 			SELECT 'batch1_' || i, 100 + i FROM generate_series(1, 20) i;`,
 		)
-		logTestf(t, "Batch 1 inserted, waiting %v for Debezium to process...", batchSeparationWaitTime)
+		testutils.LogTestf(t, "Batch 1 inserted, waiting %v for Debezium to process...", batchSeparationWaitTime)
 		time.Sleep(batchSeparationWaitTime)
 		cdcEventsGenerated <- true
 	}
@@ -286,7 +308,7 @@ func TestSnapshotToCDCTransitionFailure(t *testing.T) {
 
 	select {
 	case <-cdcEventsGenerated:
-		logTest(t, "CDC events generation completed")
+		testutils.LogTest(t, "CDC events generation completed")
 	case <-time.After(60 * time.Second):
 		require.Fail(t, "CDC event generation timed out")
 	}
@@ -296,7 +318,7 @@ func TestSnapshotToCDCTransitionFailure(t *testing.T) {
 
 	verifyNoEventIDDuplicates(t, exportDir)
 
-	logTest(t, "Verifying snapshot descriptor unchanged after resume...")
+	testutils.LogTest(t, "Verifying snapshot descriptor unchanged after resume...")
 	descriptorHashAfter, err := hashSnapshotDescriptor(exportDir)
 	require.NoError(t, err, "Should be able to hash snapshot descriptor after resume")
 	require.Equal(t, descriptorHashBefore, descriptorHashAfter, "Snapshot descriptor should not change after resume")
@@ -310,5 +332,5 @@ func TestSnapshotToCDCTransitionFailure(t *testing.T) {
 	require.NoError(t, err, "Failed to query source row count")
 	require.Equal(t, 50, sourceRowCount, "Source should have 30 snapshot + 20 CDC rows")
 
-	logTest(t, "Snapshot->CDC transition failure test completed successfully")
+	testutils.LogTest(t, "Snapshot->CDC transition failure test completed successfully")
 }

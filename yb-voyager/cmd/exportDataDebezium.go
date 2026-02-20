@@ -26,7 +26,6 @@ import (
 	"time"
 
 	goerrors "github.com/go-errors/errors"
-	"github.com/pingcap/failpoint"
 
 	"github.com/fatih/color"
 	"github.com/gosuri/uilive"
@@ -496,13 +495,9 @@ func checkAndHandleSnapshotComplete(config *dbzm.Config, status *dbzm.ExportStat
 	if !status.SnapshotExportIsComplete() {
 		return false, nil
 	}
-	failpoint.Inject("snapshotToCDCTransitionError", func(val failpoint.Value) {
-		if val != nil {
-			_ = os.MkdirAll(filepath.Join(exportDir, "logs"), 0755)
-			_ = os.WriteFile(filepath.Join(exportDir, "logs", "failpoint-snapshot-to-cdc.log"), []byte("hit\n"), 0644)
-			failpoint.Return(false, goerrors.Errorf("failpoint: snapshot->CDC transition failure"))
-		}
-	})
+	if triggered, fpErr := injectSnapshotToCDCTransitionError(); triggered {
+		return false, fpErr
+	}
 	exportPhase = dbzm.MODE_STREAMING
 	if config.SnapshotMode != "never" {
 		progressTracker.Done(status)
@@ -536,13 +531,9 @@ func checkAndHandleSnapshotComplete(config *dbzm.Config, status *dbzm.ExportStat
 					}
 				}
 
-				failpoint.Inject("exportFromTargetStartupError", func(val failpoint.Value) {
-					if val != nil {
-						_ = os.MkdirAll(filepath.Join(exportDir, "logs"), 0755)
-						_ = os.WriteFile(filepath.Join(exportDir, "logs", "failpoint-export-from-target-startup.log"), []byte("hit\n"), 0644)
-						failpoint.Return(false, goerrors.Errorf("failpoint: export-from-target startup failure"))
-					}
-				})
+				if triggered, fpErr := injectExportFromTargetStartupError(); triggered {
+					return false, fpErr
+				}
 
 				err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 					if exporterRole == TARGET_DB_EXPORTER_FB_ROLE {
