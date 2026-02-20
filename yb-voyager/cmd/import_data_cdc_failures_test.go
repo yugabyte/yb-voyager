@@ -67,8 +67,8 @@ func TestImportCDCTransformFailureAndResume(t *testing.T) {
 	ctx := context.Background()
 
 	lm := NewLiveMigrationTest(t, &TestConfig{
-		SourceDB:    ContainerConfig{Type: "postgresql", ForLive: true},
-		TargetDB:    ContainerConfig{Type: "yugabytedb"},
+		SourceDB:    ContainerConfig{Type: "postgresql", ForLive: true, DatabaseName: "test_import_cdc_transform"},
+		TargetDB:    ContainerConfig{Type: "yugabytedb", DatabaseName: "test_import_cdc_transform"},
 		SchemaNames: []string{"test_schema_import_cdc"},
 		SchemaSQL: []string{
 			"CREATE SCHEMA test_schema_import_cdc;",
@@ -183,7 +183,7 @@ func TestImportCDCTransformFailureAndResume(t *testing.T) {
 	require.NoError(t, err, "Failed to compute max queued vsn from queue segments")
 	testutils.LogTestf(t, "Max queued vsn in CDC segments: %d", maxQueuedVsn)
 
-	ybConnForChecks, err := lm.GetTargetContainer().GetConnection()
+	ybConnForChecks, err := lm.GetTargetConnection()
 	require.NoError(t, err, "Failed to get YugabyteDB connection for mid-test checks")
 	defer ybConnForChecks.Close()
 
@@ -211,11 +211,11 @@ func TestImportCDCTransformFailureAndResume(t *testing.T) {
 	require.NoError(t, lm.StartImportData(true, nil))
 	defer lm.GetImportCmd().Kill()
 
-	pgConn, err := lm.GetSourceContainer().GetConnection()
+	pgConn, err := lm.GetSourceConnection()
 	require.NoError(t, err, "Failed to get PostgreSQL connection")
 	defer pgConn.Close()
 
-	ybConn, err := lm.GetTargetContainer().GetConnection()
+	ybConn, err := lm.GetTargetConnection()
 	require.NoError(t, err, "Failed to get YugabyteDB connection")
 	defer ybConn.Close()
 
@@ -256,8 +256,8 @@ func TestImportCDCDbErrorAndResume(t *testing.T) {
 	ctx := context.Background()
 
 	lm := NewLiveMigrationTest(t, &TestConfig{
-		SourceDB:    ContainerConfig{Type: "postgresql", ForLive: true},
-		TargetDB:    ContainerConfig{Type: "yugabytedb"},
+		SourceDB:    ContainerConfig{Type: "postgresql", ForLive: true, DatabaseName: "test_import_cdc_db_err"},
+		TargetDB:    ContainerConfig{Type: "yugabytedb", DatabaseName: "test_import_cdc_db_err"},
 		SchemaNames: []string{"test_schema_import_cdc_db_err"},
 		SchemaSQL: []string{
 			"CREATE SCHEMA test_schema_import_cdc_db_err;",
@@ -367,7 +367,7 @@ func TestImportCDCDbErrorAndResume(t *testing.T) {
 	require.NoError(t, err, "Failed to compute max queued vsn from queue segments")
 	testutils.LogTestf(t, "Max queued vsn in CDC segments: %d", maxQueuedVsn)
 
-	ybConnForChecks, err := lm.GetTargetContainer().GetConnection()
+	ybConnForChecks, err := lm.GetTargetConnection()
 	require.NoError(t, err, "Failed to get YugabyteDB connection for mid-test checks")
 	defer ybConnForChecks.Close()
 
@@ -394,11 +394,11 @@ func TestImportCDCDbErrorAndResume(t *testing.T) {
 	require.NoError(t, lm.StartImportData(true, nil))
 	defer lm.GetImportCmd().Kill()
 
-	pgConn, err := lm.GetSourceContainer().GetConnection()
+	pgConn, err := lm.GetSourceConnection()
 	require.NoError(t, err, "Failed to get PostgreSQL connection")
 	defer pgConn.Close()
 
-	ybConn, err := lm.GetTargetContainer().GetConnection()
+	ybConn, err := lm.GetTargetConnection()
 	require.NoError(t, err, "Failed to get YugabyteDB connection")
 	defer ybConn.Close()
 
@@ -433,8 +433,8 @@ func TestImportCDCEventExecutionFailureAndResume(t *testing.T) {
 	ctx := context.Background()
 
 	lm := NewLiveMigrationTest(t, &TestConfig{
-		SourceDB:    ContainerConfig{Type: "postgresql", ForLive: true},
-		TargetDB:    ContainerConfig{Type: "yugabytedb"},
+		SourceDB:    ContainerConfig{Type: "postgresql", ForLive: true, DatabaseName: "test_import_cdc_event_fail"},
+		TargetDB:    ContainerConfig{Type: "yugabytedb", DatabaseName: "test_import_cdc_event_fail"},
 		SchemaNames: []string{"test_schema_import_cdc_event_fail"},
 		SchemaSQL: []string{
 			"CREATE SCHEMA test_schema_import_cdc_event_fail;",
@@ -527,7 +527,7 @@ func TestImportCDCEventExecutionFailureAndResume(t *testing.T) {
 	require.NoError(t, err, "Failed to compute max queued vsn from queue segments")
 	testutils.LogTestf(t, "Max queued vsn in CDC segments: %d", maxQueuedVsn)
 
-	ybConnForChecks, err := lm.GetTargetContainer().GetConnection()
+	ybConnForChecks, err := lm.GetTargetConnection()
 	require.NoError(t, err, "Failed to get YugabyteDB connection for mid-test checks")
 	defer ybConnForChecks.Close()
 
@@ -538,7 +538,7 @@ func TestImportCDCEventExecutionFailureAndResume(t *testing.T) {
 	require.Less(t, lastAppliedVsn, maxQueuedVsn, "Expected partial progress (last_applied_vsn < max queued vsn)")
 
 	// After failure, target must not match source yet.
-	pgConnForMismatch, err := lm.GetSourceContainer().GetConnection()
+	pgConnForMismatch, err := lm.GetSourceConnection()
 	require.NoError(t, err, "Failed to get PostgreSQL connection for mismatch check")
 	defer pgConnForMismatch.Close()
 	require.Error(t, testutils.CompareTableData(ctx, pgConnForMismatch, ybConnForChecks, "test_schema_import_cdc_event_fail.cdc_import_test", "id"),
@@ -555,11 +555,11 @@ func TestImportCDCEventExecutionFailureAndResume(t *testing.T) {
 	require.NoError(t, lm.StartImportData(true, nil))
 	defer lm.GetImportCmd().Kill()
 
-	pgConn, err := lm.GetSourceContainer().GetConnection()
+	pgConn, err := lm.GetSourceConnection()
 	require.NoError(t, err, "Failed to get PostgreSQL connection")
 	defer pgConn.Close()
 
-	ybConn, err := lm.GetTargetContainer().GetConnection()
+	ybConn, err := lm.GetTargetConnection()
 	require.NoError(t, err, "Failed to get YugabyteDB connection")
 	defer ybConn.Close()
 
@@ -593,8 +593,8 @@ func TestImportCDCRetryableDbErrorThenSucceed(t *testing.T) {
 	ctx := context.Background()
 
 	lm := NewLiveMigrationTest(t, &TestConfig{
-		SourceDB:    ContainerConfig{Type: "postgresql", ForLive: true},
-		TargetDB:    ContainerConfig{Type: "yugabytedb"},
+		SourceDB:    ContainerConfig{Type: "postgresql", ForLive: true, DatabaseName: "test_import_cdc_retry"},
+		TargetDB:    ContainerConfig{Type: "yugabytedb", DatabaseName: "test_import_cdc_retry"},
 		SchemaNames: []string{"test_schema_import_cdc_retry"},
 		SchemaSQL: []string{
 			"CREATE SCHEMA test_schema_import_cdc_retry;",
@@ -683,11 +683,11 @@ func TestImportCDCRetryableDbErrorThenSucceed(t *testing.T) {
 		// still running as expected
 	}
 
-	pgConn, err := lm.GetSourceContainer().GetConnection()
+	pgConn, err := lm.GetSourceConnection()
 	require.NoError(t, err, "Failed to get PostgreSQL connection")
 	defer pgConn.Close()
 
-	ybConn, err := lm.GetTargetContainer().GetConnection()
+	ybConn, err := lm.GetTargetConnection()
 	require.NoError(t, err, "Failed to get YugabyteDB connection")
 	defer ybConn.Close()
 
@@ -724,8 +724,8 @@ func TestImportCDCRetryableAfterCommitErrorSkipsRetry(t *testing.T) {
 	ctx := context.Background()
 
 	lm := NewLiveMigrationTest(t, &TestConfig{
-		SourceDB:    ContainerConfig{Type: "postgresql", ForLive: true},
-		TargetDB:    ContainerConfig{Type: "yugabytedb"},
+		SourceDB:    ContainerConfig{Type: "postgresql", ForLive: true, DatabaseName: "test_import_cdc_retry_commit"},
+		TargetDB:    ContainerConfig{Type: "yugabytedb", DatabaseName: "test_import_cdc_retry_commit"},
 		SchemaNames: []string{"test_schema_import_cdc_retry_after_commit"},
 		SchemaSQL: []string{
 			"CREATE SCHEMA test_schema_import_cdc_retry_after_commit;",
@@ -824,7 +824,7 @@ func TestImportCDCRetryableAfterCommitErrorSkipsRetry(t *testing.T) {
 	testutils.LogTestf(t, "Max queued vsn in CDC segments: %d", maxQueuedVsn)
 
 	// Stronger-than-log verification: ensure voyager progress metadata catches up to the queue.
-	ybConnForChecks, err := lm.GetTargetContainer().GetConnection()
+	ybConnForChecks, err := lm.GetTargetConnection()
 	require.NoError(t, err, "Failed to get YugabyteDB connection for progress check")
 	defer ybConnForChecks.Close()
 
@@ -834,11 +834,11 @@ func TestImportCDCRetryableAfterCommitErrorSkipsRetry(t *testing.T) {
 	}, 120*time.Second, 2*time.Second, "Expected last_applied_vsn to reach max queued vsn after retryable-after-commit error")
 	testutils.LogTest(t, "✓ Verified last_applied_vsn caught up after retryable-after-commit error")
 
-	pgConn, err := lm.GetSourceContainer().GetConnection()
+	pgConn, err := lm.GetSourceConnection()
 	require.NoError(t, err, "Failed to get PostgreSQL connection")
 	defer pgConn.Close()
 
-	ybConn, err := lm.GetTargetContainer().GetConnection()
+	ybConn, err := lm.GetTargetConnection()
 	require.NoError(t, err, "Failed to get YugabyteDB connection")
 	defer ybConn.Close()
 
@@ -871,8 +871,8 @@ func TestImportCDCMultiChannelBatchFailureAndResume(t *testing.T) {
 	ctx := context.Background()
 
 	lm := NewLiveMigrationTest(t, &TestConfig{
-		SourceDB:    ContainerConfig{Type: "postgresql", ForLive: true},
-		TargetDB:    ContainerConfig{Type: "yugabytedb"},
+		SourceDB:    ContainerConfig{Type: "postgresql", ForLive: true, DatabaseName: "test_import_cdc_multi_chan"},
+		TargetDB:    ContainerConfig{Type: "yugabytedb", DatabaseName: "test_import_cdc_multi_chan"},
 		SchemaNames: []string{"test_schema_import_cdc_multi_chan"},
 		SchemaSQL: []string{
 			"CREATE SCHEMA test_schema_import_cdc_multi_chan;",
@@ -1048,7 +1048,7 @@ func TestImportCDCMultiChannelBatchFailureAndResume(t *testing.T) {
 	require.NoError(t, err, "Failed to compute max queued vsn from queue segments")
 	testutils.LogTestf(t, "Max queued vsn in CDC segments: %d", maxQueuedVsn)
 
-	ybConnForChecks, err := lm.GetTargetContainer().GetConnection()
+	ybConnForChecks, err := lm.GetTargetConnection()
 	require.NoError(t, err, "Failed to get YugabyteDB connection for mid-test checks")
 	defer ybConnForChecks.Close()
 
@@ -1068,7 +1068,7 @@ func TestImportCDCMultiChannelBatchFailureAndResume(t *testing.T) {
 	}
 	require.GreaterOrEqual(t, progressed, 2, "Expected at least two channels to have applied some events before failure")
 
-	pgConnForChecks, err := lm.GetSourceContainer().GetConnection()
+	pgConnForChecks, err := lm.GetSourceConnection()
 	require.NoError(t, err, "Failed to get PostgreSQL connection for mid-test mismatch check")
 	defer pgConnForChecks.Close()
 	require.Error(t,
@@ -1087,10 +1087,10 @@ func TestImportCDCMultiChannelBatchFailureAndResume(t *testing.T) {
 	require.NoError(t, lm.StartImportData(true, nil))
 	defer lm.GetImportCmd().Kill()
 
-	pgConn, err := lm.GetSourceContainer().GetConnection()
+	pgConn, err := lm.GetSourceConnection()
 	require.NoError(t, err, "Failed to get PostgreSQL connection")
 	defer pgConn.Close()
-	ybConn, err := lm.GetTargetContainer().GetConnection()
+	ybConn, err := lm.GetTargetConnection()
 	require.NoError(t, err, "Failed to get YugabyteDB connection")
 	defer ybConn.Close()
 

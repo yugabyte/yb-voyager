@@ -33,8 +33,8 @@ func TestImportDataBatchCommitFailure(t *testing.T) {
 	ctx := context.Background()
 
 	lm := NewLiveMigrationTest(t, &TestConfig{
-		SourceDB:    ContainerConfig{Type: "postgresql"},
-		TargetDB:    ContainerConfig{Type: "yugabytedb"},
+		SourceDB:    ContainerConfig{Type: "postgresql", DatabaseName: "test_failpoint"},
+		TargetDB:    ContainerConfig{Type: "yugabytedb", DatabaseName: "test_failpoint"},
 		SchemaNames: []string{"test_schema"},
 		SchemaSQL: []string{
 			"CREATE SCHEMA IF NOT EXISTS test_schema;",
@@ -74,7 +74,7 @@ func TestImportDataBatchCommitFailure(t *testing.T) {
 	assert.Contains(t, lm.GetImportCommandStderr(), "failpoint", "Error should mention failpoint")
 
 	// Verify partial progress on target after failpoint-induced failure
-	ybConn, err := lm.GetTargetContainer().GetConnection()
+	ybConn, err := lm.GetTargetConnection()
 	testutils.FatalIfError(t, err, "Failed to get YugabyteDB connection")
 	defer ybConn.Close()
 
@@ -95,7 +95,7 @@ func TestImportDataBatchCommitFailure(t *testing.T) {
 	assert.Equal(t, 20, count, "All 20 rows should be imported after successful resume")
 
 	// Compare data between source and target
-	pgConn, err := lm.GetSourceContainer().GetConnection()
+	pgConn, err := lm.GetSourceConnection()
 	testutils.FatalIfError(t, err, "Failed to get Postgres connection")
 	defer pgConn.Close()
 

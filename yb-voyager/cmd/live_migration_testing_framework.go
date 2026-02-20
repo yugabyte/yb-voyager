@@ -839,6 +839,16 @@ func (lm *LiveMigrationTest) GetTargetContainer() testcontainers.TestContainer {
 	return lm.targetContainer
 }
 
+// GetSourceConnection returns a *sql.DB connected to the test-specific source database.
+func (lm *LiveMigrationTest) GetSourceConnection() (*sql.DB, error) {
+	return lm.sourceContainer.GetConnectionWithDB(lm.config.SourceDB.DatabaseName)
+}
+
+// GetTargetConnection returns a *sql.DB connected to the test-specific target database.
+func (lm *LiveMigrationTest) GetTargetConnection() (*sql.DB, error) {
+	return lm.targetContainer.GetConnectionWithDB(lm.config.TargetDB.DatabaseName)
+}
+
 // GetExportCmd returns the current export VoyagerCommandRunner (may be nil).
 func (lm *LiveMigrationTest) GetExportCmd() *testutils.VoyagerCommandRunner {
 	return lm.exportCmd
@@ -938,7 +948,7 @@ func (lm *LiveMigrationTest) GetDataMigrationReport() (*DataMigrationReport, err
 		if err != nil {
 			return nil, goerrors.Errorf("get data-migration-report command failed: %w", err)
 		}
-		
+
 		reportFilePath := filepath.Join(lm.exportDir, "reports", "data-migration-report.json")
 		if !utils.FileOrFolderExists(reportFilePath) {
 			maxRetry--
@@ -948,13 +958,13 @@ func (lm *LiveMigrationTest) GetDataMigrationReport() (*DataMigrationReport, err
 			time.Sleep(2 * time.Second)
 			continue
 		}
-	
+
 		jsonFile := jsonfile.NewJsonFile[[]*rowData](reportFilePath)
 		rowData, err := jsonFile.Read()
 		if err != nil {
 			return nil, goerrors.Errorf("error reading data-migration-report: %w", err)
 		}
-	
+
 		return &DataMigrationReport{RowData: *rowData}, nil
 	}
 }

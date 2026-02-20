@@ -48,8 +48,8 @@ func TestImportSnapshotCommitFailureAndResume(t *testing.T) {
 	ctx := context.Background()
 
 	lm := NewLiveMigrationTest(t, &TestConfig{
-		SourceDB:    ContainerConfig{Type: "postgresql", ForLive: true},
-		TargetDB:    ContainerConfig{Type: "yugabytedb"},
+		SourceDB:    ContainerConfig{Type: "postgresql", ForLive: true, DatabaseName: "test_import_snap_fail"},
+		TargetDB:    ContainerConfig{Type: "yugabytedb", DatabaseName: "test_import_snap_fail"},
 		SchemaNames: []string{"test_schema_import_snap_fail"},
 		SchemaSQL: []string{
 			"CREATE SCHEMA test_schema_import_snap_fail;",
@@ -116,7 +116,7 @@ func TestImportSnapshotCommitFailureAndResume(t *testing.T) {
 	require.Error(t, err, "Expected import to fail due to snapshot commit failpoint")
 	require.Contains(t, lm.GetImportCommandStderr(), "failpoint")
 
-	ybConnForChecks, err := lm.GetTargetContainer().GetConnection()
+	ybConnForChecks, err := lm.GetTargetConnection()
 	require.NoError(t, err, "Failed to get YugabyteDB connection for mid-test checks")
 	defer ybConnForChecks.Close()
 
@@ -146,7 +146,7 @@ func TestImportSnapshotCommitFailureAndResume(t *testing.T) {
 
 	// After the snapshot-phase failure, the target must not match the source yet.
 	// (Source includes CDC changes; target has only a partial snapshot import.)
-	pgConnForMismatch, err := lm.GetSourceContainer().GetConnection()
+	pgConnForMismatch, err := lm.GetSourceConnection()
 	require.NoError(t, err)
 	defer pgConnForMismatch.Close()
 	mismatchErr := testutils.CompareTableData(ctx, pgConnForMismatch, ybConnForChecks, "test_schema_import_snap_fail.snapshot_import_test", "id")
@@ -160,10 +160,10 @@ func TestImportSnapshotCommitFailureAndResume(t *testing.T) {
 	require.NoError(t, lm.StartImportData(true, nil))
 	defer lm.GetImportCmd().Kill()
 
-	pgConn, err := lm.GetSourceContainer().GetConnection()
+	pgConn, err := lm.GetSourceConnection()
 	require.NoError(t, err)
 	defer pgConn.Close()
-	ybConn, err := lm.GetTargetContainer().GetConnection()
+	ybConn, err := lm.GetTargetConnection()
 	require.NoError(t, err)
 	defer ybConn.Close()
 
@@ -195,8 +195,8 @@ func TestImportSnapshotTransformFailureAndResume(t *testing.T) {
 	ctx := context.Background()
 
 	lm := NewLiveMigrationTest(t, &TestConfig{
-		SourceDB:    ContainerConfig{Type: "postgresql", ForLive: true},
-		TargetDB:    ContainerConfig{Type: "yugabytedb"},
+		SourceDB:    ContainerConfig{Type: "postgresql", ForLive: true, DatabaseName: "test_import_snap_transform"},
+		TargetDB:    ContainerConfig{Type: "yugabytedb", DatabaseName: "test_import_snap_transform"},
 		SchemaNames: []string{"test_schema_import_snap_transform_fail"},
 		SchemaSQL: []string{
 			"CREATE SCHEMA test_schema_import_snap_transform_fail;",
@@ -304,7 +304,7 @@ func TestImportSnapshotTransformFailureAndResume(t *testing.T) {
 	require.True(t, info.Mode().IsRegular(), "Expected tmp batch file to be a regular file")
 	require.Contains(t, lm.GetImportCommandStderr(), "transforming line number=", "Expected stderr to show transform progressed to a specific line")
 
-	ybConnForChecks, err := lm.GetTargetContainer().GetConnection()
+	ybConnForChecks, err := lm.GetTargetConnection()
 	require.NoError(t, err, "Failed to get YugabyteDB connection for mid-test checks")
 	defer ybConnForChecks.Close()
 
@@ -338,7 +338,7 @@ func TestImportSnapshotTransformFailureAndResume(t *testing.T) {
 	testutils.LogTestf(t, "After snapshot transform failure: imported=%d missing=%d", rowsAfterFailure, missingIDs)
 	require.Equal(t, 60-rowsAfterFailure, missingIDs, "Expected missing ids count to match partial snapshot row count")
 
-	pgConnForMismatch, err := lm.GetSourceContainer().GetConnection()
+	pgConnForMismatch, err := lm.GetSourceConnection()
 	require.NoError(t, err, "Failed to get PostgreSQL connection for mismatch check")
 	defer pgConnForMismatch.Close()
 	require.Error(t, testutils.CompareTableData(ctx, pgConnForMismatch, ybConnForChecks, "test_schema_import_snap_transform_fail.snapshot_import_test", "id"),
@@ -349,11 +349,11 @@ func TestImportSnapshotTransformFailureAndResume(t *testing.T) {
 	require.NoError(t, lm.StartImportData(true, nil))
 	defer lm.GetImportCmd().Kill()
 
-	pgConn, err := lm.GetSourceContainer().GetConnection()
+	pgConn, err := lm.GetSourceConnection()
 	require.NoError(t, err, "Failed to get PostgreSQL connection")
 	defer pgConn.Close()
 
-	ybConn, err := lm.GetTargetContainer().GetConnection()
+	ybConn, err := lm.GetTargetConnection()
 	require.NoError(t, err, "Failed to get YugabyteDB connection")
 	defer ybConn.Close()
 
