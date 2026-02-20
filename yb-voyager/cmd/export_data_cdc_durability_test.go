@@ -20,14 +20,12 @@ package cmd
 import (
 	"context"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 
-	testcontainers "github.com/yugabyte/yb-voyager/yb-voyager/test/containers"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
@@ -51,20 +49,32 @@ func TestCDCOffsetCommitFailureAndResume(t *testing.T) {
 
 	ctx := context.Background()
 
-	exportDir = testutils.CreateTempExportDir()
-	defer testutils.RemoveTempExportDir(exportDir)
-
-	postgresContainer := testcontainers.NewTestContainer("postgresql", &testcontainers.ContainerConfig{
-		ForLive: true,
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB:    ContainerConfig{Type: "postgresql", ForLive: true},
+		SchemaNames: []string{"test_schema_offset_commit"},
+		SchemaSQL: []string{
+			"DROP SCHEMA IF EXISTS test_schema_offset_commit CASCADE;",
+			"CREATE SCHEMA test_schema_offset_commit;",
+			`CREATE TABLE test_schema_offset_commit.cdc_offset_commit_test (
+				id SERIAL PRIMARY KEY,
+				name TEXT,
+				value INTEGER,
+				created_at TIMESTAMP DEFAULT NOW()
+			);`,
+			`ALTER TABLE test_schema_offset_commit.cdc_offset_commit_test REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			`INSERT INTO test_schema_offset_commit.cdc_offset_commit_test (name, value)
+			SELECT 'snapshot_' || i, i * 10 FROM generate_series(1, 50) i;`,
+		},
+		CleanupSQL: []string{"DROP SCHEMA IF EXISTS test_schema_offset_commit CASCADE;"},
 	})
-	err := postgresContainer.Start(ctx)
-	require.NoError(t, err, "Failed to start PostgreSQL container")
-	defer postgresContainer.Stop(ctx)
+	defer lm.Cleanup()
+	require.NoError(t, lm.SetupContainers(ctx))
+	require.NoError(t, lm.SetupSchema())
 
-	setupOffsetCommitTestData(t, postgresContainer)
-	defer postgresContainer.ExecuteSqls(
-		"DROP SCHEMA IF EXISTS test_schema_offset_commit CASCADE;",
-	)
+	exportDir = lm.GetExportDir()
+	postgresContainer := lm.GetSourceContainer()
 
 	bytemanHelper, err := testutils.NewBytemanHelper(exportDir)
 	require.NoError(t, err, "Failed to create Byteman helper")
@@ -80,7 +90,7 @@ func TestCDCOffsetCommitFailureAndResume(t *testing.T) {
 	offsetBeforeCDCCh := make(chan string, 1)
 	generateCDCEvents := func() {
 		if err := waitForStreamingMode(exportDir, 90*time.Second, 2*time.Second); err != nil {
-			logTestf(t, "Failed to reach streaming mode: %v", err)
+			testutils.LogTestf(t, "Failed to reach streaming mode: %v", err)
 			return
 		}
 		offsetBeforeCDCCh <- readOffsetFileChecksum(exportDir)
@@ -128,7 +138,7 @@ func TestCDCOffsetCommitFailureAndResume(t *testing.T) {
 	offsetAfterFailure := readOffsetFileChecksum(exportDir)
 	require.Equal(t, offsetBeforeCDC, offsetAfterFailure, "Offsets advanced despite before-offset-commit failure; replay will not occur")
 	offsetContents := readOffsetFileContents(exportDir)
-	logTestf(t, "Offset file contents after failure: %q", offsetContents)
+	testutils.LogTestf(t, "Offset file contents after failure: %q", offsetContents)
 	require.Equal(t, "", strings.TrimSpace(offsetContents), "Offset file should be empty after failure")
 
 	eventIDsBefore, err := collectEventIDsForOffsetCommitTest(exportDir)
@@ -136,12 +146,12 @@ func TestCDCOffsetCommitFailureAndResume(t *testing.T) {
 	require.Len(t, eventIDsBefore, 20, "Expected 20 unique event_ids after failure")
 	verifyNoEventIDDuplicates(t, exportDir)
 	eventCountBeforeResume := eventCountAfterFailure
-	logTestf(t, "Queue count before resume: %d", eventCountBeforeResume)
+	testutils.LogTestf(t, "Queue count before resume: %d", eventCountBeforeResume)
 	dedupSkipsBeforeResume, err := countDedupSkipLogs(exportDir)
 	require.NoError(t, err, "Failed to count dedup skip logs before resume")
-	logTestf(t, "Dedup skip logs before resume: %d", dedupSkipsBeforeResume)
+	testutils.LogTestf(t, "Dedup skip logs before resume: %d", dedupSkipsBeforeResume)
 
-	_ = os.Remove(filepath.Join(exportDir, ".export-dataLockfile.lck"))
+	lm.RemoveExportLockfile()
 
 	bytemanHelperResume, err := testutils.NewBytemanHelper(exportDir)
 	require.NoError(t, err, "Failed to create Byteman helper for resume")
@@ -170,7 +180,7 @@ func TestCDCOffsetCommitFailureAndResume(t *testing.T) {
 
 	eventCountAfterReplay, err := countEventsInQueueSegments(exportDir)
 	require.NoError(t, err, "Should be able to count events after replay marker")
-	logTestf(t, "Queue count after replay marker: %d", eventCountAfterReplay)
+	testutils.LogTestf(t, "Queue count after replay marker: %d", eventCountAfterReplay)
 	require.Equal(t, eventCountBeforeResume, eventCountAfterReplay, "Replay processed but queue count should remain unchanged")
 
 	waitForCDCEventCount(t, exportDir, 20, 60*time.Second, 2*time.Second)
@@ -188,13 +198,13 @@ func TestCDCOffsetCommitFailureAndResume(t *testing.T) {
 	verifyNoEventIDDuplicates(t, exportDir)
 	dedupSkipsAfterResume, err := countDedupSkipLogs(exportDir)
 	require.NoError(t, err, "Failed to count dedup skip logs after resume")
-	logTestf(t, "Dedup skip logs after resume: %d", dedupSkipsAfterResume)
+	testutils.LogTestf(t, "Dedup skip logs after resume: %d", dedupSkipsAfterResume)
 	require.GreaterOrEqual(t, dedupSkipsAfterResume-dedupSkipsBeforeResume, 20,
 		"Expected dedup cache to skip at least 20 replayed records on resume")
 
 	_ = exportRunnerResume.Kill()
 	_ = killDebeziumForExportDir(exportDir)
-	_ = os.Remove(filepath.Join(exportDir, ".export-dataLockfile.lck"))
+	lm.RemoveExportLockfile()
 }
 
 // TestCDCBatchFailureBeforeHandleBatchComplete verifies durability gap when crash happens before flush/sync.
@@ -218,20 +228,33 @@ func TestCDCBatchFailureBeforeHandleBatchComplete(t *testing.T) {
 
 	ctx := context.Background()
 
-	exportDir = testutils.CreateTempExportDir()
-	defer testutils.RemoveTempExportDir(exportDir)
-
-	postgresContainer := testcontainers.NewTestContainer("postgresql", &testcontainers.ContainerConfig{
-		ForLive: true,
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB:    ContainerConfig{Type: "postgresql", ForLive: true},
+		SchemaNames: []string{"test_schema_before_batch_complete"},
+		SchemaSQL: []string{
+			"DROP SCHEMA IF EXISTS test_schema_before_batch_complete CASCADE;",
+			"CREATE SCHEMA test_schema_before_batch_complete;",
+			`CREATE TABLE test_schema_before_batch_complete.cdc_before_batch_complete_test (
+				id SERIAL PRIMARY KEY,
+				name TEXT,
+				value INTEGER,
+				payload TEXT,
+				created_at TIMESTAMP DEFAULT NOW()
+			);`,
+			`ALTER TABLE test_schema_before_batch_complete.cdc_before_batch_complete_test REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			`INSERT INTO test_schema_before_batch_complete.cdc_before_batch_complete_test (name, value, payload)
+			SELECT 'snapshot_' || i, i * 10, repeat('s', 20000) FROM generate_series(1, 50) i;`,
+		},
+		CleanupSQL: []string{"DROP SCHEMA IF EXISTS test_schema_before_batch_complete CASCADE;"},
 	})
-	err := postgresContainer.Start(ctx)
-	require.NoError(t, err, "Failed to start PostgreSQL container")
-	defer postgresContainer.Stop(ctx)
+	defer lm.Cleanup()
+	require.NoError(t, lm.SetupContainers(ctx))
+	require.NoError(t, lm.SetupSchema())
 
-	setupBeforeHandleBatchCompleteTestData(t, postgresContainer)
-	defer postgresContainer.ExecuteSqls(
-		"DROP SCHEMA IF EXISTS test_schema_before_batch_complete CASCADE;",
-	)
+	exportDir = lm.GetExportDir()
+	postgresContainer := lm.GetSourceContainer()
 
 	bytemanHelper, err := testutils.NewBytemanHelper(exportDir)
 	require.NoError(t, err, "Failed to create Byteman helper")
@@ -246,7 +269,7 @@ func TestCDCBatchFailureBeforeHandleBatchComplete(t *testing.T) {
 	cdcEventsGenerated := make(chan bool, 1)
 	generateCDCEvents := func() {
 		if err := waitForStreamingMode(exportDir, 90*time.Second, 2*time.Second); err != nil {
-			logTestf(t, "Failed to reach streaming mode: %v", err)
+			testutils.LogTestf(t, "Failed to reach streaming mode: %v", err)
 			return
 		}
 		postgresContainer.ExecuteSqls(
@@ -283,15 +306,15 @@ func TestCDCBatchFailureBeforeHandleBatchComplete(t *testing.T) {
 
 	eventCountAfterFailure, err := countEventsInQueueSegments(exportDir)
 	require.NoError(t, err, "Should be able to count events after failure")
-	logTestf(t, "Queue count after failure: %d", eventCountAfterFailure)
+	testutils.LogTestf(t, "Queue count after failure: %d", eventCountAfterFailure)
 	_, _ = verifyNoEventIDDuplicatesAfterFailure(t, exportDir)
 
-	_ = os.Remove(filepath.Join(exportDir, ".export-dataLockfile.lck"))
+	lm.RemoveExportLockfile()
 
 	insertAfterResume := make(chan bool, 1)
 	generateAfterResumeEvents := func() {
 		if err := waitForStreamingMode(exportDir, 90*time.Second, 2*time.Second); err != nil {
-			logTestf(t, "Failed to reach streaming mode after resume: %v", err)
+			testutils.LogTestf(t, "Failed to reach streaming mode after resume: %v", err)
 			return
 		}
 		postgresContainer.ExecuteSqls(
@@ -326,7 +349,7 @@ func TestCDCBatchFailureBeforeHandleBatchComplete(t *testing.T) {
 
 	_ = exportRunnerResume.Kill()
 	_ = killDebeziumForExportDir(exportDir)
-	_ = os.Remove(filepath.Join(exportDir, ".export-dataLockfile.lck"))
+	lm.RemoveExportLockfile()
 }
 
 // TestCDCQueueWriteFailureAndResume verifies recovery when queue write fails mid-batch.
@@ -350,20 +373,33 @@ func TestCDCQueueWriteFailureAndResume(t *testing.T) {
 
 	ctx := context.Background()
 
-	exportDir = testutils.CreateTempExportDir()
-	defer testutils.RemoveTempExportDir(exportDir)
-
-	postgresContainer := testcontainers.NewTestContainer("postgresql", &testcontainers.ContainerConfig{
-		ForLive: true,
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB:    ContainerConfig{Type: "postgresql", ForLive: true},
+		SchemaNames: []string{"test_schema_queue_write"},
+		SchemaSQL: []string{
+			"DROP SCHEMA IF EXISTS test_schema_queue_write CASCADE;",
+			"CREATE SCHEMA test_schema_queue_write;",
+			`CREATE TABLE test_schema_queue_write.cdc_queue_write_test (
+				id SERIAL PRIMARY KEY,
+				name TEXT,
+				value INTEGER,
+				payload TEXT,
+				created_at TIMESTAMP DEFAULT NOW()
+			);`,
+			`ALTER TABLE test_schema_queue_write.cdc_queue_write_test REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			`INSERT INTO test_schema_queue_write.cdc_queue_write_test (name, value, payload)
+			SELECT 'snapshot_' || i, i * 10, repeat('s', 20000) FROM generate_series(1, 50) i;`,
+		},
+		CleanupSQL: []string{"DROP SCHEMA IF EXISTS test_schema_queue_write CASCADE;"},
 	})
-	err := postgresContainer.Start(ctx)
-	require.NoError(t, err, "Failed to start PostgreSQL container")
-	defer postgresContainer.Stop(ctx)
+	defer lm.Cleanup()
+	require.NoError(t, lm.SetupContainers(ctx))
+	require.NoError(t, lm.SetupSchema())
 
-	setupQueueWriteFailureTestData(t, postgresContainer)
-	defer postgresContainer.ExecuteSqls(
-		"DROP SCHEMA IF EXISTS test_schema_queue_write CASCADE;",
-	)
+	exportDir = lm.GetExportDir()
+	postgresContainer := lm.GetSourceContainer()
 
 	bytemanHelper, err := testutils.NewBytemanHelper(exportDir)
 	require.NoError(t, err, "Failed to create Byteman helper")
@@ -378,7 +414,7 @@ func TestCDCQueueWriteFailureAndResume(t *testing.T) {
 	cdcEventsGenerated := make(chan bool, 1)
 	generateCDCEvents := func() {
 		if err := waitForStreamingMode(exportDir, 90*time.Second, 2*time.Second); err != nil {
-			logTestf(t, "Failed to reach streaming mode: %v", err)
+			testutils.LogTestf(t, "Failed to reach streaming mode: %v", err)
 			return
 		}
 		postgresContainer.ExecuteSqls(
@@ -415,9 +451,9 @@ func TestCDCQueueWriteFailureAndResume(t *testing.T) {
 
 	eventCountAfterFailure, err := countEventsInQueueSegments(exportDir)
 	require.NoError(t, err, "Should be able to count events after failure")
-	logTestf(t, "Queue count after failure: %d", eventCountAfterFailure)
+	testutils.LogTestf(t, "Queue count after failure: %d", eventCountAfterFailure)
 
-	_ = os.Remove(filepath.Join(exportDir, ".export-dataLockfile.lck"))
+	lm.RemoveExportLockfile()
 
 	exportRunnerResume := testutils.NewVoyagerCommandRunner(postgresContainer, "export data", []string{
 		"--export-dir", exportDir,
@@ -432,13 +468,13 @@ func TestCDCQueueWriteFailureAndResume(t *testing.T) {
 
 	eventCountAfterResumeStart, err := countEventsInQueueSegments(exportDir)
 	require.NoError(t, err, "Should be able to count events after resume start")
-	logTestf(t, "Queue count after resume start: %d", eventCountAfterResumeStart)
+	testutils.LogTestf(t, "Queue count after resume start: %d", eventCountAfterResumeStart)
 	truncationMatched, err := waitForTruncationLog(exportDir, 60*time.Second)
 	require.NoError(t, err, "Should be able to read debezium logs for truncation")
 	if truncationMatched {
-		logTestf(t, "✓ Observed queue segment truncation on resume")
+		testutils.LogTestf(t, "✓ Observed queue segment truncation on resume")
 	} else {
-		logTestf(t, "ℹ No truncation log observed on resume")
+		testutils.LogTestf(t, "ℹ No truncation log observed on resume")
 	}
 
 	waitForCDCEventCount(t, exportDir, 40, 120*time.Second, 5*time.Second)
@@ -450,7 +486,7 @@ func TestCDCQueueWriteFailureAndResume(t *testing.T) {
 
 	_ = exportRunnerResume.Kill()
 	_ = killDebeziumForExportDir(exportDir)
-	_ = os.Remove(filepath.Join(exportDir, ".export-dataLockfile.lck"))
+	lm.RemoveExportLockfile()
 }
 
 // TestCDCRotationMidBatchClosesSegment verifies queue segment rotation properly closes rotated segments.
@@ -472,20 +508,33 @@ func TestCDCRotationMidBatchClosesSegment(t *testing.T) {
 
 	ctx := context.Background()
 
-	exportDir = testutils.CreateTempExportDir()
-	defer testutils.RemoveTempExportDir(exportDir)
-
-	postgresContainer := testcontainers.NewTestContainer("postgresql", &testcontainers.ContainerConfig{
-		ForLive: true,
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB:    ContainerConfig{Type: "postgresql", ForLive: true},
+		SchemaNames: []string{"test_schema_rotation"},
+		SchemaSQL: []string{
+			"DROP SCHEMA IF EXISTS test_schema_rotation CASCADE;",
+			"CREATE SCHEMA test_schema_rotation;",
+			`CREATE TABLE test_schema_rotation.cdc_rotation_test (
+				id SERIAL PRIMARY KEY,
+				name TEXT,
+				value INTEGER,
+				payload TEXT,
+				created_at TIMESTAMP DEFAULT NOW()
+			);`,
+			`ALTER TABLE test_schema_rotation.cdc_rotation_test REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			`INSERT INTO test_schema_rotation.cdc_rotation_test (name, value, payload)
+			SELECT 'snapshot_' || i, i * 10, repeat('s', 20000) FROM generate_series(1, 50) i;`,
+		},
+		CleanupSQL: []string{"DROP SCHEMA IF EXISTS test_schema_rotation CASCADE;"},
 	})
-	err := postgresContainer.Start(ctx)
-	require.NoError(t, err, "Failed to start PostgreSQL container")
-	defer postgresContainer.Stop(ctx)
+	defer lm.Cleanup()
+	require.NoError(t, lm.SetupContainers(ctx))
+	require.NoError(t, lm.SetupSchema())
 
-	setupRotationMidBatchTestData(t, postgresContainer)
-	defer postgresContainer.ExecuteSqls(
-		"DROP SCHEMA IF EXISTS test_schema_rotation CASCADE;",
-	)
+	exportDir = lm.GetExportDir()
+	postgresContainer := lm.GetSourceContainer()
 
 	bytemanHelper, err := testutils.NewBytemanHelper(exportDir)
 	require.NoError(t, err, "Failed to create Byteman helper")
@@ -500,7 +549,7 @@ func TestCDCRotationMidBatchClosesSegment(t *testing.T) {
 	cdcEventsGenerated := make(chan bool, 1)
 	generateCDCEvents := func() {
 		if err := waitForStreamingMode(exportDir, 90*time.Second, 2*time.Second); err != nil {
-			logTestf(t, "Failed to reach streaming mode: %v", err)
+			testutils.LogTestf(t, "Failed to reach streaming mode: %v", err)
 			return
 		}
 		postgresContainer.ExecuteSqls(
@@ -540,7 +589,7 @@ func TestCDCRotationMidBatchClosesSegment(t *testing.T) {
 	segmentFiles, err := listQueueSegmentFiles(exportDir)
 	require.NoError(t, err, "Failed to list queue segment files")
 	require.GreaterOrEqual(t, len(segmentFiles), 2, "Expected multiple queue segments after rotation")
-	logTestf(t, "Queue segment files after failure: %v", segmentFiles)
+	testutils.LogTestf(t, "Queue segment files after failure: %v", segmentFiles)
 
 	lowestSegmentPath := ""
 	lowestSegmentNum := int64(-1)
@@ -589,20 +638,33 @@ func TestCDCQueueSegmentTruncationOnResume(t *testing.T) {
 
 	ctx := context.Background()
 
-	exportDir = testutils.CreateTempExportDir()
-	defer testutils.RemoveTempExportDir(exportDir)
-
-	postgresContainer := testcontainers.NewTestContainer("postgresql", &testcontainers.ContainerConfig{
-		ForLive: true,
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB:    ContainerConfig{Type: "postgresql", ForLive: true},
+		SchemaNames: []string{"test_schema_truncation"},
+		SchemaSQL: []string{
+			"DROP SCHEMA IF EXISTS test_schema_truncation CASCADE;",
+			"CREATE SCHEMA test_schema_truncation;",
+			`CREATE TABLE test_schema_truncation.cdc_truncation_test (
+				id SERIAL PRIMARY KEY,
+				name TEXT,
+				value INTEGER,
+				payload TEXT,
+				created_at TIMESTAMP DEFAULT NOW()
+			);`,
+			`ALTER TABLE test_schema_truncation.cdc_truncation_test REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			`INSERT INTO test_schema_truncation.cdc_truncation_test (name, value, payload)
+			SELECT 'snapshot_' || i, i * 10, repeat('s', 20000) FROM generate_series(1, 50) i;`,
+		},
+		CleanupSQL: []string{"DROP SCHEMA IF EXISTS test_schema_truncation CASCADE;"},
 	})
-	err := postgresContainer.Start(ctx)
-	require.NoError(t, err, "Failed to start PostgreSQL container")
-	defer postgresContainer.Stop(ctx)
+	defer lm.Cleanup()
+	require.NoError(t, lm.SetupContainers(ctx))
+	require.NoError(t, lm.SetupSchema())
 
-	setupTruncationTestData(t, postgresContainer)
-	defer postgresContainer.ExecuteSqls(
-		"DROP SCHEMA IF EXISTS test_schema_truncation CASCADE;",
-	)
+	exportDir = lm.GetExportDir()
+	postgresContainer := lm.GetSourceContainer()
 
 	bytemanHelper, err := testutils.NewBytemanHelper(exportDir)
 	require.NoError(t, err, "Failed to create Byteman helper")
@@ -617,7 +679,7 @@ func TestCDCQueueSegmentTruncationOnResume(t *testing.T) {
 	cdcEventsGenerated := make(chan bool, 1)
 	generateCDCEvents := func() {
 		if err := waitForStreamingMode(exportDir, 90*time.Second, 2*time.Second); err != nil {
-			logTestf(t, "Failed to reach streaming mode: %v", err)
+			testutils.LogTestf(t, "Failed to reach streaming mode: %v", err)
 			return
 		}
 		postgresContainer.ExecuteSqls(
@@ -664,9 +726,9 @@ func TestCDCQueueSegmentTruncationOnResume(t *testing.T) {
 	committedSize, err := getQueueSegmentCommittedSize(exportDir, segmentNum)
 	require.NoError(t, err, "Failed to read committed size from metadb")
 	require.Greater(t, fileSizeBefore, committedSize, "Expected file size to exceed committed size before resume")
-	logTestf(t, "Queue segment size before resume: %d, committed size: %d", fileSizeBefore, committedSize)
+	testutils.LogTestf(t, "Queue segment size before resume: %d, committed size: %d", fileSizeBefore, committedSize)
 
-	logTest(t, "Resuming export to trigger truncation...")
+	testutils.LogTest(t, "Resuming export to trigger truncation...")
 	exportRunnerResume := testutils.NewVoyagerCommandRunner(postgresContainer, "export data", []string{
 		"--export-dir", exportDir,
 		"--export-type", "snapshot-and-changes",
@@ -681,13 +743,13 @@ func TestCDCQueueSegmentTruncationOnResume(t *testing.T) {
 
 	truncationMatched, err := waitForTruncationLog(exportDir, 60*time.Second)
 	require.NoError(t, err, "Should be able to read debezium logs for truncation")
-	logTestf(t, "Truncation log observed on resume: %v", truncationMatched)
+	testutils.LogTestf(t, "Truncation log observed on resume: %v", truncationMatched)
 	require.True(t, truncationMatched, "Expected truncation log on resume")
 
-	logTest(t, "Verifying segment size after truncation...")
+	testutils.LogTest(t, "Verifying segment size after truncation...")
 	fileSizeAfter, err := getQueueSegmentFileSize(segmentFiles[0])
 	require.NoError(t, err, "Failed to read queue segment size after truncation")
-	logTestf(t, "Queue segment size after truncation: %d", fileSizeAfter)
+	testutils.LogTestf(t, "Queue segment size after truncation: %d", fileSizeAfter)
 	_ = killDebeziumForExportDir(exportDir)
-	_ = os.Remove(filepath.Join(exportDir, ".export-dataLockfile.lck"))
+	lm.RemoveExportLockfile()
 }
