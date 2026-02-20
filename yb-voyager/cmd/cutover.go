@@ -215,6 +215,34 @@ func setUpNextIterationMSR(parentMetaDB *metadb.MetaDB, nextIterationConfigFile 
 	return nil
 }
 
+func resolveToActiveIterationIfRequired() error {
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil || msr == nil {
+		return nil
+	}
+	if !msr.IsParentMigration() || msr.LatestIterationNumber == 0 {
+		return nil
+	}
+	iterationsDir := msr.GetIterationsDir(exportDir)
+	iterationExportDir := GetIterationExportDir(iterationsDir, msr.LatestIterationNumber)
+	if !utils.FileOrFolderExists(iterationExportDir) {
+		return goerrors.Errorf("iteration export directory does not exist")
+	}
+	iterationMetaDB, err := metadb.NewMetaDB(iterationExportDir)
+	if err != nil {
+		return fmt.Errorf("failed to create iteration meta db: %w", err)
+	}
+
+	log.Infof("Resolving to iteration %d: %s", msr.LatestIterationNumber, iterationExportDir)
+	//update the export dir and meta db to the iteration export dir and meta db
+	exportDir = iterationExportDir
+	metaDB = iterationMetaDB
+	exportType = CHANGES_ONLY
+
+	return nil
+
+}
+
 func initializeConfigFileForNextIteration(configFile string, iterationExportDir string) (string, error) {
 	if configFile == "" {
 		return "", nil

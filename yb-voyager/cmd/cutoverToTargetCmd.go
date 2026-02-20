@@ -121,6 +121,10 @@ var cutoverToTargetCmd = &cobra.Command{
 		if err != nil {
 			utils.ErrExit("Failed to initialize meta db: %w", err)
 		}
+		err = resolveToActiveIterationIfRequired()
+		if err != nil {
+			utils.ErrExit("failed to resolve to active iteration: %w", err)
+		}
 		msr, err := metaDB.GetMigrationStatusRecord()
 		if err != nil {
 			utils.ErrExit("get migration status record: %w", err)

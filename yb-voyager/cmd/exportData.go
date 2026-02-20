@@ -128,7 +128,11 @@ func exportDataCommandPreRun(cmd *cobra.Command, args []string) {
 
 func exportDataCommandFn(cmd *cobra.Command, args []string) {
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
-	err := retrieveMigrationUUID()
+	err := resolveToActiveIterationIfRequired()
+	if err != nil {
+		utils.ErrExit("failed to resolve to active iteration: %w", err)
+	}
+	err = retrieveMigrationUUID()
 	if err != nil {
 		utils.ErrExit("failed to get migration UUID: %w", err)
 	}
@@ -184,25 +188,25 @@ func startNextIterationImportDataToTarget() {
 	//starting import data to target
 
 	lockFile.Unlock() // unlock export dir from import data cmd before switching current process to ff/fb sync cmd
-	iterationsDir := currentMsr.GetIterationsDir(exportDir)
-	iterationExportDir := GetIterationExportDir(iterationsDir, currentMsr.IterationNo+1)
+	// iterationsDir := currentMsr.GetIterationsDir(exportDir)
+	// iterationExportDir := GetIterationExportDir(iterationsDir, currentMsr.IterationNo+1)
 
 	cmd := []string{"yb-voyager", "import", "data", "to", "target"}
 
-	iterationMetadb, err := metadb.NewMetaDB(iterationExportDir)
-	if err != nil {
-		utils.ErrExit("failed to create iteration meta db: %w", err)
-	}
-	iterationMsr, err := iterationMetadb.GetMigrationStatusRecord()
-	if err != nil {
-		utils.ErrExit("failed to get iteration migration status record: %w", err)
-	}
-	if iterationMsr.ConfigFile != "" {
-		cmd = append(cmd, "--config-file", iterationMsr.ConfigFile)
+	// iterationMetadb, err := metadb.NewMetaDB(iterationExportDir)
+	// if err != nil {
+	// 	utils.ErrExit("failed to create iteration meta db: %w", err)
+	// }
+	// iterationMsr, err := iterationMetadb.GetMigrationStatusRecord()
+	// if err != nil {
+	// 	utils.ErrExit("failed to get iteration migration status record: %w", err)
+	// }
+	if cfgFile != "" {
+		cmd = append(cmd, "--config-file", cfgFile)
 		//TODO: handle overrides for the command
 
 	} else {
-		cmd = append(cmd, "--export-dir", iterationExportDir)
+		cmd = append(cmd, "--export-dir", exportDir)
 		cmd = append(cmd, fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics))
 		cmd = append(cmd, "--log-level", config.LogLevel)
 		//TODO: see if we can do better, but these params are required for import data to target cmd
