@@ -500,7 +500,7 @@ func initMetaDB(migrationExportDir string) *metadb.MetaDB {
 	if err != nil {
 		utils.ErrExit("failed to initialize meta db: %s", err)
 	}
-	err = metaDBInstance.InitMigrationStatusRecord()
+	err = metaDBInstance.InitMigrationStatusRecord(cfgFile)
 	if err != nil {
 		utils.ErrExit("could not init migration status record: %w", err)
 	}
@@ -813,10 +813,38 @@ func getCutoverToSourceStatus() string {
 
 	if !a {
 		return NOT_INITIATED
-	} else if a && b && c {
+	} else if a && b && c && isNextIterationStartedIfRequied() {
 		return COMPLETED
 	}
 	return INITIATED
+}
+
+func isNextIterationStartedIfRequied() bool {
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("get migration status record: %v", err)
+	}
+	if !msr.RestartDataMigrationSourceTargetNextIteration {
+		return true
+	}
+
+	iterationsDir := msr.GetIterationsDir(exportDir)
+	nextIterationExportDir := GetIterationExportDir(iterationsDir, msr.IterationNo+1)
+	if !utils.FileOrFolderExists(nextIterationExportDir) {
+		return false
+	}
+	nextIterationMetaDB, err := metadb.NewMetaDB(nextIterationExportDir)
+	if err != nil {
+		utils.ErrExit("failed to create iteration meta db: %w", err)
+	}
+	nextIterationMsr, err := nextIterationMetaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("get migration status record: %v", err)
+	}
+	if nextIterationMsr.ExportDataFromSourceStarted && nextIterationMsr.ImportDataToTargetStarted {
+		return true
+	}
+	return false
 }
 
 func getPassword(cmd *cobra.Command, cliArgName, envVarName string) (string, error) {

@@ -17,6 +17,7 @@ package metadb
 
 import (
 	"fmt"
+	"path/filepath"
 	"time"
 
 	"github.com/google/uuid"
@@ -96,6 +97,20 @@ type MigrationStatusRecord struct {
 
 	SourceColumnToSequenceMapping map[string]string `json:"SourceColumnToSequenceMapping"`
 	TargetColumnToSequenceMapping map[string]string `json:"TargetColumnToSequenceMapping"`
+
+	//Common details for per migration
+	RestartDataMigrationSourceTargetNextIteration bool   `json:"RestartDataMigrationSourceTargetNextIteration"`
+	ParentExportDir                               string `json:"ParentExportDir"`
+	IterationNo                                   int    `json:"Iteration"`
+	ConfigFile                                    string `json:"ConfigFile"`
+
+	//Parent specific details
+	TotalIterations       int `json:"TotalIterations"`
+	LatestIterationNumber int `json:"LatestIterationNumber"`
+
+	//Iteration specific details
+	ExportDataFromSourceStarted bool `json:"ExportDataFromSourceStarted"`
+	ImportDataToTargetStarted   bool `json:"ImportDataToTargetStarted"`
 }
 
 type CutoverTimingRecord struct {
@@ -140,13 +155,17 @@ func (m *MetaDB) GetMigrationStatusRecord() (*MigrationStatusRecord, error) {
 	return record, nil
 }
 
-func (m *MetaDB) InitMigrationStatusRecord() error {
+func (m *MetaDB) InitMigrationStatusRecord(cfgFile string) error {
 	return m.UpdateMigrationStatusRecord(func(record *MigrationStatusRecord) {
 		if record != nil && record.MigrationUUID != "" {
 			return // already initialized
 		}
 		if record.VoyagerVersion == "" {
 			record.VoyagerVersion = utils.YB_VOYAGER_VERSION
+		}
+
+		if record.ConfigFile == "" {
+			record.ConfigFile = cfgFile
 		}
 
 		record.MigrationUUID = uuid.New().String()
@@ -156,4 +175,23 @@ func (m *MetaDB) InitMigrationStatusRecord() error {
 
 func (msr *MigrationStatusRecord) IsSnapshotExportedViaDebezium() bool {
 	return msr.SnapshotMechanism == "debezium"
+}
+
+func (msr *MigrationStatusRecord) IsParentMigration() bool {
+	return msr.ParentExportDir == ""
+}
+
+func (msr *MigrationStatusRecord) IsIteration() bool {
+	return msr.ParentExportDir != ""
+}
+
+func (msr *MigrationStatusRecord) GetParentMetaDB() (*MetaDB, error) {
+	return NewMetaDB(msr.ParentExportDir)
+}
+
+func (msr *MigrationStatusRecord) GetIterationsDir(exportDir string) string {
+	if msr.IsParentMigration() {
+		return filepath.Join(exportDir, "live-data-migration-iterations")
+	}
+	return filepath.Join(msr.ParentExportDir, "live-data-migration-iterations")
 }

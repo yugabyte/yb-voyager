@@ -141,6 +141,15 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 	utils.PrintAndLogf("export of data for source type as '%s'", source.DBType)
 	sqlname.SourceDBType = source.DBType
 
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("failed to get migration status record: %w", err)
+	}
+	if exportType == CHANGES_ONLY && exporterRole == SOURCE_DB_EXPORTER_ROLE && !msr.IsParentMigration() {
+		password := source.Password
+		source = *msr.SourceDBConf
+		source.Password = password
+	}
 	success := exportData()
 	if success {
 		sendPayloadAsPerExporterRole(COMPLETE, nil)
@@ -149,6 +158,7 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 		color.Green("Export of data complete")
 		log.Info("Export of data completed.")
 		startFallBackSetupIfRequired()
+		startNextIterationImportDataToTarget()
 	} else if ProcessShutdownRequested {
 		log.Info("Shutting down as SIGINT/SIGTERM received.")
 	} else {
@@ -157,6 +167,65 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 		sendPayloadAsPerExporterRole(ERROR, nil)
 		atexit.Exit(1)
 	}
+}
+
+func startNextIterationImportDataToTarget() {
+	if exporterRole != TARGET_DB_EXPORTER_FB_ROLE {
+		return
+	}
+	currentMsr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("failed to get migration status record: %w", err)
+	}
+
+	if !currentMsr.RestartDataMigrationSourceTargetNextIteration {
+		return
+	}
+	//starting import data to target
+
+	lockFile.Unlock() // unlock export dir from import data cmd before switching current process to ff/fb sync cmd
+	// iterationsDir := currentMsr.GetIterationsDir(exportDir)
+	// iterationExportDir := GetIterationExportDir(iterationsDir, currentMsr.IterationNo+1)
+
+	cmd := []string{"yb-voyager", "import", "data", "to", "target"}
+
+	// iterationMetadb, err := metadb.NewMetaDB(iterationExportDir)
+	// if err != nil {
+	// 	utils.ErrExit("failed to create iteration meta db: %w", err)
+	// }
+	// iterationMsr, err := iterationMetadb.GetMigrationStatusRecord()
+	// if err != nil {
+	// 	utils.ErrExit("failed to get iteration migration status record: %w", err)
+	// }
+	if cfgFile != "" {
+		cmd = append(cmd, "--config-file", cfgFile)
+		//TODO: handle overrides for the command
+
+	} else {
+		cmd = append(cmd, "--export-dir", exportDir)
+		cmd = append(cmd, fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics))
+		cmd = append(cmd, "--log-level", config.LogLevel)
+		//TODO: see if we can do better, but these params are required for import data to target cmd
+		cmd = append(cmd, "--target-db-name", currentMsr.TargetDBConf.DBName)
+		cmd = append(cmd, "--target-db-user", currentMsr.TargetDBConf.User)
+	}
+
+	cmdStr := "TARGET_DB_PASSWORD=*** " + strings.Join(cmd, " ")
+
+	utils.PrintAndLogf("Starting import data to target with command:\n %s", color.GreenString(cmdStr))
+
+	binary, lookErr := exec.LookPath(os.Args[0])
+	if lookErr != nil {
+		utils.ErrExit("could not find yb-voyager: %w", lookErr)
+	}
+	env := os.Environ()
+	env = slices.Insert(env, 0, "TARGET_DB_PASSWORD="+source.Password)
+
+	execErr := syscall.Exec(binary, cmd, env)
+	if execErr != nil {
+		utils.ErrExit("failed to run yb-voyager export data from source: %w\n Please re-run with command :\n%s", execErr, cmdStr)
+	}
+
 }
 
 func printLiveMigrationLimitations() {
@@ -1626,6 +1695,10 @@ func startFallBackSetupIfRequired() {
 
 func generateGlobalExportImportArguments() []string {
 	var arguments []string
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("failed to get migration status record: %w", err)
+	}
 	/*
 		If config file is provided, pass the global flags if overriden by cli to the command together with  disable pb flag if it is overriden by cli
 		If config file is not provided, set some flags for the command like export-dir, log-level, disable-pb, send-diagnostics
@@ -1639,6 +1712,12 @@ func generateGlobalExportImportArguments() []string {
 				arguments = append(arguments, "--"+override.FlagName, override.Value)
 				continue
 			}
+			if override.FlagName == "config-file" {
+				configFile := resolveToUserFacingConfigFileForIteration(msr)
+				//if config file is overidden then pass it as CLI override also to this command
+				arguments = append(arguments, "--"+override.FlagName, configFile)
+				continue
+			}
 			if !slices.Contains(globalFlags, override.FlagName) {
 				//if its not a global flag then skip passing it to the command as it will be command specific flag
 				continue
@@ -1648,13 +1727,30 @@ func generateGlobalExportImportArguments() []string {
 	} else {
 		//else set some overrides for the command
 		arguments = append(arguments, "--log-level", config.LogLevel)
-		arguments = append(arguments, "--export-dir", exportDir)
+		arguments = append(arguments, "--export-dir", lo.Ternary(msr.IsParentMigration(), exportDir, msr.ParentExportDir))
 		if bool(disablePb) {
 			arguments = append(arguments, "--disable-pb=true")
 		}
 		arguments = append(arguments, fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics))
 	}
 	return arguments
+}
+
+func resolveToUserFacingConfigFileForIteration(msr *metadb.MigrationStatusRecord) string {
+	configFile := cfgFile
+	if msr.IsIteration() {
+		parentMetaDB, err := msr.GetParentMetaDB()
+		if err != nil {
+			utils.ErrExit("failed to get parent meta db: %w", err)
+		}
+		parentMsr, err := parentMetaDB.GetMigrationStatusRecord()
+		if err != nil {
+			utils.ErrExit("failed to get parent migration status record: %w", err)
+		}
+		configFile = parentMsr.ConfigFile
+	}
+
+	return configFile
 }
 
 // ================================ Export Data table list filtering ================================

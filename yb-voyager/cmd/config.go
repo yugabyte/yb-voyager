@@ -198,6 +198,9 @@ var allowedInitCutoverToTargetConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"prepare-for-fall-back", "use-yb-grpc-connector",
 )
 
+var allowedInitCutoverToSourceConfigKeys = mapset.NewThreadUnsafeSet[string](
+	"restart-data-migration-source-target",
+)
 var allowedArchiveChangesConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"log-level",
 	"delete-changes-without-archiving", "fs-utilization-threshold", "move-to",
@@ -230,6 +233,7 @@ var allowedConfigSections = map[string]mapset.Set[string]{
 	"import-data-to-source-replica":    allowedImportDataToSourceReplicaConfigKeys,
 	"import-data-file":                 allowedImportDataFileConfigKeys,
 	"initiate-cutover-to-target":       allowedInitCutoverToTargetConfigKeys,
+	"initiate-cutover-to-source":       allowedInitCutoverToSourceConfigKeys,
 	"archive-changes":                  allowedArchiveChangesConfigKeys,
 	"end-migration":                    allowedEndMigrationConfigKeys,
 }

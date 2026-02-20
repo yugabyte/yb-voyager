@@ -40,6 +40,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp/ybaeon"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp/yugabyted"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/lockfile"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -85,7 +86,15 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			fmt.Printf("ERROR: Failed to initialize config: %v\n", err)
 			atexit.Exit(1)
 		}
+
 		currentCommand = cmd.CommandPath()
+
+		if isLiveMigrationIterationCommand(cmd) {
+			err := resolveToActiveIterationIfRequired(cmd)
+			if err != nil {
+				utils.ErrExit("failed to resolve to active iteration: %w", err)
+			}
+		}
 
 		if !shouldRunPersistentPreRun(cmd) {
 			return
@@ -161,6 +170,7 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 				msrVoyagerVersionString := msr.VoyagerVersion
 
 				detectVersionCompatibility(msrVoyagerVersionString, exportDir)
+
 			}
 
 			if perfProfile {
@@ -213,6 +223,57 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 		}
 		atexit.Exit(0)
 	},
+}
+
+var liveMigrationIterationCommandList = []string{
+	"yb-voyager import data",
+	"yb-voyager export data",
+	"yb-voyager export data from source",
+	"yb-voyager import data to target",
+	"yb-voyager export data from target",
+	"yb-voyager import data to source",
+	"yb-voyager initiate cutover to source",
+	"yb-voyager initiate cutover to target",
+}
+
+func isLiveMigrationIterationCommand(cmd *cobra.Command) bool {
+	return slices.Contains(liveMigrationIterationCommandList, cmd.CommandPath())
+}
+
+func resolveToActiveIterationIfRequired(cmd *cobra.Command) error {
+	if !metaDBIsCreated(exportDir) {
+		return nil
+	}
+	err := InitLogging(exportDir, config.LogLevel, cmd.Use == "status", GetCommandID(cmd))
+	if err != nil {
+		utils.ErrExit("Failed to initialize logging: %w", err)
+	}
+	metaDB = initMetaDB(exportDir)
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil || msr == nil {
+		return nil
+	}
+	if !msr.IsParentMigration() || msr.LatestIterationNumber == 0 {
+		return nil
+	}
+	iterationsDir := msr.GetIterationsDir(exportDir)
+	iterationExportDir := GetIterationExportDir(iterationsDir, msr.LatestIterationNumber)
+	if !utils.FileOrFolderExists(iterationExportDir) {
+		return goerrors.Errorf("iteration export directory does not exist")
+	}
+	iterationMetaDB, err := metadb.NewMetaDB(iterationExportDir)
+	if err != nil {
+		return fmt.Errorf("failed to create iteration meta db: %w", err)
+	}
+
+	log.Infof("Resolving to iteration %d: %s", msr.LatestIterationNumber, iterationExportDir)
+	//update the export dir and meta db to the iteration export dir and meta db
+	exportDir = iterationExportDir
+	metaDB = iterationMetaDB
+	exportType = CHANGES_ONLY
+
+	return nil
+
 }
 
 func shouldRunExportDirInitialisedCheck(cmd *cobra.Command) bool {

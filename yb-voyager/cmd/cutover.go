@@ -17,10 +17,15 @@ package cmd
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 
+	goerrors "github.com/go-errors/errors"
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
@@ -64,6 +69,14 @@ func InitiateCutover(dbRole string, prepareforFallback bool, useYBgRPCConnector 
 	alreadyInitiated := false
 	alreadyInitiatedMsg := fmt.Sprintf("cutover to %s already initiated, wait for it to complete", dbRole)
 
+	if restartSourceToTargetNextIteration {
+		//to start with dummy iteration 1 TODO handle multiple iterations
+		err := initializeNextIteration()
+		if err != nil {
+			return fmt.Errorf("failed to initialize next iteration: %w", err)
+		}
+	}
+
 	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		switch dbRole {
 		case "target":
@@ -105,6 +118,131 @@ func InitiateCutover(dbRole string, prepareforFallback bool, useYBgRPCConnector 
 		utils.PrintAndLogf("%s initiated, wait for it to complete", userFacingActionMsg)
 	}
 	return nil
+}
+
+func iterativeCutoverSupported(msr *metadb.MigrationStatusRecord) bool {
+	return msr.FallbackEnabled && msr.SourceDBConf.DBType == POSTGRESQL
+}
+
+func initializeNextIteration() error {
+	currentMSR, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		return fmt.Errorf("failed to get migration status record: %w", err)
+	}
+	if !iterativeCutoverSupported(currentMSR) {
+		return goerrors.Errorf("iterative live migration is not supported for this migration")
+	}
+	var parentMetaDB *metadb.MetaDB
+	iterationsDir := currentMSR.GetIterationsDir(exportDir)
+	if currentMSR.IsParentMigration() {
+		parentMetaDB = metaDB
+		err := os.MkdirAll(iterationsDir, 0755)
+		if err != nil {
+			return fmt.Errorf("failed to create iterations directory: %w", err)
+		}
+	} else {
+		parentMetaDB, err = currentMSR.GetParentMetaDB()
+		if err != nil {
+			return fmt.Errorf("failed to get parent meta db: %w", err)
+		}
+		if !utils.FileOrFolderExists(iterationsDir) {
+			return goerrors.Errorf("iterations directory does not exist")
+		}
+	}
+	iterationNo := currentMSR.IterationNo + 1
+
+	parentMSR, err := parentMetaDB.GetMigrationStatusRecord()
+	if err != nil {
+		return fmt.Errorf("failed to get parent migration status record: %w", err)
+	}
+	//Create a new export dir for the next iteration under export_dir int following structure
+
+	iterationExportDir := GetIterationExportDir(iterationsDir, iterationNo)
+	err = os.MkdirAll(iterationExportDir, 0755)
+	if err != nil {
+		return fmt.Errorf("failed to create iteration directory: %w", err)
+	}
+
+	var nextIterationConfigFile string
+	configFile := lo.Ternary(currentMSR.ConfigFile != "", currentMSR.ConfigFile, cfgFile)
+	nextIterationConfigFile, err = initializeConfigFileForNextIteration(configFile, iterationExportDir)
+	if err != nil {
+		return fmt.Errorf("failed to initialize config file for next iteration: %w", err)
+	}
+
+	//storing the current metaDB to restore after updating the next iteration's MSR
+	currentMetaDB := metaDB
+	defer func() {
+		metaDB = currentMetaDB
+	}()
+
+	//after this metaDB will be pointing to metadb of next iteration
+	CreateMigrationProjectIfNotExists(parentMSR.SourceDBConf.DBType, iterationExportDir)
+
+	//Update the MSR - parent, next iteration and current iteration
+	return setUpNextIterationMSR(parentMetaDB, nextIterationConfigFile, iterationNo, currentMetaDB, currentMSR)
+
+}
+
+func setUpNextIterationMSR(parentMetaDB *metadb.MetaDB, nextIterationConfigFile string,
+	iterationNo int, currentMetaDB *metadb.MetaDB, currentMSR *metadb.MigrationStatusRecord) error {
+	err := parentMetaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		record.TotalIterations += 1
+		record.LatestIterationNumber = iterationNo
+	})
+	if err != nil {
+		utils.ErrExit("failed to update migration status record: %w", err)
+	}
+
+	err = currentMetaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		record.RestartDataMigrationSourceTargetNextIteration = true
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update migration status record: %w", err)
+	}
+
+	//Update next iteration's MSR
+	err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		record.ParentExportDir = lo.Ternary(currentMSR.IsParentMigration(), exportDir, currentMSR.ParentExportDir)
+		record.IterationNo = iterationNo
+		record.SourceDBConf = currentMSR.SourceDBConf
+		record.TargetDBConf = currentMSR.TargetDBConf
+		record.ConfigFile = nextIterationConfigFile
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update iteration migration status record: %w", err)
+	}
+	return nil
+}
+
+func initializeConfigFileForNextIteration(configFile string, iterationExportDir string) (string, error) {
+	if configFile == "" {
+		return "", nil
+	}
+	//Read the config file and update the config file for next iteration like export dir to iteration export dir and export-type in export data from source section to changes only
+	//create a copy of the config file for next iteration
+	nextIterationConfigFile := filepath.Join(iterationExportDir, "config.yaml")
+	err := utils.CopyFile(configFile, nextIterationConfigFile)
+	if err != nil {
+		return "", fmt.Errorf("failed to copy config file: %w", err)
+	}
+	v := viper.New()
+	v.SetConfigFile(nextIterationConfigFile)
+	err = v.ReadInConfig()
+	if err != nil {
+		return "", fmt.Errorf("failed to read config file: %w", err)
+	}
+	v.Set("export-dir", iterationExportDir)
+	v.Set("export-data-from-source.export-type", CHANGES_ONLY)
+	err = v.WriteConfigAs(nextIterationConfigFile)
+	if err != nil {
+		return "", fmt.Errorf("failed to write config file: %w", err)
+	}
+	return nextIterationConfigFile, nil
+}
+
+func GetIterationExportDir(iterationsDir string, iterationNo int) string {
+	return filepath.Join(iterationsDir, fmt.Sprintf("live-data-migration-iteration-%d", iterationNo), "export-dir")
 }
 
 func markCutoverProcessed(importerOrExporterRole string) error {

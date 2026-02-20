@@ -37,6 +37,7 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/adaptiveparallelism"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/config"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
@@ -148,6 +149,16 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	reportProgressInBytes = false
 	tconf.ImportMode = true
 	checkExportDataDoneFlag()
+
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("failed to get migration status record: %w", err)
+	}
+	if msr.ExportTypeFromSource == CHANGES_ONLY && importerRole == TARGET_DB_IMPORTER_ROLE && !msr.IsParentMigration() {
+		password := tconf.Password
+		tconf = *msr.TargetDBConf
+		tconf.Password = password
+	}
 	/*
 		Before this point MSR won't not be initialised in case of importDataFileCmd
 		In case of importDataCmd, MSR would be initialised already by previous commands
@@ -162,7 +173,7 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	//TODO: also for the source-replica ORACLE case to validate the schemas on source-replica
 	tconf.Schemas = sqlname.ParseIdentifiersFromString(tconf.TargetDBType, tconf.SchemaConfig, ",")
 	tdb = tgtdb.NewTargetDB(&tconf)
-	err := tdb.Init()
+	err = tdb.Init()
 	if err != nil {
 		utils.ErrExit("Failed to initialize the target DB: %s", err)
 	}
@@ -202,7 +213,7 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 		utils.ErrExit("error validating --cdc-partitioning-strategy flag: %v", err)
 	}
 
-	msr, err := metaDB.GetMigrationStatusRecord()
+	msr, err = metaDB.GetMigrationStatusRecord()
 	if err != nil {
 		utils.ErrExit("could not fetch MigrationStatusRecord: %w", err)
 	}
@@ -235,6 +246,76 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 
 	if changeStreamingIsEnabled(importType) {
 		startExportDataFromTargetIfRequired()
+	}
+
+	startExportDataFromSourceOnNextIteration()
+}
+
+func startExportDataFromSourceOnNextIteration() {
+	if importerRole != SOURCE_DB_IMPORTER_ROLE {
+		return
+	}
+	currentMsr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("failed to get migration status record: %w", err)
+	}
+	if !currentMsr.RestartDataMigrationSourceTargetNextIteration {
+		return
+	}
+	//Start export from source on next iteration
+
+	tableListExportedFromSource := currentMsr.TableListExportedFromSource
+	importTableList, err := getInitialImportTableListForLive(tableListExportedFromSource)
+	if err != nil {
+		utils.ErrExit("failed to generate table list : %v", err)
+	}
+	importTableNames := lo.Map(importTableList, func(tableName sqlname.NameTuple, _ int) string {
+		return tableName.ForKey()
+	})
+
+	lockFile.Unlock() // unlock export dir from import data cmd before switching current process to ff/fb sync cmd
+	// iterationsDir := currentMsr.GetIterationsDir(exportDir)
+	// iterationExportDir := GetIterationExportDir(iterationsDir, currentMsr.IterationNo+1)
+	cmd := []string{"yb-voyager", "export", "data", "from", "source"}
+	// iterationMetadb, err := metadb.NewMetaDB(iterationExportDir)
+	// if err != nil {
+	// 	utils.ErrExit("failed to create iteration meta db: %w", err)
+	// }
+	// iterationMsr, err := iterationMetadb.GetMigrationStatusRecord()
+	// if err != nil {
+	// 	utils.ErrExit("failed to get iteration migration status record: %w", err)
+	// }
+	if cfgFile != "" {
+		cmd = append(cmd, "--config-file", cfgFile)
+		//TODO: handle overrides for the command
+		cmd = append(cmd, "--table-list", strings.Join(importTableNames, ","))
+
+	} else {
+		cmd = append(cmd, "--export-dir", exportDir)
+		cmd = append(cmd, fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics))
+		cmd = append(cmd, "--log-level", config.LogLevel)
+		cmd = append(cmd, "--table-list", strings.Join(importTableNames, ","))
+		cmd = append(cmd, "--export-type", CHANGES_ONLY)
+		//TODO: see if we can do better, but these params are required for import data to target cmd
+		cmd = append(cmd, "--source-db-type", currentMsr.SourceDBConf.DBType)
+		cmd = append(cmd, "--source-db-name", currentMsr.SourceDBConf.DBName)
+		cmd = append(cmd, "--source-db-user", currentMsr.SourceDBConf.User)
+		cmd = append(cmd, "--source-db-schema", currentMsr.SourceDBConf.SchemaConfig)
+	}
+	cmdStr := "SOURCE_DB_PASSWORD=*** " + strings.Join(cmd, " ")
+
+	utils.PrintAndLogf("Starting export data from source with command:\n %s", color.GreenString(cmdStr))
+
+	binary, lookErr := exec.LookPath(os.Args[0])
+	if lookErr != nil {
+		utils.ErrExit("could not find yb-voyager: %w", lookErr)
+	}
+	env := os.Environ()
+	env = slices.Insert(env, 0, "SOURCE_DB_PASSWORD="+tconf.Password)
+
+	execErr := syscall.Exec(binary, cmd, env)
+	if execErr != nil {
+		utils.ErrExit("failed to run yb-voyager export data from source: %w\n Please re-run with command :\n%s", execErr, cmdStr)
 	}
 }
 
@@ -948,6 +1029,12 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 	if changeStreamingIsEnabled(importType) {
 		if importSnapshotRequired() {
 			displayImportedRowCountSnapshot(state, importFileTasks, errorHandler)
+		}
+		err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+			record.ImportDataToTargetStarted = true
+		})
+		if err != nil {
+			utils.ErrExit("failed to update migration status record: %w", err)
 		}
 		err = streamChanges(state, importTableList)
 		if err != nil {

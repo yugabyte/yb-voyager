@@ -27,7 +27,6 @@ import (
 	"time"
 
 	goerrors "github.com/go-errors/errors"
-
 	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
@@ -617,4 +616,15 @@ func (m *MetaDB) ResetQueueSegmentMeta(importerRole string) error {
 		return fmt.Errorf("error while running query on meta db -%s :%w", query, err)
 	}
 	return nil
+}
+
+func (m *MetaDB) ParentMetadataDB() (*MetaDB, error) {
+	msr, err := m.GetMigrationStatusRecord()
+	if err != nil {
+		return nil, goerrors.Errorf("get migration status record: %w", err)
+	}
+	if msr.ParentExportDir == "" {
+		return nil, goerrors.Errorf("parent export dir not found")
+	}
+	return NewMetaDB(msr.ParentExportDir)
 }
