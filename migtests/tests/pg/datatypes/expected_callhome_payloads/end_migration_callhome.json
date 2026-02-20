@@ -1,8 +1,20 @@
 {
-    "backup_data_files": true,
-    "backup_log_files": true,
-    "backup_schema_files": true,
-    "save_migration_reports": true,
-    "error": "",
-    "control_plane_type": ""
-}
+    "collected_at": "2025-11-03 16:24:26.722862",
+    "migration_phase": "end-migration",
+    "migration_type": "offline",
+    "migration_uuid": "ce7ce592-0181-4ed0-914a-9e7c5b5fb611",
+    "phase_payload": {
+      "backup_data_files": true,
+      "backup_log_files": true,
+      "backup_schema_files": true,
+      "control_plane_type": "",
+      "error": "",
+      "save_migration_reports": true
+    },
+    "phase_start_time": "2025-11-03 16:24:26.027794",
+    "source_db_details": "",
+    "status": "COMPLETE",
+    "target_db_details": "",
+    "time_taken_sec": 1,
+    "yb_voyager_version": "main"
+  }
