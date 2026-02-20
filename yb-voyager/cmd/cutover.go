@@ -130,7 +130,7 @@ func initializeNextIteration() error {
 		return fmt.Errorf("failed to get migration status record: %w", err)
 	}
 	if !iterativeCutoverSupported(currentMSR) {
-		return goerrors.Errorf("fall-forward is not supported for iterative live migration")
+		return goerrors.Errorf("iterative live migration is not supported for this migration")
 	}
 	var parentMetaDB *metadb.MetaDB
 	iterationsDir := currentMSR.GetIterationsDir(exportDir)
