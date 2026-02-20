@@ -536,6 +536,14 @@ func checkAndHandleSnapshotComplete(config *dbzm.Config, status *dbzm.ExportStat
 					}
 				}
 
+				failpoint.Inject("exportFromTargetStartupError", func(val failpoint.Value) {
+					if val != nil {
+						_ = os.MkdirAll(filepath.Join(exportDir, "logs"), 0755)
+						_ = os.WriteFile(filepath.Join(exportDir, "logs", "failpoint-export-from-target-startup.log"), []byte("hit\n"), 0644)
+						failpoint.Return(false, goerrors.Errorf("failpoint: export-from-target startup failure"))
+					}
+				})
+
 				err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 					if exporterRole == TARGET_DB_EXPORTER_FB_ROLE {
 						record.ExportFromTargetFallBackStarted = true
