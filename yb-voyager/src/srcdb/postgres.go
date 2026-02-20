@@ -547,7 +547,7 @@ func (pg *PostgreSQL) GetAllSequencesLastValues() (*utils.StructMap[sqlname.Obje
 			utils.ErrExit("error in scanning query rows for sequence names: %w\n", err)
 		}
 		qualifiedSequenceName := fmt.Sprintf(`"%s"."%s"`, sequenceSchema, sequenceName)
-		objName := sqlname.NewObjectNameWithQualifiedName(constants.POSTGRESQL, pg.source.DBName, qualifiedSequenceName)
+		objName := sqlname.NewObjectNameWithQualifiedName(constants.POSTGRESQL, "public", qualifiedSequenceName)
 		result.Put(*objName, lastValue)
 	}
 	return result, nil

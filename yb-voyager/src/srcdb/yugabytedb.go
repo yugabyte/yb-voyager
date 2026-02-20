@@ -393,7 +393,7 @@ func (yb *YugabyteDB) GetAllSequencesLastValues() (*utils.StructMap[sqlname.Obje
 			utils.ErrExit("error in scanning query rows for sequence names: %w\n", err)
 		}
 		qualifiedSequenceName := fmt.Sprintf(`"%s"."%s"`, sequenceSchema, sequenceName)
-		objName := sqlname.NewObjectNameWithQualifiedName(constants.YUGABYTEDB, yb.source.DBName, qualifiedSequenceName)
+		objName := sqlname.NewObjectNameWithQualifiedName(constants.YUGABYTEDB, "public", qualifiedSequenceName)
 		result.Put(*objName, lastValue)
 	}
 	return result, nil
