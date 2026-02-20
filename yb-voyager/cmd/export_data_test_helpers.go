@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"database/sql"
+
 	goerrors "github.com/go-errors/errors"
 	"github.com/stretchr/testify/require"
 
@@ -684,4 +686,184 @@ func getQueueSegmentCommittedSize(exportDir string, segmentNum int64) (int64, er
 		return -1, err
 	}
 	return metaDB.GetLastValidOffsetInSegmentFile(segmentNum)
+}
+
+func setupExportFromTargetTestData(t *testing.T, pgContainer testcontainers.TestContainer, ybContainer testcontainers.TestContainer, sourceReplicaContainer testcontainers.TestContainer) {
+	t.Helper()
+
+	createSchemaSQL := []string{
+		"DROP SCHEMA IF EXISTS test_schema_ff CASCADE;",
+		"CREATE SCHEMA test_schema_ff;",
+		`CREATE TABLE test_schema_ff.ff_cutover_test (
+			id SERIAL PRIMARY KEY,
+			name TEXT,
+			value INTEGER,
+			created_at TIMESTAMP DEFAULT NOW()
+		);`,
+		`ALTER TABLE test_schema_ff.ff_cutover_test REPLICA IDENTITY FULL;`,
+	}
+
+	pgContainer.ExecuteSqls(createSchemaSQL...)
+	pgContainer.ExecuteSqls(
+		`INSERT INTO test_schema_ff.ff_cutover_test (name, value)
+		SELECT 'initial_' || i, i * 10 FROM generate_series(1, 20) i;`,
+	)
+
+	ybContainer.ExecuteSqls(createSchemaSQL...)
+
+	if sourceReplicaContainer != nil {
+		sourceReplicaContainer.ExecuteSqls(createSchemaSQL...)
+	}
+
+	logTest(t, "Export-from-target test schema created in PG source (20 rows), YB target, and source-replica")
+}
+
+func waitForFallForwardEnabled(t *testing.T, exportDir string, timeout time.Duration, pollInterval time.Duration) bool {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		msr := getMigrationStatusFromMetaDB(t, exportDir)
+		if msr.FallForwardEnabled {
+			return true
+		}
+		time.Sleep(pollInterval)
+	}
+	return false
+}
+
+func waitForTargetDBConfInMetaDB(t *testing.T, exportDir string, timeout time.Duration, pollInterval time.Duration) bool {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		msr := getMigrationStatusFromMetaDB(t, exportDir)
+		if msr.TargetDBConf != nil {
+			return true
+		}
+		time.Sleep(pollInterval)
+	}
+	return false
+}
+
+func initiateCutoverToTarget(t *testing.T, exportDir string) {
+	t.Helper()
+	cutoverRunner := testutils.NewVoyagerCommandRunner(nil, "initiate cutover to target", []string{
+		"--export-dir", exportDir,
+		"--prepare-for-fall-back", "false",
+		"--yes",
+	}, nil, false)
+	err := cutoverRunner.Run()
+	require.NoError(t, err, "Failed to initiate cutover to target")
+}
+
+func getMigrationStatusFromMetaDB(t *testing.T, exportDir string) *metadb.MigrationStatusRecord {
+	t.Helper()
+
+	mdb, err := metadb.NewMetaDB(exportDir)
+	require.NoError(t, err, "Failed to open metaDB")
+
+	msr, err := mdb.GetMigrationStatusRecord()
+	require.NoError(t, err, "Failed to get migration status record")
+	require.NotNil(t, msr, "Migration status record should not be nil")
+	return msr
+}
+
+func waitForExportFromTargetStarted(t *testing.T, exportDir string, timeout time.Duration, pollInterval time.Duration) bool {
+	t.Helper()
+
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		msr := getMigrationStatusFromMetaDB(t, exportDir)
+		if msr.ExportFromTargetFallForwardStarted || msr.ExportFromTargetFallBackStarted {
+			return true
+		}
+		time.Sleep(pollInterval)
+	}
+	return false
+}
+
+// setMetaDBForCutoverCheck sets the package-level metaDB variable so that
+// getCutoverStatus() (which reads from the global) works in the test context.
+// It returns a cleanup function that restores the previous value.
+func setMetaDBForCutoverCheck(t *testing.T, exportDir string) func() {
+	t.Helper()
+
+	mdb, err := metadb.NewMetaDB(exportDir)
+	require.NoError(t, err, "Failed to open metaDB for cutover check")
+
+	prev := metaDB
+	metaDB = mdb
+	return func() { metaDB = prev }
+}
+
+func verifyCutoverIsNotComplete(t *testing.T, exportDir string) {
+	t.Helper()
+
+	restore := setMetaDBForCutoverCheck(t, exportDir)
+	defer restore()
+
+	status := getCutoverStatus()
+	require.NotEqual(t, COMPLETED, status,
+		"Cutover should NOT be COMPLETED when export-data-from-target has not started")
+	logTestf(t, "Verified: cutover status is %q (not COMPLETED)", status)
+}
+
+func verifyCutoverIsComplete(t *testing.T, exportDir string) {
+	t.Helper()
+
+	restore := setMetaDBForCutoverCheck(t, exportDir)
+	defer restore()
+
+	status := getCutoverStatus()
+	require.Equal(t, COMPLETED, status,
+		"Cutover should be COMPLETED after export-data-from-target starts successfully")
+	logTestf(t, "Verified: cutover status is %q", status)
+}
+
+func waitForRowCount(t *testing.T, container testcontainers.TestContainer, table string, expected int64, timeout time.Duration, pollInterval time.Duration) bool {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		conn, err := container.GetConnection()
+		if err != nil {
+			time.Sleep(pollInterval)
+			continue
+		}
+		var count int64
+		err = conn.QueryRow(fmt.Sprintf("SELECT COUNT(*) FROM %s", table)).Scan(&count)
+		conn.Close()
+		if err == nil && count >= expected {
+			logTestf(t, "Row count for %s: %d (expected >= %d)", table, count, expected)
+			return true
+		}
+		time.Sleep(pollInterval)
+	}
+	return false
+}
+
+func queryRowCount(t *testing.T, container testcontainers.TestContainer, table string) int64 {
+	t.Helper()
+	conn, err := container.GetConnection()
+	require.NoError(t, err, "Failed to get DB connection")
+	defer conn.Close()
+	var count int64
+	err = conn.QueryRow(fmt.Sprintf("SELECT COUNT(*) FROM %s", table)).Scan(&count)
+	require.NoError(t, err, "Failed to query row count")
+	return count
+}
+
+// waitForRowCountOnDB polls an existing *sql.DB until the expected count is reached.
+// Useful when the container's GetConnection() returns a new connection each time.
+func waitForRowCountOnDB(t *testing.T, db *sql.DB, table string, expected int64, timeout time.Duration, pollInterval time.Duration) bool {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		var count int64
+		err := db.QueryRow(fmt.Sprintf("SELECT COUNT(*) FROM %s", table)).Scan(&count)
+		if err == nil && count >= expected {
+			logTestf(t, "Row count for %s: %d (expected >= %d)", table, count, expected)
+			return true
+		}
+		time.Sleep(pollInterval)
+	}
+	return false
 }
