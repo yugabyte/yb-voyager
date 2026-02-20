@@ -1856,18 +1856,6 @@ func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 			utils.ErrExit("failed to remove sqlldr directory: %q: %s", sqlldrDir, err)
 		}
 	}
-
-	if changeStreamingIsEnabled(importType) {
-		// clearing state from metaDB based on importerRole
-		err := metaDB.ResetQueueSegmentMeta(importerRole)
-		if err != nil {
-			utils.ErrExit("failed to reset queue segment meta: %s", err)
-		}
-		err = metaDB.DeleteJsonObject(identityColumnsMetaDBKey)
-		if err != nil {
-			utils.ErrExit("failed to reset identity columns meta: %s", err)
-		}
-	}
 }
 
 func getIndexName(sqlQuery string, indexName string) (string, error) {
