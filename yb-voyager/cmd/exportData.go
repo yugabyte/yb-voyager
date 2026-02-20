@@ -33,7 +33,6 @@ import (
 	"github.com/fatih/color"
 	goerrors "github.com/go-errors/errors"
 	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/pingcap/failpoint"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -1075,19 +1074,9 @@ func createAndStoreReplicationSlotAndPublication(finalTableList []sqlname.NameTu
 		return "", fmt.Errorf("update PGReplicationSlotName: update migration status record: %w", err)
 	}
 
-	// Failpoint: simulate snapshot failure before pg_dump
-	failpoint.Inject("pgDumpSnapshotFailure", func(val failpoint.Value) {
-		if val != nil {
-			if delayMs := os.Getenv("YB_VOYAGER_PGDUMP_FAIL_DELAY_MS"); delayMs != "" {
-				if delay, err := strconv.Atoi(delayMs); err == nil && delay > 0 {
-					time.Sleep(time.Duration(delay) * time.Millisecond)
-				}
-			}
-			_ = os.MkdirAll(filepath.Join(exportDir, "logs"), 0755)
-			_ = os.WriteFile(filepath.Join(exportDir, "logs", "failpoint-pg-dump-snapshot.log"), []byte("hit\n"), 0644)
-			failpoint.Return("", goerrors.Errorf("failpoint: pg_dump snapshot failure"))
-		}
-	})
+	if fpErr := injectPgDumpSnapshotFailure(); fpErr != nil {
+		return "", fpErr
+	}
 
 	return res.SnapshotName, nil
 }
