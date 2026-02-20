@@ -26,45 +26,39 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	testcontainers "github.com/yugabyte/yb-voyager/yb-voyager/test/containers"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
-
-// setupCDCTestData creates test schema and data for CDC testing
-func setupCDCTestData(t *testing.T, container testcontainers.TestContainer) {
-	container.ExecuteSqls(
-		"CREATE SCHEMA IF NOT EXISTS test_schema;",
-		`CREATE TABLE test_schema.cdc_test (
-			id SERIAL PRIMARY KEY,
-			name TEXT,
-			value INTEGER,
-			created_at TIMESTAMP DEFAULT NOW()
-		);`,
-		`ALTER TABLE test_schema.cdc_test REPLICA IDENTITY FULL;`,
-		`INSERT INTO test_schema.cdc_test (name, value)
-		SELECT 'initial_' || i, i * 10 FROM generate_series(1, 100) i;`,
-	)
-}
 
 // TestCDCBatchProcessingFailure injects at YbExporterConsumer.handleBatch entry (2nd batch)
 // to validate Byteman attach and batch failure behavior.
 func TestCDCBatchProcessingFailure(t *testing.T) {
 	ctx := context.Background()
 
-	exportDir = testutils.CreateTempExportDir()
-	defer testutils.RemoveTempExportDir(exportDir)
-
-	postgresContainer := testcontainers.NewTestContainer("postgresql", &testcontainers.ContainerConfig{
-		ForLive: true,
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB:    ContainerConfig{Type: "postgresql", ForLive: true},
+		SchemaNames: []string{"test_schema"},
+		SchemaSQL: []string{
+			"CREATE SCHEMA IF NOT EXISTS test_schema;",
+			`CREATE TABLE test_schema.cdc_test (
+				id SERIAL PRIMARY KEY,
+				name TEXT,
+				value INTEGER,
+				created_at TIMESTAMP DEFAULT NOW()
+			);`,
+			`ALTER TABLE test_schema.cdc_test REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			`INSERT INTO test_schema.cdc_test (name, value)
+			SELECT 'initial_' || i, i * 10 FROM generate_series(1, 100) i;`,
+		},
+		CleanupSQL: []string{"DROP SCHEMA IF EXISTS test_schema CASCADE;"},
 	})
-	err := postgresContainer.Start(ctx)
-	require.NoError(t, err, "Failed to start PostgreSQL container")
-	defer postgresContainer.Stop(ctx)
+	defer lm.Cleanup()
+	require.NoError(t, lm.SetupContainers(ctx))
+	require.NoError(t, lm.SetupSchema())
 
-	setupCDCTestData(t, postgresContainer)
-	defer postgresContainer.ExecuteSqls(
-		"DROP SCHEMA IF EXISTS test_schema CASCADE;",
-	)
+	exportDir = lm.GetExportDir()
+	postgresContainer := lm.GetSourceContainer()
 
 	bytemanHelper, err := testutils.NewBytemanHelper(exportDir)
 	require.NoError(t, err, "Failed to create Byteman helper")
@@ -82,19 +76,19 @@ func TestCDCBatchProcessingFailure(t *testing.T) {
 	err = bytemanHelper.WriteRules()
 	require.NoError(t, err, "Failed to write Byteman rules")
 
-	logTest(t, "Running CDC export with batch processing failure injection...")
+	testutils.LogTest(t, "Running CDC export with batch processing failure injection...")
 
 	generateCDCEvents := func() {
 		time.Sleep(10 * time.Second)
-		logTest(t, "Generating CDC events...")
+		testutils.LogTest(t, "Generating CDC events...")
 		for batch := 0; batch < 5; batch++ {
 			postgresContainer.ExecuteSqls(
-				fmt.Sprintf(`INSERT INTO test_schema.cdc_test (name, value) 
+				fmt.Sprintf(`INSERT INTO test_schema.cdc_test (name, value)
 					SELECT 'batch%d_' || i, %d * 100 + i FROM generate_series(1, 50) i;`, batch, batch),
 			)
 			time.Sleep(2 * time.Second)
 		}
-		logTest(t, "Finished generating CDC events")
+		testutils.LogTest(t, "Finished generating CDC events")
 	}
 
 	// Run export data with Byteman injection - should fail on 2nd batch
@@ -119,20 +113,31 @@ func TestCDCBatchProcessingFailure(t *testing.T) {
 func TestCDCBatchProcessing_WithMarkers(t *testing.T) {
 	ctx := context.Background()
 
-	exportDir = testutils.CreateTempExportDir()
-	defer testutils.RemoveTempExportDir(exportDir)
-
-	postgresContainer := testcontainers.NewTestContainer("postgresql", &testcontainers.ContainerConfig{
-		ForLive: true,
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB:    ContainerConfig{Type: "postgresql", ForLive: true},
+		SchemaNames: []string{"test_schema"},
+		SchemaSQL: []string{
+			"CREATE SCHEMA IF NOT EXISTS test_schema;",
+			`CREATE TABLE test_schema.cdc_test (
+				id SERIAL PRIMARY KEY,
+				name TEXT,
+				value INTEGER,
+				created_at TIMESTAMP DEFAULT NOW()
+			);`,
+			`ALTER TABLE test_schema.cdc_test REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			`INSERT INTO test_schema.cdc_test (name, value)
+			SELECT 'initial_' || i, i * 10 FROM generate_series(1, 100) i;`,
+		},
+		CleanupSQL: []string{"DROP SCHEMA IF EXISTS test_schema CASCADE;"},
 	})
-	err := postgresContainer.Start(ctx)
-	require.NoError(t, err)
-	defer postgresContainer.Stop(ctx)
+	defer lm.Cleanup()
+	require.NoError(t, lm.SetupContainers(ctx))
+	require.NoError(t, lm.SetupSchema())
 
-	setupCDCTestData(t, postgresContainer)
-	defer postgresContainer.ExecuteSqls(
-		"DROP SCHEMA IF EXISTS test_schema CASCADE;",
-	)
+	exportDir = lm.GetExportDir()
+	postgresContainer := lm.GetSourceContainer()
 
 	bytemanHelper, err := testutils.NewBytemanHelper(exportDir)
 	require.NoError(t, err)
@@ -149,11 +154,11 @@ func TestCDCBatchProcessing_WithMarkers(t *testing.T) {
 	err = bytemanHelper.WriteRules()
 	require.NoError(t, err)
 
-	logTest(t, "Running CDC export with marker-based batch processing failure on 2nd batch...")
+	testutils.LogTest(t, "Running CDC export with marker-based batch processing failure on 2nd batch...")
 
 	generateCDCEvents := func() {
 		time.Sleep(10 * time.Second)
-		logTest(t, "Generating CDC events...")
+		testutils.LogTest(t, "Generating CDC events...")
 		for batch := 0; batch < 5; batch++ {
 			postgresContainer.ExecuteSqls(
 				fmt.Sprintf(`INSERT INTO test_schema.cdc_test (name, value)
@@ -161,7 +166,7 @@ func TestCDCBatchProcessing_WithMarkers(t *testing.T) {
 			)
 			time.Sleep(2 * time.Second)
 		}
-		logTest(t, "Finished generating CDC events")
+		testutils.LogTest(t, "Finished generating CDC events")
 	}
 
 	exportRunner := testutils.NewVoyagerCommandRunner(postgresContainer, "export data", []string{

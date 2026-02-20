@@ -116,7 +116,7 @@ func verifyNoEventIDDuplicatesInternal(t *testing.T, exportDir string, failOnErr
 				if err := json.Unmarshal([]byte(line), &eventData); err != nil {
 					parseErrors++
 					if parseErrors <= 3 {
-						logTestf(t, "Malformed CDC line in %s: %s", filePath, line)
+						testutils.LogTestf(t, "Malformed CDC line in %s: %s", filePath, line)
 					}
 					continue
 				}
@@ -130,14 +130,14 @@ func verifyNoEventIDDuplicatesInternal(t *testing.T, exportDir string, failOnErr
 				if !ok || eventID == "" || eventID == "null" {
 					missingEventID++
 					if missingEventID <= 3 {
-						logTestf(t, "Missing event_id in %s: %s", filePath, line)
+						testutils.LogTestf(t, "Missing event_id in %s: %s", filePath, line)
 					}
 					continue
 				}
 
 				if eventIDSet[eventID] {
 					duplicateCount++
-					logTestf(t, "WARNING: Duplicate event_id found: %s", eventID)
+					testutils.LogTestf(t, "WARNING: Duplicate event_id found: %s", eventID)
 				} else {
 					eventIDSet[eventID] = true
 				}
@@ -150,7 +150,7 @@ func verifyNoEventIDDuplicatesInternal(t *testing.T, exportDir string, failOnErr
 		require.Equal(t, 0, missingEventID, "Missing event_id values found while parsing queue segments")
 	}
 	require.Equal(t, 0, duplicateCount, "No duplicate events should exist (event deduplication should work)")
-	logTestf(t, "✓ Verified %d unique event_id values with no duplicates (out of %d lines)", len(eventIDSet), totalLines)
+	testutils.LogTestf(t, "✓ Verified %d unique event_id values with no duplicates (out of %d lines)", len(eventIDSet), totalLines)
 	return parseErrors, missingEventID
 }
 
@@ -161,11 +161,11 @@ func waitForCDCEventCount(t *testing.T, exportDir string, expected int, timeout 
 	require.Eventually(t, func() bool {
 		count, err := countEventsInQueueSegments(exportDir)
 		if err != nil {
-			logTestf(t, "Failed to count CDC events yet: %v", err)
+			testutils.LogTestf(t, "Failed to count CDC events yet: %v", err)
 			return false
 		}
 		lastCount = count
-		logTestf(t, "Current CDC event count: %d / %d expected", count, expected)
+		testutils.LogTestf(t, "Current CDC event count: %d / %d expected", count, expected)
 		return count >= expected
 	}, timeout, pollInterval, "Timed out waiting for CDC event count to reach %d (last=%d)", expected, lastCount)
 
@@ -283,99 +283,6 @@ func hashSnapshotDescriptorSnapshotFailure(exportDir string) (string, error) {
 	return fmt.Sprintf("%x", sha256.Sum256(data)), nil
 }
 
-func setupSnapshotFailureTestData(t *testing.T, container testcontainers.TestContainer) {
-	container.ExecuteSqls(
-		"DROP SCHEMA IF EXISTS test_schema_snapshot_fail CASCADE;",
-		"CREATE SCHEMA test_schema_snapshot_fail;",
-		`CREATE TABLE test_schema_snapshot_fail.cdc_snapshot_fail_test (
-			id SERIAL PRIMARY KEY,
-			name TEXT,
-			value INTEGER,
-			created_at TIMESTAMP DEFAULT NOW()
-		);`,
-		`ALTER TABLE test_schema_snapshot_fail.cdc_snapshot_fail_test REPLICA IDENTITY FULL;`,
-	)
-
-	container.ExecuteSqls(
-		`INSERT INTO test_schema_snapshot_fail.cdc_snapshot_fail_test (name, value)
-		SELECT 'snapshot_' || i, i * 10 FROM generate_series(1, 100) i;`,
-	)
-
-	logTest(t, "Snapshot failure test schema created with 100 snapshot rows")
-}
-
-func setupTransitionFailureTestData(t *testing.T, container testcontainers.TestContainer) {
-	container.ExecuteSqls(
-		"DROP SCHEMA IF EXISTS test_schema_transition CASCADE;",
-		"CREATE SCHEMA test_schema_transition;",
-		`CREATE TABLE test_schema_transition.cdc_transition_test (
-			id SERIAL PRIMARY KEY,
-			name TEXT,
-			value INTEGER,
-			created_at TIMESTAMP DEFAULT NOW()
-		);`,
-		`ALTER TABLE test_schema_transition.cdc_transition_test REPLICA IDENTITY FULL;`,
-	)
-
-	container.ExecuteSqls(
-		`INSERT INTO test_schema_transition.cdc_transition_test (name, value)
-		SELECT 'snapshot_' || i, i * 10 FROM generate_series(1, 30) i;`,
-	)
-
-	logTest(t, "Transition test schema created with 30 snapshot rows")
-}
-
-func setupCDCTestDataForResume(t *testing.T, container testcontainers.TestContainer) {
-	container.ExecuteSqls(
-		"CREATE SCHEMA IF NOT EXISTS test_schema;",
-		`CREATE TABLE test_schema.cdc_test (
-			id SERIAL PRIMARY KEY,
-			name TEXT,
-			value INTEGER,
-			created_at TIMESTAMP DEFAULT NOW()
-		);`,
-		`ALTER TABLE test_schema.cdc_test REPLICA IDENTITY FULL;`,
-		`INSERT INTO test_schema.cdc_test (name, value)
-		SELECT 'initial_' || i, i * 10 FROM generate_series(1, 100) i;`,
-	)
-}
-
-func setupFirstBatchTestData(t *testing.T, container testcontainers.TestContainer) {
-	container.ExecuteSqls(
-		"CREATE SCHEMA IF NOT EXISTS test_schema;",
-		`CREATE TABLE test_schema.first_batch_test (
-			id SERIAL PRIMARY KEY,
-			name TEXT,
-			value INTEGER,
-			created_at TIMESTAMP DEFAULT NOW()
-		);`,
-		`ALTER TABLE test_schema.first_batch_test REPLICA IDENTITY FULL;`,
-		`INSERT INTO test_schema.first_batch_test (name, value)
-		SELECT 'initial_' || i, i * 10 FROM generate_series(1, 50) i;`,
-	)
-}
-
-func setupMultipleFailureTestData(t *testing.T, container testcontainers.TestContainer) {
-	container.ExecuteSqls(
-		"DROP SCHEMA IF EXISTS test_schema_multi_fail CASCADE;",
-		"CREATE SCHEMA test_schema_multi_fail;",
-		`CREATE TABLE test_schema_multi_fail.cdc_multi_fail_test (
-			id SERIAL PRIMARY KEY,
-			name TEXT,
-			value INTEGER,
-			created_at TIMESTAMP DEFAULT NOW()
-		);`,
-		`ALTER TABLE test_schema_multi_fail.cdc_multi_fail_test REPLICA IDENTITY FULL;`,
-	)
-
-	container.ExecuteSqls(
-		`INSERT INTO test_schema_multi_fail.cdc_multi_fail_test (name, value)
-		SELECT 'snapshot_' || i, i * 10 FROM generate_series(1, 50) i;`,
-	)
-
-	logTest(t, "Multiple failure test schema created with 50 snapshot rows")
-}
-
 func assertSourceRowCount(t *testing.T, container testcontainers.TestContainer, expected int) {
 	t.Helper()
 	pgConn, err := container.GetConnection()
@@ -386,27 +293,6 @@ func assertSourceRowCount(t *testing.T, container testcontainers.TestContainer, 
 	err = pgConn.QueryRow("SELECT COUNT(*) FROM test_schema_multi_fail.cdc_multi_fail_test").Scan(&sourceRowCount)
 	require.NoError(t, err, "Failed to query source row count")
 	require.Equal(t, expected, sourceRowCount, "Source row count should match expected")
-}
-
-func setupOffsetCommitTestData(t *testing.T, container testcontainers.TestContainer) {
-	container.ExecuteSqls(
-		"DROP SCHEMA IF EXISTS test_schema_offset_commit CASCADE;",
-		"CREATE SCHEMA test_schema_offset_commit;",
-		`CREATE TABLE test_schema_offset_commit.cdc_offset_commit_test (
-			id SERIAL PRIMARY KEY,
-			name TEXT,
-			value INTEGER,
-			created_at TIMESTAMP DEFAULT NOW()
-		);`,
-		`ALTER TABLE test_schema_offset_commit.cdc_offset_commit_test REPLICA IDENTITY FULL;`,
-	)
-
-	container.ExecuteSqls(
-		`INSERT INTO test_schema_offset_commit.cdc_offset_commit_test (name, value)
-		SELECT 'snapshot_' || i, i * 10 FROM generate_series(1, 50) i;`,
-	)
-
-	logTest(t, "Offset commit test schema created with 50 snapshot rows")
 }
 
 func collectEventIDsForOffsetCommitTest(exportDir string) (map[string]struct{}, error) {
@@ -501,94 +387,6 @@ func countDedupSkipLogs(exportDir string) (int, error) {
 		return 0, err
 	}
 	return count, nil
-}
-
-func setupBeforeHandleBatchCompleteTestData(t *testing.T, container testcontainers.TestContainer) {
-	container.ExecuteSqls(
-		"DROP SCHEMA IF EXISTS test_schema_before_batch_complete CASCADE;",
-		"CREATE SCHEMA test_schema_before_batch_complete;",
-		`CREATE TABLE test_schema_before_batch_complete.cdc_before_batch_complete_test (
-			id SERIAL PRIMARY KEY,
-			name TEXT,
-			value INTEGER,
-			payload TEXT,
-			created_at TIMESTAMP DEFAULT NOW()
-		);`,
-		`ALTER TABLE test_schema_before_batch_complete.cdc_before_batch_complete_test REPLICA IDENTITY FULL;`,
-	)
-
-	container.ExecuteSqls(
-		`INSERT INTO test_schema_before_batch_complete.cdc_before_batch_complete_test (name, value, payload)
-		SELECT 'snapshot_' || i, i * 10, repeat('s', 20000) FROM generate_series(1, 50) i;`,
-	)
-
-	logTest(t, "Before-handleBatchComplete test schema created with 50 snapshot rows")
-}
-
-func setupQueueWriteFailureTestData(t *testing.T, container testcontainers.TestContainer) {
-	container.ExecuteSqls(
-		"DROP SCHEMA IF EXISTS test_schema_queue_write CASCADE;",
-		"CREATE SCHEMA test_schema_queue_write;",
-		`CREATE TABLE test_schema_queue_write.cdc_queue_write_test (
-			id SERIAL PRIMARY KEY,
-			name TEXT,
-			value INTEGER,
-			payload TEXT,
-			created_at TIMESTAMP DEFAULT NOW()
-		);`,
-		`ALTER TABLE test_schema_queue_write.cdc_queue_write_test REPLICA IDENTITY FULL;`,
-	)
-
-	container.ExecuteSqls(
-		`INSERT INTO test_schema_queue_write.cdc_queue_write_test (name, value, payload)
-		SELECT 'snapshot_' || i, i * 10, repeat('s', 20000) FROM generate_series(1, 50) i;`,
-	)
-
-	logTest(t, "Queue write failure test schema created with 50 snapshot rows")
-}
-
-func setupRotationMidBatchTestData(t *testing.T, container testcontainers.TestContainer) {
-	container.ExecuteSqls(
-		"DROP SCHEMA IF EXISTS test_schema_rotation CASCADE;",
-		"CREATE SCHEMA test_schema_rotation;",
-		`CREATE TABLE test_schema_rotation.cdc_rotation_test (
-			id SERIAL PRIMARY KEY,
-			name TEXT,
-			value INTEGER,
-			payload TEXT,
-			created_at TIMESTAMP DEFAULT NOW()
-		);`,
-		`ALTER TABLE test_schema_rotation.cdc_rotation_test REPLICA IDENTITY FULL;`,
-	)
-
-	container.ExecuteSqls(
-		`INSERT INTO test_schema_rotation.cdc_rotation_test (name, value, payload)
-		SELECT 'snapshot_' || i, i * 10, repeat('s', 20000) FROM generate_series(1, 50) i;`,
-	)
-
-	logTest(t, "Rotation test schema created with 50 snapshot rows")
-}
-
-func setupTruncationTestData(t *testing.T, container testcontainers.TestContainer) {
-	container.ExecuteSqls(
-		"DROP SCHEMA IF EXISTS test_schema_truncation CASCADE;",
-		"CREATE SCHEMA test_schema_truncation;",
-		`CREATE TABLE test_schema_truncation.cdc_truncation_test (
-			id SERIAL PRIMARY KEY,
-			name TEXT,
-			value INTEGER,
-			payload TEXT,
-			created_at TIMESTAMP DEFAULT NOW()
-		);`,
-		`ALTER TABLE test_schema_truncation.cdc_truncation_test REPLICA IDENTITY FULL;`,
-	)
-
-	container.ExecuteSqls(
-		`INSERT INTO test_schema_truncation.cdc_truncation_test (name, value, payload)
-		SELECT 'snapshot_' || i, i * 10, repeat('s', 20000) FROM generate_series(1, 50) i;`,
-	)
-
-	logTest(t, "Truncation test schema created with 50 snapshot rows")
 }
 
 func waitForTruncationLog(exportDir string, timeout time.Duration) (bool, error) {
@@ -688,35 +486,6 @@ func getQueueSegmentCommittedSize(exportDir string, segmentNum int64) (int64, er
 	return metaDB.GetLastValidOffsetInSegmentFile(segmentNum)
 }
 
-func setupExportFromTargetTestData(t *testing.T, pgContainer testcontainers.TestContainer, ybContainer testcontainers.TestContainer, sourceReplicaContainer testcontainers.TestContainer) {
-	t.Helper()
-
-	createSchemaSQL := []string{
-		"DROP SCHEMA IF EXISTS test_schema_ff CASCADE;",
-		"CREATE SCHEMA test_schema_ff;",
-		`CREATE TABLE test_schema_ff.ff_cutover_test (
-			id SERIAL PRIMARY KEY,
-			name TEXT,
-			value INTEGER,
-			created_at TIMESTAMP DEFAULT NOW()
-		);`,
-		`ALTER TABLE test_schema_ff.ff_cutover_test REPLICA IDENTITY FULL;`,
-	}
-
-	pgContainer.ExecuteSqls(createSchemaSQL...)
-	pgContainer.ExecuteSqls(
-		`INSERT INTO test_schema_ff.ff_cutover_test (name, value)
-		SELECT 'initial_' || i, i * 10 FROM generate_series(1, 20) i;`,
-	)
-
-	ybContainer.ExecuteSqls(createSchemaSQL...)
-
-	if sourceReplicaContainer != nil {
-		sourceReplicaContainer.ExecuteSqls(createSchemaSQL...)
-	}
-
-	logTest(t, "Export-from-target test schema created in PG source (20 rows), YB target, and source-replica")
-}
 
 func waitForFallForwardEnabled(t *testing.T, exportDir string, timeout time.Duration, pollInterval time.Duration) bool {
 	t.Helper()
@@ -804,7 +573,7 @@ func verifyCutoverIsNotComplete(t *testing.T, exportDir string) {
 	status := getCutoverStatus()
 	require.NotEqual(t, COMPLETED, status,
 		"Cutover should NOT be COMPLETED when export-data-from-target has not started")
-	logTestf(t, "Verified: cutover status is %q (not COMPLETED)", status)
+	testutils.LogTestf(t, "Verified: cutover status is %q (not COMPLETED)", status)
 }
 
 func verifyCutoverIsComplete(t *testing.T, exportDir string) {
@@ -816,7 +585,7 @@ func verifyCutoverIsComplete(t *testing.T, exportDir string) {
 	status := getCutoverStatus()
 	require.Equal(t, COMPLETED, status,
 		"Cutover should be COMPLETED after export-data-from-target starts successfully")
-	logTestf(t, "Verified: cutover status is %q", status)
+	testutils.LogTestf(t, "Verified: cutover status is %q", status)
 }
 
 func waitForRowCount(t *testing.T, container testcontainers.TestContainer, table string, expected int64, timeout time.Duration, pollInterval time.Duration) bool {
@@ -832,7 +601,7 @@ func waitForRowCount(t *testing.T, container testcontainers.TestContainer, table
 		err = conn.QueryRow(fmt.Sprintf("SELECT COUNT(*) FROM %s", table)).Scan(&count)
 		conn.Close()
 		if err == nil && count >= expected {
-			logTestf(t, "Row count for %s: %d (expected >= %d)", table, count, expected)
+			testutils.LogTestf(t, "Row count for %s: %d (expected >= %d)", table, count, expected)
 			return true
 		}
 		time.Sleep(pollInterval)
@@ -860,7 +629,7 @@ func waitForRowCountOnDB(t *testing.T, db *sql.DB, table string, expected int64,
 		var count int64
 		err := db.QueryRow(fmt.Sprintf("SELECT COUNT(*) FROM %s", table)).Scan(&count)
 		if err == nil && count >= expected {
-			logTestf(t, "Row count for %s: %d (expected >= %d)", table, count, expected)
+			testutils.LogTestf(t, "Row count for %s: %d (expected >= %d)", table, count, expected)
 			return true
 		}
 		time.Sleep(pollInterval)
