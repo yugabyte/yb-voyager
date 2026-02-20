@@ -29,8 +29,6 @@ import (
 	"github.com/fatih/color"
 	goerrors "github.com/go-errors/errors"
 	"github.com/google/uuid"
-	"github.com/jackc/pgconn"
-	"github.com/pingcap/failpoint"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 
@@ -449,15 +447,9 @@ func handleEvent(event *tgtdb.Event,
 		return goerrors.Errorf("error transforming event key fields: %v", err)
 	}
 
-	// Failpoint: inject failure during CDC event transformation/application on import side.
-	// This is used by import failure injection tests to verify resumability and idempotency.
-	failpoint.Inject("importCDCTransformFailure", func(val failpoint.Value) {
-		if val != nil {
-			_ = os.MkdirAll(filepath.Join(exportDir, "logs"), 0755)
-			_ = os.WriteFile(filepath.Join(exportDir, "logs", "failpoint-import-cdc-transform.log"), []byte("hit\n"), 0644)
-			failpoint.Return(goerrors.Errorf("failpoint: import CDC transform failure"))
-		}
-	})
+	if fpErr := injectImportCDCTransformFailure(); fpErr != nil {
+		return fpErr
+	}
 
 	evChans[h] <- event
 	log.Tracef("inserted event %v into channel %v", event.Vsn, h)
@@ -548,29 +540,9 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 		for attempt := 0; attempt < EVENT_BATCH_MAX_RETRY_COUNT; attempt++ {
 			err = tdb.ExecuteBatch(migrationUUID, eventBatch)
 			if err == nil {
-				// Failpoint: crash after N *successful* CDC batches.
-				//
-				// Placement matters: this runs only after a successful ExecuteBatch, so the batch is
-				// applied normally (including voyager metadata updates) before we force the failure.
-				//
-				// In tests, use a hit-counter expression to control "N" deterministically, e.g.:
-				//   importCDCBatchDBError=100*off->return(true)
-				// Here, `val != nil` means the failpoint action is active (the "return(true)" phase).
-				failpoint.Inject("importCDCBatchDBError", func(val failpoint.Value) {
-					if val != nil {
-						_ = os.MkdirAll(filepath.Join(exportDir, "logs"), 0755)
-						_ = os.WriteFile(
-							filepath.Join(exportDir, "logs", "failpoint-import-cdc-db-error.log"),
-							[]byte("hit\n"),
-							0644,
-						)
-						// Use a non-retryable SQLSTATE so we exit quickly without long retry sleeps.
-						err = &pgconn.PgError{
-							Code:    "23505", // unique_violation (Class 23: Integrity Constraint Violation)
-							Message: "failpoint: duplicate key value violates unique constraint",
-						}
-					}
-				})
+				if fpErr := injectImportCDCBatchDBError(); fpErr != nil {
+					err = fpErr
+				}
 			}
 			if err == nil {
 				break

@@ -24,7 +24,6 @@ import (
 	"io"
 	"net/url"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -40,7 +39,6 @@ import (
 	pgconn5 "github.com/jackc/pgx/v5/pgconn"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/jinzhu/copier"
-	"github.com/pingcap/failpoint"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
@@ -762,22 +760,11 @@ func (yb *TargetYugabyteDB) importBatch(conn *pgx.Conn, batch Batch, args *Impor
 					errs.IMPORT_BATCH_ERROR_STEP_ROLLBACK_TXN)
 			}
 		} else {
-			// Failpoint: inject error before commit for testing
-			// Use failpoint.Value parameter to distinguish between 'off' and 'return' actions
-			// When val != nil, the failpoint action is active (e.g., return())
-			// When val == nil, the failpoint action is 'off' (skip error injection)
-			failpoint.Inject("importBatchCommitError", func(val failpoint.Value) {
-				if val != nil {
-					// Inject commit error only when action is not 'off'
-					err2 = goerrors.Errorf("failpoint: commit failed")
-					err = newImportBatchErrorPgYb(err2, batch,
-						errs.IMPORT_BATCH_ERROR_FLOW_COPY_NORMAL,
-						errs.IMPORT_BATCH_ERROR_STEP_COMMIT_TXN)
-					rowsAffected = 0
-					failpoint.Return() // special function to make outer function return
-				}
-				// If val == nil ('off' action), do nothing - let commit proceed normally
-			})
+			if fpRows, fpErr, triggered := injectImportBatchCommitError(batch); triggered {
+				rowsAffected = fpRows
+				err = fpErr
+				return
+			}
 
 			err2 = tx.Commit(ctx)
 			if err2 != nil {
@@ -1075,24 +1062,9 @@ and needs to be prepared again
 func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBatch) error {
 	log.Infof("executing batch(%s) of %d events", batch.ID(), len(batch.Events))
 
-	// Failpoint: inject a retryable target DB error at the start of CDC batch execution.
-	// This is used by import-side streaming tests to validate retry behavior without requiring a resume run.
-	//
-	// Tests can use a one-shot or hit-counter expression, e.g.:
-	//   importCDCRetryableExecuteBatchError=1*return(true)
-	//
-	// Black-box tests can set YB_VOYAGER_FAILPOINT_MARKER_DIR to write a marker file.
-	failpoint.Inject("importCDCRetryableExecuteBatchError", func(val failpoint.Value) {
-		if val != nil {
-			if markerDir := os.Getenv("YB_VOYAGER_FAILPOINT_MARKER_DIR"); markerDir != "" {
-				_ = os.MkdirAll(markerDir, 0755)
-				_ = os.WriteFile(filepath.Join(markerDir, "failpoint-import-cdc-retryable-exec-batch-error.log"), []byte("hit\n"), 0644)
-			}
-			// Use a retryable SQLSTATE (Class 40) so IsNonRetryableCopyError returns false.
-			// This should trigger the retry loop in cmd/live_migration.go.
-			failpoint.Return(&pgconn.PgError{Code: "40001", Message: "failpoint: retryable execute batch error"})
-		}
-	})
+	if fpErr := injectImportCDCRetryableExecuteBatchError(); fpErr != nil {
+		return fpErr
+	}
 
 	ybBatch := pgx.Batch{}
 	stmtToPrepare := make(map[string]string)
@@ -1162,25 +1134,9 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 			return nil
 		}
 		for i := 0; i < len(batch.Events); i++ {
-			// Failpoint: simulate a non-retryable DB error while applying a CDC event in a batch.
-			// This is used by import-side streaming tests to force a deterministic crash mid-stream.
-			//
-			// Tests can use a hit-counter expression (e.g. `50*off->return(true)`) to fail on the
-			// (N+1)-th event application attempt.
-			failpoint.Inject("importCDCExecEventError", func(val failpoint.Value) {
-				if val != nil {
-					// Best-effort marker for black-box tests that run `yb-voyager` as an external process.
-					// Tests can set YB_VOYAGER_FAILPOINT_MARKER_DIR to a writable directory (e.g. exportDir/logs).
-					if markerDir := os.Getenv("YB_VOYAGER_FAILPOINT_MARKER_DIR"); markerDir != "" {
-						_ = os.MkdirAll(markerDir, 0755)
-						_ = os.WriteFile(filepath.Join(markerDir, "failpoint-import-cdc-exec-event-error.log"), []byte("hit\n"), 0644)
-					}
-					err = &pgconn.PgError{
-						Code:    "23505", // unique_violation (Class 23: Integrity Constraint Violation) => non-retryable
-						Message: "failpoint: cdc event exec failed",
-					}
-				}
-			})
+			if fpErr := injectImportCDCExecEventError(); fpErr != nil {
+				err = fpErr
+			}
 			if err != nil {
 				errorMsg := fmt.Sprintf("error executing stmt for event with vsn(%d) in batch(%s)", batch.Events[i].Vsn, batch.ID())
 				log.Errorf("%s : %v", errorMsg, err)
@@ -1261,28 +1217,9 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 			return false, fmt.Errorf("failed to commit transaction : %w", err)
 		}
 
-		// Failpoint: simulate the "commit succeeded but ExecuteBatch returned a retryable error" case.
-		//
-		// This models scenarios like transient RPC/timeout errors on commit where the transaction
-		// actually commits on the server. The importer retry loop should detect that the batch is
-		// already imported (via last_applied_vsn) and avoid re-applying / double-counting.
-		//
-		// Tests can use a one-shot or hit-counter expression, e.g.:
-		//   importCDCRetryableAfterCommitError=1*return(true)
-		//
-		// Black-box tests can set YB_VOYAGER_FAILPOINT_MARKER_DIR to write a marker file.
-		failpoint.Inject("importCDCRetryableAfterCommitError", func(val failpoint.Value) {
-			if val != nil {
-				if markerDir := os.Getenv("YB_VOYAGER_FAILPOINT_MARKER_DIR"); markerDir != "" {
-					_ = os.MkdirAll(markerDir, 0755)
-					_ = os.WriteFile(filepath.Join(markerDir, "failpoint-import-cdc-retryable-after-commit-error.log"), []byte("hit\n"), 0644)
-				}
-				err = &pgconn.PgError{
-					Code:    "40001", // Class 40 => retryable
-					Message: "failpoint: retryable error after commit",
-				}
-			}
-		})
+		if fpErr := injectImportCDCRetryableAfterCommitError(); fpErr != nil {
+			err = fpErr
+		}
 		if err != nil {
 			return false, err
 		}

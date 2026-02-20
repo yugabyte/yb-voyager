@@ -1,4 +1,4 @@
-//go:build integration_live_migration
+//go:build integration_live_migration || failpoint
 
 /*
 Copyright (c) YugabyteDB, Inc.
@@ -21,13 +21,16 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	goerrors "github.com/go-errors/errors"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/jsonfile"
@@ -51,6 +54,9 @@ type LiveMigrationTest struct {
 	metaDB          *metadb.MetaDB
 	ctx             context.Context
 	t               *testing.T
+
+	envVars        []string // env vars applied to the next command start
+	exportCallback func()  // custom doDuringCmd for export; overrides default sleep
 }
 
 // TestConfig holds all configuration upfront
@@ -163,6 +169,16 @@ func (lm *LiveMigrationTest) InitMetaDB() error {
 // Cleanup runs all cleanup operations (called via defer)
 func (lm *LiveMigrationTest) Cleanup() {
 	fmt.Printf("Cleaning up\n")
+
+	// Kill any running commands
+	if lm.exportCmd != nil {
+		_ = lm.exportCmd.Kill()
+	}
+	if lm.importCmd != nil {
+		_ = lm.importCmd.Kill()
+	}
+	lm.killDebezium()
+
 	// Execute cleanup SQL
 	lm.sourceContainer.ExecuteSqlsOnDB(lm.config.SourceDB.DatabaseName, lm.config.CleanupSQL...)
 	lm.targetContainer.ExecuteSqlsOnDB(lm.config.TargetDB.DatabaseName, lm.config.CleanupSQL...)
@@ -171,16 +187,25 @@ func (lm *LiveMigrationTest) Cleanup() {
 		pg := lm.sourceContainer.(*testcontainers.PostgresContainer)
 		err := pg.DropDatabase(lm.config.SourceDB.DatabaseName)
 		if err != nil {
-			lm.t.Fatalf("failed to drop source database: %v", err)
+			lm.t.Logf("WARNING: failed to drop source database: %v", err)
 		}
 	}
 	if lm.config.TargetDB.DatabaseName != "" {
 		yb := lm.targetContainer.(*testcontainers.YugabyteDBContainer)
 		err := yb.DropDatabase(lm.config.TargetDB.DatabaseName)
 		if err != nil {
-			lm.t.Fatalf("failed to drop target database: %v", err)
+			lm.t.Logf("WARNING: failed to drop target database: %v", err)
 		}
 	}
+
+	// Stop containers
+	if lm.sourceContainer != nil {
+		lm.sourceContainer.Stop(lm.ctx)
+	}
+	if lm.targetContainer != nil {
+		lm.targetContainer.Stop(lm.ctx)
+	}
+
 	// Remove export directory only if test passed
 	if lm.t.Failed() {
 		fmt.Printf("Test failed - preserving export directory for debugging: %s\n", lm.exportDir)
@@ -198,9 +223,12 @@ func (lm *LiveMigrationTest) Cleanup() {
 func (lm *LiveMigrationTest) StartExportData(async bool, extraArgs map[string]string) error {
 	fmt.Printf("Starting export data\n")
 	var onStart func()
-	if async {
+	if lm.exportCallback != nil {
+		onStart = lm.exportCallback
+		lm.exportCallback = nil
+	} else if async {
 		onStart = func() {
-			time.Sleep(5 * time.Second) // Wait for export to start
+			time.Sleep(5 * time.Second)
 		}
 	}
 
@@ -217,6 +245,9 @@ func (lm *LiveMigrationTest) StartExportData(async bool, extraArgs map[string]st
 	}
 
 	lm.exportCmd = testutils.NewVoyagerCommandRunner(lm.sourceContainer, "export data", args, onStart, async)
+	if len(lm.envVars) > 0 {
+		lm.exportCmd.WithEnv(lm.envVars...)
+	}
 	err := lm.exportCmd.Run()
 	if err != nil {
 		return goerrors.Errorf("failed to start export data: %w", err)
@@ -260,7 +291,7 @@ func (lm *LiveMigrationTest) StartImportData(async bool, extraArgs map[string]st
 	var onStart func()
 	if async {
 		onStart = func() {
-			time.Sleep(5 * time.Second) // Wait for import to start
+			time.Sleep(5 * time.Second)
 		}
 	}
 
@@ -275,6 +306,9 @@ func (lm *LiveMigrationTest) StartImportData(async bool, extraArgs map[string]st
 	}
 
 	lm.importCmd = testutils.NewVoyagerCommandRunner(lm.targetContainer, "import data", args, onStart, async)
+	if len(lm.envVars) > 0 {
+		lm.importCmd.WithEnv(lm.envVars...)
+	}
 	err := lm.importCmd.Run()
 	if err != nil {
 		return goerrors.Errorf("failed to start import data: %w", err)
@@ -767,6 +801,125 @@ func (lm *LiveMigrationTest) getCutoverToSourceStatus() string {
 
 	return getCutoverToSourceStatus()
 }
+
+// ============================================================
+// ENV VARS & CALLBACKS (for failpoint testing)
+// ============================================================
+
+// WithEnv sets environment variables that will be applied to the next
+// StartExportData or StartImportData call. Call ClearEnv to reset.
+func (lm *LiveMigrationTest) WithEnv(envVars ...string) *LiveMigrationTest {
+	lm.envVars = envVars
+	return lm
+}
+
+// ClearEnv removes all pending environment variables.
+func (lm *LiveMigrationTest) ClearEnv() {
+	lm.envVars = nil
+}
+
+// SetExportCallback sets a custom doDuringCmd callback for the next
+// StartExportData call. It overrides the default 5-second sleep and is
+// consumed (cleared) after one use.
+func (lm *LiveMigrationTest) SetExportCallback(fn func()) {
+	lm.exportCallback = fn
+}
+
+// ============================================================
+// ACCESSORS (for custom operations in tests)
+// ============================================================
+
+// GetSourceContainer returns the source database container.
+func (lm *LiveMigrationTest) GetSourceContainer() testcontainers.TestContainer {
+	return lm.sourceContainer
+}
+
+// GetTargetContainer returns the target database container.
+func (lm *LiveMigrationTest) GetTargetContainer() testcontainers.TestContainer {
+	return lm.targetContainer
+}
+
+// GetExportCmd returns the current export VoyagerCommandRunner (may be nil).
+func (lm *LiveMigrationTest) GetExportCmd() *testutils.VoyagerCommandRunner {
+	return lm.exportCmd
+}
+
+// GetImportCmd returns the current import VoyagerCommandRunner (may be nil).
+func (lm *LiveMigrationTest) GetImportCmd() *testutils.VoyagerCommandRunner {
+	return lm.importCmd
+}
+
+// ============================================================
+// FAILPOINT TEST HELPERS
+// ============================================================
+
+// WaitForStreamingMode polls until the export status shows streaming mode.
+func (lm *LiveMigrationTest) WaitForStreamingMode(timeout time.Duration, pollInterval time.Duration) error {
+	statusPath := filepath.Join(lm.exportDir, "data", "export_status.json")
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		status, err := dbzm.ReadExportStatus(statusPath)
+		if err == nil && status != nil && status.Mode == dbzm.MODE_STREAMING {
+			return nil
+		}
+		time.Sleep(pollInterval)
+	}
+	return goerrors.Errorf("timed out waiting for export streaming mode after %v", timeout)
+}
+
+// StopExportAndFreezeQueue kills the export process, kills orphan Debezium,
+// and removes the export lockfile to allow subsequent import or resume runs.
+func (lm *LiveMigrationTest) StopExportAndFreezeQueue() error {
+	if lm.exportCmd != nil {
+		_ = lm.exportCmd.Kill()
+	}
+	lm.killDebezium()
+	_ = os.Remove(filepath.Join(lm.exportDir, ".export-dataLockfile.lck"))
+	time.Sleep(2 * time.Second)
+	return nil
+}
+
+// RemoveImportLockfile removes the import data lockfile.
+func (lm *LiveMigrationTest) RemoveImportLockfile() {
+	_ = os.Remove(filepath.Join(lm.exportDir, ".import-dataLockfile.lck"))
+}
+
+// ReadMigrationUUID reads the migration UUID from the export directory's metadb.
+func (lm *LiveMigrationTest) ReadMigrationUUID() (string, error) {
+	if err := lm.InitMetaDB(); err != nil {
+		return "", err
+	}
+	msr, err := lm.metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		return "", err
+	}
+	if msr == nil {
+		return "", goerrors.Errorf("migration status record not found")
+	}
+	return msr.MigrationUUID, nil
+}
+
+// killDebezium force-kills any Debezium Java process associated with this export directory.
+func (lm *LiveMigrationTest) killDebezium() {
+	pidStr, err := dbzm.GetPIDOfDebeziumOnExportDir(lm.exportDir, SOURCE_DB_EXPORTER_ROLE)
+	if err != nil {
+		return
+	}
+	pid, err := strconv.Atoi(strings.TrimSpace(pidStr))
+	if err != nil {
+		return
+	}
+	proc, err := os.FindProcess(pid)
+	if err != nil {
+		return
+	}
+	_ = proc.Kill()
+	lm.t.Logf("Killed Debezium process pid=%d", pid)
+}
+
+// ============================================================
+// REPORTING
+// ============================================================
 
 type DataMigrationReport struct {
 	RowData []*rowData
