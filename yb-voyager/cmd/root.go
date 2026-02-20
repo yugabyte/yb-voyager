@@ -24,9 +24,8 @@ import (
 	"path/filepath"
 	"time"
 
-	goerrors "github.com/go-errors/errors"
-
 	"github.com/fatih/color"
+	goerrors "github.com/go-errors/errors"
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -80,7 +79,7 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		// Initialize the config file (also loads control plane config)
-		overrides, envVarsSetViaConfig, envVarsAlreadyExported, err := initConfig(cmd)
+		envVarsAlreadyExported, err := initConfig(cmd)
 		if err != nil {
 			// not using utils.ErrExit as logging is not initialized yet
 			fmt.Printf("ERROR: Failed to initialize config: %v\n", err)
@@ -175,7 +174,7 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 		}
 
 		// Log the flag values set from the config file
-		for _, f := range overrides {
+		for _, f := range resolvedConfig.fromConfigFile {
 			if slices.Contains(configKeyValuesToObfuscateInLogs, f.ConfigKey) {
 				f.Value = "********"
 			}
@@ -189,7 +188,7 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			log.Infof("Environment variable '%s' already set with value '%s'\n", envVar, val)
 		}
 		// Log the env variables set from the config file
-		for _, val := range envVarsSetViaConfig {
+		for _, val := range resolvedConfig.fromEnvVar {
 			if slices.Contains(envVarValuesToObfuscateInLogs, val.EnvVar) {
 				val.Value = "********"
 			}
@@ -334,6 +333,8 @@ func init() {
 	callhome.ReadEnvSendDiagnostics()
 }
 
+var globalFlags = []string{}
+
 // Note: assess-migration-bulk and get data-migration-report commands do not call this function.
 func registerCommonGlobalFlags(cmd *cobra.Command) {
 	BoolVar(cmd.Flags(), &perfProfile, "profile", false,
@@ -341,25 +342,27 @@ func registerCommonGlobalFlags(cmd *cobra.Command) {
 	cmd.Flags().MarkHidden("profile")
 
 	registerExportDirFlag(cmd)
+	globalFlags = append(globalFlags, "export-dir")
 	registerConfigFileFlag(cmd)
+	globalFlags = append(globalFlags, "config-file")
 
 	cmd.PersistentFlags().StringVarP(&config.LogLevel, "log-level", "l", "info",
 		"log level for yb-voyager. Accepted values: (trace, debug, info, warn, error, fatal, panic)")
+	globalFlags = append(globalFlags, "log-level")
 
 	cmd.PersistentFlags().BoolVarP(&utils.DoNotPrompt, "yes", "y", false,
 		"assume answer as yes for all questions during migration (default false)")
 
 	BoolVar(cmd.Flags(), &callhome.SendDiagnostics, "send-diagnostics", true,
 		"enable or disable the 'send-diagnostics' feature that sends analytics data to YugabyteDB.(default true)")
+	globalFlags = append(globalFlags, "send-diagnostics")
+
+	//Any global flags added here should be added to the globalFlags slice
 }
 
 func registerConfigFileFlag(cmd *cobra.Command) {
 	cmd.PersistentFlags().StringVarP(&cfgFile, "config-file", "c", "",
 		"path of the config file which is used to set the various parameters for yb-voyager commands")
-
-	if !slices.Contains(offlineCommands, cmd.CommandPath()) {
-		cmd.PersistentFlags().MarkHidden("config-file")
-	}
 }
 
 func registerExportDirFlag(cmd *cobra.Command) {

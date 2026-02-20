@@ -1600,52 +1600,16 @@ func startFallBackSetupIfRequired() {
 	}
 
 	lockFile.Unlock() // unlock export dir from export data cmd before switching current process to fall-back setup cmd
-	cmd := []string{"yb-voyager", "import", "data", "to", "source",
-		"--export-dir", exportDir,
-		fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics),
-		"--log-level", config.LogLevel,
-	}
+	cmd := []string{"yb-voyager", "import", "data", "to", "source"}
 	if utils.DoNotPrompt {
 		cmd = append(cmd, "--yes")
 	}
 
-	passImportDataToSourceSpecificCLIFlags := map[string]bool{
-		"disable-pb": true,
-	}
-
-	// Check whether the command specifc flags have been set in the config file
-	keysSetInConfig, err := readConfigFileAndGetImportDataToSourceKeys()
-	var displayCmdAndExit bool
-	var configFileErr error
-	if err != nil {
-		displayCmdAndExit = true
-		configFileErr = err
-	} else {
-		for key := range passImportDataToSourceSpecificCLIFlags {
-			if slices.Contains(keysSetInConfig, key) {
-				passImportDataToSourceSpecificCLIFlags[key] = false
-			}
-		}
-	}
-
-	// Log which command specific flags are to be passed to the command
-	log.Infof("Command specific flags to be passed to import data to source: %v", passImportDataToSourceSpecificCLIFlags)
-
-	// Command specific flags
-	if bool(disablePb) && passImportDataToSourceSpecificCLIFlags["disable-pb"] {
-		cmd = append(cmd, "--disable-pb=true")
-	}
-
+	arguments := generateGlobalExportImportArguments()
+	cmd = append(cmd, arguments...)
 	cmdStr := "SOURCE_DB_PASSWORD=*** " + strings.Join(cmd, " ")
 
 	utils.PrintAndLogf("Starting import data to source with command:\n %s", color.GreenString(cmdStr))
-
-	// If error had occurred while reading the config file, display the command and exit
-	if displayCmdAndExit {
-		// We are delaying this error message to be displayed here so that we can display the command
-		// after it has been constructed
-		utils.ErrExit("failed to read config file: %w\nPlease check the config file and re-run the command with only the required flags", configFileErr)
-	}
 
 	binary, lookErr := exec.LookPath(os.Args[0])
 	if lookErr != nil {
@@ -1658,6 +1622,39 @@ func startFallBackSetupIfRequired() {
 	if execErr != nil {
 		utils.ErrExit("failed to run yb-voyager import data to source: %w\n Please re-run with command :\n%s", err, cmdStr)
 	}
+}
+
+func generateGlobalExportImportArguments() []string {
+	var arguments []string
+	/*
+		If config file is provided, pass the global flags if overriden by cli to the command together with  disable pb flag if it is overriden by cli
+		If config file is not provided, set some flags for the command like export-dir, log-level, disable-pb, send-diagnostics
+	*/
+	if cfgFile != "" {
+		//If there are cli overrides for the command, pass them as cli overrides to the import data to source command
+		//Only disable-pb and log-level are the common flags of both the commands
+		for _, override := range resolvedConfig.fromCLI {
+			if override.FlagName == "disable-pb" {
+				//only for disable-pb flag is overidden then pass it as CLI override also to this command
+				arguments = append(arguments, "--"+override.FlagName, override.Value)
+				continue
+			}
+			if !slices.Contains(globalFlags, override.FlagName) {
+				//if its not a global flag then skip passing it to the command as it will be command specific flag
+				continue
+			}
+			arguments = append(arguments, "--"+override.FlagName, override.Value)
+		}
+	} else {
+		//else set some overrides for the command
+		arguments = append(arguments, "--log-level", config.LogLevel)
+		arguments = append(arguments, "--export-dir", exportDir)
+		if bool(disablePb) {
+			arguments = append(arguments, "--disable-pb=true")
+		}
+		arguments = append(arguments, fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics))
+	}
+	return arguments
 }
 
 // ================================ Export Data table list filtering ================================

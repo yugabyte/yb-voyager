@@ -1407,8 +1407,8 @@ create_source_db() {
 	source_db=$1
 	case ${SOURCE_DB_TYPE} in
 		postgresql)
-			run_psql postgres "DROP DATABASE IF EXISTS ${source_db};"
-			run_psql postgres "CREATE DATABASE ${source_db};"
+			run_psql postgres "DROP DATABASE IF EXISTS \"${source_db}\";"
+			run_psql postgres "CREATE DATABASE \"${source_db}\";"
 			;;
 		mysql)
 			run_mysql mysql "DROP DATABASE IF EXISTS ${source_db};"
@@ -1495,7 +1495,16 @@ normalize_callhome_json() {
             .yb_cluster_metrics = "IGNORED" |
             .parallel_jobs = "IGNORED" |
             .adaptive_parallelism_max = "IGNORED" |
-            .snapshot_total_bytes = "IGNORED"
+            .snapshot_total_bytes = "IGNORED" |
+            .collected_at = "IGNORED" |
+            .phase_start_time = "IGNORED" |
+            .time_taken_sec = "IGNORED" |
+            .yb_voyager_version = "IGNORED" |
+            .migration_uuid = "IGNORED" |
+            .db_version = "IGNORED" |
+            .db_system_identifier = "IGNORED" |
+            .target_db_details = "IGNORED" |
+            .total_db_size_bytes = "IGNORED"
         elif type == "array" then
 			sort_by(tostring)
         elif type == "string" and (

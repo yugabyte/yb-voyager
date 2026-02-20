@@ -37,7 +37,6 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/adaptiveparallelism"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/config"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
@@ -405,71 +404,11 @@ func startExportDataFromTargetIfRequired() {
 
 	lockFile.Unlock() // unlock export dir from import data cmd before switching current process to ff/fb sync cmd
 
-	cmd := []string{"yb-voyager", "export", "data", "from", "target",
-		"--export-dir", exportDir,
-		fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics),
-		"--log-level", config.LogLevel,
-	}
-
-	passExportDataFromTargetSpecificCLIFlags := map[string]bool{
-		"disable-pb":           true,
-		"table-list":           true,
-		"transaction-ordering": true,
-	}
-
-	// Check whether the command specifc flags have been set in the config file
-	keysSetInConfig, err := readConfigFileAndGetExportDataFromTargetKeys()
-	var displayCmdAndExit bool
-	var configFileErr error
-	if err != nil {
-		displayCmdAndExit = true
-		configFileErr = err
-	} else {
-		for key := range passExportDataFromTargetSpecificCLIFlags {
-			if slices.Contains(keysSetInConfig, key) {
-				passExportDataFromTargetSpecificCLIFlags[key] = false
-			}
-		}
-	}
-
-	// Log which command specific flags are to be passed to the command
-	log.Infof("Command specific flags to be passed to export data from target: %v", passExportDataFromTargetSpecificCLIFlags)
-
-	// Command specific flags
-	if bool(disablePb) && passExportDataFromTargetSpecificCLIFlags["disable-pb"] {
-		cmd = append(cmd, "--disable-pb=true")
-	}
-	if passExportDataFromTargetSpecificCLIFlags["transaction-ordering"] {
-		cmd = append(cmd, fmt.Sprintf("--transaction-ordering=%t", transactionOrdering))
-	}
-	if passExportDataFromTargetSpecificCLIFlags["table-list"] {
-		cmd = append(cmd, "--table-list", strings.Join(importTableNames, ","))
-	}
-
-	if msr.UseYBgRPCConnector {
-		if tconf.SSLMode == "prefer" || tconf.SSLMode == "allow" {
-			utils.PrintAndLog(color.RedString("Warning: SSL mode '%s' is not supported for 'export data from target' yet. Downgrading it to 'disable'.\nIf you don't want these settings you can restart the 'export data from target' with a different value for --target-ssl-mode and --target-ssl-root-cert flag.", source.SSLMode))
-			tconf.SSLMode = "disable"
-		}
-		cmd = append(cmd, "--target-ssl-mode", tconf.SSLMode)
-		if tconf.SSLRootCert != "" {
-			cmd = append(cmd, "--target-ssl-root-cert", tconf.SSLRootCert)
-		}
-	}
-	if utils.DoNotPrompt {
-		cmd = append(cmd, "--yes")
-	}
+	cmd := generateExportDataFromTargetCommand(importTableNames, msr)
 
 	cmdStr := "TARGET_DB_PASSWORD=*** " + strings.Join(cmd, " ")
 
 	utils.PrintAndLogf("Starting export data from target with command:\n %s", color.GreenString(cmdStr))
-
-	// If error had occurred while reading the config file, display the command and exit
-	if displayCmdAndExit {
-		// We are delaying this error message to be displayed here so that we can display the command
-		// after it has been constructed
-		utils.ErrExit("failed to read config file: %s\nPlease check the config file and re-run the command with only the required flags", configFileErr)
-	}
 
 	binary, lookErr := exec.LookPath(os.Args[0])
 	if lookErr != nil {
@@ -482,6 +421,31 @@ func startExportDataFromTargetIfRequired() {
 	if execErr != nil {
 		utils.ErrExit("failed to run yb-voyager export data from target: %w\n Please re-run with command :\n%s", execErr, cmdStr)
 	}
+}
+
+func generateExportDataFromTargetCommand(importTableNames []string, msr *metadb.MigrationStatusRecord) []string {
+	cmd := []string{"yb-voyager", "export", "data", "from", "target",
+		"--table-list", strings.Join(importTableNames, ","),
+	}
+
+	arguments := generateGlobalExportImportArguments()
+	cmd = append(cmd, arguments...)
+
+	if msr.UseYBgRPCConnector {
+		//if using gRPC connector, set some overrides for the command like target ssl related
+		if tconf.SSLMode == "prefer" || tconf.SSLMode == "allow" {
+			utils.PrintAndLog(color.RedString("Warning: SSL mode '%s' is not supported for 'export data from target' yet. Downgrading it to 'disable'.\nIf you don't want these settings you can restart the 'export data from target' with a different value for --target-ssl-mode and --target-ssl-root-cert flag.", source.SSLMode))
+			tconf.SSLMode = "disable"
+		}
+		cmd = append(cmd, "--target-ssl-mode", tconf.SSLMode)
+		if tconf.SSLRootCert != "" {
+			cmd = append(cmd, "--target-ssl-root-cert", tconf.SSLRootCert)
+		}
+	}
+	if utils.DoNotPrompt {
+		cmd = append(cmd, "--yes")
+	}
+	return cmd
 }
 
 type ImportFileTask struct {
