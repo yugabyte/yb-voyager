@@ -756,6 +756,10 @@ func createReplicationSlotAndExportSnapshotIfRequiredForPG(ctx context.Context, 
 		return err
 	}
 
+	if fpErr := injectPgDumpSnapshotFailure(); fpErr != nil {
+		return fpErr
+	}
+
 	if exportType != CHANGES_ONLY {
 		//If the mode is changes only, we don't need to export the snapshot, only we need to create the replication slot and publication.
 		// pg_dump

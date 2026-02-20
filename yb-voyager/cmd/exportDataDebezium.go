@@ -25,8 +25,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fatih/color"
 	goerrors "github.com/go-errors/errors"
+
+	"github.com/fatih/color"
 	"github.com/gosuri/uilive"
 	"github.com/magiconair/properties"
 	"github.com/samber/lo"
@@ -494,6 +495,9 @@ func checkAndHandleSnapshotComplete(config *dbzm.Config, status *dbzm.ExportStat
 	if !status.SnapshotExportIsComplete() {
 		return false, nil
 	}
+	if triggered, fpErr := injectSnapshotToCDCTransitionError(); triggered {
+		return false, fpErr
+	}
 	exportPhase = dbzm.MODE_STREAMING
 	if config.SnapshotMode != "never" {
 		progressTracker.Done(status)
@@ -525,6 +529,10 @@ func checkAndHandleSnapshotComplete(config *dbzm.Config, status *dbzm.ExportStat
 					if err != nil {
 						return false, fmt.Errorf("failed to poll for message in log file: %w", err)
 					}
+				}
+
+				if triggered, fpErr := injectExportFromTargetStartupError(); triggered {
+					return false, fpErr
 				}
 
 				err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {

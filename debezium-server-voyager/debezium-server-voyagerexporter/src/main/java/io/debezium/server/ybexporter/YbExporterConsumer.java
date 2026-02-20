@@ -15,7 +15,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 
 import org.eclipse.microprofile.config.Config;
@@ -315,6 +314,9 @@ public class YbExporterConsumer extends BaseChangeConsumer {
             DebeziumEngine.RecordCommitter<ChangeEvent<Object, Object>> committer)
             throws InterruptedException {
         BytemanMarkers.cdc("before-batch");
+        if (exportStatus.getMode().equals(ExportMode.STREAMING)) {
+            BytemanMarkers.cdc("before-batch-streaming");
+        }
         LOGGER.info("Processing batch with {} records", changeEvents.size());
         checkIfHelperThreadAlive();
 
@@ -343,6 +345,7 @@ public class YbExporterConsumer extends BaseChangeConsumer {
                     if (shutDown) {
                         return;
                     }
+                    BytemanMarkers.cdc("before-write-record");
                     writer.writeRecord(r);
                 }
             } else {
@@ -352,6 +355,7 @@ public class YbExporterConsumer extends BaseChangeConsumer {
             checkIfSnapshotComplete(r);
             BytemanMarkers.cdc("after-process-record");
         }
+        BytemanMarkers.cdc("before-handle-batch-complete");
         handleBatchComplete();
         LOGGER.debug("Fsynced batch with {} records", changeEvents.size());
         // committer.markProcessed(event) updates offsets in memory,
@@ -365,6 +369,7 @@ public class YbExporterConsumer extends BaseChangeConsumer {
         // processed only AFTER we fsync/
         // update metaDB.
         // TODO: optimize by only marking the last event as processed.
+        BytemanMarkers.cdc("before-offset-commit");
         for (ChangeEvent<Object, Object> event : changeEvents) {
             committer.markProcessed(event);
         }
