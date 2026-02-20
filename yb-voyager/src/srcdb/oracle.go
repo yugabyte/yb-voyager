@@ -501,8 +501,8 @@ func (ora *Oracle) GetColumnToSequenceMap(tableList []sqlname.NameTuple) map[str
 	return columnToSequenceMap
 }
 
-func (ora *Oracle) GetAllSequences() []string {
-	return nil
+func (ora *Oracle) GetAllSequencesLastValues() (*utils.StructMap[sqlname.ObjectName, int64], error) {
+	return nil, nil
 }
 
 func (ora *Oracle) GetAllSequencesRaw(schemaName string) ([]string, error) {

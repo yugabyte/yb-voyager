@@ -781,7 +781,7 @@ func checkStreamingMode() (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("error while fetching migration status record: %w", err)
 	}
-	streamChanges := changeStreamingIsEnabled(migrationStatus.ExportType)
+	streamChanges := changeStreamingIsEnabled(migrationStatus.ExportTypeFromSource)
 	return streamChanges, nil
 }
 
@@ -864,14 +864,15 @@ func validateMetaDBCreated() {
 	}
 }
 
-func getImportTableList(sourceTableList []string) ([]sqlname.NameTuple, error) {
+// TODO: rename
+func getInitialImportTableListForLive(sourceTableList []string) ([]sqlname.NameTuple, error) {
 	if importerRole == IMPORT_FILE_ROLE {
 		return nil, nil
 	}
 	var tableList []sqlname.NameTuple
 	sqlname.SourceDBType = source.DBType
 	for _, qualifiedTableName := range sourceTableList {
-		table, err := namereg.NameReg.LookupTableName(qualifiedTableName)
+		table, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole(qualifiedTableName)
 		if err != nil {
 			return nil, goerrors.Errorf("lookup table %s in name registry : %v", qualifiedTableName, err)
 		}

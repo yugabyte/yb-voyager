@@ -30,7 +30,7 @@ type MigrationStatusRecord struct {
 	MigrationUUID                             string            `json:"MigrationUUID"`
 	AnonymizerSalt                            string            `json:"AnonymizerSalt"` // salt for anonymization, used to ensure consistent anonymization across runs
 	VoyagerVersion                            string            `json:"VoyagerVersion"`
-	ExportType                                string            `json:"ExportType"`
+	ExportTypeFromSource                      string            `json:"ExportType"`
 	ArchivingEnabled                          bool              `json:"ArchivingEnabled"`
 	FallForwardEnabled                        bool              `json:"FallForwardEnabled"`
 	FallbackEnabled                           bool              `json:"FallbackEnabled"`
@@ -150,7 +150,7 @@ func (m *MetaDB) InitMigrationStatusRecord() error {
 		}
 
 		record.MigrationUUID = uuid.New().String()
-		record.ExportType = utils.SNAPSHOT_ONLY
+		record.ExportTypeFromSource = utils.SNAPSHOT_ONLY
 	})
 }
 

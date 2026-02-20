@@ -558,35 +558,28 @@ func cleanupSourceDB(msr *metadb.MigrationStatusRecord) {
 		utils.ErrExit("clearing migration state from source db: %w", err)
 	}
 
-	deletePGReplicationSlot(msr, source)
-	deletePGPublication(msr, source)
+	deletePGReplicationSlotAndPublication(msr, source)
 }
 
-func deletePGReplicationSlot(msr *metadb.MigrationStatusRecord, source *srcdb.Source) {
-	if msr.PGReplicationSlotName == "" || source.DBType != POSTGRESQL {
-		log.Infof("pg replication slot name is not set or source db type is not postgresql. skipping deleting pg replication slot name")
+func deletePGReplicationSlotAndPublication(msr *metadb.MigrationStatusRecord, source *srcdb.Source) {
+	if source.DBType != POSTGRESQL {
+		log.Infof("source db type is not postgresql. skipping deleting pg replication slot name and publication")
 		return
 	}
 
 	log.Infof("deleting PG replication slot name %q", msr.PGReplicationSlotName)
 	pgDB := source.DB().(*srcdb.PostgreSQL)
-	err := pgDB.DropLogicalReplicationSlot(nil, msr.PGReplicationSlotName)
-	if err != nil {
-		utils.ErrExit("dropping PG replication slot name: %w", err)
+	if msr.PGReplicationSlotName != "" {
+		err := pgDB.DropLogicalReplicationSlot(nil, msr.PGReplicationSlotName)
+		if err != nil {
+			utils.ErrExit("dropping PG replication slot name: %w", err)
+		}
 	}
-}
-
-func deletePGPublication(msr *metadb.MigrationStatusRecord, source *srcdb.Source) {
-	if msr.PGPublicationName == "" || source.DBType != POSTGRESQL {
-		log.Infof("pg publication name is not set or source db type is not postgresql. skipping deleting pg publication name")
-		return
-	}
-
-	log.Infof("deleting PG publication name %q", msr.PGPublicationName)
-	pgDB := source.DB().(*srcdb.PostgreSQL)
-	err := pgDB.DropPublication(msr.PGPublicationName)
-	if err != nil {
-		utils.ErrExit("dropping PG publication name: %w", err)
+	if msr.PGPublicationName != "" {
+		err := pgDB.DropPublication(msr.PGPublicationName)
+		if err != nil {
+			utils.ErrExit("dropping PG publication name: %w", err)
+		}
 	}
 }
 

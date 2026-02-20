@@ -324,8 +324,8 @@ func (ms *MySQL) getTableColumns(tableName sqlname.NameTuple) ([]string, []strin
 	return columns, dataTypes, nil, nil
 }
 
-func (ms *MySQL) GetAllSequences() []string {
-	return nil
+func (ms *MySQL) GetAllSequencesLastValues() (*utils.StructMap[sqlname.ObjectName, int64], error) {
+	return nil, nil
 }
 
 func (ms *MySQL) GetAllSequencesRaw(schemaName string) ([]string, error) {
