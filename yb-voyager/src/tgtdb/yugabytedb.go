@@ -39,7 +39,6 @@ import (
 	pgconn5 "github.com/jackc/pgx/v5/pgconn"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/jinzhu/copier"
-	"github.com/pingcap/failpoint"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
@@ -761,22 +760,11 @@ func (yb *TargetYugabyteDB) importBatch(conn *pgx.Conn, batch Batch, args *Impor
 					errs.IMPORT_BATCH_ERROR_STEP_ROLLBACK_TXN)
 			}
 		} else {
-			// Failpoint: inject error before commit for testing
-			// Use failpoint.Value parameter to distinguish between 'off' and 'return' actions
-			// When val != nil, the failpoint action is active (e.g., return())
-			// When val == nil, the failpoint action is 'off' (skip error injection)
-			failpoint.Inject("importBatchCommitError", func(val failpoint.Value) {
-				if val != nil {
-					// Inject commit error only when action is not 'off'
-					err2 = goerrors.Errorf("failpoint: commit failed")
-					err = newImportBatchErrorPgYb(err2, batch,
-						errs.IMPORT_BATCH_ERROR_FLOW_COPY_NORMAL,
-						errs.IMPORT_BATCH_ERROR_STEP_COMMIT_TXN)
-					rowsAffected = 0
-					failpoint.Return() // special function to make outer function return
-				}
-				// If val == nil ('off' action), do nothing - let commit proceed normally
-			})
+			if fpRows, fpErr, triggered := injectImportBatchCommitError(batch); triggered {
+				rowsAffected = fpRows
+				err = fpErr
+				return
+			}
 
 			err2 = tx.Commit(ctx)
 			if err2 != nil {
@@ -1073,6 +1061,11 @@ and needs to be prepared again
 */
 func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBatch) error {
 	log.Infof("executing batch(%s) of %d events", batch.ID(), len(batch.Events))
+
+	if fpErr := injectImportCDCRetryableExecuteBatchError(); fpErr != nil {
+		return fpErr
+	}
+
 	ybBatch := pgx.Batch{}
 	stmtToPrepare := make(map[string]string)
 	// processing batch events to convert into prepared or unprepared statements based on Op type
@@ -1141,6 +1134,16 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 			return nil
 		}
 		for i := 0; i < len(batch.Events); i++ {
+			if fpErr := injectImportCDCExecEventError(); fpErr != nil {
+				err = fpErr
+			}
+			if err != nil {
+				errorMsg := fmt.Sprintf("error executing stmt for event with vsn(%d) in batch(%s)", batch.Events[i].Vsn, batch.ID())
+				log.Errorf("%s : %v", errorMsg, err)
+				closeBatch()
+				return false, fmt.Errorf("%s: %w", errorMsg, err)
+			}
+
 			res, err := br.Exec()
 			if err != nil {
 				// When using pgx SendBatch, there can be two types of errors thrown:
@@ -1213,6 +1216,14 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 		if err = tx.Commit(ctx); err != nil {
 			return false, fmt.Errorf("failed to commit transaction : %w", err)
 		}
+
+		if fpErr := injectImportCDCRetryableAfterCommitError(); fpErr != nil {
+			err = fpErr
+		}
+		if err != nil {
+			return false, err
+		}
+
 		logDiscrepancyInEventBatchIfAny(batch, rowsAffectedInserts, rowsAffectedDeletes, rowsAffectedUpdates)
 		return false, err
 	})

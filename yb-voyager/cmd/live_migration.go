@@ -447,6 +447,10 @@ func handleEvent(event *tgtdb.Event,
 		return goerrors.Errorf("error transforming event key fields: %v", err)
 	}
 
+	if fpErr := injectImportCDCTransformFailure(); fpErr != nil {
+		return fpErr
+	}
+
 	evChans[h] <- event
 	log.Tracef("inserted event %v into channel %v", event.Vsn, h)
 	return nil
@@ -535,6 +539,11 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 		sleepIntervalSec := 0
 		for attempt := 0; attempt < EVENT_BATCH_MAX_RETRY_COUNT; attempt++ {
 			err = tdb.ExecuteBatch(migrationUUID, eventBatch)
+			if err == nil {
+				if fpErr := injectImportCDCBatchDBError(); fpErr != nil {
+					err = fpErr
+				}
+			}
 			if err == nil {
 				break
 			} else if tdb.IsNonRetryableCopyError(err) {
