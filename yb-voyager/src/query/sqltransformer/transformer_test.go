@@ -19,6 +19,7 @@ package sqltransformer
 
 import (
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -786,6 +787,354 @@ func TestAddPartialClauseForNullFiltering(t *testing.T) {
 
 			transformer := NewTransformer()
 			modifiedTree, err := transformer.AddPartialClauseForFilteringNULL(parseTree)
+			if testCase.errExpected {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), testCase.errContains)
+				return
+			}
+			testutils.FatalIfError(t, err)
+
+			result, err := queryparser.Deparse(modifiedTree)
+			testutils.FatalIfError(t, err)
+
+			assert.Equal(t, testCase.expectedSQL, result)
+		})
+	}
+}
+
+func TestAddPartialClauseForValueFiltering(t *testing.T) {
+	type testCase struct {
+		name           string
+		inputSQL       string
+		value          string
+		columnDataType string
+		expectedSQL    string
+		errExpected    bool
+		errContains    string
+	}
+
+	cases := []testCase{
+		{
+			name:           "single column index without WHERE clause - text type",
+			inputSQL:       `CREATE INDEX idx_normal ON test.test_mostcomm_status (status);`,
+			value:          "DONE",
+			columnDataType: "text",
+			expectedSQL:    `CREATE INDEX idx_normal ON test.test_mostcomm_status USING btree (status) WHERE status <> 'DONE';`,
+		},
+		{
+			name:           "multi-column index without WHERE clause - varchar type",
+			inputSQL:       `CREATE INDEX indx1 ON public.test_most_freq (status, id);`,
+			value:          "active",
+			columnDataType: "character varying",
+			expectedSQL:    `CREATE INDEX indx1 ON public.test_most_freq USING btree (status, id) WHERE status <> 'active';`,
+		},
+		{
+			name:           "single column index with existing WHERE clause - text type",
+			inputSQL:       `CREATE INDEX idx_users ON public.users (status) WHERE deleted = false;`,
+			value:          "inactive",
+			columnDataType: "text",
+			expectedSQL:    `CREATE INDEX idx_users ON public.users USING btree (status) WHERE deleted = false AND status <> 'inactive';`,
+		},
+		{
+			name:           "index filtering empty string value - text type",
+			inputSQL:       `CREATE INDEX idx_name ON public.users (name);`,
+			value:          "",
+			columnDataType: "text",
+			expectedSQL:    `CREATE INDEX idx_name ON public.users USING btree (name) WHERE name <> '';`,
+		},
+		{
+			name:           "index filtering space value - text type",
+			inputSQL:       `CREATE INDEX idx_name ON public.users (name);`,
+			value:          " ",
+			columnDataType: "text",
+			expectedSQL:    `CREATE INDEX idx_name ON public.users USING btree (name) WHERE name <> ' ';`,
+		},
+		{
+			name:           "integer value on integer column",
+			inputSQL:       `CREATE INDEX idx_status ON public.orders (status_code);`,
+			value:          "0",
+			columnDataType: "integer",
+			expectedSQL:    `CREATE INDEX idx_status ON public.orders USING btree (status_code) WHERE status_code <> 0;`,
+		},
+		{
+			name:           "integer alias int value on int column",
+			inputSQL:       `CREATE INDEX idx_status_int ON public.orders (status_code);`,
+			value:          "7",
+			columnDataType: "int",
+			expectedSQL:    `CREATE INDEX idx_status_int ON public.orders USING btree (status_code) WHERE status_code <> 7;`,
+		},
+		{
+			name:           "integer alias int2 value on int2 column",
+			inputSQL:       `CREATE INDEX idx_priority_int2 ON public.items (priority);`,
+			value:          "2",
+			columnDataType: "int2",
+			expectedSQL:    `CREATE INDEX idx_priority_int2 ON public.items USING btree (priority) WHERE priority <> 2;`,
+		},
+		{
+			name:           "integer alias int4 value on int4 column",
+			inputSQL:       `CREATE INDEX idx_score_int4 ON public.results (score);`,
+			value:          "42",
+			columnDataType: "int4",
+			expectedSQL:    `CREATE INDEX idx_score_int4 ON public.results USING btree (score) WHERE score <> 42;`,
+		},
+		{
+			name:           "integer alias int8 value on int8 column",
+			inputSQL:       `CREATE INDEX idx_seq_int8 ON public.events (seq_no);`,
+			value:          "9876543210",
+			columnDataType: "int8",
+			expectedSQL:    `CREATE INDEX idx_seq_int8 ON public.events USING btree (seq_no) WHERE seq_no <> 9876543210;`,
+		},
+		{
+			name:           "bigint value on bigint column",
+			inputSQL:       `CREATE INDEX idx_big ON public.orders (big_id);`,
+			value:          "12345678901234",
+			columnDataType: "bigint",
+			expectedSQL:    `CREATE INDEX idx_big ON public.orders USING btree (big_id) WHERE big_id <> 12345678901234;`,
+		},
+		{
+			name:           "smallint value on smallint column",
+			inputSQL:       `CREATE INDEX idx_small ON public.items (priority);`,
+			value:          "1",
+			columnDataType: "smallint",
+			expectedSQL:    `CREATE INDEX idx_small ON public.items USING btree (priority) WHERE priority <> 1;`,
+		},
+		{
+			name:           "boolean true value on boolean column",
+			inputSQL:       `CREATE INDEX idx_active ON public.users (is_active);`,
+			value:          "true",
+			columnDataType: "boolean",
+			expectedSQL:    `CREATE INDEX idx_active ON public.users USING btree (is_active) WHERE is_active <> true;`,
+		},
+		{
+			name:           "boolean false value on boolean column",
+			inputSQL:       `CREATE INDEX idx_deleted ON public.users (is_deleted);`,
+			value:          "false",
+			columnDataType: "boolean",
+			expectedSQL:    `CREATE INDEX idx_deleted ON public.users USING btree (is_deleted) WHERE is_deleted <> false;`,
+		},
+		{
+			name:           "float value on numeric column",
+			inputSQL:       `CREATE INDEX idx_price ON public.products (price);`,
+			value:          "9.99",
+			columnDataType: "numeric",
+			expectedSQL:    `CREATE INDEX idx_price ON public.products USING btree (price) WHERE price <> 9.99;`,
+		},
+		{
+			name:           "float alias float value on float column",
+			inputSQL:       `CREATE INDEX idx_ratio_float ON public.metrics (ratio);`,
+			value:          "0.75",
+			columnDataType: "float",
+			expectedSQL:    `CREATE INDEX idx_ratio_float ON public.metrics USING btree (ratio) WHERE ratio <> 0.75;`,
+		},
+		{
+			name:           "float alias float4 value on float4 column",
+			inputSQL:       `CREATE INDEX idx_ratio_float4 ON public.metrics (ratio);`,
+			value:          "0.25",
+			columnDataType: "float4",
+			expectedSQL:    `CREATE INDEX idx_ratio_float4 ON public.metrics USING btree (ratio) WHERE ratio <> 0.25;`,
+		},
+		{
+			name:           "float alias float8 value on float8 column",
+			inputSQL:       `CREATE INDEX idx_ratio_float8 ON public.metrics (ratio);`,
+			value:          "0.125",
+			columnDataType: "float8",
+			expectedSQL:    `CREATE INDEX idx_ratio_float8 ON public.metrics USING btree (ratio) WHERE ratio <> 0.125;`,
+		},
+		{
+			name:           "float value on real column",
+			inputSQL:       `CREATE INDEX idx_score ON public.results (score);`,
+			value:          "0.5",
+			columnDataType: "real",
+			expectedSQL:    `CREATE INDEX idx_score ON public.results USING btree (score) WHERE score <> 0.5;`,
+		},
+		{
+			name:           "decimal alias dec value on dec column",
+			inputSQL:       `CREATE INDEX idx_amount_dec ON public.invoices (amount);`,
+			value:          "100.01",
+			columnDataType: "dec",
+			expectedSQL:    `CREATE INDEX idx_amount_dec ON public.invoices USING btree (amount) WHERE amount <> 100.01;`,
+		},
+		{
+			name:           "decimal alias decimal value on decimal column",
+			inputSQL:       `CREATE INDEX idx_amount_decimal ON public.invoices (amount);`,
+			value:          "50.5",
+			columnDataType: "decimal",
+			expectedSQL:    `CREATE INDEX idx_amount_decimal ON public.invoices USING btree (amount) WHERE amount <> 50.5;`,
+		},
+		{
+			name:           "float value on double precision column",
+			inputSQL:       `CREATE INDEX idx_rate ON public.exchange (rate);`,
+			value:          "1.23456",
+			columnDataType: "double precision",
+			expectedSQL:    `CREATE INDEX idx_rate ON public.exchange USING btree (rate) WHERE rate <> 1.23456;`,
+		},
+		{
+			name:           "boolean true value on bool alias column",
+			inputSQL:       `CREATE INDEX idx_enabled ON public.flags (is_enabled);`,
+			value:          "true",
+			columnDataType: "bool",
+			expectedSQL:    `CREATE INDEX idx_enabled ON public.flags USING btree (is_enabled) WHERE is_enabled <> true;`,
+		},
+		{
+			name:           "unknown/empty data type falls back to string constant",
+			inputSQL:       `CREATE INDEX idx_code ON public.items (code);`,
+			value:          "ABC",
+			columnDataType: "",
+			expectedSQL:    `CREATE INDEX idx_code ON public.items USING btree (code) WHERE code <> 'ABC';`,
+		},
+		{
+			name:           "character type falls back to string constant",
+			inputSQL:       `CREATE INDEX idx_char_code ON public.items (code);`,
+			value:          "A",
+			columnDataType: "character",
+			expectedSQL:    `CREATE INDEX idx_char_code ON public.items USING btree (code) WHERE code <> 'A';`,
+		},
+		{
+			name:           "varchar alias falls back to string constant",
+			inputSQL:       `CREATE INDEX idx_varchar_status ON public.users (status);`,
+			value:          "active",
+			columnDataType: "varchar",
+			expectedSQL:    `CREATE INDEX idx_varchar_status ON public.users USING btree (status) WHERE status <> 'active';`,
+		},
+		{
+			name:           "date type falls back to string constant",
+			inputSQL:       `CREATE INDEX idx_date ON public.events (event_date);`,
+			value:          "2024-01-01",
+			columnDataType: "date",
+			expectedSQL:    `CREATE INDEX idx_date ON public.events USING btree (event_date) WHERE event_date <> '2024-01-01';`,
+		},
+		{
+			name:           "timestamp type falls back to string constant",
+			inputSQL:       `CREATE INDEX idx_created_at ON public.events (created_at);`,
+			value:          "2024-01-01 00:00:00",
+			columnDataType: "timestamp",
+			expectedSQL:    `CREATE INDEX idx_created_at ON public.events USING btree (created_at) WHERE created_at <> '2024-01-01 00:00:00';`,
+		},
+		{
+			name:           "timestamptz type falls back to string constant",
+			inputSQL:       `CREATE INDEX idx_created_at_tz ON public.events (created_at);`,
+			value:          "2024-01-01 00:00:00+00",
+			columnDataType: "timestamptz",
+			expectedSQL:    `CREATE INDEX idx_created_at_tz ON public.events USING btree (created_at) WHERE created_at <> '2024-01-01 00:00:00+00';`,
+		},
+		{
+			name:           "uuid type falls back to string constant",
+			inputSQL:       `CREATE INDEX idx_uuid ON public.events (event_uuid);`,
+			value:          "550e8400-e29b-41d4-a716-446655440000",
+			columnDataType: "uuid",
+			expectedSQL:    `CREATE INDEX idx_uuid ON public.events USING btree (event_uuid) WHERE event_uuid <> '550e8400-e29b-41d4-a716-446655440000';`,
+		},
+		{
+			name:           "jsonb type falls back to string constant",
+			inputSQL:       `CREATE INDEX idx_jsonb_code ON public.events (payload);`,
+			value:          `{"k":"v"}`,
+			columnDataType: "jsonb",
+			expectedSQL:    `CREATE INDEX idx_jsonb_code ON public.events USING btree (payload) WHERE payload <> '{"k":"v"}';`,
+		},
+		{
+			name:           "bytea type falls back to string constant",
+			inputSQL:       `CREATE INDEX idx_data ON public.events (data_blob);`,
+			value:          "\\xDEADBEEF",
+			columnDataType: "bytea",
+			expectedSQL:    `CREATE INDEX idx_data ON public.events USING btree (data_blob) WHERE data_blob <> E'\\xDEADBEEF';`,
+		},
+		{
+			name:           "money type falls back to string constant",
+			inputSQL:       `CREATE INDEX idx_cost ON public.events (cost);`,
+			value:          "$99.95",
+			columnDataType: "money",
+			expectedSQL:    `CREATE INDEX idx_cost ON public.events USING btree (cost) WHERE cost <> '$99.95';`,
+		},
+		{
+			name:           "array type falls back to string constant",
+			inputSQL:       `CREATE INDEX idx_tags ON public.events (tags);`,
+			value:          "{a,b}",
+			columnDataType: "text[]",
+			expectedSQL:    `CREATE INDEX idx_tags ON public.events USING btree (tags) WHERE tags <> '{a,b}';`,
+		},
+		{
+			name:           "unique index without WHERE clause - text type",
+			inputSQL:       `CREATE UNIQUE INDEX idx_unique ON public.users (status);`,
+			value:          "archived",
+			columnDataType: "text",
+			expectedSQL:    `CREATE UNIQUE INDEX idx_unique ON public.users USING btree (status) WHERE status <> 'archived';`,
+		},
+		{
+			name:           "invalid integer input falls back to string constant",
+			inputSQL:       `CREATE INDEX idx_bad_int ON public.orders (status_code);`,
+			value:          "not_a_number",
+			columnDataType: "integer",
+			expectedSQL:    `CREATE INDEX idx_bad_int ON public.orders USING btree (status_code) WHERE status_code <> 'not_a_number';`,
+		},
+		{
+			name:           "invalid float input falls back to string constant",
+			inputSQL:       `CREATE INDEX idx_bad_numeric ON public.products (price);`,
+			value:          "nan_value",
+			columnDataType: "numeric",
+			expectedSQL:    `CREATE INDEX idx_bad_numeric ON public.products USING btree (price) WHERE price <> 'nan_value';`,
+		},
+		{
+			name:           "invalid boolean input falls back to string constant",
+			inputSQL:       `CREATE INDEX idx_bad_bool ON public.users (is_active);`,
+			value:          "yes",
+			columnDataType: "boolean",
+			expectedSQL:    `CREATE INDEX idx_bad_bool ON public.users USING btree (is_active) WHERE is_active <> 'yes';`,
+		},
+		{
+			name:        "expression index errors out",
+			inputSQL:    `CREATE INDEX idx_json ON public.test_json ((data::jsonb));`,
+			value:       "test",
+			errExpected: true,
+			errContains: "expression, not a column",
+		},
+		{
+			name:        "not a CREATE INDEX statement errors out",
+			inputSQL:    `CREATE TABLE t (id int);`,
+			value:       "test",
+			errExpected: true,
+			errContains: "not a CREATE INDEX statement",
+		},
+	}
+
+	// For AddPartialClauseForFilteringValue, only integer/float/boolean families are type-special cased.
+	// All other YSQL types should remain quoted string constants.
+	// Keep this list to datatypes where indexing is supported and we only need to
+	// verify fallback quoting behavior in generated WHERE clauses.
+	ysqlFallbackDataTypes := []string{
+		"character varying",
+		"character",
+		"text",
+		"date",
+		"time",
+		"timestamp",
+		"timestamp with time zone",
+		"timestamptz",
+		"bytea",
+		"money",
+		"uuid",
+		"xml",
+		"serial",
+		"smallserial",
+		"bigserial",
+	}
+	for i, dataType := range ysqlFallbackDataTypes {
+		indexName := "idx_fallback_auto_" + strconv.Itoa(i)
+		cases = append(cases, testCase{
+			name:           "YSQL fallback quoting for " + dataType,
+			inputSQL:       `CREATE INDEX ` + indexName + ` ON public.events (generic_col);`,
+			value:          "fallback_val",
+			columnDataType: dataType,
+			expectedSQL:    `CREATE INDEX ` + indexName + ` ON public.events USING btree (generic_col) WHERE generic_col <> 'fallback_val';`,
+		})
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			parseTree, err := queryparser.Parse(testCase.inputSQL)
+			testutils.FatalIfError(t, err)
+
+			transformer := NewTransformer()
+			modifiedTree, err := transformer.AddPartialClauseForFilteringValue(parseTree, testCase.value, testCase.columnDataType)
 			if testCase.errExpected {
 				assert.Error(t, err)
 				assert.Contains(t, err.Error(), testCase.errContains)
