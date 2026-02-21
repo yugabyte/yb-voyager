@@ -54,6 +54,7 @@ func TestImportDataBatchCommitFailure(t *testing.T) {
 	exportRunner := testutils.NewVoyagerCommandRunner(lm.GetSourceContainer(), "export data", []string{
 		"--export-dir", lm.GetExportDir(),
 		"--source-db-schema", "test_schema",
+		"--source-db-name", "test_failpoint",
 		"--disable-pb", "true",
 		"--yes",
 	}, nil, false)
