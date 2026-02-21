@@ -198,14 +198,6 @@ func (lm *LiveMigrationTest) Cleanup() {
 		}
 	}
 
-	// Stop containers
-	if lm.sourceContainer != nil {
-		lm.sourceContainer.Stop(lm.ctx)
-	}
-	if lm.targetContainer != nil {
-		lm.targetContainer.Stop(lm.ctx)
-	}
-
 	// Remove export directory only if test passed
 	if lm.t.Failed() {
 		fmt.Printf("Test failed - preserving export directory for debugging: %s\n", lm.exportDir)
