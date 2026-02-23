@@ -237,7 +237,7 @@ const PG_DEFAULT_PARALLELISM = 8 // default parallel jobs when core detection fa
 func (pg *TargetPostgreSQL) fetchDefaultParallelJobs() int {
 	totalCores, err := fetchCores([]*TargetConf{pg.tconf})
 	if err != nil {
-		log.Errorf("error fetching cores, using default parallelism of %d: %v",
+		log.Warnf("error fetching cores, using default parallelism of %d: %v",
 			PG_DEFAULT_PARALLELISM, err)
 		return PG_DEFAULT_PARALLELISM
 	}

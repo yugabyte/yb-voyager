@@ -1464,7 +1464,7 @@ func (yb *TargetYugabyteDB) fetchDefaultParallelJobs(tconfs []*TargetConf, nodeC
 	totalCores, err := fetchCores(tconfs)
 	if err != nil {
 		totalCores = nodeCount * YB_DEFAULT_CORES_PER_NODE
-		log.Infof("Could not determine cores, estimating totalCores = %d nodes * %d cores/node = %d",
+		log.Warnf("Could not determine cores, estimating totalCores = %d nodes * %d cores/node = %d",
 			nodeCount, YB_DEFAULT_CORES_PER_NODE, totalCores)
 	}
 	if totalCores == 0 { //if target is running on MacOS, we are unable to determine totalCores
