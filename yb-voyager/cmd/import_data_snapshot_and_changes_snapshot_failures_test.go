@@ -91,7 +91,7 @@ func TestImportSnapshotCommitFailureAndResume(t *testing.T) {
 	exportReady := make(chan bool, 1)
 	waitForExport := func() {
 		testutils.LogTest(t, "Waiting for export to enter streaming mode (snapshot exported)...")
-		require.NoError(t, waitForStreamingModeImportTest(exportDir, 120*time.Second, 2*time.Second), "Export should enter streaming mode")
+		require.NoError(t, waitForStreamingMode(exportDir, 120*time.Second, 2*time.Second), "Export should enter streaming mode")
 
 		// Generate a small CDC workload after snapshot has finished and streaming has started.
 		// These changes should be exported to the local queue and applied during the import resume path.
@@ -105,9 +105,9 @@ func TestImportSnapshotCommitFailureAndResume(t *testing.T) {
 		)
 
 		testutils.LogTest(t, "Waiting for CDC events to be queued...")
-		waitForCDCEventCountImportTest(t, exportDir, 6, 180*time.Second, 5*time.Second)
+		waitForCDCEventCount(t, exportDir, 6, 180*time.Second, 5*time.Second)
 		testutils.LogTest(t, "Verifying no duplicate event_id values in queued CDC...")
-		verifyNoEventIDDuplicatesImportTest(t, exportDir)
+		verifyNoEventIDDuplicates(t, exportDir)
 
 		exportReady <- true
 	}
@@ -121,7 +121,7 @@ func TestImportSnapshotCommitFailureAndResume(t *testing.T) {
 	}, waitForExport, true)
 	err = exportRunner.Run()
 	require.NoError(t, err, "Failed to start export")
-	defer killDebeziumForExportDirImportTest(t, exportDir)
+	defer killDebeziumForExportDir(t, exportDir)
 
 	select {
 	case <-exportReady:
@@ -133,7 +133,7 @@ func TestImportSnapshotCommitFailureAndResume(t *testing.T) {
 	// Stop export to avoid new queue writes during snapshot import assertions.
 	testutils.LogTest(t, "Stopping export to freeze exportDir before snapshot import")
 	_ = exportRunner.Kill()
-	killDebeziumForExportDirImportTest(t, exportDir)
+	killDebeziumForExportDir(t, exportDir)
 	_ = os.Remove(filepath.Join(exportDir, ".export-dataLockfile.lck"))
 	time.Sleep(2 * time.Second)
 
@@ -303,7 +303,7 @@ func TestImportSnapshotTransformFailureAndResume(t *testing.T) {
 	exportReady := make(chan bool, 1)
 	waitForExport := func() {
 		testutils.LogTest(t, "Waiting for export to enter streaming mode (snapshot exported)...")
-		require.NoError(t, waitForStreamingModeImportTest(exportDir, 120*time.Second, 2*time.Second), "Export should enter streaming mode")
+		require.NoError(t, waitForStreamingMode(exportDir, 120*time.Second, 2*time.Second), "Export should enter streaming mode")
 
 		testutils.LogTest(t, "Export reached streaming mode; generating a few CDC changes...")
 		postgresContainer.ExecuteSqls(
@@ -315,9 +315,9 @@ func TestImportSnapshotTransformFailureAndResume(t *testing.T) {
 		)
 
 		testutils.LogTest(t, "Waiting for CDC events to be queued...")
-		waitForCDCEventCountImportTest(t, exportDir, 6, 180*time.Second, 5*time.Second)
+		waitForCDCEventCount(t, exportDir, 6, 180*time.Second, 5*time.Second)
 		testutils.LogTest(t, "Verifying no duplicate event_id values in queued CDC...")
-		verifyNoEventIDDuplicatesImportTest(t, exportDir)
+		verifyNoEventIDDuplicates(t, exportDir)
 
 		exportReady <- true
 	}
@@ -331,7 +331,7 @@ func TestImportSnapshotTransformFailureAndResume(t *testing.T) {
 	}, waitForExport, true)
 	err = exportRunner.Run()
 	require.NoError(t, err, "Failed to start export")
-	defer killDebeziumForExportDirImportTest(t, exportDir)
+	defer killDebeziumForExportDir(t, exportDir)
 
 	select {
 	case <-exportReady:
@@ -342,7 +342,7 @@ func TestImportSnapshotTransformFailureAndResume(t *testing.T) {
 
 	testutils.LogTest(t, "Stopping export to freeze exportDir before snapshot import")
 	_ = exportRunner.Kill()
-	killDebeziumForExportDirImportTest(t, exportDir)
+	killDebeziumForExportDir(t, exportDir)
 	_ = os.Remove(filepath.Join(exportDir, ".export-dataLockfile.lck"))
 	time.Sleep(2 * time.Second)
 
