@@ -370,7 +370,7 @@ func TestImportSnapshotTransformFailureAndResume(t *testing.T) {
 
 	failMarkerPath := filepath.Join(exportDir, "logs", "failpoint-import-snapshot-transform-error.log")
 	testutils.LogTestf(t, "Waiting for failpoint marker: %s", failMarkerPath)
-	matched, err := waitForMarkerFileImportTest(failMarkerPath, 60*time.Second, 2*time.Second)
+	matched, err := testutils.WaitForFailpointMarker(failMarkerPath, 60*time.Second, 2*time.Second)
 	require.NoError(t, err, "Should be able to read snapshot transform failure marker")
 	if !matched {
 		_ = importWithFailpoint.Kill()
@@ -378,7 +378,7 @@ func TestImportSnapshotTransformFailureAndResume(t *testing.T) {
 			"Make sure to run `failpoint-ctl enable` before `go test -tags=failpoint` and use a failpoint-enabled yb-voyager binary.")
 	}
 
-	_, waitErr := waitForProcessExitOrKillImportTest(importWithFailpoint, 60*time.Second)
+	_, waitErr := testutils.WaitForProcessExitOrKill(importWithFailpoint, 60*time.Second)
 	require.Error(t, waitErr, "Import should exit with error after snapshot transform failpoint")
 	require.Contains(t, importWithFailpoint.Stderr(), "failpoint", "Expected failpoint mention in import stderr")
 	_ = os.Remove(filepath.Join(exportDir, ".import-dataLockfile.lck"))

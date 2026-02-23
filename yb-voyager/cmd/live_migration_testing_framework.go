@@ -1,4 +1,4 @@
-//go:build integration_live_migration
+//go:build integration_live_migration || failpoint
 
 /*
 Copyright (c) YugabyteDB, Inc.
@@ -283,6 +283,36 @@ func (lm *LiveMigrationTest) StartImportData(async bool, extraArgs map[string]st
 	return nil
 }
 
+// StartImportDataWithEnv starts import data with additional environment variables.
+// This is useful for failpoint injection and tuning knobs like batch sizes.
+func (lm *LiveMigrationTest) StartImportDataWithEnv(async bool, extraArgs map[string]string, env []string) error {
+	fmt.Printf("Starting import data with env\n")
+	var onStart func()
+	if async {
+		onStart = func() {
+			time.Sleep(5 * time.Second)
+		}
+	}
+
+	args := []string{
+		"--export-dir", lm.exportDir,
+		"--disable-pb", "true",
+		"--target-db-name", lm.config.TargetDB.DatabaseName,
+		"--yes",
+	}
+	for key, value := range extraArgs {
+		args = append(args, key, value)
+	}
+
+	lm.importCmd = testutils.NewVoyagerCommandRunner(lm.targetContainer, "import data", args, onStart, async).WithEnv(env...)
+	err := lm.importCmd.Run()
+	if err != nil {
+		return goerrors.Errorf("failed to start import data: %w", err)
+	}
+	fmt.Printf("Import data started with env\n")
+	return nil
+}
+
 // StopExportData stops the running export data command
 func (lm *LiveMigrationTest) StopExportData() error {
 	fmt.Printf("Stopping export data\n")
@@ -413,6 +443,29 @@ func (lm *LiveMigrationTest) ExecuteTargetDelta() error {
 // GetExportDir returns the export directory path
 func (lm *LiveMigrationTest) GetExportDir() string {
 	return lm.exportDir
+}
+
+// ReadMigrationUUID reads the migration UUID from the export directory's metaDB.
+func (lm *LiveMigrationTest) ReadMigrationUUID() (string, error) {
+	if err := lm.InitMetaDB(); err != nil {
+		return "", err
+	}
+	msr, err := lm.metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		return "", err
+	}
+	if msr == nil {
+		return "", fmt.Errorf("migration status record not found")
+	}
+	return msr.MigrationUUID, nil
+}
+
+// WaitForImportProcessExit waits for the import process to exit naturally within
+// the given timeout. If it doesn't exit in time, it kills the process.
+// Returns (killed, err) — killed is true if SIGKILL was sent, err is the process
+// exit error on natural exit.
+func (lm *LiveMigrationTest) WaitForImportProcessExit(timeout time.Duration) (bool, error) {
+	return testutils.WaitForProcessExitOrKill(lm.importCmd, timeout)
 }
 
 func (lm *LiveMigrationTest) GetExportCommandStderr() string {
