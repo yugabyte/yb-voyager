@@ -1447,7 +1447,7 @@ func fetchCores(tconfs []*TargetConf) (int, error) {
 }
 
 // setDefaultParallelism sets Parallelism and MaxParallelism on yb.tconf if not already
-// specified by the user. Parallelism defaults to clusterCores/4, and MaxParallelism defaults
+// specified by the user. Parallelism is set by fetchDefaultParallelJobs(), and MaxParallelism defaults
 // to Parallelism*4 (i.e. clusterCores) when adaptive parallelism is enabled.
 func (yb *TargetYugabyteDB) setDefaultParallelism(tconfs []*TargetConf, nodeCount int, loadBalancerUsed bool) {
 	if yb.tconf.Parallelism <= 0 {
