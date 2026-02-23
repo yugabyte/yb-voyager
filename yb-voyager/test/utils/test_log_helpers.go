@@ -1,6 +1,4 @@
-//go:build failpoint
-
-package cmd
+package testutils
 
 import (
 	"os"
@@ -17,13 +15,12 @@ func init() {
 
 const testLogPrefix = "[TEST] "
 
-func logTest(t *testing.T, msg string) {
+func LogTest(t *testing.T, msg string) {
 	t.Helper()
 	t.Log(color.HiCyanString("%s%s", testLogPrefix, msg))
 }
 
-func logTestf(t *testing.T, format string, args ...any) {
+func LogTestf(t *testing.T, format string, args ...any) {
 	t.Helper()
 	t.Log(color.HiCyanString(testLogPrefix+format, args...))
 }
-

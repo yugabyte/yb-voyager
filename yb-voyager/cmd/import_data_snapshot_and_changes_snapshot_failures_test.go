@@ -50,7 +50,7 @@ func TestImportSnapshotCommitFailureAndResume(t *testing.T) {
 
 	exportDir = testutils.CreateTempExportDir()
 	defer testutils.RemoveTempExportDir(exportDir)
-	logTestf(t, "Using exportDir=%s", exportDir)
+	testutils.LogTestf(t, "Using exportDir=%s", exportDir)
 
 	postgresContainer := testcontainers.NewTestContainer("postgresql", &testcontainers.ContainerConfig{
 		ForLive: true,
@@ -90,12 +90,12 @@ func TestImportSnapshotCommitFailureAndResume(t *testing.T) {
 
 	exportReady := make(chan bool, 1)
 	waitForExport := func() {
-		logTest(t, "Waiting for export to enter streaming mode (snapshot exported)...")
+		testutils.LogTest(t, "Waiting for export to enter streaming mode (snapshot exported)...")
 		require.NoError(t, waitForStreamingModeImportTest(exportDir, 120*time.Second, 2*time.Second), "Export should enter streaming mode")
 
 		// Generate a small CDC workload after snapshot has finished and streaming has started.
 		// These changes should be exported to the local queue and applied during the import resume path.
-		logTest(t, "Export reached streaming mode; generating a few CDC changes...")
+		testutils.LogTest(t, "Export reached streaming mode; generating a few CDC changes...")
 		postgresContainer.ExecuteSqls(
 			`INSERT INTO test_schema_import_snap_fail.snapshot_import_test (id, name)
 			 VALUES (1001, 'cdc_ins_1001'), (1002, 'cdc_ins_1002'), (1003, 'cdc_ins_1003');`,
@@ -104,9 +104,9 @@ func TestImportSnapshotCommitFailureAndResume(t *testing.T) {
 			`DELETE FROM test_schema_import_snap_fail.snapshot_import_test WHERE id=2;`,
 		)
 
-		logTest(t, "Waiting for CDC events to be queued...")
+		testutils.LogTest(t, "Waiting for CDC events to be queued...")
 		waitForCDCEventCountImportTest(t, exportDir, 6, 180*time.Second, 5*time.Second)
-		logTest(t, "Verifying no duplicate event_id values in queued CDC...")
+		testutils.LogTest(t, "Verifying no duplicate event_id values in queued CDC...")
 		verifyNoEventIDDuplicatesImportTest(t, exportDir)
 
 		exportReady <- true
@@ -131,7 +131,7 @@ func TestImportSnapshotCommitFailureAndResume(t *testing.T) {
 	}
 
 	// Stop export to avoid new queue writes during snapshot import assertions.
-	logTest(t, "Stopping export to freeze exportDir before snapshot import")
+	testutils.LogTest(t, "Stopping export to freeze exportDir before snapshot import")
 	_ = exportRunner.Kill()
 	killDebeziumForExportDirImportTest(t, exportDir)
 	_ = os.Remove(filepath.Join(exportDir, ".export-dataLockfile.lck"))
@@ -147,7 +147,7 @@ func TestImportSnapshotCommitFailureAndResume(t *testing.T) {
 		"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb/importBatchCommitError=10*off->return()",
 	)
 
-	logTestf(t, "Running import with snapshot commit failpoint (expected to fail after %d committed batches)...", successBatchesThen)
+	testutils.LogTestf(t, "Running import with snapshot commit failpoint (expected to fail after %d committed batches)...", successBatchesThen)
 	importWithFailpoint := testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
 		"--export-dir", exportDir,
 		"--disable-pb", "true",
@@ -172,7 +172,7 @@ func TestImportSnapshotCommitFailureAndResume(t *testing.T) {
 	var rowsAfterFailure int
 	err = ybConnForChecks.QueryRow("SELECT COUNT(*) FROM test_schema_import_snap_fail.snapshot_import_test").Scan(&rowsAfterFailure)
 	require.NoError(t, err, "Failed to query target row count after snapshot failure")
-	logTestf(t, "Target snapshot row count after failure: %d (expected %d)", rowsAfterFailure, expectedRowsAfterFailure)
+	testutils.LogTestf(t, "Target snapshot row count after failure: %d (expected %d)", rowsAfterFailure, expectedRowsAfterFailure)
 	require.Equal(t, expectedRowsAfterFailure, rowsAfterFailure, "Expected deterministic partial snapshot progress before failure")
 
 	// Post-failure verification: prove "partial snapshot imported" without assuming any ordering of IDs across batches.
@@ -200,7 +200,7 @@ func TestImportSnapshotCommitFailureAndResume(t *testing.T) {
 		) AS missing`,
 	).Scan(&missingIDs)
 	require.NoError(t, err, "Failed to compute missing ids after snapshot failure")
-	logTestf(t, "After snapshot failure: imported=%d missing=%d", rowsAfterFailure, missingIDs)
+	testutils.LogTestf(t, "After snapshot failure: imported=%d missing=%d", rowsAfterFailure, missingIDs)
 	require.Equal(t, 60-rowsAfterFailure, missingIDs, "Expected missing ids count to match partial snapshot row count")
 
 	// After the snapshot-phase failure, the target must not match the source yet.
@@ -211,12 +211,12 @@ func TestImportSnapshotCommitFailureAndResume(t *testing.T) {
 
 	mismatchErr := testutils.CompareTableData(ctx, pgConnForMismatch, ybConnForChecks, "test_schema_import_snap_fail.snapshot_import_test", "id")
 	require.Error(t, mismatchErr, "Expected source != target after snapshot failure (resume should be required)")
-	logTestf(t, "Verified source != target after failure: %v", mismatchErr)
+	testutils.LogTestf(t, "Verified source != target after failure: %v", mismatchErr)
 
 	_ = os.Remove(filepath.Join(exportDir, ".import-dataLockfile.lck"))
 
 	// Resume import without failpoint; import will proceed into streaming mode and keep running.
-	logTest(t, "Resuming import without failpoint and waiting for target to match source...")
+	testutils.LogTest(t, "Resuming import without failpoint and waiting for target to match source...")
 	importResume := testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
 		"--export-dir", exportDir,
 		"--disable-pb", "true",
@@ -238,7 +238,7 @@ func TestImportSnapshotCommitFailureAndResume(t *testing.T) {
 		return testutils.CompareTableData(ctx, pgConn, ybConn, "test_schema_import_snap_fail.snapshot_import_test", "id") == nil
 	}, 180*time.Second, 5*time.Second, "Timed out waiting for snapshot import resume to catch up")
 
-	logTest(t, "✓ Target matches source after resume (snapshot commit failure)")
+	testutils.LogTest(t, "✓ Target matches source after resume (snapshot commit failure)")
 
 	// best-effort shutdown
 	_ = importResume.Kill()
@@ -263,7 +263,7 @@ func TestImportSnapshotTransformFailureAndResume(t *testing.T) {
 
 	exportDir = testutils.CreateTempExportDir()
 	defer testutils.RemoveTempExportDir(exportDir)
-	logTestf(t, "Using exportDir=%s", exportDir)
+	testutils.LogTestf(t, "Using exportDir=%s", exportDir)
 
 	postgresContainer := testcontainers.NewTestContainer("postgresql", &testcontainers.ContainerConfig{
 		ForLive: true,
@@ -302,10 +302,10 @@ func TestImportSnapshotTransformFailureAndResume(t *testing.T) {
 
 	exportReady := make(chan bool, 1)
 	waitForExport := func() {
-		logTest(t, "Waiting for export to enter streaming mode (snapshot exported)...")
+		testutils.LogTest(t, "Waiting for export to enter streaming mode (snapshot exported)...")
 		require.NoError(t, waitForStreamingModeImportTest(exportDir, 120*time.Second, 2*time.Second), "Export should enter streaming mode")
 
-		logTest(t, "Export reached streaming mode; generating a few CDC changes...")
+		testutils.LogTest(t, "Export reached streaming mode; generating a few CDC changes...")
 		postgresContainer.ExecuteSqls(
 			`INSERT INTO test_schema_import_snap_transform_fail.snapshot_import_test (id, name)
 			 VALUES (1001, 'cdc_ins_1001'), (1002, 'cdc_ins_1002'), (1003, 'cdc_ins_1003');`,
@@ -314,9 +314,9 @@ func TestImportSnapshotTransformFailureAndResume(t *testing.T) {
 			`DELETE FROM test_schema_import_snap_transform_fail.snapshot_import_test WHERE id=2;`,
 		)
 
-		logTest(t, "Waiting for CDC events to be queued...")
+		testutils.LogTest(t, "Waiting for CDC events to be queued...")
 		waitForCDCEventCountImportTest(t, exportDir, 6, 180*time.Second, 5*time.Second)
-		logTest(t, "Verifying no duplicate event_id values in queued CDC...")
+		testutils.LogTest(t, "Verifying no duplicate event_id values in queued CDC...")
 		verifyNoEventIDDuplicatesImportTest(t, exportDir)
 
 		exportReady <- true
@@ -340,7 +340,7 @@ func TestImportSnapshotTransformFailureAndResume(t *testing.T) {
 		require.Fail(t, "Timed out waiting for export streaming mode")
 	}
 
-	logTest(t, "Stopping export to freeze exportDir before snapshot import")
+	testutils.LogTest(t, "Stopping export to freeze exportDir before snapshot import")
 	_ = exportRunner.Kill()
 	killDebeziumForExportDirImportTest(t, exportDir)
 	_ = os.Remove(filepath.Join(exportDir, ".export-dataLockfile.lck"))
@@ -352,7 +352,7 @@ func TestImportSnapshotTransformFailureAndResume(t *testing.T) {
 		"github.com/yugabyte/yb-voyager/yb-voyager/cmd/importSnapshotTransformError=20*off->return(true)",
 	)
 
-	logTest(t, "Running import with snapshot transform failpoint (expected to crash mid-snapshot)...")
+	testutils.LogTest(t, "Running import with snapshot transform failpoint (expected to crash mid-snapshot)...")
 	importWithFailpoint := testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
 		"--export-dir", exportDir,
 		"--disable-pb", "true",
@@ -369,7 +369,7 @@ func TestImportSnapshotTransformFailureAndResume(t *testing.T) {
 	require.NoError(t, err, "Failed to start import with failpoint")
 
 	failMarkerPath := filepath.Join(exportDir, "logs", "failpoint-import-snapshot-transform-error.log")
-	logTestf(t, "Waiting for failpoint marker: %s", failMarkerPath)
+	testutils.LogTestf(t, "Waiting for failpoint marker: %s", failMarkerPath)
 	matched, err := waitForMarkerFileImportTest(failMarkerPath, 60*time.Second, 2*time.Second)
 	require.NoError(t, err, "Should be able to read snapshot transform failure marker")
 	if !matched {
@@ -403,7 +403,7 @@ func TestImportSnapshotTransformFailureAndResume(t *testing.T) {
 	require.Greater(t, len(tmpFiles), 0, "Expected at least one tmp::<N> batch file after transform failure")
 	info, statErr := os.Stat(tmpFiles[0])
 	require.NoError(t, statErr, "Failed to stat tmp batch file")
-	logTestf(t, "Found %d tmp batch files; example=%s size=%d", len(tmpFiles), tmpFiles[0], info.Size())
+	testutils.LogTestf(t, "Found %d tmp batch files; example=%s size=%d", len(tmpFiles), tmpFiles[0], info.Size())
 	// Note: the tmp batch file is written via a buffered writer. On a mid-batch failure (like our
 	// transform failpoint), the file may not be flushed/closed, so its on-disk size can be 0 even
 	// though rows were read and processing progressed. Existence is the reliable signal here.
@@ -417,7 +417,7 @@ func TestImportSnapshotTransformFailureAndResume(t *testing.T) {
 	var rowsAfterFailure int
 	err = ybConnForChecks.QueryRow("SELECT COUNT(*) FROM test_schema_import_snap_transform_fail.snapshot_import_test").Scan(&rowsAfterFailure)
 	require.NoError(t, err, "Failed to query target row count after snapshot transform failure")
-	logTestf(t, "Target snapshot row count after failure: %d (expected %d)", rowsAfterFailure, expectedRowsTarget)
+	testutils.LogTestf(t, "Target snapshot row count after failure: %d (expected %d)", rowsAfterFailure, expectedRowsTarget)
 	require.Equal(t, expectedRowsTarget, rowsAfterFailure, "Expected no snapshot rows imported when batch production fails")
 
 	var distinctIDs int
@@ -441,7 +441,7 @@ func TestImportSnapshotTransformFailureAndResume(t *testing.T) {
 		) AS missing`,
 	).Scan(&missingIDs)
 	require.NoError(t, err, "Failed to compute missing ids after snapshot transform failure")
-	logTestf(t, "After snapshot transform failure: imported=%d missing=%d", rowsAfterFailure, missingIDs)
+	testutils.LogTestf(t, "After snapshot transform failure: imported=%d missing=%d", rowsAfterFailure, missingIDs)
 	require.Equal(t, 60-rowsAfterFailure, missingIDs, "Expected missing ids count to match partial snapshot row count")
 
 	pgConnForMismatch, err := postgresContainer.GetConnection()
@@ -450,7 +450,7 @@ func TestImportSnapshotTransformFailureAndResume(t *testing.T) {
 	require.Error(t, testutils.CompareTableData(ctx, pgConnForMismatch, ybConnForChecks, "test_schema_import_snap_transform_fail.snapshot_import_test", "id"),
 		"Expected source != target after snapshot transform failure (resume should be required)")
 
-	logTest(t, "Resuming import without failpoint and waiting for target to match source...")
+	testutils.LogTest(t, "Resuming import without failpoint and waiting for target to match source...")
 	importResume := testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
 		"--export-dir", exportDir,
 		"--disable-pb", "true",
@@ -472,7 +472,7 @@ func TestImportSnapshotTransformFailureAndResume(t *testing.T) {
 		return testutils.CompareTableData(ctx, pgConn, ybConn, "test_schema_import_snap_transform_fail.snapshot_import_test", "id") == nil
 	}, 240*time.Second, 5*time.Second, "Timed out waiting for snapshot import resume to catch up")
 
-	logTest(t, "✓ Target matches source after resume (snapshot transform failure)")
+	testutils.LogTest(t, "✓ Target matches source after resume (snapshot transform failure)")
 
 	// best-effort shutdown
 	_ = importResume.Kill()
