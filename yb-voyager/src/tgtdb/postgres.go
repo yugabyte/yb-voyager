@@ -232,14 +232,14 @@ func (pg *TargetPostgreSQL) PrepareForStreaming() {
 	pg.connPool.DisableThrottling()
 }
 
-const PG_DEFAULT_PARALLELISM_FACTOR = 8 // factor for default parallelism in case fetchDefaultParallelJobs() is not able to get the no of cores
+const PG_DEFAULT_PARALLELISM = 8 // default parallel jobs when core detection fails
 
 func (pg *TargetPostgreSQL) fetchDefaultParallelJobs() int {
 	totalCores, err := fetchCores([]*TargetConf{pg.tconf})
 	if err != nil {
 		log.Errorf("error fetching cores, using default parallelism of %d: %v",
-			PG_DEFAULT_PARALLELISM_FACTOR, err)
-		return PG_DEFAULT_PARALLELISM_FACTOR
+			PG_DEFAULT_PARALLELISM, err)
+		return PG_DEFAULT_PARALLELISM
 	}
 	if totalCores == 0 { //if target is running on MacOS, we are unable to determine totalCores
 		return 3
