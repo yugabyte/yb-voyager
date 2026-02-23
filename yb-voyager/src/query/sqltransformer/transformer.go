@@ -433,6 +433,9 @@ func (t *Transformer) AddPartialClauseForFilteringValue(parseTree *pg_query.Pars
 	}
 	indexStmt := indexNode.IndexStmt
 
+	if len(indexStmt.IndexParams) == 0 {
+		return nil, goerrors.Errorf("index has no parameters")
+	}
 	// Get the first column name from index params
 	firstParam := indexStmt.IndexParams[0]
 	if firstParam == nil || firstParam.GetIndexElem() == nil {

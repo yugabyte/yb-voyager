@@ -28,8 +28,8 @@ func (p *ParserIssueDetector) GenerateRecommendedSql(issue QueryIssue, parseTree
 	if !exists {
 		return "", nil
 	}
-
-	return generator(parseTree, issue)
+	
+	return generator(queryparser.CloneParseTree(parseTree), issue)
 }
 
 type SqlFixGenerator func(parseTree *pg_query.ParseResult, issue QueryIssue) (string, error)
