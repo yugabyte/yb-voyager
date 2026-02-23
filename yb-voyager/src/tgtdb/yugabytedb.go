@@ -308,7 +308,7 @@ func (yb *TargetYugabyteDB) InitConnPool() error {
 	nodeCount := len(confs) // confs from GetYBServers() has all nodes, even when using a load balancer
 	if yb.Tconf.Parallelism <= 0 {
 		// Parallelism = totalCores / 4 (N/4), where N is detected or estimated as nodeCount * YB_DEFAULT_CORES_PER_NODE
-		yb.Tconf.Parallelism = yb.fetchDefaultParallelJobs(tconfs, nodeCount)
+		yb.Tconf.Parallelism = yb.fetchDefaultParallelJobs(tconfs, nodeCount, loadBalancerUsed)
 		log.Infof("Using %d parallel jobs by default. Use --parallel-jobs to specify a custom value", yb.Tconf.Parallelism)
 	}
 
@@ -1460,17 +1460,43 @@ func fetchCores(tconfs []*TargetConf) (int, error) {
 	return totalCores, nil
 }
 
-func (yb *TargetYugabyteDB) fetchDefaultParallelJobs(tconfs []*TargetConf, nodeCount int) int {
-	totalCores, err := fetchCores(tconfs)
-	if err != nil {
-		totalCores = nodeCount * YB_DEFAULT_CORES_PER_NODE
-		log.Warnf("Could not determine cores, estimating totalCores = %d nodes * %d cores/node = %d",
-			nodeCount, YB_DEFAULT_CORES_PER_NODE, totalCores)
+// Determines totalCores for the cluster to compute default parallel jobs (totalCores / 4).
+//
+// tconfs are the connection targets voyager uses. Behind a load balancer, this collapses to a
+// single entry (the LB address), so fetchCores only reaches one node. nodeCount is the actual
+// number of nodes reported by yb_servers(), which may be greater than len(tconfs).
+//
+// Four cases:
+//  1. No LB, fetchCores succeeded  — totalCores = sum of cores across all nodes (accurate).
+//  2. LB,    fetchCores succeeded  — totalCores = single-node cores * nodeCount (extrapolated).
+//  3. LB,    fetchCores failed     — totalCores = nodeCount * YB_DEFAULT_CORES_PER_NODE (estimated; typical for YBAeon).
+//  4. No LB, fetchCores failed     — totalCores = nodeCount * YB_DEFAULT_CORES_PER_NODE (estimated; rare, e.g. permission issues).
+func (yb *TargetYugabyteDB) fetchDefaultParallelJobs(tconfs []*TargetConf, nodeCount int, loadBalancerUsed bool) int {
+	var clusterCores int
+	detectedCores, err := fetchCores(tconfs)
+	coresFetched := err == nil
+
+	switch {
+	case coresFetched && !loadBalancerUsed:
+		// Case 1: No load balancer, use detected cores directly
+		clusterCores = detectedCores
+	case coresFetched && loadBalancerUsed:
+		// Case 2: fetchCores only reached one node via load balancer; extrapolate to the full cluster
+		clusterCores = detectedCores * nodeCount
+		log.Warnf("Load balancer detected: scaling single-node cores to cluster: %d cores/node * %d nodes = %d clusterCores",
+			detectedCores, nodeCount, clusterCores)
+	default:
+		// Case 3 & 4: No cores detected, estimate using the number of nodes and the default cores per node
+		clusterCores = nodeCount * YB_DEFAULT_CORES_PER_NODE
+		log.Warnf("Could not determine cores, estimating clusterCores = %d nodes * %d cores/node = %d",
+			nodeCount, YB_DEFAULT_CORES_PER_NODE, clusterCores)
 	}
-	if totalCores == 0 { //if target is running on MacOS, we are unable to determine totalCores
+
+	// macOS: fetchCores succeeds but returns 0 because /proc/cpuinfo doesn't exist
+	if clusterCores == 0 {
 		return 3
 	}
-	return totalCores / 4
+	return clusterCores / 4
 }
 
 // import session parameters
