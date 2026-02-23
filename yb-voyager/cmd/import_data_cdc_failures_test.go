@@ -592,179 +592,134 @@ func TestImportCDCRetryableDbErrorThenSucceed(t *testing.T) {
 // a batch that committed successfully on the server (e.g. RPC timeout on commit).
 //
 // Scenario:
-// 1. Export snapshot-and-changes and queue a small CDC workload, then stop export to freeze the queue.
-// 2. Run `import data` with a failpoint in `tgtdb.TargetYugabyteDB.ExecuteBatch()` that:
-//   - commits the CDC batch normally (including voyager metadata updates)
-//   - then returns a retryable SQLSTATE error
-//
-// 3. Verify:
-//   - the failpoint marker is written
-//   - importer does not exit (it retries in-process)
-//   - `last_applied_vsn` advances to max queued vsn (proving the retry short-circuited correctly)
-//   - final target matches source without a resume run
+//  1. Start `export data` and `import data` concurrently (import runs with failpoint enabled).
+//  2. Wait for snapshot, then generate CDC inserts via SourceDeltaSQL.
+//  3. Verify the failpoint marker is written and the import keeps running (retries in-process).
+//  4. Verify `last_applied_vsn` advances to max queued vsn (proving the retry short-circuited).
+//  5. Verify final target matches source without a resume run.
 func TestImportCDCRetryableAfterCommitErrorSkipsRetry(t *testing.T) {
 	ctx := context.Background()
+	tableName := "test_schema_import_cdc_retry_after_commit.cdc_import_test"
 
-	exportDir = testutils.CreateTempExportDir()
-	defer testutils.RemoveTempExportDir(exportDir)
-	testutils.LogTestf(t, "Using exportDir=%s", exportDir)
-
-	postgresContainer := testcontainers.NewTestContainer("postgresql", &testcontainers.ContainerConfig{
-		ForLive: true,
-	})
-	err := postgresContainer.Start(ctx)
-	require.NoError(t, err, "Failed to start PostgreSQL container")
-	defer postgresContainer.Stop(ctx)
-
-	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil)
-	err = yugabytedbContainer.Start(ctx)
-	require.NoError(t, err, "Failed to start YugabyteDB container")
-	defer yugabytedbContainer.Stop(ctx)
-
-	postgresContainer.ExecuteSqls(
-		"DROP SCHEMA IF EXISTS test_schema_import_cdc_retry_after_commit CASCADE;",
-		"CREATE SCHEMA test_schema_import_cdc_retry_after_commit;",
-		`CREATE TABLE test_schema_import_cdc_retry_after_commit.cdc_import_test (
-			id SERIAL PRIMARY KEY,
-			name TEXT,
-			value INTEGER
-		);`,
-		`ALTER TABLE test_schema_import_cdc_retry_after_commit.cdc_import_test REPLICA IDENTITY FULL;`,
-		`INSERT INTO test_schema_import_cdc_retry_after_commit.cdc_import_test (name, value)
-		 SELECT 'snapshot_' || i, i FROM generate_series(1, 30) i;`,
-	)
-	defer postgresContainer.ExecuteSqls("DROP SCHEMA IF EXISTS test_schema_import_cdc_retry_after_commit CASCADE;")
-
-	yugabytedbContainer.ExecuteSqls(
-		"DROP SCHEMA IF EXISTS test_schema_import_cdc_retry_after_commit CASCADE;",
-		"CREATE SCHEMA test_schema_import_cdc_retry_after_commit;",
-		`CREATE TABLE test_schema_import_cdc_retry_after_commit.cdc_import_test (
-			id SERIAL PRIMARY KEY,
-			name TEXT,
-			value INTEGER
-		);`,
-	)
-	defer yugabytedbContainer.ExecuteSqls("DROP SCHEMA IF EXISTS test_schema_import_cdc_retry_after_commit CASCADE;")
-
-	cdcQueued := make(chan bool, 1)
-	generateCDC := func() {
-		testutils.LogTest(t, "Waiting for export to enter streaming mode...")
-		require.NoError(t, waitForStreamingModeImportTest(exportDir, 120*time.Second, 2*time.Second), "Export should enter streaming mode")
-		testutils.LogTest(t, "Export reached streaming mode; generating CDC inserts...")
-
-		postgresContainer.ExecuteSqls(
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB: ContainerConfig{
+			Type:         "postgresql",
+			ForLive:      true,
+			DatabaseName: "test_import_cdc_retry_commit",
+		},
+		TargetDB: ContainerConfig{
+			Type:         "yugabytedb",
+			DatabaseName: "test_import_cdc_retry_commit",
+		},
+		SchemaNames: []string{"test_schema_import_cdc_retry_after_commit"},
+		SchemaSQL: []string{
+			`CREATE SCHEMA IF NOT EXISTS test_schema_import_cdc_retry_after_commit;`,
+			`CREATE TABLE test_schema_import_cdc_retry_after_commit.cdc_import_test (
+				id SERIAL PRIMARY KEY,
+				name TEXT,
+				value INTEGER
+			);`,
+		},
+		SourceSetupSchemaSQL: []string{
+			`ALTER TABLE test_schema_import_cdc_retry_after_commit.cdc_import_test REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			`INSERT INTO test_schema_import_cdc_retry_after_commit.cdc_import_test (name, value)
+			 SELECT 'snapshot_' || i, i FROM generate_series(1, 30) i;`,
+		},
+		SourceDeltaSQL: []string{
 			`INSERT INTO test_schema_import_cdc_retry_after_commit.cdc_import_test (name, value)
 			 SELECT 'cdc_ins_' || i, 1000 + i FROM generate_series(1, 60) i;`,
-		)
+		},
+		CleanupSQL: []string{
+			`DROP SCHEMA IF EXISTS test_schema_import_cdc_retry_after_commit CASCADE;`,
+		},
+	})
+	defer lm.Cleanup()
 
-		testutils.LogTest(t, "Waiting for 60 CDC events to be queued to segment files...")
-		waitForCDCEventCountImportTest(t, exportDir, 60, 240*time.Second, 5*time.Second)
-		testutils.LogTest(t, "Verifying no duplicate event_id values in queued CDC...")
-		verifyNoEventIDDuplicatesImportTest(t, exportDir)
-		testutils.LogTest(t, "CDC queued and verified")
-		cdcQueued <- true
-	}
+	err := lm.SetupContainers(ctx)
+	require.NoError(t, err, "failed to setup containers")
+	err = lm.SetupSchema()
+	require.NoError(t, err, "failed to setup schema")
 
-	exportRunner := testutils.NewVoyagerCommandRunner(postgresContainer, "export data", []string{
-		"--export-dir", exportDir,
-		"--export-type", "snapshot-and-changes",
-		"--source-db-schema", "test_schema_import_cdc_retry_after_commit",
-		"--disable-pb", "true",
-		"--yes",
-	}, generateCDC, true)
-	err = exportRunner.Run()
-	require.NoError(t, err, "Failed to start export")
-	defer killDebeziumForExportDirImportTest(t, exportDir)
-
-	select {
-	case <-cdcQueued:
-	case <-time.After(180 * time.Second):
-		_ = exportRunner.Kill()
-		require.Fail(t, "Timed out waiting for CDC events to be queued")
-	}
-
-	testutils.LogTest(t, "Stopping export after CDC has been queued")
-	_ = exportRunner.Kill()
-	killDebeziumForExportDirImportTest(t, exportDir)
-	_ = os.Remove(filepath.Join(exportDir, ".export-dataLockfile.lck"))
-	time.Sleep(2 * time.Second)
-
-	migrationUUIDStr, err := readMigrationUUID(exportDir)
-	require.NoError(t, err, "Failed to read migration UUID from exportDir")
-	require.NotEmpty(t, migrationUUIDStr, "migration UUID should not be empty")
-	testutils.LogTestf(t, "Migration UUID: %s", migrationUUIDStr)
+	// --- Phase 1: Start export and import concurrently, wait for snapshot, then generate CDC ---
+	err = lm.StartExportData(true, nil)
+	require.NoError(t, err, "failed to start export")
+	defer killDebeziumForExportDirImportTest(t, lm.GetExportDir())
 
 	failpointEnv := testutils.GetFailpointEnvVar(
 		"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb/importCDCRetryableAfterCommitError=1*return(true)",
 	)
-
-	importRunner := testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
-		"--export-dir", exportDir,
-		"--disable-pb", "true",
-		"--yes",
-	}, nil, true).WithEnv(
+	err = lm.StartImportDataWithEnv(true, nil, []string{
 		failpointEnv,
-		fmt.Sprintf("YB_VOYAGER_FAILPOINT_MARKER_DIR=%s", filepath.Join(exportDir, "logs")),
-		"YB_VOYAGER_MAX_SLEEP_SECOND=0", // immediate retry
+		fmt.Sprintf("YB_VOYAGER_FAILPOINT_MARKER_DIR=%s", filepath.Join(lm.GetExportDir(), "logs")),
+		"YB_VOYAGER_MAX_SLEEP_SECOND=0",
 		"NUM_EVENT_CHANNELS=1",
 		"MAX_EVENTS_PER_BATCH=1",
 		"MAX_INTERVAL_BETWEEN_BATCHES=1",
 		"EVENT_CHANNEL_SIZE=2",
-	)
-	err = importRunner.Run()
-	require.NoError(t, err, "Failed to start import")
-	defer importRunner.Kill()
+	})
+	require.NoError(t, err, "failed to start import with failpoint")
+	defer lm.GetImportRunner().Kill()
 
-	failMarkerPath := filepath.Join(exportDir, "logs", "failpoint-import-cdc-retryable-after-commit-error.log")
+	err = lm.WaitForSnapshotComplete(map[string]int64{
+		`"test_schema_import_cdc_retry_after_commit"."cdc_import_test"`: 30,
+	}, 120)
+	require.NoError(t, err, "snapshot phase did not complete")
+	testutils.LogTest(t, "Snapshot complete; generating CDC inserts...")
+
+	lm.ExecuteSourceDelta()
+
+	// --- Phase 2: Wait for failpoint marker and verify import stays alive (retries in-process) ---
+	failMarkerPath := filepath.Join(lm.GetExportDir(), "logs", "failpoint-import-cdc-retryable-after-commit-error.log")
 	testutils.LogTestf(t, "Waiting for failpoint marker: %s", failMarkerPath)
-	matched, err := testutils.WaitForFailpointMarker(failMarkerPath, 60*time.Second, 2*time.Second)
+	matched, err := testutils.WaitForFailpointMarker(failMarkerPath, 120*time.Second, 2*time.Second)
 	require.NoError(t, err, "Should be able to read retryable-after-commit marker")
 	require.True(t, matched, "Retryable-after-commit failpoint marker did not trigger")
-	testutils.LogTest(t, "✓ Verified retryable-after-commit failpoint marker was written")
+	testutils.LogTest(t, "Verified retryable-after-commit failpoint marker was written")
 
 	// Import should NOT exit; it should retry in-process and continue.
 	exitedEarly := make(chan error, 1)
 	go func() {
-		exitedEarly <- importRunner.Wait()
+		exitedEarly <- lm.GetImportRunner().Wait()
 	}()
 	select {
-	case err := <-exitedEarly:
-		require.Failf(t, "Import exited unexpectedly after retryable-after-commit failure", "err=%v\nstderr=%s", err, importRunner.Stderr())
+	case waitErr := <-exitedEarly:
+		require.Failf(t, "Import exited unexpectedly after retryable-after-commit failure",
+			"err=%v\nstderr=%s", waitErr, lm.GetImportCommandStderr())
 	case <-time.After(3 * time.Second):
 		// still running as expected
 	}
 
-	maxQueuedVsn, err := maxVsnInQueueSegments(exportDir)
+	// --- Phase 3: Verify vsn catches up and target matches source (no resume needed) ---
+	migrationUUIDStr, err := lm.ReadMigrationUUID()
+	require.NoError(t, err, "Failed to read migration UUID")
+	require.NotEmpty(t, migrationUUIDStr)
+
+	maxQueuedVsn, err := maxVsnInQueueSegments(lm.GetExportDir())
 	require.NoError(t, err, "Failed to compute max queued vsn from queue segments")
 	testutils.LogTestf(t, "Max queued vsn in CDC segments: %d", maxQueuedVsn)
 
-	// Stronger-than-log verification: ensure voyager progress metadata catches up to the queue.
-	ybConnForChecks, err := yugabytedbContainer.GetConnection()
-	require.NoError(t, err, "Failed to get YugabyteDB connection for progress check")
-	defer ybConnForChecks.Close()
+	// Verify voyager progress metadata catches up to the queue.
+	err = lm.WithTargetConn(func(ybConn *sql.DB) error {
+		require.Eventually(t, func() bool {
+			v, verr := maxLastAppliedVsn(ybConn, migrationUUIDStr)
+			return verr == nil && v >= maxQueuedVsn
+		}, 120*time.Second, 2*time.Second, "Expected last_applied_vsn to reach max queued vsn after retryable-after-commit error")
+		testutils.LogTest(t, "Verified last_applied_vsn caught up after retryable-after-commit error")
+		return nil
+	})
+	require.NoError(t, err)
 
-	require.Eventually(t, func() bool {
-		v, verr := maxLastAppliedVsn(ybConnForChecks, migrationUUIDStr)
-		return verr == nil && v >= maxQueuedVsn
-	}, 120*time.Second, 2*time.Second, "Expected last_applied_vsn to reach max queued vsn after retryable-after-commit error")
-	testutils.LogTest(t, "✓ Verified last_applied_vsn caught up after retryable-after-commit error")
+	err = lm.WithSourceTargetConn(func(pgConn, ybConn *sql.DB) error {
+		require.Eventually(t, func() bool {
+			return testutils.CompareTableData(ctx, pgConn, ybConn, tableName, "id") == nil
+		}, 240*time.Second, 5*time.Second, "Timed out waiting for target to match source after retryable-after-commit error")
+		return nil
+	})
+	require.NoError(t, err)
 
-	pgConn, err := postgresContainer.GetConnection()
-	require.NoError(t, err, "Failed to get PostgreSQL connection")
-	defer pgConn.Close()
-
-	ybConn, err := yugabytedbContainer.GetConnection()
-	require.NoError(t, err, "Failed to get YugabyteDB connection")
-	defer ybConn.Close()
-
-	require.Eventually(t, func() bool {
-		return testutils.CompareTableData(ctx, pgConn, ybConn, "test_schema_import_cdc_retry_after_commit.cdc_import_test", "id") == nil
-	}, 240*time.Second, 5*time.Second, "Timed out waiting for target to match source after retryable-after-commit error")
-	testutils.LogTest(t, "✓ Target matches source after in-process retryable-after-commit handling")
-
-	// best-effort shutdown
-	_ = importRunner.Kill()
-	_ = os.Remove(filepath.Join(exportDir, ".import-dataLockfile.lck"))
+	testutils.LogTest(t, "Target matches source after in-process retryable-after-commit handling")
 }
 
 // TestImportCDCMultiChannelBatchFailureAndResume verifies that CDC import resume works correctly
