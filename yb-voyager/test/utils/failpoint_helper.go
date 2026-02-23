@@ -20,6 +20,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"testing"
 	"time"
 )
 
@@ -118,4 +119,29 @@ func WaitForProcessExitOrKill(runner *VoyagerCommandRunner, timeout time.Duratio
 		_ = runner.Kill()
 		return true, nil
 	}
+}
+
+// WaitForFailpointAndProcessCrash waits for a failpoint marker file to appear,
+// then waits for the given process to exit with an error. Returns an error if
+// the marker doesn't appear (failpoints not enabled) or if the process exits
+// cleanly instead of crashing.
+func WaitForFailpointAndProcessCrash(t *testing.T, runner *VoyagerCommandRunner, markerPath string, markerTimeout, exitTimeout time.Duration) error {
+	LogTestf(t, "Waiting for failpoint marker: %s", markerPath)
+
+	matched, err := WaitForFailpointMarker(markerPath, markerTimeout, 2*time.Second)
+	if err != nil {
+		return fmt.Errorf("error reading failpoint marker %s: %w", markerPath, err)
+	}
+	if !matched {
+		_ = runner.Kill()
+		return fmt.Errorf("failpoint marker %s did not trigger — ensure `failpoint-ctl enable` "+
+			"was run before `go test -tags=failpoint`", markerPath)
+	}
+
+	LogTest(t, "Failpoint marker detected; waiting for process to exit with error...")
+	_, waitErr := WaitForProcessExitOrKill(runner, exitTimeout)
+	if waitErr == nil {
+		return fmt.Errorf("process exited without error after failpoint %s — expected a failure", markerPath)
+	}
+	return nil
 }

@@ -138,18 +138,8 @@ func TestImportCDCTransformFailureAndResume(t *testing.T) {
 
 	// --- Phase 2: Wait for failpoint to fire and import to crash ---
 	failMarkerPath := filepath.Join(lm.GetExportDir(), "logs", "failpoint-import-cdc-transform.log")
-	testutils.LogTestf(t, "Waiting for failpoint marker: %s", failMarkerPath)
-	matched, err := testutils.WaitForFailpointMarker(failMarkerPath, 120*time.Second, 2*time.Second)
-	require.NoError(t, err, "Should be able to read CDC transform failure marker")
-	if !matched {
-		_ = lm.StopImportData()
-		require.Fail(t, "CDC transform failure marker did not trigger (failpoints may not be enabled). "+
-			"Make sure to run `failpoint-ctl enable` before `go test -tags=failpoint`.")
-	}
-
-	testutils.LogTest(t, "Failpoint marker detected; waiting for import process to exit with error...")
-	_, waitErr := lm.WaitForImportProcessExit(60 * time.Second)
-	require.Error(t, waitErr, "Import should exit with error after CDC transform failpoint")
+	err = testutils.WaitForFailpointAndProcessCrash(t, lm.GetImportRunner(), failMarkerPath, 120*time.Second, 60*time.Second)
+	require.NoError(t, err, "Import should crash after CDC transform failpoint")
 
 	// Verify partial CDC progress: some events applied, but not all queued ones.
 	migrationUUIDStr, err := lm.ReadMigrationUUID()
@@ -195,14 +185,11 @@ func TestImportCDCTransformFailureAndResume(t *testing.T) {
 // a CDC apply failure caused by a simulated target DB error during the streaming apply phase.
 //
 // Scenario:
-//  1. Run `export data --export-type snapshot-and-changes` and wait for streaming mode.
-//  2. Generate a CDC workload and wait until the queue segments persist all events.
-//  3. Stop export to freeze the queue (avoid new queue writes racing with import assertions).
-//  4. Run `import data` with a failpoint that injects a non-retryable SQLSTATE error inside
-//     `processEvents()` right before `tdb.ExecuteBatch()` (expect crash mid-stream).
-//  5. After crash, verify partial progress by checking:
-//     - max queued vsn from queue segments
-//     - max last_applied_vsn from target voyager metadata
+//  1. Start `export data` and `import data` concurrently (import runs with failpoint enabled).
+//  2. Wait for the snapshot phase to complete via the framework's WaitForSnapshotComplete.
+//  3. Generate CDC changes (INSERT/UPDATE/DELETE) on the source via SourceDeltaSQL.
+//  4. Wait for the failpoint to fire during CDC streaming, causing import to crash.
+//  5. Verify partial CDC progress on target (export keeps running throughout).
 //  6. Resume `import data` without failpoint and verify target matches source.
 //
 // This test validates:
@@ -214,214 +201,137 @@ func TestImportCDCTransformFailureAndResume(t *testing.T) {
 // - We set NUM_EVENT_CHANNELS=1 and MAX_EVENTS_PER_BATCH=1 so "Nth batch" is deterministic.
 func TestImportCDCDbErrorAndResume(t *testing.T) {
 	ctx := context.Background()
+	tableName := "test_schema_import_cdc_db_err.cdc_import_test"
 
-	exportDir = testutils.CreateTempExportDir()
-	defer testutils.RemoveTempExportDir(exportDir)
-	testutils.LogTestf(t, "Using exportDir=%s", exportDir)
-
-	postgresContainer := testcontainers.NewTestContainer("postgresql", &testcontainers.ContainerConfig{
-		ForLive: true,
-	})
-	err := postgresContainer.Start(ctx)
-	require.NoError(t, err, "Failed to start PostgreSQL container")
-	defer postgresContainer.Stop(ctx)
-
-	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil)
-	err = yugabytedbContainer.Start(ctx)
-	require.NoError(t, err, "Failed to start YugabyteDB container")
-	defer yugabytedbContainer.Stop(ctx)
-
-	postgresContainer.ExecuteSqls(
-		"DROP SCHEMA IF EXISTS test_schema_import_cdc_db_err CASCADE;",
-		"CREATE SCHEMA test_schema_import_cdc_db_err;",
-		`CREATE TABLE test_schema_import_cdc_db_err.cdc_import_test (
-			id SERIAL PRIMARY KEY,
-			name TEXT,
-			value INTEGER
-		);`,
-		`ALTER TABLE test_schema_import_cdc_db_err.cdc_import_test REPLICA IDENTITY FULL;`,
-		`INSERT INTO test_schema_import_cdc_db_err.cdc_import_test (name, value)
-		 SELECT 'snapshot_' || i, i FROM generate_series(1, 30) i;`,
-	)
-	defer postgresContainer.ExecuteSqls("DROP SCHEMA IF EXISTS test_schema_import_cdc_db_err CASCADE;")
-
-	yugabytedbContainer.ExecuteSqls(
-		"DROP SCHEMA IF EXISTS test_schema_import_cdc_db_err CASCADE;",
-		"CREATE SCHEMA test_schema_import_cdc_db_err;",
-		`CREATE TABLE test_schema_import_cdc_db_err.cdc_import_test (
-			id SERIAL PRIMARY KEY,
-			name TEXT,
-			value INTEGER
-		);`,
-	)
-	defer yugabytedbContainer.ExecuteSqls("DROP SCHEMA IF EXISTS test_schema_import_cdc_db_err CASCADE;")
-
-	cdcQueued := make(chan bool, 1)
-	generateCDC := func() {
-		testutils.LogTest(t, "Waiting for export to enter streaming mode...")
-		require.NoError(t, waitForStreamingModeImportTest(exportDir, 120*time.Second, 2*time.Second), "Export should enter streaming mode")
-		testutils.LogTest(t, "Export reached streaming mode; generating CDC changes...")
-
-		testutils.LogTest(t, "CDC batch 1: INSERT 200 rows")
-		postgresContainer.ExecuteSqls(
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB: ContainerConfig{
+			Type:         "postgresql",
+			ForLive:      true,
+			DatabaseName: "test_import_cdc_db_err",
+		},
+		TargetDB: ContainerConfig{
+			Type:         "yugabytedb",
+			DatabaseName: "test_import_cdc_db_err",
+		},
+		SchemaNames: []string{"test_schema_import_cdc_db_err"},
+		SchemaSQL: []string{
+			`CREATE SCHEMA IF NOT EXISTS test_schema_import_cdc_db_err;`,
+			`CREATE TABLE test_schema_import_cdc_db_err.cdc_import_test (
+				id SERIAL PRIMARY KEY,
+				name TEXT,
+				value INTEGER
+			);`,
+		},
+		SourceSetupSchemaSQL: []string{
+			`ALTER TABLE test_schema_import_cdc_db_err.cdc_import_test REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			`INSERT INTO test_schema_import_cdc_db_err.cdc_import_test (name, value)
+			 SELECT 'snapshot_' || i, i FROM generate_series(1, 30) i;`,
+		},
+		SourceDeltaSQL: []string{
 			`INSERT INTO test_schema_import_cdc_db_err.cdc_import_test (name, value)
 			 SELECT 'cdc_ins_' || i, 1000 + i FROM generate_series(1, 200) i;`,
-		)
-		time.Sleep(5 * time.Second)
-
-		testutils.LogTest(t, "CDC batch 2: UPDATE 200 rows")
-		postgresContainer.ExecuteSqls(
 			`UPDATE test_schema_import_cdc_db_err.cdc_import_test
 			 SET value = value + 10000
 			 WHERE id BETWEEN 1 AND 200;`,
-		)
-		time.Sleep(5 * time.Second)
-
-		testutils.LogTest(t, "CDC batch 3: DELETE 100 rows")
-		postgresContainer.ExecuteSqls(
 			`DELETE FROM test_schema_import_cdc_db_err.cdc_import_test WHERE id BETWEEN 11 AND 110;`,
-		)
+		},
+		CleanupSQL: []string{
+			`DROP SCHEMA IF EXISTS test_schema_import_cdc_db_err CASCADE;`,
+		},
+	})
+	defer lm.Cleanup()
 
-		testutils.LogTest(t, "Waiting for 500 CDC events to be queued to segment files...")
-		waitForCDCEventCountImportTest(t, exportDir, 500, 240*time.Second, 5*time.Second)
-		testutils.LogTest(t, "Verifying no duplicate event_id values in queued CDC...")
-		verifyNoEventIDDuplicatesImportTest(t, exportDir)
-		testutils.LogTest(t, "CDC queued and verified")
-		cdcQueued <- true
-	}
+	err := lm.SetupContainers(ctx)
+	require.NoError(t, err, "failed to setup containers")
+	err = lm.SetupSchema()
+	require.NoError(t, err, "failed to setup schema")
 
-	exportRunner := testutils.NewVoyagerCommandRunner(postgresContainer, "export data", []string{
-		"--export-dir", exportDir,
-		"--export-type", "snapshot-and-changes",
-		"--source-db-schema", "test_schema_import_cdc_db_err",
-		"--disable-pb", "true",
-		"--yes",
-	}, generateCDC, true)
-	err = exportRunner.Run()
-	require.NoError(t, err, "Failed to start export")
-	defer killDebeziumForExportDirImportTest(t, exportDir)
-
-	select {
-	case <-cdcQueued:
-	case <-time.After(180 * time.Second):
-		_ = exportRunner.Kill()
-		require.Fail(t, "Timed out waiting for CDC events to be queued")
-	}
-
-	testutils.LogTest(t, "Stopping export after CDC has been queued")
-	_ = exportRunner.Kill()
-	killDebeziumForExportDirImportTest(t, exportDir)
-	_ = os.Remove(filepath.Join(exportDir, ".export-dataLockfile.lck"))
-	time.Sleep(2 * time.Second)
-
-	migrationUUIDStr, err := readMigrationUUID(exportDir)
-	require.NoError(t, err, "Failed to read migration UUID from exportDir")
-	require.NotEmpty(t, migrationUUIDStr, "migration UUID should not be empty")
-	testutils.LogTestf(t, "Migration UUID: %s", migrationUUIDStr)
+	// --- Phase 1: Start export and import concurrently, wait for snapshot, then generate CDC ---
+	err = lm.StartExportData(true, nil)
+	require.NoError(t, err, "failed to start export")
+	defer killDebeziumForExportDirImportTest(t, lm.GetExportDir())
 
 	failpointEnv := testutils.GetFailpointEnvVar(
 		// Crash after 100 successful CDC batches have been committed, so `last_applied_vsn > 0`
 		// is observable and we can prove resume work is meaningful.
 		"github.com/yugabyte/yb-voyager/yb-voyager/cmd/importCDCBatchDBError=100*off->return(true)",
 	)
-
-	testutils.LogTest(t, "Running import with CDC DB-error failpoint (expected to crash)...")
-	importWithFailpoint := testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
-		"--export-dir", exportDir,
-		"--disable-pb", "true",
-		"--max-retries-streaming", "1",
-		"--yes",
-	}, nil, true).WithEnv(
+	err = lm.StartImportDataWithEnv(true, map[string]string{
+		"--max-retries-streaming": "1",
+	}, []string{
 		failpointEnv,
-		// Make "Nth batch" deterministic and keep progress visible.
 		"NUM_EVENT_CHANNELS=1",
 		"MAX_EVENTS_PER_BATCH=1",
 		"MAX_INTERVAL_BETWEEN_BATCHES=1",
 		"EVENT_CHANNEL_SIZE=2",
-	)
-	err = importWithFailpoint.Run()
-	require.NoError(t, err, "Failed to start import with failpoint")
+	})
+	require.NoError(t, err, "failed to start import with failpoint")
 
-	failMarkerPath := filepath.Join(exportDir, "logs", "failpoint-import-cdc-db-error.log")
-	testutils.LogTestf(t, "Waiting for failpoint marker: %s", failMarkerPath)
-	matched, err := testutils.WaitForFailpointMarker(failMarkerPath, 60*time.Second, 2*time.Second)
-	require.NoError(t, err, "Should be able to read CDC DB-error marker")
-	if !matched {
-		_ = importWithFailpoint.Kill()
-		require.Fail(t, "CDC DB-error marker did not trigger (failpoints may not be enabled). "+
-			"Make sure to run `failpoint-ctl enable` before `go test -tags=failpoint`.")
-	}
+	err = lm.WaitForSnapshotComplete(map[string]int64{
+		`"test_schema_import_cdc_db_err"."cdc_import_test"`: 30,
+	}, 120)
+	require.NoError(t, err, "snapshot phase did not complete")
+	testutils.LogTest(t, "Snapshot complete; generating CDC changes...")
 
-	testutils.LogTest(t, "Failpoint marker detected; waiting for import process to exit with error...")
-	_, waitErr := testutils.WaitForProcessExitOrKill(importWithFailpoint, 60*time.Second)
-	require.Error(t, waitErr, "Import should exit with error after CDC DB-error failpoint")
-	_ = os.Remove(filepath.Join(exportDir, ".import-dataLockfile.lck"))
+	lm.ExecuteSourceDelta()
 
-	maxQueuedVsn, err := maxVsnInQueueSegments(exportDir)
+	// --- Phase 2: Wait for failpoint to fire and import to crash ---
+	failMarkerPath := filepath.Join(lm.GetExportDir(), "logs", "failpoint-import-cdc-db-error.log")
+	err = testutils.WaitForFailpointAndProcessCrash(t, lm.GetImportRunner(), failMarkerPath, 120*time.Second, 60*time.Second)
+	require.NoError(t, err, "Import should crash after CDC DB-error failpoint")
+
+	// Verify partial CDC progress: some events applied, but not all queued ones.
+	migrationUUIDStr, err := lm.ReadMigrationUUID()
+	require.NoError(t, err, "Failed to read migration UUID")
+	require.NotEmpty(t, migrationUUIDStr)
+
+	maxQueuedVsn, err := maxVsnInQueueSegments(lm.GetExportDir())
 	require.NoError(t, err, "Failed to compute max queued vsn from queue segments")
 	testutils.LogTestf(t, "Max queued vsn in CDC segments: %d", maxQueuedVsn)
 
-	ybConnForChecks, err := yugabytedbContainer.GetConnection()
-	require.NoError(t, err, "Failed to get YugabyteDB connection for mid-test checks")
-	defer ybConnForChecks.Close()
+	err = lm.WithTargetConn(func(ybConn *sql.DB) error {
+		lastAppliedVsn, err := maxLastAppliedVsn(ybConn, migrationUUIDStr)
+		require.NoError(t, err, "Failed to read last_applied_vsn from event channels metadata")
+		testutils.LogTestf(t, "Max last_applied_vsn on target after failure: %d", lastAppliedVsn)
+		require.Greater(t, lastAppliedVsn, int64(0), "Expected some CDC progress before failure")
+		require.Less(t, lastAppliedVsn, maxQueuedVsn, "Expected partial progress (not all events applied)")
+		return nil
+	})
+	require.NoError(t, err)
 
-	lastAppliedVsn, err := maxLastAppliedVsn(ybConnForChecks, migrationUUIDStr)
-	require.NoError(t, err, "Failed to read last_applied_vsn from event channels metadata")
-	testutils.LogTestf(t, "Max last_applied_vsn on target after failure: %d", lastAppliedVsn)
-
-	var targetRowCount int
-	err = ybConnForChecks.QueryRow("SELECT COUNT(*) FROM test_schema_import_cdc_db_err.cdc_import_test").Scan(&targetRowCount)
-	require.NoError(t, err, "Failed to query target row count after failure")
-	testutils.LogTestf(t, "Target row count after failure: %d", targetRowCount)
-
-	require.Greater(t, lastAppliedVsn, int64(0), "Expected some CDC progress before failure (last_applied_vsn > 0)")
-	require.Less(t, lastAppliedVsn, maxQueuedVsn, "Expected partial progress (last_applied_vsn < max queued vsn)")
-
-	testutils.LogTest(t, "Resuming import without failpoint and waiting for target to match source...")
-	importResume := testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
-		"--export-dir", exportDir,
-		"--disable-pb", "true",
-		"--yes",
-	}, nil, true).WithEnv(
+	// --- Phase 3: Resume import without failpoint (export still running) ---
+	testutils.LogTest(t, "Resuming import without failpoint...")
+	err = lm.StartImportDataWithEnv(true, nil, []string{
 		"NUM_EVENT_CHANNELS=1",
 		"MAX_EVENTS_PER_BATCH=1",
 		"MAX_INTERVAL_BETWEEN_BATCHES=1",
 		"EVENT_CHANNEL_SIZE=2",
-	)
-	err = importResume.Run()
+	})
 	require.NoError(t, err, "Failed to start import resume")
-	defer importResume.Kill()
+	defer lm.StopImportData()
 
-	pgConn, err := postgresContainer.GetConnection()
-	require.NoError(t, err, "Failed to get PostgreSQL connection")
-	defer pgConn.Close()
+	err = lm.WithSourceTargetConn(func(pgConn, ybConn *sql.DB) error {
+		require.Eventually(t, func() bool {
+			return testutils.CompareTableData(ctx, pgConn, ybConn, tableName, "id") == nil
+		}, 180*time.Second, 5*time.Second, "Timed out waiting for target to match source after resume")
+		return nil
+	})
+	require.NoError(t, err)
 
-	ybConn, err := yugabytedbContainer.GetConnection()
-	require.NoError(t, err, "Failed to get YugabyteDB connection")
-	defer ybConn.Close()
-
-	require.Eventually(t, func() bool {
-		// CompareTableData returns nil only when fully caught up.
-		return testutils.CompareTableData(ctx, pgConn, ybConn, "test_schema_import_cdc_db_err.cdc_import_test", "id") == nil
-	}, 180*time.Second, 5*time.Second, "Timed out waiting for target to match source after resume")
-
-	testutils.LogTest(t, "✓ Target matches source after resume (CDC DB error)")
-
-	// best-effort shutdown
-	_ = importResume.Kill()
-	_ = os.Remove(filepath.Join(exportDir, ".import-dataLockfile.lck"))
+	testutils.LogTest(t, "Target matches source after resume (CDC DB error)")
 }
 
 // TestImportCDCEventExecutionFailureAndResume verifies that live migration `import data` can resume
 // after a non-retryable target DB error occurs while applying a CDC event inside a batch.
 //
 // Scenario:
-//  1. Run `export data --export-type snapshot-and-changes` and wait for streaming mode.
-//  2. Generate CDC inserts and wait until queue segments persist all events.
-//  3. Stop export to freeze the queue.
-//  4. Run `import data` with failpoint injection inside `tgtdb.TargetYugabyteDB.ExecuteBatch()`
-//     that fails on the (N+1)-th CDC event execution attempt (expect crash mid-stream).
-//  5. After crash, verify partial progress (last_applied_vsn > 0) and confirm source != target.
+//  1. Start `export data` and `import data` concurrently (import runs with failpoint enabled).
+//  2. Wait for the snapshot phase to complete via the framework's WaitForSnapshotComplete.
+//  3. Generate CDC inserts on the source via SourceDeltaSQL.
+//  4. Wait for the failpoint to fire during CDC streaming, causing import to crash.
+//  5. Verify partial CDC progress on target and confirm source != target (export keeps running).
 //  6. Resume `import data` without failpoint and verify target matches source.
 //
 // Notes on determinism:
@@ -429,184 +339,129 @@ func TestImportCDCDbErrorAndResume(t *testing.T) {
 // - Failpoint uses a hit-counter pattern: `50*off->return(true)` fails on the 51st event execution attempt.
 func TestImportCDCEventExecutionFailureAndResume(t *testing.T) {
 	ctx := context.Background()
+	tableName := "test_schema_import_cdc_event_fail.cdc_import_test"
 
-	exportDir = testutils.CreateTempExportDir()
-	defer testutils.RemoveTempExportDir(exportDir)
-	testutils.LogTestf(t, "Using exportDir=%s", exportDir)
-
-	postgresContainer := testcontainers.NewTestContainer("postgresql", &testcontainers.ContainerConfig{
-		ForLive: true,
-	})
-	err := postgresContainer.Start(ctx)
-	require.NoError(t, err, "Failed to start PostgreSQL container")
-	defer postgresContainer.Stop(ctx)
-
-	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil)
-	err = yugabytedbContainer.Start(ctx)
-	require.NoError(t, err, "Failed to start YugabyteDB container")
-	defer yugabytedbContainer.Stop(ctx)
-
-	postgresContainer.ExecuteSqls(
-		"DROP SCHEMA IF EXISTS test_schema_import_cdc_event_fail CASCADE;",
-		"CREATE SCHEMA test_schema_import_cdc_event_fail;",
-		`CREATE TABLE test_schema_import_cdc_event_fail.cdc_import_test (
-			id INTEGER PRIMARY KEY,
-			name TEXT
-		);`,
-		`ALTER TABLE test_schema_import_cdc_event_fail.cdc_import_test REPLICA IDENTITY FULL;`,
-		`INSERT INTO test_schema_import_cdc_event_fail.cdc_import_test (id, name)
-		 SELECT i, 'snapshot_' || i FROM generate_series(1, 30) i;`,
-	)
-	defer postgresContainer.ExecuteSqls("DROP SCHEMA IF EXISTS test_schema_import_cdc_event_fail CASCADE;")
-
-	yugabytedbContainer.ExecuteSqls(
-		"DROP SCHEMA IF EXISTS test_schema_import_cdc_event_fail CASCADE;",
-		"CREATE SCHEMA test_schema_import_cdc_event_fail;",
-		`CREATE TABLE test_schema_import_cdc_event_fail.cdc_import_test (
-			id INTEGER PRIMARY KEY,
-			name TEXT
-		);`,
-	)
-	defer yugabytedbContainer.ExecuteSqls("DROP SCHEMA IF EXISTS test_schema_import_cdc_event_fail CASCADE;")
-
-	cdcQueued := make(chan bool, 1)
-	generateCDC := func() {
-		testutils.LogTest(t, "Waiting for export to enter streaming mode...")
-		require.NoError(t, waitForStreamingModeImportTest(exportDir, 120*time.Second, 2*time.Second), "Export should enter streaming mode")
-		testutils.LogTest(t, "Export reached streaming mode; generating CDC inserts...")
-
-		// 120 inserts => 120 CDC events in queue.
-		postgresContainer.ExecuteSqls(
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB: ContainerConfig{
+			Type:         "postgresql",
+			ForLive:      true,
+			DatabaseName: "test_import_cdc_event_fail",
+		},
+		TargetDB: ContainerConfig{
+			Type:         "yugabytedb",
+			DatabaseName: "test_import_cdc_event_fail",
+		},
+		SchemaNames: []string{"test_schema_import_cdc_event_fail"},
+		SchemaSQL: []string{
+			`CREATE SCHEMA IF NOT EXISTS test_schema_import_cdc_event_fail;`,
+			`CREATE TABLE test_schema_import_cdc_event_fail.cdc_import_test (
+				id INTEGER PRIMARY KEY,
+				name TEXT
+			);`,
+		},
+		SourceSetupSchemaSQL: []string{
+			`ALTER TABLE test_schema_import_cdc_event_fail.cdc_import_test REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			`INSERT INTO test_schema_import_cdc_event_fail.cdc_import_test (id, name)
+			 SELECT i, 'snapshot_' || i FROM generate_series(1, 30) i;`,
+		},
+		SourceDeltaSQL: []string{
 			`INSERT INTO test_schema_import_cdc_event_fail.cdc_import_test (id, name)
 			 SELECT 1000 + i, 'cdc_ins_' || i FROM generate_series(1, 120) i;`,
-		)
+		},
+		CleanupSQL: []string{
+			`DROP SCHEMA IF EXISTS test_schema_import_cdc_event_fail CASCADE;`,
+		},
+	})
+	defer lm.Cleanup()
 
-		testutils.LogTest(t, "Waiting for 120 CDC events to be queued to segment files...")
-		waitForCDCEventCountImportTest(t, exportDir, 120, 240*time.Second, 5*time.Second)
-		testutils.LogTest(t, "Verifying no duplicate event_id values in queued CDC...")
-		verifyNoEventIDDuplicatesImportTest(t, exportDir)
-		testutils.LogTest(t, "CDC queued and verified")
-		cdcQueued <- true
-	}
+	err := lm.SetupContainers(ctx)
+	require.NoError(t, err, "failed to setup containers")
+	err = lm.SetupSchema()
+	require.NoError(t, err, "failed to setup schema")
 
-	exportRunner := testutils.NewVoyagerCommandRunner(postgresContainer, "export data", []string{
-		"--export-dir", exportDir,
-		"--export-type", "snapshot-and-changes",
-		"--source-db-schema", "test_schema_import_cdc_event_fail",
-		"--disable-pb", "true",
-		"--yes",
-	}, generateCDC, true)
-	err = exportRunner.Run()
-	require.NoError(t, err, "Failed to start export")
-	defer killDebeziumForExportDirImportTest(t, exportDir)
-
-	select {
-	case <-cdcQueued:
-	case <-time.After(180 * time.Second):
-		_ = exportRunner.Kill()
-		require.Fail(t, "Timed out waiting for CDC events to be queued")
-	}
-
-	testutils.LogTest(t, "Stopping export after CDC has been queued")
-	_ = exportRunner.Kill()
-	killDebeziumForExportDirImportTest(t, exportDir)
-	_ = os.Remove(filepath.Join(exportDir, ".export-dataLockfile.lck"))
-	time.Sleep(2 * time.Second)
-
-	migrationUUIDStr, err := readMigrationUUID(exportDir)
-	require.NoError(t, err, "Failed to read migration UUID from exportDir")
-	require.NotEmpty(t, migrationUUIDStr, "migration UUID should not be empty")
-	testutils.LogTestf(t, "Migration UUID: %s", migrationUUIDStr)
+	// --- Phase 1: Start export and import concurrently, wait for snapshot, then generate CDC ---
+	err = lm.StartExportData(true, nil)
+	require.NoError(t, err, "failed to start export")
+	defer killDebeziumForExportDirImportTest(t, lm.GetExportDir())
 
 	failpointEnv := testutils.GetFailpointEnvVar(
 		"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb/importCDCExecEventError=50*off->return(true)",
 	)
-
-	testutils.LogTest(t, "Running import with CDC event execution failpoint (expected to crash)...")
-	importWithFailpoint := testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
-		"--export-dir", exportDir,
-		"--disable-pb", "true",
-		"--max-retries-streaming", "1",
-		"--yes",
-	}, nil, true).WithEnv(
+	err = lm.StartImportDataWithEnv(true, map[string]string{
+		"--max-retries-streaming": "1",
+	}, []string{
 		failpointEnv,
-		fmt.Sprintf("YB_VOYAGER_FAILPOINT_MARKER_DIR=%s", filepath.Join(exportDir, "logs")),
+		fmt.Sprintf("YB_VOYAGER_FAILPOINT_MARKER_DIR=%s", filepath.Join(lm.GetExportDir(), "logs")),
 		"NUM_EVENT_CHANNELS=1",
 		"MAX_EVENTS_PER_BATCH=10",
 		"MAX_INTERVAL_BETWEEN_BATCHES=1",
 		"EVENT_CHANNEL_SIZE=20",
-	)
-	err = importWithFailpoint.Run()
-	require.NoError(t, err, "Failed to start import with failpoint")
+	})
+	require.NoError(t, err, "failed to start import with failpoint")
 
-	failMarkerPath := filepath.Join(exportDir, "logs", "failpoint-import-cdc-exec-event-error.log")
-	testutils.LogTestf(t, "Waiting for failpoint marker: %s", failMarkerPath)
-	matched, err := testutils.WaitForFailpointMarker(failMarkerPath, 60*time.Second, 2*time.Second)
-	require.NoError(t, err, "Should be able to read CDC exec-event failure marker")
-	if !matched {
-		_ = importWithFailpoint.Kill()
-		require.Fail(t, "CDC exec-event failure marker did not trigger (failpoints may not be enabled). "+
-			"Make sure to run `failpoint-ctl enable` before `go test -tags=failpoint` and use a failpoint-enabled yb-voyager binary.")
-	}
+	err = lm.WaitForSnapshotComplete(map[string]int64{
+		`"test_schema_import_cdc_event_fail"."cdc_import_test"`: 30,
+	}, 120)
+	require.NoError(t, err, "snapshot phase did not complete")
+	testutils.LogTest(t, "Snapshot complete; generating CDC inserts...")
 
-	_, waitErr := testutils.WaitForProcessExitOrKill(importWithFailpoint, 60*time.Second)
-	require.Error(t, waitErr, "Import should exit with error after CDC event execution failpoint")
-	require.Contains(t, importWithFailpoint.Stderr(), "failpoint", "Expected failpoint mention in import stderr")
-	_ = os.Remove(filepath.Join(exportDir, ".import-dataLockfile.lck"))
+	lm.ExecuteSourceDelta()
 
-	maxQueuedVsn, err := maxVsnInQueueSegments(exportDir)
+	// --- Phase 2: Wait for failpoint to fire and import to crash ---
+	failMarkerPath := filepath.Join(lm.GetExportDir(), "logs", "failpoint-import-cdc-exec-event-error.log")
+	err = testutils.WaitForFailpointAndProcessCrash(t, lm.GetImportRunner(), failMarkerPath, 120*time.Second, 60*time.Second)
+	require.NoError(t, err, "Import should crash after CDC exec-event failpoint")
+	require.Contains(t, lm.GetImportCommandStderr(), "failpoint", "Expected failpoint mention in import stderr")
+
+	// Verify partial CDC progress: some events applied, but not all queued ones.
+	migrationUUIDStr, err := lm.ReadMigrationUUID()
+	require.NoError(t, err, "Failed to read migration UUID")
+	require.NotEmpty(t, migrationUUIDStr)
+
+	maxQueuedVsn, err := maxVsnInQueueSegments(lm.GetExportDir())
 	require.NoError(t, err, "Failed to compute max queued vsn from queue segments")
 	testutils.LogTestf(t, "Max queued vsn in CDC segments: %d", maxQueuedVsn)
 
-	ybConnForChecks, err := yugabytedbContainer.GetConnection()
-	require.NoError(t, err, "Failed to get YugabyteDB connection for mid-test checks")
-	defer ybConnForChecks.Close()
-
-	lastAppliedVsn, err := maxLastAppliedVsn(ybConnForChecks, migrationUUIDStr)
-	require.NoError(t, err, "Failed to read last_applied_vsn from event channels metadata")
-	testutils.LogTestf(t, "Max last_applied_vsn on target after failure: %d", lastAppliedVsn)
-	require.Greater(t, lastAppliedVsn, int64(0), "Expected some CDC progress before failure (last_applied_vsn > 0)")
-	require.Less(t, lastAppliedVsn, maxQueuedVsn, "Expected partial progress (last_applied_vsn < max queued vsn)")
+	err = lm.WithTargetConn(func(ybConn *sql.DB) error {
+		lastAppliedVsn, err := maxLastAppliedVsn(ybConn, migrationUUIDStr)
+		require.NoError(t, err, "Failed to read last_applied_vsn from event channels metadata")
+		testutils.LogTestf(t, "Max last_applied_vsn on target after failure: %d", lastAppliedVsn)
+		require.Greater(t, lastAppliedVsn, int64(0), "Expected some CDC progress before failure")
+		require.Less(t, lastAppliedVsn, maxQueuedVsn, "Expected partial progress (not all events applied)")
+		return nil
+	})
+	require.NoError(t, err)
 
 	// After failure, target must not match source yet.
-	pgConnForMismatch, err := postgresContainer.GetConnection()
-	require.NoError(t, err, "Failed to get PostgreSQL connection for mismatch check")
-	defer pgConnForMismatch.Close()
-	require.Error(t, testutils.CompareTableData(ctx, pgConnForMismatch, ybConnForChecks, "test_schema_import_cdc_event_fail.cdc_import_test", "id"),
-		"Expected source != target after CDC failure (resume should be required)")
+	err = lm.WithSourceTargetConn(func(pgConn, ybConn *sql.DB) error {
+		require.Error(t, testutils.CompareTableData(ctx, pgConn, ybConn, tableName, "id"),
+			"Expected source != target after CDC failure (resume should be required)")
+		return nil
+	})
+	require.NoError(t, err)
 
-	testutils.LogTest(t, "Resuming import without failpoint and waiting for target to match source...")
-	importResume := testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
-		"--export-dir", exportDir,
-		"--disable-pb", "true",
-		"--yes",
-	}, nil, true).WithEnv(
+	// --- Phase 3: Resume import without failpoint (export still running) ---
+	testutils.LogTest(t, "Resuming import without failpoint...")
+	err = lm.StartImportDataWithEnv(true, nil, []string{
 		"NUM_EVENT_CHANNELS=1",
 		"MAX_EVENTS_PER_BATCH=10",
 		"MAX_INTERVAL_BETWEEN_BATCHES=1",
 		"EVENT_CHANNEL_SIZE=20",
-	)
-	err = importResume.Run()
+	})
 	require.NoError(t, err, "Failed to start import resume")
-	defer importResume.Kill()
+	defer lm.StopImportData()
 
-	pgConn, err := postgresContainer.GetConnection()
-	require.NoError(t, err, "Failed to get PostgreSQL connection")
-	defer pgConn.Close()
+	err = lm.WithSourceTargetConn(func(pgConn, ybConn *sql.DB) error {
+		require.Eventually(t, func() bool {
+			return testutils.CompareTableData(ctx, pgConn, ybConn, tableName, "id") == nil
+		}, 240*time.Second, 5*time.Second, "Timed out waiting for target to match source after resume")
+		return nil
+	})
+	require.NoError(t, err)
 
-	ybConn, err := yugabytedbContainer.GetConnection()
-	require.NoError(t, err, "Failed to get YugabyteDB connection")
-	defer ybConn.Close()
-
-	require.Eventually(t, func() bool {
-		return testutils.CompareTableData(ctx, pgConn, ybConn, "test_schema_import_cdc_event_fail.cdc_import_test", "id") == nil
-	}, 240*time.Second, 5*time.Second, "Timed out waiting for target to match source after resume")
-
-	testutils.LogTest(t, "✓ Target matches source after resume (CDC event execution failure)")
-
-	// best-effort shutdown
-	_ = importResume.Kill()
-	_ = os.Remove(filepath.Join(exportDir, ".import-dataLockfile.lck"))
+	testutils.LogTest(t, "Target matches source after resume (CDC event execution failure)")
 }
 
 // TestImportCDCRetryableDbErrorThenSucceed verifies that live migration `import data` retries and

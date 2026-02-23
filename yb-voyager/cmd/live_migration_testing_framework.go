@@ -460,12 +460,8 @@ func (lm *LiveMigrationTest) ReadMigrationUUID() (string, error) {
 	return msr.MigrationUUID, nil
 }
 
-// WaitForImportProcessExit waits for the import process to exit naturally within
-// the given timeout. If it doesn't exit in time, it kills the process.
-// Returns (killed, err) — killed is true if SIGKILL was sent, err is the process
-// exit error on natural exit.
-func (lm *LiveMigrationTest) WaitForImportProcessExit(timeout time.Duration) (bool, error) {
-	return testutils.WaitForProcessExitOrKill(lm.importCmd, timeout)
+func (lm *LiveMigrationTest) GetImportRunner() *testutils.VoyagerCommandRunner {
+	return lm.importCmd
 }
 
 func (lm *LiveMigrationTest) GetExportCommandStderr() string {
@@ -838,7 +834,7 @@ func (lm *LiveMigrationTest) GetDataMigrationReport() (*DataMigrationReport, err
 		if err != nil {
 			return nil, goerrors.Errorf("get data-migration-report command failed: %w", err)
 		}
-		
+
 		reportFilePath := filepath.Join(lm.exportDir, "reports", "data-migration-report.json")
 		if !utils.FileOrFolderExists(reportFilePath) {
 			maxRetry--
@@ -848,13 +844,13 @@ func (lm *LiveMigrationTest) GetDataMigrationReport() (*DataMigrationReport, err
 			time.Sleep(2 * time.Second)
 			continue
 		}
-	
+
 		jsonFile := jsonfile.NewJsonFile[[]*rowData](reportFilePath)
 		rowData, err := jsonFile.Read()
 		if err != nil {
 			return nil, goerrors.Errorf("error reading data-migration-report: %w", err)
 		}
-	
+
 		return &DataMigrationReport{RowData: *rowData}, nil
 	}
 }
