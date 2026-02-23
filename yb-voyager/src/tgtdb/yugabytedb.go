@@ -306,21 +306,7 @@ func (yb *TargetYugabyteDB) InitConnPool() error {
 	log.Infof("targetUriList: %s", utils.GetRedactedURLs(targetUriList))
 
 	nodeCount := len(confs) // confs from GetYBServers() has all nodes, even when using a load balancer
-	if yb.Tconf.Parallelism <= 0 {
-		// Parallelism = totalCores / 4 (N/4), where N is detected or estimated as nodeCount * YB_DEFAULT_CORES_PER_NODE
-		yb.Tconf.Parallelism = yb.fetchDefaultParallelJobs(tconfs, nodeCount, loadBalancerUsed)
-		log.Infof("Using %d parallel jobs by default. Use --parallel-jobs to specify a custom value", yb.Tconf.Parallelism)
-	}
-
-	if yb.tconf.AdaptiveParallelismMode.IsEnabled() {
-		if yb.tconf.MaxParallelism <= 0 {
-			// MaxParallelism = Parallelism * 4 = (N/4) * 4 = N (total cores).
-			// The adaptive algorithm's CPU/memory thresholds are the actual safety mechanism, not this cap.
-			yb.tconf.MaxParallelism = yb.tconf.Parallelism * 4
-		}
-	} else {
-		yb.Tconf.MaxParallelism = yb.Tconf.Parallelism
-	}
+	yb.setDefaultParallelism(tconfs, nodeCount, loadBalancerUsed)
 	params := &ConnectionParams{
 		NumConnections:    yb.Tconf.Parallelism,
 		NumMaxConnections: yb.Tconf.MaxParallelism,
@@ -1458,6 +1444,24 @@ func fetchCores(tconfs []*TargetConf) (int, error) {
 		totalCores += targetCores
 	}
 	return totalCores, nil
+}
+
+// setDefaultParallelism sets Parallelism and MaxParallelism on yb.tconf if not already
+// specified by the user. Parallelism defaults to clusterCores/4, and MaxParallelism defaults
+// to Parallelism*4 (i.e. clusterCores) when adaptive parallelism is enabled.
+func (yb *TargetYugabyteDB) setDefaultParallelism(tconfs []*TargetConf, nodeCount int, loadBalancerUsed bool) {
+	if yb.tconf.Parallelism <= 0 {
+		yb.tconf.Parallelism = yb.fetchDefaultParallelJobs(tconfs, nodeCount, loadBalancerUsed)
+		log.Infof("Using %d parallel jobs by default. Use --parallel-jobs to specify a custom value", yb.tconf.Parallelism)
+	}
+
+	if yb.tconf.AdaptiveParallelismMode.IsEnabled() {
+		if yb.tconf.MaxParallelism <= 0 {
+			yb.tconf.MaxParallelism = yb.tconf.Parallelism * 4
+		}
+	} else {
+		yb.tconf.MaxParallelism = yb.tconf.Parallelism
+	}
 }
 
 // Determines totalCores for the cluster to compute default parallel jobs (totalCores / 4).
