@@ -189,6 +189,9 @@ func handleConnectionString(configFilePath, exportDirPath string) {
 		schemas = "public"
 	}
 
+	// Check SELECT permissions
+	selectPermsMissing := checkAndReportSelectPermissions(connString, schemas)
+
 	// Prompt for fleet control plane
 	cpConnStr := promptFleetControlPlane()
 
@@ -203,8 +206,8 @@ func handleConnectionString(configFilePath, exportDirPath string) {
 		Schema:   schemas,
 	}, nil, cpConnStr)
 
-	printInitResultBox(parsed, configFilePath, exportDirPath)
-	printInitNextSteps(configFilePath, true, false)
+	printInitResultBox(parsed, configFilePath, exportDirPath, selectPermsMissing)
+	printInitNextSteps(configFilePath, true, false, selectPermsMissing, parsed)
 }
 
 // handleConnectionStringDirect handles the case where the connection string was provided via flag (non-interactive).
@@ -229,6 +232,9 @@ func handleConnectionStringDirect(configFilePath, exportDirPath, connStr string)
 		schemas = "public"
 	}
 
+	// Check SELECT permissions
+	selectPermsMissing := checkAndReportSelectPermissions(connStr, schemas)
+
 	// Generate config from template with source details filled in
 	// Non-interactive: no fleet prompt; use default local control plane
 	generateConfigFile(configFilePath, exportDirPath, &sourceConfig{
@@ -241,8 +247,8 @@ func handleConnectionStringDirect(configFilePath, exportDirPath, connStr string)
 		Schema:   schemas,
 	}, nil)
 
-	printInitResultBox(parsed, configFilePath, exportDirPath)
-	printInitNextSteps(configFilePath, true, false)
+	printInitResultBox(parsed, configFilePath, exportDirPath, selectPermsMissing)
+	printInitNextSteps(configFilePath, true, false, selectPermsMissing, parsed)
 }
 
 // handleGenerateScripts creates export-dir and copies gather-assessment-metadata scripts
@@ -285,7 +291,7 @@ func handleGenerateScripts(configFilePath, exportDirPath string) {
 	fmt.Println("  " + successStyle.Render("Done!"))
 	fmt.Println()
 
-	printInitNextSteps(configFilePath, false, true)
+	printInitNextSteps(configFilePath, false, true, false, nil)
 }
 
 // handleSkip creates export-dir and generates a config template
@@ -315,7 +321,7 @@ func handleSkip(configFilePath, exportDirPath string) {
 	fmt.Println("  " + successStyle.Render("Done!"))
 	fmt.Println()
 
-	printInitNextSteps(configFilePath, false, false)
+	printInitNextSteps(configFilePath, false, false, false, nil)
 }
 
 // promptFleetControlPlane asks the user whether they have a fleet of databases to assess
@@ -455,6 +461,62 @@ func validatePostgresConnection(connStr string) error {
 	defer conn.Close(ctx)
 
 	return conn.Ping(ctx)
+}
+
+// checkBasicSelectPermissions connects to the source DB and checks whether the
+// user has SELECT permission on all tables in the given schemas (comma-separated).
+// Returns true if any table is missing SELECT permission (i.e. permissions need
+// to be granted), and the count of affected tables.
+func checkBasicSelectPermissions(connStr string, schemas string) (missingPerms bool, missingCount int, err error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	conn, err := pgx.Connect(ctx, connStr)
+	if err != nil {
+		return false, 0, fmt.Errorf("failed to connect for permission check: %w", err)
+	}
+	defer conn.Close(ctx)
+
+	schemaList := strings.Split(schemas, ",")
+	for i, s := range schemaList {
+		schemaList[i] = strings.TrimSpace(s)
+	}
+
+	quoted := make([]string, len(schemaList))
+	for i, s := range schemaList {
+		quoted[i] = fmt.Sprintf("'%s'", s)
+	}
+	schemaFilter := strings.Join(quoted, ",")
+
+	query := fmt.Sprintf(`
+		SELECT count(*)
+		FROM pg_tables t
+		WHERE t.schemaname IN (%s)
+		  AND NOT has_table_privilege(current_user,
+		          quote_ident(t.schemaname) || '.' || quote_ident(t.tablename), 'SELECT')
+	`, schemaFilter)
+
+	var count int
+	if err := conn.QueryRow(ctx, query).Scan(&count); err != nil {
+		return false, 0, fmt.Errorf("failed to check SELECT permissions: %w", err)
+	}
+
+	return count > 0, count, nil
+}
+
+// checkAndReportSelectPermissions runs the SELECT permission check and prints
+// an inline warning if permissions are missing. Returns true when permissions
+// are missing.
+func checkAndReportSelectPermissions(connStr, schemas string) bool {
+	missing, count, err := checkBasicSelectPermissions(connStr, schemas)
+	if err != nil {
+		fmt.Printf("  %s\n", warnStyle.Render(fmt.Sprintf("⚠ Could not verify SELECT permissions: %v", err)))
+		return false
+	}
+	if missing {
+		fmt.Printf("  %s\n", warnStyle.Render(fmt.Sprintf("⚠ SELECT permission missing on %d table(s)", count)))
+	}
+	return missing
 }
 
 type sourceConfig struct {
@@ -690,7 +752,7 @@ func copyGatherScripts(srcDir, destDir string) {
 
 // printInitResultBox prints the "Initializing Migration Project" section with
 // progressive checkmarks (each appearing with a short delay).
-func printInitResultBox(parsed *parsedConnInfo, configFilePath, exportDirPath string) {
+func printInitResultBox(parsed *parsedConnInfo, configFilePath, exportDirPath string, selectPermsMissing bool) {
 	fmt.Println()
 	fmt.Println("  " + titleStyle.Render("Initializing Migration Project"))
 	fmt.Println("  " + ruleStyle.Render(strings.Repeat("─", ruleWidth)))
@@ -709,19 +771,32 @@ func printInitResultBox(parsed *parsedConnInfo, configFilePath, exportDirPath st
 		time.Sleep(1 * time.Second)
 		fmt.Println("  " + step)
 	}
+	if selectPermsMissing {
+		time.Sleep(500 * time.Millisecond)
+		fmt.Println("  " + warnStyle.Render("⚠") + " SELECT permissions missing — grant before running assessment")
+	}
 	time.Sleep(500 * time.Millisecond)
 	fmt.Println()
 	fmt.Println("  " + successStyle.Render("Done!"))
 	fmt.Println()
 }
 
-func printInitNextSteps(configFilePath string, connected bool, scripts bool) {
+func printInitNextSteps(configFilePath string, connected bool, scripts bool, selectPermsMissing bool, parsed *parsedConnInfo) {
 	var lines []string
 
 	step := 1
 	if !connected && !scripts {
 		lines = append(lines, fmt.Sprintf("%d. Add your source connection details to the config file:", step))
 		lines = append(lines, fmt.Sprintf("   vi %s", displayPath(configFilePath)))
+		lines = append(lines, "")
+		step++
+	}
+
+	if selectPermsMissing && parsed != nil {
+		lines = append(lines, fmt.Sprintf("%d. Grant required permissions on your source database:", step))
+		lines = append(lines, "")
+		lines = append(lines, cmdStyle.Render(fmt.Sprintf("  psql -h %s -d %s -U %s \\\n    -f /opt/yb-voyager/guardrails-scripts/yb-voyager-pg-grant-migration-permissions.sql",
+			parsed.Host, parsed.DBName, parsed.User)))
 		lines = append(lines, "")
 		step++
 	}
@@ -742,7 +817,7 @@ func printInitNextSteps(configFilePath string, connected bool, scripts bool) {
 		lines = append(lines, cmdStyle.Render(fmt.Sprintf("   yb-voyager assess run --config-file %s --assessment-metadata-dir /path/to/metadata",
 			displayPath(configFilePath))))
 	} else {
-		lines = append(lines, nextStepLabelStyle.Render("Assess your source database for migration:"))
+		lines = append(lines, nextStepLabelStyle.Render(fmt.Sprintf("%d. Assess your source database for migration:", step)))
 		lines = append(lines, cmdStyle.Render(fmt.Sprintf("  yb-voyager assess run --config-file %s",
 			displayPath(configFilePath))))
 	}

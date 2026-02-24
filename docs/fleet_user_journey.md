@@ -69,3 +69,6 @@ yb-voyager start-migration --assessment-control-plane 'postgresql://yugabyte:yug
 clean up
 - control plane truncate
 - drop and recreate db2 on target
+
+
+postgresql://testuser:password@localhost:5432/db1
