@@ -21,13 +21,16 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	goerrors "github.com/go-errors/errors"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/jsonfile"
@@ -330,6 +333,37 @@ func (lm *LiveMigrationTest) StopExportData() error {
 	}
 	fmt.Printf("Export data stopped\n")
 	return nil
+}
+
+// KillDebezium force-kills the Debezium Java process associated with this test's exportDir.
+// Debezium runs as a separate child Java process and can outlive the `yb-voyager` parent if
+// the parent is SIGKILLed. Call this via defer after starting export to prevent leaked processes.
+func (lm *LiveMigrationTest) KillDebezium() {
+	pidStr, err := dbzm.GetPIDOfDebeziumOnExportDir(lm.exportDir, SOURCE_DB_EXPORTER_ROLE)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return
+		}
+		testutils.LogTestf(lm.t, "WARNING: failed to read Debezium PID from exportDir: %v", err)
+		return
+	}
+
+	pid, err := strconv.Atoi(strings.TrimSpace(pidStr))
+	if err != nil {
+		testutils.LogTestf(lm.t, "WARNING: failed to parse Debezium PID %q: %v", pidStr, err)
+		return
+	}
+
+	proc, err := os.FindProcess(pid)
+	if err != nil {
+		testutils.LogTestf(lm.t, "WARNING: failed to find Debezium process pid=%d: %v", pid, err)
+		return
+	}
+	if err := proc.Kill(); err != nil {
+		testutils.LogTestf(lm.t, "WARNING: failed to kill Debezium process pid=%d: %v", pid, err)
+		return
+	}
+	testutils.LogTestf(lm.t, "Killed Debezium process pid=%d", pid)
 }
 
 // StopImportData stops the running import data command

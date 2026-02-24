@@ -34,7 +34,6 @@ import (
 
 	"database/sql"
 
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
@@ -113,7 +112,7 @@ func TestImportCDCTransformFailureAndResume(t *testing.T) {
 	// --- Phase 1: Start export and import concurrently, wait for snapshot, then generate CDC ---
 	err = lm.StartExportData(true, nil)
 	require.NoError(t, err, "failed to start export")
-	defer killDebeziumForExportDir(t, lm.GetExportDir())
+	defer lm.KillDebezium()
 
 	failpointEnv := testutils.GetFailpointEnvVar(
 		"github.com/yugabyte/yb-voyager/yb-voyager/cmd/importCDCTransformFailure=250*off->return()",
@@ -249,7 +248,7 @@ func TestImportCDCDbErrorAndResume(t *testing.T) {
 	// --- Phase 1: Start export and import concurrently, wait for snapshot, then generate CDC ---
 	err = lm.StartExportData(true, nil)
 	require.NoError(t, err, "failed to start export")
-	defer killDebeziumForExportDir(t, lm.GetExportDir())
+	defer lm.KillDebezium()
 
 	failpointEnv := testutils.GetFailpointEnvVar(
 		// Crash after 100 successful CDC batches have been committed, so `last_applied_vsn > 0`
@@ -382,7 +381,7 @@ func TestImportCDCEventExecutionFailureAndResume(t *testing.T) {
 	// --- Phase 1: Start export and import concurrently, wait for snapshot, then generate CDC ---
 	err = lm.StartExportData(true, nil)
 	require.NoError(t, err, "failed to start export")
-	defer killDebeziumForExportDir(t, lm.GetExportDir())
+	defer lm.KillDebezium()
 
 	failpointEnv := testutils.GetFailpointEnvVar(
 		"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb/importCDCExecEventError=50*off->return(true)",
@@ -523,7 +522,7 @@ func TestImportCDCRetryableDbErrorThenSucceed(t *testing.T) {
 	// --- Phase 1: Start export and import concurrently, wait for snapshot, then generate CDC ---
 	err = lm.StartExportData(true, nil)
 	require.NoError(t, err, "failed to start export")
-	defer killDebeziumForExportDir(t, lm.GetExportDir())
+	defer lm.KillDebezium()
 
 	failpointEnv := testutils.GetFailpointEnvVar(
 		"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb/importCDCRetryableExecuteBatchError=1*return(true)",
@@ -643,7 +642,7 @@ func TestImportCDCRetryableAfterCommitErrorSkipsRetry(t *testing.T) {
 	// --- Phase 1: Start export and import concurrently, wait for snapshot, then generate CDC ---
 	err = lm.StartExportData(true, nil)
 	require.NoError(t, err, "failed to start export")
-	defer killDebeziumForExportDir(t, lm.GetExportDir())
+	defer lm.KillDebezium()
 
 	failpointEnv := testutils.GetFailpointEnvVar(
 		"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb/importCDCRetryableAfterCommitError=1*return(true)",
@@ -783,7 +782,7 @@ func TestImportCDCMultiChannelBatchFailureAndResume(t *testing.T) {
 	// --- Phase 1: Start export and import concurrently, wait for snapshot ---
 	err = lm.StartExportData(true, nil)
 	require.NoError(t, err, "failed to start export")
-	defer killDebeziumForExportDir(t, lm.GetExportDir())
+	defer lm.KillDebezium()
 
 	failpointEnv := testutils.GetFailpointEnvVar(
 		// Crash after 100 successful CDC batches across all channels.
@@ -937,21 +936,6 @@ func TestImportCDCMultiChannelBatchFailureAndResume(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// waitForStreamingMode waits until `export data` transitions to streaming mode.
-// This is used to ensure snapshot export finished before generating CDC changes.
-func waitForStreamingMode(exportDir string, timeout time.Duration, pollInterval time.Duration) error {
-	deadline := time.Now().Add(timeout)
-	statusPath := filepath.Join(exportDir, "data", "export_status.json")
-	for time.Now().Before(deadline) {
-		status, err := dbzm.ReadExportStatus(statusPath)
-		if err == nil && status != nil && status.Mode == dbzm.MODE_STREAMING {
-			return nil
-		}
-		time.Sleep(pollInterval)
-	}
-	return fmt.Errorf("timed out waiting for export streaming mode")
-}
-
 // computeChanForID returns the importer channel number for a single-row CDC event
 // using the same hashing scheme as `cmd/live_migration.go` (FNV64a(tableFQN + key) % N).
 func computeChanForID(tableFQN string, id int, numChans int) int {
@@ -993,139 +977,6 @@ func lastAppliedVsnsByChannel(ybConn interface {
 		return nil, err
 	}
 	return res, nil
-}
-
-// killDebeziumForExportDir force-kills the Debezium Java process for an exportDir.
-//
-// Import-side CDC tests run `export data --export-type snapshot-and-changes` as a black-box process.
-// Debezium runs as a separate child Java process and can outlive the `yb-voyager` parent if the parent
-// is SIGKILLed. This helper prevents leaked Java processes between tests.
-func killDebeziumForExportDir(t *testing.T, exportDir string) {
-	t.Helper()
-
-	// Best-effort cleanup for black-box tests that run `export data`:
-	// Debezium runs as a separate Java process and can outlive the `yb-voyager` parent if it is SIGKILLed.
-	pidStr, err := dbzm.GetPIDOfDebeziumOnExportDir(exportDir, SOURCE_DB_EXPORTER_ROLE)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return
-		}
-		testutils.LogTestf(t, "WARNING: failed to read Debezium PID from exportDir: %v", err)
-		return
-	}
-
-	pid, err := strconv.Atoi(strings.TrimSpace(pidStr))
-	if err != nil {
-		testutils.LogTestf(t, "WARNING: failed to parse Debezium PID %q: %v", pidStr, err)
-		return
-	}
-
-	proc, err := os.FindProcess(pid)
-	if err != nil {
-		testutils.LogTestf(t, "WARNING: failed to find Debezium process pid=%d: %v", pid, err)
-		return
-	}
-	if err := proc.Kill(); err != nil {
-		testutils.LogTestf(t, "WARNING: failed to kill Debezium process pid=%d: %v", pid, err)
-		return
-	}
-	testutils.LogTestf(t, "Killed Debezium process pid=%d", pid)
-}
-
-// countEventsInQueueSegments counts CDC events present in `<exportDir>/data/queue/*.ndjson`.
-// It ignores empty lines and the `\.` EOF marker lines.
-func countEventsInQueueSegments(exportDir string) (int, error) {
-	queueDir := filepath.Join(exportDir, "data", "queue")
-	entries, err := os.ReadDir(queueDir)
-	if err != nil {
-		return 0, err
-	}
-
-	total := 0
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-		name := entry.Name()
-		if !strings.HasPrefix(name, "segment.") || !strings.HasSuffix(name, ".ndjson") {
-			continue
-		}
-		f, err := os.Open(filepath.Join(queueDir, name))
-		if err != nil {
-			return 0, err
-		}
-		scanner := bufio.NewScanner(f)
-		for scanner.Scan() {
-			line := strings.TrimSpace(scanner.Text())
-			if line == "" || line == `\.` {
-				continue
-			}
-			total++
-		}
-		if err := scanner.Err(); err != nil {
-			f.Close()
-			return 0, err
-		}
-		f.Close()
-	}
-	return total, nil
-}
-
-// waitForCDCEventCount waits until at least `expected` CDC events are present in the queue.
-// Returns the last observed count.
-func waitForCDCEventCount(t *testing.T, exportDir string, expected int, timeout, pollInterval time.Duration) int {
-	t.Helper()
-	var last int
-	require.Eventually(t, func() bool {
-		n, err := countEventsInQueueSegments(exportDir)
-		if err != nil {
-			return false
-		}
-		last = n
-		return n >= expected
-	}, timeout, pollInterval, "timed out waiting for CDC events in queue (expected>=%d, last=%d)", expected, last)
-	return last
-}
-
-// verifyNoEventIDDuplicates scans queued CDC events and asserts that every `event_id`
-// is present and unique across all queue segment files.
-func verifyNoEventIDDuplicates(t *testing.T, exportDir string) {
-	t.Helper()
-
-	queueDir := filepath.Join(exportDir, "data", "queue")
-	entries, err := os.ReadDir(queueDir)
-	require.NoError(t, err, "Failed to read queue directory")
-
-	seen := map[string]struct{}{}
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-		name := entry.Name()
-		if !strings.HasPrefix(name, "segment.") || !strings.HasSuffix(name, ".ndjson") {
-			continue
-		}
-		f, err := os.Open(filepath.Join(queueDir, name))
-		require.NoError(t, err, "Failed to open queue segment file")
-		scanner := bufio.NewScanner(f)
-		for scanner.Scan() {
-			line := strings.TrimSpace(scanner.Text())
-			if line == "" || line == `\.` {
-				continue
-			}
-			var m map[string]any
-			err := json.Unmarshal([]byte(line), &m)
-			require.NoError(t, err, "Malformed CDC JSON in queue segment")
-			raw := m["event_id"]
-			eventID, _ := raw.(string)
-			require.NotEmpty(t, eventID, "Missing event_id in CDC JSON")
-			_, dup := seen[eventID]
-			require.False(t, dup, "Duplicate event_id found: %s", eventID)
-			seen[eventID] = struct{}{}
-		}
-		require.NoError(t, scanner.Err(), "Failed scanning queue segment file")
-		f.Close()
-	}
 }
 
 // maxVsnInQueueSegments returns the maximum VSN present in queue segments.

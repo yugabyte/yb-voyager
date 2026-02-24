@@ -95,7 +95,7 @@ func TestImportSnapshotCommitFailureAndResume(t *testing.T) {
 	// --- Phase 1: Start export and import concurrently ---
 	err = lm.StartExportData(true, nil)
 	require.NoError(t, err, "failed to start export")
-	defer killDebeziumForExportDir(t, lm.GetExportDir())
+	defer lm.KillDebezium()
 
 	const (
 		batchSizeRows      = 2
@@ -229,7 +229,7 @@ func TestImportSnapshotTransformFailureAndResume(t *testing.T) {
 	// --- Phase 1: Start export and import concurrently ---
 	err = lm.StartExportData(true, nil)
 	require.NoError(t, err, "failed to start export")
-	defer killDebeziumForExportDir(t, lm.GetExportDir())
+	defer lm.KillDebezium()
 
 	failpointEnv := testutils.GetFailpointEnvVar(
 		"github.com/yugabyte/yb-voyager/yb-voyager/cmd/importSnapshotTransformError=20*off->return(true)",
