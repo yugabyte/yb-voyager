@@ -748,9 +748,28 @@ func (lm *LiveMigrationTest) getCutoverStatus() string {
 		return ""
 	}
 
-	//set the global metaDB for running getCutoverStatus code
+	msr, err := lm.metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		testutils.FatalIfError(lm.t, err, "failed to get migration status record")
+	}
 
-	metaDB = lm.metaDB
+	msr, err = lm.metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		testutils.FatalIfError(lm.t, err, "failed to get migration status record")
+	}
+
+	//Update the global metaDB for running getCutoverStatus code
+	if msr.LatestIterationNumber > 1 {
+		iterationsExportDir := msr.GetIterationsDir(lm.exportDir)	
+		iterationExportDir := GetIterationExportDir(iterationsExportDir, msr.LatestIterationNumber-1)
+		iterationMetaDB, err := metadb.NewMetaDB(iterationExportDir)
+		if err != nil {
+			testutils.FatalIfError(lm.t, err, "failed to get iteration meta db")
+		}
+		metaDB = iterationMetaDB
+	} else {
+		metaDB = lm.metaDB
+	}
 
 	return getCutoverStatus()
 }
@@ -761,10 +780,23 @@ func (lm *LiveMigrationTest) getCutoverToSourceStatus() string {
 		return ""
 	}
 
-	//set the global metaDB for running getCutoverToSourceStatus code
+	msr, err := lm.metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		testutils.FatalIfError(lm.t, err, "failed to get migration status record")
+	}
 
-	metaDB = lm.metaDB
-
+	// Update the global metaDB for running getCutoverStatus code
+	if msr.LatestIterationNumber > 1 {
+		iterationsExportDir := msr.GetIterationsDir(lm.exportDir)	
+		iterationExportDir := GetIterationExportDir(iterationsExportDir, msr.LatestIterationNumber-1)
+		iterationMetaDB, err := metadb.NewMetaDB(iterationExportDir)
+		if err != nil {
+			testutils.FatalIfError(lm.t, err, "failed to get iteration meta db")
+		}
+		metaDB = iterationMetaDB
+	} else {
+		metaDB = lm.metaDB
+	}
 	return getCutoverToSourceStatus()
 }
 
@@ -774,10 +806,26 @@ type DataMigrationReport struct {
 
 // GetDataMigrationReport retrieves the migration report
 func (lm *LiveMigrationTest) GetDataMigrationReport() (*DataMigrationReport, error) {
+	if lm.metaDB == nil {
+		err := lm.InitMetaDB()
+		if err != nil {
+			return nil, goerrors.Errorf("failed to initialize meta db: %w", err)
+		}
+	}
+	msr, err := lm.metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		return nil, goerrors.Errorf("failed to get migration status record: %w", err)
+	}
+	currExportDir := lm.exportDir
+	if msr.LatestIterationNumber > 0 {
+		iterationExportDir := GetIterationExportDir(msr.GetIterationsDir(lm.exportDir), msr.LatestIterationNumber)
+		currExportDir = iterationExportDir
+	}
+
 	maxRetry := 5
 	for {
 		err := testutils.NewVoyagerCommandRunner(nil, "get data-migration-report", []string{
-			"--export-dir", lm.exportDir,
+			"--export-dir", currExportDir,
 			"--output-format", "json",
 			"--source-db-password", lm.sourceContainer.GetConfig().Password,
 			"--target-db-password", lm.targetContainer.GetConfig().Password,
@@ -785,8 +833,8 @@ func (lm *LiveMigrationTest) GetDataMigrationReport() (*DataMigrationReport, err
 		if err != nil {
 			return nil, goerrors.Errorf("get data-migration-report command failed: %w", err)
 		}
-		
-		reportFilePath := filepath.Join(lm.exportDir, "reports", "data-migration-report.json")
+
+		reportFilePath := filepath.Join(currExportDir, "reports", "data-migration-report.json")
 		if !utils.FileOrFolderExists(reportFilePath) {
 			maxRetry--
 			if maxRetry <= 0 {
@@ -795,13 +843,13 @@ func (lm *LiveMigrationTest) GetDataMigrationReport() (*DataMigrationReport, err
 			time.Sleep(2 * time.Second)
 			continue
 		}
-	
+
 		jsonFile := jsonfile.NewJsonFile[[]*rowData](reportFilePath)
 		rowData, err := jsonFile.Read()
 		if err != nil {
 			return nil, goerrors.Errorf("error reading data-migration-report: %w", err)
 		}
-	
+
 		return &DataMigrationReport{RowData: *rowData}, nil
 	}
 }
