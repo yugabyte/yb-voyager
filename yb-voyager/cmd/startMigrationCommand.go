@@ -78,7 +78,8 @@ func init() {
 		"migration workflow: offline, live, live-fall-back, live-fall-forward. If provided, skips the interactive prompt.")
 
 	startMigrationCmd.Flags().StringVar(&startMigrationDir, "migration-dir", "",
-		"path to the migration directory (will be created if it doesn't exist). Use with --assessment-control-plane and --migration-uuid.")
+		"path to the migration directory (will be created if it doesn't exist). "+
+			"If not provided, defaults to ./migration-<dbname>. Use with --assessment-control-plane and --migration-uuid.")
 	startMigrationCmd.Flags().StringVar(&startAssessmentControlPlane, "assessment-control-plane", "",
 		"connection string for the yugabyted control plane to pull assessment data from.")
 	startMigrationCmd.Flags().StringVar(&startMigrationUUID, "migration-uuid", "",
@@ -96,16 +97,16 @@ func runStartMigration() {
 	}
 
 	if controlPlaneFlow {
-		if startMigrationDir == "" || startAssessmentControlPlane == "" || startMigrationUUID == "" {
-			utils.ErrExit("when using the control plane flow, all three flags are required:\n" +
-				"  --migration-dir, --assessment-control-plane, --migration-uuid")
+		if startAssessmentControlPlane == "" || startMigrationUUID == "" {
+			utils.ErrExit("when using the control plane flow, --assessment-control-plane and --migration-uuid are required.\n" +
+				"  --migration-dir is optional (defaults to ./migration-<dbname>)")
 		}
 		bootstrapFromControlPlane()
 		return
 	}
 
 	if !configFileFlow {
-		utils.ErrExit("either --config-file or --migration-dir (with --assessment-control-plane and --migration-uuid) is required")
+		utils.ErrExit("either --config-file or --assessment-control-plane (with --migration-uuid) is required")
 	}
 
 	runStartMigrationWithConfig()
@@ -295,20 +296,13 @@ func extractHostIP(rawHostIP string) string {
 // bootstrapFromControlPlane sets up a new migration project by pulling assessment data
 // from a shared control plane, then continues with the standard start-migration flow.
 func bootstrapFromControlPlane() {
-	// Resolve migration-dir to absolute path
-	var err error
-	startMigrationDir, err = filepath.Abs(startMigrationDir)
-	if err != nil {
-		utils.ErrExit("failed to resolve migration-dir path: %v", err)
-	}
-
-	configFilePath := filepath.Join(startMigrationDir, "config.yaml")
-	exportDirPath := filepath.Join(startMigrationDir, "export-dir")
-
-	// Idempotency guard
-	if utils.FileOrFolderExists(configFilePath) {
-		utils.ErrExit("migration directory %q already contains a config.yaml. "+
-			"Use --config-file to continue with the existing project, or choose a different directory.", startMigrationDir)
+	// If migration-dir was explicitly provided, resolve now
+	if startMigrationDir != "" {
+		var err error
+		startMigrationDir, err = filepath.Abs(startMigrationDir)
+		if err != nil {
+			utils.ErrExit("failed to resolve migration-dir path: %v", err)
+		}
 	}
 
 	// 1. Fetch assessment from control plane
@@ -333,6 +327,8 @@ func bootstrapFromControlPlane() {
 	fmt.Printf("  Found assessment for: %s - %s:%d/%s\n", rec.DBType, sourceHost, rec.Port, rec.DatabaseName)
 	fmt.Printf("    Complexity: %s | Issues: %d\n", cpPayload.MigrationComplexity, len(cpPayload.AssessmentIssues))
 	fmt.Println()
+
+	startMigrationDirExplicit := startMigrationDir != ""
 
 	// 2. Prompt for source connection details.
 	// The control plane never stores credentials, so we always ask the user for a
@@ -413,6 +409,38 @@ func bootstrapFromControlPlane() {
 		}
 		fmt.Println("  " + successLine(fmt.Sprintf("Connected to %s:%d", parsed.Host, parsed.Port)))
 		break
+	}
+
+	// Resolve migration-dir now that we have the source database name.
+	// When the user did not pass --migration-dir, auto-derive with increment.
+	if !startMigrationDirExplicit {
+		baseName := "voyager-migration"
+		if src.DBName != "" {
+			baseName = fmt.Sprintf("voyager-migration-%s", src.DBName)
+		}
+		candidate := baseName
+		for i := 2; ; i++ {
+			absPath, err := filepath.Abs(candidate)
+			if err != nil {
+				utils.ErrExit("failed to resolve migration-dir path: %v", err)
+			}
+			if !utils.FileOrFolderExists(absPath) {
+				startMigrationDir = absPath
+				break
+			}
+			candidate = fmt.Sprintf("%s-%d", baseName, i)
+		}
+	}
+
+	configFilePath := filepath.Join(startMigrationDir, "config.yaml")
+	exportDirPath := filepath.Join(startMigrationDir, "export-dir")
+
+	// Idempotency guard (only when user explicitly passed --migration-dir)
+	if startMigrationDirExplicit {
+		if utils.FileOrFolderExists(configFilePath) {
+			utils.ErrExit("migration directory %q already contains a config.yaml. "+
+				"Use --config-file to continue with the existing project, or choose a different directory.", startMigrationDir)
+		}
 	}
 
 	// 3. Create export directory

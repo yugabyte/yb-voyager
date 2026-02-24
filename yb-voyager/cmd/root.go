@@ -98,7 +98,7 @@ func buildRootHelp(cmd *cobra.Command) string {
 	b.WriteString(dimStyle.Render("Docs: https://docs.yugabyte.com/preview/yugabyte-voyager/") + "\n")
 	b.WriteString("\n")
 	b.WriteString(titleStyle.Render("Getting started:") + "\n")
-	b.WriteString("  " + cmdStyle.Render("yb-voyager init --migration-dir /path/to/dir") + "\n")
+	b.WriteString("  " + cmdStyle.Render("yb-voyager init") + "\n")
 	b.WriteString("\n")
 	b.WriteString("Available Commands:\n")
 

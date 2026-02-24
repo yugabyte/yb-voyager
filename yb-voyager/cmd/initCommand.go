@@ -35,6 +35,7 @@ import (
 )
 
 var migrationDir string
+var migrationDirExplicit bool
 var sourceConnString string
 
 // paths for installed gather-assessment-metadata scripts
@@ -59,40 +60,35 @@ to begin migrating your database to YugabyteDB.`,
 func init() {
 	rootCmd.AddCommand(initCmd)
 	initCmd.Flags().StringVar(&migrationDir, "migration-dir", "",
-		"path to the migration directory (will be created if it doesn't exist)")
-	initCmd.MarkFlagRequired("migration-dir")
+		"path to the migration directory (will be created if it doesn't exist). "+
+			"If not provided, defaults to ./migration-<dbname> or ./migration")
 	initCmd.Flags().StringVar(&sourceConnString, "source-db-connection-string", "",
 		"source database connection string (e.g. postgresql://user:password@host:5432/dbname). If provided, skips the interactive prompt.")
 }
 
 func runInit() {
-	// Resolve to absolute path
-	var err error
-	migrationDir, err = filepath.Abs(migrationDir)
-	if err != nil {
-		utils.ErrExit("failed to resolve migration-dir path: %v", err)
-	}
+	migrationDirExplicit = migrationDir != ""
 
-	configFilePath := filepath.Join(migrationDir, "config.yaml")
-	exportDirPath := filepath.Join(migrationDir, "export-dir")
-
-	// Idempotency guard: fail if config.yaml already exists
-	if utils.FileOrFolderExists(configFilePath) {
-		utils.ErrExit("migration directory %q already contains a config.yaml. "+
-			"Use the existing config or choose a different directory.", migrationDir)
+	// If migration-dir was explicitly provided, resolve to absolute path now
+	if migrationDirExplicit {
+		var err error
+		migrationDir, err = filepath.Abs(migrationDir)
+		if err != nil {
+			utils.ErrExit("failed to resolve migration-dir path: %v", err)
+		}
 	}
 
 	printWelcomeBanner()
 
 	// If connection string was provided via flag, skip the interactive prompt
 	if sourceConnString != "" {
-		handleConnectionStringDirect(configFilePath, exportDirPath, sourceConnString)
+		handleConnectionStringDirect(sourceConnString)
 		return
 	}
 
 	// Prompt for source DB details
 	var sourceOption string
-	err = huh.NewSelect[string]().
+	err := huh.NewSelect[string]().
 		Title("First, let's assess your source database. How would you like to connect?\n"+
 			"Recommendation: Connect to your production database for accurate results.").
 		Options(
@@ -108,11 +104,56 @@ func runInit() {
 
 	switch sourceOption {
 	case "connection_string":
-		handleConnectionString(configFilePath, exportDirPath)
+		handleConnectionString()
 	case "generate_scripts":
-		handleGenerateScripts(configFilePath, exportDirPath)
+		handleGenerateScripts()
 	case "skip":
-		handleSkip(configFilePath, exportDirPath)
+		handleSkip()
+	}
+}
+
+// ensureMigrationDir sets migrationDir to a sensible default if it was not
+// provided via the --migration-dir flag. The directory is named
+// "voyager-migration-<dbname>" (or "voyager-migration" when no dbname is
+// available). If that directory already exists, a numeric suffix is appended
+// (-2, -3, ...) until a non-existing path is found. Existing directories are
+// never reused.
+func ensureMigrationDir(dbName string) {
+	if migrationDir != "" {
+		return
+	}
+	baseName := "voyager-migration"
+	if dbName != "" {
+		baseName = fmt.Sprintf("voyager-migration-%s", dbName)
+	}
+
+	candidate := baseName
+	for i := 2; ; i++ {
+		absPath, err := filepath.Abs(candidate)
+		if err != nil {
+			utils.ErrExit("failed to resolve migration-dir path: %v", err)
+		}
+		if !utils.FileOrFolderExists(absPath) {
+			migrationDir = absPath
+			return
+		}
+		candidate = fmt.Sprintf("%s-%d", baseName, i)
+	}
+}
+
+// getMigrationPaths returns the config-file and export-dir paths derived from
+// the current migrationDir.
+func getMigrationPaths() (configFilePath, exportDirPath string) {
+	return filepath.Join(migrationDir, "config.yaml"), filepath.Join(migrationDir, "export-dir")
+}
+
+// checkConfigIdempotency exits with a helpful message if a config.yaml already
+// exists inside migrationDir.
+func checkConfigIdempotency() {
+	configFilePath, _ := getMigrationPaths()
+	if utils.FileOrFolderExists(configFilePath) {
+		utils.ErrExit("migration directory %q already contains a config.yaml. "+
+			"Use the existing config or choose a different directory.", migrationDir)
 	}
 }
 
@@ -130,7 +171,7 @@ func printWelcomeBanner() {
 }
 
 // handleConnectionString prompts for a connection string, validates it, and generates config
-func handleConnectionString(configFilePath, exportDirPath string) {
+func handleConnectionString() {
 	var connString string
 	var parsed *parsedConnInfo
 
@@ -148,7 +189,7 @@ func handleConnectionString(configFilePath, exportDirPath string) {
 		connString = strings.TrimSpace(connString)
 		if connString == "" {
 			fmt.Println(color.YellowString("  No connection string provided. Skipping connection setup."))
-			handleSkip(configFilePath, exportDirPath)
+			handleSkip()
 			return
 		}
 
@@ -173,13 +214,20 @@ func handleConnectionString(configFilePath, exportDirPath string) {
 				Run()
 			if !retry {
 				fmt.Println(color.YellowString("  Skipping connection setup. You can configure the connection later in the config file."))
-				handleSkip(configFilePath, exportDirPath)
+				ensureMigrationDir(parsed.DBName)
+				handleSkip()
 				return
 			}
 			continue
 		}
 		break
 	}
+
+	ensureMigrationDir(parsed.DBName)
+	if migrationDirExplicit {
+		checkConfigIdempotency()
+	}
+	configFilePath, exportDirPath := getMigrationPaths()
 
 	// Create export-dir
 	createExportDir(exportDirPath)
@@ -211,7 +259,7 @@ func handleConnectionString(configFilePath, exportDirPath string) {
 }
 
 // handleConnectionStringDirect handles the case where the connection string was provided via flag (non-interactive).
-func handleConnectionStringDirect(configFilePath, exportDirPath, connStr string) {
+func handleConnectionStringDirect(connStr string) {
 	connStr = strings.TrimSpace(connStr)
 
 	parsed, err := parsePostgresConnString(connStr)
@@ -223,6 +271,12 @@ func handleConnectionStringDirect(configFilePath, exportDirPath, connStr string)
 	if err := validatePostgresConnection(connStr); err != nil {
 		utils.ErrExit("Connection failed: %v", err)
 	}
+
+	ensureMigrationDir(parsed.DBName)
+	if migrationDirExplicit {
+		checkConfigIdempotency()
+	}
+	configFilePath, exportDirPath := getMigrationPaths()
 
 	// Create export-dir
 	createExportDir(exportDirPath)
@@ -252,11 +306,16 @@ func handleConnectionStringDirect(configFilePath, exportDirPath, connStr string)
 }
 
 // handleGenerateScripts creates export-dir and copies gather-assessment-metadata scripts
-func handleGenerateScripts(configFilePath, exportDirPath string) {
+func handleGenerateScripts() {
+	ensureMigrationDir("")
+	if migrationDirExplicit {
+		checkConfigIdempotency()
+	}
+	configFilePath, exportDirPath := getMigrationPaths()
+
 	createExportDir(exportDirPath)
 
-	migrationDirPath := filepath.Dir(configFilePath)
-	scriptsDir := filepath.Join(migrationDirPath, "scripts")
+	scriptsDir := filepath.Join(migrationDir, "scripts")
 	os.MkdirAll(scriptsDir, 0755)
 
 	// Copy PostgreSQL scripts
@@ -295,7 +354,13 @@ func handleGenerateScripts(configFilePath, exportDirPath string) {
 }
 
 // handleSkip creates export-dir and generates a config template
-func handleSkip(configFilePath, exportDirPath string) {
+func handleSkip() {
+	ensureMigrationDir("")
+	if migrationDirExplicit {
+		checkConfigIdempotency()
+	}
+	configFilePath, exportDirPath := getMigrationPaths()
+
 	createExportDir(exportDirPath)
 
 	// Prompt for fleet control plane
