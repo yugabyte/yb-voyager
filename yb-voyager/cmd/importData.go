@@ -290,8 +290,35 @@ func startExportDataFromSourceOnNextIteration() {
 		//TODO: handle overrides for the command
 		cmd = append(cmd, "--table-list", strings.Join(importTableNames, ","))
 
+		//If there are cli overrides for the command, pass them as cli overrides to the import data to source command
+		//Only disable-pb and log-level are the common flags of both the commands
+		for _, override := range resolvedConfig.fromCLI {
+			if override.FlagName == "disable-pb" {
+				//only for disable-pb flag is overidden then pass it as CLI override also to this command
+				cmd = append(cmd, "--"+override.FlagName, override.Value)
+				continue
+			}
+			if override.FlagName == "export-dir" {
+				continue
+			}
+			if override.FlagName == "config-file" {
+				// configFile := resolveToUserFacingConfigFileForIteration(msr)
+				//if config file is overidden then pass it as CLI override also to this command
+				cmd = append(cmd, "--"+override.FlagName, cfgFile)
+				continue
+			}
+			if !slices.Contains(globalFlags, override.FlagName) {
+				//if its not a global flag then skip passing it to the command as it will be command specific flag
+				continue
+			}
+			cmd = append(cmd, "--"+override.FlagName, override.Value)
+		}
+
 	} else {
 		cmd = append(cmd, "--export-dir", exportDir)
+		if bool(disablePb) {
+			cmd = append(cmd, "--disable-pb=true")
+		}
 		cmd = append(cmd, fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics))
 		cmd = append(cmd, "--log-level", config.LogLevel)
 		cmd = append(cmd, "--table-list", strings.Join(importTableNames, ","))
@@ -302,6 +329,10 @@ func startExportDataFromSourceOnNextIteration() {
 		cmd = append(cmd, "--source-db-user", currentMsr.SourceDBConf.User)
 		cmd = append(cmd, "--source-db-schema", currentMsr.SourceDBConf.SchemaConfig)
 	}
+
+	iterationExportDir := GetIterationExportDir(currentMsr.GetIterationsDir(exportDir), currentMsr.IterationNo+1)
+	utils.PrintAndLogf("Starting export data from source on iteration %d at %s.\n", currentMsr.IterationNo+1, iterationExportDir)
+
 	cmdStr := "SOURCE_DB_PASSWORD=*** " + strings.Join(cmd, " ")
 
 	utils.PrintAndLogf("Starting export data from source with command:\n %s", color.GreenString(cmdStr))

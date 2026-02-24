@@ -268,6 +268,7 @@ func resolveToActiveIterationIfRequired(cmd *cobra.Command) error {
 
 	log.Infof("Resolving to iteration %d: %s", msr.LatestIterationNumber, iterationExportDir)
 	//update the export dir and meta db to the iteration export dir and meta db
+	//Keeping config file same as parent as nothing changing as such in the config file for iteration except the export dir and export type
 	exportDir = iterationExportDir
 	metaDB = iterationMetaDB
 	exportType = CHANGES_ONLY
