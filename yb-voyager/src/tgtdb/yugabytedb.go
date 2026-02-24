@@ -1487,7 +1487,7 @@ func (yb *TargetYugabyteDB) fetchDefaultParallelJobs(tconfs []*TargetConf, nodeC
 	case coresFetched && loadBalancerUsed:
 		// Case 2: fetchCores only reached one node via load balancer; extrapolate to the full cluster
 		clusterCores = detectedCores * nodeCount
-		log.Warnf("Load balancer detected: scaling single-node cores to cluster: %d cores/node * %d nodes = %d clusterCores",
+		log.Infof("Load balancer detected: scaling single-node cores to cluster: %d cores/node * %d nodes = %d clusterCores",
 			detectedCores, nodeCount, clusterCores)
 	default:
 		// Case 3 & 4: No cores detected, estimate using the number of nodes and the default cores per node
