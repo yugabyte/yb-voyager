@@ -489,7 +489,7 @@ func (lm *LiveMigrationTest) ReadMigrationUUID() (string, error) {
 		return "", err
 	}
 	if msr == nil {
-		return "", fmt.Errorf("migration status record not found")
+		return "", goerrors.Errorf("migration status record not found")
 	}
 	return msr.MigrationUUID, nil
 }
