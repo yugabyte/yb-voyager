@@ -129,7 +129,7 @@ func TestImportCDCTransformFailureAndResume(t *testing.T) {
 		`"test_schema_import_cdc"."cdc_import_test"`: 30,
 	}, 120)
 	require.NoError(t, err, "snapshot phase did not complete")
-	testutils.LogTest(t, "Snapshot complete; generating CDC changes...")
+	t.Log("Snapshot complete; generating CDC changes...")
 
 	lm.ExecuteSourceDelta()
 
@@ -145,12 +145,12 @@ func TestImportCDCTransformFailureAndResume(t *testing.T) {
 
 	maxQueuedVsn, err := maxVsnInQueueSegments(lm.GetExportDir())
 	require.NoError(t, err, "Failed to compute max queued vsn from queue segments")
-	testutils.LogTestf(t, "Max queued vsn in CDC segments: %d", maxQueuedVsn)
+	t.Logf("Max queued vsn in CDC segments: %d", maxQueuedVsn)
 
 	err = lm.WithTargetConn(func(ybConn *sql.DB) error {
 		lastAppliedVsn, err := maxLastAppliedVsn(ybConn, migrationUUIDStr)
 		require.NoError(t, err, "Failed to read last_applied_vsn from event channels metadata")
-		testutils.LogTestf(t, "Max last_applied_vsn on target after failure: %d", lastAppliedVsn)
+		t.Logf("Max last_applied_vsn on target after failure: %d", lastAppliedVsn)
 		require.Greater(t, lastAppliedVsn, int64(0), "Expected some CDC progress before failure")
 		require.Less(t, lastAppliedVsn, maxQueuedVsn, "Expected partial progress (not all events applied)")
 		return nil
@@ -158,7 +158,7 @@ func TestImportCDCTransformFailureAndResume(t *testing.T) {
 	require.NoError(t, err)
 
 	// --- Phase 3: Resume import without failpoint (export still running) ---
-	testutils.LogTest(t, "Resuming import without failpoint...")
+	t.Log("Resuming import without failpoint...")
 	err = lm.StartImportDataWithEnv(true, nil, []string{
 		"MAX_EVENTS_PER_BATCH=1",
 		"MAX_INTERVAL_BETWEEN_BATCHES=1",
@@ -175,7 +175,7 @@ func TestImportCDCTransformFailureAndResume(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	testutils.LogTest(t, "Target matches source after resume")
+	t.Log("Target matches source after resume")
 }
 
 // TestImportCDCDbErrorAndResume verifies that live migration `import data` can resume after
@@ -270,7 +270,7 @@ func TestImportCDCDbErrorAndResume(t *testing.T) {
 		`"test_schema_import_cdc_db_err"."cdc_import_test"`: 30,
 	}, 120)
 	require.NoError(t, err, "snapshot phase did not complete")
-	testutils.LogTest(t, "Snapshot complete; generating CDC changes...")
+	t.Log("Snapshot complete; generating CDC changes...")
 
 	lm.ExecuteSourceDelta()
 
@@ -286,12 +286,12 @@ func TestImportCDCDbErrorAndResume(t *testing.T) {
 
 	maxQueuedVsn, err := maxVsnInQueueSegments(lm.GetExportDir())
 	require.NoError(t, err, "Failed to compute max queued vsn from queue segments")
-	testutils.LogTestf(t, "Max queued vsn in CDC segments: %d", maxQueuedVsn)
+	t.Logf("Max queued vsn in CDC segments: %d", maxQueuedVsn)
 
 	err = lm.WithTargetConn(func(ybConn *sql.DB) error {
 		lastAppliedVsn, err := maxLastAppliedVsn(ybConn, migrationUUIDStr)
 		require.NoError(t, err, "Failed to read last_applied_vsn from event channels metadata")
-		testutils.LogTestf(t, "Max last_applied_vsn on target after failure: %d", lastAppliedVsn)
+		t.Logf("Max last_applied_vsn on target after failure: %d", lastAppliedVsn)
 		require.Greater(t, lastAppliedVsn, int64(0), "Expected some CDC progress before failure")
 		require.Less(t, lastAppliedVsn, maxQueuedVsn, "Expected partial progress (not all events applied)")
 		return nil
@@ -299,7 +299,7 @@ func TestImportCDCDbErrorAndResume(t *testing.T) {
 	require.NoError(t, err)
 
 	// --- Phase 3: Resume import without failpoint (export still running) ---
-	testutils.LogTest(t, "Resuming import without failpoint...")
+	t.Log("Resuming import without failpoint...")
 	err = lm.StartImportDataWithEnv(true, nil, []string{
 		"NUM_EVENT_CHANNELS=1",
 		"MAX_EVENTS_PER_BATCH=1",
@@ -317,7 +317,7 @@ func TestImportCDCDbErrorAndResume(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	testutils.LogTest(t, "Target matches source after resume (CDC DB error)")
+	t.Log("Target matches source after resume (CDC DB error)")
 }
 
 // TestImportCDCEventExecutionFailureAndResume verifies that live migration `import data` can resume
@@ -402,7 +402,7 @@ func TestImportCDCEventExecutionFailureAndResume(t *testing.T) {
 		`"test_schema_import_cdc_event_fail"."cdc_import_test"`: 30,
 	}, 120)
 	require.NoError(t, err, "snapshot phase did not complete")
-	testutils.LogTest(t, "Snapshot complete; generating CDC inserts...")
+	t.Log("Snapshot complete; generating CDC inserts...")
 
 	lm.ExecuteSourceDelta()
 
@@ -419,12 +419,12 @@ func TestImportCDCEventExecutionFailureAndResume(t *testing.T) {
 
 	maxQueuedVsn, err := maxVsnInQueueSegments(lm.GetExportDir())
 	require.NoError(t, err, "Failed to compute max queued vsn from queue segments")
-	testutils.LogTestf(t, "Max queued vsn in CDC segments: %d", maxQueuedVsn)
+	t.Logf("Max queued vsn in CDC segments: %d", maxQueuedVsn)
 
 	err = lm.WithTargetConn(func(ybConn *sql.DB) error {
 		lastAppliedVsn, err := maxLastAppliedVsn(ybConn, migrationUUIDStr)
 		require.NoError(t, err, "Failed to read last_applied_vsn from event channels metadata")
-		testutils.LogTestf(t, "Max last_applied_vsn on target after failure: %d", lastAppliedVsn)
+		t.Logf("Max last_applied_vsn on target after failure: %d", lastAppliedVsn)
 		require.Greater(t, lastAppliedVsn, int64(0), "Expected some CDC progress before failure")
 		require.Less(t, lastAppliedVsn, maxQueuedVsn, "Expected partial progress (not all events applied)")
 		return nil
@@ -440,7 +440,7 @@ func TestImportCDCEventExecutionFailureAndResume(t *testing.T) {
 	require.NoError(t, err)
 
 	// --- Phase 3: Resume import without failpoint (export still running) ---
-	testutils.LogTest(t, "Resuming import without failpoint...")
+	t.Log("Resuming import without failpoint...")
 	err = lm.StartImportDataWithEnv(true, nil, []string{
 		"NUM_EVENT_CHANNELS=1",
 		"MAX_EVENTS_PER_BATCH=10",
@@ -458,7 +458,7 @@ func TestImportCDCEventExecutionFailureAndResume(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	testutils.LogTest(t, "Target matches source after resume (CDC event execution failure)")
+	t.Log("Target matches source after resume (CDC event execution failure)")
 }
 
 // TestImportCDCRetryableDbErrorThenSucceed verifies that live migration `import data` retries and
@@ -543,17 +543,17 @@ func TestImportCDCRetryableDbErrorThenSucceed(t *testing.T) {
 		`"test_schema_import_cdc_retry"."cdc_import_test"`: 30,
 	}, 120)
 	require.NoError(t, err, "snapshot phase did not complete")
-	testutils.LogTest(t, "Snapshot complete; generating CDC inserts...")
+	t.Log("Snapshot complete; generating CDC inserts...")
 
 	lm.ExecuteSourceDelta()
 
 	// --- Phase 2: Wait for failpoint marker and verify import stays alive (retries in-process) ---
 	failMarkerPath := filepath.Join(lm.GetExportDir(), "logs", "failpoint-import-cdc-retryable-exec-batch-error.log")
-	testutils.LogTestf(t, "Waiting for failpoint marker: %s", failMarkerPath)
+	t.Logf("Waiting for failpoint marker: %s", failMarkerPath)
 	matched, err := testutils.WaitForFailpointMarker(failMarkerPath, 120*time.Second, 2*time.Second)
 	require.NoError(t, err, "Should be able to read retryable batch failure marker")
 	require.True(t, matched, "Retryable batch failpoint marker did not trigger")
-	testutils.LogTest(t, "Verified retryable batch failpoint marker was written")
+	t.Log("Verified retryable batch failpoint marker was written")
 
 	// The key property: importer should NOT exit; it should retry and keep running.
 	exitedEarly := make(chan error, 1)
@@ -577,7 +577,7 @@ func TestImportCDCRetryableDbErrorThenSucceed(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	testutils.LogTest(t, "Target matches source after in-process retry (no resume run needed)")
+	t.Log("Target matches source after in-process retry (no resume run needed)")
 }
 
 // TestImportCDCRetryableAfterCommitErrorSkipsRetry verifies that live migration `import data`
@@ -663,17 +663,17 @@ func TestImportCDCRetryableAfterCommitErrorSkipsRetry(t *testing.T) {
 		`"test_schema_import_cdc_retry_after_commit"."cdc_import_test"`: 30,
 	}, 120)
 	require.NoError(t, err, "snapshot phase did not complete")
-	testutils.LogTest(t, "Snapshot complete; generating CDC inserts...")
+	t.Log("Snapshot complete; generating CDC inserts...")
 
 	lm.ExecuteSourceDelta()
 
 	// --- Phase 2: Wait for failpoint marker and verify import stays alive (retries in-process) ---
 	failMarkerPath := filepath.Join(lm.GetExportDir(), "logs", "failpoint-import-cdc-retryable-after-commit-error.log")
-	testutils.LogTestf(t, "Waiting for failpoint marker: %s", failMarkerPath)
+	t.Logf("Waiting for failpoint marker: %s", failMarkerPath)
 	matched, err := testutils.WaitForFailpointMarker(failMarkerPath, 120*time.Second, 2*time.Second)
 	require.NoError(t, err, "Should be able to read retryable-after-commit marker")
 	require.True(t, matched, "Retryable-after-commit failpoint marker did not trigger")
-	testutils.LogTest(t, "Verified retryable-after-commit failpoint marker was written")
+	t.Log("Verified retryable-after-commit failpoint marker was written")
 
 	// Import should NOT exit; it should retry in-process and continue.
 	exitedEarly := make(chan error, 1)
@@ -695,7 +695,7 @@ func TestImportCDCRetryableAfterCommitErrorSkipsRetry(t *testing.T) {
 
 	maxQueuedVsn, err := maxVsnInQueueSegments(lm.GetExportDir())
 	require.NoError(t, err, "Failed to compute max queued vsn from queue segments")
-	testutils.LogTestf(t, "Max queued vsn in CDC segments: %d", maxQueuedVsn)
+	t.Logf("Max queued vsn in CDC segments: %d", maxQueuedVsn)
 
 	// Verify voyager progress metadata catches up to the queue.
 	err = lm.WithTargetConn(func(ybConn *sql.DB) error {
@@ -703,7 +703,7 @@ func TestImportCDCRetryableAfterCommitErrorSkipsRetry(t *testing.T) {
 			v, verr := maxLastAppliedVsn(ybConn, migrationUUIDStr)
 			return verr == nil && v >= maxQueuedVsn
 		}, 120*time.Second, 2*time.Second, "Expected last_applied_vsn to reach max queued vsn after retryable-after-commit error")
-		testutils.LogTest(t, "Verified last_applied_vsn caught up after retryable-after-commit error")
+		t.Log("Verified last_applied_vsn caught up after retryable-after-commit error")
 		return nil
 	})
 	require.NoError(t, err)
@@ -716,7 +716,7 @@ func TestImportCDCRetryableAfterCommitErrorSkipsRetry(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	testutils.LogTest(t, "Target matches source after in-process retryable-after-commit handling")
+	t.Log("Target matches source after in-process retryable-after-commit handling")
 }
 
 // TestImportCDCMultiChannelBatchFailureAndResume verifies that CDC import resume works correctly
@@ -803,7 +803,7 @@ func TestImportCDCMultiChannelBatchFailureAndResume(t *testing.T) {
 		`"test_schema_import_cdc_multi_chan"."cdc_import_test"`: 30,
 	}, 120)
 	require.NoError(t, err, "snapshot phase did not complete")
-	testutils.LogTest(t, "Snapshot complete; generating multi-channel CDC changes...")
+	t.Log("Snapshot complete; generating multi-channel CDC changes...")
 
 	// Generate CDC workload with IDs pre-selected to spread across all channels.
 	// CDC import partitions events by hashing (table + key) % NUM_EVENT_CHANNELS.
@@ -845,7 +845,7 @@ func TestImportCDCMultiChannelBatchFailureAndResume(t *testing.T) {
 			updateIDs = append(updateIDs, strconv.Itoa(idsByChan[c][i]))
 		}
 	}
-	testutils.LogTestf(t, "Generating CDC updates: %d rows", len(updateIDs))
+	t.Logf("Generating CDC updates: %d rows", len(updateIDs))
 	lm.ExecuteOnSource(fmt.Sprintf(
 		"UPDATE %s SET value = value + 50000, name = 'cdc_upd_' || id WHERE id IN (%s);",
 		tableName, strings.Join(updateIDs, ",")))
@@ -856,7 +856,7 @@ func TestImportCDCMultiChannelBatchFailureAndResume(t *testing.T) {
 			deleteIDs = append(deleteIDs, strconv.Itoa(idsByChan[c][i]))
 		}
 	}
-	testutils.LogTestf(t, "Generating CDC deletes: %d rows", len(deleteIDs))
+	t.Logf("Generating CDC deletes: %d rows", len(deleteIDs))
 	lm.ExecuteOnSource(fmt.Sprintf(
 		"DELETE FROM %s WHERE id IN (%s);", tableName, strings.Join(deleteIDs, ",")))
 
@@ -872,12 +872,12 @@ func TestImportCDCMultiChannelBatchFailureAndResume(t *testing.T) {
 
 	maxQueuedVsn, err := maxVsnInQueueSegments(lm.GetExportDir())
 	require.NoError(t, err, "Failed to compute max queued vsn from queue segments")
-	testutils.LogTestf(t, "Max queued vsn in CDC segments: %d", maxQueuedVsn)
+	t.Logf("Max queued vsn in CDC segments: %d", maxQueuedVsn)
 
 	err = lm.WithTargetConn(func(ybConn *sql.DB) error {
 		lastAppliedVsn, err := maxLastAppliedVsn(ybConn, migrationUUIDStr)
 		require.NoError(t, err, "Failed to read last_applied_vsn from event channels metadata")
-		testutils.LogTestf(t, "Max last_applied_vsn on target after failure: %d", lastAppliedVsn)
+		t.Logf("Max last_applied_vsn on target after failure: %d", lastAppliedVsn)
 		require.Less(t, lastAppliedVsn, maxQueuedVsn, "Expected partial progress (max last_applied_vsn < max queued vsn)")
 
 		byChan, err := lastAppliedVsnsByChannel(ybConn, migrationUUIDStr)
@@ -903,7 +903,7 @@ func TestImportCDCMultiChannelBatchFailureAndResume(t *testing.T) {
 	require.NoError(t, err)
 
 	// --- Phase 3: Resume import without failpoint (export still running) ---
-	testutils.LogTest(t, "Resuming import without failpoint...")
+	t.Log("Resuming import without failpoint...")
 	err = lm.StartImportDataWithEnv(true, nil, []string{
 		fmt.Sprintf("NUM_EVENT_CHANNELS=%d", numChans),
 		"MAX_EVENTS_PER_BATCH=1",
@@ -920,7 +920,7 @@ func TestImportCDCMultiChannelBatchFailureAndResume(t *testing.T) {
 		return nil
 	})
 	require.NoError(t, err)
-	testutils.LogTest(t, "Target matches source after resume (multi-channel)")
+	t.Log("Target matches source after resume (multi-channel)")
 
 	// Verify all channels advanced after resume.
 	err = lm.WithTargetConn(func(ybConn *sql.DB) error {

@@ -126,7 +126,7 @@ func WaitForProcessExitOrKill(runner *VoyagerCommandRunner, timeout time.Duratio
 // the marker doesn't appear (failpoints not enabled) or if the process exits
 // cleanly instead of crashing.
 func WaitForFailpointAndProcessCrash(t *testing.T, runner *VoyagerCommandRunner, markerPath string, markerTimeout, exitTimeout time.Duration) error {
-	LogTestf(t, "Waiting for failpoint marker: %s", markerPath)
+	t.Logf("Waiting for failpoint marker: %s", markerPath)
 
 	matched, err := WaitForFailpointMarker(markerPath, markerTimeout, 2*time.Second)
 	if err != nil {
@@ -138,7 +138,7 @@ func WaitForFailpointAndProcessCrash(t *testing.T, runner *VoyagerCommandRunner,
 			"was run before `go test -tags=failpoint`", markerPath)
 	}
 
-	LogTest(t, "Failpoint marker detected; waiting for process to exit with error...")
+	t.Log("Failpoint marker detected; waiting for process to exit with error...")
 	_, waitErr := WaitForProcessExitOrKill(runner, exitTimeout)
 	if waitErr == nil {
 		return fmt.Errorf("process exited without error after failpoint %s — expected a failure", markerPath)

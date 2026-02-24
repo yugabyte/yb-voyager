@@ -107,7 +107,7 @@ func TestImportSnapshotCommitFailureAndResume(t *testing.T) {
 		"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb/importBatchCommitError=10*off->return()",
 	)
 
-	testutils.LogTestf(t, "Starting import with snapshot commit failpoint (expected to crash after %d committed batches)...", successBatchesThen)
+	t.Logf("Starting import with snapshot commit failpoint (expected to crash after %d committed batches)...", successBatchesThen)
 	err = lm.StartImportDataWithEnv(true, map[string]string{
 		"--batch-size":           "2",
 		"--parallel-jobs":        "1",
@@ -118,7 +118,7 @@ func TestImportSnapshotCommitFailureAndResume(t *testing.T) {
 	})
 	require.NoError(t, err, "failed to start import with failpoint")
 
-	testutils.LogTest(t, "Waiting for import to crash due to snapshot commit failpoint...")
+	t.Log("Waiting for import to crash due to snapshot commit failpoint...")
 	_, waitErr := testutils.WaitForProcessExitOrKill(lm.GetImportRunner(), 120*time.Second)
 	require.Error(t, waitErr, "Expected import to exit with error after snapshot commit failpoint")
 	require.Contains(t, lm.GetImportCommandStderr(), "failpoint", "Expected failpoint mention in import stderr")
@@ -127,7 +127,7 @@ func TestImportSnapshotCommitFailureAndResume(t *testing.T) {
 	err = lm.WithTargetConn(func(ybConn *sql.DB) error {
 		var rowsAfterFailure int
 		require.NoError(t, ybConn.QueryRow("SELECT COUNT(*) FROM "+tableName).Scan(&rowsAfterFailure))
-		testutils.LogTestf(t, "Target snapshot row count after failure: %d (expected %d)", rowsAfterFailure, expectedRowsAfterFailure)
+		t.Logf("Target snapshot row count after failure: %d (expected %d)", rowsAfterFailure, expectedRowsAfterFailure)
 		require.Equal(t, expectedRowsAfterFailure, rowsAfterFailure, "Expected deterministic partial snapshot progress before failure")
 
 		var distinctIDs int
@@ -142,16 +142,16 @@ func TestImportSnapshotCommitFailureAndResume(t *testing.T) {
 		require.NoError(t, ybConn.QueryRow(`SELECT COUNT(*) FROM (
 			SELECT i FROM generate_series(1, 60) AS i
 			EXCEPT SELECT id FROM `+tableName+`) AS missing`).Scan(&missingIDs))
-		testutils.LogTestf(t, "After snapshot failure: imported=%d missing=%d", rowsAfterFailure, missingIDs)
+		t.Logf("After snapshot failure: imported=%d missing=%d", rowsAfterFailure, missingIDs)
 		require.Equal(t, 60-rowsAfterFailure, missingIDs, "Expected missing ids count to match partial snapshot row count")
 		return nil
 	})
 	require.NoError(t, err)
 
 	// --- Phase 3: Generate CDC changes and resume import ---
-	testutils.LogTest(t, "Generating CDC changes on source...")
+	t.Log("Generating CDC changes on source...")
 	lm.ExecuteSourceDelta()
-	testutils.LogTest(t, "Resuming import without failpoint...")
+	t.Log("Resuming import without failpoint...")
 	err = lm.StartImportData(true, nil)
 	require.NoError(t, err, "Failed to start import resume")
 	defer lm.StopImportData()
@@ -164,7 +164,7 @@ func TestImportSnapshotCommitFailureAndResume(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	testutils.LogTest(t, "Target matches source after resume (snapshot commit failure)")
+	t.Log("Target matches source after resume (snapshot commit failure)")
 }
 
 // TestImportSnapshotTransformFailureAndResume verifies that live migration `import data` can resume
@@ -236,7 +236,7 @@ func TestImportSnapshotTransformFailureAndResume(t *testing.T) {
 	)
 	failMarkerPath := filepath.Join(lm.GetExportDir(), "logs", "failpoint-import-snapshot-transform-error.log")
 
-	testutils.LogTest(t, "Starting import with snapshot transform failpoint...")
+	t.Log("Starting import with snapshot transform failpoint...")
 	err = lm.StartImportDataWithEnv(true, map[string]string{
 		"--batch-size":           "2",
 		"--parallel-jobs":        "1",
@@ -248,7 +248,7 @@ func TestImportSnapshotTransformFailureAndResume(t *testing.T) {
 	})
 	require.NoError(t, err, "failed to start import with failpoint")
 
-	testutils.LogTest(t, "Waiting for import to crash via failpoint...")
+	t.Log("Waiting for import to crash via failpoint...")
 	require.NoError(t, testutils.WaitForFailpointAndProcessCrash(t, lm.GetImportRunner(), failMarkerPath, 60*time.Second, 60*time.Second))
 	require.Contains(t, lm.GetImportCommandStderr(), "failpoint", "Expected failpoint mention in import stderr")
 	require.Contains(t, lm.GetImportCommandStderr(), "transforming line number=", "Expected stderr to show transform progressed to a specific line")
@@ -271,24 +271,24 @@ func TestImportSnapshotTransformFailureAndResume(t *testing.T) {
 	require.Greater(t, len(tmpFiles), 0, "Expected at least one tmp::<N> batch file after transform failure")
 	info, statErr := os.Stat(tmpFiles[0])
 	require.NoError(t, statErr, "Failed to stat tmp batch file")
-	testutils.LogTestf(t, "Found %d tmp batch files; example=%s size=%d", len(tmpFiles), tmpFiles[0], info.Size())
+	t.Logf("Found %d tmp batch files; example=%s size=%d", len(tmpFiles), tmpFiles[0], info.Size())
 	require.True(t, info.Mode().IsRegular(), "Expected tmp batch file to be a regular file")
 
 	// Transform failure crashes before any batch is committed, so zero rows on target.
 	err = lm.WithTargetConn(func(ybConn *sql.DB) error {
 		var rowCount int
 		require.NoError(t, ybConn.QueryRow("SELECT COUNT(*) FROM "+tableName).Scan(&rowCount))
-		testutils.LogTestf(t, "Target snapshot row count after failure: %d (expected 0)", rowCount)
+		t.Logf("Target snapshot row count after failure: %d (expected 0)", rowCount)
 		require.Equal(t, 0, rowCount, "Expected no snapshot rows imported when batch production fails")
 		return nil
 	})
 	require.NoError(t, err)
 
 	// --- Phase 3: Generate CDC changes and resume import ---
-	testutils.LogTest(t, "Generating CDC changes on source...")
+	t.Log("Generating CDC changes on source...")
 	lm.ExecuteSourceDelta()
 
-	testutils.LogTest(t, "Resuming import without failpoint...")
+	t.Log("Resuming import without failpoint...")
 	err = lm.StartImportData(true, nil)
 	require.NoError(t, err, "Failed to start import resume")
 	defer lm.StopImportData()
@@ -301,5 +301,5 @@ func TestImportSnapshotTransformFailureAndResume(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	testutils.LogTest(t, "Target matches source after resume (snapshot transform failure)")
+	t.Log("Target matches source after resume (snapshot transform failure)")
 }

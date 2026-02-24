@@ -344,26 +344,26 @@ func (lm *LiveMigrationTest) KillDebezium() {
 		if os.IsNotExist(err) {
 			return
 		}
-		testutils.LogTestf(lm.t, "WARNING: failed to read Debezium PID from exportDir: %v", err)
+		lm.t.Logf("WARNING: failed to read Debezium PID from exportDir: %v", err)
 		return
 	}
 
 	pid, err := strconv.Atoi(strings.TrimSpace(pidStr))
 	if err != nil {
-		testutils.LogTestf(lm.t, "WARNING: failed to parse Debezium PID %q: %v", pidStr, err)
+		lm.t.Logf("WARNING: failed to parse Debezium PID %q: %v", pidStr, err)
 		return
 	}
 
 	proc, err := os.FindProcess(pid)
 	if err != nil {
-		testutils.LogTestf(lm.t, "WARNING: failed to find Debezium process pid=%d: %v", pid, err)
+		lm.t.Logf("WARNING: failed to find Debezium process pid=%d: %v", pid, err)
 		return
 	}
 	if err := proc.Kill(); err != nil {
-		testutils.LogTestf(lm.t, "WARNING: failed to kill Debezium process pid=%d: %v", pid, err)
+		lm.t.Logf("WARNING: failed to kill Debezium process pid=%d: %v", pid, err)
 		return
 	}
-	testutils.LogTestf(lm.t, "Killed Debezium process pid=%d", pid)
+	lm.t.Logf("Killed Debezium process pid=%d", pid)
 }
 
 // StopImportData stops the running import data command
