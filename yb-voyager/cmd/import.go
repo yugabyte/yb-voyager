@@ -463,7 +463,7 @@ func registerFlagsForTarget(cmd *cobra.Command) {
 	cmd.Flags().IntVar(&tconf.Parallelism, "parallel-jobs", 0,
 		"number of parallel jobs to use while importing data. By default, voyager will try to determine the total "+
 			"number of cores N across the cluster and use N/4 as parallel jobs. "+
-			"If core detection fails, it estimates N using the number of nodes * 4 vCPUs per node. "+
+			"If core detection fails, it estimates N using the number of nodes * 16 assumed vCPUs per node. "+
 			"Any value less than 1 reverts to the default calculation.")
 
 	cmd.Flags().Var(&tconf.AdaptiveParallelismMode, "adaptive-parallelism",
