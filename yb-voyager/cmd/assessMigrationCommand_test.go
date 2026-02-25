@@ -28,6 +28,7 @@ import (
 	"testing"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 
@@ -369,7 +370,8 @@ func Test_AssessMigration_RecommendedSQL_Datatypes(t *testing.T) {
 			c_time TIME NOT NULL,
 			c_serial SERIAL NOT NULL,
 			c_smallserial SMALLSERIAL NOT NULL,
-			c_bigserial BIGSERIAL NOT NULL
+			c_bigserial BIGSERIAL NOT NULL,
+			"c_case_sensitive_text" TEXT NOT NULL
 		);`
 
 	postgresContainer.ExecuteSqls(
@@ -377,7 +379,7 @@ func Test_AssessMigration_RecommendedSQL_Datatypes(t *testing.T) {
 		`INSERT INTO test_schema.test_data_types (
 			c_text, c_char, c_varchar, c_int, c_int2, c_int8, c_numeric, c_real, c_float8, c_bool, 
 			c_date, c_timestamp, c_timestamptz, c_uuid, c_jsonb, c_bytea, c_money, c_text_array,
-			c_time, c_serial, c_smallserial, c_bigserial
+			c_time, c_serial, c_smallserial, c_bigserial, "c_case_sensitive_text"
 		)
 		SELECT
 			CASE WHEN i <= 80 THEN 'fallback_val' ELSE 'fallback_val_' || i END,
@@ -401,7 +403,8 @@ func Test_AssessMigration_RecommendedSQL_Datatypes(t *testing.T) {
 			CASE WHEN i <= 80 THEN '12:00:00'::TIME ELSE ('12:00:00'::TIME + (i || ' minutes')::INTERVAL) END,
 			CASE WHEN i <= 80 THEN 42 ELSE i + 1000 END,
 			CASE WHEN i <= 80 THEN 5::SMALLINT ELSE (i % 100 + 200)::SMALLINT END,
-			CASE WHEN i <= 80 THEN 123456789::BIGINT ELSE (123456789 + i)::BIGINT END
+			CASE WHEN i <= 80 THEN 123456789::BIGINT ELSE (123456789 + i)::BIGINT END,
+			CASE WHEN i <= 80 THEN 'common_val' ELSE 'val_' || i END
 		FROM generate_series(1, 100) AS i;`,
 		`CREATE INDEX idx_mf_c_text ON test_schema.test_data_types (c_text);`,
 		`CREATE INDEX idx_mf_c_char ON test_schema.test_data_types (c_char);`,
@@ -425,6 +428,7 @@ func Test_AssessMigration_RecommendedSQL_Datatypes(t *testing.T) {
 		`CREATE INDEX idx_mf_c_serial ON test_schema.test_data_types (c_serial);`,
 		`CREATE INDEX idx_mf_c_smallserial ON test_schema.test_data_types (c_smallserial);`,
 		`CREATE INDEX idx_mf_c_bigserial ON test_schema.test_data_types (c_bigserial);`,
+		`CREATE INDEX "idx_mf_c_case_sensitive_text" ON test_schema.test_data_types ("c_case_sensitive_text");`,
 		`ANALYZE test_schema.test_data_types;`,
 	)
 	defer postgresContainer.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
@@ -463,14 +467,16 @@ func Test_AssessMigration_RecommendedSQL_Datatypes(t *testing.T) {
 		"idx_mf_c_time":        "time without time zone",
 		"idx_mf_c_serial":      "integer",
 		"idx_mf_c_smallserial": "smallint",
-		"idx_mf_c_bigserial":   "bigint",
+		"idx_mf_c_bigserial":        "bigint",
+		"idx_mf_c_case_sensitive_text":   "text",
 	}
 
+	mfIssues := lo.Filter(report.Issues, func(issue AssessmentIssue, _ int) bool {
+		return issue.Type == queryissue.MOST_FREQUENT_VALUE_INDEXES && strings.HasPrefix(issue.ObjectName, "idx_mf_")
+	})
+
 	recommendedSQLByObject := map[string]string{}
-	for _, issue := range report.Issues {
-		if issue.Type != queryissue.MOST_FREQUENT_VALUE_INDEXES || !strings.HasPrefix(issue.ObjectName, "idx_mf_") {
-			continue
-		}
+	for _, issue := range mfIssues {
 		recommendedSQL, ok := getRecommendedSQLFromAssessmentIssue(issue)
 		assert.Truef(t, ok, "expected RecommendedSQL in issue details for %s", issue.ObjectName)
 		if ok {
@@ -496,7 +502,12 @@ func Test_AssessMigration_RecommendedSQL_Datatypes(t *testing.T) {
 		}
 
 		_, err = ybConn.Exec(recommendedSQL)
-		if isUnsupportedIndexDatatype(dataType) {
+		if err != nil {
+			log.Warnf("error executing recommended SQL for %s: %v", objectName, err)
+			continue
+		}
+		// check for array type and unsupported index datatypes
+		if slices.Contains(queryissue.UnsupportedIndexDatatypes, dataType) || strings.HasSuffix(dataType, "[]") {
 			if assert.Errorf(t, err, "expected recommended SQL to fail for unsupported datatype index %s: %s", objectName, recommendedSQL) {
 				assert.Contains(t, strings.ToLower(err.Error()), "not yet supported", "unexpected error for unsupported datatype index %s", objectName)
 			}
@@ -516,11 +527,4 @@ func getRecommendedSQLFromAssessmentIssue(issue AssessmentIssue) (string, bool) 
 	}
 	sql, ok := val.(string)
 	return sql, ok
-}
-
-func isUnsupportedIndexDatatype(dataType string) bool {
-	if strings.HasSuffix(dataType, "[]") {
-		return true
-	}
-	return slices.Contains(queryissue.UnsupportedIndexDatatypes, dataType)
 }

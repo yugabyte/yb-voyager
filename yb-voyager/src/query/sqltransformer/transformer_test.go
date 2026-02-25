@@ -767,6 +767,16 @@ func TestAddPartialClauseForNullFiltering(t *testing.T) {
 			expectedSQL: `CREATE UNIQUE INDEX idx_unique ON public.users USING btree (middle_name) WHERE middle_name IS NOT NULL;`,
 		},
 		{
+			name:        "case sensitive column name",
+			inputSQL:    `CREATE INDEX idx_cs ON public."Test_caseSensitive" ("ValCaseSensitive");`,
+			expectedSQL: `CREATE INDEX idx_cs ON public."Test_caseSensitive" USING btree ("ValCaseSensitive") WHERE "ValCaseSensitive" IS NOT NULL;`,
+		},
+		{
+			name:        "case sensitive column name with existing WHERE clause",
+			inputSQL:    `CREATE INDEX idx_cs2 ON public."Test_caseSensitive" ("ValCaseSensitive") WHERE "Active" = true;`,
+			expectedSQL: `CREATE INDEX idx_cs2 ON public."Test_caseSensitive" USING btree ("ValCaseSensitive") WHERE "Active" = true AND "ValCaseSensitive" IS NOT NULL;`,
+		},
+		{
 			name:        "expression index errors out",
 			inputSQL:    `CREATE INDEX idx_json ON public.test_json ((data::jsonb));`,
 			errExpected: true,
@@ -1079,6 +1089,20 @@ func TestAddPartialClauseForValueFiltering(t *testing.T) {
 			value:          "yes",
 			columnDataType: "boolean",
 			expectedSQL:    `CREATE INDEX idx_bad_bool ON public.users USING btree (is_active) WHERE is_active <> 'yes';`,
+		},
+		{
+			name:           "case sensitive column name - text type",
+			inputSQL:       `CREATE INDEX idx_cs ON public."Test_caseSensitive" ("ValCaseSensitive");`,
+			value:          "common_val",
+			columnDataType: "text",
+			expectedSQL:    `CREATE INDEX idx_cs ON public."Test_caseSensitive" USING btree ("ValCaseSensitive") WHERE "ValCaseSensitive" <> 'common_val';`,
+		},
+		{
+			name:           "case sensitive column name - integer type",
+			inputSQL:       `CREATE INDEX idx_cs_int ON public."Test_caseSensitive" ("StatusCode");`,
+			value:          "0",
+			columnDataType: "integer",
+			expectedSQL:    `CREATE INDEX idx_cs_int ON public."Test_caseSensitive" USING btree ("StatusCode") WHERE "StatusCode" <> 0;`,
 		},
 		{
 			name:        "expression index errors out",
