@@ -209,6 +209,7 @@ func (lm *LiveMigrationTest) StartExportData(async bool, extraArgs map[string]st
 		"--source-db-schema", strings.Join(lm.config.SchemaNames, ","),
 		"--source-db-name", lm.config.SourceDB.DatabaseName,
 		"--disable-pb", "true",
+		"--parallel-jobs", "1", 
 		"--export-type", SNAPSHOT_AND_CHANGES,
 		"--yes",
 	}
@@ -239,6 +240,7 @@ func (lm *LiveMigrationTest) StartExportDataChangesOnly(async bool, extraArgs ma
 		"--source-db-name", lm.config.SourceDB.DatabaseName,
 		"--disable-pb", "true",
 		"--export-type", CHANGES_ONLY,
+		"--log-level", "debug",
 		"--yes",
 	}
 	for key, value := range extraArgs {
@@ -268,6 +270,7 @@ func (lm *LiveMigrationTest) StartImportData(async bool, extraArgs map[string]st
 		"--export-dir", lm.exportDir,
 		"--disable-pb", "true",
 		"--target-db-name", lm.config.TargetDB.DatabaseName,
+		"--log-level", "debug",
 		"--yes",
 	}
 	for key, value := range extraArgs {
@@ -753,15 +756,11 @@ func (lm *LiveMigrationTest) getCutoverStatus() string {
 		testutils.FatalIfError(lm.t, err, "failed to get migration status record")
 	}
 
-	msr, err = lm.metaDB.GetMigrationStatusRecord()
-	if err != nil {
-		testutils.FatalIfError(lm.t, err, "failed to get migration status record")
-	}
-
 	//Update the global metaDB for running getCutoverStatus code
-	if msr.LatestIterationNumber > 1 {
+	if msr.LatestIterationNumber > 0 {
 		iterationsExportDir := msr.GetIterationsDir(lm.exportDir)	
-		iterationExportDir := GetIterationExportDir(iterationsExportDir, msr.LatestIterationNumber-1)
+		iterationExportDir := GetIterationExportDir(iterationsExportDir, msr.LatestIterationNumber)
+		
 		iterationMetaDB, err := metadb.NewMetaDB(iterationExportDir)
 		if err != nil {
 			testutils.FatalIfError(lm.t, err, "failed to get iteration meta db")
@@ -821,6 +820,17 @@ func (lm *LiveMigrationTest) GetDataMigrationReport() (*DataMigrationReport, err
 		iterationExportDir := GetIterationExportDir(msr.GetIterationsDir(lm.exportDir), msr.LatestIterationNumber)
 		currExportDir = iterationExportDir
 	}
+
+	err = lm.WithTargetConn(func(target *sql.DB) error {
+		var count int
+		err = target.QueryRow("SELECT COUNT(*) FROM test_schema.test_live").Scan(&count)
+		if err != nil {
+			return fmt.Errorf("failed to query test_schema.test_live: %w", err)
+		}
+		fmt.Printf("count: %d\n", count)
+		return nil
+	})
+	testutils.FatalIfError(lm.t, err, "failed to validate row count")
 
 	maxRetry := 5
 	for {

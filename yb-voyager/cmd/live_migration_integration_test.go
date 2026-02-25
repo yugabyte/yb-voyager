@@ -3409,7 +3409,7 @@ func TestLiveMigrationWithFallbackWithMultipleIterations(t *testing.T) {
 		},
 	})
 
-	defer lm.Cleanup()
+	// defer lm.Cleanup()
 
 	exportDir = lm.exportDir
 	err := lm.SetupContainers(context.Background())
@@ -3466,55 +3466,59 @@ func TestLiveMigrationWithFallbackWithMultipleIterations(t *testing.T) {
 
 	testutils.FatalIfError(t, err, "failed to wait for fallback streaming complete")
 
-	err = lm.InitiateCutoverToSource(map[string]string{
-		"--restart-data-migration-source-target": "true",
-	})
-	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
+	for i := 1; i <= 10; i++ {
+		fmt.Printf("\n✅ Starting iteration %d\n", i)
+		err = lm.InitiateCutoverToSource(map[string]string{
+			"--restart-data-migration-source-target": "true",
+		})
+		testutils.FatalIfError(t, err, "failed to initiate cutover to source")
+	
+		err = lm.WaitForCutoverSourceComplete(100)
+		testutils.FatalIfError(t, err, "failed to wait for cutover source complete")
+	
+		err = lm.ExecuteSourceDelta()
+		testutils.FatalIfError(t, err, "failed to execute source delta")
+	
+		err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+			`"test_schema"."test_live"`: {
+				Inserts: 5,
+				Updates: 0,
+				Deletes: 0,
+			},
+		}, 30, 1)
+		testutils.FatalIfError(t, err, "failed to wait for streaming complete")
+	
+		err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live"`}, "id")
+		testutils.FatalIfError(t, err, "failed to validate data consistency")
+	
+		err = lm.InitiateCutoverToTarget(true, nil)
+		testutils.FatalIfError(t, err, "failed to initiate cutover to target")
+	
+		err = lm.WaitForCutoverComplete(50)
+		testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+	
+		err = lm.ExecuteTargetDelta()
+		testutils.FatalIfError(t, err, "failed to execute target delta")
+	
+		err = lm.WaitForFallbackStreamingComplete(map[string]ChangesCount{
+			`"test_schema"."test_live"`: {
+				Inserts: 5,
+				Updates: 0,
+				Deletes: 0,
+			},
+		}, 30, 1)
+		testutils.FatalIfError(t, err, "failed to wait for fallback streaming complete")
+	
+		err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live"`}, "id")
+		testutils.FatalIfError(t, err, "failed to validate data consistency")
 
-	err = lm.WaitForCutoverSourceComplete(100)
-	testutils.FatalIfError(t, err, "failed to wait for cutover source complete")
-
-	err = lm.ExecuteSourceDelta()
-	testutils.FatalIfError(t, err, "failed to execute source delta")
-
-	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
-		`"test_schema"."test_live"`: {
-			Inserts: 5,
-			Updates: 0,
-			Deletes: 0,
-		},
-	}, 30, 1)
-	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
-
-	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live"`}, "id")
-	testutils.FatalIfError(t, err, "failed to validate data consistency")
-
-	err = lm.InitiateCutoverToTarget(true, nil)
-	testutils.FatalIfError(t, err, "failed to initiate cutover to target")
-
-	err = lm.WaitForCutoverComplete(50)
-	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
-
-	err = lm.ExecuteTargetDelta()
-	testutils.FatalIfError(t, err, "failed to execute target delta")
-
-	err = lm.WaitForFallbackStreamingComplete(map[string]ChangesCount{
-		`"test_schema"."test_live"`: {
-			Inserts: 5,
-			Updates: 0,
-			Deletes: 0,
-		},
-	}, 60, 2)
-	testutils.FatalIfError(t, err, "failed to wait for fallback streaming complete")
-
-	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live"`}, "id")
-	testutils.FatalIfError(t, err, "failed to validate data consistency")
-
-	err = lm.InitiateCutoverToSource(nil)
-	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
-
-	err = lm.WaitForCutoverSourceComplete(100)
-	testutils.FatalIfError(t, err, "failed to wait for cutover source complete")
-
-	fmt.Printf("\n✅ Live migration with fallback with 1 iterations completed successfully!\n")
+		if i == 10 {
+			err = lm.InitiateCutoverToSource(nil)
+			testutils.FatalIfError(t, err, "failed to initiate cutover to source")
+		
+			err = lm.WaitForCutoverSourceComplete(100)
+			testutils.FatalIfError(t, err, "failed to wait for cutover source complete")
+		}
+		fmt.Printf("\n✅ Iteration %d completed successfully!\n", i)
+	}
 }
