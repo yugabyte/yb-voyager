@@ -970,10 +970,12 @@ func (p *ParserIssueDetector) getDDLIssues(query string) ([]QueryIssue, error) {
 	if err != nil {
 		log.Warnf("error deparsing recommended SQL: %v", err)
 	}
-	
-	for i := range issues {
-		if hasFixRecommendation(issues[i]) {
-			issues[i].Details[RECOMMENDED_SQL] = recommendedSql
+
+	if recommendedSql != "" && recommendedSql != query {
+		for i := range issues {
+			if hasFixRecommendation(issues[i]) {
+				issues[i].Details[RECOMMENDED_SQL] = recommendedSql
+			}
 		}
 	}
 
