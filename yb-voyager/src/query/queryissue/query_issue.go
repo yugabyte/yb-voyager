@@ -27,31 +27,34 @@ import (
 
 type QueryIssue struct {
 	issue.Issue
-	ObjectType   string // TABLE, FUNCTION, DML_QUERY?
-	ObjectName   string // table name/function name/etc
-	SqlStatement string
-	ObjectUsage  string                 //FREQUENT, MODERATE, RARE, UNUSED
-	Details      map[string]interface{} // additional details about the issue
+	ObjectType   		string // TABLE, FUNCTION, DML_QUERY?
+	ObjectName   		string // table name/function name/etc
+	SqlStatement 		string
+	ObjectUsage  		string                 //FREQUENT, MODERATE, RARE, UNUSED
+	Details      		map[string]interface{} // additional details about the issue
+	InternalDetails		map[string]interface{} // extraneous details which won't go into report
 }
 
-func newQueryIssue(issue issue.Issue, objectType string, objectName string, sqlStatement string, details map[string]interface{}) QueryIssue {
+func newQueryIssue(issue issue.Issue, objectType string, objectName string, sqlStatement string, details map[string]interface{}, internalDetails map[string]interface{}) QueryIssue {
 	return QueryIssue{
-		Issue:        issue,
-		ObjectType:   objectType,
-		ObjectName:   objectName,
-		SqlStatement: sqlStatement,
-		Details:      details,
+		Issue:        		issue,
+		ObjectType:   		objectType,
+		ObjectName:   		objectName,
+		SqlStatement: 		sqlStatement,
+		Details:			details,
+		InternalDetails:	internalDetails,
 	}
 }
 
-func newQueryIssueWithUsageCategory(issue issue.Issue, objectType string, objectName string, sqlStatement string, details map[string]interface{}, usageCategory string) QueryIssue {
+func newQueryIssueWithUsageCategory(issue issue.Issue, objectType string, objectName string, sqlStatement string, details map[string]interface{}, internalDetails map[string]interface{}, usageCategory string) QueryIssue {
 	return QueryIssue{
-		Issue:        issue,
-		ObjectType:   objectType,
-		ObjectName:   objectName,
-		SqlStatement: sqlStatement,
-		Details:      details,
-		ObjectUsage:  usageCategory,
+		Issue:        		issue,
+		ObjectType:   		objectType,
+		ObjectName:   		objectName,
+		SqlStatement: 		sqlStatement,
+		Details:      		details,
+		InternalDetails: 	internalDetails,
+		ObjectUsage:  		usageCategory,
 	}
 }
 
