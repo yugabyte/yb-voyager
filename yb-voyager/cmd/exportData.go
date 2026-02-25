@@ -211,7 +211,7 @@ func startNextIterationImportDataToTarget() {
 		}
 
 	} else {
-		cmd = append(cmd, "--export-dir", exportDir)
+		cmd = append(cmd, "--export-dir", lo.Ternary(currentMsr.IsParentMigration(), exportDir, currentMsr.ParentExportDir))
 		if bool(disablePb) {
 			cmd = append(cmd, "--disable-pb=true")
 		}
