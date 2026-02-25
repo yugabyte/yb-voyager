@@ -57,7 +57,7 @@ func generateNullPartialIndexFix(parseTree *pg_query.ParseResult, issue QueryIss
 func generateMostFrequentValuePartialIndexFix(parseTree *pg_query.ParseResult, issue QueryIssue) (*pg_query.ParseResult, error) {
 	// Use string constants for all values to ensure correct type conversion in PostgreSQL.
 	value, _ := issue.Details[VALUE].(string)
-	columnDataType, _ := issue.Details[COLUMN_TYPE].(string)
+	columnDataType, _ := issue.InternalDetails[COLUMN_TYPE].(string)
 	transformer := sqltransformer.NewTransformer()
 	fixedParseTree, err := transformer.AddPartialClauseForFilteringValue(parseTree, value, columnDataType)
 	if err != nil {

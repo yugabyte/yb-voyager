@@ -54,7 +54,7 @@ func NewHotspotOnDateIndexIssue(objectType string, objectName string, sqlStateme
 		COLUMN_NAME: colName,
 	}
 
-	return newQueryIssueWithUsageCategory(issue, objectType, objectName, sqlStatement, details, usageCategory)
+	return newQueryIssueWithUsageCategory(issue, objectType, objectName, sqlStatement, details, map[string]interface{}{}, usageCategory)
 }
 
 var hotspotsOnTimestampPrimaryOrUniqueKeyConstraint = issue.Issue{
@@ -72,7 +72,7 @@ func NewHotspotOnTimestampPKOrUKIssue(objectType string, objectName string, sqlS
 		COLUMN_NAME: colName,
 	}
 
-	return newQueryIssueWithUsageCategory(issue, objectType, objectName, sqlStatement, details, usageCategory)
+	return newQueryIssueWithUsageCategory(issue, objectType, objectName, sqlStatement, details, map[string]interface{}{}, usageCategory)
 }
 
 var hotspotsOnDatePrimaryOrUniqueKeyConstraint = issue.Issue{
@@ -90,7 +90,7 @@ func NewHotspotOnDatePKOrUKIssue(objectType string, objectName string, sqlStatem
 		COLUMN_NAME: colName,
 	}
 
-	return newQueryIssueWithUsageCategory(issue, objectType, objectName, sqlStatement, details, usageCategory)
+	return newQueryIssueWithUsageCategory(issue, objectType, objectName, sqlStatement, details, map[string]interface{}{}, usageCategory)
 }
 
 var hotspotsOnTimestampIndexes = issue.Issue{
@@ -108,7 +108,7 @@ func NewHotspotOnTimestampIndexIssue(objectType string, objectName string, sqlSt
 		COLUMN_NAME: colName,
 	}
 
-	return newQueryIssueWithUsageCategory(issue, objectType, objectName, sqlStatement, details, usageCategory)
+	return newQueryIssueWithUsageCategory(issue, objectType, objectName, sqlStatement, details, map[string]interface{}{}, usageCategory)
 }
 
 var redundantIndexesIssue = issue.Issue{
@@ -125,7 +125,7 @@ func NewRedundantIndexIssue(objectType string, objectName string, sqlStatement s
 		EXISTING_INDEX_SQL_STATEMENT: existingDDL,
 	}
 
-	return newQueryIssueWithUsageCategory(issue, objectType, objectName, sqlStatement, details, usageCategory)
+	return newQueryIssueWithUsageCategory(issue, objectType, objectName, sqlStatement, details, map[string]interface{}{}, usageCategory)
 }
 
 var lowCardinalityIndexIssue = issue.Issue{
@@ -147,7 +147,8 @@ func NewLowCardinalityIndexesIssue(objectType string, objectName string, sqlStat
 		COLUMN_NAME: columnName,
 		CARDINALITY: cardinality,
 	}
-	return newQueryIssueWithUsageCategory(issue, objectType, objectName, sqlStatement, details, usageCategory)
+
+	return newQueryIssueWithUsageCategory(issue, objectType, objectName, sqlStatement, details, map[string]interface{}{}, usageCategory)
 }
 
 var nullValueIndexes = issue.Issue{
@@ -169,7 +170,8 @@ func NewNullValueIndexesIssue(objectType string, objectName string, sqlStatement
 		FREQUENCY_OF_NULLS: fmt.Sprintf("%d%%", nullFrequency),
 		COLUMN_NAME:        columnName,
 	}
-	return newQueryIssueWithUsageCategory(issue, objectType, objectName, sqlStatement, details, usageCategory)
+
+	return newQueryIssueWithUsageCategory(issue, objectType, objectName, sqlStatement, details, map[string]interface{}{}, usageCategory)
 }
 
 var mostFrequentValueIndexIssue = issue.Issue{
@@ -191,9 +193,12 @@ func NewMostFrequentValueIndexesIssue(objectType string, objectName string, sqlS
 		VALUE:              value,
 		FREQUENCY_OF_VALUE: fmt.Sprintf("%d%%", frequency),
 		COLUMN_NAME:        columnName,
+	}
+	internalDetails := map[string]interface{}{
 		COLUMN_TYPE:        columnType,
 	}
-	return newQueryIssueWithUsageCategory(issue, objectType, objectName, sqlStatement, details, usageCategory)
+
+	return newQueryIssueWithUsageCategory(issue, objectType, objectName, sqlStatement, details, internalDetails, usageCategory)
 }
 
 var foreignKeyDatatypeMismatchIssue = issue.Issue{
@@ -215,7 +220,7 @@ func NewForeignKeyDatatypeMismatchIssue(objectType string, objectName string, sq
 		REFERENCED_COLUMN_TYPE: refColumnType,
 	}
 
-	return newQueryIssueWithUsageCategory(issue, objectType, objectName, sqlStatement, details, usageCategory)
+	return newQueryIssueWithUsageCategory(issue, objectType, objectName, sqlStatement, details, map[string]interface{}{}, usageCategory)
 }
 
 var missingForeignKeyIndexIssue = issue.Issue{
@@ -234,7 +239,7 @@ func NewMissingForeignKeyIndexIssue(objectType string, objectName string, sqlSta
 		REFERENCED_TABLE_NAME: referencedTable,
 	}
 
-	return newQueryIssueWithUsageCategory(issue, objectType, objectName, sqlStatement, details, usageCategory)
+	return newQueryIssueWithUsageCategory(issue, objectType, objectName, sqlStatement, details, map[string]interface{}{}, usageCategory)
 }
 
 // NewMissingPrimaryKeyWhenUniqueNotNullIssue returns a recommendation to add a PK when a UNIQUE constraint's columns are all NOT NULL
@@ -251,5 +256,6 @@ func NewMissingPrimaryKeyWhenUniqueNotNullIssue(objectType string, objectName st
 	details := map[string]interface{}{
 		"PrimaryKeyColumnOptions": options,
 	}
-	return newQueryIssueWithUsageCategory(issue, objectType, objectName, "", details, usageCategory)
+
+	return newQueryIssueWithUsageCategory(issue, objectType, objectName, "", details, map[string]interface{}{}, usageCategory)
 }
