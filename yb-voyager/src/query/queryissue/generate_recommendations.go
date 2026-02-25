@@ -23,13 +23,18 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/sqltransformer"
 )
 
-func (p *ParserIssueDetector) GenerateRecommendedSql(issue QueryIssue, parseTree *pg_query.ParseResult) (*pg_query.ParseResult, error) {
+func (p *ParserIssueDetector) GenerateRecommendedSql(issue QueryIssue, parseTree *pg_query.ParseResult) (fixedParseTree *pg_query.ParseResult, hasSQLFix bool, err error) {
 	generator, exists := sqlFixGenerators[issue.Type]
 	if !exists {
-		return parseTree, nil
+		return parseTree, false, nil
 	}
 
-	return generator(parseTree, issue)
+	fixedParseTree, err = generator(parseTree, issue)
+	if err != nil {
+		return parseTree, true, err
+	}
+
+	return fixedParseTree, true, nil
 }
 
 type SqlFixGenerator func(parseTree *pg_query.ParseResult, issue QueryIssue) (*pg_query.ParseResult, error)
@@ -38,10 +43,6 @@ var sqlFixGenerators = map[string]SqlFixGenerator{
 	// Add more issue types as generators are implemented
 	NULL_VALUE_INDEXES:          generateNullPartialIndexFix,
 	MOST_FREQUENT_VALUE_INDEXES: generateMostFrequentValuePartialIndexFix,
-}
-
-func hasFixRecommendation(issue QueryIssue) bool {
-	return sqlFixGenerators[issue.Type] != nil
 }
 
 func generateNullPartialIndexFix(parseTree *pg_query.ParseResult, issue QueryIssue) (*pg_query.ParseResult, error) {
