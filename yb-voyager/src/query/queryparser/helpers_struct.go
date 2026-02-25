@@ -729,16 +729,7 @@ func MakeAConstValueNode(value string, dataType string) *pg_query.Node {
 			return pg_query.MakeAConstStrNode(value, -1)
 		}
 		if ival > math.MaxInt32 || ival < math.MinInt32 {
-			return &pg_query.Node{
-				Node: &pg_query.Node_AConst{
-					AConst: &pg_query.A_Const{
-						Val: &pg_query.A_Const_Fval{
-							Fval: &pg_query.Float{Fval: value},
-						},
-						Location: -1,
-					},
-				},
-			}
+			return MakeAConstFloatNode(value)
 		}
 		return pg_query.MakeAConstIntNode(ival, -1)
 	case "float", "float4", "float8", "real", "double precision", "numeric", "dec", "decimal":
@@ -746,33 +737,40 @@ func MakeAConstValueNode(value string, dataType string) *pg_query.Node {
 			log.Warnf("failed to parse %q as float for type %s, falling back to string node: %v", value, dataType, err)
 			return pg_query.MakeAConstStrNode(value, -1)
 		}
-		return &pg_query.Node{
-			Node: &pg_query.Node_AConst{
-				AConst: &pg_query.A_Const{
-					Val: &pg_query.A_Const_Fval{
-						Fval: &pg_query.Float{Fval: value},
-					},
-					Location: -1,
-				},
-			},
-		}
+		return MakeAConstFloatNode(value)
 	case "bool", "boolean":
 		bval, err := strconv.ParseBool(value)
 		if err != nil {
 			log.Warnf("failed to parse %q as boolean for type %s, falling back to string node: %v", value, dataType, err)
 			return pg_query.MakeAConstStrNode(value, -1)
 		}
-		return &pg_query.Node{
-			Node: &pg_query.Node_AConst{
-				AConst: &pg_query.A_Const{
-					Val: &pg_query.A_Const_Boolval{
-						Boolval: &pg_query.Boolean{Boolval: bval},
-					},
-					Location: -1,
-				},
-			},
-		}
+		return MakeAConstBooleanNode(bval)
 	default:
 		return pg_query.MakeAConstStrNode(value, -1)
+	}
+}
+
+func MakeAConstFloatNode(value string) *pg_query.Node {
+	return &pg_query.Node{
+		Node: &pg_query.Node_AConst{
+			AConst: &pg_query.A_Const{
+				Val: &pg_query.A_Const_Fval{
+					Fval: &pg_query.Float{Fval: value},
+				},
+			},
+		},
+	}
+}
+
+func MakeAConstBooleanNode(value bool) *pg_query.Node {
+	return &pg_query.Node{
+		Node: &pg_query.Node_AConst{
+			AConst: &pg_query.A_Const{
+				Val: &pg_query.A_Const_Boolval{
+					Boolval: &pg_query.Boolean{Boolval: value},
+				},
+				Location: -1,
+			},
+		},
 	}
 }

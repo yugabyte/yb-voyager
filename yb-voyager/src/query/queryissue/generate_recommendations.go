@@ -23,16 +23,16 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/sqltransformer"
 )
 
-func (p *ParserIssueDetector) GenerateRecommendedSql(issue QueryIssue, parseTree *pg_query.ParseResult) (string, error) {
+func (p *ParserIssueDetector) GenerateRecommendedSql(issue QueryIssue, parseTree *pg_query.ParseResult) (*pg_query.ParseResult, error) {
 	generator, exists := sqlFixGenerators[issue.Type]
 	if !exists {
-		return "", nil
+		return parseTree, nil
 	}
-	
+
 	return generator(queryparser.CloneParseTree(parseTree), issue)
 }
 
-type SqlFixGenerator func(parseTree *pg_query.ParseResult, issue QueryIssue) (string, error)
+type SqlFixGenerator func(parseTree *pg_query.ParseResult, issue QueryIssue) (*pg_query.ParseResult, error)
 
 var sqlFixGenerators = map[string]SqlFixGenerator{
 	// Add more issue types as generators are implemented
@@ -40,25 +40,29 @@ var sqlFixGenerators = map[string]SqlFixGenerator{
 	MOST_FREQUENT_VALUE_INDEXES: generateMostFrequentValuePartialIndexFix,
 }
 
-func generateNullPartialIndexFix(parseTree *pg_query.ParseResult, issue QueryIssue) (string, error) {
+func hasSqlFixGenerator(issue QueryIssue) bool {
+	return sqlFixGenerators[issue.Type] != nil
+}
+
+func generateNullPartialIndexFix(parseTree *pg_query.ParseResult, issue QueryIssue) (*pg_query.ParseResult, error) {
 	transformer := sqltransformer.NewTransformer()
 	fixedParseTree, err := transformer.AddPartialClauseForFilteringNULL(parseTree)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	return queryparser.Deparse(fixedParseTree)
+	return fixedParseTree, nil
 }
 
-func generateMostFrequentValuePartialIndexFix(parseTree *pg_query.ParseResult, issue QueryIssue) (string, error) {
+func generateMostFrequentValuePartialIndexFix(parseTree *pg_query.ParseResult, issue QueryIssue) (*pg_query.ParseResult, error) {
 	// Use string constants for all values to ensure correct type conversion in PostgreSQL.
 	value, _ := issue.Details[VALUE].(string)
 	columnDataType, _ := issue.Details[COLUMN_TYPE].(string)
 	transformer := sqltransformer.NewTransformer()
 	fixedParseTree, err := transformer.AddPartialClauseForFilteringValue(parseTree, value, columnDataType)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	return queryparser.Deparse(fixedParseTree)
+	return fixedParseTree, nil
 }

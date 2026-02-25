@@ -957,13 +957,22 @@ func (p *ParserIssueDetector) getDDLIssues(query string) ([]QueryIssue, error) {
 	}
 
 	// Generate recommended SQL for issues
+	workaroundParseTree := queryparser.CloneParseTree(parseTree)
 	for i := range issues {
-		recommendedSql, err := p.GenerateRecommendedSql(issues[i], parseTree)
+		workaroundParseTree, err = p.GenerateRecommendedSql(issues[i], workaroundParseTree)
 		if err != nil {
 			log.Warnf("error generating recommended SQL for issue %s: %v", issues[i].Type, err)
 			continue
 		}
-		if recommendedSql != "" {
+	}
+
+	recommendedSql, err := queryparser.Deparse(workaroundParseTree)
+	if err != nil {
+		log.Warnf("error deparsing recommended SQL: %v", err)
+	}
+	
+	for i := range issues {
+		if hasSqlFixGenerator(issues[i]) {
 			issues[i].Details[RECOMMENDED_SQL] = recommendedSql
 		}
 	}
