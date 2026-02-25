@@ -102,7 +102,6 @@
             "MinimumVersionsFixedIn": null,
             "Details": {
                 "ColumnName": "status",
-                "ColumnType": "text",
                 "FrequencyOfTheValue": "64%",
                 "RecommendedSQL": "CREATE INDEX idx_normal ON test.test_mostcomm_status USING btree (status) WHERE status <> 'DONE';",
                 "Value": "DONE"
@@ -123,7 +122,6 @@
             "MinimumVersionsFixedIn": null,
             "Details": {
                 "ColumnName": "status",
-                "ColumnType": "text",
                 "FrequencyOfTheValue": "69%",
                 "RecommendedSQL": "CREATE INDEX indx1 ON public.test_most_freq USING btree (status, id) WHERE status <> 'active';",
                 "Value": "active"
@@ -144,7 +142,6 @@
             "MinimumVersionsFixedIn": null,
             "Details": {
                 "ColumnName": "name",
-                "ColumnType": "varchar",
                 "FrequencyOfTheValue": "65%",
                 "RecommendedSQL": "CREATE INDEX idx_name ON public.users USING btree (name) WHERE name <> '';",
                 "Value": ""

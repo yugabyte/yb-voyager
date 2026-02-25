@@ -972,7 +972,7 @@ func (p *ParserIssueDetector) getDDLIssues(query string) ([]QueryIssue, error) {
 	}
 	
 	for i := range issues {
-		if hasSqlFixGenerator(issues[i]) {
+		if hasFixRecommendation(issues[i]) {
 			issues[i].Details[RECOMMENDED_SQL] = recommendedSql
 		}
 	}

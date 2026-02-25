@@ -29,7 +29,7 @@ func (p *ParserIssueDetector) GenerateRecommendedSql(issue QueryIssue, parseTree
 		return parseTree, nil
 	}
 
-	return generator(queryparser.CloneParseTree(parseTree), issue)
+	return generator(parseTree, issue)
 }
 
 type SqlFixGenerator func(parseTree *pg_query.ParseResult, issue QueryIssue) (*pg_query.ParseResult, error)
@@ -40,15 +40,15 @@ var sqlFixGenerators = map[string]SqlFixGenerator{
 	MOST_FREQUENT_VALUE_INDEXES: generateMostFrequentValuePartialIndexFix,
 }
 
-func hasSqlFixGenerator(issue QueryIssue) bool {
+func hasFixRecommendation(issue QueryIssue) bool {
 	return sqlFixGenerators[issue.Type] != nil
 }
 
 func generateNullPartialIndexFix(parseTree *pg_query.ParseResult, issue QueryIssue) (*pg_query.ParseResult, error) {
 	transformer := sqltransformer.NewTransformer()
-	fixedParseTree, err := transformer.AddPartialClauseForFilteringNULL(parseTree)
+	fixedParseTree, err := transformer.AddPartialClauseForFilteringNULL(queryparser.CloneParseTree(parseTree))
 	if err != nil {
-		return nil, err
+		return parseTree, err
 	}
 
 	return fixedParseTree, nil
@@ -59,9 +59,9 @@ func generateMostFrequentValuePartialIndexFix(parseTree *pg_query.ParseResult, i
 	value, _ := issue.Details[VALUE].(string)
 	columnDataType, _ := issue.InternalDetails[COLUMN_TYPE].(string)
 	transformer := sqltransformer.NewTransformer()
-	fixedParseTree, err := transformer.AddPartialClauseForFilteringValue(parseTree, value, columnDataType)
+	fixedParseTree, err := transformer.AddPartialClauseForFilteringValue(queryparser.CloneParseTree(parseTree), value, columnDataType)
 	if err != nil {
-		return nil, err
+		return parseTree, err
 	}
 
 	return fixedParseTree, nil

@@ -472,7 +472,7 @@ func Test_AssessMigration_RecommendedSQL_Datatypes(t *testing.T) {
 	}
 
 	mfIssues := lo.Filter(report.Issues, func(issue AssessmentIssue, _ int) bool {
-		return issue.Type == queryissue.MOST_FREQUENT_VALUE_INDEXES && strings.HasPrefix(issue.ObjectName, "idx_mf_")
+		return issue.Type == queryissue.MOST_FREQUENT_VALUE_INDEXES
 	})
 
 	recommendedSQLByObject := map[string]string{}
@@ -502,11 +502,8 @@ func Test_AssessMigration_RecommendedSQL_Datatypes(t *testing.T) {
 		}
 
 		_, err = ybConn.Exec(recommendedSQL)
-		if err != nil {
-			log.Warnf("error executing recommended SQL for %s: %v", objectName, err)
-			continue
-		}
-		// check for array type and unsupported index datatypes
+
+	    // check for array type and unsupported index datatypes
 		if slices.Contains(queryissue.UnsupportedIndexDatatypes, dataType) || strings.HasSuffix(dataType, "[]") {
 			if assert.Errorf(t, err, "expected recommended SQL to fail for unsupported datatype index %s: %s", objectName, recommendedSQL) {
 				assert.Contains(t, strings.ToLower(err.Error()), "not yet supported", "unexpected error for unsupported datatype index %s", objectName)
