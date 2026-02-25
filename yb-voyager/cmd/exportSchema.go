@@ -277,14 +277,12 @@ func printExportSchemaFooter(tableTransformer *sqltransformer.TableFileTransform
 	wf := resolveWorkflow(msr)
 	phases := computePhaseStatuses(wf, msr, StepExportSchema)
 
-	configFlag := fmt.Sprintf("--config-file %s", displayPath(cfgFile))
-
 	footer := CommandFooter{
 		SectionTitle: "Export Schema Summary",
 		Title:        "Schema export completed successfully.",
 		Artifacts:    artifacts,
 		NextStepDesc: []string{"Analyze the exported schema for YugabyteDB compatibility:"},
-		NextStepCmd:  fmt.Sprintf("yb-voyager schema analyze %s", configFlag),
+		NextStepCmd:  "yb-voyager schema analyze",
 		Phases:       phases,
 	}
 	printCommandFooter(footer)

@@ -89,6 +89,12 @@ func init() {
 func runStartMigration() {
 	// ── Validate flag combinations ──
 	controlPlaneFlow := startMigrationDir != "" || startAssessmentControlPlane != "" || startMigrationUUID != ""
+
+	// If --config-file wasn't explicitly passed but auto-detection found one, use it
+	// (only when the user is not using the control-plane flow).
+	if startMigrationConfigFile == "" && cfgFile != "" && !controlPlaneFlow {
+		startMigrationConfigFile = cfgFile
+	}
 	configFileFlow := startMigrationConfigFile != ""
 
 	if controlPlaneFlow && configFileFlow {
@@ -168,7 +174,7 @@ func continueStartMigration(v *viper.Viper) {
 		if !proceed {
 			fmt.Println()
 			fmt.Println("  Run assessment first:")
-			fmt.Println("  " + cmdStyle.Render(fmt.Sprintf("yb-voyager assess run --config-file %s", displayPath(startMigrationConfigFile))))
+			fmt.Println("  " + cmdStyle.Render("yb-voyager assess run"))
 			fmt.Println()
 			return
 		}
@@ -873,6 +879,11 @@ func printStartMigrationNextSteps(configFilePath string, v *viper.Viper, workflo
 	var lines []string
 
 	step := 1
+	migrationDirPath := filepath.Dir(configFilePath)
+	lines = append(lines, nextStepLabelStyle.Render(fmt.Sprintf("%d. Change into the migration directory:", step)))
+	lines = append(lines, cmdStyle.Render(fmt.Sprintf("  cd %s", displayPath(migrationDirPath))))
+	lines = append(lines, "")
+	step++
 
 	// Check if permissions need granting
 	sourceDBType := v.GetString("source.db-type")
@@ -889,14 +900,9 @@ func printStartMigrationNextSteps(configFilePath string, v *viper.Viper, workflo
 		step++
 	}
 
-	if step == 1 {
-		lines = append(lines, "Export the schema from your source database:")
-	} else {
-		lines = append(lines, fmt.Sprintf("%d. Export schema:", step))
-	}
+	lines = append(lines, fmt.Sprintf("%d. Export schema:", step))
 	lines = append(lines, "")
-	lines = append(lines, cmdStyle.Render(fmt.Sprintf("  yb-voyager schema export \\\n    --config-file %s",
-		displayPath(configFilePath))))
+	lines = append(lines, cmdStyle.Render("  yb-voyager schema export"))
 
 	printSection("What's Next", lines...)
 	fmt.Println()

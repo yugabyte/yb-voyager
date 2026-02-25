@@ -183,10 +183,12 @@ func resolveNextStepForStatus(wf *Workflow, msr *metadb.MigrationStatusRecord, v
 	return nextStep.DisplayName, fmt.Sprintf("yb-voyager %s%s", nextStep.Command, configFlag)
 }
 
-// buildConfigFlag returns the --config-file or --export-dir flag string for CLI commands.
+// buildConfigFlag returns the --export-dir flag string for CLI commands when
+// config auto-detection is not available (legacy export-dir flow).
+// Returns an empty string when cfgFile is set, since auto-detection handles it.
 func buildConfigFlag() string {
 	if cfgFile != "" {
-		return fmt.Sprintf(" --config-file %s", displayPath(cfgFile))
+		return ""
 	}
 	return fmt.Sprintf(" --export-dir %s", displayPath(exportDir))
 }

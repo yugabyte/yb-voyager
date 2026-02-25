@@ -401,7 +401,6 @@ func printAssessMigrationFooter() {
 	wf := resolveWorkflow(msr)
 	phases := computePhaseStatuses(wf, msr, StepAssess)
 
-	configFlag := fmt.Sprintf("--config-file %s", displayPath(cfgFile))
 	uiHost := "localhost"
 	if parsed, err := url.Parse(assessmentControlPlane); err == nil && parsed.Hostname() != "" {
 		uiHost = parsed.Hostname()
@@ -415,7 +414,7 @@ func printAssessMigrationFooter() {
 		Links:        []string{uiURL},
 		Summary:      summary,
 		NextStepDesc: []string{"Start the migration workflow:"},
-		NextStepCmd:  fmt.Sprintf("yb-voyager start-migration %s", configFlag),
+		NextStepCmd:  "yb-voyager start-migration",
 		Phases:       phases,
 	}
 	printCommandFooter(footer)

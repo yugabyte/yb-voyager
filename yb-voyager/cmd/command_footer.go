@@ -223,7 +223,7 @@ func printCommandFooter(footer CommandFooter) {
 	}
 
 	// Tip
-	tip := fmt.Sprintf("yb-voyager status --config-file %s", displayPath(cfgFile))
+	tip := "yb-voyager status"
 	progress = append(progress, formatKeyValue("Tip:", dimStyle.Render(tip), kvWidth))
 
 	printSection("Migration Progress", progress...)

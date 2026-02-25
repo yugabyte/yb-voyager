@@ -174,14 +174,12 @@ func printExportDataFooter() {
 	wf := resolveWorkflow(msr)
 	phases := computePhaseStatuses(wf, msr, StepExportData)
 
-	configFlag := fmt.Sprintf("--config-file %s", displayPath(cfgFile))
-
 	footer := CommandFooter{
 		SectionTitle: "Export Data Summary",
 		Title:        "Data export completed successfully.",
 		Artifacts:    artifacts,
 		NextStepDesc: []string{"Import data into your target YugabyteDB:"},
-		NextStepCmd:  fmt.Sprintf("yb-voyager data import-to-target %s", configFlag),
+		NextStepCmd:  "yb-voyager data import-to-target",
 		Phases:       phases,
 	}
 	printCommandFooter(footer)

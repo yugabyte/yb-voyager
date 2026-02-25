@@ -130,13 +130,11 @@ func printComparePerformanceFooter() {
 	wf := resolveWorkflow(msr)
 	phases := computePhaseStatuses(wf, msr, StepComparePerformance)
 
-	configFlag := fmt.Sprintf("--config-file %s", displayPath(cfgFile))
-
 	footer := CommandFooter{
 		SectionTitle: "Performance Comparison Summary",
 		Title:        "Performance comparison completed successfully.",
 		NextStepDesc: []string{"End the migration and clean up resources:"},
-		NextStepCmd:  fmt.Sprintf("yb-voyager end-migration %s", configFlag),
+		NextStepCmd:  "yb-voyager end-migration",
 		Phases:       phases,
 	}
 	printCommandFooter(footer)

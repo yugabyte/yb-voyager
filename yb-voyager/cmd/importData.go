@@ -965,14 +965,12 @@ func printImportDataFooter() {
 	wf := resolveWorkflow(msr)
 	phases := computePhaseStatuses(wf, msr, StepImportData)
 
-	configFlag := fmt.Sprintf("--config-file %s", displayPath(cfgFile))
-
 	nextStep := findNextStep(wf, msr)
 	nextDesc := "End the migration and clean up resources:"
-	nextCmd := fmt.Sprintf("yb-voyager end-migration %s", configFlag)
+	nextCmd := "yb-voyager end-migration"
 	if nextStep != nil && nextStep.ID == StepComparePerformance {
 		nextDesc = "Compare query performance between source and target:"
-		nextCmd = fmt.Sprintf("yb-voyager %s %s", nextStep.Command, configFlag)
+		nextCmd = fmt.Sprintf("yb-voyager %s", nextStep.Command)
 	}
 
 	footer := CommandFooter{

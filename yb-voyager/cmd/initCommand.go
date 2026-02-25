@@ -850,6 +850,12 @@ func printInitNextSteps(configFilePath string, connected bool, scripts bool, sel
 	var lines []string
 
 	step := 1
+	migrationDirPath := filepath.Dir(configFilePath)
+	lines = append(lines, nextStepLabelStyle.Render(fmt.Sprintf("%d. Change into the migration directory:", step)))
+	lines = append(lines, cmdStyle.Render(fmt.Sprintf("  cd %s", displayPath(migrationDirPath))))
+	lines = append(lines, "")
+	step++
+
 	if !connected && !scripts {
 		lines = append(lines, fmt.Sprintf("%d. Add your source connection details to the config file:", step))
 		lines = append(lines, fmt.Sprintf("   vi %s", displayPath(configFilePath)))
@@ -867,7 +873,6 @@ func printInitNextSteps(configFilePath string, connected bool, scripts bool, sel
 	}
 
 	if scripts {
-		migrationDirPath := filepath.Dir(configFilePath)
 		scriptsDir := filepath.Join(migrationDirPath, "scripts")
 
 		lines = append(lines, fmt.Sprintf("%d. Copy the scripts to a machine that can reach your source database:", step))
@@ -879,16 +884,14 @@ func printInitNextSteps(configFilePath string, connected bool, scripts bool, sel
 		lines = append(lines, fmt.Sprintf("%d. Copy the resulting metadata directory back to this machine.", step))
 		step++
 		lines = append(lines, nextStepLabelStyle.Render(fmt.Sprintf("%d. Run assessment:", step)))
-		lines = append(lines, cmdStyle.Render(fmt.Sprintf("   yb-voyager assess run --config-file %s --assessment-metadata-dir /path/to/metadata",
-			displayPath(configFilePath))))
+		lines = append(lines, cmdStyle.Render("   yb-voyager assess run --assessment-metadata-dir /path/to/metadata"))
 	} else {
 		lines = append(lines, nextStepLabelStyle.Render(fmt.Sprintf("%d. Assess your source database for migration:", step)))
-		lines = append(lines, cmdStyle.Render(fmt.Sprintf("  yb-voyager assess run --config-file %s",
-			displayPath(configFilePath))))
+		lines = append(lines, cmdStyle.Render("  yb-voyager assess run"))
 	}
 
 	lines = append(lines, "")
-	lines = append(lines, dimStyle.Render(fmt.Sprintf("Tip: yb-voyager status -c %s", displayPath(configFilePath))))
+	lines = append(lines, dimStyle.Render("Tip: yb-voyager status"))
 
 	printSection("What's Next", lines...)
 	fmt.Println()

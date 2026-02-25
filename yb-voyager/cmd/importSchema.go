@@ -320,15 +320,13 @@ func printImportSchemaFooter() {
 	wf := resolveWorkflow(msr)
 	phases := computePhaseStatuses(wf, msr, StepImportSchema)
 
-	configFlag := fmt.Sprintf("--config-file %s", displayPath(cfgFile))
-
 	footer := CommandFooter{
 		SectionTitle: "Import Schema Summary",
 		Title:        "Schema import completed successfully.",
 		Artifacts:    artifacts,
 		Summary:      summary,
 		NextStepDesc: []string{"Export data from your source database:"},
-		NextStepCmd:  fmt.Sprintf("yb-voyager data export-from-source %s", configFlag),
+		NextStepCmd:  "yb-voyager data export-from-source",
 		Phases:       phases,
 	}
 	printCommandFooter(footer)

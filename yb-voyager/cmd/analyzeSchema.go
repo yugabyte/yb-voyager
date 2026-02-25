@@ -1256,8 +1256,6 @@ func printAnalyzeSchemaFooter() {
 	wf := resolveWorkflow(msr)
 	phases := computePhaseStatuses(wf, msr, StepAnalyzeSchema)
 
-	configFlag := fmt.Sprintf("--config-file %s", displayPath(cfgFile))
-
 	var nextStepDesc []string
 	if issueCount > 0 {
 		nextStepDesc = []string{
@@ -1274,7 +1272,7 @@ func printAnalyzeSchemaFooter() {
 		Artifacts:    []string{reportPath},
 		Summary:      summary,
 		NextStepDesc: nextStepDesc,
-		NextStepCmd:  fmt.Sprintf("yb-voyager schema import %s", configFlag),
+		NextStepCmd:  "yb-voyager schema import",
 		Phases:       phases,
 	}
 	printCommandFooter(footer)

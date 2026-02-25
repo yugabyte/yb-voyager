@@ -289,9 +289,39 @@ initConfig initializes the configuration for the given Cobra command.
 
 	This setup ensures CLI > Config precedence
 */
+func findConfigFile() string {
+	dir, err := os.Getwd()
+	if err != nil {
+		return ""
+	}
+	for {
+		candidate := filepath.Join(dir, "config.yaml")
+		if utils.FileOrFolderExists(candidate) {
+			return candidate
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return ""
+		}
+		dir = parent
+	}
+}
+
 func initConfig(cmd *cobra.Command) ([]ConfigFlagOverride, []EnvVarSetViaConfig, map[string]string, error) {
 	v := viper.New()
 	v.SetConfigType("yaml")
+
+	if cfgFile == "" {
+		cfgFile = findConfigFile()
+	}
+
+	if cfgFile == "" && shouldRunPersistentPreRun(cmd) {
+		fmt.Println(color.RedString("Error:") + " could not find config.yaml in the current directory or any parent directory.")
+		fmt.Println("Please either:")
+		fmt.Println("  - Run this command from inside a migration directory created by 'yb-voyager init'")
+		fmt.Println("  - Provide the config file explicitly with --config-file / -c")
+		os.Exit(1)
+	}
 
 	if cfgFile != "" {
 		// Use config file from the flag.

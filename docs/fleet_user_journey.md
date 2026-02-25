@@ -63,11 +63,12 @@ postgresql://yugabyte:yugabyte@localhost:5433/dbx
 
 postgresql://yugabyte:yugabyte@10.9.15.135:5433
 
-yb-voyager start-migration --assessment-control-plane 'postgresql://yugabyte:yugabyte@10.9.15.135:5433' --migration-uuid 'acd1f159-2e9e-40c8-8f93-44d61bd24f54' --migration-dir ./db2-migration
+yb-voyager start-migration --assessment-control-plane 'postgresql://yugabyte:yugabyte@10.9.15.135:5433' --migration-uuid 'acd1f159-2e9e-40c8-8f93-44d61bd24f54'
 
 
 clean up
 - control plane truncate
+     truncate table ybvoyager_visualizer.ybvoyager_visualizer_metadata ;
 - drop and recreate db2 on target
 
 
