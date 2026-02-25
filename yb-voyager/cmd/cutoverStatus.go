@@ -70,7 +70,7 @@ func checkAndReportCutoverStatus() {
 }
 
 func reportCutoverToSourceStatus() {
-	status := getCutoverToSourceStatus()
+	status := getCutoverToSourceStatus(exportDir)
 	fmt.Printf("cutover to source status: ")
 	switch status {
 	case NOT_INITIATED:

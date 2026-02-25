@@ -145,7 +145,8 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 	if err != nil {
 		utils.ErrExit("failed to get migration status record: %w", err)
 	}
-	if exportType == CHANGES_ONLY && exporterRole == SOURCE_DB_EXPORTER_ROLE && !msr.IsParentMigration() {
+	if exporterRole == SOURCE_DB_EXPORTER_ROLE && !msr.IsParentMigration() {
+		//It this is not the parent migration, then use the source db conf stored in the migration
 		password := source.Password
 		source = *msr.SourceDBConf
 		source.Password = password
@@ -181,8 +182,7 @@ func startNextIterationImportDataToTarget() {
 	if !currentMsr.RestartDataMigrationSourceTargetNextIteration {
 		return
 	}
-	//starting import data to target
-
+	
 	lockFile.Unlock() // unlock export dir from import data cmd before switching current process to ff/fb sync cmd
 
 	cmd := []string{"yb-voyager", "import", "data", "to", "target"}
@@ -190,16 +190,16 @@ func startNextIterationImportDataToTarget() {
 	if cfgFile != "" {
 		for _, override := range resolvedConfig.fromCLI {
 			if override.FlagName == "disable-pb" {
-				//only for disable-pb flag is overidden then pass it as CLI override also to this command
+				//only for disable-pb flag common export/import flag, if it is overidden then pass it as CLI override also to this command
 				cmd = append(cmd, "--"+override.FlagName, override.Value)
 				continue
 			}
 			if override.FlagName == "export-dir" {
+				//Do not do anything for export-dir as it should always be the current iteration export dir
 				continue
 			}
 			if override.FlagName == "config-file" {
-				// configFile := resolveToUserFacingConfigFileForIteration(msr)
-				//if config file is overidden then pass it as CLI override also to this command
+				//For config file, always pass the current config file
 				cmd = append(cmd, "--"+override.FlagName, cfgFile)
 				continue
 			}
@@ -211,6 +211,7 @@ func startNextIterationImportDataToTarget() {
 		}
 
 	} else {
+		//Use the parent export dir for next command always 
 		cmd = append(cmd, "--export-dir", lo.Ternary(currentMsr.IsParentMigration(), exportDir, currentMsr.ParentExportDir))
 		if bool(disablePb) {
 			cmd = append(cmd, "--disable-pb=true")
@@ -1727,12 +1728,6 @@ func generateGlobalExportImportArguments() []string {
 				arguments = append(arguments, "--"+override.FlagName, override.Value)
 				continue
 			}
-			if override.FlagName == "config-file" {
-				configFile := resolveToUserFacingConfigFileForIteration(msr)
-				//if config file is overidden then pass it as CLI override also to this command
-				arguments = append(arguments, "--"+override.FlagName, configFile)
-				continue
-			}
 			if !slices.Contains(globalFlags, override.FlagName) {
 				//if its not a global flag then skip passing it to the command as it will be command specific flag
 				continue
@@ -1749,23 +1744,6 @@ func generateGlobalExportImportArguments() []string {
 		arguments = append(arguments, fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics))
 	}
 	return arguments
-}
-
-func resolveToUserFacingConfigFileForIteration(msr *metadb.MigrationStatusRecord) string {
-	configFile := cfgFile
-	if msr.IsIteration() {
-		parentMetaDB, err := msr.GetParentMetaDB()
-		if err != nil {
-			utils.ErrExit("failed to get parent meta db: %w", err)
-		}
-		parentMsr, err := parentMetaDB.GetMigrationStatusRecord()
-		if err != nil {
-			utils.ErrExit("failed to get parent migration status record: %w", err)
-		}
-		configFile = parentMsr.ConfigFile
-	}
-
-	return configFile
 }
 
 // ================================ Export Data table list filtering ================================

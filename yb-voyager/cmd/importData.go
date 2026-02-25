@@ -154,7 +154,8 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	if err != nil {
 		utils.ErrExit("failed to get migration status record: %w", err)
 	}
-	if msr.ExportTypeFromSource == CHANGES_ONLY && importerRole == TARGET_DB_IMPORTER_ROLE && !msr.IsParentMigration() {
+	if importerRole == TARGET_DB_IMPORTER_ROLE && !msr.IsParentMigration() {
+		//It this is not the parent migration, then use the target db conf stored in the migration
 		password := tconf.Password
 		tconf = *msr.TargetDBConf
 		tconf.Password = password
@@ -274,17 +275,7 @@ func startExportDataFromSourceOnNextIteration() {
 	})
 
 	lockFile.Unlock() // unlock export dir from import data cmd before switching current process to ff/fb sync cmd
-	// iterationsDir := currentMsr.GetIterationsDir(exportDir)
-	// iterationExportDir := GetIterationExportDir(iterationsDir, currentMsr.IterationNo+1)
 	cmd := []string{"yb-voyager", "export", "data", "from", "source"}
-	// iterationMetadb, err := metadb.NewMetaDB(iterationExportDir)
-	// if err != nil {
-	// 	utils.ErrExit("failed to create iteration meta db: %w", err)
-	// }
-	// iterationMsr, err := iterationMetadb.GetMigrationStatusRecord()
-	// if err != nil {
-	// 	utils.ErrExit("failed to get iteration migration status record: %w", err)
-	// }
 	if cfgFile != "" {
 		cmd = append(cmd, "--config-file", cfgFile)
 		//TODO: handle overrides for the command
@@ -294,17 +285,12 @@ func startExportDataFromSourceOnNextIteration() {
 		//Only disable-pb and log-level are the common flags of both the commands
 		for _, override := range resolvedConfig.fromCLI {
 			if override.FlagName == "disable-pb" {
-				//only for disable-pb flag is overidden then pass it as CLI override also to this command
+				//only for disable-pb flag common export/import flag, if it is overidden then pass it as CLI override also to this command
 				cmd = append(cmd, "--"+override.FlagName, override.Value)
 				continue
 			}
 			if override.FlagName == "export-dir" {
-				continue
-			}
-			if override.FlagName == "config-file" {
-				// configFile := resolveToUserFacingConfigFileForIteration(msr)
-				//if config file is overidden then pass it as CLI override also to this command
-				cmd = append(cmd, "--"+override.FlagName, cfgFile)
+				//Do not do anything for export-dir as it should always be the current iteration export dir
 				continue
 			}
 			if !slices.Contains(globalFlags, override.FlagName) {

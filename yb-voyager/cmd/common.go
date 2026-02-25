@@ -802,7 +802,7 @@ func getCutoverToSourceReplicaStatus() string {
 	return INITIATED
 }
 
-func getCutoverToSourceStatus() string {
+func getCutoverToSourceStatus(exportDir string) string {
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
 		utils.ErrExit("get migration status record: %v", err)
@@ -813,13 +813,13 @@ func getCutoverToSourceStatus() string {
 
 	if !a {
 		return NOT_INITIATED
-	} else if a && b && c && isNextIterationStartedIfRequied() {
+	} else if a && b && c && isNextIterationStartedIfRequied(exportDir) {
 		return COMPLETED
 	}
 	return INITIATED
 }
 
-func isNextIterationStartedIfRequied() bool {
+func isNextIterationStartedIfRequied(exportDir string) bool {
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
 		utils.ErrExit("get migration status record: %v", err)

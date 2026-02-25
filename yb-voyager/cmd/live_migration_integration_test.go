@@ -3409,9 +3409,8 @@ func TestLiveMigrationWithFallbackWithMultipleIterations(t *testing.T) {
 		},
 	})
 
-	// defer lm.Cleanup()
+	defer lm.Cleanup()
 
-	exportDir = lm.exportDir
 	err := lm.SetupContainers(context.Background())
 	testutils.FatalIfError(t, err, "failed to setup containers")
 

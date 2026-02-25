@@ -244,6 +244,7 @@ func resolveToActiveIterationIfRequired(cmd *cobra.Command) error {
 	if !metaDBIsCreated(exportDir) {
 		return nil
 	}
+	//this is just for any logs that might be printed before the iteration export dir is resolved
 	err := InitLogging(exportDir, config.LogLevel, cmd.Use == "status", GetCommandID(cmd))
 	if err != nil {
 		utils.ErrExit("Failed to initialize logging: %w", err)
@@ -253,7 +254,7 @@ func resolveToActiveIterationIfRequired(cmd *cobra.Command) error {
 	if err != nil || msr == nil {
 		return nil
 	}
-	if !msr.IsParentMigration() || msr.LatestIterationNumber == 0 {
+	if msr.IsIteration() || msr.LatestIterationNumber == 0 {
 		return nil
 	}
 	iterationsDir := msr.GetIterationsDir(exportDir)
