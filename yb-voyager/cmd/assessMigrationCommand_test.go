@@ -585,8 +585,8 @@ func Test_AssessMigration_RecommendedSQL_MultipleIssues(t *testing.T) {
 
 	t.Logf("Recommended SQL: %s", freqRecommended)
 
-	assert.Equal(t, freqRecommended, "CREATE INDEX idx_combined ON test_schema.test_combined USING btree (status) WHERE status <> 'active' AND status IS NOT NULL;",
-		"recommended SQL should include the IS NOT NULL clause from null fix")
+	assert.Equal(t, "CREATE INDEX idx_combined ON test_schema.test_combined USING btree (status) WHERE status <> 'active' AND status IS NOT NULL;",
+		freqRecommended, "recommended SQL should include the IS NOT NULL clause from null fix")
 
 	yugabyteContainer.ExecuteSqls(createSchemaAndTableSQL)
 	defer yugabyteContainer.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
