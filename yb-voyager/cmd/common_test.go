@@ -476,7 +476,7 @@ func TestStripAnchorTags(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := utils.StripAnchorTags(tt.input)
+			result := stripAnchorTags(tt.input)
 			assert.Equal(t, tt.expected, result,
 				"Test: %s\nInput: %q\nExpected: %q\nActual: %q",
 				tt.name, tt.input, tt.expected, result)

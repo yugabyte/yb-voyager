@@ -93,7 +93,7 @@ func createMigrationAssessmentCompletedEventForYBAeon() *cp.MigrationAssessmentC
 
 	// Classify notes into categories (same as yugabyted)
 	for _, note := range assessmentReport.Notes {
-		sanitizedText := utils.StripAnchorTags(note.Text)
+		sanitizedText := stripAnchorTags(note.Text)
 		switch note.Type {
 		case GeneralNotes:
 			payload.GeneralNotes = append(payload.GeneralNotes, sanitizedText)
