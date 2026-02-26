@@ -185,6 +185,9 @@ func (ybaeon *YBAeon) createAndSendEvent(event *controlPlane.BaseEvent, status s
 	// Build host_IP string (pipe-separated list of IPs)
 	hostIP := strings.Join(event.DBIP, "|")
 
+	// Payload can be any type - struct, map, nil, etc.
+	// The httpclient will marshal it to JSON when sending to YB-Aeon API
+	// This is fully decoupled - each control plane passes data in its native format
 	var eventPayload interface{}
 	if payload != nil {
 		eventPayload = payload
