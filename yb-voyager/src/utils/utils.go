@@ -1108,3 +1108,35 @@ func GetFloat64OrZero(data map[string]interface{}, keys ...string) float64 {
 	}
 	return 0.0
 }
+
+// StripAnchorTags converts HTML <a> tags to plain text "text (URL)" format,
+// preserving both the link text and the URL. If the link text equals the URL,
+// only the URL is kept to avoid duplication.
+// Note: This only handles <a> tags. Other HTML tags (e.g., <br>, <div>) are left as-is.
+func StripAnchorTags(htmlText string) string {
+	if htmlText == "" {
+		return ""
+	}
+
+	// Extract href and text from <a> tags: <a href="URL">text</a> → "text (URL)"
+	linkPattern := regexp.MustCompile(`<a[^>]*href=["']([^"']*)["'][^>]*>(.*?)</a>`)
+	result := linkPattern.ReplaceAllStringFunc(htmlText, func(match string) string {
+		submatch := linkPattern.FindStringSubmatch(match)
+		if len(submatch) >= 3 {
+			url := submatch[1]
+			text := submatch[2]
+			// If text is the same as URL, just return the URL
+			if text == url {
+				return url
+			}
+			// Otherwise return "text (URL)"
+			return text + " (" + url + ")"
+		}
+		return match
+	})
+
+	// Clean up whitespace
+	result = strings.TrimSpace(result)
+
+	return result
+}

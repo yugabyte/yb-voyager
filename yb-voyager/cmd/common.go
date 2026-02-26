@@ -1312,38 +1312,10 @@ func (ni NoteInfo) MarshalJSON() ([]byte, error) {
 		Text string   `json:"Text"`
 	}{
 		Type: ni.Type,
-		Text: stripHTMLTags(ni.Text),
+		Text: utils.StripAnchorTags(ni.Text),
 	})
 }
 
-// stripHTMLTags removes <a> tags but preserves both link text and URL
-func stripHTMLTags(htmlText string) string {
-	if htmlText == "" {
-		return ""
-	}
-
-	// Extract href and text from <a> tags: <a href="URL">text</a> → "text (URL)"
-	linkPattern := regexp.MustCompile(`<a[^>]*href=["']([^"']*)["'][^>]*>(.*?)</a>`)
-	result := linkPattern.ReplaceAllStringFunc(htmlText, func(match string) string {
-		submatch := linkPattern.FindStringSubmatch(match)
-		if len(submatch) >= 3 {
-			url := submatch[1]
-			text := submatch[2]
-			// If text is the same as URL, just return the URL
-			if text == url {
-				return url
-			}
-			// Otherwise return "text (URL)"
-			return text + " (" + url + ")"
-		}
-		return match
-	})
-
-	// Clean up whitespace
-	result = strings.TrimSpace(result)
-
-	return result
-}
 
 // ======================================================================
 type BulkAssessmentReport struct {
