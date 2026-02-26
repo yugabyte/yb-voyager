@@ -24,9 +24,12 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	pg_query "github.com/pganalyze/pg_query_go/v6"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
@@ -2678,4 +2681,94 @@ func TestPKRec_CommonRunner(t *testing.T) {
 	for _, tc := range cases {
 		runPKRec(t, tc.name, tc.ddls, tc.expected)
 	}
+}
+
+func TestRecommendedSqlMultipleIssues(t *testing.T) {
+	// Register a test-only fix generator for STORAGE_PARAMETERS that removes
+	// the WITH (...) clause. The other two generators (NULL_VALUE_INDEXES and
+	// MOST_FREQUENT_VALUE_INDEXES) are real and already registered.
+	sqlFixGenerators[STORAGE_PARAMETERS] = func(parseTree *pg_query.ParseResult, issue QueryIssue) (*pg_query.ParseResult, error) {
+		indexNode, ok := queryparser.GetCreateIndexStmtNode(parseTree)
+		if !ok {
+			return parseTree, fmt.Errorf("not a CREATE INDEX statement")
+		}
+		indexNode.IndexStmt.Options = nil
+		return parseTree, nil
+	}
+	defer delete(sqlFixGenerators, STORAGE_PARAMETERS)
+
+	const (
+		tableStmt = `CREATE TABLE public.test_combined (
+			id SERIAL PRIMARY KEY,
+			status TEXT
+		);`
+		indexStmt = `CREATE INDEX idx_combined ON public.test_combined (status) WITH (fillfactor = 70);`
+	)
+
+	detector := NewParserIssueDetector()
+	err := detector.ParseAndProcessDDL(tableStmt)
+	testutils.FatalIfError(t, err)
+	err = detector.ParseAndProcessDDL(indexStmt)
+	testutils.FatalIfError(t, err)
+	detector.FinalizeTablesMetadata()
+
+	// NullFraction=0.40 triggers NULL_VALUE_INDEXES (threshold 40%)
+	// MostCommonFrequency=0.60 triggers MOST_FREQUENT_VALUE_INDEXES (threshold 60%)
+	detector.SetColumnStatistics([]utils.ColumnStatistics{
+		{
+			DBType:              "postgresql",
+			SchemaName:          "public",
+			TableName:           "test_combined",
+			ColumnName:          "status",
+			NullFraction:        0.40,
+			DistinctValues:      2,
+			MostCommonFrequency: 0.60,
+			MostCommonValue:     "active",
+		},
+	})
+
+	issues, err := detector.GetDDLIssues(indexStmt, ybversion.V2024_2_3_1)
+	testutils.FatalIfError(t, err)
+
+	var storageIssue, nullIssue, freqIssue *QueryIssue
+	for i := range issues {
+		switch issues[i].Type {
+		case STORAGE_PARAMETERS:
+			storageIssue = &issues[i]
+		case NULL_VALUE_INDEXES:
+			nullIssue = &issues[i]
+		case MOST_FREQUENT_VALUE_INDEXES:
+			freqIssue = &issues[i]
+		}
+	}
+
+	assert.NotNil(t, storageIssue, "expected STORAGE_PARAMETERS issue to be detected")
+	assert.NotNil(t, nullIssue, "expected NULL_VALUE_INDEXES issue to be detected")
+	assert.NotNil(t, freqIssue, "expected MOST_FREQUENT_VALUE_INDEXES issue to be detected")
+	if storageIssue == nil || nullIssue == nil || freqIssue == nil {
+		return
+	}
+
+	storageRecommended, ok1 := storageIssue.Details[RECOMMENDED_SQL].(string)
+	nullRecommended, ok2 := nullIssue.Details[RECOMMENDED_SQL].(string)
+	freqRecommended, ok3 := freqIssue.Details[RECOMMENDED_SQL].(string)
+	assert.True(t, ok1, "STORAGE_PARAMETERS issue should have RecommendedSQL")
+	assert.True(t, ok2, "NULL_VALUE_INDEXES issue should have RecommendedSQL")
+	assert.True(t, ok3, "MOST_FREQUENT_VALUE_INDEXES issue should have RecommendedSQL")
+
+	assert.Equal(t, storageRecommended, nullRecommended,
+		"all three issues should share the same combined recommended SQL")
+	assert.Equal(t, nullRecommended, freqRecommended,
+		"all three issues should share the same combined recommended SQL")
+
+	t.Logf("Recommended SQL: %s", freqRecommended)
+
+	assert.NotContains(t, freqRecommended, "fillfactor",
+		"recommended SQL should have storage parameters removed")
+	assert.Contains(t, freqRecommended, "IS NOT NULL",
+		"recommended SQL should include the IS NOT NULL clause from null fix")
+	assert.Contains(t, freqRecommended, "<>",
+		"recommended SQL should include the value filter operator")
+	assert.Contains(t, freqRecommended, "'active'",
+		"recommended SQL should include the most frequent value")
 }
