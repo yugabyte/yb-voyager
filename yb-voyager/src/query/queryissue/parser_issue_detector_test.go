@@ -2763,12 +2763,5 @@ func TestRecommendedSqlMultipleIssues(t *testing.T) {
 
 	t.Logf("Recommended SQL: %s", freqRecommended)
 
-	assert.NotContains(t, freqRecommended, "fillfactor",
-		"recommended SQL should have storage parameters removed")
-	assert.Contains(t, freqRecommended, "IS NOT NULL",
-		"recommended SQL should include the IS NOT NULL clause from null fix")
-	assert.Contains(t, freqRecommended, "<>",
-		"recommended SQL should include the value filter operator")
-	assert.Contains(t, freqRecommended, "'active'",
-		"recommended SQL should include the most frequent value")
+	assert.Equal(t, "CREATE INDEX idx_combined ON public.test_combined USING btree (status) WHERE status <> 'active' AND status IS NOT NULL;", freqRecommended)
 }
