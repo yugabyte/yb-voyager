@@ -187,7 +187,7 @@ func (ybaeon *YBAeon) createAndSendEvent(event *controlPlane.BaseEvent, status s
 
 	var eventPayload interface{}
 	if payload != nil {
-		eventPayload = sanitizePayload(payload)
+		eventPayload = payload
 	} else {
 		eventPayload = make(map[string]interface{})
 	}
