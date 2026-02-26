@@ -314,12 +314,12 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 	if err != nil {
 		utils.ErrExit("error while aggregating data with iterations: %w", err)
 	}
-	forIteration := msr.ExportTypeFromSource == CHANGES_ONLY
+	isIteration := msr.ExportTypeFromSource == CHANGES_ONLY
 
 	if reportOrStatusCmdOutputFormat == "json" {
 		// Print the report in json format.
 		reportFilePath := filepath.Join(exportDir, "reports", "data-migration-report.json")
-		if forIteration {
+		if isIteration {
 			reportFile := jsonfile.NewJsonFile[[]*rowDataForIteration](reportFilePath)
 			reportDataForIteration := convertRowDataToRowDataForIteration(reportData)
 			err = reportFile.Create(&reportDataForIteration)
@@ -333,13 +333,13 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 				utils.ErrExit("creating into json file: %s: %w", reportFilePath, err)
 			}
 		}
-		if !forIteration && msr.LatestIterationNumber > 0 {
+		if !isIteration && msr.LatestIterationNumber > 0 {
 			utils.PrintAndLogfPhase("\nAggregated Data migration report for the overall migration:")
 		}
 		fmt.Print(color.GreenString("Data migration report is written to %s\n", reportFilePath))
 
 	} else {
-		printReport(forIteration, reportData)
+		printReport(isIteration, reportData)
 	}
 
 }
