@@ -514,6 +514,95 @@ func Test_AssessMigration_RecommendedSQL_Datatypes(t *testing.T) {
 	}
 }
 
+func Test_AssessMigration_RecommendedSQL_MultipleIssues(t *testing.T) {
+	exportDir = testutils.CreateTempExportDir()
+	defer testutils.RemoveTempExportDir(exportDir)
+
+	postgresContainer := testcontainers.NewTestContainer("postgresql", nil)
+	err := postgresContainer.Start(context.Background())
+	if err != nil {
+		utils.ErrExit("Failed to start postgres container: %v", err)
+	}
+
+	yugabyteContainer := testcontainers.NewTestContainer("yugabytedb", nil)
+	err = yugabyteContainer.Start(context.Background())
+	if err != nil {
+		utils.ErrExit("Failed to start yugabyte container: %v", err)
+	}
+
+	createSchemaAndTableSQL := `CREATE SCHEMA test_schema;
+		CREATE TABLE test_schema.test_combined (
+			id SERIAL PRIMARY KEY,
+			status TEXT
+		);`
+
+	postgresContainer.ExecuteSqls(
+		createSchemaAndTableSQL,
+		// 40% NULLs and 60% 'active' to trigger both NULL_VALUE_INDEXES and MOST_FREQUENT_VALUE_INDEXES
+		`INSERT INTO test_schema.test_combined (status)
+		SELECT CASE WHEN i <= 60 THEN 'active' ELSE NULL END
+		FROM generate_series(1, 100) AS i;`,
+		`CREATE INDEX idx_combined ON test_schema.test_combined (status);`,
+		`ANALYZE test_schema.test_combined;`,
+	)
+	defer postgresContainer.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
+
+	_, err = testutils.RunVoyagerCommand(postgresContainer, "assess-migration", []string{
+		"--source-db-schema", "test_schema",
+		"--iops-capture-interval", "0",
+		"--export-dir", exportDir,
+		"--yes",
+	}, nil, false)
+	testutils.FatalIfError(t, err, "Failed to run assess-migration command")
+
+	assessmentReportPath := filepath.Join(exportDir, "assessment", "reports", fmt.Sprintf("%s.json", ASSESSMENT_FILE_NAME))
+	report, err := ParseJSONToAssessmentReport(assessmentReportPath)
+	testutils.FatalIfError(t, err, "failed to parse assessment report")
+
+	var nullIssue, freqIssue *AssessmentIssue
+	for i := range report.Issues {
+		switch report.Issues[i].Type {
+		case queryissue.NULL_VALUE_INDEXES:
+			nullIssue = &report.Issues[i]
+		case queryissue.MOST_FREQUENT_VALUE_INDEXES:
+			freqIssue = &report.Issues[i]
+		}
+	}
+
+	assert.NotNil(t, nullIssue, "expected NULL_VALUE_INDEXES issue to be detected")
+	assert.NotNil(t, freqIssue, "expected MOST_FREQUENT_VALUE_INDEXES issue to be detected")
+	if nullIssue == nil || freqIssue == nil {
+		return
+	}
+
+	nullRecommended, ok1 := getRecommendedSQLFromAssessmentIssue(*nullIssue)
+	freqRecommended, ok2 := getRecommendedSQLFromAssessmentIssue(*freqIssue)
+	assert.True(t, ok1, "NULL_VALUE_INDEXES issue should have RecommendedSQL")
+	assert.True(t, ok2, "MOST_FREQUENT_VALUE_INDEXES issue should have RecommendedSQL")
+
+	assert.Equal(t, nullRecommended, freqRecommended,
+		"both issues should share the same combined recommended SQL")
+
+	t.Logf("Recommended SQL: %s", freqRecommended)
+
+	assert.Contains(t, freqRecommended, "IS NOT NULL",
+		"recommended SQL should include the IS NOT NULL clause from null fix")
+	assert.Contains(t, freqRecommended, "<>",
+		"recommended SQL should include the value filter operator")
+	assert.Contains(t, freqRecommended, "'active'",
+		"recommended SQL should include the most frequent value")
+
+	yugabyteContainer.ExecuteSqls(createSchemaAndTableSQL)
+	defer yugabyteContainer.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
+
+	ybConn, err := yugabyteContainer.GetConnection()
+	testutils.FatalIfError(t, err, "failed to get yugabyte connection")
+	defer ybConn.Close()
+
+	_, err = ybConn.Exec(freqRecommended)
+	assert.NoErrorf(t, err, "recommended SQL failed to compile in YugabyteDB: %s", freqRecommended)
+}
+
 func getRecommendedSQLFromAssessmentIssue(issue AssessmentIssue) (string, bool) {
 	if issue.Details == nil {
 		return "", false
