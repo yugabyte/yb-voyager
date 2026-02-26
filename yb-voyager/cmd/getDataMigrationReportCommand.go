@@ -333,7 +333,11 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 				utils.ErrExit("creating into json file: %s: %w", reportFilePath, err)
 			}
 		}
+		if !forIteration && msr.LatestIterationNumber > 0 {
+			utils.PrintAndLogfPhase("\nAggregated Data migration report for the overall migration:")
+		}
 		fmt.Print(color.GreenString("Data migration report is written to %s\n", reportFilePath))
+
 	} else {
 		printReport(forIteration, reportData)
 	}
@@ -385,18 +389,18 @@ func printReport(forIteration bool, reportData []*rowData) {
 		}
 	}
 
-	if !forIteration {
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("error while getting migration status record: %w", err)
+	}
+
+	if !forIteration && msr.LatestIterationNumber > 0 {
 		utils.PrintAndLogfPhase("\nAggregated Data migration report for the overall migration:")
 	}
 
 	fmt.Print("\n")
 	fmt.Println(uitbl)
 	fmt.Print("\n")
-
-	msr, err := metaDB.GetMigrationStatusRecord()
-	if err != nil {
-		utils.ErrExit("error while getting migration status record: %w", err)
-	}
 
 	if !bool(detailedReport) && msr.LatestIterationNumber > 0 {
 		//If detailed report is not enabled, and there are iterations, print the info to see the detailed report
@@ -441,7 +445,7 @@ func aggregateDataWithIterationsIfRequired(reportData []*rowData, msr *metadb.Mi
 				printReport(true, iterationReportData)
 			} else {
 				iterationReportFile := filepath.Join(iterationExportDir, "reports", "data-migration-report.json")
-				utils.PrintAndLogf("Data migration report for iteration %d is written to %s\n", i, iterationReportFile)
+				utils.PrintAndLog(color.GreenString("Data migration report for iteration %d is written to %s\n", i, iterationReportFile))
 			}
 		}
 		//aggregate the iteration report data with the main report data
