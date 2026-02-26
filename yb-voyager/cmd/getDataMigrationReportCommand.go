@@ -45,6 +45,8 @@ var sourceReplicaDbPassword string
 var sourceDbPassword string
 var nameRegistryForSourceReplicaRole *namereg.NameRegistry
 
+var detailedReport utils.BoolStr
+
 var getDataMigrationReportCmd = &cobra.Command{
 	Use:   "data-migration-report",
 	Short: "Print the consolidated report of migration of data.",
@@ -107,8 +109,6 @@ type rowData struct {
 	FinalRowCount               int64  `json:"final_row_count"`
 }
 
-var reportData []*rowData
-
 var fBEnabled, fFEnabled bool
 var firstHeader = []string{"TABLE", "DB_TYPE", "EXPORTED", "IMPORTED", "ERRORED-IMPORTED", "EXPORTED", "EXPORTED", "EXPORTED", "IMPORTED", "IMPORTED", "IMPORTED", "FINAL_ROW_COUNT"}
 var secondHeader = []string{"", "", "SNAPSHOT_ROWS", "SNAPSHOT_ROWS", "SNAPSHOT_ROWS", "INSERTS", "UPDATES", "DELETES", "INSERTS", "UPDATES", "DELETES", ""}
@@ -128,6 +128,7 @@ type rowDataForIteration struct {
 }
 
 func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
+	var reportData []*rowData
 	fBEnabled = msr.FallbackEnabled
 	fFEnabled = msr.FallForwardEnabled
 	tableList := msr.TableListExportedFromSource
@@ -278,7 +279,7 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 				utils.ErrExit("error while getting imported events for source DB in case of fall-back: %w\n", err)
 			}
 		}
-		addRowInTheReport(row, nameTup.ForKey())
+		addRowInTheReport(&reportData, row, nameTup.ForKey())
 		row = rowData{}
 		row.TableName = ""
 		row.DBType = "target"
@@ -295,7 +296,7 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 				utils.ErrExit("error while getting exported events for target DB: %w\n", err)
 			}
 		}
-		addRowInTheReport(row, nameTup.ForKey())
+		addRowInTheReport(&reportData, row, nameTup.ForKey())
 		if fFEnabled {
 			row = rowData{}
 			row.TableName = ""
@@ -305,7 +306,7 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 			if err != nil {
 				utils.ErrExit("error while getting imported events for DB %s: %w\n", row.DBType, err)
 			}
-			addRowInTheReport(row, nameTup.ForKey())
+			addRowInTheReport(&reportData, row, nameTup.ForKey())
 		}
 	}
 
@@ -334,12 +335,12 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 		}
 		fmt.Print(color.GreenString("Data migration report is written to %s\n", reportFilePath))
 	} else {
-		printReport(forIteration)
+		printReport(forIteration, reportData)
 	}
 
 }
 
-func printReport(forIteration bool) {
+func printReport(forIteration bool, reportData []*rowData) {
 	rowsPerTable := 2 //source<->target
 	if fFEnabled {
 		rowsPerTable = 3 //source<->target<->source-replica
@@ -383,14 +384,30 @@ func printReport(forIteration bool) {
 			addRowToTable(uitbl, thirdRow, forIteration)
 		}
 	}
+
+	if !forIteration {
+		utils.PrintAndLogfPhase("\nAggregated Data migration report for the overall migration:")
+	}
+
 	fmt.Print("\n")
 	fmt.Println(uitbl)
 	fmt.Print("\n")
+
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("error while getting migration status record: %w", err)
+	}
+
+	if !bool(detailedReport) && msr.LatestIterationNumber > 0 {
+		//If detailed report is not enabled, and there are iterations, print the info to see the detailed report
+		utils.PrintAndLogfInfo("To see the detailed report for all the iterations, run the command with the --detailed true flag.\n\n")
+	}
+
 }
 
 func addRowToTable(uitbl *uitable.Table, rows *rowData, forIteration bool) {
 	if forIteration {
-		uitbl.AddRow(rows.TableName, rows.DBType, rows.ExportedInserts, rows.ExportedUpdates, rows.ExportedDeletes, rows.ImportedInserts, rows.ImportedUpdates, rows.ImportedDeletes, rows.FinalRowCount)
+		uitbl.AddRow(rows.TableName, rows.DBType, rows.ExportedInserts, rows.ExportedUpdates, rows.ExportedDeletes, rows.ImportedInserts, rows.ImportedUpdates, rows.ImportedDeletes)
 	} else {
 		uitbl.AddRow(rows.TableName, rows.DBType, rows.ExportedSnapshotRows, rows.ImportedSnapshotRows, rows.ErroredImportedSnapshotRows,
 			rows.ExportedInserts, rows.ExportedUpdates, rows.ExportedDeletes, rows.ImportedInserts, rows.ImportedUpdates, rows.ImportedDeletes, rows.FinalRowCount)
@@ -398,10 +415,10 @@ func addRowToTable(uitbl *uitable.Table, rows *rowData, forIteration bool) {
 
 }
 
-func addRowInTheReport(row rowData, tableName string) {
+func addRowInTheReport(reportData *[]*rowData, row rowData, tableName string) {
 	row.TableName = tableName
 	row.FinalRowCount = getFinalRowCount(row)
-	reportData = append(reportData, &row)
+	*reportData = append(*reportData, &row)
 }
 
 func aggregateDataWithIterationsIfRequired(reportData []*rowData, msr *metadb.MigrationStatusRecord) ([]*rowData, error) {
@@ -417,6 +434,15 @@ func aggregateDataWithIterationsIfRequired(reportData []*rowData, msr *metadb.Mi
 		iterationReportData, err := getIterationDataMigrationReport(iterationExportDir)
 		if err != nil {
 			return nil, fmt.Errorf("error while getting iteration data migration report: %w", err)
+		}
+		if detailedReport {
+			utils.PrintAndLogfPhase("\nData migration report for iteration %d:", i)
+			if reportOrStatusCmdOutputFormat == "table" {
+				printReport(true, iterationReportData)
+			} else {
+				iterationReportFile := filepath.Join(iterationExportDir, "reports", "data-migration-report.json")
+				utils.PrintAndLogf("Data migration report for iteration %d is written to %s\n", i, iterationReportFile)
+			}
 		}
 		//aggregate the iteration report data with the main report data
 		reportData = aggregateReportData(reportData, iterationReportData)
@@ -608,6 +634,9 @@ func init() {
 		"log level for yb-voyager. Accepted values: (trace, debug, info, warn, error, fatal, panic)")
 	getDataMigrationReportCmd.Flags().StringVar(&reportOrStatusCmdOutputFormat, "output-format", "table",
 		"format in which report will be generated: (table, json) (default: table)")
+
+	BoolVar(getDataMigrationReportCmd.Flags(), &detailedReport, "detailed", false,
+		"print the detailed report with all the iterations.")
 
 	getDataMigrationReportCmd.Flags().StringVar(&sourceReplicaDbPassword, "source-replica-db-password", "",
 		"password with which to connect to the target Source-Replica DB server. Alternatively, you can also specify the password by setting the environment variable SOURCE_REPLICA_DB_PASSWORD. If you don't provide a password via the CLI, yb-voyager will prompt you at runtime for a password. If the password contains special characters that are interpreted by the shell (for example, # and $), enclose the password in single quotes.")
