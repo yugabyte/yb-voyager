@@ -182,7 +182,7 @@ func startNextIterationImportDataToTarget() {
 	if !currentMsr.RestartDataMigrationSourceTargetNextIteration {
 		return
 	}
-	
+
 	lockFile.Unlock() // unlock export dir from import data cmd before switching current process to ff/fb sync cmd
 
 	cmd := []string{"yb-voyager", "import", "data", "to", "target"}
@@ -224,7 +224,7 @@ func startNextIterationImportDataToTarget() {
 	}
 
 	iterationExportDir := GetIterationExportDir(currentMsr.GetIterationsDir(exportDir), currentMsr.IterationNo+1)
-	utils.PrintAndLogf("Starting import data to target on iteration %d at %s.\n", currentMsr.IterationNo+1, iterationExportDir)
+	utils.PrintAndLogfInfo("\nStarting import data to target on iteration %d at %s.\n\n", currentMsr.IterationNo+1, iterationExportDir)
 
 	cmdStr := "TARGET_DB_PASSWORD=*** " + strings.Join(cmd, " ")
 

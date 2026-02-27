@@ -317,7 +317,7 @@ func startExportDataFromSourceOnNextIteration() {
 	}
 
 	iterationExportDir := GetIterationExportDir(currentMsr.GetIterationsDir(exportDir), currentMsr.IterationNo+1)
-	utils.PrintAndLogf("Starting export data from source on iteration %d at %s.\n", currentMsr.IterationNo+1, iterationExportDir)
+	utils.PrintAndLogfInfo("\nStarting export data from source on iteration %d at %s.\n\n", currentMsr.IterationNo+1, iterationExportDir)
 
 	cmdStr := "SOURCE_DB_PASSWORD=*** " + strings.Join(cmd, " ")
 

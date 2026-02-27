@@ -105,6 +105,7 @@ func InitiateCutover(dbRole string, prepareforFallback bool, useYBgRPCConnector 
 			}
 			record.CutoverToSourceRequested = true
 			record.CutoverTimings.ToSourceRequestedAt = utils.GetCurrentTimestamp()
+			record.RestartDataMigrationSourceTargetNextIteration = bool(restartSourceToTargetNextIteration)
 		}
 	})
 	if err != nil {
@@ -131,32 +132,25 @@ func initializeNextIteration() error {
 	if !iterativeCutoverSupported(currentMSR) {
 		return goerrors.Errorf("iterative live migration is not supported for this migration")
 	}
-	var parentMetaDB *metadb.MetaDB
-	iterationsDir := currentMSR.GetIterationsDir(exportDir)
-	if currentMSR.IsParentMigration() {
-		parentMetaDB = metaDB
-		err := os.MkdirAll(iterationsDir, 0755)
-		if err != nil {
-			return fmt.Errorf("failed to create iterations directory: %w", err)
-		}
-	} else {
-		parentMetaDB, err = currentMSR.GetParentMetaDB()
-		if err != nil {
-			return fmt.Errorf("failed to get parent meta db: %w", err)
-		}
-		if !utils.FileOrFolderExists(iterationsDir) {
-			return goerrors.Errorf("iterations directory does not exist")
-		}
+	parentMetaDB, err := metaDB.GetParentMetaDB()
+	if err != nil {
+		return fmt.Errorf("failed to get parent meta db: %w", err)
 	}
-	iterationNo := currentMSR.IterationNo + 1
+	iterationsDir := currentMSR.GetIterationsDir(exportDir)
+	err = os.MkdirAll(iterationsDir, 0755)
+	if err != nil {
+		return fmt.Errorf("failed to create iterations directory: %w", err)
+	}
+	nextIterationNo := currentMSR.IterationNo + 1
 
 	parentMSR, err := parentMetaDB.GetMigrationStatusRecord()
 	if err != nil {
 		return fmt.Errorf("failed to get parent migration status record: %w", err)
 	}
+	totalIterations := parentMSR.TotalIterations + 1
 	//Create a new export dir for the next iteration under export_dir int following structure
 
-	iterationExportDir := GetIterationExportDir(iterationsDir, iterationNo)
+	iterationExportDir := GetIterationExportDir(iterationsDir, nextIterationNo)
 	err = os.MkdirAll(iterationExportDir, 0755)
 	if err != nil {
 		return fmt.Errorf("failed to create iteration directory: %w", err)
@@ -171,32 +165,27 @@ func initializeNextIteration() error {
 	//after this metaDB will be pointing to metadb of next iteration
 	CreateMigrationProjectIfNotExists(parentMSR.SourceDBConf.DBType, iterationExportDir)
 
-	utils.PrintAndLogf("Initialized iteration %d at %s.", iterationNo, iterationExportDir)
+	nextIterationMetaDB := metaDB
+
+	utils.PrintAndLogfInfo("Initialized iteration %d at %s.", nextIterationNo, iterationExportDir)
 
 	//Update the MSR - parent, next iteration and current iteration
-	return setUpNextIterationMSR(parentMetaDB, iterationNo, currentMetaDB, currentMSR)
+	return setUpNextIterationMSR(parentMetaDB, nextIterationNo, currentMSR, nextIterationMetaDB, totalIterations)
 
 }
 
-func setUpNextIterationMSR(parentMetaDB *metadb.MetaDB,
-	iterationNo int, currentMetaDB *metadb.MetaDB, currentMSR *metadb.MigrationStatusRecord) error {
+func setUpNextIterationMSR(parentMetaDB *metadb.MetaDB, iterationNo int, currentMSR *metadb.MigrationStatusRecord, 
+	nextIterationMetaDB *metadb.MetaDB, totalIterations int) error {
+
 	err := parentMetaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
-		record.TotalIterations += 1
+		record.TotalIterations = totalIterations
 		record.LatestIterationNumber = iterationNo
 	})
 	if err != nil {
 		utils.ErrExit("failed to update migration status record: %w", err)
 	}
-
-	err = currentMetaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
-		record.RestartDataMigrationSourceTargetNextIteration = true
-	})
-	if err != nil {
-		return fmt.Errorf("failed to update migration status record: %w", err)
-	}
-
 	//Update next iteration's MSR
-	err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+	err = nextIterationMetaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		record.ParentExportDir = lo.Ternary(currentMSR.IsParentMigration(), exportDir, currentMSR.ParentExportDir)
 		record.IterationNo = iterationNo
 		record.SourceDBConf = currentMSR.SourceDBConf

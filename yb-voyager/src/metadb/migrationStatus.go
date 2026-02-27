@@ -185,7 +185,14 @@ func (msr *MigrationStatusRecord) IsIteration() bool {
 	return msr.ParentExportDir != ""
 }
 
-func (msr *MigrationStatusRecord) GetParentMetaDB() (*MetaDB, error) {
+func (m *MetaDB) GetParentMetaDB() (*MetaDB, error) {
+	msr, err := m.GetMigrationStatusRecord()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get migration status record: %w", err)
+	}
+	if msr.IsParentMigration() {
+		return m, nil
+	}
 	return NewMetaDB(msr.ParentExportDir)
 }
 
