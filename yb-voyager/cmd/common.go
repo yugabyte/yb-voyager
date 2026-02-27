@@ -1334,7 +1334,7 @@ func stripAnchorTags(htmlText string) string {
 			if text == url {
 				return url
 			}
-			return text + " (" + url + ")"
+			return text + " ( " + url + " )"
 		}
 		return match
 	})
