@@ -97,6 +97,7 @@ var getDataMigrationReportCmd = &cobra.Command{
 type rowData struct {
 	TableName                   string `json:"table_name"`
 	DBType                      string `json:"db_type"`
+	IterationNumber             int    `json:"iteration_number,omitempty"`
 	ExportedSnapshotRows        int64  `json:"exported_snapshot_rows"`
 	ImportedSnapshotRows        int64  `json:"imported_snapshot_rows"`
 	ErroredImportedSnapshotRows int64  `json:"errored_imported_snapshot_rows"`
@@ -112,6 +113,9 @@ type rowData struct {
 var fBEnabled, fFEnabled bool
 var firstHeader = []string{"TABLE", "DB_TYPE", "EXPORTED", "IMPORTED", "ERRORED-IMPORTED", "EXPORTED", "EXPORTED", "EXPORTED", "IMPORTED", "IMPORTED", "IMPORTED", "FINAL_ROW_COUNT"}
 var secondHeader = []string{"", "", "SNAPSHOT_ROWS", "SNAPSHOT_ROWS", "SNAPSHOT_ROWS", "INSERTS", "UPDATES", "DELETES", "INSERTS", "UPDATES", "DELETES", ""}
+
+var firstHeaderForDetailedReport = []string{"TABLE", "DB_TYPE", "ITERATION", "EXPORTED", "IMPORTED", "ERRORED-IMPORTED", "EXPORTED", "EXPORTED", "EXPORTED", "IMPORTED", "IMPORTED", "IMPORTED", "CUMULATIVE"}
+var secondHeaderForDetailedReport = []string{"", "", "NUMBER", "SNAPSHOT_ROWS", "SNAPSHOT_ROWS", "SNAPSHOT_ROWS", "INSERTS", "UPDATES", "DELETES", "INSERTS", "UPDATES", "DELETES", "FINAL_ROW_COUNT"}
 
 var firstHeaderForIteration = []string{"TABLE", "DB_TYPE", "EXPORTED", "EXPORTED", "EXPORTED", "IMPORTED", "IMPORTED", "IMPORTED"}
 var secondHeaderForIteration = []string{"", "", "INSERTS", "UPDATES", "DELETES", "INSERTS", "UPDATES", "DELETES"}
@@ -345,53 +349,43 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 }
 
 func printReport(forIteration bool, reportData []*rowData) {
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("error while getting migration status record: %w", err)
+	}
 	rowsPerTable := 2 //source<->target
 	if fFEnabled {
 		rowsPerTable = 3 //source<->target<->source-replica
 	}
-	uitbl := uitable.New()
-	uitbl.MaxColWidth = 50
-	uitbl.Wrap = true
-	uitbl.Separator = " | "
-	if forIteration {
-		addHeader(uitbl, firstHeaderForIteration...)
-		addHeader(uitbl, secondHeaderForIteration...)
-	} else {
-		addHeader(uitbl, firstHeader...)
-		addHeader(uitbl, secondHeader...)
+	if detailedReport {
+		rowsPerTable = 2 * (msr.LatestIterationNumber + 1) //source<->target * number of iterations
 	}
-	maxRowsInOnePage := 10 * rowsPerTable //after every 10 tables, print new table as pagination
+
+	uitbl := uitable.New()
+	printHeader(uitbl, forIteration)
+	maxRowsInOnePage := 5 * rowsPerTable //after every 5 tables, print new table as pagination
 	for i := 0; i < len(reportData); i += rowsPerTable {
 		if i != 0 && i%maxRowsInOnePage == 0 {
+			//print the current table and print the header for the next set of tables
 			fmt.Print("\n")
 			fmt.Println(uitbl)
 			fmt.Print("\n")
-			uitbl = uitable.New()
-			uitbl.MaxColWidth = 50
-			uitbl.Wrap = true
-			uitbl.Separator = " | "
-			if forIteration {
-				addHeader(uitbl, firstHeaderForIteration...)
-				addHeader(uitbl, secondHeaderForIteration...)
-			} else {
-				addHeader(uitbl, firstHeader...)
-				addHeader(uitbl, secondHeader...)
-			}
+			printHeader(uitbl, forIteration)
 		}
 		uitbl.AddRow() // blank row
-		firstRow := reportData[i]
-		secondRow := reportData[i+1]
-		addRowToTable(uitbl, firstRow, forIteration)
-		addRowToTable(uitbl, secondRow, forIteration)
+		for j := 0; j < rowsPerTable; j++ {
+			addRowToTable(uitbl, reportData[i+j], forIteration)
+			//how to add a row after every iteration have rows each
+
+			if j%2 != 0 {
+				uitbl.AddRow()
+			}
+
+		}
 		if fFEnabled {
 			thirdRow := reportData[i+2]
 			addRowToTable(uitbl, thirdRow, forIteration)
 		}
-	}
-
-	msr, err := metaDB.GetMigrationStatusRecord()
-	if err != nil {
-		utils.ErrExit("error while getting migration status record: %w", err)
 	}
 
 	if !forIteration && msr.LatestIterationNumber > 0 {
@@ -404,17 +398,41 @@ func printReport(forIteration bool, reportData []*rowData) {
 
 	if !bool(detailedReport) && msr.LatestIterationNumber > 0 {
 		//If detailed report is not enabled, and there are iterations, print the info to see the detailed report
-		utils.PrintAndLogfInfo("To see the detailed report for all the iterations, run the command with the --detailed true flag.\n\n")
+		utils.PrintAndLogfInfo("To see the detailed report with all the iterations, run the command with the --all-iterations true flag.\n\n")
 	}
 
 }
 
-func addRowToTable(uitbl *uitable.Table, rows *rowData, forIteration bool) {
+func printHeader(uitbl *uitable.Table, forIteration bool) {
+	uitbl.MaxColWidth = 50
+	uitbl.Wrap = true
+	uitbl.Separator = " | "
 	if forIteration {
-		uitbl.AddRow(rows.TableName, rows.DBType, rows.ExportedInserts, rows.ExportedUpdates, rows.ExportedDeletes, rows.ImportedInserts, rows.ImportedUpdates, rows.ImportedDeletes)
+		addHeader(uitbl, firstHeaderForIteration...)
+		addHeader(uitbl, secondHeaderForIteration...)
+	} else if detailedReport {
+		addHeader(uitbl, firstHeaderForDetailedReport...)
+		addHeader(uitbl, secondHeaderForDetailedReport...)
 	} else {
-		uitbl.AddRow(rows.TableName, rows.DBType, rows.ExportedSnapshotRows, rows.ImportedSnapshotRows, rows.ErroredImportedSnapshotRows,
-			rows.ExportedInserts, rows.ExportedUpdates, rows.ExportedDeletes, rows.ImportedInserts, rows.ImportedUpdates, rows.ImportedDeletes, rows.FinalRowCount)
+		addHeader(uitbl, firstHeader...)
+		addHeader(uitbl, secondHeader...)
+	}
+}
+
+func addRowToTable(uitbl *uitable.Table, row *rowData, forIteration bool) {
+	if forIteration {
+		uitbl.AddRow(row.TableName, row.DBType, row.ExportedInserts, row.ExportedUpdates, row.ExportedDeletes, row.ImportedInserts, row.ImportedUpdates, row.ImportedDeletes)
+	} else if detailedReport {
+		if row.IterationNumber == 0 {
+			uitbl.AddRow(row.TableName, row.DBType, row.IterationNumber, row.ExportedSnapshotRows, row.ImportedSnapshotRows, row.ErroredImportedSnapshotRows,
+				row.ExportedInserts, row.ExportedUpdates, row.ExportedDeletes, row.ImportedInserts, row.ImportedUpdates, row.ImportedDeletes, row.FinalRowCount)
+		} else { //iteration with changes only have no snapshot rows
+			uitbl.AddRow(row.TableName, row.DBType, row.IterationNumber, "-", "-", "-",
+				row.ExportedInserts, row.ExportedUpdates, row.ExportedDeletes, row.ImportedInserts, row.ImportedUpdates, row.ImportedDeletes, row.FinalRowCount)
+		}
+	} else {
+		uitbl.AddRow(row.TableName, row.DBType, row.ExportedSnapshotRows, row.ImportedSnapshotRows, row.ErroredImportedSnapshotRows,
+			row.ExportedInserts, row.ExportedUpdates, row.ExportedDeletes, row.ImportedInserts, row.ImportedUpdates, row.ImportedDeletes, row.FinalRowCount)
 	}
 
 }
@@ -430,6 +448,12 @@ func aggregateDataWithIterationsIfRequired(reportData []*rowData, msr *metadb.Mi
 		return reportData, nil
 	}
 
+	if detailedReport {
+		for _, row := range reportData {
+			row.IterationNumber = 0 //set the iteration number to 0 for the main migration data
+		}
+	}
+
 	iterationsDir := msr.GetIterationsDir(exportDir)
 	//get all the iteration export dirs
 	for i := 1; i <= msr.LatestIterationNumber; i++ {
@@ -440,19 +464,63 @@ func aggregateDataWithIterationsIfRequired(reportData []*rowData, msr *metadb.Mi
 			return nil, fmt.Errorf("error while getting iteration data migration report: %w", err)
 		}
 		if detailedReport {
-			utils.PrintAndLogfPhase("\nData migration report for iteration %d:", i)
-			if reportOrStatusCmdOutputFormat == "table" {
-				printReport(true, iterationReportData)
-			} else {
-				iterationReportFile := filepath.Join(iterationExportDir, "reports", "data-migration-report.json")
-				utils.PrintAndLog(color.GreenString("Data migration report for iteration %d is written to %s\n", i, iterationReportFile))
+
+			for _, row := range iterationReportData {
+				row.IterationNumber = i
 			}
+
+			//For detailed one, just append the iteration report data to the main report data
+			reportData = append(reportData, iterationReportData...)
+		} else {
+			//aggregate the iteration report data with the main report data
+			reportData = aggregateReportData(reportData, iterationReportData)
 		}
-		//aggregate the iteration report data with the main report data
-		reportData = aggregateReportData(reportData, iterationReportData)
 	}
 
+	if detailedReport {
+		//group the report data by table name and calcutate cumulative row count for iteration
+		reportData = groupByTableNameAndCalculateCumulativeRowCount(reportData)
+	}
 	return reportData, nil
+}
+
+func groupByTableNameAndCalculateCumulativeRowCount(reportData []*rowData) []*rowData {
+	//group the report data by table name
+	reportDataMap := make(map[string][]*rowData)
+	for _, row := range reportData {
+		reportDataMap[row.TableName] = append(reportDataMap[row.TableName], row)
+	}
+	reportData = make([]*rowData, 0)
+	for _, rows := range reportDataMap {
+		var finalRowCountSrc int64 = 0
+		var finalRowCountTgt int64 = 0
+		for i, row := range rows {
+			if row.IterationNumber == 0 {
+				if row.DBType == "source" {
+					finalRowCountSrc = row.FinalRowCount
+				} else {
+					finalRowCountTgt = row.FinalRowCount
+				}
+			}
+			if i > 0 {
+				rows[i].TableName = ""
+			}
+
+			if row.IterationNumber > 0 {
+				if row.DBType == "source" {
+					finalRowCountSrc += row.ExportedInserts - row.ExportedDeletes + row.ImportedInserts - row.ImportedDeletes
+					rows[i].FinalRowCount = finalRowCountSrc
+				} else {
+					finalRowCountTgt += row.ImportedInserts - row.ImportedDeletes + row.ExportedInserts - row.ExportedDeletes
+					rows[i].FinalRowCount = finalRowCountTgt
+				}
+
+			}
+			reportData = append(reportData, row)
+		}
+	}
+
+	return reportData
 }
 
 func getIterationDataMigrationReport(iterationExportDir string) ([]*rowData, error) {
@@ -630,6 +698,13 @@ func getFinalRowCount(row rowData) int64 {
 	return row.ImportedSnapshotRows + row.ImportedInserts + row.ExportedInserts - row.ImportedDeletes - row.ExportedDeletes
 }
 
+func getFinalRowCountWithSnapshotRows(row rowData, exportSnapshotRows int64, importSnapshotRows int64) int64 {
+	if row.DBType == "source" {
+		return exportSnapshotRows + row.ExportedInserts + row.ImportedInserts - row.ExportedDeletes - row.ImportedDeletes
+	}
+	return importSnapshotRows + row.ImportedInserts + row.ExportedInserts - row.ImportedDeletes - row.ExportedDeletes
+}
+
 func init() {
 	getCommand.AddCommand(getDataMigrationReportCmd)
 	registerExportDirFlag(getDataMigrationReportCmd)
@@ -639,7 +714,7 @@ func init() {
 	getDataMigrationReportCmd.Flags().StringVar(&reportOrStatusCmdOutputFormat, "output-format", "table",
 		"format in which report will be generated: (table, json) (default: table)")
 
-	BoolVar(getDataMigrationReportCmd.Flags(), &detailedReport, "detailed", false,
+	BoolVar(getDataMigrationReportCmd.Flags(), &detailedReport, "all-iterations", false,
 		"print the detailed report with all the iterations.")
 
 	getDataMigrationReportCmd.Flags().StringVar(&sourceReplicaDbPassword, "source-replica-db-password", "",
