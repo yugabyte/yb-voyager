@@ -37759,11 +37759,11 @@
     "Notes": [
         {
             "Type": "GeneralNotes",
-            "Text": "Some features listed in this report may be supported under a preview flag in the specified target-db-version of YugabyteDB. Please refer to the official release notes (https://docs.yugabyte.com/preview/releases/ybdb-releases/) for detailed information and usage guidelines."
+            "Text": "Some features listed in this report may be supported under a preview flag in the specified target-db-version of YugabyteDB. Please refer to the official release notes ( https://docs.yugabyte.com/preview/releases/ybdb-releases/ ) for detailed information and usage guidelines."
         },
         {
             "Type": "GeneralNotes",
-            "Text": "Limitations in assessment (https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/#assessment-and-schema-analysis-limitations)"
+            "Text": "Limitations in assessment ( https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/#assessment-and-schema-analysis-limitations )"
         },
         {
             "Type": "SizingNotes",
