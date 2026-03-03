@@ -328,6 +328,8 @@ func runAssessment(stmts []statement, targetDbVersion *ybversion.YBVersion, skip
 				SqlPreview:  sqlPreview,
 			})
 		}
+
+		allIssues = append(allIssues, detectAlterDropAddColumn(stmt.SQL)...)
 	}
 
 	// Phase 3: Detect cross-statement issues (missing FK indexes, PK recommendations)
@@ -368,6 +370,72 @@ func runAssessment(stmts []statement, targetDbVersion *ybversion.YBVersion, skip
 	}
 
 	return allIssues
+}
+
+// detectAlterDropAddColumn detects Prisma-style "DROP COLUMN x, ADD COLUMN x newtype" in a single ALTER.
+// This is how Prisma changes column types — and the new type might not be supported on YB.
+func detectAlterDropAddColumn(sql string) []assessedIssue {
+	parseResult, err := pg_query.Parse(sql)
+	if err != nil {
+		return nil
+	}
+
+	var issues []assessedIssue
+	for _, rawStmt := range parseResult.Stmts {
+		alter := rawStmt.Stmt.GetAlterTableStmt()
+		if alter == nil || len(alter.Cmds) < 2 {
+			continue
+		}
+
+		tableName := alter.Relation.Relname
+		if alter.Relation.Schemaname != "" {
+			tableName = alter.Relation.Schemaname + "." + tableName
+		}
+
+		droppedCols := make(map[string]bool)
+		type addedCol struct {
+			name     string
+			typeName string
+		}
+		var addedCols []addedCol
+
+		for _, cmd := range alter.Cmds {
+			atCmd := cmd.GetAlterTableCmd()
+			switch atCmd.Subtype {
+			case pg_query.AlterTableType_AT_DropColumn:
+				droppedCols[atCmd.Name] = true
+			case pg_query.AlterTableType_AT_AddColumn:
+				colDef := atCmd.Def.GetColumnDef()
+				if colDef == nil {
+					continue
+				}
+				var typeNames []string
+				if colDef.TypeName != nil {
+					for _, n := range colDef.TypeName.Names {
+						typeNames = append(typeNames, n.GetString_().Sval)
+					}
+				}
+				typeName := strings.Join(typeNames, ".")
+				addedCols = append(addedCols, addedCol{name: colDef.Colname, typeName: typeName})
+			}
+		}
+
+		for _, ac := range addedCols {
+			if !droppedCols[ac.name] {
+				continue
+			}
+			issues = append(issues, assessedIssue{
+				IssueType:   "ALTER_DROP_ADD_COLUMN_TYPE_CHANGE",
+				Name:        "Column type change via DROP+ADD",
+				ObjectType:  "TABLE",
+				ObjectName:  tableName,
+				Description: fmt.Sprintf("Column %q is dropped and re-added with type %q in a single ALTER. This is a Prisma-style type change. Verify the new type is supported on YugabyteDB.", ac.name, ac.typeName),
+				Impact:      "LEVEL_2",
+				SqlPreview:  truncateSQL(sql, 200),
+			})
+		}
+	}
+	return issues
 }
 
 func buildCrossStmtPreview(qi queryissue.QueryIssue) string {
