@@ -210,7 +210,6 @@ func (lm *LiveMigrationTest) StartExportData(async bool, extraArgs map[string]st
 		"--source-db-name", lm.config.SourceDB.DatabaseName,
 		"--disable-pb", "true",
 		"--export-type", SNAPSHOT_AND_CHANGES,
-		"--parallel-jobs", "1",
 		"--yes",
 	}
 	for key, value := range extraArgs {

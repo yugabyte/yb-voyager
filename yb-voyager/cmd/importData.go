@@ -769,10 +769,16 @@ func updateImportDataStartedInMetaDB() error {
 		log.Infof("updating import data started in meta db with cdc partitioning strategy: %s", cdcPartitioningStrategy)
 		err := metaDB.UpdateImportDataStatusRecord(func(record *metadb.ImportDataStatusRecord) {
 			record.ImportDataStarted = true
-			record.CdcPartitioningStrategyConfig = cdcPartitioningStrategy
+			record.CdcPartitioningStrategyConfig = cdcPartitioningStrategy	
 		})
 		if err != nil {
 			return goerrors.Errorf("Failed to update import data status record: %s", err)
+		}
+		err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+			record.ImportDataToTargetStarted = true
+		})
+		if err != nil {
+			return goerrors.Errorf("failed to update migration status record: %w", err)
 		}
 
 	case IMPORT_FILE_ROLE:
@@ -1083,12 +1089,6 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 	if changeStreamingIsEnabled(importType) {
 		if importSnapshotRequired() {
 			displayImportedRowCountSnapshot(state, importFileTasks, errorHandler)
-		}
-		err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
-			record.ImportDataToTargetStarted = true
-		})
-		if err != nil {
-			utils.ErrExit("failed to update migration status record: %w", err)
 		}
 		err = streamChanges(state, importTableList)
 		if err != nil {
