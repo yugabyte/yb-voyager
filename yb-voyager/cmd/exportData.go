@@ -133,8 +133,8 @@ func handleCutoverAlreadyInitiatedForExportData() {
 	}
 	switch exporterRole {
 	case SOURCE_DB_EXPORTER_ROLE:
-		if getCutoverToSourceStatus(exportDir) == COMPLETED {
-			utils.ErrExit("cutover to source already processed, exiting...")
+		if getCutoverStatus() == COMPLETED {
+			utils.ErrExit("cutover to target already processed, exiting...")
 		}
 	case TARGET_DB_EXPORTER_FF_ROLE:
 		if getCutoverToSourceReplicaStatus() == COMPLETED {
