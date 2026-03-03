@@ -3516,7 +3516,7 @@ func TestLiveMigrationWithFallbackWithMultipleIterations(t *testing.T) {
 		err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live"`}, "id")
 		testutils.FatalIfError(t, err, "failed to validate data consistency")
 
-		if i == 10 {
+		if i == 5 {
 			err = lm.InitiateCutoverToSource(nil)
 			testutils.FatalIfError(t, err, "failed to initiate cutover to source")
 		

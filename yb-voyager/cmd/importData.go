@@ -1173,7 +1173,7 @@ func waitUntilCutoverProcessedByCorrespondingExporterForImporter(importerRole st
 				return nil
 			}
 		default:
-			return fmt.Errorf("invalid importer role: %s", importerRole)
+			return goerrors.Errorf("invalid importer role: %s", importerRole)
 		}
 		time.Sleep(2 * time.Second)
 	}

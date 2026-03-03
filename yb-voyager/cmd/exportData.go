@@ -633,7 +633,7 @@ func waitUntilCutoverProcessedByCorrespondingImporterForExporter(exporterRole st
 				return nil
 			}
 		case TARGET_DB_EXPORTER_FF_ROLE:
-			if record.CutoverToSourceReplicaProcessedByTargetExporter {
+			if record.CutoverToSourceReplicaProcessedBySRImporter {
 				return nil
 			}
 		case TARGET_DB_EXPORTER_FB_ROLE:
@@ -641,7 +641,7 @@ func waitUntilCutoverProcessedByCorrespondingImporterForExporter(exporterRole st
 				return nil
 			}
 		default:
-			return fmt.Errorf("invalid exporter role: %s", exporterRole)
+			return goerrors.Errorf("invalid exporter role: %s", exporterRole)
 		}
 		time.Sleep(2 * time.Second)
 	}
