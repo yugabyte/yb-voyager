@@ -589,7 +589,7 @@ func (lm *LiveMigrationTest) WaitForNextIterationInitialized(waitTimeout time.Du
 		return msr.NextIterationInitialized
 	})
 	if !ok {
-		return goerrors.Errorf("next iteration did not initialize within 10 seconds")
+		return goerrors.Errorf("next iteration did not initialize within %v", waitTimeout)
 	}
 	return nil
 }

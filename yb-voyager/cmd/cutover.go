@@ -68,7 +68,17 @@ func InitiateCutover(dbRole string, prepareforFallback bool, useYBgRPCConnector 
 	alreadyInitiated := false
 	alreadyInitiatedMsg := fmt.Sprintf("cutover to %s already initiated, wait for it to complete", dbRole)
 
-	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		return fmt.Errorf("failed to get migration status record: %w", err)
+	}
+	if restartSourceToTargetNextIteration {
+		if !iterativeCutoverSupported(msr) {
+			return goerrors.Errorf("iterative live migration is not supported for this migration")
+		}
+	}
+
+	err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		switch dbRole {
 		case "target":
 			if record.CutoverToTargetRequested {
@@ -182,7 +192,7 @@ func setUpNextIterationMSR(parentMetaDB *metadb.MetaDB, iterationNo int, current
 		record.LatestIterationNumber = iterationNo
 	})
 	if err != nil {
-		utils.ErrExit("failed to update migration status record: %w", err)
+		return fmt.Errorf("failed to update migration status record: %w", err)
 	}
 	//Update next iteration's MSR
 	err = nextIterationMetaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
