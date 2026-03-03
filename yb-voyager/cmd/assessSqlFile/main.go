@@ -429,7 +429,7 @@ func detectAlterDropAddColumn(sql string) []assessedIssue {
 				Name:        "Column type change via DROP+ADD",
 				ObjectType:  "TABLE",
 				ObjectName:  tableName,
-				Description: fmt.Sprintf("Column %q is dropped and re-added with type %q in a single ALTER. This is a Prisma-style type change. Verify the new type is supported on YugabyteDB.", ac.name, ac.typeName),
+				Description: fmt.Sprintf("Column %q is dropped and re-added with type %q in a single ALTER statement. Verify the new type is supported on YugabyteDB and that any dependent objects (views, indexes, constraints) are handled correctly.", ac.name, ac.typeName),
 				Impact:      "LEVEL_2",
 				SqlPreview:  truncateSQL(sql, 200),
 			})
@@ -489,7 +489,17 @@ func printText(issues []assessedIssue) {
 	for _, issueType := range order {
 		group := grouped[issueType]
 		fmt.Printf("--- %s (%d occurrence(s)) ---\n", group[0].Name, len(group))
-		if group[0].Description != "" {
+
+		// Check if all descriptions in the group are the same
+		allSameDesc := true
+		for _, item := range group {
+			if item.Description != group[0].Description {
+				allSameDesc = false
+				break
+			}
+		}
+
+		if allSameDesc && group[0].Description != "" {
 			fmt.Printf("    Description: %s\n", group[0].Description)
 		}
 		if group[0].Suggestion != "" {
@@ -507,7 +517,11 @@ func printText(issues []assessedIssue) {
 			if item.ObjectType != "" || item.ObjectName != "" {
 				objInfo = fmt.Sprintf(" [%s %s]", item.ObjectType, item.ObjectName)
 			}
-			fmt.Printf("  %d.%s SQL: %s\n", issueNum, objInfo, item.SqlPreview)
+			if !allSameDesc && item.Description != "" {
+				fmt.Printf("  %d.%s %s\n     SQL: %s\n", issueNum, objInfo, item.Description, item.SqlPreview)
+			} else {
+				fmt.Printf("  %d.%s SQL: %s\n", issueNum, objInfo, item.SqlPreview)
+			}
 			issueNum++
 		}
 		fmt.Println()
