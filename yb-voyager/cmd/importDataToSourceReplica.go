@@ -36,13 +36,6 @@ var importDataToSourceReplicaCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		importType = SNAPSHOT_AND_CHANGES
 		setTargetConfSpecifics(cmd)
-		msr, err := metaDB.GetMigrationStatusRecord()
-		if err != nil {
-			utils.ErrExit("failed to get migration status record: %w", err)
-		}
-		if !msr.FallForwardEnabled {
-			utils.ErrExit("fall forward is not enabled for this migration")
-		}
 		importerRole = SOURCE_REPLICA_DB_IMPORTER_ROLE
 		validateFFDBSchemaFlag()
 		importDataCmd.PreRun(cmd, args)
