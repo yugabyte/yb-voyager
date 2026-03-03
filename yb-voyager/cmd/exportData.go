@@ -126,6 +126,33 @@ func exportDataCommandPreRun(cmd *cobra.Command, args []string) {
 	}
 }
 
+func handleCutoverAlreadyInitiatedForExportData() {
+	cutoverAlreadyProcessed := isCutoverAlreadyProcessed(exporterRole)
+	if !cutoverAlreadyProcessed {
+		return
+	}
+	switch exporterRole {
+	case SOURCE_DB_EXPORTER_ROLE:
+		if getCutoverToSourceStatus(exportDir) == COMPLETED {
+			utils.ErrExit("cutover to source already processed, exiting...")
+		}
+	case TARGET_DB_EXPORTER_FF_ROLE:
+		if getCutoverToSourceReplicaStatus() == COMPLETED {
+			utils.ErrExit("cutover to source-replica already processed, exiting...")
+		}
+	case TARGET_DB_EXPORTER_FB_ROLE:
+		if getCutoverToSourceStatus(exportDir) == COMPLETED {
+			utils.ErrExit("cutover to source already processed, exiting...")
+		}
+	default:
+		utils.ErrExit("invalid exporter role: %s", exporterRole)
+	}
+
+	//If cutover is not completed then start fall back setup and next iteration import data to target
+	startFallBackSetupIfRequired()
+	startNextIterationImportDataToTarget()
+}
+
 func exportDataCommandFn(cmd *cobra.Command, args []string) {
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 	err := retrieveMigrationUUID()
@@ -133,7 +160,6 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 		utils.ErrExit("failed to get migration UUID: %w", err)
 	}
 
-	ExitIfAlreadyCutover(exporterRole)
 	if useDebezium && !changeStreamingIsEnabled(exportType) {
 		utils.PrintAndLogf("Note: Beta feature to accelerate data export is enabled by setting BETA_FAST_DATA_EXPORT environment variable")
 	}
@@ -151,6 +177,9 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 		source = *msr.SourceDBConf
 		source.Password = password
 	}
+
+	handleCutoverAlreadyInitiatedForExportData()
+
 	success := exportData()
 	if success {
 		sendPayloadAsPerExporterRole(COMPLETE, nil)
@@ -170,6 +199,21 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 	}
 }
 
+func waitUntilNextIterationInitialized() error {
+	for {
+		record, err := metaDB.GetMigrationStatusRecord()
+		if err != nil {
+			return fmt.Errorf("failed to get migration status record: %w", err)
+		}
+
+		if record.NextIterationInitialized {
+			return nil
+		}
+		utils.PrintAndLogf("waiting for next iteration to be initialized...")
+		time.Sleep(2 * time.Second)
+	}
+}
+
 func startNextIterationImportDataToTarget() {
 	if exporterRole != TARGET_DB_EXPORTER_FB_ROLE {
 		return
@@ -181,6 +225,11 @@ func startNextIterationImportDataToTarget() {
 
 	if !currentMsr.RestartDataMigrationSourceTargetNextIteration {
 		return
+	}
+
+	err = waitUntilNextIterationInitialized()
+	if err != nil {
+		utils.ErrExit("failed to wait until next iteration initialized: %w", err)
 	}
 
 	lockFile.Unlock() // unlock export dir from import data cmd before switching current process to ff/fb sync cmd
@@ -211,7 +260,7 @@ func startNextIterationImportDataToTarget() {
 		}
 
 	} else {
-		//Use the parent export dir for next command always 
+		//Use the parent export dir for next command always
 		cmd = append(cmd, "--export-dir", lo.Ternary(currentMsr.IsParentMigration(), exportDir, currentMsr.ParentExportDir))
 		if bool(disablePb) {
 			cmd = append(cmd, "--disable-pb=true")
@@ -541,6 +590,10 @@ func exportData() bool {
 				deletePGReplicationSlotAndPublication(msr, &source)
 			}
 
+			err = waitUntilCutoverProcessedByCorrespondingImporterForExporter(exporterRole)
+			if err != nil {
+				utils.ErrExit("failed to wait until cutover processed by importers: %w", err)
+			}
 			// mark cutover processed only after cleanup like deleting replication slot and yb cdc stream id
 			err = markCutoverProcessed(exporterRole)
 			if err != nil {
@@ -565,6 +618,32 @@ func exportData() bool {
 			return false
 		}
 		return true
+	}
+}
+
+func waitUntilCutoverProcessedByCorrespondingImporterForExporter(exporterRole string) error {
+	for {
+		record, err := metaDB.GetMigrationStatusRecord()
+		if err != nil {
+			return fmt.Errorf("failed to get migration status record: %w", err)
+		}
+		switch exporterRole {
+		case SOURCE_DB_EXPORTER_ROLE:
+			if record.CutoverProcessedByTargetImporter {
+				return nil
+			}
+		case TARGET_DB_EXPORTER_FF_ROLE:
+			if record.CutoverToSourceReplicaProcessedByTargetExporter {
+				return nil
+			}
+		case TARGET_DB_EXPORTER_FB_ROLE:
+			if record.CutoverToSourceProcessedBySourceImporter {
+				return nil
+			}
+		default:
+			return fmt.Errorf("invalid exporter role: %s", exporterRole)
+		}
+		time.Sleep(2 * time.Second)
 	}
 }
 

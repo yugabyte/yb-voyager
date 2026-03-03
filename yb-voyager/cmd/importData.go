@@ -143,9 +143,33 @@ var importDataToTargetCmd = &cobra.Command{
 	Run: importDataCmd.Run,
 }
 
+func handleCutoverAlreadyInitiatedForImportData() {
+	cutoverAlreadyProcessed := isCutoverAlreadyProcessed(importerRole)
+	if !cutoverAlreadyProcessed {
+		return
+	}
+	switch importerRole {
+	case TARGET_DB_IMPORTER_ROLE:
+		if getCutoverStatus() == COMPLETED {
+			utils.ErrExit("cutover to target already processed, exiting...")
+		}
+	case SOURCE_REPLICA_DB_IMPORTER_ROLE:
+		if getCutoverToSourceReplicaStatus() == COMPLETED {
+			utils.ErrExit("cutover to source-replica already processed, exiting...")
+		}
+	case SOURCE_DB_IMPORTER_ROLE:
+		if getCutoverToSourceStatus(exportDir) == COMPLETED {
+			utils.ErrExit("cutover to source already processed, exiting...")
+		}
+	}
+	//If cutover is not completed then start export data from target/source
+	startExportDataFromTargetIfRequired()
+	startExportDataFromSourceOnNextIteration()
+}
+
 func importDataCommandFn(cmd *cobra.Command, args []string) {
 	importPhase = dbzm.MODE_SNAPSHOT
-	ExitIfAlreadyCutover(importerRole)
+
 	reportProgressInBytes = false
 	tconf.ImportMode = true
 	checkExportDataDoneFlag()
@@ -232,6 +256,8 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 		}
 	}
 
+	handleCutoverAlreadyInitiatedForImportData()
+
 	importData(importFileTasks, errorPolicySnapshotFlag)
 	tdb.Finalize()
 	switch importerRole {
@@ -245,10 +271,7 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 		packAndSendImportDataToSourcePayload(COMPLETE, nil)
 	}
 
-	if changeStreamingIsEnabled(importType) {
-		startExportDataFromTargetIfRequired()
-	}
-
+	startExportDataFromTargetIfRequired()
 	startExportDataFromSourceOnNextIteration()
 }
 
@@ -263,6 +286,12 @@ func startExportDataFromSourceOnNextIteration() {
 	if !currentMsr.RestartDataMigrationSourceTargetNextIteration {
 		return
 	}
+
+	err = initializeNextIteration()
+	if err != nil {
+		utils.ErrExit("failed to initialize next iteration: %w", err)
+	}
+
 	//Start export from source on next iteration
 
 	tableListExportedFromSource := currentMsr.TableListExportedFromSource
@@ -293,6 +322,11 @@ func startExportDataFromSourceOnNextIteration() {
 				//Do not do anything for export-dir as it should always be the current iteration export dir
 				continue
 			}
+			if override.FlagName == "config-file" {
+				//For config file, always pass the current config file
+				cmd = append(cmd, "--"+override.FlagName, cfgFile)
+				continue
+			}
 			if !slices.Contains(globalFlags, override.FlagName) {
 				//if its not a global flag then skip passing it to the command as it will be command specific flag
 				continue
@@ -301,7 +335,7 @@ func startExportDataFromSourceOnNextIteration() {
 		}
 
 	} else {
-		cmd  = append(cmd, "--export-dir", lo.Ternary(currentMsr.IsParentMigration(), exportDir, currentMsr.ParentExportDir))
+		cmd = append(cmd, "--export-dir", lo.Ternary(currentMsr.IsParentMigration(), exportDir, currentMsr.ParentExportDir))
 		if bool(disablePb) {
 			cmd = append(cmd, "--disable-pb=true")
 		}
@@ -485,6 +519,9 @@ func checkImportDataPermissions() {
 }
 
 func startExportDataFromTargetIfRequired() {
+	if !changeStreamingIsEnabled(importType) {
+		return
+	}
 	if importerRole != TARGET_DB_IMPORTER_ROLE {
 		return
 	}
@@ -1108,7 +1145,38 @@ func postCutoverProcessing(importTableList []sqlname.NameTuple) error {
 	if err != nil {
 		return goerrors.Errorf("failed to mark cutover as processed: %s", err)
 	}
+
+	err = waitUntilCutoverProcessedByCorrespondingExporterForImporter(importerRole)
+	if err != nil {
+		return goerrors.Errorf("failed to wait until cutover processed by exporter: %s", err)
+	}
 	return nil
+}
+
+func waitUntilCutoverProcessedByCorrespondingExporterForImporter(importerRole string) error {
+	for {
+		record, err := metaDB.GetMigrationStatusRecord()
+		if err != nil {
+			return fmt.Errorf("failed to get migration status record: %w", err)
+		}
+		switch importerRole {
+		case SOURCE_DB_IMPORTER_ROLE:
+			if record.CutoverToSourceProcessedByTargetExporter {
+				return nil
+			}
+		case TARGET_DB_IMPORTER_ROLE:
+			if record.CutoverProcessedBySourceExporter {
+				return nil
+			}
+		case SOURCE_REPLICA_DB_IMPORTER_ROLE:
+			if record.CutoverToSourceReplicaProcessedByTargetExporter {
+				return nil
+			}
+		default:
+			return fmt.Errorf("invalid importer role: %s", importerRole)
+		}
+		time.Sleep(2 * time.Second)
+	}
 }
 
 // For a fresh start but non empty tables in tableList && OnPrimaryKeyConflict is set to IGNORE -> notify user

@@ -105,8 +105,8 @@ type MigrationStatusRecord struct {
 	ConfigFile                                    string `json:"ConfigFile"`
 
 	//Parent specific details
-	TotalIterations       int `json:"TotalIterations"`
 	LatestIterationNumber int `json:"LatestIterationNumber"`
+	NextIterationInitialized bool `json:"NextIterationInitialized"`
 
 	//Iteration specific details
 	ExportDataFromSourceStarted bool `json:"ExportDataFromSourceStarted"`

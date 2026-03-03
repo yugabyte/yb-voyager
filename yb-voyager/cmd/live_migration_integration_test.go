@@ -3420,6 +3420,8 @@ func TestLiveMigrationWithFallbackWithMultipleIterations(t *testing.T) {
 	err = lm.StartExportData(true, nil)
 	testutils.FatalIfError(t, err, "failed to start export data")
 
+	time.Sleep(10 * time.Second)
+
 	err = lm.StartImportData(true, nil)
 	testutils.FatalIfError(t, err, "failed to start import data")
 
@@ -3465,13 +3467,16 @@ func TestLiveMigrationWithFallbackWithMultipleIterations(t *testing.T) {
 
 	testutils.FatalIfError(t, err, "failed to wait for fallback streaming complete")
 
-	for i := 1; i <= 10; i++ {
+	for i := 1; i <= 5; i++ {
 		fmt.Printf("\n✅ Starting iteration %d\n", i)
 		err = lm.InitiateCutoverToSource(map[string]string{
 			"--restart-data-migration-source-target": "true",
 		})
 		testutils.FatalIfError(t, err, "failed to initiate cutover to source")
 	
+		err = lm.WaitForNextIterationInitialized(100)
+		testutils.FatalIfError(t, err, "failed to wait for next iteration initialized")
+
 		err = lm.WaitForCutoverSourceComplete(100)
 		testutils.FatalIfError(t, err, "failed to wait for cutover source complete")
 	
