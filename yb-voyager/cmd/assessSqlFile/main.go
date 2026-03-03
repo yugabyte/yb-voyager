@@ -44,10 +44,21 @@ type assessedIssue struct {
 	SqlPreview  string `json:"sql_preview"`
 }
 
+var perfIssueTypes = map[string]bool{
+	"HOTSPOTS_ON_TIMESTAMP_INDEX":                true,
+	"HOTSPOTS_ON_DATE_INDEX":                     true,
+	"HOTSPOTS_ON_TIMESTAMP_PK_UK":                true,
+	"HOTSPOTS_ON_DATE_PK_UK":                     true,
+	"REDUNDANT_INDEXES":                          true,
+	"MISSING_FOREIGN_KEY_INDEX":                  true,
+	"MISSING_PRIMARY_KEY_WHEN_UNIQUE_NOT_NULL":   true,
+}
+
 func main() {
 	targetVersionStr := flag.String("target-db-version", "2024.2.3.1", "Target YugabyteDB version (e.g. 2024.2.3.1, 2025.1.0.0)")
 	outputFormat := flag.String("format", "text", "Output format: text or json")
 	verbose := flag.Bool("verbose", false, "Enable verbose/debug logging")
+	skipPerf := flag.Bool("skip-perf-issues", false, "Skip performance/optimization issues (hotspots, missing FK indexes, PK recommendations)")
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: %s [flags] <sql-file> [sql-file...]\n\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "Assess SQL files for YugabyteDB compatibility issues.\n")
@@ -58,6 +69,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  %s migrations.sql\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "  %s --target-db-version 2025.1.0.0 schema.sql data.sql\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "  %s --format json migrations.sql\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "  %s --skip-perf-issues migrations.sql\n", os.Args[0])
 	}
 	flag.Parse()
 
@@ -90,7 +102,7 @@ func main() {
 		os.Exit(0)
 	}
 
-	issues := runAssessment(allStatements, targetDbVersion)
+	issues := runAssessment(allStatements, targetDbVersion, *skipPerf)
 
 	switch *outputFormat {
 	case "json":
@@ -269,7 +281,7 @@ func fallbackSplit(sqlContent string) []string {
 	return stmts
 }
 
-func runAssessment(stmts []statement, targetDbVersion *ybversion.YBVersion) []assessedIssue {
+func runAssessment(stmts []statement, targetDbVersion *ybversion.YBVersion, skipPerf bool) []assessedIssue {
 	detector := queryissue.NewParserIssueDetector()
 
 	// Phase 1: Parse all DDLs to build schema metadata
@@ -299,6 +311,9 @@ func runAssessment(stmts []statement, targetDbVersion *ybversion.YBVersion) []as
 		}
 
 		for _, qi := range issues {
+			if skipPerf && perfIssueTypes[qi.Type] {
+				continue
+			}
 			sqlPreview := truncateSQL(stmt.SQL, 200)
 			allIssues = append(allIssues, assessedIssue{
 				IssueType:   qi.Type,
@@ -316,38 +331,40 @@ func runAssessment(stmts []statement, targetDbVersion *ybversion.YBVersion) []as
 	}
 
 	// Phase 3: Detect cross-statement issues (missing FK indexes, PK recommendations)
-	fkIssues := detector.DetectMissingForeignKeyIndexes()
-	for _, qi := range fkIssues {
-		preview := buildCrossStmtPreview(qi)
-		allIssues = append(allIssues, assessedIssue{
-			IssueType:   qi.Type,
-			Name:        qi.Name,
-			ObjectType:  qi.ObjectType,
-			ObjectName:  qi.ObjectName,
-			Description: qi.Description,
-			Impact:      qi.Impact,
-			Suggestion:  qi.Suggestion,
-			DocsLink:    qi.DocsLink,
-			GHIssue:     qi.GH,
-			SqlPreview:  preview,
-		})
-	}
+	if !skipPerf {
+		fkIssues := detector.DetectMissingForeignKeyIndexes()
+		for _, qi := range fkIssues {
+			preview := buildCrossStmtPreview(qi)
+			allIssues = append(allIssues, assessedIssue{
+				IssueType:   qi.Type,
+				Name:        qi.Name,
+				ObjectType:  qi.ObjectType,
+				ObjectName:  qi.ObjectName,
+				Description: qi.Description,
+				Impact:      qi.Impact,
+				Suggestion:  qi.Suggestion,
+				DocsLink:    qi.DocsLink,
+				GHIssue:     qi.GH,
+				SqlPreview:  preview,
+			})
+		}
 
-	pkIssues := detector.DetectPrimaryKeyRecommendations()
-	for _, qi := range pkIssues {
-		preview := buildCrossStmtPreview(qi)
-		allIssues = append(allIssues, assessedIssue{
-			IssueType:   qi.Type,
-			Name:        qi.Name,
-			ObjectType:  qi.ObjectType,
-			ObjectName:  qi.ObjectName,
-			Description: qi.Description,
-			Impact:      qi.Impact,
-			Suggestion:  qi.Suggestion,
-			DocsLink:    qi.DocsLink,
-			GHIssue:     qi.GH,
-			SqlPreview:  preview,
-		})
+		pkIssues := detector.DetectPrimaryKeyRecommendations()
+		for _, qi := range pkIssues {
+			preview := buildCrossStmtPreview(qi)
+			allIssues = append(allIssues, assessedIssue{
+				IssueType:   qi.Type,
+				Name:        qi.Name,
+				ObjectType:  qi.ObjectType,
+				ObjectName:  qi.ObjectName,
+				Description: qi.Description,
+				Impact:      qi.Impact,
+				Suggestion:  qi.Suggestion,
+				DocsLink:    qi.DocsLink,
+				GHIssue:     qi.GH,
+				SqlPreview:  preview,
+			})
+		}
 	}
 
 	return allIssues
