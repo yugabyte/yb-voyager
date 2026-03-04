@@ -67,6 +67,8 @@ func createMigrationAssessmentCompletedEventForYBAeon() *cp.MigrationAssessmentC
 	// Convert assessment issues to YBM format (similar to yugabyted conversion)
 	assessmentIssuesYBM := convertAssessmentIssueToYBMAssessmentIssue(assessmentReport)
 
+	schemaSummaryPayload := convertSchemaSummaryToPayload(assessmentReport.SchemaSummary, source.DBType)
+
 	// Create YBM payload with all current features
 	payload := AssessMigrationPayloadYBM{
 		PayloadVersion:                 ASSESS_MIGRATION_YBM_PAYLOAD_VERSION,
@@ -74,7 +76,7 @@ func createMigrationAssessmentCompletedEventForYBAeon() *cp.MigrationAssessmentC
 		TargetDBVersion:                assessmentReport.TargetDBVersion,
 		MigrationComplexity:            assessmentReport.MigrationComplexity,
 		MigrationComplexityExplanation: assessmentReport.MigrationComplexityExplanation,
-		SchemaSummary:                  assessmentReport.SchemaSummary,
+		SchemaSummary:                  schemaSummaryPayload,
 		AssessmentIssues:               assessmentIssuesYBM,
 		SourceSizeDetails: SourceDBSizeDetails{
 			TotalIndexSize:     assessmentReport.GetTotalIndexSize(),
