@@ -12,6 +12,8 @@ YugabyteDB Voyager (`yb-voyager`) is a database migration CLI tool (Go) with a D
 - **JDK 17** (not 21+) — the installer script enforces Java 17–19 for the Debezium build. Installed at `/usr/lib/jvm/java-17-openjdk-amd64`. Set `JAVA_HOME` accordingly.
 - **Maven 3.8.4** — auto-installed by the installer to `/opt/yb-voyager/yb-debezium-maven-3.8.4`.
 - **PostgreSQL client 17** — provides `pg_dump`/`pg_restore`.
+- **YugabyteDB** — installed at `/opt/yugabyte-2025.2.1.0`. The target database for migrations.
+- **PostgreSQL 17 server** — local source database for development/testing.
 
 ### Building from source
 
@@ -33,6 +35,20 @@ yes | bash installer_scripts/install-yb-voyager -v
 - Unit tests use the `unit` build tag: `go test -tags unit ./...` (from `yb-voyager/` directory).
 - Integration tests use tags like `issues_integration` and require Docker + testcontainers.
 - Lint: `go vet ./...` and `staticcheck -tags unit ./...` (from `yb-voyager/`).
+
+### Running local databases
+
+**PostgreSQL** (source):
+- Already running via systemd on port 5432. User `postgres`, password `postgres`.
+- Start if stopped: `sudo pg_ctlcluster 17 main start`
+
+**YugabyteDB** (target):
+- Start: `/opt/yugabyte-2025.2.1.0/bin/yugabyted start --advertise_address 127.0.0.1`
+- Status: `/opt/yugabyte-2025.2.1.0/bin/yugabyted status`
+- Stop: `/opt/yugabyte-2025.2.1.0/bin/yugabyted stop`
+- YSQL on port 5433, user `yugabyte`, password `yugabyte`.
+- ysqlsh: `/opt/yugabyte-2025.2.1.0/bin/ysqlsh -U yugabyte -d <dbname> -h 127.0.0.1`
+- The YugabyteDB data directory must be owned by `ubuntu` (not root). If you get FIPS/permission errors on start, run `sudo chown -R ubuntu:ubuntu /opt/yugabyte-2025.2.1.0`.
 
 ### Gotchas
 
