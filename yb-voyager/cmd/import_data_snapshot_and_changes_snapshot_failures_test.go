@@ -159,20 +159,13 @@ func TestImportSnapshotCommitFailureAndResume(t *testing.T) {
 	require.NoError(t, err, "Failed to start import resume")
 	defer lm.StopImportData()
 
-	err = lm.WithSourceTargetConn(func(pgConn, ybConn *sql.DB) error {
-		require.Eventually(t, func() bool {
-			return testutils.CompareTableData(ctx, pgConn, ybConn, tableName, "id") == nil
-		}, 180*time.Second, 5*time.Second, "Timed out waiting for snapshot import resume to catch up")
-		return nil
-	})
-	require.NoError(t, err)
-
-	t.Log("Target matches source after resume (snapshot commit failure)")
-
 	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
 		reportTableName(tableName): {Inserts: 3, Updates: 2, Deletes: 1},
 	}, 120, 5)
 	require.NoError(t, err, "Migration report did not match expected CDC counts")
+
+	err = lm.ValidateDataConsistency([]string{tableName}, "id")
+	require.NoError(t, err, "Target does not match source after resume")
 }
 
 // TestImportSnapshotTransformFailureAndResume verifies that live migration `import data` can resume
@@ -304,18 +297,11 @@ func TestImportSnapshotTransformFailureAndResume(t *testing.T) {
 	require.NoError(t, err, "Failed to start import resume")
 	defer lm.StopImportData()
 
-	err = lm.WithSourceTargetConn(func(pgConn, ybConn *sql.DB) error {
-		require.Eventually(t, func() bool {
-			return testutils.CompareTableData(ctx, pgConn, ybConn, tableName, "id") == nil
-		}, 240*time.Second, 5*time.Second, "Timed out waiting for snapshot import resume to catch up")
-		return nil
-	})
-	require.NoError(t, err)
-
-	t.Log("Target matches source after resume (snapshot transform failure)")
-
 	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
 		reportTableName(tableName): {Inserts: 3, Updates: 2, Deletes: 1},
 	}, 120, 5)
 	require.NoError(t, err, "Migration report did not match expected CDC counts")
+
+	err = lm.ValidateDataConsistency([]string{tableName}, "id")
+	require.NoError(t, err, "Target does not match source after resume")
 }

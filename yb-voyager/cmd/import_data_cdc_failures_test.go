@@ -170,20 +170,13 @@ func TestImportCDCTransformFailureAndResume(t *testing.T) {
 	require.NoError(t, err, "Failed to start import resume")
 	defer lm.StopImportData()
 
-	err = lm.WithSourceTargetConn(func(pgConn, ybConn *sql.DB) error {
-		require.Eventually(t, func() bool {
-			return testutils.CompareTableData(ctx, pgConn, ybConn, tableName, "id") == nil
-		}, 180*time.Second, 5*time.Second, "Timed out waiting for target to match source after resume")
-		return nil
-	})
-	require.NoError(t, err)
-
-	t.Log("Target matches source after resume")
-
 	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
 		reportTableName(tableName): {Inserts: 200, Updates: 200, Deletes: 100},
 	}, 120, 5)
 	require.NoError(t, err, "Migration report did not match expected CDC counts")
+
+	err = lm.ValidateDataConsistency([]string{tableName}, "id")
+	require.NoError(t, err, "Target does not match source after resume")
 }
 
 // TestImportCDCDbErrorAndResume verifies that live migration `import data` can resume after
@@ -318,20 +311,13 @@ func TestImportCDCDbErrorAndResume(t *testing.T) {
 	require.NoError(t, err, "Failed to start import resume")
 	defer lm.StopImportData()
 
-	err = lm.WithSourceTargetConn(func(pgConn, ybConn *sql.DB) error {
-		require.Eventually(t, func() bool {
-			return testutils.CompareTableData(ctx, pgConn, ybConn, tableName, "id") == nil
-		}, 180*time.Second, 5*time.Second, "Timed out waiting for target to match source after resume")
-		return nil
-	})
-	require.NoError(t, err)
-
-	t.Log("Target matches source after resume (CDC DB error)")
-
 	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
 		reportTableName(tableName): {Inserts: 200, Updates: 200, Deletes: 100},
 	}, 120, 5)
 	require.NoError(t, err, "Migration report did not match expected CDC counts")
+
+	err = lm.ValidateDataConsistency([]string{tableName}, "id")
+	require.NoError(t, err, "Target does not match source after resume")
 }
 
 // TestImportCDCEventExecutionFailureAndResume verifies that live migration `import data` can resume
@@ -466,20 +452,13 @@ func TestImportCDCEventExecutionFailureAndResume(t *testing.T) {
 	require.NoError(t, err, "Failed to start import resume")
 	defer lm.StopImportData()
 
-	err = lm.WithSourceTargetConn(func(pgConn, ybConn *sql.DB) error {
-		require.Eventually(t, func() bool {
-			return testutils.CompareTableData(ctx, pgConn, ybConn, tableName, "id") == nil
-		}, 240*time.Second, 5*time.Second, "Timed out waiting for target to match source after resume")
-		return nil
-	})
-	require.NoError(t, err)
-
-	t.Log("Target matches source after resume (CDC event execution failure)")
-
 	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
 		reportTableName(tableName): {Inserts: 120, Updates: 0, Deletes: 0},
 	}, 120, 5)
 	require.NoError(t, err, "Migration report did not match expected CDC counts")
+
+	err = lm.ValidateDataConsistency([]string{tableName}, "id")
+	require.NoError(t, err, "Target does not match source after resume")
 }
 
 // TestImportCDCRetryableDbErrorThenSucceed verifies that live migration `import data` retries and
@@ -593,20 +572,13 @@ func TestImportCDCRetryableDbErrorThenSucceed(t *testing.T) {
 	}
 
 	// --- Phase 3: Verify target matches source (no resume needed) ---
-	err = lm.WithSourceTargetConn(func(pgConn, ybConn *sql.DB) error {
-		require.Eventually(t, func() bool {
-			return testutils.CompareTableData(ctx, pgConn, ybConn, tableName, "id") == nil
-		}, 240*time.Second, 5*time.Second, "Timed out waiting for target to match source after retry")
-		return nil
-	})
-	require.NoError(t, err)
-
-	t.Log("Target matches source after in-process retry (no resume run needed)")
-
 	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
 		reportTableName(tableName): {Inserts: 120, Updates: 0, Deletes: 0},
 	}, 120, 5)
 	require.NoError(t, err, "Migration report did not match expected CDC counts")
+
+	err = lm.ValidateDataConsistency([]string{tableName}, "id")
+	require.NoError(t, err, "Target does not match source after retry")
 }
 
 // TestImportCDCRetryableAfterCommitErrorSkipsRetry verifies that live migration `import data`
@@ -733,20 +705,13 @@ func TestImportCDCRetryableAfterCommitErrorSkipsRetry(t *testing.T) {
 	}, 120*time.Second, 2*time.Second, "Expected imported CDC events to catch up to exported events after retryable-after-commit error")
 	t.Log("Verified CDC events caught up after retryable-after-commit error")
 
-	err = lm.WithSourceTargetConn(func(pgConn, ybConn *sql.DB) error {
-		require.Eventually(t, func() bool {
-			return testutils.CompareTableData(ctx, pgConn, ybConn, tableName, "id") == nil
-		}, 240*time.Second, 5*time.Second, "Timed out waiting for target to match source after retryable-after-commit error")
-		return nil
-	})
-	require.NoError(t, err)
-
-	t.Log("Target matches source after in-process retryable-after-commit handling")
-
 	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
 		reportTableName(tableName): {Inserts: 60, Updates: 0, Deletes: 0},
 	}, 120, 5)
 	require.NoError(t, err, "Migration report did not match expected CDC counts")
+
+	err = lm.ValidateDataConsistency([]string{tableName}, "id")
+	require.NoError(t, err, "Target does not match source after retryable-after-commit error")
 }
 
 // TestImportCDCMultiChannelBatchFailureAndResume verifies that CDC import resume works correctly
@@ -945,14 +910,17 @@ func TestImportCDCMultiChannelBatchFailureAndResume(t *testing.T) {
 	require.NoError(t, err, "Failed to start import resume")
 	defer lm.StopImportData()
 
-	err = lm.WithSourceTargetConn(func(pgConn, ybConn *sql.DB) error {
-		require.Eventually(t, func() bool {
-			return testutils.CompareTableData(ctx, pgConn, ybConn, tableName, "id") == nil
-		}, 240*time.Second, 5*time.Second, "Timed out waiting for target to match source after resume")
-		return nil
-	})
-	require.NoError(t, err)
-	t.Log("Target matches source after resume (multi-channel)")
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		reportTableName(tableName): {
+			Inserts: int64(numChans * eventsPerChan),
+			Updates: int64(numChans * updatesPerChan),
+			Deletes: int64(numChans * deletesPerChan),
+		},
+	}, 120, 5)
+	require.NoError(t, err, "Migration report did not match expected CDC counts")
+
+	err = lm.ValidateDataConsistency([]string{tableName}, "id")
+	require.NoError(t, err, "Target does not match source after resume")
 
 	// Verify all channels advanced after resume.
 	err = lm.WithTargetConn(func(ybConn *sql.DB) error {
@@ -966,15 +934,6 @@ func TestImportCDCMultiChannelBatchFailureAndResume(t *testing.T) {
 		return nil
 	})
 	require.NoError(t, err)
-
-	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
-		reportTableName(tableName): {
-			Inserts: int64(numChans * eventsPerChan),
-			Updates: int64(numChans * updatesPerChan),
-			Deletes: int64(numChans * deletesPerChan),
-		},
-	}, 120, 5)
-	require.NoError(t, err, "Migration report did not match expected CDC counts")
 }
 
 // reportTableName converts a dot-separated table name (e.g. "schema.table") to the
