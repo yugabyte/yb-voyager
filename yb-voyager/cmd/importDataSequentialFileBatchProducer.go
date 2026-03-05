@@ -16,6 +16,7 @@ limitations under the License.
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"sort"
@@ -26,6 +27,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -43,10 +45,12 @@ type SequentialFileBatchProducer struct {
 	fileFullySplit  bool     // if the file is fully split into batches
 	completed       bool     // if all batches have been produced
 
-	dataFile        datafile.DataFile
-	header          string
-	headerByteCount int64
-	numLinesTaken   int64 // number of lines read from the file
+	dataFile          datafile.DataFile
+	header            string
+	headerByteCount   int64
+	numLinesTaken     int64 // number of lines read from the file
+	lastCumByteOffset int64 // cumulative byte offset recovered from batch state; -1 if unavailable
+	cumByteOffset     int64 // running cumulative byte offset tracking absolute file position
 	// line that was read from file while producing the previous batch
 	// but not added to the batch because adding it would breach size/row based thresholds.
 	lineFromPreviousBatch string
@@ -76,7 +80,7 @@ func NewSequentialFileBatchProducer(task *ImportFileTask, state *ImportDataState
 		return nil, goerrors.Errorf("preparing for file import: %s", err)
 	}
 
-	pendingBatches, lastBatchNumber, lastOffset, fileFullySplit, err := state.Recover(task.FilePath, task.TableNameTup)
+	pendingBatches, lastBatchNumber, lastOffset, lastCumByteOffset, fileFullySplit, err := state.Recover(task.FilePath, task.TableNameTup)
 	if err != nil {
 		return nil, goerrors.Errorf("recovering state for table: %q: %s", task.TableNameTup, err)
 	}
@@ -102,6 +106,8 @@ func NewSequentialFileBatchProducer(task *ImportFileTask, state *ImportDataState
 		fileFullySplit:              fileFullySplit,
 		completed:                   completed,
 		numLinesTaken:               lastOffset,
+		lastCumByteOffset:          lastCumByteOffset,
+		cumByteOffset:              lastCumByteOffset,
 		errorHandler:                errorHandler,
 		progressReporter:            progressReporter,
 		isRowTransformationRequired: isRowTransformationRequired,
@@ -173,6 +179,9 @@ func (p *SequentialFileBatchProducer) produceNextBatch() (*Batch, error) {
 			// handling possible case: last dataline(i.e. EOF) but no newline char at the end
 			p.numLinesTaken += 1
 		}
+		if currentBytesRead > 0 {
+			p.cumByteOffset += currentBytesRead
+		}
 		log.Debugf("Batch %d: totalBytesRead %d, currentBytes %d \n", batchNum, p.dataFile.GetBytesRead(), currentBytesRead)
 		// TODO: fix. Here we compare line_bytes with max_batch_size_bytes
 		// but below we compare header_bytes+line_bytes with max_batch_size_bytes
@@ -218,17 +227,20 @@ func (p *SequentialFileBatchProducer) produceNextBatch() (*Batch, error) {
 			if batchWriter.NumRecordsWritten == batchSizeInNumRows ||
 				batchBytesCount > tdb.MaxBatchSizeInBytes() {
 
-				// Finalize the current batch without adding the record
-				batch, err := p.finalizeBatch(batchWriter, false, p.numLinesTaken-1, p.dataFile.GetBytesRead()-currentBytesRead)
-				if err != nil {
-					return nil, err
-				}
+			// Finalize the current batch without adding the record.
+			// cumByteOffset must exclude the carried-forward line's bytes so that
+			// on resume we re-read that line from the correct file position.
+			batchCumByteOffset := p.cumByteOffset - currentBytesRead
+			batch, err := p.finalizeBatch(batchWriter, false, p.numLinesTaken-1, p.dataFile.GetBytesRead()-currentBytesRead, batchCumByteOffset)
+			if err != nil {
+				return nil, err
+			}
 
-				//carry forward the bytes to next batch
-				p.dataFile.ResetBytesRead(currentBytesRead)
-				p.lineFromPreviousBatch = line
+			//carry forward the bytes to next batch
+			p.dataFile.ResetBytesRead(currentBytesRead)
+			p.lineFromPreviousBatch = line
 
-				return batch, nil
+			return batch, nil
 			}
 
 			// Write the record to the current batch
@@ -244,7 +256,7 @@ func (p *SequentialFileBatchProducer) produceNextBatch() (*Batch, error) {
 
 		// Finalize the batch if it's the last line or the end of the file and reset the bytes read to 0
 		if readLineErr == io.EOF {
-			batch, err := p.finalizeBatch(batchWriter, true, p.numLinesTaken, p.dataFile.GetBytesRead())
+			batch, err := p.finalizeBatch(batchWriter, true, p.numLinesTaken, p.dataFile.GetBytesRead(), p.cumByteOffset)
 			if err != nil {
 				return nil, err
 			}
@@ -283,32 +295,138 @@ func (p *SequentialFileBatchProducer) transformRow(row string, columnNames []str
 }
 
 func (p *SequentialFileBatchProducer) openDataFile() error {
+	if p.lastCumByteOffset > 0 {
+		// New 6-field batch format: byte offset is known, seek directly to it.
+		return p.openDataFileWithSeek()
+	}
+	if p.lastOffset > 0 {
+		// Old 5-field batch format: no byte offset available, skip lines
+		// while computing cumByteOffset so future batches will have it.
+		return p.openDataFileForOldResume()
+	}
+	// First run with no prior batches: open from the beginning.
+	return p.openDataFileFirstRun()
+}
+
+// openAndReadHeader opens the data file from byte 0 and reads the header if present.
+// Returns the opened DataFile positioned after the header (or at byte 0 if no header).
+func (p *SequentialFileBatchProducer) openAndReadHeader() (datafile.DataFile, error) {
 	reader, err := dataStore.Open(p.task.FilePath)
 	if err != nil {
-		return goerrors.Errorf("preparing reader for split generation on file: %q: %v", p.task.FilePath, err)
+		return nil, goerrors.Errorf("preparing reader for file: %q: %v", p.task.FilePath, err)
 	}
 
-	dataFile, err := datafile.NewDataFile(p.task.FilePath, reader, dataFileDescriptor)
-
+	df, err := datafile.NewDataFile(p.task.FilePath, reader, dataFileDescriptor)
 	if err != nil {
-		return goerrors.Errorf("open datafile: %q: %v", p.task.FilePath, err)
+		reader.Close()
+		return nil, goerrors.Errorf("open datafile: %q: %v", p.task.FilePath, err)
+	}
+
+	if dataFileDescriptor.HasHeader {
+		p.header = df.GetHeader()
+		p.headerByteCount = df.GetBytesRead()
+		df.ResetBytesRead(0)
+	}
+	return df, nil
+}
+
+// openDataFileWithSeek resumes by seeking directly to the byte offset.
+// Used when lastCumByteOffset > 0 (new 6-field batch format).
+func (p *SequentialFileBatchProducer) openDataFileWithSeek() error {
+	// Read header before seeking (seek jumps past it).
+	if dataFileDescriptor.HasHeader {
+		headerDataFile, err := p.openAndReadHeader()
+		if err != nil {
+			return err
+		}
+		headerDataFile.Close()
+	}
+
+	// Seek to byte offset. Falls back to SkipLines if datastore doesn't support OpenAt yet.
+	log.Infof("Seeking to byte offset %d in %q", p.lastCumByteOffset, p.task.FilePath)
+	reader, err := dataStore.OpenAt(p.task.FilePath, p.lastCumByteOffset)
+	if err != nil {
+		if errors.Is(err, datastore.ErrOpenAtNotImplemented) {
+			log.Warnf("OpenAt not implemented for current datastore, falling back to SkipLines for %q", p.task.FilePath)
+			return p.openDataFileForCloudFallback()
+		}
+		return goerrors.Errorf("seeking to byte offset %d in file %q: %v", p.lastCumByteOffset, p.task.FilePath, err)
+	}
+
+	// Build a fresh DataFile on the seeked reader.
+	dataFile, err := datafile.NewDataFile(p.task.FilePath, reader, dataFileDescriptor)
+	if err != nil {
+		reader.Close()
+		return goerrors.Errorf("open datafile after seek: %q: %v", p.task.FilePath, err)
 	}
 	p.dataFile = dataFile
 
-	//First read the header and then skip lines, because if we skip lines first then header won't be correct in case of resumption
-	if dataFileDescriptor.HasHeader {
-		p.header = dataFile.GetHeader()
-		p.headerByteCount = dataFile.GetBytesRead()
-		dataFile.ResetBytesRead(0) //reset the bytes read for header
+	// For SQL files (ora2pg), we've seeked into the middle of a COPY block.
+	if dataFileDescriptor.FileFormat == datafile.SQL {
+		if sqlDF, ok := dataFile.(*datafile.SqlDataFile); ok {
+			sqlDF.SetInsideCopyStmt(true)
+		}
 	}
 
-	log.Infof("Skipping %d lines from %q", p.lastOffset, p.task.FilePath)
+	log.Infof("Resumed file %q at byte offset %d (skipped SkipLines)", p.task.FilePath, p.lastCumByteOffset)
+	return nil
+}
+
+// openDataFileForCloudFallback resumes via SkipLines when cumByteOffset is
+// available but OpenAt is not yet implemented (cloud stub).
+func (p *SequentialFileBatchProducer) openDataFileForCloudFallback() error {
+	df, err := p.openAndReadHeader()
+	if err != nil {
+		return err
+	}
+	p.dataFile = df
+
+	log.Infof("Cloud fallback: skipping %d lines from %q", p.lastOffset, p.task.FilePath)
 	p.progressReporter.AddResumeInformation(p.task, fmt.Sprintf("Resuming from %d lines", p.lastOffset))
-	err = dataFile.SkipLines(p.lastOffset)
+	err = df.SkipLines(p.lastOffset)
 	if err != nil {
 		return goerrors.Errorf("skipping line for offset=%d: %v", p.lastOffset, err)
 	}
 	p.progressReporter.RemoveResumeInformation(p.task)
+	return nil
+}
+
+// openDataFileForOldResume resumes from old 5-field batch format where
+// cumByteOffset is not available. Skips lines while computing cumByteOffset
+// so that future batches will have it.
+func (p *SequentialFileBatchProducer) openDataFileForOldResume() error {
+	df, err := p.openAndReadHeader()
+	if err != nil {
+		return err
+	}
+	p.dataFile = df
+
+	log.Infof("Old format resume: skipping %d lines from %q while computing byte offset", p.lastOffset, p.task.FilePath)
+	p.progressReporter.AddResumeInformation(p.task, fmt.Sprintf("Resuming from %d lines", p.lastOffset))
+
+	skippedBytes := int64(0)
+	for i := int64(1); i <= p.lastOffset; i++ {
+		_, bytesRead, skipErr := df.NextLine()
+		if skipErr != nil {
+			return goerrors.Errorf("skipping line %d for offset=%d: %v", i, p.lastOffset, skipErr)
+		}
+		skippedBytes += bytesRead
+	}
+	df.ResetBytesRead(0)
+	p.cumByteOffset = p.headerByteCount + skippedBytes
+
+	p.progressReporter.RemoveResumeInformation(p.task)
+	return nil
+}
+
+// openDataFileFirstRun opens the data file for a fresh import with no prior batches.
+func (p *SequentialFileBatchProducer) openDataFileFirstRun() error {
+	df, err := p.openAndReadHeader()
+	if err != nil {
+		return err
+	}
+	p.dataFile = df
+	p.cumByteOffset = p.headerByteCount
 	return nil
 }
 
@@ -329,7 +447,7 @@ func (p *SequentialFileBatchProducer) newBatchWriter() (*BatchWriter, error) {
 	return batchWriter, nil
 }
 
-func (p *SequentialFileBatchProducer) finalizeBatch(batchWriter *BatchWriter, isLastBatch bool, offsetEnd int64, bytesInBatch int64) (*Batch, error) {
+func (p *SequentialFileBatchProducer) finalizeBatch(batchWriter *BatchWriter, isLastBatch bool, offsetEnd int64, bytesInBatch int64, cumByteOffset int64) (*Batch, error) {
 	batchNum := p.lastBatchNumber + 1
 
 	// before we write the batch, we also store the processing errors that were encountered and stashed while
@@ -347,7 +465,7 @@ func (p *SequentialFileBatchProducer) finalizeBatch(batchWriter *BatchWriter, is
 		//in the import-data-state of the batch include the header bytes only for the first batch so imported Bytes count is same as total bytes count
 		bytesInBatch += p.headerByteCount
 	}
-	batch, err := batchWriter.Done(isLastBatch, offsetEnd, bytesInBatch)
+	batch, err := batchWriter.Done(isLastBatch, offsetEnd, bytesInBatch, cumByteOffset)
 	if err != nil {
 		utils.ErrExit("finalizing batch %d: %s", batchNum, err)
 	}

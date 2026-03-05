@@ -70,6 +70,10 @@ func (df *SqlDataFile) ResetBytesRead(bytes int64) {
 	df.bytesRead = bytes
 }
 
+func (df *SqlDataFile) SetInsideCopyStmt(v bool) {
+	df.insideCopyStmt = v
+}
+
 func (df *SqlDataFile) isDataLine(line string) bool {
 	emptyLine := (len(line) == 0)
 	newLineChar := (line == "\n")
