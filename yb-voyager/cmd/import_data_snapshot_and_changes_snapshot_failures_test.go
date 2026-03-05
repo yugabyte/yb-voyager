@@ -104,6 +104,9 @@ func TestImportSnapshotCommitFailureAndResume(t *testing.T) {
 	expectedRowsAfterFailure := batchSizeRows * successBatchesThen
 
 	failpointEnv := testutils.GetFailpointEnvVar(
+		// Skip the first 10 batch commits (let them succeed), then inject a commit
+		// error on the 11th. With batch-size=2 and 60 rows, 10 successful batches
+		// import 20 rows before the crash.
 		"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb/importBatchCommitError=10*off->return()",
 	)
 
@@ -232,6 +235,9 @@ func TestImportSnapshotTransformFailureAndResume(t *testing.T) {
 	defer lm.KillDebezium()
 
 	failpointEnv := testutils.GetFailpointEnvVar(
+		// Skip the first 20 per-row transform calls (let them succeed), then inject
+		// a transform error on the 21st row. This crashes the importer mid-batch-
+		// production, before any batch is committed to the target.
 		"github.com/yugabyte/yb-voyager/yb-voyager/cmd/importSnapshotTransformError=20*off->return(true)",
 	)
 	failMarkerPath := filepath.Join(lm.GetExportDir(), "logs", "failpoint-import-snapshot-transform-error.log")
