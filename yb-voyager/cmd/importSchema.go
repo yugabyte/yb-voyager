@@ -352,7 +352,7 @@ func isYBDatabaseIsColocated(conn *pgx.Conn) bool {
 func assessmentRecommendedColocatedTables() (bool, error) {
 	reportPath := GetJsonAssessmentReportPath()
 	if !utils.FileOrFolderExists(reportPath) {
-		return false, fmt.Errorf("assessment report not found at %s", reportPath)
+		return false, goerrors.Errorf("assessment report not found at %s", reportPath)
 	}
 	report, err := ParseJSONToAssessmentReport(reportPath)
 	if err != nil {
