@@ -179,6 +179,11 @@ func TestImportCDCTransformFailureAndResume(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Log("Target matches source after resume")
+
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		reportTableName(tableName): {Inserts: 200, Updates: 200, Deletes: 100},
+	}, 120, 5)
+	require.NoError(t, err, "Migration report did not match expected CDC counts")
 }
 
 // TestImportCDCDbErrorAndResume verifies that live migration `import data` can resume after
@@ -322,6 +327,11 @@ func TestImportCDCDbErrorAndResume(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Log("Target matches source after resume (CDC DB error)")
+
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		reportTableName(tableName): {Inserts: 200, Updates: 200, Deletes: 100},
+	}, 120, 5)
+	require.NoError(t, err, "Migration report did not match expected CDC counts")
 }
 
 // TestImportCDCEventExecutionFailureAndResume verifies that live migration `import data` can resume
@@ -465,6 +475,11 @@ func TestImportCDCEventExecutionFailureAndResume(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Log("Target matches source after resume (CDC event execution failure)")
+
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		reportTableName(tableName): {Inserts: 120, Updates: 0, Deletes: 0},
+	}, 120, 5)
+	require.NoError(t, err, "Migration report did not match expected CDC counts")
 }
 
 // TestImportCDCRetryableDbErrorThenSucceed verifies that live migration `import data` retries and
@@ -587,6 +602,11 @@ func TestImportCDCRetryableDbErrorThenSucceed(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Log("Target matches source after in-process retry (no resume run needed)")
+
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		reportTableName(tableName): {Inserts: 120, Updates: 0, Deletes: 0},
+	}, 120, 5)
+	require.NoError(t, err, "Migration report did not match expected CDC counts")
 }
 
 // TestImportCDCRetryableAfterCommitErrorSkipsRetry verifies that live migration `import data`
@@ -601,7 +621,7 @@ func TestImportCDCRetryableDbErrorThenSucceed(t *testing.T) {
 //  1. Start `export data` and `import data` concurrently (import runs with failpoint enabled).
 //  2. Wait for snapshot, then generate CDC inserts via SourceDeltaSQL.
 //  3. Verify the failpoint marker is written and the import keeps running (retries in-process).
-//  4. Verify `last_applied_vsn` advances to max queued vsn (proving the retry short-circuited).
+//  4. Verify via data-migration-report that imported CDC events catch up to exported events.
 //  5. Verify final target matches source without a resume run.
 func TestImportCDCRetryableAfterCommitErrorSkipsRetry(t *testing.T) {
 	ctx := context.Background()
@@ -701,25 +721,17 @@ func TestImportCDCRetryableAfterCommitErrorSkipsRetry(t *testing.T) {
 		// still running as expected
 	}
 
-	// --- Phase 3: Verify vsn catches up and target matches source (no resume needed) ---
-	migrationUUIDStr, err := lm.ReadMigrationUUID()
-	require.NoError(t, err, "Failed to read migration UUID")
-	require.NotEmpty(t, migrationUUIDStr)
-
-	maxQueuedVsn, err := maxVsnInQueueSegments(lm.GetExportDir())
-	require.NoError(t, err, "Failed to compute max queued vsn from queue segments")
-	t.Logf("Max queued vsn in CDC segments: %d", maxQueuedVsn)
-
-	// Verify voyager progress metadata catches up to the queue.
-	err = lm.WithTargetConn(func(ybConn *sql.DB) error {
-		require.Eventually(t, func() bool {
-			v, verr := maxLastAppliedVsn(ybConn, migrationUUIDStr)
-			return verr == nil && v >= maxQueuedVsn
-		}, 120*time.Second, 2*time.Second, "Expected last_applied_vsn to reach max queued vsn after retryable-after-commit error")
-		t.Log("Verified last_applied_vsn caught up after retryable-after-commit error")
-		return nil
-	})
-	require.NoError(t, err)
+	// --- Phase 3: Verify CDC catches up and target matches source (no resume needed) ---
+	// Verify via data-migration-report that all exported CDC events are imported.
+	require.Eventually(t, func() bool {
+		report, rerr := lm.GetDataMigrationReport()
+		if rerr != nil {
+			return false
+		}
+		imported, exported := getReportCDCCounts(report, reportTableName(tableName))
+		return exported > 0 && imported >= exported
+	}, 120*time.Second, 2*time.Second, "Expected imported CDC events to catch up to exported events after retryable-after-commit error")
+	t.Log("Verified CDC events caught up after retryable-after-commit error")
 
 	err = lm.WithSourceTargetConn(func(pgConn, ybConn *sql.DB) error {
 		require.Eventually(t, func() bool {
@@ -730,6 +742,11 @@ func TestImportCDCRetryableAfterCommitErrorSkipsRetry(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Log("Target matches source after in-process retryable-after-commit handling")
+
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		reportTableName(tableName): {Inserts: 60, Updates: 0, Deletes: 0},
+	}, 120, 5)
+	require.NoError(t, err, "Migration report did not match expected CDC counts")
 }
 
 // TestImportCDCMultiChannelBatchFailureAndResume verifies that CDC import resume works correctly
@@ -949,6 +966,42 @@ func TestImportCDCMultiChannelBatchFailureAndResume(t *testing.T) {
 		return nil
 	})
 	require.NoError(t, err)
+
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		reportTableName(tableName): {
+			Inserts: int64(numChans * eventsPerChan),
+			Updates: int64(numChans * updatesPerChan),
+			Deletes: int64(numChans * deletesPerChan),
+		},
+	}, 120, 5)
+	require.NoError(t, err, "Migration report did not match expected CDC counts")
+}
+
+// reportTableName converts a dot-separated table name (e.g. "schema.table") to the
+// quoted format used in the data-migration-report JSON (e.g. `"schema"."table"`).
+func reportTableName(dotNotation string) string {
+	parts := strings.SplitN(dotNotation, ".", 2)
+	if len(parts) == 2 {
+		return fmt.Sprintf(`"%s"."%s"`, parts[0], parts[1])
+	}
+	return fmt.Sprintf(`"%s"`, dotNotation)
+}
+
+// getReportCDCCounts extracts the total imported and exported CDC event counts for a
+// table from a DataMigrationReport. The tableName must be in the quoted format
+// returned by reportTableName().
+func getReportCDCCounts(report *DataMigrationReport, tableName string) (imported, exported int64) {
+	for _, row := range report.RowData {
+		if row.TableName != tableName {
+			continue
+		}
+		if row.DBType == "target" {
+			imported = row.ImportedInserts + row.ImportedUpdates + row.ImportedDeletes
+		} else if row.DBType == "source" {
+			exported = row.ExportedInserts + row.ExportedUpdates + row.ExportedDeletes
+		}
+	}
+	return
 }
 
 // computeChanForID returns the importer channel number for a single-row CDC event

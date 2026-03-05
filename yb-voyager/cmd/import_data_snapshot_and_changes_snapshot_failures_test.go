@@ -168,6 +168,11 @@ func TestImportSnapshotCommitFailureAndResume(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Log("Target matches source after resume (snapshot commit failure)")
+
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		reportTableName(tableName): {Inserts: 3, Updates: 2, Deletes: 1},
+	}, 120, 5)
+	require.NoError(t, err, "Migration report did not match expected CDC counts")
 }
 
 // TestImportSnapshotTransformFailureAndResume verifies that live migration `import data` can resume
@@ -308,4 +313,9 @@ func TestImportSnapshotTransformFailureAndResume(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Log("Target matches source after resume (snapshot transform failure)")
+
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		reportTableName(tableName): {Inserts: 3, Updates: 2, Deletes: 1},
+	}, 120, 5)
+	require.NoError(t, err, "Migration report did not match expected CDC counts")
 }
