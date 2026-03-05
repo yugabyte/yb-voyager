@@ -156,7 +156,7 @@ func importSchema() error {
 	utils.PrintAndLogf("YugabyteDB version: %s\n", importTargetDBVersion)
 
 	if err := promptIfColocatedTablesInNonColocatedDB(conn); err != nil {
-		return err
+		log.Warnf("failed to prompt for colocated tables in non-colocated DB: %v", err)
 	}
 
 	if !flagPostSnapshotImport {
@@ -349,26 +349,23 @@ func isYBDatabaseIsColocated(conn *pgx.Conn) bool {
 	return isColocated
 }
 
-func assessmentRecommendedColocatedTables() bool {
+func assessmentRecommendedColocatedTables() (bool, error) {
 	reportPath := GetJsonAssessmentReportPath()
 	if !utils.FileOrFolderExists(reportPath) {
-		log.Infof("assessment report not found at %s, assuming colocated tables may exist", reportPath)
-		return true
+		return false, fmt.Errorf("assessment report not found at %s", reportPath)
 	}
 	report, err := ParseJSONToAssessmentReport(reportPath)
 	if err != nil {
-		log.Warnf("failed to parse assessment report: %v, assuming colocated tables may exist", err)
-		return true
+		return false, fmt.Errorf("failed to parse assessment report: %w", err)
 	}
 	colocatedTables, err := report.GetColocatedTablesRecommendation()
 	if err != nil {
-		log.Warnf("failed to get colocated tables recommendation: %v, assuming colocated tables may exist", err)
-		return true
+		return false, fmt.Errorf("failed to get colocated tables recommendation: %w", err)
 	}
 	if colocatedTables == nil {
-		return false
+		return false, nil
 	}
-	return len(colocatedTables) > 0
+	return len(colocatedTables) > 0, nil
 }
 
 func promptIfColocatedTablesInNonColocatedDB(conn *pgx.Conn) error {
@@ -382,7 +379,11 @@ func promptIfColocatedTablesInNonColocatedDB(conn *pgx.Conn) error {
 	if isYBDatabaseIsColocated(conn) {
 		return nil
 	}
-	if !assessmentRecommendedColocatedTables() {
+	hasColocatedTables, err := assessmentRecommendedColocatedTables()
+	if err != nil {
+		return fmt.Errorf("failed to check assessment recommended colocated tables: %w", err)
+	}
+	if !hasColocatedTables {
 		return nil
 	}
 	if !utils.AskPrompt(fmt.Sprintf("\nWarning: Target DB '%s' is a non-colocated database. "+
