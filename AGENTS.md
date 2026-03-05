@@ -50,6 +50,11 @@ yes | bash installer_scripts/install-yb-voyager -v
 - ysqlsh: `/opt/yugabyte-2025.2.1.0/bin/ysqlsh -U yugabyte -d <dbname> -h 127.0.0.1`
 - The YugabyteDB data directory must be owned by `ubuntu` (not root). If you get FIPS/permission errors on start, run `sudo chown -R ubuntu:ubuntu /opt/yugabyte-2025.2.1.0`.
 
+### Migration workflow reference
+
+- **Offline migration steps:** <https://docs.yugabyte.com/stable/yugabyte-voyager/migrate/migrate-steps/>
+- **Live migration steps:** <https://docs.yugabyte.com/stable/yugabyte-voyager/migrate/live-migrate/>
+
 ### Gotchas
 
 - The installer script has interactive prompts (ora2pg license, bashrc update). Pipe `yes` to accept them non-interactively.
