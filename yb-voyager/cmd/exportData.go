@@ -623,31 +623,6 @@ func exportData() bool {
 	}
 }
 
-func waitUntilCutoverProcessedByCorrespondingImporterForExporter(exporterRole string) error {
-	for {
-		record, err := metaDB.GetMigrationStatusRecord()
-		if err != nil {
-			return fmt.Errorf("failed to get migration status record: %w", err)
-		}
-		switch exporterRole {
-		case SOURCE_DB_EXPORTER_ROLE:
-			if record.CutoverProcessedByTargetImporter {
-				return nil
-			}
-		case TARGET_DB_EXPORTER_FF_ROLE:
-			if record.CutoverToSourceReplicaProcessedBySRImporter {
-				return nil
-			}
-		case TARGET_DB_EXPORTER_FB_ROLE:
-			if record.CutoverToSourceProcessedBySourceImporter {
-				return nil
-			}
-		default:
-			return goerrors.Errorf("invalid exporter role: %s", exporterRole)
-		}
-		time.Sleep(2 * time.Second)
-	}
-}
 
 func initPGLiveMigrationAndExportSnapshotIfRequired(ctx context.Context, cancel context.CancelFunc, finalTableList []sqlname.NameTuple, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], leafPartitions *utils.StructMap[sqlname.NameTuple, []sqlname.NameTuple], config *dbzm.Config) error {
 	var err error
