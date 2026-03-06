@@ -259,37 +259,21 @@ func (lm *LiveMigrationTest) StartExportDataChangesOnly(async bool, extraArgs ma
 
 // StartImportData starts import data command
 func (lm *LiveMigrationTest) StartImportData(async bool, extraArgs map[string]string) error {
-	fmt.Printf("Starting import data\n")
-	var onStart func()
-	if async {
-		onStart = func() {
-			time.Sleep(5 * time.Second) // Wait for import to start
-		}
-	}
-
-	args := []string{
-		"--export-dir", lm.exportDir,
-		"--disable-pb", "true",
-		"--target-db-name", lm.config.TargetDB.DatabaseName,
-		"--yes",
-	}
-	for key, value := range extraArgs {
-		args = append(args, key, value)
-	}
-
-	lm.importCmd = testutils.NewVoyagerCommandRunner(lm.targetContainer, "import data", args, onStart, async)
-	err := lm.importCmd.Run()
-	if err != nil {
-		return goerrors.Errorf("failed to start import data: %w", err)
-	}
-	fmt.Printf("Import data started\n")
-	return nil
+	return lm.startImportData(async, extraArgs, nil)
 }
 
 // StartImportDataWithEnv starts import data with additional environment variables.
 // This is useful for failpoint injection and tuning knobs like batch sizes.
 func (lm *LiveMigrationTest) StartImportDataWithEnv(async bool, extraArgs map[string]string, env []string) error {
-	fmt.Printf("Starting import data with env\n")
+	return lm.startImportData(async, extraArgs, env)
+}
+
+func (lm *LiveMigrationTest) startImportData(async bool, extraArgs map[string]string, env []string) error {
+	if len(env) > 0 {
+		fmt.Printf("Starting import data with env %v\n", env)
+	} else {
+		fmt.Printf("Starting import data\n")
+	}
 	var onStart func()
 	if async {
 		onStart = func() {
@@ -312,7 +296,11 @@ func (lm *LiveMigrationTest) StartImportDataWithEnv(async bool, extraArgs map[st
 	if err != nil {
 		return goerrors.Errorf("failed to start import data: %w", err)
 	}
-	fmt.Printf("Import data started with env\n")
+	if len(env) > 0 {
+		fmt.Printf("Import data started with env\n")
+	} else {
+		fmt.Printf("Import data started\n")
+	}
 	return nil
 }
 
