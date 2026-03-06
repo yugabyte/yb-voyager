@@ -371,7 +371,7 @@ func TestTaskImportStachAndContinueErrorPolicy_MultipleBatchesWithDifferentError
 2,"world","xyz","xyz","cd"`,
 		errorMsg)
 
-	assertBatchErrored(t, erroredBatches[2], 2, "batch::3.6.2.49.185.E")
+	assertBatchErrored(t, erroredBatches[2], 2, "batch::3.6.2.49.182.E")
 	errorMsg = `ERROR: null value in column "not_null_col" violates not-null constraint (SQLSTATE 23502)`
 	if tgtYBVersion.ReleaseType() == ybversion.V2025_1_0_0.ReleaseType() && tgtYBVersion.GreaterThanOrEqual(ybversion.V2025_1_0_0) {
 		errorMsg = `ERROR: null value in column "not_null_col" of relation "test_table_error" violates not-null constraint (SQLSTATE 23502)`
