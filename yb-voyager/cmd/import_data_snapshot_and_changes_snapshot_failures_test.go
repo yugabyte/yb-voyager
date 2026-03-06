@@ -238,7 +238,7 @@ func TestImportSnapshotTransformFailureAndResume(t *testing.T) {
 		// production, before any batch is committed to the target.
 		"github.com/yugabyte/yb-voyager/yb-voyager/cmd/importSnapshotTransformError=20*off->return(true)",
 	)
-	failMarkerPath := filepath.Join(lm.GetExportDir(), "logs", "failpoint-import-snapshot-transform-error.log")
+	failMarkerPath := filepath.Join(lm.GetExportDir(), "failpoints", "failpoint-import-snapshot-transform-error.log")
 
 	t.Log("Starting import with snapshot transform failpoint...")
 	err = lm.StartImportDataWithEnv(true, map[string]string{
@@ -248,7 +248,7 @@ func TestImportSnapshotTransformFailureAndResume(t *testing.T) {
 	}, []string{
 		failpointEnv,
 		"YB_VOYAGER_COPY_MAX_RETRY_COUNT=1",
-		"YB_VOYAGER_FAILPOINT_MARKER_DIR=" + filepath.Join(lm.GetExportDir(), "logs"),
+		"YB_VOYAGER_FAILPOINT_MARKER_DIR=" + filepath.Join(lm.GetExportDir(), "failpoints"),
 	})
 	require.NoError(t, err, "failed to start import with failpoint")
 

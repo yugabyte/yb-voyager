@@ -31,8 +31,8 @@ func injectImportCDCTransformFailure() error {
 	var fpErr error
 	failpoint.Inject("importCDCTransformFailure", func(val failpoint.Value) {
 		if val != nil {
-			_ = os.MkdirAll(filepath.Join(exportDir, "logs"), 0755)
-			_ = os.WriteFile(filepath.Join(exportDir, "logs", "failpoint-import-cdc-transform.log"), []byte("hit\n"), 0644)
+			_ = os.MkdirAll(filepath.Join(exportDir, "failpoints"), 0755)
+			_ = os.WriteFile(filepath.Join(exportDir, "failpoints", "failpoint-import-cdc-transform.log"), []byte("hit\n"), 0644)
 			fpErr = goerrors.Errorf("failpoint: import CDC transform failure")
 		}
 	})
@@ -46,9 +46,9 @@ func injectImportCDCBatchDBError() error {
 	var fpErr error
 	failpoint.Inject("importCDCBatchDBError", func(val failpoint.Value) {
 		if val != nil {
-			_ = os.MkdirAll(filepath.Join(exportDir, "logs"), 0755)
+			_ = os.MkdirAll(filepath.Join(exportDir, "failpoints"), 0755)
 			_ = os.WriteFile(
-				filepath.Join(exportDir, "logs", "failpoint-import-cdc-db-error.log"),
+				filepath.Join(exportDir, "failpoints", "failpoint-import-cdc-db-error.log"),
 				[]byte("hit\n"),
 				0644,
 			)

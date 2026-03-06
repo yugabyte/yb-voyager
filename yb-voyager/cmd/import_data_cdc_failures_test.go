@@ -137,7 +137,7 @@ func TestImportCDCTransformFailureAndResume(t *testing.T) {
 	lm.ExecuteSourceDelta()
 
 	// --- Phase 2: Wait for failpoint to fire and import to crash ---
-	failMarkerPath := filepath.Join(lm.GetExportDir(), "logs", "failpoint-import-cdc-transform.log")
+	failMarkerPath := filepath.Join(lm.GetExportDir(), "failpoints", "failpoint-import-cdc-transform.log")
 	err = lm.WaitForImportFailpointAndProcessCrash(t, failMarkerPath, 120*time.Second, 60*time.Second)
 	require.NoError(t, err, "Import should crash after CDC transform failpoint")
 
@@ -277,7 +277,7 @@ func TestImportCDCDbErrorAndResume(t *testing.T) {
 	lm.ExecuteSourceDelta()
 
 	// --- Phase 2: Wait for failpoint to fire and import to crash ---
-	failMarkerPath := filepath.Join(lm.GetExportDir(), "logs", "failpoint-import-cdc-db-error.log")
+	failMarkerPath := filepath.Join(lm.GetExportDir(), "failpoints", "failpoint-import-cdc-db-error.log")
 	err = lm.WaitForImportFailpointAndProcessCrash(t, failMarkerPath, 120*time.Second, 60*time.Second)
 	require.NoError(t, err, "Import should crash after CDC DB-error failpoint")
 
@@ -392,7 +392,7 @@ func TestImportCDCEventExecutionFailureAndResume(t *testing.T) {
 		"--max-retries-streaming": "1",
 	}, []string{
 		failpointEnv,
-		fmt.Sprintf("YB_VOYAGER_FAILPOINT_MARKER_DIR=%s", filepath.Join(lm.GetExportDir(), "logs")),
+		fmt.Sprintf("YB_VOYAGER_FAILPOINT_MARKER_DIR=%s", filepath.Join(lm.GetExportDir(), "failpoints")),
 		"NUM_EVENT_CHANNELS=1",
 		"MAX_EVENTS_PER_BATCH=10",
 		"MAX_INTERVAL_BETWEEN_BATCHES=1",
@@ -409,7 +409,7 @@ func TestImportCDCEventExecutionFailureAndResume(t *testing.T) {
 	lm.ExecuteSourceDelta()
 
 	// --- Phase 2: Wait for failpoint to fire and import to crash ---
-	failMarkerPath := filepath.Join(lm.GetExportDir(), "logs", "failpoint-import-cdc-exec-event-error.log")
+	failMarkerPath := filepath.Join(lm.GetExportDir(), "failpoints", "failpoint-import-cdc-exec-event-error.log")
 	err = lm.WaitForImportFailpointAndProcessCrash(t, failMarkerPath, 120*time.Second, 60*time.Second)
 	require.NoError(t, err, "Import should crash after CDC exec-event failpoint")
 	require.Contains(t, lm.GetImportCommandStderr(), "failpoint", "Expected failpoint mention in import stderr")
@@ -532,7 +532,7 @@ func TestImportCDCRetryableDbErrorThenSucceed(t *testing.T) {
 	)
 	err = lm.StartImportDataWithEnv(true, nil, []string{
 		failpointEnv,
-		fmt.Sprintf("YB_VOYAGER_FAILPOINT_MARKER_DIR=%s", filepath.Join(lm.GetExportDir(), "logs")),
+		fmt.Sprintf("YB_VOYAGER_FAILPOINT_MARKER_DIR=%s", filepath.Join(lm.GetExportDir(), "failpoints")),
 		"YB_VOYAGER_MAX_SLEEP_SECOND=0",
 		"NUM_EVENT_CHANNELS=1",
 		"MAX_EVENTS_PER_BATCH=10",
@@ -551,7 +551,7 @@ func TestImportCDCRetryableDbErrorThenSucceed(t *testing.T) {
 	lm.ExecuteSourceDelta()
 
 	// --- Phase 2: Wait for failpoint marker and verify import stays alive (retries in-process) ---
-	failMarkerPath := filepath.Join(lm.GetExportDir(), "logs", "failpoint-import-cdc-retryable-exec-batch-error.log")
+	failMarkerPath := filepath.Join(lm.GetExportDir(), "failpoints", "failpoint-import-cdc-retryable-exec-batch-error.log")
 	t.Logf("Waiting for failpoint marker: %s", failMarkerPath)
 	matched, err := testutils.WaitForFailpointMarker(failMarkerPath, 120*time.Second, 2*time.Second)
 	require.NoError(t, err, "Should be able to read retryable batch failure marker")
@@ -654,7 +654,7 @@ func TestImportCDCRetryableAfterCommitErrorSkipsRetry(t *testing.T) {
 	)
 	err = lm.StartImportDataWithEnv(true, nil, []string{
 		failpointEnv,
-		fmt.Sprintf("YB_VOYAGER_FAILPOINT_MARKER_DIR=%s", filepath.Join(lm.GetExportDir(), "logs")),
+		fmt.Sprintf("YB_VOYAGER_FAILPOINT_MARKER_DIR=%s", filepath.Join(lm.GetExportDir(), "failpoints")),
 		"YB_VOYAGER_MAX_SLEEP_SECOND=0",
 		"NUM_EVENT_CHANNELS=1",
 		"MAX_EVENTS_PER_BATCH=1",
@@ -673,7 +673,7 @@ func TestImportCDCRetryableAfterCommitErrorSkipsRetry(t *testing.T) {
 	lm.ExecuteSourceDelta()
 
 	// --- Phase 2: Wait for failpoint marker and verify import stays alive (retries in-process) ---
-	failMarkerPath := filepath.Join(lm.GetExportDir(), "logs", "failpoint-import-cdc-retryable-after-commit-error.log")
+	failMarkerPath := filepath.Join(lm.GetExportDir(), "failpoints", "failpoint-import-cdc-retryable-after-commit-error.log")
 	t.Logf("Waiting for failpoint marker: %s", failMarkerPath)
 	matched, err := testutils.WaitForFailpointMarker(failMarkerPath, 120*time.Second, 2*time.Second)
 	require.NoError(t, err, "Should be able to read retryable-after-commit marker")
@@ -858,7 +858,7 @@ func TestImportCDCMultiChannelBatchFailureAndResume(t *testing.T) {
 		"DELETE FROM %s WHERE id IN (%s);", tableName, strings.Join(deleteIDs, ",")))
 
 	// --- Phase 2: Wait for failpoint to fire and import to crash ---
-	failMarkerPath := filepath.Join(lm.GetExportDir(), "logs", "failpoint-import-cdc-db-error.log")
+	failMarkerPath := filepath.Join(lm.GetExportDir(), "failpoints", "failpoint-import-cdc-db-error.log")
 	err = lm.WaitForImportFailpointAndProcessCrash(t, failMarkerPath, 120*time.Second, 60*time.Second)
 	require.NoError(t, err, "Import should crash after multi-channel batch failure failpoint")
 
