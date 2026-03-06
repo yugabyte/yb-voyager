@@ -306,7 +306,6 @@ func startExportDataFromSourceOnNextIteration() {
 	lockFile.Unlock() // unlock export dir from import data cmd before switching current process to ff/fb sync cmd
 	cmd := []string{"yb-voyager", "export", "data", "from", "source"}
 	if cfgFile != "" {
-		//TODO: handle overrides for the command
 		cmd = append(cmd, "--table-list", strings.Join(importTableNames, ","))
 
 		//If there are cli overrides for the command, pass them as cli overrides to the import data to source command

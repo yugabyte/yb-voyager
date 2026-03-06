@@ -119,7 +119,7 @@ func setupPostgreDBAndExportDependencies(t *testing.T, sqls []string, schemas st
 
 	sqlname.SourceDBType = testPostgresSource.DBType
 
-	CreateMigrationProjectIfNotExists(constants.POSTGRESQL, testExportDir)
+	metaDB = CreateMigrationProjectIfNotExists(constants.POSTGRESQL, testExportDir)
 	testPostgresSource.Schemas = sqlname.ParseIdentifiersFromString(constants.POSTGRESQL, schemas, "|")
 	testPostgresSource.ExecuteSqls(sqls...)
 	return testExportDir
@@ -133,7 +133,7 @@ func setupPostgresDBSourceAndYugabyteDBTargetWithExportDependencies(t *testing.T
 
 	sqlname.SourceDBType = POSTGRESQL
 
-	CreateMigrationProjectIfNotExists(constants.POSTGRESQL, testExportDir)
+	metaDB = CreateMigrationProjectIfNotExists(constants.POSTGRESQL, testExportDir)
 	testPostgresSource.Schemas = sqlname.ParseIdentifiersFromString(constants.POSTGRESQL, schemas, "|")
 	testPostgresSource.ExecuteSqls(sqls...)
 	testYugabyteDBSource.Schemas = sqlname.ParseIdentifiersFromString(constants.YUGABYTEDB, schemas, "|")
