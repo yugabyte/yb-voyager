@@ -138,7 +138,7 @@ func TestImportCDCTransformFailureAndResume(t *testing.T) {
 
 	// --- Phase 2: Wait for failpoint to fire and import to crash ---
 	failMarkerPath := filepath.Join(lm.GetExportDir(), "logs", "failpoint-import-cdc-transform.log")
-	err = testutils.WaitForFailpointAndProcessCrash(t, lm.GetImportRunner(), failMarkerPath, 120*time.Second, 60*time.Second)
+	err = lm.WaitForImportFailpointAndProcessCrash(t, failMarkerPath, 120*time.Second, 60*time.Second)
 	require.NoError(t, err, "Import should crash after CDC transform failpoint")
 
 	// Verify partial CDC progress: some events applied, but not all queued ones.
@@ -278,7 +278,7 @@ func TestImportCDCDbErrorAndResume(t *testing.T) {
 
 	// --- Phase 2: Wait for failpoint to fire and import to crash ---
 	failMarkerPath := filepath.Join(lm.GetExportDir(), "logs", "failpoint-import-cdc-db-error.log")
-	err = testutils.WaitForFailpointAndProcessCrash(t, lm.GetImportRunner(), failMarkerPath, 120*time.Second, 60*time.Second)
+	err = lm.WaitForImportFailpointAndProcessCrash(t, failMarkerPath, 120*time.Second, 60*time.Second)
 	require.NoError(t, err, "Import should crash after CDC DB-error failpoint")
 
 	// Verify partial CDC progress: some events applied, but not all queued ones.
@@ -410,7 +410,7 @@ func TestImportCDCEventExecutionFailureAndResume(t *testing.T) {
 
 	// --- Phase 2: Wait for failpoint to fire and import to crash ---
 	failMarkerPath := filepath.Join(lm.GetExportDir(), "logs", "failpoint-import-cdc-exec-event-error.log")
-	err = testutils.WaitForFailpointAndProcessCrash(t, lm.GetImportRunner(), failMarkerPath, 120*time.Second, 60*time.Second)
+	err = lm.WaitForImportFailpointAndProcessCrash(t, failMarkerPath, 120*time.Second, 60*time.Second)
 	require.NoError(t, err, "Import should crash after CDC exec-event failpoint")
 	require.Contains(t, lm.GetImportCommandStderr(), "failpoint", "Expected failpoint mention in import stderr")
 
@@ -859,7 +859,7 @@ func TestImportCDCMultiChannelBatchFailureAndResume(t *testing.T) {
 
 	// --- Phase 2: Wait for failpoint to fire and import to crash ---
 	failMarkerPath := filepath.Join(lm.GetExportDir(), "logs", "failpoint-import-cdc-db-error.log")
-	err = testutils.WaitForFailpointAndProcessCrash(t, lm.GetImportRunner(), failMarkerPath, 120*time.Second, 60*time.Second)
+	err = lm.WaitForImportFailpointAndProcessCrash(t, failMarkerPath, 120*time.Second, 60*time.Second)
 	require.NoError(t, err, "Import should crash after multi-channel batch failure failpoint")
 
 	// Verify partial CDC progress and per-channel metadata.

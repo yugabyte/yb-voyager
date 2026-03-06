@@ -253,7 +253,7 @@ func TestImportSnapshotTransformFailureAndResume(t *testing.T) {
 	require.NoError(t, err, "failed to start import with failpoint")
 
 	t.Log("Waiting for import to crash via failpoint...")
-	require.NoError(t, testutils.WaitForFailpointAndProcessCrash(t, lm.GetImportRunner(), failMarkerPath, 60*time.Second, 60*time.Second))
+	require.NoError(t, lm.WaitForImportFailpointAndProcessCrash(t, failMarkerPath, 60*time.Second, 60*time.Second))
 	require.Contains(t, lm.GetImportCommandStderr(), "failpoint", "Expected failpoint mention in import stderr")
 	require.Contains(t, lm.GetImportCommandStderr(), "transforming line number=", "Expected stderr to show transform progressed to a specific line")
 

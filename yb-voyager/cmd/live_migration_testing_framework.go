@@ -490,6 +490,10 @@ func (lm *LiveMigrationTest) GetImportRunner() *testutils.VoyagerCommandRunner {
 	return lm.importCmd
 }
 
+func (lm *LiveMigrationTest) WaitForImportFailpointAndProcessCrash(t *testing.T, markerPath string, markerTimeout, exitTimeout time.Duration) error {
+	return testutils.WaitForFailpointAndProcessCrash(t, lm.importCmd, markerPath, markerTimeout, exitTimeout)
+}
+
 func (lm *LiveMigrationTest) GetExportCommandStderr() string {
 	if lm.exportCmd == nil {
 		return ""
