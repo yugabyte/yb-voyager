@@ -112,7 +112,7 @@ func TestImportCDCTransformFailureAndResume(t *testing.T) {
 	// --- Phase 1: Start export and import concurrently, wait for snapshot, then generate CDC ---
 	err = lm.StartExportData(true, nil)
 	require.NoError(t, err, "failed to start export")
-	defer lm.KillDebezium()
+
 
 	failpointEnv := testutils.GetFailpointEnvVar(
 		// Skip the first 250 transform calls (let them succeed), then trigger a
@@ -249,7 +249,7 @@ func TestImportCDCDbErrorAndResume(t *testing.T) {
 	// --- Phase 1: Start export and import concurrently, wait for snapshot, then generate CDC ---
 	err = lm.StartExportData(true, nil)
 	require.NoError(t, err, "failed to start export")
-	defer lm.KillDebezium()
+
 
 	failpointEnv := testutils.GetFailpointEnvVar(
 		// Skip the first 100 batch-commit calls (let them succeed), then inject a
@@ -381,7 +381,7 @@ func TestImportCDCEventExecutionFailureAndResume(t *testing.T) {
 	// --- Phase 1: Start export and import concurrently, wait for snapshot, then generate CDC ---
 	err = lm.StartExportData(true, nil)
 	require.NoError(t, err, "failed to start export")
-	defer lm.KillDebezium()
+
 
 	failpointEnv := testutils.GetFailpointEnvVar(
 		// Skip the first 50 event-execution attempts (let them succeed), then
@@ -522,7 +522,7 @@ func TestImportCDCRetryableDbErrorThenSucceed(t *testing.T) {
 	// --- Phase 1: Start export and import concurrently, wait for snapshot, then generate CDC ---
 	err = lm.StartExportData(true, nil)
 	require.NoError(t, err, "failed to start export")
-	defer lm.KillDebezium()
+
 
 	failpointEnv := testutils.GetFailpointEnvVar(
 		// Inject a retryable error on the very first batch execution, then disable
@@ -643,7 +643,7 @@ func TestImportCDCRetryableAfterCommitErrorSkipsRetry(t *testing.T) {
 	// --- Phase 1: Start export and import concurrently, wait for snapshot, then generate CDC ---
 	err = lm.StartExportData(true, nil)
 	require.NoError(t, err, "failed to start export")
-	defer lm.KillDebezium()
+
 
 	failpointEnv := testutils.GetFailpointEnvVar(
 		// Inject a retryable error on the very first batch execution *after* the
@@ -777,7 +777,7 @@ func TestImportCDCMultiChannelBatchFailureAndResume(t *testing.T) {
 	// --- Phase 1: Start export and import concurrently, wait for snapshot ---
 	err = lm.StartExportData(true, nil)
 	require.NoError(t, err, "failed to start export")
-	defer lm.KillDebezium()
+
 
 	failpointEnv := testutils.GetFailpointEnvVar(
 		// Skip the first 100 batch-commit calls across all channels (let them

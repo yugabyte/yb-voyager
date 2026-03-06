@@ -166,6 +166,10 @@ func (lm *LiveMigrationTest) InitMetaDB() error {
 // Cleanup runs all cleanup operations (called via defer)
 func (lm *LiveMigrationTest) Cleanup() {
 	fmt.Printf("Cleaning up\n")
+	// Kill any lingering Debezium processes before removing the export dir
+	// (the PID is read from a lock file inside the export dir).
+	lm.KillDebezium(SOURCE_DB_EXPORTER_ROLE)
+
 	// Execute cleanup SQL
 	lm.sourceContainer.ExecuteSqlsOnDB(lm.config.SourceDB.DatabaseName, lm.config.CleanupSQL...)
 	lm.targetContainer.ExecuteSqlsOnDB(lm.config.TargetDB.DatabaseName, lm.config.CleanupSQL...)
@@ -323,11 +327,11 @@ func (lm *LiveMigrationTest) StopExportData() error {
 	return nil
 }
 
-// KillDebezium force-kills the Debezium Java process associated with this test's exportDir.
+// KillDebezium force-kills the Debezium Java process for the given exporter role.
 // Debezium runs as a separate child Java process and can outlive the `yb-voyager` parent if
-// the parent is SIGKILLed. Call this via defer after starting export to prevent leaked processes.
-func (lm *LiveMigrationTest) KillDebezium() {
-	pidStr, err := dbzm.GetPIDOfDebeziumOnExportDir(lm.exportDir, SOURCE_DB_EXPORTER_ROLE)
+// the parent is SIGKILLed. Cleanup() calls this automatically for SOURCE_DB_EXPORTER_ROLE.
+func (lm *LiveMigrationTest) KillDebezium(exporterRole string) {
+	pidStr, err := dbzm.GetPIDOfDebeziumOnExportDir(lm.exportDir, exporterRole)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return

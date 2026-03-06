@@ -95,7 +95,7 @@ func TestImportSnapshotCommitFailureAndResume(t *testing.T) {
 	// --- Phase 1: Start export and import concurrently ---
 	err = lm.StartExportData(true, nil)
 	require.NoError(t, err, "failed to start export")
-	defer lm.KillDebezium()
+
 
 	const (
 		batchSizeRows      = 2
@@ -230,7 +230,7 @@ func TestImportSnapshotTransformFailureAndResume(t *testing.T) {
 	// --- Phase 1: Start export and import concurrently ---
 	err = lm.StartExportData(true, nil)
 	require.NoError(t, err, "failed to start export")
-	defer lm.KillDebezium()
+
 
 	failpointEnv := testutils.GetFailpointEnvVar(
 		// Skip the first 20 per-row transform calls (let them succeed), then inject
