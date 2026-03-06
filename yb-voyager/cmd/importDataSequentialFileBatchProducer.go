@@ -106,8 +106,8 @@ func NewSequentialFileBatchProducer(task *ImportFileTask, state *ImportDataState
 		fileFullySplit:              fileFullySplit,
 		completed:                   completed,
 		numLinesTaken:               lastOffset,
-		lastCumByteOffset:          lastCumByteOffset,
-		cumByteOffset:              lastCumByteOffset,
+		lastCumByteOffset:           lastCumByteOffset,
+		cumByteOffset:               lastCumByteOffset,
 		errorHandler:                errorHandler,
 		progressReporter:            progressReporter,
 		isRowTransformationRequired: isRowTransformationRequired,
@@ -227,20 +227,20 @@ func (p *SequentialFileBatchProducer) produceNextBatch() (*Batch, error) {
 			if batchWriter.NumRecordsWritten == batchSizeInNumRows ||
 				batchBytesCount > tdb.MaxBatchSizeInBytes() {
 
-			// Finalize the current batch without adding the record.
-			// cumByteOffset must exclude the carried-forward line's bytes so that
-			// on resume we re-read that line from the correct file position.
-			batchCumByteOffset := p.cumByteOffset - currentBytesRead
-			batch, err := p.finalizeBatch(batchWriter, false, p.numLinesTaken-1, p.dataFile.GetBytesRead()-currentBytesRead, batchCumByteOffset)
-			if err != nil {
-				return nil, err
-			}
+				// Finalize the current batch without adding the record.
+				// cumByteOffset must exclude the carried-forward line's bytes so that
+				// on resume we re-read that line from the correct file position.
+				batchCumByteOffset := p.cumByteOffset - currentBytesRead
+				batch, err := p.finalizeBatch(batchWriter, false, p.numLinesTaken-1, p.dataFile.GetBytesRead()-currentBytesRead, batchCumByteOffset)
+				if err != nil {
+					return nil, err
+				}
 
-			//carry forward the bytes to next batch
-			p.dataFile.ResetBytesRead(currentBytesRead)
-			p.lineFromPreviousBatch = line
+				//carry forward the bytes to next batch
+				p.dataFile.ResetBytesRead(currentBytesRead)
+				p.lineFromPreviousBatch = line
 
-			return batch, nil
+				return batch, nil
 			}
 
 			// Write the record to the current batch
@@ -324,7 +324,7 @@ func (p *SequentialFileBatchProducer) openAndReadHeader() (datafile.DataFile, er
 }
 
 // openDataFileWithSeek resumes by seeking directly to the byte offset.
-// Used when lastCumByteOffset > 0 (new 6-field batch format).
+// Used when lastCumByteOffset > 0.
 func (p *SequentialFileBatchProducer) openDataFileWithSeek() error {
 	// Read header before seeking (seek jumps past it).
 	if dataFileDescriptor.HasHeader {
