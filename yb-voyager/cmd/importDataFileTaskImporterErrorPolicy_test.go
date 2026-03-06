@@ -136,7 +136,7 @@ func TestBasicTaskImportStachAndContinueErrorPolicy(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(erroredBatches), "Expected one errored batch")
 
-	assertBatchErrored(t, erroredBatches[0], 2, "batch::0.4.2.20.E")
+	assertBatchErrored(t, erroredBatches[0], 2, "batch::0.4.2.20.49.E")
 	assertBatchErrorFileContents(t, erroredBatches[0], lexportDir, state, task,
 		`id,val
 3, "three"
@@ -234,7 +234,7 @@ func TestTaskImportStachAndContinueErrorPolicy_SingleBatchWithError(t *testing.T
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(erroredBatches), "Expected one errored batch")
 
-	assertBatchErrored(t, erroredBatches[0], 2, "batch::0.2.2.28.E")
+	assertBatchErrored(t, erroredBatches[0], 2, "batch::0.2.2.28.28.E")
 	assertBatchErrorFileContents(t, erroredBatches[0], lexportDir, state, task,
 		`id,val
 1, "hello"
@@ -291,7 +291,7 @@ func TestTaskImportStachAndContinueErrorPolicy_SingleBatch_OnPkConflictIgnore(t 
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(erroredBatches), "Expected one errored batch")
 
-	assertBatchErrored(t, erroredBatches[0], 2, "batch::0.2.2.60.E")
+	assertBatchErrored(t, erroredBatches[0], 2, "batch::0.2.2.60.60.E")
 	assertBatchErrorFileContents(t, erroredBatches[0], lexportDir, state, task,
 		fileContents,
 		`ERROR: duplicate key value violates unique constraint "test_table_unique_error_email_key" (SQLSTATE 23505)`,
@@ -360,7 +360,7 @@ func TestTaskImportStachAndContinueErrorPolicy_MultipleBatchesWithDifferentError
 
 	tgtYBVersion := testutils.GetYBVersionFromTestContainer(t, testYugabyteDBTarget.TestContainer)
 
-	assertBatchErrored(t, erroredBatches[1], 2, "batch::1.2.2.89.E")
+	assertBatchErrored(t, erroredBatches[1], 2, "batch::1.2.2.89.89.E")
 	errorMsg := `ERROR: invalid input syntax for integer: "xyz" (SQLSTATE 22P02)`
 	if tgtYBVersion.ReleaseType() == ybversion.V2025_1_0_0.ReleaseType() && tgtYBVersion.GreaterThanOrEqual(ybversion.V2025_1_0_0) {
 		errorMsg = `ERROR: invalid input syntax for type integer: "xyz" (SQLSTATE 22P02)`
@@ -371,7 +371,7 @@ func TestTaskImportStachAndContinueErrorPolicy_MultipleBatchesWithDifferentError
 2,"world","xyz","xyz","cd"`,
 		errorMsg)
 
-	assertBatchErrored(t, erroredBatches[2], 2, "batch::3.6.2.49.E")
+	assertBatchErrored(t, erroredBatches[2], 2, "batch::3.6.2.49.185.E")
 	errorMsg = `ERROR: null value in column "not_null_col" violates not-null constraint (SQLSTATE 23502)`
 	if tgtYBVersion.ReleaseType() == ybversion.V2025_1_0_0.ReleaseType() && tgtYBVersion.GreaterThanOrEqual(ybversion.V2025_1_0_0) {
 		errorMsg = `ERROR: null value in column "not_null_col" of relation "test_table_error" violates not-null constraint (SQLSTATE 23502)`
@@ -382,7 +382,7 @@ func TestTaskImportStachAndContinueErrorPolicy_MultipleBatchesWithDifferentError
 6,"corge","grault",50,"mn"`,
 		errorMsg)
 
-	assertBatchErrored(t, erroredBatches[0], 2, "batch::0.10.2.57.E")
+	assertBatchErrored(t, erroredBatches[0], 2, "batch::0.10.2.57.291.E")
 	assertBatchErrorFileContents(t, erroredBatches[0], lexportDir, state, task,
 		`id,val,not_null_col,num_col,fixed_col
 9,"xyzzy","thud",80,"st"
@@ -434,7 +434,7 @@ func TestTaskImportStachAndContinueErrorPolicy_TaskResumptionAfterBatchError(t *
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(erroredBatches), "Expected one errored batch")
 
-	assertBatchErrored(t, erroredBatches[0], 2, "batch::1.2.2.27.E")
+	assertBatchErrored(t, erroredBatches[0], 2, "batch::1.2.2.27.27.E")
 	assertBatchErrorFileContents(t, erroredBatches[0], lexportDir, state, task,
 		`id,val
 1,"hello"
