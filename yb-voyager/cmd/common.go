@@ -452,7 +452,7 @@ func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFile
 }
 
 // setup a project having subdirs for various database objects IF NOT EXISTS
-func CreateMigrationProjectIfNotExists(dbType string, exportDir string) {
+func CreateMigrationProjectIfNotExists(dbType string, exportDir string) *metadb.MetaDB {
 	// TODO: add a check/prompt if any directories apart from required ones are present in export-dir
 	var projectSubdirs = []string{
 		"schema", "data", "reports",
@@ -488,7 +488,7 @@ func CreateMigrationProjectIfNotExists(dbType string, exportDir string) {
 		}
 	}
 
-	metaDB = initMetaDB(exportDir)
+	return initMetaDB(exportDir)
 }
 
 func initMetaDB(migrationExportDir string) *metadb.MetaDB {

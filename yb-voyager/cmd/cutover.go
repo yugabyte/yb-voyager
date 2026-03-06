@@ -22,7 +22,6 @@ import (
 	"time"
 
 	goerrors "github.com/go-errors/errors"
-	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
@@ -151,24 +150,15 @@ func initializeNextIteration() error {
 	}
 	//Create a new export dir for the next iteration under export_dir int following structure
 
-	iterationExportDir := GetIterationExportDir(iterationsDir, nextIterationNo)
-	err = os.MkdirAll(iterationExportDir, 0755)
+	nextIterationExportDir := GetIterationExportDir(iterationsDir, nextIterationNo)
+	err = os.MkdirAll(nextIterationExportDir, 0755)
 	if err != nil {
 		return fmt.Errorf("failed to create iteration directory: %w", err)
 	}
 
-	//storing the current metaDB to restore after updating the next iteration's MSR
-	currentMetaDB := metaDB
-	defer func() {
-		metaDB = currentMetaDB
-	}()
+	nextIterationMetaDB := CreateMigrationProjectIfNotExists(parentMSR.SourceDBConf.DBType, nextIterationExportDir)
 
-	//after this metaDB will be pointing to metadb of next iteration
-	CreateMigrationProjectIfNotExists(parentMSR.SourceDBConf.DBType, iterationExportDir)
-
-	nextIterationMetaDB := metaDB
-
-	utils.PrintAndLogfInfo("Initialized iteration %d at %s.", nextIterationNo, iterationExportDir)
+	utils.PrintAndLogfInfo("Initialized iteration %d at %s.", nextIterationNo, nextIterationExportDir)
 
 	//Update the MSR - parent, next iteration and current iteration
 	err = setUpNextIterationMSR(parentMetaDB, nextIterationNo, currentMSR, nextIterationMetaDB)
@@ -176,7 +166,7 @@ func initializeNextIteration() error {
 		return fmt.Errorf("failed to set up next iteration MSR: %w", err)
 	}
 
-	err = currentMetaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+	err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		record.NextIterationInitialized = true
 	})
 	if err != nil {
@@ -196,7 +186,7 @@ func setUpNextIterationMSR(parentMetaDB *metadb.MetaDB, iterationNo int, current
 	}
 	//Update next iteration's MSR
 	err = nextIterationMetaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
-		record.ParentExportDir = lo.Ternary(currentMSR.IsParentMigration(), exportDir, currentMSR.ParentExportDir)
+		record.ParentExportDir = currentMSR.GetParentExportDir(exportDir)
 		record.IterationNo = iterationNo
 		record.SourceDBConf = currentMSR.SourceDBConf
 		record.TargetDBConf = currentMSR.TargetDBConf

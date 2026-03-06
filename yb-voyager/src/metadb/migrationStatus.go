@@ -202,3 +202,10 @@ func (msr *MigrationStatusRecord) GetIterationsDir(exportDir string) string {
 	}
 	return filepath.Join(msr.ParentExportDir, "live-data-migration-iterations")
 }
+
+func (msr *MigrationStatusRecord) GetParentExportDir(exportDir string) string {
+	if msr.IsParentMigration() {
+		return exportDir
+	}
+	return msr.ParentExportDir
+}

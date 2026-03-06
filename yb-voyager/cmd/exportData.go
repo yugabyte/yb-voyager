@@ -154,7 +154,7 @@ func handleCutoverAlreadyInitiatedForExportData() {
 }
 
 func exportDataCommandFn(cmd *cobra.Command, args []string) {
-	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
+	metaDB = CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 	err := retrieveMigrationUUID()
 	if err != nil {
 		utils.ErrExit("failed to get migration UUID: %w", err)
@@ -200,7 +200,13 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 }
 
 func waitUntilNextIterationInitialized() error {
+	timeout := 30 * time.Second
+	startTime := time.Now()
+
 	for {
+		if time.Since(startTime) > timeout {
+			return goerrors.Errorf("timeout waiting for next iteration to be initialized, re-run the command.")
+		}
 		record, err := metaDB.GetMigrationStatusRecord()
 		if err != nil {
 			return fmt.Errorf("failed to get migration status record: %w", err)
@@ -209,7 +215,7 @@ func waitUntilNextIterationInitialized() error {
 		if record.NextIterationInitialized {
 			return nil
 		}
-		utils.PrintAndLogf("waiting for next iteration to be initialized...")
+		utils.PrintAndLogf("Waiting for next iteration to be initialized...")
 		time.Sleep(2 * time.Second)
 	}
 }
@@ -288,7 +294,7 @@ func startNextIterationImportDataToTarget() {
 
 	execErr := syscall.Exec(binary, cmd, env)
 	if execErr != nil {
-		utils.ErrExit("failed to run yb-voyager export data from source: %w\n Please re-run with command :\n%s", execErr, cmdStr)
+		utils.ErrExit("failed to run yb-voyager import data to target: %w\n Please re-run with command :\n%s", execErr, cmdStr)
 	}
 
 }
@@ -590,10 +596,6 @@ func exportData() bool {
 				deletePGReplicationSlotAndPublication(msr, &source)
 			}
 
-			err = waitUntilCutoverProcessedByCorrespondingImporterForExporter(exporterRole)
-			if err != nil {
-				utils.ErrExit("failed to wait until cutover processed by importers: %w", err)
-			}
 			// mark cutover processed only after cleanup like deleting replication slot and yb cdc stream id
 			err = markCutoverProcessed(exporterRole)
 			if err != nil {
