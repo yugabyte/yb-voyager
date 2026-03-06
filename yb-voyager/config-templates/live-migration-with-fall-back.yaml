@@ -621,18 +621,7 @@ import-data-to-source:
   ## Accepted value - <integer>, default - 15
   # max-retries-streaming: 15      
 
-# ---------------------------------------------------------
-# Initiate Cutover to Source
-# ---------------------------------------------------------
 
-### Initiate cutover to source DB
-initiate-cutover-to-source:
-  ### Restart data migration from source to target for the next iteration, and continue running the live migration loop.
-  ### Accepted values (true, false, yes, no, 1, 0)
-  ### Default - false
-  restart-data-migration-source-target: false
-
-###TODO: Add config for initiate cutover to source, see if we should have separate config template for live migration with fall-back with iterations
 # ---------------------------------------------------------
 # End Migration Configuration
 # ---------------------------------------------------------
