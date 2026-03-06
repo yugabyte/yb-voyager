@@ -935,18 +935,7 @@ func assertProcessingErrorBatchFileContains(t *testing.T, lexportDir string, tas
 
 // ==================== parseBatchFileName tests ====================
 
-func TestParseBatchFileName_OldFormat5Fields(t *testing.T) {
-	batchNum, offsetEnd, recordCount, byteCount, cumByteOffset, state, err := parseBatchFileName("batch::1.5000.5000.107786.D")
-	assert.NoError(t, err)
-	assert.Equal(t, int64(1), batchNum)
-	assert.Equal(t, int64(5000), offsetEnd)
-	assert.Equal(t, int64(5000), recordCount)
-	assert.Equal(t, int64(107786), byteCount)
-	assert.Equal(t, int64(-1), cumByteOffset)
-	assert.Equal(t, "D", state)
-}
-
-func TestParseBatchFileName_NewFormat6Fields(t *testing.T) {
+func TestParseBatchFileName_6Fields(t *testing.T) {
 	batchNum, offsetEnd, recordCount, byteCount, cumByteOffset, state, err := parseBatchFileName("batch::2.10000.5000.215572.320000.C")
 	assert.NoError(t, err)
 	assert.Equal(t, int64(2), batchNum)
@@ -957,7 +946,7 @@ func TestParseBatchFileName_NewFormat6Fields(t *testing.T) {
 	assert.Equal(t, "C", state)
 }
 
-func TestParseBatchFileName_NewFormat_LastBatch(t *testing.T) {
+func TestParseBatchFileName_LastBatch(t *testing.T) {
 	batchNum, offsetEnd, recordCount, byteCount, cumByteOffset, state, err := parseBatchFileName("batch::0.50000.3000.64000.4012345678.D")
 	assert.NoError(t, err)
 	assert.Equal(t, int64(0), batchNum) // LAST_SPLIT_NUM
@@ -969,9 +958,15 @@ func TestParseBatchFileName_NewFormat_LastBatch(t *testing.T) {
 }
 
 func TestParseBatchFileName_InvalidFieldCount(t *testing.T) {
+	// Too few fields
 	_, _, _, _, _, _, err := parseBatchFileName("batch::1.2.3.D")
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid batch file name")
+	assert.Contains(t, err.Error(), "expected 6 fields")
+
+	// Old 5-field format is no longer supported
+	_, _, _, _, _, _, err = parseBatchFileName("batch::1.5000.5000.107786.D")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "expected 6 fields")
 }
 
 func TestParseBatchFileName_InvalidState(t *testing.T) {

@@ -296,15 +296,8 @@ func (p *SequentialFileBatchProducer) transformRow(row string, columnNames []str
 
 func (p *SequentialFileBatchProducer) openDataFile() error {
 	if p.lastCumByteOffset > 0 {
-		// New 6-field batch format: byte offset is known, seek directly to it.
 		return p.openDataFileWithSeek()
 	}
-	if p.lastOffset > 0 {
-		// Old 5-field batch format: no byte offset available, skip lines
-		// while computing cumByteOffset so future batches will have it.
-		return p.openDataFileForOldResume()
-	}
-	// First run with no prior batches: open from the beginning.
 	return p.openDataFileFirstRun()
 }
 
@@ -387,34 +380,6 @@ func (p *SequentialFileBatchProducer) openDataFileForCloudFallback() error {
 	if err != nil {
 		return goerrors.Errorf("skipping line for offset=%d: %v", p.lastOffset, err)
 	}
-	p.progressReporter.RemoveResumeInformation(p.task)
-	return nil
-}
-
-// openDataFileForOldResume resumes from old 5-field batch format where
-// cumByteOffset is not available. Skips lines while computing cumByteOffset
-// so that future batches will have it.
-func (p *SequentialFileBatchProducer) openDataFileForOldResume() error {
-	df, err := p.openAndReadHeader()
-	if err != nil {
-		return err
-	}
-	p.dataFile = df
-
-	log.Infof("Old format resume: skipping %d lines from %q while computing byte offset", p.lastOffset, p.task.FilePath)
-	p.progressReporter.AddResumeInformation(p.task, fmt.Sprintf("Resuming from %d lines", p.lastOffset))
-
-	skippedBytes := int64(0)
-	for i := int64(1); i <= p.lastOffset; i++ {
-		_, bytesRead, skipErr := df.NextLine()
-		if skipErr != nil {
-			return goerrors.Errorf("skipping line %d for offset=%d: %v", i, p.lastOffset, skipErr)
-		}
-		skippedBytes += bytesRead
-	}
-	df.ResetBytesRead(0)
-	p.cumByteOffset = p.headerByteCount + skippedBytes
-
 	p.progressReporter.RemoveResumeInformation(p.task)
 	return nil
 }

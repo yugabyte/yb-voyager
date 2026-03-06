@@ -174,7 +174,7 @@ func (s *ImportDataState) Recover(filePath string, tableNameTup sqlname.NameTupl
 
 	lastBatchNumber := int64(0)
 	lastOffset := int64(0)
-	lastCumByteOffset := int64(-1)
+	lastCumByteOffset := int64(0)
 	fileFullySplit := false
 
 	batches, err := s.GetAllBatches(filePath, tableNameTup)
@@ -338,18 +338,12 @@ func (s *ImportDataState) getBatches(filePath string, tableNameTup sqlname.NameT
 
 }
 
-// Sample batch file name (old, 5 fields) - batch::1.5000.5000.107786.D
-// batch::<batch_num>.<offset_end>.<record_count>.<byte_count>.<state>
-//
-// New format (6 fields) - batch::1.5000.5000.107786.320000.D
+// Batch file name format (6 fields): batch::1.5000.5000.107786.320000.D
 // batch::<batch_num>.<offset_end>.<record_count>.<byte_count>.<cum_byte_offset>.<state>
-//
-// For backward compatibility, 5-field (old) filenames return cumByteOffset = -1,
-// signaling the caller to fall back to the SkipLines path.
 func parseBatchFileName(fileName string) (batchNum, offsetEnd, recordCount, byteCount, cumByteOffset int64, state string, err error) {
 	md := strings.Split(strings.Split(fileName, "::")[1], ".")
-	if len(md) != 5 && len(md) != 6 {
-		return 0, 0, 0, 0, 0, "", goerrors.Errorf("invalid batch file name %q", fileName)
+	if len(md) != 6 {
+		return 0, 0, 0, 0, 0, "", goerrors.Errorf("invalid batch file name %q: expected 6 fields, got %d", fileName, len(md))
 	}
 	batchNum, err = strconv.ParseInt(md[0], 10, 64)
 	if err != nil {
@@ -367,18 +361,11 @@ func parseBatchFileName(fileName string) (batchNum, offsetEnd, recordCount, byte
 	if err != nil {
 		return 0, 0, 0, 0, 0, "", goerrors.Errorf("invalid byteCount %q in the file name %q", md[3], fileName)
 	}
-
-	if len(md) == 6 {
-		cumByteOffset, err = strconv.ParseInt(md[4], 10, 64)
-		if err != nil {
-			return 0, 0, 0, 0, 0, "", goerrors.Errorf("invalid cumByteOffset %q in the file name %q", md[4], fileName)
-		}
-		state = md[5]
-	} else {
-		cumByteOffset = -1
-		state = md[4]
+	cumByteOffset, err = strconv.ParseInt(md[4], 10, 64)
+	if err != nil {
+		return 0, 0, 0, 0, 0, "", goerrors.Errorf("invalid cumByteOffset %q in the file name %q", md[4], fileName)
 	}
-
+	state = md[5]
 	if !slices.Contains([]string{"C", "P", "D", "E"}, state) {
 		return 0, 0, 0, 0, 0, "", goerrors.Errorf("invalid state %q in the file name %q", state, fileName)
 	}
