@@ -143,7 +143,8 @@ var importDataToTargetCmd = &cobra.Command{
 	Run: importDataCmd.Run,
 }
 
-func handleCutoverAlreadyInitiatedForImportData() {
+func handleCutoverAlreadyProcessedForImportData() {
+	//If cutover is already processed by this command and the cutover for the respective flow is completed then exit
 	cutoverAlreadyProcessed := isCutoverAlreadyProcessed(importerRole)
 	if !cutoverAlreadyProcessed {
 		return
@@ -162,9 +163,8 @@ func handleCutoverAlreadyInitiatedForImportData() {
 			utils.ErrExit("cutover to source already processed, exiting...")
 		}
 	}
-	//If cutover is not completed then start export data from target/source
-	startExportDataFromTargetIfRequired()
-	startExportDataFromSourceOnNextIteration()
+	//If cutover is not completed then start further commands after current import data
+	startFurtherCommandsAfterCurrentImportData()
 }
 
 func importDataCommandFn(cmd *cobra.Command, args []string) {
@@ -256,7 +256,7 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 		}
 	}
 
-	handleCutoverAlreadyInitiatedForImportData()
+	handleCutoverAlreadyProcessedForImportData()
 
 	importData(importFileTasks, errorPolicySnapshotFlag)
 	tdb.Finalize()
@@ -270,8 +270,14 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	case SOURCE_DB_IMPORTER_ROLE:
 		packAndSendImportDataToSourcePayload(COMPLETE, nil)
 	}
+	startFurtherCommandsAfterCurrentImportData()
+}
 
+func startFurtherCommandsAfterCurrentImportData() {
+	//Fallback export data from target commands
 	startExportDataFromTargetIfRequired()
+
+	//Start next iterations's export data from source
 	startExportDataFromSourceOnNextIteration()
 }
 
@@ -767,7 +773,7 @@ func updateImportDataStartedInMetaDB() error {
 		log.Infof("updating import data started in meta db with cdc partitioning strategy: %s", cdcPartitioningStrategy)
 		err := metaDB.UpdateImportDataStatusRecord(func(record *metadb.ImportDataStatusRecord) {
 			record.ImportDataStarted = true
-			record.CdcPartitioningStrategyConfig = cdcPartitioningStrategy	
+			record.CdcPartitioningStrategyConfig = cdcPartitioningStrategy
 		})
 		if err != nil {
 			return goerrors.Errorf("Failed to update import data status record: %s", err)
@@ -1144,6 +1150,9 @@ func postCutoverProcessing(importTableList []sqlname.NameTuple) error {
 		return goerrors.Errorf("failed to mark cutover as processed: %s", err)
 	}
 
+	//Waiting for the cutover of the export data from target to mark the cutover as processed for the importer role
+	//so that we continue the anything required after post cutover processing only when the cutover for both the commands are completed
+	//next step will be the initialise the next iteration and then mark the latest iteration number in the MSR. so this is required now to wait first
 	err = waitUntilCutoverProcessedByCorrespondingExporterForImporter(importerRole)
 	if err != nil {
 		return goerrors.Errorf("failed to wait until cutover processed by exporter: %s", err)

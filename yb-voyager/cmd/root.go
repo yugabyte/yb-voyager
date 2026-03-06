@@ -250,15 +250,16 @@ func resolveToActiveIterationIfRequired(cmd *cobra.Command) error {
 		utils.ErrExit("Failed to initialize logging: %w", err)
 	}
 	metaDB = initMetaDB(exportDir)
-	parentMetaDB := metaDB
-	parentExportDir := exportDir
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil || msr == nil {
 		return nil
 	}
 	if msr.IsIteration() || msr.LatestIterationNumber == 0 {
+		//If there are no iterations and the export-dir is itself the iteration then no need to resolve to export-dir
 		return nil
 	}
+
+	parentExportDir := exportDir
 
 	iterationsDir := msr.GetIterationsDir(exportDir)
 	iterationExportDir := GetIterationExportDir(iterationsDir, msr.LatestIterationNumber)
@@ -272,11 +273,11 @@ func resolveToActiveIterationIfRequired(cmd *cobra.Command) error {
 
 	/*
 	 in case the iteration is updated to next iteration by improt data to source but export data is yet to pick that up and crashes
-	 now we need to re-run the export data from target to be able to start import data to target but since the latest iteration is updated to next 
+	 now we need to re-run the export data from target to be able to start import data to target but since the latest iteration is updated to next
 	 we will always resolve the export-dir of the next one where export data from target will not work as it says no fallback/forward is enabled
 
 	 In this case we need to resolve the exprot-dir to previous iteration and this will only be require for fallback commands
-	 so in case the command is fallback one (export data from target and import data to source) and the cutover to target on latest iteration is not initiated 
+	 so in case the command is fallback one (export data from target and import data to source) and the cutover to target on latest iteration is not initiated
 	 we re-direct the command to the previous iteration and let it handle the command - if anything is left it will start finish that up.
 	*/
 	cmdPath := cmd.CommandPath()
@@ -290,21 +291,15 @@ func resolveToActiveIterationIfRequired(cmd *cobra.Command) error {
 			prevIterExportDir := GetIterationExportDir(iterationsDir, msr.LatestIterationNumber-1)
 			// resolve to previous iteration
 			exportDir = prevIterExportDir
-			metaDB, err = metadb.NewMetaDB(prevIterExportDir)
-			if err != nil {
-				return fmt.Errorf("failed to create previous iteration meta db: %w", err)
-			}
 		} else {
 			// Previous iteration is the parent — don't redirect
 			// (exportDir stays as parent)
 			exportDir = parentExportDir
-			metaDB = parentMetaDB
 
 		}
 	} else {
 		// Forward command or fallback command on a fallback-phase iteration
 		exportDir = iterationExportDir
-		metaDB = iterationMetaDB
 	}
 
 	exportType = CHANGES_ONLY

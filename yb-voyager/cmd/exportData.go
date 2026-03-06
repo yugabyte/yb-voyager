@@ -126,7 +126,8 @@ func exportDataCommandPreRun(cmd *cobra.Command, args []string) {
 	}
 }
 
-func handleCutoverAlreadyInitiatedForExportData() {
+func handleCutoverAlreadyProcessedForExportData() {
+	//If cutover is already processed by this command and the cutover for the respective flow is completed then exit
 	cutoverAlreadyProcessed := isCutoverAlreadyProcessed(exporterRole)
 	if !cutoverAlreadyProcessed {
 		return
@@ -148,8 +149,13 @@ func handleCutoverAlreadyInitiatedForExportData() {
 		utils.ErrExit("invalid exporter role: %s", exporterRole)
 	}
 
-	//If cutover is not completed then start fall back setup and next iteration import data to target
+	//If cutover is not completed then start further commands after current export data
+	startFurtherCommandsAfterCurrentExportData()
+}
+func startFurtherCommandsAfterCurrentExportData() {
+	//Fallback import data to source command after export data from source
 	startFallBackSetupIfRequired()
+	//import data to target on next iteration after export data from target on current iteration
 	startNextIterationImportDataToTarget()
 }
 
@@ -178,7 +184,7 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 		source.Password = password
 	}
 
-	handleCutoverAlreadyInitiatedForExportData()
+	handleCutoverAlreadyProcessedForExportData()
 
 	success := exportData()
 	if success {
@@ -187,8 +193,7 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 		setDataIsExported()
 		color.Green("Export of data complete")
 		log.Info("Export of data completed.")
-		startFallBackSetupIfRequired()
-		startNextIterationImportDataToTarget()
+		startFurtherCommandsAfterCurrentExportData()
 	} else if ProcessShutdownRequested {
 		log.Info("Shutting down as SIGINT/SIGTERM received.")
 	} else {
@@ -205,7 +210,7 @@ func waitUntilNextIterationInitialized() error {
 
 	for {
 		if time.Since(startTime) > timeout {
-			return goerrors.Errorf("timeout waiting for next iteration to be initialized, re-run the command.")
+			return goerrors.Errorf("timeout waiting for next iteration to be initialized. Ensure 'import data to source' is running, then re-run this command.")
 		}
 		record, err := metaDB.GetMigrationStatusRecord()
 		if err != nil {
@@ -233,6 +238,7 @@ func startNextIterationImportDataToTarget() {
 		return
 	}
 
+	//Waiting for the next iteration to be initialized so that we can start import data to target on the next iteration
 	err = waitUntilNextIterationInitialized()
 	if err != nil {
 		utils.ErrExit("failed to wait until next iteration initialized: %w", err)
@@ -622,7 +628,6 @@ func exportData() bool {
 		return true
 	}
 }
-
 
 func initPGLiveMigrationAndExportSnapshotIfRequired(ctx context.Context, cancel context.CancelFunc, finalTableList []sqlname.NameTuple, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], leafPartitions *utils.StructMap[sqlname.NameTuple, []sqlname.NameTuple], config *dbzm.Config) error {
 	var err error

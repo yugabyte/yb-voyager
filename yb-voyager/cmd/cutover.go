@@ -188,6 +188,8 @@ func setUpNextIterationMSR(parentMetaDB *metadb.MetaDB, iterationNo int, current
 	err = nextIterationMetaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		record.ParentExportDir = currentMSR.GetParentExportDir(exportDir)
 		record.IterationNo = iterationNo
+		//Used for the CLI case primarly when we start changes only command on iterations with CLI 
+		//we are directly overriding the source/target confs by reading from this MSR.
 		record.SourceDBConf = currentMSR.SourceDBConf
 		record.TargetDBConf = currentMSR.TargetDBConf
 		record.ConfigFile = cfgFile
