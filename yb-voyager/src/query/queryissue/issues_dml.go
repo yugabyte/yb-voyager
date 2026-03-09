@@ -40,7 +40,7 @@ var advisoryLocksIssue = issue.Issue{
 }
 
 func NewAdvisoryLocksIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
-	return newQueryIssue(advisoryLocksIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(advisoryLocksIssue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 // ------------------------------------------- System Columns Issue ------------------------------------------------
@@ -55,7 +55,7 @@ var xminSystemColumnIssue = issue.Issue{
 
 func NewXminSystemColumnIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	xminSystemColumnIssue.Description = fmt.Sprintf(SYSTEM_COLUMNS_ISSUE_DESCRIPTION, "xmin")
-	return newQueryIssue(xminSystemColumnIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(xminSystemColumnIssue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var xmaxSystemColumnIssue = issue.Issue{
@@ -69,7 +69,7 @@ var xmaxSystemColumnIssue = issue.Issue{
 
 func NewXmaxSystemColumnIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	xmaxSystemColumnIssue.Description = fmt.Sprintf(SYSTEM_COLUMNS_ISSUE_DESCRIPTION, "xmax")
-	return newQueryIssue(xmaxSystemColumnIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(xmaxSystemColumnIssue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var cminSystemColumnIssue = issue.Issue{
@@ -83,7 +83,7 @@ var cminSystemColumnIssue = issue.Issue{
 
 func NewCminSystemColumnIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	cminSystemColumnIssue.Description = fmt.Sprintf(SYSTEM_COLUMNS_ISSUE_DESCRIPTION, "cmin")
-	return newQueryIssue(cminSystemColumnIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(cminSystemColumnIssue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var cmaxSystemColumnIssue = issue.Issue{
@@ -97,7 +97,7 @@ var cmaxSystemColumnIssue = issue.Issue{
 
 func NewCmaxSystemColumnIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	cmaxSystemColumnIssue.Description = fmt.Sprintf(SYSTEM_COLUMNS_ISSUE_DESCRIPTION, "cmax")
-	return newQueryIssue(cmaxSystemColumnIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(cmaxSystemColumnIssue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var ctidSystemColumnIssue = issue.Issue{
@@ -111,7 +111,7 @@ var ctidSystemColumnIssue = issue.Issue{
 
 func NewCtidSystemColumnIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	ctidSystemColumnIssue.Description = fmt.Sprintf(SYSTEM_COLUMNS_ISSUE_DESCRIPTION, "ctid")
-	return newQueryIssue(ctidSystemColumnIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(ctidSystemColumnIssue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 // -------------------------------------------------------------------------------------------------------------
@@ -127,7 +127,7 @@ var xmlFunctionsIssue = issue.Issue{
 }
 
 func NewXmlFunctionsIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
-	return newQueryIssue(xmlFunctionsIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(xmlFunctionsIssue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var regexFunctionsIssue = issue.Issue{
@@ -146,7 +146,7 @@ var regexFunctionsIssue = issue.Issue{
 }
 
 func NewRegexFunctionsIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
-	return newQueryIssue(regexFunctionsIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(regexFunctionsIssue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var anyValueAggregateFunction = issue.Issue{
@@ -160,7 +160,7 @@ var anyValueAggregateFunction = issue.Issue{
 }
 
 func NewAnyValueAggregateFunctionIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
-	return newQueryIssue(anyValueAggregateFunction, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(anyValueAggregateFunction, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var rangeAggregateFunctionIssue = issue.Issue{
@@ -183,7 +183,7 @@ func NewRangeAggregateFunctionIssue(objectType string, objectName string, sqlSta
 	details := map[string]interface{}{
 		FUNCTION_NAMES: funcNames, //TODO USE it later when we start putting these in reports
 	}
-	return newQueryIssue(rangeAggregateFunctionIssue, objectType, objectName, sqlStatement, details)
+	return newQueryIssue(rangeAggregateFunctionIssue, objectType, objectName, sqlStatement, details, map[string]interface{}{})
 }
 
 var jsonConstructorFunctionsIssue = issue.Issue{
@@ -201,7 +201,7 @@ func NewJsonConstructorFunctionIssue(objectType string, objectName string, sqlSt
 	details := map[string]interface{}{
 		FUNCTION_NAMES: funcNames, //TODO USE it later when we start putting these in reports
 	}
-	return newQueryIssue(jsonConstructorFunctionsIssue, objectType, objectName, sqlStatement, details)
+	return newQueryIssue(jsonConstructorFunctionsIssue, objectType, objectName, sqlStatement, details, map[string]interface{}{})
 }
 
 var jsonQueryFunctionIssue = issue.Issue{
@@ -219,7 +219,7 @@ func NewJsonQueryFunctionIssue(objectType string, objectName string, sqlStatemen
 	details := map[string]interface{}{
 		FUNCTION_NAMES: funcNames, //TODO USE it later when we start putting these in reports
 	}
-	return newQueryIssue(jsonQueryFunctionIssue, objectType, objectName, sqlStatement, details)
+	return newQueryIssue(jsonQueryFunctionIssue, objectType, objectName, sqlStatement, details, map[string]interface{}{})	
 }
 
 var loFunctionsIssue = issue.Issue{
@@ -236,7 +236,7 @@ func NewLOFuntionsIssue(objectType string, objectName string, sqlStatement strin
 	details := map[string]interface{}{
 		FUNCTION_NAMES: funcNames, //TODO USE it later when we start putting these in reports
 	}
-	return newQueryIssue(loFunctionsIssue, objectType, objectName, sqlStatement, details)
+	return newQueryIssue(loFunctionsIssue, objectType, objectName, sqlStatement, details, map[string]interface{}{})
 }
 
 var jsonbSubscriptingIssue = issue.Issue{
@@ -255,7 +255,7 @@ var jsonbSubscriptingIssue = issue.Issue{
 }
 
 func NewJsonbSubscriptingIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
-	return newQueryIssue(jsonbSubscriptingIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(jsonbSubscriptingIssue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var jsonPredicateIssue = issue.Issue{
@@ -269,7 +269,7 @@ var jsonPredicateIssue = issue.Issue{
 }
 
 func NewJsonPredicateIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
-	return newQueryIssue(jsonPredicateIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(jsonPredicateIssue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var copyFromWhereIssue = issue.Issue{
@@ -288,7 +288,7 @@ var copyFromWhereIssue = issue.Issue{
 }
 
 func NewCopyFromWhereIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
-	return newQueryIssue(copyFromWhereIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(copyFromWhereIssue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var copyOnErrorIssue = issue.Issue{
@@ -302,7 +302,7 @@ var copyOnErrorIssue = issue.Issue{
 }
 
 func NewCopyOnErrorIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
-	return newQueryIssue(copyOnErrorIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(copyOnErrorIssue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var fetchWithTiesIssue = issue.Issue{
@@ -315,7 +315,7 @@ var fetchWithTiesIssue = issue.Issue{
 }
 
 func NewFetchWithTiesIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
-	return newQueryIssue(fetchWithTiesIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(fetchWithTiesIssue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var cteWithMaterializedIssue = issue.Issue{
@@ -334,7 +334,7 @@ var cteWithMaterializedIssue = issue.Issue{
 }
 
 func NewCTEWithMaterializedIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
-	return newQueryIssue(cteWithMaterializedIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(cteWithMaterializedIssue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var mergeStatementIssue = issue.Issue{
@@ -349,7 +349,7 @@ var mergeStatementIssue = issue.Issue{
 
 func NewMergeStatementIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	//MERGE STATEMENT is PG15 feature but  MERGE .... RETURNING clause is PG17 feature so need to report it separately later.
-	return newQueryIssue(mergeStatementIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(mergeStatementIssue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var listenNotifyIssue = issue.Issue{
@@ -362,7 +362,7 @@ var listenNotifyIssue = issue.Issue{
 }
 
 func NewListenNotifyIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
-	return newQueryIssue(listenNotifyIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(listenNotifyIssue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var nonDecimalIntegerLiteralIssue = issue.Issue{
@@ -376,7 +376,7 @@ var nonDecimalIntegerLiteralIssue = issue.Issue{
 }
 
 func NewNonDecimalIntegerLiteralIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
-	return newQueryIssue(nonDecimalIntegerLiteralIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(nonDecimalIntegerLiteralIssue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var twoPhaseCommitIssue = issue.Issue{
@@ -390,7 +390,7 @@ var twoPhaseCommitIssue = issue.Issue{
 }
 
 func NewTwoPhaseCommitIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
-	return newQueryIssue(twoPhaseCommitIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(twoPhaseCommitIssue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var savepointUsageIssue = issue.Issue{
@@ -404,5 +404,5 @@ var savepointUsageIssue = issue.Issue{
 }
 
 func NewSavepointUsageIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
-	return newQueryIssue(savepointUsageIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(savepointUsageIssue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }

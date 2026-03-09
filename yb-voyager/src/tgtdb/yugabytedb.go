@@ -304,18 +304,8 @@ func (yb *TargetYugabyteDB) InitConnPool() error {
 	}
 	log.Infof("targetUriList: %s", utils.GetRedactedURLs(targetUriList))
 
-	if yb.Tconf.Parallelism <= 0 {
-		yb.Tconf.Parallelism = fetchDefaultParallelJobs(tconfs, YB_DEFAULT_PARALLELISM_FACTOR)
-		log.Infof("Using %d parallel jobs by default. Use --parallel-jobs to specify a custom value", yb.Tconf.Parallelism)
-	}
-
-	if yb.tconf.AdaptiveParallelismMode.IsEnabled() {
-		if yb.tconf.MaxParallelism <= 0 {
-			yb.tconf.MaxParallelism = yb.tconf.Parallelism * 2
-		}
-	} else {
-		yb.Tconf.MaxParallelism = yb.Tconf.Parallelism
-	}
+	nodeCount := len(confs) // confs from GetYBServers() has all nodes, even when using a load balancer
+	yb.setDefaultParallelism(tconfs, nodeCount, loadBalancerUsed)
 	params := &ConnectionParams{
 		NumConnections:    yb.Tconf.Parallelism,
 		NumMaxConnections: yb.Tconf.MaxParallelism,
@@ -518,7 +508,7 @@ const BATCH_METADATA_TABLE_SCHEMA = "ybvoyager_metadata"
 const BATCH_METADATA_TABLE_NAME = BATCH_METADATA_TABLE_SCHEMA + "." + "ybvoyager_import_data_batches_metainfo_v3"
 const EVENT_CHANNELS_METADATA_TABLE_NAME = BATCH_METADATA_TABLE_SCHEMA + "." + "ybvoyager_import_data_event_channels_metainfo"
 const EVENTS_PER_TABLE_METADATA_TABLE_NAME = BATCH_METADATA_TABLE_SCHEMA + "." + "ybvoyager_imported_event_count_by_table"
-const YB_DEFAULT_PARALLELISM_FACTOR = 2 // factor for default parallelism in case fetchDefaultParallelJobs() is not able to get the no of cores
+const YB_DEFAULT_CORES_PER_NODE = 16 // assumed vCPUs per node when core detection fails
 const ALTER_QUERY_RETRY_COUNT = 5
 
 func (yb *TargetYugabyteDB) CreateVoyagerSchema() error {
@@ -1463,20 +1453,61 @@ func fetchCores(tconfs []*TargetConf) (int, error) {
 	return totalCores, nil
 }
 
-func fetchDefaultParallelJobs(tconfs []*TargetConf, defaultParallelismFactor int) int {
-	totalCores, err := fetchCores(tconfs)
-	if err != nil {
-		defaultParallelJobs := len(tconfs) * defaultParallelismFactor
-		log.Errorf("error while fetching the cores information and using default parallelism: %v : %v ", defaultParallelJobs, err)
-		return defaultParallelJobs
+// setDefaultParallelism sets Parallelism and MaxParallelism on yb.tconf if not already
+// specified by the user. Parallelism is set by fetchDefaultParallelJobs(), and MaxParallelism defaults
+// to Parallelism*4 (i.e. clusterCores) when adaptive parallelism is enabled.
+func (yb *TargetYugabyteDB) setDefaultParallelism(tconfs []*TargetConf, nodeCount int, loadBalancerUsed bool) {
+	if yb.tconf.Parallelism <= 0 {
+		yb.tconf.Parallelism = yb.fetchDefaultParallelJobs(tconfs, nodeCount, loadBalancerUsed)
+		log.Infof("Using %d parallel jobs by default. Use --parallel-jobs to specify a custom value", yb.tconf.Parallelism)
 	}
-	if totalCores == 0 { //if target is running on MacOS, we are unable to determine totalCores
+
+	if yb.tconf.AdaptiveParallelismMode.IsEnabled() {
+		if yb.tconf.MaxParallelism <= 0 {
+			yb.tconf.MaxParallelism = yb.tconf.Parallelism * 4
+		}
+	} else {
+		yb.tconf.MaxParallelism = yb.tconf.Parallelism
+	}
+}
+
+// Determines totalCores for the cluster to compute default parallel jobs (totalCores / 4).
+//
+// tconfs are the connection targets voyager uses. Behind a load balancer, this collapses to a
+// single entry (the LB address), so fetchCores only reaches one node. nodeCount is the actual
+// number of nodes reported by yb_servers(), which may be greater than len(tconfs).
+//
+// Four cases:
+//  1. No LB, fetchCores succeeded  — totalCores = sum of cores across all nodes (accurate).
+//  2. LB,    fetchCores succeeded  — totalCores = single-node cores * nodeCount (extrapolated).
+//  3. LB,    fetchCores failed     — totalCores = nodeCount * YB_DEFAULT_CORES_PER_NODE (estimated; typical for YBAeon).
+//  4. No LB, fetchCores failed     — totalCores = nodeCount * YB_DEFAULT_CORES_PER_NODE (estimated; rare, e.g. permission issues).
+func (yb *TargetYugabyteDB) fetchDefaultParallelJobs(tconfs []*TargetConf, nodeCount int, loadBalancerUsed bool) int {
+	var clusterCores int
+	detectedCores, err := fetchCores(tconfs)
+	coresFetched := err == nil
+
+	switch {
+	case coresFetched && !loadBalancerUsed:
+		// Case 1: No load balancer, use detected cores directly
+		clusterCores = detectedCores
+	case coresFetched && loadBalancerUsed:
+		// Case 2: fetchCores only reached one node via load balancer; extrapolate to the full cluster
+		clusterCores = detectedCores * nodeCount
+		log.Infof("Load balancer detected: scaling single-node cores to cluster: %d cores/node * %d nodes = %d clusterCores",
+			detectedCores, nodeCount, clusterCores)
+	default:
+		// Case 3 & 4: No cores detected, estimate using the number of nodes and the default cores per node
+		clusterCores = nodeCount * YB_DEFAULT_CORES_PER_NODE
+		log.Warnf("Could not determine cores, estimating clusterCores = %d nodes * %d cores/node = %d",
+			nodeCount, YB_DEFAULT_CORES_PER_NODE, clusterCores)
+	}
+
+	// macOS: fetchCores succeeds but returns 0 because /proc/cpuinfo doesn't exist
+	if clusterCores == 0 {
 		return 3
 	}
-	if tconfs[0].TargetDBType == YUGABYTEDB {
-		return totalCores / 4
-	}
-	return totalCores / 2
+	return clusterCores / 4
 }
 
 // import session parameters

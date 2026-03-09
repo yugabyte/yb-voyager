@@ -47,8 +47,10 @@ var exportDataFromTargetCmd = &cobra.Command{
 		}
 		if msr.FallbackEnabled {
 			exporterRole = TARGET_DB_EXPORTER_FB_ROLE
-		} else {
+		} else if msr.FallForwardEnabled {
 			exporterRole = TARGET_DB_EXPORTER_FF_ROLE
+		} else {
+			utils.ErrExit("no fall-forward/back enabled. Exiting...")
 		}
 		err = verifySSLFlags(cmd, msr)
 		if err != nil {

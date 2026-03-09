@@ -452,7 +452,7 @@ func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFile
 }
 
 // setup a project having subdirs for various database objects IF NOT EXISTS
-func CreateMigrationProjectIfNotExists(dbType string, exportDir string) {
+func CreateMigrationProjectIfNotExists(dbType string, exportDir string) *metadb.MetaDB {
 	// TODO: add a check/prompt if any directories apart from required ones are present in export-dir
 	var projectSubdirs = []string{
 		"schema", "data", "reports",
@@ -488,7 +488,7 @@ func CreateMigrationProjectIfNotExists(dbType string, exportDir string) {
 		}
 	}
 
-	metaDB = initMetaDB(exportDir)
+	return initMetaDB(exportDir)
 }
 
 func initMetaDB(migrationExportDir string) *metadb.MetaDB {
@@ -500,7 +500,7 @@ func initMetaDB(migrationExportDir string) *metadb.MetaDB {
 	if err != nil {
 		utils.ErrExit("failed to initialize meta db: %s", err)
 	}
-	err = metaDBInstance.InitMigrationStatusRecord()
+	err = metaDBInstance.InitMigrationStatusRecord(cfgFile)
 	if err != nil {
 		utils.ErrExit("could not init migration status record: %w", err)
 	}
@@ -802,7 +802,7 @@ func getCutoverToSourceReplicaStatus() string {
 	return INITIATED
 }
 
-func getCutoverToSourceStatus() string {
+func getCutoverToSourceStatus(exportDir string) string {
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
 		utils.ErrExit("get migration status record: %v", err)
@@ -813,10 +813,38 @@ func getCutoverToSourceStatus() string {
 
 	if !a {
 		return NOT_INITIATED
-	} else if a && b && c {
+	} else if a && b && c && isNextIterationStartedIfRequied(exportDir) {
 		return COMPLETED
 	}
 	return INITIATED
+}
+
+func isNextIterationStartedIfRequied(exportDir string) bool {
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("get migration status record: %v", err)
+	}
+	if !msr.RestartDataMigrationSourceTargetNextIteration {
+		return true
+	}
+
+	iterationsDir := msr.GetIterationsDir(exportDir)
+	nextIterationExportDir := GetIterationExportDir(iterationsDir, msr.IterationNo+1)
+	if !utils.FileOrFolderExists(nextIterationExportDir) {
+		return false
+	}
+	nextIterationMetaDB, err := metadb.NewMetaDB(nextIterationExportDir)
+	if err != nil {
+		utils.ErrExit("failed to create iteration meta db: %w", err)
+	}
+	nextIterationMsr, err := nextIterationMetaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("get migration status record: %v", err)
+	}
+	if nextIterationMsr.ExportDataFromSourceStarted && nextIterationMsr.ImportDataToTargetStarted {
+		return true
+	}
+	return false
 }
 
 func getPassword(cmd *cobra.Command, cliArgName, envVarName string) (string, error) {
@@ -1312,38 +1340,38 @@ func (ni NoteInfo) MarshalJSON() ([]byte, error) {
 		Text string   `json:"Text"`
 	}{
 		Type: ni.Type,
-		Text: stripHTMLTags(ni.Text),
+		Text: stripAnchorTags(ni.Text),
 	})
 }
 
-// stripHTMLTags removes <a> tags but preserves both link text and URL
-func stripHTMLTags(htmlText string) string {
+// stripAnchorTags converts HTML <a> tags to plain text "text (URL)" format,
+// preserving both the link text and the URL. If the link text equals the URL,
+// only the URL is kept to avoid duplication.
+// Note: This only handles <a> tags. Other HTML tags (e.g., <br>, <div>) are left as-is.
+func stripAnchorTags(htmlText string) string {
 	if htmlText == "" {
 		return ""
 	}
 
-	// Extract href and text from <a> tags: <a href="URL">text</a> → "text (URL)"
 	linkPattern := regexp.MustCompile(`<a[^>]*href=["']([^"']*)["'][^>]*>(.*?)</a>`)
 	result := linkPattern.ReplaceAllStringFunc(htmlText, func(match string) string {
 		submatch := linkPattern.FindStringSubmatch(match)
 		if len(submatch) >= 3 {
 			url := submatch[1]
 			text := submatch[2]
-			// If text is the same as URL, just return the URL
 			if text == url {
 				return url
 			}
-			// Otherwise return "text (URL)"
-			return text + " (" + url + ")"
+			return text + " ( " + url + " )"
 		}
 		return match
 	})
 
-	// Clean up whitespace
 	result = strings.TrimSpace(result)
 
 	return result
 }
+
 
 // ======================================================================
 type BulkAssessmentReport struct {

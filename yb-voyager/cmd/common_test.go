@@ -401,7 +401,7 @@ func TestAssessmentReportJson(t *testing.T) {
 
 }
 
-func TestStripHTMLTags(t *testing.T) {
+func TestStripAnchorTags(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    string
@@ -425,12 +425,12 @@ func TestStripHTMLTags(t *testing.T) {
 		{
 			name:     "Leading and trailing whitespace",
 			input:    "   <a href=\"https://example.com\">Example</a>   ",
-			expected: "Example (https://example.com)",
+			expected: "Example ( https://example.com )",
 		},
 		{
 			name:     "Basic link processing",
 			input:    "<a href=\"https://example.com\">Example</a>",
-			expected: "Example (https://example.com)",
+			expected: "Example ( https://example.com )",
 		},
 		{
 			name:     "Link with text same as URL",
@@ -440,12 +440,12 @@ func TestStripHTMLTags(t *testing.T) {
 		{
 			name:     "Link with attributes and single quotes",
 			input:    "<a href='https://docs.yugabyte.com' target=\"_blank\" class=\"link\">YugabyteDB Docs</a>",
-			expected: "YugabyteDB Docs (https://docs.yugabyte.com)",
+			expected: "YugabyteDB Docs ( https://docs.yugabyte.com )",
 		},
 		{
 			name:     "Multiple links",
 			input:    "<a href=\"https://example1.com\">Link1</a> and <a href=\"https://example2.com\">Link2</a>",
-			expected: "Link1 (https://example1.com) and Link2 (https://example2.com)",
+			expected: "Link1 ( https://example1.com ) and Link2 ( https://example2.com )",
 		},
 		{
 			name:     "Various HTML tags preserved",
@@ -455,17 +455,22 @@ func TestStripHTMLTags(t *testing.T) {
 		{
 			name:     "Mixed content with links and diverse tags",
 			input:    "<div><a href=\"https://example.com\">Link</a> and <span>span text</span><img src=\"image.jpg\" alt=\"image\"/></div>",
-			expected: "<div>Link (https://example.com) and <span>span text</span><img src=\"image.jpg\" alt=\"image\"/></div>",
+			expected: "<div>Link ( https://example.com ) and <span>span text</span><img src=\"image.jpg\" alt=\"image\"/></div>",
 		},
 		{
 			name:     "Link with special characters in URL",
 			input:    "<a href=\"https://example.com/path?param=value&other=123\">Special URL</a>",
-			expected: "Special URL (https://example.com/path?param=value&other=123)",
+			expected: "Special URL ( https://example.com/path?param=value&other=123 )",
 		},
 		{
 			name:     "Link with special characters in text",
 			input:    "<a href=\"https://example.com\">Text with &amp; symbols &lt;tags&gt;</a>",
-			expected: "Text with &amp; symbols &lt;tags&gt; (https://example.com)",
+			expected: "Text with &amp; symbols &lt;tags&gt; ( https://example.com )",
+		},
+		{
+			name:     "URL with trailing slash preserved",
+			input:    `<a href="https://docs.yugabyte.com/preview/releases/ybdb-releases/">release notes</a>`,
+			expected: "release notes ( https://docs.yugabyte.com/preview/releases/ybdb-releases/ )",
 		},
 		{
 			name:     "Malformed HTML - missing closing tag",
@@ -476,7 +481,7 @@ func TestStripHTMLTags(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := stripHTMLTags(tt.input)
+			result := stripAnchorTags(tt.input)
 			assert.Equal(t, tt.expected, result,
 				"Test: %s\nInput: %q\nExpected: %q\nActual: %q",
 				tt.name, tt.input, tt.expected, result)

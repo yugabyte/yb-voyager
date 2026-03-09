@@ -83,7 +83,7 @@ var assessMigrationCmd = &cobra.Command{
 	Long:  fmt.Sprintf("Assess the migration from source (%s) database to YugabyteDB.", strings.Join(assessMigrationSupportedDBTypes, ", ")),
 
 	PreRun: func(cmd *cobra.Command, args []string) {
-		CreateMigrationProjectIfNotExists(source.DBType, exportDir)
+		metaDB = CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 		err := retrieveMigrationUUID()
 		if err != nil {
 			utils.ErrExit("failed to get migration UUID: %w", err)
@@ -235,16 +235,15 @@ func assessMigration() (err error) {
 	migassessment.SourceDBType = source.DBType
 	migassessment.IntervalForCapturingIops = intervalForCapturingIOPS
 
-	if source.Password == "" {
-		source.Password, err = askPassword("source DB", source.User, "SOURCE_DB_PASSWORD")
-		if err != nil {
-			return fmt.Errorf("failed to get source DB password for assessing migration: %w", err)
-		}
-	}
-
 	var validatedReplicaEndpoints []srcdb.ReplicaEndpoint
 
 	if assessmentMetadataDirFlag == "" { // only in case of source connectivity
+		if source.Password == "" {
+			source.Password, err = askPassword("source DB", source.User, "SOURCE_DB_PASSWORD")
+			if err != nil {
+				return fmt.Errorf("failed to get source DB password for assessing migration: %w", err)
+			}
+		}
 		err := source.DB().Connect()
 		if err != nil {
 			return fmt.Errorf("failed to connect source db for assessing migration: %w", err)
@@ -585,7 +584,7 @@ func gatherAssessmentMetadata(validatedReplicas []srcdb.ReplicaEndpoint) error {
 
 	// setting schema objects types to export before creating the project directories
 	source.ExportObjectTypeList = utils.GetExportSchemaObjectList(source.DBType)
-	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
+	metaDB = CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 
 	utils.PrintAndLogf("\ngathering metadata and stats from '%s' source database...\n", source.DBType)
 
@@ -625,7 +624,7 @@ func parseExportedSchemaFileForAssessmentIfRequired() {
 
 	log.Infof("set 'schemaDir' as: %s", schemaDir)
 	source.ApplyExportSchemaObjectListFilter()
-	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
+	metaDB = CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 	source.DB().ExportSchema(exportDir, schemaDir)
 }
 
