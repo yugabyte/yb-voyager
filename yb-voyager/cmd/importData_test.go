@@ -1393,7 +1393,7 @@ func TestExportAndImportDataSnapshotReport_ErrorPolicyStashAndContinue_BatchInge
 	tableDir := fmt.Sprintf("table::%s", tblName.ForKey())
 	fileDir := fmt.Sprintf("file::test_data_data.sql:%s", importdata.ComputePathHash(filepath.Join(exportDir, "data", "test_data_data.sql")))
 	tableFileErrorsDir := filepath.Join(backupDir, "data", "errors", tableDir, fileDir)
-	errorFiles, globErr := filepath.Glob(filepath.Join(tableFileErrorsDir, "ingestion-error.batch::1.10.10.*.E"))
+	errorFiles, globErr := filepath.Glob(filepath.Join(tableFileErrorsDir, "ingestion-error.batch::1.10.10.92.*.E"))
 	assert.NoError(t, globErr)
 	assert.Equal(t, 1, len(errorFiles), "Expected exactly one ingestion error file, found: %v", errorFiles)
 
