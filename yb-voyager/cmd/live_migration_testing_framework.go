@@ -210,6 +210,7 @@ func (lm *LiveMigrationTest) StartExportData(async bool, extraArgs map[string]st
 		"--source-db-name", lm.config.SourceDB.DatabaseName,
 		"--disable-pb", "true",
 		"--export-type", SNAPSHOT_AND_CHANGES,
+		"--parallel-jobs", "1",
 		"--yes",
 	}
 	for key, value := range extraArgs {
@@ -280,6 +281,64 @@ func (lm *LiveMigrationTest) StartImportData(async bool, extraArgs map[string]st
 		return goerrors.Errorf("failed to start import data: %w", err)
 	}
 	fmt.Printf("Import data started\n")
+	return nil
+}
+
+
+func (lm *LiveMigrationTest) StartImportDataToSource(async bool, extraArgs map[string]string) error {
+	fmt.Printf("Starting import data to source\n")
+	var onStart func()
+	if async {
+		onStart = func() {
+			time.Sleep(5 * time.Second) // Wait for import to start
+		}
+	}
+	sourceConfig := lm.sourceContainer.GetConfig()
+	args := []string{
+		"--export-dir", lm.exportDir,
+		"--disable-pb", "true",
+		"--source-db-password", sourceConfig.Password,
+		"--yes",
+	}
+	for key, value := range extraArgs {
+		args = append(args, key, value)
+	}
+
+	lm.importCmd = testutils.NewVoyagerCommandRunner(nil, "import data to source", args, onStart, async)
+	err := lm.importCmd.Run()
+	if err != nil {
+		return goerrors.Errorf("failed to start import data: %w", err)
+	}
+	fmt.Printf("Import data to source started\n")
+	return nil
+}
+
+func (lm *LiveMigrationTest) StartExportDataFromTarget(async bool, extraArgs map[string]string) error {
+	fmt.Printf("Starting export data from target\n")
+	var onStart func()
+	if async {
+		onStart = func() {
+			time.Sleep(5 * time.Second) // Wait for export to start
+		}
+	}
+
+	targetConfig := lm.targetContainer.GetConfig()
+	args := []string{
+		"--export-dir", lm.exportDir,
+		"--disable-pb", "true",
+		"--target-db-password", targetConfig.Password,
+		"--yes",
+	}
+	for key, value := range extraArgs {
+		args = append(args, key, value)
+	}
+	
+	lm.exportCmd = testutils.NewVoyagerCommandRunner(nil, "export data from target", args, onStart, async)
+	err := lm.exportCmd.Run()
+	if err != nil {
+		return goerrors.Errorf("failed to start export data: %w", err)
+	}
+	fmt.Printf("Export data from target started\n")
 	return nil
 }
 
