@@ -621,7 +621,6 @@ import-data-to-source:
   ## Accepted value - <integer>, default - 15
   # max-retries-streaming: 15      
 
-###TODO: Add config for initiate cutover to source, see if we should have separate config template for live migration with fall-back with iterations
 # ---------------------------------------------------------
 # End Migration Configuration
 # ---------------------------------------------------------
