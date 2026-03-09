@@ -235,16 +235,15 @@ func assessMigration() (err error) {
 	migassessment.SourceDBType = source.DBType
 	migassessment.IntervalForCapturingIops = intervalForCapturingIOPS
 
-	if source.Password == "" {
-		source.Password, err = askPassword("source DB", source.User, "SOURCE_DB_PASSWORD")
-		if err != nil {
-			return fmt.Errorf("failed to get source DB password for assessing migration: %w", err)
-		}
-	}
-
 	var validatedReplicaEndpoints []srcdb.ReplicaEndpoint
 
 	if assessmentMetadataDirFlag == "" { // only in case of source connectivity
+		if source.Password == "" {
+			source.Password, err = askPassword("source DB", source.User, "SOURCE_DB_PASSWORD")
+			if err != nil {
+				return fmt.Errorf("failed to get source DB password for assessing migration: %w", err)
+			}
+		}
 		err := source.DB().Connect()
 		if err != nil {
 			return fmt.Errorf("failed to connect source db for assessing migration: %w", err)
