@@ -72,7 +72,8 @@ func createMigrationAssessmentCompletedEventForYugabyteD() *cp.MigrationAssessme
 		TargetDBVersion:                assessmentReport.TargetDBVersion,
 		MigrationComplexity:            assessmentReport.MigrationComplexity,
 		MigrationComplexityExplanation: assessmentReport.MigrationComplexityExplanation,
-		SchemaSummary:                  schemaSummaryPayload,
+		SchemaSummary:                  assessmentReport.SchemaSummary,
+		ParsedSchemaSummary:            schemaSummaryPayload,
 		AssessmentIssues:               assessmentIssues,
 		SourceSizeDetails: SourceDBSizeDetails{
 			TotalIndexSize:     assessmentReport.GetTotalIndexSize(),

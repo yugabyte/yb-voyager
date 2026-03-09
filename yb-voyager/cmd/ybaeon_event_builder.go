@@ -76,7 +76,8 @@ func createMigrationAssessmentCompletedEventForYBAeon() *cp.MigrationAssessmentC
 		TargetDBVersion:                assessmentReport.TargetDBVersion,
 		MigrationComplexity:            assessmentReport.MigrationComplexity,
 		MigrationComplexityExplanation: assessmentReport.MigrationComplexityExplanation,
-		SchemaSummary:                  schemaSummaryPayload,
+		SchemaSummary:                  assessmentReport.SchemaSummary,
+		ParsedSchemaSummary:            schemaSummaryPayload,
 		AssessmentIssues:               assessmentIssuesYBM,
 		SourceSizeDetails: SourceDBSizeDetails{
 			TotalIndexSize:     assessmentReport.GetTotalIndexSize(),

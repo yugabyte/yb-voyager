@@ -1413,14 +1413,14 @@ Version History
   - Added separate fields for notes: GeneralNotes, ColocatedShardedNotes, SizingNotes; deprecated Notes field
 
 1.7: Added ObjectUsage field to AssessmentIssueYugabyteD struct
-1.8: Changed SchemaSummary.DBObjects to use Objects []ObjectPayload (with ObjectName and ParentTableName) instead of ObjectNames string. All identifier names are now unquoted in the payload.
+1.8: Added ParsedSchemaSummary field with structured Objects []ObjectPayload (ObjectName, ParentTableName) and unquoted identifiers. Original SchemaSummary field is unchanged.
 */
 var ASSESS_MIGRATION_YBD_PAYLOAD_VERSION = "1.8"
 
 /*
 Version History
 1.0: Introduced AssessMigrationPayloadYBM struct for YBM-specific payload
-1.1: Changed SchemaSummary.DBObjects to use Objects []ObjectPayload (with ObjectName and ParentTableName) instead of ObjectNames string. All identifier names are now unquoted in the payload.
+1.1: Added ParsedSchemaSummary field with structured Objects []ObjectPayload (ObjectName, ParentTableName) and unquoted identifiers. Original SchemaSummary field is unchanged.
 */
 var ASSESS_MIGRATION_YBM_PAYLOAD_VERSION = "1.1"
 
@@ -1434,7 +1434,8 @@ type AssessMigrationPayloadYugabyteD struct {
 	TargetDBVersion                *ybversion.YBVersion
 	MigrationComplexity            string
 	MigrationComplexityExplanation string
-	SchemaSummary                  SchemaSummaryPayload
+	SchemaSummary                  utils.SchemaSummary
+	ParsedSchemaSummary            ParsedSchemaSummary
 	AssessmentIssues               []AssessmentIssueYugabyteD
 	SourceSizeDetails              SourceDBSizeDetails
 	TargetRecommendations          TargetSizingRecommendations
@@ -1497,7 +1498,8 @@ type AssessMigrationPayloadYBM struct {
 	TargetDBVersion                *ybversion.YBVersion                  `json:"TargetDBVersion"`
 	MigrationComplexity            string                                `json:"MigrationComplexity"`
 	MigrationComplexityExplanation string                                `json:"MigrationComplexityExplanation"`
-	SchemaSummary                  SchemaSummaryPayload                  `json:"SchemaSummary"`
+	SchemaSummary                  utils.SchemaSummary                   `json:"SchemaSummary"`
+	ParsedSchemaSummary            ParsedSchemaSummary                   `json:"ParsedSchemaSummary"`
 	AssessmentIssues               []AssessmentIssueYBM                  `json:"AssessmentIssues"`
 	SourceSizeDetails              SourceDBSizeDetails                   `json:"SourceSizeDetails"`
 	TargetRecommendations          TargetSizingRecommendations           `json:"TargetRecommendations"`
@@ -1540,7 +1542,7 @@ type DBObjectPayload struct {
 	Details      string          `json:"Details,omitempty"`
 }
 
-type SchemaSummaryPayload struct {
+type ParsedSchemaSummary struct {
 	Description string            `json:"Description"`
 	DBName      string            `json:"DbName"`
 	SchemaNames []string          `json:"SchemaNames"`
@@ -1549,7 +1551,7 @@ type SchemaSummaryPayload struct {
 	DBObjects   []DBObjectPayload `json:"DatabaseObjects"`
 }
 
-func convertSchemaSummaryToPayload(summary utils.SchemaSummary, dbType string) SchemaSummaryPayload {
+func convertSchemaSummaryToPayload(summary utils.SchemaSummary, dbType string) ParsedSchemaSummary {
 	var dbObjects []DBObjectPayload
 	for _, dbObj := range summary.DBObjects {
 		dbObjects = append(dbObjects, DBObjectPayload{
@@ -1560,7 +1562,7 @@ func convertSchemaSummaryToPayload(summary utils.SchemaSummary, dbType string) S
 			Details:      dbObj.Details,
 		})
 	}
-	return SchemaSummaryPayload{
+	return ParsedSchemaSummary{
 		Description: summary.Description,
 		DBName:      summary.DBName,
 		SchemaNames: summary.SchemaNames,
