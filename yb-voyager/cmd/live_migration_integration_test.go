@@ -3363,7 +3363,7 @@ func TestLiveMigrationWithFallbackWithMultipleIterations(t *testing.T) {
 		SourceDB: ContainerConfig{
 			Type:         "postgresql",
 			ForLive:      true,
-			DatabaseName: " v",
+			DatabaseName: "test_fallback_with_multiple_iterations",
 		},
 		TargetDB: ContainerConfig{
 			Type:         "yugabytedb",

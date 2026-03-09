@@ -193,6 +193,9 @@ func setUpNextIterationMSR(parentMetaDB *metadb.MetaDB, iterationNo int, current
 		record.SourceDBConf = currentMSR.SourceDBConf
 		record.TargetDBConf = currentMSR.TargetDBConf
 		record.ConfigFile = cfgFile
+
+		//set the table list exported from source to the next iteration
+		record.TableListExportedFromSource = currentMSR.TableListExportedFromSource
 	})
 	if err != nil {
 		return fmt.Errorf("failed to update iteration migration status record: %w", err)

@@ -282,6 +282,8 @@ func resolveToActiveIterationIfRequired(cmd *cobra.Command) error {
 	*/
 	cmdPath := cmd.CommandPath()
 	isFallbackCmd := slices.Contains(fallbackPhaseCommands, cmdPath)
+	//setting the metaDB to the iteration metaDB as the getCutoverStatus is using the global metaDB
+	//and we are fetching the cutover status for the current iteration from this metaDB.
 	metaDB = iterationMetaDB
 	latestIterInForwardPhase := (getCutoverStatus() == NOT_INITIATED)
 
