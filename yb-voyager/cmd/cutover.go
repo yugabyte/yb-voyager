@@ -21,6 +21,7 @@ import (
 	"path/filepath"
 	"time"
 
+	goerrors "github.com/go-errors/errors"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
@@ -65,14 +66,6 @@ func InitiateCutover(dbRole string, prepareforFallback bool, useYBgRPCConnector 
 	}
 	alreadyInitiated := false
 	alreadyInitiatedMsg := fmt.Sprintf("cutover to %s already initiated, wait for it to complete", dbRole)
-
-	if restartSourceToTargetNextIteration {
-		//to start with dummy iteration 1 TODO handle multiple iterations
-		err := initializeNextIteration()
-		if err != nil {
-			return fmt.Errorf("failed to initialize next iteration: %w", err)
-		}
-	}
 
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
@@ -126,6 +119,92 @@ func InitiateCutover(dbRole string, prepareforFallback bool, useYBgRPCConnector 
 		utils.PrintAndLogf("%s initiated, wait for it to complete", userFacingActionMsg)
 	}
 	return nil
+}
+
+func iterativeCutoverSupported(msr *metadb.MigrationStatusRecord) bool {
+	return msr.FallbackEnabled && msr.SourceDBConf.DBType == POSTGRESQL
+}
+
+func initializeNextIteration() error {
+	currentMSR, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		return fmt.Errorf("failed to get migration status record: %w", err)
+	}
+	if !iterativeCutoverSupported(currentMSR) {
+		return goerrors.Errorf("iterative live migration is not supported for this migration")
+	}
+	parentMetaDB, err := metaDB.GetParentMetaDB()
+	if err != nil {
+		return fmt.Errorf("failed to get parent meta db: %w", err)
+	}
+	iterationsDir := currentMSR.GetIterationsDir(exportDir)
+	err = os.MkdirAll(iterationsDir, 0755)
+	if err != nil {
+		return fmt.Errorf("failed to create iterations directory: %w", err)
+	}
+	nextIterationNo := currentMSR.IterationNo + 1
+
+	parentMSR, err := parentMetaDB.GetMigrationStatusRecord()
+	if err != nil {
+		return fmt.Errorf("failed to get parent migration status record: %w", err)
+	}
+	//Create a new export dir for the next iteration under export_dir int following structure
+
+	nextIterationExportDir := GetIterationExportDir(iterationsDir, nextIterationNo)
+	err = os.MkdirAll(nextIterationExportDir, 0755)
+	if err != nil {
+		return fmt.Errorf("failed to create iteration directory: %w", err)
+	}
+
+	nextIterationMetaDB := CreateMigrationProjectIfNotExists(parentMSR.SourceDBConf.DBType, nextIterationExportDir)
+
+	utils.PrintAndLogfInfo("Initialized iteration %d at %s.", nextIterationNo, nextIterationExportDir)
+
+	//Update the MSR - parent, next iteration and current iteration
+	err = setUpNextIterationMSR(parentMetaDB, nextIterationNo, currentMSR, nextIterationMetaDB)
+	if err != nil {
+		return fmt.Errorf("failed to set up next iteration MSR: %w", err)
+	}
+
+	err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		record.NextIterationInitialized = true
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update migration status record: %w", err)
+	}
+	return nil
+}
+
+func setUpNextIterationMSR(parentMetaDB *metadb.MetaDB, iterationNo int, currentMSR *metadb.MigrationStatusRecord,
+	nextIterationMetaDB *metadb.MetaDB) error {
+
+	err := parentMetaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		record.LatestIterationNumber = iterationNo
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update migration status record: %w", err)
+	}
+	//Update next iteration's MSR
+	err = nextIterationMetaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		record.ParentExportDir = currentMSR.GetParentExportDir(exportDir)
+		record.IterationNo = iterationNo
+		//Used for the CLI case primarly when we start changes only command on iterations with CLI
+		//we are directly overriding the source/target confs by reading from this MSR.
+		record.SourceDBConf = currentMSR.SourceDBConf
+		record.TargetDBConf = currentMSR.TargetDBConf
+		record.ConfigFile = cfgFile
+
+		//set the table list exported from source to the next iteration
+		record.TableListExportedFromSource = currentMSR.TableListExportedFromSource
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update iteration migration status record: %w", err)
+	}
+	return nil
+}
+
+func GetIterationExportDir(iterationsDir string, iterationNo int) string {
+	return filepath.Join(iterationsDir, fmt.Sprintf("live-data-migration-iteration-%d", iterationNo), "export-dir")
 }
 
 func markCutoverProcessed(importerOrExporterRole string) error {
