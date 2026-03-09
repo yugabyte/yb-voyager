@@ -262,6 +262,10 @@ func (p *SequentialFileBatchProducer) produceNextBatch() (*Batch, error) {
 }
 
 func (p *SequentialFileBatchProducer) transformRow(row string, columnNames []string) (string, error) {
+	if err := injectImportSnapshotTransformError(); err != nil {
+		return "", err
+	}
+
 	if !p.isRowTransformationRequired {
 		return row, nil
 	}
