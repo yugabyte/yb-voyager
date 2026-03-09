@@ -540,7 +540,7 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 		for attempt := 0; attempt < EVENT_BATCH_MAX_RETRY_COUNT; attempt++ {
 			err = tdb.ExecuteBatch(migrationUUID, eventBatch)
 			if err == nil {
-				if fpErr := injectImportCDCBatchDBError(); fpErr != nil {
+				if fpErr := injectImportCDCNonRetryableBatchDBError(); fpErr != nil {
 					err = fpErr
 				}
 			}

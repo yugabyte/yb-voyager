@@ -255,7 +255,7 @@ func TestImportCDCDbErrorAndResume(t *testing.T) {
 		// Skip the first 100 batch-commit calls (let them succeed), then inject a
 		// DB error on the 101st. 100 is chosen so `last_applied_vsn > 0` is
 		// observable and we can prove resume work is meaningful.
-		"github.com/yugabyte/yb-voyager/yb-voyager/cmd/importCDCBatchDBError=100*off->return(true)",
+		"github.com/yugabyte/yb-voyager/yb-voyager/cmd/importCDCNonRetryableBatchDBError=100*off->return(true)",
 	)
 	err = lm.StartImportDataWithEnv(true, map[string]string{
 		"--max-retries-streaming": "1",
@@ -277,7 +277,7 @@ func TestImportCDCDbErrorAndResume(t *testing.T) {
 	lm.ExecuteSourceDelta()
 
 	// --- Phase 2: Wait for failpoint to fire and import to crash ---
-	failMarkerPath := filepath.Join(lm.GetExportDir(), "failpoints", "failpoint-import-cdc-db-error.log")
+	failMarkerPath := filepath.Join(lm.GetExportDir(), "failpoints", "failpoint-import-cdc-non-retryable-batch-db-error.log")
 	err = lm.WaitForImportFailpointAndProcessCrash(t, failMarkerPath, 120*time.Second, 60*time.Second)
 	require.NoError(t, err, "Import should crash after CDC DB-error failpoint")
 
@@ -783,7 +783,7 @@ func TestImportCDCMultiChannelBatchFailureAndResume(t *testing.T) {
 		// Skip the first 100 batch-commit calls across all channels (let them
 		// succeed), then inject a DB error on the 101st. 100 is large enough that
 		// multiple channels make meaningful progress before the crash.
-		"github.com/yugabyte/yb-voyager/yb-voyager/cmd/importCDCBatchDBError=100*off->return(true)",
+		"github.com/yugabyte/yb-voyager/yb-voyager/cmd/importCDCNonRetryableBatchDBError=100*off->return(true)",
 	)
 	err = lm.StartImportDataWithEnv(true, map[string]string{
 		"--max-retries-streaming": "1",
@@ -858,7 +858,7 @@ func TestImportCDCMultiChannelBatchFailureAndResume(t *testing.T) {
 		"DELETE FROM %s WHERE id IN (%s);", tableName, strings.Join(deleteIDs, ",")))
 
 	// --- Phase 2: Wait for failpoint to fire and import to crash ---
-	failMarkerPath := filepath.Join(lm.GetExportDir(), "failpoints", "failpoint-import-cdc-db-error.log")
+	failMarkerPath := filepath.Join(lm.GetExportDir(), "failpoints", "failpoint-import-cdc-non-retryable-batch-db-error.log")
 	err = lm.WaitForImportFailpointAndProcessCrash(t, failMarkerPath, 120*time.Second, 60*time.Second)
 	require.NoError(t, err, "Import should crash after multi-channel batch failure failpoint")
 

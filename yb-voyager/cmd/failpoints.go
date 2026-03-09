@@ -39,16 +39,16 @@ func injectImportCDCTransformFailure() error {
 	return fpErr
 }
 
-// injectImportCDCBatchDBError simulates a non-retryable DB error after a
+// injectImportCDCNonRetryableBatchDBError simulates a non-retryable DB error after a
 // successful CDC batch execution. Tests can use a hit-counter expression
 // (e.g. 100*off->return(true)) to crash after N successful batches.
-func injectImportCDCBatchDBError() error {
+func injectImportCDCNonRetryableBatchDBError() error {
 	var fpErr error
-	failpoint.Inject("importCDCBatchDBError", func(val failpoint.Value) {
+	failpoint.Inject("importCDCNonRetryableBatchDBError", func(val failpoint.Value) {
 		if val != nil {
 			_ = os.MkdirAll(filepath.Join(exportDir, "failpoints"), 0755)
 			_ = os.WriteFile(
-				filepath.Join(exportDir, "failpoints", "failpoint-import-cdc-db-error.log"),
+				filepath.Join(exportDir, "failpoints", "failpoint-import-cdc-non-retryable-batch-db-error.log"),
 				[]byte("hit\n"),
 				0644,
 			)
