@@ -101,7 +101,7 @@ func exportSchema(cmd *cobra.Command) error {
 	} else if startClean {
 		utils.PrintAndLogf("Schema is not exported yet. Ignoring --start-clean flag.\n\n")
 	}
-	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
+	metaDB = CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 	err := retrieveMigrationUUID()
 	if err != nil {
 		log.Errorf("failed to get migration UUID: %v", err)

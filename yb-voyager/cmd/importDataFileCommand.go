@@ -76,7 +76,7 @@ var importDataFileCmd = &cobra.Command{
 
 		sourceDBType = POSTGRESQL // dummy value - this command is not affected by it
 		sqlname.SourceDBType = sourceDBType
-		CreateMigrationProjectIfNotExists(sourceDBType, exportDir)
+		metaDB = CreateMigrationProjectIfNotExists(sourceDBType, exportDir)
 		err := retrieveMigrationUUID()
 		if err != nil {
 			utils.ErrExit("failed to get migration UUID: %w", err)

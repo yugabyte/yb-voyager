@@ -541,6 +541,14 @@ func checkAndHandleSnapshotComplete(config *dbzm.Config, status *dbzm.ExportStat
 					utils.ErrExit("failed to update migration status record for export data from target start: %w", err)
 				}
 			}
+		} else if exporterRole == SOURCE_DB_EXPORTER_ROLE {
+
+			err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+				record.ExportDataFromSourceStarted = true
+			})
+			if err != nil {
+				utils.ErrExit("failed to update migration status record: %w", err)
+			}
 		}
 
 		color.Blue("streaming changes to a local queue file...")

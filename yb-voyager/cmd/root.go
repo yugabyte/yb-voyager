@@ -40,6 +40,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp/ybaeon"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp/yugabyted"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/lockfile"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -85,7 +86,15 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			fmt.Printf("ERROR: Failed to initialize config: %v\n", err)
 			atexit.Exit(1)
 		}
+
 		currentCommand = cmd.CommandPath()
+
+		if isLiveMigrationIterationCommand(cmd) {
+			err := resolveToActiveIterationIfRequired(cmd)
+			if err != nil {
+				utils.ErrExit("failed to resolve to active iteration: %w", err)
+			}
+		}
 
 		if !shouldRunPersistentPreRun(cmd) {
 			return
@@ -161,6 +170,7 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 				msrVoyagerVersionString := msr.VoyagerVersion
 
 				detectVersionCompatibility(msrVoyagerVersionString, exportDir)
+
 			}
 
 			if perfProfile {
@@ -213,6 +223,96 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 		}
 		atexit.Exit(0)
 	},
+}
+
+var liveMigrationIterationCommandList = []string{
+	"yb-voyager import data",
+	"yb-voyager export data",
+	"yb-voyager export data from source",
+	"yb-voyager import data to target",
+	"yb-voyager export data from target",
+	"yb-voyager import data to source",
+	"yb-voyager initiate cutover to source",
+	"yb-voyager initiate cutover to target",
+}
+
+func isLiveMigrationIterationCommand(cmd *cobra.Command) bool {
+	return slices.Contains(liveMigrationIterationCommandList, cmd.CommandPath())
+}
+
+func resolveToActiveIterationIfRequired(cmd *cobra.Command) error {
+	if !metaDBIsCreated(exportDir) {
+		return nil
+	}
+	//this is just for any logs that might be printed before the iteration export dir is resolved
+	err := InitLogging(exportDir, config.LogLevel, cmd.Use == "status", GetCommandID(cmd))
+	if err != nil {
+		utils.ErrExit("Failed to initialize logging: %w", err)
+	}
+	metaDB = initMetaDB(exportDir)
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil || msr == nil {
+		return nil
+	}
+	if msr.IsIteration() || msr.LatestIterationNumber == 0 {
+		//If there are no iterations and the export-dir is itself the iteration then no need to resolve to export-dir
+		return nil
+	}
+
+	parentExportDir := exportDir
+
+	iterationsDir := msr.GetIterationsDir(exportDir)
+	iterationExportDir := GetIterationExportDir(iterationsDir, msr.LatestIterationNumber)
+	if !utils.FileOrFolderExists(iterationExportDir) {
+		return goerrors.Errorf("iteration export directory does not exist")
+	}
+	iterationMetaDB, err := metadb.NewMetaDB(iterationExportDir)
+	if err != nil {
+		return fmt.Errorf("failed to create iteration meta db: %w", err)
+	}
+
+	/*
+	 in case the iteration is updated to next iteration by improt data to source but export data is yet to pick that up and crashes
+	 now we need to re-run the export data from target to be able to start import data to target but since the latest iteration is updated to next
+	 we will always resolve the export-dir of the next one where export data from target will not work as it says no fallback/forward is enabled
+
+	 In this case we need to resolve the exprot-dir to previous iteration and this will only be require for fallback commands
+	 so in case the command is fallback one (export data from target and import data to source) and the cutover to target on latest iteration is not initiated
+	 we re-direct the command to the previous iteration and let it handle the command - if anything is left it will start finish that up.
+	*/
+	cmdPath := cmd.CommandPath()
+	isFallbackCmd := slices.Contains(fallbackPhaseCommands, cmdPath)
+	//setting the metaDB to the iteration metaDB as the getCutoverStatus is using the global metaDB
+	//and we are fetching the cutover status for the current iteration from this metaDB.
+	metaDB = iterationMetaDB
+	latestIterInForwardPhase := (getCutoverStatus() == NOT_INITIATED)
+
+	if isFallbackCmd && latestIterInForwardPhase {
+		// Latest iteration is in forward phase — so fallback command belongs to the PREVIOUS iteration
+		if msr.LatestIterationNumber > 1 {
+			prevIterExportDir := GetIterationExportDir(iterationsDir, msr.LatestIterationNumber-1)
+			// resolve to previous iteration
+			exportDir = prevIterExportDir
+		} else {
+			// Previous iteration is the parent — don't redirect
+			// (exportDir stays as parent)
+			exportDir = parentExportDir
+
+		}
+	} else {
+		// Forward command or fallback command on a fallback-phase iteration
+		exportDir = iterationExportDir
+	}
+
+	exportType = CHANGES_ONLY
+
+	return nil
+}
+
+var fallbackPhaseCommands = []string{
+	"yb-voyager export data from target",
+	"yb-voyager import data to source",
+	"yb-voyager initiate cutover to source",
 }
 
 func shouldRunExportDirInitialisedCheck(cmd *cobra.Command) bool {

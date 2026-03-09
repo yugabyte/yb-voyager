@@ -126,20 +126,71 @@ func exportDataCommandPreRun(cmd *cobra.Command, args []string) {
 	}
 }
 
+func handleCutoverAlreadyProcessedForExportData() {
+	//If cutover is already processed by this command and the cutover for the respective flow is completed then exit
+	cutoverAlreadyProcessed := isCutoverAlreadyProcessed(exporterRole)
+	if !cutoverAlreadyProcessed {
+		return
+	}
+	switch exporterRole {
+	case SOURCE_DB_EXPORTER_ROLE:
+		if getCutoverStatus() == COMPLETED {
+			utils.ErrExit("cutover to target already processed, exiting...")
+		}
+	case TARGET_DB_EXPORTER_FF_ROLE:
+		if getCutoverToSourceReplicaStatus() == COMPLETED {
+			utils.ErrExit("cutover to source-replica already processed, exiting...")
+		}
+	case TARGET_DB_EXPORTER_FB_ROLE:
+		if getCutoverToSourceStatus(exportDir) == COMPLETED {
+			utils.ErrExit("cutover to source already processed, exiting...")
+		}
+	default:
+		utils.ErrExit("invalid exporter role: %s", exporterRole)
+	}
+
+	//If cutover is not completed then start further commands after current export data
+	startFurtherCommandsAfterCurrentExportData()
+}
+func startFurtherCommandsAfterCurrentExportData() {
+	//Fallback import data to source command after export data from source
+	startFallBackSetupIfRequired()
+	//import data to target on next iteration after export data from target on current iteration
+	startNextIterationImportDataToTarget()
+}
+
 func exportDataCommandFn(cmd *cobra.Command, args []string) {
-	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
+	metaDB = CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 	err := retrieveMigrationUUID()
 	if err != nil {
 		utils.ErrExit("failed to get migration UUID: %w", err)
 	}
 
-	ExitIfAlreadyCutover(exporterRole)
 	if useDebezium && !changeStreamingIsEnabled(exportType) {
 		utils.PrintAndLogf("Note: Beta feature to accelerate data export is enabled by setting BETA_FAST_DATA_EXPORT environment variable")
 	}
 	printLiveMigrationLimitations()
 	utils.PrintAndLogf("export of data for source type as '%s'", source.DBType)
 	sqlname.SourceDBType = source.DBType
+
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("failed to get migration status record: %w", err)
+	}
+	if exporterRole == SOURCE_DB_EXPORTER_ROLE && !msr.IsParentMigration() {
+		//It this is not the parent migration, then use the source db conf stored in the migration
+		password := source.Password
+		source = *msr.SourceDBConf
+		source.Password = password
+	}
+
+	if exportType == CHANGES_ONLY && len(msr.TableListExportedFromSource) > 0 {
+		source.TableList = strings.Join(msr.TableListExportedFromSource, ",")
+	} else if !msr.IsParentMigration() {
+		utils.ErrExit("table list is not set for the iterations.")
+	}
+
+	handleCutoverAlreadyProcessedForExportData()
 
 	success := exportData()
 	if success {
@@ -148,7 +199,7 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 		setDataIsExported()
 		color.Green("Export of data complete")
 		log.Info("Export of data completed.")
-		startFallBackSetupIfRequired()
+		startFurtherCommandsAfterCurrentExportData()
 	} else if ProcessShutdownRequested {
 		log.Info("Shutting down as SIGINT/SIGTERM received.")
 	} else {
@@ -157,6 +208,107 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 		sendPayloadAsPerExporterRole(ERROR, nil)
 		atexit.Exit(1)
 	}
+}
+
+func waitUntilNextIterationInitialized() error {
+	timeout := 30 * time.Second
+	startTime := time.Now()
+
+	for {
+		if time.Since(startTime) > timeout {
+			return goerrors.Errorf("timeout waiting for next iteration to be initialized. Ensure 'import data to source' is running, then re-run this command.")
+		}
+		record, err := metaDB.GetMigrationStatusRecord()
+		if err != nil {
+			return fmt.Errorf("failed to get migration status record: %w", err)
+		}
+
+		if record.NextIterationInitialized {
+			return nil
+		}
+		utils.PrintAndLogf("Waiting for next iteration to be initialized...")
+		time.Sleep(2 * time.Second)
+	}
+}
+
+func startNextIterationImportDataToTarget() {
+	if exporterRole != TARGET_DB_EXPORTER_FB_ROLE {
+		return
+	}
+	currentMsr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("failed to get migration status record: %w", err)
+	}
+
+	if !currentMsr.RestartDataMigrationSourceTargetNextIteration {
+		return
+	}
+
+	//Waiting for the next iteration to be initialized so that we can start import data to target on the next iteration
+	err = waitUntilNextIterationInitialized()
+	if err != nil {
+		utils.ErrExit("failed to wait until next iteration initialized: %w", err)
+	}
+
+	lockFile.Unlock() // unlock export dir from import data cmd before switching current process to ff/fb sync cmd
+
+	cmd := []string{"yb-voyager", "import", "data", "to", "target"}
+
+	if cfgFile != "" {
+		for _, override := range resolvedConfig.fromCLI {
+			if override.FlagName == "disable-pb" {
+				//only for disable-pb flag common export/import flag, if it is overidden then pass it as CLI override also to this command
+				cmd = append(cmd, "--"+override.FlagName, override.Value)
+				continue
+			}
+			if override.FlagName == "export-dir" {
+				//Do not do anything for export-dir as it should always be the current iteration export dir
+				continue
+			}
+			if override.FlagName == "config-file" {
+				//For config file, always pass the current config file
+				cmd = append(cmd, "--"+override.FlagName, cfgFile)
+				continue
+			}
+			if !slices.Contains(globalFlags, override.FlagName) {
+				//if its not a global flag then skip passing it to the command as it will be command specific flag
+				continue
+			}
+			cmd = append(cmd, "--"+override.FlagName, override.Value)
+		}
+
+	} else {
+		//Use the parent export dir for next command always
+		cmd = append(cmd, "--export-dir", lo.Ternary(currentMsr.IsParentMigration(), exportDir, currentMsr.ParentExportDir))
+		if bool(disablePb) {
+			cmd = append(cmd, "--disable-pb=true")
+		}
+		cmd = append(cmd, fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics))
+		cmd = append(cmd, "--log-level", config.LogLevel)
+		//TODO: see if we can do better, but these params are required for import data to target cmd
+		cmd = append(cmd, "--target-db-name", currentMsr.TargetDBConf.DBName)
+		cmd = append(cmd, "--target-db-user", currentMsr.TargetDBConf.User)
+	}
+
+	iterationExportDir := GetIterationExportDir(currentMsr.GetIterationsDir(exportDir), currentMsr.IterationNo+1)
+	utils.PrintAndLogfInfo("\nStarting import data to target on iteration %d at %s.\n\n", currentMsr.IterationNo+1, iterationExportDir)
+
+	cmdStr := "TARGET_DB_PASSWORD=*** " + strings.Join(cmd, " ")
+
+	utils.PrintAndLogf("Starting import data to target with command:\n %s", color.GreenString(cmdStr))
+
+	binary, lookErr := exec.LookPath(os.Args[0])
+	if lookErr != nil {
+		utils.ErrExit("could not find yb-voyager: %w", lookErr)
+	}
+	env := os.Environ()
+	env = slices.Insert(env, 0, "TARGET_DB_PASSWORD="+source.Password)
+
+	execErr := syscall.Exec(binary, cmd, env)
+	if execErr != nil {
+		utils.ErrExit("failed to run yb-voyager import data to target: %w\n Please re-run with command :\n%s", execErr, cmdStr)
+	}
+
 }
 
 func printLiveMigrationLimitations() {
@@ -1626,6 +1778,10 @@ func startFallBackSetupIfRequired() {
 
 func generateGlobalExportImportArguments() []string {
 	var arguments []string
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("failed to get migration status record: %w", err)
+	}
 	/*
 		If config file is provided, pass the global flags if overriden by cli to the command together with  disable pb flag if it is overriden by cli
 		If config file is not provided, set some flags for the command like export-dir, log-level, disable-pb, send-diagnostics
@@ -1648,7 +1804,7 @@ func generateGlobalExportImportArguments() []string {
 	} else {
 		//else set some overrides for the command
 		arguments = append(arguments, "--log-level", config.LogLevel)
-		arguments = append(arguments, "--export-dir", exportDir)
+		arguments = append(arguments, "--export-dir", lo.Ternary(msr.IsParentMigration(), exportDir, msr.ParentExportDir))
 		if bool(disablePb) {
 			arguments = append(arguments, "--disable-pb=true")
 		}

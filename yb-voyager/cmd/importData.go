@@ -37,6 +37,7 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/adaptiveparallelism"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/config"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
@@ -142,12 +143,47 @@ var importDataToTargetCmd = &cobra.Command{
 	Run: importDataCmd.Run,
 }
 
+func handleCutoverAlreadyProcessedForImportData() {
+	//If cutover is already processed by this command and the cutover for the respective flow is completed then exit
+	cutoverAlreadyProcessed := isCutoverAlreadyProcessed(importerRole)
+	if !cutoverAlreadyProcessed {
+		return
+	}
+	switch importerRole {
+	case TARGET_DB_IMPORTER_ROLE:
+		if getCutoverStatus() == COMPLETED {
+			utils.ErrExit("cutover to target already processed, exiting...")
+		}
+	case SOURCE_REPLICA_DB_IMPORTER_ROLE:
+		if getCutoverToSourceReplicaStatus() == COMPLETED {
+			utils.ErrExit("cutover to source-replica already processed, exiting...")
+		}
+	case SOURCE_DB_IMPORTER_ROLE:
+		if getCutoverToSourceStatus(exportDir) == COMPLETED {
+			utils.ErrExit("cutover to source already processed, exiting...")
+		}
+	}
+	//If cutover is not completed then start further commands after current import data
+	startFurtherCommandsAfterCurrentImportData()
+}
+
 func importDataCommandFn(cmd *cobra.Command, args []string) {
 	importPhase = dbzm.MODE_SNAPSHOT
-	ExitIfAlreadyCutover(importerRole)
+
 	reportProgressInBytes = false
 	tconf.ImportMode = true
 	checkExportDataDoneFlag()
+
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("failed to get migration status record: %w", err)
+	}
+	if importerRole == TARGET_DB_IMPORTER_ROLE && !msr.IsParentMigration() {
+		//It this is not the parent migration, then use the target db conf stored in the migration
+		password := tconf.Password
+		tconf = *msr.TargetDBConf
+		tconf.Password = password
+	}
 	/*
 		Before this point MSR won't not be initialised in case of importDataFileCmd
 		In case of importDataCmd, MSR would be initialised already by previous commands
@@ -162,7 +198,7 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	//TODO: also for the source-replica ORACLE case to validate the schemas on source-replica
 	tconf.Schemas = sqlname.ParseIdentifiersFromString(tconf.TargetDBType, tconf.SchemaConfig, ",")
 	tdb = tgtdb.NewTargetDB(&tconf)
-	err := tdb.Init()
+	err = tdb.Init()
 	if err != nil {
 		utils.ErrExit("Failed to initialize the target DB: %s", err)
 	}
@@ -202,7 +238,7 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 		utils.ErrExit("error validating --cdc-partitioning-strategy flag: %v", err)
 	}
 
-	msr, err := metaDB.GetMigrationStatusRecord()
+	msr, err = metaDB.GetMigrationStatusRecord()
 	if err != nil {
 		utils.ErrExit("could not fetch MigrationStatusRecord: %w", err)
 	}
@@ -220,6 +256,8 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 		}
 	}
 
+	handleCutoverAlreadyProcessedForImportData()
+
 	importData(importFileTasks, errorPolicySnapshotFlag)
 	tdb.Finalize()
 	switch importerRole {
@@ -232,9 +270,95 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	case SOURCE_DB_IMPORTER_ROLE:
 		packAndSendImportDataToSourcePayload(COMPLETE, nil)
 	}
+	startFurtherCommandsAfterCurrentImportData()
+}
 
-	if changeStreamingIsEnabled(importType) {
-		startExportDataFromTargetIfRequired()
+func startFurtherCommandsAfterCurrentImportData() {
+	//Fallback export data from target commands
+	startExportDataFromTargetIfRequired()
+
+	//Start next iterations's export data from source
+	startExportDataFromSourceOnNextIteration()
+}
+
+func startExportDataFromSourceOnNextIteration() {
+	if importerRole != SOURCE_DB_IMPORTER_ROLE {
+		return
+	}
+	currentMsr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("failed to get migration status record: %w", err)
+	}
+	if !currentMsr.RestartDataMigrationSourceTargetNextIteration {
+		return
+	}
+
+	err = initializeNextIteration()
+	if err != nil {
+		utils.ErrExit("failed to initialize next iteration: %w", err)
+	}
+
+	//Start export from source on next iteration
+
+	lockFile.Unlock() // unlock export dir from import data cmd before switching current process to ff/fb sync cmd
+	cmd := []string{"yb-voyager", "export", "data", "from", "source"}
+	if cfgFile != "" {
+		//If there are cli overrides for the command, pass them as cli overrides to the import data to source command
+		//Only disable-pb and log-level are the common flags of both the commands
+		for _, override := range resolvedConfig.fromCLI {
+			if override.FlagName == "disable-pb" {
+				//only for disable-pb flag common export/import flag, if it is overidden then pass it as CLI override also to this command
+				cmd = append(cmd, "--"+override.FlagName, override.Value)
+				continue
+			}
+			if override.FlagName == "export-dir" {
+				//Do not do anything for export-dir as it should always be the current iteration export dir
+				continue
+			}
+			if override.FlagName == "config-file" {
+				//For config file, always pass the current config file
+				cmd = append(cmd, "--"+override.FlagName, cfgFile)
+				continue
+			}
+			if !slices.Contains(globalFlags, override.FlagName) {
+				//if its not a global flag then skip passing it to the command as it will be command specific flag
+				continue
+			}
+			cmd = append(cmd, "--"+override.FlagName, override.Value)
+		}
+
+	} else {
+		cmd = append(cmd, "--export-dir", lo.Ternary(currentMsr.IsParentMigration(), exportDir, currentMsr.ParentExportDir))
+		if bool(disablePb) {
+			cmd = append(cmd, "--disable-pb=true")
+		}
+		cmd = append(cmd, fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics))
+		cmd = append(cmd, "--log-level", config.LogLevel)
+		cmd = append(cmd, "--export-type", CHANGES_ONLY)
+		//TODO: see if we can do better, but these params are required for import data to target cmd
+		cmd = append(cmd, "--source-db-type", currentMsr.SourceDBConf.DBType)
+		cmd = append(cmd, "--source-db-name", currentMsr.SourceDBConf.DBName)
+		cmd = append(cmd, "--source-db-user", currentMsr.SourceDBConf.User)
+		cmd = append(cmd, "--source-db-schema", currentMsr.SourceDBConf.SchemaConfig)
+	}
+
+	iterationExportDir := GetIterationExportDir(currentMsr.GetIterationsDir(exportDir), currentMsr.IterationNo+1)
+	utils.PrintAndLogfInfo("\nStarting export data from source on iteration %d at %s.\n\n", currentMsr.IterationNo+1, iterationExportDir)
+
+	cmdStr := "SOURCE_DB_PASSWORD=*** " + strings.Join(cmd, " ")
+
+	utils.PrintAndLogf("Starting export data from source with command:\n %s", color.GreenString(cmdStr))
+
+	binary, lookErr := exec.LookPath(os.Args[0])
+	if lookErr != nil {
+		utils.ErrExit("could not find yb-voyager: %w", lookErr)
+	}
+	env := os.Environ()
+	env = slices.Insert(env, 0, "SOURCE_DB_PASSWORD="+tconf.Password)
+
+	execErr := syscall.Exec(binary, cmd, env)
+	if execErr != nil {
+		utils.ErrExit("failed to run yb-voyager export data from source: %w\n Please re-run with command :\n%s", execErr, cmdStr)
 	}
 }
 
@@ -387,6 +511,9 @@ func checkImportDataPermissions() {
 }
 
 func startExportDataFromTargetIfRequired() {
+	if !changeStreamingIsEnabled(importType) {
+		return
+	}
 	if importerRole != TARGET_DB_IMPORTER_ROLE {
 		return
 	}
@@ -398,13 +525,10 @@ func startExportDataFromTargetIfRequired() {
 		utils.PrintAndLogf("No fall-forward/back enabled. Exiting.")
 		return
 	}
-	importTableNames := lo.Map(importTableList, func(tableName sqlname.NameTuple, _ int) string {
-		return tableName.ForUserQuery()
-	})
 
 	lockFile.Unlock() // unlock export dir from import data cmd before switching current process to ff/fb sync cmd
 
-	cmd := generateExportDataFromTargetCommand(importTableNames, msr)
+	cmd := generateExportDataFromTargetCommand(msr)
 
 	cmdStr := "TARGET_DB_PASSWORD=*** " + strings.Join(cmd, " ")
 
@@ -423,10 +547,8 @@ func startExportDataFromTargetIfRequired() {
 	}
 }
 
-func generateExportDataFromTargetCommand(importTableNames []string, msr *metadb.MigrationStatusRecord) []string {
-	cmd := []string{"yb-voyager", "export", "data", "from", "target",
-		"--table-list", strings.Join(importTableNames, ","),
-	}
+func generateExportDataFromTargetCommand(msr *metadb.MigrationStatusRecord) []string {
+	cmd := []string{"yb-voyager", "export", "data", "from", "target"}
 
 	arguments := generateGlobalExportImportArguments()
 	cmd = append(cmd, arguments...)
@@ -638,6 +760,12 @@ func updateImportDataStartedInMetaDB() error {
 		})
 		if err != nil {
 			return goerrors.Errorf("Failed to update import data status record: %s", err)
+		}
+		err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+			record.ImportDataToTargetStarted = true
+		})
+		if err != nil {
+			return goerrors.Errorf("failed to update migration status record: %w", err)
 		}
 
 	case IMPORT_FILE_ROLE:
@@ -1004,7 +1132,46 @@ func postCutoverProcessing(importTableList []sqlname.NameTuple) error {
 	if err != nil {
 		return goerrors.Errorf("failed to mark cutover as processed: %s", err)
 	}
+
+	//Waiting for the cutover of the export data from target to mark the cutover as processed for the importer role
+	//so that we continue the anything required after post cutover processing only when the cutover for both the commands are completed
+	//next step will be the initialise the next iteration and then mark the latest iteration number in the MSR. so this is required now to wait first
+	err = waitUntilCutoverProcessedByCorrespondingExporterForImporter(importerRole)
+	if err != nil {
+		return goerrors.Errorf("failed to wait until cutover processed by exporter: %s", err)
+	}
 	return nil
+}
+
+func waitUntilCutoverProcessedByCorrespondingExporterForImporter(importerRole string) error {
+	timeout := 10 * time.Minute
+	startTime := time.Now()
+	for {
+		if time.Since(startTime) > timeout {
+			return goerrors.Errorf("timeout waiting for next iteration to be initialized. Ensure 'export data from target' is running, then re-run this command.")
+		}
+		record, err := metaDB.GetMigrationStatusRecord()
+		if err != nil {
+			return fmt.Errorf("failed to get migration status record: %w", err)
+		}
+		switch importerRole {
+		case SOURCE_DB_IMPORTER_ROLE:
+			if record.CutoverToSourceProcessedByTargetExporter {
+				return nil
+			}
+		case TARGET_DB_IMPORTER_ROLE:
+			if record.CutoverProcessedBySourceExporter {
+				return nil
+			}
+		case SOURCE_REPLICA_DB_IMPORTER_ROLE:
+			if record.CutoverToSourceReplicaProcessedByTargetExporter {
+				return nil
+			}
+		default:
+			return goerrors.Errorf("invalid importer role: %s", importerRole)
+		}
+		time.Sleep(2 * time.Second)
+	}
 }
 
 // For a fresh start but non empty tables in tableList && OnPrimaryKeyConflict is set to IGNORE -> notify user
