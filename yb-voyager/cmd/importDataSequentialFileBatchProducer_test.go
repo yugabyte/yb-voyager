@@ -1103,14 +1103,15 @@ func TestByteSeekResumption_NoHeader(t *testing.T) {
 	defer os.RemoveAll(ldataDir)
 	defer os.RemoveAll(lexportDir)
 
-	// TEXT format with no header
+	rows := []string{"1\thello", "2\tworld", "3\tfoo", "4\tbar"}
 	dataFileDescriptor = &datafile.Descriptor{
 		FileFormat: "text",
 		Delimiter:  "\t",
 		HasHeader:  false,
 		ExportDir:  lexportDir,
 	}
-	tempFile, err := testutils.CreateTempFile(ldataDir, "1\thello\n2\tworld\n3\tfoo\n4\tbar\n", "text")
+	fileContent := strings.Join(rows, "\n") + "\n"
+	tempFile, err := testutils.CreateTempFile(ldataDir, fileContent, "text")
 	assert.NoError(t, err)
 
 	sourceName := sqlname.NewObjectName(constants.POSTGRESQL, "public", "public", "test_no_header")
@@ -1119,7 +1120,7 @@ func TestByteSeekResumption_NoHeader(t *testing.T) {
 		ID:           1,
 		FilePath:     tempFile,
 		TableNameTup: tableNameTup,
-		RowCount:     4,
+		RowCount:     int64(len(rows)),
 	}
 
 	// First run: produce one batch (rows 1-2)
@@ -1149,7 +1150,8 @@ func TestByteSeekResumption_NoHeader(t *testing.T) {
 	// Verify content
 	batchContents, err := os.ReadFile(batch2.GetFilePath())
 	assert.NoError(t, err)
-	assert.Equal(t, "3\tfoo\n4\tbar", string(batchContents))
+	expected := strings.Join(rows[2:], "\n")
+	assert.Equal(t, expected, string(batchContents))
 
 	// Last batch's CumByteOffset should equal total file size
 	fileInfo, err := os.Stat(task.FilePath)
@@ -1219,13 +1221,15 @@ func TestMultipleResumeCycles(t *testing.T) {
 	defer os.RemoveAll(ldataDir)
 	defer os.RemoveAll(lexportDir)
 
+	rows := []string{"a\tb", "c\td", "e\tf", "g\th", "i\tj", "k\tl"}
 	dataFileDescriptor = &datafile.Descriptor{
 		FileFormat: "text",
 		Delimiter:  "\t",
 		HasHeader:  false,
 		ExportDir:  lexportDir,
 	}
-	tempFile, err := testutils.CreateTempFile(ldataDir, "a\tb\nc\td\ne\tf\ng\th\ni\tj\nk\tl\n", "text")
+	fileContent := strings.Join(rows, "\n") + "\n"
+	tempFile, err := testutils.CreateTempFile(ldataDir, fileContent, "text")
 	assert.NoError(t, err)
 
 	sourceName := sqlname.NewObjectName(constants.POSTGRESQL, "public", "public", "test_multi_resume")
@@ -1234,7 +1238,7 @@ func TestMultipleResumeCycles(t *testing.T) {
 		ID:           1,
 		FilePath:     tempFile,
 		TableNameTup: tableNameTup,
-		RowCount:     6,
+		RowCount:     int64(len(rows)),
 	}
 
 	// Cycle 1: produce 2 batches
@@ -1301,11 +1305,11 @@ func TestMultipleResumeCycles(t *testing.T) {
 	// Verify data correctness of byte-seeked batches
 	b3Contents, err := os.ReadFile(b3.GetFilePath())
 	assert.NoError(t, err)
-	assert.Equal(t, "e\tf", string(b3Contents))
+	assert.Equal(t, rows[2], string(b3Contents))
 
 	b5Contents, err := os.ReadFile(b5.GetFilePath())
 	assert.NoError(t, err)
-	assert.Equal(t, "i\tj", string(b5Contents))
+	assert.Equal(t, rows[4], string(b5Contents))
 }
 
 // Verifies cumByteOffset equals file size for a single-row file that produces one batch.
@@ -1440,6 +1444,117 @@ func TestByteSeekResumption_ManyBatches(t *testing.T) {
 	fileInfo, err := os.Stat(task.FilePath)
 	assert.NoError(t, err)
 	assert.Equal(t, fileInfo.Size(), seekedBatches[len(seekedBatches)-1].CumByteOffset)
+}
+
+// Verifies byte-seek resumption with SQL (ora2pg) format. When opened at a byte offset
+// mid-file, the SqlDataFile must assume it is inside a COPY block (via openedAtOffset > 0)
+// so that data rows are parsed correctly without waiting for a COPY preamble.
+func TestByteSeekResumption_SqlFormat(t *testing.T) {
+	ldataDir, lexportDir, state, errorHandler, progressReporter, err := setupExportDirAndImportDependencies(2, 1024)
+	assert.NoError(t, err)
+	defer os.RemoveAll(ldataDir)
+	defer os.RemoveAll(lexportDir)
+
+	// ora2pg-style SQL: COPY preamble, data rows, end-of-copy marker
+	sqlContent := `COPY "public"."test_table" ("id", "val") FROM STDIN;
+1	hello
+2	world
+3	foo
+4	bar
+\.
+`
+	dataRows := []string{"1\thello", "2\tworld", "3\tfoo", "4\tbar"}
+
+	dataFileDescriptor = &datafile.Descriptor{
+		FileFormat: "sql",
+		HasHeader:  false,
+		ExportDir:  lexportDir,
+	}
+	tempFile, err := testutils.CreateTempFile(ldataDir, sqlContent, "sql")
+	assert.NoError(t, err)
+
+	sourceName := sqlname.NewObjectName(constants.POSTGRESQL, "public", "public", "test_sql_seek")
+	tableNameTup := sqlname.NameTuple{SourceName: sourceName, CurrentName: sourceName}
+	task := &ImportFileTask{
+		ID:           1,
+		FilePath:     tempFile,
+		TableNameTup: tableNameTup,
+		RowCount:     4,
+	}
+
+	// First run: produce one batch (rows 1-2)
+	bp1, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+	assert.NoError(t, err)
+	batch1, err := bp1.NextBatch()
+	assert.NoError(t, err)
+	assert.Equal(t, int64(2), batch1.RecordCount)
+	assert.Greater(t, batch1.CumByteOffset, int64(0))
+	bp1.Close()
+
+	// Resume: byte-seek past the COPY preamble + first 2 data rows
+	bp2, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+	assert.NoError(t, err)
+	assert.Equal(t, batch1.CumByteOffset, bp2.lastBatchCumByteOffset)
+
+	// Drain pending batch 1
+	_, err = bp2.NextBatch()
+	assert.NoError(t, err)
+
+	// Produce batch 2 via byte-seek — SqlDataFile must know it's inside COPY
+	batch2, err := bp2.NextBatch()
+	assert.NoError(t, err)
+	assert.Equal(t, int64(2), batch2.RecordCount)
+	assert.True(t, bp2.Done())
+	bp2.Close()
+
+	// Verify batch 2 contains rows 3-4 (correct parsing after seek)
+	b2Contents, err := os.ReadFile(batch2.GetFilePath())
+	assert.NoError(t, err)
+	expected := strings.Join(dataRows[2:], "\n")
+	assert.Equal(t, expected, string(b2Contents))
+
+	// Last batch cumByteOffset should equal file size
+	fileInfo, err := os.Stat(task.FilePath)
+	assert.NoError(t, err)
+	assert.Equal(t, fileInfo.Size(), batch2.CumByteOffset,
+		"Last batch cumByteOffset should equal file size for SQL format")
+}
+
+// Verifies cumByteOffset equals file size when a row is stashed due to a
+// transformation/conversion error (as opposed to a too-large row error).
+func TestCumByteOffset_WithConversionErrors(t *testing.T) {
+	ldataDir, lexportDir, state, _, progressReporter, err := setupExportDirAndImportDependencies(1000, 1024)
+	assert.NoError(t, err)
+	defer os.RemoveAll(ldataDir)
+	defer os.RemoveAll(lexportDir)
+
+	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir))
+	assert.NoError(t, err)
+
+	fileContents := `id,val
+1,ok
+2,errorrow
+3,ok2`
+	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
+	assert.NoError(t, err)
+
+	origValueConverter := valueConverter
+	valueConverter = &mockRowErrorValueConverter{rowToError: 2}
+	t.Cleanup(func() { valueConverter = origValueConverter })
+
+	bp, err := NewSequentialFileBatchProducer(task, state, true, scErrorHandler, progressReporter)
+	assert.NoError(t, err)
+
+	batch, err := bp.NextBatch()
+	assert.NoError(t, err)
+	assert.Equal(t, int64(2), batch.RecordCount) // rows 1 and 3 (row 2 conversion-errored)
+	assert.True(t, bp.Done())
+
+	// cumByteOffset must equal total file size, including the errored row's bytes
+	fileInfo, err := os.Stat(task.FilePath)
+	assert.NoError(t, err)
+	assert.Equal(t, fileInfo.Size(), batch.CumByteOffset,
+		"cumByteOffset should include conversion-errored row bytes and equal file size")
 }
 
 func assertNoProcessingErrorBatchFileExists(t *testing.T, lexportDir string, task *ImportFileTask, batchNumber int64) {
