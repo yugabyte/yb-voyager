@@ -309,7 +309,7 @@ func (p *SequentialFileBatchProducer) openAndReadHeader() (datafile.DataFile, er
 		return nil, goerrors.Errorf("preparing reader for file: %q: %v", p.task.FilePath, err)
 	}
 
-	df, err := datafile.NewDataFile(p.task.FilePath, reader, dataFileDescriptor)
+	df, err := datafile.NewDataFile(p.task.FilePath, reader, dataFileDescriptor, 0)
 	if err != nil {
 		reader.Close()
 		return nil, goerrors.Errorf("open datafile: %q: %v", p.task.FilePath, err)
@@ -346,20 +346,14 @@ func (p *SequentialFileBatchProducer) openDataFileAtByteOffset() error {
 		return goerrors.Errorf("seeking to byte offset %d in file %q: %v", p.lastBatchCumByteOffset, p.task.FilePath, err)
 	}
 
-	// Build a fresh DataFile on the seeked reader.
-	dataFile, err := datafile.NewDataFile(p.task.FilePath, reader, dataFileDescriptor)
+	// Build a fresh DataFile on the seeked reader, passing the offset so that
+	// format-specific logic (e.g., SQL assuming mid-COPY) is handled internally.
+	dataFile, err := datafile.NewDataFile(p.task.FilePath, reader, dataFileDescriptor, p.lastBatchCumByteOffset)
 	if err != nil {
 		reader.Close()
 		return goerrors.Errorf("open datafile after seek: %q: %v", p.task.FilePath, err)
 	}
 	p.dataFile = dataFile
-
-	// For SQL files (ora2pg), we've seeked into the middle of a COPY block.
-	if dataFileDescriptor.FileFormat == datafile.SQL {
-		if sqlDF, ok := dataFile.(*datafile.SqlDataFile); ok {
-			sqlDF.SetInsideCopyStmt(true)
-		}
-	}
 
 	log.Infof("Resumed file %q at byte offset %d (skipped SkipLines)", p.task.FilePath, p.lastBatchCumByteOffset)
 	return nil

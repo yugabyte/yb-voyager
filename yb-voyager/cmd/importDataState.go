@@ -874,7 +874,7 @@ func (batch *Batch) OpenAsDataFile() (datafile.DataFile, error) {
 		return nil, goerrors.Errorf("open batch file %q: %s", batch.GetFilePath(), err)
 	}
 
-	datafile, err := datafile.NewDataFile(batch.GetFilePath(), file, dataFileDescriptor)
+	datafile, err := datafile.NewDataFile(batch.GetFilePath(), file, dataFileDescriptor, 0)
 	if err != nil {
 		return nil, goerrors.Errorf("create datafile for %q: %s", batch.GetFilePath(), err)
 	}
