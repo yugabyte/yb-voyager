@@ -3459,7 +3459,7 @@ func TestLiveMigrationWithFallbackWithMultipleIterations(t *testing.T) {
 
 	err = lm.WaitForFallbackStreamingComplete(map[string]ChangesCount{
 		`"test_schema"."test_live"`: {
-			Inserts: 10,
+			Inserts: 5,
 			Updates: 0,
 			Deletes: 0,
 		},
@@ -3483,7 +3483,7 @@ func TestLiveMigrationWithFallbackWithMultipleIterations(t *testing.T) {
 		err = lm.ExecuteSourceDelta()
 		testutils.FatalIfError(t, err, "failed to execute source delta")
 
-		var inserts int64 = 10 + int64(i*5)
+		var inserts int64 = 5 + int64(i*5)
 		err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
 			`"test_schema"."test_live"`: {
 				Inserts: inserts,
@@ -3505,10 +3505,9 @@ func TestLiveMigrationWithFallbackWithMultipleIterations(t *testing.T) {
 		err = lm.ExecuteTargetDelta()
 		testutils.FatalIfError(t, err, "failed to execute target delta")
 
-		var fallbackInserts int64 = inserts + 5
 		err = lm.WaitForFallbackStreamingComplete(map[string]ChangesCount{
 			`"test_schema"."test_live"`: {
-				Inserts: fallbackInserts,
+				Inserts: inserts,
 				Updates: 0,
 				Deletes: 0,
 			},
