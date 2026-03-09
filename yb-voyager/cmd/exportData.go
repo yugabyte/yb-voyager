@@ -184,6 +184,12 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 		source.Password = password
 	}
 
+	if exportType == CHANGES_ONLY && len(msr.TableListExportedFromSource) > 0 {
+		source.TableList = strings.Join(msr.TableListExportedFromSource, ",")
+	} else if !msr.IsParentMigration() {
+		utils.ErrExit("table list is not set for the iterations.")
+	}
+
 	handleCutoverAlreadyProcessedForExportData()
 
 	success := exportData()

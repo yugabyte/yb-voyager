@@ -300,20 +300,9 @@ func startExportDataFromSourceOnNextIteration() {
 
 	//Start export from source on next iteration
 
-	tableListExportedFromSource := currentMsr.TableListExportedFromSource
-	importTableList, err := getInitialImportTableListForLive(tableListExportedFromSource)
-	if err != nil {
-		utils.ErrExit("failed to generate table list : %v", err)
-	}
-	importTableNames := lo.Map(importTableList, func(tableName sqlname.NameTuple, _ int) string {
-		return tableName.ForKey()
-	})
-
 	lockFile.Unlock() // unlock export dir from import data cmd before switching current process to ff/fb sync cmd
 	cmd := []string{"yb-voyager", "export", "data", "from", "source"}
 	if cfgFile != "" {
-		cmd = append(cmd, "--table-list", strings.Join(importTableNames, ","))
-
 		//If there are cli overrides for the command, pass them as cli overrides to the import data to source command
 		//Only disable-pb and log-level are the common flags of both the commands
 		for _, override := range resolvedConfig.fromCLI {
@@ -345,7 +334,6 @@ func startExportDataFromSourceOnNextIteration() {
 		}
 		cmd = append(cmd, fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics))
 		cmd = append(cmd, "--log-level", config.LogLevel)
-		cmd = append(cmd, "--table-list", strings.Join(importTableNames, ","))
 		cmd = append(cmd, "--export-type", CHANGES_ONLY)
 		//TODO: see if we can do better, but these params are required for import data to target cmd
 		cmd = append(cmd, "--source-db-type", currentMsr.SourceDBConf.DBType)
@@ -537,13 +525,10 @@ func startExportDataFromTargetIfRequired() {
 		utils.PrintAndLogf("No fall-forward/back enabled. Exiting.")
 		return
 	}
-	importTableNames := lo.Map(importTableList, func(tableName sqlname.NameTuple, _ int) string {
-		return tableName.ForUserQuery()
-	})
 
 	lockFile.Unlock() // unlock export dir from import data cmd before switching current process to ff/fb sync cmd
 
-	cmd := generateExportDataFromTargetCommand(importTableNames, msr)
+	cmd := generateExportDataFromTargetCommand(msr)
 
 	cmdStr := "TARGET_DB_PASSWORD=*** " + strings.Join(cmd, " ")
 
@@ -562,10 +547,8 @@ func startExportDataFromTargetIfRequired() {
 	}
 }
 
-func generateExportDataFromTargetCommand(importTableNames []string, msr *metadb.MigrationStatusRecord) []string {
-	cmd := []string{"yb-voyager", "export", "data", "from", "target",
-		"--table-list", strings.Join(importTableNames, ","),
-	}
+func generateExportDataFromTargetCommand(msr *metadb.MigrationStatusRecord) []string {
+	cmd := []string{"yb-voyager", "export", "data", "from", "target"}
 
 	arguments := generateGlobalExportImportArguments()
 	cmd = append(cmd, arguments...)
