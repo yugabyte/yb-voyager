@@ -1161,7 +1161,12 @@ func postCutoverProcessing(importTableList []sqlname.NameTuple) error {
 }
 
 func waitUntilCutoverProcessedByCorrespondingExporterForImporter(importerRole string) error {
+	timeout := 10 * time.Minute
+	startTime := time.Now()
 	for {
+		if time.Since(startTime) > timeout {
+			return goerrors.Errorf("timeout waiting for next iteration to be initialized. Ensure 'export data from target' is running, then re-run this command.")
+		}
 		record, err := metaDB.GetMigrationStatusRecord()
 		if err != nil {
 			return fmt.Errorf("failed to get migration status record: %w", err)
