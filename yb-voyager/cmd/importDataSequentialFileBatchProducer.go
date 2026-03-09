@@ -296,7 +296,7 @@ func (p *SequentialFileBatchProducer) transformRow(row string, columnNames []str
 
 func (p *SequentialFileBatchProducer) openDataFile() error {
 	if p.lastBatchCumByteOffset > 0 {
-		return p.openDataFileWithSeek()
+		return p.openDataFileAtByteOffset()
 	}
 	return p.openDataFileFirstRun()
 }
@@ -323,9 +323,9 @@ func (p *SequentialFileBatchProducer) openAndReadHeader() (datafile.DataFile, er
 	return df, nil
 }
 
-// openDataFileWithSeek resumes by seeking directly to the byte offset.
+// openDataFileAtByteOffset resumes by opening the file at the last known byte offset.
 // Used when lastBatchCumByteOffset > 0.
-func (p *SequentialFileBatchProducer) openDataFileWithSeek() error {
+func (p *SequentialFileBatchProducer) openDataFileAtByteOffset() error {
 	// Read header before seeking (seek jumps past it).
 	if dataFileDescriptor.HasHeader {
 		headerDataFile, err := p.openAndReadHeader()
