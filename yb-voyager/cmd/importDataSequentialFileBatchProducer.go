@@ -45,12 +45,12 @@ type SequentialFileBatchProducer struct {
 	fileFullySplit  bool     // if the file is fully split into batches
 	completed       bool     // if all batches have been produced
 
-	dataFile          datafile.DataFile
-	header            string
-	headerByteCount   int64
-	numLinesTaken     int64 // number of lines read from the file
-	lastCumByteOffset int64 // cumulative byte offset recovered from batch state; -1 if unavailable
-	cumByteOffset     int64 // running cumulative byte offset tracking absolute file position
+	dataFile               datafile.DataFile
+	header                 string
+	headerByteCount        int64
+	numLinesTaken          int64 // number of lines read from the file
+	lastBatchCumByteOffset int64 // cumulative byte offset recovered from the last batch's state
+	cumByteOffset          int64 // running cumulative byte offset tracking absolute file position
 	// line that was read from file while producing the previous batch
 	// but not added to the batch because adding it would breach size/row based thresholds.
 	lineFromPreviousBatch string
@@ -80,7 +80,7 @@ func NewSequentialFileBatchProducer(task *ImportFileTask, state *ImportDataState
 		return nil, goerrors.Errorf("preparing for file import: %s", err)
 	}
 
-	pendingBatches, lastBatchNumber, lastOffset, lastCumByteOffset, fileFullySplit, err := state.Recover(task.FilePath, task.TableNameTup)
+	pendingBatches, lastBatchNumber, lastOffset, lastBatchCumByteOffset, fileFullySplit, err := state.Recover(task.FilePath, task.TableNameTup)
 	if err != nil {
 		return nil, goerrors.Errorf("recovering state for table: %q: %s", task.TableNameTup, err)
 	}
@@ -106,8 +106,8 @@ func NewSequentialFileBatchProducer(task *ImportFileTask, state *ImportDataState
 		fileFullySplit:              fileFullySplit,
 		completed:                   completed,
 		numLinesTaken:               lastOffset,
-		lastCumByteOffset:           lastCumByteOffset,
-		cumByteOffset:               lastCumByteOffset,
+		lastBatchCumByteOffset:      lastBatchCumByteOffset,
+		cumByteOffset:               lastBatchCumByteOffset,
 		errorHandler:                errorHandler,
 		progressReporter:            progressReporter,
 		isRowTransformationRequired: isRowTransformationRequired,
@@ -295,7 +295,7 @@ func (p *SequentialFileBatchProducer) transformRow(row string, columnNames []str
 }
 
 func (p *SequentialFileBatchProducer) openDataFile() error {
-	if p.lastCumByteOffset > 0 {
+	if p.lastBatchCumByteOffset > 0 {
 		return p.openDataFileWithSeek()
 	}
 	return p.openDataFileFirstRun()
@@ -324,7 +324,7 @@ func (p *SequentialFileBatchProducer) openAndReadHeader() (datafile.DataFile, er
 }
 
 // openDataFileWithSeek resumes by seeking directly to the byte offset.
-// Used when lastCumByteOffset > 0.
+// Used when lastBatchCumByteOffset > 0.
 func (p *SequentialFileBatchProducer) openDataFileWithSeek() error {
 	// Read header before seeking (seek jumps past it).
 	if dataFileDescriptor.HasHeader {
@@ -336,14 +336,14 @@ func (p *SequentialFileBatchProducer) openDataFileWithSeek() error {
 	}
 
 	// Seek to byte offset. Falls back to SkipLines if datastore doesn't support OpenAt yet.
-	log.Infof("Seeking to byte offset %d in %q", p.lastCumByteOffset, p.task.FilePath)
-	reader, err := dataStore.OpenAt(p.task.FilePath, p.lastCumByteOffset)
+	log.Infof("Seeking to byte offset %d in %q", p.lastBatchCumByteOffset, p.task.FilePath)
+	reader, err := dataStore.OpenAt(p.task.FilePath, p.lastBatchCumByteOffset)
 	if err != nil {
 		if errors.Is(err, datastore.ErrOpenAtNotImplemented) {
 			log.Warnf("OpenAt not implemented for current datastore, falling back to SkipLines for %q", p.task.FilePath)
 			return p.openDataFileForCloudFallback()
 		}
-		return goerrors.Errorf("seeking to byte offset %d in file %q: %v", p.lastCumByteOffset, p.task.FilePath, err)
+		return goerrors.Errorf("seeking to byte offset %d in file %q: %v", p.lastBatchCumByteOffset, p.task.FilePath, err)
 	}
 
 	// Build a fresh DataFile on the seeked reader.
@@ -361,7 +361,7 @@ func (p *SequentialFileBatchProducer) openDataFileWithSeek() error {
 		}
 	}
 
-	log.Infof("Resumed file %q at byte offset %d (skipped SkipLines)", p.task.FilePath, p.lastCumByteOffset)
+	log.Infof("Resumed file %q at byte offset %d (skipped SkipLines)", p.task.FilePath, p.lastBatchCumByteOffset)
 	return nil
 }
 

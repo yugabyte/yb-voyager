@@ -174,7 +174,7 @@ func (s *ImportDataState) Recover(filePath string, tableNameTup sqlname.NameTupl
 
 	lastBatchNumber := int64(0)
 	lastOffset := int64(0)
-	lastCumByteOffset := int64(0)
+	lastBatchCumByteOffset := int64(0)
 	fileFullySplit := false
 
 	batches, err := s.GetAllBatches(filePath, tableNameTup)
@@ -196,14 +196,14 @@ func (s *ImportDataState) Recover(filePath string, tableNameTup sqlname.NameTupl
 		if batch.OffsetEnd > lastOffset {
 			lastOffset = batch.OffsetEnd
 		}
-		if batch.CumByteOffset > lastCumByteOffset {
-			lastCumByteOffset = batch.CumByteOffset
+		if batch.CumByteOffset > lastBatchCumByteOffset {
+			lastBatchCumByteOffset = batch.CumByteOffset
 		}
 		if !batch.IsCompleted() {
 			pendingBatches = append(pendingBatches, batch)
 		}
 	}
-	return pendingBatches, lastBatchNumber, lastOffset, lastCumByteOffset, fileFullySplit, nil
+	return pendingBatches, lastBatchNumber, lastOffset, lastBatchCumByteOffset, fileFullySplit, nil
 }
 
 func (s *ImportDataState) Clean(filePath string, tableNameTup sqlname.NameTuple) error {

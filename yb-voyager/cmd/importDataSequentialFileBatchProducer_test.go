@@ -299,7 +299,7 @@ func TestFileBatchProducerResumable(t *testing.T) {
 	// state should have recovered that one batch
 	assert.Equal(t, 1, len(batchproducer.pendingBatches))
 	assert.True(t, cmp.Equal(batch1, batchproducer.pendingBatches[0]))
-	assert.Equal(t, batch1.CumByteOffset, batchproducer.lastCumByteOffset)
+	assert.Equal(t, batch1.CumByteOffset, batchproducer.lastBatchCumByteOffset)
 	assert.Equal(t, batch1.CumByteOffset, batchproducer.cumByteOffset)
 
 	// verify that it picks up from pendingBatches
@@ -1069,8 +1069,8 @@ func TestByteSeekResumption(t *testing.T) {
 	// Resume: should use byte-seek (cumByteOffset > 0)
 	bp2, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
 	assert.NoError(t, err)
-	assert.Equal(t, batch1.CumByteOffset, bp2.lastCumByteOffset,
-		"Recovered lastCumByteOffset should match batch1's CumByteOffset")
+	assert.Equal(t, batch1.CumByteOffset, bp2.lastBatchCumByteOffset,
+		"Recovered lastBatchCumByteOffset should match batch1's CumByteOffset")
 
 	// Get pending batch 1 first
 	recoveredBatch, err := bp2.NextBatch()
@@ -1250,7 +1250,7 @@ func TestMultipleResumeCycles(t *testing.T) {
 	// Cycle 2: resume, get 2 pending + produce 2 new
 	bp2, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
 	assert.NoError(t, err)
-	assert.Equal(t, b2.CumByteOffset, bp2.lastCumByteOffset)
+	assert.Equal(t, b2.CumByteOffset, bp2.lastBatchCumByteOffset)
 
 	// Drain pending
 	_, err = bp2.NextBatch()
@@ -1269,7 +1269,7 @@ func TestMultipleResumeCycles(t *testing.T) {
 	// Cycle 3: resume again, get 4 pending + produce remaining 2
 	bp3, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
 	assert.NoError(t, err)
-	assert.Equal(t, b4.CumByteOffset, bp3.lastCumByteOffset)
+	assert.Equal(t, b4.CumByteOffset, bp3.lastBatchCumByteOffset)
 
 	// Drain 4 pending
 	for i := 0; i < 4; i++ {
@@ -1410,7 +1410,7 @@ func TestByteSeekResumption_ManyBatches(t *testing.T) {
 	// Resume: byte-seek to midpoint
 	bp2, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
 	assert.NoError(t, err)
-	assert.Equal(t, firstRunBatches[3].CumByteOffset, bp2.lastCumByteOffset)
+	assert.Equal(t, firstRunBatches[3].CumByteOffset, bp2.lastBatchCumByteOffset)
 
 	// Drain 4 pending
 	for i := 0; i < 4; i++ {
