@@ -36,8 +36,15 @@ var importDataToSourceCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		validateMetaDBCreated()
 		importType = SNAPSHOT_AND_CHANGES
+		msr, err := metaDB.GetMigrationStatusRecord()
+		if err != nil {
+			utils.ErrExit("failed to get migration status record: %w", err)
+		}
+		if !msr.FallbackEnabled {
+			utils.ErrExit("fallback is not enabled for this migration")
+		}
 		importerRole = SOURCE_DB_IMPORTER_ROLE
-		err := initTargetConfFromSourceConf()
+		err = initTargetConfFromSourceConf()
 		if err != nil {
 			utils.ErrExit("failed to setup target conf from source conf in MSR: %w", err)
 		}

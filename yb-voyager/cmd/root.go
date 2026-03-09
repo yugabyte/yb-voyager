@@ -255,8 +255,12 @@ func resolveToActiveIterationIfRequired(cmd *cobra.Command) error {
 		return nil
 	}
 	if msr.IsIteration() || msr.LatestIterationNumber == 0 {
+		//If there are no iterations and the export-dir is itself the iteration then no need to resolve to export-dir
 		return nil
 	}
+
+	parentExportDir := exportDir
+
 	iterationsDir := msr.GetIterationsDir(exportDir)
 	iterationExportDir := GetIterationExportDir(iterationsDir, msr.LatestIterationNumber)
 	if !utils.FileOrFolderExists(iterationExportDir) {
@@ -267,15 +271,48 @@ func resolveToActiveIterationIfRequired(cmd *cobra.Command) error {
 		return fmt.Errorf("failed to create iteration meta db: %w", err)
 	}
 
-	log.Infof("Resolving to iteration %d: %s", msr.LatestIterationNumber, iterationExportDir)
-	//update the export dir and meta db to the iteration export dir and meta db
-	//Keeping config file same as parent as nothing changing as such in the config file for iteration except the export dir and export type
-	exportDir = iterationExportDir
+	/*
+	 in case the iteration is updated to next iteration by improt data to source but export data is yet to pick that up and crashes
+	 now we need to re-run the export data from target to be able to start import data to target but since the latest iteration is updated to next
+	 we will always resolve the export-dir of the next one where export data from target will not work as it says no fallback/forward is enabled
+
+	 In this case we need to resolve the exprot-dir to previous iteration and this will only be require for fallback commands
+	 so in case the command is fallback one (export data from target and import data to source) and the cutover to target on latest iteration is not initiated
+	 we re-direct the command to the previous iteration and let it handle the command - if anything is left it will start finish that up.
+	*/
+	cmdPath := cmd.CommandPath()
+	isFallbackCmd := slices.Contains(fallbackPhaseCommands, cmdPath)
+	//setting the metaDB to the iteration metaDB as the getCutoverStatus is using the global metaDB
+	//and we are fetching the cutover status for the current iteration from this metaDB.
 	metaDB = iterationMetaDB
+	latestIterInForwardPhase := (getCutoverStatus() == NOT_INITIATED)
+
+	if isFallbackCmd && latestIterInForwardPhase {
+		// Latest iteration is in forward phase — so fallback command belongs to the PREVIOUS iteration
+		if msr.LatestIterationNumber > 1 {
+			prevIterExportDir := GetIterationExportDir(iterationsDir, msr.LatestIterationNumber-1)
+			// resolve to previous iteration
+			exportDir = prevIterExportDir
+		} else {
+			// Previous iteration is the parent — don't redirect
+			// (exportDir stays as parent)
+			exportDir = parentExportDir
+
+		}
+	} else {
+		// Forward command or fallback command on a fallback-phase iteration
+		exportDir = iterationExportDir
+	}
+
 	exportType = CHANGES_ONLY
 
 	return nil
+}
 
+var fallbackPhaseCommands = []string{
+	"yb-voyager export data from target",
+	"yb-voyager import data to source",
+	"yb-voyager initiate cutover to source",
 }
 
 func shouldRunExportDirInitialisedCheck(cmd *cobra.Command) bool {

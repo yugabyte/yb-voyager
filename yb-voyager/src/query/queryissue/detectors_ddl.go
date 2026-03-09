@@ -842,11 +842,15 @@ func (i *IndexIssueDetector) reportVariousIndexPerfOptimizationsOnFirstColumnOfI
 	}
 	//Now most frequent value is reported all the time as low cardinality is no longer a problem as we have default as RANGE secondary indexes
 	if maxFrequencyPerc >= MOST_FREQUENT_VALUE_THRESHOLD && !mostCommonValPartialIndex {
+		columnType := ""
+		if columnMeta, ok := tm.Columns[firstColumnParam.ColName]; ok && columnMeta != nil {
+			columnType = columnMeta.DataType
+		}
 
 		//If the index is not LOW cardinality one then see if that has most frequent value or not
 		//MOST FREQUENT VALUE INDEX ISSUE
 		issues = append(issues, NewMostFrequentValueIndexesIssue(INDEX_OBJECT_TYPE, index.GetObjectName(), "",
-			isSingleColumnIndex, stat.MostCommonValue, maxFrequencyPerc, stat.ColumnName, usageCategory))
+			isSingleColumnIndex, stat.MostCommonValue, maxFrequencyPerc, stat.ColumnName, columnType, usageCategory))
 
 	}
 

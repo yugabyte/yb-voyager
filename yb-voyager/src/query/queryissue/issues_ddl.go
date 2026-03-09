@@ -44,7 +44,7 @@ var generatedColumnsIssue = issue.Issue{
 func NewGeneratedColumnsIssue(objectType string, objectName string, sqlStatement string, generatedColumns []string) QueryIssue {
 	issue := generatedColumnsIssue
 	issue.Description = fmt.Sprintf(issue.Description, strings.Join(generatedColumns, ", "))
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var unloggedTableIssue = issue.Issue{
@@ -65,7 +65,7 @@ var unloggedTableIssue = issue.Issue{
 
 func NewUnloggedTableIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	details := map[string]interface{}{}
-	return newQueryIssue(unloggedTableIssue, objectType, objectName, sqlStatement, details)
+	return newQueryIssue(unloggedTableIssue, objectType, objectName, sqlStatement, details, map[string]interface{}{})
 }
 
 var unsupportedGistIndexMethodIssue = issue.Issue{
@@ -80,7 +80,7 @@ var unsupportedGistIndexMethodIssue = issue.Issue{
 func NewUnsupportedGistIndexMethodIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	issue := unsupportedGistIndexMethodIssue
 	issue.Description = fmt.Sprintf(issue.Description, "GIST")
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var unsupportedBrinIndexMethodIssue = issue.Issue{
@@ -95,7 +95,7 @@ var unsupportedBrinIndexMethodIssue = issue.Issue{
 func NewUnsupportedBrinIndexMethodIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	issue := unsupportedBrinIndexMethodIssue
 	issue.Description = fmt.Sprintf(issue.Description, "BRIN")
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var unsupportedSpgistIndexMethodIssue = issue.Issue{
@@ -110,7 +110,7 @@ var unsupportedSpgistIndexMethodIssue = issue.Issue{
 func NewUnsupportedSpgistIndexMethodIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	issue := unsupportedSpgistIndexMethodIssue
 	issue.Description = fmt.Sprintf(issue.Description, "SPGIST")
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var storageParameterIssue = issue.Issue{
@@ -125,7 +125,7 @@ var storageParameterIssue = issue.Issue{
 
 func NewStorageParameterIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	details := map[string]interface{}{}
-	return newQueryIssue(storageParameterIssue, objectType, objectName, sqlStatement, details)
+	return newQueryIssue(storageParameterIssue, objectType, objectName, sqlStatement, details, map[string]interface{}{})
 }
 
 var setColumnAttributeIssue = issue.Issue{
@@ -140,7 +140,7 @@ var setColumnAttributeIssue = issue.Issue{
 
 func NewSetColumnAttributeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	details := map[string]interface{}{}
-	return newQueryIssue(setColumnAttributeIssue, objectType, objectName, sqlStatement, details)
+	return newQueryIssue(setColumnAttributeIssue, objectType, objectName, sqlStatement, details, map[string]interface{}{})
 }
 
 var alterTableClusterOnIssue = issue.Issue{
@@ -155,7 +155,7 @@ var alterTableClusterOnIssue = issue.Issue{
 
 func NewClusterONIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	details := map[string]interface{}{}
-	return newQueryIssue(alterTableClusterOnIssue, objectType, objectName, sqlStatement, details)
+	return newQueryIssue(alterTableClusterOnIssue, objectType, objectName, sqlStatement, details, map[string]interface{}{})
 }
 
 var alterTableDisableRuleIssue = issue.Issue{
@@ -172,7 +172,7 @@ func NewAlterTableDisableRuleIssue(objectType string, objectName string, sqlStat
 	details := map[string]interface{}{}
 	issue := alterTableDisableRuleIssue
 	issue.Suggestion = fmt.Sprintf(issue.Suggestion, ruleName)
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details, map[string]interface{}{})
 }
 
 var exclusionConstraintIssue = issue.Issue{
@@ -188,7 +188,7 @@ func NewExclusionConstraintIssue(objectType string, objectName string, sqlStatem
 	details := map[string]interface{}{
 		CONSTRAINT_NAME: constraintName,
 	}
-	return newQueryIssue(exclusionConstraintIssue, objectType, objectName, sqlStatement, details)
+	return newQueryIssue(exclusionConstraintIssue, objectType, objectName, sqlStatement, details, map[string]interface{}{})
 }
 
 var deferrableConstraintIssue = issue.Issue{
@@ -205,7 +205,7 @@ func NewDeferrableConstraintIssue(objectType string, objectName string, sqlState
 	details := map[string]interface{}{
 		CONSTRAINT_NAME: constraintName,
 	}
-	return newQueryIssue(deferrableConstraintIssue, objectType, objectName, sqlStatement, details)
+	return newQueryIssue(deferrableConstraintIssue, objectType, objectName, sqlStatement, details, map[string]interface{}{})
 }
 
 var multiColumnGinIndexIssue = issue.Issue{
@@ -218,7 +218,7 @@ var multiColumnGinIndexIssue = issue.Issue{
 }
 
 func NewMultiColumnGinIndexIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
-	return newQueryIssue(multiColumnGinIndexIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(multiColumnGinIndexIssue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var orderedGinIndexIssue = issue.Issue{
@@ -231,7 +231,7 @@ var orderedGinIndexIssue = issue.Issue{
 }
 
 func NewOrderedGinIndexIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
-	return newQueryIssue(orderedGinIndexIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(orderedGinIndexIssue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var policyRoleIssue = issue.Issue{
@@ -247,7 +247,7 @@ var policyRoleIssue = issue.Issue{
 func NewPolicyRoleIssue(objectType string, objectName string, sqlStatement string, roles []string) QueryIssue {
 	issue := policyRoleIssue
 	issue.Description = fmt.Sprintf(issue.Description, strings.Join(roles, ", "))
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var constraintTriggerIssue = issue.Issue{
@@ -261,7 +261,7 @@ var constraintTriggerIssue = issue.Issue{
 
 func NewConstraintTriggerIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	details := map[string]interface{}{}
-	return newQueryIssue(constraintTriggerIssue, objectType, objectName, sqlStatement, details)
+	return newQueryIssue(constraintTriggerIssue, objectType, objectName, sqlStatement, details, map[string]interface{}{})
 }
 
 var referencingClauseInTriggerIssue = issue.Issue{
@@ -274,7 +274,7 @@ var referencingClauseInTriggerIssue = issue.Issue{
 }
 
 func NewReferencingClauseTrigIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
-	return newQueryIssue(referencingClauseInTriggerIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(referencingClauseInTriggerIssue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var beforeRowTriggerOnPartitionTableIssue = issue.Issue{
@@ -293,7 +293,7 @@ var beforeRowTriggerOnPartitionTableIssue = issue.Issue{
 }
 
 func NewBeforeRowOnPartitionTableIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
-	return newQueryIssue(beforeRowTriggerOnPartitionTableIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(beforeRowTriggerOnPartitionTableIssue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var alterTableAddPKOnPartitionIssue = issue.Issue{
@@ -316,7 +316,7 @@ var alterTableAddPKOnPartitionIssue = issue.Issue{
 
 func NewAlterTableAddPKOnPartiionIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	details := map[string]interface{}{}
-	return newQueryIssue(alterTableAddPKOnPartitionIssue, objectType, objectName, sqlStatement, details)
+	return newQueryIssue(alterTableAddPKOnPartitionIssue, objectType, objectName, sqlStatement, details, map[string]interface{}{})
 }
 
 var expressionPartitionIssue = issue.Issue{
@@ -330,7 +330,7 @@ var expressionPartitionIssue = issue.Issue{
 }
 
 func NewExpressionPartitionIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
-	return newQueryIssue(expressionPartitionIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(expressionPartitionIssue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var multiColumnListPartition = issue.Issue{
@@ -344,7 +344,7 @@ var multiColumnListPartition = issue.Issue{
 }
 
 func NewMultiColumnListPartition(objectType string, objectName string, sqlStatement string) QueryIssue {
-	return newQueryIssue(multiColumnListPartition, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(multiColumnListPartition, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var insufficientColumnsInPKForPartition = issue.Issue{
@@ -360,7 +360,7 @@ var insufficientColumnsInPKForPartition = issue.Issue{
 func NewInsufficientColumnInPKForPartition(objectType string, objectName string, sqlStatement string, partitionColumnsNotInPK []string) QueryIssue {
 	issue := insufficientColumnsInPKForPartition
 	issue.Description = fmt.Sprintf(issue.Description, strings.Join(partitionColumnsNotInPK, ", "))
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var xmlDatatypeIssue = issue.Issue{
@@ -379,7 +379,7 @@ func NewXMLDatatypeIssue(objectType string, objectName string, sqlStatement stri
 	issue := xmlDatatypeIssue
 	typeName = strings.ToUpper(typeName)
 	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var xidDatatypeIssue = issue.Issue{
@@ -396,7 +396,7 @@ func NewXIDDatatypeIssue(objectType string, objectName string, sqlStatement stri
 	issue := xidDatatypeIssue
 	typeName = strings.ToUpper(typeName)
 	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var geometryDatatypeIssue = issue.Issue{
@@ -412,7 +412,7 @@ func NewGeometryDatatypeIssue(objectType string, objectName string, sqlStatement
 	issue := geometryDatatypeIssue
 	typeName = strings.ToUpper(typeName)
 	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var geographyDatatypeIssue = issue.Issue{
@@ -428,7 +428,7 @@ func NewGeographyDatatypeIssue(objectType string, objectName string, sqlStatemen
 	issue := geographyDatatypeIssue
 	typeName = strings.ToUpper(typeName)
 	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var box2dDatatypeIssue = issue.Issue{
@@ -444,7 +444,7 @@ func NewBox2DDatatypeIssue(objectType string, objectName string, sqlStatement st
 	issue := box2dDatatypeIssue
 	typeName = strings.ToUpper(typeName)
 	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var box3dDatatypeIssue = issue.Issue{
@@ -460,7 +460,7 @@ func NewBox3DDatatypeIssue(objectType string, objectName string, sqlStatement st
 	issue := box3dDatatypeIssue
 	typeName = strings.ToUpper(typeName)
 	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var topogeometryDatatypeIssue = issue.Issue{
@@ -476,7 +476,7 @@ func NewTopogeometryDatatypeIssue(objectType string, objectName string, sqlState
 	issue := topogeometryDatatypeIssue
 	typeName = strings.ToUpper(typeName)
 	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var loDatatypeIssue = issue.Issue{
@@ -492,7 +492,7 @@ func NewLODatatypeIssue(objectType string, objectName string, SqlStatement strin
 	issue := loDatatypeIssue
 	typeName = strings.ToUpper(typeName)
 	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
-	return newQueryIssue(issue, objectType, objectName, SqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, SqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var rasterDatatypeIssue = issue.Issue{
@@ -508,7 +508,7 @@ func NewRasterDatatypeIssue(objectType string, objectName string, sqlStatement s
 	issue := rasterDatatypeIssue
 	typeName = strings.ToUpper(typeName)
 	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var pgLsnDatatypeIssue = issue.Issue{
@@ -524,7 +524,7 @@ func NewPgLsnDatatypeIssue(objectType string, objectName string, sqlStatement st
 	issue := pgLsnDatatypeIssue
 	typeName = strings.ToUpper(typeName)
 	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var txidSnapshotDatatypeIssue = issue.Issue{
@@ -540,7 +540,7 @@ func NewTxidSnapshotDatatypeIssue(objectType string, objectName string, sqlState
 	issue := txidSnapshotDatatypeIssue
 	typeName = strings.ToUpper(typeName)
 	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var int8MultirangeDatatypeIssue = issue.Issue{
@@ -561,7 +561,7 @@ func NewInt8MultiRangeDatatypeIssue(objectType string, objectName string, sqlSta
 	issue := int8MultirangeDatatypeIssue
 	typeName = strings.ToUpper(typeName)
 	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var int4MultirangeDatatypeIssue = issue.Issue{
@@ -582,7 +582,7 @@ func NewInt4MultiRangeDatatypeIssue(objectType string, objectName string, sqlSta
 	issue := int4MultirangeDatatypeIssue
 	typeName = strings.ToUpper(typeName)
 	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var dateMultirangeDatatypeIssue = issue.Issue{
@@ -603,7 +603,7 @@ func NewDateMultiRangeDatatypeIssue(objectType string, objectName string, sqlSta
 	issue := dateMultirangeDatatypeIssue
 	typeName = strings.ToUpper(typeName)
 	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var numMultirangeDatatypeIssue = issue.Issue{
@@ -624,7 +624,7 @@ func NewNumMultiRangeDatatypeIssue(objectType string, objectName string, sqlStat
 	issue := numMultirangeDatatypeIssue
 	typeName = strings.ToUpper(typeName)
 	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var tsMultirangeDatatypeIssue = issue.Issue{
@@ -645,7 +645,7 @@ func NewTSMultiRangeDatatypeIssue(objectType string, objectName string, sqlState
 	issue := tsMultirangeDatatypeIssue
 	typeName = strings.ToUpper(typeName)
 	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var tstzMultirangeDatatypeIssue = issue.Issue{
@@ -666,7 +666,7 @@ func NewTSTZMultiRangeDatatypeIssue(objectType string, objectName string, sqlSta
 	issue := tstzMultirangeDatatypeIssue
 	typeName = strings.ToUpper(typeName)
 	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var pointDatatypeIssue = issue.Issue{
@@ -682,7 +682,7 @@ func NewPointDatatypeIssue(objectType string, objectName string, sqlStatement st
 	issue := pointDatatypeIssue
 	typeName = strings.ToUpper(typeName)
 	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var lineDatatypeIssue = issue.Issue{
@@ -698,7 +698,7 @@ func NewLineDatatypeIssue(objectType string, objectName string, sqlStatement str
 	issue := lineDatatypeIssue
 	typeName = strings.ToUpper(typeName)
 	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var lsegDatatypeIssue = issue.Issue{
@@ -714,7 +714,7 @@ func NewLsegDatatypeIssue(objectType string, objectName string, sqlStatement str
 	issue := lsegDatatypeIssue
 	typeName = strings.ToUpper(typeName)
 	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var boxDatatypeIssue = issue.Issue{
@@ -730,7 +730,7 @@ func NewBoxDatatypeIssue(objectType string, objectName string, sqlStatement stri
 	issue := boxDatatypeIssue
 	typeName = strings.ToUpper(typeName)
 	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var pathDatatypeIssue = issue.Issue{
@@ -746,7 +746,7 @@ func NewPathDatatypeIssue(objectType string, objectName string, sqlStatement str
 	issue := pathDatatypeIssue
 	typeName = strings.ToUpper(typeName)
 	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var polygonDatatypeIssue = issue.Issue{
@@ -762,7 +762,7 @@ func NewPolygonDatatypeIssue(objectType string, objectName string, sqlStatement 
 	issue := polygonDatatypeIssue
 	typeName = strings.ToUpper(typeName)
 	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var circleDatatypeIssue = issue.Issue{
@@ -778,7 +778,7 @@ func NewCircleDatatypeIssue(objectType string, objectName string, sqlStatement s
 	issue := circleDatatypeIssue
 	typeName = strings.ToUpper(typeName)
 	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var vectorDatatypeIssue = issue.Issue{
@@ -794,7 +794,7 @@ func NewVectorDatatypeIssue(objectType string, objectName string, sqlStatement s
 	issue := vectorDatatypeIssue
 	typeName = strings.ToUpper(typeName)
 	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var timetzDatatypeIssue = issue.Issue{
@@ -810,7 +810,7 @@ func NewTimetzDatatypeIssue(objectType string, objectName string, sqlStatement s
 	issue := timetzDatatypeIssue
 	typeName = strings.ToUpper(typeName)
 	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var userDefinedDatatypeIssue = issue.Issue{
@@ -826,7 +826,7 @@ func NewUserDefinedDatatypeIssue(objectType string, objectName string, sqlStatem
 	issue := userDefinedDatatypeIssue
 	typeName = strings.ToUpper(typeName)
 	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var tsQueryDatatypeIssue = issue.Issue{
@@ -842,7 +842,7 @@ func NewTsQueryDatatypeIssue(objectType string, objectName string, sqlStatement 
 	issue := tsQueryDatatypeIssue
 	typeName = strings.ToUpper(typeName)
 	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 // ============================= PK and UK Constraints on Unsupported Datatypes Issues =================
@@ -862,7 +862,7 @@ func NewPrimaryOrUniqueConstraintOnCitextDatatypeIssue(objectType string, object
 		CONSTRAINT_NAME: constraintName,
 	}
 	issue := primaryOrUniqueConstraintOnCitextDatatypeIssue
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details, map[string]interface{}{})
 }
 
 var primaryOrUniqueConstraintOnTsVectorDatatypeIssue = issue.Issue{
@@ -880,7 +880,7 @@ func NewPrimaryOrUniqueConstraintOnTsVectorDatatypeIssue(objectType string, obje
 		CONSTRAINT_NAME: constraintName,
 	}
 	issue := primaryOrUniqueConstraintOnTsVectorDatatypeIssue
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details, map[string]interface{}{})
 }
 
 var primaryOrUniqueConstraintOnTsQueryDatatypeIssue = issue.Issue{
@@ -898,7 +898,7 @@ func NewPrimaryOrUniqueConstraintOnTsQueryDatatypeIssue(objectType string, objec
 		CONSTRAINT_NAME: constraintName,
 	}
 	issue := primaryOrUniqueConstraintOnTsQueryDatatypeIssue
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details, map[string]interface{}{})
 }
 
 var primaryOrUniqueConstraintOnJsonbDatatypeIssue = issue.Issue{
@@ -916,7 +916,7 @@ func NewPrimaryOrUniqueConstraintOnJsonbDatatypeIssue(objectType string, objectN
 		CONSTRAINT_NAME: constraintName,
 	}
 	issue := primaryOrUniqueConstraintOnJsonbDatatypeIssue
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details, map[string]interface{}{})
 }
 
 var primaryOrUniqueConstraintOnInetDatatypeIssue = issue.Issue{
@@ -934,7 +934,7 @@ func NewPrimaryOrUniqueConstraintOnInetDatatypeIssue(objectType string, objectNa
 		CONSTRAINT_NAME: constraintName,
 	}
 	issue := primaryOrUniqueConstraintOnInetDatatypeIssue
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details, map[string]interface{}{})
 }
 
 var primaryOrUniqueConstraintOnJsonDatatypeIssue = issue.Issue{
@@ -952,7 +952,7 @@ func NewPrimaryOrUniqueConstraintOnJsonDatatypeIssue(objectType string, objectNa
 		CONSTRAINT_NAME: constraintName,
 	}
 	issue := primaryOrUniqueConstraintOnJsonDatatypeIssue
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details, map[string]interface{}{})
 }
 
 var primaryOrUniqueConstraintOnMacaddrDatatypeIssue = issue.Issue{
@@ -970,7 +970,7 @@ func NewPrimaryOrUniqueConstraintOnMacaddrDatatypeIssue(objectType string, objec
 		CONSTRAINT_NAME: constraintName,
 	}
 	issue := primaryOrUniqueConstraintOnMacaddrDatatypeIssue
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details, map[string]interface{}{})
 }
 
 var primaryOrUniqueConstraintOnMacaddr8DatatypeIssue = issue.Issue{
@@ -988,7 +988,7 @@ func NewPrimaryOrUniqueConstraintOnMacaddr8DatatypeIssue(objectType string, obje
 		CONSTRAINT_NAME: constraintName,
 	}
 	issue := primaryOrUniqueConstraintOnMacaddr8DatatypeIssue
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details, map[string]interface{}{})
 }
 
 var primaryOrUniqueConstraintOnCidrDatatypeIssue = issue.Issue{
@@ -1006,7 +1006,7 @@ func NewPrimaryOrUniqueConstraintOnCidrDatatypeIssue(objectType string, objectNa
 		CONSTRAINT_NAME: constraintName,
 	}
 	issue := primaryOrUniqueConstraintOnCidrDatatypeIssue
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details, map[string]interface{}{})
 }
 
 var primaryOrUniqueConstraintOnBitDatatypeIssue = issue.Issue{
@@ -1024,7 +1024,7 @@ func NewPrimaryOrUniqueConstraintOnBitDatatypeIssue(objectType string, objectNam
 		CONSTRAINT_NAME: constraintName,
 	}
 	issue := primaryOrUniqueConstraintOnBitDatatypeIssue
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details, map[string]interface{}{})
 }
 
 var primaryOrUniqueConstraintOnVarbitDatatypeIssue = issue.Issue{
@@ -1042,7 +1042,7 @@ func NewPrimaryOrUniqueConstraintOnVarbitDatatypeIssue(objectType string, object
 		CONSTRAINT_NAME: constraintName,
 	}
 	issue := primaryOrUniqueConstraintOnVarbitDatatypeIssue
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details, map[string]interface{}{})
 }
 
 var primaryOrUniqueConstraintOnDaterangeDatatypeIssue = issue.Issue{
@@ -1060,7 +1060,7 @@ func NewPrimaryOrUniqueConstraintOnDaterangeDatatypeIssue(objectType string, obj
 		CONSTRAINT_NAME: constraintName,
 	}
 	issue := primaryOrUniqueConstraintOnDaterangeDatatypeIssue
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details, map[string]interface{}{})
 }
 
 var primaryOrUniqueConstraintOnTsrangeDatatypeIssue = issue.Issue{
@@ -1078,7 +1078,7 @@ func NewPrimaryOrUniqueConstraintOnTsrangeDatatypeIssue(objectType string, objec
 		CONSTRAINT_NAME: constraintName,
 	}
 	issue := primaryOrUniqueConstraintOnTsrangeDatatypeIssue
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details, map[string]interface{}{})
 }
 
 var primaryOrUniqueConstraintOnTstzrangeDatatypeIssue = issue.Issue{
@@ -1096,7 +1096,7 @@ func NewPrimaryOrUniqueConstraintOnTstzrangeDatatypeIssue(objectType string, obj
 		CONSTRAINT_NAME: constraintName,
 	}
 	issue := primaryOrUniqueConstraintOnTstzrangeDatatypeIssue
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details, map[string]interface{}{})
 }
 
 var primaryOrUniqueConstraintOnNumrangeDatatypeIssue = issue.Issue{
@@ -1114,7 +1114,7 @@ func NewPrimaryOrUniqueConstraintOnNumrangeDatatypeIssue(objectType string, obje
 		CONSTRAINT_NAME: constraintName,
 	}
 	issue := primaryOrUniqueConstraintOnNumrangeDatatypeIssue
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details, map[string]interface{}{})
 }
 
 var primaryOrUniqueConstraintOnInt4rangeDatatypeIssue = issue.Issue{
@@ -1132,7 +1132,7 @@ func NewPrimaryOrUniqueConstraintOnInt4rangeDatatypeIssue(objectType string, obj
 		CONSTRAINT_NAME: constraintName,
 	}
 	issue := primaryOrUniqueConstraintOnInt4rangeDatatypeIssue
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details, map[string]interface{}{})
 }
 
 var primaryOrUniqueConstraintOnInt8rangeDatatypeIssue = issue.Issue{
@@ -1150,7 +1150,7 @@ func NewPrimaryOrUniqueConstraintOnInt8rangeDatatypeIssue(objectType string, obj
 		CONSTRAINT_NAME: constraintName,
 	}
 	issue := primaryOrUniqueConstraintOnInt8rangeDatatypeIssue
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details, map[string]interface{}{})
 }
 
 var primaryOrUniqueConstraintOnIntervalDatatypeIssue = issue.Issue{
@@ -1168,7 +1168,7 @@ func NewPrimaryOrUniqueConstraintOnIntervalDatatypeIssue(objectType string, obje
 		CONSTRAINT_NAME: constraintName,
 	}
 	issue := primaryOrUniqueConstraintOnIntervalDatatypeIssue
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details, map[string]interface{}{})
 }
 
 var primaryOrUniqueConstraintOnCircleDatatypeIssue = issue.Issue{
@@ -1186,7 +1186,7 @@ func NewPrimaryOrUniqueConstraintOnCircleDatatypeIssue(objectType string, object
 		CONSTRAINT_NAME: constraintName,
 	}
 	issue := primaryOrUniqueConstraintOnCircleDatatypeIssue
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details, map[string]interface{}{})
 }
 
 var primaryOrUniqueConstraintOnBoxDatatypeIssue = issue.Issue{
@@ -1204,7 +1204,7 @@ func NewPrimaryOrUniqueConstraintOnBoxDatatypeIssue(objectType string, objectNam
 		CONSTRAINT_NAME: constraintName,
 	}
 	issue := primaryOrUniqueConstraintOnBoxDatatypeIssue
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details, map[string]interface{}{})
 }
 
 var primaryOrUniqueConstraintOnLineDatatypeIssue = issue.Issue{
@@ -1222,7 +1222,7 @@ func NewPrimaryOrUniqueConstraintOnLineDatatypeIssue(objectType string, objectNa
 		CONSTRAINT_NAME: constraintName,
 	}
 	issue := primaryOrUniqueConstraintOnLineDatatypeIssue
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details, map[string]interface{}{})
 }
 
 var primaryOrUniqueConstraintOnLsegDatatypeIssue = issue.Issue{
@@ -1240,7 +1240,7 @@ func NewPrimaryOrUniqueConstraintOnLsegDatatypeIssue(objectType string, objectNa
 		CONSTRAINT_NAME: constraintName,
 	}
 	issue := primaryOrUniqueConstraintOnLsegDatatypeIssue
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details, map[string]interface{}{})
 }
 
 var primaryOrUniqueConstraintOnPointDatatypeIssue = issue.Issue{
@@ -1258,7 +1258,7 @@ func NewPrimaryOrUniqueConstraintOnPointDatatypeIssue(objectType string, objectN
 		CONSTRAINT_NAME: constraintName,
 	}
 	issue := primaryOrUniqueConstraintOnPointDatatypeIssue
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details, map[string]interface{}{})
 }
 
 var primaryOrUniqueConstraintOnPgLsnDatatypeIssue = issue.Issue{
@@ -1276,7 +1276,7 @@ func NewPrimaryOrUniqueConstraintOnPgLsnDatatypeIssue(objectType string, objectN
 		CONSTRAINT_NAME: constraintName,
 	}
 	issue := primaryOrUniqueConstraintOnPgLsnDatatypeIssue
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details, map[string]interface{}{})
 }
 
 var primaryOrUniqueConstraintOnPathDatatypeIssue = issue.Issue{
@@ -1294,7 +1294,7 @@ func NewPrimaryOrUniqueConstraintOnPathDatatypeIssue(objectType string, objectNa
 		CONSTRAINT_NAME: constraintName,
 	}
 	issue := primaryOrUniqueConstraintOnPathDatatypeIssue
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details, map[string]interface{}{})
 }
 
 var primaryOrUniqueConstraintOnPolygonDatatypeIssue = issue.Issue{
@@ -1312,7 +1312,7 @@ func NewPrimaryOrUniqueConstraintOnPolygonDatatypeIssue(objectType string, objec
 		CONSTRAINT_NAME: constraintName,
 	}
 	issue := primaryOrUniqueConstraintOnPolygonDatatypeIssue
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details, map[string]interface{}{})
 }
 
 var primaryOrUniqueConstraintOnTxidSnapshotDatatypeIssue = issue.Issue{
@@ -1330,7 +1330,7 @@ func NewPrimaryOrUniqueConstraintOnTxidSnapshotDatatypeIssue(objectType string, 
 		CONSTRAINT_NAME: constraintName,
 	}
 	issue := primaryOrUniqueConstraintOnTxidSnapshotDatatypeIssue
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details, map[string]interface{}{})
 }
 
 var primaryOrUniqueConstraintOnArrayDatatypeIssue = issue.Issue{
@@ -1348,7 +1348,7 @@ func NewPrimaryOrUniqueConstraintOnArrayDatatypeIssue(objectType string, objectN
 		CONSTRAINT_NAME: constraintName,
 	}
 	issue := primaryOrUniqueConstraintOnArrayDatatypeIssue
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details, map[string]interface{}{})
 }
 
 var primaryOrUniqueConstraintOnUserDefinedTypeIssue = issue.Issue{
@@ -1366,7 +1366,7 @@ func NewPrimaryOrUniqueConstraintOnUserDefinedTypeIssue(objectType string, objec
 		CONSTRAINT_NAME: constraintName,
 	}
 	issue := primaryOrUniqueConstraintOnUserDefinedTypeIssue
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details, map[string]interface{}{})
 }
 
 // ============================= Index on Unsupported Datatypes Issues =================
@@ -1383,7 +1383,7 @@ var indexOnArrayDatatypeIssue = issue.Issue{
 
 func NewIndexOnArrayDatatypeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	issue := indexOnArrayDatatypeIssue
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var indexOnUserDefinedDatatypeIssue = issue.Issue{
@@ -1398,7 +1398,7 @@ var indexOnUserDefinedDatatypeIssue = issue.Issue{
 
 func NewIndexOnUserDefinedTypeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	issue := indexOnUserDefinedDatatypeIssue
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var indexOnCitextDatatypeIssue = issue.Issue{
@@ -1413,7 +1413,7 @@ var indexOnCitextDatatypeIssue = issue.Issue{
 
 func NewIndexOnCitextDatatypeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	issue := indexOnCitextDatatypeIssue
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var indexOnTsVectorDatatypeIssue = issue.Issue{
@@ -1428,7 +1428,7 @@ var indexOnTsVectorDatatypeIssue = issue.Issue{
 
 func NewIndexOnTsVectorDatatypeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	issue := indexOnTsVectorDatatypeIssue
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var indexOnTsQueryDatatypeIssue = issue.Issue{
@@ -1443,7 +1443,7 @@ var indexOnTsQueryDatatypeIssue = issue.Issue{
 
 func NewIndexOnTsQueryDatatypeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	issue := indexOnTsQueryDatatypeIssue
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var indexOnJsonbDatatypeIssue = issue.Issue{
@@ -1458,7 +1458,7 @@ var indexOnJsonbDatatypeIssue = issue.Issue{
 
 func NewIndexOnJsonbDatatypeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	issue := indexOnJsonbDatatypeIssue
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var indexOnInetDatatypeIssue = issue.Issue{
@@ -1473,7 +1473,7 @@ var indexOnInetDatatypeIssue = issue.Issue{
 
 func NewIndexOnInetDatatypeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	issue := indexOnInetDatatypeIssue
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var indexOnJsonDatatypeIssue = issue.Issue{
@@ -1488,7 +1488,7 @@ var indexOnJsonDatatypeIssue = issue.Issue{
 
 func NewIndexOnJsonDatatypeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	issue := indexOnJsonDatatypeIssue
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var indexOnMacaddrDatatypeIssue = issue.Issue{
@@ -1503,7 +1503,7 @@ var indexOnMacaddrDatatypeIssue = issue.Issue{
 
 func NewIndexOnMacaddrDatatypeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	issue := indexOnMacaddrDatatypeIssue
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var indexOnMacaddr8DatatypeIssue = issue.Issue{
@@ -1518,7 +1518,7 @@ var indexOnMacaddr8DatatypeIssue = issue.Issue{
 
 func NewIndexOnMacaddr8DatatypeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	issue := indexOnMacaddr8DatatypeIssue
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var indexOnCidrDatatypeIssue = issue.Issue{
@@ -1533,7 +1533,7 @@ var indexOnCidrDatatypeIssue = issue.Issue{
 
 func NewIndexOnCidrDatatypeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	issue := indexOnCidrDatatypeIssue
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var indexOnBitDatatypeIssue = issue.Issue{
@@ -1548,7 +1548,7 @@ var indexOnBitDatatypeIssue = issue.Issue{
 
 func NewIndexOnBitDatatypeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	issue := indexOnBitDatatypeIssue
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var indexOnVarbitDatatypeIssue = issue.Issue{
@@ -1563,7 +1563,7 @@ var indexOnVarbitDatatypeIssue = issue.Issue{
 
 func NewIndexOnVarbitDatatypeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	issue := indexOnVarbitDatatypeIssue
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var indexOnDaterangeDatatypeIssue = issue.Issue{
@@ -1578,7 +1578,7 @@ var indexOnDaterangeDatatypeIssue = issue.Issue{
 
 func NewIndexOnDaterangeDatatypeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	issue := indexOnDaterangeDatatypeIssue
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var indexOnTsrangeDatatypeIssue = issue.Issue{
@@ -1593,7 +1593,7 @@ var indexOnTsrangeDatatypeIssue = issue.Issue{
 
 func NewIndexOnTsrangeDatatypeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	issue := indexOnTsrangeDatatypeIssue
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var indexOnTstzrangeDatatypeIssue = issue.Issue{
@@ -1608,7 +1608,7 @@ var indexOnTstzrangeDatatypeIssue = issue.Issue{
 
 func NewIndexOnTstzrangeDatatypeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	issue := indexOnTstzrangeDatatypeIssue
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var indexOnNumrangeDatatypeIssue = issue.Issue{
@@ -1623,7 +1623,7 @@ var indexOnNumrangeDatatypeIssue = issue.Issue{
 
 func NewIndexOnNumrangeDatatypeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	issue := indexOnNumrangeDatatypeIssue
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var indexOnInt4rangeDatatypeIssue = issue.Issue{
@@ -1638,7 +1638,7 @@ var indexOnInt4rangeDatatypeIssue = issue.Issue{
 
 func NewIndexOnInt4rangeDatatypeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	issue := indexOnInt4rangeDatatypeIssue
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var indexOnInt8rangeDatatypeIssue = issue.Issue{
@@ -1653,7 +1653,7 @@ var indexOnInt8rangeDatatypeIssue = issue.Issue{
 
 func NewIndexOnInt8rangeDatatypeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	issue := indexOnInt8rangeDatatypeIssue
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var indexOnIntervalDatatypeIssue = issue.Issue{
@@ -1668,7 +1668,7 @@ var indexOnIntervalDatatypeIssue = issue.Issue{
 
 func NewIndexOnIntervalDatatypeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	issue := indexOnIntervalDatatypeIssue
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var indexOnCircleDatatypeIssue = issue.Issue{
@@ -1683,7 +1683,7 @@ var indexOnCircleDatatypeIssue = issue.Issue{
 
 func NewIndexOnCircleDatatypeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	issue := indexOnCircleDatatypeIssue
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var indexOnBoxDatatypeIssue = issue.Issue{
@@ -1698,7 +1698,7 @@ var indexOnBoxDatatypeIssue = issue.Issue{
 
 func NewIndexOnBoxDatatypeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	issue := indexOnBoxDatatypeIssue
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var indexOnLineDatatypeIssue = issue.Issue{
@@ -1713,7 +1713,7 @@ var indexOnLineDatatypeIssue = issue.Issue{
 
 func NewIndexOnLineDatatypeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	issue := indexOnLineDatatypeIssue
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var indexOnLsegDatatypeIssue = issue.Issue{
@@ -1728,7 +1728,7 @@ var indexOnLsegDatatypeIssue = issue.Issue{
 
 func NewIndexOnLsegDatatypeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	issue := indexOnLsegDatatypeIssue
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var indexOnPointDatatypeIssue = issue.Issue{
@@ -1743,7 +1743,7 @@ var indexOnPointDatatypeIssue = issue.Issue{
 
 func NewIndexOnPointDatatypeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	issue := indexOnPointDatatypeIssue
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var indexOnPgLsnDatatypeIssue = issue.Issue{
@@ -1758,7 +1758,7 @@ var indexOnPgLsnDatatypeIssue = issue.Issue{
 
 func NewIndexOnPgLsnDatatypeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	issue := indexOnPgLsnDatatypeIssue
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var indexOnPathDatatypeIssue = issue.Issue{
@@ -1773,7 +1773,7 @@ var indexOnPathDatatypeIssue = issue.Issue{
 
 func NewIndexOnPathDatatypeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	issue := indexOnPathDatatypeIssue
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var indexOnPolygonDatatypeIssue = issue.Issue{
@@ -1788,7 +1788,7 @@ var indexOnPolygonDatatypeIssue = issue.Issue{
 
 func NewIndexOnPolygonDatatypeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	issue := indexOnPolygonDatatypeIssue
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var indexOnTxidSnapshotDatatypeIssue = issue.Issue{
@@ -1803,7 +1803,7 @@ var indexOnTxidSnapshotDatatypeIssue = issue.Issue{
 
 func NewIndexOnTxidSnapshotDatatypeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	issue := indexOnTxidSnapshotDatatypeIssue
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var foreignTableIssue = issue.Issue{
@@ -1819,7 +1819,7 @@ var foreignTableIssue = issue.Issue{
 func NewForeignTableIssue(objectType string, objectName string, sqlStatement string, serverName string) QueryIssue {
 	issue := foreignTableIssue
 	issue.Suggestion = fmt.Sprintf(issue.Suggestion, serverName)
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var inheritanceIssue = issue.Issue{
@@ -1832,7 +1832,7 @@ var inheritanceIssue = issue.Issue{
 }
 
 func NewInheritanceIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
-	return newQueryIssue(inheritanceIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(inheritanceIssue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var percentTypeSyntax = issue.Issue{
@@ -1846,7 +1846,7 @@ var percentTypeSyntax = issue.Issue{
 }
 
 func NewPercentTypeSyntaxIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
-	return newQueryIssue(percentTypeSyntax, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(percentTypeSyntax, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var securityInvokerViewIssue = issue.Issue{
@@ -1864,7 +1864,7 @@ var securityInvokerViewIssue = issue.Issue{
 }
 
 func NewSecurityInvokerViewIssue(objectType string, objectName string, SqlStatement string) QueryIssue {
-	return newQueryIssue(securityInvokerViewIssue, objectType, objectName, SqlStatement, map[string]interface{}{})
+	return newQueryIssue(securityInvokerViewIssue, objectType, objectName, SqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var deterministicOptionCollationIssue = issue.Issue{
@@ -1882,7 +1882,7 @@ var deterministicOptionCollationIssue = issue.Issue{
 }
 
 func NewDeterministicOptionCollationIssue(objectType string, objectName string, SqlStatement string) QueryIssue {
-	return newQueryIssue(deterministicOptionCollationIssue, objectType, objectName, SqlStatement, map[string]interface{}{})
+	return newQueryIssue(deterministicOptionCollationIssue, objectType, objectName, SqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var nonDeterministicCollationIssue = issue.Issue{
@@ -1895,7 +1895,7 @@ var nonDeterministicCollationIssue = issue.Issue{
 }
 
 func NewNonDeterministicCollationIssue(objectType string, objectName string, SqlStatement string) QueryIssue {
-	return newQueryIssue(nonDeterministicCollationIssue, objectType, objectName, SqlStatement, map[string]interface{}{})
+	return newQueryIssue(nonDeterministicCollationIssue, objectType, objectName, SqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var foreignKeyReferencesPartitionedTableIssue = issue.Issue{
@@ -1916,7 +1916,7 @@ func NewForeignKeyReferencesPartitionedTableIssue(objectType string, objectName 
 	details := map[string]interface{}{
 		CONSTRAINT_NAME: constraintName,
 	}
-	return newQueryIssue(foreignKeyReferencesPartitionedTableIssue, objectType, objectName, SqlStatement, details)
+	return newQueryIssue(foreignKeyReferencesPartitionedTableIssue, objectType, objectName, SqlStatement, details, map[string]interface{}{})
 }
 
 var sqlBodyInFunctionIssue = issue.Issue{
@@ -1934,7 +1934,7 @@ var sqlBodyInFunctionIssue = issue.Issue{
 }
 
 func NewSqlBodyInFunctionIssue(objectType string, objectName string, SqlStatement string) QueryIssue {
-	return newQueryIssue(sqlBodyInFunctionIssue, objectType, objectName, SqlStatement, map[string]interface{}{})
+	return newQueryIssue(sqlBodyInFunctionIssue, objectType, objectName, SqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var uniqueNullsNotDistinctIssue = issue.Issue{
@@ -1953,7 +1953,7 @@ var uniqueNullsNotDistinctIssue = issue.Issue{
 }
 
 func NewUniqueNullsNotDistinctIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
-	return newQueryIssue(uniqueNullsNotDistinctIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(uniqueNullsNotDistinctIssue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 /*
@@ -1991,7 +1991,7 @@ var compressionClauseForToasting = issue.Issue{
 }
 
 func NewCompressionClauseForToasting(objectType string, objectName string, sqlStatement string) QueryIssue {
-	return newQueryIssue(compressionClauseForToasting, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(compressionClauseForToasting, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 /*
@@ -2016,7 +2016,7 @@ func NewDatabaseOptionsPG15Issue(objectType string, objectName string, sqlStatem
 	sort.Strings(options)
 	issue := databaseOptionsPG15Issue
 	issue.Description = fmt.Sprintf(issue.Description, strings.Join(options, ", "))
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var databaseOptionsPG17Issue = issue.Issue{
@@ -2033,7 +2033,7 @@ func NewDatabaseOptionsPG17Issue(objectType string, objectName string, sqlStatem
 	sort.Strings(options)
 	issue := databaseOptionsPG17Issue
 	issue.Description = fmt.Sprintf(issue.Description, strings.Join(options, ", "))
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var extensionsIssue = issue.Issue{
@@ -2048,5 +2048,5 @@ var extensionsIssue = issue.Issue{
 
 func NewExtensionsIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	issue := extensionsIssue
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }

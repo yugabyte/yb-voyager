@@ -555,6 +555,44 @@ func (lm *LiveMigrationTest) WaitForCutoverSourceComplete(cutoverTimeout time.Du
 	return nil
 }
 
+func (lm *LiveMigrationTest) WaitForNextIterationInitialized(waitTimeout time.Duration) error {
+	fmt.Printf("Waiting for next iteration initialized\n")
+	// Initialize metaDB if not already done
+	if lm.metaDB == nil {
+		err := lm.InitMetaDB()
+		if err != nil {
+			return goerrors.Errorf("failed to initialize meta db: %w", err)
+		}
+	}
+	msr, err := lm.metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		return goerrors.Errorf("failed to get migration status record: %w", err)
+	}
+	if msr.LatestIterationNumber == 0 {
+		return nil
+	}
+	iterationsExportDir := msr.GetIterationsDir(lm.exportDir)
+	iterationExportDir := GetIterationExportDir(iterationsExportDir, msr.LatestIterationNumber)
+	if !utils.FileOrFolderExists(iterationExportDir) {
+		return goerrors.Errorf("iteration export directory does not exist")
+	}
+	iterationMetaDB, err := metadb.NewMetaDB(iterationExportDir)
+	if err != nil {
+		return goerrors.Errorf("failed to create iteration meta db: %w", err)
+	}
+	ok := utils.RetryWorkWithTimeout(1, waitTimeout, func() bool {
+		msr, err := iterationMetaDB.GetMigrationStatusRecord()
+		if err != nil {
+			return false
+		}
+		return msr.NextIterationInitialized
+	})
+	if !ok {
+		return goerrors.Errorf("next iteration did not initialize within %v", waitTimeout)
+	}
+	return nil
+}
+
 // ============================================================
 // DATA OPERATIONS & VALIDATION
 // ============================================================

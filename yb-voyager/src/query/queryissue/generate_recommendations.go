@@ -23,28 +23,47 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/sqltransformer"
 )
 
-func (p *ParserIssueDetector) GenerateRecommendedSql(issue QueryIssue, parseTree *pg_query.ParseResult) (string, error) {
+func (p *ParserIssueDetector) GenerateRecommendedSql(issue QueryIssue, parseTree *pg_query.ParseResult) (fixedParseTree *pg_query.ParseResult, hasSQLFix bool, err error) {
 	generator, exists := sqlFixGenerators[issue.Type]
 	if !exists {
-		return "", nil
+		return parseTree, false, nil
 	}
 
-	return generator(parseTree)
+	fixedParseTree, err = generator(parseTree, issue)
+	if err != nil {
+		return parseTree, true, err
+	}
+
+	return fixedParseTree, true, nil
 }
 
-type SqlFixGenerator func(parseTree *pg_query.ParseResult) (string, error)
+type SqlFixGenerator func(parseTree *pg_query.ParseResult, issue QueryIssue) (*pg_query.ParseResult, error)
 
 var sqlFixGenerators = map[string]SqlFixGenerator{
-	NULL_VALUE_INDEXES: generateNullPartialIndexFix,
 	// Add more issue types as generators are implemented
+	NULL_VALUE_INDEXES:          generateNullPartialIndexFix,
+	MOST_FREQUENT_VALUE_INDEXES: generateMostFrequentValuePartialIndexFix,
 }
 
-func generateNullPartialIndexFix(parseTree *pg_query.ParseResult) (string, error) {
+func generateNullPartialIndexFix(parseTree *pg_query.ParseResult, issue QueryIssue) (*pg_query.ParseResult, error) {
 	transformer := sqltransformer.NewTransformer()
-	fixedParseTree, err := transformer.AddPartialClauseForFilteringNULL(parseTree)
+	fixedParseTree, err := transformer.AddPartialClauseForFilteringNULL(queryparser.CloneParseTree(parseTree))
 	if err != nil {
-		return "", err
+		return parseTree, err
 	}
 
-	return queryparser.Deparse(fixedParseTree)
+	return fixedParseTree, nil
+}
+
+func generateMostFrequentValuePartialIndexFix(parseTree *pg_query.ParseResult, issue QueryIssue) (*pg_query.ParseResult, error) {
+	// Use string constants for all values to ensure correct type conversion in PostgreSQL.
+	value, _ := issue.Details[VALUE].(string)
+	columnDataType, _ := issue.InternalDetails[COLUMN_TYPE].(string)
+	transformer := sqltransformer.NewTransformer()
+	fixedParseTree, err := transformer.AddPartialClauseForFilteringValue(queryparser.CloneParseTree(parseTree), value, columnDataType)
+	if err != nil {
+		return parseTree, err
+	}
+
+	return fixedParseTree, nil
 }

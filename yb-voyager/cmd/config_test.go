@@ -79,7 +79,7 @@ func setupExportDir(t *testing.T) string {
 	exportDir, err := os.MkdirTemp("/tmp", "export-dir-*")
 	require.NoError(t, err)
 
-	CreateMigrationProjectIfNotExists(POSTGRESQL, exportDir)
+	metaDB = CreateMigrationProjectIfNotExists(POSTGRESQL, exportDir)
 	return exportDir
 }
 
