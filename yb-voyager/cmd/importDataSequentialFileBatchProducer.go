@@ -341,7 +341,7 @@ func (p *SequentialFileBatchProducer) openDataFileAtByteOffset() error {
 	if err != nil {
 		if errors.Is(err, datastore.ErrOpenAtNotImplemented) {
 			log.Warnf("OpenAt not implemented for current datastore, falling back to SkipLines for %q", p.task.FilePath)
-			return p.openDataFileForCloudFallback()
+			return p.openDataFileAndSkipLines()
 		}
 		return goerrors.Errorf("seeking to byte offset %d in file %q: %v", p.lastBatchCumByteOffset, p.task.FilePath, err)
 	}
@@ -359,16 +359,16 @@ func (p *SequentialFileBatchProducer) openDataFileAtByteOffset() error {
 	return nil
 }
 
-// openDataFileForCloudFallback resumes via SkipLines when cumByteOffset is
-// available but OpenAt is not yet implemented (cloud stub).
-func (p *SequentialFileBatchProducer) openDataFileForCloudFallback() error {
+// openDataFileAndSkipLines resumes by opening the file from byte 0 and skipping
+// lines to reach the resumption point. Used when OpenAt is not supported.
+func (p *SequentialFileBatchProducer) openDataFileAndSkipLines() error {
 	df, err := p.openAndReadHeader()
 	if err != nil {
 		return err
 	}
 	p.dataFile = df
 
-	log.Infof("Cloud fallback: skipping %d lines from %q", p.lastOffset, p.task.FilePath)
+	log.Infof("OpenAt not available, skipping %d lines from %q", p.lastOffset, p.task.FilePath)
 	p.progressReporter.AddResumeInformation(p.task, fmt.Sprintf("Resuming from %d lines", p.lastOffset))
 	err = df.SkipLines(p.lastOffset)
 	if err != nil {
