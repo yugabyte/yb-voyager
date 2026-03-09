@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html"
 	"io/fs"
 	"math"
 	"os"
@@ -1332,7 +1333,7 @@ type NoteInfo struct {
 	Text string   `json:"Text"`
 }
 
-// MarshalJSON implements custom JSON marshaling for NoteInfo to strip HTML tags from Text field
+// MarshalJSON implements custom JSON marshaling for NoteInfo to HTML-escape the Text field
 func (ni NoteInfo) MarshalJSON() ([]byte, error) {
 	type Alias NoteInfo
 	return json.Marshal(&struct {
@@ -1340,7 +1341,7 @@ func (ni NoteInfo) MarshalJSON() ([]byte, error) {
 		Text string   `json:"Text"`
 	}{
 		Type: ni.Type,
-		Text: stripAnchorTags(ni.Text),
+		Text: html.EscapeString(ni.Text),
 	})
 }
 
