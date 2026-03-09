@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html"
 	"io/fs"
 	"math"
 	"os"
@@ -1304,7 +1305,7 @@ type NoteInfo struct {
 	Text string   `json:"Text"`
 }
 
-// MarshalJSON implements custom JSON marshaling for NoteInfo to strip HTML tags from Text field
+// MarshalJSON implements custom JSON marshaling for NoteInfo to HTML-escape the Text field
 func (ni NoteInfo) MarshalJSON() ([]byte, error) {
 	type Alias NoteInfo
 	return json.Marshal(&struct {
@@ -1312,38 +1313,9 @@ func (ni NoteInfo) MarshalJSON() ([]byte, error) {
 		Text string   `json:"Text"`
 	}{
 		Type: ni.Type,
-		Text: stripAnchorTags(ni.Text),
+		Text: html.EscapeString(ni.Text),
 	})
 }
-
-// stripAnchorTags converts HTML <a> tags to plain text "text (URL)" format,
-// preserving both the link text and the URL. If the link text equals the URL,
-// only the URL is kept to avoid duplication.
-// Note: This only handles <a> tags. Other HTML tags (e.g., <br>, <div>) are left as-is.
-func stripAnchorTags(htmlText string) string {
-	if htmlText == "" {
-		return ""
-	}
-
-	linkPattern := regexp.MustCompile(`<a[^>]*href=["']([^"']*)["'][^>]*>(.*?)</a>`)
-	result := linkPattern.ReplaceAllStringFunc(htmlText, func(match string) string {
-		submatch := linkPattern.FindStringSubmatch(match)
-		if len(submatch) >= 3 {
-			url := submatch[1]
-			text := submatch[2]
-			if text == url {
-				return url
-			}
-			return text + " ( " + url + " )"
-		}
-		return match
-	})
-
-	result = strings.TrimSpace(result)
-
-	return result
-}
-
 
 // ======================================================================
 type BulkAssessmentReport struct {

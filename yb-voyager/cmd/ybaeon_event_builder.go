@@ -17,6 +17,8 @@ limitations under the License.
 package cmd
 
 import (
+	"html"
+
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -93,7 +95,7 @@ func createMigrationAssessmentCompletedEventForYBAeon() *cp.MigrationAssessmentC
 
 	// Classify notes into categories (same as yugabyted)
 	for _, note := range assessmentReport.Notes {
-		sanitizedText := stripAnchorTags(note.Text)
+		sanitizedText := html.EscapeString(note.Text)
 		switch note.Type {
 		case GeneralNotes:
 			payload.GeneralNotes = append(payload.GeneralNotes, sanitizedText)
