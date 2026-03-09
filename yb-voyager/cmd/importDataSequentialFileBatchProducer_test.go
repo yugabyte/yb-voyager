@@ -288,7 +288,7 @@ func TestFileBatchProducerResumable(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, batch1)
 	assert.Equal(t, int64(2), batch1.RecordCount)
-	assert.Greater(t, batch1.CumByteOffset, int64(0),
+	assert.Greater(t, batch1.CumByteOffsetEnd, int64(0),
 		"Batch 1 should have positive cumByteOffset")
 
 	// simulate a crash and recover
@@ -299,8 +299,8 @@ func TestFileBatchProducerResumable(t *testing.T) {
 	// state should have recovered that one batch
 	assert.Equal(t, 1, len(batchproducer.pendingBatches))
 	assert.True(t, cmp.Equal(batch1, batchproducer.pendingBatches[0]))
-	assert.Equal(t, batch1.CumByteOffset, batchproducer.lastBatchCumByteOffset)
-	assert.Equal(t, batch1.CumByteOffset, batchproducer.cumByteOffset)
+	assert.Equal(t, batch1.CumByteOffsetEnd, batchproducer.lastBatchCumByteOffsetEnd)
+	assert.Equal(t, batch1.CumByteOffsetEnd, batchproducer.cumByteOffsetEnd)
 
 	// verify that it picks up from pendingBatches
 	// instead of procing a new batch.
@@ -318,11 +318,11 @@ func TestFileBatchProducerResumable(t *testing.T) {
 	assert.Equal(t, int64(2), batch2.RecordCount)
 	assert.True(t, batchproducer.Done())
 
-	assert.Greater(t, batch2.CumByteOffset, batch1.CumByteOffset,
+	assert.Greater(t, batch2.CumByteOffsetEnd, batch1.CumByteOffsetEnd,
 		"Batch 2 cumByteOffset should be greater than batch 1")
 	fileInfo, err := os.Stat(task.FilePath)
 	assert.NoError(t, err)
-	assert.Equal(t, fileInfo.Size(), batch2.CumByteOffset,
+	assert.Equal(t, fileInfo.Size(), batch2.CumByteOffsetEnd,
 		"Last batch cumByteOffset should equal file size")
 }
 
@@ -947,24 +947,24 @@ func assertProcessingErrorBatchFileContains(t *testing.T, lexportDir string, tas
 // ==================== parseBatchFileName tests ====================
 
 func TestParseBatchFileName_6Fields(t *testing.T) {
-	batchNum, offsetEnd, recordCount, byteCount, cumByteOffset, state, err := parseBatchFileName("batch::2.10000.5000.215572.320000.C")
+	batchNum, offsetEnd, recordCount, byteCount, cumByteOffsetEnd, state, err := parseBatchFileName("batch::2.10000.5000.215572.320000.C")
 	assert.NoError(t, err)
 	assert.Equal(t, int64(2), batchNum)
 	assert.Equal(t, int64(10000), offsetEnd)
 	assert.Equal(t, int64(5000), recordCount)
 	assert.Equal(t, int64(215572), byteCount)
-	assert.Equal(t, int64(320000), cumByteOffset)
+	assert.Equal(t, int64(320000), cumByteOffsetEnd)
 	assert.Equal(t, "C", state)
 }
 
 func TestParseBatchFileName_LastBatch(t *testing.T) {
-	batchNum, offsetEnd, recordCount, byteCount, cumByteOffset, state, err := parseBatchFileName("batch::0.50000.3000.64000.4012345678.D")
+	batchNum, offsetEnd, recordCount, byteCount, cumByteOffsetEnd, state, err := parseBatchFileName("batch::0.50000.3000.64000.4012345678.D")
 	assert.NoError(t, err)
 	assert.Equal(t, int64(0), batchNum) // LAST_SPLIT_NUM
 	assert.Equal(t, int64(50000), offsetEnd)
 	assert.Equal(t, int64(3000), recordCount)
 	assert.Equal(t, int64(64000), byteCount)
-	assert.Equal(t, int64(4012345678), cumByteOffset)
+	assert.Equal(t, int64(4012345678), cumByteOffsetEnd)
 	assert.Equal(t, "D", state)
 }
 
@@ -1024,22 +1024,22 @@ func TestBatchCumByteOffsetTracking(t *testing.T) {
 	assert.Equal(t, 2, len(batches))
 	// CumByteOffset should be positive for all batches
 	for _, batch := range batches {
-		assert.Greater(t, batch.CumByteOffset, int64(0), "CumByteOffset should be positive")
+		assert.Greater(t, batch.CumByteOffsetEnd, int64(0), "CumByteOffset should be positive")
 	}
 	// CumByteOffset should be monotonically increasing
-	assert.Greater(t, batches[1].CumByteOffset, batches[0].CumByteOffset,
+	assert.Greater(t, batches[1].CumByteOffsetEnd, batches[0].CumByteOffsetEnd,
 		"CumByteOffset should increase across batches")
 
 	// Last batch's CumByteOffset should equal total file size
 	fileInfo, err := os.Stat(task.FilePath)
 	assert.NoError(t, err)
-	assert.Equal(t, fileInfo.Size(), batches[len(batches)-1].CumByteOffset,
+	assert.Equal(t, fileInfo.Size(), batches[len(batches)-1].CumByteOffsetEnd,
 		"Last batch CumByteOffset should equal file size")
 
 	// First batch's CumByteOffset should equal header bytes + batch 1 data bytes
 	headerBytes := int64(len("id,val\n"))
 	batch1DataBytes := int64(len("1, \"hello\"\n") + len("2, \"world\"\n"))
-	assert.Equal(t, headerBytes+batch1DataBytes, batches[0].CumByteOffset,
+	assert.Equal(t, headerBytes+batch1DataBytes, batches[0].CumByteOffsetEnd,
 		"First batch CumByteOffset should equal header + batch1 data bytes")
 }
 
@@ -1063,14 +1063,14 @@ func TestByteSeekResumption(t *testing.T) {
 	batch1, err := bp1.NextBatch()
 	assert.NoError(t, err)
 	assert.Equal(t, int64(2), batch1.RecordCount)
-	assert.Greater(t, batch1.CumByteOffset, int64(0))
+	assert.Greater(t, batch1.CumByteOffsetEnd, int64(0))
 	bp1.Close()
 
 	// Resume: should use byte-seek (cumByteOffset > 0)
 	bp2, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
 	assert.NoError(t, err)
-	assert.Equal(t, batch1.CumByteOffset, bp2.lastBatchCumByteOffset,
-		"Recovered lastBatchCumByteOffset should match batch1's CumByteOffset")
+	assert.Equal(t, batch1.CumByteOffsetEnd, bp2.lastBatchCumByteOffsetEnd,
+		"Recovered lastBatchCumByteOffsetEnd should match batch1's CumByteOffset")
 
 	// Get pending batch 1 first
 	recoveredBatch, err := bp2.NextBatch()
@@ -1093,7 +1093,7 @@ func TestByteSeekResumption(t *testing.T) {
 	// Last batch's CumByteOffset should equal total file size
 	fileInfo, err := os.Stat(task.FilePath)
 	assert.NoError(t, err)
-	assert.Equal(t, fileInfo.Size(), batch2.CumByteOffset,
+	assert.Equal(t, fileInfo.Size(), batch2.CumByteOffsetEnd,
 		"Last batch CumByteOffset should equal file size")
 }
 
@@ -1129,7 +1129,7 @@ func TestByteSeekResumption_NoHeader(t *testing.T) {
 	batch1, err := bp1.NextBatch()
 	assert.NoError(t, err)
 	assert.Equal(t, int64(2), batch1.RecordCount)
-	assert.Greater(t, batch1.CumByteOffset, int64(0))
+	assert.Greater(t, batch1.CumByteOffsetEnd, int64(0))
 	bp1.Close()
 
 	// Resume: should use byte-seek
@@ -1156,7 +1156,7 @@ func TestByteSeekResumption_NoHeader(t *testing.T) {
 	// Last batch's CumByteOffset should equal total file size
 	fileInfo, err := os.Stat(task.FilePath)
 	assert.NoError(t, err)
-	assert.Equal(t, fileInfo.Size(), batch2.CumByteOffset,
+	assert.Equal(t, fileInfo.Size(), batch2.CumByteOffsetEnd,
 		"Last batch CumByteOffset should equal file size (no header)")
 }
 
@@ -1197,19 +1197,19 @@ func TestCumByteOffset_CarriedForwardLine(t *testing.T) {
 	headerLen := int64(len("id,val\n"))
 	row1Len := int64(len("1, \"hello\"\n"))
 	row2Len := int64(len("2, \"world\"\n"))
-	assert.Equal(t, headerLen+row1Len+row2Len, batch1.CumByteOffset,
+	assert.Equal(t, headerLen+row1Len+row2Len, batch1.CumByteOffsetEnd,
 		"Batch 1 cumByteOffset should exclude carried-forward row 3")
 
 	// Batch 2 cumByteOffset should point right after row 4
 	row3Len := int64(len("3, \"foo\"\n"))
 	row4Len := int64(len("4, \"bar\"\n"))
-	assert.Equal(t, batch1.CumByteOffset+row3Len+row4Len, batch2.CumByteOffset,
+	assert.Equal(t, batch1.CumByteOffsetEnd+row3Len+row4Len, batch2.CumByteOffsetEnd,
 		"Batch 2 cumByteOffset should be batch1 + row3 + row4")
 
 	// Last batch cumByteOffset should equal file size
 	fileInfo, err := os.Stat(task.FilePath)
 	assert.NoError(t, err)
-	assert.Equal(t, fileInfo.Size(), batch3.CumByteOffset,
+	assert.Equal(t, fileInfo.Size(), batch3.CumByteOffsetEnd,
 		"Last batch cumByteOffset should equal file size")
 }
 
@@ -1254,7 +1254,7 @@ func TestMultipleResumeCycles(t *testing.T) {
 	// Cycle 2: resume, get 2 pending + produce 2 new
 	bp2, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
 	assert.NoError(t, err)
-	assert.Equal(t, b2.CumByteOffset, bp2.lastBatchCumByteOffset)
+	assert.Equal(t, b2.CumByteOffsetEnd, bp2.lastBatchCumByteOffsetEnd)
 
 	// Drain pending
 	_, err = bp2.NextBatch()
@@ -1273,7 +1273,7 @@ func TestMultipleResumeCycles(t *testing.T) {
 	// Cycle 3: resume again, get 4 pending + produce remaining 2
 	bp3, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
 	assert.NoError(t, err)
-	assert.Equal(t, b4.CumByteOffset, bp3.lastBatchCumByteOffset)
+	assert.Equal(t, b4.CumByteOffsetEnd, bp3.lastBatchCumByteOffsetEnd)
 
 	// Drain 4 pending
 	for i := 0; i < 4; i++ {
@@ -1292,14 +1292,14 @@ func TestMultipleResumeCycles(t *testing.T) {
 	// CumByteOffset should be monotonically increasing across all 6 batches
 	allBatches := []*Batch{b1, b2, b3, b4, b5, b6}
 	for i := 1; i < len(allBatches); i++ {
-		assert.Greater(t, allBatches[i].CumByteOffset, allBatches[i-1].CumByteOffset,
+		assert.Greater(t, allBatches[i].CumByteOffsetEnd, allBatches[i-1].CumByteOffsetEnd,
 			"CumByteOffset should increase: batch %d vs %d", i, i+1)
 	}
 
 	// Last batch should equal file size
 	fileInfo, err := os.Stat(task.FilePath)
 	assert.NoError(t, err)
-	assert.Equal(t, fileInfo.Size(), b6.CumByteOffset,
+	assert.Equal(t, fileInfo.Size(), b6.CumByteOffsetEnd,
 		"Last batch cumByteOffset should equal file size")
 
 	// Verify data correctness of byte-seeked batches
@@ -1335,9 +1335,9 @@ func TestCumByteOffset_SingleRowFile(t *testing.T) {
 
 	fileInfo, err := os.Stat(task.FilePath)
 	assert.NoError(t, err)
-	assert.Equal(t, fileInfo.Size(), batch.CumByteOffset,
+	assert.Equal(t, fileInfo.Size(), batch.CumByteOffsetEnd,
 		"Single-row file: cumByteOffset should equal file size")
-	assert.Greater(t, batch.CumByteOffset, int64(0))
+	assert.Greater(t, batch.CumByteOffsetEnd, int64(0))
 }
 
 // Verifies cumByteOffset still advances past a stashed (too-large) row's bytes,
@@ -1368,7 +1368,7 @@ func TestCumByteOffset_WithStashedErrors(t *testing.T) {
 	// cumByteOffset must equal total file size, including the stashed row's bytes
 	fileInfo, err := os.Stat(task.FilePath)
 	assert.NoError(t, err)
-	assert.Equal(t, fileInfo.Size(), batch.CumByteOffset,
+	assert.Equal(t, fileInfo.Size(), batch.CumByteOffsetEnd,
 		"cumByteOffset should include stashed row bytes and equal file size")
 }
 
@@ -1414,7 +1414,7 @@ func TestByteSeekResumption_ManyBatches(t *testing.T) {
 	// Resume: byte-seek to midpoint
 	bp2, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
 	assert.NoError(t, err)
-	assert.Equal(t, firstRunBatches[3].CumByteOffset, bp2.lastBatchCumByteOffset)
+	assert.Equal(t, firstRunBatches[3].CumByteOffsetEnd, bp2.lastBatchCumByteOffsetEnd)
 
 	// Drain 4 pending
 	for i := 0; i < 4; i++ {
@@ -1443,7 +1443,7 @@ func TestByteSeekResumption_ManyBatches(t *testing.T) {
 	// Last batch cumByteOffset = file size
 	fileInfo, err := os.Stat(task.FilePath)
 	assert.NoError(t, err)
-	assert.Equal(t, fileInfo.Size(), seekedBatches[len(seekedBatches)-1].CumByteOffset)
+	assert.Equal(t, fileInfo.Size(), seekedBatches[len(seekedBatches)-1].CumByteOffsetEnd)
 }
 
 // Verifies byte-seek resumption with SQL (ora2pg) format. When opened at a byte offset
@@ -1488,13 +1488,13 @@ func TestByteSeekResumption_SqlFormat(t *testing.T) {
 	batch1, err := bp1.NextBatch()
 	assert.NoError(t, err)
 	assert.Equal(t, int64(2), batch1.RecordCount)
-	assert.Greater(t, batch1.CumByteOffset, int64(0))
+	assert.Greater(t, batch1.CumByteOffsetEnd, int64(0))
 	bp1.Close()
 
 	// Resume: byte-seek past the COPY preamble + first 2 data rows
 	bp2, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
 	assert.NoError(t, err)
-	assert.Equal(t, batch1.CumByteOffset, bp2.lastBatchCumByteOffset)
+	assert.Equal(t, batch1.CumByteOffsetEnd, bp2.lastBatchCumByteOffsetEnd)
 
 	// Drain pending batch 1
 	_, err = bp2.NextBatch()
@@ -1516,7 +1516,7 @@ func TestByteSeekResumption_SqlFormat(t *testing.T) {
 	// Last batch cumByteOffset should equal file size
 	fileInfo, err := os.Stat(task.FilePath)
 	assert.NoError(t, err)
-	assert.Equal(t, fileInfo.Size(), batch2.CumByteOffset,
+	assert.Equal(t, fileInfo.Size(), batch2.CumByteOffsetEnd,
 		"Last batch cumByteOffset should equal file size for SQL format")
 }
 
@@ -1553,7 +1553,7 @@ func TestCumByteOffset_WithConversionErrors(t *testing.T) {
 	// cumByteOffset must equal total file size, including the errored row's bytes
 	fileInfo, err := os.Stat(task.FilePath)
 	assert.NoError(t, err)
-	assert.Equal(t, fileInfo.Size(), batch.CumByteOffset,
+	assert.Equal(t, fileInfo.Size(), batch.CumByteOffsetEnd,
 		"cumByteOffset should include conversion-errored row bytes and equal file size")
 }
 

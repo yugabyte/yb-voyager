@@ -55,7 +55,7 @@ const (
 metainfo/import_data_state/table::<table_name>/file::<base_name>:<path_hash>/
 
 	link -> dataFile
-	batch::<batch_num>.<offset_end>.<record_count>.<byte_count>.<cum_byte_offset>.<state>
+	batch::<batch_num>.<offset_end>.<record_count>.<byte_count>.<cum_byte_offset_end>.<state>
 */
 type ImportDataState struct {
 	exportDir               string
@@ -174,7 +174,7 @@ func (s *ImportDataState) Recover(filePath string, tableNameTup sqlname.NameTupl
 
 	lastBatchNumber := int64(0)
 	lastOffset := int64(0)
-	lastBatchCumByteOffset := int64(0)
+	lastBatchCumByteOffsetEnd := int64(0)
 	fileFullySplit := false
 
 	batches, err := s.GetAllBatches(filePath, tableNameTup)
@@ -196,14 +196,14 @@ func (s *ImportDataState) Recover(filePath string, tableNameTup sqlname.NameTupl
 		if batch.LineOffsetEnd > lastOffset {
 			lastOffset = batch.LineOffsetEnd
 		}
-		if batch.CumByteOffset > lastBatchCumByteOffset {
-			lastBatchCumByteOffset = batch.CumByteOffset
+		if batch.CumByteOffsetEnd > lastBatchCumByteOffsetEnd {
+			lastBatchCumByteOffsetEnd = batch.CumByteOffsetEnd
 		}
 		if !batch.IsCompleted() {
 			pendingBatches = append(pendingBatches, batch)
 		}
 	}
-	return pendingBatches, lastBatchNumber, lastOffset, lastBatchCumByteOffset, fileFullySplit, nil
+	return pendingBatches, lastBatchNumber, lastOffset, lastBatchCumByteOffsetEnd, fileFullySplit, nil
 }
 
 func (s *ImportDataState) Clean(filePath string, tableNameTup sqlname.NameTuple) error {
@@ -312,7 +312,7 @@ func (s *ImportDataState) getBatches(filePath string, tableNameTup sqlname.NameT
 	}
 	for _, file := range files {
 		if file.Type().IsRegular() && strings.HasPrefix(file.Name(), "batch::") {
-			batchNum, offsetEnd, recordCount, byteCount, cumByteOffset, state, err := parseBatchFileName(file.Name())
+			batchNum, offsetEnd, recordCount, byteCount, cumByteOffsetEnd, state, err := parseBatchFileName(file.Name())
 			if err != nil {
 				return nil, fmt.Errorf("parse batch file name %q: %w", file.Name(), err)
 			}
@@ -329,7 +329,7 @@ func (s *ImportDataState) getBatches(filePath string, tableNameTup sqlname.NameT
 				LineOffsetEnd:   offsetEnd,
 				ByteCount:     byteCount,
 				RecordCount:   recordCount,
-				CumByteOffset: cumByteOffset,
+				CumByteOffsetEnd: cumByteOffsetEnd,
 			}
 			result = append(result, batch)
 		}
@@ -339,8 +339,8 @@ func (s *ImportDataState) getBatches(filePath string, tableNameTup sqlname.NameT
 }
 
 // Batch file name format (6 fields): batch::1.5000.5000.107786.320000.D
-// batch::<batch_num>.<offset_end>.<record_count>.<byte_count>.<cum_byte_offset>.<state>
-func parseBatchFileName(fileName string) (batchNum, offsetEnd, recordCount, byteCount, cumByteOffset int64, state string, err error) {
+// batch::<batch_num>.<offset_end>.<record_count>.<byte_count>.<cum_byte_offset_end>.<state>
+func parseBatchFileName(fileName string) (batchNum, offsetEnd, recordCount, byteCount, cumByteOffsetEnd int64, state string, err error) {
 	md := strings.Split(strings.Split(fileName, "::")[1], ".")
 	if len(md) != 6 {
 		return 0, 0, 0, 0, 0, "", goerrors.Errorf("invalid batch file name %q: expected 6 fields, got %d", fileName, len(md))
@@ -361,15 +361,15 @@ func parseBatchFileName(fileName string) (batchNum, offsetEnd, recordCount, byte
 	if err != nil {
 		return 0, 0, 0, 0, 0, "", goerrors.Errorf("invalid byteCount %q in the file name %q", md[3], fileName)
 	}
-	cumByteOffset, err = strconv.ParseInt(md[4], 10, 64)
+	cumByteOffsetEnd, err = strconv.ParseInt(md[4], 10, 64)
 	if err != nil {
-		return 0, 0, 0, 0, 0, "", goerrors.Errorf("invalid cumByteOffset %q in the file name %q", md[4], fileName)
+		return 0, 0, 0, 0, 0, "", goerrors.Errorf("invalid cumByteOffsetEnd %q in the file name %q", md[4], fileName)
 	}
 	state = md[5]
 	if !slices.Contains([]string{"C", "P", "D", "E"}, state) {
 		return 0, 0, 0, 0, 0, "", goerrors.Errorf("invalid state %q in the file name %q", state, fileName)
 	}
-	return batchNum, offsetEnd, recordCount, byteCount, cumByteOffset, state, nil
+	return batchNum, offsetEnd, recordCount, byteCount, cumByteOffsetEnd, state, nil
 }
 
 //============================================================================
@@ -803,7 +803,7 @@ func (bw *BatchWriter) WriteRecord(record string) error {
 	return nil
 }
 
-func (bw *BatchWriter) Done(isLastBatch bool, offsetEnd int64, byteCount int64, cumByteOffset int64) (*Batch, error) {
+func (bw *BatchWriter) Done(isLastBatch bool, offsetEnd int64, byteCount int64, cumByteOffsetEnd int64) (*Batch, error) {
 	err := bw.w.Flush()
 	if err != nil {
 		return nil, goerrors.Errorf("flush %q: %s", bw.outFile.Name(), err)
@@ -820,7 +820,7 @@ func (bw *BatchWriter) Done(isLastBatch bool, offsetEnd int64, byteCount int64, 
 	}
 	fileStateDir := bw.state.getFileStateDir(bw.filePath, bw.tableName)
 	batchFilePath := fmt.Sprintf("%s/batch::%d.%d.%d.%d.%d.C",
-		fileStateDir, batchNumber, offsetEnd, bw.NumRecordsWritten, byteCount, cumByteOffset)
+		fileStateDir, batchNumber, offsetEnd, bw.NumRecordsWritten, byteCount, cumByteOffsetEnd)
 	log.Infof("Renaming %q to %q", tmpFileName, batchFilePath)
 	err = os.Rename(tmpFileName, batchFilePath)
 	if err != nil {
@@ -836,7 +836,7 @@ func (bw *BatchWriter) Done(isLastBatch bool, offsetEnd int64, byteCount int64, 
 		LineOffsetEnd:   offsetEnd,
 		RecordCount:   bw.NumRecordsWritten,
 		ByteCount:     byteCount,
-		CumByteOffset: cumByteOffset,
+		CumByteOffsetEnd: cumByteOffsetEnd,
 	}
 	return batch, nil
 }
@@ -858,7 +858,7 @@ type Batch struct {
 	LineOffsetEnd   int64
 	RecordCount   int64
 	ByteCount     int64
-	CumByteOffset int64 // Absolute byte position in the original data file after this batch. -1 for old-format batches.
+	CumByteOffsetEnd int64 // Absolute byte position in the original data file after this batch.
 	Interrupted   bool
 }
 
