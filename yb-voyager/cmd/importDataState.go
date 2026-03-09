@@ -193,8 +193,8 @@ func (s *ImportDataState) Recover(filePath string, tableNameTup sqlname.NameTupl
 		if batch.Number > lastBatchNumber {
 			lastBatchNumber = batch.Number
 		}
-		if batch.OffsetEnd > lastOffset {
-			lastOffset = batch.OffsetEnd
+		if batch.LineOffsetEnd > lastOffset {
+			lastOffset = batch.LineOffsetEnd
 		}
 		if batch.CumByteOffset > lastBatchCumByteOffset {
 			lastBatchCumByteOffset = batch.CumByteOffset
@@ -325,8 +325,8 @@ func (s *ImportDataState) getBatches(filePath string, tableNameTup sqlname.NameT
 				FilePath:      filepath.Join(fileStateDir, file.Name()),
 				BaseFilePath:  filePath,
 				Number:        batchNum,
-				OffsetStart:   offsetEnd - recordCount,
-				OffsetEnd:     offsetEnd,
+				LineOffsetStart: offsetEnd - recordCount,
+				LineOffsetEnd:   offsetEnd,
 				ByteCount:     byteCount,
 				RecordCount:   recordCount,
 				CumByteOffset: cumByteOffset,
@@ -832,8 +832,8 @@ func (bw *BatchWriter) Done(isLastBatch bool, offsetEnd int64, byteCount int64, 
 		FilePath:      batchFilePath,
 		BaseFilePath:  bw.filePath,
 		Number:        batchNumber,
-		OffsetStart:   offsetEnd - bw.NumRecordsWritten,
-		OffsetEnd:     offsetEnd,
+		LineOffsetStart: offsetEnd - bw.NumRecordsWritten,
+		LineOffsetEnd:   offsetEnd,
 		RecordCount:   bw.NumRecordsWritten,
 		ByteCount:     byteCount,
 		CumByteOffset: cumByteOffset,
@@ -854,8 +854,8 @@ type Batch struct {
 	SchemaName    string
 	FilePath      string // Path of the batch file.
 	BaseFilePath  string // Path of the original data file.
-	OffsetStart   int64
-	OffsetEnd     int64
+	LineOffsetStart int64
+	LineOffsetEnd   int64
 	RecordCount   int64
 	ByteCount     int64
 	CumByteOffset int64 // Absolute byte position in the original data file after this batch. -1 for old-format batches.

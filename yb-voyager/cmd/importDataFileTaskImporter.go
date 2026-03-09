@@ -205,7 +205,7 @@ func (fti *FileTaskImporter) importBatch(batch *Batch) {
 
 	importBatchArgs := *fti.importBatchArgsProto
 	importBatchArgs.FilePath = batch.FilePath
-	importBatchArgs.RowsPerTransaction = batch.OffsetEnd - batch.OffsetStart
+	importBatchArgs.RowsPerTransaction = batch.LineOffsetEnd - batch.LineOffsetStart
 
 	sleepIntervalSec := 0
 	/*
