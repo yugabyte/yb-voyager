@@ -3459,7 +3459,7 @@ func TestLiveMigrationWithFallbackWithMultipleIterations(t *testing.T) {
 
 	err = lm.WaitForFallbackStreamingComplete(map[string]ChangesCount{
 		`"test_schema"."test_live"`: {
-			Inserts: 5,
+			Inserts: 10,
 			Updates: 0,
 			Deletes: 0,
 		},
@@ -3473,53 +3473,55 @@ func TestLiveMigrationWithFallbackWithMultipleIterations(t *testing.T) {
 			"--restart-data-migration-source-target": "true",
 		})
 		testutils.FatalIfError(t, err, "failed to initiate cutover to source")
-	
+
 		err = lm.WaitForNextIterationInitialized(100)
 		testutils.FatalIfError(t, err, "failed to wait for next iteration initialized")
 
 		err = lm.WaitForCutoverSourceComplete(100)
 		testutils.FatalIfError(t, err, "failed to wait for cutover source complete")
-	
+
 		err = lm.ExecuteSourceDelta()
 		testutils.FatalIfError(t, err, "failed to execute source delta")
-	
+
+		var inserts int64 = 10 + int64(i*5)
 		err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
 			`"test_schema"."test_live"`: {
-				Inserts: 5,
+				Inserts: inserts,
 				Updates: 0,
 				Deletes: 0,
 			},
 		}, 30, 1)
 		testutils.FatalIfError(t, err, "failed to wait for streaming complete")
-	
+
 		err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live"`}, "id")
 		testutils.FatalIfError(t, err, "failed to validate data consistency")
-	
+
 		err = lm.InitiateCutoverToTarget(true, nil)
 		testutils.FatalIfError(t, err, "failed to initiate cutover to target")
-	
+
 		err = lm.WaitForCutoverComplete(50)
 		testutils.FatalIfError(t, err, "failed to wait for cutover complete")
-	
+
 		err = lm.ExecuteTargetDelta()
 		testutils.FatalIfError(t, err, "failed to execute target delta")
-	
+
+		var fallbackInserts int64 = inserts + 5
 		err = lm.WaitForFallbackStreamingComplete(map[string]ChangesCount{
 			`"test_schema"."test_live"`: {
-				Inserts: 5,
+				Inserts: fallbackInserts,
 				Updates: 0,
 				Deletes: 0,
 			},
 		}, 30, 1)
 		testutils.FatalIfError(t, err, "failed to wait for fallback streaming complete")
-	
+
 		err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live"`}, "id")
 		testutils.FatalIfError(t, err, "failed to validate data consistency")
 
 		if i == 5 {
 			err = lm.InitiateCutoverToSource(nil)
 			testutils.FatalIfError(t, err, "failed to initiate cutover to source")
-		
+
 			err = lm.WaitForCutoverSourceComplete(100)
 			testutils.FatalIfError(t, err, "failed to wait for cutover source complete")
 		}
