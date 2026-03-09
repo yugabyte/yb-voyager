@@ -55,7 +55,7 @@ const (
 metainfo/import_data_state/table::<table_name>/file::<base_name>:<path_hash>/
 
 	link -> dataFile
-	batch::<batch_num>.<offset_end>.<record_count>.<byte_count>.<state>
+	batch::<batch_num>.<offset_end>.<record_count>.<byte_count>.<cum_byte_offset>.<state>
 */
 type ImportDataState struct {
 	exportDir               string
