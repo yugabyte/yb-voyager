@@ -342,6 +342,15 @@ func startExportDataFromSourceOnNextIteration() {
 		cmd = append(cmd, "--source-db-schema", currentMsr.SourceDBConf.SchemaConfig)
 	}
 
+	if currentMsr.SourceDBConf.TableList != "" {
+		//If CLI has overridden the table list then pass it to the command
+		cmd = append(cmd, "--table-list", currentMsr.SourceDBConf.TableList)
+	}
+	if currentMsr.SourceDBConf.ExcludeTableList != "" {
+		//If CLI has overridden the exclude table list then pass it to the command
+		cmd = append(cmd, "--exclude-table-list", currentMsr.SourceDBConf.ExcludeTableList)
+	}
+
 	iterationExportDir := GetIterationExportDir(currentMsr.GetIterationsDir(exportDir), currentMsr.IterationNo+1)
 	utils.PrintAndLogfInfo("\nStarting export data from source on iteration %d at %s.\n\n", currentMsr.IterationNo+1, iterationExportDir)
 

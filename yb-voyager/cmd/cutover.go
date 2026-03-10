@@ -196,6 +196,10 @@ func setUpNextIterationMSR(parentMetaDB *metadb.MetaDB, iterationNo int, current
 
 		//set the table list exported from source to the next iteration
 		record.TableListExportedFromSource = currentMSR.TableListExportedFromSource
+		record.TargetExportedTableListWithLeafPartitions = currentMSR.TargetExportedTableListWithLeafPartitions
+		record.SourceExportedTableListWithLeafPartitions = currentMSR.SourceExportedTableListWithLeafPartitions
+		record.SourceRenameTablesMap = currentMSR.SourceRenameTablesMap
+		record.TargetRenameTablesMap = currentMSR.TargetRenameTablesMap
 	})
 	if err != nil {
 		return fmt.Errorf("failed to update iteration migration status record: %w", err)

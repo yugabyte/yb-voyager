@@ -177,18 +177,8 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 	if err != nil {
 		utils.ErrExit("failed to get migration status record: %w", err)
 	}
-	if exporterRole == SOURCE_DB_EXPORTER_ROLE && !msr.IsParentMigration() {
-		//It this is not the parent migration, then use the source db conf stored in the migration
-		password := source.Password
-		source = *msr.SourceDBConf
-		source.Password = password
-	}
 
-	if exportType == CHANGES_ONLY && len(msr.TableListExportedFromSource) > 0 {
-		source.TableList = strings.Join(msr.TableListExportedFromSource, ",")
-	} else if !msr.IsParentMigration() {
-		utils.ErrExit("table list is not set for the iterations.")
-	}
+	setSourceDetailsForChangesOnly(msr)
 
 	handleCutoverAlreadyProcessedForExportData()
 
@@ -210,8 +200,40 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 	}
 }
 
+func setSourceDetailsForChangesOnly(msr *metadb.MigrationStatusRecord) {
+	if exportType != CHANGES_ONLY {
+		return
+	}
+
+	if exporterRole == SOURCE_DB_EXPORTER_ROLE && !msr.IsParentMigration() {
+		//iteration and source exporter
+		sourcePassword := source.Password
+		/*
+		The problem with table list guardrail is that 
+		we need both the table list flags for the both the case first run of the export data and the iteration's export data from source
+		to be able to figure out the exact table list of the both the scenario's 
+		*/
+		tableListFlag := source.TableList
+		excludeTableListFlag := source.ExcludeTableList
+		fmt.Printf("tableListFlag: %s, excludeTableListFlag: %s\n", tableListFlag, excludeTableListFlag)
+		source = *msr.SourceDBConf
+		source.Password = sourcePassword
+		source.TableList = tableListFlag
+		source.ExcludeTableList = excludeTableListFlag
+	}
+
+	if isTargetDBExporter(exporterRole) {
+		if source.TableList != "" || source.ExcludeTableList != "" {
+			utils.ErrExit("table list and exclude table list are not supported for 'export data from target' ")
+		}
+		source.TableList = strings.Join(msr.TableListExportedFromSource, ",")
+	} 
+	//For the source db exporter we allow but we have guardrails in getInitialTableList function to 
+	// validate the table list and exclude table list properly if its changed from the one stored in MSR 
+}
+
 func waitUntilNextIterationInitialized() error {
-	timeout := 30 * time.Second
+	timeout := 10 * time.Minute
 	startTime := time.Now()
 
 	for {
