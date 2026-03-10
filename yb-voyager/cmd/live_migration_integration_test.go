@@ -3816,3 +3816,222 @@ func TestLiveMigrationWithFallbackWithMultipleIterationsWithFailureScenariosDuri
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
 }
+
+func TestLiveMigrationWithFallbackWithIterationsTableList(t *testing.T) {
+	t.Parallel()
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB: ContainerConfig{
+			Type:         "postgresql",
+			ForLive:      true,
+			DatabaseName: "test_fallback_with_multiple_iterations_table_list",
+		},
+		SchemaNames: []string{`test_schema`},
+		SchemaSQL: []string{
+			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
+			`CREATE SCHEMA IF NOT EXISTS test_schema;
+			CREATE TABLE test_schema.test_live (
+				id SERIAL PRIMARY KEY,
+				name TEXT,
+				email TEXT,
+				description TEXT
+			);`,
+			`CREATE TABLE test_schema.test_live_2 (
+				id SERIAL PRIMARY KEY,
+				name TEXT,
+				email TEXT,
+				description TEXT
+			);`,
+			`CREATE TABLE test_schema.test_live_3 (
+				id SERIAL PRIMARY KEY,
+				name TEXT,
+				email TEXT,
+				description TEXT
+			);`,
+		},
+		InitialDataSQL: []string{
+			`INSERT INTO test_schema.test_live (name, email, description)
+			SELECT
+				md5(random()::text),
+				md5(random()::text) || '@example.com',
+				repeat(md5(random()::text), 10)
+			FROM generate_series(1, 10);`,
+			`INSERT INTO test_schema.test_live_2 (name, email, description)
+			SELECT
+				md5(random()::text),
+				md5(random()::text) || '@example.com',
+				repeat(md5(random()::text), 10)
+			FROM generate_series(1, 10);`,
+			`INSERT INTO test_schema.test_live_3 (name, email, description)
+			SELECT
+				md5(random()::text),
+				md5(random()::text) || '@example.com',
+				repeat(md5(random()::text), 10)
+			FROM generate_series(1, 10);`,
+		},
+		SourceDeltaSQL: []string{
+			`INSERT INTO test_schema.test_live (name, email, description)
+			SELECT
+				md5(random()::text),
+				md5(random()::text) || '@example.com',
+				repeat(md5(random()::text), 10)
+			FROM generate_series(1, 5);`,
+			`INSERT INTO test_schema.test_live_2 (name, email, description)
+			SELECT
+				md5(random()::text),
+				md5(random()::text) || '@example.com',
+				repeat(md5(random()::text), 10)
+			FROM generate_series(1, 5);`,
+		},
+		TargetDeltaSQL: []string{
+			`INSERT INTO test_schema.test_live (name, email, description)
+			SELECT
+				md5(random()::text),
+				md5(random()::text) || '@example.com',
+				repeat(md5(random()::text), 10)
+			FROM generate_series(1, 5);`,
+			`INSERT INTO test_schema.test_live_2 (name, email, description)
+			SELECT
+				md5(random()::text),
+				md5(random()::text) || '@example.com',
+				repeat(md5(random()::text), 10)
+			FROM generate_series(1, 5);`,
+		},
+		CleanupSQL: []string{
+			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
+		},
+	})
+
+	defer lm.Cleanup()
+
+	err := lm.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+
+	err = lm.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
+
+	err = lm.StartExportData(true, map[string]string{
+		"--table-list": "test_schema.test_live,test_schema.test_live_2",
+	})
+	testutils.FatalIfError(t, err, "failed to start export data")
+
+	err = lm.StartImportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start import data")
+
+	err = lm.WaitForSnapshotComplete(map[string]int64{
+		`"test_schema"."test_live"`:   10,
+		`"test_schema"."test_live_2"`: 10,
+	}, 30)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live"`, `"test_schema"."test_live_2"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	err = lm.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
+
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`"test_schema"."test_live"`: {
+			Inserts: 5,
+			Updates: 0,
+			Deletes: 0,
+		},
+		`"test_schema"."test_live_2"`: {
+			Inserts: 5,
+			Updates: 0,
+			Deletes: 0,
+		},
+	}, 30, 1)
+	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
+
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live"`, `"test_schema"."test_live_2"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	err = lm.InitiateCutoverToTarget(true, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover to target")
+
+	err = lm.WaitForCutoverComplete(50)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+
+	err = lm.ExecuteTargetDelta()
+	testutils.FatalIfError(t, err, "failed to execute target delta")
+
+	err = lm.WaitForFallbackStreamingComplete(map[string]ChangesCount{
+		`"test_schema"."test_live"`: {
+			Inserts: 5,
+			Updates: 0,
+			Deletes: 0,
+		},
+	}, 30, 1)
+	testutils.FatalIfError(t, err, "failed to wait for fallback streaming complete")
+
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live"`, `"test_schema"."test_live_2"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	err = lm.InitiateCutoverToSource(map[string]string{
+		"--restart-data-migration-source-target": "true",
+	})
+	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
+
+	err = lm.WaitForNextIterationInitialized(100)
+	testutils.FatalIfError(t, err, "failed to wait for next iteration initialized")
+
+	err = lm.WaitForCutoverSourceComplete(100)
+	testutils.FatalIfError(t, err, "failed to wait for cutover source complete")
+
+	err = lm.StopExportData()
+	testutils.FatalIfError(t, err, "failed to stop export data")
+
+	err = lm.StartExportData(false, map[string]string{
+		"--table-list": "test_schema.test_live,test_schema.test_live_2,test_schema.test_live_3",
+	})
+	assert.NotNil(t, err)
+	assert.Contains(t, lm.GetExportCommandStderr(), "Extra tables in the current run compared to the initial list")
+
+	err = lm.StartExportData(true, map[string]string{
+		"--table-list": "test_schema.test_live,test_schema.test_live_2",
+	})
+	testutils.FatalIfError(t, err, "failed to start export data")
+
+	err = lm.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
+
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`"test_schema"."test_live"`: {
+			Inserts: 5,
+			Updates: 0,
+			Deletes: 0,
+		},
+	}, 30, 1)
+	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
+
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live"`, `"test_schema"."test_live_2"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	err = lm.InitiateCutoverToTarget(true, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover to target")
+
+	err = lm.WaitForCutoverComplete(50)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+
+	err = lm.ExecuteTargetDelta()
+	testutils.FatalIfError(t, err, "failed to execute target delta")
+
+	err = lm.WaitForFallbackStreamingComplete(map[string]ChangesCount{
+		`"test_schema"."test_live"`: {
+			Inserts: 5,
+			Updates: 0,
+			Deletes: 0,
+		},
+	}, 30, 1)
+	testutils.FatalIfError(t, err, "failed to wait for fallback streaming complete")
+
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live"`, `"test_schema"."test_live_2"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	err = lm.InitiateCutoverToSource(nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
+
+	err = lm.WaitForCutoverSourceComplete(100)
+	testutils.FatalIfError(t, err, "failed to wait for cutover source complete")
+	
+}
