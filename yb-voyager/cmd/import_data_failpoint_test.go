@@ -80,8 +80,10 @@ FROM generate_series(1, 20) i;`
 	err = exportRunner.Run()
 	testutils.FatalIfError(t, err, "Failed to export data")
 
-	// Enable failpoint to inject commit error
 	fpEnv := testutils.GetFailpointEnvVar(
+		// Skip the first 4 batch commits (let them succeed), then inject a commit
+		// error on the 5th batch. With batch-size=2 and 20 rows, 4 successful
+		// batches import 8 rows before the failure.
 		"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb/importBatchCommitError=4*off->return()",
 	)
 

@@ -2086,7 +2086,7 @@ func createInitialImportDataTableMetrics(tasks []*ImportFileTask) []*cp.UpdateIm
 	result := []*cp.UpdateImportedRowCountEvent{}
 	for _, task := range tasks {
 		var schemaName, tableName string
-		schemaName, tableName = cp.SplitTableNameForPG(task.TableNameTup.ForKey())
+		schemaName, tableName = task.TableNameTup.ForKeyTableSchema()
 		tableMetrics := cp.UpdateImportedRowCountEvent{
 			BaseUpdateRowCountEvent: cp.BaseUpdateRowCountEvent{
 				BaseEvent: cp.BaseEvent{
