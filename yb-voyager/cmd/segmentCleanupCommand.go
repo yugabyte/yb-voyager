@@ -68,7 +68,7 @@ func segmentCleanupCommandFn(cmd *cobra.Command, args []string) {
 		FSUtilizationThreshold: cleanupUtilizationThreshold,
 	}
 
-	cleaner := segmentcleanup.NewSegmentCleaner(cfg, metaDB)
+	cleaner := segmentcleanup.NewSegmentCleaner(cfg, metaDB, &StopArchiverSignal)
 	if err := cleaner.Run(); err != nil {
 		utils.ErrExit("segment cleanup failed: %v", err)
 	}

@@ -49,29 +49,22 @@ type Config struct {
 	FSUtilizationThreshold int
 }
 
-func (c *Config) Validate() error {
-	if !IsValidPolicy(c.Policy) {
-		return fmt.Errorf("invalid cleanup policy %q: must be one of delete, retain", c.Policy)
-	}
-	return nil
-}
-
 type SegmentCleaner struct {
-	config Config
-	metaDB *metadb.MetaDB
-	stop   bool
+	config     Config
+	metaDB     *metadb.MetaDB
+	stopSignal *bool
 }
 
-func NewSegmentCleaner(cfg Config, metaDB *metadb.MetaDB) *SegmentCleaner {
+func NewSegmentCleaner(cfg Config, metaDB *metadb.MetaDB, stopSignal *bool) *SegmentCleaner {
 	return &SegmentCleaner{
-		config: cfg,
-		metaDB: metaDB,
+		config:     cfg,
+		metaDB:     metaDB,
+		stopSignal: stopSignal,
 	}
 }
 
-// SignalStop tells the cleaner to drain remaining work and exit.
-func (sc *SegmentCleaner) SignalStop() {
-	sc.stop = true
+func (sc *SegmentCleaner) isStopRequested() bool {
+	return sc.stopSignal != nil && *sc.stopSignal
 }
 
 func (sc *SegmentCleaner) Run() error {
@@ -100,7 +93,7 @@ func (sc *SegmentCleaner) getImportCount() (int, error) {
 }
 
 func (sc *SegmentCleaner) isFSUtilizationExceeded() bool {
-	if sc.stop {
+	if sc.isStopRequested() {
 		return true
 	}
 	fsUtil, err := utils.GetFSUtilizationPercentage(sc.config.ExportDir)
@@ -133,7 +126,7 @@ func (sc *SegmentCleaner) runDeletePolicy() error {
 			return goerrors.Errorf("get processed segments: %v", err)
 		}
 
-		if sc.stop && len(segments) == 0 {
+		if sc.isStopRequested() && len(segments) == 0 {
 			log.Infof("all processed segments deleted, cleanup complete")
 			return nil
 		}
@@ -171,7 +164,7 @@ func (sc *SegmentCleaner) runRetainPolicy() error {
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
 	for range ticker.C {
-		if sc.stop {
+		if sc.isStopRequested() {
 			log.Infof("retain policy: stop signal received, exiting")
 			return nil
 		}
