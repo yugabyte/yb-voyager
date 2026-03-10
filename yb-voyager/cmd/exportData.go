@@ -209,13 +209,11 @@ func setSourceDetailsForChangesOnly(msr *metadb.MigrationStatusRecord) {
 		//iteration and source exporter
 		sourcePassword := source.Password
 		/*
-		The problem with table list guardrail is that 
-		we need both the table list flags for the both the case first run of the export data and the iteration's export data from source
-		to be able to figure out the exact table list of the both the scenario's 
+		we need to keep the table list passed in the table-list/exclude-table-list flags as it is required to get the table list present in the command 
+		and do the guardrail checks properly in getInitialTableList function
 		*/
 		tableListFlag := source.TableList
 		excludeTableListFlag := source.ExcludeTableList
-		fmt.Printf("tableListFlag: %s, excludeTableListFlag: %s\n", tableListFlag, excludeTableListFlag)
 		source = *msr.SourceDBConf
 		source.Password = sourcePassword
 		source.TableList = tableListFlag
@@ -227,9 +225,7 @@ func setSourceDetailsForChangesOnly(msr *metadb.MigrationStatusRecord) {
 			utils.ErrExit("table list and exclude table list are not supported for 'export data from target' ")
 		}
 		source.TableList = strings.Join(msr.TableListExportedFromSource, ",")
-	} 
-	//For the source db exporter we allow but we have guardrails in getInitialTableList function to 
-	// validate the table list and exclude table list properly if its changed from the one stored in MSR 
+	}
 }
 
 func waitUntilNextIterationInitialized() error {

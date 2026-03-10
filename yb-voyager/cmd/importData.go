@@ -343,11 +343,11 @@ func startExportDataFromSourceOnNextIteration() {
 	}
 
 	if currentMsr.SourceDBConf.TableList != "" {
-		//If CLI has overridden the table list then pass it to the command
+		//If these are overridden by CLI/Config file then pass it to the command always
 		cmd = append(cmd, "--table-list", currentMsr.SourceDBConf.TableList)
 	}
 	if currentMsr.SourceDBConf.ExcludeTableList != "" {
-		//If CLI has overridden the exclude table list then pass it to the command
+		//If these are overridden by CLI/Config file then pass it to the command always
 		cmd = append(cmd, "--exclude-table-list", currentMsr.SourceDBConf.ExcludeTableList)
 	}
 
@@ -2049,11 +2049,22 @@ func checkExportDataDoneFlag() {
 		return
 	}
 
-	utils.PrintAndLogf("Waiting for snapshot data export to complete...")
+	if importType == CHANGES_ONLY {
+		//For changes only the data exported is marked done once the slot is created
+		utils.PrintAndLogf("Waiting for export data from source to start...")
+	} else {
+		//for snapshot it is marked done once the snapshot is complete
+		utils.PrintAndLogf("Waiting for snapshot data export to complete...")
+
+	}
 	for !dataIsExported() {
 		time.Sleep(time.Second * 2)
 	}
-	utils.PrintAndLogf("Snapshot data export is complete.")
+	if importType == CHANGES_ONLY {
+		utils.PrintAndLogf("Export data from source is started.")
+	} else {
+		utils.PrintAndLogf("Snapshot data export is complete.")
+	}
 }
 
 func init() {
