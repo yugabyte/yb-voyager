@@ -62,3 +62,6 @@ yes | bash installer_scripts/install-yb-voyager -v
 - The `-l` (local build) flag requires `rsync` to be installed on the system.
 - Lock files (`.lck`) in the export directory can block re-runs; remove them if a previous `yb-voyager` process was killed.
 - Set `YB_VOYAGER_SEND_DIAGNOSTICS=0` to disable telemetry during development/testing.
+- PostgreSQL 17's default `pg_hba.conf` uses `peer` auth for local connections. For `yb-voyager` to connect via `127.0.0.1` with a password, change `peer` to `md5` and restart PG.
+- The full build (`-l -p`) takes ~25 minutes (Debezium Maven builds); the Go-only rebuild (`-v`) takes ~30 seconds.
+- The actual YugabyteDB version installed may differ from the path referenced in AGENTS.md (e.g., 2025.1.2.1 symlinked as 2025.2.1.0). Always check which version is available at `/opt/yugabyte-*`.
