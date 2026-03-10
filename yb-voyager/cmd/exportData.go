@@ -177,18 +177,8 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 	if err != nil {
 		utils.ErrExit("failed to get migration status record: %w", err)
 	}
-	if exporterRole == SOURCE_DB_EXPORTER_ROLE && !msr.IsParentMigration() {
-		//It this is not the parent migration, then use the source db conf stored in the migration
-		password := source.Password
-		source = *msr.SourceDBConf
-		source.Password = password
-	}
 
-	if exportType == CHANGES_ONLY && len(msr.TableListExportedFromSource) > 0 {
-		source.TableList = strings.Join(msr.TableListExportedFromSource, ",")
-	} else if !msr.IsParentMigration() {
-		utils.ErrExit("table list is not set for the iterations.")
-	}
+	setSourceDetailsForChangesOnly(msr)
 
 	handleCutoverAlreadyProcessedForExportData()
 
@@ -210,8 +200,36 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 	}
 }
 
+func setSourceDetailsForChangesOnly(msr *metadb.MigrationStatusRecord) {
+	if exportType != CHANGES_ONLY {
+		return
+	}
+
+	if exporterRole == SOURCE_DB_EXPORTER_ROLE && !msr.IsParentMigration() {
+		//iteration and source exporter
+		sourcePassword := source.Password
+		/*
+		we need to keep the table list passed in the table-list/exclude-table-list flags as it is required to get the table list present in the command 
+		and do the guardrail checks properly in getInitialTableList function
+		*/
+		tableListFlag := source.TableList
+		excludeTableListFlag := source.ExcludeTableList
+		source = *msr.SourceDBConf
+		source.Password = sourcePassword
+		source.TableList = tableListFlag
+		source.ExcludeTableList = excludeTableListFlag
+	}
+
+	if isTargetDBExporter(exporterRole) {
+		if source.TableList != "" || source.ExcludeTableList != "" {
+			utils.ErrExit("table list and exclude table list are not supported for 'export data from target' ")
+		}
+		source.TableList = strings.Join(msr.TableListExportedFromSource, ",")
+	}
+}
+
 func waitUntilNextIterationInitialized() error {
-	timeout := 30 * time.Second
+	timeout := 10 * time.Minute
 	startTime := time.Now()
 
 	for {
