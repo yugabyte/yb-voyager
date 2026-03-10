@@ -95,7 +95,7 @@ var invalidTargetIndexesCache map[string]bool
 
 func importSchema() error {
 
-	//No requirement as such for namereg for this command as its already doing the schema name creation 
+	//No requirement as such for namereg for this command as its already doing the schema name creation
 	// so can't lookup before that so not any real use of namereg
 	tconf.Schemas = sqlname.ParseIdentifiersFromString(tconf.TargetDBType, tconf.SchemaConfig, ",")
 
