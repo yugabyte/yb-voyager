@@ -1066,9 +1066,9 @@ func getNameTupleFromQualifiedObject(qualifiedObjectStr string, qualifiedObjectN
 	parent := source.DB().ParentTableOfPartition(tuple)
 
 	if parent == "" {
-		tuple, err = namereg.NameReg.LookupTableName(fmt.Sprintf("%s.%s", obj.SchemaName.Unquoted, obj.Unqualified.Unquoted))
+		tuple, err = namereg.NameReg.LookupTableName(obj.Qualified.Quoted)
 		if err != nil {
-			return sqlname.NameTuple{}, fmt.Errorf("lookup for table name failed err: %s: %w", obj.Unqualified, err)
+			return sqlname.NameTuple{}, fmt.Errorf("lookup for table name failed err: %s: %w", obj.Qualified.Quoted, err)
 		}
 	}
 	return tuple, nil

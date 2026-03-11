@@ -20,6 +20,7 @@ import (
 	"strings"
 	"unicode"
 
+	goerrors "github.com/go-errors/errors"
 	"github.com/samber/lo"
 	"golang.org/x/exp/slices"
 
@@ -278,7 +279,7 @@ func IsQuoted(s string) bool {
 // Both double-quote (") and backtick (`) quoting are supported.
 func SplitQualifiedName(qualifiedName string) ([]string, error) {
 	if qualifiedName == "" {
-		return nil, fmt.Errorf("empty qualified name")
+		return nil, goerrors.Errorf("empty qualified name")
 	}
 	var parts []string
 	current := strings.Builder{}
@@ -294,7 +295,7 @@ func SplitQualifiedName(qualifiedName string) ([]string, error) {
 				i++
 			}
 			if i >= len(qualifiedName) {
-				return nil, fmt.Errorf("unterminated quote in qualified name: %s", qualifiedName)
+				return nil, goerrors.Errorf("unterminated quote in qualified name: %s", qualifiedName)
 			}
 			current.WriteByte(qualifiedName[i]) // closing quote
 			i++
