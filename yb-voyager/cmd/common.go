@@ -1558,7 +1558,7 @@ func convertSchemaSummaryToPayload(summary utils.SchemaSummary, dbType string) P
 			ObjectType:   dbObj.ObjectType,
 			TotalCount:   dbObj.TotalCount,
 			InvalidCount: dbObj.InvalidCount,
-			Objects:      parseObjectNamesToPayload(dbObj.ObjectNames, dbType),
+			Objects:      parseObjectNamesToPayload(dbObj.ObjectNames, dbObj.ObjectType, dbType),
 			Details:      dbObj.Details,
 		})
 	}
@@ -1572,9 +1572,8 @@ func convertSchemaSummaryToPayload(summary utils.SchemaSummary, dbType string) P
 	}
 }
 
-// parseObjectNamesToPayload splits the comma-separated ObjectNames string into individual ObjectPayload entries with unquoted names.
-// Index-style entries formatted as "index_name ON schema.table" are split into ObjectName and ParentTableName.
-func parseObjectNamesToPayload(objectNames string, dbType string) []ObjectPayload {
+// parseObjectNamesToPayload splits the comma-separated ObjectNames string into individual ObjectPayload entries.
+func parseObjectNamesToPayload(objectNames string, objectType string, dbType string) []ObjectPayload {
 	objectNames = strings.Trim(objectNames, ", ")
 	if objectNames == "" {
 		return nil
@@ -1587,24 +1586,23 @@ func parseObjectNamesToPayload(objectNames string, dbType string) []ObjectPayloa
 			continue
 		}
 		var obj ObjectPayload
-		if parts := strings.SplitN(name, " ON ", 2); len(parts) == 2 {
-			obj.ObjectName = unquoteQualifiedName(parts[0], dbType)
-			obj.ParentTableName = unquoteQualifiedName(parts[1], dbType)
+		if slices.Contains([]string{"INDEX", "TRIGGER", "POLICY"}, objectType) {
+			parts := strings.SplitN(name, " ON ", 2)
+			if len(parts) == 2 {
+				obj.ObjectName = sqlname.NewIdentifier(dbType, strings.TrimSpace(parts[0])).Unquoted
+				tableObj := sqlname.NewObjectNameWithQualifiedName(dbType, "", strings.TrimSpace(parts[1]))
+				obj.ParentTableName = tableObj.Qualified.Unquoted
+			} else {
+				obj.ObjectName = sqlname.NewIdentifier(dbType, name).Unquoted
+			}
 		} else {
-			obj.ObjectName = unquoteQualifiedName(name, dbType)
+			obj.ObjectName = sqlname.NewIdentifier(dbType, name).Unquoted
 		}
 		objects = append(objects, obj)
 	}
 	return objects
 }
 
-func unquoteQualifiedName(name string, dbType string) string {
-	parts := strings.Split(strings.TrimSpace(name), ".")
-	for i, part := range parts {
-		parts[i] = sqlname.NewIdentifier(dbType, part).Unquoted
-	}
-	return strings.Join(parts, ".")
-}
 
 // RowCountPair holds imported and errored row counts for a table.
 type RowCountPair struct {

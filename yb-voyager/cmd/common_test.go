@@ -489,57 +489,35 @@ func TestStripAnchorTags(t *testing.T) {
 	}
 }
 
-func TestUnquoteQualifiedName(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    string
-		dbType   string
-		expected string
-	}{
-		{"unquoted simple", "mytable", "postgresql", "mytable"},
-		{"quoted mixed case", `"MyTable"`, "postgresql", "MyTable"},
-		{"unquoted qualified", "public.mytable", "postgresql", "public.mytable"},
-		{"quoted qualified", `"Public"."MyTable"`, "postgresql", "Public.MyTable"},
-		{"mixed qualified", `public."MyTable"`, "postgresql", "public.MyTable"},
-		{"quoted with space", `"my table"`, "postgresql", "my table"},
-		{"qualified with space", `public."my table"`, "postgresql", "public.my table"},
-		{"oracle unquoted", "MYTABLE", "oracle", "MYTABLE"},
-		{"oracle quoted", `"MyTable"`, "oracle", "MyTable"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := unquoteQualifiedName(tt.input, tt.dbType)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
-
 func TestParseObjectNamesToPayload(t *testing.T) {
 	tests := []struct {
-		name     string
-		input    string
-		dbType   string
-		expected []ObjectPayload
+		name       string
+		input      string
+		dbType     string
+		objectType string
+		expected   []ObjectPayload
 	}{
 		{
-			name:     "empty string",
-			input:    "",
-			dbType:   "postgresql",
-			expected: nil,
+			name:       "empty string",
+			input:      "",
+			dbType:     "postgresql",
+			objectType: "TABLE",
+			expected:   nil,
 		},
 		{
-			name:   "single table",
-			input:  "test_table",
-			dbType: "postgresql",
+			name:       "single table",
+			input:      "test_table",
+			dbType:     "postgresql",
+			objectType: "TABLE",
 			expected: []ObjectPayload{
 				{ObjectName: "test_table"},
 			},
 		},
 		{
-			name:   "multiple tables",
-			input:  "table_a, table_b, table_c",
-			dbType: "postgresql",
+			name:       "multiple tables",
+			input:      "table_a, table_b, table_c",
+			dbType:     "postgresql",
+			objectType: "TABLE",
 			expected: []ObjectPayload{
 				{ObjectName: "table_a"},
 				{ObjectName: "table_b"},
@@ -547,45 +525,83 @@ func TestParseObjectNamesToPayload(t *testing.T) {
 			},
 		},
 		{
-			name:   "index with ON clause",
-			input:  "idx_name ON public.test_table",
-			dbType: "postgresql",
+			name:       "quoted table",
+			input:      `"QuotedTable"`,
+			dbType:     "postgresql",
+			objectType: "TABLE",
+			expected: []ObjectPayload{
+				{ObjectName: "QuotedTable"},
+			},
+		},
+		{
+			name:       "quoted table with space",
+			input:      `"my table"`,
+			dbType:     "postgresql",
+			objectType: "TABLE",
+			expected: []ObjectPayload{
+				{ObjectName: "my table"},
+			},
+		},
+		{
+			name:       "index with ON clause",
+			input:      "idx_name ON public.test_table",
+			dbType:     "postgresql",
+			objectType: "INDEX",
 			expected: []ObjectPayload{
 				{ObjectName: "idx_name", ParentTableName: "public.test_table"},
 			},
 		},
 		{
-			name:   "quoted index with ON clause",
-			input:  `"IdxName" ON "Schema"."Table"`,
-			dbType: "postgresql",
+			name:       "quoted index with ON clause",
+			input:      `"IdxName" ON "Schema"."Table"`,
+			dbType:     "postgresql",
+			objectType: "INDEX",
 			expected: []ObjectPayload{
 				{ObjectName: "IdxName", ParentTableName: "Schema.Table"},
 			},
 		},
 		{
-			name:   "quoted name with space",
-			input:  `"my table", "my index" ON public."my table"`,
-			dbType: "postgresql",
+			name:       "quoted index with space in names",
+			input:      `"my index" ON public."my table"`,
+			dbType:     "postgresql",
+			objectType: "INDEX",
 			expected: []ObjectPayload{
-				{ObjectName: "my table"},
 				{ObjectName: "my index", ParentTableName: "public.my table"},
 			},
 		},
 		{
-			name:   "mixed tables and indexes",
-			input:  `test_table, idx_name ON public.test_table, "QuotedTable"`,
-			dbType: "postgresql",
+			name:       "multiple indexes",
+			input:      `idx_name ON public.test_table, "IdxName" ON "Schema"."Table"`,
+			dbType:     "postgresql",
+			objectType: "INDEX",
 			expected: []ObjectPayload{
-				{ObjectName: "test_table"},
 				{ObjectName: "idx_name", ParentTableName: "public.test_table"},
-				{ObjectName: "QuotedTable"},
+				{ObjectName: "IdxName", ParentTableName: "Schema.Table"},
+			},
+		},
+		{
+			name:       "trigger with ON clause",
+			input:      "my_trigger ON public.my_table",
+			dbType:     "postgresql",
+			objectType: "TRIGGER",
+			expected: []ObjectPayload{
+				{ObjectName: "my_trigger", ParentTableName: "public.my_table"},
+			},
+		},
+		{
+			name:       "policy with ON clause",
+			input:      "my_policy ON public.my_table",
+			dbType:     "postgresql",
+			objectType: "POLICY",
+			expected: []ObjectPayload{
+				{ObjectName: "my_policy", ParentTableName: "public.my_table"},
 			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := parseObjectNamesToPayload(tt.input, tt.dbType)
+			result := parseObjectNamesToPayload(tt.input, tt.objectType, tt.dbType)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
