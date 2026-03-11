@@ -2,7 +2,7 @@ name: Failpoint Tests
 
 on:
   pull_request:
-    branches: [ main ]
+    branches: [ priyanshi/fix-cutover-export-data-resumption ]
   push:
     branches: [ main, '*.*-dev', '*.*.*-dev' ]
 
