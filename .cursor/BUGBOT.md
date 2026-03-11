@@ -1,8 +1,8 @@
 # YugabyteDB Voyager — Product-Level Review Rules
 
-## Migration Flow Coverage
+## Data Migration Flow Coverage
 
-Every code change should be evaluated against **all** migration flows it could affect:
+Every code change involving data migration should be evaluated against **all** data migration flows it could affect:
 
 - **Offline migration**: export-schema → export-data (snapshot via pg_dump/ora2pg) → import-schema → import-data → import-schema (post-data).
 - **Live migration**: export-schema → export-data (snapshot + streaming via Debezium) → import-schema → import-data → cutover-to-target → end-migration.
@@ -43,13 +43,13 @@ Sequence handling varies significantly across code paths:
 
 Users may upgrade voyager mid-migration. Serialized state must remain compatible:
 
-- Changing JSON struct tags or removing fields from serialized structs (MSR, assessment report, callhome payloads) is a breaking change.
+- Changing JSON struct tags or removing fields from serialized structs (MSR, assessment report, callhome payloads) can be a breaking change.
 - Adding columns to the assessmentDB (SQLite) schema can break older voyager versions that query the new schema. Use defensive queries or `ADD COLUMN IF NOT EXISTS`.
 - When changing callhome or YugabyteD payload structs, increment the payload version constant.
 
 ## Case-Sensitive Identifiers
 
-PostgreSQL allows case-sensitive (quoted) identifiers. All object name handling must go through the `sqlname` package, not manual string concatenation. Always test new table/column/schema handling with case-sensitive names.
+PostgreSQL allows case-sensitive (quoted) identifiers. All object name handling must go through the `sqlname` package (`NameTuple` or `ObjectName`), not manual string concatenation. Always test new table/column/schema handling with case-sensitive names.
 
 ## Generic Coding Practices
 

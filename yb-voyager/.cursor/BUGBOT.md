@@ -24,28 +24,29 @@
 
 ## Interface Design
 
-- Keep interfaces lean. Only add methods to shared interfaces (source DB, target DB) if they are needed by multiple implementations or callers. DB-specific helpers should be accessed via type assertion, not added to the shared interface.
+- Keep interfaces lean. Only add methods to shared interfaces (source DB, target DB) if they are needed by multiple implementations or callers. DB-specific helpers should be accessed via type assertion (if they are applicable only for that DB), and not added to the shared interface.
 - Include named parameters in interface method signatures for clarity.
 
 ## Global State
 
-- The global `metaDB` variable is a known tech debt. Any function that temporarily replaces it must restore the original value (typically via `defer`). Add a comment explaining why the swap is necessary.
 - Avoid introducing new global variables. Prefer passing dependencies explicitly through function arguments or struct fields.
+
 
 ## Object Names
 
 - Use the `sqlname` package for all object name handling. Do not construct qualified names via manual string concatenation.
-- When passing schema names to `sqlname` constructors, pass the default schema name (e.g., `"public"`), not the database name.
+
 
 ## Flag and Config Handling
 
 - When spawning sub-processes for the next iteration or fall-back/fall-forward workflows, verify that all required flags (`--config-file`, `--export-dir`, `--table-list`) are passed. Missing flags have caused production bugs.
 - When adding a new flag to a command, check whether it needs to be propagated to related commands (e.g., `export-data` flags may need to reach `import-data-to-source`).
+- When adding a new flag, ensure that it is supported by config-file, CLI both, and added to the CLI templates.
 
 ## Idempotency
 
 - State-modifying operations (cutover initiation, iteration creation, MSR updates) must be idempotent. Always check whether an operation was already performed before executing side effects.
-- Consider crash recovery: if the process dies midway through a multi-step state change, will a re-run produce correct behavior?
+- Consider crash recovery: if the process dies midway through a multi-step state change, will a re-run produce correct behavior? This is especially true for data migration where the commands are resumable.
 
 ## Concurrency
 
@@ -77,5 +78,5 @@
 - Use `testify/require` for setup steps that must succeed for the test to be meaningful.
 - Each test should be self-contained: set up its schema objects, run assertions, and clean up.
 - Integration tests that use testcontainers should clean up their own resources.
-- Always include test cases for case-sensitive table and column names.
+- Always include test cases for case-sensitive table and column names, wherever applicable.
 - When testing error paths, verify the specific error type or message — not just that an error occurred.
