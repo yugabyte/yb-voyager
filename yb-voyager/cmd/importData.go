@@ -172,7 +172,12 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 
 	reportProgressInBytes = false
 	tconf.ImportMode = true
-	checkExportDataDoneFlag()
+
+	err := setImportTypeAndIdentityColumnMetaDBKeyForImporterRole(importerRole)
+	if err != nil {
+		utils.ErrExit("error while setting import type or identity column metadb key: %v", err)
+	}
+	checkExportDataDoneOrStartedFlag()
 
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
@@ -214,11 +219,6 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	err = InitNameRegistry(exportDir, importerRole, nil, nil, &tconf, tdb, reregisterYBNames)
 	if err != nil {
 		utils.ErrExit("initialize name registry: %v", err)
-	}
-
-	err = setImportTypeAndIdentityColumnMetaDBKeyForImporterRole(importerRole)
-	if err != nil {
-		utils.ErrExit("error while setting import type or identity column metadb key: %v", err)
 	}
 
 	var importFileTasks []*ImportFileTask
@@ -340,6 +340,15 @@ func startExportDataFromSourceOnNextIteration() {
 		cmd = append(cmd, "--source-db-name", currentMsr.SourceDBConf.DBName)
 		cmd = append(cmd, "--source-db-user", currentMsr.SourceDBConf.User)
 		cmd = append(cmd, "--source-db-schema", currentMsr.SourceDBConf.SchemaConfig)
+	}
+
+	if currentMsr.SourceDBConf.TableList != "" {
+		//If these are overridden by CLI/Config file then pass it to the command always
+		cmd = append(cmd, "--table-list", currentMsr.SourceDBConf.TableList)
+	}
+	if currentMsr.SourceDBConf.ExcludeTableList != "" {
+		//If these are overridden by CLI/Config file then pass it to the command always
+		cmd = append(cmd, "--exclude-table-list", currentMsr.SourceDBConf.ExcludeTableList)
 	}
 
 	iterationExportDir := GetIterationExportDir(currentMsr.GetIterationsDir(exportDir), currentMsr.IterationNo+1)
@@ -1146,9 +1155,18 @@ func postCutoverProcessing(importTableList []sqlname.NameTuple) error {
 func waitUntilCutoverProcessedByCorrespondingExporterForImporter(importerRole string) error {
 	timeout := 10 * time.Minute
 	startTime := time.Now()
+	if importerRole == TARGET_DB_IMPORTER_ROLE {
+		utils.PrintAndLogf("Waiting for cutover export data from source to complete...")
+	} else {
+		utils.PrintAndLogf("Waiting for cutover export data from target to complete...")
+	}
 	for {
 		if time.Since(startTime) > timeout {
-			return goerrors.Errorf("timeout waiting for next iteration to be initialized. Ensure 'export data from target' is running, then re-run this command.")
+			if importerRole == TARGET_DB_IMPORTER_ROLE {
+				return goerrors.Errorf("timeout waiting for cutover export data from source to complete. Ensure 'export data from source' is running, then re-run this command.")
+			} else {
+				return goerrors.Errorf("timeout waiting for cutover export data from target to complete. Ensure 'export data from target' is running, then re-run this command.")
+			}
 		}
 		record, err := metaDB.GetMigrationStatusRecord()
 		if err != nil {
@@ -2029,7 +2047,7 @@ func getDfdTableNameToExportedColumns(tasks []*ImportFileTask, dataFileDescripto
 	return result, nil
 }
 
-func checkExportDataDoneFlag() {
+func checkExportDataDoneOrStartedFlag() {
 	metaInfoDir := filepath.Join(exportDir, metaInfoDirName)
 	_, err := os.Stat(metaInfoDir)
 	if err != nil {
@@ -2040,11 +2058,22 @@ func checkExportDataDoneFlag() {
 		return
 	}
 
-	utils.PrintAndLogf("Waiting for snapshot data export to complete...")
+	if importType == CHANGES_ONLY {
+		//For changes only the data exported is marked done once the slot is created
+		utils.PrintAndLogf("Waiting for export data from source to start...")
+	} else {
+		//for snapshot it is marked done once the snapshot is complete
+		utils.PrintAndLogf("Waiting for snapshot data export to complete...")
+
+	}
 	for !dataIsExported() {
 		time.Sleep(time.Second * 2)
 	}
-	utils.PrintAndLogf("Snapshot data export is complete.")
+	if importType == CHANGES_ONLY {
+		utils.PrintAndLogf("Export data from source is started.")
+	} else {
+		utils.PrintAndLogf("Snapshot data export is complete.")
+	}
 }
 
 func init() {

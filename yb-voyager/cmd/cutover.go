@@ -166,6 +166,14 @@ func initializeNextIteration() error {
 		return fmt.Errorf("failed to set up next iteration MSR: %w", err)
 	}
 
+	//Copying the name registry file to the next iteration so that we don't re-register the names again
+	currNameRegFile := fmt.Sprintf("%s/metainfo/name_registry.json", exportDir)
+	nextIterationNameRegFile := fmt.Sprintf("%s/metainfo/name_registry.json", nextIterationExportDir)
+	err = utils.CopyFile(currNameRegFile, nextIterationNameRegFile)
+	if err != nil {
+		return fmt.Errorf("failed to copy name registry file: %w", err)
+	}
+	
 	err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		record.NextIterationInitialized = true
 	})
@@ -188,7 +196,7 @@ func setUpNextIterationMSR(parentMetaDB *metadb.MetaDB, iterationNo int, current
 	err = nextIterationMetaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		record.ParentExportDir = currentMSR.GetParentExportDir(exportDir)
 		record.IterationNo = iterationNo
-		//Used for the CLI case primarly when we start changes only command on iterations with CLI 
+		//Used for the CLI case primarly when we start changes only command on iterations with CLI
 		//we are directly overriding the source/target confs by reading from this MSR.
 		record.SourceDBConf = currentMSR.SourceDBConf
 		record.TargetDBConf = currentMSR.TargetDBConf
@@ -196,6 +204,10 @@ func setUpNextIterationMSR(parentMetaDB *metadb.MetaDB, iterationNo int, current
 
 		//set the table list exported from source to the next iteration
 		record.TableListExportedFromSource = currentMSR.TableListExportedFromSource
+		record.TargetExportedTableListWithLeafPartitions = currentMSR.TargetExportedTableListWithLeafPartitions
+		record.SourceExportedTableListWithLeafPartitions = currentMSR.SourceExportedTableListWithLeafPartitions
+		record.SourceRenameTablesMap = currentMSR.SourceRenameTablesMap
+		record.TargetRenameTablesMap = currentMSR.TargetRenameTablesMap
 	})
 	if err != nil {
 		return fmt.Errorf("failed to update iteration migration status record: %w", err)

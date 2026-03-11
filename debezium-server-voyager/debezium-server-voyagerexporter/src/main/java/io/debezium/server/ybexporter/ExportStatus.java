@@ -283,6 +283,55 @@ public class ExportStatus {
         }
     }
 
+    public void updateMigrationStatusField(String fieldName, Object value) throws SQLException {
+        synchronized (metadataDBConn) {
+            final boolean oldAutoCommit = metadataDBConn.getAutoCommit();
+            metadataDBConn.setAutoCommit(false);
+            try {
+                // 1. Read current JSON
+                Statement selectStmt = metadataDBConn.createStatement();
+                ResultSet rs = selectStmt.executeQuery(
+                        String.format("SELECT json_text FROM %s WHERE key = '%s'",
+                                JSON_OBJECTS_TABLE_NAME, MIGRATION_STATUS_KEY));
+                if (!rs.next()) {
+                    throw new RuntimeException("migration_status record not found in metadb");
+                }
+                String jsonText = rs.getString("json_text");
+                selectStmt.close();
+
+                // 2. Parse as tree, modify the field
+                ObjectMapper om = new ObjectMapper();
+                com.fasterxml.jackson.databind.node.ObjectNode root = (com.fasterxml.jackson.databind.node.ObjectNode) om
+                        .readTree(jsonText);
+
+                if (value instanceof Boolean) {
+                    root.put(fieldName, (Boolean) value);
+                } else if (value instanceof String) {
+                    root.put(fieldName, (String) value);
+                } else if (value instanceof Integer) {
+                    root.put(fieldName, (Integer) value);
+                }
+
+                // 3. Write back
+                String updatedJson = om.writeValueAsString(root);
+                Statement updateStmt = metadataDBConn.createStatement();
+                updateStmt.executeUpdate(
+                        String.format("UPDATE %s SET json_text = '%s' WHERE key = '%s'",
+                                JSON_OBJECTS_TABLE_NAME,
+                                updatedJson.replace("'", "''"),
+                                MIGRATION_STATUS_KEY));
+                updateStmt.close();
+
+                metadataDBConn.commit();
+            } catch (Exception e) {
+                metadataDBConn.rollback();
+                throw new RuntimeException("Failed to update migration status record", e);
+            } finally {
+                metadataDBConn.setAutoCommit(oldAutoCommit);
+            }
+        }
+    }
+    
     // TODO: refactor to retrieve config from a static class instead of having to
     // set/pass it to each class.
     public void setSourceType(String sourceType) {
