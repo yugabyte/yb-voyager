@@ -301,9 +301,10 @@ func (p *SequentialFileBatchProducer) openDataFile() error {
 	return p.openDataFileFirstRun()
 }
 
-// openAndReadHeader opens the data file from byte 0 and reads the header if present.
-// Returns the opened DataFile positioned after the header (or at byte 0 if no header).
-func (p *SequentialFileBatchProducer) openAndReadHeader() (datafile.DataFile, error) {
+// openDataFileAndReadHeaderIfRequired opens the data file from byte 0 and reads
+// the header if HasHeader is true. Returns the opened DataFile positioned after
+// the header (or at byte 0 if no header).
+func (p *SequentialFileBatchProducer) openDataFileAndReadHeaderIfRequired() (datafile.DataFile, error) {
 	reader, err := dataStore.Open(p.task.FilePath)
 	if err != nil {
 		return nil, goerrors.Errorf("preparing reader for file: %q: %v", p.task.FilePath, err)
@@ -328,7 +329,7 @@ func (p *SequentialFileBatchProducer) openAndReadHeader() (datafile.DataFile, er
 func (p *SequentialFileBatchProducer) openDataFileAtByteOffset() error {
 	// Read header before seeking (seek jumps past it).
 	if dataFileDescriptor.HasHeader {
-		headerDataFile, err := p.openAndReadHeader()
+		headerDataFile, err := p.openDataFileAndReadHeaderIfRequired()
 		if err != nil {
 			return err
 		}
@@ -362,7 +363,7 @@ func (p *SequentialFileBatchProducer) openDataFileAtByteOffset() error {
 // openDataFileAndSkipLines resumes by opening the file from byte 0 and skipping
 // lines to reach the resumption point. Used when OpenAt is not supported.
 func (p *SequentialFileBatchProducer) openDataFileAndSkipLines() error {
-	df, err := p.openAndReadHeader()
+	df, err := p.openDataFileAndReadHeaderIfRequired()
 	if err != nil {
 		return err
 	}
@@ -380,7 +381,7 @@ func (p *SequentialFileBatchProducer) openDataFileAndSkipLines() error {
 
 // openDataFileFirstRun opens the data file for a fresh import with no prior batches.
 func (p *SequentialFileBatchProducer) openDataFileFirstRun() error {
-	df, err := p.openAndReadHeader()
+	df, err := p.openDataFileAndReadHeaderIfRequired()
 	if err != nil {
 		return err
 	}
