@@ -55,6 +55,11 @@ type MigrationStatusRecord struct {
 	CutoverDetectedBySourceImporter        bool `json:"CutoverDetectedBySourceImporter"`
 	CutoverDetectedBySourceReplicaImporter bool `json:"CutoverDetectedBySourceReplicaImporter"`
 
+	//All the cutover detected by exporter flags (marked when the cutover is detected by the exporter)
+	CutoverDetectedBySourceExporter        bool `json:"CutoverDetectedBySourceExporter"`
+	CutoverDetectedByTargetFFExporter        bool `json:"CutoverDetectedByTargetFFExporter"`
+	CutoverDetectedByTargetFBExporter        bool `json:"CutoverDetectedByTargetFBExporter"`
+
 	//All the cutover processed by importer/exporter flags - indicating that the cutover is completed by that command.
 	CutoverProcessedBySourceExporter                bool `json:"CutoverProcessedBySourceExporter"`
 	CutoverToSourceProcessedByTargetExporter        bool `json:"CutoverToSourceProcessedByTargetExporter"`

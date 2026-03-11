@@ -172,7 +172,12 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 
 	reportProgressInBytes = false
 	tconf.ImportMode = true
-	checkExportDataDoneFlag()
+
+	err := setImportTypeAndIdentityColumnMetaDBKeyForImporterRole(importerRole)
+	if err != nil {
+		utils.ErrExit("error while setting import type or identity column metadb key: %v", err)
+	}
+	checkExportDataDoneOrStartedFlag()
 
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
@@ -216,10 +221,6 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 		utils.ErrExit("initialize name registry: %v", err)
 	}
 
-	err = setImportTypeAndIdentityColumnMetaDBKeyForImporterRole(importerRole)
-	if err != nil {
-		utils.ErrExit("error while setting import type or identity column metadb key: %v", err)
-	}
 
 	var importFileTasks []*ImportFileTask
 	if importSnapshotRequired() {
@@ -1155,9 +1156,18 @@ func postCutoverProcessing(importTableList []sqlname.NameTuple) error {
 func waitUntilCutoverProcessedByCorrespondingExporterForImporter(importerRole string) error {
 	timeout := 10 * time.Minute
 	startTime := time.Now()
+	if importerRole == TARGET_DB_IMPORTER_ROLE {
+		utils.PrintAndLogf("Waiting for cutover export data from source to complete...")
+	} else {
+		utils.PrintAndLogf("Waiting for cutover export data from target to complete...")
+	}
 	for {
 		if time.Since(startTime) > timeout {
-			return goerrors.Errorf("timeout waiting for next iteration to be initialized. Ensure 'export data from target' is running, then re-run this command.")
+			if importerRole == TARGET_DB_IMPORTER_ROLE {
+				return goerrors.Errorf("timeout waiting for cutover export data from source to complete. Ensure 'export data from source' is running, then re-run this command.")
+			} else {
+				return goerrors.Errorf("timeout waiting for cutover export data from target to complete. Ensure 'export data from target' is running, then re-run this command.")
+			}
 		}
 		record, err := metaDB.GetMigrationStatusRecord()
 		if err != nil {
@@ -2038,7 +2048,7 @@ func getDfdTableNameToExportedColumns(tasks []*ImportFileTask, dataFileDescripto
 	return result, nil
 }
 
-func checkExportDataDoneFlag() {
+func checkExportDataDoneOrStartedFlag() {
 	metaInfoDir := filepath.Join(exportDir, metaInfoDirName)
 	_, err := os.Stat(metaInfoDir)
 	if err != nil {

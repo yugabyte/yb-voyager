@@ -1169,6 +1169,15 @@ func (yb *YugabyteDB) DropLogicalReplicationSlot(conn *pgconn.PgConn, replicatio
 	}
 	log.Infof("dropping replication slot: %s", replicationSlotName)
 
+	exists, err := yb.CheckIfReplicationSlotExists(replicationSlotName)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		log.Infof("replication slot %s does not exist, skipping dropping", replicationSlotName)
+		return nil
+	}
+
 	// TODO: Remove this sleep and check the status of the slot before dropping
 	// This sleep is added to avoid the error "replication slot is active" while dropping the slot since it takes 60 seconds by default to change the status of the slot
 	log.Info("waiting for 60 seconds before dropping replication slot...")
@@ -1205,6 +1214,15 @@ func (yb *YugabyteDB) CreatePublication(conn *pgconn.PgConn, publicationName str
 }
 
 func (yb *YugabyteDB) DropPublication(publicationName string) error {
+	exists, err := yb.CheckIfPublicationSlotExists(publicationName)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		log.Infof("publication %s does not exist, skipping dropping", publicationName)
+		return nil
+	}
+
 	log.Infof("dropping publication: %s", publicationName)
 	res, err := yb.db.Exec(fmt.Sprintf("DROP PUBLICATION IF EXISTS %s", publicationName))
 	log.Infof("drop publication result: %v", res)
