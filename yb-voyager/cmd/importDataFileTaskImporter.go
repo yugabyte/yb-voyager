@@ -66,6 +66,15 @@ func init() {
 			log.Infof("COPY_MAX_RETRY_COUNT set to %d via environment variable", count)
 		}
 	}
+
+	// Allow overriding MAX_SLEEP_SECOND via environment variable for testing.
+	// Used by failpoint tests to avoid long retry sleeps while still exercising retry logic.
+	if val := os.Getenv("YB_VOYAGER_MAX_SLEEP_SECOND"); val != "" {
+		if secs, err := strconv.Atoi(val); err == nil && secs >= 0 {
+			MAX_SLEEP_SECOND = secs
+			log.Infof("MAX_SLEEP_SECOND set to %d via environment variable", secs)
+		}
+	}
 }
 
 /*
