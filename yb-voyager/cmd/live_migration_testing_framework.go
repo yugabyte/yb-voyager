@@ -1,4 +1,4 @@
-//go:build integration_live_migration
+//go:build integration_live_migration || failpoint
 
 /*
 Copyright (c) YugabyteDB, Inc.
@@ -21,13 +21,16 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	goerrors "github.com/go-errors/errors"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/jsonfile"
@@ -163,6 +166,10 @@ func (lm *LiveMigrationTest) InitMetaDB() error {
 // Cleanup runs all cleanup operations (called via defer)
 func (lm *LiveMigrationTest) Cleanup() {
 	fmt.Printf("Cleaning up\n")
+	// Kill any lingering Debezium processes before removing the export dir
+	// (the PID is read from a lock file inside the export dir).
+	lm.KillDebezium(SOURCE_DB_EXPORTER_ROLE)
+
 	// Execute cleanup SQL
 	lm.sourceContainer.ExecuteSqlsOnDB(lm.config.SourceDB.DatabaseName, lm.config.CleanupSQL...)
 	lm.targetContainer.ExecuteSqlsOnDB(lm.config.TargetDB.DatabaseName, lm.config.CleanupSQL...)
@@ -256,11 +263,25 @@ func (lm *LiveMigrationTest) StartExportDataChangesOnly(async bool, extraArgs ma
 
 // StartImportData starts import data command
 func (lm *LiveMigrationTest) StartImportData(async bool, extraArgs map[string]string) error {
-	fmt.Printf("Starting import data\n")
+	return lm.startImportData(async, extraArgs, nil)
+}
+
+// StartImportDataWithEnv starts import data with additional environment variables.
+// This is useful for failpoint injection and tuning knobs like batch sizes.
+func (lm *LiveMigrationTest) StartImportDataWithEnv(async bool, extraArgs map[string]string, env []string) error {
+	return lm.startImportData(async, extraArgs, env)
+}
+
+func (lm *LiveMigrationTest) startImportData(async bool, extraArgs map[string]string, env []string) error {
+	if len(env) > 0 {
+		fmt.Printf("Starting import data with env %v\n", env)
+	} else {
+		fmt.Printf("Starting import data\n")
+	}
 	var onStart func()
 	if async {
 		onStart = func() {
-			time.Sleep(5 * time.Second) // Wait for import to start
+			time.Sleep(5 * time.Second)
 		}
 	}
 
@@ -274,12 +295,16 @@ func (lm *LiveMigrationTest) StartImportData(async bool, extraArgs map[string]st
 		args = append(args, key, value)
 	}
 
-	lm.importCmd = testutils.NewVoyagerCommandRunner(lm.targetContainer, "import data", args, onStart, async)
+	lm.importCmd = testutils.NewVoyagerCommandRunner(lm.targetContainer, "import data", args, onStart, async).WithEnv(env...)
 	err := lm.importCmd.Run()
 	if err != nil {
 		return goerrors.Errorf("failed to start import data: %w", err)
 	}
-	fmt.Printf("Import data started\n")
+	if len(env) > 0 {
+		fmt.Printf("Import data started with env\n")
+	} else {
+		fmt.Printf("Import data started\n")
+	}
 	return nil
 }
 
@@ -300,6 +325,37 @@ func (lm *LiveMigrationTest) StopExportData() error {
 	}
 	fmt.Printf("Export data stopped\n")
 	return nil
+}
+
+// KillDebezium force-kills the Debezium Java process for the given exporter role.
+// Debezium runs as a separate child Java process and can outlive the `yb-voyager` parent if
+// the parent is SIGKILLed. Cleanup() calls this automatically for SOURCE_DB_EXPORTER_ROLE.
+func (lm *LiveMigrationTest) KillDebezium(exporterRole string) {
+	pidStr, err := dbzm.GetPIDOfDebeziumOnExportDir(lm.exportDir, exporterRole)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return
+		}
+		lm.t.Logf("WARNING: failed to read Debezium PID from exportDir: %v", err)
+		return
+	}
+
+	pid, err := strconv.Atoi(strings.TrimSpace(pidStr))
+	if err != nil {
+		lm.t.Logf("WARNING: failed to parse Debezium PID %q: %v", pidStr, err)
+		return
+	}
+
+	proc, err := os.FindProcess(pid)
+	if err != nil {
+		lm.t.Logf("WARNING: failed to find Debezium process pid=%d: %v", pid, err)
+		return
+	}
+	if err := proc.Kill(); err != nil {
+		lm.t.Logf("WARNING: failed to kill Debezium process pid=%d: %v", pid, err)
+		return
+	}
+	lm.t.Logf("Killed Debezium process pid=%d", pid)
 }
 
 // StopImportData stops the running import data command
@@ -413,6 +469,29 @@ func (lm *LiveMigrationTest) ExecuteTargetDelta() error {
 // GetExportDir returns the export directory path
 func (lm *LiveMigrationTest) GetExportDir() string {
 	return lm.exportDir
+}
+
+// ReadMigrationUUID reads the migration UUID from the export directory's metaDB.
+func (lm *LiveMigrationTest) ReadMigrationUUID() (string, error) {
+	if err := lm.InitMetaDB(); err != nil {
+		return "", err
+	}
+	msr, err := lm.metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		return "", err
+	}
+	if msr == nil {
+		return "", goerrors.Errorf("migration status record not found")
+	}
+	return msr.MigrationUUID, nil
+}
+
+func (lm *LiveMigrationTest) GetImportRunner() *testutils.VoyagerCommandRunner {
+	return lm.importCmd
+}
+
+func (lm *LiveMigrationTest) WaitForImportFailpointAndProcessCrash(t *testing.T, markerPath string, markerTimeout, exitTimeout time.Duration) error {
+	return testutils.WaitForFailpointAndProcessCrash(t, lm.importCmd, markerPath, markerTimeout, exitTimeout)
 }
 
 func (lm *LiveMigrationTest) GetExportCommandStderr() string {

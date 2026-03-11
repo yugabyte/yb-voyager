@@ -2008,15 +2008,7 @@ func createUpdateExportedRowCountEventList(tableNames []string) []*cp.UpdateExpo
 
 	for _, tableName := range tableNames {
 		tableMetadata := tablesProgressMetadata[tableName]
-		if source.DBType == "postgresql" && strings.Count(tableName, ".") == 1 {
-			schemaName, tableName2 = cp.SplitTableNameForPG(tableName)
-		} else {
-			schema := ""
-			if len(source.Schemas) > 0 {
-				schema = source.Schemas[0].Unquoted
-			}
-			schemaName, tableName2 = schema, tableName
-		}
+		schemaName, tableName2 = tableMetadata.TableName.ForKeyTableSchema()
 		tableMetrics := cp.UpdateExportedRowCountEvent{
 			BaseUpdateRowCountEvent: cp.BaseUpdateRowCountEvent{
 				BaseEvent: cp.BaseEvent{
