@@ -28,7 +28,9 @@ import (
 	goerrors "github.com/go-errors/errors"
 	"github.com/google/uuid"
 	"github.com/gosuri/uitable"
+	"github.com/samber/lo"
 	"github.com/spf13/cobra"
+	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/config"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
@@ -40,7 +42,6 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
-var targetDbPassword string
 var sourceReplicaDbPassword string
 var sourceDbPassword string
 var nameRegistryForSourceReplicaRole *namereg.NameRegistry
@@ -58,6 +59,16 @@ var getDataMigrationReportCmd = &cobra.Command{
 		migrationStatus, err := metaDB.GetMigrationStatusRecord()
 		if err != nil {
 			utils.ErrExit("error while getting migration status: %w\n", err)
+		}
+		if migrationStatus.LatestIterationNumber == 0 {
+			if detailedReport {
+				utils.ErrExit("Error: Detailed report is only applicable when export-type is only supported for multiple iterations of Live migration with fallback workflow")
+			}
+		}
+		if migrationStatus.FallForwardEnabled {
+			if detailedReport {
+				utils.ErrExit("Error: Detailed report is only applicable when export-type is only supported for multiple iterations of Live migration with fallback workflow")
+			}
 		}
 		streamChanges, err := checkStreamingMode()
 		if err != nil {
@@ -132,6 +143,7 @@ type rowDataForIteration struct {
 }
 
 func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
+
 	var reportData []*rowData
 	fBEnabled = msr.FallbackEnabled
 	fFEnabled = msr.FallForwardEnabled
@@ -318,80 +330,95 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 	if err != nil {
 		utils.ErrExit("error while aggregating data with iterations: %w", err)
 	}
-	isIteration := msr.ExportTypeFromSource == CHANGES_ONLY
+
+	isIteration := msr.IterationNo > 0
 
 	if reportOrStatusCmdOutputFormat == "json" {
-		// Print the report in json format.
-		reportFilePath := filepath.Join(exportDir, "reports", "data-migration-report.json")
-		if isIteration {
-			reportFile := jsonfile.NewJsonFile[[]*rowDataForIteration](reportFilePath)
-			reportDataForIteration := convertRowDataToRowDataForIteration(reportData)
-			err = reportFile.Create(&reportDataForIteration)
-			if err != nil {
-				utils.ErrExit("creating into json file: %s: %w", reportFilePath, err)
-			}
-		} else {
-			reportFile := jsonfile.NewJsonFile[[]*rowData](reportFilePath)
-			err := reportFile.Create(&reportData)
-			if err != nil {
-				utils.ErrExit("creating into json file: %s: %w", reportFilePath, err)
-			}
+		err = generateReportInJsonFormat(reportData, msr, isIteration)
+		if err != nil {
+			utils.ErrExit("error while generating report in json format: %w", err)
 		}
-		if !isIteration && msr.LatestIterationNumber > 0 {
-			utils.PrintAndLogfPhase("\nAggregated Data migration report for the overall migration:")
-		}
-		fmt.Print(color.GreenString("Data migration report is written to %s\n", reportFilePath))
-
 	} else {
-		printReport(isIteration, reportData)
+		statsPerTable := parseRowDataToStatsPerTable(reportData)
+		printReport(isIteration, statsPerTable, msr)
 	}
 
 }
 
-func printReport(forIteration bool, reportData []*rowData) {
-	msr, err := metaDB.GetMigrationStatusRecord()
-	if err != nil {
-		utils.ErrExit("error while getting migration status record: %w", err)
+func generateReportInJsonFormat(reportData []*rowData, msr *metadb.MigrationStatusRecord, isIteration bool) error {
+	var err error
+	// Print the report in json format.
+	reportFilePath := filepath.Join(exportDir, "reports", "data-migration-report.json")
+	if isIteration {
+		reportFile := jsonfile.NewJsonFile[[]*rowDataForIteration](reportFilePath)
+		reportDataForIteration := convertRowDataToRowDataForIteration(reportData)
+		err = reportFile.Create(&reportDataForIteration)
+		if err != nil {
+			return fmt.Errorf("creating into json file: %s: %w", reportFilePath, err)
+		}
+	} else {
+		reportFile := jsonfile.NewJsonFile[[]*rowData](reportFilePath)
+		err = reportFile.Create(&reportData)
+		if err != nil {
+			return fmt.Errorf("creating into json file: %s: %w", reportFilePath, err)
+		}
 	}
-	rowsPerTable := 2 //source<->target
-	if fFEnabled {
-		rowsPerTable = 3 //source<->target<->source-replica
+	if !isIteration && msr.LatestIterationNumber > 0 {
+		utils.PrintAndLogfPhase("\nAggregated Data migration report for the overall migration:")
 	}
-	if detailedReport {
-		rowsPerTable = 2 * (msr.LatestIterationNumber + 1) //source<->target * number of iterations
+	fmt.Print(color.GreenString("Data migration report is written to %s\n", reportFilePath))
+	return nil
+}
+
+func parseRowDataToStatsPerTable(reportData []*rowData) map[string][]*rowData {
+	statsPerTable := make(map[string][]*rowData)
+	for _, row := range reportData {
+		statsPerTable[row.TableName] = append(statsPerTable[row.TableName], row)
 	}
+	return statsPerTable
+}
+
+func printReport(forIteration bool, statsPerTable map[string][]*rowData, msr *metadb.MigrationStatusRecord) {
+	tableNames := lo.Keys(statsPerTable)
+	slices.Sort(tableNames)
 
 	uitbl := uitable.New()
 	printHeader(uitbl, forIteration)
-	maxRowsInOnePage := 5 * rowsPerTable //after every 5 tables, print new table as pagination
-	for i := 0; i < len(reportData); i += rowsPerTable {
-		if i != 0 && i%maxRowsInOnePage == 0 {
-			//print the current table and print the header for the next set of tables
-			fmt.Print("\n")
-			fmt.Println(uitbl)
-			fmt.Print("\n")
-			printHeader(uitbl, forIteration)
-		}
-		uitbl.AddRow() // blank row
-		for j := 0; j < rowsPerTable; j++ {
-			addRowToTable(uitbl, reportData[i+j], forIteration)
-			//how to add a row after every iteration have rows each
-
-			if j%2 != 0 {
-				uitbl.AddRow()
-			}
-
-		}
-		if fFEnabled {
-			thirdRow := reportData[i+2]
-			addRowToTable(uitbl, thirdRow, forIteration)
-		}
-	}
 
 	if !forIteration && msr.LatestIterationNumber > 0 {
 		utils.PrintAndLogfPhase("\nAggregated Data migration report for the overall migration:")
 	}
 
+	rowsInCurrUITable := 0
+	maxRowsInOnePage := 50
+	for _, tableName := range tableNames {
+		rowsForCurrTable := len(statsPerTable[tableName])
+		// If adding this table would exceed the page limit
+		// AND we already have at least one table on the page, flush.
+		if rowsInCurrUITable > 0 && rowsInCurrUITable+rowsForCurrTable > maxRowsInOnePage {
+			//print the current table and print the header for the next set of tables
+			fmt.Print("\n")
+			fmt.Println(uitbl)
+			fmt.Print("\n")
+			uitbl = uitable.New()
+			rowsForCurrTable = 0
+			printHeader(uitbl, forIteration)
+		}
+		uitbl.AddRow() // blank row
+		lastIterationNumber := 0
+		for i, row := range statsPerTable[tableName] {
+			if i > 0 {
+				row.TableName = ""
+			}
+
+			if detailedReport && row.IterationNumber != lastIterationNumber {
+				uitbl.AddRow()
+			}
+			addRowToTable(uitbl, row, forIteration)
+			lastIterationNumber = row.IterationNumber
+		}
+		rowsInCurrUITable += rowsForCurrTable
+	}
 	fmt.Print("\n")
 	fmt.Println(uitbl)
 	fmt.Print("\n")
@@ -502,10 +529,6 @@ func groupByTableNameAndCalculateCumulativeRowCount(reportData []*rowData) []*ro
 					finalRowCountTgt = row.FinalRowCount
 				}
 			}
-			if i > 0 {
-				rows[i].TableName = ""
-			}
-
 			if row.IterationNumber > 0 {
 				if row.DBType == "source" {
 					finalRowCountSrc += row.ExportedInserts - row.ExportedDeletes + row.ImportedInserts - row.ImportedDeletes
@@ -567,8 +590,8 @@ func aggregateReportData(reportData []*rowData, iterationReportData []*rowData) 
 	for _, row := range iterationReportData {
 		key := fmt.Sprintf("%s-%s", row.TableName, row.DBType)
 		if reportDataMap[key] == nil {
-			reportDataMap[key] = row
-			continue
+			//Not possible, iteration report data should have set of tables ad dbtype of the tables
+			utils.ErrExit("Error: iteration report data should have set of tables ad dbtype of the tables, key: %s", key)
 		}
 		reportDataMap[key].ExportedInserts += row.ExportedInserts
 		reportDataMap[key].ExportedUpdates += row.ExportedUpdates
@@ -723,6 +746,6 @@ func init() {
 	getDataMigrationReportCmd.Flags().StringVar(&sourceDbPassword, "source-db-password", "",
 		"password with which to connect to the target source DB server. Alternatively, you can also specify the password by setting the environment variable SOURCE_DB_PASSWORD. If you don't provide a password via the CLI, yb-voyager will prompt you at runtime for a password. If the password contains special characters that are interpreted by the shell (for example, # and $), enclose the password in single quotes")
 
-	getDataMigrationReportCmd.Flags().StringVar(&targetDbPassword, "target-db-password", "",
+	getDataMigrationReportCmd.Flags().StringVar(&targetDBPassword, "target-db-password", "",
 		"password with which to connect to the target YugabyteDB server. Alternatively, you can also specify the password by setting the environment variable TARGET_DB_PASSWORD. If you don't provide a password via the CLI, yb-voyager will prompt you at runtime for a password. If the password contains special characters that are interpreted by the shell (for example, # and $), enclose the password in single quotes.")
 }
