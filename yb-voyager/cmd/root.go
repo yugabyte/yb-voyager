@@ -293,7 +293,7 @@ func resolveToActiveIterationIfRequired(cmd *cobra.Command) error {
 			prevIterExportDir := GetIterationExportDir(iterationsDir, msr.LatestIterationNumber-1)
 			// resolve to previous iteration
 			exportDir = prevIterExportDir
-			utils.PrintAndLogfInfo("Running on the iteration: %s", exportDir)
+			utils.PrintAndLogfInfo("Running iteration %d on directory: %s", msr.LatestIterationNumber-1, exportDir)
 		} else {
 			// Previous iteration is the parent — don't redirect
 			// (exportDir stays as parent)
@@ -303,7 +303,7 @@ func resolveToActiveIterationIfRequired(cmd *cobra.Command) error {
 	} else {
 		// Forward command or fallback command on a fallback-phase iteration
 		exportDir = iterationExportDir
-		utils.PrintAndLogfInfo("Running on the iteration: %s", exportDir)
+		utils.PrintAndLogfInfo("Running iteration %d on directory: %s", msr.LatestIterationNumber, exportDir)
 	}
 
 	exportType = CHANGES_ONLY
