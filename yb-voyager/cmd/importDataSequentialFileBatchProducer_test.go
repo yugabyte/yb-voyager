@@ -1338,14 +1338,8 @@ func TestCumByteOffset_SingleRowFile(t *testing.T) {
 }
 
 // Verifies CumByteOffsetEnd is correct when a CSV field contains an embedded
-// newline (multi-line quoted field), and that byte-seek resumption works across
-// such rows.
+// newline (multi-line quoted field), both with and without resumption.
 func TestCumByteOffset_CsvNewlineInData(t *testing.T) {
-	ldataDir, lexportDir, state, errorHandler, progressReporter, err := setupExportDirAndImportDependencies(2, 1024)
-	assert.NoError(t, err)
-	defer os.RemoveAll(ldataDir)
-	defer os.RemoveAll(lexportDir)
-
 	header := "id,val"
 	rows := []string{
 		`1,"hello"`,
@@ -1353,50 +1347,93 @@ func TestCumByteOffset_CsvNewlineInData(t *testing.T) {
 		`3,"foo"`,
 		`4,"bar"`,
 	}
-	fileContents := header + "\n" + strings.Join(rows, "\n")
-	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
-	assert.NoError(t, err)
 
-	// First run: produce batch 1 (rows 0-1, where row 1 has embedded newline)
-	bp1, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
-	assert.NoError(t, err)
-	batch1, err := bp1.NextBatch()
-	assert.NoError(t, err)
-	assert.Equal(t, int64(2), batch1.RecordCount)
-	expectedBatch1Offset := int64(len(header)+1) + int64(len(rows[0])+1) + int64(len(rows[1])+1)
-	assert.Equal(t, expectedBatch1Offset, batch1.CumByteOffsetEnd,
-		"Batch 1 CumByteOffsetEnd should account for embedded newline bytes")
-	bp1.Close()
+	t.Run("without resumption", func(t *testing.T) {
+		ldataDir, lexportDir, state, errorHandler, progressReporter, err := setupExportDirAndImportDependencies(2, 1024)
+		assert.NoError(t, err)
+		defer os.RemoveAll(ldataDir)
+		defer os.RemoveAll(lexportDir)
 
-	// Resume via byte-seek past the multi-line row
-	bp2, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
-	assert.NoError(t, err)
-	assert.Equal(t, batch1.CumByteOffsetEnd, bp2.lastBatchCumByteOffsetEnd)
+		fileContents := header + "\n" + strings.Join(rows, "\n")
+		_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
+		assert.NoError(t, err)
 
-	// Drain pending batch 1
-	_, err = bp2.NextBatch()
-	assert.NoError(t, err)
+		bp, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+		assert.NoError(t, err)
 
-	// Produce batch 2 (rows 2-3) via byte-seek
-	batch2, err := bp2.NextBatch()
-	assert.NoError(t, err)
-	assert.Equal(t, int64(2), batch2.RecordCount)
-	assert.True(t, bp2.Done())
-	bp2.Close()
+		var batches []*Batch
+		for !bp.Done() {
+			batch, err := bp.NextBatch()
+			assert.NoError(t, err)
+			batches = append(batches, batch)
+		}
 
-	// Verify batch 2 data correctness
-	b2Contents, err := os.ReadFile(batch2.GetFilePath())
-	assert.NoError(t, err)
-	expectedContent := header + "\n" + strings.Join(rows[2:], "\n")
-	assert.Equal(t, expectedContent, string(b2Contents))
+		assert.Equal(t, 2, len(batches))
+		headerBytes := int64(len(header) + 1)
+		batch0End := headerBytes + int64(len(rows[0])+1) + int64(len(rows[1])+1)
+		batch1End := batch0End + int64(len(rows[2])+1) + int64(len(rows[3]))
 
-	// CumByteOffsetEnd should equal total file size
-	expectedBatch2Offset := expectedBatch1Offset + int64(len(rows[2])+1) + int64(len(rows[3]))
-	assert.Equal(t, expectedBatch2Offset, batch2.CumByteOffsetEnd)
-	fileInfo, err := os.Stat(task.FilePath)
-	assert.NoError(t, err)
-	assert.Equal(t, fileInfo.Size(), batch2.CumByteOffsetEnd,
-		"Last batch CumByteOffsetEnd should equal file size")
+		assert.Equal(t, batch0End, batches[0].CumByteOffsetEnd,
+			"Batch 0 CumByteOffsetEnd should account for embedded newline bytes")
+		assert.Equal(t, batch1End, batches[1].CumByteOffsetEnd)
+
+		fileInfo, err := os.Stat(task.FilePath)
+		assert.NoError(t, err)
+		assert.Equal(t, fileInfo.Size(), batches[1].CumByteOffsetEnd,
+			"Last batch CumByteOffsetEnd should equal file size")
+	})
+
+	t.Run("with resumption", func(t *testing.T) {
+		ldataDir, lexportDir, state, errorHandler, progressReporter, err := setupExportDirAndImportDependencies(2, 1024)
+		assert.NoError(t, err)
+		defer os.RemoveAll(ldataDir)
+		defer os.RemoveAll(lexportDir)
+
+		fileContents := header + "\n" + strings.Join(rows, "\n")
+		_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
+		assert.NoError(t, err)
+
+		// First run: produce batch 1 (rows 0-1, where row 1 has embedded newline)
+		bp1, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+		assert.NoError(t, err)
+		batch1, err := bp1.NextBatch()
+		assert.NoError(t, err)
+		assert.Equal(t, int64(2), batch1.RecordCount)
+		expectedBatch1Offset := int64(len(header)+1) + int64(len(rows[0])+1) + int64(len(rows[1])+1)
+		assert.Equal(t, expectedBatch1Offset, batch1.CumByteOffsetEnd,
+			"Batch 1 CumByteOffsetEnd should account for embedded newline bytes")
+		bp1.Close()
+
+		// Resume via byte-seek past the multi-line row
+		bp2, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+		assert.NoError(t, err)
+		assert.Equal(t, batch1.CumByteOffsetEnd, bp2.lastBatchCumByteOffsetEnd)
+
+		// Drain pending batch 1
+		_, err = bp2.NextBatch()
+		assert.NoError(t, err)
+
+		// Produce batch 2 (rows 2-3) via byte-seek
+		batch2, err := bp2.NextBatch()
+		assert.NoError(t, err)
+		assert.Equal(t, int64(2), batch2.RecordCount)
+		assert.True(t, bp2.Done())
+		bp2.Close()
+
+		// Verify batch 2 data correctness
+		b2Contents, err := os.ReadFile(batch2.GetFilePath())
+		assert.NoError(t, err)
+		expectedContent := header + "\n" + strings.Join(rows[2:], "\n")
+		assert.Equal(t, expectedContent, string(b2Contents))
+
+		// CumByteOffsetEnd should equal total file size
+		expectedBatch2Offset := expectedBatch1Offset + int64(len(rows[2])+1) + int64(len(rows[3]))
+		assert.Equal(t, expectedBatch2Offset, batch2.CumByteOffsetEnd)
+		fileInfo, err := os.Stat(task.FilePath)
+		assert.NoError(t, err)
+		assert.Equal(t, fileInfo.Size(), batch2.CumByteOffsetEnd,
+			"Last batch CumByteOffsetEnd should equal file size")
+	})
 }
 
 // Verifies cumByteOffset still advances past a stashed (too-large) row's bytes,
