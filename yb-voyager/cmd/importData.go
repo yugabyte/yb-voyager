@@ -221,7 +221,6 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 		utils.ErrExit("initialize name registry: %v", err)
 	}
 
-
 	var importFileTasks []*ImportFileTask
 	if importSnapshotRequired() {
 
