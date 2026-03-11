@@ -172,6 +172,12 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 
 	reportProgressInBytes = false
 	tconf.ImportMode = true
+
+	err := setImportTypeAndIdentityColumnMetaDBKeyForImporterRole(importerRole)
+	if err != nil {
+		utils.ErrExit("error while setting import type or identity column metadb key: %v", err)
+	}
+
 	checkExportDataDoneFlag()
 
 	msr, err := metaDB.GetMigrationStatusRecord()
@@ -214,11 +220,6 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	err = InitNameRegistry(exportDir, importerRole, nil, nil, &tconf, tdb, reregisterYBNames)
 	if err != nil {
 		utils.ErrExit("initialize name registry: %v", err)
-	}
-
-	err = setImportTypeAndIdentityColumnMetaDBKeyForImporterRole(importerRole)
-	if err != nil {
-		utils.ErrExit("error while setting import type or identity column metadb key: %v", err)
 	}
 
 	var importFileTasks []*ImportFileTask
