@@ -7,8 +7,8 @@
 
 ## Schema and Object Queries
 
-- Use the `sqlname` package for table and sequence names returned to callers. Do not return raw strings.
-- Use qualified catalog name helpers when building SQL queries against system catalogs. Do not manually concatenate `schema.table` strings.
+- Use the `sqlname` package for table and sequence names returned to callers or in input args. Do not use raw strings.
+- Use qualified catalog name helpers of NameTuple when building SQL queries against system catalogs. Do not manually concatenate `schema.table` strings.
 - When SQL queries differ between DB versions, add inline `-- comments` explaining what changed and why the fallback exists.
 - Add `WHERE` clauses to filter by schema/owner. Queries against system catalogs without schema filtering will return objects from unrelated schemas.
 
@@ -25,8 +25,7 @@
 
 ## Permissions and Guardrails
 
-- Permission check functions should return errors, not terminate the process. The caller decides whether a missing permission is fatal.
-- Guardrails (permission warnings, extension checks) are informational prompts, not hard failures. If a guardrail check itself fails, log a warning and continue rather than terminating.
+- Permission check functions and guradrails should return errors, not terminate the process. The caller decides whether a missing permission is fatal or can be logged and continued. 
 
 ## Replication and Sequences
 

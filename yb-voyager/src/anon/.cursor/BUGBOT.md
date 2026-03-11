@@ -26,11 +26,6 @@
 - Add SQL examples in comments for each handler function showing the DDL pattern being processed.
 - When adding support for a new DDL type, add corresponding unit tests covering all variants listed in the PostgreSQL docs.
 
-## Scope of Anonymization
-
-- Views, materialized views, and triggers are not anonymized as top-level DDL objects. However, if they appear inside other objects' DDL (e.g., a view referenced in a function body), their identifiers within that context should be anonymized.
-- It is acceptable for the anonymizer to handle DDL types that the underlying dump tool (pg_dump, ora2pg) may not currently export, as long as the handling is correct. Do not remove support for a DDL type just because it is not currently dumped.
-
 ## Testing
 
 - Each DDL object type must have test cases.

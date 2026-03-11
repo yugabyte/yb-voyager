@@ -21,13 +21,11 @@
 
 ## Details vs Internal Details
 
-- The `Details` map on issues is displayed in the HTML assessment report UI. Do not put internal metadata (used only for detection logic) into `Details` — use an internal-only field instead.
+- The `Details` map on issues is displayed in the HTML assessment report UI. Do not put internal metadata (used only for detection logic) into `Details`. use an internal-only field instead.
 - Sensitive information (column names with user data implications) should not be included in details if they are sent to callhome.
 
 ## Detection Logic
 
-- When checking index coverage for foreign keys, use set equality on column name prefixes, not permutation generation.
-- For expression columns in indexes, immediately disqualify the index from coverage checks rather than trying to match expression text.
 - When skipping partitioned tables in detection (e.g., because issues will be reported on leaf partitions), add an explicit comment explaining why.
 
 ## Testing

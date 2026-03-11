@@ -20,7 +20,6 @@
 ## Multi-Node Assessment
 
 - When gathering metadata from multiple nodes (primary + replicas), report errors per node with enough context (hostname, error details) to be actionable. Do not summarize multiple failures into a single vague message.
-- Display-name logic is a UI concern. Do not pass display names through the entire gathering pipeline — only node identifiers should flow through the gather logic.
 - When there are no replicas, follow the single-node code path. Do not display "primary"/"replica" terminology to users who have no replicas.
 
 ## Upgrade Safety
