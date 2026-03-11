@@ -390,7 +390,7 @@ func printReport(forIteration bool, statsPerTable map[string][]*rowData, msr *me
 	}
 
 	rowsInCurrUITable := 0
-	maxRowsInOnePage := 50
+	maxRowsInOnePage := 30
 	for _, tableName := range tableNames {
 		rowsForCurrTable := len(statsPerTable[tableName])
 		// If adding this table would exceed the page limit
@@ -401,7 +401,7 @@ func printReport(forIteration bool, statsPerTable map[string][]*rowData, msr *me
 			fmt.Println(uitbl)
 			fmt.Print("\n")
 			uitbl = uitable.New()
-			rowsForCurrTable = 0
+			rowsInCurrUITable = 0
 			printHeader(uitbl, forIteration)
 		}
 		uitbl.AddRow() // blank row
