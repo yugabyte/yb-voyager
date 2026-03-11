@@ -26,7 +26,7 @@ The primary focus is PostgreSQL, but YugabyteDB Voyager also supports Oracle and
 Live migration involves multiple concurrent processes (exporter, importer, optional fall-back/fall-forward processes) coordinating via MSR flags:
 
 - Cutover status checks must read the correct iteration's metaDB. The global `metaDB` may point to a different iteration than expected.
-- MSR boolean flags (e.g., `CutoverToTargetRequested`, `CutoverToSourceProcessedByImporter`) must be set only by the process/role they describe. Do not set target-importer flags from a source-importer code path.
+- MSR boolean flags must be set only by the process/role they describe. Do not set target-importer flags from a source-importer code path.
 - When one process waits for another's flag, add a timeout or at minimum print a message so the user knows something is happening. Infinite silent polls have caused apparent hangs.
 - When spawning sub-processes for new iterations, verify all required flags are passed: `--config-file`, `--export-dir`, `--table-list`, database passwords. Missing or duplicated flags have caused production bugs.
 
@@ -52,13 +52,13 @@ Sequence handling varies significantly across code paths:
 
 Users may upgrade voyager mid-migration. Serialized state must remain compatible:
 
-- Changing JSON struct tags or removing fields from `MigrationStatusRecord`, assessment report structs, or callhome payloads is a breaking change.
+- Changing JSON struct tags or removing fields from serialized structs (MSR, assessment report, callhome payloads) is a breaking change.
 - Adding columns to the assessmentDB (SQLite) schema can break older voyager versions that query the new schema. Use defensive queries or `ADD COLUMN IF NOT EXISTS`.
-- When changing callhome/YugabyteD payload structs, increment the payload version constant.
+- When changing callhome or YugabyteD payload structs, increment the payload version constant.
 
 ## Case-Sensitive Identifiers
 
-PostgreSQL allows case-sensitive (quoted) identifiers. All object name handling must go through the `sqlname` package. Raw `fmt.Sprintf("%s.%s", schema, table)` is incorrect for quoted names. Always test new table/column/schema handling with case-sensitive names.
+PostgreSQL allows case-sensitive (quoted) identifiers. All object name handling must go through the `sqlname` package, not manual string concatenation. Always test new table/column/schema handling with case-sensitive names.
 
 ## Generic Coding Practices
 

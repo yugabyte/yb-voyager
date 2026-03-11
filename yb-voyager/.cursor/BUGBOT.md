@@ -8,9 +8,9 @@
 
 ## Nil and Boundary Checks
 
-- Always nil-check pointers before dereferencing, especially for `MigrationStatusRecord` lookups which can return `(nil, nil)` when a record is not found.
+- Always nil-check pointers before dereferencing. In particular, metaDB record lookups can return `(nil, nil)` when a record is not found.
 - When accessing map entries, use the two-value form (`val, ok := m[key]`) and handle the missing-key case explicitly.
-- Check slice bounds before indexing (e.g., `indexParams[0]`).
+- Check slice bounds before indexing.
 
 ## Constants and Magic Values
 
@@ -20,7 +20,7 @@
 
 ## Interface Design
 
-- Keep interfaces lean. Only add methods to `TargetDB` / `SourceDB` interfaces if they are needed by multiple implementations or callers. DB-specific helpers should be accessed via type assertion, not added to the shared interface.
+- Keep interfaces lean. Only add methods to shared interfaces (source DB, target DB) if they are needed by multiple implementations or callers. DB-specific helpers should be accessed via type assertion, not added to the shared interface.
 - Include named parameters in interface method signatures for clarity.
 
 ## Global State
@@ -30,7 +30,7 @@
 
 ## Object Names
 
-- Use the `sqlname` package (`sqlname.ObjectName`, `sqlname.NewObjectNameWithQualifiedName`, `AsQualifiedCatalogName()`) for all object name handling. Do not construct qualified names with `fmt.Sprintf("%s.%s", schema, table)`.
+- Use the `sqlname` package for all object name handling. Do not construct qualified names via manual string concatenation.
 - When passing schema names to `sqlname` constructors, pass the default schema name (e.g., `"public"`), not the database name.
 
 ## Flag and Config Handling
