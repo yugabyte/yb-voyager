@@ -1,5 +1,9 @@
 # Go Code Review Rules (yb-voyager)
 
+## Package Layering
+
+- The `cmd/` package should ideally contain only command-handling logic: Cobra command definitions, CLI flag parsing, config-file resolution, invoking other sub-commands, and top-level orchestration. Core business logic (data import/export algorithms, schema analysis, conflict detection, assessment calculations, etc.) should reside in dedicated packages under `src/`. This separation is not consistently followed in the existing codebase, but new code should strive for it as much as possible. When adding significant new logic, prefer creating or extending a package under `src/` and calling it from `cmd/`, rather than embedding it directly in `cmd/`.
+
 ## Error Handling
 
 - Never silently swallow errors. If a function returns an error, either handle it, return it, or log it with sufficient context. Do not `log.Warnf` and continue when the error indicates a real failure.

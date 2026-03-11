@@ -21,15 +21,6 @@ The primary focus is PostgreSQL, but YugabyteDB Voyager also supports Oracle and
 - Unsupported datatype lists, permission checks, and schema extraction queries differ per source. When changing one source implementation, check if the same change is needed in others.
 - Features gated by source type (e.g., `changes-only` only for PG/YB, CLOB export only for Oracle) must have explicit validation or guardrails.
 
-## Cutover Orchestration
-
-Live migration involves multiple concurrent processes (exporter, importer, optional fall-back/fall-forward processes) coordinating via MSR flags:
-
-- Cutover status checks must read the correct iteration's metaDB. The global `metaDB` may point to a different iteration than expected.
-- MSR boolean flags must be set only by the process/role they describe. Do not set target-importer flags from a source-importer code path.
-- When one process waits for another's flag, add a timeout or at minimum print a message so the user knows something is happening. Infinite silent polls have caused apparent hangs.
-- When spawning sub-processes for new iterations, verify all required flags are passed: `--config-file`, `--export-dir`, `--table-list`, database passwords. Missing or duplicated flags have caused production bugs.
-
 ## Partitioned Tables
 
 Partitioned tables are a frequent source of missed edge cases:

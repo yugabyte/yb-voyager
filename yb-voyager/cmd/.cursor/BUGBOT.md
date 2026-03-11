@@ -1,10 +1,14 @@
 # cmd Package Review Rules
 
-## Cutover and Iteration Logic
+## Cutover Orchestration
 
+Live migration involves multiple concurrent processes (exporter, importer, optional fall-back/fall-forward processes) coordinating via MSR flags:
+
+- Cutover status checks must read the correct iteration's metaDB. The global `metaDB` may point to a different iteration than expected.
+- MSR boolean flags must be set only by the process/role they describe. Do not set target-importer flags from a source-importer code path.
+- When one process waits for another's flag, add a timeout or at minimum print a message so the user knows something is happening. Infinite silent polls have caused apparent hangs.
 - Idempotency checks must happen *before* any side-effecting calls. Do not create iteration directories, update MSR fields, or spawn processes before verifying that the operation has not already been performed.
 - When reading migration status records, always nil-check the result. Lookups return `(nil, nil)` when a record is not yet created, which can happen during concurrent iteration transitions.
-- Cutover status functions operate on the global `metaDB`. Verify that `metaDB` points to the correct iteration's metadata before calling them.
 - When implementing cutover or iteration flows, explicitly document the synchronization contract between exporter and importer processes. Which process waits for which flag, and in what order?
 
 ## Error Handling in Commands
