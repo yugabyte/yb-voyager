@@ -1,64 +1,69 @@
-# YugabyteDB Voyager — Project-Wide Review Rules
+# YugabyteDB Voyager — Product-Level Review Rules
 
-## Error Handling
+## Migration Flow Coverage
 
-- Never silently swallow errors. If a function returns an error, either handle it, return it, or log it with sufficient context. Do not use `log.Warnf` and continue when the error indicates a real failure.
-- Do not call `utils.ErrExit` inside functions that are expected to return errors to their callers. `ErrExit` terminates the process and bypasses deferred cleanup, error wrapping, and caller-level recovery.
-- When wrapping errors, include enough context to trace the source: table name, file path, operation attempted, etc.
+Every code change should be evaluated against **all** migration flows it could affect:
 
-## Naming
+- **Offline migration**: export-schema → export-data (snapshot via pg_dump/ora2pg) → import-schema → import-data → import-schema (post-data).
+- **Live migration**: export-schema → export-data (snapshot + streaming via Debezium) → import-schema → import-data → cutover-to-target → end-migration.
+- **Live with fall-back**: adds export-data-from-target + import-data-to-source. After cutover-to-target, data flows back to the original source so users can roll back.
+- **Live with fall-forward**: adds export-data-from-target + import-data-to-source-replica. After cutover-to-target, data flows to a standby replica.
+- **Changes-only mode**: skips the snapshot phase entirely — only streams CDC changes. Sequence handling, start-clean semantics, and table-list initialization all differ from the snapshot-and-changes path.
+- **Iterative cutover (cutover-to-source with restart)**: multiple cutover iterations between source and target. Each iteration creates a new metaDB, spawns new exporter/importer processes, and must propagate all flags correctly.
 
-- Use descriptive, source-database-agnostic names for functions and variables. Prefer `GetQueryStats` over `GetPgStatStatements`. The tool supports PostgreSQL, Oracle, and MySQL sources.
-- Follow Go naming conventions: `CamelCase` for exported identifiers, `camelCase` for unexported. Avoid `this` as a receiver name — use short, descriptive names consistent with Go idiom.
-- Issue names (in assessment reports) should describe the problem, not the recommendation. E.g., "Missing Primary Key for Table" not "Add Primary Key Recommendation."
-- Variable names like `rec1`/`rec2` are unclear; prefer `recCombined`/`recSharded` or other self-describing names.
+If a change touches export-data, import-data, or cutover logic, ask: does this work correctly in **each** of the above flows?
 
-## Constants and Magic Values
+## Source Database Types
 
-- Use named constants for string literals, magic numbers, SQL error codes, and repeated query fragments. Do not scatter raw literals across multiple files.
-- Prefer `const` over `var` for values that never change.
-- Pre-compile regexes at package level (`var fooRegex = regexp.MustCompile(...)`) instead of inside functions that may be called repeatedly.
+The primary focus is PostgreSQL, but YugabyteDB Voyager also supports Oracle and MySQL as sources, and YugabyteDB as source (for fall-back/fall-forward). When reviewing:
 
-## Nil and Boundary Checks
+- Use source-agnostic names for functions and variables. Prefer `GetQueryStats` over `GetPgStatStatements`.
+- Unsupported datatype lists, permission checks, and schema extraction queries differ per source. When changing one source implementation, check if the same change is needed in others.
+- Features gated by source type (e.g., `changes-only` only for PG/YB, CLOB export only for Oracle) must have explicit validation or guardrails.
 
-- Always nil-check pointers before dereferencing, especially for `MigrationStatusRecord` lookups which can return `(nil, nil)` when a record is not found.
-- When accessing map entries, use the two-value form (`val, ok := m[key]`) and handle the missing-key case explicitly. This avoids panics and silent zero-value bugs.
-- Check slice bounds before indexing (e.g., `indexParams[0]`).
+## Cutover Orchestration
 
-## Backward Compatibility and Upgrades
+Live migration involves multiple concurrent processes (exporter, importer, optional fall-back/fall-forward processes) coordinating via MSR flags:
 
-- Changing JSON struct field names or removing fields from serialized structs (MSR, assessment report, callhome payloads) is a breaking change for users who upgrade mid-migration. JSON tags must remain stable; add new fields rather than rename existing ones.
-- When adding fields to callhome or YugabyteD payloads, increment the corresponding payload version constant.
+- Cutover status checks must read the correct iteration's metaDB. The global `metaDB` may point to a different iteration than expected.
+- MSR boolean flags (e.g., `CutoverToTargetRequested`, `CutoverToSourceProcessedByImporter`) must be set only by the process/role they describe. Do not set target-importer flags from a source-importer code path.
+- When one process waits for another's flag, add a timeout or at minimum print a message so the user knows something is happening. Infinite silent polls have caused apparent hangs.
+- When spawning sub-processes for new iterations, verify all required flags are passed: `--config-file`, `--export-dir`, `--table-list`, database passwords. Missing or duplicated flags have caused production bugs.
 
-## Code Organization
+## Partitioned Tables
 
+Partitioned tables are a frequent source of missed edge cases:
+
+- Schema queries return both root and leaf partitions. The caller must decide which to use and resolve leaf→root mappings explicitly.
+- Issues detected on partitioned tables must consider the full hierarchy: root → intermediate → leaf.
+- Foreign keys and indexes on partitioned tables have different semantics than on regular tables.
+- Always test with partitioned tables and multi-level partition hierarchies when changing table-handling logic.
+
+## Sequences
+
+Sequence handling varies significantly across code paths:
+
+- Offline: pg_dump captures sequence last-values at snapshot time.
+- Live (snapshot + changes): same as offline for initial values; Debezium streams ongoing changes.
+- Changes-only: no pg_dump, so sequence values must be fetched separately before streaming begins.
+- Sequence association types (SERIAL, BIGSERIAL, explicit `DEFAULT nextval(...)`, `GENERATED ALWAYS AS IDENTITY`, `ALTER SEQUENCE ... OWNED BY`) must all be handled consistently. Changes to sequence queries should be tested against all association types.
+
+## Upgrade and Backward Compatibility
+
+Users may upgrade voyager mid-migration. Serialized state must remain compatible:
+
+- Changing JSON struct tags or removing fields from `MigrationStatusRecord`, assessment report structs, or callhome payloads is a breaking change.
+- Adding columns to the assessmentDB (SQLite) schema can break older voyager versions that query the new schema. Use defensive queries or `ADD COLUMN IF NOT EXISTS`.
+- When changing callhome/YugabyteD payload structs, increment the payload version constant.
+
+## Case-Sensitive Identifiers
+
+PostgreSQL allows case-sensitive (quoted) identifiers. All object name handling must go through the `sqlname` package. Raw `fmt.Sprintf("%s.%s", schema, table)` is incorrect for quoted names. Always test new table/column/schema handling with case-sensitive names.
+
+## Generic Coding Practices
+
+- Keep code simple. Use early returns to reduce nesting. Prefer flat `if err != nil { return err }` over deeply nested success paths.
+- Use self-describing variable and function names. Avoid `rec1`/`rec2` — prefer `recCombined`/`recSharded`.
 - Remove dead code, unused functions, and leftover debugging artifacts before merging.
-- Consolidate duplicate logic into shared helper functions rather than copy-pasting across cases.
-- Use early returns to reduce nesting depth; avoid 5+ levels of `if` indentation.
-- Place struct methods immediately below the struct definition for readability.
-- Use the `lo` library helpers (`lo.Filter`, `lo.Keys`, `lo.Map`, `lo.Some`, `lo.Ternary`, `lo.Without`) instead of manual loops where they improve clarity.
-
-## Concurrency
-
-- Shared mutable state must be protected by a mutex or channel. Document the synchronization strategy when multiple goroutines access the same data.
-- When using global variables (e.g., the global `metaDB`), add comments explaining why they are set/restored and what the invariant is.
-
-## SQL Queries
-
-- Add inline comments (`-- comment`) in multi-line SQL strings to explain non-obvious clauses, joins, or filter conditions.
-- When the same SQL pattern is used for both PostgreSQL and YugabyteDB, extract it into a shared constant and document any version-specific differences.
-- Use parameterized queries or prepared statements rather than `fmt.Sprintf` with user-supplied values.
-
-## Case Sensitivity
-
-- Always consider case-sensitive identifiers (table names, column names, schema names). YugabyteDB Voyager must handle quoted identifiers correctly through the `sqlname` package. Any new code dealing with object names should use `sqlname.ObjectName` or equivalent, not raw strings.
-
-## Testing Rules
-
-- Use the `unit` build tag for unit tests. Run with `go test -tags unit ./...`.
-- Use `assert.Equal(t, expected, actual)` with the expected value first. Swapping expected/actual produces confusing failure messages.
-- Use `assert.ElementsMatch` for unordered comparisons instead of manually sorting.
-- Prefer table-driven tests with `t.Run(name, func(t *testing.T) { ... })` for multiple scenarios. Each sub-test should have a descriptive name.
-- Each test should be self-contained: set up its schema objects, run assertions, and clean up. Do not rely on shared mutable state across tests.
-- Integration tests that use testcontainers should clean up their own resources (schemas, tables, sequences).
-- Always include test cases for case-sensitive table and column names.
+- Consolidate duplicate logic into shared helpers rather than copy-pasting across switch cases or source-type implementations.
+- Comments should explain *why*, not *what*. Non-obvious decisions, workarounds, and known limitations deserve comments.
