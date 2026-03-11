@@ -407,7 +407,10 @@ func (reg *NameRegistry) lookupSourceAndTargetTableNames(tableNameArg string, ig
 			reg.DefaultSourceSideSchemaName(), reg.DefaultYBSchemaName)
 	}
 	var err error
-	parts := strings.Split(tableNameArg, ".")
+	parts, splitErr := sqlname.SplitQualifiedName(tableNameArg)
+	if splitErr != nil {
+		return nil, nil, goerrors.Errorf("invalid table name %q: %v", tableNameArg, splitErr)
+	}
 
 	var schemaName, tableName string
 	switch true {

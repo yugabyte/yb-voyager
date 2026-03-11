@@ -72,8 +72,8 @@ func NewObjectName(dbType, defaultSchemaName, schemaName, tableName string) *Obj
 
 // Assumption - always quoted qualified name with case sensitivity preserved, and if not quoted then adding the quotes explicitly
 func NewObjectNameWithQualifiedName(dbType, defaultSchemaName, objName string) *ObjectName {
-	parts := strings.Split(objName, ".")
-	if len(parts) != 2 {
+	parts, err := SplitQualifiedName(objName)
+	if err != nil || len(parts) != 2 {
 		panic(fmt.Sprintf("invalid qualified name: %s", objName))
 	}
 	if !IsQuoted(parts[0]) {
@@ -99,7 +99,10 @@ if the pattern is quoted then complete case sensitivity is checked to match the 
 but if the pattern is not quoted then matching is done without case sensitivity to find the match.
 */
 func (nv *ObjectName) MatchesPattern(pattern string) (bool, error) {
-	parts := strings.Split(pattern, ".")
+	parts, err := SplitQualifiedName(pattern)
+	if err != nil {
+		return false, goerrors.Errorf("invalid pattern: %s: %v", pattern, err)
+	}
 	switch true {
 	case len(parts) == 2:
 		//if the schema name matches completely with the quoted schema name of the object name then no problem

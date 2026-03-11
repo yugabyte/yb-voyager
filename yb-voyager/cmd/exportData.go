@@ -840,7 +840,11 @@ func GetRootTableOfPartition(table sqlname.NameTuple) (sqlname.NameTuple, error)
 
 // For partitions case there is no defined mapping and hence lookup will fail for need to create nametuple for non-root table by hand
 func getNameTupleForNonRoot(table string) sqlname.NameTuple {
-	parts := strings.Split(table, ".")
+	parts, err := sqlname.SplitQualifiedName(table)
+	if err != nil {
+		log.Warnf("error splitting qualified name %q: %v, falling back to simple split", table, err)
+		parts = strings.Split(table, ".")
+	}
 	defaultSchemaName, _ := getDefaultSourceSchemaName()
 	schema := defaultSchemaName
 	tableName := parts[0]
