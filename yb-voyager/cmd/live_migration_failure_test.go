@@ -388,6 +388,75 @@ func TestCutoverToSourceResumption_ImporterCrashAfterInitNextIteration(t *testin
 	t.Log("TestCutoverToSourceResumption_ImporterCrashAfterInitNextIteration passed")
 }
 
+
+// ---------------------------------------------------------------------------
+// import-to-source crashes BEFORE
+// initializeNextIteration (after waitUntilCutoverProcessedByCorresponding
+// Exporter completes). On resume initializeNextIteration runs fresh — this
+// validates the happy path where no partial iteration state exists yet.
+// ---------------------------------------------------------------------------
+
+func TestCutoverToSourceResumption_ImporterCrashBeforeInitNextIteration(t *testing.T) {
+	t.Parallel()
+	lm := NewLiveMigrationTest(t, newCutoverResumptionTestConfig(
+		"test_fb_resumption_importer_before_init"))
+	defer lm.Cleanup()
+
+	setupToFallbackStreaming(t, lm)
+
+	err := lm.StopExportDataFromTarget()
+	require.NoError(t, err, "failed to stop export data from target")
+	err = lm.StopImportDataToSource()
+	require.NoError(t, err, "failed to stop import data to source")
+	lm.KillDebezium(TARGET_DB_EXPORTER_FB_ROLE)
+
+	removeFailpointMarkers(lm.GetCurrentExportDir())
+
+	err = lm.InitiateCutoverToSource(map[string]string{
+		"--restart-data-migration-source-target": "true",
+	})
+	require.NoError(t, err, "failed to initiate cutover to source")
+
+	fpEnv := testutils.GetFailpointEnvVar(
+		fpPkgPrefix + "beforeInitializeNextIteration=return(true)",
+	)
+	err = lm.StartImportDataToSourceWithEnv(true, nil, []string{fpEnv})
+	require.NoError(t, err, "failed to start import-to-source with failpoint")
+
+	err = lm.StartExportDataFromTarget(true, nil)
+	require.NoError(t, err, "failed to start export-from-target")
+
+	markerPath := filepath.Join(lm.GetCurrentExportDir(), markerDir,
+		"failpoint-before-init-next-iteration.log")
+	err = lm.WaitForImportToSourceFailpointAndProcessCrash(
+		t, markerPath, 180*time.Second, 60*time.Second)
+	require.NoError(t, err, "import-to-source did not crash before initializeNextIteration")
+	t.Log("import-to-source crashed before initializeNextIteration — resuming")
+
+	err = lm.StopExportDataFromTarget()
+	require.NoError(t, err, "failed to stop export-from-target")
+	lm.KillDebezium(TARGET_DB_EXPORTER_FB_ROLE)
+
+	removeFailpointMarkers(lm.GetCurrentExportDir())
+
+	err = lm.StartImportDataToSource(true, nil)
+	require.NoError(t, err, "failed to resume import-to-source")
+
+	err = lm.StartExportDataFromTarget(true, nil)
+	require.NoError(t, err, "failed to resume export-from-target")
+
+	err = lm.WaitForNextIterationInitialized(120, 0)
+	require.NoError(t, err, "next iteration was not initialized after resume")
+
+	err = lm.WaitForCutoverSourceComplete(180)
+	require.NoError(t, err, "cutover-to-source did not complete after resume")
+
+	verifyNewIterationForward(t, lm)
+	t.Log("TestCutoverToSourceResumption_ImporterCrashBeforeInitNextIteration passed")
+}
+
+
+
 // ---------------------------------------------------------------------------
 // export-from-target crashes after markCutoverProcessed
 // (CutoverToSourceProcessedByTargetExporter = true) but before
@@ -463,70 +532,3 @@ func TestCutoverToSourceResumption_ExporterCrashAfterMarkProcessed(t *testing.T)
 	verifyNewIterationForward(t, lm)
 	t.Log("TestCutoverToSourceResumption_ExporterCrashAfterMarkProcessed passed")
 }
-
-// ---------------------------------------------------------------------------
-// Phase B2 (variant): import-to-source crashes BEFORE
-// initializeNextIteration (after waitUntilCutoverProcessedByCorresponding
-// Exporter completes). On resume initializeNextIteration runs fresh — this
-// validates the happy path where no partial iteration state exists yet.
-// ---------------------------------------------------------------------------
-
-func TestCutoverToSourceResumption_ImporterCrashBeforeInitNextIteration(t *testing.T) {
-	t.Parallel()
-	lm := NewLiveMigrationTest(t, newCutoverResumptionTestConfig(
-		"test_fb_resumption_importer_before_init"))
-	defer lm.Cleanup()
-
-	setupToFallbackStreaming(t, lm)
-
-	err := lm.StopExportDataFromTarget()
-	require.NoError(t, err, "failed to stop export data from target")
-	err = lm.StopImportDataToSource()
-	require.NoError(t, err, "failed to stop import data to source")
-	lm.KillDebezium(TARGET_DB_EXPORTER_FB_ROLE)
-
-	removeFailpointMarkers(lm.GetCurrentExportDir())
-
-	err = lm.InitiateCutoverToSource(map[string]string{
-		"--restart-data-migration-source-target": "true",
-	})
-	require.NoError(t, err, "failed to initiate cutover to source")
-
-	fpEnv := testutils.GetFailpointEnvVar(
-		fpPkgPrefix + "beforeInitializeNextIteration=return(true)",
-	)
-	err = lm.StartImportDataToSourceWithEnv(true, nil, []string{fpEnv})
-	require.NoError(t, err, "failed to start import-to-source with failpoint")
-
-	err = lm.StartExportDataFromTarget(true, nil)
-	require.NoError(t, err, "failed to start export-from-target")
-
-	markerPath := filepath.Join(lm.GetCurrentExportDir(), markerDir,
-		"failpoint-before-init-next-iteration.log")
-	err = lm.WaitForImportToSourceFailpointAndProcessCrash(
-		t, markerPath, 180*time.Second, 60*time.Second)
-	require.NoError(t, err, "import-to-source did not crash before initializeNextIteration")
-	t.Log("import-to-source crashed before initializeNextIteration — resuming")
-
-	err = lm.StopExportDataFromTarget()
-	require.NoError(t, err, "failed to stop export-from-target")
-	lm.KillDebezium(TARGET_DB_EXPORTER_FB_ROLE)
-
-	removeFailpointMarkers(lm.GetCurrentExportDir())
-
-	err = lm.StartImportDataToSource(true, nil)
-	require.NoError(t, err, "failed to resume import-to-source")
-
-	err = lm.StartExportDataFromTarget(true, nil)
-	require.NoError(t, err, "failed to resume export-from-target")
-
-	err = lm.WaitForNextIterationInitialized(120, 0)
-	require.NoError(t, err, "next iteration was not initialized after resume")
-
-	err = lm.WaitForCutoverSourceComplete(180)
-	require.NoError(t, err, "cutover-to-source did not complete after resume")
-
-	verifyNewIterationForward(t, lm)
-	t.Log("TestCutoverToSourceResumption_ImporterCrashBeforeInitNextIteration passed")
-}
-
