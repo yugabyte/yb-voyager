@@ -3,8 +3,8 @@
 set -e
 set -m
 
-if [ $# -gt 2 ]; then
-    echo "Usage: $0 TEST_NAME [--run-via-config-file]"
+if [ $# -gt 3 ]; then
+    echo "Usage: $0 TEST_NAME [--run-via-config-file] [--with-iterations]"
     exit 1
 fi
 
@@ -22,17 +22,25 @@ export QUEUE_SEGMENT_MAX_BYTES=400
 export PYTHONPATH="${REPO_ROOT}/migtests/lib"
 
 run_via_config_file=false
+with_iterations=false
 
-# Parse optional second argument
-if [ $# -eq 2 ]; then
-    if [ "$2" = "--run-via-config-file" ]; then
-        run_via_config_file=true
-    else
-        echo "Unknown option: $2"
-        echo "Usage: $0 TEST_NAME [--run-via-config-file]"
-        exit 1
-    fi
-fi
+# Parse optional arguments
+shift
+for arg in "$@"; do
+    case "$arg" in
+        --run-via-config-file)
+            run_via_config_file=true
+            ;;
+        --with-iterations)
+            with_iterations=true
+            ;;
+        *)
+            echo "Unknown option: $arg"
+            echo "Usage: $0 TEST_NAME [--run-via-config-file] [--with-iterations]"
+            exit 1
+            ;;
+    esac
+done
 
 # Order of env.sh import matters.
 if [ -f "${TEST_DIR}/live_env.sh" ]; then
@@ -260,8 +268,14 @@ main() {
 	step "Resetting the trap command"
 	trap - SIGINT SIGTERM EXIT SIGSEGV SIGHUP
 
-	step "Initiating cutover to source"
-	yb-voyager initiate cutover to source --export-dir ${EXPORT_DIR} --yes
+	if [ "${with_iterations}" = true ]; then
+		step "Initiating cutover to source with restart flag (iteration mode)"
+		yb-voyager initiate cutover to source --export-dir ${EXPORT_DIR} \
+			--restart-data-migration-source-target true --yes
+	else
+		step "Initiating cutover to source"
+		yb-voyager initiate cutover to source --export-dir ${EXPORT_DIR} --yes
+	fi
 
 	for ((i = 0; i < 15; i++)); do
     if [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | grep "cutover to source status" | cut -d ':'  -f 2 | tr -d '[:blank:]')"  != "COMPLETED" ]; then
@@ -278,6 +292,47 @@ main() {
         break
     fi
 	done
+
+	if [ "${with_iterations}" = true ]; then
+		step "Verifying iteration-1 directory was created"
+		ITERATION_DIR="${EXPORT_DIR}/live-data-migration-iterations/live-data-migration-iteration-1/export-dir"
+		if [ -d "${ITERATION_DIR}" ]; then
+			echo "Iteration-1 directory created successfully: ${ITERATION_DIR}"
+		else
+			echo "ERROR: Iteration-1 directory not found!"
+			exit 1
+		fi
+
+		step "Waiting for iteration-1 exporter to reach streaming phase"
+		wait_for_string_in_file "${ITERATION_DIR}/logs/yb-voyager-export-data-from-source.log" "streaming changes to a local queue file"
+
+		step "Inserting events to source for iteration-1"
+		run_sql_file source_delta.sql
+
+		wait_for_exporter_event "source"
+
+		step "Initiating cutover to target for iteration-1 (no fallback)"
+		yb-voyager initiate cutover to target \
+			--export-dir ${EXPORT_DIR} \
+			--prepare-for-fall-back false \
+			--yes
+
+		for ((i = 0; i < 20; i++)); do
+		ITER_EXPORT_DIR="${EXPORT_DIR}/live-data-migration-iterations/live-data-migration-iteration-1/export-dir"
+		if [ "$(yb-voyager cutover status --export-dir "${ITER_EXPORT_DIR}" | grep "cutover to target status" | cut -d ':'  -f 2 | tr -d '[:blank:]')" != "COMPLETED" ]; then
+			echo "Waiting for iteration-1 cutover to target to be COMPLETED..."
+			sleep 20
+			if [ "$i" -eq 19 ]; then
+				tail_log_file "yb-voyager-export-data-from-source.log"
+				tail_log_file "yb-voyager-import-data-to-target.log"
+				exit 1
+			fi
+		else
+			echo "Iteration-1 cutover to target COMPLETED"
+			break
+		fi
+		done
+	fi
 
 	run_ysql ${TARGET_DB_NAME} "\di"
 	run_ysql ${TARGET_DB_NAME} "\dft" 
@@ -296,36 +351,37 @@ main() {
 		} 
 	fi
 
-	step "Run get data-migration-report"
-	get_data_migration_report
+	if [ "${with_iterations}" = false ]; then
+		step "Run get data-migration-report"
+		get_data_migration_report
 
-	# Choose expected report file based on connector type
-	if [ "${USE_YB_GRPC_CONNECTOR}" = true ]; then
-		expected_file="${TEST_DIR}/data-migration-report-live-migration-fallb.json"
-		echo "Using gRPC connector expected report"
-	else
-		expected_file="${TEST_DIR}/data-migration-report-live-migration-fallb-logical-connector.json"
-		echo "Using logical replication connector expected report"
-	fi
-	actual_file="${EXPORT_DIR}/reports/data-migration-report.json"
-
-	step "Verify data-migration-report report"
-	verify_report ${expected_file} ${actual_file}
-
-	step "Run performance comparison."
-	if [ "${SOURCE_DB_TYPE}" = "postgresql" ]; then
-		compare_performance || {
-			cat_log_file "yb-voyager-compare-performance.log"
-		}
-
-		step "Validate Performance Reports"
-		# Checking if the performance comparison reports were created
-		if [ -f "${EXPORT_DIR}/reports/performance_comparison_report.html" ] && [ -f "${EXPORT_DIR}/reports/performance_comparison_report.json" ]; then
-			echo "Performance comparison reports created successfully."
+		# Choose expected report file based on connector type
+		if [ "${USE_YB_GRPC_CONNECTOR}" = true ]; then
+			expected_file="${TEST_DIR}/data-migration-report-live-migration-fallb.json"
+			echo "Using gRPC connector expected report"
 		else
-			echo "Error: Performance comparison reports were not created successfully."
-			cat_log_file "yb-voyager-compare-performance.log"
-			exit 1
+			expected_file="${TEST_DIR}/data-migration-report-live-migration-fallb-logical-connector.json"
+			echo "Using logical replication connector expected report"
+		fi
+		actual_file="${EXPORT_DIR}/reports/data-migration-report.json"
+
+		step "Verify data-migration-report report"
+		verify_report ${expected_file} ${actual_file}
+
+		step "Run performance comparison."
+		if [ "${SOURCE_DB_TYPE}" = "postgresql" ]; then
+			compare_performance || {
+				cat_log_file "yb-voyager-compare-performance.log"
+			}
+
+			step "Validate Performance Reports"
+			if [ -f "${EXPORT_DIR}/reports/performance_comparison_report.html" ] && [ -f "${EXPORT_DIR}/reports/performance_comparison_report.json" ]; then
+				echo "Performance comparison reports created successfully."
+			else
+				echo "Error: Performance comparison reports were not created successfully."
+				cat_log_file "yb-voyager-compare-performance.log"
+				exit 1
+			fi
 		fi
 	fi
 
