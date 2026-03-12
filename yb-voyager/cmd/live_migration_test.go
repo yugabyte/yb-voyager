@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 
 	reporter "github.com/yugabyte/yb-voyager/yb-voyager/src/reporter/stats"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
@@ -143,5 +144,36 @@ func TestProcessEventsRemovesIgnoredEventFromConflicDetectionCache(t *testing.T)
 	}
 	if _, ok := conflictDetectionCache.m[e2.Vsn]; ok {
 		t.Errorf("Event %v not removed from conflict detection cache", e2)
+	}
+}
+
+func TestIsCDCSavepointFixedInTargetDBVersion(t *testing.T) {
+	tests := []struct {
+		name         string
+		dbVersionStr string
+		expected     bool
+	}{
+		{name: "empty version string", dbVersionStr: "", expected: false},
+		{name: "malformed version string", dbVersionStr: "not-a-version", expected: false},
+
+		{name: "2024.2 series below fix", dbVersionStr: "11.2-YB-2024.2.7.0-b1", expected: false},
+		{name: "2024.2 series exactly at fix", dbVersionStr: "11.2-YB-2024.2.8.0-b85", expected: true},
+		{name: "2024.2 series above fix", dbVersionStr: "11.2-YB-2024.2.9.0-b1", expected: true},
+
+		{name: "2025.1 series below fix", dbVersionStr: "11.2-YB-2025.1.2.0-b1", expected: false},
+		{name: "2025.1 series exactly at fix", dbVersionStr: "11.2-YB-2025.1.3.0-b42", expected: true},
+		{name: "2025.1 series above fix", dbVersionStr: "11.2-YB-2025.1.4.0-b1", expected: true},
+
+		{name: "2025.2 series below fix", dbVersionStr: "11.2-YB-2025.2.0.0-b1", expected: false},
+		{name: "2025.2 series exactly at fix", dbVersionStr: "11.2-YB-2025.2.1.0-b10", expected: true},
+		{name: "2025.2 series above fix", dbVersionStr: "11.2-YB-2025.2.2.0-b1", expected: true},
+
+		{name: "2024.1 series has no fix entry", dbVersionStr: "11.2-YB-2024.1.5.0-b1", expected: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := isCDCSavepointFixedInTargetDBVersion(tt.dbVersionStr)
+			assert.Equal(t, tt.expected, result)
+		})
 	}
 }

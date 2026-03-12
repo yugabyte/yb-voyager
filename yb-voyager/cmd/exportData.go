@@ -51,6 +51,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/jsonfile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
 
 var exporterRole string = SOURCE_DB_EXPORTER_ROLE
@@ -311,6 +312,33 @@ func startNextIterationImportDataToTarget() {
 
 }
 
+var cdcSavepointFixVersions = map[string]*ybversion.YBVersion{
+	ybversion.SERIES_2024_2: ybversion.V2024_2_8_0,
+	ybversion.SERIES_2025_1: ybversion.V2025_1_3_0,
+	ybversion.SERIES_2025_2: ybversion.V2025_2_1_0,
+}
+
+func isCDCSavepointFixedInTargetDBVersion(dbVersionStr string) bool {
+	if dbVersionStr == "" {
+		return false
+	}
+	ybVersionStr, err := extractYBVersion(dbVersionStr)
+	if err != nil {
+		log.Warnf("unable to extract YB version from %q for CDC savepoint fix check: %v", dbVersionStr, err)
+		return false
+	}
+	ybVer, err := ybversion.NewYBVersion(ybVersionStr)
+	if err != nil {
+		log.Warnf("unable to parse YB version %q for CDC savepoint fix check: %v", ybVersionStr, err)
+		return false
+	}
+	minFixedVersion, ok := cdcSavepointFixVersions[ybVer.Series()]
+	if !ok {
+		return false
+	}
+	return ybVer.GreaterThanOrEqual(minFixedVersion)
+}
+
 func printLiveMigrationLimitations() {
 	if !changeStreamingIsEnabled(exportType) {
 		return
@@ -335,10 +363,26 @@ func printLiveMigrationLimitations() {
 			if msr.UseYBgRPCConnector {
 				utils.PrintAndLogfWarning("Note: Live migration with %s using YugabyteDB gRPC connector is a TECH PREVIEW feature.", workflow)
 			} else {
-				utils.PrintAndLogfWarning("\nImportant: The following limitation applies to live migration with %s:\n\n", workflow)
-				utils.PrintAndLogfInfo("  1. SAVEPOINT statements within transactions on the target database are not supported during live migration with %s enabled. Transactions rolling back to some SAVEPOINT may cause data inconsistency between the databases.\n", workflow)
-				utils.PrintAndLogfInfo("  2. Rows larger than 4MB in target database can cause consistency issues during live migration with %s enabled. Refer to this tech advisory for more information %s\n", workflow, utils.Path.Sprint("https://docs.yugabyte.com/stable/releases/techadvisories/ta-29060/"))
-				utils.PrintAndLogfInfo("  3. Workloads with read-committed isolation level are not fully supported. It is recommended to use repeatable-read or serializable isolation levels for the duration of the migration.\n\n")
+				cdcSavepointFixed := isCDCSavepointFixedInTargetDBVersion(msr.TargetDBConf.DBVersion)
+
+				var limitations []string
+				if !cdcSavepointFixed {
+					limitations = append(limitations,
+						fmt.Sprintf("SAVEPOINT statements within transactions on the target database are not supported during live migration with %s enabled. Transactions rolling back to some SAVEPOINT may cause data inconsistency between the databases.", workflow))
+				}
+				limitations = append(limitations,
+					fmt.Sprintf("Rows larger than 4MB in target database can cause consistency issues during live migration with %s enabled. Refer to this tech advisory for more information %s", workflow, utils.Path.Sprint("https://docs.yugabyte.com/stable/releases/techadvisories/ta-29060/")))
+				if !cdcSavepointFixed {
+					limitations = append(limitations,
+						"Workloads with read-committed isolation level are not fully supported. It is recommended to use repeatable-read or serializable isolation levels for the duration of the migration.")
+				}
+
+				noun := lo.Ternary(len(limitations) == 1, "limitation", "limitations")
+				utils.PrintAndLogfWarning("\nImportant: The following %s %s to live migration with %s:\n\n", noun, lo.Ternary(len(limitations) == 1, "applies", "apply"), workflow)
+				for i, lim := range limitations {
+					utils.PrintAndLogfInfo("  %d. %s\n", i+1, lim)
+				}
+				utils.PrintAndLogfInfo("\n")
 			}
 		}
 
