@@ -1590,24 +1590,18 @@ func parseObjectNamesToPayload(objectNames string, objectType string, dbType str
 		if slices.Contains([]string{"INDEX", "TRIGGER", "POLICY"}, objectType) {
 			parts := strings.SplitN(name, " ON ", 2)
 			if len(parts) == 2 {
-				tableObj := sqlname.NewObjectNameWithQualifiedName(dbType, "", strings.TrimSpace(parts[1]))
+				tableObj := sqlname.NewObjectNameFromMaybeQualifiedName(dbType, "", strings.TrimSpace(parts[1]))
 				obj.ParentTableName = tableObj.Qualified.Unquoted
 				obj.SchemaName = tableObj.SchemaName.Unquoted
-				objName := strings.TrimSpace(parts[0])
-				if strings.Contains(objName, ".") {
-					obj.ObjectName = sqlname.NewObjectNameWithQualifiedName(dbType, "", objName).Unqualified.Unquoted
-				} else {
-					obj.ObjectName = sqlname.NewIdentifier(dbType, objName).Unquoted
-				}
+				parsed := sqlname.NewObjectNameFromMaybeQualifiedName(dbType, "", strings.TrimSpace(parts[0]))
+				obj.ObjectName = parsed.Unqualified.Unquoted
 			} else {
-				obj.ObjectName = sqlname.NewIdentifier(dbType, name).Unquoted
+				obj.ObjectName = sqlname.NewObjectNameFromMaybeQualifiedName(dbType, "", name).Unqualified.Unquoted
 			}
-		} else if strings.Contains(name, ".") {
-			parsed := sqlname.NewObjectNameWithQualifiedName(dbType, "", name)
+		} else {
+			parsed := sqlname.NewObjectNameFromMaybeQualifiedName(dbType, "", name)
 			obj.ObjectName = parsed.Unqualified.Unquoted
 			obj.SchemaName = parsed.SchemaName.Unquoted
-		} else {
-			obj.ObjectName = sqlname.NewIdentifier(dbType, name).Unquoted
 		}
 		objects = append(objects, obj)
 	}

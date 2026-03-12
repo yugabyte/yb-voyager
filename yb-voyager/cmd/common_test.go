@@ -624,6 +624,125 @@ func TestParseObjectNamesToPayload(t *testing.T) {
 				{ObjectName: "my_policy", ParentTableName: "public.my_table", SchemaName: "public"},
 			},
 		},
+		{
+			name:       "multiple schemas",
+			input:      "public, sales",
+			dbType:     "postgresql",
+			objectType: "SCHEMA",
+			expected: []ObjectPayload{
+				{ObjectName: "public"},
+				{ObjectName: "sales"},
+			},
+		},
+		{
+			name:       "materialized view - schema-qualified",
+			input:      "public.my_mview",
+			dbType:     "postgresql",
+			objectType: "MVIEW",
+			expected: []ObjectPayload{
+				{ObjectName: "my_mview", SchemaName: "public"},
+			},
+		},
+		{
+			name:       "sequence - schema-qualified",
+			input:      "public.my_seq",
+			dbType:     "postgresql",
+			objectType: "SEQUENCE",
+			expected: []ObjectPayload{
+				{ObjectName: "my_seq", SchemaName: "public"},
+			},
+		},
+		{
+			name:       "function - schema-qualified",
+			input:      "public.my_func",
+			dbType:     "postgresql",
+			objectType: "FUNCTION",
+			expected: []ObjectPayload{
+				{ObjectName: "my_func", SchemaName: "public"},
+			},
+		},
+		{
+			name:       "view - schema-qualified",
+			input:      "public.my_view",
+			dbType:     "postgresql",
+			objectType: "VIEW",
+			expected: []ObjectPayload{
+				{ObjectName: "my_view", SchemaName: "public"},
+			},
+		},
+		{
+			name:       "extension - unqualified",
+			input:      "pg_stat_statements, vector",
+			dbType:     "postgresql",
+			objectType: "EXTENSION",
+			expected: []ObjectPayload{
+				{ObjectName: "pg_stat_statements"},
+				{ObjectName: "vector"},
+			},
+		},
+		{
+			name:       "type - schema-qualified",
+			input:      "public.mpaa_rating",
+			dbType:     "postgresql",
+			objectType: "TYPE",
+			expected: []ObjectPayload{
+				{ObjectName: "mpaa_rating", SchemaName: "public"},
+			},
+		},
+		{
+			name:       "procedure - schema-qualified",
+			input:      "public.my_proc",
+			dbType:     "postgresql",
+			objectType: "PROCEDURE",
+			expected: []ObjectPayload{
+				{ObjectName: "my_proc", SchemaName: "public"},
+			},
+		},
+		{
+			name:       "aggregate - schema-qualified",
+			input:      "public.group_concat",
+			dbType:     "postgresql",
+			objectType: "AGGREGATE",
+			expected: []ObjectPayload{
+				{ObjectName: "group_concat", SchemaName: "public"},
+			},
+		},
+		{
+			name:       "domain - schema-qualified",
+			input:      "public.year",
+			dbType:     "postgresql",
+			objectType: "DOMAIN",
+			expected: []ObjectPayload{
+				{ObjectName: "year", SchemaName: "public"},
+			},
+		},
+		{
+			name:       "collation - unqualified",
+			input:      "my_collation",
+			dbType:     "postgresql",
+			objectType: "COLLATION",
+			expected: []ObjectPayload{
+				{ObjectName: "my_collation"},
+			},
+		},
+		{
+			name:       "foreign table - schema-qualified",
+			input:      "public.my_foreign_table",
+			dbType:     "postgresql",
+			objectType: "FOREIGN TABLE",
+			expected: []ObjectPayload{
+				{ObjectName: "my_foreign_table", SchemaName: "public"},
+			},
+		},
+		{
+			name:       "rule - schema-qualified",
+			input:      "public.my_rule",
+			dbType:     "postgresql",
+			objectType: "RULE",
+			expected: []ObjectPayload{
+				{ObjectName: "my_rule", SchemaName: "public"},
+			},
+		},
 	}
 
 	for _, tt := range tests {
