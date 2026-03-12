@@ -1986,7 +1986,7 @@ func prepareTableToColumns(tasks []*ImportFileTask) error {
 			if err != nil {
 				return goerrors.Errorf("datastore.Open: %q: %v", task.FilePath, err)
 			}
-			df, err := datafile.NewDataFile(task.FilePath, reader, dataFileDescriptor)
+			df, err := datafile.NewDataFile(task.FilePath, reader, dataFileDescriptor, 0)
 			if err != nil {
 				return goerrors.Errorf("opening datafile: %q: %v", task.FilePath, err)
 			}
