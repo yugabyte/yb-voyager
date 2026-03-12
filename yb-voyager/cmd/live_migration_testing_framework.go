@@ -373,14 +373,9 @@ func (lm *LiveMigrationTest) StopExportData() error {
 	if lm.exportCmd == nil {
 		return goerrors.Errorf("export command not started")
 	}
-	if err := lm.exportCmd.Kill(); err != nil {
-		return goerrors.Errorf("killing the export data process errored: %w", err)
-	}
-	err := lm.exportCmd.Wait()
+	err := lm.exportCmd.GracefulStop(20)
 	if err != nil {
-		lm.t.Logf("Async export run exited with error (expected): %v", err)
-	} else {
-		lm.t.Logf("Async export run completed unexpectedly")
+		return goerrors.Errorf("failed to stop export data: %w", err)
 	}
 	fmt.Printf("Export data stopped\n")
 	return nil
@@ -391,14 +386,9 @@ func (lm *LiveMigrationTest) StopExportDataFromTarget() error {
 	if lm.exportFromTargetCmd == nil {
 		return goerrors.Errorf("export from target command not started")
 	}
-	if err := lm.exportFromTargetCmd.Kill(); err != nil {
-		return goerrors.Errorf("killing the export data from target process errored: %w", err)
-	}
-	err := lm.exportFromTargetCmd.Wait()
+	err := lm.exportFromTargetCmd.GracefulStop(20)
 	if err != nil {
-		lm.t.Logf("Async export from target run exited with error (expected): %v", err)
-	} else {
-		lm.t.Logf("Async export from target run completed unexpectedly")
+		return goerrors.Errorf("failed to stop export data from target: %w", err)
 	}
 	fmt.Printf("Export data from target stopped\n")
 	return nil

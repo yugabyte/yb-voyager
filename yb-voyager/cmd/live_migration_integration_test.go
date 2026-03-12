@@ -3852,6 +3852,11 @@ func TestLiveMigrationWithFallbackWithIterationsTableList(t *testing.T) {
 				description TEXT
 			);`,
 		},
+		SourceSetupSchemaSQL: []string{
+			`ALTER TABLE test_schema.test_live REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema.test_live_2 REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema.test_live_3 REPLICA IDENTITY FULL;`,
+		},
 		InitialDataSQL: []string{
 			`INSERT INTO test_schema.test_live (name, email, description)
 			SELECT
