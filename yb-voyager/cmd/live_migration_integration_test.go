@@ -3825,6 +3825,10 @@ func TestLiveMigrationWithFallbackWithIterationsTableList(t *testing.T) {
 			ForLive:      true,
 			DatabaseName: "test_fallback_with_multiple_iterations_table_list",
 		},
+		TargetDB: ContainerConfig{
+			Type:         "yugabytedb",
+			DatabaseName: "test_fallback_with_multiple_iterations_table_list",
+		},
 		SchemaNames: []string{`test_schema`},
 		SchemaSQL: []string{
 			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
