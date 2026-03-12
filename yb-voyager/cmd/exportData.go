@@ -312,31 +312,34 @@ func startNextIterationImportDataToTarget() {
 
 }
 
-var cdcSavepointFixVersions = map[string]*ybversion.YBVersion{
+var ybCDCSavepointAndReadCommittedFixedVersions = map[string]*ybversion.YBVersion{
 	ybversion.SERIES_2024_2: ybversion.V2024_2_8_0,
 	ybversion.SERIES_2025_1: ybversion.V2025_1_3_0,
 	ybversion.SERIES_2025_2: ybversion.V2025_2_1_0,
 }
 
-func isCDCSavepointFixedInTargetDBVersion(dbVersionStr string) bool {
+// isCDCSavepointFixedInTargetDBVersion returns whether the CDC savepoint rollback
+// filtering fix is present, and the minimum fixed version string for the target's
+// series (empty if the series has no known fix).
+func isCDCSavepointFixedInTargetDBVersion(dbVersionStr string) (bool, string) {
 	if dbVersionStr == "" {
-		return false
+		return false, ""
 	}
 	ybVersionStr, err := extractYBVersion(dbVersionStr)
 	if err != nil {
 		log.Warnf("unable to extract YB version from %q for CDC savepoint fix check: %v", dbVersionStr, err)
-		return false
+		return false, ""
 	}
 	ybVer, err := ybversion.NewYBVersion(ybVersionStr)
 	if err != nil {
 		log.Warnf("unable to parse YB version %q for CDC savepoint fix check: %v", ybVersionStr, err)
-		return false
+		return false, ""
 	}
-	minFixedVersion, ok := cdcSavepointFixVersions[ybVer.Series()]
+	minFixedVersion, ok := ybCDCSavepointAndReadCommittedFixedVersions[ybVer.Series()]
 	if !ok {
-		return false
+		return false, ""
 	}
-	return ybVer.GreaterThanOrEqual(minFixedVersion)
+	return ybVer.GreaterThanOrEqual(minFixedVersion), minFixedVersion.String()
 }
 
 func printLiveMigrationLimitations() {
@@ -363,19 +366,20 @@ func printLiveMigrationLimitations() {
 			if msr.UseYBgRPCConnector {
 				utils.PrintAndLogfWarning("Note: Live migration with %s using YugabyteDB gRPC connector is a TECH PREVIEW feature.", workflow)
 			} else {
-				cdcSavepointFixed := isCDCSavepointFixedInTargetDBVersion(msr.TargetDBConf.DBVersion)
+				cdcSavepointFixed, fixVersion := isCDCSavepointFixedInTargetDBVersion(msr.TargetDBConf.DBVersion)
 
 				var limitations []string
 				if !cdcSavepointFixed {
+					upgradeHint := ""
+					if fixVersion != "" {
+						upgradeHint = fmt.Sprintf(" This is fixed in YugabyteDB version %s and later.", fixVersion)
+					}
 					limitations = append(limitations,
-						fmt.Sprintf("SAVEPOINT statements within transactions on the target database are not supported during live migration with %s enabled. Transactions rolling back to some SAVEPOINT may cause data inconsistency between the databases.", workflow))
+						fmt.Sprintf("SAVEPOINT statements within transactions on the target database are not supported during live migration with %s enabled. Transactions rolling back to some SAVEPOINT may cause data inconsistency between the databases.%s", workflow, upgradeHint),
+						fmt.Sprintf("Workloads with read-committed isolation level are not fully supported. It is recommended to use repeatable-read or serializable isolation levels for the duration of the migration.%s", upgradeHint))
 				}
 				limitations = append(limitations,
 					fmt.Sprintf("Rows larger than 4MB in target database can cause consistency issues during live migration with %s enabled. Refer to this tech advisory for more information %s", workflow, utils.Path.Sprint("https://docs.yugabyte.com/stable/releases/techadvisories/ta-29060/")))
-				if !cdcSavepointFixed {
-					limitations = append(limitations,
-						"Workloads with read-committed isolation level are not fully supported. It is recommended to use repeatable-read or serializable isolation levels for the duration of the migration.")
-				}
 
 				noun := lo.Ternary(len(limitations) == 1, "limitation", "limitations")
 				utils.PrintAndLogfWarning("\nImportant: The following %s %s to live migration with %s:\n\n", noun, lo.Ternary(len(limitations) == 1, "applies", "apply"), workflow)
