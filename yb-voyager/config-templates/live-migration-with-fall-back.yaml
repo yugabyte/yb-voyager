@@ -7,7 +7,7 @@
 ### *********** Basic Configuration ************
 ### Export directory is the workspace used to keep the exported schema, data, state, and logs
 ### Required
-export-dir: <export-dir-path>     
+export-dir: /home/ubuntu/iter-bug-repro
 
 ### Log level for yb-voyager 
 ### Accepted values - (trace, debug, info, warn, error, fatal, panic) 
@@ -29,7 +29,7 @@ yugabyted-control-plane:
   ### Provide standard PostgreSQL connection parameters: user name, host name, and port
   ### Example: postgresql://yugabyte:yugabyte@127.0.0.1:5433
   ### Note: Don't include the dbname parameter; the default 'yugabyte' database is used for metadata
-  db-conn-string: postgresql://yugabyte:yugabyte@127.0.0.1:5433                       
+  db-conn-string: postgresql://yugabyte:yugabyte@10.9.15.11:5433
 
 # ---------------------------------------------------------
 # Source Database Configuration
@@ -42,14 +42,14 @@ source:
 
   ### Source database server host. 
   ### Default - localhost                             
-  db-host: localhost 
+  db-host: 127.0.0.1
 
   ### Source database server port number. 
   ### Default - Oracle(1521), PostgreSQL(5432)                                     
   db-port: 5432    
 
   ### Source database name to be migrated to YugabyteDB                                       
-  db-name: test_db  
+  db-name: live_test_pg_iterations
 
   ### Source schema name to export 
   ### Note - This is valid for only Oracle and PostgreSQL source databases.
@@ -57,13 +57,13 @@ source:
   db-schema: public   
 
   ### Connect to source database as the specified user                                     
-  db-user: test_user   
+  db-user: ybvoyager
 
   ### Source password to connect as the specified user.    
   ### Alternatively, you can also specify the password by setting the environment variable SOURCE_DB_PASSWORD. 
   ### If you don't provide a password via the config, yb-voyager will prompt you at runtime for a password. 
   ### If the password contains special characters that are interpreted by the shell (for example, # and $), enclose the password in single quotes.                               
-  db-password: test_password                               
+  db-password: 'Test@123#$%^&*()!'
 
 ### *********** Source SSL Configuration ************  
 
@@ -120,26 +120,26 @@ target:
 
   ### Host on which the YugabyteDB server is running. 
   ### Default - 127.0.0.1                          
-  db-host: 127.0.0.1      
+  db-host: 10.9.15.11
 
   ### Port on which the YugabyteDB YSQL API is running. 
   ### Default - 5433                                   
   db-port: 5433  
 
   ### Name of the database on the target YugabyteDB server on which import needs to be done                                    
-  db-name: yugabyte 
+  db-name: debug
 
   ### Target schema name in YugabyteDB (Note: works only for source as Oracle, in case of PostgreSQL you can ALTER schema name post import)                                    
   # db-schema: public      
 
   ### Username with which to connect to the target YugabyteDB server                                    
-  db-user: test_user      
+  db-user: ybvoyager
 
   ### Password with which to connect to the target YugabyteDB server.    
   ### Alternatively, you can also specify the password by setting the environment variable TARGET_DB_PASSWORD. 
   ### If you don't provide a password via the config, yb-voyager will prompt you at runtime for a password. 
   ### If the password contains special characters that are interpreted by the shell (for example, # and $), enclose the password in single quotes.                          
-  db-password: test_password                             
+  db-password: 'Test@123#$%^&*()!'
 
 ### *********** Target SSL Configuration ************
 
@@ -175,7 +175,7 @@ assess-migration:
   ### Interval (in seconds) at which voyager will gather IOPS metadata from source database for the given schema(s). 
   ### Note: Only valid for PostgreSQL
   ### Default - 120                         
-  iops-capture-interval: 120
+  iops-capture-interval: 1
 
   ### Directory path where assessment metadata like source DB metadata and statistics are stored. 
   ### Optional flag, if not provided, it will be assumed to be present at default path inside the export directory.

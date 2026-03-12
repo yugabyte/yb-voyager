@@ -1,0 +1,32 @@
+connection:
+  host: 10.9.15.11
+  port: 5433
+  database: debug
+  user: ybvoyager
+  password: 'Test@123#$%^&*()!'
+
+generator:
+  schema_name: public
+  manual_table_list: [employees, orders]
+  exclude_table_list: []
+
+  num_iterations: -1
+
+  wait_after_operations: 1000
+  wait_duration_seconds: 1
+
+  table_weights: { employees: 3, orders: 5 }
+  operation_weights: { INSERT: 3, UPDATE: 2, DELETE: 1 }
+
+  random_seed: 42
+  faker_seed: 42
+
+  insert_rows: 1
+  update_rows: 1
+  delete_rows: 1
+
+  insert_max_retries: 50
+  update_max_retries: 3
+
+  enable_index_create_drop: false
+  index_events_interval: 5
