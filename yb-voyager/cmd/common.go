@@ -1372,7 +1372,6 @@ func stripAnchorTags(htmlText string) string {
 	return result
 }
 
-
 // ======================================================================
 type BulkAssessmentReport struct {
 	Details []AssessmentDetail `json:"Detail"`
@@ -1414,14 +1413,16 @@ Version History
   - Added separate fields for notes: GeneralNotes, ColocatedShardedNotes, SizingNotes; deprecated Notes field
 
 1.7: Added ObjectUsage field to AssessmentIssueYugabyteD struct
+1.8: Added ParsedSchemaSummary field with structured Objects []ObjectPayload (ObjectName, ParentTableName, SchemaName) with unquoted names.
 */
-var ASSESS_MIGRATION_YBD_PAYLOAD_VERSION = "1.7"
+var ASSESS_MIGRATION_YBD_PAYLOAD_VERSION = "1.8"
 
 /*
 Version History
 1.0: Introduced AssessMigrationPayloadYBM struct for YBM-specific payload
+1.1: Added ParsedSchemaSummary field with structured Objects []ObjectPayload (ObjectName, ParentTableName, SchemaName) with unquoted names.
 */
-var ASSESS_MIGRATION_YBM_PAYLOAD_VERSION = "1.0"
+var ASSESS_MIGRATION_YBM_PAYLOAD_VERSION = "1.1"
 
 // ======================= PAYLOAD FOR YUGABYTED =======================
 
@@ -1434,6 +1435,7 @@ type AssessMigrationPayloadYugabyteD struct {
 	MigrationComplexity            string
 	MigrationComplexityExplanation string
 	SchemaSummary                  utils.SchemaSummary
+	ParsedSchemaSummary            ParsedSchemaSummary
 	AssessmentIssues               []AssessmentIssueYugabyteD
 	SourceSizeDetails              SourceDBSizeDetails
 	TargetRecommendations          TargetSizingRecommendations
@@ -1497,6 +1499,7 @@ type AssessMigrationPayloadYBM struct {
 	MigrationComplexity            string                                `json:"MigrationComplexity"`
 	MigrationComplexityExplanation string                                `json:"MigrationComplexityExplanation"`
 	SchemaSummary                  utils.SchemaSummary                   `json:"SchemaSummary"`
+	ParsedSchemaSummary            ParsedSchemaSummary                   `json:"ParsedSchemaSummary"`
 	AssessmentIssues               []AssessmentIssueYBM                  `json:"AssessmentIssues"`
 	SourceSizeDetails              SourceDBSizeDetails                   `json:"SourceSizeDetails"`
 	TargetRecommendations          TargetSizingRecommendations           `json:"TargetRecommendations"`
@@ -1523,6 +1526,88 @@ type AssessmentIssueYBM struct {
 	MinimumVersionsFixedIn map[string]*ybversion.YBVersion `json:"MinimumVersionsFixedIn"`
 	Details                map[string]interface{}          `json:"Details,omitempty"`
 }
+
+// ======================= PAYLOAD-SPECIFIC SCHEMA SUMMARY TYPES =======================
+
+type ObjectPayload struct {
+	ObjectName      string `json:"ObjectName"`
+	ParentTableName string `json:"ParentTableName,omitempty"` //Qualified unquoted parent table name
+	SchemaName      string `json:"SchemaName,omitempty"`
+}
+
+type DBObjectPayload struct {
+	ObjectType   string          `json:"ObjectType"`
+	TotalCount   int             `json:"TotalCount"`
+	InvalidCount int             `json:"InvalidCount"`
+	Objects      []ObjectPayload `json:"Objects"`
+	Details      string          `json:"Details,omitempty"`
+}
+
+type ParsedSchemaSummary struct {
+	Description string            `json:"Description"`
+	DBName      string            `json:"DbName"`
+	SchemaNames []string          `json:"SchemaNames"`
+	DBVersion   string            `json:"DbVersion"`
+	Notes       []string          `json:"Notes,omitempty"`
+	DBObjects   []DBObjectPayload `json:"DatabaseObjects"`
+}
+
+func convertSchemaSummaryToPayload(summary utils.SchemaSummary, dbType string) ParsedSchemaSummary {
+	var dbObjects []DBObjectPayload
+	for _, dbObj := range summary.DBObjects {
+		dbObjects = append(dbObjects, DBObjectPayload{
+			ObjectType:   dbObj.ObjectType,
+			TotalCount:   dbObj.TotalCount,
+			InvalidCount: dbObj.InvalidCount,
+			Objects:      parseObjectNamesToPayload(dbObj.ObjectNames, dbObj.ObjectType, dbType),
+			Details:      dbObj.Details,
+		})
+	}
+	return ParsedSchemaSummary{
+		Description: summary.Description,
+		DBName:      summary.DBName,
+		SchemaNames: summary.SchemaNames,
+		DBVersion:   summary.DBVersion,
+		Notes:       summary.Notes,
+		DBObjects:   dbObjects,
+	}
+}
+
+// parseObjectNamesToPayload splits the comma-separated ObjectNames string into individual ObjectPayload entries.
+func parseObjectNamesToPayload(objectNames string, objectType string, dbType string) []ObjectPayload {
+	objectNames = strings.Trim(objectNames, ", ")
+	if objectNames == "" {
+		return nil
+	}
+	names := strings.Split(objectNames, ", ")
+	var objects []ObjectPayload
+	for _, name := range names {
+		name = strings.TrimSpace(name)
+		if name == "" {
+			continue
+		}
+		var obj ObjectPayload
+		if slices.Contains([]string{"INDEX", "TRIGGER", "POLICY"}, objectType) {
+			parts := strings.SplitN(name, " ON ", 2)
+			if len(parts) == 2 {
+				tableObj := sqlname.NewObjectNameFromMaybeQualifiedName(dbType, "", strings.TrimSpace(parts[1]))
+				obj.ParentTableName = tableObj.Qualified.Unquoted
+				obj.SchemaName = tableObj.SchemaName.Unquoted
+				parsed := sqlname.NewObjectNameFromMaybeQualifiedName(dbType, "", strings.TrimSpace(parts[0]))
+				obj.ObjectName = parsed.Unqualified.Unquoted
+			} else {
+				obj.ObjectName = sqlname.NewObjectNameFromMaybeQualifiedName(dbType, "", name).Unqualified.Unquoted
+			}
+		} else {
+			parsed := sqlname.NewObjectNameFromMaybeQualifiedName(dbType, "", name)
+			obj.ObjectName = parsed.Unqualified.Unquoted
+			obj.SchemaName = parsed.SchemaName.Unquoted
+		}
+		objects = append(objects, obj)
+	}
+	return objects
+}
+
 
 // RowCountPair holds imported and errored row counts for a table.
 type RowCountPair struct {
