@@ -3648,9 +3648,7 @@ func TestLiveMigrationWithFallbackWithMultipleIterationsWithFailureScenariosDuri
 	})
 	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
 
-	err = lm.StartExportDataFromTarget(true, map[string]string{
-		"--table-list": `"test_schema"."test_live"`,
-	})
+	err = lm.StartExportDataFromTarget(true, nil)
 	testutils.FatalIfError(t, err, "failed to start export data from target")
 
 	err = lm.WaitForNextIterationInitialized(100)
@@ -4042,5 +4040,5 @@ func TestLiveMigrationWithFallbackWithIterationsTableList(t *testing.T) {
 
 	err = lm.WaitForCutoverSourceComplete(100)
 	testutils.FatalIfError(t, err, "failed to wait for cutover source complete")
-	
+
 }
