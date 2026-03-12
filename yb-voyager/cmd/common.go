@@ -1413,14 +1413,14 @@ Version History
   - Added separate fields for notes: GeneralNotes, ColocatedShardedNotes, SizingNotes; deprecated Notes field
 
 1.7: Added ObjectUsage field to AssessmentIssueYugabyteD struct
-1.8: Added ParsedSchemaSummary field with structured Objects []ObjectPayload (ObjectName, ParentTableName) and unquoted identifiers. Original SchemaSummary field is unchanged.
+1.8: Added ParsedSchemaSummary field with structured Objects []ObjectPayload (ObjectName, ParentTableName, SchemaName) with unquoted names.
 */
 var ASSESS_MIGRATION_YBD_PAYLOAD_VERSION = "1.8"
 
 /*
 Version History
 1.0: Introduced AssessMigrationPayloadYBM struct for YBM-specific payload
-1.1: Added ParsedSchemaSummary field with structured Objects []ObjectPayload (ObjectName, ParentTableName) and unquoted identifiers. Original SchemaSummary field is unchanged.
+1.1: Added ParsedSchemaSummary field with structured Objects []ObjectPayload (ObjectName, ParentTableName, SchemaName) with unquoted names.
 */
 var ASSESS_MIGRATION_YBM_PAYLOAD_VERSION = "1.1"
 
@@ -1531,7 +1531,8 @@ type AssessmentIssueYBM struct {
 
 type ObjectPayload struct {
 	ObjectName      string `json:"ObjectName"`
-	ParentTableName string `json:"ParentTableName,omitempty"`
+	ParentTableName string `json:"ParentTableName,omitempty"` //Qualified unquoted parent table name
+	SchemaName      string `json:"SchemaName,omitempty"`
 }
 
 type DBObjectPayload struct {
@@ -1589,12 +1590,22 @@ func parseObjectNamesToPayload(objectNames string, objectType string, dbType str
 		if slices.Contains([]string{"INDEX", "TRIGGER", "POLICY"}, objectType) {
 			parts := strings.SplitN(name, " ON ", 2)
 			if len(parts) == 2 {
-				obj.ObjectName = sqlname.NewIdentifier(dbType, strings.TrimSpace(parts[0])).Unquoted
 				tableObj := sqlname.NewObjectNameWithQualifiedName(dbType, "", strings.TrimSpace(parts[1]))
 				obj.ParentTableName = tableObj.Qualified.Unquoted
+				obj.SchemaName = tableObj.SchemaName.Unquoted
+				objName := strings.TrimSpace(parts[0])
+				if strings.Contains(objName, ".") {
+					obj.ObjectName = sqlname.NewObjectNameWithQualifiedName(dbType, "", objName).Unqualified.Unquoted
+				} else {
+					obj.ObjectName = sqlname.NewIdentifier(dbType, objName).Unquoted
+				}
 			} else {
 				obj.ObjectName = sqlname.NewIdentifier(dbType, name).Unquoted
 			}
+		} else if strings.Contains(name, ".") {
+			parsed := sqlname.NewObjectNameWithQualifiedName(dbType, "", name)
+			obj.ObjectName = parsed.Unqualified.Unquoted
+			obj.SchemaName = parsed.SchemaName.Unquoted
 		} else {
 			obj.ObjectName = sqlname.NewIdentifier(dbType, name).Unquoted
 		}

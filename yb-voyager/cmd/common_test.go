@@ -543,12 +543,30 @@ func TestParseObjectNamesToPayload(t *testing.T) {
 			},
 		},
 		{
+			name:       "schema-qualified table",
+			input:      "public.test_table",
+			dbType:     "postgresql",
+			objectType: "TABLE",
+			expected: []ObjectPayload{
+				{ObjectName: "test_table", SchemaName: "public"},
+			},
+		},
+		{
+			name:       "quoted schema-qualified table",
+			input:      `"Schema"."Table"`,
+			dbType:     "postgresql",
+			objectType: "TABLE",
+			expected: []ObjectPayload{
+				{ObjectName: "Table", SchemaName: "Schema"},
+			},
+		},
+		{
 			name:       "index with ON clause",
 			input:      "idx_name ON public.test_table",
 			dbType:     "postgresql",
 			objectType: "INDEX",
 			expected: []ObjectPayload{
-				{ObjectName: "idx_name", ParentTableName: "public.test_table"},
+				{ObjectName: "idx_name", ParentTableName: "public.test_table", SchemaName: "public"},
 			},
 		},
 		{
@@ -557,7 +575,7 @@ func TestParseObjectNamesToPayload(t *testing.T) {
 			dbType:     "postgresql",
 			objectType: "INDEX",
 			expected: []ObjectPayload{
-				{ObjectName: "IdxName", ParentTableName: "Schema.Table"},
+				{ObjectName: "IdxName", ParentTableName: "Schema.Table", SchemaName: "Schema"},
 			},
 		},
 		{
@@ -566,7 +584,7 @@ func TestParseObjectNamesToPayload(t *testing.T) {
 			dbType:     "postgresql",
 			objectType: "INDEX",
 			expected: []ObjectPayload{
-				{ObjectName: "my index", ParentTableName: "public.my table"},
+				{ObjectName: "my index", ParentTableName: "public.my table", SchemaName: "public"},
 			},
 		},
 		{
@@ -575,8 +593,17 @@ func TestParseObjectNamesToPayload(t *testing.T) {
 			dbType:     "postgresql",
 			objectType: "INDEX",
 			expected: []ObjectPayload{
-				{ObjectName: "idx_name", ParentTableName: "public.test_table"},
-				{ObjectName: "IdxName", ParentTableName: "Schema.Table"},
+				{ObjectName: "idx_name", ParentTableName: "public.test_table", SchemaName: "public"},
+				{ObjectName: "IdxName", ParentTableName: "Schema.Table", SchemaName: "Schema"},
+			},
+		},
+		{
+			name:       "schema-qualified index with ON clause",
+			input:      "public.idx_name ON public.test_table",
+			dbType:     "postgresql",
+			objectType: "INDEX",
+			expected: []ObjectPayload{
+				{ObjectName: "idx_name", ParentTableName: "public.test_table", SchemaName: "public"},
 			},
 		},
 		{
@@ -585,7 +612,7 @@ func TestParseObjectNamesToPayload(t *testing.T) {
 			dbType:     "postgresql",
 			objectType: "TRIGGER",
 			expected: []ObjectPayload{
-				{ObjectName: "my_trigger", ParentTableName: "public.my_table"},
+				{ObjectName: "my_trigger", ParentTableName: "public.my_table", SchemaName: "public"},
 			},
 		},
 		{
@@ -594,7 +621,7 @@ func TestParseObjectNamesToPayload(t *testing.T) {
 			dbType:     "postgresql",
 			objectType: "POLICY",
 			expected: []ObjectPayload{
-				{ObjectName: "my_policy", ParentTableName: "public.my_table"},
+				{ObjectName: "my_policy", ParentTableName: "public.my_table", SchemaName: "public"},
 			},
 		},
 	}
