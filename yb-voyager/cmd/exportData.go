@@ -641,6 +641,10 @@ func exportData() bool {
 				utils.ErrExit("failed to create trigger file after data export: %w", err)
 			}
 
+			if exporterRole == TARGET_DB_EXPORTER_FB_ROLE {
+				injectCutoverToSourceExporterPostMarkProcessed()
+			}
+
 			updateCallhomeExportPhase()
 
 			utils.PrintAndLog("\nRun the following command to get the current report of the migration:\n" +

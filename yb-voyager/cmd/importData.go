@@ -293,10 +293,14 @@ func startExportDataFromSourceOnNextIteration() {
 		return
 	}
 
+	injectBeforeInitializeNextIteration()
+
 	err = initializeNextIteration()
 	if err != nil {
 		utils.ErrExit("failed to initialize next iteration: %w", err)
 	}
+
+	injectAfterInitializeNextIteration()
 
 	//Start export from source on next iteration
 
@@ -1140,6 +1144,10 @@ func postCutoverProcessing(importTableList []sqlname.NameTuple) error {
 	err = markCutoverProcessed(importerRole)
 	if err != nil {
 		return goerrors.Errorf("failed to mark cutover as processed: %s", err)
+	}
+
+	if importerRole == SOURCE_DB_IMPORTER_ROLE {
+		injectCutoverToSourceImporterPostMarkProcessed()
 	}
 
 	//Waiting for the cutover of the export data from target to mark the cutover as processed for the importer role

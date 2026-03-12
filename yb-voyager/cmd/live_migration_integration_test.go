@@ -3474,7 +3474,7 @@ func TestLiveMigrationWithFallbackWithMultipleIterations(t *testing.T) {
 		})
 		testutils.FatalIfError(t, err, "failed to initiate cutover to source")
 
-		err = lm.WaitForNextIterationInitialized(100)
+		err = lm.WaitForNextIterationInitialized(100, i-1)
 		testutils.FatalIfError(t, err, "failed to wait for next iteration initialized")
 
 		err = lm.WaitForCutoverSourceComplete(100)
@@ -3651,7 +3651,7 @@ func TestLiveMigrationWithFallbackWithMultipleIterationsWithFailureScenariosDuri
 	err = lm.StartExportDataFromTarget(true, nil)
 	testutils.FatalIfError(t, err, "failed to start export data from target")
 
-	err = lm.WaitForNextIterationInitialized(100)
+	err = lm.WaitForNextIterationInitialized(100, 0)
 	testutils.FatalIfError(t, err, "failed to wait for next iteration initialized")
 
 	err = lm.WaitForCutoverSourceComplete(100)
@@ -3704,7 +3704,7 @@ func TestLiveMigrationWithFallbackWithMultipleIterationsWithFailureScenariosDuri
 	err = lm.StartImportDataToSource(true, nil)
 	testutils.FatalIfError(t, err, "failed to start import data to source")
 
-	err = lm.WaitForNextIterationInitialized(100)
+	err = lm.WaitForNextIterationInitialized(100, 1)
 	testutils.FatalIfError(t, err, "failed to wait for next iteration initialized")
 
 	err = lm.WaitForCutoverSourceComplete(100)
@@ -3786,7 +3786,7 @@ func TestLiveMigrationWithFallbackWithMultipleIterationsWithFailureScenariosDuri
 	err = lm.StartImportDataToSource(true, nil)
 	testutils.FatalIfError(t, err, "failed to start import data to source")
 
-	err = lm.WaitForNextIterationInitialized(100)
+	err = lm.WaitForNextIterationInitialized(100, 2)
 	testutils.FatalIfError(t, err, "failed to wait for next iteration initialized")
 
 	err = lm.WaitForCutoverSourceComplete(100)
@@ -3979,7 +3979,7 @@ func TestLiveMigrationWithFallbackWithIterationsTableList(t *testing.T) {
 	})
 	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
 
-	err = lm.WaitForNextIterationInitialized(100)
+	err = lm.WaitForNextIterationInitialized(100, 0)
 	testutils.FatalIfError(t, err, "failed to wait for next iteration initialized")
 
 	err = lm.WaitForCutoverSourceComplete(100)

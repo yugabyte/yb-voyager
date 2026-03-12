@@ -219,6 +219,7 @@ func (lm *LiveMigrationTest) StartExportData(async bool, extraArgs map[string]st
 		"--source-db-name", lm.config.SourceDB.DatabaseName,
 		"--disable-pb", "true",
 		"--export-type", SNAPSHOT_AND_CHANGES,
+		"--parallel-jobs", "1",
 		"--yes",
 	}
 	for key, value := range extraArgs {
@@ -365,6 +366,119 @@ func (lm *LiveMigrationTest) StartExportDataFromTarget(async bool, extraArgs map
 	}
 	fmt.Printf("Export data from target started\n")
 	return nil
+}
+
+func (lm *LiveMigrationTest) StartExportDataFromTargetWithEnv(async bool, extraArgs map[string]string, env []string) error {
+	if len(env) > 0 {
+		fmt.Printf("Starting export data from target with env %v\n", env)
+	} else {
+		fmt.Printf("Starting export data from target\n")
+	}
+	var onStart func()
+	if async {
+		onStart = func() {
+			time.Sleep(5 * time.Second)
+		}
+	}
+
+	targetConfig := lm.targetContainer.GetConfig()
+	args := []string{
+		"--export-dir", lm.exportDir,
+		"--disable-pb", "true",
+		"--target-db-password", targetConfig.Password,
+		"--yes",
+	}
+	for key, value := range extraArgs {
+		args = append(args, key, value)
+	}
+
+	lm.exportFromTargetCmd = testutils.NewVoyagerCommandRunner(nil, "export data from target", args, onStart, async).WithEnv(env...)
+	err := lm.exportFromTargetCmd.Run()
+	if err != nil {
+		return goerrors.Errorf("failed to start export data from target: %w", err)
+	}
+	fmt.Printf("Export data from target started\n")
+	return nil
+}
+
+func (lm *LiveMigrationTest) StartImportDataToSourceWithEnv(async bool, extraArgs map[string]string, env []string) error {
+	if len(env) > 0 {
+		fmt.Printf("Starting import data to source with env %v\n", env)
+	} else {
+		fmt.Printf("Starting import data to source\n")
+	}
+	var onStart func()
+	if async {
+		onStart = func() {
+			time.Sleep(5 * time.Second)
+		}
+	}
+	sourceConfig := lm.sourceContainer.GetConfig()
+	args := []string{
+		"--export-dir", lm.exportDir,
+		"--disable-pb", "true",
+		"--source-db-password", sourceConfig.Password,
+		"--yes",
+	}
+	for key, value := range extraArgs {
+		args = append(args, key, value)
+	}
+
+	lm.importToSourceCmd = testutils.NewVoyagerCommandRunner(nil, "import data to source", args, onStart, async).WithEnv(env...)
+	err := lm.importToSourceCmd.Run()
+	if err != nil {
+		return goerrors.Errorf("failed to start import data to source: %w", err)
+	}
+	fmt.Printf("Import data to source started\n")
+	return nil
+}
+
+func (lm *LiveMigrationTest) WaitForExportFromTargetFailpointAndProcessCrash(t *testing.T, markerPath string, markerTimeout, exitTimeout time.Duration) error {
+	return testutils.WaitForFailpointAndProcessCrash(t, lm.exportFromTargetCmd, markerPath, markerTimeout, exitTimeout)
+}
+
+func (lm *LiveMigrationTest) WaitForImportToSourceFailpointAndProcessCrash(t *testing.T, markerPath string, markerTimeout, exitTimeout time.Duration) error {
+	return testutils.WaitForFailpointAndProcessCrash(t, lm.importToSourceCmd, markerPath, markerTimeout, exitTimeout)
+}
+
+// StartExportDataWithEnv starts export data with additional environment variables.
+func (lm *LiveMigrationTest) StartExportDataWithEnv(async bool, extraArgs map[string]string, env []string) error {
+	if len(env) > 0 {
+		fmt.Printf("Starting export data with env %v\n", env)
+	} else {
+		fmt.Printf("Starting export data\n")
+	}
+	var onStart func()
+	if async {
+		onStart = func() {
+			time.Sleep(5 * time.Second)
+		}
+	}
+
+	args := []string{
+		"--export-dir", lm.exportDir,
+		"--source-db-schema", strings.Join(lm.config.SchemaNames, ","),
+		"--source-db-name", lm.config.SourceDB.DatabaseName,
+		"--disable-pb", "true",
+		"--export-type", SNAPSHOT_AND_CHANGES,
+		"--parallel-jobs", "1",
+		"--yes",
+	}
+	for key, value := range extraArgs {
+		args = append(args, key, value)
+	}
+
+	lm.exportCmd = testutils.NewVoyagerCommandRunner(lm.sourceContainer, "export data", args, onStart, async).WithEnv(env...)
+	err := lm.exportCmd.Run()
+	if err != nil {
+		return goerrors.Errorf("failed to start export data: %w", err)
+	}
+	fmt.Printf("Export data started\n")
+	return nil
+}
+
+func (lm *LiveMigrationTest) WaitForExportFailpointAndProcessCrash(t *testing.T, markerPath string, markerTimeout, exitTimeout time.Duration) error {
+	return testutils.WaitForFailpointAndProcessCrash(t, lm.exportCmd, markerPath, markerTimeout, exitTimeout)
 }
 
 // StopExportData stops the running export data command
@@ -551,7 +665,23 @@ func (lm *LiveMigrationTest) ExecuteTargetDelta() error {
 }
 
 // GetExportDir returns the export directory path
-func (lm *LiveMigrationTest) GetExportDir() string {
+func (lm *LiveMigrationTest) GetCurrentExportDir() string {
+	if lm.metaDB == nil {
+		err := lm.InitMetaDB()
+		if err != nil {
+			testutils.FatalIfError(lm.t, err, "failed to initialize meta db")
+		}
+	}
+	msr, err := lm.metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		testutils.FatalIfError(lm.t, err, "failed to get migration status record")
+	}
+	if msr == nil {
+		testutils.FatalIfError(lm.t, goerrors.Errorf("migration status record not found"), "migration status record not found")
+	}
+	if msr.LatestIterationNumber > 0 {
+		return GetIterationExportDir(msr.GetIterationsDir(lm.exportDir), msr.LatestIterationNumber)
+	}
 	return lm.exportDir
 }
 
@@ -757,7 +887,7 @@ func (lm *LiveMigrationTest) WaitForCutoverSourceComplete(cutoverTimeout time.Du
 	return nil
 }
 
-func (lm *LiveMigrationTest) WaitForNextIterationInitialized(waitTimeout time.Duration) error {
+func (lm *LiveMigrationTest) WaitForNextIterationInitialized(waitTimeout time.Duration, iterationNo int) error {
 	fmt.Printf("Waiting for next iteration initialized\n")
 	// Initialize metaDB if not already done
 	if lm.metaDB == nil {
@@ -773,15 +903,24 @@ func (lm *LiveMigrationTest) WaitForNextIterationInitialized(waitTimeout time.Du
 	if msr.LatestIterationNumber == 0 {
 		return nil
 	}
-	iterationsExportDir := msr.GetIterationsDir(lm.exportDir)
-	iterationExportDir := GetIterationExportDir(iterationsExportDir, msr.LatestIterationNumber)
-	if !utils.FileOrFolderExists(iterationExportDir) {
-		return goerrors.Errorf("iteration export directory does not exist")
+
+	fmt.Printf("Waiting for next iteration initialized: iterationNo = %d\n", iterationNo)
+	var iterationMetaDB *metadb.MetaDB
+	if iterationNo > 0 {
+		iterationsExportDir := msr.GetIterationsDir(lm.exportDir)
+		iterationExportDir := GetIterationExportDir(iterationsExportDir, iterationNo)
+		if !utils.FileOrFolderExists(iterationExportDir) {
+			return goerrors.Errorf("iteration export directory does not exist")
+		}
+		fmt.Printf("Iteration export directory exists: %s\n", iterationExportDir)
+		iterationMetaDB, err = metadb.NewMetaDB(iterationExportDir)
+		if err != nil {
+			return goerrors.Errorf("failed to create iteration meta db: %w", err)
+		}
+	} else {
+		iterationMetaDB = lm.metaDB
 	}
-	iterationMetaDB, err := metadb.NewMetaDB(iterationExportDir)
-	if err != nil {
-		return goerrors.Errorf("failed to create iteration meta db: %w", err)
-	}
+
 	ok := utils.RetryWorkWithTimeout(1, waitTimeout, func() bool {
 		msr, err := iterationMetaDB.GetMigrationStatusRecord()
 		if err != nil {

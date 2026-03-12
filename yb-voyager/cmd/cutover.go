@@ -173,7 +173,9 @@ func initializeNextIteration() error {
 	if err != nil {
 		return fmt.Errorf("failed to copy name registry file: %w", err)
 	}
-	
+
+	injectDuringInitializeNextIteration()
+
 	err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		record.NextIterationInitialized = true
 	})
