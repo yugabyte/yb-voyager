@@ -403,8 +403,8 @@ var savepointUsageIssue = issue.Issue{
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/#savepoint-usage-in-transactions",
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2024_2: ybversion.V2024_2_8_0,
-		ybversion.SERIES_2025_1: ybversion.V2025_1_3_0,
-		ybversion.SERIES_2025_2: ybversion.V2025_2_1_0,
+		ybversion.SERIES_2025_1: ybversion.V2025_1_4_0,
+		ybversion.SERIES_2025_2: ybversion.V2025_2_2_0,
 	},
 }
 
