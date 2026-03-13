@@ -1347,7 +1347,6 @@ func (ni NoteInfo) MarshalJSON() ([]byte, error) {
 // stripAnchorTags converts HTML <a> tags to plain text "text (URL)" format,
 // preserving both the link text and the URL. If the link text equals the URL,
 // only the URL is kept to avoid duplication.
-// Note: This only handles <a> tags. Other HTML tags (e.g., <br>, <div>) are left as-is.
 func stripAnchorTags(htmlText string) string {
 	if htmlText == "" {
 		return ""
@@ -1367,9 +1366,7 @@ func stripAnchorTags(htmlText string) string {
 		return match
 	})
 
-	result = strings.TrimSpace(result)
-
-	return result
+	return strings.TrimSpace(result)
 }
 
 // ======================================================================

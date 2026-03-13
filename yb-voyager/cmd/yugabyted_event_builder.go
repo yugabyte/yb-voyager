@@ -18,6 +18,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"html"
 
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
@@ -61,7 +62,7 @@ func createMigrationAssessmentCompletedEventForYugabyteD() *cp.MigrationAssessme
 	assessmentIssues := convertAssessmentIssueToYugabyteDAssessmentIssue(assessmentReport)
 
 	allNotesText := lo.Map(assessmentReport.Notes, func(note NoteInfo, _ int) string {
-		return note.Text
+		return html.EscapeString(note.Text)
 	})
 
 	schemaSummaryPayload := convertSchemaSummaryToPayload(assessmentReport.SchemaSummary, source.DBType)
@@ -110,13 +111,14 @@ func createMigrationAssessmentCompletedEventForYugabyteD() *cp.MigrationAssessme
 
 	// classify notes into GeneralNotes, ColocatedShardedNotes, SizingNotes
 	for _, note := range assessmentReport.Notes {
+		sanitizedText := html.EscapeString(note.Text)
 		switch note.Type {
 		case GeneralNotes:
-			payload.GeneralNotes = append(payload.GeneralNotes, note.Text)
+			payload.GeneralNotes = append(payload.GeneralNotes, sanitizedText)
 		case ColocatedShardedNotes:
-			payload.ColocatedShardedNotes = append(payload.ColocatedShardedNotes, note.Text)
+			payload.ColocatedShardedNotes = append(payload.ColocatedShardedNotes, sanitizedText)
 		case SizingNotes:
-			payload.SizingNotes = append(payload.SizingNotes, note.Text)
+			payload.SizingNotes = append(payload.SizingNotes, sanitizedText)
 		}
 	}
 
