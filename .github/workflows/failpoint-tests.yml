@@ -87,7 +87,7 @@ jobs:
           PG_VERSION: "14"
         run: |
           cd yb-voyager
-          go test -v -tags=failpoint ./cmd
+          go test -v -tags=failpoint ./cmd --parallel 4 -timeout 30m
       
       - name: Cleanup failpoint code
         if: always()
