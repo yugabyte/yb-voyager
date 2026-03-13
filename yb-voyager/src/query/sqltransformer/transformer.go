@@ -240,7 +240,7 @@ order of statements after transformation:
 6. Other statements
 */
 
-func (t *Transformer) AddShardingStrategyForConstraints(stmts []*pg_query.RawStmt) ([]*pg_query.RawStmt, []string, []string, error) {
+func (t *Transformer) AddShardingStrategyForConstraints(stmts []*pg_query.RawStmt) ([]*pg_query.RawStmt, []string, []string, []string, error) {
 	log.Infof("adding hash splitting on for pk constraints to the schema")
 	selectSetStatements := make([]*pg_query.RawStmt, 0)
 	createAndAlterTableWithPK := make([]*pg_query.RawStmt, 0)
@@ -250,10 +250,11 @@ func (t *Transformer) AddShardingStrategyForConstraints(stmts []*pg_query.RawStm
 
 	pkTablesOnTimestampOrDate := make([]string, 0)
 	pkTablesWithHashSharding := make([]string, 0)
+	ukTables := make([]string, 0)
 
 	tablesMap, err := getTablesMap(stmts)
 	if err != nil {
-		return nil, nil, nil, goerrors.Errorf("failed to get tables to column on range types: %v", err)
+		return nil, nil, nil, nil, goerrors.Errorf("failed to get tables to column on range types: %v", err)
 	}
 
 	for _, stmt := range stmts {
@@ -263,7 +264,7 @@ func (t *Transformer) AddShardingStrategyForConstraints(stmts []*pg_query.RawStm
 		}
 		ddlObject, err := queryparser.ProcessDDL(&pg_query.ParseResult{Stmts: []*pg_query.RawStmt{stmt}})
 		if err != nil {
-			return nil, nil, nil, goerrors.Errorf("failed to process ddl: %v", err)
+			return nil, nil, nil, nil, goerrors.Errorf("failed to process ddl: %v", err)
 		}
 		switch ddlObject.(type) {
 		case *queryparser.Table:
@@ -277,7 +278,7 @@ func (t *Transformer) AddShardingStrategyForConstraints(stmts []*pg_query.RawStm
 			}
 			isPKOnRangeDatatype, err := t.checkIfPrimaryKeyOnRangeDatatype(pkConstraint.Columns, table)
 			if err != nil {
-				return nil, nil, nil, goerrors.Errorf("failed to check if primary key on range datatype: %v", err)
+				return nil, nil, nil, nil, goerrors.Errorf("failed to check if primary key on range datatype: %v", err)
 			}
 			if isPKOnRangeDatatype {
 				pkTablesOnTimestampOrDate = append(pkTablesOnTimestampOrDate, tableName)
@@ -292,11 +293,11 @@ func (t *Transformer) AddShardingStrategyForConstraints(stmts []*pg_query.RawStm
 			case queryparser.PRIMARY_CONSTR_TYPE:
 				table, ok := tablesMap[alterTable.GetObjectName()]
 				if !ok {
-					return nil, nil, nil, goerrors.Errorf("table %s not found in tables map", alterTable.GetObjectName())
+					return nil, nil, nil, nil, goerrors.Errorf("table %s not found in tables map", alterTable.GetObjectName())
 				}
 				isPKOnRangeDatatype, err := t.checkIfPrimaryKeyOnRangeDatatype(alterTable.ConstraintColumns, table)
 				if err != nil {
-					return nil, nil, nil, goerrors.Errorf("failed to check if primary key on range datatype: %v", err)
+					return nil, nil, nil, nil, goerrors.Errorf("failed to check if primary key on range datatype: %v", err)
 				}
 				if isPKOnRangeDatatype {
 					pkTablesOnTimestampOrDate = append(pkTablesOnTimestampOrDate, alterTable.GetObjectName())
@@ -306,6 +307,7 @@ func (t *Transformer) AddShardingStrategyForConstraints(stmts []*pg_query.RawStm
 					createAndAlterTableWithPK = append(createAndAlterTableWithPK, stmt)
 				}
 			case queryparser.UNIQUE_CONSTR_TYPE:
+				ukTables = append(ukTables, alterTable.GetObjectName())
 				AlterTableUKConstraints = append(AlterTableUKConstraints, stmt)
 			default:
 				otherStatements = append(otherStatements, stmt)
@@ -317,11 +319,11 @@ func (t *Transformer) AddShardingStrategyForConstraints(stmts []*pg_query.RawStm
 
 	hashSplittingSessionVariableOnParseTree, err := queryparser.Parse(HASH_SPLITTING_SESSION_VARIABLE_ON)
 	if err != nil {
-		return nil, nil, nil, goerrors.Errorf("failed to parse hash splitting session variable on: %v", err)
+		return nil, nil, nil, nil, goerrors.Errorf("failed to parse hash splitting session variable on: %v", err)
 	}
 	hashSplittingSessionVariableOffParseTree, err := queryparser.Parse(HASH_SPLITTING_SESSION_VARIABLE_OFF)
 	if err != nil {
-		return nil, nil, nil, goerrors.Errorf("failed to parse hash splitting session variable off: %v", err)
+		return nil, nil, nil, nil, goerrors.Errorf("failed to parse hash splitting session variable off: %v", err)
 	}
 
 	//TODO: see how we can add comments in between statements to make the table.sql more readable
@@ -334,7 +336,7 @@ func (t *Transformer) AddShardingStrategyForConstraints(stmts []*pg_query.RawStm
 	modifiedStmts = append(modifiedStmts, AlterTableUKConstraints...)
 	modifiedStmts = append(modifiedStmts, otherStatements...)
 
-	return modifiedStmts, pkTablesOnTimestampOrDate, pkTablesWithHashSharding, nil
+	return modifiedStmts, pkTablesOnTimestampOrDate, pkTablesWithHashSharding, ukTables, nil
 
 }
 
