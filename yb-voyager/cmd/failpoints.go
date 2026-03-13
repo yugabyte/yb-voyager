@@ -31,13 +31,13 @@ import (
 // and idempotency of the CDC apply path.
 func injectImportCDCTransformFailure() error {
 	var fpErr error
-	if val, _err_ := failpoint.Eval(_curpkg_("importCDCTransformFailure")); _err_ == nil {
+	failpoint.Inject("importCDCTransformFailure", func(val failpoint.Value) {
 		if val != nil {
 			_ = os.MkdirAll(filepath.Join(exportDir, "failpoints"), 0755)
 			_ = os.WriteFile(filepath.Join(exportDir, "failpoints", "failpoint-import-cdc-transform.log"), []byte("hit\n"), 0644)
 			fpErr = goerrors.Errorf("failpoint: import CDC transform failure")
 		}
-	}
+	})
 	return fpErr
 }
 
@@ -46,7 +46,7 @@ func injectImportCDCTransformFailure() error {
 // (e.g. 100*off->return(true)) to crash after N successful batches.
 func injectImportCDCNonRetryableBatchDBError() error {
 	var fpErr error
-	if val, _err_ := failpoint.Eval(_curpkg_("importCDCNonRetryableBatchDBError")); _err_ == nil {
+	failpoint.Inject("importCDCNonRetryableBatchDBError", func(val failpoint.Value) {
 		if val != nil {
 			_ = os.MkdirAll(filepath.Join(exportDir, "failpoints"), 0755)
 			_ = os.WriteFile(
@@ -59,7 +59,7 @@ func injectImportCDCNonRetryableBatchDBError() error {
 				Message: "failpoint: duplicate key value violates unique constraint",
 			}
 		}
-	}
+	})
 	return fpErr
 }
 
@@ -69,7 +69,7 @@ func injectImportCDCNonRetryableBatchDBError() error {
 // Black-box tests can set YB_VOYAGER_FAILPOINT_MARKER_DIR to write a marker file.
 func injectImportSnapshotTransformError() error {
 	var fpErr error
-	if val, _err_ := failpoint.Eval(_curpkg_("importSnapshotTransformError")); _err_ == nil {
+	failpoint.Inject("importSnapshotTransformError", func(val failpoint.Value) {
 		if val != nil {
 			if markerDir := os.Getenv("YB_VOYAGER_FAILPOINT_MARKER_DIR"); markerDir != "" {
 				_ = os.MkdirAll(markerDir, 0755)
@@ -77,7 +77,7 @@ func injectImportSnapshotTransformError() error {
 			}
 			fpErr = goerrors.Errorf("failpoint: snapshot row transform failed")
 		}
-	}
+	})
 	return fpErr
 }
 
@@ -91,12 +91,12 @@ func writeFailpointMarker(filename string) {
 // startNextIterationImportDataToTarget. Tests verify the exporter resumes correctly
 // on re-run: it detects cutover-already-processed and chains to the next iteration.
 func injectCutoverToSourceExporterPostMarkProcessed() {
-	if val, _err_ := failpoint.Eval(_curpkg_("cutoverToSourceExporterPostMarkProcessed")); _err_ == nil {
+	failpoint.Inject("cutoverToSourceExporterPostMarkProcessed", func(val failpoint.Value) {
 		if val != nil {
 			writeFailpointMarker("failpoint-cutover-to-source-exporter-post-mark.log")
 			utils.ErrExit("failpoint: crash after marking cutover-to-source processed by exporter")
 		}
-	}
+	})
 }
 
 // injectCutoverToSourceImporterPostMarkProcessed crashes import-to-source after
@@ -105,12 +105,12 @@ func injectCutoverToSourceExporterPostMarkProcessed() {
 // Tests verify the importer resumes correctly: it detects cutover-already-processed
 // and chains to startExportDataFromSourceOnNextIteration.
 func injectCutoverToSourceImporterPostMarkProcessed() {
-	if val, _err_ := failpoint.Eval(_curpkg_("cutoverToSourceImporterPostMarkProcessed")); _err_ == nil {
+	failpoint.Inject("cutoverToSourceImporterPostMarkProcessed", func(val failpoint.Value) {
 		if val != nil {
 			writeFailpointMarker("failpoint-cutover-to-source-importer-post-mark.log")
 			utils.ErrExit("failpoint: crash after marking cutover-to-source processed by importer")
 		}
-	}
+	})
 }
 
 // injectBeforeInitializeNextIteration crashes import-to-source after
@@ -118,12 +118,12 @@ func injectCutoverToSourceImporterPostMarkProcessed() {
 // initializeNextIteration runs. Tests verify the importer resumes correctly:
 // initializeNextIteration is fully idempotent (hasn't run yet in this case).
 func injectBeforeInitializeNextIteration() {
-	if val, _err_ := failpoint.Eval(_curpkg_("beforeInitializeNextIteration")); _err_ == nil {
+	failpoint.Inject("beforeInitializeNextIteration", func(val failpoint.Value) {
 		if val != nil {
 			writeFailpointMarker("failpoint-before-init-next-iteration.log")
 			utils.ErrExit("failpoint: crash before initializing next iteration")
 		}
-	}
+	})
 }
 
 // injectDuringInitializeNextIteration crashes import-to-source during
@@ -131,12 +131,12 @@ func injectBeforeInitializeNextIteration() {
 // NextIterationInitialized = true. Tests verify that partial iteration state
 // is handled correctly: initializeNextIteration is fully idempotent.
 func injectDuringInitializeNextIteration() {
-	if val, _err_ := failpoint.Eval(_curpkg_("duringInitializeNextIteration")); _err_ == nil {
+	failpoint.Inject("duringInitializeNextIteration", func(val failpoint.Value) {
 		if val != nil {
 			writeFailpointMarker("failpoint-during-init-next-iteration.log")
 			utils.ErrExit("failpoint: crash during initialize next iteration")
 		}
-	}
+	})
 }
 
 // injectAfterInitializeNextIteration crashes import-to-source after
@@ -145,10 +145,10 @@ func injectDuringInitializeNextIteration() {
 // re-run, the process detects the iteration is already initialized and
 // proceeds directly to exec.
 func injectAfterInitializeNextIteration() {
-	if val, _err_ := failpoint.Eval(_curpkg_("afterInitializeNextIteration")); _err_ == nil {
+	failpoint.Inject("afterInitializeNextIteration", func(val failpoint.Value) {
 		if val != nil {
 			writeFailpointMarker("failpoint-after-init-next-iteration.log")
 			utils.ErrExit("failpoint: crash after initializing next iteration")
 		}
-	}
+	})
 }
