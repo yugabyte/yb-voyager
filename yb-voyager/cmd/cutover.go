@@ -194,6 +194,7 @@ func setUpNextIterationMSR(parentMetaDB *metadb.MetaDB, iterationNo int, current
 	}
 	//Update next iteration's MSR
 	err = nextIterationMetaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		record.ExportTypeFromSource = CHANGES_ONLY
 		record.ParentExportDir = currentMSR.GetParentExportDir(exportDir)
 		record.IterationNo = iterationNo
 		//Used for the CLI case primarly when we start changes only command on iterations with CLI
