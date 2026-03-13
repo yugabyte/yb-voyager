@@ -20,6 +20,7 @@ import (
 	"strings"
 	"unicode"
 
+	goerrors "github.com/go-errors/errors"
 	"github.com/samber/lo"
 	"golang.org/x/exp/slices"
 
@@ -174,8 +175,8 @@ func NewSourceName(schemaName, objectName string) *SourceName {
 
 // ASsumption is to pass quoted name with  case sensitivity preserved, else not quoted then quoting it explicitly in the NewSourceName function
 func NewSourceNameFromQualifiedName(qualifiedName string) *SourceName {
-	parts := strings.Split(qualifiedName, ".")
-	if len(parts) != 2 {
+	parts, err := SplitQualifiedName(qualifiedName)
+	if err != nil || len(parts) != 2 {
 		panic(fmt.Sprintf("invalid qualified name: %s", qualifiedName))
 	}
 	return NewSourceName(parts[0], parts[1])
@@ -183,7 +184,10 @@ func NewSourceNameFromQualifiedName(qualifiedName string) *SourceName {
 
 // ASsumption is to pass quoted name with  case sensitivity preserved
 func NewSourceNameFromMaybeQualifiedName(qualifiedName string, defaultSchemaName string) *SourceName {
-	parts := strings.Split(qualifiedName, ".")
+	parts, err := SplitQualifiedName(qualifiedName)
+	if err != nil {
+		panic(fmt.Sprintf("invalid qualified name: %s", qualifiedName))
+	}
 	if len(parts) == 2 {
 		return NewSourceName(parts[0], parts[1])
 	} else if len(parts) == 1 {
@@ -236,8 +240,8 @@ func NewTargetName(schemaName, objectName string) *TargetName {
 
 // ASsumption is to pass quoted name with  case sensitivity preserved
 func NewTargetNameFromQualifiedName(qualifiedName string) *TargetName {
-	parts := strings.Split(qualifiedName, ".")
-	if len(parts) != 2 {
+	parts, err := SplitQualifiedName(qualifiedName)
+	if err != nil || len(parts) != 2 {
 		panic(fmt.Sprintf("invalid qualified name: %s", qualifiedName))
 	}
 	return NewTargetName(parts[0], parts[1])
@@ -245,7 +249,10 @@ func NewTargetNameFromQualifiedName(qualifiedName string) *TargetName {
 
 // ASsumption is to pass quoted name with  case sensitivity preserved
 func NewTargetNameFromMaybeQualifiedName(qualifiedName string, defaultSchemaName string) *TargetName {
-	parts := strings.Split(qualifiedName, ".")
+	parts, err := SplitQualifiedName(qualifiedName)
+	if err != nil {
+		panic(fmt.Sprintf("invalid qualified name: %s", qualifiedName))
+	}
 	if len(parts) == 2 {
 		return NewTargetName(parts[0], parts[1])
 	} else if len(parts) == 1 {
@@ -265,6 +272,44 @@ func IsQuoted(s string) bool {
 	}
 	// TODO: Learn the semantics of backticks in MySQL and Oracle.
 	return (s[0] == '"' && s[len(s)-1] == '"') || (s[0] == '`' && s[len(s)-1] == '`')
+}
+
+// SplitQualifiedName splits a qualified name (e.g. "schema"."table" or schema.table)
+// into its component parts, correctly handling dots inside quoted identifiers.
+// Both double-quote (") and backtick (`) quoting are supported.
+func SplitQualifiedName(qualifiedName string) ([]string, error) {
+	if qualifiedName == "" {
+		return nil, goerrors.Errorf("empty qualified name")
+	}
+	var parts []string
+	current := strings.Builder{}
+	i := 0
+	for i < len(qualifiedName) {
+		ch := qualifiedName[i]
+		if ch == '"' || ch == '`' {
+			quoteChar := ch
+			current.WriteByte(ch)
+			i++
+			for i < len(qualifiedName) && qualifiedName[i] != quoteChar {
+				current.WriteByte(qualifiedName[i])
+				i++
+			}
+			if i >= len(qualifiedName) {
+				return nil, goerrors.Errorf("unterminated quote in qualified name: %s", qualifiedName)
+			}
+			current.WriteByte(qualifiedName[i]) // closing quote
+			i++
+		} else if ch == '.' {
+			parts = append(parts, current.String())
+			current.Reset()
+			i++
+		} else {
+			current.WriteByte(ch)
+			i++
+		}
+	}
+	parts = append(parts, current.String())
+	return parts, nil
 }
 
 func quote(s string, dbType string) string {
