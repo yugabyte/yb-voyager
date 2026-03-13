@@ -152,3 +152,30 @@ func injectAfterInitializeNextIteration() {
 		}
 	})
 }
+
+
+// injectAfterDeletingReplicationSlotAndPublication crashes export-from-target after
+// deleting replication slot and publication but before marking cutover processed.
+// Tests verify the exporter resumes correctly: it detects the cutover-already-processed
+// state and chains to the next iteration.
+func injectAfterDeletingReplicationSlotAndPublication() {
+	failpoint.Inject("afterDeletingReplicationSlotAndPublication", func(val failpoint.Value) {
+		if val != nil {
+			writeFailpointMarker("failpoint-after-deleting-replication-slot-and-publication.log")
+			utils.ErrExit("failpoint: crash after deleting replication slot and publication")
+		}
+	})
+}
+
+// injectAfterCompletingDebezium crashes export-from-target after
+// completing debezium once the cutover is initiatted.
+// Tests verify the exporter resumes correctly: it detects the cutover-already-processed
+// state and chains to the next iteration.
+func injectAfterCompletingDebezium() {
+	failpoint.Inject("afterCompletingDebezium", func(val failpoint.Value) {
+		if val != nil {
+			writeFailpointMarker("failpoint-after-completing-debezium.log")
+			utils.ErrExit("failpoint: crash after completing debezium")
+		}
+	})
+}

@@ -605,6 +605,7 @@ func exportData() bool {
 				log.Errorf("Export Data using debezium failed: %v", err)
 				return false
 			}
+			injectAfterCompletingDebezium()
 		}
 
 		if changeStreamingIsEnabled(exportType) {
@@ -634,6 +635,8 @@ func exportData() bool {
 				fmt.Println("Deleting PG replication slot and publication")
 				deletePGReplicationSlotAndPublication(msr, &source)
 			}
+
+			injectAfterDeletingReplicationSlotAndPublication()
 
 			// mark cutover processed only after cleanup like deleting replication slot and yb cdc stream id
 			err = markCutoverProcessed(exporterRole)
