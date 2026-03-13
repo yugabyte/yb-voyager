@@ -1590,11 +1590,17 @@ func parseObjectNamesToPayload(objectNames string, objectType string, dbType str
 		if slices.Contains([]string{"INDEX", "TRIGGER", "POLICY"}, objectType) {
 			parts := strings.SplitN(name, " ON ", 2)
 			if len(parts) == 2 {
-				tableObj := sqlname.NewObjectNameFromMaybeQualifiedName(dbType, "", strings.TrimSpace(parts[1]))
-				obj.ParentTableName = tableObj.Qualified.Unquoted
-				obj.SchemaName = tableObj.SchemaName.Unquoted
-				parsed := sqlname.NewObjectNameFromMaybeQualifiedName(dbType, "", strings.TrimSpace(parts[0]))
-				obj.ObjectName = parsed.Unqualified.Unquoted
+				tableName := strings.TrimSpace(parts[1])
+				objName := strings.TrimSpace(parts[0])
+				if tableName != "" {
+					tableObj := sqlname.NewObjectNameFromMaybeQualifiedName(dbType, "", tableName)
+					obj.ParentTableName = tableObj.Qualified.Unquoted
+					obj.SchemaName = tableObj.SchemaName.Unquoted
+				}
+				if objName != "" {
+					parsed := sqlname.NewObjectNameFromMaybeQualifiedName(dbType, "", objName)
+					obj.ObjectName = parsed.Unqualified.Unquoted
+				}
 			} else {
 				obj.ObjectName = sqlname.NewObjectNameFromMaybeQualifiedName(dbType, "", name).Unqualified.Unquoted
 			}
