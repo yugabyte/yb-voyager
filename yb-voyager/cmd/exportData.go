@@ -314,6 +314,7 @@ func startNextIterationImportDataToTarget() {
 
 var ybCDCSavepointAndReadCommittedFixedVersions = map[string]*ybversion.YBVersion{
 	ybversion.SERIES_2024_2: ybversion.V2024_2_8_0,
+	ybversion.SERIES_2025_1: ybversion.V2025_1_4_0,
 	ybversion.SERIES_2025_2: ybversion.V2025_2_2_0,
 }
 
