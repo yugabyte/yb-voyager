@@ -154,6 +154,47 @@ func injectAfterInitializeNextIteration() {
 }
 
 
+// injectCutoverToTargetExporterPostMarkProcessed crashes export-from-source after
+// it marks CutoverProcessedBySourceExporter, but before it chains to
+// startFallBackSetupIfRequired. Tests verify the exporter resumes correctly
+// on re-run: handleCutoverAlreadyProcessedForExportData detects already-processed
+// and calls startFurtherCommandsAfterCurrentExportData.
+func injectCutoverToTargetExporterPostMarkProcessed() {
+	failpoint.Inject("cutoverToTargetExporterPostMarkProcessed", func(val failpoint.Value) {
+		if val != nil {
+			writeFailpointMarker("failpoint-cutover-to-target-exporter-post-mark.log")
+			utils.ErrExit("failpoint: crash after marking cutover-to-target processed by exporter")
+		}
+	})
+}
+
+// injectCutoverToTargetImporterPreMarkProcessed crashes import-to-target after
+// restoring sequences and identity columns, but before markCutoverProcessed.
+// Tests verify the importer resumes correctly: postCutoverProcessing re-runs
+// and sequence/identity restore is idempotent.
+func injectCutoverToTargetImporterPreMarkProcessed() {
+	failpoint.Inject("cutoverToTargetImporterPreMarkProcessed", func(val failpoint.Value) {
+		if val != nil {
+			writeFailpointMarker("failpoint-cutover-to-target-importer-pre-mark.log")
+			utils.ErrExit("failpoint: crash before marking cutover-to-target processed by importer")
+		}
+	})
+}
+
+// injectCutoverToTargetImporterPostMarkProcessed crashes import-to-target after
+// it marks CutoverProcessedByTargetImporter in postCutoverProcessing, but before
+// waitUntilCutoverProcessedByCorrespondingExporterForImporter. Tests verify
+// the importer resumes correctly: handleCutoverAlreadyProcessedForImportData
+// detects already-processed and calls startFurtherCommandsAfterCurrentImportData.
+func injectCutoverToTargetImporterPostMarkProcessed() {
+	failpoint.Inject("cutoverToTargetImporterPostMarkProcessed", func(val failpoint.Value) {
+		if val != nil {
+			writeFailpointMarker("failpoint-cutover-to-target-importer-post-mark.log")
+			utils.ErrExit("failpoint: crash after marking cutover-to-target processed by importer")
+		}
+	})
+}
+
 // injectAfterDeletingReplicationSlotAndPublication crashes export-from-target after
 // deleting replication slot and publication but before marking cutover processed.
 // Tests verify the exporter resumes correctly: it detects the cutover-already-processed

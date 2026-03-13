@@ -163,6 +163,334 @@ func removeFailpointMarkers(exportDir string) {
 	_ = os.RemoveAll(filepath.Join(exportDir, markerDir))
 }
 
+// setupToForwardStreaming drives a migration from start through snapshot and
+// forward streaming. On return both export-data and import-data are running
+// and source deltas have been streamed to target. Ready for cutover-to-target.
+func setupToForwardStreaming(t *testing.T, lm *LiveMigrationTest) {
+	err := lm.SetupContainers(context.Background())
+	require.NoError(t, err, "failed to setup containers")
+
+	err = lm.SetupSchema()
+	require.NoError(t, err, "failed to setup schema")
+
+	err = lm.StartExportData(true, nil)
+	require.NoError(t, err, "failed to start export data")
+
+	time.Sleep(10 * time.Second)
+
+	err = lm.StartImportData(true, nil)
+	require.NoError(t, err, "failed to start import data")
+
+	err = lm.WaitForSnapshotComplete(map[string]int64{
+		tableName: snapshotRows,
+	}, 60)
+	require.NoError(t, err, "snapshot phase did not complete")
+
+	err = lm.ExecuteSourceDelta()
+	require.NoError(t, err, "failed to execute source delta")
+
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		tableName: {Inserts: deltaInserts},
+	}, 60, 1)
+	require.NoError(t, err, "forward streaming did not complete")
+
+	err = lm.ValidateDataConsistency([]string{tableName}, "id")
+	require.NoError(t, err, "data mismatch after forward migration")
+}
+
+// verifyFallbackAfterCutoverToTarget verifies the migration completed the
+// cutover-to-target with fallback: executes target delta, waits for fallback
+// streaming, and validates data consistency.
+func verifyFallbackAfterCutoverToTarget(t *testing.T, lm *LiveMigrationTest) {
+	err := lm.ExecuteTargetDelta()
+	require.NoError(t, err, "failed to execute target delta")
+
+	err = lm.WaitForFallbackStreamingComplete(map[string]ChangesCount{
+		tableName: {Inserts: deltaInserts},
+	}, 60, 1)
+	require.NoError(t, err, "fallback streaming did not complete")
+
+	err = lm.ValidateDataConsistency([]string{tableName}, "id")
+	require.NoError(t, err, "data mismatch after fallback streaming")
+}
+
+// ===========================================================================
+// Cutover-to-TARGET failpoint tests
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// export-data-from-source crashes after Debezium completes, before
+// deletePGReplicationSlotAndPublication. On resume:
+// isCutoverInitiatedAndCutoverDetected returns true, skips Debezium,
+// proceeds to delete slot and mark cutover processed.
+// ---------------------------------------------------------------------------
+
+func TestCutoverToTargetResumption_ExporterCrashAfterDebeziumComplete(t *testing.T) {
+	t.Parallel()
+	lm := NewLiveMigrationTest(t, newCutoverResumptionTestConfig(
+		"test_ct_resumption_exporter_debezium"))
+	defer lm.Cleanup()
+
+	setupToForwardStreaming(t, lm)
+
+	err := lm.StopExportData()
+	require.NoError(t, err, "failed to stop export data")
+
+	removeFailpointMarkers(lm.GetCurrentExportDir())
+
+	err = lm.InitiateCutoverToTarget(true, nil)
+	require.NoError(t, err, "failed to initiate cutover to target")
+
+	fpEnv := testutils.GetFailpointEnvVar(
+		fpPkgPrefix + "afterCompletingDebezium=return(true)",
+	)
+	err = lm.StartExportDataWithEnv(true, nil, []string{fpEnv})
+	require.NoError(t, err, "failed to start export data with failpoint")
+
+	markerPath := filepath.Join(lm.GetCurrentExportDir(), markerDir,
+		"failpoint-after-completing-debezium.log")
+	err = lm.WaitForExportFailpointAndProcessCrash(
+		t, markerPath, 180*time.Second, 60*time.Second)
+	require.NoError(t, err, "export data did not crash after completing debezium")
+	t.Log("export data crashed after completing debezium — resuming")
+
+	removeFailpointMarkers(lm.GetCurrentExportDir())
+
+	err = lm.StartExportData(true, nil)
+	require.NoError(t, err, "failed to resume export data")
+
+	err = lm.WaitForCutoverComplete(180)
+	require.NoError(t, err, "cutover-to-target did not complete after resume")
+
+	verifyFallbackAfterCutoverToTarget(t, lm)
+	t.Log("TestCutoverToTargetResumption_ExporterCrashAfterDebeziumComplete passed")
+}
+
+// ---------------------------------------------------------------------------
+// export-data-from-source crashes after deleting PG replication slot, before
+// markCutoverProcessed. On resume: skips Debezium (cutover detected), slot
+// already gone, proceeds to markCutoverProcessed.
+// ---------------------------------------------------------------------------
+
+func TestCutoverToTargetResumption_ExporterCrashAfterDeletingReplicationSlot(t *testing.T) {
+	t.Parallel()
+	lm := NewLiveMigrationTest(t, newCutoverResumptionTestConfig(
+		"test_ct_resumption_exporter_pg_slot"))
+	defer lm.Cleanup()
+
+	setupToForwardStreaming(t, lm)
+
+	err := lm.StopExportData()
+	require.NoError(t, err, "failed to stop export data")
+
+	removeFailpointMarkers(lm.GetCurrentExportDir())
+
+	err = lm.InitiateCutoverToTarget(true, nil)
+	require.NoError(t, err, "failed to initiate cutover to target")
+
+	fpEnv := testutils.GetFailpointEnvVar(
+		fpPkgPrefix + "afterDeletingReplicationSlotAndPublication=return(true)",
+	)
+	err = lm.StartExportDataWithEnv(true, nil, []string{fpEnv})
+	require.NoError(t, err, "failed to start export data with failpoint")
+
+	markerPath := filepath.Join(lm.GetCurrentExportDir(), markerDir,
+		"failpoint-after-deleting-replication-slot-and-publication.log")
+	err = lm.WaitForExportFailpointAndProcessCrash(
+		t, markerPath, 180*time.Second, 60*time.Second)
+	require.NoError(t, err, "export data did not crash after deleting replication slot")
+	t.Log("export data crashed after deleting PG replication slot — resuming")
+
+	removeFailpointMarkers(lm.GetCurrentExportDir())
+
+	err = lm.StartExportData(true, nil)
+	require.NoError(t, err, "failed to resume export data")
+
+	err = lm.WaitForCutoverComplete(180)
+	require.NoError(t, err, "cutover-to-target did not complete after resume")
+
+	verifyFallbackAfterCutoverToTarget(t, lm)
+	t.Log("TestCutoverToTargetResumption_ExporterCrashAfterDeletingReplicationSlot passed")
+}
+
+// ---------------------------------------------------------------------------
+// export-data-from-source crashes after markCutoverProcessed
+// (CutoverProcessedBySourceExporter = true) but before
+// startFallBackSetupIfRequired exec. On resume:
+// handleCutoverAlreadyProcessedForExportData detects already-processed,
+// calls startFurtherCommandsAfterCurrentExportData.
+//BUG: failing right
+// ---------------------------------------------------------------------------
+
+func TestCutoverToTargetResumption_ExporterCrashAfterMarkProcessed(t *testing.T) {
+	t.Parallel()
+	lm := NewLiveMigrationTest(t, newCutoverResumptionTestConfig(
+		"test_ct_resumption_exporter_post_mark"))
+	defer lm.Cleanup()
+
+	setupToForwardStreaming(t, lm)
+
+	err := lm.StopExportData()
+	require.NoError(t, err, "failed to stop export data")
+
+	removeFailpointMarkers(lm.GetCurrentExportDir())
+
+	err = lm.InitiateCutoverToTarget(true, nil)
+	require.NoError(t, err, "failed to initiate cutover to target")
+
+	fpEnv := testutils.GetFailpointEnvVar(
+		fpPkgPrefix + "cutoverToTargetExporterPostMarkProcessed=return(true)",
+	)
+	err = lm.StartExportDataWithEnv(true, nil, []string{fpEnv})
+	require.NoError(t, err, "failed to start export data with failpoint")
+
+	markerPath := filepath.Join(lm.GetCurrentExportDir(), markerDir,
+		"failpoint-cutover-to-target-exporter-post-mark.log")
+	err = lm.WaitForExportFailpointAndProcessCrash(
+		t, markerPath, 180*time.Second, 60*time.Second)
+	require.NoError(t, err, "export data did not crash after markCutoverProcessed")
+	t.Log("export data crashed after markCutoverProcessed — resuming")
+
+	removeFailpointMarkers(lm.GetCurrentExportDir())
+
+	err = lm.StartExportData(true, nil)
+	require.NoError(t, err, "failed to resume export data")
+
+	err = lm.WaitForCutoverComplete(180)
+	require.NoError(t, err, "cutover-to-target did not complete after resume")
+
+	verifyFallbackAfterCutoverToTarget(t, lm)
+	t.Log("TestCutoverToTargetResumption_ExporterCrashAfterMarkProcessed passed")
+}
+
+// ---------------------------------------------------------------------------
+// import-data-to-target crashes after sequence/identity restore but BEFORE
+// markCutoverProcessed. On resume: handleCutoverAlreadyProcessedForImportData
+// sees NOT processed, re-runs streamChanges + postCutoverProcessing.
+// Sequence/identity restore is idempotent.
+// ---------------------------------------------------------------------------
+
+func TestCutoverToTargetResumption_ImporterCrashBeforeMarkProcessed(t *testing.T) {
+	t.Parallel()
+	lm := NewLiveMigrationTest(t, newCutoverResumptionTestConfig(
+		"test_ct_resumption_importer_pre_mark"))
+	defer lm.Cleanup()
+
+	setupToForwardStreaming(t, lm)
+
+	err := lm.StopExportData()
+	require.NoError(t, err, "failed to stop export data")
+	err = lm.StopImportData()
+	require.NoError(t, err, "failed to stop import data")
+	lm.KillDebezium(SOURCE_DB_EXPORTER_ROLE)
+
+	removeFailpointMarkers(lm.GetCurrentExportDir())
+
+	err = lm.InitiateCutoverToTarget(true, nil)
+	require.NoError(t, err, "failed to initiate cutover to target")
+
+	fpEnv := testutils.GetFailpointEnvVar(
+		fpPkgPrefix + "cutoverToTargetImporterPreMarkProcessed=return(true)",
+	)
+	err = lm.StartExportData(true, nil)
+	require.NoError(t, err, "failed to start export data")
+
+	err = lm.StartImportDataWithEnv(true, nil, []string{fpEnv})
+	require.NoError(t, err, "failed to start import data with failpoint")
+
+	markerPath := filepath.Join(lm.GetCurrentExportDir(), markerDir,
+		"failpoint-cutover-to-target-importer-pre-mark.log")
+	err = lm.WaitForImportFailpointAndProcessCrash(
+		t, markerPath, 180*time.Second, 60*time.Second)
+	require.NoError(t, err, "import data did not crash before markCutoverProcessed")
+	t.Log("import data crashed before markCutoverProcessed — resuming")
+
+	err = lm.StopExportData()
+	require.NoError(t, err, "failed to stop export data after importer crash")
+	lm.KillDebezium(SOURCE_DB_EXPORTER_ROLE)
+
+	removeFailpointMarkers(lm.GetCurrentExportDir())
+
+	err = lm.StartExportData(true, nil)
+	require.NoError(t, err, "failed to resume export data")
+
+	err = lm.StartImportData(true, nil)
+	require.NoError(t, err, "failed to resume import data")
+
+	err = lm.WaitForCutoverComplete(180)
+	require.NoError(t, err, "cutover-to-target did not complete after resume")
+
+	verifyFallbackAfterCutoverToTarget(t, lm)
+	t.Log("TestCutoverToTargetResumption_ImporterCrashBeforeMarkProcessed passed")
+}
+
+// ---------------------------------------------------------------------------
+// import-data-to-target crashes after markCutoverProcessed
+// (CutoverProcessedByTargetImporter = true) but before
+// waitUntilCutoverProcessedByCorrespondingExporterForImporter. On resume:
+// handleCutoverAlreadyProcessedForImportData detects already-processed,
+// calls startFurtherCommandsAfterCurrentImportData →
+// startExportDataFromTargetIfRequired.
+// ---------------------------------------------------------------------------
+
+func TestCutoverToTargetResumption_ImporterCrashAfterMarkProcessed(t *testing.T) {
+	t.Parallel()
+	lm := NewLiveMigrationTest(t, newCutoverResumptionTestConfig(
+		"test_ct_resumption_importer_post_mark"))
+	defer lm.Cleanup()
+
+	setupToForwardStreaming(t, lm)
+
+	err := lm.StopExportData()
+	require.NoError(t, err, "failed to stop export data")
+	err = lm.StopImportData()
+	require.NoError(t, err, "failed to stop import data")
+	lm.KillDebezium(SOURCE_DB_EXPORTER_ROLE)
+
+	removeFailpointMarkers(lm.GetCurrentExportDir())
+
+	err = lm.InitiateCutoverToTarget(true, nil)
+	require.NoError(t, err, "failed to initiate cutover to target")
+
+	fpEnv := testutils.GetFailpointEnvVar(
+		fpPkgPrefix + "cutoverToTargetImporterPostMarkProcessed=return(true)",
+	)
+	err = lm.StartExportData(true, nil)
+	require.NoError(t, err, "failed to start export data")
+
+	err = lm.StartImportDataWithEnv(true, nil, []string{fpEnv})
+	require.NoError(t, err, "failed to start import data with failpoint")
+
+	markerPath := filepath.Join(lm.GetCurrentExportDir(), markerDir,
+		"failpoint-cutover-to-target-importer-post-mark.log")
+	err = lm.WaitForImportFailpointAndProcessCrash(
+		t, markerPath, 180*time.Second, 60*time.Second)
+	require.NoError(t, err, "import data did not crash after markCutoverProcessed")
+	t.Log("import data crashed after markCutoverProcessed — resuming")
+
+	err = lm.StopExportData()
+	require.NoError(t, err, "failed to stop export data after importer crash")
+	lm.KillDebezium(SOURCE_DB_EXPORTER_ROLE)
+
+	removeFailpointMarkers(lm.GetCurrentExportDir())
+
+	err = lm.StartExportData(true, nil)
+	require.NoError(t, err, "failed to resume export data")
+
+	err = lm.StartImportData(true, nil)
+	require.NoError(t, err, "failed to resume import data")
+
+	err = lm.WaitForCutoverComplete(180)
+	require.NoError(t, err, "cutover-to-target did not complete after resume")
+
+	verifyFallbackAfterCutoverToTarget(t, lm)
+	t.Log("TestCutoverToTargetResumption_ImporterCrashAfterMarkProcessed passed")
+}
+
+// ===========================================================================
+// Cutover-to-SOURCE failpoint tests
+// ===========================================================================
+
 // ---------------------------------------------------------------------------
 // import-to-source crashes after markCutoverProcessed, before
 // waitUntilCutoverProcessedByCorrespondingExporterForImporter.

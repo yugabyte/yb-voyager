@@ -647,6 +647,9 @@ func exportData() bool {
 			if exporterRole == TARGET_DB_EXPORTER_FB_ROLE {
 				injectCutoverToSourceExporterPostMarkProcessed()
 			}
+			if exporterRole == SOURCE_DB_EXPORTER_ROLE {
+				injectCutoverToTargetExporterPostMarkProcessed()
+			}
 
 			updateCallhomeExportPhase()
 
