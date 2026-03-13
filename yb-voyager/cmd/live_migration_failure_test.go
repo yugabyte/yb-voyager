@@ -319,7 +319,9 @@ func TestCutoverToTargetResumption_ExporterCrashAfterDeletingReplicationSlot(t *
 // startFallBackSetupIfRequired exec. On resume:
 // handleCutoverAlreadyProcessedForExportData detects already-processed,
 // calls startFurtherCommandsAfterCurrentExportData.
-//BUG: failing right
+
+//Can fail in scenarios where export data from target is started and cutover is completed but the exporter 
+//failed after marking cutover processed and before starting import data to source 
 // ---------------------------------------------------------------------------
 
 func TestCutoverToTargetResumption_ExporterCrashAfterMarkProcessed(t *testing.T) {
