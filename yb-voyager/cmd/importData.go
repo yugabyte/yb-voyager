@@ -788,6 +788,13 @@ func updateImportDataStartedInMetaDB() error {
 		if err != nil {
 			return goerrors.Errorf("Failed to update import data file status record: %s", err)
 		}
+	case SOURCE_DB_IMPORTER_ROLE:
+		err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+			record.ImportDataToSourceStarted = true
+		})
+		if err != nil {
+			return goerrors.Errorf("failed to update migration status record: %w", err)
+		}
 	}
 	return nil
 }

@@ -56,9 +56,9 @@ type MigrationStatusRecord struct {
 	CutoverDetectedBySourceReplicaImporter bool `json:"CutoverDetectedBySourceReplicaImporter"`
 
 	//All the cutover detected by exporter flags (marked when the cutover is detected by the exporter)
-	CutoverDetectedBySourceExporter        bool `json:"CutoverDetectedBySourceExporter"`
-	CutoverDetectedByTargetFFExporter        bool `json:"CutoverDetectedByTargetFFExporter"`
-	CutoverDetectedByTargetFBExporter        bool `json:"CutoverDetectedByTargetFBExporter"`
+	CutoverDetectedBySourceExporter   bool `json:"CutoverDetectedBySourceExporter"`
+	CutoverDetectedByTargetFFExporter bool `json:"CutoverDetectedByTargetFFExporter"`
+	CutoverDetectedByTargetFBExporter bool `json:"CutoverDetectedByTargetFBExporter"`
 
 	//All the cutover processed by importer/exporter flags - indicating that the cutover is completed by that command.
 	CutoverProcessedBySourceExporter                bool `json:"CutoverProcessedBySourceExporter"`
@@ -70,6 +70,8 @@ type MigrationStatusRecord struct {
 
 	ExportFromTargetFallForwardStarted bool `json:"ExportFromTargetFallForwardStarted"`
 	ExportFromTargetFallBackStarted    bool `json:"ExportFromTargetFallBackStarted"`
+
+	ImportDataToSourceStarted bool `json:"ImportDataToSourceStarted"`
 
 	// Cutover timing data
 	CutoverTimings CutoverTimingRecord `json:"CutoverTimings,omitempty"`
@@ -110,7 +112,7 @@ type MigrationStatusRecord struct {
 	ConfigFile                                    string `json:"ConfigFile"`
 
 	//Parent specific details
-	LatestIterationNumber int `json:"LatestIterationNumber"`
+	LatestIterationNumber    int  `json:"LatestIterationNumber"`
 	NextIterationInitialized bool `json:"NextIterationInitialized"`
 
 	//Iteration specific details
