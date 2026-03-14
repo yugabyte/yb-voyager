@@ -209,8 +209,8 @@ func setSourceDetailsForChangesOnly(msr *metadb.MigrationStatusRecord) {
 		//iteration and source exporter
 		sourcePassword := source.Password
 		/*
-		we need to keep the table list passed in the table-list/exclude-table-list flags as it is required to get the table list present in the command 
-		and do the guardrail checks properly in getInitialTableList function
+			we need to keep the table list passed in the table-list/exclude-table-list flags as it is required to get the table list present in the command
+			and do the guardrail checks properly in getInitialTableList function
 		*/
 		tableListFlag := source.TableList
 		excludeTableListFlag := source.ExcludeTableList
@@ -578,24 +578,33 @@ func exportData() bool {
 
 	if changeStreamingIsEnabled(exportType) || useDebezium {
 		exportPhase = dbzm.MODE_SNAPSHOT
-		config, tableNametoApproxRowCountMap, err := prepareDebeziumConfig(partitionsToRootTableMap, finalTableList, tablesColumnList, leafPartitions)
+		ok, err := isCutoverInitiatedAndCutoverDetected(exporterRole)
 		if err != nil {
-			log.Errorf("Failed to prepare dbzm config: %v", err)
+			log.Errorf("Failed to check if cutover is initiated and detected: %v", err)
 			return false
 		}
-		saveTableToUniqueKeyColumnsMapInMetaDB(finalTableList, leafPartitions)
-		if source.DBType == POSTGRESQL && changeStreamingIsEnabled(exportType) {
-			err = initPGLiveMigrationAndExportSnapshotIfRequired(ctx, cancel, finalTableList, tablesColumnList, leafPartitions, config)
+		if ok {
+			utils.PrintAndLogf("Cutover already initiated, skipping export data")
+		} else {
+			config, tableNametoApproxRowCountMap, err := prepareDebeziumConfig(partitionsToRootTableMap, finalTableList, tablesColumnList, leafPartitions)
 			if err != nil {
-				log.Errorf("Failed to export snapshot using pg_dump: %v", err)
+				log.Errorf("Failed to prepare dbzm config: %v", err)
 				return false
 			}
-		}
+			saveTableToUniqueKeyColumnsMapInMetaDB(finalTableList, leafPartitions)
+			if source.DBType == POSTGRESQL && changeStreamingIsEnabled(exportType) {
+				err = initPGLiveMigrationAndExportSnapshotIfRequired(ctx, cancel, finalTableList, tablesColumnList, leafPartitions, config)
+				if err != nil {
+					log.Errorf("Failed to export snapshot using pg_dump: %v", err)
+					return false
+				}
+			}
 
-		err = debeziumExportData(ctx, config, tableNametoApproxRowCountMap)
-		if err != nil {
-			log.Errorf("Export Data using debezium failed: %v", err)
-			return false
+			err = debeziumExportData(config, tableNametoApproxRowCountMap)
+			if err != nil {
+				log.Errorf("Export Data using debezium failed: %v", err)
+				return false
+			}
 		}
 
 		if changeStreamingIsEnabled(exportType) {

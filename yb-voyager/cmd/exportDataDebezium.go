@@ -371,8 +371,26 @@ func isOracleJDBCWalletLocationSet(s srcdb.Source) (bool, error) {
 
 // ---------------------------------------------- Export Data ---------------------------------------//
 
-func debeziumExportData(ctx context.Context, config *dbzm.Config, tableNameToApproxRowCountMap map[string]int64) error {
+func isCutoverInitiatedAndCutoverDetected(exporterRole string) (bool, error) {
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		return false, fmt.Errorf("failed to get migration status record: %w", err)
+	}
 
+	switch exporterRole {
+	case TARGET_DB_EXPORTER_FB_ROLE:
+		return msr.CutoverDetectedByTargetFBExporter, nil
+	case TARGET_DB_EXPORTER_FF_ROLE:
+		return msr.CutoverDetectedByTargetFFExporter, nil
+	case SOURCE_DB_EXPORTER_ROLE:
+		return msr.CutoverDetectedBySourceExporter, nil
+	}
+	return false, nil
+}
+
+func debeziumExportData(config *dbzm.Config, tableNameToApproxRowCountMap map[string]int64) error {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	if config.SnapshotMode != "never" {
 		err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 			record.SnapshotMechanism = "debezium"
@@ -413,7 +431,7 @@ func debeziumExportData(ctx context.Context, config *dbzm.Config, tableNameToApp
 		}
 		progressTracker.UpdateProgress(status)
 		if !snapshotComplete {
-			snapshotComplete, err = checkAndHandleSnapshotComplete(config, status, progressTracker)
+			snapshotComplete, err = checkAndHandleSnapshotComplete(config, status, progressTracker, ctx)
 			if err != nil {
 				return fmt.Errorf("failed to check if snapshot is complete: %w", err)
 			}
@@ -430,7 +448,7 @@ func debeziumExportData(ctx context.Context, config *dbzm.Config, tableNameToApp
 		if err != nil {
 			return fmt.Errorf("failed to read export status: %w", err)
 		}
-		snapshotComplete, err = checkAndHandleSnapshotComplete(config, status, progressTracker)
+		snapshotComplete, err = checkAndHandleSnapshotComplete(config, status, progressTracker, ctx)
 		if !snapshotComplete || err != nil {
 			return fmt.Errorf("snapshot was not completed: %w", err)
 		}
@@ -440,7 +458,7 @@ func debeziumExportData(ctx context.Context, config *dbzm.Config, tableNameToApp
 	return nil
 }
 
-func reportStreamingProgress() {
+func reportStreamingProgress(ctx context.Context) {
 	tableWriter := uilive.New()
 	headerWriter := tableWriter.Newline()
 	separatorWriter := tableWriter.Newline()
@@ -460,7 +478,12 @@ func reportStreamingProgress() {
 		fmt.Fprint(row4Writer, color.GreenString("| %-40s | %30s |\n", "Export Rate(Last 10 min)", strconv.FormatInt(throughputInLast10Min, 10)+"/sec"))
 		fmt.Fprint(footerWriter, color.GreenString("| %-40s | %30s |\n", "---------------------------------------", "-----------------------------"))
 		tableWriter.Flush()
-		time.Sleep(10 * time.Second)
+		select {
+		case <-ctx.Done():
+			tableWriter.Stop()
+			return
+		case <-time.After(10 * time.Second):
+		}
 	}
 }
 
@@ -490,7 +513,7 @@ func calculateStreamingProgress() {
 
 }
 
-func checkAndHandleSnapshotComplete(config *dbzm.Config, status *dbzm.ExportStatus, progressTracker *ProgressTracker) (bool, error) {
+func checkAndHandleSnapshotComplete(config *dbzm.Config, status *dbzm.ExportStatus, progressTracker *ProgressTracker, ctx context.Context) (bool, error) {
 	if !status.SnapshotExportIsComplete() {
 		return false, nil
 	}
@@ -556,7 +579,7 @@ func checkAndHandleSnapshotComplete(config *dbzm.Config, status *dbzm.ExportStat
 			go calculateStreamingProgress()
 		}
 		if !disablePb {
-			go reportStreamingProgress()
+			go reportStreamingProgress(ctx)
 		}
 	}
 	return true, nil

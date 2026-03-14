@@ -767,7 +767,7 @@ func getCutoverStatus() string {
 	}
 	if msr.FallForwardEnabled && a && b && c && msr.ExportFromTargetFallForwardStarted {
 		return COMPLETED
-	} else if msr.FallbackEnabled && a && b && c && msr.ExportFromTargetFallBackStarted {
+	} else if msr.FallbackEnabled && a && b && c && msr.ExportFromTargetFallBackStarted && msr.ImportDataToSourceStarted {
 		return COMPLETED
 	} else if !msr.FallForwardEnabled && !msr.FallbackEnabled && a && b && c {
 		return COMPLETED
@@ -1371,7 +1371,6 @@ func stripAnchorTags(htmlText string) string {
 
 	return result
 }
-
 
 // ======================================================================
 type BulkAssessmentReport struct {
