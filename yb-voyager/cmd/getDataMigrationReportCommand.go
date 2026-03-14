@@ -138,7 +138,7 @@ type rowDataForIteration struct {
 	ImportedDeletes int64  `json:"imported_deletes"`
 }
 
-func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
+func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord, donotPrint bool) {
 
 	var reportData []*rowData
 	fBEnabled = msr.FallbackEnabled
@@ -330,7 +330,7 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 	isIteration := msr.IterationNo > 0
 
 	if reportOrStatusCmdOutputFormat == "json" {
-		err = generateReportInJsonFormat(reportData, msr, isIteration)
+		err = generateReportInJsonFormat(reportData, msr, isIteration, donotPrint)
 		if err != nil {
 			utils.ErrExit("error while generating report in json format: %w", err)
 		}
@@ -341,7 +341,7 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 
 }
 
-func generateReportInJsonFormat(reportData []*rowData, msr *metadb.MigrationStatusRecord, isIteration bool) error {
+func generateReportInJsonFormat(reportData []*rowData, msr *metadb.MigrationStatusRecord, isIteration bool, donotPrint bool) error {
 	var err error
 	// Print the report in json format.
 	reportFilePath := filepath.Join(exportDir, "reports", "data-migration-report.json")
@@ -359,10 +359,12 @@ func generateReportInJsonFormat(reportData []*rowData, msr *metadb.MigrationStat
 			return fmt.Errorf("creating into json file: %s: %w", reportFilePath, err)
 		}
 	}
-	if !isIteration && msr.LatestIterationNumber > 0 {
+	if !isIteration && msr.LatestIterationNumber > 0 && !donotPrint {
 		utils.PrintAndLogfPhase("\nAggregated Data migration report for the overall migration:")
 	}
-	fmt.Print(color.GreenString("Data migration report is written to %s\n", reportFilePath))
+	if !donotPrint {
+		fmt.Print(color.GreenString("Data migration report is written to %s\n", reportFilePath))
+	}
 	return nil
 }
 
@@ -588,9 +590,15 @@ func getIterationDataMigrationReport(iterationExportDir string) ([]*rowData, err
 	if err != nil {
 		return nil, fmt.Errorf("error while getting iteration migration status record: %w", err)
 	}
+	if iterationMsr.TargetDBConf != nil {
+		iterationMsr.TargetDBConf.Password = targetDBPassword
+	}
+	if iterationMsr.FallbackEnabled {
+		iterationMsr.SourceDBAsTargetConf.Password = sourceDbPassword
+	}
 	migrationUUID = uuid.MustParse(iterationMsr.MigrationUUID)
 
-	getDataMigrationReportCmdFn(iterationMsr)
+	getDataMigrationReportCmdFn(iterationMsr, donotPrint)
 
 	iterationReportFile := filepath.Join(iterationExportDir, "reports", "data-migration-report.json")
 	iterationReportJsonFile := jsonfile.NewJsonFile[[]*rowData](iterationReportFile)
