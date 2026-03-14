@@ -22,6 +22,8 @@ import (
 	goerrors "github.com/go-errors/errors"
 	"github.com/jackc/pgconn"
 	"github.com/pingcap/failpoint"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 // injectImportCDCTransformFailure simulates a failure during CDC event
@@ -77,4 +79,144 @@ func injectImportSnapshotTransformError() error {
 		}
 	})
 	return fpErr
+}
+
+func writeFailpointMarker(filename string) {
+	_ = os.MkdirAll(filepath.Join(exportDir, "failpoints"), 0755)
+	_ = os.WriteFile(filepath.Join(exportDir, "failpoints", filename), []byte("hit\n"), 0644)
+}
+
+// injectCutoverToSourceExporterPostMarkProcessed crashes export-from-target after
+// it marks CutoverToSourceProcessedByTargetExporter, but before it chains to
+// startNextIterationImportDataToTarget. Tests verify the exporter resumes correctly
+// on re-run: it detects cutover-already-processed and chains to the next iteration.
+func injectCutoverToSourceExporterPostMarkProcessed() {
+	failpoint.Inject("cutoverToSourceExporterPostMarkProcessed", func(val failpoint.Value) {
+		if val != nil {
+			writeFailpointMarker("failpoint-cutover-to-source-exporter-post-mark.log")
+			utils.ErrExit("failpoint: crash after marking cutover-to-source processed by exporter")
+		}
+	})
+}
+
+// injectCutoverToSourceImporterPostMarkProcessed crashes import-to-source after
+// it marks CutoverToSourceProcessedBySourceImporter in postCutoverProcessing,
+// but before waitUntilCutoverProcessedByCorrespondingExporterForImporter.
+// Tests verify the importer resumes correctly: it detects cutover-already-processed
+// and chains to startExportDataFromSourceOnNextIteration.
+func injectCutoverToSourceImporterPostMarkProcessed() {
+	failpoint.Inject("cutoverToSourceImporterPostMarkProcessed", func(val failpoint.Value) {
+		if val != nil {
+			writeFailpointMarker("failpoint-cutover-to-source-importer-post-mark.log")
+			utils.ErrExit("failpoint: crash after marking cutover-to-source processed by importer")
+		}
+	})
+}
+
+// injectBeforeInitializeNextIteration crashes import-to-source after
+// waitUntilCutoverProcessedByCorrespondingExporterForImporter completes but before
+// initializeNextIteration runs. Tests verify the importer resumes correctly:
+// initializeNextIteration is fully idempotent (hasn't run yet in this case).
+func injectBeforeInitializeNextIteration() {
+	failpoint.Inject("beforeInitializeNextIteration", func(val failpoint.Value) {
+		if val != nil {
+			writeFailpointMarker("failpoint-before-init-next-iteration.log")
+			utils.ErrExit("failpoint: crash before initializing next iteration")
+		}
+	})
+}
+
+// injectDuringInitializeNextIteration crashes import-to-source during
+// initializeNextIteration after setUpNextIterationMSR but before setting
+// NextIterationInitialized = true. Tests verify that partial iteration state
+// is handled correctly: initializeNextIteration is fully idempotent.
+func injectDuringInitializeNextIteration() {
+	failpoint.Inject("duringInitializeNextIteration", func(val failpoint.Value) {
+		if val != nil {
+			writeFailpointMarker("failpoint-during-init-next-iteration.log")
+			utils.ErrExit("failpoint: crash during initialize next iteration")
+		}
+	})
+}
+
+// injectAfterInitializeNextIteration crashes import-to-source after
+// initializeNextIteration completes (NextIterationInitialized = true) but
+// before syscall.Exec to export-data-from-source. Tests verify that on
+// re-run, the process detects the iteration is already initialized and
+// proceeds directly to exec.
+func injectAfterInitializeNextIteration() {
+	failpoint.Inject("afterInitializeNextIteration", func(val failpoint.Value) {
+		if val != nil {
+			writeFailpointMarker("failpoint-after-init-next-iteration.log")
+			utils.ErrExit("failpoint: crash after initializing next iteration")
+		}
+	})
+}
+
+
+// injectCutoverToTargetExporterPostMarkProcessed crashes export-from-source after
+// it marks CutoverProcessedBySourceExporter, but before it chains to
+// startFallBackSetupIfRequired. Tests verify the exporter resumes correctly
+// on re-run: handleCutoverAlreadyProcessedForExportData detects already-processed
+// and calls startFurtherCommandsAfterCurrentExportData.
+func injectCutoverToTargetExporterPostMarkProcessed() {
+	failpoint.Inject("cutoverToTargetExporterPostMarkProcessed", func(val failpoint.Value) {
+		if val != nil {
+			writeFailpointMarker("failpoint-cutover-to-target-exporter-post-mark.log")
+			utils.ErrExit("failpoint: crash after marking cutover-to-target processed by exporter")
+		}
+	})
+}
+
+// injectCutoverToTargetImporterPreMarkProcessed crashes import-to-target after
+// restoring sequences and identity columns, but before markCutoverProcessed.
+// Tests verify the importer resumes correctly: postCutoverProcessing re-runs
+// and sequence/identity restore is idempotent.
+func injectCutoverToTargetImporterPreMarkProcessed() {
+	failpoint.Inject("cutoverToTargetImporterPreMarkProcessed", func(val failpoint.Value) {
+		if val != nil {
+			writeFailpointMarker("failpoint-cutover-to-target-importer-pre-mark.log")
+			utils.ErrExit("failpoint: crash before marking cutover-to-target processed by importer")
+		}
+	})
+}
+
+// injectCutoverToTargetImporterPostMarkProcessed crashes import-to-target after
+// it marks CutoverProcessedByTargetImporter in postCutoverProcessing, but before
+// waitUntilCutoverProcessedByCorrespondingExporterForImporter. Tests verify
+// the importer resumes correctly: handleCutoverAlreadyProcessedForImportData
+// detects already-processed and calls startFurtherCommandsAfterCurrentImportData.
+func injectCutoverToTargetImporterPostMarkProcessed() {
+	failpoint.Inject("cutoverToTargetImporterPostMarkProcessed", func(val failpoint.Value) {
+		if val != nil {
+			writeFailpointMarker("failpoint-cutover-to-target-importer-post-mark.log")
+			utils.ErrExit("failpoint: crash after marking cutover-to-target processed by importer")
+		}
+	})
+}
+
+// injectAfterDeletingReplicationSlotAndPublication crashes export-from-target after
+// deleting replication slot and publication but before marking cutover processed.
+// Tests verify the exporter resumes correctly: it detects the cutover-already-processed
+// state and chains to the next iteration.
+func injectAfterDeletingReplicationSlotAndPublication() {
+	failpoint.Inject("afterDeletingReplicationSlotAndPublication", func(val failpoint.Value) {
+		if val != nil {
+			writeFailpointMarker("failpoint-after-deleting-replication-slot-and-publication.log")
+			utils.ErrExit("failpoint: crash after deleting replication slot and publication")
+		}
+	})
+}
+
+// injectAfterCompletingDebezium crashes export-from-target after
+// completing debezium once the cutover is initiatted.
+// Tests verify the exporter resumes correctly: it detects the cutover-already-processed
+// state and chains to the next iteration.
+func injectAfterCompletingDebezium() {
+	failpoint.Inject("afterCompletingDebezium", func(val failpoint.Value) {
+		if val != nil {
+			writeFailpointMarker("failpoint-after-completing-debezium.log")
+			utils.ErrExit("failpoint: crash after completing debezium")
+		}
+	})
 }

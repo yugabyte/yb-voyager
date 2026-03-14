@@ -605,6 +605,7 @@ func exportData() bool {
 				log.Errorf("Export Data using debezium failed: %v", err)
 				return false
 			}
+			injectAfterCompletingDebezium()
 		}
 
 		if changeStreamingIsEnabled(exportType) {
@@ -635,10 +636,19 @@ func exportData() bool {
 				deletePGReplicationSlotAndPublication(msr, &source)
 			}
 
+			injectAfterDeletingReplicationSlotAndPublication()
+
 			// mark cutover processed only after cleanup like deleting replication slot and yb cdc stream id
 			err = markCutoverProcessed(exporterRole)
 			if err != nil {
 				utils.ErrExit("failed to create trigger file after data export: %w", err)
+			}
+
+			if exporterRole == TARGET_DB_EXPORTER_FB_ROLE {
+				injectCutoverToSourceExporterPostMarkProcessed()
+			}
+			if exporterRole == SOURCE_DB_EXPORTER_ROLE {
+				injectCutoverToTargetExporterPostMarkProcessed()
 			}
 
 			updateCallhomeExportPhase()
