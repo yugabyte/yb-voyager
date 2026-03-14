@@ -58,12 +58,12 @@ var getDataMigrationReportCmd = &cobra.Command{
 		}
 		if migrationStatus.LatestIterationNumber == 0 {
 			if detailedReport {
-				utils.ErrExit("Error: Detailed report is only applicable when export-type is only supported for multiple iterations of Live migration with fallback workflow")
+				utils.ErrExit("Error: Detailed report is only applicable for multiple iterations of Live migration with fallback workflow")
 			}
 		}
 		if migrationStatus.FallForwardEnabled {
 			if detailedReport {
-				utils.ErrExit("Error: Detailed report is only applicable when export-type is only supported for multiple iterations of Live migration with fallback workflow")
+				utils.ErrExit("Error: Detailed report is only applicable for multiple iterations of Live migration with fallback workflow")
 			}
 		}
 		streamChanges, err := checkStreamingMode()
@@ -571,11 +571,13 @@ func getIterationDataMigrationReport(iterationExportDir string) ([]*rowData, err
 	currExportDir := exportDir
 	currMetaDB := metaDB
 	currReportFormat := reportOrStatusCmdOutputFormat
+	currMigrationUUID := migrationUUID
 
 	defer func() {
 		exportDir = currExportDir
 		metaDB = currMetaDB
 		reportOrStatusCmdOutputFormat = currReportFormat
+		migrationUUID = currMigrationUUID
 	}()
 
 	exportDir = iterationExportDir
@@ -586,6 +588,7 @@ func getIterationDataMigrationReport(iterationExportDir string) ([]*rowData, err
 	if err != nil {
 		return nil, fmt.Errorf("error while getting iteration migration status record: %w", err)
 	}
+	migrationUUID = uuid.MustParse(iterationMsr.MigrationUUID)
 
 	getDataMigrationReportCmdFn(iterationMsr)
 
