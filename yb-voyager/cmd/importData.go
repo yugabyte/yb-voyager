@@ -360,6 +360,7 @@ func startExportDataFromSourceOnNextIteration() {
 	if execErr != nil {
 		utils.ErrExit("failed to run yb-voyager export data from source: %w\n Please re-run with command :\n%s", execErr, cmdStr)
 	}
+
 }
 
 func importSnapshotRequired() bool {
