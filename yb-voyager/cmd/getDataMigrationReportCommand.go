@@ -94,7 +94,7 @@ var getDataMigrationReportCmd = &cobra.Command{
 				utils.ErrExit("initializing name registry: %w", err)
 			}
 			color.Yellow("Generating data migration report for migration UUID: %s...\n", migrationStatus.MigrationUUID)
-			getDataMigrationReportCmdFn(migrationStatus)
+			getDataMigrationReportCmdFn(migrationStatus, false)
 		} else {
 			utils.ErrExit("Error: Data migration report is only applicable when export-type is 'snapshot-and-changes'(live migration)\nPlease run export data status/import data status commands.")
 		}
@@ -598,7 +598,7 @@ func getIterationDataMigrationReport(iterationExportDir string) ([]*rowData, err
 	}
 	migrationUUID = uuid.MustParse(iterationMsr.MigrationUUID)
 
-	getDataMigrationReportCmdFn(iterationMsr, donotPrint)
+	getDataMigrationReportCmdFn(iterationMsr, true)
 
 	iterationReportFile := filepath.Join(iterationExportDir, "reports", "data-migration-report.json")
 	iterationReportJsonFile := jsonfile.NewJsonFile[[]*rowData](iterationReportFile)
