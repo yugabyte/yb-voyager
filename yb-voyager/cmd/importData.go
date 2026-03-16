@@ -2081,7 +2081,6 @@ func checkExportDataDoneOrStartedFlag() {
 		return
 	}
 
-	fmt.Printf("importType: %s\n", importType)
 	if importType == CHANGES_ONLY {
 		//For changes only the data exported is marked done once the slot is created
 		msg := lo.Ternary(importerRole == TARGET_DB_IMPORTER_ROLE, "Waiting for export data from source to start...", "Waiting for export data from target to start...")

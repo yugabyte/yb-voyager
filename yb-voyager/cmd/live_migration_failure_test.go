@@ -1,5 +1,4 @@
 //go:build failpoint
-
 /*
 Copyright (c) YugabyteDB, Inc.
 
@@ -216,6 +215,13 @@ func verifyFallbackAfterCutoverToTarget(t *testing.T, lm *LiveMigrationTest) {
 
 // ===========================================================================
 // Cutover-to-TARGET failpoint tests
+
+//Test plan with failure injections below
+//1. export-data-from-source crashes after Debezium completes, before deletePGReplicationSlotAndPublication
+//2. export-data-from-source crashes after deleting replication slot and publication, before markCutoverProcessed
+//3. export-data-from-source crashes after marking cutover processed, before startFallBackSetupIfRequired
+//4. import data to source crashes before marking cutover processed
+//5. import data to source crashes after marking cutover processed
 // ===========================================================================
 
 // ---------------------------------------------------------------------------
@@ -320,8 +326,8 @@ func TestCutoverToTargetResumption_ExporterCrashAfterDeletingReplicationSlot(t *
 // handleCutoverAlreadyProcessedForExportData detects already-processed,
 // calls startFurtherCommandsAfterCurrentExportData.
 
-//Can fail in scenarios where export data from target is started and cutover is completed but the exporter 
-//failed after marking cutover processed and before starting import data to source 
+//Can fail in scenarios where export data from target is started and cutover is completed but the exporter
+//failed after marking cutover processed and before starting import data to source
 // ---------------------------------------------------------------------------
 
 func TestCutoverToTargetResumption_ExporterCrashAfterMarkProcessed(t *testing.T) {
@@ -380,11 +386,8 @@ func TestCutoverToTargetResumption_ImporterCrashBeforeMarkProcessed(t *testing.T
 
 	setupToForwardStreaming(t, lm)
 
-	err := lm.StopExportData()
-	require.NoError(t, err, "failed to stop export data")
-	err = lm.StopImportData()
+	err := lm.StopImportData()
 	require.NoError(t, err, "failed to stop import data")
-	lm.KillDebezium(SOURCE_DB_EXPORTER_ROLE)
 
 	removeFailpointMarkers(lm.GetCurrentExportDir())
 
@@ -394,8 +397,6 @@ func TestCutoverToTargetResumption_ImporterCrashBeforeMarkProcessed(t *testing.T
 	fpEnv := testutils.GetFailpointEnvVar(
 		fpPkgPrefix + "cutoverToTargetImporterPreMarkProcessed=return(true)",
 	)
-	err = lm.StartExportData(true, nil)
-	require.NoError(t, err, "failed to start export data")
 
 	err = lm.StartImportDataWithEnv(true, nil, []string{fpEnv})
 	require.NoError(t, err, "failed to start import data with failpoint")
@@ -407,14 +408,7 @@ func TestCutoverToTargetResumption_ImporterCrashBeforeMarkProcessed(t *testing.T
 	require.NoError(t, err, "import data did not crash before markCutoverProcessed")
 	t.Log("import data crashed before markCutoverProcessed — resuming")
 
-	err = lm.StopExportData()
-	require.NoError(t, err, "failed to stop export data after importer crash")
-	lm.KillDebezium(SOURCE_DB_EXPORTER_ROLE)
-
 	removeFailpointMarkers(lm.GetCurrentExportDir())
-
-	err = lm.StartExportData(true, nil)
-	require.NoError(t, err, "failed to resume export data")
 
 	err = lm.StartImportData(true, nil)
 	require.NoError(t, err, "failed to resume import data")
@@ -443,11 +437,8 @@ func TestCutoverToTargetResumption_ImporterCrashAfterMarkProcessed(t *testing.T)
 
 	setupToForwardStreaming(t, lm)
 
-	err := lm.StopExportData()
-	require.NoError(t, err, "failed to stop export data")
-	err = lm.StopImportData()
+	err := lm.StopImportData()
 	require.NoError(t, err, "failed to stop import data")
-	lm.KillDebezium(SOURCE_DB_EXPORTER_ROLE)
 
 	removeFailpointMarkers(lm.GetCurrentExportDir())
 
@@ -457,8 +448,6 @@ func TestCutoverToTargetResumption_ImporterCrashAfterMarkProcessed(t *testing.T)
 	fpEnv := testutils.GetFailpointEnvVar(
 		fpPkgPrefix + "cutoverToTargetImporterPostMarkProcessed=return(true)",
 	)
-	err = lm.StartExportData(true, nil)
-	require.NoError(t, err, "failed to start export data")
 
 	err = lm.StartImportDataWithEnv(true, nil, []string{fpEnv})
 	require.NoError(t, err, "failed to start import data with failpoint")
@@ -469,10 +458,6 @@ func TestCutoverToTargetResumption_ImporterCrashAfterMarkProcessed(t *testing.T)
 		t, markerPath, 180*time.Second, 60*time.Second)
 	require.NoError(t, err, "import data did not crash after markCutoverProcessed")
 	t.Log("import data crashed after markCutoverProcessed — resuming")
-
-	err = lm.StopExportData()
-	require.NoError(t, err, "failed to stop export data after importer crash")
-	lm.KillDebezium(SOURCE_DB_EXPORTER_ROLE)
 
 	removeFailpointMarkers(lm.GetCurrentExportDir())
 
@@ -491,6 +476,15 @@ func TestCutoverToTargetResumption_ImporterCrashAfterMarkProcessed(t *testing.T)
 
 // ===========================================================================
 // Cutover-to-SOURCE failpoint tests
+
+//Test plan with failure injections below
+//1. import-to-source crashes after markCutoverProcessed
+//2. import-to-source crashes during initializeNextIteration
+//3. import-to-source crashes after initializeNextIteration
+//4. import-to-source crashes before initializeNextIteration
+//5. export-data-from-source crashes after markCutoverProcessed
+//6. export-data-from-source crashes after deleting replication slot and publication
+//7. export-data-from-source crashes after completing debezium
 // ===========================================================================
 
 // ---------------------------------------------------------------------------
@@ -510,13 +504,10 @@ func TestCutoverToSourceResumption_ImporterCrashAfterMarkProcessed(t *testing.T)
 
 	setupToFallbackStreaming(t, lm)
 
-	// Stop both processes before initiating cutover so we can restart them
+	// Stop import data to source processes before initiating cutover so we can restart them
 	// with deterministic failpoint injection.
-	err := lm.StopExportDataFromTarget()
-	require.NoError(t, err, "failed to stop export data from target")
-	err = lm.StopImportDataToSource()
+	err := lm.StopImportDataToSource()
 	require.NoError(t, err, "failed to stop import data to source")
-	lm.KillDebezium(TARGET_DB_EXPORTER_FB_ROLE)
 
 	removeFailpointMarkers(lm.GetCurrentExportDir())
 
@@ -532,11 +523,6 @@ func TestCutoverToSourceResumption_ImporterCrashAfterMarkProcessed(t *testing.T)
 	err = lm.StartImportDataToSourceWithEnv(true, nil, []string{fpEnv})
 	require.NoError(t, err, "failed to start import-to-source with failpoint")
 
-	// Restart export-from-target normally — it will process cutover and wait
-	// for next iteration initialization.
-	err = lm.StartExportDataFromTarget(true, nil)
-	require.NoError(t, err, "failed to restart export-from-target")
-
 	// Wait for import-to-source to hit the failpoint and crash.
 	markerPath := filepath.Join(lm.GetCurrentExportDir(), markerDir,
 		"failpoint-cutover-to-source-importer-post-mark.log")
@@ -545,20 +531,11 @@ func TestCutoverToSourceResumption_ImporterCrashAfterMarkProcessed(t *testing.T)
 	require.NoError(t, err, "import-to-source did not crash at failpoint")
 	t.Log("import-to-source crashed after markCutoverProcessed — resuming")
 
-	// Export-from-target is blocked in waitUntilNextIterationInitialized
-	// because the importer never initialised the next iteration. Kill it.
-	err = lm.StopExportDataFromTarget()
-	require.NoError(t, err, "failed to stop export-from-target after importer crash")
-	lm.KillDebezium(TARGET_DB_EXPORTER_FB_ROLE)
-
 	removeFailpointMarkers(lm.GetCurrentExportDir())
 
 	// Resume both without failpoints.
 	err = lm.StartImportDataToSource(true, nil)
 	require.NoError(t, err, "failed to resume import-to-source")
-
-	err = lm.StartExportDataFromTarget(true, nil)
-	require.NoError(t, err, "failed to resume export-from-target")
 
 	err = lm.WaitForNextIterationInitialized(120, 0)
 	require.NoError(t, err, "next iteration was not initialized")
@@ -586,11 +563,8 @@ func TestCutoverToSourceResumption_ImporterCrashDuringInitNextIteration(t *testi
 
 	setupToFallbackStreaming(t, lm)
 
-	err := lm.StopExportDataFromTarget()
-	require.NoError(t, err, "failed to stop export data from target")
-	err = lm.StopImportDataToSource()
+	err := lm.StopImportDataToSource()
 	require.NoError(t, err, "failed to stop import data to source")
-	lm.KillDebezium(TARGET_DB_EXPORTER_FB_ROLE)
 
 	removeFailpointMarkers(lm.GetCurrentExportDir())
 
@@ -608,10 +582,6 @@ func TestCutoverToSourceResumption_ImporterCrashDuringInitNextIteration(t *testi
 	err = lm.StartImportDataToSourceWithEnv(true, nil, []string{fpEnv})
 	require.NoError(t, err, "failed to start import-to-source with failpoint")
 
-	// Export-from-target processes cutover first, then waits.
-	err = lm.StartExportDataFromTarget(true, nil)
-	require.NoError(t, err, "failed to start export-from-target")
-
 	markerPath := filepath.Join(lm.GetCurrentExportDir(), markerDir,
 		"failpoint-during-init-next-iteration.log")
 	err = lm.WaitForImportToSourceFailpointAndProcessCrash(
@@ -619,17 +589,10 @@ func TestCutoverToSourceResumption_ImporterCrashDuringInitNextIteration(t *testi
 	require.NoError(t, err, "import-to-source did not crash during initializeNextIteration")
 	t.Log("import-to-source crashed during initializeNextIteration — resuming")
 
-	err = lm.StopExportDataFromTarget()
-	require.NoError(t, err, "failed to stop export-from-target")
-	lm.KillDebezium(TARGET_DB_EXPORTER_FB_ROLE)
-
 	removeFailpointMarkers(lm.GetCurrentExportDir())
 
 	err = lm.StartImportDataToSource(true, nil)
 	require.NoError(t, err, "failed to resume import-to-source")
-
-	err = lm.StartExportDataFromTarget(true, nil)
-	require.NoError(t, err, "failed to resume export-from-target")
 
 	err = lm.WaitForNextIterationInitialized(120, 0)
 	require.NoError(t, err, "next iteration was not initialized after resume")
@@ -642,7 +605,7 @@ func TestCutoverToSourceResumption_ImporterCrashDuringInitNextIteration(t *testi
 }
 
 // ---------------------------------------------------------------------------
-// Phase between B3 and C: import-to-source crashes AFTER
+// import-to-source crashes AFTER
 // initializeNextIteration (NextIterationInitialized = true) but BEFORE
 // syscall.Exec to export-data-from-source.
 //
@@ -660,11 +623,8 @@ func TestCutoverToSourceResumption_ImporterCrashAfterInitNextIteration(t *testin
 
 	setupToFallbackStreaming(t, lm)
 
-	err := lm.StopExportDataFromTarget()
-	require.NoError(t, err, "failed to stop export data from target")
-	err = lm.StopImportDataToSource()
+	err := lm.StopImportDataToSource()
 	require.NoError(t, err, "failed to stop import data to source")
-	lm.KillDebezium(TARGET_DB_EXPORTER_FB_ROLE)
 
 	removeFailpointMarkers(lm.GetCurrentExportDir())
 
@@ -679,9 +639,6 @@ func TestCutoverToSourceResumption_ImporterCrashAfterInitNextIteration(t *testin
 	err = lm.StartImportDataToSourceWithEnv(true, nil, []string{fpEnv})
 	require.NoError(t, err, "failed to start import-to-source with failpoint")
 
-	err = lm.StartExportDataFromTarget(true, nil)
-	require.NoError(t, err, "failed to start export-from-target")
-
 	markerPath := filepath.Join(lm.GetCurrentExportDir(), markerDir,
 		"failpoint-after-init-next-iteration.log")
 	err = lm.WaitForImportToSourceFailpointAndProcessCrash(
@@ -689,17 +646,10 @@ func TestCutoverToSourceResumption_ImporterCrashAfterInitNextIteration(t *testin
 	require.NoError(t, err, "import-to-source did not crash after initializeNextIteration")
 	t.Log("import-to-source crashed after initializeNextIteration — resuming")
 
-	err = lm.StopExportDataFromTarget()
-	require.NoError(t, err, "failed to stop export-from-target")
-	lm.KillDebezium(TARGET_DB_EXPORTER_FB_ROLE)
-
 	removeFailpointMarkers(lm.GetCurrentExportDir())
 
 	err = lm.StartImportDataToSource(true, nil)
 	require.NoError(t, err, "failed to resume import-to-source")
-
-	err = lm.StartExportDataFromTarget(true, nil)
-	require.NoError(t, err, "failed to resume export-from-target")
 
 	err = lm.WaitForNextIterationInitialized(120, 0)
 	require.NoError(t, err, "next iteration was not initialized after resume")
@@ -710,7 +660,6 @@ func TestCutoverToSourceResumption_ImporterCrashAfterInitNextIteration(t *testin
 	verifyNewIterationForward(t, lm)
 	t.Log("TestCutoverToSourceResumption_ImporterCrashAfterInitNextIteration passed")
 }
-
 
 // ---------------------------------------------------------------------------
 // import-to-source crashes BEFORE
@@ -727,11 +676,8 @@ func TestCutoverToSourceResumption_ImporterCrashBeforeInitNextIteration(t *testi
 
 	setupToFallbackStreaming(t, lm)
 
-	err := lm.StopExportDataFromTarget()
-	require.NoError(t, err, "failed to stop export data from target")
-	err = lm.StopImportDataToSource()
+	err := lm.StopImportDataToSource()
 	require.NoError(t, err, "failed to stop import data to source")
-	lm.KillDebezium(TARGET_DB_EXPORTER_FB_ROLE)
 
 	removeFailpointMarkers(lm.GetCurrentExportDir())
 
@@ -746,9 +692,6 @@ func TestCutoverToSourceResumption_ImporterCrashBeforeInitNextIteration(t *testi
 	err = lm.StartImportDataToSourceWithEnv(true, nil, []string{fpEnv})
 	require.NoError(t, err, "failed to start import-to-source with failpoint")
 
-	err = lm.StartExportDataFromTarget(true, nil)
-	require.NoError(t, err, "failed to start export-from-target")
-
 	markerPath := filepath.Join(lm.GetCurrentExportDir(), markerDir,
 		"failpoint-before-init-next-iteration.log")
 	err = lm.WaitForImportToSourceFailpointAndProcessCrash(
@@ -756,17 +699,10 @@ func TestCutoverToSourceResumption_ImporterCrashBeforeInitNextIteration(t *testi
 	require.NoError(t, err, "import-to-source did not crash before initializeNextIteration")
 	t.Log("import-to-source crashed before initializeNextIteration — resuming")
 
-	err = lm.StopExportDataFromTarget()
-	require.NoError(t, err, "failed to stop export-from-target")
-	lm.KillDebezium(TARGET_DB_EXPORTER_FB_ROLE)
-
 	removeFailpointMarkers(lm.GetCurrentExportDir())
 
 	err = lm.StartImportDataToSource(true, nil)
 	require.NoError(t, err, "failed to resume import-to-source")
-
-	err = lm.StartExportDataFromTarget(true, nil)
-	require.NoError(t, err, "failed to resume export-from-target")
 
 	err = lm.WaitForNextIterationInitialized(120, 0)
 	require.NoError(t, err, "next iteration was not initialized after resume")
@@ -777,8 +713,6 @@ func TestCutoverToSourceResumption_ImporterCrashBeforeInitNextIteration(t *testi
 	verifyNewIterationForward(t, lm)
 	t.Log("TestCutoverToSourceResumption_ImporterCrashBeforeInitNextIteration passed")
 }
-
-
 
 // ---------------------------------------------------------------------------
 // export-from-target crashes after markCutoverProcessed
@@ -804,7 +738,6 @@ func TestCutoverToSourceResumption_ExporterCrashAfterMarkProcessed(t *testing.T)
 
 	err := lm.StopExportDataFromTarget()
 	require.NoError(t, err, "failed to stop export data from target")
-	lm.KillDebezium(TARGET_DB_EXPORTER_FB_ROLE)
 
 	removeFailpointMarkers(lm.GetCurrentExportDir())
 
@@ -865,7 +798,6 @@ func TestCutoverToSourceResumption_ExporterCrashAfterDeletingReplicationSlotAndP
 
 	err := lm.StopExportDataFromTarget()
 	require.NoError(t, err, "failed to stop export data from target")
-	lm.KillDebezium(TARGET_DB_EXPORTER_FB_ROLE)
 
 	removeFailpointMarkers(lm.GetCurrentExportDir())
 
@@ -914,7 +846,6 @@ func TestCutoverToSourceResumption_ExporterCrashAfterCompletingDebezium(t *testi
 
 	err := lm.StopExportDataFromTarget()
 	require.NoError(t, err, "failed to stop export data from target")
-	lm.KillDebezium(TARGET_DB_EXPORTER_FB_ROLE)
 
 	removeFailpointMarkers(lm.GetCurrentExportDir())
 
