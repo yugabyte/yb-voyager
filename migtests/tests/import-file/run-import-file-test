@@ -116,11 +116,12 @@ main() {
 	IMPORT_DATA_STATE_DIR_LARGE_ROWS="$TEST_DIR/export-dir/metainfo/import_data_state/import_file/table::\"public\".\"large_rows_test\"/"
 
 	# Expected batch file names without the symlink for large_rows_test.txt file
+	# Format: batch::batchNum.offsetEnd.recordCount.byteCount.cumByteOffset.STATE
 	expected_batch_files_large_rows=(
-		"batch::0.5.1.9900003.D"
-		"batch::1.1.1.15000003.D"
-		"batch::2.3.2.11005006.D"
-		"batch::3.4.1.12131223.D"
+		"batch::0.5.1.9900003.48036235.D"
+		"batch::1.1.1.15000003.15000003.D"
+		"batch::2.3.2.11005006.26005009.D"
+		"batch::3.4.1.12131223.38136232.D"
 	)
 
 	validate_import_data_state_batch_files $IMPORT_DATA_STATE_DIR_LARGE_ROWS ${expected_batch_files_large_rows[@]}

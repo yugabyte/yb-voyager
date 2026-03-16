@@ -355,6 +355,7 @@ var exportDirInitialisedCheckNeededList = []string{
 	"yb-voyager get data-migration-report",
 	"yb-voyager compare-performance",
 	"yb-voyager archive changes",
+	"yb-voyager segment-cleanup",
 	"yb-voyager end migration",
 	"yb-voyager initiate cutover to source",
 	"yb-voyager initiate cutover to source-replica",

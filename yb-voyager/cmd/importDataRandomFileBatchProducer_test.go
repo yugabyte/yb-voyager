@@ -374,8 +374,8 @@ func assertBatchesMatch(t *testing.T, batch1 *Batch, batch2 *Batch, msgAndArgs .
 	// Note: BaseFilePath is not compared as it's expected to differ between sequential and random producers
 	assert.Equal(t, batch1.TableNameTup, batch2.TableNameTup, append(msgAndArgs, "Table name should match")...)
 	assert.Equal(t, batch1.SchemaName, batch2.SchemaName, append(msgAndArgs, "Schema name should match")...)
-	assert.Equal(t, batch1.OffsetStart, batch2.OffsetStart, append(msgAndArgs, "Offset start should match")...)
-	assert.Equal(t, batch1.OffsetEnd, batch2.OffsetEnd, append(msgAndArgs, "Offset end should match")...)
+	assert.Equal(t, batch1.LineOffsetStart, batch2.LineOffsetStart, append(msgAndArgs, "Offset start should match")...)
+	assert.Equal(t, batch1.LineOffsetEnd, batch2.LineOffsetEnd, append(msgAndArgs, "Offset end should match")...)
 	assert.Equal(t, batch1.ByteCount, batch2.ByteCount, append(msgAndArgs, "Byte count should match")...)
 	assert.Equal(t, batch1.Interrupted, batch2.Interrupted, append(msgAndArgs, "Interrupted flag should match")...)
 }
