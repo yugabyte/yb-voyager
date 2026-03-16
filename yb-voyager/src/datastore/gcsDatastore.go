@@ -84,3 +84,7 @@ func (ds *GCSDataStore) Open(resourceName string) (io.ReadCloser, error) {
 	}
 	return gcs.NewObjectReader(objectPath)
 }
+
+func (ds *GCSDataStore) OpenAt(resourceName string, offset int64) (io.ReadCloser, error) {
+	return nil, ErrOpenAtNotImplemented
+}

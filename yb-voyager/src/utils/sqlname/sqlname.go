@@ -260,7 +260,7 @@ func (t *TargetName) String() string {
 }
 
 func IsQuoted(s string) bool {
-	if len(s) == 0 {
+	if len(s) < 2 {
 		return false
 	}
 	// TODO: Learn the semantics of backticks in MySQL and Oracle.

@@ -43,8 +43,8 @@ import (
 //  4. Resume `import data` without failpoint and verify target matches source.
 //
 // Injection point:
-// - `src/tgtdb/yugabytedb.go` in transactional COPY path, right before txn commit:
-//   failpoint `importBatchCommitError`.
+//   - `src/tgtdb/yugabytedb.go` in transactional COPY path, right before txn commit:
+//     failpoint `importBatchCommitError`.
 func TestImportSnapshotCommitFailureAndResume(t *testing.T) {
 	ctx := context.Background()
 	tableName := "test_schema_import_snap_fail.snapshot_import_test"
@@ -95,7 +95,6 @@ func TestImportSnapshotCommitFailureAndResume(t *testing.T) {
 	// --- Phase 1: Start export and import concurrently ---
 	err = lm.StartExportData(true, nil)
 	require.NoError(t, err, "failed to start export")
-
 
 	const (
 		batchSizeRows      = 2
@@ -230,7 +229,6 @@ func TestImportSnapshotTransformFailureAndResume(t *testing.T) {
 	// --- Phase 1: Start export and import concurrently ---
 	err = lm.StartExportData(true, nil)
 	require.NoError(t, err, "failed to start export")
-
 
 	failpointEnv := testutils.GetFailpointEnvVar(
 		// Skip the first 20 per-row transform calls (let them succeed), then inject
