@@ -1987,7 +1987,7 @@ func prepareTableToColumns(tasks []*ImportFileTask) error {
 			if err != nil {
 				return goerrors.Errorf("datastore.Open: %q: %v", task.FilePath, err)
 			}
-			df, err := datafile.NewDataFile(task.FilePath, reader, dataFileDescriptor)
+			df, err := datafile.NewDataFile(task.FilePath, reader, dataFileDescriptor, 0)
 			if err != nil {
 				return goerrors.Errorf("opening datafile: %q: %v", task.FilePath, err)
 			}
@@ -2087,7 +2087,7 @@ func createInitialImportDataTableMetrics(tasks []*ImportFileTask) []*cp.UpdateIm
 	result := []*cp.UpdateImportedRowCountEvent{}
 	for _, task := range tasks {
 		var schemaName, tableName string
-		schemaName, tableName = cp.SplitTableNameForPG(task.TableNameTup.ForKey())
+		schemaName, tableName = task.TableNameTup.ForKeyTableSchema()
 		tableMetrics := cp.UpdateImportedRowCountEvent{
 			BaseUpdateRowCountEvent: cp.BaseUpdateRowCountEvent{
 				BaseEvent: cp.BaseEvent{

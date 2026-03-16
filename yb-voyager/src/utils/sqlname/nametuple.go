@@ -70,6 +70,17 @@ func NewObjectName(dbType, defaultSchemaName, schemaName, tableName string) *Obj
 	return result
 }
 
+func NewObjectNameFromMaybeQualifiedName(dbType, defaultSchemaName, objName string) *ObjectName {
+	if strings.Contains(objName, ".") {
+		return NewObjectNameWithQualifiedName(dbType, defaultSchemaName, objName)
+	}
+	identifier := NewIdentifier(dbType, objName)
+	return &ObjectName{
+		Unqualified:  identifier,
+		MinQualified: identifier,
+	}
+}
+
 // Assumption - always quoted qualified name with case sensitivity preserved, and if not quoted then adding the quotes explicitly
 func NewObjectNameWithQualifiedName(dbType, defaultSchemaName, objName string) *ObjectName {
 	parts := strings.Split(objName, ".")
