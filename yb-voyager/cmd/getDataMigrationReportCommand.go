@@ -545,31 +545,6 @@ func groupByTableNameAndCalculateCumulativeRowCount(reportData []*rowData) []*ro
 }
 
 func getIterationDataMigrationReport(iterationExportDir string) ([]*rowData, error) {
-
-	// // locate voyager binary
-	// voyagerExecutable, err := os.Executable()
-	// if err != nil {
-	// 	return nil, fmt.Errorf("cannot locate yb-voyager executable: %w", err)
-	// }
-
-	// var stderrBuf, stdoutBuf bytes.Buffer
-
-	// // Invoke the assess-migration command as a subprocess
-	// cmd := exec.Command(voyagerExecutable, append([]string{"get", "data-migration-report"},
-	// 	"--export-dir", iterationExportDir,
-	// 	"--output-format", "json")...)
-	// cmd.Stdout = &stdoutBuf
-	// cmd.Stderr = &stderrBuf
-
-	// cmd.Env = os.Environ()
-	// cmd.Env = append(cmd.Env, "SOURCE_DB_PASSWORD="+sourceDbPassword)
-	// cmd.Env = append(cmd.Env, "TARGET_DB_PASSWORD="+targetDBPassword)
-
-	// // run and ignore exit status
-	// if err := cmd.Run(); err != nil {
-	// 	return nil, goerrors.Errorf("get data migration report cmd exit err: %s and stderr: %s", err.Error(), stderrBuf.String())
-	// }
-
 	currExportDir := exportDir
 	currMetaDB := metaDB
 	currReportFormat := reportOrStatusCmdOutputFormat
