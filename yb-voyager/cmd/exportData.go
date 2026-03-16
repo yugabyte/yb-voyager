@@ -214,10 +214,12 @@ func setSourceDetailsForChangesOnly(msr *metadb.MigrationStatusRecord) {
 		*/
 		tableListFlag := source.TableList
 		excludeTableListFlag := source.ExcludeTableList
+		runGuardrailsChecks := source.RunGuardrailsChecks
 		source = *msr.SourceDBConf
 		source.Password = sourcePassword
 		source.TableList = tableListFlag
 		source.ExcludeTableList = excludeTableListFlag
+		source.RunGuardrailsChecks = runGuardrailsChecks
 	}
 
 	if isTargetDBExporter(exporterRole) {
