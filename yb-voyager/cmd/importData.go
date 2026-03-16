@@ -2052,7 +2052,8 @@ func checkExportDataDoneFlag() {
 
 	if importType == CHANGES_ONLY {
 		//For changes only the data exported is marked done once the slot is created
-		utils.PrintAndLogf("Waiting for export data from source to start...")
+		msg := lo.Ternary(importerRole == TARGET_DB_IMPORTER_ROLE, "Waiting for export data from source to start...", "Waiting for export data from target to start...")
+		utils.PrintAndLog(msg)
 	} else {
 		//for snapshot it is marked done once the snapshot is complete
 		utils.PrintAndLogf("Waiting for snapshot data export to complete...")
