@@ -454,6 +454,19 @@ func debeziumExportData(config *dbzm.Config, tableNameToApproxRowCountMap map[st
 		}
 	}
 
+	metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		switch exporterRole {
+		case TARGET_DB_EXPORTER_FB_ROLE:
+			record.CutoverDetectedByTargetFBExporter = true
+		case TARGET_DB_EXPORTER_FF_ROLE:
+			record.CutoverDetectedByTargetFFExporter = true
+		case SOURCE_DB_EXPORTER_ROLE:
+			record.CutoverDetectedBySourceExporter = true
+		}
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update migration status record: %w", err)
+	}
 	log.Info("Debezium exited normally.")
 	return nil
 }

@@ -1214,15 +1214,6 @@ func (yb *YugabyteDB) CreatePublication(conn *pgconn.PgConn, publicationName str
 }
 
 func (yb *YugabyteDB) DropPublication(publicationName string) error {
-	exists, err := yb.CheckIfPublicationSlotExists(publicationName)
-	if err != nil {
-		return err
-	}
-	if !exists {
-		log.Infof("publication %s does not exist, skipping dropping", publicationName)
-		return nil
-	}
-
 	log.Infof("dropping publication: %s", publicationName)
 	res, err := yb.db.Exec(fmt.Sprintf("DROP PUBLICATION IF EXISTS %s", publicationName))
 	log.Infof("drop publication result: %v", res)
