@@ -158,7 +158,7 @@ func initializeNextIteration() error {
 
 	nextIterationMetaDB := CreateMigrationProjectIfNotExists(parentMSR.SourceDBConf.DBType, nextIterationExportDir)
 
-	utils.PrintAndLogfInfo("Initialized iteration %d at %s.", nextIterationNo, nextIterationExportDir)
+	utils.PrintAndLogfInfo("\nInitialized iteration %d at %s.", nextIterationNo, nextIterationExportDir)
 
 	//Update the MSR - parent, next iteration and current iteration
 	err = setUpNextIterationMSR(parentMetaDB, nextIterationNo, currentMSR, nextIterationMetaDB)

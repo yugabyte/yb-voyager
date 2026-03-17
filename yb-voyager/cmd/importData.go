@@ -353,7 +353,7 @@ func startExportDataFromSourceOnNextIteration() {
 	}
 
 	iterationExportDir := GetIterationExportDir(currentMsr.GetIterationsDir(exportDir), currentMsr.IterationNo+1)
-	utils.PrintAndLogfInfo("\nStarting export data from source on iteration %d at %s.\n\n", currentMsr.IterationNo+1, iterationExportDir)
+	utils.PrintAndLogfPhase("\nStarting export data from source on iteration %d at %s.\n\n", currentMsr.IterationNo+1, iterationExportDir)
 
 	cmdStr := "SOURCE_DB_PASSWORD=*** " + strings.Join(cmd, " ")
 
@@ -1165,9 +1165,9 @@ func waitUntilCutoverProcessedByCorrespondingExporterForImporter(importerRole st
 	timeout := 2 * time.Minute
 	startTime := time.Now()
 	if importerRole == TARGET_DB_IMPORTER_ROLE {
-		utils.PrintAndLogfInfo("\nWaiting for cutover export data from source to complete...")
+		utils.PrintAndLogfInfo("\nWaiting for export data from source to complete...")
 	} else {
-		utils.PrintAndLogfInfo("\nWaiting for cutover export data from target to complete...")
+		utils.PrintAndLogfInfo("\nWaiting for export data from target to complete...")
 	}
 	for {
 		if time.Since(startTime) > timeout {
