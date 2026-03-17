@@ -346,6 +346,7 @@ func startExportDataFromSourceOnNextIteration() {
 		cmd = append(cmd, "--source-db-schema", currentMsr.SourceDBConf.SchemaConfig)
 	}
 
+	//TODO: somehow figure out that whether table list is overidden by CLI or not and then only pass it
 	if currentMsr.SourceDBConf.TableList != "" {
 		//If these are overridden by CLI/Config file then pass it to the command always
 		cmd = append(cmd, "--table-list", currentMsr.SourceDBConf.TableList)
@@ -1176,7 +1177,7 @@ func postCutoverProcessing(importTableList []sqlname.NameTuple) error {
 }
 
 func waitUntilCutoverProcessedByCorrespondingExporterForImporter(importerRole string) error {
-	timeout := 10 * time.Minute
+	timeout := 1 * time.Minute
 	startTime := time.Now()
 	if importerRole == TARGET_DB_IMPORTER_ROLE {
 		utils.PrintAndLogf("Waiting for cutover export data from source to complete...")

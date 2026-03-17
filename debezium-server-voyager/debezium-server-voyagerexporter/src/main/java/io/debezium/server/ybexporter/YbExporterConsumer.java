@@ -283,23 +283,6 @@ public class YbExporterConsumer extends BaseChangeConsumer {
             eventQueue.writeRecord(switchOperationRecord);
             eventQueue.close();
             LOGGER.info("Wrote {} record to event queue", operation);
-            //write the cutover detected flag to the metadb
-            // try {
-            //     switch (operation) {
-            //         case "cutover.target":
-            //             exportStatus.updateMigrationStatusField("CutoverDetectedBySourceExporter", true);
-            //             break;
-            //         case "cutover.source_replica":
-            //             exportStatus.updateMigrationStatusField("CutoverDetectedByTargetFFExporter", true);
-            //             break;
-            //         case "cutover.source":
-            //             exportStatus.updateMigrationStatusField("CutoverDetectedByTargetFBExporter", true);
-            //             break;
-            //     }
-            // } catch (SQLException e) {
-            //     throw new RuntimeException("Failed to update cutover detected flag in metadb", e);
-            // }
-
             exportStatus.flushToDisk();
             LOGGER.info("{} processing complete. Exiting...", operation);
             shutDown = true; // to ensure that no event gets written after switch operation.

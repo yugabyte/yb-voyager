@@ -454,7 +454,7 @@ func debeziumExportData(config *dbzm.Config, tableNameToApproxRowCountMap map[st
 		}
 	}
 
-	metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+	err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		switch exporterRole {
 		case TARGET_DB_EXPORTER_FB_ROLE:
 			record.CutoverDetectedByTargetFBExporter = true

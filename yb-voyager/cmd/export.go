@@ -397,6 +397,9 @@ func validateExportTypeFlag() {
 func saveExportTypeInMSR() {
 	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		if exporterRole == SOURCE_DB_EXPORTER_ROLE {
+			if record.ExportTypeFromSource != "" && record.ExportTypeFromSource != exportType {
+				utils.ErrExit("Error export type from source is already set to '%s'. Cannot override it with '%s'. Use start-clean flag to use the new export type.", record.ExportTypeFromSource, exportType)
+			}
 			record.ExportTypeFromSource = exportType
 		}
 	})

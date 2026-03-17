@@ -232,7 +232,7 @@ func setSourceDetailsForChangesOnly(msr *metadb.MigrationStatusRecord) {
 }
 
 func waitUntilNextIterationInitialized() error {
-	timeout := 10 * time.Minute
+	timeout := 1 * time.Minute
 	startTime := time.Now()
 
 	for {
