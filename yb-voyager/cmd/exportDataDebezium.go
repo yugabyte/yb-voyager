@@ -454,19 +454,6 @@ func debeziumExportData(config *dbzm.Config, tableNameToApproxRowCountMap map[st
 		}
 	}
 
-	err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
-		switch exporterRole {
-		case TARGET_DB_EXPORTER_FB_ROLE:
-			record.CutoverDetectedByTargetFBExporter = true
-		case TARGET_DB_EXPORTER_FF_ROLE:
-			record.CutoverDetectedByTargetFFExporter = true
-		case SOURCE_DB_EXPORTER_ROLE:
-			record.CutoverDetectedBySourceExporter = true
-		}
-	})
-	if err != nil {
-		return fmt.Errorf("failed to update migration status record: %w", err)
-	}
 	log.Info("Debezium exited normally.")
 	return nil
 }
@@ -500,7 +487,7 @@ func reportStreamingProgress(ctx context.Context) {
 	}
 }
 
-func calculateStreamingProgress() {
+func calculateStreamingProgress(ctx context.Context) {
 	var err error
 	for {
 		totalEventCount, totalEventCountRun, err = metaDB.GetTotalExportedEventsByExporterRole(exporterRole, runId)
@@ -516,11 +503,16 @@ func calculateStreamingProgress() {
 		if err != nil {
 			utils.ErrExit("failed to get export rate from metadb: %w", err)
 		}
-		if disablePb && callhome.SendDiagnostics {
-			// to not do unneccessary frequent calls to metadb in case we only require this info for callhome
-			time.Sleep(12 * time.Minute)
-		} else {
-			time.Sleep(10 * time.Second)
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			if disablePb && callhome.SendDiagnostics {
+				// to not do unneccessary frequent calls to metadb in case we only require this info for callhome
+				time.Sleep(12 * time.Minute)
+			} else {
+				time.Sleep(10 * time.Second)
+			}
 		}
 	}
 
@@ -589,7 +581,7 @@ func checkAndHandleSnapshotComplete(config *dbzm.Config, status *dbzm.ExportStat
 
 		color.Blue("streaming changes to a local queue file...")
 		if !disablePb || callhome.SendDiagnostics {
-			go calculateStreamingProgress()
+			go calculateStreamingProgress(ctx)
 		}
 		if !disablePb {
 			go reportStreamingProgress(ctx)

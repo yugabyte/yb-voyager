@@ -1177,7 +1177,7 @@ func postCutoverProcessing(importTableList []sqlname.NameTuple) error {
 }
 
 func waitUntilCutoverProcessedByCorrespondingExporterForImporter(importerRole string) error {
-	timeout := 1 * time.Minute
+	timeout := 2 * time.Minute
 	startTime := time.Now()
 	if importerRole == TARGET_DB_IMPORTER_ROLE {
 		utils.PrintAndLogf("Waiting for cutover export data from source to complete...")
