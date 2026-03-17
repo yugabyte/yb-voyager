@@ -1155,7 +1155,7 @@ func postCutoverProcessing(importTableList []sqlname.NameTuple) error {
 }
 
 func waitUntilCutoverProcessedByCorrespondingExporterForImporter(importerRole string) error {
-	timeout := 1 * time.Minute
+	timeout := 2 * time.Minute
 	startTime := time.Now()
 	for {
 		if time.Since(startTime) > timeout {
