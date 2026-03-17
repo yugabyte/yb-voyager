@@ -360,7 +360,11 @@ func generateReportInJsonFormat(reportData []*rowData, msr *metadb.MigrationStat
 		}
 	}
 	if !isIteration && msr.LatestIterationNumber > 0 && !donotPrint {
-		utils.PrintAndLogfPhase("\nAggregated Data migration report for the overall migration:")
+		if detailedReport {
+			utils.PrintAndLogfPhase("\nDetailed data migration report for all iterations:")
+		} else {
+			utils.PrintAndLogfPhase("\nAggregated Data migration report for the overall migration:")
+		}
 	}
 	if !donotPrint {
 		fmt.Print(color.GreenString("Data migration report is written to %s\n", reportFilePath))
