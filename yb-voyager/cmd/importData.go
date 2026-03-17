@@ -177,8 +177,7 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	if err != nil {
 		utils.ErrExit("error while setting import type or identity column metadb key: %v", err)
 	}
-
-	checkExportDataDoneFlag()
+	checkExportDataDoneOrStartedFlag()
 
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
@@ -786,6 +785,13 @@ func updateImportDataStartedInMetaDB() error {
 		if err != nil {
 			return goerrors.Errorf("Failed to update import data file status record: %s", err)
 		}
+	case SOURCE_DB_IMPORTER_ROLE:
+		err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+			record.ImportDataToSourceStarted = true
+		})
+		if err != nil {
+			return goerrors.Errorf("failed to update migration status record: %w", err)
+		}
 	}
 	return nil
 }
@@ -1157,9 +1163,18 @@ func postCutoverProcessing(importTableList []sqlname.NameTuple) error {
 func waitUntilCutoverProcessedByCorrespondingExporterForImporter(importerRole string) error {
 	timeout := 2 * time.Minute
 	startTime := time.Now()
+	if importerRole == TARGET_DB_IMPORTER_ROLE {
+		utils.PrintAndLogfInfo("\nWaiting for cutover export data from source to complete...")
+	} else {
+		utils.PrintAndLogfInfo("\nWaiting for cutover export data from target to complete...")
+	}
 	for {
 		if time.Since(startTime) > timeout {
-			return goerrors.Errorf("timeout waiting for next iteration to be initialized. Ensure 'export data from target' is running, then re-run this command.")
+			if importerRole == TARGET_DB_IMPORTER_ROLE {
+				return goerrors.Errorf("timeout waiting for cutover export data from source to complete. Ensure 'export data from source' is running, then re-run this command.")
+			} else {
+				return goerrors.Errorf("timeout waiting for cutover export data from target to complete. Ensure 'export data from target' is running, then re-run this command.")
+			}
 		}
 		record, err := metaDB.GetMigrationStatusRecord()
 		if err != nil {
@@ -2040,7 +2055,7 @@ func getDfdTableNameToExportedColumns(tasks []*ImportFileTask, dataFileDescripto
 	return result, nil
 }
 
-func checkExportDataDoneFlag() {
+func checkExportDataDoneOrStartedFlag() {
 	metaInfoDir := filepath.Join(exportDir, metaInfoDirName)
 	_, err := os.Stat(metaInfoDir)
 	if err != nil {

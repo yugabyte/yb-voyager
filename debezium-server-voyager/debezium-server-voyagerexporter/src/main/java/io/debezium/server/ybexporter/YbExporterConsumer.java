@@ -283,7 +283,6 @@ public class YbExporterConsumer extends BaseChangeConsumer {
             eventQueue.writeRecord(switchOperationRecord);
             eventQueue.close();
             LOGGER.info("Wrote {} record to event queue", operation);
-
             exportStatus.flushToDisk();
             LOGGER.info("{} processing complete. Exiting...", operation);
             shutDown = true; // to ensure that no event gets written after switch operation.

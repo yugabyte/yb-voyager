@@ -210,8 +210,8 @@ func setSourceDetailsForChangesOnly(msr *metadb.MigrationStatusRecord) {
 		//iteration and source exporter
 		sourcePassword := source.Password
 		/*
-		we need to keep the table list passed in the table-list/exclude-table-list flags as it is required to get the table list present in the command 
-		and do the guardrail checks properly in getInitialTableList function
+			we need to keep the table list passed in the table-list/exclude-table-list flags as it is required to get the table list present in the command
+			and do the guardrail checks properly in getInitialTableList function
 		*/
 		tableListFlag := source.TableList
 		excludeTableListFlag := source.ExcludeTableList
@@ -234,6 +234,7 @@ func setSourceDetailsForChangesOnly(msr *metadb.MigrationStatusRecord) {
 func waitUntilNextIterationInitialized() error {
 	timeout := 2 * time.Minute
 	startTime := time.Now()
+	utils.PrintAndLogfInfo("\nWaiting for next iteration to be initialized...")
 	for {
 		if time.Since(startTime) > timeout {
 			return goerrors.Errorf("timeout waiting for next iteration to be initialized. Ensure 'import data to source' is running, then re-run this command.")
@@ -626,26 +627,11 @@ func exportData() bool {
 
 	if changeStreamingIsEnabled(exportType) || useDebezium {
 		exportPhase = dbzm.MODE_SNAPSHOT
-		config, tableNametoApproxRowCountMap, err := prepareDebeziumConfig(partitionsToRootTableMap, finalTableList, tablesColumnList, leafPartitions)
+		err = startDebeziumAsPerExportTypeIfRequired(ctx, cancel, finalTableList, tablesColumnList, leafPartitions, partitionsToRootTableMap)
 		if err != nil {
-			log.Errorf("Failed to prepare dbzm config: %v", err)
+			log.Errorf("Failed to start debezium: %v", err)
 			return false
 		}
-		saveTableToUniqueKeyColumnsMapInMetaDB(finalTableList, leafPartitions)
-		if source.DBType == POSTGRESQL && changeStreamingIsEnabled(exportType) {
-			err = initPGLiveMigrationAndExportSnapshotIfRequired(ctx, cancel, finalTableList, tablesColumnList, leafPartitions, config)
-			if err != nil {
-				log.Errorf("Failed to export snapshot using pg_dump: %v", err)
-				return false
-			}
-		}
-
-		err = debeziumExportData(ctx, config, tableNametoApproxRowCountMap)
-		if err != nil {
-			log.Errorf("Export Data using debezium failed: %v", err)
-			return false
-		}
-
 		if changeStreamingIsEnabled(exportType) {
 			log.Infof("live migration complete, proceeding to cutover")
 			msr, err := metaDB.GetMigrationStatusRecord()
@@ -699,6 +685,53 @@ func exportData() bool {
 		}
 		return true
 	}
+}
+
+func startDebeziumAsPerExportTypeIfRequired(ctx context.Context, cancel context.CancelFunc, finalTableList []sqlname.NameTuple, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string],
+	leafPartitions *utils.StructMap[sqlname.NameTuple, []sqlname.NameTuple], partitionsToRootTableMap map[string]string) error {
+	ok, err := isCutoverInitiatedAndCutoverDetected(exporterRole)
+	if err != nil {
+		return fmt.Errorf("failed to check if cutover is initiated and detected: %w", err)
+	}
+	if ok {
+		utils.PrintAndLogf("Cutover already initiated, skipping export data")
+		return nil
+	}
+
+	config, tableNametoApproxRowCountMap, err := prepareDebeziumConfig(partitionsToRootTableMap, finalTableList, tablesColumnList, leafPartitions)
+	if err != nil {
+		return fmt.Errorf("failed to prepare dbzm config: %w", err)
+	}
+	saveTableToUniqueKeyColumnsMapInMetaDB(finalTableList, leafPartitions)
+	if source.DBType == POSTGRESQL && changeStreamingIsEnabled(exportType) {
+		err = initPGLiveMigrationAndExportSnapshotIfRequired(ctx, cancel, finalTableList, tablesColumnList, leafPartitions, config)
+		if err != nil {
+			return fmt.Errorf("failed to export snapshot using pg_dump: %w", err)
+		}
+	}
+
+	err = debeziumExportData(config, tableNametoApproxRowCountMap)
+	if err != nil {
+		return fmt.Errorf("failed to export data using debezium: %w", err)
+	}
+	err = updateCutoverDetectedFlag(exporterRole)
+	if err != nil {
+		return fmt.Errorf("failed to update cutover detected flag: %w", err)
+	}
+	return nil
+}
+
+func updateCutoverDetectedFlag(exporterRole string) error {
+	return metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		switch exporterRole {
+		case TARGET_DB_EXPORTER_FB_ROLE:
+			record.CutoverDetectedByTargetFBExporter = true
+		case TARGET_DB_EXPORTER_FF_ROLE:
+			record.CutoverDetectedByTargetFFExporter = true
+		case SOURCE_DB_EXPORTER_ROLE:
+			record.CutoverDetectedBySourceExporter = true
+		}
+	})
 }
 
 func initPGLiveMigrationAndExportSnapshotIfRequired(ctx context.Context, cancel context.CancelFunc, finalTableList []sqlname.NameTuple, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], leafPartitions *utils.StructMap[sqlname.NameTuple, []sqlname.NameTuple], config *dbzm.Config) error {
