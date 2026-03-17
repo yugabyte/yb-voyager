@@ -176,7 +176,6 @@ func (m *MetaDB) InitMigrationStatusRecord(cfgFile string) error {
 		}
 
 		record.MigrationUUID = uuid.New().String()
-		record.ExportTypeFromSource = utils.SNAPSHOT_ONLY
 	})
 }
 
