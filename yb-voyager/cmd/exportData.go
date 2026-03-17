@@ -726,6 +726,7 @@ func startDebeziumAsPerExportTypeIfRequired(ctx context.Context, cancel context.
 	if err != nil {
 		return fmt.Errorf("failed to update cutover detected flag: %w", err)
 	}
+	injectAfterCompletingDebezium()
 	return nil
 }
 
