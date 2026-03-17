@@ -1164,9 +1164,9 @@ func waitUntilCutoverProcessedByCorrespondingExporterForImporter(importerRole st
 	timeout := 2 * time.Minute
 	startTime := time.Now()
 	if importerRole == TARGET_DB_IMPORTER_ROLE {
-		utils.PrintAndLogf("Waiting for cutover export data from source to complete...")
+		utils.PrintAndLogfInfo("\nWaiting for cutover export data from source to complete...")
 	} else {
-		utils.PrintAndLogf("Waiting for cutover export data from target to complete...")
+		utils.PrintAndLogfInfo("\nWaiting for cutover export data from target to complete...")
 	}
 	for {
 		if time.Since(startTime) > timeout {
