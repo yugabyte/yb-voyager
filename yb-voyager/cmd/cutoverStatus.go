@@ -19,6 +19,7 @@ import (
 	"fmt"
 
 	"github.com/fatih/color"
+	"github.com/gosuri/uitable"
 	"github.com/spf13/cobra"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
@@ -29,7 +30,16 @@ const (
 	NOT_INITIATED = "NOT_INITIATED"
 	INITIATED     = "INITIATED"
 	COMPLETED     = "COMPLETED"
+
+	DIRECTION_SOURCE_TO_TARGET         = "source → target"
+	DIRECTION_TARGET_TO_SOURCE         = "target → source"
+	DIRECTION_TARGET_TO_SOURCE_REPLICA = "target → source-replica"
 )
+
+type cutoverStatusRow struct {
+	Direction string
+	Status    string
+}
 
 var cutoverStatusCmd = &cobra.Command{
 	Use:   "status",
@@ -37,15 +47,24 @@ var cutoverStatusCmd = &cobra.Command{
 	Long:  `Prints status of the cutover to YugabyteDB`,
 
 	Run: func(cmd *cobra.Command, args []string) {
-		checkAndReportCutoverStatus()
-
 		msr, err := metaDB.GetMigrationStatusRecord()
 		if err != nil {
 			utils.ErrExit("error getting migration status record: %s", err)
 		}
-		if !msr.IsParentMigration() {
-			return
+		if msr == nil {
+			utils.ErrExit("migration status record not found; has the migration been started?")
 		}
+
+		if !msr.IsParentMigration() {
+			rows := collectCutoverStatusRows()
+			renderCutoverStatusTable(rows)
+			return
+		} else {
+			utils.PrintAndLogfPhase("\nIteration 0:")
+			rows := collectCutoverStatusRows()
+			renderCutoverStatusTable(rows)
+		}
+
 		currExportDir := exportDir
 		currMetaDB := metaDB
 		defer func() {
@@ -53,17 +72,23 @@ var cutoverStatusCmd = &cobra.Command{
 			metaDB = currMetaDB
 		}()
 		for i := 1; i <= msr.LatestIterationNumber; i++ {
-			iterationExportDir := GetIterationExportDir(exportDir, i)
+			iterationsDir := msr.GetIterationsDir(currExportDir)
+			iterationExportDir := GetIterationExportDir(iterationsDir, i)
 			iterationMetaDB, err := metadb.NewMetaDB(iterationExportDir)
 			if err != nil {
 				utils.ErrExit("error getting iteration meta db: %s", err)
 			}
 			exportDir = iterationExportDir
 			metaDB = iterationMetaDB
-			utils.PrintAndLogf("Cutover status for iteration %d: ", i)
-			checkAndReportCutoverStatus()
-		}
 
+			if i == msr.LatestIterationNumber {
+				utils.PrintAndLogfPhase("\nIteration %d (current):", i)
+			} else {
+				utils.PrintAndLogfPhase("\nIteration %d:", i)
+			}
+			rows := collectCutoverStatusRows()
+			renderCutoverStatusTable(rows)
+		}
 	},
 }
 
@@ -73,51 +98,61 @@ func init() {
 	registerConfigFileFlag(cutoverStatusCmd)
 }
 
-func checkAndReportCutoverStatus() {
-	status := getCutoverStatus()
-	fmt.Printf("cutover to target status: ")
-	switch status {
-	case NOT_INITIATED:
-		color.Red("%s\n", NOT_INITIATED)
-	case INITIATED:
-		color.Yellow("%s\n", INITIATED)
-	case COMPLETED:
-		color.Green("%s\n", COMPLETED)
-	}
-
+func collectCutoverStatusRows() []cutoverStatusRow {
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
 		utils.ErrExit("error getting migration status record: %s", err)
 	}
+
+	var rows []cutoverStatusRow
+
+	toTargetStatus := getCutoverStatus()
+	rows = append(rows, cutoverStatusRow{
+		Direction: DIRECTION_SOURCE_TO_TARGET,
+		Status:    toTargetStatus,
+	})
+
 	if msr.FallbackEnabled {
-		reportCutoverToSourceStatus()
-	} else if msr.FallForwardEnabled {
-		reportCutoverToSourceReplicaStatus()
+		toSourceStatus := getCutoverToSourceStatus(exportDir)
+		rows = append(rows, cutoverStatusRow{
+			Direction: DIRECTION_TARGET_TO_SOURCE,
+			Status:    toSourceStatus,
+		})
 	}
+
+	if msr.FallForwardEnabled {
+		toSRStatus := getCutoverToSourceReplicaStatus()
+		rows = append(rows, cutoverStatusRow{
+			Direction: DIRECTION_TARGET_TO_SOURCE_REPLICA,
+			Status:    toSRStatus,
+		})
+	}
+
+	return rows
 }
 
-func reportCutoverToSourceStatus() {
-	status := getCutoverToSourceStatus(exportDir)
-	fmt.Printf("cutover to source status: ")
-	switch status {
-	case NOT_INITIATED:
-		color.Red("%s\n", status)
-	case INITIATED:
-		color.Yellow("%s\n", status)
-	case COMPLETED:
-		color.Green("%s\n", COMPLETED)
+func renderCutoverStatusTable(rows []cutoverStatusRow) {
+	table := uitable.New()
+	table.Separator = " | "
+
+	addHeader(table, "DIRECTION", "STATUS")
+	table.AddRow()
+	for _, row := range rows {
+		table.AddRow(row.Direction, colorizeStatus(row.Status))
 	}
+	fmt.Println(table)
+	fmt.Println()
 }
 
-func reportCutoverToSourceReplicaStatus() {
-	status := getCutoverToSourceReplicaStatus()
-	fmt.Printf("cutover to source-replica status: ")
+func colorizeStatus(status string) string {
 	switch status {
 	case NOT_INITIATED:
-		color.Red("%s\n", status)
+		return color.RedString(status)
 	case INITIATED:
-		color.Yellow("%s\n", status)
+		return color.YellowString(status)
 	case COMPLETED:
-		color.Green("%s\n", COMPLETED)
+		return color.GreenString(status)
+	default:
+		return status
 	}
 }
