@@ -16,13 +16,19 @@ resolving. The user stays in control at every step.
 
 ## Pre-Rebase: Gather Context
 
-Run these commands in parallel before starting:
+First, update the local main branch so the rebase uses the latest upstream:
+
+```bash
+git fetch origin main
+git branch -f main origin/main
+```
+
+Then run these commands in parallel to gather context:
 
 1. `git branch --show-current` — current branch name
-2. `git fetch origin main` — ensure main is up to date
-3. `git log --oneline main..HEAD` — commits on this branch (ahead of main)
-4. `git log --oneline HEAD..origin/main` — commits on main not yet in branch
-5. `git diff --stat origin/main...HEAD` — files changed on this branch
+2. `git log --oneline main..HEAD` — commits on this branch (ahead of main)
+3. `git log --oneline HEAD..origin/main` — commits on main not yet in branch
+4. `git diff --stat origin/main...HEAD` — files changed on this branch
 
 Present a summary to the user:
 
