@@ -4,7 +4,7 @@ on:
   push:
     branches: ['main', '*.*-dev', '*.*.*-dev']
   pull_request:
-    branches: [priyanshi/handle-table-list--iterations]
+    branches: [main]
 
 jobs:
   prepare-versions:
