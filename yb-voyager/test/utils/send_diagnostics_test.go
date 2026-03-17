@@ -13,15 +13,13 @@ func TestSupportsSendDiagnosticsFlag(t *testing.T) {
 		cmdName    string
 		expectFlag bool
 	}{
-		// Commands that SHOULD have the flag
+		// Commands that SHOULD have the flag (register via registerCommonGlobalFlags)
 		{"export data", true},
 		{"import data", true},
 		{"export schema", true},
 		{"import schema", true},
 		{"assess-migration", true},
 		{"analyze-schema", true},
-		{"initiate cutover to target", true},
-		{"initiate cutover to source", true},
 		{"end migration", true},
 		{"archive changes", true},
 		{"compare-performance", true},
@@ -34,9 +32,14 @@ func TestSupportsSendDiagnosticsFlag(t *testing.T) {
 		{"segment-cleanup", true},
 
 		// Commands that should NOT have the flag
+		// Cutover commands don't call registerCommonGlobalFlags and reject --send-diagnostics
+		{"initiate cutover to target", false},
+		{"initiate cutover to source", false},
+		{"initiate cutover to source-replica", false},
+		// Other commands that don't register the flag
+		{"get data-migration-report", false},
 		{"export data status", false},
 		{"import data status", false},
-		{"get data-migration-report", false},
 		{"cutover status", false},
 		{"version", false},
 		{"help", false},
@@ -61,11 +64,12 @@ func TestSendDiagnosticsFlagAddedForNonContainerCommands(t *testing.T) {
 		expectFlag bool
 	}{
 		{"analyze-schema", true},
-		{"initiate cutover to target", true},
-		{"initiate cutover to source", true},
 		{"end migration", true},
 		{"archive changes", true},
 		{"segment-cleanup", true},
+		// Cutover commands don't register --send-diagnostics
+		{"initiate cutover to target", false},
+		{"initiate cutover to source", false},
 		{"export data status", false},
 		{"import data status", false},
 		{"get data-migration-report", false},

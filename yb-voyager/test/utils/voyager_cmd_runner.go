@@ -88,36 +88,33 @@ func NewVoyagerCommandRunner(container testcontainers.TestContainer, cmdName str
 	return &cmdRunner
 }
 
-// commandsSupportingSendDiagnostics lists commands that accept the --send-diagnostics flag.
-// This is used to explicitly disable diagnostics via CLI flag as an extra safety measure
-// in addition to the environment variable. Commands not in this list (like status commands,
-// get data-migration-report, version, help) do not accept this flag.
-var commandsSupportingSendDiagnostics = []string{
-	"export schema",
-	"export data",
-	"export data from source",
-	"export data from target",
-	"import schema",
-	"import data",
-	"import data to target",
-	"import data to source",
-	"import data to source-replica",
-	"import data file",
-	"analyze-schema",
-	"assess-migration",
-	"finalize-schema-post-data-import",
-	"compare-performance",
-	"end migration",
-	"initiate cutover to target",
-	"initiate cutover to source",
-	"initiate cutover to source-replica",
-	"archive changes",
-	"segment-cleanup",
+// commandsSupportingSendDiagnostics lists commands that accept the --send-diagnostics flag
+// (registered via registerCommonGlobalFlags). This allowlist ensures we only pass the flag to
+// commands that support it -- passing it to commands like cutover, status, or get data-migration-report
+// would cause Cobra to fail with "unknown flag".
+var commandsSupportingSendDiagnostics = map[string]bool{
+	"export schema":                      true,
+	"export data":                        true,
+	"export data from source":            true,
+	"export data from target":            true,
+	"import schema":                      true,
+	"import data":                        true,
+	"import data to target":              true,
+	"import data to source":              true,
+	"import data to source-replica":      true,
+	"import data file":                   true,
+	"analyze-schema":                     true,
+	"assess-migration":                   true,
+	"finalize-schema-post-data-import":   true,
+	"compare-performance":                true,
+	"end migration":                      true,
+	"archive changes":                    true,
+	"segment-cleanup":                    true,
 }
 
 // supportsSendDiagnosticsFlag checks if the given command supports the --send-diagnostics flag.
 func supportsSendDiagnosticsFlag(cmdName string) bool {
-	return slices.Contains(commandsSupportingSendDiagnostics, cmdName)
+	return commandsSupportingSendDiagnostics[cmdName]
 }
 
 func (v *VoyagerCommandRunner) Prepare() error {

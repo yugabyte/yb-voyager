@@ -1385,7 +1385,6 @@ cutover_to_target() {
 
     args="
         --export-dir ${EXPORT_DIR}
-        --send-diagnostics=false
         --yes
     "
 
