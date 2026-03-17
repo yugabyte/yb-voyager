@@ -88,6 +88,38 @@ func NewVoyagerCommandRunner(container testcontainers.TestContainer, cmdName str
 	return &cmdRunner
 }
 
+// commandsSupportingSendDiagnostics lists commands that accept the --send-diagnostics flag.
+// This is used to explicitly disable diagnostics via CLI flag as an extra safety measure
+// in addition to the environment variable. Commands not in this list (like status commands,
+// get data-migration-report, version, help) do not accept this flag.
+var commandsSupportingSendDiagnostics = []string{
+	"export schema",
+	"export data",
+	"export data from source",
+	"export data from target",
+	"import schema",
+	"import data",
+	"import data to target",
+	"import data to source",
+	"import data to source-replica",
+	"import data file",
+	"analyze-schema",
+	"assess-migration",
+	"finalize-schema-post-data-import",
+	"compare-performance",
+	"end migration",
+	"initiate cutover to target",
+	"initiate cutover to source",
+	"initiate cutover to source-replica",
+	"archive changes",
+	"segment-cleanup",
+}
+
+// supportsSendDiagnosticsFlag checks if the given command supports the --send-diagnostics flag.
+func supportsSendDiagnosticsFlag(cmdName string) bool {
+	return slices.Contains(commandsSupportingSendDiagnostics, cmdName)
+}
+
 func (v *VoyagerCommandRunner) Prepare() error {
 	if len(v.finalArgs) != 0 {
 		return nil // already prepared
@@ -142,6 +174,15 @@ func (v *VoyagerCommandRunner) Prepare() error {
 		For eg: append(v.CmdArgs, connectionArgs...) the default connection args with override the ones passed to CommandRunner
 	*/
 	v.finalArgs = append(parts, append(connectionArgs, v.CmdArgs...)...)
+
+	// Add --send-diagnostics=false explicitly for commands that support it.
+	// This is an extra safety measure in addition to setting the YB_VOYAGER_SEND_DIAGNOSTICS
+	// environment variable, ensuring diagnostics are disabled even if the env var is not
+	// properly inherited by subprocesses.
+	if supportsSendDiagnosticsFlag(v.CmdName) && !slices.Contains(v.CmdArgs, "--send-diagnostics") {
+		v.finalArgs = append(v.finalArgs, "--send-diagnostics", "false")
+	}
+
 	return nil
 }
 
