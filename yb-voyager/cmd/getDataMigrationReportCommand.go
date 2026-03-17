@@ -388,7 +388,11 @@ func printReport(forIteration bool, statsPerTable map[string][]*rowData, msr *me
 	printHeader(uitbl, forIteration)
 
 	if !forIteration && msr.LatestIterationNumber > 0 {
-		utils.PrintAndLogfPhase("\nAggregated Data migration report for the overall migration:")
+		if detailedReport {
+			utils.PrintAndLogfPhase("\nDetailed data migration report for all iterations:")
+		} else {
+			utils.PrintAndLogfPhase("\nAggregated Data migration report for the overall migration:")
+		}
 	}
 
 	rowsInCurrUITable := 0
