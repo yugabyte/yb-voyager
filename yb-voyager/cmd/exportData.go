@@ -311,7 +311,7 @@ func startNextIterationImportDataToTarget() {
 	}
 
 	iterationExportDir := GetIterationExportDir(currentMsr.GetIterationsDir(exportDir), currentMsr.IterationNo+1)
-	utils.PrintAndLogfPhase("\nStarting import data to target on iteration %d at %s.\n\n", currentMsr.IterationNo+1, iterationExportDir)
+	utils.PrintAndLogfSuccess("\nStarting import data to target on iteration %d at %s.\n\n", currentMsr.IterationNo+1, iterationExportDir)
 
 	cmdStr := "TARGET_DB_PASSWORD=*** " + strings.Join(cmd, " ")
 
