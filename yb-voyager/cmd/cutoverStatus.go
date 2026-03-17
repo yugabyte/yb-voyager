@@ -21,6 +21,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -37,6 +38,32 @@ var cutoverStatusCmd = &cobra.Command{
 
 	Run: func(cmd *cobra.Command, args []string) {
 		checkAndReportCutoverStatus()
+
+		msr, err := metaDB.GetMigrationStatusRecord()
+		if err != nil {
+			utils.ErrExit("error getting migration status record: %s", err)
+		}
+		if !msr.IsParentMigration() {
+			return
+		}
+		currExportDir := exportDir
+		currMetaDB := metaDB
+		defer func() {
+			exportDir = currExportDir
+			metaDB = currMetaDB
+		}()
+		for i := 1; i <= msr.LatestIterationNumber; i++ {
+			iterationExportDir := GetIterationExportDir(exportDir, i)
+			iterationMetaDB, err := metadb.NewMetaDB(iterationExportDir)
+			if err != nil {
+				utils.ErrExit("error getting iteration meta db: %s", err)
+			}
+			exportDir = iterationExportDir
+			metaDB = iterationMetaDB
+			utils.PrintAndLogf("Cutover status for iteration %d: ", i)
+			checkAndReportCutoverStatus()
+		}
+
 	},
 }
 
