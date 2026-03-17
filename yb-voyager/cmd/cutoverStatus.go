@@ -55,11 +55,11 @@ var cutoverStatusCmd = &cobra.Command{
 			utils.ErrExit("migration status record not found; has the migration been started?")
 		}
 
-		if !msr.IsParentMigration() {
+		if !msr.IsParentMigration() || msr.LatestIterationNumber == 0 {
 			rows := collectCutoverStatusRows()
 			renderCutoverStatusTable(rows)
 			return
-		} else {
+		} else if msr.LatestIterationNumber > 0 {
 			utils.PrintAndLogfPhase("\nIteration 0:")
 			rows := collectCutoverStatusRows()
 			renderCutoverStatusTable(rows)
