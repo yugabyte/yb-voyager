@@ -232,9 +232,8 @@ func setSourceDetailsForChangesOnly(msr *metadb.MigrationStatusRecord) {
 }
 
 func waitUntilNextIterationInitialized() error {
-	timeout := 1 * time.Minute
+	timeout := 2 * time.Minute
 	startTime := time.Now()
-
 	for {
 		if time.Since(startTime) > timeout {
 			return goerrors.Errorf("timeout waiting for next iteration to be initialized. Ensure 'import data to source' is running, then re-run this command.")
@@ -247,7 +246,6 @@ func waitUntilNextIterationInitialized() error {
 		if record.NextIterationInitialized {
 			return nil
 		}
-		utils.PrintAndLogf("Waiting for next iteration to be initialized...")
 		time.Sleep(2 * time.Second)
 	}
 }
