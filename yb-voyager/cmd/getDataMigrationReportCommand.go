@@ -42,7 +42,7 @@ var sourceReplicaDbPassword string
 var sourceDbPassword string
 var nameRegistryForSourceReplicaRole *namereg.NameRegistry
 
-var detailedReport utils.BoolStr
+var includeDetailedIterationsStats utils.BoolStr
 
 var getDataMigrationReportCmd = &cobra.Command{
 	Use:   "data-migration-report",
@@ -57,12 +57,12 @@ var getDataMigrationReportCmd = &cobra.Command{
 			utils.ErrExit("error while getting migration status: %w\n", err)
 		}
 		if migrationStatus.LatestIterationNumber == 0 {
-			if detailedReport {
+			if includeDetailedIterationsStats {
 				utils.ErrExit("Error: Detailed report is only applicable for multiple iterations of Live migration with fallback workflow")
 			}
 		}
 		if migrationStatus.FallForwardEnabled {
-			if detailedReport {
+			if includeDetailedIterationsStats {
 				utils.ErrExit("Error: Detailed report is only applicable for multiple iterations of Live migration with fallback workflow")
 			}
 		}
@@ -94,7 +94,7 @@ var getDataMigrationReportCmd = &cobra.Command{
 				utils.ErrExit("initializing name registry: %w", err)
 			}
 			color.Yellow("Generating data migration report for migration UUID: %s...\n", migrationStatus.MigrationUUID)
-			getDataMigrationReportCmdFn(migrationStatus, false)
+			getDataMigrationReportCmdFn(migrationStatus, false, true)
 		} else {
 			utils.ErrExit("Error: Data migration report is only applicable when export-type is 'snapshot-and-changes'(live migration)\nPlease run export data status/import data status commands.")
 		}
@@ -138,7 +138,7 @@ type rowDataForIteration struct {
 	ImportedDeletes int64  `json:"imported_deletes"`
 }
 
-func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord, donotPrint bool) {
+func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord, donotPrint bool, aggregateIterationsStats bool) {
 
 	var reportData []*rowData
 	fBEnabled = msr.FallbackEnabled
@@ -322,9 +322,11 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord, donotPrint b
 		}
 	}
 
-	reportData, err = aggregateDataWithIterationsIfRequired(reportData, msr)
-	if err != nil {
-		utils.ErrExit("error while aggregating data with iterations: %w", err)
+	if aggregateIterationsStats {
+		reportData, err = aggregateDataWithIterationsIfRequired(reportData, msr)
+		if err != nil {
+			utils.ErrExit("error while aggregating data with iterations: %w", err)
+		}
 	}
 
 	isIteration := msr.IterationNo > 0
@@ -360,7 +362,7 @@ func generateReportInJsonFormat(reportData []*rowData, msr *metadb.MigrationStat
 		}
 	}
 	if !isIteration && msr.LatestIterationNumber > 0 && !donotPrint {
-		if detailedReport {
+		if includeDetailedIterationsStats {
 			utils.PrintAndLogfPhase("\nDetailed data migration report for all iterations:")
 		} else {
 			utils.PrintAndLogfPhase("\nAggregated Data migration report for the overall migration:")
@@ -388,7 +390,7 @@ func printReport(forIteration bool, statsPerTable map[string][]*rowData, msr *me
 	printHeader(uitbl, forIteration)
 
 	if !forIteration && msr.LatestIterationNumber > 0 {
-		if detailedReport {
+		if includeDetailedIterationsStats {
 			utils.PrintAndLogfPhase("\nDetailed data migration report for all iterations:")
 		} else {
 			utils.PrintAndLogfPhase("\nAggregated Data migration report for the overall migration:")
@@ -417,7 +419,7 @@ func printReport(forIteration bool, statsPerTable map[string][]*rowData, msr *me
 				row.TableName = ""
 			}
 
-			if detailedReport && row.IterationNumber != lastIterationNumber {
+			if includeDetailedIterationsStats && row.IterationNumber != lastIterationNumber {
 				uitbl.AddRow()
 			}
 			addRowToTable(uitbl, row, forIteration)
@@ -429,7 +431,7 @@ func printReport(forIteration bool, statsPerTable map[string][]*rowData, msr *me
 	fmt.Println(uitbl)
 	fmt.Print("\n")
 
-	if !bool(detailedReport) && msr.LatestIterationNumber > 0 {
+	if !bool(includeDetailedIterationsStats) && msr.LatestIterationNumber > 0 {
 		//If detailed report is not enabled, and there are iterations, print the info to see the detailed report
 		utils.PrintAndLogfInfo("To see the detailed report with all the iterations, run the command with the --all-iterations true flag.\n\n")
 	}
@@ -443,7 +445,7 @@ func printHeader(uitbl *uitable.Table, forIteration bool) {
 	if forIteration {
 		addHeader(uitbl, firstHeaderForIteration...)
 		addHeader(uitbl, secondHeaderForIteration...)
-	} else if detailedReport {
+	} else if includeDetailedIterationsStats {
 		addHeader(uitbl, firstHeaderForDetailedReport...)
 		addHeader(uitbl, secondHeaderForDetailedReport...)
 	} else {
@@ -455,7 +457,7 @@ func printHeader(uitbl *uitable.Table, forIteration bool) {
 func addRowToTable(uitbl *uitable.Table, row *rowData, forIteration bool) {
 	if forIteration {
 		uitbl.AddRow(row.TableName, row.DBType, row.ExportedInserts, row.ExportedUpdates, row.ExportedDeletes, row.ImportedInserts, row.ImportedUpdates, row.ImportedDeletes)
-	} else if detailedReport {
+	} else if includeDetailedIterationsStats {
 		if row.IterationNumber == 0 {
 			uitbl.AddRow(row.TableName, row.DBType, row.IterationNumber, row.ExportedSnapshotRows, row.ImportedSnapshotRows, row.ErroredImportedSnapshotRows,
 				row.ExportedInserts, row.ExportedUpdates, row.ExportedDeletes, row.ImportedInserts, row.ImportedUpdates, row.ImportedDeletes, row.FinalRowCount)
@@ -481,7 +483,7 @@ func aggregateDataWithIterationsIfRequired(reportData []*rowData, msr *metadb.Mi
 		return reportData, nil
 	}
 
-	if detailedReport {
+	if includeDetailedIterationsStats {
 		for _, row := range reportData {
 			row.IterationNumber = 0 //set the iteration number to 0 for the main migration data
 		}
@@ -496,7 +498,7 @@ func aggregateDataWithIterationsIfRequired(reportData []*rowData, msr *metadb.Mi
 		if err != nil {
 			return nil, fmt.Errorf("error while getting iteration data migration report: %w", err)
 		}
-		if detailedReport {
+		if includeDetailedIterationsStats {
 
 			for _, row := range iterationReportData {
 				row.IterationNumber = i
@@ -510,7 +512,7 @@ func aggregateDataWithIterationsIfRequired(reportData []*rowData, msr *metadb.Mi
 		}
 	}
 
-	if detailedReport {
+	if includeDetailedIterationsStats {
 		//group the report data by table name and calcutate cumulative row count for iteration
 		reportData = groupByTableNameAndCalculateCumulativeRowCount(reportData)
 	}
@@ -523,10 +525,14 @@ func groupByTableNameAndCalculateCumulativeRowCount(reportData []*rowData) []*ro
 	for _, row := range reportData {
 		reportDataMap[row.TableName] = append(reportDataMap[row.TableName], row)
 	}
+	tableNames := lo.Keys(reportDataMap)
+	slices.Sort(tableNames)
+	
 	reportData = make([]*rowData, 0)
-	for _, rows := range reportDataMap {
+	for _, tableName := range tableNames {
 		var finalRowCountSrc int64 = 0
 		var finalRowCountTgt int64 = 0
+		rows := reportDataMap[tableName]
 		for i, row := range rows {
 			if row.IterationNumber == 0 {
 				if row.DBType == "source" {
@@ -581,7 +587,7 @@ func getIterationDataMigrationReport(iterationExportDir string) ([]*rowData, err
 	}
 	migrationUUID = uuid.MustParse(iterationMsr.MigrationUUID)
 
-	getDataMigrationReportCmdFn(iterationMsr, true)
+	getDataMigrationReportCmdFn(iterationMsr, true, false)
 
 	iterationReportFile := filepath.Join(iterationExportDir, "reports", "data-migration-report.json")
 	iterationReportJsonFile := jsonfile.NewJsonFile[[]*rowData](iterationReportFile)
@@ -748,8 +754,8 @@ func init() {
 	getDataMigrationReportCmd.Flags().StringVar(&reportOrStatusCmdOutputFormat, "output-format", "table",
 		"format in which report will be generated: (table, json) (default: table)")
 
-	BoolVar(getDataMigrationReportCmd.Flags(), &detailedReport, "all-iterations", false,
-		"print the detailed report with all the iterations.")
+	BoolVar(getDataMigrationReportCmd.Flags(), &includeDetailedIterationsStats, "include-detailed-iterations-stats", false,
+		"include the detailed report with all the iterations stats in the report.")
 
 	getDataMigrationReportCmd.Flags().StringVar(&sourceReplicaDbPassword, "source-replica-db-password", "",
 		"password with which to connect to the target Source-Replica DB server. Alternatively, you can also specify the password by setting the environment variable SOURCE_REPLICA_DB_PASSWORD. If you don't provide a password via the CLI, yb-voyager will prompt you at runtime for a password. If the password contains special characters that are interpreted by the shell (for example, # and $), enclose the password in single quotes.")

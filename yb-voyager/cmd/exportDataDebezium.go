@@ -579,7 +579,7 @@ func checkAndHandleSnapshotComplete(config *dbzm.Config, status *dbzm.ExportStat
 			}
 		}
 
-		color.Blue("streaming changes to a local queue file...")
+		utils.PrintAndLogfInfo("streaming changes to a local queue file...")
 		if !disablePb || callhome.SendDiagnostics {
 			go calculateStreamingProgress(ctx)
 		}

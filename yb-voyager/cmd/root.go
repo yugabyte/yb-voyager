@@ -293,7 +293,7 @@ func resolveToActiveIterationIfRequired(cmd *cobra.Command) error {
 			prevIterExportDir := GetIterationExportDir(iterationsDir, msr.LatestIterationNumber-1)
 			// resolve to previous iteration
 			exportDir = prevIterExportDir
-			utils.PrintAndLogfInfo("Data migration iteration: %d", utils.Path.Sprint(msr.LatestIterationNumber-1))
+			utils.PrintAndLogfInfo("Data migration iteration: %s", utils.Path.Sprint(msr.LatestIterationNumber-1))
 		} else {
 			// Previous iteration is the parent — don't redirect
 			// (exportDir stays as parent)
@@ -303,7 +303,7 @@ func resolveToActiveIterationIfRequired(cmd *cobra.Command) error {
 	} else {
 		// Forward command or fallback command on a fallback-phase iteration
 		exportDir = iterationExportDir
-		utils.PrintAndLogfInfo("Data migration iteration: %d", utils.Path.Sprint(msr.LatestIterationNumber))
+		utils.PrintAndLogfInfo("Data migration iteration: %s", utils.Path.Sprint(msr.LatestIterationNumber))
 	}
 
 	exportType = CHANGES_ONLY
@@ -491,7 +491,7 @@ func validateExportDirFlag() {
 		exportDir = filepath.Clean(exportDir)
 	}
 
-	utils.PrintfInfo("Using export-dir: %s\n\n", utils.Path.Sprint(exportDir))
+	utils.PrintfInfo("Using export-dir: %s\n", utils.Path.Sprint(exportDir))
 }
 
 func GetCommandID(c *cobra.Command) string {
