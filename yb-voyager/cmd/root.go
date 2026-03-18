@@ -491,7 +491,7 @@ func validateExportDirFlag() {
 		exportDir = filepath.Clean(exportDir)
 	}
 
-	utils.PrintAndLogfInfo("Using export-dir: %s\n\n", utils.Path.Sprint(exportDir))
+	utils.PrintfInfo("Using export-dir: %s\n\n", utils.Path.Sprint(exportDir))
 }
 
 func GetCommandID(c *cobra.Command) string {
