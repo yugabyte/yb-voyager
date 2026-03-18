@@ -300,7 +300,7 @@ func initConfig(cmd *cobra.Command) (map[string]string, error) {
 	// If a config file is found, read it in.
 	if err := v.ReadInConfig(); err == nil {
 		cfgFile = v.ConfigFileUsed()
-		utils.PrintAndLogfInfo("Using config file: %s\n", utils.Path.Sprint(v.ConfigFileUsed()))
+		utils.PrintfInfo("Using config file: %s\n", utils.Path.Sprint(v.ConfigFileUsed()))
 	} else {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
 			return nil, fmt.Errorf("%w\nHint: Check for YAML issues like missing colons, missing spaces after colons, or inconsistent indentation.", err)

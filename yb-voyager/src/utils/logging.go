@@ -20,9 +20,8 @@ import (
 	"os"
 	"strings"
 
-	goerrors "github.com/go-errors/errors"
-
 	"github.com/fatih/color"
+	goerrors "github.com/go-errors/errors"
 	log "github.com/sirupsen/logrus"
 	"github.com/tebeka/atexit"
 )
@@ -108,6 +107,27 @@ func PrintAndLogFormatted(OutputLogLevel OutputLogLevel, formatString string, ar
 	return
 }
 
+func PrintFormatted(OutputLogLevel OutputLogLevel, formatString string, args ...interface{}) {
+	message := fmt.Sprintf(formatString, args...)
+	if !strings.HasSuffix(formatString, "\n") {
+		message = message + "\n"
+	}
+	switch OutputLogLevel {
+	case OutputLogLevelSuccess:
+		SuccessColor.Print(message)
+	case OutputLogLevelInfo:
+		InfoColor.Print(message)
+	case OutputLogLevelWarning:
+		WarningColor.Print(message)
+	case OutputLogLevelError:
+		ErrorColor.Print(message)
+	case OutputLogLevelTitle:
+		printTitle(message, TitleColor)
+	default:
+		fmt.Print(message)
+	}
+}
+
 // printTitle formats and prints a title message with separators
 /*
 e.g.
@@ -145,6 +165,10 @@ func PrintAndLogfError(formatString string, args ...interface{}) {
 
 func PrintAndLogfPhase(formatString string, args ...interface{}) {
 	PrintAndLogFormatted(OutputLogLevelTitle, formatString, args...)
+}
+
+func PrintfInfo(formatString string, args ...interface{}) {
+	PrintFormatted(OutputLogLevelInfo, formatString, args...)
 }
 
 func PrintAndLogf(formatString string, args ...interface{}) {
