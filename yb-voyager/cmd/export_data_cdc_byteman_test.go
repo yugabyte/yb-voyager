@@ -29,8 +29,21 @@ import (
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
-// TestCDCBatchProcessingFailure injects at YbExporterConsumer.handleBatch entry (2nd batch)
-// to validate Byteman attach and batch failure behavior.
+// TestCDCBatchProcessingFailure verifies that Byteman can inject a failure at
+// Debezium's `YbExporterConsumer.handleBatch` entry on the 2nd batch invocation.
+//
+// Scenario:
+//  1. Start `export data` (snapshot-and-changes mode) with 100 snapshot rows.
+//  2. Generate 2 CDC batches (20 rows each, 2.5s wait between batches).
+//  3. Byteman injects a RuntimeException on the 2nd handleBatch call.
+//  4. Export crashes; verify partial CDC events from batch 1 are written.
+//
+// This test validates:
+// - Byteman attach and rule injection into Debezium JVM
+// - Batch-level failure behavior when handleBatch throws
+//
+// Injection point:
+//   - Byteman rule on `YbExporterConsumer.handleBatch` entry (2nd invocation).
 func TestCDCBatchProcessingFailure(t *testing.T) {
 	ctx := context.Background()
 
@@ -109,7 +122,21 @@ func TestCDCBatchProcessingFailure(t *testing.T) {
 	assert.NoError(t, err, "Should be able to read debezium logs for verification")
 }
 
-// TestCDCBatchProcessing_WithMarkers injects at cdc("before-batch") to validate marker usage.
+// TestCDCBatchProcessing_WithMarkers verifies that Byteman can inject a failure at
+// a CDC marker checkpoint (`before-batch`) instead of a raw Java method entry.
+//
+// Scenario:
+//  1. Start `export data` (snapshot-and-changes mode) with 100 snapshot rows.
+//  2. Generate 2 CDC batches (20 rows each, 2.5s wait between batches).
+//  3. Byteman fires at the before-batch-streaming marker on the 2nd batch.
+//  4. Export crashes; verify partial CDC events from batch 1 are written.
+//
+// This test validates:
+// - Marker-based Byteman injection (cdc("before-batch") checkpoint)
+// - Equivalent behavior to method-entry injection but using marker files
+//
+// Injection point:
+//   - Byteman rule on Debezium at the `cdc("before-batch")` marker (2nd invocation).
 func TestCDCBatchProcessing_WithMarkers(t *testing.T) {
 	ctx := context.Background()
 

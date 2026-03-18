@@ -31,13 +31,13 @@ import (
 // and idempotency of the CDC apply path.
 func injectImportCDCTransformFailure() error {
 	var fpErr error
-	failpoint.Inject("importCDCTransformFailure", func(val failpoint.Value) {
+	if val, _err_ := failpoint.Eval(_curpkg_("importCDCTransformFailure")); _err_ == nil {
 		if val != nil {
 			_ = os.MkdirAll(filepath.Join(exportDir, "failpoints"), 0755)
 			_ = os.WriteFile(filepath.Join(exportDir, "failpoints", "failpoint-import-cdc-transform.log"), []byte("hit\n"), 0644)
 			fpErr = goerrors.Errorf("failpoint: import CDC transform failure")
 		}
-	})
+	}
 	return fpErr
 }
 
@@ -46,7 +46,7 @@ func injectImportCDCTransformFailure() error {
 // (e.g. 100*off->return(true)) to crash after N successful batches.
 func injectImportCDCNonRetryableBatchDBError() error {
 	var fpErr error
-	failpoint.Inject("importCDCNonRetryableBatchDBError", func(val failpoint.Value) {
+	if val, _err_ := failpoint.Eval(_curpkg_("importCDCNonRetryableBatchDBError")); _err_ == nil {
 		if val != nil {
 			_ = os.MkdirAll(filepath.Join(exportDir, "failpoints"), 0755)
 			_ = os.WriteFile(
@@ -59,7 +59,7 @@ func injectImportCDCNonRetryableBatchDBError() error {
 				Message: "failpoint: duplicate key value violates unique constraint",
 			}
 		}
-	})
+	}
 	return fpErr
 }
 
@@ -69,7 +69,7 @@ func injectImportCDCNonRetryableBatchDBError() error {
 // Black-box tests can set YB_VOYAGER_FAILPOINT_MARKER_DIR to write a marker file.
 func injectImportSnapshotTransformError() error {
 	var fpErr error
-	failpoint.Inject("importSnapshotTransformError", func(val failpoint.Value) {
+	if val, _err_ := failpoint.Eval(_curpkg_("importSnapshotTransformError")); _err_ == nil {
 		if val != nil {
 			if markerDir := os.Getenv("YB_VOYAGER_FAILPOINT_MARKER_DIR"); markerDir != "" {
 				_ = os.MkdirAll(markerDir, 0755)
@@ -77,7 +77,7 @@ func injectImportSnapshotTransformError() error {
 			}
 			fpErr = goerrors.Errorf("failpoint: snapshot row transform failed")
 		}
-	})
+	}
 	return fpErr
 }
 
