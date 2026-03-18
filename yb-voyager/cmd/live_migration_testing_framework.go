@@ -1461,6 +1461,23 @@ func (lm *LiveMigrationTest) WaitForStreamingMode(timeout time.Duration, pollInt
 	return goerrors.Errorf("timed out waiting for streaming mode")
 }
 
+// WaitForCDCEventCount polls queue segments until the expected number of CDC events appear.
+func (lm *LiveMigrationTest) WaitForCDCEventCount(t *testing.T, expected int, timeout time.Duration, pollInterval time.Duration) int {
+	t.Helper()
+	var lastCount int
+	require.Eventually(t, func() bool {
+		count, err := countEventsInQueueSegments(lm.exportDir)
+		if err != nil {
+			testutils.LogTestf(t, "Failed to count CDC events yet: %v", err)
+			return false
+		}
+		lastCount = count
+		testutils.LogTestf(t, "Current CDC event count: %d / %d expected", count, expected)
+		return count >= expected
+	}, timeout, pollInterval, "Timed out waiting for CDC event count to reach %d (last=%d)", expected, lastCount)
+	return lastCount
+}
+
 // killDebezium kills the Debezium process associated with this export dir
 func (lm *LiveMigrationTest) killDebezium() error {
 	pidStr, err := dbzm.GetPIDOfDebeziumOnExportDir(lm.exportDir, SOURCE_DB_EXPORTER_ROLE)

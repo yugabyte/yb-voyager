@@ -45,20 +45,25 @@ const (
 	batchSeparationWaitTime       = time.Duration(debeziumDefaultPollIntervalMs*5) * time.Millisecond // 2.5 seconds
 )
 
-// TestCDCBatchFailureAndResume verifies mid-batch failure recovery and deduplication.
+// TestCDCBatchFailureAndResume verifies that live migration `export data` can resume after
+// a mid-batch failure during CDC streaming.
 //
 // Scenario:
-// 1. Start CDC export (snapshot-and-changes mode) with 100 snapshot rows
-// 2. Generate 3 CDC batches (20 rows each, 2.5s wait between batches)
-// 3. Inject failure on 2nd CDC batch via before-batch-streaming marker
-// 4. Export crashes after batch 1 committed; batch 2 and 3 are lost
-// 5. Resume export without failure injection
-// 6. Verify all 60 CDC events recovered with no duplicates via event_id dedup
+//  1. Start `export data` (snapshot-and-changes mode) with 100 snapshot rows.
+//  2. Generate 3 CDC batches (20 rows each, 2.5s wait between batches).
+//  3. Inject failure on 2nd CDC batch via before-batch-streaming marker.
+//  4. Export crashes after batch 1 committed; batch 2 and 3 are lost.
+//  5. Resume `export data` without failure injection.
+//  6. Verify all 60 CDC events recovered with no duplicates via event_id dedup.
 //
 // This test validates:
 // - Batch processing failure recovery
 // - CDC offset replay (batch 2 and 3 replayed from offsets)
 // - Event deduplication (batch 1 events already written, not duplicated on resume)
+//
+// Injection point:
+//   - Byteman rule on Debezium's `YbExporterConsumer.handleBatch` (2nd invocation),
+//     triggered via before-batch-streaming marker file.
 func TestCDCBatchFailureAndResume(t *testing.T) {
 	if os.Getenv("BYTEMAN_JAR") == "" {
 		t.Skip("Skipping test: BYTEMAN_JAR environment variable not set. Install Byteman to run this test.")
@@ -221,19 +226,24 @@ func TestCDCBatchFailureAndResume(t *testing.T) {
 	testutils.LogTest(t, "CDC batch failure and resume test completed successfully")
 }
 
-// TestFirstCDCBatchFailure verifies recovery when the first CDC batch fails before any offsets are committed.
+// TestFirstCDCBatchFailure verifies that live migration `export data` can resume after
+// the very first CDC batch fails before any offsets are committed.
 //
 // Scenario:
-// 1. Start CDC export (snapshot-and-changes mode) with 50 snapshot rows
-// 2. Generate 3 CDC batches (20 rows each, 60 total events)
-// 3. Inject failure on 1st CDC batch via before-batch-streaming marker
-// 4. Export crashes before any CDC offsets are committed (0 events written)
-// 5. Resume export without failure injection
-// 6. Verify all 60 CDC events recovered via full replay from zero offset state
+//  1. Start `export data` (snapshot-and-changes mode) with 50 snapshot rows.
+//  2. Generate 3 CDC batches (20 rows each, 60 total events).
+//  3. Inject failure on 1st CDC batch via before-batch-streaming marker.
+//  4. Export crashes before any CDC offsets are committed (0 events written).
+//  5. Resume `export data` without failure injection.
+//  6. Verify all 60 CDC events recovered via full replay from zero offset state.
 //
 // This test validates:
 // - "Cold start" CDC recovery (no offsets file exists)
 // - Full CDC replay capability from the beginning
+//
+// Injection point:
+//   - Byteman rule on Debezium's `YbExporterConsumer.handleBatch` (1st invocation),
+//     triggered via before-batch-streaming marker file.
 
 func TestFirstCDCBatchFailure(t *testing.T) {
 	if os.Getenv("BYTEMAN_JAR") == "" {
@@ -384,18 +394,23 @@ func TestFirstCDCBatchFailure(t *testing.T) {
 	testutils.LogTest(t, "First CDC batch failure test completed successfully")
 }
 
-// TestCDCMultipleBatchFailures verifies resilience across multiple consecutive batch failures.
+// TestCDCMultipleBatchFailures verifies that live migration `export data` can resume correctly
+// across multiple consecutive batch failures.
 //
 // Scenario:
-// 1. Start CDC export (snapshot-and-changes mode) with 50 snapshot rows
-// 2. Run 1: Insert batch1 (20 rows), batch2 (20 rows) → fail on 2nd batch → 20 events written
-// 3. Run 2 (resume): Insert batch3 (20 rows) → fail on 2nd batch again → 40 events total
-// 4. Run 3 (resume): No failure → all batches replay → 60 events total with no duplicates
+//  1. Start `export data` (snapshot-and-changes mode) with 50 snapshot rows.
+//  2. Run 1: Insert batch1 (20 rows), batch2 (20 rows) -> fail on 2nd batch -> 20 events written.
+//  3. Run 2 (resume): Insert batch3 (20 rows) -> fail on 2nd batch again -> 40 events total.
+//  4. Run 3 (resume): No failure -> all batches replay -> 60 events total with no duplicates.
 //
 // This test validates:
 // - Recovery across multiple consecutive failures
 // - Incremental progress after each failed run
 // - Final full recovery with deduplication
+//
+// Injection point:
+//   - Byteman rule on Debezium's `YbExporterConsumer.handleBatch` (2nd invocation per run),
+//     triggered via before-batch-streaming marker file.
 func TestCDCMultipleBatchFailures(t *testing.T) {
 	if os.Getenv("BYTEMAN_JAR") == "" {
 		t.Skip("Skipping test: BYTEMAN_JAR environment variable not set. Install Byteman to run this test.")

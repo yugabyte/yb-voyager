@@ -30,21 +30,31 @@ import (
 
 const tableName = "test_schema_ff.ff_cutover_test"
 
-// TestExportFromTargetStartupFailureAndCutoverResume verifies that cutover is only
-// marked as complete once export-data-from-target starts up properly.
+// TestExportFromTargetStartupFailureAndCutoverResume verifies that live migration cutover
+// is only marked as complete once `export-data-from-target` starts up properly, and that
+// a startup failure can be recovered by resuming.
 //
-// Flow (real end-to-end fall-forward migration with CDC events):
-//  1. PG source → export data (snapshot-and-changes) — 20 snapshot rows
-//  2. YB target ← import data (with failpoint env for the post-cutover exec)
-//  3. Wait for snapshot import to YB target (20 rows)
-//  4. Insert 5 CDC rows on PG source → wait for forward streaming to YB target (25 rows)
-//  5. PG source-replica ← import data to source-replica (sets FallForwardEnabled)
-//  6. Initiate cutover to target
-//  7. After cutover: import exec's into export-from-target → failpoint fires → crash
-//  8. Verify cutover is NOT complete
-//  9. Resume export-data-from-target without failpoint
-//  10. Insert 5 rows on YB target → wait for fall-forward streaming to PG source-replica
-//  11. Verify cutover IS complete
+// Scenario (end-to-end fall-forward migration with CDC events):
+//  1. PG source -> `export data` (snapshot-and-changes) with 20 snapshot rows.
+//  2. YB target <- `import data` (with failpoint env for the post-cutover exec).
+//  3. Wait for snapshot import to YB target (20 rows).
+//  4. Insert 5 CDC rows on PG source -> wait for forward streaming to YB target (25 rows).
+//  5. PG source-replica <- `import data` to source-replica (sets FallForwardEnabled).
+//  6. Initiate cutover to target.
+//  7. After cutover: import exec's into `export-from-target` -> failpoint fires -> crash.
+//  8. Verify cutover is NOT complete.
+//  9. Resume `export-data-from-target` without failpoint.
+//  10. Insert 5 rows on YB target -> wait for fall-forward streaming to PG source-replica.
+//  11. Verify cutover IS complete.
+//
+// This test validates:
+// - Cutover completeness gate: cutover is not marked complete if export-from-target fails to start
+// - Resume of export-data-from-target correctly completes the cutover
+// - Fall-forward streaming works after recovery
+//
+// Injection point:
+//   - Go failpoint in `cmd/exportDataFromTarget.go` at `exportFromTargetStartupError`,
+//     triggered via GO_FAILPOINTS env var passed through import data's post-cutover exec.
 func TestExportFromTargetStartupFailureAndCutoverResume(t *testing.T) {
 	ctx := context.Background()
 
