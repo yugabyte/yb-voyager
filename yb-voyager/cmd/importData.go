@@ -353,7 +353,7 @@ func startExportDataFromSourceOnNextIteration() {
 	}
 
 	iterationExportDir := GetIterationExportDir(currentMsr.GetIterationsDir(exportDir), currentMsr.IterationNo+1)
-	utils.PrintAndLogfSuccess("\nStarting export data from source on iteration %d at %s.\n\n", currentMsr.IterationNo+1, iterationExportDir)
+	utils.PrintAndLogfPhase("\nStarting export data from source on iteration %d at %s.", currentMsr.IterationNo+1, iterationExportDir)
 
 	cmdStr := "SOURCE_DB_PASSWORD=*** " + strings.Join(cmd, " ")
 
@@ -1129,6 +1129,7 @@ func postSnapshotImportProcessing(msr *metadb.MigrationStatusRecord, importTable
 }
 
 func postCutoverProcessing(importTableList []sqlname.NameTuple) error {
+	utils.PrintAndLogfInfo("Processing cutover initiate request...\n")
 	status, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
 	if err != nil {
 		return goerrors.Errorf("failed to read export status for restore sequences: %s", err)
