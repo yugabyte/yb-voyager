@@ -2,15 +2,15 @@ import com.google.common.net.HostAndPort;
 import org.yb.client.AsyncYBClient;
 import org.yb.client.ListTablesResponse;
 import org.yb.client.YBClient;
+import org.yb.client.CDCStreamInfo;
 import org.yb.client.ListCDCStreamsResponse;
 import org.yb.client.YBTable;
 import org.yb.master.MasterDdlOuterClass.ListTablesResponsePB.TableInfo;
 import org.yb.client.GetNamespaceInfoResponse;
 import org.yb.CommonTypes.YQLDatabase;
 import org.yb.master.MasterReplicationOuterClass;
-import java.util.Set;   
+import java.util.Set;
 import java.util.HashSet;
-import java.util.stream.Collectors;
 
 import java.util.Objects;
 
@@ -64,8 +64,14 @@ public class Main {
             masterAddressesList = masterAddressesList.replace("}", "");
             System.out.println("Master Addresses: " + masterAddressesList);
         } else if (parameters.getNumOfCDCStreams) {
-            String namespaceID = null;
-            if(parameters.dbName != "") {
+            ListCDCStreamsResponse cdcStreamsResponse = client.listCDCStreams(null, null, null);
+            if (cdcStreamsResponse.hasError()) {
+                throw new RuntimeException("error getting the num of cdc streams");
+            }
+
+            if (parameters.dbName.isEmpty()) {
+                System.out.println("Streams: " + cdcStreamsResponse.getStreams().size());
+            } else {
                 GetNamespaceInfoResponse namespaceInfoResponse =
                     client.getNamespaceInfo(parameters.dbName, YQLDatabase.YQL_DATABASE_PGSQL);
                 if (namespaceInfoResponse.hasError()) {
@@ -74,14 +80,26 @@ public class Main {
                             "Error getting namespace details for namespace: %s. Error: %s",
                             parameters.dbName,
                             namespaceInfoResponse.errorMessage()));
+                }
+                String namespaceID = namespaceInfoResponse.getNamespaceId();
+
+                Set<String> namespaceTableIds = new HashSet<>();
+                ListTablesResponse tablesResp = client.getTablesList();
+                for (TableInfo tableInfo : tablesResp.getTableInfoList()) {
+                    if (tableInfo.getNamespace().getId().toStringUtf8().equals(namespaceID)) {
+                        namespaceTableIds.add(tableInfo.getId().toStringUtf8());
                     }
-                namespaceID = namespaceInfoResponse.getNamespaceId();
+                }
+
+                int count = 0;
+                for (CDCStreamInfo stream : cdcStreamsResponse.getStreams()) {
+                    if (namespaceID.equals(stream.getNamespaceId())
+                            || stream.getTableIds().stream().anyMatch(namespaceTableIds::contains)) {
+                        count++;
+                    }
+                }
+                System.out.println("Streams: " + count);
             }
-            ListCDCStreamsResponse cdcStreamsResponse = client.listCDCStreams(null, namespaceID, MasterReplicationOuterClass.IdTypePB.NAMESPACE_ID);
-            if (cdcStreamsResponse.hasError()) {
-              throw new RuntimeException("error getting the num of cdc streams");
-            }
-            System.out.println("Streams: " + cdcStreamsResponse.getStreams().size());
         } else {
             throw new RuntimeException("unknown paramter");
 
