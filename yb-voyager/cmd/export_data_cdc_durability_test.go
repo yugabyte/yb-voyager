@@ -29,19 +29,24 @@ import (
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
-// TestCDCOffsetCommitFailureAndResume verifies replay and deduplication when offset commit fails.
+// TestCDCOffsetCommitFailureAndResume verifies that live migration `export data` can resume after
+// an offset commit failure during CDC streaming.
 //
 // Scenario:
-// 1. Start CDC export (snapshot-and-changes mode) with 50 snapshot rows
-// 2. Insert 20 CDC events and process them (write to queue + flush/sync)
-// 3. Inject failure at before-offset-commit marker (before offsets are persisted)
-// 4. Export crashes; queue has 20 events but offsets file is empty
-// 5. Resume export and verify batch is replayed from the beginning
-// 6. Verify dedup cache skips all 20 replayed events (no duplicates in queue)
+//  1. Start `export data` (snapshot-and-changes mode) with 50 snapshot rows.
+//  2. Insert 20 CDC events and process them (write to queue + flush/sync).
+//  3. Inject failure at before-offset-commit marker (before offsets are persisted).
+//  4. Export crashes; queue has 20 events but offsets file is empty.
+//  5. Resume `export data` and verify batch is replayed from the beginning.
+//  6. Verify dedup cache skips all 20 replayed events (no duplicates in queue).
 //
 // This test validates:
 // - Offset commit failure forces full batch replay
 // - Event deduplication prevents duplicate writes during replay
+//
+// Injection point:
+//   - Byteman rule on Debezium at the before-offset-commit marker,
+//     firing after queue write but before offset persistence.
 func TestCDCOffsetCommitFailureAndResume(t *testing.T) {
 	if os.Getenv("BYTEMAN_JAR") == "" {
 		t.Skip("Skipping test: BYTEMAN_JAR environment variable not set. Install Byteman to run this test.")
@@ -207,20 +212,25 @@ func TestCDCOffsetCommitFailureAndResume(t *testing.T) {
 	lm.RemoveExportLockfile()
 }
 
-// TestCDCBatchFailureBeforeHandleBatchComplete verifies durability gap when crash happens before flush/sync.
+// TestCDCBatchFailureBeforeHandleBatchComplete verifies that live migration `export data` can resume
+// after a crash before flush/sync, recovering from the durability gap.
 //
 // Scenario:
-// 1. Start CDC export (snapshot-and-changes mode) with 50 snapshot rows
-// 2. Insert 20 CDC events with large payloads to force buffered writes
-// 3. Inject failure at before-handle-batch-complete marker (after write, before flush/sync)
-// 4. Export crashes; data may be in buffer but not flushed to disk
-// 5. Resume export and insert 10 more CDC events
-// 6. Verify all 30 events eventually written with no duplicates
+//  1. Start `export data` (snapshot-and-changes mode) with 50 snapshot rows.
+//  2. Insert 20 CDC events with large payloads to force buffered writes.
+//  3. Inject failure at before-handle-batch-complete marker (after write, before flush/sync).
+//  4. Export crashes; data may be in buffer but not flushed to disk.
+//  5. Resume `export data` and insert 10 more CDC events.
+//  6. Verify all 30 events eventually written with no duplicates.
 //
 // This test validates:
 // - Durability gap: records written to buffer but not fsynced are lost on crash
 // - Recovery replays lost events from offsets
 // - Deduplication works correctly during replay
+//
+// Injection point:
+//   - Byteman rule on Debezium at the before-handle-batch-complete marker,
+//     firing after queue write but before flush/sync.
 func TestCDCBatchFailureBeforeHandleBatchComplete(t *testing.T) {
 	if os.Getenv("BYTEMAN_JAR") == "" {
 		t.Skip("Skipping test: BYTEMAN_JAR environment variable not set. Install Byteman to run this test.")
@@ -352,20 +362,25 @@ func TestCDCBatchFailureBeforeHandleBatchComplete(t *testing.T) {
 	lm.RemoveExportLockfile()
 }
 
-// TestCDCQueueWriteFailureAndResume verifies recovery when queue write fails mid-batch.
+// TestCDCQueueWriteFailureAndResume verifies that live migration `export data` can resume after
+// a queue write failure mid-batch during CDC streaming.
 //
 // Scenario:
-// 1. Start CDC export (snapshot-and-changes mode) with 50 snapshot rows
-// 2. Insert 40 CDC events with large payloads (20KB each) to exceed buffer size
-// 3. Inject failure at before-write-record marker on the 25th event
-// 4. Export crashes with ~24 events written (buffer flushed due to size)
-// 5. Resume export and verify all 40 events eventually written
-// 6. Verify no event count overgrowth (dedup prevents duplicates)
+//  1. Start `export data` (snapshot-and-changes mode) with 50 snapshot rows.
+//  2. Insert 40 CDC events with large payloads (20KB each) to exceed buffer size.
+//  3. Inject failure at before-write-record marker on the 25th event.
+//  4. Export crashes with ~24 events written (buffer flushed due to size).
+//  5. Resume `export data` and verify all 40 events eventually written.
+//  6. Verify no event count overgrowth (dedup prevents duplicates).
 //
 // This test validates:
 // - Mid-write failure recovery
 // - Buffered data is flushed when buffer size exceeds threshold
 // - Deduplication prevents event count from exceeding expected total
+//
+// Injection point:
+//   - Byteman rule on Debezium at the before-write-record marker,
+//     firing on the 25th event write.
 func TestCDCQueueWriteFailureAndResume(t *testing.T) {
 	if os.Getenv("BYTEMAN_JAR") == "" {
 		t.Skip("Skipping test: BYTEMAN_JAR environment variable not set. Install Byteman to run this test.")
@@ -489,18 +504,23 @@ func TestCDCQueueWriteFailureAndResume(t *testing.T) {
 	lm.RemoveExportLockfile()
 }
 
-// TestCDCRotationMidBatchClosesSegment verifies queue segment rotation properly closes rotated segments.
+// TestCDCRotationMidBatchClosesSegment verifies that live migration `export data` properly
+// closes rotated queue segments when a crash occurs mid-batch during segment rotation.
 //
 // Scenario:
-// 1. Start CDC export with very small queue segment size (8KB via QUEUE_SEGMENT_MAX_BYTES)
-// 2. Insert 30 CDC events with 5KB payloads to force multiple segment rotations mid-batch
-// 3. Inject failure at before-handle-batch-complete marker (before batch commits)
-// 4. Export crashes with multiple queue segments created
-// 5. Verify the first (lowest-numbered) rotated segment is closed with EOF marker
+//  1. Start `export data` with very small queue segment size (8KB via QUEUE_SEGMENT_MAX_BYTES).
+//  2. Insert 30 CDC events with 5KB payloads to force multiple segment rotations mid-batch.
+//  3. Inject failure at before-handle-batch-complete marker (before batch commits).
+//  4. Export crashes with multiple queue segments created.
+//  5. Verify the first (lowest-numbered) rotated segment is closed with EOF marker.
 //
 // This test validates:
 // - Segment rotation mid-batch properly closes/syncs the old segment
 // - Rotated segments have EOF markers even when batch doesn't complete
+//
+// Injection point:
+//   - Byteman rule on Debezium at the before-handle-batch-complete marker,
+//     firing before batch commit with small segment size forcing rotation.
 func TestCDCRotationMidBatchClosesSegment(t *testing.T) {
 	if os.Getenv("BYTEMAN_JAR") == "" {
 		t.Skip("Skipping test: BYTEMAN_JAR environment variable not set. Install Byteman to run this test.")
@@ -617,20 +637,25 @@ func TestCDCRotationMidBatchClosesSegment(t *testing.T) {
 	require.GreaterOrEqual(t, latestSegmentNum, int64(1), "Expected latest segment to be >= 1 after rotation")
 }
 
-// TestCDCQueueSegmentTruncationOnResume verifies incomplete queue segments are truncated on resume.
+// TestCDCQueueSegmentTruncationOnResume verifies that live migration `export data` correctly
+// truncates incomplete queue segments back to the committed size on resume.
 //
 // Scenario:
-// 1. Start CDC export with large segment size (1GB, forces single segment)
-// 2. Insert 20 CDC events with large payloads (20KB each) to force buffer flush to disk
-// 3. Inject failure at before-handle-batch-complete marker (after write, before fsync/commit)
-// 4. Export crashes; queue segment file size > committed size in metadb
-// 5. Resume export and verify:
-//    - Truncation log appears in Debezium logs
-//    - Queue segment file is truncated back to committed size (0 bytes in this case)
+//  1. Start `export data` with large segment size (1GB, forces single segment).
+//  2. Insert 20 CDC events with large payloads (20KB each) to force buffer flush to disk.
+//  3. Inject failure at before-handle-batch-complete marker (after write, before fsync/commit).
+//  4. Export crashes; queue segment file size > committed size in metadb.
+//  5. Resume `export data` and verify:
+//     - Truncation log appears in Debezium logs.
+//     - Queue segment file is truncated back to committed size (0 bytes in this case).
 //
 // This test validates:
 // - Queue segment recovery truncates uncommitted bytes on resume
 // - Metadb size_committed is the source of truth for valid data boundary
+//
+// Injection point:
+//   - Byteman rule on Debezium at the before-handle-batch-complete marker,
+//     firing after write but before fsync/commit with large segment size.
 func TestCDCQueueSegmentTruncationOnResume(t *testing.T) {
 	if os.Getenv("BYTEMAN_JAR") == "" {
 		t.Skip("Skipping test: BYTEMAN_JAR environment variable not set. Install Byteman to run this test.")

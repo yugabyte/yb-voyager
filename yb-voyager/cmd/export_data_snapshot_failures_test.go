@@ -30,22 +30,26 @@ import (
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
-// TestSnapshotFailureAndResume verifies recovery when pg_dump snapshot fails mid-export.
+// TestSnapshotFailureAndResume verifies that live migration `export data` can resume after
+// a pg_dump snapshot failure during the snapshot phase.
 //
 // Scenario:
-// 1. Start CDC export (snapshot-and-changes mode) with 100 initial rows
-// 2. Inject pgDumpSnapshotFailure failpoint with 8s delay before pg_dump starts
-// 3. Insert 20 CDC rows during the delay window (before failure triggers)
-// 4. pg_dump fails; export crashes with no snapshot descriptor created
-// 5. Resume export without failure injection
-// 6. Verify snapshot completes and includes both initial (100) and during-snapshot (20) rows
-// 7. Insert 10 more CDC rows after snapshot and verify CDC export works correctly
-// 8. Verify total: 120 snapshot rows + 10 CDC events = 130 total rows
+//  1. Start `export data` (snapshot-and-changes mode) with failpoint enabled and 100 initial rows.
+//  2. Insert 20 CDC rows during the 8s delay window before pg_dump failure triggers.
+//  3. pg_dump fails; export crashes with no snapshot descriptor created.
+//  4. Resume `export data` without failpoint.
+//  5. Verify snapshot completes and includes both initial (100) and during-snapshot (20) rows.
+//  6. Insert 10 more CDC rows after snapshot and verify CDC export works correctly.
+//  7. Verify total: 120 snapshot rows + 10 CDC events = 130 total rows.
 //
 // This test validates:
 // - Snapshot failure recovery restarts pg_dump from scratch
 // - CDC rows inserted during failed snapshot attempt are captured in the new snapshot
 // - CDC export resumes correctly after snapshot completes
+//
+// Injection point:
+//   - `cmd/exportData.go` before pg_dump via failpoint `pgDumpSnapshotFailure`.
+//   - Delay controlled by `YB_VOYAGER_PGDUMP_FAIL_DELAY_MS` env var.
 func TestSnapshotFailureAndResume(t *testing.T) {
 	if os.Getenv("BYTEMAN_JAR") == "" {
 		t.Skip("Skipping test: BYTEMAN_JAR environment variable not set. Install Byteman to run this test.")
@@ -181,22 +185,26 @@ func TestSnapshotFailureAndResume(t *testing.T) {
 	testutils.LogTest(t, "Snapshot failure and resume test completed successfully")
 }
 
-// TestSnapshotToCDCTransitionFailure verifies recovery when snapshot-to-CDC transition fails.
+// TestSnapshotToCDCTransitionFailure verifies that live migration `export data` can resume after
+// a failure at the snapshot-to-CDC transition point.
 //
 // Scenario:
-// 1. Start CDC export (snapshot-and-changes mode) with 30 snapshot rows
-// 2. Snapshot phase completes successfully and creates descriptor
-// 3. Inject snapshotToCDCTransitionError failpoint at transition point (after snapshot, before CDC starts)
-// 4. Export crashes after snapshot is complete but before CDC starts
-// 5. Verify no CDC events were emitted before failure
-// 6. Resume export without failure injection
-// 7. Insert 20 CDC rows after resume and verify CDC export works correctly
-// 8. Verify final state: 30 snapshot rows + 20 CDC events (snapshot not re-run)
+//  1. Start `export data` (snapshot-and-changes mode) with failpoint enabled and 30 snapshot rows.
+//  2. Snapshot phase completes successfully and creates descriptor.
+//  3. Failpoint fires at the transition point (after snapshot, before CDC starts), crashing export.
+//  4. Verify no CDC events were emitted before failure.
+//  5. Resume `export data` without failpoint.
+//  6. Insert 20 CDC rows after resume and verify CDC export works correctly.
+//  7. Verify final state: 30 snapshot rows + 20 CDC events (snapshot not re-run).
 //
 // This test validates:
 // - Snapshot-to-CDC transition failure does not corrupt snapshot data
 // - Resume correctly starts CDC from where transition left off
 // - Snapshot is not re-executed on resume (descriptor hash remains stable)
+//
+// Injection point:
+//   - `cmd/exportDataDebezium.go` after snapshot, before CDC start:
+//     failpoint `snapshotToCDCTransitionError`.
 func TestSnapshotToCDCTransitionFailure(t *testing.T) {
 	if os.Getenv("BYTEMAN_JAR") == "" {
 		t.Skip("Skipping test: BYTEMAN_JAR environment variable not set. Install Byteman to run this test.")
@@ -205,7 +213,11 @@ func TestSnapshotToCDCTransitionFailure(t *testing.T) {
 	ctx := context.Background()
 
 	lm := NewLiveMigrationTest(t, &TestConfig{
-		SourceDB:    ContainerConfig{Type: "postgresql", ForLive: true},
+		SourceDB: ContainerConfig{
+			Type:         "postgresql",
+			ForLive:      true,
+			DatabaseName: "test_export_snapshot_transition",
+		},
 		SchemaNames: []string{"test_schema_transition"},
 		SchemaSQL: []string{
 			"DROP SCHEMA IF EXISTS test_schema_transition CASCADE;",
@@ -222,115 +234,62 @@ func TestSnapshotToCDCTransitionFailure(t *testing.T) {
 			`INSERT INTO test_schema_transition.cdc_transition_test (name, value)
 			SELECT 'snapshot_' || i, i * 10 FROM generate_series(1, 30) i;`,
 		},
+		SourceDeltaSQL: []string{
+			`INSERT INTO test_schema_transition.cdc_transition_test (name, value)
+			SELECT 'batch1_' || i, 100 + i FROM generate_series(1, 20) i;`,
+		},
 		CleanupSQL: []string{"DROP SCHEMA IF EXISTS test_schema_transition CASCADE;"},
 	})
 	defer lm.Cleanup()
 	require.NoError(t, lm.SetupContainers(ctx))
 	require.NoError(t, lm.SetupSchema())
 
-	exportDir = lm.GetExportDir()
-	postgresContainer := lm.GetSourceContainer()
-
-	testutils.LogTest(t, "Running export with Go-side failure injection at snapshot->CDC transition...")
+	// --- Phase 1: Start export with failpoint at snapshot->CDC transition ---
 	failpointEnv := testutils.GetFailpointEnvVar(
 		"github.com/yugabyte/yb-voyager/yb-voyager/cmd/snapshotToCDCTransitionError=1*return()",
 	)
-	exportRunner := testutils.NewVoyagerCommandRunner(postgresContainer, "export data", []string{
-		"--export-dir", exportDir,
-		"--export-type", "snapshot-and-changes",
-		"--source-db-schema", "test_schema_transition",
-		"--disable-pb", "true",
-		"--yes",
-	}, nil, true).WithEnv(failpointEnv)
-
-	err := exportRunner.Run()
+	err := lm.StartExportDataWithEnv(true, nil, []string{failpointEnv})
 	require.NoError(t, err, "Failed to start export")
 
-	failMarkerPath := filepath.Join(exportDir, "logs", "failpoint-snapshot-to-cdc.log")
-	testutils.LogTest(t, "Waiting for failpoint marker after injection...")
-	matched, err := waitForMarkerFile(failMarkerPath, 60*time.Second, 2*time.Second)
-	require.NoError(t, err, "Should be able to read failpoint marker")
-	if !matched {
-		_ = exportRunner.Kill()
-		_ = killDebeziumForExportDir(exportDir)
-		require.Fail(t, "Snapshot->CDC failpoint marker did not trigger")
-	}
-	testutils.LogTest(t, "✓ Failpoint marker detected: snapshot->CDC transition failure injected")
+	failMarkerPath := filepath.Join(lm.GetExportDir(), "logs", "failpoint-snapshot-to-cdc.log")
+	err = lm.WaitForExportFailpointAndProcessCrash(t, failMarkerPath, 60*time.Second, 60*time.Second)
+	require.NoError(t, err, "Export should crash after snapshot->CDC transition failpoint")
 
-	testutils.LogTest(t, "Waiting for export process to exit after injection...")
-	wasKilled, waitErr := waitForProcessExitOrKill(exportRunner, exportDir, 60*time.Second)
-	if wasKilled {
-		testutils.LogTest(t, "Export did not exit after injection; process was killed")
-	} else {
-		require.Error(t, waitErr, "Export should exit with error after failpoint injection")
-	}
-
+	// --- Phase 2: Verify state after failure ---
 	time.Sleep(3 * time.Second)
 
-	testutils.LogTest(t, "Verifying no CDC events were emitted before failure...")
-	eventCountAfterFailure, err := countEventsInQueueSegments(exportDir)
+	eventCountAfterFailure, err := countEventsInQueueSegments(lm.GetExportDir())
 	require.NoError(t, err, "Should be able to count CDC events after failure")
 	require.Equal(t, 0, eventCountAfterFailure, "Expected 0 CDC events before resume")
 
-	testutils.LogTest(t, "Capturing snapshot descriptor before resume...")
-	descriptorHashBefore, err := hashSnapshotDescriptor(exportDir)
+	descriptorHashBefore, err := hashSnapshotDescriptor(lm.GetExportDir())
 	require.NoError(t, err, "Should be able to hash snapshot descriptor before resume")
 
-	testutils.LogTest(t, "Resuming export without failure injection...")
-	cdcEventsGenerated := make(chan bool, 1)
-	generateCDCEvents := func() {
-		if err := waitForStreamingMode(exportDir, 2*time.Minute, 2*time.Second); err != nil {
-			testutils.LogTestf(t, "Failed waiting for streaming mode before CDC inserts: %v", err)
-			cdcEventsGenerated <- true
-			return
-		}
-		testutils.LogTestf(t, "Generating CDC events (1 batch of 20 rows, %v between batches)...", batchSeparationWaitTime)
-		postgresContainer.ExecuteSqls(
-			`INSERT INTO test_schema_transition.cdc_transition_test (name, value)
-			SELECT 'batch1_' || i, 100 + i FROM generate_series(1, 20) i;`,
-		)
-		testutils.LogTestf(t, "Batch 1 inserted, waiting %v for Debezium to process...", batchSeparationWaitTime)
-		time.Sleep(batchSeparationWaitTime)
-		cdcEventsGenerated <- true
-	}
-
-	exportRunnerResume := testutils.NewVoyagerCommandRunner(postgresContainer, "export data", []string{
-		"--export-dir", exportDir,
-		"--export-type", "snapshot-and-changes",
-		"--source-db-schema", "test_schema_transition",
-		"--disable-pb", "true",
-		"--yes",
-	}, generateCDCEvents, true)
-
-	err = exportRunnerResume.Run()
+	// --- Phase 3: Resume export without failpoint, generate CDC events ---
+	err = lm.StartExportData(true, nil)
 	require.NoError(t, err, "Failed to start resumed export")
-	defer exportRunnerResume.Kill()
+	defer lm.StopExportData()
 
-	select {
-	case <-cdcEventsGenerated:
-		testutils.LogTest(t, "CDC events generation completed")
-	case <-time.After(60 * time.Second):
-		require.Fail(t, "CDC event generation timed out")
-	}
+	require.NoError(t, lm.WaitForStreamingMode(2*time.Minute, 2*time.Second),
+		"Export should reach streaming mode after resume")
 
-	finalEventCount := waitForCDCEventCount(t, exportDir, 20, 60*time.Second, 2*time.Second)
+	lm.ExecuteSourceDelta()
+
+	finalEventCount := lm.WaitForCDCEventCount(t, 20, 60*time.Second, 2*time.Second)
 	require.Equal(t, 20, finalEventCount, "Expected 20 CDC events after recovery")
 
-	verifyNoEventIDDuplicates(t, exportDir)
+	verifyNoEventIDDuplicates(t, lm.GetExportDir())
 
-	testutils.LogTest(t, "Verifying snapshot descriptor unchanged after resume...")
-	descriptorHashAfter, err := hashSnapshotDescriptor(exportDir)
+	descriptorHashAfter, err := hashSnapshotDescriptor(lm.GetExportDir())
 	require.NoError(t, err, "Should be able to hash snapshot descriptor after resume")
 	require.Equal(t, descriptorHashBefore, descriptorHashAfter, "Snapshot descriptor should not change after resume")
 
-	pgConn, err := postgresContainer.GetConnection()
-	require.NoError(t, err, "Failed to get PostgreSQL connection")
-	defer pgConn.Close()
-
-	var sourceRowCount int
-	err = pgConn.QueryRow("SELECT COUNT(*) FROM test_schema_transition.cdc_transition_test").Scan(&sourceRowCount)
+	rows, err := lm.GetSourceContainer().QueryOnDB("test_export_snapshot_transition",
+		"SELECT COUNT(*) FROM test_schema_transition.cdc_transition_test")
 	require.NoError(t, err, "Failed to query source row count")
+	defer rows.Close()
+	require.True(t, rows.Next())
+	var sourceRowCount int
+	require.NoError(t, rows.Scan(&sourceRowCount))
 	require.Equal(t, 50, sourceRowCount, "Source should have 30 snapshot + 20 CDC rows")
-
-	testutils.LogTest(t, "Snapshot->CDC transition failure test completed successfully")
 }
