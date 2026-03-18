@@ -79,6 +79,10 @@ var rootCmd = &cobra.Command{
 Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like setting up source/target, migration workflow etc.`,
 
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		if !cmd.Flags().Changed("send-diagnostics") {
+			callhome.ReadEnvSendDiagnostics()
+		}
+
 		// Initialize the config file (also loads control plane config)
 		envVarsAlreadyExported, err := initConfig(cmd)
 		if err != nil {
@@ -433,7 +437,6 @@ func init() {
 	// will be global for your application.
 	rootCmd.CompletionOptions.DisableDefaultCmd = true
 
-	callhome.ReadEnvSendDiagnostics()
 }
 
 var globalFlags = []string{}
