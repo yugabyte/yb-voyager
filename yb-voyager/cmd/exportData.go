@@ -312,6 +312,7 @@ func startNextIterationImportDataToTarget() {
 
 	iterationExportDir := GetIterationExportDir(currentMsr.GetIterationsDir(exportDir), currentMsr.IterationNo+1)
 	utils.PrintAndLogfPhase("\nStarting import data to target on iteration %d at %s.", currentMsr.IterationNo+1, iterationExportDir)
+	fmt.Println()
 
 	cmdStr := "TARGET_DB_PASSWORD=*** " + strings.Join(cmd, " ")
 
@@ -371,11 +372,11 @@ func printLiveMigrationLimitations() {
 	default:
 		if exporterRole == SOURCE_DB_EXPORTER_ROLE {
 			utils.PrintAndLogfWarning("\nImportant: The following limitations apply to live migration:\n")
-			utils.PrintAndLog("  1. Schema modifications(for example, adding/droping columns, creating/deleting tables, adding/deleting partitions etc) on the source and target databases are not supported during live migration.\n")
-			utils.PrintAndLog("  2. Primary Key or Unique Key columns should be identical between source and target databases.\n")
-			utils.PrintAndLog("  3. TRUNCATE operations on source database tables are not automatically replicated to the target database.\n")
-			utils.PrintAndLog("  4. Sequences that are not associated with any column or are attached to columns of non-integer types are not supported for automatic value generation resumption. These sequences must be manually resumed during the cutover phase.\n")
-			utils.PrintAndLog("  5. Tables without a Primary Key are not supported for live migration.\n\n")
+			utils.PrintAndLogfWarning("  1. Schema modifications(for example, adding/droping columns, creating/deleting tables, adding/deleting partitions etc) on the source and target databases are not supported during live migration.\n")
+			utils.PrintAndLogfWarning("  2. Primary Key or Unique Key columns should be identical between source and target databases.\n")
+			utils.PrintAndLogfWarning("  3. TRUNCATE operations on source database tables are not automatically replicated to the target database.\n")
+			utils.PrintAndLogfWarning("  4. Sequences that are not associated with any column or are attached to columns of non-integer types are not supported for automatic value generation resumption. These sequences must be manually resumed during the cutover phase.\n")
+			utils.PrintAndLogfWarning("  5. Tables without a Primary Key are not supported for live migration.\n\n")
 		} else {
 			workflow := lo.Ternary(exporterRole == TARGET_DB_EXPORTER_FF_ROLE, "fall forward", "fall back")
 			msr, err := metaDB.GetMigrationStatusRecord()
@@ -403,7 +404,7 @@ func printLiveMigrationLimitations() {
 				noun := lo.Ternary(len(limitations) == 1, "limitation", "limitations")
 				utils.PrintAndLogfWarning("\nImportant: The following %s %s to live migration with %s:\n\n", noun, lo.Ternary(len(limitations) == 1, "applies", "apply"), workflow)
 				for i, lim := range limitations {
-					utils.PrintAndLogf("  %d. %s\n", i+1, lim)
+					utils.PrintAndLogfWarning("  %d. %s\n", i+1, lim)
 				}
 				utils.PrintAndLog("\n")
 			}
@@ -657,7 +658,7 @@ func exportData() bool {
 				if err != nil {
 					utils.ErrExit("get migration status record: %w", err)
 				}
-				fmt.Println("Deleting PG replication slot and publication")
+				fmt.Println("Deleting PG replication slot and publication...")
 				deletePGReplicationSlotAndPublication(msr, &source)
 			}
 
