@@ -9,12 +9,10 @@
 
 - The assessmentDB is a SQLite database. When loading data, go through the bulk-insert path for CSV→SQLite unless special handling is needed (e.g., when CSV columns vary by source DB version). Document the reason for any special handling with a comment.
 - `ON CONFLICT` clauses in INSERT statements are unnecessary when `start-clean` is required for re-runs. Do not add them speculatively.
-- When a query fails on the assessmentDB, return the error. Do not log-warn and continue — this hides corruption and makes debugging harder.
 
 ## Sizing Recommendations
 
 - Group operations by strategy: complete all steps for one sizing strategy before starting the next, rather than interleaving them.
-- When intermediate variables are used only for debugging, log them rather than storing them in unused variables.
 - Safety checks for empty/nil data: verify that lookup maps contain the expected keys before proceeding with calculations.
 
 ## Multi-Node Assessment
@@ -30,4 +28,3 @@
 ## Testing
 
 - Test the upgrade path: verify that an assessmentDB created by an older voyager version still works with new code.
-- When asserting sizing results, verify that one specific recommendation is returned rather than accepting any of multiple valid options.

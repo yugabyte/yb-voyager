@@ -34,12 +34,11 @@
 
 ## Object Names
 
-- Use the `sqlname` package for all object name handling. Do not construct qualified names via manual string concatenation.
+- Use the `sqlname` package for all object name handling(table names especially). Do not construct qualified names via manual string concatenation.
 
 
 ## Flag and Config Handling
 
-- When spawning sub-processes for the next iteration or fall-back/fall-forward workflows, verify that all required flags (`--config-file`, `--export-dir`, `--table-list`) are passed. Missing flags have caused production bugs.
 - When adding a new flag to a command, check whether it needs to be propagated to related commands (e.g., `export-data` flags may need to reach `import-data-to-source`).
 - When adding a new flag, ensure that it is supported by config-file, CLI both, and added to the CLI templates.
 

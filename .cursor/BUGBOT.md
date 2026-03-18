@@ -4,11 +4,11 @@
 
 Every code change involving data migration should be evaluated against **all** data migration flows it could affect:
 
-- **Offline migration**: export-schema → export-data (snapshot via pg_dump/ora2pg) → import-schema → import-data → import-schema (post-data).
-- **Live migration**: export-schema → export-data (snapshot + streaming via Debezium) → import-schema → import-data → cutover-to-target → end-migration.
-- **Live with fall-back**: adds export-data-from-target + import-data-to-source. After cutover-to-target, data flows back to the original source so users can roll back.
-- **Live with fall-forward**: adds export-data-from-target + import-data-to-source-replica. After cutover-to-target, data flows to a standby replica.
-- **Changes-only mode**: skips the snapshot phase entirely — only streams CDC changes. Sequence handling, start-clean semantics, and table-list initialization all differ from the snapshot-and-changes path.
+- **Offline migration**: export-schema → import-schema → export-data (snapshot via pg_dump/ora2pg) → import-data → import-schema (post-data).
+- **Live migration**: export-schema → import-schema → export-data (snapshot + streaming via Debezium) → import-data → cutover-to-target → end-migration.
+- **Live with fall-back**: export-schema → import-schema → export-data → import-data → export-data-from-target → import-data-to-source. After cutover-to-target, data flows back to the original source so users can roll back.
+- **Live with fall-forward**: export-schema → import-schema → export-data → import-data → export-data-from-target → import-data-to-source-replica. After cutover-to-target, data flows to a standby replica.
+- **Changes-only mode**: export-schema → import-schema → export-data (changes only — skips snapshot, streams CDC changes) → import-data. Sequence handling, start-clean semantics, and table-list initialization all differ from the snapshot-and-changes path.
 - **Iterative cutover (cutover-to-source with restart)**: multiple cutover iterations between source and target. Each iteration creates a new metaDB, spawns new exporter/importer processes, and must propagate all flags correctly.
 
 If a change touches export-data, import-data, or cutover logic, ask: does this work correctly in **each** of the above flows?

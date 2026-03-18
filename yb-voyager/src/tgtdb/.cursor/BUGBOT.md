@@ -10,7 +10,7 @@
 
 - After COPY, assert that rows-affected plus rows-ignored equals the batch record count. A mismatch indicates silent data loss.
 - For error classification, check the PG error code class, not just the error message string. Integrity constraint violations, syntax errors, and data exceptions are generally non-retryable.
-- When classifying unique constraint violations, distinguish between primary key violations and unique key violations. The primary-key-conflict IGNORE flag applies only to PK violations, not UK violations.
+- When classifying unique constraint violations, distinguish between primary key violations and unique key violations. 
 
 
 ## Partition Handling

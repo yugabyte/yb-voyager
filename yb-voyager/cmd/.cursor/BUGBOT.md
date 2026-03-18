@@ -8,9 +8,8 @@
 
 ## Process Spawning
 
-- When spawning sub-commands via `exec` for next-iteration workflows, verify:
-  1. `--config-file` is passed if a config file is in use.
-  2. `--export-dir` is set correctly for the new iteration.
+- When spawning sub-commands via `exec` for cutover-related workflows, verify:
+  1. Separate proper handling for config-file and CLI-only modes. Ensure CLI-overrides over config-files are handled properly. 
   3. Database credentials (passwords) reference the correct source/target in the current workflow role.
   4. No flag is duplicated (e.g., added both explicitly and via the CLI overrides loop).
   5. current session's env variables are propogated properly.

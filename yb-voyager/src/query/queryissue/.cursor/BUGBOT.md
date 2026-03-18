@@ -3,7 +3,6 @@
 ## Parse Tree Handling
 
 - Always clone a parse tree before mutating it. When multiple issues share a workaround tree, mutating in-place corrupts subsequent recommendations.
-- When a fix generator fails, do not overwrite the shared tree variable with nil. Assign the return value to a temporary variable and only commit on success.
 - After deparsing a workaround tree, check that the result is non-empty before using it as a recommendation. An empty recommendation is worse than no recommendation.
 
 ## Table Metadata
