@@ -882,6 +882,7 @@ func (lm *LiveMigrationTest) getCutoverToSourceStatus(iterationNumber int) strin
 	if lm.metaDB == nil {
 		return ""
 	}
+	metaDB = lm.metaDB
 	if iterationNumber == 0 {
 		return getCutoverToSourceStatus(lm.exportDir)
 	}
