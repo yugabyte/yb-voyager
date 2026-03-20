@@ -415,7 +415,7 @@ func parseTruncationTargetSize(exportDir string) (int64, error) {
 		return -1, err
 	}
 	if len(matches) == 0 {
-		return -1, fmt.Errorf("no debezium log files found")
+		return -1, goerrors.Errorf("no debezium log files found")
 	}
 	data, err := os.ReadFile(matches[0])
 	if err != nil {
@@ -424,7 +424,7 @@ func parseTruncationTargetSize(exportDir string) (int64, error) {
 	re := regexp.MustCompile(`Truncating queue segment \d+ at path .+ to size (\d+)`)
 	m := re.FindStringSubmatch(string(data))
 	if m == nil {
-		return -1, fmt.Errorf("truncation log line not found")
+		return -1, goerrors.Errorf("truncation log line not found")
 	}
 	return strconv.ParseInt(m[1], 10, 64)
 }
