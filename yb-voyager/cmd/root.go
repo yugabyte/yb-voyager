@@ -79,9 +79,9 @@ var rootCmd = &cobra.Command{
 Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like setting up source/target, migration workflow etc.`,
 
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		// Save before initConfig, which also marks flags as Changed when applying config values.
 		sendDiagnosticsSetByCLI := cmd.Flags().Changed("send-diagnostics")
 
-		// Initialize the config file (also loads control plane config)
 		envVarsAlreadyExported, err := initConfig(cmd)
 		if err != nil {
 			// not using utils.ErrExit as logging is not initialized yet
@@ -89,9 +89,12 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			atexit.Exit(1)
 		}
 
-		// Read the env var after initConfig so it takes precedence over config file values
-		// (bindCobraFlagsToViper sets the flag from config, which overwrites the BoolVar pointer).
-		// We skip this only when the CLI flag was explicitly passed (CLI > ENV > Config > Default).
+		// Targeted fix for send-diagnostics: read the env var after initConfig so it
+		// takes precedence over config file values (CLI > ENV > Config > Default).
+		// Unlike other env-var-backed settings (e.g. passwords via getPassword()), the
+		// callhome flag is read from a BoolVar pointer rather than os.Getenv() at point
+		// of use, so it needs this explicit ordering. A more general fix would be to
+		// refactor callhome to read the env var at point of use (like getPassword()).
 		if !sendDiagnosticsSetByCLI {
 			callhome.ReadEnvSendDiagnostics()
 		}
@@ -437,11 +440,15 @@ func Execute() {
 }
 
 func init() {
-	// Here you will define your flags and configuration settings.
-	// Cobra supports persistent flags, which, if defined here,
-	// will be global for your application.
 	rootCmd.CompletionOptions.DisableDefaultCmd = true
 
+	// NOTE: callhome.ReadEnvSendDiagnostics() is intentionally NOT called here.
+	// Go executes init() functions in alphabetical order of filenames within a package.
+	// Other command files (e.g. segmentCleanupCommand.go) call registerCommonGlobalFlags()
+	// -> BoolVar() in their own init(), which unconditionally sets SendDiagnostics = true.
+	// Any file alphabetically after root.go would overwrite the env var value set here.
+	// Instead, we read the env var in PersistentPreRun (above), after all init()s and
+	// flag parsing have completed.
 }
 
 var globalFlags = []string{}
