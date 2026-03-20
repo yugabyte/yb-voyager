@@ -48,20 +48,24 @@ const (
 )
 
 // TestCDCBatchFailureAndResume verifies that live migration `export data` can resume after
-// a mid-batch failure during CDC streaming with mixed INSERT/UPDATE/DELETE operations.
+// a mid-batch failure during CDC streaming with mixed INSERT/UPDATE/DELETE operations,
+// and that `import data` correctly applies all events to the target with no anomalies.
 //
 // Scenario:
 //  1. Start `export data` (snapshot-and-changes mode) with 100 snapshot rows.
-//  2. Generate 3 CDC batches (20 events each: 10 INSERTs + 5 UPDATEs + 5 DELETEs).
-//  3. Inject failure on 2nd CDC batch via before-batch-streaming marker.
-//  4. Export crashes after batch 1 committed; batch 2 and 3 are lost.
-//  5. Resume `export data` without failure injection.
-//  6. Verify all 60 CDC events recovered with no duplicates via event_id dedup.
+//  2. Start `import data` concurrently (imports snapshot + streams CDC to target).
+//  3. Generate 3 CDC batches (20 events each: 10 INSERTs + 5 UPDATEs + 5 DELETEs).
+//  4. Inject failure on 2nd CDC batch via before-batch-streaming marker.
+//  5. Export crashes after batch 1 committed; batch 2 and 3 are lost.
+//  6. Resume `export data` without failure injection.
+//  7. Verify all 60 CDC events recovered with no duplicates via event_id dedup.
+//  8. Verify import consumed all CDC events and source == target row counts match.
 //
 // This test validates:
 // - Batch processing failure recovery with mixed operation types
 // - CDC offset replay (batch 2 and 3 replayed from offsets)
 // - Event deduplication (batch 1 events already written, not duplicated on resume)
+// - End-to-end: import data correctly applies recovered events to the target
 //
 // Injection point:
 //   - Byteman rule on Debezium's `YbExporterConsumer.handleBatch` (2nd invocation),
@@ -73,8 +77,11 @@ func TestCDCBatchFailureAndResume(t *testing.T) {
 
 	ctx := context.Background()
 
+	tableName := "test_schema.cdc_test"
+
 	lm := NewLiveMigrationTest(t, &TestConfig{
-		SourceDB:    ContainerConfig{Type: "postgresql", ForLive: true, DatabaseName: "postgres"},
+		SourceDB: ContainerConfig{Type: "postgresql", ForLive: true, DatabaseName: "postgres"},
+		TargetDB: ContainerConfig{Type: "yugabytedb", DatabaseName: "test_batch_failure"},
 		SchemaNames: []string{"test_schema"},
 		SchemaSQL: []string{
 			"CREATE SCHEMA IF NOT EXISTS test_schema;",
@@ -84,6 +91,8 @@ func TestCDCBatchFailureAndResume(t *testing.T) {
 				value INTEGER,
 				created_at TIMESTAMP DEFAULT NOW()
 			);`,
+		},
+		SourceSetupSchemaSQL: []string{
 			`ALTER TABLE test_schema.cdc_test REPLICA IDENTITY FULL;`,
 		},
 		InitialDataSQL: []string{
@@ -112,6 +121,9 @@ func TestCDCBatchFailureAndResume(t *testing.T) {
 	// Run 1: export with Byteman injection - should fail on 2nd CDC batch
 	err = lm.StartExportDataWithEnv(true, nil, bytemanHelper.GetEnv())
 	require.NoError(t, err, "Failed to start export")
+
+	err = lm.StartImportData(true, nil)
+	require.NoError(t, err, "Failed to start import data")
 
 	time.Sleep(10 * time.Second)
 
@@ -155,22 +167,35 @@ func TestCDCBatchFailureAndResume(t *testing.T) {
 	require.Equal(t, 60, finalEventCount, "Expected 60 CDC events after resume")
 
 	verifyNoEventIDDuplicates(t, exportDir)
+
+	// Validate: import (started alongside run 1) should have snapshot + all CDC events
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		reportTableName(tableName): {Inserts: 30, Updates: 15, Deletes: 15},
+	}, 120, 5)
+	require.NoError(t, err, "Forward streaming did not complete")
+
+	err = lm.ValidateRowCount([]string{tableName})
+	require.NoError(t, err, "Source and target row counts don't match after batch failure recovery")
 }
 
 // TestFirstCDCBatchFailure verifies that live migration `export data` can resume after
-// the very first CDC batch fails before any offsets are committed.
+// the very first CDC batch fails before any offsets are committed, and that `import data`
+// correctly applies all events to the target with no anomalies.
 //
 // Scenario:
 //  1. Start `export data` (snapshot-and-changes mode) with 50 snapshot rows.
-//  2. Generate 3 CDC batches (20 rows each, 60 total events).
-//  3. Inject failure on 1st CDC batch via before-batch-streaming marker.
-//  4. Export crashes before any CDC offsets are committed (0 events written).
-//  5. Resume `export data` without failure injection.
-//  6. Verify all 60 CDC events recovered via full replay from zero offset state.
+//  2. Start `import data` concurrently (imports snapshot + streams CDC to target).
+//  3. Generate 3 CDC batches (20 rows each, 60 total events).
+//  4. Inject failure on 1st CDC batch via before-batch-streaming marker.
+//  5. Export crashes before any CDC offsets are committed (0 events written).
+//  6. Resume `export data` without failure injection.
+//  7. Verify all 60 CDC events recovered via full replay from zero offset state.
+//  8. Verify import consumed all CDC events and source == target row counts match.
 //
 // This test validates:
 // - "Cold start" CDC recovery (no offsets file exists)
 // - Full CDC replay capability from the beginning
+// - End-to-end: import data correctly applies recovered events to the target
 //
 // Injection point:
 //   - Byteman rule on Debezium's `YbExporterConsumer.handleBatch` (1st invocation),
@@ -183,8 +208,11 @@ func TestFirstCDCBatchFailure(t *testing.T) {
 
 	ctx := context.Background()
 
+	tableName := "test_schema.first_batch_test"
+
 	lm := NewLiveMigrationTest(t, &TestConfig{
-		SourceDB:    ContainerConfig{Type: "postgresql", ForLive: true, DatabaseName: "postgres"},
+		SourceDB: ContainerConfig{Type: "postgresql", ForLive: true, DatabaseName: "postgres"},
+		TargetDB: ContainerConfig{Type: "yugabytedb", DatabaseName: "test_first_batch"},
 		SchemaNames: []string{"test_schema"},
 		SchemaSQL: []string{
 			"CREATE SCHEMA IF NOT EXISTS test_schema;",
@@ -194,6 +222,8 @@ func TestFirstCDCBatchFailure(t *testing.T) {
 				value INTEGER,
 				created_at TIMESTAMP DEFAULT NOW()
 			);`,
+		},
+		SourceSetupSchemaSQL: []string{
 			`ALTER TABLE test_schema.first_batch_test REPLICA IDENTITY FULL;`,
 		},
 		InitialDataSQL: []string{
@@ -222,6 +252,9 @@ func TestFirstCDCBatchFailure(t *testing.T) {
 	// Run 1: export with Byteman injection - should fail on 1st CDC batch
 	err = lm.StartExportDataWithEnv(true, nil, bytemanHelper.GetEnv())
 	require.NoError(t, err, "Failed to start export")
+
+	err = lm.StartImportData(true, nil)
+	require.NoError(t, err, "Failed to start import data")
 
 	time.Sleep(10 * time.Second)
 
@@ -254,21 +287,34 @@ func TestFirstCDCBatchFailure(t *testing.T) {
 	require.Equal(t, 60, finalEventCount, "Expected 60 CDC events after resume")
 
 	verifyNoEventIDDuplicates(t, exportDir)
+
+	// Validate: import (started alongside run 1) should have snapshot + all CDC events
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		reportTableName(tableName): {Inserts: 60},
+	}, 120, 5)
+	require.NoError(t, err, "Forward streaming did not complete")
+
+	err = lm.ValidateRowCount([]string{tableName})
+	require.NoError(t, err, "Source and target row counts don't match after first batch failure recovery")
 }
 
 // TestCDCMultipleBatchFailures verifies that live migration `export data` can resume correctly
-// across multiple consecutive batch failures.
+// across multiple consecutive batch failures, and that `import data` correctly applies all
+// events to the target with no anomalies.
 //
 // Scenario:
 //  1. Start `export data` (snapshot-and-changes mode) with 50 snapshot rows.
-//  2. Run 1: Insert batch1 (20 rows), batch2 (20 rows) -> fail on 2nd batch -> 20 events written.
-//  3. Run 2 (resume): Insert batch3 (20 rows) -> fail on 2nd batch again -> 40 events total.
-//  4. Run 3 (resume): No failure -> all batches replay -> 60 events total with no duplicates.
+//  2. Start `import data` concurrently (imports snapshot + streams CDC to target).
+//  3. Run 1: Insert batch1 (20 rows), batch2 (20 rows) -> fail on 2nd batch -> 20 events written.
+//  4. Run 2 (resume): Insert batch3 (20 rows) -> fail on 2nd batch again -> 40 events total.
+//  5. Run 3 (resume): No failure -> all batches replay -> 60 events total with no duplicates.
+//  6. Verify import consumed all CDC events and source == target row counts match.
 //
 // This test validates:
 // - Recovery across multiple consecutive failures
 // - Incremental progress after each failed run
 // - Final full recovery with deduplication
+// - End-to-end: import data correctly applies recovered events to the target
 //
 // Injection point:
 //   - Byteman rule on Debezium's `YbExporterConsumer.handleBatch` (2nd invocation per run),
@@ -282,7 +328,8 @@ func TestCDCMultipleBatchFailures(t *testing.T) {
 	tableName := "test_schema_multi_fail.cdc_multi_fail_test"
 
 	lm := NewLiveMigrationTest(t, &TestConfig{
-		SourceDB:    ContainerConfig{Type: "postgresql", ForLive: true, DatabaseName: "postgres"},
+		SourceDB: ContainerConfig{Type: "postgresql", ForLive: true, DatabaseName: "postgres"},
+		TargetDB: ContainerConfig{Type: "yugabytedb", DatabaseName: "test_multi_fail"},
 		SchemaNames: []string{"test_schema_multi_fail"},
 		SchemaSQL: []string{
 			"DROP SCHEMA IF EXISTS test_schema_multi_fail CASCADE;",
@@ -293,6 +340,8 @@ func TestCDCMultipleBatchFailures(t *testing.T) {
 				value INTEGER,
 				created_at TIMESTAMP DEFAULT NOW()
 			);`, tableName),
+		},
+		SourceSetupSchemaSQL: []string{
 			fmt.Sprintf(`ALTER TABLE %s REPLICA IDENTITY FULL;`, tableName),
 		},
 		InitialDataSQL: []string{
@@ -327,6 +376,9 @@ func TestCDCMultipleBatchFailures(t *testing.T) {
 
 	err = lm.StartExportDataWithEnv(true, nil, bytemanHelperRun1.GetEnv())
 	require.NoError(t, err, "Failed to start export (run 1)")
+
+	err = lm.StartImportData(true, nil)
+	require.NoError(t, err, "Failed to start import data")
 
 	time.Sleep(10 * time.Second)
 
@@ -399,22 +451,35 @@ func TestCDCMultipleBatchFailures(t *testing.T) {
 
 	verifyNoEventIDDuplicates(t, exportDir)
 	assertRowCount(110)
+
+	// Validate: import (started alongside run 1) should have snapshot + all CDC events
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		reportTableName(tableName): {Inserts: 60},
+	}, 120, 5)
+	require.NoError(t, err, "Forward streaming did not complete")
+
+	err = lm.ValidateRowCount([]string{tableName})
+	require.NoError(t, err, "Source and target row counts don't match after multiple batch failures recovery")
 }
 
 // TestCDCMultiTableBatchFailureAndResume verifies that live migration `export data` can resume
-// after a mid-batch failure when streaming CDC events from multiple tables.
+// after a mid-batch failure when streaming CDC events from multiple tables, and that `import data`
+// correctly applies all events to the target with no anomalies.
 //
 // Scenario:
 //  1. Start `export data` (snapshot-and-changes mode) with 2 tables (50 snapshot rows each).
-//  2. Generate 3 CDC batches, each inserting 10 rows into both tables (20 events per batch).
-//  3. Inject failure on 2nd CDC batch via before-batch-streaming marker.
-//  4. Export crashes after batch 1 committed (20 events); batches 2 and 3 are lost.
-//  5. Resume `export data` without failure injection.
-//  6. Verify all 60 CDC events recovered with no duplicates.
+//  2. Start `import data` concurrently (imports snapshot + streams CDC to target).
+//  3. Generate 3 CDC batches, each inserting 10 rows into both tables (20 events per batch).
+//  4. Inject failure on 2nd CDC batch via before-batch-streaming marker.
+//  5. Export crashes after batch 1 committed (20 events); batches 2 and 3 are lost.
+//  6. Resume `export data` without failure injection.
+//  7. Verify all 60 CDC events recovered with no duplicates.
+//  8. Verify import consumed all CDC events and source == target row counts match for both tables.
 //
 // This test validates:
 // - Offset tracking correctness across multiple tables during failure/recovery
 // - Event deduplication spanning multiple tables on resume
+// - End-to-end: import data correctly applies recovered events to the target
 //
 // Injection point:
 //   - Byteman rule on Debezium at `cdc("before-batch-streaming")` marker (2nd invocation).
@@ -425,8 +490,12 @@ func TestCDCMultiTableBatchFailureAndResume(t *testing.T) {
 
 	ctx := context.Background()
 
+	tableA := "test_schema_multi_tbl.table_a"
+	tableB := "test_schema_multi_tbl.table_b"
+
 	lm := NewLiveMigrationTest(t, &TestConfig{
-		SourceDB:    ContainerConfig{Type: "postgresql", ForLive: true, DatabaseName: "postgres"},
+		SourceDB: ContainerConfig{Type: "postgresql", ForLive: true, DatabaseName: "postgres"},
+		TargetDB: ContainerConfig{Type: "yugabytedb", DatabaseName: "test_multi_tbl"},
 		SchemaNames: []string{"test_schema_multi_tbl"},
 		SchemaSQL: []string{
 			"DROP SCHEMA IF EXISTS test_schema_multi_tbl CASCADE;",
@@ -436,12 +505,14 @@ func TestCDCMultiTableBatchFailureAndResume(t *testing.T) {
 				name TEXT,
 				value INTEGER
 			);`,
-			`ALTER TABLE test_schema_multi_tbl.table_a REPLICA IDENTITY FULL;`,
 			`CREATE TABLE test_schema_multi_tbl.table_b (
 				id SERIAL PRIMARY KEY,
 				label TEXT,
 				score INTEGER
 			);`,
+		},
+		SourceSetupSchemaSQL: []string{
+			`ALTER TABLE test_schema_multi_tbl.table_a REPLICA IDENTITY FULL;`,
 			`ALTER TABLE test_schema_multi_tbl.table_b REPLICA IDENTITY FULL;`,
 		},
 		InitialDataSQL: []string{
@@ -472,6 +543,9 @@ func TestCDCMultiTableBatchFailureAndResume(t *testing.T) {
 	// Run 1: export with Byteman injection - should fail on 2nd CDC batch
 	err = lm.StartExportDataWithEnv(true, nil, bytemanHelper.GetEnv())
 	require.NoError(t, err, "Failed to start export")
+
+	err = lm.StartImportData(true, nil)
+	require.NoError(t, err, "Failed to start import data")
 
 	time.Sleep(10 * time.Second)
 
@@ -510,4 +584,14 @@ func TestCDCMultiTableBatchFailureAndResume(t *testing.T) {
 	require.Equal(t, 60, finalEventCount, "Expected 60 CDC events after resume (30 per table)")
 
 	verifyNoEventIDDuplicates(t, exportDir)
+
+	// Validate: import (started alongside run 1) should have snapshot + all CDC events
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		reportTableName(tableA): {Inserts: 30},
+		reportTableName(tableB): {Inserts: 30},
+	}, 120, 5)
+	require.NoError(t, err, "Forward streaming did not complete")
+
+	err = lm.ValidateRowCount([]string{tableA, tableB})
+	require.NoError(t, err, "Source and target row counts don't match after multi-table failure recovery")
 }
