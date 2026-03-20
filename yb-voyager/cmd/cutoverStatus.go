@@ -17,6 +17,7 @@ package cmd
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/fatih/color"
 	"github.com/gosuri/uitable"
@@ -37,8 +38,9 @@ const (
 )
 
 type cutoverStatusRow struct {
-	Direction string
-	Status    string
+	Direction     string
+	Status        string
+	InitiatedTime time.Time
 }
 
 var cutoverStatusCmd = &cobra.Command{
@@ -61,34 +63,6 @@ var cutoverStatusCmd = &cobra.Command{
 			return
 		}
 
-		// utils.PrintAndLogfPhase("\nIteration 0:")
-		// rows := collectCutoverStatusRows()
-		// renderCutoverStatusTable(rows)
-
-		// currExportDir := exportDir
-		// currMetaDB := metaDB
-		// defer func() {
-		// 	exportDir = currExportDir
-		// 	metaDB = currMetaDB
-		// }()
-		// for i := 1; i <= msr.LatestIterationNumber; i++ {
-		// 	iterationsDir := msr.GetIterationsDir(currExportDir)
-		// 	iterationExportDir := GetIterationExportDir(iterationsDir, i)
-		// 	iterationMetaDB, err := metadb.NewMetaDB(iterationExportDir)
-		// 	if err != nil {
-		// 		utils.ErrExit("error getting iteration meta db: %s", err)
-		// 	}
-		// 	exportDir = iterationExportDir
-		// 	metaDB = iterationMetaDB
-
-		// 	if i == msr.LatestIterationNumber {
-		// 		utils.PrintAndLogfPhase("\nIteration %d (current):", i)
-		// 	} else {
-		// 		utils.PrintAndLogfPhase("\nIteration %d:", i)
-		// 	}
-		// 	rows := collectCutoverStatusRows()
-		// 	renderCutoverStatusTable(rows)
-		// }
 		iterationToRows := collectCutoverStatusRowsForAllIterations()
 		for i, rows := range iterationToRows {
 			if msr.LatestIterationNumber == i {
@@ -154,23 +128,26 @@ func collectCutoverStatusRows() []cutoverStatusRow {
 
 	toTargetStatus := getCutoverStatus()
 	rows = append(rows, cutoverStatusRow{
-		Direction: DIRECTION_SOURCE_TO_TARGET,
-		Status:    toTargetStatus,
+		Direction:     DIRECTION_SOURCE_TO_TARGET,
+		Status:        toTargetStatus,
+		InitiatedTime: msr.CutoverTimings.ToTargetRequestedAt,
 	})
 
 	if msr.FallbackEnabled {
 		toSourceStatus := getCutoverToSourceStatus(exportDir)
 		rows = append(rows, cutoverStatusRow{
-			Direction: DIRECTION_TARGET_TO_SOURCE,
-			Status:    toSourceStatus,
+			Direction:     DIRECTION_TARGET_TO_SOURCE,
+			Status:        toSourceStatus,
+			InitiatedTime: msr.CutoverTimings.ToSourceRequestedAt,
 		})
 	}
 
 	if msr.FallForwardEnabled {
 		toSRStatus := getCutoverToSourceReplicaStatus()
 		rows = append(rows, cutoverStatusRow{
-			Direction: DIRECTION_TARGET_TO_SOURCE_REPLICA,
-			Status:    toSRStatus,
+			Direction:     DIRECTION_TARGET_TO_SOURCE_REPLICA,
+			Status:        toSRStatus,
+			InitiatedTime: msr.CutoverTimings.ToSourceReplicaRequestedAt,
 		})
 	}
 
@@ -181,10 +158,10 @@ func renderCutoverStatusTable(rows []cutoverStatusRow) {
 	table := uitable.New()
 	table.Separator = " | "
 
-	addHeader(table, "DIRECTION", "STATUS")
+	addHeader(table, "DIRECTION", "STATUS", "INITIATED TIME")
 	table.AddRow()
 	for _, row := range rows {
-		table.AddRow(row.Direction, colorizeStatus(row.Status))
+		table.AddRow(row.Direction, colorizeStatus(row.Status), row.InitiatedTime.Format(time.RFC3339))
 	}
 	fmt.Println(table)
 	fmt.Println()
