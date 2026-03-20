@@ -20,6 +20,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -199,6 +200,10 @@ func TestExportFromTargetStartupFailureAndCutoverResume(t *testing.T) {
 //   - Byteman rule on `before-batch-streaming` in YbExporterConsumer (via DEBEZIUM_OPTS
 //     inherited by the export-from-target process from import data's exec).
 func TestFallForwardCDCStreamingFailureAndResume(t *testing.T) {
+	if os.Getenv("BYTEMAN_JAR") == "" {
+		t.Skip("Skipping test: BYTEMAN_JAR environment variable not set. Install Byteman to run this test.")
+	}
+
 	tableName := "test_schema_ff.ff_stream_test"
 	ctx := context.Background()
 
