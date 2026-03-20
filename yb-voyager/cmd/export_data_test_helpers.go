@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -403,6 +404,29 @@ func checkTruncationLog(exportDir string) (bool, error) {
 		return false, err
 	}
 	return strings.Contains(string(data), "Truncating queue segment"), nil
+}
+
+// parseTruncationTargetSize extracts the "to size N" value from the Debezium truncation log.
+// The log format is: "Truncating queue segment <num> at path <path> to size <size>"
+func parseTruncationTargetSize(exportDir string) (int64, error) {
+	logPattern := filepath.Join(exportDir, "logs", "debezium-*.log")
+	matches, err := filepath.Glob(logPattern)
+	if err != nil {
+		return -1, err
+	}
+	if len(matches) == 0 {
+		return -1, fmt.Errorf("no debezium log files found")
+	}
+	data, err := os.ReadFile(matches[0])
+	if err != nil {
+		return -1, err
+	}
+	re := regexp.MustCompile(`Truncating queue segment \d+ at path .+ to size (\d+)`)
+	m := re.FindStringSubmatch(string(data))
+	if m == nil {
+		return -1, fmt.Errorf("truncation log line not found")
+	}
+	return strconv.ParseInt(m[1], 10, 64)
 }
 
 func assertEventCountDoesNotExceed(t *testing.T, exportDir string, max int, timeout, pollInterval time.Duration) {
