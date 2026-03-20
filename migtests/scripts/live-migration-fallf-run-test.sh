@@ -251,7 +251,7 @@ main() {
 	# max sleep time = 20 * 20s = ~ 6.6 minutes, but that much sleep will be in failure cases
 	# in success case it will exit as soon as cutover is COMPLETED + 20sec
 	for ((i = 0; i < 20; i++)); do
-    if [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | grep "cutover to target status" | cut -d ':'  -f 2 | tr -d '[:blank:]')"  != "COMPLETED" ]; then
+    if [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | grep "source → target" | awk -F'|' '{print $2}' | tr -d '[:blank:]')"  != "COMPLETED" ]; then
         echo "Waiting for cutover to be COMPLETED..."
         sleep 20
         if [ "$i" -eq 19 ]; then
@@ -288,7 +288,7 @@ main() {
 	yb-voyager initiate cutover to source-replica --export-dir ${EXPORT_DIR} --yes
 
 	for ((i = 0; i < 15; i++)); do
-    if [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | grep "cutover to source-replica status" | cut -d ':'  -f 2 | tr -d '[:blank:]')" != "COMPLETED" ]; then
+    if [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | grep "target → source-replica" | awk -F'|' '{print $2}' | tr -d '[:blank:]')" != "COMPLETED" ]; then
         echo "Waiting for switchover to be COMPLETED..."
         sleep 20
         if [ "$i" -eq 14 ]; then
