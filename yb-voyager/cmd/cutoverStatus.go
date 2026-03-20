@@ -38,9 +38,9 @@ const (
 )
 
 type cutoverStatusRow struct {
-	Direction     string
-	Status        string
-	InitiatedTime time.Time
+	Direction   string
+	Status      string
+	RequestedAt time.Time
 }
 
 var cutoverStatusCmd = &cobra.Command{
@@ -131,26 +131,26 @@ func collectCutoverStatusRows(exportDir string) []cutoverStatusRow {
 
 	toTargetStatus := getCutoverStatus()
 	rows = append(rows, cutoverStatusRow{
-		Direction:     DIRECTION_SOURCE_TO_TARGET,
-		Status:        toTargetStatus,
-		InitiatedTime: msr.CutoverTimings.ToTargetRequestedAt,
+		Direction:   DIRECTION_SOURCE_TO_TARGET,
+		Status:      toTargetStatus,
+		RequestedAt: msr.CutoverTimings.ToTargetRequestedAt,
 	})
 
 	if msr.FallbackEnabled {
 		toSourceStatus := getCutoverToSourceStatus(exportDir)
 		rows = append(rows, cutoverStatusRow{
-			Direction:     DIRECTION_TARGET_TO_SOURCE,
-			Status:        toSourceStatus,
-			InitiatedTime: msr.CutoverTimings.ToSourceRequestedAt,
+			Direction:   DIRECTION_TARGET_TO_SOURCE,
+			Status:      toSourceStatus,
+			RequestedAt: msr.CutoverTimings.ToSourceRequestedAt,
 		})
 	}
 
 	if msr.FallForwardEnabled {
 		toSRStatus := getCutoverToSourceReplicaStatus()
 		rows = append(rows, cutoverStatusRow{
-			Direction:     DIRECTION_TARGET_TO_SOURCE_REPLICA,
-			Status:        toSRStatus,
-			InitiatedTime: msr.CutoverTimings.ToSourceReplicaRequestedAt,
+			Direction:   DIRECTION_TARGET_TO_SOURCE_REPLICA,
+			Status:      toSRStatus,
+			RequestedAt: msr.CutoverTimings.ToSourceReplicaRequestedAt,
 		})
 	}
 
@@ -166,7 +166,7 @@ func renderCutoverStatusTable(rows []cutoverStatusRow) {
 	for _, row := range rows {
 		requestedAt := "-"
 		if row.Status != NOT_INITIATED {
-			requestedAt = row.InitiatedTime.UTC().Format(time.DateTime + " UTC")
+			requestedAt = row.RequestedAt.UTC().Format(time.DateTime + " UTC")
 		}
 		table.AddRow(row.Direction, colorizeStatus(row.Status), requestedAt)
 	}
