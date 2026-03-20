@@ -88,6 +88,36 @@ func NewVoyagerCommandRunner(container testcontainers.TestContainer, cmdName str
 	return &cmdRunner
 }
 
+// commandsSupportingSendDiagnostics lists commands that accept the --send-diagnostics flag
+// (registered via registerCommonGlobalFlags). This allowlist ensures we only pass the flag to
+// commands that support it -- passing it to commands like cutover, status, or get data-migration-report
+// would cause Cobra to fail with "unknown flag".
+var commandsSupportingSendDiagnostics = map[string]bool{
+	"export schema":                      true,
+	"export data":                        true,
+	"export data from source":            true,
+	"export data from target":            true,
+	"import schema":                      true,
+	"import data":                        true,
+	"import data to target":              true,
+	"import data to source":              true,
+	"import data to source-replica":      true,
+	"import data file":                   true,
+	"analyze-schema":                     true,
+	"assess-migration":                   true,
+	"finalize-schema-post-data-import":   true,
+	"compare-performance":                true,
+	"end migration":                      true,
+	"archive changes":                    true,
+	"segment-cleanup":                    true,
+	"assess-migration-bulk":              true,
+}
+
+// supportsSendDiagnosticsFlag checks if the given command supports the --send-diagnostics flag.
+func supportsSendDiagnosticsFlag(cmdName string) bool {
+	return commandsSupportingSendDiagnostics[cmdName]
+}
+
 func (v *VoyagerCommandRunner) Prepare() error {
 	if len(v.finalArgs) != 0 {
 		return nil // already prepared
@@ -142,6 +172,15 @@ func (v *VoyagerCommandRunner) Prepare() error {
 		For eg: append(v.CmdArgs, connectionArgs...) the default connection args with override the ones passed to CommandRunner
 	*/
 	v.finalArgs = append(parts, append(connectionArgs, v.CmdArgs...)...)
+
+	// Add --send-diagnostics=false explicitly for commands that support it.
+	// This is an extra safety measure in addition to setting the YB_VOYAGER_SEND_DIAGNOSTICS
+	// environment variable, ensuring diagnostics are disabled even if the env var is not
+	// properly inherited by subprocesses.
+	if supportsSendDiagnosticsFlag(v.CmdName) && !slices.Contains(v.CmdArgs, "--send-diagnostics") {
+		v.finalArgs = append(v.finalArgs, "--send-diagnostics", "false")
+	}
+
 	return nil
 }
 

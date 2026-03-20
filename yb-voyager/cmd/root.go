@@ -79,12 +79,24 @@ var rootCmd = &cobra.Command{
 Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like setting up source/target, migration workflow etc.`,
 
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		// Initialize the config file (also loads control plane config)
+		// Save before initConfig, which also marks flags as Changed when applying config values.
+		sendDiagnosticsSetByCLI := cmd.Flags().Changed("send-diagnostics")
+
 		envVarsAlreadyExported, err := initConfig(cmd)
 		if err != nil {
 			// not using utils.ErrExit as logging is not initialized yet
 			fmt.Printf("ERROR: Failed to initialize config: %v\n", err)
 			atexit.Exit(1)
+		}
+
+		// Targeted fix for send-diagnostics: read the env var after initConfig so it
+		// takes precedence over config file values (CLI > ENV > Config > Default).
+		// Unlike other env-var-backed settings (e.g. passwords via getPassword()), the
+		// callhome flag is read from a BoolVar pointer rather than os.Getenv() at point
+		// of use, so it needs this explicit ordering. A more general fix would be to
+		// refactor callhome to read the env var at point of use (like getPassword()).
+		if !sendDiagnosticsSetByCLI {
+			callhome.ReadEnvSendDiagnostics()
 		}
 
 		currentCommand = cmd.CommandPath()
@@ -428,12 +440,7 @@ func Execute() {
 }
 
 func init() {
-	// Here you will define your flags and configuration settings.
-	// Cobra supports persistent flags, which, if defined here,
-	// will be global for your application.
 	rootCmd.CompletionOptions.DisableDefaultCmd = true
-
-	callhome.ReadEnvSendDiagnostics()
 }
 
 var globalFlags = []string{}
