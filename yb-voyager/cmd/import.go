@@ -30,6 +30,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
+var targetDBPassword string
 var sourceDBType string
 var enableOrafce utils.BoolStr
 var importType string

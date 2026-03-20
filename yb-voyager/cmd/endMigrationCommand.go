@@ -32,7 +32,6 @@ var (
 	saveMigrationReports    utils.BoolStr
 	backupLogFiles          utils.BoolStr
 	backupDir               string
-	targetDBPassword        string
 	sourceReplicaDBPassword string
 	sourceDBPassword        string
 	streamChangesMode       bool
