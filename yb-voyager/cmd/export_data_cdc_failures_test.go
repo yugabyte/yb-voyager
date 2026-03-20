@@ -19,6 +19,7 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -72,7 +73,7 @@ func TestCDCBatchFailureAndResume(t *testing.T) {
 	ctx := context.Background()
 
 	lm := NewLiveMigrationTest(t, &TestConfig{
-		SourceDB:    ContainerConfig{Type: "postgresql", ForLive: true},
+		SourceDB:    ContainerConfig{Type: "postgresql", ForLive: true, DatabaseName: "postgres"},
 		SchemaNames: []string{"test_schema"},
 		SchemaSQL: []string{
 			"CREATE SCHEMA IF NOT EXISTS test_schema;",
@@ -94,136 +95,56 @@ func TestCDCBatchFailureAndResume(t *testing.T) {
 	require.NoError(t, lm.SetupContainers(ctx))
 	require.NoError(t, lm.SetupSchema())
 
-	exportDir = lm.GetExportDir()
-	postgresContainer := lm.GetSourceContainer()
+	exportDir := lm.GetExportDir()
 
 	bytemanHelper, err := testutils.NewBytemanHelper(exportDir)
 	require.NoError(t, err, "Failed to create Byteman helper")
 
-	// Target marker for batch processing - fails on 2nd CDC batch (after snapshot)
-	// Use streaming-only marker to avoid snapshot batch ambiguity
 	bytemanHelper.AddRuleFromBuilder(
 		testutils.NewRule("fail_cdc_batch_2").
 			AtMarker(testutils.MarkerCDC, "before-batch-streaming").
 			If("incrementCounter(\"cdc_batch\") == 2").
 			ThrowException("java.lang.RuntimeException", "TEST: Simulated batch processing failure on batch 2"),
 	)
+	require.NoError(t, bytemanHelper.WriteRules())
 
-	err = bytemanHelper.WriteRules()
-	require.NoError(t, err, "Failed to write Byteman rules")
-
-	testutils.LogTest(t, "Running CDC export with failure injection on 2nd CDC batch (streaming-only)...")
-
-	// Generate CDC events in background
-	cdcEventsGenerated := make(chan bool, 1)
-	generateCDCEvents := func() {
-		time.Sleep(10 * time.Second) // Wait for snapshot to complete
-		testutils.LogTestf(t, "Generating CDC events (3 batches of 20 rows, %v between batches)...", batchSeparationWaitTime)
-
-		// Batch 1: Should succeed
-		testutils.LogTest(t, "Inserting batch 1 (20 rows)...")
-		postgresContainer.ExecuteSqls(
-			`INSERT INTO test_schema.cdc_test (name, value)
-			SELECT 'batch1_' || i, 100 + i FROM generate_series(1, 20) i;`,
-		)
-		testutils.LogTestf(t, "Batch 1 inserted, waiting %v for Debezium to process...", batchSeparationWaitTime)
-		time.Sleep(batchSeparationWaitTime)
-
-		// Best-effort check: batch 1 should result in 20 CDC events.
-		batch1Count, err := countEventsInQueueSegments(exportDir)
-		if err == nil {
-			testutils.LogTestf(t, "Events in queue after batch 1: %d", batch1Count)
-			if batch1Count != 20 {
-				testutils.LogTestf(t, "Warning: expected 20 events after batch 1, got %d (may still be processing)", batch1Count)
-			}
-		} else {
-			testutils.LogTestf(t, "Could not count events after batch 1 (queue may not exist yet): %v", err)
-		}
-
-		// Batch 2: Should FAIL due to injection
-		testutils.LogTest(t, "Inserting batch 2 (20 rows) - expected to fail via Byteman...")
-		postgresContainer.ExecuteSqls(
-			`INSERT INTO test_schema.cdc_test (name, value)
-			SELECT 'batch2_' || i, 200 + i FROM generate_series(1, 20) i;`,
-		)
-		testutils.LogTestf(t, "Batch 2 inserted, waiting %v...", batchSeparationWaitTime)
-		time.Sleep(batchSeparationWaitTime)
-
-		// Batch 3: Will be processed after recovery
-		testutils.LogTest(t, "Inserting batch 3 (20 rows) - processed after recovery...")
-		postgresContainer.ExecuteSqls(
-			`INSERT INTO test_schema.cdc_test (name, value)
-			SELECT 'batch3_' || i, 300 + i FROM generate_series(1, 20) i;`,
-		)
-		testutils.LogTest(t, "Batch 3 inserted")
-
-		cdcEventsGenerated <- true
-	}
-
-	// Run export with Byteman injection - should fail on 2nd CDC batch
-	exportRunner := testutils.NewVoyagerCommandRunner(postgresContainer, "export data", []string{
-		"--export-dir", exportDir,
-		"--export-type", "snapshot-and-changes",
-		"--source-db-schema", "test_schema",
-		"--disable-pb", "true",
-		"--yes",
-	}, generateCDCEvents, true).WithEnv(bytemanHelper.GetEnv()...)
-
-	err = exportRunner.Run()
+	// Run 1: export with Byteman injection - should fail on 2nd CDC batch
+	err = lm.StartExportDataWithEnv(true, nil, bytemanHelper.GetEnv())
 	require.NoError(t, err, "Failed to start export")
 
-	// Wait for the failure to be injected
-	testutils.LogTest(t, "Waiting for Byteman injection...")
+	time.Sleep(10 * time.Second)
+
+	for batch := 1; batch <= 3; batch++ {
+		lm.ExecuteOnSource(
+			fmt.Sprintf(`INSERT INTO test_schema.cdc_test (name, value)
+			SELECT 'batch%d_' || i, %d + i FROM generate_series(1, 20) i;`, batch, batch*100),
+		)
+		time.Sleep(batchSeparationWaitTime)
+	}
+
 	matched, err := bytemanHelper.WaitForInjection(">>> BYTEMAN: fail_cdc_batch_2", 90*time.Second)
 	require.NoError(t, err, "Should be able to read debezium logs")
 	require.True(t, matched, "Byteman injection should have occurred and been logged")
-	testutils.LogTest(t, "Byteman injection detected")
 
-	// Wait a bit to ensure all CDC events are generated
-	select {
-	case <-cdcEventsGenerated:
-		testutils.LogTest(t, "CDC events generation completed")
-	case <-time.After(60 * time.Second):
-		require.Fail(t, "CDC event generation timed out")
-	}
-
-	// Wait for the export process to crash (Byteman exception should abort Debezium)
-	testutils.LogTest(t, "Waiting for export process to exit after Byteman injection...")
-	err = exportRunner.Wait()
+	err = lm.WaitForExportDataExit()
 	require.Error(t, err, "Export should exit with error after Byteman injection")
 
-	time.Sleep(3 * time.Second) // Additional wait for cleanup
+	time.Sleep(3 * time.Second)
 
-	// Verify that some CDC events were written before failure
-	testutils.LogTest(t, "Counting CDC events in queue segments after failed export...")
 	eventCountAfterFailure, err := countEventsInQueueSegments(exportDir)
 	require.NoError(t, err, "Should be able to count CDC events after failure")
-	testutils.LogTestf(t, "CDC events in queue after failed export: %d (expected: 20)", eventCountAfterFailure)
 	require.Equal(t, 20, eventCountAfterFailure, "Should have exactly 20 events (batch 1) before failure")
 
 	verifyNoEventIDDuplicates(t, exportDir)
 
-	testutils.LogTest(t, "Resuming CDC export without failure injection...")
-
-	// Resume export WITHOUT Byteman (no failure injection)
-	exportRunnerResume := testutils.NewVoyagerCommandRunner(postgresContainer, "export data", []string{
-		"--export-dir", exportDir,
-		"--export-type", "snapshot-and-changes",
-		"--source-db-schema", "test_schema",
-		"--disable-pb", "true",
-		"--yes",
-	}, nil, true)
-
-	err = exportRunnerResume.Run()
+	// Run 2: resume export without Byteman
+	err = lm.StartExportData(true, nil)
 	require.NoError(t, err, "Failed to start resumed export")
-	defer exportRunnerResume.Kill()
 
-	finalEventCount := waitForCDCEventCount(t, exportDir, 60, 120*time.Second, 5*time.Second)
+	finalEventCount := lm.WaitForCDCEventCount(t, 60, 120*time.Second, 5*time.Second)
 	require.Equal(t, 60, finalEventCount, "Expected 60 CDC events after resume")
 
 	verifyNoEventIDDuplicates(t, exportDir)
-
-	testutils.LogTest(t, "CDC batch failure and resume test completed successfully")
 }
 
 // TestFirstCDCBatchFailure verifies that live migration `export data` can resume after
