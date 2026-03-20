@@ -24,7 +24,9 @@ import (
 	"github.com/fatih/color"
 	"github.com/google/uuid"
 	"github.com/gosuri/uitable"
+	"github.com/samber/lo"
 	"github.com/spf13/cobra"
+	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/config"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
@@ -36,10 +38,11 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
-var targetDbPassword string
 var sourceReplicaDbPassword string
 var sourceDbPassword string
 var nameRegistryForSourceReplicaRole *namereg.NameRegistry
+
+var includeDetailedIterationsStats utils.BoolStr
 
 var getDataMigrationReportCmd = &cobra.Command{
 	Use:   "data-migration-report",
@@ -53,6 +56,16 @@ var getDataMigrationReportCmd = &cobra.Command{
 		if err != nil {
 			utils.ErrExit("error while getting migration status: %w\n", err)
 		}
+		if migrationStatus.LatestIterationNumber == 0 {
+			if includeDetailedIterationsStats {
+				utils.ErrExit("Error: Detailed report is only applicable for multiple iterations of Live migration with fallback workflow")
+			}
+		}
+		if migrationStatus.FallForwardEnabled {
+			if includeDetailedIterationsStats {
+				utils.ErrExit("Error: Detailed report is only applicable for multiple iterations of Live migration with fallback workflow")
+			}
+		}
 		streamChanges, err := checkStreamingMode()
 		if err != nil {
 			utils.ErrExit("error while checking streaming mode: %w\n", err)
@@ -65,6 +78,7 @@ var getDataMigrationReportCmd = &cobra.Command{
 			if migrationStatus.TargetDBConf != nil {
 				getTargetPassword(cmd)
 				migrationStatus.TargetDBConf.Password = tconf.Password
+				targetDBPassword = tconf.Password
 			}
 			if migrationStatus.FallForwardEnabled {
 				getSourceReplicaDBPassword(cmd)
@@ -73,13 +87,14 @@ var getDataMigrationReportCmd = &cobra.Command{
 			if migrationStatus.FallbackEnabled {
 				getSourceDBPassword(cmd)
 				migrationStatus.SourceDBAsTargetConf.Password = tconf.Password
+				sourceDbPassword = tconf.Password
 			}
 			err = InitNameRegistry(exportDir, "", nil, nil, nil, nil, false)
 			if err != nil {
 				utils.ErrExit("initializing name registry: %w", err)
 			}
 			color.Yellow("Generating data migration report for migration UUID: %s...\n", migrationStatus.MigrationUUID)
-			getDataMigrationReportCmdFn(migrationStatus)
+			getDataMigrationReportCmdFn(migrationStatus, false, true)
 		} else {
 			utils.ErrExit("Error: Data migration report is only applicable when export-type is 'snapshot-and-changes'(live migration)\nPlease run export data status/import data status commands.")
 		}
@@ -89,6 +104,7 @@ var getDataMigrationReportCmd = &cobra.Command{
 type rowData struct {
 	TableName                   string `json:"table_name"`
 	DBType                      string `json:"db_type"`
+	IterationNumber             int    `json:"iteration_number,omitempty"`
 	ExportedSnapshotRows        int64  `json:"exported_snapshot_rows"`
 	ImportedSnapshotRows        int64  `json:"imported_snapshot_rows"`
 	ErroredImportedSnapshotRows int64  `json:"errored_imported_snapshot_rows"`
@@ -101,13 +117,30 @@ type rowData struct {
 	FinalRowCount               int64  `json:"final_row_count"`
 }
 
-var reportData []*rowData
-
 var fBEnabled, fFEnabled bool
 var firstHeader = []string{"TABLE", "DB_TYPE", "EXPORTED", "IMPORTED", "ERRORED-IMPORTED", "EXPORTED", "EXPORTED", "EXPORTED", "IMPORTED", "IMPORTED", "IMPORTED", "FINAL_ROW_COUNT"}
 var secondHeader = []string{"", "", "SNAPSHOT_ROWS", "SNAPSHOT_ROWS", "SNAPSHOT_ROWS", "INSERTS", "UPDATES", "DELETES", "INSERTS", "UPDATES", "DELETES", ""}
 
-func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
+var firstHeaderForDetailedReport = []string{"TABLE", "DB_TYPE", "ITERATION", "EXPORTED", "IMPORTED", "ERRORED-IMPORTED", "EXPORTED", "EXPORTED", "EXPORTED", "IMPORTED", "IMPORTED", "IMPORTED", "CUMULATIVE"}
+var secondHeaderForDetailedReport = []string{"", "", "NUMBER", "SNAPSHOT_ROWS", "SNAPSHOT_ROWS", "SNAPSHOT_ROWS", "INSERTS", "UPDATES", "DELETES", "INSERTS", "UPDATES", "DELETES", "FINAL_ROW_COUNT"}
+
+var firstHeaderForIteration = []string{"TABLE", "DB_TYPE", "EXPORTED", "EXPORTED", "EXPORTED", "IMPORTED", "IMPORTED", "IMPORTED"}
+var secondHeaderForIteration = []string{"", "", "INSERTS", "UPDATES", "DELETES", "INSERTS", "UPDATES", "DELETES"}
+
+type rowDataForIteration struct {
+	TableName       string `json:"table_name"`
+	DBType          string `json:"db_type"`
+	ExportedInserts int64  `json:"exported_inserts"`
+	ExportedUpdates int64  `json:"exported_updates"`
+	ExportedDeletes int64  `json:"exported_deletes"`
+	ImportedInserts int64  `json:"imported_inserts"`
+	ImportedUpdates int64  `json:"imported_updates"`
+	ImportedDeletes int64  `json:"imported_deletes"`
+}
+
+func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord, donotPrint bool, aggregateIterationsStats bool) {
+
+	var reportData []*rowData
 	fBEnabled = msr.FallbackEnabled
 	fFEnabled = msr.FallForwardEnabled
 	tableList := msr.TableListExportedFromSource
@@ -126,15 +159,6 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 	if err != nil {
 		utils.ErrExit("initializing name registry for source replica: %w", err)
 	}
-	uitbl := uitable.New()
-	uitbl.MaxColWidth = 50
-	uitbl.Wrap = true
-	uitbl.Separator = " | "
-
-	maxTablesInOnePage := 10
-
-	addHeader(uitbl, firstHeader...)
-	addHeader(uitbl, secondHeader...)
 	exportStatusFilePath := filepath.Join(exportDir, "data", "export_status.json")
 	dbzmStatus, err := dbzm.ReadExportStatus(exportStatusFilePath)
 	if err != nil {
@@ -167,7 +191,7 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 				utils.ErrExit("error while getting exported snapshot rows: %w\n", err)
 			}
 		} else {
-			//for ORACLE case to fetch dbzm status file 
+			//for ORACLE case to fetch dbzm status file
 			for _, tableExportStatus := range dbzmStatus.Tables {
 				tableName := fmt.Sprintf("%s.%s", tableExportStatus.SchemaName, tableExportStatus.TableName)
 				nt, err := namereg.NameReg.LookupTableName(tableName)
@@ -249,8 +273,7 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 		}
 	}
 
-	for i, nameTup := range tableNameTups {
-		uitbl.AddRow() // blank row
+	for _, nameTup := range tableNameTups {
 
 		row := rowData{}
 		updateExportedSnapshotRowsInTheRow(msr, &row, nameTup, dbzmNameTupToRowCount, exportedPGSnapshotRowsMap)
@@ -268,7 +291,7 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 				utils.ErrExit("error while getting imported events for source DB in case of fall-back: %w\n", err)
 			}
 		}
-		addRowInTheTable(uitbl, row, nameTup)
+		addRowInTheReport(&reportData, row, nameTup.ForKey())
 		row = rowData{}
 		row.TableName = ""
 		row.DBType = "target"
@@ -285,7 +308,7 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 				utils.ErrExit("error while getting exported events for target DB: %w\n", err)
 			}
 		}
-		addRowInTheTable(uitbl, row, nameTup)
+		addRowInTheReport(&reportData, row, nameTup.ForKey())
 		if fFEnabled {
 			row = rowData{}
 			row.TableName = ""
@@ -295,48 +318,324 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 			if err != nil {
 				utils.ErrExit("error while getting imported events for DB %s: %w\n", row.DBType, err)
 			}
-			addRowInTheTable(uitbl, row, nameTup)
+			addRowInTheReport(&reportData, row, nameTup.ForKey())
 		}
+	}
 
-		if i%maxTablesInOnePage == 0 && i != 0 && reportOrStatusCmdOutputFormat == "table" {
-			//multiple table in case of large set of tables
-			fmt.Print("\n")
-			fmt.Println(uitbl)
-			fmt.Print("\n")
-			uitbl = uitable.New()
-			uitbl.MaxColWidth = 50
-			uitbl.Separator = " | "
-			addHeader(uitbl, firstHeader...)
-			addHeader(uitbl, secondHeader...)
-		}
-	}
-	if reportOrStatusCmdOutputFormat == "json" {
-		// Print the report in json format.
-		reportFilePath := filepath.Join(exportDir, "reports", "data-migration-report.json")
-		reportFile := jsonfile.NewJsonFile[[]*rowData](reportFilePath)
-		err := reportFile.Create(&reportData)
+	if aggregateIterationsStats {
+		reportData, err = aggregateDataWithIterationsIfRequired(reportData, msr)
 		if err != nil {
-			utils.ErrExit("creating into json file: %s: %w", reportFilePath, err)
+			utils.ErrExit("error while aggregating data with iterations: %w", err)
 		}
-		fmt.Print(color.GreenString("Data migration report is written to %s\n", reportFilePath))
-		return
 	}
-	if uitbl.Rows != nil {
-		fmt.Print("\n")
-		fmt.Println(uitbl)
-		fmt.Print("\n")
+
+	isIteration := msr.IterationNo > 0
+
+	if reportOrStatusCmdOutputFormat == "json" {
+		err = generateReportInJsonFormat(reportData, msr, isIteration, donotPrint)
+		if err != nil {
+			utils.ErrExit("error while generating report in json format: %w", err)
+		}
+	} else {
+		statsPerTable := parseRowDataToStatsPerTable(reportData)
+		printReport(isIteration, statsPerTable, msr)
 	}
 
 }
 
-func addRowInTheTable(uitbl *uitable.Table, row rowData, nameTup sqlname.NameTuple) {
-	if reportOrStatusCmdOutputFormat == "json" {
-		row.TableName = nameTup.ForKey()
-		row.FinalRowCount = getFinalRowCount(row)
-		reportData = append(reportData, &row)
-		return
+func generateReportInJsonFormat(reportData []*rowData, msr *metadb.MigrationStatusRecord, isIteration bool, donotPrint bool) error {
+	var err error
+	// Print the report in json format.
+	reportFilePath := filepath.Join(exportDir, "reports", "data-migration-report.json")
+	if isIteration {
+		reportFile := jsonfile.NewJsonFile[[]*rowDataForIteration](reportFilePath)
+		reportDataForIteration := convertRowDataToRowDataForIteration(reportData)
+		err = reportFile.Create(&reportDataForIteration)
+		if err != nil {
+			return fmt.Errorf("creating into json file: %s: %w", reportFilePath, err)
+		}
+	} else {
+		reportFile := jsonfile.NewJsonFile[[]*rowData](reportFilePath)
+		err = reportFile.Create(&reportData)
+		if err != nil {
+			return fmt.Errorf("creating into json file: %s: %w", reportFilePath, err)
+		}
 	}
-	uitbl.AddRow(row.TableName, row.DBType, row.ExportedSnapshotRows, row.ImportedSnapshotRows, row.ErroredImportedSnapshotRows, row.ExportedInserts, row.ExportedUpdates, row.ExportedDeletes, row.ImportedInserts, row.ImportedUpdates, row.ImportedDeletes, getFinalRowCount(row))
+	if !isIteration && msr.LatestIterationNumber > 0 && !donotPrint {
+		if includeDetailedIterationsStats {
+			utils.PrintAndLogfPhase("\nDetailed data migration report for all iterations:")
+		} else {
+			utils.PrintAndLogfPhase("\nAggregated Data migration report for the overall migration:")
+		}
+	}
+	if !donotPrint {
+		fmt.Print(color.GreenString("Data migration report is written to %s\n", reportFilePath))
+	}
+	return nil
+}
+
+func parseRowDataToStatsPerTable(reportData []*rowData) map[string][]*rowData {
+	statsPerTable := make(map[string][]*rowData)
+	for _, row := range reportData {
+		statsPerTable[row.TableName] = append(statsPerTable[row.TableName], row)
+	}
+	return statsPerTable
+}
+
+func printReport(forIteration bool, statsPerTable map[string][]*rowData, msr *metadb.MigrationStatusRecord) {
+	tableNames := lo.Keys(statsPerTable)
+	slices.Sort(tableNames)
+
+	uitbl := uitable.New()
+	printHeader(uitbl, forIteration)
+
+	if !forIteration && msr.LatestIterationNumber > 0 {
+		if includeDetailedIterationsStats {
+			utils.PrintAndLogfPhase("\nDetailed data migration report for all iterations:")
+		} else {
+			utils.PrintAndLogfPhase("\nAggregated Data migration report for the overall migration:")
+		}
+	}
+
+	rowsInCurrUITable := 0
+	maxRowsInOnePage := 30
+	for _, tableName := range tableNames {
+		rowsForCurrTable := len(statsPerTable[tableName])
+		// If adding this table would exceed the page limit
+		// AND we already have at least one table on the page, flush.
+		if rowsInCurrUITable > 0 && rowsInCurrUITable+rowsForCurrTable > maxRowsInOnePage {
+			//print the current table and print the header for the next set of tables
+			fmt.Print("\n")
+			fmt.Println(uitbl)
+			fmt.Print("\n")
+			uitbl = uitable.New()
+			rowsInCurrUITable = 0
+			printHeader(uitbl, forIteration)
+		}
+		uitbl.AddRow() // blank row
+		lastIterationNumber := 0
+		for i, row := range statsPerTable[tableName] {
+			if i > 0 {
+				row.TableName = ""
+			}
+
+			if includeDetailedIterationsStats && row.IterationNumber != lastIterationNumber {
+				uitbl.AddRow()
+			}
+			addRowToTable(uitbl, row, forIteration)
+			lastIterationNumber = row.IterationNumber
+		}
+		rowsInCurrUITable += rowsForCurrTable
+	}
+	fmt.Print("\n")
+	fmt.Println(uitbl)
+	fmt.Print("\n")
+
+	if !bool(includeDetailedIterationsStats) && msr.LatestIterationNumber > 0 {
+		//If detailed report is not enabled, and there are iterations, print the info to see the detailed report
+		utils.PrintAndLogfInfo("To see the detailed report with all the iterations, run the command with the --all-iterations true flag.\n\n")
+	}
+
+}
+
+func printHeader(uitbl *uitable.Table, forIteration bool) {
+	uitbl.MaxColWidth = 50
+	uitbl.Wrap = true
+	uitbl.Separator = " | "
+	if forIteration {
+		addHeader(uitbl, firstHeaderForIteration...)
+		addHeader(uitbl, secondHeaderForIteration...)
+	} else if includeDetailedIterationsStats {
+		addHeader(uitbl, firstHeaderForDetailedReport...)
+		addHeader(uitbl, secondHeaderForDetailedReport...)
+	} else {
+		addHeader(uitbl, firstHeader...)
+		addHeader(uitbl, secondHeader...)
+	}
+}
+
+func addRowToTable(uitbl *uitable.Table, row *rowData, forIteration bool) {
+	if forIteration {
+		uitbl.AddRow(row.TableName, row.DBType, row.ExportedInserts, row.ExportedUpdates, row.ExportedDeletes, row.ImportedInserts, row.ImportedUpdates, row.ImportedDeletes)
+	} else if includeDetailedIterationsStats {
+		if row.IterationNumber == 0 {
+			uitbl.AddRow(row.TableName, row.DBType, row.IterationNumber, row.ExportedSnapshotRows, row.ImportedSnapshotRows, row.ErroredImportedSnapshotRows,
+				row.ExportedInserts, row.ExportedUpdates, row.ExportedDeletes, row.ImportedInserts, row.ImportedUpdates, row.ImportedDeletes, row.FinalRowCount)
+		} else { //iteration with changes only have no snapshot rows
+			uitbl.AddRow(row.TableName, row.DBType, row.IterationNumber, "-", "-", "-",
+				row.ExportedInserts, row.ExportedUpdates, row.ExportedDeletes, row.ImportedInserts, row.ImportedUpdates, row.ImportedDeletes, row.FinalRowCount)
+		}
+	} else {
+		uitbl.AddRow(row.TableName, row.DBType, row.ExportedSnapshotRows, row.ImportedSnapshotRows, row.ErroredImportedSnapshotRows,
+			row.ExportedInserts, row.ExportedUpdates, row.ExportedDeletes, row.ImportedInserts, row.ImportedUpdates, row.ImportedDeletes, row.FinalRowCount)
+	}
+
+}
+
+func addRowInTheReport(reportData *[]*rowData, row rowData, tableName string) {
+	row.TableName = tableName
+	row.FinalRowCount = getFinalRowCount(row)
+	*reportData = append(*reportData, &row)
+}
+
+func aggregateDataWithIterationsIfRequired(reportData []*rowData, msr *metadb.MigrationStatusRecord) ([]*rowData, error) {
+	if msr.LatestIterationNumber == 0 {
+		return reportData, nil
+	}
+
+	if includeDetailedIterationsStats {
+		for _, row := range reportData {
+			row.IterationNumber = 0 //set the iteration number to 0 for the main migration data
+		}
+	}
+
+	iterationsDir := msr.GetIterationsDir(exportDir)
+	//get all the iteration export dirs
+	for i := 1; i <= msr.LatestIterationNumber; i++ {
+		iterationExportDir := GetIterationExportDir(iterationsDir, i)
+		//run get data migration report command for each iteration
+		iterationReportData, err := getIterationDataMigrationReport(iterationExportDir)
+		if err != nil {
+			return nil, fmt.Errorf("error while getting iteration data migration report: %w", err)
+		}
+		if includeDetailedIterationsStats {
+
+			for _, row := range iterationReportData {
+				row.IterationNumber = i
+			}
+
+			//For detailed one, just append the iteration report data to the main report data
+			reportData = append(reportData, iterationReportData...)
+		} else {
+			//aggregate the iteration report data with the main report data
+			reportData = aggregateReportData(reportData, iterationReportData)
+		}
+	}
+
+	if includeDetailedIterationsStats {
+		//group the report data by table name and calcutate cumulative row count for iteration
+		reportData = groupByTableNameAndCalculateCumulativeRowCount(reportData)
+	}
+	return reportData, nil
+}
+
+func groupByTableNameAndCalculateCumulativeRowCount(reportData []*rowData) []*rowData {
+	//group the report data by table name
+	reportDataMap := make(map[string][]*rowData)
+	for _, row := range reportData {
+		reportDataMap[row.TableName] = append(reportDataMap[row.TableName], row)
+	}
+	tableNames := lo.Keys(reportDataMap)
+	slices.Sort(tableNames)
+	
+	reportData = make([]*rowData, 0)
+	for _, tableName := range tableNames {
+		var finalRowCountSrc int64 = 0
+		var finalRowCountTgt int64 = 0
+		rows := reportDataMap[tableName]
+		for i, row := range rows {
+			if row.IterationNumber == 0 {
+				if row.DBType == "source" {
+					finalRowCountSrc = row.FinalRowCount
+				} else {
+					finalRowCountTgt = row.FinalRowCount
+				}
+			}
+			if row.IterationNumber > 0 {
+				if row.DBType == "source" {
+					finalRowCountSrc += row.ExportedInserts - row.ExportedDeletes + row.ImportedInserts - row.ImportedDeletes
+					rows[i].FinalRowCount = finalRowCountSrc
+				} else {
+					finalRowCountTgt += row.ImportedInserts - row.ImportedDeletes + row.ExportedInserts - row.ExportedDeletes
+					rows[i].FinalRowCount = finalRowCountTgt
+				}
+
+			}
+			reportData = append(reportData, row)
+		}
+	}
+
+	return reportData
+}
+
+func getIterationDataMigrationReport(iterationExportDir string) ([]*rowData, error) {
+	currExportDir := exportDir
+	currMetaDB := metaDB
+	currReportFormat := reportOrStatusCmdOutputFormat
+	currMigrationUUID := migrationUUID
+
+	defer func() {
+		exportDir = currExportDir
+		metaDB = currMetaDB
+		reportOrStatusCmdOutputFormat = currReportFormat
+		migrationUUID = currMigrationUUID
+	}()
+
+	exportDir = iterationExportDir
+	metaDB = initMetaDB(iterationExportDir)
+	reportOrStatusCmdOutputFormat = "json"
+
+	iterationMsr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		return nil, fmt.Errorf("error while getting iteration migration status record: %w", err)
+	}
+	if iterationMsr.TargetDBConf != nil {
+		iterationMsr.TargetDBConf.Password = targetDBPassword
+	}
+	if iterationMsr.FallbackEnabled {
+		iterationMsr.SourceDBAsTargetConf.Password = sourceDbPassword
+	}
+	migrationUUID = uuid.MustParse(iterationMsr.MigrationUUID)
+
+	getDataMigrationReportCmdFn(iterationMsr, true, false)
+
+	iterationReportFile := filepath.Join(iterationExportDir, "reports", "data-migration-report.json")
+	iterationReportJsonFile := jsonfile.NewJsonFile[[]*rowData](iterationReportFile)
+	iterationReportData, err := iterationReportJsonFile.Read()
+	if err != nil {
+		return nil, fmt.Errorf("error while reading iteration data migration report %s: %w", iterationReportFile, err)
+	}
+
+	return *iterationReportData, nil
+}
+
+func aggregateReportData(reportData []*rowData, iterationReportData []*rowData) []*rowData {
+	reportDataMap := make(map[string]*rowData)
+	for _, row := range reportData {
+		reportDataMap[fmt.Sprintf("%s-%s", row.TableName, row.DBType)] = row
+	}
+	for _, row := range iterationReportData {
+		key := fmt.Sprintf("%s-%s", row.TableName, row.DBType)
+		if reportDataMap[key] == nil {
+			//Not possible, iteration report data should have set of tables ad dbtype of the tables
+			utils.ErrExit("Error: iteration report data should have set of tables ad dbtype of the tables, key: %s", key)
+		}
+		reportDataMap[key].ExportedInserts += row.ExportedInserts
+		reportDataMap[key].ExportedUpdates += row.ExportedUpdates
+		reportDataMap[key].ExportedDeletes += row.ExportedDeletes
+		reportDataMap[key].ImportedInserts += row.ImportedInserts
+		reportDataMap[key].ImportedUpdates += row.ImportedUpdates
+		reportDataMap[key].ImportedDeletes += row.ImportedDeletes
+		reportDataMap[key].FinalRowCount = getFinalRowCount(*reportDataMap[key])
+	}
+	return reportData
+}
+
+func convertRowDataToRowDataForIteration(reportData []*rowData) []*rowDataForIteration {
+	reportDataForIteration := make([]*rowDataForIteration, len(reportData))
+	for i, row := range reportData {
+		reportDataForIteration[i] = &rowDataForIteration{
+			TableName:       row.TableName,
+			DBType:          row.DBType,
+			ExportedInserts: row.ExportedInserts,
+			ExportedUpdates: row.ExportedUpdates,
+			ExportedDeletes: row.ExportedDeletes,
+			ImportedInserts: row.ImportedInserts,
+			ImportedUpdates: row.ImportedUpdates,
+			ImportedDeletes: row.ImportedDeletes,
+		}
+	}
+	return reportDataForIteration
 }
 
 func updateExportedSnapshotRowsInTheRow(msr *metadb.MigrationStatusRecord, row *rowData, nameTup sqlname.NameTuple, dbzmSnapshotRowCount *utils.StructMap[sqlname.NameTuple, int64], exportedSnapshotPGRowsMap *utils.StructMap[sqlname.NameTuple, int64]) error {
@@ -379,7 +678,7 @@ func getImportedEventsMap(dbType string, tableNameTups []sqlname.NameTuple, targ
 	return tableNameTupToEventsCounter, nil
 }
 
-func updateImportedEventsCountsInTheRow(row *rowData, tableNameTup sqlname.NameTuple, snapshotImportedRowsMap *utils.StructMap[sqlname.NameTuple, RowCountPair], 
+func updateImportedEventsCountsInTheRow(row *rowData, tableNameTup sqlname.NameTuple, snapshotImportedRowsMap *utils.StructMap[sqlname.NameTuple, RowCountPair],
 	eventsImportedMap *utils.StructMap[sqlname.NameTuple, *tgtdb.EventCounter], msr *metadb.MigrationStatusRecord) error {
 	switch row.DBType {
 	case "target":
@@ -439,6 +738,13 @@ func getFinalRowCount(row rowData) int64 {
 	return row.ImportedSnapshotRows + row.ImportedInserts + row.ExportedInserts - row.ImportedDeletes - row.ExportedDeletes
 }
 
+func getFinalRowCountWithSnapshotRows(row rowData, exportSnapshotRows int64, importSnapshotRows int64) int64 {
+	if row.DBType == "source" {
+		return exportSnapshotRows + row.ExportedInserts + row.ImportedInserts - row.ExportedDeletes - row.ImportedDeletes
+	}
+	return importSnapshotRows + row.ImportedInserts + row.ExportedInserts - row.ImportedDeletes - row.ExportedDeletes
+}
+
 func init() {
 	getCommand.AddCommand(getDataMigrationReportCmd)
 	registerExportDirFlag(getDataMigrationReportCmd)
@@ -448,12 +754,15 @@ func init() {
 	getDataMigrationReportCmd.Flags().StringVar(&reportOrStatusCmdOutputFormat, "output-format", "table",
 		"format in which report will be generated: (table, json) (default: table)")
 
+	BoolVar(getDataMigrationReportCmd.Flags(), &includeDetailedIterationsStats, "include-detailed-iterations-stats", false,
+		"include the detailed report with all the iterations stats in the report.")
+
 	getDataMigrationReportCmd.Flags().StringVar(&sourceReplicaDbPassword, "source-replica-db-password", "",
 		"password with which to connect to the target Source-Replica DB server. Alternatively, you can also specify the password by setting the environment variable SOURCE_REPLICA_DB_PASSWORD. If you don't provide a password via the CLI, yb-voyager will prompt you at runtime for a password. If the password contains special characters that are interpreted by the shell (for example, # and $), enclose the password in single quotes.")
 
 	getDataMigrationReportCmd.Flags().StringVar(&sourceDbPassword, "source-db-password", "",
 		"password with which to connect to the target source DB server. Alternatively, you can also specify the password by setting the environment variable SOURCE_DB_PASSWORD. If you don't provide a password via the CLI, yb-voyager will prompt you at runtime for a password. If the password contains special characters that are interpreted by the shell (for example, # and $), enclose the password in single quotes")
 
-	getDataMigrationReportCmd.Flags().StringVar(&targetDbPassword, "target-db-password", "",
+	getDataMigrationReportCmd.Flags().StringVar(&targetDBPassword, "target-db-password", "",
 		"password with which to connect to the target YugabyteDB server. Alternatively, you can also specify the password by setting the environment variable TARGET_DB_PASSWORD. If you don't provide a password via the CLI, yb-voyager will prompt you at runtime for a password. If the password contains special characters that are interpreted by the shell (for example, # and $), enclose the password in single quotes.")
 }

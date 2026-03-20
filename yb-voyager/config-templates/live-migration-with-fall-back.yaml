@@ -621,7 +621,6 @@ import-data-to-source:
   ## Accepted value - <integer>, default - 15
   # max-retries-streaming: 15      
 
-
 # ---------------------------------------------------------
 # End Migration Configuration
 # ---------------------------------------------------------

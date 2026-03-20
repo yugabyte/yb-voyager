@@ -353,7 +353,8 @@ func startExportDataFromSourceOnNextIteration() {
 	}
 
 	iterationExportDir := GetIterationExportDir(currentMsr.GetIterationsDir(exportDir), currentMsr.IterationNo+1)
-	utils.PrintAndLogfInfo("\nStarting export data from source on iteration %d at %s.\n\n", currentMsr.IterationNo+1, iterationExportDir)
+	utils.PrintAndLogfPhase("\nStarting export data from source on iteration %d at %s.", currentMsr.IterationNo+1, iterationExportDir)
+	fmt.Println()
 
 	cmdStr := "SOURCE_DB_PASSWORD=*** " + strings.Join(cmd, " ")
 
@@ -370,6 +371,7 @@ func startExportDataFromSourceOnNextIteration() {
 	if execErr != nil {
 		utils.ErrExit("failed to run yb-voyager export data from source: %w\n Please re-run with command :\n%s", execErr, cmdStr)
 	}
+
 }
 
 func importSnapshotRequired() bool {
@@ -1128,6 +1130,7 @@ func postSnapshotImportProcessing(msr *metadb.MigrationStatusRecord, importTable
 }
 
 func postCutoverProcessing(importTableList []sqlname.NameTuple) error {
+	utils.PrintAndLogfInfo("Processing cutover initiate request...\n")
 	status, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
 	if err != nil {
 		return goerrors.Errorf("failed to read export status for restore sequences: %s", err)
@@ -1164,9 +1167,9 @@ func waitUntilCutoverProcessedByCorrespondingExporterForImporter(importerRole st
 	timeout := 2 * time.Minute
 	startTime := time.Now()
 	if importerRole == TARGET_DB_IMPORTER_ROLE {
-		utils.PrintAndLogfInfo("\nWaiting for cutover export data from source to complete...")
+		utils.PrintAndLogfInfo("\nWaiting for export data from source to complete...")
 	} else {
-		utils.PrintAndLogfInfo("\nWaiting for cutover export data from target to complete...")
+		utils.PrintAndLogfInfo("\nWaiting for export data from target to complete...")
 	}
 	for {
 		if time.Since(startTime) > timeout {
