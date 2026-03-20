@@ -59,37 +59,83 @@ var cutoverStatusCmd = &cobra.Command{
 			rows := collectCutoverStatusRows()
 			renderCutoverStatusTable(rows)
 			return
-		} else if msr.LatestIterationNumber > 0 {
-			utils.PrintAndLogfPhase("\nIteration 0:")
-			rows := collectCutoverStatusRows()
-			renderCutoverStatusTable(rows)
 		}
 
-		currExportDir := exportDir
-		currMetaDB := metaDB
-		defer func() {
-			exportDir = currExportDir
-			metaDB = currMetaDB
-		}()
-		for i := 1; i <= msr.LatestIterationNumber; i++ {
-			iterationsDir := msr.GetIterationsDir(currExportDir)
-			iterationExportDir := GetIterationExportDir(iterationsDir, i)
-			iterationMetaDB, err := metadb.NewMetaDB(iterationExportDir)
-			if err != nil {
-				utils.ErrExit("error getting iteration meta db: %s", err)
-			}
-			exportDir = iterationExportDir
-			metaDB = iterationMetaDB
+		// utils.PrintAndLogfPhase("\nIteration 0:")
+		// rows := collectCutoverStatusRows()
+		// renderCutoverStatusTable(rows)
 
-			if i == msr.LatestIterationNumber {
+		// currExportDir := exportDir
+		// currMetaDB := metaDB
+		// defer func() {
+		// 	exportDir = currExportDir
+		// 	metaDB = currMetaDB
+		// }()
+		// for i := 1; i <= msr.LatestIterationNumber; i++ {
+		// 	iterationsDir := msr.GetIterationsDir(currExportDir)
+		// 	iterationExportDir := GetIterationExportDir(iterationsDir, i)
+		// 	iterationMetaDB, err := metadb.NewMetaDB(iterationExportDir)
+		// 	if err != nil {
+		// 		utils.ErrExit("error getting iteration meta db: %s", err)
+		// 	}
+		// 	exportDir = iterationExportDir
+		// 	metaDB = iterationMetaDB
+
+		// 	if i == msr.LatestIterationNumber {
+		// 		utils.PrintAndLogfPhase("\nIteration %d (current):", i)
+		// 	} else {
+		// 		utils.PrintAndLogfPhase("\nIteration %d:", i)
+		// 	}
+		// 	rows := collectCutoverStatusRows()
+		// 	renderCutoverStatusTable(rows)
+		// }
+		iterationToRows := collectCutoverStatusRowsForAllIterations()
+		for i, rows := range iterationToRows {
+			if msr.LatestIterationNumber == i {
 				utils.PrintAndLogfPhase("\nIteration %d (current):", i)
 			} else {
 				utils.PrintAndLogfPhase("\nIteration %d:", i)
 			}
-			rows := collectCutoverStatusRows()
 			renderCutoverStatusTable(rows)
 		}
 	},
+}
+
+// collect cutover status rows for all iterations
+func collectCutoverStatusRowsForAllIterations() map[int][]cutoverStatusRow {
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("error getting migration status record: %s", err)
+	}
+	if msr.LatestIterationNumber == 0 {
+		return nil
+	}
+	iterationToRows := make(map[int][]cutoverStatusRow)
+
+	//collect cutover status rows for parent migration
+	rows := collectCutoverStatusRows()
+	iterationToRows[0] = rows
+
+	currExportDir := exportDir
+	currMetaDB := metaDB
+	defer func() {
+		exportDir = currExportDir
+		metaDB = currMetaDB
+	}()
+
+	for i := 1; i <= msr.LatestIterationNumber; i++ {
+		iterationsDir := msr.GetIterationsDir(currExportDir)
+		iterationExportDir := GetIterationExportDir(iterationsDir, i)
+		iterationMetaDB, err := metadb.NewMetaDB(iterationExportDir)
+		if err != nil {
+			utils.ErrExit("error getting iteration meta db: %s", err)
+		}
+		exportDir = iterationExportDir
+		metaDB = iterationMetaDB
+		rows := collectCutoverStatusRows()
+		iterationToRows[i] = rows
+	}
+	return iterationToRows
 }
 
 func init() {
