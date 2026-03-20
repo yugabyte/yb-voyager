@@ -400,3 +400,114 @@ func TestCDCMultipleBatchFailures(t *testing.T) {
 	verifyNoEventIDDuplicates(t, exportDir)
 	assertRowCount(110)
 }
+
+// TestCDCMultiTableBatchFailureAndResume verifies that live migration `export data` can resume
+// after a mid-batch failure when streaming CDC events from multiple tables.
+//
+// Scenario:
+//  1. Start `export data` (snapshot-and-changes mode) with 2 tables (50 snapshot rows each).
+//  2. Generate 3 CDC batches, each inserting 10 rows into both tables (20 events per batch).
+//  3. Inject failure on 2nd CDC batch via before-batch-streaming marker.
+//  4. Export crashes after batch 1 committed (20 events); batches 2 and 3 are lost.
+//  5. Resume `export data` without failure injection.
+//  6. Verify all 60 CDC events recovered with no duplicates.
+//
+// This test validates:
+// - Offset tracking correctness across multiple tables during failure/recovery
+// - Event deduplication spanning multiple tables on resume
+//
+// Injection point:
+//   - Byteman rule on Debezium at `cdc("before-batch-streaming")` marker (2nd invocation).
+func TestCDCMultiTableBatchFailureAndResume(t *testing.T) {
+	if os.Getenv("BYTEMAN_JAR") == "" {
+		t.Skip("Skipping test: BYTEMAN_JAR environment variable not set. Install Byteman to run this test.")
+	}
+
+	ctx := context.Background()
+
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB:    ContainerConfig{Type: "postgresql", ForLive: true, DatabaseName: "postgres"},
+		SchemaNames: []string{"test_schema_multi_tbl"},
+		SchemaSQL: []string{
+			"DROP SCHEMA IF EXISTS test_schema_multi_tbl CASCADE;",
+			"CREATE SCHEMA test_schema_multi_tbl;",
+			`CREATE TABLE test_schema_multi_tbl.table_a (
+				id SERIAL PRIMARY KEY,
+				name TEXT,
+				value INTEGER
+			);`,
+			`ALTER TABLE test_schema_multi_tbl.table_a REPLICA IDENTITY FULL;`,
+			`CREATE TABLE test_schema_multi_tbl.table_b (
+				id SERIAL PRIMARY KEY,
+				label TEXT,
+				score INTEGER
+			);`,
+			`ALTER TABLE test_schema_multi_tbl.table_b REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			`INSERT INTO test_schema_multi_tbl.table_a (name, value)
+			SELECT 'init_a_' || i, i * 10 FROM generate_series(1, 50) i;`,
+			`INSERT INTO test_schema_multi_tbl.table_b (label, score)
+			SELECT 'init_b_' || i, i * 20 FROM generate_series(1, 50) i;`,
+		},
+		CleanupSQL: []string{"DROP SCHEMA IF EXISTS test_schema_multi_tbl CASCADE;"},
+	})
+	defer lm.Cleanup()
+	require.NoError(t, lm.SetupContainers(ctx))
+	require.NoError(t, lm.SetupSchema())
+
+	exportDir := lm.GetExportDir()
+
+	bytemanHelper, err := testutils.NewBytemanHelper(exportDir)
+	require.NoError(t, err, "Failed to create Byteman helper")
+
+	bytemanHelper.AddRuleFromBuilder(
+		testutils.NewRule("fail_multi_tbl_batch_2").
+			AtMarker(testutils.MarkerCDC, "before-batch-streaming").
+			If("incrementCounter(\"cdc_batch\") == 2").
+			ThrowException("java.lang.RuntimeException", "TEST: Simulated multi-table batch failure on batch 2"),
+	)
+	require.NoError(t, bytemanHelper.WriteRules())
+
+	// Run 1: export with Byteman injection - should fail on 2nd CDC batch
+	err = lm.StartExportDataWithEnv(true, nil, bytemanHelper.GetEnv())
+	require.NoError(t, err, "Failed to start export")
+
+	time.Sleep(10 * time.Second)
+
+	for batch := 1; batch <= 3; batch++ {
+		lm.ExecuteOnSource(
+			fmt.Sprintf(`INSERT INTO test_schema_multi_tbl.table_a (name, value)
+			SELECT 'batch%d_a_' || i, %d + i FROM generate_series(1, 10) i;`, batch, batch*100),
+		)
+		lm.ExecuteOnSource(
+			fmt.Sprintf(`INSERT INTO test_schema_multi_tbl.table_b (label, score)
+			SELECT 'batch%d_b_' || i, %d + i FROM generate_series(1, 10) i;`, batch, batch*200),
+		)
+		time.Sleep(batchSeparationWaitTime)
+	}
+
+	matched, err := bytemanHelper.WaitForInjection(">>> BYTEMAN: fail_multi_tbl_batch_2", 90*time.Second)
+	require.NoError(t, err, "Should be able to read debezium logs")
+	require.True(t, matched, "Byteman injection should have occurred and been logged")
+
+	err = lm.WaitForExportDataExit()
+	require.Error(t, err, "Export should exit with error after Byteman injection")
+
+	time.Sleep(3 * time.Second)
+
+	eventCountAfterFailure, err := countEventsInQueueSegments(exportDir)
+	require.NoError(t, err, "Should be able to count CDC events after failure")
+	require.Equal(t, 20, eventCountAfterFailure, "Should have exactly 20 events (batch 1 from both tables) before failure")
+
+	verifyNoEventIDDuplicates(t, exportDir)
+
+	// Run 2: resume export without Byteman
+	err = lm.StartExportData(true, nil)
+	require.NoError(t, err, "Failed to start resumed export")
+
+	finalEventCount := lm.WaitForCDCEventCount(t, 60, 120*time.Second, 5*time.Second)
+	require.Equal(t, 60, finalEventCount, "Expected 60 CDC events after resume (30 per table)")
+
+	verifyNoEventIDDuplicates(t, exportDir)
+}
