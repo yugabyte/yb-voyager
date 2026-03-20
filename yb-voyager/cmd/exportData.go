@@ -311,7 +311,8 @@ func startNextIterationImportDataToTarget() {
 	}
 
 	iterationExportDir := GetIterationExportDir(currentMsr.GetIterationsDir(exportDir), currentMsr.IterationNo+1)
-	utils.PrintAndLogfInfo("\nStarting import data to target on iteration %d at %s.\n\n", currentMsr.IterationNo+1, iterationExportDir)
+	utils.PrintAndLogfPhase("\nStarting import data to target on iteration %d at %s.", currentMsr.IterationNo+1, iterationExportDir)
+	fmt.Println()
 
 	cmdStr := "TARGET_DB_PASSWORD=*** " + strings.Join(cmd, " ")
 
@@ -371,11 +372,11 @@ func printLiveMigrationLimitations() {
 	default:
 		if exporterRole == SOURCE_DB_EXPORTER_ROLE {
 			utils.PrintAndLogfWarning("\nImportant: The following limitations apply to live migration:\n")
-			utils.PrintAndLogfInfo("  1. Schema modifications(for example, adding/droping columns, creating/deleting tables, adding/deleting partitions etc) on the source and target databases are not supported during live migration.\n")
-			utils.PrintAndLogfInfo("  2. Primary Key or Unique Key columns should be identical between source and target databases.\n")
-			utils.PrintAndLogfInfo("  3. TRUNCATE operations on source database tables are not automatically replicated to the target database.\n")
-			utils.PrintAndLogfInfo("  4. Sequences that are not associated with any column or are attached to columns of non-integer types are not supported for automatic value generation resumption. These sequences must be manually resumed during the cutover phase.\n")
-			utils.PrintAndLogfInfo("  5. Tables without a Primary Key are not supported for live migration.\n\n")
+			utils.PrintAndLogfWarning("  1. Schema modifications(for example, adding/droping columns, creating/deleting tables, adding/deleting partitions etc) on the source and target databases are not supported during live migration.\n")
+			utils.PrintAndLogfWarning("  2. Primary Key or Unique Key columns should be identical between source and target databases.\n")
+			utils.PrintAndLogfWarning("  3. TRUNCATE operations on source database tables are not automatically replicated to the target database.\n")
+			utils.PrintAndLogfWarning("  4. Sequences that are not associated with any column or are attached to columns of non-integer types are not supported for automatic value generation resumption. These sequences must be manually resumed during the cutover phase.\n")
+			utils.PrintAndLogfWarning("  5. Tables without a Primary Key are not supported for live migration.\n\n")
 		} else {
 			workflow := lo.Ternary(exporterRole == TARGET_DB_EXPORTER_FF_ROLE, "fall forward", "fall back")
 			msr, err := metaDB.GetMigrationStatusRecord()
@@ -403,9 +404,9 @@ func printLiveMigrationLimitations() {
 				noun := lo.Ternary(len(limitations) == 1, "limitation", "limitations")
 				utils.PrintAndLogfWarning("\nImportant: The following %s %s to live migration with %s:\n\n", noun, lo.Ternary(len(limitations) == 1, "applies", "apply"), workflow)
 				for i, lim := range limitations {
-					utils.PrintAndLogfInfo("  %d. %s\n", i+1, lim)
+					utils.PrintAndLogfWarning("  %d. %s\n", i+1, lim)
 				}
-				utils.PrintAndLogfInfo("\n")
+				utils.PrintAndLog("\n")
 			}
 		}
 
@@ -632,6 +633,7 @@ func exportData() bool {
 			log.Errorf("Failed to start debezium: %v", err)
 			return false
 		}
+		utils.PrintAndLogfInfo("Processing cutover initiate request...\n")
 		if changeStreamingIsEnabled(exportType) {
 			log.Infof("live migration complete, proceeding to cutover")
 			msr, err := metaDB.GetMigrationStatusRecord()
@@ -645,7 +647,7 @@ func exportData() bool {
 						utils.ErrExit("failed to delete stream id after data export: %w", err)
 					}
 				} else {
-					fmt.Println("Deleting YB replication slot and publication")
+					fmt.Println("Deleting YB replication slot and publication...")
 					err = deleteYBReplicationSlotAndPublication(msr.YBReplicationSlotName, msr.YBPublicationName, source)
 					if err != nil {
 						utils.ErrExit("failed to delete replication slot and publication after data export: %w", err)
@@ -656,7 +658,7 @@ func exportData() bool {
 				if err != nil {
 					utils.ErrExit("get migration status record: %w", err)
 				}
-				fmt.Println("Deleting PG replication slot and publication")
+				fmt.Println("Deleting PG replication slot and publication...")
 				deletePGReplicationSlotAndPublication(msr, &source)
 			}
 
@@ -1732,6 +1734,7 @@ func clearMigrationStateIfRequired() {
 			record.TargetExportedTableListWithLeafPartitions = nil
 			record.TargetColumnToSequenceMapping = nil
 			record.TargetRenameTablesMap = nil
+			record.ExportTypeFromSource = ""
 		})
 
 		err = metadb.TruncateTablesInMetaDb(exportDir, []string{metadb.QUEUE_SEGMENT_META_TABLE_NAME, metadb.EXPORTED_EVENTS_STATS_TABLE_NAME, metadb.EXPORTED_EVENTS_STATS_PER_TABLE_TABLE_NAME})

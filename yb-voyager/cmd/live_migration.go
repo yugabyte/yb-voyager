@@ -26,7 +26,6 @@ import (
 	"sort"
 	"time"
 
-	"github.com/fatih/color"
 	goerrors "github.com/go-errors/errors"
 	"github.com/google/uuid"
 	"github.com/samber/lo"
@@ -83,7 +82,7 @@ func cutoverInitiatedAndCutoverEventProcessed() (bool, error) {
 func streamChanges(state *ImportDataState, tableNames []sqlname.NameTuple) error {
 	waitForDebeziumStartIfRequired()
 	importPhase = dbzm.MODE_STREAMING
-	color.Blue("streaming changes to %s...", tconf.TargetDBType)
+	utils.PrintAndLogfInfo("streaming changes to %s...", tconf.TargetDBType)
 	streamingPhaseValueConverter, err := dbzm.NewStreamingPhaseDebeziumValueConverter(tableNames, exportDir, tconf, importerRole, sourceDBType)
 	if err != nil {
 		return goerrors.Errorf("Failed to create streaming phase value converter: %s", err)
