@@ -479,14 +479,66 @@ func TestCutoverToTargetResumption_ImporterCrashAfterMarkProcessed(t *testing.T)
 // Cutover-to-SOURCE failpoint tests
 
 //Test plan with failure injections below
-//1. import-to-source crashes after markCutoverProcessed
-//2. import-to-source crashes during initializeNextIteration
-//3. import-to-source crashes after initializeNextIteration
-//4. import-to-source crashes before initializeNextIteration
-//5. export-data-from-source crashes after markCutoverProcessed
-//6. export-data-from-source crashes after deleting replication slot and publication
-//7. export-data-from-source crashes after completing debezium
+//1. import-to-source crashes before markCutoverProcessed
+//2. import-to-source crashes after markCutoverProcessed
+//3. import-to-source crashes during initializeNextIteration
+//4. import-to-source crashes after initializeNextIteration
+//5. import-to-source crashes before initializeNextIteration
+//6. import-to-source crashes during setUpNextIterationMSR
+//7. export-data-from-source crashes after markCutoverProcessed
+//8. export-data-from-source crashes after deleting replication slot and publication
+//9. export-data-from-source crashes after completing debezium
 // ===========================================================================
+
+// ---------------------------------------------------------------------------
+// import-to-source crashes before markCutoverProcessed
+// ---------------------------------------------------------------------------
+
+func TestCutoverToSourceResumption_ImporterCrashBeforeMarkProcessed(t *testing.T) {
+	t.Parallel()
+	lm := NewLiveMigrationTest(t, newCutoverResumptionTestConfig(
+		"test_fb_resumption_importer_before_mark"))
+	defer lm.Cleanup()
+
+	setupToFallbackStreaming(t, lm)
+
+	err := lm.StopImportDataToSource()
+	require.NoError(t, err, "failed to stop import data to source")
+
+	removeFailpointMarkers(lm.GetCurrentExportDir())
+
+	err = lm.InitiateCutoverToSource(map[string]string{
+		"--restart-data-migration-source-target": "true",
+	})
+	require.NoError(t, err, "failed to initiate cutover to source")
+
+	fpEnv := testutils.GetFailpointEnvVar(
+		fpPkgPrefix + "cutoverToSourceImporterPreMarkProcessed=return(true)",
+	)
+	err = lm.StartImportDataToSourceWithEnv(true, nil, []string{fpEnv})
+	require.NoError(t, err, "failed to start import-to-source with failpoint")
+
+	markerPath := filepath.Join(lm.GetCurrentExportDir(), markerDir,
+		"failpoint-cutover-to-source-importer-pre-mark.log")
+	err = lm.WaitForImportToSourceFailpointAndProcessCrash(
+		t, markerPath, 180*time.Second, 60*time.Second)
+	require.NoError(t, err, "import-to-source did not crash before markCutoverProcessed")
+	t.Log("import-to-source crashed before markCutoverProcessed — resuming")
+
+	removeFailpointMarkers(lm.GetCurrentExportDir())
+
+	err = lm.StartImportDataToSource(true, nil)
+	require.NoError(t, err, "failed to resume import-to-source")
+
+	err = lm.WaitForNextIterationInitialized(120, 0)
+	require.NoError(t, err, "next iteration was not initialized")
+
+	err = lm.WaitForCutoverSourceComplete(180)
+	require.NoError(t, err, "cutover-to-source did not complete")
+
+	verifyNewIterationForward(t, lm)
+	t.Log("TestCutoverToSourceResumption_ImporterCrashBeforeMarkProcessed passed")
+}
 
 // ---------------------------------------------------------------------------
 // import-to-source crashes after markCutoverProcessed, before
@@ -713,6 +765,56 @@ func TestCutoverToSourceResumption_ImporterCrashBeforeInitNextIteration(t *testi
 
 	verifyNewIterationForward(t, lm)
 	t.Log("TestCutoverToSourceResumption_ImporterCrashBeforeInitNextIteration passed")
+}
+
+// ---------------------------------------------------------------------------
+// import-to-source crashes during setUpNextIterationMSR
+// ---------------------------------------------------------------------------
+
+func TestCutoverToSourceResumption_ImporterCrashDuringSetUpNextIterationMSR(t *testing.T) {
+	t.Parallel()
+	lm := NewLiveMigrationTest(t, newCutoverResumptionTestConfig(
+		"test_fb_resumption_importer_during_set_up_next_iteration_msr"))
+	defer lm.Cleanup()
+
+	setupToFallbackStreaming(t, lm)
+
+	err := lm.StopImportDataToSource()
+	require.NoError(t, err, "failed to stop import data to source")
+
+	removeFailpointMarkers(lm.GetCurrentExportDir())
+
+	err = lm.InitiateCutoverToSource(map[string]string{
+		"--restart-data-migration-source-target": "true",
+	})
+	require.NoError(t, err, "failed to initiate cutover to source")
+
+	fpEnv := testutils.GetFailpointEnvVar(
+		fpPkgPrefix + "duringSetUpNextIterationMSR=return(true)",
+	)
+	err = lm.StartImportDataToSourceWithEnv(true, nil, []string{fpEnv})
+	require.NoError(t, err, "failed to start import-to-source with failpoint")
+
+	markerPath := filepath.Join(lm.GetCurrentExportDir(), markerDir,
+		"failpoint-during-set-up-next-iteration-msr.log")
+	err = lm.WaitForImportToSourceFailpointAndProcessCrash(
+		t, markerPath, 180*time.Second, 60*time.Second)
+	require.NoError(t, err, "import-to-source did not crash during setUpNextIterationMSR")
+	t.Log("import-to-source crashed during setUpNextIterationMSR — resuming")
+
+	removeFailpointMarkers(lm.GetCurrentExportDir())
+
+	err = lm.StartImportDataToSource(true, nil)
+	require.NoError(t, err, "failed to resume import-to-source")
+
+	err = lm.WaitForNextIterationInitialized(120, 0)
+	require.NoError(t, err, "next iteration was not initialized after resume")
+
+	err = lm.WaitForCutoverSourceComplete(180)
+	require.NoError(t, err, "cutover-to-source did not complete after resume")
+
+	verifyNewIterationForward(t, lm)
+	t.Log("TestCutoverToSourceResumption_ImporterCrashDuringSetUpNextIterationMSR passed")
 }
 
 // ---------------------------------------------------------------------------

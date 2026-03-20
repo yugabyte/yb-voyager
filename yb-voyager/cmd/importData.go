@@ -1153,8 +1153,11 @@ func postCutoverProcessing(importTableList []sqlname.NameTuple) error {
 
 	utils.PrintAndLogf("Completed streaming all relevant changes to %s", tconf.TargetDBType)
 
-	if importerRole == TARGET_DB_IMPORTER_ROLE {
+	switch importerRole {
+	case TARGET_DB_IMPORTER_ROLE:
 		injectCutoverToTargetImporterPreMarkProcessed()
+	case SOURCE_DB_IMPORTER_ROLE:
+		injectCutoverToSourceImporterPreMarkProcessed()
 	}
 
 	err = markCutoverProcessed(importerRole)

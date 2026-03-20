@@ -139,6 +139,19 @@ func injectDuringInitializeNextIteration() {
 	})
 }
 
+// injectDuringSetUpNextIterationMSR crashes import-to-source during
+// setUpNextIterationMSR after setting up the next iteration MSR but before
+// setting NextIterationInitialized = true. Tests verify that partial iteration
+// state is handled correctly: setUpNextIterationMSR is fully idempotent.
+func injectDuringSetUpNextIterationMSR() {
+	if val, _err_ := failpoint.Eval(_curpkg_("duringSetUpNextIterationMSR")); _err_ == nil {
+		if val != nil {
+			writeFailpointMarker("failpoint-during-set-up-next-iteration-msr.log")
+			utils.ErrExit("failpoint: crash during setting up next iteration MSR")
+		}
+	}
+}
+
 // injectAfterInitializeNextIteration crashes import-to-source after
 // initializeNextIteration completes (NextIterationInitialized = true) but
 // before syscall.Exec to export-data-from-source. Tests verify that on
@@ -177,6 +190,18 @@ func injectCutoverToTargetImporterPreMarkProcessed() {
 		if val != nil {
 			writeFailpointMarker("failpoint-cutover-to-target-importer-pre-mark.log")
 			utils.ErrExit("failpoint: crash before marking cutover-to-target processed by importer")
+		}
+	})
+}
+
+// injectCutoverToSourceImporterPreMarkProcessed crashes import-to-source before
+// markCutoverProcessed. Tests verify the importer resumes correctly: postCutoverProcessing re-runs
+// and sequence/identity restore is idempotent.
+func injectCutoverToSourceImporterPreMarkProcessed() {
+	failpoint.Inject("cutoverToSourceImporterPreMarkProcessed", func(val failpoint.Value) {
+		if val != nil {
+			writeFailpointMarker("failpoint-cutover-to-source-importer-pre-mark.log")
+			utils.ErrExit("failpoint: crash before marking cutover-to-source processed by importer")
 		}
 	})
 }

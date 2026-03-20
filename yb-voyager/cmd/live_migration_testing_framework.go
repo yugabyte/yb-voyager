@@ -205,7 +205,16 @@ func (lm *LiveMigrationTest) Cleanup() {
 
 // StartExportData starts export data command
 func (lm *LiveMigrationTest) StartExportData(async bool, extraArgs map[string]string) error {
-	fmt.Printf("Starting export data\n")
+	return lm.startExportData(async, extraArgs, SNAPSHOT_AND_CHANGES)
+}
+
+func (lm *LiveMigrationTest) startExportData(async bool, extraArgs map[string]string, exportType string, env []string) error {
+
+	if len(env) > 0 {
+		fmt.Printf("Starting export data with export type %s and env %v\n", exportType, env)
+	} else {
+		fmt.Printf("Starting export data with export type %s\n", exportType)
+	}
 	var onStart func()
 	if async {
 		onStart = func() {
@@ -218,49 +227,33 @@ func (lm *LiveMigrationTest) StartExportData(async bool, extraArgs map[string]st
 		"--source-db-schema", strings.Join(lm.config.SchemaNames, ","),
 		"--source-db-name", lm.config.SourceDB.DatabaseName,
 		"--disable-pb", "true",
-		"--export-type", SNAPSHOT_AND_CHANGES,
+		"--export-type", exportType,
 		"--yes",
 	}
 	for key, value := range extraArgs {
 		args = append(args, key, value)
 	}
 
-	lm.exportCmd = testutils.NewVoyagerCommandRunner(lm.sourceContainer, "export data", args, onStart, async)
+	lm.exportCmd = testutils.NewVoyagerCommandRunner(lm.sourceContainer, "export data", args, onStart, async).WithEnv(env...)
 	err := lm.exportCmd.Run()
 	if err != nil {
 		return goerrors.Errorf("failed to start export data: %w", err)
 	}
-	fmt.Printf("Export data started\n")
+	if len(env) > 0 {
+		fmt.Printf("Export data with export type %s started with env %v\n", exportType, env)
+	} else {
+		fmt.Printf("Export data with export type %s started\n", exportType)
+	}
 	return nil
 }
 
 func (lm *LiveMigrationTest) StartExportDataChangesOnly(async bool, extraArgs map[string]string) error {
-	fmt.Printf("Starting export data changes only\n")
-	var onStart func()
-	if async {
-		onStart = func() {
-			time.Sleep(5 * time.Second) // Wait for export to start
-		}
-	}
-	args := []string{
-		"--export-dir", lm.exportDir,
-		"--source-db-schema", strings.Join(lm.config.SchemaNames, ","),
-		"--source-db-name", lm.config.SourceDB.DatabaseName,
-		"--disable-pb", "true",
-		"--export-type", CHANGES_ONLY,
-		"--yes",
-	}
-	for key, value := range extraArgs {
-		args = append(args, key, value)
-	}
+	return lm.startExportData(async, extraArgs, CHANGES_ONLY)
+}
 
-	lm.exportCmd = testutils.NewVoyagerCommandRunner(lm.sourceContainer, "export data", args, onStart, async)
-	err := lm.exportCmd.Run()
-	if err != nil {
-		return goerrors.Errorf("failed to start export data: %w", err)
-	}
-	fmt.Printf("Export data changes only started\n")
-	return nil
+// StartExportDataWithEnv starts export data with additional environment variables.
+func (lm *LiveMigrationTest) StartExportDataWithEnv(async bool, extraArgs map[string]string, env []string) error {
+	return lm.startExportData(async, extraArgs, SNAPSHOT_AND_CHANGES, env)
 }
 
 // StartImportData starts import data command
@@ -310,36 +303,16 @@ func (lm *LiveMigrationTest) startImportData(async bool, extraArgs map[string]st
 	return nil
 }
 
-func (lm *LiveMigrationTest) StartImportDataToSource(async bool, extraArgs map[string]string) error {
-	fmt.Printf("Starting import data to source\n")
-	var onStart func()
-	if async {
-		onStart = func() {
-			time.Sleep(5 * time.Second) // Wait for import to start
-		}
-	}
-	sourceConfig := lm.sourceContainer.GetConfig()
-	args := []string{
-		"--export-dir", lm.exportDir,
-		"--disable-pb", "true",
-		"--source-db-password", sourceConfig.Password,
-		"--yes",
-	}
-	for key, value := range extraArgs {
-		args = append(args, key, value)
-	}
-
-	lm.importToSourceCmd = testutils.NewVoyagerCommandRunner(nil, "import data to source", args, onStart, async)
-	err := lm.importToSourceCmd.Run()
-	if err != nil {
-		return goerrors.Errorf("failed to start import data: %w", err)
-	}
-	fmt.Printf("Import data to source started\n")
-	return nil
+func (lm *LiveMigrationTest) StartExportDataFromTarget(async bool, extraArgs map[string]string) error {
+	return lm.startExportDataFromTarget(async, extraArgs, nil)
 }
 
-func (lm *LiveMigrationTest) StartExportDataFromTarget(async bool, extraArgs map[string]string) error {
-	fmt.Printf("Starting export data from target\n")
+func (lm *LiveMigrationTest) startExportDataFromTarget(async bool, extraArgs map[string]string, env []string) error {
+	if len(env) > 0 {
+		fmt.Printf("Starting export data from target with env %v\n", env)
+	} else {
+		fmt.Printf("Starting export data from target\n")
+	}
 	var onStart func()
 	if async {
 		onStart = func() {
@@ -358,49 +331,28 @@ func (lm *LiveMigrationTest) StartExportDataFromTarget(async bool, extraArgs map
 		args = append(args, key, value)
 	}
 
-	lm.exportFromTargetCmd = testutils.NewVoyagerCommandRunner(nil, "export data from target", args, onStart, async)
+	lm.exportFromTargetCmd = testutils.NewVoyagerCommandRunner(nil, "export data from target", args, onStart, async).WithEnv(env...)
 	err := lm.exportFromTargetCmd.Run()
 	if err != nil {
 		return goerrors.Errorf("failed to start export data: %w", err)
 	}
-	fmt.Printf("Export data from target started\n")
+	if len(env) > 0 {
+		fmt.Printf("Export data from target started with env %v\n", env)
+	} else {
+		fmt.Printf("Export data from target started\n")
+	}
 	return nil
 }
 
 func (lm *LiveMigrationTest) StartExportDataFromTargetWithEnv(async bool, extraArgs map[string]string, env []string) error {
-	if len(env) > 0 {
-		fmt.Printf("Starting export data from target with env %v\n", env)
-	} else {
-		fmt.Printf("Starting export data from target\n")
-	}
-	var onStart func()
-	if async {
-		onStart = func() {
-			time.Sleep(5 * time.Second)
-		}
-	}
-
-	targetConfig := lm.targetContainer.GetConfig()
-	args := []string{
-		"--export-dir", lm.exportDir,
-		"--disable-pb", "true",
-		"--target-db-password", targetConfig.Password,
-		"--yes",
-	}
-	for key, value := range extraArgs {
-		args = append(args, key, value)
-	}
-
-	lm.exportFromTargetCmd = testutils.NewVoyagerCommandRunner(nil, "export data from target", args, onStart, async).WithEnv(env...)
-	err := lm.exportFromTargetCmd.Run()
-	if err != nil {
-		return goerrors.Errorf("failed to start export data from target: %w", err)
-	}
-	fmt.Printf("Export data from target started\n")
-	return nil
+	return lm.startExportDataFromTarget(async, extraArgs, env)
 }
 
-func (lm *LiveMigrationTest) StartImportDataToSourceWithEnv(async bool, extraArgs map[string]string, env []string) error {
+func (lm *LiveMigrationTest) StartImportDataToSource(async bool, extraArgs map[string]string) error {
+	return lm.startImportDataToSource(async, extraArgs, nil)
+}
+
+func (lm *LiveMigrationTest) startImportDataToSource(async bool, extraArgs map[string]string, env []string) error {
 	if len(env) > 0 {
 		fmt.Printf("Starting import data to source with env %v\n", env)
 	} else {
@@ -409,7 +361,7 @@ func (lm *LiveMigrationTest) StartImportDataToSourceWithEnv(async bool, extraArg
 	var onStart func()
 	if async {
 		onStart = func() {
-			time.Sleep(5 * time.Second)
+			time.Sleep(5 * time.Second) // Wait for import to start
 		}
 	}
 	sourceConfig := lm.sourceContainer.GetConfig()
@@ -426,10 +378,18 @@ func (lm *LiveMigrationTest) StartImportDataToSourceWithEnv(async bool, extraArg
 	lm.importToSourceCmd = testutils.NewVoyagerCommandRunner(nil, "import data to source", args, onStart, async).WithEnv(env...)
 	err := lm.importToSourceCmd.Run()
 	if err != nil {
-		return goerrors.Errorf("failed to start import data to source: %w", err)
+		return goerrors.Errorf("failed to start import data: %w", err)
 	}
-	fmt.Printf("Import data to source started\n")
+	if len(env) > 0 {
+		fmt.Printf("Import data to source started with env %v\n", env)
+	} else {
+		fmt.Printf("Import data to source started\n")
+	}
 	return nil
+}
+
+func (lm *LiveMigrationTest) StartImportDataToSourceWithEnv(async bool, extraArgs map[string]string, env []string) error {
+	return lm.startImportDataToSource(async, extraArgs, env)
 }
 
 func (lm *LiveMigrationTest) WaitForExportFromTargetFailpointAndProcessCrash(t *testing.T, markerPath string, markerTimeout, exitTimeout time.Duration) error {
@@ -438,41 +398,6 @@ func (lm *LiveMigrationTest) WaitForExportFromTargetFailpointAndProcessCrash(t *
 
 func (lm *LiveMigrationTest) WaitForImportToSourceFailpointAndProcessCrash(t *testing.T, markerPath string, markerTimeout, exitTimeout time.Duration) error {
 	return testutils.WaitForFailpointAndProcessCrash(t, lm.importToSourceCmd, markerPath, markerTimeout, exitTimeout)
-}
-
-// StartExportDataWithEnv starts export data with additional environment variables.
-func (lm *LiveMigrationTest) StartExportDataWithEnv(async bool, extraArgs map[string]string, env []string) error {
-	if len(env) > 0 {
-		fmt.Printf("Starting export data with env %v\n", env)
-	} else {
-		fmt.Printf("Starting export data\n")
-	}
-	var onStart func()
-	if async {
-		onStart = func() {
-			time.Sleep(5 * time.Second)
-		}
-	}
-
-	args := []string{
-		"--export-dir", lm.exportDir,
-		"--source-db-schema", strings.Join(lm.config.SchemaNames, ","),
-		"--source-db-name", lm.config.SourceDB.DatabaseName,
-		"--disable-pb", "true",
-		"--export-type", SNAPSHOT_AND_CHANGES,
-		"--yes",
-	}
-	for key, value := range extraArgs {
-		args = append(args, key, value)
-	}
-
-	lm.exportCmd = testutils.NewVoyagerCommandRunner(lm.sourceContainer, "export data", args, onStart, async).WithEnv(env...)
-	err := lm.exportCmd.Run()
-	if err != nil {
-		return goerrors.Errorf("failed to start export data: %w", err)
-	}
-	fmt.Printf("Export data started\n")
-	return nil
 }
 
 func (lm *LiveMigrationTest) WaitForExportFailpointAndProcessCrash(t *testing.T, markerPath string, markerTimeout, exitTimeout time.Duration) error {

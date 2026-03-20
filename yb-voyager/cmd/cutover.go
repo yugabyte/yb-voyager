@@ -194,6 +194,9 @@ func setUpNextIterationMSR(parentMetaDB *metadb.MetaDB, iterationNo int, current
 	if err != nil {
 		return fmt.Errorf("failed to update migration status record: %w", err)
 	}
+
+	injectDuringSetUpNextIterationMSR()
+
 	//Update next iteration's MSR
 	err = nextIterationMetaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		record.ExportTypeFromSource = CHANGES_ONLY
