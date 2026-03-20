@@ -535,7 +535,7 @@ func TestCDCQueueSegmentTruncationOnResume(t *testing.T) {
 	ctx := context.Background()
 
 	lm := NewLiveMigrationTest(t, &TestConfig{
-		SourceDB:    ContainerConfig{Type: "postgresql", ForLive: true},
+		SourceDB:    ContainerConfig{Type: "postgresql", ForLive: true, DatabaseName: "postgres"},
 		SchemaNames: []string{"test_schema_truncation"},
 		SchemaSQL: []string{
 			"DROP SCHEMA IF EXISTS test_schema_truncation CASCADE;",
@@ -547,11 +547,17 @@ func TestCDCQueueSegmentTruncationOnResume(t *testing.T) {
 				payload TEXT,
 				created_at TIMESTAMP DEFAULT NOW()
 			);`,
+		},
+		SourceSetupSchemaSQL: []string{
 			`ALTER TABLE test_schema_truncation.cdc_truncation_test REPLICA IDENTITY FULL;`,
 		},
 		InitialDataSQL: []string{
 			`INSERT INTO test_schema_truncation.cdc_truncation_test (name, value, payload)
 			SELECT 'snapshot_' || i, i * 10, repeat('s', 20000) FROM generate_series(1, 50) i;`,
+		},
+		SourceDeltaSQL: []string{
+			`INSERT INTO test_schema_truncation.cdc_truncation_test (name, value, payload)
+			SELECT 'batch1_' || i, 100 + i, repeat('t', 20000) FROM generate_series(1, 20) i;`,
 		},
 		CleanupSQL: []string{"DROP SCHEMA IF EXISTS test_schema_truncation CASCADE;"},
 	})
@@ -559,8 +565,7 @@ func TestCDCQueueSegmentTruncationOnResume(t *testing.T) {
 	require.NoError(t, lm.SetupContainers(ctx))
 	require.NoError(t, lm.SetupSchema())
 
-	exportDir = lm.GetExportDir()
-	postgresContainer := lm.GetSourceContainer()
+	exportDir := lm.GetExportDir()
 
 	bytemanHelper, err := testutils.NewBytemanHelper(exportDir)
 	require.NoError(t, err, "Failed to create Byteman helper")
@@ -572,44 +577,21 @@ func TestCDCQueueSegmentTruncationOnResume(t *testing.T) {
 	)
 	require.NoError(t, bytemanHelper.WriteRules(), "Failed to write Byteman rules")
 
-	cdcEventsGenerated := make(chan bool, 1)
-	generateCDCEvents := func() {
-		if err := waitForStreamingMode(exportDir, 90*time.Second, 2*time.Second); err != nil {
-			testutils.LogTestf(t, "Failed to reach streaming mode: %v", err)
-			return
-		}
-		postgresContainer.ExecuteSqls(
-			`INSERT INTO test_schema_truncation.cdc_truncation_test (name, value, payload)
-			SELECT 'batch1_' || i, 100 + i, repeat('t', 20000) FROM generate_series(1, 20) i;`,
-		)
-		time.Sleep(3 * time.Second)
-		cdcEventsGenerated <- true
-	}
-
+	// Run 1: export with Byteman + large segment (1GB forces single segment)
 	envVars := append(bytemanHelper.GetEnv(), "QUEUE_SEGMENT_MAX_BYTES=1073741824")
-	exportRunner := testutils.NewVoyagerCommandRunner(postgresContainer, "export data", []string{
-		"--export-dir", exportDir,
-		"--export-type", "snapshot-and-changes",
-		"--source-db-schema", "test_schema_truncation",
-		"--disable-pb", "true",
-		"--yes",
-	}, generateCDCEvents, true).WithEnv(envVars...)
-
-	err = exportRunner.Run()
+	err = lm.StartExportDataWithEnv(true, nil, envVars)
 	require.NoError(t, err, "Failed to start export")
+
+	time.Sleep(10 * time.Second)
+
+	lm.ExecuteSourceDelta()
 
 	matched, err := bytemanHelper.WaitForInjection(">>> BYTEMAN: fail_before_handle_batch_complete_truncation", 90*time.Second)
 	require.NoError(t, err, "Should be able to read debezium logs for handleBatchComplete failure")
 	require.True(t, matched, "Byteman failure should be injected before handleBatchComplete")
 
-	select {
-	case <-cdcEventsGenerated:
-	case <-time.After(60 * time.Second):
-		require.Fail(t, "CDC event generation timed out")
-	}
-
-	_, waitErr := waitForProcessExitOrKill(exportRunner, exportDir, 60*time.Second)
-	require.Error(t, waitErr, "Export should exit with error after failure")
+	err = lm.WaitForExportDataExit()
+	require.Error(t, err, "Export should exit with error after failure")
 
 	segmentFiles, err := listQueueSegmentFiles(exportDir)
 	require.NoError(t, err, "Failed to list queue segment files")
@@ -622,30 +604,19 @@ func TestCDCQueueSegmentTruncationOnResume(t *testing.T) {
 	committedSize, err := getQueueSegmentCommittedSize(exportDir, segmentNum)
 	require.NoError(t, err, "Failed to read committed size from metadb")
 	require.Greater(t, fileSizeBefore, committedSize, "Expected file size to exceed committed size before resume")
-	testutils.LogTestf(t, "Queue segment size before resume: %d, committed size: %d", fileSizeBefore, committedSize)
 
-	testutils.LogTest(t, "Resuming export to trigger truncation...")
-	exportRunnerResume := testutils.NewVoyagerCommandRunner(postgresContainer, "export data", []string{
-		"--export-dir", exportDir,
-		"--export-type", "snapshot-and-changes",
-		"--source-db-schema", "test_schema_truncation",
-		"--disable-pb", "true",
-		"--yes",
-	}, nil, true)
-
-	err = exportRunnerResume.Run()
+	// Run 2: resume export to trigger truncation
+	err = lm.StartExportData(true, nil)
 	require.NoError(t, err, "Failed to start export resume")
-	defer exportRunnerResume.Kill()
 
 	truncationMatched, err := waitForTruncationLog(exportDir, 60*time.Second)
 	require.NoError(t, err, "Should be able to read debezium logs for truncation")
-	testutils.LogTestf(t, "Truncation log observed on resume: %v", truncationMatched)
 	require.True(t, truncationMatched, "Expected truncation log on resume")
 
-	testutils.LogTest(t, "Verifying segment size after truncation...")
-	fileSizeAfter, err := getQueueSegmentFileSize(segmentFiles[0])
-	require.NoError(t, err, "Failed to read queue segment size after truncation")
-	testutils.LogTestf(t, "Queue segment size after truncation: %d", fileSizeAfter)
-	_ = killDebeziumForExportDir(exportDir)
-	lm.RemoveExportLockfile()
+	truncationTargetSize, err := parseTruncationTargetSize(exportDir)
+	require.NoError(t, err, "Failed to parse truncation target size from log")
+	require.Equal(t, committedSize, truncationTargetSize,
+		"Truncation target should equal committed size from metadb")
+	t.Logf("Queue segment: fileSize=%d, committedSize=%d, truncatedTo=%d",
+		fileSizeBefore, committedSize, truncationTargetSize)
 }
