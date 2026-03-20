@@ -57,3 +57,16 @@ func (ds *LocalDataStore) FileSize(filePath string) (int64, error) {
 func (ds *LocalDataStore) Open(filePath string) (io.ReadCloser, error) {
 	return os.Open(filePath)
 }
+
+func (ds *LocalDataStore) OpenAt(filePath string, offset int64) (io.ReadCloser, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return nil, err
+	}
+	_, err = file.Seek(offset, io.SeekStart)
+	if err != nil {
+		file.Close()
+		return nil, err
+	}
+	return file, nil
+}

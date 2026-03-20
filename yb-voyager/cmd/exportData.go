@@ -51,6 +51,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/jsonfile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
 
 var exporterRole string = SOURCE_DB_EXPORTER_ROLE
@@ -177,18 +178,8 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 	if err != nil {
 		utils.ErrExit("failed to get migration status record: %w", err)
 	}
-	if exporterRole == SOURCE_DB_EXPORTER_ROLE && !msr.IsParentMigration() {
-		//It this is not the parent migration, then use the source db conf stored in the migration
-		password := source.Password
-		source = *msr.SourceDBConf
-		source.Password = password
-	}
 
-	if exportType == CHANGES_ONLY && len(msr.TableListExportedFromSource) > 0 {
-		source.TableList = strings.Join(msr.TableListExportedFromSource, ",")
-	} else if !msr.IsParentMigration() {
-		utils.ErrExit("table list is not set for the iterations.")
-	}
+	setSourceDetailsForChangesOnly(msr)
 
 	handleCutoverAlreadyProcessedForExportData()
 
@@ -210,10 +201,40 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 	}
 }
 
-func waitUntilNextIterationInitialized() error {
-	timeout := 30 * time.Second
-	startTime := time.Now()
+func setSourceDetailsForChangesOnly(msr *metadb.MigrationStatusRecord) {
+	if exportType != CHANGES_ONLY {
+		return
+	}
 
+	if exporterRole == SOURCE_DB_EXPORTER_ROLE && !msr.IsParentMigration() {
+		//iteration and source exporter
+		sourcePassword := source.Password
+		/*
+			we need to keep the table list passed in the table-list/exclude-table-list flags as it is required to get the table list present in the command
+			and do the guardrail checks properly in getInitialTableList function
+		*/
+		tableListFlag := source.TableList
+		excludeTableListFlag := source.ExcludeTableList
+		runGuardrailsChecks := source.RunGuardrailsChecks
+		source = *msr.SourceDBConf
+		source.Password = sourcePassword
+		source.TableList = tableListFlag
+		source.ExcludeTableList = excludeTableListFlag
+		source.RunGuardrailsChecks = runGuardrailsChecks
+	}
+
+	if isTargetDBExporter(exporterRole) {
+		if source.TableList != "" || source.ExcludeTableList != "" {
+			utils.ErrExit("table list and exclude table list are not supported for 'export data from target' ")
+		}
+		source.TableList = strings.Join(msr.TableListExportedFromSource, ",")
+	}
+}
+
+func waitUntilNextIterationInitialized() error {
+	timeout := 2 * time.Minute
+	startTime := time.Now()
+	utils.PrintAndLogfInfo("\nWaiting for next iteration to be initialized...")
 	for {
 		if time.Since(startTime) > timeout {
 			return goerrors.Errorf("timeout waiting for next iteration to be initialized. Ensure 'import data to source' is running, then re-run this command.")
@@ -226,7 +247,6 @@ func waitUntilNextIterationInitialized() error {
 		if record.NextIterationInitialized {
 			return nil
 		}
-		utils.PrintAndLogf("Waiting for next iteration to be initialized...")
 		time.Sleep(2 * time.Second)
 	}
 }
@@ -291,7 +311,8 @@ func startNextIterationImportDataToTarget() {
 	}
 
 	iterationExportDir := GetIterationExportDir(currentMsr.GetIterationsDir(exportDir), currentMsr.IterationNo+1)
-	utils.PrintAndLogfInfo("\nStarting import data to target on iteration %d at %s.\n\n", currentMsr.IterationNo+1, iterationExportDir)
+	utils.PrintAndLogfPhase("\nStarting import data to target on iteration %d at %s.", currentMsr.IterationNo+1, iterationExportDir)
+	fmt.Println()
 
 	cmdStr := "TARGET_DB_PASSWORD=*** " + strings.Join(cmd, " ")
 
@@ -311,6 +332,36 @@ func startNextIterationImportDataToTarget() {
 
 }
 
+var ybCDCSavepointAndReadCommittedFixedVersions = map[string]*ybversion.YBVersion{
+	ybversion.SERIES_2024_2: ybversion.V2024_2_8_0,
+	ybversion.SERIES_2025_1: ybversion.V2025_1_4_0,
+	ybversion.SERIES_2025_2: ybversion.V2025_2_2_0,
+}
+
+// isCDCSavepointFixedInTargetDBVersion returns whether the CDC savepoint rollback
+// filtering fix is present, and the minimum fixed version string for the target's
+// series (empty if the series has no known fix).
+func isCDCSavepointFixedInTargetDBVersion(dbVersionStr string) (bool, string) {
+	if dbVersionStr == "" {
+		return false, ""
+	}
+	ybVersionStr, err := extractYBVersion(dbVersionStr)
+	if err != nil {
+		log.Warnf("unable to extract YB version from %q for CDC savepoint fix check: %v", dbVersionStr, err)
+		return false, ""
+	}
+	ybVer, err := ybversion.NewYBVersion(ybVersionStr)
+	if err != nil {
+		log.Warnf("unable to parse YB version %q for CDC savepoint fix check: %v", ybVersionStr, err)
+		return false, ""
+	}
+	minFixedVersion, ok := ybCDCSavepointAndReadCommittedFixedVersions[ybVer.Series()]
+	if !ok {
+		return false, ""
+	}
+	return ybVer.GreaterThanOrEqual(minFixedVersion), minFixedVersion.String()
+}
+
 func printLiveMigrationLimitations() {
 	if !changeStreamingIsEnabled(exportType) {
 		return
@@ -321,11 +372,11 @@ func printLiveMigrationLimitations() {
 	default:
 		if exporterRole == SOURCE_DB_EXPORTER_ROLE {
 			utils.PrintAndLogfWarning("\nImportant: The following limitations apply to live migration:\n")
-			utils.PrintAndLogfInfo("  1. Schema modifications(for example, adding/droping columns, creating/deleting tables, adding/deleting partitions etc) on the source and target databases are not supported during live migration.\n")
-			utils.PrintAndLogfInfo("  2. Primary Key or Unique Key columns should be identical between source and target databases.\n")
-			utils.PrintAndLogfInfo("  3. TRUNCATE operations on source database tables are not automatically replicated to the target database.\n")
-			utils.PrintAndLogfInfo("  4. Sequences that are not associated with any column or are attached to columns of non-integer types are not supported for automatic value generation resumption. These sequences must be manually resumed during the cutover phase.\n")
-			utils.PrintAndLogfInfo("  5. Tables without a Primary Key are not supported for live migration.\n\n")
+			utils.PrintAndLogfWarning("  1. Schema modifications(for example, adding/droping columns, creating/deleting tables, adding/deleting partitions etc) on the source and target databases are not supported during live migration.\n")
+			utils.PrintAndLogfWarning("  2. Primary Key or Unique Key columns should be identical between source and target databases.\n")
+			utils.PrintAndLogfWarning("  3. TRUNCATE operations on source database tables are not automatically replicated to the target database.\n")
+			utils.PrintAndLogfWarning("  4. Sequences that are not associated with any column or are attached to columns of non-integer types are not supported for automatic value generation resumption. These sequences must be manually resumed during the cutover phase.\n")
+			utils.PrintAndLogfWarning("  5. Tables without a Primary Key are not supported for live migration.\n\n")
 		} else {
 			workflow := lo.Ternary(exporterRole == TARGET_DB_EXPORTER_FF_ROLE, "fall forward", "fall back")
 			msr, err := metaDB.GetMigrationStatusRecord()
@@ -335,10 +386,27 @@ func printLiveMigrationLimitations() {
 			if msr.UseYBgRPCConnector {
 				utils.PrintAndLogfWarning("Note: Live migration with %s using YugabyteDB gRPC connector is a TECH PREVIEW feature.", workflow)
 			} else {
-				utils.PrintAndLogfWarning("\nImportant: The following limitation applies to live migration with %s:\n\n", workflow)
-				utils.PrintAndLogfInfo("  1. SAVEPOINT statements within transactions on the target database are not supported during live migration with %s enabled. Transactions rolling back to some SAVEPOINT may cause data inconsistency between the databases.\n", workflow)
-				utils.PrintAndLogfInfo("  2. Rows larger than 4MB in target database can cause consistency issues during live migration with %s enabled. Refer to this tech advisory for more information %s\n", workflow, utils.Path.Sprint("https://docs.yugabyte.com/stable/releases/techadvisories/ta-29060/"))
-				utils.PrintAndLogfInfo("  3. Workloads with read-committed isolation level are not fully supported. It is recommended to use repeatable-read or serializable isolation levels for the duration of the migration.\n\n")
+				cdcSavepointFixed, fixVersion := isCDCSavepointFixedInTargetDBVersion(msr.TargetDBConf.DBVersion)
+
+				var limitations []string
+				if !cdcSavepointFixed {
+					upgradeHint := ""
+					if fixVersion != "" {
+						upgradeHint = fmt.Sprintf(" This is fixed in YugabyteDB version %s and later.", fixVersion)
+					}
+					limitations = append(limitations,
+						fmt.Sprintf("SAVEPOINT statements within transactions on the target database are not supported during live migration with %s enabled. Transactions rolling back to some SAVEPOINT may cause data inconsistency between the databases.%s", workflow, upgradeHint),
+						fmt.Sprintf("Workloads with read-committed isolation level are not fully supported. It is recommended to use repeatable-read or serializable isolation levels for the duration of the migration.%s", upgradeHint))
+				}
+				limitations = append(limitations,
+					fmt.Sprintf("Rows larger than 4MB in target database can cause consistency issues during live migration with %s enabled. Refer to this tech advisory for more information %s", workflow, utils.Path.Sprint("https://docs.yugabyte.com/stable/releases/techadvisories/ta-29060/")))
+
+				noun := lo.Ternary(len(limitations) == 1, "limitation", "limitations")
+				utils.PrintAndLogfWarning("\nImportant: The following %s %s to live migration with %s:\n\n", noun, lo.Ternary(len(limitations) == 1, "applies", "apply"), workflow)
+				for i, lim := range limitations {
+					utils.PrintAndLogfWarning("  %d. %s\n", i+1, lim)
+				}
+				utils.PrintAndLog("\n")
 			}
 		}
 
@@ -560,26 +628,12 @@ func exportData() bool {
 
 	if changeStreamingIsEnabled(exportType) || useDebezium {
 		exportPhase = dbzm.MODE_SNAPSHOT
-		config, tableNametoApproxRowCountMap, err := prepareDebeziumConfig(partitionsToRootTableMap, finalTableList, tablesColumnList, leafPartitions)
+		err = startDebeziumAsPerExportTypeIfRequired(ctx, cancel, finalTableList, tablesColumnList, leafPartitions, partitionsToRootTableMap)
 		if err != nil {
-			log.Errorf("Failed to prepare dbzm config: %v", err)
+			log.Errorf("Failed to start debezium: %v", err)
 			return false
 		}
-		saveTableToUniqueKeyColumnsMapInMetaDB(finalTableList, leafPartitions)
-		if source.DBType == POSTGRESQL && changeStreamingIsEnabled(exportType) {
-			err = initPGLiveMigrationAndExportSnapshotIfRequired(ctx, cancel, finalTableList, tablesColumnList, leafPartitions, config)
-			if err != nil {
-				log.Errorf("Failed to export snapshot using pg_dump: %v", err)
-				return false
-			}
-		}
-
-		err = debeziumExportData(ctx, config, tableNametoApproxRowCountMap)
-		if err != nil {
-			log.Errorf("Export Data using debezium failed: %v", err)
-			return false
-		}
-
+		utils.PrintAndLogfInfo("Processing cutover initiate request...\n")
 		if changeStreamingIsEnabled(exportType) {
 			log.Infof("live migration complete, proceeding to cutover")
 			msr, err := metaDB.GetMigrationStatusRecord()
@@ -593,7 +647,7 @@ func exportData() bool {
 						utils.ErrExit("failed to delete stream id after data export: %w", err)
 					}
 				} else {
-					fmt.Println("Deleting YB replication slot and publication")
+					fmt.Println("Deleting YB replication slot and publication...")
 					err = deleteYBReplicationSlotAndPublication(msr.YBReplicationSlotName, msr.YBPublicationName, source)
 					if err != nil {
 						utils.ErrExit("failed to delete replication slot and publication after data export: %w", err)
@@ -604,7 +658,7 @@ func exportData() bool {
 				if err != nil {
 					utils.ErrExit("get migration status record: %w", err)
 				}
-				fmt.Println("Deleting PG replication slot and publication")
+				fmt.Println("Deleting PG replication slot and publication...")
 				deletePGReplicationSlotAndPublication(msr, &source)
 			}
 
@@ -633,6 +687,53 @@ func exportData() bool {
 		}
 		return true
 	}
+}
+
+func startDebeziumAsPerExportTypeIfRequired(ctx context.Context, cancel context.CancelFunc, finalTableList []sqlname.NameTuple, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string],
+	leafPartitions *utils.StructMap[sqlname.NameTuple, []sqlname.NameTuple], partitionsToRootTableMap map[string]string) error {
+	ok, err := isCutoverInitiatedAndCutoverDetected(exporterRole)
+	if err != nil {
+		return fmt.Errorf("failed to check if cutover is initiated and detected: %w", err)
+	}
+	if ok {
+		utils.PrintAndLogf("Cutover already initiated, skipping export data")
+		return nil
+	}
+
+	config, tableNametoApproxRowCountMap, err := prepareDebeziumConfig(partitionsToRootTableMap, finalTableList, tablesColumnList, leafPartitions)
+	if err != nil {
+		return fmt.Errorf("failed to prepare dbzm config: %w", err)
+	}
+	saveTableToUniqueKeyColumnsMapInMetaDB(finalTableList, leafPartitions)
+	if source.DBType == POSTGRESQL && changeStreamingIsEnabled(exportType) {
+		err = initPGLiveMigrationAndExportSnapshotIfRequired(ctx, cancel, finalTableList, tablesColumnList, leafPartitions, config)
+		if err != nil {
+			return fmt.Errorf("failed to export snapshot using pg_dump: %w", err)
+		}
+	}
+
+	err = debeziumExportData(config, tableNametoApproxRowCountMap)
+	if err != nil {
+		return fmt.Errorf("failed to export data using debezium: %w", err)
+	}
+	err = updateCutoverDetectedFlag(exporterRole)
+	if err != nil {
+		return fmt.Errorf("failed to update cutover detected flag: %w", err)
+	}
+	return nil
+}
+
+func updateCutoverDetectedFlag(exporterRole string) error {
+	return metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		switch exporterRole {
+		case TARGET_DB_EXPORTER_FB_ROLE:
+			record.CutoverDetectedByTargetFBExporter = true
+		case TARGET_DB_EXPORTER_FF_ROLE:
+			record.CutoverDetectedByTargetFFExporter = true
+		case SOURCE_DB_EXPORTER_ROLE:
+			record.CutoverDetectedBySourceExporter = true
+		}
+	})
 }
 
 func initPGLiveMigrationAndExportSnapshotIfRequired(ctx context.Context, cancel context.CancelFunc, finalTableList []sqlname.NameTuple, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], leafPartitions *utils.StructMap[sqlname.NameTuple, []sqlname.NameTuple], config *dbzm.Config) error {
@@ -1633,6 +1734,7 @@ func clearMigrationStateIfRequired() {
 			record.TargetExportedTableListWithLeafPartitions = nil
 			record.TargetColumnToSequenceMapping = nil
 			record.TargetRenameTablesMap = nil
+			record.ExportTypeFromSource = ""
 		})
 
 		err = metadb.TruncateTablesInMetaDb(exportDir, []string{metadb.QUEUE_SEGMENT_META_TABLE_NAME, metadb.EXPORTED_EVENTS_STATS_TABLE_NAME, metadb.EXPORTED_EVENTS_STATS_PER_TABLE_TABLE_NAME})

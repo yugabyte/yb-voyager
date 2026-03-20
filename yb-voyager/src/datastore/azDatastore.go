@@ -84,3 +84,7 @@ func (ds *AzDataStore) Open(objectPath string) (io.ReadCloser, error) {
 	}
 	return az.NewObjectReader(objectPath)
 }
+
+func (ds *AzDataStore) OpenAt(objectPath string, offset int64) (io.ReadCloser, error) {
+	return nil, ErrOpenAtNotImplemented
+}

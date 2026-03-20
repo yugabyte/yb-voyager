@@ -17,6 +17,8 @@ limitations under the License.
 package cmd
 
 import (
+	"html"
+
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -67,6 +69,8 @@ func createMigrationAssessmentCompletedEventForYBAeon() *cp.MigrationAssessmentC
 	// Convert assessment issues to YBM format (similar to yugabyted conversion)
 	assessmentIssuesYBM := convertAssessmentIssueToYBMAssessmentIssue(assessmentReport)
 
+	schemaSummaryPayload := convertSchemaSummaryToPayload(assessmentReport.SchemaSummary, source.DBType)
+
 	// Create YBM payload with all current features
 	payload := AssessMigrationPayloadYBM{
 		PayloadVersion:                 ASSESS_MIGRATION_YBM_PAYLOAD_VERSION,
@@ -75,6 +79,7 @@ func createMigrationAssessmentCompletedEventForYBAeon() *cp.MigrationAssessmentC
 		MigrationComplexity:            assessmentReport.MigrationComplexity,
 		MigrationComplexityExplanation: assessmentReport.MigrationComplexityExplanation,
 		SchemaSummary:                  assessmentReport.SchemaSummary,
+		ParsedSchemaSummary:            schemaSummaryPayload,
 		AssessmentIssues:               assessmentIssuesYBM,
 		SourceSizeDetails: SourceDBSizeDetails{
 			TotalIndexSize:     assessmentReport.GetTotalIndexSize(),
@@ -93,7 +98,7 @@ func createMigrationAssessmentCompletedEventForYBAeon() *cp.MigrationAssessmentC
 
 	// Classify notes into categories (same as yugabyted)
 	for _, note := range assessmentReport.Notes {
-		sanitizedText := stripAnchorTags(note.Text)
+		sanitizedText := html.EscapeString(note.Text)
 		switch note.Type {
 		case GeneralNotes:
 			payload.GeneralNotes = append(payload.GeneralNotes, sanitizedText)

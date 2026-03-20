@@ -28,6 +28,8 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -269,11 +271,9 @@ func TestFileBatchProducerResumable(t *testing.T) {
 		defer os.RemoveAll(fmt.Sprintf("%s/", lexportDir))
 	}
 
-	fileContents := `id,val
-1, "hello"
-2, "world"
-3, "foo"
-4, "bar"`
+	header := "id,val"
+	rows := []string{`1, "hello"`, `2, "world"`, `3, "foo"`, `4, "bar"`}
+	fileContents := header + "\n" + strings.Join(rows, "\n")
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
 	assert.NoError(t, err)
 
@@ -286,6 +286,9 @@ func TestFileBatchProducerResumable(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, batch1)
 	assert.Equal(t, int64(2), batch1.RecordCount)
+	expectedBatch1Offset := int64(len(header)+1) + int64(len(rows[0])+1) + int64(len(rows[1])+1)
+	assert.Equal(t, expectedBatch1Offset, batch1.CumByteOffsetEnd,
+		"Batch 1 CumByteOffsetEnd should equal header + rows 0-1")
 
 	// simulate a crash and recover
 	batchproducer, err = NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
@@ -295,6 +298,8 @@ func TestFileBatchProducerResumable(t *testing.T) {
 	// state should have recovered that one batch
 	assert.Equal(t, 1, len(batchproducer.pendingBatches))
 	assert.True(t, cmp.Equal(batch1, batchproducer.pendingBatches[0]))
+	assert.Equal(t, batch1.CumByteOffsetEnd, batchproducer.lastBatchCumByteOffsetEnd)
+	assert.Equal(t, batch1.CumByteOffsetEnd, batchproducer.cumByteOffsetEnd)
 
 	// verify that it picks up from pendingBatches
 	// instead of procing a new batch.
@@ -305,12 +310,20 @@ func TestFileBatchProducerResumable(t *testing.T) {
 	assert.Equal(t, 0, len(batchproducer.pendingBatches))
 	assert.False(t, batchproducer.Done())
 
-	// get final batch
+	// get final batch via byte-seek
 	batch2, err := batchproducer.NextBatch()
 	assert.NoError(t, err)
 	assert.NotNil(t, batch2)
 	assert.Equal(t, int64(2), batch2.RecordCount)
 	assert.True(t, batchproducer.Done())
+
+	expectedBatch2Offset := expectedBatch1Offset + int64(len(rows[2])+1) + int64(len(rows[3]))
+	assert.Equal(t, expectedBatch2Offset, batch2.CumByteOffsetEnd,
+		"Batch 2 CumByteOffsetEnd should equal header + all rows")
+	fileInfo, err := os.Stat(task.FilePath)
+	assert.NoError(t, err)
+	assert.Equal(t, fileInfo.Size(), batch2.CumByteOffsetEnd,
+		"Last batch CumByteOffsetEnd should equal file size")
 }
 
 func TestFileBatchProducerResumeAfterAllBatchesProduced(t *testing.T) {
@@ -929,6 +942,712 @@ func assertProcessingErrorBatchFileContains(t *testing.T, lexportDir string, tas
 	for _, substr := range expectedSubstrings {
 		assert.Contains(t, errorFileContents, substr)
 	}
+}
+
+// ==================== parseBatchFileName tests ====================
+
+func TestParseBatchFileName_6Fields(t *testing.T) {
+	batchNum, offsetEnd, recordCount, byteCount, cumByteOffsetEnd, state, err := parseBatchFileName("batch::2.10000.5000.215572.320000.C")
+	assert.NoError(t, err)
+	assert.Equal(t, int64(2), batchNum)
+	assert.Equal(t, int64(10000), offsetEnd)
+	assert.Equal(t, int64(5000), recordCount)
+	assert.Equal(t, int64(215572), byteCount)
+	assert.Equal(t, int64(320000), cumByteOffsetEnd)
+	assert.Equal(t, "C", state)
+}
+
+func TestParseBatchFileName_LastBatch(t *testing.T) {
+	batchNum, offsetEnd, recordCount, byteCount, cumByteOffsetEnd, state, err := parseBatchFileName("batch::0.50000.3000.64000.4012345678.D")
+	assert.NoError(t, err)
+	assert.Equal(t, int64(0), batchNum) // LAST_SPLIT_NUM
+	assert.Equal(t, int64(50000), offsetEnd)
+	assert.Equal(t, int64(3000), recordCount)
+	assert.Equal(t, int64(64000), byteCount)
+	assert.Equal(t, int64(4012345678), cumByteOffsetEnd)
+	assert.Equal(t, "D", state)
+}
+
+func TestParseBatchFileName_InvalidFieldCount(t *testing.T) {
+	// Too few fields
+	_, _, _, _, _, _, err := parseBatchFileName("batch::1.2.3.D")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "expected 6 fields")
+
+	// Old 5-field format is no longer supported
+	_, _, _, _, _, _, err = parseBatchFileName("batch::1.5000.5000.107786.D")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "expected 6 fields")
+}
+
+func TestParseBatchFileName_InvalidState(t *testing.T) {
+	_, _, _, _, _, _, err := parseBatchFileName("batch::1.5000.5000.107786.320000.X")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid state")
+}
+
+func TestParseBatchFileName_AllStates(t *testing.T) {
+	for _, expectedState := range []string{"C", "P", "D", "E"} {
+		fileName := fmt.Sprintf("batch::1.100.100.5000.10000.%s", expectedState)
+		_, _, _, _, _, state, err := parseBatchFileName(fileName)
+		assert.NoError(t, err)
+		assert.Equal(t, expectedState, state)
+	}
+}
+
+// ==================== CumByteOffset tracking tests ====================
+
+func TestBatchCumByteOffsetTracking(t *testing.T) {
+	ldataDir, lexportDir, state, errorHandler, progressReporter, err := setupExportDirAndImportDependencies(2, 1024)
+	assert.NoError(t, err)
+	defer os.RemoveAll(ldataDir)
+	defer os.RemoveAll(lexportDir)
+
+	header := "id,val"
+	rows := []string{`1, "hello"`, `2, "world"`, `3, "foo"`, `4, "bar"`}
+	fileContents := header + "\n" + strings.Join(rows, "\n")
+	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
+	assert.NoError(t, err)
+
+	batchproducer, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+	assert.NoError(t, err)
+
+	var batches []*Batch
+	for !batchproducer.Done() {
+		batch, err := batchproducer.NextBatch()
+		assert.NoError(t, err)
+		batches = append(batches, batch)
+	}
+
+	assert.Equal(t, 2, len(batches))
+
+	// Compute expected offsets from the same data used to build the file
+	headerBytes := int64(len(header) + 1) // +1 for \n
+	batch0End := headerBytes + int64(len(rows[0])+1) + int64(len(rows[1])+1)
+	batch1End := batch0End + int64(len(rows[2])+1) + int64(len(rows[3]))
+
+	assert.Equal(t, batch0End, batches[0].CumByteOffsetEnd,
+		"Batch 0 CumByteOffsetEnd should equal header + rows 0-1")
+	assert.Equal(t, batch1End, batches[1].CumByteOffsetEnd,
+		"Batch 1 CumByteOffsetEnd should equal total file size")
+
+	fileInfo, err := os.Stat(task.FilePath)
+	assert.NoError(t, err)
+	assert.Equal(t, fileInfo.Size(), batches[1].CumByteOffsetEnd,
+		"Last batch CumByteOffsetEnd should equal file size")
+}
+
+func TestByteSeekResumption(t *testing.T) {
+	ldataDir, lexportDir, state, errorHandler, progressReporter, err := setupExportDirAndImportDependencies(2, 1024)
+	assert.NoError(t, err)
+	defer os.RemoveAll(ldataDir)
+	defer os.RemoveAll(lexportDir)
+
+	header := "id,val"
+	rows := []string{`1, "hello"`, `2, "world"`, `3, "foo"`, `4, "bar"`}
+	fileContents := header + "\n" + strings.Join(rows, "\n")
+	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
+	assert.NoError(t, err)
+
+	// First run: produce one batch (rows 1-2)
+	bp1, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+	assert.NoError(t, err)
+	batch1, err := bp1.NextBatch()
+	assert.NoError(t, err)
+	assert.Equal(t, int64(2), batch1.RecordCount)
+	expectedBatch1Offset := int64(len(header)+1) + int64(len(rows[0])+1) + int64(len(rows[1])+1)
+	assert.Equal(t, expectedBatch1Offset, batch1.CumByteOffsetEnd)
+	bp1.Close()
+
+	// Resume: should use byte-seek
+	bp2, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+	assert.NoError(t, err)
+	assert.Equal(t, batch1.CumByteOffsetEnd, bp2.lastBatchCumByteOffsetEnd,
+		"Recovered lastBatchCumByteOffsetEnd should match batch1's CumByteOffsetEnd")
+
+	// Get pending batch 1 first
+	recoveredBatch, err := bp2.NextBatch()
+	assert.NoError(t, err)
+	assert.Equal(t, batch1.Number, recoveredBatch.Number)
+
+	// Now produce the second batch (rows 3-4) via byte-seek
+	batch2, err := bp2.NextBatch()
+	assert.NoError(t, err)
+	assert.Equal(t, int64(2), batch2.RecordCount)
+	assert.True(t, bp2.Done())
+	bp2.Close()
+
+	// Verify data correctness: batch 2 should contain rows 3-4
+	batchContents, err := os.ReadFile(batch2.GetFilePath())
+	assert.NoError(t, err)
+	expectedContent := header + "\n" + strings.Join(rows[2:], "\n")
+	assert.Equal(t, expectedContent, string(batchContents))
+
+	// Last batch's CumByteOffsetEnd should equal total file size
+	fileInfo, err := os.Stat(task.FilePath)
+	assert.NoError(t, err)
+	assert.Equal(t, fileInfo.Size(), batch2.CumByteOffsetEnd,
+		"Last batch CumByteOffsetEnd should equal file size")
+}
+
+func TestByteSeekResumption_NoHeader(t *testing.T) {
+	ldataDir, lexportDir, state, errorHandler, progressReporter, err := setupExportDirAndImportDependencies(2, 1024)
+	assert.NoError(t, err)
+	defer os.RemoveAll(ldataDir)
+	defer os.RemoveAll(lexportDir)
+
+	rows := []string{"1\thello", "2\tworld", "3\tfoo", "4\tbar"}
+	dataFileDescriptor = &datafile.Descriptor{
+		FileFormat: "text",
+		Delimiter:  "\t",
+		HasHeader:  false,
+		ExportDir:  lexportDir,
+	}
+	fileContent := strings.Join(rows, "\n") + "\n"
+	tempFile, err := testutils.CreateTempFile(ldataDir, fileContent, "text")
+	assert.NoError(t, err)
+
+	sourceName := sqlname.NewObjectName(constants.POSTGRESQL, "public", "public", "test_no_header")
+	tableNameTup := sqlname.NameTuple{SourceName: sourceName, CurrentName: sourceName}
+	task := &ImportFileTask{
+		ID:           1,
+		FilePath:     tempFile,
+		TableNameTup: tableNameTup,
+		RowCount:     int64(len(rows)),
+	}
+
+	// First run: produce one batch (rows 1-2)
+	bp1, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+	assert.NoError(t, err)
+	batch1, err := bp1.NextBatch()
+	assert.NoError(t, err)
+	assert.Equal(t, int64(2), batch1.RecordCount)
+	expectedBatch1Offset := int64(len(rows[0])+1) + int64(len(rows[1])+1) // +1 for \n each
+	assert.Equal(t, expectedBatch1Offset, batch1.CumByteOffsetEnd)
+	bp1.Close()
+
+	// Resume: should use byte-seek
+	bp2, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+	assert.NoError(t, err)
+
+	// Get pending batch 1
+	_, err = bp2.NextBatch()
+	assert.NoError(t, err)
+
+	// Produce second batch via byte-seek
+	batch2, err := bp2.NextBatch()
+	assert.NoError(t, err)
+	assert.Equal(t, int64(2), batch2.RecordCount)
+	assert.True(t, bp2.Done())
+	bp2.Close()
+
+	// Verify content
+	batchContents, err := os.ReadFile(batch2.GetFilePath())
+	assert.NoError(t, err)
+	expected := strings.Join(rows[2:], "\n")
+	assert.Equal(t, expected, string(batchContents))
+
+	// Last batch's CumByteOffsetEnd should equal total file size
+	fileInfo, err := os.Stat(task.FilePath)
+	assert.NoError(t, err)
+	assert.Equal(t, fileInfo.Size(), batch2.CumByteOffsetEnd,
+		"Last batch CumByteOffsetEnd should equal file size (no header)")
+}
+
+// Verifies that when a row is read but carried forward to the next batch,
+// the current batch's cumByteOffset excludes that row's bytes.
+func TestCumByteOffset_CarriedForwardLine(t *testing.T) {
+	ldataDir, lexportDir, state, errorHandler, progressReporter, err := setupExportDirAndImportDependencies(2, 1024)
+	assert.NoError(t, err)
+	defer os.RemoveAll(ldataDir)
+	defer os.RemoveAll(lexportDir)
+
+	fileContents := `id,val
+1, "hello"
+2, "world"
+3, "foo"
+4, "bar"
+5, "baz"`
+	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
+	assert.NoError(t, err)
+
+	bp, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+	assert.NoError(t, err)
+
+	batch1, err := bp.NextBatch()
+	assert.NoError(t, err)
+	assert.Equal(t, int64(2), batch1.RecordCount)
+
+	batch2, err := bp.NextBatch()
+	assert.NoError(t, err)
+	assert.Equal(t, int64(2), batch2.RecordCount)
+
+	batch3, err := bp.NextBatch()
+	assert.NoError(t, err)
+	assert.Equal(t, int64(1), batch3.RecordCount)
+	assert.True(t, bp.Done())
+
+	// Batch 1 cumByteOffset should point right after row 2 (not after row 3)
+	headerLen := int64(len("id,val\n"))
+	row1Len := int64(len("1, \"hello\"\n"))
+	row2Len := int64(len("2, \"world\"\n"))
+	assert.Equal(t, headerLen+row1Len+row2Len, batch1.CumByteOffsetEnd,
+		"Batch 1 cumByteOffset should exclude carried-forward row 3")
+
+	// Batch 2 cumByteOffset should point right after row 4
+	row3Len := int64(len("3, \"foo\"\n"))
+	row4Len := int64(len("4, \"bar\"\n"))
+	assert.Equal(t, batch1.CumByteOffsetEnd+row3Len+row4Len, batch2.CumByteOffsetEnd,
+		"Batch 2 cumByteOffset should be batch1 + row3 + row4")
+
+	// Last batch cumByteOffset should equal file size
+	fileInfo, err := os.Stat(task.FilePath)
+	assert.NoError(t, err)
+	assert.Equal(t, fileInfo.Size(), batch3.CumByteOffsetEnd,
+		"Last batch cumByteOffset should equal file size")
+}
+
+// Simulates 3 resume cycles (produce 2 → kill → resume → produce 2 → kill → resume → finish)
+// and verifies cumByteOffset is monotonic, correct across cycles, and batch data is intact after seek.
+func TestMultipleResumeCycles(t *testing.T) {
+	ldataDir, lexportDir, state, errorHandler, progressReporter, err := setupExportDirAndImportDependencies(1, 1024)
+	assert.NoError(t, err)
+	defer os.RemoveAll(ldataDir)
+	defer os.RemoveAll(lexportDir)
+
+	rows := []string{"a\tb", "c\td", "e\tf", "g\th", "i\tj", "k\tl"}
+	dataFileDescriptor = &datafile.Descriptor{
+		FileFormat: "text",
+		Delimiter:  "\t",
+		HasHeader:  false,
+		ExportDir:  lexportDir,
+	}
+	fileContent := strings.Join(rows, "\n") + "\n"
+	tempFile, err := testutils.CreateTempFile(ldataDir, fileContent, "text")
+	assert.NoError(t, err)
+
+	sourceName := sqlname.NewObjectName(constants.POSTGRESQL, "public", "public", "test_multi_resume")
+	tableNameTup := sqlname.NameTuple{SourceName: sourceName, CurrentName: sourceName}
+	task := &ImportFileTask{
+		ID:           1,
+		FilePath:     tempFile,
+		TableNameTup: tableNameTup,
+		RowCount:     int64(len(rows)),
+	}
+
+	// Cycle 1: produce 2 batches
+	bp1, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+	assert.NoError(t, err)
+	b1, err := bp1.NextBatch()
+	assert.NoError(t, err)
+	b2, err := bp1.NextBatch()
+	assert.NoError(t, err)
+	assert.False(t, bp1.Done())
+	bp1.Close()
+
+	// Cycle 2: resume, get 2 pending + produce 2 new
+	bp2, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+	assert.NoError(t, err)
+	assert.Equal(t, b2.CumByteOffsetEnd, bp2.lastBatchCumByteOffsetEnd)
+
+	// Drain pending
+	_, err = bp2.NextBatch()
+	assert.NoError(t, err)
+	_, err = bp2.NextBatch()
+	assert.NoError(t, err)
+
+	// Produce 2 new via byte-seek
+	b3, err := bp2.NextBatch()
+	assert.NoError(t, err)
+	b4, err := bp2.NextBatch()
+	assert.NoError(t, err)
+	assert.False(t, bp2.Done())
+	bp2.Close()
+
+	// Cycle 3: resume again, get 4 pending + produce remaining 2
+	bp3, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+	assert.NoError(t, err)
+	assert.Equal(t, b4.CumByteOffsetEnd, bp3.lastBatchCumByteOffsetEnd)
+
+	// Drain 4 pending
+	for i := 0; i < 4; i++ {
+		_, err = bp3.NextBatch()
+		assert.NoError(t, err)
+	}
+
+	// Produce remaining 2 via byte-seek
+	b5, err := bp3.NextBatch()
+	assert.NoError(t, err)
+	b6, err := bp3.NextBatch()
+	assert.NoError(t, err)
+	assert.True(t, bp3.Done())
+	bp3.Close()
+
+	// CumByteOffset should be monotonically increasing across all 6 batches
+	allBatches := []*Batch{b1, b2, b3, b4, b5, b6}
+	for i := 1; i < len(allBatches); i++ {
+		assert.Greater(t, allBatches[i].CumByteOffsetEnd, allBatches[i-1].CumByteOffsetEnd,
+			"CumByteOffset should increase: batch %d vs %d", i, i+1)
+	}
+
+	// Last batch should equal file size
+	fileInfo, err := os.Stat(task.FilePath)
+	assert.NoError(t, err)
+	assert.Equal(t, fileInfo.Size(), b6.CumByteOffsetEnd,
+		"Last batch cumByteOffset should equal file size")
+
+	// Verify data correctness of byte-seeked batches
+	b3Contents, err := os.ReadFile(b3.GetFilePath())
+	assert.NoError(t, err)
+	assert.Equal(t, rows[2], string(b3Contents))
+
+	b5Contents, err := os.ReadFile(b5.GetFilePath())
+	assert.NoError(t, err)
+	assert.Equal(t, rows[4], string(b5Contents))
+}
+
+// Verifies cumByteOffset equals file size for a single-row file that produces one batch.
+func TestCumByteOffset_SingleRowFile(t *testing.T) {
+	ldataDir, lexportDir, state, errorHandler, progressReporter, err := setupExportDirAndImportDependencies(100, 1024)
+	assert.NoError(t, err)
+	defer os.RemoveAll(ldataDir)
+	defer os.RemoveAll(lexportDir)
+
+	header := "id,val"
+	rows := []string{`1, "only row"`}
+	fileContents := header + "\n" + strings.Join(rows, "\n")
+	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
+	assert.NoError(t, err)
+
+	bp, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+	assert.NoError(t, err)
+
+	batch, err := bp.NextBatch()
+	assert.NoError(t, err)
+	assert.Equal(t, int64(1), batch.RecordCount)
+	assert.Equal(t, int64(0), batch.Number) // last batch = LAST_SPLIT_NUM
+	assert.True(t, bp.Done())
+
+	expectedOffset := int64(len(header)+1) + int64(len(rows[0]))
+	assert.Equal(t, expectedOffset, batch.CumByteOffsetEnd,
+		"Single-row file: CumByteOffsetEnd should equal header + row bytes")
+	fileInfo, err := os.Stat(task.FilePath)
+	assert.NoError(t, err)
+	assert.Equal(t, fileInfo.Size(), batch.CumByteOffsetEnd,
+		"Single-row file: CumByteOffsetEnd should equal file size")
+}
+
+// Verifies CumByteOffsetEnd is correct when a CSV field contains an embedded
+// newline (multi-line quoted field), both with and without resumption.
+func TestCumByteOffset_CsvNewlineInData(t *testing.T) {
+	header := "id,val"
+	rows := []string{
+		`1,"hello"`,
+		"2,\"multi\nline\"",
+		`3,"foo"`,
+		`4,"bar"`,
+	}
+
+	t.Run("without resumption", func(t *testing.T) {
+		ldataDir, lexportDir, state, errorHandler, progressReporter, err := setupExportDirAndImportDependencies(2, 1024)
+		assert.NoError(t, err)
+		defer os.RemoveAll(ldataDir)
+		defer os.RemoveAll(lexportDir)
+
+		fileContents := header + "\n" + strings.Join(rows, "\n")
+		_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
+		assert.NoError(t, err)
+
+		bp, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+		assert.NoError(t, err)
+
+		var batches []*Batch
+		for !bp.Done() {
+			batch, err := bp.NextBatch()
+			assert.NoError(t, err)
+			batches = append(batches, batch)
+		}
+
+		assert.Equal(t, 2, len(batches))
+		headerBytes := int64(len(header) + 1)
+		batch0End := headerBytes + int64(len(rows[0])+1) + int64(len(rows[1])+1)
+		batch1End := batch0End + int64(len(rows[2])+1) + int64(len(rows[3]))
+
+		assert.Equal(t, batch0End, batches[0].CumByteOffsetEnd,
+			"Batch 0 CumByteOffsetEnd should account for embedded newline bytes")
+		assert.Equal(t, batch1End, batches[1].CumByteOffsetEnd)
+
+		fileInfo, err := os.Stat(task.FilePath)
+		assert.NoError(t, err)
+		assert.Equal(t, fileInfo.Size(), batches[1].CumByteOffsetEnd,
+			"Last batch CumByteOffsetEnd should equal file size")
+	})
+
+	t.Run("with resumption", func(t *testing.T) {
+		ldataDir, lexportDir, state, errorHandler, progressReporter, err := setupExportDirAndImportDependencies(2, 1024)
+		assert.NoError(t, err)
+		defer os.RemoveAll(ldataDir)
+		defer os.RemoveAll(lexportDir)
+
+		fileContents := header + "\n" + strings.Join(rows, "\n")
+		_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
+		assert.NoError(t, err)
+
+		// First run: produce batch 1 (rows 0-1, where row 1 has embedded newline)
+		bp1, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+		assert.NoError(t, err)
+		batch1, err := bp1.NextBatch()
+		assert.NoError(t, err)
+		assert.Equal(t, int64(2), batch1.RecordCount)
+		expectedBatch1Offset := int64(len(header)+1) + int64(len(rows[0])+1) + int64(len(rows[1])+1)
+		assert.Equal(t, expectedBatch1Offset, batch1.CumByteOffsetEnd,
+			"Batch 1 CumByteOffsetEnd should account for embedded newline bytes")
+		bp1.Close()
+
+		// Resume via byte-seek past the multi-line row
+		bp2, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+		assert.NoError(t, err)
+		assert.Equal(t, batch1.CumByteOffsetEnd, bp2.lastBatchCumByteOffsetEnd)
+
+		// Drain pending batch 1
+		_, err = bp2.NextBatch()
+		assert.NoError(t, err)
+
+		// Produce batch 2 (rows 2-3) via byte-seek
+		batch2, err := bp2.NextBatch()
+		assert.NoError(t, err)
+		assert.Equal(t, int64(2), batch2.RecordCount)
+		assert.True(t, bp2.Done())
+		bp2.Close()
+
+		// Verify batch 2 data correctness
+		b2Contents, err := os.ReadFile(batch2.GetFilePath())
+		assert.NoError(t, err)
+		expectedContent := header + "\n" + strings.Join(rows[2:], "\n")
+		assert.Equal(t, expectedContent, string(b2Contents))
+
+		// CumByteOffsetEnd should equal total file size
+		expectedBatch2Offset := expectedBatch1Offset + int64(len(rows[2])+1) + int64(len(rows[3]))
+		assert.Equal(t, expectedBatch2Offset, batch2.CumByteOffsetEnd)
+		fileInfo, err := os.Stat(task.FilePath)
+		assert.NoError(t, err)
+		assert.Equal(t, fileInfo.Size(), batch2.CumByteOffsetEnd,
+			"Last batch CumByteOffsetEnd should equal file size")
+	})
+}
+
+// Verifies cumByteOffset still advances past a stashed (too-large) row's bytes,
+// so cumByteOffset equals file size even when a row is error-stashed mid-batch.
+func TestCumByteOffset_WithStashedErrors(t *testing.T) {
+	maxBatchSizeBytes := int64(200)
+	ldataDir, lexportDir, state, _, progressReporter, err := setupExportDirAndImportDependencies(1000, maxBatchSizeBytes)
+	assert.NoError(t, err)
+	defer os.RemoveAll(ldataDir)
+	defer os.RemoveAll(lexportDir)
+
+	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir))
+	assert.NoError(t, err)
+
+	longVal := strings.Repeat("x", 220) // 220+ bytes, exceeds MaxBatchSizeInBytes of 200
+	fileContents := fmt.Sprintf("id,val\n1, \"ok\"\n2, \"%s\"\n3, \"ok2\"", longVal)
+	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
+	assert.NoError(t, err)
+
+	bp, err := NewSequentialFileBatchProducer(task, state, false, scErrorHandler, progressReporter)
+	assert.NoError(t, err)
+
+	batch, err := bp.NextBatch()
+	assert.NoError(t, err)
+	assert.Equal(t, int64(2), batch.RecordCount) // rows 1 and 3 (row 2 stashed)
+	assert.True(t, bp.Done())
+
+	// cumByteOffset must equal total file size, including the stashed row's bytes
+	fileInfo, err := os.Stat(task.FilePath)
+	assert.NoError(t, err)
+	assert.Equal(t, fileInfo.Size(), batch.CumByteOffsetEnd,
+		"cumByteOffset should include stashed row bytes and equal file size")
+}
+
+// Produces 4 of 8 batches, resumes via byte-seek, produces remaining 4,
+// and verifies each seeked batch contains the correct row data.
+func TestByteSeekResumption_ManyBatches(t *testing.T) {
+	ldataDir, lexportDir, state, errorHandler, progressReporter, err := setupExportDirAndImportDependencies(1, 1024)
+	assert.NoError(t, err)
+	defer os.RemoveAll(ldataDir)
+	defer os.RemoveAll(lexportDir)
+
+	dataFileDescriptor = &datafile.Descriptor{
+		FileFormat: "text",
+		Delimiter:  "\t",
+		HasHeader:  false,
+		ExportDir:  lexportDir,
+	}
+	rows := []string{"r1\tc1", "r2\tc2", "r3\tc3", "r4\tc4", "r5\tc5", "r6\tc6", "r7\tc7", "r8\tc8"}
+	fileContent := strings.Join(rows, "\n") + "\n"
+	tempFile, err := testutils.CreateTempFile(ldataDir, fileContent, "text")
+	assert.NoError(t, err)
+
+	sourceName := sqlname.NewObjectName(constants.POSTGRESQL, "public", "public", "test_many_batches")
+	tableNameTup := sqlname.NameTuple{SourceName: sourceName, CurrentName: sourceName}
+	task := &ImportFileTask{
+		ID:           1,
+		FilePath:     tempFile,
+		TableNameTup: tableNameTup,
+		RowCount:     8,
+	}
+
+	// First run: produce 4 batches
+	bp1, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+	assert.NoError(t, err)
+	firstRunBatches := make([]*Batch, 0)
+	for i := 0; i < 4; i++ {
+		b, err := bp1.NextBatch()
+		assert.NoError(t, err)
+		firstRunBatches = append(firstRunBatches, b)
+	}
+	bp1.Close()
+
+	// Resume: byte-seek to midpoint
+	bp2, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+	assert.NoError(t, err)
+	assert.Equal(t, firstRunBatches[3].CumByteOffsetEnd, bp2.lastBatchCumByteOffsetEnd)
+
+	// Drain 4 pending
+	for i := 0; i < 4; i++ {
+		_, err = bp2.NextBatch()
+		assert.NoError(t, err)
+	}
+
+	// Produce remaining 4 via byte-seek
+	seekedBatches := make([]*Batch, 0)
+	for !bp2.Done() {
+		b, err := bp2.NextBatch()
+		assert.NoError(t, err)
+		seekedBatches = append(seekedBatches, b)
+	}
+	bp2.Close()
+	assert.Equal(t, 4, len(seekedBatches))
+
+	// Verify each seeked batch has correct content
+	for i, b := range seekedBatches {
+		contents, err := os.ReadFile(b.GetFilePath())
+		assert.NoError(t, err)
+		assert.Equal(t, rows[4+i], string(contents),
+			"Batch %d after seek should contain row %d", i+5, i+5)
+	}
+
+	// Last batch cumByteOffset = file size
+	fileInfo, err := os.Stat(task.FilePath)
+	assert.NoError(t, err)
+	assert.Equal(t, fileInfo.Size(), seekedBatches[len(seekedBatches)-1].CumByteOffsetEnd)
+}
+
+// Verifies byte-seek resumption with SQL (ora2pg) format. When opened at a byte offset
+// mid-file, the SqlDataFile must assume it is inside a COPY block (via openedAtOffset > 0)
+// so that data rows are parsed correctly without waiting for a COPY preamble.
+func TestByteSeekResumption_SqlFormat(t *testing.T) {
+	ldataDir, lexportDir, state, errorHandler, progressReporter, err := setupExportDirAndImportDependencies(2, 1024)
+	assert.NoError(t, err)
+	defer os.RemoveAll(ldataDir)
+	defer os.RemoveAll(lexportDir)
+
+	// ora2pg-style SQL: COPY preamble, data rows, end-of-copy marker
+	preamble := `COPY "public"."test_table" ("id", "val") FROM STDIN;`
+	dataRows := []string{"1\thello", "2\tworld", "3\tfoo", "4\tbar"}
+	sqlContent := preamble + "\n" + strings.Join(dataRows, "\n") + "\n\\.\n"
+
+	dataFileDescriptor = &datafile.Descriptor{
+		FileFormat: "sql",
+		HasHeader:  false,
+		ExportDir:  lexportDir,
+	}
+	tempFile, err := testutils.CreateTempFile(ldataDir, sqlContent, "sql")
+	assert.NoError(t, err)
+
+	sourceName := sqlname.NewObjectName(constants.POSTGRESQL, "public", "public", "test_sql_seek")
+	tableNameTup := sqlname.NameTuple{SourceName: sourceName, CurrentName: sourceName}
+	task := &ImportFileTask{
+		ID:           1,
+		FilePath:     tempFile,
+		TableNameTup: tableNameTup,
+		RowCount:     int64(len(dataRows)),
+	}
+
+	// First run: produce one batch (rows 1-2)
+	bp1, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+	assert.NoError(t, err)
+	batch1, err := bp1.NextBatch()
+	assert.NoError(t, err)
+	assert.Equal(t, int64(2), batch1.RecordCount)
+	preambleBytes := int64(len(preamble) + 1) // +1 for \n
+	expectedBatch1Offset := preambleBytes + int64(len(dataRows[0])+1) + int64(len(dataRows[1])+1)
+	assert.Equal(t, expectedBatch1Offset, batch1.CumByteOffsetEnd)
+	bp1.Close()
+
+	// Resume: byte-seek past the COPY preamble + first 2 data rows
+	bp2, err := NewSequentialFileBatchProducer(task, state, false, errorHandler, progressReporter)
+	assert.NoError(t, err)
+	assert.Equal(t, batch1.CumByteOffsetEnd, bp2.lastBatchCumByteOffsetEnd)
+
+	// Drain pending batch 1
+	_, err = bp2.NextBatch()
+	assert.NoError(t, err)
+
+	// Produce batch 2 via byte-seek — SqlDataFile must know it's inside COPY
+	batch2, err := bp2.NextBatch()
+	assert.NoError(t, err)
+	assert.Equal(t, int64(2), batch2.RecordCount)
+	assert.True(t, bp2.Done())
+	bp2.Close()
+
+	// Verify batch 2 contains rows 3-4 (correct parsing after seek)
+	b2Contents, err := os.ReadFile(batch2.GetFilePath())
+	assert.NoError(t, err)
+	expected := strings.Join(dataRows[2:], "\n")
+	assert.Equal(t, expected, string(b2Contents))
+
+	// Last batch cumByteOffset should equal file size
+	fileInfo, err := os.Stat(task.FilePath)
+	assert.NoError(t, err)
+	assert.Equal(t, fileInfo.Size(), batch2.CumByteOffsetEnd,
+		"Last batch cumByteOffset should equal file size for SQL format")
+}
+
+// Verifies cumByteOffset equals file size when a row is stashed due to a
+// transformation/conversion error (as opposed to a too-large row error).
+func TestCumByteOffset_WithConversionErrors(t *testing.T) {
+	ldataDir, lexportDir, state, _, progressReporter, err := setupExportDirAndImportDependencies(1000, 1024)
+	assert.NoError(t, err)
+	defer os.RemoveAll(ldataDir)
+	defer os.RemoveAll(lexportDir)
+
+	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir))
+	assert.NoError(t, err)
+
+	fileContents := `id,val
+1,ok
+2,errorrow
+3,ok2`
+	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
+	assert.NoError(t, err)
+
+	origValueConverter := valueConverter
+	valueConverter = &mockRowErrorValueConverter{rowToError: 2}
+	t.Cleanup(func() { valueConverter = origValueConverter })
+
+	bp, err := NewSequentialFileBatchProducer(task, state, true, scErrorHandler, progressReporter)
+	assert.NoError(t, err)
+
+	batch, err := bp.NextBatch()
+	assert.NoError(t, err)
+	assert.Equal(t, int64(2), batch.RecordCount) // rows 1 and 3 (row 2 conversion-errored)
+	assert.True(t, bp.Done())
+
+	// cumByteOffset must equal total file size, including the errored row's bytes
+	fileInfo, err := os.Stat(task.FilePath)
+	assert.NoError(t, err)
+	assert.Equal(t, fileInfo.Size(), batch.CumByteOffsetEnd,
+		"cumByteOffset should include conversion-errored row bytes and equal file size")
 }
 
 func assertNoProcessingErrorBatchFileExists(t *testing.T, lexportDir string, task *ImportFileTask, batchNumber int64) {

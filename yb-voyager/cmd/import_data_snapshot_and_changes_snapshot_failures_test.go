@@ -43,8 +43,8 @@ import (
 //  4. Resume `import data` without failpoint and verify target matches source.
 //
 // Injection point:
-// - `src/tgtdb/yugabytedb.go` in transactional COPY path, right before txn commit:
-//   failpoint `importBatchCommitError`.
+//   - `src/tgtdb/yugabytedb.go` in transactional COPY path, right before txn commit:
+//     failpoint `importBatchCommitError`.
 func TestImportSnapshotCommitFailureAndResume(t *testing.T) {
 	ctx := context.Background()
 	tableName := "test_schema_import_snap_fail.snapshot_import_test"
@@ -95,7 +95,6 @@ func TestImportSnapshotCommitFailureAndResume(t *testing.T) {
 	// --- Phase 1: Start export and import concurrently ---
 	err = lm.StartExportData(true, nil)
 	require.NoError(t, err, "failed to start export")
-
 
 	const (
 		batchSizeRows      = 2
@@ -231,18 +230,17 @@ func TestImportSnapshotTransformFailureAndResume(t *testing.T) {
 	err = lm.StartExportData(true, nil)
 	require.NoError(t, err, "failed to start export")
 
-
 	failpointEnv := testutils.GetFailpointEnvVar(
 		// Skip the first 20 per-row transform calls (let them succeed), then inject
-		// a transform error on the 21st row. This crashes the importer mid-batch-
-		// production, before any batch is committed to the target.
+		// a transform error on the 21st row. With batch-size=100, all 20 rows fit
+		// in the first batch which is never finalized, so zero rows reach the target.
 		"github.com/yugabyte/yb-voyager/yb-voyager/cmd/importSnapshotTransformError=20*off->return(true)",
 	)
 	failMarkerPath := filepath.Join(lm.GetExportDir(), "failpoints", "failpoint-import-snapshot-transform-error.log")
 
 	t.Log("Starting import with snapshot transform failpoint...")
 	err = lm.StartImportDataWithEnv(true, map[string]string{
-		"--batch-size":           "2",
+		"--batch-size":           "100",
 		"--parallel-jobs":        "1",
 		"--adaptive-parallelism": "disabled",
 	}, []string{
