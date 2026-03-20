@@ -1,4 +1,5 @@
 //go:build failpoint
+
 /*
 Copyright (c) YugabyteDB, Inc.
 
@@ -142,7 +143,7 @@ func verifyNewIterationForward(t *testing.T, lm *LiveMigrationTest) {
 	require.NoError(t, err, "failed to execute source delta on new iteration")
 
 	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
-		tableName: {Inserts: deltaInserts},
+		tableName: {Inserts: deltaInserts + 5},
 	}, 60, 1)
 	require.NoError(t, err, "forward streaming did not complete on new iteration")
 
