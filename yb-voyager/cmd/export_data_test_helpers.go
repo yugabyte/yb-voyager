@@ -283,18 +283,6 @@ func hashSnapshotDescriptorSnapshotFailure(exportDir string) (string, error) {
 	return fmt.Sprintf("%x", sha256.Sum256(data)), nil
 }
 
-func assertSourceRowCount(t *testing.T, container testcontainers.TestContainer, expected int) {
-	t.Helper()
-	pgConn, err := container.GetConnection()
-	require.NoError(t, err, "Failed to get PostgreSQL connection")
-	defer pgConn.Close()
-
-	var sourceRowCount int
-	err = pgConn.QueryRow("SELECT COUNT(*) FROM test_schema_multi_fail.cdc_multi_fail_test").Scan(&sourceRowCount)
-	require.NoError(t, err, "Failed to query source row count")
-	require.Equal(t, expected, sourceRowCount, "Source row count should match expected")
-}
-
 func collectEventIDsForOffsetCommitTest(exportDir string) (map[string]struct{}, error) {
 	queueDir := filepath.Join(exportDir, "data", "queue")
 	files, err := filepath.Glob(filepath.Join(queueDir, "segment.*.ndjson"))
